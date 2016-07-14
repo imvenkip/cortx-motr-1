@@ -17,10 +17,12 @@ readonly etc_halon_dir='/etc/halon'
 # variables
 verbose=false
 do_cleanup=false
+do_loop_cleanup=false
 do_gendisk=true
 do_genfacts=false
 do_mkfs=false
 activate_singlenode=false
+only_list_disks=false
 pool_width=8
 data_units=2
 parity_units=1
@@ -28,6 +30,7 @@ ios_num=1
 loop_img_dir='/var/mero'
 mero_data_dir='/var/mero'
 loop_img_size_gb=64
+disk_pattern=
 
 #
 # Usage
@@ -66,10 +69,22 @@ Usage: $PROG_NAME [-h|--help] [-v|--verbose] [-c]
 
    -m|--mero-dir path      Mero metadata directory. Default is '$mero_data_dir'.
 
-   -c|--cleanup            Detach connected loop devices and remove image files.
-                           Number of loop devices is taken from '-P|--pool-width'
-                           and image files location from '-d|--loop-img-dir'
-                           options.
+   -p|--disk-pattern pat   A shell pathname expansion pattern, which specifies a
+                           set of existing block devices to be used for mero
+                           ioservice storage. By default it is none, which means
+                           plain file disk images will be generated and attached
+                           to loop devices.
+
+   -l|--list-disks         List disks matched by pattern (requires --disk-pattern
+                           option).
+
+   -c|--cleanup            Clean generated config files, detach connected loop
+                           devices and remove image files. Number of loop devices
+                           is taken from '-P|--pool-width' and image files
+                           location from '-d|--loop-img-dir' options.
+
+   -C                      Clean generated config files only, doesn't affect loop
+                           devices.
 
    -G|--no-gendisk         Don't generate YAML file with disk information.
 
@@ -101,8 +116,8 @@ parse_cli_options()
     # Note that we use `"$@"' to let each command-line parameter expand to a
     # separate word. The quotes around `$@' are essential!
     # We need TEMP as the `eval set --' would nuke the return value of getopt.
-    TEMP=$( getopt --options hvcGHAMP:N:K:i:d:m:s: \
-                   --longoptions help,verbose,cleanup,no-gendisk,halon-facts,activate-singlenode-services,mkfs,pool-width:,data-units:,parity-units:,ios-number:,loop-img-dir:,mero-dir:,disk-size: \
+    TEMP=$( getopt --options hvclCGHAMP:N:K:i:d:m:s:p: \
+                   --longoptions help,verbose,cleanup,no-gendisk,halon-facts,activate-singlenode-services,mkfs,list-disks,pool-width:,data-units:,parity-units:,ios-number:,loop-img-dir:,mero-dir:,disk-size:,disk-pattern: \
                    --name "$PROG_NAME" -- "$@" )
 
     [[ $? -ne 0 ]] && help
@@ -113,11 +128,13 @@ parse_cli_options()
     while true ; do
         case "$1" in
             -h|--help)          help stdout ;;
-            -c|cleanup)         do_cleanup=true;      shift   ;;
+            -c|--cleanup)       do_cleanup=true; do_loop_cleanup=true; shift ;;
+            -l|--list-disks)    only_list_disks=true; shift   ;;
+            -C)                 do_cleanup=true;      shift   ;;
             -G|--no-gendisk)    do_gendisk=false;     shift   ;;
             -H|--halon-facts)   do_genfacts=true; do_gendisk=false; shift ;;
             -A|--activate-singlenode-services)
-                                activate_singlenode=true; shift   ;;
+                                activate_singlenode=true; shift ;;
             -M|--mkfs)          do_mkfs=true;         shift   ;;
             -P|--pool-width)    pool_width=$2;        shift 2 ;;
             -N|--data-units)    data_units=$2;        shift 2 ;;
@@ -126,6 +143,7 @@ parse_cli_options()
             -d|--loop-img-dir)  loop_img_dir=$2;      shift 2 ;;
             -m|--mero-dir)      mero_data_dir=$2;     shift 2 ;;
             -s|--disk-size)     loop_img_size_gb=$2;  shift 2 ;;
+            -p|--disk-pattern)  disk_pattern=$2;      shift 2 ;;
             -v)                 verbose=true;         shift   ;;
             --)                 shift; break ;;
             *)                  echo 'getopt: internal error...'; exit 1 ;;
@@ -255,11 +273,11 @@ generate_halon_facts()
 
     local vopt=$( $verbose && echo '-v' )
     local halon_facts="$etc_halon_dir/halon_facts.yaml"
-    local disk_pattern="/dev/loop{1..$pool_width}"
-    local disks=$(m0gendisks -l -d $pool_width -p "$disk_pattern")
+    local pattern=${disk_pattern:-"/dev/loop{1..$pool_width}"}
+    local disks=$(m0gendisks -l -d $pool_width -p "$pattern")
 
     [[ -n $disks ]] ||
-        die "failed to find disks matching '$disk_pattern' pattern"
+        die "failed to find disks matching '$pattern' pattern"
 
     debug $disks
 
@@ -269,17 +287,29 @@ generate_halon_facts()
 generate_disk_configs()
 {
     local m0gendisks=$(path_of m0gendisks)
+    local vopt=$( $verbose && echo '-v' )
     local disks_per_ios=$(( $pool_width / $ios_num ))
     local start_id=1
 
+    if [[ -n $disk_pattern ]] ; then
+        local disks=( $(m0gendisks -l -d $pool_width -p "$disk_pattern") )
+    fi
+
     log "Generating disks-*.conf files"
     for i in $(seq $ios_num) ; do
-        local vopt=$( $verbose && echo '-v' )
         local disks_conf="$etc_mero_dir/disks-ios${i}.conf"
-        local disk_pattern="/dev/loop{${start_id}..$(( $start_id + $disks_per_ios - 1 ))}"
-        debug "$disks_conf $disk_pattern"
-        $m0gendisks -d $disks_per_ios -S $start_id -p "$disk_pattern" \
-                    -o "$disks_conf" $vopt
+
+        if [[ -v disks ]] ; then
+            debug "$disks_conf ${disks[@]:$((start_id - 1)):$disks_per_ios}"
+            $m0gendisks -d $disks_per_ios -S $start_id -o "$disks_conf" $vopt \
+                        ${disks[@]:$((start_id - 1)):$disks_per_ios}
+        else
+            local pattern="/dev/loop{${start_id}..$(( $start_id + $disks_per_ios - 1 ))}"
+            debug "$disks_conf $pattern"
+            $m0gendisks -d $disks_per_ios -S $start_id -p "$pattern" \
+                        -o "$disks_conf" $vopt
+        fi
+
         start_id=$(( $start_id + $disks_per_ios ))
     done
 }
@@ -319,7 +349,9 @@ parse_cli_options "$@"
     die 'Please, run this script with "root" privileges.'
 
 if $do_cleanup ; then
-    cleanup_loop_devices
+    if $do_loop_cleanup ; then
+        cleanup_loop_devices
+    fi
     cleanup_ios_configs
     cleanup_mero_configs
     exit 0
@@ -330,13 +362,24 @@ if $activate_singlenode ; then
     exit 0
 fi
 
+if $only_list_disks && [[ -z $disk_pattern ]] ; then
+    die "-l|--list-disks option requires the -p|--disk-pattern option"
+fi
+
 [[ $(( $pool_width % $ios_num )) -eq 0 ]] ||
     die "Requested configuration with pool-width=$pool_width and" \
         "ios-number=$ios_num is not supported, pool-width should be a multiple" \
         "of ios-number"
 
-log "Requested configuration: [P=$pool_width N=$data_units K=$parity_units]" \
-    "with $ios_num ioservice(s), ${loop_img_size_gb}GiB disks in '$loop_img_dir'"
+if [[ -n $disk_pattern ]] ; then
+    info_msg="disk pattern $disk_pattern"
+else
+    info_msg="${loop_img_size_gb}GiB disks in '$loop_img_dir'"
+fi
+
+$only_list_disks ||
+    log "Requested configuration: [P=$pool_width N=$data_units K=$parity_units]" \
+        "with $ios_num ioservice(s), $info_msg"
 
 [[ -d $etc_mero_dir ]] || {
     warn "'$etc_mero_dir' doesn't exits, creating.." ;
@@ -348,7 +391,14 @@ log "Requested configuration: [P=$pool_width N=$data_units K=$parity_units]" \
     mkdir -p "$etc_halon_dir" ;
 }
 
-init_loop_devices
+if [[ -n $disk_pattern ]] ; then
+    if $only_list_disks ; then
+        $(path_of m0gendisks) -l -d $pool_width -p "$disk_pattern"
+        exit 0
+    fi
+else
+    init_loop_devices
+fi
 
 if $do_genfacts ; then
     generate_halon_facts

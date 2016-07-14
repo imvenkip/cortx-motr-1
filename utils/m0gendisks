@@ -32,6 +32,7 @@ start_id=$default_start_id
 disk_pattern=$default_disk_pattern
 only_print_count=false
 only_print_disks=false
+cli_args=
 
 
 #
@@ -50,7 +51,13 @@ usage()
 Usage: $PROG_NAME [-h|--help] [-v] [-c] [-o|--output file]
                   [-O[file], --split-output[=file]] [-s|--split-count num]
                   [-d|--disk-count num] [-S|--start-id num]
-                  [-p|--disk-pattern pattern]
+                  [-p|--disk-pattern pattern]  [disk1 disk2 disk3..]
+
+    Searches for available unformatted disks, matching the pattern and excluding
+    disk partitions and labled disks (MRB/GPT).
+
+    A list of block device names can be specified as arguments. In that case no
+    checks are performed on each disk and --disk-pattern option is ignored.
 
     -c                     Only print number of available disks in the system,
                            those which match requirements, and exit. All other
@@ -93,6 +100,9 @@ Usage: $PROG_NAME [-h|--help] [-v] [-c] [-o|--output file]
 
                              /dev/loop[0-3]
                              /dev/disk/by-id/scsi-35*0{1,4}
+
+                           If list of disks is provided through command-line
+                           arguments, the pattern is ignored.
 
     -v                     Verbose output. Prints additional information to STDERR.
                            Can be specified more than once (-vv) to get more
@@ -137,6 +147,9 @@ parse_cli_options()
             *)                  echo 'getopt: internal error...'; exit 1 ;;
         esac
     done
+
+    # remaining command line arguments
+    cli_args="$@"
 }
 
 
@@ -242,8 +255,16 @@ generate_yaml_config()
 set -e
 
 parse_cli_options "$@"
+eval set -- "$cli_args"
 
-disks=$(find_available_disks "$disk_pattern")
+if [[ -n $1 ]] ; then
+    old_ifs="$IFS"
+    IFS=$'\n'
+    disks="$*"
+    IFS="$old_ifs"
+else
+    disks=$(find_available_disks "$disk_pattern")
+fi
 
 found_disk_cnt=$(echo -n -e "$disks${disks:+\n}" | wc -l)
 info "Number of disks found: $found_disk_cnt"
