@@ -99,8 +99,10 @@ M0_TL_DECLARE(rpcbulk, M0_INTERNAL, struct m0_rpc_bulk_buf);
 int m0t1fs_rpc_init(struct m0t1fs_sb *csb, const char *ep);
 int m0t1fs_net_init(struct m0t1fs_sb *csb, const char *ep);
 int m0t1fs_reqh_services_start(struct m0t1fs_sb *csb);
+int m0t1fs_ha_init(struct m0t1fs_sb *csb, const char *ha_addr);
 void m0t1fs_rpc_fini(struct m0t1fs_sb *csb);
 void m0t1fs_net_fini(struct m0t1fs_sb *csb);
+void m0t1fs_ha_fini(struct m0t1fs_sb *csb);
 
 #define LOCAL_EP   "0@lo:12345:45:1"
 
@@ -223,9 +225,14 @@ static int file_io_ut_init(void)
 		.ca_group   = &csb.csb_iogroup,
 	};
 
+	rc = m0t1fs_ha_init(&csb, csb.csb_laddr);
+	M0_UT_ASSERT(rc == 0);
+
 	rc = m0_reqh_conf_setup(reqh, confc_args);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rconfc_start_sync(&reqh->rh_rconfc, &profile);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_ha_client_add(m0_reqh2confc(reqh));
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_conf_fs_get(&reqh->rh_profile, m0_reqh2confc(reqh), &fs);
 	M0_UT_ASSERT(rc == 0);
@@ -327,8 +334,10 @@ static int file_io_ut_fini(void)
 	m0_pools_service_ctx_destroy(&csb.csb_pools_common);
 	m0_pools_destroy(&csb.csb_pools_common);
 	m0_pools_common_fini(&csb.csb_pools_common);
+	m0_ha_client_del(m0_reqh2confc(&csb.csb_reqh));
 	m0_rconfc_stop_sync(&csb.csb_reqh.rh_rconfc);
 	m0_rconfc_fini(&csb.csb_reqh.rh_rconfc);
+	m0t1fs_ha_fini(&csb);
 	m0_reqh_services_terminate(&csb.csb_reqh);
 	m0t1fs_rpc_fini(&csb);
 	m0t1fs_net_fini(&csb);

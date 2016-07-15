@@ -465,7 +465,7 @@ static void m0t1fs_ha_process_event(struct m0t1fs_sb              *csb,
  * Establishes rpc session to HA service. The session is set up to be used
  * globally.
  */
-static int m0t1fs_ha_init(struct m0t1fs_sb *csb, const char *ha_addr)
+int m0t1fs_ha_init(struct m0t1fs_sb *csb, const char *ha_addr)
 {
 	struct m0_mero_ha_cfg mero_ha_cfg;
 	int                   rc;
@@ -494,7 +494,7 @@ static int m0t1fs_ha_init(struct m0t1fs_sb *csb, const char *ha_addr)
 /**
  * Clears global HA session info and terminates rpc session to HA service.
  */
-static void m0t1fs_ha_fini(struct m0t1fs_sb *csb)
+void m0t1fs_ha_fini(struct m0t1fs_sb *csb)
 {
 	M0_ENTRY("csb: %p", csb);
 	m0t1fs_ha_process_event(csb, M0_CONF_HA_PROCESS_STOPPED);

@@ -183,7 +183,10 @@ mero_ha_entrypoint_request_cb(struct m0_ha                      *ha,
 		     mero_ha_entrypoint_rep_rm_fill(profile, confc,
 		                                    &rep.hae_active_rm_fid,
 		                                    &rep.hae_active_rm_ep);
+	M0_ASSERT(ergo(rep.hae_rc == 0, confd_ep != NULL));
 	confd_eps[0] = confd_ep;
+	if (rep.hae_rc != 0)
+		rep.hae_confd_fids.af_count = 0;
 	M0_LOG(M0_DEBUG, "request");
 	m0_ha_entrypoint_reply(ha, req_id, &rep, NULL);
 	m0_free(confd_ep);
