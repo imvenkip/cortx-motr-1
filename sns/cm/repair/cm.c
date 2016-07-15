@@ -98,8 +98,13 @@ static void repair_cm_stop(struct m0_cm *cm)
 
 	cc = &pc->pc_confc->cc_cache;
 	m0_tl_for(pools, &pc->pc_pools, pool) {
-		rc = m0_sns_cm_pool_ha_nvec_alloc(pool, M0_PNDS_SNS_REPAIRING, &nvec);
+		/* Skip mdpool, since only io pools are repaired. */
+		if (m0_fid_eq(&pc->pc_md_pool->po_id, &pool->po_id))
+			continue;
+		rc = m0_sns_cm_pool_ha_nvec_alloc(pool, M0_PNDS_SNS_REPAIRING,
+						  &nvec);
 		if (rc != 0) {
+			M0_LOG(M0_DEBUG, FID_F"rc:%d", FID_P(&pool->po_id), rc);
 			if (rc == -ENOENT)
 				continue;
 			M0_LOG(M0_ERROR, "HA note allocation failed with rc: %d", rc);
@@ -114,6 +119,7 @@ static void repair_cm_stop(struct m0_cm *cm)
 				M0_ASSERT(rc == 0);
 				disk = M0_CONF_CAST(disk_obj, m0_conf_disk);
 				M0_ASSERT(disk != NULL);
+				M0_LOG(M0_DEBUG, FID_F, FID_P(&pool->po_id));
 				if (m0_sns_cm_disk_has_dirty_pver(cm, disk)) {
 					dstate = M0_NC_REPAIR;
 					pstate = M0_NC_REPAIR;

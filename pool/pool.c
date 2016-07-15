@@ -493,12 +493,15 @@ M0_INTERNAL int m0_pool_version_init(struct m0_pool_version *pv,
 
 	M0_ENTRY();
 
+	M0_LOG(M0_DEBUG, FID_F"N:%d K:%d P:%di", FID_P(id), nr_data,
+			nr_failures, pool_width);
 	pv->pv_id = *id;
 	pv->pv_attr.pa_N = nr_data;
 	pv->pv_attr.pa_K = nr_failures;
 	pv->pv_attr.pa_P = pool_width;
 	pv->pv_pool = pool;
 	pv->pv_nr_nodes = nr_nodes;
+
 	if (be_seg != NULL)
 		rc = m0_poolmach_backed_init2(&pv->pv_mach, pv, be_seg, sm_grp,
 					      pv->pv_nr_nodes, pv->pv_attr.pa_P,

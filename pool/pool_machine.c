@@ -69,35 +69,49 @@ static bool is_controllerv_or_diskv(const struct m0_conf_obj *obj)
 		      (&M0_CONF_CONTROLLER_TYPE, &M0_CONF_DISK_TYPE));
 }
 
-static void poolmach_state_update(struct m0_poolmach_state *st,
-				  const struct m0_conf_obj *objv_real,
-				  uint32_t                 *idx_nodes,
-				  uint32_t                 *idx_devices)
+static int poolmach_state_update(struct m0_poolmach_state *st,
+			         const struct m0_conf_obj *objv_real,
+			         uint32_t                 *idx_nodes,
+			         uint32_t                 *idx_devices)
 {
 	struct m0_conf_disk *d;
+	int                  rc = 0;
+
+	M0_ENTRY();
 
 	if (m0_conf_obj_type(objv_real) == &M0_CONF_CONTROLLER_TYPE) {
 		st->pst_nodes_array[*idx_nodes].pn_id = objv_real->co_id;
 		M0_CNT_INC(*idx_nodes);
 	} else if (m0_conf_obj_type(objv_real) == &M0_CONF_DISK_TYPE) {
+		struct m0_poolmach_event  pme;
+		struct m0_pool_version   *pv;
+		struct m0_pooldev        *pdev =
+			&st->pst_devices_array[*idx_devices];
+
 		d = M0_CONF_CAST(objv_real, m0_conf_disk);
-		st->pst_devices_array[*idx_devices].pd_id =
-			d->ck_obj.co_id;
-		st->pst_devices_array[*idx_devices].pd_sdev_idx =
-			d->ck_dev->sd_dev_idx;
-		st->pst_devices_array[*idx_devices].pd_index = *idx_devices;
-		st->pst_devices_array[*idx_devices].pd_node =
-			&st->pst_nodes_array[*idx_nodes];
-		st->pst_devices_array[*idx_devices].pd_state =
-			m0_ha2pm_state_map(d->ck_obj.co_ha_state);
+		pdev->pd_id = d->ck_obj.co_id;
+		pdev->pd_sdev_idx = d->ck_dev->sd_dev_idx;
+		pdev->pd_index = *idx_devices;
+		pdev->pd_node = &st->pst_nodes_array[*idx_nodes];
+		pdev->pd_state = m0_ha2pm_state_map(d->ck_obj.co_ha_state);
 		m0_conf_obj_get_lock(&d->ck_obj);
-		m0_pooldev_clink_add(
-			&st->pst_devices_array[*idx_devices].pd_clink,
-			&d->ck_obj.co_ha_chan);
+		m0_pooldev_clink_add(&pdev->pd_clink, &d->ck_obj.co_ha_chan);
+
+		pme.pe_type = M0_POOL_DEVICE;
+		pme.pe_index = *idx_devices;
+		pme.pe_state = m0_ha2pm_state_map(d->ck_obj.co_ha_state);
+
+		/* Mark associated pool version dirty. */
+		pv = container_of(pdev->pd_pm, struct m0_pool_version, pv_mach);
+		pv->pv_is_dirty = (d->ck_obj.co_ha_state != M0_NC_ONLINE);
+
+		rc = m0_poolmach_state_transit(pdev->pd_pm, &pme, NULL);
+
 		M0_CNT_INC(*idx_devices);
 	} else {
 		M0_IMPOSSIBLE("Invalid conf_obj type");
 	}
+	return M0_RC(rc);
 }
 
 static bool poolmach_conf_expired_cb(struct m0_clink *clink)
@@ -182,12 +196,20 @@ M0_INTERNAL int m0_poolmach_init_by_conf(struct m0_poolmach *pm,
 		return M0_ERR(rc);
 
 	while ((rc = m0_conf_diter_next_sync(&it, is_controllerv_or_diskv)) ==
-	       M0_CONF_DIRNEXT)
-		poolmach_state_update(pm->pm_state,
-				      M0_CONF_CAST(m0_conf_diter_result(&it),
-						   m0_conf_objv)->cv_real,
-				      &idx_nodes, &idx_devices);
+	       M0_CONF_DIRNEXT) {
+		M0_LOG(M0_DEBUG, "rc:%d", rc);
+		rc = poolmach_state_update(pm->pm_state,
+			M0_CONF_CAST(m0_conf_diter_result(&it),
+				     m0_conf_objv)->cv_real,
+			&idx_nodes, &idx_devices);
+		if (rc != 0)
+			break;
+	}
+
 	m0_conf_diter_fini(&it);
+	if (rc != 0)
+		return M0_RC(rc);
+
 	m0_clink_init(&pm->pm_state->pst_conf_exp, &poolmach_conf_expired_cb);
 	m0_clink_init(&pm->pm_state->pst_conf_ready, &poolmach_conf_ready_cb);
 	m0_clink_add_lock(&reqh->rh_conf_cache_exp,
@@ -491,7 +513,9 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach       *pm,
 	struct m0_pooldev             *pd;
 	enum m0_pool_nd_state          old_state = M0_PNDS_FAILED;
 	int                            rc = 0;
-	int                            i;
+	int                            i = 0;
+
+	M0_ENTRY();
 
 	M0_PRE(pm != NULL);
 	M0_PRE(event != NULL);
@@ -533,10 +557,7 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach       *pm,
 
 	switch (old_state) {
 	case M0_PNDS_UNKNOWN:
-		if (!M0_IN(event->pe_state, (M0_PNDS_ONLINE,
-					     M0_PNDS_OFFLINE,
-					     M0_PNDS_FAILED)))
-			return M0_ERR(-EINVAL);
+		/* assume this is first time state transit. */
 		break;
 	case M0_PNDS_ONLINE:
 		if (!M0_IN(event->pe_state, (M0_PNDS_OFFLINE,
@@ -609,8 +630,10 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach       *pm,
 			}
 		}
 		pd = &state->pst_devices_array[event->pe_index];
-		if (pool_failed_devs_tlink_is_in(pd))
+		if (pool_failed_devs_tlink_is_in(pd)) {
+			M0_CNT_DEC(state->pst_nr_failures);
 			pool_failed_devs_tlist_del(pd);
+		}
 		break;
 	case M0_PNDS_FAILED:
 		 /*
@@ -633,11 +656,15 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach       *pm,
 			}
 		}
 		if (i == state->pst_max_device_failures) {
-			/* No free spare space slot is found!!
-			 * The pool is in DUD state!!
-			 */
+			M0_LOG(M0_ERROR, FID_F"No free spare space slot is"
+				"found!! This pool version is in DUD state!!"
+				"event index:%d event state:%d",
+				FID_P(&pm->pm_pver->pv_id),
+				event->pe_index,
+				event->pe_state);
 			/* TODO add ADDB error message here */
 		}
+		M0_CNT_INC(state->pst_nr_failures);
 		pd = &state->pst_devices_array[event->pe_index];
 		if (!pool_failed_devs_tlink_is_in(pd) &&
 		    !disk_is_in(&pool->po_failed_devices, pd))
@@ -655,8 +682,13 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach       *pm,
 				break;
 			}
 		}
+		if (i == state->pst_max_device_failures)
+			M0_LOG(M0_ERROR, FID_F" This pool is in DUD state!!"
+					"event index:%d event state:%d",
+					FID_P(&pm->pm_pver->pv_id),
+					event->pe_index,
+					event->pe_state);
 		/* must found */
-		M0_ASSERT(i < state->pst_max_device_failures);
 		break;
 	default:
 		/* Do nothing */

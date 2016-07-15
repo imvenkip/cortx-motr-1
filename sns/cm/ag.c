@@ -432,6 +432,7 @@ M0_INTERNAL int m0_sns_cm_ag_init(struct m0_sns_cm_ag *sag,
 	uint64_t                    upg;
 	uint64_t                    f_nr;
 	int                         rc = 0;
+	struct m0_poolmach_state   *pm_state;
 
 	M0_ENTRY("scm: %p, ag id:%p", cm, id);
 	M0_PRE(sag != NULL && cm != NULL && id != NULL && ag_ops != NULL);
@@ -446,9 +447,11 @@ M0_INTERNAL int m0_sns_cm_ag_init(struct m0_sns_cm_ag *sag,
 	m0_bitmap_init(&sag->sag_proxy_incoming_map, scm->sc_base.cm_proxy_nr);
 
 	sag->sag_fctx = fctx;
+	pm_state = fctx->sf_pm->pm_state;
 	/* calculate actual failed number of units in this group. */
 	f_nr = m0_sns_cm_ag_unrepaired_units(scm, fctx, id->ai_lo.u_lo, &sag->sag_fmap);
 	if (f_nr == 0 || f_nr > m0_pdclust_K(pl) ||
+	    pm_state->pst_nr_failures > pm_state->pst_max_device_failures ||
 	    M0_FI_ENABLED("ag_init_failure")) {
 		m0_bitmap_fini(&sag->sag_fmap);
 		m0_bitmap_fini(&sag->sag_proxy_incoming_map);

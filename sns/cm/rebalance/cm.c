@@ -107,6 +107,9 @@ static void rebalance_cm_stop(struct m0_cm *cm)
 
 	cc = &pc->pc_confc->cc_cache;
 	m0_tl_for(pools, &pc->pc_pools, pool) {
+		/* Skip mdpool, since only io pools are rebalanced. */
+		if (m0_fid_eq(&pc->pc_md_pool->po_id, &pool->po_id))
+			continue;
 		rc = m0_sns_cm_pool_ha_nvec_alloc(pool, M0_PNDS_SNS_REBALANCING, &nvec);
 		if (rc != 0) {
 			if (rc == -ENOENT)
