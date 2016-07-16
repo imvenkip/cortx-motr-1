@@ -43,7 +43,8 @@ M0_INTERNAL void m0_ha_link_service_fini(struct m0_reqh_service *hl_service);
 /** Find link by local link id */
 M0_INTERNAL struct m0_ha_link *
 m0_ha_link_service_find(struct m0_reqh_service  *service,
-                        const struct m0_uint128 *link_id);
+                        const struct m0_uint128 *link_id,
+                        struct m0_uint128       *connection_id);
 
 M0_INTERNAL void m0_ha_link_service_register(struct m0_reqh_service *service,
                                              struct m0_ha_link      *hl);

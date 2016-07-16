@@ -23,13 +23,14 @@
  * @addtogroup ha
  *
  * TODO remove m0_ha_outgoing_session()
- * TODO add m0_module to m0_ha
  * TODO handle memory allocation errors
  * TODO handle all errors
- * TODO handle error when link_id_request is false and no link is established
  * TODO add magics for ha_links
  * TODO take hlcc_rpc_service_fid for incoming connections from HA
  * TODO deal with locking in ha_link_incoming_find()
+ * TODO s/container_of/bob_of/g
+ * TODO deal with race: m0_ha_connect() with entrypoint client state
+ * TODO use ml_name everywhere in ha/
  *
  * @{
  */
@@ -55,6 +56,8 @@
 enum {
 	HA_MAX_RPCS_IN_FLIGHT = 2,
 	HA_DISCONNECT_TIMEOUT = 5,
+	HA_RESEND_INTERVAL    = 1,
+	HA_NR_SENT_MAX        = 10,
 };
 
 struct m0_ha_module {
@@ -107,11 +110,10 @@ static bool ha_link_event_cb(struct m0_clink *clink)
 	return true;
 }
 
-static int ha_link_ctx_init(struct m0_ha               *ha,
-                            struct ha_link_ctx         *hlx,
-                            struct m0_ha_link_cfg      *hl_cfg,
-                            struct m0_ha_link_conn_cfg *hl_conn_cfg,
-                            enum ha_link_ctx_type       hlx_type)
+static int ha_link_ctx_init(struct m0_ha          *ha,
+                            struct ha_link_ctx    *hlx,
+                            struct m0_ha_link_cfg *hl_cfg,
+                            enum ha_link_ctx_type  hlx_type)
 {
 	struct m0_ha_link *hl = &hlx->hlx_link;
 	int                rc;
@@ -124,14 +126,15 @@ static int ha_link_ctx_init(struct m0_ha               *ha,
 	M0_ASSERT(rc == 0);
 	m0_clink_init(&hlx->hlx_clink, &ha_link_event_cb);
 	m0_clink_add_lock(m0_ha_link_chan(hl), &hlx->hlx_clink);
-	m0_ha_link_start(hl, hl_conn_cfg);
 
 	hlx->hlx_ha   = ha;
 	hlx->hlx_type = hlx_type;
 	ha_links_tlink_init_at_tail(hlx, hlx_type == HLX_INCOMING ?
 				    &ha->h_links_incoming :
 				    &ha->h_links_outgoing);
-	m0_semaphore_init(&hlx->hlx_disconnect_sem, 0);
+	rc = m0_semaphore_init(&hlx->hlx_disconnect_sem, 0);
+	M0_ASSERT(rc == 0);     /* XXX */
+
 	return M0_RC(0);
 }
 
@@ -142,11 +145,20 @@ static void ha_link_ctx_fini(struct m0_ha *ha, struct ha_link_ctx *hlx)
 	m0_semaphore_fini(&hlx->hlx_disconnect_sem);
 	ha_links_tlink_del_fini(hlx);
 
-	m0_ha_link_stop(&hlx->hlx_link);
 	m0_clink_del_lock(&hlx->hlx_clink);
 	m0_clink_fini(&hlx->hlx_clink);
 	m0_ha_link_fini(&hlx->hlx_link);
 	M0_LEAVE();
+}
+
+static uint64_t ha_generation_next(struct m0_ha *ha)
+{
+	uint64_t generation;
+
+	m0_mutex_lock(&ha->h_lock);
+	generation = ha->h_generation_counter++;
+	m0_mutex_unlock(&ha->h_lock);
+	return generation;
 }
 
 static void
@@ -161,11 +173,27 @@ ha_request_received_cb(struct m0_ha_entrypoint_server    *hes,
 	ha->h_cfg.hcf_ops.hao_entrypoint_request(ha, req, req_id);
 }
 
+static void ha_link_conn_cfg_make(struct m0_ha_link_conn_cfg *hl_conn_cfg,
+                                  const char                 *rpc_endpoint)
+{
+	*hl_conn_cfg = (struct m0_ha_link_conn_cfg) {
+		.hlcc_rpc_service_fid    = M0_FID0,
+		.hlcc_rpc_endpoint       = rpc_endpoint,
+		.hlcc_max_rpcs_in_flight = HA_MAX_RPCS_IN_FLIGHT,
+		.hlcc_connect_timeout    = M0_TIME_NEVER,
+		.hlcc_disconnect_timeout = M0_MKTIME(HA_DISCONNECT_TIMEOUT, 0),
+		.hlcc_resend_interval    = M0_MKTIME(HA_RESEND_INTERVAL, 0),
+		.hlcc_nr_sent_max        = HA_NR_SENT_MAX,
+	};
+}
+
 static bool ha_entrypoint_state_cb(struct m0_clink *clink)
 {
 	enum m0_ha_entrypoint_client_state  state;
 	struct m0_ha_entrypoint_client     *ecl;
+	struct m0_ha_entrypoint_req        *req;
 	struct m0_ha_entrypoint_rep        *rep;
+	struct m0_ha_link_conn_cfg          hl_conn_cfg;
 	struct m0_ha                       *ha;
 	bool                                consumed = true;
 
@@ -174,30 +202,296 @@ static bool ha_entrypoint_state_cb(struct m0_clink *clink)
 	ha    = container_of(clink, struct m0_ha, h_clink);
 	ecl   = &ha->h_entrypoint_client;
 	state = m0_ha_entrypoint_client_state_get(ecl);
+	req   = &ha->h_entrypoint_client.ecl_req;
+	rep   = &ha->h_entrypoint_client.ecl_rep;
+	M0_LOG(M0_DEBUG, "ha=%p ecl=%p state=%d", ha, ecl, state);
 
 	switch (state) {
 	case M0_HEC_AVAILABLE:
-		rep = &ha->h_entrypoint_client.ecl_rep;
 		M0_LOG(M0_DEBUG, "ha=%p rep->hae_rc=%d", ha, rep->hae_rc);
-		if (rep->hae_rc != 0)
+		if (req->heq_first_request) {
+			ha_link_conn_cfg_make(&hl_conn_cfg, ha->h_cfg.hcf_addr);
+			hl_conn_cfg.hlcc_params = rep->hae_link_params;
+			m0_ha_link_start(&ha->h_link_ctx->hlx_link,
+					 &hl_conn_cfg);
+			ha->h_link_started = true;
+			req->heq_first_request = false;
+		}
+		if (rep->hae_rc != 0) {
 			m0_ha_entrypoint_client_request(ecl);
-		else
+		} else {
 			ha->h_cfg.hcf_ops.hao_entrypoint_replied(ha, rep);
+		}
 		consumed = rep->hae_rc != 0;
 		break;
-
 	case M0_HEC_UNAVAILABLE:
 		m0_ha_entrypoint_client_request(ecl);
 		break;
-
+	case M0_HEC_FILL:
+		req->heq_generation = ha_generation_next(ha);
+		if (!req->heq_first_request) {
+			m0_ha_link_reconnect_begin(&ha->h_link_ctx->hlx_link,
+						   &req->heq_link_params);
+		}
+		break;
 	default:
 		break;
 	}
-
 	M0_LEAVE();
-
 	return consumed;
 }
+
+/* tentative definition, isn't possible in C++ */
+static const struct m0_modlev ha_levels[];
+
+static int ha_level_enter(struct m0_module *module)
+{
+	struct m0_ha_link_cfg  hl_cfg;
+	enum m0_ha_level       level = module->m_cur + 1;
+	struct m0_ha          *ha;
+	char                  *addr;
+	int                    rc;
+
+	ha = container_of(module, struct m0_ha, h_module);
+	M0_ENTRY("ha=%p level=%d %s", ha, level, ha_levels[level].ml_name);
+	switch (level) {
+	case M0_HA_LEVEL_ASSIGNS:
+		m0_mutex_init(&ha->h_lock);
+		ha_links_tlist_init(&ha->h_links_incoming);
+		ha_links_tlist_init(&ha->h_links_outgoing);
+		m0_clink_init(&ha->h_clink, ha_entrypoint_state_cb);
+		ha->h_link_id_counter    = 1;
+		ha->h_generation_counter = 1;
+		ha->h_link_started       = false;
+		return M0_RC(0);
+	case M0_HA_LEVEL_ADDR_STRDUP:
+		addr = m0_strdup(ha->h_cfg.hcf_addr);
+		if (addr == NULL)
+			return M0_ERR(-ENOMEM);
+		ha->h_cfg.hcf_addr = addr;
+		return M0_RC(0);
+	case M0_HA_LEVEL_LINK_SERVICE:
+		return M0_RC(m0_ha_link_service_init(&ha->h_hl_service,
+						     ha->h_cfg.hcf_reqh));
+	case M0_HA_LEVEL_ENTRYPOINT_SERVER_INIT:
+		ha->h_cfg.hcf_entrypoint_server_cfg =
+			(struct m0_ha_entrypoint_server_cfg){
+				.hesc_reqh             = ha->h_cfg.hcf_reqh,
+				.hesc_request_received =&ha_request_received_cb,
+			};
+		return M0_RC(m0_ha_entrypoint_server_init(
+		                        &ha->h_entrypoint_server,
+		                        &ha->h_cfg.hcf_entrypoint_server_cfg));
+	case M0_HA_LEVEL_ENTRYPOINT_CLIENT_INIT:
+		ha->h_cfg.hcf_entrypoint_client_cfg =
+			(struct m0_ha_entrypoint_client_cfg){
+				.hecc_reqh        = ha->h_cfg.hcf_reqh,
+				.hecc_rpc_machine = ha->h_cfg.hcf_rpc_machine,
+				.hecc_process_fid = ha->h_cfg.hcf_process_fid,
+				.hecc_profile_fid = ha->h_cfg.hcf_profile_fid,
+			};
+		return M0_RC(m0_ha_entrypoint_client_init(
+		                         &ha->h_entrypoint_client,
+					  ha->h_cfg.hcf_addr,
+	                                 &ha->h_cfg.hcf_entrypoint_client_cfg));
+	case M0_HA_LEVEL_INIT:
+		M0_IMPOSSIBLE("can't be here");
+		return M0_ERR(-ENOSYS);
+	case M0_HA_LEVEL_ENTRYPOINT_SERVER_START:
+		m0_ha_entrypoint_server_start(&ha->h_entrypoint_server);
+		return M0_RC(0);
+	case M0_HA_LEVEL_INCOMING_LINKS:
+		return M0_RC(0);
+	case M0_HA_LEVEL_START:
+		M0_IMPOSSIBLE("can't be here");
+		return M0_ERR(-ENOSYS);
+	case M0_HA_LEVEL_LINK_CTX_ALLOC:
+		M0_ALLOC_PTR(ha->h_link_ctx);
+		if (ha->h_link_ctx == NULL)
+			return M0_ERR(-ENOMEM);
+		return M0_RC(0);
+	case M0_HA_LEVEL_LINK_CTX_INIT:
+		hl_cfg = (struct m0_ha_link_cfg){
+			.hlc_reqh         = ha->h_cfg.hcf_reqh,
+			.hlc_reqh_service = ha->h_hl_service,
+			.hlc_rpc_machine  = ha->h_cfg.hcf_rpc_machine,
+			.hlq_q_cfg_in     = {},
+			.hlq_q_cfg_out    = {},
+		};
+		rc = ha_link_ctx_init(ha, ha->h_link_ctx, &hl_cfg,
+				      HLX_OUTGOING);
+		return rc == 0 ? M0_RC(rc) : M0_ERR(rc);
+	case M0_HA_LEVEL_ENTRYPOINT_CLIENT_START:
+		ha->h_entrypoint_client.ecl_req.heq_first_request = true;
+		M0_SET0(&ha->h_entrypoint_client.ecl_req.heq_link_params);
+		m0_clink_add_lock(
+		        m0_ha_entrypoint_client_chan(&ha->h_entrypoint_client),
+			&ha->h_clink);
+		m0_ha_entrypoint_client_start(&ha->h_entrypoint_client);
+		return M0_RC(0);
+	case M0_HA_LEVEL_ENTRYPOINT_CLIENT_WAIT:
+		m0_chan_wait(&ha->h_clink);
+		return M0_RC(0);
+	case M0_HA_LEVEL_LINK_ASSIGN:
+		m0_mutex_lock(&ha->h_lock);
+		ha->h_link = &ha->h_link_ctx->hlx_link;
+		m0_mutex_unlock(&ha->h_lock);
+		return M0_RC(0);
+	case M0_HA_LEVEL_CONNECT:
+		M0_IMPOSSIBLE("can't be here");
+		return M0_ERR(-ENOSYS);
+	}
+	return M0_ERR(-ENOSYS);
+}
+
+static void ha_level_leave(struct m0_module *module)
+{
+	struct ha_link_ctx *hlx;
+	enum m0_ha_level    level = module->m_cur;
+	struct m0_ha       *ha;
+
+	ha = container_of(module, struct m0_ha, h_module);
+	M0_ENTRY("ha=%p level=%d %s", ha, level, ha_levels[level].ml_name);
+	switch (level) {
+	case M0_HA_LEVEL_ASSIGNS:
+		m0_clink_fini(&ha->h_clink);
+		ha_links_tlist_fini(&ha->h_links_outgoing);
+		ha_links_tlist_fini(&ha->h_links_incoming);
+		m0_mutex_fini(&ha->h_lock);
+		break;
+	case M0_HA_LEVEL_ADDR_STRDUP:
+		/* it's OK to free allocated in ha_level_enter() char * */
+		m0_free((char *)ha->h_cfg.hcf_addr);
+		break;
+	case M0_HA_LEVEL_LINK_SERVICE:
+		m0_ha_link_service_fini(ha->h_hl_service);
+		break;
+	case M0_HA_LEVEL_ENTRYPOINT_SERVER_INIT:
+		m0_ha_entrypoint_server_fini(&ha->h_entrypoint_server);
+		break;
+	case M0_HA_LEVEL_ENTRYPOINT_CLIENT_INIT:
+		m0_ha_entrypoint_client_fini(&ha->h_entrypoint_client);
+		break;
+	case M0_HA_LEVEL_INIT:
+		M0_IMPOSSIBLE("can't be here");
+		break;
+	case M0_HA_LEVEL_ENTRYPOINT_SERVER_START:
+		m0_ha_entrypoint_server_stop(&ha->h_entrypoint_server);
+		break;
+	case M0_HA_LEVEL_INCOMING_LINKS:
+		m0_tl_for(ha_links, &ha->h_links_incoming, hlx) {
+			M0_LOG(M0_DEBUG, "hlx=%p", hlx);
+			ha->h_cfg.hcf_ops.hao_link_is_disconnecting(ha,
+							    &hlx->hlx_link);
+			m0_semaphore_down(&hlx->hlx_disconnect_sem);
+			m0_ha_link_stop(&hlx->hlx_link);
+			ha_link_ctx_fini(ha, hlx);
+			ha->h_cfg.hcf_ops.hao_link_disconnected(ha,
+							&hlx->hlx_link);
+			m0_free(hlx);
+		} m0_tl_endfor;
+		break;
+	case M0_HA_LEVEL_START:
+		M0_IMPOSSIBLE("can't be here");
+		break;
+	case M0_HA_LEVEL_LINK_CTX_ALLOC:
+		m0_free(ha->h_link_ctx);
+		break;
+	case M0_HA_LEVEL_LINK_CTX_INIT:
+		/* @see ha_entrypoint_state_cb for m0_ha_link_start() */
+		if (ha->h_link_started)
+			m0_ha_link_stop(&ha->h_link_ctx->hlx_link);
+		ha_link_ctx_fini(ha, ha->h_link_ctx);
+		break;
+	case M0_HA_LEVEL_ENTRYPOINT_CLIENT_START:
+		m0_ha_entrypoint_client_stop(&ha->h_entrypoint_client);
+		break;
+	case M0_HA_LEVEL_ENTRYPOINT_CLIENT_WAIT:
+		m0_clink_del_lock(&ha->h_clink);
+		break;
+	case M0_HA_LEVEL_LINK_ASSIGN:
+		m0_mutex_lock(&ha->h_lock);
+		ha->h_link = NULL;
+		m0_mutex_unlock(&ha->h_lock);
+		break;
+	case M0_HA_LEVEL_CONNECT:
+		M0_IMPOSSIBLE("can't be here");
+		break;
+	}
+	M0_LEAVE();
+}
+
+static const struct m0_modlev ha_levels[] = {
+	[M0_HA_LEVEL_ASSIGNS] = {
+		.ml_name  = "M0_HA_LEVEL_ASSIGNS",
+		.ml_enter = ha_level_enter,
+		.ml_leave = ha_level_leave,
+	},
+	[M0_HA_LEVEL_ADDR_STRDUP] = {
+		.ml_name  = "M0_HA_LEVEL_ADDR_STRDUP",
+		.ml_enter = ha_level_enter,
+		.ml_leave = ha_level_leave,
+	},
+	[M0_HA_LEVEL_LINK_SERVICE] = {
+		.ml_name  = "M0_HA_LEVEL_LINK_SERVICE",
+		.ml_enter = ha_level_enter,
+		.ml_leave = ha_level_leave,
+	},
+	[M0_HA_LEVEL_ENTRYPOINT_SERVER_INIT] = {
+		.ml_name  = "M0_HA_LEVEL_ENTRYPOINT_SERVER_INIT",
+		.ml_enter = ha_level_enter,
+		.ml_leave = ha_level_leave,
+	},
+	[M0_HA_LEVEL_ENTRYPOINT_CLIENT_INIT] = {
+		.ml_name  = "M0_HA_LEVEL_ENTRYPOINT_CLIENT_INIT",
+		.ml_enter = ha_level_enter,
+		.ml_leave = ha_level_leave,
+	},
+	[M0_HA_LEVEL_INIT] = {
+		.ml_name  = "M0_HA_LEVEL_INIT",
+	},
+	[M0_HA_LEVEL_ENTRYPOINT_SERVER_START] = {
+		.ml_name  = "M0_HA_LEVEL_ENTRYPOINT_SERVER_START",
+		.ml_enter = ha_level_enter,
+		.ml_leave = ha_level_leave,
+	},
+	[M0_HA_LEVEL_INCOMING_LINKS] = {
+		.ml_name  = "M0_HA_LEVEL_INCOMING_LINKS",
+		.ml_enter = ha_level_enter,
+		.ml_leave = ha_level_leave,
+	},
+	[M0_HA_LEVEL_START] = {
+		.ml_name  = "M0_HA_LEVEL_START",
+	},
+	[M0_HA_LEVEL_LINK_CTX_ALLOC] = {
+		.ml_name  = "M0_HA_LEVEL_LINK_CTX_ALLOC",
+		.ml_enter = ha_level_enter,
+		.ml_leave = ha_level_leave,
+	},
+	[M0_HA_LEVEL_LINK_CTX_INIT] = {
+		.ml_name  = "M0_HA_LEVEL_LINK_CTX_INIT",
+		.ml_enter = ha_level_enter,
+		.ml_leave = ha_level_leave,
+	},
+	[M0_HA_LEVEL_ENTRYPOINT_CLIENT_START] = {
+		.ml_name  = "M0_HA_LEVEL_ENTRYPOINT_CLIENT_START",
+		.ml_enter = ha_level_enter,
+		.ml_leave = ha_level_leave,
+	},
+	[M0_HA_LEVEL_ENTRYPOINT_CLIENT_WAIT] = {
+		.ml_name  = "M0_HA_LEVEL_ENTRYPOINT_CLIENT_WAIT",
+		.ml_enter = ha_level_enter,
+		.ml_leave = ha_level_leave,
+	},
+	[M0_HA_LEVEL_LINK_ASSIGN] = {
+		.ml_name  = "M0_HA_LEVEL_LINK_ASSIGN",
+		.ml_enter = ha_level_enter,
+		.ml_leave = ha_level_leave,
+	},
+	[M0_HA_LEVEL_CONNECT] = {
+		.ml_name  = "M0_HA_LEVEL_CONNECT",
+	},
+};
 
 M0_INTERNAL int m0_ha_init(struct m0_ha *ha, struct m0_ha_cfg *ha_cfg)
 {
@@ -207,63 +501,33 @@ M0_INTERNAL int m0_ha_init(struct m0_ha *ha, struct m0_ha_cfg *ha_cfg)
 	         ha, ha_cfg->hcf_rpc_machine, ha_cfg->hcf_reqh);
 	M0_PRE(M0_IS0(ha));
 	ha->h_cfg = *ha_cfg;
-	ha->h_cfg.hcf_addr = m0_strdup(ha_cfg->hcf_addr);
-	M0_ASSERT(ha->h_cfg.hcf_addr != NULL);
-
-	ha_links_tlist_init(&ha->h_links_incoming);
-	ha_links_tlist_init(&ha->h_links_outgoing);
-	m0_clink_init(&ha->h_clink, ha_entrypoint_state_cb);
-	ha->h_link_id_counter = 1;
-
-	rc = m0_ha_link_service_init(&ha->h_hl_service, ha->h_cfg.hcf_reqh);
-	M0_ASSERT(rc == 0);
-
-	ha->h_cfg.hcf_entrypoint_server_cfg =
-				(struct m0_ha_entrypoint_server_cfg){
-		.hesc_reqh = ha->h_cfg.hcf_reqh,
-		.hesc_request_received = &ha_request_received_cb,
-	};
-	rc = m0_ha_entrypoint_server_init(&ha->h_entrypoint_server,
-	                                  &ha->h_cfg.hcf_entrypoint_server_cfg);
-	M0_ASSERT(rc == 0);
-
-	ha->h_cfg.hcf_entrypoint_client_cfg =
-				(struct m0_ha_entrypoint_client_cfg){
-		.hecc_reqh        = ha->h_cfg.hcf_reqh,
-		.hecc_rpc_machine = ha->h_cfg.hcf_rpc_machine,
-		.hecc_process_fid = ha->h_cfg.hcf_process_fid,
-		.hecc_profile_fid = ha->h_cfg.hcf_profile_fid,
-	};
-	rc = m0_ha_entrypoint_client_init(&ha->h_entrypoint_client,
-					  ha->h_cfg.hcf_addr,
-	                                  &ha->h_cfg.hcf_entrypoint_client_cfg);
-	M0_ASSERT(rc == 0);
-
+	m0_module_setup(&ha->h_module, "m0_ha_module",
+			ha_levels, ARRAY_SIZE(ha_levels), m0_get());
+	rc = m0_module_init(&ha->h_module, M0_HA_LEVEL_INIT);
+	if (rc != 0) {
+		m0_module_fini(&ha->h_module, M0_MODLEV_NONE);
+		return M0_ERR(rc);
+	}
 	return M0_RC(0);
 }
 
 M0_INTERNAL int m0_ha_start(struct m0_ha *ha)
 {
+	int rc;
+
 	M0_ENTRY("ha=%p", ha);
-	m0_ha_entrypoint_server_start(&ha->h_entrypoint_server);
-	return M0_RC(0);
+	rc = m0_module_init(&ha->h_module, M0_HA_LEVEL_START);
+	if (rc != 0) {
+		m0_module_fini(&ha->h_module, M0_HA_LEVEL_INIT);
+		return M0_ERR(rc);
+	}
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_ha_stop(struct m0_ha *ha)
 {
-	struct ha_link_ctx *hlx;
-
 	M0_ENTRY("ha=%p", ha);
-	m0_tl_for(ha_links, &ha->h_links_incoming, hlx) {
-		M0_LOG(M0_DEBUG, "hlx=%p", hlx);
-		ha->h_cfg.hcf_ops.hao_link_is_disconnecting(ha, &hlx->hlx_link);
-		m0_semaphore_down(&hlx->hlx_disconnect_sem);
-		ha_link_ctx_fini(ha, hlx);
-		ha->h_cfg.hcf_ops.hao_link_disconnected(ha, &hlx->hlx_link);
-		m0_free(hlx);
-	} m0_tl_endfor;
-	m0_ha_entrypoint_server_stop(&ha->h_entrypoint_server);
-	m0_ha_link_service_fini(ha->h_hl_service);
+	m0_module_fini(&ha->h_module, M0_HA_LEVEL_INIT);
 	M0_LEAVE();
 }
 
@@ -271,76 +535,34 @@ M0_INTERNAL void m0_ha_fini(struct m0_ha *ha)
 {
 	M0_ENTRY("ha=%p", ha);
 
-	m0_ha_entrypoint_client_fini(&ha->h_entrypoint_client);
-	m0_ha_entrypoint_server_fini(&ha->h_entrypoint_server);
-
-	m0_clink_fini(&ha->h_clink);
-	ha_links_tlist_fini(&ha->h_links_outgoing);
-	ha_links_tlist_fini(&ha->h_links_incoming);
-	/* it's OK to free allocated in m0_ha_init() char *pointer */
-	m0_free((char *)ha->h_cfg.hcf_addr);
+	m0_module_fini(&ha->h_module, M0_MODLEV_NONE);
 	M0_LEAVE();
 }
 
 M0_INTERNAL struct m0_ha_link *m0_ha_connect(struct m0_ha *ha)
 {
-	struct m0_ha_entrypoint_rep *rep;
-	struct ha_link_ctx          *hlx;
-	struct m0_chan              *chan;
-	int                          rc;
-	struct m0_ha_link_cfg        hl_cfg;
-	const char                  *ep = ha->h_cfg.hcf_addr;
-	struct m0_ha_link_conn_cfg   hl_conn_cfg;
-	char                        *ep_copy;
+	struct m0_ha_link *hl;
+	int                rc;
 
-	M0_ENTRY("ha=%p ep=%s", ha, ep);
-
-	hl_cfg = (struct m0_ha_link_cfg){
-		.hlc_reqh           = ha->h_cfg.hcf_reqh,
-		.hlc_reqh_service   = ha->h_hl_service,
-		.hlc_rpc_machine    = ha->h_cfg.hcf_rpc_machine,
-		.hlc_q_in_cfg       = {},
-		.hlc_q_out_cfg      = {},
-	};
-
-	ha->h_entrypoint_client.ecl_req.heq_link_id_request = true;
-	chan = m0_ha_entrypoint_client_chan(&ha->h_entrypoint_client);
-	m0_clink_add_lock(chan, &ha->h_clink);
-	m0_ha_entrypoint_client_start(&ha->h_entrypoint_client);
-	m0_chan_wait(&ha->h_clink);
-
-	rep = &ha->h_entrypoint_client.ecl_rep;
-	ep_copy = m0_strdup(ep);
-	M0_ASSERT(ep_copy != NULL);     /* XXX */
-	hl_conn_cfg = (struct m0_ha_link_conn_cfg){
-		.hlcc_params             = rep->hae_link_params,
-		.hlcc_rpc_service_fid    = M0_FID0,
-		.hlcc_rpc_endpoint       = ep_copy,
-		.hlcc_max_rpcs_in_flight = HA_MAX_RPCS_IN_FLIGHT,
-		.hlcc_connect_timeout    = M0_TIME_NEVER,
-		.hlcc_disconnect_timeout = M0_MKTIME(HA_DISCONNECT_TIMEOUT, 0),
-	};
-	M0_ALLOC_PTR(hlx);
-	M0_ASSERT(hlx != NULL); /* XXX */
-	rc = ha_link_ctx_init(ha, hlx, &hl_cfg, &hl_conn_cfg, HLX_OUTGOING);
-	M0_ASSERT(rc == 0);
-
-	m0_free(ep_copy);
+	M0_ENTRY("ha=%p ep=%s", ha, ha->h_cfg.hcf_addr);
+	rc = m0_module_init(&ha->h_module, M0_HA_LEVEL_CONNECT);
+	if (rc == 0) {
+		m0_mutex_lock(&ha->h_lock);
+		hl = ha->h_link;
+		m0_mutex_unlock(&ha->h_lock);
+	} else {
+		m0_module_fini(&ha->h_module, M0_HA_LEVEL_START);
+		M0_LOG(M0_ERROR, "rc=%d", rc);
+		hl = NULL;
+	}
 	M0_LEAVE();
-	return &hlx->hlx_link;
+	return hl;
 }
 
-M0_INTERNAL void m0_ha_disconnect(struct m0_ha      *ha,
-				  struct m0_ha_link *hl)
+M0_INTERNAL void m0_ha_disconnect(struct m0_ha *ha)
 {
-	struct ha_link_ctx *hlx =
-		container_of(hl, struct ha_link_ctx, hlx_link);
-
-	M0_ENTRY("ha=%p hl=%p", ha, hl);
-	ha_link_ctx_fini(ha, hlx);
-	m0_free(hlx);
-	m0_clink_del_lock(&ha->h_clink);
-	m0_ha_entrypoint_client_stop(&ha->h_entrypoint_client);
+	M0_ENTRY("ha=%p", ha);
+	m0_module_fini(&ha->h_module, M0_HA_LEVEL_START);
 	M0_LEAVE();
 }
 
@@ -372,61 +594,106 @@ ha_link_incoming_find(struct m0_ha                   *ha,
 	                &lp->hlp_id_local));
 }
 
+static int
+ha_link_incoming_create(struct m0_ha                       *ha,
+                        const struct m0_ha_entrypoint_req  *req,
+                        struct m0_ha_link_conn_cfg         *hl_conn_cfg,
+                        struct ha_link_ctx                **hlx_ptr)
+{
+	struct m0_ha_link_cfg       hl_cfg;
+	struct ha_link_ctx         *hlx;
+	int                         rc;
+
+	hl_cfg = (struct m0_ha_link_cfg){
+		.hlc_reqh         = ha->h_cfg.hcf_reqh,
+		.hlc_reqh_service = ha->h_hl_service,
+		.hlc_rpc_machine  = ha->h_cfg.hcf_rpc_machine,
+		.hlq_q_cfg_in     = {},
+		.hlq_q_cfg_out    = {},
+	};
+	M0_ALLOC_PTR(hlx);
+	M0_ASSERT(hlx != NULL); /* XXX */
+	rc = ha_link_ctx_init(ha, hlx, &hl_cfg, HLX_INCOMING);
+	M0_ASSERT(rc == 0);     /* XXX */
+	m0_ha_link_start(&hlx->hlx_link, hl_conn_cfg);
+	*hlx_ptr = hlx;
+	return 0;
+}
+
+static void ha_link_handle(struct m0_ha                       *ha,
+                           const struct m0_uint128            *req_id,
+                           const struct m0_ha_entrypoint_req  *req,
+                           struct m0_ha_entrypoint_rep        *rep,
+                           struct m0_ha_link                 **hl_ptr)
+{
+	struct m0_ha_link_conn_cfg  hl_conn_cfg;
+	struct ha_link_ctx         *hlx;
+	struct m0_uint128           id_local;
+	struct m0_uint128           id_remote;
+	struct m0_uint128           id_connection;
+	uint64_t                    generation;
+	int                         rc;
+
+	hlx = ha_link_incoming_find(ha, &req->heq_link_params);
+	M0_LOG(M0_DEBUG, "hlx=%p", hlx);
+	if (hlx == NULL) {
+		ha_link_conn_cfg_make(&hl_conn_cfg, req->heq_rpc_endpoint);
+		generation = ha_generation_next(ha);
+		id_connection = M0_UINT128(req->heq_generation, generation);
+		ha_link_id_next(ha, &id_local);
+		ha_link_id_next(ha, &id_remote);
+		if (req->heq_first_request) {
+			M0_LOG(M0_DEBUG, "first connection to HA");
+			hl_conn_cfg.hlcc_params = (struct m0_ha_link_params){
+				.hlp_id_connection = id_connection,
+				.hlp_id_local      = id_local,
+				.hlp_id_remote     = id_remote,
+			};
+			m0_ha_link_tags_initial(
+			        &hl_conn_cfg.hlcc_params.hlp_tags_local, false);
+			m0_ha_link_tags_initial(
+			        &hl_conn_cfg.hlcc_params.hlp_tags_remote, true);
+			m0_ha_link_params_invert(&rep->hae_link_params,
+						 &hl_conn_cfg.hlcc_params);
+		} else {
+			M0_LOG(M0_DEBUG, "HA has restarted, reconnect case");
+			m0_ha_link_reconnect_params(&req->heq_link_params,
+			                            &rep->hae_link_params,
+			                            &hl_conn_cfg.hlcc_params,
+			                            &id_remote, &id_local,
+			                            &id_connection);
+		}
+		rc = ha_link_incoming_create(ha, req, &hl_conn_cfg, &hlx);
+		M0_ASSERT(rc == 0);
+		ha->h_cfg.hcf_ops.hao_link_connected(ha, req_id,
+		                                     &hlx->hlx_link);
+	} else {
+		if (req->heq_first_request) {
+			M0_IMPOSSIBLE("m0d has restarted, new link case. "
+			              "Link should already be disconnected.");
+		} else {
+			M0_LOG(M0_DEBUG, "everyone is alive, link is reused");
+			ha->h_cfg.hcf_ops.hao_link_reused(ha, req_id,
+							  &hlx->hlx_link);
+		}
+	}
+	if (hl_ptr != NULL)
+		*hl_ptr = &hlx->hlx_link;
+}
+
 void m0_ha_entrypoint_reply(struct m0_ha                       *ha,
                             const struct m0_uint128            *req_id,
 			    const struct m0_ha_entrypoint_rep  *rep,
 			    struct m0_ha_link                 **hl_ptr)
 {
-	const struct m0_ha_entrypoint_req *req;
 	struct m0_ha_entrypoint_rep        rep_copy = *rep;
-	struct m0_ha_link_cfg              hl_cfg;
-	struct m0_ha_link_conn_cfg         hl_conn_cfg;
-	struct ha_link_ctx                *hlx;
-	int                                rc;
+	const struct m0_ha_entrypoint_req *req;
 
 	M0_ENTRY("ha=%p req_id="U128X_F" rep=%p", ha, U128_P(req_id), rep);
 	req = m0_ha_entrypoint_server_request_find(&ha->h_entrypoint_server,
 	                                           req_id);
-	if (req->heq_link_id_request) {
-		hl_cfg = (struct m0_ha_link_cfg){
-			.hlc_reqh           = ha->h_cfg.hcf_reqh,
-			.hlc_reqh_service   = ha->h_hl_service,
-			.hlc_rpc_machine    = ha->h_cfg.hcf_rpc_machine,
-			.hlc_q_in_cfg       = {},
-			.hlc_q_out_cfg      = {},
-		};
-		hl_conn_cfg = (struct m0_ha_link_conn_cfg) {
-			.hlcc_params             = {
-				.hlp_tag_even = true,
-			},
-			.hlcc_rpc_service_fid    = M0_FID0,
-			.hlcc_rpc_endpoint       = req->heq_rpc_endpoint,
-			.hlcc_max_rpcs_in_flight = HA_MAX_RPCS_IN_FLIGHT,
-			.hlcc_connect_timeout    = M0_TIME_NEVER,
-			.hlcc_disconnect_timeout =
-					M0_MKTIME(HA_DISCONNECT_TIMEOUT, 0),
-		};
-		ha_link_id_next(ha, &hl_conn_cfg.hlcc_params.hlp_id_local);
-		ha_link_id_next(ha, &hl_conn_cfg.hlcc_params.hlp_id_remote);
-		rep_copy.hae_link_params = (struct m0_ha_link_params){
-			.hlp_id_local  =  hl_conn_cfg.hlcc_params.hlp_id_remote,
-			.hlp_id_remote =  hl_conn_cfg.hlcc_params.hlp_id_local,
-			.hlp_tag_even  = !hl_conn_cfg.hlcc_params.hlp_tag_even,
-		};
-		M0_ALLOC_PTR(hlx);
-		M0_ASSERT(hlx != NULL); /* XXX */
-		rc = ha_link_ctx_init(ha, hlx, &hl_cfg, &hl_conn_cfg,
-				      HLX_INCOMING);
-		M0_ASSERT(rc == 0);
-		ha->h_cfg.hcf_ops.hao_link_connected(ha, req_id,
-						     &hlx->hlx_link);
-	} else {
-		hlx = ha_link_incoming_find(ha, &req->heq_link_params);
-		M0_ASSERT(hlx != NULL); /* XXX */
-		ha->h_cfg.hcf_ops.hao_link_reused(ha, req_id, &hlx->hlx_link);
-	}
-	if (hl_ptr != NULL)
-		*hl_ptr = &hlx->hlx_link;
+	M0_ASSERT(req != NULL);
+	ha_link_handle(ha, req_id, req, &rep_copy, hl_ptr);
 	m0_ha_entrypoint_server_reply(&ha->h_entrypoint_server,
 				      req_id, &rep_copy);
 	M0_LEAVE();
@@ -533,6 +800,22 @@ static const struct m0_modlev ha_mod_levels[] = {
 	},
 };
 
+M0_INTERNAL void m0_ha_flush(struct m0_ha      *ha,
+			     struct m0_ha_link *hl)
+{
+	m0_ha_link_flush(hl);
+}
+
+M0_INTERNAL struct m0_ha_link *m0_ha_outgoing_link(struct m0_ha *ha)
+{
+	struct m0_ha_link *hl;
+
+	m0_mutex_lock(&ha->h_lock);
+	hl = ha->h_link;
+	m0_mutex_unlock(&ha->h_lock);
+	return hl;
+}
+
 M0_INTERNAL struct m0_rpc_session *m0_ha_outgoing_session(struct m0_ha *ha)
 {
 	struct ha_link_ctx *hlx;
@@ -550,7 +833,7 @@ M0_INTERNAL int m0_ha_mod_init(void)
 	if (ha_module == NULL)
 		return M0_ERR(-ENOMEM);
 
-	m0_module_setup(&ha_module->hmo_module, "m0_ha_module",
+	m0_module_setup(&ha_module->hmo_module, "m0_ha_mod_module",
 			ha_mod_levels, ARRAY_SIZE(ha_mod_levels), m0_get());
 	rc = m0_module_init(&ha_module->hmo_module, M0_HA_MOD_LEVEL_STARTED);
 	if (rc != 0) {

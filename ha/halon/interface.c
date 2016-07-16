@@ -545,7 +545,7 @@ static void halon_interface_level_leave(struct m0_module *module)
 		m0_ha_stop(&hii->hii_ha);
 		break;
 	case M0_HALON_INTERFACE_LEVEL_HA_CONNECT:
-		m0_ha_disconnect(&hii->hii_ha, hii->hii_outgoing_link);
+		m0_ha_disconnect(&hii->hii_ha);
 		break;
 	case M0_HALON_INTERFACE_LEVEL_INSTANCE_SET:
 		m0_ha_state_fini();

@@ -76,7 +76,8 @@ M0_INTERNAL void m0_ha_msg_debug_print(const struct m0_ha_msg *msg,
 		M0_LOG(M0_WARN, "message has INVALID type");
 		return;
 	case M0_HA_MSG_STOB_IOQ:
-		/* TODO */
+		M0_LOG(M0_ERROR, "M0_HA_MSG_STOB_IOQ message "
+		       "is not implemented yet");
 		return;
 	case M0_HA_MSG_NVEC:
 	case M0_HA_MSG_NVEC_HACK:
@@ -145,7 +146,6 @@ M0_INTERNAL void m0_ha_msg_debug_print(const struct m0_ha_msg *msg,
 	}
 	M0_LOG(M0_WARN, "unknown m0_ha_msg type %"PRIu64, data->hed_type);
 }
-
 
 #undef M0_TRACE_SUBSYSTEM
 

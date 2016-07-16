@@ -27,6 +27,7 @@
  * TODO handle errors
  * TODO make magics for hes_req tlist
  * TODO print the sm .dot representation to some file in UT for all SMs
+ * TODO fix memory leak in m0_ha_entrypoint_req2fop()
  *
  * @{
  */
@@ -311,7 +312,7 @@ m0_ha_entrypoint_server_request_find(struct m0_ha_entrypoint_server *hes,
 	struct ha_entrypoint_server_fom *server_fom;
 
 	server_fom = ha_entrypoint_server_find(hes, req_id);
-	return &server_fom->esf_req;
+	return server_fom == NULL ? NULL : &server_fom->esf_req;
 }
 
 static struct m0_sm_state_descr ha_entrypoint_client_states[] = {
@@ -328,7 +329,8 @@ static struct m0_sm_state_descr ha_entrypoint_client_states[] = {
 	[M0_HEC_UNAVAILABLE] = {
 		.sd_flags   = 0,
 		.sd_name    = "M0_HEC_UNAVAILABLE",
-		.sd_allowed = M0_BITS(M0_HEC_CONNECT, M0_HEC_STOPPED),
+               .sd_allowed = M0_BITS(M0_HEC_CONNECT, M0_HEC_STOPPED,
+                                     M0_HEC_UNAVAILABLE),
 	},
 	[M0_HEC_CONNECT] = {
 		.sd_flags   = 0,
@@ -667,6 +669,9 @@ static void ha_entrypoint_client_fom_fini(struct m0_fom *fom)
 	if (state == M0_HEC_DISCONNECT_WAIT) {
 		M0_LOG(M0_DEBUG, "M0_HEC_DISCONNECT_WAIT -> M0_HEC_AVAILABLE");
 		m0_sm_state_set(&ecl->ecl_sm, M0_HEC_AVAILABLE);
+       } else {
+               /* to signal with ecl_fom_running == false */
+               m0_sm_state_set(&ecl->ecl_sm, M0_HEC_UNAVAILABLE);
 	}
 	m0_sm_group_unlock(&ecl->ecl_sm_group);
 

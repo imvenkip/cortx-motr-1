@@ -42,9 +42,6 @@
 struct m0_ha_msg_qitem {
 	struct m0_ha_msg hmq_msg;
 	/** Link for m0_ha_msg_queue::mq_queue */
-	struct m0_tlink  hmq_q_link;
-	uint64_t         hmq_q_magic;
-	/** Link for m0_ha_link::hln_sent */
 	struct m0_tlink  hmq_link;
 	uint64_t         hmq_magic;
 };
@@ -69,6 +66,8 @@ M0_INTERNAL void m0_ha_msg_queue_enqueue(struct m0_ha_msg_queue *mq,
                                          struct m0_ha_msg_qitem *qitem);
 M0_INTERNAL struct m0_ha_msg_qitem *
 m0_ha_msg_queue_dequeue(struct m0_ha_msg_queue *mq);
+M0_INTERNAL void m0_ha_msg_queue_push_front(struct m0_ha_msg_queue *mq,
+                                            struct m0_ha_msg_qitem *qitem);
 M0_INTERNAL bool m0_ha_msg_queue_is_empty(struct m0_ha_msg_queue *mq);
 M0_INTERNAL struct m0_ha_msg_qitem *
 m0_ha_msg_queue_find(struct m0_ha_msg_queue *mq,

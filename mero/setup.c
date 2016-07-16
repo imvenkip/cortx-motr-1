@@ -61,7 +61,6 @@
 #include "ioservice/io_service.h"  /* m0_ios_net_buffer_pool_size_set */
 #include "stob/linux.h"
 #include "pool/flset.h"         /* m0_flset_build, m0_flset_destroy */
-#include "ha/link.h"            /* m0_ha_link_flush */
 #include "conf/ha.h"            /* m0_conf_ha_process_event_post */
 
 /**

@@ -109,13 +109,6 @@ struct m0_ha_msg {
 /* private fields */
 	/** unique across a pair of m0_ha_link tag */
 	uint64_t               hm_tag;
-	/** m0_ha_link_cfd::hlc_link_id of the target link */
-	struct m0_uint128      hm_link_id;
-	/**
-	 * true:  msg is in m0_ha_link::hln_q_in,
-	 * false: msg is in m0_ha_link::hln_q_out.
-	 */
-	bool                   hm_incoming;
 } M0_XCA_RECORD;
 
 /** Returns m0_ha_msg tag. */

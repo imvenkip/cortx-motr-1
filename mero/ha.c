@@ -54,7 +54,6 @@
 #include "ha/entrypoint_fops.h" /* m0_ha_entrypoint_rep */
 #include "ha/note.h"            /* M0_NC_ONLINE */
 #include "ha/failvec.h"         /* m0_ha_fvec_handler */
-#include "ha/link.h"            /* m0_ha_link_flush */
 
 
 M0_INTERNAL void m0_mero_ha_cfg_make(struct m0_mero_ha_cfg *mha_cfg,
@@ -342,8 +341,8 @@ static void mero_ha_level_leave(struct m0_module *module)
 		break;
 	case MERO_HA_LEVEL_CONNECT:
 		m0_ha_state_fini();
-		m0_ha_link_flush(mha->mh_link);
-		m0_ha_disconnect(&mha->mh_ha, mha->mh_link);
+		m0_ha_flush(&mha->mh_ha, mha->mh_link);
+		m0_ha_disconnect(&mha->mh_ha);
 		break;
 	case MERO_HA_LEVEL_INSTANCE_SET_HA_LINK:
 		M0_ASSERT(m0_get()->i_ha_link != NULL);
@@ -411,7 +410,7 @@ M0_INTERNAL int m0_mero_ha_init(struct m0_mero_ha     *mha,
 	         "mhc_process_fid="FID_F" mhc_profile_fid="FID_F,
 	         mha, &mha->mh_ha, mha_cfg->mhc_addr, mha_cfg->mhc_rpc_machine,
 		 mha_cfg->mhc_reqh, FID_P(&mha_cfg->mhc_process_fid),
-		 FID_P(&mha_cfg->mhc_process_fid));
+		 FID_P(&mha_cfg->mhc_profile_fid));
 
 	mha->mh_cfg = *mha_cfg;
 	addr_dup = m0_strdup(mha_cfg->mhc_addr);

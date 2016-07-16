@@ -33,7 +33,7 @@
 #include "lib/memory.h"         /* M0_ALLOC_PTR */
 
 M0_TL_DESCR_DEFINE(ha_mq, "m0_ha_msg_queue::mq_queue", static,
-		   struct m0_ha_msg_qitem, hmq_q_link, hmq_q_magic,
+		   struct m0_ha_msg_qitem, hmq_link, hmq_magic,
 		   M0_HA_MSG_QITEM_MAGIC, M0_HA_MSG_QUEUE_HEAD_MAGIC);
 M0_TL_DEFINE(ha_mq, static, struct m0_ha_msg_qitem);
 
@@ -80,6 +80,12 @@ m0_ha_msg_queue_dequeue(struct m0_ha_msg_queue *mq)
 	return qitem;
 }
 
+M0_INTERNAL void m0_ha_msg_queue_push_front(struct m0_ha_msg_queue *mq,
+                                            struct m0_ha_msg_qitem *qitem)
+{
+	ha_mq_tlink_init_at(qitem, &mq->mq_queue);
+}
+
 M0_INTERNAL bool m0_ha_msg_queue_is_empty(struct m0_ha_msg_queue *mq)
 {
 	return ha_mq_tlist_is_empty(&mq->mq_queue);
@@ -90,7 +96,7 @@ m0_ha_msg_queue_find(struct m0_ha_msg_queue *mq,
                      uint64_t                tag)
 {
 	return m0_tl_find(ha_mq, qitem, &mq->mq_queue,
-	                  qitem->hmq_msg.hm_tag == tag);
+	                  m0_ha_msg_tag(&qitem->hmq_msg) == tag);
 }
 
 #undef M0_TRACE_SUBSYSTEM

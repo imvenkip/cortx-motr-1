@@ -62,6 +62,18 @@ M0_INTERNAL bool m0_ha_link_tags_eq(const struct m0_ha_link_tags *tags1,
 
 }
 
+M0_INTERNAL void m0_ha_link_params_invert(struct m0_ha_link_params       *dst,
+                                          const struct m0_ha_link_params *src)
+{
+	*dst = (struct m0_ha_link_params){
+		.hlp_id_local      = src->hlp_id_remote,
+		.hlp_id_remote     = src->hlp_id_local,
+		.hlp_id_connection = src->hlp_id_connection,
+		.hlp_tags_local    = src->hlp_tags_remote,
+		.hlp_tags_remote   = src->hlp_tags_local,
+	};
+}
+
 M0_INTERNAL int m0_ha_link_fops_init(void)
 {
 	M0_FOP_TYPE_INIT(&m0_ha_link_msg_fopt,

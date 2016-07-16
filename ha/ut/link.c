@@ -47,43 +47,95 @@ struct ha_ut_link_ctx {
 	struct m0_ha_link_conn_cfg       ulc_conn_cfg;
 };
 
+static void ha_ut_link_conn_cfg_create(struct m0_ha_link_conn_cfg *hl_conn_cfg,
+                                       struct m0_uint128          *id_local,
+                                       struct m0_uint128          *id_remote,
+                                       struct m0_uint128         *id_connection,
+                                       bool                        tag_even,
+                                       const char                 *ep)
+{
+	*hl_conn_cfg = (struct m0_ha_link_conn_cfg){
+		.hlcc_params             = {
+			.hlp_id_local      = *id_local,
+			.hlp_id_remote     = *id_remote,
+			.hlp_id_connection = *id_connection,
+		},
+		.hlcc_rpc_service_fid    = M0_FID0,
+		.hlcc_rpc_endpoint       = m0_strdup(ep),
+		.hlcc_max_rpcs_in_flight = M0_HA_UT_MAX_RPCS_IN_FLIGHT,
+		.hlcc_connect_timeout    = M0_MKTIME(5, 0),
+		.hlcc_disconnect_timeout = M0_MKTIME(5, 0),
+		.hlcc_resend_interval    = M0_MKTIME(0, 15000000),
+		.hlcc_nr_sent_max        = 1,
+	};
+	m0_ha_link_tags_initial(&hl_conn_cfg->hlcc_params.hlp_tags_local,
+				tag_even);
+	m0_ha_link_tags_initial(&hl_conn_cfg->hlcc_params.hlp_tags_remote,
+				!tag_even);
+	M0_UT_ASSERT(hl_conn_cfg->hlcc_rpc_endpoint != NULL);
+}
+
+static void ha_ut_link_cfg_create(struct m0_ha_link_cfg   *hl_cfg,
+                                  struct m0_ha_ut_rpc_ctx *rpc_ctx,
+                                  struct m0_reqh_service  *hl_service)
+{
+	*hl_cfg = (struct m0_ha_link_cfg){
+		.hlc_reqh         = &rpc_ctx->hurc_reqh,
+		.hlc_reqh_service = hl_service,
+		.hlc_rpc_machine  = &rpc_ctx->hurc_rpc_machine,
+		.hlq_q_cfg_in     = {},
+		.hlq_q_cfg_out    = {},
+	};
+}
+
+static void ha_ut_link_conn_cfg_free(struct m0_ha_link_conn_cfg *hl_conn_cfg)
+{
+	m0_free((char *)hl_conn_cfg->hlcc_rpc_endpoint);
+}
+
 static void ha_ut_link_init(struct ha_ut_link_ctx   *link_ctx,
                             struct m0_ha_ut_rpc_ctx *rpc_ctx,
                             struct m0_reqh_service  *hl_service,
                             struct m0_uint128       *id_local,
                             struct m0_uint128       *id_remote,
-                            bool                     tag_even)
+                            struct m0_uint128       *id_connection,
+                            bool                     tag_even,
+                            bool                     start)
 {
 	int rc;
 
-	link_ctx->ulc_cfg = (struct m0_ha_link_cfg){
-		.hlc_reqh           = &rpc_ctx->hurc_reqh,
-		.hlc_reqh_service   = hl_service,
-		.hlc_rpc_machine    = &rpc_ctx->hurc_rpc_machine,
-	};
-	link_ctx->ulc_conn_cfg = (struct m0_ha_link_conn_cfg){
-		.hlcc_params             = {
-			.hlp_id_local  = *id_local,
-			.hlp_id_remote = *id_remote,
-			.hlp_tag_even  =  tag_even,
-		},
-		.hlcc_rpc_service_fid    = M0_FID0,
-		.hlcc_max_rpcs_in_flight = M0_HA_UT_MAX_RPCS_IN_FLIGHT,
-		.hlcc_connect_timeout    = M0_TIME_NEVER,
-		.hlcc_disconnect_timeout = M0_TIME_NEVER,
-	};
-	link_ctx->ulc_conn_cfg.hlcc_rpc_endpoint = m0_strdup(
-				m0_rpc_machine_ep(&rpc_ctx->hurc_rpc_machine));
+	ha_ut_link_cfg_create(&link_ctx->ulc_cfg, rpc_ctx, hl_service);
 	rc = m0_ha_link_init(&link_ctx->ulc_link, &link_ctx->ulc_cfg);
 	M0_UT_ASSERT(rc == 0);
-	m0_ha_link_start(&link_ctx->ulc_link, &link_ctx->ulc_conn_cfg);
+	ha_ut_link_conn_cfg_create(&link_ctx->ulc_conn_cfg, id_local, id_remote,
+	                           id_connection, tag_even,
+	                         m0_rpc_machine_ep(&rpc_ctx->hurc_rpc_machine));
+	if (start)
+		m0_ha_link_start(&link_ctx->ulc_link, &link_ctx->ulc_conn_cfg);
 }
 
 static void ha_ut_link_fini(struct ha_ut_link_ctx *link_ctx)
 {
 	m0_ha_link_stop(&link_ctx->ulc_link);
 	m0_ha_link_fini(&link_ctx->ulc_link);
-	m0_free(link_ctx->ulc_conn_cfg.hlcc_rpc_endpoint);
+	ha_ut_link_conn_cfg_free(&link_ctx->ulc_conn_cfg);
+}
+
+static void ha_ut_link_set_some_msg(struct m0_ha_msg *msg)
+{
+	*msg = (struct m0_ha_msg){
+		.hm_fid            = M0_FID_INIT(1, 2),
+		.hm_source_process = M0_FID_INIT(3, 4),
+		.hm_source_service = M0_FID_INIT(5, 6),
+		.hm_time           = m0_time_now(),
+		.hm_data = {
+			.hed_type = M0_HA_MSG_STOB_IOQ,
+			.u.hed_stob_ioq = {
+				.sie_conf_sdev = M0_FID_INIT(7, 8),
+				.sie_size      = 0x100,
+			},
+		},
+	};
 }
 
 void m0_ha_ut_link_usecase(void)
@@ -96,6 +148,7 @@ void m0_ha_ut_link_usecase(void)
 	struct m0_ha_link       *hl2;
 	struct m0_uint128        id1 = M0_UINT128(0, 0);
 	struct m0_uint128        id2 = M0_UINT128(0, 1);
+	struct m0_uint128        id  = M0_UINT128(1, 2);
 	struct m0_ha_msg        *msg;
 	struct m0_ha_msg        *msg_recv;
 	uint64_t                 tag;
@@ -110,40 +163,28 @@ void m0_ha_ut_link_usecase(void)
 	M0_UT_ASSERT(rc == 0);
 	M0_ALLOC_PTR(ctx1);
 	M0_UT_ASSERT(ctx1 != NULL);
-	ha_ut_link_init(ctx1, rpc_ctx, hl_service, &id1, &id2, true);
+	ha_ut_link_init(ctx1, rpc_ctx, hl_service, &id1, &id2, &id, true, true);
 	M0_ALLOC_PTR(ctx2);
 	M0_UT_ASSERT(ctx2 != NULL);
-	ha_ut_link_init(ctx2, rpc_ctx, hl_service, &id2, &id1, false);
+	ha_ut_link_init(ctx2, rpc_ctx, hl_service, &id2, &id1, &id, false,
+			true);
 	hl1 = &ctx1->ulc_link;
 	hl2 = &ctx2->ulc_link;
 
 	/* One way transmission. Message is sent from hl1 to hl2.  */
 	M0_ALLOC_PTR(msg);
-	*msg = (struct m0_ha_msg){
-		.hm_fid            = M0_FID_INIT(1, 2),
-		.hm_source_process = M0_FID_INIT(3, 4),
-		.hm_source_service = M0_FID_INIT(5, 6),
-		.hm_time           = m0_time_now(),
-		.hm_data = {
-			.hed_type = M0_HA_MSG_STOB_IOQ,
-			.u.hed_stob_ioq = {
-				.sie_conf_sdev = M0_FID_INIT(7, 8),
-				.sie_size      = 0x100,
-			},
-		},
-	};
+	ha_ut_link_set_some_msg(msg);
+	msg_recv = m0_ha_link_recv(hl2, &tag1);
+	M0_UT_ASSERT(msg_recv == NULL);
 	m0_ha_link_send(hl1, msg, &tag);
 	m0_ha_link_wait_arrival(hl2);
 	msg_recv = m0_ha_link_recv(hl2, &tag1);
 	M0_UT_ASSERT(msg_recv != NULL);
 	M0_UT_ASSERT(tag == tag1);
-	M0_UT_ASSERT(msg_recv->hm_tag == tag1);
+	M0_UT_ASSERT(m0_ha_msg_tag(msg_recv) == tag1);
 	M0_UT_ASSERT(m0_ha_msg_eq(msg_recv, msg));
-	/*
-	 * TODO Re-enable this check when m0_ha_link_delivered() is implemented.
-	 */
-	/* tag2 = m0_ha_link_delivered_consume(hl1);    */
-	/* M0_UT_ASSERT(tag2 == M0_HA_MSG_TAG_INVALID); */
+	tag2 = m0_ha_link_delivered_consume(hl1);
+	M0_UT_ASSERT(tag2 == M0_HA_MSG_TAG_INVALID);
 	m0_ha_link_delivered(hl2, msg_recv);
 	m0_ha_link_wait_delivery(hl1, tag);
 	tag2 = m0_ha_link_delivered_consume(hl1);
@@ -151,6 +192,8 @@ void m0_ha_ut_link_usecase(void)
 	tag2 = m0_ha_link_not_delivered_consume(hl1);
 	M0_UT_ASSERT(tag2 == M0_HA_MSG_TAG_INVALID);
 	m0_free(msg);
+	m0_ha_link_flush(hl1);
+	m0_ha_link_flush(hl2);
 
 	ha_ut_link_fini(ctx2);
 	m0_free(ctx2);
@@ -172,6 +215,7 @@ struct ha_ut_link_mt_test {
 	struct ha_ut_link_ctx    ulmt_link_ctx;
 	struct m0_uint128        ulmt_id_local;
 	struct m0_uint128        ulmt_id_remote;
+	struct m0_uint128        ulmt_id_connection;
 	bool                     ulmt_tag_even;
 	struct m0_semaphore      ulmt_start_done;
 	struct m0_semaphore      ulmt_start_wait;
@@ -193,7 +237,8 @@ static void ha_ut_link_mt_thread(void *param)
 
 	ha_ut_link_init(&test->ulmt_link_ctx, test->ulmt_ctx,
 			test->ulmt_hl_service, &test->ulmt_id_local,
-			&test->ulmt_id_remote, test->ulmt_tag_even);
+			&test->ulmt_id_remote, &test->ulmt_id_connection,
+			test->ulmt_tag_even, true);
 	/* barrier with the main thread */
 	m0_semaphore_up(&test->ulmt_start_wait);
 	m0_semaphore_down(&test->ulmt_start_done);
@@ -229,8 +274,11 @@ static void ha_ut_link_mt_thread(void *param)
 		tag = m0_ha_link_delivered_consume(hl);
 		M0_UT_ASSERT(tag == test->ulmt_tags_out[i]);
 	}
+	tag = m0_ha_link_delivered_consume(hl);
+	M0_UT_ASSERT(tag == M0_HA_MSG_TAG_INVALID);
 	tag = m0_ha_link_not_delivered_consume(hl);
 	M0_UT_ASSERT(tag == M0_HA_MSG_TAG_INVALID);
+	m0_ha_link_flush(hl);
 
 	ha_ut_link_fini(&test->ulmt_link_ctx);
 }
@@ -246,6 +294,7 @@ void m0_ha_ut_link_multithreaded(void)
 	struct ha_ut_link_mt_test *test2;
 	struct m0_uint128          id1;
 	struct m0_uint128          id2;
+	struct m0_uint128          id;
 	uint64_t                   seed = 42;
 	int                        rc;
 	int                        i;
@@ -262,15 +311,18 @@ void m0_ha_ut_link_multithreaded(void)
 	for (i = 0; i < HA_UT_THREAD_PAIR_NR; ++i) {
 		id1 = M0_UINT128(i * 2,     m0_rnd64(&seed));
 		id2 = M0_UINT128(i * 2 + 1, m0_rnd64(&seed));
+		id  = M0_UINT128(i,         m0_rnd64(&seed));
 		tests[i * 2] = (struct ha_ut_link_mt_test){
-			.ulmt_id_local   = id1,
-			.ulmt_id_remote  = id2,
-			.ulmt_tag_even   = true,
+			.ulmt_id_local      = id1,
+			.ulmt_id_remote     = id2,
+			.ulmt_id_connection = id,
+			.ulmt_tag_even      = true,
 		};
 		tests[i * 2 + 1] = (struct ha_ut_link_mt_test){
-			.ulmt_id_local   = id2,
-			.ulmt_id_remote  = id1,
-			.ulmt_tag_even   = false,
+			.ulmt_id_local      = id2,
+			.ulmt_id_remote     = id1,
+			.ulmt_id_connection = id,
+			.ulmt_tag_even      = false,
 		};
 	}
 	for (i = 0; i < HA_UT_THREAD_PAIR_NR * 2; ++i) {
@@ -337,6 +389,261 @@ void m0_ha_ut_link_multithreaded(void)
 	m0_ha_link_service_fini(hl_service);
 	m0_ha_ut_rpc_ctx_fini(rpc_ctx);
 	m0_free(rpc_ctx);
+}
+
+static void ha_ut_links_init(struct m0_ha_ut_rpc_ctx  **rpc_ctx,
+                             struct m0_reqh_service   **hl_service,
+                             int                        nr_links,
+                             struct ha_ut_link_ctx   ***ctx,
+                             struct m0_ha_link       ***hl,
+                             struct m0_uint128         *id1,
+                             struct m0_uint128         *id2,
+                             struct m0_uint128         *id,
+                             int                       *tag_even,
+                             bool                       start)
+{
+	int i;
+	int rc;
+
+	M0_ALLOC_PTR(*rpc_ctx);
+	M0_UT_ASSERT(*rpc_ctx != NULL);
+	m0_ha_ut_rpc_ctx_init(*rpc_ctx);
+	rc = m0_ha_link_service_init(hl_service, &(*rpc_ctx)->hurc_reqh);
+	M0_UT_ASSERT(rc == 0);
+	M0_ALLOC_ARR(*ctx, nr_links);
+	M0_UT_ASSERT(*ctx != NULL);
+	M0_ALLOC_ARR(*hl, nr_links);
+	M0_UT_ASSERT(*hl != NULL);
+	for (i = 0; i < nr_links; ++i) {
+		M0_ALLOC_PTR((*ctx)[i]);
+		M0_UT_ASSERT((*ctx)[i] != NULL);
+		ha_ut_link_init((*ctx)[i], *rpc_ctx, *hl_service,
+				&id1[i], &id2[i], &id[i], tag_even[i] != 0,
+				start);
+		(*hl)[i] = &(*ctx)[i]->ulc_link;
+	}
+}
+
+static void ha_ut_links_fini(struct m0_ha_ut_rpc_ctx  *rpc_ctx,
+                             struct m0_reqh_service   *hl_service,
+                             int                       nr_links,
+                             struct ha_ut_link_ctx   **ctx,
+                             struct m0_ha_link       **hl)
+{
+	int i;
+
+	for (i = 0; i < nr_links; ++i) {
+		ha_ut_link_fini(ctx[i]);
+		m0_free(ctx[i]);
+	}
+	m0_free(hl);
+	m0_free(ctx);
+	m0_ha_link_service_fini(hl_service);
+	m0_ha_ut_rpc_ctx_fini(rpc_ctx);
+	m0_free(rpc_ctx);
+}
+
+static void ha_ut_link_msg_transfer(struct m0_ha_link *hl1,
+                                    struct m0_ha_link *hl2)
+{
+	struct m0_ha_msg *msg;
+	struct m0_ha_msg *msg_recv;
+	uint64_t          tag;
+	uint64_t          tag_recv;
+
+	M0_ALLOC_PTR(msg);
+	M0_UT_ASSERT(msg != NULL);
+
+	m0_ha_link_send(hl1, msg, &tag);
+	m0_ha_link_wait_arrival(hl2);
+	msg_recv = m0_ha_link_recv(hl2, &tag_recv);
+	M0_UT_ASSERT(m0_ha_msg_eq(msg, msg_recv));
+	M0_UT_ASSERT(tag == tag_recv);
+	m0_ha_link_delivered(hl2, msg_recv);
+	m0_ha_link_flush(hl1);
+	tag = m0_ha_link_delivered_consume(hl1);
+	M0_UT_ASSERT(tag_recv == tag);
+
+	m0_free(msg);
+}
+
+void m0_ha_ut_link_reconnect_simple(void)
+{
+	struct m0_ha_link_conn_cfg *hl_conn_cfg;
+	struct m0_ha_ut_rpc_ctx    *rpc_ctx;
+	struct m0_reqh_service     *hl_service;
+	struct m0_ha_link_params    lp0;
+	struct m0_ha_link_params    lp0_new;
+	struct m0_ha_link_params    lp2;
+	struct m0_ha_link_cfg      *hl_cfg;
+	struct m0_ha_link          *hl;
+	struct m0_uint128           id1            = M0_UINT128(1, 2);
+	struct m0_uint128           id2            = M0_UINT128(3, 4);
+	struct m0_uint128           id3            = M0_UINT128(5, 6);
+	struct m0_uint128           id4            = M0_UINT128(7, 8);
+	struct m0_uint128           id_connection1 = M0_UINT128(9, 10);
+	struct m0_uint128           id_connection2 = M0_UINT128(11, 12);
+	const char                 *ep;
+	int                         i;
+	int                         rc;
+
+	M0_ALLOC_PTR(rpc_ctx);
+	M0_UT_ASSERT(rpc_ctx != NULL);
+	m0_ha_ut_rpc_ctx_init(rpc_ctx);
+	ep = m0_rpc_machine_ep(&rpc_ctx->hurc_rpc_machine);
+	rc = m0_ha_link_service_init(&hl_service, &rpc_ctx->hurc_reqh);
+	M0_UT_ASSERT(rc == 0);
+	M0_ALLOC_ARR(hl, 3);
+	M0_UT_ASSERT(hl != NULL);
+	M0_ALLOC_ARR(hl_cfg, 3);
+	M0_UT_ASSERT(hl_cfg != NULL);
+	M0_ALLOC_ARR(hl_conn_cfg, 3);
+	M0_UT_ASSERT(hl_conn_cfg != NULL);
+
+	for (i = 0; i < 3; ++i) {
+		ha_ut_link_cfg_create(&hl_cfg[i], rpc_ctx, hl_service);
+		rc = m0_ha_link_init(&hl[i], &hl_cfg[i]);
+		M0_UT_ASSERT(rc == 0);
+	}
+
+	/* start hl[0] and hl[1] connected to each other */
+	ha_ut_link_conn_cfg_create(&hl_conn_cfg[0], &id1, &id2, &id_connection1,
+	                           true, ep);
+	ha_ut_link_conn_cfg_create(&hl_conn_cfg[1], &id2, &id1, &id_connection1,
+	                           false, ep);
+	for (i = 0; i < 2; ++i) {
+		m0_ha_link_start(&hl[i], &hl_conn_cfg[i]);
+		ha_ut_link_conn_cfg_free(&hl_conn_cfg[i]);
+	}
+
+	/* send a message from hl[0] to hl[1] */
+	ha_ut_link_msg_transfer(&hl[0], &hl[1]);
+
+	/* stop & fini hl[1] */
+	m0_ha_link_stop(&hl[1]);
+	m0_ha_link_fini(&hl[1]);
+
+	/* reconnect hl[0] to hl[2] */
+	m0_ha_link_reconnect_begin(&hl[0], &lp0);
+	ha_ut_link_conn_cfg_create(&hl_conn_cfg[0], &id3, &id4, &id_connection2,
+	                           true, ep);
+	ha_ut_link_conn_cfg_create(&hl_conn_cfg[2], &id4, &id3, &id_connection2,
+	                           true, ep);
+	m0_ha_link_reconnect_params(&lp0, &lp0_new, &lp2, &id3, &id4,
+				    &id_connection2);
+	hl_conn_cfg[0].hlcc_params = lp0_new;
+	hl_conn_cfg[2].hlcc_params = lp2;
+	m0_ha_link_start(&hl[2], &hl_conn_cfg[2]);
+	m0_ha_link_reconnect_end(&hl[0], &hl_conn_cfg[0]);
+	ha_ut_link_conn_cfg_free(&hl_conn_cfg[0]);
+	ha_ut_link_conn_cfg_free(&hl_conn_cfg[2]);
+
+	/* send a message from hl[0] to hl[2] */
+	ha_ut_link_msg_transfer(&hl[0], &hl[2]);
+
+	/* stop & fini hl[0] and hl[2] */
+	m0_ha_link_stop(&hl[0]);
+	m0_ha_link_fini(&hl[0]);
+	m0_ha_link_stop(&hl[2]);
+	m0_ha_link_fini(&hl[2]);
+
+	m0_free(hl_conn_cfg);
+	m0_free(hl_cfg);
+	m0_free(hl);
+	m0_ha_link_service_fini(hl_service);
+	m0_ha_ut_rpc_ctx_fini(rpc_ctx);
+	m0_free(rpc_ctx);
+}
+
+enum {
+	HA_UT_LINK_RECONNECT_MULTIPLE_NR_LINKS = 0x2,
+};
+
+void m0_ha_ut_link_reconnect_multiple(void)
+{
+	struct m0_ha_link_conn_cfg   hl_conn_cfg[2];
+	struct m0_ha_link_params    lp0;
+	struct m0_ha_ut_rpc_ctx     *rpc_ctx;
+	struct m0_reqh_service      *hl_service;
+	struct ha_ut_link_ctx      **ctx;
+	struct m0_ha_link          **hl;
+	struct m0_uint128           *id1;
+	struct m0_uint128           *id2;
+	struct m0_uint128           *id;
+	struct m0_ha_msg            *msg;
+	struct m0_ha_msg            *msg_recv;
+	const char                  *ep;
+	int                         *tag_even;
+	uint64_t                     seed = 42;
+	uint64_t                     tag;
+	uint64_t                     tag_recv;
+	uint64_t                     tag2;
+	int                          i;
+
+	M0_ALLOC_ARR(id1, HA_UT_LINK_RECONNECT_MULTIPLE_NR_LINKS);
+	M0_UT_ASSERT(id1 != NULL);
+	M0_ALLOC_ARR(id2, HA_UT_LINK_RECONNECT_MULTIPLE_NR_LINKS);
+	M0_UT_ASSERT(id2 != NULL);
+	M0_ALLOC_ARR(id, HA_UT_LINK_RECONNECT_MULTIPLE_NR_LINKS);
+	M0_UT_ASSERT(id != NULL);
+	M0_ALLOC_ARR(tag_even, HA_UT_LINK_RECONNECT_MULTIPLE_NR_LINKS);
+	M0_UT_ASSERT(tag_even != NULL);
+	M0_ALLOC_PTR(msg);
+	M0_UT_ASSERT(msg != NULL);
+	for (i = 0; i < HA_UT_LINK_RECONNECT_MULTIPLE_NR_LINKS; ++i) {
+		id1[i]      = M0_UINT128(m0_rnd64(&seed), m0_rnd64(&seed));
+		id2[i]      = M0_UINT128(m0_rnd64(&seed), m0_rnd64(&seed));
+		id[i]       = M0_UINT128(m0_rnd64(&seed), m0_rnd64(&seed));
+		tag_even[i] = i == 0;
+	}
+	ha_ut_links_init(&rpc_ctx, &hl_service,
+			 HA_UT_LINK_RECONNECT_MULTIPLE_NR_LINKS,
+			 &ctx, &hl, id1, id2, id, tag_even, false);
+	m0_ha_link_start(hl[0], &ctx[0]->ulc_conn_cfg);
+
+	/* this message shouldn't be delivered at all */
+	m0_ha_link_send(hl[0], msg, &tag);
+	for (i = 1; i < HA_UT_LINK_RECONNECT_MULTIPLE_NR_LINKS; ++i) {
+		msg_recv = m0_ha_link_recv(hl[i], &tag_recv);
+		M0_UT_ASSERT(msg_recv == NULL);
+	}
+	/* now reconnect hl[0] to all other links */
+	ep = m0_rpc_machine_ep(&rpc_ctx->hurc_rpc_machine);
+	for (i = 1; i < HA_UT_LINK_RECONNECT_MULTIPLE_NR_LINKS; ++i) {
+		msg_recv = m0_ha_link_recv(hl[i], &tag_recv);
+		M0_UT_ASSERT(msg_recv == NULL);
+		m0_ha_link_reconnect_begin(hl[0], &lp0);
+		ha_ut_link_conn_cfg_create(&hl_conn_cfg[1], &id1[i], &id2[i],
+					   &id[i], !tag_even[i], ep);
+		ha_ut_link_conn_cfg_create(&hl_conn_cfg[0], &id2[i], &id1[i],
+					   &id[i], tag_even[i], ep);
+		m0_ha_link_reconnect_params(&lp0, &hl_conn_cfg[0].hlcc_params,
+					    &hl_conn_cfg[1].hlcc_params,
+					    &id1[i], &id2[i], &id[i]);
+		m0_ha_link_reconnect_end(hl[0], &hl_conn_cfg[0]);
+		ha_ut_link_conn_cfg_free(&hl_conn_cfg[0]);
+		m0_ha_link_start(hl[i], &hl_conn_cfg[1]);
+		ha_ut_link_conn_cfg_free(&hl_conn_cfg[1]);
+		if (i == 1) {
+			m0_ha_link_wait_arrival(hl[i]);
+			msg_recv = m0_ha_link_recv(hl[i], &tag_recv);
+			M0_UT_ASSERT(msg_recv != NULL);
+			M0_UT_ASSERT(m0_ha_msg_eq(msg_recv, msg));
+			M0_UT_ASSERT(tag_recv == tag);
+			m0_ha_link_delivered(hl[i], msg_recv);
+			m0_ha_link_wait_delivery(hl[0], tag);
+			tag2 = m0_ha_link_delivered_consume(hl[0]);
+			M0_UT_ASSERT(tag2 == tag);
+		}
+	}
+
+	ha_ut_links_fini(rpc_ctx, hl_service,
+			 HA_UT_LINK_RECONNECT_MULTIPLE_NR_LINKS, ctx, hl);
+	m0_free(msg);
+	m0_free(tag_even);
+	m0_free(id);
+	m0_free(id2);
+	m0_free(id1);
 }
 
 #undef M0_TRACE_SUBSYSTEM

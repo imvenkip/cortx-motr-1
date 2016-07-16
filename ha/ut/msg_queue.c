@@ -67,7 +67,7 @@ void m0_ha_ut_msg_queue(void)
 	for (i = 0; i < HA_UT_MSG_QUEUE_NR; ++i) {
 		qitem = m0_ha_msg_queue_dequeue(&mq);
 		M0_UT_ASSERT(qitem != NULL);
-		M0_UT_ASSERT(qitem->hmq_msg.hm_tag == tags[i]);
+		M0_UT_ASSERT(m0_ha_msg_tag(&qitem->hmq_msg) == tags[i]);
 		m0_ha_msg_queue_free(&mq, qitem);
 	}
 	m0_free(tags);

@@ -81,12 +81,10 @@ struct m0_ha_entrypoint_rep_fop {
 
 struct m0_ha_entrypoint_req_fop {
 	int32_t                  erf_first_request;
+	uint64_t                 erf_generation;
 	struct m0_fid            erf_process_fid;
 	struct m0_fid            erf_profile_fid;
-
-	int32_t                  erf_link_id_request;
 	struct m0_ha_link_params erf_link_params;
-
 	struct m0_buf            erf_git_rev_id;
 } M0_XCA_RECORD;
 
@@ -96,15 +94,10 @@ struct m0_ha_entrypoint_req {
 	 * m0_ha is responsible for this field.
 	 */
 	bool                      heq_first_request;
+	uint64_t                  heq_generation;
 	char                     *heq_rpc_endpoint;
 	struct m0_fid             heq_process_fid;
 	struct m0_fid             heq_profile_fid;
-	/**
-	 * Client request for a local and remote link id.
-	 * If this flag is set then remove and local link ids will be assigned
-	 * by the server.
-	 */
-	bool                      heq_link_id_request;
 	struct m0_ha_link_params  heq_link_params;
 	/* m0_build_info::bi_git_rev_id */
 	const char               *heq_git_rev_id;
@@ -119,6 +112,7 @@ struct m0_ha_entrypoint_rep {
 	char                      *hae_active_rm_ep;
 
 	struct m0_ha_link_params   hae_link_params;
+	bool                       hae_link_do_reconnect;
 };
 
 extern struct m0_fop_type m0_ha_entrypoint_req_fopt;

@@ -26,6 +26,46 @@
 /**
  * @defgroup ha
  *
+ * - TODO 2 cases TRANSIENT -> ONLINE: if m0d reconnected or it's restarted
+ * - TODO can m0d receive TRANSIENT or FAILED about itself
+ * - TODO race between FAILED about process and systemd restart
+ * - TODO check types of process fid and profile fid
+ *
+ * Reconnect protocol
+ * - Legend
+ *   - HA1 - side with outgoging link (m0_ha with HA link from connect());
+ *   - HA2 - side with incoming link (m0_ha with HA link from entrypoint
+ *     server);
+ *   - Cx - case #x
+ *   - Sx - step #x
+ *   - CxSy - case #x, step #y
+ * - C1 HA2 is started, HA1 starts (first start after HA2 had started):
+ *   - S1 HA1 sends entrypoint request with first_request flag set
+ *   - S2 HA2 receives the request
+ *   - S3 HA2 looks at the flag and makes new HA link
+ *   - S4 HA2 sends entrypoint reply
+ *   - S5 HA1 makes new link with the parameters from reply
+ * - C2 HA1 and HA2 restart
+ *   - the same as C1
+ * - C3 HA1 restarts, HA2 is alive
+ *   - the same as C1. Existing link is totally ignored in C1S3
+ * - C4 HA2 restarts, HA1 is alive
+ *   - S1 HA1 considers HA2 dead
+ *   - S2 HA1 starts HA link reconnect
+ *   - S3 HA1 tries to send entrypoint request to HA2 in infinite loop
+ *   - S4 HA1 sends entrypoint request
+ *   - S5 HA2 receives entrypoint request
+ *   - S7 HA2 sees first_request flag is not set
+ *   - S8 HA2 makes HA link with parameters from request
+ *   - S9 HA2 sends entrypoint reply
+ *   - S10 HA1 ends HA link reconnect
+ * - C5 HA1 is alive, HA2 is alive, HA2 considers HA1 dead due to transient
+ *   network failure
+ *   - S1 C4S1, C4S2, C4S3
+ *   - S2 HA2 terminates the process with HA1
+ *   - S3 HA2 ensures that process is terminated
+ *   - S4 C3
+ *
  * Source structure
  * - ha/entrypoint_fops.h - entrypoint fops + req <-> req_fop, rep <-> rep_fop
  * - ha/entrypoint.h      - entrypoint client & server (transport)
@@ -93,8 +133,10 @@
 
 #include "lib/tlist.h"          /* m0_tl */
 #include "lib/types.h"          /* uint64_t */
+#include "lib/mutex.h"          /* m0_mutex */
 
 #include "fid/fid.h"            /* m0_fid */
+#include "module/module.h"      /* m0_module */
 #include "ha/entrypoint.h"      /* m0_ha_entrypoint_client */
 
 struct m0_uint128;
@@ -104,6 +146,24 @@ struct m0_ha;
 struct m0_ha_msg;
 struct m0_ha_link;
 struct m0_ha_entrypoint_req;
+
+enum m0_ha_level {
+	M0_HA_LEVEL_ASSIGNS,
+	M0_HA_LEVEL_ADDR_STRDUP,
+	M0_HA_LEVEL_LINK_SERVICE,
+	M0_HA_LEVEL_ENTRYPOINT_SERVER_INIT,
+	M0_HA_LEVEL_ENTRYPOINT_CLIENT_INIT,
+	M0_HA_LEVEL_INIT,
+	M0_HA_LEVEL_ENTRYPOINT_SERVER_START,
+	M0_HA_LEVEL_INCOMING_LINKS,
+	M0_HA_LEVEL_START,
+	M0_HA_LEVEL_LINK_CTX_ALLOC,
+	M0_HA_LEVEL_LINK_CTX_INIT,
+	M0_HA_LEVEL_ENTRYPOINT_CLIENT_START,
+	M0_HA_LEVEL_ENTRYPOINT_CLIENT_WAIT,
+	M0_HA_LEVEL_LINK_ASSIGN,
+	M0_HA_LEVEL_CONNECT,
+};
 
 struct m0_ha_ops {
 	void (*hao_entrypoint_request)
@@ -139,23 +199,37 @@ struct m0_ha_ops {
 struct m0_ha_cfg {
 	struct m0_ha_ops                    hcf_ops;
 	struct m0_rpc_machine              *hcf_rpc_machine;
-	const char                         *hcf_addr;
 	struct m0_reqh                     *hcf_reqh;
+	/** Remote address for m0_ha_connect(). */
+	const char                         *hcf_addr;
 	struct m0_fid                       hcf_process_fid;
 	struct m0_fid                       hcf_profile_fid;
+
+	/* m0_ha is resposible for the next fields */
+
 	struct m0_ha_entrypoint_client_cfg  hcf_entrypoint_client_cfg;
 	struct m0_ha_entrypoint_server_cfg  hcf_entrypoint_server_cfg;
 };
 
+struct ha_link_ctx;
+
 struct m0_ha {
 	struct m0_ha_cfg                h_cfg;
+	struct m0_module                h_module;
+	struct m0_mutex                 h_lock;
 	struct m0_tl                    h_links_incoming;
 	struct m0_tl                    h_links_outgoing;
+	/** primary outgoing link */
+	struct m0_ha_link              *h_link;
+	/** struct ha_link_ctx for h_link */
+	struct ha_link_ctx             *h_link_ctx;
+	bool                            h_link_started;
 	struct m0_reqh_service         *h_hl_service;
 	struct m0_ha_entrypoint_client  h_entrypoint_client;
 	struct m0_ha_entrypoint_server  h_entrypoint_server;
 	struct m0_clink                 h_clink;
 	uint64_t                        h_link_id_counter;
+	uint64_t                        h_generation_counter;
 };
 
 M0_INTERNAL int m0_ha_init(struct m0_ha *ha, struct m0_ha_cfg *ha_cfg);
@@ -170,8 +244,7 @@ m0_ha_entrypoint_reply(struct m0_ha                       *ha,
                        struct m0_ha_link                 **hl_ptr);
 
 M0_INTERNAL struct m0_ha_link *m0_ha_connect(struct m0_ha *ha);
-M0_INTERNAL void m0_ha_disconnect(struct m0_ha      *ha,
-                                  struct m0_ha_link *hl);
+M0_INTERNAL void m0_ha_disconnect(struct m0_ha *ha);
 
 M0_INTERNAL void m0_ha_disconnect_incoming(struct m0_ha      *ha,
                                            struct m0_ha_link *hl);
@@ -184,6 +257,10 @@ M0_INTERNAL void m0_ha_delivered(struct m0_ha      *ha,
                                  struct m0_ha_link *hl,
                                  struct m0_ha_msg  *msg);
 
+M0_INTERNAL void m0_ha_flush(struct m0_ha      *ha,
+			     struct m0_ha_link *hl);
+
+M0_INTERNAL struct m0_ha_link *m0_ha_outgoing_link(struct m0_ha *ha);
 M0_INTERNAL struct m0_rpc_session *m0_ha_outgoing_session(struct m0_ha *ha);
 
 M0_INTERNAL int  m0_ha_mod_init(void);

@@ -110,7 +110,8 @@ static void ha_link_service_stop(struct m0_reqh_service *service)
 
 M0_INTERNAL struct m0_ha_link *
 m0_ha_link_service_find(struct m0_reqh_service  *service,
-                        const struct m0_uint128 *link_id)
+                        const struct m0_uint128 *link_id,
+                        struct m0_uint128       *connection_id)
 {
 	struct ha_link_service *hl_service = ha_link_service_container(service);
 	struct m0_ha_link      *hl;
@@ -121,8 +122,14 @@ m0_ha_link_service_find(struct m0_reqh_service  *service,
 	hl = m0_tl_find(ha_link_svc, ha_link, &hl_service->hls_links,
 		m0_uint128_eq(&ha_link->hln_conn_cfg.hlcc_params.hlp_id_local,
 			      link_id));
+	if (connection_id != NULL) {
+		*connection_id = hl == NULL ? M0_UINT128(0, 0) :
+				 hl->hln_conn_cfg.hlcc_params.hlp_id_connection;
+	}
 	m0_rwlock_read_unlock(&hl_service->hls_lock);
-	M0_LEAVE("hl=%p link_id="U128X_F, hl, U128_P(link_id));
+	M0_LEAVE("hl=%p link_id="U128X_F" connection_id="U128X_F, hl,
+	         U128_P(link_id), U128_P(connection_id == NULL ?
+	                                 &M0_UINT128(0, 0) : connection_id));
 	return hl;
 }
 
@@ -133,7 +140,7 @@ M0_INTERNAL void m0_ha_link_service_register(struct m0_reqh_service *service,
 
 	M0_ENTRY("service=%p hl=%p hl_service=%p", service, hl, hl_service);
 	M0_PRE(m0_ha_link_service_find(service,
-		       &hl->hln_conn_cfg.hlcc_params.hlp_id_local) == NULL);
+		   &hl->hln_conn_cfg.hlcc_params.hlp_id_local, NULL) == NULL);
 	m0_rwlock_write_lock(&hl_service->hls_lock);
 	ha_link_svc_tlink_init_at_tail(hl, &hl_service->hls_links);
 	m0_rwlock_write_unlock(&hl_service->hls_lock);
@@ -147,7 +154,7 @@ M0_INTERNAL void m0_ha_link_service_deregister(struct m0_reqh_service *service,
 
 	M0_ENTRY("service=%p hl=%p hl_service=%p", service, hl, hl_service);
 	M0_PRE(m0_ha_link_service_find(service,
-		       &hl->hln_conn_cfg.hlcc_params.hlp_id_local) == hl);
+		   &hl->hln_conn_cfg.hlcc_params.hlp_id_local, NULL) != NULL);
 	m0_rwlock_write_lock(&hl_service->hls_lock);
 	ha_link_svc_tlink_del_fini(hl);
 	m0_rwlock_write_unlock(&hl_service->hls_lock);

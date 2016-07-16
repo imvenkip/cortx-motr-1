@@ -45,18 +45,27 @@ struct m0_ha_link_tags {
 } M0_XCA_RECORD;
 
 struct m0_ha_link_msg_fop {
-	struct m0_ha_msg lmf_msg;
+	uint64_t               lmf_msg_nr;
+	struct m0_ha_msg       lmf_msg;
+	struct m0_uint128      lmf_id_local;
+	struct m0_uint128      lmf_id_remote;
+	struct m0_uint128      lmf_id_connection;
+	uint64_t               lmf_out_next;
+	uint64_t               lmf_in_delivered;
 } M0_XCA_RECORD;
 
 struct m0_ha_link_msg_rep_fop {
-	int lmr_rc;
+	int32_t                lmr_rc;
+	uint64_t               lmr_out_next;
+	uint64_t               lmr_in_delivered;
 } M0_XCA_RECORD;
 
 struct m0_ha_link_params {
-	struct m0_uint128 hlp_id_local;
-	struct m0_uint128 hlp_id_remote;
-	/* bool flag */
-	uint64_t          hlp_tag_even;
+	struct m0_uint128      hlp_id_local;
+	struct m0_uint128      hlp_id_remote;
+	struct m0_uint128      hlp_id_connection;
+	struct m0_ha_link_tags hlp_tags_local;
+	struct m0_ha_link_tags hlp_tags_remote;
 } M0_XCA_RECORD;
 
 #define HLTAGS_F "(confirmed=%"PRIu64" delivered=%"PRIu64" next=%"PRIu64" "   \
@@ -68,6 +77,8 @@ M0_INTERNAL void m0_ha_link_tags_initial(struct m0_ha_link_tags *tags,
                                          bool                    tag_even);
 M0_INTERNAL bool m0_ha_link_tags_eq(const struct m0_ha_link_tags *tags1,
                                     const struct m0_ha_link_tags *tags2);
+M0_INTERNAL void m0_ha_link_params_invert(struct m0_ha_link_params       *dst,
+                                          const struct m0_ha_link_params *src);
 
 extern struct m0_fop_type m0_ha_link_msg_fopt;
 extern struct m0_fop_type m0_ha_link_msg_rep_fopt;

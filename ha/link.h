@@ -36,6 +36,75 @@
  *   use case:
  *   send() -> transport -> recv () -> delivered()
  *
+ * * Queue and queue pointers
+ *
+ * - queue
+ * - pointers: undelivered, transfer, assign
+ *
+ * * Link state
+ *
+ * - outgoing
+ *   - msg queue: messages in range [delivered, assign).
+ * - incoming
+ *   - msg queue
+ *
+ * * Protocols
+ * ** Legend
+ * - L1 - m0_ha_link #1
+ * - L2 - m0_ha_link #2
+ * - P1 - process with L1
+ * - P2 - process with L2
+ * - H1 - supervisor (TODO make better word) in P1, controls L1
+ * - H2 - supervisor in P2, controls L2
+ * ** Typical use case
+ * - P1 is m0d/m0mkfs
+ * - P2 is halond
+ * - H1 and H2 are struct m0_ha
+ * ** Connect protocol
+ * - H1 makes new request generation
+ * - H1 sends L1 params request to H2. Request includes generation
+ * - H2 receives the request
+ * - H2 makes new request generation
+ * - H2 makes params for L1 and L2
+ *   - makes connection id as concatenation of H1 request generation and
+ *     H2 request generation
+ *   - sets L1 params id_connection
+ *   - sets L2 params id_connection to the same value
+ *   - makes L1 link id distinct from all other link ids made by P2 during it's
+ *     lifetime
+ *   - makes L2 link id in the same way
+ *   - sets L1 params
+ *     - id_connection to connection id
+ *     - id_local  to L1 link id
+ *     - id_remote to L2 link id
+ *     - XXX tag_even  to true or false
+ *   - sets L2 params
+ *     - id_connection to connection id
+ *     - id_local  to L2 link id
+ *     - id_remote to L1 link id
+ *     - XXX tag_even  to !(L1 params tag_even)
+ * - H2 calls init() for L2, then start() for L2 with L2 params
+ * - H2 sends L1 params to H1 in params reply
+ * - H1 receives L1 params
+ * - H1 calls init() for L1, then start() for L1 with L1 params
+ * - <now L1 and L2 can start m0_ha_msg transfer>
+ * ** Reconnect protocol in case if L2 exists
+ * - H1 makes new request generation
+ * - H1 reconnec_begin() for L1, gets L1 params
+ * - H1 sends L1 params and request generation to H2 using some transport
+ *   (not L1 nor L2)
+ * - H2 receives L1 params and request generation
+ * - H2 looks for L2 by L1 params
+ * - H2 successfully finds L2
+ * - H2 reconnect_begin() for L2, gets L2 params
+ * - H2 reconnect_end() for L2 with old L2 params
+ * - H2 sends old L1 params to H1 using some transport (not L1 nor L2)
+ * - H1 receives old L1 params
+ * - H1 reconnect_end() for L1 with old L1 params
+ * - <now L1 and L2 can resume m0_ha_msg transfer>
+ * ** Reconnect protocol in case if L2 doesn't exist
+ * - TODO
+ *
  * @{
  */
 
@@ -45,13 +114,13 @@
 #include "lib/semaphore.h"      /* m0_semaphore */
 #include "lib/time.h"           /* m0_time_t */
 
-#include "sm/sm.h"              /* m0_sm_ast */
+#include "sm/sm.h"              /* m0_sm */
 #include "fop/fom.h"            /* m0_fom */
 #include "fop/fop.h"            /* m0_fop */
 #include "rpc/link.h"           /* m0_rpc_link */
 
-#include "ha/msg_queue.h"       /* m0_ha_msg_queue */
 #include "ha/link_fops.h"       /* m0_ha_link_params */
+#include "ha/lq.h"              /* m0_ha_lq */
 
 
 struct m0_reqh;
@@ -61,6 +130,15 @@ struct m0_locality;
 struct m0_ha_link_msg_fop;
 struct m0_ha_msg;
 struct m0_rpc_session;
+
+enum m0_ha_link_state {
+	M0_HA_LINK_STATE_INIT,
+	M0_HA_LINK_STATE_FINI,
+	M0_HA_LINK_STATE_RUNNING,
+	M0_HA_LINK_STATE_EVENT,
+	M0_HA_LINK_STATE_STOPPING,
+	M0_HA_LINK_STATE_RECONNECTING,
+};
 
 struct m0_ha_link_conn_cfg {
 	struct m0_ha_link_params  hlcc_params;
@@ -73,57 +151,59 @@ struct m0_ha_link_conn_cfg {
 	 */
 	struct m0_fid             hlcc_rpc_service_fid;
 	/** Remote endpoint. */
-	char                     *hlcc_rpc_endpoint;
+	const char               *hlcc_rpc_endpoint;
 	uint64_t                  hlcc_max_rpcs_in_flight;
 	m0_time_t                 hlcc_connect_timeout;
 	m0_time_t                 hlcc_disconnect_timeout;
+	m0_time_t                 hlcc_resend_interval;
+	uint64_t                  hlcc_nr_sent_max;
 };
 
 struct m0_ha_link_cfg {
-	struct m0_reqh             *hlc_reqh;
-	struct m0_reqh_service     *hlc_reqh_service;
-	struct m0_rpc_machine      *hlc_rpc_machine;
-	struct m0_ha_msg_queue_cfg  hlc_q_in_cfg;
-	struct m0_ha_msg_queue_cfg  hlc_q_out_cfg;
-	/* TODO rename q_xxx_cfg -> q_cfg_xxx */
-	struct m0_ha_msg_queue_cfg  hlc_q_delivered_cfg;
-	struct m0_ha_msg_queue_cfg  hlc_q_not_delivered_cfg;
+	struct m0_reqh         *hlc_reqh;
+	struct m0_reqh_service *hlc_reqh_service;
+	struct m0_rpc_machine  *hlc_rpc_machine;
+	struct m0_ha_lq_cfg     hlq_q_cfg_in;
+	struct m0_ha_lq_cfg     hlq_q_cfg_out;
 };
 
 struct m0_ha_link {
-	struct m0_ha_link_cfg      hln_cfg;
-	struct m0_ha_link_conn_cfg hln_conn_cfg;
-	struct m0_rpc_link         hln_rpc_link;
+	struct m0_ha_link_cfg       hln_cfg;
+	struct m0_ha_link_conn_cfg  hln_conn_cfg;
+	struct m0_ha_link_conn_cfg  hln_conn_reconnect_cfg;
+	struct m0_rpc_link          hln_rpc_link;
 	/** ha_link_service::hls_links */
-	struct m0_tlink            hln_service_link;
-	uint64_t                   hln_service_magic;
-	struct m0_mutex            hln_lock;
+	struct m0_tlink             hln_service_link;
+	uint64_t                    hln_service_magic;
+	struct m0_mutex             hln_lock;
 	/** This lock is always taken before hln_lock. */
-	struct m0_mutex            hln_chan_lock;
-	struct m0_chan             hln_chan;
-	struct m0_ha_msg_queue     hln_q_in;
-	struct m0_ha_msg_queue     hln_q_out;
-	struct m0_ha_msg_queue     hln_q_delivered;
-	struct m0_ha_msg_queue     hln_q_not_delivered;
+	struct m0_mutex             hln_chan_lock;
+	struct m0_sm                hln_sm;
+	struct m0_chan              hln_chan;
+	struct m0_ha_lq             hln_q_in;
+	struct m0_ha_lq             hln_q_out;
 	/** ha_sl */
-	struct m0_tl               hln_sent;
-	uint64_t                   hln_tag_current;
-	struct m0_fom              hln_fom;
-	struct m0_locality        *hln_fom_locality;
-	bool                       hln_fom_is_stopping;
-	bool                       hln_fom_enable_wakeup;
-	struct m0_semaphore        hln_start_wait;
-	struct m0_semaphore        hln_stop_cond;
-	struct m0_semaphore        hln_stop_wait;
-	bool                       hln_waking_up;
-	struct m0_sm_ast           hln_waking_ast;
-	struct m0_ha_msg_qitem    *hln_qitem_to_send;
-	struct m0_fop              hln_outgoing_fop;
-	struct m0_ha_link_msg_fop *hln_req_fop_data;
-	bool                       hln_replied;
-	bool                       hln_released;
-	struct m0_clink            hln_rpc_wait;
-	bool                       hln_rpc_event_occurred;
+	struct m0_fom               hln_fom;
+	struct m0_locality         *hln_fom_locality;
+	bool                        hln_fom_is_stopping;
+	bool                        hln_fom_enable_wakeup;
+	struct m0_semaphore         hln_start_wait;
+	struct m0_semaphore         hln_stop_cond;
+	struct m0_semaphore         hln_stop_wait;
+	bool                        hln_waking_up;
+	struct m0_sm_ast            hln_waking_ast;
+	struct m0_ha_msg           *hln_msg_to_send;
+	bool                        hln_delivered_update;
+	struct m0_fop               hln_outgoing_fop;
+	struct m0_ha_link_msg_fop   hln_req_fop_data;
+	bool                        hln_replied;
+	bool                        hln_released;
+	struct m0_clink             hln_rpc_wait;
+	bool                        hln_rpc_event_occurred;
+	bool                        hln_reconnect;
+	bool                        hln_reconnect_cfg_is_set;
+	int                         hln_rpc_rc;
+	bool                        hln_no_new_delivered;
 };
 
 M0_INTERNAL int  m0_ha_link_init (struct m0_ha_link     *hl,
@@ -133,7 +213,21 @@ M0_INTERNAL void m0_ha_link_start(struct m0_ha_link          *hl,
                                   struct m0_ha_link_conn_cfg *hl_conn_cfg);
 M0_INTERNAL void m0_ha_link_stop (struct m0_ha_link *hl);
 
+M0_INTERNAL void m0_ha_link_reconnect_begin(struct m0_ha_link        *hl,
+                                            struct m0_ha_link_params *lp);
+M0_INTERNAL void
+m0_ha_link_reconnect_end(struct m0_ha_link                *hl,
+                         const struct m0_ha_link_conn_cfg *hl_conn_cfg);
+M0_INTERNAL void
+m0_ha_link_reconnect_params(const struct m0_ha_link_params *lp_alive,
+			    struct m0_ha_link_params       *lp_alive_new,
+			    struct m0_ha_link_params       *lp_dead_new,
+			    const struct m0_uint128        *id_alive,
+			    const struct m0_uint128        *id_dead,
+			    const struct m0_uint128        *id_connection);
+
 M0_INTERNAL struct m0_chan *m0_ha_link_chan(struct m0_ha_link *hl);
+M0_INTERNAL struct m0_chan *m0_ha_link_state(struct m0_ha_link *hl);
 
 M0_INTERNAL void m0_ha_link_send(struct m0_ha_link      *hl,
                                  const struct m0_ha_msg *msg,
@@ -152,7 +246,14 @@ M0_INTERNAL uint64_t m0_ha_link_not_delivered_consume(struct m0_ha_link *hl);
 M0_INTERNAL void m0_ha_link_wait_delivery(struct m0_ha_link *hl,
 					  uint64_t           tag);
 M0_INTERNAL void m0_ha_link_wait_arrival(struct m0_ha_link *hl);
+M0_INTERNAL void m0_ha_link_wait_confirmation(struct m0_ha_link *hl,
+                                              uint64_t           tag);
 
+/**
+ * Waits until all messages are sent and delivered.
+ * Also waits until all messages received are consumend and delivery is
+ * confirmed.
+ */
 M0_INTERNAL void m0_ha_link_flush(struct m0_ha_link *hl);
 M0_INTERNAL void m0_ha_link_quiesce(struct m0_ha_link *hl);
 
