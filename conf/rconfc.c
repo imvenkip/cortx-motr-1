@@ -520,6 +520,8 @@ static void rconfc_herd_link_fini(struct rconfc_link *lnk);
 static bool rconfc_gate_check(struct m0_confc *confc);
 static int  rconfc_gate_skip(struct m0_confc *confc);
 static bool rconfc_gate_drain(struct m0_clink *clink);
+static bool ha_clink_cb(struct m0_clink *clink);
+static void ha_entrypoint_rep_reset(struct m0_ha_entrypoint_rep *rep);
 
 struct m0_confc_gate_ops m0_rconfc_gate_ops = {
 	.go_check = rconfc_gate_check,
@@ -539,7 +541,13 @@ static struct m0_sm_state_descr rconfc_states[] = {
 	[RCS_INIT] = {
 		.sd_flags     = M0_SDF_INITIAL,
 		.sd_name      = "RCS_INIT",
-		.sd_allowed   = M0_BITS(RCS_ENTRYPOINT_CONSUME, RCS_STOPPING)
+		.sd_allowed   = M0_BITS(RCS_ENTRYPOINT_WAIT, RCS_STOPPING)
+	},
+	[RCS_ENTRYPOINT_WAIT] = {
+		.sd_name      = "RCS_ENTRYPOINT_WAIT",
+		.sd_allowed   = M0_BITS(RCS_ENTRYPOINT_WAIT,
+					RCS_ENTRYPOINT_CONSUME,
+					RCS_FAILURE),
 	},
 	[RCS_ENTRYPOINT_CONSUME] = {
 		.sd_name      = "RCS_ENTRYPOINT_CONSUME",
@@ -547,11 +555,11 @@ static struct m0_sm_state_descr rconfc_states[] = {
 	},
 	[RCS_CREDITOR_SETUP] = {
 		.sd_name      = "RCS_CREDITOR_SETUP",
-		.sd_allowed   = M0_BITS(RCS_GET_RLOCK, RCS_ENTRYPOINT_CONSUME)
+		.sd_allowed   = M0_BITS(RCS_GET_RLOCK, RCS_ENTRYPOINT_WAIT)
 	},
 	[RCS_GET_RLOCK] = {
 		.sd_name      = "RCS_GET_RLOCK",
-		.sd_allowed   = M0_BITS(RCS_VERSION_ELECT, RCS_ENTRYPOINT_CONSUME,
+		.sd_allowed   = M0_BITS(RCS_VERSION_ELECT, RCS_ENTRYPOINT_WAIT,
 					RCS_FAILURE),
 	},
 	[RCS_VERSION_ELECT] = {
@@ -569,7 +577,7 @@ static struct m0_sm_state_descr rconfc_states[] = {
 	},
 	[RCS_CONDUCTOR_DRAIN] = {
 		.sd_name      = "RCS_CONDUCTOR_DRAIN",
-		.sd_allowed   = M0_BITS(RCS_ENTRYPOINT_CONSUME, RCS_FAILURE,
+		.sd_allowed   = M0_BITS(RCS_ENTRYPOINT_WAIT, RCS_FAILURE,
 					RCS_FINAL),
 	},
 	[RCS_STOPPING] = {
@@ -1539,14 +1547,12 @@ static int rconfc_entrypoint_consume(struct m0_rconfc *rconfc,
 				     const char      **rm_addr)
 {
 	struct rlock_ctx               *rlx = rconfc->rc_rlock_ctx;
-	struct m0_ha_entrypoint_client *ecl;
 	struct m0_ha_entrypoint_rep    *hep;
 	int                             rc;
 
 	M0_ENTRY();
 	rconfc_state_set(rconfc, RCS_ENTRYPOINT_CONSUME);
-	ecl = &m0_get()->i_ha->h_entrypoint_client;
-	hep = &ecl->ecl_rep;
+	hep = &rconfc->rc_ha_entrypoint_rep;
 	rconfc->rc_quorum = hep->hae_quorum;
 	rlx->rlc_rm_fid = hep->hae_active_rm_fid;
 	*rm_addr = hep->hae_active_rm_ep;
@@ -1560,7 +1566,7 @@ static int rconfc_entrypoint_consume(struct m0_rconfc *rconfc,
 	return M0_RC(rc);
 }
 
-static void rconfc_start(struct m0_rconfc *rconfc)
+static void rconfc_start_internal(struct m0_rconfc *rconfc)
 {
 	struct rlock_ctx *rlx = rconfc->rc_rlock_ctx;
 	const char       *rm_addr = NULL;
@@ -1583,10 +1589,33 @@ reconnect:
 		rc = rlock_ctx_creditor_setup(rlx, rm_addr);
 		if (rc != 0) {
 			/* TODO Handle changed RM address correctly */
+			rconfc_state_set(rconfc, RCS_ENTRYPOINT_WAIT);
 			goto reconnect;
 		}
 	}
 	rconfc_read_lock_get(rconfc);
+	M0_LEAVE();
+}
+
+static void rconfc_start(struct m0_rconfc *rconfc)
+{
+	struct m0_ha                   *ha  = m0_get()->i_ha;
+	struct m0_ha_entrypoint_client *ecl = &ha->h_entrypoint_client;
+
+	M0_PRE(rconfc->rc_local_conf == NULL);
+
+	M0_ENTRY();
+
+	rconfc_state_set(rconfc, RCS_ENTRYPOINT_WAIT);
+
+	if (rconfc->rc_ha_entrypoint_rep.hae_rc != 0) {
+		m0_ha_entrypoint_client_request(ecl);
+	} else {
+		rconfc_start_internal(rconfc);
+		ha_entrypoint_rep_reset(&rconfc->rc_ha_entrypoint_rep);
+		m0_ha_entrypoint_rep_free(&rconfc->rc_ha_entrypoint_rep);
+	}
+
 	M0_LEAVE();
 }
 
@@ -2270,6 +2299,8 @@ M0_INTERNAL int m0_rconfc_init(struct m0_rconfc      *rconfc,
 	int               rc;
 	struct rlock_ctx *rlock_ctx;
 	struct ver_accm  *va;
+	struct m0_ha     *ha;
+
 
 	M0_ENTRY("rconfc = %p", rconfc);
 	M0_PRE(rconfc != NULL);
@@ -2304,6 +2335,13 @@ M0_INTERNAL int m0_rconfc_init(struct m0_rconfc      *rconfc,
 	rcnf_active_tlist_init(&rconfc->rc_active);
 	m0_clink_init(&rconfc->rc_unpinned_cl, rconfc_unpinned_cb);
 	m0_sm_init(&rconfc->rc_sm, &rconfc_sm_conf, RCS_INIT, sm_group);
+
+	/* Subscribe on ha entrypoint callbacks */
+	ha = m0_get()->i_ha;
+	m0_clink_init(&rconfc->rc_ha_entrypoint_cl, ha_clink_cb);
+	m0_clink_add_lock(m0_ha_entrypoint_client_chan(&ha->h_entrypoint_client),
+			  &rconfc->rc_ha_entrypoint_cl);
+	ha_entrypoint_rep_reset(&rconfc->rc_ha_entrypoint_rep);
 
 	return M0_RC(0);
 confc_err:
@@ -2376,6 +2414,9 @@ M0_INTERNAL void m0_rconfc_fini(struct m0_rconfc *rconfc)
 	M0_PRE(rconfc != NULL);
 	M0_PRE(rconfc->rc_rlock_ctx != NULL);
 	M0_PRE(_confc_is_inited(&rconfc->rc_phony));
+
+	m0_clink_del_lock(&rconfc->rc_ha_entrypoint_cl);
+	m0_clink_fini(&rconfc->rc_ha_entrypoint_cl);
 
 	m0_rconfc_lock(rconfc);
 	if (rconfc_state(rconfc) == RCS_INIT)
@@ -2491,6 +2532,45 @@ M0_INTERNAL bool m0_rconfc_is_preloaded(struct m0_rconfc *rconfc)
 	return rconfc_state(rconfc) == RCS_INIT &&
 		_confc_is_inited(&rconfc->rc_confc) &&
 		rconfc->rc_local_conf != NULL;
+}
+
+static bool ha_clink_cb(struct m0_clink *clink)
+{
+        struct m0_rconfc                   *rconfc = container_of(clink,
+                                                          struct m0_rconfc,
+                                                          rc_ha_entrypoint_cl);
+        struct m0_ha                       *ha  = m0_get()->i_ha;
+        struct m0_ha_entrypoint_client     *ecl = &ha->h_entrypoint_client;
+        enum m0_ha_entrypoint_client_state  state;
+	int rc;
+
+        state = m0_ha_entrypoint_client_state_get(ecl);
+        M0_ENTRY("ha_entrypoint_client_state %d", state);
+
+	if (rconfc->rc_local_conf != NULL)
+		return true;
+
+        if (state == M0_HEC_AVAILABLE && ecl->ecl_rep.hae_rc == 0) {
+                m0_rconfc_lock(rconfc);
+		rc = m0_ha_entrypoint_rep_copy(&rconfc->rc_ha_entrypoint_rep,
+					       &ecl->ecl_rep);
+		M0_ASSERT(rc == 0 || rc == -EINVAL);
+
+		if (rc == -EINVAL)
+			rconfc_fail(rconfc, rc);
+		else if (rconfc_state(rconfc) == RCS_ENTRYPOINT_WAIT)
+			rconfc_ast_post(rconfc, rconfc_start_ast_cb);
+
+                m0_rconfc_unlock(rconfc);
+        }
+
+        M0_LEAVE();
+        return true;
+}
+
+static void ha_entrypoint_rep_reset(struct m0_ha_entrypoint_rep *rep)
+{
+	rep->hae_rc = -EINVAL;
 }
 
 /** @} rconfc_dlspec */

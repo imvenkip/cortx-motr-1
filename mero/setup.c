@@ -623,7 +623,7 @@ static void cs_ha_process_event(struct m0_mero                *cctx,
 /**
  * Clears global HA session info and terminates rpc session to HA service.
  */
-static void cs_ha_fini(struct m0_mero *cctx)
+static void cs_ha_stop(struct m0_mero *cctx)
 {
 	M0_ENTRY("client_ctx: %p", cctx);
 	if (!cctx->cc_ha_is_started)
@@ -637,9 +637,15 @@ static void cs_ha_fini(struct m0_mero *cctx)
 	if (!cctx->cc_no_conf)
 		m0_mero_ha_disconnect(&cctx->cc_mero_ha);
 	m0_mero_ha_stop(&cctx->cc_mero_ha);
-	m0_mero_ha_fini(&cctx->cc_mero_ha);
 leave:
 	M0_LEAVE();
+}
+
+static void cs_ha_fini(struct m0_mero *cctx)
+{
+        M0_ENTRY("client_ctx: %p", cctx);
+        m0_mero_ha_fini(&cctx->cc_mero_ha);
+        M0_LEAVE();
 }
 
 static uint32_t
@@ -1023,15 +1029,22 @@ static int reqh_context_services_init(struct m0_reqh_context *rctx,
 	}
 	if (rc != 0) {
 		/* XXX rpc service is stoppped here. m0_ha needs the rpc */
-		if (cctx->cc_ha_is_started)
+		if (cctx->cc_ha_is_started) {
+			cs_ha_stop(cctx);
+
+			m0_rconfc_stop_sync(mero2rconfc(cctx));
+			m0_rconfc_fini(mero2rconfc(cctx));
+
 			cs_ha_fini(cctx);
+		}
+
 		m0_reqh_pre_storage_fini_svcs_stop(&rctx->rc_reqh);
 	}
 	return M0_RC(rc);
 }
 
 static int reqh_services_start(struct m0_reqh_context *rctx,
-                               struct m0_mero         *cctx)
+			       struct m0_mero         *cctx)
 {
 	struct m0_reqh         *reqh = &rctx->rc_reqh;
 	struct m0_reqh_service *ss_service;
@@ -2344,14 +2357,24 @@ void m0_cs_fini(struct m0_mero *cctx)
 	m0_ha_client_del(m0_mero2confc(cctx));
 
 	if (rctx->rc_state >= RC_REQH_INITIALISED) {
+                /* cctx->cc_ha_is_started is being changed, we need old one */
+                bool ha_was_started = cctx->cc_ha_is_started;
+
 		if (rctx->rc_state == RC_INITIALISED)
 			cs_storage_fini(&rctx->rc_stob);
-		cs_conf_destroy(cctx);
-		if (cctx->cc_ha_is_started)
-			cs_ha_fini(cctx);
-		cs_reqh_stop(rctx);
-		cs_conf_fini(cctx);
-		cs_rpc_machines_fini(reqh);
+
+                cs_conf_destroy(cctx);
+
+                if (ha_was_started)
+                        cs_ha_stop(cctx);
+
+                cs_reqh_stop(rctx);
+                cs_conf_fini(cctx);
+
+                if (ha_was_started)
+                        cs_ha_fini(cctx);
+
+                cs_rpc_machines_fini(reqh);
 	}
 	if (rctx->rc_state == RC_INITIALISED)
 		cs_reqh_storage_fini(rctx);

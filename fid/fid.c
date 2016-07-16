@@ -30,6 +30,7 @@
 #include "lib/uuid.h"          /* m0_uuid_generate */
 #include "fid/fid_xc.h"
 #include "fid/fid.h"
+#include "lib/memory.h"        /* M0_ALLOC_ARR */
 
 /**
    @addtogroup fid
@@ -282,6 +283,21 @@ M0_INTERNAL uint64_t m0_fid_hash(const struct m0_fid *fid)
 	return m0_hash(M0_CIRCULAR_SHIFT_LEFT(fid->f_container, 3) ^
 		       M0_CIRCULAR_SHIFT_LEFT(fid->f_key, 17));
 
+}
+
+M0_INTERNAL int m0_fid_arr_copy(struct m0_fid_arr *to, struct m0_fid_arr *from)
+{
+	int i;
+
+	M0_ALLOC_ARR(to->af_elems, from->af_count);
+	if (to->af_elems == NULL)
+		M0_RC(-ENOMEM);
+
+	to->af_count = from->af_count;
+	for (i = 0; i < to->af_count; ++i)
+		to->af_elems[i] = from->af_elems[i];
+
+	return M0_RC(0);
 }
 
 #undef M0_TRACE_SUBSYSTEM

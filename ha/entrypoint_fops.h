@@ -139,6 +139,8 @@ m0_ha_entrypoint_rep2fop(const struct m0_ha_entrypoint_rep *rep,
 
 M0_INTERNAL void m0_ha_entrypoint_rep_free(struct m0_ha_entrypoint_rep *rep);
 M0_INTERNAL void m0_ha_entrypoint_req_free(struct m0_ha_entrypoint_req *req);
+M0_INTERNAL int  m0_ha_entrypoint_rep_copy(struct m0_ha_entrypoint_rep *to,
+					   struct m0_ha_entrypoint_rep *from);
 
 /** @} end of ha group */
 #endif /* __MERO_HA_ENTRYPOINT_FOPS_H__ */

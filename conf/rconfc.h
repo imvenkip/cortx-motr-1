@@ -30,6 +30,7 @@
 #include "fop/fop.h"    /* m0_fop */
 #include "sm/sm.h"
 #include "conf/confc.h"
+#include "ha/entrypoint_fops.h" /* m0_ha_entrypoint_rep */
 
 struct m0_rconfc;
 struct m0_rpc_machine;
@@ -190,6 +191,7 @@ struct m0_rpc_item;
 
 enum m0_rconfc_state {
 	RCS_INIT,
+	RCS_ENTRYPOINT_WAIT,
 	RCS_ENTRYPOINT_CONSUME,
 	RCS_CREDITOR_SETUP,
 	RCS_GET_RLOCK,
@@ -305,6 +307,8 @@ struct m0_rconfc {
 	struct m0_tl              rc_active;
 	/** Clink to track unpinned conf objects during confc cache drop */
 	struct m0_clink           rc_unpinned_cl;
+	/** Clink to track ha entrypoint state changes */
+        struct m0_clink           rc_ha_entrypoint_cl;
 	/** Quorum calculation context. */
 	void                     *rc_qctx;
 	/** Read lock context. */
@@ -354,6 +358,7 @@ struct m0_rconfc {
 	struct m0_sm_ast          rc_load_ast;
 	struct m0_sm_ast          rc_load_fini_ast;
 #endif /* XXX HA re-link */
+	struct m0_ha_entrypoint_rep rc_ha_entrypoint_rep;
 };
 
 /**

@@ -113,6 +113,7 @@ M0_INTERNAL void m0_fid_tgenerate(struct m0_fid *fid,
 				  const uint8_t  tid);
 
 M0_INTERNAL uint64_t m0_fid_hash(const struct m0_fid *fid);
+M0_INTERNAL int m0_fid_arr_copy(struct m0_fid_arr *to, struct m0_fid_arr *from);
 
 /** @} end of fid group */
 #endif /* __MERO_FID_FID_H__ */

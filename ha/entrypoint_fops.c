@@ -131,6 +131,8 @@ m0_ha_entrypoint_fop2rep(const struct m0_ha_entrypoint_rep_fop *rep_fop,
 		.hae_link_params    = rep_fop->hbp_link_params,
 	};
 	M0_ASSERT(rep->hae_active_rm_ep != NULL);
+	M0_ASSERT(rep->hae_confd_fids.af_count ==
+		  rep_fop->hbp_confd_eps.ab_count);
 	rc = m0_bufs_to_strings(&rep->hae_confd_eps, &rep_fop->hbp_confd_eps);
 	M0_ASSERT(rc == 0);
 	M0_ALLOC_ARR(rep->hae_confd_fids.af_elems,
@@ -181,6 +183,7 @@ m0_ha_entrypoint_rep2fop(const struct m0_ha_entrypoint_rep *rep,
 		rep_fop->hbp_confd_fids.af_elems[i] =
 			rep->hae_confd_fids.af_elems[i];
 	}
+
 	return 0;
 }
 
@@ -197,6 +200,43 @@ M0_INTERNAL void m0_ha_entrypoint_req_free(struct m0_ha_entrypoint_req *req)
 	/* It should be allocated by m0_alloc() in m0_ha_entrypoint_fop2req */
 	m0_free((char *)req->heq_git_rev_id);
 }
+
+M0_INTERNAL int  m0_ha_entrypoint_rep_copy(struct m0_ha_entrypoint_rep *to,
+					   struct m0_ha_entrypoint_rep *from)
+{
+	int rc;
+
+	if (from->hae_confd_fids.af_count == 0 || from->hae_confd_eps == NULL)
+		return M0_RC(-EINVAL);
+
+	M0_SET0(to);
+	to->hae_rc            = from->hae_rc;
+	to->hae_quorum        = from->hae_quorum;
+	to->hae_active_rm_fid = from->hae_active_rm_fid;
+	to->hae_link_params   = from->hae_link_params;
+
+	to->hae_active_rm_ep  = m0_strdup(from->hae_active_rm_ep);
+	if (to->hae_active_rm_ep == NULL) {
+		rc = -ENOMEM;
+		goto out;
+	}
+
+	rc = m0_fid_arr_copy(&to->hae_confd_fids, &from->hae_confd_fids);
+	if (rc != 0)
+		goto out;
+
+	to->hae_confd_eps = m0_strings_dup(from->hae_confd_eps);
+	if (to->hae_confd_eps == NULL) {
+		rc = -ENOMEM;
+		goto out;
+	}
+
+	return M0_RC(0);
+out:
+	m0_ha_entrypoint_rep_free(to);
+	return M0_RC(rc);
+}
+
 
 #undef M0_TRACE_SUBSYSTEM
 
