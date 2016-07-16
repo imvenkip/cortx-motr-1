@@ -25,6 +25,28 @@
  * TODO deal with const vs non-const m0_ha_link_conn_cfg::hlcc_rpc_endpoint
  * TODO bob_of in ha_link_rpc_wait_cb
  *
+ * * m0_ha_link outgoing fom state machine
+ *
+ * @verbatim
+ *
+ *           INIT  FINISH
+ *              v  ^
+ *          NOT_CONNECTED
+ *              v  ^
+ *        CONNECT  DISCONNECTING
+ *              v  ^
+ *     CONNECTING  DISCONNECT
+ *              v  ^
+ *              IDLE <------+
+ *               v          |
+ *              SEND        |
+ *               v          |
+ *          WAIT_REPLY      |
+ *               v          |
+ *          WAIT_RELEASE >--+
+ *
+ * @endverbatim
+ *
  * @{
  */
 
