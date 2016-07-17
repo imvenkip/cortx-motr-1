@@ -613,6 +613,11 @@ static void ha_link_outgoing_item_replied(struct m0_rpc_item *item)
 	M0_LEAVE();
 }
 
+const static struct m0_rpc_item_ops ha_link_outgoing_item_ops = {
+	.rio_sent    = &ha_link_outgoing_item_sent,
+	.rio_replied = &ha_link_outgoing_item_replied,
+};
+
 static void ha_link_outgoing_fop_release(struct m0_ref *ref)
 {
 	struct m0_ha_link *hl;
@@ -631,10 +636,27 @@ static void ha_link_outgoing_fop_release(struct m0_ref *ref)
 	M0_LEAVE();
 }
 
-const static struct m0_rpc_item_ops ha_link_outgoing_item_ops = {
-	.rio_sent    = &ha_link_outgoing_item_sent,
-	.rio_replied = &ha_link_outgoing_item_replied,
-};
+static int ha_link_outgoing_fop_send(struct m0_ha_link *hl)
+{
+	struct m0_rpc_item *item;
+
+	M0_ENTRY("hl=%p", hl);
+	M0_SET0(&hl->hln_outgoing_fop);
+	M0_ALLOC_PTR(hl->hln_req_fop_data);
+	M0_ASSERT(hl->hln_req_fop_data != NULL);
+	m0_fop_init(&hl->hln_outgoing_fop, &m0_ha_link_msg_fopt,
+	            hl->hln_req_fop_data,
+	            &ha_link_outgoing_fop_release);
+	hl->hln_req_fop_data->lmf_msg = hl->hln_qitem_to_send->hmq_msg;
+	item = m0_fop_to_rpc_item(&hl->hln_outgoing_fop);
+	item->ri_prio = M0_RPC_ITEM_PRIO_MID;
+	item->ri_deadline = m0_time_from_now(0, 0);
+	item->ri_ops = &ha_link_outgoing_item_ops;
+	item->ri_session = &hl->hln_rpc_link.rlk_sess;
+	m0_rpc_post(item);
+	M0_LEAVE("hl=%p", hl);
+	return 0;
+}
 
 static int ha_link_outgoing_fom_tick(struct m0_fom *fom)
 {
@@ -642,7 +664,6 @@ static int ha_link_outgoing_fom_tick(struct m0_fom *fom)
 	struct m0_ha_msg_qitem          *qitem;
 	struct m0_ha_msg_qitem          *qitem2;
 	struct m0_ha_link               *hl;
-	struct m0_rpc_item              *item;
 	m0_time_t                        abs_timeout;
 	bool                             replied;
 	bool                             released;
@@ -775,19 +796,8 @@ static int ha_link_outgoing_fom_tick(struct m0_fom *fom)
 		}
 		return M0_RC(M0_FSO_WAIT);
 	case HA_LINK_OUTGOING_STATE_SEND:
-		M0_SET0(&hl->hln_outgoing_fop);
-		M0_ALLOC_PTR(hl->hln_req_fop_data);
-		M0_ASSERT(hl->hln_req_fop_data != NULL);
-		m0_fop_init(&hl->hln_outgoing_fop, &m0_ha_link_msg_fopt,
-		            hl->hln_req_fop_data,
-			    &ha_link_outgoing_fop_release);
-		hl->hln_req_fop_data->lmf_msg = hl->hln_qitem_to_send->hmq_msg;
-		item = m0_fop_to_rpc_item(&hl->hln_outgoing_fop);
-		item->ri_prio = M0_RPC_ITEM_PRIO_MID;
-		item->ri_deadline = m0_time_from_now(0, 0);
-		item->ri_ops = &ha_link_outgoing_item_ops;
-		item->ri_session = &hl->hln_rpc_link.rlk_sess;
-		m0_rpc_post(item);
+		rc = ha_link_outgoing_fop_send(hl);
+		M0_ASSERT(rc == 0);     /* XXX handle it */
 		m0_fom_phase_set(fom, HA_LINK_OUTGOING_STATE_WAIT_REPLY);
 		return M0_RC(M0_FSO_AGAIN);
 	case HA_LINK_OUTGOING_STATE_WAIT_REPLY:
