@@ -31,6 +31,8 @@
  *
  *           INIT  FINISH
  *              v  ^
+ *  RPC_LINK_INIT  RPC_LINK_FINI
+ *              v  ^
  *          NOT_CONNECTED
  *              v  ^
  *        CONNECT  DISCONNECTING
@@ -526,6 +528,8 @@ const struct m0_fom_type_ops m0_ha_link_incoming_fom_type_ops = {
 enum ha_link_outgoing_fom_state {
 	HA_LINK_OUTGOING_STATE_INIT   = M0_FOM_PHASE_INIT,
 	HA_LINK_OUTGOING_STATE_FINISH = M0_FOM_PHASE_FINISH,
+	HA_LINK_OUTGOING_STATE_RPC_LINK_INIT,
+	HA_LINK_OUTGOING_STATE_RPC_LINK_FINI,
 	HA_LINK_OUTGOING_STATE_NOT_CONNECTED,
 	HA_LINK_OUTGOING_STATE_CONNECT,
 	HA_LINK_OUTGOING_STATE_CONNECTING,
@@ -547,10 +551,14 @@ ha_link_outgoing_fom_states[HA_LINK_OUTGOING_STATE_NR] = {
 		.sd_allowed = allowed \
 	}
 	_ST(HA_LINK_OUTGOING_STATE_INIT, M0_SDF_INITIAL,
+	   M0_BITS(HA_LINK_OUTGOING_STATE_RPC_LINK_INIT)),
+	_ST(HA_LINK_OUTGOING_STATE_RPC_LINK_INIT, 0,
 	   M0_BITS(HA_LINK_OUTGOING_STATE_NOT_CONNECTED)),
+	_ST(HA_LINK_OUTGOING_STATE_RPC_LINK_FINI, 0,
+	   M0_BITS(HA_LINK_OUTGOING_STATE_FINISH)),
 	_ST(HA_LINK_OUTGOING_STATE_NOT_CONNECTED, 0,
 	   M0_BITS(HA_LINK_OUTGOING_STATE_CONNECT,
-	           HA_LINK_OUTGOING_STATE_FINISH)),
+	           HA_LINK_OUTGOING_STATE_RPC_LINK_FINI)),
 	_ST(HA_LINK_OUTGOING_STATE_CONNECT, 0,
 	   M0_BITS(HA_LINK_OUTGOING_STATE_CONNECTING)),
 	_ST(HA_LINK_OUTGOING_STATE_CONNECTING, 0,
@@ -649,19 +657,26 @@ static int ha_link_outgoing_fom_tick(struct m0_fom *fom)
 	switch (phase) {
 	case HA_LINK_OUTGOING_STATE_INIT:
 		hl->hln_qitem_to_send = NULL;
+		m0_fom_phase_set(fom, HA_LINK_OUTGOING_STATE_RPC_LINK_INIT);
+		return M0_RC(M0_FSO_AGAIN);
+	case HA_LINK_OUTGOING_STATE_RPC_LINK_INIT:
+		rc = m0_rpc_link_init(&hl->hln_rpc_link,
+		                      hl->hln_cfg.hlc_rpc_machine,
+		                      &hl->hln_conn_cfg.hlcc_rpc_service_fid,
+		                      hl->hln_conn_cfg.hlcc_rpc_endpoint,
+		                      hl->hln_conn_cfg.hlcc_max_rpcs_in_flight);
+		M0_ASSERT(rc == 0);     /* XXX handle it */
 		m0_fom_phase_set(fom, HA_LINK_OUTGOING_STATE_NOT_CONNECTED);
 		return M0_RC(M0_FSO_AGAIN);
+	case HA_LINK_OUTGOING_STATE_RPC_LINK_FINI:
+		m0_rpc_link_fini(&hl->hln_rpc_link);
+		m0_fom_phase_set(fom, HA_LINK_OUTGOING_STATE_FINISH);
+		return M0_RC(M0_FSO_WAIT);
 	case HA_LINK_OUTGOING_STATE_NOT_CONNECTED:
 		m0_mutex_lock(&hl->hln_lock);
 		stopping = hl->hln_fom_is_stopping;
 		m0_mutex_unlock(&hl->hln_lock);
 		if (!stopping) {
-			rc = m0_rpc_link_init(&hl->hln_rpc_link,
-				      hl->hln_cfg.hlc_rpc_machine,
-				      &hl->hln_conn_cfg.hlcc_rpc_service_fid,
-				      hl->hln_conn_cfg.hlcc_rpc_endpoint,
-				      hl->hln_conn_cfg.hlcc_max_rpcs_in_flight);
-			M0_ASSERT(rc == 0);
 			m0_fom_phase_set(fom, HA_LINK_OUTGOING_STATE_CONNECT);
 			return M0_RC(M0_FSO_AGAIN);
 		} else {
@@ -670,9 +685,9 @@ static int ha_link_outgoing_fom_tick(struct m0_fom *fom)
 			m0_mutex_unlock(&hl->hln_lock);
 			m0_sm_ast_cancel(hl->hln_fom_locality->lo_grp,
 			                 &hl->hln_waking_ast);
-			m0_rpc_link_fini(&hl->hln_rpc_link);
-			m0_fom_phase_set(fom, HA_LINK_OUTGOING_STATE_FINISH);
-			return M0_RC(M0_FSO_WAIT);
+			m0_fom_phase_set(fom,
+					 HA_LINK_OUTGOING_STATE_RPC_LINK_FINI);
+			return M0_RC(M0_FSO_AGAIN);
 		}
 	case HA_LINK_OUTGOING_STATE_CONNECT:
 		m0_mutex_lock(&hl->hln_lock);
