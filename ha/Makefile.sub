@@ -13,23 +13,25 @@ nobase_mero_include_HEADERS += ha/dispatcher.h \
 
 mero_libmero_la_SOURCES  += ha/dispatcher.c \
                             ha/entrypoint.c \
-                            ha/entrypoint_xc.c \
                             ha/entrypoint_fops.c \
-                            ha/entrypoint_fops_xc.c \
                             ha/epoch.c \
                             ha/ha.c \
                             ha/link.c \
                             ha/link_fops.c \
-                            ha/link_fops_xc.c \
                             ha/link_service.c \
                             ha/msg.c \
-                            ha/msg_xc.c \
                             ha/msg_queue.c \
                             ha/note.c \
-                            ha/note_xc.c \
                             ha/note_fops.c \
-                            ha/note_fops_xc.c \
                             ha/note_foms.c
+
+nodist_mero_libmero_la_SOURCES  += \
+                            ha/entrypoint_xc.c \
+                            ha/entrypoint_fops_xc.c \
+                            ha/link_fops_xc.c \
+                            ha/msg_xc.c \
+                            ha/note_xc.c \
+                            ha/note_fops_xc.c
 
 XC_FILES   += ha/entrypoint_xc.h \
               ha/entrypoint_fops_xc.h \

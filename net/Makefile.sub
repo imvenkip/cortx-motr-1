@@ -12,8 +12,10 @@ mero_libmero_la_SOURCES  += net/buf.c \
                             net/ep.c \
                             net/module.c \
                             net/net.c \
-                            net/net_otw_types_xc.c \
                             net/tm.c \
                             net/tm_provision.c
+
+nodist_mero_libmero_la_SOURCES  += \
+                            net/net_otw_types_xc.c
 
 XC_FILES += net/net_otw_types_xc.h

@@ -9,12 +9,14 @@ nobase_mero_include_HEADERS += mero/ha.h \
 
 mero_libmero_la_SOURCES += mero/ha.c \
                            mero/keepalive.c  \
-                           mero/keepalive_xc.c  \
                            mero/init.c  \
                            mero/setup.c \
                            mero/version.c \
                            mero/conf.c \
                            mero/process_attr.c
+
+nodist_mero_libmero_la_SOURCES  += \
+                           mero/keepalive_xc.c
 
 mero_m0d_SOURCES = mero/m0d.c \
                    mero/setup_internal.h

@@ -4,7 +4,8 @@ nobase_mero_include_HEADERS += stats/stats_srv.h     \
 
 mero_libmero_la_SOURCES  += stats/stats_srv.c        \
 			    stats/stats_fops.c       \
-			    stats/stats_api.c        \
-			    stats/stats_fops_xc.c
+			    stats/stats_api.c
+
+nodist_mero_libmero_la_SOURCES  += stats/stats_fops_xc.c
 
 XC_FILES   += stats/stats_fops_xc.h

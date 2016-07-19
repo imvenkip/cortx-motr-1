@@ -55,18 +55,14 @@ nobase_mero_include_HEADERS += lib/arith.h \
 
 mero_libmero_la_SOURCES += lib/assert.c \
                            lib/bitmap.c \
-                           lib/bitmap_xc.c \
                            lib/bitstring.c \
                            lib/bob.c \
                            lib/buf.c \
-                           lib/buf_xc.c \
                            lib/chan.c \
                            lib/cond.c \
                            lib/cookie.c \
-                           lib/cookie_xc.c \
                            lib/combinations.c \
                            lib/ext.c \
-                           lib/ext_xc.c \
                            lib/finject.c \
                            lib/finject_internal.h \
                            lib/getopts.c \
@@ -80,7 +76,6 @@ mero_libmero_la_SOURCES += lib/assert.c \
                            lib/mutex.c \
                            lib/queue.c \
                            lib/refs.c \
-                           lib/string_xc.c \
                            lib/string.c \
                            lib/thread.c \
                            lib/thread_pool.c \
@@ -89,12 +84,10 @@ mero_libmero_la_SOURCES += lib/assert.c \
                            lib/tlist.c \
                            lib/trace.c \
                            lib/trace_internal.h \
-                           lib/types_xc.c \
                            lib/ub.c \
                            lib/uuid.c \
                            lib/varr.c \
                            lib/vec.c \
-                           lib/vec_xc.c \
                            lib/user_space/finject_init.c \
                            lib/user_space/fs.c \
                            lib/user_space/memory.c \
@@ -112,6 +105,15 @@ mero_libmero_la_SOURCES += lib/assert.c \
                            lib/user_space/utrace.c \
                            lib/user_space/uuuid.c \
                            lib/user_space/varr.c
+
+nodist_mero_libmero_la_SOURCES  += \
+                           lib/bitmap_xc.c \
+                           lib/buf_xc.c \
+                           lib/cookie_xc.c \
+                           lib/ext_xc.c \
+                           lib/string_xc.c \
+                           lib/types_xc.c \
+                           lib/vec_xc.c
 
 XC_FILES += lib/buf_xc.h \
             lib/cookie_xc.h \

@@ -4,10 +4,12 @@ nobase_mero_include_HEADERS += \
                             cas/client.h
 
 mero_libmero_la_SOURCES  += \
-                            cas/cas_xc.c \
                             cas/cas.c \
                             cas/service.c \
                             cas/client.c
+
+nodist_mero_libmero_la_SOURCES  += \
+                            cas/cas_xc.c
 
 XC_FILES += \
                             cas/cas_xc.h

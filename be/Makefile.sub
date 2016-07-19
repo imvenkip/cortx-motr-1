@@ -43,10 +43,8 @@ mero_libmero_la_SOURCES += be/alloc.c           \
 			   be/domain.c          \
 			   be/engine.c          \
 			   be/extmap.c          \
-			   be/extmap_xc.c       \
                            be/fl.c              \
 			   be/fmt.c		\
-			   be/fmt_xc.c		\
 			   be/io.c              \
 			   be/io_sched.c        \
 			   be/list.c            \
@@ -63,7 +61,6 @@ mero_libmero_la_SOURCES += be/alloc.c           \
 			   be/seg_dict.c        \
 			   be/tx.c              \
 			   be/tx_bulk.c         \
-			   be/tx_xc.c           \
 			   be/tx_credit.c       \
 			   be/tx_group_fom.c    \
 			   be/tx_group.c        \
@@ -71,6 +68,11 @@ mero_libmero_la_SOURCES += be/alloc.c           \
 			   be/tx_regmap.c       \
 			   be/tx_service.c      \
                            be/ut/helper.c
+
+nodist_mero_libmero_la_SOURCES  += \
+			   be/extmap_xc.c \
+			   be/fmt_xc.c\
+			   be/tx_xc.c
 
 XC_FILES += be/extmap_xc.h \
 	    be/fmt_xc.h	   \

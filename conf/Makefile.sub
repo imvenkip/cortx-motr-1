@@ -36,24 +36,26 @@ mero_libmero_la_SOURCES += \
                            conf/diter.c \
                            conf/flip_fom.c \
                            conf/flip_fop.c \
-                           conf/flip_fop_xc.c \
                            conf/fop.c \
                            conf/glob.c \
                            conf/ha.c \
-                           conf/ha_xc.c \
                            conf/helpers.c \
                            conf/load_fom.c \
                            conf/load_fop.c \
-                           conf/load_fop_xc.c \
                            conf/obj.c \
                            conf/obj_ops.c \
-                           conf/onwire_xc.c \
                            conf/preload.c \
                            conf/pvers.c \
                            conf/rconfc.c \
                            conf/rconfc_internal.h \
                            conf/validation.c \
                            conf/walk.c
+
+nodist_mero_libmero_la_SOURCES  += \
+                           conf/flip_fop_xc.c \
+                           conf/ha_xc.c \
+                           conf/load_fop_xc.c \
+                           conf/onwire_xc.c
 
 XC_FILES += \
             conf/flip_fop_xc.h \

@@ -105,6 +105,7 @@ AC_ARG_VAR([KCFLAGS], [kernel-space CFLAGS])
 AC_ARG_VAR([GCCXML],  [gccxml command])
 
 AH_TEMPLATE([CONFIG_LNET_MAX_PAYLOAD],[Max LNET payload.])
+AH_TEMPLATE([ENABLE_DIST_MODE],       [Enable distribution mode (only for package building).])
 AH_TEMPLATE([ENABLE_DEV_MODE],        [Enable developer mode.])
 AH_TEMPLATE([ENABLE_RELEASE],         [Enable release mode (this has the same effect as --disable-dev-mode).])
 AH_TEMPLATE([ENABLE_DEBUG],           [Enable debug info and disable optimizations.])
@@ -133,6 +134,12 @@ AH_TEMPLATE([HAVE_BACKTRACE],         [Have backtrace(3) function])
 AH_TEMPLATE([HAVE_SYSTEMD],           [Have systemd available])
 
 AC_DEFINE_UNQUOTED([CONFIG_LNET_MAX_PAYLOAD], [LNET_MTU])
+
+AC_ARG_ENABLE([dist-mode],
+        [AS_HELP_STRING([--enable-dist-mode],
+                        [enable dististribution mode (only for package building)])],
+        [], [enable_dist_mode=no]
+)
 
 AC_ARG_ENABLE([dev-mode],
         [AS_HELP_STRING([--disable-dev-mode],
@@ -276,36 +283,6 @@ AC_ARG_ENABLE([systemd],
         [], [enable_systemd=yes]
 )
 
-AC_ARG_WITH([linux],
-        [AS_HELP_STRING([--with-linux=path],
-                        [set path to Linux kernel dir, default is /lib/modules/`uname -r`/build])],
-        [LINUX=$with_linux; LINUX_OBJ=$LINUX; LINUX_MOD=$LINUX],
-        [LINUX=/lib/modules/`uname -r`; LINUX_OBJ=$LINUX/build; LINUX_MOD=$LINUX]
-)
-AC_SUBST([LINUX_OBJ])
-AC_SUBST([LINUX_MOD])
-AC_SUBST([BUILD_KERNEL],["$(basename $LINUX)"])
-
-AC_ARG_WITH([lustre],
-        [AS_HELP_STRING([--with-lustre=path],
-                        [set path to lustre headers or built sources dir, default is /usr/src/lustre-*])],
-        [LUSTRE=$with_lustre],
-        [LUSTRE=/usr/src/`ls /usr/src | grep lustre- | tail -1`]
-)
-AS_IF([test -z "$LUSTRE" || ! test -d "$LUSTRE/"],
-      [AC_MSG_ERROR([Lustre headers not found! Please, install lustre-devel \
-package or provide the path to a directory with built Lustre sources, \
-using --with-lustre option.])]
-)
-AC_SUBST([LUSTRE])
-
-LUSTRE_INCLUDES="-I$LUSTRE/libcfs/include -I$LUSTRE/lnet/include -I$LUSTRE/lustre/include"
-LUSTRE_VERSION=`echo $LUSTRE | cut -d "-" -f 2 | cut -d "." -f 1-2`
-LHSM_BUILD_VERSION=2.5
-AC_SUBST([LUSTRE_VERSION])
-AS_VERSION_COMPARE(${LUSTRE_VERSION}, ${LHSM_BUILD_VERSION}, [LHSM_BUILD=0], [LHSM_BUILD=1], [LHSM_BUILD=1])
-AM_CONDITIONAL([LHSM_BUILD], [test "$LHSM_BUILD" = 1])
-
 AC_ARG_WITH([trace-kbuf-size],
         [AS_HELP_STRING([--with-trace-kbuf-size=number],
                         [set kernel space trace buffer size in MiB, default is 4MiB])],
@@ -330,8 +307,46 @@ AS_IF([test -z "$TRACE_UBUF_SIZE" || test "x$TRACE_UBUF_SIZE" = xyes ||
 )
 AC_DEFINE_UNQUOTED([M0_TRACE_UBUF_SIZE], [($TRACE_UBUF_SIZE * 1024 * 1024UL)])
 
+AC_ARG_WITH([linux],
+        [AS_HELP_STRING([--with-linux=path],
+                        [set path to Linux kernel dir, default is /lib/modules/`uname -r`/build])],
+        [LINUX=$with_linux; LINUX_OBJ=$LINUX; LINUX_MOD=$LINUX],
+        [LINUX=/lib/modules/`uname -r`; LINUX_OBJ=$LINUX/build; LINUX_MOD=$LINUX]
+)
+AC_SUBST([LINUX_OBJ])
+AC_SUBST([LINUX_MOD])
+AC_SUBST([BUILD_KERNEL],["$(basename $LINUX)"])
+
 #
-# Checking for required programs
+# Skip all checks in distribution mode
+AS_IF([test x$enable_dist_mode = xno],[
+
+#
+# Checking Lustre sources
+#
+
+AC_ARG_WITH([lustre],
+        [AS_HELP_STRING([--with-lustre=path],
+                        [set path to lustre headers or built sources dir, default is /usr/src/lustre-*])],
+        [LUSTRE=$with_lustre],
+        [LUSTRE=/usr/src/`ls /usr/src | grep lustre- | tail -1`]
+)
+AS_IF([test -z "$LUSTRE" || ! test -d "$LUSTRE/"],
+      [AC_MSG_ERROR([Lustre headers not found! Please, install lustre-devel \
+package or provide the path to a directory with built Lustre sources, \
+using --with-lustre option.])]
+)
+AC_SUBST([LUSTRE])
+
+LUSTRE_INCLUDES="-I$LUSTRE/libcfs/include -I$LUSTRE/lnet/include -I$LUSTRE/lustre/include"
+LUSTRE_VERSION=`echo $LUSTRE | cut -d "-" -f 2 | cut -d "." -f 1-2`
+LHSM_BUILD_VERSION=2.5
+AC_SUBST([LUSTRE_VERSION])
+AS_VERSION_COMPARE(${LUSTRE_VERSION}, ${LHSM_BUILD_VERSION}, [LHSM_BUILD=0], [LHSM_BUILD=1], [LHSM_BUILD=1])
+AM_CONDITIONAL([LHSM_BUILD], [test "$LHSM_BUILD" = 1])
+
+#
+# Checking required programs
 #
 
 AC_PROG_CC
@@ -728,6 +743,11 @@ AC_SUBST([BUILD_CONFIGURE_OPTS],["$ac_configure_args"])
 AC_SUBST([BUILD_CFLAGS],["$M0_CPPFLAGS $M0_CFLAGS $CPPFLAGS $CFLAGS"])
 AC_SUBST([BUILD_KCFLAGS],["$M0_KCPPFLAGS $M0_KCFLAGS $KCFLAGS"])
 AC_SUBST([BUILD_LDFLAGS],["$M0_LDFLAGS"])
+
+],[
+AM_CONDITIONAL([LHSM_BUILD], [false])
+AM_CONDITIONAL([HAVE_SYSTEMD], [true])
+]) # enable_dist_mode
 
 #
 # Setup output files

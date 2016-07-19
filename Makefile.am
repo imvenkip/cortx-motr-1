@@ -179,8 +179,10 @@ mero_includedir             = $(includedir)/mero
 
 # these variables are populated in the Makefile.sub files of each mero module,
 # which are then included into this top-level makefile
-nobase_mero_include_HEADERS = config.h $(XC_FILES)
-mero_libmero_la_SOURCES  =
+nobase_mero_include_HEADERS = config.h
+nobase_nodist_mero_include_HEADERS = $(XC_FILES)
+mero_libmero_la_SOURCES =
+nodist_mero_libmero_la_SOURCES =
 
 include $(top_srcdir)/addb2/Makefile.sub
 include $(top_srcdir)/balloc/Makefile.sub
@@ -254,6 +256,7 @@ ut_libmero_ut_la_CPPFLAGS  = -DM0_TARGET='libmero-ut' $(AM_CPPFLAGS)
 ut_libmero_ut_la_LIBADD    = net/test/libmero-net-test.la xcode/ff2c/libmero-xcode-ff2c.la
 
 ut_libmero_ut_la_SOURCES   =
+nodist_ut_libmero_ut_la_SOURCES   =
 
 include $(top_srcdir)/addb2/ut/Makefile.sub
 include $(top_srcdir)/balloc/ut/Makefile.sub
@@ -302,13 +305,14 @@ include $(top_srcdir)/xcode/ut/Makefile.sub
 #
 
 MERO_ALTOGETHER_USER_C   = mero/mero_altogether_user.c
-MERO_ALTOGETHER_USER_SRC = $(filter %.c,$(mero_libmero_la_SOURCES))
+MERO_ALTOGETHER_USER_SRC = $(filter %.c, $(mero_libmero_la_SOURCES) \
+                                         $(nodist_mero_libmero_la_SOURCES))
 
 if ENABLE_MERO_ALTOGETHER
 lib_LTLIBRARIES += mero/libmero-altogether.la
 endif
 
-mero_libmero_altogether_la_SOURCES  = $(MERO_ALTOGETHER_USER_C)
+nodist_mero_libmero_altogether_la_SOURCES  = $(MERO_ALTOGETHER_USER_C)
 
 mero_libmero_altogether_la_CPPFLAGS = $(AM_CPPFLAGS) \
                                       -DM0_TARGET='libmero-altogether' \
@@ -498,6 +502,7 @@ endif
 
 rpc_it_m0rpcping_altogether_CPPFLAGS = -DM0_TARGET='m0rpcping-altogether' $(AM_CPPFLAGS)
 rpc_it_m0rpcping_altogether_SOURCES  = $(rpc_it_m0rpcping_SOURCES)
+nodist_rpc_it_m0rpcping_altogether_SOURCES  = $(nodist_rpc_it_m0rpcping_SOURCES)
 rpc_it_m0rpcping_altogether_LDADD    = $(top_builddir)/mero/libmero-altogether.la \
                                        ut/ut_libmero_ut_la-cs_service.lo \
                                        ut/ut_libmero_ut_la-cs_fop.lo \
@@ -1148,7 +1153,6 @@ RPM_MOCK_DIR=$(RPM_DIR)/MOCK-RPMS
 # as a workaround.
 .PHONY: __rpm_pre
 __rpm_pre:
-	$(MAKE) generate-files
 	$(MAKE) dist
 
 	[ -d $(RPM_SRC_DIR) ] || $(MKDIR_P) $(RPM_SRC_DIR)
@@ -1342,7 +1346,7 @@ help:
 #                                     Misc
 ################################################################################
 
-EXTRA_DIST += $(XC_LIST_FILE) $(CONFXC_FILES:.xc=.cg)
+EXTRA_DIST += $(CONFXC_FILES:.xc=.cg)
 
 EXTRA_DIST += \
               addb2/Kbuild.sub \

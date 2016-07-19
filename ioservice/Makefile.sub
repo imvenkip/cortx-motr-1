@@ -11,12 +11,14 @@ mero_libmero_la_SOURCES  += ioservice/fid_convert.c \
                             ioservice/io_foms.c \
                             ioservice/io_fops.c \
                             ioservice/io_service.c \
-                            ioservice/io_fops_xc.c \
                             ioservice/cob_foms.c \
                             ioservice/io_device.c \
                             ioservice/storage_dev.c \
                             ioservice/user_space/fid_convert.c \
                             ioservice/ios_start_sm.c \
                             ioservice/ios_start_sm.h
+
+nodist_mero_libmero_la_SOURCES  += \
+                            ioservice/io_fops_xc.c
 
 XC_FILES   += ioservice/io_fops_xc.h

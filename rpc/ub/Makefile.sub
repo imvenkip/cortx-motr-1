@@ -1,7 +1,8 @@
 ut_libmero_ut_la_SOURCES += rpc/ub/ub.c \
-                            rpc/ub/rpc_ub_fops_xc.c \
                             rpc/ub/rpc_ub_fops.c \
                             rpc/ub/rpc_ub_fops.h
+
+nodist_ut_libmero_ut_la_SOURCES += rpc/ub/rpc_ub_fops_xc.c
 
 XC_FILES += rpc/ub/rpc_ub_fops_xc.h
 

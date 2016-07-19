@@ -40,11 +40,13 @@ mero_libmero_la_SOURCES  += rpc/session.c \
                                   rpc/rpc_onwire.c \
                                   rpc/rpclib.c \
                                   rpc/service.c \
-                                  rpc/rpc_onwire_xc.c \
-                                  rpc/session_fops_xc.c \
                                   rpc/rev_conn.c \
                                   rpc/link.c \
-                                  rpc/at.c \
+                                  rpc/at.c
+
+nodist_mero_libmero_la_SOURCES  += \
+                                  rpc/rpc_onwire_xc.c \
+                                  rpc/session_fops_xc.c \
                                   rpc/at_xc.c
 
 XC_FILES   += rpc/rpc_onwire_xc.h \

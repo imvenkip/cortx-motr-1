@@ -2,7 +2,8 @@ nobase_mero_include_HEADERS += \
                                graph/graph.h
 
 mero_libmero_la_SOURCES  += \
-                            graph/graph.c \
-                            graph/graph_xc.c
+                            graph/graph.c
+
+nodist_mero_libmero_la_SOURCES  += graph/graph_xc.c
 
 XC_FILES   += graph/graph_xc.h
