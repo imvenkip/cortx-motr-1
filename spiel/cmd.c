@@ -20,6 +20,7 @@
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SPIEL
 #include "lib/trace.h"
+#include "lib/finject.h"        /* M0_FI_ENABLED */
 
 #include "conf/obj_ops.h"       /* m0_conf_obj_get */
 #include "conf/preload.h"       /* m0_confx_string_free */
@@ -42,6 +43,14 @@ M0_TL_DESCR_DEFINE(spiel_string, "list of endpoints",
 		   static, struct spiel_string_entry, sse_link, sse_magic,
 		   M0_STATS_MAGIC, M0_STATS_HEAD_MAGIC);
 M0_TL_DEFINE(spiel_string, static, struct spiel_string_entry);
+
+static void spiel_fop_destroy(struct m0_fop *fop)
+{
+	m0_rpc_machine_lock(m0_fop_rpc_machine(fop));
+	m0_fop_fini(fop);
+	m0_rpc_machine_unlock(m0_fop_rpc_machine(fop));
+	m0_free(fop);
+}
 
 static bool _filter_svc(const struct m0_conf_obj *obj)
 {
@@ -184,6 +193,8 @@ static int spiel_cmd_send(struct m0_rpc_machine *rmachine,
 			      SPIEL_MAX_RPCS_IN_FLIGHT);
 	if (rc == 0) {
 		conn_timeout = m0_time_from_now(SPIEL_CONN_TIMEOUT, 0);
+		if (M0_FI_ENABLED("timeout"))
+			timeout = M0_TIME_ONE_SECOND;
 		rc = m0_rpc_link_connect_sync(rlink, conn_timeout) ?:
 		     m0_rpc_post_with_timeout_sync(cmd_fop,
 						    &rlink->rlk_sess,
@@ -583,8 +594,7 @@ static int spiel_device_command_fop_send(struct m0_spiel_core *spc,
 			*ha_state = rep->ssdp_ha_state;
 		m0_fop_put_lock(fop);
 	} else {
-		m0_fop_fini(fop);
-		m0_free(fop);
+		spiel_fop_destroy(fop);
 	}
 	return M0_RC(rc);
 }
@@ -709,10 +719,8 @@ static int spiel_process_command_send(struct m0_spiel_core *spc,
 
 	rc = spiel_cmd_send(spc->spc_rmachine, process->pc_endpoint, fop,
 			    M0_TIME_NEVER);
-	if (rc != 0) {
-		m0_fop_fini(fop);
-		m0_free(fop);
-	}
+	if (rc != 0)
+		spiel_fop_destroy(fop);
 	return M0_RC(rc);
 }
 

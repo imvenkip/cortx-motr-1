@@ -235,6 +235,11 @@ static void test_spiel_device_cmds(void)
 	 * After mero startup devices are online by default,
 	 * so detach them at first.
 	 */
+	m0_fi_enable_once("m0_rpc_reply_post", "delay_reply");
+	m0_fi_enable_once("spiel_cmd_send", "timeout");
+	rc = m0_spiel_device_detach(&spiel, &io_disk);
+	M0_UT_ASSERT(rc == -ETIMEDOUT);
+
 	rc = m0_spiel_device_detach(&spiel, &io_disk);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(!spiel_stob_exists(io_sdev));
