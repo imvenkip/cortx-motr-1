@@ -1,7 +1,7 @@
 ## -*- makefile -*-
 
 #
-# global vars
+# global vars ----------------------------------------- {{{1
 #
 
 KBUILD_EXTRA_SYMBOLS := @LUSTRE_SYMVERS@ @GF_SYMVERS@
@@ -11,7 +11,7 @@ ccflags-y := -DHAVE_CONFIG_H -iquote . @M0_KCPPFLAGS@ @M0_KCFLAGS@ @KCFLAGS@
 enable_test_modules := @ENABLE_KERNEL_UNIT_TESTS@
 
 #
-# kernel modules we build:
+# kernel modules we build ----------------------------- {{{1
 #
 
 ifdef M0_BUILD_KERNEL_M0MERO_ONLY
@@ -31,22 +31,24 @@ else
 # provided by INSTALL_MOD_DIR Kbuild variable and "mero" is taken from module's
 # build directory
 obj-m := mero/m0mero.o
-#obj-m += mero/m0loop.o
 obj-m += mero/m0ctl.o
+# loop driver was disabled after moving from SL6 to CentOS7
+# due to porting effor for 3.10.x kernel
+#obj-m += mero/m0loop.o
 
 # these modules are built unless '--disable-unit-tests' option of ./configure
 # script is used
 obj-$(enable_test_modules) += ut/linux_kernel/m0ut.o
-#obj-$(enable_test_modules) += m0t1fs/linux_kernel/m0loop-ut.o
 obj-$(enable_test_modules) += net/lnet/st/linux_kernel/m0lnetping.o
 obj-$(enable_test_modules) += rpc/it/linux_kernel/m0rpcping.o
 obj-$(enable_test_modules) += net/test/linux_kernel/m0nettestd.o
+#obj-$(enable_test_modules) += m0t1fs/linux_kernel/m0loop-ut.o
 
 endif
 
 
 #
-# m0mero.ko
+# m0mero.ko ------------------------------------------- {{{1
 #
 
 mero/m0mero-y = mero/linux_kernel/m0mero_main.o \
@@ -96,7 +98,7 @@ include $(src)/xcode/Kbuild.sub
 
 
 #
-# m0ut.ko
+# m0ut.ko --------------------------------------------- {{{1
 #
 
 # m0ut module comprised of UT object files plus the same object files, which
@@ -143,7 +145,7 @@ include $(src)/sns/ut/Kbuild.sub
 include $(src)/ha/ut/Kbuild.sub
 
 #
-# m0ctl.ko
+# m0ctl.ko -------------------------------------------- {{{1
 #
 
 mero/m0ctl-y   = $(m0ctl_objects)
@@ -153,14 +155,14 @@ include $(src)/utils/Kbuild.sub
 
 
 #
-# m0loop.ko
+# m0loop.ko ------------------------------------------- {{{1
 #
 
 #mero/m0loop-y = m0t1fs/linux_kernel/m0loop_main.o
 
 
 #
-# m0loop-ut.ko
+# m0loop-ut.ko ---------------------------------------- {{{1
 #
 
 #m0t1fs/linux_kernel/m0loop-ut-y = m0t1fs/linux_kernel/m0loop_main.o \
@@ -168,7 +170,7 @@ include $(src)/utils/Kbuild.sub
 
 
 #
-# m0lnetping.ko
+# m0lnetping.ko --------------------------------------- {{{1
 #
 
 net/lnet/st/linux_kernel/m0lnetping-y = $(m0lnetping_objects)
@@ -178,7 +180,7 @@ include $(src)/net/lnet/st/Kbuild.sub
 
 
 #
-# m0rpcping.ko
+# m0rpcping.ko ---------------------------------------- {{{1
 #
 
 rpc/it/linux_kernel/m0rpcping-y = $(m0rpcping_objects)
@@ -188,7 +190,7 @@ include $(src)/rpc/it/Kbuild.sub
 
 
 #
-# m0nettestd.ko
+# m0nettestd.ko --------------------------------------- {{{1
 #
 
 net/test/linux_kernel/m0nettestd-y = $(m0nettestd_objects)
@@ -196,3 +198,6 @@ m0nettestd_objects :=
 
 include $(src)/net/test/Kbuild.sub # TODO: factor out net-test files from
                                    # m0mero.ko into a separate module
+
+
+# vim: filetype=make textwidth=80 nowrap foldmethod=marker
