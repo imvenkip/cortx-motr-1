@@ -62,7 +62,9 @@ test_for_signal()
             if journalctl -c "$cursor" -l -u mero-server@ios1 | grep -q 'Restarting'
             then
                 echo "Wait for Mero restart"
-                while ! systemctl -q is-active mero-server@ios1 ; do
+                while ! systemctl -q is-active mero-server@ios1 &&
+                      ! systemctl -q is-failed mero-server@ios1
+                do
                     sleep 1
                 done
             else
