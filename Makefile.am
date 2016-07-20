@@ -1171,9 +1171,13 @@ __rpm_post:
 __rpm:
 	rpmbuild -ba $(RPM_SPEC_DIR)/mero.spec $(RPMBUILD_FLAGS)
 
+.PHONY: __rpm_srpm
+__rpm_srpm:
+	rpmbuild -bs $(RPM_SPEC_DIR)/mero.spec $(RPMBUILD_FLAGS)
+
 .PHONY: __rpm_tests
 __rpm_tests:
-	rpmbuild -bb $(RPM_SPEC_DIR)/mero.spec --with ut
+	rpmbuild -bb $(RPM_SPEC_DIR)/mero.spec --with ut $(RPMBUILD_FLAGS)
 
 .PHONY: __rpm_mock_pre
 __rpm_mock_pre:
@@ -1224,6 +1228,12 @@ rpms-mock:
 	$(MAKE) __rpm_mock_pre
 	$(MAKE) __rpm_pre
 	$(MAKE) __rpm_mock
+	$(MAKE) __rpm_post
+
+.PHONY: srpm
+srpm:
+	$(MAKE) __rpm_pre
+	$(MAKE) __rpm_srpm
 	$(MAKE) __rpm_post
 
 #
@@ -1331,6 +1341,7 @@ help:
 	@echo '                    (this needs to be run from the same build tree that'
 	@echo '                     was installed)'
 	@echo '  dist            - recreate package-version.tar.gz from all source files'
+	@echo '  srpm            - build source rpm package'
 	@echo '  rpms            - build Mero rpm packages'
 	@echo '  rpms-notests    - build Mero rpm packages, excluding tests'
 	@echo '  rpms-mock       - build Mero rpm packages using "mock" environment (ensures clean rpm deps)'
