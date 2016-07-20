@@ -79,8 +79,8 @@ function cluster_start() {
 		sudo scripts/install-mero-service -u
 		sudo scripts/install-mero-service -l
 	}
-	sudo utils/m0setup -v -P 6 -N 2 -K 1 -i 1 -d /var/mero/img -s 128 -c
-	sudo utils/m0setup -v -P 6 -N 2 -K 1 -i 1 -d /var/mero/img -s 128
+	sudo utils/m0setup -v -P 8 -N 2 -K 1 -i 1 -d /var/mero/img -s 128 -c
+	sudo utils/m0setup -v -P 8 -N 2 -K 1 -i 1 -d /var/mero/img -s 128
 
 	sudo rm -vf /etc/mero/genders
 	sudo rm -vf /etc/mero/conf.xc
@@ -190,6 +190,16 @@ id_m0_servers:
     m0d_wwn: wwn-6
     m0d_path: /dev/loop6
     m0d_size: 596000000000
+  - m0d_serial: serial-7
+    m0d_bsize: 4096
+    m0d_wwn: wwn-7
+    m0d_path: /dev/loop7
+    m0d_size: 596000000000
+  - m0d_serial: serial-8
+    m0d_bsize: 4096
+    m0d_wwn: wwn-8
+    m0d_path: /dev/loop8
+    m0d_size: 596000000000
   host_mem_rss: 1
   m0h_fqdn: $HOSTNAME
   m0h_roles:
@@ -200,12 +210,14 @@ id_m0_servers:
   - name: m0t1fs
   host_mem_stack: 1
 id_m0_globals:
-  m0_parity_units: 1
+  m0_parity_units: 2
   m0_md_redundancy: 1
   m0_data_units: 2
   m0_failure_set_gen:
-    tag: Dynamic
-    contents: []
+    tag: Formulaic
+    contents:
+      - [0,0,0,0,1]
+      - [0,0,0,0,2]
 EOF
 }
 

@@ -2881,8 +2881,13 @@ id_m0_globals:
   m0_parity_units: 2
   m0_md_redundancy: 3
   m0_failure_set_gen:
-    tag: Dynamic
-    contents: []
+    tag: Formulaic
+    contents:
+      - [0,0,0,0,1]
+      - [0,0,0,0,2]
+      - [0,0,0,1,0]
+      - [0,0,0,1,1]
+      - [0,0,0,1,2]
 EOF
 }
 
@@ -5154,8 +5159,13 @@ id_m0_globals:
   m0_parity_units: 2
   m0_md_redundancy: 3
   m0_failure_set_gen:
-    tag: Dynamic
-    contents: []
+    tag: Formulaic
+    contents:
+      - [0,0,0,0,1]
+      - [0,0,0,0,2]
+      - [0,0,0,1,0]
+      - [0,0,0,1,1]
+      - [0,0,0,1,2]
 EOF
 
 	# this SSU is temporary unused
