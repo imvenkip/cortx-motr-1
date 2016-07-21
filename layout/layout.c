@@ -649,30 +649,6 @@ M0_INTERNAL void m0_layout_domain_fini(struct m0_layout_domain *dom)
 	layout_tlist_fini(&dom->ld_layout_list);
 }
 
-M0_INTERNAL int m0_layout_domain_setup_by_pools(struct m0_layout_domain *dom,
-						struct m0_pools_common *pc)
-{
-	int 			count = 0;
-	struct m0_pool_version *pv;
-	struct m0_pool		*p;
-	int 			rc;
-
-        M0_ENTRY();
-	m0_tl_for(pools, &pc->pc_pools, p) {
-		m0_tl_for(pool_version, &p->po_vers, pv) {
-			rc = m0_layout_init_by_pver(dom, pv, &count);
-			if (rc != 0) {
-				M0_LOG(M0_ERROR, "layout build failed for pver "
-				       FID_F": rc=%d", FID_P(&pv->pv_id), rc);
-				return M0_RC(rc);
-			}
-		} m0_tl_endfor;
-	} m0_tl_endfor;
-
-	M0_LOG(M0_INFO, "Found %d layout(s)", count);
-        return M0_RC(0);
-}
-
 M0_INTERNAL void m0_layout_domain_cleanup(struct m0_layout_domain *dom)
 {
 	int 		  count = 0;

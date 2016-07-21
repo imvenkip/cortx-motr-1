@@ -210,10 +210,9 @@ pool_version_assignment()
 
 
 	## Mark all disks ONLINE again.
-	change_device_state "$disk1_from_pver_actual_0" "$M0_NC_ONLINE" "0" "${all_eps[*]}" "$console_ep" || {
-		unmount_and_clean $multiple_pools
-		return 1
-	}
+
+	## keep "disk1_from_pver_actual_0" failed to verify smoothly virtual pool versions setup on mount
+	## issue MER0-1896.
 	change_device_state "$disk2_from_pver_actual_0" "$M0_NC_ONLINE" "0" "${all_eps[*]}" "$console_ep" || {
 		unmount_and_clean $multiple_pools
 		return 1
@@ -240,6 +239,12 @@ pool_version_assignment()
                 unmount_and_clean
                 return 1
         }
+
+	## Mark "disk1_from_pver_actual_0" too online.
+	change_device_state "$disk1_from_pver_actual_0" "$M0_NC_ONLINE" "0" "${all_eps[*]}" "$console_ep" || {
+		unmount_and_clean $multiple_pools
+		return 1
+	}
 
 	echo "############## Finish test disk based pool versions #######"
 

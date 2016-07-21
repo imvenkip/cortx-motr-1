@@ -2194,11 +2194,9 @@ static void cs_conf_fini(struct m0_mero *cctx)
 	}
 }
 
-static int cs_reqh_layouts_setup(struct m0_mero *cctx)
+static int cs_reqh_mdpool_layouts_setup(struct m0_mero *cctx)
 {
-	return M0_RC(cctx->cc_profile == NULL ? 0 :
-		     m0_reqh_layouts_setup(&cctx->cc_reqh_ctx.rc_reqh,
-					   &cctx->cc_pools_common));
+	return M0_RC(m0_reqh_mdpool_layout_build(&cctx->cc_reqh_ctx.rc_reqh));
 }
 
 volatile sig_atomic_t gotsignal;
@@ -2291,7 +2289,7 @@ int m0_cs_start(struct m0_mero *cctx)
 	if (rc != 0)
 		goto error;
 
-	rc = gotsignal ? -EINTR : cs_reqh_layouts_setup(cctx);
+	rc = gotsignal ? -EINTR : cs_reqh_mdpool_layouts_setup(cctx);
 
 error:
 	if (gotsignal)

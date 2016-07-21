@@ -140,19 +140,6 @@ M0_INTERNAL bool m0_reqh_invariant(const struct m0_reqh *reqh)
 		_0C(m0_fom_domain_invariant(m0_fom_dom()));
 }
 
-M0_INTERNAL int m0_reqh_layouts_setup(struct m0_reqh *reqh,
-				      struct m0_pools_common *pc)
-{
-	int rc;
-
-	M0_PRE(pc != NULL);
-
-	M0_ENTRY("%p", reqh);
-	rc = m0_layout_domain_setup_by_pools(&reqh->rh_ldom, pc) ?:
-		m0_reqh_mdpool_layout_build(reqh);
-	return M0_RC(rc);
-}
-
 M0_INTERNAL int m0_reqh_mdpool_layout_build(struct m0_reqh *reqh)
 {
 	struct m0_pools_common *pc = reqh->rh_pools;

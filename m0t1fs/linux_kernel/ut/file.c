@@ -328,6 +328,7 @@ static int file_io_ut_fini(void)
 	m0_layout_instance_fini(ci.ci_layout_instance);
 	/* Finalizes the m0_pdclust_layout type. */
 	m0_layout_put(&pdlay->pl_base.sl_base);
+	m0_reqh_layouts_cleanup(&csb.csb_reqh);
 	m0_pool_versions_destroy(&csb.csb_pools_common);
 	m0_pools_service_ctx_destroy(&csb.csb_pools_common);
 	m0_pools_destroy(&csb.csb_pools_common);

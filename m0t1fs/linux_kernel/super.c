@@ -511,11 +511,10 @@ void m0t1fs_ha_fini(struct m0t1fs_sb *csb)
  * ----------------------------------------------------------------
  */
 
-static int m0t1fs_sb_layouts_init(struct m0t1fs_sb *csb)
+static int m0t1fs_sb_mdpool_layouts_init(struct m0t1fs_sb *csb)
 {
 	M0_ENTRY();
-	return M0_RC(m0_reqh_layouts_setup(&csb->csb_reqh,
-					   &csb->csb_pools_common));
+	return M0_RC(m0_reqh_mdpool_layout_build(&csb->csb_reqh));
 }
 
 static void m0t1fs_sb_layouts_fini(struct m0t1fs_sb *csb)
@@ -865,7 +864,7 @@ int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	if (rc != 0)
 		goto err_failure_set_destroy;
 
-	rc = m0t1fs_sb_layouts_init(csb);
+	rc = m0t1fs_sb_mdpool_layouts_init(csb);
 	if (rc != 0)
 		goto err_failure_set_destroy;
 

@@ -1040,6 +1040,7 @@ M0_INTERNAL int m0_pool_versions_setup(struct m0_pools_common    *pc,
 	struct m0_conf_pver    *pver_obj;
 	struct m0_fid          *pool_id;
 	struct m0_pool         *pool;
+	struct m0_reqh         *reqh = m0_confc2reqh(pc->pc_confc);
 	int                     rc;
 
 	M0_ENTRY();
@@ -1067,7 +1068,8 @@ M0_INTERNAL int m0_pool_versions_setup(struct m0_pools_common    *pc,
 				  m0_fid_eq(&pool->po_id, pool_id));
 		M0_ASSERT(m0_fid_eq(&pool->po_id, pool_id));
 		rc = m0_pool_version_init_by_conf(pver, pver_obj, pool, pc,
-						  be_seg, sm_grp, dtm);
+						  be_seg, sm_grp, dtm) ?:
+		     m0_layout_init_by_pver(&reqh->rh_ldom, pver, NULL);
 		if (rc != 0)
 			break;
 	}

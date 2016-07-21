@@ -672,14 +672,6 @@ M0_INTERNAL int m0_layout_domain_init(struct m0_layout_domain *dom);
 M0_INTERNAL void m0_layout_domain_fini(struct m0_layout_domain *dom);
 
 /**
- * Enumerate all pools and their versions to generate layouts and
- * place them to passed layout domain @dom. Return 0 on success
- * or error code otherwise.
- */
-M0_INTERNAL int m0_layout_domain_setup_by_pools(struct m0_layout_domain *dom,
-						struct m0_pools_common *pc);
-
-/**
    Release all layouts in the domain.
  */
 M0_INTERNAL void m0_layout_domain_cleanup(struct m0_layout_domain *dom);
