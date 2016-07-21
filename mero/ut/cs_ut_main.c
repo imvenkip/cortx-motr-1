@@ -179,6 +179,16 @@ static char *cs_ut_lnet_ep_bad_cmd[] = { "m0d", "-T", "AD",
 				"-P", M0_UT_CONF_PROFILE,
 				"-c", M0_UT_PATH("conf.xc")};
 
+static char *cs_ut_bad_profile[] = { "m0d", "-T", "linux",
+                                "-D", "cs_sdb", "-S", "cs_stob",
+                                "-A", "linuxstob:cs_addb_stob",
+                                "-e", "lnet:0@lo:12345:34:1",
+                                "-H", "0@lo:12345:34:1",
+				"-w", "10",
+				"-P", M0_UT_CONF_PROFILE_BAD,
+				"-c", M0_UT_PATH("conf.xc")};
+
+
 static const char *cdbnames[] = { "cdb1", "cdb2" };
 static const char *cl_ep_addrs[] = { "0@lo:12345:34:2", "127.0.0.1:34569" };
 static const char *srv_ep_addrs[] = { "0@lo:12345:34:1", "127.0.0.1:35678" };
@@ -497,6 +507,27 @@ static void test_cs_ut_lnet(void)
 				  ARRAY_SIZE(cs_ut_lnet_cmd));
 }
 
+static void test_cs_ut_setup_fail(void)
+{
+	/* m0_conf_fs_get() is to fail inside cs_conf_setup() */
+	cs_ut_test_helper_failure(cs_ut_bad_profile,
+				  ARRAY_SIZE(cs_ut_bad_profile));
+
+	/* m0_pools_common_init() is to fail inside cs_conf_setup() */
+	m0_fi_enable_once("m0_conf_ios_devices_count", "diter_fail");
+	cs_ut_test_helper_failure(cs_ut_service_one_cmd,
+				  ARRAY_SIZE(cs_ut_service_one_cmd));
+	/* m0_pools_setup() is to fail inside cs_conf_setup() */
+	m0_fi_enable_once("m0_pools_setup", "diter_fail");
+	cs_ut_test_helper_failure(cs_ut_service_one_cmd,
+				  ARRAY_SIZE(cs_ut_service_one_cmd));
+
+	/* cs_conf_services_init() is to fail inside cs_conf_setup() */
+	m0_fi_enable_once("cs_conf_services_init", "diter_fail");
+	cs_ut_test_helper_failure(cs_ut_service_one_cmd,
+				  ARRAY_SIZE(cs_ut_service_one_cmd));
+}
+
 struct m0_ut_suite m0d_ut = {
         .ts_name = "m0d-ut",
         .ts_tests = {
@@ -516,6 +547,7 @@ struct m0_ut_suite m0d_ut = {
 		{ "cs-duplicate-lnet-mixed-ep", test_cs_ut_lnet_ep_mixed_dup},
 		{ "cs-lnet-multiple-interfaces", test_cs_ut_lnet_multiple_if},
 		{ "cs-lnet-options", test_cs_ut_lnet},
+		{ "cs-setup-fail", test_cs_ut_setup_fail},
                 { NULL, NULL },
         }
 };

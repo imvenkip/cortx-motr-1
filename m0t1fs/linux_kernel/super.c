@@ -875,11 +875,15 @@ int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 		return M0_RC(0);
 	}
 
-	m0t1fs_sb_layouts_fini(csb);
 err_failure_set_destroy:
 	m0_flset_destroy(&reqh->rh_failure_set);
 err_ha_destroy:
 	m0_ha_state_fini();
+	/*
+	 * reqh layouts cleanup has to be done for all cases where
+	 * m0_pool_versions_setup() succeeded.
+	 */
+	m0t1fs_sb_layouts_fini(csb);
 	m0_pool_versions_destroy(&csb->csb_pools_common);
 err_pools_service_ctx_destroy:
 	m0_pools_service_ctx_destroy(&csb->csb_pools_common);

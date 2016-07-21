@@ -825,10 +825,11 @@ static int service_ctxs_create(struct m0_pools_common *pc,
 		return M0_ERR(rc);
 	rm_is_set = active_rm_ctx_find(pc) != NULL;
 
-	rc = m0_conf_diter_init(&it, pc->pc_confc, &fs->cf_obj,
-				M0_CONF_FILESYSTEM_NODES_FID,
-				M0_CONF_NODE_PROCESSES_FID,
-				M0_CONF_PROCESS_SERVICES_FID);
+	rc = M0_FI_ENABLED("diter_fail") ? -ENOMEM :
+		m0_conf_diter_init(&it, pc->pc_confc, &fs->cf_obj,
+				   M0_CONF_FILESYSTEM_NODES_FID,
+				   M0_CONF_NODE_PROCESSES_FID,
+				   M0_CONF_PROCESS_SERVICES_FID);
 	if (rc != 0) {
 		if (rm_is_set)
 			service_ctxs_destroy(pc);
@@ -1046,9 +1047,10 @@ M0_INTERNAL int m0_pool_versions_setup(struct m0_pools_common    *pc,
 	M0_ENTRY();
 
 	confc = m0_confc_from_obj(&fs->cf_obj);
-	rc = m0_conf_diter_init(&it, confc, &fs->cf_obj,
-				M0_CONF_FILESYSTEM_POOLS_FID,
-				M0_CONF_POOL_PVERS_FID);
+	rc = M0_FI_ENABLED("diter_fail") ? -ENOMEM :
+		m0_conf_diter_init(&it, confc, &fs->cf_obj,
+				   M0_CONF_FILESYSTEM_POOLS_FID,
+				   M0_CONF_POOL_PVERS_FID);
 	if (rc != 0)
 		return M0_ERR(rc);
 
@@ -1174,8 +1176,9 @@ M0_INTERNAL int m0_pools_setup(struct m0_pools_common    *pc,
 	M0_LOG(M0_DEBUG, "file system:"FID_F"profile"FID_F,
 			FID_P(&fs->cf_obj.co_id),
 			FID_P(&fs->cf_obj.co_parent->co_id));
-	rc = m0_conf_diter_init(&it, confc, &fs->cf_obj,
-				M0_CONF_FILESYSTEM_POOLS_FID);
+	rc = M0_FI_ENABLED("diter_fail") ? -ENOMEM :
+		m0_conf_diter_init(&it, confc, &fs->cf_obj,
+				   M0_CONF_FILESYSTEM_POOLS_FID);
 	if (rc != 0)
 		return M0_ERR(rc);
 

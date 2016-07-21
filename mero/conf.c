@@ -378,10 +378,13 @@ M0_INTERNAL int cs_conf_services_init(struct m0_mero *cctx)
 	rc = m0_conf_fs_get(&rctx->rc_reqh.rh_profile, confc, &fs);
 	if (rc != 0)
 		return M0_ERR_INFO(rc, "conf fs fail");;
-	rc = m0_conf_diter_init(&it, confc, &fs->cf_obj,
-				M0_CONF_FILESYSTEM_NODES_FID,
-				M0_CONF_NODE_PROCESSES_FID,
-				M0_CONF_PROCESS_SERVICES_FID);
+	rc = M0_FI_ENABLED("diter_fail") ? -ENOMEM :
+		m0_conf_diter_init(&it, confc, &fs->cf_obj,
+				   M0_CONF_FILESYSTEM_NODES_FID,
+				   M0_CONF_NODE_PROCESSES_FID,
+				   M0_CONF_PROCESS_SERVICES_FID);
+	if (rc != 0)
+		goto fs_close;
 	while ((rc = m0_conf_diter_next_sync(&it, is_local_service)) ==
 		M0_CONF_DIRNEXT) {
 		struct m0_conf_obj     *obj = m0_conf_diter_result(&it);
@@ -412,6 +415,7 @@ M0_INTERNAL int cs_conf_services_init(struct m0_mero *cctx)
 		M0_CNT_INC(rctx->rc_nr_services);
 	}
 	m0_conf_diter_fini(&it);
+fs_close:
 	m0_confc_close(&fs->cf_obj);
 	return M0_RC(rc);
 }

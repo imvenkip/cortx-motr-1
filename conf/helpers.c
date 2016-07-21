@@ -31,6 +31,7 @@
 #include "reqh/reqh.h"     /* m0_reqh2confc */
 #include "lib/string.h"    /* m0_strdup */
 #include "lib/memory.h"    /* M0_ALLOC_ARR */
+#include "lib/finject.h"   /* M0_FI_ENABLED */
 
 enum { CACHE_LOCALITY = 1 };
 
@@ -100,8 +101,9 @@ M0_INTERNAL int m0_conf_pver_get(const struct m0_fid  *profile,
 	if (rc != 0)
 		return M0_ERR(rc);
 
-	rc = m0_conf_diter_init(&it, confc, &fs->cf_obj,
-				M0_CONF_FILESYSTEM_POOLS_FID);
+	rc = M0_FI_ENABLED("diter_fail") ? -ENOMEM :
+		m0_conf_diter_init(&it, confc, &fs->cf_obj,
+				   M0_CONF_FILESYSTEM_POOLS_FID);
 	if (rc != 0)
 		goto fs_close;
 
@@ -542,11 +544,12 @@ M0_INTERNAL int m0_conf_ios_devices_count(const struct m0_fid *profile,
 					  struct m0_confc *confc,
 					  uint32_t *nr_devices)
 {
-	return conf_objs_count(profile, confc, m0_is_ios_disk, nr_devices,
-			       M0_CONF_FILESYSTEM_RACKS_FID,
-			       M0_CONF_RACK_ENCLS_FID,
-			       M0_CONF_ENCLOSURE_CTRLS_FID,
-			       M0_CONF_CONTROLLER_DISKS_FID);
+	return M0_FI_ENABLED("diter_fail") ? -ENOMEM :
+		conf_objs_count(profile, confc, m0_is_ios_disk, nr_devices,
+				M0_CONF_FILESYSTEM_RACKS_FID,
+				M0_CONF_RACK_ENCLS_FID,
+				M0_CONF_ENCLOSURE_CTRLS_FID,
+				M0_CONF_CONTROLLER_DISKS_FID);
 }
 
 M0_INTERNAL void m0_confc_expired_cb(struct m0_rconfc *rconfc)
@@ -582,7 +585,9 @@ M0_INTERNAL int m0_conf_process2service_get(struct m0_confc *confc,
 	rc = confc_obj_get(confc, process_fid, &pobj);
 	if (rc != 0)
 		return M0_ERR(rc);
-	rc = m0_conf_diter_init(&it, confc, pobj, M0_CONF_PROCESS_SERVICES_FID);
+	rc = M0_FI_ENABLED("diter_fail") ? -ENOMEM :
+		m0_conf_diter_init(&it, confc, pobj,
+				   M0_CONF_PROCESS_SERVICES_FID);
 	if (rc != 0) {
 		m0_confc_close(pobj);
 		return M0_ERR(rc);

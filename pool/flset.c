@@ -28,6 +28,7 @@
 #include "lib/tlist.h"
 #include "lib/arith.h"    /* M0_CNT_INC, M0_CNT_DEC */
 #include "lib/chan.h"
+#include "lib/finject.h"  /* M0_FI_ENABLED */
 #include "mero/magic.h"   /* M0_CONF_OBJ_MAGIC, M0_FLSET_MAGIC */
 #include "conf/obj.h"
 #include "conf/obj_ops.h" /* m0_conf_obj_get_lock */
@@ -64,11 +65,12 @@ static int flset_diter_init(struct m0_conf_diter      *it,
 {
 	struct m0_confc *confc = m0_confc_from_obj(&fs->cf_obj);
 
-	return m0_conf_diter_init(it, confc, &fs->cf_obj,
-				  M0_CONF_FILESYSTEM_RACKS_FID,
-				  M0_CONF_RACK_ENCLS_FID,
-				  M0_CONF_ENCLOSURE_CTRLS_FID,
-				  M0_CONF_CONTROLLER_DISKS_FID);
+	return M0_FI_ENABLED("diter_fail") ? -ENOMEM :
+		m0_conf_diter_init(it, confc, &fs->cf_obj,
+				   M0_CONF_FILESYSTEM_RACKS_FID,
+				   M0_CONF_RACK_ENCLS_FID,
+				   M0_CONF_ENCLOSURE_CTRLS_FID,
+				   M0_CONF_CONTROLLER_DISKS_FID);
 }
 
 static int flset_diter_next(struct m0_conf_diter *it)
@@ -129,11 +131,12 @@ static int flset_target_objects_nr(struct m0_conf_filesystem *fs)
 	int                  rc;
 
 	rc = flset_diter_init(&it, fs);
-	if (rc == 0)
+	if (rc == 0) {
 		while ((rc = flset_diter_next(&it)) == M0_CONF_DIRNEXT)
 			objs_nr++;
-	flset_diter_fini(&it);
-	return rc ? M0_ERR(rc) : objs_nr;
+		flset_diter_fini(&it);
+	}
+	return rc != 0 ? M0_ERR(rc) : objs_nr;
 }
 
 static void flset_clinks_delete(struct m0_flset *flset)

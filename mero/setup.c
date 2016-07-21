@@ -611,7 +611,8 @@ static void cs_ha_process_event(struct m0_mero                *cctx,
 
 	type = cctx->cc_mkfs ? M0_CONF_HA_PROCESS_M0MKFS :
 			       M0_CONF_HA_PROCESS_M0D;
-	if (cctx->cc_ha_is_started && !cctx->cc_no_conf) {
+	if (cctx->cc_ha_is_started && !cctx->cc_no_conf &&
+	    cctx->cc_mero_ha.mh_link != NULL) {
 		m0_conf_ha_process_event_post(&cctx->cc_mero_ha.mh_ha,
 		                              cctx->cc_mero_ha.mh_link,
 		                              &cctx->cc_reqh_ctx.rc_fid,
@@ -2241,7 +2242,12 @@ out:
 	m0_rwlock_write_unlock(&cctx->cc_rwlock);
 	if (gotsignal)
 		rc = -EINTR;
-	/* m0_cs_start() is not called in mkfs mode */
+	/*
+	 * m0_cs_start() is not called in mkfs mode
+	 *
+	 * Halon expects STARTED to be able to continue the bootstrap, even in
+	 * error case.
+	 */
 	if (cctx->cc_mkfs)
 		cs_ha_process_event(cctx, M0_CONF_HA_PROCESS_STARTED);
 	return M0_RC(rc);
