@@ -138,7 +138,6 @@ struct m0_be_tx;
 struct m0_layout_domain;
 struct m0_layout;
 struct m0_layout_ops;
-enum m0_layout_xcode_op;
 struct m0_layout_type;
 struct m0_layout_type_ops;
 struct m0_layout_enum;
@@ -150,6 +149,20 @@ struct m0_layout_instance;
 struct m0_layout_instance_ops;
 struct m0_layout_rec;
 struct m0_pools_common;
+
+/**
+ * Operation on a layout record, performed through either m0_layout_decode()
+ * or m0_layout_encode() routines.
+ * M0_LXO_BUFFER_OP indicates that m0_layout_decode()/m0_layout_encode() has
+ * to operate upon a buffer.
+ */
+enum m0_layout_xcode_op {
+        M0_LXO_BUFFER_OP, /* Operate on a buffer. */
+        M0_LXO_DB_LOOKUP, /* Lookup for layout from the DB. */
+        M0_LXO_DB_ADD,    /* Add layout to the DB. */
+        M0_LXO_DB_UPDATE, /* Update layout in the DB. */
+        M0_LXO_DB_DELETE  /* Delete layout from the DB. */
+};
 
 enum {
 	M0_LAYOUT_TYPE_MAX      = 32,
@@ -318,20 +331,6 @@ struct m0_layout_ops {
 				 enum m0_layout_xcode_op op,
 				 struct m0_be_tx *tx,
 				 struct m0_bufvec_cursor *out);
-};
-
-/**
- * Operation on a layout record, performed through either m0_layout_decode()
- * or m0_layout_encode() routines.
- * M0_LXO_BUFFER_OP indicates that m0_layout_decode()/m0_layout_encode() has
- * to operate upon a buffer.
- */
-enum m0_layout_xcode_op {
-	M0_LXO_BUFFER_OP, /* Operate on a buffer. */
-	M0_LXO_DB_LOOKUP, /* Lookup for layout from the DB. */
-	M0_LXO_DB_ADD,    /* Add layout to the DB. */
-	M0_LXO_DB_UPDATE, /* Update layout in the DB. */
-	M0_LXO_DB_DELETE  /* Delete layout from the DB. */
 };
 
 /**

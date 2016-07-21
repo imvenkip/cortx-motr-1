@@ -79,9 +79,16 @@ struct m0_pdclust_attr;
 struct m0_layout_pdclust_rec;
 struct m0_pdclust_layout;
 struct m0_pdclust_instance;
-enum m0_pdclust_unit_type;
 struct m0_pdclust_src_addr;
 struct m0_pdclust_tgt_addr;
+
+/** Classification of units in a parity group. */
+enum m0_pdclust_unit_type {
+        M0_PUT_DATA,
+        M0_PUT_PARITY,
+        M0_PUT_SPARE,
+        M0_PUT_NR
+};
 
 /**
  * Attributes specific to PDCLUST layout type.
@@ -213,14 +220,6 @@ struct m0_pdclust_instance {
 	struct m0_parity_math        pi_math;
 
 	uint64_t                     pi_magic;
-};
-
-/** Classification of units in a parity group. */
-enum m0_pdclust_unit_type {
-	M0_PUT_DATA,
-	M0_PUT_PARITY,
-	M0_PUT_SPARE,
-	M0_PUT_NR
 };
 
 /**

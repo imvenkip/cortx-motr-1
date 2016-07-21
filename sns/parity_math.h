@@ -164,17 +164,17 @@ M0_INTERNAL void m0_parity_math_calculate(struct m0_parity_math *math,
 
 /**
  * Calculates parity in a differential manner.
- * @pre math != NULL && old != NULL && new != NULL && parity != NULL &&
+ * @pre math != NULL && old_ver != NULL && new_ver != NULL && parity != NULL &&
  *      index < math->pmi_parity_count
- * @param old    Old version of data block.
- * @param new    New version of data block.
- * @param parity Parity block.
- * @param index  Index of data unit in parity group for which old and new
+ * @param old_ver Old version of data block.
+ * @param new_ver New version of data block.
+ * @param parity  Parity block.
+ * @param index   Index of data unit in parity group for which old and new
  * versions are sent.
  */
 M0_INTERNAL void m0_parity_math_diff(struct m0_parity_math *math,
-				     struct m0_buf *old,
-				     struct m0_buf *new,
+				     struct m0_buf *old_ver,
+				     struct m0_buf *new_ver,
 				     struct m0_buf *parity, uint32_t index);
 
 /**
