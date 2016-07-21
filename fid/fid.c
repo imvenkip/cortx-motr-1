@@ -20,6 +20,7 @@
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_OTHER
 #include "lib/trace.h"
+
 #include "lib/errno.h"         /* EINVAL */
 #include "lib/misc.h"          /* memcmp, strcmp */
 #include "lib/string.h"        /* sscanf */
@@ -284,7 +285,6 @@ M0_INTERNAL uint64_t m0_fid_hash(const struct m0_fid *fid)
 }
 
 #undef M0_TRACE_SUBSYSTEM
-
 /** @} end of fid group */
 
 /*

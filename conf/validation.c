@@ -233,15 +233,15 @@ static char *conf_iodev_error(const struct m0_conf_sdev *sdev,
 {
 	uint32_t j;
 
-	if (iodevs[sdev->sd_dev_idx] != sdev &&
-	    M0_CONF_CAST(m0_conf_obj_grandparent(&sdev->sd_obj),
-			 m0_conf_service)->cs_type == M0_CST_IOS) {
-		if (sdev->sd_dev_idx >= nr_iodevs)
-			return m0_vsnprintf(
-				buf, buflen, FID_F": dev_idx (%u) does not"
-				" belong [0, P) range; P=%u",
-				FID_P(&sdev->sd_obj.co_id), sdev->sd_dev_idx,
-				nr_iodevs);
+	if (M0_CONF_CAST(m0_conf_obj_grandparent(&sdev->sd_obj),
+			 m0_conf_service)->cs_type != M0_CST_IOS)
+		return NULL;
+	if (sdev->sd_dev_idx >= nr_iodevs)
+		return m0_vsnprintf(buf, buflen, FID_F": dev_idx (%u) does not"
+				    " belong [0, P) range; P=%u",
+				    FID_P(&sdev->sd_obj.co_id),
+				    sdev->sd_dev_idx, nr_iodevs);
+	if (iodevs[sdev->sd_dev_idx] != sdev) {
 		if (iodevs[sdev->sd_dev_idx] != NULL)
 			return m0_vsnprintf(
 				buf, buflen, FID_F": dev_idx is not unique,"
