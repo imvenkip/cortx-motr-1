@@ -93,6 +93,7 @@ static void bulkio_stob_fom_fini(struct m0_fom *fom)
 
 	fom_obj = container_of(fom, struct m0_io_fom_cob_rw, fcrw_gen);
 	m0_stob_put(fom_obj->fcrw_stob);
+	M0_UT_ASSERT(fom_obj->fcrw_dev == NULL);
 	m0_fom_fini(fom);
 	m0_free(fom);
 }
@@ -278,6 +279,14 @@ static void fill_buffers_pool(uint32_t colour)
 	while (i > 0)
 		m0_net_buffer_pool_put(buf_pool, nb_list[--i], colour);
 	m0_net_buffer_pool_unlock(buf_pool);
+}
+
+static void builkio_ut_stob_get(struct m0_io_fom_cob_rw *fom_obj)
+{
+	M0_UT_ASSERT(fom_obj->fcrw_stob != NULL);
+	M0_UT_ASSERT(fom_obj->fcrw_dev  != NULL);
+	m0_storage_dev_get(fom_obj->fcrw_dev);
+	m0_stob_get(fom_obj->fcrw_stob);
 }
 
 static void fom_phase_set(struct m0_fom *fom, int phase)
@@ -480,7 +489,7 @@ static int check_write_fom_tick(struct m0_fom *fom)
 			m0_net_domain_get_max_buffer_size(netdom) + 4096;
 
 		fom_phase_set(fom, M0_FOPH_IO_ZERO_COPY_INIT);
-		m0_stob_get(fom_obj->fcrw_stob);
+		builkio_ut_stob_get(fom_obj);
 
 		m0_fi_enable_once("zero_copy_initiate", "keep-net-buffers");
 		rc = m0_io_fom_cob_rw_tick(fom);
@@ -515,7 +524,7 @@ static int check_write_fom_tick(struct m0_fom *fom)
 	         */
 	        fom_phase_set(fom, M0_FOPH_IO_ZERO_COPY_WAIT);
 	        fom_obj->fcrw_bulk.rb_rc  = -1;
-		m0_stob_get(fom_obj->fcrw_stob);
+		builkio_ut_stob_get(fom_obj);
 
 		m0_fi_enable_once("zero_copy_finish", "keep-net-buffers");
 	        rc = m0_io_fom_cob_rw_tick(fom);
@@ -599,7 +608,7 @@ static int check_write_fom_tick(struct m0_fom *fom)
 	        saved_stobio_desc = stobio_tlist_pop(&fom_obj->fcrw_stio_list);
 	        M0_UT_ASSERT(saved_stobio_desc != NULL);
 
-		m0_stob_get(fom_obj->fcrw_stob);
+		builkio_ut_stob_get(fom_obj);
 		fom_phase_set(fom, M0_FOPH_IO_STOB_WAIT);
 		m0_fi_enable_once("io_finish", "fake_error");
 		m0_fi_enable_once("io_finish", "keep-net-buffers");
@@ -873,7 +882,7 @@ static int check_read_fom_tick(struct m0_fom *fom)
 	        M0_UT_ASSERT(saved_stobio_desc != NULL);
 
 	        fom_phase_set(fom, M0_FOPH_IO_STOB_WAIT);
-		m0_stob_get(fom_obj->fcrw_stob);
+		builkio_ut_stob_get(fom_obj);
 
 		m0_fi_enable_once("io_finish", "fake_error");
 		m0_fi_enable_once("io_finish", "keep-net-buffers");
@@ -915,7 +924,7 @@ static int check_read_fom_tick(struct m0_fom *fom)
 			m0_net_domain_get_max_buffer_size(netdom) + 4096;
 
 		fom_phase_set(fom, M0_FOPH_IO_ZERO_COPY_INIT);
-		m0_stob_get(fom_obj->fcrw_stob);
+		builkio_ut_stob_get(fom_obj);
 
 		m0_fi_enable_once("zero_copy_initiate", "keep-net-buffers");
 		rc = m0_io_fom_cob_rw_tick(fom);
@@ -951,7 +960,7 @@ static int check_read_fom_tick(struct m0_fom *fom)
 	         */
 	        fom_phase_set(fom, M0_FOPH_IO_ZERO_COPY_WAIT);
 	        fom_obj->fcrw_bulk.rb_rc  = -1;
-		m0_stob_get(fom_obj->fcrw_stob);
+		builkio_ut_stob_get(fom_obj);
 
 		m0_fi_enable_once("zero_copy_finish", "keep-net-buffers");
 	        rc = m0_io_fom_cob_rw_tick(fom);

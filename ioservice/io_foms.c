@@ -1125,6 +1125,7 @@ static int m0_io_fom_cob_rw_create(struct m0_fop *fop, struct m0_fom **out,
 	m0_fom_init(fom, &fop->f_type->ft_fom_type, &ops, fop, rep_fop, reqh);
 
 	fom_obj->fcrw_fom_start_time      = m0_time_now();
+	fom_obj->fcrw_dev                 = NULL;
 	fom_obj->fcrw_stob                = NULL;
 	fom_obj->fcrw_ndesc               = rwfop->crw_desc.id_nr;
 	fom_obj->fcrw_curr_desc_index     = 0;
@@ -1899,23 +1900,31 @@ static int indexvec_wire2mem(struct m0_fom *fom)
 	uint32_t                 bshift;
 	struct m0_io_fom_cob_rw *fom_obj;
 	struct m0_fop_cob_rw    *rwfop;
-	struct m0_stob_domain   *fom_stdom;
+	struct m0_stob_domain   *sdom;
+	struct m0_storage_devs  *devs = &m0_get()->i_storage_devs;
 
 	M0_PRE(fom != NULL);
 
 	fom_obj = container_of(fom, struct m0_io_fom_cob_rw, fcrw_gen);
 
+	m0_storage_devs_lock(devs);
 	rc = stob_object_find(fom);
+	if (rc == 0) {
+		sdom = m0_stob_dom_get(fom_obj->fcrw_stob);
+		M0_ASSERT(sdom != NULL);
+		fom_obj->fcrw_dev = m0_storage_devs_find_by_dom(devs, sdom);
+		if (fom_obj->fcrw_dev == NULL)
+			rc = M0_ERR(-ENOENT);
+		else
+			m0_storage_dev_get(fom_obj->fcrw_dev);
+	}
+	m0_storage_devs_unlock(devs);
 	if (rc != 0)
 		return M0_ERR(rc);
 
-	fom_stdom = m0_stob_dom_get(fom_obj->fcrw_stob);
-	M0_ASSERT(fom_stdom != NULL);
 	bshift = m0_stob_block_shift(fom_obj->fcrw_stob);
-
-	rwfop = io_rw_get(fom->fo_fop);
 	fom_obj->fcrw_bshift = bshift;
-
+	rwfop = io_rw_get(fom->fo_fop);
 	max_frags_nr = rwfop->crw_ivec.ci_nr;
 	M0_LOG(M0_DEBUG, "max_frags_nr=%d bshift=%u", max_frags_nr, bshift);
 
@@ -2049,6 +2058,7 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 	struct m0_poolmach                       *poolmach;
 	struct m0_fop_cob_rw                     *rwfop;
 	struct m0_fop_cob_rw_reply               *rwrep;
+	struct m0_storage_devs                   *devs;
 
 	M0_PRE(fom != NULL);
 	M0_PRE(m0_is_io_fop(fom->fo_fop));
@@ -2115,8 +2125,14 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 	/* Set operation status in reply fop if FOM ends.*/
 	if (m0_fom_phase(fom) == M0_FOPH_SUCCESS ||
 	    m0_fom_phase(fom) == M0_FOPH_FAILURE) {
-		if (fom_obj->fcrw_stob != NULL)
+		if (fom_obj->fcrw_stob != NULL) {
 			m0_stob_put(fom_obj->fcrw_stob);
+			devs = &m0_get()->i_storage_devs;
+			m0_storage_devs_lock(devs);
+			M0_ASSERT(fom_obj->fcrw_dev != NULL);
+			m0_storage_dev_put(fom_obj->fcrw_dev);
+			m0_storage_devs_unlock(devs);
+		}
 		rwrep = io_rw_rep_get(fom->fo_rep_fop);
 		rwrep->rwr_rc    = m0_fom_rc(fom);
 		rwrep->rwr_count = fom_obj->fcrw_count << fom_obj->fcrw_bshift;

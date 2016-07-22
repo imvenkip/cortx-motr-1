@@ -202,6 +202,8 @@ struct m0_io_fom_cob_rw {
 	uint32_t                         fcrw_num_stobio_launched;
 	/** Pointer to buffer pool refered by FOM */
 	struct m0_net_buffer_pool       *fcrw_bp;
+	/** m0_storage_dev object which represents AD stob for current I/O */
+	struct m0_storage_dev           *fcrw_dev;
 	/** Stob object on which this FOM is acting. */
 	struct m0_stob		        *fcrw_stob;
 	/** Array of all stob IOs we are going to fire (fcrw_ndesc in size). */

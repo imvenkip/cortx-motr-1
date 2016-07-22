@@ -109,6 +109,14 @@ m0_storage_devs_find_by_cid(struct m0_storage_devs *devs,
 			  dev->isd_cid == cid);
 }
 
+M0_INTERNAL struct m0_storage_dev *
+m0_storage_devs_find_by_dom(struct m0_storage_devs *devs,
+			    struct m0_stob_domain  *dom)
+{
+	return m0_tl_find(storage_dev, dev, &devs->sds_devices,
+			  dev->isd_domain == dom);
+}
+
 M0_INTERNAL void m0_storage_dev_clink_add(struct m0_clink *link,
 					  struct m0_chan *chan)
 {
@@ -225,6 +233,49 @@ static int stob_domain_create_or_init(uint64_t                 cid,
 	return M0_RC(rc);
 }
 
+static void storage_dev_release(struct m0_ref *ref)
+{
+	enum m0_stob_state     st;
+	int                    rc;
+
+	struct m0_storage_dev *dev =
+		container_of(ref, struct m0_storage_dev, isd_ref);
+
+	M0_ENTRY("dev=%p", dev);
+
+	/* Find the linux stob and acquire a reference. */
+	rc = m0_stob_find(&dev->isd_stob->so_id, &dev->isd_stob);
+	if (rc == 0) {
+		/* Finalise the AD stob domain.*/
+		m0_stob_domain_fini(dev->isd_domain);
+		/* Destroy linux stob. */
+		st = m0_stob_state_get(dev->isd_stob);
+		if (st == CSS_EXISTS)
+			rc = m0_stob_destroy(dev->isd_stob, NULL);
+		else
+			m0_stob_put(dev->isd_stob);
+	}
+	if (rc != 0)
+		M0_LOG(M0_ERROR, "Failed to destroy linux stob rc=%d", rc);
+	storage_dev_tlink_del_fini(dev);
+	m0_chan_broadcast_lock(&dev->isd_detached_chan);
+	m0_chan_fini_lock(&dev->isd_detached_chan);
+	m0_mutex_fini(&dev->isd_detached_lock);
+	m0_free(dev);
+
+	M0_LEAVE();
+}
+
+M0_INTERNAL void m0_storage_dev_get(struct m0_storage_dev *dev)
+{
+	m0_ref_get(&dev->isd_ref);
+}
+
+M0_INTERNAL void m0_storage_dev_put(struct m0_storage_dev *dev)
+{
+	m0_ref_put(&dev->isd_ref);
+}
+
 static int storage_dev_attach(struct m0_storage_devs    *devs,
 			      uint64_t                   cid,
 			      const char                *path,
@@ -245,6 +296,7 @@ static int storage_dev_attach(struct m0_storage_devs    *devs,
 	if (device == NULL)
 		return M0_ERR(-ENOMEM);
 
+	m0_ref_init(&device->isd_ref, 0, storage_dev_release);
 	device->isd_cid = cid;
 
 	m0_stob_id_make(0, cid, &devs->sds_back_domain->sd_id, &stob_id);
@@ -287,9 +339,13 @@ stob_put:
 	/* Decrement stob reference counter, incremented by m0_stob_find() */
 	m0_stob_put(stob);
 end:
-	if (rc == 0)
+	if (rc == 0) {
+		m0_storage_dev_get(device);
+		m0_mutex_init(&device->isd_detached_lock);
+		m0_chan_init(&device->isd_detached_chan,
+			     &device->isd_detached_lock);
 		storage_dev_tlink_init_at_tail(device, &devs->sds_devices);
-	else
+	} else
 		m0_free(device);
 	return M0_RC(rc);
 }
@@ -305,8 +361,8 @@ M0_INTERNAL int m0_storage_dev_attach(struct m0_storage_devs *devs,
 				  size, conf_sdev);
 }
 
-M0_INTERNAL int m0_storage_dev_attach_by_conf(struct m0_storage_devs    *devs,
-					      struct m0_conf_sdev *sdev)
+M0_INTERNAL int m0_storage_dev_attach_by_conf(struct m0_storage_devs *devs,
+					      struct m0_conf_sdev    *sdev)
 {
 	return storage_dev_attach(
 		devs, sdev->sd_dev_idx,
@@ -316,30 +372,15 @@ M0_INTERNAL int m0_storage_dev_attach_by_conf(struct m0_storage_devs    *devs,
 
 M0_INTERNAL void m0_storage_dev_detach(struct m0_storage_dev *dev)
 {
-	enum m0_stob_state  st;
-	int                 rc;
 	struct m0_conf_obj *obj;
 
-	/* Find the linux stob and acquire a reference. */
-	rc = m0_stob_find(&dev->isd_stob->so_id, &dev->isd_stob);
-	if (rc == 0) {
-		/* Finalise the AD stob domain.*/
-		m0_stob_domain_fini(dev->isd_domain);
-		/* Destroy linux stob. */
-		st = m0_stob_state_get(dev->isd_stob);
-		if (st == CSS_EXISTS)
-			rc = m0_stob_destroy(dev->isd_stob, NULL);
-	}
-	if (rc != 0)
-		M0_LOG(M0_ERROR, "Failed to destroy linux stob rc=%d", rc);
 	if (m0_clink_is_armed(&dev->isd_clink)) {
 		obj = container_of(dev->isd_clink.cl_chan, struct m0_conf_obj,
 				   co_ha_chan);
 		m0_storage_dev_clink_del(&dev->isd_clink);
 		m0_confc_close(obj);
 	}
-	storage_dev_tlink_del_fini(dev);
-	m0_free(dev);
+	m0_storage_dev_put(dev);
 }
 
 M0_INTERNAL void m0_storage_dev_space(struct m0_storage_dev   *dev,

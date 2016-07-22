@@ -169,6 +169,10 @@ struct m0_sm_state_descr sss_device_fom_phases_desc[] = {
 	},
 	[SSS_DFOM_DETACH_STOB]= {
 		.sd_name    = "SSS_DFOM_DETACH_STOB",
+		.sd_allowed = M0_BITS(SSS_DFOM_DETACH_STOB_WAIT),
+	},
+	[SSS_DFOM_DETACH_STOB_WAIT]= {
+		.sd_name    = "SSS_DFOM_DETACH_STOB_WAIT",
 		.sd_allowed = M0_BITS(M0_FOPH_TXN_INIT),
 	},
 	[SSS_DFOM_DETACH_POOL_MACHINE]= {
@@ -657,7 +661,11 @@ static int sss_device_pool_machine_detach(struct m0_fom *fom)
 						 M0_PNDS_OFFLINE));
 }
 
-static int sss_device_stob_detach(struct m0_fom *fom)
+/*
+ * Find and detach m0_storage_dev object. If arm_wakeup is true the fom
+ * is armed to wakeup when stob detach operation is completed.
+ */
+static int sss_device_stob_detach(struct m0_fom *fom, bool arm_wakeup)
 {
 	struct m0_sss_dfom     *dfom;
 	struct m0_storage_devs *devs = &m0_get()->i_storage_devs;
@@ -677,8 +685,15 @@ static int sss_device_stob_detach(struct m0_fom *fom)
 	dev = m0_storage_devs_find_by_cid(devs, sdev->sd_dev_idx);
 	if (dev == NULL)
 		rc = M0_ERR(-ENOENT);
-	else
+	else {
+		if (arm_wakeup) {
+			m0_chan_lock(&dev->isd_detached_chan);
+			m0_fom_wait_on(fom, &dev->isd_detached_chan,
+				       &fom->fo_cb);
+			m0_chan_unlock(&dev->isd_detached_chan);
+		}
 		m0_storage_dev_detach(dev);
+	}
 	m0_storage_devs_unlock(devs);
 	m0_confc_close(&sdev->sd_obj);
 	return M0_RC(rc);
@@ -814,13 +829,18 @@ static int sss_device_fom_tick(struct m0_fom *fom)
 	case SSS_DFOM_ATTACH_POOL_MACHINE:
 		rep->ssdp_rc = sss_device_pool_machine_attach(fom);
 		if (rep->ssdp_rc != 0)
-			sss_device_stob_detach(fom);
+			sss_device_stob_detach(fom, false);
 		m0_fom_phase_moveif(fom, rep->ssdp_rc, M0_FOPH_SUCCESS,
 				    M0_FOPH_FAILURE);
 		return M0_FSO_AGAIN;
 
 	case SSS_DFOM_DETACH_STOB:
-		rep->ssdp_rc = sss_device_stob_detach(fom);
+		/* calls m0_fom_wait_on() inside */
+		rep->ssdp_rc = sss_device_stob_detach(fom, true);
+		m0_fom_phase_move(fom, 0, SSS_DFOM_DETACH_STOB_WAIT);
+		return rep->ssdp_rc == 0 ? M0_FSO_WAIT : M0_FSO_AGAIN;
+
+	case SSS_DFOM_DETACH_STOB_WAIT:
 		m0_fom_phase_move(fom, 0, M0_FOPH_TXN_INIT);
 		return M0_FSO_AGAIN;
 

@@ -78,10 +78,21 @@ struct m0_storage_dev {
 	 * storage device.
 	 */
 	enum m0_ha_obj_state       isd_ha_state;
-	/* Type of the parent service. */
+	/** Type of the parent service. */
 	enum m0_conf_service_type  isd_srv_type;
-	/* * Magic for isd_linkage */
+	/** Magic for isd_linkage */
 	uint64_t                   isd_magic;
+	/**
+	 * Reference counter. Stob attach operation and a user which performs
+	 * I/O to the stob must hold reference to this object.
+	 */
+	struct m0_ref              isd_ref;
+	/**
+	 * Signalled when the last reference is released and the object
+	 * is detached.
+	 */
+	struct m0_chan             isd_detached_chan;
+	struct m0_mutex            isd_detached_lock;
 };
 
 M0_TL_DESCR_DECLARE(storage_dev, M0_EXTERN);
@@ -138,6 +149,15 @@ M0_INTERNAL void m0_storage_devs_unlock(struct m0_storage_devs *devs);
 M0_INTERNAL struct m0_storage_dev *
 m0_storage_devs_find_by_cid(struct m0_storage_devs *devs,
 			    uint64_t                cid);
+/**
+ * Finds storage device by its AD stob domain.
+ */
+M0_INTERNAL struct m0_storage_dev *
+m0_storage_devs_find_by_dom(struct m0_storage_devs *devs,
+			    struct m0_stob_domain  *dom);
+
+M0_INTERNAL void m0_storage_dev_get(struct m0_storage_dev *dev);
+M0_INTERNAL void m0_storage_dev_put(struct m0_storage_dev *dev);
 
 /**
  * Attaches device using information from configuration object.

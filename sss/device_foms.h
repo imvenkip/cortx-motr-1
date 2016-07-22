@@ -266,6 +266,10 @@ enum sss_device_fom_phases {
 	 */
 	SSS_DFOM_DETACH_STOB,
 	/**
+	 * Wait until stob detach operation is completed.
+	 */
+	SSS_DFOM_DETACH_STOB_WAIT,
+	/**
 	 * Change device status on offline in Pool machine. Create and run Pool
 	 * event.
 	 */
