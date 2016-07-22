@@ -560,6 +560,7 @@ rcancel_cancel_during_create_test()
 	echo "create processes running : $create_count"
 	if [ $create_count -ne $create_nr_files ]
 	then
+		echo 'disable item_reply_received_fi drop_create_item_reply' > /sys/kernel/debug/mero/finject/ctl
 		echo "Failed to issue long running $create_nr_files create requests"
 		rcancel_test_cleanup $create_file_base $create_nr_files "touch"
 		unmount_and_clean
@@ -653,6 +654,7 @@ rcancel_cancel_during_delete_test()
 	echo "delete processes running : $delete_count"
 	if [ $delete_count -ne $delete_nr_files ]
 	then
+		echo 'disable item_reply_received_fi drop_delete_item_reply' > /sys/kernel/debug/mero/finject/ctl
 		echo "Failed to issue long running $delete_nr_files delete requests"
 		rcancel_test_cleanup $delete_file_base $delete_nr_files "rm"
 		unmount_and_clean
@@ -738,6 +740,7 @@ rcancel_cancel_during_setfattr_ops_test()
 	echo "setfattr processes running : $setfattr_count"
 	if [ $setfattr_count -ne $setfattr_nr_files ]
 	then
+		echo 'disable item_received_fi drop_setattr_item_reply' > /sys/kernel/debug/mero/finject/ctl
 		echo "Failed to issue long running $setfattr_nr_files setfattr requests"
 		rcancel_test_cleanup $setfattr_file_base $setfattr_nr_files "setfattr"
 		unmount_and_clean
@@ -819,6 +822,7 @@ rcancel_cancel_during_getfattr_ops_test()
 	echo "getfattr processes running : $(($getfattr_count))"
 	if [ $getfattr_count -ne $getfattr_nr_files ]
 	then
+		echo 'disable item_received_fi drop_getattr_item_reply' > /sys/kernel/debug/mero/finject/ctl
 		echo "Failed to issue long running $getfattr_count getfattr requests"
 		rcancel_test_cleanup $getfattr_file_base $getfattr_nr_files "getfattr"
 		unmount_and_clean
