@@ -837,8 +837,7 @@ int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	if (rc != 0)
 		goto err_conf_fs_close;
 
-	rc = m0_flset_build(&reqh->rh_failure_set,
-			    m0_ha_session_get(), fs);
+	rc = m0_flset_build(&reqh->rh_failure_set, fs);
 	if (rc != 0)
 		goto err_conf_fs_close;
 

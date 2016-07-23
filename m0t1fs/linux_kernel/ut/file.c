@@ -252,8 +252,6 @@ static int file_io_ut_init(void)
 	M0_UT_ASSERT(rc == 0);
 	m0_fi_disable("m0_ha_failvec_fetch", "kernel-ut-no-ha");
 
-	m0_flset_tlist_init(&reqh->rh_failure_set.fls_objs);
-
 	rc = m0_pool_version_get(&csb.csb_pools_common, &pver);
 	M0_UT_ASSERT(rc == 0);
 	csb.csb_pool_version = pver;
@@ -317,7 +315,6 @@ static int file_io_ut_init(void)
 	/* Sets the file size in inode. */
 	ci.ci_inode.i_size = DATA_SIZE;
 	ci.ci_pver = pver->pv_id;
-	m0_flset_tlist_fini(&reqh->rh_failure_set.fls_objs);
 	m0_confc_close(&fs->cf_obj);
 
 	return 0;

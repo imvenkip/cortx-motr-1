@@ -100,12 +100,14 @@ m0_conf_obj_create(const struct m0_fid *id, struct m0_conf_cache *cache)
 	m0_chan_init(&obj->co_ha_chan, cache->ca_lock);
 	m0_conf_cache_tlink_init(obj);
 	m0_conf_dir_tlink_init(obj);
-	m0_flset_tlink_init(obj);
 	/*
 	 * m0_ha_state_accept() does not expect .co_ha_state to be
 	 * M0_NC_UNKNOWN. Initialise it to M0_NC_ONLINE.
 	 */
 	obj->co_ha_state = M0_NC_ONLINE;
+	m0_conf_obj_bob_init(obj);
+	M0_ASSERT(obj->co_gen_magic == M0_CONF_OBJ_MAGIC);
+	M0_ASSERT(obj->co_con_magic == type->cot_magic);
 
 	M0_POST(m0_conf_obj_invariant(obj));
 	return obj;
@@ -169,21 +171,6 @@ M0_INTERNAL void m0_conf_obj_delete(struct m0_conf_obj *obj)
 	M0_PRE(obj->co_status != M0_CS_LOADING);
 
 	/* Finalise generic fields. */
-	if (m0_flset_tlink_is_in(obj))
-		/*
-		 * Due to incorrect implementation of configuration consumer
-		 * (pool/flset.c) a conf object may remain linked to
-		 * m0_flset::fls_objs when m0_conf_obj_delete() is called.
-		 * An attempt to m0_flset_tlink_fini() would fail; see
-		 * MERO-1900.  Here we work around the problem, but this is
-		 * not right for conf subsystem to manage conf consumer's
-		 * internals.
-		 *
-		 * XXX TODO: m0_flset will be removed by MERO-1735 patch.
-		 */
-		m0_flset_tlink_del_fini(obj);
-	else
-		m0_flset_tlink_fini(obj);
 	m0_conf_dir_tlink_fini(obj);
 	m0_conf_cache_tlink_fini(obj);
 	m0_chan_fini(&obj->co_ha_chan);

@@ -335,7 +335,7 @@ static void failure_sets_build(struct m0_reqh *reqh, struct m0_ha_nvec *nvec)
         rc = m0_conf_full_load(fs);
         M0_UT_ASSERT(rc == 0);
 
-	rc = m0_flset_build(&reqh->rh_failure_set, session, fs);
+	rc = m0_flset_build(&reqh->rh_failure_set, fs);
 	M0_UT_ASSERT(rc == 0);
 }
 
@@ -345,29 +345,6 @@ static void failure_sets_destroy(struct m0_reqh *reqh)
 	m0_confc_close(&fs->cf_obj);
 	m0_ha_client_del(m0_reqh2confc(reqh));
 	m0_confc_fini(m0_reqh2confc(reqh));
-}
-
-static void test_failure_sets(void)
-{
-	struct m0_reqh    reqh;
-	struct m0_ha_note n1[] = {
-		{ M0_FID_TINIT('a', 1, 3),  M0_NC_FAILED },
-		{ M0_FID_TINIT('e', 1, 7),  M0_NC_FAILED },
-		{ M0_FID_TINIT('c', 1, 11), M0_NC_FAILED },
-	};
-	struct m0_ha_nvec nvec = { ARRAY_SIZE(n1), n1 };
-
-	m0_reqh_init(&reqh, &reqh_args);
-	failure_sets_build(&reqh, &nvec);
-
-	M0_UT_ASSERT(m0_flset_tlist_length(&reqh.rh_failure_set.fls_objs) ==
-				ARRAY_SIZE(n1));
-
-	M0_UT_ASSERT(m0_tl_forall(m0_flset, obj, &reqh.rh_failure_set.fls_objs,
-				  obj->co_ha_state == M0_NC_FAILED));
-
-	failure_sets_destroy(&reqh);
-	m0_reqh_fini(&reqh);
 }
 
 static void ha_ut_pver_kind_check(const struct m0_fid *pver_fid,
@@ -683,7 +660,6 @@ struct m0_ut_suite ha_state_ut = {
 	.ts_tests = {
 		{ "ha-state-set-and-get", test_ha_state_set_and_get },
 		{ "ha-state-accept",      test_ha_state_accept },
-		{ "ha-failure-sets",      test_failure_sets },
 		{ "ha-failvecl-fetch",    test_failvec_fetch },
 		{ "ha-poolversion-get",   test_poolversion_get },
 		{ "ha-session-states",    test_ha_session_states },

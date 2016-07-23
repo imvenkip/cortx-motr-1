@@ -2315,8 +2315,7 @@ int m0_cs_start(struct m0_mero *cctx)
 		goto out;
 	}
 
-	rc = gotsignal ? -EINTR : m0_flset_build(&reqh->rh_failure_set,
-						 m0_ha_session_get(), fs);
+	rc = gotsignal ? -EINTR : m0_flset_build(&reqh->rh_failure_set, fs);
 	if (rc != 0)
 		goto error;
 

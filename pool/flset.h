@@ -42,28 +42,28 @@
 struct m0_conf_filesystem;
 struct m0_rpc_session;
 struct m0_conf_obj;
-struct flset_clink;
 
-M0_TL_DESCR_DECLARE(m0_flset, M0_EXTERN);
-M0_TL_DECLARE(m0_flset, M0_EXTERN, struct m0_conf_obj);
+struct m0_flset_clink {
+	struct m0_clink       fcl_link;
+	struct m0_flset      *fcl_parent;
+	struct m0_fid         fcl_fid;
+	enum m0_ha_obj_state  fcl_state;
+};
 
 struct m0_flset {
-	/* List (of type m0_flset_tl) of failed HW resources. */
-	struct m0_tl        fls_objs;
 	/* Array of clinks to track state change of conf objects. */
-	struct flset_clink *fls_links;
+	struct m0_flset_clink *fls_links;
 	/* Number of elements in fls_links array */
-	int                 fls_links_nr;
+	int                    fls_links_nr;
 
-	struct m0_clink     fls_conf_expired;
-	struct m0_clink     fls_conf_ready;
+	struct m0_clink        fls_conf_expired;
+	struct m0_clink        fls_conf_ready;
 };
 
 /**
  * Build failure set of resources by scanning ha state.
  */
 M0_INTERNAL int m0_flset_build(struct m0_flset           *flset,
-			       struct m0_rpc_session     *ha_session,
 			       struct m0_conf_filesystem *fs);
 
 /**

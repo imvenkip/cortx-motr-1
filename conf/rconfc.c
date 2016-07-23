@@ -653,6 +653,7 @@ static void rconfc_conf_load_fini(struct m0_sm_group *grp,
 {
 	struct m0_rconfc *rconfc = ast->sa_datum;
 
+	M0_ENTRY("rconfc = %p", rconfc);
 	m0_confc_gate_ops_set(&rconfc->rc_confc, &rconfc->rc_gops);
 	if (rconfc->rc_rx.rx_rc == 0) {
 		rconfc_idle(rconfc); /* unlock reading gate */
@@ -660,6 +661,7 @@ static void rconfc_conf_load_fini(struct m0_sm_group *grp,
 		rconfc_fail(rconfc, rconfc->rc_rx.rx_rc);
 	}
 	rconfc_load_ast_thread_fini(&rconfc->rc_rx);
+	M0_LEAVE();
 }
 
 static void rconfc_conf_full_load(struct m0_sm_group *grp,

@@ -233,9 +233,6 @@ struct m0_conf_obj {
 	/** Linkage to m0_conf_dir::cd_items. */
 	struct m0_tlink               co_dir_link;
 
-	/** Linkage to m0_flset::fls_objs. */
-	struct m0_tlink               co_flset_link;
-
 	/**
 	 * Generic magic.
 	 *
