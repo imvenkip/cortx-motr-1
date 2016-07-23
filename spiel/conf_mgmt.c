@@ -2017,15 +2017,14 @@ M0_EXPORTED(m0_spiel_pool_version_done);
 static void spiel_pver_remove(struct m0_conf_cache *cache,
 			      struct m0_conf_pver  *pver)
 {
-	struct m0_conf_obj            *obj;
-	const struct m0_conf_obj_type *ot;
+	struct m0_conf_obj *obj;
 
 	M0_ENTRY();
 
 	m0_tl_for (m0_conf_cache, &cache->ca_registry, obj) {
-		ot = m0_conf_obj_type(obj);
-		if (M0_IN(ot, (&M0_CONF_RACK_TYPE, &M0_CONF_ENCLOSURE_TYPE,
-			       &M0_CONF_CONTROLLER_TYPE, &M0_CONF_DISK_TYPE)))
+		if (M0_IN(m0_conf_obj_type(obj),
+			  (&M0_CONF_RACK_TYPE, &M0_CONF_ENCLOSURE_TYPE,
+			   &M0_CONF_CONTROLLER_TYPE, &M0_CONF_DISK_TYPE)))
 			spiel_pver_delete(obj, pver);
 	} m0_tl_endfor;
 

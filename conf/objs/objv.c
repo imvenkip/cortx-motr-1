@@ -46,18 +46,22 @@ static int objv_decode(struct m0_conf_obj        *dest,
 		       const struct m0_confx_obj *src,
 		       struct m0_conf_cache      *cache)
 {
-	int                            rc;
-	struct m0_conf_objv           *d = M0_CONF_CAST(dest, m0_conf_objv);
-	const struct m0_confx_objv    *s = XCAST(src);
-	const struct m0_fid           *relfid;
+	struct m0_conf_objv        *d = M0_CONF_CAST(dest, m0_conf_objv);
+	const struct m0_confx_objv *s = XCAST(src);
+	const struct m0_fid        *relfid;
+	int                         rc;
 
 	d->cv_ix = -1;
 	rc = m0_conf_obj_find(cache, &s->xj_real, &d->cv_real);
 	if (rc != 0)
 		return M0_ERR(rc);
 	relfid = objv_downlinks(dest)[0];
-	return M0_RC(relfid == NULL ? 0 /* no children */ :
-		     m0_conf_dir_new(cache, dest, relfid, &M0_CONF_OBJV_TYPE,
+	if (relfid == NULL)
+		return s->xj_children.af_count == 0 ?
+			M0_RC(0) /* no children */ :
+			M0_ERR_INFO(-EINVAL, FID_F": No children expected",
+				    FID_P(&dest->co_id));
+	return M0_RC(m0_conf_dir_new(cache, dest, relfid, &M0_CONF_OBJV_TYPE,
 				     &s->xj_children, &d->cv_children));
 }
 
