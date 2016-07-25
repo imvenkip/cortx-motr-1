@@ -370,10 +370,7 @@ AC_SUBST([LUSTRE])
 
 LUSTRE_INCLUDES="-I$LUSTRE/libcfs/include -I$LUSTRE/lnet/include -I$LUSTRE/lustre/include"
 LUSTRE_VERSION=`echo $LUSTRE | cut -d "-" -f 2 | cut -d "." -f 1-2`
-LHSM_BUILD_VERSION=2.5
 AC_SUBST([LUSTRE_VERSION])
-AS_VERSION_COMPARE(${LUSTRE_VERSION}, ${LHSM_BUILD_VERSION}, [LHSM_BUILD=0], [LHSM_BUILD=1], [LHSM_BUILD=1])
-AM_CONDITIONAL([LHSM_BUILD], [test "$LHSM_BUILD" = 1])
 
 #
 # Checking required programs ---------------------------------------------- {{{1
@@ -775,7 +772,6 @@ AC_SUBST([BUILD_KCFLAGS],["$M0_KCPPFLAGS $M0_KCFLAGS $KCFLAGS"])
 AC_SUBST([BUILD_LDFLAGS],["$M0_LDFLAGS"])
 
 ],[
-AM_CONDITIONAL([LHSM_BUILD], [false])
 AM_CONDITIONAL([HAVE_SYSTEMD], [true])
 ]) # enable_dist_mode
 
