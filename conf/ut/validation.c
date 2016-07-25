@@ -24,7 +24,7 @@
 #include "lib/memory.h"      /* m0_free */
 #include "ut/ut.h"
 
-static char g_buf[128];
+static char g_buf[192];
 
 static void cache_load(struct m0_conf_cache *cache, const char *path,
 		       char **sharp_out);

@@ -41,8 +41,9 @@
 (disk-76 dev=sdev-72 pvers=[pver-8])
 (disk-77 dev=sdev-73 pvers=[pver-8])
 (disk-78 dev=sdev-74 pvers=[pver-8])
-(pool-4 order=0 pvers=[pver-8])
-(pver-8 N=3 K=1 P=5 tolerance=[0, 0, 0, 0, 1] rackvs=[objv-12])
+(pool-4 order=0 pvers=[pver-8, pver_f-9])
+(pver-8 N=1 K=1 P=5 tolerance=[0, 0, 0, 0, 1] rackvs=[objv-12])
+(pver_f-9 id=0 base=pver-8 allowance=[0, 0, 0, 0, 1])
 (objv-12 real=rack-3 children=[objv-17])
 (objv-17 real=enclosure-7 children=[objv-18])
 (objv-18 real=controller-11

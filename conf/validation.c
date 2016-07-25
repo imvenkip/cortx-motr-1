@@ -29,6 +29,8 @@
 #include "conf/validation.h"
 #include "conf/glob.h"
 #include "conf/dir.h"      /* m0_conf_dir_tl */
+#include "conf/walk.h"
+#include "conf/pvers.h"    /* m0_conf_pver_level */
 #include "lib/string.h"    /* m0_vsnprintf */
 #include "lib/errno.h"     /* ENOENT */
 #include "lib/memory.h"    /* M0_ALLOC_ARR */
@@ -263,38 +265,220 @@ static char *conf_iodev_error(const struct m0_conf_sdev *sdev,
 	return NULL;
 }
 
-/**
- * Checks that P attribute of the pool version (pver) does not exceed
- * the total number of IO storage devices.
- * Also validates .sd_dev_idx and .sd_filename attributes of IO storage
- * devices, reachable from this pver.
- */
-static char *conf_pver_error(const struct m0_conf_pver *pver,
-			     const struct m0_conf_sdev **iodevs,
-			     uint32_t nr_iodevs, char *buf, size_t buflen)
-{
-	struct m0_conf_glob        glob;
-	const struct m0_conf_obj  *objv[CONF_GLOB_BATCH];
-	const struct m0_conf_objv *diskv;
-	char                      *err;
-	int                        i;
-	int                        rc;
+struct conf_pver_width_st {
+	uint32_t *ws_width;
+	char     *ws_buf;
+	size_t    ws_buflen;
+	char     *ws_err;
+};
 
-	if (pver->pv_u.subtree.pvs_attr.pa_P > nr_iodevs)
+static int conf_pver_width_measure__dir(const struct m0_conf_obj *obj,
+					struct conf_pver_width_st *st)
+{
+	const struct m0_tl       *dir;
+	const struct m0_conf_obj *child;
+	uint32_t                  children_level;
+
+	M0_PRE(m0_conf_obj_type(obj) == &M0_CONF_DIR_TYPE);
+
+	dir = &M0_CONF_CAST(obj, m0_conf_dir)->cd_items;
+	if (m0_conf_dir_tlist_is_empty(dir)) {
+		st->ws_err = m0_vsnprintf(st->ws_buf, st->ws_buflen,
+					  FID_F": Missing children",
+					  FID_P(&obj->co_parent->co_id));
+		return M0_CW_STOP;
+	}
+	M0_ASSERT(m0_tl_forall(m0_conf_dir, x, dir,
+			       m0_conf_obj_type(x) == &M0_CONF_OBJV_TYPE));
+	children_level =
+		m0_conf_obj_type(obj->co_parent) == &M0_CONF_PVER_TYPE ?
+		M0_CONF_PVER_LVL_RACKS :
+		m0_conf_pver_level(obj->co_parent) + 1;
+	if (m0_tl_exists(m0_conf_dir, x, dir, child = x,
+			 m0_conf_pver_level(x) != children_level)) {
+		st->ws_err = m0_vsnprintf(st->ws_buf, st->ws_buflen,
+					  FID_F": Cannot adopt "FID_F,
+					  FID_P(&obj->co_parent->co_id),
+					  FID_P(&child->co_id));
+		return M0_CW_STOP;
+	}
+	return M0_CW_CONTINUE;
+}
+
+static int conf_pver_width_measure_w(struct m0_conf_obj *obj, void *args)
+{
+	struct conf_pver_width_st *st = args;
+	const struct m0_conf_objv *objv;
+	unsigned                   level;
+
+	M0_PRE(!m0_conf_obj_is_stub(obj));
+
+	if (m0_conf_obj_type(obj) == &M0_CONF_DIR_TYPE)
+		return conf_pver_width_measure__dir(obj, st);
+
+	objv = M0_CONF_CAST(obj, m0_conf_objv);
+	level = m0_conf_pver_level(obj);
+	if ((level == M0_CONF_PVER_LVL_DISKS) != (objv->cv_children == NULL)) {
+		st->ws_err = m0_vsnprintf(st->ws_buf, st->ws_buflen,
+					  FID_F": %s children",
+					  FID_P(&obj->co_id),
+					  objv->cv_children == NULL ?
+					  "Missing" : "Unexpected");
+		return M0_CW_STOP;
+	}
+	M0_CNT_INC(st->ws_width[level]);
+	return M0_CW_CONTINUE;
+}
+
+/**
+ * Computes the number of objvs at each level of pver subtree.
+ *
+ * Puts result into `pver_width' array, which should have capacity of
+ * at least M0_CONF_PVER_HEIGHT elements.
+ */
+static char *conf_pver_width_error(const struct m0_conf_pver *pver,
+				   uint32_t *pver_width,
+				   char *buf, size_t buflen)
+{
+	struct conf_pver_width_st st = {
+		.ws_width  = pver_width,
+		.ws_buf    = buf,
+		.ws_buflen = buflen
+	};
+	int rc;
+
+	M0_PRE(pver->pv_kind == M0_CONF_PVER_ACTUAL);
+
+	memset(pver_width, 0, M0_CONF_PVER_HEIGHT * sizeof(*pver_width));
+	rc = m0_conf_walk(conf_pver_width_measure_w,
+			  &pver->pv_u.subtree.pvs_rackvs->cd_obj, &st);
+	M0_ASSERT(rc == 0); /* conf_pver_width_measure_w() cannot fail */
+	M0_POST(ergo(st.ws_err == NULL,
+		     m0_forall(i, ARRAY_SIZE(pver_width),
+			       /*
+				* XXX TODO: Replace with `pver_width[i] > 0'
+				* after M0_CONF_PVER_LVL_0 is deleted.
+				*/
+			       (pver_width[i] == 0) ==
+			       (i == M0_CONF_PVER_LVL_0))));
+	return st.ws_err;
+}
+
+/**
+ * Tries to find base pver of given formulaic pver.
+ *
+ * @see conf_pver_formulaic_base()
+ */
+static char *conf_pver_formulaic_base_error(const struct m0_conf_pver *fpver,
+					    const struct m0_conf_pver **out,
+					    char *buf, size_t buflen)
+{
+	const struct m0_conf_obj *base;
+
+	M0_PRE(fpver->pv_kind == M0_CONF_PVER_FORMULAIC);
+
+	base = m0_conf_cache_lookup(fpver->pv_obj.co_cache,
+				    &fpver->pv_u.formulaic.pvf_base);
+	if (base == NULL)
+		return m0_vsnprintf(buf, buflen,
+				    "Base "FID_F" of formulaic pver "FID_F
+				    " is missing",
+				    FID_P(&fpver->pv_u.formulaic.pvf_base),
+				    FID_P(&fpver->pv_obj.co_id));
+	*out = M0_CONF_CAST(base, m0_conf_pver);
+	return (*out)->pv_kind == M0_CONF_PVER_ACTUAL ? NULL :
+		m0_vsnprintf(buf, buflen, "Base "FID_F" of formulaic pver "FID_F
+			     " is not actual", FID_P(&base->co_id),
+			     FID_P(&fpver->pv_obj.co_id));
+}
+
+static char *conf_pver_formulaic_error(const struct m0_conf_pver *fpver,
+				       char *buf, size_t buflen)
+{
+	const struct m0_conf_pver_formulaic *form = &fpver->pv_u.formulaic;
+	const struct m0_conf_pver           *base = NULL;
+	const struct m0_pdclust_attr        *base_attr;
+	uint32_t                             pver_width[M0_CONF_PVER_HEIGHT];
+	char                                *err;
+	int                                  i;
+
+	err = conf_pver_formulaic_base_error(fpver, &base, buf, buflen) ?:
+		conf_pver_width_error(base, pver_width, buf, buflen);
+	if (err != NULL)
+		return err;
+	if (M0_IS0(&form->pvf_allowance))
+		return m0_vsnprintf(buf, buflen, FID_F": Zeroed allowance",
+				    FID_P(&fpver->pv_obj.co_id));
+	if (m0_exists(j, ARRAY_SIZE(pver_width),
+		      form->pvf_allowance[i = j] > pver_width[j]))
+		return m0_vsnprintf(buf, buflen, FID_F": Allowing more"
+				    " failures (%u) than there are objects (%u)"
+				    " at level %d of base pver subtree",
+				    FID_P(&fpver->pv_obj.co_id),
+				    form->pvf_allowance[i], pver_width[i], i);
+	base_attr = &base->pv_u.subtree.pvs_attr;
+	/* Guaranteed by pver_check(). */
+	M0_ASSERT(m0_pdclust_attr_check(base_attr));
+	if (form->pvf_allowance[M0_CONF_PVER_LVL_DISKS] > base_attr->pa_P -
+	    base_attr->pa_N - 2*base_attr->pa_K)
+		return m0_vsnprintf(buf, buflen, FID_F": Number of allowed disk"
+				    " failures (%u) > P - N - 2K of base pver",
+				    FID_P(&fpver->pv_obj.co_id),
+				    form->pvf_allowance[
+					    M0_CONF_PVER_LVL_DISKS]);
+	/*
+	 * XXX TODO: Check if form->pvf_id is unique per cluster.
+	 */
+	return NULL;
+}
+
+static char *conf_pver_actual_error(const struct m0_conf_pver *pver,
+				    const struct m0_conf_sdev **iodevs,
+				    uint32_t nr_iodevs,
+				    char *buf, size_t buflen)
+{
+	const struct m0_conf_pver_subtree *sub = &pver->pv_u.subtree;
+	uint32_t                           pver_width[M0_CONF_PVER_HEIGHT];
+	struct m0_conf_glob                glob;
+	const struct m0_conf_obj          *objs[CONF_GLOB_BATCH];
+	const struct m0_conf_objv         *diskv;
+	char                              *err;
+	int                                i;
+	int                                rc;
+
+	err = conf_pver_width_error(pver, pver_width, buf, buflen);
+	if (err != NULL)
+		return err;
+	if (M0_IS0(&sub->pvs_tolerance))
+		return m0_vsnprintf(buf, buflen, FID_F": Zeroed tolerance",
+				    FID_P(&pver->pv_obj.co_id));
+	if (m0_exists(j, ARRAY_SIZE(pver_width),
+		      sub->pvs_tolerance[i = j] > pver_width[j]))
+		return m0_vsnprintf(buf, buflen, FID_F": Tolerating more"
+				    " failures (%u) than there are objects (%u)"
+				    " at level %d of pver subtree",
+				    FID_P(&pver->pv_obj.co_id),
+				    sub->pvs_tolerance[i], pver_width[i], i);
+	if (!m0_pdclust_attr_check(&sub->pvs_attr))
+		return m0_vsnprintf(buf, buflen, FID_F": P < N + 2K",
+				    FID_P(&pver->pv_obj.co_id));
+	/*
+	 * XXX TODO: Check if m0_conf_objv::cv_real pointers are unique.
+	 */
+	if (sub->pvs_attr.pa_P > nr_iodevs)
 		return m0_vsnprintf(buf, buflen,
 				    FID_F": Pool width (%u) exceeds total"
 				    " number of IO devices (%u)",
 				    FID_P(&pver->pv_obj.co_id),
-				    pver->pv_u.subtree.pvs_attr.pa_P,
-				    nr_iodevs);
+				    sub->pvs_attr.pa_P, nr_iodevs);
 	m0_conf_glob_init(&glob, M0_CONF_GLOB_ERR, NULL, NULL, &pver->pv_obj,
 			  M0_CONF_PVER_RACKVS_FID, M0_CONF_ANY_FID,
 			  M0_CONF_RACKV_ENCLVS_FID, M0_CONF_ANY_FID,
 			  M0_CONF_ENCLV_CTRLVS_FID, M0_CONF_ANY_FID,
 			  M0_CONF_CTRLV_DISKVS_FID, M0_CONF_ANY_FID);
-	while ((rc = m0_conf_glob(&glob, ARRAY_SIZE(objv), objv)) > 0) {
+	while ((rc = m0_conf_glob(&glob, ARRAY_SIZE(objs), objs)) > 0) {
 		for (i = 0; i < rc; ++i) {
-			diskv = M0_CONF_CAST(objv[i], m0_conf_objv);
+			diskv = M0_CONF_CAST(objs[i], m0_conf_objv);
 			err = conf_iodev_error(
 				M0_CONF_CAST(diskv->cv_real,
 					     m0_conf_disk)->ck_dev,
@@ -313,35 +497,10 @@ _conf_pvers_error(const struct m0_conf_filesystem *fs, char *buf, size_t buflen)
 	const struct m0_conf_sdev  **iodevs;
 	struct m0_conf_glob          glob;
 	const struct m0_conf_obj    *objv[CONF_GLOB_BATCH];
+	const struct m0_conf_pver   *pver;
 	char                        *err = NULL;
 	int                          i;
 	int                          rc;
-
-	/*
-	 * XXX TODO: Return validation error if any of the following
-	 * conditions is violated:
-	 *
-	 * 1. m0_conf_pver_subtree::pvs_tolerance vector does not
-	 *    tolerate more failures than there are objvs at the
-	 *    corresponding level of pver subtree.
-	 *
-	 * 2. m0_conf_pver_formulaic::pvf_base refers to an existing
-	 *    actual pver.
-	 *
-	 * 3. m0_conf_pver_formulaic::pvf_id is unique per cluster.
-	 *
-	 * 4. m0_conf_pver_formulaic::pvf_allowance vector does not
-	 *    tolerate more failures than there are objvs at the
-	 *    corresponding level of base pver's subtree.
-	 *
-	 * 5. .pvf_allowance[M0_CONF_PVER_LVL_DISKS] <= P - (N + 2K),
-	 *    where P, N, and K are taken from .pvs_attr of the base pver.
-	 *
-	 * 6. m0_conf_objv::cv_real pointers are unique.
-	 *
-	 * 7. Subtree of base pver does not contain childless rackvs,
-	 *    enclvs, or ctrlvs.
-	 */
 
 	err = conf_filesystem_stats_get(fs, &stats, buf, buflen);
 	if (err != NULL)
@@ -359,10 +518,12 @@ _conf_pvers_error(const struct m0_conf_filesystem *fs, char *buf, size_t buflen)
 			  M0_CONF_POOL_PVERS_FID, M0_CONF_ANY_FID);
 	while ((rc = m0_conf_glob(&glob, ARRAY_SIZE(objv), objv)) > 0) {
 		for (i = 0; i < rc; ++i) {
-			err = conf_pver_error(M0_CONF_CAST(objv[i],
-							   m0_conf_pver),
-					      iodevs, stats.cs_nr_iodevices,
-					      buf, buflen);
+			pver = M0_CONF_CAST(objv[i], m0_conf_pver);
+			err = pver->pv_kind == M0_CONF_PVER_ACTUAL ?
+				conf_pver_actual_error(pver, iodevs,
+						       stats.cs_nr_iodevices,
+						       buf, buflen) :
+				conf_pver_formulaic_error(pver, buf, buflen);
 			if (err != NULL)
 				break;
 		}

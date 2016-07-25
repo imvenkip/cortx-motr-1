@@ -215,6 +215,7 @@ static int conf_pver_formulaic_base(const struct m0_conf_pver *fpver,
 				   FID_P(&fpver->pv_u.formulaic.pvf_base),
 				   FID_P(&fpver->pv_obj.co_id));
 	*out = M0_CONF_CAST(base, m0_conf_pver);
+	M0_POST((*out)->pv_kind == M0_CONF_PVER_ACTUAL);
 	return M0_RC(0);
 }
 
@@ -580,7 +581,6 @@ static int conf_pver_base_w(struct m0_conf_obj *obj, void *args)
 	/* m0_conf_cache_add() cannot fail, because conf_objv_virtual_fid()
 	 * returns unique fids. */
 	M0_ASSERT(rc == 0);
-	new_obj->co_status = M0_CS_READY;
 
 	downlink = new_obj->co_ops->coo_downlinks(new_obj)[0];
 	if (downlink == NULL) {
@@ -593,6 +593,7 @@ static int conf_pver_base_w(struct m0_conf_obj *obj, void *args)
 	M0_ASSERT_INFO(rc == 0, "XXX BUG: error handling is not implemented");
 	st->bws_dirs[level + 1] = new_objv->cv_children;
 out:
+	new_obj->co_status = M0_CS_READY;
 	M0_POST(m0_conf_obj_invariant(new_obj));
 	return M0_CW_CONTINUE;
 }

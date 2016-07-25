@@ -21,6 +21,7 @@ CONFXC_FILES += \
     conf/ut/pvers.xc \
     conf/ut/t_bad-ep-process.xc \
     conf/ut/t_bad-ep-service.xc \
+    conf/ut/t_childless-objv.cg \
     conf/ut/t_dangling.xc \
     conf/ut/t_dev-idx-bad.xc \
     conf/ut/t_dev-idx-duplicate.xc \
@@ -32,4 +33,11 @@ CONFXC_FILES += \
     conf/ut/t_no-ioservices.xc \
     conf/ut/t_non-oostore.xc  \
     conf/ut/t_pool-width-error.xc \
+    conf/ut/t_pver-tolerance-error.xc \
+    conf/ut/t_pver-wrong-level.xc \
+    conf/ut/t_pver-zeroed-tolerance.xc \
+    conf/ut/t_pverf-allowance-error.xc \
+    conf/ut/t_pverf-base-attr-error.xc \
+    conf/ut/t_pverf-base-kind-error.xc \
+    conf/ut/t_pverf-base-missing.xc \
     conf/ut/t_redundancy-too-big.xc

@@ -226,7 +226,7 @@ M0_INTERNAL int m0_conf_obj_fill(struct m0_conf_obj *dest,
 {
 	int rc;
 
-	M0_ENTRY();
+	M0_ENTRY("dest="FID_F, FID_P(&dest->co_id));
 	M0_PRE(m0_conf_obj_invariant(dest));
 	M0_PRE(m0_conf_cache_is_locked(cache));
 	M0_PRE(m0_conf_obj_is_stub(dest) && dest->co_nrefs == 0);
