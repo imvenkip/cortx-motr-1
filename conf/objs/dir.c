@@ -152,7 +152,9 @@ static int dir_lookup(const struct m0_conf_obj *parent,
 	obj = m0_tl_find(m0_conf_dir, item, &x->cd_items,
 			 m0_fid_eq(&item->co_id, name));
 	if (obj == NULL)
-		return M0_ERR(-ENOENT);
+		return M0_ERR_INFO(-ENOENT, FID_F": No elem="FID_F" in dir="
+				   FID_F, FID_P(&parent->co_parent->co_id),
+				   FID_P(name), FID_P(&parent->co_id));
 	*out = obj;
 	M0_POST(m0_conf_obj_invariant(*out));
 	return 0;

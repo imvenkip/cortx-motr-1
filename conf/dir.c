@@ -95,11 +95,12 @@ static int conf_dir_new(struct m0_conf_cache *cache,
 			const struct m0_fid_arr *children_ids,
 			struct m0_conf_dir **out)
 {
+	struct m0_fid       dir_id;
+	struct m0_conf_obj *dir_obj;
+	struct m0_conf_dir *dir;
 	struct m0_conf_obj *child;
 	uint32_t            i;
 	int                 rc;
-	struct m0_conf_obj *dir;
-	struct m0_fid       dir_id;
 
 	M0_PRE(m0_fid_type_getfid(relfid) == &M0_CONF_RELFID_TYPE);
 	M0_PRE(children_ids == NULL ||
@@ -111,13 +112,13 @@ static int conf_dir_new(struct m0_conf_cache *cache,
 	conf_dir_id_build(&dir_id, parent, children_type);
 	M0_ASSERT(m0_conf_cache_lookup(cache, &dir_id) == NULL);
 
-	dir = m0_conf_obj_create(&dir_id, cache);
-	if (dir == NULL)
+	dir_obj = m0_conf_obj_create(&dir_id, cache);
+	if (dir_obj == NULL)
 		return M0_ERR(-ENOMEM);
-	*out = M0_CONF_CAST(dir, m0_conf_dir);
+	dir = M0_CONF_CAST(dir_obj, m0_conf_dir);
 
-	(*out)->cd_item_type = children_type;
-	(*out)->cd_relfid    = *relfid;
+	dir->cd_item_type = children_type;
+	dir->cd_relfid = *relfid;
 
 	if (children_ids != NULL) {
 		for (i = 0; i < children_ids->af_count; ++i) {
@@ -125,29 +126,31 @@ static int conf_dir_new(struct m0_conf_cache *cache,
 					      &child);
 			if (rc != 0)
 				goto err;
-			if (m0_conf_dir_tlist_contains(&(*out)->cd_items,
-						       child)) {
-				rc = -EEXIST; /* ban duplicates */
+			if (m0_conf_dir_tlist_contains(&dir->cd_items, child)) {
+				rc = M0_ERR_INFO(
+					-EEXIST, FID_F": Directory element "
+					FID_F" is not unique", FID_P(parent),
+					FID_P(&child->co_id));
 				goto err;
 			}
 			/* Link the directory and its element together. */
-			m0_conf_dir_add(*out, child);
+			m0_conf_dir_add(dir, child);
 		}
 	}
-	rc = m0_conf_cache_add(cache, dir);
+	rc = m0_conf_cache_add(cache, dir_obj);
 	if (rc == 0) {
-		dir->co_status = M0_CS_READY;
+		dir_obj->co_status = M0_CS_READY;
+		*out = dir;
 		return M0_RC(0);
 	}
 err:
 	if (children_ids != NULL) {
 		/* Restore consistency. */
-		m0_tl_teardown(m0_conf_dir, &(*out)->cd_items, child) {
+		m0_tl_teardown(m0_conf_dir, &dir->cd_items, child) {
 			m0_conf_cache_del(cache, child);
 		}
 	}
-	m0_conf_obj_delete(dir);
-	*out = NULL;
+	m0_conf_obj_delete(dir_obj);
 	return M0_ERR(rc);
 }
 
