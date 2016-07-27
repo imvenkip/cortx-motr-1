@@ -186,7 +186,7 @@ _mount() {
           none $SANDBOX_DIR/mnt || return $?
 }
 
-spiel_setup() {
+_spiel_setup() {
     local rc=0
 
     cd $M0_SRC_DIR/utils/spiel
@@ -196,9 +196,29 @@ spiel_setup() {
 }
 
 spiel() {
-    PYTHONPATH=$SANDBOX_DIR/lib64/python $M0_SRC_DIR/utils/spiel/m0spiel \
-              -l $M0_SRC_DIR/mero/.libs/libmero.so \
-              -c $SPIEL_ENDPOINT -s $HA_ENDPOINT
+    local files=$SANDBOX_DIR/installed-files
+    case "$*" in
+        init)
+            _spiel_setup -q install --home $SANDBOX_DIR --record $files;;
+        run)
+            PYTHONPATH=$SANDBOX_DIR/lib64/python \
+                      $M0_SRC_DIR/utils/spiel/m0spiel \
+                      -l $M0_SRC_DIR/mero/.libs/libmero.so \
+                      -c $SPIEL_ENDPOINT -s $HA_ENDPOINT;;
+        fini)
+            ## Redirect stderr to hide these warnings:
+            ## | 'build/bdist.linux-x86_64' does not exist -- can't clean it
+            ## | 'build/scripts-2.7' does not exist -- can't clean it
+            _spiel_setup -q clean -a 2>/dev/null
+
+            ## If Mero is updated between two runs of this ST, Python module
+            ## will become outdated.  Delete Python module so that it is
+            ## rebuilt afresh.
+            xargs rm -f <$files
+            rm -f $files;;
+        *)
+            die "${FUNCNAME[0]}: Invalid usage";;
+    esac
 }
 
 ## Keep the audience engaged.
@@ -243,7 +263,7 @@ _mount || stop $?
 umount $SANDBOX_DIR/mnt
 
 say 'Test: spiel.confstr'
-spiel_setup -q install --home $SANDBOX_DIR
+spiel init
 {
     cat <<EOF
 rc = spiel.cmd_profile_set('$PROFILE')
@@ -264,15 +284,10 @@ finally:
     spiel.rconfc_stop()
 EOF
     echo # Python interpreter needs an empty line at the very end.
-} | spiel >conf_ask.xc || stop $?
-
+} | spiel run >conf_ask.xc || stop $?
 cmp <($M0CONFGEN -x conf.xc | sort) \
     <($M0CONFGEN -x conf_ask.xc | sort) ||
     error 'Configuration data is corrupted'
-
-## Redirect stderr to hide these warnings:
-## | 'build/bdist.linux-x86_64' does not exist -- can't clean it
-## | 'build/scripts-2.7' does not exist -- can't clean it
-spiel_setup -q clean -a 2>/dev/null
+spiel fini
 
 stop
