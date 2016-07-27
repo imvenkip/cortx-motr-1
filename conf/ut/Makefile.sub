@@ -40,4 +40,5 @@ CONFXC_FILES += \
     conf/ut/t_pverf-base-attr-error.xc \
     conf/ut/t_pverf-base-kind-error.xc \
     conf/ut/t_pverf-base-missing.xc \
+    conf/ut/t_pverf-in-mdpool.xc \
     conf/ut/t_redundancy-too-big.xc

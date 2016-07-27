@@ -396,12 +396,19 @@ static char *conf_pver_formulaic_error(const struct m0_conf_pver *fpver,
 				       char *buf, size_t buflen)
 {
 	const struct m0_conf_pver_formulaic *form = &fpver->pv_u.formulaic;
+	const struct m0_conf_obj            *pool;
 	const struct m0_conf_pver           *base = NULL;
 	const struct m0_pdclust_attr        *base_attr;
 	uint32_t                             pver_width[M0_CONF_PVER_HEIGHT];
 	char                                *err;
 	int                                  i;
 
+	pool = m0_conf_obj_grandparent(&fpver->pv_obj);
+	if (m0_fid_eq(&pool->co_id,
+		      &M0_CONF_CAST(m0_conf_obj_grandparent(pool),
+				    m0_conf_filesystem)->cf_mdpool))
+		return m0_vsnprintf(buf, buflen, FID_F": MD pool may not have"
+				    " formulaic pvers", FID_P(&pool->co_id));
 	err = conf_pver_formulaic_base_error(fpver, &base, buf, buflen) ?:
 		conf_pver_width_error(base, pver_width, buf, buflen);
 	if (err != NULL)

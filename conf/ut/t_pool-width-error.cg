@@ -2,8 +2,9 @@
 (root-0 verno=1 profiles=[profile-0])
 (profile-0 filesystem=filesystem-1)
 (filesystem-1 rootfid=(0xb, 0x16) redundancy=2
-    params=["param-0", "param-1", "param-2"] mdpool=pool-4
-    nodes=[node-2, node-48] pools=[pool-4, pool-56] racks=[rack-3, rack-52])
+    params=["param-0", "param-1", "param-2"] mdpool=pool-5
+    nodes=[node-2, node-48] pools=[pool-4, pool-5, pool-56]
+    racks=[rack-3, rack-52])
 (node-2 memsize=16000 nr_cpu=2 last_state=3 flags=2 pool_id=pool-4
     processes=[process-5, process-6])
 (process-5 cores=[3] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
@@ -42,6 +43,7 @@
 (disk-77 dev=sdev-73 pvers=[pver-8])
 (disk-78 dev=sdev-74 pvers=[pver-8])
 (pool-4 order=0 pvers=[pver-8, pver_f-9])
+(pool-5 order=1 pvers=[])
 (pver-8 N=1 K=1 P=5 tolerance=[0, 0, 0, 0, 1] rackvs=[objv-12])
 (pver_f-9 id=0 base=pver-8 allowance=[0, 0, 0, 0, 1])
 (objv-12 real=rack-3 children=[objv-17])
