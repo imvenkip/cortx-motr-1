@@ -510,12 +510,12 @@ static struct m0_sm_state_descr m0_cm_cp_state_descr[] = {
 	[M0_CCP_READ] = {
 		.sd_flags       = 0,
 		.sd_name        = "Read",
-		.sd_allowed     = M0_BITS(M0_CCP_IO_WAIT, M0_CCP_FINI)
+		.sd_allowed     = M0_BITS(M0_CCP_IO_WAIT, M0_CCP_FAIL)
 	},
 	[M0_CCP_WRITE] = {
 		.sd_flags       = 0,
 		.sd_name        = "Write",
-		.sd_allowed     = M0_BITS(M0_CCP_IO_WAIT, M0_CCP_FINI)
+		.sd_allowed     = M0_BITS(M0_CCP_IO_WAIT, M0_CCP_FAIL)
 	},
 	[M0_CCP_IO_WAIT] = {
 		.sd_flags       = 0,
