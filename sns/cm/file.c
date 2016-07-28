@@ -657,6 +657,11 @@ m0_sns_cm_file_attr_and_layout(struct m0_sns_cm_file_ctx *fctx)
 	case M0_SCFS_ATTR_FETCHED :
 		if (fctx->sf_rc != 0)
 			return M0_ERR(fctx->sf_rc);
+
+		/* populate fctx->sf_pm here */
+		fctx->sf_pm = sns_cm_poolmach_get(fctx);
+		M0_ASSERT(fctx->sf_pm != NULL);
+
 		_fctx_status_set(fctx, M0_SCFS_LAYOUT_FETCH);
 		rc = _layout_fetch(fctx);
 		if (rc != 0)
@@ -666,10 +671,6 @@ m0_sns_cm_file_attr_and_layout(struct m0_sns_cm_file_ctx *fctx)
 		if (fctx->sf_pi == NULL)
 			rc = fid_layout_instance(fctx);
 		M0_ASSERT(fctx->sf_pi != NULL);
-
-		/* populate fctx->sf_pm here */
-		fctx->sf_pm = sns_cm_poolmach_get(fctx);
-		M0_ASSERT(fctx->sf_pm != NULL);
 
 		break;
 	case M0_SCFS_ATTR_FETCH :
