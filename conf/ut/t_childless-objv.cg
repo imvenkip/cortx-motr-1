@@ -8,7 +8,7 @@
     processes=[process-0])
 (process-0 cores=[3] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
     mem_limit_memlock=0 endpoint="0@lo:12345:34:1"
-    services=[service-0, service-1, service-2, service-3, service-4, service-4,
+    services=[service-0, service-1, service-2, service-3, service-4, service-5,
               service-6, service-7, service-8])
 (service-0 type=1 endpoints=["0@lo:12345:34:1"] sdevs=[])
 (service-1 type=2 endpoints=["0@lo:12345:34:1"] sdevs=[sdev-0, sdev-1, sdev-2])
@@ -29,7 +29,7 @@
 (pool-0 order=0 pvers=[pver-0])
 (pver-0 N=3 K=1 P=5 tolerance=[0, 0, 0, 0, 1] rackvs=[objv-10])
 ## racks -------------------------------------------------------------
-(rack-0 encls=[enclosure-0] pvers=[pver-0])
+(rack-0 encls=[enclosure-0, enclosure-1] pvers=[pver-0])
 (objv-10 real=rack-0 children=[objv-20, objv-21])
 ## encls -------------------------------------------------------------
 (enclosure-0 ctrls=[] pvers=[pver-0])
