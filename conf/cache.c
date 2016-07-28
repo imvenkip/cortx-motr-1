@@ -99,10 +99,12 @@ m0_conf_cache_lookup(const struct m0_conf_cache *cache,
 
 static void _obj_del(struct m0_conf_obj *obj)
 {
-	M0_ENTRY(FID_F, FID_P(&obj->co_id));
+	M0_ENTRY("obj="FID_F, FID_P(&obj->co_id));
 
 	m0_conf_cache_tlist_del(obj);
 	m0_conf_obj_delete(obj);
+
+	M0_LEAVE();
 }
 
 M0_INTERNAL void

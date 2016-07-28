@@ -38,7 +38,7 @@
 #include "reqh/reqh.h"    /* m0_reqh, m0_reqh_invariant */
 
 M0_TL_DESCR_DEFINE(m0_flset, "failed resources", M0_INTERNAL,
-		   struct m0_conf_obj, co_fs_link, co_gen_magic,
+		   struct m0_conf_obj, co_flset_link, co_gen_magic,
 		   M0_CONF_OBJ_MAGIC, M0_FLSET_MAGIC);
 M0_TL_DEFINE(m0_flset, M0_INTERNAL, struct m0_conf_obj);
 
@@ -57,7 +57,6 @@ static bool obj_is_flset_target(const struct m0_conf_obj *obj)
 					     &M0_CONF_ENCLOSURE_TYPE,
 					     &M0_CONF_CONTROLLER_TYPE,
 					     &M0_CONF_DISK_TYPE));
-
 }
 
 static int flset_diter_init(struct m0_conf_diter      *it,
@@ -116,9 +115,9 @@ static bool flset_hw_obj_failure_cb(struct m0_clink *cl)
 					       co_ha_chan);
 	struct m0_flset    *flset = container_of(cl, struct flset_clink,
 						 fcl_link)->fcl_parent;
-
 	M0_PRE(obj_is_flset_target(obj));
 	M0_PRE(obj->co_status == M0_CS_READY);
+
 	flset_update(flset, obj);
 	return false;
 }

@@ -93,21 +93,19 @@ m0_conf_obj_create(const struct m0_fid *id, struct m0_conf_cache *cache)
 	obj->co_id = *id;
 	obj->co_status = M0_CS_MISSING;
 	obj->co_cache = cache;
-	/*
-	 * m0_ha_state_accept() does not expect configuration object's
-	 * state to be M0_NC_UNKNOWN, initialise it to M0_NC_ONLINE.
-	 */
-	obj->co_ha_state = M0_NC_ONLINE;
-
-	m0_chan_init(&obj->co_chan, cache->ca_lock);
-	m0_chan_init(&obj->co_ha_chan, cache->ca_lock);
-
-	m0_conf_cache_tlink_init(obj);
-	m0_conf_dir_tlink_init(obj);
-	m0_flset_tlink_init(obj);
 	m0_conf_obj_bob_init(obj);
 	M0_ASSERT(obj->co_gen_magic == M0_CONF_OBJ_MAGIC);
 	M0_ASSERT(obj->co_con_magic == type->cot_magic);
+	m0_chan_init(&obj->co_chan, cache->ca_lock);
+	m0_chan_init(&obj->co_ha_chan, cache->ca_lock);
+	m0_conf_cache_tlink_init(obj);
+	m0_conf_dir_tlink_init(obj);
+	m0_flset_tlink_init(obj);
+	/*
+	 * m0_ha_state_accept() does not expect .co_ha_state to be
+	 * M0_NC_UNKNOWN. Initialise it to M0_NC_ONLINE.
+	 */
+	obj->co_ha_state = M0_NC_ONLINE;
 
 	M0_POST(m0_conf_obj_invariant(obj));
 	return obj;
@@ -165,20 +163,36 @@ M0_INTERNAL int m0_conf_obj_find_lock(struct m0_conf_cache *cache,
 
 M0_INTERNAL void m0_conf_obj_delete(struct m0_conf_obj *obj)
 {
+	M0_ENTRY("obj="FID_F, FID_P(&obj->co_id));
 	M0_PRE(m0_conf_obj_invariant(obj));
 	M0_PRE(obj->co_nrefs == 0);
 	M0_PRE(obj->co_status != M0_CS_LOADING);
 
 	/* Finalise generic fields. */
-	m0_conf_obj_bob_fini(obj);
-	m0_flset_tlink_fini(obj);
+	if (m0_flset_tlink_is_in(obj))
+		/*
+		 * Due to incorrect implementation of configuration consumer
+		 * (pool/flset.c) a conf object may remain linked to
+		 * m0_flset::fls_objs when m0_conf_obj_delete() is called.
+		 * An attempt to m0_flset_tlink_fini() would fail; see
+		 * MERO-1900.  Here we work around the problem, but this is
+		 * not right for conf subsystem to manage conf consumer's
+		 * internals.
+		 *
+		 * XXX TODO: m0_flset will be removed by MERO-1735 patch.
+		 */
+		m0_flset_tlink_del_fini(obj);
+	else
+		m0_flset_tlink_fini(obj);
 	m0_conf_dir_tlink_fini(obj);
 	m0_conf_cache_tlink_fini(obj);
-	m0_chan_fini(&obj->co_chan);
 	m0_chan_fini(&obj->co_ha_chan);
+	m0_chan_fini(&obj->co_chan);
+	m0_conf_obj_bob_fini(obj);
 
 	/* Finalise concrete fields; free the object. */
 	obj->co_ops->coo_delete(obj);
+	M0_LEAVE();
 }
 
 M0_INTERNAL void m0_conf_obj_get(struct m0_conf_obj *obj)
@@ -199,6 +213,8 @@ M0_INTERNAL void m0_conf_obj_get_lock(struct m0_conf_obj *obj)
 
 M0_INTERNAL void m0_conf_obj_put(struct m0_conf_obj *obj)
 {
+	M0_ENTRY("obj="FID_F" nrefs: %"PRIu64" -> %"PRIu64,
+		 FID_P(&obj->co_id), obj->co_nrefs, obj->co_nrefs - 1);
 	M0_PRE(m0_conf_obj_invariant(obj));
 	M0_PRE(m0_conf_cache_is_locked(obj->co_cache));
 	M0_PRE(obj->co_status == M0_CS_READY);
@@ -206,6 +222,7 @@ M0_INTERNAL void m0_conf_obj_put(struct m0_conf_obj *obj)
 	M0_CNT_DEC(obj->co_nrefs);
 	if (obj->co_nrefs == 0)
 		m0_chan_broadcast(&obj->co_chan);
+	M0_LEAVE();
 }
 
 /** Performs sanity checking of given m0_confx_obj. */

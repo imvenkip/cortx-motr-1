@@ -27,7 +27,6 @@
 struct m0_confc;
 struct m0_rconfc;
 struct m0_fid;
-struct m0_flset;
 struct m0_reqh;
 
 struct m0_confc_args {

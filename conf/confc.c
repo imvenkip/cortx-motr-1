@@ -815,13 +815,11 @@ M0_INTERNAL int m0_confc__open_sync(struct m0_conf_obj **result,
 
 M0_INTERNAL void m0_confc_close(struct m0_conf_obj *obj)
 {
-	M0_ENTRY();
 	if (obj != NULL) {
 		confc_lock(m0_confc_from_obj(obj));
 		m0_conf_obj_put(obj);
 		confc_unlock(m0_confc_from_obj(obj));
 	}
-	M0_LEAVE();
 }
 
 M0_INTERNAL void m0_confc_open_by_fid(struct m0_confc_ctx *ctx,
@@ -1100,7 +1098,8 @@ static int grow_cache_st_in(struct m0_sm *mach)
 	struct m0_rpc_machine     *rmach = item->ri_rmachine;
 
 	M0_ENTRY("mach=%p ctx=%p", mach, ctx);
-	M0_PRE(item != NULL && item->ri_error == 0 && item->ri_reply != NULL);
+	M0_PRE(item != NULL && item->ri_error == 0 && item->ri_reply != NULL &&
+	       rmach != NULL);
 
 	resp = m0_fop_data(m0_rpc_item_to_fop(item->ri_reply));
 	rc = resp->fr_rc;
