@@ -224,11 +224,11 @@ static int cp_io(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
 	stio = &sns_cp->sc_stio;
 	dom = m0_stob_domain_find_by_stob_id(&sns_cp->sc_stob_id);
 	if (tx->tx_state < M0_DTX_INIT) {
+		m0_dtx_init(&cp_fom->fo_tx, reqh->rh_beseg->bs_domain,
+			    &cp_fom->fo_loc->fl_group);
 		rc = cp_stob_io_init(cp, op);
 		if (rc != 0)
 			goto out;
-		m0_dtx_init(&cp_fom->fo_tx, reqh->rh_beseg->bs_domain,
-			    &cp_fom->fo_loc->fl_group);
 		if (op == SIO_WRITE) {
 			acc = m0_fom_tx_credit(cp_fom);
 			m0_cc_stob_cr_credit(&sns_cp->sc_stob_id, acc);
