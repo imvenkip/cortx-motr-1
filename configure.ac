@@ -186,7 +186,7 @@ AC_ARG_ENABLE([profiler],
 AC_ARG_ENABLE([data_integrity],
         [AS_HELP_STRING([--enable-data-integrity],
                        [enable data integrity])],
-        [], [enable_data_intgrity=no]
+        [], [enable_data_integrity=no]
 )
 AS_IF([test x$enable_data_integrity = xyes],
       AC_DEFINE([ENABLE_DATA_INTEGRITY]))
