@@ -219,20 +219,17 @@ rcancel_test_cleanup()
 	fi
 
 	echo "rcancel_test_cleanup:start"
-	echo "ps -aef | grep -w $cl_op | grep -v grep | grep $cl_file_base"
-	ps -aef | grep -w $cl_op | grep -v grep | grep $cl_file_base
+	echo "pgrep -af $cl_op.*$cl_file_base"
+	pgrep -af "$cl_op.*$cl_file_base"
 
 	# Note that this is only an attempt to kiil the processes spawned by
 	# the failed test those may be ongoing. There is still a possibility
 	# that those processes may not get killed and may affect the
 	# subsequent unmount.
-	for ((i=0; i<$cl_nr_ops; ++i)); do
-               ps xu | grep -w $cl_op | grep -v grep | grep $cl_file_base$i | awk '{ print $2 }' | xargs kill -9
-	done
-	sleep 4
+        pkill -9 -f "$cl_op.*$cl_file_base"
 	echo "rcancel_test_cleanup:end"
-	echo "ps -aef | grep -w $cl_op | grep -v grep | grep $cl_file_base"
-	ps -aef | grep -w $cl_op | grep -v grep | grep $cl_file_base
+	echo "pgrep -af $cl_op.*$cl_file_base"
+	pgrep -af "$cl_op.*$cl_file_base"
 }
 
 rcancel_issue_writes_n_cancel()
@@ -251,7 +248,7 @@ rcancel_issue_writes_n_cancel()
 		dd if=$source_file of=$wc_file_base$i bs=$bs count=$count &
 	done
 
-	dd_count=$(ps -aef | grep -w "dd" | grep -v grep | wc -l)
+	dd_count=$(jobs | grep "dd.*wc_file_base" | wc -l)
 	echo "dd write processes running : $dd_count"
 	if [ $dd_count -ne $wc_nr_files ]
 	then
@@ -268,7 +265,7 @@ rcancel_issue_writes_n_cancel()
 	wait
 
 	# Ensure that all the dd have either failed or finished
-	dd_count=$(ps -aef | grep -w "dd" | grep -v grep | wc -l)
+	dd_count=$(pgrep -fc dd.*$wc_file_base)
 	echo "dd write processes running : $dd_count"
 	if [ $dd_count -ne 0 ]
 	then
@@ -426,7 +423,7 @@ rcancel_issue_reads_n_cancel()
 		dd if=$rc_file_base$i of=$rcancel_sandbox/$i bs=$bs count=$count &
 	done
 
-	dd_count=$(ps -aef | grep -w "dd" | grep -v grep | wc -l)
+	dd_count=$(jobs | grep "dd.*rc_file_base" | wc -l)
 	echo "dd read processes running : $dd_count"
 	if [ $dd_count -ne $rc_nr_files ]
 	then
@@ -440,7 +437,7 @@ rcancel_issue_reads_n_cancel()
 	wait
 
 	# Ensure that all the dd have either failed or finished
-	dd_count=$(ps -aef | grep -w "dd" | grep -v grep | wc -l)
+	dd_count=$(pgrep -fc dd.*$rc_file_base)
 	echo "dd read processes running : $dd_count"
 	if [ $dd_count -ne 0 ]
 	then
@@ -556,7 +553,7 @@ rcancel_cancel_during_create_test()
 		touch $create_file_base$i &
 	done
 
-	create_count=$(ps -aef | grep -w "touch" | grep -v grep | grep $create_file_base | wc -l)
+	create_count=$(jobs | grep "touch.*create_file_base" | wc -l)
 	echo "create processes running : $create_count"
 	if [ $create_count -ne $create_nr_files ]
 	then
@@ -575,7 +572,7 @@ rcancel_cancel_during_create_test()
 	wait
 
 	# Ensure that all create ops have either failed or finished
-	create_count=$(ps -aef | grep -w "touch" | grep -v grep | grep $create_file_base | wc -l)
+	create_count=$(pgrep -fc touch)
 	echo "create processes running : $create_count"
 	if [ $create_count -ne 0 ]
 	then
@@ -650,7 +647,7 @@ rcancel_cancel_during_delete_test()
 		rm -f $delete_file_base$i &
 	done
 
-	delete_count=$(ps -aef | grep -w "rm" | grep -v grep | grep $delete_file_base | wc -l)
+	delete_count=$(jobs | grep "rm.*delete_file_base" | wc -l)
 	echo "delete processes running : $delete_count"
 	if [ $delete_count -ne $delete_nr_files ]
 	then
@@ -669,7 +666,7 @@ rcancel_cancel_during_delete_test()
 	wait
 
 	# Ensure that all the file ops have either failed or finished
-	delete_count=$(ps -aef | grep -w "rm" | grep -v grep | grep $delete_file_base | wc -l)
+	delete_count=$(pgrep -fc rm.*$delete_file_base)
 	echo "delete processes running : $delete_count"
 	if [ $delete_count -ne 0 ]
 	then
@@ -736,7 +733,7 @@ rcancel_cancel_during_setfattr_ops_test()
 		setfattr -n lid -v 4 $setfattr_file_base$i &
 	done
 
-	setfattr_count=$(ps -aef | grep -w "setfattr" | grep -v grep | grep $setfattr_file_base | wc -l)
+	setfattr_count=$(jobs | grep "setfattr.*setfattr_file_base" | wc -l)
 	echo "setfattr processes running : $setfattr_count"
 	if [ $setfattr_count -ne $setfattr_nr_files ]
 	then
@@ -756,7 +753,7 @@ rcancel_cancel_during_setfattr_ops_test()
 	wait
 
 	# Ensure that all the file ops have either failed or finished
-	setfattr_count=$(ps -aef | grep -w "setfattr" | grep $setfattr_file_base | wc -l)
+	setfattr_count=$(pgrep -fc setfattr)
 	echo "setfattr processes running : $(($setfattr_count))"
 	if [ $setfattr_count -ne 0 ]
 	then
@@ -818,7 +815,7 @@ rcancel_cancel_during_getfattr_ops_test()
 		getfattr -n lid $getfattr_file_base$i &
 	done
 
-	getfattr_count=$(ps -aef | grep -w "getfattr" | grep -v grep | grep $getfattr_file_base | wc -l)
+	getfattr_count=$(jobs | grep "getfattr.*getfattr_file_base" | wc -l)
 	echo "getfattr processes running : $(($getfattr_count))"
 	if [ $getfattr_count -ne $getfattr_nr_files ]
 	then
@@ -837,7 +834,7 @@ rcancel_cancel_during_getfattr_ops_test()
 	wait
 
 	# Ensure that all the file ops have either failed or finished
-	getfattr_count=$(ps -aef | grep -w "getfattr" | grep -v grep | grep $getfattr_file_base | wc -l)
+	getfattr_count=$(pgrep -fc getfattr)
 	echo "getfattr processes running : $(($getfattr_count))"
 	if [ $getfattr_count -ne 0 ]
 	then
