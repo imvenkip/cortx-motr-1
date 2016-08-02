@@ -60,7 +60,7 @@ m0_sns_cm_ut_file_size_layout(struct m0_sns_cm_file_ctx *fctx)
 	struct m0_sns_cm             *scm    = fctx->sf_scm;
 	struct m0_layout_linear_attr  lattr;
 	struct m0_pdclust_attr        plattr;
-	struct m0_pdclust_layout     *pl;
+	struct m0_pdclust_layout     *pl = 0;
 	struct m0_layout_linear_enum *le;
 	struct m0_pool               *p;
 	struct m0_pool_version       *pver;
@@ -417,7 +417,7 @@ cm_conf_service_get(const struct m0_cm *cm,
 	struct m0_confc        *confc = m0_reqh2confc(cm->cm_service.rs_reqh);
 	uint32_t                dev_idx;
 	struct m0_fid           svc_fid;
-	struct m0_conf_service *svc;
+	struct m0_conf_service *svc = 0;
 	int                     rc;
 
 	dev_idx = m0_fid_cob_device_id(cob_fid);

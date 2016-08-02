@@ -855,7 +855,7 @@ static void permuted_tgt_get(struct m0_pdclust_instance *pi, uint64_t omega,
 	struct m0_fd_perm_cache   *cache;
 	struct m0_pool_version    *pver;
 	struct m0_fd_tree_node    *node;
-	struct m0_fd__tree_cursor  cursor;
+	struct m0_fd__tree_cursor  cursor = {};
 	struct m0_pdclust_attr    *attr;
 	struct m0_fid             *gfid;
 	uint64_t                   depth;
