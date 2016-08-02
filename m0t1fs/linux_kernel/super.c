@@ -1075,9 +1075,9 @@ static int m0t1fs_root_alloc(struct super_block *sb)
 
 	if (!csb->csb_oostore) {
 		rc = m0t1fs_mds_statfs(csb, &rep_fop);
-		rep = m0_fop_data(rep_fop);
 		if (rc != 0)
 			goto out;
+		rep = m0_fop_data(rep_fop);
 		sb->s_magic = rep->f_type;
 		csb->csb_namelen = rep->f_namelen;
 
