@@ -352,9 +352,9 @@ static int cas_rep__validate(const struct m0_fop_type *ftype,
 			     struct m0_cas_op         *op,
 			     struct m0_cas_rep        *rep)
 {
-	struct m0_cas_rec   *rec;
-	uint64_t             sum;
-	uint64_t             i;
+	struct m0_cas_rec *rec;
+	uint64_t           sum;
+	uint64_t           i;
 
 	if (ftype == &cas_cur_fopt) {
 		sum = 0;
@@ -540,17 +540,17 @@ static uint64_t greq_asmbl_count(const struct m0_cas_req *req)
 
 static int greq_asmbl_fill(struct m0_cas_req *req, struct m0_cas_op *op)
 {
-	const struct m0_fop  *rfop = &req->ccr_fop;
-	struct m0_cas_op     *req_op = m0_fop_data(rfop);
-	struct m0_cas_rep    *rep = cas_rep(cas_req_to_item(req)->ri_reply);
-	struct m0_cas_rec    *rcvd;
-	struct m0_cas_rec    *sent;
-	struct m0_buf         buf;
-	struct m0_cas_recv   *recv;
-	uint64_t              len;
-	uint64_t              i;
-	uint64_t              k = 0;
-	int                   rc = 0;
+	const struct m0_fop *rfop = &req->ccr_fop;
+	struct m0_cas_op    *req_op = m0_fop_data(rfop);
+	struct m0_cas_rep   *rep = cas_rep(cas_req_to_item(req)->ri_reply);
+	struct m0_cas_rec   *rcvd;
+	struct m0_cas_rec   *sent;
+	struct m0_buf        buf;
+	struct m0_cas_recv  *recv;
+	uint64_t             len;
+	uint64_t             i;
+	uint64_t             k = 0;
+	int                  rc = 0;
 
 	M0_PRE(op != NULL);
 	M0_PRE(rfop->f_type == &cas_get_fopt);
@@ -899,7 +899,7 @@ static void creq_asmbl_replied_ast(struct m0_sm_group *grp,
 				   struct m0_sm_ast   *ast)
 {
 	struct m0_cas_req  *req   = container_of(ast, struct m0_cas_req,
-			          	         ccr_replied_ast);
+						 ccr_replied_ast);
 	struct m0_fop      *fop   = &req->ccr_asmbl_fop;
 	struct m0_rpc_item *item  = &fop->f_item;
 	struct m0_rpc_item *reply = item->ri_reply;

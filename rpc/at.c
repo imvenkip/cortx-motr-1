@@ -101,12 +101,12 @@ static int rpc_at_bulk_init(struct m0_rpc_at_buf     *ab,
 
 static int rpc_at_bulk_nb_alloc(struct m0_rpc_at_buf *ab, uint64_t size)
 {
-	struct rpc_at_bulk          *atbulk = rpc_at_bulk(ab);
-	struct m0_net_buffer        *nb     = &atbulk->ac_nb;
-	struct m0_bufvec            *bvec   = &nb->nb_buffer;
-	m0_bcount_t                  seg_size;
-	uint64_t                     segs_nr;
-	int                          rc;
+	struct rpc_at_bulk   *atbulk = rpc_at_bulk(ab);
+	struct m0_net_buffer *nb     = &atbulk->ac_nb;
+	struct m0_bufvec     *bvec   = &nb->nb_buffer;
+	m0_bcount_t           seg_size;
+	uint64_t              segs_nr;
+	int                   rc;
 
 	M0_ASSERT(M0_IN(ab->ab_type, (M0_RPC_AT_BULK_SEND,
 				      M0_RPC_AT_BULK_RECV)));

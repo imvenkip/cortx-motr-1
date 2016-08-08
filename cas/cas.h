@@ -54,7 +54,7 @@
  * CAS service is a request handler service and provides several callbacks to
  * the request handler, see @ref m0_cas_service_type::rst_ops().
  *
- * Also CAS service register several FOP types during initialisation:
+ * Also CAS service registers several FOP types during initialisation:
  * - @ref cas_get_fopt
  * - @ref cas_put_fopt
  * - @ref cas_del_fopt
