@@ -371,6 +371,8 @@ void m0_rpc_item_cancel_nolock(struct m0_rpc_item *item);
  */
 void m0_rpc_item_cancel_init(struct m0_rpc_item *item);
 
+int32_t m0_rpc_item_error(const struct m0_rpc_item *item);
+
 /**
    For default implementations of these interfaces for fops
    @see M0_FOP_DEFAULT_ITEM_TYPE_OPS

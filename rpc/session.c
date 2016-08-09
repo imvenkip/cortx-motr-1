@@ -484,13 +484,12 @@ static void session_failed(struct m0_rpc_session *session, int32_t error)
 M0_INTERNAL void m0_rpc_session_establish_reply_received(struct m0_rpc_item
 							 *item)
 {
-	struct m0_rpc_fop_session_establish_rep *reply;
+	struct m0_rpc_fop_session_establish_rep *reply = NULL;
 	struct fop_session_establish_ctx        *ctx;
 	struct m0_rpc_machine                   *machine;
 	struct m0_rpc_session                   *session;
 	struct m0_rpc_item                      *reply_item;
 	struct m0_fop                           *fop;
-	uint64_t                                 sender_id;
 	uint64_t                                 session_id;
 	int32_t                                  rc;
 
@@ -510,35 +509,33 @@ M0_INTERNAL void m0_rpc_session_establish_reply_received(struct m0_rpc_item
 	M0_ASSERT(m0_rpc_session_invariant(session));
 	M0_ASSERT(session_state(session) == M0_RPC_SESSION_ESTABLISHING);
 
-	reply_item = item->ri_reply;
-	reply      = NULL;
-	rc         = item->ri_error ?: m0_rpc_item_generic_reply_rc(reply_item);
+	rc = m0_rpc_item_error(item);
 	if (rc == 0) {
+		reply_item = item->ri_reply;
 		M0_ASSERT(reply_item != NULL &&
 			  item->ri_session == reply_item->ri_session);
 		reply = m0_fop_data(m0_rpc_item_to_fop(reply_item));
-		rc    = reply->rser_rc;
+		rc = reply->rser_rc;
 	}
 	if (rc == 0) {
 		M0_ASSERT(reply != NULL);
-		sender_id  = reply->rser_sender_id;
 		session_id = reply->rser_session_id;
 		if (session_id > SESSION_ID_MIN &&
 		    session_id < SESSION_ID_MAX &&
-		    sender_id != SENDER_ID_INVALID) {
+		    reply->rser_sender_id != SENDER_ID_INVALID) {
 			session->s_session_id = session_id;
 			session_state_set(session, M0_RPC_SESSION_IDLE);
 		} else {
-			rc = -EPROTO;
+			rc = M0_ERR(-EPROTO);
 		}
 	}
 	if (rc != 0)
 		session_failed(session, rc);
 
-	M0_ASSERT(m0_rpc_session_invariant(session));
+	M0_POST(m0_rpc_session_invariant(session));
 	M0_POST(M0_IN(session_state(session), (M0_RPC_SESSION_IDLE,
 					       M0_RPC_SESSION_FAILED)));
-	M0_ASSERT(m0_rpc_machine_is_locked(machine));
+	M0_POST(m0_rpc_machine_is_locked(machine));
 	M0_LEAVE();
 }
 
@@ -746,10 +743,9 @@ M0_INTERNAL void m0_rpc_session_terminate_reply_received(struct m0_rpc_item
 	M0_ASSERT(m0_rpc_session_invariant(session) &&
 		  _0C(session_state(session) == M0_RPC_SESSION_TERMINATING));
 
-	reply_item = item->ri_reply;
-	reply      = NULL;
-	rc         = item->ri_error ?: m0_rpc_item_generic_reply_rc(reply_item);
+	rc = m0_rpc_item_error(item);
 	if (rc == 0) {
+		reply_item = item->ri_reply;
 		M0_ASSERT(reply_item != NULL &&
 			  item->ri_session == reply_item->ri_session);
 		reply = m0_fop_data(m0_rpc_item_to_fop(reply_item));
@@ -760,10 +756,10 @@ M0_INTERNAL void m0_rpc_session_terminate_reply_received(struct m0_rpc_item
 	else
 		session_failed(session, rc);
 
-	M0_ASSERT(m0_rpc_session_invariant(session));
-	M0_ASSERT(M0_IN(session_state(session), (M0_RPC_SESSION_TERMINATED,
-						 M0_RPC_SESSION_FAILED)));
-	M0_ASSERT(m0_rpc_machine_is_locked(machine));
+	M0_POST(m0_rpc_session_invariant(session));
+	M0_POST(M0_IN(session_state(session), (M0_RPC_SESSION_TERMINATED,
+					       M0_RPC_SESSION_FAILED)));
+	M0_POST(m0_rpc_machine_is_locked(machine));
 	M0_LEAVE();
 }
 

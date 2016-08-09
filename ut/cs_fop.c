@@ -104,21 +104,16 @@ static const struct m0_fom_type_ops cs_ds2_req_fop_fom_type_ops = {
 
 static void cs_ut_rpc_item_reply_cb(struct m0_rpc_item *item)
 {
-	struct m0_fop *req_fop;
-	struct m0_fop *rep_fop;
+	struct m0_fop *reply;
 
         M0_PRE(item != NULL);
+	M0_PRE(M0_IN(m0_fop_opcode(m0_rpc_item_to_fop(item)),
+		     (M0_CS_DS1_REQ_OPCODE, M0_CS_DS2_REQ_OPCODE)));
 
-	req_fop = m0_rpc_item_to_fop(item);
-
-	M0_ASSERT(M0_IN(m0_fop_opcode(req_fop), (M0_CS_DS1_REQ_OPCODE,
-						 M0_CS_DS2_REQ_OPCODE)));
-
-	if (item->ri_error == 0) {
-		rep_fop = m0_rpc_item_to_fop(item->ri_reply);
-		M0_ASSERT(M0_IN(m0_fop_opcode(rep_fop),
-				(M0_CS_DS1_REP_OPCODE,
-				 M0_CS_DS2_REP_OPCODE)));
+	if (m0_rpc_item_error(item) == 0) {
+		reply = m0_rpc_item_to_fop(item->ri_reply);
+		M0_ASSERT(M0_IN(m0_fop_opcode(reply), (M0_CS_DS1_REP_OPCODE,
+						       M0_CS_DS2_REP_OPCODE)));
 	}
 }
 

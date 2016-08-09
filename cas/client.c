@@ -905,8 +905,7 @@ static void creq_asmbl_replied_ast(struct m0_sm_group *grp,
 	struct m0_rpc_item *reply = item->ri_reply;
 	int                 rc;
 
-	rc = item->ri_error ?:
-	     m0_rpc_item_generic_reply_rc(reply) ?:
+	rc = m0_rpc_item_error(item) ?:
 	     cas_rep(reply)->cgr_rc ?:
 	     cas_rep__validate(fop->f_type, m0_fop_data(fop), cas_rep(reply));
 	if (rc == 0) {

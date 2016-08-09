@@ -518,19 +518,17 @@ static void _attr_ast_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	 * current service, until pc_md_redundancy.
 	 **/
 
-	m0_ref_put(&fctx->sf_ref);
 	if (fctx->sf_rc != 0 &&
 	    ++fctx->sf_nr_ios_visited < reqh->rh_pools->pc_md_redundancy) {
 		M0_LOG(M0_DEBUG, "getattr from service %d"FID_F,
 			(int)fctx->sf_nr_ios_visited, FID_P(&fctx->sf_fid));
 		fctx->sf_rc = _attr_fetch(fctx);
-		return;
-	}
-	if (m0_sns_cm_fctx_state_get(fctx) == M0_SCFS_ATTR_FETCH) {
+	} else if (m0_sns_cm_fctx_state_get(fctx) == M0_SCFS_ATTR_FETCH) {
 		m0_cm_lock(&fctx->sf_scm->sc_base);
 		_fctx_status_set(fctx, M0_SCFS_ATTR_FETCHED);
 		m0_cm_unlock(&fctx->sf_scm->sc_base);
 	}
+	m0_ref_put(&fctx->sf_ref);
 }
 
 static inline void _attr_cb(void *arg, int rc)

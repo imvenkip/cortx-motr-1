@@ -868,7 +868,7 @@ static void conn_failed(struct m0_rpc_conn *conn, int32_t error)
 
 M0_INTERNAL void m0_rpc_conn_establish_reply_received(struct m0_rpc_item *item)
 {
-	struct m0_rpc_fop_conn_establish_rep *reply;
+	struct m0_rpc_fop_conn_establish_rep *reply = NULL;
 	struct m0_rpc_machine                *machine;
 	struct m0_rpc_conn                   *conn;
 	struct m0_rpc_item                   *reply_item;
@@ -886,10 +886,9 @@ M0_INTERNAL void m0_rpc_conn_establish_reply_received(struct m0_rpc_item *item)
 	M0_ASSERT(m0_rpc_conn_invariant(conn));
 	M0_PRE(conn_state(conn) == M0_RPC_CONN_CONNECTING);
 
-	reply_item = item->ri_reply;
-	reply      = NULL;
-	rc         = item->ri_error ?: m0_rpc_item_generic_reply_rc(reply_item);
+	rc = m0_rpc_item_error(item);
 	if (rc == 0) {
+		reply_item = item->ri_reply;
 		M0_ASSERT(reply_item != NULL &&
 			  item->ri_session == reply_item->ri_session);
 		reply = m0_fop_data(m0_rpc_item_to_fop(reply_item));
@@ -901,14 +900,14 @@ M0_INTERNAL void m0_rpc_conn_establish_reply_received(struct m0_rpc_item *item)
 			conn->c_sender_id = reply->rcer_sender_id;
 			conn_state_set(conn, M0_RPC_CONN_ACTIVE);
 		} else
-			rc = -EPROTO;
+			rc = M0_ERR(-EPROTO);
 	}
 	if (rc != 0)
 		conn_failed(conn, rc);
 
-	M0_ASSERT(m0_rpc_conn_invariant(conn));
-	M0_ASSERT(M0_IN(conn_state(conn), (M0_RPC_CONN_FAILED,
-					   M0_RPC_CONN_ACTIVE)));
+	M0_POST(m0_rpc_conn_invariant(conn));
+	M0_POST(M0_IN(conn_state(conn), (M0_RPC_CONN_FAILED,
+					 M0_RPC_CONN_ACTIVE)));
 	M0_LEAVE();
 }
 
@@ -1060,7 +1059,7 @@ static void deregister_all_item_sources(struct m0_rpc_conn *conn)
 
 M0_INTERNAL void m0_rpc_conn_terminate_reply_received(struct m0_rpc_item *item)
 {
-	struct m0_rpc_fop_conn_terminate_rep *reply;
+	struct m0_rpc_fop_conn_terminate_rep *reply = NULL;
 	struct m0_rpc_conn                   *conn;
 	struct m0_rpc_machine                *machine;
 	struct m0_rpc_item                   *reply_item;
@@ -1077,21 +1076,20 @@ M0_INTERNAL void m0_rpc_conn_terminate_reply_received(struct m0_rpc_item *item)
 	M0_PRE(m0_rpc_machine_is_locked(machine));
 	M0_PRE(conn_state(conn) == M0_RPC_CONN_TERMINATING);
 
-	reply_item = item->ri_reply;
-	reply      = NULL;
-	rc         = item->ri_error ?: m0_rpc_item_generic_reply_rc(reply_item);
+	rc = m0_rpc_item_error(item);
 	if (rc == 0) {
+		reply_item = item->ri_reply;
 		M0_ASSERT(reply_item != NULL &&
 			  item->ri_session == reply_item->ri_session);
 		reply = m0_fop_data(m0_rpc_item_to_fop(reply_item));
-		rc    = reply->ctr_rc;
+		rc = reply->ctr_rc;
 	}
 	if (rc == 0) {
 		M0_ASSERT(reply != NULL);
 		if (conn->c_sender_id == reply->ctr_sender_id)
 			conn_state_set(conn, M0_RPC_CONN_TERMINATED);
 		else
-			rc = -EPROTO;
+			rc = M0_ERR(-EPROTO);
 	}
 	if (rc != 0)
 		conn_failed(conn, rc);

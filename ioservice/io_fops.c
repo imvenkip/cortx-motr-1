@@ -19,12 +19,13 @@
  * Original creation date: 03/21/2011
  */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_IOSERVICE
+#include "lib/trace.h"
+
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/vec.h"    /* m0_0vec */
 #include "lib/misc.h"   /* M0_IN */
-#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_IOSERVICE
-#include "lib/trace.h"
 #include "lib/tlist.h"
 #include "reqh/reqh.h"
 #include "mero/magic.h"
@@ -1818,17 +1819,13 @@ static void io_item_replied(struct m0_rpc_item *item)
 
 	M0_PRE(item != NULL);
 
-	if (item->ri_error != 0) {
+	if (m0_rpc_item_error(item) != 0)
 		return;
-	}
+
 	fop = m0_rpc_item_to_fop(item);
 	rbulk = m0_fop_to_rpcbulk(fop);
 	rfop = m0_rpc_item_to_fop(item->ri_reply);
 	reply = io_rw_rep_get(rfop);
-
-	if (m0_rpc_item_is_generic_reply_fop(item)) {
-		return;
-	}
 	M0_ASSERT(ergo(reply->rwr_rc == 0,
 		       reply->rwr_count == rbulk->rb_bytes));
 

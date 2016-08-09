@@ -32,14 +32,11 @@
 #include "fop/fop.h"            /* m0_fop_default_item_ops */
 #include "rpc/rpc.h"
 #include "rpc/rpclib.h"         /* m0_rpc_server_start, m0_rpc_client_start */
+#include "rpc/item.h"           /* m0_rpc_item_error */
 #include "rpc/it/ping_fop.h"
 #include "rpc/it/ping_fop_xc.h"
 #include "rpc/it/ping_fom.h"
 #include "ut/cs_service.h"      /* m0_cs_default_stypes */
-#include "fop/fop.h"            /* m0_fop_default_item_ops */
-#include "fop/fom_generic.h"    /* m0_rpc_item_generic_reply_rc */
-#include "reqh/reqh.h"          /* m0_reqh_rpc_mach_tl */
-#include "rpc/it/ping_fop_xc.h"
 
 #ifdef __KERNEL__
 #  include <linux/kernel.h>
@@ -224,7 +221,7 @@ static void ping_reply_received(struct m0_rpc_item *item)
 	int                     rc;
 
 	/* typical error checking performed in replied callback */
-	rc = item->ri_error ?: m0_rpc_item_generic_reply_rc(item->ri_reply);
+	rc = m0_rpc_item_error(item);
 	if (rc == 0) {
 		M0_ASSERT(item->ri_reply != NULL);
 		rfop = container_of(item->ri_reply, struct m0_fop, f_item);

@@ -1149,18 +1149,16 @@ static int failure_st_in(struct m0_sm *mach)
 static void on_replied(struct m0_rpc_item *item)
 {
 	struct m0_confc_ctx *ctx = item_to_ctx(item);
-	struct m0_rpc_item  *reply;
 	int                  rc;
 
 	M0_ENTRY("item=%p ctx=%p", item, ctx);
 	M0_PRE(ctx_invariant(ctx));
 
-	reply = item->ri_reply;
-	rc    = item->ri_error ?: m0_rpc_item_generic_reply_rc(reply);
+	rc = m0_rpc_item_error(item);
 	if (M0_FI_ENABLED("fail_rpc_reply"))
-		rc = -1;
+		rc = M0_ERR(-EPERM);
 	if (rc == 0) {
-		m0_rpc_item_get(reply);
+		m0_rpc_item_get(item->ri_reply);
 		ast_state_set(&ctx->fc_ast, S_GROW_CACHE);
 	} else {
 		/*

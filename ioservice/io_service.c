@@ -815,7 +815,7 @@ static void getattr_rpc_item_reply_cb(struct m0_rpc_item *item)
 	mdsop = container_of(req, struct mds_op, mo_fop);
 	attr = mdsop->mo_out;
 
-	rc = item->ri_error;
+	rc = m0_rpc_item_error(item);
 	if (rc == 0) {
 		rep = m0_rpc_item_to_fop(item->ri_reply);
 		if (m0_is_cob_getattr_fop(req)) {
@@ -832,12 +832,11 @@ static void getattr_rpc_item_reply_cb(struct m0_rpc_item *item)
 		else
 			rc = rep_fop_cob->b_rc;
 	}
-
-	M0_LOG(M0_DEBUG, "ios getattr replied :%d", rc);
+	M0_LOG(M0_DEBUG, "ios getattr replied: %d", rc);
 	mdsop->mo_cb(mdsop->mo_arg, rc);
 }
 
-const struct m0_rpc_item_ops getattr_fop_rpc_item_ops = {
+static const struct m0_rpc_item_ops getattr_fop_rpc_item_ops = {
 	.rio_replied = getattr_rpc_item_reply_cb,
 };
 

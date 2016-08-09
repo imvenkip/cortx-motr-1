@@ -463,21 +463,21 @@ m0_ha_entrypoint_client_fini(struct m0_ha_entrypoint_client *ecl)
 
 static void ha_entrypoint_client_replied(struct m0_rpc_item *item)
 {
-	struct m0_fop                  *fop   = m0_rpc_item_to_fop(item);
-	struct m0_ha_entrypoint_client *ecl   = fop->f_opaque;
-	struct m0_rpc_item             *reply = item->ri_reply;
+	struct m0_fop                  *fop = m0_rpc_item_to_fop(item);
+	struct m0_ha_entrypoint_client *ecl = fop->f_opaque;
 	int                             rc;
 
 	M0_ENTRY();
 	M0_PRE(ecl->ecl_reply == NULL);
 
-	rc = item->ri_error ?: m0_rpc_item_generic_reply_rc(reply);
+	rc = m0_rpc_item_error(item);
 	if (rc == 0) {
-		m0_rpc_item_get(reply);
-		ecl->ecl_reply = reply;
+		m0_rpc_item_get(item->ri_reply);
+		ecl->ecl_reply = item->ri_reply;
 	}
+	/* XXX TODO Handle rpc errors. */
 	m0_fom_wakeup(&ecl->ecl_fom);
-	m0_rpc_item_put(item);
+	m0_rpc_item_put(item); /* XXX Bug if rc != 0 ? */
 
 	M0_LEAVE("rc=%d", rc);
 }
@@ -509,7 +509,6 @@ static int ha_entrypoint_client_fom_tick(struct m0_fom *fom)
 	m0_time_t                           deadline;
 	bool                                stopping;
 	int                                 rc = 0;
-
 	struct m0_ha_entrypoint_client     *ecl =
 		container_of(fom, struct m0_ha_entrypoint_client, ecl_fom);
 
@@ -600,8 +599,7 @@ static int ha_entrypoint_client_fom_tick(struct m0_fom *fom)
 			rc = M0_FSO_AGAIN;
 			break;
 		}
-
-		M0_ASSERT(m0_rpc_item_generic_reply_rc(item) == 0);
+		M0_ASSERT(m0_rpc_item_error(item) == 0);
 		m0_ha_entrypoint_rep_free(&ecl->ecl_rep);
 		rc = m0_ha_entrypoint_fop2rep(
 				m0_fop_data(m0_rpc_item_to_fop(item)),
@@ -647,7 +645,6 @@ static int ha_entrypoint_client_fom_tick(struct m0_fom *fom)
 	m0_sm_group_unlock(&ecl->ecl_sm_group);
 
 	M0_POST(M0_IN(rc, (M0_FSO_AGAIN, M0_FSO_WAIT)));
-
 	return M0_RC(rc);
 }
 

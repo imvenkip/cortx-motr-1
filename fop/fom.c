@@ -18,6 +18,9 @@
  * Original creation date: 05/04/2011
  */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_FOP
+#include "lib/trace.h"
+
 #include "lib/misc.h"
 #include "lib/errno.h"
 #include "lib/assert.h"
@@ -27,8 +30,6 @@
 #include "lib/time.h"
 #include "lib/timer.h"
 #include "lib/arith.h"
-#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_FOP
-#include "lib/trace.h"
 #include "lib/uuid.h"                 /* m0_node_uuid */
 #include "addb2/net.h"
 #include "addb2/addb2.h"
@@ -1566,6 +1567,7 @@ M0_INTERNAL struct m0_reqh *m0_fom2reqh(const struct m0_fom *fom)
 	return fom->fo_service->rs_reqh;
 }
 
+#undef M0_TRACE_SUBSYSTEM
 
 /** @} endgroup fom */
 /*

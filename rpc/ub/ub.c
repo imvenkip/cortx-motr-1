@@ -271,6 +271,7 @@ static void ub_item_replied(struct m0_rpc_item *item)
 	struct ub_resp *resp;
 	struct ub_req  *req;
 
+	/* XXX TODO Handle rpc errors */
 	if (item->ri_error != 0)
 		M0_LOG(M0_FATAL, "ri_error=%d", item->ri_error);
 	M0_UB_ASSERT(item->ri_error == 0);

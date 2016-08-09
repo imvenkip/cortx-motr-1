@@ -163,8 +163,8 @@ static void cp_reply_received(struct m0_rpc_item *req_item)
 	req_fop = m0_rpc_item_to_fop(req_item);
 	cp_fop = container_of(req_fop, struct m0_cm_cp_fop, cf_fop);
 	scp = cp2snscp(cp_fop->cf_cp);
-	rep_item = req_item->ri_reply;
-	if (rep_item != NULL) {
+	if (req_item->ri_error == 0) {
+		rep_item = req_item->ri_reply;
 		if (m0_rpc_item_is_generic_reply_fop(rep_item))
 			scp->sc_base.c_rc = m0_rpc_item_generic_reply_rc(rep_item);
 		else {

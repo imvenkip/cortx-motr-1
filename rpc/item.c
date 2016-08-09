@@ -880,18 +880,18 @@ void m0_rpc_item_cancel_init(struct m0_rpc_item *item)
 	M0_LEAVE();
 }
 
-M0_INTERNAL struct m0_rpc_item *sm_to_item(struct m0_sm *mach)
+int32_t m0_rpc_item_error(const struct m0_rpc_item *item)
 {
-	return container_of(mach, struct m0_rpc_item, ri_sm);
+	return item->ri_error ?: (item->ri_reply == NULL ? 0 :
+				  m0_rpc_item_generic_reply_rc(item->ri_reply));
 }
+M0_EXPORTED(m0_rpc_item_error);
 
 static int item_entered_in_urgent_state(struct m0_sm *mach)
 {
-	struct m0_rpc_item *item;
-	struct m0_rpc_frm  *frm;
+	struct m0_rpc_item *item = M0_AMB(item, mach, ri_sm);
+	struct m0_rpc_frm  *frm = item->ri_frm;
 
-	item = sm_to_item(mach);
-	frm  = item->ri_frm;
 	if (item_is_in_waiting_queue(item, frm)) {
 		M0_LOG(M0_DEBUG, "%p [%s/%u] ENQUEUED -> URGENT",
 		       item, item_kind(item), item->ri_type->rit_opcode);
@@ -913,7 +913,6 @@ M0_INTERNAL int m0_rpc_item_timer_start(struct m0_rpc_item *item)
 		M0_LOG(M0_DEBUG, "item %p failed to start timer", item);
 		return M0_ERR(-EINVAL);
 	}
-
 	if (item->ri_resend_interval == M0_TIME_NEVER)
 		return 0;
 
@@ -1303,11 +1302,11 @@ M0_INTERNAL int m0_rpc_item_received(struct m0_rpc_item *item,
 static int item_reply_received(struct m0_rpc_item *reply,
 			       struct m0_rpc_item **req_out)
 {
-	struct m0_rpc_item     *req;
-	int                     rc;
+	struct m0_rpc_item *req;
+	int                 rc;
 
-	M0_ENTRY("item_reply: %p[%u]", reply, reply->ri_type->rit_opcode);
 	M0_PRE(reply != NULL && req_out != NULL);
+	M0_ENTRY("item_reply: %p[%u]", reply, reply->ri_type->rit_opcode);
 
 	*req_out = NULL;
 

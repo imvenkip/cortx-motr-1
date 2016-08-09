@@ -259,13 +259,15 @@ M0_INTERNAL void update_reint(struct m0_dtm_update *update)
 
 static void dtm_update_replied(struct m0_rpc_item *item)
 {
-	struct m0_fop *fop                = m0_rpc_item_to_fop(item);
+	struct m0_fop             *fop    = m0_rpc_item_to_fop(item);
 	struct m0_dtm_update      *update = fop->f_opaque;
 	struct m0_dtm_update_comm *comm   = &update->upd_comm;
 
 	M0_PRE(m0_dtm_update_invariant(update));
 	M0_PRE(fop == comm->uc_body);
 	M0_PRE(comm->uc_state == M0_DUX_INFLIGHT);
+
+	/* XXX TODO Handle rpc errors. */
 
 	if (!(comm->uc_flags & M0_DUCF_REPLIED_CALLED)) {
 		if (update->upd_ops->updto_replied != NULL)

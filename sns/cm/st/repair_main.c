@@ -87,6 +87,9 @@ static void repair_reply_received(struct m0_rpc_item *item) {
 	req_fop = m0_rpc_item_to_fop(item);
 	treq = m0_fop_data(req_fop);
 	req_op = treq->op;
+
+	/* XXX TODO Handle rpc errors */
+
 	rep_fop = m0_rpc_item_to_fop(item->ri_reply);
 	trep = m0_fop_data(rep_fop);
 	printf("reply got from: %s: op=%d rc=%d",

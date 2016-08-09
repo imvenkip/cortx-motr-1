@@ -150,6 +150,7 @@ static void trigger_rpc_item_reply_cb(struct m0_rpc_item *item)
 
 	M0_PRE(item != NULL);
 
+	/* XXX TODO Handle rpc errors. */
 	if (item->ri_error == 0) {
 		rep_fop = m0_rpc_item_to_fop(item->ri_reply);
 		M0_ASSERT(rep_fop->f_type == &m0_fop_poolmach_query_rep_fopt ||
@@ -175,7 +176,6 @@ static void trigger_rpc_item_reply_cb(struct m0_rpc_item *item)
 					(int)set_fop_rep->fps_rc);
 		}
 	}
-
 	M0_CNT_INC(srv_rep_cnt);
 	if (srv_rep_cnt == srv_cnt) {
 		m0_mutex_lock(&poolmach_wait_mutex);

@@ -67,11 +67,11 @@ struct cob_fop {
 
 static void cob_rpc_item_cb(struct m0_rpc_item *item)
 {
-	int                              rc = 0;
+	int                              rc;
 	struct m0_fop                   *fop;
 	struct cob_fop                  *cfop;
 	struct cob_req                  *creq;
-	struct m0_fop_cob_op_reply      *reply = NULL;
+	struct m0_fop_cob_op_reply      *reply;
 	struct m0_fop_cob_op_rep_common *r_common;
 
 	M0_PRE(item != NULL);
@@ -82,10 +82,9 @@ static void cob_rpc_item_cb(struct m0_rpc_item *item)
 	cfop = container_of(fop, struct cob_fop, c_fop);
 	creq = cfop->c_req;
 
-	if (item->ri_error != 0) {
-		rc = item->ri_error;
+	rc = m0_rpc_item_error(item);
+	if (rc != 0)
 		goto out;
-	}
 
 	M0_ASSERT(m0_is_cob_create_fop(fop) || m0_is_cob_delete_fop(fop) ||
 		  m0_is_cob_truncate_fop(fop) || m0_is_cob_setattr_fop(fop));
@@ -121,13 +120,11 @@ static void cob_rpc_item_cb(struct m0_rpc_item *item)
 out:
 	if (creq->cr_rc == 0)
 		creq->cr_rc = rc;
-	M0_LOG(M0_DEBUG, "%p[%u] ref %llu, cob_req_fop %p, cr_rc %d, "
-	       FID_F"", item, m0_fop_opcode(fop),
-	       (unsigned long long)m0_ref_read(&fop->f_ref),
-	       cfop, creq->cr_rc, FID_P(&creq->cr_fid));
-
+	M0_LOG(M0_DEBUG, "%p[%u] ref %llu, cob_req_fop %p, cr_rc %d, "FID_F,
+	       item, m0_fop_opcode(fop),
+	       (unsigned long long)m0_ref_read(&fop->f_ref), cfop, creq->cr_rc,
+	       FID_P(&creq->cr_fid));
 	m0_semaphore_up(&creq->cr_sem);
-
 	M0_LEAVE();
 }
 

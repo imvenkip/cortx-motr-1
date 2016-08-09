@@ -5543,8 +5543,8 @@ static void io_rpc_item_cb(struct m0_rpc_item *item)
 	struct m0_io_fop  *iofop;
 	struct io_req_fop *reqfop;
 	struct io_request *ioreq;
-	M0_PRE(item != NULL);
 
+	M0_PRE(item != NULL);
 	M0_ENTRY("rpc_item %p[%u]", item, item->ri_type->rit_opcode);
 
 	fop    = m0_rpc_item_to_fop(item);
@@ -5552,6 +5552,10 @@ static void io_rpc_item_cb(struct m0_rpc_item *item)
 	reqfop = bob_of(iofop, struct io_req_fop, irf_iofop, &iofop_bobtype);
 	ioreq  = bob_of(reqfop->irf_tioreq->ti_nwxfer, struct io_request,
 			ir_nwxfer, &ioreq_bobtype);
+	/*
+	 * NOTE: RPC errors are handled in io_bottom_half(), which is called
+	 * by reqfop->irf_ast.
+	 */
 
 	/*
 	 * Acquire a reference on IO reply fop since its contents

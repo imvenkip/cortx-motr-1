@@ -18,14 +18,13 @@
  * Original creation date: 07/18/2011
  */
 
-#undef M0_TRACE_SUBSYSTEM
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_RM
+#include "lib/trace.h"
+
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/misc.h"
-#include "lib/trace.h"
 #include "lib/finject.h"
-
 #include "rpc/item.h"
 #include "rpc/rpc_opcodes.h"
 #include "rpc/rpc.h"
@@ -405,26 +404,21 @@ out:
 
 static void borrow_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
-	struct m0_rm_fop_borrow_rep *borrow_reply;
-	struct m0_rm_owner	    *owner;
-	struct m0_rm_loan	    *brw_loan = NULL;
-	struct m0_rm_credit	    *credit;
-	struct m0_rm_credit	    *bcredit;
-	struct rm_out		    *outreq;
-	struct m0_rpc_item	    *item;
-	struct m0_rpc_item	    *item_rep;
-	struct m0_buf		     buf;
-	int			     rc;
+	struct m0_rm_fop_borrow_rep *borrow_reply = NULL;
+	struct m0_rm_owner          *owner;
+	struct m0_rm_loan           *brw_loan = NULL;
+	struct m0_rm_credit         *credit;
+	struct m0_rm_credit         *bcredit;
+	struct rm_out               *outreq = M0_AMB(outreq, ast, ou_ast);
+	struct m0_rpc_item          *item = &outreq->ou_fop.f_item;
+	struct m0_buf                buf;
+	int                          rc;
 
 	M0_ENTRY();
 
-	borrow_reply = NULL;
-	outreq       = container_of(ast, struct rm_out, ou_ast);
-	item         = &outreq->ou_fop.f_item;
-	item_rep     = item->ri_reply;
-	rc           = item->ri_error ?: m0_rpc_item_generic_reply_rc(item_rep);
+	rc = m0_rpc_item_error(item);
 	if (rc == 0) {
-		borrow_reply = m0_fop_data(m0_rpc_item_to_fop(item_rep));
+		borrow_reply = m0_fop_data(m0_rpc_item_to_fop(item->ri_reply));
 		rc = borrow_reply->br_rc;
 	}
 	M0_ASSERT(m0_mutex_is_locked(&grp->s_lock));
@@ -444,7 +438,6 @@ static void borrow_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 					 " failed: rc [%d]\n", outreq, rc);
 			goto out;
 		}
-
 		rc = m0_rm_credit_dup(bcredit, &credit) ?:
 			m0_rm_loan_alloc(&brw_loan, bcredit,
 					 owner->ro_creditor) ?:
@@ -568,6 +561,7 @@ static void reply_process(struct m0_rpc_item *item)
 	M0_ENTRY();
 	M0_PRE(item != NULL);
 
+	/* XXX TODO Handle rpc errors */
 	M0_ASSERT(ergo(item->ri_error == 0, item->ri_reply != NULL));
 	outreq = container_of(m0_rpc_item_to_fop(item), struct rm_out, ou_fop);
 	owner = outreq->ou_req.rog_want.rl_credit.cr_owner;
@@ -632,6 +626,8 @@ M0_INTERNAL int m0_rm_fop_init(void)
 	return 0;
 }
 M0_EXPORTED(m0_rm_fop_init);
+
+#undef M0_TRACE_SUBSYSTEM
 
 /*
  *  Local variables:

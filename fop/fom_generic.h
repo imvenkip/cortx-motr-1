@@ -237,7 +237,6 @@ struct m0_fop_mod_rep {
 M0_INTERNAL void m0_fom_mod_rep_fill(struct m0_fop_mod_rep *rep,
 				     struct m0_fom *fom);
 
-
 /**
    If item is of type m0_fop_generic_reply then m0_rpc_item_generic_reply_rc()
    extracts and returns error code contained in the fop; otherwise it
