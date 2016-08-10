@@ -924,6 +924,7 @@ struct spiel_sns {
 	struct m0_conf_service    *ss_service;
 	struct m0_fop             *ss_fop;
 	int                        ss_rc;
+	bool                       ss_is_connected;
 };
 
 static int spiel_sns_cmd_send(struct m0_rpc_machine *rmachine,
@@ -948,8 +949,10 @@ static int spiel_sns_cmd_send(struct m0_rpc_machine *rmachine,
 	if (rc == 0) {
 		conn_timeout = m0_time_from_now(SPIEL_CONN_TIMEOUT, 0);
 		rc = m0_rpc_link_connect_sync(rlink, conn_timeout);
-		if (rc != 0)
+		if (rc != 0) {
+			m0_rpc_link_fini(rlink);
 			return M0_RC(rc);
+		}
 		item              = &fop->f_item;
 		item->ri_ops      = NULL;
 		item->ri_session  = &rlink->rlk_sess;
@@ -958,6 +961,7 @@ static int spiel_sns_cmd_send(struct m0_rpc_machine *rmachine,
 		m0_fop_get(fop);
 		rc = m0_rpc_post(item);
 	}
+	sns->ss_is_connected = true;
 	return M0_RC(rc);
 }
 
@@ -975,6 +979,7 @@ static int spiel_sns_fop_fill_and_send(struct m0_spiel_core *spc,
 	M0_ENTRY("fop %p conf_service %p", fop, svc);
 	treq->op = op;
 	sns->ss_fop = fop;
+	sns->ss_is_connected = false;
 	return M0_RC(spiel_sns_cmd_send(spc->spc_rmachine, p->pc_endpoint,
 					sns));
 }
@@ -1115,7 +1120,7 @@ static int spiel__pool_cmd_status_get(struct _pool_cmd_ctx    *ctx,
 				      const enum m0_sns_cm_op  cmd,
 				      struct spiel_sns        *sns)
 {
-	int                          rc;
+	int                           rc;
 	struct m0_fop                *fop;
 	struct m0_rpc_item           *item;
 	struct m0_spiel_sns_status   *status;
@@ -1126,10 +1131,10 @@ static int spiel__pool_cmd_status_get(struct _pool_cmd_ctx    *ctx,
 
 	status = &sns->ss_status;
 	fop = sns->ss_fop;
-	M0_ASSERT(fop != NULL);
+	M0_ASSERT(ergo(sns->ss_is_connected, fop != NULL));
 	item = &fop->f_item;
 	rc = sns->ss_rc ?: m0_rpc_item_wait_for_reply(item, M0_TIME_NEVER) ?:
-		m0_rpc_item_generic_reply_rc(item->ri_reply);
+		m0_rpc_item_error(item);
 
 	if (M0_IN(cmd, (SNS_REPAIR_STATUS, SNS_REBALANCE_STATUS))) {
 		status->sss_fid = sns->ss_service->cs_obj.co_id;
@@ -1142,11 +1147,12 @@ static int spiel__pool_cmd_status_get(struct _pool_cmd_ctx    *ctx,
 		}
 	}
 	m0_fop_put0_lock(fop);
-	if (sns->ss_rlink.rlk_connected) {
+	if (sns->ss_is_connected) {
+		M0_ASSERT(sns->ss_rlink.rlk_connected);
 		conn_timeout = m0_time_from_now(SPIEL_CONN_TIMEOUT, 0);
 		m0_rpc_link_disconnect_sync(&sns->ss_rlink, conn_timeout);
+		m0_rpc_link_fini(&sns->ss_rlink);
 	}
-	m0_rpc_link_fini(&sns->ss_rlink);
 
 	return M0_RC(rc);
 }
@@ -1255,27 +1261,27 @@ static int spiel_pool_generic_handler(struct m0_spiel_core        *spc,
 		if (rc != 0) {
 			M0_LOG(M0_ERROR, "conf sync failed for service"FID_F
 					"index:%d", FID_P(&si->i_fid), index);
-			sns[index].ss_rc = rc;
-			break;
+			sns[index++].ss_rc = rc;
+			continue;
 		}
 		if (svc_obj->co_ha_state != M0_NC_ONLINE) {
 			rc = -EINVAL;
 			M0_LOG(M0_ERROR, "service"FID_F"is not online index:%d",
 					FID_P(&si->i_fid), index);
 			m0_confc_close(svc_obj);
-			sns[index].ss_rc = rc;
-			break;
+			sns[index++].ss_rc = rc;
+			continue;
 		}
 		sns[index].ss_service = M0_CONF_CAST(svc_obj, m0_conf_service);
 		M0_ASSERT(index < service_count);
 		rc = spiel__pool_cmd_send(&ctx, cmd, &sns[index]);
 		m0_confc_close(svc_obj);
 		if (rc != 0) {
-			sns[index].ss_rc = rc;
+			sns[index++].ss_rc = rc;
 			M0_LOG(M0_ERROR, "pool command send failed for service"
 					FID_F"index:%d", FID_P(&si->i_fid),
 					index);
-			break;
+			continue;
 		}
 		++index;
 	} m0_tl_endfor;
@@ -1291,7 +1297,7 @@ static int spiel_pool_generic_handler(struct m0_spiel_core        *spc,
 		}
 		++index;
 		if (rc != 0)
-			break;
+			continue;
 	} m0_tl_endfor;
 
 	if (rc == 0 && cmd_status) {
