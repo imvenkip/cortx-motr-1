@@ -29,8 +29,11 @@ MERO_STOB_DOMAIN="ad -d disks.conf"
 
 IOS_DEVS=""
 NR_IOS_DEVS=0
-NR_IOS_SDEVS=0
 IOS_DEV_IDS=
+
+# Number of sdevs in configuration. Used as a counter to assign device id for
+# IOS and CAS devices.
+NR_SDEVS=0
 
 DISK_FIDS=""
 NR_DISK_FIDS=0
@@ -78,6 +81,14 @@ NR_PARITY=2
 NR_DATA=3
 UNIT_SIZE=$(expr 1024 \* 1024)
 
+# CAS service starts by default in every process where IOS starts.
+# For every CAS service one dedicated "dummy" storage device is assigned.
+# CAS service can be switched off completely by setting the variable below to
+# some other value.
+ENABLE_CAS=1
+# Pool version id containing disks serving distributed indices.
+DIX_PVERID='^v|1:20'
+
 #MAX_NR_FILES=250
 MAX_NR_FILES=20 # XXX temporary workaround for performance issues
 TM_MIN_RECV_QUEUE_LEN=16
@@ -107,7 +118,7 @@ load_kernel_module()
 	# see if CONFD_EP was not prefixed with lnet_nid to the moment
 	# and pad it in case it was not
 	if [ "${CONFD_EP#$lnet_nid:}" = "$CONFD_EP" ]; then
-	    CONFD_EP=$lnet_nid:$CONFD_EP
+		CONFD_EP=$lnet_nid:$CONFD_EP
 	fi
 
 	# Client end point (m0mero module local_addr)
@@ -212,6 +223,63 @@ create_loop_device ()
 	chmod 666 /dev/loop$dev_id
 }
 
+# Creates pool version objects for storing distributed indices.
+# Returns number of created pool version objects.
+# Note: Global variables DISK_FIDS and NR_DISK_FIDS are updated by
+#       appending DIX disks.
+#
+# $1 [in]  - pool id to use for distributed indices
+# $2 [in]  - pool version id for distributed indices
+# $3 [in]  - starting device id for generated storage devices
+# $4 [in]  - number of devices to generate in the pool version
+# $5 [in]  - FID container to be used in all generated fids
+# $6 [out] - variable name to assign list of created conf objects
+function dix_pver_build()
+{
+	local DIX_POOLID=$1
+	local DIX_PVERID=$2
+	local DIX_DEV_ID=$3
+	local DIX_DEVS_NR=$4
+	local CONT=$5
+	local __res_var=$6
+	local DIX_RACKVID="^j|$CONT:1"
+	local DIX_ENCLVID="^j|$CONT:2"
+	local DIX_CTRLVID="^j|$CONT:3"
+	local res=""
+	local total=0
+
+	# Number of parity units (replication factor) for distributed indices.
+	# Calculated automatically as maximum possible parity for the given
+	# number of disks.
+	local DIX_PARITY=$(((DIX_DEVS_NR - 1) / 2))
+
+	# conf objects for disks
+	for ((i=0; i < $DIX_DEVS_NR; i++)); do
+		DIX_SDEVID="^d|$CONT:$i"
+		DIX_DISKID="^k|$CONT:$i"
+		DIX_DISKVID="^j|$CONT:$((100 + $i))"
+		DEV_PATH="/dev/loop$((25 + $i))"
+		DIX_DISKVIDS="$DIX_DISKVIDS${DIX_DISKVIDS:+,} $DIX_DISKVID"
+		DIX_SDEV="{0x64| (($DIX_SDEVID), $((DIX_DEV_ID + $i)), 4, 1, 4096, 596000000000, 3, 4, \"$DEV_PATH\")}"
+		DIX_DISK="{0x6b| (($DIX_DISKID), $DIX_SDEVID, [1: $DIX_PVERID])}"
+		DIX_DISKV="{0x6a| (($DIX_DISKVID), $DIX_DISKID, [0])}"
+		DISK_FIDS="$DISK_FIDS${DISK_FIDS:+,} $DIX_DISKID"
+		NR_DISK_FIDS=$((NR_DISK_FIDS + 1))
+		res=$res", \n$DIX_SDEV, \n$DIX_DISK, \n$DIX_DISKV"
+		total=$(($total + 3))
+	done
+	# conf objects for DIX pool version
+	local DIX_POOL="{0x6f| (($DIX_POOLID), 0, [1: $DIX_PVERID])}"
+	local DIX_PVER="{0x76| (($DIX_PVERID), {0| (1, $DIX_PARITY, $DIX_DEVS_NR, [5: 1, 0, 0, 0, $DIX_PARITY], [1: $DIX_RACKVID])})}"
+	local DIX_RACKV="{0x6a| (($DIX_RACKVID), $RACKID, [1: $DIX_ENCLVID])}"
+	local DIX_ENCLV="{0x6a| (($DIX_ENCLVID), $ENCLID, [1: $DIX_CTRLVID])}"
+	local DIX_CTRLV="{0x6a| (($DIX_CTRLVID), $CTRLID, [$DIX_DEVS_NR: $DIX_DISKVIDS])}"
+	res=$res", \n$DIX_POOL, \n$DIX_PVER, \n$DIX_RACKV, \n$DIX_ENCLV, \n$DIX_CTRLV"
+	total=$(($total + 5))
+	eval $__res_var="'$res'"
+	return $total
+}
+
 ###############################
 # globals: MDSEP[], IOSEP[], server_nid
 ###############################
@@ -223,10 +291,14 @@ function build_conf()
 	local multiple_pools=$4
 	local ioservices=("${!5}")
 	local mdservices=("${!6}")
+	local DIX_FID_CON='20'
+	local DIX_PVER_OBJS=
+	local IOS_OBJS_NR=0
 	local PVER1_OBJ_COUNT=0
 	local PVER1_OBJS=
 	local node_count=1
 	local pool_count=1
+	local pvers_count=1
 	local rack_count=1
 	local PROC_FID_CONT='^r|1'
 	local MD_REDUNDANCY=1
@@ -273,6 +345,7 @@ function build_conf()
 
 	local NODES="$NODE"
 	local POOLS="$POOLID"
+	local PVER_IDS="$PVERID"
 	local RACKS="$RACKID"
 	local PROC_NAMES
 	local PROC_OBJS
@@ -283,7 +356,6 @@ function build_conf()
 	PROC_NAMES="$PROC_NAMES${PROC_NAMES:+, }$M0T1FS_PROCID"
 
 	local i
-
 	for ((i=0; i < ${#ioservices[*]}; i++, M0D++)); do
 	    local IOS_NAME="$IOS_FID_CON:$i"
 	    local ADDB_NAME="$ADDB_IO_FID_CON:$i"
@@ -295,15 +367,22 @@ function build_conf()
 	    local SNS_REP_OBJ="{0x73| (($SNS_REP_NAME), 8, [1: $iosep], [0])}"
 	    local SNS_REB_OBJ="{0x73| (($SNS_REB_NAME), 9, [1: $iosep], [0])}"
 	    local RM_NAME="$RMS_FID_CON:$M0D"
-            local RM_OBJ="{0x73| (($RM_NAME), 4, [1: $iosep], [0])}"
-	    local CAS_NAME="$CAS_FID_CON:$i"
-	    local CAS_OBJ="{0x73| (($CAS_NAME), 11, [1: $iosep], [0])}"
+	    local RM_OBJ="{0x73| (($RM_NAME), 4, [1: $iosep], [0])}"
+	    local NAMES_NR=5
+	    if [ $ENABLE_CAS -eq 1 ] ; then
+	        local CAS_NAME="$CAS_FID_CON:$i"
+	        local CAS_OBJ="{0x73| (($CAS_NAME), 11, [1: $iosep], [1: ^d|$DIX_FID_CON:$i])}"
+	        NAMES_NR=6
+	    fi
 
 	    PROC_NAME="$PROC_FID_CONT:$M0D"
-	    IOS_NAMES[$i]="$IOS_NAME, $ADDB_NAME, $SNS_REP_NAME, $SNS_REB_NAME, $RM_NAME, $CAS_NAME"
-	    PROC_OBJ="{0x72| (($PROC_NAME), [1:3], 0, 0, 0, 0, $iosep, [6: ${IOS_NAMES[$i]}])}"
-	    IOS_OBJS="$IOS_OBJS${IOS_OBJS:+, }\n  $IOS_OBJ, \n  $ADDB_OBJ, \n $SNS_REP_OBJ, \n  $SNS_REB_OBJ, \n $RM_OBJ, \n $CAS_OBJ"
+	    IOS_NAMES[$i]="$IOS_NAME, $ADDB_NAME, $SNS_REP_NAME, $SNS_REB_NAME, $RM_NAME${CAS_NAME:+,} $CAS_NAME"
+	    PROC_OBJ="{0x72| (($PROC_NAME), [1:3], 0, 0, 0, 0, $iosep, [$NAMES_NR: ${IOS_NAMES[$i]}])}"
+	    IOS_OBJS="$IOS_OBJS${IOS_OBJS:+, }\n  $IOS_OBJ, \n  $ADDB_OBJ, \
+	               \n $SNS_REP_OBJ, \n  $SNS_REB_OBJ, \n $RM_OBJ${CAS_OBJ:+, \n} $CAS_OBJ"
 	    PROC_OBJS="$PROC_OBJS${PROC_OBJS:+, }\n  $PROC_OBJ"
+	    # +1 here for process object
+	    IOS_OBJS_NR=$(($IOS_OBJS_NR + $NAMES_NR + 1))
 	    PROC_NAMES="$PROC_NAMES${PROC_NAMES:+, }$PROC_NAME"
 	done
 
@@ -314,7 +393,7 @@ function build_conf()
 	    local MDS_OBJ="{0x73| (($MDS_NAME), 1, [1: $mdsep], [0])}"
 	    local ADDB_OBJ="{0x73| (($ADDB_NAME), 10, [1: $mdsep], [0])}"
 	    local RM_NAME="$RMS_FID_CON:$M0D"
-            local RM_OBJ="{0x73| (($RM_NAME), 4, [1: $mdsep], [0])}"
+	    local RM_OBJ="{0x73| (($RM_NAME), 4, [1: $mdsep], [0])}"
 
 	    PROC_NAME="$PROC_FID_CONT:$M0D"
 	    MDS_NAMES[$i]="$MDS_NAME, $ADDB_NAME, $RM_NAME"
@@ -323,6 +402,31 @@ function build_conf()
 	    PROC_OBJS="$PROC_OBJS, \n $PROC_OBJ"
 	    PROC_NAMES="$PROC_NAMES, $PROC_NAME"
 	done
+
+	if [ $ENABLE_CAS -eq 1 ] ; then
+		local DIX_POOLID="^o|$DIX_FID_CON:1"
+		local START_DEV_ID=$NR_SDEVS
+		IMETA_PVER=$DIX_PVERID
+
+		# XXX: Hack to make st/m0t1fs_pool_version_assignment.sh work.
+		# Test fails if CAS device identifiers are between device
+		# identifiers of IOS devices in pool1 and pool2.
+		# 3 here is a number of devices in pool2.
+		if ((multiple_pools == 1)); then
+			START_DEV_ID=$((START_DEV_ID + 3))
+		fi
+		dix_pver_build $DIX_POOLID $DIX_PVERID $START_DEV_ID \
+			${#ioservices[*]} $DIX_FID_CON DIX_PVER_OBJS
+		DIX_PVER_OBJ_COUNT=$?
+		PVER_IDS="$PVER_IDS, $DIX_PVERID"
+		pvers_count=$(($pvers_count + 1))
+		POOLS="$POOLS, $DIX_POOLID"
+		pool_count=$(($pool_count + 1))
+	else
+		IMETA_PVER='(0,0)'
+		DIX_PVER_OBJ_COUNT=0
+		DIX_PVER_OBJS=""
+	fi
 
 	PROC_NAME="$PROC_FID_CONT:$((M0D++))"
 	RM_NAME="$RMS_FID_CON:$M0D"
@@ -338,10 +442,9 @@ function build_conf()
 	PROC_OBJ="{0x72| (($PROC_NAME), [1:3], 0, 0, 0, 0, "${CONFD_ENDPOINT}", [2: $CONFD, $RM_NAME])}"
 	PROC_OBJS="$PROC_OBJS, \n $PROC_OBJ"
 	PROC_NAMES="$PROC_NAMES, $PROC_NAME"
-	local RACK="{0x61| (($RACKID), [1: $ENCLID], [1: $PVERID])}"
-	local ENCL="{0x65| (($ENCLID), [1: $CTRLID], [1: $PVERID])}"
-	local CTRL="{0x63| (($CTRLID), $NODE, [$NR_DISK_FIDS: $DISK_FIDS], [1: $PVERID])}"
-
+	local RACK="{0x61| (($RACKID), [1: $ENCLID], [$pvers_count: $PVER_IDS])}"
+	local ENCL="{0x65| (($ENCLID), [1: $CTRLID], [$pvers_count: $PVER_IDS])}"
+	local CTRL="{0x63| (($CTRLID), $NODE, [$NR_DISK_FIDS: $DISK_FIDS], [$pvers_count: $PVER_IDS])}"
 	local POOL="{0x6f| (($POOLID), 0, [3: $PVERID, $PVERFID1, $PVERFID2])}"
 	local PVER="{0x76| (($PVERID), {0| ($nr_data_units, $nr_parity_units, $pool_width, [5: 1, 0, 0, 0, $nr_parity_units], [1: $RACKVID])})}"
 	local PVER_F1="{0x76| (($PVERFID1), {1| (0, $PVERID, [5: 0, 0, 0, 0, 1])})}"
@@ -385,9 +488,9 @@ function build_conf()
 		local ADDB_SVC1="{0x73| (($ADDB_SVCID1), 10, [1: $IOS_EP], [0])}"
 		local REP_SVC1="{0x73| (($REP_SVCID1), 8, [1: $IOS_EP], [0])}"
 		local REB_SVC1="{0x73| (($REB_SVCID1), 9, [1: $IOS_EP], [0])}"
-		local SDEV1="{0x64| (($SDEVID1), $((NR_IOS_SDEVS++)), 4, 1, 4096, 596000000000, 3, 4, \"/dev/loop7\")}"
-		local SDEV2="{0x64| (($SDEVID2), $((NR_IOS_SDEVS++)), 4, 1, 4096, 596000000000, 3, 4, \"/dev/loop8\")}"
-		local SDEV3="{0x64| (($SDEVID3), $((NR_IOS_SDEVS++)), 4, 1, 4096, 596000000000, 3, 4, \"/dev/loop9\")}"
+		local SDEV1="{0x64| (($SDEVID1), $((NR_SDEVS++)), 4, 1, 4096, 596000000000, 3, 4, \"/dev/loop7\")}"
+		local SDEV2="{0x64| (($SDEVID2), $((NR_SDEVS++)), 4, 1, 4096, 596000000000, 3, 4, \"/dev/loop8\")}"
+		local SDEV3="{0x64| (($SDEVID3), $((NR_SDEVS++)), 4, 1, 4096, 596000000000, 3, 4, \"/dev/loop9\")}"
 		local RACK1="{0x61| (($RACKID1), [1: $ENCLID1], [1: $PVERID1])}"
 		local ENCL1="{0x65| (($ENCLID1), [1: $CTRLID1], [1: $PVERID1])}"
 		local CTRL1="{0x63| (($CTRLID1), $NODEID1, [3: $DISKID1, $DISKID2, $DISKID3], [1: $PVERID1])}"
@@ -405,9 +508,9 @@ function build_conf()
 		local  DISKV3="{0x6a| (($DISKVID3), $DISKID3, [0])}"
 		PVER1_OBJS=", \n$NODE1, \n$PROC1, \n$IO_SVC1, \n$ADDB_SVC1, \n$REP_SVC1, \n$REB_SVC1, \n$SDEV1, \n$SDEV2, \n$SDEV3, \n$RACK1, \n$ENCL1, \n$CTRL1, \n$DISK1, \n$DISK2, \n$DISK3, \n$POOL1, \n$PVER1, \n$RACKV1, \n$ENCLV1, \n$CTRLV1, \n$DISKV1, \n$DISKV2, \n$DISKV3"
 		PVER1_OBJ_COUNT=23
-		node_count=2
-		rack_count=2
-		pool_count=2
+		$((node_count++))
+		$((rack_count++))
+		$((pool_count++))
 
 		NODES="$NODES, $NODEID1"
 		POOLS="$POOLS, $POOLID1"
@@ -418,13 +521,13 @@ function build_conf()
  # Here "15" configuration objects includes services excluding ios & mds,
  # pools, racks, enclosures, controllers and their versioned objects.
 	echo -e "
- [$(($((${#ioservices[*]} * 7)) + $((${#mdservices[*]} * 4)) + $NR_IOS_DEVS + 18 + $PVER1_OBJ_COUNT + 4)):
+[$(($IOS_OBJS_NR + $((${#mdservices[*]} * 4)) + $NR_IOS_DEVS + 18 + $PVER1_OBJ_COUNT + 4 + $DIX_PVER_OBJ_COUNT)):
   {0x74| (($ROOT), 1, [1: $PROF])},
   {0x70| (($PROF), $FS)},
   {0x66| (($FS), (11, 22), $MD_REDUNDANCY,
 	      [1: \"$pool_width $nr_data_units $nr_parity_units\"],
 	      $POOLID,
-	      (0, 0),
+	      $IMETA_PVER,
 	      [$node_count: $NODES],
 	      [$pool_count: $POOLS],
 	      [$rack_count: $RACKS])},
@@ -447,7 +550,7 @@ function build_conf()
   $PVER_F2,
   $RACKV,
   $ENCLV,
-  $CTRLV $PVER1_OBJS]"
+  $CTRLV $PVER1_OBJS $DIX_PVER_OBJS]"
 }
 
 service_eps_with_m0t1fs_get()

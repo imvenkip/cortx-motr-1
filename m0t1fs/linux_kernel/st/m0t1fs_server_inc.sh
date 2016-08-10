@@ -47,7 +47,7 @@ conf_ios_device_setup()
 		IOS_DEVS="$IOS_DEVS, \n $ddev_obj, \n $ddisk_obj, \n $ddiskv_obj"
 	fi
 	NR_IOS_DEVS=`expr $NR_IOS_DEVS + 3`
-	((NR_IOS_SDEVS++))
+	((NR_SDEVS++))
 }
 
 mkiosloopdevs()
@@ -168,7 +168,7 @@ mero_service()
 
 	start() {
 		NR_IOS_DEVS=0
-		NR_IOS_SDEVS=0
+		NR_SDEVS=0
 		DDEV_ID=1
 		NR_DISK_FIDS=0
 		NR_DISKV_FIDS=0
@@ -312,6 +312,7 @@ EOF
 			echo $cmd
 			eval "$cmd"
 		fi
+
 		# spawn ha agent
 		opts="$common_opts -T linux -e $XPT:${lnet_nid}:$HA_EP \
 		      -c $CONFDB -f $proc_fid"
@@ -431,6 +432,7 @@ EOF
 				sleep 2
 			done
 		fi
+
 		echo "Mero ioservices started."
 	}
 

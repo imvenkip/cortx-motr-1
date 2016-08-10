@@ -7,12 +7,17 @@ usage()
 	cat <<.
 Usage:
 
-$ sudo m0clovis_start.sh [local|remote] ["(m0clovis index commands)"]
+$ sudo m0clovis_start.sh [local|remote] [-v] ["(m0clovis index commands)"]
 .
 }
 
 conf=$1
 shift 1
+verbose=0
+if [ $1 == "-v" ] ; then
+	verbose=1
+	shift
+fi
 all=$*
 
 function m0clovis_cmd_start()
@@ -24,12 +29,13 @@ function m0clovis_cmd_start()
 		return 1
 	fi
 
-	local args="-l $LOCAL_EP -h $HA_EP -c $CONFD_EP \
-		    -p '$PROF_OPT' -f '$PROC_FID'"
+	local args="-l $CLOVIS_LOCAL_EP -h $CLOVIS_HA_EP -c $CLOVIS_CONFD_EP \
+		    -p '$CLOVIS_PROF_OPT' -f '$CLOVIS_PROC_FID'"
 	local cmdline="$exec $args $all"
-	# Run it
-	#echo Running m0clovis command line tool...
-	#echo "# $cmdline" >/dev/tty
+	if [ $verbose == 1 ]; then
+		echo "Running m0clovis command line tool..."
+		echo "$cmdline" > /dev/tty
+	fi
 	eval $cmdline || {
 		err=$?
 		echo "Clovis CmdLine utility returned $err!"

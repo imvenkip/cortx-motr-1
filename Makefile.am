@@ -653,6 +653,16 @@ clovis_st_utils_c0cp_mt_LDADD    = $(top_builddir)/mero/libmero.la \
 include $(top_srcdir)/clovis/st/Makefile.sub
 
 #
+# clovis/m0clovis ----------------------------------------- {{{2
+#
+sbin_PROGRAMS                    += clovis/m0clovis/m0clovis
+
+clovis_m0clovis_m0clovis_CPPFLAGS = -DM0_TARGET='m0clovis' $(AM_CPPFLAGS)
+clovis_m0clovis_m0clovis_LDADD    = $(top_builddir)/mero/libmero.la
+
+include $(top_srcdir)/clovis/m0clovis/Makefile.sub
+
+#
 # dix/m0dixinit --------------------------------------- {{{2
 #
 sbin_PROGRAMS                    += dix/utils/m0dixinit

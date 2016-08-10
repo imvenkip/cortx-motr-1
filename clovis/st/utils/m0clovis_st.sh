@@ -3,7 +3,7 @@
 # System test based on m0clovis tool.
 # Checks clovis index commands only for now.
 
-set -x
+#set -x
 
 SANDBOX_DIR=${SANDBOX_DIR:-/var/mero/sandbox.m0clovis-st}
 
@@ -14,11 +14,12 @@ num=10
 large_size=30 #131072
 small_size=20
 
-. $M0_SRC_DIR/utils/functions # die, sandbox_init, report_and_exit
+. $M0_SRC_DIR/utils/functions # sandbox_init, report_and_exit
 # following scripts are mandatory for start the mero service (mero_start/stop)
 . $M0_SRC_DIR/m0t1fs/linux_kernel/st/common.sh
 . $M0_SRC_DIR/m0t1fs/linux_kernel/st/m0t1fs_common_inc.sh
 . $M0_SRC_DIR/m0t1fs/linux_kernel/st/m0t1fs_server_inc.sh
+. $M0_SRC_DIR/clovis/st/utils/clovis_local_conf.sh
 
 out_file="${SANDBOX_DIR}/m0clovis_st.log"
 rc_file="${SANDBOX_DIR}/m0clovis_st.cod.log"
@@ -31,24 +32,46 @@ vals_file="${SANDBOX_DIR}/vals.txt"
 vals_bulk_file="${SANDBOX_DIR}/vals_bulk.txt"
 fids_file="${SANDBOX_DIR}/fids.txt"
 
-clovistool="$M0_SRC_DIR/clovis/st/utils/m0clovis_start.sh local index"
-
 genf="genf ${num} ${fids_file}"
 genv_bulk="genv ${num} ${large_size} ${vals_bulk_file}"
 genv="genv ${num} ${small_size} ${vals_file}"
 
 do_mero_start=1
+do_dixinit=1
 verbose=0
 
 NODE_UUID=`uuidgen`
 
+interrupt() { echo "Interrupted by user" >&2; stop 2; }
+error() { echo "$@" >&2; stop 1; }
+
+start() {
+	sandbox_init
+}
+
+stop() {
+	local rc=${1:-$?}
+
+	trap - SIGINT SIGTERM
+	if [ $do_mero_start == 1 ]; then
+		stop_mero || rc=$?
+	fi
+
+	if [ $rc -eq 0 ]; then
+		sandbox_fini
+	fi
+	report_and_exit m0clovis $rc
+}
+
 function usage()
 {
-	echo "m0clovis_st.sh [--no-setup --verbose --help] all|test1 test2 ..."
+	echo "m0clovis_st.sh [-n -i -v -h] all|test1 test2 ..."
 	echo "Options:"
-	echo "    '--no-setup'        don't start mero service"
-	echo "    '--verbose'         output additional info into console"
-	echo "    '--help'            show this help"
+	echo "    '-n|--no-setup'        don't start mero service"
+	echo "    '-i|--no-dixinit'      don't create dix meta-indices"
+	echo "                           note: ignored without --no-setup"
+	echo "    '-v|--verbose'         output additional info into console"
+	echo "    '-h|--help'            show this help"
 	echo "Available tests:"
 	echo "    'creates'       create index"
 	echo "    'createm'       create several indices"
@@ -82,17 +105,17 @@ function usage()
 
 function load_item()
 {
-    local resultvar=$3
-    local fil=$1
-    local n=$2
-    local t=${n}p
+	local resultvar=$3
+	local fil=$1
+	local n=$2
+	local t=${n}p
 
-    local  myresult=$(sed -n "${t}" < ${fil})
-    if [[ "$resultvar" ]]; then
-        eval $resultvar="'$myresult'"
-    else
-        echo "$myresult"
-    fi
+	local  myresult=$(sed -n "${t}" < ${fil})
+	if [[ "$resultvar" ]]; then
+		eval $resultvar="'$myresult'"
+	else
+		echo "$myresult"
+	fi
 }
 
 function rm_logs()
@@ -105,8 +128,8 @@ creates()
 	local rc=0
 	echo "Test:Create"
 	emsg="FAILED to create index by fid:${fid}"
-	${clovistool} ${drop} >/dev/null
-	${clovistool} ${create} >${out_file}
+	${CLOVISTOOL} ${drop} >/dev/null
+	${CLOVISTOOL} ${create} >${out_file}
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	#check output: should be rc code 0
@@ -121,11 +144,11 @@ createm()
 	local rc=0
 	echo "Test:Create FIDS"
 	emsg="FAILED to create index by @fids:${fids_file}"
-	${clovistool} ${dropf} >/dev/null
-	${clovistool} ${create} >/dev/null
+	${CLOVISTOOL} ${dropf} >/dev/null
+	${CLOVISTOOL} ${create} >/dev/null
 	rc=$?
 	[ $rc != 0 ] && return $rc
-	${clovistool} ${createf} >>${out_file}
+	${CLOVISTOOL} ${createf} >>${out_file}
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	grep "operation rc:" ${out_file} >${rc_file}
@@ -140,10 +163,10 @@ drops()
 	local rc=0
 	echo "Test:Drop"
 	emsg="FAILED to drop index by fid:${fid}"
-	${clovistool} ${create} >/dev/null
+	${CLOVISTOOL} ${create} >/dev/null
 	rc=$?
 	[ $rc != 0 ] && return $rc
-	${clovistool} ${drop} >${out_file}
+	${CLOVISTOOL} ${drop} >${out_file}
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	grep "operation rc:" ${out_file} >${rc_file}
@@ -158,16 +181,16 @@ dropm()
 	local rc=0
 	echo "Test:Drop FIDS"
 	emsg="FAILED to drop index by @fids:${fids_file}"
-	${clovistool} ${createf} >/dev/null
+	${CLOVISTOOL} ${createf} >/dev/null
 	rc=$?
 	[ $rc != 0 ] && return $rc
-	${clovistool} ${drop} >${out_file}
+	${CLOVISTOOL} ${drop} >${out_file}
 	[ $rc != 0 ] && return $rc
 	grep "operation rc:" ${out_file} >${rc_file}
 	grep -v "operation rc: 0" ${rc_file} >${erc_file}
 	[ -s "${erc_file}" ] && return 1
 	rm_logs
-	${clovistool} ${dropf} >${out_file}
+	${CLOVISTOOL} ${dropf} >${out_file}
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	grep "operation rc:" ${out_file} >${rc_file}
@@ -182,12 +205,12 @@ list()
 	local rc=0
 	echo "Test:List"
 	emsg="FAILED to get List"
-	${clovistool} ${dropf} >/dev/null
-	${clovistool} ${createf} >/dev/null
-	${clovistool} ${list3} >${out_file}
+	${CLOVISTOOL} ${dropf} >/dev/null
+	${CLOVISTOOL} ${createf} >/dev/null
+	${CLOVISTOOL} ${list3} >${out_file}
 	grep "<" ${out_file} >${res_out_file}
 	[ $(cat ${res_out_file} | wc -l) == 3 ] || return 1
-	${clovistool} ${list} >${out_file}
+	${CLOVISTOOL} ${list} >${out_file}
 	grep "<" ${out_file} >${res_out_file}
 	[ $(cat ${res_out_file} | wc -l) == ${num} ] || return 1
 	rm_logs
@@ -199,15 +222,15 @@ lookup()
 	local rc=0
 	echo "Test:Lookup"
 	emsg="FAILED to check lookup functionality"
-	${clovistool} ${dropf} >/dev/null
-	${clovistool} ${create} >/dev/null
-	${clovistool} ${lookup} >${out_file}
+	${CLOVISTOOL} ${dropf} >/dev/null
+	${CLOVISTOOL} ${create} >/dev/null
+	${CLOVISTOOL} ${lookup} >${out_file}
 	grep "found rc" ${out_file} >${rc_file}
 	grep -v "found rc 0" ${rc_file} >${erc_file}
 	[ -s "${erc_file}" ] && return 1
 
-	${clovistool} ${drop} >/dev/null
-	${clovistool} ${lookup} >${out_file}
+	${CLOVISTOOL} ${drop} >/dev/null
+	${CLOVISTOOL} ${lookup} >${out_file}
 	grep "found rc" ${out_file} >${rc_file}
 	grep -v "found rc -2" ${rc_file} >${erc_file}
 	[ -s "${erc_file}" ] && return 1
@@ -219,13 +242,13 @@ puts1()
 	local rc=0
 	echo "Test:Put KEY"
 	emsg="FAILED to put key ${key} val ${val} into ${fid}"
-	${clovistool} ${dropf} >/dev/null
+	${CLOVISTOOL} ${dropf} >/dev/null
 	rc=$?
 	[ $rc != 0 ] && return $rc
-	${clovistool} ${create} >/dev/null
+	${CLOVISTOOL} ${create} >/dev/null
 	rc=$?
 	[ $rc != 0 ] && return $rc
-	${clovistool} ${put_fid_key} >${out_file}
+	${CLOVISTOOL} ${put_fid_key} >${out_file}
 	[ $rc != 0 ] && return $rc
 	grep "operation rc:" ${out_file} >${rc_file}
 	grep -v "operation rc: 0" ${rc_file} >${erc_file}
@@ -239,14 +262,15 @@ putsN_exist()
 	local rc=0
 	echo "Test:Put existing KEYS"
 	emsg="FAILED to put existing @keys:${keys_file} @vals:${vals_file} into ${fid}"
-	${clovistool} ${dropf} >/dev/null
+	${CLOVISTOOL} ${dropf} >/dev/null
 	rc=$?
 	[ $rc != 0 ] && return $rc
-	${clovistool} ${create} >/dev/null
+	${CLOVISTOOL} ${create} >/dev/null
 	[ $rc != 0 ] && return $rc
-	${clovistool} ${put_fid_key} >/dev/null
+	${CLOVISTOOL} ${put_fid_key} >/dev/null
 	[ $rc != 0 ] && return $rc
-	${clovistool} ${put_fid_keys} >${out_file}
+	${CLOVISTOOL} ${put_fid_keys} >${out_file}
+	[ $rc != 0 ] && return $rc
 	grep "operation rc:" ${out_file} >${rc_file}
 	# TODO: Check that -17 is returned
 	rm_logs
@@ -258,7 +282,9 @@ bputsN_exist()
 	local rc=0
 	echo "Test:Put existing KEYS by one command"
 	emsg="FAILED to put existing @keys:${keys_file} @vals:${vals_file} into ${fid}"
-	${clovistool} ${dropf} ${create} ${put_fid_key} ${put_fid_keys} >${out_file}
+	${CLOVISTOOL} ${dropf} ${create} ${put_fid_key} ${put_fid_keys} >${out_file}
+	rc=$?
+	[ $rc != 0 ] && return $rc
 	grep -B 1 "put done:" ${out_file} >${rc_file}
 	grep -v ": 0" ${rc_file} >${erc_file}
 	# TODO: Check that -17 is returned
@@ -271,13 +297,13 @@ putsN()
 	local rc=0
 	echo "Test:Put KEYS"
 	emsg="FAILED to put new @keys:${keys_file} @vals:${vals_file} into ${fid}"
-	${clovistool} ${dropf} >/dev/null
+	${CLOVISTOOL} ${dropf} >/dev/null
 	rc=$?
 	[ $rc != 0 ] && return $rc
-	${clovistool} ${create} >/dev/null
+	${CLOVISTOOL} ${create} >/dev/null
 	rc=$?
 	[ $rc != 0 ] && return $rc
-	${clovistool} ${put_fid_keys} >${out_file}
+	${CLOVISTOOL} ${put_fid_keys} >${out_file}
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	grep "operation rc:" ${out_file} >${rc_file}
@@ -292,13 +318,13 @@ putsNb()
 	local rc=0
 	echo "Test:Put KEYS (bulk)"
 	emsg="FAILED to put new @keys:${keys_bulk_file} @vals:${vals_bulk_file} into ${fid}"
-	${clovistool} ${dropf} >/dev/null
+	${CLOVISTOOL} ${dropf} >/dev/null
 	rc=$?
 	[ $rc != 0 ] && return $rc
-	${clovistool} ${create} >/dev/null
+	${CLOVISTOOL} ${create} >/dev/null
 	rc=$?
 	[ $rc != 0 ] && return $rc
-	${clovistool} ${put_fid_keys_bulk} >${out_file}
+	${CLOVISTOOL} ${put_fid_keys_bulk} >${out_file}
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	grep "operation rc:" ${out_file} >${rc_file}
@@ -313,13 +339,13 @@ putmN()
 	local rc=0
 	echo "Test:Put KEYS into FIDS"
 	emsg="FAILED to put new @keys:${keys_file} @vals:${vals_file} into @fids:${fid_file}"
-	${clovistool} ${dropf} >/dev/null
+	${CLOVISTOOL} ${dropf} >/dev/null
 	rc=$?
 	[ $rc != 0 ] && return $rc
-	${clovistool} ${createf} >/dev/null
+	${CLOVISTOOL} ${createf} >/dev/null
 	rc=$?
 	[ $rc != 0 ] && return $rc
-	${clovistool} ${put_fids_keys} >${out_file}
+	${CLOVISTOOL} ${put_fids_keys} >${out_file}
 	[ $rc != 0 ] && return $rc
 	grep "operation rc:" ${out_file} >${rc_file}
 	grep -v "operation rc: 0" ${rc_file} >${erc_file}
@@ -333,16 +359,16 @@ gets1()
 	local rc=0
 	echo "Test:Get KEY"
 	emsg="FAILED to get key:${key} from fid:${fid}"
-	${clovistool} ${dropf} >/dev/null
+	${CLOVISTOOL} ${dropf} >/dev/null
 	rc=$?
 	[ $rc != 0 ] && return $rc
-	${clovistool} ${create} >/dev/null
+	${CLOVISTOOL} ${create} >/dev/null
 	rc=$?
 	[ $rc != 0 ] && return $rc
-	${clovistool} ${put_fid_key} >/dev/null
+	${CLOVISTOOL} ${put_fid_key} >/dev/null
 	rc=$?
 	[ $rc != 0 ] && return $rc
-	${clovistool} ${get_fid_key} >${out_file}
+	${CLOVISTOOL} ${get_fid_key} >${out_file}
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	grep "operation rc:" ${out_file} >${rc_file}
@@ -364,7 +390,7 @@ bgets1()
 	local rc=0
 	echo "Test:Get KEY by one command"
 	emsg="FAILED to get key:${key} from fid:${fid} by one command"
-	${clovistool} ${dropf} ${create} ${put_fid_key} ${get_fid_key} >${out_file}
+	${CLOVISTOOL} ${dropf} ${create} ${put_fid_key} ${get_fid_key} >${out_file}
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	grep -A 1 "KEY" ${out_file} > ${res_out_file}
@@ -383,10 +409,10 @@ getsN()
 	local rc=0
 	echo "Test:Get KEYS"
 	emsg="FAILED to get @keys:${keys_file} from fid:${fid}"
-	${clovistool} ${dropf} ${create} ${put_fid_keys} >/dev/null
+	${CLOVISTOOL} ${dropf} ${create} ${put_fid_keys} >/dev/null
 	rc=$?
 	[ $rc != 0 ] && return $rc
-	${clovistool} ${get_fid_keys} >${out_file}
+	${CLOVISTOOL} ${get_fid_keys} >${out_file}
 	grep -A 1 "KEY" ${out_file} > ${res_out_file}
 	local lines
 	let lines=$num*3-1
@@ -407,7 +433,7 @@ bgetsN()
 	local rc=0
 	echo "Test:Get KEYS by one command"
 	emsg="FAILED to get @keys:${keys_file} from fid:${fid} by one command"
-	${clovistool} ${dropf} ${create} ${put_fid_keys} ${get_fid_keys} >${out_file}
+	${CLOVISTOOL} ${dropf} ${create} ${put_fid_keys} ${get_fid_keys} >${out_file}
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	grep -A 1 "KEY" ${out_file} > ${res_out_file}
@@ -430,10 +456,10 @@ nextsN()
 	local rc=0
 	echo "Test:Get next keys"
 	emsg="FAILED to get next keys from ${fid} start key ${key}"
-	${clovistool} ${dropf} ${create} ${put_fid_keys} >/dev/null
+	${CLOVISTOOL} ${dropf} ${create} ${put_fid_keys} >/dev/null
 	rc=$?
 	[ $rc != 0 ] && return $rc
-	${clovistool} ${next} >${out_file}
+	${CLOVISTOOL} ${next} >${out_file}
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	grep -A 1 "KEY" ${out_file} > ${res_out_file}
@@ -452,7 +478,7 @@ bnextsN()
 	local rc=0
 	echo "Test:Get next keys by one command"
 	emsg="FAILED to get next keys from ${fid} start key ${key} by one command"
-	${clovistool} ${dropf} ${create} ${put_fid_keys} ${next} >${out_file}
+	${CLOVISTOOL} ${dropf} ${create} ${put_fid_keys} ${next} >${out_file}
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	grep -A 1 "KEY" ${out_file} > ${res_out_file}
@@ -471,10 +497,10 @@ dels1()
 	local rc=0
 	echo "Test:Del existing KEY"
 	emsg="FAILED to del key:${key} from ${fid}"
-	${clovistool} ${dropf} ${create} ${put_fid_key} >/dev/null
+	${CLOVISTOOL} ${dropf} ${create} ${put_fid_key} >/dev/null
 	rc=$?
 	[ $rc != 0 ] && return $rc
-	${clovistool} $del_fid_key >${out_file}
+	${CLOVISTOOL} $del_fid_key >${out_file}
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	grep "operation rc:" ${out_file} >${rc_file}
@@ -489,7 +515,7 @@ bdels1()
 	local rc=0
 	echo "Test:Del existing KEY by one command"
 	emsg="FAILED to del key:${key} from ${fid} by one command"
-	${clovistool} ${dropf} ${create} ${put_fid_key} $del_fid_key>${out_file}
+	${CLOVISTOOL} ${dropf} ${create} ${put_fid_key} $del_fid_key>${out_file}
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	grep -B 1 "del done:" ${out_file} >${rc_file}
@@ -504,10 +530,10 @@ delsN()
 	local rc=0
 	echo "Test:Del existing KEYS"
 	emsg="FAILED to del @keys:${keys_file} from ${fid}"
-	${clovistool} ${dropf} ${create} ${put_fid_keys} >/dev/null
+	${CLOVISTOOL} ${dropf} ${create} ${put_fid_keys} >/dev/null
 	rc=$?
 	[ $rc != 0 ] && return $rc
-	${clovistool} ${del_fid_keys} >${out_file}
+	${CLOVISTOOL} ${del_fid_keys} >${out_file}
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	grep "operation rc:" ${out_file} >${rc_file}
@@ -522,7 +548,7 @@ bdelsN()
 	local rc=0
 	echo "Test:Del existing KEYS by one command"
 	emsg="FAILED to del keys:@${keys_file} from ${fid} by one command"
-	${clovistool} ${dropf} ${create} ${put_fid_key} $del_fid_keys >${out_file}
+	${CLOVISTOOL} ${dropf} ${create} ${put_fid_keys} ${del_fid_keys} >${out_file}
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	grep -B 1 "del done:" ${out_file} >${rc_file}
@@ -537,10 +563,10 @@ delmN()
 	local rc=0
 	echo "Test:Del existing KEYS from several indices"
 	emsg="FAILED to del @keys:${keys_file} @vals:${vals_file} from @${fid_file}"
-	${clovistool} ${dropf} ${createf} ${put_fids_keys} >/dev/null
+	${CLOVISTOOL} ${dropf} ${createf} ${put_fids_keys} >/dev/null
 	rc=$?
 	[ $rc != 0 ] && return $rc
-	${clovistool} ${del_fids_keys} >${out_file}
+	${CLOVISTOOL} ${del_fids_keys} >${out_file}
 	[ $rc != 0 ] && return $rc
 	grep "operation rc:" ${out_file} >${rc_file}
 	grep -v "operation rc: 0" ${rc_file} >${erc_file}
@@ -554,7 +580,7 @@ bdelmN()
 	local rc=0
 	echo "Test:Del existing KEYS in several indices by one command"
 	emsg="FAILED to del keys:@${keys_file} from @${fid_file} by one command"
-	${clovistool} ${dropf} ${createf} ${put_fids_keys} $del_fids_keys >${out_file}
+	${CLOVISTOOL} ${dropf} ${createf} ${put_fids_keys} ${del_fids_keys} >${out_file}
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	grep -B 1 "del done:" ${out_file} >${rc_file}
@@ -567,7 +593,7 @@ bdelmN()
 st_init()
 {
 	# generate source files for KEYS, VALS, FIDS
-	${clovistool} ${genf} ${genv} ${genv_bulk} >/dev/null
+	${CLOVISTOOL} ${genf} ${genv} ${genv_bulk} >/dev/null
 	[ $? != 0 ] && return 1
 	cp ${vals_file} ${keys_file}
 	cp ${vals_bulk_file} ${keys_bulk_file}
@@ -645,6 +671,13 @@ stop_mero()
 start_tests()
 {
 	local rc
+	local vflag=''
+
+	if [ $verbose == 1 ] ; then
+		vflag="-v"
+	fi
+	CLOVISTOOL="$M0_SRC_DIR/clovis/st/utils/m0clovis_start.sh local $vflag index"
+
 	st_init
 	rc=$?
 	if [ $rc -ne 0 ]; then
@@ -663,34 +696,42 @@ start_tests()
 	return $rc
 }
 
-main()
+dixinit_exec()
 {
-	local rc
-	sandbox_init
-	if [ ${do_mero_start} == 1 ]; then
-		start_mero
-		rc=$?
-		if [ $rc -ne 0 ]; then
-			echo "Failed to start Mero Service."
-			return 1
-		fi
-	fi
+	local m0dixinit="$M0_SRC_DIR/dix/utils/m0dixinit"
+	local cmd
+	local pverid=$(echo $DIX_PVERID | tr -d ^)
 
-	start_tests
-	rc=$?
-	if [ $do_mero_start == 1 ]; then
-		stop_mero
+	if [ ! -f $dixinit] ; then
+		echo "Can't find m0dixinit"
+		return 1
 	fi
-	[ $rc -ne 0 ] || sandbox_fini
-	return $rc
+	cmd="$m0dixinit -l $CLOVIS_LOCAL_EP -H $CLOVIS_HA_EP \
+	     -p '$CLOVIS_PROF_OPT' -I '$pverid' -d '$pverid' -a create"
+	echo $cmd
+	eval "$cmd"
 }
 
+main()
+{
+	start
+	if [ ${do_mero_start} == 1 ]; then
+		start_mero || error "Failed to start Mero service"
+		do_dixinit=1
+	fi
+
+	if [ ${do_dixinit} == 1 ]; then
+		dixinit_exec || error "m0dixinit failed ($?)!"
+	fi
+	start_tests
+	stop
+}
 
 arg_list=("$@")
 
 [ `id -u` -eq 0 ] || die 'Must be run by superuser'
 
-OPTS=`getopt -o vhn --long verbose,no-setup,help -n 'parse-options' -- "$@"`
+OPTS=`getopt -o vhni --long verbose,no-setup,no-dixinit,help -n 'parse-options' -- "$@"`
 if [ $? != 0 ] ; then echo "Failed parsing options." >&2 ; exit 1 ; fi
 eval set -- "$OPTS"
 while true; do
@@ -698,13 +739,14 @@ while true; do
 	-v | --verbose ) verbose=1; shift ;;
 	-h | --help )    usage ; exit 0; shift ;;
 	-n | --no-setup ) do_mero_start=0; shift ;;
+	-i | --no-dixinit ) do_dixinit=0; shift ;;
 	-- ) shift; break ;;
 	* ) break ;;
 	esac
 done
 
 for arg in "${arg_list[@]}"; do
-	if [ "${arg:0:2}" != "--" ]; then
+	if [ "${arg:0:2}" != "--" -a "${arg:0:1}" != "-" ]; then
 		tests_list+=(${arg})
 	fi
 done
@@ -736,10 +778,8 @@ if [ ${#tests_list[@]} -eq 0 ]; then
 				bdelmN)
 fi
 
+trap interrupt SIGINT SIGTERM
 main
-rc=$?
-report_and_exit m0clovis $rc
-
 
 # Local variables:
 # sh-basic-offset: 8

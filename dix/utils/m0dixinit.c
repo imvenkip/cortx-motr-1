@@ -295,6 +295,8 @@ static int dix_init(struct dix_ctx *ctx,
 	if (rc != 0)
 		goto err_pools_destroy;
 
+	m0_pools_common_service_ctx_connect_sync(pc);
+
 	rc = m0_pool_versions_setup(pc, fs, NULL, NULL, NULL);
 	if (rc != 0)
 		goto err_pools_service_ctx_destroy;
