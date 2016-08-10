@@ -86,7 +86,7 @@ m0_path_to()
     if [ -n "$MERO_DEVEL_WORKDIR_PATH" ] ; then
         echo "$MERO_DEVEL_WORKDIR_PATH/${_path_inside_workdir[$binary]}"
     else
-        echo "$binary"
+        echo "$(which $binary)"
     fi
 }
 

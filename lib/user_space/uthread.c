@@ -23,7 +23,10 @@
 #include <unistd.h>      /* getpid */
 #include <errno.h>       /* program_invocation_name */
 #include <stdio.h>       /* snprinf */
+#include <linux/limits.h>/* PATH_MAX */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_MEMORY
+#include "lib/trace.h"
 #include "lib/misc.h"    /* M0_SET0 */
 #include "lib/string.h"  /* m0_strdup */
 #include "lib/memory.h"
@@ -136,6 +139,8 @@ M0_INTERNAL int m0_thread_confine(struct m0_thread *q,
 	return -pthread_setaffinity_np(q->t_h.h_id, sizeof cpuset, &cpuset);
 }
 
+M0_INTERNAL char m0_argv0[PATH_MAX] = {};
+
 M0_INTERNAL char *m0_debugger_args[4] = {
 	NULL, /* debugger name */
 	NULL, /* our binary name */
@@ -168,6 +173,9 @@ M0_INTERNAL int m0_threads_once_init(void)
 	static char             pidbuf[20];
 	char                   *env_ptr;
 	int                     result;
+
+	if (readlink("/proc/self/exe", m0_argv0, sizeof m0_argv0) == -1)
+		return M0_ERR_INFO(errno, "%s", strerror(errno));
 
 	env_ptr = getenv("M0_DEBUGGER");
 	if (env_ptr != NULL)
@@ -253,6 +261,8 @@ M0_INTERNAL void m0_thread_arch_shun(void)
 	m0_addb2_global_thread_leave();
 	(void)pthread_setspecific(tls_key, NULL);
 }
+
+#undef M0_TRACE_SUBSYSTEM
 
 /** @} end of thread group */
 
