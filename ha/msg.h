@@ -39,6 +39,7 @@
 #include "ha/failvec.h"         /* m0_ha_msg_failure_vec_req */
 #include "mero/keepalive.h"     /* m0_ha_msg_keepalive_req */
 #include "conf/ha.h"            /* m0_conf_ha_process */
+#include "rpc/rpc_ha.h"         /* m0_rpc_ha_msg */
 
 /*
  * XXX next two are workarounds because *_xc.h file generator can't
@@ -51,6 +52,7 @@
 #include "ha/failvec_xc.h"      /* m0_ha_msg_failure_vec_req */
 #include "mero/keepalive_xc.h"  /* m0_ha_msg_keepalive_req_xc */
 #include "conf/ha_xc.h"         /* m0_conf_ha_process_xc */
+#include "rpc/rpc_ha_xc.h"      /* m0_rpc_ha_msg_xc */
 
 enum {
 	M0_HA_MSG_FAILURE_VEC_LIMIT = 1024,
@@ -72,6 +74,7 @@ enum m0_ha_msg_type {
 	M0_HA_MSG_KEEPALIVE_REP,
 	M0_HA_MSG_EVENT_PROCESS,
 	M0_HA_MSG_EVENT_SERVICE,
+	M0_HA_MSG_EVENT_RPC,
 	M0_HA_MSG_NR,
 };
 
@@ -96,6 +99,8 @@ struct m0_ha_msg_data {
 			                M0_XCA_TAG("M0_HA_MSG_EVENT_PROCESS");
 		struct m0_conf_ha_service      hed_event_service
 			                M0_XCA_TAG("M0_HA_MSG_EVENT_SERVICE");
+		struct m0_ha_msg_rpc           hed_event_rpc
+			                M0_XCA_TAG("M0_HA_MSG_EVENT_RPC");
 	} u;
 } M0_XCA_UNION;
 

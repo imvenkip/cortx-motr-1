@@ -181,8 +181,8 @@ static void __print_stats(struct m0_rpc_machine *rpc_mach)
 		(unsigned long long)stats.rs_nr_dropped_items);
 	printf("\tha_timedout_items: %llu\n",
 		(unsigned long long)stats.rs_nr_ha_timedout_items);
-	printf("\tha_noted_items: %llu\n",
-		(unsigned long long)stats.rs_nr_ha_noted_items);
+	printf("\tha_noted_conns: %llu\n",
+		(unsigned long long)stats.rs_nr_ha_noted_conns);
 
 	printf("\treceived_packets: %llu\n",
 	       (unsigned long long)stats.rs_nr_rcvd_packets);

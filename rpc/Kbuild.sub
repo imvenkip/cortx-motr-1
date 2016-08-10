@@ -9,6 +9,7 @@ m0mero_objects += rpc/bulk.o \
                  rpc/rpclib.o \
                  rpc/rpc_machine.o \
                  rpc/rpc.o \
+                 rpc/rpc_ha_xc.o \
                  rpc/rpc_onwire.o \
                  rpc/rpc_onwire_xc.o \
                  rpc/service.o \

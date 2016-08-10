@@ -96,7 +96,9 @@ enum m0_rpc_conn_state {
  */
 enum m0_rpc_conn_flags {
 	RCF_SENDER_END = 1 << 0,
-	RCF_RECV_END   = 1 << 1
+	RCF_RECV_END   = 1 << 1,
+	/** M0_NC_TRANSIENT state has been already sent to HA. */
+	RCF_TRANSIENT_SENT = 1 << 2
 };
 
 /**
@@ -241,50 +243,81 @@ enum m0_rpc_conn_flags {
   On receiver side, user is not expected to call any of these APIs.
   Receiver side rpc-layer will internally allocate/deallocate and manage
   all the state transitions of conn internally.
- */
+
+  m0_rpc_conn:c_ha_timer is armed when an rpc item related to the connection was
+  sent or timed out. If the connection is subscribed to m0_conf_service object
+  and the timer callback is triggered, Mero sends m0_ha_msg to HA about a
+  problem. The message consists of one field that indicates m0_ha_obj_state of
+  the service.
+
+  HA is notified about M0_NC_TRANSIENT state in case of item resend or timeout,
+  and M0_NC_ONLINE in the case when a reply is received on the connection. When
+  Mero sends message about M0_NC_TRANSIENT state, the flag RCF_TRANSIENT_SENT is
+  set for the connection. The flag is checked when the timer callback is
+  triggered again, and in case it was already set, then Mero doesn't notify HA
+  repeatedly. The flag is cleared when the reply is received for an item and the
+  service is in M0_NC_TRANSIENT state. This way Mero notifies HA about
+  M0_NC_TRANSIENT state only once per connection trouble no matter how many
+  items are sent over the connection. It is able to send message about
+  M0_NC_TRANSIENT state only when Halon switches the service to this state and
+  then back to M0_NC_ONLINE state.
+*/
 struct m0_rpc_conn {
 	/** Sender ID, unique on receiver */
-	uint64_t                  c_sender_id;
+	uint64_t                   c_sender_id;
 
 	/** Globally unique ID of rpc connection */
-	struct m0_uint128         c_uuid;
+	struct m0_uint128          c_uuid;
 
 	/** @see m0_rpc_conn_flags for list of flags */
-	uint64_t                  c_flags;
+	uint64_t                   c_flags;
 
 	/** rpc_machine with which this conn is associated */
-	struct m0_rpc_machine    *c_rpc_machine;
+	struct m0_rpc_machine     *c_rpc_machine;
+
+	/** Configuration of HA notifications mechanism. */
+	const struct m0_rpc_conn_ha_cfg *c_ha_cfg;
+
+	/** Indicates how many attempts to notify HA occurred */
+	uint64_t                   c_ha_attempts;
+
+	/**
+	 * HA notify timer.
+	 *
+	 * Invokes item_ha_timer_cb() after every c_ha_cfg->rchc_ha_interval.
+	 */
+	struct m0_sm_timer         c_ha_timer;
 
 	/** list_link to put m0_rpc_conn in either
 	    m0_rpc_machine::rm_incoming_conns or
 	    m0_rpc_machine::rm_outgoing_conns.
 	    List descriptor: rpc_conn
 	 */
-	struct m0_tlink           c_link;
+	struct m0_tlink            c_link;
 
 	/** Counts number of sessions (excluding session 0) */
-	uint64_t                  c_nr_sessions;
+	uint64_t                   c_nr_sessions;
 
 	/** List of all the sessions created under this rpc connection.
 	    m0_rpc_session objects are placed in this list using
 	    m0_rpc_session::s_link.
 	    List descriptor: session
 	 */
-	struct m0_tl              c_sessions;
+	struct m0_tl               c_sessions;
 
 	/** List of m0_rpc_item_source instances.
 	    List link: m0_rpc_item_source::ris_tlink
 	    List descriptor: item_source
 	 */
-	struct m0_tl              c_item_sources;
+	struct m0_tl               c_item_sources;
 
 	/** Identifies destination of this connection. */
-	struct m0_rpc_chan       *c_rpcchan;
+	struct m0_rpc_chan        *c_rpcchan;
 
 	/** RPC connection state machine
 	    @see m0_rpc_conn_state, conn_conf
 	 */
-	struct m0_sm		  c_sm;
+	struct m0_sm		   c_sm;
 
 	/**
 	   Finalises and frees m0_rpc_conn when conn terminate
@@ -292,24 +325,24 @@ struct m0_rpc_conn {
 	   Posted in: conn_terminate_reply_sent_cb()
 	   Invokes: conn_cleanup_ast() callback
 	 */
-	struct m0_sm_ast          c_ast;
+	struct m0_sm_ast           c_ast;
 
 	/** M0_RPC_CONN_MAGIC */
-	uint64_t		  c_magic;
+	uint64_t		   c_magic;
 
 	/** HA notification clink */
-	struct m0_clink           c_ha_clink;
+	struct m0_clink            c_ha_clink;
 
 	/** conf cache expired clink */
-	struct m0_clink           c_conf_exp_clink;
+	struct m0_clink            c_conf_exp_clink;
 
 	/** conf cache ready clink */
-	struct m0_clink           c_conf_ready_clink;
+	struct m0_clink            c_conf_ready_clink;
 
 	/**
 	 * Fid of c_svc_obj
 	 */
-	struct m0_fid             c_svc_fid;
+	struct m0_fid              c_svc_fid;
 };
 
 /**
@@ -489,5 +522,13 @@ M0_INTERNAL const char *m0_rpc_conn_addr(const struct m0_rpc_conn *conn);
 M0_INTERNAL bool m0_rpc_conn_is_known_dead(const struct m0_rpc_conn *conn);
 
 M0_INTERNAL struct m0_conf_obj *m0_rpc_conn2svc(const struct m0_rpc_conn *conn);
+
+/*
+ * Sets configuration of HA notifications for the connection. The function
+ * internally takes lock on RPC machine. A caller shouldn't care about
+ * concurrency.
+ */
+M0_INTERNAL void m0_rpc_conn_ha_cfg_set(struct m0_rpc_conn        *conn,
+					const struct m0_rpc_conn_ha_cfg *cfg);
 /** @}  End of rpc_session group */
 #endif /* __MERO_RPC_CONN_H__ */

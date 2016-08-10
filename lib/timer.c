@@ -63,6 +63,7 @@ M0_INTERNAL int m0_timer_init(struct m0_timer	       *timer,
 
 M0_INTERNAL void m0_timer_fini(struct m0_timer *timer)
 {
+	M0_ENTRY("%p", timer);
 	M0_PRE(M0_IN(timer->t_state, (M0_TIMER_STOPPED, M0_TIMER_INITED)));
 
 	m0_timer_ops[timer->t_type].tmr_fini(timer);

@@ -408,7 +408,7 @@ static uint32_t pool_width_count(uint64_t *children, uint32_t depth)
 
 static void test_pv2fd_conv(void)
 {
-	struct m0_confc      confc;
+	struct m0_confc     *confc;
 	struct m0_conf_obj  *fs_obj = NULL;
 	struct m0_conf_diter it;
 	struct m0_conf_obj  *pv_obj;
@@ -421,24 +421,25 @@ static void test_pv2fd_conv(void)
 	int                  i;
 	int                  rc;
 
-	M0_SET0(&confc);
+	M0_ALLOC_PTR(confc);
+	M0_SET0(confc);
 	M0_SET0(&pool_ver);
 #ifndef __KERNEL__
 	rc = m0_file_read(M0_SRC_PATH("fd/ut/failure-domains.xc"), &confstr);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_confc_init(&confc, &m0_conf_ut_grp, NULL, NULL, confstr);
+	rc = m0_confc_init(confc, &m0_conf_ut_grp, NULL, NULL, confstr);
 	M0_UT_ASSERT(rc == 0);
 	m0_free0(&confstr);
 #else
-	rc = m0_confc_init(&confc, &m0_conf_ut_grp, NULL, NULL, local_conf_str);
+	rc = m0_confc_init(confc, &m0_conf_ut_grp, NULL, NULL, local_conf_str);
 	M0_UT_ASSERT(rc == 0);
 #endif
-	rc = m0_confc_open_sync(&fs_obj, confc.cc_root,
+	rc = m0_confc_open_sync(&fs_obj, confc->cc_root,
 			M0_CONF_ROOT_PROFILES_FID,
 			M0_FID_TINIT('p', 1, 0),
 			M0_CONF_PROFILE_FILESYSTEM_FID);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_conf_diter_init(&it, &confc, fs_obj,
+	rc = m0_conf_diter_init(&it, confc, fs_obj,
 			M0_CONF_FILESYSTEM_POOLS_FID,
 			M0_CONF_POOL_PVERS_FID);
 	M0_UT_ASSERT(rc == 0);
@@ -495,7 +496,8 @@ static void test_pv2fd_conv(void)
 
 	m0_conf_diter_fini(&it);
 	m0_confc_close(fs_obj);
-	m0_confc_fini(&confc);
+	m0_confc_fini(confc);
+	m0_free(confc);
 }
 
 static bool __filter_pv(const struct m0_conf_obj *obj)

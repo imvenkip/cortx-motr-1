@@ -336,14 +336,6 @@ M0_INTERNAL void m0_ha_state_accept(const struct m0_ha_nvec *note);
 
 M0_INTERNAL struct m0_rpc_session *m0_ha_session_get(void);
 
-/**
- * Returns interval to notify HA on elapsing one.
- *
- * Intended for cases when some entity malfunction, temporary or not, causes
- * timeout which is worth notifying HA about entity state change.
- */
-M0_INTERNAL m0_time_t m0_ha_notify_interval_get(void);
-
 M0_INTERNAL void m0_conf_ha_callback(struct m0_conf_obj *obj);
 
 enum {
@@ -378,6 +370,8 @@ M0_INTERNAL uint64_t m0_ha_note_handler_add(struct m0_ha_note_handler *hnh,
 M0_INTERNAL void m0_ha_note_handler_signal(struct m0_ha_note_handler *hnh,
                                            struct m0_ha_nvec         *nvec_rep,
                                            uint64_t                   id);
+
+M0_INTERNAL const char *m0_ha_state2str(enum m0_ha_obj_state state);
 
 /** @} end of ha-note group */
 #endif /* __MERO___HA_NOTE_H__ */

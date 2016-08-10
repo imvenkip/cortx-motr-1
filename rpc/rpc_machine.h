@@ -59,8 +59,9 @@ struct m0_rpc_stats {
 	uint64_t rs_nr_timedout_items;
 	uint64_t rs_nr_sent_items_uniq;
 	uint64_t rs_nr_resent_items;
+	uint64_t rs_nr_resend_attempts;
 	uint64_t rs_nr_ha_timedout_items;
-	uint64_t rs_nr_ha_noted_items;
+	uint64_t rs_nr_ha_noted_conns;
 
 	/* Packets */
 	uint64_t rs_nr_rcvd_packets;

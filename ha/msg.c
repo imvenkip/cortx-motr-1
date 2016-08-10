@@ -140,6 +140,11 @@ M0_INTERNAL void m0_ha_msg_debug_print(const struct m0_ha_msg *msg,
 		       data->u.hed_event_service.chs_event,
 		       data->u.hed_event_service.chs_type);
 		return;
+	case M0_HA_MSG_EVENT_RPC:
+		M0_LOG(M0_DEBUG, "EVENT_RPC state=%"PRIu64" attempts=%"PRIu64,
+		       data->u.hed_event_rpc.hmr_state,
+		       data->u.hed_event_rpc.hmr_attempts);
+		return;
 	case M0_HA_MSG_NR:
 		M0_LOG(M0_WARN, "invalid M0_HA_MSG_NR type");
 		return;

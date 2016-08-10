@@ -41,10 +41,45 @@ enum {
 };
 
 M0_INTERNAL bool m0_rpc_conn_invariant(const struct m0_rpc_conn *conn);
+M0_INTERNAL int m0_rpc_conn_ha_timer_start(struct m0_rpc_conn *conn);
+M0_INTERNAL void m0_rpc_conn_ha_timer_stop(struct m0_rpc_conn *conn);
+
+struct m0_rpc_conn_ha_ops {
+	/**
+	 * Conn HA timeout callback intended for reporting transient state to HA
+	 * in case HA subscription exists.
+	 */
+	void (*cho_ha_timer_cb)(struct m0_sm_timer *timer);
+	/**
+	 * HA notification procedure.
+	 */
+	void (*cho_ha_notify)(struct m0_rpc_conn *conn, uint8_t state);
+};
+
+struct m0_rpc_conn_ha_cfg {
+	struct m0_rpc_conn_ha_ops rchc_ops;
+	m0_time_t                 rchc_ha_interval;
+};
 
 static inline int conn_state(const struct m0_rpc_conn *conn)
 {
 	return conn->c_sm.sm_state;
+}
+
+static inline void conn_flag_set(struct m0_rpc_conn *conn, uint64_t flag)
+{
+	conn->c_flags |= flag;
+}
+
+static inline void conn_flag_unset(struct m0_rpc_conn *conn, uint64_t flag)
+{
+	conn->c_flags &= ~flag;
+}
+
+static inline bool conn_flag_is_set(const struct m0_rpc_conn *conn,
+				    uint64_t                  flag)
+{
+	return conn->c_flags & flag;
 }
 
 M0_INTERNAL void conn_state_set(struct m0_rpc_conn *conn, int state);

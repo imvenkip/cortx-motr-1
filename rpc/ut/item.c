@@ -38,11 +38,15 @@ enum {
 	TIMEOUT  = 4
 };
 
-static int __test(void);
-static void __test_timeout(m0_time_t deadline, m0_time_t timeout);
-static void __test_resend(struct m0_fop *fop);
-static void __test_timer_start_failure(void);
+static int _test(void);
+static void _test_timeout(m0_time_t deadline, m0_time_t timeout, bool reset);
+static void _test_resend(struct m0_fop *fop, bool post_sync);
+static void _test_timer_start_failure(void);
+static void _ha_notify(struct m0_rpc_conn *conn, uint8_t state);
+static void _ha_do_not_notify(struct m0_rpc_conn *conn, uint8_t state);
 
+static enum m0_ha_obj_state expected_state;
+static struct m0_fid        expected_fid;
 static struct m0_rpc_machine *machine;
 static struct m0_rpc_session *session;
 static struct m0_rpc_stats    saved;
@@ -54,7 +58,8 @@ static struct m0_rpc_item_type test_item_cache_itype;
 extern const struct m0_sm_conf outgoing_item_sm_conf;
 extern const struct m0_sm_conf incoming_item_sm_conf;
 
-#define IS_INCR_BY_1(p) _0C(saved.rs_ ## p + 1 == stats.rs_ ## p)
+#define IS_INCR_BY_N(p, n) _0C(saved.rs_ ## p + (n) == stats.rs_ ## p)
+#define IS_INCR_BY_1(p) IS_INCR_BY_N(p, 1)
 
 static int ts_item_init(void)   /* ts_ for "test suite" */
 {
@@ -149,11 +154,15 @@ static void test_dropped(struct m0_rpc_item *item)
 
 static void test_timeout(void)
 {
-	int rc;
+	const struct m0_rpc_conn_ha_cfg *rchc_orig = session->s_conn->c_ha_cfg;
+	struct m0_rpc_conn_ha_cfg  rchc_ut = *rchc_orig;
+	int                        rc;
 
 	/* Test2.1: Request item times out before reply reaches to sender.
 		    Delayed reply is then dropped.
 	 */
+	rchc_ut.rchc_ops.cho_ha_notify = _ha_do_not_notify;
+	m0_rpc_conn_ha_cfg_set(session->s_conn, &rchc_ut);
 	M0_LOG(M0_DEBUG, "TEST:2.1:START");
 	fop = fop_alloc(machine);
 	item = &fop->f_item;
@@ -182,15 +191,15 @@ static void test_timeout(void)
 
 	/* Test [ENQUEUED] ---timeout----> [FAILED] */
 	M0_LOG(M0_DEBUG, "TEST:2.2:START");
-	__test_timeout(m0_time_from_now(1, 0),
-		       m0_time(0, 100 * M0_TIME_ONE_MSEC));
+	_test_timeout(m0_time_from_now(1, 0),
+		      m0_time(0, 100 * M0_TIME_ONE_MSEC), true);
 	M0_LOG(M0_DEBUG, "TEST:2.2:END");
 
 	/* Test [URGENT] ---timeout----> [FAILED] */
 	m0_fi_enable("frm_balance", "do_nothing");
 	M0_LOG(M0_DEBUG, "TEST:2.3:START");
-	__test_timeout(m0_time_from_now(-1, 0),
-		       m0_time(0, 100 * M0_TIME_ONE_MSEC));
+	_test_timeout(m0_time_from_now(-1, 0),
+		       m0_time(0, 100 * M0_TIME_ONE_MSEC), true);
 	m0_fi_disable("frm_balance", "do_nothing");
 	M0_LOG(M0_DEBUG, "TEST:2.3:END");
 
@@ -203,16 +212,20 @@ static void test_timeout(void)
 		       the thread that has called buf_send_cb()
 		       comes out of sleep and returns to net layer.
 	 */
-	__test_timeout(m0_time_from_now(-1, 0),
-		       m0_time(0, 100 * M0_TIME_ONE_MSEC));
+	_test_timeout(m0_time_from_now(-1, 0),
+		      m0_time(0, 100 * M0_TIME_ONE_MSEC), true);
 	/* wait until reply is processed */
 	m0_nanosleep(m0_time(0, 500 * M0_TIME_ONE_MSEC), NULL);
 	M0_LOG(M0_DEBUG, "TEST:2.4:END");
 	m0_fi_disable("buf_send_cb", "delay_callback");
+	/* restore HA ops */
+	m0_rpc_conn_ha_cfg_set(session->s_conn, rchc_orig);
+	conn_flag_unset(session->s_conn, RCF_TRANSIENT_SENT);
 }
 
-static void __test_timeout(m0_time_t deadline,
-			   m0_time_t timeout)
+static void _test_timeout(m0_time_t deadline,
+			   m0_time_t timeout,
+			   bool reset)
 {
 	fop = fop_alloc(machine);
 	item = &fop->f_item;
@@ -223,7 +236,7 @@ static void __test_timeout(m0_time_t deadline,
 	M0_UT_ASSERT(item->ri_error == -ETIMEDOUT);
 	M0_UT_ASSERT(item->ri_reply == NULL);
 	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_FAILED));
-	m0_rpc_machine_get_stats(machine, &stats, true);
+	m0_rpc_machine_get_stats(machine, &stats, reset);
 	M0_UT_ASSERT(IS_INCR_BY_1(nr_timedout_items) &&
 		     IS_INCR_BY_1(nr_failed_items));
 	M0_UT_ASSERT(m0_ref_read(&fop->f_ref) == 1);
@@ -238,22 +251,34 @@ static bool only_second_time(void *data)
 	return *ip == 2;
 }
 
-enum m0_ha_obj_state expected_state;
-struct m0_fid        expected_fid;
-
-static void __ha_notify(struct m0_rpc_item *item,
-			struct m0_fid      *fid,
-			uint8_t             state)
+static bool drop_twice(void *data)
 {
+	int *ip = data;
+
+	++*ip;
+	return *ip <= 2;
+}
+
+static void _ha_do_not_notify(struct m0_rpc_conn *conn, uint8_t state)
+{
+}
+
+static void _ha_notify(struct m0_rpc_conn *conn, uint8_t state)
+{
+	struct m0_conf_obj *svc_obj;
+
 	M0_UT_ENTER();
 	/* make sure HA is to be called with expected parameters */
 	M0_UT_ASSERT(expected_state == state);
-	M0_UT_ASSERT(m0_fid_eq(&expected_fid, fid));
+	M0_UT_ASSERT(m0_fid_eq(&expected_fid, &conn->c_svc_fid));
 	/*
 	 * imitate reqh_service_ha_state_set() behavior while sending nothing to
 	 * HA because there is no HA environment up and running to accept a note
 	 */
-	item->ri_rmachine->rm_stats.rs_nr_ha_noted_items++;
+	conn->c_rpc_machine->rm_stats.rs_nr_ha_noted_conns++;
+	svc_obj = m0_rpc_conn2svc(conn);
+	M0_UT_ASSERT(svc_obj != NULL);
+	svc_obj->co_ha_state = state;
 	/* toggle expected state */
 	expected_state = expected_state == M0_NC_TRANSIENT ?
 		M0_NC_ONLINE : M0_NC_TRANSIENT;
@@ -262,7 +287,8 @@ static void __ha_notify(struct m0_rpc_item *item,
 
 static void test_resend(void)
 {
-	struct m0_rpc_item_timeout_ops ritoo_orig = m0_ritoo;
+	const struct m0_rpc_conn_ha_cfg *rchc_orig = session->s_conn->c_ha_cfg;
+	struct m0_rpc_conn_ha_cfg  rchc_ut = *rchc_orig;
 	struct m0_rpc_item *item;
 	int                 rc;
 	int                 cnt       = 0;
@@ -281,21 +307,22 @@ static void test_resend(void)
 
 	m0_rpc_machine_get_stats(machine, &saved, false);
 
-	m0_ritoo.ritoo_ha_notify = __ha_notify;
+	rchc_ut.rchc_ops.cho_ha_notify = _ha_notify;
+	m0_rpc_conn_ha_cfg_set(session->s_conn, &rchc_ut);
 	expected_state = M0_NC_TRANSIENT;
 	expected_fid = sfid;
 
 	/* Test: Request is dropped. */
 	M0_LOG(M0_DEBUG, "TEST:3.1:START");
 	m0_fi_enable_once("item_received_fi", "drop_item");
-	__test_resend(NULL);
+	_test_resend(NULL, true);
 	M0_LOG(M0_DEBUG, "TEST:3.1:END");
 
 	/* Test: Reply is dropped. */
 	M0_LOG(M0_DEBUG, "TEST:3.2:START");
 	m0_fi_enable_func("item_received_fi", "drop_item",
 			  only_second_time, &cnt);
-	__test_resend(NULL);
+	_test_resend(NULL, true);
 	m0_fi_disable("item_received_fi", "drop_item");
 	M0_LOG(M0_DEBUG, "TEST:3.2:END");
 
@@ -326,7 +353,7 @@ static void test_resend(void)
 	m0_fi_enable_once("m0_rpc_reply_post", "delay_reply");
 	fop = fop_alloc(machine);
 	item = &fop->f_item;
-	__test_resend(fop);
+	_test_resend(fop, true);
 	m0_fi_disable("m0_rpc_item_send", "advance_deadline");
 	M0_UT_ASSERT(m0_ref_read(&fop->f_ref) == 1);
 	M0_LOG(M0_DEBUG, "TEST:3.3:END");
@@ -358,7 +385,7 @@ static void test_resend(void)
 	 */
 	M0_LOG(M0_DEBUG, "TEST:3.5.1:START");
 	m0_fi_enable_once("m0_rpc_item_timer_start", "failed");
-	__test_timer_start_failure();
+	_test_timer_start_failure();
 	M0_LOG(M0_DEBUG, "TEST:3.5.1:END");
 
 	/* Test: Move item from WAITING_FOR_REPLY to FAILED state if
@@ -369,7 +396,7 @@ static void test_resend(void)
 	m0_fi_enable_func("m0_rpc_item_timer_start", "failed",
 			  only_second_time, &cnt);
 	m0_fi_enable("item_received_fi", "drop_item");
-	__test_timer_start_failure();
+	_test_timer_start_failure();
 	m0_fi_disable("item_received_fi", "drop_item");
 	m0_fi_disable("m0_rpc_item_timer_start", "failed");
 	m0_rpc_machine_get_stats(machine, &stats, false);
@@ -379,16 +406,17 @@ static void test_resend(void)
 	 */
 	M0_UT_ASSERT(saved.rs_nr_ha_timedout_items <
 		     stats.rs_nr_ha_timedout_items);
-	M0_UT_ASSERT(saved.rs_nr_ha_noted_items <
-		     stats.rs_nr_ha_noted_items);
+	M0_UT_ASSERT(saved.rs_nr_ha_noted_conns <
+		     stats.rs_nr_ha_noted_conns);
 	M0_LOG(M0_DEBUG, "TEST:3.5.2:END");
-	/* restore m0_ritoo */
-	m0_ritoo = ritoo_orig;
+	/* restore HA configuration */
+	m0_rpc_conn_ha_cfg_set(session->s_conn, rchc_orig);
 	/* clean up */
 	m0_rpc_conn_ha_unsubscribe_lock(session->s_conn);
 	M0_UT_ASSERT(session->s_conn->c_ha_clink.cl_chan == NULL);
 	m0_rconfc_stop_sync(cl_rconfc);
 	m0_rconfc_fini(cl_rconfc);
+	conn_flag_unset(session->s_conn, RCF_TRANSIENT_SENT);
 }
 
 static void misordered_item_replied_cb(struct m0_rpc_item *item)
@@ -400,7 +428,7 @@ static const struct m0_rpc_item_ops misordered_item_ops = {
 	.rio_replied = misordered_item_replied_cb
 };
 
-static void __test_resend(struct m0_fop *fop)
+static void _test_resend(struct m0_fop *fop, bool post_sync)
 {
 	bool fop_put_flag = false;
 	int rc;
@@ -410,19 +438,28 @@ static void __test_resend(struct m0_fop *fop)
 		fop_put_flag = true;
 	}
 	item = &fop->f_item;
-	rc = m0_rpc_post_sync(fop, session, NULL, 0 /* urgent */);
+	if (post_sync) {
+		rc = m0_rpc_post_sync(fop, session, NULL, 0 /* urgent */);
+	}
+	else {
+		item->ri_session = session;
+		item->ri_deadline = 0;
+		rc = m0_rpc_post(item);
+	}
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(item->ri_error == 0);
 	M0_UT_ASSERT(item->ri_nr_sent >= 1);
-	M0_UT_ASSERT(item->ri_reply != NULL);
-	M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_REPLIED));
-	if (fop_put_flag) {
+	if (post_sync) {
+		M0_UT_ASSERT(item->ri_reply != NULL);
+		M0_UT_ASSERT(chk_state(item, M0_RPC_ITEM_REPLIED));
+	}
+	if (fop_put_flag && post_sync) {
 		M0_UT_ASSERT(m0_ref_read(&fop->f_ref) == 1);
 		m0_fop_put_lock(fop);
 	}
 }
 
-static void __test_timer_start_failure(void)
+static void _test_timer_start_failure(void)
 {
 	int rc;
 
@@ -460,7 +497,7 @@ static void test_failure_before_sending(void)
 	for (i = 0; i < ARRAY_SIZE(fp); ++i) {
 		M0_LOG(M0_DEBUG, "TEST:4.%d:START", i + 1);
 		m0_fi_enable_once(fp[i].func, fp[i].tag);
-		rc = __test();
+		rc = _test();
 		M0_UT_ASSERT(rc == fp[i].rc);
 		M0_UT_ASSERT(item_rc == fp[i].rc);
 		M0_LOG(M0_DEBUG, "TEST:4.%d:END", i + 1);
@@ -475,7 +512,7 @@ static void test_failure_before_sending(void)
 	M0_LOG(M0_DEBUG, "TEST:5:START");
 	m0_fi_enable("buf_send_cb", "fake_err");
 	m0_fi_enable("item_received_fi", "drop_item");
-	rc = __test();
+	rc = _test();
 	M0_UT_ASSERT(rc == -EINVAL);
 	M0_UT_ASSERT(item_rc == -EINVAL);
 	m0_rpc_machine_get_stats(machine, &stats, false);
@@ -485,7 +522,7 @@ static void test_failure_before_sending(void)
 	m0_fop_put_lock(fop);
 }
 
-static int __test(void)
+static int _test(void)
 {
 	int rc;
 
@@ -1017,7 +1054,9 @@ void __ha_accept_imitate(struct m0_fid *sfid)
 	struct m0_conf_obj *obj;
 
 	M0_ENTRY("fid "FID_F, FID_P(sfid));
-	m0_nanosleep(m0_time(0, m0_ha_notify_interval_get() / 2), NULL);
+	m0_nanosleep(m0_time(0,
+			     session->s_conn->c_ha_cfg->rchc_ha_interval / 2),
+			     NULL);
 	/* Update HA state of the service in client cache and server cache */
 	obj = m0_conf_cache_lookup(&confc->cc_cache, sfid);
 	M0_UT_ASSERT(obj != NULL);
@@ -1032,15 +1071,16 @@ void __ha_accept_imitate(struct m0_fid *sfid)
 
 static void __ha_timer__dummy(struct m0_sm_timer *timer)
 {
-	struct m0_rpc_item *item;
+	struct m0_rpc_conn *conn;
 	struct m0_conf_obj *obj;
 
 	M0_UT_ENTER();
-	item = container_of(timer, struct m0_rpc_item, ri_ha_timer);
-	M0_UT_LOG("item = %p", item);
-	obj = m0_rpc_conn2svc(item2conn(item));
+	conn = container_of(timer, struct m0_rpc_conn, c_ha_timer);
+	M0_ASSERT(conn->c_magic == M0_RPC_CONN_MAGIC);
+	obj = m0_rpc_conn2svc(conn);
 	M0_LOG(M0_DEBUG, "obj = %p, fid "FID_F, obj, FID_P(&obj->co_id));
 	M0_UT_ASSERT(obj->co_ha_state == M0_NC_FAILED);
+	m0_semaphore_up(&wait);
 	M0_UT_RETURN();
 }
 
@@ -1051,21 +1091,20 @@ static bool __ha_service_event(struct m0_clink *link)
 	M0_UT_ENTER();
 	rc = rpc_conn_original_ha_cb(link);
 	M0_UT_LOG("rc = %d", rc);
-	m0_semaphore_up(&wait);
 	M0_UT_RETURN();
 	return rc;
 }
 
 static void test_ha_cancel(void)
 {
+	const struct m0_rpc_conn_ha_cfg *rchc_orig = session->s_conn->c_ha_cfg;
+	struct m0_rpc_conn_ha_cfg  rchc_ut = *rchc_orig;
 	struct m0_reqh     *reqh  = &sctx.rsx_mero_ctx.cc_reqh_ctx.rc_reqh;
 	struct m0_confc    *confc = &reqh->rh_rconfc.rc_confc;
 	struct m0_fid       sfid  = M0_FID_TINIT('s', 1, 25);
 	struct m0_rconfc   *cl_rconfc = &cctx.rcx_reqh.rh_rconfc;
 	struct m0_conf_obj *obj;
 	int                 rc;
-
-	struct m0_rpc_item_timeout_ops ritoo_orig = m0_ritoo;
 
 	rc = m0_rconfc_init(cl_rconfc, m0_locality0_get()->lo_grp, machine,
 			    NULL, NULL);
@@ -1088,7 +1127,8 @@ static void test_ha_cancel(void)
 	 * callback to prevent sending temporary failure status to HA as we have
 	 * no real HA environment running
 	 */
-	m0_ritoo.ritoo_ha_timer_cb = __ha_timer__dummy;
+	rchc_ut.rchc_ops.cho_ha_timer_cb = __ha_timer__dummy;
+	m0_rpc_conn_ha_cfg_set(session->s_conn, &rchc_ut);
 	rc = m0_rpc_conn_ha_subscribe(session->s_conn, &sfid);
 	M0_UT_ASSERT(rc == 0);
 	/* imitate external HA note acceptance */
@@ -1114,8 +1154,8 @@ static void test_ha_cancel(void)
 	m0_semaphore_down(&wait);
 	m0_semaphore_fini(&wait);
 	m0_fop_put_lock(fop);
-	/* restore m0_ritoo */
-	m0_ritoo = ritoo_orig;
+	/* restore HA ops */
+	m0_rpc_conn_ha_cfg_set(session->s_conn, rchc_orig);
 	/* recover connection */
 	rc = m0_rpc_client_stop(&cctx);
 	M0_UT_ASSERT(rc == -ECANCELED);
@@ -1127,6 +1167,127 @@ static void test_ha_cancel(void)
 	obj = m0_conf_cache_lookup(&confc->cc_cache, &sfid);
 	M0_UT_ASSERT(obj != NULL);
 	obj->co_ha_state = M0_NC_ONLINE;
+}
+
+static void test_ha_notify()
+{
+	const struct m0_rpc_conn_ha_cfg *rchc_orig = session->s_conn->c_ha_cfg;
+	struct m0_rpc_conn_ha_cfg  rchc_ut = *rchc_orig;
+	struct m0_fid       sfid      = M0_FID_TINIT('s', 1, 25);
+	struct m0_reqh     *reqh      = &sctx.rsx_mero_ctx.cc_reqh_ctx.rc_reqh;
+	struct m0_rconfc   *cl_rconfc = &cctx.rcx_reqh.rh_rconfc;
+	struct m0_fop      *fop2;
+	int                 cnt       = 0;
+	int                 rc;
+
+	rc = m0_rconfc_init(cl_rconfc, m0_locality0_get()->lo_grp, machine,
+			    NULL, NULL);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_file_read(M0_UT_PATH("conf.xc"), &cl_rconfc->rc_local_conf);
+	M0_UT_ASSERT(rc == 0);
+	m0_rconfc_start(cl_rconfc, &reqh->rh_profile);
+	rc = m0_rpc_conn_ha_subscribe(session->s_conn, &sfid);
+	M0_UT_ASSERT(rc == 0);
+
+	rchc_ut.rchc_ops.cho_ha_notify = _ha_notify;
+	m0_rpc_conn_ha_cfg_set(session->s_conn, &rchc_ut);
+	expected_state = M0_NC_TRANSIENT;
+	expected_fid = sfid;
+
+	m0_rpc_machine_get_stats(machine, &saved, false);
+	/* Test: one item resend, HA must be notified */
+	M0_LOG(M0_DEBUG, "TEST:3.1:START");
+	m0_fi_enable_once("item_received_fi", "drop_item");
+	_test_resend(NULL, true);
+	m0_rpc_machine_get_stats(machine, &stats, true);
+	/*
+	 * rs_nr_ha_noted_conns equals to 2 because the scenario is as follows:
+	 * 1. item_resend() is triggered.
+	 * 2. Notify HA about M0_NC_TRANSIENT state.
+	 * 3. The reply is received after one resend.
+	 * 4. Notify HA about M0_NC_ONLINE state.
+	 */
+	M0_UT_ASSERT(IS_INCR_BY_N(nr_ha_noted_conns, 2) &&
+		     IS_INCR_BY_1(nr_resent_items));
+	M0_LOG(M0_DEBUG, "TEST:3.1:END");
+
+	m0_rpc_machine_get_stats(machine, &saved, false);
+	/*
+	 * Test: an item is resent twice, but HA must be notified only once
+	 * about M0_NC_TRANSIENT state and M0_NC_ONLINE state when the reply is
+	 * received.
+	 */
+	M0_LOG(M0_DEBUG, "TEST:3.2:START");
+	m0_fi_enable_func("item_received_fi", "drop_item",
+			  drop_twice, &cnt);
+	_test_resend(NULL, true);
+	m0_fi_disable("item_received_fi", "drop_item");
+	m0_rpc_machine_get_stats(machine, &stats, true);
+	M0_UT_ASSERT(IS_INCR_BY_N(nr_ha_noted_conns, 2) &&
+		     IS_INCR_BY_N(nr_resend_attempts, 2));
+	M0_LOG(M0_DEBUG, "TEST:3.2:END");
+
+	m0_rpc_machine_get_stats(machine, &saved, false);
+	/*
+	 * Test: two items are resent, but HA must be notified only once about
+	 * M0_NC_TRANSIENT state and M0_NC_ONLINE state when the reply is
+	 * received.
+	 */
+	M0_LOG(M0_DEBUG, "TEST:3.3:START");
+	cnt = 0;
+	m0_fi_enable_func("item_received_fi", "drop_item",
+			  drop_twice, &cnt);
+	fop = fop_alloc(machine);
+	fop2 = fop_alloc(machine);
+	_test_resend(fop, false);
+	_test_resend(fop2, false);
+	rc = m0_rpc_item_wait_for_reply(&fop->f_item, M0_TIME_NEVER);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_rpc_item_wait_for_reply(&fop2->f_item, M0_TIME_NEVER);
+	M0_UT_ASSERT(rc == 0);
+	m0_fi_disable("item_received_fi", "drop_item");
+	M0_UT_ASSERT(fop->f_item.ri_nr_sent == 2);
+	M0_UT_ASSERT(fop2->f_item.ri_nr_sent == 2);
+	m0_fop_put_lock(fop);
+	m0_fop_put_lock(fop2);
+	m0_rpc_machine_get_stats(machine, &stats, true);
+	M0_UT_ASSERT(IS_INCR_BY_N(nr_ha_noted_conns, 2) &&
+		     IS_INCR_BY_N(nr_resent_items, 2));
+	M0_LOG(M0_DEBUG, "TEST:3.3:END");
+	/*
+	 * Test: item_timeout() occurs, notify HA about M0_NC_TRANSIENT state.
+	 */
+	m0_rpc_machine_get_stats(machine, &saved, false);
+	_test_timeout(m0_time_from_now(1, 0),
+		      m0_time(0, 100 * M0_TIME_ONE_MSEC), false);
+	while (m0_sm_timer_is_armed(&session->s_conn->c_ha_timer))
+		m0_nanosleep(M0_TIME_ONE_MSEC, NULL);
+	m0_rpc_machine_get_stats(machine, &stats, false);
+	M0_UT_ASSERT(IS_INCR_BY_1(nr_ha_noted_conns));
+	_test_timeout(m0_time_from_now(1, 0),
+		      m0_time(0, 100 * M0_TIME_ONE_MSEC), false);
+	while (m0_sm_timer_is_armed(&session->s_conn->c_ha_timer))
+		m0_nanosleep(M0_TIME_ONE_MSEC, NULL);
+	m0_rpc_machine_get_stats(machine, &stats, true);
+	M0_UT_ASSERT(saved.rs_nr_ha_noted_conns == stats.rs_nr_ha_noted_conns);
+	/*
+	 * Report about M0_NC_ONLINE state if a reply was received for another
+	 * item after timeout happens.
+	 */
+	m0_rpc_machine_get_stats(machine, &saved, false);
+	fop = fop_alloc(machine);
+	rc = m0_rpc_post_sync(fop, session, NULL, 0 /* urgent */);
+	M0_UT_ASSERT(rc == 0);
+	m0_fop_put_lock(fop);
+	m0_rpc_machine_get_stats(machine, &stats, false);
+	M0_UT_ASSERT(IS_INCR_BY_1(nr_ha_noted_conns));
+	/* restore HA ops */
+	m0_rpc_conn_ha_cfg_set(session->s_conn, rchc_orig);
+	/* clean up */
+	m0_rpc_conn_ha_unsubscribe_lock(session->s_conn);
+	M0_UT_ASSERT(session->s_conn->c_ha_clink.cl_chan == NULL);
+	m0_rconfc_stop_sync(cl_rconfc);
+	m0_rconfc_fini(cl_rconfc);
 }
 
 struct m0_ut_suite item_ut = {
@@ -1144,6 +1305,7 @@ struct m0_ut_suite item_ut = {
 		{ "cancel",                 test_cancel_item            },
 		{ "ha-cancel",              test_ha_cancel              },
 		{ "cancel-session",         test_cancel_session         },
+		{ "ha-notify",              test_ha_notify              },
 		{ NULL, NULL },
 	}
 };

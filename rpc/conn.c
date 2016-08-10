@@ -36,6 +36,8 @@
 #include "conf/obj_ops.h"     /* m0_conf_obj_get, m0_conf_obj_put */
 #include "conf/cache.h"       /* m0_conf_cache_lock, m0_conf_cache_unlock */
 #include "ha/note.h"          /* M0_NC_FAILED */
+#include "ha/msg.h"           /* M0_HA_MSG_EVENT_RPC */
+#include "ha/ha.h"            /* m0_ha_send */
 
 /**
    @addtogroup rpc_session
@@ -55,6 +57,26 @@ static void rpc_conn_sessions_cleanup_fail(struct m0_rpc_conn *conn, bool fail);
 static bool rpc_conn__on_cache_expired_cb(struct m0_clink *clink);
 static bool rpc_conn__on_cache_ready_cb(struct m0_clink *clink);
 static struct m0_confc *rpc_conn2confc(const struct m0_rpc_conn *conn);
+static void rpc_conn_ha_timer_cb(struct m0_sm_timer *timer);
+static void reqh_service_ha_state_set(struct m0_rpc_conn *conn, uint8_t state);
+
+enum {
+	/**
+	 * Interval being elapsed after rpc item sending has to result in
+	 * sending M0_NC_TRANSIENT state to HA.
+	 *
+	 * default value, in milliseconds
+	 */
+	RPC_HA_INTERVAL = 500 * M0_TIME_ONE_MSEC,
+};
+
+static struct m0_rpc_conn_ha_cfg rpc_conn_ha_cfg = {
+	.rchc_ops = {
+		.cho_ha_timer_cb = rpc_conn_ha_timer_cb,
+		.cho_ha_notify   = reqh_service_ha_state_set,
+	},
+	.rchc_ha_interval = RPC_HA_INTERVAL
+};
 
 /**
    Attaches session 0 object to conn object.
@@ -316,12 +338,18 @@ static struct m0_confc *rpc_conn2confc(const struct m0_rpc_conn *conn)
 
 M0_INTERNAL struct m0_conf_obj *m0_rpc_conn2svc(const struct m0_rpc_conn *conn)
 {
+	struct m0_conf_obj *obj;
 
-	if (m0_fid_is_set(&conn->c_svc_fid))
-		return  m0_conf_cache_lookup(&rpc_conn2confc(conn)->cc_cache,
-					     &conn->c_svc_fid);
-	else
+	if (!m0_fid_is_set(&conn->c_svc_fid))
 		return NULL;
+
+	M0_ASSERT(m0_conf_fid_type(&conn->c_svc_fid) == &M0_CONF_SERVICE_TYPE);
+	obj = m0_conf_cache_lookup(&rpc_conn2confc(conn)->cc_cache,
+				   &conn->c_svc_fid);
+	if (obj == NULL)
+		M0_LOG(M0_WARN, FID_F" not found in cache",
+				FID_P(&conn->c_svc_fid));
+	return obj;
 }
 
 static void __conn_ha_subscribe(struct m0_rpc_conn *conn)
@@ -382,6 +410,7 @@ static int __conn_init(struct m0_rpc_conn      *conn,
 	conn->c_rpc_machine = machine;
 	conn->c_sender_id   = SENDER_ID_INVALID;
 	conn->c_nr_sessions = 0;
+	conn->c_ha_cfg      = &rpc_conn_ha_cfg;
 
 	m0_clink_init(&conn->c_ha_clink, rpc_conn__on_service_event_cb);
 	__conn_ha_subscribe(conn);
@@ -467,6 +496,7 @@ static void __conn_fini(struct m0_rpc_conn *conn)
 	M0_PRE(!m0_clink_is_armed(&conn->c_ha_clink));
 	m0_clink_cleanup(&conn->c_conf_exp_clink);
 	m0_clink_cleanup(&conn->c_conf_ready_clink);
+	m0_rpc_conn_ha_timer_stop(conn);
 
 	rpc_chan_put(conn->c_rpcchan);
 
@@ -1332,4 +1362,128 @@ static bool rpc_conn__on_cache_expired_cb(struct m0_clink *clink)
 	m0_conf_cache_unlock(cc);
 	return true;
 }
-/** @} */
+
+M0_INTERNAL int m0_rpc_conn_ha_timer_start(struct m0_rpc_conn *conn)
+{
+	M0_ENTRY("conn %p", conn);
+	M0_PRE(m0_rpc_machine_is_locked(conn->c_rpc_machine));
+	if (!m0_fid_is_set(&conn->c_svc_fid))
+		return M0_RC(0); /* there's no point to arm the timer */
+	if (m0_sm_timer_is_armed(&conn->c_ha_timer))
+		return M0_RC(0); /* Already started */
+	else
+		m0_sm_timer_fini(&conn->c_ha_timer);
+	m0_sm_timer_init(&conn->c_ha_timer);
+	return M0_RC(m0_sm_timer_start(&conn->c_ha_timer,
+				       &conn->c_rpc_machine->rm_sm_grp,
+				       conn->c_ha_cfg->rchc_ops.cho_ha_timer_cb,
+				       m0_time_add(m0_time_now(),
+					      conn->c_ha_cfg->rchc_ha_interval))
+		);
+}
+
+M0_INTERNAL void m0_rpc_conn_ha_timer_stop(struct m0_rpc_conn *conn)
+{
+	M0_PRE(m0_rpc_machine_is_locked(conn->c_rpc_machine));
+	if (m0_sm_timer_is_armed(&conn->c_ha_timer)) {
+		M0_LOG(M0_DEBUG, "Cancelling HA timer; rpc conn=%p", conn);
+		m0_sm_timer_cancel(&conn->c_ha_timer);
+	}
+}
+
+/**
+ * HA needs to be notified in case rpc item is not replied within the timer's
+ * interval. This is to indicate that peered service may experience issues with
+ * networking, and thus the service status has to be considered M0_NC_TRANSIENT
+ * until reply comes back to sender.
+ *
+ * @note The update is to be sent on every timer triggering, i.e. on every
+ * re-send of the item.
+ *
+ * See item__on_reply_postprocess() for complimentary part of the item's
+ * processing.
+ */
+static void rpc_conn_ha_timer_cb(struct m0_sm_timer *timer)
+{
+	struct m0_rpc_conn *conn;
+	struct m0_conf_obj *svc_obj;
+
+	M0_ENTRY();
+	M0_PRE(timer != NULL);
+
+	conn = container_of(timer, struct m0_rpc_conn, c_ha_timer);
+	conn->c_rpc_machine->rm_stats.rs_nr_ha_timedout_items++;
+	M0_ASSERT(conn->c_magic == M0_RPC_CONN_MAGIC);
+	M0_ASSERT(m0_rpc_machine_is_locked(conn->c_rpc_machine));
+	svc_obj = m0_rpc_conn2svc(conn);
+	if (svc_obj != NULL && !conn_flag_is_set(conn, RCF_TRANSIENT_SENT) &&
+	    svc_obj->co_ha_state == M0_NC_ONLINE) {
+		conn->c_ha_cfg->rchc_ops.cho_ha_notify(conn, M0_NC_TRANSIENT);
+		conn_flag_set(conn, RCF_TRANSIENT_SENT);
+	}
+	M0_LEAVE();
+}
+
+static void reqh_service_ha_state_set(struct m0_rpc_conn *conn, uint8_t state)
+{
+	struct m0_ha_msg *msg;
+	uint64_t          tag;
+
+	M0_ENTRY("conn %p, svc_fid "FID_F", state %s", conn,
+		 FID_P(&conn->c_svc_fid), m0_ha_state2str(state));
+
+	M0_PRE(m0_fid_is_set(&conn->c_svc_fid));
+	M0_PRE(m0_conf_fid_type(&conn->c_svc_fid) == &M0_CONF_SERVICE_TYPE);
+	M0_PRE(M0_IN(state, (M0_NC_TRANSIENT, M0_NC_ONLINE)));
+	M0_PRE(m0_rpc_machine_is_locked(conn->c_rpc_machine));
+
+	conn->c_ha_attempts++;
+	if (conn_flag_is_set(conn, RCF_TRANSIENT_SENT)) {
+		M0_LOG(M0_DEBUG, "Already reported about TRANSIENT");
+		goto leave;
+	}
+
+	M0_ALLOC_PTR(msg);
+	if (msg == NULL) {
+		M0_LOG(M0_ERROR, "can't allocate memory for msg");
+		goto leave;
+	}
+	*msg = (struct m0_ha_msg){
+		.hm_fid  = conn->c_svc_fid,
+		.hm_time = m0_time_now(),
+		.hm_data = {
+			.hed_type        = M0_HA_MSG_EVENT_RPC,
+			.u.hed_event_rpc = {
+				.hmr_state = state,
+				.hmr_attempts = conn->c_ha_attempts
+			},
+		},
+	};
+	m0_ha_send(m0_get()->i_ha, m0_get()->i_ha_link, msg, &tag);
+	m0_free(msg);
+	conn->c_rpc_machine->rm_stats.rs_nr_ha_noted_conns++;
+	M0_LOG(M0_DEBUG, "tag=%"PRIu64, tag);
+leave:
+	M0_LEAVE();
+}
+
+M0_INTERNAL void m0_rpc_conn_ha_cfg_set(struct m0_rpc_conn              *conn,
+					const struct m0_rpc_conn_ha_cfg *cfg)
+{
+	m0_rpc_machine_lock(conn->c_rpc_machine);
+	conn->c_ha_cfg = cfg;
+	m0_rpc_machine_unlock(conn->c_rpc_machine);
+}
+
+#undef M0_TRACE_SUBSYSTEM
+/** @} end of rpc group */
+
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */

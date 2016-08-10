@@ -92,6 +92,7 @@ static struct m0_confc              *confc = &csb.csb_reqh.rh_rconfc.rc_confc;
 static struct m0_rm_remote           creditor;
 static bool                          runast = false;
 static struct m0_fid                 profile;
+static struct m0_rpc_conn            conn;
 
 M0_TL_DESCR_DECLARE(rpcbulk, M0_EXTERN);
 M0_TL_DECLARE(rpcbulk, M0_INTERNAL, struct m0_rpc_bulk_buf);
@@ -865,7 +866,6 @@ static void target_ioreq_test(void)
 	uint64_t                    size;
 	struct m0_fid               cfid;
 	struct m0_rpc_session       session = { .s_cancelled = false };
-	struct m0_rpc_conn          conn    = { .c_svc_fid   = M0_FID0 };
 	struct io_req_fop          *irfop;
 	int                         cnt;
 	int                         rc;
@@ -886,7 +886,7 @@ static void target_ioreq_test(void)
 	M0_SET0(&req);
 	req.ir_sm.sm_state = IRS_READING;
 
-	conn.c_rpc_machine = &csb.csb_rpc_machine;
+	conn = (struct m0_rpc_conn) { .c_rpc_machine = &csb.csb_rpc_machine };
 	session.s_conn = &conn;
 	session.s_sm.sm_state = M0_RPC_SESSION_IDLE;
 
@@ -1037,7 +1037,6 @@ static void dgmode_readio_test(void)
 	struct io_request          *req;
 	struct io_req_fop          *irfop;
 	struct m0_indexvec          ivec;
-	struct m0_rpc_conn         *conn;
 	struct m0_rpc_bulk         *rbulk;
 	struct pargrp_iomap        *map;
 	struct target_ioreq        *ti;
@@ -1091,12 +1090,10 @@ static void dgmode_readio_test(void)
 	ti->ti_dgvec = &dgvec_tmp;
 	M0_ALLOC_PTR(session);
 	M0_UT_ASSERT(session != NULL);
-	M0_ALLOC_PTR(conn);
-	M0_UT_ASSERT(conn != NULL);
 	session->s_sm.sm_state = M0_RPC_SESSION_IDLE;
-	session->s_conn = conn;
-	conn->c_rpc_machine = &csb.csb_rpc_machine;
-	conn->c_rpc_machine->rm_tm.ntm_dom = &csb.csb_ndom;
+	session->s_conn = &conn;
+	conn = (struct m0_rpc_conn) { .c_rpc_machine = &csb.csb_rpc_machine };
+	conn.c_rpc_machine->rm_tm.ntm_dom = &csb.csb_ndom;
 	ti->ti_session = session;
 
 	/* Creates IO fops from pages. */
@@ -1109,7 +1106,7 @@ static void dgmode_readio_test(void)
 			       &csb.csb_rpc_machine);
 	reply = m0_fop_alloc(&m0_fop_cob_readv_rep_fopt, NULL,
 			     &csb.csb_rpc_machine);
-	reply->f_item.ri_rmachine = conn->c_rpc_machine;
+	reply->f_item.ri_rmachine = conn.c_rpc_machine;
 	irfop->irf_iofop.if_fop.f_item.ri_reply = &reply->f_item;
 
 	/* Increments refcount so that ref release can be verified. */

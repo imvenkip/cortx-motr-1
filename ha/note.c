@@ -408,6 +408,23 @@ M0_INTERNAL void m0_ha_note_handler_signal(struct m0_ha_note_handler *hnh,
 	m0_free(hsg);
 }
 
+M0_INTERNAL const char *m0_ha_state2str(enum m0_ha_obj_state state)
+{
+#define S_CASE(x) case x: return # x
+	switch (state) {
+	S_CASE(M0_NC_UNKNOWN);
+	S_CASE(M0_NC_ONLINE);
+	S_CASE(M0_NC_FAILED);
+	S_CASE(M0_NC_TRANSIENT);
+	S_CASE(M0_NC_REPAIR);
+	S_CASE(M0_NC_REPAIRED);
+	S_CASE(M0_NC_REBALANCE);
+	default:
+		M0_IMPOSSIBLE("Invalid state: %d", state);
+	}
+#undef S_CASE
+}
+
 #undef M0_TRACE_SUBSYSTEM
 
 /*
