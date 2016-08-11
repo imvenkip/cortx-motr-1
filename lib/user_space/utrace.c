@@ -385,7 +385,7 @@ M0_INTERNAL int m0_trace_parse(FILE *trace_file, FILE *output_file,
 	size_t     size;
 	char      *buf;
 
-	static char  yaml_buf[16 * 1024]; /* 16 KB */
+	static char  yaml_buf[256 * 1024]; /* 256 KB */
 
 	tbh = read_trace_buf_header(trace_file);
 	if (tbh == NULL)
@@ -474,8 +474,7 @@ M0_INTERNAL int m0_trace_parse(FILE *trace_file, FILE *output_file,
 		if (rc == 0)
 			fprintf(output_file, "%s", yaml_buf);
 		else
-			warnx("Internal buffer is to small to hold trace"
-			      " record");
+			warnx("Internal buffer is too small to hold trace record");
 		m0_free(buf);
 	}
 	return EX_OK;
