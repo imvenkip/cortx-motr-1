@@ -978,37 +978,38 @@ __END__
 
 =head1 NAME
 
-m0trace - display Mero trace logs in human friendly form
+m0trace - display Mero trace logs in a human-friendly format
 
 =head1 SYNOPSIS
 
-m0trace  kernel[-buf] | confd[-buf] | iosX[-buf] | mdsX[-buf]
+m0trace  kernel[-buf] | ha[-buf] | confd[-buf] | iosX[-buf] | mdsX[-buf]
 
-m0trace  [-i|--input <ifile>] [-o|--output <ofile>]
+m0trace  [-i|--input IFILE] [-o|--output OFILE]
          [-S|--stream-mode] [-Y|--yaml-output] [--no-pager] [--no-relpath]
-         [-w|--column-width <num>] [-c|-C|--color=MODE] [-d] [-k|--kdump]
-         [--flush-output] [-I|--module-image=<FILE>] [-L|--log-dir=DIR]
-         [-H|--dump-header] [-F|--follow] [-M|--match-only] [-f|--format=FMT]
-         [-a|--stackaddr-width] [-A|--stackaddr-hl] [-l|--level=LVL]
-         [-s|--subsys=SBS] [-e|--file=FL] [-u|--func=FUN] [-m|--msg=MSG]
+         [-w|--column-width NUM] [-c|-C|--color MODE] [-d] [-k|--kdump]
+         [--flush-output] [-I|--module-image FILE] [-L|--log-dir DIR]
+         [-H|--dump-header] [-F|--follow] [-M|--match-only] [-f|--format FMT]
+         [-a|--stackaddr-width] [-A|--stackaddr-hl] [-l|--level LVL]
+         [-s|--subsys SBS] [-e|--file FL] [-u|--func FUN] [-m|--msg MSG]
          [-h|--help] [--usage] [--man]
 
 =head1 DESCRIPTION
 
-This program displays Mero trace log in human friendly form, allowing to
-filter log entries by various parameters, like log level, subsystem, file,
+This utility displays Mero trace log in a human-friendly format, including
+filtering log entries by various parameters, like log level, subsystem, file,
 func name, etc.
 
-It accepts trace log data on STDIN or from file, in binary or in YAML format,
+It reads trace log data from STDIN or from file, in binary or in YAML format,
 see B<-i|--input> option.
 
 =head1 ARGUMENTS
 
-A mero service name can be provided as an optional argument, like I<kernel>,
-I<confd>, I<ha>, I<mds> or I<ios>. If specified, C<m0trace> will automatically
-pick a latest trace file for that service. Additionally to that, a service name
-can be followed by C<-buf> suffix, in that case C<m0trace> will use the
-I<mmaped> trace buffer of C<m0d> process directly.
+A Mero service name can be provided as an optional argument, like I<kernel>,
+I<confd>, I<ha>, I<mds>, I<ios> or I<m0d@FID>. If specified, C<m0trace> will
+automatically pick the latest trace file for that service. Additionally to that,
+a service name can be followed by C<-buf> suffix, in that case C<m0trace> will
+use the I<mmaped> trace buffer of C<m0d> process directly (a so-called
+C<m0trace.PID> file).
 
 =head1 OPTIONS
 
@@ -1017,39 +1018,38 @@ I<mmaped> trace buffer of C<m0d> process directly.
 =item B<-i|--input=I<ifile>>
 
 Input file name, if omitted then STDIN is used by default. If input comes from
-STDIN or input file has *.yml *.yaml or *.log extension, then it's assumed to be
-a text file in YAML format (it's possible to use compressed logs if filename has
-*.yml.gz or *.yml.bz2 extension). Otherwise it's assumed to be a raw binary
-trace data and in this case it will be converted into YAML format first, with
-the help of B<m0tracedump> utility, which creates a temporary file in the
-current directory.  Temporary file is not used if m0trace operates in "stream
+STDIN or input file has C<*.yml>, C<*.yaml> or C<*.log> extension, then it's
+assumed to be a text file in YAML format (C<m0trace> recognizes compressed YAML
+logs if file has C<*.gz> or C<*.bz2> extension). Otherwise it's assumed to be a
+raw binary trace data and in that case it is converted into YAML format first,
+with the help of B<m0tracedump> utility, which creates a temporary file in the
+current directory. Temporary file is not used if m0trace operates in "stream
 mode"(see B<-s|--stream-mode> option below).
 
 =item B<-o|--output=I<ofile>>
 
 Output file name, if omitted then STDOUT is used by default.
 
-=item B<-S|--stream-mode>
+=item B<--no-stream-mode>
 
-By default, B<m0trace> expects that YAML log contains all trace records
-formatted as a single YAML document, which requires to read a whole YAML log,
-before it can be processed (displayed, filtered, etc.). With this option,
-B<m0trace> expects that each trace record in log file is represented as a
-separate YAML document, which allows to read each trace record from log file one
-by one and display/filter them immediately. This is handy when reading trace log
-from STDIN and not from file.
+By default, B<m0trace> expects that each trace record in log file is represented
+as a separate YAML document, which allows to read them one by one and
+display/filter results immediately. With this option, C<m0trace> treats trace log
+as a single YAML document, which requires to read it as a whole before it can be
+processed (displayed, filtered, etc.). This is a legacy mode, which proved to be
+slow and memory-consuming.
 
 This option implies that YAML trace log was produces by B<m0tracedump> with
-B<-s> option.
+B<-S> option.
 
 =item B<-Y|--yaml-output>
 
-Don't perform any parsing of input stream, simply redirect it into output. As
-input is always in YAML format, this produces a raw YAML output as well.
+Don't perform any parsing of input stream, simply redirect it as output. Because
+input is always in YAML format, this produces a raw YAML output.
 
 =item B<--no-pager>
 
-Don't use pager (less) to display results.
+Don't use pager (C<less>) to display results.
 
 =item B<--flush-output>
 
@@ -1060,13 +1060,13 @@ Flush output file after writing each trace record.
 Use full path when displaying name of a source file to which a trace record
 belongs.
 
-=item B<-w|--column-width <num>>
+=item B<-w|--column-width=I<num>>
 
 Set column width for columns which support it (so far there is only one -
 file/line/func from 'med' format). Use C<-w0> for minimal width. By default it's
-set to 30.
+set to I<30>.
 
-=item B<--color=I<MODE>|-c|-C>
+=item B<-c|-C|--color=I<MODE>>
 
 Controls, whether to colorize output, depending on trace level of each record.
 MODE can be:
@@ -1075,28 +1075,29 @@ MODE can be:
 
 =item *
 I<auto> - detect type of output file (terminal, file, or pipe) and use colors if
-output goes to a terminal, this is a default;
+output goes to a terminal, this is default;
 
 =item *
-I<always> - always use colors no matter what is the type of output file;
+I<always> - always use colors no matter what is the type of output file,
+same as C<-c>;
 
 =item *
-I<never> - never use colors.
+I<never> - never use colors, same as C<-C>.
 
 =back
 
 =item B<-d>
 
-Use hard-coded '/usr/bin' path for m0tracedump (it can be handy when there are
+Use hard-coded C</usr/bin/> path for m0tracedump (it can be handy when there are
 two versions of m0tracedump in the PATH - one from rpm and one from workdir).
 
 =item B<-L|--log-dir=I<DIR>>
 
-Path to a directory where to look for trace files, by default is '/var/log/mero'.
+Path to a directory where to look for trace files, by default is C</var/log/mero>.
 
 =item B<-k|--kdump>
 
-Indicates that input file is a kernel crash dump, produced by C<kdump> service.
+Indicates that input file is a kernel crash dump, produced by C<kdump>.
 
 =item B<-I|--module-image=I<FILE>>
 
@@ -1104,25 +1105,24 @@ Core image of m0mero.ko module, required to analize kernel space trace logs.
 
 =item B<-H|--dump-header>
 
-Only print trace file header and exit. Option --no-pager is ignored.
+Only print trace file header and exit. Option --pager is ignored.
 
 =item B<-F|--follow>
 
 Monitor trace file and print trace records as soon as they appear in the file.
-Starts at a current position in the trace buffer. Implies B<-S|--stream-mode>.
+Starts at the current position in the trace buffer.
 
 =item B<-M|--match-only>
 
 By default, trace records with level I<warn+> are always printed disregarding
 whether they match filters (like B<--file>, B<--func>, B<--msg>, etc.) or not.
-With this option, only matched trace records are printed, no matter which level
-they have.
+With this option, only records that match filters are printed.
 
 =item B<-f|--format=I<FMT>>
 
 Controls amount of information, which is displayed for each trace record, and
 how it looks. Possible values for FMT are: I<short>, I<med> (default one),
-I<full> and I<custom:STR>. I<custom> format is special, it accepts a format
+I<full> and I<custom:STR>. The last one is special, it accepts a format
 string, which goes after a colon, and it may have the following placeholders:
 
 =over 4
@@ -1176,11 +1176,11 @@ Width of stack-address column.
 
 =item B<-A|--stackaddr-hl>
 
-Number of color-highlight positions in stack adress.
+Number of color-highlighted positions in stack adress.
 
 =item B<-l|--level=I<LVL>>
 
-Display only trace records with specified log level. LVL is a coma separated
+Display only trace records with specified log level. I<LVL> is a coma separated
 list of log levels, where each level can be one of:
 
 =over 4
@@ -1209,9 +1209,9 @@ I<call>
 =back
 
 A special log levels with '+' at the end of level name can be used. They mean
-"all levels from current and above". For example, I<warn+> means display I<warn>
-I<error> and I<fatal> levels. A default one is I<call+>, which means display
-trace records from all levels.
+"all levels from current and above". For example, I<warn+> means displaying
+I<warn>, I<error> and I<fatal> levels. The default one is I<call+>, which means
+displaying records from all levels.
 
 Example:
 
@@ -1219,14 +1219,14 @@ Example:
 
 =item B<-s|--subsys=I<SBS>>
 
-Display only trace records from specified Mero subsystem. SBS is a coma
-separated list of subsystem names. If SBS starts with I<!> it means reverse -
-display all subsystems except specified. A special subsystem I<all> means
-display all subsystems (this is a default).
+Display only trace records from specified Mero subsystem. I<SBS> is a coma
+separated list of subsystem names. If I<SBS> starts with C<!> it means reverse -
+display all subsystems except specified. A special subsystem I<all> means display
+all subsystems (this is the default).
 
 =item B<-e|--file=I<FL>>
 
-Display only trace records from specified source file. FL is a perl regex.
+Display only trace records from specified source file. I<FL> is a C<perl> regex.
 
 Example:
 
@@ -1235,7 +1235,7 @@ Example:
 
 =item B<-u|--func=I<FUN>>
 
-Display only trace records from specified function. FUN is a perl regex.
+Display only trace records from specified function. I<FUN> is a C<perl> regex.
 
 Example:
 
@@ -1244,7 +1244,8 @@ Example:
 
 =item B<-m|--msg=I<MSG>>
 
-Display only trace records, which have specified message. MSG is a perl regex.
+Display only trace records, which have specified message. I<MSG> is a C<perl>
+regex.
 
 Example:
 
