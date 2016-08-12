@@ -298,11 +298,18 @@ sub validate_subsys
     my $subsys  = shift;
 
     my @allowed_subsys = sort qw(
-        addb       balloc     cm      cob   conf  fop
-        formation  ioservice  layout  lnet  m0d   m0t1fs
-        memory     mgmt       net     pool  rm    rpc
-        sns        snscm      stob    adstob      extmap
         all
+        addb     extmap     m0d     sns
+        adstob   fd         m0t1fs  snscm
+        balloc   file       mds     spiel
+        be       fol        memory  sss
+        btree    fop        mgmt    stats
+        cas      formation  net     stob
+        cm       ha         other   ut
+        cob      ioservice  pool    xcode
+        conf     layout     rm
+        console  lib        rpc
+        dtm      lnet       sm
     );
     my $subsys_token = join '|', @allowed_subsys;
 
