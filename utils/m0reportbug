@@ -3,12 +3,14 @@ set -eu
 # set -x
 export PS4='+ [${FUNCNAME[0]:+${FUNCNAME[0]}:}${LINENO}] '
 
-VERSION=0.14.2
+VERSION=0.14.3
 ###
 ### History:
 ###
 ### Date       Version Description
 ### ---------- ------- ----------------------------------------------------
+### 2016-08-15 0.14.3  Get /var/log/halon.decision.log.
+###
 ### 2016-05-29 0.14.2  Don't query free space of `m0t1fs' and `nfs' mount
 ###                    point(s).
 ###
@@ -226,7 +228,9 @@ misc_files() {
                 echo $f
                 grep '^MERO_CONF_XC=' $f | cut -d\' -f2 # may produce duplicates
             done | sort -u
-        if [ -f /tmp/halond.log ]; then echo /tmp/halond.log; fi
+        for f in /var/log/halon.decision.log /tmp/halond.log; do
+            if [ -f $f ]; then echo $f; fi
+        done
     } | while read path; do
         [ "$path" != "${path#/}" ] || {
             warn "${FUNCNAME[0]}: Absolute path expected: $path"
