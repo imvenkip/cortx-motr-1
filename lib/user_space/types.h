@@ -26,7 +26,9 @@
 /* See 7.18.2 Limits of specified-width integer types in C99 */
 /* This is needed because gccxml compiles it in C++ mode. */
 #ifdef __cplusplus
+#ifndef __STDC_LIMIT_MACROS
 #  define  __STDC_LIMIT_MACROS 1
+#endif
 #endif
 
 #include <stdint.h>
