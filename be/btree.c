@@ -421,9 +421,7 @@ static void btree_insert_key(struct m0_be_btree *btree,
 		btree_insert_nonfull(btree, tx, new_root, kv);
 
 		/* Update tree structure itself */
-		/* XXX not needed right now */
 		mem_update(btree, tx, btree, sizeof(struct m0_be_btree));
-		btree_node_update(btree->bb_root, btree, tx);
 	} else
 		btree_insert_nonfull(btree, tx, rnode, kv);
 
@@ -1093,6 +1091,13 @@ static void kv_delete_credit(const struct m0_be_btree     *tree,
 	m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT_TYPE(struct bt_key_val));
 }
 
+static void btree_node_split_child_credit(const struct m0_be_btree *tree,
+					  struct m0_be_tx_credit   *accum)
+{
+	btree_node_alloc_credit(tree, accum);
+	btree_node_update_credit(accum, 3);
+}
+
 static void insert_credit(const struct m0_be_btree *tree,
 			  m0_bcount_t               nr,
 			  m0_bcount_t               ksize,
@@ -1108,9 +1113,16 @@ static void insert_credit(const struct m0_be_btree *tree,
 	else
 		height = BTREE_HEIGHT_MAX;
 
-	btree_node_alloc_credit(tree, &cred);
-	btree_node_update_credit(&cred, 3); /* see btree_split_child() */
+	/* for btree_insert_nonfull() */
+	btree_node_split_child_credit(tree, &cred);
 	m0_be_tx_credit_mul(&cred, height);
+	btree_node_update_credit(&cred, 1);
+
+	/* for btree_insert_key() */
+	btree_node_alloc_credit(tree, &cred);
+	btree_node_split_child_credit(tree, &cred);
+	m0_be_tx_credit_add(&cred,
+			    &M0_BE_TX_CREDIT(1, sizeof(struct m0_be_btree)));
 
 	kv_insert_credit(tree, ksize, vsize, &cred);
 	m0_be_tx_credit_mac(accum, &cred, nr);
