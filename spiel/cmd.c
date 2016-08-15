@@ -1491,18 +1491,24 @@ static void spiel__fs_stats_ctx_update(const struct m0_fid  *proc_fid,
 	if (rc >= M0_HEALTH_GOOD) {
 		/* some real health returned, not error code */
 		reply_data = spiel_process_reply_data(reply_fop);
-		if (m0_addu64_will_overflow(reply_data->sspr_free,
-					    fsx->fx_free)) {
+
+		if (m0_addu64_will_overflow(reply_data->sspr_free_seg,
+					    fsx->fx_free_seg) ||
+		    m0_addu64_will_overflow(reply_data->sspr_total_seg,
+					    fsx->fx_total_seg) ||
+		    m0_addu64_will_overflow(reply_data->sspr_free_disk,
+					    fsx->fx_free_disk) ||
+		    m0_addu64_will_overflow(reply_data->sspr_total_disk,
+					    fsx->fx_total_disk))
+		{
 			fsx->fx_rc = M0_ERR(-EOVERFLOW);
 			goto leave;
 		}
-		fsx->fx_free  += reply_data->sspr_free;
-		if (m0_addu64_will_overflow(reply_data->sspr_total,
-					    fsx->fx_total)) {
-			fsx->fx_rc = M0_ERR(-EOVERFLOW);
-			goto leave;
-		}
-		fsx->fx_total += reply_data->sspr_total;
+
+		fsx->fx_free_seg   += reply_data->sspr_free_seg;
+		fsx->fx_total_seg  += reply_data->sspr_total_seg;
+		fsx->fx_free_disk  += reply_data->sspr_free_disk;
+		fsx->fx_total_disk += reply_data->sspr_total_disk;
 	} else {
 		/* error occurred */
 		fsx->fx_rc = M0_ERR(rc);
@@ -1632,8 +1638,10 @@ M0_INTERNAL int m0_spiel__fs_stats_fetch(struct m0_spiel_core *spc,
 	} m0_tl_endfor;
 	/* report stats to consumer */
 	*stats = (struct m0_fs_stats) {
-		.fs_free = fsx.fx_free,
-		.fs_total = fsx.fx_total,
+		.fs_free_seg = fsx.fx_free_seg,
+		.fs_total_seg = fsx.fx_total_seg,
+		.fs_free_disk = fsx.fx_free_disk,
+		.fs_total_disk = fsx.fx_total_disk,
 		.fs_svc_total = svc_total_in_fs,
 		.fs_svc_replied = svc_replied,
 	};

@@ -224,8 +224,15 @@ static int m0t1fs_statfs(struct dentry *dentry, struct kstatfs *buf)
 		 * going to vary among segments/pools/etc.?
 		 */
 		buf->f_bsize   = 1 << BALLOC_DEF_BLOCK_SHIFT;
-		buf->f_blocks  = stats.fs_total / buf->f_bsize;
-		buf->f_bfree   = stats.fs_free / buf->f_bsize;
+
+		/* space on disks */
+		buf->f_blocks  = stats.fs_total_disk / buf->f_bsize;
+		buf->f_bfree   = stats.fs_free_disk / buf->f_bsize;
+
+		/* space in metadata segments (inodes) */
+		buf->f_files   = stats.fs_total_seg / 512;
+		buf->f_ffree   = stats.fs_free_seg / 512;
+
 		buf->f_bavail  = buf->f_bfree;
 		buf->f_namelen = M0T1FS_NAME_LEN;
 		buf->f_type    = M0_T1FS_SUPER_MAGIC;

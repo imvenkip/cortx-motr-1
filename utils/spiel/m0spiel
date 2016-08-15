@@ -150,8 +150,10 @@ class SpielSnsStatus(Structure):
 
 
 class FsStats(Structure):
-    _fields_ = [('fs_free', c_uint64),
-                ('fs_total', c_uint64),
+    _fields_ = [('fs_free_seg', c_uint64),
+                ('fs_total_seg', c_uint64),
+                ('fs_free_disk', c_uint64),
+                ('fs_total_disk', c_uint64),
                 ('fs_svc_total', c_uint32),
                 ('fs_svc_replied', c_uint32)]
 

@@ -78,15 +78,31 @@ struct m0_ss_process_rep {
 	 */
 	int32_t sspr_health;
 	/**
-	 * Filesystem stats - free space. The field is meaningful only in case
-	 * of M0_PROCESS_HEALTH command, and must be ignored in any other case.
+	 * Filesystem stats - free space in BE segments. This will be reported
+	 * as free inodes by df command.
+	 *
+	 * The field is meaningful only in case of M0_PROCESS_HEALTH command,
+	 * and must be ignored in any other case.
 	 */
-	m0_bcount_t sspr_free;
+	m0_bcount_t sspr_free_seg;
 	/**
-	 * Filesystem stats - total space. The field is meaningful only in case
-	 * of M0_PROCESS_HEALTH command, and must be ignored in any other case.
+	 * Filesystem stats - total space in BE segments. This will be reported
+	 * as total inodes by df command.
+	 *
+	 * The field is meaningful only in case of M0_PROCESS_HEALTH command,
+	 * and must be ignored in any other case.
 	 */
-	m0_bcount_t sspr_total;
+	m0_bcount_t sspr_total_seg;
+	/**
+	 * Filesystem stats - free space on disks. This will be reported as
+	 * free disk space by df command.
+	 */
+	m0_bcount_t sspr_free_disk;
+	/**
+	 * Filesystem stats - total space on disks. This will be reported as
+	 * total disk space by df command.
+	 */
+	m0_bcount_t sspr_total_disk;
 } M0_XCA_RECORD;
 
 struct m0_ss_process_svc_item {

@@ -422,9 +422,9 @@ void test_spiel_fs_stats(void)
 	/*
 	 * fs_stats.fs_total contains sum of ios total space and be total space
 	 */
-	M0_UT_ASSERT(fs_stats.fs_total > ios_total);
-	M0_UT_ASSERT(fs_stats.fs_free > 0 && fs_stats.fs_free <=
-		     fs_stats.fs_total);
+	M0_UT_ASSERT(fs_stats.fs_total_disk > ios_total);
+	M0_UT_ASSERT(fs_stats.fs_free_disk > 0 && fs_stats.fs_free_disk <=
+		     fs_stats.fs_total_disk);
 	M0_UT_ASSERT(fs_stats.fs_svc_replied > 0);
 	M0_UT_ASSERT(fs_stats.fs_svc_total >= fs_stats.fs_svc_replied);
 	spiel_ci_ut_fini();

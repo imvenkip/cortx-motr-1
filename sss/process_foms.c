@@ -272,14 +272,14 @@ static int ss_be_segs_stats_ingest(struct m0_ss_process_rep *rep)
 		struct m0_be_allocator_stats stats = {0};
 
 		m0_be_alloc_stats(&bs->bs_allocator, &stats);
-		if (m0_addu64_will_overflow(rep->sspr_total,
+		if (m0_addu64_will_overflow(rep->sspr_total_seg,
 					    stats.bas_space_total))
 			return M0_ERR(-EOVERFLOW);
-		rep->sspr_total += stats.bas_space_total;
-		if (m0_addu64_will_overflow(rep->sspr_free,
+		rep->sspr_total_seg += stats.bas_space_total;
+		if (m0_addu64_will_overflow(rep->sspr_free_seg,
 					    stats.bas_space_free))
 			return M0_ERR(-EOVERFLOW);
-		rep->sspr_free  += stats.bas_space_free;
+		rep->sspr_free_seg  += stats.bas_space_free;
 	} m0_tl_endfor;
 
 	return M0_RC(0);
@@ -306,10 +306,10 @@ static int ss_ios_stats_ingest(struct m0_ss_process_rep *rep)
 consider_DS_in_ut:
 		m0_storage_dev_space(dev, &sp);
 		/* any storage device must update total stats */
-		if (m0_addu64_will_overflow(rep->sspr_total,
+		if (m0_addu64_will_overflow(rep->sspr_total_disk,
 					    sp.sds_total_size))
 			return M0_ERR(-EOVERFLOW);
-		rep->sspr_total += sp.sds_total_size;
+		rep->sspr_total_disk += sp.sds_total_size;
 		/* skip the device that's not online. */
 		if (dev->isd_ha_state != M0_NC_ONLINE)
 			continue;
@@ -318,9 +318,9 @@ consider_DS_in_ut:
 				sp.sds_free_blocks)
 			return M0_ERR(-EOVERFLOW);
 		free_space = sp.sds_free_blocks * sp.sds_block_size;
-		if (m0_addu64_will_overflow(rep->sspr_free, free_space))
+		if (m0_addu64_will_overflow(rep->sspr_free_disk, free_space))
 			return M0_ERR(-EOVERFLOW);
-		rep->sspr_free += free_space;
+		rep->sspr_free_disk += free_space;
 	} m0_tl_endfor;
 
 	return M0_RC(0);
