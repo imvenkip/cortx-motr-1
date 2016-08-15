@@ -93,6 +93,8 @@ Requires:       perl-File-Which
 Requires:       perl-List-MoreUtils
 Requires:       perl-autodie
 Requires:       perl-Try-Tiny
+Requires:       perl-Sereal
+Requires:       perl-MCE
 Requires:       ruby
 Requires:       facter
 
@@ -103,6 +105,15 @@ Mero filesystem runtime environment and servers.
 Summary: Mero include headers
 Group: Development/Kernel
 Provides: %{name}-devel = %{version}-%{release}
+Requires: binutils-devel
+Requires: libyaml-devel
+Requires: libaio-devel
+Requires: libuuid-devel
+Requires: systemd-devel
+Requires: glibc-headers
+Requires: kernel-devel = %{kernel_ver_requires}
+Requires: %{lustre_devel}
+
 
 %description devel
 This package contains the headers required to build external

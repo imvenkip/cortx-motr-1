@@ -87,6 +87,8 @@ Requires:       perl-File-Which
 Requires:       perl-List-MoreUtils
 Requires:       perl-autodie
 Requires:       perl-Try-Tiny
+Requires:       perl-Sereal
+Requires:       perl-MCE
 Requires:       ruby
 Requires:       facter
 
