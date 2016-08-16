@@ -923,8 +923,9 @@ static int spiel_controllerv_dirs_create(struct m0_conf_cache *cache,
 static int spiel_conf_parameter_check(struct m0_conf_cache    *cache,
 				      struct spiel_conf_param *parameters)
 {
-	int                      rc;
-	struct spiel_conf_param *param;
+	struct spiel_conf_param  *param;
+	const struct m0_conf_obj *obj;
+	int                       rc;
 
 	M0_PRE(cache != NULL);
 	M0_PRE(parameters != NULL);
@@ -937,8 +938,13 @@ static int spiel_conf_parameter_check(struct m0_conf_cache    *cache,
 		if (rc != 0)
 			return M0_ERR(rc);
 	}
-	return (*parameters->scp_obj)->co_status == M0_CS_MISSING ? M0_RC(0) :
-		M0_ERR(-EEXIST);
+	obj = *parameters->scp_obj;
+	if (obj->co_status == M0_CS_MISSING) {
+		M0_LOG(M0_INFO, FID_F": OK", FID_P(&obj->co_id));
+		return M0_RC(0);
+	}
+	M0_ASSERT(obj->co_status == M0_CS_READY);
+	return M0_ERR_INFO(-EEXIST, FID_F": Not a stub", FID_P(&obj->co_id));
 }
 
 int m0_spiel_profile_add(struct m0_spiel_tx *tx, const struct m0_fid *fid)
