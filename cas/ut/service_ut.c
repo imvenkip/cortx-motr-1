@@ -175,7 +175,7 @@ static void init_fail(void)
 	rc = m0_reqh_service_allocate(&cas, &m0_cas_service_type, NULL);
 	M0_UT_ASSERT(rc == 0);
 	m0_reqh_service_init(cas, &reqh, NULL);
-	m0_fi_enable_once("m0_be_btree_insert_inplace", "already_exists");
+	m0_fi_enable_once("be_btree_insert", "already_exists");
 	rc = m0_reqh_service_start(cas);
 	M0_UT_ASSERT(rc == -EEXIST);
 	m0_reqh_service_fini(cas);

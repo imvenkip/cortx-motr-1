@@ -1261,19 +1261,23 @@ M0_INTERNAL void m0_be_btree_destroy_credit(struct m0_be_btree     *tree,
 	m0_be_tx_credit_add(accum, &cred);
 }
 
-M0_INTERNAL void m0_be_btree_insert(struct m0_be_btree *tree,
-				    struct m0_be_tx *tx,
-				    struct m0_be_op *op,
-				    const struct m0_buf *key,
-				    const struct m0_buf *val)
+static void be_btree_insert(struct m0_be_btree *tree,
+			    struct m0_be_tx *tx,
+			    struct m0_be_op *op,
+			    const struct m0_buf *key,
+			    const struct m0_buf *val,
+			    struct m0_be_btree_anchor *anchor)
 {
 	m0_bcount_t       ksz;
+	m0_bcount_t       vsz;
 	struct bt_key_val kv;
 
 	M0_ENTRY("tree=%p", tree);
 	M0_PRE(tree->bb_root != NULL && tree->bb_ops != NULL);
 	M0_PRE(key->b_nob == be_btree_ksize(tree, key->b_addr));
-	M0_PRE(val->b_nob == be_btree_vsize(tree, val->b_addr));
+	M0_PRE((val != NULL) == (anchor == NULL));
+	M0_PRE(ergo(anchor == NULL,
+		    val->b_nob == be_btree_vsize(tree, val->b_addr)));
 
 	M0_BE_CREDIT_DEC(M0_BE_CU_BTREE_INSERT, tx);
 
@@ -1281,29 +1285,54 @@ M0_INTERNAL void m0_be_btree_insert(struct m0_be_btree *tree,
 
 	m0_be_op_active(op);
 	m0_rwlock_write_lock(btree_rwlock(tree));
+	if (anchor != NULL) {
+		anchor->ba_tree = tree;
+		anchor->ba_write = true;
+		vsz = anchor->ba_value.b_nob;
+	} else {
+		vsz = val->b_nob;
+	}
 
-	if (btree_search(tree, key->b_addr) == NULL) {
+	if (btree_search(tree, key->b_addr) == NULL &&
+	    !M0_FI_ENABLED("already_exists")) {
 		/* Avoid CPU alignment overhead on values. */
 		ksz = m0_align(key->b_nob, sizeof(void*));
 
-		kv.key = mem_alloc(tree, tx, ksz + val->b_nob);
+		kv.key = mem_alloc(tree, tx, ksz + vsz);
 		kv.val = kv.key + ksz;
 		memcpy(kv.key, key->b_addr, key->b_nob);
 		memset(kv.key + key->b_nob, 0, ksz - key->b_nob);
-		memcpy(kv.val, val->b_addr, val->b_nob);
-		mem_update(tree, tx, kv.key, ksz + val->b_nob);
+		if (val != NULL) {
+			memcpy(kv.val, val->b_addr, vsz);
+			mem_update(tree, tx, kv.key, ksz + vsz);
+		} else {
+			mem_update(tree, tx, kv.key, ksz);
+			anchor->ba_value.b_addr = kv.val;
+		}
 
 		btree_insert_key(tree, tx, &kv);
 		op_tree(op)->t_rc = 0;
 	} else {
 		op_tree(op)->t_rc = -EEXIST;
+		if (anchor != NULL)
+			anchor->ba_value.b_addr = NULL;
 		M0_LOG(M0_NOTICE, "the key entry at %p already exist",
 			key->b_addr);
 	}
 
-	m0_rwlock_write_unlock(btree_rwlock(tree));
+	if (anchor == NULL)
+		m0_rwlock_write_unlock(btree_rwlock(tree));
 	m0_be_op_done(op);
 	M0_LEAVE("tree=%p", tree);
+}
+
+M0_INTERNAL void m0_be_btree_insert(struct m0_be_btree *tree,
+				    struct m0_be_tx *tx,
+				    struct m0_be_op *op,
+				    const struct m0_buf *key,
+				    const struct m0_buf *val)
+{
+	be_btree_insert(tree, tx, op, key, val, NULL);
 }
 
 M0_INTERNAL void m0_be_btree_update(struct m0_be_btree *tree,
@@ -1481,42 +1510,7 @@ M0_INTERNAL void m0_be_btree_insert_inplace(struct m0_be_btree        *tree,
 					    const struct m0_buf       *key,
 					    struct m0_be_btree_anchor *anchor)
 {
-	void              *key_data;
-	void              *val_data;
-	struct bt_key_val *kv; /* XXX: update credit accounting */
-
-	M0_ENTRY("tree=%p", tree);
-	M0_PRE(tree->bb_root != NULL && tree->bb_ops != NULL);
-	M0_PRE(key->b_nob == be_btree_ksize(tree, key->b_addr));
-
-	BTREE_OP_FILL(op, tree, tx, M0_BBO_INSERT, NULL);
-
-	m0_be_op_active(op);
-	m0_rwlock_write_lock(btree_rwlock(tree));
-	anchor->ba_tree = tree;
-	anchor->ba_write = true;
-
-	if (btree_search(tree, key->b_addr) == NULL &&
-	    !M0_FI_ENABLED("already_exists")) {
-		key_data = mem_alloc(tree, tx, key->b_nob);
-		val_data = mem_alloc(tree, tx, anchor->ba_value.b_nob);
-		kv       = mem_alloc(tree, tx, sizeof(struct bt_key_val));
-		kv->key = key_data;
-		kv->val = val_data;
-		memcpy(key_data, key->b_addr, key->b_nob);
-		mem_update(tree, tx, kv, sizeof(struct bt_key_val));
-		mem_update(tree, tx, key_data, key->b_nob);
-		anchor->ba_value.b_addr = val_data;
-
-		btree_insert_key(tree, tx, kv);
-		op_tree(op)->t_rc = 0;
-	} else {
-		op_tree(op)->t_rc = -EEXIST;
-		anchor->ba_value.b_addr = NULL;
-	}
-
-	m0_be_op_done(op);
-	M0_LEAVE();
+	be_btree_insert(tree, tx, op, key, NULL, anchor);
 }
 
 M0_INTERNAL void m0_be_btree_lookup_inplace(struct m0_be_btree        *tree,

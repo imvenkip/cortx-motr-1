@@ -320,10 +320,12 @@ struct m0_be_btree_anchor {
 };
 
 /**
- * Updates @value looked up by given @key in btree. Operation is asynchronous.
+ * Returns the @tree record for update at the given @key.
  * User provides the size of the value buffer that will be updated
- * via @anchor->ba_value.b_nob and gets the ready memory buffer
+ * via @anchor->ba_value.b_nob and gets the record address
  * via @anchor->ba_value.b_addr.
+ * Note: the updated record size can not exceed the stored record size
+ * at the moment.
  *
  * -ENOENT is set to @op->bo_u.u_btree.t_rc if not found.
  *
@@ -349,8 +351,9 @@ M0_INTERNAL void m0_be_btree_update_inplace(struct m0_be_btree *tree,
 					    struct m0_be_btree_anchor *anchor);
 
 /**
- * Inserts given @key and @value in btree. User has to allocate his own @value
- * buffer and capture node buffer in which @key is inserted.
+ * Inserts given @key into @tree and returns the value
+ * placeholder at @anchor->ba_value. Note: this routine
+ * locks the @tree until m0_be_btree_release() is called.
  *
  * @see m0_be_btree_update_inplace()
  */
@@ -374,7 +377,7 @@ M0_INTERNAL void m0_be_btree_lookup_inplace(struct m0_be_btree *tree,
 
 /**
  * Completes m0_be_btree_*_inplace() operation by capturing all affected
- * regions with m0_be_tx_capture() and unlocking m0_be_btree::bb_lock.
+ * regions with m0_be_tx_capture() (if needed) and unlocking the tree.
  */
 M0_INTERNAL void m0_be_btree_release(struct m0_be_tx           *tx,
 				     struct m0_be_btree_anchor *anchor);
