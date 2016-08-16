@@ -36,7 +36,7 @@ static bool pver_check(const void *bob)
 	const struct m0_conf_obj  *self_obj = &self->pv_obj;
 	enum m0_conf_pver_kind     kind;
 
-	return _0C(m0_conf_obj_is_stub(self_obj)) ||
+	return m0_conf_obj_is_stub(self_obj) ||
 		(_0C(m0_conf_pver_fid_read(
 			     &self_obj->co_id, &kind, NULL, NULL) == 0) &&
 		 _0C(kind == self->pv_kind) &&

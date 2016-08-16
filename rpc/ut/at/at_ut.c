@@ -18,8 +18,7 @@
  * Original creation date: 25-May-2016
  */
 
-
-#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_XXX
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_UT
 #include "lib/trace.h"
 
 #include "lib/memory.h"
