@@ -859,7 +859,7 @@ err2_injected:
 
 			if (M0_FI_ENABLED("parity_math_err"))
 				{ rc = -EPROTO; goto err3_injected; }
-			if (K > 0)
+			if (K > 0 && N != 1)
 				rc = m0_parity_math_init(&pi->pi_math, N, K);
 err3_injected:
 			if (rc == 0) {
