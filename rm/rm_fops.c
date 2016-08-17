@@ -50,13 +50,13 @@ struct rm_out {
 /**
  * Forward declaration.
  */
-static void reply_process(struct m0_rpc_item *item);
-static void borrow_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast);
-static void revoke_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast);
-static void cancel_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast);
+static void rm_reply_process(struct m0_rpc_item *item);
+static void rm_borrow_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast);
+static void rm_revoke_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast);
+static void rm_cancel_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast);
 
 static const struct m0_rpc_item_ops rm_request_rpc_ops = {
-	.rio_replied = reply_process,
+	.rio_replied = rm_reply_process,
 };
 
 /**
@@ -243,8 +243,7 @@ static int cancel_fop_fill(struct rm_out     *outreq,
 {
 	struct m0_rm_fop_cancel *cfop;
 	struct m0_fop           *fop;
-	int			 rc;
-
+	int                      rc;
 
 	M0_ENTRY("creating cancel fop for credit value: %llu",
 		 (long long unsigned) loan->rl_credit.cr_datum);
@@ -259,7 +258,6 @@ static int cancel_fop_fill(struct rm_out     *outreq,
 	} else {
 		m0_fop_fini(fop);
 	}
-
 	return M0_RC(rc);
 }
 
@@ -279,19 +277,19 @@ M0_INTERNAL void m0_rm_outgoing_send(struct m0_rm_outgoing *outgoing)
 	M0_ENTRY("outgoing: %p", outgoing);
 	M0_PRE(outgoing->rog_sent == false);
 
-	outreq = container_of(outgoing, struct rm_out, ou_req);
+	outreq = M0_AMB(outreq, outgoing, ou_req);
 	M0_ASSERT(outreq->ou_ast.sa_cb == NULL);
 	M0_ASSERT(outreq->ou_fop.f_item.ri_session == NULL);
 
 	switch (outgoing->rog_type) {
 	case M0_ROT_BORROW:
-		outreq->ou_ast.sa_cb = &borrow_ast;
+		outreq->ou_ast.sa_cb = &rm_borrow_ast;
 		break;
 	case M0_ROT_REVOKE:
-		outreq->ou_ast.sa_cb = &revoke_ast;
+		outreq->ou_ast.sa_cb = &rm_revoke_ast;
 		break;
 	case M0_ROT_CANCEL:
-		outreq->ou_ast.sa_cb = &cancel_ast;
+		outreq->ou_ast.sa_cb = &rm_cancel_ast;
 		break;
 	default:
 		break;
@@ -396,7 +394,7 @@ M0_INTERNAL int m0_rm_request_out(enum m0_rm_outgoing_type otype,
 	return M0_RC(rc);
 }
 
-static void borrow_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
+static void rm_borrow_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
 	struct m0_rm_fop_borrow_rep *borrow_reply = NULL;
 	struct m0_rm_owner          *owner;
@@ -463,7 +461,7 @@ out:
 	M0_LEAVE();
 }
 
-static void revoke_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
+static void rm_revoke_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
 	struct m0_fop_generic_reply *revoke_reply;
 	struct m0_rm_owner          *owner;
@@ -508,7 +506,7 @@ out:
 	M0_LEAVE();
 }
 
-static void cancel_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
+static void rm_cancel_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
 	struct m0_fop_generic_reply *cancel_reply;
 	struct m0_rm_loan           *cancel_loan;
@@ -547,7 +545,7 @@ static void cancel_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	M0_LEAVE();
 }
 
-static void reply_process(struct m0_rpc_item *item)
+static void rm_reply_process(struct m0_rpc_item *item)
 {
 	struct m0_rm_owner *owner;
 	struct rm_out      *outreq;

@@ -234,9 +234,9 @@ static struct m0_rpc_item *rm_reply_create(enum m0_rm_incoming_type reqtype,
  */
 static void reply_test(enum m0_rm_incoming_type reqtype, int err)
 {
-	int		          rc;
-	struct m0_rpc_item       *item;
-	struct m0_rm_remote      *other;
+	struct m0_rpc_item  *item;
+	struct m0_rm_remote *other;
+	int                  rc;
 
 	request_param_init(RIF_LOCAL_WAIT);
 
@@ -249,7 +249,7 @@ static void reply_test(enum m0_rm_incoming_type reqtype, int err)
 				       &rm_test_data.rd_credit, other);
 		M0_UT_ASSERT(rc == 0);
 		item = rm_reply_create(M0_RIT_BORROW, err);
-		reply_process(item);
+		rm_reply_process(item);
 		/* Lock and unlock the owner to run AST */
 		m0_rm_owner_lock(rm_test_data.rd_owner);
 		m0_rm_owner_unlock(rm_test_data.rd_owner);
@@ -267,7 +267,7 @@ static void reply_test(enum m0_rm_incoming_type reqtype, int err)
 		m0_rm_ur_tlist_add(&rm_test_data.rd_owner->ro_sublet,
 				   &test_loan->rl_credit);
 		m0_rm_owner_unlock(rm_test_data.rd_owner);
-		reply_process(item);
+		rm_reply_process(item);
 		/* Lock and unlock the owner to run AST */
 		m0_rm_owner_lock(rm_test_data.rd_owner);
 		m0_rm_owner_unlock(rm_test_data.rd_owner);
@@ -295,7 +295,7 @@ static void request_test(enum m0_rm_incoming_type reqtype)
 {
 	struct m0_rm_credit       rest;
 	enum m0_rm_incoming_flags flags[] = {0, RIF_LOCAL_TRY, RIF_LOCAL_WAIT};
-	int                       rc = 0;
+	int                       rc;
 	int                       i;
 
 	for (i = 0; i < ARRAY_SIZE(flags); i++) {

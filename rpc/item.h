@@ -300,7 +300,7 @@ struct m0_rpc_item_ops {
 		locks, to ensure there are no lock ordering violations within
 		application locks and rpc-machine lock. If taking application
 		level lock is essential then consider using AST.
-		See rm/rm_fops.c:reply_process() for example.
+		See rm/rm_fops.c:rm_reply_process() for example.
 	 */
 	void (*rio_replied)(struct m0_rpc_item *item);
 };
