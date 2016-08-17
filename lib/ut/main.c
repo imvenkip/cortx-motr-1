@@ -54,6 +54,7 @@ extern void test_hashtable(void);
 extern void test_fold(void);
 extern void m0_ut_lib_thread_pool_test(void);
 extern void test_combinations(void);
+extern void test_hash_fnc(void);
 
 struct m0_ut_suite libm0_ut = {
 	.ts_name = "libm0-ut",
@@ -94,6 +95,7 @@ struct m0_ut_suite libm0_ut = {
 		{ "fold",             test_fold,         "Nikita" },
 		{ "tpool",            m0_ut_lib_thread_pool_test },
 		{ "combinations",     test_combinations  },
+		{ "hash-fnc",         test_hash_fnc,     "Leonid" },
 		{ NULL,               NULL               }
 	}
 };

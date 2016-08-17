@@ -16,6 +16,7 @@ nobase_mero_include_HEADERS += lib/arith.h \
                                lib/fs.h \
                                lib/getopts.h \
                                lib/hash.h \
+                               lib/hash_fnc.h \
                                lib/list.h \
                                lib/locality.h \
                                lib/lockers.h \
@@ -67,6 +68,7 @@ mero_libmero_la_SOURCES += lib/assert.c \
                            lib/finject_internal.h \
                            lib/getopts.c \
                            lib/hash.c \
+                           lib/hash_fnc.c \
                            lib/list.c \
                            lib/locality.c \
                            lib/lockers.c \
