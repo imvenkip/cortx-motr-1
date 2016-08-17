@@ -183,6 +183,12 @@ M0_INTERNAL int m0_bufvec_alloc(struct m0_bufvec *bufvec,
 				uint32_t num_segs, m0_bcount_t seg_size);
 
 /**
+ * The same as m0_bufvec_alloc(), but doesn't allocate memory for segments.
+ */
+M0_INTERNAL int m0_bufvec_empty_alloc(struct m0_bufvec *bufvec,
+				      uint32_t          num_segs);
+
+/**
    Assumes that all segments are of equal size. All additional
    segments are of the size of the initial segment in bufvec.
    The internal struct m0_vec is also allocated by this routine.

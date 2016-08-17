@@ -136,11 +136,12 @@ M0_INTERNAL m0_bcount_t m0_vec_cursor_end(const struct m0_vec_cursor *cur)
 static int m0__bufvec_alloc(struct m0_bufvec *bufvec,
 	                    uint32_t          num_segs,
 	                    m0_bcount_t       seg_size,
-	                    unsigned	      shift)
+	                    unsigned          shift)
 {
 	uint32_t i;
 
-	M0_PRE(num_segs > 0 && seg_size > 0);
+	M0_PRE(num_segs > 0);
+	M0_PRE(ergo(shift != 0, seg_size > 0));
 	bufvec->ov_buf = NULL;
 	bufvec->ov_vec.v_nr = num_segs;
 	M0_ALLOC_ARR(bufvec->ov_vec.v_count, num_segs);
@@ -150,16 +151,18 @@ static int m0__bufvec_alloc(struct m0_bufvec *bufvec,
 	if (bufvec->ov_buf == NULL)
 		goto fail;
 
-	for (i = 0; i < bufvec->ov_vec.v_nr; ++i) {
-		if (shift != 0)
-			bufvec->ov_buf[i] = m0_alloc_aligned(seg_size, shift);
-		else
-			bufvec->ov_buf[i] = m0_alloc(seg_size);
+	if (seg_size != 0)
+		for (i = 0; i < num_segs; ++i) {
+			if (shift != 0)
+				bufvec->ov_buf[i] = m0_alloc_aligned(seg_size,
+								     shift);
+			else
+				bufvec->ov_buf[i] = m0_alloc(seg_size);
 
-		if (bufvec->ov_buf[i] == NULL)
-			goto fail;
-		bufvec->ov_vec.v_count[i] = seg_size;
-	}
+			if (bufvec->ov_buf[i] == NULL)
+				goto fail;
+			bufvec->ov_vec.v_count[i] = seg_size;
+		}
 	return 0;
 
 fail:
@@ -167,9 +170,16 @@ fail:
 	return M0_ERR(-ENOMEM);
 }
 
+M0_INTERNAL int m0_bufvec_empty_alloc(struct m0_bufvec *bufvec,
+				      uint32_t          num_segs)
+{
+	return m0__bufvec_alloc(bufvec, num_segs, 0, 0);
+}
+
 M0_INTERNAL int m0_bufvec_alloc(struct m0_bufvec *bufvec,
 				uint32_t num_segs, m0_bcount_t seg_size)
 {
+	M0_PRE(seg_size > 0);
 	return m0__bufvec_alloc(bufvec, num_segs, seg_size, 0);
 }
 M0_EXPORTED(m0_bufvec_alloc);
