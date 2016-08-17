@@ -106,10 +106,10 @@ M0_INTERNAL int m0_rpc_post(struct m0_rpc_item *item);
   @see m0_fop_put()
   @see m0_rpc_item_type_ops::rito_item_put
  */
-int m0_rpc_reply_post(struct m0_rpc_item *request, struct m0_rpc_item *reply);
+void m0_rpc_reply_post(struct m0_rpc_item *request, struct m0_rpc_item *reply);
 
-M0_INTERNAL int m0_rpc_oneway_item_post(const struct m0_rpc_conn *conn,
-					struct m0_rpc_item *item);
+M0_INTERNAL void m0_rpc_oneway_item_post(const struct m0_rpc_conn *conn,
+					 struct m0_rpc_item *item);
 
 /**
    Create a buffer pool per net domain which to be shared by TM's in it.

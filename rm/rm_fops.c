@@ -50,12 +50,12 @@ struct rm_out {
 /**
  * Forward declaration.
  */
-static void reply_process(struct m0_rpc_item *);
+static void reply_process(struct m0_rpc_item *item);
 static void borrow_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast);
 static void revoke_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast);
 static void cancel_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast);
 
-const struct m0_rpc_item_ops rm_request_rpc_ops = {
+static const struct m0_rpc_item_ops rm_request_rpc_ops = {
 	.rio_replied = reply_process,
 };
 
@@ -283,8 +283,6 @@ M0_INTERNAL void m0_rm_outgoing_send(struct m0_rm_outgoing *outgoing)
 	M0_ASSERT(outreq->ou_ast.sa_cb == NULL);
 	M0_ASSERT(outreq->ou_fop.f_item.ri_session == NULL);
 
-	item = &outreq->ou_fop.f_item;
-
 	switch (outgoing->rog_type) {
 	case M0_ROT_BORROW:
 		outreq->ou_ast.sa_cb = &borrow_ast;
@@ -299,6 +297,7 @@ M0_INTERNAL void m0_rm_outgoing_send(struct m0_rm_outgoing *outgoing)
 		break;
 	}
 
+	item = &outreq->ou_fop.f_item;
 	item->ri_session = outgoing->rog_want.rl_other->rem_session;
 	item->ri_ops     = &rm_request_rpc_ops;
 
@@ -318,9 +317,7 @@ M0_INTERNAL void m0_rm_outgoing_send(struct m0_rm_outgoing *outgoing)
 		outreq_fini(outreq, rc);
 		return;
 	}
-
 	outgoing->rog_sent = true;
-
 	M0_LEAVE();
 }
 
@@ -330,7 +327,7 @@ static void outgoing_queue(enum m0_rm_outgoing_type  otype,
 			   struct m0_rm_incoming    *in,
 			   struct m0_rm_remote      *other)
 {
-	M0_ASSERT(owner != NULL);
+	M0_PRE(owner != NULL);
 
 	if (in != NULL)
 		pin_add(in, &outreq->ou_req.rog_want.rl_credit, M0_RPF_TRACK);
@@ -370,7 +367,7 @@ M0_INTERNAL int m0_rm_request_out(enum m0_rm_outgoing_type otype,
 
 	rc = rm_out_create(&outreq, otype, other, credit);
 	if (rc != 0)
-		goto out;
+		return M0_ERR(rc);
 
 	if (loan != NULL)
 		outreq->ou_req.rog_want.rl_cookie = loan->rl_cookie;
@@ -388,17 +385,14 @@ M0_INTERNAL int m0_rm_request_out(enum m0_rm_outgoing_type otype,
 	default:
 		rc = -EINVAL;
 		M0_IMPOSSIBLE("Unrecognized RM request");
-		break;
 	}
 
-	if (rc != 0) {
+	if (rc == 0) {
+		outgoing_queue(otype, credit->cr_owner, outreq, in, other);
+	} else {
 		M0_LOG(M0_ERROR, "filling fop failed: rc [%d]\n", rc);
 		rm_out_destroy(outreq);
-		goto out;
 	}
-	outgoing_queue(otype, credit->cr_owner, outreq, in, other);
-
-out:
 	return M0_RC(rc);
 }
 
@@ -563,7 +557,7 @@ static void reply_process(struct m0_rpc_item *item)
 
 	/* XXX TODO Handle rpc errors */
 	M0_ASSERT(ergo(item->ri_error == 0, item->ri_reply != NULL));
-	outreq = container_of(m0_rpc_item_to_fop(item), struct rm_out, ou_fop);
+	outreq = M0_AMB(outreq, m0_rpc_item_to_fop(item), ou_fop);
 	owner = outreq->ou_req.rog_want.rl_credit.cr_owner;
 
 	M0_ASSERT(outreq->ou_ast.sa_cb != NULL);

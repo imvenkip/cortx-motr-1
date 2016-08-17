@@ -537,9 +537,7 @@ static void test_oneway_item(void)
 	item->ri_deadline = 0;
 	item->ri_ops      = &arrow_item_ops;
 	M0_UT_ASSERT(!arrow_sent_cb_called);
-	rc = m0_rpc_oneway_item_post(&cctx.rcx_connection, item);
-	M0_UT_ASSERT(rc == 0);
-
+	m0_rpc_oneway_item_post(&cctx.rcx_connection, item);
 	rc = m0_rpc_item_timedwait(&fop->f_item,
 				   M0_BITS(M0_RPC_ITEM_SENT,
 					   M0_RPC_ITEM_FAILED),
@@ -572,8 +570,7 @@ static void test_oneway_item(void)
 	item->ri_deadline = m0_time_from_now(10, 0);
 	item->ri_ops      = &arrow_item_ops;
 	arrow_sent_cb_called = fop_release_called = false;
-	rc = m0_rpc_oneway_item_post(&cctx.rcx_connection, item);
-	M0_UT_ASSERT(rc == 0);
+	m0_rpc_oneway_item_post(&cctx.rcx_connection, item);
 	m0_fop_put_lock(fop);
 	M0_UT_ASSERT(!arrow_sent_cb_called);
 	M0_UT_ASSERT(!fop_release_called);

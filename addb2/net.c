@@ -323,12 +323,8 @@ static void net_force(struct m0_addb2_net *net)
 		s = src_tlist_head(&net->ne_src);
 		net_unlock(net);
 		if (s != NULL) {
-			int result;
-
-			result = m0_rpc_oneway_item_post(s->s_src.ris_conn,
-							 &fop->f_item);
-			if (result != 0)
-				M0_LOG(M0_ERROR, "Post failure: %i.", result);
+			m0_rpc_oneway_item_post(s->s_src.ris_conn,
+						&fop->f_item);
 		} else {
 			fop->f_data.fd_data = NULL;
 			m0_fop_fini(fop);

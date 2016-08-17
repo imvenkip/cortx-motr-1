@@ -22,6 +22,7 @@
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_RPC
 #include "lib/trace.h"
+
 #include "lib/memory.h"
 #include "lib/errno.h"
 #include "lib/misc.h"     /* M0_IN */
@@ -38,20 +39,13 @@
  * @{
  */
 
-M0_INTERNAL int m0_rpc__post_locked(struct m0_rpc_item *item);
-
 M0_INTERNAL int m0_rpc_init(void)
 {
-	int rc;
-
 	M0_ENTRY();
-
-	rc =  m0_rpc_item_module_init()
-	   ?: m0_rpc_service_register()
-	   ?: m0_rpc_session_module_init()
-	   ?: m0_rpc_link_module_init();
-
-	return M0_RC(rc);
+	return M0_RC(m0_rpc_item_module_init() ?:
+		     m0_rpc_service_register() ?:
+		     m0_rpc_session_module_init() ?:
+		     m0_rpc_link_module_init());
 }
 
 M0_INTERNAL void m0_rpc_fini(void)
@@ -73,18 +67,15 @@ M0_INTERNAL int m0_rpc_post(struct m0_rpc_item *item)
 
 	M0_ENTRY("%p[%s/%u]", item, item_kind(item),
 		 item->ri_type->rit_opcode);
-
 	M0_PRE(item->ri_session != NULL);
 	M0_PRE(m0_rpc_conn_is_snd(item2conn(item)));
 
 	machine = session_machine(item->ri_session);
-
 	M0_ASSERT(m0_rpc_item_size(item) <= machine->rm_min_recv_size);
 
 	m0_rpc_machine_lock(machine);
 	rc = m0_rpc__post_locked(item);
 	m0_rpc_machine_unlock(machine);
-
 	return M0_RC(rc);
 }
 M0_EXPORTED(m0_rpc_post);
@@ -92,7 +83,7 @@ M0_EXPORTED(m0_rpc_post);
 M0_INTERNAL int m0_rpc__post_locked(struct m0_rpc_item *item)
 {
 	struct m0_rpc_session *session;
-	int                    error = 0;
+	int                    error;
 
 	M0_LOG(M0_DEBUG, "%p[%s/%u]",
 	       item, item_kind(item), item->ri_type->rit_opcode);
@@ -126,27 +117,25 @@ M0_INTERNAL int m0_rpc__post_locked(struct m0_rpc_item *item)
 		       "Session isn't established. Hence, not posting the item",
 		       item, item_kind(item), item->ri_type->rit_opcode,
 		       m0_rpc_item_to_fop(item), session);
-		error = -ENOTCONN;
+		error = M0_ERR(-ENOTCONN);
 	} else if (session->s_session_id != SESSION_ID_0 &&
 		   m0_rpc_session_is_cancelled(session)) {
 		M0_LOG(M0_DEBUG, "%p[%s/%u], fop %p, session %p, "
 		       "Session is cancelled. Hence, not posting the item",
 		       item, item_kind(item), item->ri_type->rit_opcode,
 		       m0_rpc_item_to_fop(item), session);
-		error = -ECANCELED;
+		error = M0_ERR(-ECANCELED);
+	} else {
+		m0_rpc_item_send(item);
+		return M0_RC(item->ri_error);
 	}
-	if (error != 0) {
-		m0_rpc_item_failed(item, error);
-		return M0_ERR(error);
-	}
-
-	m0_rpc_item_send(item);
-	return M0_RC(item->ri_error);
+	m0_rpc_item_failed(item, error);
+	return error;
 }
 
-int m0_rpc_reply_post(struct m0_rpc_item *request, struct m0_rpc_item *reply)
+void m0_rpc_reply_post(struct m0_rpc_item *request, struct m0_rpc_item *reply)
 {
-	struct m0_rpc_machine  *machine;
+	struct m0_rpc_machine *machine;
 
 	M0_ENTRY("req_item: %p, rep_item: %p", request, reply);
 	M0_PRE(request != NULL && reply != NULL);
@@ -175,12 +164,11 @@ int m0_rpc_reply_post(struct m0_rpc_item *request, struct m0_rpc_item *reply)
 	m0_rpc_item_sm_init(reply, M0_RPC_ITEM_OUTGOING);
 	m0_rpc_item_send_reply(request, reply);
 	m0_rpc_machine_unlock(machine);
-	return M0_RC(0);
 }
 M0_EXPORTED(m0_rpc_reply_post);
 
-M0_INTERNAL int m0_rpc_oneway_item_post(const struct m0_rpc_conn *conn,
-					struct m0_rpc_item *item)
+M0_INTERNAL void m0_rpc_oneway_item_post(const struct m0_rpc_conn *conn,
+					 struct m0_rpc_item *item)
 {
 	struct m0_rpc_machine *machine;
 
@@ -192,8 +180,6 @@ M0_INTERNAL int m0_rpc_oneway_item_post(const struct m0_rpc_conn *conn,
 	m0_rpc_machine_lock(machine);
 	m0_rpc_oneway_item_post_locked(conn, item);
 	m0_rpc_machine_unlock(machine);
-
-	return M0_RC(0);
 }
 
 M0_INTERNAL void m0_rpc_oneway_item_post_locked(const struct m0_rpc_conn *conn,
@@ -337,6 +323,7 @@ M0_INTERNAL m0_time_t m0_rpc__down_timeout(void)
 }
 
 /** @} */
+#undef M0_TRACE_SUBSYSTEM
 
 /*
  *  Local variables:

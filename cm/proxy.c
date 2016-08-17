@@ -312,14 +312,12 @@ static void proxy_sw_onwire_ast_cb(struct m0_sm_group *grp,
 
 static void proxy_sw_onwire_item_sent_cb(struct m0_rpc_item *item)
 {
-	struct m0_fop                *fop;
 	struct m0_cm_proxy_sw_onwire *swu_fop;
 	struct m0_cm_proxy           *proxy;
 
 	M0_ENTRY("%p", item);
 
-	fop = m0_rpc_item_to_fop(item);
-	swu_fop = container_of(fop, struct m0_cm_proxy_sw_onwire, pso_fop);
+	swu_fop = M0_AMB(swu_fop, m0_rpc_item_to_fop(item), pso_fop);
 	proxy = swu_fop->pso_proxy;
 	M0_ASSERT(m0_cm_proxy_bob_check(proxy));
 	proxy->px_sw_onwire_ast.sa_cb = proxy_sw_onwire_ast_cb;
@@ -334,10 +332,10 @@ const struct m0_rpc_item_ops proxy_sw_onwire_item_ops = {
 	.rio_sent = proxy_sw_onwire_item_sent_cb
 };
 
-M0_INTERNAL int m0_cm_proxy_sw_onwire_post(const struct m0_cm_proxy *proxy,
-					   struct m0_fop *fop,
-				           const struct m0_rpc_conn *conn,
-				           m0_time_t deadline)
+static void cm_proxy_sw_onwire_post(const struct m0_cm_proxy *proxy,
+				    struct m0_fop *fop,
+				    const struct m0_rpc_conn *conn,
+				    m0_time_t deadline)
 {
 	struct m0_rpc_item *item;
 
@@ -350,8 +348,7 @@ M0_INTERNAL int m0_cm_proxy_sw_onwire_post(const struct m0_cm_proxy *proxy,
 	item->ri_prio     = M0_RPC_ITEM_PRIO_MID;
 	item->ri_deadline = deadline;
 
-	M0_LEAVE();
-	return m0_rpc_oneway_item_post(conn, item);
+	m0_rpc_oneway_item_post(conn, item);
 }
 
 static void proxy_sw_onwire_release(struct m0_ref *ref)
@@ -396,20 +393,18 @@ M0_INTERNAL int m0_cm_proxy_remote_update(struct m0_cm_proxy *proxy,
 	if (rc != 0) {
 		m0_fop_put_lock(fop);
 		m0_free(sw_fop);
-		return M0_RC(rc);
+		return M0_ERR(rc);
 	}
 	sw_fop->pso_proxy = proxy;
 	deadline = m0_time_from_now(1, 0);
 	ID_LOG("proxy last updated hi", &proxy->px_last_sw_onwire_sent.sw_hi);
 
-	rc = m0_cm_proxy_sw_onwire_post(proxy, fop, conn, deadline);
+	cm_proxy_sw_onwire_post(proxy, fop, conn, deadline);
 	m0_fop_put_lock(fop);
 	m0_cm_sw_copy(&proxy->px_last_sw_onwire_sent, sw);
 	M0_LOG(M0_DEBUG, "Sending to %s hi: ["M0_AG_F"]",
 	       proxy->px_endpoint, M0_AG_P(&sw->sw_hi));
-
-	M0_LEAVE("%d", rc);
-	return M0_RC(rc);
+	return M0_RC(0);
 }
 
 M0_INTERNAL bool m0_cm_proxy_is_done(const struct m0_cm_proxy *pxy)

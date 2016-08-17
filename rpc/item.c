@@ -703,9 +703,8 @@ M0_INTERNAL void m0_rpc_item_failed(struct m0_rpc_item *item, int32_t rc)
 	m0_rpc_item_ha_timer_stop(item);
 	/* XXX ->rio_sent() can be called multiple times (due to cancel). */
 	if (m0_rpc_item_is_oneway(item) &&
-	    item->ri_ops != NULL && item->ri_ops->rio_sent != NULL) {
+	    item->ri_ops != NULL && item->ri_ops->rio_sent != NULL)
 		item->ri_ops->rio_sent(item);
-	}
 
 	m0_rpc_session_item_failed(item);
 	/*
@@ -724,7 +723,6 @@ int m0_rpc_item_timedwait(struct m0_rpc_item *item,
 	m0_rpc_machine_lock(item->ri_rmachine);
 	rc = m0_sm_timedwait(&item->ri_sm, states, timeout);
 	m0_rpc_machine_unlock(item->ri_rmachine);
-
 	return M0_RC(rc);
 }
 
