@@ -34,8 +34,6 @@
 #include "pool/pool_fops.h"
 #include "module/instance.h"  /* m0 */
 
-/*#define RPC_ASYNC_MODE*/
-
 static struct m0_net_domain     cl_ndom;
 static struct m0_rpc_client_ctx cl_ctx;
 static struct m0_fid            cl_process_fid = M0_FID_TINIT('r', 0, 1);
@@ -66,7 +64,7 @@ static int poolmach_client_init(void)
 
 	rc = m0_net_domain_init(&cl_ndom, &m0_net_lnet_xprt);
 	if (rc != 0)
-		return M0_RC(rc);
+		return M0_ERR(rc);
 
 	cl_ctx.rcx_net_dom            = &cl_ndom;
 	cl_ctx.rcx_local_addr         = cl_ep_addr;
@@ -115,79 +113,11 @@ static void poolmach_rpc_ctx_fini(struct rpc_ctx *ctx)
 		       ctx->ctx_sep);
 }
 
-#ifdef RPC_ASYNC_MODE
-static int poolmach_rpc_post(struct m0_fop *fop,
-			     struct m0_rpc_session *session,
-			     const struct m0_rpc_item_ops *ri_ops,
-			     m0_time_t  deadline)
-{
-	struct m0_rpc_item *item;
-
-	M0_PRE(fop != NULL);
-	M0_PRE(session != NULL);
-
-	item              = &fop->f_item;
-	item->ri_ops      = ri_ops;
-	item->ri_session  = session;
-	item->ri_prio     = M0_RPC_ITEM_PRIO_MID;
-	item->ri_deadline = deadline;
-	item->ri_resend_interval = M0_TIME_NEVER;
-
-	return m0_rpc_post(item);
-}
-#endif
-
 static struct m0_mutex poolmach_wait_mutex;
 static struct m0_chan  poolmach_wait;
 static int32_t         srv_cnt = 0;
 
 extern struct m0_fop_type trigger_fop_fopt;
-
-static void trigger_rpc_item_reply_cb(struct m0_rpc_item *item)
-{
-	static int32_t srv_rep_cnt = 0;
-	struct m0_fop *rep_fop;
-
-	M0_PRE(item != NULL);
-
-	/* XXX TODO Handle rpc errors. */
-	if (item->ri_error == 0) {
-		rep_fop = m0_rpc_item_to_fop(item->ri_reply);
-		M0_ASSERT(rep_fop->f_type == &m0_fop_poolmach_query_rep_fopt ||
-			  rep_fop->f_type == &m0_fop_poolmach_set_rep_fopt);
-
-		if (rep_fop->f_type == &m0_fop_poolmach_query_rep_fopt) {
-			struct m0_fop_poolmach_query_rep *query_fop_rep;
-			int                               i;
-			query_fop_rep = m0_fop_data(rep_fop);
-			for (i = 0; i < dev_nr; ++i) {
-				fprintf(stderr, "Query: index = %d state=%d"
-					" rc = %d\n",
-					(int)query_fop_rep->fqr_dev_info.
-					fpi_dev[i].fpd_index,
-					(int)query_fop_rep->fqr_dev_info.
-					fpi_dev[i].fpd_state,
-					(int)query_fop_rep->fqr_rc);
-			}
-		} else {
-			struct m0_fop_poolmach_set_rep *set_fop_rep;
-			set_fop_rep = m0_fop_data(rep_fop);
-			fprintf(stderr, "Set: rc = %d\n",
-					(int)set_fop_rep->fps_rc);
-		}
-	}
-	M0_CNT_INC(srv_rep_cnt);
-	if (srv_rep_cnt == srv_cnt) {
-		m0_mutex_lock(&poolmach_wait_mutex);
-		m0_chan_signal(&poolmach_wait);
-		m0_mutex_unlock(&poolmach_wait_mutex);
-	}
-	fprintf(stderr, "Got reply %d out of %d\n", srv_rep_cnt, srv_cnt);
-}
-
-static const struct m0_rpc_item_ops poolmach_fop_rpc_item_ops = {
-	.rio_replied = trigger_rpc_item_reply_cb
-};
 
 static void print_help(void)
 {
@@ -207,48 +137,37 @@ int main(int argc, char *argv[])
 {
 	static struct m0 instance;
 
-	struct rpc_ctx        *ctxs;
-	struct m0_clink        poolmach_clink;
-	const char            *op = NULL;
-	const char            *type = NULL;
-	m0_time_t              start;
-	m0_time_t              delta;
-	int                    rc;
-	int                    rc2 = 0;
-	int                    i;
-	int                    j;
+	struct rpc_ctx *ctxs;
+	const char     *op = NULL;
+	const char     *type = NULL;
+	m0_time_t       start;
+	m0_time_t       delta;
+	int             rc;
+	int             i;
+	int             j;
 
 	rc = m0_init(&instance);
 	if (rc != 0) {
 		fprintf(stderr, "Cannot init Mero: %d\n", rc);
-		return M0_RC(rc);
+		return M0_ERR(rc);
 	}
-
 	rc = M0_GETOPTS("poolmach", argc, argv,
 			M0_STRINGARG('O',
 				     "Q(uery) or S(et)",
 				     LAMBDA(void, (const char *str) {
 						op = str;
-						if (op[0] != 'Q' &&
-						    op[0] != 'q' &&
-						    op[0] != 'S' &&
-						    op[0] != 's')
-							rc2 = -EINVAL;
-					}
-				     )
-				    ),
+						if (!M0_IN(op[0], ('Q', 'q',
+								   'S', 's')))
+							rc = -EINVAL;
+					})),
 			M0_STRINGARG('T',
 				     "D(evice) or N(ode)",
 				     LAMBDA(void, (const char *str) {
 						type = str;
-						if (type[0] != 'D' &&
-						    type[0] != 'd' &&
-						    type[0] != 'N' &&
-						    type[0] != 'n')
-							rc2 = -EINVAL;
-					}
-				     )
-				    ),
+						if (!M0_IN(type[0], ('D', 'd',
+								     'N', 'n')))
+							rc = -EINVAL;
+					})),
 			M0_FORMATARG('N', "Number of devices", "%u", &dev_nr),
 			M0_NUMBERARG('I', "device index",
 				     LAMBDA(void, (int64_t device_index)
@@ -257,9 +176,7 @@ int main(int argc, char *argv[])
 								device_index;
 						M0_CNT_INC(di);
 						M0_ASSERT(di <= MAX_DEV_NR);
-					    }
-					   )
-				    ),
+					    })),
 			M0_NUMBERARG('s', "device state",
 				     LAMBDA(void, (int64_t device_state)
 					    {
@@ -267,27 +184,21 @@ int main(int argc, char *argv[])
 								device_state;
 						M0_CNT_INC(ds);
 						M0_ASSERT(di <= MAX_DEV_NR);
-					    }
-					   )
-				    ),
+					    })),
 			M0_STRINGARG('C', "Client endpoint",
 				     LAMBDA(void, (const char *str) {
 						cl_ep_addr = str;
-					}
-				     )
-				    ),
+					})),
 			M0_STRINGARG('S', "Server endpoint",
 				     LAMBDA(void, (const char *str) {
 					    srv_ep_addr[srv_cnt] = str;
 					    ++srv_cnt;
 					    M0_ASSERT(srv_cnt < MAX_SERVERS);
-					}
-				     )
-				    ),
+					})),
 			);
-	if (rc != 0 || rc2 != 0) {
+	if (rc != 0) {
 		print_help();
-		return M0_RC(rc);
+		return M0_ERR(rc);
 	}
 
 	if (op == NULL          || type == NULL        || dev_nr == 0  ||
@@ -313,12 +224,11 @@ int main(int argc, char *argv[])
 	rc = poolmach_client_init();
 	if (rc != 0) {
 		fprintf(stderr, "Cannot init client: %d\n", rc);
-		return M0_RC(rc);
+		return M0_ERR(rc);
 	}
 
 	m0_mutex_init(&poolmach_wait_mutex);
 	m0_chan_init(&poolmach_wait, &poolmach_wait_mutex);
-	m0_clink_init(&poolmach_clink, NULL);
 
 	M0_ALLOC_ARR(ctxs, srv_cnt);
 	if (ctxs == NULL) {
@@ -332,12 +242,11 @@ int main(int argc, char *argv[])
 		rc = poolmach_rpc_ctx_init(&ctxs[i], srv_ep_addr[i]);
 		if (rc != 0) {
 			fprintf(stderr, "Cannot init rpc ctx = %d\n", rc);
-			return M0_RC(rc);
+			return M0_ERR(rc);
 		}
 	}
 
 	m0_mutex_lock(&poolmach_wait_mutex);
-	m0_clink_add(&poolmach_wait, &poolmach_clink);
 	m0_mutex_unlock(&poolmach_wait_mutex);
 	start = m0_time_now();
 	for (i = 0; i < srv_cnt; ++i) {
@@ -392,17 +301,11 @@ int main(int argc, char *argv[])
 		}
 
 		fprintf(stderr, "sending/posting to %s\n", srv_ep_addr[i]);
-#ifdef RPC_ASYNC_MODE
-		rc = poolmach_rpc_post(req, session,
-				       &poolmach_fop_rpc_item_ops,
-				       0);
-#else
 		rc = m0_rpc_post_sync(req, session, NULL, 0);
 		if (rc != 0) {
 			m0_fop_put_lock(req);
-			return M0_RC(rc);
+			return M0_ERR(rc);
 		}
-
 		if (op[0] == 'Q' || op[0] == 'q') {
 			struct m0_fop_poolmach_query_rep *query_fop_rep;
 			struct m0_fop *rep;
@@ -427,16 +330,10 @@ int main(int argc, char *argv[])
 			fprintf(stderr, "Set got reply: rc = %d\n",
 					(int)set_fop_rep->fps_rc);
 		}
-#endif
 		m0_fop_put_lock(req);
 		if (rc != 0)
-			return M0_RC(rc);
+			return M0_ERR(rc);
 	}
-
-#ifdef RPC_ASYNC_MODE
-	m0_chan_wait(&poolmach_clink);
-#endif
-
 	delta = m0_time_sub(m0_time_now(), start);
 	printf("Time: %lu.%2.2lu sec\n", (unsigned long)m0_time_seconds(delta),
 			(unsigned long)m0_time_nanoseconds(delta) * 100 /
