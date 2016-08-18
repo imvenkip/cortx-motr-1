@@ -7,7 +7,7 @@
     pools=[pool-0] racks=[rack-0])
 
 (pool-0 order=0 pvers=[pver-0, pver_f-0])
-(pver-0 N=3 K=1 P=5 tolerance=[0, 0, 0, 0, 0] rackvs=[objv-0])
+(pver-0 N=2 K=2 P=10 tolerance=[0, 0, 0, 1, 2] rackvs=[objv-0])
 (pver_f-0 id=0xfeed base=pver-0 allowance=[0, 0, 0, 1, 2])
 ## rackvs ------------------------------------------------------------
 (rack-0 encls=[enclosure-0, enclosure-1] pvers=[pver-0])
@@ -19,23 +19,25 @@
 (objv-8 real=enclosure-1 children=[objv-9, objv-11])
 ## ctrlvs ------------------------------------------------------------
 (controller-0 node=node-0 disks=[disk-0, disk-1, disk-2] pvers=[pver-0])
-(controller-1 node=node-0 disks=[disk-3] pvers=[pver-0]) # <<< FAILED
-(controller-2 node=node-0 disks=[disk-4] pvers=[pver-0])
-(controller-3 node=node-0 disks=[disk-5, disk-6, disk-7] pvers=[pver-0])
+(controller-1 node=node-0 disks=[disk-3, disk-4] pvers=[pver-0]) # <<< FAILED
+(controller-2 node=node-0 disks=[disk-5, disk-6, disk-7] pvers=[pver-0])
+(controller-3 node=node-0 disks=[disk-8, disk-9] pvers=[pver-0])
 (objv-2 real=controller-0 children=[objv-3, objv-4, objv-5])
-(objv-6 real=controller-1 children=[objv-7])
-(objv-9 real=controller-2 children=[objv-10])
-(objv-11 real=controller-3 children=[objv-12, objv-13, objv-14])
+(objv-6 real=controller-1 children=[objv-7, objv-10])
+(objv-9 real=controller-2 children=[objv-12, objv-13, objv-14])
+(objv-11 real=controller-3 children=[objv-15, objv-16])
 ## diskvs ------------------------------------------------------------
 # Never mind that all disks are associated with the same device (sdev-0).
 (disk-0 dev=sdev-0 pvers=[pver-0])
 (disk-1 dev=sdev-0 pvers=[pver-0])
 (disk-2 dev=sdev-0 pvers=[pver-0]) # <<< FAILED
 (disk-3 dev=sdev-0 pvers=[pver-0])
-(disk-4 dev=sdev-0 pvers=[pver-0]) # <<< FAILED
+(disk-4 dev=sdev-0 pvers=[pver-0])
 (disk-5 dev=sdev-0 pvers=[pver-0])
-(disk-6 dev=sdev-0 pvers=[pver-0])
+(disk-6 dev=sdev-0 pvers=[pver-0]) # <<< FAILED
 (disk-7 dev=sdev-0 pvers=[pver-0])
+(disk-8 dev=sdev-0 pvers=[pver-0])
+(disk-9 dev=sdev-0 pvers=[pver-0])
 (objv-3 real=disk-0 children=[])
 (objv-4 real=disk-1 children=[])
 (objv-5 real=disk-2 children=[])
@@ -44,3 +46,5 @@
 (objv-12 real=disk-5 children=[])
 (objv-13 real=disk-6 children=[])
 (objv-14 real=disk-7 children=[])
+(objv-15 real=disk-8 children=[])
+(objv-16 real=disk-9 children=[])

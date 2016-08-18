@@ -80,7 +80,7 @@ static void test_pver_find(void)
 	const struct m0_fid base = M0_FID_TINIT('v', 1, 0); /* pver-0 */
 	const struct m0_fid failed[] = {
 		M0_FID_TINIT('k', 1, 2), /* disk-2 */
-		M0_FID_TINIT('k', 1, 4), /* disk-4 */
+		M0_FID_TINIT('k', 1, 6), /* disk-6 */
 		M0_FID_TINIT('c', 1, 1)  /* controller-1 */
 	};
 	struct m0_conf_cache *cache = &m0_conf_ut_cache;
@@ -89,6 +89,7 @@ static void test_pver_find(void)
 	struct m0_conf_pver  *pver_virt;
 	struct m0_conf_root  *root;
 	unsigned              i;
+	const uint32_t        tolvec[M0_CONF_PVER_HEIGHT] = {0, 0, 0, 1, 2};
 	int                   rc;
 
 	conf_ut_cache_from_file(cache, M0_SRC_PATH("conf/ut/pvers.xc"));
@@ -119,12 +120,15 @@ static void test_pver_find(void)
 	rc = m0_conf_pver_find(pool, &pver);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(pver == pver_virt);
-
+	M0_UT_ASSERT(!memcmp(pver->pv_u.subtree.pvs_tolerance,
+			     tolvec, sizeof tolvec));
 	for (i = 0; i < ARRAY_SIZE(failed); ++i)
 		conf_ut_ha_state_set(cache, &failed[i], M0_NC_ONLINE);
 	rc = m0_conf_pver_find(pool, &pver);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(pver->pv_kind == M0_CONF_PVER_ACTUAL);
+	M0_UT_ASSERT(!memcmp(pver->pv_u.subtree.pvs_tolerance,
+			     tolvec, sizeof tolvec));
 
 	/*
 	 * m0_conf_pver_find_by_fid() tests.
@@ -138,12 +142,12 @@ static void test_pver_find(void)
 	/*
 	 * Now let us request a slightly different fid.
 	 *
-	 * The value added to .f_key (2) is carefully chosen to be compatible
+	 * The value added to .f_key (1) is carefully chosen to be compatible
 	 * with the structure of base pver subtree and the allowance vector.
 	 */
 	rc = m0_conf_pver_find_by_fid(
 		&M0_FID_INIT(pver_virt->pv_obj.co_id.f_container,
-			     pver_virt->pv_obj.co_id.f_key + 2), root, &pver);
+			     pver_virt->pv_obj.co_id.f_key + 1), root, &pver);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(pver->pv_kind == M0_CONF_PVER_VIRTUAL);
 	M0_UT_ASSERT(pver != pver_virt);
@@ -155,7 +159,7 @@ static void test_pver_find(void)
 			      * This cid is not compatible with the
 			      * allowance vector.
 			      */
-			     pver_virt->pv_obj.co_id.f_key + 1), root, &pver);
+			     pver_virt->pv_obj.co_id.f_key + 2), root, &pver);
 	M0_UT_ASSERT(rc == -EINVAL);
 }
 

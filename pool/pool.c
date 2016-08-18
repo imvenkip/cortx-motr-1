@@ -634,7 +634,7 @@ M0_INTERNAL int m0_pool_version_init_by_conf(struct m0_pool_version *pv,
 					     struct m0_dtm *dtm)
 {
 	uint32_t nodes = 0;
-	uint64_t failure_level;
+	uint32_t failure_level;
 	int      rc;
 
 	M0_ENTRY();

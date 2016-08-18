@@ -229,9 +229,10 @@ struct m0_fd_tree_node {
  * @retval     0             On success.
  * @retval     -EINVAL       When tolerance can not be met.
  * @retval     -ENOMEM       When system is out of memory.
+ * @pre configuration cache should be locked.
  */
 M0_INTERNAL int m0_fd_tolerance_check(struct m0_conf_pver *pv,
-				      uint64_t *failure_level);
+				      uint32_t *failure_level);
 /**
  * Allocates and prepares a fault tolerant tile for input pool version.
  * Returns infeasibility in case tolerance constraint for the pool version
@@ -249,7 +250,7 @@ M0_INTERNAL int m0_fd_tolerance_check(struct m0_conf_pver *pv,
  */
 M0_INTERNAL int m0_fd_tile_build(const struct m0_conf_pver *pv,
 				 struct m0_pool_version *pool_ver,
-				 uint64_t *failure_level);
+				 uint32_t *failure_level);
 
 /** Frees the memory allocated for the fault tolerant tile. */
 M0_INTERNAL void m0_fd_tile_destroy(struct m0_fd_tile *tile);

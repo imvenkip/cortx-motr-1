@@ -416,7 +416,7 @@ static void test_pv2fd_conv(void)
 #ifndef __KERNEL__
 	char                *confstr = NULL;
 #endif
-	uint64_t             failure_level;
+	uint32_t             failure_level;
 	uint64_t             max_failures = 1;
 	int                  i;
 	int                  rc;
@@ -446,17 +446,7 @@ static void test_pv2fd_conv(void)
 	M0_UT_ASSERT(rc == M0_CONF_DIRNEXT);
 	pv_obj = m0_conf_diter_result(&it);
 	pv = M0_CONF_CAST(pv_obj, m0_conf_pver);
-	for (i = 1; i < M0_CONF_PVER_HEIGHT; ++i)
-		pv->pv_u.subtree.pvs_tolerance[i] = la_K;
-	failure_level = 0;
-	do {
-		rc = m0_fd_tolerance_check(pv, &failure_level);
-		M0_UT_ASSERT(ergo(rc != 0, failure_level > 0));
-		if (rc != 0) {
-			--pv->pv_u.subtree.pvs_tolerance[failure_level];
-			failure_level = 0;
-		}
-	} while (rc != 0);
+
 	/* Figure out thte first level for which user specified tolerance is
 	 * non-zero. */
 	for (i = 0; i < M0_CONF_PVER_HEIGHT; ++i)

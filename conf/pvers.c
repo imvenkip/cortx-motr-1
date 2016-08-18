@@ -32,6 +32,7 @@
 #include "conf/obj_ops.h"      /* m0_conf_dir_tl */
 #include "conf/walk.h"
 #include "conf/glob.h"
+#include "fd/fd.h"             /* m0_fd_tolerance_check */
 #include "conf/objs/common.h"  /* m0_conf_dir_new */
 #include "lib/combinations.h"  /* m0_combination_index */
 #include "lib/memory.h"        /* M0_ALLOC_ARR */
@@ -544,7 +545,8 @@ static int conf_pver_base_obj_check(struct m0_conf_obj *obj,
 		++st->bws_failed_next;
 		if (st->bws_allowance[level] == 0)
 			return M0_ERR_INFO(-EINVAL, "Failures are not"
-					   " compatible with allowance vector");
+					   " compatible with allowance vector at"
+					   " level %u", level);
 		--st->bws_allowance[level];
 		return M0_RC(M0_CW_SKIP_SUBTREE);
 	}
@@ -596,6 +598,23 @@ out:
 	new_obj->co_status = M0_CS_READY;
 	M0_POST(m0_conf_obj_invariant(new_obj));
 	return M0_CW_CONTINUE;
+}
+
+/**
+ * Adjusts the tolerance vector of a virtual pool version to make it consistent
+ * with the underlying subtree.
+ */
+static void conf_pver_tolerance_adjust(struct m0_conf_pver *pver)
+{
+	int       rc;
+	uint32_t  level = 0;
+
+	M0_PRE(pver->pv_kind == M0_CONF_PVER_VIRTUAL);
+
+	do {
+		rc = m0_fd_tolerance_check(pver, &level);
+	} while (rc != 0 &&
+		 M0_CNT_DEC(pver->pv_u.subtree.pvs_tolerance[level]));
 }
 
 /**
@@ -677,6 +696,7 @@ static int conf_pver_virtual_create(const struct m0_fid *fid,
 		rc = M0_ERR(rc);
 		goto err;
 	}
+	conf_pver_tolerance_adjust(pver);
 	/* Post-walking state verification. */
 	M0_ASSERT(M0_IS0(&st.bws_allowance));
 	M0_ASSERT(failed == NULL ||
