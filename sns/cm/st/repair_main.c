@@ -142,7 +142,9 @@ int main(int argc, char *argv[])
 				     "              SNS_REPAIR_QUIESCE = 8 or\n"
 				     "              SNS_REBALANCE_QUIESCE = 16 or\n"
 				     "              SNS_REPAIR_STATUS = 32 or\n"
-				     "              SNS_REBALANCE_STATUS = 64 or\n",
+				     "              SNS_REBALANCE_STATUS = 64 or\n"
+				     "              SNS_REPAIR_ABORT = 128 or\n"
+				     "	            SNS_REBALANCE_ABORT   = 256\n",
 				     "%u", &op),
 			M0_STRINGARG('C', "Client endpoint",
 				LAMBDA(void, (const char *str){
@@ -160,7 +162,8 @@ int main(int argc, char *argv[])
 
 	if (!M0_IN(op, (SNS_REPAIR, SNS_REBALANCE, SNS_REPAIR_ABORT,
 		        SNS_REPAIR_QUIESCE, SNS_REBALANCE_QUIESCE,
-		        SNS_REPAIR_STATUS,  SNS_REBALANCE_STATUS))) {
+		        SNS_REPAIR_STATUS,  SNS_REBALANCE_STATUS,
+			SNS_REBALANCE_ABORT))) {
 		usage();
 		return M0_ERR(-EINVAL);
 	}

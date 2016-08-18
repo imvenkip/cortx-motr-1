@@ -185,6 +185,21 @@ sns_rebalance_quiesce()
 	return $rc
 }
 
+sns_rebalance_abort()
+{
+	local rc=0
+
+	rebalance_abort_trigger="$M0_SRC_DIR/sns/cm/st/m0repair -O 256 -C ${lnet_nid}:${SNS_QUIESCE_CLI_EP} $ios_eps"
+	echo $rebalance_abort_trigger
+	eval $rebalance_abort_trigger
+	rc=$?
+	if [ $rc != 0 ] ; then
+		echo "SNS Re-balance abort failed"
+	fi
+
+	return $rc
+}
+
 sns_repair_abort()
 {
 	local rc=0
