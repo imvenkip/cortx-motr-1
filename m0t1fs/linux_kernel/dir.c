@@ -593,6 +593,17 @@ static uint64_t default_layout_id_get(struct m0t1fs_sb *csb)
 	return M0_DEFAULT_LAYOUT_ID;
 }
 
+static int m0t1fs_fid_check(struct m0_fid *fid)
+{
+	if ((fid->f_container & ~M0_FID_GOB_CONTAINER_MASK) != 0) {
+		M0_LOG(M0_ERROR, "Invalid gob fid detected: "FID_F". Container "
+		       "component should not be longer than 32bit.",
+		       FID_P(fid));
+		return -EINVAL;
+	}
+	return 0;
+}
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
 static int m0t1fs_create(struct inode     *dir,
 			 struct dentry    *dentry,
@@ -649,6 +660,9 @@ static int m0t1fs_create(struct inode     *dir,
 	} else {
 		m0t1fs_fid_alloc(csb, &new_fid);
 	}
+	rc = m0t1fs_fid_check(&new_fid);
+	if (rc != 0)
+		goto out;
 	m0_fid_gob_make(&gfid, new_fid.f_container, new_fid.f_key);
 	M0_LOG(M0_DEBUG, "New fid = "FID_F, FID_P(&new_fid));
 	inode->i_ino = m0_fid_hash(&gfid);
@@ -809,6 +823,11 @@ static struct dentry *m0t1fs_lookup(struct inode     *dir,
 		if (rc != 0) {
 			M0_LOG(M0_ERROR, "Cannot parse fid \"%s\" in oostore",
 					 (char*)dentry->d_name.name);
+			m0t1fs_fs_unlock(csb);
+			return ERR_PTR(-EINVAL);
+		}
+		rc = m0t1fs_fid_check(&new_fid);
+		if (rc != 0) {
 			m0t1fs_fs_unlock(csb);
 			return ERR_PTR(-EINVAL);
 		}
