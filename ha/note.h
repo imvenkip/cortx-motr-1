@@ -227,7 +227,7 @@ struct m0_ha_msg_nvec2 {
 	struct m0_ha_nvec *nvec = nvec_;                          \
 	char *lbl = label;                                        \
 	for (i = 0; i < nvec->nv_nr; i++) {                       \
-		M0_LOG(level, "%s [%d] "FID_F", (%d)", lbl, i,    \
+		M0_LOG(level, "%s [%d] " FID_F ", (%d)", lbl, i,  \
 		       FID_P(&nvec->nv_note[i].no_id),		  \
 		       nvec->nv_note[i].no_state);		  \
 	}                                                         \

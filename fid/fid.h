@@ -69,8 +69,8 @@ enum {
 	M0_FID_STR_LEN          = 64,
 };
 
-#define FID_F  "<%"PRIx64":%"PRIx64">"
-#define FID_SF " < %"SCNx64" : %"SCNx64" > "
+#define FID_F "<%" PRIx64 ":%" PRIx64 ">"
+#define FID_SF " < %" SCNx64 " : %" SCNx64 " > "
 #define FID_P(f)  (f)->f_container,  (f)->f_key
 #define FID_S(f) &(f)->f_container, &(f)->f_key
 

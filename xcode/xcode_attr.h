@@ -35,7 +35,7 @@
  *
  * Please, refer to gccxml2xcode documentation for more details.
  */
-#define M0_XC_ATTR(name, val)	__attribute__((gccxml("xc_"name,val)))
+#define M0_XC_ATTR(name, val) __attribute__((gccxml("xc_" name, val)))
 
 /**
  * Shortened versions of M0_XC_ATTR to specifiy m0_xcode_aggr types.
