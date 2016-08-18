@@ -346,7 +346,6 @@ static void reply_err_set(enum m0_rm_incoming_type type,
 		break;
 	default:
 		M0_IMPOSSIBLE("Unrecognized RM request");
-		break;
 	}
 	M0_LEAVE();
 }

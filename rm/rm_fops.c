@@ -388,7 +388,7 @@ M0_INTERNAL int m0_rm_request_out(enum m0_rm_outgoing_type otype,
 	if (rc == 0) {
 		outgoing_queue(otype, credit->cr_owner, outreq, in, other);
 	} else {
-		M0_LOG(M0_ERROR, "filling fop failed: rc [%d]\n", rc);
+		M0_LOG(M0_ERROR, "filling fop failed: rc=%d", rc);
 		rm_out_destroy(outreq);
 	}
 	return M0_RC(rc);
@@ -396,66 +396,60 @@ M0_INTERNAL int m0_rm_request_out(enum m0_rm_outgoing_type otype,
 
 static void rm_borrow_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
-	struct m0_rm_fop_borrow_rep *borrow_reply = NULL;
+	struct rm_out               *outreq = M0_AMB(outreq, ast, ou_ast);
+	const struct m0_rpc_item    *item = &outreq->ou_fop.f_item;
+	struct m0_rm_fop_borrow_rep *borrow_reply;
 	struct m0_rm_owner          *owner;
-	struct m0_rm_loan           *brw_loan = NULL;
+	struct m0_rm_loan           *loan = NULL;
 	struct m0_rm_credit         *credit;
 	struct m0_rm_credit         *bcredit;
-	struct rm_out               *outreq = M0_AMB(outreq, ast, ou_ast);
-	struct m0_rpc_item          *item = &outreq->ou_fop.f_item;
 	struct m0_buf                buf;
 	int                          rc;
 
 	M0_ENTRY();
+	M0_PRE(m0_mutex_is_locked(&grp->s_lock));
 
 	rc = m0_rpc_item_error(item);
 	if (rc == 0) {
 		borrow_reply = m0_fop_data(m0_rpc_item_to_fop(item->ri_reply));
 		rc = borrow_reply->br_rc;
 	}
-	M0_ASSERT(m0_mutex_is_locked(&grp->s_lock));
-	if (rc == 0) {
-		M0_ASSERT(borrow_reply != NULL);
-		bcredit = &outreq->ou_req.rog_want.rl_credit;
-		owner   = bcredit->cr_owner;
-		if (m0_cookie_is_null(&owner->ro_creditor->rem_cookie))
-			owner->ro_creditor->rem_cookie =
-				borrow_reply->br_creditor_cookie;
-		/* Get the data for a credit from the FOP */
-		m0_buf_init(&buf, borrow_reply->br_credit.cr_opaque.b_addr,
-				  borrow_reply->br_credit.cr_opaque.b_nob);
-		rc = m0_rm_credit_decode(bcredit, &buf);
-		if (rc != 0) {
-			M0_LOG(M0_ERROR, "credit decode for request: %p"
-					 " failed: rc [%d]\n", outreq, rc);
-			goto out;
-		}
-		rc = m0_rm_credit_dup(bcredit, &credit) ?:
-			m0_rm_loan_alloc(&brw_loan, bcredit,
-					 owner->ro_creditor) ?:
-			granted_maybe_reserve(bcredit, credit);
-		if (rc == 0) {
-			brw_loan->rl_cookie = borrow_reply->br_loan.lo_cookie;
-			/* Add loan to the borrowed list. */
-			m0_rm_ur_tlist_add(&owner->ro_borrowed,
-					   &brw_loan->rl_credit);
-
-			/* Add credit to the CACHED list. */
-			m0_rm_ur_tlist_add(&owner->ro_owned[OWOS_CACHED],
-					   credit);
-			M0_LOG(M0_INFO, "borrow request:%p successful "
-			       "credit value: %llu",
-			       outreq, (long long unsigned) credit->cr_datum);
-		} else {
-			M0_LOG(M0_ERROR, "borrowed loan/credit allocation"
-					 " request: %p failed: rc [%d]\n",
-					 outreq, rc);
-			m0_free(brw_loan);
-			m0_free(credit);
-		}
-	} else
-		M0_LOG(M0_ERROR, "Borrow request:%p failed: rc [%d]\n",
-				 outreq, rc);
+	if (rc != 0) {
+		M0_LOG(M0_ERROR, "Borrow request %p failed: rc=%d", outreq, rc);
+		goto out;
+	}
+	M0_ASSERT(borrow_reply != NULL);
+	bcredit = &outreq->ou_req.rog_want.rl_credit;
+	owner   = bcredit->cr_owner;
+	if (m0_cookie_is_null(&owner->ro_creditor->rem_cookie))
+		owner->ro_creditor->rem_cookie =
+			borrow_reply->br_creditor_cookie;
+	/* Get the data for a credit from the FOP */
+	m0_buf_init(&buf, borrow_reply->br_credit.cr_opaque.b_addr,
+		    borrow_reply->br_credit.cr_opaque.b_nob);
+	rc = m0_rm_credit_decode(bcredit, &buf);
+	if (rc != 0) {
+		M0_LOG(M0_ERROR, "credit decode for request %p failed: rc=%d",
+		       outreq, rc);
+		goto out;
+	}
+	rc = m0_rm_credit_dup(bcredit, &credit) ?:
+		m0_rm_loan_alloc(&loan, bcredit, owner->ro_creditor) ?:
+		granted_maybe_reserve(bcredit, credit);
+	if (rc != 0) {
+		M0_LOG(M0_ERROR, "borrowed loan/credit allocation request %p"
+		       " failed: rc=%d", outreq, rc);
+		m0_free(loan);
+		m0_free(credit);
+		goto out;
+	}
+	M0_LOG(M0_INFO, "borrow request %p successful; credit value: %llu",
+	       outreq, (long long unsigned)credit->cr_datum);
+	loan->rl_cookie = borrow_reply->br_loan.lo_cookie;
+	/* Add loan to the borrowed list. */
+	m0_rm_ur_tlist_add(&owner->ro_borrowed, &loan->rl_credit);
+	/* Add credit to the CACHED list. */
+	m0_rm_ur_tlist_add(&owner->ro_owned[OWOS_CACHED], credit);
 out:
 	outreq_fini(outreq, rc);
 	M0_LEAVE();
@@ -463,19 +457,17 @@ out:
 
 static void rm_revoke_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
-	struct m0_fop_generic_reply *revoke_reply;
-	struct m0_rm_owner          *owner;
-	struct m0_rm_loan           *rvk_loan;
-	struct rm_out               *outreq;
-	struct m0_rpc_item          *item;
-	int                          rc;
+	struct rm_out               *outreq = M0_AMB(outreq, ast, ou_ast);
+	const struct m0_rpc_item    *item = &outreq->ou_fop.f_item;
+	struct m0_rm_loan           *loan;
+	struct m0_rm_fop_revoke_rep *revoke_reply;
+	int                rc;
 
 	M0_ENTRY();
-	M0_ASSERT(m0_mutex_is_locked(&grp->s_lock));
+	M0_PRE(m0_mutex_is_locked(&grp->s_lock));
 
-	outreq   = container_of(ast, struct rm_out, ou_ast);
-	rvk_loan = &outreq->ou_req.rog_want;
-	if (rvk_loan->rl_other->rem_dead) {
+	loan = &outreq->ou_req.rog_want;
+	if (loan->rl_other->rem_dead) {
 		/*
 		 * Remote owner is considered failed by HA. All loans are
 		 * already revoked in rm_remote_death_ast(). Set result code to
@@ -485,22 +477,16 @@ static void rm_revoke_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 		rc = 0;
 		goto out;
 	}
-	item = &outreq->ou_fop.f_item;
-	rc   = item->ri_error;
+	rc = m0_rpc_item_error(item);
 	if (rc == 0) {
-		/* No RPC error. Check for revoke error, if any */
-		M0_ASSERT(item->ri_reply != NULL);
 		revoke_reply = m0_fop_data(m0_rpc_item_to_fop(item->ri_reply));
-		rc = revoke_reply->gr_rc;
+		rc = revoke_reply->rr_rc;
 	}
 	if (rc != 0) {
-		M0_LOG(M0_ERROR, "revoke request:%p failed: rc [%d]\n",
-				 outreq, rc);
+		M0_LOG(M0_ERROR, "revoke request %p failed: rc=%d", outreq, rc);
 		goto out;
 	}
-
-	owner = rvk_loan->rl_credit.cr_owner;
-	rc = m0_rm_loan_settle(owner, rvk_loan);
+	rc = m0_rm_loan_settle(loan->rl_credit.cr_owner, loan);
 out:
 	outreq_fini(outreq, rc);
 	M0_LEAVE();
@@ -508,39 +494,28 @@ out:
 
 static void rm_cancel_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
-	struct m0_fop_generic_reply *cancel_reply;
-	struct m0_rm_loan           *cancel_loan;
-	struct m0_rm_credit         *r;
-	struct m0_rm_owner          *o;
-	struct rm_out		    *outreq;
-	struct m0_rpc_item	    *item;
-	int			     rc;
+	struct rm_out       *outreq = M0_AMB(outreq, ast, ou_ast);
+	struct m0_rm_owner  *owner;
+	struct m0_rm_loan   *loan;
+	struct m0_rm_credit *credit;
+	int                  rc;
 
 	M0_ENTRY();
-	M0_ASSERT(m0_mutex_is_locked(&grp->s_lock));
+	M0_PRE(m0_mutex_is_locked(&grp->s_lock));
 
-	outreq = container_of(ast, struct rm_out, ou_ast);
-	item   = &outreq->ou_fop.f_item;
-	rc     = item->ri_error;
-	cancel_loan = &outreq->ou_req.rog_want;
-	if (rc == 0) {
-		M0_ASSERT(item->ri_reply != NULL);
-		cancel_reply = m0_fop_data(m0_rpc_item_to_fop(item->ri_reply));
-		rc = cancel_reply->gr_rc;
+	rc = m0_rpc_item_error(&outreq->ou_fop.f_item);
+	if (rc != 0) {
+		M0_LOG(M0_ERROR, "cancel request %p failed: rc=%d", outreq, rc);
+		goto out;
 	}
-	if (rc != 0)
-		M0_LOG(M0_ERROR, "cancel request: %p failed: rc [%d]\n",
-		       outreq, rc);
-	else {
-		o = outreq->ou_req.rog_want.rl_credit.cr_owner;
-		m0_tl_for (m0_rm_ur, &o->ro_owned[OWOS_CACHED], r) {
-			if (r->cr_ops->cro_intersects(r,
-						      &cancel_loan->rl_credit))
-				m0_rm_ur_tlist_del(r);
-		} m0_tl_endfor;
-		rc  = m0_rm_owner_loan_debit(o, cancel_loan, &o->ro_borrowed);
-	}
-
+	owner = outreq->ou_req.rog_want.rl_credit.cr_owner;
+	loan = &outreq->ou_req.rog_want;
+	m0_tl_for (m0_rm_ur, &owner->ro_owned[OWOS_CACHED], credit) {
+		if (credit->cr_ops->cro_intersects(credit, &loan->rl_credit))
+			m0_rm_ur_tlist_del(credit);
+	} m0_tl_endfor;
+	rc = m0_rm_owner_loan_debit(owner, loan, &owner->ro_borrowed);
+out:
 	outreq_fini(outreq, rc);
 	M0_LEAVE();
 }
@@ -553,7 +528,10 @@ static void rm_reply_process(struct m0_rpc_item *item)
 	M0_ENTRY();
 	M0_PRE(item != NULL);
 
-	/* XXX TODO Handle rpc errors */
+	/*
+	 * Note that RPC errors are handled in the corresponding AST callback:
+	 * rm_borrow_ast(), rm_revoke_ast(), rm_cancel_ast().
+	 */
 	M0_ASSERT(ergo(item->ri_error == 0, item->ri_reply != NULL));
 	outreq = M0_AMB(outreq, m0_rpc_item_to_fop(item), ou_fop);
 	owner = outreq->ou_req.rog_want.rl_credit.cr_owner;
