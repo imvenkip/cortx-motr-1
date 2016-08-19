@@ -221,6 +221,20 @@ enum m0_cas_op_flags {
 	COF_OVERWRITE = 1 << 2
 };
 
+enum m0_cas_opcode {
+	CO_GET,
+	CO_PUT,
+	CO_DEL,
+	CO_CUR,
+	CO_REP,
+	CO_NR
+};
+
+enum m0_cas_type {
+	CT_META,
+	CT_BTREE
+};
+
 /**
  * CAS-GET, CAS-PUT, CAS-DEL and CAS-CUR fops.
  *
@@ -317,6 +331,8 @@ do {                                                   \
 #endif /* __KERNEL__ */
 
 M0_INTERNAL void m0_cas_id_fini(struct m0_cas_id *cid);
+
+M0_INTERNAL bool cas_in_ut(void);
 
 /** @} end of cas_dfspec */
 #endif /* __MERO_CAS_CAS_H__ */

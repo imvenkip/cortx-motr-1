@@ -21,6 +21,7 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CAS
 
 #include "lib/trace.h"
+#include "lib/finject.h"     /* M0_FI_ENABLED */
 #include "fid/fid.h"         /* m0_fid_type_register */
 #include "fop/fop.h"
 #include "rpc/rpc_opcodes.h"
@@ -162,6 +163,11 @@ M0_INTERNAL void m0_cas_id_fini(struct m0_cas_id *cid)
 	if (m0_fid_type_getfid(&cid->ci_fid) == &m0_cctg_fid_type)
 		m0_dix_ldesc_fini(&cid->ci_layout.u.dl_desc);
 	M0_SET0(cid);
+}
+
+M0_INTERNAL bool cas_in_ut(void)
+{
+	return M0_FI_ENABLED("ut");
 }
 
 #undef M0_TRACE_SUBSYSTEM

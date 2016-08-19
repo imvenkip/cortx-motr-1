@@ -188,7 +188,7 @@ static void init_fail(void)
 	rc = m0_reqh_service_allocate(&cas, &m0_cas_service_type, NULL);
 	M0_UT_ASSERT(rc == 0);
 	m0_reqh_service_init(cas, &reqh, NULL);
-	m0_fi_enable_once("cas_index_create", "ci_create_failure");
+	m0_fi_enable_once("ctg_create", "ctg_create_failure");
 	rc = m0_reqh_service_start(cas);
 	M0_UT_ASSERT(rc == -EFAULT);
 	m0_reqh_service_fini(cas);
@@ -206,10 +206,10 @@ static void init_fail(void)
 	rc = m0_reqh_service_allocate(&cas, &m0_cas_service_type, NULL);
 	M0_UT_ASSERT(rc == 0);
 	m0_reqh_service_init(cas, &reqh, NULL);
-	m0_fi_enable_off_n_on_m("cas_index_create", "ci_create_failure",
+	m0_fi_enable_off_n_on_m("ctg_create", "ctg_create_failure",
 				1, 1);
 	rc = m0_reqh_service_start(cas);
-	m0_fi_disable("cas_index_create", "ci_create_failure");
+	m0_fi_disable("ctg_create", "ctg_create_failure");
 	M0_UT_ASSERT(rc == -EFAULT);
 	m0_reqh_service_fini(cas);
 
@@ -1164,7 +1164,7 @@ static void meta_mt(void)
 
 static void meta_insert_fail(void)
 {
-	m0_fi_enable_once("cas_buf_fid", "cas_alloc_fail");
+	m0_fi_enable_once("ctg_buf_get", "cas_alloc_fail");
 	init();
 	meta_fid_submit(&cas_put_fopt, &ifid);
 	M0_UT_ASSERT(rep_check(0, -ENOMEM, BUNSET, BUNSET));
@@ -1185,7 +1185,7 @@ static void meta_lookup_fail(void)
 	M0_UT_ASSERT(rep.cgr_rc == 0);
 	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 1);
 	/* Lookup process should return ENOMEM code */
-	m0_fi_enable_once("cas_buf_fid", "cas_alloc_fail");
+	m0_fi_enable_once("ctg_buf_get", "cas_alloc_fail");
 	meta_fid_submit(&cas_get_fopt, &ifid);
 	M0_UT_ASSERT(rep_check(0, -ENOMEM, BUNSET, BUNSET));
 	/* Lookup without ENOMEM returns record. */
@@ -1200,7 +1200,7 @@ static void meta_delete_fail(void)
 	meta_fid_submit(&cas_put_fopt, &ifid);
 	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
 	/* Delete record with fail. */
-	m0_fi_enable_once("cas_buf_fid", "cas_alloc_fail");
+	m0_fi_enable_once("ctg_buf_get", "cas_alloc_fail");
 	meta_fid_submit(&cas_del_fopt, &ifid);
 	M0_UT_ASSERT(rep_check(0, -ENOMEM, BUNSET, BUNSET));
 	/* Lookup should return record. */
@@ -1218,7 +1218,7 @@ static void insert_fail(void)
 	M0_UT_ASSERT(rep.cgr_rc == 0);
 	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 1);
 	/* Insert key ENOMEM - fi. */
-	m0_fi_enable_once("cas_buf_get", "cas_alloc_fail");
+	m0_fi_enable_once("ctg_buf_get", "cas_alloc_fail");
 	index_op(&cas_put_fopt, &ifid, 1, 2);
 	M0_UT_ASSERT(rep.cgr_rc == -ENOMEM);
 	/* Search meta OK. */
@@ -1250,7 +1250,7 @@ static void lookup_fail(void)
 	meta_fid_submit(&cas_get_fopt, &ifid);
 	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
 	/* Search key, ENOMEM - fi. */
-	m0_fi_enable_once("cas_buf_get", "cas_alloc_fail");
+	m0_fi_enable_once("ctg_buf_get", "cas_alloc_fail");
 	index_op(&cas_get_fopt, &ifid, 1, NOVAL);
 	M0_UT_ASSERT(rep.cgr_rc == -ENOMEM);
 	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 1);
@@ -1283,7 +1283,7 @@ static void delete_fail(void)
 	M0_UT_ASSERT(repv[0].cr_val.u.ab_buf.b_nob == sizeof (uint64_t));
 	M0_UT_ASSERT(*(uint64_t *)repv[0].cr_val.u.ab_buf.b_addr == 2);
 	/* Delete key, ENOMEM - fi. */
-	m0_fi_enable_once("cas_buf_get", "cas_alloc_fail");
+	m0_fi_enable_once("ctg_buf_get", "cas_alloc_fail");
 	index_op(&cas_del_fopt, &ifid, 1, NOVAL);
 	M0_UT_ASSERT(rep.cgr_rc == -ENOMEM);
 	/* Search key OK. */
@@ -1357,7 +1357,7 @@ static void cur_fail(void)
 	M0_UT_ASSERT(m0_forall(i, MULTI_INS - 1,
 				rep.cgr_rep.cr_rec[i].cr_rc == 0));
 	/* Iterate from beginning, -ENOMEM. */
-	m0_fi_enable_once("cas_buf_get", "cas_alloc_fail");
+	m0_fi_enable_once("ctg_buf_get", "cas_alloc_fail");
 	index_op_rc(&cas_cur_fopt, &ifid, 1, NOVAL, MULTI_INS);
 	M0_UT_ASSERT(rep.cgr_rc == -ENOMEM);
 	/*
@@ -1365,9 +1365,9 @@ static void cur_fail(void)
 	 * Service stops request processing after failure, all other reply
 	 * records are empty.
 	 */
-	m0_fi_enable_off_n_on_m("cas_berc", "be-failure", 2, 1);
+	m0_fi_enable_off_n_on_m("m0_ctg_op_rc", "be-failure", 3, 2);
 	index_op_rc(&cas_cur_fopt, &ifid, 1, NOVAL, MULTI_INS);
-	m0_fi_disable("cas_berc", "be-failure");
+	m0_fi_disable("m0_ctg_op_rc", "be-failure");
 	M0_UT_ASSERT(rep.cgr_rc == 0);
 	M0_UT_ASSERT(rep.cgr_rep.cr_nr == MULTI_INS);
 	M0_UT_ASSERT(repv[0].cr_rc == 1);
@@ -1522,9 +1522,9 @@ static void multi_insert_fail(void)
 	M0_UT_ASSERT(rep.cgr_rc == 0);
 	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 1);
 	/* Insert several keys and values OK. */
-	m0_fi_enable_off_n_on_m("cas_buf_get", "cas_alloc_fail", 1, 1);
+	m0_fi_enable_off_n_on_m("ctg_buf_get", "cas_alloc_fail", 1, 1);
 	multi_values_insert(recs, MULTI_INS);
-	m0_fi_disable("cas_buf_get", "cas_alloc_fail");
+	m0_fi_disable("ctg_buf_get", "cas_alloc_fail");
 	M0_UT_ASSERT(rep.cgr_rc == 0);
 	M0_UT_ASSERT(rep.cgr_rep.cr_nr == MULTI_INS - 1);
 	M0_UT_ASSERT(m0_forall(i, MULTI_INS - 1,
@@ -1553,9 +1553,9 @@ static void multi_lookup_fail(void)
 	M0_UT_ASSERT(m0_forall(i, MULTI_INS - 1,
 				rep.cgr_rep.cr_rec[i].cr_rc == 0));
 	/* Lookup values. */
-	m0_fi_enable_off_n_on_m("cas_buf_get", "cas_alloc_fail", 1, 1);
+	m0_fi_enable_off_n_on_m("ctg_buf_get", "cas_alloc_fail", 1, 1);
 	multi_values_lookup(recs, MULTI_INS);
-	m0_fi_disable("cas_buf_get", "cas_alloc_fail");
+	m0_fi_disable("ctg_buf_get", "cas_alloc_fail");
 	M0_UT_ASSERT(rep.cgr_rc == 0);
 	M0_UT_ASSERT(rep.cgr_rep.cr_nr == MULTI_INS - 1);
 	M0_UT_ASSERT(m0_forall(i, MULTI_INS - 1,
@@ -1588,9 +1588,9 @@ static void multi_delete_fail(void)
 	M0_UT_ASSERT(m0_forall(i, MULTI_INS - 1,
 			rep.cgr_rep.cr_rec[i].cr_rc == 0));
 	/* Delete several recs. */
-	m0_fi_enable_off_n_on_m("cas_buf_get", "cas_alloc_fail", 1, 1);
+	m0_fi_enable_off_n_on_m("ctg_buf_get", "cas_alloc_fail", 1, 1);
 	multi_values_delete(recs, MULTI_INS);
-	m0_fi_disable("cas_buf_get", "cas_alloc_fail");
+	m0_fi_disable("ctg_buf_get", "cas_alloc_fail");
 	M0_UT_ASSERT(rep.cgr_rc == 0);
 	M0_UT_ASSERT(rep.cgr_rep.cr_nr == MULTI_INS - 1);
 	M0_UT_ASSERT(m0_forall(i, MULTI_INS - 1,

@@ -631,7 +631,7 @@ static void idx_create_fail(void)
 	rc = ut_lookup_idx(&casc_ut_cctx, &ifid, 1, &rep);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(rep.crr_rc == -ENOENT);
-	m0_fi_enable_once("cas_buf_fid", "cas_alloc_fail");
+	m0_fi_enable_once("ctg_buf_get", "cas_alloc_fail");
 	rc = ut_idx_create(&casc_ut_cctx, &ifid, 1, &rep);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(rep.crr_rc == -ENOMEM);
@@ -641,7 +641,7 @@ static void idx_create_fail(void)
 	m0_fi_enable_once("creq_op_alloc", "cas_alloc_fail");
 	rc = ut_lookup_idx(&casc_ut_cctx, &ifid, 1, &rep);
 	M0_UT_ASSERT(rc == -ENOMEM);
-	m0_fi_enable_once("cas_buf_fid", "cas_alloc_fail");
+	m0_fi_enable_once("ctg_buf_get", "cas_alloc_fail");
 	rc = ut_lookup_idx(&casc_ut_cctx, &ifid, 1, &rep);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(rep.crr_rc == -ENOMEM);
@@ -719,7 +719,7 @@ static void idx_delete_fail(void)
 	rc = ut_lookup_idx(&casc_ut_cctx, &ifid, 1, &rep);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(rep.crr_rc == 0);
-	m0_fi_enable_once("cas_buf_fid", "cas_alloc_fail");
+	m0_fi_enable_once("ctg_buf_get", "cas_alloc_fail");
 	rc = ut_idx_delete(&casc_ut_cctx, &ifid, 1, &rep);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(rep.crr_rc == -ENOMEM);
@@ -1026,7 +1026,7 @@ static void idx_list_fail(void)
 	m0_fi_enable_once("creq_op_alloc", "cas_alloc_fail");
 	rc = ut_idx_list(&casc_ut_cctx, &ifid[0], COUNT, &rep_count, rep_list);
 	M0_UT_ASSERT(rc == -ENOMEM);
-	m0_fi_enable_once("cas_buf_fid", "cas_alloc_fail");
+	m0_fi_enable_once("ctg_buf_get", "cas_alloc_fail");
 	rc = ut_idx_list(&casc_ut_cctx, &ifid[0], COUNT, &rep_count, rep_list);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(rep_count == COUNT);
@@ -1270,7 +1270,7 @@ static void next_fail(void)
 	rc = ut_next_rec(&casc_ut_cctx, &index, &start_key, &recs_nr, next_rep,
 			 &rep_count, false);
 	M0_UT_ASSERT(rc == -ENOMEM);
-	m0_fi_enable_once("cas_buf_get", "cas_alloc_fail");
+	m0_fi_enable_once("ctg_buf_get", "cas_alloc_fail");
 	rc = ut_next_rec(&casc_ut_cctx, &index, &start_key, &recs_nr,
 			 next_rep, &rep_count, false);
 	M0_UT_ASSERT(rc == -ENOMEM);
@@ -1604,7 +1604,7 @@ static void put_fail_common(struct m0_bufvec *keys, struct m0_bufvec *values)
 	m0_fi_enable_once("creq_op_alloc", "cas_alloc_fail");
 	rc = ut_rec_put(&casc_ut_cctx, &index, keys, values, rep, 0);
 	M0_UT_ASSERT(rc == -ENOMEM);
-	m0_fi_enable_once("cas_buf_get", "cas_alloc_fail");
+	m0_fi_enable_once("ctg_buf_get", "cas_alloc_fail");
 	rc = ut_rec_put(&casc_ut_cctx, &index, keys, values, rep, 0);
 	M0_UT_ASSERT(rc == -ENOMEM);
 
@@ -1797,7 +1797,7 @@ static void del_fail(void)
 	m0_fi_enable_once("creq_op_alloc", "cas_alloc_fail");
 	rc = ut_del_rec(&casc_ut_cctx, &index, &keys, rep);
 	M0_UT_ASSERT(rc == -ENOMEM);
-	m0_fi_enable_once("cas_buf_get", "cas_alloc_fail");
+	m0_fi_enable_once("ctg_buf_get", "cas_alloc_fail");
 	rc = ut_del_rec(&casc_ut_cctx, &index, &keys, rep);
 	M0_UT_ASSERT(rc == -ENOMEM);
 	/* check selected values - must be empty*/
@@ -2074,7 +2074,7 @@ static void get_fail(void)
 	m0_fi_enable_once("creq_op_alloc", "cas_alloc_fail");
 	rc = ut_rec_get(&casc_ut_cctx, &index, &keys, get_rep);
 	M0_UT_ASSERT(rc == -ENOMEM);
-	m0_fi_enable_once("cas_buf_get", "cas_alloc_fail");
+	m0_fi_enable_once("ctg_buf_get", "cas_alloc_fail");
 	rc = ut_rec_get(&casc_ut_cctx, &index, &keys, get_rep);
 	M0_UT_ASSERT(rc == -ENOMEM);
 	m0_bufvec_free(&keys);

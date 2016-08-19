@@ -134,6 +134,11 @@ struct m0_be_op {
 
 M0_INTERNAL void m0_be_op_init(struct m0_be_op *op);
 M0_INTERNAL void m0_be_op_fini(struct m0_be_op *op);
+
+M0_INTERNAL void m0_be_op_lock(struct m0_be_op *op);
+M0_INTERNAL void m0_be_op_unlock(struct m0_be_op *op);
+M0_INTERNAL bool m0_be_op_is_locked(const struct m0_be_op *op);
+
 /*
  * Moves internal sm to M0_BOS_INIT state and resets
  * parent-child op_set relationship.

@@ -38,21 +38,6 @@ M0_TL_DESCR_DEFINE(bos, "m0_be_op::bo_children", static,
 		   M0_BE_OP_SET_LINK_MAGIC, M0_BE_OP_SET_MAGIC);
 M0_TL_DEFINE(bos, static, struct m0_be_op);
 
-static void be_op_lock(struct m0_be_op *op)
-{
-	m0_sm_group_lock(op->bo_sm.sm_grp);
-}
-
-static void be_op_unlock(struct m0_be_op *op)
-{
-	m0_sm_group_unlock(op->bo_sm.sm_grp);
-}
-
-static bool be_op_is_locked(struct m0_be_op *op)
-{
-	return m0_sm_group_is_locked(op->bo_sm.sm_grp);
-}
-
 static struct m0_sm_state_descr op_states[] = {
 	[M0_BOS_INIT] = {
 		.sd_flags   = M0_SDF_INITIAL,
@@ -92,7 +77,7 @@ static void be_op_sm_init(struct m0_be_op *op)
 
 static void be_op_sm_fini(struct m0_be_op *op)
 {
-	be_op_lock(op);
+	m0_be_op_lock(op);
 	M0_PRE(M0_IN(op->bo_sm.sm_state, (M0_BOS_INIT, M0_BOS_DONE)));
 
 	if (op->bo_sm.sm_state == M0_BOS_INIT) {
@@ -100,7 +85,7 @@ static void be_op_sm_fini(struct m0_be_op *op)
 		m0_sm_state_set(&op->bo_sm, M0_BOS_DONE);
 	}
 	m0_sm_fini(&op->bo_sm);
-	be_op_unlock(op);
+	m0_be_op_unlock(op);
 }
 
 M0_INTERNAL void m0_be_op_init(struct m0_be_op *op)
@@ -124,10 +109,25 @@ M0_INTERNAL void m0_be_op_fini(struct m0_be_op *op)
 	m0_sm_group_fini(&op->bo_sm_group);
 }
 
+M0_INTERNAL void m0_be_op_lock(struct m0_be_op *op)
+{
+	m0_sm_group_lock(op->bo_sm.sm_grp);
+}
+
+M0_INTERNAL void m0_be_op_unlock(struct m0_be_op *op)
+{
+	m0_sm_group_unlock(op->bo_sm.sm_grp);
+}
+
+M0_INTERNAL bool m0_be_op_is_locked(const struct m0_be_op *op)
+{
+	return m0_sm_group_is_locked(op->bo_sm.sm_grp);
+}
+
 static void be_op_set_add(struct m0_be_op *parent, struct m0_be_op *child)
 {
-	M0_PRE(be_op_is_locked(parent));
-	M0_PRE(be_op_is_locked(child));
+	M0_PRE(m0_be_op_is_locked(parent));
+	M0_PRE(m0_be_op_is_locked(child));
 
 	bos_tlist_add_tail(&parent->bo_children, child);
 	child->bo_parent = parent;
@@ -135,8 +135,8 @@ static void be_op_set_add(struct m0_be_op *parent, struct m0_be_op *child)
 
 static bool be_op_set_del(struct m0_be_op *parent, struct m0_be_op *child)
 {
-	M0_PRE(be_op_is_locked(parent));
-	M0_PRE(be_op_is_locked(child));
+	M0_PRE(m0_be_op_is_locked(parent));
+	M0_PRE(m0_be_op_is_locked(child));
 	M0_PRE(child->bo_parent == parent);
 	M0_PRE(bos_tlist_contains(&parent->bo_children, child));
 
@@ -173,7 +173,7 @@ static void be_op_state_change(struct m0_be_op     *op,
 
 	M0_PRE(M0_IN(state, (M0_BOS_ACTIVE, M0_BOS_DONE)));
 
-	be_op_lock(op);
+	m0_be_op_lock(op);
 	parent = op->bo_parent;
 	M0_ASSERT(ergo(bos_tlist_is_empty(&op->bo_children),
 		       !op->bo_is_op_set || state == M0_BOS_DONE));
@@ -189,9 +189,9 @@ static void be_op_state_change(struct m0_be_op     *op,
 		*/
 		if (parent != NULL && state == M0_BOS_DONE) {
 			/* see m0_be_op_set_add() for the lock order */
-			be_op_lock(parent);
+			m0_be_op_lock(parent);
 			last_child = be_op_set_del(parent, op);
-			be_op_unlock(parent);
+			m0_be_op_unlock(parent);
 		}
 		if (state == M0_BOS_ACTIVE && op->bo_cb_active != NULL)
 			op->bo_cb_active(op, op->bo_cb_active_param);
@@ -204,7 +204,7 @@ static void be_op_state_change(struct m0_be_op     *op,
 		}
 		state_changed = true;
 	}
-	be_op_unlock(op);
+	m0_be_op_unlock(op);
 	/* don't touch the op after the unlock */
 	/* if someone set bo_cb_gc then it's safe to call GC function here */
 	if (cb_gc != NULL)
@@ -268,14 +268,14 @@ M0_INTERNAL int m0_be_op_tick_ret(struct m0_be_op *op,
 {
 	enum m0_fom_phase_outcome ret = M0_FSO_AGAIN;
 
-	be_op_lock(op);
+	m0_be_op_lock(op);
 	M0_PRE(M0_IN(op->bo_sm.sm_state, (M0_BOS_ACTIVE, M0_BOS_DONE)));
 
 	if (op->bo_sm.sm_state == M0_BOS_ACTIVE) {
 		ret = M0_FSO_WAIT;
 		m0_fom_wait_on(fom, &op->bo_sm.sm_chan, &fom->fo_cb);
 	}
-	be_op_unlock(op);
+	m0_be_op_unlock(op);
 
 	m0_fom_phase_set(fom, next_state);
 	return ret;
@@ -286,18 +286,18 @@ M0_INTERNAL void m0_be_op_wait(struct m0_be_op *op)
 	struct m0_sm *sm = &op->bo_sm;
 	int           rc;
 
-	be_op_lock(op);
+	m0_be_op_lock(op);
 	rc = m0_sm_timedwait(sm, M0_BITS(M0_BOS_DONE), M0_TIME_NEVER);
 	M0_ASSERT_INFO(rc == 0, "rc=%d", rc);
-	be_op_unlock(op);
+	m0_be_op_unlock(op);
 }
 
 M0_INTERNAL void m0_be_op_set_add(struct m0_be_op *parent,
 				  struct m0_be_op *child)
 {
 	/* lock order here and in be_op_state_change() should be the same */
-	be_op_lock(child);
-	be_op_lock(parent);
+	m0_be_op_lock(child);
+	m0_be_op_lock(parent);
 
 	M0_ASSERT(parent->bo_sm.sm_state != M0_BOS_DONE);
 	M0_ASSERT( child->bo_sm.sm_state == M0_BOS_INIT);
@@ -305,29 +305,29 @@ M0_INTERNAL void m0_be_op_set_add(struct m0_be_op *parent,
 	be_op_set_add(parent, child);
 	parent->bo_is_op_set = true;
 
-	be_op_unlock(parent);
-	be_op_unlock(child);
+	m0_be_op_unlock(parent);
+	m0_be_op_unlock(child);
 }
 
 M0_INTERNAL void m0_be_op_rc_set(struct m0_be_op *op, int rc)
 {
-	be_op_lock(op);
+	m0_be_op_lock(op);
 	M0_PRE(op->bo_sm.sm_state == M0_BOS_ACTIVE);
 	M0_PRE(!op->bo_rc_is_set);
 	op->bo_rc        = rc;
 	op->bo_rc_is_set = true;
-	be_op_unlock(op);
+	m0_be_op_unlock(op);
 }
 
 M0_INTERNAL int m0_be_op_rc(struct m0_be_op *op)
 {
 	int rc;
 
-	be_op_lock(op);
+	m0_be_op_lock(op);
 	M0_PRE(op->bo_sm.sm_state == M0_BOS_DONE);
 	M0_PRE(op->bo_rc_is_set);
 	rc = op->bo_rc;
-	be_op_unlock(op);
+	m0_be_op_unlock(op);
 	return rc;
 }
 

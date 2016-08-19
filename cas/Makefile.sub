@@ -1,12 +1,14 @@
 nobase_mero_include_HEADERS += \
                             cas/cas.h \
                             cas/cas_addb2.h \
-                            cas/client.h
+                            cas/client.h \
+                            cas/ctg_store.h
 
 mero_libmero_la_SOURCES  += \
                             cas/cas.c \
                             cas/service.c \
-                            cas/client.c
+                            cas/client.c \
+                            cas/ctg_store.c
 
 nodist_mero_libmero_la_SOURCES  += \
                             cas/cas_xc.c
