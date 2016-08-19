@@ -820,12 +820,10 @@ int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 		goto err_ha_fini;
 
 	rconfc = m0_csb2rconfc(csb);
-	//m0_rconfc_lock(rconfc);
 	m0_clink_init(&csb->csb_conf_exp, m0t1fs_rconfc_expired_cb);
 	m0_clink_init(&csb->csb_conf_ready, m0t1fs_rconfc_ready_cb);
 	m0_clink_add_lock(&reqh->rh_conf_cache_exp, &csb->csb_conf_exp);
 	m0_clink_add_lock(&reqh->rh_conf_cache_ready, &csb->csb_conf_ready);
-	//m0_rconfc_unlock(rconfc);
 	rc = m0_rconfc_start_sync(m0_csb2rconfc(csb), &reqh->rh_profile) ?:
 		m0_ha_client_add(m0_reqh2confc(reqh));
 	if (rc != 0)

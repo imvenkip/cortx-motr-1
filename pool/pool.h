@@ -198,6 +198,17 @@ struct m0_pools_common {
 	struct m0_mutex                   pc_rm_lock;
 
 	struct m0_mutex                   pc_mutex;
+
+	/**
+	 * Service contexts that were obsoleted by configuration updates.
+	 *
+	 * List of m0_reqh_service_ctx-s, linked through .sc_link field.
+	 */
+	struct m0_tl                      pc_abandoned_svc_ctxs;
+	/** Listener for configuration expiration event from rconfc. */
+	struct m0_clink                   pc_conf_exp;
+	/** Listener for configuration ready event from rconfc. */
+	struct m0_clink                   pc_conf_ready;
 };
 
 M0_TL_DESCR_DECLARE(pools_common_svc_ctx, M0_EXTERN);

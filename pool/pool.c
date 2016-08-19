@@ -867,8 +867,7 @@ static int service_ctxs_create(struct m0_pools_common *pc,
 
 static bool service_ctx_ha_entrypoint_cb(struct m0_clink *clink)
 {
-	struct m0_pools_common             *pc =
-		container_of(clink, struct m0_pools_common, pc_ha_clink);
+	struct m0_pools_common             *pc = M0_AMB(pc, clink, pc_ha_clink);
 	struct m0_ha_entrypoint_client     *ecl = pc->pc_ha_ecl;
 	struct m0_ha_entrypoint_rep        *rep = &ecl->ecl_rep;
 	enum m0_ha_entrypoint_client_state  state;
@@ -924,11 +923,116 @@ m0_pools_common_service_ctx_find(const struct m0_pools_common *pc,
 			  m0_fid_eq(id, &ctx->sc_fid) && ctx->sc_type == type);
 }
 
+/**
+ * Callback called on configuration expiration detected by rconfc. In the course
+ * of handling all existing reqh service contexts are unsubscribed from HA
+ * notifications. This lets conf cache be drained.
+ *
+ * @note The context connection state remains unchanged.
+ */
+static bool pools_common_conf_expired_cb(struct m0_clink *clink)
+{
+	struct m0_pools_common     *pc = M0_AMB(pc, clink, pc_conf_exp);
+	struct m0_reqh_service_ctx *ctx;
+
+	M0_ENTRY("pc %p", pc);
+
+	m0_tl_for(pools_common_svc_ctx, &pc->pc_svc_ctxs, ctx) {
+		m0_reqh_service_ctx_unsubscribe(ctx);
+	} m0_tl_endfor;
+
+	M0_LEAVE();
+	return true;
+}
+
+/**
+ * Service context is matching to current configuration only when 1) respective
+ * service object is found in conf, i.e. not NULL, 2) belongs to the process
+ * with originally known and not changed fid, and 3) has its rpc connection
+ * endpoint in the conf.
+ */
+static bool reqh_service_ctx_is_matching(const struct m0_reqh_service_ctx *ctx,
+					 const struct m0_conf_obj         *svc)
+{
+	struct m0_conf_obj *proc;
+	const char         *ep = m0_rpc_link_end_point(&ctx->sc_rlink);
+
+	M0_PRE(svc != NULL); /* service found in conf */
+	proc = m0_conf_obj_grandparent(svc);
+	return m0_fid_eq(&proc->co_id, &ctx->sc_fid_process) &&
+		m0_conf_service_ep_is_known(svc, ep);
+}
+
+/**
+ * Moves reqh service context from m0_pools_common::pc_svc_ctx list to
+ * m0_reqh::rh_abandoned_svc_ctxs list. Once abandoned the context appears
+ * unlinked from rconfc events and instructed to disconnect itself
+ * asynchronously.
+ */
+static void reqh_service_ctx_abandon(struct m0_reqh_service_ctx *ctx)
+{
+	struct m0_pools_common *pc = ctx->sc_pc;
+
+	/* Drop links to rconfc events. */
+	m0_clink_cleanup_locked(&pc->pc_conf_ready);
+	m0_clink_cleanup_locked(&pc->pc_conf_exp);
+
+	/* Move the context to the list of abandoned ones. */
+	pools_common_svc_ctx_tlink_del_fini(ctx);
+	pools_common_svc_ctx_tlink_init_at_tail(ctx,
+						&pc->pc_abandoned_svc_ctxs);
+
+	/*
+	 * The context found disappeared from conf, so go start disconnecting it
+	 * asynchronously if needed.
+	 */
+	if (m0_reqh_service_ctx_is_connected(ctx))
+		m0_reqh_service_disconnect(ctx);
+	/*
+	 * The context is to be physically destroyed later when rpc link
+	 * disconnection is confirmed in reqh_service_ctx_ast_cb().
+	 */
+}
+
+/**
+ * Callback called when new configuration gets ready which fact is detected by
+ * rconfc. In the course of handling every existing reqh service context is
+ * subscribed to HA notifications in case the previously known service appears
+ * in the new configuration unchanged. Otherwise the context is abandoned and
+ * ultimately instructed to disconnect.
+ */
+static bool pools_common_conf_ready_cb(struct m0_clink *clink)
+{
+	struct m0_pools_common     *pc = M0_AMB(pc, clink, pc_conf_ready);
+	struct m0_conf_cache       *cache = &pc->pc_confc->cc_cache;
+	struct m0_conf_obj         *obj;
+	struct m0_reqh_service_ctx *ctx;
+
+	M0_ENTRY("pc %p", pc);
+
+	m0_tl_for(pools_common_svc_ctx, &pc->pc_svc_ctxs, ctx) {
+		m0_conf_cache_lock(cache);
+		obj = m0_conf_cache_lookup(cache, &ctx->sc_fid);
+		if (obj != NULL && reqh_service_ctx_is_matching(ctx, obj)) {
+			ctx->sc_service = obj;
+			ctx->sc_process = m0_conf_obj_grandparent(obj);
+			m0_reqh_service_ctx_subscribe(ctx);
+		} else {
+			reqh_service_ctx_abandon(ctx);
+		}
+		m0_conf_cache_unlock(cache);
+	} m0_tl_endfor;
+
+	M0_LEAVE();
+	return true;
+}
+
 M0_INTERNAL int m0_pools_common_init(struct m0_pools_common *pc,
 				     struct m0_rpc_machine *rmach,
 				     struct m0_conf_filesystem *fs)
 {
-	int rc;
+	struct m0_reqh *reqh;
+	int             rc;
 
 	M0_ENTRY();
 	M0_PRE(pc != NULL && fs != NULL);
@@ -938,6 +1042,7 @@ M0_INTERNAL int m0_pools_common_init(struct m0_pools_common *pc,
 		.pc_md_redundancy = fs->cf_redundancy,
 		.pc_confc         = m0_confc_from_obj(&fs->cf_obj)
 	};
+	reqh = m0_confc2reqh(pc->pc_confc);
 	m0_mutex_init(&pc->pc_mutex);
 	rc = m0_conf_ios_devices_count(&fs->cf_obj.co_parent->co_id,
 				       pc->pc_confc, &pc->pc_nr_devices);
@@ -947,11 +1052,16 @@ M0_INTERNAL int m0_pools_common_init(struct m0_pools_common *pc,
 	M0_ALLOC_ARR(pc->pc_dev2ios, pc->pc_nr_devices);
 	if (pc->pc_dev2ios == NULL)
 		return M0_ERR(-ENOMEM);
+	pools_common_svc_ctx_tlist_init(&pc->pc_abandoned_svc_ctxs);
 	pools_common_svc_ctx_tlist_init(&pc->pc_svc_ctxs);
 	pools_tlist_init(&pc->pc_pools);
 	pc->pc_ha_ecl = &m0_get()->i_ha->h_entrypoint_client;
 	m0_mutex_init(&pc->pc_rm_lock);
 	m0_clink_init(&pc->pc_ha_clink, service_ctx_ha_entrypoint_cb);
+	m0_clink_init(&pc->pc_conf_exp, pools_common_conf_expired_cb);
+	m0_clink_init(&pc->pc_conf_ready, pools_common_conf_ready_cb);
+	m0_clink_add_lock(&reqh->rh_conf_cache_exp, &pc->pc_conf_exp);
+	m0_clink_add_lock(&reqh->rh_conf_cache_ready, &pc->pc_conf_ready);
 	return M0_RC(rc);
 }
 
@@ -997,12 +1107,49 @@ M0_INTERNAL void m0_pools_common_fini(struct m0_pools_common *pc)
 
 	m0_clink_fini(&pc->pc_ha_clink);
 	m0_mutex_fini(&pc->pc_rm_lock);
+	pools_common_svc_ctx_tlist_fini(&pc->pc_abandoned_svc_ctxs);
 	pools_common_svc_ctx_tlist_fini(&pc->pc_svc_ctxs);
 	pools_tlist_fini(&pc->pc_pools);
 	m0_free(pc->pc_dev2ios);
 	m0_mutex_fini(&pc->pc_mutex);
+	m0_clink_cleanup(&pc->pc_conf_exp);
+	m0_clink_cleanup(&pc->pc_conf_ready);
+	m0_clink_fini(&pc->pc_conf_exp);
+	m0_clink_fini(&pc->pc_conf_ready);
 
 	M0_LEAVE();
+}
+
+/**
+ * Destroys all service contexts kept in m0_pools_common::pc_abandoned_svc_ctxs
+ * list.
+ */
+static void abandoned_svc_ctxs_cleanup(struct m0_pools_common *pc)
+{
+	struct m0_reqh_service_ctx *ctx;
+
+	if (pc->pc_confc->cc_group == NULL) {
+		/*
+		 * rconfc seems failed to start or never tried to, so no
+		 * configuration was read, so no conf updates were possible, so
+		 * there was no condition to abandon any context, thus must be
+		 * nothing to clean here.
+		 */
+		M0_ASSERT(pools_common_svc_ctx_tlist_is_empty(
+				  &pc->pc_abandoned_svc_ctxs));
+		return;
+	}
+
+	m0_tl_teardown(pools_common_svc_ctx, &pc->pc_abandoned_svc_ctxs, ctx) {
+		/*
+		 * Any abandoned context was initially set for disconnection
+		 * (see reqh_service_ctx_abandon())
+		 *
+		 * So just wait here for disconnection completion if required.
+		 */
+		m0_reqh_service_disconnect_wait(ctx);
+		m0_reqh_service_ctx_destroy(ctx);
+	}
 }
 
 M0_INTERNAL void m0_pools_service_ctx_destroy(struct m0_pools_common *pc)
@@ -1015,6 +1162,7 @@ M0_INTERNAL void m0_pools_service_ctx_destroy(struct m0_pools_common *pc)
 		m0_clink_del_lock(&pc->pc_ha_clink);
 	service_ctxs_destroy(pc);
 	m0_free(pc->pc_mds_map);
+	abandoned_svc_ctxs_cleanup(pc);
 	M0_LEAVE();
 }
 

@@ -234,8 +234,8 @@ M0_INTERNAL int m0_conf_full_load(struct m0_conf_filesystem *fs)
 		     _conf_load(fs, fs_to_diskvs, ARRAY_SIZE(fs_to_diskvs)));
 }
 
-M0_INTERNAL bool m0_conf_service_ep_is_known(struct m0_conf_obj *svc_obj,
-					     const char         *ep_addr)
+M0_INTERNAL bool m0_conf_service_ep_is_known(const struct m0_conf_obj *svc_obj,
+					     const char               *ep_addr)
 {
 	struct m0_conf_service *svc;
 	const char            **eps;
@@ -252,7 +252,7 @@ M0_INTERNAL bool m0_conf_service_ep_is_known(struct m0_conf_obj *svc_obj,
 			break;
 		}
 	}
-	M0_LEAVE("rv = %s", rv ? "true" : "false");
+	M0_LEAVE("rv = %s", m0_bool_to_str(rv));
 	return rv;
 }
 

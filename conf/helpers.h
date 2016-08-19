@@ -159,8 +159,8 @@ M0_INTERNAL void m0_confc_ready_cb(struct m0_rconfc *rconfc);
  * Finds out if service configuration includes the specified endpoint address,
  * i.e. endpoint is known to service configuration.
  */
-M0_INTERNAL bool m0_conf_service_ep_is_known(struct m0_conf_obj *svc_obj,
-					     const char         *ep_addr);
+M0_INTERNAL bool m0_conf_service_ep_is_known(const struct m0_conf_obj *svc_obj,
+					     const char               *ep_addr);
 
 /**
  * Gets service fid of type stype from process with process_fid.

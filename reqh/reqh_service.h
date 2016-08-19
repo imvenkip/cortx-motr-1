@@ -743,7 +743,10 @@ struct m0_reqh_service_txid {
    m0_reqh_service_ctx.
  */
 struct m0_reqh_service_ctx {
+	/** Fid of service the context connects to */
 	struct m0_fid               sc_fid;
+	/** Fid of process the service belongs to */
+	struct m0_fid               sc_fid_process;
 
 	struct m0_pools_common     *sc_pc;
 
@@ -765,22 +768,22 @@ struct m0_reqh_service_ctx {
 	struct m0_reqh_service_txid sc_max_pending_tx;
 	struct m0_mutex             sc_max_pending_tx_lock;
 
-	struct m0_conf_obj         *sc_sobj;
-	struct m0_conf_obj         *sc_pobj;
+	/** object representing the service the context connects to */
+	struct m0_conf_obj         *sc_service;
+	/** object representing the process the service is hosted by */
+	struct m0_conf_obj         *sc_process;
 
 	/** clink to service configuration objects chan to act on HA events. */
 	struct m0_clink             sc_svc_event;
 	/** clink to process configuration objects chan to act on HA events. */
 	struct m0_clink             sc_process_event;
 
-	struct m0_clink             sc_conf_exp;
-	struct m0_clink             sc_conf_ready;
 	/** Magic = M0_REQH_SVC_CTX_MAGIC */
 	uint64_t                    sc_magic;
 };
 
 M0_INTERNAL int m0_reqh_service_ctx_init(struct m0_reqh_service_ctx *ctx,
-					 struct m0_conf_obj *sobj,
+					 struct m0_conf_obj *svc_obj,
 					 enum m0_conf_service_type stype,
 					 struct m0_rpc_machine *rmach,
 					 const char *addr,
@@ -791,7 +794,7 @@ M0_INTERNAL void m0_reqh_service_ctx_fini(struct m0_reqh_service_ctx *ctx);
 /**
  * Allocates and initialises m0_reqh_service_ctx for the given service type.
  */
-M0_INTERNAL int m0_reqh_service_ctx_create(struct m0_conf_obj *sobj,
+M0_INTERNAL int m0_reqh_service_ctx_create(struct m0_conf_obj *svc_obj,
 					   enum m0_conf_service_type stype,
 					   struct m0_rpc_machine *rmach,
 					   const char *addr,
@@ -805,7 +808,7 @@ m0_reqh_service_ctx_destroy(struct m0_reqh_service_ctx *ctx);
 /**
  * Establishes rpc connection asynchronously.
  *
- * @pre m0_conf_cache_is_locked(ctx->sc_sobj->co_cache)
+ * @pre m0_conf_cache_is_locked(ctx->sc_service->co_cache)
  */
 M0_INTERNAL void m0_reqh_service_connect(struct m0_reqh_service_ctx *ctx);
 
@@ -815,7 +818,7 @@ M0_INTERNAL void m0_reqh_service_connect(struct m0_reqh_service_ctx *ctx);
  * @note Result doesn't reflect actual connection state.
  */
 M0_INTERNAL bool
-m0_reqh_service_ctx_is_connected(struct m0_reqh_service_ctx *ctx);
+m0_reqh_service_ctx_is_connected(const struct m0_reqh_service_ctx *ctx);
 
 /** Terminates rpc connection asynchronously. */
 M0_INTERNAL void m0_reqh_service_disconnect(struct m0_reqh_service_ctx *ctx);
@@ -836,6 +839,17 @@ m0_reqh_service_disconnect_wait(struct m0_reqh_service_ctx *ctx);
  */
 M0_INTERNAL struct m0_reqh_service_ctx *
 m0_reqh_service_ctx_from_session(struct m0_rpc_session *session);
+
+/**
+ * Subscribes context to its service & process HA notifications.
+ */
+M0_INTERNAL void m0_reqh_service_ctx_subscribe(struct m0_reqh_service_ctx *ctx);
+
+/**
+ * Unsubscribes context from its service & process HA notifications.
+ */
+M0_INTERNAL void
+m0_reqh_service_ctx_unsubscribe(struct m0_reqh_service_ctx *ctx);
 
 /** @} endgroup reqhservice */
 #endif /* __MERO_REQH_REQH_SERVICE_H__ */

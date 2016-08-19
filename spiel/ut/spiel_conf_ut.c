@@ -60,6 +60,7 @@ enum {
 	SPIEL_UT_OBJ_SERVICE9,
 	SPIEL_UT_OBJ_SERVICE10,
 	SPIEL_UT_OBJ_SERVICE11,
+	SPIEL_UT_OBJ_SERVICE12,
 	SPIEL_UT_OBJ_SDEV,
 	SPIEL_UT_OBJ_SDEV2,
 	SPIEL_UT_OBJ_SDEV3,
@@ -113,6 +114,7 @@ static struct m0_fid spiel_obj_fid[] = {
 	[SPIEL_UT_OBJ_SERVICE9]     = M0_FID_TINIT('s', 1, 26),
 	[SPIEL_UT_OBJ_SERVICE10]    = M0_FID_TINIT('s', 1, 27),
 	[SPIEL_UT_OBJ_SERVICE11]    = M0_FID_TINIT('s', 1, 28),
+	[SPIEL_UT_OBJ_SERVICE12]    = M0_FID_TINIT('s', 1, 29),
 	[SPIEL_UT_OBJ_SDEV]         = M0_FID_TINIT('d', 1, 15),
 	[SPIEL_UT_OBJ_SDEV2]        = M0_FID_TINIT('d', 1, 71),
 	[SPIEL_UT_OBJ_SDEV3]        = M0_FID_TINIT('d', 1, 72),
@@ -212,8 +214,19 @@ static void spiel_conf_ut_fini(void)
 	conf_ut_ast_thread_fini();
 }
 
-static void spiel_conf_create_configuration(struct m0_spiel    *spiel,
-					    struct m0_spiel_tx *tx)
+enum spiel_conf_opts {
+	SCO_NO_CHANGE,
+	SCO_DROP_PROCESS = 1 << 1,               /* unused */
+	SCO_DROP_SERVICE = 1 << 2,
+	SCO_DROP_SDEV    = 1 << 3,               /* unused */
+	SCO_ADD_PROCESS  = 1 << (1 + 16),        /* unused */
+	SCO_ADD_SERVICE  = 1 << (2 + 16),
+	SCO_ADD_SDEV     = 1 << (3 + 16),        /* unused */
+};
+
+static void spiel_conf_create_conf_with_opt(struct m0_spiel    *spiel,
+					    struct m0_spiel_tx *tx,
+					    uint64_t            opts)
 {
 	int                           rc;
 	struct m0_pdclust_attr        pdclust_attr = { .pa_N=0,
@@ -475,12 +488,23 @@ static void spiel_conf_create_configuration(struct m0_spiel    *spiel,
 				  &service_info);
 	M0_UT_ASSERT(rc == 0);
 
-	service_info.svi_type = M0_CST_DS2;
-			rc = m0_spiel_service_add(tx,
-				  &spiel_obj_fid[SPIEL_UT_OBJ_SERVICE11],
-				  &spiel_obj_fid[SPIEL_UT_OBJ_PROCESS2],
-				  &service_info);
-	M0_UT_ASSERT(rc == 0);
+	if ((opts & SCO_DROP_SERVICE) == 0) {
+		service_info.svi_type = M0_CST_DS2;
+		rc = m0_spiel_service_add(tx,
+					  &spiel_obj_fid[SPIEL_UT_OBJ_SERVICE11],
+					  &spiel_obj_fid[SPIEL_UT_OBJ_PROCESS2],
+					  &service_info);
+		M0_UT_ASSERT(rc == 0);
+	}
+
+	if ((opts & SCO_ADD_SERVICE) != 0) {
+		service_info.svi_type = M0_CST_DS2;
+		rc = m0_spiel_service_add(tx,
+					  &spiel_obj_fid[SPIEL_UT_OBJ_SERVICE12],
+					  &spiel_obj_fid[SPIEL_UT_OBJ_PROCESS2],
+					  &service_info);
+		M0_UT_ASSERT(rc == 0);
+	}
 
 	rc = m0_spiel_device_add(tx,
 				 &spiel_obj_fid[SPIEL_UT_OBJ_SDEV],
@@ -564,6 +588,15 @@ static void spiel_conf_create_configuration(struct m0_spiel    *spiel,
 				 1024, 512, 123, 0x55, "/dev/sdev4");
 	M0_UT_ASSERT(rc == 0);
 	m0_bitmap_fini(&bitmap);
+}
+
+/**
+ * Creates configuration identical to conf.xc, i.e. having no changes.
+ */
+static void spiel_conf_create_configuration(struct m0_spiel    *spiel,
+					    struct m0_spiel_tx *tx)
+{
+	spiel_conf_create_conf_with_opt(spiel, tx, SCO_NO_CHANGE);
 }
 
 #define FID_MOVE(fid, step) 	\
@@ -674,9 +707,7 @@ static void spiel_conf_create_invalid_configuration(struct m0_spiel    *spiel,
 
 	m0_bitmap_fini(&bitmap);
 }
-/*
- * spiel-conf-create-ok test
- */
+
 static void spiel_conf_create_ok(void)
 {
 	struct m0_spiel_tx tx;
@@ -950,9 +981,6 @@ static void spiel_conf_create_pver_tree(struct m0_spiel_tx *tx)
 	M0_UT_ASSERT(rc == 0);
 }
 
-/*
- * spiel-conf-create-fail test
- */
 static void spiel_conf_create_fail(void)
 {
 	struct m0_spiel_tx            tx;
@@ -1403,9 +1431,6 @@ static void spiel_conf_create_fail(void)
 	spiel_conf_ut_fini();
 }
 
-/*
- * spiel-conf-delete test
- */
 static void spiel_conf_delete(void)
 {
 	struct m0_spiel_tx        tx;
@@ -1686,9 +1711,6 @@ static void spiel_conf_file_create_tree(struct m0_spiel_tx *tx)
 	m0_bitmap_fini(&bitmap);
 }
 
-/*
- * spiel-conf-file test
- */
 static void spiel_conf_file(void)
 {
 	int                   rc;
@@ -1731,11 +1753,6 @@ static void spiel_conf_file(void)
 	spiel_conf_ut_fini();
 }
 
-/**
- * spiel-conf-cancel
- *
- * send Load command to confd
- */
 static void spiel_conf_cancel(void)
 {
 	struct m0_spiel_tx  tx;
@@ -1747,8 +1764,6 @@ static void spiel_conf_cancel(void)
 }
 
 /**
- * spiel-conf-load-send
- *
  * send Load command to confd
  */
 static void spiel_conf_load_send(void)
@@ -1764,6 +1779,41 @@ static void spiel_conf_load_send(void)
 	spiel_conf_ut_fini();
 }
 
+/**
+ * send Load command to confd having one service dropped
+ */
+static void spiel_conf_drop_svc(void)
+{
+	struct m0_spiel_tx tx;
+	int                rc;
+
+	spiel_conf_ut_init();
+	spiel_conf_create_conf_with_opt(&spiel, &tx, SCO_DROP_SERVICE);
+	rc = m0_spiel_tx_commit(&tx);
+	M0_UT_ASSERT(rc == 0);
+	m0_spiel_tx_close(&tx);
+	spiel_conf_ut_fini();
+}
+
+/**
+ * send Load command to confd having one service added
+ */
+static void spiel_conf_add_svc(void)
+{
+	struct m0_spiel_tx tx;
+	int                rc;
+
+	spiel_conf_ut_init();
+	spiel_conf_create_conf_with_opt(&spiel, &tx, SCO_ADD_SERVICE);
+	rc = m0_spiel_tx_commit(&tx);
+	M0_UT_ASSERT(rc == 0);
+	m0_spiel_tx_close(&tx);
+	spiel_conf_ut_fini();
+}
+
+/**
+ * send Load command using rpc bulk mechanism
+ */
 static void spiel_conf_big_db(void)
 {
 #define SVC_EP "192.168.252.132@tcp:12345:41:201"
@@ -1824,11 +1874,6 @@ static void spiel_conf_flip_fail(void)
 	spiel_conf_ut_fini();
 }
 
-/**
- * spiel-conf-check-fail
- *
- * send Load command to confd
- */
 static void spiel_conf_check_fail(void)
 {
 	struct m0_spiel_tx    tx;
@@ -1874,11 +1919,6 @@ static void spiel_conf_check_fail(void)
 	spiel_conf_ut_fini();
 }
 
-/**
- * spiel-conf-load-fail
- *
- * send Load command to confd
- */
 static void spiel_conf_load_fail(void)
 {
 	struct m0_spiel_tx  tx;
@@ -1950,138 +1990,24 @@ static void spiel_conf_tx_no_spiel(void)
 	m0_spiel_tx_close(&tx);
 }
 
-/**
- * @todo Restore unit test once spiel can start when rconfc quorum isn't reached
- */
-#if 0
-static void spiel_conf_force_ut_init(struct m0_spiel_ut_reqh *spl_reqh)
-{
-	int         rc;
-	const char *ep = SERVER_ENDPOINT_ADDR;
-	const char *client_ep = CLIENT_ENDPOINT_ADDR;
-
-	spiel_copy_file(M0_UT_PATH("conf.xc"), "tmp-conf.xc");
-
-	rc = m0_spiel__ut_reqh_init(spl_reqh, client_ep);
-	M0_UT_ASSERT(rc == 0);
-
-	rc = m0_spiel__ut_rpc_server_start(&spl_reqh->sur_confd_srv, ep,
-					   "tmp-conf.xc");
-	M0_UT_ASSERT(rc == 0);
-}
-
-static void spiel_conf_force_ut_fini(struct m0_spiel_ut_reqh *spl_reqh)
-{
-	int rc;
-
-	m0_spiel__ut_rpc_server_stop(&spl_reqh->sur_confd_srv);
-	m0_spiel__ut_reqh_fini(spl_reqh);
-
-	rc = system("rm -rf confd");
-	M0_UT_ASSERT(rc != -1);
-	rc = unlink("tmp-conf.xc");
-	M0_UT_ASSERT(rc == 0);
-}
-
-static void spiel_conf_force(void)
-{
-	struct m0_spiel_ut_reqh   spl_reqh;
-	struct m0_spiel_tx        tx;
-	int                       rc;
-	const char               *ep[] = { SERVER_ENDPOINT_ADDR,
-			                   "127.0.0.1", /* bad address */
-			                   NULL };
-	const char               *rm_addr = ep[0];
-	struct m0_spiel           spiel;
-	uint64_t                  ver_org = M0_CONF_VER_UNKNOWN;
-	uint64_t                  ver_new = M0_CONF_VER_UNKNOWN;
-	uint32_t                  rquorum;
-	const char              **eps_orig;
-
-	spiel_conf_force_ut_init(&spl_reqh);
-	/* start with quorum impossible due to second ep being invalid */
-	rc = m0_spiel_start(&spiel, &spl_reqh.sur_reqh, ep, rm_addr);
-	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(spiel.spl_rconfc.rc_ver == M0_CONF_VER_UNKNOWN);
-	ver_org = m0_rconfc_ver_max_read(&spiel.spl_rconfc);
-	M0_UT_ASSERT(ver_org != M0_CONF_VER_UNKNOWN);
-
-	/* imitate correct rconfc init to let transaction to fill in */
-	spiel.spl_rconfc.rc_ver = ver_org;
-	/* fill transaction normal way */
-	spiel_conf_create_configuration(&spiel, &tx);
-	/* make sure normal commit impossible */
-	rc = m0_spiel_tx_commit(&tx);
-	M0_UT_ASSERT(rc == -ENOENT); /* no quorum reached */
-	/* try forced commit with all invalid addresses */
-	eps_orig = spiel.spl_confd_addr;
-	spiel.spl_confd_addr = (const char*[]) { "127.0.0.2", "127.0.0.1", NULL};
-	rc = m0_spiel_tx_commit_forced(&tx, true, M0_CONF_VER_UNKNOWN,
-				       &rquorum);
-	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(rquorum < spiel.spl_rconfc.rc_quorum);
-	M0_UT_ASSERT(rquorum == 0);
-	/* try to repeat the forced commit with the original set */
-	spiel.spl_confd_addr = eps_orig;
-	rc = m0_spiel_tx_commit_forced(&tx, true, M0_CONF_VER_UNKNOWN,
-				       &rquorum);
-	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(rquorum < spiel.spl_rconfc.rc_quorum);
-	M0_UT_ASSERT(rquorum == 1);
-	m0_spiel_stop(&spiel);
-
-	/* make sure new version applied */
-	M0_SET0(&spiel);
-	rc = m0_spiel_start(&spiel, &spl_reqh.sur_reqh, ep, rm_addr);
-	M0_UT_ASSERT(rc == 0);
-	ver_new = m0_rconfc_ver_max_read(&spiel.spl_rconfc);
-	M0_UT_ASSERT(ver_new == ver_org + 1); /*
-					       * default increment done by
-					       * m0_spiel_tx_open() proved
-					       */
-
-	/* try to repeat the forced commit with a new version number */
-	rc = m0_spiel_tx_commit_forced(&tx, true, ver_org + 10, &rquorum);
-	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(rquorum < spiel.spl_rconfc.rc_quorum);
-	M0_UT_ASSERT(rquorum == 1);
-	m0_spiel_stop(&spiel);
-
-	/* dismiss transaction dataset */
-	m0_spiel_tx_close(&tx);
-
-	/* make sure new version applied */
-	M0_SET0(&spiel);
-	rc = m0_spiel_start(&spiel, &spl_reqh.sur_reqh, ep, rm_addr);
-	M0_UT_ASSERT(rc == 0);
-	ver_new = m0_rconfc_ver_max_read(&spiel.spl_rconfc);
-	M0_UT_ASSERT(ver_new == ver_org + 10); /* ver_forced confirmed */
-	m0_spiel_stop(&spiel);
-	spiel_conf_force_ut_fini(&spl_reqh);
-}
-#endif
-
 const struct m0_ut_suite spiel_conf_ut = {
 	.ts_name = "spiel-conf-ut",
 	.ts_tests = {
-		{ "spiel-conf-create-ok",   spiel_conf_create_ok   },
-		{ "spiel-conf-create-fail", spiel_conf_create_fail },
-		{ "spiel-conf-delete",      spiel_conf_delete      },
-		{ "spiel-conf-file",        spiel_conf_file        },
-		{ "spiel-conf-cancel",      spiel_conf_cancel      },
-		{ "spiel-conf-load-send",   spiel_conf_load_send   },
-		{ "spiel-conf-big-db",      spiel_conf_big_db      },
-		{ "spiel-conf-flip-fail",   spiel_conf_flip_fail   },
-		{ "spiel-conf-check-fail",  spiel_conf_check_fail  },
-		{ "spiel-conf-load-fail",   spiel_conf_load_fail   },
-		{ "spiel-conf-dump",        spiel_conf_dump        },
-		{ "spiel-conf-tx-invalid",  spiel_conf_tx_invalid  },
-		{ "spiel-conf-tx-no-spiel", spiel_conf_tx_no_spiel },
-		/**
-		 * @todo Test is disabled because now spiel can't start
-		 * successfully if quorum is not reached in rconfc.
-		 */
-		/*{ "spiel-conf-force",       spiel_conf_force       },*/
+		{ "create-ok",   spiel_conf_create_ok   },
+		{ "create-fail", spiel_conf_create_fail },
+		{ "delete",      spiel_conf_delete      },
+		{ "file",        spiel_conf_file        },
+		{ "cancel",      spiel_conf_cancel      },
+		{ "load-send",   spiel_conf_load_send   },
+		{ "big-db",      spiel_conf_big_db      },
+		{ "flip-fail",   spiel_conf_flip_fail   },
+		{ "check-fail",  spiel_conf_check_fail  },
+		{ "load-fail",   spiel_conf_load_fail   },
+		{ "dump",        spiel_conf_dump        },
+		{ "tx-invalid",  spiel_conf_tx_invalid  },
+		{ "tx-no-spiel", spiel_conf_tx_no_spiel },
+		{ "drop-svc",    spiel_conf_drop_svc    },
+		{ "add-svc",     spiel_conf_add_svc     },
 		{ NULL, NULL },
 	},
 };

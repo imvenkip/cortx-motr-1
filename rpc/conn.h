@@ -530,5 +530,8 @@ M0_INTERNAL struct m0_conf_obj *m0_rpc_conn2svc(const struct m0_rpc_conn *conn);
  */
 M0_INTERNAL void m0_rpc_conn_ha_cfg_set(struct m0_rpc_conn        *conn,
 					const struct m0_rpc_conn_ha_cfg *cfg);
+
+M0_INTERNAL const char *m0_rpc_conn_state_to_str(enum m0_rpc_conn_state state);
+
 /** @}  End of rpc_session group */
 #endif /* __MERO_RPC_CONN_H__ */

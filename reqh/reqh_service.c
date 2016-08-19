@@ -130,6 +130,10 @@ const struct m0_sm_conf service_states_conf = {
 	.scf_state     = service_states
 };
 
+static void
+reqh_service_ctx_destroy_if_abandoned(struct m0_reqh_service_ctx *ctx);
+
+
 M0_INTERNAL bool m0_reqh_service_invariant(const struct m0_reqh_service *svc)
 {
 	return _0C(m0_reqh_service_bob_check(svc)) &&
@@ -753,34 +757,35 @@ static void reqh_service_ctx_flag_clear(struct m0_reqh_service_ctx *ctx,
 	ctx->sc_conn_flags &= ~bits;
 }
 
-static bool reqh_service_ctx_flag_is_set(struct m0_reqh_service_ctx *ctx,
-					 int                         flag)
+static bool reqh_service_ctx_flag_is_set(const struct m0_reqh_service_ctx *ctx,
+					 int                               flag)
 {
 	uint64_t bits = M0_BITS(flag);
 	return !!(ctx->sc_conn_flags & bits);
 }
 
-static void reqh_service_ctx_subscribe(struct m0_reqh_service_ctx *ctx)
+M0_INTERNAL void m0_reqh_service_ctx_subscribe(struct m0_reqh_service_ctx *ctx)
 {
-	M0_PRE(m0_conf_cache_is_locked(ctx->sc_sobj->co_cache));
-
-	m0_conf_obj_get(ctx->sc_sobj);
-	m0_clink_add(&ctx->sc_sobj->co_ha_chan, &ctx->sc_svc_event);
-	m0_conf_obj_get(ctx->sc_pobj);
-	m0_clink_add(&ctx->sc_pobj->co_ha_chan, &ctx->sc_process_event);
+	m0_conf_obj_get(ctx->sc_service);
+	m0_clink_add(&ctx->sc_service->co_ha_chan, &ctx->sc_svc_event);
+	m0_conf_obj_get(ctx->sc_process);
+	m0_clink_add(&ctx->sc_process->co_ha_chan, &ctx->sc_process_event);
 }
 
-static void reqh_service_ctx_unsubscribe(struct m0_reqh_service_ctx *ctx)
+M0_INTERNAL void
+m0_reqh_service_ctx_unsubscribe(struct m0_reqh_service_ctx *ctx)
 {
 	if (ctx->sc_svc_event.cl_chan != NULL) {
 		m0_clink_cleanup(&ctx->sc_svc_event);
 		ctx->sc_svc_event.cl_chan = NULL;
-		m0_confc_close(ctx->sc_sobj);
+		m0_confc_close(ctx->sc_service);
+		ctx->sc_service = NULL;
 	}
 	if (ctx->sc_process_event.cl_chan != NULL) {
 		m0_clink_cleanup(&ctx->sc_process_event);
 		ctx->sc_process_event.cl_chan = NULL;
-		m0_confc_close(ctx->sc_pobj);
+		m0_confc_close(ctx->sc_process);
+		ctx->sc_process = NULL;
 	}
 }
 
@@ -798,7 +803,7 @@ static void reqh_service_connect_locked(struct m0_reqh_service_ctx *ctx,
 
 M0_INTERNAL void m0_reqh_service_connect(struct m0_reqh_service_ctx *ctx)
 {
-	struct m0_conf_obj *obj = ctx->sc_sobj;
+	struct m0_conf_obj *obj = ctx->sc_service;
 
 	M0_ENTRY("'%s' Connect to service '%s'",
 		 m0_rpc_machine_ep(ctx->sc_rlink.rlk_conn.c_rpc_machine),
@@ -818,13 +823,13 @@ M0_INTERNAL void m0_reqh_service_connect(struct m0_reqh_service_ctx *ctx)
 	if (obj->co_ha_state == M0_NC_FAILED)
 		reqh_service_ctx_flag_set(ctx, RSC_RLINK_CANCEL);
 	reqh_service_connect_locked(ctx, M0_TIME_NEVER);
-	reqh_service_ctx_subscribe(ctx);
+	m0_reqh_service_ctx_subscribe(ctx);
 	reqh_service_ctx_sm_unlock(ctx);
 	M0_LEAVE();
 }
 
 M0_INTERNAL bool
-m0_reqh_service_ctx_is_connected(struct m0_reqh_service_ctx *ctx)
+m0_reqh_service_ctx_is_connected(const struct m0_reqh_service_ctx *ctx)
 {
 	return reqh_service_ctx_flag_is_set(ctx, RSC_RLINK_CONNECT);
 }
@@ -853,7 +858,7 @@ M0_INTERNAL void m0_reqh_service_disconnect(struct m0_reqh_service_ctx *ctx)
 
 	reqh_service_ctx_sm_lock(ctx);
 	M0_ASSERT(CTX_STATE(ctx) != M0_RSC_OFFLINE);
-	reqh_service_ctx_unsubscribe(ctx);
+	m0_reqh_service_ctx_unsubscribe(ctx);
 	reqh_service_ctx_flag_set(ctx, RSC_RLINK_DISCONNECT);
 	reqh_service_ctx_flag_clear(ctx, RSC_RLINK_CANCEL);
 	/* 'ING states will be handled in reqh_service_ctx_ast_cb() */
@@ -970,10 +975,6 @@ M0_INTERNAL void m0_reqh_service_ctx_fini(struct m0_reqh_service_ctx *ctx)
 	m0_clink_fini(&ctx->sc_rlink_wait);
 	m0_clink_fini(&ctx->sc_process_event);
 	m0_clink_fini(&ctx->sc_svc_event);
-	m0_clink_cleanup(&ctx->sc_conf_exp);
-	m0_clink_cleanup(&ctx->sc_conf_ready);
-	m0_clink_fini(&ctx->sc_conf_exp);
-	m0_clink_fini(&ctx->sc_conf_ready);
 	m0_mutex_fini(&ctx->sc_max_pending_tx_lock);
 	m0_semaphore_fini(&ctx->sc_state_wait);
 	m0_reqh_service_ctx_bob_fini(ctx);
@@ -986,8 +987,7 @@ M0_INTERNAL void m0_reqh_service_ctx_fini(struct m0_reqh_service_ctx *ctx)
 static void reqh_service_ctx_ast_cb(struct m0_sm_group *grp,
 				    struct m0_sm_ast   *ast)
 {
-	struct m0_reqh_service_ctx *ctx =
-		container_of(ast, struct m0_reqh_service_ctx, sc_rlink_ast);
+	struct m0_reqh_service_ctx *ctx = M0_AMB(ctx, ast, sc_rlink_ast);
 	m0_time_t                   deadline;
 	bool                        connected;
 	bool                        disconnect;
@@ -1014,6 +1014,7 @@ static void reqh_service_ctx_ast_cb(struct m0_sm_group *grp,
 	case M0_RSC_DISCONNECTING:
 		M0_ASSERT(!connected);
 		reqh_service_ctx_state_move(ctx, M0_RSC_OFFLINE);
+		reqh_service_ctx_destroy_if_abandoned(ctx);
 		break;
 
 	default:
@@ -1051,53 +1052,9 @@ static void reqh_service_ctx_ast_cb(struct m0_sm_group *grp,
 	reqh_service_ctx_sm_unlock(ctx);
 }
 
-static bool reqh_service_ctx_conf_expired_cb(struct m0_clink *clink)
-{
-	struct m0_reqh_service_ctx *ctx =
-		container_of(clink, struct m0_reqh_service_ctx, sc_conf_exp);
-
-	M0_ENTRY("ctx %p", ctx);
-	reqh_service_ctx_unsubscribe(ctx);
-	M0_LEAVE();
-	return true;
-}
-
-static bool reqh_service_ctx_conf_ready_cb(struct m0_clink *clink)
-{
-	struct m0_reqh_service_ctx *ctx =
-		container_of(clink, struct m0_reqh_service_ctx, sc_conf_ready);
-	struct m0_reqh             *reqh =
-		container_of(clink->cl_chan, struct m0_reqh,
-			     rh_conf_cache_ready);
-	struct m0_conf_cache       *cache = &reqh->rh_rconfc.rc_confc.cc_cache;
-	struct m0_conf_obj         *obj;
-
-	M0_ENTRY("ctx %p service fid "FID_F, ctx, FID_P(&ctx->sc_fid));
-	/**
-	 * @todo the code should process any updates in the configuration tree.
-	 * Currently it expects that an interested object wasn't removed from
-	 * the tree or new object (m0_conf_service) was added.
-	 *
-	 * Some pointers to configuration objects in the context should be
-	 * updated before subscribing to co_ha_chan. The code below assumes
-	 * that the service relates to the same process in updated
-	 * configuration.
-	 */
-	m0_conf_cache_lock(cache);
-	obj = m0_conf_cache_lookup(cache, &ctx->sc_fid);
-	M0_ASSERT(obj != NULL);
-	ctx->sc_sobj = obj;
-	ctx->sc_pobj = m0_conf_obj_grandparent(obj);
-	reqh_service_ctx_subscribe(ctx);
-	m0_conf_cache_unlock(cache);
-	M0_LEAVE();
-	return true;
-}
-
 static bool reqh_service_ctx_rlink_cb(struct m0_clink *clink)
 {
-	struct m0_reqh_service_ctx *ctx =
-		container_of(clink, struct m0_reqh_service_ctx, sc_rlink_wait);
+	struct m0_reqh_service_ctx *ctx = M0_AMB(ctx, clink, sc_rlink_wait);
 	struct m0_locality         *loc;
 
 	/*
@@ -1120,11 +1077,9 @@ static bool reqh_service_ctx_rlink_cb(struct m0_clink *clink)
  */
 static bool process_event_handler(struct m0_clink *clink)
 {
-	struct m0_reqh_service_ctx *ctx =
-		container_of(clink, struct m0_reqh_service_ctx,
-			     sc_process_event);
-	struct m0_conf_obj         *obj =
-		container_of(clink->cl_chan, struct m0_conf_obj, co_ha_chan);
+	struct m0_reqh_service_ctx *ctx = M0_AMB(ctx, clink, sc_process_event);
+	struct m0_conf_obj         *obj = M0_AMB(obj, clink->cl_chan,
+						 co_ha_chan);
 	struct m0_conf_process     *process;
 
 	M0_ENTRY();
@@ -1163,11 +1118,11 @@ static bool process_event_handler(struct m0_clink *clink)
 		 * is not possible due to assertions in RPC connection HA
 		 * subscription code.
 		 */
-		if (ctx->sc_sobj == NULL)
-			ctx->sc_sobj = m0_conf_cache_lookup(obj->co_cache,
+		if (ctx->sc_service == NULL)
+			ctx->sc_service = m0_conf_cache_lookup(obj->co_cache,
 							    &ctx->sc_fid);
-		M0_ASSERT(ctx->sc_sobj != NULL);
-		if (ctx->sc_sobj->co_ha_state != M0_NC_ONLINE)
+		M0_ASSERT(ctx->sc_service != NULL);
+		if (ctx->sc_service->co_ha_state != M0_NC_ONLINE)
 			break;
 
 		reqh_service_reconnect_locked(ctx, process->pc_endpoint);
@@ -1187,10 +1142,9 @@ exit_unlock:
  */
 static bool service_event_handler(struct m0_clink *clink)
 {
-	struct m0_reqh_service_ctx *ctx =
-		container_of(clink, struct m0_reqh_service_ctx, sc_svc_event);
-	struct m0_conf_obj         *obj =
-		container_of(clink->cl_chan, struct m0_conf_obj, co_ha_chan);
+	struct m0_reqh_service_ctx *ctx = M0_AMB(ctx, clink, sc_svc_event);
+	struct m0_conf_obj         *obj = M0_AMB(obj, clink->cl_chan,
+						 co_ha_chan);
 	struct m0_conf_service     *service;
 	struct m0_reqh             *reqh = m0_conf_obj2reqh(obj);
 	bool                        result = true;
@@ -1241,41 +1195,37 @@ exit_unlock:
 }
 
 M0_INTERNAL int m0_reqh_service_ctx_init(struct m0_reqh_service_ctx *ctx,
-					 struct m0_conf_obj *sobj,
+					 struct m0_conf_obj *svc_obj,
 					 enum m0_conf_service_type stype,
 					 struct m0_rpc_machine *rmach,
 					 const char *addr,
 					 uint32_t max_rpc_nr_in_flight)
 {
-	struct m0_conf_obj *pobj = m0_conf_obj_grandparent(sobj);
-	struct m0_reqh     *reqh = m0_conf_obj2reqh(sobj);
+	struct m0_conf_obj *proc_obj = m0_conf_obj_grandparent(svc_obj);
 	int                 rc;
 
 	M0_ENTRY();
-	M0_LOG(M0_DEBUG, FID_F "%d", FID_P(&sobj->co_id), stype);
+	M0_LOG(M0_DEBUG, FID_F "%d", FID_P(&svc_obj->co_id), stype);
 
 	M0_SET0(ctx);
 	if (rmach != NULL) {
-		rc = m0_rpc_link_init(&ctx->sc_rlink, rmach, &sobj->co_id, addr,
-				      max_rpc_nr_in_flight);
+		rc = m0_rpc_link_init(&ctx->sc_rlink, rmach, &svc_obj->co_id,
+				      addr, max_rpc_nr_in_flight);
 		if (rc != 0)
 			return M0_ERR(rc);
 		reqh_service_ctx_flag_set(ctx, RSC_RLINK_INITED);
 	}
-	ctx->sc_fid = sobj->co_id;
-	ctx->sc_sobj = sobj;
-	ctx->sc_pobj = pobj;
+	ctx->sc_fid = svc_obj->co_id;
+	ctx->sc_service = svc_obj;
+	ctx->sc_process = proc_obj;
 	ctx->sc_type = stype;
+	ctx->sc_fid_process = proc_obj->co_id;
 	m0_reqh_service_ctx_bob_init(ctx);
 	m0_semaphore_init(&ctx->sc_state_wait, 0);
 	m0_mutex_init(&ctx->sc_max_pending_tx_lock);
 	m0_clink_init(&ctx->sc_svc_event, service_event_handler);
 	m0_clink_init(&ctx->sc_process_event, process_event_handler);
 	m0_clink_init(&ctx->sc_rlink_wait, reqh_service_ctx_rlink_cb);
-	m0_clink_init(&ctx->sc_conf_exp, reqh_service_ctx_conf_expired_cb);
-	m0_clink_init(&ctx->sc_conf_ready, reqh_service_ctx_conf_ready_cb);
-	m0_clink_add_lock(&reqh->rh_conf_cache_exp, &ctx->sc_conf_exp);
-	m0_clink_add_lock(&reqh->rh_conf_cache_ready, &ctx->sc_conf_ready);
 	m0_sm_group_init(&ctx->sc_sm_grp);
 	m0_sm_init(&ctx->sc_sm, &service_ctx_states_conf,
 		   M0_RSC_OFFLINE, &ctx->sc_sm_grp);
@@ -1285,26 +1235,26 @@ M0_INTERNAL int m0_reqh_service_ctx_init(struct m0_reqh_service_ctx *ctx,
 	return M0_RC(0);
 }
 
-M0_INTERNAL int m0_reqh_service_ctx_create(struct m0_conf_obj *sobj,
+M0_INTERNAL int m0_reqh_service_ctx_create(struct m0_conf_obj *svc_obj,
 					   enum m0_conf_service_type stype,
 					   struct m0_rpc_machine *rmach,
 					   const char *addr,
 					   uint32_t max_rpc_nr_in_flight,
-					   struct m0_reqh_service_ctx **ctx)
+					   struct m0_reqh_service_ctx **out)
 {
 	int rc;
 
-	M0_PRE(m0_fid_is_set(&sobj->co_id));
+	M0_PRE(m0_fid_is_set(&svc_obj->co_id));
 	M0_PRE(service_type_is_valid(stype));
 
-	M0_ENTRY(FID_F "stype:%d", FID_P(&sobj->co_id), stype);
-	M0_ALLOC_PTR(*ctx);
-	if (*ctx == NULL)
+	M0_ENTRY(FID_F "stype:%d", FID_P(&svc_obj->co_id), stype);
+	M0_ALLOC_PTR(*out);
+	if (*out == NULL)
 		return M0_ERR(-ENOMEM);
-	rc = m0_reqh_service_ctx_init(*ctx, sobj, stype, rmach, addr,
+	rc = m0_reqh_service_ctx_init(*out, svc_obj, stype, rmach, addr,
 				      max_rpc_nr_in_flight);
 	if (rc != 0)
-		m0_free(*ctx);
+		m0_free(*out);
 
 	return M0_RC(rc);
 }
@@ -1324,8 +1274,8 @@ m0_reqh_service_ctx_from_session(struct m0_rpc_session *session)
 
 	M0_PRE(session != NULL);
 
-	rlink = container_of(session, struct m0_rpc_link, rlk_sess);
-	ret = container_of(rlink, struct m0_reqh_service_ctx, sc_rlink);
+	rlink = M0_AMB(rlink, session, rlk_sess);
+	ret = M0_AMB(ret, rlink, sc_rlink);
 
 	M0_POST(reqh_service_context_invariant(ret));
 
@@ -1333,6 +1283,47 @@ m0_reqh_service_ctx_from_session(struct m0_rpc_session *session)
 }
 
 #undef CTX_STATE
+
+static void abandoned_ctx_destroy_cb(struct m0_sm_group *grp,
+				     struct m0_sm_ast   *ast)
+{
+	struct m0_reqh_service_ctx *ctx = ast->sa_datum;
+
+	M0_ENTRY("ctx %p "FID_F, ctx, FID_P(&ctx->sc_fid));
+	m0_reqh_service_ctx_destroy(ctx);
+	M0_LEAVE();
+}
+
+/**
+ * Destroys service context if found in m0_pools_common::pc_abandoned_svc_ctxs
+ * list.
+ */
+static void
+reqh_service_ctx_destroy_if_abandoned(struct m0_reqh_service_ctx *ctx)
+{
+	struct m0_pools_common *pc  = ctx->sc_pc;
+	struct m0_sm_ast       *ast = &ctx->sc_rlink_ast;
+
+	M0_ENTRY("ctx %p", ctx);
+	M0_PRE(M0_IN(ctx->sc_rlink.rlk_conn.c_sm.sm_state,
+		     (M0_RPC_CONN_TERMINATED, M0_RPC_CONN_FAILED)));
+
+	if (pools_common_svc_ctx_tlist_contains(&pc->pc_abandoned_svc_ctxs,
+						ctx)) {
+		pools_common_svc_ctx_tlink_del_fini(ctx);
+		/*
+		 * Escape from being under the context group lock.
+		 *
+		 * Hijacking sc_rlink_ast here must be surely safe for abandoned
+		 * context, as no connection related operation is going to be
+		 * done anymore on the context's rpc link.
+		 */
+		ast->sa_datum = ctx;
+		ast->sa_cb = abandoned_ctx_destroy_cb;
+		m0_sm_ast_post(m0_locality_get(ctx->sc_fid.f_key)->lo_grp, ast);
+	}
+	M0_LEAVE();
+}
 
 /** @} endgroup reqhservice */
 #undef M0_TRACE_SUBSYSTEM

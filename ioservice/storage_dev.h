@@ -29,6 +29,7 @@
 #include "lib/chan.h"
 #include "ha/note.h"
 #include "conf/obj.h"
+#include "sm/sm.h"            /* m0_sm_ast */
 
 /* import */
 struct m0_stob;
@@ -114,9 +115,25 @@ struct m0_storage_devs {
 	/** Parallel pool processing list of storage devs */
 	struct m0_parallel_pool  sds_pool;
 
-	/* Links to detect expiration and availability of conf. */
+	/* Conf event callbacks provisioning. */
+
+	/** Link to subscribe to conf expiration event m0_rconfc::rc_exp_cb. */
 	struct m0_clink          sds_conf_exp;
+	/** Link to subscribe to conf ready event m0_rconfc::rc_ready_cb. */
 	struct m0_clink          sds_conf_ready;
+	/**
+	 * It is not possible to conduct synchronous conf reading while being in
+	 * context of m0_rconfc::rc_ready_cb. Thus falling back to AST when
+	 * restoring sdev HA subscriptions.
+	 *
+	 * @see storage_devs_conf_ready_ast().
+	 */
+	struct m0_sm_ast         sds_ast;
+	/**
+	 * Reqh provides profile fid and confc instance to be used in the course
+	 * of operating with sdev HA subscriptions.
+	 */
+	struct m0_reqh          *sds_reqh;
 };
 
 /**

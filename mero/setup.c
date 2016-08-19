@@ -812,6 +812,7 @@ static int cs_storage_devs_init(struct cs_stobs       *stob,
 	int                     rc;
 	int                     result;
 	uint64_t                cid;
+	uint64_t                stob_file_id;
 	const char             *f_path;
 	struct m0_storage_devs *devs = &m0_get()->i_storage_devs;
 	struct m0_storage_dev  *dev;
@@ -852,12 +853,14 @@ static int cs_storage_devs_init(struct cs_stobs       *stob,
 			for (item = (node)->data.sequence.items.start;
 			     item < (node)->data.sequence.items.top; ++item) {
 				s_node = yaml_document_get_node(doc, *item);
-				result = stob_file_id_get(doc, s_node, &cid);
+				result = stob_file_id_get(doc, s_node,
+							  &stob_file_id);
 				if (result != 0)
 					continue;
-				M0_ASSERT(cid > 0);
+				M0_ASSERT(stob_file_id > 0);
+				cid = stob_file_id - 1;
 				f_path = stob_file_path_get(doc, s_node);
-				rc = m0_conf_device_cid_to_fid(confc, cid - 1,
+				rc = m0_conf_device_cid_to_fid(confc, cid,
 							       conf_profile,
 							       &sdev_fid);
 				if (rc == 0) {
@@ -865,11 +868,15 @@ static int cs_storage_devs_init(struct cs_stobs       *stob,
 						              &conf_sdev);
 					if (rc != 0)
 						break;
+					M0_LOG(M0_DEBUG, "cid:0x%"PRIx64
+					       " -> sdev_fid:"FID_F" idx:0x%x",
+					       cid, FID_P(&sdev_fid),
+					       conf_sdev->sd_dev_idx);
 				} else
 					/* Every storage device need not have a
 					 * counterpart in configuration. */
 					conf_sdev = NULL;
-				rc = m0_storage_dev_new(devs, cid - 1, f_path,
+				rc = m0_storage_dev_new(devs, cid, f_path,
 							size, conf_sdev, &dev);
 				if (rc == 0)
 					m0_storage_dev_attach(dev, devs);
@@ -1013,7 +1020,8 @@ static int cs_service_init(const char *name, struct m0_reqh_context *rctx,
 
 	stype = m0_reqh_service_type_find(name);
 	if (stype == NULL)
-		return M0_ERR(-EINVAL);
+		return M0_ERR_INFO(-EINVAL, "Unknown reqh service type: %s",
+				   name);
 
 	rc = m0_reqh_service_setup(&service, stype, reqh, rctx, fid);
 
@@ -2329,6 +2337,14 @@ error:
 		rc = -EINTR;
 	m0_confc_close(&fs->cf_obj);
 out:
+	if (rc != 0) {
+		/*
+		 * pools have been set up to the moment of start, so need to be
+		 * dismantled here
+		 */
+		m0_pools_destroy(&cctx->cc_pools_common);
+		m0_pools_common_fini(&cctx->cc_pools_common);
+	}
 	cs_ha_process_event(cctx, M0_CONF_HA_PROCESS_STARTED);
 	return rc == 0 ? M0_RC(0) : M0_ERR(rc);
 }

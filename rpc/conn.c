@@ -585,9 +585,8 @@ M0_INTERNAL int m0_rpc_conn_ha_subscribe(struct m0_rpc_conn *conn,
 		svc_obj = m0_conf_cache_lookup(&rpc_conn2confc(conn)->cc_cache,
 					       svc_fid);
 		if (svc_obj == NULL)
-			return M0_ERR_INFO(
-				ENOENT, "unknown service " FID_F,
-				FID_P(svc_fid));
+			return M0_ERR_INFO(-ENOENT, "unknown service " FID_F,
+					   FID_P(svc_fid));
 		/*
 		 * found service object must match to already established
 		 * connection endpoint, i.e. the endpoint must be known to the
@@ -595,9 +594,9 @@ M0_INTERNAL int m0_rpc_conn_ha_subscribe(struct m0_rpc_conn *conn,
 		 */
 		ep = m0_rpc_conn_addr(conn);
 		if (!m0_conf_service_ep_is_known(svc_obj, ep))
-			return M0_ERR_INFO(
-				EINVAL, "Conn %p ep %s unknown to svc_obj "
-				FID_F, conn, ep, FID_P(&svc_obj->co_id));
+			return M0_ERR_INFO(-EINVAL, "Conn %p ep %s "
+					   "unknown to svc_obj " FID_F, conn,
+					   ep, FID_P(&svc_obj->co_id));
 	}
 
 	m0_rpc_machine_lock(conn->c_rpc_machine);
@@ -1342,11 +1341,15 @@ static bool rpc_conn__on_cache_ready_cb(struct m0_clink *clink)
 	M0_LOG(M0_DEBUG, "subscribe %p conn to HA, svc_fid "FID_F, conn,
 	       FID_P(&conn->c_svc_fid));
 	rc = m0_rpc_conn_ha_subscribe(conn, &conn->c_svc_fid);
-	if (rc != 0) {
-		m0_rpc_machine_lock(conn->c_rpc_machine);
-		conn_failed(conn, M0_ERR(rc));
-		m0_rpc_machine_unlock(conn->c_rpc_machine);
-	}
+	if (rc != 0)
+		M0_LOG(M0_WARN, "Conn %p failed to subscribe, rc=%d", conn, rc);
+	M0_POST(M0_IN(rc, (0, -ENOENT)));
+	/**
+	 * @todo See if we can act any smarter than just log the subscription
+	 * error. Please note, -ENOENT code is normal in the situation when the
+	 * connection previously was established to a service that appears
+	 * abandoned when conf updates.
+	 */
 	return true;
 }
 
@@ -1476,6 +1479,24 @@ M0_INTERNAL void m0_rpc_conn_ha_cfg_set(struct m0_rpc_conn              *conn,
 	conn->c_ha_cfg = cfg;
 	m0_rpc_machine_unlock(conn->c_rpc_machine);
 }
+
+#define S_CASE(x) case x: return #x;
+M0_INTERNAL const char *m0_rpc_conn_state_to_str(enum m0_rpc_conn_state state)
+{
+	switch (state) {
+		S_CASE(M0_RPC_CONN_INITIALISED)
+		S_CASE(M0_RPC_CONN_CONNECTING)
+		S_CASE(M0_RPC_CONN_ACTIVE)
+		S_CASE(M0_RPC_CONN_FAILED)
+		S_CASE(M0_RPC_CONN_TERMINATING)
+		S_CASE(M0_RPC_CONN_TERMINATED)
+		S_CASE(M0_RPC_CONN_FINALISED)
+	}
+	M0_LOG(M0_ERROR, "State %d unknown", state);
+	M0_ASSERT(NULL == "No transcript");
+	return NULL;
+}
+#undef S_CASE
 
 #undef M0_TRACE_SUBSYSTEM
 /** @} end of rpc group */

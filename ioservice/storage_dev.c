@@ -181,20 +181,16 @@ static bool storage_devs_conf_expired_cb(struct m0_clink *clink)
 	return true;
 }
 
-static bool storage_devs_conf_ready_cb(struct m0_clink *clink)
+static void storage_devs_conf_ready_ast(struct m0_sm_group *grp,
+					struct m0_sm_ast   *ast)
 {
 	struct m0_storage_dev  *dev;
-	struct m0_storage_devs *storage_devs =
-					container_of(clink,
-						     struct m0_storage_devs,
-						     sds_conf_ready);
-	struct m0_reqh         *reqh = container_of(clink->cl_chan,
-						    struct m0_reqh,
-						    rh_conf_cache_ready);
+	struct m0_storage_devs *storage_devs = ast->sa_datum;
+	struct m0_reqh         *reqh = storage_devs->sds_reqh;
 	struct m0_confc        *confc = m0_reqh2confc(reqh);
 	struct m0_fid          *profile = &reqh->rh_profile;
 	struct m0_fid           sdev_fid;
-	struct m0_conf_sdev    *conf_sdev;
+	struct m0_conf_sdev    *conf_sdev = NULL;
 	struct m0_conf_service *conf_service;
 	struct m0_conf_obj     *srv_obj;
 	int                     rc;
@@ -208,12 +204,10 @@ static bool storage_devs_conf_ready_cb(struct m0_clink *clink)
 			 */
 			continue;
 		rc = m0_conf_sdev_get(confc, &sdev_fid, &conf_sdev);
-		if (rc != 0) {
-			M0_LOG(M0_ERROR, "No such sdev: "FID_F,
-			       FID_P(&sdev_fid));
-			M0_IMPOSSIBLE(""); /* if asserts are enabled -- fail */
-			break;
-		}
+		M0_ASSERT_INFO(rc == 0, "No sdev: "FID_F, FID_P(&sdev_fid));
+		M0_ASSERT(conf_sdev != NULL);
+		M0_LOG(M0_DEBUG, "cid:0x%"PRIx64" -> sdev_fid:"FID_F" idx:0x%x",
+		       dev->isd_cid, FID_P(&sdev_fid), conf_sdev->sd_dev_idx);
 		m0_storage_dev_clink_add(&dev->isd_clink,
 					 &conf_sdev->sd_obj.co_ha_chan);
 		dev->isd_ha_state = conf_sdev->sd_obj.co_ha_state;
@@ -221,6 +215,19 @@ static bool storage_devs_conf_ready_cb(struct m0_clink *clink)
 		conf_service = M0_CONF_CAST(srv_obj, m0_conf_service);
 		dev->isd_srv_type = conf_service->cs_type;
 	} m0_tl_endfor;
+}
+
+static bool storage_devs_conf_ready_cb(struct m0_clink *clink)
+{
+	struct m0_storage_devs *storage_devs = M0_AMB(storage_devs, clink,
+						      sds_conf_ready);
+	struct m0_reqh         *reqh = M0_AMB(reqh, clink->cl_chan,
+					      rh_conf_cache_ready);
+	storage_devs->sds_reqh = reqh;
+	storage_devs->sds_ast.sa_datum = storage_devs;
+	storage_devs->sds_ast.sa_cb = storage_devs_conf_ready_ast;
+	m0_sm_ast_post(m0_locality_get(reqh->rh_profile.f_key)->lo_grp,
+		       &storage_devs->sds_ast);
 	return true;
 }
 

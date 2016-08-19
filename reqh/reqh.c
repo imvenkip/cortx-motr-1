@@ -500,10 +500,7 @@ static int disallowed_fop_tick(struct m0_fom *fom, void *data, int *phase)
 
 static void disallowed_fop_free(struct m0_fom_simple *sfom)
 {
-	struct disallowed_fop_reply *reply;
-
-	reply = container_of(sfom, struct disallowed_fop_reply, ffr_sfom);
-	m0_free(reply);
+	m0_free(container_of(sfom, struct disallowed_fop_reply, ffr_sfom));
 }
 
 static void fop_disallowed(struct m0_reqh *reqh,

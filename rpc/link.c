@@ -695,12 +695,12 @@ M0_INTERNAL int m0_rpc_link_disconnect_sync(struct m0_rpc_link *rlink,
 				  &m0_rpc_link_disconnect_async);
 }
 
-M0_INTERNAL bool m0_rpc_link_is_connected(struct m0_rpc_link *rlink)
+M0_INTERNAL bool m0_rpc_link_is_connected(const struct m0_rpc_link *rlink)
 {
 	return rlink->rlk_connected;
 }
 
-M0_INTERNAL const char *m0_rpc_link_end_point(struct m0_rpc_link *rlink)
+M0_INTERNAL const char *m0_rpc_link_end_point(const struct m0_rpc_link *rlink)
 {
 	return m0_rpc_conn_addr(&rlink->rlk_conn);
 }
