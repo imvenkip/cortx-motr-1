@@ -246,9 +246,10 @@ m0_reqh_init(struct m0_reqh *reqh, const struct m0_reqh_init_args *reqh_args)
 		   &reqh->rh_sm_grp);
 
 	m0_mutex_init(&reqh->rh_guard);
+	m0_mutex_init(&reqh->rh_guard_async);
 	m0_chan_init(&reqh->rh_conf_cache_exp, &reqh->rh_guard);
 	m0_chan_init(&reqh->rh_conf_cache_ready, &reqh->rh_guard);
-	m0_sm_ast_wait_init(&reqh->rh_conf_cache_ast_wait, &reqh->rh_guard);
+	m0_chan_init(&reqh->rh_conf_cache_ready_async, &reqh->rh_guard_async);
 
 	if (reqh->rh_beseg != NULL) {
 		rc = m0_reqh_be_init(reqh, reqh->rh_beseg);
@@ -302,11 +303,14 @@ static void __reqh_fini(struct m0_reqh *reqh)
 	m0_fol_fini(&reqh->rh_fol);
 
 	m0_mutex_lock(&reqh->rh_guard);
-	m0_sm_ast_wait_fini(&reqh->rh_conf_cache_ast_wait);
 	m0_chan_fini(&reqh->rh_conf_cache_exp);
 	m0_chan_fini(&reqh->rh_conf_cache_ready);
 	m0_mutex_unlock(&reqh->rh_guard);
+	m0_mutex_lock(&reqh->rh_guard_async);
+	m0_chan_fini(&reqh->rh_conf_cache_ready_async);
+	m0_mutex_unlock(&reqh->rh_guard_async);
 	m0_mutex_fini(&reqh->rh_guard);
+	m0_mutex_fini(&reqh->rh_guard_async);
 }
 
 M0_INTERNAL void m0_reqh_fini(struct m0_reqh *reqh)

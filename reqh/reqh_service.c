@@ -70,6 +70,9 @@ enum {
 	REQH_SVC_CONNECT_TIMEOUT = 5,
 };
 
+M0_TL_DESCR_DECLARE(abandoned_svc_ctxs, M0_EXTERN);
+M0_TL_DECLARE(abandoned_svc_ctxs, M0_EXTERN, struct m0_reqh_service_ctx);
+
 /** Protects access to list rstypes. */
 static struct m0_rwlock rstypes_rwlock;
 

@@ -229,9 +229,9 @@ static void spiel_conf_create_conf_with_opt(struct m0_spiel    *spiel,
 					    uint64_t            opts)
 {
 	int                           rc;
-	struct m0_pdclust_attr        pdclust_attr = { .pa_N=0,
+	struct m0_pdclust_attr        pdclust_attr = { .pa_N=1,
 						       .pa_K=0,
-						       .pa_P=0};
+						       .pa_P=1};
 	const char                   *fs_param[] = { "11111", "22222", NULL };
 	const char                   *ep[] = { SERVER_ENDPOINT_ADDR, NULL };
 	struct m0_spiel_service_info  service_info = {.svi_endpoints=ep};

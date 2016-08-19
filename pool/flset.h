@@ -51,12 +51,13 @@ struct m0_flset_clink {
 };
 
 struct m0_flset {
-	/* Array of clinks to track state change of conf objects. */
+	/** Array of clinks to track state change of conf objects. */
 	struct m0_flset_clink *fls_links;
-	/* Number of elements in fls_links array */
+	/** Number of elements in fls_links array */
 	int                    fls_links_nr;
-
+	/** Listener for configuration expiration event from rconfc. */
 	struct m0_clink        fls_conf_expired;
+	/** Listener for configuration ready event from rconfc. */
 	struct m0_clink        fls_conf_ready;
 };
 

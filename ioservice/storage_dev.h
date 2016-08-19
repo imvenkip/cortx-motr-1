@@ -94,6 +94,15 @@ struct m0_storage_dev {
 	 */
 	struct m0_chan             isd_detached_chan;
 	struct m0_mutex            isd_detached_lock;
+	/**
+	 * Filename duplicated from m0_conf_sdev::sd_filename after expired conf
+	 * event is fired. The name is needed for matching existing storage
+	 * device against newly delivered conf when the one becomes ready.
+	 *
+	 * @note No guarantee the field is valid under any circumstances other
+	 * than matching on conf ready event!
+	 */
+	char                      *isd_filename;
 };
 
 M0_TL_DESCR_DECLARE(storage_dev, M0_EXTERN);
@@ -120,15 +129,7 @@ struct m0_storage_devs {
 	/** Link to subscribe to conf expiration event m0_rconfc::rc_exp_cb. */
 	struct m0_clink          sds_conf_exp;
 	/** Link to subscribe to conf ready event m0_rconfc::rc_ready_cb. */
-	struct m0_clink          sds_conf_ready;
-	/**
-	 * It is not possible to conduct synchronous conf reading while being in
-	 * context of m0_rconfc::rc_ready_cb. Thus falling back to AST when
-	 * restoring sdev HA subscriptions.
-	 *
-	 * @see storage_devs_conf_ready_ast().
-	 */
-	struct m0_sm_ast         sds_ast;
+	struct m0_clink          sds_conf_ready_async;
 	/**
 	 * Reqh provides profile fid and confc instance to be used in the course
 	 * of operating with sdev HA subscriptions.

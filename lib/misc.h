@@ -325,6 +325,12 @@ M0_INTERNAL bool m0_elems_are_unique(const void *array, unsigned nr_elems,
 	__ptr == NULL ? NULL : &__ptr->member;	\
 })
 
+#define M0_MEMBER(ptr, member)			\
+({						\
+	typeof(ptr) __ptr = (ptr);		\
+	__ptr == NULL ? NULL : __ptr->member;	\
+})
+
 /**
  * Produces an expression having the same type as a given field in a given
  * struct or union. Suitable to be used as an argument to sizeof() or typeof().

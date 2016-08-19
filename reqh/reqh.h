@@ -178,16 +178,47 @@ struct m0_reqh {
 	/** Guard for configuration cache events */
 	struct m0_mutex               rh_guard;
 
-	/** Channel for configuration cache expiry events */
+	/** Guard for configuration cache events run asynchronously. */
+	struct m0_mutex               rh_guard_async;
+
+	/**
+	 * Channel for configuration cache expiry events.
+	 *
+	 * The channel callbacks are to be executed synchronously in the context
+	 * of the thread where m0_rconfc::rc_exp_cb is called.
+	 *
+	 * The channel callback must not attempt to do synchronous reading on
+	 * m0_reqh::rh_rconfc::rc_confc.
+	 */
 	struct m0_chan                rh_conf_cache_exp;
 
-	/** Channel for configuration cache ready events */
+	/**
+	 * Channel for configuration cache ready events.
+	 *
+	 * The channel callbacks are to be executed synchronously in the context
+	 * of the thread where m0_rconfc::rc_ready_cb is called.
+	 *
+	 * The channel callback must not attempt to do synchronous reading on
+	 * m0_reqh::rh_rconfc::rc_confc.
+	 */
 	struct m0_chan                rh_conf_cache_ready;
 
-	/** AST for rconfc cache events. */
+	/**
+	 * Channel for configuration cache ready events.
+	 *
+	 * The channel callbacks are to be executed asynchronously in the
+	 * context of the locality other than locality0 used by rconfc. The
+	 * broadcast on the channel is postponed until synchronous part is fully
+	 * completed.
+	 *
+	 * The channel callback is allowed to do synchronous reading on
+	 * m0_reqh::rh_rconfc::rc_confc.
+	 */
+	struct m0_chan                rh_conf_cache_ready_async;
+
+	/** AST for rconfc cache events to be done asynchronously. */
 	struct m0_sm_ast              rh_conf_cache_ast;
 
-	struct m0_sm_ast_wait         rh_conf_cache_ast_wait;
 };
 
 /**

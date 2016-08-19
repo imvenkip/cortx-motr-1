@@ -876,8 +876,8 @@ static int cs_storage_devs_init(struct cs_stobs       *stob,
 					/* Every storage device need not have a
 					 * counterpart in configuration. */
 					conf_sdev = NULL;
-				rc = m0_storage_dev_new(devs, cid, f_path,
-							size, conf_sdev, &dev);
+				rc = m0_storage_dev_new(devs, cid, f_path, size,
+							conf_sdev, &dev);
 				if (rc == 0)
 					m0_storage_dev_attach(dev, devs);
 				if (conf_sdev != NULL)

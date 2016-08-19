@@ -558,12 +558,47 @@ M0_INTERNAL void m0_confc_expired_cb(struct m0_rconfc *rconfc)
 	M0_LEAVE();
 }
 
+/**
+ * Asynchronous part of conf ready event processing. Intended to run clink
+ * callbacks registered with m0_reqh::rh_conf_cache_ready_async channel.
+ */
+static void confc_ready_async_ast(struct m0_sm_group *grp,
+				  struct m0_sm_ast   *ast)
+{
+	struct m0_reqh *reqh = ast->sa_datum;
+
+	M0_ENTRY("reqh %p", reqh);
+	m0_chan_broadcast_lock(&reqh->rh_conf_cache_ready_async);
+	M0_LEAVE();
+}
+
 M0_INTERNAL void m0_confc_ready_cb(struct m0_rconfc *rconfc)
 {
 	struct m0_reqh *reqh = container_of(rconfc, struct m0_reqh, rh_rconfc);
 
 	M0_ENTRY("rconfc %p, reqh %p", rconfc, reqh);
+	/*
+	 * Step 1. Running synchronous part:
+	 *
+	 * Broadcast on m0_reqh::rh_conf_cache_ready channel executed by rconfc
+	 * in the context of thread where m0_rconfc::rc_ready_cb is called,
+	 * i.e. locality0 AST thread or consumer's thread in case of local conf.
+	 */
 	m0_chan_broadcast_lock(&reqh->rh_conf_cache_ready);
+	/*
+	 * Step 2. Launching asynchronous part:
+	 *
+	 * Broadcast on m0_reqh::rh_conf_cache_ready_async channel executed in
+	 * the context of a standalone AST to prevent locking locality0.
+	 */
+	reqh->rh_conf_cache_ast.sa_datum = reqh;
+	reqh->rh_conf_cache_ast.sa_cb    = confc_ready_async_ast;
+	/*
+	 * Clink callbacks are going to use m0_rconfc::rc_confc for reading the
+	 * updated conf. Therefore, the locality where reading conf occurs must
+	 * be other than locality0 used with m0_reqh::rh_rconfc::rc_confc.
+	 */
+	m0_sm_ast_post(m0_locality_get(1)->lo_grp, &reqh->rh_conf_cache_ast);
 	M0_LEAVE();
 }
 

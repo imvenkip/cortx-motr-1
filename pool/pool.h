@@ -210,6 +210,11 @@ struct m0_pools_common {
 	struct m0_clink                   pc_conf_exp;
 	/** Listener for configuration ready event from rconfc. */
 	struct m0_clink                   pc_conf_ready;
+	/**
+	 * Listener for configuration ready event from rconfc to be run
+	 * asynchronously.
+	 */
+	struct m0_clink                   pc_conf_ready_async;
 };
 
 M0_TL_DESCR_DECLARE(pools_common_svc_ctx, M0_EXTERN);

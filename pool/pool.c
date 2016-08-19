@@ -43,6 +43,8 @@
 #include "fd/fd.h"             /* m0_fd_tile_build m0_fd_tree_build */
 #ifndef __KERNEL__
 #  include "mero/setup.h"
+#else
+#  include "m0t1fs/linux_kernel/m0t1fs.h"  /* m0t1fs_sb */
 #endif
 #include "lib/finject.h" /* M0_FI_ENABLED */
 
@@ -250,6 +252,13 @@ static const struct m0_bob_type pver_bob = {
         .bt_check        = NULL
 };
 M0_BOB_DEFINE(static, &pver_bob, m0_pool_version);
+
+static int pools_common_refresh_locked(struct m0_pools_common    *pc,
+				       struct m0_conf_filesystem *fs);
+static int pools_common__dev2ios_build(struct m0_pools_common    *pc,
+				       struct m0_conf_filesystem *fs);
+static int pool_version_get_locked(struct m0_pools_common  *pc,
+				   struct m0_pool_version **pv);
 
 M0_INTERNAL int m0_pools_init(void)
 {
@@ -567,12 +576,15 @@ end:
 	return rc == 0 ? pv : NULL;
 }
 
-M0_INTERNAL int
-m0_pool_version_get(struct m0_pools_common *pc, struct m0_pool_version **pv)
+static int pool_version_get_locked(struct m0_pools_common  *pc,
+				   struct m0_pool_version **pv)
 {
 	struct m0_reqh      *reqh = m0_confc2reqh(pc->pc_confc);
 	struct m0_conf_pver *pver;
 	int                  rc;
+
+	M0_ENTRY();
+	M0_PRE(m0_mutex_is_locked(&pc->pc_mutex));
 
 	rc = m0_conf_pver_get(&reqh->rh_profile, pc->pc_confc, &pver);
 	if (rc != 0) {
@@ -580,7 +592,6 @@ m0_pool_version_get(struct m0_pools_common *pc, struct m0_pool_version **pv)
 		return M0_ERR(rc);
 	}
 
-	m0_mutex_lock(&pc->pc_mutex);
 	*pv = m0_pool_version_lookup(pc, &pver->pv_obj.co_id);
 	if (*pv == NULL) {
 		rc = m0_pool_version_append(pc, pver, NULL, NULL, NULL, pv);
@@ -589,10 +600,20 @@ m0_pool_version_get(struct m0_pools_common *pc, struct m0_pool_version **pv)
 	}
 	pc->pc_cur_pver = rc == 0 ? *pv : NULL;
 	m0_confc_close(&pver->pv_obj);
-	m0_mutex_unlock(&pc->pc_mutex);
 	return M0_RC(rc);
 }
 
+M0_INTERNAL int
+m0_pool_version_get(struct m0_pools_common *pc, struct m0_pool_version **pv)
+{
+	int rc;
+
+	M0_ENTRY();
+	m0_mutex_lock(&pc->pc_mutex);
+	rc = pool_version_get_locked(pc, pv);
+	m0_mutex_unlock(&pc->pc_mutex);
+	return M0_RC(rc);
+}
 static int _nodes_count(struct m0_conf_pver *pver, uint32_t *nodes)
 {
 	struct m0_conf_diter  it;
@@ -707,14 +728,30 @@ static void service_ctxs_destroy(struct m0_pools_common *pc)
 	m0_tl_teardown(pools_common_svc_ctx, &pc->pc_svc_ctxs, ctx) {
 		if (m0_reqh_service_ctx_is_connected(ctx)) {
 			rc = m0_reqh_service_disconnect_wait(ctx);
-			/* XXX Current function doesn't fail. */
-			M0_ASSERT_INFO(M0_IN(rc, (0, -ECANCELED, -ETIMEDOUT)),
+			M0_ASSERT_INFO(M0_IN(rc, (0, -ECANCELED, -ETIMEDOUT,
+						  -EINVAL)),
 				       "rc=%d", rc);
 		}
 		m0_reqh_service_ctx_destroy(ctx);
 	}
 	M0_POST(pools_common_svc_ctx_tlist_is_empty(&pc->pc_svc_ctxs));
 	M0_LEAVE();
+}
+
+static const char *ctx_endpoint(struct m0_reqh_service_ctx *ctx)
+{
+	return (m0_reqh_service_ctx_is_connected(ctx) &&
+		m0_rpc_session_validate(&ctx->sc_rlink.rlk_sess) == 0) ?
+		m0_rpc_link_end_point(&ctx->sc_rlink) : "";
+}
+
+static bool reqh_svc_ctx_is_in_pools(struct m0_pools_common *pc,
+				     struct m0_conf_service *cs,
+				     const char             *ep)
+{
+	return m0_tl_find(pools_common_svc_ctx, ctx, &pc->pc_svc_ctxs,
+			  m0_fid_eq(&cs->cs_obj.co_id, &ctx->sc_fid) &&
+			  m0_streq(ep, ctx_endpoint(ctx))) != NULL;
 }
 
 /**
@@ -726,14 +763,21 @@ static int __service_ctx_create(struct m0_pools_common *pc,
 				bool services_connect)
 {
 	struct m0_reqh_service_ctx  *ctx;
-	enum m0_ha_obj_state         ha_state;
 	const char                 **endpoint;
+	bool                         already_in;
 	int                          rc = 0;
 
 	M0_PRE(m0_conf_service_type_is_valid(cs->cs_type));
 	M0_PRE((pc->pc_rmach != NULL) == services_connect);
 
 	for (endpoint = cs->cs_endpoints; *endpoint != NULL; ++endpoint) {
+		already_in = reqh_svc_ctx_is_in_pools(pc, cs, *endpoint);
+		M0_LOG(M0_DEBUG, "%s svc:"FID_F" type:%d ep:%s",
+		       already_in ? "unchanged" : "new",
+		       FID_P(&cs->cs_obj.co_id),
+		       (int)cs->cs_type, *endpoint);
+		if (already_in)
+			continue;
 		rc = m0_reqh_service_ctx_create(&cs->cs_obj, cs->cs_type,
 						pc->pc_rmach, *endpoint,
 						POOL_MAX_RPC_NR_IN_FLIGHT,
@@ -749,10 +793,7 @@ static int __service_ctx_create(struct m0_pools_common *pc,
 			 */
 			m0_conf_cache_lock(cs->cs_obj.co_cache);
 			m0_reqh_service_connect(ctx);
-			ha_state = cs->cs_obj.co_ha_state;
 			m0_conf_cache_unlock(cs->cs_obj.co_cache);
-			if (ha_state == M0_NC_ONLINE)
-				m0_reqh_service_connect_wait(ctx);
 		}
 	}
 	M0_CNT_INC(pc->pc_nr_svcs[cs->cs_type]);
@@ -993,15 +1034,13 @@ static void reqh_service_ctx_abandon(struct m0_reqh_service_ctx *ctx)
 }
 
 /**
- * Callback called when new configuration gets ready which fact is detected by
- * rconfc. In the course of handling every existing reqh service context is
- * subscribed to HA notifications in case the previously known service appears
- * in the new configuration unchanged. Otherwise the context is abandoned and
- * ultimately instructed to disconnect.
+ * Every previously existing reqh service context must be checked for being
+ * known to new conf and remained unchanged. During this check the unchanged
+ * service context is subscribed to HA notifications. Otherwise the context is
+ * abandoned and ultimately instructed to disconnect.
  */
-static bool pools_common_conf_ready_cb(struct m0_clink *clink)
+static void pools_common__ctx_subscribe_or_abandon(struct m0_pools_common *pc)
 {
-	struct m0_pools_common     *pc = M0_AMB(pc, clink, pc_conf_ready);
 	struct m0_conf_cache       *cache = &pc->pc_confc->cc_cache;
 	struct m0_conf_obj         *obj;
 	struct m0_reqh_service_ctx *ctx;
@@ -1022,7 +1061,180 @@ static bool pools_common_conf_ready_cb(struct m0_clink *clink)
 	} m0_tl_endfor;
 
 	M0_LEAVE();
+}
+
+static void pools_common__md_pool_cleanup(struct m0_pools_common *pc)
+{
+	if (pc->pc_md_pool_linst != NULL)
+		m0_layout_instance_fini(pc->pc_md_pool_linst);
+	pc->pc_md_pool_linst = NULL;
+	pc->pc_md_pool = NULL;
+}
+
+static bool in_cache(struct m0_conf_cache *cache, struct m0_fid *fid)
+{
+	bool is_in;
+
+	m0_conf_cache_lock(cache);
+	is_in = m0_conf_cache_lookup(cache, fid) != NULL;
+	m0_conf_cache_unlock(cache);
+	return is_in;
+}
+
+static void pools_common__pools_update_or_cleanup(struct m0_pools_common *pc)
+{
+	struct m0_pool         *pool;
+	struct m0_pool_version *pver;
+	struct m0_conf_cache   *cache = &pc->pc_confc->cc_cache;
+	bool                    in_conf;
+
+	m0_tl_for(pools, &pc->pc_pools, pool) {
+		in_conf = in_cache(cache, &pool->po_id);
+		M0_LOG(M0_DEBUG, "pool %p "FID_F" is %sknown", pool,
+		       FID_P(&pool->po_id), in_conf ? "":"not ");
+
+		if (!in_conf) {
+			if (pc->pc_md_pool == pool)
+				pools_common__md_pool_cleanup(pc);
+			/* cleanup */
+			pools_tlink_del_fini(pool);
+			m0_pool_versions_fini(pool);
+			m0_pool_fini(pool);
+			m0_free(pool);
+		} else {
+			m0_tl_for(pool_version, &pool->po_vers, pver) {
+				if (!in_cache(cache, &pver->pv_id)) {
+					pool_version_tlink_del_fini(pver);
+					m0_pool_version_fini(pver);
+					m0_free(pver);
+				}
+			} m0_tl_endfor;
+		}
+	} m0_tl_endfor;
+}
+
+#ifdef __KERNEL__
+static void csb_pool_version_update(struct m0_pools_common *pc)
+{
+	struct m0_pool_version *pv;
+	struct m0t1fs_sb       *csb = M0_AMB(csb, pc, csb_pools_common);
+
+	if (pool_version_get_locked(pc, &pv) == 0)
+		csb->csb_pool_version = pv;
+}
+#endif
+
+static int pools_common__update_by_conf(struct m0_pools_common *pc)
+{
+	struct m0_conf_filesystem *fs   = NULL;
+	struct m0_reqh            *reqh = m0_confc2reqh(pc->pc_confc);
+	int                        rc;
+
+	rc = m0_conf_fs_get(&reqh->rh_profile, pc->pc_confc, &fs) ?:
+		pools_common_refresh_locked(pc, fs) ?:
+		pools_common__dev2ios_build(pc, fs) ?:
+		m0_pools_setup(pc, fs, NULL, NULL, NULL) ?:
+		m0_pool_versions_setup(pc, fs, NULL, NULL, NULL) ?:
+		m0_reqh_mdpool_layout_build(reqh);
+	if (fs != NULL)
+		m0_confc_close(&fs->cf_obj);
+
+	return M0_RC(rc);
+}
+
+/**
+ * Callback called when new configuration is ready which fact is detected by
+ * rconfc.
+ */
+static bool pools_common_conf_ready_cb(struct m0_clink *clink)
+{
+	struct m0_pools_common *pc = M0_AMB(pc, clink, pc_conf_ready);
+
+	M0_ENTRY("pc %p", pc);
+
+	if (pc->pc_rm_ctx == NULL) {
+		M0_LEAVE("The mandatory rmservice is missing.");
+		/*
+		 * Something went wrong. The newly loaded conf does not include
+		 * active RM service.
+		 *
+		 * Under the circumstances do nothing with pool related
+		 * structures, as no file operation is to be done without RM
+		 * credits, so no IOS is going to be functional from mow on.
+		 */
+		return true;
+	}
+	pools_common__ctx_subscribe_or_abandon(pc);
+	M0_LEAVE();
 	return true;
+}
+
+/**
+ * Callback called when new configuration is ready. Asynchronous part.
+ */
+static bool pools_common_conf_ready_async_cb(struct m0_clink *clink)
+{
+	struct m0_pools_common *pc = M0_AMB(pc, clink, pc_conf_ready_async);
+	int                     rc;
+
+	M0_ENTRY("pc %p", pc);
+
+	if (pc->pc_rm_ctx == NULL) {
+		M0_LEAVE("The mandatory rmservice is missing.");
+		/*
+		 * Something went wrong. The newly loaded conf does not include
+		 * active RM service.
+		 *
+		 * Under the circumstances do nothing with pool related
+		 * structures, as no file operation is to be done without RM
+		 * credits, so no IOS is going to be functional from mow on.
+		 */
+		return true;
+	}
+
+	m0_mutex_lock(&pc->pc_mutex);
+	/*
+	 * prepare for refreshing pools common:
+	 * - zero counters
+	 * - free runtime maps
+	 */
+	M0_SET_ARR0(pc->pc_nr_svcs);
+	m0_free0(&pc->pc_mds_map);
+	m0_free0(&pc->pc_dev2ios);
+	pc->pc_nr_devices = 0;
+	/* cleanup outdated pools if any */
+	pools_common__pools_update_or_cleanup(pc);
+	/* add missing service contexts and re-build mds map */
+	rc = pools_common__update_by_conf(pc);
+	/**
+	 * @todo XXX: See if we could do anything with the failed update
+	 * here. But so far we just cross fingers and hope it succeeds.
+	 */
+	M0_POST(rc == 0);
+	M0_POST(pools_common_invariant(pc));
+#ifdef __KERNEL__
+	csb_pool_version_update(pc);
+#endif
+	m0_mutex_unlock(&pc->pc_mutex);
+	M0_LEAVE();
+	return true;
+}
+
+static int pools_common__dev2ios_build(struct m0_pools_common    *pc,
+				       struct m0_conf_filesystem *fs)
+{
+	int rc;
+
+	M0_ENTRY();
+	rc = m0_conf_ios_devices_count(&fs->cf_obj.co_parent->co_id,
+					   pc->pc_confc, &pc->pc_nr_devices);
+	if (rc != 0)
+		return M0_ERR(rc);
+	M0_LOG(M0_DEBUG, "ioservices device count: %u", pc->pc_nr_devices);
+	M0_ALLOC_ARR(pc->pc_dev2ios, pc->pc_nr_devices);
+	if (pc->pc_dev2ios == NULL)
+		return M0_ERR(-ENOMEM);
+	return M0_RC(0);
 }
 
 M0_INTERNAL int m0_pools_common_init(struct m0_pools_common *pc,
@@ -1043,14 +1255,9 @@ M0_INTERNAL int m0_pools_common_init(struct m0_pools_common *pc,
 	};
 	reqh = m0_confc2reqh(pc->pc_confc);
 	m0_mutex_init(&pc->pc_mutex);
-	rc = m0_conf_ios_devices_count(&fs->cf_obj.co_parent->co_id,
-				       pc->pc_confc, &pc->pc_nr_devices);
+	rc = pools_common__dev2ios_build(pc, fs);
 	if (rc != 0)
 		return M0_ERR(rc);
-	M0_LOG(M0_DEBUG, "ioservices device count: %u", pc->pc_nr_devices);
-	M0_ALLOC_ARR(pc->pc_dev2ios, pc->pc_nr_devices);
-	if (pc->pc_dev2ios == NULL)
-		return M0_ERR(-ENOMEM);
 	pools_common_svc_ctx_tlist_init(&pc->pc_abandoned_svc_ctxs);
 	pools_common_svc_ctx_tlist_init(&pc->pc_svc_ctxs);
 	pools_tlist_init(&pc->pc_pools);
@@ -1059,19 +1266,28 @@ M0_INTERNAL int m0_pools_common_init(struct m0_pools_common *pc,
 	m0_clink_init(&pc->pc_ha_clink, service_ctx_ha_entrypoint_cb);
 	m0_clink_init(&pc->pc_conf_exp, pools_common_conf_expired_cb);
 	m0_clink_init(&pc->pc_conf_ready, pools_common_conf_ready_cb);
+	m0_clink_init(&pc->pc_conf_ready_async,
+		      pools_common_conf_ready_async_cb);
 	m0_clink_add_lock(&reqh->rh_conf_cache_exp, &pc->pc_conf_exp);
 	m0_clink_add_lock(&reqh->rh_conf_cache_ready, &pc->pc_conf_ready);
-	return M0_RC(rc);
+	m0_clink_add_lock(&reqh->rh_conf_cache_ready_async,
+			  &pc->pc_conf_ready_async);
+	return M0_RC(0);
 }
 
-M0_INTERNAL int m0_pools_service_ctx_create(struct m0_pools_common *pc,
-					    struct m0_conf_filesystem *fs)
+/**
+ * Refreshing m0_pools_common implies:
+ * - creating service ctx that m0_pools_common::pc_svc_ctxs list is missing
+ * - re-building m0_pools_common::pc_mds_map
+ * - finding special contexts critical for operations with pools
+ */
+static int pools_common_refresh_locked(struct m0_pools_common    *pc,
+				       struct m0_conf_filesystem *fs)
 {
-	struct m0_ha_entrypoint_client *ecl;
-	int                             rc;
+	int rc;
 
-	M0_ENTRY();
-	M0_PRE(pc != NULL && fs != NULL);
+	M0_PRE(m0_mutex_is_locked(&pc->pc_mutex));
+	M0_PRE(pc->pc_mds_map == NULL);
 
 	rc = service_ctxs_create(pc, fs, pc->pc_rmach != NULL);
 	if (rc != 0)
@@ -1088,15 +1304,39 @@ M0_INTERNAL int m0_pools_service_ctx_create(struct m0_pools_common *pc,
 				 "Make sure this is specified in the conf db.");
 		goto err;
 	}
-	ecl = pc->pc_ha_ecl;
-	m0_clink_add_lock(m0_ha_entrypoint_client_chan(ecl), &pc->pc_ha_clink);
-
 	M0_POST(pools_common_invariant(pc));
-	return M0_RC(rc);
+	return M0_RC(0);
 err:
 	m0_free(pc->pc_mds_map);
+	pc->pc_mds_map = NULL;
 	service_ctxs_destroy(pc);
 	return M0_ERR(rc);
+}
+
+static int pools_common_refresh(struct m0_pools_common    *pc,
+				struct m0_conf_filesystem *fs)
+{
+	int rc;
+
+	m0_mutex_lock(&pc->pc_mutex);
+	rc = pools_common_refresh_locked(pc, fs);
+	m0_mutex_unlock(&pc->pc_mutex);
+	return M0_RC(rc);
+}
+
+M0_INTERNAL int m0_pools_service_ctx_create(struct m0_pools_common *pc,
+					    struct m0_conf_filesystem *fs)
+{
+	int rc;
+
+	M0_ENTRY();
+	M0_PRE(pc != NULL && fs != NULL);
+
+	rc = pools_common_refresh(pc, fs);
+	if (rc == 0)
+		m0_clink_add_lock(m0_ha_entrypoint_client_chan(pc->pc_ha_ecl),
+				  &pc->pc_ha_clink);
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_pools_common_fini(struct m0_pools_common *pc)
@@ -1113,8 +1353,10 @@ M0_INTERNAL void m0_pools_common_fini(struct m0_pools_common *pc)
 	m0_mutex_fini(&pc->pc_mutex);
 	m0_clink_cleanup(&pc->pc_conf_exp);
 	m0_clink_cleanup(&pc->pc_conf_ready);
+	m0_clink_cleanup(&pc->pc_conf_ready_async);
 	m0_clink_fini(&pc->pc_conf_exp);
 	m0_clink_fini(&pc->pc_conf_ready);
+	m0_clink_fini(&pc->pc_conf_ready_async);
 
 	M0_LEAVE();
 }
@@ -1206,15 +1448,26 @@ M0_INTERNAL int m0_pool_versions_setup(struct m0_pools_common    *pc,
 					m0_conf_pver);
 		if (pver_obj->pv_kind == M0_CONF_PVER_FORMULAIC)
 			continue;
+		pool_id = &m0_conf_obj_grandparent(&pver_obj->pv_obj)->co_id;
+		pool = m0_tl_find(pools, pool, &pc->pc_pools,
+				  m0_fid_eq(&pool->po_id, pool_id));
+		M0_ASSERT(m0_fid_eq(&pool->po_id, pool_id));
+		pver = m0_tl_find(pool_version, pver, &pool->po_vers,
+				  m0_fid_eq(&pver_obj->pv_obj.co_id,
+					    &pver->pv_id));
+		M0_LOG(M0_DEBUG, "%spver:"FID_F, pver != NULL ? "! ":"",
+		       FID_P(&pver_obj->pv_obj.co_id));
+		if (pver != NULL)
+			/*
+			 * Version is already in pool, so we must be in pools
+			 * refreshing cycle.
+			 */
+			continue;
 		M0_ALLOC_PTR(pver);
 		if (pver == NULL) {
 			rc = M0_ERR(-ENOMEM);
 			break;
 		}
-		pool_id = &m0_conf_obj_grandparent(&pver_obj->pv_obj)->co_id;
-		pool = m0_tl_find(pools, pool, &pc->pc_pools,
-				  m0_fid_eq(&pool->po_id, pool_id));
-		M0_ASSERT(m0_fid_eq(&pool->po_id, pool_id));
 		rc = m0_pool_version_init_by_conf(pver, pver_obj, pool, pc,
 						  be_seg, sm_grp, dtm) ?:
 		     m0_layout_init_by_pver(&reqh->rh_ldom, pver, NULL);
@@ -1314,6 +1567,7 @@ M0_INTERNAL int m0_pools_setup(struct m0_pools_common    *pc,
 	struct m0_confc      *confc;
 	struct m0_conf_diter  it;
 	struct m0_pool       *pool;
+	struct m0_conf_obj   *pool_obj;
 	int                   rc;
 
 	M0_ENTRY();
@@ -1330,12 +1584,22 @@ M0_INTERNAL int m0_pools_setup(struct m0_pools_common    *pc,
 
 	while ((rc = m0_conf_diter_next_sync(&it, m0_conf_obj_is_pool)) ==
 		M0_CONF_DIRNEXT) {
+		pool_obj = m0_conf_diter_result(&it);
+		pool = m0_pool_find(pc, &pool_obj->co_id);
+		M0_LOG(M0_DEBUG, "%spool:"FID_F, pool != NULL ? "! " : "",
+		       FID_P(&pool_obj->co_id));
+		if (pool != NULL)
+			/*
+			 * Pool is already in pools common, so we must be in
+			 * pools refreshing cycle.
+			 */
+			continue;
 		M0_ALLOC_PTR(pool);
 		if (pool == NULL) {
 			rc = -ENOMEM;
 			break;
 		}
-		rc = m0_pool_init(pool, &m0_conf_diter_result(&it)->co_id);
+		rc = m0_pool_init(pool, &pool_obj->co_id);
 		if (rc != 0)
 			break;
 		pools_tlink_init_at_tail(pool, &pc->pc_pools);
@@ -1346,6 +1610,7 @@ M0_INTERNAL int m0_pools_setup(struct m0_pools_common    *pc,
 		m0_pools_destroy(pc);
 	pc->pc_md_pool = m0_pool_find(pc, &fs->cf_mdpool);
 	M0_ASSERT(pc->pc_md_pool != NULL);
+	M0_LOG(M0_DEBUG, "md pool "FID_F, FID_P(&fs->cf_mdpool));
 
 	return M0_RC(rc);
 }
