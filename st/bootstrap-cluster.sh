@@ -106,7 +106,7 @@ run_command() {
 			      awk -F '[ /]+' '{print $4}')
 		pdsh -w $HALOND_TS \
 			halonctl -l $TS_IP:$HALONCTL_PORT -a $TS_IP:$HALOND_PORT \
-			bootstrap station
+			bootstrap station -r 30000000
 		sleep 3
 		pdsh -w $HALOND_SAT \
 			"IP=\$(ip -o -4 addr show | egrep '$HALOND_NET_IFS' | \
