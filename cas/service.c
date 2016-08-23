@@ -1019,8 +1019,7 @@ static int cas_place(struct m0_buf *dst, struct m0_buf *src, m0_bcount_t cutoff)
 	result = cas_buf(src, &inner);
 	if (result == 0) {
 		if (inner.b_nob >= cutoff) {
-			M0_ALLOC_ARR_ALIGNED(dst->b_addr, inner.b_nob,
-					     PAGE_SHIFT);
+			dst->b_addr = m0_alloc_aligned(inner.b_nob, PAGE_SHIFT);
 			if (dst->b_addr == NULL)
 				return M0_ERR(-ENOMEM);
 			dst->b_nob = inner.b_nob;

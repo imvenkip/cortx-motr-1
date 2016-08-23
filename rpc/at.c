@@ -134,8 +134,6 @@ static int rpc_at_bulk_csend(struct m0_rpc_at_buf *ab,
 	m0_bcount_t             blen = buf->b_nob;
 	int                     rc;
 
-	M0_PRE(ab  != NULL);
-	M0_PRE(buf != NULL);
 	ab->ab_type = M0_RPC_AT_BULK_SEND;
 	nd = rpc_at_bulk_ndom(atbulk);
 	segs_nr = rpc_at_bulk_segs_nr(atbulk, blen, &seg_size);
@@ -167,7 +165,6 @@ static int rpc_at_bulk_srecv(struct m0_rpc_at_buf *ab, struct m0_fom *fom)
 	uint64_t                size = ab->u.ab_send.bdd_used;
 	int                     rc;
 
-	M0_PRE(ab != NULL);
 	M0_PRE(ab->ab_type == M0_RPC_AT_BULK_SEND);
 	nd = rpc_at_bulk_ndom(atbulk);
 	segs_nr = rpc_at_bulk_segs_nr(atbulk, size, &seg_size);
@@ -220,7 +217,6 @@ static int rpc_at_bulk_crecv(struct m0_rpc_at_buf *ab,
 	m0_bcount_t             seg_size;
 	int                     rc;
 
-	M0_PRE(ab != NULL);
 	ab->ab_type = M0_RPC_AT_BULK_RECV;
 	nd = rpc_at_bulk_ndom(atbulk);
 	segs_nr = rpc_at_bulk_segs_nr(atbulk, len, &seg_size);
@@ -252,7 +248,6 @@ static int rpc_at_bulk_ssend(struct m0_rpc_at_buf *in,
 	int                     rc;
 
 	M0_PRE(in != NULL);
-	M0_PRE(out != NULL);
 	M0_PRE(in->ab_type == M0_RPC_AT_BULK_RECV);
 	M0_PRE(out->ab_type == M0_RPC_AT_BULK_REP);
 	M0_PRE(in->u.ab_recv.bdd_used >= blen);

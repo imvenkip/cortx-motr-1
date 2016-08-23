@@ -147,7 +147,7 @@ static void bufdata_alloc(struct m0_buf *buf, size_t size)
 		rc = m0_buf_alloc(buf, size);
 		M0_UT_ASSERT(rc == 0);
 	} else {
-		M0_ALLOC_ARR_ALIGNED(buf->b_addr, size, PAGE_SHIFT);
+		buf->b_addr = m0_alloc_aligned(size, PAGE_SHIFT);
 		M0_UT_ASSERT(buf->b_addr != NULL);
 		buf->b_nob = size;
 	}
@@ -533,7 +533,7 @@ static void reqh_init(void)
 					  m0_rpc_bufs_nr(
 					     M0_NET_TM_RECV_QUEUE_DEF_LEN, 1),
 					  1);
-
+	M0_UT_ASSERT(rc == 0);
 	rc = M0_REQH_INIT(&atreqh.aur_reqh,
 			  .rhia_dtm     = (void *)1,
 			  .rhia_mdstore = (void *)1,
