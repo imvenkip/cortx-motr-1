@@ -76,7 +76,8 @@ static void usage(void)
 "-S Server_end_point [-S Server_end_point ]: max number is %d\n", MAX_SERVERS);
 }
 
-static void repair_reply_received(struct m0_rpc_item *item) {
+static void repair_reply_received(struct m0_rpc_item *item)
+{
 	uint32_t                       req_op;
 	struct trigger_fop            *treq;
 	struct m0_fop                 *req_fop;
@@ -84,11 +85,11 @@ static void repair_reply_received(struct m0_rpc_item *item) {
 	struct trigger_rep_fop        *trep;
 	struct m0_sns_status_rep_fop  *srep;
 
+	M0_ASSERT(m0_rpc_item_error(item) == 0);
+
 	req_fop = m0_rpc_item_to_fop(item);
 	treq = m0_fop_data(req_fop);
 	req_op = treq->op;
-
-	/* XXX TODO Handle rpc errors */
 
 	rep_fop = m0_rpc_item_to_fop(item->ri_reply);
 	trep = m0_fop_data(rep_fop);
@@ -98,9 +99,9 @@ static void repair_reply_received(struct m0_rpc_item *item) {
 		srep = m0_fop_data(rep_fop);
 		printf(" status=%d progress=%lu\n", srep->ssr_state,
 		       srep->ssr_progress);
-	} else
+	} else {
 		printf("\n");
-
+	}
 	if (m0_atomic64_dec_and_test(&srv_rep_cnt))
 		m0_chan_signal_lock(&repair_wait);
 }
@@ -186,9 +187,9 @@ int main(int argc, char *argv[])
 	m0_mutex_unlock(&repair_wait_mutex);
 	start = m0_time_now();
 	for (i = 0; i < srv_cnt; ++i) {
-		struct m0_rpc_machine         *mach;
-		struct m0_fop                 *fop = NULL;
-		struct m0_rpc_item            *item;
+		struct m0_rpc_machine *mach;
+		struct m0_fop         *fop = NULL;
+		struct m0_rpc_item    *item;
 
 		if (ctxs[i].ctx_rc != 0) {
 			m0_atomic64_dec(&srv_rep_cnt);
@@ -211,9 +212,8 @@ int main(int argc, char *argv[])
 		item->ri_deadline = 0;
 		rc = m0_rpc_post(item);
 		m0_fop_put_lock(fop);
-		if (rc != 0) {
+		if (rc != 0)
 			return M0_ERR(rc);
-		}
 		printf("trigger fop sent to %s\n", srv_ep_addr[i]);
 	}
 
@@ -230,7 +230,7 @@ int main(int argc, char *argv[])
 	m0_sns_cm_rebalance_trigger_fop_fini();
 	m0_fini();
 
-	return rc;
+	return M0_RC(rc);
 }
 
 #undef M0_TRACE_SUBSYSTEM
