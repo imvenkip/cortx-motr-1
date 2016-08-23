@@ -42,6 +42,7 @@ enum m0_cm_ag_store_status {
 struct m0_cm_ag_store_data {
 	struct m0_cm_ag_id d_in;
 	struct m0_cm_ag_id d_out;
+	m0_time_t          d_cm_epoch;
 };
 
 struct m0_cm_ag_store {

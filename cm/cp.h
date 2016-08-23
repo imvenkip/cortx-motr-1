@@ -152,6 +152,9 @@ struct m0_cm_cp {
 	/** Copy packet priority.*/
 	enum m0_cm_cp_priority	   c_prio;
 
+	/** Copy Packet epoch. */
+	m0_time_t                  c_epoch;
+
 	/** Copy packet operations */
 	const struct m0_cm_cp_ops *c_ops;
 

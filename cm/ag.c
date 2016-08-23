@@ -130,11 +130,14 @@ static void _fini_ast_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 				out_id = ag->cag_id;
 		}
 	}
+
+	/* updating in-memory ag id and cm_epoch */
 	if (has_incoming && m0_cm_ag_id_is_set(&in_id)) {
 		cm->cm_ag_store.s_data.d_in = in_id;
 	} else if (m0_cm_ag_id_is_set(&out_id)) {
 		cm->cm_ag_store.s_data.d_out = out_id;
 	}
+	cm->cm_ag_store.s_data.d_cm_epoch = cm->cm_epoch;
 	ag->cag_ops->cago_fini(ag);
 }
 

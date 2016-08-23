@@ -505,7 +505,8 @@ static struct m0_sm_state_descr m0_cm_cp_state_descr[] = {
 		.sd_name        = "Init",
 		.sd_allowed     = M0_BITS(M0_CCP_READ, M0_CCP_WRITE,
 					  M0_CCP_XFORM, M0_CCP_SEND,
-					  M0_CCP_SW_CHECK)
+					  M0_CCP_SW_CHECK, M0_CCP_FAIL,
+					  M0_CCP_FINI)
 	},
 	[M0_CCP_READ] = {
 		.sd_flags       = 0,
@@ -598,6 +599,9 @@ M0_INTERNAL void m0_cm_cp_only_init(struct m0_cm *cm, struct m0_cm_cp *cp)
 	m0_mutex_init(&cp->c_reply_wait_mutex);
 	m0_chan_init(&cp->c_reply_wait, &cp->c_reply_wait_mutex);
 	proxy_cp_tlink_init(cp);
+
+	/* copy packet epoch is derived from its cm */
+	cp->c_epoch = cm->cm_epoch;
 }
 
 M0_INTERNAL void m0_cm_cp_fom_init(struct m0_cm *cm, struct m0_cm_cp *cp)

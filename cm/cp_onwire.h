@@ -49,6 +49,12 @@ struct m0_cpx {
 
 	/** Network buffer descriptors corresponding to copy packet data. */
 	struct m0_io_descs        cpx_desc;
+
+	/**
+	 * Epoch of the copy packet, the same as that from the copy machine
+	 * which this copy packet belongs to.
+	 */
+	m0_time_t                 cpx_epoch;
 } M0_XCA_RECORD;
 
 /** Onwire copy packet reply. */

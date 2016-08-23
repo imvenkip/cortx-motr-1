@@ -37,7 +37,8 @@
 #include "sns/cm/file.h"
 #include "sns/cm/cm_utils.h"
 #include "sns/cm/sns_cp_onwire.h"
-
+#include "cm/proxy.h"                   /* m0_cm_proxy_locate */
+#include "rpc/rpc_machine_internal.h"
 
 /**
   @addtogroup SNSCMCP
@@ -127,6 +128,7 @@ static void snscpx_to_snscp(const struct m0_sns_cpx *sns_cpx,
 		sns_cpx->scx_ivecs.cis_ivecs[0].ci_iosegs[0].ci_index;
 
 	sns_cp->sc_base.c_prio = sns_cpx->scx_cp.cpx_prio;
+	sns_cp->sc_base.c_epoch = sns_cpx->scx_cp.cpx_epoch;
 
 	m0_cm_ag_id_copy(&ag_id, &sns_cpx->scx_cp.cpx_ag_id);
 
@@ -155,8 +157,28 @@ M0_INTERNAL int m0_sns_cm_cp_init(struct m0_cm_cp *cp)
 	M0_PRE(m0_fom_phase(&cp->c_fom) == M0_CCP_INIT);
 
 	if (cp->c_fom.fo_fop != NULL) {
+		struct m0_cm        *cm  = cpfom2cm(&cp->c_fom);
+		const char          *rep = NULL;
+		struct m0_fop       *fop = cp->c_fom.fo_fop;
+		struct m0_cm_proxy  *cm_proxy;
+		struct m0_sns_cm_cp *sns_cp = cp2snscp(cp);
+
+		/* This is a cp from network wire */
 		sns_cpx = m0_fop_data(cp->c_fom.fo_fop);
-		snscpx_to_snscp(sns_cpx, cp2snscp(cp));
+		snscpx_to_snscp(sns_cpx, sns_cp);
+
+		if (cp->c_cm_proxy == NULL) {
+			rep = fop->f_item.ri_session->s_conn->c_rpcchan
+						->rc_destep->nep_addr;
+			m0_cm_lock(cm);
+			cm_proxy = m0_cm_proxy_locate(cm, rep);
+			M0_ASSERT(cm_proxy != NULL);
+			cp->c_cm_proxy = cm_proxy;
+			m0_cm_unlock(cm);
+		} else
+			cm_proxy = cp->c_cm_proxy;
+
+		/* set local cp to the original phase */
 		m0_fom_phase_set(&cp->c_fom, sns_cpx->scx_phase);
 	}
 	return cp->c_ops->co_phase_next(cp);

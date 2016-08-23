@@ -180,12 +180,24 @@ static int ag_store_init_load(struct m0_cm_ag_store *store, struct m0_cm_ag_stor
 	return M0_RC(rc);
 }
 
-static void in_out_set(struct m0_cm *cm, struct m0_cm_ag_id *in,
-		       struct m0_cm_ag_id *out)
+/**
+ * Setting in and out AG id and epoch to in-memory store and its original cm.
+ */
+static void in_out_epoch_set(struct m0_cm *cm, struct m0_cm_ag_store *store,
+			     struct m0_cm_ag_store_data* s_data)
 {
-	cm->cm_sw_last_persisted_hi = *in;
-	cm->cm_sw_last_updated_hi = *in;
-	cm->cm_last_processed_out = *out;
+	store->s_data.d_in  = s_data->d_in;
+	store->s_data.d_out = s_data->d_out;
+
+	cm->cm_sw_last_persisted_hi = s_data->d_in;
+	cm->cm_sw_last_updated_hi   = s_data->d_in;
+	cm->cm_last_processed_out   = s_data->d_out;
+
+	if (s_data->d_cm_epoch != 0) {
+		/* Only do this if the epoch is valid. */
+		store->s_data.d_cm_epoch = s_data->d_cm_epoch;
+		cm->cm_epoch = s_data->d_cm_epoch;
+	}
 	M0_SET0(&cm->cm_last_out_hi);
 }
 
@@ -197,11 +209,16 @@ static int ag_store_init(struct m0_cm_ag_store *store)
 	int                         phase;
 	int                         rc;
 
+	/*
+	 * copying epoch from cm. It will be overwritten if a valid epoch
+	 * is found from persistent storage.
+	 */
+	store->s_data.d_cm_epoch = cm->cm_epoch;
+
 	rc = ag_store_init_load(store, &s_data);
 	if (rc == 0 || rc == -ENOENT) {
 		if (rc == 0) {
-			in_out_set(cm, &s_data->d_in, &s_data->d_out);
-			cm->cm_ag_store.s_data = *s_data;
+			in_out_epoch_set(cm, store, s_data);
 			phase = AG_STORE_START;
 			if (cm->cm_reset) {
 				M0_SET0(&cm->cm_sw_last_updated_hi);
@@ -276,9 +293,7 @@ static int ag_store_init_wait(struct m0_cm_ag_store *store)
 			return M0_ERR_INFO(rc, "Cannot load ag store, status=%d phase=%d",
 						store->s_status, m0_fom_phase(fom));
 		m0_cm_lock(cm);
-		store->s_data.d_in = s_data->d_in;
-		store->s_data.d_out = s_data->d_out;
-		in_out_set(cm, &s_data->d_in, &s_data->d_out);
+		in_out_epoch_set(cm, store, s_data);
 		m0_cm_unlock(cm);
 		m0_cm_notify(cm);
 		m0_fom_phase_move(fom, 0, AG_STORE_START);
@@ -310,8 +325,9 @@ static int ag_store__update(struct m0_cm_ag_store *store)
 		return M0_ERR_INFO(rc, "Cannot load ag store, status=%d phase=%d",
 					store->s_status, m0_fom_phase(fom));
 	if (rc == 0) {
-		s_data->d_in = store->s_data.d_in;
-		s_data->d_out = store->s_data.d_out;
+		s_data->d_in       = store->s_data.d_in;
+		s_data->d_out      = store->s_data.d_out;
+		s_data->d_cm_epoch = store->s_data.d_cm_epoch;
 		M0_BE_TX_CAPTURE_PTR(seg, tx, s_data);
 	}
 
