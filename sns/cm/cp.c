@@ -27,14 +27,17 @@
 
 #include "cob/cob.h"
 #include "fop/fom.h"
+#include "ioservice/cob_foms.h"    /* m0_cc_stob_cr_credit */
+#include "ioservice/fid_convert.h" /* m0_fid_convert_cob2stob */
 #include "reqh/reqh.h"
+#include "stob/domain.h"           /* m0_stob_domain_find_by_stob_id */
 #include "sns/cm/cp.h"
 #include "sns/cm/cm.h"
 #include "sns/cm/ag.h"
 #include "sns/cm/file.h"
 #include "sns/cm/cm_utils.h"
 #include "sns/cm/sns_cp_onwire.h"
-#include "ioservice/fid_convert.h"      /* m0_fid_convert_cob2stob */
+
 
 /**
   @addtogroup SNSCMCP
@@ -159,10 +162,83 @@ M0_INTERNAL int m0_sns_cm_cp_init(struct m0_cm_cp *cp)
 	return cp->c_ops->co_phase_next(cp);
 }
 
+M0_INTERNAL int m0_sns_cm_cp_tx_open(struct m0_cm_cp *cp)
+{
+	struct m0_fom          *fom = &cp->c_fom;
+	struct m0_dtx          *dtx = &fom->fo_tx;
+	struct m0_be_tx        *tx  = m0_fom_tx(fom);
+	struct m0_reqh         *reqh = m0_fom_reqh(fom);
+	struct m0_stob_domain  *dom;
+	struct m0_be_tx_credit *cred;
+	struct m0_sns_cm_cp    *sns_cp;
+
+	/* No need to create transaction for read, its an immutable operation.*/
+	if (cp->c_io_op == M0_CM_CP_READ)
+		return 0;
+	if (dtx->tx_state == M0_DTX_INVALID) {
+		m0_dtx_init(dtx, reqh->rh_beseg->bs_domain,
+			    &fom->fo_loc->fl_group);
+		cred = m0_fom_tx_credit(fom);
+		sns_cp = cp2snscp(cp);
+		dom = m0_stob_domain_find_by_stob_id(&sns_cp->sc_stob_id);
+		m0_cc_stob_cr_credit(&sns_cp->sc_stob_id, cred);
+		m0_cob_tx_credit(m0_sns_cm_cp2cdom(cp), M0_COB_OP_CREATE, cred);
+		m0_cob_tx_credit(m0_sns_cm_cp2cdom(cp), M0_COB_OP_DELETE, cred);
+		m0_stob_io_credit(&sns_cp->sc_stio, dom, cred);
+		m0_dtx_open(dtx);
+	}
+
+	if (m0_be_tx_state(tx) == M0_BTS_FAILED)
+		return tx->t_sm.sm_rc;
+	if (M0_IN(m0_be_tx_state(tx),(M0_BTS_OPENING,
+				      M0_BTS_GROUPING))) {
+		m0_fom_wait_on(fom, &tx->t_sm.sm_chan,
+				&fom->fo_cb);
+		return M0_FSO_WAIT;
+	} else
+		m0_dtx_opened(dtx);
+
+	return 0;
+}
+
+M0_INTERNAL int m0_sns_cm_cp_tx_close(struct m0_cm_cp *cp)
+{
+	struct m0_fom   *fom = &cp->c_fom;
+	struct m0_dtx   *dtx = &fom->fo_tx;
+	struct m0_be_tx *tx  = m0_fom_tx(fom);
+
+	if (cp->c_io_op == M0_CM_CP_READ)
+		return 0;
+	if (dtx->tx_state == M0_DTX_INIT)
+		m0_dtx_fini(dtx);
+	if (dtx->tx_state == M0_DTX_OPEN) {
+		M0_ASSERT(m0_be_tx_state(tx) == M0_BTS_ACTIVE);
+		m0_fom_wait_on(fom, &tx->t_sm.sm_chan, &fom->fo_cb);
+		m0_dtx_done(dtx);
+		return M0_FSO_WAIT;
+	}
+	if (dtx->tx_state == M0_DTX_DONE) {
+		if (m0_be_tx_state(tx) == M0_BTS_DONE)
+			m0_dtx_fini(dtx);
+		else {
+			m0_fom_wait_on(fom, &tx->t_sm.sm_chan,
+				      &fom->fo_cb);
+			return M0_FSO_WAIT;
+		}
+	}
+
+	return 0;
+}
+
 M0_INTERNAL int m0_sns_cm_cp_fail(struct m0_cm_cp *cp)
 {
+	int rc;
+
 	M0_PRE(m0_fom_phase(&cp->c_fom) == M0_CCP_FAIL);
 
+	rc = m0_sns_cm_cp_tx_close(cp);
+	if (rc > 0)
+		return M0_FSO_WAIT;
 	cp->c_rc = m0_fom_rc(&cp->c_fom);
 	m0_fom_phase_move(&cp->c_fom, 0, M0_CCP_FINI);
 

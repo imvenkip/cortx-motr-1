@@ -297,6 +297,30 @@ static void test_cp_write_read(void)
 	 */
 	bv_compare(&r_buf.nb_buffer, &w_buf.nb_buffer, SEG_NR, SEG_SIZE);
 
+	/* IO failure due to cp_stob_io_init() failure in sns/cm/storage.c */
+	m0_fi_enable("cp_stob_io_init", "no-stob");
+
+	M0_SET0(&w_sns_cp);
+	M0_SET0(&r_sns_cp);
+
+	write_post();
+
+	read_post();
+
+	m0_fi_disable("cp_stob_io_init", "no-stob");
+
+	/* IO failure test case. */
+	m0_fi_enable("cp_io", "io-fail");
+
+	M0_SET0(&w_sns_cp);
+	M0_SET0(&r_sns_cp);
+
+	write_post();
+
+	read_post();
+
+	m0_fi_disable("cp_io", "io-fail");
+
 	bv_free(&r_buf.nb_buffer);
 	bv_free(&w_buf.nb_buffer);
 
