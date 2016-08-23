@@ -137,9 +137,9 @@ static int ss_process_fom_create(struct m0_fop   *fop,
 				 struct m0_reqh  *reqh)
 {
 	int                        rc;
-	struct m0_sss_process_fom *process_fom;
+	struct m0_sss_process_fom *process_fom = NULL;
 	struct m0_ss_process_req  *process_fop;
-	struct m0_fop             *rfop;
+	struct m0_fop             *rfop = NULL;
 	int                        cmd;
 
 	M0_ENTRY();
@@ -150,8 +150,10 @@ static int ss_process_fom_create(struct m0_fop   *fop,
 	process_fop = m0_ss_fop_process_req(fop);
 	cmd = process_fop->ssp_cmd;
 
-	M0_ALLOC_PTR(process_fom);
-	M0_ALLOC_PTR(rfop);
+	if (!M0_FI_ENABLED("fom_alloc_fail"))
+		M0_ALLOC_PTR(process_fom);
+	if (!M0_FI_ENABLED("fop_alloc_fail"))
+		M0_ALLOC_PTR(rfop);
 	if (process_fom == NULL || rfop == NULL)
 		goto err;
 
@@ -175,7 +177,8 @@ static int ss_process_fom_create(struct m0_fop   *fop,
 			    m0_fop_release);
 	}
 
-	rc = m0_fop_data_alloc(rfop);
+	rc = M0_FI_ENABLED("fop_data_alloc_fail") ? -ENOMEM :
+		m0_fop_data_alloc(rfop);
 	if (rc != 0)
 		goto err;
 
@@ -362,15 +365,14 @@ static int ss_process_quiesce(struct m0_reqh *reqh)
 					       M0_REQH_ST_SVCS_STOP)));
 
 	m0_tl_for(m0_reqh_svc, &reqh->rh_services, svc) {
-		if (M0_FI_ENABLED("keep_confd_rmservice"))
-			if (M0_IN(svc->rs_type->rst_typecode, (M0_CST_MGS,
-							       M0_CST_RMS)))
-				continue;
-		M0_LOG(M0_DEBUG, "type:%d name:%s", svc->rs_type->rst_typecode,
-						    svc->rs_type->rst_name);
-		if (svc->rs_type->rst_typecode != M0_CST_SSS &&
-		    svc->rs_type != &m0_rpc_service_type &&
-		    m0_reqh_service_state_get(svc) == M0_RST_STARTED)
+		M0_LOG(M0_DEBUG, "type:%d level:%d [%s] name:%s",
+		       svc->rs_type->rst_typecode, svc->rs_type->rst_level,
+		       svc->rs_type->rst_keep_alive ? "+" : "-",
+		       svc->rs_type->rst_name);
+		/* Do not stop vital services like SSS, RPC, HA link, etc. */
+		if (svc->rs_type->rst_keep_alive)
+			continue;
+		if (m0_reqh_service_state_get(svc) == M0_RST_STARTED)
 			m0_reqh_service_prepare_to_stop(svc);
 	} m0_tl_endfor;
 

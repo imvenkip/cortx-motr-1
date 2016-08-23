@@ -115,8 +115,12 @@ static const struct m0_reqh_service_type_ops rpc_service_type_ops = {
 	.rsto_service_allocate = rpc_service_allocate
 };
 
-M0_REQH_SERVICE_TYPE_DEFINE(m0_rpc_service_type, &rpc_service_type_ops,
-			    "rpcservice", M0_RPC_SVC_LEVEL, 0);
+struct m0_reqh_service_type m0_rpc_service_type = {
+	.rst_name       = "rpcservice",
+	.rst_ops        = &rpc_service_type_ops,
+	.rst_level      = M0_RPC_SVC_LEVEL,
+	.rst_keep_alive = true,
+};
 M0_EXPORTED(m0_rpc_service_type);
 
 M0_INTERNAL int m0_rpc_service_register(void)

@@ -46,20 +46,17 @@ struct m0_rpc_session;
    @ingroup reqh
 
    A mero service is described to a request handler using a struct
-   m0_reqh_service_type data structure.
-   Every service should register its corresponding m0_reqh_service_type
-   instance containing service specific initialisation method, service
-   name. A m0_reqh_service_type instance can be defined using
-   M0_REQH_SERVICE_TYPE_DEFINE macro. Once the service type is defined
-   it should be registered using m0_reqh_service_type_register() and
-   unregister using m0_reqh_service_type_unregister().
-   During service type registration, the service type is added to the global
-   list of the service types maintained by the request handler module.
-   The request handler creates and initialises a service by invoking the
-   constructor method of its service type, and obtains struct m0_reqh_service
-   instance. The constructor should perform only internal house keeping tasks.
-   Next, the service start method is invoked, it should properly initialise the
-   internal state of the service, e.g. service fops, &c.
+   m0_reqh_service_type data structure. Every service should register its
+   corresponding m0_reqh_service_type instance containing service specific
+   initialisation method, service name. Once the service type is defined it
+   should be registered using m0_reqh_service_type_register() and unregister
+   using m0_reqh_service_type_unregister().  During service type registration,
+   the service type is added to the global list of the service types maintained
+   by the request handler module.  The request handler creates and initialises a
+   service by invoking the constructor method of its service type, and obtains
+   struct m0_reqh_service instance. The constructor should perform only internal
+   house keeping tasks.  Next, the service start method is invoked, it should
+   properly initialise the internal state of the service, e.g. service fops, &c.
 
    Request handler creates an rpc_machine for each specified end point per
    network domain. There could be multiple rpc machines running within a single
@@ -102,10 +99,14 @@ struct m0_rpc_session;
    }
    @endcode
 
-   - define service type using M0_REQH_SERVICE_TYPE_DEFINE macro,
+   - define service type,
    @code
-   M0_REQH_SERVICE_TYPE_DEFINE(m0_ios_type, &ios_type_ops, "ioservice",
-                               M0_RS_LEVEL_NORMAL, 0);
+   struct m0_reqh_service_type m0_ios_type = {
+	.rst_name     = "ioservice",
+	.rst_ops      = &ios_type_ops,
+	.rst_level    = M0_RS_LEVEL_NORMAL,
+	.rst_typecode = M0_CST_IOS,
+   };
    @endcode
 
    - now, the above service type can be registered as below,
@@ -453,6 +454,15 @@ struct m0_reqh_service_type {
 	unsigned                               rst_key;
 	unsigned                               rst_level;
 	/**
+	 * Flag for keeping service alive due to its vital role in cluster
+	 * communication. A service of the flagged type won't be allowed to shut
+	 * down until REQH goes down itself.
+	 *
+	 * Example: "process quiesce" Spiel command does not affect services of
+	 * the type.
+	 */
+	bool                                   rst_keep_alive;
+	/**
 	 * Configuration service type
 	 * @see m0_conf_service::cs_type
 	 */
@@ -601,21 +611,13 @@ M0_INTERNAL void m0_reqh_service_init(struct m0_reqh_service *service,
  */
 M0_INTERNAL void m0_reqh_service_fini(struct m0_reqh_service *service);
 
-#define M0_REQH_SERVICE_TYPE_DEFINE(stype, ops, name, level, typecode)  \
-struct m0_reqh_service_type stype = {                                       \
-	.rst_name     = (name),                                            \
-	.rst_ops      = (ops),                                              \
-	.rst_level    = (level),                                            \
-	.rst_typecode = (typecode),                                         \
-}
-
 /**
    Fine-grained REQH service level definitions.
  */
 enum m0_reqh_service_level {
 	/* General levels */
 	M0_RS_LEVEL_UNKNOWN       =  0,
-	M0_RS_LEVEL_EARIEST       =  5,
+	M0_RS_LEVEL_EARLIEST      =  5,
 	M0_RS_LEVEL_EARLY         = 10,
 	M0_RS_LEVEL_BEFORE_NORMAL = 20,
 	M0_RS_LEVEL_NORMAL        = 30,

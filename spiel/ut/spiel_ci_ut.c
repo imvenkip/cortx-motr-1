@@ -25,8 +25,10 @@
 #include "spiel/spiel_internal.h"
 #include "spiel/ut/spiel_ut_common.h"
 #include "conf/obj_ops.h"     /* M0_CONF_DIRNEXT */
+#include "conf/confd.h"       /* m0_confd_stype */
 #include "module/instance.h"  /* m0_get */
 #include "stob/domain.h"      /* m0_stob_domain */
+#include "rm/rm_service.h"    /* m0_rms_type */
 #include "lib/finject.h"
 #include "lib/fs.h"           /* m0_file_read */
 #include "conf/ut/common.h"   /* conf_ut_ast_thread_fini */
@@ -38,12 +40,14 @@ static struct m0_spiel spiel;
 static void spiel_ci_ut_init(void)
 {
 	m0_spiel__ut_init(&spiel, M0_UT_PATH("conf.xc"), true);
-	m0_fi_enable("ss_process_quiesce", "keep_confd_rmservice");
+	m0_confd_stype.rst_keep_alive = true;
+	m0_rms_type.rst_keep_alive = true;
 }
 
 static void spiel_ci_ut_fini(void)
 {
-	m0_fi_disable("ss_process_quiesce", "keep_confd_rmservice");
+	m0_confd_stype.rst_keep_alive = false;
+	m0_rms_type.rst_keep_alive = false;
 	m0_spiel__ut_fini(&spiel, true);
 }
 

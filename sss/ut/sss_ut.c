@@ -270,7 +270,7 @@ static void sss_process_reconfig_test(void)
 	int rc;
 	struct m0_fop *fop;
 
-	m0_fi_enable_off_n_on_m("ss_process_reconfig", "unit_test", 0, 1);
+	m0_fi_enable_once("ss_process_reconfig", "unit_test");
 	fop = ut_sss_process_create_req(M0_PROCESS_RECONFIG);
 	rc = ut_sss_process_req(fop, 0);
 	M0_UT_ASSERT(rc == 0);
@@ -289,9 +289,9 @@ static void sss_process_health_test(void)
 static void sss_process_stop_test(void)
 {
 	int rc;
-	m0_fi_enable_once("m0_ss_process_stop_fop_release", "no_kill");
 	struct m0_fop *fop;
 
+	m0_fi_enable_once("m0_ss_process_stop_fop_release", "no_kill");
 	fop = ut_sss_process_create_req(M0_PROCESS_STOP);
 	rc = ut_sss_process_req(fop, 0);
 	M0_UT_ASSERT(rc == 0);
@@ -355,20 +355,18 @@ static void sss_process_fom_create_fail(void)
 		    sss_fop_ut_release);
 	req->ssp_cmd = 1;
 
-	m0_fi_enable_once("m0_alloc", "fail_allocation");
+	m0_fi_enable_once("ss_process_fom_create", "fom_alloc_fail");
 	rc = ss_process_fom_type_ops.fto_create(fop, &fom, reqh);
 	M0_UT_ASSERT(rc == -ENOMEM);
 
-	m0_fi_enable_off_n_on_m("m0_alloc", "fail_allocation", 1, 1);
+	m0_fi_enable_once("ss_process_fom_create", "fop_alloc_fail");
 	fop->f_item.ri_rmachine = &cctx.rcx_rpc_machine;
 	rc = ss_process_fom_type_ops.fto_create(fop, &fom, reqh);
-	m0_fi_disable("m0_alloc", "fail_allocation");
 	M0_UT_ASSERT(rc == -ENOMEM);
 
-	m0_fi_enable_off_n_on_m("m0_alloc", "fail_allocation", 2, 1);
+	m0_fi_enable_once("ss_process_fom_create", "fop_data_alloc_fail");
 	fop->f_item.ri_rmachine = &cctx.rcx_rpc_machine;
 	rc = ss_process_fom_type_ops.fto_create(fop, &fom, reqh);
-	m0_fi_disable("m0_alloc", "fail_allocation");
 	M0_UT_ASSERT(rc == -ENOMEM);
 
 	m0_fop_fini(fop);
@@ -398,15 +396,14 @@ static void sss_device_fom_create_fail(void)
 	m0_fop_init(fop, &m0_sss_fop_device_fopt, req, m0_fop_release);
 	req->ssd_cmd = M0_DEVICE_ATTACH;
 
-	m0_fi_enable_once("m0_alloc", "fail_allocation");
+	m0_fi_enable_once("sss_device_fom_create", "fom_alloc_fail");
 	fop->f_item.ri_rmachine = &cctx.rcx_rpc_machine;
 	rc = fop->f_type->ft_fom_type.ft_ops->fto_create(fop, &fom, reqh);
 	M0_UT_ASSERT(rc == -ENOMEM);
 
-	m0_fi_enable_off_n_on_m("m0_alloc", "fail_allocation", 1, 1);
+	m0_fi_enable_once("sss_device_fom_create", "fop_alloc_fail");
 	fop->f_item.ri_rmachine = &cctx.rcx_rpc_machine;
 	rc = fop->f_type->ft_fom_type.ft_ops->fto_create(fop, &fom, reqh);
-	m0_fi_disable("m0_alloc", "fail_allocation");
 	M0_UT_ASSERT(rc == -ENOMEM);
 
 	m0_fop_fini(fop);

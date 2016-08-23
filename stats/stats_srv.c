@@ -108,9 +108,12 @@
    @subsection DLD-stats-svc-lspec-service-registration Service Registration
    Stats service type definition :
 
-   M0_REQH_SERVICE_TYPE_DEFINE(m0_stats_svc_type, &stats_service_type_ops,
-                        M0_STATS_SVC_NAME, &m0_addb_ct_stats_service,
-			M0_RS_LEVEL_NORMAL, 0);
+   struct m0_reqh_service_type m0_stats_svc_type = {
+	.rst_name     = M0_STATS_SVC_NAME,
+	.rst_ops      = &stats_service_type_ops,
+	.rst_level    = M0_RS_LEVEL_NORMAL,
+	.rst_typecode = M0_CST_STS,
+   };
 
    Stats service type initialization/finalization :
 
@@ -288,8 +291,12 @@ static const struct m0_reqh_service_type_ops stats_service_type_ops = {
 	.rsto_service_allocate = stats_svc_rsto_service_allocate,
 };
 
-M0_REQH_SERVICE_TYPE_DEFINE(m0_stats_svc_type, &stats_service_type_ops,
-			    M0_STATS_SVC_NAME, M0_RS_LEVEL_NORMAL, M0_CST_STS);
+struct m0_reqh_service_type m0_stats_svc_type = {
+	.rst_name     = M0_STATS_SVC_NAME,
+	.rst_ops      = &stats_service_type_ops,
+	.rst_level    = M0_RS_LEVEL_NORMAL,
+	.rst_typecode = M0_CST_STS,
+};
 
 /*
  * Public interfaces

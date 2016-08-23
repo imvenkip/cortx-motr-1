@@ -121,10 +121,12 @@ static const struct m0_reqh_service_type_ops ha_entrypoint_stype_ops = {
 	.rsto_service_allocate = ha_entrypoint_service_allocate,
 };
 
-M0_REQH_SERVICE_TYPE_DEFINE(m0_ha_entrypoint_service_type,
-			    &ha_entrypoint_stype_ops,
-			    "ha_entrypoint-service",
-			    M0_HA_ENTRYPOINT_SVC_LEVEL, 0);
+struct m0_reqh_service_type m0_ha_entrypoint_service_type = {
+	.rst_name       = "ha-entrypoint-service",
+	.rst_ops        = &ha_entrypoint_stype_ops,
+	.rst_level      = M0_HA_ENTRYPOINT_SVC_LEVEL,
+	.rst_keep_alive = true,
+};
 
 static int
 ha_entrypoint_service_allocate(struct m0_reqh_service            **service,
@@ -309,10 +311,7 @@ M0_INTERNAL const struct m0_ha_entrypoint_req *
 m0_ha_entrypoint_server_request_find(struct m0_ha_entrypoint_server *hes,
                                      const struct m0_uint128        *req_id)
 {
-	struct ha_entrypoint_server_fom *server_fom;
-
-	server_fom = ha_entrypoint_server_find(hes, req_id);
-	return server_fom == NULL ? NULL : &server_fom->esf_req;
+	return M0_MEMBER_PTR(ha_entrypoint_server_find(hes, req_id), esf_req);
 }
 
 static struct m0_sm_state_descr ha_entrypoint_client_states[] = {

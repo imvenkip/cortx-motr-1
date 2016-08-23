@@ -107,9 +107,11 @@ static const struct m0_reqh_service_type_ops ut_long_lock_service_type_ops = {
 	.rsto_service_allocate = ut_long_lock_service_allocate
 };
 
-M0_REQH_SERVICE_TYPE_DEFINE(ut_long_lock_service_type,
-			    &ut_long_lock_service_type_ops,
-			    "ut-long-lock-service", M0_RS_LEVEL_NORMAL, 0);
+struct m0_reqh_service_type ut_long_lock_service_type = {
+	.rst_name  = "ut-long-lock-service",
+	.rst_ops   = &ut_long_lock_service_type_ops,
+	.rst_level = M0_RS_LEVEL_NORMAL,
+};
 
 static int test_long_lock_init(void)
 {

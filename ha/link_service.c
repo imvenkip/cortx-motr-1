@@ -37,7 +37,7 @@
 #include "lib/memory.h"         /* M0_ALLOC_PTR */
 
 #include "mero/magic.h"         /* M0_HA_LINK_SERVICE_MAGIC */
-#include "reqh/reqh_service.h"  /* M0_REQH_SERVICE_TYPE_DEFINE */
+#include "reqh/reqh_service.h"  /* m0_reqh_service */
 
 #include "ha/link.h"            /* m0_ha_link */
 
@@ -122,10 +122,9 @@ m0_ha_link_service_find(struct m0_reqh_service  *service,
 	hl = m0_tl_find(ha_link_svc, ha_link, &hl_service->hls_links,
 		m0_uint128_eq(&ha_link->hln_conn_cfg.hlcc_params.hlp_id_local,
 			      link_id));
-	if (connection_id != NULL) {
+	if (connection_id != NULL)
 		*connection_id = hl == NULL ? M0_UINT128(0, 0) :
 				 hl->hln_conn_cfg.hlcc_params.hlp_id_connection;
-	}
 	m0_rwlock_read_unlock(&hl_service->hls_lock);
 	M0_LEAVE("hl=%p link_id="U128X_F" connection_id="U128X_F, hl,
 	         U128_P(link_id), U128_P(connection_id == NULL ?
@@ -153,8 +152,6 @@ M0_INTERNAL void m0_ha_link_service_deregister(struct m0_reqh_service *service,
 	struct ha_link_service *hl_service = ha_link_service_container(service);
 
 	M0_ENTRY("service=%p hl=%p hl_service=%p", service, hl, hl_service);
-	M0_PRE(m0_ha_link_service_find(service,
-		   &hl->hln_conn_cfg.hlcc_params.hlp_id_local, NULL) != NULL);
 	m0_rwlock_write_lock(&hl_service->hls_lock);
 	ha_link_svc_tlink_del_fini(hl);
 	m0_rwlock_write_unlock(&hl_service->hls_lock);
@@ -174,8 +171,12 @@ static const struct m0_reqh_service_type_ops ha_link_stype_ops = {
 	.rsto_service_allocate = ha_link_service_allocate,
 };
 
-M0_REQH_SERVICE_TYPE_DEFINE(m0_ha_link_service_type, &ha_link_stype_ops,
-			    "ha_link-service", M0_HA_LINK_SVC_LEVEL, 0);
+struct m0_reqh_service_type m0_ha_link_service_type = {
+	.rst_name       = "ha-link-service",
+	.rst_ops        = &ha_link_stype_ops,
+	.rst_level      = M0_HA_LINK_SVC_LEVEL,
+	.rst_keep_alive = true,
+};
 
 static int ha_link_service_allocate(struct m0_reqh_service            **service,
                                     const struct m0_reqh_service_type  *stype)

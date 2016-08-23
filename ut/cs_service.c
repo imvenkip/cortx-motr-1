@@ -55,10 +55,17 @@ static const struct m0_reqh_service_ops ds2_service_ops = {
 	.rso_fini  = ds_service_fini
 };
 
-M0_REQH_SERVICE_TYPE_DEFINE(ds1_service_type, &ds1_service_type_ops, "ds1",
-			    M0_RS_LEVEL_NORMAL, 0);
-M0_REQH_SERVICE_TYPE_DEFINE(ds2_service_type, &ds2_service_type_ops, "ds2",
-			    M0_RS_LEVEL_NORMAL, 0);
+struct m0_reqh_service_type ds1_service_type = {
+	.rst_name  = "ds1",
+	.rst_ops   = &ds1_service_type_ops,
+	.rst_level = M0_RS_LEVEL_NORMAL,
+};
+
+struct m0_reqh_service_type ds2_service_type = {
+	.rst_name  = "ds2",
+	.rst_ops   = &ds2_service_type_ops,
+	.rst_level = M0_RS_LEVEL_NORMAL,
+};
 
 struct m0_reqh_service_type *m0_cs_default_stypes[] = {
 	&ds1_service_type,

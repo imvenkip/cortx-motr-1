@@ -114,8 +114,12 @@ struct m0_net_buffer_pool_ops buffer_pool_ops = {
 	.nbpo_below_threshold = buffer_pool_low,
 };
 
-M0_REQH_SERVICE_TYPE_DEFINE(m0_ios_type, &ios_type_ops, "ioservice",
-			    M0_RS_LEVEL_NORMAL, M0_CST_IOS);
+struct m0_reqh_service_type m0_ios_type = {
+	.rst_name     = "ioservice",
+	.rst_ops      = &ios_type_ops,
+	.rst_level    = M0_RS_LEVEL_NORMAL,
+	.rst_typecode = M0_CST_IOS,
+};
 
 /**
  * Buffer pool operation function. This function gets called when buffer pool

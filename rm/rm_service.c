@@ -64,8 +64,12 @@ static const struct m0_reqh_service_ops rms_ops = {
 	.rso_fini            = rms_fini,
 };
 
-M0_REQH_SERVICE_TYPE_DEFINE(m0_rms_type, &rms_type_ops, "rmservice",
-			    M0_RM_SVC_LEVEL, M0_CST_RMS);
+struct m0_reqh_service_type m0_rms_type = {
+	.rst_name     = "rmservice",
+	.rst_ops      = &rms_type_ops,
+	.rst_level    = M0_RM_SVC_LEVEL,
+	.rst_typecode = M0_CST_RMS,
+};
 
 static const struct m0_bob_type rms_bob = {
 	.bt_name = "rm service",

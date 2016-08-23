@@ -397,8 +397,12 @@
 
    Bulk I/O Service defines service type as follows -
 
-   M0_REQH_SERVICE_TYPE_DEFINE(m0_io_service_type, &m0_io_service_type_ops,
-                               "ioservice", M0_RS_LEVEL_NORMAL);
+   struct m0_reqh_service_type m0_ios_type = {
+	.rst_name     = "ioservice",
+	.rst_ops      = &ios_type_ops,
+	.rst_level    = M0_RS_LEVEL_NORMAL,
+	.rst_typecode = M0_CST_IOS,
+   };
 
    It also assigns service name and service type operations for Bulk I/O
    Service.

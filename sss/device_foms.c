@@ -195,8 +195,8 @@ static int sss_device_fom_create(struct m0_fop   *fop,
 				 struct m0_fom  **out,
 				 struct m0_reqh  *reqh)
 {
-	struct m0_sss_dfom *dfom;
-	struct m0_fop      *rep_fop;
+	struct m0_sss_dfom *dfom = NULL;
+	struct m0_fop      *rep_fop = NULL;
 
 	M0_ENTRY();
 	M0_PRE(fop != NULL);
@@ -204,8 +204,10 @@ static int sss_device_fom_create(struct m0_fop   *fop,
 	M0_PRE(m0_sss_fop_is_dev_req(fop));
 	M0_PRE(reqh != NULL);
 
-	M0_ALLOC_PTR(dfom);
-	rep_fop = m0_fop_reply_alloc(fop, &m0_sss_fop_device_rep_fopt);
+	if (!M0_FI_ENABLED("fom_alloc_fail"))
+		M0_ALLOC_PTR(dfom);
+	if (!M0_FI_ENABLED("fop_alloc_fail"))
+		rep_fop = m0_fop_reply_alloc(fop, &m0_sss_fop_device_rep_fopt);
 	if (dfom == NULL || rep_fop == NULL)
 		goto err;
 

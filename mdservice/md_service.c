@@ -67,8 +67,12 @@ static const struct m0_reqh_service_ops mds_ops = {
         .rso_fini        = mds_fini
 };
 
-M0_REQH_SERVICE_TYPE_DEFINE(m0_mds_type, &mds_type_ops, "mdservice",
-			    M0_MD_SVC_LEVEL, M0_CST_MDS);
+struct m0_reqh_service_type m0_mds_type = {
+	.rst_name     = "mdservice",
+	.rst_ops      = &mds_type_ops,
+	.rst_level    = M0_MD_SVC_LEVEL,
+	.rst_typecode = M0_CST_MDS,
+};
 
 M0_INTERNAL int m0_mds_register(void)
 {

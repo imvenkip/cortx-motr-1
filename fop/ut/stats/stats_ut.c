@@ -83,8 +83,12 @@ static const struct m0_reqh_service_type_ops ut_stats_service_type_ops = {
 	.rsto_service_allocate = ut_stats_service_allocate
 };
 
-M0_REQH_SERVICE_TYPE_DEFINE(ut_stats_service_type, &ut_stats_service_type_ops,
-			    "ut-stats-service", M0_RS_LEVEL_NORMAL, M0_CST_STS);
+struct m0_reqh_service_type ut_stats_service_type = {
+	.rst_name     = "ut-stats-service",
+	.rst_ops      = &ut_stats_service_type_ops,
+	.rst_level    = M0_RS_LEVEL_NORMAL,
+	.rst_typecode = M0_CST_STS,
+};
 
 static int test_stats_init(void)
 {
