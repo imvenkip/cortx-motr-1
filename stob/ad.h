@@ -70,11 +70,10 @@ struct m0_ad_balloc_ops {
 	    @param block size shift in bytes, similarly to m0_stob_block_shift()
 	    @param container_size Total size of the container in bytes
 	    @param  blocks_per_group # of blocks per group
-	    @param res_groups # of reserved groups
 	 */
 	int  (*bo_init)(struct m0_ad_balloc *ballroom, struct m0_be_seg *db,
 			uint32_t bshift, m0_bcount_t container_size,
-			m0_bcount_t blocks_per_group, m0_bcount_t res_groups);
+			m0_bcount_t blocks_per_group);
 	/** Finalises and destroys struct m0_balloc instance. */
 	void (*bo_fini)(struct m0_ad_balloc *ballroom);
 	/** Allocates count of blocks. On success, allocated extent, also
@@ -102,7 +101,6 @@ struct m0_stob_ad_domain {
 	uint32_t                sad_bshift;
 	int32_t                 sad_babshift;
 	m0_bcount_t             sad_blocks_per_group;
-	m0_bcount_t             sad_res_groups;
 	struct m0_be_seg       *sad_be_seg;
 	char                    sad_path[MAXPATHLEN];
 	bool                    sad_overwrite;

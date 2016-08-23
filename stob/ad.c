@@ -72,7 +72,6 @@ struct ad_domain_cfg {
 	m0_bcount_t       adg_container_size;
 	uint32_t          adg_bshift;
 	m0_bcount_t       adg_blocks_per_group;
-	m0_bcount_t       adg_res_groups;
 };
 
 struct ad_domain_map {
@@ -246,7 +245,6 @@ static int stob_ad_domain_cfg_create_parse(const char *str_cfg_create,
 		if (cfg->adg_container_size == 0)
 			cfg->adg_container_size = BALLOC_DEF_CONTAINER_SIZE;
 		cfg->adg_bshift     = BALLOC_DEF_BLOCK_SHIFT;
-		cfg->adg_res_groups = BALLOC_DEF_RESERVED_GROUPS;
 		/*
 		 * Big number of groups slows balloc initialisation. Therefore,
 		 * group size is counted depending on BALLOC_DEF_GROUPS_NR.
@@ -344,8 +342,7 @@ static int stob_ad_domain_init(struct m0_stob_type *type,
 		rc = ballroom->ab_ops->bo_init(ballroom, seg,
 					       adom->sad_bshift,
 					       adom->sad_container_size,
-					       adom->sad_blocks_per_group,
-					       adom->sad_res_groups);
+					       adom->sad_blocks_per_group);
 		balloc_inited = rc == 0;
 
 		rc = rc ?: stob_ad_bstore(&adom->sad_bstore_id,
@@ -453,7 +450,6 @@ static int stob_ad_domain_create(struct m0_stob_type *type,
 		adom->sad_container_size   = cfg->adg_container_size;
 		adom->sad_bshift           = cfg->adg_bshift;
 		adom->sad_blocks_per_group = cfg->adg_blocks_per_group;
-		adom->sad_res_groups       = cfg->adg_res_groups;
 		adom->sad_bstore_id        = cfg->adg_id;
 		adom->sad_overwrite        = false;
 		strcpy(adom->sad_path, location_data);

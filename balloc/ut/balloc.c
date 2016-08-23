@@ -109,8 +109,7 @@ int test_balloc_ut_ops(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg)
 
 	result = mero_balloc->cb_ballroom.ab_ops->bo_init
 		(&mero_balloc->cb_ballroom, seg, BALLOC_DEF_BLOCK_SHIFT,
-		 BALLOC_DEF_CONTAINER_SIZE, BALLOC_DEF_BLOCKS_PER_GROUP,
-		 BALLOC_DEF_RESERVED_GROUPS);
+		 BALLOC_DEF_CONTAINER_SIZE, BALLOC_DEF_BLOCKS_PER_GROUP);
 
 	if (result == 0) {
 		prev_free_blocks = mero_balloc->cb_sb.bsb_freeblocks;
@@ -166,7 +165,7 @@ int test_balloc_ut_ops(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg)
 			m0_ut_be_tx_end(tx);
 		}
 
-		for (i = mero_balloc->cb_sb.bsb_reserved_groups;
+		for (i = 0;
 		     i < mero_balloc->cb_sb.bsb_groupcount && result == 0;
 		     ++i) {
 			struct m0_balloc_group_info *grp =
@@ -199,9 +198,7 @@ int test_balloc_ut_ops(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg)
 				    &mero_balloc->cb_ballroom, 1, &cred);
 			m0_ut_be_tx_begin(tx, ut_be, &cred);
 
-			if (ext[i].e_start != 0)
-				result =
-				mero_balloc->cb_ballroom.ab_ops->bo_free(
+			result = mero_balloc->cb_ballroom.ab_ops->bo_free(
 					    &mero_balloc->cb_ballroom, &dtx,
 					    &ext[i]);
 			M0_UT_ASSERT(result == 0);
@@ -230,7 +227,7 @@ int test_balloc_ut_ops(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg)
 			result = -EINVAL;
 		}
 
-		for (i = mero_balloc->cb_sb.bsb_reserved_groups;
+		for (i = 0;
 		     i < mero_balloc->cb_sb.bsb_groupcount && result == 0;
 		     ++i) {
 			struct m0_balloc_group_info *grp = m0_balloc_gn2info

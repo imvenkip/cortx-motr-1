@@ -150,7 +150,7 @@ M0_INTERNAL void m0_balloc_debug_dump_sb(const char *tag,
 		(unsigned long long) sb->bsb_blocksize,
 		(unsigned long	   ) sb->bsb_bsbits);
 
-	M0_LOG(M0_DEBUG, "|-----gs=%llu(bits=%lu) gc=%llu rsvd=%llu "
+	M0_LOG(M0_DEBUG, "|-----gs=%llu(bits=%lu) gc=%llu "
 		" prealloc=%llu\n"
 		"|-----time format=%llu\n"
 		"|-----write=%llu\n"
@@ -159,7 +159,6 @@ M0_INTERNAL void m0_balloc_debug_dump_sb(const char *tag,
 		(unsigned long long) sb->bsb_groupsize,
 		(unsigned long	   ) sb->bsb_gsbits,
 		(unsigned long long) sb->bsb_groupcount,
-		(unsigned long long) sb->bsb_reserved_groups,
 		(unsigned long long) sb->bsb_prealloc_count,
 		(unsigned long long) sb->bsb_format_time,
 		(unsigned long long) sb->bsb_write_time,
@@ -430,34 +429,33 @@ static int balloc_sb_write(struct m0_balloc            *bal,
 		number_of_groups = 1;
 
 	M0_LOG(M0_DEBUG, "total=%llu bs=%llu groupsize=%llu groups=%llu "
-			 "resvd=%llu unused=%llu",
+			 "unused=%llu",
 		(unsigned long long)req->bfr_totalsize,
 		(unsigned long long)req->bfr_blocksize,
 		(unsigned long long)req->bfr_groupsize,
 		(unsigned long long)number_of_groups,
-		(unsigned long long)req->bfr_reserved_groups,
 		(unsigned long long)(req->bfr_totalsize - number_of_groups *
 				     req->bfr_groupsize * req->bfr_blocksize));
-
-	if (number_of_groups <= req->bfr_reserved_groups) {
-		M0_LOG(M0_ERROR, "container is too small");
-		return M0_RC(-EINVAL);
-	}
 
 	gettimeofday(&now, NULL);
 	/* TODO verification of these parameters */
 	sb->bsb_magic		= M0_BALLOC_SB_MAGIC;
 	sb->bsb_state		= 0;
 	sb->bsb_version		= M0_BALLOC_SB_VERSION;
-	sb->bsb_totalsize	= req->bfr_totalsize;
+
+	/*
+	  Total size is rounded by number of groups so that the rest
+	  of space (little piece) at the end of device is not accounted
+	  as used space.
+	 */
+	sb->bsb_totalsize	= number_of_groups * req->bfr_groupsize * req->bfr_blocksize;
+
 	sb->bsb_blocksize	= req->bfr_blocksize;/* should be power of 2*/
 	sb->bsb_groupsize	= req->bfr_groupsize;/* should be power of 2*/
 	sb->bsb_bsbits		= ffs(req->bfr_blocksize) - 1;
 	sb->bsb_gsbits		= ffs(req->bfr_groupsize) - 1;
 	sb->bsb_groupcount	= number_of_groups;
-	sb->bsb_reserved_groups = req->bfr_reserved_groups;
-	sb->bsb_freeblocks	= (number_of_groups - sb->bsb_reserved_groups)
-				  << sb->bsb_gsbits;
+	sb->bsb_freeblocks	= number_of_groups << sb->bsb_gsbits;
 	sb->bsb_prealloc_count	= 16;
 	sb->bsb_format_time	= ((uint64_t)now.tv_sec) << 32 | now.tv_usec;
 	sb->bsb_write_time	= sb->bsb_format_time;
@@ -555,10 +553,7 @@ static void balloc_group_write_do(struct m0_be_tx_bulk   *tb,
 	M0_LOG(M0_DEBUG, "creating group_extents for group %llu",
 	       (unsigned long long)i);
 	ext.e_start = i << sb->bsb_gsbits;
-	if (i < sb->bsb_reserved_groups)
-		ext.e_end = ext.e_start;
-	else
-		ext.e_end = ext.e_start + sb->bsb_groupsize;
+	ext.e_end = ext.e_start + sb->bsb_groupsize;
 	balloc_debug_dump_extent("create...", &ext);
 
 	key = (struct m0_buf)M0_BUF_INIT_PTR(&ext.e_end);
@@ -573,15 +568,9 @@ static void balloc_group_write_do(struct m0_be_tx_bulk   *tb,
 	M0_LOG(M0_DEBUG, "creating group_desc for group %llu",
 	       (unsigned long long)i);
 	gd.bgd_groupno = i;
-	if (i < sb->bsb_reserved_groups) {
-		gd.bgd_freeblocks = 0;
-		gd.bgd_fragments  = 0;
-		gd.bgd_maxchunk   = 0;
-	} else {
-		gd.bgd_freeblocks = sb->bsb_groupsize;
-		gd.bgd_fragments  = 1;
-		gd.bgd_maxchunk   = sb->bsb_groupsize;
-	}
+	gd.bgd_freeblocks = sb->bsb_groupsize;
+	gd.bgd_fragments  = 1;
+	gd.bgd_maxchunk   = sb->bsb_groupsize;
 
 	grp->bgi_groupno = i;
 	grp->bgi_freeblocks = gd.bgd_freeblocks;
@@ -757,8 +746,7 @@ static int balloc_init_internal(struct m0_balloc *bal,
 				struct m0_sm_group *grp,
 				uint32_t bshift,
 				m0_bcount_t container_size,
-				m0_bcount_t blocks_per_group,
-				m0_bcount_t res_groups)
+				m0_bcount_t blocks_per_group)
 {
 	int rc;
 
@@ -778,7 +766,6 @@ static int balloc_init_internal(struct m0_balloc *bal,
 		req.bfr_totalsize = container_size;
 		req.bfr_blocksize = 1 << bshift;
 		req.bfr_groupsize = blocks_per_group;
-		req.bfr_reserved_groups = res_groups;
 
 		rc = balloc_format(bal, &req, grp);
 		if (rc != 0)
@@ -2237,7 +2224,7 @@ static int balloc_free(struct m0_ad_balloc *ballroom, struct m0_dtx *tx,
 
 static int balloc_init(struct m0_ad_balloc *ballroom, struct m0_be_seg *db,
 		       uint32_t bshift, m0_bcount_t container_size,
-		       m0_bcount_t blocks_per_group, m0_bcount_t res_groups)
+		       m0_bcount_t blocks_per_group)
 {
 	struct m0_balloc   *mero;
 	struct m0_sm_group *grp = m0_locality0_get()->lo_grp;   /* XXX */
@@ -2248,7 +2235,7 @@ static int balloc_init(struct m0_ad_balloc *ballroom, struct m0_be_seg *db,
 
 	m0_sm_group_lock(grp);
 	rc = balloc_init_internal(mero, db, grp, bshift, container_size,
-				     blocks_per_group, res_groups);
+				  blocks_per_group);
 	m0_sm_group_unlock(grp);
 
 	return M0_RC(rc);

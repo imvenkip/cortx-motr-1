@@ -110,8 +110,7 @@ int main(int argc, char **argv)
 
 	result = mero_balloc->cb_ballroom.ab_ops->bo_init
 		(&mero_balloc->cb_ballroom, &db, BALLOC_DEF_BLOCK_SHIFT,
-		 BALLOC_DEF_CONTAINER_SIZE, BALLOC_DEF_BLOCKS_PER_GROUP,
-		 BALLOC_DEF_RESERVED_GROUPS);
+		 BALLOC_DEF_CONTAINER_SIZE, BALLOC_DEF_BLOCKS_PER_GROUP);
 
 	for (i = 0; i < loops && result == 0; i++ ) {
 		if (count > 0)

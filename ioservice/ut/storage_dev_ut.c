@@ -136,7 +136,7 @@ static void storage_dev_test(void)
 	 * group.
 	 */
 	grp_size = BALLOC_DEF_BLOCKS_PER_GROUP * block_size;
-	total_size = (BALLOC_DEF_RESERVED_GROUPS + 1) * grp_size;
+	total_size = grp_size;
 	rc = m0_storage_dev_attach(&devs, 10, fname2, total_size, NULL);
 	M0_UT_ASSERT(rc == 0);
 

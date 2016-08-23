@@ -116,7 +116,6 @@ struct m0_balloc_super_block {
 	uint32_t	bsb_bsbits;           /**< block size bits: power of 2*/
 	uint32_t	bsb_gsbits;           /**< group size bits: power of 2*/
         m0_bcount_t	bsb_groupcount;       /**< # of group */
-        m0_bcount_t	bsb_reserved_groups;  /**< nr of reserved groups */
         m0_bcount_t	bsb_prealloc_count;   /**< nr of pre-alloc blocks */
 
 	uint64_t	bsb_format_time;
@@ -182,7 +181,6 @@ struct m0_balloc_format_req {
 	m0_bcount_t 	bfr_totalsize;	      /*< total size in bytes  */
 	m0_bcount_t	bfr_blocksize;        /*< block size in bytes  */
 	m0_bcount_t	bfr_groupsize;        /*< group size in blocks */
-	m0_bcount_t	bfr_reserved_groups;  /*< # of reserved groups */
 };
 
 struct m0_balloc_free_extent {
@@ -277,8 +275,7 @@ enum {
 	 */
 	BALLOC_DEF_GROUPS_NR            = 64,
 	/** Used as minimal group size */
-	BALLOC_DEF_BLOCKS_PER_GROUP     = 32768,
-	BALLOC_DEF_RESERVED_GROUPS	= 2
+	BALLOC_DEF_BLOCKS_PER_GROUP     = 32768
 };
 
 /**
