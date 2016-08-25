@@ -27,6 +27,16 @@
    @{
  */
 
+M0_INTERNAL void m0_ext_init(struct m0_ext *ext)
+{
+	m0_format_header_pack(&ext->e_header, &(struct m0_format_tag){
+		.ot_version = M0_EXT_FORMAT_VERSION,
+		.ot_type    = M0_FORMAT_TYPE_EXT,
+		.ot_footer_offset = offsetof(struct m0_ext, e_footer)
+	});
+	m0_format_footer_update(ext);
+}
+
 M0_INTERNAL m0_bcount_t m0_ext_length(const struct m0_ext *ext)
 {
 	return ext->e_end - ext->e_start;

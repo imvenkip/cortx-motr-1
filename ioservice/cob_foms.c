@@ -981,6 +981,7 @@ M0_INTERNAL int m0_cc_cob_setup(struct m0_fom_cob_op     *cc,
 	}
 
 	cob_fom_stob2fid_map(cc, &nsrec.cnr_fid);
+	m0_cob_nsrec_init(&nsrec);
 	nsrec.cnr_nlink   = attr->ca_nlink;
 	nsrec.cnr_size    = attr->ca_size;
 	nsrec.cnr_blksize = attr->ca_blksize;

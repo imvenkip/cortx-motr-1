@@ -923,6 +923,8 @@ enum m0_magic_satchel {
 	M0_LAYOUT_MD_MAGIC     = 0x33c0ffee1e55ad77,
 
 /* format */
+	/* m0_format_header::hd_magic (oilcaseslide) */
+	M0_FORMAT_HEADER_MAGIC = 0x33011ca5e511de77,
 	/* m0_format_footer::ft_magic (footerfooter) */
 	M0_FORMAT_FOOTER_MAGIC = 0x33f007e7f007e777,
 

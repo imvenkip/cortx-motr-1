@@ -44,16 +44,33 @@ struct m0_be_tx_credit;
 
 /** In-memory B-tree, that can be stored on disk. */
 struct m0_be_btree {
+	/*
+	 * non-volatile fields
+	 */
 	struct m0_format_header          bb_header;
+	/** Root node of the tree. */
+	struct m0_be_bnode              *bb_root;
+	struct m0_format_footer          bb_footer;
+	/*
+	 * volatile-only fields
+	 */
 	/** The lock to acquire when performing operations on the tree. */
 	struct m0_be_rwlock              bb_lock;
 	/** The segment where we are stored. */
 	struct m0_be_seg                *bb_seg;
-	/** Root node of the tree. */
-	struct m0_be_bnode              *bb_root;
 	/** operation vector, treating keys and values, given by the user */
 	const struct m0_be_btree_kv_ops *bb_ops;
-	struct m0_format_footer          bb_footer;
+};
+
+enum m0_be_btree_format_version {
+	M0_BE_BTREE_FORMAT_VERSION_1 = 1,
+
+	/* future versions, uncomment and update M0_BE_BTREE_FORMAT_VERSION */
+	/*M0_BE_BTREE_FORMAT_VERSION_2,*/
+	/*M0_BE_BTREE_FORMAT_VERSION_3,*/
+
+	/** Current version, should point to the latest version present */
+	M0_BE_BTREE_FORMAT_VERSION = M0_BE_BTREE_FORMAT_VERSION_1
 };
 
 struct m0_table;

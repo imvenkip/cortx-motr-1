@@ -117,6 +117,7 @@ static int mock_balloc_alloc(struct m0_ad_balloc *ballroom, struct m0_dtx *dtx,
 	giveout = min64u(count, 500000);
 	out->e_start = mb->mb_next;
 	out->e_end   = mb->mb_next + giveout;
+	m0_ext_init(out);
 	mb->mb_next += giveout + 1;
 	/* printf("allocated %8lx/%8lx bytes: [%8lx .. %8lx)\n",
 	   giveout, count,

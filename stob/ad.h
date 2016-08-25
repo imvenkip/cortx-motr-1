@@ -95,20 +95,38 @@ struct m0_stob_ad_domain {
 	struct m0_stob_domain   sad_base;
 	struct m0_stob         *sad_bstore;
 	struct m0_stob_id       sad_bstore_id;
-	struct m0_be_emap       sad_adata;
 	struct m0_ad_balloc    *sad_ballroom;
 	m0_bcount_t             sad_container_size;
 	uint32_t                sad_bshift;
 	int32_t                 sad_babshift;
 	m0_bcount_t             sad_blocks_per_group;
-	struct m0_be_seg       *sad_be_seg;
 	char                    sad_path[MAXPATHLEN];
 	bool                    sad_overwrite;
 	char                    sad_pad[7];
 	struct m0_format_footer sad_footer;
+	/*
+	 * m0_be_emap has it's own volatile-only fields, so it can't be placed
+	 * before the m0_format_footer, where only persistent fields allowed
+	 */
+	struct m0_be_emap       sad_adata;
+	/*
+	 * volatile-only fields
+	 */
+	struct m0_be_seg       *sad_be_seg;
 };
 M0_BASSERT(sizeof(M0_FIELD_VALUE(struct m0_stob_ad_domain, sad_path)) % 8 == 0);
 M0_BASSERT(sizeof(bool) == 1);
+
+enum m0_stob_ad_domain_format_version {
+	M0_STOB_AD_DOMAIN_FORMAT_VERSION_1 = 1,
+
+	/* future versions, uncomment and update M0_STOB_AD_DOMAIN_FORMAT_VERSION */
+	/*M0_STOB_AD_DOMAIN_FORMAT_VERSION_2,*/
+	/*M0_STOB_AD_DOMAIN_FORMAT_VERSION_3,*/
+
+	/** Current version, should point to the latest version present */
+	M0_STOB_AD_DOMAIN_FORMAT_VERSION = M0_STOB_AD_DOMAIN_FORMAT_VERSION_1
+};
 
 /**
    Types of allocation extents.

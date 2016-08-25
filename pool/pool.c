@@ -240,7 +240,7 @@ M0_TL_DESCR_DEFINE(pool_version, "pool versions", M0_INTERNAL,
 M0_TL_DEFINE(pool_version, M0_INTERNAL, struct m0_pool_version);
 
 M0_TL_DESCR_DEFINE(pool_failed_devs, "pool failed devices", M0_INTERNAL,
-		   struct m0_pooldev, pd_fail_linkage, pd_footer.ft_magic,
+		   struct m0_pooldev, pd_fail_linkage, pd_magic,
 		   M0_POOL_DEV_MAGIC, M0_POOL_DEVICE_HEAD_MAGIC);
 M0_TL_DEFINE(pool_failed_devs, M0_INTERNAL, struct m0_pooldev);
 

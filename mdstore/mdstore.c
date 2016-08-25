@@ -212,6 +212,7 @@ M0_INTERNAL int m0_mdstore_fcreate(struct m0_mdstore     *md,
 		return M0_RC(rc);
 	}
 
+	m0_cob_nsrec_init(&nsrec);
 	nsrec.cnr_fid = attr->ca_tfid;
 	M0_ASSERT(attr->ca_nlink > 0);
 	nsrec.cnr_nlink = attr->ca_nlink;
@@ -296,6 +297,7 @@ M0_INTERNAL int m0_mdstore_link(struct m0_mdstore       *md,
 		return M0_RC(rc);
 	M0_PRE(m0_fid_is_set(&cob->co_nsrec.cnr_fid));
 
+	m0_cob_nsrec_init(&nsrec);
 	nsrec.cnr_fid = cob->co_nsrec.cnr_fid;
 	nsrec.cnr_linkno = cob->co_nsrec.cnr_cntr;
 

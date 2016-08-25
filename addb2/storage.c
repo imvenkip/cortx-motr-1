@@ -472,6 +472,7 @@ static void trace_add(struct frame *frame, struct m0_addb2_trace *trace)
 
 	frame->f_trace[frame->f_header.he_trace_nr ++] = trace;
 	frame->f_header.he_size += m0_addb2_trace_size(trace);
+	m0_format_footer_update(&frame->f_header);
 }
 
 /**
@@ -545,6 +546,7 @@ static void frame_submit(struct frame *frame)
 	h->he_seqno       = stor->as_seqno;
 	h->he_offset      = stor->as_pos;
 	h->he_prev_offset = stor->as_prev_offset;
+	m0_format_footer_update(h);
 	stor_update(stor, h);
 }
 
@@ -612,10 +614,9 @@ do {							\
 	frame_tlist_move(&stor->as_inflight, frame);
 	m0_mutex_unlock(&stor->as_lock);
 	h->he_time = m0_time_now();
+	m0_format_footer_update(h);
 	frame->f_count[1] = h->he_size;
 	frame->f_index[1] = h->he_offset;
-	m0_format_header_pack(&h->he_header, &frame_tag);
-	m0_format_footer_generate(&h->he_footer, h, sizeof *h);
 	cur = frame->f_buf[0];
 	PLACE(cur, h, 1);
 	cur = frame->f_buf[1];
@@ -670,6 +671,8 @@ static void frame_clear(struct frame *frame)
 		.he_fid       = *m0_stob_fid_get(frame->f_stor->as_stob),
 		.he_magix     = M0_ADDB2_FRAME_HEADER_MAGIX
 	};
+	m0_format_header_pack(&h->he_header, &frame_tag);
+	m0_format_footer_update(h);
 }
 
 /**
@@ -769,6 +772,7 @@ static bool frame_invariant(const struct frame *frame)
 		_0C(frame_tlist_contains(&stor->as_idle,     frame) ||
 		    frame_tlist_contains(&stor->as_pending,  frame) ||
 		    frame_tlist_contains(&stor->as_inflight, frame)) &&
+		_0C(m0_format_footer_verify(h) == 0) &&
 		_0C(ergo(frame_tlist_contains(&stor->as_inflight, frame) ||
 			 frame_tlist_contains(&stor->as_pending,  frame),
 			 h->he_size > 0 && h->he_trace_nr > 0 &&
@@ -794,9 +798,9 @@ static bool stor_invariant(const struct m0_addb2_storage *stor)
 }
 
 static const struct m0_format_tag frame_tag = {
-	.ot_version = 1,
-	.ot_type    = 0,
-	.ot_size    = sizeof(struct m0_addb2_frame_header)
+	.ot_version       = M0_ADDB2_FRAME_HEADER_FORMAT_VERSION,
+	.ot_type          = M0_FORMAT_TYPE_ADDB2_FRAME_HEADER,
+	.ot_footer_offset = offsetof(struct m0_addb2_frame_header, he_footer)
 };
 
 #undef M0_TRACE_SUBSYSTEM

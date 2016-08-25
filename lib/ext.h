@@ -39,9 +39,21 @@ struct m0_ext {
 	struct m0_format_footer e_footer;
 } M0_XCA_RECORD;
 
+enum m0_ext_format_version {
+	M0_EXT_FORMAT_VERSION_1 = 1,
+
+	/* future versions, uncomment and update M0_EXT_FORMAT_VERSION */
+	/*M0_EXT_FORMAT_VERSION_2,*/
+	/*M0_EXT_FORMAT_VERSION_3,*/
+
+	/** Current version, should point to the latest version present */
+	M0_EXT_FORMAT_VERSION = M0_EXT_FORMAT_VERSION_1
+};
+
 #define M0_EXT(start, end) \
 	((struct m0_ext){ .e_start = (start), .e_end = (end) })
 
+M0_INTERNAL void m0_ext_init(struct m0_ext *ext);
 M0_INTERNAL m0_bcount_t m0_ext_length(const struct m0_ext *ext);
 M0_INTERNAL bool m0_ext_is_in(const struct m0_ext *ext, m0_bindex_t index);
 

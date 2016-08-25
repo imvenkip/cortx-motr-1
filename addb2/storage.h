@@ -137,6 +137,20 @@ struct m0_addb2_frame_header {
 	struct m0_format_footer he_footer;
 } M0_XCA_RECORD;
 
+enum m0_addb2_frame_header_format_version {
+	M0_ADDB2_FRAME_HEADER_FORMAT_VERSION_1 = 1,
+
+	/*
+	 * future versions, uncomment and update
+	 * M0_ADDB2_FRAME_HEADER_FORMAT_VERSION
+	 */
+	/*M0_ADDB2_FRAME_HEADER_FORMAT_VERSION_2,*/
+	/*M0_ADDB2_FRAME_HEADER_FORMAT_VERSION_3,*/
+
+	/** Current version, should point to the latest version present */
+	M0_ADDB2_FRAME_HEADER_FORMAT_VERSION = M0_ADDB2_FRAME_HEADER_FORMAT_VERSION_1
+};
+
 /**
  * Returns the header of the latest frame recorded on the stob.
  */

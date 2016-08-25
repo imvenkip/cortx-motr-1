@@ -35,6 +35,7 @@
 #include <stdbool.h>
 #include <sys/types.h>
 #include <inttypes.h>   /* PRId64, PRIu64, ... */
+#include <limits.h>     /* INT_MAX */
 
 /* __MERO_LIB_USER_SPACE_TYPES_H__ */
 #endif

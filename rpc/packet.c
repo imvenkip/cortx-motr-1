@@ -263,7 +263,7 @@ static int item_encode(struct m0_rpc_item       *item,
 	struct m0_rpc_item_header1 ioh;
 	struct m0_format_tag       item_format_tag = {
 		.ot_version = M0_RPC_ITEM_FORMAT_VERSION,
-		.ot_type    = M0_RPC_ITEM_FORMAT_TYPE,
+		.ot_type    = M0_FORMAT_TYPE_RPC_ITEM,
 	};
 	struct m0_rpc_item_footer  iof;
 	int                        rc;
@@ -319,7 +319,7 @@ M0_INTERNAL int m0_rpc_packet_encode_using_cursor(struct m0_rpc_packet *packet,
 	int                                rc;
 	struct m0_format_tag               packet_format_tag = {
 		.ot_version = M0_RPC_PACKET_FORMAT_VERSION,
-		.ot_type    = M0_RPC_PACKET_FORMAT_TYPE,
+		.ot_type    = M0_FORMAT_TYPE_RPC_PACKET,
 	};
 
 	M0_ENTRY("packet: %p cursor: %p", packet, cursor);
@@ -395,7 +395,7 @@ static int item_decode(struct m0_bufvec_cursor  *cursor,
 	/* check version compatibility. */
 	m0_format_header_unpack(&ioh_t, &ioh.ioh_header);
 	if (ioh_t.ot_version != M0_RPC_ITEM_FORMAT_VERSION ||
-	    ioh_t.ot_type != M0_RPC_ITEM_FORMAT_TYPE)
+	    ioh_t.ot_type != M0_FORMAT_TYPE_RPC_ITEM)
 		return M0_ERR(-EPROTO);
 
 	*item_out = NULL;
@@ -413,7 +413,7 @@ static int item_decode(struct m0_bufvec_cursor  *cursor,
 
 	rc = m0_rpc_item_footer_encdec(&iof, cursor, M0_XCODE_DECODE);
 	if (rc == 0)
-		rc = m0_format_footer_verify(&iof.iof_footer, NULL, 0);
+		rc = m0_format_footer_verify_generic(&iof.iof_footer, NULL, 0);
 	if (rc != 0)
 		return M0_ERR(rc);
 
@@ -448,7 +448,7 @@ M0_INTERNAL int m0_rpc_packet_decode_using_cursor(struct m0_rpc_packet *p,
 	/* check version compatibility. */
 	m0_format_header_unpack(&rpc_t, &poh.poh_header);
 	if (rpc_t.ot_version != M0_RPC_PACKET_FORMAT_VERSION ||
-	    rpc_t.ot_type != M0_RPC_PACKET_FORMAT_TYPE)
+	    rpc_t.ot_type != M0_FORMAT_TYPE_RPC_PACKET)
 		return M0_RC(-EPROTO);
 
 	/*
@@ -485,7 +485,7 @@ M0_INTERNAL int m0_rpc_packet_decode_using_cursor(struct m0_rpc_packet *p,
 	}
 	rc = packet_footer_encdec(&pof, cursor, M0_XCODE_DECODE);
 	if (rc == 0)
-		rc = m0_format_footer_verify(&pof.pof_footer, NULL, 0);
+		rc = m0_format_footer_verify_generic(&pof.pof_footer, NULL, 0);
 	if (rc != 0)
 		return M0_ERR(rc);
 	m0_bufvec_cursor_align(cursor, 8);

@@ -38,14 +38,28 @@ struct m0_be_tx_credit;
  * @{
  */
 
+enum m0_be_list_format_version {
+	M0_BE_LIST_FORMAT_VERSION_1 = 1,
+
+	/* future versions, uncomment and update M0_BE_LIST_FORMAT_VERSION */
+	/*M0_BE_LIST_FORMAT_VERSION_2,*/
+	/*M0_BE_LIST_FORMAT_VERSION_3,*/
+
+	/** Current version, should point to the latest version present */
+	M0_BE_LIST_FORMAT_VERSION = M0_BE_LIST_FORMAT_VERSION_1
+};
+
 struct m0_be_list {
 	struct m0_format_header  bl_format_header;
 	struct m0_tl_descr       bl_descr;
 	struct m0_tl             bl_list;
-	struct m0_be_seg        *bl_seg;
 	/** m0_tl_descr::td_name */
 	char                     bl_td_name[0x40];
 	struct m0_format_footer  bl_format_footer;
+	/*
+	 * volatile-only fields
+	 */
+	struct m0_be_seg        *bl_seg;
 };
 
 /** List operations that modify memory. */

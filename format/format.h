@@ -17,8 +17,8 @@
  * Original creation date: 18-Dec-2014
  */
 #pragma once
-#ifndef __MERO_FORMAT_H__
-#define __MERO_FORMAT_H__
+#ifndef __MERO_FORMAT_FORMAT_H__
+#define __MERO_FORMAT_FORMAT_H__
 
 #include "lib/types.h"  /* uint64_t */
 #include "lib/misc.h"   /* M0_FIELD_VALUE */
@@ -33,6 +33,11 @@
 
 /** Standard header of a persistent object. */
 struct m0_format_header {
+	/**
+	 * Header magic, used in m0_format_footer_verify() to verify that buffer
+	 * has a valid m0_format_header.
+	 */
+	uint64_t hd_magic;
 	/**
 	 * Encoding of m0_format_tag data.
 	 *
@@ -54,20 +59,103 @@ struct m0_format_footer {
 struct m0_format_tag {
 	uint16_t ot_version;
 	uint16_t ot_type;
-	uint32_t ot_size; /* NOTE: the size is measured in bytes */
+	union {
+		/*
+		 * these are aliases to support different semantics of this
+		 * field:
+		 *
+		 *   size   - can be used when header and footer don't belong
+		 *            to the same container struct
+		 *   offset - can be used when header and footer contained
+		 *            withing the same struct
+		 */
+		uint32_t ot_size;
+		uint32_t ot_footer_offset;
+		/* NOTE: size and offset measured in bytes */
+	};
 };
+
+/** Format types */
+enum m0_format_type {
+	/*
+	 * ORDER MATTERS!!!
+	 * Never rearrange items, add new at the end before placeholder
+	 */
+
+	M0_FORMAT_TYPE_RPC_PACKET = 1,
+	M0_FORMAT_TYPE_RPC_ITEM,
+	M0_FORMAT_TYPE_BE_BTREE,
+	M0_FORMAT_TYPE_BE_BNODE,
+	M0_FORMAT_TYPE_BE_EMAP_KEY,
+	M0_FORMAT_TYPE_BE_EMAP_REC,
+	M0_FORMAT_TYPE_BE_EMAP,
+	M0_FORMAT_TYPE_BE_LIST,
+	M0_FORMAT_TYPE_BE_SEG_HDR,
+	M0_FORMAT_TYPE_BALLOC_GROUP_INFO,
+	M0_FORMAT_TYPE_BALLOC,
+	M0_FORMAT_TYPE_ADDB2_FRAME_HEADER,
+	M0_FORMAT_TYPE_STOB_AD_0TYPE_REC,
+	M0_FORMAT_TYPE_STOB_AD_DOMAIN,
+	M0_FORMAT_TYPE_COB_DOMAIN,
+	M0_FORMAT_TYPE_COB_NSREC,
+	M0_FORMAT_TYPE_BALLOC_GROUP_DESC,
+	M0_FORMAT_TYPE_EXT,
+	M0_FORMAT_TYPE_CAS_INDEX,
+	M0_FORMAT_TYPE_POOLNODE,
+	M0_FORMAT_TYPE_POOLDEV,
+	M0_FORMAT_TYPE_POOL_SPARE_USAGE,
+
+	/* ---> new items go here <--- */
+
+	/* format types counter */
+	M0_FORMAT_TYPE_NR
+};
+/* format type IDs should fit into m0_format_tag::ot_type */
+M0_BASSERT(M0_FORMAT_TYPE_NR < UINT16_MAX);
 
 M0_INTERNAL void m0_format_header_pack(struct m0_format_header *dest,
 				       const struct m0_format_tag *src);
+
 M0_INTERNAL void m0_format_header_unpack(struct m0_format_tag *dest,
 					 const struct m0_format_header *src);
 
 M0_INTERNAL void m0_format_footer_generate(struct m0_format_footer *footer,
-					   void                    *buffer,
+					   const void              *buffer,
 					   uint32_t                 size);
-M0_INTERNAL int m0_format_footer_verify(const struct m0_format_footer *footer,
-					void                          *buffer,
-					uint32_t                       size);
+
+/**
+ * Updates existing footer in a struct.
+ *
+ * Expects a corretcly filled m0_format_header to be present at the beginning of
+ * a buffer.
+ */
+M0_INTERNAL void m0_format_footer_update(const void *buffer);
+
+/**
+ * Verifies format footer, ensuring that checksum in the footer matches the data.
+ * It can be used when header and footer aren't contained within the same
+ * parent/container struct
+ *
+ * @param footer - actual footer, with original checksum
+ * @param buffer - beginning of the data for which checksum is calculated
+ * @param size   - size of the data
+ */
+M0_INTERNAL int m0_format_footer_verify_generic(
+			const struct m0_format_footer *footer,
+			const void                    *buffer,
+			uint32_t                       size);
+
+/**
+ * A wrapper around m0_format_footer_verify_generic() for the case when header
+ * and footer are contained withing the same parent/container struct.
+ *
+ * @param buffer - should point to a struct with m0_format_header and
+ *                 m0_format_footer inside; header should be right at the
+ *                 beginning of the struct; checksum is verified for the header
+ *                 and all other fields in the struct, which come after it but
+ *                 before the footer.
+ */
+M0_INTERNAL int m0_format_footer_verify(const void *buffer);
 
 struct m0_be_mutex {
 	union {
@@ -87,5 +175,18 @@ struct m0_be_rwlock {
 M0_BASSERT(sizeof(struct m0_rwlock) <=
 	   sizeof(M0_FIELD_VALUE(struct m0_be_rwlock, bl_u.pad)));
 
-/** @} format */
-#endif /* __MERO_FORMAT_H__ */
+/** @} end of format group */
+#endif /* __MERO_FORMAT_FORMAT_H__ */
+
+/*
+ *  Local variables:
+ *  c-indentation-style: "K&R"
+ *  c-basic-offset: 8
+ *  tab-width: 8
+ *  fill-column: 80
+ *  scroll-step: 1
+ *  End:
+ */
+/*
+ * vim: tabstop=8 shiftwidth=8 noexpandtab textwidth=80 nowrap
+ */

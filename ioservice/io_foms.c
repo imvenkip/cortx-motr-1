@@ -898,6 +898,7 @@ M0_INTERNAL int m0_io_cob_create(struct m0_cob_domain *cdom,
 		return M0_RC(rc);
 	}
 
+	m0_cob_nsrec_init(&nsrec);
 	nsrec.cnr_fid   = *fid;
 	nsrec.cnr_nlink = 1;
 	nsrec.cnr_pver  = *pver;

@@ -24,6 +24,7 @@
 #define __MERO_LIB_LINUX_KERNEL_TYPES_H__
 
 #include <linux/types.h>
+#include <linux/kernel.h>  /* INT_MAX */
 
 #include "lib/assert.h"
 

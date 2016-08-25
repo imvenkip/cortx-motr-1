@@ -88,6 +88,17 @@ struct stob_ad_0type_rec {
 	struct m0_format_footer   sa0_footer;
 };
 
+enum m0_stob_ad_0type_rec_format_version {
+	M0_STOB_AD_0TYPE_REC_FORMAT_VERSION_1 = 1,
+
+	/* future versions, uncomment and update M0_STOB_AD_0TYPE_REC_FORMAT_VERSION */
+	/*M0_STOB_AD_0TYPE_REC_FORMAT_VERSION_2,*/
+	/*M0_STOB_AD_0TYPE_REC_FORMAT_VERSION_3,*/
+
+	/** Current version, should point to the latest version present */
+	M0_STOB_AD_0TYPE_REC_FORMAT_VERSION = M0_STOB_AD_0TYPE_REC_FORMAT_VERSION_1
+};
+
 static struct m0_stob_domain_ops stob_ad_domain_ops;
 static struct m0_stob_ops stob_ad_ops;
 
@@ -443,6 +454,12 @@ static int stob_ad_domain_create(struct m0_stob_type *type,
 	if (rc == 0)
 		M0_BE_ALLOC_PTR_SYNC(adom, seg, &tx);
 	if (adom != NULL) {
+		m0_format_header_pack(&adom->sad_header, &(struct m0_format_tag){
+			.ot_version = M0_STOB_AD_DOMAIN_FORMAT_VERSION,
+			.ot_type    = M0_FORMAT_TYPE_STOB_AD_DOMAIN,
+			.ot_footer_offset =
+				offsetof(struct m0_stob_ad_domain, sad_footer)
+		});
 		dom = &adom->sad_base;
 		m0_stob_domain__dom_id_make(&dom->sd_id,
 					    m0_stob_type_id_get(type),
@@ -453,6 +470,7 @@ static int stob_ad_domain_create(struct m0_stob_type *type,
 		adom->sad_bstore_id        = cfg->adg_id;
 		adom->sad_overwrite        = false;
 		strcpy(adom->sad_path, location_data);
+		m0_format_footer_update(adom);
 		emap = &adom->sad_adata;
 		m0_be_emap_init(emap, seg);
 		rc = M0_BE_OP_SYNC_RET(
@@ -462,6 +480,12 @@ static int stob_ad_domain_create(struct m0_stob_type *type,
 		m0_be_emap_fini(emap);
 
 		seg0_ad_rec = (struct stob_ad_0type_rec){.sa0_ad_domain = adom}; /* XXX won't be a pointer */
+		m0_format_header_pack(&seg0_ad_rec.sa0_header, &(struct m0_format_tag){
+			.ot_version = M0_STOB_AD_0TYPE_REC_FORMAT_VERSION,
+			.ot_type    = M0_FORMAT_TYPE_STOB_AD_0TYPE_REC,
+			.ot_footer_offset = offsetof(struct stob_ad_0type_rec, sa0_footer)
+		});
+		m0_format_footer_update(&seg0_ad_rec);
 		seg0_data   = M0_BUF_INIT_PTR(&seg0_ad_rec);
 		rc = rc ?: m0_be_0type_add(&m0_stob_ad_0type, seg->bs_domain,
 					   &tx, location_data, &seg0_data);
@@ -971,6 +995,7 @@ static int stob_ad_balloc(struct m0_stob_ad_domain *adom, struct m0_dtx *tx,
 	rc = ballroom->ab_ops->bo_alloc(ballroom, tx, count, out);
 	out->e_start <<= adom->sad_babshift;
 	out->e_end   <<= adom->sad_babshift;
+	m0_ext_init(out);
 
 	return M0_RC(rc);
 }
@@ -990,6 +1015,7 @@ static int stob_ad_bfree(struct m0_stob_ad_domain *adom, struct m0_dtx *tx,
 
 	tgt.e_start = ext->e_start >> adom->sad_babshift;
 	tgt.e_end   = ext->e_end   >> adom->sad_babshift;
+	m0_ext_init(&tgt);
 	return ballroom->ab_ops->bo_free(ballroom, tx, &tgt);
 }
 
@@ -1462,6 +1488,7 @@ static int stob_ad_seg_free(struct m0_dtx *tx,
 		.e_start = val + delta,
 		.e_end   = val + delta + m0_ext_length(ext)
 	};
+	m0_ext_init(&tocut);
 	if (val < AET_MIN) {
 		M0_LOG(M0_DEBUG, "freeing "EXT_F"@"EXT_F,
 				 EXT_P(ext), EXT_P(&tocut));
@@ -1495,6 +1522,7 @@ static int stob_ad_write_map_ext(struct m0_stob_io *io,
 		.e_start = off,
 		.e_end   = off + m0_ext_length(ext)
 	};
+	m0_ext_init(&todo);
 
 	M0_ENTRY("ext="EXT_F" val=0x%llx", EXT_P(&todo),
 		 (unsigned long long)ext->e_start);
@@ -1647,6 +1675,7 @@ static int stob_ad_write_map(struct m0_stob_io *io,
 
 		todo.e_start = wc->wc_wext->we_ext.e_start + wc->wc_done;
 		todo.e_end   = todo.e_start + frag_size;
+		m0_ext_init(&todo);
 
 		M0_ASSERT(i < frags);
 		arp->arp_seg.ps_old_data[i] = (struct m0_be_emap_seg) {
@@ -1657,6 +1686,7 @@ static int stob_ad_write_map(struct m0_stob_io *io,
 			.ee_val = todo.e_start,
 			.ee_pre = map->ct_it->ec_seg.ee_pre
 		};
+		m0_ext_init(&arp->arp_seg.ps_old_data[i].ee_ext);
 		++i;
 
 		rc = stob_ad_write_map_ext(io, adom, off, map->ct_it, &todo);

@@ -260,12 +260,28 @@ void m0_poolmach__state_init(struct m0_poolmach_state   *state,
 	state->pst_nr_devices          = nr_devices;
 	state->pst_max_node_failures   = max_node_failures;
 	state->pst_max_device_failures = max_device_failures;
+
 	for (i = 0; i < state->pst_nr_nodes; i++) {
+		m0_format_header_pack(&state->pst_nodes_array[i].pn_header,
+		    &(struct m0_format_tag){
+			.ot_version = M0_POOLNODE_FORMAT_VERSION,
+			.ot_type    = M0_FORMAT_TYPE_POOLNODE,
+			.ot_footer_offset =
+				offsetof(struct m0_poolnode, pn_footer)
+		});
 		state->pst_nodes_array[i].pn_state = M0_PNDS_ONLINE;
 		M0_SET0(&state->pst_nodes_array[i].pn_id);
+		m0_format_footer_update(&state->pst_nodes_array[i]);
 	}
 
 	for (i = 0; i < state->pst_nr_devices; i++) {
+		m0_format_header_pack(&state->pst_devices_array[i].pd_header,
+		    &(struct m0_format_tag){
+			.ot_version = M0_POOLDEV_FORMAT_VERSION,
+			.ot_type    = M0_FORMAT_TYPE_POOLDEV,
+			.ot_footer_offset =
+				offsetof(struct m0_pooldev, pd_footer)
+		});
 		state->pst_devices_array[i].pd_state = M0_PNDS_UNKNOWN;
 		M0_SET0(&state->pst_devices_array[i].pd_id);
 		state->pst_devices_array[i].pd_node = NULL;
@@ -273,12 +289,22 @@ void m0_poolmach__state_init(struct m0_poolmach_state   *state,
 		state->pst_devices_array[i].pd_index = i;
 		state->pst_devices_array[i].pd_pm = pm;
 		pool_failed_devs_tlink_init(&state->pst_devices_array[i]);
+		m0_format_footer_update(&state->pst_devices_array[i]);
 	}
 
 	for (i = 0; i < state->pst_max_device_failures; i++) {
+		m0_format_header_pack(&state->pst_spare_usage_array[i].psu_header,
+		    &(struct m0_format_tag){
+			.ot_version = M0_POOL_SPARE_USAGE_FORMAT_VERSION,
+			.ot_type    = M0_FORMAT_TYPE_POOL_SPARE_USAGE,
+			.ot_footer_offset =
+				offsetof(struct m0_pool_spare_usage, psu_footer)
+		});
 		state->pst_spare_usage_array[i].psu_device_index =
 					POOL_PM_SPARE_SLOT_UNUSED;
+		m0_format_footer_update(&state->pst_spare_usage_array[i]);
 	}
+
 	poolmach_events_tlist_init(&state->pst_events_list);
 	poolmach_equeue_tlist_init(&state->pst_event_queue);
 	/* Gets initialised only after init by configuration. */

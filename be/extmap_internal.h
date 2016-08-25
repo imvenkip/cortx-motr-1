@@ -37,6 +37,17 @@
 #include "lib/types.h"     /* struct m0_uint128 */
 #include "be/btree.h"
 
+enum m0_be_emap_key_format_version {
+	M0_BE_EMAP_KEY_FORMAT_VERSION_1 = 1,
+
+	/* future versions, uncomment and update M0_BE_EMAP_KEY_FORMAT_VERSION */
+	/*M0_BE_EMAP_KEY_FORMAT_VERSION_2,*/
+	/*M0_BE_EMAP_KEY_FORMAT_VERSION_3,*/
+
+	/** Current version, should point to the latest version present */
+	M0_BE_EMAP_KEY_FORMAT_VERSION = M0_BE_EMAP_KEY_FORMAT_VERSION_1
+};
+
 /**
    A key used to identify a particular segment in the map collection.
  */
@@ -57,13 +68,18 @@ struct m0_be_emap_key {
 	    for.
 	 */
 	m0_bindex_t             ek_offset;
-	/**
-	 * As of now, btree stores key and value pairs together, so
-	 * we save the space here by eliminating footer at the key and
-	 * header at record.
-	 *
-	 * struct m0_format_footer ek_footer;
-	 */
+	struct m0_format_footer ek_footer;
+};
+
+enum m0_be_emap_rec_format_version {
+	M0_BE_EMAP_REC_FORMAT_VERSION_1 = 1,
+
+	/* future versions, uncomment and update M0_BE_EMAP_REC_FORMAT_VERSION */
+	/*M0_BE_EMAP_REC_FORMAT_VERSION_2,*/
+	/*M0_BE_EMAP_REC_FORMAT_VERSION_3,*/
+
+	/** Current version, should point to the latest version present */
+	M0_BE_EMAP_REC_FORMAT_VERSION = M0_BE_EMAP_REC_FORMAT_VERSION_1
 };
 
 /**
@@ -77,13 +93,7 @@ struct m0_be_emap_key {
    possibility of occasional extra IO.
  */
 struct m0_be_emap_rec {
-	/**
-	 * As of now, btree stores key and value pairs together, so
-	 * we save the space here by eliminating footer at key and
-	 * header at the record.
-	 *
-	 * struct m0_format_header er_header;
-	 */
+	struct m0_format_header er_header;
 	/**
 	   Starting offset of the segment's extent.
 	 */
@@ -95,6 +105,17 @@ struct m0_be_emap_rec {
 	struct m0_format_footer er_footer;
 };
 
+enum m0_be_emap_format_version {
+	M0_BE_EMAP_FORMAT_VERSION_1 = 1,
+
+	/* future versions, uncomment and update M0_BE_EMAP_FORMAT_VERSION */
+	/*M0_BE_EMAP_FORMAT_VERSION_2,*/
+	/*M0_BE_EMAP_FORMAT_VERSION_3,*/
+
+	/** Current version, should point to the latest version present */
+	M0_BE_EMAP_FORMAT_VERSION = M0_BE_EMAP_FORMAT_VERSION_1
+};
+
 /**
    m0_be_emap stores a collection of related extent maps. Individual maps
    within a collection are identified by a prefix.
@@ -103,16 +124,23 @@ struct m0_be_emap_rec {
  */
 struct m0_be_emap {
 	struct m0_format_header em_header;
-	uint64_t                em_version;
-	struct m0_be_rwlock     em_lock;
+	struct m0_format_footer em_footer;
+	/*
+	 * m0_be_btree has it's own volatile-only fields, so it can't be placed
+	 * before the m0_format_footer, where only persistent fields allowed
+	 */
 	struct m0_be_btree      em_mapping;
+	/*
+	 * volatile-only fields
+	 */
+	uint64_t                em_version;
+	/** The segment where we are stored. */
+	struct m0_be_seg       *em_seg;
+	struct m0_be_rwlock     em_lock;
 	struct m0_buf           em_key_buf;
 	struct m0_buf           em_val_buf;
 	struct m0_be_emap_key   em_key;
 	struct m0_be_emap_rec   em_rec;
-	/** The segment where we are stored. */
-	struct m0_be_seg       *em_seg;
-	struct m0_format_footer em_footer;
 };
 
 /**

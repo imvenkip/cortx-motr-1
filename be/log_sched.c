@@ -86,6 +86,7 @@ M0_INTERNAL void m0_be_log_sched_add(struct m0_be_log_sched *sched,
 		 */
 		ext2.e_start = sched->lsh_pos;
 		ext2.e_end = ++sched->lsh_pos;
+		m0_ext_init(&ext2);
 		ext = &ext2;
 	}
 	m0_be_io_sched_add(&sched->lsh_io_sched, &lio->lio_be_io, ext, op);

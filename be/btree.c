@@ -29,6 +29,7 @@
 
 #include "lib/errno.h"
 #include "lib/finject.h" /* M0_FI_ENABLED() */
+#include "lib/misc.h"    /* offsetof */
 #include "be/btree.h"
 #include "be/alloc.h"
 #include "be/seg.h"
@@ -59,10 +60,30 @@ struct m0_be_bnode {
 };
 M0_BASSERT(sizeof(bool) == 1);
 
+enum m0_be_bnode_format_version {
+	M0_BE_BNODE_FORMAT_VERSION_1 = 1,
+
+	/* future versions, uncomment and update M0_BE_BNODE_FORMAT_VERSION */
+	/*M0_BE_BNODE_FORMAT_VERSION_2,*/
+	/*M0_BE_BNODE_FORMAT_VERSION_3,*/
+
+	/** Current version, should point to the latest version present */
+	M0_BE_BNODE_FORMAT_VERSION = M0_BE_BNODE_FORMAT_VERSION_1
+};
+
 struct node_pos {
 	struct m0_be_bnode *p_node;
 	unsigned int        p_index;
 };
+
+static void btree_root_set(struct m0_be_btree *btree,
+			     struct m0_be_bnode *new_root)
+{
+	M0_PRE(btree != NULL);
+
+	btree->bb_root = new_root;
+	m0_format_footer_update(btree);
+}
 
 static struct m0_be_allocator *tree_allocator(const struct m0_be_btree *btree)
 {
@@ -213,6 +234,8 @@ static inline bool btree_node_invariant(const struct m0_be_btree *btree,
 				 bool root)
 {
 	return
+		ergo(node && node->b_header.hd_magic,
+		     m0_format_footer_verify(node) == 0) &&
 		node->b_level <= BTREE_HEIGHT_MAX &&
 		/* expected occupancy */
 		ergo(root, 0 <= node->b_nr_active &&
@@ -244,7 +267,9 @@ static inline bool btree_node_invariant(const struct m0_be_btree *btree,
 
 static inline bool btree_invariant(const struct m0_be_btree *btree)
 {
-	return btree_node_invariant(btree, btree->bb_root, true);
+	return btree_node_invariant(btree, btree->bb_root, true) &&
+	       ergo(btree && btree->bb_header.hd_magic,
+	            m0_format_footer_verify(btree) == 0);
 }
 
 static void btree_node_update(struct m0_be_bnode       *node,
@@ -268,7 +293,12 @@ static void btree_node_update(struct m0_be_bnode       *node,
  */
 static void btree_create(struct m0_be_btree *btree, struct m0_be_tx *tx)
 {
-	btree->bb_root = btree_node_alloc(btree, tx);
+	m0_format_header_pack(&btree->bb_header, &(struct m0_format_tag){
+		.ot_version = M0_BE_BTREE_FORMAT_VERSION,
+		.ot_type    = M0_FORMAT_TYPE_BE_BTREE,
+		.ot_footer_offset = offsetof(struct m0_be_btree, bb_footer)
+	});
+	btree_root_set(btree, btree_node_alloc(btree, tx));
 	mem_update(btree, tx, btree, sizeof(struct m0_be_btree));
 
 	/* memory for the node has to be reserved by m0_be_tx_open() */
@@ -289,11 +319,18 @@ btree_node_alloc(const struct m0_be_btree *btree, struct m0_be_tx *tx)
 					       sizeof(struct m0_be_bnode));
 	M0_ASSERT(node != NULL);	/* @todo: analyse return code */
 
+	m0_format_header_pack(&node->b_header, &(struct m0_format_tag){
+		.ot_version = M0_BE_BNODE_FORMAT_VERSION,
+		.ot_type    = M0_FORMAT_TYPE_BE_BNODE,
+		.ot_footer_offset = offsetof(struct m0_be_bnode, b_footer)
+	});
+
 	node->b_nr_active = 0;
 	node->b_leaf = true;
 	node->b_level = 0;
 	node->b_next = NULL;
 
+	m0_format_footer_update(node);
 	mem_update(btree, tx, node, sizeof *node);
 
 	return node;
@@ -337,7 +374,11 @@ static void btree_split_child(struct m0_be_btree *btree,
 	if (!child->b_leaf)
 		new_child->b_children[i] = child->b_children[i + order];
 
+	/* re-calculate checksum after all fields has been updated */
+	m0_format_footer_update(new_child);
+
 	child->b_nr_active = order - 1;
+	m0_format_footer_update(child);
 
 	/*  Make room for new child in parent's womb */
 	for (i = parent->b_nr_active + 1; i > index + 1; i--)
@@ -349,6 +390,9 @@ static void btree_split_child(struct m0_be_btree *btree,
 	parent->b_children[index + 1] = new_child;
 	parent->b_key_vals[index] = child->b_key_vals[order - 1];
 	parent->b_nr_active++;
+
+	/* re-calculate checksum after all fields has been updated */
+	m0_format_footer_update(parent);
 
 	/* Update affected memory regions in tx: */
 	btree_node_update(parent, btree, tx);
@@ -377,6 +421,7 @@ static void btree_insert_nonfull(struct m0_be_btree *btree,
 		node->b_key_vals[i + 1] = *kv;
 		node->b_nr_active++;
 
+		m0_format_footer_update(node);
 		/* Update affected memory regions */
 		btree_node_update(node, btree, tx);
 	} else {
@@ -413,10 +458,11 @@ static void btree_insert_key(struct m0_be_btree *btree,
 		M0_ASSERT(new_root != NULL);
 
 		new_root->b_level = btree->bb_root->b_level + 1;
-		btree->bb_root = new_root;
+		btree_root_set(btree, new_root);
 		new_root->b_leaf = false;
 		new_root->b_nr_active = 0;
 		new_root->b_children[0] = rnode;
+		m0_format_footer_update(new_root);
 		btree_split_child(btree, tx, new_root, 0);
 		btree_insert_nonfull(btree, tx, new_root, kv);
 
@@ -500,18 +546,23 @@ merge_siblings(struct m0_be_btree *btree,
 	n1->b_children[i + n1->b_nr_active] = n2->b_children[n2->b_nr_active];
 	n1->b_nr_active += n2->b_nr_active;
 
+	/* re-calculate checksum after all fields has been updated */
+	m0_format_footer_update(n1);
+
 	/* update parent */
 	for (i = index; i < parent->b_nr_active - 1; i++) {
 		parent->b_key_vals[i] = parent->b_key_vals[i + 1];
 		parent->b_children[i + 1] = parent->b_children[i + 2];
 	}
 	parent->b_nr_active--;
+	/* re-calculate checksum after all fields has been updated */
+	m0_format_footer_update(parent);
 
 	btree_node_free(n2, btree, tx);
 
 	if (parent->b_nr_active == 0 && btree->bb_root == parent) {
 		btree_node_free(parent, btree, tx);
-		btree->bb_root = n1;
+		btree_root_set(btree, n1);
 		mem_update(btree, tx, btree, sizeof(struct m0_be_btree));
 	} else {
 		/* Update affected memory regions */
@@ -583,6 +634,11 @@ static void move_key(struct m0_be_btree	  *btree,
 		rch->b_nr_active++;
 	}
 
+	/* re-calculate checksum after all fields has been updated */
+	m0_format_footer_update(lch);
+	m0_format_footer_update(rch);
+	m0_format_footer_update(parent);
+
 	/* Update affected memory regions in tx: */
 	btree_node_update(parent, btree, tx);
 	btree_node_update(lch, btree, tx);
@@ -611,6 +667,9 @@ int delete_key_from_node(struct m0_be_btree	 *btree,
 		node->b_key_vals[i] = node->b_key_vals[i + 1];
 
 	node->b_nr_active--;
+
+	/* re-calculate checksum after all fields has been updated */
+	m0_format_footer_update(node);
 
 	if (node->b_nr_active == 0 && node != btree->bb_root)
 		btree_node_free(node, btree, tx);
@@ -739,6 +798,8 @@ del_loop:
 							 child.p_index);
 		M0_SWAP(child.p_node->b_key_vals[child.p_index],
 			node->b_key_vals[index]);
+		m0_format_footer_update(child.p_node);
+		m0_format_footer_update(node);
 		mem_update(btree, tx, &node->b_key_vals[index],
 			   sizeof(node->b_key_vals[0]));
 		node = node->b_children[index];
@@ -750,6 +811,8 @@ del_loop:
 							 child.p_index);
 		M0_SWAP(child.p_node->b_key_vals[child.p_index],
 			node->b_key_vals[index]);
+		m0_format_footer_update(child.p_node);
+		m0_format_footer_update(node);
 		mem_update(btree, tx, &node->b_key_vals[index],
 			   sizeof(node->b_key_vals[0]));
 		node = node->b_children[index + 1];
@@ -848,7 +911,8 @@ static void btree_destroy(struct m0_be_btree *btree, struct m0_be_tx *tx)
 {
 	int i = 0;
 	struct m0_be_bnode *head, *tail, *node;
-	struct m0_be_bnode *child, *del_node;
+	struct m0_be_bnode *del_node;
+	struct m0_be_bnode *child = NULL;
 
 	node = btree->bb_root;
 	head = node;
@@ -860,9 +924,11 @@ static void btree_destroy(struct m0_be_btree *btree, struct m0_be_tx *tx)
 			for (i = 0; i < head->b_nr_active + 1; i++) {
 				child = head->b_children[i];
 				tail->b_next = child;
+				m0_format_footer_update(tail);
 				tail = child;
 				child->b_next = NULL;
 			}
+			m0_format_footer_update(child);
 		}
 		del_node = head;
 		head = head->b_next;
@@ -870,7 +936,8 @@ static void btree_destroy(struct m0_be_btree *btree, struct m0_be_tx *tx)
 			btree_pair_release(btree, tx, &del_node->b_key_vals[i]);
 		btree_node_free(del_node, btree, tx);
 	}
-	btree->bb_root = NULL;
+	m0_format_footer_update(head);
+	btree_root_set(btree, NULL);
 	mem_update(btree, tx, btree, sizeof(struct m0_be_btree));
 }
 
@@ -974,6 +1041,8 @@ M0_INTERNAL void m0_be_btree_fini(struct m0_be_btree *tree)
 {
 	M0_ENTRY("tree=%p", tree);
 	m0_rwlock_fini(btree_rwlock(tree));
+	M0_ASSERT(ergo(tree->bb_header.hd_magic,
+			m0_format_footer_verify(tree) == 0));
 	M0_LEAVE();
 }
 
@@ -1598,7 +1667,7 @@ static int iter_prepare(struct m0_be_bnode *node, bool print)
 
 	struct m0_be_bnode *head;
 	struct m0_be_bnode *tail;
-	struct m0_be_bnode *child;
+	struct m0_be_bnode *child = NULL;
 
 	if (print)
 		M0_LOG(M0_DEBUG, "---8<---8<---8<---8<---8<---8<---");
@@ -1625,13 +1694,16 @@ static int iter_prepare(struct m0_be_bnode *node, bool print)
 			for (i = 0; i < head->b_nr_active + 1; i++) {
 				child = head->b_children[i];
 				tail->b_next = child;
+				m0_format_footer_update(tail);
 				tail = child;
 				child->b_next = NULL;
 			}
+			m0_format_footer_update(child);
 		}
 		head = head->b_next;
 		count++;
 	}
+	m0_format_footer_update(head);
 out:
 	if (print)
 		M0_LOG(M0_DEBUG, "---8<---8<---8<---8<---8<---8<---");

@@ -140,12 +140,19 @@ M0_INTERNAL void m0_be_list_create(struct m0_be_list        *list,
 
 	m0_be_op_active(op);
 
+	m0_format_header_pack(&list->bl_format_header, &(struct m0_format_tag){
+		.ot_version = M0_BE_LIST_FORMAT_VERSION,
+		.ot_type    = M0_FORMAT_TYPE_BE_LIST,
+		.ot_footer_offset = offsetof(struct m0_be_list, bl_format_footer)
+	});
+
 	list->bl_descr = *desc;
 	list->bl_seg   = seg;
 	strncpy(list->bl_td_name, desc->td_name, sizeof list->bl_td_name);
 	list->bl_td_name[sizeof list->bl_td_name - 1] = '\0';
 	list->bl_descr.td_name = list->bl_td_name;
 	m0_tlist_init(&list->bl_descr, &list->bl_list);
+	m0_format_footer_update(list);
 	be_list_capture(list, tx);
 
 	m0_be_op_done(op);

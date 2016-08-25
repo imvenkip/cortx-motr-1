@@ -58,6 +58,18 @@ struct m0_balloc_group_desc {
 	struct m0_format_footer bgd_footer;
 };
 
+enum m0_balloc_group_desc_format_version {
+	M0_BALLOC_GROUP_DESC_FORMAT_VERSION_1 = 1,
+
+	/* future versions, uncomment and update M0_BALLOC_GROUP_DESC_FORMAT_VERSION */
+	/*M0_BALLOC_GROUP_DESC_FORMAT_VERSION_2,*/
+	/*M0_BALLOC_GROUP_DESC_FORMAT_VERSION_3,*/
+
+	/** Current version, should point to the latest version present */
+	M0_BALLOC_GROUP_DESC_FORMAT_VERSION = M0_BALLOC_GROUP_DESC_FORMAT_VERSION_1
+};
+
+
 /** Linked extents */
 struct m0_lext {
 	/** Is allocated separately from bgi_extents array? */
@@ -83,13 +95,27 @@ struct m0_balloc_group_info {
 	m0_bcount_t             bgi_maxchunk;
 	/** list of pre-alloc */
 	struct m0_list          bgi_prealloc_list;
-	/** per-group lock */
-	struct m0_be_mutex      bgi_mutex;
 	/** Array of group extents */
 	struct m0_lext         *bgi_extents;
 	/** List of the same group extents */
 	struct m0_list          bgi_ext_list;
 	struct m0_format_footer bgi_footer;
+	/*
+	 * volatile-only fields
+	 */
+	/** per-group lock */
+	struct m0_be_mutex      bgi_mutex;
+};
+
+enum m0_balloc_group_info_format_version {
+	M0_BALLOC_GROUP_INFO_FORMAT_VERSION_1 = 1,
+
+	/* future versions, uncomment and update M0_BALLOC_GROUP_INFO_FORMAT_VERSION */
+	/*M0_BALLOC_GROUP_INFO_FORMAT_VERSION_2,*/
+	/*M0_BALLOC_GROUP_INFO_FORMAT_VERSION_3,*/
+
+	/** Current version, should point to the latest version present */
+	M0_BALLOC_GROUP_INFO_FORMAT_VERSION = M0_BALLOC_GROUP_INFO_FORMAT_VERSION_1
 };
 
 enum m0_balloc_group_info_state {
@@ -148,18 +174,11 @@ enum {
  */
 struct m0_balloc {
 	struct m0_format_header      cb_header;
-	struct m0_be_seg            *cb_be_seg;
 
 	/** container this block allocator belongs to. */
 	uint64_t                     cb_container_id;
 	/** the on-disk and in-memory sb */
 	struct m0_balloc_super_block cb_sb;
-	/** super block lock */
-	struct m0_be_mutex           cb_sb_mutex;
-	/** db for free extent */
-	struct m0_be_btree           cb_db_group_extents;
-	/** db for group desc */
-	struct m0_be_btree           cb_db_group_desc;
 	/** array of group info */
 	struct m0_balloc_group_info *cb_group_info;
 
@@ -167,6 +186,33 @@ struct m0_balloc {
 
 	struct m0_ad_balloc          cb_ballroom;
 	struct m0_format_footer      cb_footer;
+
+	/*
+	 * m0_be_btree has it's own volatile-only fields, so it can't be placed
+	 * before the m0_format_footer, where only persistent fields allowed
+	 */
+	/** db for free extent */
+	struct m0_be_btree           cb_db_group_extents;
+	/** db for group desc */
+	struct m0_be_btree           cb_db_group_desc;
+
+	/*
+	 * volatile-only fields
+	 */
+	/** super block lock */
+	struct m0_be_mutex           cb_sb_mutex;
+	struct m0_be_seg            *cb_be_seg;
+};
+
+enum m0_balloc_format_version {
+	M0_BALLOC_FORMAT_VERSION_1 = 1,
+
+	/* future versions, uncomment and update M0_BALLOC_FORMAT_VERSION */
+	/*M0_BALLOC_FORMAT_VERSION_2,*/
+	/*M0_BALLOC_FORMAT_VERSION_3,*/
+
+	/** Current version, should point to the latest version present */
+	M0_BALLOC_FORMAT_VERSION = M0_BALLOC_FORMAT_VERSION_1
 };
 
 static inline struct m0_balloc *b2m0(const struct m0_ad_balloc *ballroom)
@@ -296,6 +342,8 @@ M0_INTERNAL int m0_balloc_create(uint64_t           cid,
 				 struct m0_be_seg  *seg,
 				 struct m0_sm_group *grp,
 				 struct m0_balloc **out);
+
+M0_INTERNAL void m0_balloc_group_desc_init(struct m0_balloc_group_desc *desc);
 
 /* Interfaces for UT */
 M0_INTERNAL void m0_balloc_debug_dump_sb(const char *tag,

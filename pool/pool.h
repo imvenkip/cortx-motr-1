@@ -395,6 +395,17 @@ struct m0_poolnode {
 };
 M0_BASSERT(sizeof(enum m0_pool_nd_state) == 4);
 
+enum m0_poolnode_format_version {
+	M0_POOLNODE_FORMAT_VERSION_1 = 1,
+
+	/* future versions, uncomment and update M0_POOLNODE_FORMAT_VERSION */
+	/*M0_POOLNODE_FORMAT_VERSION_2,*/
+	/*M0_POOLNODE_FORMAT_VERSION_3,*/
+
+	/** Current version, should point to the latest version present */
+	M0_POOLNODE_FORMAT_VERSION = M0_POOLNODE_FORMAT_VERSION_1
+};
+
 /** Storage device in a pool. */
 struct m0_pooldev {
 	struct m0_format_header pd_header;
@@ -429,8 +440,20 @@ struct m0_pooldev {
 	 * @see m0_pool::po_failed_devices.
 	 */
 	struct m0_tlink         pd_fail_linkage;
+	uint64_t                pd_magic;
 
 	struct m0_format_footer pd_footer;
+};
+
+enum m0_pooldev_format_version {
+	M0_POOLDEV_FORMAT_VERSION_1 = 1,
+
+	/* future versions, uncomment and update M0_POOLDEV_FORMAT_VERSION */
+	/*M0_POOLDEV_FORMAT_VERSION_2,*/
+	/*M0_POOLDEV_FORMAT_VERSION_3,*/
+
+	/** Current version, should point to the latest version present */
+	M0_POOLDEV_FORMAT_VERSION = M0_POOLDEV_FORMAT_VERSION_1
 };
 
 /**
@@ -448,6 +471,17 @@ struct m0_pool_spare_usage {
 	/** state of the device to use this spare slot */
 	enum m0_pool_nd_state   psu_device_state;
 	struct m0_format_footer psu_footer;
+};
+
+enum m0_pool_spare_usage_format_version {
+	M0_POOL_SPARE_USAGE_FORMAT_VERSION_1 = 1,
+
+	/* future versions, uncomment and update M0_POOL_SPARE_USAGE_FORMAT_VERSION */
+	/*M0_POOL_SPARE_USAGE_FORMAT_VERSION_2,*/
+	/*M0_POOL_SPARE_USAGE_FORMAT_VERSION_3,*/
+
+	/** Current version, should point to the latest version present */
+	M0_POOL_SPARE_USAGE_FORMAT_VERSION = M0_POOL_SPARE_USAGE_FORMAT_VERSION_1
 };
 
 /** @} end group pool */

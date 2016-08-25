@@ -41,17 +41,28 @@ enum {
 };
 
 enum {
-	/** Version of RPC packet. */
-	M0_RPC_PACKET_FORMAT_VERSION = 1,
+	/*
+	 * Version of RPC packet
+	 */
 
-	/** Version of RPC item.   */
-	M0_RPC_ITEM_FORMAT_VERSION   = 1,
+	M0_RPC_PACKET_FORMAT_VERSION_1 = 1,
 
-	/** type of rpc packet. All types should be defined in a single file */
-	M0_RPC_PACKET_FORMAT_TYPE    = 1,
+	/* future versions, uncomment and update M0_RPC_PACKET_FORMAT_VERSION */
+	/*M0_RPC_PACKET_FORMAT_VERSION_2,*/
+	/*M0_RPC_PACKET_FORMAT_VERSION_3,*/
 
-	/** type of rpc item */
-	M0_RPC_ITEM_FORMAT_TYPE      = 2,
+	/**
+	 * Current version, should point to the latest
+	 * M0_RPC_PACKET_FORMAT_VERSION_*
+	 */
+	M0_RPC_PACKET_FORMAT_VERSION = M0_RPC_PACKET_FORMAT_VERSION_1,
+
+	/*
+	 * Version of RPC item
+	 */
+
+	M0_RPC_ITEM_FORMAT_VERSION_1 = 1,
+	M0_RPC_ITEM_FORMAT_VERSION   = M0_RPC_ITEM_FORMAT_VERSION_1,
 };
 
 struct m0_rpc_packet_onwire_header {

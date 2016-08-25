@@ -69,10 +69,9 @@ static int be_seg_geom_len(const struct m0_be_seg_geom *geom)
 	return len;
 }
 
-static int be_seg_hdr_size(int len)
+static int be_seg_hdr_size(void)
 {
-	return sizeof(struct m0_be_seg_hdr) +
-		len * sizeof(struct m0_be_seg_geom);
+	return sizeof(struct m0_be_seg_hdr);
 }
 
 static int be_seg_hdr_create(struct m0_stob *stob, struct m0_be_seg_hdr *hdr)
@@ -82,6 +81,12 @@ static int be_seg_hdr_create(struct m0_stob *stob, struct m0_be_seg_hdr *hdr)
 	unsigned char          last_byte;
 	int                    rc = -ENOENT;
 	int                    i;
+
+	m0_format_header_pack(&hdr->bh_header, &(struct m0_format_tag){
+		.ot_version = M0_BE_SEG_HDR_FORMAT_VERSION,
+		.ot_type    = M0_FORMAT_TYPE_BE_SEG_HDR,
+		.ot_footer_offset = offsetof(struct m0_be_seg_hdr, bh_footer)
+	});
 
 	for (i = 0; i < len; ++i) {
 		const struct m0_be_seg_geom *g = &geom[i];
@@ -99,8 +104,9 @@ static int be_seg_hdr_create(struct m0_stob *stob, struct m0_be_seg_hdr *hdr)
 		M0_PRE(m0_is_aligned(g->sg_size, M0_BE_SEG_PAGE_SIZE));
 
 		hdr->bh_id = g->sg_id;
+		m0_format_footer_update(hdr);
 		rc = m0_be_io_single(stob, SIO_WRITE, hdr, g->sg_offset,
-				     be_seg_hdr_size(len));
+				     be_seg_hdr_size());
 
 		/* Do not move this block out of the cycle.  Segments can come
 		 * unordered inside @geom. */
@@ -186,9 +192,10 @@ M0_INTERNAL int m0_be_seg_create_multiple(struct m0_stob *stob,
 	if (len < 0)
 		return M0_RC(len);
 
+	M0_ASSERT(len <= M0_BE_SEG_HDR_GEOM_ITMES_MAX);
 	M0_ASSERT(be_seg_geom_has_no_overlapps(geom, len));
 
-	hdr = m0_alloc(be_seg_hdr_size(len));
+	hdr = m0_alloc(be_seg_hdr_size());
 	if (hdr == NULL)
 		return M0_RC(-ENOMEM);
 
@@ -313,13 +320,13 @@ M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg)
 	if (rc != 0)
 		return M0_RC(rc);
 
-	hdr2 = m0_alloc(be_seg_hdr_size(hdr1.bh_items_nr));
+	hdr2 = m0_alloc(be_seg_hdr_size());
 	if (hdr2 == NULL)
 		return M0_RC(-ENOMEM);
 
 	rc = m0_be_io_single(seg->bs_stob, SIO_READ,
 			     hdr2, M0_BE_SEG_HEADER_OFFSET,
-			     be_seg_hdr_size(hdr1.bh_items_nr));
+			     be_seg_hdr_size());
 	if (rc != 0) {
 		m0_free(hdr2);
 		return M0_RC(rc);
@@ -341,7 +348,7 @@ M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg)
 	/* rc = be_seg_read_all(seg, &hdr); */
 	rc = 0;
 	if (rc == 0) {
-		seg->bs_reserved = be_seg_hdr_size(hdr2->bh_items_nr);
+		seg->bs_reserved = be_seg_hdr_size();
 		seg->bs_size     = g->sg_size;
 		seg->bs_addr     = g->sg_addr;
 		seg->bs_offset   = g->sg_offset;

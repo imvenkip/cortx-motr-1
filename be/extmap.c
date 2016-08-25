@@ -24,8 +24,9 @@
 #include "be/extmap.h"
 #include "lib/vec.h"
 #include "lib/errno.h"
-#include "lib/arith.h"   /* M0_3WAY */
+#include "lib/arith.h"      /* M0_3WAY */
 #include "lib/misc.h"
+#include "format/format.h"  /* m0_format_header_pack */
 
 /**
    @addtogroup extmap
@@ -152,6 +153,26 @@ static void emap_dump(struct m0_be_emap_cursor *it)
 	m0_rwlock_read_unlock(emap_rwlock(it->ec_map));
 }
 
+static void emap_key_init(struct m0_be_emap_key *key)
+{
+	m0_format_header_pack(&key->ek_header, &(struct m0_format_tag){
+		.ot_version = M0_BE_EMAP_KEY_FORMAT_VERSION,
+		.ot_type    = M0_FORMAT_TYPE_BE_EMAP_KEY,
+		.ot_footer_offset = offsetof(struct m0_be_emap_key, ek_footer)
+	});
+	m0_format_footer_update(key);
+}
+
+static void emap_rec_init(struct m0_be_emap_rec *rec)
+{
+	m0_format_header_pack(&rec->er_header, &(struct m0_format_tag){
+		.ot_version = M0_BE_EMAP_REC_FORMAT_VERSION,
+		.ot_type    = M0_FORMAT_TYPE_BE_EMAP_REC,
+		.ot_footer_offset = offsetof(struct m0_be_emap_rec, er_footer)
+	});
+	m0_format_footer_update(rec);
+}
+
 M0_INTERNAL int m0_be_emap_dump(struct m0_be_emap *map)
 {
 	struct m0_be_emap_cursor it;
@@ -207,12 +228,20 @@ static void delete_wrapper(struct m0_be_btree *btree, struct m0_be_tx *tx,
 M0_INTERNAL void
 m0_be_emap_init(struct m0_be_emap *map, struct m0_be_seg *db)
 {
+	m0_format_header_pack(&map->em_header, &(struct m0_format_tag){
+		.ot_version = M0_BE_EMAP_FORMAT_VERSION,
+		.ot_type    = M0_FORMAT_TYPE_BE_EMAP,
+		.ot_footer_offset = offsetof(struct m0_be_emap, em_footer)
+	});
 	m0_rwlock_init(emap_rwlock(map));
 	m0_buf_init(&map->em_key_buf, &map->em_key, sizeof map->em_key);
 	m0_buf_init(&map->em_val_buf, &map->em_rec, sizeof map->em_rec);
+	emap_key_init(&map->em_key);
+	emap_rec_init(&map->em_rec);
 	m0_be_btree_init(&map->em_mapping, db, &be_emap_ops);
 	map->em_seg = db;
 	map->em_version = 0;
+	m0_format_footer_update(map);
 }
 
 M0_INTERNAL void m0_be_emap_fini(struct m0_be_emap *map)
@@ -596,8 +625,10 @@ M0_INTERNAL void m0_be_emap_obj_insert(struct m0_be_emap *map,
 	m0_rwlock_write_lock(emap_rwlock(map));
 	map->em_key.ek_prefix = *prefix;
 	map->em_key.ek_offset = M0_BINDEX_MAX + 1;
+	m0_format_footer_update(&map->em_key);
 	map->em_rec.er_start = 0;
 	map->em_rec.er_value = val;
+	m0_format_footer_update(&map->em_rec);
 
 	++map->em_version;
 	op->bo_u.u_emap.e_rc = M0_BE_OP_SYNC_RET(
@@ -803,8 +834,10 @@ emap_it_pack(struct m0_be_emap_cursor *it,
 
 	key->ek_prefix = ext->ee_pre;
 	key->ek_offset = ext->ee_ext.e_end;
+	m0_format_footer_update(key);
 	rec->er_start  = ext->ee_ext.e_start;
 	rec->er_value  = ext->ee_val;
+	m0_format_footer_update(rec);
 	++it->ec_map->em_version;
 	it->ec_op.bo_u.u_emap.e_rc = M0_BE_OP_SYNC_RET(
 		op,
@@ -822,13 +855,13 @@ static bool emap_it_prefix_ok(const struct m0_be_emap_cursor *it)
 
 static int emap_it_open(struct m0_be_emap_cursor *it)
 {
-	const struct m0_be_emap_key *key;
-	const struct m0_be_emap_rec *rec;
-	struct m0_buf                keybuf;
-	struct m0_buf                recbuf;
-	struct m0_be_emap_seg       *ext = &it->ec_seg;
-	struct m0_be_op             *op  = &it->ec_cursor.bc_op;
-	int                          rc;
+	struct m0_be_emap_key *key;
+	struct m0_be_emap_rec *rec;
+	struct m0_buf          keybuf;
+	struct m0_buf          recbuf;
+	struct m0_be_emap_seg *ext = &it->ec_seg;
+	struct m0_be_op       *op  = &it->ec_cursor.bc_op;
+	int                    rc;
 
 	M0_PRE(m0_be_op_is_done(op));
 
@@ -839,9 +872,12 @@ static int emap_it_open(struct m0_be_emap_cursor *it)
 		rec = recbuf.b_addr;
 		it->ec_key = *key;
 		it->ec_rec = *rec;
+		emap_key_init(&it->ec_key);
+		emap_rec_init(&it->ec_rec);
 		ext->ee_pre         = key->ek_prefix;
 		ext->ee_ext.e_start = rec->er_start;
 		ext->ee_ext.e_end   = key->ek_offset;
+		m0_ext_init(&ext->ee_ext);
 		ext->ee_val         = rec->er_value;
 		if (!emap_it_prefix_ok(it))
 			rc = -ESRCH;
@@ -858,8 +894,12 @@ static void emap_it_init(struct m0_be_emap_cursor *it,
 {
 	m0_buf_init(&it->ec_keybuf, &it->ec_key, sizeof it->ec_key);
 	m0_buf_init(&it->ec_recbuf, &it->ec_rec, sizeof it->ec_rec);
+
+	emap_key_init(&it->ec_key);
 	it->ec_key.ek_prefix = it->ec_prefix = *prefix;
 	it->ec_key.ek_offset = offset + 1;
+	emap_rec_init(&it->ec_rec);
+
 	it->ec_map = map;
 	it->ec_version = map->em_version;
 	m0_be_btree_cursor_init(&it->ec_cursor, &map->em_mapping);
@@ -938,6 +978,10 @@ be_emap_invariant_check(struct m0_be_emap_cursor *it)
 		if (!_0C(it->ec_seg.ee_ext.e_start == reached))
 			return false;
 		if (!_0C(it->ec_seg.ee_ext.e_end > reached))
+			return false;
+		if (!_0C(m0_format_footer_verify(&it->ec_key) == 0))
+			return false;
+		if (!_0C(m0_format_footer_verify(&it->ec_rec) == 0))
 			return false;
 		reached = it->ec_seg.ee_ext.e_end;
 		total += m0_ext_length(&it->ec_seg.ee_ext);
@@ -1040,6 +1084,7 @@ be_emap_split(struct m0_be_emap_cursor *it,
 		it->ec_seg.ee_ext.e_end = seg_end;
 		rc = emap_it_pack(it, delete_wrapper, tx);
 		it->ec_key.ek_offset = last_end;
+		m0_format_footer_update(&it->ec_key);
 	}
 
 	if (rc == 0)

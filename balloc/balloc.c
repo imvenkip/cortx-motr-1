@@ -247,6 +247,16 @@ M0_INTERNAL void m0_balloc_unlock_group(struct m0_balloc_group_info *grp)
 
 #define MAX_ALLOCATION_CHUNK 2048ULL
 
+M0_INTERNAL void m0_balloc_group_desc_init(struct m0_balloc_group_desc *desc)
+{
+	m0_format_header_pack(&desc->bgd_header, &(struct m0_format_tag){
+		.ot_version = M0_BALLOC_GROUP_DESC_FORMAT_VERSION,
+		.ot_type    = M0_FORMAT_TYPE_BALLOC_GROUP_DESC,
+		.ot_footer_offset = offsetof(struct m0_balloc_group_desc, bgd_footer)
+	});
+	m0_format_footer_update(desc);
+}
+
 static int balloc_group_info_init(struct m0_balloc_group_info *gi,
 				  struct m0_balloc *cb)
 {
@@ -257,6 +267,12 @@ static int balloc_group_info_init(struct m0_balloc_group_info *gi,
 
 	rc = btree_lookup_sync(&cb->cb_db_group_desc, &key, &val);
 	if (rc == 0) {
+		m0_format_header_pack(&gi->bgi_header, &(struct m0_format_tag){
+			.ot_version = M0_BALLOC_GROUP_INFO_FORMAT_VERSION,
+			.ot_type    = M0_FORMAT_TYPE_BALLOC_GROUP_INFO,
+			.ot_footer_offset =
+				offsetof(struct m0_balloc_group_info, bgi_footer)
+		});
 		gi->bgi_freeblocks = gd.bgd_freeblocks;
 		gi->bgi_fragments  = gd.bgd_fragments;
 		gi->bgi_maxchunk   = gd.bgd_maxchunk;
@@ -265,6 +281,7 @@ static int balloc_group_info_init(struct m0_balloc_group_info *gi,
 		m0_list_init(&gi->bgi_prealloc_list);
 		m0_list_init(&gi->bgi_ext_list);
 		m0_mutex_init(bgi_mutex(gi));
+		m0_format_footer_update(gi);
 	}
 	return rc;
 }
@@ -554,6 +571,7 @@ static void balloc_group_write_do(struct m0_be_tx_bulk   *tb,
 	       (unsigned long long)i);
 	ext.e_start = i << sb->bsb_gsbits;
 	ext.e_end = ext.e_start + sb->bsb_groupsize;
+	m0_ext_init(&ext);
 	balloc_debug_dump_extent("create...", &ext);
 
 	key = (struct m0_buf)M0_BUF_INIT_PTR(&ext.e_end);
@@ -571,6 +589,7 @@ static void balloc_group_write_do(struct m0_be_tx_bulk   *tb,
 	gd.bgd_freeblocks = sb->bsb_groupsize;
 	gd.bgd_fragments  = 1;
 	gd.bgd_maxchunk   = sb->bsb_groupsize;
+	m0_balloc_group_desc_init(&gd);
 
 	grp->bgi_groupno = i;
 	grp->bgi_freeblocks = gd.bgd_freeblocks;
@@ -714,6 +733,7 @@ static int balloc_gi_sync(struct m0_balloc *cb,
 	gd.bgd_freeblocks = gi->bgi_freeblocks;
 	gd.bgd_fragments  = gi->bgi_fragments;
 	gd.bgd_maxchunk	  = gi->bgi_maxchunk;
+	m0_balloc_group_desc_init(&gd);
 
 	key = (struct m0_buf)M0_BUF_INIT_PTR(&gd.bgd_groupno);
 	val = (struct m0_buf)M0_BUF_INIT_PTR(&gd);
@@ -752,6 +772,12 @@ static int balloc_init_internal(struct m0_balloc *bal,
 
 	M0_ENTRY();
 
+	m0_format_header_pack(&bal->cb_header, &(struct m0_format_tag){
+		.ot_version = M0_BALLOC_FORMAT_VERSION,
+		.ot_type    = M0_FORMAT_TYPE_BALLOC,
+		.ot_footer_offset = offsetof(struct m0_balloc, cb_footer)
+	});
+
 	bal->cb_be_seg = seg;
 	bal->cb_group_info = NULL;
 	m0_mutex_init(&bal->cb_sb_mutex.bm_u.mutex);
@@ -788,6 +814,7 @@ static int balloc_init_internal(struct m0_balloc *bal,
 			m0_free0(&bal->cb_group_info);
 	}
 	rc = rc ?: sb_mount(bal, grp);
+	m0_format_footer_update(bal);
 out:
 	if (rc != 0)
 		balloc_fini_internal(bal);
@@ -825,6 +852,7 @@ static int balloc_init_ac(struct m0_balloc_allocation_context *bac,
 	M0_ENTRY();
 
 	M0_SET0(&req->bar_result);
+	m0_ext_init(&req->bar_result);
 
 	bac->bac_ctxt	  = mero;
 	bac->bac_tx	  = tx;
@@ -841,10 +869,13 @@ static int balloc_init_ac(struct m0_balloc_allocation_context *bac,
 
 	bac->bac_orig.e_start	= req->bar_goal;
 	bac->bac_orig.e_end	= req->bar_goal + req->bar_len;
+	m0_ext_init(&bac->bac_orig);
 	bac->bac_goal = bac->bac_orig;
 
 	M0_SET0(&bac->bac_best);
 	M0_SET0(&bac->bac_final);
+	m0_ext_init(&bac->bac_best);
+	m0_ext_init(&bac->bac_final);
 
 	return M0_RC(0);
 }
@@ -996,6 +1027,7 @@ M0_INTERNAL int m0_balloc_load_extents(struct m0_balloc *cb,
 		m0_be_btree_cursor_kv_get(&cursor, &key, &val);
 		ex->le_ext.e_end   = *(m0_bindex_t*)key.b_addr;
 		ex->le_ext.e_start = *(m0_bindex_t*)val.b_addr;
+		m0_ext_init(&ex->le_ext);
 		m0_list_add_tail(&grp->bgi_ext_list, &ex->le_link);
 
 		/* balloc_debug_dump_extent("loading...", ex); */
@@ -1061,6 +1093,8 @@ static int balloc_find_extent_buddy(struct m0_balloc_allocation_context *bac,
 						.e_end = 0xffffffff };
 
 	M0_PRE(m0_mutex_is_locked(bgi_mutex(grp)));
+
+	m0_ext_init(&min);
 
 	start = grp->bgi_groupno << sb->bsb_gsbits;
 	end   = (grp->bgi_groupno + 1) << sb->bsb_gsbits;
@@ -1601,6 +1635,7 @@ static int balloc_simple_scan_group(struct m0_balloc_allocation_context *bac,
 	M0_ENTRY();
 	M0_PRE(bac->bac_order2 > 0);
 
+	m0_ext_init(&ex);
 	len = 1 << bac->bac_order2;
 /*	for (; len <= sb->bsb_groupsize; len = len << 1) {
 		M0_LOG(M0_DEBUG, "searching at %d (gs = %d) for order = %d "
@@ -2102,6 +2137,7 @@ static int balloc_free_internal(struct m0_balloc *ctx,
 
 		fex.e_start = start;
 		fex.e_end   = start + step;
+		m0_ext_init(&fex);
 		rc = balloc_free_db_update(ctx, tx, grp, &fex);
 		m0_balloc_unlock_group(grp);
 		start += step;
@@ -2192,6 +2228,7 @@ static int balloc_alloc(struct m0_ad_balloc *ballroom, struct m0_dtx *tx,
 		} else {
 			out->e_start = req.bar_result.e_start;
 			out->e_end   = req.bar_result.e_end;
+			m0_ext_init(out);
 			mero->cb_last = out->e_end;
 		}
 	}

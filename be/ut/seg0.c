@@ -115,12 +115,12 @@ void m0_be_ut_obj_test(void)
 		struct m0_format_header h;
 	} data[] = {
 		{
-			.t = { 1, 2, 3 },
-			.h = { 0x0001000200000003 }
+			.t = { 1, 2, { 3 } },
+			.h = { .hd_bits = 0x0001000200000003 }
 		},
 		{
-			.t = { 0x1111, 0x2222, 0x3333 },
-			.h = { 0x1111222200003333 }
+			.t = { 0x1111, 0x2222, { 0x3333 } },
+			.h = { .hd_bits = 0x1111222200003333 }
 		}
 	};
 	struct m0_format_header h;

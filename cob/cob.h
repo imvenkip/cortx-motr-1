@@ -260,13 +260,31 @@ struct m0_cob_domain_id {
 struct m0_cob_domain {
 	struct m0_format_header cd_header;
 	struct m0_cob_domain_id cd_id;
-	struct m0_be_seg       *cd_seg;
+	struct m0_format_footer cd_footer;
+	/*
+	 * m0_be_btree has it's own volatile-only fields, so it can't be placed
+	 * before the m0_format_footer, where only persistent fields allowed
+	 */
 	struct m0_be_btree      cd_object_index;
 	struct m0_be_btree      cd_namespace;
 	struct m0_be_btree      cd_fileattr_basic;
 	struct m0_be_btree      cd_fileattr_omg;
 	struct m0_be_btree      cd_fileattr_ea;
-	struct m0_format_footer cd_footer;
+	/*
+	 * volatile-only fields
+	 */
+	struct m0_be_seg       *cd_seg;
+};
+
+enum m0_cob_domain_format_version {
+	M0_COB_DOMAIN_FORMAT_VERSION_1 = 1,
+
+	/* future versions, uncomment and update M0_COB_DOMAIN_FORMAT_VERSION */
+	/*M0_COB_DOMAIN_FORMAT_VERSION_2,*/
+	/*M0_COB_DOMAIN_FORMAT_VERSION_3,*/
+
+	/** Current version, should point to the latest version present */
+	M0_COB_DOMAIN_FORMAT_VERSION = M0_COB_DOMAIN_FORMAT_VERSION_1
 };
 
 int m0_cob_domain_init(struct m0_cob_domain *dom,
@@ -401,6 +419,19 @@ struct m0_cob_nsrec {
 	struct m0_fid           cnr_pver;    /**< cob pool version */
 	struct m0_format_footer cnr_footer;
 };
+
+enum m0_cob_nsrec_format_version {
+	M0_COB_NSREC_FORMAT_VERSION_1 = 1,
+
+	/* future versions, uncomment and update M0_COB_NSREC_FORMAT_VERSION */
+	/*M0_COB_NSREC_FORMAT_VERSION_2,*/
+	/*M0_COB_NSREC_FORMAT_VERSION_3,*/
+
+	/** Current version, should point to the latest version present */
+	M0_COB_NSREC_FORMAT_VERSION = M0_COB_NSREC_FORMAT_VERSION_1
+};
+
+M0_INTERNAL void m0_cob_nsrec_init(struct m0_cob_nsrec *nsrec);
 
 /** Object index table key. The oi table record is a struct m0_cob_nskey. */
 struct m0_cob_oikey {

@@ -190,6 +190,7 @@ M0_INTERNAL void m0_be_io_sched_add(struct m0_be_io_sched *sched,
 		io->bio_ext.e_start = io_last == NULL ? sched->bis_pos :
 				      io_last->bio_ext.e_end;
 		io->bio_ext.e_end = io->bio_ext.e_start;
+		m0_ext_init(&io->bio_ext);
 	} else {
 		io->bio_ext = *ext;
 	}

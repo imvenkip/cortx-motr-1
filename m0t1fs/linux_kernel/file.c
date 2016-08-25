@@ -3352,10 +3352,12 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 
 			u_ext.e_start = pgstart + unit * unit_size;
 			u_ext.e_end   = u_ext.e_start + unit_size;
+			m0_ext_init(&u_ext);
 
 			v_ext.e_start  = m0_ivec_cursor_index(&cursor);
 			v_ext.e_end    = v_ext.e_start +
 					  m0_ivec_cursor_step(&cursor);
+			m0_ext_init(&v_ext);
 
 			m0_ext_intersection(&u_ext, &v_ext, &r_ext);
 			if (!m0_ext_is_valid(&r_ext)) {

@@ -220,9 +220,24 @@
  */
 struct cas_index {
 	struct m0_format_header ci_head;
-	struct m0_be_btree      ci_tree;
 	struct m0_format_footer ci_foot;
+	/*
+	 * m0_be_btree has it's own volatile-only fields, so it can't be placed
+	 * before the m0_format_footer, where only persistent fields allowed
+	 */
+	struct m0_be_btree      ci_tree;
 	struct m0_long_lock     ci_lock;
+};
+
+enum m0_cas_index_format_version {
+	M0_CAS_INDEX_FORMAT_VERSION_1 = 1,
+
+	/* future versions, uncomment and update M0_CAS_INDEX_FORMAT_VERSION */
+	/*M0_CAS_INDEX_FORMAT_VERSION_2,*/
+	/*M0_CAS_INDEX_FORMAT_VERSION_3,*/
+
+	/** Current version, should point to the latest version present */
+	M0_CAS_INDEX_FORMAT_VERSION = M0_CAS_INDEX_FORMAT_VERSION_1
 };
 
 struct cas_service {
@@ -1406,8 +1421,14 @@ static int cas_init(struct cas_service *service)
 
 static void cas_index_init(struct cas_index *index, struct m0_be_seg *seg)
 {
+	m0_format_header_pack(&index->ci_head, &(struct m0_format_tag){
+		.ot_version = M0_EXT_FORMAT_VERSION,
+		.ot_type    = M0_FORMAT_TYPE_EXT,
+		.ot_footer_offset = offsetof(struct cas_index, ci_foot)
+	});
 	m0_be_btree_init(&index->ci_tree, seg, &cas_btree_ops);
 	m0_long_lock_init(&index->ci_lock);
+	m0_format_footer_update(index);
 }
 
 static void cas_index_fini(struct cas_index *index)

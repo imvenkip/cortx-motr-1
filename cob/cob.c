@@ -473,6 +473,12 @@ int m0_cob_domain_init(struct m0_cob_domain *dom, struct m0_be_seg *seg,
 	if (dom == NULL)
 		return M0_RC(-ENOENT);
 
+	m0_format_header_pack(&dom->cd_header, &(struct m0_format_tag){
+		.ot_version = M0_COB_DOMAIN_FORMAT_VERSION,
+		.ot_type    = M0_FORMAT_TYPE_COB_DOMAIN,
+		.ot_footer_offset = offsetof(struct m0_cob_domain, cd_footer)
+	});
+
 	if (id != NULL)
 		dom->cd_id = *id;
 	dom->cd_seg = seg;
@@ -482,6 +488,8 @@ int m0_cob_domain_init(struct m0_cob_domain *dom, struct m0_be_seg *seg,
 	m0_be_btree_init(&dom->cd_fileattr_basic, seg, &cob_fab_ops);
 	m0_be_btree_init(&dom->cd_fileattr_omg,   seg, &cob_omg_ops);
 	m0_be_btree_init(&dom->cd_fileattr_ea,    seg, &cob_ea_ops);
+
+	m0_format_footer_update(dom);
 
 	return M0_RC(0);
 }
@@ -545,6 +553,8 @@ int m0_cob_domain_create_prepared(struct m0_cob_domain         **dom,
 	M0_BE_OP_SYNC(o, m0_be_btree_create(&(*dom)->cd_fileattr_basic, tx, &o));
 	M0_BE_OP_SYNC(o, m0_be_btree_create(&(*dom)->cd_fileattr_omg,   tx, &o));
 	M0_BE_OP_SYNC(o, m0_be_btree_create(&(*dom)->cd_fileattr_ea,    tx, &o));
+
+	m0_format_footer_update(*dom);
 
 	M0_ASSERT(*dom != NULL);
 	M0_BE_TX_CAPTURE_PTR(seg, tx, *dom);
@@ -719,6 +729,7 @@ M0_INTERNAL int m0_cob_domain_mkfs(struct m0_cob_domain *dom,
 	    return M0_RC(rc);
 	}
 
+	m0_cob_nsrec_init(&nsrec);
 	nsrec.cnr_omgid = 0;
 	nsrec.cnr_fid = *rootfid;
 
@@ -1687,6 +1698,16 @@ out:
 	return M0_RC(rc);
 }
 
+M0_INTERNAL void m0_cob_nsrec_init(struct m0_cob_nsrec *nsrec)
+{
+	m0_format_header_pack(&nsrec->cnr_header, &(struct m0_format_tag){
+		.ot_version = M0_COB_NSREC_FORMAT_VERSION,
+		.ot_type    = M0_FORMAT_TYPE_COB_NSREC,
+		.ot_footer_offset = offsetof(struct m0_cob_nsrec, cnr_footer)
+	});
+	m0_format_footer_update(nsrec);
+}
+
 M0_INTERNAL int m0_cob_setattr(struct m0_cob *cob, struct m0_cob_attr *attr,
 			       struct m0_be_tx *tx)
 {
@@ -1704,6 +1725,7 @@ M0_INTERNAL int m0_cob_setattr(struct m0_cob *cob, struct m0_cob_attr *attr,
 	 */
 	if (cob->co_flags & M0_CA_NSREC) {
 		nsrec = &cob->co_nsrec;
+		m0_cob_nsrec_init(nsrec);
 		nsrec_prev = *nsrec;
 		if (attr->ca_valid & M0_COB_ATIME)
 			nsrec->cnr_atime = attr->ca_atime;
