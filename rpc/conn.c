@@ -839,7 +839,11 @@ M0_INTERNAL int m0_rpc_conn_establish(struct m0_rpc_conn *conn,
 			      abs_timeout);
 	if (rc == 0)
 		conn_state_set(conn, M0_RPC_CONN_CONNECTING);
-	else
+	/*
+	 * It is possible that ->rio_replied() was called
+	 * and connection is in failed state already.
+	 */
+	else if (conn_state(conn) == M0_RPC_CONN_INITIALISED)
 		conn_failed(conn, rc);
 	m0_fop_put(fop);
 
@@ -884,7 +888,8 @@ M0_INTERNAL void m0_rpc_conn_establish_reply_received(struct m0_rpc_item *item)
 
 	M0_PRE(m0_rpc_machine_is_locked(machine));
 	M0_ASSERT(m0_rpc_conn_invariant(conn));
-	M0_PRE(conn_state(conn) == M0_RPC_CONN_CONNECTING);
+	M0_PRE(M0_IN(conn_state(conn), (M0_RPC_CONN_INITIALISED,
+				       M0_RPC_CONN_CONNECTING)));
 
 	rc = m0_rpc_item_error(item);
 	if (rc == 0) {
