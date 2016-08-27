@@ -7,6 +7,7 @@ nobase_mero_include_HEADERS += ha/dispatcher.h \
                                ha/link.h \
                                ha/link_fops.h \
                                ha/link_service.h \
+                               ha/lq.h \
                                ha/msg.h \
                                ha/msg_queue.h \
                                ha/note.h \
@@ -22,6 +23,7 @@ mero_libmero_la_SOURCES  += ha/dispatcher.c \
                             ha/link.c \
                             ha/link_fops.c \
                             ha/link_service.c \
+                            ha/lq.c \
                             ha/msg.c \
                             ha/msg_queue.c \
                             ha/note.c \

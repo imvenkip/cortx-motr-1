@@ -39,6 +39,29 @@
 struct m0_fop_type m0_ha_link_msg_fopt;
 struct m0_fop_type m0_ha_link_msg_rep_fopt;
 
+M0_INTERNAL void m0_ha_link_tags_initial(struct m0_ha_link_tags *tags,
+                                         bool                    tag_even)
+{
+	uint64_t tag = tag_even ? 2 : 1;
+
+	*tags = (struct m0_ha_link_tags){
+		.hlt_delivered = tag,
+		.hlt_confirmed = tag,
+		.hlt_next      = tag,
+		.hlt_assign    = tag,
+	};
+}
+
+M0_INTERNAL bool m0_ha_link_tags_eq(const struct m0_ha_link_tags *tags1,
+                                    const struct m0_ha_link_tags *tags2)
+{
+	return tags1->hlt_delivered == tags2->hlt_delivered &&
+	       tags1->hlt_confirmed == tags2->hlt_confirmed &&
+	       tags1->hlt_next      == tags2->hlt_next &&
+	       tags1->hlt_assign    == tags2->hlt_assign;
+
+}
+
 M0_INTERNAL int m0_ha_link_fops_init(void)
 {
 	M0_FOP_TYPE_INIT(&m0_ha_link_msg_fopt,

@@ -118,6 +118,10 @@ struct m0_ha_msg {
 	bool                   hm_incoming;
 } M0_XCA_RECORD;
 
+/** Returns m0_ha_msg tag. */
+M0_INTERNAL uint64_t m0_ha_msg_tag(const struct m0_ha_msg *msg);
+/** Returns m0_ha_msg type */
+M0_INTERNAL enum m0_ha_msg_type m0_ha_msg_type_get(const struct m0_ha_msg *msg);
 
 /** Compares 2 m0_ha_msg. It's useful in tests. */
 M0_INTERNAL bool m0_ha_msg_eq(const struct m0_ha_msg *msg1,

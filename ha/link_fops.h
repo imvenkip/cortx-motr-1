@@ -37,6 +37,13 @@
  * @{
  */
 
+struct m0_ha_link_tags {
+	uint64_t hlt_confirmed;
+	uint64_t hlt_delivered;
+	uint64_t hlt_next;
+	uint64_t hlt_assign;
+} M0_XCA_RECORD;
+
 struct m0_ha_link_msg_fop {
 	struct m0_ha_msg lmf_msg;
 } M0_XCA_RECORD;
@@ -51,6 +58,16 @@ struct m0_ha_link_params {
 	/* bool flag */
 	uint64_t          hlp_tag_even;
 } M0_XCA_RECORD;
+
+#define HLTAGS_F "(confirmed=%"PRIu64" delivered=%"PRIu64" next=%"PRIu64" "   \
+		 "assign=%"PRIu64")"
+#define HLTAGS_P(_tags) (_tags)->hlt_confirmed, (_tags)->hlt_delivered,       \
+			(_tags)->hlt_next, (_tags)->hlt_assign
+
+M0_INTERNAL void m0_ha_link_tags_initial(struct m0_ha_link_tags *tags,
+                                         bool                    tag_even);
+M0_INTERNAL bool m0_ha_link_tags_eq(const struct m0_ha_link_tags *tags1,
+                                    const struct m0_ha_link_tags *tags2);
 
 extern struct m0_fop_type m0_ha_link_msg_fopt;
 extern struct m0_fop_type m0_ha_link_msg_rep_fopt;

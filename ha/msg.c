@@ -32,6 +32,16 @@
 
 #include "lib/misc.h"   /* memcmp */
 
+M0_INTERNAL uint64_t m0_ha_msg_tag(const struct m0_ha_msg *msg)
+{
+	return msg->hm_tag;
+}
+
+M0_INTERNAL enum m0_ha_msg_type m0_ha_msg_type_get(const struct m0_ha_msg *msg)
+{
+	return msg->hm_data.hed_type;
+}
+
 M0_INTERNAL bool m0_ha_msg_eq(const struct m0_ha_msg *msg1,
 			      const struct m0_ha_msg *msg2)
 {

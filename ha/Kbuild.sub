@@ -11,6 +11,7 @@ m0mero_objects += ha/dispatcher.o \
                   ha/link_fops.o \
                   ha/link_fops_xc.o \
                   ha/link_service.o \
+                  ha/lq.o \
                   ha/msg.o \
                   ha/msg_xc.o \
                   ha/msg_queue.o \
