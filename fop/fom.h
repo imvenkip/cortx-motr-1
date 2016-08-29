@@ -869,6 +869,26 @@ M0_INTERNAL int m0_fom_fol_rec_add(struct m0_fom *fom);
 
 M0_INTERNAL struct m0_reqh *m0_fom2reqh(const struct m0_fom *fom);
 
+/**
+ * Analogue of m0_sm_timedwait() for FOM.
+ *
+ * The intended usage of this function:
+ * - user wakes up the FOM to perform some job;
+ * - user calls m0_fom_timedwait() and blocks waiting for FOM to finish the job;
+ * - FOM finishes the job and transit to one of the user defined states;
+ * - FOM remains in this state forever, waiting for new jobs;
+ * - m0_fom_timedwait() returns.
+ *
+ * Caveats:
+ * - FOM should be queued since fom->fo_loc should be valid.
+ * - FOM structure shouldn't be deallocated before m0_fom_timedwait() returns.
+ * - FOM executes in a separate thread and the number of phase transitions
+ *   happened before m0_fom_timedwait() starts listening for the transitions in
+ *   general is unpredictable.
+ */
+M0_INTERNAL int m0_fom_timedwait(struct m0_fom *fom, uint64_t phases,
+				 m0_time_t deadline);
+
 #endif /* __MERO_FOP_FOM_H__ */
 /** @} end of fom group */
 

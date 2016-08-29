@@ -98,10 +98,10 @@ static struct m0_sm_conf slave_sm_conf = {
 	.scf_state     = slave_fom_phases,
 };
 
-struct m0_fom_type master_fomt;
-struct m0_fom_type slave_fomt;
+static struct m0_fom_type master_fomt;
+static struct m0_fom_type slave_fomt;
 
-struct m0_semaphore            sem;
+static struct m0_semaphore     sem;
 static struct m0_reqh          msreqh;
 static struct m0_reqh_service *mssvc;
 uint64_t                       msfom_id = 0;

@@ -99,6 +99,7 @@ extern struct m0_ut_suite failure_domains_ut;
 extern struct m0_ut_suite fis_ut;
 extern struct m0_ut_suite fit_ut;
 extern struct m0_ut_suite fol_ut;
+extern struct m0_ut_suite fom_timedwait_ut;
 extern struct m0_ut_suite frm_ut;
 extern struct m0_ut_suite ha_ut;
 extern struct m0_ut_suite ha_state_ut;
@@ -211,6 +212,7 @@ static void tests_add(struct m0_ut_module *m)
 	m0_ut_add(m, &fis_ut, true);
 	m0_ut_add(m, &fit_ut, true);
 	m0_ut_add(m, &fol_ut, true);
+	m0_ut_add(m, &fom_timedwait_ut, true);
 	m0_ut_add(m, &frm_ut, true);
 	m0_ut_add(m, &ha_ut, true);
 	m0_ut_add(m, &ha_state_ut, true);

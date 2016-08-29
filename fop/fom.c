@@ -31,6 +31,8 @@
 #include "lib/timer.h"
 #include "lib/arith.h"
 #include "lib/uuid.h"                 /* m0_node_uuid */
+#include "lib/semaphore.h"            /* m0_semaphore */
+#include "lib/finject.h"              /* M0_FI_ENABLED */
 #include "addb2/net.h"
 #include "addb2/addb2.h"
 #include "addb2/storage.h"
@@ -162,6 +164,14 @@ struct m0_loc_thread {
 	struct m0_fom_locality *lt_loc;
 	struct m0_clink         lt_clink;
 	uint64_t                lt_magix;
+};
+
+struct fom_wait_data {
+	struct m0_clink  wd_clink;
+	uint64_t         wd_phases;
+	struct m0_fom   *wd_fom;
+	bool             wd_completed;
+	int              wd_rc;
 };
 
 M0_TL_DESCR_DEFINE(thr, "fom thread", static, struct m0_loc_thread, lt_linkage,
@@ -582,6 +592,79 @@ static void fom_wait(struct m0_fom *fom)
 	M0_CNT_INC(loc->fl_wail_nr);
 	m0_addb2_hist_mod(&loc->fl_wail_counter, loc->fl_wail_nr);
 	M0_POST(m0_fom_invariant(fom));
+}
+
+static bool fom_wait_is_completed(const struct fom_wait_data *wd)
+{
+	return (M0_BITS(m0_fom_phase(wd->wd_fom)) &
+		(wd->wd_phases | M0_BITS(M0_FOM_PHASE_FINISH)));
+}
+
+static int fom_wait_rc(const struct fom_wait_data *wd)
+{
+	M0_ASSERT(fom_wait_is_completed(wd));
+	return m0_fom_phase(wd->wd_fom) == M0_FOM_PHASE_FINISH ?
+			M0_ERR(-ESRCH) : 0;
+}
+
+static bool fom_wait_cb(struct m0_clink *clink)
+{
+	struct fom_wait_data *wd = M0_AMB(wd, clink, wd_clink);
+
+	if (fom_wait_is_completed(wd)) {
+		wd->wd_rc = fom_wait_rc(wd);
+		/*
+		 * Detach clink from FOM phase SM channel to not get
+		 * assertion on FOM finalisation.
+		 */
+		m0_clink_del(&wd->wd_clink);
+		/* That will signal on semaphore in m0_fom_timedwait(). */
+		return false;
+	}
+	return true;
+}
+
+static int fom_wait_init(void *data)
+{
+	struct fom_wait_data *wd = data;
+
+	/*
+	 * FOM may be already in finish state, it worth checking it here to not
+	 * wait deadline.
+	 */
+	wd->wd_completed = fom_wait_is_completed(wd);
+	if (!wd->wd_completed)
+		m0_clink_add(&wd->wd_fom->fo_sm_phase.sm_chan, &wd->wd_clink);
+	return wd->wd_completed ? fom_wait_rc(wd) : 0;
+}
+
+static int fom_wait_fini(void *data)
+{
+	struct fom_wait_data *wd = data;
+
+	if (m0_clink_is_armed(&wd->wd_clink))
+		m0_clink_del(&wd->wd_clink);
+	return 0;
+}
+
+M0_INTERNAL int m0_fom_timedwait(struct m0_fom *fom, uint64_t phases,
+				 m0_time_t deadline)
+{
+	struct fom_wait_data  wd;
+	struct m0_locality   *loc = &fom->fo_loc->fl_locality;
+	int                   result;
+
+	wd.wd_phases = phases;
+	wd.wd_fom = fom;
+	m0_clink_init(&wd.wd_clink, &fom_wait_cb);
+	result = m0_locality_call(loc, &fom_wait_init, &wd);
+	if (!wd.wd_completed) {
+		result = m0_chan_timedwait(&wd.wd_clink, deadline) ?
+			 wd.wd_rc : M0_ERR(-ETIMEDOUT);
+		m0_locality_call(loc, &fom_wait_fini, &wd);
+	}
+	m0_clink_fini(&wd.wd_clink);
+	return result;
 }
 
 /**
