@@ -87,7 +87,7 @@ struct m0_cm_proxy {
 
 	bool                    px_is_done;
 
-	uint64_t                px_nr_asts;
+	uint64_t                px_nr_updates_posted;
 
 	/** Back reference to local copy machine. */
 	struct m0_cm           *px_cm;

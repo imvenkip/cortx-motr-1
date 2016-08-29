@@ -116,8 +116,8 @@ static int swu_start(struct m0_cm_sw_update *swu)
 
 static int swu_update(struct m0_cm_sw_update *swu)
 {
-	struct m0_cm   *cm = cm_swu2cm(swu);
-	int             rc;
+	struct m0_cm *cm = cm_swu2cm(swu);
+	int           rc;
 
 	m0_cm_lock(cm);
 	rc = m0_cm_sw_local_update(cm);
@@ -144,16 +144,23 @@ static uint64_t cm_swu_fom_locality(const struct m0_fom *fom)
 }
 static int cm_swu_fom_tick(struct m0_fom *fom)
 {
+	struct m0_cm           *cm;
 	struct m0_cm_sw_update *swu;
 	int                     phase = m0_fom_phase(fom);
 	int                     rc;
 
 	swu = cm_fom2swu(fom);
+	cm = cm_swu2cm(swu);
 	rc = swu_action[phase](swu);
 	if (rc < 0) {
 		M0_LOG(M0_WARN, "Sliding window update"
 		      " fom complete with rc: %d", rc);
 		swu->swu_is_complete = true;
+		if (!M0_IN(rc, (-ENOBUFS, -ENOENT, -ENODATA))) {
+			m0_cm_lock(cm);
+			m0_cm_abort(cm, rc);
+			m0_cm_unlock(cm);
+		}
 		m0_fom_phase_move(fom, 0, SWU_FINI);
 		rc = M0_FSO_WAIT;
 	}

@@ -72,7 +72,7 @@ struct m0_sm_state_descr m0_sns_trigger_phases[] = {
 	[M0_SNS_TPH_PREPARE] = {
 		.sd_name      = "Prepare copy machine",
 		.sd_allowed   = M0_BITS(M0_SNS_TPH_READY, M0_FOPH_INIT,
-					M0_FOPH_FAILURE, M0_FOPH_SUCCESS)
+					M0_FOPH_FAILURE, M0_FOPH_SUCCESS, M0_FOPH_FINISH)
 	},
 	[M0_SNS_TPH_READY] = {
 		.sd_name      = "Send ready fops",
@@ -180,20 +180,26 @@ static int prepare(struct m0_fom *fom)
 	if (M0_IN(treq->op, (SNS_REPAIR_QUIESCE, SNS_REBALANCE_QUIESCE))) {
 		/* setting quiesce flag to running copy machine and quit */
 		cm->cm_quiesce = true;
-		m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
 		trigger_rep_set(fom);
-		return M0_FSO_AGAIN;
+		m0_rpc_reply_post(m0_fop_to_rpc_item(fom->fo_fop), m0_fop_to_rpc_item(fom->fo_rep_fop));
+		m0_fom_phase_set(fom, M0_FOPH_FINISH);
+		return M0_FSO_WAIT;
 	}
 
 	cm_state = m0_cm_state_get(cm);
 
 	if (M0_IN(treq->op, (SNS_REPAIR_ABORT, SNS_REBALANCE_ABORT))) {
 		/* setting abort flag */
-		m0_cm_abort(cm);
+		m0_cm_lock(cm);
+		/* Its an explicit abort command, no need to transition cm
+		 * to failed state.*/
+		m0_cm_abort(cm, 0);
+		m0_cm_unlock(cm);
 		M0_LOG(M0_DEBUG, "GOT ABORT cmd");
-		m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
 		trigger_rep_set(fom);
-		return M0_FSO_AGAIN;
+		m0_rpc_reply_post(m0_fop_to_rpc_item(fom->fo_fop), m0_fop_to_rpc_item(fom->fo_rep_fop));
+		m0_fom_phase_set(fom, M0_FOPH_FINISH);
+		return M0_FSO_WAIT;
 	}
 
 	if (M0_IN(treq->op, (SNS_REPAIR_STATUS, SNS_REBALANCE_STATUS))) {
@@ -242,12 +248,12 @@ static int prepare(struct m0_fom *fom)
 				break;
 		}
 
-		m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
 		trep->ssr_state = cm_status;
 		/* TODO: what should be filled as 'progress'? */
 		trep->ssr_progress = progress++;
-		trigger_rep_set(fom);
-		return M0_FSO_AGAIN;
+		m0_rpc_reply_post(m0_fop_to_rpc_item(fom->fo_fop), m0_fop_to_rpc_item(fom->fo_rep_fop));
+		m0_fom_phase_set(fom, M0_FOPH_FINISH);
+		return M0_FSO_WAIT;
 	}
 
 	rc = M0_FSO_AGAIN;
@@ -293,11 +299,14 @@ static int ready(struct m0_fom *fom)
 	} else
 		rc = M0_FSO_AGAIN;
 	rc = m0_cm_ready(cm) ?: rc;
-	if (rc < 0) {
+	if (rc < 0 && rc != -EAGAIN) {
 		if (cm->cm_proxy_nr > 0)
 			m0_cm_wait_cancel(cm, fom);
 		return M0_ERR(rc);
 	}
+	if (rc == -EAGAIN)
+		return M0_FSO_WAIT;
+
 	m0_fom_phase_set(fom, M0_SNS_TPH_START);
 	M0_LOG(M0_DEBUG, "trigger: ready");
 	return rc;
@@ -309,8 +318,13 @@ static int start(struct m0_fom *fom)
 	int           rc;
 
 	rc = m0_cm_start(cm);
+	if (rc == -EAGAIN) {
+		m0_cm_proxies_init_wait(cm, fom);
+		return M0_FSO_WAIT;
+	}
 	if (rc != 0)
-		return M0_RC(rc);
+		return M0_ERR(rc);
+
 	M0_LOG(M0_DEBUG, "trigger: start");
 	trigger_rep_set(fom);
 	m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
@@ -333,7 +347,10 @@ static int trigger_fom_tick(struct m0_fom *fom)
 	if (m0_fom_phase(fom) < M0_FOPH_NR) {
 		cm = trig2cm(fom);
 		if (m0_fom_phase(fom) == M0_FOPH_INIT &&
-			   M0_IN(treq->op, (SNS_REPAIR, SNS_REBALANCE))) {
+			   M0_IN(treq->op, (SNS_REPAIR, SNS_REBALANCE,
+				 SNS_REPAIR_QUIESCE, SNS_REBALANCE_QUIESCE,
+				 SNS_REPAIR_ABORT, SNS_REBALANCE_ABORT,
+				 SNS_REPAIR_STATUS, SNS_REBALANCE_STATUS))) {
 			m0_cm_lock(cm);
 			cm_state = m0_cm_state_get(cm);
 			m0_cm_unlock(cm);
@@ -343,7 +360,10 @@ static int trigger_fom_tick(struct m0_fom *fom)
 			 * and m0_cm_sw_update fom's transactions.
 			 */
 			if (M0_IN(cm_state, (M0_CMS_IDLE, M0_CMS_STOP,
-					     M0_CMS_FAIL))) {
+					     M0_CMS_FAIL)) ||
+			    M0_IN(treq->op, (SNS_REPAIR_QUIESCE, SNS_REBALANCE_QUIESCE,
+					SNS_REPAIR_ABORT, SNS_REBALANCE_ABORT,
+					SNS_REPAIR_STATUS, SNS_REBALANCE_STATUS))) {
 				m0_fom_phase_set(fom, M0_SNS_TPH_PREPARE);
 				return M0_FSO_AGAIN;
 			}

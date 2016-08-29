@@ -868,7 +868,8 @@ M0_INTERNAL void m0_sns_cm_iter_stop(struct m0_sns_cm_iter *it)
 	if (!M0_IN(iter_phase(it), (ITPH_INIT, ITPH_IDLE)))
 		iter_phase_set(it, ITPH_IDLE);
 	if (iter_phase(it) == ITPH_IDLE) {
-		m0_cob_ns_iter_fini(&it->si_cns_it);
+		if (it->si_cns_it.cni_cdom != NULL)
+			m0_cob_ns_iter_fini(&it->si_cns_it);
 		M0_SET0(&it->si_fc);
 	}
 }

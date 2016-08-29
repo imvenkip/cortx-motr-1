@@ -273,7 +273,6 @@ static int cpp_stop(struct m0_cm_cp_pump *cp_pump)
 	}
 	M0_SET0(dtx);
 
-	M0_LOG(M0_DEBUG, "pump stopped.");
 	pump_move(cp_pump, 0, CPP_FINI);
 
 	return M0_FSO_WAIT;
@@ -287,8 +286,7 @@ static int cpp_fail(struct m0_cm_cp_pump *cp_pump)
 
 	cm = pump2cm(cp_pump);
 	m0_cm_lock(cm);
-	m0_cm_fail(cm, m0_fom_rc(&cp_pump->p_fom));
-	m0_cm_abort(cm);
+	m0_cm_abort(cm, m0_fom_rc(&cp_pump->p_fom));
 	m0_cm_unlock(cm);
 	pump_move(cp_pump, 0, CPP_COMPLETE);
 	return M0_FSO_AGAIN;

@@ -216,7 +216,8 @@ static void cm_ready_failure_ut(void)
 	M0_UT_ASSERT(rc == 0);
 	cm_wait_post(cm, &cm_wait_link);
 	rc = m0_cm_ready(cm);
-	M0_UT_ASSERT(rc != 0);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(cm->cm_mach.sm_rc != 0);
 	m0_reqh_idle_wait_for(cm->cm_service.rs_reqh, &cm->cm_service);
 }
 
@@ -233,12 +234,11 @@ static void cm_start_failure_ut(void)
 	rc = m0_cm_prepare(cm);
 	M0_UT_ASSERT(rc == 0);
 	cm_wait_post(cm, &cm_wait_link);
-	//cm_wait_pre(cm, &cm_wait_link);
 	rc = m0_cm_ready(cm);
 	M0_UT_ASSERT(rc == 0);
-	//cm_wait_post(cm, &cm_wait_link);
 	rc = m0_cm_start(cm);
-	M0_UT_ASSERT(rc != 0);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(cm->cm_mach.sm_rc != 0);
 	m0_reqh_idle_wait_for(cm->cm_service.rs_reqh, &cm->cm_service);
 }
 

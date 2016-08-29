@@ -191,19 +191,19 @@ sns_repair_test()
 	disk_state_get $fail_device1 $fail_device2 || return $?
 
 	echo "Start SNS repair again ..."
-	sns_repair || return $?
-	sleep 2
+	# Start repair in background and kill ioservice.
+	sns_repair &
 
 	echo "killing ios4 ..."
 	kill_ios4_ioservice
+
+	#echo "HA notifies that ios4 failed."
+	ha_notify_ios4_failure_or_online $M0_NC_FAILED
 	sleep 2
 
-	echo "ios4 failed, we have to abort SNS repair first"
+	echo "ios4 failed, we have to abort SNS repair"
 	sns_repair_abort
 	sleep 2
-
-	echo "HA notifies that ios4 failed."
-	ha_notify_ios4_failure_or_online $M0_NC_FAILED
 
 	wait_for_sns_repair_or_rebalance_not_4 "repair" || return $?
 
@@ -220,21 +220,31 @@ sns_repair_test()
 	echo "HA notifies that ios4 online."
 	ha_notify_ios4_failure_or_online $M0_NC_ONLINE
 
-# TODO: the following sns repair seems to stuck.
-#	echo "Start SNS repair again ..."
-#	sns_repair || return $?
+	# Currently STs use dummy HA which do not send approriate failure vector.
+	# So inorder to allocate spare after ios restart, we need to transition
+	# to failed state, but after restart device is in repairing state. As we
+	# cannot directly transition a device from repairing to failed state, we
+	# go through chain of device state transitions.
+	disk_state_set "repaired" $fail_device1 $fail_device2 || return $?
+	disk_state_set "rebalancing" $fail_device1 $fail_device2 || return $?
+	disk_state_set "online" $fail_device1 $fail_device2 || return $?
+	disk_state_set "failed" $fail_device1 $fail_device2 || return $?
+	disk_state_set "repairing" $fail_device1 $fail_device2 || return $?
 
-#	echo "wait for sns repair"
-#	wait_for_sns_repair_or_rebalance "repair" || return $?
+	echo "Start SNS repair again ..."
+	sns_repair || return $?
 
-#	echo "query sns repair status"
-#	sns_repair_or_rebalance_status "repair" || return $?
+	echo "wait for sns repair"
+	wait_for_sns_repair_or_rebalance "repair" || return $?
 
-#	disk_state_set "repaired" $fail_device1 $fail_device2 || return $?
-#	echo "SNS Repair done."
-#	verify || return $?
+	echo "query sns repair status"
+	sns_repair_or_rebalance_status "repair" || return $?
 
-#	disk_state_get $fail_device1 $fail_device2 || return $?
+	disk_state_set "repaired" $fail_device1 $fail_device2 || return $?
+	echo "SNS Repair done."
+	verify || return $?
+
+	disk_state_get $fail_device1 $fail_device2 || return $?
 
 	return $?
 }

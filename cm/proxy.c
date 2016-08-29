@@ -194,9 +194,10 @@ M0_INTERNAL void m0_cm_proxy_update(struct m0_cm_proxy *pxy,
 			 pxy->px_status, (unsigned)cm->cm_proxy_init_updated);
 
 	m0_mutex_lock(&pxy->px_mutex);
+
 	switch (pxy->px_status) {
 	case M0_PX_INIT :
-		if (px_status == M0_PX_READY && m0_cm_is_ready(cm)) {
+		if (px_status == M0_PX_READY) {
 			pxy->px_epoch = px_epoch;
 			/*
 			 * Here we select the minimum of the sliding window
@@ -210,15 +211,15 @@ M0_INTERNAL void m0_cm_proxy_update(struct m0_cm_proxy *pxy,
 				cm->cm_sw_last_updated_hi = *hi;
 			}
 			M0_CNT_INC(cm->cm_proxy_init_updated);
+			M0_SET0(&sw);
+			sw.sw_hi = cm->cm_sw_last_persisted_hi;
+			pxy->px_status = px_status;
 			/*
 			 * Notify copy machine on receiving initial updates
 			 * from all the remote replicas.
 			 */
-			if (cm->cm_proxy_init_updated == cm->cm_proxy_nr)
+			if (m0_cm_is_ready(cm) && cm->cm_proxy_init_updated == cm->cm_proxy_nr)
 				m0_cm_notify(cm);
-			M0_SET0(&sw);
-			sw.sw_hi = cm->cm_sw_last_persisted_hi;
-			pxy->px_status = px_status;
 		}
 		break;
 	case M0_PX_READY:
@@ -284,29 +285,36 @@ static void proxy_sw_onwire_ast_cb(struct m0_sm_group *grp,
 			 proxy->px_endpoint, cm->cm_aggr_grps_in_nr);
 	ID_LOG("proxy last updated hi", &proxy->px_last_sw_onwire_sent.sw_hi);
 
+	M0_CNT_DEC(proxy->px_nr_updates_posted);
 	if (!cm->cm_done || !M0_IN(proxy->px_status, (M0_PX_STOP, M0_PX_FAILED))) {
 		m0_cm_proxy_remote_update(proxy, &sw);
 	} else {
-		proxy->px_is_done = true;
-		if (proxy->px_status != M0_PX_FAILED) {
-			/* Send one final notification to the proxy. */
-			m0_cm_proxy_remote_update(proxy, &sw);
+		if (proxy->px_nr_updates_posted == 0) {
+			proxy->px_is_done = true;
+			if (proxy->px_status != M0_PX_FAILED) {
+				/* Send one final notification to the proxy. */
+				m0_cm_proxy_remote_update(proxy, &sw);
+			}
+			M0_CNT_DEC(cm->cm_proxy_nr);
+			m0_cm_notify(cm);
 		}
-		M0_CNT_DEC(cm->cm_proxy_nr);
 	}
 	/*
 	 * Handle service/node failure during sns-repair/rebalance.
 	 * Cannot send updates to dead proxy, all the aggregation groups,
 	 * frozen on that proxy must be destroyed.
 	 */
-	if (proxy->px_status == M0_PX_FAILED) {
+	if (proxy->px_status == M0_PX_FAILED && m0_cm_state_get(cm) != M0_CMS_FAIL) {
 		m0_mutex_lock(&proxy->px_mutex);
 		__wake_up_pending_cps(proxy);
 		m0_mutex_unlock(&proxy->px_mutex);
-		m0_cm_fail(cm, -EHOSTDOWN);
-		m0_cm_abort(cm);
+		/* Here we have already received notification from HA about
+		 * the proxy failure and might receive explicit abort command as well.
+		 * So no need to transition cm to FAILED state, just aborting the
+		 * operation would suffice.
+		 */
+		m0_cm_abort(cm, 0);
 		m0_cm_frozen_ag_cleanup(cm, proxy);
-		m0_cm_notify(cm);
 	}
 }
 
@@ -321,7 +329,6 @@ static void proxy_sw_onwire_item_sent_cb(struct m0_rpc_item *item)
 	proxy = swu_fop->pso_proxy;
 	M0_ASSERT(m0_cm_proxy_bob_check(proxy));
 	proxy->px_sw_onwire_ast.sa_cb = proxy_sw_onwire_ast_cb;
-	M0_LOG(M0_DEBUG, "Posting ast for %s", proxy->px_endpoint);
 	m0_sm_ast_post(&proxy->px_cm->cm_sm_group, &proxy->px_sw_onwire_ast);
 	m0_cm_ast_run_fom_wakeup(proxy->px_cm);
 
@@ -332,7 +339,7 @@ const struct m0_rpc_item_ops proxy_sw_onwire_item_ops = {
 	.rio_sent = proxy_sw_onwire_item_sent_cb
 };
 
-static void cm_proxy_sw_onwire_post(const struct m0_cm_proxy *proxy,
+static void cm_proxy_sw_onwire_post(struct m0_cm_proxy *proxy,
 				    struct m0_fop *fop,
 				    const struct m0_rpc_conn *conn,
 				    m0_time_t deadline)
@@ -348,6 +355,7 @@ static void cm_proxy_sw_onwire_post(const struct m0_cm_proxy *proxy,
 	item->ri_prio     = M0_RPC_ITEM_PRIO_MID;
 	item->ri_deadline = deadline;
 
+	M0_CNT_INC(proxy->px_nr_updates_posted);
 	m0_rpc_oneway_item_post(conn, item);
 }
 

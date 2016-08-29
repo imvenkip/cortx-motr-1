@@ -586,6 +586,8 @@ M0_INTERNAL int m0_sns_cm_prepare(struct m0_cm *cm)
 	scm->sc_ibp_reserved_nr = 0;
 
 	rc = m0_sns_cm_ag_iter_init(&scm->sc_ag_it);
+	scm->sc_total_read_size = NULL;
+	scm->sc_total_write_size = NULL;
 
 	M0_LEAVE();
 	return M0_RC(rc);

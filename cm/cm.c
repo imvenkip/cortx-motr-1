@@ -658,13 +658,17 @@ static void cm_replicas_destroy(struct m0_cm *cm)
 	} m0_tl_endfor;
 }
 
-static void cm_pre_start_cleanup(struct m0_cm *cm)
+static int cm_pre_start_cleanup(struct m0_cm *cm)
 {
-	m0_cm_ag_store_fini(&cm->cm_ag_store);
+	int rc;
+
+	rc = m0_cm_complete(cm);
+	if (rc == -EAGAIN)
+		return rc;
 	m0_cm_unlock(cm);
 	m0_cm_stop(cm);
 	m0_cm_lock(cm);
-	cm_replicas_destroy(cm);
+	return 0;
 }
 
 M0_INTERNAL struct m0_rpc_machine *m0_cm_rpc_machine_find(struct m0_reqh *reqh)
@@ -726,15 +730,19 @@ M0_INTERNAL int m0_cm_ready(struct m0_cm *cm)
 	M0_PRE(m0_cm_invariant(cm));
 
 	cm_ast_run_fom_init(cm);
+	rc = cm_rc(cm);
 	if (M0_FI_ENABLED("ready_failure"))
 		rc = -EINVAL;
-	else
+	if (rc == 0) {
 		rc = m0_cm_sw_remote_update(cm);
+		if (rc == 0)
+			m0_cm_state_set(cm, M0_CMS_READY);
+	}
+
 	if (rc != 0) {
-		m0_cm_fail(cm, rc);
-		cm_pre_start_cleanup(cm);
-	} else
-		m0_cm_state_set(cm, M0_CMS_READY);
+		m0_cm_abort(cm, rc);
+		rc = cm_pre_start_cleanup(cm);
+	}
 	m0_cm_unlock(cm);
 
 	M0_LEAVE("rc: %d", rc);
@@ -776,8 +784,8 @@ M0_INTERNAL int m0_cm_start(struct m0_cm *cm)
 	}
 
 	if (rc != 0) {
-		m0_cm_fail(cm, rc);
-		cm_pre_start_cleanup(cm);
+		m0_cm_abort(cm, rc);
+		rc = cm_pre_start_cleanup(cm);
 	}
 
 	M0_POST(m0_cm_invariant(cm));
@@ -1125,9 +1133,16 @@ M0_INTERNAL void m0_cm_proxy_failed_cleanup(struct m0_cm *cm)
 	} m0_tl_endfor;
 }
 
-M0_INTERNAL void m0_cm_abort(struct m0_cm *cm)
+M0_INTERNAL void m0_cm_abort(struct m0_cm *cm, int rc)
 {
-	cm->cm_abort = true;
+	M0_PRE(m0_cm_is_locked(cm));
+	if (M0_IN(m0_cm_state_get(cm), (M0_CMS_PREPARE, M0_CMS_READY,
+					M0_CMS_ACTIVE))) {
+		cm->cm_abort = true;
+		if (rc < 0)
+			m0_cm_fail(cm, rc);
+	}
+	m0_cm_notify(cm);
 }
 
 #undef M0_TRACE_SUBSYSTEM
