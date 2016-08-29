@@ -547,8 +547,8 @@ M0_INTERNAL int m0_rpc_conn_ha_subscribe(struct m0_rpc_conn *conn,
 
 	M0_ENTRY("conn %p, svc_fid "FID_F, conn, FID_P(svc_fid));
 	M0_PRE(_0C(conn != NULL) && _0C(svc_fid != NULL));
-	M0_PRE(_0C(!m0_fid_is_set(&conn->c_svc_fid)) ||
-	       _0C(m0_fid_eq(&conn->c_svc_fid, svc_fid)));
+	M0_PRE(!m0_fid_is_set(&conn->c_svc_fid) ||
+	       m0_fid_eq(&conn->c_svc_fid, svc_fid));
 
 	if (M0_IN(conn_state(conn), (M0_RPC_CONN_ACTIVE))) {
 
