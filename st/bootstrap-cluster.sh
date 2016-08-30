@@ -34,8 +34,8 @@ configure_fre7n1() {
 
 configure_hvt() {
 	HOSTS_LIST="172.16.0.41,172.16.1.[1-6]"
-	CLIENTS_LIST=""
-	HALOND_TS="172.16.1.1"
+	CLIENTS_LIST="172.16.1.1"
+	HALOND_TS="172.16.1.3"
 	HALON_FACTS_FUNC="halon_facts_yaml_hvt"
 }
 
@@ -51,7 +51,7 @@ configure_common() {
 	HALOND_NODES="$HOSTS_LIST"
 	HALOND_SAT="$HOSTS_LIST"
 	HALOND_TS_NET_IF="bond1"
-	HALOND_NET_IFS="bond1|em1|enp12s0d1"
+	HALOND_NET_IFS="bond1|em1|enp12s0d1|eth1"
 	HALOND_PORT=9000
 	HALONCTL_PORT=9001
 	HALOND_LOG=/tmp/halond.log
@@ -97,7 +97,7 @@ run_command() {
 	"start_halon")
 		$PDSH rm -rvf halon-persistence
 		pdsh -w $HALOND_NODES \
-			"IP=\$(ip -o -4 addr show | egrep '$HALOND_NET_IFS' | \
+			"IP=\$(ip -o -4 addr show | egrep '$HALOND_NET_IFS' | sort -k2 | head -n1 | \
 			awk -F '[ /]+' '{print \$4}'); \
 			halond -l \$IP:$HALOND_PORT +RTS -s -A16m -RTS >& $HALOND_LOG &"
 		sleep 3
@@ -109,7 +109,7 @@ run_command() {
 			bootstrap station -r 30000000
 		sleep 3
 		pdsh -w $HALOND_SAT \
-			"IP=\$(ip -o -4 addr show | egrep '$HALOND_NET_IFS' | \
+			"IP=\$(ip -o -4 addr show | egrep '$HALOND_NET_IFS' | sort -k2 | head -n1 | \
 			awk -F '[ /]+' '{print \$4}'); \
 			halonctl -l \$IP:$HALONCTL_PORT -a \$IP:$HALOND_PORT \
 			bootstrap satellite -t $TS_IP:$HALOND_PORT"
