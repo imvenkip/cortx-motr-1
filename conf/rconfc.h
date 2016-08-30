@@ -204,7 +204,6 @@ enum m0_rconfc_state {
 	RCS_FINAL
 };
 
-#if 1 /* XXX HA re-link */
 struct rconfc_load_ctx {
 	struct m0_sm_group rx_grp;
 	struct rconfc_load_ast {
@@ -213,7 +212,6 @@ struct rconfc_load_ctx {
 	}                  rx_ast;
 	int                rx_rc;
 };
-#endif /* XXX HA re-link */
 
 /**
  * Rconfc expiration callback is called when rconfc election happens. On the
@@ -351,13 +349,11 @@ struct m0_rconfc {
 	 */
 	char                     *rc_local_conf;
 
-#if 1 /* XXX HA re-link */
 	struct m0_fid            *rc_profile;
 	struct m0_tl              rc_ha_list;
 	struct rconfc_load_ctx    rc_rx;
 	struct m0_sm_ast          rc_load_ast;
 	struct m0_sm_ast          rc_load_fini_ast;
-#endif /* XXX HA re-link */
 	struct m0_ha_entrypoint_rep rc_ha_entrypoint_rep;
 };
 

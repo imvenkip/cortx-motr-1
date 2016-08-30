@@ -561,55 +561,6 @@ static void test_confc_ctx_block(void)
 	ut_mero_stop(&mach, &rctx);
 }
 
-static void test_reconnect_fail(void)
-{
-	struct m0_rpc_machine    mach;
-	struct m0_rpc_server_ctx rctx;
-	int                      rc;
-	struct m0_rconfc         rconfc;
-	uint64_t                 ver;
-	struct m0_conf_obj      *cobj;
-
-#if 1
- /* XXX HA re-link
-  *
-  * "recon-fail" test is to break rpc communication during conf read. Test is
-  * impossible due to full conf load, as no reading occurs under the
-  * circumstances.
-  *
-  * It needs to be restored when the hack is not needed anymore.
-  */
-	m0_fi_disable("on_replied", "fail_rpc_reply");
-	return;
-#endif
-
-	rc = ut_mero_start(&mach, &rctx);
-	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, test_null_exp_cb,
-			    NULL);
-	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_start_sync(&rconfc, &profile);
-	M0_UT_ASSERT(rc == 0);
-	ver = m0_rconfc_ver_max_read(&rconfc);
-	M0_UT_ASSERT(ver == rconfc.rc_ver);
-	/*
-	 * Inject rpc failure on communicating with confd. This will cause
-	 * rconfc reconnection when no other confd is known, i.e. no more confd
-	 * to reconnect to. This will ultimately result in -ENOENT error code.
-	 */
-	m0_fi_enable_off_n_on_m("on_replied", "fail_rpc_reply", 0, 1);
-	/* do regular path opening with disconnected confc */
-	rc = m0_confc_open_sync(&cobj, rconfc.rc_confc.cc_root,
-				M0_CONF_ROOT_PROFILES_FID,
-				m0_ut_conf_fids[M0_UT_CONF_PROF],
-				M0_CONF_PROFILE_FILESYSTEM_FID);
-	M0_UT_ASSERT(rc == -ENOENT);
-	m0_fi_disable("on_replied", "fail_rpc_reply");
-	m0_rconfc_stop_sync(&rconfc);
-	m0_rconfc_fini(&rconfc);
-	ut_mero_stop(&mach, &rctx);
-}
-
 static int _skip(struct m0_confc *confc)
 {
 	m0_fi_disable("on_replied", "fail_rpc_reply");
@@ -648,6 +599,7 @@ static void test_reconnect_success(void)
 	M0_UT_ASSERT(rc == 0);
 	m0_confc_close(cobj);
 	m0_fi_disable("skip_confd_st_in", "force_reconnect_success");
+	m0_fi_disable("on_replied", "fail_rpc_reply");
 	m0_rconfc_stop_sync(&rconfc);
 	m0_rconfc_fini(&rconfc);
 	ut_mero_stop(&mach, &rctx);
@@ -903,7 +855,6 @@ struct m0_ut_suite rconfc_ut = {
 		{ "cache-drop", test_cache_drop },
 		{ "ctx-block",  test_confc_ctx_block },
 		{ "reconnect",  test_reconnect_success },
-		{ "recon-fail", test_reconnect_fail },
 		/*
 		 * Temporary disabled because now rconfc entrypoint request
 		 * can't fail. Will be fixed somehow in MERO-1774 patch.

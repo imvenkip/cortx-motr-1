@@ -299,18 +299,6 @@ M0_INTERNAL void m0_clink_del_lock(struct m0_clink *link)
 }
 M0_EXPORTED(m0_clink_del_lock);
 
-M0_INTERNAL struct m0_clink *m0_chan_pop(struct m0_chan *chan)
-{
-	struct m0_clink *link;
-
-	link = clink_tlist_pop(&chan->ch_links);
-	if (link != NULL) {
-		M0_CNT_DEC(chan->ch_waiters);
-		link->cl_chan = NULL;
-	}
-	return link;
-}
-
 M0_INTERNAL bool m0_clink_is_armed(const struct m0_clink *link)
 {
 	return link->cl_chan != NULL &&

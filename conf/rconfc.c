@@ -2083,13 +2083,6 @@ static void rconfc_version_elected(struct m0_sm_group *grp,
 	if (rc != 0) {
 		rconfc_fail(rconfc, rc);
 	} else {
-#if 1 /* XXX HA re-link */
-		/*
-		 * Here we are to do the trick with restoring HA subscriptions
-		 * per object fids collected in rcnf_ha list. To be able to find
-		 * the objects, the full configuration is to be loaded.
-		 * (see rconfc_conf_full_load() for trick completion)
-		 */
 		M0_SET0(&rconfc->rc_rx);
 		M0_SET0(&rconfc->rc_load_ast);
 		M0_SET0(&rconfc->rc_load_fini_ast);
@@ -2111,9 +2104,6 @@ static void rconfc_version_elected(struct m0_sm_group *grp,
 		 */
 		rconfc_load_ast_thread_init(&rconfc->rc_rx);
 		m0_sm_ast_post(&rconfc->rc_rx.rx_grp, &rconfc->rc_load_ast);
-#else /* XXX HA re-link */
-		rconfc_idle(rconfc);
-#endif /* XXX HA re-link */
 	}
 	M0_LEAVE();
 }
