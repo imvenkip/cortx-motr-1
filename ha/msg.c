@@ -60,7 +60,7 @@ M0_INTERNAL bool m0_ha_msg_eq(const struct m0_ha_msg *msg1,
 }
 
 M0_INTERNAL void m0_ha_msg_debug_print(const struct m0_ha_msg *msg,
-                                       const char             *prefix)
+				       const char             *prefix)
 {
 	const struct m0_ha_msg_data *data     = &msg->hm_data;
 	uint32_t                     ha_state;
@@ -144,6 +144,12 @@ M0_INTERNAL void m0_ha_msg_debug_print(const struct m0_ha_msg *msg,
 		M0_LOG(M0_DEBUG, "EVENT_RPC state=%"PRIu64" attempts=%"PRIu64,
 		       data->u.hed_event_rpc.hmr_state,
 		       data->u.hed_event_rpc.hmr_attempts);
+		return;
+	case M0_HA_MSG_BE_IO_ERR:
+		M0_LOG(M0_DEBUG, "BE_IO_ERR ber_errcode=%d ber_location=%u"
+		       " ber_io_opcode=%u", data->u.hed_be_io_err.ber_errcode,
+		       data->u.hed_be_io_err.ber_location,
+		       data->u.hed_be_io_err.ber_io_opcode);
 		return;
 	case M0_HA_MSG_NR:
 		M0_LOG(M0_WARN, "invalid M0_HA_MSG_NR type");

@@ -35,6 +35,7 @@
 #include "stob/io.h"             /* m0_stob_iovec_sort */
 
 #include "be/op.h"               /* m0_be_op_active */
+#include "be/ha.h"               /* m0_be_io_err_send */
 
 /**
  * @addtogroup be
@@ -689,16 +690,19 @@ M0_INTERNAL int m0_be_io_single(struct m0_stob         *stob,
 	int             rc;
 
 	rc = m0_be_io_init(&bio);
+	if (rc != 0)
+		goto out;
+	rc = m0_be_io_allocate(&bio, &M0_BE_IO_CREDIT(1, size, 1));
 	if (rc == 0) {
-		rc = m0_be_io_allocate(&bio, &M0_BE_IO_CREDIT(1, size, 1));
-		if (rc == 0) {
-			m0_be_io_add(&bio, stob, ptr_user, offset_stob, size);
-			m0_be_io_configure(&bio, opcode);
-			rc = M0_BE_OP_SYNC_RC(op, m0_be_io_launch(&bio, &op));
-			m0_be_io_deallocate(&bio);
-		}
-		m0_be_io_fini(&bio);
+		m0_be_io_add(&bio, stob, ptr_user, offset_stob, size);
+		m0_be_io_configure(&bio, opcode);
+		rc = M0_BE_OP_SYNC_RC(op, m0_be_io_launch(&bio, &op));
+		m0_be_io_deallocate(&bio);
 	}
+	m0_be_io_fini(&bio);
+out:
+	if (rc != 0)
+		m0_be_io_err_send(rc, M0_BE_LOC_NONE, opcode);
 	return M0_RC(rc);
 }
 

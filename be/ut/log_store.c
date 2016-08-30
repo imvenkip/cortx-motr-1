@@ -79,7 +79,8 @@ be_ut_log_store_io_read(struct m0_be_log_store *ls, char *buf, m0_bcount_t size)
 	m0_be_io_add(&bio, ls->ls_stob, buf, 0, size);
 	m0_be_io_configure(&bio, SIO_READ);
 
-	M0_BE_OP_SYNC(op, m0_be_io_launch(&bio, &op));
+	rc = M0_BE_OP_SYNC(op, m0_be_io_launch(&bio, &op));
+	M0_UT_ASSERT(rc == 0);
 
 	m0_be_io_deallocate(&bio);
 	m0_be_io_fini(&bio);
@@ -105,8 +106,11 @@ be_ut_log_store_rand_cr(struct m0_be_io_credit *cr, m0_bcount_t size)
 
 static void be_ut_log_store_io_write_sync(struct m0_be_io *bio)
 {
+	int rc;
+
 	m0_be_io_configure(bio, SIO_WRITE);
-	M0_BE_OP_SYNC(op, m0_be_io_launch(bio, &op));
+	rc = M0_BE_OP_SYNC(op, m0_be_io_launch(bio, &op));
+	M0_UT_ASSERT(rc == 0);
 }
 
 static void
@@ -720,7 +724,7 @@ static void be_ut_log_store_rbuf(struct m0_be_log_store *ls,
 	     lio = m0_be_log_store_rbuf_io_next(ls, io_type, NULL, &iter_r)) {
 		lio_arr[i++] = lio;
 	}
-	M0_UT_ASSERT(i = nr_lio_read);
+	M0_UT_ASSERT(i == nr_lio_read);
 	be_ut_log_store_io_intersect_check(lio_arr, nr_lio_read);
 	m0_free(lio_arr);
 }

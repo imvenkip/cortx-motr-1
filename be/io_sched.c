@@ -202,9 +202,7 @@ M0_INTERNAL void m0_be_io_sched_add(struct m0_be_io_sched *sched,
 	be_io_sched_launch_next(sched);
 }
 
-
 #undef M0_TRACE_SUBSYSTEM
-
 /** @} end of be group */
 
 /*

@@ -56,7 +56,6 @@ struct m0_stob_ioq_error {
 	uint32_t               sie_bshift;
 } M0_XCA_RECORD;
 
-
 /** @} end of stob group */
 #endif /* __MERO_STOB_IOQ_ERROR_H__ */
 

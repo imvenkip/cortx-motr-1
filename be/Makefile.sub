@@ -10,6 +10,7 @@ nobase_mero_include_HEADERS += \
                                be/extmap_internal.h \
                                be/fl.h              \
 			       be/fmt.h		    \
+                               be/ha.h              \
                                be/io.h              \
                                be/io_sched.h        \
                                be/list.h            \
@@ -45,6 +46,7 @@ mero_libmero_la_SOURCES += be/alloc.c           \
 			   be/extmap.c          \
                            be/fl.c              \
 			   be/fmt.c		\
+                           be/ha.c              \
 			   be/io.c              \
 			   be/io_sched.c        \
 			   be/list.c            \
@@ -71,11 +73,13 @@ mero_libmero_la_SOURCES += be/alloc.c           \
 
 nodist_mero_libmero_la_SOURCES  += \
 			   be/extmap_xc.c \
-			   be/fmt_xc.c\
+			   be/fmt_xc.c \
+			   be/ha_xc.c \
 			   be/tx_xc.c
 
 XC_FILES += be/extmap_xc.h \
 	    be/fmt_xc.h	   \
+            be/ha_xc.h     \
 	    be/tx_xc.h
 
 EXTRA_DIST += be/linux_kernel/stubs.c

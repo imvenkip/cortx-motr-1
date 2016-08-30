@@ -25,6 +25,7 @@
 #include "be/log.h"
 #include "be/fmt.h"
 #include "be/op.h"              /* m0_be_op */
+#include "be/ha.h"              /* m0_be_io_err_send */
 
 #include "lib/arith.h"          /* m0_align */
 #include "lib/errno.h"          /* ENOENT */
@@ -1005,7 +1006,7 @@ static int be_log_read_plain(struct m0_be_log *log,
 	be_log_io_credit(log, &iocred);
 	rc = m0_be_io_init(&bio);
 	if (rc != 0)
-		return rc;
+		goto out;
 	rc = m0_be_io_allocate(&bio, &iocred);
 	if (rc == 0) {
 		m0_be_io_add_nostob(&bio, out, 0, size);
@@ -1016,7 +1017,9 @@ static int be_log_read_plain(struct m0_be_log *log,
 		m0_be_io_deallocate(&bio);
 	}
 	m0_be_io_fini(&bio);
-
+out:
+	if (rc != 0)
+		m0_be_io_err_send(rc, M0_BE_LOC_LOG, SIO_READ);
 	return rc;
 }
 

@@ -40,10 +40,11 @@
 #include "mero/keepalive.h"     /* m0_ha_msg_keepalive_req */
 #include "conf/ha.h"            /* m0_conf_ha_process */
 #include "rpc/ha.h"             /* m0_rpc_ha_msg */
+#include "be/ha.h"              /* m0_be_io_err */
 
 /*
- * XXX next two are workarounds because *_xc.h file generator can't
- * handle dependencies, so we need to specify them manually in .h
+ * XXX The generator of *_xc.h files cannot handle dependencies, so we have
+ * to specify them manually.
  */
 #include "stob/ioq_error_xc.h"  /* workaround */
 #include "lib/types_xc.h"       /* m0_uint128_xc */
@@ -53,6 +54,7 @@
 #include "mero/keepalive_xc.h"  /* m0_ha_msg_keepalive_req_xc */
 #include "conf/ha_xc.h"         /* m0_conf_ha_process_xc */
 #include "rpc/ha_xc.h"          /* m0_rpc_ha_msg_xc */
+#include "be/ha_xc.h"           /* m0_be_io_err_xc */
 
 enum {
 	M0_HA_MSG_FAILURE_VEC_LIMIT = 1024,
@@ -75,6 +77,7 @@ enum m0_ha_msg_type {
 	M0_HA_MSG_EVENT_PROCESS,
 	M0_HA_MSG_EVENT_SERVICE,
 	M0_HA_MSG_EVENT_RPC,
+	M0_HA_MSG_BE_IO_ERR,
 	M0_HA_MSG_NR,
 };
 
@@ -88,19 +91,21 @@ struct m0_ha_msg_data {
 		struct m0_ha_msg_nvec2   hed_nvec2
 					M0_XCA_TAG("M0_HA_MSG_NVEC");
 		struct m0_ha_msg_failure_vec_req hed_fvec_req
-			                M0_XCA_TAG("M0_HA_MSG_FAILURE_VEC_REQ");
+					M0_XCA_TAG("M0_HA_MSG_FAILURE_VEC_REQ");
 		struct m0_ha_msg_failure_vec_rep hed_fvec_rep
-			                M0_XCA_TAG("M0_HA_MSG_FAILURE_VEC_REP");
-		struct m0_ha_msg_keepalive_req hed_keepalive_req
-			                M0_XCA_TAG("M0_HA_MSG_KEEPALIVE_REQ");
-		struct m0_ha_msg_keepalive_rep hed_keepalive_rep
-			                M0_XCA_TAG("M0_HA_MSG_KEEPALIVE_REP");
-		struct m0_conf_ha_process      hed_event_process
-			                M0_XCA_TAG("M0_HA_MSG_EVENT_PROCESS");
-		struct m0_conf_ha_service      hed_event_service
-			                M0_XCA_TAG("M0_HA_MSG_EVENT_SERVICE");
-		struct m0_ha_msg_rpc           hed_event_rpc
-			                M0_XCA_TAG("M0_HA_MSG_EVENT_RPC");
+					M0_XCA_TAG("M0_HA_MSG_FAILURE_VEC_REP");
+		struct m0_ha_msg_keepalive_req   hed_keepalive_req
+					M0_XCA_TAG("M0_HA_MSG_KEEPALIVE_REQ");
+		struct m0_ha_msg_keepalive_rep   hed_keepalive_rep
+					M0_XCA_TAG("M0_HA_MSG_KEEPALIVE_REP");
+		struct m0_conf_ha_process        hed_event_process
+					M0_XCA_TAG("M0_HA_MSG_EVENT_PROCESS");
+		struct m0_conf_ha_service        hed_event_service
+					M0_XCA_TAG("M0_HA_MSG_EVENT_SERVICE");
+		struct m0_ha_msg_rpc             hed_event_rpc
+					M0_XCA_TAG("M0_HA_MSG_EVENT_RPC");
+		struct m0_be_io_err              hed_be_io_err
+					M0_XCA_TAG("M0_HA_MSG_BE_IO_ERR");
 	} u;
 } M0_XCA_UNION;
 

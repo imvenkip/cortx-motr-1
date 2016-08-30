@@ -36,8 +36,6 @@
 
 #include "lib/types_xc.h"       /* m0_uint128_xc */
 
-struct m0_ha_msg;
-
 struct m0_ha_msg_keepalive_req {
 	struct m0_uint128 kaq_id;
 } M0_XCA_RECORD;

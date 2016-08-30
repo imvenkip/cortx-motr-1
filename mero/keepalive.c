@@ -18,11 +18,10 @@
  * Original creation date: 17-Jun-2016
  */
 
-
 /**
  * @addtogroup mero-keepalive
  *
- * TODO s/container_of/bob_of/g
+ * TODO s/M0_AMB/bob_of/g
  *
  * @{
  */
@@ -33,7 +32,6 @@
 #include "mero/keepalive.h"
 
 #include "lib/memory.h" /* M0_ALLOC_PTR */
-#include "lib/misc.h"   /* container_of */
 #include "lib/time.h"   /* m0_time_now */
 #include "ha/msg.h"     /* m0_ha_msg */
 #include "ha/ha.h"      /* m0_ha_send */
@@ -49,7 +47,7 @@ static void ha_keepalive_msg_received_cb(struct m0_ha_handler *hh,
 	struct m0_ha_msg               *rep;
 	uint64_t                        tag_rep;
 
-	ka = container_of(hh, struct m0_ha_keepalive_handler, kah_handler);
+	ka = M0_AMB(ka, hh, kah_handler);
 	M0_ASSERT(ka == data);
 
 	if (msg->hm_data.hed_type != M0_HA_MSG_KEEPALIVE_REQ)

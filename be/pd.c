@@ -39,6 +39,7 @@
 
 #include "be/op.h"              /* m0_be_op */
 #include "be/pool.h"            /* m0_be_pool_item */
+#include "be/ha.h"              /* m0_be_io_err_send */
 
 #include "mero/magic.h"         /* M0_BE_PD_IO_MAGIC */
 
@@ -197,6 +198,8 @@ static void be_pd_sync_run(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	pd->bpd_sync_prev    = now - pd->bpd_sync_prev;
 
 	rc = M0_BE_OP_SYNC_RC(op, m0_be_io_launch(&pd->bpd_sync_io, &op));
+	if (rc != 0)
+		m0_be_io_err_send(rc, M0_BE_LOC_NONE, SIO_SYNC);
 
 	now = m0_time_now();
 	pd->bpd_sync_runtime = now - pd->bpd_sync_runtime;
