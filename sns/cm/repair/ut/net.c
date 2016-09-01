@@ -81,6 +81,7 @@ static struct m0_net_xprt   *xprt = &m0_net_lnet_xprt;
 static struct m0_semaphore   sem;
 static struct m0_semaphore   cp_sem;
 static struct m0_semaphore   read_cp_sem;
+static struct m0_semaphore   write_cp_sem;
 
 static const char client_addr[] = "0@lo:12345:34:2";
 static const char server_addr[] = "0@lo:12345:34:1";
@@ -141,7 +142,16 @@ static uint64_t cp_single_get(const struct m0_cm_aggr_group *ag)
 
 static void cp_ag_fini(struct m0_cm_aggr_group *ag)
 {
+	struct m0_sns_cm_repair_ag *rag = sag2repairag(ag2snsag(ag));
+
 	M0_PRE(ag != NULL);
+
+	/*
+	 * We wait until accumulator write is complete, before proceeding
+	 * for read.
+	 */
+	if (rag->rag_acc_inuse_nr > 0)
+		m0_semaphore_up(&write_cp_sem);
 
 	m0_cm_aggr_group_fini(ag);
 }
@@ -398,6 +408,11 @@ static void read_and_verify()
 {
 	char data;
 
+	M0_SET0(&r_rag);
+	M0_SET0(&r_sns_cp);
+	M0_SET0(&r_buf);
+	M0_SET0(&r_nbp);
+
 	m0_semaphore_init(&read_cp_sem, 0);
 
 	ag_setup(&r_rag.rag_base, recv_cm);
@@ -486,7 +501,10 @@ static void cm_ready(struct m0_cm *cm)
 
 static void receiver_init()
 {
-	int                       rc;
+	int rc;
+
+	M0_SET0(&rag);
+	M0_SET0(&fctx);
 
 	rc = m0_cm_type_register(&sender_cm_cmt);
 	M0_UT_ASSERT(rc == 0);
@@ -638,18 +656,6 @@ void sender_service_alloc_init()
 
 M0_TL_DECLARE(proxy_cp, M0_EXTERN, struct m0_cm_cp);
 
-/*
-static void cp_cm_proxy_init(struct m0_cm_proxy *proxy, const char *endpoint)
-{
-	proxy->px_sw.sw_lo = ag_id;
-	proxy->px_sw.sw_hi = ag_id;
-	proxy->px_endpoint = endpoint;
-	proxy_tlink_init(proxy);
-	proxy_cp_tlist_init(&proxy->px_pending_cps);
-	m0_mutex_init(&proxy->px_mutex);
-}
-*/
-
 static void sender_ag_create()
 {
 	struct m0_sns_cm_ag  *sag;
@@ -688,6 +694,15 @@ static void sender_init()
 	int                   rc;
 
 	M0_SET0(&rmach_ctx);
+	M0_SET0(&sender_cm);
+	M0_SET0(&sender_cm_cp);
+	M0_SET0(&s_rag);
+	M0_SET0(&s_sns_cp);
+	M0_SET0(&nbp);
+	M0_SET0(&conn);
+	M0_SET0(&session);
+
+
 	rmach_ctx.rmc_cob_id.id = DUMMY_COB_ID;
 	rmach_ctx.rmc_dbname    = DUMMY_DBNAME;
 	rmach_ctx.rmc_ep_addr   = DUMMY_SERVER_ADDR;
@@ -842,6 +857,7 @@ static void test_cp_send_recv_verify()
 
 	m0_semaphore_init(&sem, 0);
 	m0_semaphore_init(&cp_sem, 0);
+	m0_semaphore_init(&write_cp_sem, 0);
 
 	sag = &s_rag.rag_base;
 	pm.pm_pver = &pv;
@@ -887,6 +903,7 @@ static void test_cp_send_recv_verify()
 	/* Wait till ast gets posted. */
 	m0_semaphore_down(&sem);
 	m0_semaphore_down(&cp_sem);
+	m0_semaphore_down(&write_cp_sem);
 	sleep(STOB_UPDATE_DELAY);
 
 	read_and_verify();
@@ -896,6 +913,8 @@ static void test_cp_send_recv_verify()
         while (m0_net_buffer_pool_prune(&nbp))
         {;}
         m0_net_buffer_pool_unlock(&nbp);
+
+	m0_semaphore_fini(&write_cp_sem);
 
 	test_fini();
 
