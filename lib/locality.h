@@ -142,6 +142,9 @@ int   m0_locality_data_alloc(size_t nob, int (*ctor)(void *, void *),
 			     void (*dtor)(void *, void *), void *datum);
 void  m0_locality_data_free (int key);
 void *m0_locality_data      (int key);
+void  m0_locality_data_iterate(int key,
+			       void (*func)(int idx, void *data, void *datum),
+			       void *datum);
 
 int m0_locality_call(struct m0_locality *loc, int (*cb)(void *), void *data);
 

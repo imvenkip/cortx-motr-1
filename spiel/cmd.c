@@ -22,14 +22,17 @@
 #include "lib/trace.h"
 #include "lib/finject.h"        /* M0_FI_ENABLED */
 
-#include "conf/obj_ops.h"       /* m0_conf_obj_get */
-#include "conf/preload.h"       /* m0_confx_string_free */
-#include "fid/fid_list.h"       /* m0_fid_item */
-#include "rpc/rpclib.h"         /* m0_rpc_post_with_timeout_sync */
-#include "sns/cm/trigger_fop.h" /* trigger_fop */
-#include "sss/device_fops.h"    /* m0_sss_device_fop_create */
+#include "conf/obj_ops.h"          /* M0_CONF_DIRNEXT, m0_conf_obj_get */
+#include "conf/preload.h"          /* m0_confx_string_free */
+#include "fid/fid_list.h"          /* m0_fid_item */
+#include "rpc/rpclib.h"            /* m0_rpc_post_with_timeout_sync */
+#include "cm/repreb/trigger_fom.h" /* m0_cm_op */
+#include "cm/repreb/trigger_fop.h" /* trigger_fop */
+#include "sns/cm/trigger_fop.h"    /* m0_sns_cm_trigger_fop_alloc */
+#include "dix/cm/trigger_fop.h"    /* m0_dix_cm_trigger_fop_alloc */
+#include "sss/device_fops.h"       /* m0_sss_device_fop_create */
 #include "sss/ss_fops.h"
-#include "sss/process_fops.h"   /* m0_ss_fop_process_rep */
+#include "sss/process_fops.h"      /* m0_ss_fop_process_rep */
 #include "spiel/spiel.h"
 #include "spiel/spiel_internal.h"
 #include "spiel/cmd_internal.h"
@@ -603,8 +606,8 @@ static int spiel_device_command_fop_send(struct m0_spiel_core *spc,
 }
 
 /**
- * Search all processes that have IO services, fetch their endpoints and send
- * command FOPs.
+ * Search all processes that have IO services, fetch their endpoints
+ * and send command FOPs.
  */
 static int spiel_device_command_send(struct m0_spiel_core *spc,
 				     const struct m0_fid  *dev_fid,
@@ -919,22 +922,22 @@ static bool _filter_pool(const struct m0_conf_obj *obj)
 	return m0_conf_obj_type(obj) == &M0_CONF_POOL_TYPE;
 }
 
-/* Spiel sns context per service. */
-struct spiel_sns {
-	struct m0_spiel_sns_status ss_status;
+/* Spiel SNS/DIX repair/re-balance context per service. */
+struct spiel_repreb {
+	struct m0_spiel_repreb_status  sr_status;
 	/* RPC link for the corresponding service. */
-	struct m0_rpc_link         ss_rlink;
-	struct m0_conf_service    *ss_service;
-	struct m0_fop             *ss_fop;
-	int                        ss_rc;
-	bool                       ss_is_connected;
+	struct m0_rpc_link             sr_rlink;
+	struct m0_conf_service        *sr_service;
+	struct m0_fop                 *sr_fop;
+	int                            sr_rc;
+	bool                           sr_is_connected;
 };
 
-static int spiel_sns_cmd_send(struct m0_rpc_machine *rmachine,
-			      const char            *remote_ep,
-			      struct spiel_sns      *sns)
+static int spiel_repreb_cmd_send(struct m0_rpc_machine *rmachine,
+				 const char            *remote_ep,
+				 struct spiel_repreb   *repreb)
 {
-	struct m0_rpc_link *rlink = &sns->ss_rlink;
+	struct m0_rpc_link *rlink = &repreb->sr_rlink;
 	m0_time_t           conn_timeout;
 	int                 rc;
 	struct m0_fop      *fop;
@@ -944,9 +947,9 @@ static int spiel_sns_cmd_send(struct m0_rpc_machine *rmachine,
 
 	M0_PRE(rmachine != NULL);
 	M0_PRE(remote_ep != NULL);
-	M0_PRE(sns != NULL);
+	M0_PRE(repreb != NULL);
 
-	fop = sns->ss_fop;
+	fop = repreb->sr_fop;
 	rc = m0_rpc_link_init(rlink, rmachine, NULL, remote_ep,
 			      SPIEL_MAX_RPCS_IN_FLIGHT);
 	if (rc == 0) {
@@ -964,35 +967,36 @@ static int spiel_sns_cmd_send(struct m0_rpc_machine *rmachine,
 		m0_fop_get(fop);
 		rc = m0_rpc_post(item);
 	}
-	sns->ss_is_connected = true;
+	repreb->sr_is_connected = true;
 	return M0_RC(rc);
 }
 
-static int spiel_sns_fop_fill_and_send(struct m0_spiel_core *spc,
-				       struct m0_fop        *fop,
-				       enum m0_sns_cm_op     op,
-				       struct spiel_sns     *sns)
+static int spiel_repreb_fop_fill_and_send(struct m0_spiel_core *spc,
+					  struct m0_fop        *fop,
+					  enum m0_cm_op         op,
+					  struct spiel_repreb  *repreb)
 {
 	struct trigger_fop     *treq = m0_fop_data(fop);
-	struct m0_conf_service *svc = sns->ss_service;
+	struct m0_conf_service *svc = repreb->sr_service;
 	struct m0_conf_process *p = M0_CONF_CAST(
 					m0_conf_obj_grandparent(&svc->cs_obj),
 					m0_conf_process);
 
 	M0_ENTRY("fop %p conf_service %p", fop, svc);
 	treq->op = op;
-	sns->ss_fop = fop;
-	sns->ss_is_connected = false;
-	return M0_RC(spiel_sns_cmd_send(spc->spc_rmachine, p->pc_endpoint,
-					sns));
+	repreb->sr_fop = fop;
+	repreb->sr_is_connected = false;
+	return M0_RC(spiel_repreb_cmd_send(spc->spc_rmachine, p->pc_endpoint,
+					   repreb));
 }
 
 /** pool stats collection context */
 struct _pool_cmd_ctx {
 	int                   pl_rc;
-	struct m0_spiel_core *pl_spc;         /**< spiel instance */
-	struct m0_tl          pl_sdevs_fid;     /**< storage devices fid list */
-	struct m0_tl          pl_services_fid;  /**< services fid list */
+	struct m0_spiel_core *pl_spc;          /**< spiel instance */
+	struct m0_tl          pl_sdevs_fid;    /**< storage devices fid list */
+	struct m0_tl          pl_services_fid; /**< services fid list */
+	enum m0_repreb_type   pl_service_type; /**< type of service: SNS or DIX */
 };
 
 static int spiel_pool_device_collect(struct _pool_cmd_ctx *ctx,
@@ -1057,10 +1061,12 @@ done:
 }
 
 static void spiel__pool_ctx_init(struct _pool_cmd_ctx *ctx,
-				 struct m0_spiel_core *spc)
+				 struct m0_spiel_core *spc,
+				 enum m0_repreb_type   type)
 {
 	M0_SET0(ctx);
-	ctx->pl_spc = spc;
+	ctx->pl_spc          = spc;
+	ctx->pl_service_type = type;
 	m0_fids_tlist_init(&ctx->pl_sdevs_fid);
 	m0_fids_tlist_init(&ctx->pl_services_fid);
 	M0_POST(m0_fids_tlist_invariant(&ctx->pl_sdevs_fid));
@@ -1084,6 +1090,17 @@ static void spiel__pool_ctx_fini(struct _pool_cmd_ctx *ctx)
 	m0_fids_tlist_fini(&ctx->pl_services_fid);
 }
 
+static void spiel__add_item(struct _pool_cmd_ctx      *pool_ctx,
+			    const struct m0_conf_obj  *item,
+			    struct m0_conf_service    *service,
+			    enum m0_conf_service_type  type)
+{
+	if (service->cs_type == type &&
+	    spiel__pool_service_has_sdev(pool_ctx, item) == true)
+		pool_ctx->pl_rc = spiel_stats_item_add(
+					&pool_ctx->pl_services_fid,
+					&item->co_id);
+}
 static bool spiel__pool_service_select(const struct m0_conf_obj *item,
 				       void                     *ctx)
 {
@@ -1098,63 +1115,69 @@ static bool spiel__pool_service_select(const struct m0_conf_obj *item,
 		return true;
 
 	service = M0_CONF_CAST(item, m0_conf_service);
-
-	if (service->cs_type == M0_CST_IOS &&
-	    spiel__pool_service_has_sdev(pool_ctx, item) == true)
-		pool_ctx->pl_rc = spiel_stats_item_add(
-						&pool_ctx->pl_services_fid,
-						&item->co_id);
+	if (pool_ctx->pl_service_type == M0_REPREB_TYPE_SNS)
+		spiel__add_item(pool_ctx, item, service, M0_CST_IOS);
+	else if (pool_ctx->pl_service_type == M0_REPREB_TYPE_DIX)
+		spiel__add_item(pool_ctx, item, service, M0_CST_CAS);
 	return true;
 }
 
-static int spiel__pool_cmd_send(struct _pool_cmd_ctx    *ctx,
-				const enum m0_sns_cm_op  cmd,
-				struct spiel_sns        *sns)
+static int spiel__pool_cmd_send(struct _pool_cmd_ctx *ctx,
+				const enum m0_cm_op   cmd,
+				struct spiel_repreb  *repreb)
 {
 	struct m0_fop *fop;
-	M0_PRE(sns != NULL);
+	int            rc;
 
-	return M0_RC(m0_sns_cm_trigger_fop_alloc(ctx->pl_spc->spc_rmachine,
-						 cmd, &fop) ?:
-		     spiel_sns_fop_fill_and_send(ctx->pl_spc, fop, cmd, sns));
+	M0_PRE(repreb != NULL);
+	if (ctx->pl_service_type == M0_REPREB_TYPE_SNS)
+		rc = m0_sns_cm_trigger_fop_alloc(ctx->pl_spc->spc_rmachine,
+						 cmd, &fop);
+	else
+		rc = m0_dix_cm_trigger_fop_alloc(ctx->pl_spc->spc_rmachine,
+						 cmd, &fop);
+	if (rc != 0)
+		return M0_ERR(rc);
+	return M0_RC(spiel_repreb_fop_fill_and_send(ctx->pl_spc, fop, cmd,
+						    repreb));
 }
 
-static int spiel__pool_cmd_status_get(struct _pool_cmd_ctx    *ctx,
-				      const enum m0_sns_cm_op  cmd,
-				      struct spiel_sns        *sns)
+static int spiel__pool_cmd_status_get(struct _pool_cmd_ctx *ctx,
+				      const enum m0_cm_op   cmd,
+				      struct spiel_repreb  *repreb)
 {
-	int                           rc;
-	struct m0_fop                *fop;
-	struct m0_rpc_item           *item;
-	struct m0_spiel_sns_status   *status;
-	struct m0_sns_status_rep_fop *reply;
-	m0_time_t                     conn_timeout;
+	int                            rc;
+	struct m0_fop                 *fop;
+	struct m0_rpc_item            *item;
+	struct m0_spiel_repreb_status *status;
+	struct m0_status_rep_fop      *reply;
+	m0_time_t                      conn_timeout;
 
-	M0_PRE(sns != NULL);
+	M0_PRE(repreb != NULL);
 
-	status = &sns->ss_status;
-	fop = sns->ss_fop;
-	M0_ASSERT(ergo(sns->ss_is_connected, fop != NULL));
+	status = &repreb->sr_status;
+	fop = repreb->sr_fop;
+	M0_ASSERT(ergo(repreb->sr_is_connected, fop != NULL));
 	item = &fop->f_item;
-	rc = sns->ss_rc ?: m0_rpc_item_wait_for_reply(item, M0_TIME_NEVER) ?:
+	rc = repreb->sr_rc ?: m0_rpc_item_wait_for_reply(item, M0_TIME_NEVER) ?:
 		m0_rpc_item_error(item);
 
-	if (M0_IN(cmd, (SNS_REPAIR_STATUS, SNS_REBALANCE_STATUS))) {
-		status->sss_fid = sns->ss_service->cs_obj.co_id;
+	if (M0_IN(cmd, (CM_OP_REPAIR_STATUS, CM_OP_REBALANCE_STATUS))) {
+		status->srs_fid = repreb->sr_service->cs_obj.co_id;
 		if (rc == 0) {
 			reply = m0_fop_data(m0_rpc_item_to_fop(item->ri_reply));
-			status->sss_progress = reply->ssr_progress;
-			status->sss_state = reply->ssr_state;
+			status->srs_progress = reply->ssr_progress;
+			status->srs_state = reply->ssr_state;
 		} else {
-			status->sss_state = rc;
+			status->srs_state = rc;
 		}
 	}
 	m0_fop_put0_lock(fop);
-	if (sns->ss_is_connected) {
-		M0_ASSERT(sns->ss_rlink.rlk_connected);
+	if (repreb->sr_is_connected) {
+		M0_ASSERT(repreb->sr_rlink.rlk_connected);
 		conn_timeout = m0_time_from_now(SPIEL_CONN_TIMEOUT, 0);
-		m0_rpc_link_disconnect_sync(&sns->ss_rlink, conn_timeout);
-		m0_rpc_link_fini(&sns->ss_rlink);
+		m0_rpc_link_disconnect_sync(&repreb->sr_rlink, conn_timeout);
+		m0_rpc_link_fini(&repreb->sr_rlink);
 	}
 
 	return M0_RC(rc);
@@ -1204,19 +1227,20 @@ leave:
 	return M0_RC(rc);
 }
 
-static int spiel_pool_generic_handler(struct m0_spiel_core        *spc,
-				      const struct m0_fid         *pool_fid,
-				      const enum m0_sns_cm_op      cmd,
-				      struct m0_spiel_sns_status **statuses)
+static int spiel_pool_generic_handler(struct m0_spiel_core           *spc,
+				      const struct m0_fid            *pool_fid,
+				      const enum m0_cm_op             cmd,
+				      struct m0_spiel_repreb_status **statuses,
+				      enum m0_repreb_type             type)
 {
-	int                         rc;
-	int                         service_count;
-	int                         index;
-	struct _pool_cmd_ctx        ctx;
-	struct m0_fid_item         *si;
-	bool                        cmd_status;
-	struct m0_spiel_sns_status *sns_statuses = NULL;
-	struct spiel_sns           *sns;
+	int                            rc;
+	int                            service_count;
+	int                            index;
+	struct _pool_cmd_ctx           ctx;
+	struct m0_fid_item            *si;
+	bool                           cmd_status;
+	struct m0_spiel_repreb_status *repreb_statuses = NULL;
+	struct spiel_repreb           *repreb;
 
 	M0_ENTRY();
 	M0_PRE(pool_fid != NULL);
@@ -1226,7 +1250,7 @@ static int spiel_pool_generic_handler(struct m0_spiel_core        *spc,
 	if (m0_conf_fid_type(pool_fid) != &M0_CONF_POOL_TYPE)
 		return M0_ERR(-EINVAL);
 
-	spiel__pool_ctx_init(&ctx, spc);
+	spiel__pool_ctx_init(&ctx, spc, type);
 
 	rc = spiel_pool__device_collection_fill(&ctx, pool_fid) ?:
 		SPIEL_CONF_DIR_ITERATE(spc->spc_confc, &spc->spc_profile,
@@ -1238,19 +1262,19 @@ static int spiel_pool_generic_handler(struct m0_spiel_core        *spc,
 	if (rc != 0)
 		goto leave;
 
-	cmd_status = M0_IN(cmd, (SNS_REPAIR_STATUS, SNS_REBALANCE_STATUS));
+	cmd_status = M0_IN(cmd, (CM_OP_REPAIR_STATUS, CM_OP_REBALANCE_STATUS));
 	service_count = m0_fids_tlist_length(&ctx.pl_services_fid);
 
-	M0_ALLOC_ARR(sns, service_count);
-	if (sns == NULL) {
+	M0_ALLOC_ARR(repreb, service_count);
+	if (repreb == NULL) {
 		rc = -ENOMEM;
 		goto leave;
 	}
 	if (cmd_status) {
-		M0_ALLOC_ARR(sns_statuses, service_count);
-		if (sns_statuses == NULL) {
+		M0_ALLOC_ARR(repreb_statuses, service_count);
+		if (repreb_statuses == NULL) {
 			rc = -ENOMEM;
-			m0_free(sns);
+			m0_free(repreb);
 			goto leave;
 		}
 	}
@@ -1264,7 +1288,7 @@ static int spiel_pool_generic_handler(struct m0_spiel_core        *spc,
 		if (rc != 0) {
 			M0_LOG(M0_ERROR, "confc_open failed; rc=%d service="
 			       FID_F" index=%d", rc, FID_P(&si->i_fid), index);
-			sns[index++].ss_rc = rc;
+			repreb[index].sr_rc = rc;
 			continue;
 		}
 		if (svc_obj->co_ha_state != M0_NC_ONLINE) {
@@ -1273,18 +1297,19 @@ static int spiel_pool_generic_handler(struct m0_spiel_core        *spc,
 			       " index=%d ha_state=%d", FID_P(&si->i_fid),
 			       index, svc_obj->co_ha_state);
 			m0_confc_close(svc_obj);
-			sns[index++].ss_rc = rc;
+			repreb[index].sr_rc = rc;
 			continue;
 		}
-		sns[index].ss_service = M0_CONF_CAST(svc_obj, m0_conf_service);
+		repreb[index].sr_service = M0_CONF_CAST(svc_obj,
+							m0_conf_service);
 		M0_ASSERT(index < service_count);
-		rc = spiel__pool_cmd_send(&ctx, cmd, &sns[index]);
+		rc = spiel__pool_cmd_send(&ctx, cmd, &repreb[index]);
 		m0_confc_close(svc_obj);
 		if (rc != 0) {
 			M0_LOG(M0_ERROR, "pool command sending failed;"
 			       " rc=%d service="FID_F" index=%d",
 			       rc, FID_P(&si->i_fid), index);
-			sns[index++].ss_rc = rc;
+			repreb[index++].sr_rc = rc;
 			continue;
 		}
 		++index;
@@ -1292,12 +1317,12 @@ static int spiel_pool_generic_handler(struct m0_spiel_core        *spc,
 
 	index = 0;
 	m0_tl_for (m0_fids, &ctx.pl_services_fid, si) {
-		rc = spiel__pool_cmd_status_get(&ctx, cmd, &sns[index]);
+		rc = spiel__pool_cmd_status_get(&ctx, cmd, &repreb[index]);
 		if (cmd_status) {
-			sns_statuses[index] = sns[index].ss_status;
+			repreb_statuses[index] = repreb[index].sr_status;
 			M0_LOG(M0_DEBUG, "service"FID_F" status=%d",
 					 FID_P(&si->i_fid),
-					 sns_statuses[index].sss_state);
+					 repreb_statuses[index].srs_state);
 		}
 		++index;
 		if (rc != 0)
@@ -1306,116 +1331,309 @@ static int spiel_pool_generic_handler(struct m0_spiel_core        *spc,
 
 	if (rc == 0 && cmd_status) {
 		rc = index;
-		*statuses = sns_statuses;
-		M0_LOG(M0_DEBUG, "array addr=%p size=%d", sns_statuses, index);
+		*statuses = repreb_statuses;
+		M0_LOG(M0_DEBUG, "array addr=%p size=%d", repreb_statuses, index);
 	} else
-		m0_free(sns_statuses);
+		m0_free(repreb_statuses);
 
-	m0_free(sns);
+	m0_free(repreb);
 leave:
 	spiel__pool_ctx_fini(&ctx);
 	return M0_RC(rc);
 }
 
+int m0_spiel_sns_repair_start(struct m0_spiel     *spl,
+			      const struct m0_fid *pool_fid)
+{
+	M0_ENTRY();
+	return M0_RC(spiel_pool_generic_handler(&spl->spl_core, pool_fid,
+						CM_OP_REPAIR, NULL,
+						M0_REPREB_TYPE_SNS));
+}
+M0_EXPORTED(m0_spiel_sns_repair_start);
+
+int m0_spiel_dix_repair_start(struct m0_spiel     *spl,
+			      const struct m0_fid *pool_fid)
+{
+	M0_ENTRY();
+	return M0_RC(spiel_pool_generic_handler(&spl->spl_core, pool_fid,
+						CM_OP_REPAIR, NULL,
+						M0_REPREB_TYPE_DIX));
+}
+M0_EXPORTED(m0_spiel_dix_repair_start);
+
+/** @todo Remove once Halon supports m0_spiel_{sns,dix}_repair_start(). */
 int m0_spiel_pool_repair_start(struct m0_spiel     *spl,
 			       const struct m0_fid *pool_fid)
 {
-	M0_ENTRY();
-	return M0_RC(spiel_pool_generic_handler(&spl->spl_core, pool_fid,
-						SNS_REPAIR, NULL));
+	return m0_spiel_sns_repair_start(spl, pool_fid);
 }
-M0_EXPORTED(m0_spiel_pool_repair_start);
 
-int m0_spiel_pool_repair_continue(struct m0_spiel     *spl,
-				  const struct m0_fid *pool_fid)
-{
-	M0_ENTRY();
-	return M0_RC(spiel_pool_generic_handler(&spl->spl_core, pool_fid,
-						SNS_REPAIR, NULL));
-}
-M0_EXPORTED(m0_spiel_pool_repair_continue);
-
-int m0_spiel_pool_repair_quiesce(struct m0_spiel     *spl,
+int m0_spiel_sns_repair_continue(struct m0_spiel     *spl,
 				 const struct m0_fid *pool_fid)
 {
 	M0_ENTRY();
 	return M0_RC(spiel_pool_generic_handler(&spl->spl_core, pool_fid,
-						SNS_REPAIR_QUIESCE, NULL));
+						CM_OP_REPAIR, NULL,
+						M0_REPREB_TYPE_SNS));
 }
-M0_EXPORTED(m0_spiel_pool_repair_quiesce);
+M0_EXPORTED(m0_spiel_sns_repair_continue);
 
-int m0_spiel_pool_repair_abort(struct m0_spiel     *spl,
-			       const struct m0_fid *pool_fid)
+int m0_spiel_dix_repair_continue(struct m0_spiel     *spl,
+				 const struct m0_fid *pool_fid)
 {
 	M0_ENTRY();
 	return M0_RC(spiel_pool_generic_handler(&spl->spl_core, pool_fid,
-						SNS_REPAIR_ABORT, NULL));
+						CM_OP_REPAIR, NULL,
+						M0_REPREB_TYPE_DIX));
 }
-M0_EXPORTED(m0_spiel_pool_repair_abort);
+M0_EXPORTED(m0_spiel_dix_repair_continue);
 
-int m0_spiel_pool_repair_status(struct m0_spiel             *spl,
-				const struct m0_fid         *pool_fid,
-				struct m0_spiel_sns_status **statuses)
+/** @todo Remove once Halon supports m0_spiel_{sns,dix}_repair_continue(). */
+int m0_spiel_pool_repair_continue(struct m0_spiel     *spl,
+				  const struct m0_fid *pool_fid)
+{
+	return m0_spiel_sns_repair_continue(spl, pool_fid);
+}
+
+int m0_spiel_sns_repair_quiesce(struct m0_spiel     *spl,
+				const struct m0_fid *pool_fid)
+{
+	M0_ENTRY();
+	return M0_RC(spiel_pool_generic_handler(&spl->spl_core, pool_fid,
+						CM_OP_REPAIR_QUIESCE, NULL,
+						M0_REPREB_TYPE_SNS));
+}
+M0_EXPORTED(m0_spiel_sns_repair_quiesce);
+
+int m0_spiel_dix_repair_quiesce(struct m0_spiel     *spl,
+				const struct m0_fid *pool_fid)
+{
+	M0_ENTRY();
+	return M0_RC(spiel_pool_generic_handler(&spl->spl_core, pool_fid,
+						CM_OP_REPAIR_QUIESCE, NULL,
+						M0_REPREB_TYPE_DIX));
+}
+M0_EXPORTED(m0_spiel_dix_repair_quiesce);
+
+/** @todo Remove once Halon supports m0_spiel_{sns,dix}_repair_quiesce(). */
+int m0_spiel_pool_repair_quiesce(struct m0_spiel     *spl,
+				 const struct m0_fid *pool_fid)
+{
+	return m0_spiel_sns_repair_quiesce(spl, pool_fid);
+}
+
+int m0_spiel_sns_repair_abort(struct m0_spiel     *spl,
+			      const struct m0_fid *pool_fid)
+{
+	M0_ENTRY();
+	return M0_RC(spiel_pool_generic_handler(&spl->spl_core, pool_fid,
+						CM_OP_REPAIR_ABORT, NULL,
+						M0_REPREB_TYPE_SNS));
+}
+M0_EXPORTED(m0_spiel_sns_repair_abort);
+
+int m0_spiel_dix_repair_abort(struct m0_spiel     *spl,
+			      const struct m0_fid *pool_fid)
+{
+	M0_ENTRY();
+	return M0_RC(spiel_pool_generic_handler(&spl->spl_core, pool_fid,
+						CM_OP_REPAIR_ABORT, NULL,
+						M0_REPREB_TYPE_DIX));
+}
+M0_EXPORTED(m0_spiel_dix_repair_abort);
+
+/** @todo Remove once Halon supports m0_spiel_{sns,dix}_repair_abort(). */
+int m0_spiel_pool_repair_abort(struct m0_spiel     *spl,
+			       const struct m0_fid *pool_fid)
+{
+	return m0_spiel_sns_repair_abort(spl, pool_fid);
+}
+
+int m0_spiel_sns_repair_status(struct m0_spiel                *spl,
+			       const struct m0_fid            *pool_fid,
+			       struct m0_spiel_repreb_status **statuses)
 {
 	int rc;
 
 	M0_ENTRY();
 	M0_PRE(statuses != NULL);
 	rc = spiel_pool_generic_handler(&spl->spl_core, pool_fid,
-					SNS_REPAIR_STATUS, statuses);
+					CM_OP_REPAIR_STATUS, statuses,
+					M0_REPREB_TYPE_SNS);
 	return rc >= 0 ? M0_RC(rc) : M0_ERR(rc);
 }
-M0_EXPORTED(m0_spiel_pool_repair_status);
+M0_EXPORTED(m0_spiel_sns_repair_status);
 
+int m0_spiel_dix_repair_status(struct m0_spiel                *spl,
+			       const struct m0_fid            *pool_fid,
+			       struct m0_spiel_repreb_status **statuses)
+{
+	int rc;
+
+	M0_ENTRY();
+	M0_PRE(statuses != NULL);
+	rc = spiel_pool_generic_handler(&spl->spl_core, pool_fid,
+					CM_OP_REPAIR_STATUS, statuses,
+					M0_REPREB_TYPE_DIX);
+	return rc >= 0 ? M0_RC(rc) : M0_ERR(rc);
+}
+M0_EXPORTED(m0_spiel_dix_repair_status);
+
+/** @todo Remove once Halon supports m0_spiel_{sns,dix}_repair_status(). */
+int m0_spiel_pool_repair_status(struct m0_spiel             *spl,
+				const struct m0_fid         *pool_fid,
+				struct m0_spiel_sns_status **statuses)
+{
+	return m0_spiel_sns_repair_status(spl, pool_fid,
+				(struct m0_spiel_repreb_status **)statuses);
+}
+
+int m0_spiel_sns_rebalance_start(struct m0_spiel     *spl,
+				 const struct m0_fid *pool_fid)
+{
+	M0_ENTRY();
+	return M0_RC(spiel_pool_generic_handler(&spl->spl_core, pool_fid,
+						CM_OP_REBALANCE, NULL,
+						M0_REPREB_TYPE_SNS));
+}
+M0_EXPORTED(m0_spiel_sns_rebalance_start);
+
+int m0_spiel_dix_rebalance_start(struct m0_spiel     *spl,
+				 const struct m0_fid *pool_fid)
+{
+	M0_ENTRY();
+	return M0_RC(spiel_pool_generic_handler(&spl->spl_core, pool_fid,
+						CM_OP_REBALANCE, NULL,
+						M0_REPREB_TYPE_DIX));
+}
+M0_EXPORTED(m0_spiel_dix_rebalance_start);
+
+/** @todo Remove once Halon supports m0_spiel_{sns,dix}_rebalance_start(). */
 int m0_spiel_pool_rebalance_start(struct m0_spiel     *spl,
-				  const struct m0_fid *pool_fid)
+			          const struct m0_fid *pool_fid)
 {
-	M0_ENTRY();
-	return M0_RC(spiel_pool_generic_handler(&spl->spl_core, pool_fid,
-						SNS_REBALANCE, NULL));
+	return m0_spiel_sns_rebalance_start(spl, pool_fid);
 }
-M0_EXPORTED(m0_spiel_pool_rebalance_start);
 
-int m0_spiel_pool_rebalance_continue(struct m0_spiel     *spl,
-				     const struct m0_fid *pool_fid)
-{
-	M0_ENTRY();
-	return M0_RC(spiel_pool_generic_handler(&spl->spl_core, pool_fid,
-						SNS_REBALANCE, NULL));
-}
-M0_EXPORTED(m0_spiel_pool_rebalance_continue);
-
-int m0_spiel_pool_rebalance_quiesce(struct m0_spiel     *spl,
+int m0_spiel_sns_rebalance_continue(struct m0_spiel     *spl,
 				    const struct m0_fid *pool_fid)
 {
 	M0_ENTRY();
 	return M0_RC(spiel_pool_generic_handler(&spl->spl_core, pool_fid,
-						SNS_REBALANCE_QUIESCE, NULL));
+						CM_OP_REBALANCE, NULL,
+						M0_REPREB_TYPE_SNS));
 }
-M0_EXPORTED(m0_spiel_pool_rebalance_quiesce);
+M0_EXPORTED(m0_spiel_sns_rebalance_continue);
+
+int m0_spiel_dix_rebalance_continue(struct m0_spiel     *spl,
+				    const struct m0_fid *pool_fid)
+{
+	M0_ENTRY();
+	return M0_RC(spiel_pool_generic_handler(&spl->spl_core, pool_fid,
+						CM_OP_REBALANCE, NULL,
+						M0_REPREB_TYPE_DIX));
+}
+M0_EXPORTED(m0_spiel_dix_rebalance_continue);
+
+/** @todo Remove once Halon supports m0_spiel_{sns,dix}_rebalance_continue(). */
+int m0_spiel_pool_rebalance_continue(struct m0_spiel     *spl,
+			             const struct m0_fid *pool_fid)
+{
+	return m0_spiel_sns_rebalance_continue(spl, pool_fid);
+}
+
+int m0_spiel_sns_rebalance_quiesce(struct m0_spiel     *spl,
+				   const struct m0_fid *pool_fid)
+{
+	M0_ENTRY();
+	return M0_RC(spiel_pool_generic_handler(&spl->spl_core, pool_fid,
+						CM_OP_REBALANCE_QUIESCE, NULL,
+						M0_REPREB_TYPE_SNS));
+}
+M0_EXPORTED(m0_spiel_sns_rebalance_quiesce);
+
+int m0_spiel_dix_rebalance_quiesce(struct m0_spiel     *spl,
+				   const struct m0_fid *pool_fid)
+{
+	M0_ENTRY();
+	return M0_RC(spiel_pool_generic_handler(&spl->spl_core, pool_fid,
+						CM_OP_REBALANCE_QUIESCE, NULL,
+						M0_REPREB_TYPE_DIX));
+}
+M0_EXPORTED(m0_spiel_dix_rebalance_quiesce);
+
+/** @todo Remove once Halon supports m0_spiel_{sns,dix}_rebalance_quiesce(). */
+int m0_spiel_pool_rebalance_quiesce(struct m0_spiel     *spl,
+			            const struct m0_fid *pool_fid)
+{
+	return m0_spiel_sns_rebalance_quiesce(spl, pool_fid);
+}
+
+int m0_spiel_sns_rebalance_status(struct m0_spiel                *spl,
+				  const struct m0_fid            *pool_fid,
+				  struct m0_spiel_repreb_status **statuses)
+{
+	int rc;
+
+	M0_ENTRY();
+	M0_PRE(statuses != NULL);
+	rc = spiel_pool_generic_handler(&spl->spl_core, pool_fid,
+					CM_OP_REBALANCE_STATUS, statuses,
+					M0_REPREB_TYPE_SNS);
+	return rc >= 0 ? M0_RC(rc) : M0_ERR(rc);
+}
+M0_EXPORTED(m0_spiel_sns_rebalance_status);
+
+int m0_spiel_dix_rebalance_status(struct m0_spiel                *spl,
+				  const struct m0_fid            *pool_fid,
+				  struct m0_spiel_repreb_status **statuses)
+{
+	int rc;
+
+	M0_ENTRY();
+	M0_PRE(statuses != NULL);
+	rc = spiel_pool_generic_handler(&spl->spl_core, pool_fid,
+					CM_OP_REBALANCE_STATUS, statuses,
+					M0_REPREB_TYPE_DIX);
+	return rc >= 0 ? M0_RC(rc) : M0_ERR(rc);
+}
+M0_EXPORTED(m0_spiel_dix_rebalance_status);
 
 int m0_spiel_pool_rebalance_status(struct m0_spiel             *spl,
 				   const struct m0_fid         *pool_fid,
 				   struct m0_spiel_sns_status **statuses)
 {
-	int rc;
-
-	M0_ENTRY();
-	M0_PRE(statuses != NULL);
-	rc = spiel_pool_generic_handler(&spl->spl_core, pool_fid,
-					SNS_REBALANCE_STATUS, statuses);
-	return rc >= 0 ? M0_RC(rc) : M0_ERR(rc);
+	return m0_spiel_sns_rebalance_status(spl, pool_fid,
+			(struct m0_spiel_repreb_status **)statuses);
 }
-M0_EXPORTED(m0_spiel_pool_rebalance_status);
 
-int m0_spiel_pool_rebalance_abort(struct m0_spiel     *spl,
-				  const struct m0_fid *pool_fid)
+int m0_spiel_sns_rebalance_abort(struct m0_spiel     *spl,
+				 const struct m0_fid *pool_fid)
 {
 	M0_ENTRY();
 	return M0_RC(spiel_pool_generic_handler(&spl->spl_core, pool_fid,
-						SNS_REBALANCE_ABORT, NULL));
+						CM_OP_REBALANCE_ABORT, NULL,
+						M0_REPREB_TYPE_SNS));
 }
-M0_EXPORTED(m0_spiel_pool_rebalance_abort);
+M0_EXPORTED(m0_spiel_sns_rebalance_abort);
+
+int m0_spiel_dix_rebalance_abort(struct m0_spiel     *spl,
+				 const struct m0_fid *pool_fid)
+{
+	M0_ENTRY();
+	return M0_RC(spiel_pool_generic_handler(&spl->spl_core, pool_fid,
+						CM_OP_REBALANCE_ABORT, NULL,
+						M0_REPREB_TYPE_DIX));
+}
+M0_EXPORTED(m0_spiel_dix_rebalance_abort);
+
+/** @todo Remove once Halon supports m0_spiel_{sns,dix}_rebalance_abort(). */
+int m0_spiel_pool_rebalance_abort(struct m0_spiel     *spl,
+			          const struct m0_fid *pool_fid)
+{
+	return m0_spiel_sns_rebalance_abort(spl, pool_fid);
+}
 
 /****************************************************/
 /*                    Filesystem                    */
@@ -1750,7 +1968,7 @@ static int spiel__proc_is_to_update_stats(struct spiel_proc_item *proc,
 		goto obj_close;
 	while (m0_conf_diter_next_sync(&it, NULL) > 0) {
 		svc = M0_CONF_CAST(m0_conf_diter_result(&it), m0_conf_service);
-		if (M0_IN(svc->cs_type, (M0_CST_IOS, M0_CST_MDS)))
+		if (M0_IN(svc->cs_type, (M0_CST_IOS, M0_CST_MDS, M0_CST_CAS)))
 			M0_CNT_INC(proc->spi_svc_count);
 	}
 	if (proc->spi_svc_count > 0) {

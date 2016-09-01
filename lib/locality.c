@@ -474,6 +474,15 @@ void *m0_locality_data(int key)
 	return m0_locality_lockers_get(m0_locality_here(), key);
 }
 
+void m0_locality_data_iterate(int key,
+			      void (*func)(int idx, void *data, void *datum),
+			      void *datum)
+{
+	LOC_FOR(i, loc) {
+		(*func)(i, m0_locality_lockers_get(loc, key), datum);
+	} LOC_ENDFOR;
+}
+
 static int locality_data_alloc(int key)
 {
 	int result = 0;

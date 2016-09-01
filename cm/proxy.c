@@ -113,6 +113,7 @@ M0_INTERNAL void m0_cm_proxy_add(struct m0_cm *cm, struct m0_cm_proxy *pxy)
 	M0_PRE(!proxy_tlink_is_in(pxy));
 	pxy->px_cm = cm;
 	proxy_tlist_add_tail(&cm->cm_proxies, pxy);
+	M0_CNT_INC(cm->cm_proxy_active_nr);
 	M0_CNT_INC(cm->cm_proxy_nr);
 	M0_ASSERT(proxy_tlink_is_in(pxy));
 	M0_POST(cm_proxy_invariant(pxy));
@@ -310,7 +311,7 @@ M0_INTERNAL int m0_cm_proxy_update(struct m0_cm_proxy *pxy,
 	m0_cm_proxy_lock(pxy);
 	cm = pxy->px_cm;
 	M0_ASSERT(m0_cm_is_locked(cm));
-        M0_LOG(M0_DEBUG, "Recvd from :%s status: %u curr_status: %u"
+        M0_LOG(M0_DEBUG, "Recvd from :%s status: %u curr_status: %u "
 			 "nr_updates: %u", pxy->px_endpoint, px_status,
 			 pxy->px_status, (unsigned)cm->cm_nr_proxy_updated);
 
@@ -319,9 +320,35 @@ M0_INTERNAL int m0_cm_proxy_update(struct m0_cm_proxy *pxy,
 		return -EINVAL;
 	}
 
+	if (px_status >= M0_PX_COMPLETE &&
+	    pxy->px_status < M0_PX_COMPLETE) {
+		/*
+		 * Got a fresh "complete(fail,stop)" state - need to
+		 * decrease counter
+		 */
+		M0_LOG(M0_DEBUG, "Decrease proxy_nr (current nr %"
+		       PRIu64") cm %p, pxy %p",
+		       cm->cm_proxy_active_nr, cm, pxy);
+		M0_CNT_DEC(cm->cm_proxy_active_nr);
+	} else if (pxy->px_status >= M0_PX_COMPLETE &&
+		   px_status < M0_PX_COMPLETE) {
+		M0_LOG(M0_DEBUG, "Increase proxy_nr (current nr %"
+		       PRIu64") cm %p, pxy %p",
+		       cm->cm_proxy_active_nr, cm, pxy);
+		M0_CNT_INC(cm->cm_proxy_active_nr);
+	}
+
 	rc = px_action[px_status](pxy, in_interval, out_interval, px_epoch, px_status);
 	if (m0_cm_state_get(cm) == M0_CMS_READY && m0_cm_proxies_ready(cm))
 			m0_chan_broadcast(&cm->cm_proxy_init_wait);
+	/*
+	 * All proxies finished processing, i.e. all proxies are in
+	 * COMPLETE/STOP/FAIL state.
+	 */
+	if (cm->cm_proxy_active_nr == 0) {
+		M0_LOG(M0_DEBUG, "No more active proxies in cm %p", cm);
+		m0_cm_notify(cm);
+	}
 	m0_cm_proxy_unlock(pxy);
 
 	return M0_RC(rc);
@@ -449,6 +476,7 @@ static void cm_proxy_sw_onwire_post(struct m0_cm_proxy *proxy,
 	M0_CNT_INC(proxy->px_nr_updates_posted);
 	m0_rpc_post(item);
 	m0_fop_put_lock(fop);
+	M0_LEAVE();
 }
 
 static void proxy_sw_onwire_release(struct m0_ref *ref)

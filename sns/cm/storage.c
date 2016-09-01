@@ -277,6 +277,11 @@ M0_INTERNAL int m0_sns_cm_cp_read(struct m0_cm_cp *cp)
 	return cp_io(cp, SIO_READ);
 }
 
+M0_INTERNAL int m0_sns_cm_cp_write_pre(struct m0_cm_cp *cp)
+{
+	M0_IMPOSSIBLE("M0_CCP_WRITE_PRE phase shouldn't be used!");
+}
+
 M0_INTERNAL int m0_sns_cm_cp_write(struct m0_cm_cp *cp)
 {
 	cp->c_io_op = M0_CM_CP_WRITE;

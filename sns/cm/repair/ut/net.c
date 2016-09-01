@@ -266,6 +266,7 @@ const struct m0_cm_cp_ops cp_dummy_ops = {
 	.co_action = {
 		[M0_CCP_INIT]      = &dummy_cp_init,
 		[M0_CCP_READ]      = &dummy_cp_phase,
+		[M0_CCP_WRITE_PRE] = &m0_sns_cm_cp_write_pre,
 		[M0_CCP_WRITE]     = &dummy_cp_phase,
 		[M0_CCP_IO_WAIT]   = &dummy_cp_phase,
 		[M0_CCP_XFORM]     = &dummy_cp_phase,
@@ -383,6 +384,7 @@ const struct m0_cm_cp_ops read_cp_ops = {
 	.co_action = {
 		[M0_CCP_INIT]      = &dummy_read_cp_init,
 		[M0_CCP_READ]      = &m0_sns_cm_cp_read,
+		[M0_CCP_WRITE_PRE] = &m0_sns_cm_cp_write_pre,
 		[M0_CCP_WRITE]     = &dummy_cp_write,
 		[M0_CCP_IO_WAIT]   = &dummy_cp_write_io_wait,
 		[M0_CCP_XFORM]     = &dummy_read_cp_xform,
@@ -541,7 +543,7 @@ static void receiver_init(bool ag_create)
 	M0_UT_ASSERT(recv_cm != NULL);
 
 	recv_scm = cm2sns(recv_cm);
-	recv_scm->sc_op = SNS_REPAIR;
+	recv_scm->sc_op = CM_OP_REPAIR;
 
 	m0_cm_lock(recv_cm);
 	recv_cm->cm_epoch = m0_time_now();

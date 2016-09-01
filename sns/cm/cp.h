@@ -88,6 +88,8 @@ M0_INTERNAL int m0_sns_cm_cp_fail(struct m0_cm_cp *cp);
 /** Copy packet read phase function. */
 M0_INTERNAL int m0_sns_cm_cp_read(struct m0_cm_cp *cp);
 
+M0_INTERNAL int m0_sns_cm_cp_write_pre(struct m0_cm_cp *cp);
+
 /** Copy packet write phase function. */
 M0_INTERNAL int m0_sns_cm_cp_write(struct m0_cm_cp *cp);
 

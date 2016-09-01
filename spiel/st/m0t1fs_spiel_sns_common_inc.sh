@@ -138,8 +138,8 @@ $SPIEL_FIDS_LIST
 
 $SPIEL_RCONF_START
 
-rc = spiel.pool_repair_start(fids['pool'])
-print ("pool repair start rc: " + str(rc))
+rc = spiel.sns_repair_start(fids['pool'])
+print ("sns repair start rc: " + str(rc))
 
 $SPIEL_RCONF_STOP
 EOF
@@ -153,8 +153,8 @@ $SPIEL_FIDS_LIST
 
 $SPIEL_RCONF_START
 
-rc = spiel.pool_repair_abort(fids['pool'])
-print ("pool repair abort rc: " + str(rc))
+rc = spiel.sns_repair_abort(fids['pool'])
+print ("sns repair abort rc: " + str(rc))
 
 $SPIEL_RCONF_STOP
 EOF
@@ -168,8 +168,8 @@ $SPIEL_FIDS_LIST
 
 $SPIEL_RCONF_START
 
-rc = spiel.pool_repair_quiesce(fids['pool'])
-print ("pool repair quiesce rc: " + str(rc))
+rc = spiel.sns_repair_quiesce(fids['pool'])
+print ("sns repair quiesce rc: " + str(rc))
 
 $SPIEL_RCONF_STOP
 EOF
@@ -183,8 +183,8 @@ $SPIEL_FIDS_LIST
 
 $SPIEL_RCONF_START
 
-rc = spiel.pool_repair_continue(fids['pool'])
-print ("pool repair continue rc: " + str(rc))
+rc = spiel.sns_repair_continue(fids['pool'])
+print ("sns repair continue rc: " + str(rc))
 
 $SPIEL_RCONF_STOP
 EOF
@@ -204,8 +204,8 @@ ppstatus = pointer(one_status)
 active = 0
 while (1):
     active = 0
-    rc = spiel.pool_repair_status(fids['pool'], ppstatus)
-    print ("pool repair status responded servers: " + str(rc))
+    rc = spiel.sns_repair_status(fids['pool'], ppstatus)
+    print ("sns repair status responded servers: " + str(rc))
     for i in range(0, rc):
         print "status of ", ppstatus[i].sss_fid, " is: ", ppstatus[i].sss_state
         if (ppstatus[i].sss_state == 2) :
@@ -227,8 +227,8 @@ $SPIEL_FIDS_LIST
 
 $SPIEL_RCONF_START
 
-rc = spiel.pool_rebalance_start(fids['pool'])
-print ("pool rebalance start rc: " + str(rc))
+rc = spiel.sns_rebalance_start(fids['pool'])
+print ("sns rebalance start rc: " + str(rc))
 
 $SPIEL_RCONF_STOP
 EOF
@@ -242,8 +242,8 @@ $SPIEL_FIDS_LIST
 
 $SPIEL_RCONF_START
 
-rc = spiel.pool_rebalance_quiesce(fids['pool'])
-print ("pool rebalance quiesce rc: " + str(rc))
+rc = spiel.sns_rebalance_quiesce(fids['pool'])
+print ("sns rebalance quiesce rc: " + str(rc))
 
 $SPIEL_RCONF_STOP
 EOF
@@ -257,8 +257,8 @@ $SPIEL_FIDS_LIST
 
 $SPIEL_RCONF_START
 
-rc = spiel.pool_rebalance_continue(fids['pool'])
-print ("pool rebalance continue rc: " + str(rc))
+rc = spiel.sns_rebalance_continue(fids['pool'])
+print ("sns rebalance continue rc: " + str(rc))
 
 $SPIEL_RCONF_STOP
 EOF
@@ -278,8 +278,8 @@ ppstatus = pointer(one_status)
 active = 0
 while (1):
     active = 0
-    rc = spiel.pool_rebalance_status(fids['pool'], ppstatus)
-    print ("pool rebalance status responded servers: " + str(rc))
+    rc = spiel.sns_rebalance_status(fids['pool'], ppstatus)
+    print ("sns rebalance status responded servers: " + str(rc))
     for i in range(0, rc):
         print "status of ", ppstatus[i].sss_fid, " is: ", ppstatus[i].sss_state
         if (ppstatus[i].sss_state == 2) :
@@ -301,8 +301,8 @@ $SPIEL_FIDS_LIST
 
 $SPIEL_RCONF_START
 
-rc = spiel.pool_rebalance_abort(fids['pool'])
-print ("pool rebalance abort rc: " + str(rc))
+rc = spiel.sns_rebalance_abort(fids['pool'])
+print ("rebalance abort rc: " + str(rc))
 
 $SPIEL_RCONF_STOP
 EOF

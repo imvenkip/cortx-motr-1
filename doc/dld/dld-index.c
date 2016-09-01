@@ -25,6 +25,7 @@ Detailed designs, ordered alphabetically by title:
   - @subpage iosnsrepair "I/O with SNS and SNS repair" <!-- m0t1fs/linux_kernel/
 file.c -->
   - @subpage SNSCMDLD "SNS copy machine DLD" <!-- sns/cm/cm.c -->
+  - @subpage DIXCMDLD "DIX copy machine DLD" <!-- dix/cm/cm.c -->
 - @subpage Layout-DB "Layout DB DLD" <!-- layout/layout_db.c -->
 - @subpage LNetDLD "LNet Transport DLD" <!-- net/lnet/lnet_main.c -->
 - @subpage net-test "Mero Network Benchmark" <!-- net/test/main.c -->

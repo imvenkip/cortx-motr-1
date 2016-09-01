@@ -41,12 +41,13 @@
 #include "cas/ctg_store.h"
 #include "pool/pool.h"               /* m0_pool_nd_state */
 
+#include "dix/cm/cm.h"
+#include "dix/fid_convert.h"         /* m0_dix_fid_cctg_device_id */
+
 #include "cas/cas_addb2.h"           /* M0_AVI_CAS_KV_SIZES */
 #include "cas/cas.h"
 #include "cas/cas_xc.h"
-#include "dix/fid_convert.h"         /* m0_dix_fid_cctg_device_id */
 #include "cas/index_gc.h"
-
 
 /**
  * @page cas-dld The catalogue service (CAS)
@@ -289,6 +290,11 @@ struct cas_fom {
 	struct m0_long_lock_link  cf_meta;
 	struct m0_long_lock_link  cf_ctidx;
 	struct m0_long_lock_link  cf_dead_index;
+	/**
+	 * Long lock link used to get catalogue store "delete" lock.
+	 * See m0_ctg_del_lock().
+	 */
+	struct m0_long_lock_link  cf_del_lock;
 	bool                      cf_op_checked;
 	uint64_t                  cf_curpos;
 	/**
@@ -318,6 +324,7 @@ struct cas_fom {
 	struct m0_long_lock_addb2 cf_meta_addb2;
 	struct m0_long_lock_addb2 cf_ctidx_addb2;
 	struct m0_long_lock_addb2 cf_dead_index_addb2;
+	struct m0_long_lock_addb2 cf_del_lock_addb2;
 	/* AT helper fields. */
 	struct m0_buf             cf_out_key;
 	struct m0_buf             cf_out_val;
@@ -431,6 +438,9 @@ static void cas_incoming_kv(const struct cas_fom *fom,
 			    struct m0_buf        *val);
 static int  cas_incoming_kv_setup(struct cas_fom         *fom,
 				  const struct m0_cas_op *op);
+
+static int cas_kv_load_done(struct cas_fom *fom, enum m0_cas_opcode  opc,
+			    const struct m0_cas_op *op, int phase);
 
 static int cas_ctg_crow_handle(struct cas_fom *fom,
 			       const struct m0_cas_id *cid);
@@ -592,6 +602,8 @@ static int cas_fom_create(struct m0_fop *fop,
 				       &fom->cf_ctidx_addb2);
 		m0_long_lock_link_init(&fom->cf_dead_index, fom0,
 				       &fom->cf_dead_index_addb2);
+		m0_long_lock_link_init(&fom->cf_del_lock, fom0,
+				       &fom->cf_del_lock_addb2);
 		return M0_RC(0);
 	} else {
 		m0_free(ikv);
@@ -819,6 +831,7 @@ static void cas_fom_cleanup(struct cas_fom *fom, bool ctg_op_fini)
 	m0_long_unlock(&meta->cc_lock, &fom->cf_meta);
 	m0_long_unlock(&ctidx->cc_lock, &fom->cf_ctidx);
 	m0_long_unlock(&dead_index->cc_lock, &fom->cf_dead_index);
+	m0_long_unlock(m0_ctg_del_lock(), &fom->cf_del_lock);
 	if (fom->cf_ctg != NULL)
 		m0_long_unlock(&fom->cf_ctg->cc_lock, &fom->cf_lock);
 	if (ctg_op_fini) {
@@ -1009,8 +1022,10 @@ static int cas_fom_tick(struct m0_fom *fom0)
 			if (rc != 0)
 				cas_fom_failure(fom, M0_ERR(rc), false);
 			else
-				m0_fom_phase_set(fom0, is_index_drop ?
-					CAS_DEAD_INDEX_LOCK : CAS_LOCK);
+				result = cas_kv_load_done(fom, opc, op,
+							  is_index_drop ?
+							  CAS_DEAD_INDEX_LOCK :
+							  CAS_LOCK);
 			break;
 		}
 		/* Load next key/value. */
@@ -1318,6 +1333,7 @@ static void cas_fom_fini(struct m0_fom *fom0)
 	m0_long_lock_link_fini(&fom->cf_lock);
 	m0_long_lock_link_fini(&fom->cf_ctidx);
 	m0_long_lock_link_fini(&fom->cf_dead_index);
+	m0_long_lock_link_fini(&fom->cf_del_lock);
 	m0_fom_fini(fom0);
 	m0_free(fom);
 	if (cas_in_ut() && cas__ut_cb_fini != NULL)
@@ -1703,6 +1719,26 @@ static struct m0_cas_rec *cas_out_at(const struct m0_cas_rep *rep, int idx)
 {
 	M0_PRE(0 <= idx && idx < rep->cgr_rep.cr_nr);
 	return &rep->cgr_rep.cr_rec[idx];
+}
+
+static int cas_kv_load_done(struct cas_fom *fom, enum m0_cas_opcode  opc,
+			    const struct m0_cas_op *op, int phase)
+
+{
+	if (opc == CO_DEL && (op->cg_flags & COF_DEL_LOCK)) {
+		/*
+		 * Repair or re-balance may be running, take the lock
+		 * to protect current component record/catalogue that is under
+		 * repair/re-balance from concurrent deletion by the client.
+		 */
+		return M0_RC(M0_FOM_LONG_LOCK_RETURN(m0_long_write_lock(
+					m0_ctg_del_lock(),
+					&fom->cf_del_lock,
+					phase)));
+	}
+
+	m0_fom_phase_set(&fom->cf_fom, phase);
+	return M0_RC(M0_FSO_AGAIN);
 }
 
 static int cas_exec(struct cas_fom *fom, enum m0_cas_opcode opc,
@@ -2332,7 +2368,7 @@ struct m0_sm_trans_descr cas_fom_trans[] = {
 	{ "cas-op-checked",       CAS_CHECK,            M0_FOPH_INIT },
 	{ "cas-op-check-failed",  CAS_CHECK,            M0_FOPH_FAILURE },
 	{ "tx-initialised",       M0_FOPH_TXN_OPEN,     CAS_START },
-	{ "btree-op?",            CAS_START,            CAS_META_LOCK },
+	{ "ctg-op?",              CAS_START,            CAS_META_LOCK },
 	{ "meta-op?",             CAS_START,            CAS_LOAD_KEY },
 	{ "meta-locked",          CAS_META_LOCK,        CAS_META_LOOKUP },
 	{ "meta-lookup-launched", CAS_META_LOOKUP,      CAS_META_LOOKUP_DONE },

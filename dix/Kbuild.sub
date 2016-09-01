@@ -9,4 +9,5 @@ m0mero_objects += \
                   dix/next_merge.o \
                   dix/imask_xc.o \
                   dix/layout_xc.o \
-                  dix/encdec_xc.o
+                  dix/encdec_xc.o \
+                  dix/cm/trigger_fop_common.o

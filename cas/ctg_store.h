@@ -96,6 +96,10 @@ struct m0_cas_ctg {
 	 */
 	struct m0_be_btree      cc_tree;
 	struct m0_long_lock     cc_lock;
+	/** Channel to announce catalogue modifications (put, delete). */
+	struct m0_chan          cc_chan;
+	/** Mutex protecting cc_chan. */
+	struct m0_mutex         cc_chan_guard;
 	/*
 	 * Indicates whether catalogue is initialised after its fetch from BE
 	 * segment. Non-meta catalogue is initialised on its first lookup in
@@ -193,7 +197,7 @@ struct m0_ctg_op {
  *
  * @ret 0 on success or negative error code.
  */
-M0_INTERNAL int  m0_ctg_store_init();
+M0_INTERNAL int  m0_ctg_store_init(void);
 
 /**
  * Releases one reference to catalogue store context. If the last reference is
@@ -202,7 +206,7 @@ M0_INTERNAL int  m0_ctg_store_init();
  *
  * @see m0_ctg_store_init()
  */
-M0_INTERNAL void m0_ctg_store_fini();
+M0_INTERNAL void m0_ctg_store_fini(void);
 
 /** Returns a pointer to meta catalogue context. */
 M0_INTERNAL struct m0_cas_ctg *m0_ctg_meta(void);
@@ -649,6 +653,29 @@ M0_INTERNAL uint64_t m0_ctg_rec_nr(void);
  * Total size of records in catalogue store in all user (non-meta) catalogues.
  */
 M0_INTERNAL uint64_t m0_ctg_rec_size(void);
+
+/**
+ * Returns a reference to the catalogue store "delete" long lock.
+ *
+ * This lock is used to protect DIX CM iterator current record from concurrent
+ * deletion by the client. Iterator holds this lock when some record is in
+ * processing and releases it when this record is fully processed, i.e. when a
+ * reply from remote copy machine is received. See dix/client.h, "Operation in
+ * degraded mode" for more info.
+ *
+ * Theoretically, catalogue lock m0_cas_ctg::cc_lock may be used for this
+ * purpose, but it leads to a deadlock during repair in the following case:
+ *           Node 1                                      Node 2
+ *   Iterator gets the catalogue lock      Iterator gets the catalogue lock
+ *   Iterator sends the record to Node 2   Iterator sends the record to Node 1
+ *   Iterator waits for a reply            Iterator waits for a reply
+ * Copy packet foms on both nodes have no chance to insert incoming record into
+ * local catalogue, because the catalogue lock is held by the iterator.
+ *
+ * This lock is also used exactly the same way when client deletes the whole
+ * catalogue in degraded mode.
+ */
+M0_INTERNAL struct m0_long_lock *m0_ctg_del_lock(void);
 
 /** @} end of cas-ctg-store group */
 #endif /* __MERO_CAS_CTG_STORE_H__ */

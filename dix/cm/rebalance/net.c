@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2015 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2017 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -14,34 +14,33 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Mikhail Antropov <mikhail.v.antropov@seagate.com>
- * Original creation date: 08/14/2015
+ * Original author: Sergey Shilov <sergey.shilov@seagate.com>
+ * Original creation date: 25/08/2016
  */
 
-#pragma once
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_DIXCM
+#include "lib/memory.h"
+#include "lib/trace.h"
 
-#ifndef __MERO_SNS_CM_TRIGGER_FOM_H__
-#define __MERO_SNS_CM_TRIGGER_FOM_H__
+#include "dix/cm/cp.h"
 
-#include "lib/types.h"
-#include "xcode/xcode_attr.h"
-#include "rpc/rpc_opcodes.h"
+/**
+ * @addtogroup DIXCMCP
+ * @{
+ */
 
-#include "cm/cm.h"
+extern struct m0_fop_type m0_dix_rebalance_cpx_fopt;
 
-#ifndef __KERNEL__
+/** @see m0_dix_cm_cp_send() */
+M0_INTERNAL int m0_dix_cm_rebalance_cp_send(struct m0_cm_cp *cp)
+{
+	return m0_dix_cm_cp_send(cp, &m0_dix_rebalance_cpx_fopt);
+}
 
-enum m0_sns_trigger_phases {
-	M0_SNS_TPH_PREPARE = M0_FOPH_NR + 1,
-	M0_SNS_TPH_READY,
-	M0_SNS_TPH_START,
-	M0_SNS_TPH_FINI = M0_FOM_PHASE_FINISH
-};
+/** @} DIXCMCP */
 
-#endif
+#undef M0_TRACE_SUBSYSTEM
 
-
-#endif
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

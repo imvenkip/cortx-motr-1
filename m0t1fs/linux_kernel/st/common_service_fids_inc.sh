@@ -13,3 +13,5 @@ ADDB_IO_FID_CON='^s|11'   # addb for ioservice
 ADDB_MD_FID_CON='^s|12'   # addb for mdservice
 CAS_FID_CON='^s|13'       # CAS service
 ADDB_CAS_FID_CON='^s|14'  # addb for CAS service
+DIXR_FID_CON='^s|15'      # DIX repare
+DIXB_FID_CON='^s|16'      # DIX rebalance

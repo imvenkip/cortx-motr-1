@@ -379,16 +379,22 @@ function build_conf()
 	    local RM_OBJ="{0x73| (($RM_NAME), 4, [1: $iosep], [0])}"
 	    local NAMES_NR=5
 	    if [ $ENABLE_CAS -eq 1 ] ; then
+	        local DIX_REP_NAME="$DIXR_FID_CON:$i"
+	        local DIX_REB_NAME="$DIXB_FID_CON:$i"
 	        local CAS_NAME="$CAS_FID_CON:$i"
 	        local CAS_OBJ="{0x73| (($CAS_NAME), 11, [1: $iosep], [1: ^d|$DIX_FID_CON:$i])}"
-	        NAMES_NR=6
+	        local DIX_REP_OBJ="{0x73| (($DIX_REP_NAME), 12, [1: $iosep], [0])}"
+	        local DIX_REB_OBJ="{0x73| (($DIX_REB_NAME), 13, [1: $iosep], [0])}"
+                local CAS_OBJS="$CAS_OBJ, \n  $DIX_REP_OBJ, \n  $DIX_REB_OBJ"
+	        NAMES_NR=8
 	    fi
 
 	    PROC_NAME="$PROC_FID_CONT:$M0D"
-	    IOS_NAMES[$i]="$IOS_NAME, $ADDB_NAME, $SNS_REP_NAME, $SNS_REB_NAME, $RM_NAME${CAS_NAME:+,} $CAS_NAME"
+	    IOS_NAMES[$i]="$IOS_NAME, $ADDB_NAME, $SNS_REP_NAME, $SNS_REB_NAME, \
+	                   $RM_NAME${CAS_NAME:+,} $CAS_NAME, $DIX_REP_NAME, $DIX_REB_NAME"
 	    PROC_OBJ="{0x72| (($PROC_NAME), [1:3], 0, 0, 0, 0, $iosep, [$NAMES_NR: ${IOS_NAMES[$i]}])}"
 	    IOS_OBJS="$IOS_OBJS${IOS_OBJS:+, }\n  $IOS_OBJ, \n  $ADDB_OBJ, \
-	               \n $SNS_REP_OBJ, \n  $SNS_REB_OBJ, \n $RM_OBJ${CAS_OBJ:+, \n} $CAS_OBJ"
+	               \n $SNS_REP_OBJ, \n  $SNS_REB_OBJ, \n $RM_OBJ${CAS_OBJS:+, \n} $CAS_OBJS"
 	    PROC_OBJS="$PROC_OBJS${PROC_OBJS:+, }\n  $PROC_OBJ"
 	    # +1 here for process object
 	    IOS_OBJS_NR=$(($IOS_OBJS_NR + $NAMES_NR + 1))
@@ -589,6 +595,20 @@ service_eps_with_m0t1fs_get()
 		"$lnet_nid:12345:33:1"
 	)
 
+	# Return list of endpoints
+	echo "${service_eps[*]}"
+}
+
+service_cas_eps_with_m0tifs_get()
+{
+	local lnet_nid=`sudo lctl list_nids | head -1`
+	local service_eps=(
+		"$lnet_nid:${CASEP[0]}"
+		"$lnet_nid:${CASEP[1]}"
+		"$lnet_nid:${CASEP[2]}"
+		"$lnet_nid:${CASEP[3]}"
+		"$lnet_nid:${HA_EP}"
+	)
 	# Return list of endpoints
 	echo "${service_eps[*]}"
 }

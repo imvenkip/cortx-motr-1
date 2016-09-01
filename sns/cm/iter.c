@@ -422,7 +422,7 @@ static int __group_alloc(struct m0_sns_cm *scm, struct m0_fid *gfid,
 			 */
 			if (*ag == NULL) {
 				M0_LOG(M0_DEBUG, "group "M0_AG_F" not found",
-					M0_AG_P(&agid)); 
+					M0_AG_P(&agid));
 				rc = -ENOENT;
 			}
 			goto out;
@@ -579,13 +579,13 @@ static bool unit_has_data(struct m0_sns_cm *scm, uint32_t unit)
 {
 	struct m0_sns_cm_iter_file_ctx *ifc = &scm->sc_it.si_fc;
 	struct m0_pdclust_layout       *pl;
-	enum m0_sns_cm_op               op = scm->sc_op;
+	enum m0_cm_op                   op = scm->sc_op;
 
 	pl = m0_layout_to_pdl(ifc->ifc_fctx->sf_layout);
 	switch(op) {
-	case SNS_REPAIR:
+	case CM_OP_REPAIR:
 		return !ifc->ifc_cob_is_spare_unit;
-	case SNS_REBALANCE:
+	case CM_OP_REBALANCE:
 		if (m0_pdclust_unit_classify(pl, unit) == M0_PUT_SPARE)
 			return !ifc->ifc_cob_is_spare_unit;
 		break;

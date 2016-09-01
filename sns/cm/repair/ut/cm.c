@@ -158,7 +158,7 @@ static void pool_mach_transit(struct m0_poolmach *pm, uint64_t fd,
 	m0_sm_group_unlock(grp);
 }
 
-static void iter_setup(enum m0_sns_cm_op op, uint64_t fd)
+static void iter_setup(enum m0_cm_op op, uint64_t fd)
 {
 	int rc;
 
@@ -477,21 +477,21 @@ static void iter_stop(uint64_t pool_width, uint64_t nr_files, uint64_t fd)
 
 static void iter_repair_single_file(void)
 {
-	iter_setup(SNS_REPAIR, 2);
+	iter_setup(CM_OP_REPAIR, 2);
 	iter_run(6, 1, 2);
 	iter_stop(6, 1, 2);
 }
 
 static void iter_repair_multi_file(void)
 {
-	iter_setup(SNS_REPAIR, 4);
+	iter_setup(CM_OP_REPAIR, 4);
 	iter_run(6, 2, 4);
 	iter_stop(6, 2, 4);
 }
 
 static void iter_repair_large_file_with_large_unit_size(void)
 {
-	iter_setup(SNS_REPAIR, 1);
+	iter_setup(CM_OP_REPAIR, 1);
 	iter_run(6, 1, 1);
 	iter_stop(6, 1, 1);
 }
@@ -531,14 +531,14 @@ static void iter_rebalance_large_file_with_large_unit_size(void)
 static void iter_ag_init_failure(void)
 {
 	m0_fi_enable_once("m0_sns_cm_ag_init", "ag_init_failure");
-	iter_setup(SNS_REPAIR, 2);
+	iter_setup(CM_OP_REPAIR, 2);
 	iter_run(6, 1, 2);
 	iter_stop(6, 1, 2);
 }
 
 static void iter_invalid_nr_cobs(void)
 {
-	iter_setup(SNS_REPAIR, 3);
+	iter_setup(CM_OP_REPAIR, 3);
 	iter_run(3, 1, 3);
 	iter_stop(3, 1, 3);
 }

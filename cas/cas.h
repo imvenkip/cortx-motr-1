@@ -229,7 +229,13 @@ enum m0_cas_op_flags {
 	/**
 	 * Repair is in progress, reserve space.
 	 */
-	COF_RESERVE   = 1 << 4
+	COF_RESERVE   = 1 << 4,
+	/**
+	 * For DEL operation, instructs CAS service to take "delete" lock for
+	 * the record being deleted. It is used by DIX client to handle delete
+	 * in degraded mode.
+	 */
+	COF_DEL_LOCK  = 1 << 5
 };
 
 enum m0_cas_opcode {

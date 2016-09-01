@@ -64,9 +64,11 @@ def require(**params):
 
 
 # enum m0_conf_service_type
-service_types = range(1, 11)
+service_types = range(1, 16)
 M0_CST_MDS, M0_CST_IOS, M0_CST_MGS, M0_CST_RMS, M0_CST_STS, M0_CST_HA,\
-    M0_CST_SSS, M0_CST_SNS_REP, M0_CST_SNS_REB, M0_CST_ADDB2 = service_types
+    M0_CST_SSS, M0_CST_SNS_REP, M0_CST_SNS_REB, M0_CST_ADDB2, \
+    M0_CST_CAS, M0_CST_DIX_REP, M0_CST_DIX_REB, M0_CST_DS1, \
+    M0_CST_DS2 = service_types
 
 
 # enum m0_cfg_storage_device_interface_type
@@ -83,10 +85,10 @@ M0_CFG_DEVICE_MEDIA_DISK, M0_CFG_DEVICE_MEDIA_SSD, M0_CFG_DEVICE_MEDIA_TAPE,\
     M0_CFG_DEVICE_MEDIA_ROM = storage_device_media_type
 
 
-#enum m0_sns_cm_status
-sns_status = range(5)
-SNS_CM_STATUS_INVALID, SNS_CM_STATUS_IDLE, SNS_CM_STATUS_STARTED,\
-    SNS_CM_STATUS_FAILED, SNS_CM_STATUS_PAUSED = sns_status
+#enum m0_cm_status
+cm_status = range(5)
+CM_STATUS_INVALID, CM_STATUS_IDLE, CM_STATUS_STARTED,\
+    CM_STATUS_FAILED, CM_STATUS_PAUSED = cm_status
 
 
 # struct m0_fid
@@ -189,6 +191,8 @@ class SpielWrapper:
         self.__free(self.spiel)
         self.mero.m0_sns_cm_repair_trigger_fop_fini()
         self.mero.m0_sns_cm_rebalance_trigger_fop_fini()
+        self.mero.m0_dix_cm_repair_trigger_fop_fini()
+        self.mero.m0_dix_cm_rebalance_trigger_fop_fini()
         self.mero.m0_mero_ha_disconnect(self.mha)
         self.mero.m0_mero_ha_stop(self.mha)
         self.mero.m0_mero_ha_fini(self.mha)
@@ -448,53 +452,94 @@ class SpielWrapper:
                                                         byref(svc_list))
 
     @require(fid=Fid)
-    def pool_repair_start(self, fid):
-        return self.mero.m0_spiel_pool_repair_start(self.spiel, byref(fid))
+    def sns_repair_start(self, fid):
+        return self.mero.m0_spiel_sns_repair_start(self.spiel, byref(fid))
 
     @require(fid=Fid)
-    def pool_repair_abort(self, fid):
-        return self.mero.m0_spiel_pool_repair_abort(self.spiel, byref(fid))
+    def sns_repair_abort(self, fid):
+        return self.mero.m0_spiel_sns_repair_abort(self.spiel, byref(fid))
 
 
     @require(fid=Fid)
-    def pool_repair_quiesce(self, fid):
-        return self.mero.m0_spiel_pool_repair_quiesce(self.spiel, byref(fid))
+    def sns_repair_quiesce(self, fid):
+        return self.mero.m0_spiel_sns_repair_quiesce(self.spiel, byref(fid))
 
     @require(fid=Fid)
-    def pool_repair_continue(self, fid):
-        return self.mero.m0_spiel_pool_repair_continue(self.spiel, byref(fid))
+    def sns_repair_continue(self, fid):
+        return self.mero.m0_spiel_sns_repair_continue(self.spiel, byref(fid))
 
     @require(fid=Fid, ppstatus=POINTER(SpielSnsStatus))
-    def pool_repair_status(self, fid, ppstatus):
-        return self.mero.m0_spiel_pool_repair_status(self.spiel, byref(fid),
-                                                     byref(ppstatus))
+    def sns_repair_status(self, fid, ppstatus):
+        return self.mero.m0_spiel_sns_repair_status(self.spiel, byref(fid),
+                                                    byref(ppstatus))
 
     @require(fid=Fid)
-    def pool_rebalance_start(self, fid):
-        return self.mero.m0_spiel_pool_rebalance_start(self.spiel, byref(fid))
+    def dix_repair_start(self, fid):
+        return self.mero.m0_spiel_dix_repair_start(self.spiel, byref(fid))
 
     @require(fid=Fid)
-    def pool_rebalance_quiesce(self, fid):
-        return self.mero.m0_spiel_pool_rebalance_quiesce(self.spiel,
-                                                         byref(fid))
+    def dix_repair_abort(self, fid):
+        return self.mero.m0_spiel_dix_repair_abort(self.spiel, byref(fid))
+
     @require(fid=Fid)
-    def pool_rebalance_continue(self, fid):
-        return self.mero.m0_spiel_pool_rebalance_continue(self.spiel,
-                                                          byref(fid))
+    def dix_repair_quiesce(self, fid):
+        return self.mero.m0_spiel_dix_repair_quiesce(self.spiel, byref(fid))
+
+    @require(fid=Fid)
+    def dix_repair_continue(self, fid):
+        return self.mero.m0_spiel_dix_repair_continue(self.spiel, byref(fid))
 
     @require(fid=Fid, ppstatus=POINTER(SpielSnsStatus))
-    def pool_rebalance_status(self, fid, ppstatus):
-        return self.mero.m0_spiel_pool_rebalance_status(self.spiel, byref(fid),
-                                                        byref(ppstatus))
+    def dix_repair_status(self, fid, ppstatus):
+        return self.mero.m0_spiel_dix_repair_status(self.spiel, byref(fid),
+                                                         byref(ppstatus))
+
+    @require(fid=Fid)
+    def sns_rebalance_start(self, fid):
+        return self.mero.m0_spiel_sns_rebalance_start(self.spiel, byref(fid))
+
+    @require(fid=Fid)
+    def sns_rebalance_quiesce(self, fid):
+        return self.mero.m0_spiel_sns_rebalance_quiesce(self.spiel, byref(fid))
+
+    @require(fid=Fid)
+    def sns_rebalance_continue(self, fid):
+        return self.mero.m0_spiel_sns_rebalance_continue(self.spiel, byref(fid))
+
+    @require(fid=Fid, ppstatus=POINTER(SpielSnsStatus))
+    def sns_rebalance_status(self, fid, ppstatus):
+        return self.mero.m0_spiel_sns_rebalance_status(self.spiel, byref(fid),
+                                                            byref(ppstatus))
+
+    @require(fid=Fid)
+    def dix_rebalance_start(self, fid):
+        return self.mero.m0_spiel_dix_rebalance_start(self.spiel, byref(fid))
+
+    @require(fid=Fid)
+    def dix_rebalance_quiesce(self, fid):
+        return self.mero.m0_spiel_dix_rebalance_quiesce(self.spiel, byref(fid))
+
+    @require(fid=Fid)
+    def dix_rebalance_continue(self, fid):
+        return self.mero.m0_spiel_dix_rebalance_continue(self.spiel, byref(fid))
+
+    @require(fid=Fid, ppstatus=POINTER(SpielSnsStatus))
+    def dix_rebalance_status(self, fid, ppstatus):
+        return self.mero.m0_spiel_dix_rebalance_status(self.spiel, byref(fid),
+                                                       byref(ppstatus))
 
     @require(fid=Fid, stats=FsStats)
     def filesystem_stats_fetch(self, fid, stats):
         return self.mero.m0_spiel_filesystem_stats_fetch(self.spiel, byref(fid),
                                                          byref(stats))
+
     @require(fid=Fid)
-    def pool_rebalance_abort(self, fid):
-        return self.mero.m0_spiel_pool_rebalance_abort(self.spiel,
-                                                       byref(fid))
+    def sns_rebalance_abort(self, fid):
+        return self.mero.m0_spiel_sns_rebalance_abort(self.spiel, byref(fid))
+
+    @require(fid=Fid)
+    def dix_rebalance_abort(self, fid):
+        return self.mero.m0_spiel_dix_rebalance_abort(self.spiel, byref(fid))
 
     def __m0_init(self):
         m0 = self.__malloc(m0__size())
@@ -552,6 +597,8 @@ class SpielWrapper:
         call(self.mero.m0_spiel_init, spiel, self.reqh)
         self.mero.m0_sns_cm_repair_trigger_fop_init()
         self.mero.m0_sns_cm_rebalance_trigger_fop_init()
+        self.mero.m0_dix_cm_repair_trigger_fop_init()
+        self.mero.m0_dix_cm_rebalance_trigger_fop_init()
         self.spiel = spiel
 
     def __malloc(self, size):

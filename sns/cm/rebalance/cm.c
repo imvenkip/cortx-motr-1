@@ -35,10 +35,13 @@
 #include "sns/cm/cp.h"
 #include "sns/cm/file.h"
 #include "sns/cm/rebalance/ag.h"
-#include "sns/cm/sw_onwire_fop.h"
+
+/* Import */
+struct m0_cm_sw;
 
 extern const struct m0_sns_cm_helpers rebalance_helpers;
 extern const struct m0_cm_cp_ops m0_sns_cm_rebalance_cp_ops;
+
 
 M0_INTERNAL int
 m0_sns_cm_rebalance_sw_onwire_fop_setup(struct m0_cm *cm, struct m0_fop *fop,
@@ -68,7 +71,7 @@ static int rebalance_cm_prepare(struct m0_cm *cm)
 	int    rc;
 
 	M0_ENTRY("cm: %p", cm);
-	M0_PRE(scm->sc_op == SNS_REBALANCE);
+	M0_PRE(scm->sc_op == CM_OP_REBALANCE);
 	rc = m0_sns_reopen_stob_devices(cm);
 	if (rc != 0)
 		return rc;
@@ -94,7 +97,7 @@ static void rebalance_cm_stop(struct m0_cm *cm)
 	int                     rc;
 
 	M0_ENTRY();
-	M0_ASSERT(scm->sc_op == SNS_REBALANCE);
+	M0_ASSERT(scm->sc_op == CM_OP_REBALANCE);
 
 	cc = &pc->pc_confc->cc_cache;
 	m0_tl_for (pools, &pc->pc_pools, pool) {
@@ -192,6 +195,7 @@ const struct m0_cm_ops sns_rebalance_ops = {
 	.cmo_ag_next             = m0_sns_cm_ag_next,
 	.cmo_get_space_for       = rebalance_cm_get_space_for,
 	.cmo_sw_onwire_fop_setup = m0_sns_cm_rebalance_sw_onwire_fop_setup,
+	.cmo_is_peer             = m0_sns_is_peer,
 	.cmo_stop                = rebalance_cm_stop,
 	.cmo_fini                = m0_sns_cm_fini
 };

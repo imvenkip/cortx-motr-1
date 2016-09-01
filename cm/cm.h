@@ -248,6 +248,7 @@ struct m0_cm {
 
 	struct m0_bitmap                 cm_proxy_update_map;
 	uint64_t                         cm_nr_proxy_updated;
+	uint64_t                         cm_proxy_active_nr;
 
 	/** Copy packet pump FOM for this copy machine. */
 	struct m0_cm_cp_pump             cm_cp_pump;
@@ -337,7 +338,13 @@ struct m0_cm_ops {
 				       uint64_t proxy_id, const char *local_ep,
 				       const struct m0_cm_sw *sw,
 				       const struct m0_cm_sw *out_interval);
-
+	/**
+	 * Returns true if remote replica identified by 'ctx' participates in
+	 * data restructure process, in which local 'cm' is also involved.
+	 * Usually, if remote replica is involved in the same data restructure
+	 * process, then local cm establishes connection to it.
+	 */
+	bool (*cmo_is_peer)(struct m0_cm *cm, struct m0_reqh_service_ctx *ctx);
 	/** Copy machine specific finalisation routine. */
 	void (*cmo_fini)(struct m0_cm *cm);
 };
@@ -442,7 +449,7 @@ M0_INTERNAL int m0_cm_configure(struct m0_cm *cm, struct m0_fop *fop);
 M0_INTERNAL void m0_cm_fail(struct m0_cm *cm, int rc);
 
 #define M0_CM_TYPE_DECLARE(cmtype, id, ops, name, typecode)	\
-struct m0_cm_type cmtype ## _cmt = {				\
+M0_INTERNAL struct m0_cm_type cmtype ## _cmt = {				\
 	.ct_fom_id = (id),					\
 	.ct_stype = {						\
 		.rst_name    = (name),				\

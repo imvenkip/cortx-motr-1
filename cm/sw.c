@@ -79,6 +79,7 @@ M0_INTERNAL int m0_cm_sw_onwire_init(struct m0_cm *cm, struct m0_cm_sw_onwire *s
 	M0_PRE(m0_cm_is_locked(cm));
 	M0_PRE(sw_onwire != NULL && ep != NULL && sw != NULL);
 
+	M0_ENTRY("cm %p, done %d", cm, (int)cm->cm_done);
 	m0_cm_sw_copy(&sw_onwire->swo_in_interval, sw);
 	m0_cm_sw_copy(&sw_onwire->swo_out_interval, out_interval);
 	sw_onwire->swo_cm_ep.ep_size = CS_MAX_EP_ADDR_LEN;

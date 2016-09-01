@@ -33,6 +33,7 @@
 #include "rm/rm.h"
 #include "file/file.h"
 #include "lib/hash.h"
+#include "cm/repreb/cm.h" /* m0_cm_op */
 
 
 /**
@@ -95,6 +96,7 @@
 
 /**
  * Operation that sns copy machine is carrying out.
+ * @todo: Remove once Halon supports successor enum m0_cm_op.
  */
 enum m0_sns_cm_op {
 	SNS_INVALID           = 0,
@@ -110,6 +112,7 @@ enum m0_sns_cm_op {
 
 /**
  * sns copy machine status
+ * @todo: Remove once Halon supports successor enum m0_cm_status.
  */
 enum m0_sns_cm_status {
 	SNS_CM_STATUS_INVALID = 0,
@@ -193,7 +196,7 @@ struct m0_sns_cm {
 	struct m0_cm                    sc_base;
 
 	/** Operation that sns copy machine is going to execute. */
-	enum m0_sns_cm_op               sc_op;
+	enum m0_cm_op                   sc_op;
 
 	/**
 	 * Helper functions implemented with respect to specific sns copy
@@ -287,6 +290,9 @@ M0_INTERNAL int m0_sns_cm_prepare(struct m0_cm *cm);
 M0_INTERNAL void m0_sns_cm_stop(struct m0_cm *cm);
 
 M0_INTERNAL int m0_sns_cm_setup(struct m0_cm *cm);
+
+M0_INTERNAL bool m0_sns_is_peer(struct m0_cm               *cm,
+				struct m0_reqh_service_ctx *ctx);
 
 M0_INTERNAL int m0_sns_cm_start(struct m0_cm *cm);
 

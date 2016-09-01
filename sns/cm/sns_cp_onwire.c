@@ -24,8 +24,6 @@
 #include "sns/cm/cp.h"
 #include "rpc/rpc_opcodes.h"
 
-M0_EXTERN const struct m0_fom_type_ops cp_fom_type_ops;
-
 M0_INTERNAL void m0_sns_cpx_init(struct m0_fop_type *ft,
 				 const struct m0_fom_type_ops *fomt_ops,
 				 enum M0_RPC_OPCODES op,

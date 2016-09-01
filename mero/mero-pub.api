@@ -188,6 +188,7 @@ m0_locality_chore_init
 m0_locality_data
 m0_locality_data_alloc
 m0_locality_data_free
+m0_locality_data_iterate
 m0_matrix_elem_get
 m0_nanosleep
 m0_net_domain_fini
@@ -284,6 +285,16 @@ m0_spiel_device_detach
 m0_spiel_device_format
 m0_spiel_disk_add
 m0_spiel_disk_v_add
+m0_spiel_dix_rebalance_abort
+m0_spiel_dix_rebalance_continue
+m0_spiel_dix_rebalance_quiesce
+m0_spiel_dix_rebalance_start
+m0_spiel_dix_rebalance_status
+m0_spiel_dix_repair_abort
+m0_spiel_dix_repair_continue
+m0_spiel_dix_repair_quiesce
+m0_spiel_dix_repair_start
+m0_spiel_dix_repair_status
 m0_spiel_element_del
 m0_spiel_enclosure_add
 m0_spiel_enclosure_v_add
@@ -293,18 +304,6 @@ m0_spiel_fini
 m0_spiel_init
 m0_spiel_node_add
 m0_spiel_pool_add
-m0_spiel_pool_rebalance_continue
-m0_spiel_pool_rebalance_quiesce
-m0_spiel_pool_rebalance_start
-m0_spiel_pool_rebalance_status
-m0_spiel_pool_rebalance_abort
-m0_spiel_pool_repair_abort
-m0_spiel_pool_repair_continue
-m0_spiel_pool_repair_quiesce
-m0_spiel_pool_repair_start
-m0_spiel_pool_repair_status
-m0_spiel_pver_actual_add
-m0_spiel_pver_formulaic_add
 m0_spiel_pool_version_done
 m0_spiel_process_add
 m0_spiel_process_health
@@ -313,6 +312,8 @@ m0_spiel_process_quiesce
 m0_spiel_process_reconfig
 m0_spiel_process_stop
 m0_spiel_profile_add
+m0_spiel_pver_actual_add
+m0_spiel_pver_formulaic_add
 m0_spiel_rack_add
 m0_spiel_rack_v_add
 m0_spiel_rconfc_start
@@ -324,6 +325,16 @@ m0_spiel_service_quiesce
 m0_spiel_service_start
 m0_spiel_service_status
 m0_spiel_service_stop
+m0_spiel_sns_rebalance_abort
+m0_spiel_sns_rebalance_continue
+m0_spiel_sns_rebalance_quiesce
+m0_spiel_sns_rebalance_start
+m0_spiel_sns_rebalance_status
+m0_spiel_sns_repair_abort
+m0_spiel_sns_repair_continue
+m0_spiel_sns_repair_quiesce
+m0_spiel_sns_repair_start
+m0_spiel_sns_repair_status
 m0_spiel_tx_close
 m0_spiel_tx_commit
 m0_spiel_tx_commit_forced
@@ -375,3 +386,15 @@ m0_be_0type_register
 m0_be_0type_unregister
 m0_be_0type_add_credit
 m0_be_0type_del_credit
+### XXX To be deleted from here to the end when Halon supports new spiel
+### repair/rebalance interface.
+m0_spiel_pool_rebalance_abort
+m0_spiel_pool_rebalance_continue
+m0_spiel_pool_rebalance_quiesce
+m0_spiel_pool_rebalance_start
+m0_spiel_pool_rebalance_status
+m0_spiel_pool_repair_abort
+m0_spiel_pool_repair_continue
+m0_spiel_pool_repair_quiesce
+m0_spiel_pool_repair_start
+m0_spiel_pool_repair_status

@@ -455,7 +455,8 @@ static struct m0_sm_state_descr cm_state_descr[M0_CMS_NR] = {
 	[M0_CMS_IDLE] = {
 		.sd_flags	= 0,
 		.sd_name	= "cm_idle",
-		.sd_allowed	= M0_BITS(M0_CMS_FAIL, M0_CMS_PREPARE, M0_CMS_FINI)
+		.sd_allowed	= M0_BITS(M0_CMS_FAIL, M0_CMS_PREPARE,
+					  M0_CMS_FINI)
 	},
 	[M0_CMS_PREPARE] = {
 		.sd_flags	= 0,
@@ -623,7 +624,8 @@ static int cm_replicas_connect(struct m0_cm *cm, struct m0_rpc_machine *rmach,
 
 		M0_LOG(M0_DEBUG, "Connect %s dep %s type %d", lep, dep,
 				ctx->sc_type);
-		if (strcmp(lep, dep) == 0 || ctx->sc_type != M0_CST_IOS)
+		if ((strcmp(lep, dep) == 0 ||
+		    !cm->cm_ops->cmo_is_peer(cm, ctx)))
 			continue;
                 rc = m0_conf_obj_find_lock(&pc->pc_confc->cc_cache,
                                            &ctx->sc_fid, &svc_obj);
@@ -805,18 +807,21 @@ M0_INTERNAL int m0_cm_proxies_fini(struct m0_cm *cm)
 {
 	struct m0_cm_proxy *pxy;
 
+	M0_ENTRY();
 	M0_PRE(m0_cm_is_locked(cm));
 
 	m0_tl_for(proxy, &cm->cm_proxies, pxy) {
 		/* Check if proxy has completed. */
+		M0_LOG(M0_DEBUG, "pxy %p, is_done %d", pxy, (int)pxy->px_is_done);
 		if (!m0_cm_proxy_is_done(pxy))
-			return -EAGAIN;
+			return M0_RC(-EAGAIN);
+		M0_LOG(M0_DEBUG, "Stop proxy. cm %p, pxy %p",cm,  pxy);
 		m0_cm_proxy_del(cm, pxy);
 		m0_cm_proxy_fini(pxy);
 		m0_free(pxy);
 	} m0_tl_endfor;
 
-	return 0;
+	return M0_RC(0);
 }
 
 M0_INTERNAL int m0_cm_stop(struct m0_cm *cm)
@@ -1055,6 +1060,7 @@ M0_INTERNAL int m0_cm_complete(struct m0_cm *cm)
 {
 	int rc;
 
+	M0_ENTRY("cm %p, done %d", cm, (int)cm->cm_done);
 	M0_PRE(m0_cm_is_locked(cm));
 
 	if (!cm->cm_done) {
@@ -1067,7 +1073,7 @@ M0_INTERNAL int m0_cm_complete(struct m0_cm *cm)
 		m0_cm_sw_remote_update(cm);
 	}
 	/*
-	 * Finalising proxies is a blocking operation becuase we wait until
+	 * Finalising proxies is a blocking operation because we wait until
 	 * the remote replica, corresponding to the copy machine proxy is
 	 * complete. Thus we check for -EAGAIN if proxy is not yet ready to
 	 * be finalised.
@@ -1096,7 +1102,8 @@ M0_INTERNAL void m0_cm_proxies_init_wait(struct m0_cm *cm, struct m0_fom *fom)
 	m0_fom_wait_on(fom, &cm->cm_proxy_init_wait, &fom->fo_cb);
 }
 
-M0_INTERNAL void m0_cm_frozen_ag_cleanup(struct m0_cm *cm, struct m0_cm_proxy *proxy)
+M0_INTERNAL void m0_cm_frozen_ag_cleanup(struct m0_cm *cm,
+					 struct m0_cm_proxy *proxy)
 {
 	struct m0_cm_aggr_group *ag = NULL;
 	bool                     cleanup;

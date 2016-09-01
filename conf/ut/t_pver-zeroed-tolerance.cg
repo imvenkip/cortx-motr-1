@@ -18,7 +18,7 @@
 (service-5 type=8 endpoints=["0@lo:12345:34:1"] sdevs=[])
 (service-6 type=9 endpoints=["0@lo:12345:34:1"] sdevs=[])
 (service-7 type=10 endpoints=["0@lo:12345:34:1"] sdevs=[])
-(service-8 type=12 endpoints=["0@lo:12345:34:1"] sdevs=[])
+(service-8 type=14 endpoints=["0@lo:12345:34:1"] sdevs=[])
 (sdev-0 dev_idx=0 iface=7 media=2 bsize=8192 size=1073741824 last_state=2
     flags=4 filename="/dev/sdev1")
 (sdev-1 dev_idx=1 iface=7 media=2 bsize=8192 size=1073741824 last_state=2

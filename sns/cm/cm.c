@@ -46,7 +46,6 @@
 #include "sns/cm/cm.h"
 #include "sns/cm/cp.h"
 #include "sns/cm/ag.h"
-#include "sns/cm/sw_onwire_fop.h"
 #include "sns/cm/file.h"
 #include "lib/locality.h"
 #include "rm/rm_service.h"
@@ -378,9 +377,10 @@ enum {
 	SNS_COB_FID_START = 4,
 };
 
+M0_EXTERN struct m0_cm_type sns_repair_cmt;
+M0_EXTERN struct m0_cm_type sns_rebalance_cmt;
+
 extern struct m0_net_xprt m0_net_lnet_xprt;
-extern struct m0_cm_type  sns_repair_cmt;
-extern struct m0_cm_type  sns_rebalance_cmt;
 extern const struct m0_sns_cm_helpers repair_helpers;
 extern const struct m0_sns_cm_helpers rebalance_helpers;
 
@@ -537,6 +537,12 @@ M0_INTERNAL int m0_sns_cm_setup(struct m0_cm *cm)
 	return M0_RC(rc);
 }
 
+M0_INTERNAL bool m0_sns_is_peer(struct m0_cm               *cm,
+				struct m0_reqh_service_ctx *ctx)
+{
+	return ctx->sc_type == M0_CST_IOS;
+}
+
 M0_INTERNAL size_t m0_sns_cm_buffer_pool_provision(struct m0_net_buffer_pool *bp,
 						   size_t bufs_nr)
 {
@@ -559,7 +565,7 @@ M0_INTERNAL int m0_sns_cm_prepare(struct m0_cm *cm)
 	int               rc;
 
 	M0_ENTRY("cm: %p", cm);
-	M0_PRE(M0_IN(scm->sc_op, (SNS_REPAIR, SNS_REBALANCE)));
+	M0_PRE(M0_IN(scm->sc_op, (CM_OP_REPAIR, CM_OP_REBALANCE)));
 
 	rc = m0_sns_cm_rm_init(scm);
 	if (rc != 0)
@@ -601,7 +607,7 @@ M0_INTERNAL int m0_sns_cm_start(struct m0_cm *cm)
 	int               rc;
 
 	M0_ENTRY("cm: %p", cm);
-	M0_PRE(M0_IN(scm->sc_op, (SNS_REPAIR, SNS_REBALANCE)));
+	M0_PRE(M0_IN(scm->sc_op, (CM_OP_REPAIR, CM_OP_REBALANCE)));
 
 	M0_ALLOC_ARR(scm->sc_total_read_size, loc_nr);
 	if (scm->sc_total_read_size == NULL)

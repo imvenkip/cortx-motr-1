@@ -205,12 +205,16 @@ include $(top_srcdir)/capa/Makefile.sub
 include $(top_srcdir)/cas/Makefile.sub
 include $(top_srcdir)/clovis/Makefile.sub
 include $(top_srcdir)/cm/Makefile.sub
+include $(top_srcdir)/cm/repreb/Makefile.sub
 include $(top_srcdir)/cob/Makefile.sub
 include $(top_srcdir)/conf/Makefile.sub
 include $(top_srcdir)/conf/objs/Makefile.sub
 include $(top_srcdir)/console/Makefile.sub
 include $(top_srcdir)/desim/Makefile.sub
 include $(top_srcdir)/dix/Makefile.sub
+include $(top_srcdir)/dix/cm/Makefile.sub
+include $(top_srcdir)/dix/cm/repair/Makefile.sub
+include $(top_srcdir)/dix/cm/rebalance/Makefile.sub
 include $(top_srcdir)/dtm/Makefile.sub
 include $(top_srcdir)/fd/Makefile.sub
 include $(top_srcdir)/fid/Makefile.sub
@@ -321,6 +325,7 @@ include $(top_srcdir)/cm/ut/Makefile.sub
 include $(top_srcdir)/cob/ut/Makefile.sub
 include $(top_srcdir)/conf/ut/Makefile.sub
 include $(top_srcdir)/console/ut/Makefile.sub
+include $(top_srcdir)/dix/cm/ut/Makefile.sub
 include $(top_srcdir)/dix/ut/Makefile.sub
 include $(top_srcdir)/dtm/ut/Makefile.sub
 include $(top_srcdir)/fd/ut/Makefile.sub
@@ -884,7 +889,10 @@ EXTRA_DIST += \
               clovis/st/Kbuild.sub\
               conf/Kbuild.sub \
               conf/ut/Kbuild.sub \
+              cm/Kbuild.sub \
+              cm/repreb/Kbuild.sub \
               dix/Kbuild.sub \
+              dix/cm/Kbuild.sub \
               dtm/Kbuild.sub \
               dtm/ut/Kbuild.sub \
               fd/Kbuild.sub \

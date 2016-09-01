@@ -32,7 +32,6 @@
 #include "sns/cm/service.h"
 #include "sns/cm/cm.h"
 #include "sns/cm/sns_cp_onwire.h"
-#include "sns/cm/sw_onwire_fop.h"
 
 /**
   @defgroup SNSCMSVC SNS copy machine service

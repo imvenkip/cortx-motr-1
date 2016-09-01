@@ -33,7 +33,7 @@ extern struct m0_cm_type sns_repair_cmt;
 static int repair_cp_fom_create(struct m0_fop *fop, struct m0_fom **m,
 				struct m0_reqh *reqh);
 
-const struct m0_fom_type_ops repair_cp_fom_type_ops = {
+M0_INTERNAL const struct m0_fom_type_ops repair_cp_fom_type_ops = {
         .fto_create = repair_cp_fom_create
 };
 

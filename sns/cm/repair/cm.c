@@ -34,7 +34,9 @@
 #include "sns/cm/cp.h"
 #include "sns/cm/file.h"
 #include "sns/cm/repair/ag.h"
-#include "sns/cm/sw_onwire_fop.h"
+
+/* Import */
+struct m0_cm_sw;
 
 extern const struct m0_sns_cm_helpers repair_helpers;
 extern const struct m0_cm_cp_ops m0_sns_cm_repair_cp_ops;
@@ -63,7 +65,7 @@ static int repair_cm_prepare(struct m0_cm *cm)
 	struct m0_sns_cm *scm = cm2sns(cm);
 
 	M0_ENTRY("cm: %p", cm);
-	M0_PRE(scm->sc_op == SNS_REPAIR);
+	M0_PRE(scm->sc_op == CM_OP_REPAIR);
 
 	scm->sc_helpers = &repair_helpers;
 	return m0_sns_cm_prepare(cm);
@@ -85,7 +87,7 @@ static void repair_cm_stop(struct m0_cm *cm)
 	int                     rc;
 
 	M0_ENTRY();
-	M0_PRE(scm->sc_op == SNS_REPAIR);
+	M0_PRE(scm->sc_op == CM_OP_REPAIR);
 
 	cc = &pc->pc_confc->cc_cache;
 	m0_tl_for(pools, &pc->pc_pools, pool) {
@@ -212,7 +214,7 @@ m0_sns_cm_fid_repair_done(struct m0_fid *gfid, struct m0_reqh *reqh,
 }
 
 /** Copy machine operations. */
-const struct m0_cm_ops sns_repair_ops = {
+M0_INTERNAL const struct m0_cm_ops sns_repair_ops = {
 	.cmo_setup               = m0_sns_cm_setup,
 	.cmo_prepare             = repair_cm_prepare,
 	.cmo_start               = m0_sns_cm_start,
@@ -222,6 +224,7 @@ const struct m0_cm_ops sns_repair_ops = {
 	.cmo_ag_next             = m0_sns_cm_ag_next,
 	.cmo_get_space_for       = repair_cm_get_space_for,
 	.cmo_sw_onwire_fop_setup = m0_sns_cm_repair_sw_onwire_fop_setup,
+	.cmo_is_peer             = m0_sns_is_peer,
 	.cmo_stop                = repair_cm_stop,
 	.cmo_fini                = m0_sns_cm_fini
 };

@@ -440,6 +440,9 @@ static int cp_fom_tick(struct m0_fom *fom)
 	M0_LOG(M0_DEBUG, "fom phase = %d", phase);
 
 	rc = cp->c_ops->co_action[phase](cp);
+	/** @todo Revise it. */
+	if (m0_fom_phase(fom) == M0_CCP_FINI)
+		cp->c_ops->co_action[M0_CCP_FINI](cp);
 	return M0_RC(rc);
 }
 
@@ -496,11 +499,27 @@ static struct m0_sm_state_descr m0_cm_cp_state_descr[] = {
 		.sd_allowed     = M0_BITS(M0_CCP_IO_WAIT, M0_CCP_FAIL,
 					  M0_CCP_FINI)
 	},
+	[M0_CCP_WRITE_PRE] = {
+		.sd_flags       = 0,
+		.sd_name        = "Write-pre",
+		.sd_allowed     = M0_BITS(M0_CCP_TX_OPEN, M0_CCP_WRITE,
+					  M0_CCP_FAIL)
+	},
+	[M0_CCP_TX_OPEN] = {
+		.sd_flags       = 0,
+		.sd_name        = "TX Open",
+		.sd_allowed     = M0_BITS(M0_CCP_WRITE, M0_CCP_FAIL)
+	},
 	[M0_CCP_WRITE] = {
 		.sd_flags       = 0,
 		.sd_name        = "Write",
-		.sd_allowed     = M0_BITS(M0_CCP_IO_WAIT, M0_CCP_FAIL,
-					  M0_CCP_FINI)
+		.sd_allowed     = M0_BITS(M0_CCP_TX_DONE, M0_CCP_IO_WAIT,
+					  M0_CCP_FAIL, M0_CCP_FINI)
+	},
+	[M0_CCP_TX_DONE] = {
+		.sd_flags       = 0,
+		.sd_name        = "TX Done",
+		.sd_allowed     = M0_BITS(M0_CCP_IO_WAIT, M0_CCP_FAIL)
 	},
 	[M0_CCP_IO_WAIT] = {
 		.sd_flags       = 0,
@@ -511,7 +530,8 @@ static struct m0_sm_state_descr m0_cm_cp_state_descr[] = {
 	[M0_CCP_XFORM] = {
 		.sd_flags       = 0,
 		.sd_name        = "Xform",
-		.sd_allowed     = M0_BITS(M0_CCP_FAIL, M0_CCP_FINI, M0_CCP_WRITE,
+		.sd_allowed     = M0_BITS(M0_CCP_FAIL, M0_CCP_FINI,
+					  M0_CCP_WRITE_PRE, M0_CCP_WRITE,
 					  M0_CCP_SEND, M0_CCP_SW_CHECK)
 	},
 	[M0_CCP_SW_CHECK] = {
@@ -538,7 +558,8 @@ static struct m0_sm_state_descr m0_cm_cp_state_descr[] = {
 	[M0_CCP_RECV_WAIT] = {
 		.sd_flags       = 0,
 		.sd_name        = "Recv Wait",
-		.sd_allowed     = M0_BITS(M0_CCP_XFORM, M0_CCP_FAIL)
+		.sd_allowed     = M0_BITS(M0_CCP_XFORM, M0_CCP_RECV_INIT,
+					  M0_CCP_FAIL)
 	},
 	[M0_CCP_FAIL] = {
 		.sd_flags       = M0_SDF_FAILURE,
@@ -572,8 +593,7 @@ M0_INTERNAL bool m0_cm_cp_invariant(const struct m0_cm_cp *cp)
 	return m0_cm_cp_bob_check(cp) && ops != NULL &&
 	       cp->c_ag != NULL &&
 	       m0_fom_phase(&cp->c_fom) < ops->co_action_nr &&
-	       cp->c_ops->co_invariant(cp) &&
-	       m0_forall(i, ops->co_action_nr, ops->co_action[i] != NULL);
+	       cp->c_ops->co_invariant(cp);
 }
 
 M0_INTERNAL void m0_cm_cp_only_init(struct m0_cm *cm, struct m0_cm_cp *cp)

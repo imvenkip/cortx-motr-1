@@ -109,8 +109,17 @@ enum m0_cm_cp_phase {
 	/** Read and fill up the packet. */
 	M0_CCP_READ,
 
+	/** Some specific pre-write routines for copy packet. */
+	M0_CCP_WRITE_PRE,
+
+	/** Open BE transaction if needed. */
+	M0_CCP_TX_OPEN,
+
 	/** Write packet data. */
 	M0_CCP_WRITE,
+
+	/** BE transaction is done. */
+	M0_CCP_TX_DONE,
 
 	/** Wait for IO completion. */
 	M0_CCP_IO_WAIT,
@@ -187,6 +196,7 @@ struct m0_cm_cp {
 
 	/**
 	 * Linkage to list of pending copy packets list in the proxy
+	 * This channel is signalled by cp_reply_received() when reply is
 	 * representing the remote replica.
 	 * @see m0_cm_proxy::px_pending_cps
 	 * @see m0_cm::cm_proxies
@@ -199,7 +209,6 @@ struct m0_cm_cp {
 	/**
 	 * Channel to wait for reply of copy packet fop. This is used in
 	 * send phase of copy packet fom.
-	 * This channel is signalled by cp_reply_received() when reply is
 	 * received for copy packet.
 	 */
 	struct m0_chan            c_reply_wait;

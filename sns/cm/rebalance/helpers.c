@@ -346,7 +346,7 @@ M0_INTERNAL int m0_sns_reopen_stob_devices(struct m0_cm *cm)
 	enum m0_pool_nd_state  state;
 	int                    rc = 0;
 
-	state = scm->sc_op == SNS_REPAIR ? M0_PNDS_SNS_REPAIRING :
+	state = scm->sc_op == CM_OP_REPAIR ? M0_PNDS_SNS_REPAIRING :
 		M0_PNDS_SNS_REBALANCING;
 	M0_PRE(state == M0_PNDS_SNS_REBALANCING);
 #if 0

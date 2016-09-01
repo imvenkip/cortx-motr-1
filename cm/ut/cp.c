@@ -100,6 +100,11 @@ static int dummy_cp_read(struct m0_cm_cp *cp)
 	return M0_FSO_AGAIN;
 }
 
+static int dummy_cp_write_pre(struct m0_cm_cp *cp)
+{
+	M0_IMPOSSIBLE("M0_CCP_WRITE_PRE phase shouldn't be used!");
+}
+
 static int dummy_cp_write(struct m0_cm_cp *cp)
 {
 	cp->c_io_op = M0_CM_CP_WRITE;
@@ -136,6 +141,7 @@ const struct m0_cm_cp_ops m0_sns_cm_cp_dummy_ops = {
         .co_action = {
                 [M0_CCP_INIT]         = &dummy_cp_init,
                 [M0_CCP_READ]         = &dummy_cp_read,
+                [M0_CCP_WRITE_PRE]    = &dummy_cp_write_pre,
                 [M0_CCP_WRITE]        = &dummy_cp_write,
                 [M0_CCP_IO_WAIT]      = &dummy_cp_phase,
                 [M0_CCP_XFORM]        = &dummy_cp_phase,

@@ -23,46 +23,45 @@
 #include "lib/errno.h"
 #include "lib/assert.h"
 #include "lib/memory.h"
-#include "lib/misc.h"           /* M0_IN() */
-#include "lib/hash.h"
+#include "lib/arith.h"           /* m0_rnd() */
+
+#include "rpc/rpc.h"
 
 #include "fop/fop.h"
 #include "fop/fop_item_type.h"
 #include "fop/fom.h"
-#include "rpc/rpc.h"
-#include "rpc/rpc_opcodes.h"
 
 #include "cm/proxy.h"
 #include "cm/cm.h"
-#include "sns/cm/sw_onwire_fop.h"
-#include "sns/cm/sw_onwire_fom.h"
+#include "cm/repreb/sw_onwire_fop.h"
+#include "cm/repreb/sw_onwire_fom.h"
 
 /**
-   @addtogroup SNSCMSW
+   @addtogroup XXX
 
    @{
  */
 
-static struct m0_sm_state_descr sw_onwire_fom_phases[] = {
+static struct m0_sm_state_descr repreb_sw_fom_phases[] = {
 	[SWOPH_START] = {
 		.sd_flags     = M0_SDF_INITIAL,
 		.sd_name      = "Start",
 		.sd_allowed   = M0_BITS(SWOPH_FINI)
 	},
 	[SWOPH_FINI] = {
-		.sd_flags       = M0_SDF_TERMINAL,
-		.sd_name        = "Fini",
-		.sd_allowed     = 0
+		.sd_flags     = M0_SDF_TERMINAL,
+		.sd_name      = "Fini",
+		.sd_allowed   = 0
 	},
 };
 
-const struct m0_sm_conf m0_sns_cm_sw_onwire_conf = {
-	.scf_name      = "SNS sw update",
-	.scf_nr_states = ARRAY_SIZE(sw_onwire_fom_phases),
-	.scf_state     = sw_onwire_fom_phases
+const struct m0_sm_conf m0_cm_repreb_sw_onwire_conf = {
+	.scf_name      = "Repair/re-balance sw update",
+	.scf_nr_states = ARRAY_SIZE(repreb_sw_fom_phases),
+	.scf_state     = repreb_sw_fom_phases
 };
 
-static int sw_onwire_fom_tick(struct m0_fom *fom)
+static int repreb_sw_fom_tick(struct m0_fom *fom)
 {
 	struct m0_reqh_service     *service;
 	struct m0_cm               *cm;
@@ -117,7 +116,7 @@ static int sw_onwire_fom_tick(struct m0_fom *fom)
 	return M0_FSO_WAIT;
 }
 
-static void sw_onwire_fom_fini(struct m0_fom *fom)
+static void repreb_sw_fom_fini(struct m0_fom *fom)
 {
 	M0_PRE(fom != NULL);
 
@@ -125,7 +124,7 @@ static void sw_onwire_fom_fini(struct m0_fom *fom)
 	m0_free(fom);
 }
 
-static size_t sw_onwire_fom_home_locality(const struct m0_fom *fom)
+static size_t repreb_sw_fom_home_locality(const struct m0_fom *fom)
 {
 	struct m0_cm_sw_onwire *swo_fop;
 
@@ -133,14 +132,16 @@ static size_t sw_onwire_fom_home_locality(const struct m0_fom *fom)
 	return m0_rnd(1 << 30, &swo_fop->swo_sender_id);
 }
 
-static const struct m0_fom_ops sw_onwire_fom_ops = {
-	.fo_fini          = sw_onwire_fom_fini,
-	.fo_tick          = sw_onwire_fom_tick,
-	.fo_home_locality = sw_onwire_fom_home_locality,
+static const struct m0_fom_ops repreb_sw_fom_ops = {
+	.fo_fini          = repreb_sw_fom_fini,
+	.fo_tick          = repreb_sw_fom_tick,
+	.fo_home_locality = repreb_sw_fom_home_locality,
 };
 
-M0_INTERNAL int m0_sns_cm_sw_onwire_fom_create(struct m0_fop *fop, struct m0_fop *r_fop,
-					       struct m0_fom **out, struct m0_reqh *reqh)
+M0_INTERNAL int m0_cm_repreb_sw_onwire_fom_create(struct m0_fop *fop,
+						  struct m0_fop *r_fop,
+						  struct m0_fom **out,
+						  struct m0_reqh *reqh)
 {
 	struct m0_fom *fom;
 
@@ -151,7 +152,7 @@ M0_INTERNAL int m0_sns_cm_sw_onwire_fom_create(struct m0_fop *fop, struct m0_fop
 	if (fom == NULL)
 		return M0_ERR(-ENOMEM);
 
-	m0_fom_init(fom, &fop->f_type->ft_fom_type, &sw_onwire_fom_ops, fop,
+	m0_fom_init(fom, &fop->f_type->ft_fom_type, &repreb_sw_fom_ops, fop,
 		    r_fop, reqh);
 
 	*out = fom;
@@ -160,7 +161,7 @@ M0_INTERNAL int m0_sns_cm_sw_onwire_fom_create(struct m0_fop *fop, struct m0_fop
 
 #undef M0_TRACE_SUBSYSTEM
 
-/** @} SNSCMSW */
+/** @} XXX */
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

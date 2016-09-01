@@ -171,6 +171,9 @@ enum m0_conf_service_type {
 	M0_CST_SNS_REB, /**< SNS rebalance */
 	M0_CST_ADDB2,   /**< ADDB */
 	M0_CST_CAS,     /**< Catalogue service */
+	M0_CST_DIX_REP, /**< Dix repair. */
+	M0_CST_DIX_REB, /**< Dix rebalance. */
+
 	/*
 	 * Keep dummy services at the end of enumeration.
 	 */

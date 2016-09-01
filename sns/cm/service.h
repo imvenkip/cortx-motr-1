@@ -54,8 +54,8 @@
    }
    @enddot
 
-   @see m0_spiel_pool_repair_status
-   @see m0_spiel_pool_rebalance_status
+   @see m0_spiel_sns_repair_status
+   @see m0_spiel_sns_rebalance_status
  */
 
 /**

@@ -79,6 +79,7 @@ const struct m0_cm_cp_ops m0_sns_cm_acc_cp_ops = {
 	.co_action = {
 		[M0_CCP_INIT]          = &m0_sns_cm_cp_init,
 		[M0_CCP_READ]          = &m0_sns_cm_cp_read,
+		[M0_CCP_WRITE_PRE]     = &m0_sns_cm_cp_write_pre,
 		[M0_CCP_WRITE]         = &m0_sns_cm_cp_write,
 		[M0_CCP_IO_WAIT]       = &m0_sns_cm_cp_io_wait,
 		[M0_CCP_XFORM]         = &m0_sns_cm_repair_cp_xform,

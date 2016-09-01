@@ -204,7 +204,7 @@ static int cpp_complete(struct m0_cm_cp_pump *cp_pump)
 	M0_LOG(M0_DEBUG, "pump completed. Stopping the CM");
 	pump_move(cp_pump, 0, CPP_STOP);
 
-	return M0_FSO_AGAIN;
+	return M0_RC(M0_FSO_AGAIN);
 }
 
 static int cpp_stop(struct m0_cm_cp_pump *cp_pump)
@@ -238,8 +238,14 @@ static int cpp_stop(struct m0_cm_cp_pump *cp_pump)
 		return M0_FSO_WAIT;
 	} else if (dtx->tx_state == M0_DTX_INIT) {
 		m0_dtx_opened(dtx);
-		/* Stop copy machine */
+		/*
+		 * CM stop is potentially blocking operation. For example, DIX
+		 * repair/re-balance CM stops iterator (which executes in a
+		 * separate FOM) and waits until it reaches desired state.
+		 */
+		m0_fom_block_enter(p_fom);
 		m0_cm_stop(cm);
+		m0_fom_block_leave(p_fom);
 	}
 
 	if (dtx->tx_state != M0_DTX_DONE) {
@@ -438,7 +444,8 @@ static void complete_wakeup(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 
 static bool pump_cb(struct m0_clink *link)
 {
-	struct m0_cm_cp_pump *pump = container_of(link, struct m0_cm_cp_pump, p_complete);
+	struct m0_cm_cp_pump *pump = container_of(link, struct m0_cm_cp_pump,
+						  p_complete);
 	struct m0_sm_group   *grp;
 
         grp = &pump->p_fom.fo_loc->fl_group;

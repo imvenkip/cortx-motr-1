@@ -30,7 +30,6 @@
 #include "sns/cm/cm.h"
 #include "sns/cm/service.h"
 #include "sns/cm/sns_cp_onwire.h"
-#include "sns/cm/sw_onwire_fop.h"
 
 /**
   @defgroup SNSCMSVC SNS copy machine service
@@ -61,8 +60,8 @@ static const struct m0_reqh_service_ops repair_svc_ops = {
 	.rso_fini        = m0_sns_cm_svc_fini
 };
 
-extern const struct m0_cm_ops sns_repair_ops;
-extern const struct m0_fom_type_ops repair_cp_fom_type_ops;
+M0_EXTERN const struct m0_cm_ops sns_repair_ops;
+M0_EXTERN const struct m0_fom_type_ops repair_cp_fom_type_ops;
 
 M0_INTERNAL void m0_sns_cm_repair_cpx_init(void);
 M0_INTERNAL void m0_sns_cm_repair_cpx_fini(void);

@@ -20,26 +20,28 @@
 
 #pragma once
 
-#ifndef __MERO_SNS_CM_SW_ONWIRE_FOM_H__
-#define __MERO_SNS_CM_SW_ONWIRE_FOM_H__
+#ifndef __MERO_CM_REPREB_SW_ONWIRE_FOM_H__
+#define __MERO_CM_REPREB_SW_ONWIRE_FOM_H__
 
 /**
-   @addtogroup SNSCMSW
+   @addtogroup XXX
 
    @{
  */
 
-enum sns_cm_sw_onwire_phases {
+enum cm_repreb_sw_phases {
 	SWOPH_START = M0_FOM_PHASE_INIT,
 	SWOPH_FINI = M0_FOM_PHASE_FINISH,
 };
 
-M0_INTERNAL int m0_sns_cm_sw_onwire_fom_create(struct m0_fop *fop, struct m0_fop *r_fop,
-					       struct m0_fom **out, struct m0_reqh *reqh);
+M0_INTERNAL int m0_cm_repreb_sw_onwire_fom_create(struct m0_fop *fop,
+						  struct m0_fop *r_fop,
+						  struct m0_fom **out,
+						  struct m0_reqh *reqh);
 
-/** @} SNSCMSW */
+/** @} XXX */
 
-#endif /* __MERO_SNS_CM_SW_ONWIRE_FOM_H__ */
+#endif /* __MERO_CM_REPREB_SW_ONWIRE_FOM_H__ */
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

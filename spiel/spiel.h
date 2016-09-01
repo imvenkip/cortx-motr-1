@@ -28,7 +28,7 @@
 #include "conf/confc.h"        /* m0_confc */
 #include "conf/rconfc.h"       /* m0_rconfc */
 #include "reqh/reqh_service.h" /* enum m0_service_health */
-#include "sns/cm/cm.h"         /* m0_sns_cm_status */
+#include "sns/cm/cm.h"         /* m0_cm_status */
 
 /**
  * @page spiel-dld Spiel API DLD
@@ -198,6 +198,16 @@ struct m0_rpc_machine;
 struct m0_pdclust_attr;
 struct m0_reqh;
 
+struct m0_spiel_repreb_status {
+	/* SNS or DIX(rep/reb) service fid */
+	struct m0_fid     srs_fid;
+	/* State of current repair/rebalance, see @ref m0_sns_cm_status*/
+	enum m0_cm_status srs_state;
+	/* Progress of current repair/rebalance in percent */
+	unsigned int      srs_progress;
+};
+
+/** @todo Remove once Halon supports successor m0_spiel_repreb_status. */
 struct m0_spiel_sns_status {
 	/* SNS service fid */
 	struct m0_fid         sss_fid;
@@ -205,8 +215,13 @@ struct m0_spiel_sns_status {
 	enum m0_sns_cm_status sss_state;
 	/* Progress of current repair/rebalance in percent */
 	unsigned int          sss_progress;
-};
+ };
 
+enum m0_repreb_type {
+	M0_REPREB_TYPE_SNS,
+	M0_REPREB_TYPE_DIX,
+	M0_REPREB_TYPE_NR
+};
 /**
  * Spiel instance context
  */
@@ -953,10 +968,11 @@ int m0_spiel_process_list_services(struct m0_spiel              *spl,
 /**
  * Starts pool repair.
  *
- * The command is synchronous. it waits replies from all SNS services that each
- * one receives fop and starts repair. 0 is returned if each service replies
- * with success result code. Spiel client is able to check status of the current
- * repair process by calling of m0_spiel_pool_repair_status command.
+ * The command is synchronous. It waits replies from all SNS or DIX services
+ * that each one receives fop and starts repair. 0 is returned if each service
+ * replies with success result code. Spiel client is able to check status of the
+ * current repair process by calling of m0_spiel_sns_repair_status() or
+ * m0_spiel_dix_repair_status() command.
  *
  * @param spl            spiel instance
  * @param pool_fid       pool fid from configuration DB
@@ -964,19 +980,27 @@ int m0_spiel_process_list_services(struct m0_spiel              *spl,
  * code from the first failed service (it replies with error) or confc (an error
  * occurred during read of the configuration database)
  *
- * @see m0_spiel_pool_repair_status
+ * @see m0_spiel_sns_repair_status
+ * @see m0_spiel_dix_repair_status
  */
+int m0_spiel_sns_repair_start(struct m0_spiel     *spl,
+			      const struct m0_fid *pool_fid);
+int m0_spiel_dix_repair_start(struct m0_spiel     *spl,
+			      const struct m0_fid *pool_fid);
+
+/** @todo Remove once Halon supports m0_spiel_{sns,dix}_repair_start(). */
 int m0_spiel_pool_repair_start(struct m0_spiel     *spl,
 			       const struct m0_fid *pool_fid);
 
 /**
  * Continues pool repair.
  *
- * The command is synchronous. it waits replies from all SNS services that each
- * one receives fop and resumes repair which was paused by
- * m0_spiel_pool_repair_quiesce(). 0 is returned if each service replies
- * with success result code. Spiel client is able to check status of the current
- * repair process by calling of m0_spiel_pool_repair_status command.
+ * The command is synchronous. It waits replies from all SNS or DIX services
+ * that each one receives fop and resumes repair which was paused by
+ * m0_spiel_sns_repair_quiesce() or m0_spiel_dix_repair_quiesce().
+ * 0 is returned if each service replies with success result code. Spiel client
+ * is able to check status of the current repair process by calling of
+ * m0_spiel_sns_repair_status() or m0_spiel_dix_repair_status() command.
  *
  * @param spl            spiel instance
  * @param pool_fid       pool fid from configuration DB
@@ -984,20 +1008,28 @@ int m0_spiel_pool_repair_start(struct m0_spiel     *spl,
  * code, otherwise an error code from the first failed service (it replies with
  * error) or confc (an error occurred during read of the configuration database)
  *
- * @see m0_spiel_pool_repair_status
- * @see m0_spiel_pool_repair_quiesce
+ * @see m0_spiel_sns_repair_status
+ * @see m0_spiel_sns_repair_quiesce
+ * @see m0_spiel_dix_repair_status
+ * @see m0_spiel_dix_repair_quiesce
  */
+int m0_spiel_sns_repair_continue(struct m0_spiel     *spl,
+				 const struct m0_fid *pool_fid);
+int m0_spiel_dix_repair_continue(struct m0_spiel     *spl,
+				 const struct m0_fid *pool_fid);
+
+/** @todo Remove once Halon supports m0_spiel_{sns,dix}_repair_continue(). */
 int m0_spiel_pool_repair_continue(struct m0_spiel     *spl,
 				  const struct m0_fid *pool_fid);
 
 /**
  * Quiesces pool repair.
  *
- * The command is synchronous. it waits replies from all SNS services that each
- * one receives fop and pauses repair. 0 is returned if each service replies
- * with success result code (repair process is in PAUSED state). Spiel client is
- * able to check status of the current repair process by calling of
- * m0_spiel_pool_repair_status command.
+ * The command is synchronous. It waits replies from all SNS or DIX services
+ * that each one receives fop and pauses repair. 0 is returned if each service
+ * replies with success result code (repair process is in PAUSED state). Spiel
+ * client is able to check status of the current repair process by calling of
+ * m0_spiel_sns_repair_status() or m0_spiel_dix_repair_status() command.
  *
  * @param spl            spiel instance
  * @param pool_fid       pool fid from configuration DB
@@ -1005,19 +1037,26 @@ int m0_spiel_pool_repair_continue(struct m0_spiel     *spl,
  * code from the first failed service (it replies with error) or confc (an error
  * occurred during read of the configuration database)
  *
- * @see m0_spiel_pool_repair_status
+ * @see m0_spiel_sns_repair_status
+ * @see m0_spiel_dix_repair_status
  */
+int m0_spiel_sns_repair_quiesce(struct m0_spiel     *spl,
+				const struct m0_fid *pool_fid);
+int m0_spiel_dix_repair_quiesce(struct m0_spiel     *spl,
+				const struct m0_fid *pool_fid);
+
+/** @todo Remove once Halon supports m0_spiel_{sns,dix}_repair_quiesce(). */
 int m0_spiel_pool_repair_quiesce(struct m0_spiel     *spl,
 				 const struct m0_fid *pool_fid);
 
 /**
  * Aborts pool repair.
  *
- * The command is synchronous. it waits replies from all SNS services that each
- * one receives fop and aborts repair. 0 is returned if each service replies
- * with success result code (repair process is successfully aborted). Spiel
- * client is able to check status of the current repair process by calling of
- * m0_spiel_pool_repair_status command.
+ * The command is synchronous. It waits replies from all SNS or DIX services
+ * that each one receives fop and aborts repair. 0 is returned if each service
+ * replies with success result code (repair process is successfully aborted).
+ * Spiel client is able to check status of the current repair process by calling
+ * of m0_spiel_sns_repair_status() or m0_spiel_dix_repair_status() command.
  *
  * @param spl            spiel instance
  * @param pool_fid       pool fid from configuration DB
@@ -1025,15 +1064,22 @@ int m0_spiel_pool_repair_quiesce(struct m0_spiel     *spl,
  * code from the first failed service (it replies with error) or confc (an error
  * occurred during read of the configuration database)
  *
- * @see m0_spiel_pool_repair_status
+ * @see m0_spiel_sns_repair_status
+ * @see m0_spiel_dix_repair_status
  */
+int m0_spiel_sns_repair_abort(struct m0_spiel     *spl,
+			      const struct m0_fid *pool_fid);
+int m0_spiel_dix_repair_abort(struct m0_spiel     *spl,
+			      const struct m0_fid *pool_fid);
+
+/** @todo Remove once Halon supports m0_spiel_{sns,dix}_repair_abort(). */
 int m0_spiel_pool_repair_abort(struct m0_spiel     *spl,
 			       const struct m0_fid *pool_fid);
 
 /**
  * Gets status pool repair.
  *
- * The command is synchronous. it waits replies from all SNS services.
+ * The command is synchronous. It waits replies from all SNS or DIX services.
  *
  * @param spl            spiel instance
  * @param pool_fid       pool fid from configuration DB
@@ -1042,18 +1088,27 @@ int m0_spiel_pool_repair_abort(struct m0_spiel     *spl,
  * otherwise an error code from the first failed service (it replies with error)
  * or confc (an error occurred during read of the configuration database)
  */
+int m0_spiel_sns_repair_status(struct m0_spiel                *spl,
+			       const struct m0_fid            *pool_fid,
+			       struct m0_spiel_repreb_status **statuses);
+int m0_spiel_dix_repair_status(struct m0_spiel                *spl,
+			       const struct m0_fid            *pool_fid,
+			       struct m0_spiel_repreb_status **statuses);
+
+/** @todo Remove once Halon supports m0_spiel_{sns,dix}_repair_status(). */
 int m0_spiel_pool_repair_status(struct m0_spiel             *spl,
 				const struct m0_fid         *pool_fid,
 				struct m0_spiel_sns_status **statuses);
 
-
 /**
  * Starts pool rebalance.
  *
- * The command is synchronous. it waits replies from all SNS services that each
- * one receives fop and starts rebalance. 0 is returned if each service replies
- * with success result code. Spiel client is able to check status of the current
- * rebalance process by calling of m0_spiel_pool_rebalance_status command.
+ * The command is synchronous. It waits replies from all SNS or DIX services
+ * that each one receives fop and starts rebalance. 0 is returned if each
+ * service replies with success result code. Spiel client is able to check
+ * status of the current rebalance process by calling of
+ * m0_spiel_sns_rebalance_status() or m0_spiel_dix_rebalance_status()
+ * command.
  *
  * @param spl            spiel instance
  * @param pool_fid       pool fid from configuration DB
@@ -1061,19 +1116,27 @@ int m0_spiel_pool_repair_status(struct m0_spiel             *spl,
  * code from the first failed service (it replies with error) or confc (an error
  * occurred during read of the configuration database)
  *
- * @see m0_spiel_pool_rebalance_status
+ * @see m0_spiel_sns_rebalance_status
+ * @see m0_spiel_dix_rebalance_status
  */
+int m0_spiel_sns_rebalance_start(struct m0_spiel     *spl,
+			         const struct m0_fid *pool_fid);
+int m0_spiel_dix_rebalance_start(struct m0_spiel     *spl,
+				 const struct m0_fid *pool_fid);
+
+/** @todo Remove once Halon supports m0_spiel_{sns,dix}_rebalance_start(). */
 int m0_spiel_pool_rebalance_start(struct m0_spiel     *spl,
-				  const struct m0_fid *pool_fid);
+			          const struct m0_fid *pool_fid);
 
 /**
  * Continues pool rebalance.
  *
- * The command is synchronous. it waits replies from all SNS services that each
- * one receives fop and resumes rebalance which was paused. 0 is returned if
- * each service replies with success result code. Spiel client is able to check
- * status of the current rebalance process by calling of
- * m0_spiel_pool_rebalance_status command.
+ * The command is synchronous. It waits replies from all SNS or DIX services
+ * that each one receives fop and resumes rebalance which was paused. 0 is
+ * returned if each service replies with success result code. Spiel client is
+ * able to check status of the current rebalance process by calling of
+ * m0_spiel_sns_rebalance_status() or m0_spiel_dix_rebalance_status()
+ * command.
  *
  * @param spl            spiel instance
  * @param pool_fid       pool fid from configuration DB
@@ -1081,20 +1144,30 @@ int m0_spiel_pool_rebalance_start(struct m0_spiel     *spl,
  * code from the first failed service (it replies with error) or confc (an error
  * occurred during read of the configuration database)
  *
- * @see m0_spiel_pool_rebalance_status
- * @see m0_spiel_pool_rebalance_quiesce
+ * @see m0_spiel_sns_rebalance_status
+ * @see m0_spiel_sns_rebalance_quiesce
+ * @see m0_spiel_dix_rebalance_status
+ * @see m0_spiel_dix_rebalance_quiesce
+
  */
+int m0_spiel_sns_rebalance_continue(struct m0_spiel     *spl,
+				    const struct m0_fid *pool_fid);
+int m0_spiel_dix_rebalance_continue(struct m0_spiel     *spl,
+				    const struct m0_fid *pool_fid);
+
+/** @todo Remove once Halon supports m0_spiel_{sns,dix}_rebalance_continue(). */
 int m0_spiel_pool_rebalance_continue(struct m0_spiel     *spl,
-				     const struct m0_fid *pool_fid);
+			             const struct m0_fid *pool_fid);
 
 /**
  * Quiesces pool rebalance.
  *
- * The command is synchronous. it waits replies from all SNS services that each
- * one receives fop and pauses rebalance. 0 is returned if each service replies
- * with success result code (rebalance process is in PAUSED state). Spiel client
- * is able to check status of the current rebalance process by calling of
- * m0_spiel_pool_rebalance_status command.
+ * The command is synchronous. It waits replies from all SNS or DIX services
+ * that each one receives fop and pauses rebalance. 0 is returned if each
+ * service replies with success result code (rebalance process is in PAUSED
+ * state). Spiel client is able to check status of the current rebalance
+ * process by calling of m0_spiel_sns_rebalance_status() or
+ * m0_spiel_dix_rebalance_status() command.
  *
  * @param spl            spiel instance
  * @param pool_fid       pool fid from configuration DB
@@ -1102,15 +1175,22 @@ int m0_spiel_pool_rebalance_continue(struct m0_spiel     *spl,
  * code from the first failed service (it replies with error) or confc (an error
  * occurred during read of the configuration database)
  *
- * @see m0_spiel_pool_rebalance_status
+ * @see m0_spiel_sns_rebalance_status
+ * @see m0_spiel_dix_rebalance_status
  */
+int m0_spiel_sns_rebalance_quiesce(struct m0_spiel     *spl,
+				   const struct m0_fid *pool_fid);
+int m0_spiel_dix_rebalance_quiesce(struct m0_spiel     *spl,
+				   const struct m0_fid *pool_fid);
+
+/** @todo Remove once Halon supports m0_spiel_{sns,dix}_rebalance_quiesce(). */
 int m0_spiel_pool_rebalance_quiesce(struct m0_spiel     *spl,
-				    const struct m0_fid *pool_fid);
+			            const struct m0_fid *pool_fid);
 
 /**
  * Gets status of pool rebalance.
  *
- * The command is synchronous. it waits replies from all SNS services.
+ * The command is synchronous. It waits replies from all SNS or DIX services.
  *
  * @param spl            spiel instance
  * @param pool_fid       pool fid from configuration DB
@@ -1119,14 +1199,22 @@ int m0_spiel_pool_rebalance_quiesce(struct m0_spiel     *spl,
  * otherwise an error code from the first failed service (it replies with error)
  * or confc (an error occurred during read of the configuration database)
  */
+int m0_spiel_sns_rebalance_status(struct m0_spiel                *spl,
+				  const struct m0_fid            *pool_fid,
+				  struct m0_spiel_repreb_status **statuses);
+int m0_spiel_dix_rebalance_status(struct m0_spiel                *spl,
+				  const struct m0_fid            *pool_fid,
+				  struct m0_spiel_repreb_status **statuses);
+
+/** @todo Remove once Halon supports m0_spiel_{sns,dix}_rebalance_status(). */
 int m0_spiel_pool_rebalance_status(struct m0_spiel             *spl,
 				   const struct m0_fid         *pool_fid,
 				   struct m0_spiel_sns_status **statuses);
 
 /**
- * Aborts pool sns rebalance operation.
+ * Aborts pool SNS or DIX rebalance operation.
  *
- * Aborts ongoing pool sns rebalance operation.
+ * Aborts ongoing pool SNS or DIX rebalance operation.
  * Waits until all the sns services notify completion.
  * @note Blocks until operation is copleted.
  *
@@ -1135,8 +1223,14 @@ int m0_spiel_pool_rebalance_status(struct m0_spiel             *spl,
  * @return 0 on successful abort
  *
  */
+int m0_spiel_sns_rebalance_abort(struct m0_spiel     *spl,
+				 const struct m0_fid *pool_fid);
+int m0_spiel_dix_rebalance_abort(struct m0_spiel     *spl,
+				 const struct m0_fid *pool_fid);
+
+/** @todo Remove once Halon supports m0_spiel_{sns,dix}_rebalance_abort(). */
 int m0_spiel_pool_rebalance_abort(struct m0_spiel     *spl,
-				  const struct m0_fid *pool_fid);
+			          const struct m0_fid *pool_fid);
 
 /**
  * Mero filesystem stats. The stats are collected from all processes of the

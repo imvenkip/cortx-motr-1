@@ -191,11 +191,13 @@ M0_INTERNAL void m0_cm_aggr_group_fini(struct m0_cm_aggr_group *ag)
 	if (aggr_grps_in_tlink_is_in(ag)) {
 		aggr_grps_in_tlist_del(ag);
 		M0_CNT_DEC(cm->cm_aggr_grps_in_nr);
+		M0_LOG(M0_DEBUG, "cm %p, DEC in_nr %"PRIu64, cm, cm->cm_aggr_grps_in_nr);
 	}
 	aggr_grps_in_tlink_fini(ag);
 	if (aggr_grps_out_tlink_is_in(ag)) {
 		aggr_grps_out_tlist_del(ag);
 		M0_CNT_DEC(cm->cm_aggr_grps_out_nr);
+		M0_LOG(M0_DEBUG, "cm %p, DEC out_nr %"PRIu64, cm, cm->cm_aggr_grps_out_nr);
 	}
 	aggr_grps_out_tlink_fini(ag);
 	M0_POST(!aggr_grps_in_tlink_is_in(ag) &&
@@ -312,11 +314,13 @@ M0_INTERNAL void m0_cm_aggr_group_add(struct m0_cm *cm,
 	if (has_incoming) {
 		__aggr_group_add(ag, &aggr_grps_in_tl, &cm->cm_aggr_grps_in);
 		M0_CNT_INC(cm->cm_aggr_grps_in_nr);
+		M0_LOG(M0_DEBUG,"cm %p, INC in_nr %"PRIu64, cm, cm->cm_aggr_grps_in_nr);
 		if (m0_cm_ag_id_cmp(&cm->cm_sw_last_updated_hi, &id) < 0)
 			cm->cm_sw_last_updated_hi = id;
 	} else {
 		__aggr_group_add(ag, &aggr_grps_out_tl, &cm->cm_aggr_grps_out);
 		M0_CNT_INC(cm->cm_aggr_grps_out_nr);
+		M0_LOG(M0_DEBUG,"cm %p, INC out_nr %"PRIu64, cm, cm->cm_aggr_grps_out_nr);
 		if (m0_cm_ag_id_cmp(&cm->cm_last_out_hi, &id) < 0)
 			cm->cm_last_out_hi = id;
 	}
@@ -351,7 +355,7 @@ M0_INTERNAL int m0_cm_aggr_group_alloc(struct m0_cm *cm,
 
 M0_INTERNAL bool m0_cm_aggr_group_tlists_are_empty(struct m0_cm *cm)
 {
-	 return cm->cm_aggr_grps_in_nr == 0 && cm->cm_aggr_grps_out_nr == 0;
+	return cm->cm_aggr_grps_in_nr == 0 && cm->cm_aggr_grps_out_nr == 0;
 }
 
 M0_INTERNAL int m0_cm_ag_advance(struct m0_cm *cm)

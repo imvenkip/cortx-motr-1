@@ -18,10 +18,6 @@
  */
 
 #include "sns/sns.h"
-#include "sns/cm/trigger_fop_xc.h"
-#include "sns/cm/sw_onwire_fop_xc.h"
-#include "sns/cm/sns_cp_onwire_xc.h"
-#include "cm/cp_onwire_xc.h"
 #include "sns/cm/cm.h"
 
 M0_INTERNAL int m0_sns_init()

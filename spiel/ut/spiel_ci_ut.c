@@ -40,7 +40,7 @@ static struct m0_spiel spiel;
 
 static void spiel_ci_ut_init(void)
 {
-	m0_spiel__ut_init(&spiel, M0_UT_PATH("conf.xc"), true);
+	m0_spiel__ut_init(&spiel, M0_SRC_PATH("spiel/ut/conf.xc"), true);
 	m0_confd_stype.rst_keep_alive = true;
 	m0_rms_type.rst_keep_alive = true;
 }
@@ -514,194 +514,273 @@ void test_spiel_fs_stats(void)
 	spiel_ci_ut_fini();
 }
 
-static void spiel_sns_repair_start(const struct m0_fid *pool_fid,
-				   const struct m0_fid *svc_fid)
+static void spiel_repair_start(const struct m0_fid *pool_fid,
+			       const struct m0_fid *svc_fid,
+			       enum m0_repreb_type  type)
 {
-	struct m0_spiel_sns_status *status;
-	enum m0_sns_cm_status       state;
-	int                         rc;
+	struct m0_spiel_repreb_status *status;
+	enum m0_cm_status              state;
+	int                            rc;
 
-	rc = m0_spiel_pool_repair_start(&spiel, pool_fid);
+	rc = (type == M0_REPREB_TYPE_SNS) ?
+		m0_spiel_sns_repair_start(&spiel, pool_fid) :
+		m0_spiel_dix_repair_start(&spiel, pool_fid);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_spiel_pool_repair_status(&spiel, pool_fid, &status);
+	rc = (type == M0_REPREB_TYPE_SNS) ?
+		m0_spiel_sns_repair_status(&spiel, pool_fid, &status) :
+		m0_spiel_dix_repair_status(&spiel, pool_fid, &status);
 	M0_UT_ASSERT(rc == 1);
-	state = status[0].sss_state;
-	M0_UT_ASSERT(m0_fid_eq(&status[0].sss_fid, svc_fid));
-	M0_UT_ASSERT(M0_IN(state, (SNS_CM_STATUS_IDLE, SNS_CM_STATUS_STARTED)));
-	M0_UT_ASSERT(status[0].sss_progress >= 0);
+	state = status[0].srs_state;
+	M0_UT_ASSERT(m0_fid_eq(&status[0].srs_fid, svc_fid));
+	M0_UT_ASSERT(M0_IN(state, (CM_STATUS_IDLE, CM_STATUS_STARTED)));
+	M0_UT_ASSERT(status[0].srs_progress >= 0);
 	m0_free(status);
 }
 
-static void wait_for_repair_rebalance(enum m0_sns_cm_op op,
-				      struct m0_spiel_sns_status **status,
+static void wait_for_repair_rebalance(enum m0_repreb_type type,
+				      enum m0_cm_op op,
+				      struct m0_spiel_repreb_status **status,
 				      const struct m0_fid *pool_fid,
 				      const struct m0_fid *svc_fid)
 {
-	enum m0_sns_cm_status state;
-	int                   rc;
+	enum m0_cm_status state;
+	int               rc;
 
 	while(1) {
-		rc = op == SNS_REPAIR ?
-			   m0_spiel_pool_repair_status(&spiel, pool_fid, status) :
-			   m0_spiel_pool_rebalance_status(&spiel, pool_fid, status);
+		if (type == M0_REPREB_TYPE_SNS)
+			rc = op == CM_OP_REPAIR ?
+				m0_spiel_sns_repair_status(&spiel, pool_fid,
+							   status) :
+				m0_spiel_sns_rebalance_status(&spiel, pool_fid,
+							      status);
+		else
+			rc = op == CM_OP_REPAIR ?
+				m0_spiel_dix_repair_status(&spiel, pool_fid,
+							   status) :
+				m0_spiel_dix_rebalance_status(&spiel, pool_fid,
+							      status);
 
 		M0_UT_ASSERT(rc == 1);
-		state = (*status)[0].sss_state;
-		M0_UT_ASSERT(m0_fid_eq(&(*status)[0].sss_fid, svc_fid));
-		M0_UT_ASSERT(M0_IN(state, (SNS_CM_STATUS_IDLE,
-					   SNS_CM_STATUS_STARTED,
-					   SNS_CM_STATUS_PAUSED,
-					   SNS_CM_STATUS_FAILED)));
-		M0_UT_ASSERT((*status)[0].sss_progress >= 0);
+		state = (*status)[0].srs_state;
+		M0_UT_ASSERT(m0_fid_eq(&(*status)[0].srs_fid, svc_fid));
+		M0_UT_ASSERT(M0_IN(state, (CM_STATUS_IDLE,
+					   CM_STATUS_STARTED,
+					   CM_STATUS_PAUSED,
+					   CM_STATUS_FAILED)));
+		M0_UT_ASSERT((*status)[0].srs_progress >= 0);
 
-		if (M0_IN(state, (SNS_CM_STATUS_IDLE, SNS_CM_STATUS_PAUSED,
-				  SNS_CM_STATUS_FAILED)))
+		if (M0_IN(state, (CM_STATUS_IDLE, CM_STATUS_PAUSED,
+				  CM_STATUS_FAILED)))
 			break;
 		m0_free(*status);
 	}
 }
 
-static void test_spiel_pool_repair(void)
+static void test_spiel_pool_repair(enum m0_repreb_type type)
 {
-	const struct m0_fid         pool_fid = M0_FID_TINIT(
-				M0_CONF_POOL_TYPE.cot_ftype.ft_id, 1, 4);
-	struct m0_fid               svc_fid = M0_FID_TINIT(
-				M0_CONF_SERVICE_TYPE.cot_ftype.ft_id, 1, 9);
+	const struct m0_fid         pool_fid = (type == M0_REPREB_TYPE_SNS) ?
+		M0_FID_TINIT(M0_CONF_POOL_TYPE.cot_ftype.ft_id, 1, 4) :
+		M0_FID_TINIT(M0_CONF_POOL_TYPE.cot_ftype.ft_id, 1, 100);
+	struct m0_fid               svc_fid = (type == M0_REPREB_TYPE_SNS) ?
+		M0_FID_TINIT(M0_CONF_SERVICE_TYPE.cot_ftype.ft_id, 1, 9) :
+		M0_FID_TINIT(M0_CONF_SERVICE_TYPE.cot_ftype.ft_id, 1, 11);
 	struct m0_fid               pool_invalid_fid = M0_FID_TINIT(
 				M0_CONF_POOL_TYPE.cot_ftype.ft_id, 1, 3);
 	struct m0_fid               invalid_fid = M0_FID_TINIT(
 				M0_CONF_SERVICE_TYPE.cot_ftype.ft_id, 1, 4);
-	struct m0_spiel_sns_status *status;
-	enum m0_sns_cm_status       state;
+	struct m0_spiel_repreb_status *status;
+	enum m0_cm_status           state;
 	int                         rc;
 
+	M0_ASSERT(M0_IN(type, (M0_REPREB_TYPE_SNS, M0_REPREB_TYPE_DIX)));
 	spiel_ci_ut_init();
 	m0_fi_enable("ready", "no_wait");
 	m0_fi_enable("m0_ha_local_state_set", "no_ha");
-	rc = m0_spiel_pool_repair_start(&spiel, &invalid_fid);
+	rc = (type == M0_REPREB_TYPE_SNS) ?
+		m0_spiel_sns_repair_start(&spiel, &invalid_fid) :
+		m0_spiel_dix_repair_start(&spiel, &invalid_fid);
 	M0_UT_ASSERT(rc == -EINVAL);
 
-	rc = m0_spiel_pool_repair_start(&spiel, &pool_invalid_fid);
+	rc = (type == M0_REPREB_TYPE_SNS) ?
+		m0_spiel_sns_repair_start(&spiel, &pool_invalid_fid) :
+		m0_spiel_dix_repair_start(&spiel, &pool_invalid_fid);
 	M0_UT_ASSERT(rc == -ENOENT);
 
-	rc = m0_spiel_pool_repair_quiesce(&spiel, &invalid_fid);
+	rc = (type == M0_REPREB_TYPE_SNS) ?
+		m0_spiel_sns_repair_quiesce(&spiel, &invalid_fid) :
+		m0_spiel_dix_repair_quiesce(&spiel, &invalid_fid);
 	M0_UT_ASSERT(rc == -EINVAL);
-	rc = m0_spiel_pool_repair_abort(&spiel, &invalid_fid);
+	rc = (type == M0_REPREB_TYPE_SNS) ?
+		m0_spiel_sns_repair_abort(&spiel, &invalid_fid) :
+		m0_spiel_dix_repair_abort(&spiel, &invalid_fid);
 	M0_UT_ASSERT(rc == -EINVAL);
-	rc = m0_spiel_pool_repair_continue(&spiel, &invalid_fid);
+	rc = (type == M0_REPREB_TYPE_SNS) ?
+		m0_spiel_sns_repair_continue(&spiel, &invalid_fid) :
+		m0_spiel_dix_repair_continue(&spiel, &invalid_fid);
 	M0_UT_ASSERT(rc == -EINVAL);
-	rc = m0_spiel_pool_repair_status(&spiel, &invalid_fid, &status);
+	rc = (type == M0_REPREB_TYPE_SNS) ?
+		m0_spiel_sns_repair_status(&spiel, &invalid_fid, &status) :
+		m0_spiel_dix_repair_status(&spiel, &invalid_fid, &status);
 	M0_UT_ASSERT(rc == -EINVAL);
-
-	rc = m0_spiel_pool_repair_status(&spiel, &pool_fid, &status);
+	rc = (type == M0_REPREB_TYPE_SNS) ?
+		m0_spiel_sns_repair_status(&spiel, &pool_fid, &status) :
+		m0_spiel_dix_repair_status(&spiel, &pool_fid, &status);
 	M0_LOG(M0_DEBUG, "rc = %d", rc);
 	M0_UT_ASSERT(rc == 1);
-	M0_UT_ASSERT(m0_fid_eq(&status[0].sss_fid, &svc_fid));
-	M0_UT_ASSERT(status[0].sss_state == SNS_CM_STATUS_IDLE);
-	M0_UT_ASSERT(status[0].sss_progress >= 0);
+	M0_UT_ASSERT(m0_fid_eq(&status[0].srs_fid, &svc_fid));
+	M0_UT_ASSERT(status[0].srs_state == CM_STATUS_IDLE);
+	M0_UT_ASSERT(status[0].srs_progress >= 0);
 	m0_free(status);
 
-	spiel_sns_repair_start(&pool_fid, &svc_fid);
+	spiel_repair_start(&pool_fid, &svc_fid, type);
 
-	rc = m0_spiel_pool_repair_abort(&spiel, &pool_fid);
+	rc = (type == M0_REPREB_TYPE_SNS) ?
+		m0_spiel_sns_repair_abort(&spiel, &pool_fid) :
+		m0_spiel_dix_repair_abort(&spiel, &pool_fid);
 	M0_UT_ASSERT(rc == 0);
-	wait_for_repair_rebalance(SNS_REPAIR, &status, &pool_fid, &svc_fid);
-	state = status[0].sss_state;
-	M0_UT_ASSERT(m0_fid_eq(&status[0].sss_fid, &svc_fid));
-	M0_UT_ASSERT(state == SNS_CM_STATUS_IDLE);
-	M0_UT_ASSERT(status[0].sss_progress > 0);
+	wait_for_repair_rebalance(type, CM_OP_REPAIR, &status, &pool_fid, &svc_fid);
+	state = status[0].srs_state;
+	M0_UT_ASSERT(m0_fid_eq(&status[0].srs_fid, &svc_fid));
+	M0_UT_ASSERT(state == CM_STATUS_IDLE);
+	M0_UT_ASSERT(status[0].srs_progress > 0);
 
-	spiel_sns_repair_start(&pool_fid, &svc_fid);
+	spiel_repair_start(&pool_fid, &svc_fid, type);
 
-	rc = m0_spiel_pool_repair_quiesce(&spiel, &pool_fid);
+	rc = (type == M0_REPREB_TYPE_SNS) ?
+		m0_spiel_sns_repair_quiesce(&spiel, &pool_fid) :
+		m0_spiel_dix_repair_quiesce(&spiel, &pool_fid);
 	M0_UT_ASSERT(rc == 0);
 
-	wait_for_repair_rebalance(SNS_REPAIR, &status, &pool_fid, &svc_fid);
-	M0_UT_ASSERT(m0_fid_eq(&status[0].sss_fid, &svc_fid));
-	M0_UT_ASSERT(status[0].sss_state == SNS_CM_STATUS_PAUSED);
-	M0_UT_ASSERT(status[0].sss_progress >= 0);
+	wait_for_repair_rebalance(type, CM_OP_REPAIR, &status, &pool_fid, &svc_fid);
+	M0_UT_ASSERT(m0_fid_eq(&status[0].srs_fid, &svc_fid));
+	M0_UT_ASSERT(status[0].srs_state == CM_STATUS_PAUSED);
+	M0_UT_ASSERT(status[0].srs_progress >= 0);
 	m0_free(status);
 
-	rc = m0_spiel_pool_repair_continue(&spiel, &pool_fid);
+	rc = (type == M0_REPREB_TYPE_SNS) ?
+		m0_spiel_sns_repair_continue(&spiel, &pool_fid) :
+		m0_spiel_dix_repair_continue(&spiel, &pool_fid);
 	M0_UT_ASSERT(rc == 0);
-	wait_for_repair_rebalance(SNS_REPAIR, &status, &pool_fid, &svc_fid);
+	wait_for_repair_rebalance(type, CM_OP_REPAIR, &status, &pool_fid, &svc_fid);
 	m0_free(status);
-
 	m0_fi_disable("ready", "no_wait");
 	m0_fi_disable("m0_ha_local_state_set", "no_ha");
 	spiel_ci_ut_fini();
 }
 
-static void test_spiel_pool_rebalance(void)
+static void test_spiel_sns_repair(void)
 {
-	const struct m0_fid         pool_fid = M0_FID_TINIT(
-				M0_CONF_POOL_TYPE.cot_ftype.ft_id, 1, 4);
-	struct m0_fid               svc_fid = M0_FID_TINIT(
-				M0_CONF_SERVICE_TYPE.cot_ftype.ft_id, 1, 9);
-	struct m0_fid               pool_invalid_fid = M0_FID_TINIT(
-				M0_CONF_POOL_TYPE.cot_ftype.ft_id, 1, 3);
-	struct m0_fid               invalid_fid = M0_FID_TINIT(
-				M0_CONF_SERVICE_TYPE.cot_ftype.ft_id, 1, 4);
-	struct m0_spiel_sns_status *status;
-	enum m0_sns_cm_status       state;
-	int                         rc;
+	test_spiel_pool_repair(M0_REPREB_TYPE_SNS);
+}
 
+static void test_spiel_dix_repair(void)
+{
+	test_spiel_pool_repair(M0_REPREB_TYPE_DIX);
+}
+
+static void test_spiel_pool_rebalance(enum m0_repreb_type type)
+{
+	const struct m0_fid            pool_fid = (type == M0_REPREB_TYPE_SNS) ?
+		M0_FID_TINIT(M0_CONF_POOL_TYPE.cot_ftype.ft_id, 1, 4) :
+		M0_FID_TINIT(M0_CONF_POOL_TYPE.cot_ftype.ft_id, 1, 100);
+	struct m0_fid                  svc_fid = (type == M0_REPREB_TYPE_SNS) ?
+		M0_FID_TINIT(M0_CONF_SERVICE_TYPE.cot_ftype.ft_id, 1, 9) :
+		M0_FID_TINIT(M0_CONF_SERVICE_TYPE.cot_ftype.ft_id, 1, 11);
+	struct m0_fid                  pool_invalid_fid = M0_FID_TINIT(
+				M0_CONF_POOL_TYPE.cot_ftype.ft_id, 1, 3);
+	struct m0_fid                  invalid_fid = M0_FID_TINIT(
+				M0_CONF_SERVICE_TYPE.cot_ftype.ft_id, 1, 4);
+	struct m0_spiel_repreb_status *status;
+	enum m0_cm_status              state;
+	int                            rc;
+
+	M0_ASSERT(M0_IN(type, (M0_REPREB_TYPE_SNS, M0_REPREB_TYPE_DIX)));
 	spiel_ci_ut_init();
 	m0_fi_enable("ready", "no_wait");
 	m0_fi_enable("m0_ha_local_state_set", "no_ha");
-	rc = m0_spiel_pool_rebalance_start(&spiel, &invalid_fid);
+	rc = (type == M0_REPREB_TYPE_SNS) ?
+		m0_spiel_sns_rebalance_start(&spiel, &invalid_fid) :
+		m0_spiel_dix_rebalance_start(&spiel, &invalid_fid);
 	M0_UT_ASSERT(rc == -EINVAL);
 
-	rc = m0_spiel_pool_rebalance_start(&spiel, &pool_invalid_fid);
+	rc = (type == M0_REPREB_TYPE_SNS) ?
+		m0_spiel_sns_rebalance_start(&spiel, &pool_invalid_fid) :
+		m0_spiel_dix_rebalance_start(&spiel, &pool_invalid_fid);
 	M0_UT_ASSERT(rc == -ENOENT);
 
-	rc = m0_spiel_pool_rebalance_quiesce(&spiel, &invalid_fid);
+	rc = (type == M0_REPREB_TYPE_SNS) ?
+		m0_spiel_sns_rebalance_quiesce(&spiel, &invalid_fid) :
+		m0_spiel_dix_rebalance_quiesce(&spiel, &invalid_fid);
 	M0_UT_ASSERT(rc == -EINVAL);
-	rc = m0_spiel_pool_rebalance_continue(&spiel, &invalid_fid);
+	rc = (type == M0_REPREB_TYPE_SNS) ?
+		m0_spiel_sns_rebalance_continue(&spiel, &invalid_fid) :
+		m0_spiel_dix_rebalance_continue(&spiel, &invalid_fid);
 	M0_UT_ASSERT(rc == -EINVAL);
-	rc = m0_spiel_pool_rebalance_status(&spiel, &invalid_fid, &status);
+	rc = (type == M0_REPREB_TYPE_SNS) ?
+		m0_spiel_sns_rebalance_status(&spiel, &invalid_fid, &status) :
+		m0_spiel_dix_rebalance_status(&spiel, &invalid_fid, &status);
 	M0_UT_ASSERT(rc == -EINVAL);
 
-	rc = m0_spiel_pool_rebalance_status(&spiel, &pool_fid, &status);
+	rc = (type == M0_REPREB_TYPE_SNS) ?
+		m0_spiel_sns_rebalance_status(&spiel, &pool_fid, &status) :
+		m0_spiel_dix_rebalance_status(&spiel, &pool_fid, &status);
 	M0_UT_ASSERT(rc == 1);
-	M0_UT_ASSERT(m0_fid_eq(&status[0].sss_fid, &svc_fid));
-	M0_UT_ASSERT(status[0].sss_state == SNS_CM_STATUS_IDLE);
-	M0_UT_ASSERT(status[0].sss_progress >= 0);
+	M0_UT_ASSERT(m0_fid_eq(&status[0].srs_fid, &svc_fid));
+	M0_UT_ASSERT(status[0].srs_state == CM_STATUS_IDLE);
+	M0_UT_ASSERT(status[0].srs_progress >= 0);
 	m0_free(status);
 
-	rc = m0_spiel_pool_rebalance_start(&spiel, &pool_fid);
+	rc = (type == M0_REPREB_TYPE_SNS) ?
+		m0_spiel_sns_rebalance_start(&spiel, &pool_fid) :
+		m0_spiel_dix_rebalance_start(&spiel, &pool_fid);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_spiel_pool_rebalance_status(&spiel, &pool_fid, &status);
+	rc = (type == M0_REPREB_TYPE_SNS) ?
+		m0_spiel_sns_rebalance_status(&spiel, &pool_fid, &status) :
+		m0_spiel_dix_rebalance_status(&spiel, &pool_fid, &status);
 	M0_UT_ASSERT(rc == 1);
-	state = status[0].sss_state;
-	M0_UT_ASSERT(m0_fid_eq(&status[0].sss_fid, &svc_fid));
-	M0_UT_ASSERT(M0_IN(state, (SNS_CM_STATUS_IDLE, SNS_CM_STATUS_STARTED,
-				   SNS_CM_STATUS_FAILED)));
-	M0_UT_ASSERT(status[0].sss_progress >= 0);
+	state = status[0].srs_state;
+	M0_UT_ASSERT(m0_fid_eq(&status[0].srs_fid, &svc_fid));
+	M0_UT_ASSERT(M0_IN(state, (CM_STATUS_IDLE, CM_STATUS_STARTED,
+				   CM_STATUS_FAILED)));
+	M0_UT_ASSERT(status[0].srs_progress >= 0);
 	m0_free(status);
-	if (M0_IN(state, (SNS_CM_STATUS_IDLE, SNS_CM_STATUS_FAILED)))
+	if (M0_IN(state, (CM_STATUS_IDLE, CM_STATUS_FAILED)))
 		goto done;
 
-	rc = m0_spiel_pool_rebalance_quiesce(&spiel, &pool_fid);
+	rc = (type == M0_REPREB_TYPE_SNS) ?
+		m0_spiel_sns_rebalance_quiesce(&spiel, &pool_fid) :
+		m0_spiel_dix_rebalance_quiesce(&spiel, &pool_fid);
 	M0_UT_ASSERT(rc == 0);
 
-	wait_for_repair_rebalance(SNS_REBALANCE, &status, &pool_fid, &svc_fid);
-	M0_UT_ASSERT(m0_fid_eq(&status[0].sss_fid, &svc_fid));
-	M0_UT_ASSERT(status[0].sss_state = SNS_CM_STATUS_PAUSED);
-	M0_UT_ASSERT(status[0].sss_progress >= 0);
+	wait_for_repair_rebalance(type, CM_OP_REBALANCE, &status, &pool_fid, &svc_fid);
+	M0_UT_ASSERT(m0_fid_eq(&status[0].srs_fid, &svc_fid));
+	M0_UT_ASSERT(status[0].srs_state = CM_STATUS_PAUSED);
+	M0_UT_ASSERT(status[0].srs_progress >= 0);
 	m0_free(status);
 
-	rc = m0_spiel_pool_rebalance_continue(&spiel, &pool_fid);
+	rc = (type == M0_REPREB_TYPE_SNS) ?
+		m0_spiel_sns_rebalance_continue(&spiel, &pool_fid) :
+		m0_spiel_dix_rebalance_continue(&spiel, &pool_fid);
 	M0_UT_ASSERT(rc == 0);
 
-	wait_for_repair_rebalance(SNS_REBALANCE, &status, &pool_fid, &svc_fid);
+	wait_for_repair_rebalance(type, CM_OP_REBALANCE, &status, &pool_fid, &svc_fid);
 	m0_free(status);
 
 done:
 	m0_fi_disable("ready", "no_wait");
 	m0_fi_disable("m0_ha_local_state_set", "no_ha");
 	spiel_ci_ut_fini();
+}
+
+static void test_spiel_sns_rebalance(void)
+{
+	test_spiel_pool_rebalance(M0_REPREB_TYPE_SNS);
+}
+
+static void test_spiel_dix_rebalance(void)
+{
+	test_spiel_pool_rebalance(M0_REPREB_TYPE_DIX);
 }
 
 static int spiel_ci_tests_fini()
@@ -720,8 +799,10 @@ struct m0_ut_suite spiel_ci_ut = {
 		{ "process-services-list", test_spiel_process_services_list },
 		{ "device-cmds", test_spiel_device_cmds },
 		{ "stats", test_spiel_fs_stats },
-		{ "pool-repair", test_spiel_pool_repair },
-		{ "pool-rebalance", test_spiel_pool_rebalance },
+		{ "pool-sns-repair", test_spiel_sns_repair },
+		{ "pool-sns-rebalance", test_spiel_sns_rebalance },
+		{ "pool-dix-repair", test_spiel_dix_repair },
+		{ "pool-dix-rebalance", test_spiel_dix_rebalance },
 		{ NULL, NULL }
 	}
 };

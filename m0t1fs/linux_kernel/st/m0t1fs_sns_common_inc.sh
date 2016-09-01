@@ -53,6 +53,37 @@ disk_state_set()
 	fi
 }
 
+cas_disk_state_set()
+{
+	local local_ep="$lnet_nid:$M0HAM_CLI_EP"
+	local state=$1
+	local state_num=${ha_states[$state]}
+	if [ -z "$state_num" ]; then
+		echo "Unknown state: $state"
+		return 1
+	fi
+	shift
+	local service_eps=$(service_cas_eps_with_m0tifs_get)
+	local fids=()
+	local nr=0
+
+	echo "Setting CAS device { $@ } to $state (HA state=$state_num)"
+
+	for d in "$@";  do
+		fids[$nr]="^k|20:$d"
+		nr=$((nr + 1))
+	done
+	echo "setting devices { ${fids[*]} } to $state"
+	send_ha_events "${fids[*]}" "$state" "$service_eps" "$local_ep"
+	rc=$?
+	if [ $rc -ne 0 ]; then
+		echo "HA note set failed: $rc"
+		unmount_and_clean &>> $MERO_TEST_LOGFILE
+		return $rc
+	fi
+	return 0
+}
+
 disk_state_get()
 {
 	local fids=()
@@ -73,6 +104,29 @@ disk_state_get()
 		unmount_and_clean &>> $MERO_TEST_LOGFILE
 		return $rc
 	fi
+}
+
+cas_disk_state_get()
+{
+	local service_eps=$(service_cas_eps_with_m0tifs_get)
+	local local_ep="$lnet_nid:$M0HAM_CLI_EP"
+	local nr=0
+
+	echo "getting device { $@ }'s HA state"
+
+	for d in "$@";	do
+		fids[$nr]="^k|20:$d"
+		nr=$((nr + 1))
+	done
+	echo "getting device { ${fids[*]} }'s HA state"
+	request_ha_state "${fids[*]}" "$service_eps" "$local_ep"
+	rc=$?
+	if [ $rc != 0 ]; then
+		echo "HA tate get failed: $rc"
+		unmount_and_clean &>> $MERO_TEST_LOGFILE
+		return $rc
+	fi
+	return 0
 }
 
 sns_repair_mount()

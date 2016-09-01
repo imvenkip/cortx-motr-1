@@ -29,6 +29,7 @@
 #include "be/domain.h"               /* m0_be_domain_seg_first */
 #include "be/op.h"
 #include "module/instance.h"
+#include "fop/fom_long_lock.h"       /* m0_long_lock */
 
 #include "cas/ctg_store.h"
 #include "cas/index_gc.h"
@@ -86,6 +87,13 @@ struct m0_ctg_store {
 	 * To be used by deleted index garbage collector.
 	 */
 	struct m0_cas_ctg   *cs_dead_index;
+
+	/**
+	 * "Delete" lock to exclude possible race, where repair/re-balance
+	 * service sends the old value concurrently with record deletion.
+	 * @see m0_ctg_del_lock().
+	 */
+	struct m0_long_lock  cs_del_lock;
 
 	/**
 	 * Reference counter for number of catalogue store users.
@@ -276,6 +284,8 @@ static void ctg_init(struct m0_cas_ctg *ctg, struct m0_be_seg *seg)
 	M0_ENTRY();
 	m0_be_btree_init(&ctg->cc_tree, seg, &cas_btree_ops);
 	m0_long_lock_init(&ctg->cc_lock);
+	m0_mutex_init(&ctg->cc_chan_guard);
+	m0_chan_init(&ctg->cc_chan, &ctg->cc_chan_guard);
 	ctg->cc_inited = true;
 	m0_format_footer_update(ctg);
 }
@@ -286,6 +296,8 @@ static void ctg_fini(struct m0_cas_ctg *ctg)
 	ctg->cc_inited = false;
 	m0_be_btree_fini(&ctg->cc_tree);
 	m0_long_lock_fini(&ctg->cc_lock);
+	m0_chan_fini_lock(&ctg->cc_chan);
+	m0_mutex_fini(&ctg->cc_chan_guard);
 }
 
 static int ctg_create(struct m0_be_seg *seg, struct m0_be_tx *tx,
@@ -672,7 +684,7 @@ end:
 	return M0_RC(rc);
 }
 
-M0_INTERNAL int m0_ctg_store_init()
+M0_INTERNAL int m0_ctg_store_init(void)
 {
 	struct m0_be_seg    *seg   = cas_seg();
 	struct m0_cas_state *state = NULL;
@@ -706,6 +718,7 @@ M0_INTERNAL int m0_ctg_store_init()
 
 	if (result == 0) {
 		m0_mutex_init(&ctg_store.cs_state_mutex);
+		m0_long_lock_init(&ctg_store.cs_del_lock);
 		m0_ref_init(&ctg_store.cs_ref, 1, ctg_store_release);
 		ctg_store.cs_initialised = true;
 	}
@@ -722,10 +735,11 @@ static void ctg_store_release(struct m0_ref *ref)
 	m0_mutex_fini(&ctg_store->cs_state_mutex);
 	ctg_store->cs_state = NULL;
 	ctg_store->cs_ctidx = NULL;
+	m0_long_lock_fini(&ctg_store->cs_del_lock);
 	ctg_store->cs_initialised = false;
 }
 
-M0_INTERNAL void m0_ctg_store_fini()
+M0_INTERNAL void m0_ctg_store_fini(void)
 {
 	M0_ENTRY();
 	m0_ref_put(&ctg_store.cs_ref);
@@ -839,6 +853,7 @@ static bool ctg_op_cb(struct m0_clink *clink)
 	void             *arena   = ctg_op->co_anchor.ba_value.b_addr;
 	struct m0_buf     cur_key = {};
 	struct m0_buf     cur_val = {};
+	struct m0_chan   *ctg_chan = &ctg_op->co_ctg->cc_chan;
 	struct m0_buf    *dst;
 	struct m0_buf    *src;
 	int               rc;
@@ -875,7 +890,7 @@ static bool ctg_op_cb(struct m0_clink *clink)
 		case CTG_OP_COMBINE(CO_TRUNC, CT_BTREE):
 		case CTG_OP_COMBINE(CO_DROP, CT_BTREE):
 		case CTG_OP_COMBINE(CO_GC, CT_META):
-			/* Nothing to do. */
+			m0_chan_broadcast_lock(ctg_chan);
 			break;
 		case CTG_OP_COMBINE(CO_MIN, CT_BTREE):
 			ctg_buf(&ctg_op->co_out_key, &cur_key);
@@ -900,6 +915,7 @@ static bool ctg_op_cb(struct m0_clink *clink)
 				ctg_state_inc_update(tx,
 					ctg_op->co_key.b_nob - KV_HDR_SIZE +
 					ctg_op->co_val.b_nob);
+			m0_chan_broadcast_lock(ctg_chan);
 			break;
 		case CTG_OP_COMBINE(CO_PUT, CT_META):
 			*(uint64_t *)arena = sizeof(struct m0_cas_ctg *);
@@ -912,6 +928,8 @@ static bool ctg_op_cb(struct m0_clink *clink)
 					&ctg_op->co_fom->fo_tx.tx_betx,
 					(struct m0_cas_ctg **)
 					(arena + KV_HDR_SIZE));
+			if (rc == 0)
+				m0_chan_broadcast_lock(ctg_chan);
 			break;
 		case CTG_OP_COMBINE(CO_MEM_PLACE, CT_MEM):
 			/*
@@ -977,14 +995,11 @@ static int ctg_op_tick_ret(struct m0_ctg_op *ctg_op,
 		m0_fom_wait_on(fom, chan, &fom->fo_cb);
 		m0_chan_unlock(chan);
 	}
-
 	m0_be_op_unlock(op);
 
 	if (!op_is_active)
 		clink->cl_cb(clink);
-
 	m0_fom_phase_set(fom, next_state);
-
 	return ret;
 }
 
@@ -1683,8 +1698,8 @@ M0_INTERNAL int m0_ctg_ctidx_insert_sync(const struct m0_cas_id *cid,
 {
 	uint8_t                    key_data[KV_HDR_SIZE +
 					    sizeof(struct m0_fid)];
-	struct m0_cas_ctg         *ctidx    = m0_ctg_ctidx();
-	struct m0_be_btree_anchor  anchor   = {};
+	struct m0_cas_ctg         *ctidx  = m0_ctg_ctidx();
+	struct m0_be_btree_anchor  anchor = {};
 	struct m0_dix_layout      *layout;
 	struct m0_ext             *im_range;
 	const struct m0_dix_imask *imask;
@@ -1722,6 +1737,7 @@ M0_INTERNAL int m0_ctg_ctidx_insert_sync(const struct m0_cas_id *cid,
 				(anchor.ba_value.b_addr + KV_HDR_SIZE);
 			layout->u.dl_desc.ld_imask.im_range = im_range;
 		}
+		m0_chan_broadcast_lock(&ctidx->cc_chan);
 	}
 	m0_be_btree_release(tx, &anchor);
 	return M0_RC(rc);
@@ -1752,7 +1768,7 @@ M0_INTERNAL int m0_ctg_ctidx_delete_sync(const struct m0_cas_id *cid,
 	key = M0_BUF_INIT_PTR(&key_data);
 	/** @todo Make it asynchronous. */
 	M0_BE_OP_SYNC(op, m0_be_btree_delete(&ctidx->cc_tree, tx, &op, &key));
-
+	m0_chan_broadcast_lock(&ctidx->cc_chan);
 	return rc;
 }
 
@@ -1801,7 +1817,7 @@ M0_INTERNAL struct m0_cas_ctg *m0_ctg_meta(void)
 	return ctg_store.cs_state->cs_meta;
 }
 
-M0_INTERNAL struct m0_cas_ctg *m0_ctg_ctidx()
+M0_INTERNAL struct m0_cas_ctg *m0_ctg_ctidx(void)
 {
 	return ctg_store.cs_ctidx;
 }
@@ -1821,6 +1837,11 @@ M0_INTERNAL uint64_t m0_ctg_rec_size(void)
 {
 	M0_ASSERT(ctg_store.cs_state != NULL);
         return ctg_store.cs_state->cs_rec_size;
+}
+
+M0_INTERNAL struct m0_long_lock *m0_ctg_del_lock(void)
+{
+	return &ctg_store.cs_del_lock;
 }
 
 static const struct m0_be_btree_kv_ops cas_btree_ops = {
