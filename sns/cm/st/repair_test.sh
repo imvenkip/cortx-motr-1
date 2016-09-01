@@ -53,7 +53,7 @@ main()
 			return 1
 		fi
 
-		cmd="$M0_SRC_DIR/sns/cm/st/m0repair -O 2 -U ${U[$i]}
+		cmd="$M0_SRC_DIR/sns/cm/st/m0repair -O 2 -t 0 -U ${U[$i]}
 -F ${N[$i]} -n 1 -s 100000000000 -N ${N[$i]} -K 1 -P ${P[$i]}
 -C 172.18.50.45@o2ib:12345:41:102 -S 172.18.50.45@o2ib:12345:41:101"
 		if ! $cmd

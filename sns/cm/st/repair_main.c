@@ -42,6 +42,8 @@
 
 #include "sns/cm/cm.h"
 #include "sns/cm/trigger_fop.h"
+#include "dix/cm/cm.h"
+#include "dix/cm/trigger_fop.h"
 #include "cm/repreb/trigger_fop.h"
 #include "cm/repreb/trigger_fop_xc.h"
 
@@ -51,7 +53,6 @@ struct m0_mutex                 repair_wait_mutex;
 struct m0_chan                  repair_wait;
 int32_t                         srv_cnt = 0;
 struct m0_atomic64              srv_rep_cnt;
-uint32_t                        op;
 enum {
 	MAX_FAILURES_NR = 10,
 };
@@ -67,6 +68,13 @@ extern struct m0_fop_type m0_sns_rebalance_trigger_fopt;
 extern struct m0_fop_type m0_sns_rebalance_quiesce_fopt;
 extern struct m0_fop_type m0_sns_rebalance_status_fopt;
 
+extern struct m0_fop_type m0_dix_repair_trigger_fopt;
+extern struct m0_fop_type m0_dix_repair_quiesce_fopt;
+extern struct m0_fop_type m0_dix_repair_status_fopt;
+extern struct m0_fop_type m0_dix_rebalance_trigger_fopt;
+extern struct m0_fop_type m0_dix_rebalance_quiesce_fopt;
+extern struct m0_fop_type m0_dix_rebalance_status_fopt;
+
 static void usage(void)
 {
 	fprintf(stdout,
@@ -74,17 +82,20 @@ static void usage(void)
 "              CM_OP_REPAIR_QUIESCE = 8 or CM_OP_REBALANCE_QUIESCE = 16\n"
 "              CM_OP_REPAIR_STATUS = 32 or CM_OP_REBALANCE_STATUS = 64\n"
 "-C Client_end_point\n"
-"-S Server_end_point [-S Server_end_point ]: max number is %d\n", MAX_SERVERS);
+"-S Server_end_point [-S Server_end_point ]: max number is %d\n"
+"-t Service type: \n"
+"              SNS = 0 or\n"
+"              DIX = 1\n",  MAX_SERVERS);
 }
 
 static void repair_reply_received(struct m0_rpc_item *item)
 {
-	uint32_t                       req_op;
-	struct trigger_fop            *treq;
-	struct m0_fop                 *req_fop;
-	struct m0_fop                 *rep_fop;
-	struct trigger_rep_fop        *trep;
-	struct m0_status_rep_fop  *srep;
+	uint32_t                  req_op;
+	struct trigger_fop       *treq;
+	struct m0_fop            *req_fop;
+	struct m0_fop            *rep_fop;
+	struct trigger_rep_fop   *trep;
+	struct m0_status_rep_fop *srep;
 
 	M0_ASSERT(m0_rpc_item_error(item) == 0);
 
@@ -122,6 +133,8 @@ int main(int argc, char *argv[])
 	m0_time_t              start;
 	m0_time_t              delta;
 	int                    rc;
+	uint32_t               type;
+	uint32_t               op;
 	int                    i;
 
 	rc = m0_init(&instance);
@@ -138,14 +151,14 @@ int main(int argc, char *argv[])
 	rc = M0_GETOPTS("repair", argc, argv,
 			M0_FORMATARG('O',
 				     "-O Operation: \n"
-				     "              CM_OP_REPAIR = 2 or\n"
-				     "              CM_OP_REBALANCE = 4 or\n"
-				     "              CM_OP_REPAIR_QUIESCE = 8 or\n"
-				     "              CM_OP_REBALANCE_QUIESCE = 16 or\n"
-				     "              CM_OP_REPAIR_STATUS = 32 or\n"
-				     "              CM_OP_REBALANCE_STATUS = 64 or\n"
-				     "              CM_OP_REPAIR_ABORT = 128 or\n"
-				     "	            CM_OP_REBALANCE_ABORT   = 256\n",
+				     "\t\t\tCM_OP_REPAIR = 2 or\n"
+				     "\t\t\tCM_OP_REBALANCE = 4 or\n"
+				     "\t\t\tCM_OP_REPAIR_QUIESCE = 8 or\n"
+				     "\t\t\tCM_OP_REBALANCE_QUIESCE = 16 or\n"
+				     "\t\t\tCM_OP_REPAIR_STATUS = 32 or\n"
+				     "\t\t\tCM_OP_REBALANCE_STATUS = 64 or\n"
+				     "\t\t\tCM_OP_REPAIR_ABORT = 128 or\n"
+				     "\t\t\tCM_OP_REBALANCE_ABORT   = 256\n",
 				     "%u", &op),
 			M0_STRINGARG('C', "Client endpoint",
 				LAMBDA(void, (const char *str){
@@ -156,6 +169,12 @@ int main(int argc, char *argv[])
 					srv_ep_addr[srv_cnt] = str;
 					++srv_cnt;
 					})),
+			M0_FORMATARG('t',
+				     "Service type: \n"
+				     "\t\t\tSNS = 0 or\n"
+				     "\t\t\tDIX = 1\n",
+				     "%u", &type),
+			M0_HELPARG('h'),
 			);
 
 	if (rc != 0)
@@ -164,7 +183,8 @@ int main(int argc, char *argv[])
 	if (!M0_IN(op, (CM_OP_REPAIR, CM_OP_REBALANCE, CM_OP_REPAIR_ABORT,
 		        CM_OP_REPAIR_QUIESCE, CM_OP_REBALANCE_QUIESCE,
 		        CM_OP_REPAIR_STATUS, CM_OP_REBALANCE_STATUS,
-			CM_OP_REBALANCE_ABORT))) {
+			CM_OP_REBALANCE_ABORT)) ||
+	    !M0_IN(type, (0, 1))) {
 		usage();
 		return M0_ERR(-EINVAL);
 	}
@@ -172,6 +192,8 @@ int main(int argc, char *argv[])
 	m0_atomic64_set(&srv_rep_cnt, srv_cnt);
 	m0_sns_cm_repair_trigger_fop_init();
 	m0_sns_cm_rebalance_trigger_fop_init();
+	m0_dix_cm_repair_trigger_fop_init();
+	m0_dix_cm_rebalance_trigger_fop_init();
 	repair_client_init();
 
 	m0_mutex_init(&repair_wait_mutex);
@@ -201,8 +223,10 @@ int main(int argc, char *argv[])
 		}
 		session = &ctxs[i].ctx_session;
 		mach = m0_fop_session_machine(session);
-
-		rc = m0_sns_cm_trigger_fop_alloc(mach, op, &fop);
+		if (type == 0)
+			rc = m0_sns_cm_trigger_fop_alloc(mach, op, &fop);
+		else
+			rc = m0_dix_cm_trigger_fop_alloc(mach, op, &fop);
 		if (rc != 0)
 			return M0_ERR(rc);
 
@@ -232,6 +256,8 @@ int main(int argc, char *argv[])
 	repair_client_fini();
 	m0_sns_cm_repair_trigger_fop_fini();
 	m0_sns_cm_rebalance_trigger_fop_fini();
+	m0_dix_cm_repair_trigger_fop_fini();
+	m0_dix_cm_rebalance_trigger_fop_fini();
 	m0_fini();
 
 	return M0_RC(rc);
