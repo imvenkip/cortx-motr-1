@@ -25,7 +25,8 @@
 #include <limits.h>			/* IOV_MAX */
 #include <sys/uio.h>			/* iovec */
 
-#include "ha/note.h"                    /* ha_note, ha_nvec */
+#include "ha/ha.h"                      /* m0_ha_send */
+#include "ha/msg.h"                     /* m0_ha_msg */
 
 #include "lib/misc.h"			/* M0_SET0 */
 #include "lib/errno.h"			/* ENOMEM */
@@ -33,6 +34,7 @@
 #include "lib/locality.h"
 #include "lib/memory.h"			/* M0_ALLOC_PTR */
 
+#include "module/instance.h"            /* m0_get() */
 #include "reqh/reqh.h"                  /* m0_reqh */
 #include "rpc/session.h"                /* m0_rpc_session */
 #include "addb2/addb2.h"
@@ -110,6 +112,7 @@
 struct ioq_qev {
 	struct iocb           iq_iocb;
 	m0_bcount_t           iq_nbytes;
+	m0_bindex_t           iq_offset;
 	/** Linkage to a per-domain admission queue
 	    (linux_domain::ioq_queue). */
 	struct m0_queue_link  iq_linkage;
@@ -153,41 +156,83 @@ enum {
 	STOB_IOQ_BMASK	= STOB_IOQ_BSIZE - 1
 };
 
+/* Temporary solution until Halon can use M0_HA_MSG_STOB_IOQ */
+static void stob_ioq_notify_nvec(const struct m0_fid *conf_sdev)
+{
+	struct m0_ha_note note;
+	struct m0_ha_nvec nvec;
+
+	if (m0_ha_session_get() != NULL) {
+		note = (struct m0_ha_note){
+			.no_id    = *conf_sdev,
+			.no_state = M0_NC_FAILED,
+		};
+		nvec = (struct m0_ha_nvec){
+			.nv_nr   = 1,
+			.nv_note = &note,
+		};
+		m0_ha_state_set(m0_ha_session_get(), &nvec);
+	}
+}
+
 /**
  * Handles detection of drive IO error by signalling HA.
  */
 static void io_err_callback(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
-	struct m0_ha_note      note;
-	struct m0_ha_nvec      nvec;
-	struct m0_rpc_session *rpc_ssn;
-	struct m0_stob_linux  *lstob;
-	struct m0_stob_ioq    *ioq;
+	struct m0_ha_msg     *msg;
+	struct m0_stob_linux *lstob;
+	struct m0_stob_ioq   *ioq;
+	struct m0_stob_io    *io;
+	struct ioq_qev       *qev;
+	uint64_t              tag;
 
 	M0_ENTRY();
 
 	lstob = M0_AMB(lstob, ast, sl_ast);
+	io    = M0_AMB(io, &lstob->sl_stob, si_obj);
+	qev   = container_of(io, struct ioq_qev, iq_io);
 	M0_LOG(M0_WARN, "IO error: stob_id=" STOB_ID_F " conf_sdev=" FID_F,
 	       STOB_ID_P(&lstob->sl_stob.so_id), FID_P(&lstob->sl_conf_sdev));
 	ioq = &lstob->sl_dom->sld_ioq;
-	rpc_ssn = m0_ha_session_get();
-	m0_mutex_lock(&ioq->ioq_lock);
-	if (rpc_ssn != NULL) {
-		note.no_id    = lstob->sl_conf_sdev;
-		note.no_state = M0_NC_FAILED;
-		nvec.nv_nr    = 1;
-		nvec.nv_note  = &note;
-		m0_ha_state_set(rpc_ssn, &nvec);
+	M0_ALLOC_PTR(msg);
+	if (msg == NULL) {
+		M0_LOG(M0_ERROR, "can't allocate memory for msg");
+		M0_LEAVE();
+		return;
 	}
+	m0_mutex_lock(&ioq->ioq_lock);
+	*msg = (struct m0_ha_msg){
+		.hm_fid  = lstob->sl_conf_sdev,
+		.hm_time = m0_time_now(),
+		.hm_data = {
+			.hed_type       = M0_HA_MSG_STOB_IOQ,
+			.u.hed_stob_ioq = {
+				/* stob info */
+				.sie_conf_sdev = lstob->sl_conf_sdev,
+				.sie_stob_id   = lstob->sl_stob.so_id,
+				.sie_fd        = lstob->sl_fd,
+				/* IO info */
+				.sie_opcode    = io->si_opcode,
+				.sie_rc        = io->si_rc,
+				.sie_bshift    = m0_stob_ioq_bshift(ioq),
+				.sie_size      = qev->iq_nbytes,
+				.sie_offset    = qev->iq_offset,
+			},
+		},
+	};
 	ast->sa_cb = NULL;
+	stob_ioq_notify_nvec(&lstob->sl_conf_sdev);
 	m0_mutex_unlock(&ioq->ioq_lock);
+	m0_ha_send(m0_get()->i_ha, m0_get()->i_ha_link, msg, &tag);
+	m0_free(msg);
 	m0_stob_put(&lstob->sl_stob);
 
 	m0_mutex_lock(&lstob->sl_wait_guard);
 	m0_sm_ast_wait_signal(&lstob->sl_wait);
 	m0_mutex_unlock(&lstob->sl_wait_guard);
 
-	M0_LEAVE();
+	M0_LEAVE("tag=%"PRIu64, tag);
 }
 
 M0_INTERNAL int m0_stob_linux_io_init(struct m0_stob *stob,
@@ -342,6 +387,7 @@ static int stob_linux_io_launch(struct m0_stob_io *io)
 		if (result == 0) {
 			iocb->u.v.nr = i;
 			qev->iq_nbytes = chunk_size << m0_stob_ioq_bshift(ioq);
+			qev->iq_offset = off << m0_stob_ioq_bshift(ioq);;
 
 			ioq_queue_put(ioq, qev);
 
