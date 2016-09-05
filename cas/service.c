@@ -30,16 +30,19 @@
 #include "fop/fom_long_lock.h"
 #include "fop/fom_generic.h"
 #include "reqh/reqh_service.h"
+#include "reqh/reqh.h"               /* m0_reqh */
 #include "rpc/rpc_opcodes.h"
 #include "rpc/rpc_machine.h"         /* m0_rpc_machine */
 #include "conf/schema.h"             /* M0_CST_CAS */
 #include "module/instance.h"
 #include "addb2/addb2.h"
 #include "cas/ctg_store.h"
+#include "pool/pool.h"               /* m0_pool_nd_state */
 
 #include "cas/cas_addb2.h"           /* M0_AVI_CAS_KV_SIZES */
 #include "cas/cas.h"
 #include "cas/cas_xc.h"
+#include "dix/fid_convert.h"         /* m0_dix_fid_cctg_device_id */
 
 
 /**
@@ -353,6 +356,10 @@ static int  cas_buf_cid_decode(struct m0_buf    *enc_buf,
 static bool cas_fid_is_cctg(const struct m0_fid *fid);
 static int  cas_id_check(const struct m0_cas_id *cid,
 			 struct m0_cas_ctg      *ctidx);
+static int  cas_device_check(struct cas_service     *svc,
+			     const struct m0_cas_id *cid);
+static int  cas_op_check(struct m0_cas_op *op,
+			 struct cas_fom   *fom);
 
 static void cas_incoming_kv(const struct cas_fom *fom,
 			    uint64_t              rec_pos,
@@ -697,7 +704,8 @@ static int cas_op_check(struct m0_cas_op *op,
 	     (cas_op(fom0)->cg_flags & COF_OVERWRITE))
 		rc = M0_ERR(-EPROTO);
 	if (rc == 0)
-		rc = cas_id_check(&op->cg_id, ctidx);
+		rc = cas_id_check(&op->cg_id, ctidx) ?:
+		     cas_device_check(service, &op->cg_id);
 	if (rc == 0 && is_meta && fom->cf_ikv_nr != 0) {
 		M0_ALLOC_ARR(fom->cf_in_cids, fom->cf_ikv_nr);
 		if (fom->cf_in_cids == NULL)
@@ -1010,6 +1018,60 @@ static enum m0_cas_opcode m0_cas_opcode(const struct m0_fop *fop)
 	opcode = fop->f_item.ri_type->rit_opcode - M0_CAS_GET_FOP_OPCODE;
 	M0_ASSERT(0 <= opcode && opcode < CO_NR);
 	return opcode;
+}
+
+static int cas_sdev_state(struct m0_poolmach    *pm,
+			  uint32_t               sdev_idx,
+			  enum m0_pool_nd_state *state_out)
+{
+	int i;
+
+	if (M0_FI_ENABLED("sdev_fail")) {
+		*state_out = M0_PNDS_FAILED;
+		return 0;
+	}
+	for (i = 0; i < pm->pm_state->pst_nr_devices; i++) {
+		struct m0_pooldev *sdev = &pm->pm_state->pst_devices_array[i];
+
+		if (sdev->pd_sdev_idx == sdev_idx) {
+			*state_out = sdev->pd_state;
+			return 0;
+		}
+	}
+	return M0_ERR(-EINVAL);
+}
+
+/**
+ * Checks that device where a component catalogue with a given cid resides is
+ * available (online or rebalancing).
+ *
+ * Client should send requests against catalogues which are available. DIX
+ * degraded mode logic is responsible to guarantee this.
+ */
+static int cas_device_check(struct cas_service     *svc,
+			    const struct m0_cas_id *cid)
+{
+	uint32_t                device_id;
+	enum m0_pool_nd_state   state;
+	struct m0_pool_version *pver;
+	struct m0_poolmach     *pm;
+	int                     rc = 0;
+
+	M0_PRE(svc != NULL);
+	if (cas_fid_is_cctg(&cid->ci_fid)) {
+		device_id = m0_dix_fid_cctg_device_id(&cid->ci_fid);
+		pver = m0_pool_version_find(svc->c_service.rs_reqh->rh_pools,
+					    &cid->ci_layout.u.dl_desc.ld_pver);
+		if (pver != NULL) {
+			pm = &pver->pv_mach;
+			rc = cas_sdev_state(pm, device_id, &state);
+			if (rc == 0 && !M0_IN(state, (M0_PNDS_ONLINE,
+						      M0_PNDS_SNS_REBALANCING)))
+				rc = M0_ERR(-EBADFD);
+		} else
+			rc = M0_ERR(-EINVAL);
+	}
+	return M0_RC(rc);
 }
 
 static int cas_id_check(const struct m0_cas_id *cid,

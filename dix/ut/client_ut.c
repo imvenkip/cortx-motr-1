@@ -730,6 +730,7 @@ static int dix_client_init(struct cl_ctx *cctx, const char *cl_ep_addr,
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_layout_standard_types_register(&cl_rpc_ctx->rcx_reqh.rh_ldom);
 	M0_UT_ASSERT(rc == 0);
+
 	rc = m0_pool_versions_setup(pc, fs, NULL, NULL, NULL);
 	M0_UT_ASSERT(rc == 0);
 	m0_confc_close(&fs->cf_obj);
@@ -805,9 +806,7 @@ static void ut_service_init(void)
 	int                rc;
 
 	dixc_ut_init(&dix_ut_sctx, &dix_ut_cctx);
-
 	dix_ut_cctx.cl_grp = m0_locality0_get()->lo_grp;
-
 	rc = ut_pver_find(&dix_ut_cctx.cl_rpc_ctx.rcx_reqh,
 			  &dix_ut_cctx.cl_pver);
 	M0_UT_ASSERT(rc == 0);
@@ -2100,6 +2099,20 @@ void next_merge(void)
 	m0_fi_disable("m0_dix_rs_fini", "mock_data_load");
 }
 
+static void server_is_down(void)
+{
+	struct m0_dix index;
+	int           rc;
+
+	ut_service_init();
+	dix_index_init(&index, 1);
+	m0_fi_enable_once("cas_sdev_state", "sdev_fail");
+	rc = dix_common_idx_op(&index, 1, REQ_CREATE);
+	M0_UT_ASSERT(rc == -EBADFD);
+	dix_index_fini(&index);
+	ut_service_fini();
+}
+
 struct m0_ut_suite dix_client_ut = {
 	.ts_name   = "dix-client",
 	.ts_owners = "Leonid",
@@ -2130,6 +2143,7 @@ struct m0_ut_suite dix_client_ut = {
 		{ "cctgs-lookup",           dix_cctgs_lookup,        "Leonid" },
 		{ "local-failures",         local_failures,          "Egor"   },
 		{ "next-merge",             next_merge,              "Leonid" },
+		{ "server-is-down",         server_is_down,          "Leonid" },
 		{ NULL, NULL }
 	}
 };
