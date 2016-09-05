@@ -33,7 +33,7 @@ struct m0_rpc_item_type;
 
    This file contains definitions for encoding/decoding a fop type rpc item
    onto a bufvec.
-	@see rpc/rpc_onwire.h
+	@see rpc/onwire.h
    @{
  */
 /**

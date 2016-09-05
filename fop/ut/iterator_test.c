@@ -39,12 +39,12 @@ static struct m0_fop_type m0_fop_iterator_test_fopt;
 static void fop_fini(void)
 {
 	m0_fop_type_fini(&m0_fop_iterator_test_fopt);
-	m0_xc_iterator_test_fini();
+	m0_xc_fop_ut_iterator_test_fini();
 }
 
 static int fop_init(void)
 {
-	m0_xc_iterator_test_init();
+	m0_xc_fop_ut_iterator_test_init();
 	M0_FOP_TYPE_INIT(&m0_fop_iterator_test_fopt,
 			 .name   = "FOP Iterator Test",
 			 .opcode = M0_FOP_ITERATOR_TEST_OPCODE,

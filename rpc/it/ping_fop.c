@@ -36,7 +36,7 @@ M0_INTERNAL void m0_ping_fop_fini(void)
 {
 	m0_fop_type_fini(&m0_fop_ping_rep_fopt);
 	m0_fop_type_fini(&m0_fop_ping_fopt);
-	m0_xc_ping_fop_fini();
+	m0_xc_rpc_it_ping_fop_fini();
 }
 
 extern const struct m0_fom_type_ops m0_fom_ping_type_ops;
@@ -44,7 +44,7 @@ extern struct m0_reqh_service_type m0_rpc_service_type;
 
 M0_INTERNAL void m0_ping_fop_init(void)
 {
-	m0_xc_ping_fop_init();
+	m0_xc_rpc_it_ping_fop_init();
 	M0_FOP_TYPE_INIT(&m0_fop_ping_fopt,
 			 .name      = "Ping fop",
 			 .opcode    = M0_RPC_PING_OPCODE,

@@ -25,8 +25,8 @@
 #include "fop/fom_generic.h"
 #include "reqh/reqh.h"
 #include "reqh/reqh_service.h"
-#include "reqh/ut/reqh_service.h"
-#include "reqh/ut/reqh_service_xc.h"
+#include "reqh/ut/service.h"
+#include "reqh/ut/service_xc.h"
 #include "rpc/rpc_opcodes.h"
 #include "ut/ut.h"
 #include "ut/cs_service.h"
@@ -48,7 +48,7 @@ enum {
 
 static int m0_reqhut_fop_init(void)
 {
-	m0_xc_reqh_service_init();
+	m0_xc_reqh_ut_service_init();
 	M0_FOP_TYPE_INIT(&m0_reqhut_dummy_fopt,
 			 .name      = "Reqh unit test",
 			 .opcode    = M0_REQH_UT_DUMMY_OPCODE,
@@ -63,7 +63,7 @@ static int m0_reqhut_fop_init(void)
 static void m0_reqhut_fop_fini(void)
 {
 	m0_fop_type_fini(&m0_reqhut_dummy_fopt);
-	m0_xc_reqh_service_fini();
+	m0_xc_reqh_ut_service_fini();
 }
 
 static void test_service(void)

@@ -30,7 +30,7 @@
 #include "lib/list.h"
 #include "lib/time.h"
 #include "sm/sm.h"                 /* m0_sm */
-#include "rpc/rpc_onwire.h"        /* m0_rpc_item_header2 */
+#include "rpc/onwire.h"            /* m0_rpc_item_header2 */
 
 /**
    @addtogroup rpc

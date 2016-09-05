@@ -33,7 +33,7 @@
 #include "rpc/rpc.h"
 #include "rpc/rpc_internal.h"
 #include "rpc/ut/clnt_srv_ctx.c"
-#include "rpc/ut/rpc_test_fops.h"  /* m0_rpc_arrow_fopt */
+#include "rpc/ut/fops.h"           /* m0_rpc_arrow_fopt */
 #include "ut/cs_fop.h"             /* cs_ds2_req_fop_fopt */
 #include "ut/cs_fop_xc.h"          /* cs_ds2_req_fop */
 #include "rpc/formation2.c"        /* frm_fill_packet_from_item_sources */

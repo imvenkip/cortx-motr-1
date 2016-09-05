@@ -312,13 +312,13 @@ M0_INTERNAL struct m0_stob_domain *m0_stob_dom_get(struct m0_stob *stob)
 
 M0_INTERNAL int m0_stob_mod_init(void)
 {
-	m0_xc_stob_init();
+	m0_xc_stob_stob_init();
 	return 0;
 }
 
 M0_INTERNAL void m0_stob_mod_fini(void)
 {
-	m0_xc_stob_fini();
+	m0_xc_stob_stob_fini();
 }
 
 M0_INTERNAL void m0_stob_id_make(uint64_t container,

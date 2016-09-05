@@ -28,7 +28,7 @@
 #include "ut/ut.h"
 #include "rpc/rpclib.h"
 #include "rpc/ut/clnt_srv_ctx.c"   /* sctx, cctx. NOTE: This is .c file */
-#include "rpc/ut/rpc_test_fops.h"
+#include "rpc/ut/fops.h"
 #include "rpc/rpc_internal.h"
 
 static struct m0_rpc_machine *machine;

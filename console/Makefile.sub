@@ -14,8 +14,6 @@ mero_libmero_la_SOURCES  += console/console_fop.c \
 nodist_mero_libmero_la_SOURCES  += \
                             console/console_fop_xc.c
 
-# console/console_fop.h : rpc/rpc_onwire.h
-
 XC_FILES   += console/console_fop_xc.h
 
 EXTRA_DIST += console/st/console-st.sh \

@@ -33,7 +33,7 @@
 #include "ut/misc.h"        /* M0_UT_PATH */
 #include "rpc/rpclib.h"     /* m0_rpc_server_ctx, m0_rpc_client_ctx */
 #include "rpc/session.h"    /* m0_rpc_session_timedwait */
-#include "rpc/ub/rpc_ub_fops.h"
+#include "rpc/ub/fops.h"
 
 /* ----------------------------------------------------------------
  * CLI arguments

@@ -26,7 +26,7 @@
 #include "lib/tlist.h"
 #include "lib/time.h"          /* m0_time_t */
 #include "sm/sm.h"
-#include "rpc/rpc_onwire.h"    /* m0_rpc_sender_uuid */
+#include "rpc/onwire.h"        /* m0_rpc_sender_uuid */
 #include "fid/fid.h"           /* m0_fid */
 
 /* Imports */

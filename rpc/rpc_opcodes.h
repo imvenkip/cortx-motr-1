@@ -221,7 +221,7 @@ enum M0_RPC_OPCODES {
 	/** ADDB2 */
 	M0_ADDB_FOP_OPCODE                  = 150,
 
-	/* reqh/ut/reqh_fop_allow_ut.c */
+	/* reqh/ut/fop_allow_ut.c */
 	M0_REQH_UT_ALLOW_OPCODE             = 151,
 
 	/* SNS repair/rebalance quiesce */

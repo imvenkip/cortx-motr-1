@@ -17,7 +17,7 @@
  * Original creation date: 28-July-2014
  */
 
-#include "reqh/ut/reqh_service_xc.h" /* m0_xc_reqh_service_init */
+#include "reqh/ut/service_xc.h"      /* m0_xc_reqh_ut_service_init */
 #include "rpc/rpc_opcodes.h"         /* M0_REQH_UT_ALLOW_OPCODE */
 #include "sss/ss_fops.h"             /* m0_sss_req */
 #include "ut/ut.h"
@@ -83,7 +83,7 @@ static struct m0_fop_type m0_reqhut_allow_fopt;
 
 static int m0_reqhut_fop_init(void)
 {
-	m0_xc_reqh_service_init();
+	m0_xc_reqh_ut_service_init();
 	M0_FOP_TYPE_INIT(&m0_reqhut_allow_fopt,
 			 .name      = "Reqh unit test",
 			 .opcode    = M0_REQH_UT_ALLOW_OPCODE,
@@ -98,7 +98,7 @@ static int m0_reqhut_fop_init(void)
 static void m0_reqhut_fop_fini(void)
 {
 	m0_fop_type_fini(&m0_reqhut_allow_fopt);
-	m0_xc_reqh_service_fini();
+	m0_xc_reqh_ut_service_fini();
 }
 
 static int fom_tick(struct m0_fom *fom)

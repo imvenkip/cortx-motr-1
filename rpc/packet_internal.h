@@ -25,7 +25,7 @@
 
 #include "lib/vec.h"
 #include "lib/tlist.h"
-#include "rpc/rpc_onwire.h"
+#include "rpc/onwire.h"
 
 /**
  * @addtogroup rpc

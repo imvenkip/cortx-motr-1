@@ -38,4 +38,4 @@ struct m0_ha_msg_rpc {
 	uint64_t hmr_state;
 } M0_XCA_RECORD;
 
-#endif
+#endif /* __MERO_RPC_HA_H__ */

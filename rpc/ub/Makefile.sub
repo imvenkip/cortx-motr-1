@@ -1,9 +1,9 @@
 ut_libmero_ut_la_SOURCES += rpc/ub/ub.c \
-                            rpc/ub/rpc_ub_fops.c \
-                            rpc/ub/rpc_ub_fops.h
+                            rpc/ub/fops.c \
+                            rpc/ub/fops.h
 
-nodist_ut_libmero_ut_la_SOURCES += rpc/ub/rpc_ub_fops_xc.c
+nodist_ut_libmero_ut_la_SOURCES += rpc/ub/fops_xc.c
 
-XC_FILES += rpc/ub/rpc_ub_fops_xc.h
+XC_FILES += rpc/ub/fops_xc.h
 
 EXTRA_DIST += rpc/ub/README

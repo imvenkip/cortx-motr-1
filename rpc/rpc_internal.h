@@ -32,8 +32,8 @@
 #include "rpc/session_fops_xc.h"
 #include "rpc/session_fops.h"
 #include "rpc/session_foms.h"
-#include "rpc/rpc_onwire.h"
-#include "rpc/rpc_onwire_xc.h"
+#include "rpc/onwire.h"
+#include "rpc/onwire_xc.h"
 #include "rpc/rpc.h"
 
 /**

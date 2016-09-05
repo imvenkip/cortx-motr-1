@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2012 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -14,29 +14,33 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Manish Honap <manish_honap@xyratex.com>
- * Original creation date: 06-Feb-2013
+ * Original author: Amit Jambure <Amit_Jambure@xyratex.com>
+ * Original creation date: 18-Dec-2012
  */
-
 
 #pragma once
 
-#ifndef __MERO_REQH_UT_REQH_SERVICE_H__
-#define __MERO_REQH_UT_REQH_SERVICE_H__
+#ifndef __MERO_RPC_UT_FOPS_H__
+#define __MERO_RPC_UT_FOPS_H__
 
-#include "lib/types.h"
-#include "xcode/xcode.h" /* m0_void_t */
-#include "xcode/xcode_attr.h"
+#include <sys/types.h>
+#include <stdint.h>
 
-struct m0_fop_type;
-struct m0_fom_type_ops;
+#include "xcode/xcode.h"
 
-struct m0_reqhut_dummy {
-	m0_void_t rd_unused;
+struct arrow {
+	uint64_t n;
 } M0_XCA_RECORD;
 
-#endif /* __MERO_REQH_UT_REQH_SERVICE_H__ */
+M0_INTERNAL void m0_rpc_test_fops_init(void);
+M0_INTERNAL void m0_rpc_test_fops_fini(void);
 
+extern struct m0_fop_type m0_rpc_arrow_fopt;
+
+extern struct m0_semaphore arrow_hit;
+extern struct m0_semaphore arrow_destroyed;
+
+#endif /* __MERO_RPC_UT_FOPS_H__ */
 
 /*
  *  Local variables:

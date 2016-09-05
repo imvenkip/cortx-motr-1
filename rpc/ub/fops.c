@@ -24,8 +24,8 @@
 #include "fop/fom.h"                /* m0_fom_ops */
 #include "fop/fom_generic.h"        /* M0_FOPH_NR */
 #include "rpc/rpc_opcodes.h"        /* M0_RPC_UB_REQ_OPCODE */
-#include "rpc/ub/rpc_ub_fops.h"     /* ub_req, ub_resp */
-#include "rpc/ub/rpc_ub_fops_xc.h"  /* m0_xc_rpc_ub_fops_init */
+#include "rpc/ub/fops.h"            /* ub_req, ub_resp */
+#include "rpc/ub/fops_xc.h"         /* m0_xc_rpc_ub_fops_init */
 #include "ut/cs_service.h"          /* ds1_service_type */
 
 struct m0_fop_type m0_rpc_ub_req_fopt;

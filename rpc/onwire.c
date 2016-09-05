@@ -22,8 +22,8 @@
 #include "lib/trace.h"
 
 #include "lib/errno.h"
-#include "rpc/rpc_onwire.h"
-#include "rpc/rpc_onwire_xc.h"
+#include "rpc/onwire.h"
+#include "rpc/onwire_xc.h"
 #include "rpc/item.h"          /* m0_rpc_item_header2 */
 #include "rpc/rpc_helpers.h"
 #include "xcode/xcode.h"       /* M0_XCODE_OBJ */

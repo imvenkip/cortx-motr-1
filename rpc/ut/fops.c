@@ -24,7 +24,7 @@
 #include "fop/fom_generic.h"
 #include "rpc/rpc_opcodes.h"
 
-#include "rpc/ut/rpc_test_fops_xc.h"
+#include "rpc/ut/fops_xc.h"
 
 extern struct m0_reqh_service_type m0_rpc_service_type;
 
@@ -51,7 +51,7 @@ static const struct m0_fom_ops arrow_fom_ops = {
 
 M0_INTERNAL void m0_rpc_test_fops_init(void)
 {
-	m0_xc_rpc_test_fops_init();
+	m0_xc_rpc_ut_fops_init();
 	M0_FOP_TYPE_INIT(&m0_rpc_arrow_fopt,
 		.name      = "RPC_arrow",
 		.opcode    = M0_RPC_ARROW_OPCODE,
@@ -69,7 +69,7 @@ M0_INTERNAL void m0_rpc_test_fops_fini(void)
 	m0_semaphore_fini(&arrow_destroyed);
 	m0_semaphore_fini(&arrow_hit);
 	m0_fop_type_fini(&m0_rpc_arrow_fopt);
-	m0_xc_rpc_test_fops_fini();
+	m0_xc_rpc_ut_fops_fini();
 }
 
 

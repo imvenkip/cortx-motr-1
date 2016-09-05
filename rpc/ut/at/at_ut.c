@@ -439,7 +439,7 @@ static void at_fops_init(void)
 {
 	m0_sm_conf_extend(m0_generic_conf.scf_state, atfom_phases,
 			  m0_generic_conf.scf_nr_states);
-	m0_xc_at_ut_init();
+	m0_xc_rpc_ut_at_at_ut_init();
 
 	M0_FOP_TYPE_INIT(&atbuf_req_fopt,
 			 .name       = "atbuf-req",
@@ -461,7 +461,7 @@ static void at_fops_fini(void)
 {
 	m0_fop_type_fini(&atbuf_req_fopt);
 	m0_fop_type_fini(&atbuf_rep_fopt);
-	m0_xc_at_ut_fini();
+	m0_xc_rpc_ut_at_at_ut_fini();
 }
 
 /*************************************************/

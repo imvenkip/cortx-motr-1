@@ -39,7 +39,7 @@
 #include "ha/failvec.h"         /* m0_ha_msg_failure_vec_req */
 #include "mero/keepalive.h"     /* m0_ha_msg_keepalive_req */
 #include "conf/ha.h"            /* m0_conf_ha_process */
-#include "rpc/rpc_ha.h"         /* m0_rpc_ha_msg */
+#include "rpc/ha.h"             /* m0_rpc_ha_msg */
 
 /*
  * XXX next two are workarounds because *_xc.h file generator can't
@@ -52,7 +52,7 @@
 #include "ha/failvec_xc.h"      /* m0_ha_msg_failure_vec_req */
 #include "mero/keepalive_xc.h"  /* m0_ha_msg_keepalive_req_xc */
 #include "conf/ha_xc.h"         /* m0_conf_ha_process_xc */
-#include "rpc/rpc_ha_xc.h"      /* m0_rpc_ha_msg_xc */
+#include "rpc/ha_xc.h"          /* m0_rpc_ha_msg_xc */
 
 enum {
 	M0_HA_MSG_FAILURE_VEC_LIMIT = 1024,

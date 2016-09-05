@@ -612,7 +612,7 @@ void m0_stob_io_fop_init(void)
 			  m0_generic_conf.scf_nr_states);
 	m0_sm_conf_extend(m0_generic_conf.scf_state, stob_write_phases,
 			  m0_generic_conf.scf_nr_states);
-	m0_xc_io_fop_init();
+	m0_xc_reqh_ut_io_fop_init();
 	M0_FOP_TYPE_INIT(&m0_stob_io_create_fopt,
 			 .name      = "Stob create",
 			 .opcode    = M0_STOB_IO_CREATE_REQ_OPCODE,
@@ -668,7 +668,7 @@ void m0_stob_io_fop_fini(void)
 	m0_fop_type_fini(&m0_stob_io_write_fopt);
 	m0_fop_type_fini(&m0_stob_io_read_fopt);
 	m0_fop_type_fini(&m0_stob_io_create_fopt);
-	m0_xc_io_fop_fini();
+	m0_xc_reqh_ut_io_fop_fini();
 }
 
 /*

@@ -98,7 +98,7 @@ definitions are used on both sender and receiver side)
 #include "lib/tlist.h"
 #include "lib/time.h"
 #include "sm/sm.h"                /* m0_sm */
-#include "rpc/rpc_onwire.h"
+#include "rpc/onwire.h"
 
 /* Imports */
 struct m0_rpc_conn;

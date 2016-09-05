@@ -20,8 +20,8 @@
 
 #pragma once
 
-#ifndef __MERO_RPC_UT_RPC_UB_FOPS_H__
-#define __MERO_RPC_UT_RPC_UB_FOPS_H__
+#ifndef __MERO_RPC_UB_FOPS_H__
+#define __MERO_RPC_UB_FOPS_H__
 
 #include "xcode/xcode.h"
 #include "lib/buf_xc.h"
@@ -45,7 +45,7 @@ extern struct m0_fop_type m0_rpc_ub_resp_fopt;
 M0_INTERNAL void m0_rpc_ub_fops_init(void);
 M0_INTERNAL void m0_rpc_ub_fops_fini(void);
 
-#endif /* __MERO_RPC_UT_RPC_UB_FOPS_H__ */
+#endif /* __MERO_RPC_UB_FOPS_H__ */
 
 /*
  *  Local variables:

@@ -109,7 +109,7 @@ M0_INTERNAL int m0_conf_fops_init(void)
 	/*
 	 * Provided by gccxml2xcode after parsing load_fop.h
 	 */
-	m0_xc_load_fop_init();
+	m0_xc_conf_load_fop_init();
 
 #ifndef __KERNEL__
 	m0_sm_conf_extend(m0_generic_conf.scf_state, conf_load_phases,
@@ -136,7 +136,7 @@ M0_INTERNAL int m0_conf_fops_init(void)
 	/*
 	 * Provided by gccxml2xcode after parsing flip_fop.h
 	 */
-	m0_xc_flip_fop_init();
+	m0_xc_conf_flip_fop_init();
 
 #ifndef __KERNEL__
 	m0_sm_conf_extend(m0_generic_conf.scf_state, conf_flip_phases,
@@ -177,7 +177,7 @@ M0_INTERNAL void m0_conf_fops_fini(void)
 	m0_fop_type_fini(&m0_fop_conf_flip_rep_fopt);
 	m0_fop_type_fini(&m0_fop_conf_flip_fopt);
 
-	m0_xc_load_fop_fini();
+	m0_xc_conf_load_fop_fini();
 }
 
 M0_INTERNAL int m0_confx_types_init(void)
