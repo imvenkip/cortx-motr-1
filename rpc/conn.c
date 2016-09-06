@@ -1293,7 +1293,9 @@ static void rpc_conn_sessions_cancel(struct m0_rpc_conn *conn)
 	struct m0_rpc_session *session;
 
 	m0_tl_for(rpc_session, &conn->c_sessions, session) {
-		if (session->s_session_id == SESSION_ID_0)
+		if (session->s_session_id == SESSION_ID_0 ||
+		    !M0_IN(session_state(session), (M0_RPC_SESSION_IDLE,
+						    M0_RPC_SESSION_BUSY)))
 			continue;
 		m0_rpc_session_cancel(session);
 	} m0_tl_endfor;

@@ -615,6 +615,41 @@ static void test_poolversion_get(void)
 	m0_reqh_fini(&reqh);
 }
 
+/*
+ * The test reproduces a MERO-1997 regression. See
+ * https://jira.xyratex.com/browse/MERO-1997
+ */
+static void test_ha_session_states(void)
+{
+	struct m0_reqh    *reqh = &sctx.rsx_mero_ctx.cc_reqh_ctx.rc_reqh;
+	struct m0_rconfc      *cl_rconfc = &cctx.rcx_reqh.rh_rconfc;
+	struct m0_fid          fid       = M0_FID_TINIT('s', 1, 9);
+	struct m0_rpc_session  session;
+	struct m0_ha_note      note = { .no_id = fid, .no_state = M0_NC_FAILED};
+	struct m0_ha_nvec      nvec = { .nv_nr = 1, .nv_note = &note};
+	int                    rc;
+
+	rc = m0_rconfc_init(cl_rconfc, m0_locality0_get()->lo_grp,
+			    &cctx.rcx_rpc_machine, NULL, NULL);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_file_read(M0_UT_PATH("conf.xc"), &cl_rconfc->rc_local_conf);
+	M0_UT_ASSERT(rc == 0);
+	m0_rconfc_start(cl_rconfc, &reqh->rh_profile);
+	m0_ha_client_add(&cl_rconfc->rc_confc);
+	rc = m0_rpc_conn_ha_subscribe(&cctx.rcx_connection, &fid);
+	M0_UT_ASSERT(rc == 0);
+
+	/* Test: HA state is accepted when there is an initialised session */
+	m0_rpc_session_init(&session, &cctx.rcx_connection);
+	m0_ha_state_accept(&nvec);
+	m0_rpc_session_fini(&session);
+
+	m0_rpc_conn_ha_unsubscribe_lock(&cctx.rcx_connection);
+	m0_ha_client_del(&cl_rconfc->rc_confc);
+	m0_rconfc_stop_sync(cl_rconfc);
+	m0_rconfc_fini(cl_rconfc);
+}
+
 /* -------------------------------------------------------------------
  * Test suite
  * ------------------------------------------------------------------- */
@@ -651,6 +686,7 @@ struct m0_ut_suite ha_state_ut = {
 		{ "ha-failure-sets",      test_failure_sets },
 		{ "ha-failvecl-fetch",    test_failvec_fetch },
 		{ "ha-poolversion-get",   test_poolversion_get },
+		{ "ha-session-states",    test_ha_session_states },
 		{ NULL, NULL }
 	}
 };
