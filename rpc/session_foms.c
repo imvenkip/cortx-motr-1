@@ -407,10 +407,10 @@ M0_INTERNAL int m0_rpc_fom_session_terminate_tick(struct m0_fom *fom)
 	M0_ASSERT(item->ri_session != NULL);
 
 	conn = item2conn(item);
-	M0_ASSERT(m0_rpc_conn_invariant(conn));
-
 	machine = conn->c_rpc_machine;
+
 	m0_rpc_machine_lock(machine);
+	M0_ASSERT(m0_rpc_conn_invariant(conn));
 
 	/* The following switch is an asynchronous cycle and it
 	 * does the following:
