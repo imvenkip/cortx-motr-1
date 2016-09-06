@@ -3,12 +3,15 @@ set -eu
 # set -x
 export PS4='+ [${FUNCNAME[0]:+${FUNCNAME[0]}:}${LINENO}] '
 
-VERSION=0.14.3
+VERSION=0.15
 ###
 ### History:
 ###
 ### Date       Version Description
 ### ---------- ------- ----------------------------------------------------
+### 2016-09-96 0.15    More probes: halond -v, rpm -qi halon, systemctl status,
+###                    etc.
+###
 ### 2016-08-15 0.14.3  Get /var/log/halon.decision.log.
 ###
 ### 2016-05-29 0.14.2  Don't query free space of `m0t1fs' and `nfs' mount
@@ -199,6 +202,12 @@ probes() {
         'ls /dev/disk/by-*'
         'dmesg'
         'journalctl -b -0'
+        'halond -v'
+        'm0d -v'
+        'rpm -qi halon'
+        'systemctl status -l'
+        'systemctl status -l halond'
+        'systemctl status -l mero-kernel'
         'find /var/mero'
     )
     for p in "${probes[@]}"; do
