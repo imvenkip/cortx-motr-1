@@ -1368,7 +1368,8 @@ static void ctidx_op_credits(struct m0_cas_id       *cid,
 		knob = sizeof(uint64_t) + sizeof(struct m0_fid);
 		vnob = sizeof(uint64_t) + sizeof(struct m0_dix_layout);
 		if (insert)
-			m0_be_btree_insert_credit(&dummy, 1, knob, vnob, accum);
+			m0_be_btree_insert_credit2(&dummy, 1, knob, vnob,
+						   accum);
 		else
 			m0_be_btree_delete_credit(&dummy, 1, knob, vnob, accum);
 
@@ -1428,7 +1429,7 @@ static void cas_prep(struct cas_fom *fom, enum cas_opcode opc,
 		vnob = sizeof(uint64_t) + sizeof(struct cas_index);
 		/* fallthru */
 	case COMBINE(CO_PUT, CT_BTREE):
-		m0_be_btree_insert_credit(btree, 1, knob, vnob, accum);
+		m0_be_btree_insert_credit2(btree, 1, knob, vnob, accum);
 		break;
 	case COMBINE(CO_DEL, CT_META):
 		M0_ASSERT(vnob == sizeof(uint64_t));
@@ -1698,10 +1699,10 @@ static void cas_meta_insert_credit(struct m0_be_btree     *bt,
 				   m0_bcount_t             nr,
 				   struct m0_be_tx_credit *accum)
 {
-	m0_be_btree_insert_credit(bt, nr,
-				  sizeof(uint64_t) + sizeof(struct m0_fid),
-				  sizeof(uint64_t) + sizeof(struct cas_index),
-				  accum);
+	m0_be_btree_insert_credit2(bt, nr,
+				   sizeof(uint64_t) + sizeof(struct m0_fid),
+				   sizeof(uint64_t) + sizeof(struct cas_index),
+				   accum);
 }
 
 static void cas_meta_delete_credit(struct m0_be_btree     *bt,

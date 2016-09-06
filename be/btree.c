@@ -1057,6 +1057,7 @@ static void btree_save(struct m0_be_btree        *tree,
 		anchor->ba_tree = tree;
 		anchor->ba_write = true;
 		vsz = anchor->ba_value.b_nob;
+		anchor->ba_value.b_addr = NULL;
 	} else {
 		vsz = val->b_nob;
 	}
