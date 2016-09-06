@@ -91,12 +91,25 @@ M0_INTERNAL int m0_storage_devs_init(struct m0_storage_devs *devs,
 
 M0_INTERNAL void m0_storage_devs_fini(struct m0_storage_devs *devs)
 {
+	struct m0_storage_dev  *dev;
+
 	m0_parallel_pool_terminate_wait(&devs->sds_pool);
 	m0_parallel_pool_fini(&devs->sds_pool);
 	m0_clink_cleanup(&devs->sds_conf_exp);
 	m0_clink_cleanup(&devs->sds_conf_ready);
 	m0_clink_fini(&devs->sds_conf_exp);
 	m0_clink_fini(&devs->sds_conf_ready);
+
+	m0_tl_for(storage_dev, &devs->sds_devices, dev) {
+		M0_LOG(M0_DEBUG, "fini: dev=%p, ref=%" PRIi64
+		       "state=%d type=%d, %"PRIu64,
+		       dev,
+		       m0_ref_read(&dev->isd_ref),
+		       dev->isd_ha_state,
+		       dev->isd_srv_type,
+		       dev->isd_cid);
+	} m0_tl_endfor;
+
 	storage_dev_tlist_fini(&devs->sds_devices);
 	m0_mutex_fini(&devs->sds_lock);
 }
@@ -385,6 +398,13 @@ M0_INTERNAL void m0_storage_dev_attach(struct m0_storage_dev  *dev,
 	M0_PRE(storage_devs_is_locked(devs));
 	M0_PRE(m0_storage_devs_find_by_cid(devs, dev->isd_cid) == NULL);
 
+	M0_LOG(M0_DEBUG, "get: dev=%p, ref=%" PRIi64
+	       "state=%d type=%d, %"PRIu64,
+	       dev,
+	       m0_ref_read(&dev->isd_ref),
+	       dev->isd_ha_state,
+	       dev->isd_srv_type,
+	       dev->isd_cid);
 	m0_storage_dev_get(dev);
 	storage_dev_tlink_init_at_tail(dev, &devs->sds_devices);
 }
@@ -399,6 +419,13 @@ M0_INTERNAL void m0_storage_dev_detach(struct m0_storage_dev *dev)
 		m0_storage_dev_clink_del(&dev->isd_clink);
 		m0_confc_close(obj);
 	}
+	M0_LOG(M0_DEBUG, "get: dev=%p, ref=%" PRIi64
+	       "state=%d type=%d, %"PRIu64,
+	       dev,
+	       m0_ref_read(&dev->isd_ref),
+	       dev->isd_ha_state,
+	       dev->isd_srv_type,
+	       dev->isd_cid);
 	m0_storage_dev_put(dev);
 }
 

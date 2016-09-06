@@ -265,6 +265,7 @@ M0_INTERNAL void m0_stob_get(struct m0_stob *stob)
 
 	m0_stob_cache_lock(cache);
 	M0_ASSERT(stob->so_ref > 0);
+	M0_LOG(M0_DEBUG, "stob=%p, ref=%"PRIu64, stob, stob->so_ref);
 	M0_CNT_INC(stob->so_ref);
 	m0_stob_cache_unlock(cache);
 }
@@ -276,6 +277,7 @@ M0_INTERNAL void m0_stob_put(struct m0_stob *stob)
 	cache = m0_stob_domain__cache(m0_stob_dom_get(stob));
 
 	m0_stob_cache_lock(cache);
+	M0_LOG(M0_DEBUG, "stob=%p, ref=%"PRIu64, stob, stob->so_ref);
 	M0_CNT_DEC(stob->so_ref);
 	if (stob->so_ref == 0)
 		m0_stob_cache_idle(cache, stob);

@@ -792,6 +792,24 @@ m0t1fs_parallel_io_test()
 	return $rc
 }
 
+m0t1fs_big_bs_io_test()
+{
+	local mode=$1
+	echo "Big BS IO test"
+	rc=1
+	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR "$mode" || rc=1
+	mount | grep m0t1fs                         || rc=1
+	echo "Create file"
+	i=0:1000000
+	touch $MERO_M0T1FS_MOUNT_DIR/$i                        || rc=1
+	setfattr -n writesize -v $BS $MERO_M0T1FS_MOUNT_DIR/$i || rc=1
+	dd if=/dev/zero of=$MERO_M0T1FS_MOUNT_DIR/$fid bs=10G count=1  || rc=0
+	rm -f $MERO_M0T1FS_MOUNT_DIR/$i                                || rc=1
+	unmount_and_clean
+
+	return $rc
+}
+
 m0t1fs_system_tests()
 {
 	file_creation_test $MAX_NR_FILES || {
@@ -826,6 +844,11 @@ m0t1fs_system_tests()
 
 	m0t1fs_parallel_io_test "oostore" || {
 		echo "Failed: m0t1fs parallel io test failed."
+		return 1
+	}
+
+	m0t1fs_big_bs_io_test "oostore" || {
+		echo "Failed: m0t1fs big BS io test failed."
 		return 1
 	}
 

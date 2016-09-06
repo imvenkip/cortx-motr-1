@@ -1930,8 +1930,16 @@ static int indexvec_wire2mem(struct m0_fom *fom)
 			m0_stob_put(fom_obj->fcrw_stob);
 			fom_obj->fcrw_stob = NULL;
 			rc = M0_ERR(-ENOENT);
-		} else
+		} else {
+			M0_LOG(M0_DEBUG, "get: dev=%p, ref=%" PRIi64 " "
+			       "state=%d type=%d, %"PRIu64,
+			       fom_obj->fcrw_dev,
+			       m0_ref_read(&fom_obj->fcrw_dev->isd_ref),
+			       fom_obj->fcrw_dev->isd_ha_state,
+			       fom_obj->fcrw_dev->isd_srv_type,
+			       fom_obj->fcrw_dev->isd_cid);
 			m0_storage_dev_get(fom_obj->fcrw_dev);
+		}
 	}
 	m0_storage_devs_unlock(devs);
 	if (rc != 0)
@@ -2125,7 +2133,32 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 		}
 	}
 	if (m0_fom_phase(fom) < M0_FOPH_NR) {
+		M0_LOG(M0_DEBUG, "fom=%p, stob=%p, rc=%d", fom,
+		       fom_obj->fcrw_stob, m0_fom_rc(fom));
+
+		if (m0_fom_phase(fom) == M0_FOPH_FAILURE &&
+		    fom_obj->fcrw_stob != NULL &&
+		    m0_fom_rc(fom) == -E2BIG) {
+			m0_stob_put(fom_obj->fcrw_stob);
+			devs = &m0_get()->i_storage_devs;
+			m0_storage_devs_lock(devs);
+			M0_ASSERT(fom_obj->fcrw_dev != NULL);
+			M0_LOG(M0_DEBUG, "put: dev=%p, ref=%" PRIi64 " "
+			       "state=%d type=%d, %"PRIu64,
+			       fom_obj->fcrw_dev,
+			       m0_ref_read(&fom_obj->fcrw_dev->isd_ref),
+			       fom_obj->fcrw_dev->isd_ha_state,
+			       fom_obj->fcrw_dev->isd_srv_type,
+			       fom_obj->fcrw_dev->isd_cid);
+			m0_storage_dev_put(fom_obj->fcrw_dev);
+			m0_storage_devs_unlock(devs);
+		}
+
 		rc = m0_fom_tick_generic(fom);
+
+		M0_LOG(M0_DEBUG, "fom=%p, stob=%p, rc=%d", fom,
+		       fom_obj->fcrw_stob, m0_fom_rc(fom));
+
 		return M0_RC(rc);
 	}
 
@@ -2145,6 +2178,13 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 			devs = &m0_get()->i_storage_devs;
 			m0_storage_devs_lock(devs);
 			M0_ASSERT(fom_obj->fcrw_dev != NULL);
+			M0_LOG(M0_DEBUG, "put: dev=%p, ref=%" PRIi64 " "
+			       "state=%d type=%d, %"PRIu64,
+			       fom_obj->fcrw_dev,
+			       m0_ref_read(&fom_obj->fcrw_dev->isd_ref),
+			       fom_obj->fcrw_dev->isd_ha_state,
+			       fom_obj->fcrw_dev->isd_srv_type,
+			       fom_obj->fcrw_dev->isd_cid);
 			m0_storage_dev_put(fom_obj->fcrw_dev);
 			m0_storage_devs_unlock(devs);
 		}
@@ -2212,7 +2252,7 @@ static void m0_io_fom_cob_rw_fini(struct m0_fom *fom)
 
 	fop = fom->fo_fop;
 	rw = io_rw_get(fop);
-	M0_LOG(M0_DEBUG, "FOM fini: op=%s@"FID_F", nbytes=%lu",
+	M0_LOG(M0_DEBUG, "FOM fini: fom=%p op=%s@"FID_F", nbytes=%lu", fom,
 	       m0_is_read_fop(fop) ? "READ" : "WRITE", FID_P(&rw->crw_fid),
 	       (unsigned long)(fom_obj->fcrw_count << fom_obj->fcrw_bshift));
 

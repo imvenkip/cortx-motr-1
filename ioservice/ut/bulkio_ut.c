@@ -285,6 +285,13 @@ static void builkio_ut_stob_get(struct m0_io_fom_cob_rw *fom_obj)
 {
 	M0_UT_ASSERT(fom_obj->fcrw_stob != NULL);
 	M0_UT_ASSERT(fom_obj->fcrw_dev  != NULL);
+	M0_LOG(M0_DEBUG, "get: dev=%p, ref=%" PRIi64
+	       "state=%d type=%d, %"PRIu64,
+	       fom_obj->fcrw_dev,
+	       m0_ref_read(&fom_obj->fcrw_dev->isd_ref),
+	       fom_obj->fcrw_dev->isd_ha_state,
+	       fom_obj->fcrw_dev->isd_srv_type,
+	       fom_obj->fcrw_dev->isd_cid);
 	m0_storage_dev_get(fom_obj->fcrw_dev);
 	m0_stob_get(fom_obj->fcrw_stob);
 }

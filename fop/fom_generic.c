@@ -343,8 +343,11 @@ static int fom_failure(struct m0_fom *fom)
 		 * @todo hack to move be transaction into FAILED state, so that
 		 * it can be finalised.
 		 */
-		m0_be_tx_prep(betx, &m0_be_tx_credit_invalid);
-		m0_be_tx_open(betx);
+		if (m0_be_tx_state(betx) == M0_BTS_PREPARE) {
+			m0_be_tx_prep(betx, &m0_be_tx_credit_invalid);
+			m0_be_tx_open(betx);
+		}
+		M0_ASSERT(m0_be_tx_state(betx) == M0_BTS_FAILED);
 		m0_dtx_fini(tx);
 	}
 	return M0_FSO_AGAIN;
