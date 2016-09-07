@@ -250,9 +250,9 @@ static int stob_linux_io_launch(struct m0_stob_io *io)
 	M0_ALLOC_ARR(iov, frags);
 	qev = lio->si_qev;
 	if (qev == NULL || iov == NULL) {
-		stob_linux_io_release(lio);
 		m0_free(iov);
-		return M0_ERR(-ENOMEM);
+		result = M0_ERR(-ENOMEM);
+		goto out;
 	}
 	opcode = io->si_opcode == SIO_READ ? IO_CMD_PREADV : IO_CMD_PWRITEV;
 
@@ -326,7 +326,7 @@ static int stob_linux_io_launch(struct m0_stob_io *io)
 	 * these 'qev's may be submitted.
 	 */
 	ioq_queue_unlock(ioq);
-
+out:
 	if (result != 0) {
 		M0_LOG(M0_ERROR, "Launch op=%d io=%p failed: rc=%d",
 				 io->si_opcode, io, result);
@@ -490,6 +490,9 @@ static void ioq_io_error(struct m0_stob_ioq *ioq, struct ioq_qev *qev)
 	M0_LEAVE("tag=%"PRIu64, tag);
 }
 
+/* Note: it is not the number of emulated errors, see below. */
+int64_t emulate_disk_errors_nr = 0;
+
 /**
    Handles AIO completion event from the ring buffer.
 
@@ -554,6 +557,33 @@ static void ioq_complete(struct m0_stob_ioq *ioq, struct ioq_qev *qev,
 	}
 	if (res < 0 && io->si_rc == 0)
 		io->si_rc = res;
+
+	if (emulate_disk_errors_nr > 0) {
+		static struct m0_fid disk = {};
+		static bool found = false;
+		/*
+		 * Yes, this is not the actual number of errors,
+		 * but rather the number of checks. Otherwise,
+		 * after the disks for which errors were emulated
+		 * will be detached - emulate_disk_errors_nr will
+		 * be never decreased and we will get stuck in
+		 * these emulation checks.
+		 */
+		if (m0_atomic64_dec_and_test((void*)&emulate_disk_errors_nr)) {
+			if (!found)
+				disk = M0_FID0;
+			found = false;
+		}
+
+		if (!m0_fid_is_set(&disk) && emulate_disk_errors_nr > 0)
+			disk = *fid;
+
+		if (m0_fid_eq(&disk, fid)) {
+			io->si_rc = M0_ERR(-EIO);
+			found = true;
+		}
+	}
+
 	if (io->si_rc != 0)
 		ioq_io_error(ioq, qev);
 	/*
