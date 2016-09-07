@@ -9,7 +9,7 @@ VERSION=0.15
 ###
 ### Date       Version Description
 ### ---------- ------- ----------------------------------------------------
-### 2016-09-96 0.15    More probes: halond -v, rpm -qi halon, systemctl status,
+### 2016-09-06 0.15    More probes: halond -v, rpm -qi halon, systemctl status,
 ###                    etc.
 ###
 ### 2016-08-15 0.14.3  Get /var/log/halon.decision.log.
