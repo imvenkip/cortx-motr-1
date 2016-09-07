@@ -523,7 +523,7 @@ M0_INTERNAL bool m0_rpc_conn_is_known_dead(const struct m0_rpc_conn *conn);
 
 M0_INTERNAL struct m0_conf_obj *m0_rpc_conn2svc(const struct m0_rpc_conn *conn);
 
-/*
+/**
  * Sets configuration of HA notifications for the connection. The function
  * internally takes lock on RPC machine. A caller shouldn't care about
  * concurrency.
@@ -532,6 +532,15 @@ M0_INTERNAL void m0_rpc_conn_ha_cfg_set(struct m0_rpc_conn        *conn,
 					const struct m0_rpc_conn_ha_cfg *cfg);
 
 M0_INTERNAL const char *m0_rpc_conn_state_to_str(enum m0_rpc_conn_state state);
+
+/**
+ * Walks through all sessions on the connection and cancels rpc items placed
+ * onto session request cache.
+ *
+ * @note Only non-protected rpc items are canceled automatically. See
+ * m0_rpc_session_cancel() internals for details.
+ */
+M0_INTERNAL void m0_rpc_conn_sessions_cancel(struct m0_rpc_conn *conn);
 
 /** @}  End of rpc_session group */
 #endif /* __MERO_RPC_CONN_H__ */

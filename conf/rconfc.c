@@ -33,6 +33,7 @@
 #include "mero/magic.h"
 #include "rm/rm.h"
 #include "rm/rm_service.h" /* m0_rm_svc_rwlock_get */
+#include "rpc/conn.h"      /* m0_rpc_conn_sessions_cancel */
 #include "rpc/rpclib.h"    /* m0_rpc_client_connect */
 #include "conf/cache.h"
 #include "conf/obj_ops.h"  /* m0_conf_obj_find */
@@ -1281,15 +1282,42 @@ static void rconfc_herd_link_fini(struct rconfc_link *lnk)
 	M0_LEAVE();
 }
 
-static void rconfc_herd_fini(struct m0_rconfc *rconfc)
+static void rconfc_herd_ast(struct m0_sm_group *grp,
+			    struct m0_sm_ast   *ast)
+{
+	rconfc_stop_internal(ast->sa_datum);
+}
+
+static bool rconfc_herd_fini_cb(struct m0_clink *link)
+{
+	struct m0_rconfc *rconfc = M0_AMB(rconfc, link, rc_herd_cl);
+	M0_ENTRY("rconfc %p", rconfc);
+	m0_clink_del(link);
+	rconfc_ast_post(rconfc, rconfc_herd_ast);
+	return true;
+}
+
+static int rconfc_herd_fini(struct m0_rconfc *rconfc)
 {
 	struct rconfc_link *lnk;
 
 	M0_ENTRY("rconfc = %p", rconfc);
 	m0_tl_for(rcnf_herd, &rconfc->rc_herd, lnk) {
+		if (lnk->rl_cctx.fc_confc == NULL) {
+			M0_LOG(M0_DEBUG, "lnk %p is finalised", lnk);
+		} else if (m0_confc_ctx_is_completed(&lnk->rl_cctx)) {
+			m0_confc_ctx_fini_locked(&lnk->rl_cctx);
+		} else {
+			m0_rpc_conn_sessions_cancel(&lnk->rl_confc.cc_rpc_conn);
+			m0_clink_add(&lnk->rl_cctx.fc_mach.sm_chan,
+				     &rconfc->rc_herd_cl);
+			return M0_RC(1);
+		}
+	} m0_tl_endfor;
+	m0_tl_for(rcnf_herd, &rconfc->rc_herd, lnk) {
 		rconfc_herd_link_fini(lnk);
 	} m0_tl_endfor;
-	M0_LEAVE();
+	return M0_RC(0);
 }
 
 static void rconfc_herd_link_destroy(struct rconfc_link *lnk)
@@ -1883,10 +1911,18 @@ static void rconfc_rlock_windup(struct m0_rconfc *rconfc)
 static void rconfc_stop_internal(struct m0_rconfc *rconfc)
 {
 	struct rlock_ctx *rlx = rconfc->rc_rlock_ctx;
+	int               rc;
 
 	M0_ENTRY("rconfc = %p", rconfc);
-	rconfc_state_set(rconfc, RCS_STOPPING);
-	rconfc_herd_fini(rconfc);
+	/*
+	 * This function may be called several times from rconfc_herd_fini_cb().
+	 * It is possible that rconfc already in RCS_STOPPING state.
+	 */
+	if (rconfc->rc_sm.sm_state != RCS_STOPPING)
+		rconfc_state_set(rconfc, RCS_STOPPING);
+	rc = rconfc_herd_fini(rconfc);
+	if (rc != 0)
+		goto exit;
 	rconfc_rlock_windup(rconfc);
 	if (rlock_ctx_is_online(rlx))
 		rlock_ctx_creditor_unset(rlx);
@@ -2062,22 +2098,15 @@ static void rconfc_version_elected(struct m0_sm_group *grp,
 	struct rconfc_link *lnk;
 	int                 rc;
 
+	M0_PRE(rconfc_is_locked(rconfc));
 	M0_ENTRY("rconfc = %p", rconfc);
 	m0_tl_for(rcnf_herd, &rconfc->rc_herd, lnk) {
 		M0_PRE(M0_IN(lnk->rl_state,
 			     (CONFC_OPEN, CONFC_FAILED, CONFC_ARMED)));
 		m0_clink_del(&lnk->rl_clink);
 		m0_clink_fini(&lnk->rl_clink);
-		/** @todo Possibly confc context still requesting version from
-		 * confd, thus having outstanding FOPs. Receiving reply after
-		 * confc context is finalised will lead to crash.
-		 *
-		 * In order to fix it there should be interface in confc
-		 * allowing to cancel opening request. It should be implemented
-		 * and used here once MERO-1093 is resolved and RPC will have
-		 * interface to cancel outgoing FOPS.
-		 */
-		m0_confc_ctx_fini_locked(&lnk->rl_cctx);
+		if (m0_confc_ctx_is_completed(&lnk->rl_cctx))
+			m0_confc_ctx_fini_locked(&lnk->rl_cctx);
 	} m0_tl_endfor;
 
 	rc = rconfc_quorum_is_reached(rconfc) ?
@@ -2326,6 +2355,7 @@ M0_INTERNAL int m0_rconfc_init(struct m0_rconfc      *rconfc,
 	rcnf_herd_tlist_init(&rconfc->rc_herd);
 	rcnf_active_tlist_init(&rconfc->rc_active);
 	m0_clink_init(&rconfc->rc_unpinned_cl, rconfc_unpinned_cb);
+	m0_clink_init(&rconfc->rc_herd_cl, rconfc_herd_fini_cb);
 	m0_sm_init(&rconfc->rc_sm, &rconfc_sm_conf, RCS_INIT, sm_group);
 
 	/* Subscribe on ha entrypoint callbacks */

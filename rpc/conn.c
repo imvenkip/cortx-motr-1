@@ -1280,14 +1280,7 @@ M0_INTERNAL bool m0_rpc_conn_is_known_dead(const struct m0_rpc_conn *conn)
 		svc_obj->co_ha_state == M0_NC_FAILED;
 }
 
-/**
- * Walks through all sessions on the connection and cancels rpc items placed
- * onto session request cache.
- *
- * @note Only non-protected rpc items are canceled automatically. See
- * m0_rpc_session_cancel() internals for details.
- */
-static void rpc_conn_sessions_cancel(struct m0_rpc_conn *conn)
+M0_INTERNAL void m0_rpc_conn_sessions_cancel(struct m0_rpc_conn *conn)
 {
 	struct m0_rpc_session *session;
 
@@ -1319,7 +1312,7 @@ static bool rpc_conn__on_service_event_cb(struct m0_clink *clink)
 	 * gets M0_NC_ONLINE or becomes M0_NC_FAILED finally.
 	 */
 	if (obj->co_ha_state == M0_NC_FAILED)
-		rpc_conn_sessions_cancel(conn);
+		m0_rpc_conn_sessions_cancel(conn);
 	/**
 	 * @todo See if to __conn_ha_unsubscribe() right now, but not wait until
 	 * rpc connection getting finalised.

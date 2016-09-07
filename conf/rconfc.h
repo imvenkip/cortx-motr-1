@@ -307,6 +307,8 @@ struct m0_rconfc {
 	struct m0_clink           rc_unpinned_cl;
 	/** Clink to track ha entrypoint state changes */
         struct m0_clink           rc_ha_entrypoint_cl;
+	/** Clink to track confc context state transition on rconfc_herd_fini */
+        struct m0_clink           rc_herd_cl;
 	/** Quorum calculation context. */
 	void                     *rc_qctx;
 	/** Read lock context. */
