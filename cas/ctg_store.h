@@ -520,6 +520,16 @@ M0_INTERNAL int m0_ctg_ctidx_delete(const struct m0_cas_id *cid,
 M0_INTERNAL int m0_ctg_ctidx_lookup(const struct m0_fid   *fid,
 				    struct m0_dix_layout **layout);
 
+/**
+ * Total number of records in catalogue store in all user (non-meta) catalogues.
+ */
+M0_INTERNAL uint64_t m0_ctg_rec_nr(void);
+
+/**
+ * Total size of records in catalogue store in all user (non-meta) catalogues.
+ */
+M0_INTERNAL uint64_t m0_ctg_rec_size(void);
+
 /** @} end of cas-ctg-store group */
 #endif /* __MERO_CAS_CTG_STORE_H__ */
 

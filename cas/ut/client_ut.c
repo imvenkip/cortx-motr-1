@@ -35,6 +35,7 @@
 #include "ut/misc.h"                   /* M0_UT_PATH */
 #include "ut/ut.h"
 #include "cas/client.h"
+#include "cas/ctg_store.h"             /* m0_ctg_recs_nr */
 #include "lib/finject.h"
 
 #define SERVER_LOG_FILE_NAME       "cas_server.log"
@@ -569,7 +570,7 @@ static int ut_next_rec(struct cl_ctx            *cctx,
 	return rc;
 }
 
-static int ut_del_rec(struct cl_ctx           *cctx,
+static int ut_rec_del(struct cl_ctx           *cctx,
 		      struct m0_cas_id        *index,
 		      struct m0_bufvec        *keys,
 		      struct m0_cas_rec_reply *rep)
@@ -1835,7 +1836,7 @@ static void del_common(struct m0_bufvec *keys, struct m0_bufvec *values)
 	rc = ut_rec_put(&casc_ut_cctx, &index, keys, values, rep, 0);
 	M0_UT_ASSERT(rc == 0);
 	/* Delete all records */
-	rc = ut_del_rec(&casc_ut_cctx, &index, keys, rep);
+	rc = ut_rec_del(&casc_ut_cctx, &index, keys, rep);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(m0_forall(i, COUNT, rep[i].crr_rc == 0));
 	/* check selected values - must be empty*/
@@ -1917,10 +1918,10 @@ static void del_fail(void)
 	M0_UT_ASSERT(rc == 0);
 	/* Delete all records */
 	m0_fi_enable_once("creq_op_alloc", "cas_alloc_fail");
-	rc = ut_del_rec(&casc_ut_cctx, &index, &keys, rep);
+	rc = ut_rec_del(&casc_ut_cctx, &index, &keys, rep);
 	M0_UT_ASSERT(rc == -ENOMEM);
 	m0_fi_enable_once("ctg_buf_get", "cas_alloc_fail");
-	rc = ut_del_rec(&casc_ut_cctx, &index, &keys, rep);
+	rc = ut_rec_del(&casc_ut_cctx, &index, &keys, rep);
 	M0_UT_ASSERT(rc == -ENOMEM);
 	/* check selected values - must be empty*/
 	m0_forall(i, values.ov_vec.v_nr,
@@ -1966,7 +1967,7 @@ static void del_n(void)
 	M0_UT_ASSERT(rc == 0);
 	/* Delete several records */
 	keys.ov_vec.v_nr /= 3;
-	rc = ut_del_rec(&casc_ut_cctx, &index, &keys, rep);
+	rc = ut_rec_del(&casc_ut_cctx, &index, &keys, rep);
 	M0_UT_ASSERT(rc == 0);
 	/* restore old count value */
 	keys.ov_vec.v_nr = COUNT;
@@ -2041,7 +2042,7 @@ static void null_value(void)
 	m0_bufvec_free(&start_key);
 
 	/* Delete records. */
-	rc = ut_del_rec(&casc_ut_cctx, &index, &keys, rep);
+	rc = ut_rec_del(&casc_ut_cctx, &index, &keys, rep);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(m0_forall(i, COUNT, rep[i].crr_rc == 0));
 
@@ -2204,6 +2205,56 @@ static void get_fail(void)
 	casc_ut_fini(&casc_ut_sctx, &casc_ut_cctx);
 }
 
+void recs_count(void)
+{
+	struct m0_cas_rec_reply rep[COUNT];
+	const struct m0_fid     ifid = IFID(2, 3);
+	struct m0_cas_id        index;
+	struct m0_bufvec        keys;
+	struct m0_bufvec        values;
+	int                     rc;
+
+	casc_ut_init(&casc_ut_sctx, &casc_ut_cctx);
+	rc = m0_bufvec_alloc(&keys, COUNT, sizeof(uint64_t));
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_bufvec_alloc(&values, COUNT, sizeof(uint64_t));
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(keys.ov_vec.v_nr == COUNT);
+	M0_UT_ASSERT(keys.ov_vec.v_nr == values.ov_vec.v_nr);
+	m0_forall(i, keys.ov_vec.v_nr, (*(uint64_t*)keys.ov_buf[i]   = i,
+					*(uint64_t*)values.ov_buf[i] = i * i,
+					true));
+	M0_SET_ARR0(rep);
+	M0_UT_ASSERT(m0_ctg_rec_nr() == 0);
+	M0_UT_ASSERT(m0_ctg_rec_size() == 0);
+	rc = ut_idx_create(&casc_ut_cctx, &ifid, 1, rep);
+	M0_UT_ASSERT(rc == 0);
+	index.ci_fid = ifid;
+	rc = ut_rec_put(&casc_ut_cctx, &index, &keys, &values, rep, 0);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(m0_ctg_rec_nr() == COUNT);
+	M0_UT_ASSERT(m0_ctg_rec_size() == COUNT * 2 * sizeof(uint64_t));
+	rc = ut_rec_del(&casc_ut_cctx, &index, &keys, rep);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(m0_ctg_rec_nr() == 0);
+	/* Currently total size of records is not decremented on deletion. */
+	M0_UT_ASSERT(m0_ctg_rec_size() == COUNT * 2 * sizeof(uint64_t));
+
+	/*
+	 * Check total records size overflow.
+	 * The total records size in this case should stick to ~0ULL.
+	 */
+	m0_fi_enable_off_n_on_m("ctg_state_update", "test_overflow", 1, 1);
+	rc = ut_rec_put(&casc_ut_cctx, &index, &keys, &values, rep, 0);
+	m0_fi_disable("ctg_state_update", "test_overflow");
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(m0_ctg_rec_nr() == COUNT);
+	M0_UT_ASSERT(m0_ctg_rec_size() == ~0ULL);
+	m0_bufvec_free(&keys);
+	m0_bufvec_free(&values);
+	casc_ut_fini(&casc_ut_sctx, &casc_ut_cctx);
+}
+
 struct m0_ut_suite cas_client_ut = {
 	.ts_name   = "cas-client",
 	.ts_owners = "Leonid",
@@ -2245,6 +2296,7 @@ struct m0_ut_suite cas_client_ut = {
 		{ "idx-tree-insert",        idx_tree_insert,        "Leonid" },
 		{ "idx-tree-delete",        idx_tree_delete,        "Leonid" },
 		{ "idx-tree-delete-fail",   idx_tree_delete_fail,   "Leonid" },
+		{ "recs-count",             recs_count,             "Leonid" },
 		{ NULL, NULL }
 	}
 };
