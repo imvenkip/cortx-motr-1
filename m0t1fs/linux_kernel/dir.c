@@ -1507,10 +1507,12 @@ M0_INTERNAL int m0t1fs_setattr(struct dentry *dentry, struct iattr *attr)
 		return M0_ERR(rc);
 
 	m0t1fs_fs_lock(csb);
-	rc = file_lock_acquire(&rm_in, ci);
-	if (rc != 0) {
-		m0t1fs_fs_unlock(csb);
-		return M0_RC(rc);
+	if (!csb->csb_oostore) {
+		rc = file_lock_acquire(&rm_in, ci);
+		if (rc != 0) {
+			m0t1fs_fs_unlock(csb);
+			return M0_RC(rc);
+		}
 	}
 	M0_SET0(&mo);
 	mo.mo_attr.ca_tfid = *m0t1fs_inode_fid(ci);
@@ -1599,7 +1601,8 @@ M0_INTERNAL int m0t1fs_setattr(struct dentry *dentry, struct iattr *attr)
 		goto out;
 #endif
 out:
-	file_lock_release(&rm_in);
+	if (!csb->csb_oostore)
+		file_lock_release(&rm_in);
 	m0t1fs_fs_unlock(csb);
 	return M0_RC(rc);
 }
@@ -1607,7 +1610,11 @@ out:
 static int file_lock_acquire(struct m0_rm_incoming *rm_in,
 			     struct m0t1fs_inode *ci)
 {
-	int rc;
+	struct m0t1fs_sb       *csb;
+	int 			rc;
+
+	csb = M0T1FS_SB(ci->ci_inode.i_sb);
+	M0_PRE(!csb->csb_oostore);
 
 	rm_in->rin_want.cr_group_id = m0_rm_m0t1fs_group;
 	m0_file_lock(&ci->ci_fowner, rm_in);
