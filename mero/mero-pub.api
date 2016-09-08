@@ -148,6 +148,7 @@ m0_halon_interface_disconnect
 m0_halon_interface_entrypoint_reply
 m0_halon_interface_fini
 m0_halon_interface_init
+m0_halon_interface_reqh
 m0_halon_interface_rpc_machine
 m0_halon_interface_send
 m0_halon_interface_start

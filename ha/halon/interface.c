@@ -812,11 +812,27 @@ struct m0_rpc_machine *
 m0_halon_interface_rpc_machine(struct m0_halon_interface *hi)
 {
 	struct m0_halon_interface_internal *hii = hi->hif_internal;
+	struct m0_rpc_machine              *rpc_machine;
 
 	M0_PRE(m0_halon_interface_internal_bob_check(hii));
 	M0_PRE(m0_get() == &hii->hii_instance);
 
-	return &hii->hii_rpc_machine;
+	rpc_machine = &hii->hii_rpc_machine;
+	M0_LOG(M0_DEBUG, "hi=%p hii=%p rpc_machine=%p", hi, hii, rpc_machine);
+	return rpc_machine;
+}
+
+struct m0_reqh *m0_halon_interface_reqh(struct m0_halon_interface *hi)
+{
+	struct m0_halon_interface_internal *hii = hi->hif_internal;
+	struct m0_reqh                     *reqh;
+
+	M0_PRE(m0_halon_interface_internal_bob_check(hii));
+	M0_PRE(m0_get() == &hii->hii_instance);
+
+	reqh = &hii->hii_reqh;
+	M0_LOG(M0_DEBUG, "hi=%p hii=%p reqh=%p", hi, hii, reqh);
+	return reqh;
 }
 
 #undef M0_TRACE_SUBSYSTEM

@@ -244,6 +244,7 @@
 #include "lib/types.h"          /* bool */
 
 struct m0_rpc_machine;
+struct m0_reqh;
 struct m0_halon_interface_internal;
 struct m0_ha_link;
 struct m0_ha_msg;
@@ -440,6 +441,15 @@ void m0_halon_interface_disconnect(struct m0_halon_interface *hi,
  */
 struct m0_rpc_machine *
 m0_halon_interface_rpc_machine(struct m0_halon_interface *hi);
+
+/**
+ * Returns request handler created during m0_halon_interface_init().
+ *
+ * @note This function may be removed in the future. It exists only to make
+ * m0_reqh available for Spiel.
+ * @see m0_halon_interface_rpc_machine()
+ */
+struct m0_reqh *m0_halon_interface_reqh(struct m0_halon_interface *hi);
 
 /** @} end of ha group */
 #endif /* __MERO_HA_HALON_INTERFACE_H__ */
