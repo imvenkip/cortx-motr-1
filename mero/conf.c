@@ -37,7 +37,7 @@
 #include "conf/helpers.h"         /* m0_conf_fs_get */
 #include "reqh/reqh_service.h"    /* m0_reqh_service_ctx */
 #include "stob/linux.h"           /* m0_stob_linux_reopen */
-#include "ioservice/storage_dev.h" /* m0_storage_dev_attach_by_conf */
+#include "ioservice/storage_dev.h" /* m0_storage_dev_attach */
 #include "ioservice/fid_convert.h" /* m0_fid_conf_sdev_device_id */
 
 /* ----------------------------------------------------------------
@@ -222,10 +222,11 @@ static int cs_conf_storage_attach_by_srv(struct cs_stobs        *cs_stob,
 					 struct m0_fid          *svc_fid,
 					 struct m0_confc        *confc)
 {
-	struct m0_conf_obj  *svc_obj;
-	struct m0_conf_sdev *sdev;
-	struct m0_stob      *stob;
-	int                  rc;
+	struct m0_storage_dev *dev;
+	struct m0_conf_obj    *svc_obj;
+	struct m0_conf_sdev   *sdev;
+	struct m0_stob        *stob;
+	int                    rc;
 
 	M0_ENTRY();
 
@@ -275,7 +276,7 @@ static int cs_conf_storage_attach_by_srv(struct cs_stobs        *cs_stob,
 			M0_ASSERT(sdev->sd_dev_idx <= M0_FID_DEVICE_ID_MAX);
 			if (sdev->sd_obj.co_ha_state == M0_NC_FAILED)
 				continue;
-			rc = m0_storage_dev_attach_by_conf(devs, sdev);
+			rc = m0_storage_dev_new_by_conf(devs, sdev, &dev);
 			if (rc == -ENOENT) {
 				M0_LOG(M0_DEBUG, "co_id="FID_F" path=%s rc=%d",
 				       FID_P(&sdev->sd_obj.co_id),
@@ -291,6 +292,7 @@ static int cs_conf_storage_attach_by_srv(struct cs_stobs        *cs_stob,
 				       sdev->sd_filename, rc);
 				break;
 			}
+			m0_storage_dev_attach(dev, devs);
 			stob = m0_storage_devs_find_by_cid(devs,
 					    sdev->sd_dev_idx)->isd_stob,
 			m0_stob_linux_conf_sdev_associate(stob,

@@ -607,6 +607,7 @@ static int sss_device_stob_attach(struct m0_fom *fom)
 	struct m0_sss_dfom     *dfom;
 	struct m0_storage_devs *devs = &m0_get()->i_storage_devs;
 	struct m0_storage_dev  *dev;
+	struct m0_storage_dev  *dev_new = NULL;
 	struct m0_confc_ctx    *confc_ctx;
 	struct m0_conf_sdev    *sdev;
 	int                     rc;
@@ -623,18 +624,30 @@ static int sss_device_stob_attach(struct m0_fom *fom)
 			FID_P(&sdev->sd_obj.co_id), (int)sdev->sd_dev_idx);
 	m0_storage_devs_lock(devs);
 	dev = m0_storage_devs_find_by_cid(devs, sdev->sd_dev_idx);
-	if (dev == NULL) {
-		/*
-		 * Enclose domain creation into m0_fom_block_{enter,leave}()
-		 * block since it is possibly long operation.
-		 */
-		m0_fom_block_enter(fom);
-		rc = m0_storage_dev_attach_by_conf(devs, sdev);
-		m0_fom_block_leave(fom);
-	} else  {
-		rc = M0_ERR(-EEXIST);
-	}
 	m0_storage_devs_unlock(devs);
+	if (dev != NULL) {
+		rc = M0_ERR(-EEXIST);
+		goto confc_close;
+	}
+	/*
+	 * Enclose domain creation into m0_fom_block_{enter,leave}()
+	 * block since it is possibly long operation.
+	 */
+	m0_fom_block_enter(fom);
+	rc = m0_storage_dev_new_by_conf(devs, sdev, &dev_new);
+	m0_fom_block_leave(fom);
+	if (rc == 0) {
+		m0_storage_devs_lock(devs);
+		dev = m0_storage_devs_find_by_cid(devs, sdev->sd_dev_idx);
+		if (dev == NULL)
+			m0_storage_dev_attach(dev_new, devs);
+		else {
+			m0_storage_dev_destroy(dev_new);
+			rc = M0_ERR(-EEXIST);
+		}
+		m0_storage_devs_unlock(devs);
+	}
+confc_close:
 	m0_confc_close(&sdev->sd_obj);
 out:
 	m0_confc_ctx_fini(&dfom->ssm_confc_ctx);

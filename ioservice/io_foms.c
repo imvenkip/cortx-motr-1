@@ -1926,9 +1926,11 @@ static int indexvec_wire2mem(struct m0_fom *fom)
 		sdom = m0_stob_dom_get(fom_obj->fcrw_stob);
 		M0_ASSERT(sdom != NULL);
 		fom_obj->fcrw_dev = m0_storage_devs_find_by_dom(devs, sdom);
-		if (fom_obj->fcrw_dev == NULL)
+		if (fom_obj->fcrw_dev == NULL) {
+			m0_stob_put(fom_obj->fcrw_stob);
+			fom_obj->fcrw_stob = NULL;
 			rc = M0_ERR(-ENOENT);
-		else
+		} else
 			m0_storage_dev_get(fom_obj->fcrw_dev);
 	}
 	m0_storage_devs_unlock(devs);

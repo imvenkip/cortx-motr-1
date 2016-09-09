@@ -514,9 +514,9 @@ static void ioq_complete(struct m0_stob_ioq *ioq, struct ioq_qev *qev,
 			&m0_stob_linux_container(io->si_obj)->sl_conf_sdev;
 		/*
 		 * 1. This FI is used by HA ST.
-		 * 2. HA ST does not call m0_storage_dev_attach_by_conf().
+		 * 2. HA ST does not call m0_storage_dev_new_by_conf().
 		 * 3. m0_stob_linux::sl_conf_sdev is only set by
-		 *    m0_storage_dev_attach_by_conf().
+		 *    m0_storage_dev_new_by_conf().
 		 *
 		 * That is why we have to set dummy fid here.
 		 */

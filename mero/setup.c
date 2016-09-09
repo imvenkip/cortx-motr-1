@@ -796,7 +796,9 @@ static void cs_storage_devs_fini(void)
 {
 	struct m0_storage_devs *devs = &m0_get()->i_storage_devs;
 
+	m0_storage_devs_lock(devs);
 	m0_storage_devs_detach_all(devs);
+	m0_storage_devs_unlock(devs);
 	m0_storage_devs_fini(devs);
 }
 
@@ -812,6 +814,7 @@ static int cs_storage_devs_init(struct cs_stobs       *stob,
 	uint64_t                cid;
 	const char             *f_path;
 	struct m0_storage_devs *devs = &m0_get()->i_storage_devs;
+	struct m0_storage_dev  *dev;
 	yaml_document_t        *doc;
 	yaml_node_t            *node;
 	yaml_node_t            *s_node;
@@ -837,6 +840,11 @@ static int cs_storage_devs_init(struct cs_stobs       *stob,
 	if (rc != 0)
 		return M0_ERR(rc);
 
+	/*
+	 * There is no concurrent access to the devs on this stage. But we lock
+	 * the structure to meet the precondition of m0_storage_dev_attach().
+	 */
+	m0_storage_devs_lock(devs);
 	if (stob->s_sfile.sf_is_initialised) {
 		M0_LOG(M0_DEBUG, "yaml config");
 		doc = &stob->s_sfile.sf_document;
@@ -861,8 +869,10 @@ static int cs_storage_devs_init(struct cs_stobs       *stob,
 					/* Every storage device need not have a
 					 * counterpart in configuration. */
 					conf_sdev = NULL;
-				rc = m0_storage_dev_attach(devs, cid - 1,
-						f_path, size, conf_sdev);
+				rc = m0_storage_dev_new(devs, cid - 1, f_path,
+							size, conf_sdev, &dev);
+				if (rc == 0)
+					m0_storage_dev_attach(dev, devs);
 				if (conf_sdev != NULL)
 					m0_confc_close(&conf_sdev->sd_obj);
 				if (rc != 0)
@@ -872,9 +882,13 @@ static int cs_storage_devs_init(struct cs_stobs       *stob,
 	} else if (stob->s_ad_disks_init || M0_FI_ENABLED("init_via_conf")) {
 		M0_LOG(M0_DEBUG, "conf config");
 		rc = cs_conf_storage_init(stob, devs);
-	} else
-		rc = m0_storage_dev_attach(devs, M0_AD_STOB_DOM_KEY_DEFAULT,
-					   NULL, size, NULL);
+	} else {
+		rc = m0_storage_dev_new(devs, M0_AD_STOB_DOM_KEY_DEFAULT,
+					NULL, size, NULL, &dev);
+		if (rc == 0)
+			m0_storage_dev_attach(dev, devs);
+	}
+	m0_storage_devs_unlock(devs);
 	if (rc != 0)
 		cs_storage_devs_fini();
 	return M0_RC(rc);

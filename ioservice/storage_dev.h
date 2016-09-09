@@ -156,34 +156,61 @@ M0_INTERNAL struct m0_storage_dev *
 m0_storage_devs_find_by_dom(struct m0_storage_devs *devs,
 			    struct m0_stob_domain  *dom);
 
+/** Obtains reference to the storage device. */
 M0_INTERNAL void m0_storage_dev_get(struct m0_storage_dev *dev);
+/**
+ * Releases reference to the storage device.
+ *
+ * m0_storage_devs structure which contains the storage device must be locked,
+ * because this function can lead to execution of device detach.
+ */
 M0_INTERNAL void m0_storage_dev_put(struct m0_storage_dev *dev);
 
 /**
- * Attaches device using information from configuration object.
+ * Initialises device using information from configuration object.
  *
- * Extracts device parameters and executes m0_storage_dev_attach.
+ * Extracts device parameters and executes m0_storage_dev_new.
  */
-M0_INTERNAL int m0_storage_dev_attach_by_conf(struct m0_storage_devs *devs,
-					      struct m0_conf_sdev    *sdev);
+M0_INTERNAL int m0_storage_dev_new_by_conf(struct m0_storage_devs *devs,
+					   struct m0_conf_sdev    *sdev,
+					   struct m0_storage_dev **dev);
 
 /**
- * Attaches storage device.
+ * Allocates and initialises new storage device.
  *
  * Creates backing store stob in domain provided in m0_storage_devs_init.
  * Also creates AD stob domain for storage device.
  */
-M0_INTERNAL int m0_storage_dev_attach(struct m0_storage_devs *devs,
-				      uint64_t                cid,
-				      const char             *path,
-				      uint64_t                size,
-				      struct m0_conf_sdev    *sdev);
+M0_INTERNAL int m0_storage_dev_new(struct m0_storage_devs *devs,
+				   uint64_t                cid,
+				   const char             *path,
+				   uint64_t                size,
+				   struct m0_conf_sdev    *sdev,
+				   struct m0_storage_dev **dev);
+
+/**
+ * Destroys storage device object.
+ *
+ * Finalises (but not destroys) the underlying AD stob domain and backing store
+ * stob.
+ */
+M0_INTERNAL void m0_storage_dev_destroy(struct m0_storage_dev *dev);
+
+/**
+ * Attaches storage device to the devs list.
+ *
+ * @pre storage_devs_is_locked(devs)
+ */
+M0_INTERNAL void m0_storage_dev_attach(struct m0_storage_dev  *dev,
+				       struct m0_storage_devs *devs);
 
 /**
  * Detaches storage device.
  *
- * Finalises (but not destroys) underlying AD stob domain and backing store
- * stob.
+ * In fact, this function releases a reference to the storage device which is
+ * detached when all references are released. On detach the storage device is
+ * destroyed implicitly.
+ * m0_storage_devs structure which contains the storage device must be locked.
  */
 M0_INTERNAL void m0_storage_dev_detach(struct m0_storage_dev *dev);
 

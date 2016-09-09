@@ -257,7 +257,7 @@ static void test_spiel_device_cmds(void)
 	 * remote side when attaching
 	 */
 	spiel_ci_ut_ha_state_set(&io_disk, M0_NC_FAILED);
-	m0_fi_enable_once("m0_storage_dev_attach_by_conf", "no_real_dev");
+	m0_fi_enable_once("m0_storage_dev_new_by_conf", "no_real_dev");
 	rc = m0_spiel_device_attach_state(&spiel, &io_disk, &ha_state);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(spiel_stob_exists(io_sdev));
@@ -273,7 +273,7 @@ static void test_spiel_device_cmds(void)
 	rc = m0_spiel_device_format(&spiel, &nonio_disk);
 	M0_UT_ASSERT(rc == 0);
 
-	m0_fi_enable_once("m0_storage_dev_attach_by_conf", "no_real_dev");
+	m0_fi_enable_once("m0_storage_dev_new_by_conf", "no_real_dev");
 	rc = m0_spiel_device_attach(&spiel, &nonio_disk);
 	M0_UT_ASSERT(rc == 0);
 	/*
@@ -409,11 +409,11 @@ void test_spiel_fs_stats(void)
 	uint64_t            ios_total = test_spiel_fs_stats_ios_total(&fs_fid);
 
 	m0_fi_enable_once("cs_storage_devs_init", "init_via_conf");
-	m0_fi_enable("m0_storage_dev_attach_by_conf", "no_real_dev");
-	m0_fi_enable("m0_storage_dev_attach", "no_real_dev");
+	m0_fi_enable("m0_storage_dev_new_by_conf", "no_real_dev");
+	m0_fi_enable("m0_storage_dev_new", "no_real_dev");
 	spiel_ci_ut_init();
-	m0_fi_disable("m0_storage_dev_attach_by_conf", "no_real_dev");
-	m0_fi_disable("m0_storage_dev_attach", "no_real_dev");
+	m0_fi_disable("m0_storage_dev_new_by_conf", "no_real_dev");
+	m0_fi_disable("m0_storage_dev_new", "no_real_dev");
 	/* test non-existent fs */
 	rc = m0_spiel_filesystem_stats_fetch(&spiel, &fs_bad, &fs_stats);
 	M0_UT_ASSERT(rc == -ENOENT);
