@@ -948,7 +948,6 @@ M0_INTERNAL int m0_cm_type_register(struct m0_cm_type *cmtype)
 	rc = m0_reqh_service_type_register(&cmtype->ct_stype);
 	if (rc == 0) {
 		m0_cm_type_bob_init(cmtype);
-		m0_cm_cp_init(cmtype);
 		m0_cm_sw_update_init(cmtype);
 		m0_cm_ag_store_init(cmtype);
 		m0_cm_cp_pump_init(cmtype);
@@ -1143,6 +1142,11 @@ M0_INTERNAL void m0_cm_abort(struct m0_cm *cm, int rc)
 			m0_cm_fail(cm, rc);
 	}
 	m0_cm_notify(cm);
+}
+
+M0_INTERNAL bool m0_cm_is_dirty(struct m0_cm *cm)
+{
+	return cm->cm_abort || cm->cm_quiesce || m0_cm_state_get(cm) == M0_CMS_FAIL;
 }
 
 #undef M0_TRACE_SUBSYSTEM

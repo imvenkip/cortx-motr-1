@@ -37,12 +37,9 @@ M0_INTERNAL int m0_sns_cm_repair_cp_send(struct m0_cm_cp *cp)
 	return m0_sns_cm_cp_send(cp, &m0_sns_repair_cpx_fopt);
 }
 
-M0_INTERNAL int m0_sns_cm_repair_cp_recv_wait(struct m0_cm_cp *cp)
-{
-	return m0_sns_cm_cp_recv_wait(cp, &m0_sns_repair_cpx_reply_fopt);
-}
-
 /** @} SNSCMCP */
+#undef M0_TRACE_SUBSYSTEM
+
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

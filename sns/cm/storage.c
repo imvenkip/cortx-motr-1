@@ -257,7 +257,6 @@ static int cp_io(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
 		m0_stob_io_fini(stio);
 		m0_stob_put(stob);
 	}
-
 out:
 	if (rc != 0) {
 		if (rc < 0) {

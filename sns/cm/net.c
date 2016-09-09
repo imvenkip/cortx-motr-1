@@ -299,8 +299,6 @@ M0_INTERNAL int m0_sns_cm_cp_send_wait(struct m0_cm_cp *cp)
 
 	M0_PRE(cp != NULL);
 
-	M0_LOG(M0_DEBUG, "rbulk rc: %d reply rc: %d", rbulk->rb_rc, cp->c_rc);
-
 	if (cp->c_rc != 0) {
 		M0_LOG(M0_ERROR, "rc=%d", cp->c_rc);
 		/* Cleanup rpc bulk in m0_cm_cp_only_fini().*/
@@ -335,9 +333,72 @@ static int cp_buf_acquire(struct m0_cm_cp *cp)
 	return M0_RC(rc);
 }
 
+static void cp_reply_post(struct m0_cm_cp *cp)
+{
+	struct m0_fop           *r_fop = cp->c_fom.fo_rep_fop;
+	struct m0_sns_cpx_reply *sns_cpx_rep;
+
+	sns_cpx_rep = m0_fop_data(r_fop);
+	sns_cpx_rep->scr_cp_rep.cr_rc = cp->c_rc;
+	m0_rpc_reply_post(&cp->c_fom.fo_fop->f_item, &r_fop->f_item);
+}
+
+static uint32_t seg_nr_get(const struct m0_sns_cpx *sns_cpx, uint32_t ivec_nr)
+{
+	int      i;
+	uint32_t seg_nr = 0;
+
+	M0_PRE(sns_cpx != NULL);
+
+	for (i = 0; i < ivec_nr; ++i)
+		seg_nr += sns_cpx->scx_ivecs.cis_ivecs[i].ci_nr;
+
+	return seg_nr;
+}
+
+/* Converts onwire copy packet structure to in-memory copy packet structure. */
+static void snscpx_to_snscp(const struct m0_sns_cpx *sns_cpx,
+                            struct m0_sns_cm_cp *sns_cp)
+{
+	struct m0_cm_ag_id       ag_id;
+	struct m0_cm            *cm;
+	struct m0_cm_aggr_group *ag;
+
+	M0_PRE(sns_cp != NULL);
+	M0_PRE(sns_cpx != NULL);
+
+	sns_cp->sc_stob_id = sns_cpx->scx_stob_id;
+	m0_fid_convert_stob2cob(&sns_cpx->scx_stob_id, &sns_cp->sc_cobfid);
+	sns_cp->sc_failed_idx = sns_cpx->scx_failed_idx;
+
+	sns_cp->sc_index =
+		sns_cpx->scx_ivecs.cis_ivecs[0].ci_iosegs[0].ci_index;
+
+	sns_cp->sc_base.c_prio = sns_cpx->scx_cp.cpx_prio;
+	sns_cp->sc_base.c_epoch = sns_cpx->scx_cp.cpx_epoch;
+
+	m0_cm_ag_id_copy(&ag_id, &sns_cpx->scx_cp.cpx_ag_id);
+
+	cm = cpfom2cm(&sns_cp->sc_base.c_fom);
+	m0_cm_lock(cm);
+	ag = m0_cm_aggr_group_locate(cm, &ag_id, true);
+	M0_ASSERT_INFO(ag != NULL, M0_AG_F, M0_AG_P(&ag_id));
+	m0_cm_unlock(cm);
+	m0_cm_ag_cp_add(ag, &sns_cp->sc_base);
+
+	sns_cp->sc_base.c_ag_cp_idx = sns_cpx->scx_cp.cpx_ag_cp_idx;
+	m0_bitmap_init(&sns_cp->sc_base.c_xform_cp_indices,
+			ag->cag_cp_global_nr);
+	m0_bitmap_load(&sns_cpx->scx_cp.cpx_bm,
+			&sns_cp->sc_base.c_xform_cp_indices);
+
+	sns_cp->sc_base.c_buf_nr = 0;
+	sns_cp->sc_base.c_data_seg_nr = seg_nr_get(sns_cpx,
+			sns_cpx->scx_ivecs.cis_nr);
+}
+
 M0_INTERNAL int m0_sns_cm_cp_recv_init(struct m0_cm_cp *cp)
 {
-	struct m0_sns_cpx      *sns_cpx;
 	struct m0_rpc_bulk_buf *rbuf;
 	struct m0_net_domain   *ndom;
 	struct m0_net_buffer   *nbuf;
@@ -345,25 +406,30 @@ M0_INTERNAL int m0_sns_cm_cp_recv_init(struct m0_cm_cp *cp)
 	struct m0_rpc_session  *session;
 	struct m0_cm_proxy     *cm_proxy;
 	struct m0_fop          *fop = cp->c_fom.fo_fop;
+	struct m0_sns_cpx      *sns_cpx;
+	struct m0_sns_cm_cp    *sns_cp = cp2snscp(cp);
 	uint32_t                nbuf_idx = 0;
 	int                     rc;
 
 	M0_PRE(cp != NULL && m0_fom_phase(&cp->c_fom) == M0_CCP_RECV_INIT);
 
 	cm_proxy = cp->c_cm_proxy;
-	if (cp->c_epoch != cm_proxy->px_epoch) {
+	sns_cpx = m0_fop_data(fop);
+	M0_PRE(sns_cpx != NULL);
+	if (sns_cpx->scx_cp.cpx_epoch != cm_proxy->px_epoch) {
 		M0_LOG(M0_WARN, "delayed/stale cp epoch:%llx "
 		       "proxy epoch=%llx (%s)",
 		       (unsigned long long)cp->c_epoch,
 		       (unsigned long long)cm_proxy->px_epoch,
 		       cm_proxy->px_endpoint);
-		rc = -EPERM;
-		goto out;
+		cp->c_rc = -EPERM;
+		cp_reply_post(cp);
+		m0_fom_phase_set(&cp->c_fom, M0_CCP_FINI);
+		return M0_FSO_WAIT;
 	}
 
+	snscpx_to_snscp(sns_cpx, sns_cp);
 	rc = cp_buf_acquire(cp);
-	sns_cpx = m0_fop_data(fop);
-	M0_PRE(sns_cpx != NULL);
 
 	session = fop->f_item.ri_session;
 	ndom = session->s_conn->c_rpc_machine->rm_tm.ntm_dom;
@@ -405,13 +471,10 @@ out:
 	return cp->c_ops->co_phase_next(cp);
 }
 
-M0_INTERNAL int m0_sns_cm_cp_recv_wait(struct m0_cm_cp *cp,
-				       struct m0_fop_type *ft)
+M0_INTERNAL int m0_sns_cm_cp_recv_wait(struct m0_cm_cp *cp)
 {
-	struct m0_rpc_bulk      *rbulk;
-	struct m0_fop           *fop;
-	struct m0_sns_cpx_reply *sns_cpx_rep;
-	int                      rc;
+	struct m0_rpc_bulk *rbulk;
+	int                 rc;
 
 	M0_PRE(cp != NULL && m0_fom_phase(&cp->c_fom) == M0_CCP_RECV_WAIT);
 
@@ -423,18 +486,12 @@ M0_INTERNAL int m0_sns_cm_cp_recv_wait(struct m0_cm_cp *cp,
 		m0_mutex_unlock(&rbulk->rb_mutex);
 		if (rc != 0 && rc != -ENODATA) {
 			M0_LOG(M0_ERROR, "Bulk recv failed with rc=%d", rc);
-			goto out;
+			cp->c_rc = rc;
 		}
 	}
-	fop = m0_fop_reply_alloc(cp->c_fom.fo_fop, ft);
-	if (fop == NULL) {
-		rc = -ENOMEM;
-		goto out;
-	}
-	sns_cpx_rep = m0_fop_data(fop);
-	sns_cpx_rep->scr_cp_rep.cr_rc = rc;
-	m0_rpc_reply_post(&cp->c_fom.fo_fop->f_item, &fop->f_item);
-out:
+
+	cp_reply_post(cp);
+
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "recv wait failure: %d", rc);
 		m0_fom_phase_move(&cp->c_fom, rc, M0_CCP_FAIL);

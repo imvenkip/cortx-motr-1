@@ -18,10 +18,10 @@
  * Original creation date: 03/26/2013
  */
 
+#include <unistd.h> /* sleep */
+
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_SNSCM
 #include "lib/trace.h"
-
-#include <unistd.h> /* sleep */
 
 #include "sns/cm/repair/ag.h"           /* sag2repairag */
 #include "sns/cm/repair/ut/cp_common.h" /* cp_prepare */
@@ -310,17 +310,15 @@ static int dummy_read_cp_init(struct m0_cm_cp *cp)
 {
 	/* This is used to ensure that ast has been posted. */
 	m0_semaphore_up(&sem);
-	if (cp->c_epoch != sender_cm_proxy->px_epoch) {
-		m0_fom_phase_move(&cp->c_fom, -EIO, M0_CCP_FAIL);
-		return M0_FSO_AGAIN;
-	}
-
 	return cp->c_ops->co_phase_next(cp);
 }
 
 /* Passthorugh phase for testing purpose. */
 static int dummy_read_cp_phase(struct m0_cm_cp *cp)
 {
+	if (m0_fom_phase(&cp->c_fom) == M0_CCP_RECV_INIT &&
+	    cp->c_epoch != recv_cm_proxy->px_epoch)
+		return m0_sns_cm_cp_recv_init(cp);
 	return cp->c_ops->co_phase_next(cp);
 }
 
@@ -508,7 +506,7 @@ static void cm_ready(struct m0_cm *cm)
 	m0_cm_unlock(cm);
 }
 
-static void receiver_init()
+static void receiver_init(bool ag_create)
 {
 	int rc;
 
@@ -544,14 +542,14 @@ static void receiver_init()
 	cm_ready(recv_cm);
 	recv_cm->cm_sw_update.swu_is_complete = true;
 
-	receiver_ag_create(recv_cm);
+	if (ag_create)
+		receiver_ag_create(recv_cm);
 	receiver_stob_create();
 	M0_ALLOC_PTR(recv_cm_proxy);
 	M0_UT_ASSERT(recv_cm_proxy != NULL);
 	m0_cm_proxy_init(recv_cm_proxy, 0, &ag_id, &ag_id, client_addr);
 	m0_cm_lock(recv_cm);
 	m0_cm_proxy_add(recv_cm, recv_cm_proxy);
-	recv_cm_proxy->px_is_done = true;
 	m0_cm_unlock(recv_cm);
 	rc = m0_cm_start(recv_cm);
 	M0_UT_ASSERT(rc == 0);
@@ -736,6 +734,7 @@ static void sender_init()
 			   &sender_cm_service->rs_reqh->rh_profile);
 	M0_UT_ASSERT(rc == 0);
 
+	m0_cm_cp_init(&sender_cm_cmt, NULL);
 	m0_cm_lock(&sender_cm);
 	sender_cm.cm_epoch = m0_time_now();
 	M0_UT_ASSERT(sender_cm.cm_ops->cmo_prepare(&sender_cm) == 0);
@@ -780,7 +779,6 @@ static void sender_init()
 	m0_cm_lock(&sender_cm);
 	m0_cm_proxy_init(sender_cm_proxy, 0, &ag_id, &ag_id, m0_rpc_conn_addr(&conn));
 	m0_cm_proxy_add(&sender_cm, sender_cm_proxy);
-	sender_cm_proxy->px_is_done = true;
 	m0_cm_unlock(&sender_cm);
 	rc = m0_cm_start(&sender_cm);
 	M0_UT_ASSERT(rc == 0);
@@ -792,6 +790,7 @@ static void receiver_fini()
 	struct m0_stob_id     stob_id;
 	int                   rc;
 
+	recv_cm_proxy->px_is_done = true;
 	m0_cm_lock(recv_cm);
 	m0_sm_timedwait(&recv_cm->cm_mach, M0_BITS(M0_CMS_STOP, M0_CMS_IDLE), M0_TIME_NEVER);
 	m0_cm_unlock(recv_cm);
@@ -811,6 +810,7 @@ static void sender_fini()
 	struct m0_confc *confc;
 	int              rc;
 
+	sender_cm_proxy->px_is_done = true;
 	m0_cm_lock(&sender_cm);
 	m0_sm_timedwait(&sender_cm.cm_mach, M0_BITS(M0_CMS_STOP, M0_CMS_IDLE), M0_TIME_NEVER);
 	m0_cm_unlock(&sender_cm);
@@ -842,7 +842,7 @@ static void test_fini()
 	receiver_fini();
 }
 
-static void test_init()
+static void test_init(bool ag_create)
 {
 	M0_SET0(&rag);
 	M0_SET0(&fctx);
@@ -867,7 +867,7 @@ static void test_init()
 
 	m0_fid_gob_make(&gob_fid, 0, 4);
 	m0_fid_convert_gob2cob(&gob_fid, &cob_fid, 0);
-	receiver_init();
+	receiver_init(ag_create);
 	sender_init();
 	recv_cm_proxy->px_epoch   = sender_cm.cm_epoch;
 	sender_cm_proxy->px_epoch = recv_cm->cm_epoch;
@@ -887,7 +887,7 @@ static void test_cp_send_mismatch_epoch()
 	m0_fi_enable("cpp_data_next", "enodata");
 	m0_fi_enable("m0_ha_local_state_set", "no_ha");
 
-	test_init();
+	test_init(false);
 	M0_UT_ASSERT(recv_scm->sc_obp.sb_bp.nbp_buf_nr != 4);
 
 	m0_semaphore_init(&sem, 0);
@@ -932,6 +932,8 @@ static void test_cp_send_mismatch_epoch()
 	/* Assume this as accumulator copy packet to be sent on remote side. */
 	s_sns_cp.sc_base.c_ag_cp_idx = ~0;
 
+	epoch_saved = recv_cm_proxy->px_epoch;
+	recv_cm_proxy->px_epoch = 0x1234567890abcdef;
 	m0_fom_queue(&s_sns_cp.sc_base.c_fom);
 
 	/* Wait till ast gets posted. */
@@ -939,11 +941,7 @@ static void test_cp_send_mismatch_epoch()
 	m0_semaphore_down(&cp_sem);
 	sleep(STOB_UPDATE_DELAY);
 
-	epoch_saved = recv_cm_proxy->px_epoch;
-	sender_cm_proxy->px_epoch = 0x1234567890abcdef;
-	read_and_verify();
 	recv_cm_proxy->px_epoch = epoch_saved;
-
 	M0_UT_ASSERT(recv_scm->sc_obp.sb_bp.nbp_buf_nr != 4);
 	m0_net_buffer_pool_lock(&nbp);
 	while (m0_net_buffer_pool_prune(&nbp))
@@ -971,7 +969,7 @@ static void test_cp_send_recv_verify()
 	m0_fi_enable("cpp_data_next", "enodata");
 	m0_fi_enable("m0_ha_local_state_set", "no_ha");
 
-	test_init();
+	test_init(true);
 	M0_UT_ASSERT(recv_scm->sc_obp.sb_bp.nbp_buf_nr != 4);
 
 	m0_semaphore_init(&sem, 0);
@@ -1016,6 +1014,7 @@ static void test_cp_send_recv_verify()
 	s_sns_cp.sc_base.c_ag = &sag->sag_base;
 	/* Assume this as accumulator copy packet to be sent on remote side. */
 	s_sns_cp.sc_base.c_ag_cp_idx = ~0;
+	s_sns_cp.sc_base.c_epoch = sender_cm.cm_epoch;
 
 	m0_fom_queue(&s_sns_cp.sc_base.c_fom);
 

@@ -101,7 +101,11 @@ M0_INTERNAL int m0_sns_cm_rebalance_cp_xform(struct m0_cm_cp *cp)
 		}
 	}
 
-	phase = rc == 0 ? M0_CCP_FINI : M0_CCP_FAIL;
+	if (rc == 0 || rc == -ENOENT) {
+		phase = M0_CCP_FINI;
+		rc = 0;
+	} else
+		phase = M0_CCP_FAIL;
 	m0_fom_phase_move(&cp->c_fom, rc, phase);
 	rc = phase == M0_CCP_FAIL ? M0_FSO_AGAIN : M0_FSO_WAIT;
 	m0_cm_ag_unlock(ag);

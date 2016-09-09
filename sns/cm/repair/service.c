@@ -62,6 +62,7 @@ static const struct m0_reqh_service_ops repair_svc_ops = {
 };
 
 extern const struct m0_cm_ops sns_repair_ops;
+extern const struct m0_fom_type_ops repair_cp_fom_type_ops;
 
 M0_INTERNAL void m0_sns_cm_repair_cpx_init(void);
 M0_INTERNAL void m0_sns_cm_repair_cpx_fini(void);
@@ -86,6 +87,7 @@ static int repair_svc_start(struct m0_reqh_service *service)
 
 	rc = m0_sns_cm_svc_start(service);
 	if (rc == 0) {
+		m0_cm_cp_init(&sns_repair_cmt, &repair_cp_fom_type_ops);
 		m0_sns_cm_repair_cpx_init();
 		m0_sns_cm_repair_sw_onwire_fop_init();
 		m0_sns_cm_repair_trigger_fop_init();

@@ -96,15 +96,6 @@ static void rebalance_cm_stop(struct m0_cm *cm)
 	M0_ENTRY();
 	M0_ASSERT(scm->sc_op == SNS_REBALANCE);
 
-	if (cm->cm_quiesce || cm->cm_abort) {
-		M0_LOG(M0_DEBUG, "rebalance stopped by %s cmd",
-				cm->cm_quiesce ? "QUIESCE" : "ABORT");
-		goto out;
-	}
-
-	if (m0_cm_state_get(cm) == M0_CMS_FAIL)
-		goto out;
-
 	cc = &pc->pc_confc->cc_cache;
 	m0_tl_for(pools, &pc->pc_pools, pool) {
 		/* Skip mdpool, since only io pools are rebalanced. */
@@ -112,9 +103,9 @@ static void rebalance_cm_stop(struct m0_cm *cm)
 			continue;
 		rc = m0_sns_cm_pool_ha_nvec_alloc(pool, M0_PNDS_SNS_REBALANCING, &nvec);
 		if (rc != 0) {
+			M0_LOG(M0_ERROR, "HA note allocation failed with rc: %d", rc);
 			if (rc == -ENOENT)
 				continue;
-			M0_LOG(M0_ERROR, "HA note allocation failed with rc: %d", rc);
 			goto out;
 		}
 		pstate = M0_NC_ONLINE;
@@ -126,7 +117,8 @@ static void rebalance_cm_stop(struct m0_cm *cm)
 				M0_ASSERT(rc == 0);
 				disk = M0_CONF_CAST(disk_obj, m0_conf_disk);
 				M0_ASSERT(disk != NULL);
-				if (m0_sns_cm_disk_has_dirty_pver(cm, disk)) {
+				if (m0_sns_cm_disk_has_dirty_pver(cm, disk) ||
+				    m0_cm_is_dirty(cm)) {
 					dstate = M0_NC_REBALANCE;
 					pstate = M0_NC_REBALANCE;
 				}

@@ -249,20 +249,24 @@ struct m0_cm_cp_ops {
 	int      (*co_action[]) (struct m0_cm_cp *cp);
 };
 
-M0_INTERNAL void m0_cm_cp_init(struct m0_cm_type *cmtype);
+M0_INTERNAL void m0_cm_cp_init(struct m0_cm_type *cmtype,
+			       const struct m0_fom_type_ops *ft_ops);
 
 /**
  * Initialises generic copy packet only.
  */
 M0_INTERNAL void m0_cm_cp_only_init(struct m0_cm *cm, struct m0_cm_cp *cp);
 
+M0_INTERNAL int m0_cm_cp_fom_create(struct m0_fop *fop, struct m0_fop *r_fop,
+				    struct m0_fom **m, struct m0_reqh *reqh);
 /**
  * Initialises generic copy packet and its corresponding copy packet FOM.
  *
  * @pre cp->c_fom.fo_phase == CCP_INIT
  * @post cp->c_fom.fo_phase == M0_FOPH_INIT
  */
-M0_INTERNAL void m0_cm_cp_fom_init(struct m0_cm *cm, struct m0_cm_cp *cp);
+M0_INTERNAL void m0_cm_cp_fom_init(struct m0_cm *cm, struct m0_cm_cp *cp,
+				   struct m0_fop *fop, struct m0_fop *r_fop);
 
 M0_INTERNAL void m0_cm_cp_fom_fini(struct m0_fom *fom);
 

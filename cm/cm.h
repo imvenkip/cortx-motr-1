@@ -511,6 +511,7 @@ M0_INTERNAL void m0_cm_proxies_init_wait(struct m0_cm *cm, struct m0_fom *fom);
 M0_INTERNAL void m0_cm_frozen_ag_cleanup(struct m0_cm *cm, struct m0_cm_proxy *proxy);
 M0_INTERNAL void m0_cm_proxy_failed_cleanup(struct m0_cm *cm);
 M0_INTERNAL void m0_cm_abort(struct m0_cm *cm, int rc);
+M0_INTERNAL bool m0_cm_is_dirty(struct m0_cm *cm);
 
 /** @} endgroup CM */
 

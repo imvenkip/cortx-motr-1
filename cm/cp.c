@@ -411,13 +411,6 @@ M0_TL_DEFINE(proxy_cps, M0_INTERNAL, struct m0_cm_cp);
 
 M0_BOB_DEFINE(static, &cp_bob, m0_cm_cp);
 
-static int cp_fom_create(struct m0_fop *fop, struct m0_fom **m,
-			 struct m0_reqh *reqh);
-
-M0_INTERNAL const struct m0_fom_type_ops cp_fom_type_ops = {
-	.fto_create = cp_fom_create
-};
-
 M0_INTERNAL void m0_cm_cp_fom_fini(struct m0_fom *fom)
 {
 	struct m0_cm_cp         *cp = bob_of(fom, struct m0_cm_cp, c_fom,
@@ -429,12 +422,14 @@ M0_INTERNAL void m0_cm_cp_fom_fini(struct m0_fom *fom)
 
 	m0_cm_cp_fini(cp);
 	cp->c_ops->co_free(cp);
-	m0_cm_ag_lock(ag);
-	M0_CNT_INC(ag->cag_freed_cp_nr);
-	can_fini = ag->cag_ops->cago_ag_can_fini(ag);
-	m0_cm_ag_unlock(ag);
-	if (can_fini)
-		m0_sm_ast_post(&ag->cag_cm->cm_sm_group, &ag->cag_fini_ast);
+	if (ag != NULL) {
+		m0_cm_ag_lock(ag);
+		M0_CNT_INC(ag->cag_freed_cp_nr);
+		can_fini = ag->cag_ops->cago_ag_can_fini(ag);
+		m0_cm_ag_unlock(ag);
+		if (can_fini)
+			m0_sm_ast_post(&ag->cag_cm->cm_sm_group, &ag->cag_fini_ast);
+	}
 
 	M0_LEAVE();
 }
@@ -466,8 +461,8 @@ static const struct m0_fom_ops cp_fom_ops = {
 	.fo_home_locality = cp_fom_locality
 };
 
-static int cp_fom_create(struct m0_fop *fop, struct m0_fom **m,
-			 struct m0_reqh *reqh)
+M0_INTERNAL int m0_cm_cp_fom_create(struct m0_fop *fop, struct m0_fop *r_fop,
+				    struct m0_fom **m, struct m0_reqh *reqh)
 {
 	struct m0_cm_cp        *cp;
 	struct m0_cm           *cm;
@@ -485,9 +480,7 @@ static int cp_fom_create(struct m0_fop *fop, struct m0_fom **m,
 	if (cp == NULL)
 		return M0_ERR(-ENOMEM);
 
-	m0_cm_cp_fom_init(cm, cp);
-	m0_fom_init(&cp->c_fom, &cm->cm_type->ct_fomt, &cp_fom_ops, fop,
-		    NULL, reqh);
+	m0_cm_cp_fom_init(cm, cp, fop, r_fop);
 	*m = &cp->c_fom;
 	return 0;
 }
@@ -549,7 +542,7 @@ static struct m0_sm_state_descr m0_cm_cp_state_descr[] = {
 	[M0_CCP_RECV_INIT] = {
 		.sd_flags       = 0,
 		.sd_name        = "Recv Init",
-		.sd_allowed     = M0_BITS(M0_CCP_RECV_WAIT, M0_CCP_FAIL)
+		.sd_allowed     = M0_BITS(M0_CCP_RECV_WAIT, M0_CCP_FINI)
 	},
 	[M0_CCP_RECV_WAIT] = {
 		.sd_flags       = 0,
@@ -574,9 +567,10 @@ static const struct m0_sm_conf m0_cm_cp_sm_conf = {
 	.scf_state = m0_cm_cp_state_descr
 };
 
-M0_INTERNAL void m0_cm_cp_init(struct m0_cm_type *cmtype)
+M0_INTERNAL void m0_cm_cp_init(struct m0_cm_type *cmtype,
+			       const struct m0_fom_type_ops *ft_ops)
 {
-	m0_fom_type_init(&cmtype->ct_fomt, cmtype->ct_fom_id, &cp_fom_type_ops,
+	m0_fom_type_init(&cmtype->ct_fomt, cmtype->ct_fom_id, ft_ops,
 			 &cmtype->ct_stype, &m0_cm_cp_sm_conf);
 }
 
@@ -604,7 +598,8 @@ M0_INTERNAL void m0_cm_cp_only_init(struct m0_cm *cm, struct m0_cm_cp *cp)
 	cp->c_epoch = cm->cm_epoch;
 }
 
-M0_INTERNAL void m0_cm_cp_fom_init(struct m0_cm *cm, struct m0_cm_cp *cp)
+M0_INTERNAL void m0_cm_cp_fom_init(struct m0_cm *cm, struct m0_cm_cp *cp,
+				   struct m0_fop *fop, struct m0_fop *r_fop)
 {
 	struct m0_reqh_service *service;
 
@@ -612,7 +607,7 @@ M0_INTERNAL void m0_cm_cp_fom_init(struct m0_cm *cm, struct m0_cm_cp *cp)
 
 	m0_cm_cp_only_init(cm, cp);
 	service = &cm->cm_service;
-	m0_fom_init(&cp->c_fom, &cm->cm_type->ct_fomt, &cp_fom_ops, NULL, NULL,
+	m0_fom_init(&cp->c_fom, &cm->cm_type->ct_fomt, &cp_fom_ops, fop, r_fop,
 		    service->rs_reqh);
 }
 
@@ -806,7 +801,7 @@ M0_INTERNAL int m0_cm_cp_dup(struct m0_cm_cp *src, struct m0_cm_cp **dest)
 	m0_cm_ag_cp_add(src->c_ag, cp);
 	cp->c_ag_cp_idx = src->c_ag_cp_idx;
 	cp->c_data_seg_nr = src->c_data_seg_nr;
-	m0_cm_cp_fom_init(cm, cp);
+	m0_cm_cp_fom_init(cm, cp, NULL, NULL);
 	m0_bitmap_init(&cp->c_xform_cp_indices,
 		       src->c_xform_cp_indices.b_nr);
 	m0_cm_cp_buf_move(src, cp);

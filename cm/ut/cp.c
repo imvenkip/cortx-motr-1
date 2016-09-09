@@ -190,7 +190,8 @@ static void cp_post(struct m0_sns_cm_cp *sns_cp, struct m0_cm_aggr_group *ag,
 	m0_stob_id_make(0, 1, &gfid, &sns_cp->sc_stob_id);
 	m0_fid_convert_gob2cob(&gfid, &sns_cp->sc_cobfid, 1);
 	cp->c_ops = &m0_sns_cm_cp_dummy_ops;
-	m0_cm_cp_fom_init(ag->cag_cm, cp);
+	m0_cm_cp_init(&cm_ut_cmt, NULL);
+	m0_cm_cp_fom_init(ag->cag_cm, cp, NULL, NULL);
 	/* Over-ride the fom ops. */
 	cp->c_fom.fo_ops = &dummy_cp_fom_ops;
 	m0_cm_cp_buf_add(cp, nb);

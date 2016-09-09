@@ -73,7 +73,7 @@ const struct m0_cm_cp_ops m0_sns_cm_acc_cp_ops = {
 		[M0_CCP_SEND]          = &m0_sns_cm_repair_cp_send,
 		[M0_CCP_SEND_WAIT]     = &m0_sns_cm_cp_send_wait,
 		[M0_CCP_RECV_INIT]     = &m0_sns_cm_cp_recv_init,
-		[M0_CCP_RECV_WAIT]     = &m0_sns_cm_repair_cp_recv_wait,
+		[M0_CCP_RECV_WAIT]     = &m0_sns_cm_cp_recv_wait,
 		[M0_CCP_FAIL]          = &m0_sns_cm_cp_fail,
 		/* To satisfy the m0_cm_cp_invariant() */
 		[M0_CCP_FINI]          = &m0_sns_cm_cp_fini,
@@ -105,7 +105,7 @@ M0_INTERNAL void m0_sns_cm_acc_cp_init(struct m0_sns_cm_cp *scp,
 	 */
 	m0_bitmap_init(&scp->sc_base.c_xform_cp_indices,
 		       sag->sag_base.cag_cp_global_nr);
-        m0_cm_cp_fom_init(sag->sag_base.cag_cm, cp);
+        m0_cm_cp_fom_init(sag->sag_base.cag_cm, cp, NULL, NULL);
 }
 
 /**

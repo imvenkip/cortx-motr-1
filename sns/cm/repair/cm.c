@@ -87,15 +87,6 @@ static void repair_cm_stop(struct m0_cm *cm)
 	M0_ENTRY();
 	M0_PRE(scm->sc_op == SNS_REPAIR);
 
-	if (cm->cm_quiesce || cm->cm_abort) {
-		M0_LOG(M0_DEBUG, "repair stopped by %s cmd",
-				cm->cm_quiesce ? "QUIESCE" : "ABORT");
-		goto out;
-	}
-
-	if (m0_cm_state_get(cm) == M0_CMS_FAIL)
-		goto out;
-
 	cc = &pc->pc_confc->cc_cache;
 	m0_tl_for(pools, &pc->pc_pools, pool) {
 		/* Skip mdpool, since only io pools are repaired. */
@@ -120,7 +111,8 @@ static void repair_cm_stop(struct m0_cm *cm)
 				disk = M0_CONF_CAST(disk_obj, m0_conf_disk);
 				M0_ASSERT(disk != NULL);
 				M0_LOG(M0_DEBUG, FID_F, FID_P(&pool->po_id));
-				if (m0_sns_cm_disk_has_dirty_pver(cm, disk)) {
+				if (m0_sns_cm_disk_has_dirty_pver(cm, disk) ||
+				    m0_cm_is_dirty(cm)) {
 					dstate = M0_NC_REPAIR;
 					pstate = M0_NC_REPAIR;
 				}
