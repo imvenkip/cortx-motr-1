@@ -42,7 +42,7 @@
 int m0_spiel_init(struct m0_spiel *spiel, struct m0_reqh *reqh)
 {
 	M0_PRE(reqh != NULL);
-	M0_ENTRY("spiel %p, reqh %p", spiel, reqh);
+	M0_ENTRY("spiel=%p reqh=%p", spiel, reqh);
 
 	M0_SET0(spiel);
 	spiel->spl_core.spc_rmachine =
@@ -56,7 +56,8 @@ M0_EXPORTED(m0_spiel_init);
 
 void m0_spiel_fini(struct m0_spiel *spiel)
 {
-	M0_SET0(spiel);
+	M0_ENTRY("spiel=%p", spiel);
+	M0_LEAVE();
 }
 M0_EXPORTED(m0_spiel_fini);
 
