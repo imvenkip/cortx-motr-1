@@ -245,8 +245,8 @@ build_halon() {
 	if [ "$(grep $MERO_SOURCES stack.yaml)" == "" ]; then
 		sed -i "s:/mero:$MERO_SOURCES:" stack.yaml
 	fi
+	git clean -dfx
 	stack_call setup --no-docker
-	stack_call clean rpclite --no-docker
 	stack_call build --flag mero-halon:mero --no-docker --ghc-options -g
 	make rpm-dev
 }
