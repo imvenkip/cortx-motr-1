@@ -405,15 +405,7 @@ static int stob_linux_init(struct m0_stob *stob,
 			   struct m0_stob_domain *dom,
 			   const struct m0_fid *stob_fid)
 {
-	struct m0_stob_linux *lstob = m0_stob_linux_container(stob);
-	int                   rc;
-
-	rc = stob_linux_open(stob, dom, stob_fid, NULL, false);
-	if (M0_IN(rc, (0, -ENOENT))) {
-		m0_mutex_init(&lstob->sl_wait_guard);
-		m0_sm_ast_wait_init(&lstob->sl_wait, &lstob->sl_wait_guard);
-	}
-	return rc;
+	return stob_linux_open(stob, dom, stob_fid, NULL, false);
 }
 
 static void stob_linux_close(struct m0_stob_linux *lstob)
@@ -432,10 +424,6 @@ static void stob_linux_fini(struct m0_stob *stob)
 	struct m0_stob_linux *lstob = m0_stob_linux_container(stob);
 
 	stob_linux_close(lstob);
-	m0_mutex_lock(&lstob->sl_wait_guard);
-	m0_sm_ast_wait_fini(&lstob->sl_wait);
-	m0_mutex_unlock(&lstob->sl_wait_guard);
-	m0_mutex_fini(&lstob->sl_wait_guard);
 }
 
 static void stob_linux_create_credit(struct m0_stob_domain *dom,

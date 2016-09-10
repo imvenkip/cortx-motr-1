@@ -60,12 +60,6 @@ struct m0_stob_linux {
 	mode_t			     sl_mode;
 	/** fid of the corresponding m0_conf_sdev object */
 	struct m0_fid                sl_conf_sdev;
-	/** AST for stob exceptions. */
-	struct m0_sm_ast             sl_ast;
-	/** Allows users to wait for m0_stob_linux::sl_ast completion. */
-	struct m0_sm_ast_wait        sl_wait;
-	/** This mutex is used by m0_sm_ast_wait API. */
-	struct m0_mutex              sl_wait_guard;
 };
 
 M0_INTERNAL struct m0_stob_linux *m0_stob_linux_container(struct m0_stob *stob);

@@ -248,18 +248,11 @@ static void test_adieu(void)
 
 void m0_stob_ut_adieu_linux(void)
 {
-	struct m0_stob_linux *lstob;
-	int                   rc;
+	int rc;
 
 	rc = test_adieu_init(linux_location, NULL, NULL);
 	M0_ASSERT(rc == 0);
 	test_adieu();
-
-	lstob = m0_stob_linux_container(obj);
-	m0_mutex_lock(&lstob->sl_wait_guard);
-	m0_sm_ast_wait(&lstob->sl_wait);
-	m0_mutex_unlock(&lstob->sl_wait_guard);
-
 	test_adieu_fini();
 }
 

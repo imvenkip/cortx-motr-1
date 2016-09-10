@@ -156,85 +156,6 @@ enum {
 	STOB_IOQ_BMASK	= STOB_IOQ_BSIZE - 1
 };
 
-/* Temporary solution until Halon can use M0_HA_MSG_STOB_IOQ */
-static void stob_ioq_notify_nvec(const struct m0_fid *conf_sdev)
-{
-	struct m0_ha_note note;
-	struct m0_ha_nvec nvec;
-
-	if (m0_ha_session_get() != NULL) {
-		note = (struct m0_ha_note){
-			.no_id    = *conf_sdev,
-			.no_state = M0_NC_FAILED,
-		};
-		nvec = (struct m0_ha_nvec){
-			.nv_nr   = 1,
-			.nv_note = &note,
-		};
-		m0_ha_state_set(m0_ha_session_get(), &nvec);
-	}
-}
-
-/**
- * Handles detection of drive IO error by signalling HA.
- */
-static void io_err_callback(struct m0_sm_group *grp, struct m0_sm_ast *ast)
-{
-	struct m0_ha_msg     *msg;
-	struct m0_stob_linux *lstob;
-	struct m0_stob_ioq   *ioq;
-	struct m0_stob_io    *io;
-	struct ioq_qev       *qev;
-	uint64_t              tag;
-
-	M0_ENTRY();
-
-	lstob = M0_AMB(lstob, ast, sl_ast);
-	io    = M0_AMB(io, &lstob->sl_stob, si_obj);
-	qev   = container_of(io, struct ioq_qev, iq_io);
-	M0_LOG(M0_WARN, "IO error: stob_id=" STOB_ID_F " conf_sdev=" FID_F,
-	       STOB_ID_P(&lstob->sl_stob.so_id), FID_P(&lstob->sl_conf_sdev));
-	ioq = &lstob->sl_dom->sld_ioq;
-	M0_ALLOC_PTR(msg);
-	if (msg == NULL) {
-		M0_LOG(M0_ERROR, "can't allocate memory for msg");
-		M0_LEAVE();
-		return;
-	}
-	m0_mutex_lock(&ioq->ioq_lock);
-	*msg = (struct m0_ha_msg){
-		.hm_fid  = lstob->sl_conf_sdev,
-		.hm_time = m0_time_now(),
-		.hm_data = {
-			.hed_type       = M0_HA_MSG_STOB_IOQ,
-			.u.hed_stob_ioq = {
-				/* stob info */
-				.sie_conf_sdev = lstob->sl_conf_sdev,
-				.sie_stob_id   = lstob->sl_stob.so_id,
-				.sie_fd        = lstob->sl_fd,
-				/* IO info */
-				.sie_opcode    = io->si_opcode,
-				.sie_rc        = io->si_rc,
-				.sie_bshift    = m0_stob_ioq_bshift(ioq),
-				.sie_size      = qev->iq_nbytes,
-				.sie_offset    = qev->iq_offset,
-			},
-		},
-	};
-	ast->sa_cb = NULL;
-	stob_ioq_notify_nvec(&lstob->sl_conf_sdev);
-	m0_mutex_unlock(&ioq->ioq_lock);
-	m0_ha_send(m0_get()->i_ha, m0_get()->i_ha_link, msg, &tag);
-	m0_free(msg);
-	m0_stob_put(&lstob->sl_stob);
-
-	m0_mutex_lock(&lstob->sl_wait_guard);
-	m0_sm_ast_wait_signal(&lstob->sl_wait);
-	m0_mutex_unlock(&lstob->sl_wait_guard);
-
-	M0_LEAVE("tag=%"PRIu64, tag);
-}
-
 M0_INTERNAL int m0_stob_linux_io_init(struct m0_stob *stob,
 				      struct m0_stob_io *io)
 {
@@ -504,33 +425,69 @@ static void ioq_queue_submit(struct m0_stob_ioq *ioq)
 	} while (got > 0);
 }
 
+/* Temporary solution until Halon can use M0_HA_MSG_STOB_IOQ */
+static void stob_ioq_notify_nvec(const struct m0_fid *conf_sdev)
+{
+	struct m0_ha_note note;
+	struct m0_ha_nvec nvec;
+
+	if (m0_ha_session_get() != NULL) {
+		note = (struct m0_ha_note){
+			.no_id    = *conf_sdev,
+			.no_state = M0_NC_FAILED,
+		};
+		nvec = (struct m0_ha_nvec){
+			.nv_nr   = 1,
+			.nv_note = &note,
+		};
+		m0_ha_state_set(m0_ha_session_get(), &nvec);
+	}
+}
+
 /**
- * Registers AST callback (io_err_callback) to handle IO error.
+ * Handles detection of drive IO error by signalling HA.
  */
 static void ioq_io_error(struct m0_stob_ioq *ioq, struct ioq_qev *qev)
 {
 	struct m0_stob_io    *io    = qev->iq_io;
 	struct m0_stob_linux *lstob = m0_stob_linux_container(io->si_obj);
-	struct m0_sm_ast     *ast   = &lstob->sl_ast;
+	struct m0_ha_msg     *msg;
+	uint64_t              tag;
 
-	m0_mutex_lock(&ioq->ioq_lock);
-	if (ast->sa_cb == NULL) {
-		ast->sa_cb = &io_err_callback;
-		/*
-		 * Acquire ref to stop the stob being freed before AST
-		 * execution.
-		 */
-		m0_stob_get(&lstob->sl_stob);
-		m0_mutex_lock(&lstob->sl_wait_guard);
-		m0_sm_ast_wait_post(&lstob->sl_wait,
-				    m0_locality_here()->lo_grp, &lstob->sl_ast);
-		m0_mutex_unlock(&lstob->sl_wait_guard);
-	} else {
-		M0_LOG(M0_WARN,
-		       "Repeated IO failures on "FID_F"; not reporting to HA.",
-		       FID_P(m0_stob_fid_get(&lstob->sl_stob)));
+	M0_ENTRY();
+	M0_LOG(M0_WARN, "IO error: stob_id=" STOB_ID_F " conf_sdev=" FID_F,
+	       STOB_ID_P(&lstob->sl_stob.so_id), FID_P(&lstob->sl_conf_sdev));
+
+	M0_ALLOC_PTR(msg);
+	if (msg == NULL) {
+		M0_LOG(M0_ERROR, "can't allocate memory for msg");
+		M0_LEAVE();
+		return;
 	}
-	m0_mutex_unlock(&ioq->ioq_lock);
+	*msg = (struct m0_ha_msg){
+		.hm_fid  = lstob->sl_conf_sdev,
+		.hm_time = m0_time_now(),
+		.hm_data = {
+			.hed_type       = M0_HA_MSG_STOB_IOQ,
+			.u.hed_stob_ioq = {
+				/* stob info */
+				.sie_conf_sdev = lstob->sl_conf_sdev,
+				.sie_stob_id   = lstob->sl_stob.so_id,
+				.sie_fd        = lstob->sl_fd,
+				/* IO info */
+				.sie_opcode    = io->si_opcode,
+				.sie_rc        = io->si_rc,
+				.sie_bshift    = m0_stob_ioq_bshift(ioq),
+				.sie_size      = qev->iq_nbytes,
+				.sie_offset    = qev->iq_offset,
+			},
+		},
+	};
+	stob_ioq_notify_nvec(&lstob->sl_conf_sdev);
+	m0_ha_send(m0_get()->i_ha, m0_get()->i_ha_link, msg, &tag);
+	m0_free(msg);
+
+	M0_LEAVE("tag=%"PRIu64, tag);
 }
 
 /**
