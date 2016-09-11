@@ -42,13 +42,13 @@
  * @{
  */
 
-#define CONN_STATE(conn) (conn)->c_sm.sm_state
-#define CONN_RC(conn)    (conn)->c_sm.sm_rc
-#define CONN_CHAN(conn)  (conn)->c_sm.sm_chan
+#define CONN_STATE(conn) ((conn)->c_sm.sm_state)
+#define CONN_RC(conn)    ((conn)->c_sm.sm_rc)
+#define CONN_CHAN(conn)  ((conn)->c_sm.sm_chan)
 
-#define SESS_STATE(sess) (sess)->s_sm.sm_state
-#define SESS_RC(sess)    (sess)->s_sm.sm_rc
-#define SESS_CHAN(sess)  (sess)->s_sm.sm_chan
+#define SESS_STATE(sess) ((sess)->s_sm.sm_state)
+#define SESS_RC(sess)    ((sess)->s_sm.sm_rc)
+#define SESS_CHAN(sess)  ((sess)->s_sm.sm_chan)
 
 struct rpc_link_state_transition {
 	/** Function which executes current phase */
@@ -238,7 +238,7 @@ static struct rpc_link_state_transition rpc_link_disc_states[] = {
 	{ &rpc_link_disc_init, M0_RLS_SESS_WAIT_IDLE, "Initialised" },
 
 	[M0_RLS_SESS_WAIT_IDLE] =
-	{ &rpc_link_sess_terminate, M0_RLS_SESS_TERMINATING, "IDLE state wait" },
+	{ &rpc_link_sess_terminate, M0_RLS_SESS_TERMINATING,"IDLE state wait" },
 
 	[M0_RLS_SESS_TERMINATING] =
 	{ &rpc_link_conn_terminate, M0_RLS_CONN_TERMINATING,

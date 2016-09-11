@@ -843,7 +843,7 @@ M0_INTERNAL int m0_rpc_conn_establish(struct m0_rpc_conn *conn,
 	M0_PRE(conn != NULL && conn->c_rpc_machine != NULL);
 
 	if (M0_FI_ENABLED("fake_error"))
-		return M0_RC(-EINVAL);
+		return M0_ERR(-EINVAL);
 
 	machine = conn->c_rpc_machine;
 
@@ -852,14 +852,14 @@ M0_INTERNAL int m0_rpc_conn_establish(struct m0_rpc_conn *conn,
 		m0_rpc_machine_lock(machine);
 		conn_failed(conn, -ENOMEM);
 		m0_rpc_machine_unlock(machine);
-		return M0_RC(-ENOMEM);
+		return M0_ERR(-ENOMEM);
 	}
 
 	m0_rpc_machine_lock(machine);
 
 	M0_ASSERT(m0_rpc_conn_invariant(conn));
 	M0_ASSERT(conn_state(conn) == M0_RPC_CONN_INITIALISED &&
-	          m0_rpc_conn_is_snd(conn));
+		  m0_rpc_conn_is_snd(conn));
 
 	/* m0_rpc_fop_conn_establish FOP doesn't contain any data. */
 
@@ -874,7 +874,7 @@ M0_INTERNAL int m0_rpc_conn_establish(struct m0_rpc_conn *conn,
 	 * and connection is in failed state already.
 	 */
 	else if (conn_state(conn) == M0_RPC_CONN_INITIALISED)
-		conn_failed(conn, rc);
+		conn_failed(conn, M0_ERR(rc));
 	m0_fop_put(fop);
 
 	M0_ASSERT(m0_rpc_conn_invariant(conn));
@@ -938,7 +938,7 @@ M0_INTERNAL void m0_rpc_conn_establish_reply_received(struct m0_rpc_item *item)
 			rc = M0_ERR(-EPROTO);
 	}
 	if (rc != 0)
-		conn_failed(conn, rc);
+		conn_failed(conn, M0_ERR(rc));
 
 	M0_POST(m0_rpc_conn_invariant(conn));
 	M0_POST(M0_IN(conn_state(conn), (M0_RPC_CONN_FAILED,
@@ -969,7 +969,7 @@ M0_INTERNAL int m0_rpc_conn_terminate_sync(struct m0_rpc_conn *conn,
 
 	rc = m0_rpc_conn_terminate(conn, abs_timeout);
 	if (rc != 0)
-		return M0_RC(rc);
+		return M0_ERR(rc);
 
 	rc = m0_rpc_conn_timedwait(conn, M0_BITS(M0_RPC_CONN_TERMINATED,
 						 M0_RPC_CONN_FAILED),
@@ -1127,7 +1127,7 @@ M0_INTERNAL void m0_rpc_conn_terminate_reply_received(struct m0_rpc_item *item)
 			rc = M0_ERR(-EPROTO);
 	}
 	if (rc != 0)
-		conn_failed(conn, rc);
+		conn_failed(conn, M0_ERR(rc));
 
 	M0_POST(m0_rpc_conn_invariant(conn));
 	M0_POST(M0_IN(conn_state(conn), (M0_RPC_CONN_TERMINATED,
@@ -1257,8 +1257,8 @@ M0_INTERNAL int m0_rpc_conn_session_list_dump(const struct m0_rpc_conn *conn)
 
 	m0_tl_for(rpc_session, &conn->c_sessions, session) {
 		M0_LOG(M0_DEBUG, "session %p id %llu state %x", session,
-			         (unsigned long long)session->s_session_id,
-			         session_state(session));
+		       (unsigned long long)session->s_session_id,
+		       session_state(session));
 	} m0_tl_endfor;
 	return 0;
 }
@@ -1344,7 +1344,7 @@ static bool rpc_conn__on_cache_ready_cb(struct m0_clink *clink)
 	rc = m0_rpc_conn_ha_subscribe(conn, &conn->c_svc_fid);
 	if (rc != 0) {
 		m0_rpc_machine_lock(conn->c_rpc_machine);
-		conn_failed(conn, rc);
+		conn_failed(conn, M0_ERR(rc));
 		m0_rpc_machine_unlock(conn->c_rpc_machine);
 	}
 	return true;

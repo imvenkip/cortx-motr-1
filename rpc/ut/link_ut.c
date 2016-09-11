@@ -24,6 +24,7 @@
 #include "lib/trace.h"
 #include "reqh/reqh.h"
 #include "rpc/session.h"
+#include "rpc/rpc_opcodes.h"
 #include "net/lnet/lnet.h"
 #include "rpc/link.h"
 #include "rpc/rpc.h"
@@ -32,8 +33,8 @@
 
 enum {
 	RLUT_MAX_RPCS_IN_FLIGHT = 10,
-	RLUT_CONN_TIMEOUT       = 2, /* seconds */
-	RLUT_SESS_TIMEOUT       = 1, /* seconds */
+	RLUT_CONN_TIMEOUT       = 4, /* seconds */
+	RLUT_SESS_TIMEOUT       = 2, /* seconds */
 };
 
 static void rlut_init(struct m0_net_domain      *net_dom,
@@ -59,11 +60,11 @@ static void rlut_init(struct m0_net_domain      *net_dom,
 	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_rpc_net_buffer_pool_setup(net_dom,
-	                                  buf_pool,
-	                                  m0_rpc_bufs_nr(
-	                                     M0_NET_TM_RECV_QUEUE_DEF_LEN,
-	                                     NR_TMS),
-	                                  NR_TMS);
+					  buf_pool,
+					  m0_rpc_bufs_nr(
+					     M0_NET_TM_RECV_QUEUE_DEF_LEN,
+					     NR_TMS),
+					  NR_TMS);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = M0_REQH_INIT(reqh,
@@ -74,9 +75,9 @@ static void rlut_init(struct m0_net_domain      *net_dom,
 	m0_reqh_start(reqh);
 
 	rc = m0_rpc_machine_init(rmachine, net_dom, client_ep, reqh, buf_pool,
-	                         M0_BUFFER_ANY_COLOUR,
-	                         M0_RPC_DEF_MAX_RPC_MSG_SIZE,
-	                         M0_NET_TM_RECV_QUEUE_DEF_LEN);
+				 M0_BUFFER_ANY_COLOUR,
+				 M0_RPC_DEF_MAX_RPC_MSG_SIZE,
+				 M0_NET_TM_RECV_QUEUE_DEF_LEN);
 	M0_UT_ASSERT(rc == 0);
 }
 
@@ -170,6 +171,8 @@ static void rlut_reconnect(void)
 	stop_rpc_client_and_server();
 }
 
+extern uint32_t m0_rpc__filter_opcode[4];
+
 static void rlut_remote_delay(void)
 {
 	struct m0_rpc_machine *mach;
@@ -187,33 +190,41 @@ static void rlut_remote_delay(void)
 	rc = m0_rpc_link_init(rlink, mach, NULL, remote_ep,
 			      RLUT_MAX_RPCS_IN_FLIGHT);
 	M0_UT_ASSERT(rc == 0);
-	m0_fi_enable_off_n_on_m("item_received_fi", "drop_item_reply", 1, 1);
+	m0_fi_enable("item_received_fi", "drop_opcode");
+	m0_rpc__filter_opcode[0] = M0_RPC_SESSION_ESTABLISH_REP_OPCODE;
 	rc = m0_rpc_link_connect_sync(rlink,
 				      m0_time_from_now(RLUT_SESS_TIMEOUT, 0));
 	M0_UT_ASSERT(rc != 0 && !m0_rpc_link_is_connected(rlink));
-	m0_fi_disable("item_received_fi", "drop_item_reply");
+	m0_rpc__filter_opcode[0] = 0;
+	m0_fi_disable("item_received_fi", "drop_opcode");
 	m0_rpc_link_fini(rlink);
 	/* delay on session establishing and connection termination */
+	m0_fi_enable("item_received_fi", "drop_opcode");
+	m0_rpc__filter_opcode[0] = M0_RPC_SESSION_ESTABLISH_REP_OPCODE;
+	m0_rpc__filter_opcode[1] = M0_RPC_CONN_TERMINATE_REP_OPCODE;
 	rc = m0_rpc_link_init(rlink, mach, NULL, remote_ep,
 			      RLUT_MAX_RPCS_IN_FLIGHT);
-	m0_fi_enable_off_n_on_m("item_received_fi", "drop_item_reply", 1, 2);
 	rc = m0_rpc_link_connect_sync(rlink,
 				      m0_time_from_now(RLUT_SESS_TIMEOUT, 0));
 	M0_UT_ASSERT(rc != 0 && !m0_rpc_link_is_connected(rlink));
-	m0_fi_disable("item_received_fi", "drop_item_reply");
+	m0_rpc__filter_opcode[0] = 0;
+	m0_rpc__filter_opcode[1] = 0;
+	m0_fi_disable("item_received_fi", "drop_opcode");
 	m0_rpc_link_fini(rlink);
 	/* delay on session termination */
+	m0_fi_enable("item_received_fi", "drop_opcode");
+	m0_rpc__filter_opcode[0] = M0_RPC_SESSION_TERMINATE_REP_OPCODE;
 	rc = m0_rpc_link_init(rlink, mach, NULL, remote_ep,
 			      RLUT_MAX_RPCS_IN_FLIGHT);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rpc_link_connect_sync(rlink,
 				      m0_time_from_now(RLUT_SESS_TIMEOUT, 0));
 	M0_UT_ASSERT(rc == 0 && m0_rpc_link_is_connected(rlink));
-	m0_fi_enable_off_n_on_m("item_received_fi", "drop_item_reply", 0, 1);
 	rc = m0_rpc_link_disconnect_sync(rlink,
 					m0_time_from_now(RLUT_SESS_TIMEOUT, 0));
 	M0_UT_ASSERT(rc == 0 && !m0_rpc_link_is_connected(rlink));
-	m0_fi_disable("item_received_fi", "drop_item_reply");
+	m0_rpc__filter_opcode[0] = 0;
+	m0_fi_disable("item_received_fi", "drop_opcode");
 	m0_rpc_link_fini(rlink);
 	/* delay on connection termination */
 	rc = m0_rpc_link_init(rlink, mach, NULL, remote_ep,
@@ -222,11 +233,13 @@ static void rlut_remote_delay(void)
 	rc = m0_rpc_link_connect_sync(rlink,
 				      m0_time_from_now(RLUT_SESS_TIMEOUT, 0));
 	M0_UT_ASSERT(rc == 0 && m0_rpc_link_is_connected(rlink));
-	m0_fi_enable_off_n_on_m("item_received_fi", "drop_item_reply", 1, 1);
+	m0_fi_enable("item_received_fi", "drop_opcode");
+	m0_rpc__filter_opcode[0] = M0_RPC_CONN_TERMINATE_REP_OPCODE;
 	rc = m0_rpc_link_disconnect_sync(rlink,
 					m0_time_from_now(RLUT_SESS_TIMEOUT, 0));
 	M0_UT_ASSERT(rc == 0 && !m0_rpc_link_is_connected(rlink));
-	m0_fi_disable("item_received_fi", "drop_item_reply");
+	m0_rpc__filter_opcode[0] = 0;
+	m0_fi_disable("item_received_fi", "drop_opcode");
 	m0_rpc_link_fini(rlink);
 
 	m0_free(rlink);

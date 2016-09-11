@@ -805,28 +805,40 @@ static void item_received(struct m0_rpc_item      *item,
 	M0_LEAVE();
 }
 
+uint32_t m0_rpc__filter_opcode[4] = {};
+
 static bool item_received_fi(struct m0_rpc_item *item)
 {
+	uint32_t opcode = item->ri_type->rit_opcode;
+
 	if (M0_FI_ENABLED("drop_item")) {
 		M0_LOG(M0_DEBUG, "%p[%s/%u] dropped", item,
-			item_kind(item), item->ri_type->rit_opcode);
+		       item_kind(item), opcode);
 		return true;
 	}
 	if (m0_rpc_item_is_reply(item) && M0_FI_ENABLED("drop_item_reply")) {
 		M0_LOG(M0_DEBUG, "%p[%s/%u] dropped", item,
-			item_kind(item), item->ri_type->rit_opcode);
+			item_kind(item), opcode);
 		return true;
 	}
-	if (M0_FI_ENABLED("drop_setattr_item_reply") &&
-	    item->ri_type->rit_opcode == M0_IOSERVICE_COB_SETATTR_REP_OPCODE) {
-		M0_LOG(M0_DEBUG, "%p[%s/%u] setattr reply dropped", item,
-		       item_kind(item), item->ri_type->rit_opcode);
+	/*
+	 * setattr and getattr cases below are invoked via
+	 * /sys/kernel/debug/mero/finject/ctl by ST and because of this have to
+	 * be separate from more generic "drop_opcode".
+	 */
+	if ((M0_FI_ENABLED("drop_setattr_item_reply") &&
+	     opcode == M0_IOSERVICE_COB_SETATTR_REP_OPCODE) ||
+	    (M0_FI_ENABLED("drop_getattr_item_reply") &&
+	     opcode == M0_IOSERVICE_COB_GETATTR_REP_OPCODE)) {
+		M0_LOG(M0_DEBUG, "%p[%s/%u] [sg]etattr reply dropped",
+		       item, item_kind(item), opcode);
 		return true;
 	}
-	if (M0_FI_ENABLED("drop_getattr_item_reply") &&
-	    item->ri_type->rit_opcode == M0_IOSERVICE_COB_GETATTR_REP_OPCODE) {
-		M0_LOG(M0_DEBUG, "%p[%s/%u] getattr reply dropped", item,
-		       item_kind(item), item->ri_type->rit_opcode);
+	if (M0_FI_ENABLED("drop_opcode") &&
+	    m0_exists(i, ARRAY_SIZE(m0_rpc__filter_opcode),
+		      opcode == m0_rpc__filter_opcode[i])) {
+		M0_LOG(M0_DEBUG, "%p[%s/%u] dropped",
+		       item, item_kind(item), opcode);
 		return true;
 	}
 	return false;
