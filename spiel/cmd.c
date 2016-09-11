@@ -1259,15 +1259,16 @@ static int spiel_pool_generic_handler(struct m0_spiel_core        *spc,
 		rc = m0_confc_open_by_fid_sync(spc->spc_confc, &si->i_fid,
 					       &svc_obj);
 		if (rc != 0) {
-			M0_LOG(M0_ERROR, "conf sync failed for service"FID_F
-					"index:%d", FID_P(&si->i_fid), index);
+			M0_LOG(M0_ERROR, "confc_open failed; rc=%d service="
+			       FID_F" index=%d", rc, FID_P(&si->i_fid), index);
 			sns[index++].ss_rc = rc;
 			continue;
 		}
 		if (svc_obj->co_ha_state != M0_NC_ONLINE) {
 			rc = -EINVAL;
-			M0_LOG(M0_ERROR, "service"FID_F"is not online index:%d",
-					FID_P(&si->i_fid), index);
+			M0_LOG(M0_ERROR, "service"FID_F" is not online;"
+			       " index=%d ha_state=%d", FID_P(&si->i_fid),
+			       index, svc_obj->co_ha_state);
 			m0_confc_close(svc_obj);
 			sns[index++].ss_rc = rc;
 			continue;
@@ -1277,10 +1278,10 @@ static int spiel_pool_generic_handler(struct m0_spiel_core        *spc,
 		rc = spiel__pool_cmd_send(&ctx, cmd, &sns[index]);
 		m0_confc_close(svc_obj);
 		if (rc != 0) {
+			M0_LOG(M0_ERROR, "pool command sending failed;"
+			       " rc=%d service="FID_F" index=%d",
+			       rc, FID_P(&si->i_fid), index);
 			sns[index++].ss_rc = rc;
-			M0_LOG(M0_ERROR, "pool command send failed for service"
-					FID_F"index:%d", FID_P(&si->i_fid),
-					index);
 			continue;
 		}
 		++index;
