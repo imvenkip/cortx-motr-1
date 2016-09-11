@@ -111,7 +111,9 @@ M0_INTERNAL int m0_ha_link_init(struct m0_ha_link     *hl,
 	hl->hln_cfg = *hl_cfg;
 	m0_mutex_init(&hl->hln_lock);
 	m0_mutex_init(&hl->hln_chan_lock);
+	m0_mutex_init(&hl->hln_sm_lock);
 	m0_chan_init(&hl->hln_chan, &hl->hln_chan_lock);
+	m0_chan_init(&hl->hln_sm_chan, &hl->hln_sm_lock);
 	m0_ha_lq_init(&hl->hln_q_in, &hl->hln_cfg.hlq_q_cfg_in);
 	m0_ha_lq_init(&hl->hln_q_out, &hl->hln_cfg.hlq_q_cfg_out);
 	m0_fom_init(&hl->hln_fom, &ha_link_outgoing_fom_type,
@@ -138,7 +140,9 @@ M0_INTERNAL void m0_ha_link_fini(struct m0_ha_link *hl)
 	m0_semaphore_fini(&hl->hln_stop_cond);
 	m0_ha_lq_fini(&hl->hln_q_out);
 	m0_ha_lq_fini(&hl->hln_q_in);
+	m0_chan_fini_lock(&hl->hln_sm_chan);
 	m0_chan_fini_lock(&hl->hln_chan);
+	m0_mutex_fini(&hl->hln_sm_lock);
 	m0_mutex_fini(&hl->hln_chan_lock);
 	m0_mutex_fini(&hl->hln_lock);
 	M0_LEAVE();
@@ -355,6 +359,24 @@ m0_ha_link_reconnect_params(const struct m0_ha_link_params *lp_alive,
 M0_INTERNAL struct m0_chan *m0_ha_link_chan(struct m0_ha_link *hl)
 {
 	return &hl->hln_chan;
+}
+
+M0_INTERNAL void m0_ha_link_state_register(struct m0_ha_link *hl,
+					   struct m0_clink   *clink)
+{
+	m0_clink_add_lock(&hl->hln_sm_chan, clink);
+}
+
+M0_INTERNAL void m0_ha_link_state_deregister(struct m0_ha_link *hl,
+					     struct m0_clink   *clink)
+{
+	m0_clink_del_lock(clink);
+}
+
+M0_INTERNAL enum m0_ha_link_state m0_ha_link_state(struct m0_ha_link *hl)
+{
+	/* TODO Return proper state when hln_sm is implemented. */
+	return M0_HA_LINK_STATE_FAILED;
 }
 
 enum ha_link_send_type {
@@ -1090,11 +1112,10 @@ static int ha_link_outgoing_fom_tick(struct m0_fom *fom)
 		}
 		reply_rc = hl->hln_reply_rc;
 		if (reply_rc != 0) {
-			M0_LOG(M0_DEBUG, "rpc reconnect case");
+			M0_LOG(M0_DEBUG, "link failed, ha_link reconnect case");
 			hl->hln_reply_rc = 0;
-			m0_fom_phase_set(fom,
-					 HA_LINK_OUTGOING_STATE_DISCONNECT);
-			return M0_RC(M0_FSO_AGAIN);
+			m0_chan_broadcast_lock(&hl->hln_sm_chan);
+			return M0_RC(M0_FSO_WAIT);
 		}
 		m0_mutex_lock(&hl->hln_lock);
 		reconnect = hl->hln_reconnect;

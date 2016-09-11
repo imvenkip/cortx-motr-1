@@ -71,7 +71,10 @@ enum ha_link_ctx_type {
 
 struct ha_link_ctx {
 	struct m0_ha_link      hlx_link;
+	/* clink for events */
 	struct m0_clink        hlx_clink;
+	/* clink for states */
+	struct m0_clink        hlx_state_clink;
 	struct m0_ha          *hlx_ha;
 	struct m0_tlink        hlx_tlink;
 	uint64_t               hlx_magic;
@@ -110,6 +113,28 @@ static bool ha_link_event_cb(struct m0_clink *clink)
 	return true;
 }
 
+static bool ha_link_state_cb(struct m0_clink *clink)
+{
+	struct ha_link_ctx    *hlx;
+	struct m0_ha_link     *hl;
+	struct m0_ha          *ha;
+	enum m0_ha_link_state  state;
+
+	hlx = container_of(clink, struct ha_link_ctx, hlx_state_clink);
+	hl  = &hlx->hlx_link;
+	ha  = hlx->hlx_ha;
+	M0_ENTRY("hlx=%p hl=%p ha=%p", hlx, hl, ha);
+
+	state = m0_ha_link_state(hl);
+	if (state == M0_HA_LINK_STATE_FAILED) {
+		M0_ASSERT(hl == ha->h_link);
+		/* Outgoing HA link reconnect via requesting an entrypoint */
+		m0_ha_entrypoint_client_request(&ha->h_entrypoint_client);
+	}
+	M0_LEAVE();
+	return true;
+}
+
 static int ha_link_ctx_init(struct m0_ha          *ha,
                             struct ha_link_ctx    *hlx,
                             struct m0_ha_link_cfg *hl_cfg,
@@ -126,6 +151,8 @@ static int ha_link_ctx_init(struct m0_ha          *ha,
 	M0_ASSERT(rc == 0);
 	m0_clink_init(&hlx->hlx_clink, &ha_link_event_cb);
 	m0_clink_add_lock(m0_ha_link_chan(hl), &hlx->hlx_clink);
+	m0_clink_init(&hlx->hlx_state_clink, &ha_link_state_cb);
+	m0_ha_link_state_register(hl, &hlx->hlx_state_clink);
 
 	hlx->hlx_ha   = ha;
 	hlx->hlx_type = hlx_type;
@@ -145,6 +172,8 @@ static void ha_link_ctx_fini(struct m0_ha *ha, struct ha_link_ctx *hlx)
 	m0_semaphore_fini(&hlx->hlx_disconnect_sem);
 	ha_links_tlink_del_fini(hlx);
 
+	m0_ha_link_state_deregister(&hlx->hlx_link, &hlx->hlx_state_clink);
+	m0_clink_fini(&hlx->hlx_state_clink);
 	m0_clink_del_lock(&hlx->hlx_clink);
 	m0_clink_fini(&hlx->hlx_clink);
 	m0_ha_link_fini(&hlx->hlx_link);

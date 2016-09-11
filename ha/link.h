@@ -132,12 +132,7 @@ struct m0_ha_msg;
 struct m0_rpc_session;
 
 enum m0_ha_link_state {
-	M0_HA_LINK_STATE_INIT,
-	M0_HA_LINK_STATE_FINI,
-	M0_HA_LINK_STATE_RUNNING,
-	M0_HA_LINK_STATE_EVENT,
-	M0_HA_LINK_STATE_STOPPING,
-	M0_HA_LINK_STATE_RECONNECTING,
+	M0_HA_LINK_STATE_FAILED,
 };
 
 struct m0_ha_link_conn_cfg {
@@ -178,8 +173,10 @@ struct m0_ha_link {
 	struct m0_mutex             hln_lock;
 	/** This lock is always taken before hln_lock. */
 	struct m0_mutex             hln_chan_lock;
-	struct m0_sm                hln_sm;
 	struct m0_chan              hln_chan;
+	struct m0_mutex             hln_sm_lock;
+	/** Signals on specific state changes. Can be replaced with an m0_sm. */
+	struct m0_chan              hln_sm_chan;
 	struct m0_ha_lq             hln_q_in;
 	struct m0_ha_lq             hln_q_out;
 	/** ha_sl */
@@ -231,7 +228,12 @@ m0_ha_link_reconnect_params(const struct m0_ha_link_params *lp_alive,
 			    const struct m0_uint128        *id_connection);
 
 M0_INTERNAL struct m0_chan *m0_ha_link_chan(struct m0_ha_link *hl);
-M0_INTERNAL struct m0_chan *m0_ha_link_state(struct m0_ha_link *hl);
+
+M0_INTERNAL void m0_ha_link_state_register(struct m0_ha_link *hl,
+					   struct m0_clink   *clink);
+M0_INTERNAL void m0_ha_link_state_deregister(struct m0_ha_link *hl,
+					     struct m0_clink   *clink);
+M0_INTERNAL enum m0_ha_link_state m0_ha_link_state(struct m0_ha_link *hl);
 
 M0_INTERNAL void m0_ha_link_send(struct m0_ha_link      *hl,
                                  const struct m0_ha_msg *msg,
