@@ -77,6 +77,7 @@ struct m0_ha_entrypoint_rep_fop {
 
 	/* link parameters */
 	struct m0_ha_link_params hbp_link_params;
+	uint64_t                 hbp_link_do_reconnect;
 } M0_XCA_RECORD;
 
 struct m0_ha_entrypoint_req_fop {

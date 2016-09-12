@@ -193,6 +193,7 @@ struct m0_ha_link {
 	bool                        hln_waking_up;
 	struct m0_sm_ast            hln_waking_ast;
 	struct m0_ha_msg           *hln_msg_to_send;
+	/** It's protected by outgoing fom sm group lock */
 	bool                        hln_delivered_update;
 	struct m0_fop               hln_outgoing_fop;
 	struct m0_ha_link_msg_fop   hln_req_fop_data;
@@ -203,6 +204,8 @@ struct m0_ha_link {
 	bool                        hln_reconnect;
 	bool                        hln_reconnect_cfg_is_set;
 	int                         hln_rpc_rc;
+	/** It's protected by outgoing fom sm group lock */
+	int                         hln_reply_rc;
 	bool                        hln_no_new_delivered;
 };
 
@@ -218,6 +221,7 @@ M0_INTERNAL void m0_ha_link_reconnect_begin(struct m0_ha_link        *hl,
 M0_INTERNAL void
 m0_ha_link_reconnect_end(struct m0_ha_link                *hl,
                          const struct m0_ha_link_conn_cfg *hl_conn_cfg);
+M0_INTERNAL void m0_ha_link_reconnect_cancel(struct m0_ha_link *hl);
 M0_INTERNAL void
 m0_ha_link_reconnect_params(const struct m0_ha_link_params *lp_alive,
 			    struct m0_ha_link_params       *lp_alive_new,

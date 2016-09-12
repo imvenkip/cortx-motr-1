@@ -129,6 +129,7 @@ m0_ha_entrypoint_fop2rep(const struct m0_ha_entrypoint_rep_fop *rep_fop,
 		.hae_active_rm_fid  = rep_fop->hbp_active_rm_fid,
 		.hae_active_rm_ep   = m0_buf_strdup(&rep_fop->hbp_active_rm_ep),
 		.hae_link_params    = rep_fop->hbp_link_params,
+		.hae_link_do_reconnect = rep_fop->hbp_link_do_reconnect == 1,
 	};
 	M0_ASSERT(rep->hae_active_rm_ep != NULL);
 	M0_ASSERT(rep->hae_confd_fids.af_count ==
@@ -156,17 +157,18 @@ m0_ha_entrypoint_rep2fop(const struct m0_ha_entrypoint_rep *rep,
 	rm_ep = rep->hae_active_rm_ep == NULL ?
 		m0_strdup("") : m0_strdup(rep->hae_active_rm_ep);
 	*rep_fop = (struct m0_ha_entrypoint_rep_fop){
-		.hbp_rc            = rep->hae_rc,
-		.hbp_quorum        = rep->hae_quorum,
-		.hbp_confd_fids = {
+		.hbp_rc                = rep->hae_rc,
+		.hbp_quorum            = rep->hae_quorum,
+		.hbp_confd_fids        = {
 			.af_count = rep->hae_confd_fids.af_count,
 		},
-		.hbp_confd_eps = {
+		.hbp_confd_eps         = {
 			.ab_count = rep->hae_confd_fids.af_count,
 		},
-		.hbp_active_rm_fid = rep->hae_active_rm_fid,
-		.hbp_active_rm_ep  = M0_BUF_INITS(rm_ep),
-		.hbp_link_params   = rep->hae_link_params,
+		.hbp_active_rm_fid     = rep->hae_active_rm_fid,
+		.hbp_active_rm_ep      = M0_BUF_INITS(rm_ep),
+		.hbp_link_params       = rep->hae_link_params,
+		.hbp_link_do_reconnect = rep->hae_link_do_reconnect ? 1 : 0,
 	};
 	M0_ALLOC_ARR(rep_fop->hbp_confd_eps.ab_elems,
 		     rep_fop->hbp_confd_eps.ab_count);

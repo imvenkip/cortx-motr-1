@@ -194,6 +194,7 @@ static bool ha_entrypoint_state_cb(struct m0_clink *clink)
 	struct m0_ha_entrypoint_req        *req;
 	struct m0_ha_entrypoint_rep        *rep;
 	struct m0_ha_link_conn_cfg          hl_conn_cfg;
+	struct m0_ha_link                  *hl;
 	struct m0_ha                       *ha;
 	bool                                consumed = true;
 
@@ -209,13 +210,19 @@ static bool ha_entrypoint_state_cb(struct m0_clink *clink)
 	switch (state) {
 	case M0_HEC_AVAILABLE:
 		M0_LOG(M0_DEBUG, "ha=%p rep->hae_rc=%d", ha, rep->hae_rc);
+		ha_link_conn_cfg_make(&hl_conn_cfg, ha->h_cfg.hcf_addr);
+		hl_conn_cfg.hlcc_params = rep->hae_link_params;
+		hl = &ha->h_link_ctx->hlx_link;
 		if (req->heq_first_request) {
-			ha_link_conn_cfg_make(&hl_conn_cfg, ha->h_cfg.hcf_addr);
-			hl_conn_cfg.hlcc_params = rep->hae_link_params;
-			m0_ha_link_start(&ha->h_link_ctx->hlx_link,
-					 &hl_conn_cfg);
+			m0_ha_link_start(hl, &hl_conn_cfg);
 			ha->h_link_started = true;
 			req->heq_first_request = false;
+		} else {
+			if (rep->hae_link_do_reconnect) {
+				m0_ha_link_reconnect_end(hl, &hl_conn_cfg);
+			} else {
+				m0_ha_link_reconnect_cancel(hl);
+			}
 		}
 		if (rep->hae_rc != 0) {
 			m0_ha_entrypoint_client_request(ecl);
@@ -663,6 +670,7 @@ static void ha_link_handle(struct m0_ha                       *ha,
 			                            &id_remote, &id_local,
 			                            &id_connection);
 		}
+		rep->hae_link_do_reconnect = true;
 		rc = ha_link_incoming_create(ha, req, &hl_conn_cfg, &hlx);
 		M0_ASSERT(rc == 0);
 		ha->h_cfg.hcf_ops.hao_link_connected(ha, req_id,
@@ -673,6 +681,7 @@ static void ha_link_handle(struct m0_ha                       *ha,
 			              "Link should already be disconnected.");
 		} else {
 			M0_LOG(M0_DEBUG, "everyone is alive, link is reused");
+			rep->hae_link_do_reconnect = false;
 			ha->h_cfg.hcf_ops.hao_link_reused(ha, req_id,
 							  &hlx->hlx_link);
 		}

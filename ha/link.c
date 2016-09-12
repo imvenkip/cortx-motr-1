@@ -299,6 +299,12 @@ m0_ha_link_reconnect_end(struct m0_ha_link                *hl,
 	M0_LEAVE("hl=%p", hl);
 }
 
+M0_INTERNAL void m0_ha_link_reconnect_cancel(struct m0_ha_link *hl)
+{
+	M0_ENTRY("hl=%p", hl);
+	M0_LEAVE();
+}
+
 M0_INTERNAL void
 m0_ha_link_reconnect_params(const struct m0_ha_link_params *lp_alive,
 			    struct m0_ha_link_params       *lp_alive_new,
@@ -590,26 +596,27 @@ M0_INTERNAL void m0_ha_link_flush(struct m0_ha_link *hl)
 
 static void ha_link_tags_update(struct m0_ha_link *hl,
                                 uint64_t           out_next,
-                                uint64_t           in_undelivered)
+                                uint64_t           in_delivered)
 {
 	struct m0_ha_link_tags tags_out;
 	struct m0_ha_link_tags tags_in;
-	uint64_t               undelivered;
+	uint64_t               delivered;
 
-	M0_ENTRY("hl=%p out_next=%"PRIu64" in_undelivered=%"PRIu64,
-	         hl, out_next, in_undelivered);
+	M0_ENTRY("hl=%p out_next=%"PRIu64" in_delivered=%"PRIu64,
+	         hl, out_next, in_delivered);
 	M0_PRE(m0_mutex_is_locked(&hl->hln_lock));
 	m0_ha_lq_tags_get(&hl->hln_q_out, &tags_out);
 	m0_ha_lq_tags_get(&hl->hln_q_in,  &tags_in);
 	M0_LOG(M0_DEBUG, "hl=%p out="HLTAGS_F, hl, HLTAGS_P(&tags_out));
 	M0_LOG(M0_DEBUG, "hl=%p  in="HLTAGS_F, hl, HLTAGS_P(&tags_in));
 
-	M0_ASSERT(in_undelivered <= m0_ha_lq_tag_next(&hl->hln_q_out));
+	while (m0_ha_lq_tag_next(&hl->hln_q_out) < in_delivered)
+		(void)m0_ha_lq_next(&hl->hln_q_out);
 
-	undelivered = m0_ha_lq_tag_delivered(&hl->hln_q_out);
-	while (undelivered < in_undelivered) {
-		m0_ha_lq_mark_delivered(&hl->hln_q_out, undelivered);
-		undelivered += 2;
+	delivered = m0_ha_lq_tag_delivered(&hl->hln_q_out);
+	while (delivered < in_delivered) {
+		m0_ha_lq_mark_delivered(&hl->hln_q_out, delivered);
+		delivered += 2;
 	}
 
 	m0_ha_lq_tags_get(&hl->hln_q_out, &tags_out);
@@ -951,7 +958,7 @@ static int ha_link_outgoing_fop_replied(struct m0_ha_link *hl)
 	} else {
 		m0_ha_lq_try_unnext(&hl->hln_q_out);
 	}
-	return M0_RC(rc);
+	return rc == 0 ? M0_RC(rc) : M0_ERR(rc);
 }
 
 static int ha_link_outgoing_fom_tick(struct m0_fom *fom)
@@ -964,6 +971,7 @@ static int ha_link_outgoing_fom_tick(struct m0_fom *fom)
 	bool                             stopping;
 	bool                             rpc_event_occurred;
 	bool                             reconnect;
+	int                              reply_rc;
 	int                              rc;
 
 	hl = container_of(fom, struct m0_ha_link, hln_fom); /* XXX bob_of */
@@ -974,6 +982,8 @@ static int ha_link_outgoing_fom_tick(struct m0_fom *fom)
 	case HA_LINK_OUTGOING_STATE_INIT:
 		hl->hln_msg_to_send      = NULL;
 		hl->hln_delivered_update = false;
+		hl->hln_rpc_rc           = 0;
+		hl->hln_reply_rc         = 0;
 		m0_fom_phase_set(fom, HA_LINK_OUTGOING_STATE_RPC_LINK_INIT);
 		return M0_RC(M0_FSO_AGAIN);
 	case HA_LINK_OUTGOING_STATE_RPC_LINK_INIT:
@@ -1069,6 +1079,7 @@ static int ha_link_outgoing_fom_tick(struct m0_fom *fom)
 		hl->hln_replied  = false;
 		hl->hln_released = false;
 		if (m0_semaphore_trydown(&hl->hln_stop_cond)) {
+			M0_LOG(M0_DEBUG, "stop case");
 			m0_mutex_lock(&hl->hln_lock);
 			hl->hln_fom_is_stopping = true;
 			m0_mutex_unlock(&hl->hln_lock);
@@ -1077,10 +1088,19 @@ static int ha_link_outgoing_fom_tick(struct m0_fom *fom)
 					 HA_LINK_OUTGOING_STATE_DISCONNECT);
 			return M0_RC(M0_FSO_AGAIN);
 		}
+		reply_rc = hl->hln_reply_rc;
+		if (reply_rc != 0) {
+			M0_LOG(M0_DEBUG, "rpc reconnect case");
+			hl->hln_reply_rc = 0;
+			m0_fom_phase_set(fom,
+					 HA_LINK_OUTGOING_STATE_DISCONNECT);
+			return M0_RC(M0_FSO_AGAIN);
+		}
 		m0_mutex_lock(&hl->hln_lock);
 		reconnect = hl->hln_reconnect;
 		m0_mutex_unlock(&hl->hln_lock);
 		if (reconnect) {
+			M0_LOG(M0_DEBUG, "link reconnect case");
 			m0_mutex_lock(&hl->hln_lock);
 			hl->hln_reconnect = false;
 			M0_ASSERT(hl->hln_reconnect_cfg_is_set);
@@ -1120,11 +1140,11 @@ static int ha_link_outgoing_fom_tick(struct m0_fom *fom)
 		m0_mutex_unlock(&hl->hln_lock);
 		if (replied) {
 			m0_mutex_lock(&hl->hln_lock);
-			rc = ha_link_outgoing_fop_replied(hl);
-			if (rc == 0)
-				hl->hln_delivered_update = false;
+			hl->hln_reply_rc = ha_link_outgoing_fop_replied(hl);
 			hl->hln_msg_to_send = NULL;
 			m0_mutex_unlock(&hl->hln_lock);
+			if (hl->hln_reply_rc == 0)
+				hl->hln_delivered_update = false;
 			m0_chan_broadcast_lock(&hl->hln_chan);
 			m0_fop_put_lock(&hl->hln_outgoing_fop);
 			m0_fom_phase_set(fom,
