@@ -6172,7 +6172,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		 FID_F, req, ti, filter, FID_P(&ti->ti_fid));
 
 	rc = m0_rpc_session_validate(ti->ti_session);
-	if (rc != 0)
+	if (rc != 0 && rc != -ECANCELED)
 		return M0_ERR(rc);
 
 	if (M0_IN(ioreq_sm_state(req), (IRS_READING, IRS_WRITING))) {
