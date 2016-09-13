@@ -42,7 +42,9 @@ start()
     [ ! -d "$mountpoint" ] && mkdir -p "$mountpoint"
 
     set -x
-    mount -t m0t1fs -o "pfid=$proc_fid,profile=$profile,ha=$ha_ep,oostore${ep_opt}" m0t1 $mountpoint
+    mount -t m0t1fs \
+          -o "pfid=$proc_fid,profile=$profile,ha=$ha_ep,oostore,verify${ep_opt}" \
+          m0t1 $mountpoint
     set +x
 }
 
