@@ -1,0 +1,79 @@
+# Parameters for this build (see
+# https://circleci.com/docs/parameterized-builds/):
+
+machine:
+  services:
+    - docker
+  environment:
+    # To pickup rmt script.
+    PATH: scripts/circleci:$PATH
+
+checkout:
+  post:
+    # remove cached submodules - otherwise interference ensues when
+    # updating submodule urls
+    - rm -rf .git/modules/*
+    - git submodule sync
+    # No need to prune git history using --depth, because circleci caches git.
+    - git submodule update --init --recursive
+
+dependencies:
+  pre:
+    - curl https://releases.hashicorp.com/vagrant/1.7.4/vagrant_1.7.4_x86_64.deb > /tmp/vagrant.deb
+    - sudo dpkg -i /tmp/vagrant.deb
+    - vagrant plugin install inifile vagrant-aws vagrant-librarian-puppet
+
+    - git clone --recursive git@github.com:seagate-ssg/castor.git
+
+    # if vagrant up fails, destroy the aws instance to avoid stale
+    # instances
+    - cd castor/; vagrant up --provider=aws || ( vagrant destroy -f ; exit 1 )
+    - cd castor/; vagrant ssh-config --host aws > ../scripts/circleci/ssh.config
+
+    # Output ssh.config so people can ssh in manually
+    - cat scripts/circleci/ssh.config
+
+    # Safety hatch: self destruct instance after 4 hours if still alive (take a
+    # long time, adjust timeout if needed).
+    - rmt . "echo sudo halt | at now + 4 hours"
+
+  override:
+
+    # TODO: MUST FIX/IMPROVE. kernel-devel gets installed, and due to
+    # a bug [ https://bugzilla.redhat.com/show_bug.cgi?id=836402 ] in
+    # yum may prevent the required kernel-devel in `install-env` to
+    # install. (mock doesn't use the same repositories as the AWS
+    # instance, inconsistencies have occurred).
+    - rmt . "sudo yum remove -y kernel-devel"
+
+    # Installs environment for mero
+    - rmt . "install-env mero"
+
+    - cd castor/; vagrant reload
+
+    # ssh config changes when AWS machines are rebooted
+    - cd castor/; vagrant ssh-config --host aws > ../scripts/circleci/ssh.config
+
+    # Output ssh.config so people can ssh in manually
+    - cat scripts/circleci/ssh.config
+
+    # NOTE: .git is huge, and we already got the submodules, so we don't copy it
+    - rsync -e "ssh -o StrictHostKeyChecking=no -F scripts/circleci/ssh.config" -av --exclude='castor' --exclude='.git' ./ ec2-user@aws:/vagrant/mero
+
+  cache_directories:
+    - ~/.vagrant.d/
+
+test:
+  override:
+    - rmt mero "./scripts/m0 rebuild"
+    - rmt mero "./scripts/m0 run-ut"
+  post:
+    - cd castor/; vagrant destroy -f
+
+deployment:
+  # this deployment script will trigger the castor integration tests
+  # on the latest refs of the components.
+  autobuild:
+    branch: master
+    commands:
+      - bash scripts/circleci/autobuild.sh
