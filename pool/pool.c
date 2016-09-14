@@ -853,7 +853,7 @@ static int service_ctxs_create(struct m0_pools_common *pc,
 		 * use RM services returned by HA entrypoint.
 		 */
 		if ((!rm_is_set && is_local_rms(svc)) ||
-		    !M0_IN(svc->cs_type, (M0_CST_MGS, M0_CST_RMS))) {
+		    !M0_IN(svc->cs_type, (M0_CST_MGS, M0_CST_RMS, M0_CST_HA))) {
 			rc = __service_ctx_create(pc, svc, service_connect);
 			if (rc != 0)
 				break;
@@ -974,11 +974,9 @@ M0_INTERNAL int m0_pools_service_ctx_create(struct m0_pools_common *pc,
 	if (rc != 0)
 		goto err;
 	pc->pc_rm_ctx = service_ctx_find_by_type(pc, M0_CST_RMS);
-	pc->pc_ha_ctx = service_ctx_find_by_type(pc, M0_CST_HA);
-	if (pc->pc_ha_ctx == NULL || pc->pc_rm_ctx == NULL) {
-		rc = M0_ERR_INFO(-ENOENT, "The mandatory %s service is missing."
-				 "Make sure this is specified in the conf db.",
-				 pc->pc_rm_ctx == NULL ? "RM" : "HA");
+	if (pc->pc_rm_ctx == NULL) {
+		rc = M0_ERR_INFO(-ENOENT, "The mandatory rmservice is missing."
+				 "Make sure this is specified in the conf db.");
 		goto err;
 	}
 	ecl = pc->pc_ha_ecl;

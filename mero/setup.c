@@ -2365,7 +2365,7 @@ void m0_cs_fini(struct m0_mero *cctx)
 	if (rctx->rc_state == RC_INITIALISED)
 		m0_reqh_layouts_cleanup(reqh);
 
-	if (cctx->cc_pools_common.pc_ha_ctx != NULL)
+	if (m0_clink_is_armed(&reqh->rh_failure_set.fls_conf_expired))
 		m0_flset_destroy(&reqh->rh_failure_set);
 
 	m0_ha_client_del(m0_mero2confc(cctx));

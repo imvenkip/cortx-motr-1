@@ -165,9 +165,6 @@ struct m0_pools_common {
 	/** RM service context */
 	struct m0_reqh_service_ctx       *pc_rm_ctx;
 
-	/** HA service context. */
-	struct m0_reqh_service_ctx       *pc_ha_ctx;
-
 	/**
 	 * Each ith element in the array gives the total number of services
 	 * of its corresponding type, e.g. element at M0_CST_MDS gives number
