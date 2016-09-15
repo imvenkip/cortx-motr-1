@@ -77,8 +77,20 @@ M0_INTERNAL void m0_ha_msg_debug_print(const struct m0_ha_msg *msg,
 		M0_LOG(M0_WARN, "message has INVALID type");
 		return;
 	case M0_HA_MSG_STOB_IOQ:
-		M0_LOG(M0_ERROR, "M0_HA_MSG_STOB_IOQ message "
-		       "is not implemented yet");
+		M0_LOG(M0_DEBUG, "STOB_IOQ msg=%p conf_sdev="FID_F
+		       " stob_id="STOB_ID_F" fd=%"PRId64,
+		       msg,
+		       FID_P(&data->u.hed_stob_ioq.sie_conf_sdev),
+		       STOB_ID_P(&data->u.hed_stob_ioq.sie_stob_id),
+		       data->u.hed_stob_ioq.sie_fd);
+		M0_LOG(M0_DEBUG, "STOB_IOQ msg=%p opcode=%"PRId64" rc=%"PRId64
+		       " bshift=%"PRIu32" size=%"PRIu64" offset=%"PRIu64,
+		       msg,
+		       data->u.hed_stob_ioq.sie_opcode,
+		       data->u.hed_stob_ioq.sie_rc,
+		       data->u.hed_stob_ioq.sie_bshift,
+		       data->u.hed_stob_ioq.sie_size,
+		       data->u.hed_stob_ioq.sie_offset);
 		return;
 	case M0_HA_MSG_NVEC:
 		nvec = &data->u.hed_nvec;
