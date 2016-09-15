@@ -198,7 +198,7 @@ static bool ha_ut_ha_wait_available(struct m0_clink *clink)
 	return huw->huw_entrypoint_client->ecl_sm.sm_state != M0_HEC_AVAILABLE;
 }
 
-static struct m0_ha_ops ha_ut_usecase_ha_ops = {
+static const struct m0_ha_ops ha_ut_usecase_ha_ops = {
 	.hao_entrypoint_request    = ha_ut_usecase_entrypoint_request,
 	.hao_entrypoint_replied    = ha_ut_usecase_entrypoint_replied,
 	.hao_msg_received          = ha_ut_usecase_msg_received,

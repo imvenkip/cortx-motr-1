@@ -686,6 +686,14 @@ console_m0console_CPPFLAGS  = -DM0_TARGET='m0console' $(AM_CPPFLAGS)
 console_m0console_LDADD     = $(top_builddir)/mero/libmero.la
 
 #
+# ha/m0ham -------------------------------------------- {{{2
+#
+
+sbin_PROGRAMS     += ha/m0ham
+ha_m0ham_CPPFLAGS  = -DM0_TARGET='m0ham' $(AM_CPPFLAGS)
+ha_m0ham_LDADD     = $(top_builddir)/mero/libmero.la
+
+#
 # pool/m0poolmach ------------------------------------- {{{2
 #
 

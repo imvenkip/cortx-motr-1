@@ -45,3 +45,5 @@ XC_FILES   += ha/entrypoint_xc.h \
               ha/msg_xc.h \
               ha/note_xc.h \
               ha/note_fops_xc.h
+
+ha_m0ham_SOURCES = ha/ham.c

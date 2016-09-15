@@ -230,7 +230,7 @@ struct m0_reqh_init_args {
 	struct m0_be_seg        *rhia_db;
 	struct m0_mdstore       *rhia_mdstore;
 	struct m0_pools_common  *rhia_pc;
-	struct m0_fid           *rhia_fid;
+	const struct m0_fid     *rhia_fid; /* fid of m0_conf_process */
 };
 
 /**
