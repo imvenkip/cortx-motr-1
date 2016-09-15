@@ -11,7 +11,7 @@ M0_SRC_DIR=${M0_SRC_DIR%/*/*/*}
 
 . $M0_SRC_DIR/utils/functions # die, opcode, sandbox_init, report_and_exit
 
-CLIENT=$M0_SRC_DIR/console/bin/m0console
+CLIENT=$M0_SRC_DIR/console/m0console
 SERVER=$M0_SRC_DIR/console/st/server
 SERVER_EXEC=$M0_SRC_DIR/console/st/.libs/lt-server
 

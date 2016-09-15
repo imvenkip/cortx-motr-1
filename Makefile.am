@@ -681,11 +681,9 @@ mero_m0d_altogether_LDADD    = $(top_builddir)/mero/libmero-altogether.la
 # console/m0console ----------------------------------- {{{2
 #
 
-sbin_PROGRAMS                  += console/bin/m0console
-console_bin_m0console_CPPFLAGS  = -DM0_TARGET='m0console' $(AM_CPPFLAGS)
-console_bin_m0console_LDADD     = $(top_builddir)/mero/libmero.la
-
-include $(top_srcdir)/console/bin/Makefile.sub
+sbin_PROGRAMS              += console/m0console
+console_m0console_CPPFLAGS  = -DM0_TARGET='m0console' $(AM_CPPFLAGS)
+console_m0console_LDADD     = $(top_builddir)/mero/libmero.la
 
 #
 # pool/m0poolmach ------------------------------------- {{{2

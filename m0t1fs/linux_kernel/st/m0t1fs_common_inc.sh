@@ -459,7 +459,7 @@ dispatch_ha_events()
         for ep in "${eplist[@]}"
         do
                 # dispatch ha_fop
-                cmd="$M0_SRC_DIR/console/bin/m0console \
+                cmd="$M0_SRC_DIR/console/m0console \
                      -f $(opcode M0_HA_NOTE_SET_OPCODE) \
                      -s $ep -c $self_endpoint \
                      -d \"$ha_fop\""

@@ -136,7 +136,7 @@ rcancel_change_controller_state()
 	local ha_fop="[1: ($dev_fid, $dev_state)]"
 
 	# Generate HA event
-	$M0_SRC_DIR/console/bin/m0console \
+	$M0_SRC_DIR/console/m0console \
                 -f $(opcode M0_HA_NOTE_SET_OPCODE) \
                 -s $s_endpoint -c $c_endpoint \
                 -d "$ha_fop" || true

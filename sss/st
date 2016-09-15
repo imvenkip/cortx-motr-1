@@ -44,7 +44,7 @@ sss_send() {
 	esac
 	local ID="$3"
 
-	env ${TRACE_console:-} $M0_SRC_DIR/console/bin/m0console \
+	env ${TRACE_console:-} $M0_SRC_DIR/console/m0console \
 		-f $(opcode M0_SSS_SVC_REQ_OPCODE) \
 		-s $(endpoint $SERVER_TMID) -c $(endpoint $CLIENT_TMID) \
 		-d "($CMD, \"$SVC\", $ID, \"${SS_PARAM:-}\")" -v
@@ -69,7 +69,7 @@ sss_process_send() {
 	# if bug MERO-1239 will be reproduce then need research
 	# $SANDBOX_DIR/console.log for additional information
 	#
-	env ${TRACE_console:-} timeout 90 $M0_SRC_DIR/console/bin/m0console \
+	env ${TRACE_console:-} timeout 90 $M0_SRC_DIR/console/m0console \
 		-f $(opcode M0_SSS_PROCESS_REQ_OPCODE) \
 		-s $(endpoint $SERVER_TMID) -c $(endpoint $CLIENT_TMID) \
 		-d "($CMD, $ID)" -v || true

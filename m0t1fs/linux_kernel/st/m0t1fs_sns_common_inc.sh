@@ -49,10 +49,10 @@ disk_state_set()
 	done
 
 	for sep in "${service_eps[@]}"; do
-		ha_note="$M0_SRC_DIR/console/bin/m0console     \
-			-s $sep                                \
-			-c $c_endpoint                         \
-			-f $(opcode M0_HA_NOTE_SET_OPCODE)     \
+		ha_note="$M0_SRC_DIR/console/m0console     \
+			-s $sep                            \
+			-c $c_endpoint                     \
+			-f $(opcode M0_HA_NOTE_SET_OPCODE) \
 			-d '[$nr: $DS]'"
 		echo $ha_note
 		eval $ha_note
@@ -97,11 +97,11 @@ disk_state_get()
 	done
 
 	for sep in "${service_eps[@]}"; do
-		ha_note="$M0_SRC_DIR/console/bin/m0console     \
-			-s $sep                                \
-			-c $c_endpoint                         \
-			-f $(opcode M0_HA_NOTE_GET_OPCODE)     \
-			-v                                     \
+		ha_note="$M0_SRC_DIR/console/m0console     \
+			-s $sep                            \
+			-c $c_endpoint                     \
+			-f $(opcode M0_HA_NOTE_GET_OPCODE) \
+			-v                                 \
 			-d '[$nr: $DS]'"
 		echo $ha_note
 		eval $ha_note
