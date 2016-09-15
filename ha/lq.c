@@ -164,11 +164,10 @@ M0_INTERNAL uint64_t m0_ha_lq_enqueue(struct m0_ha_lq        *lq,
 	M0_ASSERT(qitem != NULL);       /* XXX */
 	qitem->hmq_msg = *msg;
 	tag = m0_ha_msg_tag(msg);
-	if (tag == M0_HA_MSG_TAG_UNKNOWN) {
+	if (tag == M0_HA_MSG_TAG_UNKNOWN)
 		qitem->hmq_msg.hm_tag = lq->hlq_tags.hlt_assign;
-	} else {
+	else
 		M0_ASSERT(tag == lq->hlq_tags.hlt_assign);
-	}
 	lq->hlq_tags.hlt_assign += 2;
 	m0_ha_msg_queue_enqueue(&lq->hlq_mq, qitem);
 	M0_POST(m0_ha_lq_invariant(lq));

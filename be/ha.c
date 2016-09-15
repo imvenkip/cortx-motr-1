@@ -60,7 +60,6 @@ m0_be_io_err_send(uint32_t errcode, uint8_t location, uint8_t io_opcode)
 			}
 		};
 		m0_ha_send(m0_get()->i_ha, m0_get()->i_ha_link, msg, &tag);
-		M0_LOG(M0_DEBUG, "tag=%"PRIu64, tag);
 		m0_free(msg);
 	}
 	/*

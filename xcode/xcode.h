@@ -894,9 +894,9 @@ M0_INTERNAL void m0_xcode_bob_type_init(struct m0_bob_type *bt,
 
 M0_INTERNAL void *m0_xcode_ctx_top(const struct m0_xcode_ctx *ctx);
 
-#define M0_XCODE_OBJ(type, ptr) (struct m0_xcode_obj) {	\
-	.xo_type = type,			        \
-	.xo_ptr  = ptr,	                                \
+#define M0_XCODE_OBJ(type, ptr) (struct m0_xcode_obj){ \
+	.xo_type = type,                               \
+	.xo_ptr  = ptr,                                \
 }
 
 void m0_xc_u8_init(void);

@@ -228,7 +228,7 @@ struct m0_ha_msg_nvec {
 		       FID_P(&nvec->nv_note[i].no_id),		  \
 		       nvec->nv_note[i].no_state);		  \
 	}                                                         \
-	})
+})
 
 /**
  * Queries HA about the current the failure state for a set of objects.

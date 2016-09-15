@@ -59,7 +59,6 @@ M0_INTERNAL int m0_confstr_parse(const char *str, struct m0_confx **out)
 M0_INTERNAL int m0_confx_to_string(struct m0_confx *confx, char **out)
 {
 	m0_bcount_t size;
-	int         rc;
 
 	M0_ENTRY();
 
@@ -73,8 +72,9 @@ M0_INTERNAL int m0_confx_to_string(struct m0_confx *confx, char **out)
 		return M0_ERR_INFO(-ENOMEM, "failed to allocate internal buffer"
 				   " for encoded Spiel conf data");
 	/* Convert */
-	rc = m0_xcode_print(&M0_XCODE_OBJ(m0_confx_xc, confx), *out, size);
-	return rc <= size ? M0_RC(0) : M0_ERR(-ENOMEM);
+	return m0_xcode_print(
+		&M0_XCODE_OBJ(m0_confx_xc, confx), *out, size) <= size ?
+		M0_RC(0) : M0_ERR(-ENOMEM);
 }
 
 M0_INTERNAL void m0_confx_string_free(char *str)
