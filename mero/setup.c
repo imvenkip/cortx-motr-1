@@ -2315,10 +2315,6 @@ int m0_cs_start(struct m0_mero *cctx)
 		goto out;
 	}
 
-	rc = gotsignal ? -EINTR : m0_flset_build(&reqh->rh_failure_set, fs);
-	if (rc != 0)
-		goto error;
-
 	rc = gotsignal ?
 		-EINTR : m0_pools_service_ctx_create(&cctx->cc_pools_common, fs);
 	if (rc != 0)
@@ -2330,6 +2326,10 @@ int m0_cs_start(struct m0_mero *cctx)
 		goto error;
 
 	rc = gotsignal ? -EINTR : cs_reqh_mdpool_layouts_setup(cctx);
+	if (rc != 0)
+		goto error;
+
+	rc = gotsignal ? -EINTR : m0_flset_build(&reqh->rh_failure_set, fs);
 
 error:
 	if (gotsignal)

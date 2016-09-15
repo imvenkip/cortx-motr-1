@@ -196,7 +196,8 @@ struct m0_pools_common {
 	struct m0_ha_entrypoint_client   *pc_ha_ecl;
 	struct m0_clink                   pc_ha_clink;
 	struct m0_mutex                   pc_rm_lock;
-
+	/** Pool version to be used for new files on create. */
+	struct m0_pool_version           *pc_cur_pver;
 	struct m0_mutex                   pc_mutex;
 
 	/**

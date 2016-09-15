@@ -491,7 +491,7 @@ M0_INTERNAL int m0_pool_version_init(struct m0_pool_version *pv,
 {
 	int rc;
 
-	M0_ENTRY("pver id:"FID_F"N:%d K:%d P:%di", FID_P(id), nr_data,
+	M0_ENTRY("pver id:"FID_F"N:%d K:%d P:%d", FID_P(id), nr_data,
 			nr_failures, pool_width);
 	pv->pv_id = *id;
 	pv->pv_attr.pa_N = nr_data;
@@ -575,22 +575,22 @@ m0_pool_version_get(struct m0_pools_common *pc, struct m0_pool_version **pv)
 	int                  rc;
 
 	rc = m0_conf_pver_get(&reqh->rh_profile, pc->pc_confc, &pver);
-	if (rc != 0)
+	if (rc != 0) {
+		pc->pc_cur_pver = NULL;
 		return M0_ERR(rc);
+	}
 
 	m0_mutex_lock(&pc->pc_mutex);
 	*pv = m0_pool_version_lookup(pc, &pver->pv_obj.co_id);
 	if (*pv == NULL) {
 		rc = m0_pool_version_append(pc, pver, NULL, NULL, NULL, pv);
-		if (rc != 0) {
-			m0_confc_close(&pver->pv_obj);
-			m0_mutex_unlock(&pc->pc_mutex);
-			return M0_ERR(-ENOENT);
-		}
+		if (rc != 0)
+			rc = -ENOENT;
 	}
+	pc->pc_cur_pver = rc == 0 ? *pv : NULL;
 	m0_confc_close(&pver->pv_obj);
 	m0_mutex_unlock(&pc->pc_mutex);
-	return M0_RC(0);
+	return M0_RC(rc);
 }
 
 static int _nodes_count(struct m0_conf_pver *pver, uint32_t *nodes)
@@ -654,8 +654,6 @@ M0_INTERNAL int m0_pool_version_init_by_conf(struct m0_pool_version *pv,
 	if (rc == 0) {
 		pv->pv_pc = pc;
 		pv->pv_mach.pm_pver = pv;
-		if (rc != 0)
-			return M0_RC(rc);
 		memcpy(pv->pv_fd_tol_vec, pver->pv_u.subtree.pvs_tolerance,
 		       sizeof(pver->pv_u.subtree.pvs_tolerance));
 		rc = m0_fd_tile_build(pver, pv, &failure_level) ?:
@@ -1037,10 +1035,11 @@ M0_INTERNAL int m0_pools_common_init(struct m0_pools_common *pc,
 	M0_ENTRY();
 	M0_PRE(pc != NULL && fs != NULL);
 
-	*pc = (struct m0_pools_common){
+	*pc = (struct m0_pools_common) {
 		.pc_rmach         = rmach,
 		.pc_md_redundancy = fs->cf_redundancy,
-		.pc_confc         = m0_confc_from_obj(&fs->cf_obj)
+		.pc_confc         = m0_confc_from_obj(&fs->cf_obj),
+		.pc_cur_pver      = NULL
 	};
 	reqh = m0_confc2reqh(pc->pc_confc);
 	m0_mutex_init(&pc->pc_mutex);

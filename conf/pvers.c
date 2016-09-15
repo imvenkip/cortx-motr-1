@@ -104,6 +104,7 @@ static int conf_pver_find_locked(const struct m0_conf_pool *pool,
 	const struct m0_conf_obj *obj;
 	struct m0_conf_pver      *pver;
 
+	M0_ENTRY("pool="FID_F, FID_P(&pool->pl_obj.co_id));
 	m0_tl_for (m0_conf_dir, &pool->pl_pvers->cd_items, obj) {
 		pver = M0_CONF_CAST(obj, m0_conf_pver);
 		if (!m0_conf_pver_is_clean(pver))
@@ -127,7 +128,7 @@ static int conf_pver_find_by_fid_locked(const struct m0_fid *fid,
 	uint64_t                   container;
 	uint64_t                   key;
 	const struct m0_conf_pver *fpver;
-	struct m0_conf_pver       *base;
+	struct m0_conf_pver       *base = NULL;
 	uint32_t                   nr_total;
 	struct arr_int             failed;
 	int                        rc;
@@ -222,7 +223,7 @@ static int conf_pver_formulaic_base(const struct m0_conf_pver *fpver,
 
 M0_INTERNAL bool m0_conf_pver_is_clean(const struct m0_conf_pver *pver)
 {
-	struct m0_conf_pver *base;
+	struct m0_conf_pver *base = NULL;
 	const uint32_t      *recd;
 	const uint32_t      *allowance;
 
@@ -349,7 +350,7 @@ M0_INTERNAL unsigned m0_conf_pver_level(const struct m0_conf_obj *obj)
 static int
 conf_pver_formulate(const struct m0_conf_pver *fpver, struct m0_conf_pver **out)
 {
-	struct m0_conf_pver      *base;
+	struct m0_conf_pver      *base = NULL;
 	uint64_t                  failures_cid;
 	struct m0_fid             virt_fid;
 	const struct m0_conf_obj *virt;
@@ -604,7 +605,7 @@ out:
  * Adjusts the tolerance vector of a virtual pool version to make it consistent
  * with the underlying subtree.
  */
-static void conf_pver_tolerance_adjust(struct m0_conf_pver *pver)
+static int conf_pver_tolerance_adjust(struct m0_conf_pver *pver)
 {
 	int       rc;
 	uint32_t  level = 0;
@@ -615,6 +616,7 @@ static void conf_pver_tolerance_adjust(struct m0_conf_pver *pver)
 		rc = m0_fd_tolerance_check(pver, &level);
 	} while (rc != 0 &&
 		 M0_CNT_DEC(pver->pv_u.subtree.pvs_tolerance[level]));
+	return rc;
 }
 
 /**
@@ -662,10 +664,6 @@ static int conf_pver_virtual_create(const struct m0_fid *fid,
 	pvobj = m0_conf_obj_create(fid, cache);
 	if (pvobj == NULL)
 		return M0_ERR(-ENOMEM);
-	rc = m0_conf_cache_add(cache, pvobj);
-	/* m0_conf_cache_add() cannot fail: conf_pver_virtual_create()
-	 * would not be called if the object existed in the cache. */
-	M0_ASSERT(rc == 0);
 
 	pver = M0_CONF_CAST(pvobj, m0_conf_pver);
 	pver->pv_kind = M0_CONF_PVER_VIRTUAL;
@@ -676,7 +674,15 @@ static int conf_pver_virtual_create(const struct m0_fid *fid,
 	pvsub->pvs_attr.pa_P -= allowance[M0_CONF_PVER_LVL_DISKS];
 	memcpy(pvsub->pvs_tolerance, base->pv_u.subtree.pvs_tolerance,
 	       sizeof pvsub->pvs_tolerance);
-
+	/* Validate the pver attributes */
+	if (!m0_pdclust_attr_check(&pvsub->pvs_attr)) {
+		m0_conf_obj_delete(pvobj);
+		return M0_ERR(-EINVAL);
+	}
+	rc = m0_conf_cache_add(cache, pvobj);
+	/* m0_conf_cache_add() cannot fail: conf_pver_virtual_create()
+	 * would not be called if the object existed in the cache. */
+	M0_ASSERT(rc == 0);
 	rc = m0_conf_dir_new(cache, pvobj, &M0_CONF_PVER_RACKVS_FID,
 			     &M0_CONF_OBJV_TYPE, NULL, &pvsub->pvs_rackvs);
 	if (rc != 0) {
@@ -696,7 +702,11 @@ static int conf_pver_virtual_create(const struct m0_fid *fid,
 		rc = M0_ERR(rc);
 		goto err;
 	}
-	conf_pver_tolerance_adjust(pver);
+	rc = conf_pver_tolerance_adjust(pver);
+	if (rc != 0) {
+		rc = M0_ERR(rc);
+		goto err;
+	}
 	/* Post-walking state verification. */
 	M0_ASSERT(M0_IS0(&st.bws_allowance));
 	M0_ASSERT(failed == NULL ||

@@ -524,7 +524,7 @@ static void test_poolversion_get(void)
 	test_pver(confc, &pver0->pv_obj.co_id);
 	/* Make disk from pool verison 0  FAILED */
 	n1[0].no_id   = M0_FID_TINIT('k', 1, 77);
-	n1[0].no_state = M0_NC_FAILED;
+	n1[0].no_state = M0_NC_TRANSIENT;
 	m0_ha_state_accept(&nvec1);
 	M0_UT_ASSERT(pver0->pv_u.subtree.pvs_recd[4] == 1);
 
@@ -544,7 +544,7 @@ static void test_poolversion_get(void)
 	ha_ut_pver_kind_check(&fpver->pv_obj.co_id, M0_CONF_PVER_FORMULAIC);
 	/* Make another disk from pool verison 0  FAILED */
 	n1[0].no_id   = M0_FID_TINIT('k', 1, 78);
-	n1[0].no_state = M0_NC_FAILED;
+	n1[0].no_state = M0_NC_TRANSIENT;
 	m0_ha_state_accept(&nvec1);
 
 	vpverfid = m0_conf_pver_fid(M0_CONF_PVER_VIRTUAL, 1, 27);
@@ -563,7 +563,7 @@ static void test_poolversion_get(void)
 
 	/* Make another disk from pool version 0  FAILED */
 	n1[0].no_id   = M0_FID_TINIT('k', 1, 76);
-	n1[0].no_state = M0_NC_FAILED;
+	n1[0].no_state = M0_NC_TRANSIENT;
 	m0_ha_state_accept(&nvec1);
 	rc = m0_conf_pver_get(&reqh.rh_profile, confc, &pver3);
 	M0_UT_ASSERT(rc == 0);
@@ -641,7 +641,7 @@ static int ha_state_ut_init(void)
 	done_get_chan_init();
 	start_rpc_client_and_server();
 	session = &cctx.rcx_session;
-
+        m0_fi_enable("pool_version_update", "no-pver-create");
 	return 0;
 }
 
@@ -650,6 +650,7 @@ static int ha_state_ut_fini(void)
 	stop_rpc_client_and_server();
 	done_get_chan_fini();
 	ast_thread_fini();
+        m0_fi_disable("pool_version_update", "no-pver-create");
 	return 0;
 }
 

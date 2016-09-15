@@ -837,13 +837,9 @@ int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	if (rc != 0)
 		goto err_conf_fs_close;
 
-	rc = m0_flset_build(&reqh->rh_failure_set, fs);
-	if (rc != 0)
-		goto err_conf_fs_close;
-
 	rc = m0_pools_common_init(pc, &csb->csb_rpc_machine, fs);
 	if (rc != 0)
-		goto err_failure_set_destroy;
+		goto err_conf_fs_close;
 	M0_ASSERT(ergo(csb->csb_oostore, pc->pc_md_redundancy > 0));
 
 	rc = m0_pools_setup(pc, fs, NULL, NULL, NULL);
@@ -860,7 +856,7 @@ int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 
 	/* Find pool and pool version to use. */
 	rc = m0_pool_version_get(&csb->csb_pools_common, &pv);
-	if (rc != 0)
+	if (!M0_IN(rc, (0, -ENOENT)))
 		goto err_pool_versions_destroy;
 	csb->csb_pool_version = pv;
 
@@ -873,12 +869,16 @@ int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	if (rc != 0)
 		goto err_pool_versions_destroy;
 
+	rc = m0_flset_build(&reqh->rh_failure_set, fs);
+	if (rc != 0)
+		goto err_pool_versions_destroy;
 	rc = m0_addb2_sys_net_start_with(sys, &pc->pc_svc_ctxs);
 	if (rc == 0) {
 		m0_confc_close(&fs->cf_obj);
 		return M0_RC(0);
 	}
 
+	m0_flset_destroy(&reqh->rh_failure_set);
 err_pool_versions_destroy:
 	m0t1fs_sb_layouts_fini(csb);
 	m0_pool_versions_destroy(&csb->csb_pools_common);
@@ -888,8 +888,6 @@ err_pools_destroy:
 	m0_pools_destroy(&csb->csb_pools_common);
 err_pools_common_fini:
 	m0_pools_common_fini(&csb->csb_pools_common);
-err_failure_set_destroy:
-	m0_flset_destroy(&reqh->rh_failure_set);
 	m0_ha_state_fini();
 err_conf_fs_close:
 	m0_confc_close(&fs->cf_obj);
@@ -970,10 +968,7 @@ static void m0t1fs_obf_dealloc(struct m0t1fs_sb *csb) {
 
 M0_INTERNAL int m0t1fs_fill_cob_attr(struct m0_fop_cob *body)
 {
-	struct m0t1fs_sb    *csb = container_of(body, struct m0t1fs_sb,
-					     csb_virt_body);
-	int                    rc = 0;
-	struct m0_pool_version *pv = NULL;
+	struct m0t1fs_sb *csb = M0_AMB(csb, body, csb_virt_body);
 
 	M0_PRE(body != NULL);
 
@@ -992,13 +987,8 @@ M0_INTERNAL int m0t1fs_fill_cob_attr(struct m0_fop_cob *body)
                         S_IRGRP | S_IXGRP |                    /*r-x for group*/
                         S_IROTH | S_IXOTH);
 
-	if (csb->csb_pool_version->pv_is_dirty) {
-		rc = m0_pool_version_get(&csb->csb_pools_common, &pv);
-		if (rc != 0)
-			return M0_ERR(rc);
-		csb->csb_pool_version = pv;
-	}
-	body->b_pver = csb->csb_pool_version->pv_id;
+	if (csb->csb_pool_version != NULL)
+		body->b_pver = csb->csb_pool_version->pv_id;
 	return M0_RC(0);
 }
 

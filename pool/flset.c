@@ -39,6 +39,7 @@
 #include "pool/flset.h"
 #include "reqh/reqh.h"    /* m0_reqh, m0_reqh_invariant */
 #include "conf/walk.h"    /* m0_conf_walk */
+#include "pool/pool.h"    /* m0_pool_version_get */
 
 static bool flset_conf_expired_cb(struct m0_clink *clink);
 static bool flset_conf_ready_cb(struct m0_clink *clink);
@@ -51,6 +52,29 @@ static bool obj_is_flset_target(const struct m0_conf_obj *obj)
 					     &M0_CONF_DISK_TYPE));
 }
 
+/**
+ * Updates pool version in pools common corresponding to the current
+ * RECD vector.
+ */
+static void pool_version_update(const struct m0_conf_obj *obj)
+{
+	struct m0_confc        *confc = m0_confc_from_obj(obj);
+	struct m0_reqh         *reqh = m0_confc2reqh(confc);
+	struct m0_pool_version *pv;
+
+	if (M0_FI_ENABLED("no-pver-create"))
+		return;
+	M0_ENTRY("obj="FID_F"state=%d", FID_P(&obj->co_id), obj->co_ha_state);
+	/*
+	 * Conf cache unlock is done here, since m0_conf_fs_get() takes
+	 * conf lock.
+	 */
+	m0_conf_cache_unlock(obj->co_cache);
+	m0_pool_version_get(reqh->rh_pools, &pv);
+	m0_conf_cache_lock(obj->co_cache);
+	M0_LEAVE();
+}
+
 /** Updates recd vectors of the pvers which given object belongs to. */
 static void recd_update(const struct m0_conf_obj *obj,
 			enum m0_ha_obj_state old_state)
@@ -58,14 +82,16 @@ static void recd_update(const struct m0_conf_obj *obj,
 	struct m0_conf_pver **pvers = m0_conf_pvers(obj);
 	unsigned              level = m0_conf_pver_level(obj);
 
-	if (obj->co_ha_state != M0_NC_ONLINE) {
-		/* object went offline */
-		for (; *pvers != NULL; ++pvers)
-			M0_CNT_INC((*pvers)->pv_u.subtree.pvs_recd[level]);
-	} else if (old_state != M0_NC_UNKNOWN) {
-		/* object is back online */
+	if (obj->co_ha_state == M0_NC_ONLINE &&
+	    M0_IN(old_state, (M0_NC_TRANSIENT, M0_NC_REBALANCE))) {
 		for (; *pvers != NULL; ++pvers)
 			M0_CNT_DEC((*pvers)->pv_u.subtree.pvs_recd[level]);
+		pool_version_update(obj);
+	} else if (obj->co_ha_state != M0_NC_ONLINE &&
+		   M0_IN(old_state, (M0_NC_ONLINE, M0_NC_UNKNOWN))) {
+		for (; *pvers != NULL; ++pvers)
+			M0_CNT_INC((*pvers)->pv_u.subtree.pvs_recd[level]);
+		pool_version_update(obj);
 	}
 }
 

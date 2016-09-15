@@ -634,16 +634,11 @@ static int m0t1fs_create(struct inode     *dir,
 	       FID_P(m0t1fs_inode_fid(M0T1FS_I(dir))));
 
 	m0t1fs_fs_lock(csb);
-	/* Assign clean pool version */
-	if (csb->csb_pool_version->pv_is_dirty) {
-		struct m0_pool_version *pv = NULL;
-		rc = m0_pool_version_get(&csb->csb_pools_common, &pv);
-		if (rc != 0) {
-			m0t1fs_fs_unlock(csb);
-			return M0_ERR(-ENOENT);
-		}
-		csb->csb_pool_version = pv;
+	if (csb->csb_pools_common.pc_cur_pver == NULL) {
+		m0t1fs_fs_unlock(csb);
+		return M0_ERR_INFO(-ENOENT, "No pool version is available");
 	}
+	csb->csb_pool_version = csb->csb_pools_common.pc_cur_pver;
 
 	inode = new_inode(sb);
 	if (inode == NULL) {
@@ -817,7 +812,6 @@ static struct dentry *m0t1fs_lookup(struct inode     *dir,
 		struct m0_fid          new_fid;
 		struct m0_fid          gfid;
 		struct m0_fop_cob      body;
-		struct m0_pool_version *pv = NULL;
 
 		rc = m0_fid_sscanf(dentry->d_name.name, &new_fid);
 		if (rc != 0) {
@@ -835,15 +829,11 @@ static struct dentry *m0t1fs_lookup(struct inode     *dir,
 		body.b_valid = (M0_COB_MODE | M0_COB_LID);
 		body.b_lid = M0_DEFAULT_LAYOUT_ID;
 		body.b_mode = S_IFREG;
-		if (csb->csb_pool_version->pv_is_dirty)
-			rc = m0_pool_version_get(&csb->csb_pools_common, &pv);
-
-		if (rc != 0) {
+		if (csb->csb_pools_common.pc_cur_pver == NULL) {
 			m0t1fs_fs_unlock(csb);
-			return ERR_PTR(rc);
+			return ERR_PTR(M0_ERR(-ENOENT));
 		}
-		if (pv != NULL)
-			csb->csb_pool_version = pv;
+		csb->csb_pool_version = csb->csb_pools_common.pc_cur_pver;
 		body.b_pver = csb->csb_pool_version->pv_id;
 		inode = m0t1fs_iget(dir->i_sb, &gfid, &body);
 		if (IS_ERR(inode)) {
