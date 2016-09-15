@@ -715,7 +715,7 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach       *pm,
 		}
 		if (old_state == M0_PNDS_OFFLINE) {
 			M0_ASSERT(!pool_failed_devs_tlink_is_in(pd));
-			M0_CNT_INC(state->pst_nr_failures);
+			M0_CNT_DEC(state->pst_nr_failures);
 		}
 		if (pool_failed_devs_tlink_is_in(pd)) {
 			M0_CNT_DEC(state->pst_nr_failures);
