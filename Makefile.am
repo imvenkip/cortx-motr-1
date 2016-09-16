@@ -483,25 +483,10 @@ console_st_server_LDADD     = $(top_builddir)/mero/libmero.la \
                               $(top_builddir)/ut/libmero-ut.la
 
 #
-# ha/st/m0test ---------------------------------------- {{{2
+# ha/dummy -------------------------------------------- {{{2
 #
 
-if ENABLE_UNIT_TESTS
-noinst_PROGRAMS       += ha/st/m0note \
-						 ha/st/dummyha
-endif
-ha_st_m0note_CPPFLAGS  = -DM0_TARGET='m0note' $(AM_CPPFLAGS)
-ha_st_m0note_LDADD     = $(top_builddir)/mero/libmero.la \
-                         $(top_builddir)/ut/libmero-ut.la
-
-ha_st_dummyha_CPPFLAGS  = -DM0_TARGET='dummyha' $(AM_CPPFLAGS)
-ha_st_dummyha_LDADD     = $(top_builddir)/mero/libmero.la \
-                          $(top_builddir)/ut/libmero-ut.la
-
-include $(top_srcdir)/ha/st/Makefile.sub
-
-noinst_PROGRAMS       += ha/dummy/hadummy
-
+noinst_PROGRAMS += ha/dummy/hadummy
 ha_dummy_hadummy_CPPFLAGS  = -DM0_TARGET='hadummy' $(AM_CPPFLAGS)
 ha_dummy_hadummy_LDADD     = $(top_builddir)/mero/libmero.la
 

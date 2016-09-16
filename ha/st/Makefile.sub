@@ -1,3 +1,0 @@
-ha_st_m0note_SOURCES  = ha/st/m0note.c
-
-ha_st_dummyha_SOURCES  = ha/st/dummyha.c
