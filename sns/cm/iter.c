@@ -730,7 +730,7 @@ M0_INTERNAL int m0_sns_cm_iter_next(struct m0_cm *cm, struct m0_cm_cp *cp)
 	do {
 		if (cm->cm_quiesce || cm->cm_abort) {
 			if (M0_IN(iter_phase(it), (ITPH_FID_NEXT, ITPH_GROUP_NEXT))) {
-				M0_LOG(M0_WARN, "%lu: Got %s cmd: returning -ENODATA",
+				M0_LOG(M0_DEBUG, "%lu: Got %s cmd: returning -ENODATA",
 						 cm->cm_id,
 						 cm->cm_quiesce ? "QUIESCE" : "ABORT");
 				return M0_RC(-ENODATA);

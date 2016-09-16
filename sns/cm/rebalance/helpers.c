@@ -162,8 +162,12 @@ M0_INTERNAL int m0_sns_cm_rebalance_tgt_info(struct m0_sns_cm_ag *sag,
 	dev_idx = m0_sns_cm_device_index_get(group, data_unit, fctx);
 	if (!m0_sns_cm_is_cob_rebalancing(pm, dev_idx)) {
 		rc = _tgt_check_and_change(sag, pm, pl, data_unit, dev_idx, &data_unit);
-		if (rc != 0)
-			return M0_ERR(rc);
+		if (rc != 0) {
+			M0_LOG(M0_DEBUG, "Target device %u not rebalancing,"
+					 "no other rebalancing target found.",
+					 (unsigned)dev_idx);
+			return M0_RC(rc);
+		}
 		scp->sc_base.c_ag_cp_idx = data_unit;
 	}
 

@@ -153,7 +153,7 @@ static int cm_swu_fom_tick(struct m0_fom *fom)
 	cm = cm_swu2cm(swu);
 	rc = swu_action[phase](swu);
 	if (rc < 0) {
-		M0_LOG(M0_WARN, "Sliding window update"
+		M0_LOG(M0_DEBUG, "Sliding window update"
 		      " fom complete with rc: %d", rc);
 		swu->swu_is_complete = true;
 		if (!M0_IN(rc, (-ENOBUFS, -ENOENT, -ENODATA))) {
