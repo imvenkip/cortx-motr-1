@@ -24,6 +24,8 @@
 #ifndef __MERO_CLOVIS_CLOVIS_IDX_H__
 #define __MERO_CLOVIS_CLOVIS_IDX_H__
 
+#include "clovis/clovis.h" /* m0_clovis_entity_opcode */
+
 /**
  * Experimental implementation of Clovis Index API by wrapping the mds
  * operations with a slim layer. This will be replaced by K-V store operations
@@ -73,24 +75,28 @@ enum m0_clovis_idx_service_type {
 
 /**
  * Query operations for an index service. The operations in this data
- * structure can be devided into 3 groups:
- * (a) index creation and deletion: iqo_namei_create/delete.
- * (b) queries on an index: get/put/del/next, see the comments above for
+ * structure can be devided into 2 groups:
+ * (a) Operations over indices: iqo_namei_create/delete/lookup/list.
+ * (b) Queries on a specific index: get/put/del/next, see the comments above for
  *     details.
- * (c) returned value of query operations:
+ *
+ * Returned value of query operations:
  *     = 0: the query is executed synchronously and returns successfully.
  *     < 0: the query fails.
  *     = 1: the driver successes in launching the query asynchronously.
- * (d) clovis_idx_op_ast_complete/fail must be called correspondingly when an
- *     index operation is completed successfully or fails. This gives Clovis
- *     a chance to take back control and move operation's state forward.
+ *
+ * clovis_idx_op_ast_complete()/fail() must be called correspondingly when an
+ * index operation is completed successfully or fails. This gives Clovis
+ * a chance to take back control and move operation's state forward.
  */
 struct m0_clovis_idx_query_ops {
-	/* Index CREATE/DELETE operations. */
+	/* Index operations. */
 	int  (*iqo_namei_create)(struct m0_clovis_op_idx *oi);
 	int  (*iqo_namei_delete)(struct m0_clovis_op_idx *oi);
+	int  (*iqo_namei_lookup)(struct m0_clovis_op_idx *oi);
+	int  (*iqo_namei_list)(struct m0_clovis_op_idx *oi);
 
-	/** Query operations.  */
+	/* Query operations. */
 	int  (*iqo_get)(struct m0_clovis_op_idx *oi);
 	int  (*iqo_put)(struct m0_clovis_op_idx *oi);
 	int  (*iqo_del)(struct m0_clovis_op_idx *oi);
@@ -140,15 +146,16 @@ M0_INTERNAL int m0_clovis_idx_op_namei(struct m0_clovis_entity *entity,
 				       struct m0_clovis_op **op,
 				       enum m0_clovis_entity_opcode opcode);
 
-M0_INTERNAL int m0_clovis_idx_service_config(struct m0_clovis *m0c,
+M0_INTERNAL void m0_clovis_idx_service_config(struct m0_clovis *m0c,
 					     int svc_id, void *svc_conf);
-M0_INTERNAL int m0_clovis_idx_service_register(int svc_id,
+M0_INTERNAL void m0_clovis_idx_service_register(int svc_id,
 				struct m0_clovis_idx_service_ops *sops,
 				struct m0_clovis_idx_query_ops   *qops);
 M0_INTERNAL void m0_clovis_idx_services_register(void);
 
-M0_INTERNAL int m0_clovis_idx_mock_register(void);
-M0_INTERNAL int m0_clovis_idx_cass_register(void);
+M0_INTERNAL void m0_clovis_idx_mock_register(void);
+M0_INTERNAL void m0_clovis_idx_cass_register(void);
+M0_INTERNAL void m0_clovis_idx_kvs_register(void);
 
 #endif /* __MERO_CLOVIS_CLOVIS_IDX_H__ */
 

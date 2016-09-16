@@ -91,9 +91,9 @@ void clovis_osync_record_update(struct m0_reqh_service_ctx *service,
  * Creates and sends an fsync fop from the provided m0_reqh_service_txid.
  */
 M0_INTERNAL int
-clovis_osync_request_create(struct m0_reqh_service_txid     *stx,
-			    struct clovis_osync_fop_wrapper *ofw,
-			    enum m0_fsync_mode               mode);
+clovis_osync_request_create(struct m0_reqh_service_txid      *stx,
+			    struct clovis_osync_fop_wrapper **ofw,
+			    enum m0_fsync_mode                mode);
 
 
 /**

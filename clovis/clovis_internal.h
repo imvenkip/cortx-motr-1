@@ -33,10 +33,6 @@
 #define M0_CLOVIS_THREAD_ENTER
 #endif
 
-#ifndef M0_CLOVIS_PRE
-#define M0_CLOVIS_PRE(cond, ...) M0_PRE(cond)
-#endif
-
 #define CLOVIS_MOCK
 #define CLOVIS_FOR_M0T1FS
 
@@ -52,6 +48,7 @@
 #include "reqh/reqh.h"          /* struct m0_reqh */
 #include "rm/rm.h"              /* stuct m0_rm_owner */
 #include "file/file.h"          /* struct m0_file */
+#include "mero/ha.h"            /* m0_mero_ha */
 
 /** @todo: remove this - its part of the test framework */
 #include "be/ut/helper.h"       /* struct m0_be_ut_backend */
@@ -73,8 +70,9 @@ enum m0_clovis_entity_states {
 };
 
 
-M0_INTERNAL bool clovis_entity_invariant_locked(struct m0_clovis_entity *ent);
-M0_INTERNAL bool clovis_entity_invariant(struct m0_clovis_entity *ent);
+M0_INTERNAL bool clovis_entity_invariant_full(struct m0_clovis_entity *ent);
+M0_INTERNAL bool clovis_entity_invariant_locked(const struct
+						m0_clovis_entity *ent);
 
 void m0_clovis_op_fini(struct m0_clovis_op *op);
 
@@ -367,6 +365,16 @@ struct m0_clovis {
 	/** Request handler for the instance*/
 	struct m0_reqh                          m0c_reqh;
 
+	struct m0_clink                         m0c_conf_exp;
+	struct m0_clink                         m0c_conf_ready;
+	/**
+	 * Indicates that rconfc read lock is revoked by a creditor.
+	 */
+	bool                                    m0c_rlock_revoked;
+
+	struct m0_fid                           m0c_process_fid;
+	struct m0_fid                           m0c_profile_fid;
+
 	/**
 	 * The following fields picture the pools in mero.
 	 * m0c_pools_common: details about all pools in mero.
@@ -379,11 +387,7 @@ struct m0_clovis {
 	/** HA service context. */
 	struct m0_reqh_service_ctx             *m0c_ha_rsctx;
 
-	/** HA session used globally */
-	struct m0_rpc_session                   m0c_ha_sess;
-
-	/** RPC connection HA session operates on */
-	struct m0_rpc_conn                      m0c_ha_conn;
+	struct m0_mero_ha                       m0c_mero_ha;
 
 	/** Index service context. */
 	struct m0_clovis_idx_service_ctx        m0c_idx_svc_ctx;
@@ -467,51 +471,11 @@ M0_INTERNAL void m0_clovis_global_fini(void);
  * @param m0c clovis instance.
  * @return the confc used by this clovis instance.
  */
-M0_INTERNAL struct m0_confc* m0_clovis2confc(struct m0_clovis *m0c);
+M0_INTERNAL struct m0_confc* m0_clovis_confc(struct m0_clovis *m0c);
 
-/**
- * Retrieves the instance sm_group lock from the provided entity's realm's
- * instance.
- *
- * @param ent The entity to dig through.
- * @return the group lock.
- */
-M0_INTERNAL struct m0_sm_group *
-m0_clovis_get_group_from_entity(const struct m0_clovis_entity *ent);
-
-/**
- * Returns the m0_clovis clovis instance, found from the provided object.
- *
- * @param object The object to find the instance for.
- * @return A pointer to the m0_clovis instance.
- */
-M0_INTERNAL struct m0_clovis *
-m0_clovis_get_instance_from_obj(const struct m0_clovis_obj *obj);
-
-M0_INTERNAL void m0_clovis_op_transaction_committed(struct m0_clovis_op_common *oc);
-M0_INTERNAL void m0_clovis_op_transaction_failed(struct m0_clovis_op_common *oc);
-
-M0_INTERNAL int m0_clovis_op_sm_executed_callback(struct m0_sm *mach);
-M0_INTERNAL int m0_clovis_op_sm_stable_callback(struct m0_sm *mach);
-M0_INTERNAL int m0_clovis_op_sm_failed_callback(struct m0_sm *mach);
-
-/**
- * Returns the m0_sm_group for a clovis instance, found from the provided entity.
- *
- * @param entity The entity to find the instance for.
- * @return A pointer to the sm group.
- */
-M0_INTERNAL struct m0_sm_group *
-m0_clovis_get_group_from_entity(const struct m0_clovis_entity *ent);
-
-/**
- * Returns the m0_sm_group for a clovis instance, found from the provided op.
- *
- * @param op The operation to find the instance for.
- * @return A pointer to the sm group.
- */
-M0_INTERNAL struct m0_sm_group *
-m0_clovis_get_group_from_op(const struct m0_clovis_op *op);
+M0_INTERNAL int m0_clovis_op_executed(struct m0_clovis_op *op);
+M0_INTERNAL int m0_clovis_op_stable(struct m0_clovis_op *op);
+M0_INTERNAL int m0_clovis_op_failed(struct m0_clovis_op *op);
 
 /**
  * Returns the m0_clovis clovis instance, found from the provided operation.
@@ -520,7 +484,7 @@ m0_clovis_get_group_from_op(const struct m0_clovis_op *op);
  * @return A pointer to the m0_clovis instance.
  */
 M0_INTERNAL struct m0_clovis *
-m0_clovis_get_instance_from_entity(const struct m0_clovis_entity *entity);
+m0_clovis__entity_instance(const struct m0_clovis_entity *entity);
 
 /**
  * Returns the m0_clovis clovis instance, found from the provided operation.
@@ -529,7 +493,7 @@ m0_clovis_get_instance_from_entity(const struct m0_clovis_entity *entity);
  * @return A pointer to the m0_clovis instance.
  */
 M0_INTERNAL struct m0_clovis *
-m0_clovis_get_instance_from_op(const struct m0_clovis_op *op);
+m0_clovis__op_instance(const struct m0_clovis_op *op);
 
 /**
  * Returns the m0_clovis clovis instance, found from the provided object.
@@ -538,7 +502,7 @@ m0_clovis_get_instance_from_op(const struct m0_clovis_op *op);
  * @return A pointer to the m0_clovis instance.
  */
 M0_INTERNAL struct m0_clovis *
-m0_clovis_get_instance_from_obj(const struct m0_clovis_obj *obj);
+m0_clovis__obj_instance(const struct m0_clovis_obj *obj);
 
 /**
  * Returns the clovis instance associated to an object operation.
@@ -547,7 +511,7 @@ m0_clovis_get_instance_from_obj(const struct m0_clovis_obj *obj);
  * @return a pointer to the clovis instance associated to the entity.
  */
 M0_INTERNAL struct m0_clovis*
-m0_clovis_get_instance_from_oo(struct m0_clovis_op_obj *oo);
+m0_clovis__oo_instance(struct m0_clovis_op_obj *oo);
 
 /* sm conf that needs registering by m0_clovis_init */
 extern struct m0_sm_conf clovis_op_conf;
@@ -556,7 +520,7 @@ extern struct m0_sm_conf clovis_entity_conf;
 /* used by the entity code to create operations */
 M0_INTERNAL int m0_clovis_op_alloc(struct m0_clovis_op **op, size_t op_size);
 
-M0_INTERNAL int m0_clovis_op_init(struct m0_clovis_op **op,
+M0_INTERNAL int m0_clovis_op_init(struct m0_clovis_op *op,
 				  const struct m0_sm_conf *conf,
 				  struct m0_clovis_entity *entity);
 

@@ -551,7 +551,11 @@ enum m0_clovis_idx_opcode {
 	/** Delete the value, if any, for the given key. */
 	M0_CLOVIS_IC_DEL,
 	/** Given a key, return the next key and its value. */
-	M0_CLOVIS_IC_NEXT
+	M0_CLOVIS_IC_NEXT,
+	/** Check an index for an existence. */
+	M0_CLOVIS_IC_LOOKUP,
+	/** Given an index id, get the list of next indices. */
+	M0_CLOVIS_IC_LIST
 };
 
 /**
@@ -576,6 +580,8 @@ struct m0_clovis_op {
 	 * @see m0_clovis_obj_opcode, m0_clovis_idx_opcode,
 	 */
 	unsigned int                   op_code;
+	/** Each op has its own sm group. */
+	struct m0_sm_group             op_sm_group;
 	/** Operation state machine. */
 	struct m0_sm                   op_sm;
 	/** Application-supplied call-backs. */
@@ -638,6 +644,8 @@ struct m0_clovis_entity {
 	 *
 	 */
 	struct m0_sm               en_sm;
+	/** Each entity has its own sm group. */
+	struct m0_sm_group         en_sm_group;
 };
 
 /**
@@ -757,12 +765,14 @@ struct m0_clovis_config {
 	 */
 	bool        cc_is_read_verify;
 
-	/** The address for the local endpoint.*/
+	/** Local endpoint.*/
 	const char *cc_local_addr;
-	/** The endpoint for the ha service.*/
+	/** HA service's endpoint.*/
 	const char *cc_ha_addr;
-	/** The endpoint for the confd service.*/
+	/** Confd service's endpoint.*/
 	const char *cc_confd;
+	/** Process fid for rmservice@clovis. */
+	const char *cc_process_fid;
 	const char *cc_profile;
 
 	/**
@@ -1013,13 +1023,49 @@ void m0_clovis_idx_fini(struct m0_clovis_idx *idx);
 /**
  * Initialises an index operation.
  *
- * @pre obj != NULL
- * @pre M0_IN(opcode, (M0_CLOVIS_IC_GET, M0_CLOVIS_IC_PUT,
+ * For M0_CLOVIS_IC_NEXT operation arguments should be as follows:
+ * - 'keys' buffer vector first element should contain a starting key and other
+ *   elements should be set to NULL. Buffer vector size indicates number of
+ *   records to return.
+ *   Starting key can be NULL. In this case starting key is treated as the
+ *   smallest possible key of the index. If starting key doesn't exist in the
+ *   index, then retrieved records will start with the smallest key following
+ *   the starting key. Otherwise, a record corresponding to the starting key
+ *   will be included in a result.
+ * - 'vals' vector should be at least of the same size as 'keys' and should
+ *   contain NULLs. After successful operation completion retrieved index
+ *   records are stored in 'keys' and 'vals' buffer vectors. If number of
+ *   records retrieved is less than requested (end of index is reached), then an
+ *   operation has successful return code, but buffers in the vector's tail will
+ *   be set to NULL.
+ *
+ * For M0_CLOVIS_IC_GET operation arguments should be as follows:
+ * - 'keys' buffer vector should contain keys for records being requested.
+ *   At least one key should be specified and no NULL keys are allowed.
+ * - 'vals' vector should be at least of the same size as 'keys' and should
+ *   contain NULLs. After successful operation completion retrieved record
+ *   values are stored in 'vals' buffer vector. If some value retrieval has
+ *   failed, then corresponding element in 'vals' has NULL value. On operation
+ *   completion the operation return code (op->op_sm->sm_rc) is set to negative
+ *   value if at least one record wasn't retrieved, i.e. there is at least one
+ *   NULL in 'vals' vector.
+ *
+ * @pre idx != NULL
+ * @pre M0_IN(opcode, (M0_CLOVIS_IC_LOOKUP, M0_CLOVIS_IC_LIST,
+ *                     M0_CLOVIS_IC_GET, M0_CLOVIS_IC_PUT,
  *                     M0_CLOVIS_IC_DEL, M0_CLOVIS_IC_NEXT))
  * @pre ergo(*op != NULL, *op->op_size >= sizeof **op)
- * @pre key != NULL
- * @pre ergo((opcode == M0_CLOVIS_IC_DEL) == (val == NULL))
- * @pre ergo(val != NULL, key->iv_length.v_nr == val->iv_length.v_nr)
+ * @pre ergo(opcode != M0_CLOVIS_IC_LOOKUP, keys != NULL)
+ * @pre M0_IN(opcode, (M0_CLOVIS_IC_DEL,
+ *                     M0_CLOVIS_IC_LOOKUP,
+ *                     M0_CLOVIS_IC_LIST)) == (vals == NULL)
+ * @pre ergo(opcode == M0_CLOVIS_IC_LIST,
+ *           m0_forall(i, keys->ov_vec.v_nr,
+ *                     keys->ov_vec.v_count[i] == sizeof(struct m0_uint128)))
+ * @pre ergo(opcode == M0_CLOVIS_IC_GET, keys->ov_vec.v_nr != 0)
+ * @pre ergo(opcode == M0_CLOVIS_IC_GET,
+ *           m0_forall(i, keys->ov_vec.v_nr, keys->ov_buf[i] != NULL))
+ * @pre ergo(vals != NULL, keys->ov_vec.v_nr == vals->ov_vec.v_nr)
  *
  * @post ergo(result == 0, *op != NULL && *op->op_code == opcode &&
  *                         *op->op_sm.sm_state == M0_CLOVIS_OS_INITIALISED)
