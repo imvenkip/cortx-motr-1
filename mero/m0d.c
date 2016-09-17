@@ -194,7 +194,6 @@ start_m0d:
 #endif
 	rc = m0_cs_start(&mero_ctx);
 	if (rc == 0) {
-		m0_conf_ha_notify(&mero_ctx.cc_reqh_ctx.rc_fid, M0_NC_ONLINE);
 		/* For st/m0d-signal-test.sh */
 		printf("Started\n");
 		fflush(stdout);
@@ -208,7 +207,6 @@ start_m0d:
 		 * Note! A very common cause of failure restart is
 		 * non-finalize (non-clean) any subsystem
 		 */
-		m0_conf_ha_notify(&mero_ctx.cc_reqh_ctx.rc_fid, M0_NC_FAILED);
 		m0_cs_fini(&mero_ctx);
 restart_signal:
 		m0_quiesce();
@@ -240,7 +238,6 @@ restart_signal:
 	}
 
 cleanup1:
-	m0_conf_ha_notify(&mero_ctx.cc_reqh_ctx.rc_fid, M0_NC_FAILED);
 	m0_cs_fini(&mero_ctx);
 	if (gotsignal) {
 		if (gotsignal == M0_RESULT_STATUS_RESTART)

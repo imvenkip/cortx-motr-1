@@ -257,28 +257,6 @@ static void reqh_service_failed_common(struct m0_reqh *reqh,
 	reqh_service_state_set(service, M0_RST_FAILED);
 }
 
-uint32_t service2ha_state[] = {
-	[M0_RST_STARTED] = M0_NC_ONLINE,
-	[M0_RST_STOPPED] = M0_NC_FAILED,
-};
-
-M0_INTERNAL void reqh_service_state_notify(struct m0_reqh_service *service)
-{
-	struct m0_rpc_session      *hsess = m0_ha_session_get();
-	enum m0_reqh_service_state  s = m0_reqh_service_state_get(service);
-
-	/*
-	 * UT does not start seperate HA agent, instead provide server endpoint
-	 * HA endpoint. As a result server trying to notify on its own endpoint
-	 * which is not started yet. To avoid this scenario just skip notification
-	 * if local & remote endpint are same of HA session.
-	 */
-	if (hsess != NULL &&
-	    !m0_streq(hsess->s_conn->c_rpc_machine->rm_tm.ntm_ep->nep_addr,
-		      hsess->s_conn->c_rpcchan->rc_destep->nep_addr))
-		m0_conf_ha_notify(&service->rs_service_fid, service2ha_state[s]);
-}
-
 M0_INTERNAL int
 m0_reqh_service_start_async(struct m0_reqh_service_start_async_ctx *asc)
 {
@@ -332,7 +310,6 @@ M0_INTERNAL void m0_reqh_service_started(struct m0_reqh_service *service)
 	reqh_service_started_common(reqh, service);
 	M0_POST(m0_reqh_service_invariant(service));
 	m0_rwlock_write_unlock(&reqh->rh_rwlock);
-	reqh_service_state_notify(service);
 }
 
 M0_INTERNAL void m0_reqh_service_failed(struct m0_reqh_service *service)
@@ -379,7 +356,6 @@ M0_INTERNAL int m0_reqh_service_start(struct m0_reqh_service *service)
 		reqh_service_failed_common(reqh, service, key);
 	M0_POST(ergo(rc == 0, m0_reqh_service_invariant(service)));
 	m0_rwlock_write_unlock(&reqh->rh_rwlock);
-	reqh_service_state_notify(service);
 
 	return M0_RC(rc);
 }
@@ -436,7 +412,6 @@ M0_INTERNAL void m0_reqh_service_stop(struct m0_reqh_service *service)
 	 */
 	m0_reqh_idle_wait_for(reqh, service);
 	m0_reqh_lockers_clear(reqh, key);
-	reqh_service_state_notify(service);
 }
 
 M0_INTERNAL void m0_reqh_service_init(struct m0_reqh_service *service,

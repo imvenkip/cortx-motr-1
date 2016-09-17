@@ -652,22 +652,6 @@ M0_INTERNAL int m0_conf_obj_ha_update(struct m0_rpc_session *ha_sess,
 	return M0_RC(m0_conf_objs_ha_update(ha_sess, &nvec));
 }
 
-void m0_conf_ha_notify(struct m0_fid *fid, enum m0_ha_obj_state state)
-{
-	struct m0_rpc_session *rpc_ssn;
-	struct m0_ha_note      note;
-	struct m0_ha_nvec      nvec;
-
-	rpc_ssn = m0_ha_session_get();
-	if (rpc_ssn != NULL && !m0_fid_eq(fid, &M0_FID0)) {
-		note.no_id    = *fid;
-		note.no_state = state;
-		nvec.nv_nr    = 1;
-		nvec.nv_note  = &note;
-		m0_ha_state_set(rpc_ssn, &nvec);
-	}
-}
-
 static void __ha_nvec_reset(struct m0_ha_nvec *nvec, int32_t total)
 {
 	int i;

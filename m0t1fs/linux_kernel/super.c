@@ -877,7 +877,6 @@ int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	rc = m0_addb2_sys_net_start_with(sys, &pc->pc_svc_ctxs);
 	if (rc == 0) {
 		m0_confc_close(&fs->cf_obj);
-		m0_conf_ha_notify(&reqh->rh_fid, M0_NC_ONLINE);
 		return M0_RC(0);
 	}
 
@@ -936,7 +935,6 @@ static void m0t1fs_teardown(struct m0t1fs_sb *csb)
 	m0_clink_del_lock(&csb->csb_conf_ready);
 	m0_clink_fini(&csb->csb_conf_exp);
 	m0_clink_fini(&csb->csb_conf_ready);
-	m0_conf_ha_notify(&csb->csb_reqh.rh_fid, M0_NC_FAILED);
 	m0t1fs_ha_fini(csb);
 	m0_reqh_services_terminate(&csb->csb_reqh);
 	m0t1fs_rpc_fini(csb);

@@ -221,15 +221,4 @@ M0_INTERNAL int m0_conf_ha_state_discover(struct m0_rpc_session *ha_sess,
 					  struct m0_ha_nvec     *nvec,
 					  struct m0_confc       *confc);
 
-/**
- * @todo XXX RELOCATEME: This function has nothing to do with conf subsystem.
- *       Move it to ha/.
- *
- * Notify ha status for configuration object.
- *
- * @note  m0_conf_ha_notify() is not M0_INTERNAL, because it is used by
- *        mero/m0d.c:main().
- */
-void m0_conf_ha_notify(struct m0_fid *fid, enum m0_ha_obj_state state);
-
 #endif /* __MERO_CONF_HELPERS_H__ */
