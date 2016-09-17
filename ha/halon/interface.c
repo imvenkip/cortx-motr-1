@@ -147,7 +147,6 @@ enum m0_halon_interface_state {
 	M0_HALON_INTERFACE_STATE_UNINITIALISED,
 	M0_HALON_INTERFACE_STATE_INITIALISED,
 	M0_HALON_INTERFACE_STATE_WORKING,
-	M0_HALON_INTERFACE_STATE_STOPPED,
 	M0_HALON_INTERFACE_STATE_FINALISED,
 };
 
@@ -365,11 +364,7 @@ static struct m0_sm_state_descr halon_interface_states[] = {
 	},
 	[M0_HALON_INTERFACE_STATE_WORKING] = {
 		.sd_name = "M0_HALON_INTERFACE_STATE_WORKING",
-		.sd_allowed = M0_BITS(M0_HALON_INTERFACE_STATE_STOPPED),
-	},
-	[M0_HALON_INTERFACE_STATE_STOPPED] = {
-		.sd_name = "M0_HALON_INTERFACE_STATE_STOPPED",
-		.sd_allowed = M0_BITS(M0_HALON_INTERFACE_STATE_FINALISED),
+		.sd_allowed = M0_BITS(M0_HALON_INTERFACE_STATE_INITIALISED),
 	},
 	[M0_HALON_INTERFACE_STATE_FINALISED] = {
 		.sd_flags = M0_SDF_TERMINAL,
@@ -473,7 +468,20 @@ static int halon_interface_level_enter(struct m0_module *module)
 	M0_ENTRY("hii=%p level=%d", hii, level);
 	switch (level) {
 	case M0_HALON_INTERFACE_LEVEL_ASSIGNS:
-		/* TODO zero all data structures to allow second start() */
+		/*
+		 * Zero all data structures initialised later to allow
+		 * m0_halon_interface_start() after m0_halon_interface_stop().
+		 */
+		M0_SET0(&hii->hii_net_domain);
+		M0_SET0(&hii->hii_net_buffer_pool);
+		M0_SET0(&hii->hii_reqh);
+		M0_SET0(&hii->hii_rpc_machine);
+		M0_SET0(&hii->hii_ha);
+		M0_SET0(&hii->hii_dispatcher);
+		hii->hii_outgoing_link = NULL;
+		hii->hii_rm_service    = NULL;
+		M0_SET0(&hii->hii_spiel);
+
 		hii->hii_cfg.hic_tm_nr        = 1;
 		hii->hii_cfg.hic_bufs_nr      =
 			m0_rpc_bufs_nr(M0_NET_TM_RECV_QUEUE_DEF_LEN,
@@ -781,10 +789,6 @@ int m0_halon_interface_start(struct m0_halon_interface *hi,
 	M0_LOG(M0_DEBUG, "hi=%p ha_service_fid="FID_F" rm_service_fid="FID_F,
 		 hi, FID_P(ha_service_fid), FID_P(rm_service_fid));
 
-	m0_sm_group_lock(&hii->hii_sm_group);
-	m0_sm_state_set(&hii->hii_sm, M0_HALON_INTERFACE_STATE_WORKING);
-	m0_sm_group_unlock(&hii->hii_sm_group);
-
 	ep = m0_strdup(local_rpc_endpoint);
 	if (ep == NULL)
 		return M0_ERR(-ENOMEM);
@@ -813,6 +817,9 @@ int m0_halon_interface_start(struct m0_halon_interface *hi,
 		m0_free(ep);
 		return M0_ERR(rc);
 	}
+	m0_sm_group_lock(&hii->hii_sm_group);
+	m0_sm_state_set(&hii->hii_sm, M0_HALON_INTERFACE_STATE_WORKING);
+	m0_sm_group_unlock(&hii->hii_sm_group);
 	return M0_RC(rc);
 }
 
@@ -826,11 +833,12 @@ void m0_halon_interface_stop(struct m0_halon_interface *hi)
 	M0_ENTRY("hi=%p", hi);
 
 	m0_sm_group_lock(&hii->hii_sm_group);
-	m0_sm_state_set(&hii->hii_sm, M0_HALON_INTERFACE_STATE_STOPPED);
+	m0_sm_state_set(&hii->hii_sm, M0_HALON_INTERFACE_STATE_INITIALISED);
 	m0_sm_group_unlock(&hii->hii_sm_group);
 
 	m0_free(hii->hii_cfg.hic_local_rpc_endpoint);
 	m0_module_fini(&hii->hii_module, M0_MODLEV_NONE);
+
 	M0_LEAVE();
 }
 
