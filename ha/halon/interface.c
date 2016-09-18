@@ -27,6 +27,7 @@
  * TODO replace m0_halon_interface_internal with m0_halon_interface
  * TODO fix a race between m0_ha_flush() and m0_ha_disconnect() (rpc can send
  *      notification between these calls).
+ * TODO refactor common code in accessors
  *
  * @{
  */
@@ -960,44 +961,63 @@ void m0_halon_interface_disconnect(struct m0_halon_interface *hi,
 	M0_LEAVE("hi=%p ha=%p hl=%p", hi, &hii->hii_ha, hl);
 }
 
+static bool halon_interface_is_working(struct m0_halon_interface_internal *hii)
+{
+	bool working;
+
+	m0_sm_group_lock(&hii->hii_sm_group);
+	working = hii->hii_sm.sm_state == M0_HALON_INTERFACE_STATE_WORKING;
+	m0_sm_group_unlock(&hii->hii_sm_group);
+	return working;
+}
+
 struct m0_rpc_machine *
 m0_halon_interface_rpc_machine(struct m0_halon_interface *hi)
 {
 	struct m0_halon_interface_internal *hii = hi->hif_internal;
 	struct m0_rpc_machine              *rpc_machine;
+	bool                                working;
 
 	M0_PRE(m0_halon_interface_internal_bob_check(hii));
 	M0_PRE(m0_get() == &hii->hii_instance);
 
 	rpc_machine = &hii->hii_rpc_machine;
-	M0_LOG(M0_DEBUG, "hi=%p hii=%p rpc_machine=%p", hi, hii, rpc_machine);
-	return rpc_machine;
+	working = halon_interface_is_working(hii);
+	M0_LOG(M0_DEBUG, "hi=%p hii=%p rpc_machine=%p working=%d",
+	       hi, hii, rpc_machine, !!working);
+	return working ? rpc_machine : NULL;
 }
 
 struct m0_reqh *m0_halon_interface_reqh(struct m0_halon_interface *hi)
 {
 	struct m0_halon_interface_internal *hii = hi->hif_internal;
 	struct m0_reqh                     *reqh;
+	bool                                working;
 
 	M0_PRE(m0_halon_interface_internal_bob_check(hii));
 	M0_PRE(m0_get() == &hii->hii_instance);
 
 	reqh = &hii->hii_reqh;
-	M0_LOG(M0_DEBUG, "hi=%p hii=%p reqh=%p", hi, hii, reqh);
-	return reqh;
+	working = halon_interface_is_working(hii);
+	M0_LOG(M0_DEBUG, "hi=%p hii=%p reqh=%p working=%d",
+	       hi, hii, reqh, !!working);
+	return working ? reqh : NULL;
 }
 
 struct m0_spiel *m0_halon_interface_spiel(struct m0_halon_interface *hi)
 {
 	struct m0_halon_interface_internal *hii = hi->hif_internal;
 	struct m0_spiel                    *spiel;
+	bool                                working;
 
 	M0_PRE(m0_halon_interface_internal_bob_check(hii));
 	M0_PRE(m0_get() == &hii->hii_instance);
 
 	spiel = &hii->hii_spiel;
-	M0_LOG(M0_DEBUG, "hi=%p hii=%p spiel=%p", hi, hii, spiel);
-	return spiel;
+	working = halon_interface_is_working(hii);
+	M0_LOG(M0_DEBUG, "hi=%p hii=%p spiel=%p working=%d",
+	       hi, hii, spiel, !!working);
+	return working ? spiel : NULL;
 }
 
 #undef M0_TRACE_SUBSYSTEM

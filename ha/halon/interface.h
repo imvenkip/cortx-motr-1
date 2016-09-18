@@ -442,6 +442,7 @@ void m0_halon_interface_disconnect(struct m0_halon_interface *hi,
 
 /**
  * Returns rpc machine created during m0_halon_interface_start().
+ * Returns NULL if m0_halon_interface is not in WORKING state.
  *
  * The rpc machine should not be used after m0_halon_interface_stop() is called.
  *
@@ -453,6 +454,7 @@ m0_halon_interface_rpc_machine(struct m0_halon_interface *hi);
 
 /**
  * Returns request handler created during m0_halon_interface_start().
+ * Returns NULL if m0_halon_interface is not in WORKING state.
  *
  * The reqh should not be used after m0_halon_interface_stop() is called.
  *
@@ -464,6 +466,7 @@ struct m0_reqh *m0_halon_interface_reqh(struct m0_halon_interface *hi);
 
 /**
  * Returns spiel instance initialised during m0_halon_interface_start().
+ * Returns NULL if m0_halon_interface is not in WORKING state.
  *
  * The spiel instance should not be used after m0_halon_interface_stop() is
  * called.
