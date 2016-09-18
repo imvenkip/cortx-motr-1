@@ -304,6 +304,13 @@ m0_conf_pver_fid(enum m0_conf_pver_kind kind, uint64_t container, uint64_t key)
 		M0_PRE(kind < M0_CONF_PVER_VIRTUAL);
 		M0_PRE((container & ~CONF_PVER_FID_MASK) == 0);
 	}
+	/*
+	 * XXX TODO: Introduce M0_CONF_FID() macro.
+	 *
+	 * Use M0_CONF_FID(PVER, container, key) instead of
+	 * M0_FID_TINIT('v', container, key) or
+	 * M0_FID_TINIT(M0_CONF_PVER_TYPE.cot_ftype.ft_id, container, key).
+	 */
 	return M0_FID_TINIT(M0_CONF_PVER_TYPE.cot_ftype.ft_id,
 			    (uint64_t)kind << 54 | container, key);
 }

@@ -280,7 +280,6 @@ M0_INTERNAL void m0_ha_msg_nvec_send(const struct m0_ha_nvec *nvec,
 {
 	struct m0_ha_msg *msg;
 	uint64_t          tag;
-	int               i;
 
 	if (hl == NULL)
 		hl = m0_get()->i_ha_link;
@@ -300,8 +299,11 @@ M0_INTERNAL void m0_ha_msg_nvec_send(const struct m0_ha_nvec *nvec,
 			},
 		},
 	};
-	for (i = 0; i < nvec->nv_nr; ++i)
-		msg->hm_data.u.hed_nvec.hmnv_arr.hmna_arr[i] = nvec->nv_note[i];
+	M0_ASSERT(nvec->nv_nr > 0 &&
+		  nvec->nv_nr <
+		  ARRAY_SIZE(msg->hm_data.u.hed_nvec.hmnv_arr.hmna_arr));
+	memcpy(msg->hm_data.u.hed_nvec.hmnv_arr.hmna_arr, nvec->nv_note,
+	       nvec->nv_nr * sizeof(nvec->nv_note[0]));
 	m0_ha_link_send(hl, msg, &tag);
 	m0_free(msg);
 }

@@ -194,13 +194,13 @@ halon_interface_is_compatible(struct m0_halon_interface *hi,
 		 build_configure_opts, !!disable_compat_check);
 	if (disable_compat_check)
 		return true;
-	if (strcmp(bi->bi_git_rev_id, build_git_rev_id) != 0) {
+	if (!m0_streq(bi->bi_git_rev_id, build_git_rev_id)) {
 		M0_LOG(M0_ERROR, "The loaded mero library (%s) "
 		       "is not the expected one (%s)", bi->bi_git_rev_id,
 		       build_git_rev_id);
 		return false;
 	}
-	if (strcmp(bi->bi_configure_opts, build_configure_opts) != 0) {
+	if (!m0_streq(bi->bi_configure_opts, build_configure_opts)) {
 		M0_LOG(M0_ERROR, "The configuration options of the loaded "
 		       "mero library (%s) do not match the expected ones (%s)",
 		       bi->bi_configure_opts, build_configure_opts);
