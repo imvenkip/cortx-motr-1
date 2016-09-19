@@ -25,6 +25,8 @@
  * TODO handle const/non-const m0_halon_interface_entrypoint_reply() parameters
  * TODO fix 80 chars in line
  * TODO replace m0_halon_interface_internal with m0_halon_interface
+ * TODO fix a race between m0_ha_flush() and m0_ha_disconnect() (rpc can send
+ *      notification between these calls).
  *
  * @{
  */
@@ -611,6 +613,7 @@ static void halon_interface_level_leave(struct m0_module *module)
 		m0_ha_stop(&hii->hii_ha);
 		break;
 	case M0_HALON_INTERFACE_LEVEL_HA_CONNECT:
+		m0_ha_flush(&hii->hii_ha, m0_ha_outgoing_link(&hii->hii_ha));
 		m0_ha_disconnect(&hii->hii_ha);
 		break;
 	case M0_HALON_INTERFACE_LEVEL_INSTANCE_SET:
