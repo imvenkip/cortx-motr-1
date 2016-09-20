@@ -90,24 +90,7 @@ rcancel_pre()
 	prog_file_pattern="$st_dir/m0t1fs_io_file_pattern"
 	local source_abcd="$rcancel_sandbox/rcancel_abcd"
 
-	echo "Mount debugfs and insert $MERO_CTL_MODULE.ko so as to use fault injection"
-	mount -t debugfs none /sys/kernel/debug
-	mount | grep debugfs
-	if [ $? -ne "0" ]
-	then
-		echo "Failed to mount debugfs"
-		return 1
-	fi
-
-	echo "insmod $mero_module_path/$MERO_CTL_MODULE.ko"
-	insmod $mero_module_path/$MERO_CTL_MODULE.ko
-	lsmod | grep $MERO_CTL_MODULE
-	if [ $? -ne "0" ]
-	then
-		echo "Failed to insert module \
-		      $mero_module_path/$MERO_CTL_MODULE.ko"
-		return 1
-	fi
+	load_mero_ctl_module || return 1
 
 	rm -rf $rcancel_sandbox
 	mkdir -p $rcancel_sandbox
@@ -140,12 +123,7 @@ rcancel_post()
 		#$M0_SRC_DIR/utils/trace/m0trace -w0 -s m0t1fs,rpc -I /var/log/mero/m0mero_ko.img -i /var/log/mero/m0trace.bin -o $MERO_TEST_LOGFILE.trace
 	fi
 
-	echo "rmmod $mero_module_path/$MERO_CTL_MODULE.ko"
-	rmmod $mero_module_path/$MERO_CTL_MODULE.ko
-	if [ $? -ne 0 ]; then
-		echo "Failed: $MERO_CTL_MODULE.ko could not be unloaded"
-		return 1
-	fi
+	unload_mero_ctl_module || return 1
 }
 
 rcancel_change_controller_state()

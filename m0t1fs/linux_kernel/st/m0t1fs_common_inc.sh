@@ -139,6 +139,38 @@ load_kernel_module()
         fi
 }
 
+load_mero_ctl_module()
+{
+	echo "Mount debugfs and insert $MERO_CTL_MODULE.ko so as to use fault injection"
+	mount -t debugfs none /sys/kernel/debug
+	mount | grep debugfs
+	if [ $? -ne 0 ]
+	then
+		echo "Failed to mount debugfs"
+		return 1
+	fi
+
+	echo "insmod $mero_module_path/$MERO_CTL_MODULE.ko"
+	insmod $mero_module_path/$MERO_CTL_MODULE.ko
+	lsmod | grep $MERO_CTL_MODULE
+	if [ $? -ne 0 ]
+	then
+		echo "Failed to insert module" \
+		     " $mero_module_path/$MERO_CTL_MODULE.ko"
+		return 1
+	fi
+}
+
+unload_mero_ctl_module()
+{
+	echo "rmmod $mero_module_path/$MERO_CTL_MODULE.ko"
+	rmmod $mero_module_path/$MERO_CTL_MODULE.ko
+	if [ $? -ne 0 ]; then
+		echo "Failed: $MERO_CTL_MODULE.ko could not be unloaded"
+		return 1
+	fi
+}
+
 prepare()
 {
 	sandbox_init || return $?

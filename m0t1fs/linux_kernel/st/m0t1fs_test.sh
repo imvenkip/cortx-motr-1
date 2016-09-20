@@ -11,24 +11,33 @@ m0t1fs_test()
 	local multiple_pools=0
 
 	mero_service start $multiple_pools
-	if [ $? -ne "0" ]
+	if [ $? -ne 0 ]
 	then
 		echo "Failed to start Mero Service."
+		return 1
+	fi
+
+	# Load m0ctl module in order to collect kernel logs with m0reportbug
+	load_mero_ctl_module
+	if [ $? -ne 0 ]
+	then
+		mero_service stop
 		return 1
 	fi
 
 	m0t1fs_system_tests
 	rc=$?
 
+	unload_mero_ctl_module
 	# mero_service stop --collect-addb
 	mero_service stop
-	if [ $? -ne "0" ]
+	if [ $? -ne 0 ]
 	then
 		echo "Failed to stop Mero Service."
 		return 1
 	fi
 
-	if [ $rc -ne "0" ]
+	if [ $rc -ne 0 ]
 	then
 		echo "Failed m0t1fs system tests: rc=$rc"
 		return $rc
