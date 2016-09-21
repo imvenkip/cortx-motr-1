@@ -609,11 +609,14 @@ M0_INTERNAL int m0_rpc_at_rep_get(struct m0_rpc_at_buf *sent,
 	M0_PRE(sent == NULL || M0_IN(sent->ab_type,
 				     (M0_RPC_AT_BULK_RECV, M0_RPC_AT_EMPTY)));
 
-	if (!M0_IN(rcvd->ab_type, (M0_RPC_AT_INLINE, M0_RPC_AT_BULK_REP)))
+	if (!M0_IN(rcvd->ab_type, (M0_RPC_AT_EMPTY, M0_RPC_AT_INLINE,
+				   M0_RPC_AT_BULK_REP)))
 		return M0_ERR_INFO(-EPROTO, "Incorrect AT type rcvd %u",
 				   rcvd->ab_type);
 
-	if (rcvd->ab_type == M0_RPC_AT_INLINE) {
+	if (rcvd->ab_type == M0_RPC_AT_EMPTY) {
+		*out = M0_BUF_INIT0;
+	} else if (rcvd->ab_type == M0_RPC_AT_INLINE) {
 		*out = rcvd->u.ab_buf;
 	} else {
 		rc = rcvd->u.ab_rep.abr_rc;

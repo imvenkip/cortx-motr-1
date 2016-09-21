@@ -530,8 +530,7 @@ static uint64_t greq_asmbl_count(const struct m0_cas_req *req)
 	for (i = 0; i < rep->cgr_rep.cr_nr; i++) {
 		rcvd = &rep->cgr_rep.cr_rec[i];
 		sent = &req_op->cg_rec.cr_rec[i];
-		rc = m0_rpc_at_rep_get(&sent->cr_val, &rcvd->cr_val,
-				       &buf);
+		rc = m0_rpc_at_rep_get(&sent->cr_val, &rcvd->cr_val, &buf);
 		if (rc != 0 && m0_rpc_at_rep_is_bulk(&rcvd->cr_val, &len))
 			ret++;
 	}
@@ -561,8 +560,7 @@ static int greq_asmbl_fill(struct m0_cas_req *req, struct m0_cas_op *op)
 	for (i = 0; i < rep->cgr_rep.cr_nr; i++) {
 		rcvd = &rep->cgr_rep.cr_rec[i];
 		sent = &req_op->cg_rec.cr_rec[i];
-		rc = m0_rpc_at_rep_get(&sent->cr_val, &rcvd->cr_val,
-				       &buf);
+		rc = m0_rpc_at_rep_get(&sent->cr_val, &rcvd->cr_val, &buf);
 		if (rc != 0 && m0_rpc_at_rep_is_bulk(&rcvd->cr_val, &len)) {
 			M0_PRE(k < recv->cr_nr);
 			rc = greq_asmbl_add(req, &recv->cr_rec[k], k, i, len);
