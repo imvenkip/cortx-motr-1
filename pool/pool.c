@@ -527,6 +527,20 @@ M0_INTERNAL int m0_pool_version_init(struct m0_pool_version *pv,
 	return M0_RC(rc);
 }
 
+static struct m0_pool_version *
+pool_clean_pver_find(struct m0_pool *pool)
+{
+	struct m0_pool_version *pver;
+
+	m0_tl_for (pool_version, &pool->po_vers, pver) {
+		if (!pver->pv_is_dirty) {
+			M0_LOG(M0_DEBUG, "pver="FID_F, FID_P(&pver->pv_id));
+			return pver;
+		}
+	} m0_tl_endfor;
+	return NULL;
+}
+
 M0_INTERNAL struct m0_pool_version *
 m0_pool_version_lookup(struct m0_pools_common *pc, const struct m0_fid *id)
 {
@@ -535,7 +549,7 @@ m0_pool_version_lookup(struct m0_pools_common *pc, const struct m0_fid *id)
 
 	M0_ENTRY(FID_F, FID_P(id));
 
-	m0_tl_for(pools, &pc->pc_pools, pool) {
+	m0_tl_for (pools, &pc->pc_pools, pool) {
 		pver = m0_tl_find(pool_version, pv, &pool->po_vers,
 				  m0_fid_eq(&pv->pv_id, id));
 		if (pver != NULL) {
@@ -586,11 +600,17 @@ static int pool_version_get_locked(struct m0_pools_common  *pc,
 	M0_ENTRY();
 	M0_PRE(m0_mutex_is_locked(&pc->pc_mutex));
 
-	rc = m0_conf_pver_get(&reqh->rh_profile, pc->pc_confc, &pver);
-	if (rc != 0) {
-		pc->pc_cur_pver = NULL;
-		return M0_ERR(rc);
+	if (pc->pc_cur_pver != NULL) {
+		*pv = pool_clean_pver_find(pc->pc_cur_pver->pv_pool);
+		if (*pv != NULL) {
+			pc->pc_cur_pver = *pv;
+			return M0_RC(0);
+		}
 	}
+
+	rc = m0_conf_pver_get(&reqh->rh_profile, pc->pc_confc, &pver);
+	if (rc != 0)
+		return M0_ERR(rc);
 
 	*pv = m0_pool_version_lookup(pc, &pver->pv_obj.co_id);
 	if (*pv == NULL) {
@@ -598,7 +618,8 @@ static int pool_version_get_locked(struct m0_pools_common  *pc,
 		if (rc != 0)
 			rc = -ENOENT;
 	}
-	pc->pc_cur_pver = rc == 0 ? *pv : NULL;
+	if (rc == 0)
+		pc->pc_cur_pver = *pv;
 	m0_confc_close(&pver->pv_obj);
 	return M0_RC(rc);
 }
@@ -1113,17 +1134,6 @@ static void pools_common__pools_update_or_cleanup(struct m0_pools_common *pc)
 	} m0_tl_endfor;
 }
 
-#ifdef __KERNEL__
-static void csb_pool_version_update(struct m0_pools_common *pc)
-{
-	struct m0_pool_version *pv;
-	struct m0t1fs_sb       *csb = M0_AMB(csb, pc, csb_pools_common);
-
-	if (pool_version_get_locked(pc, &pv) == 0)
-		csb->csb_pool_version = pv;
-}
-#endif
-
 static int pools_common__update_by_conf(struct m0_pools_common *pc)
 {
 	struct m0_conf_filesystem *fs   = NULL;
@@ -1175,6 +1185,7 @@ static bool pools_common_conf_ready_cb(struct m0_clink *clink)
 static bool pools_common_conf_ready_async_cb(struct m0_clink *clink)
 {
 	struct m0_pools_common *pc = M0_AMB(pc, clink, pc_conf_ready_async);
+	struct m0_pool_version *pv;
 	int                     rc;
 
 	M0_ENTRY("pc %p", pc);
@@ -1212,9 +1223,7 @@ static bool pools_common_conf_ready_async_cb(struct m0_clink *clink)
 	 */
 	M0_POST(rc == 0);
 	M0_POST(pools_common_invariant(pc));
-#ifdef __KERNEL__
-	csb_pool_version_update(pc);
-#endif
+	pool_version_get_locked(pc, &pv);
 	m0_mutex_unlock(&pc->pc_mutex);
 	M0_LEAVE();
 	return true;
@@ -1446,8 +1455,6 @@ M0_INTERNAL int m0_pool_versions_setup(struct m0_pools_common    *pc,
 	       M0_CONF_DIRNEXT) {
 		pver_obj = M0_CONF_CAST(m0_conf_diter_result(&it),
 					m0_conf_pver);
-		if (pver_obj->pv_kind == M0_CONF_PVER_FORMULAIC)
-			continue;
 		pool_id = &m0_conf_obj_grandparent(&pver_obj->pv_obj)->co_id;
 		pool = m0_tl_find(pools, pool, &pc->pc_pools,
 				  m0_fid_eq(&pool->po_id, pool_id));

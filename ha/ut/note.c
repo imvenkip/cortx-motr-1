@@ -526,11 +526,11 @@ static void test_poolversion_get(void)
 	n1[0].no_id   = M0_FID_TINIT('k', 1, 77);
 	n1[0].no_state = M0_NC_TRANSIENT;
 	m0_ha_state_accept(&nvec1);
-	M0_UT_ASSERT(pver0->pv_u.subtree.pvs_recd[4] == 1);
 
 	rc = m0_conf_pver_get(&reqh.rh_profile, confc, &pver1);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(pver1 != NULL);
+	M0_UT_ASSERT(pver0->pv_u.subtree.pvs_recd[M0_CONF_PVER_LVL_DISKS] == 1);
 
 	ha_ut_pver_kind_check(&pver1->pv_obj.co_id, M0_CONF_PVER_VIRTUAL);
 	test_pver(confc, &pver1->pv_obj.co_id);
@@ -558,7 +558,7 @@ static void test_poolversion_get(void)
 	rc = m0_conf_pver_get(&reqh.rh_profile, confc, &pver2);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(pver2 != NULL);
-	M0_UT_ASSERT(pver0->pv_u.subtree.pvs_recd[4] == 2);
+	M0_UT_ASSERT(pver0->pv_u.subtree.pvs_recd[M0_CONF_PVER_LVL_DISKS] == 2);
 	ha_ut_pver_kind_check(&pver2->pv_obj.co_id, M0_CONF_PVER_VIRTUAL);
 
 	/* Make another disk from pool version 0  FAILED */
@@ -568,7 +568,7 @@ static void test_poolversion_get(void)
 	rc = m0_conf_pver_get(&reqh.rh_profile, confc, &pver3);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(pver3 != NULL);
-	M0_UT_ASSERT(pver0->pv_u.subtree.pvs_recd[4] == 3);
+	M0_UT_ASSERT(pver0->pv_u.subtree.pvs_recd[M0_CONF_PVER_LVL_DISKS] == 3);
 	/* Three disk failure, exceeds allowance_vector. */
 	ha_ut_pver_kind_check(&pver3->pv_obj.co_id, M0_CONF_PVER_ACTUAL);
 	M0_UT_ASSERT(m0_fid_eq(&pver3->pv_obj.co_id,
@@ -578,7 +578,7 @@ static void test_poolversion_get(void)
 	rc = m0_conf_pver_get(&reqh.rh_profile, confc, &pver4);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(pver4 != NULL);
-	M0_UT_ASSERT(pver0->pv_u.subtree.pvs_recd[4] == 0);
+	M0_UT_ASSERT(pver0->pv_u.subtree.pvs_recd[M0_CONF_PVER_LVL_DISKS] == 0);
 	ha_ut_pver_kind_check(&pver4->pv_obj.co_id, M0_CONF_PVER_ACTUAL);
 	M0_UT_ASSERT(pver0 == pver4);
 

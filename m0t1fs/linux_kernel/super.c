@@ -858,7 +858,6 @@ int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	rc = m0_pool_version_get(&csb->csb_pools_common, &pv);
 	if (!M0_IN(rc, (0, -ENOENT)))
 		goto err_pool_versions_destroy;
-	csb->csb_pool_version = pv;
 
 	/* Start resource manager service */
 	rc = m0t1fs_reqh_services_start(csb);
@@ -987,8 +986,8 @@ M0_INTERNAL int m0t1fs_fill_cob_attr(struct m0_fop_cob *body)
                         S_IRGRP | S_IXGRP |                    /*r-x for group*/
                         S_IROTH | S_IXOTH);
 
-	if (csb->csb_pool_version != NULL)
-		body->b_pver = csb->csb_pool_version->pv_id;
+	if (csb->csb_pools_common.pc_cur_pver != NULL)
+		body->b_pver = csb->csb_pools_common.pc_cur_pver->pv_id;
 	return M0_RC(0);
 }
 

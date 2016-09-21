@@ -243,10 +243,9 @@ M0_INTERNAL int m0_fd_tolerance_check(struct m0_conf_pver *pv,
 				      uint32_t *failure_level)
 {
 	uint64_t children_nr[M0_CONF_PVER_HEIGHT];
-	uint32_t depth;
 	int      rc;
 
-	rc = symm_tree_attr_get(pv, &depth, children_nr);
+	rc = symm_tree_attr_get(pv, failure_level, children_nr);
 	return M0_RC(rc);
 }
 

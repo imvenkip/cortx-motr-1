@@ -625,6 +625,7 @@ static int m0t1fs_create(struct inode     *dir,
 	struct m0_fid             gfid;
 	int                       rc;
 	struct m0_fop            *rep_fop = NULL;
+	struct m0_pool_version   *pv;
 
 	M0_THREAD_ENTER;
 	M0_ENTRY();
@@ -634,12 +635,11 @@ static int m0t1fs_create(struct inode     *dir,
 	       FID_P(m0t1fs_inode_fid(M0T1FS_I(dir))));
 
 	m0t1fs_fs_lock(csb);
-	if (csb->csb_pools_common.pc_cur_pver == NULL) {
+	rc = m0_pool_version_get(&csb->csb_pools_common, &pv);
+	if (rc != 0) {
 		m0t1fs_fs_unlock(csb);
-		return M0_ERR_INFO(-ENOENT, "No pool version is available");
+		return M0_ERR(-ENOENT);
 	}
-	csb->csb_pool_version = csb->csb_pools_common.pc_cur_pver;
-
 	inode = new_inode(sb);
 	if (inode == NULL) {
 		m0t1fs_fs_unlock(csb);
@@ -684,7 +684,7 @@ static int m0t1fs_create(struct inode     *dir,
 		inode->i_mapping->a_ops = &m0t1fs_aops;
 	}
 
-	ci->ci_pver = csb->csb_pool_version->pv_id;
+	ci->ci_pver = pv->pv_id;
 	M0_LOG(M0_INFO, "Creating \"%s\" with pool version "FID_F,
 	       (char*)dentry->d_name.name, FID_P(&ci->ci_pver));
 	/* layout id for new file */
@@ -809,9 +809,10 @@ static struct dentry *m0t1fs_lookup(struct inode     *dir,
 
 	m0t1fs_fs_lock(csb);
 	if (csb->csb_oostore) {
-		struct m0_fid          new_fid;
-		struct m0_fid          gfid;
-		struct m0_fop_cob      body;
+		struct m0_fid           new_fid;
+		struct m0_fid           gfid;
+		struct m0_fop_cob       body;
+		struct m0_pool_version *pv;
 
 		rc = m0_fid_sscanf(dentry->d_name.name, &new_fid);
 		if (rc != 0) {
@@ -829,12 +830,12 @@ static struct dentry *m0t1fs_lookup(struct inode     *dir,
 		body.b_valid = (M0_COB_MODE | M0_COB_LID);
 		body.b_lid = M0_DEFAULT_LAYOUT_ID;
 		body.b_mode = S_IFREG;
-		if (csb->csb_pools_common.pc_cur_pver == NULL) {
+		rc = m0_pool_version_get(&csb->csb_pools_common, &pv);
+		if (rc != 0) {
 			m0t1fs_fs_unlock(csb);
-			return ERR_PTR(M0_ERR(-ENOENT));
+			return ERR_PTR(rc);
 		}
-		csb->csb_pool_version = csb->csb_pools_common.pc_cur_pver;
-		body.b_pver = csb->csb_pool_version->pv_id;
+		body.b_pver = pv->pv_id;
 		inode = m0t1fs_iget(dir->i_sb, &gfid, &body);
 		if (IS_ERR(inode)) {
 			M0_LEAVE("ERROR: %p", ERR_CAST(inode));

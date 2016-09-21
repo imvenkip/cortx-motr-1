@@ -907,6 +907,9 @@ static int cob_attr_op(struct m0_fom          *fom,
 	switch (op) {
 	case COB_ATTR_GET:
 		rc = cob_attr_get(cob, attr);
+		M0_ASSERT(ergo(attr->ca_valid & M0_COB_PVER,
+			       m0_fid_is_set(&attr->ca_pver) &&
+			       m0_fid_is_valid(&attr->ca_pver)));
 		break;
 	case COB_ATTR_SET:
 		tx = m0_fom_tx(fom);

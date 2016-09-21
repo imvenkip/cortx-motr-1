@@ -82,13 +82,21 @@ static void recd_update(const struct m0_conf_obj *obj,
 	struct m0_conf_pver **pvers = m0_conf_pvers(obj);
 	unsigned              level = m0_conf_pver_level(obj);
 
+	/** @todo Remove recd update code
+	 * Since it is not possible to update parent level only.
+	 * When service failure happens, RECD will have [0 0 1 82],
+	 * which is not supported as disk failures upto K are only supported.
+	 */
+	return;
 	if (obj->co_ha_state == M0_NC_ONLINE &&
 	    M0_IN(old_state, (M0_NC_TRANSIENT, M0_NC_REBALANCE))) {
+		/* object is back online */
 		for (; *pvers != NULL; ++pvers)
 			M0_CNT_DEC((*pvers)->pv_u.subtree.pvs_recd[level]);
 		pool_version_update(obj);
 	} else if (obj->co_ha_state != M0_NC_ONLINE &&
 		   M0_IN(old_state, (M0_NC_ONLINE, M0_NC_UNKNOWN))) {
+		/* object went offline */
 		for (; *pvers != NULL; ++pvers)
 			M0_CNT_INC((*pvers)->pv_u.subtree.pvs_recd[level]);
 		pool_version_update(obj);

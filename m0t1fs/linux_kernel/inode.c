@@ -447,14 +447,17 @@ static int m0t1fs_inode_read(struct inode      *inode,
 	} else {
 		rc = -ENOSYS;
 	}
-	if (!m0t1fs_inode_is_root(inode)) {
+	if (!m0t1fs_inode_is_root(inode) && !m0t1fs_inode_is_dot_mero(inode) &&
+	    !m0t1fs_inode_is_dot_mero_fid(inode)) {
 		ci->ci_layout_id = body->b_lid;
 		ci->ci_pver = body->b_pver;
-		if (m0_pool_version_find(&csb->csb_pools_common, &ci->ci_pver) == NULL)
+		if (m0_pool_version_find(&csb->csb_pools_common, &ci->ci_pver)
+		    == NULL)
 			return M0_ERR(-EINVAL);
 		rc = m0t1fs_inode_layout_init(ci);
 		if (rc != 0)
-			M0_LOG(M0_WARN, "m0t1fs_inode_layout_init() failed, rc=%d", rc);
+			M0_LOG(M0_WARN, "m0t1fs_inode_layout_init() failed,"
+					"rc=%d", rc);
 	}
 	if (rc == 0)
 		m0t1fs_fid_accept(csb, m0t1fs_inode_fid(M0T1FS_I(inode)));

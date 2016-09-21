@@ -254,8 +254,7 @@ static int file_io_ut_init(void)
 
 	rc = m0_pool_version_get(&csb.csb_pools_common, &pver);
 	M0_UT_ASSERT(rc == 0);
-	csb.csb_pool_version = pver;
-	M0_UT_ASSERT(csb.csb_pool_version != NULL);
+	M0_UT_ASSERT(csb.csb_pools_common.pc_cur_pver != NULL);
 
 	sb.s_fs_info         = &csb;
 	csb.csb_next_key     = FID_KEY;
