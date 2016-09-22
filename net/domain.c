@@ -35,6 +35,7 @@ int m0_net_domain_init(struct m0_net_domain *dom, struct m0_net_xprt *xprt)
 {
 	int rc;
 
+	M0_ENTRY();
 	m0_mutex_lock(&m0_net_mutex);
 	M0_PRE(dom->nd_xprt == NULL);
 
@@ -56,9 +57,11 @@ M0_EXPORTED(m0_net_domain_init);
 
 void m0_net_domain_fini(struct m0_net_domain *dom)
 {
+	M0_ENTRY();
 	m0_mutex_lock(&m0_net_mutex);
 	net_domain_fini(dom);
 	m0_mutex_unlock(&m0_net_mutex);
+	M0_LEAVE();
 }
 M0_EXPORTED(m0_net_domain_fini);
 
