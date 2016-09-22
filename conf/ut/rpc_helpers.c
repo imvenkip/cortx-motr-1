@@ -26,6 +26,7 @@ static struct m0_reqh            g_reqh;
 static struct m0_net_domain      g_net_dom;
 static struct m0_net_buffer_pool g_buf_pool;
 
+/* XXX Code duplication! See m0_ha_ut_rpc_ctx_init(). */
 M0_INTERNAL int m0_ut_rpc_machine_start(struct m0_rpc_machine *mach,
 					struct m0_net_xprt *xprt,
 					const char *ep_addr)
@@ -72,10 +73,12 @@ net:
 	return rc;
 }
 
+/* XXX Code duplication! See m0_ha_ut_rpc_ctx_fini(). */
 M0_INTERNAL void m0_ut_rpc_machine_stop(struct m0_rpc_machine *mach)
 {
-	m0_reqh_services_terminate(&g_reqh);
+	m0_reqh_shutdown_wait(&g_reqh);
 	m0_rpc_machine_fini(mach);
+	m0_reqh_services_terminate(&g_reqh);
 	m0_reqh_fini(&g_reqh);
 	m0_rpc_net_buffer_pool_cleanup(&g_buf_pool);
 	m0_net_domain_fini(&g_net_dom);
