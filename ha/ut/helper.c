@@ -39,15 +39,12 @@
 
 M0_INTERNAL void m0_ha_ut_rpc_ctx_init(struct m0_ha_ut_rpc_ctx *ctx)
 {
-	const m0_bcount_t max_msg_size = 1 << 17;
-	struct m0_fid     process_fid  = M0_FID_TINIT('r', 0, 1);
-	const uint32_t    tms_nr       = 1;
-	const uint32_t    bufs_nr      =
+	struct m0_fid  process_fid = M0_FID_TINIT('r', 0, 1);
+	const uint32_t tms_nr      = 1;
+	const uint32_t bufs_nr     =
 		m0_rpc_bufs_nr(M0_NET_TM_RECV_QUEUE_DEF_LEN, tms_nr);
-	const uint32_t    colour       = M0_BUFFER_ANY_COLOUR;
-	const uint32_t    queue_len    = 2;
-	const char       *ep           = "0@lo:12345:42:100";
-	int               rc;
+	const char    *ep          = "0@lo:12345:42:100";
+	int            rc;
 
 	rc = m0_net_domain_init(&ctx->hurc_net_domain, &m0_net_lnet_xprt);
 	M0_ASSERT(rc == 0);
@@ -62,10 +59,12 @@ M0_INTERNAL void m0_ha_ut_rpc_ctx_init(struct m0_ha_ut_rpc_ctx *ctx)
 	M0_ASSERT(rc == 0);
 	m0_reqh_start(&ctx->hurc_reqh);
 	rc = m0_rpc_machine_init(&ctx->hurc_rpc_machine,
-	                         &ctx->hurc_net_domain, ep,
+				 &ctx->hurc_net_domain, ep,
 				 &ctx->hurc_reqh,
-	                         &ctx->hurc_buffer_pool,
-	                         colour, max_msg_size, queue_len);
+				 &ctx->hurc_buffer_pool,
+				 M0_BUFFER_ANY_COLOUR,
+				 M0_RPC_DEF_MAX_RPC_MSG_SIZE,
+				 M0_NET_TM_RECV_QUEUE_DEF_LEN);
 	M0_ASSERT(rc == 0);
 }
 
