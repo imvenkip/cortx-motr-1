@@ -15,9 +15,9 @@ export PS4='+ ${FUNCNAME[0]:+${FUNCNAME[0]}():}line ${LINENO}: '
 ## CAUTION: This path will be removed by superuser.
 SANDBOX_DIR=${SANDBOX_DIR:-/var/mero/sandbox.conf-st}
 
-TRACE_MASK=${M0_TRACE_IMMEDIATE_MASK:-!rpc,formation,fop,memory}
-TRACE_LEVEL=${M0_TRACE_LEVEL:-info+}
-TRACE_CONTEXT=${M0_TRACE_PRINT_CONTEXT:-}
+M0_TRACE_IMMEDIATE_MASK=${M0_TRACE_IMMEDIATE_MASK:-!rpc,formation,fop,memory}
+M0_TRACE_LEVEL=${M0_TRACE_LEVEL:-info+}
+M0_TRACE_PRINT_CONTEXT=${M0_TRACE_PRINT_CONTEXT:-}
 
 MAX_RPC_MSG_SIZE=163840
 TM_MIN_RECV_QUEUE_LEN=2
@@ -47,7 +47,7 @@ stop() {
 
 _init() {
     lnet_up
-    modules_insert
+    m0_modules_insert
     sandbox_init # changes current directory to $SANDBOX_DIR
     mkdir mnt
 }
@@ -55,53 +55,7 @@ _init() {
 _fini() {
     rmdir mnt
     sandbox_fini ${1:-}
-    modules_remove
-}
-
-modules_insert() {
-    insmod $M0_SRC_DIR/extra-libs/gf-complete/src/linux_kernel/m0gf.ko ||
-	die 'Inserting m0gf.ko failed'
-
-    insmod $M0_SRC_DIR/mero/m0mero.ko \
-	local_addr=$M0T1FS_ENDPOINT \
-	max_rpc_msg_size=$MAX_RPC_MSG_SIZE \
-	tm_recv_queue_min_len=$TM_MIN_RECV_QUEUE_LEN \
-	${TRACE_MASK:+trace_immediate_mask=$TRACE_MASK} \
-	${TRACE_LEVEL:+trace_level=$TRACE_LEVEL} \
-	${TRACE_CONTEXT:+trace_print_context=$TRACE_CONTEXT} \
-	|| {
-	rmmod m0gf
-	die 'Inserting m0mero.ko failed'
-    }
-}
-
-modules_remove() {
-    rmmod m0mero
-    rmmod m0gf
-}
-
-export_endpoints() {
-    local LNET_NID=`lctl list_nids | head -1`
-
-    ## LNet endpoint address format (see net/lnet/lnet.h):
-    ##     NID:PID:Portal:TMID
-    ##
-    ## The PID value of 12345 is used by Lustre in the kernel and is
-    ## the only value currently supported.
-    export M0T1FS_ENDPOINT="$LNET_NID:12345:34:"
-    export IOS0_ENDPOINT="$LNET_NID:12345:34:1001"
-    export HA_ENDPOINT="$IOS0_ENDPOINT"
-    export MGS_ENDPOINT="$IOS0_ENDPOINT"
-    export RMS_ENDPOINT="$IOS0_ENDPOINT"
-    export MDS_ENDPOINT="$IOS0_ENDPOINT"
-    export SPIEL_ENDPOINT="$LNET_NID:12345:34:2001"
-}
-
-### Starts LNET. (Note that the script never stops LNET.)
-lnet_up() {
-    modprobe lnet
-    lctl network up >/dev/null
-    export_endpoints
+    m0_modules_remove
 }
 
 confdb() {
@@ -115,22 +69,22 @@ confdb() {
 (node-0 memsize=16000 nr_cpu=2 last_state=3 flags=2 pool_id=pool-0
     processes=[process-0, process-1, process-2, process-3, process-4])
 (process-0 cores=[2] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
-    mem_limit_memlock=0 endpoint="$MGS_ENDPOINT" services=[service-0])
+    mem_limit_memlock=0 endpoint="$M0D1_ENDPOINT" services=[service-0])
 (process-1 cores=[2] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
-    mem_limit_memlock=0 endpoint="$RMS_ENDPOINT" services=[service-1])
+    mem_limit_memlock=0 endpoint="$M0D1_ENDPOINT" services=[service-1])
 (process-2 cores=[1] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
-    mem_limit_memlock=0 endpoint="$MDS_ENDPOINT" services=[service-2])
+    mem_limit_memlock=0 endpoint="$M0D1_ENDPOINT" services=[service-2])
 (process-3 cores=[2] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
-    mem_limit_memlock=0 endpoint="$IOS0_ENDPOINT"
+    mem_limit_memlock=0 endpoint="$M0D1_ENDPOINT"
     services=[service-3, service-4])
 (process-4 cores=[1] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
     mem_limit_memlock=0 endpoint="$M0T1FS_ENDPOINT:1" services=[service-5])
-(service-0 type=3 endpoints=["$MGS_ENDPOINT"] sdevs=[])
-(service-1 type=4 endpoints=["$RMS_ENDPOINT"] sdevs=[])
-(service-2 type=1 endpoints=["$MDS_ENDPOINT"] sdevs=[sdev-0])
-(service-3 type=2 endpoints=["$IOS0_ENDPOINT"]
+(service-0 type=3 endpoints=["$M0D1_ENDPOINT"] sdevs=[])
+(service-1 type=4 endpoints=["$M0D1_ENDPOINT"] sdevs=[])
+(service-2 type=1 endpoints=["$M0D1_ENDPOINT"] sdevs=[sdev-0])
+(service-3 type=2 endpoints=["$M0D1_ENDPOINT"]
     sdevs=[sdev-1, sdev-2, sdev-3, sdev-4])
-(service-4 type=6 endpoints=["$IOS0_ENDPOINT"] sdevs=[])
+(service-4 type=6 endpoints=["$M0D1_ENDPOINT"] sdevs=[])
 (service-5 type=4 endpoints=["$M0T1FS_ENDPOINT:1"] sdevs=[])
 (sdev-0 dev_idx=0 iface=4 media=1 bsize=4096 size=596000000000 last_state=3
     flags=4 filename="/dev/sdev0")
@@ -162,9 +116,9 @@ EOF
 
 services_start() {
     local CONF_FILE=conf.xc
-    local OPTS="-P $PROFILE -f $PROCESS_M0D -H $HA_ENDPOINT
+    local OPTS="-P $PROFILE -f $PROCESS_M0D -H $M0D1_ENDPOINT
 -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN -F -D db -T AD -S stobs
--A linuxstob:addb-stobs -e lnet:$IOS0_ENDPOINT -c $CONF_FILE -w 3"
+-A linuxstob:addb-stobs -e lnet:$M0D1_ENDPOINT -c $CONF_FILE -w 3"
 
     confdb | $M0CONFGEN >$CONF_FILE || error 'm0confgen failed'
 
@@ -182,7 +136,7 @@ services_stop() { killall -q lt-m0d && wait || true; }
 
 _mount() {
     mount -t m0t1fs \
-          -o pfid="$PROCESS_M0T1FS",profile="$PROFILE",ha=$HA_ENDPOINT \
+          -o pfid="$PROCESS_M0T1FS",profile="$PROFILE",ha=$M0D1_ENDPOINT \
           none $SANDBOX_DIR/mnt || return $?
 }
 
@@ -204,7 +158,7 @@ spiel() {
             PYTHONPATH=$SANDBOX_DIR/lib64/python \
                       $M0_SRC_DIR/utils/spiel/m0spiel \
                       -l $M0_SRC_DIR/mero/.libs/libmero.so \
-                      -c $SPIEL_ENDPOINT -s $HA_ENDPOINT;;
+                      -c $SPIEL_ENDPOINT -s $M0D1_ENDPOINT;;
         fini)
             ## Redirect stderr to hide these warnings:
             ## | 'build/bdist.linux-x86_64' does not exist -- can't clean it
@@ -246,8 +200,8 @@ EOF
 
 case "${1:-}" in
     run|'') ;;
-    insmod) lnet_up; modules_insert; exit;;
-    rmmod) modules_remove; exit;;
+    insmod) lnet_up; m0_modules_insert; exit;;
+    rmmod) m0_modules_remove; exit;;
     sstart) start; exit;;
     sstop) services_stop; sleep 3; _fini; exit;;
     help) usage; exit;;

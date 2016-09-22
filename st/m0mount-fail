@@ -6,9 +6,9 @@ set -eu
 ## CAUTION: This path will be removed by superuser.
 SANDBOX_DIR=${SANDBOX_DIR:-/var/mero/sandbox.m0mount-fail-st}
 
-TRACE_MASK=${M0_TRACE_IMMEDIATE_MASK:-all}
-TRACE_LEVEL=${M0_TRACE_LEVEL:-warn+}
-TRACE_CONTEXT=${M0_TRACE_PRINT_CONTEXT:-}
+M0_TRACE_IMMEDIATE_MASK=${M0_TRACE_IMMEDIATE_MASK:-all}
+M0_TRACE_LEVEL=${M0_TRACE_LEVEL:-warn+}
+M0_TRACE_PRINT_CONTEXT=${M0_TRACE_PRINT_CONTEXT:-}
 
 MAX_RPC_MSG_SIZE=163840
 TM_MIN_RECV_QUEUE_LEN=2
@@ -33,7 +33,7 @@ start() {
     set -e
     _init
 
-    echo "Mount debugfs and insert m0ctl.ko so as to use fault injection"
+    echo "Mount debugfs so as to use fault injection"
     if [ $debugfs_mounted -ne 0 ]; then
 	mount -t debugfs none /sys/kernel/debug
 	mount | grep debugfs
@@ -42,15 +42,6 @@ start() {
 	    echo "Failed to mount debugfs"
 	    return 1
 	fi
-    fi
-
-    echo "insmod $M0_SRC_DIR/mero/m0ctl.ko"
-    insmod $M0_SRC_DIR/mero/m0ctl.ko
-    lsmod | grep m0ctl
-    if [ $? -ne 0 ]
-    then
-	echo "Failed to insert module $M0_SRC_DIR/mero/m0ctl.ko"
-	return 1
     fi
 }
 
@@ -64,77 +55,17 @@ stop() {
 
 _init() {
     lnet_up
-    modules_insert
+    m0_modules_insert
     sandbox_init # changes current directory to $SANDBOX_DIR
     mkdir mnt
 }
 
 _fini() {
-    echo "rmmod $M0_SRC_DIR/mero/m0ctl.ko"
-    rmmod $M0_SRC_DIR/mero/m0ctl.ko
-    if [ $? -ne 0 ]; then
-	echo "Failed: m0ctl.ko could not be unloaded"
-	return 1
-    fi
-
     umount /sys/kernel/debug
 
     rmdir mnt
     sandbox_fini ${1:-}
-    modules_remove
-}
-
-### XXX Code duplication!
-### There is an identical function in conf/st.
-### TODO: Move this code to `utils/functions'
-modules_insert() {
-    insmod $M0_SRC_DIR/extra-libs/gf-complete/src/linux_kernel/m0gf.ko ||
-        die 'Inserting m0gf.ko failed'
-
-    insmod $M0_SRC_DIR/mero/m0mero.ko \
-        local_addr=$M0T1FS_ENDPOINT \
-        max_rpc_msg_size=$MAX_RPC_MSG_SIZE \
-        tm_recv_queue_min_len=$TM_MIN_RECV_QUEUE_LEN \
-        ${TRACE_MASK:+trace_immediate_mask=$TRACE_MASK} \
-        ${TRACE_LEVEL:+trace_level=$TRACE_LEVEL} \
-        ${TRACE_CONTEXT:+trace_print_context=$TRACE_CONTEXT} \
-        || {
-        rmmod m0gf
-        die 'Inserting m0mero.ko failed'
-    }
-}
-
-### XXX Code duplication!
-### There is an identical function in conf/st.
-### TODO: Move this code to `utils/functions'.
-modules_remove() {
-    rmmod m0mero
-    rmmod m0gf
-}
-
-### XXX Code duplication!
-### There is an identical function in conf/st.
-### TODO: Move this code to `utils/functions'.
-export_endpoints() {
-    local LNET_NID=`lctl list_nids | head -1`
-
-    ## LNet endpoint address format (see net/lnet/lnet.h):
-    ##     NID:PID:Portal:TMID
-    ##
-    ## The PID value of 12345 is used by Lustre in the kernel and is
-    ## the only value currently supported.
-    export M0T1FS_ENDPOINT="$LNET_NID:12345:34:"
-    export SERVER1_ENDPOINT="$LNET_NID:12345:34:1001"
-}
-
-### Starts LNET. (Note that the script never stops LNET.)
-### XXX Code duplication!
-### There is an identical function in conf/st.
-### TODO: Move this code to `utils/functions'.
-lnet_up() {
-    modprobe lnet
-    lctl network up >/dev/null
-    export_endpoints
+    m0_modules_remove
 }
 
 # The generated configuration does not include RMS. This is a to cause
@@ -151,14 +82,14 @@ conf_without_rms() {
 (node-0 memsize=16000 nr_cpu=2 last_state=3 flags=2 pool_id=pool-0
     processes=[process-0])
 (process-0 cores=[3] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
-    mem_limit_memlock=0 endpoint="$SERVER1_ENDPOINT"
+    mem_limit_memlock=0 endpoint="$M0D1_ENDPOINT"
     services=[service-1, service-2, service-3, service-4, service-5])
-(service-1 type=6 endpoints=["$SERVER1_ENDPOINT"] sdevs=[])
-(service-2 type=2 endpoints=["$SERVER1_ENDPOINT"] sdevs=[sdev-1, sdev-2, sdev-3,
+(service-1 type=6 endpoints=["$M0D1_ENDPOINT"] sdevs=[])
+(service-2 type=2 endpoints=["$M0D1_ENDPOINT"] sdevs=[sdev-1, sdev-2, sdev-3,
     sdev-4])
-(service-3 type=1 endpoints=["$SERVER1_ENDPOINT"] sdevs=[sdev-0])
-(service-4 type=3 endpoints=["$SERVER1_ENDPOINT"] sdevs=[])
-(service-5 type=7 endpoints=["$SERVER1_ENDPOINT"] sdevs=[])
+(service-3 type=1 endpoints=["$M0D1_ENDPOINT"] sdevs=[sdev-0])
+(service-4 type=3 endpoints=["$M0D1_ENDPOINT"] sdevs=[])
+(service-5 type=7 endpoints=["$M0D1_ENDPOINT"] sdevs=[])
 (pool-0 order=0 pvers=[pver-0])
 (pver-0 N=2 K=1 P=4 tolerance=[0, 0, 0, 0, 1] rackvs=[objv-0])
 (objv-0 real=rack-0 children=[objv-1])
@@ -200,15 +131,15 @@ conf_normal() {
 (node-0 memsize=16000 nr_cpu=2 last_state=3 flags=2 pool_id=pool-0
     processes=[process-0])
 (process-0 cores=[3] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
-    mem_limit_memlock=0 endpoint="$SERVER1_ENDPOINT"
+    mem_limit_memlock=0 endpoint="$M0D1_ENDPOINT"
     services=[service-1, service-2, service-3, service-4, service-5, service-6])
-(service-1 type=6 endpoints=["$SERVER1_ENDPOINT"] sdevs=[])
-(service-2 type=2 endpoints=["$SERVER1_ENDPOINT"] sdevs=[sdev-1, sdev-2, sdev-3,
+(service-1 type=6 endpoints=["$M0D1_ENDPOINT"] sdevs=[])
+(service-2 type=2 endpoints=["$M0D1_ENDPOINT"] sdevs=[sdev-1, sdev-2, sdev-3,
     sdev-4])
-(service-3 type=1 endpoints=["$SERVER1_ENDPOINT"] sdevs=[sdev-0])
-(service-4 type=3 endpoints=["$SERVER1_ENDPOINT"] sdevs=[])
-(service-5 type=7 endpoints=["$SERVER1_ENDPOINT"] sdevs=[])
-(service-6 type=4 endpoints=["$SERVER1_ENDPOINT"] sdevs=[])
+(service-3 type=1 endpoints=["$M0D1_ENDPOINT"] sdevs=[sdev-0])
+(service-4 type=3 endpoints=["$M0D1_ENDPOINT"] sdevs=[])
+(service-5 type=7 endpoints=["$M0D1_ENDPOINT"] sdevs=[])
+(service-6 type=4 endpoints=["$M0D1_ENDPOINT"] sdevs=[])
 (pool-0 order=0 pvers=[pver-0])
 (pver-0 N=2 K=1 P=4 tolerance=[0, 0, 0, 0, 1] rackvs=[objv-0])
 (objv-0 real=rack-0 children=[objv-1])
@@ -243,7 +174,7 @@ m0d_start() {
     local conf_file=conf.xc
     local opts="-P $PROFILE -f $PROCESS_M0D
 -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN -F -D db -T AD -S stobs
--A linuxstob:addb-stobs -e lnet:$SERVER1_ENDPOINT -c $conf_file -w 3"
+-A linuxstob:addb-stobs -e lnet:$M0D1_ENDPOINT -c $conf_file -w 3"
 
     $conf_generator | $M0_SRC_DIR/utils/m0confgen >$conf_file ||
         error 'm0confgen failed'
@@ -263,7 +194,7 @@ m0d_stop() { killall -q lt-m0d && wait || true; }
 mount_fail() {
     local profile=$1
     local opts='-t m0t1fs'
-    opts+=" -o pfid=$PROCESS_M0T1FS,profile=$profile,ha=$SERVER1_ENDPOINT"
+    opts+=" -o pfid=$PROCESS_M0T1FS,profile=$profile,ha=$M0D1_ENDPOINT"
     opts+=" none $SANDBOX_DIR/mnt"
 
     echo mount $opts >mount.log

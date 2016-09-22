@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -e
+set -eu
 
 #set -x
 #export PS4='+ ${FUNCNAME[0]:+${FUNCNAME[0]}():}line ${LINENO}: '
@@ -7,9 +7,9 @@ set -e
 ## CAUTION: This path will be removed by superuser.
 SANDBOX_DIR=${SANDBOX_DIR:-/var/mero/sandbox.spiel-st}
 
-TRACE_MASK=${M0_TRACE_IMMEDIATE_MASK:-all}
-TRACE_LEVEL=${M0_TRACE_LEVEL:-warn}
-TRACE_CONTEXT=${M0_TRACE_PRINT_CONTEXT:-}
+M0_TRACE_IMMEDIATE_MASK=${M0_TRACE_IMMEDIATE_MASK:-all}
+M0_TRACE_LEVEL=${M0_TRACE_LEVEL:-warn}
+M0_TRACE_PRINT_CONTEXT=${M0_TRACE_PRINT_CONTEXT:-}
 
 MAX_RPC_MSG_SIZE=163840
 TM_MIN_RECV_QUEUE_LEN=2
@@ -23,10 +23,6 @@ M0_SRC_DIR=`readlink -f $0`
 M0_SRC_DIR=${M0_SRC_DIR%/*/*/*}
 
 . $M0_SRC_DIR/utils/functions # die, sandbox_init, report_and_exit
-. $M0_SRC_DIR/m0t1fs/linux_kernel/st/common.sh
-. $M0_SRC_DIR/m0t1fs/linux_kernel/st/m0t1fs_common_inc.sh
-. $M0_SRC_DIR/m0t1fs/linux_kernel/st/m0t1fs_server_inc.sh
-. $M0_SRC_DIR/m0t1fs/linux_kernel/st/common_service_fids_inc.sh
 
 ## Path to the file with configuration string for confd.
 CONF_FILE=$SANDBOX_DIR/confd/conf.txt
@@ -76,7 +72,8 @@ stop() {
 
     trap - EXIT
     if mount | grep -q m0t1fs; then umount $SANDBOX_DIR/mnt; fi
-    mero_service stop || rc=$?
+
+    killall -q lt-m0d && wait || rc=$?
     _fini
     if [ $rc -eq 0 ]; then
         sandbox_fini
@@ -88,7 +85,7 @@ stop() {
 
 _init() {
     lnet_up
-    modules_insert
+    m0_modules_insert
     mkdir -p $SANDBOX_DIR/mnt
     mkdir -p $SANDBOX_DIR/confd
     mkdir -p $SANDBOX_DIR/systest-$$
@@ -99,64 +96,10 @@ _fini() {
     for i in $(seq $DEV_NR); do
         losetup -d /dev/loop$i
     done
+    m0_modules_remove
     cd $M0_SRC_DIR/utils/spiel
     cat $INSTALLED_FILES | xargs rm -rf
     rm -rf build/ $INSTALLED_FILES
-}
-
-### XXX Code duplication!
-### There is an identical function in conf/st.
-### TODO: Move this code to `utils/functions'
-modules_insert() {
-    insmod $M0_SRC_DIR/extra-libs/gf-complete/src/linux_kernel/m0gf.ko ||
-        die 'Inserting m0gf.ko failed'
-
-    insmod $M0_SRC_DIR/mero/m0mero.ko \
-    local_addr=$M0T1FS_ENDPOINT \
-    max_rpc_msg_size=$MAX_RPC_MSG_SIZE \
-    tm_recv_queue_min_len=$TM_MIN_RECV_QUEUE_LEN \
-    ${TRACE_MASK:+trace_immediate_mask=$TRACE_MASK} \
-    ${TRACE_LEVEL:+trace_level=$TRACE_LEVEL} \
-    ${TRACE_CONTEXT:+trace_print_context=$TRACE_CONTEXT} \
-    || {
-        rmmod m0gf
-        die 'Inserting m0mero.ko failed'
-    }
-}
-
-### XXX Code duplication!
-### There is an identical function in conf/st.
-### TODO: Move this code to `utils/functions'.
-modules_remove() {
-    rmmod m0mero
-    rmmod m0gf
-}
-
-### XXX Code duplication!
-### There is an identical function in conf/st.
-### TODO: Move this code to `utils/functions'.
-export_endpoints() {
-    local LNET_NID=`lctl list_nids | head -1`
-
-    ## LNet endpoint address format (see net/lnet/lnet.h):
-    ##     NID:PID:Portal:TMID
-    ##
-    ## The PID value of 12345 is used by Lustre in the kernel and is
-    ## the only value currently supported.
-    export M0T1FS_ENDPOINT="$LNET_NID:12345:34:"
-    export SERVER1_ENDPOINT="$LNET_NID:12345:34:1001"
-    export SERVER2_ENDPOINT="$LNET_NID:12345:34:1002"
-    export SPIEL_ENDPOINT="$LNET_NID:12345:34:2001"
-}
-
-### Starts LNET. (Note that the script never stops LNET.)
-### XXX Code duplication!
-### There is an identical function in conf/st.
-### TODO: Move this code to `utils/functions'.
-lnet_up() {
-    modprobe lnet
-    lctl network up >/dev/null
-    export_endpoints
 }
 
 stub_confdb() {
@@ -170,18 +113,18 @@ stub_confdb() {
 (node-0 memsize=16000 nr_cpu=2 last_state=3 flags=2 pool_id=pool-0
     processes=[process-0, process-1])
 (process-0 cores=[3] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
-    mem_limit_memlock=0 endpoint="$SERVER1_ENDPOINT"
+    mem_limit_memlock=0 endpoint="$M0D1_ENDPOINT"
     services=[service-0, service-1, service-2, service-3, service-4, service-5])
 (process-1 cores=[3] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
     mem_limit_memlock=0 endpoint="$M0T1FS_ENDPOINT:1"
     services=[service-6])
-(service-0 type=4 endpoints=["$SERVER1_ENDPOINT"] sdevs=[])
-(service-1 type=6 endpoints=["$SERVER1_ENDPOINT"] sdevs=[])
-(service-2 type=2 endpoints=["$SERVER1_ENDPOINT"] sdevs=[sdev-1, sdev-2, sdev-3,
+(service-0 type=4 endpoints=["$M0D1_ENDPOINT"] sdevs=[])
+(service-1 type=6 endpoints=["$M0D1_ENDPOINT"] sdevs=[])
+(service-2 type=2 endpoints=["$M0D1_ENDPOINT"] sdevs=[sdev-1, sdev-2, sdev-3,
     sdev-4])
-(service-3 type=1 endpoints=["$SERVER1_ENDPOINT"] sdevs=[sdev-0])
-(service-4 type=3 endpoints=["$SERVER1_ENDPOINT"] sdevs=[])
-(service-5 type=7 endpoints=["$SERVER1_ENDPOINT"] sdevs=[])
+(service-3 type=1 endpoints=["$M0D1_ENDPOINT"] sdevs=[sdev-0])
+(service-4 type=3 endpoints=["$M0D1_ENDPOINT"] sdevs=[])
+(service-5 type=7 endpoints=["$M0D1_ENDPOINT"] sdevs=[])
 (service-6 type=4 endpoints=["$M0T1FS_ENDPOINT:1"] sdevs=[])
 (pool-0 order=0 pvers=[pver-0, pver_f-11])
 (pver-0 N=2 K=1 P=4 tolerance=[0, 0, 0, 0, 1] rackvs=[objv-0])
@@ -220,7 +163,7 @@ EOF
 m0d_with_rms_start() {
     local path=$SANDBOX_DIR/confd
     local OPTS="-F -D $path/db -T AD -S $path/stobs\
-    -A linuxstob:$path/addb-stobs -e lnet:$SERVER1_ENDPOINT\
+    -A linuxstob:$path/addb-stobs -e lnet:$M0D1_ENDPOINT\
     -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN -c $CONF_FILE\
     -w 3 -P $PROF_OPT -f $PROC_FID -d $CONF_DISKS"
 
@@ -246,9 +189,9 @@ m0d_with_rms_start() {
 test_m0d_start() {
     local path=$SANDBOX_DIR/systest-$$
     local OPTS="-D $path/db -T AD -S $path/stobs\
-    -A linuxstob:$path/addb-stobs -e lnet:$SERVER2_ENDPOINT -c $CONF_FILE\
+    -A linuxstob:$path/addb-stobs -e lnet:$M0D2_ENDPOINT -c $CONF_FILE\
     -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN -w 3 -P $PROF_OPT\
-    -f $PROC_FID2 -d $CONF_DISKS -H $SERVER2_ENDPOINT"
+    -f $PROC_FID2 -d $CONF_DISKS -H $M0D2_ENDPOINT"
 
     cd $path
 
@@ -370,35 +313,35 @@ conf_objs_add = [('profile_add', tx, fids['profile']),
                   fids['disk4']),
                  ('pool_version_done', tx, fids['pver']),
                  ('process_add', tx, fids['process'], fids['node'], cores,
-                  0L, 0L, 0L, 0L, "$SERVER1_ENDPOINT"),
+                  0L, 0L, 0L, 0L, "$M0D1_ENDPOINT"),
                  ('process_add', tx, fids['process1'], fids['node'], cores,
                   0L, 0L, 0L, 0L, "$M0T1FS_ENDPOINT:1"),
                  ('process_add', tx, fids['process2'], fids['node'],
-                  cores, 0L, 0L, 0L, 0L, "$SERVER2_ENDPOINT"),
+                  cores, 0L, 0L, 0L, 0L, "$M0D2_ENDPOINT"),
                  ('service_add', tx, fids['confd'], fids['process'], M0_CST_MGS,
-                  ["$SERVER1_ENDPOINT"], ServiceInfoParameters(confdb_path =
-		  "$SERVER1_ENDPOINT")),
+                  ["$M0D1_ENDPOINT"], ServiceInfoParameters(confdb_path =
+		  "$M0D1_ENDPOINT")),
                  ('service_add', tx, fids['confd2'], fids['process2'], M0_CST_MGS,
-                  ["$SERVER2_ENDPOINT"], ServiceInfoParameters(confdb_path =
-		  "$SERVER2_ENDPOINT")),
+                  ["$M0D2_ENDPOINT"], ServiceInfoParameters(confdb_path =
+		  "$M0D2_ENDPOINT")),
                  ('service_add', tx, fids['rms'], fids['process'], M0_CST_RMS,
-                  ["$SERVER1_ENDPOINT"], ServiceInfoParameters()),
+                  ["$M0D1_ENDPOINT"], ServiceInfoParameters()),
                  ('service_add', tx, fids['rms2'], fids['process2'], M0_CST_RMS,
-                  ["$SERVER2_ENDPOINT"], ServiceInfoParameters()),
+                  ["$M0D2_ENDPOINT"], ServiceInfoParameters()),
                  ('service_add', tx, fids['ha'], fids['process2'], M0_CST_HA,
-                  ["$SERVER2_ENDPOINT"], ServiceInfoParameters()),
+                  ["$M0D2_ENDPOINT"], ServiceInfoParameters()),
                  ('service_add', tx, fids['ios'], fids['process2'], M0_CST_IOS,
-                  ["$SERVER2_ENDPOINT"], ServiceInfoParameters()),
+                  ["$M0D2_ENDPOINT"], ServiceInfoParameters()),
                  ('service_add', tx, fids['sns_repair'], fids['process2'],
-                  M0_CST_SNS_REP, ["$SERVER2_ENDPOINT"], ServiceInfoParameters()),
+                  M0_CST_SNS_REP, ["$M0D2_ENDPOINT"], ServiceInfoParameters()),
                  ('service_add', tx, fids['addb2'], fids['process2'],
-                  M0_CST_ADDB2, ["$SERVER2_ENDPOINT"], ServiceInfoParameters()),
+                  M0_CST_ADDB2, ["$M0D2_ENDPOINT"], ServiceInfoParameters()),
                  ('service_add', tx, fids['sns_rebalance'], fids['process2'],
-                  M0_CST_SNS_REB, ["$SERVER2_ENDPOINT"], ServiceInfoParameters()),
+                  M0_CST_SNS_REB, ["$M0D2_ENDPOINT"], ServiceInfoParameters()),
                  ('service_add', tx, fids['mds'], fids['process'], M0_CST_MDS,
-                  ["$SERVER1_ENDPOINT"], ServiceInfoParameters()),
+                  ["$M0D1_ENDPOINT"], ServiceInfoParameters()),
                  ('service_add', tx, fids['mds2'], fids['process2'], M0_CST_MDS,
-                  ["$SERVER2_ENDPOINT"], ServiceInfoParameters()),
+                  ["$M0D2_ENDPOINT"], ServiceInfoParameters()),
                  ('service_add', tx, fids['rms3'], fids['process1'], M0_CST_RMS,
                   ["$M0T1FS_ENDPOINT:1"], ServiceInfoParameters()),
                  ('device_add', tx, fids['sdev0'], fids['mds2'],
@@ -533,7 +476,7 @@ EOF
 }
 
 _mount() {
-    local MOUNT_OPTS="-t m0t1fs -o pfid=<0x7200000000000002:1>,profile=$PROF_OPT,ha=$SERVER2_ENDPOINT \
+    local MOUNT_OPTS="-t m0t1fs -o pfid=<0x7200000000000002:1>,profile=$PROF_OPT,ha=$M0D2_ENDPOINT \
 none $SANDBOX_DIR/mnt"
     echo "mount $MOUNT_OPTS"
     mount $MOUNT_OPTS || return $?
@@ -585,8 +528,8 @@ EOF
 
 case "${1:-}" in
     run|'') ;;
-    insmod) lnet_up; modules_insert; exit;;
-    rmmod) modules_remove; exit;;
+    insmod) lnet_up; m0_modules_insert; exit;;
+    rmmod) m0_modules_remove; exit;;
     sstart) start; exit;;
     sstop) stop; exit;;
     help) usage; exit;;
@@ -642,5 +585,6 @@ validate_health || stop
 say "Device commands"
 device_commands_check || stop
 
+say "Stop"
 stop
 report_and_exit spiel $?
