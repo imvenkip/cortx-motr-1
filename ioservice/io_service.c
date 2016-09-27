@@ -826,15 +826,15 @@ static void getattr_rpc_item_reply_cb(struct m0_rpc_item *item)
 			struct m0_fop_cob_getattr_reply *getattr_rep;
 			getattr_rep = m0_fop_data(rep);
 			rep_fop_cob = &getattr_rep->cgr_body;
+			rc = getattr_rep->cgr_rc ?: rep_fop_cob->b_rc;
 		} else {
 			struct m0_fop_getattr_rep *getattr_rep;
 			getattr_rep = m0_fop_data(rep);
 			rep_fop_cob = &getattr_rep->g_body;
+			rc = getattr_rep->g_rc ?: rep_fop_cob->b_rc;
 		}
-		if (rep_fop_cob->b_rc == 0)
+		if (rc == 0)
 			m0_md_cob_wire2mem(attr, rep_fop_cob);
-		else
-			rc = rep_fop_cob->b_rc;
 	}
 	M0_LOG(M0_DEBUG, "ios getattr replied: %d", rc);
 	mdsop->mo_cb(mdsop->mo_arg, rc);
