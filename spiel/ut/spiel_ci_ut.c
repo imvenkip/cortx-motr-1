@@ -65,6 +65,8 @@ static void test_spiel_service_cmds(void)
 			M0_CONF_SERVICE_TYPE.cot_ftype.ft_id, 1, 10);
 	const struct m0_fid svc_invalid_fid = M0_FID_TINIT(
 			M0_CONF_SERVICE_TYPE.cot_ftype.ft_id, 1, 13);
+	const struct m0_fid top_level_rm_fid = M0_FID_TINIT(
+			M0_CONF_SERVICE_TYPE.cot_ftype.ft_id, 1, 22);
 	int                 rc;
 	int                 status;
 
@@ -107,6 +109,10 @@ static void test_spiel_service_cmds(void)
 
 	rc = m0_spiel_service_health(&spiel, &svc_invalid_fid);
 	M0_UT_ASSERT(rc == -ENOENT);
+
+	/* Stopping of Top Level RM is disallowed */
+	rc = m0_spiel_service_stop(&spiel, &top_level_rm_fid);
+	M0_UT_ASSERT(rc = -EPERM);
 	spiel_ci_ut_fini();
 }
 

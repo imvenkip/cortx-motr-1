@@ -528,6 +528,9 @@ M0_EXPORTED(m0_spiel_service_start);
 int m0_spiel_service_stop(struct m0_spiel *spl, const struct m0_fid *svc_fid)
 {
 	M0_ENTRY("spl %p svc_fid "FID_F, spl, FID_P(svc_fid));
+	if (m0_fid_eq(&spl->spl_rconfc.rc_ha_entrypoint_rep.hae_active_rm_fid,
+		      svc_fid))
+		return M0_ERR(-EPERM);
 
 	return M0_RC(spiel_svc_generic_handler(&spl->spl_core, svc_fid,
 					       M0_SERVICE_STOP, NULL));

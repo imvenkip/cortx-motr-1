@@ -803,7 +803,8 @@ int m0_spiel_service_init(struct m0_spiel *spl, const struct m0_fid *svc_fid);
 int m0_spiel_service_start(struct m0_spiel *spl, const struct m0_fid *svc_fid);
 
 /**
- * Stops mero service
+ * Stops mero service. Stopping of Top Level RM is disallowed, the function
+ * returns -EPERM result code in this case.
  *
  * @param spl spiel instance
  * @param svc_fid service fid from configuration DB
