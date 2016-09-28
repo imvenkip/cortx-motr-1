@@ -727,6 +727,7 @@ if HAVE_SYSTEMD
 usr_lib_systemddir    = $(prefix)/lib/systemd/system
 usr_lib_systemd_DATA  = scripts/install/usr/lib/systemd/system/lnet.service \
                         scripts/install/usr/lib/systemd/system/mero-client.service \
+                        scripts/install/usr/lib/systemd/system/mero-cleanup.service \
                         scripts/install/usr/lib/systemd/system/mero-kernel.service \
                         scripts/install/usr/lib/systemd/system/mero-mkfs.service \
                         scripts/install/usr/lib/systemd/system/mero-mkfs@.service \
@@ -766,6 +767,7 @@ install-exec-hook:
 dist_pkglibexec_SCRIPTS  = scripts/install/usr/libexec/mero/mero-service.functions \
                            scripts/install/usr/libexec/mero/mero \
                            scripts/install/usr/libexec/mero/mero-client \
+                           scripts/install/usr/libexec/mero/mero-cleanup \
                            scripts/install/usr/libexec/mero/mero-kernel \
                            scripts/install/usr/libexec/mero/mero-mkfs \
                            scripts/install/usr/libexec/mero/mero-server \

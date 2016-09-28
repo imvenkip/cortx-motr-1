@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+
+# exit immediately if one the commands exits with a non-zero status
+set -e
+
+# constants
+readonly PROG_NAME=$(basename $0)
+
+# global variables, which can be overriden in /etc/sysconfig/mero
+MERO_GENDERS_CONF=/etc/mero/genders
+
+# service local variables
+mero_exec_dir=/usr/libexec/mero
+user_config=/etc/sysconfig/mero
+kernel_config=/etc/sysconfig/mero-kernel
+service_funcs=$mero_exec_dir/mero-service.functions
+
+
+source $service_funcs
+
+[[ -r $kernel_config ]] && source $kernel_config
+[[ -r $user_config   ]] && source $user_config
+
+m0_log 'Stopping mero services..'
+systemctl stop mero-kernel || m0_exit 'Failed to stop mero services'
+
+if [[ -d $MERO_M0D_DATA_DIR ]] ; then
+    m0_log "Cleaning up $MERO_M0D_DATA_DIR"
+    if ls -ld $MERO_M0D_DATA_DIR/{confd,m0d-*} &>/dev/null ; then
+        ls -ld $MERO_M0D_DATA_DIR/{confd,m0d-*} 2>/dev/null
+    fi
+    rm -rf $MERO_M0D_DATA_DIR/{confd,m0d-*}
+fi
+
+if [[ -d $MERO_LOG_DIR ]] ; then
+    m0_log "Cleaning up $MERO_LOG_DIR"
+    rm -vrf $MERO_LOG_DIR/*
+fi
+
+m0_log "Cleaning up config files in /etc/sysconfig/ dir"
+rm -vf /etc/sysconfig/{mero-kernel,{m0d,m0t1fs}-*}
+
+exit 0

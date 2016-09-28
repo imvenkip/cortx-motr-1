@@ -114,6 +114,7 @@ install_files()
         for file in 'scripts/install/usr/lib/systemd/system/lnet.service' \
                     'scripts/install/usr/lib/systemd/system/mero-trace@.service' \
                     'scripts/install/usr/lib/systemd/system/mero-kernel.service' \
+                    'scripts/install/usr/lib/systemd/system/mero-cleanup.service' \
                     'scripts/install/usr/lib/systemd/system/mero-mkfs.service' \
                     'scripts/install/usr/lib/systemd/system/mero-mkfs@.service' \
                     'scripts/install/usr/lib/systemd/system/mero-server-confd.service' \
@@ -147,6 +148,7 @@ install_files()
     [[ ! -d $dir ]] && run "mkdir -vp $dir"
     for file in 'scripts/install/usr/libexec/mero/mero-service.functions' \
                 'scripts/install/usr/libexec/mero/mero-trace' \
+                'scripts/install/usr/libexec/mero/mero-cleanup' \
                 'scripts/install/usr/libexec/mero/mero-kernel' \
                 'scripts/install/usr/libexec/mero/mero-mkfs' \
                 'scripts/install/usr/libexec/mero/mero-server' \
@@ -170,6 +172,7 @@ uninstall_files()
                /usr/libexec/mero/mero-service.functions
                /usr/libexec/mero/mero-trace
                /usr/libexec/mero/mero-kernel
+               /usr/libexec/mero/mero-cleanup
                /usr/libexec/mero/mero-mkfs
                /usr/libexec/mero/mero-server
                /usr/libexec/mero/mero
@@ -179,6 +182,7 @@ uninstall_files()
         file_list+='/usr/lib/systemd/system/lnet.service
                     /usr/lib/systemd/system/mero-trace@.service
                     /usr/lib/systemd/system/mero-kernel.service
+                    /usr/lib/systemd/system/mero-cleanup.service
                     /usr/lib/systemd/system/mero-mkfs.service
                     /usr/lib/systemd/system/mero-mkfs@.service
                     /usr/lib/systemd/system/mero-server-confd.service

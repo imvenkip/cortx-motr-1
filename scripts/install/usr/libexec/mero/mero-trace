@@ -8,7 +8,6 @@ readonly PROG_NAME=$(basename $0)
 
 # global variables, which can be overriden in /etc/sysconfig/mero
 MERO_GENDERS_CONF=/etc/mero/genders
-MERO_LOG_DIR=/var/log/mero
 
 # service local variables
 user_config=/etc/sysconfig/mero

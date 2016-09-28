@@ -12,7 +12,7 @@
 KERNEL_HUGEPAGE_DEFRAG='never'
 
 # Location of Mero logs and trace files, by default it's /var/log/mero.
-#MERO_LOG_DIR='/var/log/mero'
+MERO_LOG_DIR='/var/log/mero'
 
 # Override default value for m0t1fs mount point
 MERO_M0T1FS_MOUNTPOINT='/mnt/m0t1fs'

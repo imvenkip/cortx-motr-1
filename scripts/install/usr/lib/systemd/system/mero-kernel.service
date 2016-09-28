@@ -12,3 +12,4 @@ ExecStart=/usr/libexec/mero/mero-kernel start
 ExecStop=/usr/libexec/mero/mero-kernel stop
 RemainAfterExit=yes
 KillMode=none
+TimeoutStopSec=1min
