@@ -19,6 +19,7 @@
  */
 
 #include <asm/uaccess.h>    /* VERIFY_READ, VERIFY_WRITE */
+#include <asm/atomic.h>     /* atomic_get */
 #include <linux/mm.h>       /* get_user_pages, get_page, put_page */
 #include <linux/fs.h>       /* struct file_operations */
 #include <linux/mount.h>    /* struct vfsmount (f_path.mnt) */
@@ -5265,10 +5266,13 @@ int m0t1fs_flush(struct file *file, fl_owner_t id)
 	int                  rc;
 
 	M0_THREAD_ENTER;
-	M0_ENTRY("inode links:%d close size %d", (unsigned int)inode->i_nlink,
-						 (unsigned int)inode->i_size);
+	M0_ENTRY("inode links:%d inode writecount = %d close size %d",
+		 (unsigned int)inode->i_nlink,
+		 atomic_read(&inode->i_writecount),
+		 (unsigned int)inode->i_size);
 
-	if (!csb->csb_oostore || inode->i_nlink == 0)
+	if (!csb->csb_oostore || inode->i_nlink == 0 ||
+	    atomic_read(&inode->i_writecount) == 0)
 		return M0_RC(0);
 
 	M0_SET0(&mo);
