@@ -174,6 +174,16 @@ static char *conf_filesystem_stats_get(const struct m0_conf_filesystem *fs,
 	return rc < 0 ? m0_conf_glob_error(&glob, buf, buflen) : NULL;
 }
 
+static bool conf_oostore_mode(const struct m0_conf_filesystem *fs)
+{
+	bool result = fs->cf_redundancy > 0;
+	M0_LOG(M0_INFO, FID_F": redundancy=%"PRIu32" ==> oostore_mode=%s",
+	       FID_P(&fs->cf_obj.co_id), fs->cf_redundancy,
+	       result ? "true" : "false");
+	return result;
+
+}
+
 static char *_conf_filesystem_error(const struct m0_conf_filesystem *fs,
 				    char *buf, size_t buflen)
 {
@@ -181,10 +191,10 @@ static char *_conf_filesystem_error(const struct m0_conf_filesystem *fs,
 	const struct m0_conf_obj    *obj;
 	char                        *err;
 
-	if (fs->cf_redundancy == 0)
+	if (!conf_oostore_mode(fs))
 		/*
-		 * Non-oostore mode: meta-data is stored at MD services,
-		 * not IO services. No special MD pool is required.
+		 * Meta-data is stored at MD services, not IO services.
+		 * No special MD pool is required.
 		 */
 		return NULL;
 
@@ -637,7 +647,7 @@ static char *_conf_service_type_error(const struct m0_conf_filesystem *fs,
 	}
 	if (rc < 0)
 		return m0_conf_glob_error(&glob, buf, buflen);
-	if (confd_p && mds_p)
+	if (confd_p && (conf_oostore_mode(fs) || mds_p))
 		return NULL;
 	return m0_vsnprintf(buf, buflen, "No %s service defined for filesystem "
 			    FID_F, confd_p ? "meta-data" : "confd",
