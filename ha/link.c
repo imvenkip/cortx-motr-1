@@ -1010,6 +1010,7 @@ static int ha_link_outgoing_fom_tick(struct m0_fom *fom)
 				                &hl->hln_conn_reconnect_cfg);
 			}
 			m0_mutex_unlock(&hl->hln_lock);
+			m0_chan_broadcast_lock(&hl->hln_chan);
 			m0_sm_ast_cancel(hl->hln_fom_locality->lo_grp,
 			                 &hl->hln_waking_ast);
 			m0_fom_phase_set(fom,

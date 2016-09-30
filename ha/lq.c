@@ -65,10 +65,13 @@ M0_INTERNAL void m0_ha_lq_init(struct m0_ha_lq           *lq,
 M0_INTERNAL void m0_ha_lq_fini(struct m0_ha_lq *lq)
 {
 	M0_PRE(m0_ha_lq_invariant(lq));
-	M0_PRE(lq->hlq_tags.hlt_confirmed == lq->hlq_tags.hlt_delivered);
-	M0_PRE(lq->hlq_tags.hlt_confirmed == lq->hlq_tags.hlt_next);
-	M0_PRE(lq->hlq_tags.hlt_confirmed == lq->hlq_tags.hlt_assign);
-
+	M0_ASSERT_INFO(_0C(lq->hlq_tags.hlt_confirmed ==
+			   lq->hlq_tags.hlt_delivered) &&
+	               _0C(lq->hlq_tags.hlt_confirmed ==
+			   lq->hlq_tags.hlt_next) &&
+	               _0C(lq->hlq_tags.hlt_confirmed ==
+			   lq->hlq_tags.hlt_assign),
+	               "lq->hlq_tags="HLTAGS_F, HLTAGS_P(&lq->hlq_tags));
 	m0_ha_msg_queue_fini(&lq->hlq_mq);
 }
 
