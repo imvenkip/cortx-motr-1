@@ -3,12 +3,14 @@ set -eu
 # set -x
 export PS4='+ [${FUNCNAME[0]:+${FUNCNAME[0]}:}${LINENO}] '
 
-VERSION=0.15
+VERSION=0.15.1
 ###
 ### History:
 ###
 ### Date       Version Description
 ### ---------- ------- ----------------------------------------------------
+### 2016-10-05 0.15.1  Show dependencies of Mero and Halon rpms.
+###
 ### 2016-09-06 0.15    More probes: halond -v, rpm -qi halon, systemctl status,
 ###                    etc.
 ###
@@ -173,7 +175,12 @@ probes() {
         'hostname'
         'uptime'
         'm0version'
+        'm0d -v'
+        'halond -v'
         'rpm -qi mero'
+        'rpm -qi halon'
+        'rpm -qR mero'
+        'rpm -qR halon'
         'uname -a'
         'cat /proc/cmdline'
         'cat /proc/cpuinfo'
@@ -202,9 +209,6 @@ probes() {
         'ls /dev/disk/by-*'
         'dmesg'
         'journalctl -b -0'
-        'halond -v'
-        'm0d -v'
-        'rpm -qi halon'
         'systemctl status -l'
         'systemctl status -l halond'
         'systemctl status -l mero-kernel'
