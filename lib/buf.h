@@ -90,10 +90,20 @@ M0_INTERNAL bool m0_buf_eq(const struct m0_buf *x, const struct m0_buf *y);
  *
  * User is responsible for m0_buf_free()ing `dest'.
  *
- * @pre   dest->cb_size == 0 && dest->cb_data == NULL
+ * @pre   dest->b_nob == 0 && dest->b_addr == NULL
  * @post  ergo(result == 0, m0_buf_eq(dest, src))
  */
 M0_INTERNAL int m0_buf_copy(struct m0_buf *dest, const struct m0_buf *src);
+
+/**
+ * Allocates 'dst' buffer aligned on (2^shift)-byte boundary and copies 'src'
+ * into it.
+ *
+ * @pre   dst->b_nob == 0 && dst->b_addr == NULL
+ */
+M0_INTERNAL int m0_buf_copy_aligned(struct m0_buf *dst,
+				    struct m0_buf *src,
+				    unsigned       shift);
 
 /** Does the buffer point at anything? */
 M0_INTERNAL bool m0_buf_is_set(const struct m0_buf *buf);
