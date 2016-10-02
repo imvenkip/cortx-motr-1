@@ -283,6 +283,23 @@ M0_INTERNAL void m0_pools_fini(void)
 #endif
 }
 
+M0_INTERNAL const char *m0_pool_dev_state_to_str(enum m0_pool_nd_state state)
+{
+	static const char *names[M0_PNDS_NR] = {
+		[M0_PNDS_UNKNOWN] = "unknown",
+		[M0_PNDS_ONLINE] = "online",
+		[M0_PNDS_FAILED] = "failed",
+		[M0_PNDS_OFFLINE] = "offline",
+		[M0_PNDS_SNS_REPAIRING] = "repairing",
+		[M0_PNDS_SNS_REPAIRED] = "repaired",
+		[M0_PNDS_SNS_REBALANCING] = "rebalancing"
+	};
+
+	M0_PRE(IS_IN_ARRAY(state, names));
+	M0_ASSERT(m0_forall(i, ARRAY_SIZE(names), names[i] != NULL));
+	return names[state];
+}
+
 M0_INTERNAL int m0_pool_init(struct m0_pool *pool, struct m0_fid *id)
 {
 	M0_ENTRY();

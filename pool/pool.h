@@ -607,6 +607,11 @@ M0_INTERNAL void m0_pooldev_clink_add(struct m0_clink *link,
 M0_INTERNAL void m0_pooldev_clink_del(struct m0_clink *cl);
 
 M0_INTERNAL uint32_t m0_ha2pm_state_map(enum m0_ha_obj_state hastate);
+
+/**
+ * Converts numeric device state to string representation.
+ */
+M0_INTERNAL const char *m0_pool_dev_state_to_str(enum m0_pool_nd_state state);
 /** @} end of servermachine group */
 #endif /* __MERO_POOL_POOL_H__ */
 
