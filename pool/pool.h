@@ -186,7 +186,7 @@ struct m0_pools_common {
 
 	/**
 	 * An array of size of pc_nr_devices.
-	 * Maps device to IOS/CAS service: dev_idx -> (reqh_service_ctx, sdev_fid)
+	 * Maps device to IOS/CAS service: dev_idx -> (service_ctx, sdev_fid)
 	 * Each pc_dev2svc[i] entry points to instance of
 	 * struct m0_reqh_service_ctx which has established rpc connections
 	 * with the given service endpoints.

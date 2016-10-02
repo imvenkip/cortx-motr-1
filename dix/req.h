@@ -63,11 +63,12 @@
  * client simultaneously even if the same state machine group is used.
  */
 
-#include "fid/fid.h"          /* m0_fid */
-#include "sm/sm.h"            /* m0_sm */
-#include "cas/client.h"       /* m0_cas_req */
-#include "dix/layout.h"       /* m0_dix_layout */
-#include "dix/req_internal.h" /* m0_dix_idxop_ctx */
+#include "fid/fid.h"           /* m0_fid */
+#include "sm/sm.h"             /* m0_sm */
+#include "pool/pool_machine.h" /* m0_poolmach_versions */
+#include "cas/client.h"        /* m0_cas_req */
+#include "dix/layout.h"        /* m0_dix_layout */
+#include "dix/req_internal.h"  /* m0_dix_idxop_ctx */
 
 /* Import */
 struct m0_bufvec;
@@ -85,6 +86,7 @@ enum m0_dix_req_state {
 	DIXREQ_META_UPDATE,
 	DIXREQ_INPROGRESS,
 	DIXREQ_GET_RESEND,
+	DIXREQ_DEL_PHASE2,
 	DIXREQ_FINAL,
 	DIXREQ_FAILURE,
 	DIXREQ_NR
@@ -165,6 +167,7 @@ struct m0_dix_req {
 	uint32_t                     *dr_recs_nr;
 	/** Request flags bitmask of m0_cas_op_flags values. */
 	uint32_t                      dr_flags;
+	struct m0_poolmach_versions   dr_pmach_ver;
 };
 
 /**

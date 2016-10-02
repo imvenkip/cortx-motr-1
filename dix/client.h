@@ -88,6 +88,62 @@
  * mero file system. After meta indices creation is done, client can be started
  * as usual or finalised.
  *
+ * Operation in degraded mode
+ * --------------------------
+ * DIX client relies on HA notifications to detect device failures. In order to
+ * receive HA notifications, the process where DIX client resides should be
+ * added to the cluster configuration. On receiving device failure notification
+ * local pool machines for all affected pool versions are updated accordingly.
+ *
+ * DIX client is said to perform an operation over distributed index in degraded
+ * mode if at least one device in index pool version has failed or under
+ * repair/re-balance. Note, that offline device (i.e. the one with
+ * M0_PNDS_OFFLINE state) doesn't imply degraded mode. DIX client doesn't treat
+ * offline devices in any special way and the user is likely to get an error
+ * during record put/delete operation.
+ *
+ * DIX client uses component catalogues with spare units instead of component
+ * catalogues stored on failed drives during operation in degraded mode. Below
+ * is a table showing how DIX client treats target component catalogue for
+ * different operations depending on the disk state storing this catalogue.
+ *
+ * Disk state    |  GET           PUT             DEL            NEXT
+ * --------------|---------------------------------------------------
+ * FAILED        | Skip        Use spare        Skip             Skip
+ *               |
+ * REPAIRING     | Skip        Use spare        Use spare        Skip
+ *               |
+ * REPAIRED      | Use spare   Use spare        Use spare        Skip
+ *               |
+ * REBALANCING   | Use spare   Use it + spare   Use it + spare   Skip
+ * ------------------------------------------------------------------
+ *
+ * DIX client relies on the fact that device will transit from FAILED to
+ * REPAIRING state, and it's not possible to transit from FAILED to ONLINE
+ * state. Otherwise, replicas written to spares when the device was FAILED
+ * won't be taken into account when disk returns to ONLINE state.
+ *
+ * NEXT operation always ignores non-online disks, because this operation
+ * queries all online disks in a pool version and a layout guarantees that at
+ * least one correct replica for every record is available.
+ *
+ * There is a possible race, where repair/re-balance service sends the old value
+ * to the spares/re-balance targets concurrently with a DIX client update. In
+ * order to avoid it DEL operation is executed in 2 phases. The process slightly
+ * differs for repair and re-balance.
+ *   - During repair DIX client updates correct replicas, gets reply, and after
+ *     that updates spares. Getting reply for all correct replicas guarantees
+ *     that repair service either already processed this record and the spares
+ *     are updated or record is not processed at all and successfully deleted.
+ *   - During re-balance DIX client updates correct replicas (including spares),
+ *     gets reply, and after that updates re-balance target.
+ *
+ * Client sets special COF_DEL_LOCK flag in CAS request to make a hint to CAS
+ * service that special global "delete" lock should be taken for catalogue store
+ * prior to deletion. That lock guarantees that CAS service will do record
+ * deletion when the record is either already repaired/re-balanced or
+ * repair/re-balance process for this record is not started yet.
+ *
  * References:
  * - HLD of the distributed indexing
  * https://docs.google.com/document/d/1WpENdsq5YXCCoDcBbNe6juVY85163-HUpvIzXrmKwdM/edit

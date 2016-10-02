@@ -278,7 +278,7 @@ M0_INTERNAL bool m0_cas_req_is_locked(const struct m0_cas_req *req);
  * return codes of operations on individual request records. These codes
  * can be obtained via m0_cas_*_rep() functions.
  */
-M0_INTERNAL int m0_cas_req_generic_rc(struct m0_cas_req *req);
+M0_INTERNAL int m0_cas_req_generic_rc(const struct m0_cas_req *req);
 
 /**
  * Returns the number of results.
@@ -325,7 +325,7 @@ M0_INTERNAL int m0_cas_index_create(struct m0_cas_req      *req,
  *
  * @pre idx < m0_cas_req_nr(req)
  */
-M0_INTERNAL void m0_cas_index_create_rep(struct m0_cas_req       *req,
+M0_INTERNAL void m0_cas_index_create_rep(const struct m0_cas_req *req,
 					 uint64_t                 idx,
 					 struct m0_cas_rec_reply *rep);
 
@@ -337,6 +337,7 @@ M0_INTERNAL void m0_cas_index_create_rep(struct m0_cas_req       *req,
  * catalogue to be deleted does not exist.
  *
  * @pre m0_cas_req_is_locked(req)
+ * @pre (flags & ~(COF_CROW | COF_DEL_LOCK)) == 0
  * @see m0_cas_index_delete_rep()
  */
 M0_INTERNAL int m0_cas_index_delete(struct m0_cas_req      *req,
@@ -350,7 +351,7 @@ M0_INTERNAL int m0_cas_index_delete(struct m0_cas_req      *req,
  *
  * @pre idx < m0_cas_req_nr(req)
  */
-M0_INTERNAL void m0_cas_index_delete_rep(struct m0_cas_req       *req,
+M0_INTERNAL void m0_cas_index_delete_rep(const struct m0_cas_req *req,
 					 uint64_t                 idx,
 					 struct m0_cas_rec_reply *rep);
 
@@ -376,7 +377,7 @@ M0_INTERNAL int m0_cas_index_lookup(struct m0_cas_req      *req,
  *
  * @pre idx < m0_cas_req_nr(req)
  */
-M0_INTERNAL void m0_cas_index_lookup_rep(struct m0_cas_req       *req,
+M0_INTERNAL void m0_cas_index_lookup_rep(const struct m0_cas_req *req,
 					 uint64_t                 idx,
 					 struct m0_cas_rec_reply *rep);
 
@@ -526,13 +527,18 @@ M0_INTERNAL void m0_cas_next_rep(const struct m0_cas_req  *req,
  * Keys buffers (m0_bufvec::ov_vec[i]) should be accessible until request is
  * processed.
  *
+ * 'Flags' argument is a bitmask of m0_cas_op_flags values. COF_DEL_LOCK is the
+ * only possible flag for now.
+ *
  * @pre m0_cas_req_is_locked(req)
+ * @pre M0_IN(flags, (0, COF_DEL_LOCK))
  * @see m0_cas_del_rep()
  */
 M0_INTERNAL int m0_cas_del(struct m0_cas_req *req,
 			   struct m0_cas_id  *index,
 			   struct m0_bufvec  *keys,
-			   struct m0_dtx     *dtx);
+			   struct m0_dtx     *dtx,
+			   uint32_t           flags);
 
 /**
  * Gets execution result of m0_cas_del() request.

@@ -434,7 +434,7 @@ static struct m0_cas_rep *cas_rep(struct m0_rpc_item *reply)
 	return m0_fop_data(m0_rpc_item_to_fop(reply));
 }
 
-M0_INTERNAL int m0_cas_req_generic_rc(struct m0_cas_req *req)
+M0_INTERNAL int m0_cas_req_generic_rc(const struct m0_cas_req *req)
 {
 	struct m0_fop      *req_fop = req->ccr_fop;
 	struct m0_rpc_item *reply;
@@ -1284,7 +1284,7 @@ static void cas_rep_copy(const struct m0_cas_req *req,
 	rep->crr_hint = recv->cr_rec[idx].cr_hint;
 }
 
-M0_INTERNAL void m0_cas_index_create_rep(struct m0_cas_req       *req,
+M0_INTERNAL void m0_cas_index_create_rep(const struct m0_cas_req *req,
 					 uint64_t                 idx,
 					 struct m0_cas_rec_reply *rep)
 {
@@ -1307,6 +1307,7 @@ M0_INTERNAL int m0_cas_index_delete(struct m0_cas_req      *req,
 	M0_PRE(req->ccr_sess != NULL);
 	M0_PRE(m0_cas_req_is_locked(req));
 	M0_PRE(m0_forall(i, cids_nr, m0_cas_id_invariant(&cids[i])));
+	M0_PRE((flags & ~(COF_CROW | COF_DEL_LOCK)) == 0);
 	(void)dtx;
 	rc = cas_index_req_prepare(req, cids, cids_nr, cids_nr, false, flags,
 				   &op);
@@ -1320,7 +1321,7 @@ M0_INTERNAL int m0_cas_index_delete(struct m0_cas_req      *req,
 	return M0_RC(rc);
 }
 
-M0_INTERNAL void m0_cas_index_delete_rep(struct m0_cas_req       *req,
+M0_INTERNAL void m0_cas_index_delete_rep(const struct m0_cas_req *req,
 					 uint64_t                 idx,
 					 struct m0_cas_rec_reply *rep)
 {
@@ -1352,7 +1353,7 @@ M0_INTERNAL int m0_cas_index_lookup(struct m0_cas_req      *req,
 	return M0_RC(rc);
 }
 
-M0_INTERNAL void m0_cas_index_lookup_rep(struct m0_cas_req       *req,
+M0_INTERNAL void m0_cas_index_lookup_rep(const struct m0_cas_req *req,
 					 uint64_t                 idx,
 					 struct m0_cas_rec_reply *rep)
 {
@@ -1738,7 +1739,8 @@ M0_INTERNAL void m0_cas_next_rep(const struct m0_cas_req  *req,
 M0_INTERNAL int m0_cas_del(struct m0_cas_req *req,
 			   struct m0_cas_id  *index,
 			   struct m0_bufvec  *keys,
-			   struct m0_dtx     *dtx)
+			   struct m0_dtx     *dtx,
+			   uint32_t           flags)
 {
 	struct m0_cas_op      *op;
 	enum m0_cas_req_state  next_state;
@@ -1748,9 +1750,11 @@ M0_INTERNAL int m0_cas_del(struct m0_cas_req *req,
 	M0_PRE(keys != NULL);
 	M0_PRE(m0_cas_req_is_locked(req));
 	M0_PRE(m0_cas_id_invariant(index));
+	M0_PRE(M0_IN(flags, (0, COF_DEL_LOCK)));
 
 	(void)dtx;
-	rc = cas_req_prep(req, index, keys, NULL, keys->ov_vec.v_nr, 0, &op);
+	rc = cas_req_prep(req, index, keys, NULL, keys->ov_vec.v_nr, flags,
+			  &op);
 	if (rc != 0)
 		return M0_ERR(rc);
 	rc = creq_fop_create_and_prepare(req, &cas_del_fopt, op, &next_state);

@@ -391,7 +391,7 @@ static void cas_del_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 
 	M0_ENTRY();
 	cas_req_prepare(dix_req, &idx, oi);
-	rc = m0_cas_del(creq, &idx, oi->oi_keys, NULL);
+	rc = m0_cas_del(creq, &idx, oi->oi_keys, NULL, 0);
 	if (rc != 0)
 		dix_req_immed_failure(dix_req, M0_ERR(rc));
 	M0_LEAVE();

@@ -591,7 +591,7 @@ static int ut_rec_del(struct cl_ctx           *cctx,
 	m0_clink_add_lock(chan, &cctx->cl_wait.aw_clink);
 
 	m0_cas_req_lock(&req);
-	rc = m0_cas_del(&req, index, keys, NULL);
+	rc = m0_cas_del(&req, index, keys, NULL, 0);
 	if (rc == 0) {
 		/* wait results */
 		m0_cas_req_wait(&req, M0_BITS(CASREQ_FINAL), M0_TIME_NEVER);

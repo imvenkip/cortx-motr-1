@@ -65,6 +65,15 @@ enum ut_dix_req_type {
 	REQ_PUT,
 	REQ_DEL
 };
+
+enum ut_pg_unit {
+	PG_UNIT_DATA,
+	PG_UNIT_PARITY0,
+	PG_UNIT_PARITY1,
+	PG_UNIT_SPARE0,
+	PG_UNIT_SPARE1,
+};
+
 /* Client context */
 struct cl_ctx {
 	/* Client network domain. */
@@ -79,6 +88,8 @@ struct cl_ctx {
 	struct m0_fid            cl_pver;
 	struct m0_dix_ldesc      cl_dld1;
 	struct m0_dix_ldesc      cl_dld2;
+	uint32_t                *cl_sdev_ids;
+	uint32_t                 cl_sdev_ids_nr;
 };
 
 struct dix_rep_arr {
@@ -602,6 +613,22 @@ static void dix_index_init(struct m0_dix *index, uint32_t id)
 	index->dd_fid            = DFID(1, id);
 }
 
+static void dix_predictable_index_init(struct m0_dix *index, uint32_t id)
+{
+	struct m0_dix_ldesc       *ldesc = &index->dd_layout.u.dl_desc;
+	int                        rc;
+
+	/*
+	 * Predictable index uses empty identity mask, so all keys have 0 parity
+	 * group and distributed over the same nodes in the same order.
+	 */
+	rc = m0_dix_ldesc_init(ldesc, NULL, 0, HASH_FNC_NONE,
+			       &dix_ut_cctx.cl_pver);
+	M0_UT_ASSERT(rc == 0);
+	index->dd_layout.dl_type = DIX_LTYPE_DESCR;
+	index->dd_fid            = DFID(1, id);
+}
+
 static void dix_index_fini(struct m0_dix *index)
 {
 	m0_dix_fini(index);
@@ -652,6 +679,334 @@ static void dix_rep_free(struct dix_rep_arr *rep)
 	}
 	m0_free(rep->dra_rep);
 }
+
+static struct m0_pooldev *dix_pm_disk_find(struct m0_poolmach *pm,
+					   uint32_t            sdev_idx)
+{
+	struct m0_poolmach_state *pm_state = pm->pm_state;
+	uint32_t                  i;
+
+	for (i = 0; i < pm_state->pst_nr_devices; i++) {
+		if (pm_state->pst_devices_array[i].pd_sdev_idx == sdev_idx)
+			return &pm_state->pst_devices_array[i];
+	}
+	return NULL;
+}
+
+static void dix_pm_disk_state_set(struct m0_poolmach *pm, uint32_t sdev_idx,
+				  enum m0_pool_nd_state state)
+{
+	struct m0_poolmach_event  event;
+	struct m0_pooldev        *pd;
+	int                       rc;
+
+	pd = dix_pm_disk_find(pm, sdev_idx);
+	event.pe_type = M0_POOL_DEVICE;
+	event.pe_index = pd->pd_index;
+	event.pe_state = state;
+	rc = m0_poolmach_state_transit(pm, &event, NULL);
+	M0_ASSERT(rc == 0);
+}
+
+static struct m0_poolmach *dix_srv_poolmach(void)
+{
+	struct m0_pool_version *pver;
+	struct m0_reqh         *reqh;
+
+	reqh = &dix_ut_sctx.rsx_mero_ctx.cc_reqh_ctx.rc_reqh;
+	pver = m0_pool_version_find(reqh->rh_pools, &dix_ut_cctx.cl_pver);
+	M0_UT_ASSERT(pver != NULL);
+	return &pver->pv_mach;
+}
+
+static enum m0_pool_nd_state dix_disk_state(uint32_t sdev_idx)
+{
+	struct m0_poolmach *cli_pm;
+	struct m0_poolmach *srv_pm;
+	struct m0_pooldev  *cli_pd;
+	struct m0_pooldev  *srv_pd;
+
+	cli_pm = &dix_ut_cctx.cl_cli.dx_pver->pv_mach;
+	srv_pm = dix_srv_poolmach();
+	cli_pd = dix_pm_disk_find(cli_pm, sdev_idx);
+	srv_pd = dix_pm_disk_find(srv_pm, sdev_idx);
+	M0_UT_ASSERT(cli_pd->pd_state == srv_pd->pd_state);
+	return cli_pd->pd_state;
+}
+
+static void dix_disk_state_set(uint32_t sdev_idx, enum m0_pool_nd_state state)
+{
+	struct m0_poolmach *cli_pm;
+	struct m0_poolmach *srv_pm;
+
+	cli_pm = &dix_ut_cctx.cl_cli.dx_pver->pv_mach;
+	srv_pm = dix_srv_poolmach();
+	dix_pm_disk_state_set(cli_pm, sdev_idx, state);
+	dix_pm_disk_state_set(srv_pm, sdev_idx, state);
+}
+
+static void dix_disk_failure_set(uint32_t sdev_idx, enum m0_pool_nd_state state)
+{
+	M0_PRE(dix_disk_state(sdev_idx) == M0_PNDS_ONLINE);
+	do {
+		switch (dix_disk_state(sdev_idx)) {
+		case M0_PNDS_ONLINE:
+			dix_disk_state_set(sdev_idx, M0_PNDS_FAILED);
+			break;
+		case M0_PNDS_FAILED:
+			dix_disk_state_set(sdev_idx, M0_PNDS_SNS_REPAIRING);
+			break;
+		case M0_PNDS_SNS_REPAIRING:
+			dix_disk_state_set(sdev_idx, M0_PNDS_SNS_REPAIRED);
+			break;
+		case M0_PNDS_SNS_REPAIRED:
+			dix_disk_state_set(sdev_idx, M0_PNDS_SNS_REBALANCING);
+			break;
+		default:
+			M0_IMPOSSIBLE("Invalid state");
+		}
+	} while (dix_disk_state(sdev_idx) != state);
+}
+
+static void dix_disk_online_set(uint32_t sdev_idx)
+{
+	switch (dix_disk_state(sdev_idx)) {
+	case M0_PNDS_FAILED:
+		dix_disk_state_set(sdev_idx, M0_PNDS_SNS_REPAIRING);
+		/* Fall through. */
+	case M0_PNDS_SNS_REPAIRING:
+		dix_disk_state_set(sdev_idx, M0_PNDS_SNS_REPAIRED);
+		/* Fall through. */
+	case M0_PNDS_SNS_REPAIRED:
+		dix_disk_state_set(sdev_idx, M0_PNDS_SNS_REBALANCING);
+		/* Fall through. */
+	case M0_PNDS_SNS_REBALANCING:
+		dix_disk_state_set(sdev_idx, M0_PNDS_ONLINE);
+		break;
+	default:
+		M0_IMPOSSIBLE("Disk seems to be not failed.");
+	}
+}
+
+static void dix_predictable_sdev_ids_fill(struct m0_dix *index)
+{
+	uint32_t                  *sdevs;
+	struct m0_pool_version    *pver;
+	struct m0_dix_layout_iter  iter;
+	struct m0_buf              kbuf;
+	uint32_t                   key = 0;
+	uint32_t                   P;
+	uint64_t                   tgt;
+	int                        rc;
+	uint32_t                   i;
+
+	M0_PRE(index->dd_layout.dl_type == DIX_LTYPE_DESCR);
+	M0_PRE(index->dd_layout.u.dl_desc.ld_hash_fnc == HASH_FNC_NONE);
+	M0_PRE(index->dd_layout.u.dl_desc.ld_imask.im_nr == 0);
+
+	pver = m0_pool_version_find(&dix_ut_cctx.cl_pools_common,
+				    &dix_ut_cctx.cl_pver);
+	M0_UT_ASSERT(pver != NULL);
+	kbuf = M0_BUF_INIT_PTR(&key);
+	P = pver->pv_attr.pa_P;
+	rc = m0_dix_layout_iter_init(&iter, &index->dd_fid,
+				     &dix_ut_cctx.cl_ldom, pver,
+				     &index->dd_layout.u.dl_desc, &kbuf);
+	M0_UT_ASSERT(rc == 0);
+	M0_ALLOC_ARR(sdevs, P);
+	M0_UT_ASSERT(sdevs != NULL);
+	for (i = 0; i < m0_dix_liter_W(&iter); i++) {
+		m0_dix_layout_iter_next(&iter, &tgt);
+		sdevs[i] = m0_dix_tgt2sdev(&iter.dit_linst, tgt)->pd_sdev_idx;
+	}
+	dix_ut_cctx.cl_sdev_ids = sdevs;
+	dix_ut_cctx.cl_sdev_ids_nr = m0_dix_liter_W(&iter);
+	m0_dix_layout_iter_fini(&iter);
+}
+
+static uint32_t dix_sdev_id(enum ut_pg_unit unit)
+{
+	uint32_t *sdevs         = dix_ut_cctx.cl_sdev_ids;
+	uint32_t  sdevs_nr      = dix_ut_cctx.cl_sdev_ids_nr;
+	uint32_t  K             = (sdevs_nr - 1) / 2;
+	uint32_t  parity_offset = 1;
+	uint32_t  spare_offset  = parity_offset + K;
+
+	switch (unit) {
+	case PG_UNIT_DATA:
+		return sdevs[0];
+	case PG_UNIT_PARITY0:
+		return sdevs[parity_offset + 0];
+	case PG_UNIT_PARITY1:
+		return sdevs[parity_offset + 1];
+	case PG_UNIT_SPARE0:
+		return sdevs[spare_offset + 0];
+	case PG_UNIT_SPARE1:
+		return sdevs[spare_offset + 1];
+	default:
+		M0_IMPOSSIBLE("Incorrect unit");
+	}
+}
+
+static void dix_cctg_id_fill(struct m0_dix *index, uint32_t sdev_idx,
+			     struct m0_cas_id *cctg_id)
+{
+	int rc;
+
+	m0_dix_fid_convert_dix2cctg(&index->dd_fid, &cctg_id->ci_fid, sdev_idx);
+
+	cctg_id->ci_layout.dl_type = index->dd_layout.dl_type;
+	rc = m0_dix_ldesc_copy(&cctg_id->ci_layout.u.dl_desc,
+			       &index->dd_layout.u.dl_desc);
+	M0_UT_ASSERT(rc == 0);
+
+}
+
+static struct m0_rpc_session *cctg_rpc_sess(uint32_t sdev_idx)
+{
+	struct m0_pools_common     *pc = &dix_ut_cctx.cl_pools_common;
+	struct m0_reqh_service_ctx *cas_svc;
+
+	cas_svc = pc->pc_dev2svc[sdev_idx].pds_ctx;
+	M0_PRE(cas_svc != NULL);
+	return &cas_svc->sc_rlink.rlk_sess;
+}
+
+static int dix_cctg_records_del(struct m0_dix    *index,
+				struct m0_bufvec *keys,
+				uint32_t          sdev_idx)
+{
+	struct m0_cas_req       creq = {};
+	struct m0_cas_id        cctg_id;
+	struct m0_cas_rec_reply rep;
+	uint32_t                keys_nr;
+	uint32_t                i;
+	int                     rc;
+
+	keys_nr = keys->ov_vec.v_nr;
+	dix_cctg_id_fill(index, sdev_idx, &cctg_id);
+	m0_cas_req_init(&creq, cctg_rpc_sess(sdev_idx),
+			m0_locality0_get()->lo_grp);
+	m0_cas_req_lock(&creq);
+	rc = m0_cas_del(&creq, &cctg_id, keys, NULL, 0);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_sm_timedwait(&creq.ccr_sm,
+			M0_BITS(CASREQ_FINAL, CASREQ_FAILURE),
+			M0_TIME_NEVER);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(creq.ccr_sm.sm_state == CASREQ_FINAL);
+	M0_UT_ASSERT(m0_cas_req_nr(&creq) == keys_nr);
+	rc = m0_cas_req_generic_rc(&creq);
+	for (i = 0; i < keys_nr; i++) {
+		m0_cas_del_rep(&creq, i, &rep);
+		if (rc == 0)
+			rc = rep.crr_rc;
+	}
+	m0_cas_req_unlock(&creq);
+	m0_cas_req_fini_lock(&creq);
+	return rc;
+}
+
+static void dix_cctg_records_put(struct m0_dix    *index,
+				 struct m0_bufvec *keys,
+				 struct m0_bufvec *vals,
+				 uint32_t          sdev_idx)
+{
+	struct m0_cas_req       creq = {};
+	struct m0_cas_id        cctg_id;
+	struct m0_cas_rec_reply rep;
+	uint32_t                keys_nr;
+	uint32_t                i;
+	int                     rc;
+
+	keys_nr = keys->ov_vec.v_nr;
+	dix_cctg_id_fill(index, sdev_idx, &cctg_id);
+	m0_cas_req_init(&creq, cctg_rpc_sess(sdev_idx),
+			m0_locality0_get()->lo_grp);
+	m0_cas_req_lock(&creq);
+	rc = m0_cas_put(&creq, &cctg_id, keys, vals, NULL, 0);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_sm_timedwait(&creq.ccr_sm,
+			M0_BITS(CASREQ_FINAL, CASREQ_FAILURE),
+			M0_TIME_NEVER);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(creq.ccr_sm.sm_state == CASREQ_FINAL);
+	M0_UT_ASSERT(m0_cas_req_nr(&creq) == keys_nr);
+	M0_UT_ASSERT(m0_cas_req_generic_rc(&creq) == 0);
+	for (i = 0; i < keys_nr; i++) {
+		m0_cas_put_rep(&creq, i, &rep);
+		M0_UT_ASSERT(rep.crr_rc == 0);
+	}
+	m0_cas_req_unlock(&creq);
+	m0_cas_req_fini_lock(&creq);
+}
+
+static bool dix_cctg_has_replica(struct m0_dix    *index,
+				 struct m0_bufvec *keys,
+				 struct m0_bufvec *vals,
+				 uint32_t          sdev_idx)
+{
+	struct m0_cas_req       creq = {};
+	struct m0_cas_id        cctg_id;
+	struct m0_cas_get_reply rep;
+	uint32_t                keys_nr;
+	uint32_t                i;
+	int                     rc;
+	bool                    ret = true;
+
+	keys_nr = keys->ov_vec.v_nr;
+	dix_cctg_id_fill(index, sdev_idx, &cctg_id);
+	m0_cas_req_init(&creq, cctg_rpc_sess(sdev_idx),
+			m0_locality0_get()->lo_grp);
+	m0_cas_req_lock(&creq);
+	rc = m0_cas_get(&creq, &cctg_id, keys);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_sm_timedwait(&creq.ccr_sm,
+			M0_BITS(CASREQ_FINAL, CASREQ_FAILURE),
+			M0_TIME_NEVER);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(creq.ccr_sm.sm_state == CASREQ_FINAL);
+	M0_UT_ASSERT(m0_cas_req_nr(&creq) == keys_nr);
+	M0_UT_ASSERT(m0_cas_req_generic_rc(&creq) == 0);
+	for (i = 0; i < keys_nr; i++) {
+		m0_cas_get_rep(&creq, i, &rep);
+		M0_UT_ASSERT(M0_IN(rep.cge_rc, (0, -ENOENT)));
+		if (rep.cge_rc == -ENOENT) {
+			ret = false;
+			break;
+		} else if (vals != NULL) {
+			M0_UT_ASSERT(vals->ov_vec.v_count[i] ==
+				     rep.cge_val.b_nob);
+			M0_UT_ASSERT(!memcmp(vals->ov_buf[i],
+					     rep.cge_val.b_addr,
+					     rep.cge_val.b_nob));
+		}
+	}
+	m0_cas_req_unlock(&creq);
+	m0_cas_req_fini_lock(&creq);
+	return ret;
+}
+
+static void dix_records_erase(struct m0_dix *index, struct m0_bufvec *keys)
+{
+	int i;
+
+	for (i = PG_UNIT_DATA; i <= PG_UNIT_SPARE1; i++)
+		/* Ignore rc. */
+		dix_cctg_records_del(index, keys, dix_sdev_id(i));
+}
+
+static bool dix_rec_is_deleted(struct m0_dix *index, struct m0_bufvec *keys)
+{
+	uint32_t *sdevs = dix_ut_cctx.cl_sdev_ids;
+	uint32_t  nr    = dix_ut_cctx.cl_sdev_ids_nr;
+
+	return m0_forall(i, nr,
+		!M0_IN(dix_disk_state(sdevs[i]), (M0_PNDS_ONLINE,
+						  M0_PNDS_SNS_REBALANCING)) ||
+		!dix_cctg_has_replica(index, keys, NULL, sdevs[i]));
+}
+
 
 static int dix_client_init(struct cl_ctx *cctx, const char *cl_ep_addr,
 			   const char *srv_ep_addr, const char* dbname,
@@ -734,6 +1089,7 @@ static int dix_client_init(struct cl_ctx *cctx, const char *cl_ep_addr,
 	rc = m0_pool_versions_setup(pc, fs, NULL, NULL, NULL);
 	M0_UT_ASSERT(rc == 0);
 	m0_confc_close(&fs->cf_obj);
+	cctx->cl_sdev_ids = NULL;
 	return rc;
 }
 
@@ -760,6 +1116,7 @@ static void dix_client_fini(struct cl_ctx *cctx)
 	m0_layout_standard_types_unregister(&cctx->cl_ldom);
 	m0_layout_domain_fini(&cctx->cl_ldom);
 	m0_net_domain_fini(&cctx->cl_ndom);
+	m0_free(cctx->cl_sdev_ids);
 }
 
 static void dixc_ut_init(struct m0_rpc_server_ctx *sctx,
@@ -1091,6 +1448,44 @@ static void dix_create_crow(void)
 	ut_service_fini();
 }
 
+static void dix_create_dgmode(void)
+{
+	struct m0_dix indices[COUNT_INDEX];
+	uint32_t      indices_nr = ARRAY_SIZE(indices);
+	int           i;
+	int           rc;
+
+	ut_service_init();
+	for (i = 0; i < indices_nr; i++)
+		dix_index_init(&indices[i], i);
+	dix_disk_failure_set(10, M0_PNDS_FAILED);
+	/*
+	 * Create operation with COF_CROW should succeed, because it's not
+	 * necessary to create all component catalogues during index creation.
+	 */
+	rc = dix_common_idx_flagged_op(indices, indices_nr, REQ_CREATE,
+				       COF_CROW);
+	M0_UT_ASSERT(rc == 0);
+	rc = dix_common_idx_flagged_op(indices, indices_nr, REQ_DELETE,
+				       COF_CROW);
+	M0_UT_ASSERT(rc == 0);
+
+	/*
+	 * Create operation without COF_CROW should fail, because it's
+	 * impossible to create all component catalogues for any distributed
+	 * index.
+	 */
+	rc = dix_common_idx_op(indices, indices_nr, REQ_CREATE);
+	M0_UT_ASSERT(rc == -EIO);
+	rc = dix_common_idx_op(indices, indices_nr, REQ_DELETE);
+	M0_UT_ASSERT(rc == -ENOENT);
+
+	dix_disk_online_set(10);
+	for (i = 0; i < indices_nr; i++)
+		dix_index_fini(&indices[i]);
+	ut_service_fini();
+}
+
 static void dix_delete(void)
 {
 	struct m0_dix indices[COUNT_INDEX];
@@ -1145,6 +1540,41 @@ static void dix_delete_crow(void)
 	M0_UT_ASSERT(rc == 0);
 	rc = dix_common_idx_op(indices, indices_nr, REQ_DELETE);
 	M0_UT_ASSERT(rc == 0);
+	for (i = 0; i < indices_nr; i++)
+		dix_index_fini(&indices[i]);
+	ut_service_fini();
+}
+
+static void dix_delete_dgmode(void)
+{
+	struct m0_dix indices[COUNT_INDEX];
+	uint32_t      indices_nr = ARRAY_SIZE(indices);
+	int           i;
+	int           rc;
+
+	ut_service_init();
+	for (i = 0; i < indices_nr; i++)
+		dix_index_init(&indices[i], i);
+	/*
+	 * Delete in dgmode for non-existing catalogue.
+	 */
+	dix_disk_failure_set(10, M0_PNDS_SNS_REPAIRING);
+	rc = dix_common_idx_op(indices, indices_nr, REQ_DELETE);
+	M0_UT_ASSERT(rc == -ENOENT);
+	dix_disk_online_set(10);
+
+	/*
+	 * Create indices in non-degraded mode, then failure one device and
+	 * delete the indices.
+	 */
+	rc = dix_common_idx_op(indices, indices_nr, REQ_CREATE);
+	M0_UT_ASSERT(rc == 0);
+
+	dix_disk_failure_set(10, M0_PNDS_SNS_REPAIRING);
+	rc = dix_common_idx_op(indices, indices_nr, REQ_DELETE);
+	M0_UT_ASSERT(rc == 0);
+	dix_disk_online_set(10);
+
 	for (i = 0; i < indices_nr; i++)
 		dix_index_fini(&indices[i]);
 	ut_service_fini();
@@ -1356,6 +1786,83 @@ static void dix_put_crow(void)
 	ut_service_fini();
 }
 
+static void dix_put_dgmode(void)
+{
+	struct m0_dix      index;
+	struct m0_bufvec   keys;
+	struct m0_bufvec   vals;
+	struct dix_rep_arr rep;
+	uint32_t           sdev_id;
+	int                rc;
+
+	ut_service_init();
+	dix_predictable_index_init(&index, 1);
+	dix_kv_alloc_and_fill(&keys, &vals, COUNT);
+	rc = dix_common_idx_op(&index, 1, REQ_CREATE);
+	M0_UT_ASSERT(rc == 0);
+
+	dix_predictable_sdev_ids_fill(&index);
+
+	/*
+	 * Put record when one drive is failed.
+	 * The record should be inserted in a spare unit.
+	 */
+	sdev_id = dix_sdev_id(PG_UNIT_DATA);
+	dix_disk_failure_set(sdev_id, M0_PNDS_FAILED);
+	rc = dix_ut_put(&index, &keys, &vals, 0, &rep);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(rep.dra_nr == COUNT);
+	M0_UT_ASSERT(m0_forall(i, COUNT, rep.dra_rep[i].dre_rc == 0));
+	M0_UT_ASSERT(dix_cctg_has_replica(&index, &keys, &vals,
+					  dix_sdev_id(PG_UNIT_SPARE0)));
+	dix_rep_free(&rep);
+	rc = dix_ut_del(&index, &keys, &rep);
+	M0_UT_ASSERT(rc == 0);
+	dix_rep_free(&rep);
+	dix_disk_online_set(sdev_id);
+	dix_records_erase(&index, &keys);
+
+	/*
+	 * Put record when the drive with data unit is in repairing state.
+	 * Spare slot should be used instead of this drive.
+	 */
+	sdev_id = dix_sdev_id(PG_UNIT_DATA);
+	dix_disk_failure_set(sdev_id, M0_PNDS_SNS_REPAIRING);
+	rc = dix_ut_put(&index, &keys, &vals, 0, &rep);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(rep.dra_nr == COUNT);
+	M0_UT_ASSERT(m0_forall(i, COUNT, rep.dra_rep[i].dre_rc == 0));
+	M0_UT_ASSERT(dix_cctg_has_replica(&index, &keys, &vals,
+					  dix_sdev_id(PG_UNIT_SPARE0)));
+	dix_rep_free(&rep);
+	dix_disk_online_set(sdev_id);
+	M0_UT_ASSERT(!dix_cctg_has_replica(&index, &keys, &vals,
+					   dix_sdev_id(PG_UNIT_DATA)));
+	dix_records_erase(&index, &keys);
+
+	/*
+	 * Put record when the drive with data unit is in re-balancing state.
+	 * Spare slot and re-balance target should both be updated.
+	 */
+	sdev_id = dix_sdev_id(PG_UNIT_DATA);
+	dix_disk_failure_set(sdev_id, M0_PNDS_SNS_REBALANCING);
+	rc = dix_ut_put(&index, &keys, &vals, 0, &rep);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(rep.dra_nr == COUNT);
+	M0_UT_ASSERT(m0_forall(i, COUNT, rep.dra_rep[i].dre_rc == 0));
+	M0_UT_ASSERT(dix_cctg_has_replica(&index, &keys, &vals,
+					  dix_sdev_id(PG_UNIT_DATA)));
+	M0_UT_ASSERT(dix_cctg_has_replica(&index, &keys, &vals,
+					  dix_sdev_id(PG_UNIT_SPARE0)));
+	dix_rep_free(&rep);
+	dix_records_erase(&index, &keys);
+	dix_disk_online_set(sdev_id);
+
+	dix_kv_destroy(&keys, &vals);
+	dix_index_fini(&index);
+	ut_service_fini();
+}
+
 static void dix_get(void)
 {
 	struct m0_dix      index;
@@ -1391,6 +1898,160 @@ static void dix_get(void)
 	ut_service_fini();
 }
 
+static void dix_dgmode_disks_prep(enum ut_pg_unit        unit1,
+				  enum m0_pool_nd_state  state1,
+				  enum ut_pg_unit        unit2,
+				  enum m0_pool_nd_state  state2,
+				  struct m0_dix         *index,
+				  struct m0_bufvec      *keys,
+				  struct m0_bufvec      *vals)
+{
+	int rc;
+
+	M0_PRE(unit1 < unit2);
+	if (unit1 < PG_UNIT_SPARE0) {
+		rc = dix_cctg_records_del(index, keys, dix_sdev_id(unit1));
+		M0_UT_ASSERT(rc == 0);
+	}
+
+	if (unit2 < PG_UNIT_SPARE0) {
+		rc = dix_cctg_records_del(index, keys, dix_sdev_id(unit2));
+		M0_UT_ASSERT(rc == 0);
+	}
+
+	if (M0_IN(state1, (M0_PNDS_SNS_REPAIRED, M0_PNDS_SNS_REBALANCING)) &&
+	    unit1 < PG_UNIT_SPARE0) {
+		if (unit2 == PG_UNIT_SPARE0 &&
+		    M0_IN(state2, (M0_PNDS_SNS_REPAIRED,
+				   M0_PNDS_SNS_REBALANCING))) {
+			dix_cctg_records_put(index, keys, vals,
+					     dix_sdev_id(PG_UNIT_SPARE1));
+		} else {
+			dix_cctg_records_put(index, keys, vals,
+					     dix_sdev_id(PG_UNIT_SPARE0));
+
+		}
+	}
+
+	if (M0_IN(state2, (M0_PNDS_SNS_REPAIRED, M0_PNDS_SNS_REBALANCING)) &&
+	    unit2 < PG_UNIT_SPARE0)
+		dix_cctg_records_put(index, keys, vals,
+				     dix_sdev_id(PG_UNIT_SPARE1));
+}
+
+static void dix_dgmode_disks_unprep(enum ut_pg_unit        unit1,
+				    enum m0_pool_nd_state  state1,
+				    enum ut_pg_unit        unit2,
+				    enum m0_pool_nd_state  state2,
+				    struct m0_dix         *index,
+				    struct m0_bufvec      *keys,
+				    struct m0_bufvec      *vals)
+{
+	int rc;
+
+	if (unit1 < PG_UNIT_SPARE0)
+		dix_cctg_records_put(index, keys, vals, dix_sdev_id(unit1));
+
+	if (unit2 < PG_UNIT_SPARE0)
+		dix_cctg_records_put(index, keys, vals, dix_sdev_id(unit2));
+
+	if (M0_IN(state1, (M0_PNDS_SNS_REPAIRED, M0_PNDS_SNS_REBALANCING)) &&
+	    unit1 < PG_UNIT_SPARE0) {
+		if (unit2 == PG_UNIT_SPARE0 &&
+		    M0_IN(state2, (M0_PNDS_SNS_REPAIRED,
+				   M0_PNDS_SNS_REBALANCING))) {
+			rc = dix_cctg_records_del(index, keys,
+						  dix_sdev_id(PG_UNIT_SPARE1));
+			M0_UT_ASSERT(rc == 0);
+		} else {
+			rc = dix_cctg_records_del(index, keys,
+						  dix_sdev_id(PG_UNIT_SPARE0));
+			M0_UT_ASSERT(rc == 0);
+		}
+	}
+
+	if (M0_IN(state2, (M0_PNDS_SNS_REPAIRED, M0_PNDS_SNS_REBALANCING)) &&
+	    unit2 < PG_UNIT_SPARE0) {
+		rc = dix_cctg_records_del(index, keys,
+					  dix_sdev_id(PG_UNIT_SPARE1));
+		M0_UT_ASSERT(rc == 0);
+	}
+}
+
+static void dix_get_dgmode(void)
+{
+	struct m0_dix         index;
+	struct m0_bufvec      keys;
+	struct m0_bufvec      vals;
+	enum ut_pg_unit       i;
+	enum ut_pg_unit       j;
+	enum m0_pool_nd_state s1;
+	enum m0_pool_nd_state s2;
+	struct dix_rep_arr    rep;
+	int                   rc;
+
+	ut_service_init();
+	dix_predictable_index_init(&index, 1);
+	dix_kv_alloc_and_fill(&keys, &vals, COUNT);
+	rc = dix_common_idx_op(&index, 1, REQ_CREATE);
+	M0_UT_ASSERT(rc == 0);
+	rc = dix_ut_put(&index, &keys, &vals, 0, &rep);
+	M0_UT_ASSERT(rc == 0);
+	dix_rep_free(&rep);
+
+	dix_predictable_sdev_ids_fill(&index);
+
+	/*
+	 * Get record when drive is failed.
+	 * The drive should be skipped.
+	 */
+	dix_disk_failure_set(dix_sdev_id(PG_UNIT_DATA), M0_PNDS_FAILED);
+	rc = dix_ut_get(&index, &keys, &rep);
+	dix_vals_check(&rep, COUNT);
+	M0_UT_ASSERT(rc == 0);
+	dix_rep_free(&rep);
+	dix_disk_online_set(dix_sdev_id(PG_UNIT_DATA));
+
+	/*
+	 * Get should work for every combination of two failed devices.
+	 * If a failed drive is not repaired yet, then it should be skipped.
+	 * Otherwise, spare unit is used instead of the failed one.
+	 */
+	for (i = PG_UNIT_DATA; i < PG_UNIT_SPARE1; i++) {
+		for (s1 = M0_PNDS_FAILED; s1 <= M0_PNDS_SNS_REBALANCING; s1++) {
+			for (j = i + 1; j <= PG_UNIT_SPARE1; j++) {
+				for (s2 = M0_PNDS_FAILED;
+				     s2 <= M0_PNDS_SNS_REBALANCING; s2++) {
+					if (s1 == M0_PNDS_OFFLINE ||
+					    s2 == M0_PNDS_OFFLINE)
+						continue;
+					dix_dgmode_disks_prep(i, s1, j, s2,
+							      &index, &keys,
+							      &vals);
+					dix_disk_failure_set(dix_sdev_id(i),
+							     s1);
+					dix_disk_failure_set(dix_sdev_id(j),
+							     s2);
+					rc = dix_ut_get(&index, &keys, &rep);
+					M0_UT_ASSERT(rc == 0);
+					dix_vals_check(&rep, COUNT);
+					dix_rep_free(&rep);
+					dix_disk_online_set(dix_sdev_id(i));
+					dix_disk_online_set(dix_sdev_id(j));
+					dix_dgmode_disks_unprep(i, s1, j, s2,
+								&index, &keys,
+								&vals);
+				}
+			}
+		}
+	}
+
+
+	dix_kv_destroy(&keys, &vals);
+	dix_index_fini(&index);
+	ut_service_fini();
+}
+
 static void dix_get_resend(void)
 {
 	struct m0_dix      index;
@@ -1403,6 +2064,7 @@ static void dix_get_resend(void)
 	dix_index_init(&index, 1);
 	dix_kv_alloc_and_fill(&keys, &vals, COUNT);
 	dix_index_create_and_fill(&index, &keys, &vals);
+
 	/*
 	 * Imitate one failure during GET operation, the record should be
 	 * re-requested from parity unit.
@@ -1412,6 +2074,7 @@ static void dix_get_resend(void)
 	M0_UT_ASSERT(rc == 0);
 	dix_vals_check(&rep, COUNT);
 	dix_rep_free(&rep);
+
 	/*
 	 * Imitate many failures during GET operation, so retrieval from data
 	 * and parity unit locations fails.
@@ -1459,6 +2122,63 @@ static void dix_next(void)
 	ut_service_fini();
 }
 
+static void dix_next_dgmode(void)
+{
+	struct m0_dix      index;
+	struct m0_bufvec   keys;
+	struct m0_bufvec   start_key;
+	struct m0_bufvec   vals;
+	struct dix_rep_arr rep;
+	uint32_t           recs_nr = COUNT;
+	int                rc;
+
+	ut_service_init();
+	dix_index_init(&index, 1);
+	dix_kv_alloc_and_fill(&keys, &vals, COUNT);
+	dix_index_create_and_fill(&index, &keys, &vals);
+	rc = m0_bufvec_alloc(&start_key, 1, sizeof (uint64_t));
+	M0_UT_ASSERT(rc == 0);
+	*(uint64_t *)start_key.ov_buf[0] = dix_key(0);
+
+	/* Fetch all records when one drive is failed. */
+	dix_disk_failure_set(10, M0_PNDS_FAILED);
+	rc = dix_ut_next(&index, &start_key, &recs_nr, &rep);
+	M0_UT_ASSERT(rc == 0);
+	dix_vals_check(&rep, COUNT);
+	dix_rep_free(&rep);
+	dix_disk_online_set(10);
+
+	/* Fetch all records when 2 drives are failed. */
+	dix_disk_failure_set(10, M0_PNDS_FAILED);
+	dix_disk_failure_set(11, M0_PNDS_FAILED);
+	rc = dix_ut_next(&index, &start_key, &recs_nr, &rep);
+	M0_UT_ASSERT(rc == 0);
+	dix_vals_check(&rep, COUNT);
+	dix_rep_free(&rep);
+	dix_disk_online_set(10);
+	dix_disk_online_set(11);
+
+	/*
+	 * Try to fetch all records when 3 drives are failed.
+	 * The maximum number of drive failures supported is 2, so DIX client
+	 * should return an IO error.
+	 */
+	dix_disk_failure_set(10, M0_PNDS_FAILED);
+	dix_disk_failure_set(11, M0_PNDS_FAILED);
+	dix_disk_failure_set(12, M0_PNDS_FAILED);
+	rc = dix_ut_next(&index, &start_key, &recs_nr, &rep);
+	M0_UT_ASSERT(rc == -EIO);
+	dix_rep_free(&rep);
+	dix_disk_online_set(10);
+	dix_disk_online_set(11);
+	dix_disk_online_set(12);
+
+	m0_bufvec_free(&start_key);
+	dix_kv_destroy(&keys, &vals);
+	dix_index_fini(&index);
+	ut_service_fini();
+}
+
 static void dix_del(void)
 {
 	struct m0_dix      index;
@@ -1490,6 +2210,124 @@ static void dix_del(void)
 	M0_UT_ASSERT(rep.dra_nr == COUNT);
 	M0_UT_ASSERT(m0_forall(i, COUNT, rep.dra_rep[i].dre_rc == -ENOENT));
 	dix_rep_free(&rep);
+	dix_kv_destroy(&keys, &vals);
+	dix_index_fini(&index);
+	ut_service_fini();
+}
+
+static void dix_records_restore(struct m0_dix *index, struct m0_bufvec *keys,
+				struct m0_bufvec *vals)
+{
+	struct dix_rep_arr rep;
+	int                rc;
+
+	rc = dix_ut_del(index, keys, &rep);
+	M0_UT_ASSERT(rc == 0);
+	dix_rep_free(&rep);
+	rc = dix_ut_put(index, keys, vals, 0, &rep);
+	M0_UT_ASSERT(rc == 0);
+	dix_rep_free(&rep);
+}
+
+static void dix_del_dgmode(void)
+{
+	struct m0_dix      index;
+	struct m0_bufvec   keys;
+	struct m0_bufvec   vals;
+	struct dix_rep_arr rep;
+	uint32_t           sdev_id;
+	int                rc;
+
+	ut_service_init();
+	dix_predictable_index_init(&index, 1);
+	dix_kv_alloc_and_fill(&keys, &vals, COUNT);
+	rc = dix_common_idx_op(&index, 1, REQ_CREATE);
+	M0_UT_ASSERT(rc == 0);
+	rc = dix_ut_put(&index, &keys, &vals, 0, &rep);
+	M0_UT_ASSERT(rc == 0);
+	dix_rep_free(&rep);
+
+	dix_predictable_sdev_ids_fill(&index);
+
+	/*
+	 * Delete record when one drive is failed.
+	 * The drive should simply be skipped.
+	 */
+	sdev_id = dix_sdev_id(PG_UNIT_DATA);
+	rc = dix_cctg_records_del(&index, &keys, sdev_id);
+	M0_UT_ASSERT(rc == 0);
+	dix_disk_failure_set(sdev_id, M0_PNDS_FAILED);
+	rc = dix_ut_del(&index, &keys, &rep);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(rep.dra_nr == COUNT);
+	M0_UT_ASSERT(m0_forall(i, COUNT, rep.dra_rep[i].dre_rc == 0));
+	dix_rep_free(&rep);
+	dix_disk_online_set(sdev_id);
+	dix_records_restore(&index, &keys, &vals);
+
+	/*
+	 * Delete record when the drive with data unit is in repairing state.
+	 * Spare slot should be used instead of this drive.
+	 * Check two cases: when spare slot was empty and when it wasn't.
+	 */
+	sdev_id = dix_sdev_id(PG_UNIT_DATA);
+	rc = dix_cctg_records_del(&index, &keys, sdev_id);
+	M0_UT_ASSERT(rc == 0);
+	dix_disk_failure_set(sdev_id, M0_PNDS_SNS_REPAIRING);
+	rc = dix_ut_del(&index, &keys, &rep);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(rep.dra_nr == COUNT);
+	M0_UT_ASSERT(m0_forall(i, COUNT, rep.dra_rep[i].dre_rc == 0));
+	M0_UT_ASSERT(dix_rec_is_deleted(&index, &keys));
+	dix_rep_free(&rep);
+	rc = dix_ut_put(&index, &keys, &vals, 0, &rep);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(rep.dra_nr == COUNT);
+	M0_UT_ASSERT(m0_forall(i, COUNT, rep.dra_rep[i].dre_rc == 0));
+	M0_UT_ASSERT(dix_cctg_has_replica(&index, &keys, &vals,
+					  dix_sdev_id(PG_UNIT_SPARE0)));
+	dix_rep_free(&rep);
+	rc = dix_ut_del(&index, &keys, &rep);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(rep.dra_nr == COUNT);
+	M0_UT_ASSERT(m0_forall(i, COUNT, rep.dra_rep[i].dre_rc == 0));
+	M0_UT_ASSERT(dix_rec_is_deleted(&index, &keys));
+	dix_rep_free(&rep);
+	dix_disk_online_set(sdev_id);
+	dix_records_restore(&index, &keys, &vals);
+
+	/*
+	 * Delete record when the drive with data unit is in re-balancing state.
+	 * Spare slot and re-balance target should both be updated.
+	 * Check two cases: when re-balance target was empty and when it wasn't.
+	 */
+	sdev_id = dix_sdev_id(PG_UNIT_DATA);
+	rc = dix_cctg_records_del(&index, &keys, sdev_id);
+	M0_UT_ASSERT(rc == 0);
+	dix_cctg_records_put(&index, &keys, &vals, dix_sdev_id(PG_UNIT_SPARE0));
+	dix_disk_failure_set(sdev_id, M0_PNDS_SNS_REBALANCING);
+	rc = dix_ut_del(&index, &keys, &rep);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(rep.dra_nr == COUNT);
+	M0_UT_ASSERT(m0_forall(i, COUNT, rep.dra_rep[i].dre_rc == 0));
+	M0_UT_ASSERT(dix_rec_is_deleted(&index, &keys));
+	dix_rep_free(&rep);
+	rc = dix_ut_put(&index, &keys, &vals, 0, &rep);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(rep.dra_nr == COUNT);
+	M0_UT_ASSERT(m0_forall(i, COUNT, rep.dra_rep[i].dre_rc == 0));
+	M0_UT_ASSERT(dix_cctg_has_replica(&index, &keys, &vals,
+					  dix_sdev_id(PG_UNIT_DATA)));
+	dix_rep_free(&rep);
+	rc = dix_ut_del(&index, &keys, &rep);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(rep.dra_nr == COUNT);
+	M0_UT_ASSERT(m0_forall(i, COUNT, rep.dra_rep[i].dre_rc == 0));
+	M0_UT_ASSERT(dix_rec_is_deleted(&index, &keys));
+	dix_rep_free(&rep);
+	dix_disk_online_set(sdev_id);
+	dix_records_restore(&index, &keys, &vals);
+
 	dix_kv_destroy(&keys, &vals);
 	dix_index_fini(&index);
 	ut_service_fini();
@@ -2224,16 +3062,22 @@ struct m0_ut_suite dix_client_ut = {
 		{ "meta-create",            dix_meta_create,         "Leonid" },
 		{ "create",                 dix_create,              "Leonid" },
 		{ "create-crow",            dix_create_crow,         "Sergey" },
+		{ "create-dgmode",          dix_create_dgmode,       "Egor"   },
 		{ "delete",                 dix_delete,              "Leonid" },
 		{ "delete-crow",            dix_delete_crow,         "Egor"   },
+		{ "delete-dgmode",          dix_delete_dgmode,       "Egor"   },
 		{ "list",                   dix_list,                "Leonid" },
 		{ "put",                    dix_put,                 "Leonid" },
 		{ "put-overwrite",          dix_put_overwrite,       "Egor"   },
 		{ "put-crow",               dix_put_crow,            "Egor"   },
+		{ "put-dgmode",             dix_put_dgmode,          "Egor"   },
 		{ "get",                    dix_get,                 "Leonid" },
 		{ "get-resend",             dix_get_resend,          "Egor"   },
+		{ "get-dgmode",             dix_get_dgmode,          "Egor"   },
 		{ "next",                   dix_next,                "Leonid" },
+		{ "next-dgmode",            dix_next_dgmode,         "Egor"   },
 		{ "del",                    dix_del,                 "Leonid" },
+		{ "del-dgmode",             dix_del_dgmode,          "Egor"   },
 		{ "null-value",             dix_null_value,          "Egor"   },
 		{ "cctgs-lookup",           dix_cctgs_lookup,        "Leonid" },
 		{ "local-failures",         local_failures,          "Egor"   },

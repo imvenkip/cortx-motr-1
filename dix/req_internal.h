@@ -33,12 +33,12 @@
 #include "lib/chan.h"   /* m0_chan */
 #include "lib/vec.h"    /* m0_bufvec */
 #include "lib/tlist.h"  /* m0_tlink */
-#include "cas/client.h" /* m0_cas_req */
 #include "sm/sm.h"      /* m0_sm_ast */
+#include "pool/pool.h"  /* m0_pool_nd_state */
+#include "cas/client.h" /* m0_cas_req */
 
 struct m0_dix_req;
 struct m0_pool_version;
-struct m0_pooldev;
 struct m0_dix_next_resultset;
 
 struct m0_dix_item {
@@ -50,6 +50,11 @@ struct m0_dix_item {
 	 * iteration over parity units starts until request succeeds.
 	 */
 	uint64_t      dxi_pg_unit;
+	/**
+	 * Applicable only for index DELETE operation. Indicates that two-phase
+	 * delete is necessary for the index.
+	 */
+	bool          dxi_del_phase2;
 	int           dxi_rc;
 };
 
@@ -66,6 +71,7 @@ struct m0_dix_idxop_req {
 	struct m0_pool_version  *dcr_pver;
 	struct m0_dix_cas_req   *dcr_creqs;
 	uint64_t                 dcr_creqs_nr;
+	bool                     dcr_del_phase2;
 };
 
 struct m0_dix_idxop_ctx {
@@ -84,6 +90,8 @@ struct m0_dix_crop_attrs {
 struct m0_dix_cas_rop {
 	struct m0_dix_req        *crp_parent;
 	struct m0_cas_req         crp_creq;
+	/** CAS request flags (m0_cas_op_flags bitmask). */
+	uint32_t                  crp_flags;
 	struct m0_clink           crp_clink;
 	uint32_t                  crp_sdev_idx;
 	uint32_t                  crp_keys_nr;
@@ -98,10 +106,31 @@ struct m0_dix_cas_rop {
 
 /**
  * Additional context linked with parity group units of record operation.
+ * Note, that it contains a copy of some fields of pooldev from pool machine.
+ * The copy is done to have a consistent view of pool machine during request
+ * processing. A pool machine is locked only once during target devices
+ * calculation and then copied information is used.
  */
 struct m0_dix_pg_unit {
-	/** Target storage device. */
-	struct m0_pooldev *dpu_sdev;
+	/** Target storage device in a pool version. */
+	uint32_t               dpu_tgt;
+
+	/** Global storage device index. */
+	uint32_t               dpu_sdev_idx;
+
+	/**
+	 * Storage device state that is consistent with request poolmachine
+	 * version (m0_dix_req::dr_pmach_ver).
+	 */
+	enum m0_pool_nd_state  dpu_pd_state;
+
+	/**
+	 * Indicates whether this parity group is unavailable, e.g. the target
+	 * for the unit has failed and not repaired yet.
+	 */
+	bool                   dpu_failed;
+	bool                   dpu_is_spare;
+	bool                   dpu_del_phase2;
 };
 
 struct m0_dix_rec_op {
@@ -118,6 +147,11 @@ struct m0_dix_rec_op {
 	uint64_t                  dgp_item;
 	struct m0_dix_pg_unit    *dgp_units;
 	uint64_t                  dgp_units_nr;
+	/**
+	 * Total number of failed devices that are targets for record parity
+	 * group units.
+	 */
+	uint32_t                  dgp_failed_devs_nr;
 };
 
 struct m0_dix_rop_ctx {
@@ -129,6 +163,8 @@ struct m0_dix_rop_ctx {
 	struct m0_tl            dg_cas_reqs;
 	uint64_t                dg_cas_reqs_nr;
 	uint64_t                dg_completed_nr;
+	/** Pool version where index under operation resides. */
+	struct m0_pool_version *dg_pver;
 	struct m0_sm_ast        dg_ast;
 };
 

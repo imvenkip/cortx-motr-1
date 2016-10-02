@@ -79,11 +79,15 @@ static struct m0_sm_state_descr dix_req_states[] = {
 	[DIXREQ_INPROGRESS] = {
 		.sd_name      = "in-progress",
 		.sd_allowed   = M0_BITS(DIXREQ_GET_RESEND, DIXREQ_FINAL,
-					DIXREQ_FAILURE)
+					DIXREQ_DEL_PHASE2, DIXREQ_FAILURE)
 	},
 	[DIXREQ_GET_RESEND] = {
 		.sd_name      = "resend-get-req",
 		.sd_allowed   = M0_BITS(DIXREQ_INPROGRESS, DIXREQ_FAILURE)
+	},
+	[DIXREQ_DEL_PHASE2] = {
+		.sd_name      = "delete-phase2",
+		.sd_allowed   = M0_BITS(DIXREQ_FINAL, DIXREQ_FAILURE)
 	},
 	[DIXREQ_FINAL] = {
 		.sd_name      = "final",
@@ -95,6 +99,7 @@ static struct m0_sm_state_descr dix_req_states[] = {
 	}
 };
 
+/** @todo Check it. */
 static struct m0_sm_trans_descr dix_req_trans[] = {
 	{ "layouts-known", DIXREQ_INIT,             DIXREQ_DISCOVERY_DONE   },
 	{ "find-layouts",  DIXREQ_INIT,             DIXREQ_LAYOUT_DISCOVERY },
@@ -442,26 +447,6 @@ static struct m0_pool_version *dix_pver_find(const struct m0_dix_req *req,
 	return m0_pool_version_find(req->dr_cli->dx_pc, pver_fid);
 }
 
-static void dix_cas_index_rep(uint32_t                 req_type,
-			      struct m0_cas_req       *req,
-			      uint64_t                 idx,
-			      struct m0_cas_rec_reply *rep)
-{
-	switch (req_type) {
-	case DIX_CREATE:
-		m0_cas_index_create_rep(req, idx, rep);
-		break;
-	case DIX_DELETE:
-		m0_cas_index_delete_rep(req, idx, rep);
-		break;
-	case DIX_CCTGS_LOOKUP:
-		m0_cas_index_lookup_rep(req, idx, rep);
-		break;
-	default:
-		M0_IMPOSSIBLE("Unknown req type %u", req_type);
-	}
-}
-
 static void dix_idxop_ctx_free(struct m0_dix_idxop_ctx *idxop)
 {
 	uint32_t i;
@@ -471,6 +456,45 @@ static void dix_idxop_ctx_free(struct m0_dix_idxop_ctx *idxop)
 	m0_free0(&idxop->dcd_idxop_reqs);
 }
 
+static void dix_idxop_item_rc_update(struct m0_dix_item          *ditem,
+				     struct m0_dix_req           *req,
+				     const struct m0_dix_cas_req *creq)
+{
+	struct m0_cas_rec_reply  crep;
+	const struct m0_cas_req *cas_req;
+	int                      rc;
+
+	if (ditem->dxi_rc == 0) {
+		cas_req = &creq->ds_creq;
+		rc = creq->ds_rc ?:
+		     m0_cas_req_generic_rc(cas_req);
+		if (rc == 0) {
+			switch (req->dr_type) {
+			case DIX_CREATE:
+				m0_cas_index_create_rep(cas_req, 0, &crep);
+				break;
+			case DIX_DELETE:
+				m0_cas_index_delete_rep(cas_req, 0, &crep);
+				break;
+			case DIX_CCTGS_LOOKUP:
+				m0_cas_index_lookup_rep(cas_req, 0, &crep);
+				break;
+			default:
+				M0_IMPOSSIBLE("Unknown type %u", req->dr_type);
+			}
+			rc = crep.crr_rc;
+			/*
+			 * It is OK to get -ENOENT during 2nd phase, because
+			 * catalogue can be deleted on 1st phase.
+			 */
+			if (dix_req_state(req) == DIXREQ_DEL_PHASE2 &&
+			    rc == -ENOENT)
+				rc = 0;
+		}
+		ditem->dxi_rc = rc;
+	}
+}
+
 static void dix_idxop_completed(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
 	struct m0_dix_req       *req = ast->sa_datum;
@@ -478,34 +502,37 @@ static void dix_idxop_completed(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	struct m0_dix_idxop_req *idxop_req;
 	struct m0_dix_item      *ditem;
 	struct m0_dix_cas_req   *creq;
-	struct m0_cas_rec_reply  crep;
+	bool                     del_phase2 = false;
 	uint32_t                 i;
 	uint64_t                 j;
 	int                      rc;
 
 	(void)grp;
+	M0_ENTRY("req %p", req);
 	for (i = 0; i < idxop_ctx->dcd_idxop_reqs_nr; i++) {
 		idxop_req = &idxop_ctx->dcd_idxop_reqs[i];
 		M0_ASSERT(idxop_req->dcr_index_no < req->dr_items_nr);
 		ditem = &req->dr_items[idxop_req->dcr_index_no];
 		for (j = 0; j < idxop_req->dcr_creqs_nr; j++) {
 			creq = &idxop_req->dcr_creqs[j];
-			if (ditem->dxi_rc == 0) {
-				rc = creq->ds_rc ?:
-				     m0_cas_req_generic_rc(&creq->ds_creq);
-				if (rc == 0) {
-					dix_cas_index_rep(req->dr_type,
-							  &creq->ds_creq,
-							  0, &crep);
-					rc = crep.crr_rc;
-				}
-				ditem->dxi_rc = rc;
+			dix_idxop_item_rc_update(ditem, req, creq);
+			if (ditem->dxi_rc == 0 && idxop_req->dcr_del_phase2) {
+				ditem->dxi_del_phase2 = true;
+				del_phase2 = true;
 			}
 			m0_cas_req_fini(&creq->ds_creq);
 		}
 	}
 	dix_idxop_ctx_free(idxop_ctx);
-	dix_req_state_set(req, DIXREQ_FINAL);
+	if (del_phase2) {
+		dix_req_state_set(req, DIXREQ_DEL_PHASE2);
+		rc = dix_idxop_reqs_send(req);
+		if (rc != 0)
+			dix_req_failure(req, M0_ERR(rc));
+	} else {
+		dix_req_state_set(req, DIXREQ_FINAL);
+	}
+	M0_LEAVE();
 }
 
 static bool dix_idxop_clink_cb(struct m0_clink *cl)
@@ -532,45 +559,122 @@ static bool dix_idxop_clink_cb(struct m0_clink *cl)
 	return true;
 }
 
+static int dix_idxop_pver_analyse(struct m0_dix_idxop_req *idxop_req,
+				  struct m0_dix_req       *dreq,
+				  uint64_t                *creqs_nr)
+{
+	struct m0_pool_version     *pver = idxop_req->dcr_pver;
+	struct m0_poolmach         *pm   = &pver->pv_mach;
+	struct m0_pools_common     *pc   = pver->pv_pc;
+	struct m0_pooldev          *sdev;
+	enum m0_pool_nd_state       state;
+	struct m0_reqh_service_ctx *cas_svc;
+	enum dix_req_type           type = dreq->dr_type;
+	uint32_t                    i;
+	int                         rc = 0;
+
+	M0_PRE(M0_IN(type, (DIX_CREATE, DIX_DELETE, DIX_CCTGS_LOOKUP)));
+	M0_PRE(ergo(type == DIX_CREATE, (dreq->dr_flags & COF_CROW) == 0));
+
+	*creqs_nr = 0;
+	for (i = 0; i < pm->pm_state->pst_nr_devices; i++) {
+		sdev = &pm->pm_state->pst_devices_array[i];
+		cas_svc = pc->pc_dev2svc[sdev->pd_sdev_idx].pds_ctx;
+		if (cas_svc->sc_type != M0_CST_CAS) {
+			rc = M0_ERR_INFO(-EINVAL, "Incorrect service type %d",
+					 cas_svc->sc_type);
+			break;
+		}
+
+		state = sdev->pd_state;
+		/*
+		 * It's impossible to create all component catalogues if some
+		 * disk is not available (online or rebalancing). Also, it's
+		 * impossible to check consistently that all component
+		 * catalogues present if some disk is not online.
+		 */
+		if ((state != M0_PNDS_ONLINE && type == DIX_CCTGS_LOOKUP) ||
+		    (!M0_IN(state, (M0_PNDS_ONLINE, M0_PNDS_SNS_REBALANCING)) &&
+		     type == DIX_CREATE)) {
+			rc = M0_ERR(-EIO);
+			break;
+		}
+
+		/*
+		 * Two-phase component catalogue removal is necessary if
+		 * repair/re-balance is in progress.
+		 * See dix/client.h, "Operation in degraded mode".
+		 */
+		if (type == DIX_DELETE &&
+		    dix_req_state(dreq) != DIXREQ_DEL_PHASE2 &&
+		    M0_IN(state, (M0_PNDS_SNS_REPAIRING,
+				  M0_PNDS_SNS_REBALANCING)))
+			idxop_req->dcr_del_phase2 = true;
+
+		/*
+		 * Send CAS requests only on online or rebalancing drives.
+		 * Actually, only DIX_DELETE only can send on devices
+		 * selectively. DIX_CREATE, DIX_CCTGS_LOOKUP send whether to all
+		 * drives in a pool or to none.
+		 */
+		if (M0_IN(state, (M0_PNDS_ONLINE, M0_PNDS_SNS_REBALANCING)))
+			(*creqs_nr)++;
+	}
+
+	if (rc == 0 && *creqs_nr == 0)
+		rc = M0_ERR(-EIO);
+
+	if (rc == 0)
+		dreq->dr_pmach_ver = pm->pm_state->pst_version;
+	else
+		*creqs_nr = 0;
+	M0_POST(rc == 0 ? *creqs_nr > 0 : *creqs_nr == 0);
+	return rc;
+}
+
 static int dix_idxop_req_send(struct m0_dix_idxop_req *idxop_req,
 			      struct m0_dix_req       *dreq,
 			      uint64_t                *reqs_acc)
 {
 	struct m0_pool_version     *pver = idxop_req->dcr_pver;
-	struct m0_pools_common     *pc = pver->pv_pc;
-	uint32_t                    pwidth;
+	struct m0_poolmach         *pm   = &pver->pv_mach;
+	struct m0_pools_common     *pc   = pver->pv_pc;
 	struct m0_dix_cas_req      *creq;
 	struct m0_pooldev          *sdev;
 	uint32_t                    sdev_idx;
 	struct m0_fid               cctg_fid;
 	struct m0_reqh_service_ctx *cas_svc;
 	uint32_t                    i;
+	uint32_t                    k;
 	struct m0_dix              *index;
 	struct m0_cas_id            cid;
+	uint32_t                    flags = dreq->dr_flags;
+	uint64_t                    creqs_nr;
 	int                         rc;
 
-	pwidth = pver->pv_attr.pa_P;
-	M0_ALLOC_ARR(idxop_req->dcr_creqs, pwidth);
-	if (idxop_req->dcr_creqs == NULL)
-		return M0_ERR(-ENOMEM);
-	idxop_req->dcr_creqs_nr = pwidth;
-	for (i = 0; i < pwidth; i++) {
+	m0_rwlock_read_lock(&pm->pm_lock);
+	rc = dix_idxop_pver_analyse(idxop_req, dreq, &creqs_nr);
+	if (rc != 0)
+		goto pmach_unlock;
+	M0_ALLOC_ARR(idxop_req->dcr_creqs, creqs_nr);
+	if (idxop_req->dcr_creqs == NULL) {
+		rc = M0_ERR(-ENOMEM);
+		goto pmach_unlock;
+	}
+	idxop_req->dcr_creqs_nr = creqs_nr;
+	k = 0;
+	for (i = 0; i < pm->pm_state->pst_nr_devices; i++) {
 		sdev = &pver->pv_mach.pm_state->pst_devices_array[i];
+		if (!M0_IN(sdev->pd_state, (M0_PNDS_ONLINE,
+					    M0_PNDS_SNS_REBALANCING)))
+			continue;
 		sdev_idx = sdev->pd_sdev_idx;
-		creq = &idxop_req->dcr_creqs[i];
+		creq = &idxop_req->dcr_creqs[k++];
 		creq->ds_parent = dreq;
 		cas_svc = pc->pc_dev2svc[sdev_idx].pds_ctx;
-		/*
-		 * Initialise cas request anyway, because cas_fini() is called
-		 * in dix_idxop_completed() for each cas item unconditionally.
-		 */
+		M0_ASSERT(cas_svc->sc_type == M0_CST_CAS);
 		m0_cas_req_init(&creq->ds_creq, &cas_svc->sc_rlink.rlk_sess,
 				dix_req_smgrp(dreq));
-		if (cas_svc->sc_type != M0_CST_CAS) {
-			creq->ds_rc = M0_ERR_INFO(-EPROTO,
-				"Incorrect service type %d", cas_svc->sc_type);
-			continue;
-		}
 		m0_clink_init(&creq->ds_clink, dix_idxop_clink_cb);
 		m0_clink_add(&creq->ds_creq.ccr_sm.sm_chan, &creq->ds_clink);
 		index = &dreq->dr_indices[idxop_req->dcr_index_no];
@@ -588,9 +692,11 @@ static int dix_idxop_req_send(struct m0_dix_idxop_req *idxop_req,
 							 1, dreq->dr_dtx);
 				break;
 			case DIX_DELETE:
+				if (idxop_req->dcr_del_phase2)
+					flags |= COF_DEL_LOCK;
 				rc = m0_cas_index_delete(&creq->ds_creq, &cid,
 							 1, dreq->dr_dtx,
-							 dreq->dr_flags);
+							 flags);
 				break;
 			case DIX_CCTGS_LOOKUP:
 				rc = m0_cas_index_lookup(&creq->ds_creq, &cid,
@@ -613,7 +719,10 @@ static int dix_idxop_req_send(struct m0_dix_idxop_req *idxop_req,
 			(*reqs_acc)++;
 		}
 	}
-	return 0;
+	M0_ASSERT(k == creqs_nr);
+pmach_unlock:
+	m0_rwlock_read_unlock(&pm->pm_lock);
+	return M0_RC(rc);
 }
 
 static void dix_idxop_meta_update_ast_cb(struct m0_sm_group *grp,
@@ -741,6 +850,20 @@ static int dix_idxop_meta_update(struct m0_dix_req *req)
 	return M0_RC(rc);
 }
 
+/**
+ * Determines whether item should be sent in dix_idxop_reqs_send().
+ *
+ * Item should be sent if there was no failure for it on previous steps
+ * (i.e. during discovery) or if it should be sent during second phase of
+ * delete operation (see "Operation in degraded mode" in dix/client.h).
+ */
+static bool dix_item_should_be_sent(const struct m0_dix_req *req, uint32_t i)
+{
+	return dix_req_state(req) == DIXREQ_DEL_PHASE2 ?
+			req->dr_items[i].dxi_del_phase2 :
+			req->dr_items[i].dxi_rc == 0;
+}
+
 static int dix_idxop_reqs_send(struct m0_dix_req *req)
 {
 	struct m0_dix           *indices = req->dr_indices;
@@ -754,7 +877,11 @@ static int dix_idxop_reqs_send(struct m0_dix_req *req)
 	int                      rc;
 
 	M0_ENTRY();
-	reqs_nr = m0_count(i, req->dr_items_nr, req->dr_items[i].dxi_rc == 0);
+	M0_PRE(M0_IN(dix_req_state(req), (DIXREQ_DISCOVERY_DONE,
+					  DIXREQ_META_UPDATE,
+					  DIXREQ_DEL_PHASE2)));
+	reqs_nr = m0_count(i, req->dr_items_nr,
+			   dix_item_should_be_sent(req, i));
 	M0_PRE(reqs_nr > 0);
 	M0_SET0(idxop);
 	M0_ALLOC_ARR(idxop->dcd_idxop_reqs, reqs_nr);
@@ -762,7 +889,7 @@ static int dix_idxop_reqs_send(struct m0_dix_req *req)
 		return M0_ERR(-ENOMEM);
 	idxop->dcd_idxop_reqs_nr = reqs_nr;
 	for (i = 0, k = 0; i < req->dr_items_nr; i++) {
-		if (req->dr_items[i].dxi_rc == 0) {
+		if (dix_item_should_be_sent(req, i)) {
 			layout = &indices[i].dd_layout;
 			M0_PRE(layout->dl_type == DIX_LTYPE_DESCR);
 			idxop_req = &idxop->dcd_idxop_reqs[k++];
@@ -776,7 +903,7 @@ static int dix_idxop_reqs_send(struct m0_dix_req *req)
 	}
 	if (cas_nr == 0) {
 		dix_idxop_ctx_free(idxop);
-		return M0_ERR(-EFAULT);
+		return M0_ERR(-EIO);
 	} else {
 		idxop->dcd_completed_nr = 0;
 		idxop->dcd_cas_reqs_nr = cas_nr;
@@ -805,7 +932,7 @@ static void dix_idxop(struct m0_dix_req *req)
 	if (rc == 0)
 		dix_req_state_set(req, next_state);
 	else
-		dix_req_failure(req, M0_ERR(-EFAULT));
+		dix_req_failure(req, M0_ERR(rc));
 }
 
 M0_INTERNAL int m0_dix_create(struct m0_dix_req   *req,
@@ -1025,6 +1152,7 @@ static int dix_cas_rop_alloc(struct m0_dix_req *req, uint32_t sdev,
 		return M0_ERR(-ENOMEM);
 	(*cas_rop)->crp_parent = req;
 	(*cas_rop)->crp_sdev_idx = sdev;
+	(*cas_rop)->crp_flags = req->dr_flags;
 	cas_rop_tlink_init_at(*cas_rop, &rop->dg_cas_reqs);
 	return 0;
 }
@@ -1052,13 +1180,12 @@ static int dix_rop_ctx_init(struct m0_dix_req      *req,
 			    const struct m0_bufvec *keys,
 			    uint64_t               *indices)
 {
-	struct m0_dix          *dix = &req->dr_indices[0];
-	struct m0_dix_ldesc    *ldesc;
-	struct m0_pool_version *pver;
-	uint32_t                keys_nr;
-	struct m0_buf           key;
-	uint32_t                i;
-	int                     rc = 0;
+	struct m0_dix       *dix = &req->dr_indices[0];
+	struct m0_dix_ldesc *ldesc;
+	uint32_t             keys_nr;
+	struct m0_buf        key;
+	uint32_t             i;
+	int                  rc = 0;
 
 	M0_ENTRY();
 	M0_PRE(M0_IS0(rop));
@@ -1068,15 +1195,15 @@ static int dix_rop_ctx_init(struct m0_dix_req      *req,
 	keys_nr = keys->ov_vec.v_nr;
 	M0_PRE(keys_nr != 0);
 	ldesc = &dix->dd_layout.u.dl_desc;
-	pver = dix_pver_find(req, &ldesc->ld_pver);
+	rop->dg_pver = dix_pver_find(req, &ldesc->ld_pver);
 	M0_ALLOC_ARR(rop->dg_rec_ops, keys_nr);
-	M0_ALLOC_ARR(rop->dg_target_rop, pver->pv_attr.pa_P);
+	M0_ALLOC_ARR(rop->dg_target_rop, rop->dg_pver->pv_attr.pa_P);
 	if (rop->dg_rec_ops == NULL || rop->dg_target_rop == NULL)
 		return M0_ERR(-ENOMEM);
 	for (i = 0; i < keys_nr; i++) {
 		key = M0_BUF_INIT(keys->ov_vec.v_count[i], keys->ov_buf[i]);
 		rc = dix_rec_op_init(&rop->dg_rec_ops[i], req, req->dr_cli,
-				     pver, &req->dr_indices[0], &key,
+				     rop->dg_pver, &req->dr_indices[0], &key,
 				     indices == NULL ? i : indices[i]);
 		if (rc != 0) {
 			for (i = 0; i < rop->dg_rec_ops_nr; i++)
@@ -1132,7 +1259,7 @@ static void dix__rop(struct m0_dix_req *req, const struct m0_bufvec *keys,
 	if (rc != 0) {
 		dix_rop_ctx_fini(rop);
 		dix_req_failure(req, rc);
-	} else
+	} else if (dix_req_state(req) != DIXREQ_DEL_PHASE2)
 		dix_req_state_set(req, DIXREQ_INPROGRESS);
 }
 
@@ -1145,14 +1272,15 @@ static void dix_rop(struct m0_dix_req *req)
 	dix__rop(req, req->dr_keys, NULL);
 }
 
-static void dix_item_rc_update(struct m0_cas_req  *creq,
+static void dix_item_rc_update(struct m0_dix_req  *req,
+			       struct m0_cas_req  *creq,
 			       uint64_t            key_idx,
-			       struct m0_dix_item *ditem,
-			       enum dix_req_type   rtype)
+			       struct m0_dix_item *ditem)
 {
-	struct m0_cas_rec_reply  rep;
-	struct m0_cas_get_reply  get_rep;
-	int                      rc;
+	struct m0_cas_rec_reply rep;
+	struct m0_cas_get_reply get_rep;
+	int                     rc;
+	enum dix_req_type       rtype = req->dr_type;
 
 	rc = m0_cas_req_generic_rc(creq);
 	if (rc == 0) {
@@ -1172,6 +1300,13 @@ static void dix_item_rc_update(struct m0_cas_req  *creq,
 			break;
 		case DIX_DEL:
 			m0_cas_del_rep(creq, key_idx, &rep);
+			/*
+			 * It is possible that repair process didn't copy
+			 * replica to spare disk yet. Ignore such an error.
+			 */
+			if (dix_req_state(req) == DIXREQ_DEL_PHASE2 &&
+			    rep.crr_rc == -ENOENT)
+				rep.crr_rc = 0;
 			rc = rep.crr_rc;
 			break;
 		default:
@@ -1248,6 +1383,90 @@ end:
 		dix_req_failure(req, M0_ERR(rc));
 }
 
+static bool dix_del_phase2_is_needed(const struct m0_dix_rec_op *rec_op)
+{
+	return m0_exists(i, rec_op->dgp_units_nr,
+			 rec_op->dgp_units[i].dpu_del_phase2);
+}
+
+static int dix_rop_del_phase2_rop(struct m0_dix_req      *req,
+				  struct m0_dix_rop_ctx **out)
+{
+	struct m0_dix_rop_ctx *cur_rop = req->dr_rop;
+	struct m0_dix_rop_ctx *out_rop;
+	struct m0_dix_rec_op  *src_rec_op;
+	struct m0_dix_rec_op  *dst_rec_op;
+	struct m0_bufvec       keys;
+	uint64_t              *indices;
+	uint32_t               keys_nr;
+	uint32_t               i;
+	uint32_t               j;
+	uint32_t               k = 0;
+	int                    rc;
+
+	keys_nr = m0_count(i, cur_rop->dg_rec_ops_nr,
+			   dix_del_phase2_is_needed(&cur_rop->dg_rec_ops[i]));
+
+	if (keys_nr == 0)
+		return 0;
+
+	rc = m0_bufvec_empty_alloc(&keys, keys_nr);
+	M0_ALLOC_ARR(indices, keys_nr);
+	M0_ALLOC_PTR(out_rop);
+	if (rc != 0 || indices == NULL || out_rop == NULL) {
+		rc = M0_ERR(rc ?: -ENOMEM);
+		goto free;
+	}
+	for (i = 0; i < cur_rop->dg_rec_ops_nr; i++) {
+		if (!dix_del_phase2_is_needed(&cur_rop->dg_rec_ops[i]))
+			continue;
+		keys.ov_vec.v_count[k] = req->dr_keys->ov_vec.v_count[i];
+		keys.ov_buf[k] = req->dr_keys->ov_buf[i];
+		indices[k] = i;
+		k++;
+	}
+
+	rc = dix_rop_ctx_init(req, out_rop, &keys, indices);
+	if (rc != 0)
+		goto free;
+	k = 0;
+	for (i = 0; i < cur_rop->dg_rec_ops_nr; i++) {
+		src_rec_op = &cur_rop->dg_rec_ops[i];
+		if (!dix_del_phase2_is_needed(src_rec_op))
+			continue;
+		dst_rec_op = &out_rop->dg_rec_ops[k++];
+		M0_ASSERT(src_rec_op->dgp_units_nr == dst_rec_op->dgp_units_nr);
+		for (j = 0; j < src_rec_op->dgp_units_nr; j++)
+			dst_rec_op->dgp_units[j] = src_rec_op->dgp_units[j];
+	}
+
+free:
+	m0_bufvec_free2(&keys);
+	m0_free(indices);
+	if (rc == 0) {
+		rc = keys_nr;
+		*out = out_rop;
+	} else
+		m0_free(out_rop);
+	return M0_RC(rc);
+}
+
+static void dix_rop_del_phase2(struct m0_dix_req *req)
+{
+	int rc;
+
+	dix_req_state_set(req, DIXREQ_DEL_PHASE2);
+
+	rc = dix_cas_rops_alloc(req) ?:
+	     dix_cas_rops_fill(req) ?:
+	     dix_cas_rops_send(req);
+
+	if (rc != 0) {
+		dix_rop_ctx_fini(req->dr_rop);
+		dix_req_failure(req, rc);
+	}
+}
+
 static void dix_cas_rop_rc_update(struct m0_dix_cas_rop *cas_rop, int rc)
 {
 	struct m0_dix_req  *req = cas_rop->crp_parent;
@@ -1261,8 +1480,7 @@ static void dix_cas_rop_rc_update(struct m0_dix_cas_rop *cas_rop, int rc)
 		if (ditem->dxi_rc != 0)
 			continue;
 		if (rc == 0)
-			dix_item_rc_update(&cas_rop->crp_creq, i, ditem,
-					   req->dr_type);
+			dix_item_rc_update(req, &cas_rop->crp_creq, i, ditem);
 		else
 			ditem->dxi_rc = M0_ERR(rc);
 	}
@@ -1272,6 +1490,8 @@ static void dix_rop_completed(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
 	struct m0_dix_req     *req = ast->sa_datum;
 	struct m0_dix_rop_ctx *rop = req->dr_rop;
+	struct m0_dix_rop_ctx *rop_del_phase2;
+	bool                   del_phase2 = false;
 	struct m0_dix_cas_rop *cas_rop;
 
 	(void)grp;
@@ -1282,12 +1502,21 @@ static void dix_rop_completed(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 			dix_cas_rop_rc_update(cas_rop, 0);
 			m0_cas_req_fini(&cas_rop->crp_creq);
 		} m0_tl_endfor;
+
+	if (req->dr_type == DIX_DEL &&
+	    dix_req_state(req) == DIXREQ_INPROGRESS)
+		del_phase2 = dix_rop_del_phase2_rop(req, &rop_del_phase2) > 0;
+
 	dix_rop_ctx_fini(rop);
 	if (req->dr_type == DIX_GET &&
 	    m0_exists(i, req->dr_items_nr,
 		      dix_item_get_has_failed(&req->dr_items[i]))) {
 		dix_req_state_set(req, DIXREQ_GET_RESEND);
 		dix_get_req_resend(req);
+	} else if (req->dr_type == DIX_DEL && del_phase2) {
+		m0_free(rop);
+		req->dr_rop = rop_del_phase2;
+		dix_rop_del_phase2(req);
 	} else {
 		dix_req_state_set(req, DIXREQ_FINAL);
 	}
@@ -1354,11 +1583,11 @@ static int dix_cas_rops_send(struct m0_dix_req *req)
 		case DIX_PUT:
 			rc = m0_cas_put(creq, &cctg_id, &cas_rop->crp_keys,
 					&cas_rop->crp_vals, req->dr_dtx,
-					req->dr_flags);
+					cas_rop->crp_flags);
 			break;
 		case DIX_DEL:
 			rc = m0_cas_del(creq, &cctg_id, &cas_rop->crp_keys,
-					req->dr_dtx);
+					req->dr_dtx, cas_rop->crp_flags);
 			break;
 		case DIX_NEXT:
 			rc = m0_cas_next(creq, &cctg_id, &cas_rop->crp_keys,
@@ -1388,10 +1617,7 @@ static int dix_cas_rops_send(struct m0_dix_req *req)
 static void dix_rop_tgt_iter_begin(const struct m0_dix_req *req,
 				   struct m0_dix_rec_op    *rec_op)
 {
-	if (req->dr_type == DIX_GET)
-		m0_dix_layout_iter_goto(&rec_op->dgp_iter,
-			req->dr_items[rec_op->dgp_item].dxi_pg_unit);
-	else if (req->dr_type == DIX_NEXT)
+	if (req->dr_type == DIX_NEXT)
 		rec_op->dgp_next_tgt = 0;
 	else
 		m0_dix_layout_iter_reset(&rec_op->dgp_iter);
@@ -1404,10 +1630,7 @@ static uint32_t dix_rop_tgt_iter_max(struct m0_dix_req    *req,
 	enum dix_req_type          type = req->dr_type;
 
 	M0_ASSERT(M0_IN(type, (DIX_GET, DIX_PUT, DIX_DEL, DIX_NEXT)));
-	if (type == DIX_GET) {
-		M0_ASSERT(m0_dix_liter_N(iter) == 1);
-		return m0_dix_liter_N(iter);
-	} else if (type == DIX_NEXT)
+	if (type == DIX_NEXT)
 		/*
 		 * NEXT operation should be sent to all devices, because the
 		 * distribution of keys over devices is unknown. Therefore, all
@@ -1416,17 +1639,254 @@ static uint32_t dix_rop_tgt_iter_max(struct m0_dix_req    *req,
 		 */
 		return m0_dix_liter_P(iter);
 	else
-		return m0_dix_liter_N(iter) + m0_dix_liter_K(iter);
+		return m0_dix_liter_N(iter) + 2 * m0_dix_liter_K(iter);
 }
 
 static void dix_rop_tgt_iter_next(const struct m0_dix_req *req,
-				 struct m0_dix_rec_op    *rec_op,
-				 uint64_t                *target)
+				  struct m0_dix_rec_op    *rec_op,
+				  uint64_t                *target,
+				  bool                    *is_spare)
 {
-	if (req->dr_type != DIX_NEXT)
+	if (req->dr_type != DIX_NEXT) {
+		*is_spare = m0_dix_liter_unit_classify(&rec_op->dgp_iter,
+				rec_op->dgp_iter.dit_unit) == M0_PUT_SPARE;
 		m0_dix_layout_iter_next(&rec_op->dgp_iter, target);
-	else
+	} else {
 		*target = rec_op->dgp_next_tgt++;
+		*is_spare = false;
+	}
+}
+
+static int dix_spare_slot_find(struct m0_poolmach_state *pm_state,
+			       uint64_t                  failed_tgt,
+			       uint32_t                 *spare_slot)
+{
+	struct m0_pool_spare_usage *spare_usage_array;
+	uint32_t                    i;
+
+	spare_usage_array = pm_state->pst_spare_usage_array;
+	for (i = 0; i < pm_state->pst_max_device_failures; i++) {
+		if (spare_usage_array[i].psu_device_index == failed_tgt) {
+			*spare_slot = i;
+			return 0;
+		}
+	}
+	return M0_ERR_INFO(-ENOENT, "No spare slot found for target %"PRIu64,
+			   failed_tgt);
+}
+
+static struct m0_pool_version *dix_rec_op_pver(struct m0_dix_rec_op *rec_op)
+{
+	return m0_pdl_to_layout(rec_op->dgp_iter.dit_linst.li_pl)->l_pver;
+}
+
+static uint32_t dix_rop_max_failures(struct m0_dix_rop_ctx *rop)
+{
+	struct m0_pool_version *pver = rop->dg_pver;
+
+	M0_ASSERT(pver != NULL);
+	return pver->pv_mach.pm_state->pst_max_device_failures;
+}
+
+static uint32_t dix_rec_op_spare_offset(struct m0_dix_rec_op *rec_op)
+{
+	return m0_dix_liter_spare_offset(&rec_op->dgp_iter);
+}
+
+static int dix__spare_target(struct m0_dix_rec_op         *rec_op,
+			     const struct m0_dix_pg_unit  *failed_unit,
+			     uint32_t                     *spare_slot,
+			     struct m0_dix_pg_unit       **spare_unit,
+			     bool                          with_data)
+{
+	struct m0_pool_version    *pver;
+	struct m0_poolmach_state  *pm_state;
+	struct m0_dix_pg_unit     *spare;
+	uint32_t                   slot;
+	uint64_t                   spare_offset;
+	uint64_t                   tgt;
+	int                        rc;
+
+	/*
+	 * Pool machine should be locked here. It is done in
+	 * dix_rop_units_set().
+	 */
+	pver = dix_rec_op_pver(rec_op);
+	pm_state = pver->pv_mach.pm_state;
+	spare_offset = dix_rec_op_spare_offset(rec_op);
+	M0_PRE(ergo(with_data, M0_IN(failed_unit->dpu_pd_state,
+			(M0_PNDS_SNS_REPAIRED, M0_PNDS_SNS_REBALANCING))));
+	tgt = failed_unit->dpu_tgt;
+	do {
+		rc = dix_spare_slot_find(pm_state, tgt, &slot);
+		if (rc != 0)
+			return M0_ERR(rc);
+		spare = &rec_op->dgp_units[spare_offset + slot];
+		if (!spare->dpu_failed) {
+			/* Found non-failed spare unit, exit the loop. */
+			*spare_unit = spare;
+			*spare_slot = slot;
+			return M0_RC(0);
+		}
+		if (with_data && M0_IN(spare->dpu_pd_state,
+				(M0_PNDS_FAILED, M0_PNDS_SNS_REPAIRING))) {
+			/*
+			 * Spare unit with repaired data is requested, but some
+			 * spare unit in a chain is not repaired yet.
+			 */
+			return M0_ERR(-ENODEV);
+		}
+		tgt = spare->dpu_tgt;
+	} while (1);
+}
+
+static int dix_spare_target(struct m0_dix_rec_op         *rec_op,
+			    const struct m0_dix_pg_unit  *failed_unit,
+			    uint32_t                     *spare_slot,
+			    struct m0_dix_pg_unit       **spare_unit)
+{
+	return dix__spare_target(rec_op, failed_unit, spare_slot, spare_unit,
+				 false);
+}
+
+static int dix_spare_target_with_data(struct m0_dix_rec_op         *rec_op,
+				      const struct m0_dix_pg_unit  *failed_unit,
+				      uint32_t                     *spare_slot,
+				      struct m0_dix_pg_unit       **spare_unit)
+{
+	return dix__spare_target(rec_op, failed_unit, spare_slot, spare_unit,
+				 true);
+}
+
+static void dix_online_unit_choose(struct m0_dix_req    *req,
+				   struct m0_dix_rec_op *rec_op)
+{
+	struct m0_dix_pg_unit *pgu;
+	uint64_t               start_unit;
+	uint64_t               i;
+	uint64_t               j;
+
+	M0_ENTRY();
+	M0_PRE(req->dr_type == DIX_GET);
+	start_unit = req->dr_items[rec_op->dgp_item].dxi_pg_unit;
+	M0_ASSERT(start_unit < dix_rec_op_spare_offset(rec_op));
+	for (i = 0; i < start_unit; i++)
+		rec_op->dgp_units[i].dpu_failed = true;
+	for (i = start_unit; i < rec_op->dgp_units_nr; i++) {
+		pgu = &rec_op->dgp_units[i];
+		if (!pgu->dpu_is_spare && !pgu->dpu_failed)
+			break;
+	}
+	for (j = i + 1; j < rec_op->dgp_units_nr; j++)
+		rec_op->dgp_units[j].dpu_failed = true;
+}
+
+static void dix_pg_unit_pd_assign(struct m0_dix_pg_unit *pgu,
+				  struct m0_pooldev     *pd)
+{
+	pgu->dpu_tgt      = pd->pd_index;
+	pgu->dpu_sdev_idx = pd->pd_sdev_idx;
+	pgu->dpu_pd_state = pd->pd_state;
+	pgu->dpu_failed   = pool_failed_devs_tlink_is_in(pd);
+}
+
+/**
+ * Determines targets for the parity group 'unit' with the target device known
+ * to be non-online. Record operation units (rec_op->dgp_units[]) for the
+ * resulting targets are updated accordingly (usually dpu_is_spare flag is unset
+ * to indicate that spare unit target should be used instead of the failed one).
+ */
+static void dix_rop_failed_unit_tgt(struct m0_dix_req    *req,
+				    struct m0_dix_rec_op *rec_op,
+				    uint64_t              unit)
+{
+	struct m0_dix_pg_unit *pgu = &rec_op->dgp_units[unit];
+	struct m0_dix_pg_unit *spare;
+	uint32_t               spare_offset;
+	uint32_t               spare_slot;
+	int                    rc;
+
+	M0_ENTRY();
+	M0_PRE(dix_req_state(req) != DIXREQ_DEL_PHASE2);
+	M0_PRE(pgu->dpu_failed);
+	M0_PRE(M0_IN(pgu->dpu_pd_state, (M0_PNDS_FAILED,
+					 M0_PNDS_SNS_REPAIRING,
+					 M0_PNDS_SNS_REPAIRED,
+					 M0_PNDS_SNS_REBALANCING)));
+	switch (req->dr_type) {
+	case DIX_NEXT:
+		/* Do nothing. */
+		break;
+	case DIX_GET:
+		if (M0_IN(pgu->dpu_pd_state, (M0_PNDS_SNS_REPAIRED,
+					      M0_PNDS_SNS_REBALANCING))) {
+			rc = dix_spare_target_with_data(rec_op, pgu,
+					&spare_slot, &spare);
+			if (rc == 0) {
+				spare->dpu_is_spare = false;
+				break;
+			}
+		}
+		break;
+	case DIX_PUT:
+		if (pgu->dpu_pd_state == M0_PNDS_SNS_REBALANCING)
+			pgu->dpu_failed = false;
+		rc = dix_spare_target(rec_op, pgu, &spare_slot, &spare);
+		if (rc == 0) {
+			spare_offset = dix_rec_op_spare_offset(rec_op);
+			unit = spare_offset + spare_slot;
+			rec_op->dgp_units[unit].dpu_is_spare = false;
+		}
+		break;
+	case DIX_DEL:
+		if (pgu->dpu_pd_state == M0_PNDS_FAILED)
+			break;
+		rc = dix_spare_target(rec_op, pgu, &spare_slot, &spare);
+		if (rc != 0)
+			break;
+		spare_offset = dix_rec_op_spare_offset(rec_op);
+		unit = spare_offset + spare_slot;
+		if (pgu->dpu_pd_state == M0_PNDS_SNS_REPAIRED) {
+			rec_op->dgp_units[unit].dpu_is_spare = false;
+		} else if (pgu->dpu_pd_state == M0_PNDS_SNS_REPAIRING) {
+			rec_op->dgp_units[unit].dpu_del_phase2 = true;
+		} else if (pgu->dpu_pd_state == M0_PNDS_SNS_REBALANCING) {
+			rec_op->dgp_units[unit].dpu_is_spare = false;
+			pgu->dpu_del_phase2 = true;
+		}
+		break;
+	default:
+		M0_IMPOSSIBLE("Invalid request type %d", req->dr_type);
+	}
+	M0_LEAVE();
+}
+
+/**
+ * For every unit that is unaccessible (resides on a non-online device)
+ * determines corresponding spare unit. Depending on DIX request type and device
+ * states, record units are updated in order to skip the failed unit, to use the
+ * spare unit or to use both the failed and the spare units.
+ *
+ * For more information see dix/client.h, "Operation in degraded mode" section.
+ */
+static void dix_rop_failures_analyse(struct m0_dix_req *req)
+{
+	struct m0_dix_rop_ctx *rop = req->dr_rop;
+	struct m0_dix_rec_op  *rec_op;
+	struct m0_dix_pg_unit *unit;
+	uint32_t               i;
+	uint32_t               j;
+
+	for (i = 0; i < rop->dg_rec_ops_nr; i++) {
+		rec_op = &rop->dg_rec_ops[i];
+		for (j = 0; j < rec_op->dgp_units_nr; j++) {
+			unit = &rec_op->dgp_units[j];
+			if (!unit->dpu_is_spare && unit->dpu_failed) {
+				rec_op->dgp_failed_devs_nr++;
+				dix_rop_failed_unit_tgt(req, rec_op, j);
+			}
+		}
+	}
 }
 
 static void dix_rop_units_set(struct m0_dix_req *req)
@@ -1434,21 +1894,61 @@ static void dix_rop_units_set(struct m0_dix_req *req)
 	struct m0_dix_rop_ctx *rop = req->dr_rop;
 	struct m0_dix_rec_op  *rec_op;
 	struct m0_dix_pg_unit *unit;
+	struct m0_pooldev     *pd;
+	struct m0_poolmach    *pm = &rop->dg_pver->pv_mach;
+	struct m0_pool        *pool = rop->dg_pver->pv_pool;
 	uint64_t               tgt;
 	uint32_t               i;
 	uint32_t               j;
 
-	/* Determine destination devices for all parity units. */
+	m0_rwlock_read_lock(&pm->pm_lock);
+
+	/*
+	 * Determine destination devices for all records for all units as it
+	 * should be without failures in a pool.
+	 */
 	for (i = 0; i < rop->dg_rec_ops_nr; i++) {
 		rec_op = &rop->dg_rec_ops[i];
 		dix_rop_tgt_iter_begin(req, rec_op);
 		for (j = 0; j < rec_op->dgp_units_nr; j++) {
 			unit = &rec_op->dgp_units[j];
-			dix_rop_tgt_iter_next(req, rec_op, &tgt);
-			unit->dpu_sdev = m0_dix_tgt2sdev(
-					     &rec_op->dgp_iter.dit_linst, tgt);
+			dix_rop_tgt_iter_next(req, rec_op, &tgt,
+					      &unit->dpu_is_spare);
+			pd = m0_dix_tgt2sdev(&rec_op->dgp_iter.dit_linst, tgt);
+			dix_pg_unit_pd_assign(unit, pd);
 		}
 	}
+
+	/*
+	 * Analyse failures in a pool and modify individual units state
+	 * in order to send CAS requests to proper destinations. Hold pool
+	 * machine lock to get consistent results.
+	 */
+	if (pm->pm_pver->pv_is_dirty &&
+	    !pool_failed_devs_tlist_is_empty(&pool->po_failed_devices))
+		dix_rop_failures_analyse(req);
+
+	/** @todo Send pm version in CAS requests. */
+	req->dr_pmach_ver = pm->pm_state->pst_version;
+	m0_rwlock_read_unlock(&pm->pm_lock);
+
+	/*
+	 * Only one CAS GET request should be sent for every record.
+	 * Choose the best destination for every record.
+	 */
+	if (req->dr_type == DIX_GET) {
+		for (i = 0; i < rop->dg_rec_ops_nr; i++)
+			dix_online_unit_choose(req, &rop->dg_rec_ops[i]);
+	}
+}
+
+static bool dix_pg_unit_skip(struct m0_dix_req     *req,
+			     struct m0_dix_pg_unit *unit)
+{
+	if (dix_req_state(req) != DIXREQ_DEL_PHASE2)
+		return unit->dpu_failed || unit->dpu_is_spare;
+	else
+		return !unit->dpu_del_phase2;
 }
 
 static int dix_cas_rops_alloc(struct m0_dix_req *req)
@@ -1457,30 +1957,51 @@ static int dix_cas_rops_alloc(struct m0_dix_req *req)
 	struct m0_dix_rec_op   *rec_op;
 	uint32_t                i;
 	uint32_t                j;
+	uint32_t                max_failures;
 	struct m0_dix_cas_rop **map = rop->dg_target_rop;
 	struct m0_dix_cas_rop  *cas_rop;
 	struct m0_dix_pg_unit  *unit;
-	struct m0_pooldev      *pd;
+	bool                    del_lock;
 	int                     rc = 0;
 
 	M0_ENTRY("req %p", req);
 	M0_ASSERT(rop->dg_rec_ops_nr > 0);
 
+	max_failures = dix_rop_max_failures(rop);
 	for (i = 0; i < rop->dg_rec_ops_nr; i++) {
 		rec_op = &rop->dg_rec_ops[i];
+		/*
+		 * If 2-phase delete is necessary, then CAS request should be
+		 * sent with COF_DEL_LOCK flag in order to prevent possible
+		 * concurrency issues with repair/re-balance process.
+		 */
+		del_lock = (req->dr_type == DIX_DEL &&
+			    dix_del_phase2_is_needed(rec_op));
+		if (rec_op->dgp_failed_devs_nr > max_failures) {
+			req->dr_items[rec_op->dgp_item].dxi_rc = M0_ERR(-EIO);
+			/* Skip this record operation. */
+			continue;
+		}
 		for (j = 0; j < rec_op->dgp_units_nr; j++) {
 			unit = &rec_op->dgp_units[j];
-			pd = unit->dpu_sdev;
-			if (map[pd->pd_index] == NULL) {
-				rc = dix_cas_rop_alloc(req, pd->pd_sdev_idx,
+			if (dix_pg_unit_skip(req, unit))
+				continue;
+			if (map[unit->dpu_tgt] == NULL) {
+				rc = dix_cas_rop_alloc(req, unit->dpu_sdev_idx,
 						       &cas_rop);
 				if (rc != 0)
 					goto end;
-				map[pd->pd_index] = cas_rop;
+				map[unit->dpu_tgt] = cas_rop;
 			}
-			map[pd->pd_index]->crp_keys_nr++;
+			if (del_lock)
+				map[unit->dpu_tgt]->crp_flags |= COF_DEL_LOCK;
+			map[unit->dpu_tgt]->crp_keys_nr++;
 		}
 	}
+
+	/* It is possible that all data units are not available. */
+	if (cas_rop_tlist_is_empty(&rop->dg_cas_reqs))
+		return M0_ERR(-EIO);
 
 	m0_tl_for(cas_rop, &rop->dg_cas_reqs, cas_rop) {
 		M0_ALLOC_ARR(cas_rop->crp_attrs, cas_rop->crp_keys_nr);
@@ -1530,7 +2051,9 @@ static int dix_cas_rops_fill(struct m0_dix_req *req)
 		item = rec_op->dgp_item;
 		for (j = 0; j < rec_op->dgp_units_nr; j++) {
 			unit = &rec_op->dgp_units[j];
-			tgt = unit->dpu_sdev->pd_index;
+			tgt = unit->dpu_tgt;
+			if (dix_pg_unit_skip(req, unit))
+				continue;
 			M0_ASSERT(map[tgt] != NULL);
 			keys = &map[tgt]->crp_keys;
 			vals = &map[tgt]->crp_vals;
@@ -1630,7 +2153,6 @@ M0_INTERNAL int m0_dix_del(struct m0_dix_req      *req,
 	dix_discovery(req);
 	return M0_RC(0);
 }
-
 
 M0_INTERNAL int m0_dix_next(struct m0_dix_req      *req,
 			    const struct m0_dix    *index,

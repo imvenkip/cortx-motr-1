@@ -1562,7 +1562,8 @@ static bool cas_is_valid(struct cas_fom *fom, enum m0_cas_opcode opc,
 			if (result) {
 				if (cas_fid_is_cctg(&cid.ci_fid))
 					result = (imask->im_range == NULL) ==
-						(imask->im_nr == 0);
+						 (imask->im_nr == 0) &&
+					       cas_device_check(fom, &cid) == 0;
 				else
 					result = (imask->im_range == NULL &&
 						  imask->im_nr == 0);
