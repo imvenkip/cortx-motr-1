@@ -460,7 +460,10 @@ M0_INTERNAL int m0_rpc_packet_decode_using_cursor(struct m0_rpc_packet *p,
 
 	for (i = 0; i < poh.poh_nr_items; ++i) {
 		rc = item_decode(cursor, &item);
-		if (rc != 0) {
+		if (rc == -EPROTO) {
+			/* Here fop is not allocated, no need to release it. */
+			return M0_ERR(rc);
+		} else if (rc != 0) {
 			struct m0_fop *fop = m0_rpc_item_to_fop(item);
 			uint64_t count = m0_ref_read(&fop->f_ref);
 
