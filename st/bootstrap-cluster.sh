@@ -5,38 +5,38 @@ set -eux
 die() { echo "$@" >&2; exit 1; }
 
 configure_beta1() {
+	CMU_HOST="172.16.0.41"
 	HOSTS_LIST="172.16.1.[1-6]"
 	CLIENTS_LIST=""
-	HALOND_TS="172.16.1.1"
 	HALON_FACTS_FUNC="halon_facts_yaml_beta1"
 }
 
 configure_dev1_1() {
+	CMU_HOST="172.16.0.41"
 	HOSTS_LIST="172.16.1.[3,5,6,8,9]"
 	CLIENTS_LIST=""
-	HALOND_TS="172.16.1.3"
 	HALON_FACTS_FUNC="halon_facts_yaml_dev1_1"
 }
 
 configure_dev2_1() {
+	CMU_HOST="172.16.0.41"
 	HOSTS_LIST="172.16.1.[1-7],10.22.192.[51,52,59-63]"
 	CLIENTS_LIST="10.22.192.[51,52,59-63]"
-	HALOND_TS="172.16.1.1"
 	HALON_FACTS_FUNC="halon_facts_yaml_dev2_1"
 }
 
 configure_fre7n1() {
+	CMU_HOST="172.16.0.41"
 	HOSTS_LIST="172.16.1.[1-5]"
 	CLIENTS_LIST=""
-	HALOND_TS="172.16.1.1"
 	HALON_FACTS_FUNC="halon_facts_yaml_fre7n1"
 }
 
 configure_hvt() {
-	HOSTS_LIST="172.16.0.41,172.16.1.[1-6]"
+	CMU_HOST="172.16.0.41"
+	HOSTS_LIST="$CMU_HOST,172.16.1.[1-6]"
 	CLIENTS_LIST="172.16.1.1"
-	HALOND_TS="172.16.1.3"
-	HALON_FACTS_FUNC="halon_facts_yaml_hvt"
+	HALON_FACTS_FUNC="halon_facts_yaml_auto"
 }
 
 configure_common() {
@@ -46,17 +46,10 @@ configure_common() {
 	HALON_RPM_PATH=$HALON_SOURCES/rpmbuild/RPMS/x86_64
 	REMOTE_RPM_PATH=${REMOTE_RPM_PATH:-/tmp}
 
-	HALON_FACTS_HOST="172.16.0.41"
+	HALON_FACTS_HOST="$CMU_HOST"
 	HALON_FACTS_PATH="/etc/halon/halon_facts.yaml"
-	HALOND_NODES="$HOSTS_LIST"
-	HALOND_SAT="$HOSTS_LIST"
-	HALOND_TS_NET_IF="bond1"
-	HALOND_NET_IFS="bond1|em1|enp12s0d1|eth1"
-	HALOND_PORT=9000
-	HALONCTL_PORT=9001
-	HALOND_LOG=/tmp/halond.log
-	HALON_FACTS=./halon_facts.yaml
-	ROLE_MAPS=/etc/halon/role_maps/prov.ede
+	MERO_ROLE_MAPPINGS="/etc/halon/mero_role_mappings"
+	HALON_ROLE_MAPPINGS="/etc/halon/halon_role_mappings"
 
 	PDSH="pdsh -w $HOSTS_LIST"
 	PDCP="pdcp -w $HOSTS_LIST"
@@ -74,6 +67,7 @@ run_command() {
 		build_halon
 		;;
 	"stop")
+		ssh $CMU_HOST hctl cluster stop || true
 		if [ -n "$CLIENTS_LIST" ]; then
 			pdsh -w $CLIENTS_LIST systemctl stop mero-kernel
 		fi
@@ -98,50 +92,32 @@ run_command() {
 		$PDSH yum -y install $REMOTE_RPM_PATH/$HALON_RPM
 		;;
 	"start_halon")
-		$PDSH rm -rvf halon-persistence
-		pdsh -w $HALOND_NODES \
-			"IP=\$(ip -o -4 addr show | egrep '$HALOND_NET_IFS' | sort -k2 | head -n1 | \
-			awk -F '[ /]+' '{print \$4}'); \
-			halond -l \$IP:$HALOND_PORT +RTS -s -A16m -RTS >& $HALOND_LOG &"
-		sleep 3
-		local TS_IP=$(ssh $HALOND_TS \
-			      ip -o -4 addr show dev $HALOND_TS_NET_IF | \
-			      awk -F '[ /]+' '{print $4}')
-		pdsh -w $HALOND_TS \
-			halonctl -l $TS_IP:$HALONCTL_PORT -a $TS_IP:$HALOND_PORT \
-			bootstrap station -r 30000000
-		sleep 3
-		pdsh -w $HALOND_SAT \
-			"IP=\$(ip -o -4 addr show | egrep '$HALOND_NET_IFS' | sort -k2 | head -n1 | \
-			awk -F '[ /]+' '{print \$4}'); \
-			halonctl -l \$IP:$HALONCTL_PORT -a \$IP:$HALOND_PORT \
-			bootstrap satellite -t $TS_IP:$HALOND_PORT"
-		sleep 3
+		$PDSH systemctl is-active halond
+		$PDSH systemctl is-enabled halond
+		$PDSH systemctl stop halond
+		$PDSH systemctl disable halond
+		sleep 5
+		$PDSH systemctl is-active halond
+		$PDSH systemctl is-enabled halond
+		$PDSH systemctl is-failed halond
+		$PDSH rm -rvf /var/lib/halon/halon-persistence
+		$PDSH rm -rvf /var/log/halon.decision.log
+		$PDSH cat /etc/sysconfig/halond
+		$PDSH systemctl start halond
+		sleep 5
+		$PDSH systemctl status halond
 		;;
 	"bootstrap")
-		local TS_IP=$(ssh $HALOND_TS \
-			      ip -o -4 addr show dev $HALOND_TS_NET_IF | \
-			      awk -F '[ /]+' '{print $4}')
-		${HALON_FACTS_FUNC} | ssh $HALOND_TS "cat > $HALON_FACTS"
-		ssh $HALOND_TS \
-			halonctl -l $TS_IP:$HALONCTL_PORT -a $TS_IP:$HALOND_PORT \
-			cluster load -f $HALON_FACTS -r $ROLE_MAPS
-		sleep 1
-		ssh $HALOND_TS \
-			halonctl -l $TS_IP:$HALONCTL_PORT -a $TS_IP:$HALOND_PORT \
-			cluster start
+		${HALON_FACTS_FUNC} | ssh $HALON_FACTS_HOST "cat > halon_facts.yaml"
+		ssh $HALON_FACTS_HOST hctl bootstrap cluster \
+					--facts halon_facts.yaml \
+					--roles $MERO_ROLE_MAPPINGS \
+					--halonroles $HALON_ROLE_MAPPINGS
+					# --facts $HALON_FACTS_PATH \
 		;;
 	"status")
-		local TS_IP=$(ssh $HALOND_TS \
-			      ip -o -4 addr show dev $HALOND_TS_NET_IF | \
-			      awk -F '[ /]+' '{print $4}')
-		ssh $HALOND_TS \
-			halonctl -l $TS_IP:$HALONCTL_PORT \
-			$(pdsh -w $HALOND_NODES \
-			  ip -o -4 addr show | egrep "$HALOND_NET_IFS" | sort | \
-			  awk -v HALOND_PORT=$HALOND_PORT \
-			  -F '[ /]+' '{print "-a "$5":"HALOND_PORT}') \
-		        status
+		$PDSH systemctl status halond
+		ssh $CMU_HOST hctl cluster status
 		;;
 	"halon_facts_yaml")
 		${HALON_FACTS_FUNC}
@@ -5628,7 +5604,7 @@ halon_facts_yaml_fre7n1() {
 EOF
 }
 
-halon_facts_yaml_hvt() {
+halon_facts_yaml_auto() {
 	ssh $HALON_FACTS_HOST cat $HALON_FACTS_PATH
 }
 
