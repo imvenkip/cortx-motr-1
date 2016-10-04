@@ -1680,6 +1680,7 @@ static void cs_help(FILE *out, const char *progname)
 "  -t num   Timeout value to wait for connection to confd. (default %u sec)\n"
 "  -r num   Number of retries in connecting to confd. (default %u)\n"
 "  -z num   backend segment size in bytes (used only by m0mkfs).\n"
+"  -J num   Number of buffers in sns buffer pool. \n"
 "\n"
 "Request handler options:\n"
 "  -D str   Database environment path.\n"
@@ -1934,6 +1935,11 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv)
 				LAMBDA(void, (void)
 				{
 					cctx->cc_daemon = true;
+				})),
+			M0_NUMBERARG('J', "Set buffer pool size for SNS",
+				LAMBDA(void, (int64_t size)
+				{
+					cctx->cc_sns_buf_nr = size;
 				})),
 			/* -------------------------------------------
 			 * Request handler options
@@ -2362,6 +2368,7 @@ int m0_cs_init(struct m0_mero *cctx, struct m0_net_xprt **xprts,
 	cctx->cc_mkfs     = mkfs;
 	cctx->cc_force    = false;
 	cctx->cc_no_all2all_connections = false;
+	cctx->cc_sns_buf_nr = 1 << 8;
 
 	cs_mero_init(cctx);
 

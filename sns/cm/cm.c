@@ -368,12 +368,6 @@ t1LyMzglfd9KAkKKhSAlu2Q7N_I/edit">Copy Machine redesign.</a>
 enum {
 	SNS_SEG_NR = 10,
 	SNS_SEG_SIZE = 4096,
-	/*
-	 * Minimum number of buffers to provision m0_sns_cm::sc_ibp
-	 * and m0_sns_cm::sc_obp buffer pools.
-	 */
-	SNS_INCOMING_BUF_NR = 1 << 6,
-	SNS_OUTGOING_BUF_NR = 1 << 6,
 
 	/**
 	 * Currently m0t1fs uses default fid_start = 4, where 0 - 3 are reserved
@@ -555,6 +549,8 @@ M0_INTERNAL size_t m0_sns_cm_buffer_pool_provision(struct m0_net_buffer_pool *bp
 M0_INTERNAL int m0_sns_cm_prepare(struct m0_cm *cm)
 {
 	struct m0_sns_cm *scm = cm2sns(cm);
+	struct m0_reqh   *reqh = m0_sns_cm2reqh(scm);
+	struct m0_mero   *mero = m0_cs_ctx_get(reqh);
 	int               bufs_nr;
 	int               rc;
 
@@ -562,18 +558,18 @@ M0_INTERNAL int m0_sns_cm_prepare(struct m0_cm *cm)
 	M0_PRE(M0_IN(scm->sc_op, (SNS_REPAIR, SNS_REBALANCE)));
 
 	rc = m0_sns_cm_rm_init(scm);
-	if(rc != 0)
+	if (rc != 0)
 		return M0_ERR_INFO(rc, "SNS RM init failed");
 
 	if (scm->sc_ibp.sb_bp.nbp_buf_nr == 0 &&
 	    scm->sc_obp.sb_bp.nbp_buf_nr == 0) {
 		bufs_nr = m0_sns_cm_buffer_pool_provision(&scm->sc_ibp.sb_bp,
-							  SNS_INCOMING_BUF_NR);
+							  mero->cc_sns_buf_nr);
 		M0_LOG(M0_DEBUG, "Got buffers in: [%d]", bufs_nr);
 		if (bufs_nr == 0)
 			return M0_ERR(-ENOMEM);
 		bufs_nr = m0_sns_cm_buffer_pool_provision(&scm->sc_obp.sb_bp,
-							  SNS_OUTGOING_BUF_NR);
+							  mero->cc_sns_buf_nr);
 		M0_LOG(M0_DEBUG, "Got buffers out: [%d]", bufs_nr);
 		/*
 		 * If bufs_nr is 0, then just return -ENOMEM, as cm_setup() was

@@ -446,6 +446,9 @@ struct m0_mero {
 
 	/** Command line arguments. */
 	struct cs_args		    cc_args;
+
+	/** Number of buffers in incoming/outgoing copy machine pools. */
+	m0_bcount_t                 cc_sns_buf_nr;
 };
 
 enum {

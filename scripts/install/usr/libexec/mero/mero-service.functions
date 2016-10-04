@@ -521,6 +521,10 @@ m0_get_core_params()
         optional_params+=" -E $MERO_M0D_IOS_BUFFER_POOL_SIZE"
     fi
 
+    if [[ -n $MERO_M0D_SNS_BUFFER_POOL_SIZE ]]; then
+        optional_params+=" -J $MERO_M0D_SNS_BUFFER_POOL_SIZE"
+    fi
+
     if m0_genders_has_variable m0_pool_width ; then
         optional_params+=" -w $(m0_genders_value_of m0_pool_width)"
     fi

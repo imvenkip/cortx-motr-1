@@ -62,6 +62,9 @@ MERO_M0D_DATA_DIR=/var/mero
 # ioservice buffer pool configuration
 #MERO_M0D_IOS_BUFFER_POOL_SIZE=32
 
+# sns repair/rebalance buffer pool configuration
+#MERO_M0D_SNS_BUFFER_POOL_SIZE=64
+
 # Backend log size (in bytes) for all m0d's. Default is 512 MiB.
 #MERO_M0D_BELOG_SIZE=536870912
 
