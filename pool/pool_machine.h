@@ -24,6 +24,7 @@
 #define __MERO_POOL_MACHINE_H__
 
 #include "lib/tlist.h"
+#include "lib/rwlock.h"   /* m0_rwlock */
 #include "conf/helpers.h" /* m0_conf_fs_get() */
 
 /**
