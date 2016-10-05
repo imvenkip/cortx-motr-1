@@ -435,14 +435,15 @@
  * @{
  */
 
+static int confd_allocate(struct m0_reqh_service **service,
+			  const struct m0_reqh_service_type *stype);
+static int confd_cache_preload(struct m0_conf_cache *cache, const char *str);
+
 const struct m0_bob_type m0_confd_bob = {
 	.bt_name         = "m0_confd",
 	.bt_magix_offset = M0_MAGIX_OFFSET(struct m0_confd, d_magic),
 	.bt_magix        = M0_CONFD_MAGIC
 };
-
-static int confd_allocate(struct m0_reqh_service **service,
-			  const struct m0_reqh_service_type *stype);
 
 static const struct m0_reqh_service_type_ops confd_stype_ops = {
 	.rsto_service_allocate = confd_allocate
@@ -508,32 +509,27 @@ static void confd_fini(struct m0_reqh_service *service)
 	M0_LEAVE();
 }
 
-M0_INTERNAL int m0_confd_cache_create(struct m0_conf_cache **cache,
+M0_INTERNAL int m0_confd_cache_create(struct m0_conf_cache **out,
 				      struct m0_mutex       *cache_lock,
 				      const char            *confstr)
 {
-	struct m0_conf_cache *new_cache;
-	int                   rc;
+	int rc;
 
 	M0_ENTRY();
 	M0_PRE(confstr != NULL);
 
-	*cache = NULL;
-	M0_ALLOC_PTR(new_cache);
-	if (new_cache == NULL) {
+	M0_ALLOC_PTR(*out);
+	if (*out == NULL)
 		return M0_ERR(-ENOMEM);
-	}
-	m0_conf_cache_init(new_cache, cache_lock);
-	m0_conf_cache_lock(new_cache);
-	rc = m0_confd_cache_preload_string(new_cache, confstr);
-	m0_conf_cache_unlock(new_cache);
-	if (rc != 0) {
-		m0_conf_cache_fini(new_cache);
-		m0_free(new_cache);
-		return M0_ERR(rc);
-	}
-	*cache = new_cache;
-	return M0_RC(0);
+	m0_conf_cache_init(*out, cache_lock);
+	m0_conf_cache_lock(*out);
+	rc = confd_cache_preload(*out, confstr);
+	m0_conf_cache_unlock(*out);
+	if (rc == 0)
+		return M0_RC(0);
+	m0_conf_cache_fini(*out);
+	m0_free0(out);
+	return M0_ERR(rc);
 }
 
 M0_INTERNAL void m0_confd_cache_destroy(struct m0_conf_cache *cache)
@@ -578,8 +574,7 @@ static void confd_stop(struct m0_reqh_service *service)
 	M0_LEAVE();
 }
 
-M0_INTERNAL int m0_confd_cache_preload_string(struct m0_conf_cache *cache,
-					      const char           *buf)
+static int confd_cache_preload(struct m0_conf_cache *cache, const char *str)
 {
 	struct m0_confx    *enc;
 	int                 i;
@@ -589,7 +584,7 @@ M0_INTERNAL int m0_confd_cache_preload_string(struct m0_conf_cache *cache,
 	M0_ENTRY();
 	M0_PRE(m0_mutex_is_locked(cache->ca_lock));
 
-	rc = m0_confstr_parse(buf, &enc);
+	rc = m0_confstr_parse(str, &enc);
 	if (rc != 0)
 		return M0_ERR(rc);
 

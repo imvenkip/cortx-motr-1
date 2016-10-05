@@ -168,24 +168,16 @@ struct m0_confd {
 M0_INTERNAL int m0_confd_register(void);
 M0_INTERNAL void m0_confd_unregister(void);
 
-M0_INTERNAL int m0_confd_cache_preload_string(struct m0_conf_cache *cache,
-					      const char           *buf);
-
-M0_INTERNAL int m0_confd_cache_preload(struct m0_conf_cache *cache,
-				       const char           *dbpath);
-
 M0_INTERNAL int m0_confd_service_to_filename(struct m0_reqh_service *service,
 					     char                  **filename);
 /**
- * Allocates cache and populates it using provided configuration string.
+ * Allocates conf cache and populates it using provided configuration string.
  */
-M0_INTERNAL int m0_confd_cache_create(struct m0_conf_cache **cache,
+M0_INTERNAL int m0_confd_cache_create(struct m0_conf_cache **out,
 				      struct m0_mutex       *cache_lock,
 				      const char            *confstr);
 
-/**
- * Finalises cache and deallocates cache memory.
- */
+/** Finalises conf cache, releases memory. */
 M0_INTERNAL void m0_confd_cache_destroy(struct m0_conf_cache *cache);
 
 /** @} confd_dfspec */
