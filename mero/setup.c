@@ -952,10 +952,11 @@ static int cs_storage_ldom_destroy(const char *stob_path,
 	rc = m0_stob_domain_init(location, str_cfg_init, &dom);
 	if (rc == 0)
 		rc = m0_stob_domain_destroy(dom);
-	else if (rc == -ENOENT)
-		/* Don't fail if domain doesn't exist. */
+	else
+		rc = m0_stob_domain_destroy_location(location);
+	/* Don't fail if domain doesn't exist. */
+	if (rc == -ENOENT)
 		rc = 0;
-
 	m0_free(location);
 	return M0_RC(rc);
 }
@@ -967,6 +968,7 @@ static int cs_storage_bstore_prepare(const char             *stob_path,
 				     struct m0_stob_domain **out)
 {
 	int   rc;
+	int   rc1 = 0;
 	char *location;
 
 	M0_ENTRY();
@@ -977,18 +979,29 @@ static int cs_storage_bstore_prepare(const char             *stob_path,
 		return M0_ERR(-ENOMEM);
 
 	rc = m0_stob_domain_init(location, str_cfg_init, out);
-	if (mkfs && rc == -ENOENT) {
-		rc = m0_stob_domain_create(location, str_cfg_init,
-					   dom_key, NULL, out);
-		if (rc != 0)
-			M0_LOG(M0_ERROR, "Cannot create stob domain rc=%d", rc);
+	if (mkfs) {
+		/* Found existing stob domain, kill it. */
+		if (!M0_IN(rc, (0, -ENOENT))) {
+			rc1 = rc == 0 ? m0_stob_domain_destroy(*out) :
+					m0_stob_domain_destroy_location
+						(location);
+			if (rc1 != 0)
+				goto out;
+		}
+		if (rc != 0) {
+			rc = m0_stob_domain_create(location, str_cfg_init,
+						   dom_key, NULL, out);
+			if (rc != 0)
+				M0_LOG(M0_ERROR,
+				       "m0_stob_domain_create: rc=%d", rc);
+		} else {
+			M0_LOG(M0_INFO, "Found alive filesystem, do nothing.");
+		}
 	} else if (rc != 0)
 		M0_LOG(M0_ERROR, "Cannot init stob domain rc=%d", rc);
-	else if (mkfs && rc == 0)
-		M0_LOG(M0_INFO, "Found alive filesystem, do nothing.");
-
+out:
 	m0_free(location);
-	return M0_RC(rc);
+	return M0_RC(rc1 == 0 ? rc : rc1);
 }
 
 /**
@@ -1339,6 +1352,7 @@ static int cs_addb_storage_init(struct m0_reqh_context *rctx,
 	struct m0_stob_domain **dom = &addb_stob->cas_stobs.s_sdom;
 	const char             *str_cfg_init;
 	int                     rc;
+	int                     rc1 = 0;
 
 	M0_ENTRY();
 
@@ -1348,18 +1362,20 @@ static int cs_addb_storage_init(struct m0_reqh_context *rctx,
 				 str_cfg_init, dom);
 	if (mkfs) {
 		/* Found existing stob domain, kill it. */
-		if (rc == 0 && force) {
-			rc = m0_stob_domain_destroy(*dom);
-			if (rc != 0)
+		if ((rc == 0 && force) || !M0_IN(rc, (0, -ENOENT))) {
+			rc1 = rc == 0 ? m0_stob_domain_destroy(*dom) :
+					m0_stob_domain_destroy_location
+						(rctx->rc_addb_stlocation);
+			if (rc1 != 0)
 				goto out;
 		}
-		if (rc != 0 || force) {
+		if (rc != 0 || force)
 			/** @todo allow different stob type for data
 			    stobs & ADDB stobs? */
-			rc = m0_stob_domain_create_or_init(
-					rctx->rc_addb_stlocation, str_cfg_init,
-					M0_ADDB2_STOB_DOM_KEY, NULL, dom);
-		}
+			rc = m0_stob_domain_create(rctx->rc_addb_stlocation,
+						   str_cfg_init,
+						   M0_ADDB2_STOB_DOM_KEY, NULL,
+						   dom);
 	}
 	if (rc != 0)
 		return M0_ERR(rc);
@@ -1368,7 +1384,7 @@ static int cs_addb_storage_init(struct m0_reqh_context *rctx,
 out:
 	if (rc != 0)
 		m0_stob_domain_fini(*dom);
-	return M0_RC(rc);
+	return M0_RC(rc1 == 0 ? rc : rc1);
 }
 
 /**
