@@ -83,5 +83,17 @@ M0_TL_DECLARE(rpc_conn, M0_INTERNAL, struct m0_rpc_conn);
 M0_TL_DESCR_DECLARE(rmach_watch, M0_EXTERN);
 M0_TL_DECLARE(rmach_watch, M0_INTERNAL, struct m0_rpc_machine_watch);
 
+/**
+  * Terminates all active incoming sessions and connections.
+  *
+  * Such cleanup is required to handle case where receiver is terminated
+  * while one or more senders are still connected to it.
+  *
+  * For more information on this issue visit
+  * <a href="http://goo.gl/5vXUS"> here </a>
+  */
+M0_INTERNAL void
+m0_rpc_machine_cleanup_incoming_connections(struct m0_rpc_machine *machine);
+
 /** @} */
 #endif /* __MERO_RPC_MACHINE_INT_H__ */

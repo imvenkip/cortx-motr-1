@@ -52,7 +52,6 @@ static int rpc_tm_setup(struct m0_net_transfer_mc *tm,
 			uint32_t                   qlen);
 static int __rpc_machine_init(struct m0_rpc_machine *machine);
 static void __rpc_machine_fini(struct m0_rpc_machine *machine);
-static void cleanup_incoming_connections(struct m0_rpc_machine *machine);
 M0_INTERNAL void rpc_worker_thread_fn(struct m0_rpc_machine *machine);
 static struct m0_rpc_chan *rpc_chan_locate(struct m0_rpc_machine *machine,
 					   struct m0_net_end_point *dest_ep);
@@ -231,7 +230,7 @@ void m0_rpc_machine_fini(struct m0_rpc_machine *machine)
 
 	m0_rpc_machine_lock(machine);
 	M0_PRE(rpc_conn_tlist_is_empty(&machine->rm_outgoing_conns));
-	cleanup_incoming_connections(machine);
+	m0_rpc_machine_cleanup_incoming_connections(machine);
 	m0_rpc_machine_unlock(machine);
 
 	/* Detach watchers if any */
@@ -248,52 +247,93 @@ void m0_rpc_machine_fini(struct m0_rpc_machine *machine)
 M0_EXPORTED(m0_rpc_machine_fini);
 
 /**
-   XXX [TEMPORARY]
-   Terminates all active incoming sessions and connections.
-
-   Such cleanup is required to handle case where receiver is terminated
-   while one or more senders are still connected to it.
-
-   For more information on this issue visit
-   <a href="http://goo.gl/5vXUS"> here </a>
+ * Helper structure to link connection with clink allocated on stack.
+ * We cannot use clink from m0_rpc_conn structure as it is killed
+ * in the process of waiting.
  */
-static void cleanup_incoming_connections(struct m0_rpc_machine *machine)
+struct rpc_conn_holder {
+	struct m0_rpc_conn *h_conn;
+	struct m0_clink     h_clink;
+	uint64_t            h_sender_id;
+};
+
+static bool rpc_conn__on_finalised_cb(struct m0_clink *clink)
 {
-	struct m0_rpc_conn *conn;
-	struct m0_clink     clink;
-	uint64_t            sender_id;
+	struct rpc_conn_holder *holder =
+		container_of(clink, struct rpc_conn_holder, h_clink);
+	if (conn_state(holder->h_conn) == M0_RPC_CONN_FINALISED) {
+		/*
+		 * Let m0_chan_wait wake up. Delete clink from chan so
+		 * that chan can be finalized right after wait is finished
+		 * along with connection finalizing.
+		 *.
+		 * Please don't change this unless you really understand
+		 * it well. --umka
+		 */
+		m0_clink_del(&holder->h_clink);
+		return false;
+	}
+	return true;
+}
+
+M0_INTERNAL void
+m0_rpc_machine_cleanup_incoming_connections(struct m0_rpc_machine *machine)
+{
+	struct m0_rpc_conn    *conn;
+	struct rpc_conn_holder holder;
 
 	M0_PRE(m0_rpc_machine_is_locked(machine));
 
-	m0_tl_for(rpc_conn, &machine->rm_incoming_conns, conn) {
+	/*
+	 * As we wait without lock in the middle of loop, some connections
+	 * may go away in that time. This is why we check for connections
+	 * in this kind of loop and picking head to work with.
+	 */
+	while (!rpc_conn_tlist_is_empty(&machine->rm_incoming_conns)) {
+		conn = rpc_conn_tlist_head(&machine->rm_incoming_conns);
 		/*
-		 * It's possible that a connection in M0_RPC_CONN_TERMINATED
-		 * state, but it isn't deleted from the list yet. Wait until
+		 * It's possible that connection is in one of terminating
+		 * states, but it isn't deleted from the list yet. Wait until
 		 * the connection becomes M0_RPC_CONN_FINALISED and continue
 		 * cleanup procedure for other connections.
 		 */
-		if (conn_state(conn) == M0_RPC_CONN_TERMINATED) {
-			sender_id = conn->c_sender_id;
-			m0_clink_init(&clink, NULL);
-			clink.cl_is_oneshot = true;
-			m0_clink_add(&conn->c_sm.sm_chan, &clink);
+		if (M0_IN(conn_state(conn), (M0_RPC_CONN_TERMINATING,
+					     M0_RPC_CONN_TERMINATED))) {
+			/*
+			 * Prepare struct that allows to find connection by
+			 * on-stack declared clink. Move there some local
+			 * things too.
+			 */
+			holder.h_conn = conn;
+			holder.h_sender_id = conn->c_sender_id;
+			m0_clink_init(&holder.h_clink,
+				      rpc_conn__on_finalised_cb);
+			m0_clink_add(&conn->c_sm.sm_chan, &holder.h_clink);
 			m0_rpc_machine_unlock(machine);
-			m0_chan_wait(&clink);
-			m0_clink_fini(&clink);
+
+			m0_chan_wait(&holder.h_clink);
+			m0_clink_fini(&holder.h_clink);
+
 			m0_rpc_machine_lock(machine);
-			conn = m0_tl_find(rpc_conn, conn,
-					  &machine->rm_incoming_conns,
-					  sender_id == conn->c_sender_id);
+			conn = m0_tl_find(rpc_conn,
+				conn, &machine->rm_incoming_conns,
+				holder.h_sender_id == conn->c_sender_id);
 			M0_ASSERT(conn == NULL);
-			continue;
+		} else {
+			/**
+			 * It is little chance that conn state can be FAILED.
+			 * We can fight this problem later.
+			 */
+			M0_ASSERT(conn_state(conn) == M0_RPC_CONN_ACTIVE);
+			m0_rpc_conn_cleanup_all_sessions(conn);
+			M0_LOG(M0_INFO, "Aborting conn %llu",
+				(unsigned long long)conn->c_sender_id);
+			m0_rpc_rcv_conn_terminate(conn);
+			m0_sm_ast_cancel(&conn->c_rpc_machine->rm_sm_grp,
+					 &conn->c_ast);
+			m0_rpc_conn_terminate_reply_sent(conn);
 		}
-		M0_ASSERT(conn_state(conn) == M0_RPC_CONN_ACTIVE);
-		m0_rpc_conn_cleanup_all_sessions(conn);
-		M0_LOG(M0_INFO, "Aborting conn %llu",
-			(unsigned long long)conn->c_sender_id);
-		(void)m0_rpc_rcv_conn_terminate(conn);
-		m0_rpc_conn_terminate_reply_sent(conn);
-	} m0_tl_endfor;
+	}
 
 	M0_POST(rpc_conn_tlist_is_empty(&machine->rm_incoming_conns));
 }

@@ -107,7 +107,8 @@ static void rpc_mc_fini_race_test(void)
 	 * The fault injection increases a time interval from the
 	 * M0_RPC_CONN_TERMINATED state till M0_RPC_CONN_FINALISED. At this
 	 * time, the connection isn't deleted yet from the the
-	 * m0_rpc_machine::rm_incoming_conns and cleanup_incoming_connections()
+	 * m0_rpc_machine::rm_incoming_conns and
+	 * m0_rpc_machine_cleanup_incoming_connections()
 	 * should work correctly in such case.
 	 */
 	m0_fi_enable("buf_send_cb", "delay_callback");
