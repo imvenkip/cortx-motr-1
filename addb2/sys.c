@@ -83,7 +83,8 @@ struct m0_addb2_sys {
 	 */
 	struct m0_addb2_config   sy_conf;
 	/**
-	 * Lock for all fields of this structure.
+	 * Lock for all fields of this structure, except for ->sy_queue,
+	 * ->sy_queued and ->sy_astwait.
 	 */
 	struct m0_mutex          sy_lock;
 	/**
@@ -106,6 +107,13 @@ struct m0_addb2_sys {
 	 * Length of ->sy_queue.
 	 */
 	m0_bcount_t              sy_queued;
+	/**
+	 * This lock protects for ->sy_queue, ->sy_queued and ->sy_astwait. A
+	 * separate lock is needed to make it possible to call
+	 * m0_addb2_sys_submit() under other locks. ->sy_qlock nests within
+	 * ->sy_lock.
+	 */
+	struct m0_mutex          sy_qlock;
 	struct m0_sm_ast         sy_ast;
 	struct m0_sm_ast_wait    sy_astwait;
 	/**
@@ -148,8 +156,11 @@ static void sys_post(struct m0_addb2_sys *sys);
 static void sys_idle(struct m0_addb2_mach *mach);
 static void sys_lock(struct m0_addb2_sys *sys);
 static void sys_unlock(struct m0_addb2_sys *sys);
+static void sys_qlock(struct m0_addb2_sys *sys);
+static void sys_qunlock(struct m0_addb2_sys *sys);
 static void sys_balance(struct m0_addb2_sys *sys);
 static bool sys_invariant(const struct m0_addb2_sys *sys);
+static bool sys_queue_invariant(const struct m0_addb2_sys *sys);
 static int  sys_submit(struct m0_addb2_mach *mach,
 		       struct m0_addb2_trace_obj  *obj);
 static void net_idle(struct m0_addb2_net *net, void *datum);
@@ -175,7 +186,8 @@ int m0_addb2_sys_init(struct m0_addb2_sys **out,
 		sys->sy_conf = *conf;
 		sys->sy_ast.sa_cb = &sys_ast;
 		m0_mutex_init(&sys->sy_lock);
-		m0_sm_ast_wait_init(&sys->sy_astwait, &sys->sy_lock);
+		m0_mutex_init(&sys->sy_qlock);
+		m0_sm_ast_wait_init(&sys->sy_astwait, &sys->sy_qlock);
 		/**
 		 * `addb2' subsystem is initialised before locales are.
 		 * Disable posting of ASTs until m0_addb2_sys_sm_start()
@@ -244,9 +256,12 @@ void m0_addb2_sys_fini(struct m0_addb2_sys *sys)
 	mach_tlist_fini(&sys->sy_granted);
 	net_stop(sys);
 	stor_stop(sys);
+	sys_qlock(sys);
 	m0_sm_ast_wait_fini(&sys->sy_astwait);
+	sys_qunlock(sys);
 	sys_unlock(sys);
 	tr_tlist_fini(&sys->sy_queue);
+	m0_mutex_fini(&sys->sy_qlock);
 	m0_mutex_fini(&sys->sy_lock);
 	/* Do not finalise &sys->sy_counters: can be non-empty. */
 	m0_free(sys);
@@ -363,24 +378,18 @@ void m0_addb2_sys_stor_stop(struct m0_addb2_sys *sys)
 void m0_addb2_sys_sm_start(struct m0_addb2_sys *sys)
 {
 	sys_lock(sys);
+	sys_qlock(sys);
 	sys->sy_astwait.aw_allowed = true;
+	sys_qunlock(sys);
 	sys_unlock(sys);
 }
 
 void m0_addb2_sys_sm_stop(struct m0_addb2_sys *sys)
 {
-	struct m0_addb2_mach *stash;
-
-	/*
-	 * m0_sm_ast_wait() unlocks sys->sy_lock, bypassing sys_unlock(),
-	 * imitate sys->sy_stash manipulations in sys_{un,}lock().
-	 */
 	sys_lock(sys);
-	stash = sys->sy_stash;
-	sys->sy_stash = NULL;
+	sys_qlock(sys);
 	m0_sm_ast_wait(&sys->sy_astwait);
-	M0_ASSERT(sys->sy_stash == NULL);
-	sys->sy_stash = stash;
+	sys_qunlock(sys);
 	M0_ASSERT(sys->sy_ast.sa_next == NULL);
 	sys_unlock(sys);
 }
@@ -388,7 +397,7 @@ void m0_addb2_sys_sm_stop(struct m0_addb2_sys *sys)
 int m0_addb2_sys_submit(struct m0_addb2_sys *sys,
 			struct m0_addb2_trace_obj *obj)
 {
-	sys_lock(sys);
+	sys_qlock(sys);
 	if (sys->sy_queued + obj->o_tr.tr_nr <= sys->sy_conf.co_queue_max) {
 		sys->sy_queued += obj->o_tr.tr_nr;
 		tr_tlink_init_at_tail(obj, &sys->sy_queue);
@@ -397,7 +406,7 @@ int m0_addb2_sys_submit(struct m0_addb2_sys *sys,
 		M0_LOG(M0_DEBUG, "Queue overflow.");
 		obj = NULL;
 	}
-	sys_unlock(sys);
+	sys_qunlock(sys);
 	return obj != NULL;
 }
 
@@ -442,14 +451,18 @@ static void sys_balance(struct m0_addb2_sys *sys)
 
 	M0_PRE(sys_invariant(sys));
 	if (sys->sy_stor != NULL || sys->sy_net != NULL) {
+		sys_qlock(sys);
 		while ((obj = tr_tlist_pop(&sys->sy_queue)) != NULL) {
 			sys->sy_queued -= obj->o_tr.tr_nr;
+			sys_qunlock(sys);
 			if (m0_get()->i_disable_addb2_storage ||
 			    (sys->sy_stor != NULL ?
 			     m0_addb2_storage_submit(sys->sy_stor, obj) :
 			     m0_addb2_net_submit(sys->sy_net, obj)) == 0)
 				m0_addb2_trace_done(&obj->o_tr);
+			sys_qlock(sys);
 		}
+		sys_qunlock(sys);
 	}
 	m0_tl_teardown(mach, &sys->sy_deathrow, m) {
 		m0_addb2_mach_fini(m);
@@ -472,7 +485,7 @@ static int sys_submit(struct m0_addb2_mach *m, struct m0_addb2_trace_obj *obj)
 
 static void sys_post(struct m0_addb2_sys *sys)
 {
-	M0_PRE(m0_mutex_is_locked(&sys->sy_lock));
+	M0_PRE(m0_mutex_is_locked(&sys->sy_qlock));
 	/*
 	 * m0_sm_ast_wait_post() checks for ->aw_allowed, but we have to check
 	 * it before calling m0_locality_here(), because m0_addb2_global_fini()
@@ -498,7 +511,9 @@ static void sys_idle(struct m0_addb2_mach *m)
 	sys_lock(sys);
 	M0_PRE(mach_tlist_contains(&sys->sy_moribund, m));
 	mach_tlist_move(&sys->sy_deathrow, m);
+	sys_qlock(sys);
 	sys_post(sys);
+	sys_qunlock(sys);
 	sys_unlock(sys);
 }
 
@@ -559,7 +574,9 @@ static void sys_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 		m0_addb2_counter_add(counter, id, -1);
 	}
 	sys_balance(sys);
+	sys_qlock(sys);
 	m0_sm_ast_wait_signal(&sys->sy_astwait);
+	sys_qunlock(sys);
 	sys_unlock(sys);
 }
 
@@ -577,8 +594,10 @@ static void sys_lock(struct m0_addb2_sys *sys)
 	struct m0_addb2_mach *cur = m0_thread_tls()->tls_addb2_mach;
 
 	/*
-	 * Assert lock ordering: net lock and storage lock nest within sys lock.
+	 * Assert lock ordering: queue lock, net lock and storage lock nest
+	 * within sys lock.
 	 */
+	M0_PRE(m0_mutex_is_not_locked(&sys->sy_qlock));
 	M0_PRE(ergo(sys->sy_net != NULL,
 		    m0_addb2_net__is_not_locked(sys->sy_net)));
 	M0_PRE(ergo(sys->sy_stor != NULL,
@@ -607,6 +626,28 @@ static void sys_unlock(struct m0_addb2_sys *sys)
 	sys->sy_stash = NULL;
 	m0_mutex_unlock(&sys->sy_lock);
 	m0_thread_tls()->tls_addb2_mach = cur;
+}
+
+/**
+ * Locks the queue.
+ *
+ * @see sys_qunlock.
+ */
+static void sys_qlock(struct m0_addb2_sys *sys)
+{
+	m0_mutex_lock(&sys->sy_qlock);
+	M0_ASSERT(sys_queue_invariant(sys));
+}
+
+/**
+ * Unlocks the queue.
+ *
+ * @see sys_qlock.
+ */
+static void sys_qunlock(struct m0_addb2_sys *sys)
+{
+	M0_ASSERT(sys_queue_invariant(sys));
+	m0_mutex_unlock(&sys->sy_qlock);
 }
 
 static void net_idle(struct m0_addb2_net *net, void *datum)
@@ -642,12 +683,17 @@ static bool sys_invariant(const struct m0_addb2_sys *sys)
 {
 	return  _0C(m0_mutex_is_locked(&sys->sy_lock)) &&
 		_0C(m0_thread_tls()->tls_addb2_mach == NULL) && /* sys_lock() */
+		_0C(M0_CHECK_EX(sys_size(sys) == sys->sy_total)) &&
+		_0C(sys->sy_total <= sys->sy_conf.co_pool_max);
+}
+
+static bool sys_queue_invariant(const struct m0_addb2_sys *sys)
+{
+	return  _0C(m0_mutex_is_locked(&sys->sy_qlock)) &&
 		_0C(sys->sy_queued <= sys->sy_conf.co_queue_max) &&
 		_0C(M0_CHECK_EX(sys->sy_queued == m0_tl_reduce(tr, t,
 						       &sys->sy_queue,
-						       0, + t->o_tr.tr_nr))) &&
-		_0C(M0_CHECK_EX(sys_size(sys) == sys->sy_total)) &&
-		_0C(sys->sy_total <= sys->sy_conf.co_pool_max);
+						       0, + t->o_tr.tr_nr)));
 }
 
 #undef M0_TRACE_SUBSYSTEM
