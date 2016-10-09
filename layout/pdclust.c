@@ -120,6 +120,11 @@ static const struct m0_bob_type pdclust_instance_bob = {
 
 M0_BOB_DEFINE(static, &pdclust_instance_bob, m0_pdclust_instance);
 
+M0_INTERNAL const struct m0_pdclust_src_addr M0_PDCLUST_SRC_NULL = {
+	.sa_group = UINT64_MAX,
+	.sa_unit  = UINT64_MAX,
+};
+
 static bool pdclust_allocated_invariant(const struct m0_pdclust_layout *pl)
 {
 	return

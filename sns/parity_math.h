@@ -61,6 +61,11 @@ enum m0_sns_ir_block_type {
 	M0_SI_BLOCK_LOCAL,
 	M0_SI_BLOCK_REMOTE,
 };
+
+enum m0_parity_linsys_algo {
+	M0_LA_GAUSSIAN,
+	M0_LA_INVERSE,
+};
 /**
  * Every member of a parity-group is called as a block. During incremental
  * recovery m0_sns_ir_block holds that information associated with a block
@@ -113,6 +118,8 @@ struct m0_parity_math {
 	struct m0_matvec	     pmi_sys_vec;
 	struct m0_matvec	     pmi_sys_res;
 	struct m0_linsys	     pmi_sys;
+	/* Data recovery matrix that's inverse of pmi_sys_mat. */
+	struct m0_matrix             pmi_recov_mat;
 };
 
 /* Holds information essential for incremental recovery. */
@@ -190,8 +197,17 @@ M0_INTERNAL void m0_parity_math_refine(struct m0_parity_math *math,
 				       struct m0_buf *parity,
 				       uint32_t data_ind_changed);
 
+
+M0_INTERNAL int m0_parity_recov_mat_gen(struct m0_parity_math *math,
+					uint8_t *fail);
+
+
+M0_INTERNAL void m0_parity_recov_mat_destroy(struct m0_parity_math *math);
+
 /**
-   Recovers data or parity units' data words from single or multiple errors.
+   Recovers data units' data words from single or multiple errors.
+   If parity also needs to be recovered, user of the function needs
+   to place a separate call for m0_parity_math_calculate().
    @param data[inout] - data block, treated as uint8_t block with
 			b_nob elements.
    @param parity[inout] - parity block, treated as uint8_t block with
@@ -199,12 +215,15 @@ M0_INTERNAL void m0_parity_math_refine(struct m0_parity_math *math,
    @param fail[in] - block with flags, treated as uint8_t block with
                      b_nob elements, if element is '1' then data or parity
                      block with given index is treated as broken.
+   @param algo[in] - algorithm for recovery of data in case reed solomon
+                     encoding is used.
    @pre m0_parity_math_init() succeded.
  */
 M0_INTERNAL void m0_parity_math_recover(struct m0_parity_math *math,
 					struct m0_buf *data,
 					struct m0_buf *parity,
-					struct m0_buf *fail);
+					struct m0_buf *fail,
+					enum m0_parity_linsys_algo algo);
 
 /**
  * Recovers data or parity units partially or fully depending on the parity

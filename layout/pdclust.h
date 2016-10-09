@@ -316,6 +316,8 @@ M0_INTERNAL void m0_pdclust_perm_cache_destroy(struct m0_layout *layout,
 				    struct m0_pdclust_instance *pi);
 extern struct m0_layout_type m0_pdclust_layout_type;
 
+M0_EXTERN const struct m0_pdclust_src_addr M0_PDCLUST_SRC_NULL;
+
 /** @} end group pdclust */
 
 /* __MERO_LAYOUT_PDCLUST_H__ */

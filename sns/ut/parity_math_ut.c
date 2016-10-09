@@ -296,7 +296,7 @@ static void test_recovery(const enum m0_parity_cal_algo algo,
 							  fail_index_xor);
 		else if (rt == FAIL_VECTOR)
 			m0_parity_math_recover(&math, data_buf, parity_buf,
-					       &fail_buf);
+					       &fail_buf, 0);
 
 		m0_parity_math_fini(&math);
 
@@ -1359,7 +1359,7 @@ void parity_math_tb(void)
 
 		unit_spoil(buff_size, fail_count, data_count);
 
-		m0_parity_math_recover(&math, data_buf, parity_buf, &fail_buf);
+		m0_parity_math_recover(&math, data_buf, parity_buf, &fail_buf, 0);
 
 		m0_parity_math_fini(&math);
 	}

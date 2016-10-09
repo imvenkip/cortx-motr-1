@@ -143,7 +143,7 @@ void tb_thread(struct tb_cfg *cfg)
 	m0_buf_init(&fail_buf, cfg->tc_fail, fail_count);
 	m0_parity_math_calculate(&math, data_buf, parity_buf);
 
-	m0_parity_math_recover(&math, data_buf, parity_buf, &fail_buf);
+	m0_parity_math_recover(&math, data_buf, parity_buf, &fail_buf, 0);
 
 	m0_parity_math_fini(&math);
 	m0_free(data_buf);

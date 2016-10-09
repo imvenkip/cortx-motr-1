@@ -2953,11 +2953,37 @@ err:
 			   "data buffer": "Illegal device queried for status");
 }
 
+static uint32_t iomap_dgmode_recov_prepare(struct pargrp_iomap *map,
+					   uint8_t *failed)
+{
+	struct m0_pdclust_layout *play;
+	uint32_t                  col;
+	uint32_t                  K = 0;
+
+	play = pdlayout_get(map->pi_ioreq);
+	for (col = 0; col < data_col_nr(play); ++col) {
+		if (map->pi_databufs[0][col] != NULL &&
+		    map->pi_databufs[0][col]->db_flags &
+		    PA_READ_FAILED) {
+			failed[col] = 1;
+			++K;
+		}
+
+	}
+	for (col = 0; col < parity_col_nr(play); ++col) {
+		M0_ASSERT(map->pi_paritybufs[0][col] != NULL);
+		if (map->pi_paritybufs[0][col]->db_flags &
+		    PA_READ_FAILED) {
+			failed[col + layout_n(play)] = 1;
+			++K;
+		}
+	}
+	return K;
+}
+
 static int pargrp_iomap_dgmode_recover(struct pargrp_iomap *map)
 {
 	int                       rc = 0;
-	uint8_t                  *data_fail;
-	uint8_t                  *parity_fail;
 	uint32_t                  row;
 	uint32_t                  col;
 	uint32_t                  K;
@@ -2971,8 +2997,8 @@ static int pargrp_iomap_dgmode_recover(struct pargrp_iomap *map)
 	M0_PRE(map->pi_state == PI_DEGRADED);
 
 	M0_ENTRY("[%p] map %p", map->pi_ioreq, map);
-	play = pdlayout_get(map->pi_ioreq);
 
+	play = pdlayout_get(map->pi_ioreq);
 	M0_ALLOC_ARR(data, layout_n(play));
 	if (data == NULL)
 		return M0_ERR_INFO(-ENOMEM, "[%p] Failed to allocate memory"
@@ -3002,23 +3028,26 @@ static int pargrp_iomap_dgmode_recover(struct pargrp_iomap *map)
 		return M0_ERR_INFO(-ENOMEM, "[%p] Failed to allocate memory "
 				   "for m0_buf", map->pi_ioreq);
 	}
-
-	data_fail = failed.b_addr;
-	parity_fail = data_fail + data_col_nr(play);
+	K = iomap_dgmode_recov_prepare(map, (uint8_t *)failed.b_addr);
+	if (K > layout_k(play)) {
+		M0_LOG(M0_ERROR, "More failures in group %d", (int)map->pi_grpid);
+		rc = -EIO;
+		goto end;
+	}
+	if (parity_math(map->pi_ioreq)->pmi_parity_algo ==
+	    M0_PARITY_CAL_ALGO_REED_SOLOMON) {
+		rc = m0_parity_recov_mat_gen(parity_math(map->pi_ioreq),
+				(uint8_t *)failed.b_addr);
+		if (rc != 0)
+			goto end;
+	}
 	/* Populates data and failed buffers. */
 	for (row = 0; row < data_row_nr(play); ++row) {
-		memset(data_fail, 0, failed.b_nob);
-		K = 0;
 		for (col = 0; col < data_col_nr(play); ++col) {
 			data[col].b_nob = PAGE_CACHE_SIZE;
 			if (map->pi_databufs[row][col] == NULL) {
 				data[col].b_addr = (void *)zpage;
 				continue;
-			}
-			if (map->pi_databufs[row][col]->db_flags &
-			    PA_READ_FAILED) {
-				*(data_fail + col) = 1;
-				++K;
 			}
 			data[col].b_addr = map->pi_databufs[row][col]->
 					   db_buf.b_addr;
@@ -3028,20 +3057,15 @@ static int pargrp_iomap_dgmode_recover(struct pargrp_iomap *map)
 			parity[col].b_addr = map->pi_paritybufs[row][col]->
 				db_buf.b_addr;
 			parity[col].b_nob  = PAGE_CACHE_SIZE;
-			if (map->pi_paritybufs[row][col]->db_flags &
-			    PA_READ_FAILED) {
-				*(parity_fail + col) = 1;
-				++K;
-			}
-		}
-		if (K > parity_col_nr(play)) {
-			rc = -EIO;
-			break;
 		}
 		m0_parity_math_recover(parity_math(map->pi_ioreq), data,
-				       parity, &failed);
+				       parity, &failed, M0_LA_INVERSE);
 	}
 
+	if (parity_math(map->pi_ioreq)->pmi_parity_algo ==
+	    M0_PARITY_CAL_ALGO_REED_SOLOMON)
+		m0_parity_recov_mat_destroy(parity_math(map->pi_ioreq));
+end:
 	m0_free(data);
 	m0_free(parity);
 	m0_free(failed.b_addr);
@@ -3049,7 +3073,7 @@ static int pargrp_iomap_dgmode_recover(struct pargrp_iomap *map)
 	return rc == 0 ? M0_RC(rc) : M0_ERR_INFO(-EIO, "Number of failed units"
 						 "in parity group exceeds the"
 						 "total number of parity units"
-						 "in a parity group.");
+						 "in a parity group %d.", (int)map->pi_grpid);
 }
 
 static int ioreq_iomaps_parity_groups_cal(struct io_request *req)
@@ -3168,7 +3192,6 @@ static int ioreq_iomaps_prepare(struct io_request *req)
 		M0_LOG(M0_INFO, "[%p] pargrp_iomap id : %llu populated",
 		       req, req->ir_iomaps[map]->pi_grpid);
 	}
-
 	return M0_RC(0);
 failed:
 	if (req->ir_iomaps != NULL)
@@ -3759,6 +3782,12 @@ static int ioreq_dgmode_read(struct io_request *req, bool rmw)
 	pm = m0t1fs_file_to_poolmach(req->ir_file);
 	M0_ASSERT(pm != NULL);
 	m0_htable_for(tioreqht, ti, &xfer->nxr_tioreqs_hash) {
+		/*
+		 * Data was retrieved successfully, so no need to check the
+		 * state of the device.
+		 */
+		if (ti->ti_rc == 0)
+			continue;
 		/* state is already queried in device_check() and stored
 		 * in ti->ti_state. Why do we do this again?
 		 */
@@ -3768,6 +3797,7 @@ static int ioreq_dgmode_read(struct io_request *req, bool rmw)
 					   "state", req);
 		M0_LOG(M0_INFO, "[%p] device state for "FID_F" is %d",
 		       req, FID_P(&ti->ti_fid), state);
+		ti->ti_state = state;
 		if (!M0_IN(state, (M0_PNDS_FAILED, M0_PNDS_OFFLINE,
 			   M0_PNDS_SNS_REPAIRING, M0_PNDS_SNS_REPAIRED,
 			   M0_PNDS_SNS_REBALANCING)))
@@ -3797,13 +3827,13 @@ static int ioreq_dgmode_read(struct io_request *req, bool rmw)
 	 */
 	if (req->ir_dgmap_nr > 0) {
 		M0_LOG(M0_DEBUG, "[%p] processing the failed parity groups",
-		       req);
+				req);
 		if (ioreq_sm_state(req) == IRS_READ_COMPLETE)
 			ioreq_sm_state_set(req, IRS_DEGRADED_READING);
 
 		for (id = 0; id < req->ir_iomap_nr; ++id) {
 			rc = req->ir_iomaps[id]->pi_ops->
-			     pi_dgmode_postprocess(req->ir_iomaps[id]);
+				pi_dgmode_postprocess(req->ir_iomaps[id]);
 			if (rc != 0)
 				break;
 		}
@@ -4009,14 +4039,12 @@ static int ioreq_iosm_handle(struct io_request *req)
 				       "failed: rc=%d", req, rc);
 				goto fail_locked;
 			}
-
 			rc = req->ir_ops->iro_parity_verify(req);
 			if (rc != 0) {
 				M0_LOG(M0_ERROR, "[%p] parity verification "
 				       "failed: rc=%d", req, rc);
 				goto fail_locked;
 			}
-
 			rc = req->ir_ops->iro_user_data_copy(req,
 					CD_COPY_TO_USER, 0);
 			if (rc != 0) {
@@ -4315,6 +4343,19 @@ static void io_request_fini(struct io_request *req)
 	M0_LEAVE();
 }
 
+static bool should_spare_be_mapped(struct io_request  *req,
+				   enum m0_pool_nd_state device_state)
+{
+	return	(M0_IN(ioreq_sm_state(req),
+		 (IRS_READING, IRS_DEGRADED_READING)) &&
+	         device_state        == M0_PNDS_SNS_REPAIRED) ||
+
+	        (ioreq_sm_state(req) == IRS_DEGRADED_WRITING &&
+	        (device_state == M0_PNDS_SNS_REPAIRED ||
+	        (device_state == M0_PNDS_SNS_REPAIRING &&
+	         req->ir_sns_state == SRS_REPAIR_DONE)));
+}
+
 static int nw_xfer_tioreq_map(struct nw_xfer_request           *xfer,
 			      const struct m0_pdclust_src_addr *src,
 			      struct m0_pdclust_tgt_addr       *tgt,
@@ -4427,14 +4468,7 @@ static int nw_xfer_tioreq_map(struct nw_xfer_request           *xfer,
 
 	M0_LOG(M0_INFO, "[%p] tfid "FID_F ", device state = %d\n",
 	       req, FID_P(&tfid), device_state);
-	if ((M0_IN(ioreq_sm_state(req),
-		   (IRS_READING, IRS_DEGRADED_READING)) &&
-	     device_state        == M0_PNDS_SNS_REPAIRED) ||
-
-	    (ioreq_sm_state(req) == IRS_DEGRADED_WRITING &&
-	     (device_state == M0_PNDS_SNS_REPAIRED ||
-	      (device_state == M0_PNDS_SNS_REPAIRING &&
-	       req->ir_sns_state == SRS_REPAIR_DONE)))) {
+	if (should_spare_be_mapped(req, device_state)) {
 		struct m0_pdclust_src_addr  spare = *src;
 		uint32_t                    spare_slot;
 		uint32_t                    spare_slot_prev;

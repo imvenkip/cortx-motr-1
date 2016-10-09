@@ -58,12 +58,14 @@ static void reed_solomon_diff(struct m0_parity_math *math,
 static void xor_recover(struct m0_parity_math *math,
                         struct m0_buf *data,
                         struct m0_buf *parity,
-                        struct m0_buf *fails);
+                        struct m0_buf *fails,
+			enum m0_parity_linsys_algo algo);
 
 static void reed_solomon_recover(struct m0_parity_math *math,
                                  struct m0_buf *data,
                                  struct m0_buf *parity,
-                                 struct m0_buf *fails);
+                                 struct m0_buf *fails,
+				 enum m0_parity_linsys_algo algo);
 
 static void fail_idx_xor_recover(struct m0_parity_math *math,
 				 struct m0_buf *data,
@@ -176,7 +178,8 @@ static void (*diff[M0_PARITY_CAL_ALGO_NR])(struct m0_parity_math *math,
 static void (*recover[M0_PARITY_CAL_ALGO_NR])(struct m0_parity_math *math,
 					      struct m0_buf *data,
 					      struct m0_buf *parity,
-					      struct m0_buf *fails) = {
+					      struct m0_buf *fails,
+					      enum m0_parity_linsys_algo algo) = {
 	[M0_PARITY_CAL_ALGO_XOR] = xor_recover,
 	[M0_PARITY_CAL_ALGO_REED_SOLOMON] = reed_solomon_recover,
 };
@@ -539,14 +542,12 @@ static uint32_t fails_count(uint8_t *fail, uint32_t unit_count)
 }
 
 /* Fills 'mat' and 'vec' with data passed to recovery algorithm. */
-static void recovery_data_fill(struct m0_parity_math *math,
+static void recovery_vec_fill(struct m0_parity_math *math,
 			       uint8_t *fail, uint32_t unit_count, /* in. */
-			       struct m0_matrix *mat,
 			       struct m0_matvec *vec) /* out. */
 {
 	uint32_t f;
 	uint32_t y = 0;
-	uint32_t x;
 
 	for (f = 0; f < unit_count; ++f) {
 		/*
@@ -559,7 +560,22 @@ static void recovery_data_fill(struct m0_parity_math *math,
 				? *m0_matvec_elem_get(&math->pmi_data, f)
 				: *m0_matvec_elem_get(&math->pmi_parity,
 						f - math->pmi_data_count);
-			/* copy mat. */
+			++y;
+		}
+	}
+}
+
+/* Fills 'mat' with data passed to recovery algorithm. */
+static void recovery_mat_fill(struct m0_parity_math *math,
+			      uint8_t *fail, uint32_t unit_count, /* in. */
+			      struct m0_matrix *mat) /* out. */
+{
+	uint32_t f;
+	uint32_t y = 0;
+	uint32_t x;
+
+	for (f = 0; f < unit_count; ++f) {
+		if (!fail[f] && y < mat->m_height) {
 			for (x = 0; x < mat->m_width; ++x)
 				*m0_matrix_elem_get(mat, x, y) =
 					*m0_matrix_elem_get(&math->pmi_vandmat,
@@ -571,23 +587,53 @@ static void recovery_data_fill(struct m0_parity_math *math,
 
 /* Updates internal structures of 'math' with recovered data. */
 static void parity_math_recover(struct m0_parity_math *math,
-				uint8_t *fail, uint32_t unit_count)
+				uint8_t *fail, uint32_t unit_count,
+				enum m0_parity_linsys_algo algo)
 {
 	struct m0_matrix *mat = &math->pmi_sys_mat;
 	struct m0_matvec *vec = &math->pmi_sys_vec;
 	struct m0_matvec *res = &math->pmi_sys_res;
 	struct m0_linsys *sys = &math->pmi_sys;
+	uint32_t          i;
 
-	recovery_data_fill(math, fail, unit_count, mat, vec);
+	recovery_vec_fill(math, fail, unit_count, vec);
+	if (algo == M0_LA_GAUSSIAN) {
+		recovery_mat_fill(math, fail, unit_count, mat);
+		m0_linsys_init(sys, mat, vec, res);
+		m0_linsys_solve(sys);
+	} else {
+		for (i = 0; i < math->pmi_data_count; ++i) {
+			if (fail[i] == 0)
+				continue;
+			m0_matrix_vec_multiply(&math->pmi_recov_mat, vec, res, m0_parity_mul, m0_parity_add);
+		}
+	}
+}
 
-	m0_linsys_init(sys, mat, vec, res);
-	m0_linsys_solve(sys);
+M0_INTERNAL int m0_parity_recov_mat_gen(struct m0_parity_math *math,
+					uint8_t *fail)
+{
+	int rc;
+
+	recovery_mat_fill(math, fail, math->pmi_data_count + math->pmi_parity_count,
+			  &math->pmi_sys_mat);
+	m0_matrix_init(&math->pmi_recov_mat, math->pmi_sys_mat.m_width,
+		       math->pmi_sys_mat.m_height);
+	rc = m0_matrix_invert(&math->pmi_sys_mat, &math->pmi_recov_mat);
+
+	return rc == 0 ? M0_RC(0) : M0_ERR(rc);
+}
+
+M0_INTERNAL void m0_parity_recov_mat_destroy(struct m0_parity_math *math)
+{
+	m0_matrix_fini(&math->pmi_recov_mat);
 }
 
 static void xor_recover(struct m0_parity_math *math,
 			struct m0_buf *data,
 			struct m0_buf *parity,
-			struct m0_buf *fails)
+			struct m0_buf *fails,
+			enum m0_parity_linsys_algo algo)
 {
 	uint32_t          ei; /* block element index. */
 	uint32_t          ui; /* unit index. */
@@ -631,7 +677,8 @@ static void xor_recover(struct m0_parity_math *math,
 static void reed_solomon_recover(struct m0_parity_math *math,
 				 struct m0_buf *data,
 				 struct m0_buf *parity,
-				 struct m0_buf *fails)
+				 struct m0_buf *fails,
+				 enum m0_parity_linsys_algo algo)
 {
 	uint32_t ei; /* block element index. */
 	uint32_t ui; /* unit index. */
@@ -665,23 +712,24 @@ static void reed_solomon_recover(struct m0_parity_math *math,
 				((uint8_t*)parity[ui].b_addr)[ei];
 
 		/* recover data. */
-		parity_math_recover(math, fail, unit_count);
+		parity_math_recover(math, fail, unit_count, algo);
 		/* store data. */
-		for (ui = 0; ui < math->pmi_data_count; ++ui)
+		for (ui = 0; ui < math->pmi_data_count; ++ui) {
+			if (fail[ui] == 0)
+				continue;
 			((uint8_t*)data[ui].b_addr)[ei] =
 				*m0_matvec_elem_get(recovered, ui);
+		}
 	}
-
-	/* recalculate parity. */
-	m0_parity_math_calculate(math, data, parity);
 }
 
 M0_INTERNAL void m0_parity_math_recover(struct m0_parity_math *math,
 					struct m0_buf *data,
 					struct m0_buf *parity,
-					struct m0_buf *fails)
+					struct m0_buf *fails,
+					enum m0_parity_linsys_algo algo)
 {
-	(*recover[math->pmi_parity_algo])(math, data, parity, fails);
+	(*recover[math->pmi_parity_algo])(math, data, parity, fails, algo);
 }
 
 static void fail_idx_xor_recover(struct m0_parity_math *math,

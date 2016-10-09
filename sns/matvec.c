@@ -312,6 +312,8 @@ M0_INTERNAL void m0_matrix_vec_multiply(const struct m0_matrix *m,
                 for (x = 0; x < m->m_width; ++x) {
 			m0_parity_elem_t ev = *m0_matvec_elem_get(v, x);
 			m0_parity_elem_t em = *m0_matrix_elem_get(m, x, y);
+			if (ev == M0_PARITY_ZERO || em == M0_PARITY_ZERO)
+				continue;
 			*er = add(*er, mul(ev, em));
 		}
 	}

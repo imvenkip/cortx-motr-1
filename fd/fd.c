@@ -954,8 +954,8 @@ M0_INTERNAL void m0_fd_bwd_map(struct m0_pdclust_instance *pi,
 		m0_fd_tgt_to_src(&pver->pv_fd_tile, &tgt_ft, src);
 	} else {
 		/* Input target and frame are unmapped. */
-		src->sa_group  = ~(uint64_t)0;
-		src->sa_unit   = ~(uint64_t)0;
+		src->sa_group  = UINT64_MAX;
+		src->sa_unit   = UINT64_MAX;
 	}
 }
 

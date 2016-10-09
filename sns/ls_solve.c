@@ -140,8 +140,8 @@ M0_INTERNAL int m0_matrix_invert(const struct m0_matrix *in_mat,
 	struct m0_matrix mat;
 	m0_parity_elem_t mult;
 
-	M0_PRE(m0_matrix_is_square(in_mat));
-	M0_PRE(m0_matrix_is_square(mat_inverse));
+	if (!m0_matrix_is_square(in_mat) || !m0_matrix_is_square(mat_inverse))
+		return M0_ERR_INFO(-EIO, "Input matrix not a square one");
 	M0_PRE(in_mat->m_width == mat_inverse->m_width);
 
 	ret = m0_matrix_init(&mat, in_mat->m_width, in_mat->m_height);
