@@ -127,9 +127,14 @@ static bool ha_link_state_cb(struct m0_clink *clink)
 
 	state = m0_ha_link_state(hl);
 	if (state == M0_HA_LINK_STATE_FAILED) {
-		M0_ASSERT(hl == ha->h_link);
-		/* Outgoing HA link reconnect via requesting an entrypoint */
-		m0_ha_entrypoint_client_request(&ha->h_entrypoint_client);
+		if (hl == ha->h_link) {
+			/*
+			 * Outgoing HA link reconnect via requesting
+			 * an entrypoint.
+			 */
+			m0_ha_entrypoint_client_request(&ha->h_entrypoint_client);
+		} else {
+		}
 	}
 	M0_LEAVE();
 	return true;
