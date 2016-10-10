@@ -214,12 +214,6 @@ M0_INTERNAL void m0_cm_proxy_update(struct m0_cm_proxy *pxy,
 			M0_SET0(&sw);
 			sw.sw_hi = cm->cm_sw_last_persisted_hi;
 			pxy->px_status = px_status;
-			/*
-			 * Notify copy machine on receiving initial updates
-			 * from all the remote replicas.
-			 */
-			if (m0_cm_is_ready(cm) && cm->cm_proxy_init_updated == cm->cm_proxy_nr)
-				m0_cm_notify(cm);
 		}
 		break;
 	case M0_PX_READY:
@@ -251,6 +245,12 @@ M0_INTERNAL void m0_cm_proxy_update(struct m0_cm_proxy *pxy,
 	default:
 		break;
 	}
+	/*
+	 * Notify copy machine on receiving initial updates
+	 * from all the remote replicas.
+	 */
+	if (m0_cm_is_ready(cm) && cm->cm_proxy_init_updated == cm->cm_proxy_nr)
+		m0_cm_notify(cm);
 	m0_mutex_unlock(&pxy->px_mutex);
 
 	M0_LEAVE();

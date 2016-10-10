@@ -526,7 +526,8 @@ M0_INTERNAL int m0_sns_cm_cp_sw_check(struct m0_cm_cp *cp)
 	} else
 		cm_proxy = cp->c_cm_proxy;
 
-	if (m0_cm_ag_id_cmp(&cp->c_ag->cag_id, &cm_proxy->px_sw.sw_hi) <= 0) {
+	if (m0_cm_ag_id_cmp(&cp->c_ag->cag_id, &cm_proxy->px_sw.sw_lo) >= 0 &&
+	    m0_cm_ag_id_cmp(&cp->c_ag->cag_id, &cm_proxy->px_sw.sw_hi) <= 0) {
 		rc = cp->c_ops->co_phase_next(cp);
 	} else {
 		/*

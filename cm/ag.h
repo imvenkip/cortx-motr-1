@@ -256,6 +256,7 @@ M0_INTERNAL void m0_cm_ag_unlock(struct m0_cm_aggr_group *ag);
 M0_INTERNAL void m0_cm_ag_cp_add(struct m0_cm_aggr_group *ag, struct m0_cm_cp *cp);
 M0_INTERNAL void m0_cm_ag_cp_del(struct m0_cm_aggr_group *ag, struct m0_cm_cp *cp);
 M0_INTERNAL bool m0_cm_ag_has_pending_cps(struct m0_cm_aggr_group *ag);
+M0_INTERNAL void m0_cm_ag_fini_post(struct m0_cm_aggr_group *ag);
 
 M0_TL_DESCR_DECLARE(aggr_grps_in, M0_EXTERN);
 M0_TL_DECLARE(aggr_grps_in, M0_INTERNAL, struct m0_cm_aggr_group);

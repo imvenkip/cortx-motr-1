@@ -2368,7 +2368,7 @@ int m0_cs_init(struct m0_mero *cctx, struct m0_net_xprt **xprts,
 	cctx->cc_mkfs     = mkfs;
 	cctx->cc_force    = false;
 	cctx->cc_no_all2all_connections = false;
-	cctx->cc_sns_buf_nr = 1 << 8;
+	cctx->cc_sns_buf_nr = 1 << 6;
 
 	cs_mero_init(cctx);
 

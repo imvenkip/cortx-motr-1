@@ -418,6 +418,12 @@ M0_INTERNAL bool m0_cm_ag_has_pending_cps(struct m0_cm_aggr_group *ag)
 	return nr_cps > 0;
 }
 
+M0_INTERNAL void m0_cm_ag_fini_post(struct m0_cm_aggr_group *ag)
+{
+	if (ag->cag_fini_ast.sa_next == NULL)
+		m0_sm_ast_post(&ag->cag_cm->cm_sm_group, &ag->cag_fini_ast);
+}
+
 /** @} CMAG */
 #undef M0_TRACE_SUBSYSTEM
 

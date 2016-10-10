@@ -428,7 +428,7 @@ M0_INTERNAL void m0_cm_cp_fom_fini(struct m0_fom *fom)
 		can_fini = ag->cag_ops->cago_ag_can_fini(ag);
 		m0_cm_ag_unlock(ag);
 		if (can_fini)
-			m0_sm_ast_post(&ag->cag_cm->cm_sm_group, &ag->cag_fini_ast);
+			m0_cm_ag_fini_post(ag);
 	}
 
 	M0_LEAVE();
