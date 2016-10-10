@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+
 from __future__ import print_function
 
 from ply import lex, yacc
@@ -8,10 +9,24 @@ import unittest
 import sys
 from errno import EPIPE
 
-__version__ = '1.6.1'
 
+__copyright__ = """COPYRIGHT 2016 XYRATEX TECHNOLOGY LIMITED
+
+THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
+HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
+LIMITED, ISSUED IN STRICT CONFIDENCE AND SHALL NOT, WITHOUT
+THE PRIOR WRITTEN PERMISSION OF XYRATEX TECHNOLOGY LIMITED,
+BE REPRODUCED, COPIED, OR DISCLOSED TO A THIRD PARTY, OR
+USED FOR ANY PURPOSE WHATSOEVER, OR STORED IN A RETRIEVAL SYSTEM
+EXCEPT AS ALLOWED BY THE TERMS OF XYRATEX LICENSES AND AGREEMENTS.
+
+YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
+THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
+http://www.xyratex.com/contact
+"""
+__author__ = 'Valery V. Vorotyntsev <valery.vorotyntsev@seagate.com>'
+__version__ = '1.6.2'
 __all__ = ['conf_objs_encode', 'conf_obj_encode']
-
 __doc__ = """Configuration string generator.
 
 Generates configuration string in xcode_read format from its
@@ -19,6 +34,7 @@ human-friendly description.
 
 %(input_format)s
 """
+
 
 input_format = """Input format:
 
@@ -53,51 +69,53 @@ Configuration object types and attributes:
 
     %(attrs)s"""
 
+
 class Error(Exception):
     pass
 
-### ------------------------------------------------------------------
-### Conf
+# --------------------------------------------------------------------
+# Conf
 
-### NOTE: These definitions should be in sync with m0_confx_* structures
-### in conf/onwire.h.
-###
-### The attributes included in DOT output are marked with '!'.
+# NOTE: These definitions should be in sync with m0_confx_* structures
+# in conf/onwire.h.
+#
+# The attributes included in DOT output are marked with '!'.
 conf_obj_types = {
-    'root': ('t', # 0x74
+    'root': ('t',  # 0x74
              'verno=NUMBER !profiles=[objid]'),
-    'profile': ('p', # 0x70
+    'profile': ('p',  # 0x70
                 '!filesystem=objid'),
-    'filesystem': ('f', # 0x66
+    'filesystem': ('f',  # 0x66
                    'rootfid=fid redundancy=NUMBER params=[STRING] mdpool=objid'
                    ' !nodes=[objid] !pools=[objid] !racks=[objid]'),
-    'pool': ('o', # 0x6f
+    'pool': ('o',  # 0x6f
              'order=NUMBER !pvers=[objid]'),
-    'pver': ('v', # 0x76 -- actual pver
-             '0|N=NUMBER K=NUMBER P=NUMBER tolerance=[NUMBER] !rackvs=[objid]'),
-    'pver_f': ('v', # 0x76 -- formulaic pver
+    'pver': ('v',  # 0x76 -- actual pver
+             '0|N=NUMBER K=NUMBER P=NUMBER tolerance=[NUMBER]'
+             ' !rackvs=[objid]'),
+    'pver_f': ('v',  # 0x76 -- formulaic pver
                '1|id=NUMBER base=objid allowance=[NUMBER]'),
-    'objv': ('j', # 0x6a
+    'objv': ('j',  # 0x6a
              'real=objid !children=[objid]'),
-    'node': ('n', # 0x6e
+    'node': ('n',  # 0x6e
              'memsize=NUMBER nr_cpu=NUMBER last_state=NUMBER flags=NUMBER'
              ' pool_id=objid !processes=[objid]'),
-    'process': ('r', # 0x72
+    'process': ('r',  # 0x72
                 'cores=[NUMBER] mem_limit_as=NUMBER mem_limit_rss=NUMBER'
                 ' mem_limit_stack=NUMBER mem_limit_memlock=NUMBER'
                 ' endpoint=STRING !services=[objid]'),
-    'service': ('s', # 0x73
+    'service': ('s',  # 0x73
                 'type=NUMBER endpoints=[STRING] !sdevs=[objid]'),
-    'sdev': ('d', # 0x64
+    'sdev': ('d',  # 0x64
              'dev_idx=NUMBER iface=NUMBER media=NUMBER bsize=NUMBER'
              ' size=NUMBER last_state=NUMBER flags=NUMBER filename=STRING'),
-    'rack': ('a', # 0x61
+    'rack': ('a',  # 0x61
              '!encls=[objid] pvers=[objid]'),
-    'enclosure': ('e', # 0x65
+    'enclosure': ('e',  # 0x65
                   '!ctrls=[objid] pvers=[objid]'),
-    'controller': ('c', # 0x63
+    'controller': ('c',  # 0x63
                    'node=objid !disks=[objid] pvers=[objid]'),
-    'disk': ('k', # 0x6b
+    'disk': ('k',  # 0x6b
              'dev=objid pvers=[objid]')
 }
 
@@ -113,15 +131,15 @@ def maybe_conf_fid(fid):
       (<objtype>, <key>)                # <container> == 1
     """
     container, key = fid
-    fid_type = chr(container >> 56) # see M0_FID_TCONTAINER()
+    fid_type = chr(container >> 56)  # see M0_FID_TCONTAINER()
     container &= 0x00ffffffffffffff
 
-    if not char_to_objtype.has_key(fid_type):
+    if fid_type not in char_to_objtype:
         return None
     t = char_to_objtype[fid_type]
 
     if type(t) is tuple:
-        ## XXX Anomaly.
+        # XXX Anomaly.
         t = filter(lambda x: container >> 54 == conf_obj_types[x].union_tag,
                    t)
         if not t:
@@ -136,9 +154,10 @@ def maybe_conf_fid(fid):
         return t, (container, key)
 
 
-def fid_scan(s):
-    ## see m0_fid_sscanf()
-    int16 = lambda x: int(x, base=16)
+def fid_scan(s):  # see m0_fid_sscanf()
+    def int16(x):
+        return int(x, base=16)
+
     try:
         fid = tuple(map(int16, s.strip('<>').split(':', 1)))
     except ValueError:
@@ -153,15 +172,15 @@ def fid_translate(fid):
     if x is not None:
         return conf_fid_encode(x, from_xcode=True)
     container, key = fid
-    if container >> 56 == 0x44: # 'D'
-        ## m0_conf_dir; see dir_id_build()
+    if container >> 56 == 0x44:  # 'D'
+        # m0_conf_dir; see dir_id_build()
         parent_id = (container & 0xffffffffff, key)
         if parent_id[0] == 1:
-            parent_id = key # otherwise conf_fid_encode() would fail
+            parent_id = key  # otherwise conf_fid_encode() would fail
 
         def _flatten(t):
             if type(t) is tuple:
-                ## Anomaly.
+                # Anomaly.
                 assert all([x.startswith('pver') for x in t])
                 return 'pver'
             return t
@@ -175,23 +194,23 @@ def fid_translate(fid):
 
 def list_encode(xs, sep=' ', from_xcode=False):
     assert xs == [] or set(map(type, xs)) == set([str]), 'xs :: [str]'
-    ## ['a', 'b', 'c']
+    # ['a', 'b', 'c']
     if from_xcode:
-        return '[' + (',' + sep).join(xs) + ']' # ==> '[a, b, c]'
+        return '[' + (',' + sep).join(xs) + ']'  # ==> '[a, b, c]'
     return '[{}:{}{}]'.format(len(xs), sep, (',' + sep).join(xs)) if xs \
-        else '[0]' # ==> '[3: a, b, c]'
+        else '[0]'  # ==> '[3: a, b, c]'
 
 
 def fid_encode(fid, from_xcode=False):
     if type(fid[0]) is int:
-        ## (9, 10) ==> '(0x9, 0xa)'
+        # (9, 10) ==> '(0x9, 0xa)'
         return '(%#x, %#x)' % fid
     return conf_fid_encode(fid, from_xcode)
 
 
 def conf_fid_encode(conf_fid, from_xcode=False):
     a, b = conf_fid
-    assert a in conf_obj_types.keys() # only conf_fids are accepted
+    assert a in conf_obj_types.keys()  # only conf_fids are accepted
     if type(b) is tuple:
         assert b[0] != 1
     else:
@@ -199,7 +218,7 @@ def conf_fid_encode(conf_fid, from_xcode=False):
     if from_xcode:
         return a + '-' + ('{1}' if b[0] == 1 else '{0}:{1}').format(*b)
     if a == 'pver_f':
-        ## XXX Anomaly.
+        # XXX Anomaly.
         return '^%c|0x%x:%u' % (ord(conf_obj_types[a].ft_id),
                                 1 << 54 | b[0],
                                 b[1])
@@ -271,13 +290,13 @@ def encode_to_dot(objid, attrs, otype):
         if not a.visualize_p:
             continue
         if type(attrs[a.name]) is list:
-            ## directory
+            # directory
             if not attrs[a.name] and objid[0] == 'objv':
-                ## XXX Anomaly.
-                ## objv's directory is empty ==> we consider this objv
-                ## to be a disk-v.  There is no directory linked to a disk-v
-                ## object (m0_conf_objv::cv_children pointer is NULL), and we
-                ## should not draw one.
+                # XXX Anomaly.
+                # objv's directory is empty ==> we consider this objv
+                # to be a disk-v.  There is no directory linked to a disk-v
+                # object (m0_conf_objv::cv_children pointer is NULL), and we
+                # should not draw one.
                 s += """\
 {indent}"{fid}";
 """.format(indent=indent, fid=fid)
@@ -293,7 +312,7 @@ def encode_to_dot(objid, attrs, otype):
 """.format(indent=indent, dir_id=dir_id,
            fid=conf_fid_encode(objid, from_xcode=True))
         else:
-            ## not a directory
+            # not a directory
             s += """\
 {indent}"{fid}" -> "{target}" [label={relation}];
 """.format(indent=indent, fid=fid,
@@ -314,19 +333,19 @@ def encode_to_dot_simplified(objid, attrs, otype):
 {indent}"{fid}" [label="{fid}\\n{xlabel}"];
 """.format(indent=indent, fid=fid, xlabel=xlabel)
     if objid[0] == 'service':
-        return s # leaf level
+        return s  # leaf level
     for a in otype.attrs:
         if not a.visualize_p:
             continue
         if type(attrs[a.name]) is list:
-            ## directory
+            # directory
             for objid in attrs[a.name]:
                 s += """\
 {indent}"{parent}" -> "{child}";
 """.format(indent=indent, parent=fid,
            child=conf_fid_encode(objid, from_xcode=True))
         else:
-            ## not a directory
+            # not a directory
             s += """\
 {indent}"{fid}" -> "{target}" [label={relation}];
 """.format(indent=indent, fid=fid,
@@ -335,13 +354,14 @@ def encode_to_dot_simplified(objid, attrs, otype):
     return s
 
 
-## See m0_conf_service_type.
+# See m0_conf_service_type.
 conf_service_types = (
-    'MDS', # = 1
+    'MDS',  # = 1
     'IOS', 'MGS', 'RMS', 'STS', 'HA', 'SSS', 'SNS_REP', 'SNS_REB', 'ADDB2',
     'CAS',
-    '_DS1', '_DS2' # UT-specific
+    '_DS1', '_DS2'  # UT-specific
 )
+
 
 def dot_simplified_xlabel(objtype, attrs):
     if objtype == 'process':
@@ -374,7 +394,7 @@ def check_ids(xs):
 
 def conf_objs_encode(objs, from_xcode=False, enc=None):
     check_ids([objid for objid, _ in objs])
-    objs = map(lambda obj: conf_obj_encode(obj, from_xcode=from_xcode, enc=enc),
+    objs = map(lambda x: conf_obj_encode(x, from_xcode=from_xcode, enc=enc),
                objs)
     if enc is not None:
         return '\n'.join(filter(None, objs))
@@ -393,7 +413,8 @@ digraph x {
 %s}""" % conf_objs_encode(objs, from_xcode, enc)
 
 
-quote = lambda s, from_xcode=False: '"%s"' % s
+def quote(s, from_xcode=False):
+    return '"%s"' % s
 
 
 def conf_type2enc(t):
@@ -421,7 +442,7 @@ class ConfObjAttr(object):
     def __init__(self, key, value):
         self.encode = conf_type2enc(value)
         if key.startswith('!'):
-            self.name = key[1:] # drop leading '!'
+            self.name = key[1:]  # drop leading '!'
             self.visualize_p = True
         else:
             self.name = key
@@ -441,12 +462,12 @@ class ConfObjType(object):
 conf_obj_types = dict((t, ConfObjType(*v)) for t, v in conf_obj_types.items())
 
 
-## Mapping from ft_id to objtype: { 'a': 'rack', 'c': 'controller', ... }
+# Mapping from ft_id to objtype: { 'a': 'rack', 'c': 'controller', ... }
 char_to_objtype = {}
 for t, v in conf_obj_types.items():
-    if char_to_objtype.has_key(v.ft_id):
+    if v.ft_id in char_to_objtype:
         x = char_to_objtype[v.ft_id]
-        ## XXX Anomaly.
+        # XXX Anomaly.
         assert t.startswith('pver')
         assert type(x) is str
         char_to_objtype[v.ft_id] = (x, t)
@@ -462,10 +483,11 @@ input_format = input_format % {
                       break_long_words=False))
                            for t, v in sorted(conf_obj_types.items()))
 }
-__doc__ = __doc__ % { 'input_format' : input_format }
+__doc__ = __doc__ % {'input_format': input_format}
 
-### ------------------------------------------------------------------
-### Lexer
+# --------------------------------------------------------------------
+# Lexer
+
 
 class Lexer(object):
 
@@ -483,12 +505,12 @@ class Lexer(object):
 
     def t_HEXNUM(self, t):
         r'\b0[xX][0-9a-fA-F]+\b'
-        t.value = int(t.value[2:], 16)
+        t.value = int(t.value, 16)
         return t
 
     def t_OCTNUM(self, t):
         r'\b0[0-7]+\b'
-        t.value = int(t.value[1:], 8)
+        t.value = int(t.value, 8)
         return t
 
     def t_DECNUM(self, t):
@@ -525,24 +547,25 @@ class XCLexer(Lexer):
 
     literals = Lexer.literals + '{}|^'
 
-### ------------------------------------------------------------------
-### Parsers
+# --------------------------------------------------------------------
+# Parsers
 
-## According to PLY documentation [6.12 Miscellaneous Yacc Notes;
-## http://www.dabeaz.com/ply/ply.html#ply_nn36]:
-##
-## | [...] be aware that only one parser may be defined in a single module
-## | (source file). There are various error checks and validation steps
-## | that may issue confusing error messages if you try to define multiple
-## | parsers in the same source file.
-##
-## That is why there is no global `parser' variable defined.
+# According to PLY documentation [6.12 Miscellaneous Yacc Notes;
+# http://www.dabeaz.com/ply/ply.html#ply_nn36]:
+#
+# | [...] be aware that only one parser may be defined in a single module
+# | (source file). There are various error checks and validation steps
+# | that may issue confusing error messages if you try to define multiple
+# | parsers in the same source file.
+#
+# That is why there is no global `parser' variable defined.
+
 
 class _BaseParser(object):
 
-    debug = False # create `parser.out'?
-    write_tables = False # create `parsetab.py'?
-    tracking = True # track positions of all grammar symbols, not only tokens?
+    debug = False  # create `parser.out'?
+    write_tables = False  # create `parsetab.py'?
+    tracking = True  # track positions of all grammar symbols, not only tokens?
 
     def __init__(self, **kwargs):
         assert hasattr(self, 'lexer')
@@ -585,7 +608,7 @@ class _BaseParser(object):
     def position(self, p, n):
         return ' at byte %u' % (p.lexpos(n) + 1) if self.tracking else ''
 
-    ## Note that the argument is a token, not a parser.
+    # Note that the argument is a token, not a parser.
     def p_error(self, t):
         if t is None:
             raise Error('Unexpected EOF')
@@ -725,14 +748,14 @@ Length ({}) != number of elements ({})""".format(position, expected, actual))
         conf_fid = maybe_conf_fid(p[1])
         p[0] = p[1] if conf_fid is None else conf_fid
 
-    ## Custom format is only used for conf_fids at the moment.
+    # Custom format is only used for conf_fids at the moment.
     def p_xfid_custom(self, p):
         """xfid_custom : '^' ID '|' number ':' number"""
         fid_type, container, key = p[2], p[4], p[6]
         try:
-            ## See M0_FID_TCONTAINER().
+            # See M0_FID_TCONTAINER().
             p[0] = (ord(fid_type) << 56 | container & 0x00ffffffffffffff), key
-        except TypeError: # thrown by ord(s) when len(s) > 1
+        except TypeError:  # thrown by ord(s) when len(s) > 1
             raise Error('Invalid conf_fid' + self.position(p, 1))
 
     def p_union_xattrs(self, p):
@@ -774,7 +797,7 @@ Length ({}) != number of elements ({})""".format(position, expected, actual))
                 assert len(set(map(type, xs))) == 1
                 if type(xs[0]) is tuple and len(set([conf_obj_types[t].ft_id
                                                      for t, _ in xs])) > 1:
-                    ## xs is a list of xobjids; obj types differ
+                    # xs is a list of xobjids; obj types differ
                     raise Error('Heterogeneous list' + self.position(p, 1))
             p[0] = xs
         else:
@@ -795,8 +818,9 @@ The length is non-zero, but there are no elements""" % self.position(p, 1))
         else:
             p[0] = p[1] + [p[3]]
 
-### ------------------------------------------------------------------
-### Tests
+# --------------------------------------------------------------------
+# Tests
+
 
 class TestHelpers(unittest.TestCase):
 
@@ -806,7 +830,8 @@ class TestHelpers(unittest.TestCase):
         self.assertEqual(maybe_conf_fid((0x6400000000000000, 1)),
                          ('sdev', (0, 1)))
         self.assertEqual(maybe_conf_fid((0x7600000000000001, 5)), ('pver', 5))
-        self.assertEqual(maybe_conf_fid((0x7640000000000001, 6)), ('pver_f', 6))
+        self.assertEqual(maybe_conf_fid((0x7640000000000001, 6)),
+                         ('pver_f', 6))
 
     def test_fid_scan(self):
         self.assertEqual(fid_scan('7000000000000001:0'),
@@ -819,14 +844,14 @@ class TestHelpers(unittest.TestCase):
         self.assertRaises(Error, fid_scan, 'garbage')
         self.assertRaises(Error, fid_scan, '<446a6a00000000')
 
-
     def test_fid_translate(self):
         self.assertEqual(fid_translate((0x7000000000000001, 0)), 'profile-0')
         self.assertEqual(fid_translate((0x4473640000000001, 9)),
                          'dir_service-9_sdev')
         self.assertEqual(fid_translate((0x446a6a0000000001, 0x3b)),
                          'dir_objv-59_objv')
-        self.assertEqual(fid_translate((0x7640000000000001, 0x41)), 'pver_f-65')
+        self.assertEqual(fid_translate((0x7640000000000001, 0x41)),
+                         'pver_f-65')
         self.assertEqual(fid_translate((0x7600000000000002, 8)), 'pver-2:8')
         self.assertEqual(fid_translate((0x44766a0000000001, 8)),
                          'dir_pver-8_objv')
@@ -847,8 +872,8 @@ class TestParser(unittest.TestCase):
             '(root-10 verno=0xa profiles=[profile-012])'),
                          [(('root', 10),
                            dict(verno=10, profiles=[('profile', 10)]))])
-        self.assertEqual(self.parse(
-"""(filesystem-1 rootfid=(11, 12) redundancy=41212
+        self.assertEqual(self.parse("""\
+(filesystem-1 rootfid=(11, 12) redundancy=41212
     params=["param-0", "param-1", "param-2"]
     mdpool=pool-4
     nodes=[node-2] pools=[pool-4] racks=[])
@@ -861,8 +886,8 @@ class TestParser(unittest.TestCase):
                              nodes=[('node', 2)],
                              pools=[('pool', 4)],
                              racks=[]))])
-        self.assertEqual(self.parse(
-"""(pver-57 N=3 K=1 P=5 tolerance=[0, 0, 0, 1] rackvs=[objv-58])
+        self.assertEqual(self.parse("""\
+(pver-57 N=3 K=1 P=5 tolerance=[0, 0, 0, 1] rackvs=[objv-58])
 (pver_f-65 id=0 base=pver-57 allowance=[0, 0, 1, 1])
 """),
                          [(('pver', 57), dict(
@@ -894,25 +919,27 @@ class TestEncoders(unittest.TestCase):
 
     def _test(self, encode):
         def test(internal, xcode, confgen=None):
-            ## internal -- internal representation of conf data, produced
-            ##             by a parser
-            ## xcode    -- expected result of encoding to "xcode" format
-            ## confgen  -- expected result of encoding to "confgen" format
-            ##             (default is the value of xcode)
+            # internal -- internal representation of conf data, produced
+            #             by a parser
+            # xcode    -- expected result of encoding to "xcode" format
+            # confgen  -- expected result of encoding to "confgen" format
+            #             (default is the value of xcode)
             self.assertEqual(encode(internal), xcode)
             self.assertEqual(encode(internal, from_xcode=True),
                              xcode if confgen is None else confgen)
         return test
 
     def test_type2enc(self):
-        test = lambda t: self._test(conf_type2enc(t))
+        def test(t):
+            return self._test(conf_type2enc(t))
+
         test('NUMBER')(42, '42')
         test('STRING')('abc', '"abc"')
         test('fid')((11, 22), '(0xb, 0x16)')
         for t in ('fid', 'objid'):
             test(t)(('node', 4), '^n|1:4', 'node-4')
             test(t)(('node', (4, 1)), '^n|4:1', 'node-4:1')
-        ## 'objid' encoding accepts conf_fids only; (11, 22) is not a conf_fid
+        # 'objid' encoding accepts conf_fids only; (11, 22) is not a conf_fid
         self.assertRaises(AssertionError, conf_type2enc('objid'), (11, 22))
         self.assertRaises(AssertionError, conf_type2enc('objid'), (11, 22),
                           from_xcode=True)
@@ -949,7 +976,7 @@ class TestEncoders(unittest.TestCase):
         test(['foo', 'bar'], '[2: foo, bar]', '[foo, bar]')
 
     def test_obj_encode(self):
-        ## CG -> XC
+        # CG -> XC
         self.assertEqual(conf_obj_encode(
             (('root', 0), dict(
                 verno=1, profiles=[('profile', 0), ('profile', (2, 3))]))),
@@ -959,7 +986,8 @@ class TestEncoders(unittest.TestCase):
                          '{0x6a| ((^j|1:19), ^k|1:16, [0])}')
         self.assertEqual(conf_obj_encode(
             (('pver', 57), dict(
-                N=3, K=1, P=5, tolerance=[0, 0, 0, 1], rackvs=[('objv', 58)]))),
+                N=3, K=1, P=5, tolerance=[0, 0, 0, 1],
+                rackvs=[('objv', 58)]))),
                          '{0x76| ((^v|1:57), {0| (3, 1, 5, [4: 0, 0, 0, 1],'
                          ' [1: ^j|1:58])})}')
         self.assertEqual(conf_obj_encode(
@@ -967,7 +995,7 @@ class TestEncoders(unittest.TestCase):
                 id=0, base=('pver', 57), allowance=[0, 0, 1, 1]))),
                          '{0x76| ((^v|0x40000000000001:65), {1| (0, ^v|1:57,'
                          ' [4: 0, 0, 1, 1])})}')
-        ## XC -> CG
+        # XC -> CG
         self.assertEqual(conf_obj_encode(
             (('root', 0), [1, [('profile', (2, 3))]]), from_xcode=True),
                          '(root-0 verno=1 profiles=[profile-2:3])')
@@ -978,9 +1006,11 @@ class TestEncoders(unittest.TestCase):
     def test_obj_encode_errors(self):
         self.assertRaisesRegexp(Error, """Invalid 'root' specification
 Missing attribute: 'profiles'""", conf_obj_encode, (('root', 0), {'verno': 1}))
-        self.assertRaisesRegexp(Error, """Invalid 'root' specification
-Unknown attributes: 'a', 'b'""", conf_obj_encode, (
-    ('root', 0), dict(verno=1, profiles=[], a=9, b=9)))
+        self.assertRaisesRegexp(
+            Error, """Invalid 'root' specification
+Unknown attributes: 'a', 'b'""",
+            conf_obj_encode,
+            (('root', 0), dict(verno=1, profiles=[], a=9, b=9)))
         self.assertRaisesRegexp(Error, """Invalid 'root' specification
 Unknown attribute: 'ver'
 Missing attribute: 'verno'""", conf_obj_encode, (('root', 0),
@@ -1000,7 +1030,8 @@ Expected 2 attributes, got 3""", conf_obj_encode,
             (('filesystem', 1), dict(rootfid=(11, 22), redundancy=41212,
                                      params=["param-0", "param-1", "param-2"],
                                      mdpool=('pool', 4), nodes=[('node', 2)],
-                                     pools=[('pool', 4)], racks=[('rack', 3)])),
+                                     pools=[('pool', 4)],
+                                     racks=[('rack', 3)])),
             (('objv', 19), dict(real=('disk', 16), children=[]))]),
                          """[4:
  {0x74| ((^t|1:0), 1, [1: ^p|2:3])},
@@ -1022,7 +1053,7 @@ Expected 2 attributes, got 3""", conf_obj_encode,
  params=["param-0", "param-1", "param-2"] mdpool=pool-4 nodes=[node-2]\
  pools=[pool-4] racks=[rack-3])
 (objv-19 real=disk-16 children=[])""")
-        ## There and Back Again.
+        # There and Back Again.
         confgen = """\
 (root-0 verno=1 profiles=[profile-2:3])
 (profile-2:3 filesystem=filesystem-1)"""
@@ -1033,7 +1064,7 @@ Expected 2 attributes, got 3""", conf_obj_encode,
     def test_encode_duplicates(self):
         self.assertRaisesRegexp(Error, "Duplicated identifier: \('root', 0\)",
                                 conf_objs_encode,
-                                [(('root', 0), dict(verno=1, profiles=[]))] * 2)
+                                [(('root', 0), dict(verno=1, profiles=[]))]*2)
         self.assertRaisesRegexp(Error,
                                 "Duplicated identifier: \('profile', 0\)",
                                 conf_objs_encode,
@@ -1157,7 +1188,8 @@ class TestXCParser(unittest.TestCase):
                          [(('root', 0), [1, [('profile', (2, 3))]])])
         self.assertEqual(self.parse('[1: {0x74| ((^t|1:0), 1, [1: ^p|1:0])}]'),
                          [(('root', 0), [1, [('profile', 0)]])])
-        self.assertEqual(self.parse("""[4:
+        self.assertEqual(
+            self.parse("""[4:
 # (disk-55 dev=sdev-51 pvers=[pver-57])
 {0x6b| ((^k|1:55), ^d|1:51, [1: ^v|1:57])},
 # (pool-56 order=0 pvers=[pver-57, pver_f-65])
@@ -1165,11 +1197,11 @@ class TestXCParser(unittest.TestCase):
 # (pver-57 N=8 K=2 P=15 tolerance=[0 0 1 2] rackvs=[objv-58])
 {0x76| ((^v|1:57), {0| (8, 2, 15, [4: 0, 0, 1, 2], [1: ^j|1:58])})},
 # (pver_f-65 id=0 base=pver-57 allowance=[0 0 1 1])
-{0x76| ((^v|0x40000000000001:65), {1| (0, ^v|1:57, [4: 0, 0, 1, 1])})}]"""), [
-    (('disk', 55), [('sdev', 51), [('pver', 57)]]),
-    (('pool', 56), [0, [('pver', 57), ('pver_f', 65)]]),
-    (('pver', 57), [8, 2, 15, [0, 0, 1, 2], [('objv', 58)]]),
-    (('pver_f', 65), [0, ('pver', 57), [0, 0, 1, 1]])])
+{0x76| ((^v|0x40000000000001:65), {1| (0, ^v|1:57, [4: 0, 0, 1, 1])})}]"""),
+            [(('disk', 55), [('sdev', 51), [('pver', 57)]]),
+             (('pool', 56), [0, [('pver', 57), ('pver_f', 65)]]),
+             (('pver', 57), [8, 2, 15, [0, 0, 1, 2], [('objv', 58)]]),
+             (('pver_f', 65), [0, ('pver', 57), [0, 0, 1, 1]])])
         self.assertEqual(71, len(self.parse(file('ut/conf.xc').read())))
 
     def test_errors(self):
@@ -1180,8 +1212,9 @@ Length \(2\) != number of elements \(1\)""", self.parse,
                                 ' [2: {0x74| ((^t|1:0), 1, [0])}]')
         self.assertRaisesRegexp(Error, 'Invalid conf_fid.*',
                                 self.parse, '[1: {0x58| ((^X|1:0), [0])}]')
-        self.assertRaisesRegexp(Error, 'Invalid conf_fid.*', self.parse,
-                                '[1: {0x58| (((0x5800000000000001, 0)), [0])}]')
+        self.assertRaisesRegexp(
+            Error, 'Invalid conf_fid.*', self.parse,
+            '[1: {0x58| (((0x5800000000000001, 0)), [0])}]')
         self.assertRaisesRegexp(Error, 'Invalid conf_fid.*',
                                 self.parse, '[1: {0x58| ((^XY|1:0), [0])}]')
         self.assertRaisesRegexp(Error, """Inconsistent object type.*
@@ -1193,15 +1226,15 @@ Length \(2\) != number of elements \(1\)""", self.parse,
         # xlist may not contain elements of different types
         [2: ^j|1:3, ^a|1:4])}]""")
 
-        ## Unexpected union.
+        # Unexpected union.
         self.assertRaisesRegexp(Error, 'Invalid union specification',
                                 self.parse, """[1:
 {0x73| ((^s|1:21), {0| (10, [1: "0@lo:12345:34:1"], [0])})}]""")
-        ## Union is missing.
+        # Union is missing.
         self.assertRaisesRegexp(Error, 'Invalid union specification',
                                 self.parse, """[1:
 {0x76| ((^v|1:8), 3, 1, 5, [4: 0, 0, 0, 1], [1: ^j|1:12])}]""")
-        ## Wrong union tag.
+        # Wrong union tag.
         self.assertRaisesRegexp(Error, 'Invalid union specification',
                                 self.parse, """[1:
 {0x76| ((^v|1:8), {1| (3, 1, 5, [4: 0, 0, 0, 1], [1: ^j|1:12])})}]""")
@@ -1209,8 +1242,9 @@ Length \(2\) != number of elements \(1\)""", self.parse,
                                 self.parse, """[1:
 {0x76| ((^v|0x40000000000001:65), {0| (0, ^v|1:57, [4: 0, 0, 0, 1])})}]""")
 
-### ------------------------------------------------------------------
-### main
+# --------------------------------------------------------------------
+# main
+
 
 def encode_and_print(s, from_xcode, dot_mode):
     try:
@@ -1233,7 +1267,7 @@ def translate_fids():
     while True:
         try:
             s = raw_input('> ' if sys.stdin.isatty() else '').rstrip('\r')
-            for s in s.split(): # allow several fids per line
+            for s in s.split():  # allow several fids per line
                 print(' '.join(filter(None, [s, fid_translate(fid_scan(s))])))
         except Error, e:
             print(e, file=sys.stderr)
@@ -1254,10 +1288,11 @@ def main():
                   action='store_true')
     op.add_option('-x', '--from-xcode', help='Convert conf string from "xcode"'
                   ' format to "confgen" format.', action='store_true')
-    op.add_option('--dot', help='Generate DOT output.' \
-                  " Supported MODEs: 'full' - all conf objects are shown;"
-                  " 'simplified' - only node, process and service objects are.",
-                  type='choice', choices=['full', 'simplified'], metavar='MODE')
+    op.add_option('--dot', help='Generate DOT output. Supported MODEs:'
+                  " 'full' - all conf objects are shown; 'simplified'"
+                  ' - only node, process and service objects are.',
+                  type='choice', choices=['full', 'simplified'],
+                  metavar='MODE')
     op.add_option('--types', help='Print conf object types and exit.',
                   action='store_true')
     op.add_option('--svc-types', help='Print service types and exit.',
