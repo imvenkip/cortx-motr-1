@@ -1287,6 +1287,8 @@ static void cas_prep(struct cas_fom *fom, enum m0_cas_opcode opc,
 		     enum m0_cas_type ct, struct m0_cas_ctg *ctg,
 		     uint64_t rec_pos, struct m0_be_tx_credit *accum)
 {
+	struct m0_fom    *fom0   = &fom->cf_fom;
+	uint32_t          flags  = cas_op(fom0)->cg_flags;
 	struct m0_cas_id *cid;
 	struct m0_buf     key;
 	struct m0_buf     val;
@@ -1314,9 +1316,18 @@ static void cas_prep(struct cas_fom *fom, enum m0_cas_opcode opc,
 		break;
 	case CTG_OP_COMBINE(CO_PUT, CT_BTREE):
 	case CTG_OP_COMBINE(CO_DEL, CT_BTREE):
-		if (opc == CO_PUT)
+		if (opc == CO_PUT) {
+			if (flags & COF_OVERWRITE)
+				/*
+				 * Consider credits for possible deletion of
+				 * existing key/value to be overwritten, size of
+				 * new value should be enough as current
+				 * key/value are deleted if size of existing
+				 * value is not enough to place new value.
+				 */
+				m0_ctg_delete_credit(ctg, knob, vnob, accum);
 			m0_ctg_insert_credit(ctg, knob, vnob, accum);
-		else
+		} else
 			m0_ctg_delete_credit(ctg, knob, vnob, accum);
 		break;
 	}

@@ -315,6 +315,9 @@ static int btree_save(struct m0_be_btree *tree, struct m0_buf *k,
 	M0_ALLOC_PTR(tx);
 	M0_UT_ASSERT(tx != NULL);
 	m0_be_btree_insert_credit(tree, 1, INSERT_SIZE, INSERT_SIZE, &cred);
+	if (overwrite)
+		m0_be_btree_delete_credit(tree, 1, INSERT_SIZE, INSERT_SIZE,
+					  &cred);
 	m0_be_ut_tx_init(tx, &ut_be);
 	m0_be_tx_prep(tx, &cred);
 
@@ -397,6 +400,7 @@ static struct m0_be_btree *create_tree(void)
 	struct m0_buf           val;
 	char                    k[INSERT_SIZE];
 	char                    v[INSERT_SIZE];
+	char                    v2[INSERT_SIZE * 2];
 	struct m0_be_op         op = {};
 	int                     rc;
 	int                     i;
@@ -468,6 +472,26 @@ static struct m0_be_btree *create_tree(void)
 	sprintf(k, "%0*d", INSERT_SIZE-1, INSERT_COUNT - 1);
 	sprintf(v, "XYZ");
 	val.b_nob = 4;
+	M0_SET0(&op);
+	M0_BE_OP_SYNC_WITH(&op, m0_be_btree_update(tree, tx, &op, &key, &val));
+
+	m0_be_tx_close_sync(tx); /* Make things persistent. */
+	m0_be_tx_fini(tx);
+
+	btree_dbg_print(tree);
+
+	M0_LOG(M0_INFO, "Updating with longer value...");
+	m0_be_ut_tx_init(tx, &ut_be);
+	cred = M0_BE_TX_CREDIT(0, 0);
+	m0_be_btree_update_credit2(tree, 1, INSERT_SIZE, INSERT_SIZE * 2,
+				   &cred);
+	m0_be_tx_prep(tx, &cred);
+	rc = m0_be_tx_open_sync(tx);
+	M0_UT_ASSERT(rc == 0);
+
+	sprintf(k, "%0*d", INSERT_SIZE-1, INSERT_COUNT - 2);
+	sprintf(v2, "ABCDEFGHI");
+	m0_buf_init(&val, v2, sizeof v2);
 	M0_SET0(&op);
 	M0_BE_OP_SYNC_WITH(&op, m0_be_btree_update(tree, tx, &op, &key, &val));
 
@@ -609,6 +633,7 @@ static void check(struct m0_be_btree *tree)
 	struct m0_buf    val;
 	char             k[INSERT_SIZE];
 	char             v[INSERT_SIZE];
+	char             v2[INSERT_SIZE * 2];
 	char             s[INSERT_SIZE];
 	int              i;
 	int              rc;
@@ -625,6 +650,9 @@ static void check(struct m0_be_btree *tree)
 	for (i = 0; i < INSERT_COUNT; ++i) {
 		sprintf(k, "%0*d", INSERT_SIZE-1, i);
 		M0_SET0(op);
+		if (i == INSERT_COUNT - 2)
+			m0_buf_init(&val, v2, ARRAY_SIZE(v2));
+
 		rc = M0_BE_OP_SYNC_RET_WITH(
 			op, m0_be_btree_lookup(tree, op, &key, &val),
 			bo_u.u_btree.t_rc);
@@ -633,7 +661,10 @@ static void check(struct m0_be_btree *tree)
 			M0_UT_ASSERT(rc == -ENOENT);
 		else if (i == INSERT_COUNT - 1)
 			M0_UT_ASSERT(strcmp(v, "XYZ") == 0);
-		else
+		else if (i == INSERT_COUNT - 2) {
+			M0_UT_ASSERT(strcmp(v2, "ABCDEFGHI") == 0);
+			m0_buf_init(&val, v, ARRAY_SIZE(v));
+		} else
 			M0_UT_ASSERT(strcmp(v, k) == 0);
 	}
 
@@ -653,6 +684,8 @@ static void check(struct m0_be_btree *tree)
 			M0_UT_ASSERT(rc == -ENOENT);
 		else if (i == INSERT_COUNT - 1)
 			M0_UT_ASSERT(strcmp(val.b_addr, "XYZ") == 0);
+		else if (i == INSERT_COUNT - 2)
+			M0_UT_ASSERT(strcmp(val.b_addr, "ABCDEFGHI") == 0);
 		else
 			M0_UT_ASSERT(strcmp(val.b_addr, k) == 0);
 

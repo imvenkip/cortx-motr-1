@@ -1563,12 +1563,12 @@ static void put_save_common(uint32_t flags)
 	casc_ut_init(&casc_ut_sctx, &casc_ut_cctx);
 	rc = m0_bufvec_alloc(&keys, 1, sizeof(uint64_t));
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_bufvec_alloc(&values, 1, sizeof(uint64_t));
+	rc = m0_bufvec_alloc(&values, 1, sizeof(uint32_t));
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(keys.ov_vec.v_nr != 0);
 	M0_UT_ASSERT(keys.ov_vec.v_nr == values.ov_vec.v_nr);
 	*(uint64_t*)keys.ov_buf[0] = 1;
-	*(uint64_t*)values.ov_buf[0] = 1;
+	*(uint32_t*)values.ov_buf[0] = 1;
 
 	M0_SET_ARR0(rep);
 
@@ -1582,6 +1582,12 @@ static void put_save_common(uint32_t flags)
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(rep[0].crr_rc == 0);
 
+	m0_bufvec_free(&values);
+	/* Allocate value of size greater than size of previous value. */
+	rc = m0_bufvec_alloc(&values, 1, sizeof(uint64_t));
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(keys.ov_vec.v_nr == values.ov_vec.v_nr);
+
 	*(uint64_t*)values.ov_buf[0] = 2;
 	rc = ut_rec_put(&casc_ut_cctx, &index, &keys, &values, rep, flags);
 	M0_UT_ASSERT(rc == 0);
@@ -1590,9 +1596,22 @@ static void put_save_common(uint32_t flags)
 	rc = ut_rec_get(&casc_ut_cctx, &index, &keys, grep);
 	M0_UT_ASSERT(rc == 0);
 	if (flags & COF_CREATE)
-		M0_UT_ASSERT(*(uint64_t*)grep[0].cge_val.b_addr == 1);
+		M0_UT_ASSERT(*(uint32_t*)grep[0].cge_val.b_addr == 1);
 	if (flags & COF_OVERWRITE)
 		M0_UT_ASSERT(*(uint64_t*)grep[0].cge_val.b_addr == 2);
+	ut_get_rep_clear(grep, 1);
+
+	*(uint64_t*)values.ov_buf[0] = 3;
+	rc = ut_rec_put(&casc_ut_cctx, &index, &keys, &values, rep, flags);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(rep[0].crr_rc == 0);
+
+	rc = ut_rec_get(&casc_ut_cctx, &index, &keys, grep);
+	M0_UT_ASSERT(rc == 0);
+	if (flags & COF_CREATE)
+		M0_UT_ASSERT(*(uint32_t*)grep[0].cge_val.b_addr == 1);
+	if (flags & COF_OVERWRITE)
+		M0_UT_ASSERT(*(uint64_t*)grep[0].cge_val.b_addr == 3);
 	ut_get_rep_clear(grep, 1);
 
 	/* Remove index. */

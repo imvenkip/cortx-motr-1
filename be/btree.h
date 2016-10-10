@@ -230,14 +230,32 @@ M0_INTERNAL void m0_be_btree_delete_credit(const struct m0_be_btree *tree,
  * Calculates how many internal resources of tx_engine, described by
  * m0_be_tx_credit, is needed to perform the update operation over the @tree.
  * Function updates @accum structure which is an input for m0_be_tx_prep().
+ * Should be used for data which has fixed length when existing value area
+ * is re-used for a new value and no alloc/free operations are needed.
  *
- * @param nr  Number of @optype operations.
+ * @param nr     Number of @optype operations.
+ * @param vsize  Value data size.
  */
 M0_INTERNAL void m0_be_btree_update_credit(const struct m0_be_btree *tree,
 						 m0_bcount_t nr,
 						 m0_bcount_t vsize,
 						 struct m0_be_tx_credit *accum);
-
+
+/**
+ * The same as m0_be_btree_update_credit() but should be used for data which has
+ * variable length and alloc/free operations may be needed.
+ *
+ * @param nr     Number of @optype operations.
+ * @param ksize  Key data size.
+ * @param vsize  Value data size.
+ */
+M0_INTERNAL void m0_be_btree_update_credit2(const struct m0_be_btree *tree,
+					    m0_bcount_t               nr,
+					    m0_bcount_t               ksize,
+					    m0_bcount_t               vsize,
+					    struct m0_be_tx_credit   *accum);
+
+
 /* ------------------------------------------------------------------
  * Btree manipulation
  * ------------------------------------------------------------------ */
@@ -260,7 +278,8 @@ M0_INTERNAL void m0_be_btree_insert(struct m0_be_btree *tree,
  * This function:
  * - Inserts given @key and @value in btree if @key does not exist.
  * - Updates given @value in btree if @key exists and overwrite flag is
- *   set to true.
+ *   set to true. NOTE: caller must always consider delete credits if it
+ *   sets overwrite flag to true.
  * Operation is asynchronous.
  *
  * It's a shortcut for m0_be_btree_lookup() with successive m0_be_btree_insert()

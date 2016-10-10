@@ -41,6 +41,12 @@ enum {
 	KV_NR             = 2 * BTREE_FAN_OUT - 1,
 };
 
+enum btree_save_optype {
+	BTREE_SAVE_INSERT,
+	BTREE_SAVE_UPDATE,
+	BTREE_SAVE_OVERWRITE
+};
+
 struct bt_key_val {
 	void                   *key;
 	void                   *val;
@@ -1031,7 +1037,7 @@ static void btree_pair_release(struct m0_be_btree *btree, struct m0_be_tx *tx,
  * @param op The operation
  * @param key Key of the node to be searched
  * @param value Value to be copied
- * @param overwrite Shows whether value should be updated if key already exists
+ * @param optype Save operation type: insert, update or overwrite
  */
 static void btree_save(struct m0_be_btree        *tree,
 		       struct m0_be_tx           *tx,
@@ -1039,17 +1045,33 @@ static void btree_save(struct m0_be_btree        *tree,
 		       const struct m0_buf       *key,
 		       const struct m0_buf       *val,
 		       struct m0_be_btree_anchor *anchor,
-		       bool                       overwrite)
+		       enum btree_save_optype     optype)
 {
 	m0_bcount_t        ksz;
 	m0_bcount_t        vsz;
 	struct bt_key_val  new_kv;
 	struct bt_key_val *cur_kv;
+	bool               val_overflow = false;
 
 	M0_ENTRY("tree=%p", tree);
 
-	M0_BE_CREDIT_DEC(M0_BE_CU_BTREE_INSERT, tx);
-	btree_op_fill(op, tree, tx, M0_BBO_INSERT, NULL);
+	M0_PRE(M0_IN(optype, (BTREE_SAVE_INSERT, BTREE_SAVE_UPDATE,
+			      BTREE_SAVE_OVERWRITE)));
+
+	switch (optype) {
+		case BTREE_SAVE_OVERWRITE:
+			M0_BE_CREDIT_DEC(M0_BE_CU_BTREE_DELETE, tx);
+			/* fallthrough */
+		case BTREE_SAVE_INSERT:
+			M0_BE_CREDIT_DEC(M0_BE_CU_BTREE_INSERT, tx);
+			break;
+		case BTREE_SAVE_UPDATE:
+			M0_BE_CREDIT_DEC(M0_BE_CU_BTREE_UPDATE, tx);
+			break;
+	}
+
+	btree_op_fill(op, tree, tx, optype == BTREE_SAVE_UPDATE ?
+		      M0_BBO_UPDATE : M0_BBO_INSERT, NULL);
 
 	m0_be_op_active(op);
 	m0_rwlock_write_lock(btree_rwlock(tree));
@@ -1058,45 +1080,64 @@ static void btree_save(struct m0_be_btree        *tree,
 		anchor->ba_write = true;
 		vsz = anchor->ba_value.b_nob;
 		anchor->ba_value.b_addr = NULL;
-	} else {
+	} else
 		vsz = val->b_nob;
-	}
 
 	if (M0_FI_ENABLED("already_exists"))
 		goto fi_exist;
 
+	op_tree(op)->t_rc = 0;
 	cur_kv = btree_search(tree, key->b_addr);
-	if (cur_kv == NULL) {
-		/* Avoid CPU alignment overhead on values. */
-		ksz = m0_align(key->b_nob, sizeof(void*));
-		new_kv.key = mem_alloc(tree, tx, ksz + vsz);
-		new_kv.val = new_kv.key + ksz;
-		memcpy(new_kv.key, key->b_addr, key->b_nob);
-		memset(new_kv.key + key->b_nob, 0, ksz - key->b_nob);
-		if (val != NULL) {
-			memcpy(new_kv.val, val->b_addr, vsz);
-			mem_update(tree, tx, new_kv.key, ksz + vsz);
-		} else {
-			mem_update(tree, tx, new_kv.key, ksz);
-			anchor->ba_value.b_addr = new_kv.val;
+	if ((cur_kv == NULL && optype != BTREE_SAVE_UPDATE) ||
+	    (cur_kv != NULL && optype == BTREE_SAVE_UPDATE) ||
+	    optype == BTREE_SAVE_OVERWRITE) {
+		if (cur_kv != NULL && optype != BTREE_SAVE_INSERT) {
+			if (vsz > be_btree_vsize(tree, cur_kv->val)) {
+				/*
+				 * The size of new value is greater than the
+				 * size of old value, old value area can not be
+				 * re-used for new value. Delete old key/value
+				 * and add new key/value.
+				 */
+				op_tree(op)->t_rc =
+					btree_delete_key(tree, tx,
+							 tree->bb_root,
+							 cur_kv->key);
+				val_overflow = true;
+			} else {
+				/*
+				 * The size of new value is less than or equal
+				 * to the size of old value, simply rewrite
+				 * old value in this case.
+				 */
+				if (val != NULL) {
+					memcpy(cur_kv->val, val->b_addr,
+					       val->b_nob);
+					mem_update(tree, tx, cur_kv->val,
+						   val->b_nob);
+				} else
+					anchor->ba_value.b_addr = cur_kv->val;
+			}
 		}
 
-		btree_insert_key(tree, tx, &new_kv);
-		op_tree(op)->t_rc = 0;
-	} else if (overwrite) {
-		if (val != NULL) {
-			M0_ASSERT(val->b_nob <=
-					be_btree_vsize(tree, cur_kv->val));
-			memcpy(cur_kv->val, val->b_addr, val->b_nob);
-			mem_update(tree, tx, cur_kv->val, val->b_nob);
-		} else {
-			M0_ASSERT(anchor->ba_value.b_nob <=
-				  be_btree_vsize(tree, cur_kv->val));
-			anchor->ba_value.b_addr = cur_kv->val;
-			op_tree(op)->t_rc = 0;
-		}
+		if (op_tree(op)->t_rc == 0 &&
+		    (cur_kv == NULL || val_overflow)) {
+			/* Avoid CPU alignment overhead on values. */
+			ksz = m0_align(key->b_nob, sizeof(void*));
+			new_kv.key = mem_alloc(tree, tx, ksz + vsz);
+			new_kv.val = new_kv.key + ksz;
+			memcpy(new_kv.key, key->b_addr, key->b_nob);
+			memset(new_kv.key + key->b_nob, 0, ksz - key->b_nob);
+			if (val != NULL) {
+				memcpy(new_kv.val, val->b_addr, vsz);
+				mem_update(tree, tx, new_kv.key, ksz + vsz);
+			} else {
+				mem_update(tree, tx, new_kv.key, ksz);
+				anchor->ba_value.b_addr = new_kv.val;
+			}
 
-		op_tree(op)->t_rc = 0;
+			btree_insert_key(tree, tx, &new_kv);
+		}
 	} else {
 fi_exist:
 		op_tree(op)->t_rc = -EEXIST;
@@ -1110,7 +1151,7 @@ fi_exist:
 	M0_LEAVE("tree=%p", tree);
 }
 
-
+
 /* ------------------------------------------------------------------
  * Btree external interfaces implementation
  * ------------------------------------------------------------------ */
@@ -1290,9 +1331,23 @@ static void insert_credit(const struct m0_be_btree *tree,
 
 	kv_insert_credit(tree, ksize, vsize, &cred);
 	m0_be_tx_credit_mac(accum, &cred, nr);
-
-	M0_BE_CREDIT_INC(nr, M0_BE_CU_BTREE_INSERT, accum);
 }
+
+static void delete_credit(const struct m0_be_btree *tree,
+			  m0_bcount_t               nr,
+			  m0_bcount_t               ksize,
+			  m0_bcount_t               vsize,
+			  struct m0_be_tx_credit   *accum)
+{
+	struct m0_be_tx_credit cred = {};
+
+	kv_delete_credit(tree, ksize, vsize, &cred);
+	btree_node_update_credit(&cred, 1);
+	btree_node_free_credit(tree, &cred);
+	btree_rebalance_credit(tree, &cred);
+	m0_be_tx_credit_mac(accum, &cred, nr);
+}
+
 
 M0_INTERNAL void m0_be_btree_insert_credit(const struct m0_be_btree *tree,
 					   m0_bcount_t               nr,
@@ -1301,6 +1356,7 @@ M0_INTERNAL void m0_be_btree_insert_credit(const struct m0_be_btree *tree,
 					   struct m0_be_tx_credit   *accum)
 {
 	insert_credit(tree, nr, ksize, vsize, accum, false);
+	M0_BE_CREDIT_INC(nr, M0_BE_CU_BTREE_INSERT, accum);
 }
 
 M0_INTERNAL void m0_be_btree_insert_credit2(const struct m0_be_btree *tree,
@@ -1310,6 +1366,7 @@ M0_INTERNAL void m0_be_btree_insert_credit2(const struct m0_be_btree *tree,
 					    struct m0_be_tx_credit   *accum)
 {
 	insert_credit(tree, nr, ksize, vsize, accum, true);
+	M0_BE_CREDIT_INC(nr, M0_BE_CU_BTREE_INSERT, accum);
 }
 
 M0_INTERNAL void m0_be_btree_delete_credit(const struct m0_be_btree     *tree,
@@ -1318,14 +1375,7 @@ M0_INTERNAL void m0_be_btree_delete_credit(const struct m0_be_btree     *tree,
 						 m0_bcount_t             vsize,
 						 struct m0_be_tx_credit *accum)
 {
-	struct m0_be_tx_credit cred = {};
-
-	kv_delete_credit(tree, ksize, vsize, &cred);
-	btree_node_update_credit(&cred, 1);
-	btree_node_free_credit(tree, &cred);
-	btree_rebalance_credit(tree, &cred);
-	m0_be_tx_credit_mac(accum, &cred, nr);
-
+	delete_credit(tree, nr, ksize, vsize, accum);
 	M0_BE_CREDIT_INC(nr, M0_BE_CU_BTREE_DELETE, accum);
 }
 
@@ -1338,11 +1388,23 @@ M0_INTERNAL void m0_be_btree_update_credit(const struct m0_be_btree     *tree,
 	struct m0_be_tx_credit val_update_cred =
 		M0_BE_TX_CREDIT(1, vsize + sizeof(struct bt_key_val));
 
+	/* @todo: is alloc/free credits are really needed??? */
 	btree_mem_alloc_credit(tree, vsize, &cred);
 	btree_mem_free_credit(tree, vsize, &cred);
 	m0_be_tx_credit_add(&cred, &val_update_cred);
 	m0_be_tx_credit_mac(accum, &cred, nr);
 
+	M0_BE_CREDIT_INC(nr, M0_BE_CU_BTREE_UPDATE, accum);
+}
+
+M0_INTERNAL void m0_be_btree_update_credit2(const struct m0_be_btree *tree,
+					    m0_bcount_t               nr,
+					    m0_bcount_t               ksize,
+					    m0_bcount_t               vsize,
+					    struct m0_be_tx_credit   *accum)
+{
+	delete_credit(tree, nr, ksize, vsize, accum);
+	insert_credit(tree, nr, ksize, vsize, accum, true);
 	M0_BE_CREDIT_INC(nr, M0_BE_CU_BTREE_UPDATE, accum);
 }
 
@@ -1439,7 +1501,7 @@ static void be_btree_insert(struct m0_be_btree *tree,
 	M0_PRE(ergo(anchor == NULL,
 		    val->b_nob == be_btree_vsize(tree, val->b_addr)));
 
-	btree_save(tree, tx, op, key, val, anchor, false);
+	btree_save(tree, tx, op, key, val, anchor, BTREE_SAVE_INSERT);
 
 	M0_LEAVE("tree=%p", tree);
 }
@@ -1456,7 +1518,8 @@ M0_INTERNAL void m0_be_btree_save(struct m0_be_btree  *tree,
 	M0_PRE(key->b_nob == be_btree_ksize(tree, key->b_addr));
 	M0_PRE(val->b_nob == be_btree_vsize(tree, val->b_addr));
 
-	btree_save(tree, tx, op, key, val, NULL, overwrite);
+	btree_save(tree, tx, op, key, val, NULL, overwrite ?
+		   BTREE_SAVE_OVERWRITE : BTREE_SAVE_INSERT);
 
 	M0_LEAVE("tree=%p", tree);
 }
@@ -1476,30 +1539,13 @@ M0_INTERNAL void m0_be_btree_update(struct m0_be_btree *tree,
 				    const struct m0_buf *key,
 				    const struct m0_buf *val)
 {
-	struct bt_key_val *kv;
-
 	M0_ENTRY("tree=%p", tree);
 	M0_PRE(tree->bb_root != NULL && tree->bb_ops != NULL);
 	M0_PRE(key->b_nob == be_btree_ksize(tree, key->b_addr));
 	M0_PRE(val->b_nob == be_btree_vsize(tree, val->b_addr));
 
-	M0_BE_CREDIT_DEC(M0_BE_CU_BTREE_UPDATE, tx);
+	btree_save(tree, tx, op, key, val, NULL, BTREE_SAVE_UPDATE);
 
-	btree_op_fill(op, tree, tx, M0_BBO_UPDATE, NULL);
-
-	m0_be_op_active(op);
-	m0_rwlock_write_lock(btree_rwlock(tree));
-
-	kv = btree_search(tree, key->b_addr);
-	if (kv != NULL) {
-		M0_ASSERT(val->b_nob <= be_btree_vsize(tree, kv->val));
-		memcpy(kv->val, val->b_addr, val->b_nob);
-		mem_update(tree, tx, kv->val, val->b_nob);
-	}
-
-	m0_rwlock_write_unlock(btree_rwlock(tree));
-	op_tree(op)->t_rc = kv == NULL ? -ENOENT : 0;
-	m0_be_op_done(op);
 	M0_LEAVE();
 }
 
@@ -1659,7 +1705,8 @@ M0_INTERNAL void m0_be_btree_save_inplace(struct m0_be_btree        *tree,
 	M0_PRE(tree->bb_root != NULL && tree->bb_ops != NULL);
 	M0_PRE(key->b_nob == be_btree_ksize(tree, key->b_addr));
 
-	btree_save(tree, tx, op, key, NULL, anchor, overwrite);
+	btree_save(tree, tx, op, key, NULL, anchor, overwrite ?
+		   BTREE_SAVE_OVERWRITE : BTREE_SAVE_INSERT);
 }
 
 M0_INTERNAL void m0_be_btree_lookup_inplace(struct m0_be_btree        *tree,
