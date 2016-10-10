@@ -64,6 +64,10 @@ M0_INTERNAL int m0_confx_to_string(struct m0_confx *confx, char **out)
 	M0_ENTRY();
 
 	size = m0_xcode_print(&M0_XCODE_OBJ(m0_confx_xc, confx), NULL, 0) + 1;
+	/*
+	 * Spiel sends conf string over bulk transport. Bulk buffers
+	 * have to be aligned.
+	 */
 	*out = m0_alloc_aligned(size, PAGE_SHIFT);
 	if (*out == NULL)
 		return M0_ERR_INFO(-ENOMEM, "failed to allocate internal buffer"
