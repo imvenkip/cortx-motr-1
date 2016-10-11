@@ -35,23 +35,27 @@
  *
  * @verbatim
  *
- *           INIT  FINISH
- *              v  ^
- *  RPC_LINK_INIT  RPC_LINK_FINI
- *              v  ^
- *          NOT_CONNECTED
- *              v  ^
- *        CONNECT  DISCONNECTING
- *              v  ^
- *     CONNECTING  DISCONNECT
- *              v  ^
- *              IDLE <------+
- *               v          |
- *              SEND        |
- *               v          |
- *          WAIT_REPLY      |
- *               v          |
- *          WAIT_RELEASE >--+
+ *              INIT  FINISH
+ *                 v  ^
+ * REGISTER_INCOMING  DEREGISTER_INCOMING
+ *                 v  ^
+ *                 v  QUIESCE_INCOMING
+ *                 v  ^
+ *     RPC_LINK_INIT  RPC_LINK_FINI
+ *                 v  ^
+ *             NOT_CONNECTED
+ *                 v  ^
+ *           CONNECT  DISCONNECTING
+ *                 v  ^
+ *        CONNECTING  DISCONNECT
+ *                 v  ^
+ *                 IDLE <------+
+ *                  v          |
+ *                 SEND        |
+ *                  v          |
+ *             WAIT_REPLY      |
+ *                  v          |
+ *             WAIT_RELEASE >--+
  *
  * @endverbatim
  *
@@ -78,6 +82,74 @@
 
 #include "ha/link_fops.h"       /* m0_ha_link_msg_fopt */
 #include "ha/link_service.h"    /* m0_ha_link_service_register */
+
+static struct m0_sm_state_descr ha_link_sm_states[] = {
+	[M0_HA_LINK_STATE_INIT] = {
+		.sd_flags   = M0_SDF_INITIAL,
+		.sd_name    = "M0_HA_LINK_STATE_INIT",
+		.sd_allowed = M0_BITS(M0_HA_LINK_STATE_FINI,
+		                      M0_HA_LINK_STATE_START),
+	},
+	[M0_HA_LINK_STATE_FINI] = {
+		.sd_flags   = M0_SDF_TERMINAL,
+		.sd_name    = "M0_HA_LINK_STATE_FINI",
+		.sd_allowed = 0,
+	},
+	[M0_HA_LINK_STATE_START] = {
+		.sd_flags   = 0,
+		.sd_name    = "M0_HA_LINK_STATE_START",
+		.sd_allowed = M0_BITS(M0_HA_LINK_STATE_STOP,
+		                      M0_HA_LINK_STATE_IDLE),
+	},
+	[M0_HA_LINK_STATE_STOP] = {
+		.sd_flags   = 0,
+		.sd_name    = "M0_HA_LINK_STATE_STOP",
+		.sd_allowed = M0_BITS(M0_HA_LINK_STATE_FINI),
+	},
+	[M0_HA_LINK_STATE_IDLE] = {
+		.sd_flags   = 0,
+		.sd_name    = "M0_HA_LINK_STATE_IDLE",
+		.sd_allowed = M0_BITS(M0_HA_LINK_STATE_STOP,
+		                      M0_HA_LINK_STATE_RECV,
+		                      M0_HA_LINK_STATE_DELIVERY,
+		                      M0_HA_LINK_STATE_RPC_FAILED,
+		                      M0_HA_LINK_STATE_LINK_FAILED,
+		                      M0_HA_LINK_STATE_LINK_REUSED),
+	},
+	[M0_HA_LINK_STATE_RECV] = {
+		.sd_flags   = 0,
+		.sd_name    = "M0_HA_LINK_STATE_RECV",
+		.sd_allowed = M0_BITS(M0_HA_LINK_STATE_IDLE),
+	},
+	[M0_HA_LINK_STATE_DELIVERY] = {
+		.sd_flags   = 0,
+		.sd_name    = "M0_HA_LINK_STATE_DELIVERY",
+		.sd_allowed = M0_BITS(M0_HA_LINK_STATE_IDLE),
+	},
+	[M0_HA_LINK_STATE_RPC_FAILED] = {
+		.sd_flags   = 0,
+		.sd_name    = "M0_HA_LINK_STATE_RPC_FAILED",
+		.sd_allowed = M0_BITS(M0_HA_LINK_STATE_IDLE),
+	},
+	[M0_HA_LINK_STATE_LINK_FAILED] = {
+		.sd_flags   = 0,
+		.sd_name    = "M0_HA_LINK_STATE_LINK_FAILED",
+		.sd_allowed = M0_BITS(M0_HA_LINK_STATE_IDLE),
+	},
+	[M0_HA_LINK_STATE_LINK_REUSED] = {
+		.sd_flags   = 0,
+		.sd_name    = "M0_HA_LINK_STATE_LINK_REUSED",
+		.sd_allowed = M0_BITS(M0_HA_LINK_STATE_IDLE),
+	},
+};
+
+M0_BASSERT(ARRAY_SIZE(ha_link_sm_states) == M0_HA_LINK_STATE_NR);
+
+static struct m0_sm_conf ha_link_sm_conf = {
+	.scf_name      = "m0_ha_link::hln_sm",
+	.scf_nr_states = ARRAY_SIZE(ha_link_sm_states),
+	.scf_state     = ha_link_sm_states,
+};
 
 static struct m0_fom_type ha_link_outgoing_fom_type;
 extern const struct m0_fom_ops ha_link_outgoing_fom_ops;
@@ -110,10 +182,6 @@ M0_INTERNAL int m0_ha_link_init(struct m0_ha_link     *hl,
 	         hl_cfg->hlc_rpc_machine);
 	hl->hln_cfg = *hl_cfg;
 	m0_mutex_init(&hl->hln_lock);
-	m0_mutex_init(&hl->hln_chan_lock);
-	m0_mutex_init(&hl->hln_sm_lock);
-	m0_chan_init(&hl->hln_chan, &hl->hln_chan_lock);
-	m0_chan_init(&hl->hln_sm_chan, &hl->hln_sm_lock);
 	m0_ha_lq_init(&hl->hln_q_in, &hl->hln_cfg.hlq_q_cfg_in);
 	m0_ha_lq_init(&hl->hln_q_out, &hl->hln_cfg.hlq_q_cfg_out);
 	m0_fom_init(&hl->hln_fom, &ha_link_outgoing_fom_type,
@@ -123,6 +191,9 @@ M0_INTERNAL int m0_ha_link_init(struct m0_ha_link     *hl,
 	M0_ASSERT(rc == 0);
 	rc = m0_semaphore_init(&hl->hln_stop_wait, 0);
 	M0_ASSERT(rc == 0);
+	m0_sm_group_init(&hl->hln_sm_group);
+	m0_sm_init(&hl->hln_sm, &ha_link_sm_conf, M0_HA_LINK_STATE_INIT,
+		   &hl->hln_sm_group);
 	m0_clink_init(&hl->hln_rpc_wait, &ha_link_rpc_wait_cb);
 	hl->hln_rpc_wait.cl_is_oneshot = true;
 	hl->hln_waking_up = false;
@@ -136,14 +207,15 @@ M0_INTERNAL void m0_ha_link_fini(struct m0_ha_link *hl)
 {
 	M0_ENTRY("hl=%p", hl);
 	m0_clink_fini(&hl->hln_rpc_wait);
+	m0_sm_group_lock(&hl->hln_sm_group);
+	m0_sm_state_set(&hl->hln_sm, M0_HA_LINK_STATE_FINI);
+	m0_sm_fini(&hl->hln_sm);
+	m0_sm_group_unlock(&hl->hln_sm_group);
+	m0_sm_group_fini(&hl->hln_sm_group);
 	m0_semaphore_fini(&hl->hln_stop_wait);
 	m0_semaphore_fini(&hl->hln_stop_cond);
 	m0_ha_lq_fini(&hl->hln_q_out);
 	m0_ha_lq_fini(&hl->hln_q_in);
-	m0_chan_fini_lock(&hl->hln_sm_chan);
-	m0_chan_fini_lock(&hl->hln_chan);
-	m0_mutex_fini(&hl->hln_sm_lock);
-	m0_mutex_fini(&hl->hln_chan_lock);
 	m0_mutex_fini(&hl->hln_lock);
 	M0_LEAVE();
 }
@@ -358,25 +430,20 @@ m0_ha_link_reconnect_params(const struct m0_ha_link_params *lp_alive,
 
 M0_INTERNAL struct m0_chan *m0_ha_link_chan(struct m0_ha_link *hl)
 {
-	return &hl->hln_chan;
+	return &hl->hln_sm.sm_chan;
 }
 
-M0_INTERNAL void m0_ha_link_state_register(struct m0_ha_link *hl,
-					   struct m0_clink   *clink)
+M0_INTERNAL enum m0_ha_link_state m0_ha_link_state_get(struct m0_ha_link *hl)
 {
-	m0_clink_add_lock(&hl->hln_sm_chan, clink);
+	M0_PRE(m0_sm_group_is_locked(&hl->hln_sm_group));
+	return hl->hln_sm.sm_state;
 }
 
-M0_INTERNAL void m0_ha_link_state_deregister(struct m0_ha_link *hl,
-					     struct m0_clink   *clink)
+M0_INTERNAL const char *m0_ha_link_state_name(enum m0_ha_link_state state)
 {
-	m0_clink_del_lock(clink);
-}
-
-M0_INTERNAL enum m0_ha_link_state m0_ha_link_state(struct m0_ha_link *hl)
-{
-	/* TODO Return proper state when hln_sm is implemented. */
-	return M0_HA_LINK_STATE_FAILED;
+	M0_PRE(_0C(state >= M0_HA_LINK_STATE_INIT) &&
+	       _0C(state < M0_HA_LINK_STATE_NR));
+	return ha_link_sm_states[state].sd_name;
 }
 
 enum ha_link_send_type {
@@ -675,6 +742,42 @@ static void ha_link_msg_received(struct m0_ha_link      *hl,
 	}
 }
 
+static void ha_link_msg_recv_or_delivery_broadcast(struct m0_ha_link *hl)
+{
+	uint64_t in_next;
+	uint64_t out_confirmed;
+	uint64_t tag_recv;
+	uint64_t tag_delivery;
+
+	m0_mutex_lock(&hl->hln_lock);
+	in_next = m0_ha_lq_tag_next(&hl->hln_q_in);
+	tag_recv = in_next > 2 ? in_next :
+		   in_next == m0_ha_lq_tag_assign(&hl->hln_q_in) ? 0 : in_next;
+	out_confirmed = m0_ha_lq_tag_confirmed(&hl->hln_q_out);
+	tag_delivery = out_confirmed > 2 ? out_confirmed :
+		       out_confirmed == m0_ha_lq_tag_delivered(&hl->hln_q_out) ?
+		       0 : out_confirmed;
+	m0_mutex_unlock(&hl->hln_lock);
+
+	m0_sm_group_lock(&hl->hln_sm_group);
+	M0_LOG(M0_DEBUG, "hln_tag_broadcast_recv=%"PRIu64" tag_recv=%"PRIu64,
+	       hl->hln_tag_broadcast_recv, tag_recv);
+	M0_LOG(M0_DEBUG, "hln_tag_broadcast_delivery=%"PRIu64" "
+	       "tag_delivery=%"PRIu64,
+	       hl->hln_tag_broadcast_delivery, tag_delivery);
+	if (hl->hln_tag_broadcast_recv <= tag_recv) {
+		m0_sm_state_set(&hl->hln_sm, M0_HA_LINK_STATE_RECV);
+		m0_sm_state_set(&hl->hln_sm, M0_HA_LINK_STATE_IDLE);
+		hl->hln_tag_broadcast_recv = tag_recv;
+	}
+	if (hl->hln_tag_broadcast_delivery <= tag_delivery) {
+		m0_sm_state_set(&hl->hln_sm, M0_HA_LINK_STATE_DELIVERY);
+		m0_sm_state_set(&hl->hln_sm, M0_HA_LINK_STATE_IDLE);
+		hl->hln_tag_broadcast_delivery = tag_delivery;
+	}
+	m0_sm_group_unlock(&hl->hln_sm_group);
+}
+
 static int ha_link_incoming_fom_tick(struct m0_fom *fom)
 {
 	struct m0_ha_link_msg_fop     *req_fop;
@@ -729,7 +832,7 @@ static int ha_link_incoming_fom_tick(struct m0_fom *fom)
 		ha_link_tags_in_out(hl, &rep_fop->lmr_out_next,
 		                    &rep_fop->lmr_in_delivered);
 		m0_mutex_unlock(&hl->hln_lock);
-		m0_chan_broadcast_lock(&hl->hln_chan);
+		ha_link_msg_recv_or_delivery_broadcast(hl);
 		rep_fop->lmr_rc = 0;
 	}
 	M0_LOG(M0_DEBUG, "hl=%p lmr_rc=%"PRIu32, hl, rep_fop->lmr_rc);
@@ -1019,6 +1122,12 @@ static int ha_link_outgoing_fom_tick(struct m0_fom *fom)
 		m0_fom_phase_set(fom, HA_LINK_OUTGOING_STATE_RPC_LINK_INIT);
 		return M0_RC(M0_FSO_AGAIN);
 	case HA_LINK_OUTGOING_STATE_RPC_LINK_INIT:
+		m0_sm_group_lock(&hl->hln_sm_group);
+		hl->hln_tag_broadcast_recv     = 0;
+		hl->hln_tag_broadcast_delivery = 0;
+		m0_sm_state_set(&hl->hln_sm, M0_HA_LINK_STATE_START);
+		m0_sm_state_set(&hl->hln_sm, M0_HA_LINK_STATE_IDLE);
+		m0_sm_group_unlock(&hl->hln_sm_group);
 		rc = m0_rpc_link_init(&hl->hln_rpc_link,
 		                      hl->hln_cfg.hlc_rpc_machine,
 		                      &hl->hln_conn_cfg.hlcc_rpc_service_fid,
@@ -1029,6 +1138,9 @@ static int ha_link_outgoing_fom_tick(struct m0_fom *fom)
 		return M0_RC(M0_FSO_AGAIN);
 	case HA_LINK_OUTGOING_STATE_RPC_LINK_FINI:
 		m0_rpc_link_fini(&hl->hln_rpc_link);
+		m0_sm_group_lock(&hl->hln_sm_group);
+		m0_sm_state_set(&hl->hln_sm, M0_HA_LINK_STATE_STOP);
+		m0_sm_group_unlock(&hl->hln_sm_group);
 		m0_fom_phase_set(fom, HA_LINK_OUTGOING_STATE_FINISH);
 		return M0_RC(M0_FSO_WAIT);
 	case HA_LINK_OUTGOING_STATE_NOT_CONNECTED:
@@ -1053,7 +1165,7 @@ static int ha_link_outgoing_fom_tick(struct m0_fom *fom)
 				                &hl->hln_conn_reconnect_cfg);
 			}
 			m0_mutex_unlock(&hl->hln_lock);
-			m0_chan_broadcast_lock(&hl->hln_chan);
+			ha_link_msg_recv_or_delivery_broadcast(hl);
 			m0_sm_ast_cancel(hl->hln_fom_locality->lo_grp,
 			                 &hl->hln_waking_ast);
 			m0_fom_phase_set(fom,
@@ -1116,7 +1228,7 @@ static int ha_link_outgoing_fom_tick(struct m0_fom *fom)
 			m0_mutex_lock(&hl->hln_lock);
 			hl->hln_fom_is_stopping = true;
 			m0_mutex_unlock(&hl->hln_lock);
-			m0_chan_broadcast_lock(&hl->hln_chan);
+			ha_link_msg_recv_or_delivery_broadcast(hl);
 			m0_fom_phase_set(fom,
 					 HA_LINK_OUTGOING_STATE_DISCONNECT);
 			return M0_RC(M0_FSO_AGAIN);
@@ -1125,7 +1237,11 @@ static int ha_link_outgoing_fom_tick(struct m0_fom *fom)
 		if (reply_rc != 0) {
 			M0_LOG(M0_DEBUG, "link failed, ha_link reconnect case");
 			hl->hln_reply_rc = 0;
-			m0_chan_broadcast_lock(&hl->hln_sm_chan);
+			m0_sm_group_lock(&hl->hln_sm_group);
+			m0_sm_state_set(&hl->hln_sm,
+					M0_HA_LINK_STATE_LINK_FAILED);
+			m0_sm_state_set(&hl->hln_sm, M0_HA_LINK_STATE_IDLE);
+			m0_sm_group_unlock(&hl->hln_sm_group);
 			return M0_RC(M0_FSO_WAIT);
 		}
 		m0_mutex_lock(&hl->hln_lock);
@@ -1176,7 +1292,7 @@ static int ha_link_outgoing_fom_tick(struct m0_fom *fom)
 			m0_mutex_unlock(&hl->hln_lock);
 			if (hl->hln_reply_rc == 0)
 				hl->hln_confirmed_update = false;
-			m0_chan_broadcast_lock(&hl->hln_chan);
+			ha_link_msg_recv_or_delivery_broadcast(hl);
 			m0_fop_put_lock(&hl->hln_outgoing_fop);
 			m0_fom_phase_set(fom,
 					 HA_LINK_OUTGOING_STATE_WAIT_RELEASE);

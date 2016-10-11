@@ -73,8 +73,6 @@ struct ha_link_ctx {
 	struct m0_ha_link      hlx_link;
 	/* clink for events */
 	struct m0_clink        hlx_clink;
-	/* clink for states */
-	struct m0_clink        hlx_state_clink;
 	struct m0_ha          *hlx_ha;
 	struct m0_tlink        hlx_tlink;
 	uint64_t               hlx_magic;
@@ -89,52 +87,49 @@ M0_TL_DEFINE(ha_links, static, struct ha_link_ctx);
 
 static bool ha_link_event_cb(struct m0_clink *clink)
 {
-	struct ha_link_ctx *hlx;
-	struct m0_ha_link  *hl;
-	struct m0_ha_msg   *msg;
-	struct m0_ha       *ha;
-	uint64_t            tag;
-
-	hlx = container_of(clink, struct ha_link_ctx, hlx_clink);
-	hl  = &hlx->hlx_link;
-	ha  = hlx->hlx_ha;
-	M0_ENTRY("hlx=%p hl=%p ha=%p", hlx, hl, ha);
-	while ((msg = m0_ha_link_recv(hl, &tag)) != NULL)
-		ha->h_cfg.hcf_ops.hao_msg_received(ha, hl, msg, tag);
-	while ((tag = m0_ha_link_delivered_consume(hl)) !=
-	       M0_HA_MSG_TAG_INVALID) {
-		ha->h_cfg.hcf_ops.hao_msg_is_delivered(ha, hl, tag);
-	}
-	while ((tag = m0_ha_link_not_delivered_consume(hl)) !=
-	       M0_HA_MSG_TAG_INVALID) {
-		ha->h_cfg.hcf_ops.hao_msg_is_not_delivered(ha, hl, tag);
-	}
-	M0_LEAVE();
-	return true;
-}
-
-static bool ha_link_state_cb(struct m0_clink *clink)
-{
+	enum m0_ha_link_state  state;
 	struct ha_link_ctx    *hlx;
 	struct m0_ha_link     *hl;
+	struct m0_ha_msg      *msg;
 	struct m0_ha          *ha;
-	enum m0_ha_link_state  state;
+	uint64_t               tag;
 
-	hlx = container_of(clink, struct ha_link_ctx, hlx_state_clink);
-	hl  = &hlx->hlx_link;
-	ha  = hlx->hlx_ha;
-	M0_ENTRY("hlx=%p hl=%p ha=%p", hlx, hl, ha);
-
-	state = m0_ha_link_state(hl);
-	if (state == M0_HA_LINK_STATE_FAILED) {
+	hlx   = container_of(clink, struct ha_link_ctx, hlx_clink);
+	hl    = &hlx->hlx_link;
+	ha    = hlx->hlx_ha;
+	state = m0_ha_link_state_get(hl);
+	M0_ENTRY("hlx=%p hl=%p ha=%p state=%d state_name=%s",
+		 hlx, hl, ha, state, m0_ha_link_state_name(state));
+	switch (state) {
+	case M0_HA_LINK_STATE_RECV:
+		while ((msg = m0_ha_link_recv(hl, &tag)) != NULL)
+			ha->h_cfg.hcf_ops.hao_msg_received(ha, hl, msg, tag);
+		break;
+	case M0_HA_LINK_STATE_DELIVERY:
+		while ((tag = m0_ha_link_delivered_consume(hl)) !=
+		       M0_HA_MSG_TAG_INVALID) {
+			ha->h_cfg.hcf_ops.hao_msg_is_delivered(ha, hl, tag);
+		}
+		while ((tag = m0_ha_link_not_delivered_consume(hl)) !=
+		       M0_HA_MSG_TAG_INVALID) {
+			ha->h_cfg.hcf_ops.hao_msg_is_not_delivered(ha, hl, tag);
+		}
+		break;
+	case M0_HA_LINK_STATE_LINK_FAILED:
 		if (hl == ha->h_link) {
 			/*
 			 * Outgoing HA link reconnect via requesting
 			 * an entrypoint.
 			 */
-			m0_ha_entrypoint_client_request(&ha->h_entrypoint_client);
+			m0_ha_entrypoint_client_request(
+						&ha->h_entrypoint_client);
 		} else {
+			/* XXX */
 		}
+		break;
+	default:
+		/* nothing to do here */
+		break;
 	}
 	M0_LEAVE();
 	return true;
@@ -156,8 +151,6 @@ static int ha_link_ctx_init(struct m0_ha          *ha,
 	M0_ASSERT(rc == 0);
 	m0_clink_init(&hlx->hlx_clink, &ha_link_event_cb);
 	m0_clink_add_lock(m0_ha_link_chan(hl), &hlx->hlx_clink);
-	m0_clink_init(&hlx->hlx_state_clink, &ha_link_state_cb);
-	m0_ha_link_state_register(hl, &hlx->hlx_state_clink);
 
 	hlx->hlx_ha   = ha;
 	hlx->hlx_type = hlx_type;
@@ -177,8 +170,6 @@ static void ha_link_ctx_fini(struct m0_ha *ha, struct ha_link_ctx *hlx)
 	m0_semaphore_fini(&hlx->hlx_disconnect_sem);
 	ha_links_tlink_del_fini(hlx);
 
-	m0_ha_link_state_deregister(&hlx->hlx_link, &hlx->hlx_state_clink);
-	m0_clink_fini(&hlx->hlx_state_clink);
 	m0_clink_del_lock(&hlx->hlx_clink);
 	m0_clink_fini(&hlx->hlx_clink);
 	m0_ha_link_fini(&hlx->hlx_link);

@@ -48,6 +48,25 @@
  * - incoming
  *   - msg queue
  *
+ * * Link state machine
+ *
+ * @verbatim
+ *                     INIT --> FINI
+ *                       v       ^
+ *                     START -> STOP
+ *                         v    ^
+ *   +--------------------< IDLE <--------------------------<+
+ *   |                      VVVV                             |
+ *   |                      |||+---------------------+       |
+ *   |           +----------+|+---------+            |       |
+ *   v           v           v          v            v       |
+ *  RECV     DELIVERY    RPC_FAILED LINK_FAILED LINK_REUSED  |
+ *   v           v           v          v            v       ^
+ *   >----------->----------->---------->------------>------>+
+ *
+ * @endverbatim
+ * @see m0_ha_link::hln_sm, ha_link_sm_states, ha_link_sm_conf
+ *
  * * Protocols
  * ** Legend
  * - L1 - m0_ha_link #1
@@ -132,7 +151,18 @@ struct m0_ha_msg;
 struct m0_rpc_session;
 
 enum m0_ha_link_state {
+	M0_HA_LINK_STATE_INIT,
+	M0_HA_LINK_STATE_FINI,
+	M0_HA_LINK_STATE_START,
+	M0_HA_LINK_STATE_STOP,
+	M0_HA_LINK_STATE_IDLE,
+	M0_HA_LINK_STATE_RECV,
+	M0_HA_LINK_STATE_DELIVERY,
+	M0_HA_LINK_STATE_RPC_FAILED,
+	M0_HA_LINK_STATE_LINK_FAILED,
 	M0_HA_LINK_STATE_FAILED,
+	M0_HA_LINK_STATE_LINK_REUSED,
+	M0_HA_LINK_STATE_NR,
 };
 
 struct m0_ha_link_conn_cfg {
@@ -172,11 +202,13 @@ struct m0_ha_link {
 	uint64_t                    hln_service_magic;
 	struct m0_mutex             hln_lock;
 	/** This lock is always taken before hln_lock. */
-	struct m0_mutex             hln_chan_lock;
-	struct m0_chan              hln_chan;
-	struct m0_mutex             hln_sm_lock;
-	/** Signals on specific state changes. Can be replaced with an m0_sm. */
-	struct m0_chan              hln_sm_chan;
+	struct m0_sm_group          hln_sm_group;
+	/**
+	 * Protected by ::hln_sm_group.
+	 * @see ha_link_sm_conf, m0_ha_link_state, m0_ha_link_chan(),
+	 * m0_ha_link_state_get().
+	 */
+	struct m0_sm                hln_sm;
 	struct m0_ha_lq             hln_q_in;
 	struct m0_ha_lq             hln_q_out;
 	/** ha_sl */
@@ -204,6 +236,10 @@ struct m0_ha_link {
 	/** It's protected by outgoing fom sm group lock */
 	int                         hln_reply_rc;
 	bool                        hln_no_new_delivered;
+	/** Protected by ::hln_sm_group */
+	uint64_t                    hln_tag_broadcast_recv;
+	/** Protected by ::hln_sm_group */
+	uint64_t                    hln_tag_broadcast_delivery;
 };
 
 M0_INTERNAL int  m0_ha_link_init (struct m0_ha_link     *hl,
@@ -228,12 +264,8 @@ m0_ha_link_reconnect_params(const struct m0_ha_link_params *lp_alive,
 			    const struct m0_uint128        *id_connection);
 
 M0_INTERNAL struct m0_chan *m0_ha_link_chan(struct m0_ha_link *hl);
-
-M0_INTERNAL void m0_ha_link_state_register(struct m0_ha_link *hl,
-					   struct m0_clink   *clink);
-M0_INTERNAL void m0_ha_link_state_deregister(struct m0_ha_link *hl,
-					     struct m0_clink   *clink);
-M0_INTERNAL enum m0_ha_link_state m0_ha_link_state(struct m0_ha_link *hl);
+M0_INTERNAL enum m0_ha_link_state m0_ha_link_state_get(struct m0_ha_link *hl);
+M0_INTERNAL const char *m0_ha_link_state_name(enum m0_ha_link_state state);
 
 M0_INTERNAL void m0_ha_link_send(struct m0_ha_link      *hl,
                                  const struct m0_ha_msg *msg,
