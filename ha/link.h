@@ -194,7 +194,15 @@ struct m0_ha_link_cfg {
 
 struct m0_ha_link {
 	struct m0_ha_link_cfg       hln_cfg;
+	/**
+	 * Protected by hln_lock.
+	 *
+	 * @note m0_ha_link_service_register(), m0_ha_link_service_deregister(),
+	 * m0_ha_link_service_find() use this field. Be sure to acquire the lock
+	 * before these functions are called.
+	 */
 	struct m0_ha_link_conn_cfg  hln_conn_cfg;
+	/** Protected by hln_lock */
 	struct m0_ha_link_conn_cfg  hln_conn_reconnect_cfg;
 	struct m0_rpc_link          hln_rpc_link;
 	/** ha_link_service::hls_links */

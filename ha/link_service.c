@@ -56,7 +56,7 @@ struct ha_link_service {
 };
 
 static const struct m0_bob_type ha_link_service_bob_type = {
-	.bt_name         = "halon interface",
+	.bt_name         = "m0_ha_link_service",
 	.bt_magix_offset = M0_MAGIX_OFFSET(struct ha_link_service, hls_magic),
 	.bt_magix        = M0_HALON_INTERFACE_MAGIC,
 };
