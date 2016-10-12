@@ -245,6 +245,14 @@ static void test_start_failures(void)
 	m0_rconfc_stop_sync(&rconfc);
 	m0_rconfc_fini(&rconfc);
 
+	m0_fi_enable_once("rconfc_herd_link_init", "confc_init");
+	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_rconfc_start_sync(&rconfc, &profile);
+	M0_UT_ASSERT(rc == -ENOENT);
+	m0_rconfc_stop_sync(&rconfc);
+	m0_rconfc_fini(&rconfc);
+
 	ut_mero_stop(&mach, &rctx);
 }
 

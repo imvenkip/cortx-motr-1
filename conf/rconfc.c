@@ -1258,9 +1258,12 @@ static void rconfc_herd_link_init(struct rconfc_link *lnk)
 	M0_ENTRY("lnk %p", lnk);
 	M0_PRE(rconfc != NULL);
 	m0_clink_init(&lnk->rl_ha_clink, rconfc_herd_link__on_death_cb);
-	lnk->rl_rc = m0_confc_init(&lnk->rl_confc, rconfc->rc_sm.sm_grp,
-				   lnk->rl_confd_addr, rconfc->rc_rmach,
-				   NULL);
+	if (M0_FI_ENABLED("confc_init"))
+		lnk->rl_rc = -EIO;
+	else
+		lnk->rl_rc = m0_confc_init(&lnk->rl_confc, rconfc->rc_sm.sm_grp,
+					   lnk->rl_confd_addr, rconfc->rc_rmach,
+					   NULL);
 	if (lnk->rl_rc == 0)
 		lnk->rl_state = CONFC_IDLE;
 	else
@@ -1417,17 +1420,30 @@ static int rconfc_herd_update(struct m0_rconfc   *rconfc,
 	m0_tl_for(rcnf_herd, &rconfc->rc_herd, lnk) {
 		if (!lnk->rl_preserve) {
 			rconfc_herd_link_fini(lnk);
+			rcnf_herd_tlist_del(lnk);
 			rconfc_herd_link_destroy(lnk);
 		} else {
 			/*
 			 * Clean confc cache, so version will be actually
 			 * queried from confd, not extracted from cache.
 			 */
-			_confc_cache_clean_lock(&lnk->rl_confc);
+			if (lnk->rl_state != CONFC_DEAD)
+				_confc_cache_clean_lock(&lnk->rl_confc);
 			lnk->rl_preserve = false;
 		}
 	} m0_tl_endfor;
-	return M0_RC(0);
+	/**
+	 * @todo a herd link can't switch its state from CONFC_DEAD to
+	 * CONFC_IDLE. If there isn't a link in CONFC_IDLE state, the error
+	 * should be returned, because version election is impossible.
+	 *
+	 * In the future, CONFC_DEAD -> CONFC_IDLE may be possible, and when
+	 * this will be implemented, need to decide whether to return the error
+	 * or wait until at least one herd link becomes to CONFC_IDLE state.
+	 */
+	return m0_tl_exists(rcnf_herd, lnk, &rconfc->rc_herd,
+			    lnk->rl_state != CONFC_DEAD) ? M0_RC(0) :
+							   M0_ERR(-ENOENT);
 no_mem:
 	rconfc_herd_prune(rconfc);
 	return M0_ERR(-ENOMEM);
@@ -2230,6 +2246,7 @@ static void rconfc_version_elect(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 				      M0_CONF_ROOT_PROFILES_FID);
 		}
 	} m0_tl_endfor;
+	M0_LEAVE();
 }
 
 /**
