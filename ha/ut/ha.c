@@ -96,7 +96,8 @@ static void ha_ut_usecase_entrypoint_request
 
 	M0_UT_ASSERT(m0_fid_eq(&M0_FID_TINIT('r', 1, 2),
 			       &req->heq_process_fid));
-	M0_UT_ASSERT(m0_fid_eq(&M0_FID_INIT(3, 4), &req->heq_profile_fid));
+	M0_UT_ASSERT(m0_fid_eq(&M0_FID_TINIT('p', 3, 4),
+			       &req->heq_profile_fid));
 	rep = (struct m0_ha_entrypoint_rep){
 		.hae_rc            = 0,
 		.hae_quorum        = 1,
@@ -236,7 +237,7 @@ void m0_ha_ut_ha_usecase(void)
 		.hcf_reqh        = &rpc_ctx->hurc_reqh,
 		.hcf_addr       = m0_rpc_machine_ep(&rpc_ctx->hurc_rpc_machine),
 		.hcf_process_fid = M0_FID_TINIT('r', 1, 2),
-		.hcf_profile_fid = M0_FID_INIT(3, 4),
+		.hcf_profile_fid = M0_FID_TINIT('p', 3, 4),
 	};
 	rc = m0_ha_init(ha, &ha_cfg);
 	M0_UT_ASSERT(rc == 0);

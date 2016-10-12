@@ -270,6 +270,7 @@ struct m0_ha_cfg {
 	struct m0_reqh                     *hcf_reqh;
 	/** Remote address for m0_ha_connect(). */
 	const char                         *hcf_addr;
+	/** Fid of local process. */
 	struct m0_fid                       hcf_process_fid;
 	struct m0_fid                       hcf_profile_fid;
 
