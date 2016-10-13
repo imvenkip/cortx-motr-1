@@ -389,6 +389,7 @@ static void balloc_sb_sync(struct m0_balloc *cb, struct m0_be_tx *tx)
 
 	M0_ENTRY();
 
+	M0_PRE(m0_mutex_is_locked(&cb->cb_sb_mutex.bm_u.mutex));
 	M0_PRE(cb->cb_sb.bsb_state & M0_BALLOC_SB_DIRTY);
 
 	gettimeofday(&now, NULL);
@@ -409,6 +410,8 @@ static int sb_update(struct m0_balloc *bal, struct m0_sm_group *grp)
 	struct m0_be_tx_credit           cred;
 	int				 rc;
 
+	m0_mutex_lock(&bal->cb_sb_mutex.bm_u.mutex);
+
 	bal->cb_sb.bsb_state |= M0_BALLOC_SB_DIRTY;
 
 	m0_be_tx_init(&tx, 0, bal->cb_be_seg->bs_domain,
@@ -422,6 +425,8 @@ static int sb_update(struct m0_balloc *bal, struct m0_sm_group *grp)
 		/* XXX error handling is missing here */
 	}
 	m0_be_tx_fini(&tx);
+
+	m0_mutex_unlock(&bal->cb_sb_mutex.bm_u.mutex);
 
 	return M0_RC(rc);
 }
@@ -1310,9 +1315,12 @@ static int balloc_alloc_db_update(struct m0_balloc *mero,
 	grp->bgi_freeblocks -= m0_ext_length(tgt);
 
 	grp->bgi_state |= M0_BALLOC_GROUP_INFO_DIRTY;
-	mero->cb_sb.bsb_state |= M0_BALLOC_SB_DIRTY;
 
+	/* m0_mutex_lock(&mero->cb_sb_mutex.bm_u.mutex); */
+	mero->cb_sb.bsb_state |= M0_BALLOC_SB_DIRTY;
 	balloc_sb_sync(mero, tx);
+	/* m0_mutex_unlock(&mero->cb_sb_mutex.bm_u.mutex); */
+
 	rc = balloc_gi_sync(mero, tx, grp);
 
 	return M0_RC(rc);
@@ -1514,9 +1522,12 @@ static int balloc_free_db_update(struct m0_balloc *mero,
 	grp->bgi_freeblocks += m0_ext_length(tgt);
 
 	grp->bgi_state |= M0_BALLOC_GROUP_INFO_DIRTY;
-	mero->cb_sb.bsb_state |= M0_BALLOC_SB_DIRTY;
 
+	m0_mutex_lock(&mero->cb_sb_mutex.bm_u.mutex);
+	mero->cb_sb.bsb_state |= M0_BALLOC_SB_DIRTY;
 	balloc_sb_sync(mero, tx);
+	m0_mutex_unlock(&mero->cb_sb_mutex.bm_u.mutex);
+
 	rc = balloc_gi_sync(mero, tx, grp);
 
 	return M0_RC(rc);
