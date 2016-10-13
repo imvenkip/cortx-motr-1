@@ -1,0 +1,275 @@
+---
+Tests:
+  - id       : 00userspace-tests
+    script   : 'm0run m0ut'
+    dir      : src/utils/
+    executor : Xperior::Executor::MeroTest
+    #executor : Xperior::Executor::Skip
+    sandbox  : /var/mero/sandbox.00userspace-tests
+    polltime : 15
+    timeout  : 1800
+
+  - id       : 01kernel-tests
+    script   : m0kut
+    dir      : src/ut/
+    executor : Xperior::Executor::MeroTest
+    #executor : Xperior::Executor::Skip
+    sandbox  : /var/mero/sandbox.01kernel-tests
+    polltime : 15
+    timeout  : 180
+
+#  - id       : crash-node
+#    script   : modinfo ; /bin/echo > > /proc/sysrq-trigger
+#    dir      : /
+#    executor : colibritests::KernelTest
+#    polltime : 30
+#    builddir : /sbin/
+
+  - id       : 02system-tests
+    script   : m0t1fs_test.sh
+    dir      : src/m0t1fs/linux_kernel/st/
+    executor : Xperior::Executor::MeroTest
+    #executor : Xperior::Executor::Skip
+    sandbox  : /var/mero/sandbox.02system-tests
+    polltime : 30
+    timeout  : 3000
+
+  - id       : 03initscript-tests
+    script   : initscripts
+    dir      : src/st/
+    executor : Xperior::Executor::MeroTest
+    #executor : Xperior::Executor::Skip
+    polltime : 30
+    timeout  : 720
+    roles: StoreSyslog  CustomLogCollector
+    #NetconsoleCollector
+    #collect_logs :
+      #- /var/log/mero-*.log
+
+  - id       : 04net-tests
+    script   : st.sh
+    dir      : src/net/test/st/
+    executor : Xperior::Executor::MeroTest
+    #executor : Xperior::Executor::Skip
+    sandbox  : /var/mero/sandbox.04net-tests
+    polltime : 30
+    timeout  : 180
+
+  - id       : 05rpcping-tests
+    script   : st.sh
+    dir      : src/rpc/it/
+    executor : Xperior::Executor::MeroTest
+    #executor : Xperior::Executor::Skip
+    sandbox  : /var/mero/sandbox.05rpcping-tests
+    polltime : 30
+    timeout  : 300
+
+  - id       : 06console-tests
+    script   : console-st.sh
+    dir      : src/console/st/
+    executor : Xperior::Executor::MeroTest
+    #executor : Xperior::Executor::Skip
+    sandbox  : /var/mero/sandbox.06console-tests
+    polltime : 30
+    timeout  : 120
+
+  - id       : 07multi-client-tests
+    script   : m0t1fs_multi_clients.sh
+    dir      : src/m0t1fs/linux_kernel/st/
+    executor : Xperior::Executor::MeroTest
+    sandbox  : /var/mero/sandbox.07multi-client-tests
+    #executor : Xperior::Executor::Skip
+    polltime : 30
+    timeout  : 480
+
+  - id       : 08degraded-mode-tests
+    script   : m0t1fs_dgmode_io.sh
+    dir      : src/m0t1fs/linux_kernel/st/
+    executor : Xperior::Executor::MeroTest
+    #executor : Xperior::Executor::Skip
+    sandbox  : /var/mero/sandbox.08degraded-mode-tests
+    polltime : 30
+    timeout  : 900
+
+  - id       : 09poolmach-tests
+    script   : m0t1fs_poolmach.sh
+    dir      : src/m0t1fs/linux_kernel/st/
+    executor : Xperior::Executor::MeroTest
+    #executor : Xperior::Executor::Skip
+    sandbox  : /var/mero/sandbox.09poolmach-tests
+    polltime : 30
+    timeout  : 480
+
+  - id       : 10sns-single-tests
+    script   : m0t1fs_sns_repair_1f.sh
+    dir      : src/m0t1fs/linux_kernel/st/
+    executor : Xperior::Executor::MeroTest
+    sandbox  : /var/mero/sandbox.10sns-single-tests
+    #executor : Xperior::Executor::Skip
+    polltime : 30
+    timeout  : 600
+
+  - id       : 11sns-multi-tests
+    script   : m0t1fs_sns_repair_mf.sh
+    dir      : src/m0t1fs/linux_kernel/st/
+    executor : Xperior::Executor::MeroTest
+    #executor : Xperior::Executor::Skip
+    sandbox  : /var/mero/sandbox.11sns-multi-tests
+    polltime : 30
+    timeout  : 900
+
+  - id       : 12sns-cc-io-tests
+    script   : m0t1fs_cc_io_with_sns_repair.sh
+    dir      : src/m0t1fs/linux_kernel/st/
+    executor : Xperior::Executor::MeroTest
+    #executor : Xperior::Executor::Skip
+    sandbox  : /var/mero/sandbox.12sns-cc-io-tests
+    polltime : 30
+    timeout  : 1200
+
+  - id       : 13sns-repair-quiesce
+    script   : m0t1fs_sns_repair_quiesce.sh
+    dir      : src/m0t1fs/linux_kernel/st/
+    executor : Xperior::Executor::MeroTest
+    #executor : Xperior::Executor::Skip
+    sandbox  : /var/mero/sandbox.13sns-repair-quiesce
+    polltime : 30
+    timeout  : 1800
+
+  - id       : 14m0t1fs-fsync-test
+    script   : m0t1fs_fsync_test.sh
+    dir      : src/m0t1fs/linux_kernel/st/
+    executor : Xperior::Executor::MeroTest
+    #executor : Xperior::Executor::Skip
+    sandbox  : /var/mero/sandbox.14m0t1fs-fsync-test
+    polltime : 30
+    timeout  : 480
+
+  - id       : 15m0t1fs-fwait-test
+    script   : m0t1fs_fwait_test.sh
+    dir      : src/m0t1fs/linux_kernel/st/
+    executor : Xperior::Executor::MeroTest
+    #executor : Xperior::Executor::Skip
+    sandbox  : /var/mero/sandbox.15m0t1fs-fwait-test
+    polltime : 30
+    timeout  : 480
+
+  - id       : 16conf-st-test
+    script   : st
+    dir      : src/conf/
+    executor : Xperior::Executor::MeroTest
+    #executor : Xperior::Executor::Skip
+    sandbox  : /var/mero/sandbox.16conf-st-test
+    polltime : 30
+    timeout  : 120
+
+  - id       : 17sss-st-test
+    script   : st
+    dir      : src/sss/
+    executor : Xperior::Executor::MeroTest
+    #executor : Xperior::Executor::Skip
+    sandbox  : /var/mero/sandbox.17sss-st-test
+    polltime : 30
+    timeout  : 120
+
+  - id       : 18m0mount-test
+    script   : m0mount
+    dir      : src/st/
+    executor : Xperior::Executor::MeroTest
+    #executor : Xperior::Executor::Skip
+    sandbox  : /var/mero/sandbox.18m0mount-test
+    polltime : 30
+    timeout  : 360
+
+  - id       : 19sns-abort-test
+    script   : m0t1fs_sns_repair_abort.sh
+    dir      : src/m0t1fs/linux_kernel/st/
+    executor : Xperior::Executor::MeroTest
+    #executor : Xperior::Executor::Skip
+    sandbox  : /var/mero/sandbox.19sns-abort-test
+    polltime : 30
+    timeout  : 1800
+
+  - id       : 20pool-version-test
+    script   : m0t1fs_pool_version_assignment.sh
+    dir      : src/m0t1fs/linux_kernel/st/
+    executor : Xperior::Executor::MeroTest
+    #executor : Xperior::Executor::Skip
+    sandbox  : /var/mero/sandbox.20pool-version-test
+    polltime : 30
+    timeout  : 480
+
+  - id       : 21spiel-test
+    script   : m0t1fs_spiel_st.sh
+    dir      : src/spiel/st/
+    executor : Xperior::Executor::MeroTest
+    #executor : Xperior::Executor::Skip
+    sandbox  : /var/mero/sandbox.21spiel-test
+    polltime : 30
+    timeout  : 600
+
+  - id       : 22rpc-cancel-test
+    script   : m0t1fs_rpc_cancel_test.sh
+    dir      : src/m0t1fs/linux_kernel/st/
+    executor : Xperior::Executor::MeroTest
+    #executor : Xperior::Executor::Skip
+    sandbox  : /var/mero/sandbox.22rpc-cancel-test
+    polltime : 30
+    timeout  : 900
+
+  - id       : 23m0d-signal-test
+    script   : m0d-signal-test.sh
+    dir      : src/st/
+    executor : Xperior::Executor::MeroTest
+    #executor : Xperior::Executor::Skip
+    sandbox  : /var/mero/sandbox.23m0d-signal-tests
+    polltime : 30
+    timeout  : 900
+
+  - id       : 24m0d-fsync-test
+    script   : m0d-fsync-test.sh
+    dir      : src/st/
+    executor : Xperior::Executor::MeroTest
+    #executor : Xperior::Executor::Skip
+    sandbox  : /var/mero/sandbox.24m0d-fsync-tests
+    polltime : 30
+    timeout  : 900
+
+  - id       : 25spiel-sns-repair-test
+    script   : m0t1fs_spiel_sns_repair.sh
+    dir      : src/spiel/st/
+    executor : Xperior::Executor::MeroTest
+    #executor : Xperior::Executor::Skip
+    sandbox  : /var/mero/sandbox.25spiel-sns-repair-test
+    polltime : 30
+    timeout  : 900
+
+  - id       : 26spiel-sns-repair-quiesce-test
+    script   : m0t1fs_spiel_sns_repair_quiesce.sh
+    dir      : src/spiel/st/
+    executor : Xperior::Executor::MeroTest
+    #executor : Xperior::Executor::Skip
+    sandbox  : /var/mero/sandbox.26spiel-sns-repair-quiesce-test
+    polltime : 30
+    timeout  : 900
+
+  - id       : 27sns-repair-io-fail-test
+    script   : m0t1fs_sns_repair_ios_fail.sh
+    dir      : src/m0t1fs/linux_kernel/st/
+    executor : Xperior::Executor::MeroTest
+    #executor : Xperior::Executor::Skip
+    sandbox  : /var/mero/sandbox.27sns-repair-io-fail-test
+    polltime : 30
+    timeout  : 900
+
+# 25 min
+dangerous: 'yes'
+description: Set of Mero  tests
+expected_time: 300
+groupname: mero-single-node
+reference: none
+roles: StoreSyslog StacktraceGenerator StoreConsole MeroStoreStat MeroReportBug
+schema: data/schemas/testds.yaml
+tags: mero
+timeout: 300
+
