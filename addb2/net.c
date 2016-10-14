@@ -170,12 +170,17 @@ M0_INTERNAL int m0_addb2_net_add(struct m0_addb2_net *net,
 	M0_ALLOC_PTR(s);
 	if (s != NULL) {
 		s->s_net = net;
+		/*
+		 * Lock ordering: addb-net lock nests within rpc machine lock.
+		 */
+		m0_rpc_machine_lock(conn->c_rpc_machine);
 		net_lock(net);
 		src_tlink_init_at_tail(s, &net->ne_src);
 		m0_rpc_item_source_init(&s->s_src,
 					"addb2 item source", &src_ops);
-		m0_rpc_item_source_register(conn, &s->s_src);
+		m0_rpc_item_source_register_locked(conn, &s->s_src);
 		net_unlock(net);
+		m0_rpc_machine_unlock(conn->c_rpc_machine);
 		result = 0;
 	} else
 		result = M0_ERR(-ENOMEM);

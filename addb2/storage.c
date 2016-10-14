@@ -342,7 +342,7 @@ M0_INTERNAL void m0_addb2_storage_stop(struct m0_addb2_storage *stor)
 	M0_PRE(!stor->as_stopped);
 	stor->as_stopped = true;
 	stor_balance(stor, 0);
-	M0_PRE(stor_invariant(stor));
+	M0_POST(stor_invariant(stor));
 	m0_mutex_unlock(&stor->as_lock);
 }
 
@@ -354,7 +354,7 @@ M0_INTERNAL int m0_addb2_storage_submit(struct m0_addb2_storage *stor,
 	M0_PRE(!stor->as_stopped);
 	tr_tlink_init_at_tail(obj, &stor->as_queue);
 	stor_balance(stor, 0);
-	M0_PRE(stor_invariant(stor));
+	M0_POST(stor_invariant(stor));
 	m0_mutex_unlock(&stor->as_lock);
 	return +1;
 }
@@ -472,7 +472,6 @@ static void trace_add(struct frame *frame, struct m0_addb2_trace *trace)
 
 	frame->f_trace[frame->f_header.he_trace_nr ++] = trace;
 	frame->f_header.he_size += m0_addb2_trace_size(trace);
-	m0_format_footer_update(&frame->f_header);
 }
 
 /**
@@ -546,7 +545,6 @@ static void frame_submit(struct frame *frame)
 	h->he_seqno       = stor->as_seqno;
 	h->he_offset      = stor->as_pos;
 	h->he_prev_offset = stor->as_prev_offset;
-	m0_format_footer_update(h);
 	stor_update(stor, h);
 }
 
@@ -613,6 +611,7 @@ do {							\
 
 	frame_tlist_move(&stor->as_inflight, frame);
 	m0_mutex_unlock(&stor->as_lock);
+	m0_format_header_pack(&h->he_header, &frame_tag);
 	h->he_time = m0_time_now();
 	m0_format_footer_update(h);
 	frame->f_count[1] = h->he_size;
@@ -671,8 +670,6 @@ static void frame_clear(struct frame *frame)
 		.he_fid       = *m0_stob_fid_get(frame->f_stor->as_stob),
 		.he_magix     = M0_ADDB2_FRAME_HEADER_MAGIX
 	};
-	m0_format_header_pack(&h->he_header, &frame_tag);
-	m0_format_footer_update(h);
 }
 
 /**
@@ -772,7 +769,6 @@ static bool frame_invariant(const struct frame *frame)
 		_0C(frame_tlist_contains(&stor->as_idle,     frame) ||
 		    frame_tlist_contains(&stor->as_pending,  frame) ||
 		    frame_tlist_contains(&stor->as_inflight, frame)) &&
-		_0C(m0_format_footer_verify(h) == 0) &&
 		_0C(ergo(frame_tlist_contains(&stor->as_inflight, frame) ||
 			 frame_tlist_contains(&stor->as_pending,  frame),
 			 h->he_size > 0 && h->he_trace_nr > 0 &&

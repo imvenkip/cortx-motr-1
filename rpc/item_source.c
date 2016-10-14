@@ -78,6 +78,18 @@ bool m0_rpc_item_source_is_registered(const struct m0_rpc_item_source *ris)
 	return item_source_tlink_is_in(ris);
 }
 
+void m0_rpc_item_source_register_locked(struct m0_rpc_conn *conn,
+					struct m0_rpc_item_source *ris)
+{
+	M0_PRE(conn != NULL);
+	M0_PRE(conn->c_rpc_machine != NULL &&
+	       m0_rpc_machine_is_locked(conn->c_rpc_machine));
+	M0_PRE(!m0_rpc_item_source_is_registered(ris));
+	ris->ris_conn = conn;
+	item_source_tlist_add(&conn->c_item_sources, ris);
+	M0_POST(m0_rpc_item_source_is_registered(ris));
+}
+
 void m0_rpc_item_source_register(struct m0_rpc_conn *conn,
 				 struct m0_rpc_item_source *ris)
 {
@@ -86,12 +98,7 @@ void m0_rpc_item_source_register(struct m0_rpc_conn *conn,
 	       m0_rpc_machine_is_not_locked(conn->c_rpc_machine));
 
 	m0_rpc_machine_lock(conn->c_rpc_machine);
-	M0_PRE(!m0_rpc_item_source_is_registered(ris));
-
-	ris->ris_conn = conn;
-	item_source_tlist_add(&conn->c_item_sources, ris);
-
-	M0_POST(m0_rpc_item_source_is_registered(ris));
+	m0_rpc_item_source_register_locked(conn, ris);
 	m0_rpc_machine_unlock(conn->c_rpc_machine);
 }
 

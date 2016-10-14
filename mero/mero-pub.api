@@ -223,6 +223,7 @@ m0_rpc_item_source_fini
 m0_rpc_item_source_init
 m0_rpc_item_source_is_registered
 m0_rpc_item_source_register
+m0_rpc_item_source_register_locked
 m0_rpc_item_timedwait
 m0_rpc_item_to_fop
 m0_rpc_item_wait_for_reply

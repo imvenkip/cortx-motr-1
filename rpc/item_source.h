@@ -138,6 +138,18 @@ void m0_rpc_item_source_register(struct m0_rpc_conn *conn,
 				struct m0_rpc_item_source *ris);
 
 /**
+   Registers an item-source with a locked rpc-connection.
+
+   Identical to m0_rpc_item_source_register() except assumes that the rpc
+   machine is already locked.
+
+   @pre !m0_rpc_item_source_is_registered(ris)
+   @post m0_rpc_item_source_is_registered(ris)
+ */
+void m0_rpc_item_source_register_locked(struct m0_rpc_conn *conn,
+					struct m0_rpc_item_source *ris);
+
+/**
    Deregisters item-source.
 
    Calling m0_rpc_item_source_deregister() on an already deregistered
