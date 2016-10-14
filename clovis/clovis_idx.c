@@ -115,7 +115,8 @@ static int clovis_idx_op_get(struct m0_clovis_op **op)
  */
 static int clovis_idx_op_init(struct m0_clovis_idx *idx, int opcode,
 			      struct m0_bufvec *keys, struct m0_bufvec *vals,
-			      int32_t *rcs, struct m0_clovis_op *op)
+			      int32_t *rcs, uint32_t flags,
+			      struct m0_clovis_op *op)
 {
 	int                         rc;
 	struct m0_clovis_op_common *oc;
@@ -152,6 +153,7 @@ static int clovis_idx_op_init(struct m0_clovis_idx *idx, int opcode,
 	oi->oi_keys = keys;
 	oi->oi_vals = vals;
 	oi->oi_rcs  = rcs;
+	oi->oi_flags = flags;
 
 	locality = m0_clovis_locality_pick(clovis_oi_instance(oi));
 	M0_ASSERT(locality != NULL);
@@ -419,6 +421,7 @@ int m0_clovis_idx_op(struct m0_clovis_idx       *idx,
 		     struct m0_bufvec           *keys,
 		     struct m0_bufvec           *vals,
 		     int32_t                    *rcs,
+		     uint32_t                    flags,
 		     struct m0_clovis_op       **op)
 {
 	int rc;
@@ -444,7 +447,8 @@ int m0_clovis_idx_op(struct m0_clovis_idx       *idx,
 	rc = clovis_idx_op_get(op);
 	if (rc == 0) {
 		M0_ASSERT(*op != NULL);
-		rc = clovis_idx_op_init(idx, opcode, keys, vals, rcs, *op);
+		rc = clovis_idx_op_init(idx, opcode, keys, vals, rcs, flags,
+					*op);
 	}
 
 	return M0_RC(rc);
@@ -475,7 +479,7 @@ M0_INTERNAL int m0_clovis_idx_op_namei(struct m0_clovis_entity *entity,
 	if (rc == 0) {
 		M0_ASSERT(*op != NULL);
 		idx = container_of(entity, struct m0_clovis_idx, in_entity);
-		rc = clovis_idx_op_init(idx, opcode, NULL, NULL, NULL, *op);
+		rc = clovis_idx_op_init(idx, opcode, NULL, NULL, NULL, 0, *op);
 	}
 
 	return M0_RC(rc);

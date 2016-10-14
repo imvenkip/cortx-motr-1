@@ -116,7 +116,7 @@ int clovis_st_idx_op(struct m0_clovis_idx       *idx,
 {
 	int rc;
 
-	rc = m0_clovis_idx_op(idx, opcode, keys, vals, rcs, op);
+	rc = m0_clovis_idx_op(idx, opcode, keys, vals, rcs, 0, op);
 	if (*op != NULL) clovis_st_mark_op(*op);
 
 	return rc;

@@ -202,7 +202,8 @@ static void ut_dix_namei_ops(void)
 	m0_clovis_idx_fini(&idup);
 
 	/* Check that index exists. */
-	rc = m0_clovis_idx_op(&idx, M0_CLOVIS_IC_LOOKUP, NULL, NULL, NULL, &op);
+	rc = m0_clovis_idx_op(&idx, M0_CLOVIS_IC_LOOKUP, NULL, NULL, NULL, 0,
+			      &op);
 	M0_UT_ASSERT(rc == 0);
 	m0_clovis_op_launch(&op, 1);
 	rc = m0_clovis_op_wait(op, M0_BITS(M0_CLOVIS_OS_STABLE), WAIT_TIMEOUT);
@@ -215,7 +216,8 @@ static void ut_dix_namei_ops(void)
 	rc = m0_bufvec_alloc(&keys, 2, sizeof(struct m0_fid));
 	M0_UT_ASSERT(rc == 0);
 	m0_clovis_idx_init(&idx0, &realm.co_realm, (struct m0_uint128 *)&ifid0);
-	rc = m0_clovis_idx_op(&idx, M0_CLOVIS_IC_LIST, &keys, NULL, rcs, &op);
+	rc = m0_clovis_idx_op(&idx, M0_CLOVIS_IC_LIST, &keys, NULL, rcs, 0,
+			      &op);
 	M0_UT_ASSERT(rc == 0);
 	m0_clovis_op_launch(&op, 1);
 	rc = m0_clovis_op_wait(op, M0_BITS(M0_CLOVIS_OS_STABLE), WAIT_TIMEOUT);
@@ -303,7 +305,8 @@ static void ut_dix_record_ops(void)
 	     m0_bufvec_empty_alloc(&vals, 1);
 	M0_UT_ASSERT(rc == 0);
 	*(uint64_t*)keys.ov_buf[0] = dix_key(10);
-	rc = m0_clovis_idx_op(&idx, M0_CLOVIS_IC_GET, &keys, &vals, rcs, &op);
+	rc = m0_clovis_idx_op(&idx, M0_CLOVIS_IC_GET, &keys, &vals, rcs, 0,
+			      &op);
 	M0_UT_ASSERT(rc == 0);
 	m0_clovis_op_launch(&op, 1);
 	rc = m0_clovis_op_wait(op, M0_BITS(M0_CLOVIS_OS_STABLE), WAIT_TIMEOUT);
@@ -327,17 +330,51 @@ static void ut_dix_record_ops(void)
 		*(uint64_t *)keys.ov_buf[i] = dix_key(i);
 		*(uint64_t *)vals.ov_buf[i] = dix_val(i);
 	}
-	rc = m0_clovis_idx_op(&idx, M0_CLOVIS_IC_PUT, &keys, &vals, rcs, &op);
+	rc = m0_clovis_idx_op(&idx, M0_CLOVIS_IC_PUT, &keys, &vals, rcs, 0,
+			      &op);
 	M0_UT_ASSERT(rc == 0);
 	m0_clovis_op_launch(&op, 1);
 	rc = m0_clovis_op_wait(op, M0_BITS(M0_CLOVIS_OS_STABLE), WAIT_TIMEOUT);
 	M0_UT_ASSERT(rc  == 0);
-	M0_UT_ASSERT(m0_forall(i, CNT, rcs[i] == 0));
-	m0_bufvec_free(&keys);
-	m0_bufvec_free(&vals);
+	M0_UT_ASSERT(m0_forall(i, CNT,
+			       rcs[i] == 0 &&
+		               *(uint64_t *)vals.ov_buf[i] == dix_val(i)));
 	m0_clovis_op_fini(op);
 	m0_free0(&op);
 	m0_free0(&rcs);
+
+	/* Try to add recs again without OVERWRITE flag. */
+	rcs = rcs_alloc(CNT);
+	rc = m0_clovis_idx_op(&idx, M0_CLOVIS_IC_PUT, &keys, &vals, rcs, 0,
+			      &op);
+	M0_UT_ASSERT(rc == 0);
+	m0_clovis_op_launch(&op, 1);
+	rc = m0_clovis_op_wait(op, M0_BITS(M0_CLOVIS_OS_STABLE), WAIT_TIMEOUT);
+	M0_UT_ASSERT(op->op_sm.sm_rc == 0);
+	M0_UT_ASSERT(m0_forall(i, CNT, rcs[i] == -EEXIST));
+	m0_clovis_op_fini(op);
+	m0_free0(&op);
+	m0_free0(&rcs);
+
+	/* Try to add recs again with OVERWRITE flag. */
+	rcs = rcs_alloc(CNT);
+	for (i = 0; i < keys.ov_vec.v_nr; i++)
+		*(uint64_t *)vals.ov_buf[i] = dix_val(i * 10);
+
+	rc = m0_clovis_idx_op(&idx, M0_CLOVIS_IC_PUT, &keys, &vals, rcs,
+			      M0_OIF_OVERWRITE, &op);
+	M0_UT_ASSERT(rc == 0);
+	m0_clovis_op_launch(&op, 1);
+	rc = m0_clovis_op_wait(op, M0_BITS(M0_CLOVIS_OS_STABLE), WAIT_TIMEOUT);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(op->op_sm.sm_rc == 0);
+	M0_UT_ASSERT(m0_forall(i, CNT, rcs[i] == 0));
+	m0_clovis_op_fini(op);
+	m0_free0(&op);
+	m0_free0(&rcs);
+
+	m0_bufvec_free(&keys);
+	m0_bufvec_free(&vals);
 
 	/* Get records from the index by keys. */
 	rcs = rcs_alloc(CNT);
@@ -346,14 +383,15 @@ static void ut_dix_record_ops(void)
 	M0_UT_ASSERT(rc == 0);
 	for (i = 0; i < keys.ov_vec.v_nr; i++)
 		*(uint64_t*)keys.ov_buf[i] = dix_key(i);
-	rc = m0_clovis_idx_op(&idx, M0_CLOVIS_IC_GET, &keys, &vals, rcs, &op);
+	rc = m0_clovis_idx_op(&idx, M0_CLOVIS_IC_GET, &keys, &vals, rcs, 0,
+			      &op);
 	M0_UT_ASSERT(rc == 0);
 	m0_clovis_op_launch(&op, 1);
 	rc = m0_clovis_op_wait(op, M0_BITS(M0_CLOVIS_OS_STABLE), WAIT_TIMEOUT);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(m0_forall(i, CNT,
 			       rcs[i] == 0 &&
-		               *(uint64_t *)vals.ov_buf[i] == dix_val(i)));
+		               *(uint64_t *)vals.ov_buf[i] == dix_val(i * 10)));
 	m0_bufvec_free(&keys);
 	m0_bufvec_free(&vals);
 	m0_clovis_op_fini(op);
@@ -368,7 +406,8 @@ static void ut_dix_record_ops(void)
 	for (i = 0; i < keys.ov_vec.v_nr; i++)
 		*(uint64_t*)keys.ov_buf[i] = dix_key(i);
 	*(uint64_t *)keys.ov_buf[5] = dix_key(999);
-	rc = m0_clovis_idx_op(&idx, M0_CLOVIS_IC_GET, &keys, &vals, rcs, &op);
+	rc = m0_clovis_idx_op(&idx, M0_CLOVIS_IC_GET, &keys, &vals, rcs, 0,
+			      &op);
 	M0_UT_ASSERT(rc == 0);
 	m0_clovis_op_launch(&op, 1);
 	rc = m0_clovis_op_wait(op, M0_BITS(M0_CLOVIS_OS_STABLE), WAIT_TIMEOUT);
@@ -376,7 +415,8 @@ static void ut_dix_record_ops(void)
 	for (i = 0; i < CNT; i++) {
 		if (i != 5) {
 			M0_UT_ASSERT(rcs[i] == 0);
-			M0_UT_ASSERT(*(uint64_t *)vals.ov_buf[i] == dix_val(i));
+			M0_UT_ASSERT(*(uint64_t *)vals.ov_buf[i] ==
+							dix_val(i * 10));
 		} else {
 			M0_UT_ASSERT(rcs[i] == -ENOENT);
 			M0_UT_ASSERT(vals.ov_buf[5] == NULL);
@@ -396,7 +436,8 @@ static void ut_dix_record_ops(void)
 	keys.ov_buf[0] = m0_alloc(sizeof(uint64_t));
 	keys.ov_vec.v_count[0] = sizeof(uint64_t);
 	*(uint64_t *)keys.ov_buf[0] = dix_key(0);
-	rc = m0_clovis_idx_op(&idx, M0_CLOVIS_IC_NEXT, &keys, &vals, rcs, &op);
+	rc = m0_clovis_idx_op(&idx, M0_CLOVIS_IC_NEXT, &keys, &vals, rcs, 0,
+			      &op);
 	M0_UT_ASSERT(rc == 0);
 	m0_clovis_op_launch(&op, 1);
 	rc = m0_clovis_op_wait(op, M0_BITS(M0_CLOVIS_OS_STABLE), WAIT_TIMEOUT);
@@ -404,7 +445,7 @@ static void ut_dix_record_ops(void)
 	M0_UT_ASSERT(m0_forall(i, CNT,
 			       rcs[i] == 0 &&
 			       *(uint64_t*)keys.ov_buf[i] == dix_key(i) &&
-			       *(uint64_t*)vals.ov_buf[i] == dix_val(i)));
+			       *(uint64_t*)vals.ov_buf[i] == dix_val(i * 10)));
 	M0_UT_ASSERT(rcs[CNT] == -ENOENT);
 	M0_UT_ASSERT(keys.ov_buf[CNT] == NULL);
 	M0_UT_ASSERT(vals.ov_buf[CNT] == NULL);
@@ -414,6 +455,29 @@ static void ut_dix_record_ops(void)
 	m0_free0(&op);
 	m0_free0(&rcs);
 
+	/* Try to add recs again with OVERWRITE flag. */
+	rcs = rcs_alloc(CNT + 1);
+	rc = m0_bufvec_alloc(&keys, CNT, sizeof(uint64_t)) ?:
+	     m0_bufvec_alloc(&vals, CNT, sizeof(uint64_t));
+	M0_UT_ASSERT(rc == 0);
+	for (i = 0; i < keys.ov_vec.v_nr; i++) {
+		*(uint64_t *)vals.ov_buf[i] = dix_val(i);
+		*(uint64_t *)keys.ov_buf[i] = dix_key(i);
+	}
+
+	rc = m0_clovis_idx_op(&idx, M0_CLOVIS_IC_PUT, &keys, &vals, rcs,
+			      M0_OIF_OVERWRITE, &op);
+	M0_UT_ASSERT(rc == 0);
+	m0_clovis_op_launch(&op, 1);
+	rc = m0_clovis_op_wait(op, M0_BITS(M0_CLOVIS_OS_STABLE), WAIT_TIMEOUT);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(op->op_sm.sm_rc == 0);
+	M0_UT_ASSERT(m0_forall(i, CNT, rcs[i] == 0));
+	m0_clovis_op_fini(op);
+	m0_free0(&op);
+	m0_free0(&rcs);
+	m0_bufvec_free(&vals);
+	m0_bufvec_free(&keys);
 	/*
 	 * Iterate over all records in the index, starting from the beginning
 	 * and requesting two records at a time.
@@ -438,7 +502,7 @@ static void ut_dix_record_ops(void)
 			keys.ov_vec.v_count[0] = 0;
 		}
 		rc = m0_clovis_idx_op(&idx, M0_CLOVIS_IC_NEXT, &keys, &vals,
-				      rcs, &op);
+				      rcs, 0, &op);
 		M0_UT_ASSERT(rc == 0);
 		m0_clovis_op_launch(&op, 1);
 		rc = m0_clovis_op_wait(op, M0_BITS(M0_CLOVIS_OS_STABLE),
@@ -476,7 +540,7 @@ static void ut_dix_record_ops(void)
 	rc = m0_bufvec_alloc(&keys, CNT, sizeof(uint64_t));
 	for (i = 0; i < keys.ov_vec.v_nr; i++)
 		*(uint64_t *)keys.ov_buf[i] = dix_key(i);
-	rc = m0_clovis_idx_op(&idx, M0_CLOVIS_IC_DEL, &keys, NULL, rcs, &op);
+	rc = m0_clovis_idx_op(&idx, M0_CLOVIS_IC_DEL, &keys, NULL, rcs, 0, &op);
 	M0_UT_ASSERT(rc == 0);
 	m0_clovis_op_launch(&op, 1);
 	rc = m0_clovis_op_wait(op, M0_BITS(M0_CLOVIS_OS_STABLE), WAIT_TIMEOUT);

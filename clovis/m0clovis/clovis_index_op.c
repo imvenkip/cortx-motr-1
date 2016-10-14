@@ -129,7 +129,7 @@ int clovis_index_list(struct m0_clovis_realm *parent,
 		return M0_ERR(rc);
 	}
 	m0_clovis_idx_init(&idx, parent, (struct m0_uint128 *)fid);
-	rc = m0_clovis_idx_op(&idx, M0_CLOVIS_IC_LIST, keys, NULL, rcs, &op);
+	rc = m0_clovis_idx_op(&idx, M0_CLOVIS_IC_LIST, keys, NULL, rcs, 0, &op);
 	rc = index_op_tail(&idx.in_entity, op, rc, NULL) ?:
 	     per_item_rcs_analyse(rcs, cnt);
 	m0_free(rcs);
@@ -158,7 +158,7 @@ int clovis_index_lookup(struct m0_clovis_realm *parent,
 		m0_clovis_idx_init(&idx, parent,
 				   (struct m0_uint128 *)&fids->af_elems[i]);
 		rc = m0_clovis_idx_op(&idx, M0_CLOVIS_IC_LOOKUP, NULL, NULL,
-				      NULL, &op);
+				      NULL, 0, &op);
 		rc = index_op_tail(&idx.in_entity, op, rc,
 				   (int *)rets->ov_buf[i]);
 	}
@@ -183,7 +183,7 @@ static int index_op(struct m0_clovis_realm    *parent,
 	if (rcs == NULL)
 		return M0_ERR(-ENOMEM);
 	m0_clovis_idx_init(&idx, parent, (struct m0_uint128 *)fid);
-	rc = m0_clovis_idx_op(&idx, opcode, keys, vals, rcs, &op);
+	rc = m0_clovis_idx_op(&idx, opcode, keys, vals, rcs, 0, &op);
 	rc = index_op_tail(&idx.in_entity, op, rc, NULL);
 	/*
 	 * Don't analyse per-item codes for NEXT, because usually user gets

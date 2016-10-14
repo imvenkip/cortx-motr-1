@@ -74,6 +74,15 @@ enum m0_clovis_idx_service_type {
 	M0_CLOVIS_IDX_MAX_SERVICE_ID
 };
 
+/** Values of index operation flags supported by Clovis index operation. */
+enum m0_clovis_op_idx_flags {
+	/**
+	 * For M0_CLOVIS_IC_PUT operation, instructs it to silently overwrite
+	 * existing record with the same key, if any.
+	 */
+        M0_OIF_OVERWRITE = 1 << 0,
+};
+
 /**
  * Query operations for an index service. The operations in this data
  * structure can be devided into 2 groups:

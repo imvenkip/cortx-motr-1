@@ -134,11 +134,11 @@ static void ut_clovis_idx_op_init(void)
 	/* ADD FI here */
 	m0_fi_enable_once("m0_clovis_op_init", "fail_op_init");
 	rc = clovis_idx_op_init(&idx, M0_CLOVIS_EO_CREATE,
-				NULL, NULL, NULL, op);
+				NULL, NULL, NULL, 0, op);
 	M0_UT_ASSERT(rc != 0);
 
 	rc = clovis_idx_op_init(&idx, M0_CLOVIS_EO_CREATE,
-				NULL, NULL, NULL, op);
+				NULL, NULL, NULL, 0, op);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(op->op_code  == M0_CLOVIS_EO_CREATE);
 	m0_free(op);
@@ -634,7 +634,8 @@ static void ut_m0_clovis_idx_op(void)
 	/* Base case */
 	keys.ov_vec.v_nr = 0x01;
 	vals.ov_vec.v_nr = 0x01;
-	rc = m0_clovis_idx_op(&idx, M0_CLOVIS_IC_GET, &keys, &vals, &rcs, &op);
+	rc = m0_clovis_idx_op(&idx, M0_CLOVIS_IC_GET, &keys, &vals, &rcs, 0,
+			      &op);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(op != NULL);
 	m0_free(op);

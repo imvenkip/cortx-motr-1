@@ -1080,6 +1080,11 @@ void m0_clovis_idx_fini(struct m0_clovis_idx *idx);
  *
  * 'rcs' argument is mandatory for all operations except M0_CLOVIS_IC_LOOKUP.
  *
+ * For M0_CLOVIC_IC_PUT flags argument may be set.
+ * - 'flags' is a bit-mask of m0_clovis_op_idx_flags enum. Only M0_OIF_OVERWRITE
+ *   is supported for now. If flag is set then records with existing keys are
+ *   overwritten, otherwise operation returns -EEXIST for existing keys.
+ *
  * @pre idx != NULL
  * @pre M0_IN(opcode, (M0_CLOVIS_IC_LOOKUP, M0_CLOVIS_IC_LIST,
  *                     M0_CLOVIS_IC_GET, M0_CLOVIS_IC_PUT,
@@ -1111,6 +1116,7 @@ int m0_clovis_idx_op(struct m0_clovis_idx       *idx,
 		     struct m0_bufvec           *keys,
 		     struct m0_bufvec           *vals,
 		     int32_t                    *rcs,
+		     uint32_t                    flags,
 		     struct m0_clovis_op       **op);
 
 void m0_clovis_realm_create(struct m0_clovis_realm    *realm,

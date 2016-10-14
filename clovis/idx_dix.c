@@ -488,11 +488,14 @@ static void dix_put_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	struct m0_clovis_op_idx *oi = dix_req->idr_oi;
 	struct m0_dix            dix;
 	struct m0_dix_req       *dreq = &dix_req->idr_dreq;
+	uint32_t                 flags = 0;
 	int                      rc;
 
 	M0_ENTRY();
 	dix_dreq_prepare(dix_req, &dix, oi);
-	rc = m0_dix_put(dreq, &dix, oi->oi_keys, oi->oi_vals, NULL, 0);
+	if (oi->oi_flags & M0_OIF_OVERWRITE)
+		flags = COF_OVERWRITE;
+	rc = m0_dix_put(dreq, &dix, oi->oi_keys, oi->oi_vals, NULL, flags);
 	if (rc != 0)
 		dix_req_immed_failure(dix_req, M0_ERR(rc));
 	M0_LEAVE();
