@@ -31,10 +31,10 @@
 #include "ha/link_service.h"
 
 #include "lib/tlist.h"          /* M0_TL_DESCR_DEFINE */
-#include "lib/rwlock.h"         /* m0_rwlock */
 #include "lib/misc.h"           /* container_of */
 #include "lib/types.h"          /* m0_uint128_eq */
 #include "lib/memory.h"         /* M0_ALLOC_PTR */
+#include "lib/mutex.h"          /* m0_mutex */
 
 #include "mero/magic.h"         /* M0_HA_LINK_SERVICE_MAGIC */
 #include "reqh/reqh_service.h"  /* m0_reqh_service */
@@ -51,7 +51,8 @@ struct ha_link_service {
 	struct m0_reqh_service  hls_service;
 	struct m0_reqh         *hls_reqh;
 	struct m0_tl            hls_links;
-	struct m0_rwlock        hls_lock;
+	struct m0_tl            hls_quiescing;
+	struct m0_mutex         hls_lock;
 	uint64_t                hls_magic;
 };
 
@@ -78,8 +79,9 @@ static void ha_link_service_init(struct m0_reqh_service *service)
 	struct ha_link_service *hl_service = ha_link_service_container(service);
 
 	M0_ENTRY("service=%p hl_service=%p", service, hl_service);
-	m0_rwlock_init(&hl_service->hls_lock);
+	m0_mutex_init(&hl_service->hls_lock);
 	ha_link_svc_tlist_init(&hl_service->hls_links);
+	ha_link_svc_tlist_init(&hl_service->hls_quiescing);
 	M0_LEAVE();
 }
 
@@ -88,8 +90,9 @@ static void ha_link_service_fini(struct m0_reqh_service *service)
 	struct ha_link_service *hl_service = ha_link_service_container(service);
 
 	M0_ENTRY("service=%p hl_service=%p", service, hl_service);
+	ha_link_svc_tlist_fini(&hl_service->hls_quiescing);
 	ha_link_svc_tlist_fini(&hl_service->hls_links);
-	m0_rwlock_fini(&hl_service->hls_lock);
+	m0_mutex_fini(&hl_service->hls_lock);
 	ha_link_service_bob_fini(hl_service);
 	/* allocated in ha_link_service_allocate() */
 	m0_free(container_of(service, struct ha_link_service, hls_service));
@@ -108,41 +111,115 @@ static void ha_link_service_stop(struct m0_reqh_service *service)
 	M0_LEAVE();
 }
 
-M0_INTERNAL struct m0_ha_link *
-m0_ha_link_service_find(struct m0_reqh_service  *service,
-                        const struct m0_uint128 *link_id,
-                        struct m0_uint128       *connection_id)
+static struct m0_ha_link *
+ha_link_service_find(struct ha_link_service  *hl_service,
+                     const struct m0_uint128 *link_id,
+                     struct m0_uint128       *connection_id)
 {
-	struct ha_link_service *hl_service = ha_link_service_container(service);
-	struct m0_ha_link      *hl;
+	struct m0_ha_link *hl;
 
-	M0_ENTRY("service=%p hl_service=%p link_id="U128X_F,
-		 service, hl_service, U128_P(link_id));
-	m0_rwlock_read_lock(&hl_service->hls_lock);
+	M0_ENTRY("hl_service=%p link_id="U128X_F, hl_service, U128_P(link_id));
+	M0_PRE(m0_mutex_is_locked(&hl_service->hls_lock));
 	hl = m0_tl_find(ha_link_svc, ha_link, &hl_service->hls_links,
-		m0_uint128_eq(&ha_link->hln_conn_cfg.hlcc_params.hlp_id_local,
-			      link_id));
+		m0_uint128_eq(&ha_link->hln_service_link_id, link_id));
 	if (connection_id != NULL)
 		*connection_id = hl == NULL ? M0_UINT128(0, 0) :
-				 hl->hln_conn_cfg.hlcc_params.hlp_id_connection;
-	m0_rwlock_read_unlock(&hl_service->hls_lock);
+				 hl->hln_service_connection_id;
 	M0_LEAVE("hl=%p link_id="U128X_F" connection_id="U128X_F, hl,
 	         U128_P(link_id), U128_P(connection_id == NULL ?
 	                                 &M0_UINT128(0, 0) : connection_id));
 	return hl;
 }
 
-M0_INTERNAL void m0_ha_link_service_register(struct m0_reqh_service *service,
-                                             struct m0_ha_link      *hl)
+static void ha_link_service_get(struct ha_link_service *hl_service,
+                                struct m0_ha_link      *hl)
+{
+	M0_PRE(hl != NULL);
+	M0_ENTRY("hl_service=%p hl=%p hln_service_ref_counter=%"PRIu64,
+		 hl_service, hl, hl->hln_service_ref_counter);
+	M0_PRE(m0_mutex_is_locked(&hl_service->hls_lock));
+	M0_PRE(!hl->hln_service_quiescing);
+	M0_PRE(!hl->hln_service_released);
+
+	++hl->hln_service_ref_counter;
+}
+
+M0_INTERNAL struct m0_ha_link *
+m0_ha_link_service_find_get(struct m0_reqh_service  *service,
+                            const struct m0_uint128 *link_id,
+                            struct m0_uint128       *connection_id)
+{
+	struct ha_link_service *hl_service = ha_link_service_container(service);
+	struct m0_ha_link      *hl;
+
+	M0_ENTRY("service=%p hl_service=%p link_id="U128X_F,
+	         service, hl_service, U128_P(link_id));
+	m0_mutex_lock(&hl_service->hls_lock);
+	hl = ha_link_service_find(hl_service, link_id, connection_id);
+	if (hl != NULL)
+		ha_link_service_get(hl_service, hl);
+	m0_mutex_unlock(&hl_service->hls_lock);
+	M0_LEAVE("service=%p hl_service=%p link_id="U128X_F" hl=%p ",
+	         service, hl_service, U128_P(link_id), hl);
+	return hl;
+}
+
+M0_INTERNAL void m0_ha_link_service_put(struct m0_reqh_service *service,
+                                        struct m0_ha_link      *hl)
+{
+	struct ha_link_service *hl_service = ha_link_service_container(service);
+	uint64_t                ref_counter;
+
+	M0_ENTRY("service=%p hl_service=%p hl=%p", service, hl_service, hl);
+	m0_mutex_lock(&hl_service->hls_lock);
+	M0_PRE(hl->hln_service_ref_counter > 0);
+	--hl->hln_service_ref_counter;
+	if (hl->hln_service_ref_counter == 0 && hl->hln_service_quiescing) {
+		hl->hln_service_released = true;
+		m0_chan_signal_lock(hl->hln_service_release_chan);
+	}
+	ref_counter = hl->hln_service_ref_counter;
+	m0_mutex_unlock(&hl_service->hls_lock);
+	M0_LEAVE("service=%p hl_service=%p hl=%p "
+	         "hln_service_ref_counter=%"PRIu64,
+	         service, hl_service, hl, ref_counter);
+}
+
+M0_INTERNAL void m0_ha_link_service_quiesce(struct m0_reqh_service *service,
+                                            struct m0_ha_link      *hl,
+                                            struct m0_chan         *chan)
+{
+	struct ha_link_service *hl_service = ha_link_service_container(service);
+
+	M0_ENTRY("service=%p hl_service=%p hl=%p", service, hl_service, hl);
+	m0_mutex_lock(&hl_service->hls_lock);
+	hl->hln_service_release_chan = chan;
+	ha_link_service_get(hl_service, hl);
+	ha_link_svc_tlist_move_tail(&hl_service->hls_quiescing, hl);
+	hl->hln_service_quiescing = true;
+	m0_mutex_unlock(&hl_service->hls_lock);
+	m0_ha_link_service_put(service, hl);
+	M0_LEAVE("service=%p hl_service=%p hl=%p", service, hl_service, hl);
+}
+
+M0_INTERNAL void
+m0_ha_link_service_register(struct m0_reqh_service  *service,
+                            struct m0_ha_link       *hl,
+                            const struct m0_uint128 *link_id,
+                            const struct m0_uint128 *connection_id)
 {
 	struct ha_link_service *hl_service = ha_link_service_container(service);
 
 	M0_ENTRY("service=%p hl=%p hl_service=%p", service, hl, hl_service);
-	M0_PRE(m0_ha_link_service_find(service,
-		   &hl->hln_conn_cfg.hlcc_params.hlp_id_local, NULL) == NULL);
-	m0_rwlock_write_lock(&hl_service->hls_lock);
+	hl->hln_service_ref_counter   = 0;
+	hl->hln_service_link_id       = *link_id;
+	hl->hln_service_connection_id = *connection_id;
+	hl->hln_service_quiescing     = false;
+	hl->hln_service_released      = false;
+	m0_mutex_lock(&hl_service->hls_lock);
+	M0_PRE(ha_link_service_find(hl_service, link_id, NULL) == NULL);
 	ha_link_svc_tlink_init_at_tail(hl, &hl_service->hls_links);
-	m0_rwlock_write_unlock(&hl_service->hls_lock);
+	m0_mutex_unlock(&hl_service->hls_lock);
 	M0_LEAVE();
 }
 
@@ -152,9 +229,11 @@ M0_INTERNAL void m0_ha_link_service_deregister(struct m0_reqh_service *service,
 	struct ha_link_service *hl_service = ha_link_service_container(service);
 
 	M0_ENTRY("service=%p hl=%p hl_service=%p", service, hl, hl_service);
-	m0_rwlock_write_lock(&hl_service->hls_lock);
+	M0_PRE(hl->hln_service_released);
+	M0_PRE(hl->hln_service_ref_counter == 0);
+	m0_mutex_lock(&hl_service->hls_lock);
 	ha_link_svc_tlink_del_fini(hl);
-	m0_rwlock_write_unlock(&hl_service->hls_lock);
+	m0_mutex_unlock(&hl_service->hls_lock);
 	M0_LEAVE();
 }
 

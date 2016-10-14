@@ -23,9 +23,9 @@
  * @addtogroup ha
  *
  * TODO bob_of in ha_link_rpc_wait_cb
- * TODO wait for all incoming foms to stop in stop()
  * TODO handle rpc failures in incoming fom (for reply)
  * TODO use m0_module in m0_ha_link
+ * TODO reconsider localities for incoming/outgoing foms
  *
  * * m0_ha_link state machine
  *
@@ -43,9 +43,11 @@
  *                 v  ^
  *           CONNECT  DISCONNECTING
  *                 v  ^
- *                 v  INCOMING_QUIESCE
- *                 v  ^
  * INCOMING_REGISTER  INCOMING_DEREGISTER
+ *                 v  ^
+ *                 v  INCOMING_QUIESCE_WAIT
+ *                 v  ^
+ *                 v  INCOMING_QUIESCE
  *                 v  ^
  *        CONNECTING  DISCONNECT
  *                 v  ^
@@ -170,6 +172,20 @@ static bool ha_link_rpc_wait_cb(struct m0_clink *clink)
 	return true;
 }
 
+static bool ha_link_quiesce_wait_cb(struct m0_clink *clink)
+{
+	struct m0_ha_link *hl;
+
+	M0_ENTRY();
+	hl = container_of(clink, struct m0_ha_link, hln_quiesce_wait);
+	m0_mutex_lock(&hl->hln_lock);
+	hl->hln_quiesced = true;
+	m0_mutex_unlock(&hl->hln_lock);
+	ha_link_outgoing_fom_wakeup(hl);
+	M0_LEAVE();
+	return true;
+}
+
 M0_INTERNAL int m0_ha_link_init(struct m0_ha_link     *hl,
 				struct m0_ha_link_cfg *hl_cfg)
 {
@@ -195,6 +211,10 @@ M0_INTERNAL int m0_ha_link_init(struct m0_ha_link     *hl,
 	m0_sm_init(&hl->hln_sm, &ha_link_sm_conf, M0_HA_LINK_STATE_INIT,
 		   &hl->hln_sm_group);
 	m0_clink_init(&hl->hln_rpc_wait, &ha_link_rpc_wait_cb);
+	m0_clink_init(&hl->hln_quiesce_wait, &ha_link_quiesce_wait_cb);
+	m0_mutex_init(&hl->hln_quiesce_chan_lock);
+	m0_chan_init(&hl->hln_quiesce_chan, &hl->hln_quiesce_chan_lock);
+	m0_clink_add_lock(&hl->hln_quiesce_chan, &hl->hln_quiesce_wait);
 	hl->hln_rpc_wait.cl_is_oneshot = true;
 	hl->hln_reconnect = false;
 	hl->hln_reconnect_cfg_is_set = false;
@@ -208,6 +228,10 @@ M0_INTERNAL int m0_ha_link_init(struct m0_ha_link     *hl,
 M0_INTERNAL void m0_ha_link_fini(struct m0_ha_link *hl)
 {
 	M0_ENTRY("hl=%p", hl);
+	m0_clink_del_lock(&hl->hln_quiesce_wait);
+	m0_chan_fini_lock(&hl->hln_quiesce_chan);
+	m0_mutex_fini(&hl->hln_quiesce_chan_lock);
+	m0_clink_fini(&hl->hln_quiesce_wait);
 	m0_clink_fini(&hl->hln_rpc_wait);
 	m0_sm_group_lock(&hl->hln_sm_group);
 	m0_sm_state_set(&hl->hln_sm, M0_HA_LINK_STATE_FINI);
@@ -780,10 +804,23 @@ static void ha_link_msg_recv_or_delivery_broadcast(struct m0_ha_link *hl)
 	m0_sm_group_unlock(&hl->hln_sm_group);
 }
 
+struct ha_link_incoming_fom {
+	struct m0_ha_link *hli_hl;
+	struct m0_fom      hli_fom;
+};
+
+static struct ha_link_incoming_fom *
+ha_link_incoming_fom_container(struct m0_fom *fom)
+{
+	/* TODO bob_of */
+	return container_of(fom, struct ha_link_incoming_fom, hli_fom);
+}
+
 static int ha_link_incoming_fom_tick(struct m0_fom *fom)
 {
 	struct m0_ha_link_msg_fop     *req_fop;
 	struct m0_ha_link_msg_rep_fop *rep_fop;
+	struct ha_link_incoming_fom   *hli;
 	struct m0_ha_link             *hl;
 	struct m0_uint128              id_connection;
 	struct m0_ha_msg              *msg;
@@ -791,6 +828,7 @@ static int ha_link_incoming_fom_tick(struct m0_fom *fom)
 
 	req_fop = m0_fop_data(fom->fo_fop);
 	rep_fop = m0_fop_data(fom->fo_rep_fop);
+	hli = ha_link_incoming_fom_container(fom);
 	ep = m0_rpc_conn_addr(
 	                 m0_fop_to_rpc_item(fom->fo_fop)->ri_session->s_conn);
 	M0_ENTRY("fom=%p req_fop=%p rep_fop=%p ep=%s",
@@ -801,10 +839,10 @@ static int ha_link_incoming_fom_tick(struct m0_fom *fom)
 	       U128_P(&req_fop->lmf_id_local),
 	       U128_P(&req_fop->lmf_id_connection));
 
-	/* XXX FIXME race with access to
-	 * hl->hln_conn_cfg.hlcc_params.hlp_id_local */
-	hl = m0_ha_link_service_find(fom->fo_service, &req_fop->lmf_id_remote,
-				     &id_connection);
+	hl = m0_ha_link_service_find_get(fom->fo_service,
+					 &req_fop->lmf_id_remote,
+	                                 &id_connection);
+	hli->hli_hl = hl;
 	M0_LOG(M0_DEBUG, "fom=%p hl=%p", fom, hl);
 	if (req_fop->lmf_msg_nr != 0) {
 		msg = &req_fop->lmf_msg;
@@ -849,8 +887,12 @@ static int ha_link_incoming_fom_tick(struct m0_fom *fom)
 
 static void ha_link_incoming_fom_fini(struct m0_fom *fom)
 {
+	struct ha_link_incoming_fom *hli = ha_link_incoming_fom_container(fom);
+
 	m0_fom_fini(fom);
-	m0_free(fom);
+	if (hli->hli_hl != NULL)
+		m0_ha_link_service_put(hli->hli_fom.fo_service, hli->hli_hl);
+	m0_free(hli);
 }
 
 static size_t ha_link_incoming_fom_locality(const struct m0_fom *fom)
@@ -868,19 +910,21 @@ static int ha_link_incoming_fom_create(struct m0_fop   *fop,
                                        struct m0_fom  **m,
                                        struct m0_reqh  *reqh)
 {
+	struct ha_link_incoming_fom   *hli;
 	struct m0_fom                 *fom;
 	struct m0_ha_link_msg_rep_fop *reply;
 
 	M0_PRE(fop != NULL);
 	M0_PRE(m != NULL);
 
-	M0_ALLOC_PTR(fom);
-	if (fom == NULL)
+	M0_ALLOC_PTR(hli);
+	if (hli == NULL)
 		return M0_ERR(-ENOMEM);
+	fom = &hli->hli_fom;
 
 	M0_ALLOC_PTR(reply);
 	if (reply == NULL) {
-		m0_free(fom);
+		m0_free(hli);
 		return M0_ERR(-ENOMEM);
 	}
 
@@ -888,7 +932,7 @@ static int ha_link_incoming_fom_create(struct m0_fop   *fop,
 				       reply, m0_fop_rpc_machine(fop));
 	if (fom->fo_rep_fop == NULL) {
 		m0_free(reply);
-		m0_free(fom);
+		m0_free(hli);
 		return M0_ERR(-ENOMEM);
 	}
 
@@ -909,6 +953,7 @@ enum ha_link_outgoing_fom_state {
 	HA_LINK_OUTGOING_STATE_INCOMING_REGISTER,
 	HA_LINK_OUTGOING_STATE_INCOMING_DEREGISTER,
 	HA_LINK_OUTGOING_STATE_INCOMING_QUIESCE,
+	HA_LINK_OUTGOING_STATE_INCOMING_QUIESCE_WAIT,
 	HA_LINK_OUTGOING_STATE_RPC_LINK_INIT,
 	HA_LINK_OUTGOING_STATE_RPC_LINK_FINI,
 	HA_LINK_OUTGOING_STATE_NOT_CONNECTED,
@@ -956,10 +1001,12 @@ ha_link_outgoing_fom_states[HA_LINK_OUTGOING_STATE_NR] = {
 	_ST(HA_LINK_OUTGOING_STATE_WAIT_RELEASE, 0,
 	   M0_BITS(HA_LINK_OUTGOING_STATE_IDLE)),
 	_ST(HA_LINK_OUTGOING_STATE_DISCONNECT, 0,
-	   M0_BITS(HA_LINK_OUTGOING_STATE_INCOMING_DEREGISTER)),
-	_ST(HA_LINK_OUTGOING_STATE_INCOMING_DEREGISTER, 0,
 	   M0_BITS(HA_LINK_OUTGOING_STATE_INCOMING_QUIESCE)),
 	_ST(HA_LINK_OUTGOING_STATE_INCOMING_QUIESCE, 0,
+	   M0_BITS(HA_LINK_OUTGOING_STATE_INCOMING_QUIESCE_WAIT)),
+	_ST(HA_LINK_OUTGOING_STATE_INCOMING_QUIESCE_WAIT, 0,
+	   M0_BITS(HA_LINK_OUTGOING_STATE_INCOMING_DEREGISTER)),
+	_ST(HA_LINK_OUTGOING_STATE_INCOMING_DEREGISTER, 0,
 	   M0_BITS(HA_LINK_OUTGOING_STATE_DISCONNECTING)),
 	_ST(HA_LINK_OUTGOING_STATE_DISCONNECTING, 0,
 	   M0_BITS(HA_LINK_OUTGOING_STATE_NOT_CONNECTED)),
@@ -1119,6 +1166,7 @@ static int ha_link_outgoing_fom_tick(struct m0_fom *fom)
 	bool                             stopping;
 	bool                             rpc_event_occurred;
 	bool                             reconnect;
+	bool                             quiesced;
 	int                              reply_rc;
 	int                              rc;
 
@@ -1209,7 +1257,9 @@ static int ha_link_outgoing_fom_tick(struct m0_fom *fom)
 			hl->hln_reconnect_cfg_is_set = false;
 			ha_link_tags_apply(hl, &hl->hln_conn_cfg.hlcc_params);
 		}
-		m0_ha_link_service_register(hl->hln_cfg.hlc_reqh_service, hl);
+		m0_ha_link_service_register(hl->hln_cfg.hlc_reqh_service, hl,
+			    &hl->hln_conn_cfg.hlcc_params.hlp_id_local,
+			    &hl->hln_conn_cfg.hlcc_params.hlp_id_connection);
 		m0_mutex_unlock(&hl->hln_lock);
 		m0_fom_phase_set(fom, HA_LINK_OUTGOING_STATE_CONNECTING);
 		return M0_RC(M0_FSO_AGAIN);
@@ -1232,18 +1282,29 @@ static int ha_link_outgoing_fom_tick(struct m0_fom *fom)
 				  hl->hln_conn_cfg.hlcc_disconnect_timeout);
 		m0_rpc_link_disconnect_async(&hl->hln_rpc_link, abs_timeout,
 		                             &hl->hln_rpc_wait);
-		m0_fom_phase_set(fom,
-				 HA_LINK_OUTGOING_STATE_INCOMING_DEREGISTER);
-		return M0_RC(M0_FSO_AGAIN);
-	case HA_LINK_OUTGOING_STATE_INCOMING_DEREGISTER:
-		/* protect hl->hln_conn_cfg */
-		m0_mutex_lock(&hl->hln_lock);
-		m0_ha_link_service_deregister(hl->hln_cfg.hlc_reqh_service, hl);
-		m0_mutex_unlock(&hl->hln_lock);
 		m0_fom_phase_set(fom, HA_LINK_OUTGOING_STATE_INCOMING_QUIESCE);
 		return M0_RC(M0_FSO_AGAIN);
 	case HA_LINK_OUTGOING_STATE_INCOMING_QUIESCE:
-		/* not implemented yet */
+		m0_mutex_lock(&hl->hln_lock);
+		hl->hln_quiesced = false;
+		m0_mutex_unlock(&hl->hln_lock);
+		m0_ha_link_service_quiesce(hl->hln_cfg.hlc_reqh_service, hl,
+		                           &hl->hln_quiesce_chan);
+		m0_fom_phase_set(fom,
+				 HA_LINK_OUTGOING_STATE_INCOMING_QUIESCE_WAIT);
+		return M0_RC(M0_FSO_AGAIN);
+	case HA_LINK_OUTGOING_STATE_INCOMING_QUIESCE_WAIT:
+		m0_mutex_lock(&hl->hln_lock);
+		quiesced = hl->hln_quiesced;
+		m0_mutex_unlock(&hl->hln_lock);
+		if (quiesced) {
+			m0_fom_phase_set(fom,
+				 HA_LINK_OUTGOING_STATE_INCOMING_DEREGISTER);
+			return M0_RC(M0_FSO_AGAIN);
+		}
+		return M0_RC(M0_FSO_WAIT);
+	case HA_LINK_OUTGOING_STATE_INCOMING_DEREGISTER:
+		m0_ha_link_service_deregister(hl->hln_cfg.hlc_reqh_service, hl);
 		m0_fom_phase_set(fom, HA_LINK_OUTGOING_STATE_DISCONNECTING);
 		return M0_RC(M0_FSO_AGAIN);
 	case HA_LINK_OUTGOING_STATE_DISCONNECTING:

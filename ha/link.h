@@ -194,13 +194,7 @@ struct m0_ha_link_cfg {
 
 struct m0_ha_link {
 	struct m0_ha_link_cfg       hln_cfg;
-	/**
-	 * Protected by hln_lock.
-	 *
-	 * @note m0_ha_link_service_register(), m0_ha_link_service_deregister(),
-	 * m0_ha_link_service_find() use this field. Be sure to acquire the lock
-	 * before these functions are called.
-	 */
+	/** Protected by hln_lock. */
 	struct m0_ha_link_conn_cfg  hln_conn_cfg;
 	/** Protected by hln_lock */
 	struct m0_ha_link_conn_cfg  hln_conn_reconnect_cfg;
@@ -219,7 +213,6 @@ struct m0_ha_link {
 	struct m0_sm                hln_sm;
 	struct m0_ha_lq             hln_q_in;
 	struct m0_ha_lq             hln_q_out;
-	/** ha_sl */
 	struct m0_fom               hln_fom;
 	struct m0_locality         *hln_fom_locality;
 	bool                        hln_fom_is_stopping;
@@ -248,6 +241,18 @@ struct m0_ha_link {
 	uint64_t                    hln_tag_broadcast_recv;
 	/** Protected by ::hln_sm_group */
 	uint64_t                    hln_tag_broadcast_delivery;
+	struct m0_mutex             hln_quiesce_chan_lock;
+	struct m0_chan              hln_quiesce_chan;
+	struct m0_clink             hln_quiesce_wait;
+	bool                        hln_quiesced;
+
+	/* These fields are owned by m0_ha_link_service */
+	uint64_t                    hln_service_ref_counter;
+	struct m0_uint128           hln_service_link_id;
+	struct m0_uint128           hln_service_connection_id;
+	struct m0_chan             *hln_service_release_chan;
+	bool                        hln_service_quiescing;
+	bool                        hln_service_released;
 };
 
 M0_INTERNAL int  m0_ha_link_init (struct m0_ha_link     *hl,
