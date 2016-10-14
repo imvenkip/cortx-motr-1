@@ -793,7 +793,7 @@ static struct m0_sm_state_descr cm_iter_sd[ITPH_NR] = {
 	[ITPH_FID_ATTR_LAYOUT] = {
 		.sd_flags   = 0,
 		.sd_name    = "File attr and layout fetch",
-		.sd_allowed = M0_BITS(ITPH_GROUP_NEXT)
+		.sd_allowed = M0_BITS(ITPH_GROUP_NEXT, ITPH_IDLE)
 	},
 	[ITPH_CP_SETUP] = {
 		.sd_flags   = 0,
@@ -863,7 +863,7 @@ M0_INTERNAL int m0_sns_cm_iter_start(struct m0_sns_cm_iter *it)
 M0_INTERNAL void m0_sns_cm_iter_stop(struct m0_sns_cm_iter *it)
 {
 	M0_PRE(M0_IN(iter_phase(it), (ITPH_INIT, ITPH_IDLE, ITPH_FID_NEXT,
-				      ITPH_GROUP_NEXT)));
+				      ITPH_GROUP_NEXT, ITPH_FID_ATTR_LAYOUT)));
 
 	if (!M0_IN(iter_phase(it), (ITPH_INIT, ITPH_IDLE)))
 		iter_phase_set(it, ITPH_IDLE);
