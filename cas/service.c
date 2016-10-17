@@ -29,6 +29,7 @@
 #include "lib/errno.h"               /* ENOMEM, EPROTO */
 #include "fop/fom_long_lock.h"
 #include "fop/fom_generic.h"
+#include "fop/fom_interpose.h"
 #include "reqh/reqh_service.h"
 #include "reqh/reqh.h"               /* m0_reqh */
 #include "rpc/rpc_opcodes.h"
@@ -146,22 +147,27 @@
  *                          |
  *                   [generic phases]
  *                          .
- *                          .
- *                          .
- *                          V                             meta_op
- *                       TXN_INIT-------------->CAS_START-----------+
- *                                                  |               |
- *                                                  V               |
- *                       TXN_OPEN<-----+      CAS_META_LOCK         |
- *                          |          |            |               |
- *                          |          |            V               |
- *                   [generic phases]  |     CAS_META_LOOKUP        |
- *                          .          |            |               |
- *                          .          |            V               |
- *                          .          |   CAS_META_LOOKUP_DONE     |
- *                          V          |            |               |
- *     SUCCESS<---------CAS_LOOP<----+ |            V               |
- *                          |        | |    +->CAS_LOAD_KEY<--------+
+ *                          .                               meta_op
+ *                          .                       +---------------------+
+ *                          V                       |                     |
+ *                       TXN_INIT-------------->CAS_START<-------+        |
+ *                                                  |            |        |
+ *                                                  V            |        |
+ *                       TXN_OPEN<-----+      CAS_META_LOCK      |        |
+ *                          |          |            |            |        |
+ *                          |          |            V            |        |
+ *                   [generic phases]  |     CAS_META_LOOKUP     |        |
+ *                          .          |            |            |        |
+ *                          .          |            V            |        |
+ *                          .          |   CAS_META_LOOKUP_DONE  |        |
+ *                          |          |            |            |        |
+ *                          |          |            | ctg_crow   |        |
+ *                          |          |            +----------+ |        |
+ *                          |          |            |          | |        |
+ *                          |          |            |          V |        |
+ *                          V          |            |   CAS_CTG_CROW_DONE |
+ *     SUCCESS<---------CAS_LOOP<----+ |            V                     |
+ *                          |        | |    +->CAS_LOAD_KEY<--------------+
  *                          |        | |    |       |
  *                          |        | |    |       V
  *                          |        | |    |  CAS_LOAD_VAL
@@ -265,6 +271,8 @@ struct cas_fom {
 	struct m0_cas_id         *cf_in_cids;
 	/** ->cf_in_cids array size. */
 	uint64_t                  cf_in_cids_nr;
+	struct m0_fom_thralldom   cf_thrall;
+	int                       cf_thrall_rc;
 	/* ADDB2 structures to collect long-lock contention metrics. */
 	struct m0_long_lock_addb2 cf_lock_addb2;
 	struct m0_long_lock_addb2 cf_meta_addb2;
@@ -282,6 +290,7 @@ enum cas_fom_phase {
 	CAS_META_LOCK,
 	CAS_META_LOOKUP,
 	CAS_META_LOOKUP_DONE,
+	CAS_CTG_CROW_DONE,
 	CAS_LOCK,
 	CAS_CTIDX_LOCK,
 	CAS_CTIDX,
@@ -355,7 +364,7 @@ static int  cas_buf_cid_decode(struct m0_buf    *enc_buf,
 			       struct m0_cas_id *cid);
 static bool cas_fid_is_cctg(const struct m0_fid *fid);
 static int  cas_id_check(const struct m0_cas_id *cid,
-			 struct m0_cas_ctg      *ctidx);
+			 uint32_t                flags);
 static int  cas_device_check(struct cas_service     *svc,
 			     const struct m0_cas_id *cid);
 static int  cas_op_check(struct m0_cas_op *op,
@@ -367,6 +376,9 @@ static void cas_incoming_kv(const struct cas_fom *fom,
 			    struct m0_buf        *val);
 static int  cas_incoming_kv_setup(struct cas_fom         *fom,
 				  const struct m0_cas_op *op);
+
+static int cas_ctg_crow_handle(struct cas_fom *fom,
+			       const struct m0_cas_id *cid);
 
 static const struct m0_reqh_service_ops      cas_service_ops;
 static const struct m0_reqh_service_type_ops cas_service_type_ops;
@@ -463,6 +475,7 @@ static int cas_fom_create(struct m0_fop *fop,
 		M0_ALLOC_ARR(ikv, in_nr);
 	else
 		ikv = NULL;
+
 	out_nr = cas_out_nr(fop);
 	repfop = m0_fop_reply_alloc(fop, &cas_rep_fopt);
 	/**
@@ -697,14 +710,13 @@ static int cas_op_check(struct m0_cas_op *op,
 	bool                is_meta = ct == CT_META;
 	struct cas_service *service = M0_AMB(service,
 					     fom0->fo_service, c_service);
-	struct m0_cas_ctg  *ctidx   = m0_ctg_ctidx();
 	int                 rc      = 0;
 
 	if (is_meta && opc == CO_PUT &&
 	     (cas_op(fom0)->cg_flags & COF_OVERWRITE))
 		rc = M0_ERR(-EPROTO);
 	if (rc == 0)
-		rc = cas_id_check(&op->cg_id, ctidx) ?:
+		rc = cas_id_check(&op->cg_id, op->cg_flags) ?:
 		     cas_device_check(service, &op->cg_id);
 	if (rc == 0 && is_meta && fom->cf_ikv_nr != 0) {
 		M0_ALLOC_ARR(fom->cf_in_cids, fom->cf_ikv_nr);
@@ -806,10 +818,25 @@ static int cas_fom_tick(struct m0_fom *fom0)
 		if (rc == 0) {
 			fom->cf_ctg = m0_ctg_meta_lookup_result(ctg_op);
 			M0_ASSERT(fom->cf_ctg != NULL);
-			m0_ctg_op_fini(ctg_op);
 			m0_fom_phase_set(fom0, CAS_LOAD_KEY);
-		} else
-			cas_fom_failure(fom, rc, true);
+		} else if (rc == -ENOENT && opc == CO_PUT &&
+			   (op->cg_flags & COF_CROW)) {
+			m0_long_unlock(&meta->cc_lock, &fom->cf_meta);
+			rc = cas_ctg_crow_handle(fom, &op->cg_id);
+			if (rc == 0) {
+				m0_fom_phase_set(fom0, CAS_CTG_CROW_DONE);
+				result = M0_FSO_WAIT;
+			}
+		}
+		m0_ctg_op_fini(ctg_op);
+		if (rc != 0)
+			cas_fom_failure(fom, rc, false);
+		break;
+	case CAS_CTG_CROW_DONE:
+		if (fom->cf_thrall_rc == 0)
+			m0_fom_phase_set(fom0, CAS_START);
+		else
+			cas_fom_failure(fom, fom->cf_thrall_rc, false);
 		break;
 	case CAS_LOAD_KEY:
 		result = cas_at_load(&cas_at(op, pos)->cr_key, fom0,
@@ -1075,7 +1102,7 @@ static int cas_device_check(struct cas_service     *svc,
 }
 
 static int cas_id_check(const struct m0_cas_id *cid,
-			struct m0_cas_ctg      *ctidx)
+			uint32_t                flags)
 {
 	const struct m0_dix_layout *layout;
 	struct m0_dix_layout       *stored_layout;
@@ -1091,8 +1118,15 @@ static int cas_id_check(const struct m0_cas_id *cid,
 		layout = &cid->ci_layout;
 		if (layout->dl_type == DIX_LTYPE_DESCR) {
 			rc = m0_ctg_ctidx_lookup(&cid->ci_fid, &stored_layout);
+			/*
+			 * It's OK to not find layout with CROW flag set,
+			 * because the catalogue may be not created yet.
+			 */
+			if (rc == -ENOENT && (flags & COF_CROW))
+				rc = 0;
 			/* Match stored and received layouts. */
-			if (rc == 0 && !m0_dix_layout_eq(layout, stored_layout))
+			else if (rc == 0 &&
+				 !m0_dix_layout_eq(layout, stored_layout))
 				rc = M0_ERR(-EKEYEXPIRED);
 		} else
 			rc = M0_ERR(-EPROTO);
@@ -1494,14 +1528,15 @@ static int cas_done(struct cas_fom *fom, struct m0_cas_op *op,
 
 	++fom->cf_ipos;
 	++fom->cf_opos;
-	if (opc == CO_PUT) {
-		/*
-		 * Overwrite return code if key is not found
-		 * and COF_CREATE is set.
-		 */
-		if (rc == -EEXIST && (op->cg_flags & COF_CREATE))
-			rc = 0;
-	}
+	/*
+	 * Overwrite return code of put operation if key is already exist and
+	 * COF_CREATE is set or overwrite return code of del operation if key
+	 * is not found and COF_CROW is set.
+	 */
+	if ((opc == CO_PUT && rc == -EEXIST && (op->cg_flags & COF_CREATE)) ||
+	    (opc == CO_DEL && rc == -ENOENT && (op->cg_flags & COF_CROW)))
+		rc = 0;
+
 	M0_LOG(M0_DEBUG, "pos %zu: rc %d", fom->cf_opos, rc);
 	rec_out->cr_rc = rc;
 	if (at_fini) {
@@ -1517,6 +1552,117 @@ static int cas_done(struct cas_fom *fom, struct m0_cas_op *op,
 	fom->cf_out_val = M0_BUF_INIT0;
 
 	return rec_out->cr_rc;
+}
+
+static int cas_ctg_crow_fop_buf_prepare(const struct m0_cas_id *cid,
+					struct m0_rpc_at_buf   *at_buf)
+{
+	struct m0_buf buf;
+	int           rc;
+
+	M0_PRE(cid != NULL);
+	M0_PRE(at_buf != NULL);
+
+	m0_rpc_at_init(at_buf);
+	rc = m0_xcode_obj_enc_to_buf(&M0_XCODE_OBJ(m0_cas_id_xc,
+						   (struct m0_cas_id *)cid),
+				     &buf.b_addr, &buf.b_nob);
+	if (rc == 0) {
+		at_buf->ab_type  = M0_RPC_AT_INLINE;
+		at_buf->u.ab_buf = buf;
+	}
+	return rc;
+}
+
+static int cas_ctg_crow_fop_create(const struct m0_cas_id  *cid,
+				   struct m0_fop          **out)
+{
+	struct m0_cas_op  *op;
+	struct m0_cas_rec *rec;
+	struct m0_fop     *fop;
+	int                rc = 0;
+
+	*out = NULL;
+
+	M0_ALLOC_PTR(op);
+	M0_ALLOC_PTR(rec);
+	M0_ALLOC_PTR(fop);
+	if (op == NULL || rec == NULL || fop == NULL)
+		rc = -ENOMEM;
+	if (rc == 0) {
+		rc = cas_ctg_crow_fop_buf_prepare(cid, &rec->cr_key);
+		if (rc == 0) {
+			op->cg_id.ci_fid = m0_cas_meta_fid;
+			op->cg_rec.cr_nr = 1;
+			op->cg_rec.cr_rec = rec;
+			m0_fop_init(fop, &cas_put_fopt, op, &m0_fop_release);
+			*out = fop;
+		}
+	}
+	if (rc != 0) {
+		m0_free(op);
+		m0_free(rec);
+		m0_free(fop);
+	}
+	return rc;
+}
+
+static void cas_ctg_crow_done_cb(struct m0_fom_thralldom *thrall,
+				 struct m0_fom           *serf)
+{
+	struct cas_fom    *master = M0_AMB(master, thrall, cf_thrall);
+	struct m0_cas_rep *rep;
+	int                rc;
+
+	rc = m0_fom_rc(serf);
+	if (rc == 0) {
+		M0_ASSERT(serf->fo_rep_fop != NULL);
+		rep = (struct m0_cas_rep *)m0_fop_data(serf->fo_rep_fop);
+		M0_ASSERT(rep != NULL);
+		rc = rep->cgr_rc;
+		if (rc == 0) {
+			M0_ASSERT(rep->cgr_rep.cr_nr == 1);
+			rc = rep->cgr_rep.cr_rec[0].cr_rc;
+		}
+	}
+	master->cf_thrall_rc = rc;
+}
+
+static int cas_ctg_crow_handle(struct cas_fom *fom, const struct m0_cas_id *cid)
+{
+	struct m0_fop         *fop;
+	struct m0_fom         *new_fom0;
+	struct m0_reqh        *reqh;
+	struct m0_rpc_machine *mach;
+	int                    rc;
+
+	/*
+	 * Create fop to create component catalogue. For a new CAS FOM this FOP
+	 * will appear as arrived from the network. FOP will be deallocated by a
+	 * new CAS FOM.
+	 */
+	rc = cas_ctg_crow_fop_create(cid, &fop);
+	if (rc == 0) {
+		reqh = fom->cf_fom.fo_service->rs_reqh;
+		mach = m0_reqh_rpc_mach_tlist_head(&reqh->rh_rpc_machines);
+		m0_fop_rpc_machine_set(fop, mach);
+		fop->f_item.ri_session = fom->cf_fom.fo_fop->f_item.ri_session;
+		rc = cas_fom_create(fop, &new_fom0, reqh);
+		if (rc == 0) {
+			new_fom0->fo_local = true;
+			m0_fom_enthrall(&fom->cf_fom,
+					new_fom0,
+					&fom->cf_thrall,
+					&cas_ctg_crow_done_cb);
+			m0_fom_queue(new_fom0);
+		}
+		/*
+		 * New FOM got reference to FOP, release ref counter as this
+		 * FOP is not needed here.
+		 */
+		m0_fop_put_lock(fop);
+	}
+	return rc;
 }
 
 static bool cas_fom_invariant(const struct cas_fom *fom)
@@ -1572,7 +1718,12 @@ static struct m0_sm_state_descr cas_fom_phases[] = {
 	},
 	[CAS_META_LOOKUP_DONE] = {
 		.sd_name      = "meta-lookup-done",
-		.sd_allowed   = M0_BITS(CAS_LOAD_KEY, M0_FOPH_FAILURE)
+		.sd_allowed   = M0_BITS(CAS_CTG_CROW_DONE, CAS_LOAD_KEY,
+					M0_FOPH_FAILURE)
+	},
+	[CAS_CTG_CROW_DONE] = {
+		.sd_name      = "ctg-crow-done",
+		.sd_allowed   = M0_BITS(CAS_START, M0_FOPH_FAILURE)
 	},
 	[CAS_LOCK] = {
 		.sd_name      = "lock",
@@ -1643,6 +1794,9 @@ struct m0_sm_trans_descr cas_fom_trans[] = {
 	{ "key-alloc-failure",    CAS_META_LOOKUP,      M0_FOPH_FAILURE },
 	{ "meta-lookup-done",     CAS_META_LOOKUP_DONE, CAS_LOAD_KEY },
 	{ "meta-lookup-fail",     CAS_META_LOOKUP_DONE, M0_FOPH_FAILURE },
+	{ "ctg-crow-done",        CAS_META_LOOKUP_DONE, CAS_CTG_CROW_DONE },
+	{ "ctg-crow-success",     CAS_CTG_CROW_DONE,    CAS_START },
+	{ "ctg-crow-fail",        CAS_CTG_CROW_DONE,    M0_FOPH_FAILURE },
 	{ "index-locked",         CAS_LOCK,             CAS_PREP },
 	{ "key-loaded",           CAS_LOAD_KEY,         CAS_LOAD_VAL },
 	{ "val-loaded",           CAS_LOAD_VAL,         CAS_LOAD_DONE },

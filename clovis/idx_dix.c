@@ -308,7 +308,7 @@ static void cas_index_delete_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 
 	M0_ENTRY();
 	cas_req_prepare(dix_req, &cid, oi);
-	rc = m0_cas_index_delete(creq, &cid, 1, NULL);
+	rc = m0_cas_index_delete(creq, &cid, 1, NULL, 0);
 	if (rc != 0)
 		dix_req_immed_failure(dix_req, M0_ERR(rc));
 	M0_LEAVE();
@@ -738,7 +738,7 @@ static void dix_index_create_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 			  &(struct m0_ext) { .e_start = 0, .e_end = IMASK_INF },
 			  1, HASH_FNC_CITY, &dix_inst(oi)->di_index_pver);
 	m0_clink_add(&dreq->dr_sm.sm_chan, &dix_req->idr_clink);
-	rc = m0_dix_create(dreq, &dix, 1, NULL);
+	rc = m0_dix_create(dreq, &dix, 1, NULL, COF_CROW);
 	if (rc != 0)
 		dix_req_immed_failure(dix_req, M0_ERR(rc));
 	m0_dix_fini(&dix);
@@ -764,7 +764,7 @@ static void dix_index_delete_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	M0_ENTRY();
 	dix_build(oi, &dix);
 	m0_clink_add(&dreq->dr_sm.sm_chan, &dix_req->idr_clink);
-	rc = m0_dix_delete(dreq, &dix, 1, NULL);
+	rc = m0_dix_delete(dreq, &dix, 1, NULL, COF_CROW);
 	if (rc != 0)
 		dix_req_immed_failure(dix_req, M0_ERR(rc));
 	M0_LEAVE();
@@ -816,13 +816,13 @@ static void dix_put_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	struct m0_clovis_op_idx *oi = dix_req->idr_oi;
 	struct m0_dix            dix;
 	struct m0_dix_req       *dreq = &dix_req->idr_dreq;
-	uint32_t                 flags = 0;
+	uint32_t                 flags = COF_CROW;
 	int                      rc;
 
 	M0_ENTRY();
 	dix_dreq_prepare(dix_req, &dix, oi);
 	if (oi->oi_flags & M0_OIF_OVERWRITE)
-		flags = COF_OVERWRITE;
+		flags |= COF_OVERWRITE;
 	rc = m0_dix_put(dreq, &dix, oi->oi_keys, oi->oi_vals, NULL, flags);
 	if (rc != 0)
 		dix_req_immed_failure(dix_req, M0_ERR(rc));

@@ -995,6 +995,7 @@ static int cas_index_op_prepare(const struct m0_cas_req  *req,
 				const struct m0_cas_id   *cids,
 				uint64_t                  cids_nr,
 				bool                      recv_val,
+				uint32_t                  flags,
 				struct m0_cas_op        **out)
 {
 	struct m0_cas_op  *op;
@@ -1008,6 +1009,7 @@ static int cas_index_op_prepare(const struct m0_cas_req  *req,
 	if (rc != 0)
 		return M0_ERR(rc);
 	op->cg_id.ci_fid = m0_cas_meta_fid;
+	op->cg_flags = flags;
 	rec = op->cg_rec.cr_rec;
 	for (i = 0; i < cids_nr; i++) {
 		struct m0_buf buf;
@@ -1079,7 +1081,7 @@ M0_INTERNAL int m0_cas_index_create(struct m0_cas_req      *req,
 	M0_PRE(req->ccr_sess != NULL);
 	M0_PRE(m0_cas_req_is_locked(req));
 	(void)dtx;
-	rc = cas_index_op_prepare(req, cids, cids_nr, false, &op);
+	rc = cas_index_op_prepare(req, cids, cids_nr, false, 0, &op);
 	if (rc == 0) {
 		creq_fop_init(req, &cas_put_fopt, op);
 		cas_fop_send(req);
@@ -1111,7 +1113,8 @@ M0_INTERNAL void m0_cas_index_create_rep(struct m0_cas_req       *req,
 M0_INTERNAL int m0_cas_index_delete(struct m0_cas_req      *req,
 				    const struct m0_cas_id *cids,
 				    uint64_t                cids_nr,
-				    struct m0_dtx          *dtx)
+				    struct m0_dtx          *dtx,
+				    uint32_t                flags)
 {
 	struct m0_cas_op *op;
 	int               rc;
@@ -1120,7 +1123,7 @@ M0_INTERNAL int m0_cas_index_delete(struct m0_cas_req      *req,
 	M0_PRE(req->ccr_sess != NULL);
 	M0_PRE(m0_cas_req_is_locked(req));
 	(void)dtx;
-	rc = cas_index_op_prepare(req, cids, cids_nr, false, &op);
+	rc = cas_index_op_prepare(req, cids, cids_nr, false, flags, &op);
 	if (rc == 0) {
 		creq_fop_init(req, &cas_del_fopt, op);
 		cas_fop_send(req);
@@ -1147,7 +1150,7 @@ M0_INTERNAL int m0_cas_index_lookup(struct m0_cas_req      *req,
 	M0_ENTRY();
 	M0_PRE(req->ccr_sess != NULL);
 	M0_PRE(m0_cas_req_is_locked(req));
-	rc = cas_index_op_prepare(req, cids, cids_nr, true, &op);
+	rc = cas_index_op_prepare(req, cids, cids_nr, true, 0, &op);
 	if (rc == 0) {
 		creq_fop_init(req, &cas_get_fopt, op);
 		cas_fop_send(req);
@@ -1176,7 +1179,7 @@ M0_INTERNAL int m0_cas_index_list(struct m0_cas_req   *req,
 	M0_PRE(start_fid != NULL);
 	M0_PRE(req->ccr_sess != NULL);
 	M0_PRE(m0_cas_req_is_locked(req));
-	rc = cas_index_op_prepare(req, &cid, 1, false, &op);
+	rc = cas_index_op_prepare(req, &cid, 1, false, 0, &op);
 	if (rc == 0) {
 		op->cg_rec.cr_rec[0].cr_rc = indices_nr;
 		creq_fop_init(req, &cas_cur_fopt, op);
@@ -1289,8 +1292,8 @@ M0_INTERNAL int m0_cas_put(struct m0_cas_req      *req,
 	M0_PRE(m0_cas_req_is_locked(req));
 	/* Create and overwrite flags can't be specified together. */
 	M0_PRE(!(flags & COF_CREATE) || !(flags & COF_OVERWRITE));
-	/* Only create and overwrite flags are allowed. */
-	M0_PRE((flags & ~(COF_CREATE | COF_OVERWRITE)) == 0);
+	/* Only create, overwrite and crow flags are allowed. */
+	M0_PRE((flags & ~(COF_CREATE | COF_OVERWRITE | COF_CROW)) == 0);
 
 	(void)dtx;
 	rc = cas_records_op_prepare(req, index, keys, values, flags, &op);

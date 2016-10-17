@@ -852,22 +852,23 @@ static void dix_meta_create(void)
 	ut_service_fini();
 }
 
-static int dix_common_idx_op(const struct m0_dix *indices, uint32_t indices_nr,
-			     enum ut_dix_req_type type)
+static int dix_common_idx_flagged_op(const struct m0_dix *indices,
+				     uint32_t             indices_nr,
+				     enum ut_dix_req_type type,
+				     uint32_t             flags)
 {
 	struct m0_dix_req req;
 	int               rc;
-	int               ret;
 	int               i;
 
 	m0_dix_req_init(&req, &dix_ut_cctx.cl_cli, dix_ut_cctx.cl_grp);
 	m0_dix_req_lock(&req);
 	switch (type) {
 	case REQ_CREATE:
-		rc = m0_dix_create(&req, indices, indices_nr, NULL);
+		rc = m0_dix_create(&req, indices, indices_nr, NULL, flags);
 		break;
 	case REQ_DELETE:
-		rc = m0_dix_delete(&req, indices, indices_nr, NULL);
+		rc = m0_dix_delete(&req, indices, indices_nr, NULL, flags);
 		break;
 	case REQ_LOOKUP:
 		rc = m0_dix_cctgs_lookup(&req, indices, indices_nr);
@@ -879,16 +880,22 @@ static int dix_common_idx_op(const struct m0_dix *indices, uint32_t indices_nr,
 	rc = m0_dix_req_wait(&req, M0_BITS(DIXREQ_FINAL, DIXREQ_FAILURE),
 			      M0_TIME_NEVER);
 	M0_UT_ASSERT(rc == 0);
-	ret = m0_dix_generic_rc(&req);
-	if (ret == 0)
+	rc = m0_dix_generic_rc(&req);
+	if (rc == 0)
 		for (i = 0; i < m0_dix_req_nr(&req); i++) {
-			ret = m0_dix_item_rc(&req, i);
-			if (ret != 0)
+			rc = m0_dix_item_rc(&req, i);
+			if (rc != 0)
 				break;
 		}
 	m0_dix_req_unlock(&req);
 	m0_dix_req_fini_lock(&req);
-	return ret;
+	return rc;
+}
+
+static int dix_common_idx_op(const struct m0_dix *indices, uint32_t indices_nr,
+			     enum ut_dix_req_type type)
+{
+	return dix_common_idx_flagged_op(indices, indices_nr, type, 0);
 }
 
 static int dix_common_rec_op(const struct m0_dix    *index,
@@ -1066,6 +1073,24 @@ static void dix_create(void)
 	ut_service_fini();
 }
 
+static void dix_create_crow(void)
+{
+	struct m0_dix indices[COUNT_INDEX];
+	uint32_t      indices_nr = ARRAY_SIZE(indices);
+	int           i;
+	int           rc;
+
+	ut_service_init();
+	for (i = 0; i < indices_nr; i++)
+		dix_index_init(&indices[i], i);
+	rc = dix_common_idx_flagged_op(indices, indices_nr, REQ_CREATE,
+				       COF_CROW);
+	M0_UT_ASSERT(rc == 0);
+	for (i = 0; i < indices_nr; i++)
+		dix_index_fini(&indices[i]);
+	ut_service_fini();
+}
+
 static void dix_delete(void)
 {
 	struct m0_dix indices[COUNT_INDEX];
@@ -1076,6 +1101,46 @@ static void dix_delete(void)
 	ut_service_init();
 	for (i = 0; i < indices_nr; i++)
 		dix_index_init(&indices[i], i);
+	rc = dix_common_idx_op(indices, indices_nr, REQ_CREATE);
+	M0_UT_ASSERT(rc == 0);
+	rc = dix_common_idx_op(indices, indices_nr, REQ_DELETE);
+	M0_UT_ASSERT(rc == 0);
+	for (i = 0; i < indices_nr; i++)
+		dix_index_fini(&indices[i]);
+	ut_service_fini();
+}
+
+static void dix_delete_crow(void)
+{
+	struct m0_dix      indices[COUNT_INDEX];
+	uint32_t           indices_nr = ARRAY_SIZE(indices);
+	struct m0_bufvec   keys;
+	struct m0_bufvec   vals;
+	struct dix_rep_arr rep;
+	int                i;
+	int                rc;
+
+	ut_service_init();
+	for (i = 0; i < indices_nr; i++)
+		dix_index_init(&indices[i], i);
+	rc = dix_common_idx_op(indices, indices_nr, REQ_CREATE);
+	M0_UT_ASSERT(rc == 0);
+	/* Put some records to actually create component catalogues. */
+	dix_kv_alloc_and_fill(&keys, &vals, COUNT);
+	for (i = 0; i < indices_nr; i++) {
+		rc = dix_ut_put(&indices[0], &keys, &vals, 0, &rep);
+		M0_UT_ASSERT(rc == 0);
+		dix_rep_free(&rep);
+	}
+	dix_kv_destroy(&keys, &vals);
+	/*
+	 * Remove the indices and try to create indices with the same fids again
+	 * without CROW flag. Successful return code means that all component
+	 * catalogues were removed.
+	 */
+	rc = dix_common_idx_flagged_op(indices, indices_nr, REQ_DELETE,
+				       COF_CROW);
+	M0_UT_ASSERT(rc == 0);
 	rc = dix_common_idx_op(indices, indices_nr, REQ_CREATE);
 	M0_UT_ASSERT(rc == 0);
 	rc = dix_common_idx_op(indices, indices_nr, REQ_DELETE);
@@ -1260,6 +1325,33 @@ static void dix_put_overwrite(void)
 	dix_rep_free(&rep);
 	dix_kv_destroy(&keys, &vals);
 
+	dix_index_fini(&index);
+	ut_service_fini();
+}
+
+static void dix_put_crow(void)
+{
+	struct m0_dix      index;
+	struct m0_bufvec   keys;
+	struct m0_bufvec   vals;
+	struct dix_rep_arr rep;
+	int                rc;
+
+	ut_service_init();
+	dix_index_init(&index, 1);
+	dix_kv_alloc_and_fill(&keys, &vals, COUNT);
+	rc = dix_common_idx_flagged_op(&index, 1, REQ_CREATE, COF_CROW);
+	M0_UT_ASSERT(rc == 0);
+	rc = dix_ut_put(&index, &keys, &vals, COF_CROW, &rep);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(rep.dra_nr == COUNT);
+	M0_UT_ASSERT(m0_forall(i, COUNT, rep.dra_rep[i].dre_rc == 0));
+	dix_rep_free(&rep);
+	rc = dix_ut_get(&index, &keys, &rep);
+	M0_UT_ASSERT(rc == 0);
+	dix_vals_check(&rep, COUNT);
+	dix_rep_free(&rep);
+	dix_kv_destroy(&keys, &vals);
 	dix_index_fini(&index);
 	ut_service_fini();
 }
@@ -2131,10 +2223,13 @@ struct m0_ut_suite dix_client_ut = {
 		{ "layout-encdec",          layout_encdec,           "Leonid" },
 		{ "meta-create",            dix_meta_create,         "Leonid" },
 		{ "create",                 dix_create,              "Leonid" },
+		{ "create-crow",            dix_create_crow,         "Sergey" },
 		{ "delete",                 dix_delete,              "Leonid" },
+		{ "delete-crow",            dix_delete_crow,         "Egor"   },
 		{ "list",                   dix_list,                "Leonid" },
 		{ "put",                    dix_put,                 "Leonid" },
 		{ "put-overwrite",          dix_put_overwrite,       "Egor"   },
+		{ "put-crow",               dix_put_crow,            "Egor"   },
 		{ "get",                    dix_get,                 "Leonid" },
 		{ "get-resend",             dix_get_resend,          "Egor"   },
 		{ "next",                   dix_next,                "Leonid" },

@@ -212,7 +212,8 @@ M0_INTERNAL int m0_dix_req_wait(struct m0_dix_req *req, uint64_t states,
 M0_INTERNAL int m0_dix_create(struct m0_dix_req   *req,
 			      const struct m0_dix *indices,
 			      uint32_t             indices_nr,
-			      struct m0_dtx       *dtx);
+			      struct m0_dtx       *dtx,
+			      uint32_t             flags);
 
 /**
  * Checks whether all component catalogues exist for the given indices.
@@ -228,8 +229,14 @@ M0_INTERNAL int m0_dix_cctgs_lookup(struct m0_dix_req   *req,
 M0_INTERNAL int m0_dix_delete(struct m0_dix_req   *req,
 			      const struct m0_dix *indices,
 			      uint64_t             indices_nr,
-			      struct m0_dtx       *dtx);
+			      struct m0_dtx       *dtx,
+			      uint32_t             flags);
 
+/**
+ * Inserts records to a distributed index.
+ *
+ * @pre flags & ~(COF_OVERWRITE | COF_CROW)) == 0
+ */
 M0_INTERNAL int m0_dix_put(struct m0_dix_req      *req,
 			   const struct m0_dix    *index,
 			   const struct m0_bufvec *keys,

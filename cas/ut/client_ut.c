@@ -238,7 +238,8 @@ static int ut_idx_crdel_wrp(enum idx_operation       op,
 			    const struct m0_fid     *ids,
 			    uint64_t                 ids_nr,
 			    m0_chan_cb_t             cb,
-			    struct m0_cas_rec_reply *rep)
+			    struct m0_cas_rec_reply *rep,
+			    uint32_t                 flags)
 {
 	struct m0_cas_req       req;
 	struct m0_cas_id       *cids;
@@ -265,7 +266,7 @@ static int ut_idx_crdel_wrp(enum idx_operation       op,
 	if (op == IDX_CREATE)
 		rc = m0_cas_index_create(&req, cids, ids_nr, NULL);
 	else
-		rc = m0_cas_index_delete(&req, cids, ids_nr, NULL);
+		rc = m0_cas_index_delete(&req, cids, ids_nr, NULL, flags);
 	/* wait results */
 	if (rc == 0) {
 		if (cb != NULL) {
@@ -306,7 +307,7 @@ static int ut_idx_create_async(struct cl_ctx            *cctx,
 			       struct m0_cas_rec_reply *rep)
 {
 	M0_UT_ASSERT(cb != NULL);
-	return ut_idx_crdel_wrp(IDX_CREATE, cctx, ids, ids_nr, cb, rep);
+	return ut_idx_crdel_wrp(IDX_CREATE, cctx, ids, ids_nr, cb, rep, 0);
 }
 
 static int ut_idx_create(struct cl_ctx            *cctx,
@@ -314,7 +315,7 @@ static int ut_idx_create(struct cl_ctx            *cctx,
 			 uint64_t                  ids_nr,
 			 struct m0_cas_rec_reply *rep)
 {
-	return ut_idx_crdel_wrp(IDX_CREATE, cctx, ids, ids_nr, NULL, rep);
+	return ut_idx_crdel_wrp(IDX_CREATE, cctx, ids, ids_nr, NULL, rep, 0);
 }
 
 static int ut_lookup_idx(struct cl_ctx           *cctx,
@@ -361,12 +362,22 @@ static int ut_lookup_idx(struct cl_ctx           *cctx,
 	return rc;
 }
 
+static int ut_idx_flagged_delete(struct cl_ctx           *cctx,
+				 const struct m0_fid     *ids,
+				 uint64_t                 ids_nr,
+				 struct m0_cas_rec_reply *rep,
+				 uint32_t                 flags)
+{
+	return ut_idx_crdel_wrp(IDX_DELETE, cctx, ids, ids_nr, NULL,
+				rep, flags);
+}
+
 static int ut_idx_delete(struct cl_ctx           *cctx,
 			 const struct m0_fid     *ids,
 			 uint64_t                 ids_nr,
 			 struct m0_cas_rec_reply *rep)
 {
-	return ut_idx_crdel_wrp(IDX_DELETE, cctx, ids, ids_nr, NULL, rep);
+	return ut_idx_flagged_delete(cctx, ids, ids_nr, rep, 0);
 }
 
 static int ut_idx_list(struct cl_ctx             *cctx,
@@ -724,6 +735,27 @@ static void idx_delete_fail(void)
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(rep.crr_rc == -ENOMEM);
 	rc = ut_lookup_idx(&casc_ut_cctx, &ifid, 1, &rep);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(rep.crr_rc == 0);
+
+	casc_ut_fini(&casc_ut_sctx, &casc_ut_cctx);
+}
+
+static void idx_delete_non_exist(void)
+{
+	struct m0_cas_rec_reply rep  = {};
+	const struct m0_fid     ifid = IFID(2, 3);
+	int                     rc;
+
+	casc_ut_init(&casc_ut_sctx, &casc_ut_cctx);
+
+	/* Try to remove non-existent index. */
+	rc = ut_idx_delete(&casc_ut_cctx, &ifid, 1, &rep);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(rep.crr_rc == -ENOENT);
+
+	/* Try to remove non-existent index with CROW flag. */
+	rc = ut_idx_flagged_delete(&casc_ut_cctx, &ifid, 1, &rep, COF_CROW);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(rep.crr_rc == 0);
 
@@ -1587,6 +1619,96 @@ static void put_overwrite(void)
 	put_save_common(COF_OVERWRITE);
 }
 
+/*
+ * Put small Keys and Values with 'create-on-write' flag.
+ */
+static void put_crow(void)
+{
+	struct m0_cas_rec_reply rep[1];
+	struct m0_cas_get_reply grep[1];
+	const struct m0_fid     ifid = IFID(2, 3);
+	struct m0_cas_id        index;
+	struct m0_bufvec        keys;
+	struct m0_bufvec        values;
+	int                     rc;
+
+	casc_ut_init(&casc_ut_sctx, &casc_ut_cctx);
+	rc = m0_bufvec_alloc(&keys, 1, sizeof(uint64_t));
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_bufvec_alloc(&values, 1, sizeof(uint64_t));
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(keys.ov_vec.v_nr != 0);
+	M0_UT_ASSERT(keys.ov_vec.v_nr == values.ov_vec.v_nr);
+	*(uint64_t*)keys.ov_buf[0] = 1;
+	*(uint64_t*)values.ov_buf[0] = 1;
+
+	M0_SET_ARR0(rep);
+
+	index.ci_fid = ifid;
+	rc = ut_rec_put(&casc_ut_cctx, &index, &keys, &values, rep, COF_CROW);
+
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(rep[0].crr_rc == 0);
+
+	rc = ut_rec_get(&casc_ut_cctx, &index, &keys, grep);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(*(uint64_t*)grep[0].cge_val.b_addr == 1);
+	ut_get_rep_clear(grep, 1);
+
+	/* Remove index. */
+	rc = ut_idx_delete(&casc_ut_cctx, &ifid, 1, rep);
+	M0_UT_ASSERT(rc == 0);
+
+	m0_bufvec_free(&keys);
+	m0_bufvec_free(&values);
+	casc_ut_fini(&casc_ut_sctx, &casc_ut_cctx);
+}
+
+/*
+ * Fail to create catalogue during putting of small Keys and Values with
+ * 'create-on-write' flag.
+ */
+static void put_crow_fail(void)
+{
+	struct m0_cas_rec_reply rep[1];
+	struct m0_cas_get_reply grep[1];
+	const struct m0_fid     ifid = IFID(2, 3);
+	struct m0_cas_id        index;
+	struct m0_bufvec        keys;
+	struct m0_bufvec        values;
+	int                     rc;
+
+	casc_ut_init(&casc_ut_sctx, &casc_ut_cctx);
+	rc = m0_bufvec_alloc(&keys, 1, sizeof(uint64_t));
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_bufvec_alloc(&values, 1, sizeof(uint64_t));
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(keys.ov_vec.v_nr != 0);
+	M0_UT_ASSERT(keys.ov_vec.v_nr == values.ov_vec.v_nr);
+	*(uint64_t*)keys.ov_buf[0] = 1;
+	*(uint64_t*)values.ov_buf[0] = 1;
+
+	M0_SET_ARR0(rep);
+
+	m0_fi_enable_off_n_on_m("ctg_buf_get", "cas_alloc_fail", 1, 1);
+	index.ci_fid = ifid;
+	rc = ut_rec_put(&casc_ut_cctx, &index, &keys, &values, rep, COF_CROW);
+	M0_UT_ASSERT(rc == -ENOMEM);
+	m0_fi_disable("ctg_buf_get", "cas_alloc_fail");
+
+	rc = ut_rec_get(&casc_ut_cctx, &index, &keys, grep);
+	M0_UT_ASSERT(rc == -ENOENT);
+
+	/* Try to lookup non-existent index. */
+	rc = ut_lookup_idx(&casc_ut_cctx, &ifid, 1, rep);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(rep[0].crr_rc == -ENOENT);
+
+	m0_bufvec_free(&keys);
+	m0_bufvec_free(&values);
+	casc_ut_fini(&casc_ut_sctx, &casc_ut_cctx);
+}
+
 static void put_fail_common(struct m0_bufvec *keys, struct m0_bufvec *values)
 {
 	struct m0_cas_rec_reply rep[COUNT];
@@ -2093,6 +2215,7 @@ struct m0_ut_suite cas_client_ut = {
 		{ "idx-create-async",       idx_create_a,           "Leonid" },
 		{ "idx-delete",             idx_delete,             "Leonid" },
 		{ "idx-delete-fail",        idx_delete_fail,        "Leonid" },
+		{ "idx-delete-non-exist",   idx_delete_non_exist,   "Sergey" },
 		{ "idx-createN",            idx_create_n,           "Leonid" },
 		{ "idx-deleteN",            idx_delete_n,           "Leonid" },
 		{ "idx-list",               idx_list,               "Leonid" },
@@ -2106,8 +2229,10 @@ struct m0_ut_suite cas_client_ut = {
 		{ "put-bulk",               put_bulk,               "Leonid" },
 		{ "put-create",             put_create,             "Sergey" },
 		{ "put-overwrite",          put_overwrite,          "Sergey" },
+		{ "put-crow",               put_crow,               "Sergey" },
 		{ "put-fail",               put_fail,               "Leonid" },
 		{ "put-bulk-fail",          put_bulk_fail,          "Leonid" },
+		{ "put-crow-fail",          put_crow_fail,          "Sergey" },
 		{ "get",                    get,                    "Leonid" },
 		{ "get-bulk",               get_bulk,               "Leonid" },
 		{ "get-fail",               get_fail,               "Leonid" },

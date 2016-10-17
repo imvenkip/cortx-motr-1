@@ -216,7 +216,7 @@ static int dix_meta_create(struct m0_dix_cli   *cli,
 		return M0_ERR(rc);
 	m0_dix_mreq_init(&dreq, cli, grp);
 	m0_dix_req_lock(&dreq);
-	rc = m0_dix_create(&dreq, dix, ARRAY_SIZE(dix), NULL) ?:
+	rc = m0_dix_create(&dreq, dix, ARRAY_SIZE(dix), NULL, 0) ?:
 	     m0_dix_req_wait(&dreq, M0_BITS(DIXREQ_FINAL, DIXREQ_FAILURE),
 			      M0_TIME_NEVER) ?:
 	     dix_mreq_rc(&dreq);
@@ -241,7 +241,7 @@ static int dix_meta_delete(struct m0_dix_cli   *cli,
 		return M0_ERR(rc);
 	m0_dix_mreq_init(&dreq, cli, grp);
 	m0_dix_req_lock(&dreq);
-	rc = m0_dix_delete(&dreq, dix, ARRAY_SIZE(dix), NULL) ?:
+	rc = m0_dix_delete(&dreq, dix, ARRAY_SIZE(dix), NULL, 0) ?:
 	     m0_dix_req_wait(&dreq, M0_BITS(DIXREQ_FINAL, DIXREQ_FAILURE),
 			      M0_TIME_NEVER) ?:
 	     dix_mreq_rc(&dreq);

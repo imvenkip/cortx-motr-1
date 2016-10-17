@@ -218,7 +218,14 @@ enum m0_cas_op_flags {
 	 * For PUT operation, instructs it to silently overwrite existing record
 	 * with the same key, if any.
 	 */
-	COF_OVERWRITE = 1 << 2
+	COF_OVERWRITE = 1 << 2,
+	/**
+	 * For PUT operation, instructs it to create catalogue on record PUT to
+	 * non-existent catalogue.
+	 * For DEL operation, instructs it to be a no-op if catalogue to be
+	 * deleted does not exist.
+	 */
+	COF_CROW      = 1 << 3
 };
 
 enum m0_cas_opcode {

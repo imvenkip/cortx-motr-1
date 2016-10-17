@@ -318,6 +318,8 @@ M0_INTERNAL void m0_cas_index_create_rep(struct m0_cas_req       *req,
  * Delete indices with all records they contain.
  *
  * It is not needed to keep CAS ids array accessible until request is processed.
+ * Flag @ref m0_cas_op_flags::COF_CROW can be set in flags to be a no-op if the
+ * catalogue to be deleted does not exist.
  *
  * @pre m0_cas_req_is_locked(req)
  * @see m0_cas_index_delete_rep()
@@ -325,7 +327,8 @@ M0_INTERNAL void m0_cas_index_create_rep(struct m0_cas_req       *req,
 M0_INTERNAL int m0_cas_index_delete(struct m0_cas_req      *req,
 				    const struct m0_cas_id *cids,
 				    uint64_t                cids_nr,
-				    struct m0_dtx          *dtx);
+				    struct m0_dtx          *dtx,
+				    uint32_t                flags);
 
 /**
  * Gets execution result of m0_cas_index_delete() request.
@@ -396,11 +399,11 @@ M0_INTERNAL void m0_cas_index_list_rep(struct m0_cas_req         *req,
  * request is processed. Also, it's user responsibility to manage these buffers
  * after request is processed.
  *
- * 'Flags' argument is a bitmask of m0_cas_op_flags values. COF_CREATE or
- * COF_OVERWRITE flag can be specified, but not both.
+ * 'Flags' argument is a bitmask of m0_cas_op_flags values. COF_CREATE and
+ * COF_OVERWRITE flags can't be specified together.
  *
  * @pre !(flags & COF_CREATE) || !(flags & COF_OVERWRITE)
- * @pre (flags & ~(COF_CREATE | COF_OVERWRITE)) == 0
+ * @pre (flags & ~(COF_CREATE | COF_OVERWRITE | COF_CROW)) == 0
  * @pre m0_cas_req_is_locked(req)
  * @see m0_cas_put_rep()
  */

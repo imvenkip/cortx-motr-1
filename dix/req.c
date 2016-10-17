@@ -109,7 +109,7 @@ static struct m0_sm_trans_descr dix_req_trans[] = {
 	{ "execute",       DIXREQ_DISCOVERY_DONE,   DIXREQ_INPROGRESS       },
 	{ "failure",       DIXREQ_DISCOVERY_DONE,   DIXREQ_FAILURE          },
 	{ "meta-updated",  DIXREQ_META_UPDATE,      DIXREQ_INPROGRESS       },
-	{ "update-failed", DIXREQ_META_UPDATE,      DIXREQ_FINAL            },
+	{ "crow-or-fail",  DIXREQ_META_UPDATE,      DIXREQ_FINAL            },
 	{ "update-fail",   DIXREQ_META_UPDATE,      DIXREQ_FAILURE          },
 	{ "get-req-fail",  DIXREQ_INPROGRESS,       DIXREQ_GET_RESEND       },
 	{ "rpc-failure",   DIXREQ_INPROGRESS,       DIXREQ_FAILURE          },
@@ -589,7 +589,8 @@ static int dix_idxop_req_send(struct m0_dix_idxop_req *idxop_req,
 				break;
 			case DIX_DELETE:
 				rc = m0_cas_index_delete(&creq->ds_creq, &cid,
-							 1, dreq->dr_dtx);
+							 1, dreq->dr_dtx,
+							 dreq->dr_flags);
 				break;
 			case DIX_CCTGS_LOOKUP:
 				rc = m0_cas_index_lookup(&creq->ds_creq, &cid,
@@ -627,9 +628,10 @@ static void dix_idxop_meta_update_ast_cb(struct m0_sm_group *grp,
 	/*
 	 * Inidicates whether request processing should be continued.
 	 * The request processing is stopped if all items in the user input
-	 * vector are failed.
+	 * vector are failed or CROW is requested for CREATE operation.
 	 */
 	bool                    cont = false;
+	bool                    crow = !!(req->dr_flags & COF_CROW);
 	int                     rc;
 
 	fids_nr = m0_count(i, req->dr_items_nr, req->dr_items[i].dxi_rc == 0);
@@ -648,7 +650,13 @@ static void dix_idxop_meta_update_ast_cb(struct m0_sm_group *grp,
 		M0_ASSERT(k == fids_nr);
 		if (!cont)
 			M0_LOG(M0_ERROR, "All items are failed");
-		else
+		/*
+		 * If CROW is requested for CREATE operation, then component
+		 * catalogues shouldn't be created => no CAS create requests
+		 * should be sent.
+		 */
+		cont = cont && !(req->dr_type == DIX_CREATE && crow);
+		if (cont)
 			rc = dix_idxop_reqs_send(req);
 	}
 
@@ -803,7 +811,8 @@ static void dix_idxop(struct m0_dix_req *req)
 M0_INTERNAL int m0_dix_create(struct m0_dix_req   *req,
 			      const struct m0_dix *indices,
 			      uint32_t             indices_nr,
-			      struct m0_dtx       *dtx)
+			      struct m0_dtx       *dtx,
+			      uint32_t             flags)
 {
 	int rc;
 
@@ -835,6 +844,7 @@ M0_INTERNAL int m0_dix_create(struct m0_dix_req   *req,
 		return M0_ERR(-ENOMEM);
 	req->dr_items_nr = indices_nr;
 	req->dr_type = DIX_CREATE;
+	req->dr_flags = flags;
 	dix_discovery(req);
 	return M0_RC(0);
 }
@@ -932,10 +942,13 @@ static void dix_discovery(struct m0_dix_req *req)
 M0_INTERNAL int m0_dix_delete(struct m0_dix_req   *req,
 			      const struct m0_dix *indices,
 			      uint64_t             indices_nr,
-			      struct m0_dtx       *dtx)
+			      struct m0_dtx       *dtx,
+			      uint32_t             flags)
 {
 	int rc;
 
+	M0_ENTRY();
+	M0_PRE(M0_IN(flags, (0, COF_CROW)));
 	req->dr_dtx = dtx;
 	rc = dix_req_indices_copy(req, indices, indices_nr);
 	if (rc != 0)
@@ -945,8 +958,9 @@ M0_INTERNAL int m0_dix_delete(struct m0_dix_req   *req,
 		return M0_ERR(-ENOMEM);
 	req->dr_items_nr = indices_nr;
 	req->dr_type = DIX_DELETE;
+	req->dr_flags = flags;
 	dix_discovery(req);
-	return 0;
+	return M0_RC(0);
 }
 
 M0_INTERNAL int m0_dix_cctgs_lookup(struct m0_dix_req   *req,
@@ -1549,8 +1563,8 @@ M0_INTERNAL int m0_dix_put(struct m0_dix_req      *req,
 
 	M0_PRE(keys->ov_vec.v_nr == vals->ov_vec.v_nr);
 	M0_PRE(keys_nr != 0);
-	/* User may pass only COF_OVERWRITE flag. */
-	M0_PRE(M0_IN(flags, (0, COF_OVERWRITE)));
+	/* Only overwrite and crow flags are allowed. */
+	M0_PRE((flags & ~(COF_OVERWRITE | COF_CROW)) == 0);
 	rc = dix_req_indices_copy(req, index, 1);
 	if (rc != 0)
 		return M0_ERR(rc);
