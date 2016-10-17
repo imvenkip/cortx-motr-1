@@ -32,6 +32,7 @@
 #include "conf/ut/rpc_helpers.h"       /* m0_ut_rpc_machine_start */
 #include "rpc/rpclib.h"                /* m0_rpc_server_ctx */
 #include "lib/finject.h"
+#include "module/instance.h"           /* m0_get */
 #include "ut/ut.h"
 
 static struct m0_semaphore   g_expired_sem;
@@ -65,8 +66,8 @@ static struct m0_rpc_client_ctx cctx = {
         .rcx_fid                = &g_process_fid,
 };
 
-static int ut_mero_start(struct m0_rpc_machine    *mach,
-			 struct m0_rpc_server_ctx *rctx)
+static int rconfc_ut_mero_start(struct m0_rpc_machine    *mach,
+				struct m0_rpc_server_ctx *rctx)
 {
 	int rc;
 #define NAME(ext) "rconfc-ut" ext
@@ -97,8 +98,8 @@ static int ut_mero_start(struct m0_rpc_machine    *mach,
 	return rc;
 }
 
-static void ut_mero_stop(struct m0_rpc_machine    *mach,
-			 struct m0_rpc_server_ctx *rctx)
+static void rconfc_ut_mero_stop(struct m0_rpc_machine    *mach,
+				struct m0_rpc_server_ctx *rctx)
 {
 	mach->rm_reqh = ut_reqh;
 	m0_ut_rpc_machine_stop(mach);
@@ -144,13 +145,13 @@ static void test_init_fini(void)
 	struct m0_rconfc         rconfc;
 	int                      rc;
 
-	rc = ut_mero_start(&mach, &rctx);
+	rc = rconfc_ut_mero_start(&mach, &rctx);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, test_null_exp_cb,
 			    NULL);
 	M0_UT_ASSERT(rc == 0);
 	m0_rconfc_fini(&rconfc);
-	ut_mero_stop(&mach, &rctx);
+	rconfc_ut_mero_stop(&mach, &rctx);
 }
 
 static void test_start_stop(void)
@@ -161,7 +162,7 @@ static void test_start_stop(void)
 	struct m0_rconfc         rconfc;
 	uint64_t                 ver;
 
-	rc = ut_mero_start(&mach, &rctx);
+	rc = rconfc_ut_mero_start(&mach, &rctx);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
 	M0_UT_ASSERT(rc == 0);
@@ -173,7 +174,7 @@ static void test_start_stop(void)
 	/** @todo Check addresses used by rconfc */
 	m0_rconfc_stop_sync(&rconfc);
 	m0_rconfc_fini(&rconfc);
-	ut_mero_stop(&mach, &rctx);
+	rconfc_ut_mero_stop(&mach, &rctx);
 }
 
 static void test_start_stop_local(void)
@@ -183,7 +184,7 @@ static void test_start_stop_local(void)
 	int                      rc;
 	struct m0_rconfc         rconfc;
 
-	rc = ut_mero_start(&mach, &rctx);
+	rc = rconfc_ut_mero_start(&mach, &rctx);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
 	M0_UT_ASSERT(rc == 0);
@@ -195,7 +196,7 @@ static void test_start_stop_local(void)
 	M0_UT_ASSERT(rconfc.rc_ver != 0);
 	m0_rconfc_stop_sync(&rconfc);
 	m0_rconfc_fini(&rconfc);
-	ut_mero_stop(&mach, &rctx);
+	rconfc_ut_mero_stop(&mach, &rctx);
 }
 
 static void test_start_failures(void)
@@ -205,7 +206,7 @@ static void test_start_failures(void)
 	int                      rc;
 	struct m0_rconfc         rconfc;
 
-	rc = ut_mero_start(&mach, &rctx);
+	rc = rconfc_ut_mero_start(&mach, &rctx);
 	M0_UT_ASSERT(rc == 0);
 	m0_fi_enable_once("rlock_ctx_connect", "rm_conn_failed");
 	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
@@ -253,7 +254,130 @@ static void test_start_failures(void)
 	m0_rconfc_stop_sync(&rconfc);
 	m0_rconfc_fini(&rconfc);
 
-	ut_mero_stop(&mach, &rctx);
+	rconfc_ut_mero_stop(&mach, &rctx);
+}
+
+static bool (*ha_clink_cb_orig)(struct m0_clink *clink);
+
+static bool ha_clink_cb_suppress(struct m0_clink *clink)
+{
+	struct m0_rconfc *rconfc = M0_AMB(rconfc, clink, rc_ha_entrypoint_cl);
+
+	M0_PRE(rconfc->rc_sm.sm_state == M0_RCS_ENTRYPOINT_WAIT);
+	/* do nothing as if HA client went dead */
+	return true;
+}
+
+static void test_fail_abort(void)
+{
+	struct m0_rpc_machine    mach;
+	struct m0_rpc_server_ctx rctx;
+	int                      rc;
+	struct m0_rconfc         rconfc;
+
+	rc = rconfc_ut_mero_start(&mach, &rctx);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
+	M0_UT_ASSERT(rc == 0);
+	/*
+	 * Suppress ha entrypoint response to cause timeout. Imitation of not
+	 * responding HA.
+	 */
+	ha_clink_cb_orig = rconfc.rc_ha_entrypoint_cl.cl_cb;
+	rconfc.rc_ha_entrypoint_cl.cl_cb = ha_clink_cb_suppress;
+	rc = m0_rconfc_start_wait(&rconfc, &profile, 3ULL * M0_TIME_ONE_SECOND);
+	M0_UT_ASSERT(rc == -ETIMEDOUT);
+	M0_UT_ASSERT(rconfc.rc_sm_state_on_abort == M0_RCS_ENTRYPOINT_WAIT);
+	M0_UT_ASSERT(rconfc.rc_ha_entrypoint_retries == 0);
+	/* restore original callback */
+	rconfc.rc_ha_entrypoint_cl.cl_cb = ha_clink_cb_orig;
+	m0_rconfc_stop_sync(&rconfc);
+	m0_rconfc_fini(&rconfc);
+
+	rconfc_ut_mero_stop(&mach, &rctx);
+}
+
+static char *suffix_subst(const char *src, char delim, const char *suffix)
+{
+	const size_t len = strlen(src) + 1 + strlen(suffix) + 1;
+	char        *s;
+	char        *p;
+
+	s = m0_alloc(len);
+	M0_ASSERT(s != NULL);
+	strncpy(s, src, len);
+	p = strrchr(s, delim);
+	M0_ASSERT(p != NULL);
+	strncpy(p, suffix, strlen(suffix) + 1);
+	return s;
+}
+
+static bool ha_clink_cb_bad_rm(struct m0_clink *clink)
+{
+	struct m0_rconfc               *rconfc = M0_AMB(rconfc, clink,
+							rc_ha_entrypoint_cl);
+	struct m0_ha_entrypoint_client *ecl =
+		&m0_get()->i_ha->h_entrypoint_client;
+
+	M0_PRE(rconfc->rc_sm.sm_state == M0_RCS_ENTRYPOINT_WAIT);
+        if (m0_ha_entrypoint_client_state_get(ecl) == M0_HEC_AVAILABLE &&
+	    ecl->ecl_rep.hae_rc == 0) {
+		char       *rm_addr = ecl->ecl_rep.hae_active_rm_ep;
+		char       *rm_fake = NULL;
+		static bool do_fake = true;
+		/*
+		 * The test is to fake the rm addr only once to provide that the
+		 * next time correct rm addr reaches rconfc non-distorted, which
+		 * guarantees successful connection to RM.
+		 */
+		if (do_fake) {
+			rm_fake = suffix_subst(rm_addr, ':', "999");
+			ecl->ecl_rep.hae_active_rm_ep = rm_fake;
+			do_fake = false; /* not next time */
+		}
+		/*
+		 * call original handler to let rconfc copy this version of
+		 * response and go on with connection
+		 */
+		ha_clink_cb_orig(clink);
+		/*
+		 * get real active rm address back to entrypoint response
+		 */
+		ecl->ecl_rep.hae_active_rm_ep = rm_addr;
+		m0_free(rm_fake);
+	}
+	return true;
+}
+
+static void test_fail_retry(void)
+{
+	struct m0_rpc_machine    mach;
+	struct m0_rpc_server_ctx rctx;
+	int                      rc;
+	struct m0_rconfc         rconfc;
+
+	rc = rconfc_ut_mero_start(&mach, &rctx);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
+	M0_UT_ASSERT(rc == 0);
+	/*
+	 * Distort ha entrypoint response (active rm) to cause HA request
+	 * retry. Imitation of the situation when HA reports dead active RM
+	 * endpoint and later reports connectable one.
+	 */
+	ha_clink_cb_orig = rconfc.rc_ha_entrypoint_cl.cl_cb;
+	rconfc.rc_ha_entrypoint_cl.cl_cb = ha_clink_cb_bad_rm;
+	rc = m0_rconfc_start_sync(&rconfc, &profile);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(rconfc.rc_ha_entrypoint_retries > 0);
+	/* restore original callback */
+	rconfc.rc_ha_entrypoint_cl.cl_cb = ha_clink_cb_orig;
+	m0_rconfc_stop_sync(&rconfc);
+	m0_rconfc_fini(&rconfc);
+
+	rconfc_ut_mero_stop(&mach, &rctx);
 }
 
 static void _stop_rms(struct m0_rpc_machine *rmach)
@@ -277,7 +401,7 @@ static void test_no_rms(void)
 	int                      rc;
 	struct m0_rconfc         rconfc;
 
-	rc = ut_mero_start(&mach, &rctx);
+	rc = rconfc_ut_mero_start(&mach, &rctx);
 	M0_UT_ASSERT(rc == 0);
 
 	/* start with rms up and running */
@@ -299,7 +423,7 @@ static void test_no_rms(void)
 	m0_rconfc_stop_sync(&rconfc);
 	m0_rconfc_fini(&rconfc);
 
-	ut_mero_stop(&mach, &rctx);
+	rconfc_ut_mero_stop(&mach, &rctx);
 }
 
 static void test_reading(void)
@@ -311,7 +435,7 @@ static void test_reading(void)
 	uint64_t                 ver;
 	struct m0_conf_obj      *cobj;
 
-	rc = ut_mero_start(&mach, &rctx);
+	rc = rconfc_ut_mero_start(&mach, &rctx);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
 	M0_UT_ASSERT(rc == 0);
@@ -328,7 +452,7 @@ static void test_reading(void)
 	m0_confc_close(cobj);
 	m0_rconfc_stop_sync(&rconfc);
 	m0_rconfc_fini(&rconfc);
-	ut_mero_stop(&mach, &rctx);
+	rconfc_ut_mero_stop(&mach, &rctx);
 }
 
 static bool quorum_impossible_clink_cb(struct m0_clink *cl)
@@ -336,7 +460,7 @@ static bool quorum_impossible_clink_cb(struct m0_clink *cl)
 	struct m0_rconfc *rconfc = container_of(cl->cl_chan, struct m0_rconfc,
 						rc_sm.sm_chan);
 
-	if (rconfc->rc_sm.sm_state == RCS_GET_RLOCK) {
+	if (rconfc->rc_sm.sm_state == M0_RCS_GET_RLOCK) {
 		/*
 		 * Override required quorum value to be greater then number of
 		 * confd, so quorum is impossible.
@@ -357,7 +481,7 @@ static void test_quorum_impossible(void)
 	struct m0_rpc_server_ctx rctx;
 	struct m0_clink          clink;
 
-	rc = ut_mero_start(&mach, &rctx);
+	rc = rconfc_ut_mero_start(&mach, &rctx);
 	M0_UT_ASSERT(rc == 0);
 	M0_SET0(&rconfc);
 	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach,
@@ -373,7 +497,7 @@ static void test_quorum_impossible(void)
 	m0_rconfc_stop_sync(&rconfc);
 	m0_rconfc_fini(&rconfc);
 	m0_clink_fini(&clink);
-	ut_mero_stop(&mach, &rctx);
+	rconfc_ut_mero_stop(&mach, &rctx);
 }
 
 struct m0_semaphore gops_sem;
@@ -386,7 +510,7 @@ static void test_gops(void)
 	struct m0_rpc_server_ctx rctx;
 	bool                     check_res;
 
-	rc = ut_mero_start(&mach, &rctx);
+	rc = rconfc_ut_mero_start(&mach, &rctx);
 	M0_UT_ASSERT(rc == 0);
 	M0_SET0(&rconfc);
 	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
@@ -405,7 +529,7 @@ static void test_gops(void)
 	M0_UT_ASSERT(rc == -ENOENT);
 	m0_rconfc_stop_sync(&rconfc);
 	m0_rconfc_fini(&rconfc);
-	ut_mero_stop(&mach, &rctx);
+	rconfc_ut_mero_stop(&mach, &rctx);
 	m0_semaphore_fini(&gops_sem);
 }
 
@@ -452,7 +576,7 @@ static void test_version_change(void)
 	struct rlock_ctx        *rlx;
 	struct m0_conf_obj      *root_obj;
 
-	rc = ut_mero_start(&mach, &rctx);
+	rc = rconfc_ut_mero_start(&mach, &rctx);
 	M0_UT_ASSERT(rc == 0);
 	m0_semaphore_init(&g_ready_sem, 0);
 
@@ -478,10 +602,10 @@ static void test_version_change(void)
 	/* Wait till version reelection is finished */
 	m0_semaphore_down(&g_ready_sem);
 	m0_sm_group_lock(rconfc.rc_sm.sm_grp);
-	m0_sm_timedwait(&rconfc.rc_sm, M0_BITS(RCS_IDLE, RCS_FAILURE),
+	m0_sm_timedwait(&rconfc.rc_sm, M0_BITS(M0_RCS_IDLE, M0_RCS_FAILURE),
 			M0_TIME_NEVER);
 	m0_sm_group_unlock(rconfc.rc_sm.sm_grp);
-	M0_UT_ASSERT(rconfc.rc_sm.sm_state == RCS_IDLE);
+	M0_UT_ASSERT(rconfc.rc_sm.sm_state == M0_RCS_IDLE);
 
 	/* Check that version in use is 2 */
 	M0_UT_ASSERT(rconfc.rc_ver == 2);
@@ -493,7 +617,7 @@ static void test_version_change(void)
 	m0_rconfc_stop_sync(&rconfc);
 	m0_rconfc_fini(&rconfc);
 	m0_semaphore_fini(&g_ready_sem);
-	ut_mero_stop(&mach, &rctx);
+	rconfc_ut_mero_stop(&mach, &rctx);
 }
 
 static void test_cache_drop(void)
@@ -506,7 +630,7 @@ static void test_cache_drop(void)
 	struct m0_conf_obj      *root_obj;
 	struct m0_confc         *confc;
 
-	rc = ut_mero_start(&mach, &rctx);
+	rc = rconfc_ut_mero_start(&mach, &rctx);
 	M0_UT_ASSERT(rc == 0);
 	m0_semaphore_init(&g_expired_sem, 0);
 	M0_SET0(&rconfc);
@@ -536,7 +660,7 @@ static void test_cache_drop(void)
 	m0_semaphore_fini(&g_expired_sem);
 	m0_rconfc_stop_sync(&rconfc);
 	m0_rconfc_fini(&rconfc);
-	ut_mero_stop(&mach, &rctx);
+	rconfc_ut_mero_stop(&mach, &rctx);
 }
 
 static void test_confc_ctx_block(void)
@@ -548,7 +672,7 @@ static void test_confc_ctx_block(void)
 	struct rlock_ctx        *rlx;
 	struct m0_confc_ctx      confc_ctx;
 
-	rc = ut_mero_start(&mach, &rctx);
+	rc = rconfc_ut_mero_start(&mach, &rctx);
 	M0_UT_ASSERT(rc == 0);
 	M0_SET0(&rconfc);
 	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
@@ -563,7 +687,7 @@ static void test_confc_ctx_block(void)
 
 	m0_rconfc_stop_sync(&rconfc);
 	m0_rconfc_fini(&rconfc);
-	ut_mero_stop(&mach, &rctx);
+	rconfc_ut_mero_stop(&mach, &rctx);
 }
 
 static int _skip(struct m0_confc *confc)
@@ -581,7 +705,7 @@ static void test_reconnect_success(void)
 	uint64_t                 ver;
 	struct m0_conf_obj      *cobj;
 
-	rc = ut_mero_start(&mach, &rctx);
+	rc = rconfc_ut_mero_start(&mach, &rctx);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
 	M0_UT_ASSERT(rc == 0);
@@ -607,7 +731,7 @@ static void test_reconnect_success(void)
 	m0_fi_disable("on_replied", "fail_rpc_reply");
 	m0_rconfc_stop_sync(&rconfc);
 	m0_rconfc_fini(&rconfc);
-	ut_mero_stop(&mach, &rctx);
+	rconfc_ut_mero_stop(&mach, &rctx);
 }
 
 static void _subscribe_to_service(struct m0_rconfc *rconfc,
@@ -664,7 +788,7 @@ M0_UNUSED static void test_ha_notify(void)
 	struct m0_sm_ast         notify_ast = {0};
 	struct _ha_notify_ctx    hnx;
 
-	rc = ut_mero_start(&mach, &rctx);
+	rc = rconfc_ut_mero_start(&mach, &rctx);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
 	M0_UT_ASSERT(rc == 0);
@@ -673,7 +797,7 @@ M0_UNUSED static void test_ha_notify(void)
 	M0_UT_ASSERT(rconfc.rc_ver != 0);
 
 	/* make sure rconfc is ready */
-	M0_UT_ASSERT(rconfc.rc_sm.sm_state == RCS_IDLE);
+	M0_UT_ASSERT(rconfc.rc_sm.sm_state == M0_RCS_IDLE);
 	/* prepare notification context */
 	m0_semaphore_init(&hnx.sem, 0);
 	m0_clink_init(&hnx.clink, _clink_cb);
@@ -693,7 +817,7 @@ M0_UNUSED static void test_ha_notify(void)
 	m0_clink_fini(&hnx.clink);
 	/* ... and leave */
 	m0_rconfc_lock(&rconfc);
-	m0_sm_timedwait(&rconfc.rc_sm, M0_BITS(RCS_FAILURE), M0_TIME_NEVER);
+	m0_sm_timedwait(&rconfc.rc_sm, M0_BITS(M0_RCS_FAILURE), M0_TIME_NEVER);
 	m0_rconfc_unlock(&rconfc);
 	m0_rconfc_stop_sync(&rconfc);
 	m0_rconfc_fini(&rconfc);
@@ -702,7 +826,7 @@ M0_UNUSED static void test_ha_notify(void)
 	 * this owner is finalised. Drop this loan on creditor side.
 	 */
 	m0_fi_enable_once("owner_finalisation_check", "drop_loans");
-	ut_mero_stop(&mach, &rctx);
+	rconfc_ut_mero_stop(&mach, &rctx);
 }
 
 struct m0_fid drain_fs_fid = M0_FID0;
@@ -766,7 +890,7 @@ static void test_drain(void)
 	struct m0_rconfc        *rconfc;
 	struct fs_object         fs_obj;
 
-	rc = ut_mero_start(&mach, &rctx);
+	rc = rconfc_ut_mero_start(&mach, &rctx);
 	M0_UT_ASSERT(rc == 0);
 	m0_semaphore_init(&g_ready_sem, 0);
 
@@ -812,10 +936,10 @@ static void test_drain(void)
 	drain_fs_fid = M0_FID0;
 
 	m0_sm_group_lock(rconfc->rc_sm.sm_grp);
-	m0_sm_timedwait(&rconfc->rc_sm, M0_BITS(RCS_IDLE, RCS_FAILURE),
+	m0_sm_timedwait(&rconfc->rc_sm, M0_BITS(M0_RCS_IDLE, M0_RCS_FAILURE),
 			M0_TIME_NEVER);
 	m0_sm_group_unlock(rconfc->rc_sm.sm_grp);
-	M0_UT_ASSERT(rconfc->rc_sm.sm_state == RCS_IDLE);
+	M0_UT_ASSERT(rconfc->rc_sm.sm_state == M0_RCS_IDLE);
 
 	rc = m0_conf_fs_get(&profile, &rconfc->rc_confc, &fs_obj.fs);
 	M0_UT_ASSERT(rc == 0);
@@ -830,7 +954,7 @@ static void test_drain(void)
 	m0_rconfc_fini(rconfc);
 	m0_rpc_client_stop(&cctx);
 	m0_semaphore_fini(&g_ready_sem);
-	ut_mero_stop(&mach, &rctx);
+	rconfc_ut_mero_stop(&mach, &rctx);
 }
 
 static int rconfc_ut_init(void)
@@ -852,6 +976,8 @@ struct m0_ut_suite rconfc_ut = {
 		{ "start-stop", test_start_stop },
 		{ "local-conf", test_start_stop_local },
 		{ "start-fail", test_start_failures },
+		{ "fail-abort", test_fail_abort },
+		{ "fail-retry", test_fail_retry },
 		{ "no-rms",     test_no_rms },
 		{ "reading",    test_reading },
 		{ "impossible", test_quorum_impossible },

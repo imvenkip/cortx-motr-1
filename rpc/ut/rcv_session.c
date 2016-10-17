@@ -279,10 +279,10 @@ static void test_conn_ha_subscribe()
 	rlx = rconfc->rc_rlock_ctx;
 	m0_rconfc_ri_ops.rio_conflict(&rlx->rlc_req);
 	m0_sm_group_lock(rconfc->rc_sm.sm_grp);
-	m0_sm_timedwait(&rconfc->rc_sm, M0_BITS(RCS_IDLE, RCS_FAILURE),
+	m0_sm_timedwait(&rconfc->rc_sm, M0_BITS(M0_RCS_IDLE, M0_RCS_FAILURE),
 			M0_TIME_NEVER);
 	m0_sm_group_unlock(rconfc->rc_sm.sm_grp);
-	M0_UT_ASSERT(rconfc->rc_sm.sm_state == RCS_IDLE);
+	M0_UT_ASSERT(rconfc->rc_sm.sm_state == M0_RCS_IDLE);
 	/*
 	 * Check that conn is still subscribed after fetching new configuration
 	 */

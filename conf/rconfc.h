@@ -168,9 +168,9 @@ struct m0_rpc_item;
  * }
  * @endcode
  *
- * For asynchronous rconfc start/stop please see details of @ref
- * m0_rconfc_start_sync, @ref m0_rconfc_stop_sync implementation or
- * documentation for @ref m0_rconfc_start, @ref m0_rconfc_stop.
+ * For asynchronous rconfc start/stop please see details of
+ * m0_rconfc_start_sync(), m0_rconfc_stop_sync() implementation or documentation
+ * for m0_rconfc_start(), m0_rconfc_stop().
  *
  * @note Consumer is allowed to use any standard approach for opening
  * configuration and traversing directories in accordance with confc
@@ -190,18 +190,18 @@ struct m0_rpc_item;
  */
 
 enum m0_rconfc_state {
-	RCS_INIT,
-	RCS_ENTRYPOINT_WAIT,
-	RCS_ENTRYPOINT_CONSUME,
-	RCS_CREDITOR_SETUP,
-	RCS_GET_RLOCK,
-	RCS_VERSION_ELECT,
-	RCS_IDLE,
-	RCS_RLOCK_CONFLICT,
-	RCS_CONDUCTOR_DRAIN,
-	RCS_STOPPING,
-	RCS_FAILURE,
-	RCS_FINAL
+	M0_RCS_INIT,
+	M0_RCS_ENTRYPOINT_WAIT,
+	M0_RCS_ENTRYPOINT_CONSUME,
+	M0_RCS_CREDITOR_SETUP,
+	M0_RCS_GET_RLOCK,
+	M0_RCS_VERSION_ELECT,
+	M0_RCS_IDLE,
+	M0_RCS_RLOCK_CONFLICT,
+	M0_RCS_CONDUCTOR_DRAIN,
+	M0_RCS_STOPPING,
+	M0_RCS_FAILURE,
+	M0_RCS_FINAL
 };
 
 struct rconfc_load_ctx {
@@ -231,8 +231,8 @@ struct rconfc_load_ctx {
 typedef void (*m0_rconfc_exp_cb_t)(struct m0_rconfc *rconfc);
 
 /**
- * Rconfc ready callback is called when m0_rconfc::rc_sm is switched to RCS_IDLE
- * state and an rconfc client is able to read configuration.
+ * Rconfc ready callback is called when m0_rconfc::rc_sm is switched to
+ * M0_RCS_IDLE state and an rconfc client is able to read configuration.
  *
  * @note The callback is called from rconfc instance being in locked state.
  *
@@ -350,13 +350,32 @@ struct m0_rconfc {
 	 * finalisation.
 	 */
 	char                     *rc_local_conf;
-
+	/** Profile FID rconfc to work on */
 	struct m0_fid            *rc_profile;
-	struct m0_tl              rc_ha_list;
+	/**
+	 * Context for full conf loading.
+	 *
+	 * @note Currently many parts of Mero rely on full configuration
+	 * availability at operation time.
+	 */
 	struct rconfc_load_ctx    rc_rx;
+	/** AST used for full conf load during rconfc life */
 	struct m0_sm_ast          rc_load_ast;
+	/** AST used for full conf load finalisation */
 	struct m0_sm_ast          rc_load_fini_ast;
+	/** HA ENTRYPOINT reply local copy */
 	struct m0_ha_entrypoint_rep rc_ha_entrypoint_rep;
+	/**
+	 * Retries made to obtain ENTRYPOINT information sufficient for
+	 * successfull rconfc start.
+	 */
+	uint32_t                    rc_ha_entrypoint_retries;
+	/**
+	 * The state, which m0_rconfc::rc_sm was in prior to entering
+	 * M0_RCS_FAILURE state. Rconfc start may fail due to external causes
+	 * unrelated to rconfc internal workings, e.g. start timeout expired.
+	 */
+	uint32_t                    rc_sm_state_on_abort;
 };
 
 /**
@@ -369,7 +388,7 @@ struct m0_rconfc {
  * @param sm_group   - state machine group to be used with confc.
  *                     Opening conf objects later in context of this SM group is
  *                     prohibited, so providing locality SM group is a
- *                     bad choice. Use locality0 (@ref m0_locality0_get) or
+ *                     bad choice. Use locality0 (m0_locality0_get()) or
  *                     some dedicated SM group.
  * @param rmach      - RPC machine to be used to communicate with confd
  * @param exp_cb     - callback, a "configuration just expired" event
@@ -395,8 +414,9 @@ M0_INTERNAL int m0_rconfc_init(struct m0_rconfc      *rconfc,
  * the newly elected version.
  *
  * Function is asynchronous, user can wait on rconfc->rc_sm.sm_chan until
- * rconfc->rc_sm.sm_state in (RCS_IDLE, RCS_FAILURE). RCS_FAILURE state means
- * that start failed, return code can be obtained from rconfc->rc_sm.sm_rc.
+ * rconfc->rc_sm.sm_state in (M0_RCS_IDLE, M0_RCS_FAILURE). M0_RCS_FAILURE state
+ * means that start failed, return code can be obtained from
+ * rconfc->rc_sm.sm_rc.
  *
  * @note Even with unsuccessful startup rconfc instance requires for
  * explicit m0_rconfc_stop(). The behavior is to provide an ability to call
@@ -416,26 +436,34 @@ M0_INTERNAL void m0_rconfc_start(struct m0_rconfc *rconfc,
 				 struct m0_fid    *profile);
 
 /**
- * Synchronous version of @ref m0_rconfc_start.
+ * Synchronous version of m0_rconfc_start() with limited deadline. Use
+ * M0_TIME_NEVER value to indicate infinite waiting.
  */
-M0_INTERNAL int m0_rconfc_start_sync(struct m0_rconfc *rconfc,
-				     struct m0_fid    *profile);
+M0_INTERNAL int m0_rconfc_start_wait(struct m0_rconfc *rconfc,
+				     struct m0_fid    *profile,
+				     uint64_t          timeout_ns);
+
+static inline int m0_rconfc_start_sync(struct m0_rconfc *rconfc,
+				       struct m0_fid    *profile)
+{
+	return m0_rconfc_start_wait(rconfc, profile, M0_TIME_NEVER);
+}
 
 /**
  * Finalises dedicated m0_rconfc::rc_confc instance and puts all the acquired
  * resources back.
  *
  * Function is asynchronous, user should wait on rconfc->rc_sm.sm_chan until
- * rconfc->rc_sm.sm_state is RCS_FINAL.
+ * rconfc->rc_sm.sm_state is M0_RCS_FINAL.
  *
- * @note User is not allowed to call @ref m0_rconfc_start again on stopped
- * rconfc instance as well as other API. The only calls allowed with stopped
- * instance are @ref m0_rconfc_ver_max_read and @ref m0_rconfc_fini.
+ * @note User is not allowed to call m0_rconfc_start() again on stopped rconfc
+ * instance as well as other API. The only calls allowed with stopped instance
+ * are m0_rconfc_ver_max_read() and m0_rconfc_fini().
  */
 M0_INTERNAL void m0_rconfc_stop(struct m0_rconfc *rconfc);
 
 /**
- * Synchronous version of @ref m0_rconfc_stop.
+ * Synchronous version of m0_rconfc_stop().
  */
 M0_INTERNAL void m0_rconfc_stop_sync(struct m0_rconfc *rconfc);
 
@@ -454,7 +482,7 @@ M0_INTERNAL void m0_rconfc_unlock(struct m0_rconfc *rconfc);
  * @note Supposed to be called internally, e.g. by spiel during transaction
  * opening.
  *
- * @pre rconfc_state(rconfc) != RCS_INIT
+ * @pre rconfc_state(rconfc) != M0_RCS_INIT
  */
 M0_INTERNAL uint64_t m0_rconfc_ver_max_read(struct m0_rconfc *rconfc);
 
@@ -462,7 +490,7 @@ M0_INTERNAL uint64_t m0_rconfc_ver_max_read(struct m0_rconfc *rconfc);
  * Set expiration callback.
  *
  * @note The alternative to providing expiration callback is detecting rconfc
- * RCS_CONDUCTOR_DRAIN state. Once the consumer observes the rconfc instance in
+ * M0_RCS_CONDUCTOR_DRAIN state. Once the consumer observes the rconfc instance in
  * this state, the consumer must close all opened configuration objects and
  * invalidate local copies of configuration objects.
  *
@@ -484,7 +512,7 @@ M0_INTERNAL void m0_rconfc_ready_cb_set(struct m0_rconfc     *rconfc,
  * Returns number of endpoints or -ENOMEM if memory allocation was failed during
  * duplication of an endpoint.
  *
- * @pre rconfc_state(rconfc) != RCS_INIT
+ * @pre rconfc_state(rconfc) != M0_RCS_INIT
  */
 M0_INTERNAL int m0_rconfc_confd_endpoints(struct m0_rconfc   *rconfc,
 					  const char       ***eps);
@@ -494,14 +522,14 @@ M0_INTERNAL int m0_rconfc_confd_endpoints(struct m0_rconfc   *rconfc,
  * m0_rconfc::rc_rlock_ctx::rlc_rm_addr. Returns 0 if success or -ENOMEM if
  * memory allocation was failed during duplication of the endpoint.
  *
- * @pre rconfc_state(rconfc) != RCS_INIT
+ * @pre rconfc_state(rconfc) != M0_RCS_INIT
  */
 M0_INTERNAL int m0_rconfc_rm_endpoint(struct m0_rconfc *rconfc, char **ep);
 
 /**
  * Returns the fid of active RM obtained by entrypoint request to HA.
  *
- * @pre rconfc_state(rconfc) != RCS_INIT
+ * @pre rconfc_state(rconfc) != M0_RCS_INIT
  */
 M0_INTERNAL void m0_rconfc_rm_fid(struct m0_rconfc *rconfc, struct m0_fid *out);
 
@@ -510,19 +538,19 @@ M0_INTERNAL void m0_rconfc_rm_fid(struct m0_rconfc *rconfc, struct m0_fid *out);
  * instances, reaching quorum, getting read lock, blocking read context, etc. is
  * supposed on such rconfc instance. In this case it just shells the pre-filled
  * rc_confc while having all event mechanisms disabled. In this case rconfc
- * remains to be in RCS_INIT state.
+ * remains to be in M0_RCS_INIT state.
  *
- * @note Due to being in RCS_INIT state calling m0_rconfc_ver_max_read(),
+ * @note Due to being in M0_RCS_INIT state calling m0_rconfc_ver_max_read(),
  * m0_rconfc_rm_endpoint() and m0_rconfc_confd_endpoints() makes no sense with
  * such rconfc, and therefore, prohibited. Rconfc starting and stopping under
  * the circumstances causes no effect on the internal state machine, which
- * remains in RCS_INIT state during all its life.
+ * remains in M0_RCS_INIT state during all its life.
  */
 M0_INTERNAL bool m0_rconfc_is_preloaded(struct m0_rconfc *rconfc);
 
 /**
- * Indicates whether rconfc in RCS_IDLE state or not, In RCS_IDLE state rconfc
- * holds a read lock and a client is able to read configuration.
+ * Indicates whether rconfc in M0_RCS_IDLE state or not, In M0_RCS_IDLE state
+ * rconfc holds a read lock and a client is able to read configuration.
  */
 M0_INTERNAL bool m0_rconfc_reading_is_allowed(const struct m0_rconfc *rconfc);
 
