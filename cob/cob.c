@@ -919,6 +919,9 @@ static int cob_oi_lookup(struct m0_cob *cob)
 	 * Found position should have same fid.
 	 */
 	if (!m0_fid_eq(&oldkey.cok_fid, &oikey->cok_fid)) {
+		M0_LOG(M0_DEBUG, "old fid="FID_F" fid="FID_F,
+				FID_P(&oldkey.cok_fid),
+				FID_P(&oikey->cok_fid));
 		rc = -ENOENT;
 		goto out;
 	}

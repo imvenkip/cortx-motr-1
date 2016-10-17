@@ -492,9 +492,13 @@ static bool cob_pool_version_mismatch(const struct m0_fom *fom)
 
 	common = m0_cobfop_common_get(fom->fo_fop);
 	rc = cob_locate(fom, &cob);
-	if (rc == 0 && cob != NULL)
+	if (rc == 0 && cob != NULL) {
+		M0_LOG(M0_DEBUG, "cob pver"FID_F", common pver"FID_F,
+				FID_P(&cob->co_nsrec.cnr_pver),
+				FID_P(&common->c_body.b_pver));
 		return !m0_fid_eq(&cob->co_nsrec.cnr_pver,
 				  &common->c_body.b_pver);
+	}
 	return false;
 }
 
@@ -535,6 +539,8 @@ static int cob_stob_delete_credit(struct m0_fom *fom)
 	fop_type = cob_op->fco_fop_type;
 	if (cob_is_md(cob_op)) {
 		cob_op_credit(fom, M0_COB_OP_DELETE, tx_cred);
+		if (cob_op->fco_recreate)
+			cob_op_credit(fom, M0_COB_OP_CREATE, tx_cred);
 		cob_op->fco_is_done = true;
 		return M0_RC(rc);
 	}
