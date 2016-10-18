@@ -86,6 +86,7 @@ static int cm_ut_init(void)
 
 	rc = m0_cm_type_register(&cm_ut_cmt);
 	M0_ASSERT(rc == 0);
+	m0_cm_cp_init(&cm_ut_cmt, NULL);
 
 	cm_ut_server_start();
 
