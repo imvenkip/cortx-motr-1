@@ -51,8 +51,8 @@ static void bufvec_geometry(struct m0_net_domain *ndom,
 			    int32_t              *out_nr_segments,
 			    m0_bcount_t          *out_segment_size);
 
-static void item_done(struct m0_rpc_packet *p,
-		      struct m0_rpc_item *item, unsigned long rc);
+static void item_done(struct m0_rpc_packet *p, struct m0_rpc_item *item,
+		      int rc);
 static void item_sent(struct m0_rpc_item *item);
 
 /*
@@ -150,8 +150,9 @@ static int packet_ready(struct m0_rpc_packet *p)
 		for_each_item_in_packet(item, p) {
 			if (m0_rpc_item_is_reply(item)) {
 				rc = -ENETDOWN;
-				M0_LOG(M0_ERROR, "packet %p, item %p[%u] set error to %d",
-				       p, item, item->ri_type->rit_opcode, rc);
+				M0_LOG(M0_ERROR, "packet %p, item %p[%"PRIu32"]"
+				       " set error to %d", p, item,
+				       item->ri_type->rit_opcode, rc);
 				goto out;
 			}
 		} end_for_each_item_in_packet;
@@ -294,8 +295,7 @@ static void bufvec_geometry(struct m0_net_domain *ndom,
 	*out_nr_segments  = nr_segments;
 
 	M0_LEAVE("seg_size: %llu nr_segments: %d",
-			(unsigned long long)*out_segment_size,
-			*out_nr_segments);
+		 (unsigned long long)*out_segment_size, *out_nr_segments);
 }
 
 static void net_buffer_free(struct m0_net_buffer *netbuf,
@@ -417,13 +417,11 @@ static void buf_send_cb(const struct m0_net_buffer_event *ev)
 	M0_LEAVE();
 }
 
-static void item_done(struct m0_rpc_packet *p,
-		      struct m0_rpc_item *item, unsigned long rc)
+static void item_done(struct m0_rpc_packet *p, struct m0_rpc_item *item, int rc)
 {
 	M0_PRE(item != NULL);
-
-	M0_ENTRY("item: %p[%u] item->ri_error: %d rc: %lu",
-	         item, item->ri_type->rit_opcode, item->ri_error, rc);
+	M0_ENTRY("item=%p[%"PRIu32"] ri_error=%"PRIi32" rc=%d",
+		 item, item->ri_type->rit_opcode, item->ri_error, rc);
 
 	if (item->ri_pending_reply != NULL) {
 		/* item that is never sent, i.e. item->ri_nr_sent == 0,
@@ -437,8 +435,9 @@ static void item_done(struct m0_rpc_packet *p,
 	item->ri_error = item->ri_error ?: rc;
 	if (item->ri_error != 0 &&
 	    item->ri_sm.sm_state != M0_RPC_ITEM_FAILED) {
-		M0_LOG(M0_ERROR, "packet %p, item %p[%u] failed with %d",
-				  p, item, item->ri_type->rit_opcode, item->ri_error);
+		M0_LOG(M0_ERROR, "packet %p, item %p[%"PRIu32"] failed with"
+		       " ri_error=%"PRIi32, p, item, item->ri_type->rit_opcode,
+		       item->ri_error);
 		m0_rpc_item_failed(item, item->ri_error);
 	} else
 		item_sent(item);
@@ -448,10 +447,10 @@ static void item_done(struct m0_rpc_packet *p,
 
 static void item_sent(struct m0_rpc_item *item)
 {
-	struct m0_rpc_stats    *stats;
+	struct m0_rpc_stats *stats;
 
-	M0_ENTRY("%p[%s/%u], sent=%u max=%lx item->ri_sm.sm_state %d "
-		 "ri_error %d",
+	M0_ENTRY("%p[%s/%"PRIu32"], sent=%u max=%lx"
+		 " item->ri_sm.sm_state %"PRIu32" ri_error=%"PRIi32,
 		 item, item_kind(item), item->ri_type->rit_opcode,
 		 item->ri_nr_sent, (unsigned long)item->ri_nr_sent_max,
 		 item->ri_sm.sm_state, item->ri_error);
@@ -467,7 +466,7 @@ static void item_sent(struct m0_rpc_item *item)
 	}
 
 	M0_PRE(ergo(m0_rpc_item_is_request(item),
-	            M0_IN(item->ri_error, (0, -ETIMEDOUT))) &&
+		    M0_IN(item->ri_error, (0, -ETIMEDOUT))) &&
 	       item->ri_sm.sm_state == M0_RPC_ITEM_SENDING);
 
 	m0_rpc_item_change_state(item, M0_RPC_ITEM_SENT);

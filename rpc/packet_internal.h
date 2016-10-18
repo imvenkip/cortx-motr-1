@@ -142,7 +142,7 @@ M0_INTERNAL int m0_rpc_packet_decode_using_cursor(struct m0_rpc_packet *packet,
 						  *cursor, m0_bcount_t len);
 
 typedef void item_visit_fn(struct m0_rpc_packet *packet,
-			   struct m0_rpc_item *item, unsigned long data);
+			   struct m0_rpc_item *item, int data);
 
 /**
    Iterates through all the items in the packet p and calls visit function
@@ -150,7 +150,7 @@ typedef void item_visit_fn(struct m0_rpc_packet *packet,
  */
 M0_INTERNAL void m0_rpc_packet_traverse_items(struct m0_rpc_packet *p,
 					      item_visit_fn * visit,
-					      unsigned long opaque_data);
+					      int opaque_data);
 
 /** @} rpc */
 #endif /* __MERO_RPC_PACKET_INT_H__ */

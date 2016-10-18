@@ -501,7 +501,7 @@ M0_INTERNAL int m0_rpc_packet_decode_using_cursor(struct m0_rpc_packet *p,
 
 M0_INTERNAL void m0_rpc_packet_traverse_items(struct m0_rpc_packet *p,
 					      item_visit_fn *visit,
-					      unsigned long opaque_data)
+					      int opaque_data)
 {
 	struct m0_rpc_item *item;
 
