@@ -60,6 +60,7 @@ enum IO_UT_VALUES {
 #define IO_SERVER_STOBFILE "bulk_st_stob"
 
 static const struct m0_fid CONF_PVER_FID = M0_FID_TINIT('v', 1, 24);
+static const struct m0_fid CONF_PVER_FID1 = M0_FID_TINIT('v', 1, 25);
 static const struct m0_fid CONF_PROFILE_FID = M0_FID_TINIT('p', 1, 0);
 /* Structure containing data needed for UT. */
 struct bulkio_params {
