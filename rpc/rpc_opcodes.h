@@ -294,7 +294,8 @@ enum M0_RPC_OPCODES {
 	M0_HA_ENTRYPOINT_CLIENT_OPCODE      = 1049,
 	M0_UT_RPC_AT_REQ_OPCODE             = 1050,
 	M0_UT_RPC_AT_REP_OPCODE             = 1051,
-
+	M0_UT_MASTER_FOM_OPCODE             = 1052,
+	M0_UT_SLAVE_FOM_OPCODE              = 1053,
 
 	M0_OPCODES_NR                       = 2048
 };

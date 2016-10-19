@@ -637,6 +637,8 @@ enum m0_fom_phase_outcome {
 	 * constraints.
 	 */
 	M0_FSO_AGAIN,
+	/** Must be the last. */
+	M0_FSO_NR
 };
 
 /** Fom type operation vector. */
