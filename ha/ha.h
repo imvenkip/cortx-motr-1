@@ -31,7 +31,75 @@
  * - TODO race between FAILED about process and systemd restart
  * - TODO check types of process fid and profile fid
  *
+ * State transition rules
+ *
+ * I. Processes and Services
+ *
+ * I.a Process and Service States
+ * 1. There are 3 process/service states: FAILED, TRANSIENT and ONLINE.
+ * 2. The only allowed state transitions for processes/services are
+ *    FAILED <-> TRANSIENT <-> ONLINE, ONLINE -> FAILED.
+ * 3. At the start every process/service is in FAILED state.
+ * 4. When process/service starts it's moved to TRANSIENT state and then to
+ *    ONLINE state.
+ * 5. When there are signs that process/service is not ONLINE then it's moved to
+ *    TRANSIENT state.
+ * 6. When the decision is made that process/service is dead it's moved to
+ *    FAILED state.
+ * 7. When a process is permanently removed from the cluster it's going to
+ *    FAILED state before it's removed from the configuration.
+ *
+ * I.b Events
+ * 1. Processes and services send event messages when they are starting and
+ *    stopping.
+ * 2. Before process/service is started it sends STARTING event.
+ * 3. After process/service is started it sends STARTED event.
+ * 4. Before process/service initiates stop sequence it sends STOPPING event.
+ * 5. After process/service initiates stop sequence it sends STOPPED event.
+ * 6. Events for the same process/service are always sent in the same order:
+ *    STARTING -> STARTED -> STOPPING -> STOPPED.
+ *
+ * I.c Correlation between events and states
+ *
+ * 1. Before process/service is started it should be in FAILED state.
+ * 2. If process/service dies it's moved to FAILED state.
+ * 3. After <...> event is sent the process/service is moved to <...> state:
+ *    STARTING - TRANSIENT
+ *    STARTED  - ONLINE
+ *    STOPPING - TRANSIENT
+ *    STOPPED  - FAILED.
+ *
+ * I.d Use cases
+ * 1. Process/service start
+ *            STARTING              STARTED
+ *    FAILED ----------> TRANSIENT --------> ONLINE
+ * 2. Process/service stop
+ *               STOPPING             STOPPED
+ *    ONLINE ------------> TRANSIENT ----------> FAILED
+ * 3. Process/service crash
+ *            the decision has been made
+ *            that the process crashed
+ *    ONLINE ----------------------------> FAILED
+ * 4. Temporary process/service timeout
+ *             decision that process             decision that process
+ *                 may be dead                         is alive
+ *    ONLINE -----------------------> TRANSIENT -----------------------> ONLINE
+ * 5. Permanent process/servise timeout
+ *             decision that process             decision that process
+ *                 may be dead                          is dead
+ *    ONLINE -----------------------> TRANSIENT -----------------------> FAILED
+ *
+ * I.e Handling process/service state transitions in rpc
+ * 1. If a process/service is ONLINE the connect timeout is M0_TIME_NEVER and
+ *    the number of resends is unlimited.
+ * 2. If a process/service is in TRANSIENT state the connect timeout and the
+ *    number of resends are limited.
+ * 3. If a process/service is in FAILED state then no attempt is made to
+ *    communicate with the process/service and all existing rpc
+ *    sessions/connections are dropped without timeout.
+ *
  * Reconnect protocol
+ *
  * - Legend
  *   - HA1 - side with outgoging link (m0_ha with HA link from connect());
  *   - HA2 - side with incoming link (m0_ha with HA link from entrypoint
