@@ -217,8 +217,8 @@ struct ha_ut_link_mt_test {
 	struct m0_uint128        ulmt_id_remote;
 	struct m0_uint128        ulmt_id_connection;
 	bool                     ulmt_tag_even;
-	struct m0_semaphore      ulmt_start_done;
-	struct m0_semaphore      ulmt_start_wait;
+	struct m0_semaphore      ulmt_barrier_done;
+	struct m0_semaphore      ulmt_barrier_wait;
 	struct m0_ha_msg        *ulmt_msgs_out;
 	struct m0_ha_msg        *ulmt_msgs_in;
 	uint64_t                *ulmt_tags_out;
@@ -240,8 +240,8 @@ static void ha_ut_link_mt_thread(void *param)
 			&test->ulmt_id_remote, &test->ulmt_id_connection,
 			test->ulmt_tag_even, true);
 	/* barrier with the main thread */
-	m0_semaphore_up(&test->ulmt_start_wait);
-	m0_semaphore_down(&test->ulmt_start_done);
+	m0_semaphore_up(&test->ulmt_barrier_wait);
+	m0_semaphore_down(&test->ulmt_barrier_done);
 
 	hl = &test->ulmt_link_ctx.ulc_link;
 	for (i = 0; i < HA_UT_MSG_PER_THREAD; ++i) {
@@ -279,6 +279,10 @@ static void ha_ut_link_mt_thread(void *param)
 	tag = m0_ha_link_not_delivered_consume(hl);
 	M0_UT_ASSERT(tag == M0_HA_MSG_TAG_INVALID);
 	m0_ha_link_flush(hl);
+
+	/* barrier with the main thread */
+	m0_semaphore_up(&test->ulmt_barrier_wait);
+	m0_semaphore_down(&test->ulmt_barrier_done);
 
 	ha_ut_link_fini(&test->ulmt_link_ctx);
 }
@@ -328,9 +332,9 @@ void m0_ha_ut_link_multithreaded(void)
 	for (i = 0; i < HA_UT_THREAD_PAIR_NR * 2; ++i) {
 		tests[i].ulmt_ctx        = rpc_ctx;
 		tests[i].ulmt_hl_service = hl_service;
-		rc = m0_semaphore_init(&tests[i].ulmt_start_done, 0);
+		rc = m0_semaphore_init(&tests[i].ulmt_barrier_done, 0);
 		M0_UT_ASSERT(rc == 0);
-		rc = m0_semaphore_init(&tests[i].ulmt_start_wait, 0);
+		rc = m0_semaphore_init(&tests[i].ulmt_barrier_wait, 0);
 		M0_UT_ASSERT(rc == 0);
 		M0_ALLOC_ARR(tests[i].ulmt_msgs_out, HA_UT_MSG_PER_THREAD);
 		M0_UT_ASSERT(tests[i].ulmt_msgs_out != NULL);
@@ -356,11 +360,13 @@ void m0_ha_ut_link_multithreaded(void)
 		M0_UT_ASSERT(tests[i].ulmt_tags_in != NULL);
 	}
 	M0_UT_THREADS_START(ha_ut_link_mt, HA_UT_THREAD_PAIR_NR * 2, tests);
-	/* barrier with all threads */
-	for (i = 0; i < HA_UT_THREAD_PAIR_NR * 2; ++i)
-		m0_semaphore_down(&tests[i].ulmt_start_wait);
-	for (i = 0; i < HA_UT_THREAD_PAIR_NR * 2; ++i)
-		m0_semaphore_up(&tests[i].ulmt_start_done);
+	/* Barriers with all threads. One after init, another one before fini */
+	for (j = 0; j < 2; ++j) {
+		for (i = 0; i < HA_UT_THREAD_PAIR_NR * 2; ++i)
+			m0_semaphore_down(&tests[i].ulmt_barrier_wait);
+		for (i = 0; i < HA_UT_THREAD_PAIR_NR * 2; ++i)
+			m0_semaphore_up(&tests[i].ulmt_barrier_done);
+	}
 	M0_UT_THREADS_STOP(ha_ut_link_mt);
 
 	for (i = 0; i < HA_UT_THREAD_PAIR_NR; ++i) {
@@ -382,8 +388,8 @@ void m0_ha_ut_link_multithreaded(void)
 		m0_free(tests[i].ulmt_tags_out);
 		m0_free(tests[i].ulmt_msgs_in);
 		m0_free(tests[i].ulmt_msgs_out);
-		m0_semaphore_fini(&tests[i].ulmt_start_wait);
-		m0_semaphore_fini(&tests[i].ulmt_start_done);
+		m0_semaphore_fini(&tests[i].ulmt_barrier_wait);
+		m0_semaphore_fini(&tests[i].ulmt_barrier_done);
 	}
 	m0_free(tests);
 	m0_ha_link_service_fini(hl_service);
