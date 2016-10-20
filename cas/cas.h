@@ -225,7 +225,11 @@ enum m0_cas_op_flags {
 	 * For DEL operation, instructs it to be a no-op if catalogue to be
 	 * deleted does not exist.
 	 */
-	COF_CROW      = 1 << 3
+	COF_CROW      = 1 << 3,
+	/**
+	 * Repair is in progress, reserve space.
+	 */
+	COF_RESERVE   = 1 << 4
 };
 
 enum m0_cas_opcode {

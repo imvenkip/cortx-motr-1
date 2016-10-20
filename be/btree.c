@@ -136,13 +136,16 @@ static inline void mem_update(const struct m0_be_btree *btree,
 }
 
 static inline void *mem_alloc(const struct m0_be_btree *btree,
-			      struct m0_be_tx *tx, m0_bcount_t size)
+			      struct m0_be_tx *tx, m0_bcount_t size,
+			      uint64_t zonemask)
 {
 	void *p;
 
 	M0_BE_OP_SYNC(op,
 		      m0_be_alloc_aligned(tree_allocator(btree),
-					  tx, &op, &p, size, BTREE_ALLOC_SHIFT));
+					  tx, &op, &p, size,
+					  BTREE_ALLOC_SHIFT,
+					  zonemask));
 	M0_ASSERT(p != NULL);
 	return p;
 }
@@ -345,7 +348,8 @@ btree_node_alloc(const struct m0_be_btree *btree, struct m0_be_tx *tx)
 
 	/*  Allocate memory for the node */
 	node = (struct m0_be_bnode *)mem_alloc(btree, tx,
-					       sizeof(struct m0_be_bnode));
+					       sizeof(struct m0_be_bnode),
+					       M0_BITS(M0_BAP_NORMAL));
 	M0_ASSERT(node != NULL);	/* @todo: analyse return code */
 
 	m0_format_header_pack(&node->b_header, &(struct m0_format_tag){
@@ -1127,6 +1131,7 @@ static void btree_pair_release(struct m0_be_btree *btree, struct m0_be_tx *tx,
  * @param key Key of the node to be searched
  * @param value Value to be copied
  * @param optype Save operation type: insert, update or overwrite
+ * @param zonemask Bitmask of allowed allocation zones for memory allocation
  */
 static void btree_save(struct m0_be_btree        *tree,
 		       struct m0_be_tx           *tx,
@@ -1134,7 +1139,8 @@ static void btree_save(struct m0_be_btree        *tree,
 		       const struct m0_buf       *key,
 		       const struct m0_buf       *val,
 		       struct m0_be_btree_anchor *anchor,
-		       enum btree_save_optype     optype)
+		       enum btree_save_optype     optype,
+		       uint64_t                   zonemask)
 {
 	m0_bcount_t        ksz;
 	m0_bcount_t        vsz;
@@ -1213,7 +1219,7 @@ static void btree_save(struct m0_be_btree        *tree,
 		    (cur_kv == NULL || val_overflow)) {
 			/* Avoid CPU alignment overhead on values. */
 			ksz = m0_align(key->b_nob, sizeof(void*));
-			new_kv.key = mem_alloc(tree, tx, ksz + vsz);
+			new_kv.key = mem_alloc(tree, tx, ksz + vsz, zonemask);
 			new_kv.val = new_kv.key + ksz;
 			memcpy(new_kv.key, key->b_addr, key->b_nob);
 			memset(new_kv.key + key->b_nob, 0, ksz - key->b_nob);
@@ -1627,12 +1633,13 @@ M0_INTERNAL void m0_be_btree_clear_credit(struct m0_be_btree     *tree,
 	m0_be_tx_credit_add(fixed_part, single_record);
 }
 
-static void be_btree_insert(struct m0_be_btree *tree,
-			    struct m0_be_tx *tx,
-			    struct m0_be_op *op,
-			    const struct m0_buf *key,
-			    const struct m0_buf *val,
-			    struct m0_be_btree_anchor *anchor)
+static void be_btree_insert(struct m0_be_btree        *tree,
+			    struct m0_be_tx           *tx,
+			    struct m0_be_op           *op,
+			    const struct m0_buf       *key,
+			    const struct m0_buf       *val,
+			    struct m0_be_btree_anchor *anchor,
+			    uint64_t                   zonemask)
 {
 	M0_ENTRY("tree=%p", tree);
 	M0_PRE(tree->bb_root != NULL && tree->bb_ops != NULL);
@@ -1641,7 +1648,7 @@ static void be_btree_insert(struct m0_be_btree *tree,
 	M0_PRE(ergo(anchor == NULL,
 		    val->b_nob == be_btree_vsize(tree, val->b_addr)));
 
-	btree_save(tree, tx, op, key, val, anchor, BTREE_SAVE_INSERT);
+	btree_save(tree, tx, op, key, val, anchor, BTREE_SAVE_INSERT, zonemask);
 
 	M0_LEAVE("tree=%p", tree);
 }
@@ -1658,8 +1665,10 @@ M0_INTERNAL void m0_be_btree_save(struct m0_be_btree  *tree,
 	M0_PRE(key->b_nob == be_btree_ksize(tree, key->b_addr));
 	M0_PRE(val->b_nob == be_btree_vsize(tree, val->b_addr));
 
+	/* We can't be here during DIX Repair, so never use repair zone. */
 	btree_save(tree, tx, op, key, val, NULL, overwrite ?
-		   BTREE_SAVE_OVERWRITE : BTREE_SAVE_INSERT);
+		   BTREE_SAVE_OVERWRITE : BTREE_SAVE_INSERT,
+		   M0_BITS(M0_BAP_NORMAL));
 
 	M0_LEAVE("tree=%p", tree);
 }
@@ -1670,7 +1679,7 @@ M0_INTERNAL void m0_be_btree_insert(struct m0_be_btree *tree,
 				    const struct m0_buf *key,
 				    const struct m0_buf *val)
 {
-	be_btree_insert(tree, tx, op, key, val, NULL);
+	be_btree_insert(tree, tx, op, key, val, NULL, M0_BITS(M0_BAP_NORMAL));
 }
 
 M0_INTERNAL void m0_be_btree_update(struct m0_be_btree *tree,
@@ -1684,7 +1693,8 @@ M0_INTERNAL void m0_be_btree_update(struct m0_be_btree *tree,
 	M0_PRE(key->b_nob == be_btree_ksize(tree, key->b_addr));
 	M0_PRE(val->b_nob == be_btree_vsize(tree, val->b_addr));
 
-	btree_save(tree, tx, op, key, val, NULL, BTREE_SAVE_UPDATE);
+	btree_save(tree, tx, op, key, val, NULL, BTREE_SAVE_UPDATE,
+		   M0_BITS(M0_BAP_NORMAL));
 
 	M0_LEAVE();
 }
@@ -1829,9 +1839,10 @@ M0_INTERNAL void m0_be_btree_insert_inplace(struct m0_be_btree        *tree,
 					    struct m0_be_tx           *tx,
 					    struct m0_be_op           *op,
 					    const struct m0_buf       *key,
-					    struct m0_be_btree_anchor *anchor)
+					    struct m0_be_btree_anchor *anchor,
+					    uint64_t                   zonemask)
 {
-	be_btree_insert(tree, tx, op, key, NULL, anchor);
+	be_btree_insert(tree, tx, op, key, NULL, anchor, zonemask);
 }
 
 M0_INTERNAL void m0_be_btree_save_inplace(struct m0_be_btree        *tree,
@@ -1839,14 +1850,15 @@ M0_INTERNAL void m0_be_btree_save_inplace(struct m0_be_btree        *tree,
 					  struct m0_be_op           *op,
 					  const struct m0_buf       *key,
 					  struct m0_be_btree_anchor *anchor,
-					  bool                       overwrite)
+					  bool                       overwrite,
+					  uint64_t                   zonemask)
 {
-	M0_ENTRY("tree=%p", tree);
+	M0_ENTRY("tree=%p zonemask=%"PRIx64, tree, zonemask);
 	M0_PRE(tree->bb_root != NULL && tree->bb_ops != NULL);
 	M0_PRE(key->b_nob == be_btree_ksize(tree, key->b_addr));
 
 	btree_save(tree, tx, op, key, NULL, anchor, overwrite ?
-		   BTREE_SAVE_OVERWRITE : BTREE_SAVE_INSERT);
+		   BTREE_SAVE_OVERWRITE : BTREE_SAVE_INSERT, zonemask);
 }
 
 M0_INTERNAL void m0_be_btree_lookup_inplace(struct m0_be_btree        *tree,

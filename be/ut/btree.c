@@ -169,7 +169,8 @@ btree_insert_inplace(struct m0_be_btree *t, struct m0_buf *k, int v,
 
 	anchor.ba_value.b_nob = INSERT_SIZE;
 	rc = M0_BE_OP_SYNC_RET_WITH(&op, m0_be_btree_insert_inplace(t, tx, &op,
-					 k, &anchor), bo_u.u_btree.t_rc);
+				    k, &anchor, M0_BITS(M0_BAP_NORMAL)),
+				    bo_u.u_btree.t_rc);
 	/* update value */
 	sprintf(anchor.ba_value.b_addr, "%0*d", INSERT_SIZE-1, v);
 	m0_be_btree_release(tx, &anchor);

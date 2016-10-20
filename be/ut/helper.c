@@ -29,9 +29,10 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_UT
 #include "lib/trace.h"
 #include "lib/memory.h"		/* m0_alloc */
-#include "lib/misc.h"		/* M0_BITS */
+#include "lib/misc.h"		/* M0_BITS, ARRAY_SIZE */
 #include "lib/arith.h"		/* M0_CNT_INC */
 #include "lib/errno.h"		/* ENOMEM */
+#include "lib/finject.h"        /* M0_FI_ENABLED */
 #include "rpc/rpclib.h"		/* m0_rpc_server_start */
 #include "net/net.h"		/* m0_net_xprt */
 #include "module/instance.h"	/* m0_get */
@@ -328,6 +329,7 @@ void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg)
 			.ldsc_loc               = m0_locality0_get(),
 			.ldsc_sync_timeout      = M0_TIME_ONE_SECOND * 5ULL,
 		},
+		.bc_zone_pcnt = { [M0_BAP_NORMAL] = 100 }
 	};
 }
 
@@ -696,6 +698,7 @@ static void be_ut_seg_allocator_initfini(struct m0_be_seg *seg,
 	struct m0_be_tx_credit	credit = {};
 	struct m0_be_allocator *a;
 	struct m0_be_tx         tx;
+	uint32_t                pcnt[M0_BAP_NR] = { [M0_BAP_NORMAL] = 100 };
 	int                     rc;
 
 	a = m0_be_seg_allocator(seg);
@@ -713,7 +716,12 @@ static void be_ut_seg_allocator_initfini(struct m0_be_seg *seg,
 	if (init) {
 		rc = m0_be_allocator_init(a, seg);
 		M0_ASSERT(rc == 0);
-		rc = m0_be_allocator_create(a, ut_be == NULL ? NULL : &tx);
+		if (M0_FI_ENABLED("repair_zone_50")) {
+			pcnt[M0_BAP_REPAIR] = 50;
+			pcnt[M0_BAP_NORMAL] = 50;
+		}
+		rc = m0_be_allocator_create(a, ut_be == NULL ? NULL : &tx,
+					    pcnt, ARRAY_SIZE(pcnt));
 		M0_ASSERT(rc == 0);
 	} else {
 		m0_be_allocator_destroy(a, ut_be == NULL ? NULL : &tx);

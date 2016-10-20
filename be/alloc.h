@@ -62,17 +62,56 @@ enum {
 };
 
 /**
+ * Zones within BE segment allocator space.
+ *
+ * Each zone occupies a fixed fraction of total segment space, which is
+ * specified when the allocator is initialised. Space can be requested from
+ * particular zones using zones bit mask.
+ *
+ * Zones in enumeration are sorted by priority in ascending order. For example,
+ * if zones M0_BAP_NORMAL and M0_BAP_REPAIR are specified in allocation
+ * request, then space in M0_BAP_NORMAL will be allocated only if there is not
+ * enough space in M0_BAP_REPAIR.
+ *
+ * The memory is allocated exactly in one zone and can't be distributed among
+ * several zones even if several zones are specified in an allocation request.
+ *
+ * Zones don't have predefined memory boundaries and can be viewed as "labels"
+ * for allocated memory chunks. Particular memory chunk can reside in different
+ * zones during system life cycle.
+ */
+enum m0_be_alloc_zone_type {
+	/**
+	 * Repair zone is used by index repair to allocate space for spare
+	 * units.
+	 */
+	M0_BAP_REPAIR,
+	/**
+	 * Normal zone contains the bulk of segment space.
+	 * It is used for usual allocations.
+	 */
+	M0_BAP_NORMAL,
+	/* Maybe more zones in the future. */
+	M0_BAP_NR
+};
+
+struct m0_be_alloc_zone_stats {
+	m0_bcount_t                        bzs_total;
+	m0_bcount_t                        bzs_used;
+	m0_bcount_t                        bzs_free;
+	enum m0_be_alloc_zone_type         bzs_type;
+	struct m0_be_allocator_call_stats  bzs_stats;
+};
+
+/**
  * @brief Allocator statistics
  *
  * It is embedded into m0_be_allocator_header.
  */
 struct m0_be_allocator_stats {
 	m0_bcount_t                       bas_chunk_overhead;
-	m0_bcount_t                       bas_space_total;
-	m0_bcount_t                       bas_space_used;
-	m0_bcount_t                       bas_space_free;
 	m0_bcount_t                       bas_stat0_boundary;
-	struct m0_be_allocator_call_stats bas_total;
+	struct m0_be_alloc_zone_stats     bas_zones[M0_BAP_NR];
 	struct m0_be_allocator_call_stats bas_stat0;
 	struct m0_be_allocator_call_stats bas_stat1;
 	unsigned long                     bas_print_interval;
@@ -128,7 +167,9 @@ M0_INTERNAL bool m0_be_allocator__invariant(struct m0_be_allocator *a);
  * m0_be_allocator_header.
  */
 M0_INTERNAL int m0_be_allocator_create(struct m0_be_allocator *a,
-				       struct m0_be_tx *tx);
+				       struct m0_be_tx        *tx,
+				       uint32_t               *zone_pcnt,
+				       uint32_t                zones_nr);
 
 /**
  * Destroy allocator on the segment.
@@ -188,6 +229,9 @@ M0_INTERNAL void m0_be_allocator_credit(struct m0_be_allocator *a,
  *		It can be less than M0_BE_ALLOC_SHIFT_MIN - in this case
  *		allocation will be done as if it is equal to
  *		M0_BE_ALLOC_SHIFT_MIN.
+ * @param zonemask Bit mask of the zones where memory should be allocated.
+ *                 The first zone from the bit mask with sufficient space will
+ *                 be chosen for allocation, see m0_be_alloc_zone_type.
  *
  * This function will return pointer to memory allocated in
  * m0_be_op.bo_u.u_allocator.a_ptr (always) and in *ptr (if *ptr != NULL)
@@ -202,7 +246,8 @@ M0_INTERNAL void m0_be_alloc_aligned(struct m0_be_allocator *a,
 				     struct m0_be_op *op,
 				     void **ptr,
 				     m0_bcount_t size,
-				     unsigned shift);
+				     unsigned shift,
+				     uint64_t zonemask);
 
 /**
  * Allocate memory.

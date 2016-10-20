@@ -189,7 +189,9 @@ static int be_domain_seg_structs_create(struct m0_be_domain *dom,
 		rc = 0;
 		tx_is_open = false;
 	}
-	rc = rc ?: m0_be_allocator_create(m0_be_seg_allocator(seg), tx);
+	rc = rc ?: m0_be_allocator_create(m0_be_seg_allocator(seg), tx,
+					  dom->bd_cfg.bc_zone_pcnt,
+					  ARRAY_SIZE(dom->bd_cfg.bc_zone_pcnt));
 	if (rc == 0)
 		m0_be_seg_dict_create(seg, tx);
 	if (use_local_tx) {

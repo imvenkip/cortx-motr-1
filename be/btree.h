@@ -455,7 +455,8 @@ M0_INTERNAL void m0_be_btree_insert_inplace(struct m0_be_btree *tree,
 					    struct m0_be_tx *tx,
 					    struct m0_be_op *op,
 					    const struct m0_buf *key,
-					    struct m0_be_btree_anchor *anchor);
+					    struct m0_be_btree_anchor *anchor,
+					    uint64_t zonemask);
 
 /**
  * This function:
@@ -472,7 +473,8 @@ M0_INTERNAL void m0_be_btree_save_inplace(struct m0_be_btree        *tree,
 					  struct m0_be_op           *op,
 					  const struct m0_buf       *key,
 					  struct m0_be_btree_anchor *anchor,
-					  bool                       overwrite);
+					  bool                       overwrite,
+					  uint64_t                   zonemask);
 
 /**
  * Looks up a value stored in the @tree by the given @key.

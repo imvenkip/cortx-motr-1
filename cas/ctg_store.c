@@ -395,8 +395,11 @@ static int ctg_meta_insert(struct m0_be_btree  *meta,
 	ctg_fid_key_fill((void *)&key_data, fid);
 	key = M0_BUF_INIT_PTR(&key_data);
 	anchor.ba_value.b_nob = KV_HDR_SIZE + sizeof(ctg);
-	rc = M0_BE_OP_SYNC_RET(op, m0_be_btree_insert_inplace(meta, tx, &op,
-					     &key, &anchor), bo_u.u_btree.t_rc);
+	rc = M0_BE_OP_SYNC_RET(op,
+		       m0_be_btree_insert_inplace(meta, tx, &op,
+						  &key, &anchor,
+						  M0_BITS(M0_BAP_NORMAL)),
+		       bo_u.u_btree.t_rc);
 	/*
 	 * If passed catalogue is NULL then it is a stub for meta-catalogue
 	 * inside itself, inserting records in it is prohibited. This stub
@@ -995,18 +998,23 @@ static int ctg_op_exec(struct m0_ctg_op *ctg_op, int next_phase)
 	struct m0_be_op           *beop   = ctg_beop(ctg_op);
 	int                        opc    = ctg_op->co_opcode;
 	int                        ct     = ctg_op->co_ct;
+	uint64_t                   zones;
+
+	zones = M0_BITS(M0_BAP_NORMAL) |
+		((ctg_op->co_flags & COF_RESERVE) ? M0_BITS(M0_BAP_REPAIR) : 0);
 
 	switch (CTG_OP_COMBINE(opc, ct)) {
 	case CTG_OP_COMBINE(CO_PUT, CT_BTREE):
 		anchor->ba_value.b_nob = KV_HDR_SIZE + ctg_op->co_val.b_nob;
 		m0_be_btree_save_inplace(btree, tx, beop, key, anchor,
-				 !!(ctg_op->co_flags & COF_OVERWRITE));
+					 !!(ctg_op->co_flags & COF_OVERWRITE),
+					 zones);
 		break;
 	case CTG_OP_COMBINE(CO_PUT, CT_META):
 		M0_ASSERT(!(ctg_op->co_flags & COF_OVERWRITE));
 		anchor->ba_value.b_nob = KV_HDR_SIZE +
 					 sizeof(struct m0_cas_ctg *);
-		m0_be_btree_insert_inplace(btree, tx, beop, key, anchor);
+		m0_be_btree_insert_inplace(btree, tx, beop, key, anchor, zones);
 		break;
 	case CTG_OP_COMBINE(CO_PUT, CT_DEAD_INDEX):
 		/*
@@ -1015,7 +1023,7 @@ static int ctg_op_exec(struct m0_ctg_op *ctg_op, int next_phase)
 		 * m0_be_btree_insert_inplace() have 0 there.
 		 */
 		anchor->ba_value.b_nob = 8;
-		m0_be_btree_insert_inplace(btree, tx, beop, key, anchor);
+		m0_be_btree_insert_inplace(btree, tx, beop, key, anchor, zones);
 		break;
 	case CTG_OP_COMBINE(CO_GET, CT_BTREE):
 	case CTG_OP_COMBINE(CO_GET, CT_META):
@@ -1445,7 +1453,7 @@ M0_INTERNAL void m0_ctg_op_init(struct m0_ctg_op *ctg_op,
 				struct m0_fom    *fom,
 				uint32_t          flags)
 {
-	M0_ENTRY("ctg_op=%p", ctg_op);
+	M0_ENTRY("ctg_op=%p flags=0x%x", ctg_op, flags);
 	M0_PRE(ctg_op != NULL);
 	M0_PRE(fom != NULL);
 
@@ -1689,10 +1697,10 @@ M0_INTERNAL int m0_ctg_ctidx_insert_sync(const struct m0_cas_id *cid,
 	key = M0_BUF_INIT_PTR(&key_data);
 	anchor.ba_value.b_nob = KV_HDR_SIZE + sizeof(struct m0_dix_layout);
 	/** @todo Make it asynchronous. */
-	rc = M0_BE_OP_SYNC_RET(op, m0_be_btree_insert_inplace(&ctidx->cc_tree,
-							      tx, &op, &key,
-							      &anchor),
-			       bo_u.u_btree.t_rc);
+	rc = M0_BE_OP_SYNC_RET(op,
+		m0_be_btree_insert_inplace(&ctidx->cc_tree, tx, &op, &key,
+					   &anchor, M0_BITS(M0_BAP_NORMAL)),
+		bo_u.u_btree.t_rc);
 	if (rc == 0) {
 		ctg_memcpy(anchor.ba_value.b_addr, &cid->ci_layout,
 			   sizeof(cid->ci_layout));

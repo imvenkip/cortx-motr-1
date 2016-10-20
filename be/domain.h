@@ -98,6 +98,11 @@ struct m0_be_domain_cfg {
 	 */
 	uint64_t                     bc_seg0_stob_key;
 	bool                         bc_mkfs_mode;
+	/**
+	 * Percent of free space to be reserved for every allocator memory zone.
+	 * The sum of all array elements should be 100.
+	 */
+	uint32_t                     bc_zone_pcnt[M0_BAP_NR];
 
 	/*
 	 * Next fields are for mkfs mode only.

@@ -55,6 +55,7 @@
 #include "module/instance.h"	/* m0_get */
 #include "conf/obj.h"           /* M0_CONF_PROCESS_TYPE */
 #include "conf/helpers.h"       /* m0_confc_args */
+#include "conf/obj_ops.h"  	/* M0_CONF_DIRNEXT */
 #include "be/ut/helper.h"
 #include "ioservice/fid_convert.h" /* M0_AD_STOB_LINUX_DOM_KEY */
 #include "ioservice/storage_dev.h"
@@ -72,6 +73,20 @@ extern struct m0_reqh_service_type m0_ss_svc_type;
 enum {
 	CONFD_CONN_TIMEOUT = 5,
 	CONFD_CONN_RETRY   = 1
+};
+
+/**
+ * The space for M0_BAP_REPAIR zone in BE allocator is calculated based on
+ * distributed index replication factor and total number of target disks. But
+ * due to fragmentation or some other reasons it may be not sufficient, so
+ * special "safety" coefficient is introduced to increase space in repair zone.
+ * Safety coefficient is defined as "safety mul"/"safety div".
+ */
+enum {
+	/** Multiplier of a repair zone safety coefficient. */
+	M0_BC_REPAIR_ZONE_SAFETY_MUL = 3,
+	/** Divider of a repair zone safety coefficient. */
+	M0_BC_REPAIR_ZONE_SAFETY_DIV = 2
 };
 
 M0_TL_DESCR_DEFINE(cs_buffer_pools, "buffer pools in the mero context",
@@ -1423,6 +1438,84 @@ static void be_seg_init(struct m0_be_ut_backend *be,
 	*out = seg;
 }
 
+static bool pver_is_actual(const struct m0_conf_obj *obj)
+{
+	/**
+	 * @todo XXX filter only actual pool versions till formulaic
+	 *           pool version creation in place.
+	 */
+	return m0_conf_obj_type(obj) == &M0_CONF_PVER_TYPE &&
+		M0_CONF_CAST(obj, m0_conf_pver)->pv_kind == M0_CONF_PVER_ACTUAL;
+}
+
+/**
+ * Read configuration and calculate percent for M0_BAP_REPAIR zone.
+ */
+static int be_repair_zone_pcnt_get(struct m0_reqh *reqh,
+				   uint32_t       *repair_zone_pcnt)
+{
+	struct m0_confc           *confc;
+	struct m0_conf_filesystem *fs = NULL;
+	struct m0_conf_diter       it;
+	struct m0_conf_pver       *pver_obj;
+	int                        rc;
+
+	*repair_zone_pcnt = 0;
+	rc = m0_conf_fs_get(&reqh->rh_profile, m0_reqh2confc(reqh), &fs);
+	M0_LOG(M0_DEBUG, "m0_conf_fs_get rc %d fs %p", rc, fs);
+	if (rc == 0) {
+		confc = m0_confc_from_obj(&fs->cf_obj);
+		rc = m0_conf_diter_init(&it, confc, &fs->cf_obj,
+					M0_CONF_FILESYSTEM_POOLS_FID,
+					M0_CONF_POOL_PVERS_FID);
+		M0_LOG(M0_DEBUG, "m0_conf_diter_init rc %d", rc);
+	}
+	while (rc == 0 &&
+	       m0_conf_diter_next_sync(&it, pver_is_actual) ==
+	       M0_CONF_DIRNEXT) {
+		pver_obj = M0_CONF_CAST(m0_conf_diter_result(&it),
+					m0_conf_pver);
+		if (!m0_fid_eq(&pver_obj->pv_obj.co_id,
+			       &fs->cf_imeta_pver)) {
+			continue;
+		}
+		*repair_zone_pcnt = pver_obj->pv_u.subtree.pvs_attr.pa_K *
+			100 /
+			pver_obj->pv_u.subtree.pvs_attr.pa_P *
+			M0_BC_REPAIR_ZONE_SAFETY_MUL /
+			M0_BC_REPAIR_ZONE_SAFETY_DIV;
+
+		M0_LOG(M0_DEBUG, "pver_obj %p K %d P %d percent %d",
+		       pver_obj,
+		       pver_obj->pv_u.subtree.pvs_attr.pa_K,
+		       pver_obj->pv_u.subtree.pvs_attr.pa_P,
+		       *repair_zone_pcnt);
+	}
+	if (rc == 0)
+		m0_conf_diter_fini(&it);
+	if (fs != NULL)
+		m0_confc_close(&fs->cf_obj);
+	M0_LOG(M0_DEBUG, "spare percent %d", *repair_zone_pcnt);
+	return rc;
+}
+
+static int cs_be_dom_cfg_zone_pcnt_fill(struct m0_reqh          *reqh,
+					struct m0_be_domain_cfg *dom_cfg)
+{
+	uint32_t *zone_pcnt = dom_cfg->bc_zone_pcnt;
+	uint32_t  repair_zone_pcnt;
+	int       rc;
+
+	rc = be_repair_zone_pcnt_get(reqh, &repair_zone_pcnt);
+
+	if (rc == 0) {
+		zone_pcnt[M0_BAP_REPAIR] = repair_zone_pcnt;
+		zone_pcnt[M0_BAP_NORMAL] = 100 - zone_pcnt[M0_BAP_REPAIR];
+	}
+
+	return rc;
+}
+
 static int cs_be_init(struct m0_reqh_context *rctx,
 		      struct m0_be_ut_backend *be,
 		      const char              *name,
@@ -1488,6 +1581,9 @@ static int cs_be_init(struct m0_reqh_context *rctx,
 		be->but_dom_cfg.bc_engine.bec_group_freeze_timeout_max =
 			rctx->rc_be_tx_group_freeze_timeout_max;
 	}
+	rc = cs_be_dom_cfg_zone_pcnt_fill(&rctx->rc_reqh, &be->but_dom_cfg);
+	if (rc != 0)
+		goto err;
 	rc = m0_be_ut_backend_init_cfg(be, &be->but_dom_cfg, format);
 	if (rc != 0)
 		goto err;

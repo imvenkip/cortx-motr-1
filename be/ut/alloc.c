@@ -27,6 +27,7 @@
 #include "lib/misc.h"           /* M0_SET_ARR0 */
 #include "lib/thread.h"         /* m0_thread */
 #include "lib/arith.h"          /* m0_rnd64 */
+#include "lib/finject.h"        /* m0_fi_enable_once */
 
 #include "ut/ut.h"              /* M0_UT_ASSERT */
 
@@ -113,7 +114,9 @@ static void be_ut_alloc_ptr_handle(struct m0_be_allocator  *a,
 						 size, shift, &cred),
 			   m0_be_alloc_stats_credit(a, &cred)),
 			  (M0_BE_OP_SYNC(op,
-				 m0_be_alloc_aligned(a, tx, &op, p, size, shift)),
+				 m0_be_alloc_aligned(a, tx, &op, p, size,
+						     shift,
+						     M0_BITS(M0_BAP_NORMAL))),
 			   m0_be_alloc_stats_capture(a, tx)));
 		M0_UT_ASSERT(*p != NULL);
 		M0_UT_ASSERT(m0_addr_is_aligned(*p, shift));
@@ -316,6 +319,92 @@ M0_INTERNAL void m0_be_ut_alloc_oom(void)
 	m0_be_ut_backend_fini(&be_ut_alloc_backend);
 	M0_SET0(&be_ut_alloc_backend);
 }
+
+M0_INTERNAL void m0_be_ut_alloc_spare(void)
+{
+	struct {
+		bool     do_free;
+		uint64_t zonemask;
+		bool     should_fail;
+		int      fi;
+	} scenario[] = {
+		{ false, M0_BITS(M0_BAP_NORMAL), false, 0 },
+		{ false, M0_BITS(M0_BAP_NORMAL), true , 0 },
+		{ true,  M0_BITS(M0_BAP_NORMAL), false, 0 },
+		{ false, M0_BITS(M0_BAP_NORMAL), false, 0 },
+		{ false, M0_BITS(M0_BAP_REPAIR), false, 0 },
+		{ false, M0_BITS(M0_BAP_NORMAL), true,  0 },
+		{ true,  M0_BITS(M0_BAP_NORMAL), false, 3 },
+		{ true,  M0_BITS(M0_BAP_REPAIR), false, 4 }
+	};
+	struct m0_be_ut_backend        ut_be = {};
+	struct m0_be_ut_seg            ut_seg;
+	struct m0_be_allocator        *a;
+	m0_bcount_t                    size;
+	void                          *ptrs[ARRAY_SIZE(scenario)] = {};
+	struct m0_be_allocator_stats   stats_before = {};
+	struct m0_be_allocator_stats   stats_after = {};
+	struct m0_be_alloc_zone_stats *nz_before;
+	struct m0_be_alloc_zone_stats *nz_after;
+	int                            i;
+
+	M0_ENTRY();
+
+	m0_be_ut_backend_init(&ut_be);
+
+	/* Reserve 50% for M0_BAP_REPAIR zone. */
+	m0_fi_enable_once("be_ut_seg_allocator_initfini", "repair_zone_50");
+	m0_be_ut_seg_init(&ut_seg, &ut_be, BE_UT_ALLOC_SEG_SIZE);
+	m0_be_ut_seg_allocator_init(&ut_seg, &ut_be);
+	a = m0_be_seg_allocator(ut_seg.bus_seg);
+	M0_UT_ASSERT(a != NULL);
+
+	size = BE_UT_ALLOC_SEG_SIZE / 3;
+
+	for (i = 0 ; i < ARRAY_SIZE(scenario) ; ++i) {
+		m0_be_alloc_stats(a, &stats_before);
+
+		if (scenario[i].do_free) {
+			M0_LOG(M0_INFO,
+			       "ut_alloc_spare #%d do free ptrs[%d] %p",
+			       i, scenario[i].fi, ptrs[scenario[i].fi]);
+
+			M0_BE_UT_TRANSACT(&ut_be, &ut_seg, tx, cred,
+			  m0_be_allocator_credit(a, M0_BAO_FREE, 0, 0, &cred),
+			  M0_BE_OP_SYNC(op, m0_be_free(a, tx, &op,
+						       ptrs[scenario[i].fi])));
+		} else {
+			M0_BE_UT_TRANSACT(&ut_be, &ut_seg, tx, cred,
+			  (m0_be_allocator_credit(a, M0_BAO_ALLOC_ALIGNED,
+						  size, BE_UT_ALLOC_SHIFT,
+						  &cred),
+					   m0_be_alloc_stats_credit(a, &cred)),
+					  (M0_BE_OP_SYNC(op,
+						 m0_be_alloc_aligned(a, tx, &op,
+						     &ptrs[i], size,
+						     BE_UT_ALLOC_SHIFT,
+						     scenario[i].zonemask)),
+					   m0_be_alloc_stats_capture(a, tx)));
+			M0_UT_ASSERT(
+				(ptrs[i] == NULL) == scenario[i].should_fail);
+		}
+		m0_be_alloc_stats(a, &stats_after);
+
+		nz_before = &stats_before.bas_zones[M0_BAP_NORMAL];
+		nz_after  = &stats_after.bas_zones[M0_BAP_NORMAL];
+		M0_UT_ASSERT(ergo(scenario[i].zonemask & M0_BITS(M0_BAP_REPAIR),
+				  (nz_before->bzs_used == nz_after->bzs_used) &&
+				  (nz_before->bzs_free == nz_after->bzs_free)));
+	}
+
+	m0_be_ut_backend_fini(&ut_be);
+	M0_SET0(&ut_be);
+	M0_LOG(M0_INFO, "m0_be_ut_alloc_spare OK");
+
+	M0_LEAVE();
+}
+
+
 #undef M0_TRACE_SUBSYSTEM
 
 /*

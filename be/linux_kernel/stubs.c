@@ -18,6 +18,7 @@
  * Original creation date: 13-Sep-2013
  */
 
+#include "lib/errno.h"       /* EINVAL */
 #include "lib/memory.h"      /* m0_alloc() */
 #include "be/domain.h"       /* m0_be_domain_cfg */
 #include "be/tx.h"           /* m0_be_tx_state */
@@ -54,7 +55,8 @@ M0_INTERNAL void m0_be_alloc_aligned(struct m0_be_allocator *a,
 				     struct m0_be_op *op,
 				     void **ptr,
 				     m0_bcount_t size,
-				     unsigned shift)
+				     unsigned shift,
+				     uint64_t zonemask)
 {
 	m0_be_alloc(a, tx, op, ptr, size);
 }
