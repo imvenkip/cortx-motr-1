@@ -1013,9 +1013,8 @@ static void spiel_conf_create_fail(void)
 	rc = m0_spiel_profile_add(&tx, NULL);
 	M0_UT_ASSERT(rc == -EINVAL);
 
-	m0_fi_enable_once("m0_alloc", "fail_allocation");
-	rc = m0_spiel_profile_add(&tx, &spiel_obj_fid[SPIEL_UT_OBJ_PROFILE]);
-	M0_UT_ASSERT(rc == -ENOMEM);
+	rc = m0_spiel_profile_add(&tx, &spiel_obj_fid[SPIEL_UT_OBJ_FILESYSTEM]);
+	M0_UT_ASSERT(rc == -EINVAL);
 
 	rc = m0_spiel_profile_add(&tx, &spiel_obj_fid[SPIEL_UT_OBJ_PROFILE]);
 	M0_UT_ASSERT(rc == 0);
