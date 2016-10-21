@@ -366,7 +366,7 @@ static void fom_ready(struct m0_fom *fom)
 	empty = runq_tlist_is_empty(&loc->fl_runq);
 	runq_tlist_add_tail(&loc->fl_runq, fom);
 	M0_CNT_INC(loc->fl_runq_nr);
-	m0_addb2_counter_mod(&loc->fl_runq_counter, loc->fl_runq_nr);
+	m0_addb2_hist_mod(&loc->fl_runq_counter, loc->fl_runq_nr);
 	if (empty)
 		m0_chan_signal(&loc->fl_runrun);
 	M0_POST(m0_fom_invariant(fom));
@@ -380,7 +380,7 @@ M0_INTERNAL void m0_fom_ready(struct m0_fom *fom)
 
 	wail_tlist_del(fom);
 	M0_CNT_DEC(loc->fl_wail_nr);
-	m0_addb2_counter_mod(&loc->fl_wail_counter, loc->fl_wail_nr);
+	m0_addb2_hist_mod(&loc->fl_wail_counter, loc->fl_wail_nr);
 	fom_ready(fom);
 }
 
@@ -580,7 +580,7 @@ static void fom_wait(struct m0_fom *fom)
 	loc = fom->fo_loc;
 	wail_tlist_add_tail(&loc->fl_wail, fom);
 	M0_CNT_INC(loc->fl_wail_nr);
-	m0_addb2_counter_mod(&loc->fl_wail_counter, loc->fl_wail_nr);
+	m0_addb2_hist_mod(&loc->fl_wail_counter, loc->fl_wail_nr);
 	M0_POST(m0_fom_invariant(fom));
 }
 
@@ -699,7 +699,7 @@ static struct m0_fom *fom_dequeue(struct m0_fom_locality *loc)
 	if (fom != NULL) {
 		M0_ASSERT(fom->fo_loc == loc);
 		M0_CNT_DEC(loc->fl_runq_nr);
-		m0_addb2_counter_mod(&loc->fl_runq_counter, loc->fl_runq_nr);
+		m0_addb2_hist_mod(&loc->fl_runq_counter, loc->fl_runq_nr);
 	}
 	return fom;
 }
@@ -932,9 +932,9 @@ static int loc_init(struct m0_fom_locality *loc, struct m0_fom_domain *dom,
 	M0_ADDB2_PUSH(M0_AVI_PID, m0_pid());
 	M0_ADDB2_PUSH(M0_AVI_LOCALITY, loc->fl_idx);
 	m0_addb2_clock_add(&loc->fl_clock, M0_AVI_CLOCK, -1);
-	m0_addb2_counter_add(&loc->fl_fom_active, M0_AVI_FOM_ACTIVE, -1);
-	m0_addb2_counter_add(&loc->fl_runq_counter, M0_AVI_RUNQ, -1);
-	m0_addb2_counter_add(&loc->fl_wail_counter, M0_AVI_WAIL, -1);
+	m0_addb2_hist_add(&loc->fl_fom_active,   1, 31, M0_AVI_FOM_ACTIVE, -1);
+	m0_addb2_hist_add(&loc->fl_runq_counter, 1, 31, M0_AVI_RUNQ, -1);
+	m0_addb2_hist_add(&loc->fl_wail_counter, 1, 31, M0_AVI_WAIL, -1);
 	m0_addb2_counter_add(&loc->fl_grp_addb2.ga_forq_counter,
 			     M0_AVI_LOCALITY_FORQ, -1);
 	m0_addb2_counter_add(&loc->fl_chan_addb2.ca_wait_counter,
@@ -1145,7 +1145,7 @@ M0_INTERNAL void m0_fom_locality_inc(struct m0_fom *fom)
 	cnt = (uint64_t)m0_locality_lockers_get(&loc->fl_locality, key);
 	M0_CNT_INC(cnt);
 	M0_CNT_INC(loc->fl_foms);
-	m0_addb2_counter_mod(&loc->fl_fom_active, loc->fl_foms);
+	m0_addb2_hist_mod(&loc->fl_fom_active, loc->fl_foms);
 	m0_locality_lockers_set(&loc->fl_locality, key, (void *)cnt);
 }
 
@@ -1160,7 +1160,7 @@ M0_INTERNAL bool m0_fom_locality_dec(struct m0_fom *fom)
 	M0_CNT_DEC(cnt);
 	M0_CNT_DEC(loc->fl_foms);
 	m0_locality_lockers_set(&loc->fl_locality, key, (void *)cnt);
-	m0_addb2_counter_mod(&loc->fl_fom_active, loc->fl_foms);
+	m0_addb2_hist_mod(&loc->fl_fom_active, loc->fl_foms);
 	return cnt == 0;
 }
 

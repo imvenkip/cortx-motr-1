@@ -210,6 +210,7 @@ Doc?docid=0AQaCw6YRYSVSZGZmMzV6NzJfMTNkOGNjZmdnYg
 #include "fol/fol.h"
 #include "stob/stob.h"
 #include "addb2/counter.h"
+#include "addb2/histogram.h"
 #include "addb2/sys.h"
 
 struct m0_addb2_mach;
@@ -293,9 +294,9 @@ struct m0_fom_locality {
 	struct m0_bitmap	       fl_processors;
 	int                            fl_idx;
 	struct m0_addb2_mach          *fl_addb2_mach;
-	struct m0_addb2_counter        fl_fom_active;
-	struct m0_addb2_counter        fl_runq_counter;
-	struct m0_addb2_counter        fl_wail_counter;
+	struct m0_addb2_hist           fl_fom_active;
+	struct m0_addb2_hist           fl_runq_counter;
+	struct m0_addb2_hist           fl_wail_counter;
 	struct m0_addb2_sensor         fl_clock;
 	struct m0_locality             fl_locality;
 	struct m0_sm_group_addb2       fl_grp_addb2;

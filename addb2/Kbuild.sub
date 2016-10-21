@@ -4,6 +4,7 @@ m0mero_objects += \
                   addb2/consumer.o \
                   addb2/counter.o \
                   addb2/global.o \
+                  addb2/histogram.o \
                   addb2/net.o \
                   addb2/service.o \
                   addb2/storage_xc.o \

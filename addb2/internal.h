@@ -40,6 +40,13 @@
 }
 
 enum {
+	/**
+	 * Maximal number of 64-bit values in a payload.
+	 *
+	 * @note this constant cannot really be increased. Trace buffer format
+	 * assumes that this is less than 0x10.
+	 */
+	VALUE_MAX_NR    = 15,
 	FRAME_TRACE_MAX = 128,
 	FRAME_SIZE_MAX  = 4 * 1024 * 1024,
 };
@@ -68,6 +75,10 @@ enum storage_constants {
 	BSHIFT  = 16,
 	BSIZE   = M0_BITS(BSHIFT)
 };
+
+M0_INTERNAL void m0_addb2__counter_snapshot(struct m0_addb2_sensor *s,
+					    uint64_t *area);
+M0_INTERNAL void m0_addb2__counter_data_init(struct m0_addb2_counter_data *d);
 
 /** @} end of addb2 group */
 #endif /* __MERO_ADDB2_INTERNAL_H__ */

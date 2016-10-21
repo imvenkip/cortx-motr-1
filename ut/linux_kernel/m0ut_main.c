@@ -43,6 +43,7 @@ MODULE_PARM_DESC(exclude, " list of tests to exclude in format"
 extern struct m0_ut_suite m0_klibm0_ut; /* test lib first */
 extern struct m0_ut_suite addb2_base_ut;
 extern struct m0_ut_suite addb2_consumer_ut;
+extern struct m0_ut_suite addb2_hist_ut;
 extern struct m0_ut_suite addb2_sys_ut;
 extern struct m0_ut_suite be_ut;
 extern struct m0_ut_suite buffer_pool_ut;
@@ -90,6 +91,7 @@ static void tests_add(struct m0_ut_module *m)
 	m0_ut_add(m, &m0_klibm0_ut, true);  /* test lib first */
 	m0_ut_add(m, &addb2_base_ut, true);
 	m0_ut_add(m, &addb2_consumer_ut, true);
+	m0_ut_add(m, &addb2_hist_ut, true);
 	m0_ut_add(m, &addb2_sys_ut, true);
 	m0_ut_add(m, &di_ut, true);
 	m0_ut_add(m, &file_io_ut, true);

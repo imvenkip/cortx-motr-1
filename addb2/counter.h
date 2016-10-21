@@ -44,6 +44,11 @@ struct m0_addb2_counter_data {
 	uint64_t cod_datum;
 };
 
+enum {
+	M0_ADDB2_COUNTER_VALS =
+		sizeof(struct m0_addb2_counter_data) / sizeof(uint64_t)
+};
+
 struct m0_addb2_counter {
 	struct m0_addb2_sensor       co_sensor;
 	struct m0_addb2_counter_data co_val;

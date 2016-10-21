@@ -3,6 +3,7 @@ nobase_mero_include_HEADERS += \
 			    addb2/consumer.h \
 			    addb2/counter.h \
 			    addb2/global.h \
+			    addb2/histogram.h \
 			    addb2/identifier.h \
 			    addb2/internal.h \
 			    addb2/net.h \
@@ -15,6 +16,7 @@ mero_libmero_la_SOURCES  += \
 			    addb2/consumer.c \
 			    addb2/counter.c \
 			    addb2/global.c \
+			    addb2/histogram.c \
 			    addb2/net.c \
 			    addb2/service.c \
 			    addb2/sit.c \

@@ -34,12 +34,12 @@
 #include "lib/arith.h"        /* min64u, max64u, m0_addu64_will_overflow */
 
 #include "addb2/counter.h"
+#include "addb2/internal.h"
 
 static const struct m0_addb2_sensor_ops sensor_ops;
 static const struct m0_addb2_sensor_ops list_sensor_ops;
 static const struct m0_addb2_sensor_ops clock_sensor_ops;
 static void counter_warn(struct m0_addb2_counter *c, uint64_t val);
-static void counter_data_init(struct m0_addb2_counter_data *d);
 static void counter_dtor(void *area, void *datum);
 static int  counter_ctor(void *area, void *datum);
 
@@ -48,13 +48,12 @@ void m0_addb2_counter_add(struct m0_addb2_counter *counter, uint64_t label,
 {
 	struct m0_addb2_counter_data *d = &counter->co_val;
 
-	M0_CASSERT(sizeof *d / sizeof(uint64_t) * sizeof(uint64_t) ==
-		   sizeof *d);
+	M0_CASSERT(M0_ADDB2_COUNTER_VALS * sizeof(uint64_t) == sizeof *d);
 
 	M0_PRE(M0_IS0(counter));
-	counter_data_init(d);
+	m0_addb2__counter_data_init(d);
 	m0_addb2_sensor_add(&counter->co_sensor, label,
-			    sizeof *d / sizeof(uint64_t), idx, &sensor_ops);
+			    M0_ADDB2_COUNTER_VALS, idx, &sensor_ops);
 }
 
 void m0_addb2_counter_del(struct m0_addb2_counter *counter)
@@ -131,20 +130,21 @@ void m0_addb2_local_counter_mod(struct m0_addb2_local_counter *lc,
 	m0_addb2_counter_mod_with(m0_locality_data(lc->lc_key), val, datum);
 }
 
-static void counter_snapshot(struct m0_addb2_sensor *s, uint64_t *area)
+M0_INTERNAL void m0_addb2__counter_snapshot(struct m0_addb2_sensor *s,
+					    uint64_t *area)
 {
 	struct m0_addb2_counter      *counter = M0_AMB(counter, s, co_sensor);
 	struct m0_addb2_counter_data *d       = &counter->co_val;
 
 	*(struct m0_addb2_counter_data *)area = *d;
-	counter_data_init(d);
+	m0_addb2__counter_data_init(d);
 }
 
 static void counter_fini(struct m0_addb2_sensor *s)
 {;}
 
 static const struct m0_addb2_sensor_ops sensor_ops = {
-	.so_snapshot = &counter_snapshot,
+	.so_snapshot = &m0_addb2__counter_snapshot,
 	.so_fini     = &counter_fini
 };
 
@@ -162,7 +162,7 @@ static void counter_warn(struct m0_addb2_counter *c, uint64_t val)
 	       d->cod_nr, d->cod_sum, d->cod_min, d->cod_max, d->cod_ssq, val);
 }
 
-static void counter_data_init(struct m0_addb2_counter_data *d)
+M0_INTERNAL void m0_addb2__counter_data_init(struct m0_addb2_counter_data *d)
 {
 	M0_SET0(d);
 	d->cod_min = UINT64_MAX;

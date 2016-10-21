@@ -126,9 +126,9 @@ M0_INTERNAL bool m0_mod_gt(uint64_t x0, uint64_t x1);
  */
 M0_INTERNAL bool m0_mod_ge(uint64_t x0, uint64_t x1);
 
-static inline uint64_t clip64u(uint64_t lo, uint64_t hi, uint64_t x)
+static inline uint64_t m0_clip64u(uint64_t lo, uint64_t hi, uint64_t x)
 {
-	M0_PRE(lo < hi);
+	M0_PRE(lo <= hi);
 	return min64u(max64u(lo, x), hi);
 }
 

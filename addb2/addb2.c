@@ -165,13 +165,6 @@ enum {
 	/** Must be enough to push 1 storage frame out. */
 	BUFFER_MAX       = 2 * (FRAME_SIZE_MAX / BUFFER_SIZE + 1),
 	/**
-	 * Maximal number of 64-bit values in a payload.
-	 *
-	 * @note this constant cannot really be increased. Trace buffer format
-	 * assumes that this is less than 0x10.
-	 */
-	VALUE_MAX_NR     = 15,
-	/**
 	 * Bit-mask identifying bits used to store a "tag", which is
 	 * (opcode|payloadsize).
 	 */

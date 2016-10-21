@@ -408,6 +408,24 @@ static void counter(struct context *ctx, const uint64_t *v, char *buf)
 	sym(ctx, &d->cod_datum, buf + strlen(buf));
 }
 
+static void hist(struct context *ctx, const uint64_t *v, char *buf)
+{
+	struct m0_addb2_hist_data *hd = (void *)&v[M0_ADDB2_COUNTER_VALS];
+	int                        i;
+	int64_t                    start;
+	uint64_t                   step;
+
+	counter(ctx, v, buf);
+	start = hd->hd_min;
+	step  = (hd->hd_max - hd->hd_min) / (M0_ADDB2_HIST_BUCKETS - 2);
+	sprintf(buf + strlen(buf), " %"PRId32, hd->hd_bucket[0]);
+	for (i = 1; i < ARRAY_SIZE(hd->hd_bucket); ++i) {
+		sprintf(buf + strlen(buf), " %"PRId64": %"PRId32,
+			start, hd->hd_bucket[i]);
+		start += step;
+	}
+}
+
 static void sm_trans(const struct m0_sm_conf *conf, const char *name,
 		     struct context *ctx, char *buf)
 {
@@ -487,6 +505,8 @@ static void beop_state_counter(struct context *ctx, char *buf)
 #define COUNTER  &counter, &skip, &skip, &skip, &skip, &skip, &skip
 #define FID &fid, &skip
 #define TIMED &duration, &sym
+#define HIST &hist, &skip, &skip, &skip, &skip, &skip, &skip, &skip, &skip, \
+		&skip, &skip, &skip, &skip, &skip, &skip
 
 struct id_intrp ids[] = {
 	{ M0_AVI_NULL,            "null" },
@@ -509,9 +529,9 @@ struct id_intrp ids[] = {
 						       &rpcop, &bol },
 	  { "service", NULL, "sender",
 	    "req-opcode", "rep-opcode", "local" } },
-	{ M0_AVI_FOM_ACTIVE,      "fom-active",      { COUNTER } },
-	{ M0_AVI_RUNQ,            "runq",            { COUNTER } },
-	{ M0_AVI_WAIL,            "wail",            { COUNTER } },
+	{ M0_AVI_FOM_ACTIVE,      "fom-active",      { HIST } },
+	{ M0_AVI_RUNQ,            "runq",            { HIST } },
+	{ M0_AVI_WAIL,            "wail",            { HIST } },
 	{ M0_AVI_AST,             "ast" },
 	{ M0_AVI_LOCALITY_FORQ_DURATION, "loc-forq-duration", { TIMED } },
 	{ M0_AVI_LOCALITY_FORQ,      "loc-forq-counter",  { COUNTER } },
