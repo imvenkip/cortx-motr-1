@@ -106,7 +106,7 @@ sns_repair_test()
 	disk_state_get $fail_device1 $fail_device2 || return $?
 
 	echo "Start SNS repair"
-	disk_state_set "repairing" $fail_device1 $fail_device2 || return $?
+	disk_state_set "repair" $fail_device1 $fail_device2 || return $?
 	sns_repair || return $?
 	sleep 3
 
@@ -127,7 +127,7 @@ sns_repair_test()
 
 	echo "Set Failure device: $fail_device3"
 	disk_state_set "failed" $fail_device3 || return $?
-	disk_state_set "repairing" $fail_device3 || return $?
+	disk_state_set "repair" $fail_device3 || return $?
 
 	echo "Start SNS repair again ..."
 	sns_repair || return $?

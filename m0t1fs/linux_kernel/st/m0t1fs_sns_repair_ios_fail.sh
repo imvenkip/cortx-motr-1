@@ -75,22 +75,6 @@ verify()
 	echo "file verification sucess"
 }
 
-change_target_state()
-{
-	local dev_fid=$1
-	local dev_state=$2
-        local eplist=($3)
-        local console_ep=$4
-	local ha_fop="[1: ($dev_fid, $dev_state)]"
-
-	# Generate HA event
-	echo dispatch_ha_events "$ha_fop" "${eplist[*]}" "$console_ep"
-	dispatch_ha_events "$ha_fop" "${eplist[*]}" "$console_ep" || {
-		echo "HA Dispatch failed with: $?"
-		return 1
-	}
-}
-
 ha_notify_ios4_failure_or_online()
 {
 	# m0t1fs rpc end point, multiple mount on same
@@ -98,14 +82,18 @@ ha_notify_ios4_failure_or_online()
 	local ctrl_fid="^c|1:8"
 	local process_fid="^r|1:3"
 	local ios4_fid="^s|1:3"
-        local lnet_nid=`sudo lctl list_nids | head -1`
-        local console_ep="$lnet_nid:$POOL_MACHINE_CLI_EP"
+	local lnet_nid=`sudo lctl list_nids | head -1`
+	local console_ep="$lnet_nid:$POOL_MACHINE_CLI_EP"
 	local client_endpoint="$lnet_nid:12345:33:1"
 	local eplist=()
 	local failure_or_online=$1
 
 	for (( i=0; i < ${#IOSEP[*]}; i++)) ; do
-		eplist[$i]="$lnet_nid:${IOSEP[$i]}"
+		# Don't send message to IOS4 after the process is killed.
+		if [ "$failure_or_online" != "failed" -o $i -ne 3 ]
+		then
+			eplist[$i]="$lnet_nid:${IOSEP[$i]}"
+		fi
 	done
 
 	eplist=("${eplist[@]}" "$lnet_nid:${HA_EP}" "$client_endpoint")
@@ -113,9 +101,9 @@ ha_notify_ios4_failure_or_online()
 	### It is expected that on failure/online HA dispatch events of some components,
 	### HA dispatch events to it's descendants.
 	echo "*** Mark process(m0d) on ios4 as: $failure_or_online"
-	change_target_state "$process_fid" "$failure_or_online" "${eplist[*]}" "$console_ep"
+	send_ha_events "$process_fid" "$failure_or_online" "${eplist[*]}" "$console_ep"
 	echo "*** Mark ios4 as: $failure_or_online"
-	change_target_state "$ios4_fid" "$failure_or_online" "${eplist[*]}" "$console_ep"
+	send_ha_events "$ios4_fid" "$failure_or_online" "${eplist[*]}" "$console_ep"
 }
 
 kill_ios4_ioservice()
@@ -170,7 +158,7 @@ sns_repair_test()
 	disk_state_get $fail_device1 $fail_device2 || return $?
 
 	echo "Start SNS repair"
-	disk_state_set "repairing" $fail_device1 $fail_device2 || return $?
+	disk_state_set "repair" $fail_device1 $fail_device2 || return $?
 	sns_repair || return $?
 	sleep 3
 
@@ -197,8 +185,15 @@ sns_repair_test()
 	echo "killing ios4 ..."
 	kill_ios4_ioservice
 
+	# XXX m0repair sends command in background and an IOS needs time to
+	# subscribe to svc state changes. If M0_NC_FAILED is sent before this,
+	# wait_for_sns_repair_or_rebalance_not_4() gets stuck below.
+	# See MERO-2166
+	echo 'Sleeping for 20 seconds...'
+	sleep 20
+
 	#echo "HA notifies that ios4 failed."
-	ha_notify_ios4_failure_or_online $M0_NC_FAILED
+	ha_notify_ios4_failure_or_online "failed"
 	sleep 2
 
 	echo "ios4 failed, we have to abort SNS repair"
@@ -210,7 +205,8 @@ sns_repair_test()
 	echo "query sns repair status"
 	sns_repair_or_rebalance_status_not_4 "repair" || return $?
 
-	disk_state_get $fail_device1 $fail_device2 || return $?
+	# XXX disk_state_get() sends an ha_msg to IOS4 which is killed.
+	# disk_state_get $fail_device1 $fail_device2 || return $?
 
 	echo "================================================================="
 	echo "start over the failed ios4"
@@ -218,7 +214,7 @@ sns_repair_test()
 	sleep 5
 
 	echo "HA notifies that ios4 online."
-	ha_notify_ios4_failure_or_online $M0_NC_ONLINE
+	ha_notify_ios4_failure_or_online "online"
 
 	# Currently STs use dummy HA which do not send approriate failure vector.
 	# So inorder to allocate spare after ios restart, we need to transition
@@ -226,10 +222,10 @@ sns_repair_test()
 	# cannot directly transition a device from repairing to failed state, we
 	# go through chain of device state transitions.
 	disk_state_set "repaired" $fail_device1 $fail_device2 || return $?
-	disk_state_set "rebalancing" $fail_device1 $fail_device2 || return $?
+	disk_state_set "rebalance" $fail_device1 $fail_device2 || return $?
 	disk_state_set "online" $fail_device1 $fail_device2 || return $?
 	disk_state_set "failed" $fail_device1 $fail_device2 || return $?
-	disk_state_set "repairing" $fail_device1 $fail_device2 || return $?
+	disk_state_set "repair" $fail_device1 $fail_device2 || return $?
 
 	echo "Start SNS repair again ..."
 	sns_repair || return $?

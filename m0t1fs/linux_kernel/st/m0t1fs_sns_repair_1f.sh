@@ -57,7 +57,7 @@ sns_repair_test()
 	echo "Device $fail_device failed. Do dgmode read"
 	md5sum_check || return $?
 
-	disk_state_set "repairing" $fail_device || return $?
+	disk_state_set "repair" $fail_device || return $?
 	sns_repair || return $?
 
 	echo "wait for sns repair"
@@ -74,7 +74,7 @@ sns_repair_test()
 	echo "Query device state"
 	disk_state_get $fail_device || return $?
 
-	disk_state_set "rebalancing" $fail_device || return $?
+	disk_state_set "rebalance" $fail_device || return $?
 	echo "Starting SNS Re-balance.."
 	sns_rebalance || return $?
 

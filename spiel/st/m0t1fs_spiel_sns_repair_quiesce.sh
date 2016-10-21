@@ -39,7 +39,7 @@ spiel_sns_repair_quiesce_test()
 	disk_state_get $fail_device2 $fail_device3 || return $?
 
 	echo "Start SNS repair"
-	disk_state_set "repairing" $fail_device2 $fail_device3 || return $?
+	disk_state_set "repair" $fail_device2 $fail_device3 || return $?
 	spiel_sns_repair_start
 	sleep 2
 
@@ -64,7 +64,7 @@ spiel_sns_repair_quiesce_test()
 
 	disk_state_get $fail_device2 $fail_device3 || return $?
 
-	disk_state_set "rebalancing" $fail_device2 $fail_device3 || return $?
+	disk_state_set "rebalance" $fail_device2 $fail_device3 || return $?
 	echo "Starting SNS Re-balance.."
 	spiel_sns_rebalance_start
 	sleep 2

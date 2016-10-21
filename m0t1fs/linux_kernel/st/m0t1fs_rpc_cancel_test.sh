@@ -44,10 +44,6 @@ rcancel_sandbox="$MERO_M0T1FS_TEST_DIR/rcancel_sandbox"
 source_file="$rcancel_sandbox/rcancel_source"
 ios2_from_pver0="^s|1:1"
 
-# These states are as in "$M0_SRC_DIR/ha/note.h"
-M0_NC_ONLINE=1
-M0_NC_FAILED=2
-
 rcancel_mero_service_start()
 {
 	local N
@@ -130,16 +126,12 @@ rcancel_change_controller_state()
 {
 	local lnet_nid=`sudo lctl list_nids | head -1`
 	local s_endpoint="$lnet_nid:12345:33:1"
-	local c_endpoint="$lnet_nid:12345:30:*"
+	local c_endpoint="$lnet_nid:$M0HAM_CLI_EP"
 	local dev_fid=$1
 	local dev_state=$2
-	local ha_fop="[1: ($dev_fid, $dev_state)]"
 
 	# Generate HA event
-	$M0_SRC_DIR/console/m0console \
-                -f $(opcode M0_HA_NOTE_SET_OPCODE) \
-                -s $s_endpoint -c $c_endpoint \
-                -d "$ha_fop" || true
+	send_ha_events "$dev_fid" "$dev_state" "$s_endpoint" "$c_endpoint"
 }
 
 rcancel_session_cancel_fop()
@@ -147,7 +139,7 @@ rcancel_session_cancel_fop()
 	local io_performed_during_cancel=$1
 
 	echo "Test: Cancel session for ios $ios2_from_pver0"
-	rcancel_change_controller_state "$ios2_from_pver0" "$M0_NC_FAILED" || {
+	rcancel_change_controller_state "$ios2_from_pver0" "failed" || {
 		return 1
 	}
 	echo "Test: Session canceled"
@@ -163,7 +155,7 @@ rcancel_session_cancel_fop()
 rcancel_session_restore_fop()
 {
 	echo "Test: Restore session for ios $ios2_from_pver0"
-	rcancel_change_controller_state "$ios2_from_pver0" "$M0_NC_ONLINE" || {
+	rcancel_change_controller_state "$ios2_from_pver0" "online" || {
 		return 1
 	}
 	echo "Test: Session restored"

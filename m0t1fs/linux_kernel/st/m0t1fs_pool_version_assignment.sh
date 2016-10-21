@@ -5,11 +5,6 @@
 . `dirname $0`/m0t1fs_client_inc.sh
 . `dirname $0`/m0t1fs_server_inc.sh
 
-# Got these states from "$MERO_CORE_DIR/ha/note.h"
-M0_NC_ONLINE=1
-M0_NC_FAILED=2
-M0_NC_TRANSIENT=3
-
 multiple_pools=1
 
 start_stop_m0d()
@@ -17,16 +12,21 @@ start_stop_m0d()
 	local dev_state=$1
 	local m0d_pid
 
-	if [ $dev_state -eq $M0_NC_FAILED ]
+	if [ "$dev_state" = "failed" ]
 	then
 		# Stop m0d
-		echo "Stopping m0d on controller ep $IOS_PVER2_EP ..."
+		echo -n "Stopping m0d on controller ep $IOS_PVER2_EP "
 		m0d_pid=`pgrep -fn lt-m0d.+$IOS_PVER2_EP`
 		kill -TERM $m0d_pid >/dev/null 2>&1
-		sleep 10
+		# Wait util $m0d_pid is terminated
+		while ps -p $m0d_pid -o s= >/dev/null; do
+			echo -n "."
+			sleep 1
+		done
+		echo
 	else
 		#restart m0d
-		echo $cmd
+		echo "$IOS5_CMD"
 		(eval "$IOS5_CMD") &
 		while ! grep -q CTRL $MERO_M0T1FS_TEST_DIR/ios5/m0d.log;
 		do
@@ -45,15 +45,14 @@ change_device_state()
 	local start_stop_m0d_flag=$3
         local eplist=($4)
         local console_ep=$5
-	local ha_fop="[1: ($dev_fid, $dev_state)]"
 
-	if [ $start_stop_m0d_flag -eq "1" ]
+	if [ $start_stop_m0d_flag -eq 1 ]
 	then
 		start_stop_m0d $dev_state
 	fi
 
 	# Generate HA event
-	dispatch_ha_events "$ha_fop" "${eplist[*]}" "$console_ep" || {
+	send_ha_events "$dev_fid" "$dev_state" "${eplist[*]}" "$console_ep" || {
 		unmount_and_clean $multiple_pools
 		return 1
 	}
@@ -115,7 +114,7 @@ pool_version_assignment()
 	}
 
 	echo "########  Mark disk1 failed from actual pool version pver_actual_0 ###"
-	change_device_state "$disk1_from_pver_actual_0" "$M0_NC_TRANSIENT" "0" "${all_eps[*]}" "$console_ep" || {
+	change_device_state "$disk1_from_pver_actual_0" "transient" "0" "${all_eps[*]}" "$console_ep" || {
 		unmount_and_clean $multiple_pools
 		return 1
 	}
@@ -140,7 +139,7 @@ pool_version_assignment()
 	}
 
 	echo "########  Mark disk2 failed from actual pool version pver_actual_0 ###"
-	change_device_state "$disk2_from_pver_actual_0" "$M0_NC_TRANSIENT" "0" "${all_eps[*]}" "$console_ep" || {
+	change_device_state "$disk2_from_pver_actual_0" "transient" "0" "${all_eps[*]}" "$console_ep" || {
 		unmount_and_clean $multiple_pools
 		return 1
 	}
@@ -165,7 +164,7 @@ pool_version_assignment()
 	}
 
 	echo "########  Mark disk3 failed from actual pool version pver_actual_0 ###"
-	change_device_state "$disk3_from_pver_actual_0" "$M0_NC_TRANSIENT" "0" "${all_eps[*]}" "$console_ep" || {
+	change_device_state "$disk3_from_pver_actual_0" "transient" "0" "${all_eps[*]}" "$console_ep" || {
 		unmount_and_clean $multiple_pools
 		return 1
 	}
@@ -190,7 +189,7 @@ pool_version_assignment()
 	}
 
 	echo "########  Mark disk1 failed from actual pool version pver_actual_1 ###"
-	change_device_state "$disk1_from_pver_actual_1" "$M0_NC_TRANSIENT" "0" "${all_eps[*]}" "$console_ep" || {
+	change_device_state "$disk1_from_pver_actual_1" "transient" "0" "${all_eps[*]}" "$console_ep" || {
 		unmount_and_clean $multiple_pools
 		return 1
 	}
@@ -213,15 +212,15 @@ pool_version_assignment()
 
 	## keep "disk1_from_pver_actual_0" failed to verify smoothly virtual pool versions setup on mount
 	## issue MER0-1896.
-	change_device_state "$disk2_from_pver_actual_0" "$M0_NC_ONLINE" "0" "${all_eps[*]}" "$console_ep" || {
+	change_device_state "$disk2_from_pver_actual_0" "online" "0" "${all_eps[*]}" "$console_ep" || {
 		unmount_and_clean $multiple_pools
 		return 1
 	}
-	change_device_state "$disk3_from_pver_actual_0" "$M0_NC_ONLINE" "0" "${all_eps[*]}" "$console_ep" || {
+	change_device_state "$disk3_from_pver_actual_0" "online" "0" "${all_eps[*]}" "$console_ep" || {
 		unmount_and_clean $multiple_pools
 		return 1
 	}
-	change_device_state "$disk1_from_pver_actual_1" "$M0_NC_ONLINE" "0" "${all_eps[*]}" "$console_ep" || {
+	change_device_state "$disk1_from_pver_actual_1" "online" "0" "${all_eps[*]}" "$console_ep" || {
 		unmount_and_clean $multiple_pools
 		return 1
 	}
@@ -241,7 +240,7 @@ pool_version_assignment()
         }
 
 	## Mark "disk1_from_pver_actual_0" too online.
-	change_device_state "$disk1_from_pver_actual_0" "$M0_NC_ONLINE" "0" "${all_eps[*]}" "$console_ep" || {
+	change_device_state "$disk1_from_pver_actual_0" "online" "0" "${all_eps[*]}" "$console_ep" || {
 		unmount_and_clean $multiple_pools
 		return 1
 	}
@@ -252,43 +251,43 @@ pool_version_assignment()
 	# It is expected that on failure/online HA dispatches events of
 	# components and of their descendants.
 	echo "Mark ctrl from pool version 1 as failed."
-	change_device_state "$ctrl_from_pver_actual_1" "$M0_NC_FAILED" "1" "${eplist[*]}" "$console_ep" || {
+	change_device_state "$ctrl_from_pver_actual_1" "failed" "1" "${eplist[*]}" "$console_ep" || {
 		unmount_and_clean $multiple_pools
 		return 1
 	}
 
-	change_device_state "$disk1_from_pver_actual_1" "$M0_NC_TRANSIENT" "0" "${eplist[*]}" "$console_ep" || {
+	change_device_state "$disk1_from_pver_actual_1" "transient" "0" "${eplist[*]}" "$console_ep" || {
 		unmount_and_clean $multiple_pools
 		return 1
 	}
 	echo " Mark process(m0d) from pool version 1 as failed."
-	change_device_state "$process_from_pver_actual_1" "$M0_NC_FAILED" "0" "${eplist[*]}" "$console_ep" || {
+	change_device_state "$process_from_pver_actual_1" "failed" "0" "${eplist[*]}" "$console_ep" || {
 		unmount_and_clean $multiple_pools
 		return 1
 	}
 	echo "Mark ios from pool version 1 as failed."
-	change_device_state "$ios_from_pver_actual_1" "$M0_NC_FAILED" "0" "${eplist[*]}" "$console_ep" || {
+	change_device_state "$ios_from_pver_actual_1" "failed" "0" "${eplist[*]}" "$console_ep" || {
 		unmount_and_clean $multiple_pools
 		return 1
 	}
 
 	echo "Mark ctrl from pool version 1 as running."
 	### It reconnects endpoints from controller.
-	change_device_state "$ctrl_from_pver_actual_1" "$M0_NC_ONLINE" "1" "${eplist[*]}" "$console_ep" || {
+	change_device_state "$ctrl_from_pver_actual_1" "online" "1" "${eplist[*]}" "$console_ep" || {
 		unmount_and_clean $multiple_pools
 		return 1
 	}
-	change_device_state "$disk1_from_pver_actual_1" "$M0_NC_ONLINE" "0" "${eplist[*]}" "$console_ep" || {
+	change_device_state "$disk1_from_pver_actual_1" "online" "0" "${eplist[*]}" "$console_ep" || {
 		unmount_and_clean $multiple_pools
 		return 1
 	}
 	echo "Mark process(m0d) from pool version 1 as online."
-	change_device_state "$process_from_pver_actual_1" "$M0_NC_ONLINE" "0" "${all_eps[*]}" "$console_ep" || {
+	change_device_state "$process_from_pver_actual_1" "online" "0" "${all_eps[*]}" "$console_ep" || {
 		unmount_and_clean $multiple_pools
 		return 1
 	}
 	echo "Mark ios from pool version 1 as online."
-	change_device_state "$ios_from_pver_actual_1" "$M0_NC_ONLINE" "0" "${all_eps[*]}" "$console_ep" || {
+	change_device_state "$ios_from_pver_actual_1" "online" "0" "${all_eps[*]}" "$console_ep" || {
 		unmount_and_clean $multiple_pools
 		return 1
 	}
@@ -340,7 +339,7 @@ pool_version_assignment()
         }
 
         echo "Mark disk from pool version 0 pver_actual_0 as FAILED"
-        dispatch_ha_events "[1: ("$disk1_from_pver_actual_0", "4")]"  "${all_eps[*]}" $console_ep || {
+	change_device_state "$disk1_from_pver_actual_0" "failed" "0" "${all_eps[*]}" "$console_ep" || {
                 unmount_and_clean $multiple_pools
                 return 1
         }
@@ -350,26 +349,26 @@ pool_version_assignment()
                 return 1
         }
 
-        echo "Mark disk from pool version 0 pver_actual_0 as REPAIRING"
-        dispatch_ha_events "[1: ("$disk1_from_pver_actual_0", "4")]"  "${all_eps[*]}" $console_ep || {
+        echo "Mark disk from pool version 0 pver_actual_0 as REPAIR"
+	change_device_state "$disk1_from_pver_actual_0" "repair" "0" "${all_eps[*]}" "$console_ep" || {
                 unmount_and_clean $multiple_pools
                 return 1
         }
 
         echo "Mark disk from pool version 0 pver_actual_0 as REPAIRED"
-        dispatch_ha_events "[1: ("$disk1_from_pver_actual_0", "5")]" "${all_eps[*]}" $console_ep || {
+	change_device_state "$disk1_from_pver_actual_0" "repaired" "0" "${all_eps[*]}" "$console_ep" || {
                 unmount_and_clean $multiple_pools
                 return 1
         }
 
-        echo "Mark disk from pool version 0 pver_actual_0 as REBALANCING"
-        dispatch_ha_events "[1: ("$disk1_from_pver_actual_0", "6")]" "${all_eps[*]}" $console_ep || {
+        echo "Mark disk from pool version 0 pver_actual_0 as REBALANCE"
+	change_device_state "$disk1_from_pver_actual_0" "rebalance" "0" "${all_eps[*]}" "$console_ep" || {
                 unmount_and_clean $multiple_pools
                 return 1
         }
 
         echo "Mark disk from pool version 0 pver_actual_0 as ONLINE"
-        dispatch_ha_events "[1: ("$disk1_from_pver_actual_0", "$M0_NC_ONLINE")]" "${all_eps[*]}" $console_ep || {
+	change_device_state "$disk1_from_pver_actual_0" "online" "0" "${all_eps[*]}" "$console_ep" || {
                 unmount_and_clean $multiple_pools
                 return 1
         }

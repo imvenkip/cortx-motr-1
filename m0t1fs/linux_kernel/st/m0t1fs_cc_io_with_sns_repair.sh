@@ -147,7 +147,7 @@ sns_repair_test()
 	disk_state_get $fail_device1 $fail_device2 || return $?
 
 	echo "*** Start sns repair and it will run in background ****"
-	disk_state_set "repairing" $fail_device1 $fail_device2 || return $?
+	disk_state_set "repair" $fail_device1 $fail_device2 || return $?
 	sns_repair
 	sleep 5
 	#echo "**** Create files while sns repair is in-progress ****"
@@ -169,7 +169,7 @@ sns_repair_test()
 	disk_state_get $fail_device1 $fail_device2 || return $?
 
         echo "Starting SNS Re-balance.."
-	disk_state_set "rebalancing" $fail_device1 $fail_device2 || return $?
+	disk_state_set "rebalance" $fail_device1 $fail_device2 || return $?
 	sns_rebalance || return $?
 
 	wait_for_sns_repair_or_rebalance "rebalance" || return $?
@@ -182,7 +182,7 @@ sns_repair_test()
 	disk_state_set "failed" $fail_device3 || return $?
 
 	echo "**** Start sns repair and it will run in background ****"
-	disk_state_set "repairing" $fail_device3 || return $?
+	disk_state_set "repair" $fail_device3 || return $?
 	sns_repair
 	sleep 5
 	#echo "**** Create files while sns repair is in-progress ****"
@@ -205,7 +205,7 @@ sns_repair_test()
 	verify_all files[@] 0 ${#files[*]} || return $?
 
 	echo "Starting SNS Re-balance.."
-	disk_state_set "rebalancing" $fail_device3 || return $?
+	disk_state_set "rebalance" $fail_device3 || return $?
 	sns_rebalance || return $?
 
 	echo "SNS Rebalance done."

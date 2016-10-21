@@ -65,7 +65,7 @@ sns_repair_rebalance_quiesce_test()
 	md5sum_check || return $?
 
 	echo "Starting SNS repair, and this will be aborted"
-	disk_state_set "repairing" $fail_device1 $fail_device2 || return $?
+	disk_state_set "repair" $fail_device1 $fail_device2 || return $?
 	sns_repair || return $?
 	sleep 5
 
@@ -106,7 +106,7 @@ sns_repair_rebalance_quiesce_test()
 	disk_state_get $fail_device1 $fail_device2 || return $?
 
 	echo "Starting SNS Re-balance, and this will be aborted"
-	disk_state_set "rebalancing" $fail_device1 $fail_device2 || return $?
+	disk_state_set "rebalance" $fail_device1 $fail_device2 || return $?
 	sns_rebalance
 	sleep 3
 

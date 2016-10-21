@@ -316,7 +316,7 @@ fmio_sns_repair()
 
 	if [ $debug_level != $DEBUG_LEVEL_STTEST ]
 	then
-		disk_state_set "repairing" $device || return 1
+		disk_state_set "repair" $device || return 1
 
 		sns_repair || {
 			echo "Failed: SNS repair..."
@@ -349,7 +349,7 @@ fmio_sns_rebalance()
 
 	if [ $debug_level != $DEBUG_LEVEL_STTEST ]
 	then
-		disk_state_set "rebalancing" $device || return 1
+		disk_state_set "rebalance" $device || return 1
 
 		sns_rebalance || {
 			echo "Failed: SNS rebalance..."

@@ -71,6 +71,7 @@ MDSEP=(
 SNS_CLI_EP="12345:33:1000"
 POOL_MACHINE_CLI_EP="12345:33:1001"
 SNS_QUIESCE_CLI_EP="12345:33:1002"
+M0HAM_CLI_EP="12345:33:1003"
 
 POOL_WIDTH=$(expr ${#IOSEP[*]} \* 5)
 NR_PARITY=2
@@ -445,27 +446,130 @@ function build_conf()
   $CTRLV $PVER1_OBJS]"
 }
 
-# Uses console utility to generate proxy HA notification.
-# input parameters:
-# (i)   ha_fop to be sent
-# (ii)  list of endpoints
-# (iii) endpoint where reply is to be received.
-dispatch_ha_events()
+service_eps_with_m0t1fs_get()
 {
-	local ha_fop=$1
-        local eplist=($2)
-        local self_endpoint=$3
+	local lnet_nid=`sudo lctl list_nids | head -1`
+	local service_eps=(
+		"$lnet_nid:${IOSEP[0]}"
+		"$lnet_nid:${IOSEP[1]}"
+		"$lnet_nid:${IOSEP[2]}"
+		"$lnet_nid:${IOSEP[3]}"
+		"$lnet_nid:${HA_EP}"
+		"$lnet_nid:12345:33:1"
+	)
 
-        for ep in "${eplist[@]}"
-        do
-                # dispatch ha_fop
-                cmd="$M0_SRC_DIR/console/m0console \
-                     -f $(opcode M0_HA_NOTE_SET_OPCODE) \
-                     -s $ep -c $self_endpoint \
-                     -d \"$ha_fop\""
-                #echo $cmd
-                (eval "$cmd")
-        done
+	# Return list of endpoints
+	echo "${service_eps[*]}"
+}
+
+# input parameters:
+# (i) ha_msg_nvec in yaml format (see utils/m0hagen)
+# (ii) list of remote endpoints
+# (iii) local endpoint
+send_ha_msg_nvec()
+{
+	local ha_msg_nvec=$1
+	local remote_eps=($2)
+	local local_ep=$3
+
+	# Complete the message for m0hagen
+	local ha_msg_yaml='!ha_msg
+fid: !fid [0,0]
+process: ^r|0.0
+service: ^s|0.0
+data:'
+	ha_msg_nvec=`echo "$ha_msg_nvec" | sed 's/^/  /g'`
+	ha_msg_yaml+="$ha_msg_nvec"
+
+	# Convert a yaml message to its xcode representation
+	cmd_xcode="echo \"$ha_msg_yaml\" | $M0_SRC_DIR/utils/m0hagen"
+	# Check for errors in the message format
+	(eval "$cmd_xcode > /dev/null")
+	if [ $? -ne 0 ]; then
+		echo "m0hagen can not convert message:"
+		echo "$ha_msg_yaml"
+		return 1
+	fi
+
+	for ep in "${remote_eps[@]}"; do
+		cmd="$cmd_xcode | $M0_SRC_DIR/utils/m0ham -v -s $local_ep $ep"
+		echo "$cmd"
+		local xcode=`eval "$cmd"`
+		if [ $? -ne 0 ]; then
+			echo "m0ham failed to send a message"
+			return 1
+		fi
+		if [ ! -z "$xcode" ]; then
+			echo "Got reply (xcode):"
+			echo "$xcode" | head -c 100
+			echo
+			echo "Decoded reply:"
+			echo "$xcode" | $M0_SRC_DIR/utils/m0hagen -d
+		fi
+	done
+}
+
+# input parameters:
+# (i) list of fids
+# (ii) state in string representation
+# (iii) list of remote endpoints
+# (iv) local endpoint
+send_ha_events()
+{
+	local fids=($1)
+	local state=$2
+	local remote_eps=($3)
+	local local_ep=$4
+
+	local yaml='!ha_nvec_set
+notes:'
+	for fid in "${fids[@]}"; do
+		# Convert fid to m0hagen's format
+		fid=`echo "$fid" | tr : .`
+		yaml="$yaml
+  - {fid: $fid, state: $state}"
+	done
+
+	send_ha_msg_nvec "$yaml" "${remote_eps[*]}" "$local_ep"
+}
+
+# input parameters:
+# (i) list of fids
+# (ii) state in string representation
+send_ha_events_default()
+{
+	local fids=($1)
+	local state=$2
+
+	# Use default endpoints
+	local lnet_nid=`sudo lctl list_nids | head -1`
+	local ha_ep="$lnet_nid:$HA_EP"
+	local local_ep="$lnet_nid:$M0HAM_CLI_EP"
+
+	send_ha_events "${fids[*]}" "$state" "$ha_ep" "$local_ep"
+}
+
+# input parameters:
+# (i) list of fids
+# (ii) list of remote endpoints
+# (iii) local endpoint
+request_ha_state()
+{
+	local fids=($1)
+	local remote_eps=($2)
+	local local_ep=$3
+
+	local yaml='!ha_nvec_get
+get_id: 100
+fids:'
+	for fid in "${fids[@]}"; do
+		# Convert fid to m0hagen's format
+		fid=`echo "$fid" | tr : .`
+		yaml="$yaml
+  - $fid"
+	done
+
+	send_ha_msg_nvec "$yaml" "${remote_eps[*]}" "$local_ep"
 }
 
 function run()

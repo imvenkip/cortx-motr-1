@@ -115,7 +115,7 @@ sns_repair_test()
 	echo "Device $fail_device1 and $fail_device2 failed. Do dgmode read"
 	verify 0 || return $?
 
-	disk_state_set "repairing" $fail_device1 $fail_device2 || return $?
+	disk_state_set "repair" $fail_device1 $fail_device2 || return $?
 	sns_repair || return $?
 
 	echo "wait for sns repair"
@@ -133,7 +133,7 @@ sns_repair_test()
 	verify 0 || return $?
 
         echo "Starting SNS Re-balance for device $fail_device1"
-	disk_state_set "rebalancing" $fail_device1 || return $?
+	disk_state_set "rebalance" $fail_device1 || return $?
 	sns_rebalance || return $?
 
 	echo "wait for sns rebalance"
@@ -150,7 +150,7 @@ sns_repair_test()
 
 	disk_state_set "failed" $fail_device3 || return $?
 
-	disk_state_set "repairing" $fail_device3 || return $?
+	disk_state_set "repair" $fail_device3 || return $?
 
 	echo "Deleting files"
 	delete_files || return $?
@@ -170,7 +170,7 @@ sns_repair_test()
 	verify 8 || return $?
 
         echo "Starting SNS Re-balance for device $fail_device3"
-	disk_state_set "rebalancing" $fail_device3 || return $?
+	disk_state_set "rebalance" $fail_device3 || return $?
 	sns_rebalance || return $?
 
 	echo "wait for sns rebalance"
@@ -186,7 +186,7 @@ sns_repair_test()
 	verify 8 || return $?
 
         echo "Starting SNS Re-balance for device $fail_device2"
-	disk_state_set "rebalancing" $fail_device2 || return $?
+	disk_state_set "rebalance" $fail_device2 || return $?
 	sns_rebalance || return $?
 
 	echo "wait for sns rebalance"
@@ -209,7 +209,7 @@ sns_repair_test()
 	echo "Devices $fail_device1 $fail_device2 $fail_device3 failed. Do dgmode read"
 	verify 8 || return $?
 
-	disk_state_set "repairing" $fail_device1 $fail_device2 $fail_device3 || return $?
+	disk_state_set "repair" $fail_device1 $fail_device2 $fail_device3 || return $?
 	sns_repair || return $?
 
 	echo "wait for sns repair"
@@ -226,7 +226,7 @@ sns_repair_test()
 	verify 8 || return $?
 
         echo "Starting SNS Re-balance for devices $fail_device1 $fail_device2 $fail_device3"
-	disk_state_set "rebalancing" $fail_device1 $fail_device2 $fail_device3 || return $?
+	disk_state_set "rebalance" $fail_device1 $fail_device2 $fail_device3 || return $?
 	sns_rebalance || return $?
 
 	echo "wait for sns rebalance"

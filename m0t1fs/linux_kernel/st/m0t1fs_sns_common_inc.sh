@@ -10,111 +10,69 @@ declare -A ha_states=(
 	[unknown]=$M0_NC_UNKNOWN
 	[online]=$M0_NC_ONLINE
 	[failed]=$M0_NC_FAILED
-	[offline]=$M0_NC_TRANSIENT
-	[repairing]=$M0_NC_REPAIR
+	[transient]=$M0_NC_TRANSIENT
+	[repair]=$M0_NC_REPAIR
 	[repaired]=$M0_NC_REPAIRED
-	[rebalancing]=$M0_NC_REBALANCE
+	[rebalance]=$M0_NC_REBALANCE
 )
 
+# input parameters:
+# (i) state name
+# (ii) disk1
+# (iii) ...
 disk_state_set()
 {
-	local lnet_nid=`sudo lctl list_nids | head -1`
-	local c_endpoint="$lnet_nid:12345:30:*"
-	local state_name=$1
+	local state=$1
+	local state_num=${ha_states[$state]}
+	if [ -z "$state_num" ]; then
+		echo "Unknown state: $state"
+		return 1
+	fi
+
 	shift
-	local state=${ha_states[$state_name]}
 
-	local service_eps=(
-		"$lnet_nid:${IOSEP[0]}"
-		"$lnet_nid:${IOSEP[1]}"
-		"$lnet_nid:${IOSEP[2]}"
-		"$lnet_nid:${IOSEP[3]}"
-		"$lnet_nid:${HA_EP}"
-		"$lnet_nid:12345:33:1"
-	)
-
+	local fids=()
 	local nr=0
-	local DS=""
-
-	echo "setting device { $@ } to $state_name (HA state=$state)"
-
-	for d in "$@"
-	do
-		if [ $nr -eq 0 ] ; then
-			DS="(^k|1:$d, $state)"
-		else
-			DS="$DS, (^k|1:$d, $state)"
-		fi
+	for d in "$@"; do
+		fids[$nr]="^k|1:$d"
 		nr=$((nr + 1))
 	done
 
-	for sep in "${service_eps[@]}"; do
-		ha_note="$M0_SRC_DIR/console/m0console     \
-			-s $sep                            \
-			-c $c_endpoint                     \
-			-f $(opcode M0_HA_NOTE_SET_OPCODE) \
-			-d '[$nr: $DS]'"
-		echo $ha_note
-		eval $ha_note
-	done
+	# Dummy HA doesn't broadcast messages. Therefore, send ha_msg to the
+	# services directly.
+	local service_eps=$(service_eps_with_m0t1fs_get)
+	local local_ep="$lnet_nid:$M0HAM_CLI_EP"
 
+	echo "setting devices { ${fids[*]} } to $state"
+	send_ha_events "${fids[*]}" "$state" "$service_eps" "$local_ep"
 	rc=$?
-	if [ $rc != 0 ] ; then
+	if [ $rc -ne 0 ]; then
 		echo "HA note set failed: $rc"
 		unmount_and_clean &>> $MERO_TEST_LOGFILE
 		return $rc
 	fi
-
-	return 0
 }
 
 disk_state_get()
 {
-	local lnet_nid=`sudo lctl list_nids | head -1`
-	local c_endpoint="$lnet_nid:12345:30:*"
-
-	local service_eps=(
-		"$lnet_nid:${IOSEP[0]}"
-		"$lnet_nid:${IOSEP[1]}"
-		"$lnet_nid:${IOSEP[2]}"
-		"$lnet_nid:${IOSEP[3]}"
-		"$lnet_nid:${HA_EP}"
-	)
-
+	local fids=()
 	local nr=0
-	local DS=""
-
-	echo "getting device { $@ }'s HA state"
-
-	for d in "$@"
-	do
-		if [ $nr -eq 0 ] ; then
-			DS="(^k|1:$d, 0)"
-		else
-			DS="$DS, (^k|1:$d, 0)"
-		fi
+	for d in "$@"; do
+		fids[$nr]="^k|1:$d"
 		nr=$((nr + 1))
 	done
 
-	for sep in "${service_eps[@]}"; do
-		ha_note="$M0_SRC_DIR/console/m0console     \
-			-s $sep                            \
-			-c $c_endpoint                     \
-			-f $(opcode M0_HA_NOTE_GET_OPCODE) \
-			-v                                 \
-			-d '[$nr: $DS]'"
-		echo $ha_note
-		eval $ha_note
-	done
+	local service_eps=$(service_eps_with_m0t1fs_get)
+	local local_ep="$lnet_nid:$M0HAM_CLI_EP"
 
+	echo "getting device { ${fids[*]} }'s HA state"
+	request_ha_state "${fids[*]}" "$service_eps" "$local_ep"
 	rc=$?
-	if [ $rc != 0 ] ; then
-		echo "HA note get failed: $rc"
+	if [ $rc != 0 ]; then
+		echo "HA state get failed: $rc"
 		unmount_and_clean &>> $MERO_TEST_LOGFILE
 		return $rc
 	fi
-
-	return 0
 }
 
 sns_repair_mount()
@@ -218,6 +176,7 @@ sns_repair_abort()
 
 sns_repair_or_rebalance_status_not_4()
 {
+	local ios_eps_not_4=''
 	local rc=0
 	local op=32
 	[ "$1" == "repair" ] && op=32
@@ -259,6 +218,7 @@ sns_repair_or_rebalance_status()
 
 wait_for_sns_repair_or_rebalance_not_4()
 {
+	local ios_eps_not_4=''
 	local rc=0
 	local op=32
 	[ "$1" == "repair" ] && op=32
