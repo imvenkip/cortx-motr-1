@@ -377,21 +377,17 @@ void m0_addb2_sys_stor_stop(struct m0_addb2_sys *sys)
 
 void m0_addb2_sys_sm_start(struct m0_addb2_sys *sys)
 {
-	sys_lock(sys);
 	sys_qlock(sys);
 	sys->sy_astwait.aw_allowed = true;
 	sys_qunlock(sys);
-	sys_unlock(sys);
 }
 
 void m0_addb2_sys_sm_stop(struct m0_addb2_sys *sys)
 {
-	sys_lock(sys);
 	sys_qlock(sys);
 	m0_sm_ast_wait(&sys->sy_astwait);
-	sys_qunlock(sys);
 	M0_ASSERT(sys->sy_ast.sa_next == NULL);
-	sys_unlock(sys);
+	sys_qunlock(sys);
 }
 
 int m0_addb2_sys_submit(struct m0_addb2_sys *sys,
