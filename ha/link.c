@@ -983,6 +983,16 @@ static int ha_link_outgoing_fop_replied(struct m0_ha_link *hl)
 	return rc == 0 ? M0_RC(rc) : M0_ERR(rc);
 }
 
+static bool ha_link_q_in_confirm_all(struct m0_ha_link *hl)
+{
+	bool confirmed_updated = false;
+
+	M0_PRE(m0_mutex_is_locked(&hl->hln_lock));
+	while (m0_ha_lq_dequeue(&hl->hln_q_in) != M0_HA_MSG_TAG_INVALID)
+		confirmed_updated |= true;
+	return confirmed_updated;
+}
+
 static int ha_link_outgoing_fom_tick(struct m0_fom *fom)
 {
 	enum ha_link_outgoing_fom_state  phase;
@@ -1003,7 +1013,7 @@ static int ha_link_outgoing_fom_tick(struct m0_fom *fom)
 	switch (phase) {
 	case HA_LINK_OUTGOING_STATE_INIT:
 		hl->hln_msg_to_send      = NULL;
-		hl->hln_delivered_update = false;
+		hl->hln_confirmed_update = false;
 		hl->hln_rpc_rc           = 0;
 		hl->hln_reply_rc         = 0;
 		m0_fom_phase_set(fom, HA_LINK_OUTGOING_STATE_RPC_LINK_INIT);
@@ -1037,6 +1047,7 @@ static int ha_link_outgoing_fom_tick(struct m0_fom *fom)
 				m0_ha_lq_mark_delivered(&hl->hln_q_out,
 					m0_ha_lq_tag_delivered(&hl->hln_q_out));
 			}
+			(void)ha_link_q_in_confirm_all(hl);
 			if (hl->hln_reconnect_cfg_is_set) {
 				ha_link_conn_cfg_free(
 				                &hl->hln_conn_reconnect_cfg);
@@ -1142,10 +1153,9 @@ static int ha_link_outgoing_fom_tick(struct m0_fom *fom)
 		}
 		m0_mutex_lock(&hl->hln_lock);
 		hl->hln_msg_to_send = m0_ha_lq_next(&hl->hln_q_out);
-		while (m0_ha_lq_dequeue(&hl->hln_q_in) != M0_HA_MSG_TAG_INVALID)
-			hl->hln_delivered_update |= true;
+		hl->hln_confirmed_update = ha_link_q_in_confirm_all(hl);
 		m0_mutex_unlock(&hl->hln_lock);
-		if (hl->hln_msg_to_send != NULL || hl->hln_delivered_update) {
+		if (hl->hln_msg_to_send != NULL || hl->hln_confirmed_update) {
 			m0_fom_phase_set(fom, HA_LINK_OUTGOING_STATE_SEND);
 			return M0_RC(M0_FSO_AGAIN);
 		}
@@ -1165,7 +1175,7 @@ static int ha_link_outgoing_fom_tick(struct m0_fom *fom)
 			hl->hln_msg_to_send = NULL;
 			m0_mutex_unlock(&hl->hln_lock);
 			if (hl->hln_reply_rc == 0)
-				hl->hln_delivered_update = false;
+				hl->hln_confirmed_update = false;
 			m0_chan_broadcast_lock(&hl->hln_chan);
 			m0_fop_put_lock(&hl->hln_outgoing_fop);
 			m0_fom_phase_set(fom,

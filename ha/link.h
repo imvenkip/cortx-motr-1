@@ -191,7 +191,7 @@ struct m0_ha_link {
 	struct m0_sm_ast            hln_waking_ast;
 	struct m0_ha_msg           *hln_msg_to_send;
 	/** It's protected by outgoing fom sm group lock */
-	bool                        hln_delivered_update;
+	bool                        hln_confirmed_update;
 	struct m0_fop               hln_outgoing_fop;
 	struct m0_ha_link_msg_fop   hln_req_fop_data;
 	bool                        hln_replied;
