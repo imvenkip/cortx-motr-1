@@ -400,8 +400,8 @@ static void state_set(struct m0_sm *mach, int state, int32_t rc)
 			if (stats->as_id != 0)
 				M0_ADDB2_ADD(stats->as_id, trans, state);
 			if (stats->as_nr > 0)
-				m0_addb2_counter_mod(&stats->as_counter[trans],
-						     delta);
+				m0_addb2_hist_mod(&stats->as_hist[trans],
+						  delta);
 			mach->sm_state_epoch = now;
 		}
 		mach->sm_state = state;
@@ -771,7 +771,7 @@ static int sm_addb2_ctor(struct m0_sm_addb2_stats *stats,
 	stats->as_id = c->scf_addb2_id;
 	stats->as_nr = c->scf_trans_nr;
 	for (i = 0; i < stats->as_nr; ++i) {
-		m0_addb2_counter_add(&stats->as_counter[i],
+		m0_addb2_hist_add_auto(&stats->as_hist[i], 100 /* skip */,
 				     /*
 				      * index parameter (2) corresponds to
 				      * "standard" labels added to the context
@@ -789,7 +789,7 @@ static void sm_addb2_dtor(struct m0_sm_addb2_stats *stats,
 	int i;
 
 	for (i = 0; i < stats->as_nr; ++i)
-		m0_addb2_counter_del(&stats->as_counter[i]);
+		m0_addb2_hist_del(&stats->as_hist[i]);
 }
 
 M0_INTERNAL int m0_sm_addb2_init(struct m0_sm_conf *conf,
@@ -805,7 +805,8 @@ M0_INTERNAL int m0_sm_addb2_init(struct m0_sm_conf *conf,
 	conf->scf_addb2_id      = id;
 	conf->scf_addb2_counter = counter;
 	nob = sizeof(struct m0_sm_addb2_stats) +
-		conf->scf_trans_nr * sizeof(struct m0_addb2_counter);
+		conf->scf_trans_nr * M0_MEMBER_SIZE(struct m0_sm_addb2_stats,
+						    as_hist[0]);
 	result = m0_locality_data_alloc(nob, (void *)&sm_addb2_ctor,
 					(void *)sm_addb2_dtor, conf);
 	if (result >= 0) {

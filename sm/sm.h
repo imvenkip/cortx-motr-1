@@ -31,7 +31,7 @@
 #include "lib/chan.h"
 #include "lib/mutex.h"
 #include "lib/tlist.h"
-#include "addb2/counter.h"
+#include "addb2/histogram.h"
 
 /**
    @defgroup sm State machine
@@ -782,9 +782,9 @@ int m0_sm_group_call(struct m0_sm_group *group,
 		     int (*cb)(void *), void *data);
 
 struct m0_sm_addb2_stats {
-	uint64_t                as_id;
-	int                     as_nr;
-	struct m0_addb2_counter as_counter[0];
+	uint64_t             as_id;
+	int                  as_nr;
+	struct m0_addb2_hist as_hist[0];
 };
 
 struct m0_sm_group_addb2 {

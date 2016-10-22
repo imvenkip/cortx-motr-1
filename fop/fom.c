@@ -932,9 +932,9 @@ static int loc_init(struct m0_fom_locality *loc, struct m0_fom_domain *dom,
 	M0_ADDB2_PUSH(M0_AVI_PID, m0_pid());
 	M0_ADDB2_PUSH(M0_AVI_LOCALITY, loc->fl_idx);
 	m0_addb2_clock_add(&loc->fl_clock, M0_AVI_CLOCK, -1);
-	m0_addb2_hist_add(&loc->fl_fom_active,   1, 31, M0_AVI_FOM_ACTIVE, -1);
-	m0_addb2_hist_add(&loc->fl_runq_counter, 1, 31, M0_AVI_RUNQ, -1);
-	m0_addb2_hist_add(&loc->fl_wail_counter, 1, 31, M0_AVI_WAIL, -1);
+	m0_addb2_hist_add(&loc->fl_fom_active,   1, 30, M0_AVI_FOM_ACTIVE, -1);
+	m0_addb2_hist_add(&loc->fl_runq_counter, 1, 30, M0_AVI_RUNQ, -1);
+	m0_addb2_hist_add(&loc->fl_wail_counter, 1, 30, M0_AVI_WAIL, -1);
 	m0_addb2_counter_add(&loc->fl_grp_addb2.ga_forq_counter,
 			     M0_AVI_LOCALITY_FORQ, -1);
 	m0_addb2_counter_add(&loc->fl_chan_addb2.ca_wait_counter,

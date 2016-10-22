@@ -67,7 +67,7 @@
 #include "sns/cm/cm.h"                 /* m0_sns_cm_repair_trigger_fop_init */
 
 enum {
-	BUF_SIZE  = 256,
+	BUF_SIZE  = 4096,
 	FIELD_MAX = 15
 };
 struct context;
@@ -439,7 +439,7 @@ static void sm_trans(const struct m0_sm_conf *conf, const char *name,
 	nob = sprintf(buf, "%s/%s: %s -[%s]-> %s ", name,
 		      conf->scf_name, conf->scf_state[trans->td_src].sd_name,
 		      trans->td_cause, conf->scf_state[trans->td_tgt].sd_name);
-	counter(ctx, &ctx->c_val->va_data[0], buf + nob);
+	hist(ctx, &ctx->c_val->va_data[0], buf + nob);
 }
 
 static void fom_state_counter(struct context *ctx, char *buf)
