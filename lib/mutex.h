@@ -24,7 +24,7 @@
 #define __MERO_LIB_MUTEX_H__
 
 #include "lib/types.h"
-#include "addb2/counter.h"
+#include "addb2/histogram.h"
 
 /**
    @defgroup mutex Mutual exclusion synchronisation object
@@ -102,10 +102,10 @@ M0_INTERNAL bool m0_mutex_is_locked(const struct m0_mutex *mutex);
 M0_INTERNAL bool m0_mutex_is_not_locked(const struct m0_mutex *mutex);
 
 struct m0_mutex_addb2 {
-	m0_time_t               ma_taken;
-	struct m0_addb2_counter ma_hold;
-	struct m0_addb2_counter ma_wait;
-	uint64_t                ma_id;
+	m0_time_t            ma_taken;
+	struct m0_addb2_hist ma_hold;
+	struct m0_addb2_hist ma_wait;
+	uint64_t             ma_id;
 };
 
 /*

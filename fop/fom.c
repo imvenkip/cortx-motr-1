@@ -935,14 +935,14 @@ static int loc_init(struct m0_fom_locality *loc, struct m0_fom_domain *dom,
 	m0_addb2_hist_add(&loc->fl_fom_active,   1, 30, M0_AVI_FOM_ACTIVE, -1);
 	m0_addb2_hist_add(&loc->fl_runq_counter, 1, 30, M0_AVI_RUNQ, -1);
 	m0_addb2_hist_add(&loc->fl_wail_counter, 1, 30, M0_AVI_WAIL, -1);
-	m0_addb2_counter_add(&loc->fl_grp_addb2.ga_forq_counter,
-			     M0_AVI_LOCALITY_FORQ, -1);
-	m0_addb2_counter_add(&loc->fl_chan_addb2.ca_wait_counter,
-			     M0_AVI_LOCALITY_CHAN_WAIT, -1);
-	m0_addb2_counter_add(&loc->fl_chan_addb2.ca_cb_counter,
-			     M0_AVI_LOCALITY_CHAN_CB, -1);
-	m0_addb2_counter_add(&loc->fl_chan_addb2.ca_queue_counter,
-			     M0_AVI_LOCALITY_CHAN_QUEUE, -1);
+	m0_addb2_hist_add_auto(&loc->fl_grp_addb2.ga_forq_hist, 1000,
+			       M0_AVI_LOCALITY_FORQ, -1);
+	m0_addb2_hist_add_auto(&loc->fl_chan_addb2.ca_wait_hist, 1000,
+			       M0_AVI_LOCALITY_CHAN_WAIT, -1);
+	m0_addb2_hist_add_auto(&loc->fl_chan_addb2.ca_cb_hist, 1000,
+			       M0_AVI_LOCALITY_CHAN_CB, -1);
+	m0_addb2_hist_add_auto(&loc->fl_chan_addb2.ca_queue_hist, 1000,
+			       M0_AVI_LOCALITY_CHAN_QUEUE, -1);
 	loc->fl_grp_addb2.ga_forq = M0_AVI_LOCALITY_FORQ_DURATION;
 	m0_thread_tls()->tls_addb2_mach = orig;
 

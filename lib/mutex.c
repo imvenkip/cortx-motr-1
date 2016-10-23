@@ -52,8 +52,8 @@ M0_INTERNAL void m0_mutex_lock(struct m0_mutex *mutex)
 	if (ma == NULL)
 		m0_arch_mutex_lock(&mutex->m_arch);
 	else {
-		M0_ADDB2_TIMED(ma->ma_id, &ma->ma_wait, m0_ptr_wrap(mutex),
-			       m0_arch_mutex_lock(&mutex->m_arch));
+		M0_ADDB2_HIST(ma->ma_id, &ma->ma_wait, m0_ptr_wrap(mutex),
+			      m0_arch_mutex_lock(&mutex->m_arch));
 		ma->ma_taken = m0_time_now();
 	}
 	M0_ASSERT(mutex->m_owner == NULL);
@@ -71,7 +71,7 @@ M0_INTERNAL void m0_mutex_unlock(struct m0_mutex *mutex)
 		m0_time_t hold  = m0_time_now() - ma->ma_taken;
 		uint64_t  datum = m0_ptr_wrap(mutex);
 
-		m0_addb2_counter_mod_with(&ma->ma_hold, hold, datum);
+		m0_addb2_hist_mod_with(&ma->ma_hold, hold, datum);
 		if (ma->ma_id != 0)
 			M0_ADDB2_ADD(ma->ma_id + 1, hold, datum);
 	}

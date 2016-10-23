@@ -73,20 +73,25 @@ void m0_addb2_list_counter_del(struct m0_addb2_list_counter *counter);
 void m0_addb2_clock_add(struct m0_addb2_sensor *clock, uint64_t label, int idx);
 void m0_addb2_clock_del(struct m0_addb2_sensor *clock);
 
-#define M0_ADDB2_TIMED(id, counter, datum, ...)		\
-do {								\
+/** Common part of M0_ADDB2_TIMED() and M0_ADDB2_HIST(). */
+#define M0_ADDB2_TIMED_0(id, datum, ...)			\
 	m0_time_t __start = m0_time_now();			\
 	m0_time_t __end;					\
 	m0_time_t __duration;					\
 	uint64_t  __datum = (datum);				\
+	uint64_t  __id    = (id);				\
 	__VA_ARGS__;						\
 	__end = m0_time_now();					\
 	__duration = (__end - __start) >> 10;			\
-	if ((id) != 0)						\
-		M0_ADDB2_ADD((id), __duration, __datum);	\
-	if ((counter) != NULL)					\
-		m0_addb2_counter_mod_with((counter),		\
-			  __duration, __datum);		\
+	if (__id != 0)						\
+		M0_ADDB2_ADD(__id, __duration, __datum);	\
+
+#define M0_ADDB2_TIMED(id, counter, datum, ...)			\
+do {									\
+	struct m0_addb2_counter *__counter = (counter);		\
+	M0_ADDB2_TIMED_0((id), (datum), __VA_ARGS__);			\
+	if (__counter != NULL)						\
+		m0_addb2_counter_mod_with(__counter, __duration, __datum); \
 } while (0)
 
 struct m0_addb2_local_counter {

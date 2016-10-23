@@ -127,10 +127,10 @@ M0_INTERNAL void m0_sm_asts_run(struct m0_sm_group *grp)
 		if (grp->s_addb2 == NULL) {
 			ast->sa_cb(grp, ast);
 		} else {
-			M0_ADDB2_TIMED(grp->s_addb2->ga_forq,
-				       &grp->s_addb2->ga_forq_counter,
-				       m0_ptr_wrap(ast->sa_cb),
-				       ast->sa_cb(grp, ast));
+			M0_ADDB2_HIST(grp->s_addb2->ga_forq,
+				      &grp->s_addb2->ga_forq_hist,
+				      m0_ptr_wrap(ast->sa_cb),
+				      ast->sa_cb(grp, ast));
 		}
 	}
 }
@@ -771,7 +771,7 @@ static int sm_addb2_ctor(struct m0_sm_addb2_stats *stats,
 	stats->as_id = c->scf_addb2_id;
 	stats->as_nr = c->scf_trans_nr;
 	for (i = 0; i < stats->as_nr; ++i) {
-		m0_addb2_hist_add_auto(&stats->as_hist[i], 100 /* skip */,
+		m0_addb2_hist_add_auto(&stats->as_hist[i], 1000 /* skip */,
 				     /*
 				      * index parameter (2) corresponds to
 				      * "standard" labels added to the context

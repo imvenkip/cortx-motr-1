@@ -142,6 +142,14 @@ void m0_addb2_hist_mod_with(struct m0_addb2_hist *hist,
 			    int64_t val, uint64_t datum);
 int m0_addb2_hist_bucket(const struct m0_addb2_hist *hist, int64_t val);
 
+#define M0_ADDB2_HIST(id, hist, datum, ...)				\
+do {									\
+	struct m0_addb2_hist *__hist = (hist);				\
+	M0_ADDB2_TIMED_0((id), (datum), __VA_ARGS__);			\
+	if (__hist != NULL)						\
+		m0_addb2_hist_mod_with(__hist, __duration, __datum);	\
+} while (0)
+
 /** @} end of addb2 group */
 #endif /* __MERO_ADDB2_HISTOGRAM_H__ */
 

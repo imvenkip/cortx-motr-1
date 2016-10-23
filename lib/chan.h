@@ -27,7 +27,7 @@
 #include "lib/mutex.h"
 #include "lib/time.h"
 #include "lib/semaphore.h"
-#include "addb2/counter.h"
+#include "addb2/histogram.h"
 
 /**
    @defgroup chan Waiting channels
@@ -445,11 +445,11 @@ M0_INTERNAL void m0_chan_unlock(struct m0_chan *ch);
 M0_INTERNAL bool m0_chan_is_locked(const struct m0_chan *ch);
 
 struct m0_chan_addb2 {
-	uint64_t                ca_wait;
-	uint64_t                ca_cb;
-	struct m0_addb2_counter ca_wait_counter;
-	struct m0_addb2_counter ca_cb_counter;
-	struct m0_addb2_counter ca_queue_counter;
+	uint64_t             ca_wait;
+	uint64_t             ca_cb;
+	struct m0_addb2_hist ca_wait_hist;
+	struct m0_addb2_hist ca_cb_hist;
+	struct m0_addb2_hist ca_queue_hist;
 };
 
 /** @} end of chan group */

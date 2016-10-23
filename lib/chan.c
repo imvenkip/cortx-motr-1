@@ -132,9 +132,9 @@ static void clink_signal(struct m0_clink *clink)
 		if (ca == NULL)
 			consumed = clink->cl_cb(clink);
 		else
-			M0_ADDB2_TIMED(ca->ca_cb, &ca->ca_cb_counter,
-				       m0_ptr_wrap(clink->cl_cb),
-				       consumed = clink->cl_cb(clink));
+			M0_ADDB2_HIST(ca->ca_cb, &ca->ca_cb_hist,
+				      m0_ptr_wrap(clink->cl_cb),
+				      consumed = clink->cl_cb(clink));
 		m0_exit_awkward();
 	}
 	if (!consumed)
@@ -242,8 +242,8 @@ M0_INTERNAL void m0_clink_add(struct m0_chan *chan, struct m0_clink *link)
 	M0_CNT_INC(chan->ch_waiters);
 	clink_tlist_add_tail(&chan->ch_links, link);
 	if (chan->ch_addb2 != NULL)
-		m0_addb2_counter_mod(&chan->ch_addb2->ca_queue_counter,
-				     chan->ch_waiters);
+		m0_addb2_hist_mod(&chan->ch_addb2->ca_queue_hist,
+				  chan->ch_waiters);
 	M0_ASSERT(m0_chan_invariant(chan));
 
 	M0_POST(m0_clink_is_armed(link));
@@ -275,8 +275,8 @@ M0_INTERNAL void m0_clink_del(struct m0_clink *link)
 	M0_CNT_DEC(chan->ch_waiters);
 	clink_tlist_del(link);
 	if (chan->ch_addb2 != NULL)
-		m0_addb2_counter_mod(&chan->ch_addb2->ca_queue_counter,
-				     chan->ch_waiters);
+		m0_addb2_hist_mod(&chan->ch_addb2->ca_queue_hist,
+				  chan->ch_waiters);
 	M0_ASSERT(m0_chan_invariant(chan));
 	if (clink_is_head(link))
 		m0_semaphore_fini(&link->cl_wait);
@@ -338,9 +338,9 @@ M0_INTERNAL void m0_chan_wait(struct m0_clink *link)
 	if (ca == NULL)
 		m0_semaphore_down(&link->cl_group->cl_wait);
 	else
-		M0_ADDB2_TIMED(ca->ca_wait, &ca->ca_wait_counter,
-			       m0_ptr_wrap(__builtin_return_address(0)),
-			       m0_semaphore_down(&link->cl_group->cl_wait));
+		M0_ADDB2_HIST(ca->ca_wait, &ca->ca_wait_hist,
+			      m0_ptr_wrap(__builtin_return_address(0)),
+			      m0_semaphore_down(&link->cl_group->cl_wait));
 }
 M0_EXPORTED(m0_chan_wait);
 
@@ -354,7 +354,7 @@ M0_INTERNAL bool m0_chan_timedwait(struct m0_clink *link,
 		got = m0_semaphore_timeddown(&link->cl_group->cl_wait,
 					     abs_timeout);
 	else
-		M0_ADDB2_TIMED(ca->ca_wait, &ca->ca_wait_counter,
+		M0_ADDB2_HIST(ca->ca_wait, &ca->ca_wait_hist,
 		       m0_ptr_wrap(__builtin_return_address(0)),
 		       got = m0_semaphore_timeddown(&link->cl_group->cl_wait,
 						    abs_timeout));

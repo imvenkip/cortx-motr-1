@@ -788,8 +788,8 @@ struct m0_sm_addb2_stats {
 };
 
 struct m0_sm_group_addb2 {
-	uint64_t                ga_forq;
-	struct m0_addb2_counter ga_forq_counter;
+	uint64_t             ga_forq;
+	struct m0_addb2_hist ga_forq_hist;
 };
 
 M0_INTERNAL int m0_sm_addb2_init(struct m0_sm_conf *conf,

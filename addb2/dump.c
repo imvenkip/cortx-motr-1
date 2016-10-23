@@ -58,6 +58,7 @@
 #include "addb2/consumer.h"
 #include "addb2/storage.h"
 #include "addb2/counter.h"
+#include "addb2/histogram.h"
 
 #include "stob/addb2.h"
 #include "net/addb2.h"
@@ -534,10 +535,10 @@ struct id_intrp ids[] = {
 	{ M0_AVI_WAIL,            "wail",            { HIST } },
 	{ M0_AVI_AST,             "ast" },
 	{ M0_AVI_LOCALITY_FORQ_DURATION, "loc-forq-duration", { TIMED } },
-	{ M0_AVI_LOCALITY_FORQ,      "loc-forq-counter",  { COUNTER } },
-	{ M0_AVI_LOCALITY_CHAN_WAIT, "loc-wait-counter",  { COUNTER } },
-	{ M0_AVI_LOCALITY_CHAN_CB,   "loc-cb-counter",    { COUNTER } },
-	{ M0_AVI_LOCALITY_CHAN_QUEUE,"loc-queue-counter", { COUNTER } },
+	{ M0_AVI_LOCALITY_FORQ,      "loc-forq-hist",  { HIST } },
+	{ M0_AVI_LOCALITY_CHAN_WAIT, "loc-wait-hist",  { HIST } },
+	{ M0_AVI_LOCALITY_CHAN_CB,   "loc-cb-hist",    { HIST } },
+	{ M0_AVI_LOCALITY_CHAN_QUEUE,"loc-queue-hist", { HIST } },
 	{ M0_AVI_IOS_IO_DESCR,    "ios-io-descr",    { FID, FID,
 						       &hex, &hex, &dec, &dec,
 						       &dec, &dec, &dec },
@@ -564,9 +565,9 @@ struct id_intrp ids[] = {
 						       &dec, &dec, &dec },
 	  { NULL, NULL, "duration", "rc", "count", "frag" } },
 	{ M0_AVI_STOB_IOQ,        "stob-ioq-thread", { &dec } },
-	{ M0_AVI_STOB_IOQ_INFLIGHT, "stob-ioq-inflight", { COUNTER } },
-	{ M0_AVI_STOB_IOQ_QUEUED, "stob-ioq-queued", { COUNTER } },
-	{ M0_AVI_STOB_IOQ_GOT,    "stob-ioq-got",    { COUNTER } },
+	{ M0_AVI_STOB_IOQ_INFLIGHT, "stob-ioq-inflight", { HIST } },
+	{ M0_AVI_STOB_IOQ_QUEUED, "stob-ioq-queued", { HIST } },
+	{ M0_AVI_STOB_IOQ_GOT,    "stob-ioq-got",    { HIST } },
 
 	{ M0_AVI_RPC_LOCK,        "rpc-machine-lock", { &ptr } },
 	{ M0_AVI_RPC_REPLIED,     "rpc-replied",      { &ptr, &rpcop } },

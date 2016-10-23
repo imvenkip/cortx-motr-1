@@ -655,18 +655,18 @@ static void stob_ioq_thread(struct m0_stob_ioq *ioq)
 	int got;
 	int avail;
 	int i;
-	struct io_event         evout[M0_STOB_IOQ_BATCH_OUT_SIZE];
-	struct timespec         timeout;
-	struct m0_addb2_counter inflight = {};
-	struct m0_addb2_counter queued   = {};
-	struct m0_addb2_counter gotten   = {};
-	int                     thread_index;
+	struct io_event      evout[M0_STOB_IOQ_BATCH_OUT_SIZE];
+	struct timespec      timeout;
+	struct m0_addb2_hist inflight = {};
+	struct m0_addb2_hist queued   = {};
+	struct m0_addb2_hist gotten   = {};
+	int                  thread_index;
 
 	thread_index = m0_thread_self() - ioq->ioq_thread;
 	M0_ADDB2_PUSH(M0_AVI_STOB_IOQ, thread_index);
-	m0_addb2_counter_add(&inflight, M0_AVI_STOB_IOQ_INFLIGHT, -1);
-	m0_addb2_counter_add(&queued,   M0_AVI_STOB_IOQ_QUEUED, -1);
-	m0_addb2_counter_add(&gotten,   M0_AVI_STOB_IOQ_GOT, -1);
+	m0_addb2_hist_add_auto(&inflight, 1000, M0_AVI_STOB_IOQ_INFLIGHT, -1);
+	m0_addb2_hist_add_auto(&queued,   1000, M0_AVI_STOB_IOQ_QUEUED, -1);
+	m0_addb2_hist_add_auto(&gotten,   1000, M0_AVI_STOB_IOQ_GOT, -1);
 	while (!m0_semaphore_trydown(&ioq->ioq_stop_sem[thread_index])) {
 		timeout = ioq_timeout_default;
 		got = raw_io_getevents(ioq->ioq_ctx, 1, ARRAY_SIZE(evout),
@@ -685,9 +685,9 @@ static void stob_ioq_thread(struct m0_stob_ioq *ioq)
 			ioq_complete(ioq, qev, iev->res, iev->res2);
 		}
 		ioq_queue_submit(ioq);
-		m0_addb2_counter_mod(&gotten, got);
-		m0_addb2_counter_mod(&queued, ioq->ioq_queued);
-		m0_addb2_counter_mod(&inflight, M0_STOB_IOQ_RING_SIZE -
+		m0_addb2_hist_mod(&gotten, got);
+		m0_addb2_hist_mod(&queued, ioq->ioq_queued);
+		m0_addb2_hist_mod(&inflight, M0_STOB_IOQ_RING_SIZE -
 				     m0_atomic64_get(&ioq->ioq_avail));
 		m0_addb2_force(M0_MKTIME(5, 0));
 	}
