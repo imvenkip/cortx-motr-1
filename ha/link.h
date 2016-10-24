@@ -36,33 +36,21 @@
  *   use case:
  *   send() -> transport -> recv () -> delivered()
  *
- * * Queue and queue pointers
- *
- * - queue
- * - pointers: undelivered, transfer, assign
- *
- * * Link state
- *
- * - outgoing
- *   - msg queue: messages in range [delivered, assign).
- * - incoming
- *   - msg queue
- *
- * * Link state machine
+ * * HA link state machine (m0_ha_link::hln_sm)
  *
  * @verbatim
  *                     INIT --> FINI
  *                       v       ^
  *                     START -> STOP
  *                         v    ^
- *   +--------------------< IDLE <--------------------------<+
- *   |                      VVVV                             |
- *   |                      |||+---------------------+       |
- *   |           +----------+|+---------+            |       |
- *   v           v           v          v            v       |
- *  RECV     DELIVERY    RPC_FAILED LINK_FAILED LINK_REUSED  |
- *   v           v           v          v            v       ^
- *   >----------->----------->---------->------------>------>+
+ *   +--------------------< IDLE <----------------------------------------<+
+ *   |                      VVVV>--------------------------------+         |
+ *   |                      |||+---------------------+           |         |
+ *   |           +----------+|+---------+            |           |         |
+ *   v           v           v          v            v           v         |
+ *  RECV     DELIVERY    RPC_FAILED LINK_FAILED LINK_REUSED DISCONNECTING  |
+ *   v           v           v          v            v           v         ^
+ *   >----------->----------->---------->------------>----------->---------+
  *
  * @endverbatim
  * @see m0_ha_link::hln_sm, ha_link_sm_states, ha_link_sm_conf
@@ -160,8 +148,8 @@ enum m0_ha_link_state {
 	M0_HA_LINK_STATE_DELIVERY,
 	M0_HA_LINK_STATE_RPC_FAILED,
 	M0_HA_LINK_STATE_LINK_FAILED,
-	M0_HA_LINK_STATE_FAILED,
 	M0_HA_LINK_STATE_LINK_REUSED,
+	M0_HA_LINK_STATE_DISCONNECTING,
 	M0_HA_LINK_STATE_NR,
 };
 
@@ -219,7 +207,8 @@ struct m0_ha_link {
 	bool                        hln_fom_enable_wakeup;
 	struct m0_semaphore         hln_start_wait;
 	struct m0_semaphore         hln_stop_cond;
-	struct m0_semaphore         hln_stop_wait;
+	struct m0_chan              hln_stop_chan;
+	struct m0_mutex             hln_stop_chan_lock;
 	bool                        hln_waking_up;
 	struct m0_sm_ast            hln_waking_ast;
 	struct m0_ha_msg           *hln_msg_to_send;
@@ -245,6 +234,10 @@ struct m0_ha_link {
 	struct m0_chan              hln_quiesce_chan;
 	struct m0_clink             hln_quiesce_wait;
 	bool                        hln_quiesced;
+	/** Protected by ::hln_lock */
+	bool                        hln_cb_disconnecting;
+	/** Protected by ::hln_lock */
+	bool                        hln_cb_reused;
 
 	/* These fields are owned by m0_ha_link_service */
 	uint64_t                    hln_service_ref_counter;
@@ -260,7 +253,7 @@ M0_INTERNAL int  m0_ha_link_init (struct m0_ha_link     *hl,
 M0_INTERNAL void m0_ha_link_fini (struct m0_ha_link *hl);
 M0_INTERNAL void m0_ha_link_start(struct m0_ha_link          *hl,
                                   struct m0_ha_link_conn_cfg *hl_conn_cfg);
-M0_INTERNAL void m0_ha_link_stop (struct m0_ha_link *hl);
+M0_INTERNAL void m0_ha_link_stop(struct m0_ha_link *hl, struct m0_clink *clink);
 
 M0_INTERNAL void m0_ha_link_reconnect_begin(struct m0_ha_link        *hl,
                                             struct m0_ha_link_params *lp);
@@ -307,6 +300,9 @@ M0_INTERNAL void m0_ha_link_wait_confirmation(struct m0_ha_link *hl,
  */
 M0_INTERNAL void m0_ha_link_flush(struct m0_ha_link *hl);
 M0_INTERNAL void m0_ha_link_quiesce(struct m0_ha_link *hl);
+
+M0_INTERNAL void m0_ha_link_cb_disconnecting(struct m0_ha_link *hl);
+M0_INTERNAL void m0_ha_link_cb_reused(struct m0_ha_link *hl);
 
 M0_INTERNAL struct m0_rpc_session *
 m0_ha_link_rpc_session(struct m0_ha_link *hl);

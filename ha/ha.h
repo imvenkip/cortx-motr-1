@@ -328,6 +328,9 @@ M0_INTERNAL void m0_ha_delivered(struct m0_ha      *ha,
 M0_INTERNAL void m0_ha_flush(struct m0_ha      *ha,
 			     struct m0_ha_link *hl);
 
+M0_INTERNAL void m0_ha_process_failed(struct m0_ha        *ha,
+                                      const struct m0_fid *process_fid);
+
 M0_INTERNAL struct m0_ha_link *m0_ha_outgoing_link(struct m0_ha *ha);
 M0_INTERNAL struct m0_rpc_session *m0_ha_outgoing_session(struct m0_ha *ha);
 

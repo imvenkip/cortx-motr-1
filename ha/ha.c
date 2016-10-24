@@ -31,6 +31,8 @@
  * TODO s/container_of/bob_of/g
  * TODO deal with race: m0_ha_connect() with entrypoint client state
  * TODO use ml_name everywhere in ha/
+ * TODO enable process fid assert in m0_ha_process_failed()
+ * TODO check fid types
  *
  * @{
  */
@@ -52,6 +54,8 @@
 #include "ha/link.h"            /* m0_ha_link */
 #include "ha/link_service.h"    /* m0_ha_link_service_init */
 #include "ha/entrypoint.h"      /* m0_ha_entrypoint_rep */
+
+#include "conf/obj.h"            /* M0_CONF_PROCESS_TYPE */
 
 enum {
 	HA_MAX_RPCS_IN_FLIGHT = 2,
@@ -77,7 +81,11 @@ struct ha_link_ctx {
 	struct m0_tlink        hlx_tlink;
 	uint64_t               hlx_magic;
 	enum ha_link_ctx_type  hlx_type;
-	struct m0_semaphore    hlx_disconnect_sem;
+	struct m0_clink        hlx_stop_clink;
+	struct m0_semaphore    hlx_stop_sem;
+	struct m0_fid          hlx_process_fid;
+	/* protected by m0_ha::h_lock */
+	bool                   hlx_disconnecting;
 };
 
 M0_TL_DESCR_DEFINE(ha_links, "m0_ha::h_links_{incoming,outgoing}", static,
@@ -127,6 +135,20 @@ static bool ha_link_event_cb(struct m0_clink *clink)
 			/* XXX */
 		}
 		break;
+	case M0_HA_LINK_STATE_DISCONNECTING:
+		if (hlx == ha->h_link_ctx) {
+			m0_ha_link_stop(&hlx->hlx_link, &hlx->hlx_stop_clink);
+		} else {
+			ha->h_cfg.hcf_ops.
+				hao_link_is_disconnecting(ha, &hlx->hlx_link);
+		}
+		break;
+	case M0_HA_LINK_STATE_STOP:
+		if (hlx != ha->h_link_ctx) {
+			ha->h_cfg.hcf_ops.hao_link_disconnected(ha,
+								&hlx->hlx_link);
+		}
+		break;
 	default:
 		/* nothing to do here */
 		break;
@@ -135,10 +157,34 @@ static bool ha_link_event_cb(struct m0_clink *clink)
 	return true;
 }
 
-static int ha_link_ctx_init(struct m0_ha          *ha,
-                            struct ha_link_ctx    *hlx,
-                            struct m0_ha_link_cfg *hl_cfg,
-                            enum ha_link_ctx_type  hlx_type)
+static struct ha_link_ctx *
+ha_link_incoming_find(struct m0_ha                   *ha,
+                      const struct m0_ha_link_params *lp)
+{
+	M0_PRE(m0_mutex_is_locked(&ha->h_lock));
+
+	return m0_tl_find(ha_links, hlx, &ha->h_links_incoming,
+	  m0_uint128_eq(&hlx->hlx_link.hln_conn_cfg.hlcc_params.hlp_id_local,
+	                &lp->hlp_id_remote) &&
+	  m0_uint128_eq(&hlx->hlx_link.hln_conn_cfg.hlcc_params.hlp_id_remote,
+	                &lp->hlp_id_local));
+}
+
+static bool ha_link_stop_cb(struct m0_clink *clink)
+{
+	struct ha_link_ctx *hlx;
+
+	hlx   = container_of(clink, struct ha_link_ctx, hlx_stop_clink);
+	m0_semaphore_up(&hlx->hlx_stop_sem);
+	return true;
+}
+
+static int ha_link_ctx_init(struct m0_ha                     *ha,
+                            struct ha_link_ctx               *hlx,
+                            struct m0_ha_link_cfg            *hl_cfg,
+                            const struct m0_ha_link_conn_cfg *hl_conn_cfg,
+                            const struct m0_fid              *process_fid,
+                            enum ha_link_ctx_type             hlx_type)
 {
 	struct m0_ha_link *hl = &hlx->hlx_link;
 	int                rc;
@@ -146,19 +192,29 @@ static int ha_link_ctx_init(struct m0_ha          *ha,
 	M0_ENTRY("ha=%p hlx=%p hlx_type=%d", ha, hlx, hlx_type);
 
 	M0_PRE(M0_IN(hlx_type, (HLX_INCOMING, HLX_OUTGOING)));
+	M0_PRE(equi(hlx_type == HLX_INCOMING, hl_conn_cfg != NULL));
 
 	rc = m0_ha_link_init(hl, hl_cfg);
 	M0_ASSERT(rc == 0);
+	rc = m0_semaphore_init(&hlx->hlx_stop_sem, 0);
+	M0_ASSERT(rc == 0);     /* XXX */
 	m0_clink_init(&hlx->hlx_clink, &ha_link_event_cb);
 	m0_clink_add_lock(m0_ha_link_chan(hl), &hlx->hlx_clink);
+	m0_clink_init(&hlx->hlx_stop_clink, &ha_link_stop_cb);
+	hlx->hlx_stop_clink.cl_is_oneshot = true;
+	hlx->hlx_disconnecting = hlx_type == HLX_OUTGOING;
+	hlx->hlx_process_fid   = *process_fid;
 
 	hlx->hlx_ha   = ha;
 	hlx->hlx_type = hlx_type;
+	m0_mutex_lock(&ha->h_lock);
+	M0_ASSERT(ergo(hlx_type == HLX_INCOMING,
+	               ha_link_incoming_find(ha, &hl_conn_cfg->hlcc_params) ==
+	               NULL));
 	ha_links_tlink_init_at_tail(hlx, hlx_type == HLX_INCOMING ?
 				    &ha->h_links_incoming :
 				    &ha->h_links_outgoing);
-	rc = m0_semaphore_init(&hlx->hlx_disconnect_sem, 0);
-	M0_ASSERT(rc == 0);     /* XXX */
+	m0_mutex_unlock(&ha->h_lock);
 
 	return M0_RC(0);
 }
@@ -167,11 +223,13 @@ static void ha_link_ctx_fini(struct m0_ha *ha, struct ha_link_ctx *hlx)
 {
 	M0_ENTRY("ha=%p hlx=%p", ha, hlx);
 
-	m0_semaphore_fini(&hlx->hlx_disconnect_sem);
 	ha_links_tlink_del_fini(hlx);
 
+	M0_ASSERT(hlx->hlx_disconnecting);
+	m0_clink_fini(&hlx->hlx_stop_clink);
 	m0_clink_del_lock(&hlx->hlx_clink);
 	m0_clink_fini(&hlx->hlx_clink);
+	m0_semaphore_fini(&hlx->hlx_stop_sem);
 	m0_ha_link_fini(&hlx->hlx_link);
 	M0_LEAVE();
 }
@@ -350,8 +408,8 @@ static int ha_level_enter(struct m0_module *module)
 			.hlq_q_cfg_in     = {},
 			.hlq_q_cfg_out    = {},
 		};
-		rc = ha_link_ctx_init(ha, ha->h_link_ctx, &hl_cfg,
-				      HLX_OUTGOING);
+		rc = ha_link_ctx_init(ha, ha->h_link_ctx, &hl_cfg, NULL,
+				      &M0_FID0, HLX_OUTGOING);
 		return rc == 0 ? M0_RC(rc) : M0_ERR(rc);
 	case M0_HA_LEVEL_ENTRYPOINT_CLIENT_START:
 		ha->h_entrypoint_client.ecl_req.heq_first_request = true;
@@ -413,13 +471,9 @@ static void ha_level_leave(struct m0_module *module)
 	case M0_HA_LEVEL_INCOMING_LINKS:
 		m0_tl_for(ha_links, &ha->h_links_incoming, hlx) {
 			M0_LOG(M0_DEBUG, "hlx=%p", hlx);
-			ha->h_cfg.hcf_ops.hao_link_is_disconnecting(ha,
-							    &hlx->hlx_link);
-			m0_semaphore_down(&hlx->hlx_disconnect_sem);
-			m0_ha_link_stop(&hlx->hlx_link);
+			m0_ha_process_failed(ha, &hlx->hlx_process_fid);
+			m0_semaphore_down(&hlx->hlx_stop_sem);
 			ha_link_ctx_fini(ha, hlx);
-			ha->h_cfg.hcf_ops.hao_link_disconnected(ha,
-							&hlx->hlx_link);
 			m0_free(hlx);
 		} m0_tl_endfor;
 		break;
@@ -431,8 +485,10 @@ static void ha_level_leave(struct m0_module *module)
 		break;
 	case M0_HA_LEVEL_LINK_CTX_INIT:
 		/* @see ha_entrypoint_state_cb for m0_ha_link_start() */
-		if (ha->h_link_started)
-			m0_ha_link_stop(&ha->h_link_ctx->hlx_link);
+		if (ha->h_link_started) {
+			m0_ha_link_cb_disconnecting(&ha->h_link_ctx->hlx_link);
+			m0_semaphore_down(&ha->h_link_ctx->hlx_stop_sem);
+		}
 		ha_link_ctx_fini(ha, ha->h_link_ctx);
 		break;
 	case M0_HA_LEVEL_ENTRYPOINT_CLIENT_START:
@@ -605,7 +661,7 @@ M0_INTERNAL void m0_ha_disconnect_incoming(struct m0_ha      *ha,
 
 	hlx = container_of(hl, struct ha_link_ctx, hlx_link);
 	M0_ENTRY("ha=%p hl=%p", ha, hl);
-	m0_semaphore_up(&hlx->hlx_disconnect_sem);
+	m0_ha_link_stop(&hlx->hlx_link, &hlx->hlx_stop_clink);
 	M0_LEAVE();
 }
 
@@ -613,17 +669,6 @@ static void ha_link_id_next(struct m0_ha      *ha,
                             struct m0_uint128 *id)
 {
 	*id = M0_UINT128(0, ha->h_link_id_counter++);
-}
-
-static struct ha_link_ctx *
-ha_link_incoming_find(struct m0_ha                   *ha,
-                      const struct m0_ha_link_params *lp)
-{
-	return m0_tl_find(ha_links, hlx, &ha->h_links_incoming,
-	  m0_uint128_eq(&hlx->hlx_link.hln_conn_cfg.hlcc_params.hlp_id_local,
-	                &lp->hlp_id_remote) &&
-	  m0_uint128_eq(&hlx->hlx_link.hln_conn_cfg.hlcc_params.hlp_id_remote,
-	                &lp->hlp_id_local));
 }
 
 static int
@@ -645,7 +690,8 @@ ha_link_incoming_create(struct m0_ha                       *ha,
 	};
 	M0_ALLOC_PTR(hlx);
 	M0_ASSERT(hlx != NULL); /* XXX */
-	rc = ha_link_ctx_init(ha, hlx, &hl_cfg, HLX_INCOMING);
+	rc = ha_link_ctx_init(ha, hlx, &hl_cfg, hl_conn_cfg,
+			      &req->heq_process_fid, HLX_INCOMING);
 	M0_ASSERT(rc == 0);     /* XXX */
 	m0_ha_link_start(&hlx->hlx_link, hl_conn_cfg);
 	*hlx_ptr = hlx;
@@ -666,7 +712,9 @@ static void ha_link_handle(struct m0_ha                       *ha,
 	uint64_t                    generation;
 	int                         rc;
 
+	m0_mutex_lock(&ha->h_lock);
 	hlx = ha_link_incoming_find(ha, &req->heq_link_params);
+	m0_mutex_unlock(&ha->h_lock);
 	M0_LOG(M0_DEBUG, "hlx=%p", hlx);
 	if (hlx == NULL) {
 		ha_link_conn_cfg_make(&hl_conn_cfg, req->heq_rpc_endpoint);
@@ -756,13 +804,16 @@ enum m0_ha_mod_level {
 	M0_HA_MOD_LEVEL_STARTED,
 };
 
+static const struct m0_modlev ha_mod_levels[];
+
 static int ha_mod_level_enter(struct m0_module *module)
 {
 	enum m0_ha_mod_level  level = module->m_cur + 1;
 	struct m0_ha_module  *ha_module;
 
 	ha_module = container_of(module, struct m0_ha_module, hmo_module);
-	M0_ENTRY("ha_module=%p level=%d", ha_module, level);
+	M0_ENTRY("ha_module=%p level=%d %s", ha_module, level,
+		 ha_mod_levels[level].ml_name);
 	switch (level) {
 	case M0_HA_MOD_LEVEL_ASSIGNS:
 		M0_PRE(m0_get()->i_ha_module == NULL);
@@ -838,6 +889,37 @@ M0_INTERNAL void m0_ha_flush(struct m0_ha      *ha,
 			     struct m0_ha_link *hl)
 {
 	m0_ha_link_flush(hl);
+}
+
+M0_INTERNAL void m0_ha_process_failed(struct m0_ha        *ha,
+                                      const struct m0_fid *process_fid)
+{
+	struct ha_link_ctx *hlx;
+	bool                disconnecting;
+
+	M0_ENTRY("ha=%p process_fid="FID_F, ha, FID_P(process_fid));
+	/*
+	 * XXX Temporary disable the assert as the process fids are not always
+	 * valid in Mero ST.
+	 */
+	/*
+	M0_PRE(m0_fid_tget(process_fid) ==
+	       M0_CONF_PROCESS_TYPE.cot_ftype.ft_id);
+	*/
+	m0_mutex_lock(&ha->h_lock);
+	m0_tl_for(ha_links, &ha->h_links_incoming, hlx) {
+		if (!m0_fid_eq(process_fid, &hlx->hlx_process_fid))
+			continue;
+		disconnecting = hlx->hlx_disconnecting;
+		hlx->hlx_disconnecting = true;
+		if (!disconnecting)
+			m0_ha_link_cb_disconnecting(&hlx->hlx_link);
+		M0_LOG(M0_DEBUG, "ha=%p process_fid="FID_F" hlx=%p "
+		       "disconnecting=%d", ha, FID_P(process_fid), hlx,
+		       !!disconnecting);
+	} m0_tl_endfor;
+	m0_mutex_unlock(&ha->h_lock);
+	M0_LEAVE("ha=%p process_fid="FID_F, ha, FID_P(process_fid));
 }
 
 M0_INTERNAL struct m0_ha_link *m0_ha_outgoing_link(struct m0_ha *ha)

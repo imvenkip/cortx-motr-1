@@ -61,6 +61,7 @@
 #include "spiel/spiel.h"        /* m0_spiel */
 #include "cm/cm.h"              /* m0_sns_cm_repair_trigger_fop_init */
 #include "conf/ha.h"            /* m0_conf_ha_service_event_post */
+#include "conf/obj.h"           /* M0_CONF_PROCESS_TYPE */
 
 #include "mero/init.h"          /* m0_init */
 #include "mero/magic.h"         /* M0_HALON_INTERFACE_MAGIC */
@@ -70,6 +71,7 @@
 #include "ha/ha.h"              /* m0_ha */
 #include "ha/entrypoint_fops.h" /* m0_ha_entrypoint_req */
 #include "ha/dispatcher.h"      /* m0_ha_dispatcher */
+#include "ha/note.h"            /* M0_HA_NVEC_SET */
 
 struct m0_halon_interface_cfg {
 	const char      *hic_build_git_rev_id;
@@ -219,6 +221,30 @@ halon_interface_ha2hii(struct m0_ha *ha)
 }
 
 static void
+halon_interface_process_failure_check(struct m0_halon_interface_internal *hii,
+                                      struct m0_ha_msg                   *msg)
+{
+	struct m0_ha_msg_nvec *nvec;
+	struct m0_ha_note     *note;
+	uint64_t               i;
+
+	if (m0_ha_msg_type_get(msg) != M0_HA_MSG_NVEC)
+		return;
+	nvec = &msg->hm_data.u.hed_nvec;
+	if (nvec->hmnv_type != M0_HA_NVEC_SET)
+		return;
+	for (i = 0; i < nvec->hmnv_nr; ++i) {
+		note = &nvec->hmnv_arr.hmna_arr[i];
+		if (m0_fid_tget(&note->no_id) ==
+		    M0_CONF_PROCESS_TYPE.cot_ftype.ft_id &&
+		    note->no_state == M0_NC_FAILED) {
+			M0_LOG(M0_DEBUG, "no_id="FID_F, FID_P(&note->no_id));
+			m0_ha_process_failed(&hii->hii_ha, &note->no_id);
+		}
+	}
+}
+
+static void
 halon_interface_entrypoint_request_cb(struct m0_ha                      *ha,
                                       const struct m0_ha_entrypoint_req *req,
                                       const struct m0_uint128           *req_id)
@@ -263,11 +289,12 @@ void halon_interface_msg_received_cb(struct m0_ha      *ha,
 
 	M0_ENTRY("hii=%p ha=%p hl=%p msg=%p tag=%"PRIu64,
 		 hii, ha, hl, msg, tag);
+	m0_ha_msg_debug_print(msg, __func__);
 	if (hl != hii->hii_outgoing_link) {
-		m0_ha_msg_debug_print(msg, __func__);
 		hii->hii_cfg.hic_msg_received_cb(hii->hii_hi, hl, msg, tag);
 	} else {
 		m0_ha_dispatcher_handle(&hii->hii_dispatcher, ha, hl, msg, tag);
+		halon_interface_process_failure_check(hii, msg);
 		m0_ha_delivered(ha, hl, msg);
 	}
 	M0_LEAVE();
@@ -460,6 +487,8 @@ halon_interface_service_event(struct m0_halon_interface_internal *hii,
 	                              event, M0_CST_HA);
 }
 
+static const struct m0_modlev halon_interface_levels[];
+
 static int halon_interface_level_enter(struct m0_module *module)
 {
 	struct m0_halon_interface_internal *hii;
@@ -467,7 +496,8 @@ static int halon_interface_level_enter(struct m0_module *module)
 
 	hii = bob_of(module, struct m0_halon_interface_internal, hii_module,
 	             &halon_interface_bob_type);
-	M0_ENTRY("hii=%p level=%d", hii, level);
+	M0_ENTRY("hii=%p level=%d %s", hii, level,
+		 halon_interface_levels[level].ml_name);
 	switch (level) {
 	case M0_HALON_INTERFACE_LEVEL_ASSIGNS:
 		/*

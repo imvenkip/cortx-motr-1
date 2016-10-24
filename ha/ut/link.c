@@ -42,9 +42,10 @@
 #include "ha/link_service.h"    /* m0_ha_link_service_init */
 
 struct ha_ut_link_ctx {
-	struct m0_ha_link                ulc_link;
-	struct m0_ha_link_cfg            ulc_cfg;
-	struct m0_ha_link_conn_cfg       ulc_conn_cfg;
+	struct m0_ha_link          ulc_link;
+	struct m0_clink            ulc_stop_clink;
+	struct m0_ha_link_cfg      ulc_cfg;
+	struct m0_ha_link_conn_cfg ulc_conn_cfg;
 };
 
 static void ha_ut_link_conn_cfg_create(struct m0_ha_link_conn_cfg *hl_conn_cfg,
@@ -104,6 +105,8 @@ static void ha_ut_link_init(struct ha_ut_link_ctx   *link_ctx,
 {
 	int rc;
 
+	m0_clink_init(&link_ctx->ulc_stop_clink, NULL);
+	link_ctx->ulc_stop_clink.cl_is_oneshot = true;
 	ha_ut_link_cfg_create(&link_ctx->ulc_cfg, rpc_ctx, hl_service);
 	rc = m0_ha_link_init(&link_ctx->ulc_link, &link_ctx->ulc_cfg);
 	M0_UT_ASSERT(rc == 0);
@@ -116,9 +119,11 @@ static void ha_ut_link_init(struct ha_ut_link_ctx   *link_ctx,
 
 static void ha_ut_link_fini(struct ha_ut_link_ctx *link_ctx)
 {
-	m0_ha_link_stop(&link_ctx->ulc_link);
+	m0_ha_link_stop(&link_ctx->ulc_link, &link_ctx->ulc_stop_clink);
+	m0_chan_wait(&link_ctx->ulc_stop_clink);
 	m0_ha_link_fini(&link_ctx->ulc_link);
 	ha_ut_link_conn_cfg_free(&link_ctx->ulc_conn_cfg);
+	m0_clink_fini(&link_ctx->ulc_stop_clink);
 }
 
 static void ha_ut_link_set_some_msg(struct m0_ha_msg *msg)
@@ -206,7 +211,7 @@ void m0_ha_ut_link_usecase(void)
 
 enum {
 	HA_UT_THREAD_PAIR_NR = 0x10,
-	HA_UT_MSG_PER_THREAD = 0x40,
+	HA_UT_MSG_PER_THREAD = 0x20,
 };
 
 struct ha_ut_link_mt_test {
@@ -489,6 +494,7 @@ void m0_ha_ut_link_reconnect_simple(void)
 	struct m0_uint128           id4            = M0_UINT128(7, 8);
 	struct m0_uint128           id_connection1 = M0_UINT128(9, 10);
 	struct m0_uint128           id_connection2 = M0_UINT128(11, 12);
+	struct m0_clink             stop_clink = {};
 	const char                 *ep;
 	int                         i;
 	int                         rc;
@@ -505,6 +511,8 @@ void m0_ha_ut_link_reconnect_simple(void)
 	M0_UT_ASSERT(hl_cfg != NULL);
 	M0_ALLOC_ARR(hl_conn_cfg, 3);
 	M0_UT_ASSERT(hl_conn_cfg != NULL);
+	m0_clink_init(&stop_clink, NULL);
+	stop_clink.cl_is_oneshot = true;
 
 	for (i = 0; i < 3; ++i) {
 		ha_ut_link_cfg_create(&hl_cfg[i], rpc_ctx, hl_service);
@@ -526,7 +534,8 @@ void m0_ha_ut_link_reconnect_simple(void)
 	ha_ut_link_msg_transfer(&hl[0], &hl[1]);
 
 	/* stop & fini hl[1] */
-	m0_ha_link_stop(&hl[1]);
+	m0_ha_link_stop(&hl[1], &stop_clink);
+	m0_chan_wait(&stop_clink);
 	m0_ha_link_fini(&hl[1]);
 
 	/* reconnect hl[0] to hl[2] */
@@ -548,9 +557,11 @@ void m0_ha_ut_link_reconnect_simple(void)
 	ha_ut_link_msg_transfer(&hl[0], &hl[2]);
 
 	/* stop & fini hl[0] and hl[2] */
-	m0_ha_link_stop(&hl[0]);
+	m0_ha_link_stop(&hl[0], &stop_clink);
+	m0_chan_wait(&stop_clink);
 	m0_ha_link_fini(&hl[0]);
-	m0_ha_link_stop(&hl[2]);
+	m0_ha_link_stop(&hl[2], &stop_clink);
+	m0_chan_wait(&stop_clink);
 	m0_ha_link_fini(&hl[2]);
 
 	m0_free(hl_conn_cfg);
