@@ -86,6 +86,7 @@ struct ver_accm {
 };
 
 /* --------------   Rconfc internals   ----------------- */
+
 /**
  * Elementary linkage container for placing single confc to herd and active
  * lists

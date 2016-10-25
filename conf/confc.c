@@ -488,11 +488,12 @@ M0_INTERNAL int m0_confc_reconnect(struct m0_confc       *confc,
 	return M0_RC(rc);
 }
 
-M0_INTERNAL int m0_confc_init(struct m0_confc       *confc,
-			      struct m0_sm_group    *sm_group,
-			      const char            *confd_addr,
-			      struct m0_rpc_machine *rpc_mach,
-			      const char            *local_conf)
+M0_INTERNAL int m0_confc_init_wait(struct m0_confc       *confc,
+				   struct m0_sm_group    *sm_group,
+				   const char            *confd_addr,
+				   struct m0_rpc_machine *rpc_mach,
+				   const char            *local_conf,
+				   uint64_t               timeout_ns)
 {
 	int rc;
 
@@ -508,6 +509,7 @@ M0_INTERNAL int m0_confc_init(struct m0_confc       *confc,
 	if (rc != 0)
 		goto err;
 
+	confc->cc_rpc_timeout = timeout_ns;
 	M0_SET0(&confc->cc_rpc_conn);
 	M0_ASSERT(!confc_is_online(confc));
 	if (not_empty(confd_addr))
@@ -532,6 +534,16 @@ err:
 	m0_mutex_fini(&confc->cc_lock);
 
 	return M0_ERR(rc);
+}
+
+M0_INTERNAL int m0_confc_init(struct m0_confc       *confc,
+			      struct m0_sm_group    *sm_group,
+			      const char            *confd_addr,
+			      struct m0_rpc_machine *rpc_mach,
+			      const char            *local_conf)
+{
+	return m0_confc_init_wait(confc, sm_group, confd_addr, rpc_mach,
+				  local_conf, M0_TIME_NEVER);
 }
 
 M0_INTERNAL void m0_confc_fini(struct m0_confc *confc)
@@ -741,10 +753,8 @@ struct sm_waiter {
 /** Filters out intermediate state transitions of m0_confc_ctx::fc_mach. */
 static bool sm__filter(struct m0_clink *link)
 {
-	struct m0_confc_ctx *ctx = &container_of(link, struct sm_waiter,
-						 w_clink)->w_ctx;
-	M0_PRE(confc_group_is_locked(ctx->fc_confc));
-	return !m0_confc_ctx_is_completed(ctx);
+	return !m0_confc_ctx_is_completed(&container_of(link, struct sm_waiter,
+							w_clink)->w_ctx);
 }
 
 static void sm_waiter_init(struct sm_waiter *w, struct m0_confc *confc)
@@ -1528,12 +1538,17 @@ static bool confc_is_online(const struct m0_confc *confc)
 	return confc->cc_rpc_conn.c_rpc_machine != NULL;
 }
 
+static inline m0_time_t confc_deadline(struct m0_confc *confc)
+{
+	return confc->cc_rpc_timeout == M0_TIME_NEVER ? M0_TIME_NEVER :
+		m0_time_from_now(0, confc->cc_rpc_timeout);
+}
+
 static int connect_to_confd(struct m0_confc *confc, const char *confd_addr,
 			    struct m0_rpc_machine *rpc_mach)
 {
-	enum {
-		MAX_RPCS_IN_FLIGHT = 2
-	};
+	enum { MAX_RPCS_IN_FLIGHT = 2 };
+
 	int rc;
 
 	M0_ENTRY();
@@ -1541,8 +1556,7 @@ static int connect_to_confd(struct m0_confc *confc, const char *confd_addr,
 
 	rc = m0_rpc_client_connect(&confc->cc_rpc_conn, &confc->cc_rpc_session,
 				   rpc_mach, confd_addr, NULL,
-				   MAX_RPCS_IN_FLIGHT,
-				   M0_TIME_NEVER);
+				   MAX_RPCS_IN_FLIGHT, confc_deadline(confc));
 	M0_POST((rc == 0) == confc_is_online(confc));
 	return M0_RC(rc);
 }
@@ -1554,8 +1568,9 @@ static void disconnect_from_confd(struct m0_confc *confc)
 	M0_PRE(confc_is_online(confc));
 	M0_PRE(confc->cc_rpc_session.s_conn == &confc->cc_rpc_conn);
 
-	(void)m0_rpc_session_destroy(&confc->cc_rpc_session, M0_TIME_NEVER);
-	(void)m0_rpc_conn_destroy(&confc->cc_rpc_conn, M0_TIME_NEVER);
+	(void)m0_rpc_session_destroy(&confc->cc_rpc_session,
+				     confc_deadline(confc));
+	(void)m0_rpc_conn_destroy(&confc->cc_rpc_conn, confc_deadline(confc));
 
 	M0_LEAVE();
 }

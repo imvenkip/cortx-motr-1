@@ -106,15 +106,6 @@ static void rconfc_ut_mero_stop(struct m0_rpc_machine    *mach,
 	m0_rpc_server_stop(rctx);
 }
 
-static void test_no_quorum_exp_cb(struct m0_rconfc *rconfc)
-{
-	/*
-	 * Expiration callback that should be called if
-	 * test expects no quorum on rconfc init.
-	 */
-	M0_UT_ASSERT(rconfc->rc_ver == 0);
-}
-
 static void test_null_exp_cb(struct m0_rconfc *rconfc)
 {
 	/*
@@ -226,31 +217,6 @@ static void test_start_failures(void)
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rconfc_start_sync(&rconfc, &profile);
 	M0_UT_ASSERT(rc == -ESRCH);
-	m0_rconfc_stop_sync(&rconfc);
-	m0_rconfc_fini(&rconfc);
-
-	m0_fi_enable_once("rconfc__cb_quorum_test", "read_ver_failed");
-	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach,
-			    test_no_quorum_exp_cb, NULL);
-	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_start_sync(&rconfc, &profile);
-	M0_UT_ASSERT(rc == -EPROTO);
-	m0_rconfc_stop_sync(&rconfc);
-	m0_rconfc_fini(&rconfc);
-
-	m0_fi_enable_once("rconfc_conductor_iterate", "conductor_conn_fail");
-	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
-	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_start_sync(&rconfc, &profile);
-	M0_UT_ASSERT(rc == -ENOENT);
-	m0_rconfc_stop_sync(&rconfc);
-	m0_rconfc_fini(&rconfc);
-
-	m0_fi_enable_once("rconfc_herd_link_init", "confc_init");
-	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
-	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_start_sync(&rconfc, &profile);
-	M0_UT_ASSERT(rc == -ENOENT);
 	m0_rconfc_stop_sync(&rconfc);
 	m0_rconfc_fini(&rconfc);
 
@@ -459,8 +425,9 @@ static bool quorum_impossible_clink_cb(struct m0_clink *cl)
 {
 	struct m0_rconfc *rconfc = container_of(cl->cl_chan, struct m0_rconfc,
 						rc_sm.sm_chan);
+	static bool       do_override = true;
 
-	if (rconfc->rc_sm.sm_state == M0_RCS_GET_RLOCK) {
+	if (do_override && rconfc->rc_sm.sm_state == M0_RCS_GET_RLOCK) {
 		/*
 		 * Override required quorum value to be greater then number of
 		 * confd, so quorum is impossible.
@@ -468,6 +435,11 @@ static bool quorum_impossible_clink_cb(struct m0_clink *cl)
 		M0_PRE(rconfc->rc_quorum != 0);
 		rconfc->rc_quorum *= 2;
 		m0_clink_del(cl);
+		/*
+		 * Overridden once, next time entrypoint re-tried it must remain
+		 * untouched to let rconfc start successfully.
+		 */
+		do_override = false;
 	}
 	return true;
 }
@@ -482,21 +454,88 @@ static void test_quorum_impossible(void)
 	struct m0_clink          clink;
 
 	rc = rconfc_ut_mero_start(&mach, &rctx);
+	/*
+	 * Have the number of online herd links less than required to reach the
+	 * quorum. Once failed, next re-election succeeds.
+	 */
 	M0_UT_ASSERT(rc == 0);
 	M0_SET0(&rconfc);
-	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach,
-			    test_no_quorum_exp_cb, NULL);
+	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
 	M0_UT_ASSERT(rc == 0);
 	m0_clink_init(&clink, quorum_impossible_clink_cb);
 	m0_clink_add_lock(&rconfc.rc_sm.sm_chan, &clink);
 	rc = m0_rconfc_start_sync(&rconfc, &profile);
-	M0_UT_ASSERT(rc == -EPROTO);
+	M0_UT_ASSERT(rc == 0);
 	ver = m0_rconfc_ver_max_read(&rconfc);
-	M0_UT_ASSERT(ver != rconfc.rc_ver);
-	M0_UT_ASSERT(rconfc.rc_ver == M0_CONF_VER_UNKNOWN);
+	M0_UT_ASSERT(ver != M0_CONF_VER_UNKNOWN);
 	m0_rconfc_stop_sync(&rconfc);
 	m0_rconfc_fini(&rconfc);
 	m0_clink_fini(&clink);
+	rconfc_ut_mero_stop(&mach, &rctx);
+}
+
+static void test_quorum_retry(void)
+{
+	struct m0_rpc_machine    mach;
+	struct m0_rpc_server_ctx rctx;
+	int                      rc;
+	struct m0_rconfc         rconfc;
+	uint64_t                 ver;
+
+	rc = rconfc_ut_mero_start(&mach, &rctx);
+	M0_UT_ASSERT(rc == 0);
+
+	/*
+	 * 1. Have herd link online, but fetching bad version number. Once
+	 * failed, next re-election succeeds.
+	 */
+	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(rconfc.rc_ha_entrypoint_retries == 0);
+	m0_fi_enable_once("rconfc__cb_quorum_test", "read_ver_failed");
+	rc = m0_rconfc_start_sync(&rconfc, &profile);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(rconfc.rc_ver != 0);
+	ver = m0_rconfc_ver_max_read(&rconfc);
+	M0_UT_ASSERT(ver == rconfc.rc_ver);
+	M0_UT_ASSERT(rconfc.rc_ha_entrypoint_retries > 0);
+	m0_rconfc_stop_sync(&rconfc);
+	m0_rconfc_fini(&rconfc);
+
+	/*
+	 * 2. Have all herd links CONFC_DEAD. Once failed, next re-election
+	 * succeeds.
+	 */
+	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(rconfc.rc_ha_entrypoint_retries == 0);
+	m0_fi_enable_once("rconfc_herd_link_init", "confc_init");
+	rc = m0_rconfc_start_sync(&rconfc, &profile);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(rconfc.rc_ver != 0);
+	ver = m0_rconfc_ver_max_read(&rconfc);
+	M0_UT_ASSERT(ver == rconfc.rc_ver);
+	M0_UT_ASSERT(rconfc.rc_ha_entrypoint_retries > 0);
+	m0_rconfc_stop_sync(&rconfc);
+	m0_rconfc_fini(&rconfc);
+
+	/*
+	 * 3. Have conductor failed to engage. Once failed, next re-election
+	 * succeeds.
+	 */
+	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(rconfc.rc_ha_entrypoint_retries == 0);
+	m0_fi_enable_once("rconfc_conductor_iterate", "conductor_conn_fail");
+	rc = m0_rconfc_start_sync(&rconfc, &profile);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(rconfc.rc_ver != 0);
+	ver = m0_rconfc_ver_max_read(&rconfc);
+	M0_UT_ASSERT(ver == rconfc.rc_ver);
+	M0_UT_ASSERT(rconfc.rc_ha_entrypoint_retries > 0);
+	m0_rconfc_stop_sync(&rconfc);
+	m0_rconfc_fini(&rconfc);
+
 	rconfc_ut_mero_stop(&mach, &rctx);
 }
 
@@ -981,6 +1020,7 @@ struct m0_ut_suite rconfc_ut = {
 		{ "no-rms",     test_no_rms },
 		{ "reading",    test_reading },
 		{ "impossible", test_quorum_impossible },
+		{ "quorum-retry",test_quorum_retry },
 		{ "gate-ops",   test_gops },
 		{ "change-ver", test_version_change },
 		{ "cache-drop", test_cache_drop },

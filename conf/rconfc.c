@@ -66,36 +66,41 @@
  *  digraph rconfc_sm {
  *      node [fontsize=9];
  *      edge [fontsize=9];
- *      "M0_RCS_INIT"          [shape=rect, style=filled, fillcolor=lightgrey];
- *      "M0_RCS_ENTRYPOINT_GET"  [shape=rect, style=filled, fillcolor=green];
- *      "M0_RCS_ENTRYPOINT_REPLIED" [shape=rect, style=filled, fillcolor=green];
- *      "M0_RCS_GET_RLOCK"       [shape=rect, style=filled, fillcolor=green];
- *      "M0_RCS_VERSION_ELECT"   [shape=rect, style=filled, fillcolor=green];
- *      "M0_RCS_IDLE"            [shape=rect, style=filled, fillcolor=cyan];
- *      "M0_RCS_RLOCK_CONFLICT"  [shape=rect, style=filled, fillcolor=pink];
- *      "M0_RCS_CONDUCTOR_DRAIN" [shape=rect, style=filled, fillcolor=pink];
- *      "M0_RCS_STOPPING"        [shape=rect, style=filled, fillcolor=dimgray];
- *      "M0_RCS_FAILURE"         [shape=rect, style=filled, fillcolor=tomato];
- *      "M0_RCS_FINAL"           [shape=rect, style=filled, fillcolor=red];
+ *      "M0_RCS_INIT"           [shape=rect, style=filled, fillcolor=lightgrey];
+ *      "M0_RCS_ENTRYPOINT_WAIT"    [shape=rect, style=filled, fillcolor=green];
+ *      "M0_RCS_ENTRYPOINT_CONSUME" [shape=rect, style=filled, fillcolor=green];
+ *      "M0_RCS_CREDITOR_SETUP"   [shape=rect, style=filled, fillcolor=green];
+ *      "M0_RCS_GET_RLOCK"        [shape=rect, style=filled, fillcolor=green];
+ *      "M0_RCS_VERSION_ELECT"    [shape=rect, style=filled, fillcolor=green];
+ *      "M0_RCS_IDLE"             [shape=rect, style=filled, fillcolor=cyan];
+ *      "M0_RCS_RLOCK_CONFLICT"   [shape=rect, style=filled, fillcolor=pink];
+ *      "M0_RCS_CONDUCTOR_DRAIN"  [shape=rect, style=filled, fillcolor=pink];
+ *      "M0_RCS_STOPPING"         [shape=rect, style=filled, fillcolor=dimgray];
+ *      "M0_RCS_FAILURE"          [shape=rect, style=filled, fillcolor=tomato];
+ *      "M0_RCS_FINAL"            [shape=rect, style=filled, fillcolor=red];
  *
- *      "M0_RCS_INIT" -> "M0_RCS_ENTRYPOINT_GET"
+ *      "M0_RCS_INIT" -> "M0_RCS_ENTRYPOINT_WAIT"
  *      "M0_RCS_INIT" -> "M0_RCS_STOPPING"
- *      "M0_RCS_ENTRYPOINT_GET" -> "M0_RCS_ENTRYPOINT_REPLIED"
- *      "M0_RCS_ENTRYPOINT_GET" -> "M0_RCS_FAILURE"
- *      "M0_RCS_ENTRYPOINT_REPLIED" -> "M0_RCS_GET_RLOCK"
- *      "M0_RCS_ENTRYPOINT_REPLIED" -> "M0_RCS_ENTRYPOINT_GET"
- *      "M0_RCS_ENTRYPOINT_REPLIED" -> "M0_RCS_FAILURE"
+ *      "M0_RCS_ENTRYPOINT_WAIT" -> "M0_RCS_ENTRYPOINT_WAIT"
+ *      "M0_RCS_ENTRYPOINT_WAIT" -> "M0_RCS_ENTRYPOINT_CONSUME"
+ *      "M0_RCS_ENTRYPOINT_WAIT" -> "M0_RCS_FAILURE"
+ *      "M0_RCS_ENTRYPOINT_CONSUME" -> "M0_RCS_CREDITOR_SETUP"
+ *      "M0_RCS_ENTRYPOINT_CONSUME" -> "M0_RCS_ENTRYPOINT_WAIT"
+ *      "M0_RCS_ENTRYPOINT_CONSUME" -> "M0_RCS_FAILURE"
+ *      "M0_RCS_CREDITOR_SETUP" -> "M0_RCS_ENTRYPOINT_WAIT"
+ *      "M0_RCS_CREDITOR_SETUP" -> "M0_RCS_GET_RLOCK"
  *      "M0_RCS_GET_RLOCK" -> "M0_RCS_VERSION_ELECT"
- *      "M0_RCS_GET_RLOCK" -> "M0_RCS_ENTRYPOINT_GET"
+ *      "M0_RCS_GET_RLOCK" -> "M0_RCS_ENTRYPOINT_WAIT"
  *      "M0_RCS_GET_RLOCK" -> "M0_RCS_FAILURE"
  *      "M0_RCS_VERSION_ELECT" -> "M0_RCS_IDLE"
+ *      "M0_RCS_VERSION_ELECT" -> "M0_RCS_ENTRYPOINT_WAIT"
  *      "M0_RCS_VERSION_ELECT" -> "M0_RCS_STOPPING"
  *      "M0_RCS_VERSION_ELECT" -> "M0_RCS_RLOCK_CONFLICT"
  *      "M0_RCS_VERSION_ELECT" -> "M0_RCS_FAILURE"
  *      "M0_RCS_IDLE" -> "M0_RCS_RLOCK_CONFLICT"
  *      "M0_RCS_IDLE" -> "M0_RCS_STOPPING"
  *      "M0_RCS_RLOCK_CONFLICT" -> "M0_RCS_CONDUCTOR_DRAIN"
- *      "M0_RCS_CONDUCTOR_DRAIN" -> "M0_RCS_ENTRYPOINT_GET"
+ *      "M0_RCS_CONDUCTOR_DRAIN" -> "M0_RCS_ENTRYPOINT_WAIT"
  *      "M0_RCS_CONDUCTOR_DRAIN" -> "M0_RCS_FAILURE"
  *      "M0_RCS_CONDUCTOR_DRAIN" -> "M0_RCS_FINAL"
  *      "M0_RCS_STOPPING" -> "M0_RCS_CONDUCTOR_DRAIN"
@@ -137,6 +142,13 @@
  *
  * HA subsystem is responsible for serving queries for current cluster entry
  * point. Rconfc makes query to HA subsystem through a local HA agent.
+ *
+ * It may happen that rconfc is not able to succeed with version election for
+ * some reason, (e.g. connection to active RM cannot be established, current set
+ * of confds reported by HA does not yield the quorum, etc.)  In this case
+ * rconfc repeats entry point request to HA and attempts to elect version with
+ * the most recent entry point data set. There is no limit imposed on the number
+ * of attempts.
  *
  * <hr> <!------------------------------------------------------------>
  * @section rconfc-lspec-rlock Read Lock Acquisition and Revocation
@@ -190,9 +202,13 @@
  * m0_rconfc_init(). In case zero value was provided, the required quorum number
  * is automatically calculated as a half of confd server count plus one.
  *
- * When quorum is reached, rconfc_conductor_engage() is called connecting
+ * If quorum is reached, rconfc_conductor_engage() is called connecting
  * m0_rconfc::rc_confc with a confd server from active list. Starting from this
  * moment configuration reading is allowed until read lock is revoked.
+ *
+ * If quorum was not reached, rconfc repeats request to HA about entry point
+ * information and starts new version election with the most recent entry point
+ * data set.
  *
  * <hr> <!------------------------------------------------------------>
  * @section rconfc-lspec-ha-notification Processing HA notifications
@@ -551,7 +567,8 @@ static struct m0_sm_state_descr rconfc_states[] = {
 	},
 	[M0_RCS_ENTRYPOINT_CONSUME] = {
 		.sd_name      = "M0_RCS_ENTRYPOINT_CONSUME",
-		.sd_allowed   = M0_BITS(M0_RCS_CREDITOR_SETUP, M0_RCS_FAILURE),
+		.sd_allowed   = M0_BITS(M0_RCS_ENTRYPOINT_WAIT,
+					M0_RCS_CREDITOR_SETUP, M0_RCS_FAILURE),
 	},
 	[M0_RCS_CREDITOR_SETUP] = {
 		.sd_name      = "M0_RCS_CREDITOR_SETUP",
@@ -565,8 +582,9 @@ static struct m0_sm_state_descr rconfc_states[] = {
 	},
 	[M0_RCS_VERSION_ELECT] = {
 		.sd_name      = "M0_RCS_VERSION_ELECT",
-		.sd_allowed   = M0_BITS(M0_RCS_IDLE, M0_RCS_STOPPING,
-					M0_RCS_RLOCK_CONFLICT, M0_RCS_FAILURE),
+		.sd_allowed   = M0_BITS(M0_RCS_IDLE, M0_RCS_ENTRYPOINT_WAIT,
+					M0_RCS_STOPPING, M0_RCS_RLOCK_CONFLICT,
+					M0_RCS_FAILURE),
 	},
 	[M0_RCS_IDLE] = {
 		.sd_name      = "M0_RCS_IDLE",
@@ -847,18 +865,13 @@ static void rlock_ctx_disconnect(struct rlock_ctx *rlx)
 static int rlock_ctx_connect(struct rlock_ctx *rlx, const char *ep)
 {
 	enum {
-		MAX_RPCS_IN_FLIGHT = 15,
-		/**
-		 * Default timeout used for RM connection unless
-		 * rlock_ctx::rlc_timeout obtains non-zero value.
-		 */
-		M0_RLOCK_CTX_TIMEOUT_DEFAULT = 3ULL * M0_TIME_ONE_SECOND,
+		MAX_RPCS_IN_FLIGHT        = 15,
+		RLOCK_CTX_TIMEOUT_DEFAULT = 3ULL * M0_TIME_ONE_SECOND,
 	};
-
 
 	int       rc;
 	m0_time_t deadline = rlx->rlc_timeout == 0 ?
-		M0_RLOCK_CTX_TIMEOUT_DEFAULT :
+		m0_time_from_now(0, RLOCK_CTX_TIMEOUT_DEFAULT) :
 		m0_time_from_now(0, rlx->rlc_timeout);
 
 	M0_ENTRY("rconfc = %p, rlx = %p, ep = %s", rlx->rlc_parent, rlx, ep);
@@ -1143,8 +1156,8 @@ static void rconfc_ast_post(struct m0_rconfc  *rconfc,
 
 static void rconfc_state_set(struct m0_rconfc *rconfc, int state)
 {
-	M0_LOG(M0_DEBUG, "rconfc: %p, state change:[%s -> %s]",
-	       rconfc, m0_sm_state_name(&rconfc->rc_sm, rconfc_state(rconfc)),
+	M0_LOG(M0_DEBUG, "rconfc: %p, %s -> %s", rconfc,
+	       m0_sm_state_name(&rconfc->rc_sm, rconfc_state(rconfc)),
 	       m0_sm_state_name(&rconfc->rc_sm, state));
 
 	m0_sm_state_set(&rconfc->rc_sm, state);
@@ -1306,6 +1319,8 @@ static bool rconfc_herd_link__on_death_cb(struct m0_clink *clink)
 
 static void rconfc_herd_link_init(struct rconfc_link *lnk)
 {
+	enum { HERD_LINK_TIMEOUT_DEFAULT = 1ULL * M0_TIME_ONE_SECOND };
+
 	struct m0_rconfc *rconfc = lnk->rl_rconfc;
 
 	M0_ENTRY("lnk %p", lnk);
@@ -1314,9 +1329,10 @@ static void rconfc_herd_link_init(struct rconfc_link *lnk)
 	if (M0_FI_ENABLED("confc_init"))
 		lnk->rl_rc = -EIO;
 	else
-		lnk->rl_rc = m0_confc_init(&lnk->rl_confc, rconfc->rc_sm.sm_grp,
+		lnk->rl_rc =
+			m0_confc_init_wait(&lnk->rl_confc, rconfc->rc_sm.sm_grp,
 					   lnk->rl_confd_addr, rconfc->rc_rmach,
-					   NULL);
+					   NULL, HERD_LINK_TIMEOUT_DEFAULT);
 	if (lnk->rl_rc == 0)
 		lnk->rl_state = CONFC_IDLE;
 	else
@@ -1393,6 +1409,13 @@ static void rconfc_herd_prune(struct m0_rconfc *rconfc)
 	M0_LEAVE();
 }
 
+static void rconfc_herd_destroy(struct m0_rconfc *rconfc)
+{
+	rconfc_active_all_unlink(rconfc);
+	rconfc_herd_fini(rconfc);
+	rconfc_herd_prune(rconfc);
+}
+
 M0_INTERNAL struct rconfc_link *rconfc_herd_find(struct m0_rconfc *rconfc,
 						 const char       *addr)
 {
@@ -1439,20 +1462,6 @@ static int rconfc_herd_update(struct m0_rconfc   *rconfc,
 			new_lnk->rl_state      = CONFC_DEAD;
 			new_lnk->rl_preserve   = true;
 			rconfc_herd_link_init(new_lnk);
-			/**
-			 * @todo There's a possible problem here to be thought
-			 * over. rconfc_herd_link_init() internally calls
-			 * m0_confc_init() where connection to the respective
-			 * confd is created. No service object exists to the
-			 * moment, so HA subscription is not possible. At the
-			 * same time connection is done with M0_TIME_NEVER
-			 * timeout, which may cause rconfc start to hang forever
-			 * in case the confd is not able to respond. Though herd
-			 * link subscription makes rconfc be aware of the
-			 * service death in future, it cannot help here on
-			 * start. A possible solution could be an explicit
-			 * timeout specified some way for confc initialisation.
-			 */
 			rcnf_herd_tlink_init_at_tail(new_lnk, &rconfc->rc_herd);
 			/*
 			 * only successfully connected @ref rconfc_link gets
@@ -1485,15 +1494,6 @@ static int rconfc_herd_update(struct m0_rconfc   *rconfc,
 			lnk->rl_preserve = false;
 		}
 	} m0_tl_endfor;
-	/**
-	 * @todo a herd link can't switch its state from CONFC_DEAD to
-	 * CONFC_IDLE. If there isn't a link in CONFC_IDLE state, the error
-	 * should be returned, because version election is impossible.
-	 *
-	 * In the future, CONFC_DEAD -> CONFC_IDLE may be possible, and when
-	 * this will be implemented, need to decide whether to return the error
-	 * or wait until at least one herd link becomes to CONFC_IDLE state.
-	 */
 	return m0_tl_exists(rcnf_herd, lnk, &rconfc->rc_herd,
 			    lnk->rl_state != CONFC_DEAD) ? M0_RC(0) :
 							   M0_ERR(-ENOENT);
@@ -1675,7 +1675,7 @@ static int rconfc_start_internal(struct m0_rconfc *rconfc)
 
 	rc = rconfc_entrypoint_consume(rconfc, &rm_addr);
 	if (rc != 0) {
-		rconfc_fail(rconfc, rc);
+		rconfc_herd_destroy(rconfc);
 		return M0_ERR(rc);
 	}
 	rconfc_state_set(rconfc, M0_RCS_CREDITOR_SETUP);
@@ -1791,7 +1791,8 @@ static void rconfc_conductor_drained(struct m0_rconfc *rconfc)
 
 	M0_ENTRY("rconfc = %p", rconfc);
 	/* disconnect confc until read lock being granted */
-	m0_confc_reconnect(&rconfc->rc_confc, NULL, NULL);
+	if (_confc_is_inited(&rconfc->rc_confc))
+		m0_confc_reconnect(&rconfc->rc_confc, NULL, NULL);
 	/* return read lock back to RM */
 	rconfc_read_lock_put(rconfc);
 	/* prepare for version election */
@@ -2188,7 +2189,16 @@ static void rconfc_version_elected(struct m0_sm_group *grp,
 	rc = rconfc_quorum_is_reached(rconfc) ?
 		rconfc_conductor_engage(rconfc) : -EPROTO;
 	if (rc != 0) {
-		rconfc_fail(rconfc, rc);
+		M0_ERR_INFO(rc, "re-election started");
+		rconfc_herd_destroy(rconfc);
+		/*
+		 * Start re-election. As version was not elected, the conductor
+		 * never was engaged, and therefore needs no draining.
+		 */
+		if (_confc_is_inited(&rconfc->rc_confc))
+			m0_confc_fini(&rconfc->rc_confc);
+		rconfc_conductor_drained(rconfc);
+		M0_CNT_INC(rconfc->rc_ha_entrypoint_retries);
 	} else {
 		M0_SET0(&rconfc->rc_rx);
 		M0_SET0(&rconfc->rc_load_ast);
@@ -2467,14 +2477,15 @@ M0_INTERNAL int m0_rconfc_start_wait(struct m0_rconfc *rconfc,
 				     uint64_t          timeout_ns)
 {
 	struct rlock_ctx *rlx = M0_MEMBER(rconfc, rc_rlock_ctx);
-	m0_time_t deadline = timeout_ns == M0_TIME_NEVER ? M0_TIME_NEVER :
-		m0_time_from_now(0, timeout_ns);
 
 	M0_ENTRY("rconfc = %p, profile = "FID_F, rconfc, FID_P(profile));
 	if (timeout_ns != M0_TIME_NEVER)
 		rlx->rlc_timeout = timeout_ns;
 	m0_rconfc_start(rconfc, profile);
 	if (!m0_rconfc_is_preloaded(rconfc)) {
+		m0_time_t deadline = timeout_ns == M0_TIME_NEVER ?
+			M0_TIME_NEVER : m0_time_from_now(0, timeout_ns);
+
 		m0_rconfc_lock(rconfc);
 		if (m0_sm_timedwait(&rconfc->rc_sm,
 				    M0_BITS(M0_RCS_IDLE, M0_RCS_FAILURE),

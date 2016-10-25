@@ -555,6 +555,9 @@ struct m0_confc {
 	 */
 	struct m0_clink           cc_drain;
 
+	/** RPC timeout used to connect to or disconnect from confd. */
+	uint64_t                  cc_rpc_timeout;
+
 	/**
 	 * The channel to signal on when mo more attached context
 	 * remains. Signaled inside m0_confc_ctx_fini().
@@ -611,10 +614,19 @@ struct m0_confc_gate_ops {
  * @param local_conf   Configuration string --- ASCII description of
  *                     configuration data to pre-load the cache with
  *                     (see @ref conf-fspec-preload).
+ * @param timeout_ns   Confd connection timeout, nanoseconds.
  *
  * @pre  not_empty(confd_addr) || not_empty(local_conf)
  * @pre  ergo(not_empty(confd_addr), rpc_mach != NULL)
  */
+M0_INTERNAL int m0_confc_init_wait(struct m0_confc       *confc,
+				   struct m0_sm_group    *sm_group,
+				   const char            *confd_addr,
+				   struct m0_rpc_machine *rpc_mach,
+				   const char            *local_conf,
+				   uint64_t               timeout_ns);
+
+/** Equivalent to m0_confc_init_wait() with timeout_ns = M0_TIME_NEVER. */
 M0_INTERNAL int m0_confc_init(struct m0_confc       *confc,
 			      struct m0_sm_group    *sm_group,
 			      const char            *confd_addr,

@@ -284,7 +284,7 @@ struct m0_rconfc {
 	 * Rconfc idle callback. Initially unset. Allowed to be
 	 * installed later if required, on a locked rconfc instance.
 	 */
-	m0_rconfc_ready_cb_t       rc_ready_cb;
+	m0_rconfc_ready_cb_t      rc_ready_cb;
 
 	/** RPC machine the rconfc to work on. */
 	struct m0_rpc_machine    *rc_rmach;
