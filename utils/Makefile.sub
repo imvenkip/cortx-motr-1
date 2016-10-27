@@ -1,6 +1,7 @@
 EXTRA_DIST += utils/m0confgen \
               utils/m0gendisks \
               utils/m0genfacts \
+              utils/m0hagen \
               utils/m0mount \
               utils/m0reportbug \
               utils/m0run \
