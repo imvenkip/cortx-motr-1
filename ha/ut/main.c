@@ -30,6 +30,7 @@
 extern void m0_ha_ut_msg_queue(void);
 
 extern void m0_ha_ut_lq(void);
+extern void m0_ha_ut_lq_mark_delivered(void);
 
 extern void m0_ha_ut_link_usecase(void);
 extern void m0_ha_ut_link_multithreaded(void);
@@ -48,6 +49,7 @@ struct m0_ut_suite ha_ut = {
 	.ts_tests = {
 		{ "msg_queue",              &m0_ha_ut_msg_queue               },
 		{ "lq",                     &m0_ha_ut_lq                      },
+		{ "lq-mark_delivered",      &m0_ha_ut_lq_mark_delivered       },
 		{ "link-usecase",           &m0_ha_ut_link_usecase            },
 		{ "link-multithreaded",     &m0_ha_ut_link_multithreaded      },
 		{ "link-reconnect_simple",  &m0_ha_ut_link_reconnect_simple   },

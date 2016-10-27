@@ -110,6 +110,10 @@ M0_INTERNAL void m0_ha_lq_tags_set(struct m0_ha_lq              *lq,
 
 M0_INTERNAL bool m0_ha_lq_has_tag(const struct m0_ha_lq *lq, uint64_t tag);
 M0_INTERNAL struct m0_ha_msg *m0_ha_lq_msg(struct m0_ha_lq *lq, uint64_t tag);
+M0_INTERNAL struct m0_ha_msg *m0_ha_lq_msg_next(struct m0_ha_lq *lq,
+						const struct m0_ha_msg *cur);
+M0_INTERNAL struct m0_ha_msg *m0_ha_lq_msg_prev(struct m0_ha_lq *lq,
+						const struct m0_ha_msg *cur);
 M0_INTERNAL bool m0_ha_lq_has_next(const struct m0_ha_lq *lq);
 M0_INTERNAL bool m0_ha_lq_is_delivered(const struct m0_ha_lq *lq, uint64_t tag);
 

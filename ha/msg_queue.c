@@ -99,6 +99,22 @@ m0_ha_msg_queue_find(struct m0_ha_msg_queue *mq,
 	                  m0_ha_msg_tag(&qitem->hmq_msg) == tag);
 }
 
+M0_INTERNAL struct m0_ha_msg_qitem *
+m0_ha_msg_queue_next(struct m0_ha_msg_queue *mq,
+                     const struct m0_ha_msg_qitem *cur)
+{
+	M0_PRE(cur != NULL);
+	return ha_mq_tlist_next(&mq->mq_queue, cur);
+}
+
+M0_INTERNAL struct m0_ha_msg_qitem *
+m0_ha_msg_queue_prev(struct m0_ha_msg_queue *mq,
+		     const struct m0_ha_msg_qitem *cur)
+{
+	M0_PRE(cur != NULL);
+	return ha_mq_tlist_prev(&mq->mq_queue, cur);
+}
+
 #undef M0_TRACE_SUBSYSTEM
 
 /** @} end of ha group */

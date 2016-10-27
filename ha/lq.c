@@ -114,6 +114,28 @@ M0_INTERNAL struct m0_ha_msg *m0_ha_lq_msg(struct m0_ha_lq *lq, uint64_t tag)
 	return qitem == NULL ? NULL : &qitem->hmq_msg;
 }
 
+M0_INTERNAL struct m0_ha_msg *m0_ha_lq_msg_next(struct m0_ha_lq *lq,
+						const struct m0_ha_msg *cur)
+{
+	struct m0_ha_msg_qitem *qitem =
+		container_of(cur, struct m0_ha_msg_qitem, hmq_msg);
+
+	M0_PRE(m0_ha_lq_invariant(lq));
+	qitem = m0_ha_msg_queue_next(&lq->hlq_mq, qitem);
+	return qitem == NULL ? NULL : &qitem->hmq_msg;
+}
+
+M0_INTERNAL struct m0_ha_msg *m0_ha_lq_msg_prev(struct m0_ha_lq *lq,
+						const struct m0_ha_msg *cur)
+{
+	struct m0_ha_msg_qitem *qitem =
+		container_of(cur, struct m0_ha_msg_qitem, hmq_msg);
+
+	M0_PRE(m0_ha_lq_invariant(lq));
+	qitem = m0_ha_msg_queue_prev(&lq->hlq_mq, qitem);
+	return qitem == NULL ? NULL : &qitem->hmq_msg;
+}
+
 M0_INTERNAL bool m0_ha_lq_has_next(const struct m0_ha_lq *lq)
 {
 	M0_PRE(m0_ha_lq_invariant(lq));
@@ -164,10 +186,12 @@ M0_INTERNAL uint64_t m0_ha_lq_enqueue(struct m0_ha_lq        *lq,
 	M0_ASSERT(qitem != NULL);       /* XXX */
 	qitem->hmq_msg = *msg;
 	tag = m0_ha_msg_tag(msg);
-	if (tag == M0_HA_MSG_TAG_UNKNOWN)
-		qitem->hmq_msg.hm_tag = lq->hlq_tags.hlt_assign;
-	else
+	if (tag == M0_HA_MSG_TAG_UNKNOWN) {
+		qitem->hmq_msg.hm_tag     = lq->hlq_tags.hlt_assign;
+		qitem->hmq_delivery_state = M0_HA_MSG_QITEM_NOT_DELIVERED;
+	} else {
 		M0_ASSERT(tag == lq->hlq_tags.hlt_assign);
+	}
 	lq->hlq_tags.hlt_assign += 2;
 	m0_ha_msg_queue_enqueue(&lq->hlq_mq, qitem);
 	M0_POST(m0_ha_lq_invariant(lq));
@@ -201,9 +225,29 @@ M0_INTERNAL bool m0_ha_lq_try_unnext(struct m0_ha_lq *lq)
 
 M0_INTERNAL void m0_ha_lq_mark_delivered(struct m0_ha_lq *lq, uint64_t tag)
 {
+	struct m0_ha_msg       *msg;
+	struct m0_ha_msg_qitem *qitem;
+
 	M0_PRE(m0_ha_lq_invariant(lq));
-	M0_PRE(lq->hlq_tags.hlt_delivered == tag);
-	lq->hlq_tags.hlt_delivered += 2;
+
+	msg = m0_ha_lq_msg(lq, tag);
+	M0_ASSERT(msg != NULL);
+	M0_ASSERT(lq->hlq_tags.hlt_delivered <= msg->hm_tag);
+	M0_ASSERT(msg->hm_tag <= lq->hlq_tags.hlt_next);
+
+	qitem = m0_ha_msg_queue_find(&lq->hlq_mq, tag);
+	qitem->hmq_delivery_state = M0_HA_MSG_QITEM_DELIVERED;
+
+	qitem = m0_ha_msg_queue_find(&lq->hlq_mq, lq->hlq_tags.hlt_delivered);
+	M0_ASSERT(qitem != NULL);
+	for (; qitem != NULL;
+	     qitem = m0_ha_msg_queue_next(&lq->hlq_mq, qitem)) {
+		if (lq->hlq_tags.hlt_delivered == lq->hlq_tags.hlt_next ||
+		    qitem->hmq_delivery_state == M0_HA_MSG_QITEM_NOT_DELIVERED)
+			break;
+
+		lq->hlq_tags.hlt_delivered = m0_ha_msg_tag(&qitem->hmq_msg) + 2;
+	}
 	M0_POST(m0_ha_lq_invariant(lq));
 }
 

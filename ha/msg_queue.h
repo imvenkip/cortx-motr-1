@@ -38,12 +38,18 @@
 #include "lib/tlist.h"  /* m0_tlink */
 #include "ha/msg.h"     /* m0_ha_msg */
 
+enum m0_ha_msg_qitem_delivery_state {
+	M0_HA_MSG_QITEM_NOT_DELIVERED,
+	M0_HA_MSG_QITEM_DELIVERED,
+};
+
 /** m0_ha_msg_queue item. */
 struct m0_ha_msg_qitem {
-	struct m0_ha_msg hmq_msg;
+	struct m0_ha_msg                    hmq_msg;
+	enum m0_ha_msg_qitem_delivery_state hmq_delivery_state;
 	/** Link for m0_ha_msg_queue::mq_queue */
-	struct m0_tlink  hmq_link;
-	uint64_t         hmq_magic;
+	struct m0_tlink                     hmq_link;
+	uint64_t                            hmq_magic;
 };
 
 struct m0_ha_msg_queue_cfg {
@@ -72,6 +78,12 @@ M0_INTERNAL bool m0_ha_msg_queue_is_empty(struct m0_ha_msg_queue *mq);
 M0_INTERNAL struct m0_ha_msg_qitem *
 m0_ha_msg_queue_find(struct m0_ha_msg_queue *mq,
                      uint64_t                tag);
+M0_INTERNAL struct m0_ha_msg_qitem *
+m0_ha_msg_queue_next(struct m0_ha_msg_queue *mq,
+		     const struct m0_ha_msg_qitem *cur);
+M0_INTERNAL struct m0_ha_msg_qitem *
+m0_ha_msg_queue_prev(struct m0_ha_msg_queue *mq,
+                     const struct m0_ha_msg_qitem *cur);
 
 
 /** @} end of ha group */
