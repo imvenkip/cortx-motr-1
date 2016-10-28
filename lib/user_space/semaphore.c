@@ -33,7 +33,13 @@
 M0_INTERNAL int m0_semaphore_init(struct m0_semaphore *semaphore,
 				  unsigned value)
 {
-	return sem_init(&semaphore->s_sem, 0, value);
+	int rc;
+	int err;
+
+	rc = sem_init(&semaphore->s_sem, 0, value);
+	err = rc == 0 ? 0 : errno;
+	M0_ASSERT_INFO(rc == 0, "rc=%d errno=%d", rc, err);
+	return -err;
 }
 
 M0_INTERNAL void m0_semaphore_fini(struct m0_semaphore *semaphore)
@@ -41,7 +47,7 @@ M0_INTERNAL void m0_semaphore_fini(struct m0_semaphore *semaphore)
 	int rc;
 
 	rc = sem_destroy(&semaphore->s_sem);
-	M0_ASSERT_INFO(rc == 0, "rc=%d", rc);
+	M0_ASSERT_INFO(rc == 0, "rc=%d errno=%d", rc, errno);
 }
 
 M0_INTERNAL void m0_semaphore_down(struct m0_semaphore *semaphore)
@@ -59,7 +65,7 @@ M0_INTERNAL void m0_semaphore_up(struct m0_semaphore *semaphore)
 	int rc;
 
 	rc = sem_post(&semaphore->s_sem);
-	M0_ASSERT_INFO(rc == 0, "rc=%d", rc);
+	M0_ASSERT_INFO(rc == 0, "rc=%d errno=%d", rc, errno);
 }
 
 M0_INTERNAL bool m0_semaphore_trydown(struct m0_semaphore *semaphore)
@@ -81,7 +87,7 @@ M0_INTERNAL unsigned m0_semaphore_value(struct m0_semaphore *semaphore)
 	int result;
 
 	rc = sem_getvalue(&semaphore->s_sem, &result);
-	M0_ASSERT_INFO(rc == 0, "rc=%d", rc);
+	M0_ASSERT_INFO(rc == 0, "rc=%d errno=%d", rc, errno);
 	M0_POST(result >= 0);
 	return result;
 }
