@@ -101,6 +101,15 @@ struct m0_rm_ha_tracker {
 	 */
 	struct m0_clink         rht_clink;
 	/**
+	 * Clink attaches to m0_reqh::rh_conf_cache_exp and tracks
+	 * "configuration expired" event. When it is fired, the tracker must
+	 * unsubscribe from m0_conf_obj::co_ha_chan. It is possible to enter a
+	 * dangerous time slice on unsubscription when remote death is not
+	 * monitored while resource credits still held. This is going to be
+	 * solved later by differential conf delivery.
+	 */
+	struct m0_clink          rht_conf_exp;
+	/**
 	 * Once subscribed to remote's death notification from HA, the remote
 	 * endpoint is kept until unsubscription.
 	 */

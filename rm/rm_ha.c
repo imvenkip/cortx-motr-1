@@ -22,6 +22,7 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_RM
 #include "lib/trace.h"
 
+#include "lib/finject.h"    /* M0_FI_ENABLED */
 #include "lib/errno.h"
 #include "lib/memory.h"     /* m0_free */
 #include "lib/misc.h"
@@ -132,13 +133,20 @@ static void rm_ha_sbscr_diter_next(struct m0_rm_ha_subscriber *sbscr)
 	while ((rc = m0_conf_diter_next(&sbscr->rhs_diter, rm_ha_svc_filter)) ==
 			M0_CONF_DIRNEXT) {
 		next = m0_conf_diter_result(&sbscr->rhs_diter);
-		if (rm_ha_rms_is_located(next, sbscr)) {
+		if (rm_ha_rms_is_located(next, sbscr) ||
+		    M0_FI_ENABLED("subscribe")) {
+			m0_clink_add_lock(
+				     &m0_conf_obj2reqh(next)->rh_conf_cache_exp,
+				     &sbscr->rhs_tracker->rht_conf_exp);
 			/**
 			 * @todo What if obj is already in M0_NC_FAILED state?
 			 * We should check it somewhere.
 			 */
-			m0_clink_add_lock(&next->co_ha_chan,
+			m0_conf_cache_lock(next->co_cache);
+			m0_clink_add(&next->co_ha_chan,
 					  &sbscr->rhs_tracker->rht_clink);
+			m0_conf_obj_get(next);
+			m0_conf_cache_unlock(next->co_cache);
 			found = true;
 			break;
 		}
@@ -322,6 +330,16 @@ static int rm_remote_ep_to_rms_obj(struct m0_confc     *confc,
 	return found ? 0 : M0_RC(rc) ?: M0_ERR(-ENOENT);
 }
 
+static bool rm_ha_conf_expired_cb(struct m0_clink *cl)
+{
+	struct m0_rm_ha_tracker *tracker = M0_AMB(tracker, cl, rht_conf_exp);
+
+	M0_ENTRY("tracker %p", tracker);
+	m0_rm_ha_unsubscribe_lock(tracker);
+	M0_LEAVE();
+	return true;
+}
+
 M0_INTERNAL int m0_rm_ha_subscriber_init(struct m0_rm_ha_subscriber *sbscr,
 					 struct m0_sm_group         *grp,
 					 struct m0_confc            *confc,
@@ -365,14 +383,13 @@ M0_INTERNAL int m0_rm_ha_subscribe_sync(struct m0_confc         *confc,
 		return M0_ERR(-ENOMEM);
 	rc = rm_remote_ep_to_rms_obj(confc, rem_ep, &obj);
 	if (rc == 0) {
+		m0_clink_add_lock(&m0_conf_obj2reqh(obj)->rh_conf_cache_exp,
+				  &tracker->rht_conf_exp);
 		/**
 		 * @todo What if remote is already in M0_NC_FAILED state?
 		 * We should check it somewhere.
 		 */
-		m0_mutex_lock(&confc->cc_lock);
-		m0_clink_add(&obj->co_ha_chan, &tracker->rht_clink);
-		m0_conf_obj_put(obj);
-		m0_mutex_unlock(&confc->cc_lock);
+		m0_clink_add_lock(&obj->co_ha_chan, &tracker->rht_clink);
 	}
 	return M0_RC(rc);
 }
@@ -386,18 +403,34 @@ M0_INTERNAL void m0_rm_ha_tracker_init(struct m0_rm_ha_tracker *tracker,
 				       m0_chan_cb_t             cb)
 {
 	m0_clink_init(&tracker->rht_clink, cb);
+	m0_clink_init(&tracker->rht_conf_exp, rm_ha_conf_expired_cb);
 	tracker->rht_ep = NULL;
 }
 
 M0_INTERNAL void m0_rm_ha_tracker_fini(struct m0_rm_ha_tracker *tracker)
 {
 	m0_clink_fini(&tracker->rht_clink);
+	m0_clink_fini(&tracker->rht_conf_exp);
 	m0_free(tracker->rht_ep);
 }
 
 M0_INTERNAL void m0_rm_ha_unsubscribe(struct m0_rm_ha_tracker *tracker)
 {
-	m0_clink_cleanup_locked(&tracker->rht_clink);
+	struct m0_conf_obj *obj;
+
+	if (m0_clink_is_armed(&tracker->rht_conf_exp))
+		m0_clink_cleanup_locked(&tracker->rht_conf_exp);
+	if (m0_clink_is_armed(&tracker->rht_clink)) {
+		obj = M0_AMB(obj, tracker->rht_clink.cl_chan, co_ha_chan);
+		m0_clink_cleanup_locked(&tracker->rht_clink);
+		/**
+		 * The object may be a fake one. Need to put only "real"
+		 * configuration object @see _confc_phony_cache_append()
+		 */
+		if (obj->co_parent != NULL)
+			m0_conf_obj_put(obj);
+	}
+	tracker->rht_clink.cl_chan = NULL;
 }
 
 M0_INTERNAL void m0_rm_ha_unsubscribe_lock(struct m0_rm_ha_tracker *tracker)

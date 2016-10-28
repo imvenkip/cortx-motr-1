@@ -202,8 +202,10 @@ static void rms_stop(struct m0_reqh_service *service)
 
 	rms = bob_of(service, struct m0_reqh_rm_service, rms_svc, &rms_bob);
 
+	m0_chan_lock(&service->rs_reqh->rh_conf_cache_exp);
 	rms_resources_free(&rms->rms_flock_rt);
 	rms_resources_free(&rms->rms_rwlockable_rt);
+	m0_chan_unlock(&service->rs_reqh->rh_conf_cache_exp);
 	m0_file_lock_type_deregister(&rms->rms_flock_rt);
 	m0_rw_lockable_type_deregister(&rms->rms_rwlockable_rt);
 	m0_rm_domain_fini(&rms->rms_dom);

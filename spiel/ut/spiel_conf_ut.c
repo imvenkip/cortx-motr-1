@@ -1989,6 +1989,28 @@ static void spiel_conf_tx_no_spiel(void)
 	m0_spiel_tx_close(&tx);
 }
 
+static void spiel_conf_expired(void)
+{
+	struct m0_confc         *confc = m0_mero2confc(
+					   &ut_reqh.sur_confd_srv.rsx_mero_ctx);
+	struct m0_spiel_tx       tx;
+	struct m0_rm_ha_tracker  tracker;
+	char                    *rm_ep = "0@lo:12345:34:1";
+	int                      rc;
+
+	m0_fi_enable("rm_ha_sbscr_diter_next", "subscribe");
+	spiel_conf_ut_init();
+	m0_rm_ha_tracker_init(&tracker, NULL);
+	m0_rm_ha_subscribe_sync(confc, rm_ep, &tracker);
+	spiel_conf_create_configuration(&spiel, &tx);
+	rc = m0_spiel_tx_commit(&tx);
+	M0_UT_ASSERT(rc == 0);
+	m0_spiel_tx_close(&tx);
+	m0_rm_ha_tracker_fini(&tracker);
+	spiel_conf_ut_fini();
+	m0_fi_disable("rm_ha_sbscr_diter_next", "subscribe");
+}
+
 const struct m0_ut_suite spiel_conf_ut = {
 	.ts_name = "spiel-conf-ut",
 	.ts_tests = {
@@ -2007,6 +2029,7 @@ const struct m0_ut_suite spiel_conf_ut = {
 		{ "tx-no-spiel", spiel_conf_tx_no_spiel },
 		{ "drop-svc",    spiel_conf_drop_svc    },
 		{ "add-svc",     spiel_conf_add_svc     },
+		{ "conf-expired", spiel_conf_expired    },
 		{ NULL, NULL },
 	},
 };
