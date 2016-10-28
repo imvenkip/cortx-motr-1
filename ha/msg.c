@@ -130,36 +130,44 @@ M0_INTERNAL void m0_ha_msg_debug_print(const struct m0_ha_msg *msg,
 		}
 		return;
 	case M0_HA_MSG_KEEPALIVE_REQ:
-		M0_LOG(M0_DEBUG, "KEEPALIVE_REQ kaq_id="U128X_F,
+		M0_LOG(M0_DEBUG, "KEEPALIVE_REQ hm_fid="FID_F" kaq_id="U128X_F,
+		       FID_P(&msg->hm_fid),
 		       U128_P(&data->u.hed_keepalive_req.kaq_id));
 		return;
 	case M0_HA_MSG_KEEPALIVE_REP:
-		M0_LOG(M0_DEBUG, "KEEPALIVE_REP kap_id="U128X_F" "
-		       "kap_counter=%"PRIu64,
+		M0_LOG(M0_DEBUG, "KEEPALIVE_REP hm_fid="FID_F" "
+		       "kap_id="U128X_F" kap_counter=%"PRIu64,
+		       FID_P(&msg->hm_fid),
 		       U128_P(&data->u.hed_keepalive_rep.kap_id),
 		       data->u.hed_keepalive_rep.kap_counter);
 		return;
 	case M0_HA_MSG_EVENT_PROCESS:
-		M0_LOG(M0_DEBUG, "EVENT_PROCESS chp_event=%"PRIu64" "
-		       "chp_type=%"PRIu64" chp_pid=%"PRIu64,
+		M0_LOG(M0_DEBUG, "EVENT_PROCESS hm_fid="FID_F" "
+		       "chp_event=%"PRIu64" chp_type=%"PRIu64" chp_pid=%"PRIu64,
+		       FID_P(&msg->hm_fid),
 		       data->u.hed_event_process.chp_event,
 		       data->u.hed_event_process.chp_type,
 		       data->u.hed_event_process.chp_pid);
 		return;
 	case M0_HA_MSG_EVENT_SERVICE:
-		M0_LOG(M0_DEBUG, "EVENT_SERVICE chs_event=%"PRIu64" "
-		       "chs_type=%"PRIu64,
+		M0_LOG(M0_DEBUG, "EVENT_SERVICE hm_fid="FID_F" "
+		       "chs_event=%"PRIu64" chs_type=%"PRIu64,
+		       FID_P(&msg->hm_fid),
 		       data->u.hed_event_service.chs_event,
 		       data->u.hed_event_service.chs_type);
 		return;
 	case M0_HA_MSG_EVENT_RPC:
-		M0_LOG(M0_DEBUG, "EVENT_RPC state=%"PRIu64" attempts=%"PRIu64,
+		M0_LOG(M0_DEBUG, "EVENT_RPC hm_fid="FID_F" "
+		       "state=%"PRIu64" attempts=%"PRIu64,
+		       FID_P(&msg->hm_fid),
 		       data->u.hed_event_rpc.hmr_state,
 		       data->u.hed_event_rpc.hmr_attempts);
 		return;
 	case M0_HA_MSG_BE_IO_ERR:
-		M0_LOG(M0_DEBUG, "BE_IO_ERR ber_errcode=%d ber_location=%u"
-		       " ber_io_opcode=%u", data->u.hed_be_io_err.ber_errcode,
+		M0_LOG(M0_DEBUG, "BE_IO_ERR hm_fid="FID_F" "
+		       "ber_errcode=%d ber_location=%u ber_io_opcode=%u",
+		       FID_P(&msg->hm_fid),
+		       data->u.hed_be_io_err.ber_errcode,
 		       data->u.hed_be_io_err.ber_location,
 		       data->u.hed_be_io_err.ber_io_opcode);
 		return;
