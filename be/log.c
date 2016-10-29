@@ -1019,7 +1019,7 @@ static int be_log_read_plain(struct m0_be_log *log,
 	m0_be_io_fini(&bio);
 out:
 	if (rc != 0)
-		m0_be_io_err_send(rc, M0_BE_LOC_LOG, SIO_READ);
+		m0_be_io_err_send(-rc, M0_BE_LOC_LOG, SIO_READ);
 	return rc;
 }
 

@@ -199,7 +199,7 @@ static void be_pd_sync_run(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 
 	rc = M0_BE_OP_SYNC_RC(op, m0_be_io_launch(&pd->bpd_sync_io, &op));
 	if (rc != 0)
-		m0_be_io_err_send(rc, M0_BE_LOC_NONE, SIO_SYNC);
+		m0_be_io_err_send(-rc, M0_BE_LOC_NONE, SIO_SYNC);
 
 	now = m0_time_now();
 	pd->bpd_sync_runtime = now - pd->bpd_sync_runtime;

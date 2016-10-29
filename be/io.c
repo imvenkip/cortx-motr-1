@@ -702,7 +702,7 @@ M0_INTERNAL int m0_be_io_single(struct m0_stob         *stob,
 	m0_be_io_fini(&bio);
 out:
 	if (rc != 0)
-		m0_be_io_err_send(rc, M0_BE_LOC_NONE, opcode);
+		m0_be_io_err_send(-rc, M0_BE_LOC_NONE, opcode);
 	return M0_RC(rc);
 }
 

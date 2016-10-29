@@ -33,7 +33,7 @@
 #include "lib/memory.h"       /* M0_ALLOC_PTR */
 
 M0_INTERNAL void
-m0_be_io_err_send(int errcode, uint8_t location, uint8_t io_opcode)
+m0_be_io_err_send(uint32_t errcode, uint8_t location, uint8_t io_opcode)
 {
 	struct m0_ha_msg *msg;
 	uint64_t          tag;

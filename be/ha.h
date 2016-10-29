@@ -41,9 +41,9 @@ enum m0_be_location {
  * Payload of m0_ha_msg, which Mero sends to HA in case of BE I/O error.
  */
 struct m0_be_io_err {
-	int     ber_errcode;
-	uint8_t ber_location;   /**< @see m0_be_location for values */
-	uint8_t ber_io_opcode;  /**< @see m0_stob_io_opcode for values */
+	uint32_t ber_errcode; /* `int' is not xcodeable */
+	uint8_t  ber_location;   /**< @see m0_be_location for values */
+	uint8_t  ber_io_opcode;  /**< @see m0_stob_io_opcode for values */
 } M0_XCA_RECORD;
 
 /**
@@ -51,7 +51,7 @@ struct m0_be_io_err {
  *
  * @note The function never returns.
  */
-M0_INTERNAL void m0_be_io_err_send(int errcode, uint8_t location,
+M0_INTERNAL void m0_be_io_err_send(uint32_t errcode, uint8_t location,
 				   uint8_t io_opcode);
 
 /** @} be-ha */

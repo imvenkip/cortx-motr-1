@@ -18,7 +18,6 @@
  * Original creation date: 26-Apr-2016
  */
 
-
 /**
  * @addtogroup ha
  *
@@ -158,14 +157,14 @@ M0_INTERNAL void m0_ha_msg_debug_print(const struct m0_ha_msg *msg,
 		return;
 	case M0_HA_MSG_EVENT_RPC:
 		M0_LOG(M0_DEBUG, "EVENT_RPC hm_fid="FID_F" "
-		       "state=%"PRIu64" attempts=%"PRIu64,
+		       "hmr_state=%"PRIu64" hmr_attempts=%"PRIu64,
 		       FID_P(&msg->hm_fid),
 		       data->u.hed_event_rpc.hmr_state,
 		       data->u.hed_event_rpc.hmr_attempts);
 		return;
 	case M0_HA_MSG_BE_IO_ERR:
 		M0_LOG(M0_DEBUG, "BE_IO_ERR hm_fid="FID_F" "
-		       "ber_errcode=%d ber_location=%u ber_io_opcode=%u",
+		       "ber_errcode=%"PRIu32" ber_location=%u ber_io_opcode=%u",
 		       FID_P(&msg->hm_fid),
 		       data->u.hed_be_io_err.ber_errcode,
 		       data->u.hed_be_io_err.ber_location,
@@ -179,7 +178,6 @@ M0_INTERNAL void m0_ha_msg_debug_print(const struct m0_ha_msg *msg,
 }
 
 #undef M0_TRACE_SUBSYSTEM
-
 /** @} end of ha group */
 
 /*
