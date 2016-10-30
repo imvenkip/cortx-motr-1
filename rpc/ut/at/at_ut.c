@@ -394,10 +394,8 @@ static int atfom_tick(struct m0_fom *fom0)
 static void atfom_fini(struct m0_fom *fom0)
 {
 	struct atut__req *req = m0_fop_data(fom0->fo_fop);
-	struct atut__rep *rep = m0_fop_data(fom0->fo_rep_fop);
 
 	m0_rpc_at_fini(&req->arq_buf);
-	m0_rpc_at_fini(&rep->arp_buf);
 	m0_fom_fini(fom0);
 	m0_free(fom0);
 }

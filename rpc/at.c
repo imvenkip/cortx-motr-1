@@ -23,7 +23,9 @@
 
 #include "lib/memory.h"
 #include "lib/errno.h"
+#include "lib/chan.h"        /* m0_clink */
 #include "lib/vec.h"
+#include "sm/sm.h"           /* m0_sm_ast */
 #include "net/net.h"         /* m0_net_queue_type */
 #include "rpc/session.h"     /* m0_rpc_session */
 #include "rpc/bulk.h"        /* m0_rpc_bulk */
@@ -43,10 +45,28 @@ M0_TL_DESCR_DECLARE(rpcbulk, M0_EXTERN);
 M0_TL_DECLARE(rpcbulk, M0_INTERNAL, struct m0_rpc_bulk_buf);
 
 struct rpc_at_bulk {
+	/** Back link to the AT buffer. */
+	struct m0_rpc_at_buf     *ac_atbuf;
 	struct m0_rpc_bulk        ac_bulk;
 	const struct m0_rpc_conn *ac_conn;
 	struct m0_net_buffer      ac_nb;
+	/** A single buffer where received buffer vector via bulk is spliced. */
 	struct m0_buf             ac_recv;
+	/**
+	 * Clink to wait when transmission from server to client is complete.
+	 */
+	struct m0_clink           ac_clink;
+	/**
+	 * Fom to wakeup once bulk transmission from server to client is
+	 * complete.
+	 */
+	struct m0_fom            *ac_user_fom;
+	/**
+	 * AST to be executed after transmission from server to client is
+	 * complete.
+	 */
+	struct m0_sm_ast          ac_ast;
+	/** Result of a bulk transmission. */
 	int                       ac_rc;
 };
 
@@ -79,26 +99,6 @@ static uint64_t rpc_at_bulk_segs_nr(const struct rpc_at_bulk *atbulk,
 	return (data_size + *seg_size - 1) / *seg_size;
 }
 
-static int rpc_at_bulk_init(struct m0_rpc_at_buf     *ab,
-			    const struct m0_rpc_conn *conn)
-{
-	struct rpc_at_bulk *atbulk;
-
-	M0_PRE(ab   != NULL);
-	M0_PRE(conn != NULL);
-
-	M0_ENTRY();
-	M0_ALLOC_PTR(atbulk);
-	if (atbulk == NULL)
-		return M0_ERR(-ENOMEM);
-	ab->u.ab_extra.abr_bulk = atbulk;
-	atbulk->ac_conn = conn;
-	atbulk->ac_rc = 0;
-	atbulk->ac_recv = M0_BUF_INIT0;
-	m0_rpc_bulk_init(&atbulk->ac_bulk);
-	return M0_RC(0);
-}
-
 static int rpc_at_bulk_nb_alloc(struct m0_rpc_at_buf *ab, uint64_t size)
 {
 	struct rpc_at_bulk   *atbulk = rpc_at_bulk(ab);
@@ -120,6 +120,76 @@ static int rpc_at_bulk_nb_alloc(struct m0_rpc_at_buf *ab, uint64_t size)
 static void rpc_at_bulk_nb_free(struct rpc_at_bulk *atbulk)
 {
 	m0_bufvec_free_aligned(&atbulk->ac_nb.nb_buffer, PAGE_SHIFT);
+}
+
+static int rpc_at_bulk_init(struct m0_rpc_at_buf     *ab,
+			    const struct m0_rpc_conn *conn)
+{
+	struct rpc_at_bulk *atbulk;
+
+	M0_PRE(ab   != NULL);
+	M0_PRE(conn != NULL);
+
+	M0_ENTRY();
+	M0_ALLOC_PTR(atbulk);
+	if (atbulk == NULL)
+		return M0_ERR(-ENOMEM);
+	ab->u.ab_extra.abr_bulk = atbulk;
+	atbulk->ac_atbuf = ab;
+	atbulk->ac_conn = conn;
+	atbulk->ac_rc = 0;
+	atbulk->ac_recv = M0_BUF_INIT0;
+	m0_rpc_bulk_init(&atbulk->ac_bulk);
+	return M0_RC(0);
+}
+
+static void rpc_at_bulk_store_del(struct m0_rpc_bulk *rbulk)
+{
+	struct m0_clink clink;
+
+	m0_clink_init(&clink, NULL);
+	m0_clink_add_lock(&rbulk->rb_chan, &clink);
+	m0_rpc_bulk_store_del(rbulk);
+	m0_chan_wait(&clink);
+	m0_clink_del_lock(&clink);
+	m0_clink_fini(&clink);
+}
+
+static enum m0_net_queue_type rpc_at_bulk_qtype(struct m0_rpc_bulk *rbulk)
+{
+	struct m0_rpc_bulk_buf *rbuf;
+	enum m0_net_queue_type  ret;
+
+	M0_PRE(!m0_rpc_bulk_is_empty(rbulk));
+
+	m0_mutex_lock(&rbulk->rb_mutex);
+	rbuf = rpcbulk_tlist_head(&rbulk->rb_buflist);
+	ret = rbuf->bb_nbuf->nb_qtype;
+
+	/* Check that all elements have the same type. */
+	M0_ASSERT(m0_tl_forall(rpcbulk, rbuf, &rbulk->rb_buflist,
+			       rbuf->bb_nbuf->nb_qtype == ret));
+	m0_mutex_unlock(&rbulk->rb_mutex);
+	return ret;
+}
+
+static void rpc_at_bulk_fini(struct rpc_at_bulk *atbulk)
+{
+	struct m0_rpc_bulk *rbulk = &atbulk->ac_bulk;
+
+	M0_PRE(atbulk != NULL);
+	M0_PRE(rbulk  != NULL);
+
+	if (!m0_rpc_bulk_is_empty(rbulk) &&
+	    M0_IN(rpc_at_bulk_qtype(rbulk), (M0_NET_QT_PASSIVE_BULK_SEND,
+			                     M0_NET_QT_PASSIVE_BULK_RECV)))
+		rpc_at_bulk_store_del(rbulk);
+	m0_rpc_bulk_buflist_empty(rbulk);
+	m0_rpc_bulk_fini(rbulk);
+	if (m0_buf_is_set(&atbulk->ac_recv))
+		m0_buf_free(&atbulk->ac_recv);
+	rpc_at_bulk_nb_free(atbulk);
+	m0_free(atbulk);
 }
 
 static int rpc_at_bulk_csend(struct m0_rpc_at_buf *ab,
@@ -232,6 +302,34 @@ static int rpc_at_bulk_crecv(struct m0_rpc_at_buf *ab,
 	return M0_RC(rc);
 }
 
+static void rpc_at_ssend_ast_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
+{
+	struct rpc_at_bulk     *atbulk   = M0_AMB(atbulk, ast, ac_ast);
+	struct m0_rpc_at_buf   *atbuf    = atbulk->ac_atbuf;
+	struct m0_rpc_at_extra *atextra  = &atbuf->u.ab_extra;
+	struct m0_fom          *user_fom = atbulk->ac_user_fom;
+
+	rpc_at_bulk_fini(atbulk);
+	atextra->abr_bulk = NULL;
+	M0_ASSERT(m0_buf_is_set(&atextra->abr_user_buf));
+	m0_buf_free(&atextra->abr_user_buf);
+	M0_ASSERT(user_fom != NULL);
+	m0_fom_wakeup(user_fom);
+}
+
+static bool rpc_at_ssend_complete_cb(struct m0_clink *clink)
+{
+	struct rpc_at_bulk   *atbulk = M0_AMB(atbulk, clink, ac_clink);
+	struct m0_rpc_at_buf *atbuf  = atbulk->ac_atbuf;
+
+	atbuf->u.ab_rep.abr_rc = atbulk->ac_bulk.rb_rc;
+	m0_clink_del(clink);
+	m0_clink_fini(clink);
+	atbulk->ac_ast.sa_cb = rpc_at_ssend_ast_cb;
+	m0_sm_ast_post(&atbulk->ac_user_fom->fo_loc->fl_group, &atbulk->ac_ast);
+	return true;
+}
+
 static int rpc_at_bulk_ssend(struct m0_rpc_at_buf *in,
 			     struct m0_rpc_at_buf *out,
 			     struct m0_buf        *buf,
@@ -244,6 +342,7 @@ static int rpc_at_bulk_ssend(struct m0_rpc_at_buf *in,
 	uint64_t                segs_nr;
 	m0_bcount_t             seg_size;
 	m0_bcount_t             blen = buf->b_nob;
+	struct m0_clink        *clink = &atbulk->ac_clink;
 	int                     i;
 	int                     rc;
 
@@ -262,72 +361,28 @@ static int rpc_at_bulk_ssend(struct m0_rpc_at_buf *in,
 			blen -= seg_size;
 		}
 
-		m0_mutex_lock(&rbulk->rb_mutex);
-		m0_fom_wait_on(fom, &rbulk->rb_chan, &fom->fo_cb);
-		m0_mutex_unlock(&rbulk->rb_mutex);
+		m0_clink_init(clink, rpc_at_ssend_complete_cb);
+		m0_clink_add_lock(&rbulk->rb_chan, clink);
+		atbulk->ac_user_fom = fom;
 
 		rbuf->bb_nbuf->nb_qtype = M0_NET_QT_ACTIVE_BULK_SEND;
 		rc = m0_rpc_bulk_load(rbulk, fom_conn(fom), &in->u.ab_recv,
 			              &m0_rpc__buf_bulk_cb);
 		if (rc != 0) {
-			m0_mutex_lock(&rbulk->rb_mutex);
-			m0_fom_callback_cancel(&fom->fo_cb);
-			m0_mutex_unlock(&rbulk->rb_mutex);
+			m0_clink_del_lock(clink);
+			m0_clink_fini(clink);
 			m0_rpc_bulk_buflist_empty(rbulk);
+		} else {
+			/*
+			 * Store reference to the user buffer to free it when
+			 * transmission is complete.
+			 */
+			out->u.ab_extra.abr_user_buf = *buf;
 		}
 	}
 	if (rc != 0)
 		atbulk->ac_rc = M0_ERR(rc);
 	return M0_RC(rc);
-}
-
-static enum m0_net_queue_type rpc_at_bulk_qtype(struct m0_rpc_bulk *rbulk)
-{
-	struct m0_rpc_bulk_buf *rbuf;
-	enum m0_net_queue_type  ret;
-
-	M0_PRE(!m0_rpc_bulk_is_empty(rbulk));
-
-	m0_mutex_lock(&rbulk->rb_mutex);
-	rbuf = rpcbulk_tlist_head(&rbulk->rb_buflist);
-	ret = rbuf->bb_nbuf->nb_qtype;
-
-	/* Check that all elements have the same type. */
-	M0_ASSERT(m0_tl_forall(rpcbulk, rbuf, &rbulk->rb_buflist,
-			       rbuf->bb_nbuf->nb_qtype == ret));
-	m0_mutex_unlock(&rbulk->rb_mutex);
-	return ret;
-}
-
-static void rpc_at_bulk_store_del(struct m0_rpc_bulk *rbulk)
-{
-	struct m0_clink clink;
-
-	m0_clink_init(&clink, NULL);
-	m0_clink_add_lock(&rbulk->rb_chan, &clink);
-	m0_rpc_bulk_store_del(rbulk);
-	m0_chan_wait(&clink);
-	m0_clink_del_lock(&clink);
-	m0_clink_fini(&clink);
-}
-
-static void rpc_at_bulk_fini(struct rpc_at_bulk *atbulk)
-{
-	struct m0_rpc_bulk *rbulk = &atbulk->ac_bulk;
-
-	M0_PRE(atbulk != NULL);
-	M0_PRE(rbulk  != NULL);
-
-	if (!m0_rpc_bulk_is_empty(rbulk) &&
-	    M0_IN(rpc_at_bulk_qtype(rbulk), (M0_NET_QT_PASSIVE_BULK_SEND,
-			                     M0_NET_QT_PASSIVE_BULK_RECV)))
-		rpc_at_bulk_store_del(rbulk);
-	m0_rpc_bulk_buflist_empty(rbulk);
-	m0_rpc_bulk_fini(rbulk);
-	if (m0_buf_is_set(&atbulk->ac_recv))
-		m0_buf_free(&atbulk->ac_recv);
-	rpc_at_bulk_nb_free(atbulk);
-	m0_free(atbulk);
 }
 
 M0_INTERNAL int m0_rpc_at_blk_xt(const struct m0_xcode_obj   *par,
@@ -487,11 +542,7 @@ M0_INTERNAL int m0_rpc_at_reply(struct m0_rpc_at_buf *in,
 			out->ab_type = M0_RPC_AT_INLINE;
 			out->u.ab_buf = *repbuf;
 		} else {
-			/* Store repbuf to free it in m0_rpc_at_fini().
-			 * m0_rpc_at_reply_rc() will return error in this case,
-			 * don't remember the error here.
-			 */
-			out->u.ab_extra.abr_user_buf = *repbuf;
+			rc = M0_ERR(-EPROTO);
 		}
 	} else {
 		use_bulk = true;
@@ -502,11 +553,14 @@ M0_INTERNAL int m0_rpc_at_reply(struct m0_rpc_at_buf *in,
 		if (!m0_buf_is_set(repbuf))
 			rc = M0_ERR(-ENODATA);
 		if (rc == 0) {
-			out->u.ab_extra.abr_user_buf = *repbuf;
 			if (in != NULL && in->ab_type == M0_RPC_AT_BULK_RECV &&
 			    in->u.ab_recv.bdd_used >= repbuf->b_nob) {
-				rc = rpc_at_bulk_init(out, conn) ?:
+				rc = rpc_at_bulk_init(out, conn);
+				if (rc == 0) {
 				     rpc_at_bulk_ssend(in, out, repbuf, fom);
+				     if (rc != 0)
+					     rpc_at_bulk_fini(rpc_at_bulk(out));
+				}
 			} else {
 				rc = M0_ERR(-ENOMSG);
 			}
@@ -515,30 +569,31 @@ M0_INTERNAL int m0_rpc_at_reply(struct m0_rpc_at_buf *in,
 		out->u.ab_rep.abr_len = repbuf->b_nob;
 		result = rc == 0 ? M0_FSO_WAIT : M0_FSO_AGAIN;
 	}
+	if (rc != 0)
+		m0_buf_free(repbuf);
 	return result;
 }
 
 M0_INTERNAL int m0_rpc_at_reply_rc(struct m0_rpc_at_buf *out)
 {
-	struct rpc_at_bulk *atbulk = rpc_at_bulk(out);
-	int                 rc = 0;
+	int rc = 0;
 
 	M0_ASSERT(M0_IN(out->ab_type, (M0_RPC_AT_EMPTY,
 				       M0_RPC_AT_INLINE,
 				       M0_RPC_AT_BULK_REP)));
+	/*
+	 * AT bulk structure is already deallocated or wasn't ever allocated.
+	 * User calling m0_rpc_at_reply() shouldn't call m0_rpc_at_fini()
+	 * afterwards, so AT bulk structure should be de-allocated to not cause
+	 * memory leaks.
+	 */
+	M0_ASSERT(rpc_at_bulk(out) == NULL);
 
 	if (out->ab_type == M0_RPC_AT_EMPTY)
 		return M0_ERR(-EPROTO);
 
-	if (out->ab_type == M0_RPC_AT_BULK_REP) {
-		if (out->u.ab_rep.abr_rc == 0) {
-			M0_ASSERT(atbulk != NULL);
-			rc = atbulk->ac_rc ?:
-			     atbulk->ac_bulk.rb_rc;
-			out->u.ab_rep.abr_rc = rc;
-		}
+	if (out->ab_type == M0_RPC_AT_BULK_REP)
 		rc = out->u.ab_rep.abr_rc;
-	}
 	return M0_RC(rc);
 }
 

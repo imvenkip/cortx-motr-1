@@ -878,34 +878,12 @@ static int cas_fom_tick(struct m0_fom *fom0)
 M0_INTERNAL void (*cas__ut_cb_done)(struct m0_fom *fom);
 M0_INTERNAL void (*cas__ut_cb_fini)(struct m0_fom *fom);
 
-static void cas_at_reply_bufs_fini(struct m0_fom *fom0)
-{
-	struct m0_cas_rep    *rep;
-	struct m0_rpc_at_buf *key;
-	struct m0_rpc_at_buf *val;
-	uint64_t              i;
-
-	if (cas_in_ut())
-		return;
-
-	rep = m0_fop_data(fom0->fo_rep_fop);
-	for (i = 0; i < rep->cgr_rep.cr_nr; i++) {
-		key = &rep->cgr_rep.cr_rec[i].cr_key;
-		val = &rep->cgr_rep.cr_rec[i].cr_val;
-		if (m0_rpc_at_is_set(key))
-			cas_at_fini(key);
-		if (m0_rpc_at_is_set(val))
-			cas_at_fini(val);
-	}
-}
-
 static void cas_fom_fini(struct m0_fom *fom0)
 {
 	struct cas_fom *fom = M0_AMB(fom, fom0, cf_fom);
 
 	if (cas_in_ut() && cas__ut_cb_done != NULL)
 		cas__ut_cb_done(fom0);
-	cas_at_reply_bufs_fini(fom0);
 	m0_long_lock_link_fini(&fom->cf_meta);
 	m0_long_lock_link_fini(&fom->cf_lock);
 	m0_fom_fini(fom0);
@@ -1301,7 +1279,10 @@ static int cas_done(struct cas_fom *fom, struct m0_cas_op *op,
 		cas_at_fini(&rec->cr_key);
 		cas_at_fini(&rec->cr_val);
 	}
-	/* Buffers are deallocated in cas_at_reply_bufs_fini(). */
+	/*
+	 * Out buffers are passed to RPC AT layer. They will be deallocated
+	 * automatically as part of a reply FOP.
+	 */
 	fom->cf_out_key = M0_BUF_INIT0;
 	fom->cf_out_val = M0_BUF_INIT0;
 

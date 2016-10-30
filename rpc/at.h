@@ -181,13 +181,11 @@
  *                 rc = m0_rpc_at_reply_rc(&fom->fo_rep_fop->rep_ab);
  *         }
  * }
- *
- * foo_fini(fom) {
- *         m0_rpc_at_fini(&fom->fo_rep_fop->rep_ab);
- *         m0_fom_fini(fom);
- *         ...
- * }
  * @endcode
+ *
+ * Note, that server shouldn't finalise RPC AT buffer that is used as the reply
+ * to the client request. The memory will be automatically de-allocated when
+ * a corresponding reply FOP is finalised.
  *
  * Forcing RPC bulk method on client side is required in case if maximum RPC
  * item size or inbulk threshold are configured differently on server and
@@ -239,6 +237,7 @@ struct m0_rpc_at_bulk_rep {
 } M0_XCA_RECORD;
 
 struct m0_rpc_at_extra {
+	/* This field is not used, it's neccessary for proper alignment only. */
 	struct m0_net_buf_desc_data  abr_desc;
 	struct rpc_at_bulk          *abr_bulk M0_XCA_OPAQUE("m0_rpc_at_blk_xt");
 	struct m0_buf                abr_user_buf;
