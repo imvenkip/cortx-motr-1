@@ -23,7 +23,6 @@
  * @defgroup ha-note HA notification
  *
  * TODO handle memory allocation failure in m0_ha_note_handler_add()
- * TODO remove m0_ha_session_get()
  *
  * @{
  */
@@ -52,19 +51,6 @@
 #include "ha/ha.h"              /* m0_ha_send */
 #include "mero/ha.h"            /* m0_mero_ha */
 
-M0_EXTERN void m0_ha__session_set(struct m0_rpc_session *session);
-
-M0_INTERNAL int m0_ha_state_init(struct m0_rpc_session *session)
-{
-	m0_ha__session_set(session);
-	return 0;
-}
-
-M0_INTERNAL void m0_ha_state_fini()
-{
-	m0_ha__session_set(NULL);
-}
-
 /**
  * @see: confc_fop_release()
  */
@@ -83,15 +69,13 @@ static bool note_invariant(const struct m0_ha_nvec *note, bool known)
 #undef N
 }
 
-M0_INTERNAL int m0_ha_state_get(struct m0_rpc_session *session,
-				struct m0_ha_nvec *note, struct m0_chan *chan)
+M0_INTERNAL int m0_ha_state_get(struct m0_ha_nvec *note, struct m0_chan *chan)
 {
 
 	uint64_t id_of_get;
 
-	M0_ENTRY("session=%p chan=%p "
-		 "note->nv_nr=%"PRIi32" note->nv_note[0].no_id="FID_F
-	         " note->nv_note[0].no_state=%u", session, chan, note->nv_nr,
+	M0_ENTRY("chan=%p note->nv_nr=%"PRIi32" note->nv_note[0].no_id="FID_F
+	         " note->nv_note[0].no_state=%u", chan, note->nv_nr,
 	         FID_P(note->nv_nr > 0 ? &note->nv_note[0].no_id : &M0_FID0),
 	         note->nv_nr > 0 ? note->nv_note[0].no_state : 0);
 	M0_PRE(note_invariant(note, false));
@@ -102,11 +86,10 @@ M0_INTERNAL int m0_ha_state_get(struct m0_rpc_session *session,
 	return M0_RC(0);
 }
 
-M0_INTERNAL void m0_ha_state_set(struct m0_rpc_session *session,
-				 struct m0_ha_nvec *note)
+M0_INTERNAL void m0_ha_state_set(struct m0_ha_nvec *note)
 {
-	M0_ENTRY("session=%p note->nv_nr=%"PRIi32" note->nv_note[0].no_id="FID_F
-	         " note->nv_note[0].no_state=%u", session, note->nv_nr,
+	M0_ENTRY("note->nv_nr=%"PRIi32" note->nv_note[0].no_id="FID_F
+	         " note->nv_note[0].no_state=%u", note->nv_nr,
 	         FID_P(note->nv_nr > 0 ? &note->nv_note[0].no_id : &M0_FID0),
 	         note->nv_nr > 0 ? note->nv_note[0].no_state : 0);
 	M0_PRE(note_invariant(note, true));
@@ -115,13 +98,9 @@ M0_INTERNAL void m0_ha_state_set(struct m0_rpc_session *session,
 
 M0_INTERNAL void m0_ha_local_state_set(struct m0_ha_nvec *nvec)
 {
-	struct m0_rpc_session *rpc_ssn;
-
 	if (M0_FI_ENABLED("no_ha"))
 		return;
-	rpc_ssn = m0_ha_session_get();
-	if (rpc_ssn != NULL)
-		m0_ha_state_set(rpc_ssn, nvec);
+	m0_ha_state_set(nvec);
 }
 
 static void ha_state_single_fop_data_free(struct m0_fop *fop)
@@ -147,8 +126,7 @@ struct m0_rpc_item_ops ha_ri_ops = {
 	.rio_replied = ha_state_single_replied,
 };
 
-M0_INTERNAL void m0_ha_state_single_post(struct m0_rpc_session *session,
-					 struct m0_ha_nvec     *nvec)
+M0_INTERNAL void m0_ha_state_single_post(struct m0_ha_nvec *nvec)
 {
 	M0_ENTRY();
 	M0_PRE(nvec != NULL);

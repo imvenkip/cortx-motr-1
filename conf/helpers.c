@@ -671,8 +671,7 @@ M0_INTERNAL int m0_conf_process2service_get(struct m0_confc *confc,
 
 /* --------------------------------- >8 --------------------------------- */
 
-M0_INTERNAL int m0_conf_objs_ha_update(struct m0_rpc_session *ha_sess,
-				       struct m0_ha_nvec     *nvec)
+M0_INTERNAL int m0_conf_objs_ha_update(struct m0_ha_nvec *nvec)
 {
 	struct m0_mutex chan_lock;
 	struct m0_chan  chan;
@@ -685,7 +684,7 @@ M0_INTERNAL int m0_conf_objs_ha_update(struct m0_rpc_session *ha_sess,
 	m0_clink_init(&clink, NULL);
 	m0_clink_add_lock(&chan, &clink);
 
-	rc = m0_ha_state_get(ha_sess, nvec, &chan);
+	rc = m0_ha_state_get(nvec, &chan);
 	if (rc == 0) {
 		/*
 		 * m0_ha_state_get() sends a fop to HA service caller.
@@ -702,8 +701,7 @@ M0_INTERNAL int m0_conf_objs_ha_update(struct m0_rpc_session *ha_sess,
 	return M0_RC(rc);
 }
 
-M0_INTERNAL int m0_conf_obj_ha_update(struct m0_rpc_session *ha_sess,
-				      const struct m0_fid   *obj_fid)
+M0_INTERNAL int m0_conf_obj_ha_update(const struct m0_fid *obj_fid)
 {
 	struct m0_ha_note note = {
 		.no_id    = *obj_fid,
@@ -711,7 +709,7 @@ M0_INTERNAL int m0_conf_obj_ha_update(struct m0_rpc_session *ha_sess,
 	};
 	struct m0_ha_nvec nvec = { 1, &note };
 
-	return M0_RC(m0_conf_objs_ha_update(ha_sess, &nvec));
+	return M0_RC(m0_conf_objs_ha_update(&nvec));
 }
 
 static void __ha_nvec_reset(struct m0_ha_nvec *nvec, int32_t total)
@@ -722,8 +720,7 @@ static void __ha_nvec_reset(struct m0_ha_nvec *nvec, int32_t total)
 	nvec->nv_nr = min32(total, M0_HA_STATE_UPDATE_LIMIT);
 }
 
-M0_INTERNAL int m0_conf_confc_ha_update(struct m0_rpc_session *ha_sess,
-					struct m0_confc       *confc)
+M0_INTERNAL int m0_conf_confc_ha_update(struct m0_confc *confc)
 {
 	struct m0_conf_cache *cache = &confc->cc_cache;
 	struct m0_conf_obj   *obj;
@@ -754,7 +751,7 @@ M0_INTERNAL int m0_conf_confc_ha_update(struct m0_rpc_session *ha_sess,
 		nvec.nv_note[i].no_id = obj->co_id;
 		nvec.nv_note[i++].no_state = M0_NC_UNKNOWN;
 		if (nvec.nv_nr == i) {
-			rc = m0_conf_objs_ha_update(ha_sess, &nvec);
+			rc = m0_conf_objs_ha_update(&nvec);
 			if (rc != 0)
 				break;
 			total -= nvec.nv_nr;

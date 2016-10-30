@@ -56,7 +56,7 @@ static void spiel_ci_ut_ha_state_set(const struct m0_fid *fid, uint32_t state)
 	struct m0_ha_note note = { .no_id = *fid, .no_state = state };
 	struct m0_ha_nvec nvec = { .nv_nr = 1, .nv_note = &note };
 
-	m0_ha_state_set(m0_ha_session_get(), &nvec);
+	m0_ha_state_set(&nvec);
 }
 
 static void test_spiel_service_cmds(void)

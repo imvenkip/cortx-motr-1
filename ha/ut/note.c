@@ -50,7 +50,6 @@ static const struct m0_fid conf_obj_id_fs = M0_FID_TINIT('f', 2, 1);
 
 static struct m0_net_xprt    *xprt = &m0_net_lnet_xprt;
 static struct m0_net_domain   client_net_dom;
-static struct m0_rpc_session *session;
 struct m0_conf_filesystem    *fs;
 
 enum {
@@ -263,12 +262,12 @@ static void test_ha_state_set_and_get(void)
 
 	local_confc_init(&confc);
 	m0_ha_client_add(&confc);
-	m0_ha_state_set(session, &nvec);
+	m0_ha_state_set(&nvec);
 
 	n1[0].no_state = M0_NC_UNKNOWN;
 	n1[1].no_state = M0_NC_UNKNOWN;
 	n1[2].no_state = M0_NC_UNKNOWN;
-	rc = m0_ha_state_get(session, &nvec, &chan);
+	rc = m0_ha_state_get(&nvec, &chan);
 	M0_UT_ASSERT(rc == 0);
 	m0_chan_wait(&clink);
 	m0_ha_state_accept(&nvec);
@@ -327,7 +326,7 @@ static void ha_ut_conf_init(struct m0_reqh *reqh, struct m0_ha_nvec *nvec)
 	M0_UT_ASSERT(rc == 0);
 	local_confc_init(confc);
 	m0_ha_client_add(confc);
-	m0_ha_state_set(session, nvec);
+	m0_ha_state_set(nvec);
 
 	rc = m0_conf_fs_get(&reqh->rh_profile, confc, &fs);
 	M0_UT_ASSERT(rc == 0);
@@ -595,12 +594,11 @@ static void test_poolversion_get(void)
 static void test_ha_session_states(void)
 {
 	struct m0_reqh    *reqh = &sctx.rsx_mero_ctx.cc_reqh_ctx.rc_reqh;
-	struct m0_rconfc      *cl_rconfc = &cctx.rcx_reqh.rh_rconfc;
-	struct m0_fid          fid       = M0_FID_TINIT('s', 1, 9);
-	struct m0_rpc_session  session;
-	struct m0_ha_note      note = { .no_id = fid, .no_state = M0_NC_FAILED};
-	struct m0_ha_nvec      nvec = { .nv_nr = 1, .nv_note = &note};
-	int                    rc;
+	struct m0_rconfc  *cl_rconfc = &cctx.rcx_reqh.rh_rconfc;
+	struct m0_fid      fid       = M0_FID_TINIT('s', 1, 9);
+	struct m0_ha_note  note = { .no_id = fid, .no_state = M0_NC_FAILED};
+	struct m0_ha_nvec  nvec = { .nv_nr = 1, .nv_note = &note};
+	int                rc;
 
 	rc = m0_rconfc_init(cl_rconfc, m0_locality0_get()->lo_grp,
 			    &cctx.rcx_rpc_machine, NULL, NULL);
@@ -612,10 +610,7 @@ static void test_ha_session_states(void)
 	rc = m0_rpc_conn_ha_subscribe(&cctx.rcx_connection, &fid);
 	M0_UT_ASSERT(rc == 0);
 
-	/* Test: HA state is accepted when there is an initialised session */
-	m0_rpc_session_init(&session, &cctx.rcx_connection);
 	m0_ha_state_accept(&nvec);
-	m0_rpc_session_fini(&session);
 
 	m0_rpc_conn_ha_unsubscribe_lock(&cctx.rcx_connection);
 	m0_ha_client_del(&cl_rconfc->rc_confc);
@@ -636,7 +631,6 @@ static int ha_state_ut_init(void)
 
 	done_get_chan_init();
 	start_rpc_client_and_server();
-	session = &cctx.rcx_session;
         m0_fi_enable("pool_version_update", "no-pver-create");
 	return 0;
 }

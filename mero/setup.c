@@ -2297,7 +2297,6 @@ int m0_cs_start(struct m0_mero *cctx)
 {
 	struct m0_reqh_context    *rctx = &cctx->cc_reqh_ctx;
 	struct m0_reqh            *reqh = mero2reqh(cctx);
-	struct m0_rpc_session     *ha_session = m0_ha_session_get();
 	int                        rc;
 	struct m0_conf_filesystem *fs;
 
@@ -2335,7 +2334,7 @@ int m0_cs_start(struct m0_mero *cctx)
 	if (rc != 0)
 		goto error;
 
-	rc = gotsignal ? -EINTR : m0_conf_confc_ha_update(ha_session, m0_reqh2confc(reqh));
+	rc = gotsignal ? -EINTR : m0_conf_confc_ha_update(m0_reqh2confc(reqh));
 
 error:
 	if (gotsignal)

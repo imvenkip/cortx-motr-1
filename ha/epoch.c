@@ -59,14 +59,8 @@ struct ha_client {
  * used for communication with HA.
  */
 struct ha_global {
-	/**
-	 * Session to be used instance-wide to communicate with HA.
-	 *
-	 * Accessible via m0_ha_session_get().
-	 */
-	struct m0_rpc_session *hg_session;
-	struct m0_tl           hg_clients;   /**< HA clients to be updated    */
-	struct m0_mutex        hg_guard;     /**< contexts list protection    */
+	struct m0_tl    hg_clients;   /**< HA clients to be updated    */
+	struct m0_mutex hg_guard;     /**< contexts list protection    */
 };
 
 M0_TL_DESCR_DEFINE(hg_client, "ha global clients list", static,
@@ -166,22 +160,6 @@ M0_INTERNAL void m0_ha_global_fini(void)
 	hg_client_tlist_fini(&hg->hg_clients);
 	m0_mutex_fini(&hg->hg_guard);
 	m0_free0(&hg);
-}
-
-M0_INTERNAL void m0_ha__session_set(struct m0_rpc_session *session)
-{
-	struct ha_global *hg = m0_get()->i_moddata[M0_MODULE_HA];
-
-	M0_PRE(hg != NULL);
-	hg->hg_session = session;
-}
-
-M0_INTERNAL struct m0_rpc_session *m0_ha_session_get(void)
-{
-	struct ha_global *hg = m0_get()->i_moddata[M0_MODULE_HA];
-
-	M0_PRE(hg != NULL);
-	return hg->hg_session;
 }
 
 static inline void ha_global_lock(struct ha_global *hg)

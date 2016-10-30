@@ -108,19 +108,9 @@
 /* export */
 struct m0_ha_note;
 struct m0_ha_nvec;
-struct m0_ha_msg;
 
 /* foward declaration */
-struct m0_confc;
 struct m0_conf_obj;
-struct m0_fop;
-struct m0_rpc_session;
-
-/** Intializes the notification interface. */
-M0_INTERNAL int m0_ha_state_init(struct m0_rpc_session *session);
-
-/** Finalizes the notification interface. */
-M0_INTERNAL void m0_ha_state_fini(void);
 
 /**
  * Enumeration of possible object states.
@@ -256,8 +246,7 @@ struct m0_ha_msg_nvec {
  * @pre m0_forall(i, note->nv_nr, note->nv_note[i].no_state == M0_NC_UNKNOWN &&
  *                                m0_conf_fid_is_valid(&note->nv_note[i].no_id))
  */
-M0_INTERNAL int m0_ha_state_get(struct m0_rpc_session *session,
-				struct m0_ha_nvec *note, struct m0_chan *chan);
+M0_INTERNAL int m0_ha_state_get(struct m0_ha_nvec *note, struct m0_chan *chan);
 /**
  * Notifies HA about tentative change in the failure state for a set of
  * objects.
@@ -284,8 +273,7 @@ M0_INTERNAL int m0_ha_state_get(struct m0_rpc_session *session,
  *    ergo(M0_IN(note->nv_note[i].no_state, (M0_NC_REPAIR, M0_NC_REBALANCE)),
  *         m0_conf_fid_type(&note->nv_note[i].no_id) == &M0_CONF_POOL_TYPE))
  */
-M0_INTERNAL void m0_ha_state_set(struct m0_rpc_session *session,
-				 struct m0_ha_nvec *note);
+M0_INTERNAL void m0_ha_state_set(struct m0_ha_nvec *note);
 /**
  * Notify local HA about state of configuration objects.
  */
@@ -293,12 +281,8 @@ M0_INTERNAL void m0_ha_local_state_set(struct m0_ha_nvec *nvec);
 
 /**
  * Asynchronous version of m0_ha_state_set() intended for posting single state.
- *
- * To comply with m0_rpc__post_locked():
- * @pre m0_rpc_machine_is_locked(session_machine(session));
  */
-M0_INTERNAL void m0_ha_state_single_post(struct m0_rpc_session *session,
-					 struct m0_ha_nvec     *nvec);
+M0_INTERNAL void m0_ha_state_single_post(struct m0_ha_nvec     *nvec);
 /**
  * Incorporates received failure state changes in the cache of every confc
  * instance registered with the global HA context (see m0_ha_client_add()).
@@ -330,8 +314,6 @@ M0_INTERNAL void m0_ha_state_single_post(struct m0_rpc_session *session,
  * in the course of iterating global HA context client list.
  */
 M0_INTERNAL void m0_ha_state_accept(const struct m0_ha_nvec *note);
-
-M0_INTERNAL struct m0_rpc_session *m0_ha_session_get(void);
 
 M0_INTERNAL void m0_conf_ha_callback(struct m0_conf_obj *obj);
 

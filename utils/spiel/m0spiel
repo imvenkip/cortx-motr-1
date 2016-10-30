@@ -187,7 +187,6 @@ class SpielWrapper:
     def spiel_fini(self):
         self.mero.m0_spiel_fini(self.spiel)
         self.__free(self.spiel)
-        self.mero.m0_ha_state_fini()
         self.mero.m0_sns_cm_repair_trigger_fop_fini()
         self.mero.m0_sns_cm_rebalance_trigger_fop_fini()
         self.mero.m0_mero_ha_disconnect(self.mha)

@@ -117,10 +117,7 @@ struct m0_rpc_item;
  * Also, the consumer using rconfc doesn't provide any confd addresses
  * explicitly. The list of confd servers and other related information is
  * centralised and is maintained by HA service. Rconfc queries this information
- * on startup using global HA session (via m0_ha_session_get()). Active global
- * HA session is a prerequisite for rconfc initialisation. It is assumed that HA
- * session is established to local HA agent and HA agent endpoint uniquely
- * identifies mero cluster configuration.
+ * on startup.
  *
  * Example:
  *
@@ -415,8 +412,7 @@ M0_INTERNAL int m0_rconfc_init(struct m0_rconfc      *rconfc,
 
 /**
  * Rconfc starts with obtaining all necessary information (cluster "entry
- * point") from HA service. Global HA session is used (m0_ha_session_get()), so
- * it should be set-up before rconfc start.
+ * point") from HA service.
  *
  * Rconfc continues with election, where allocated confc instances poll
  * corresponding confd for configuration version number they currently run. At

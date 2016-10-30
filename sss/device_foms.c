@@ -424,8 +424,7 @@ static int sss_device_fom_disk_ha_state_get(struct m0_fom *fom)
 	dfom = container_of(fom, struct m0_sss_dfom, ssm_fom);
 	disk_fid = &m0_sss_fop_to_dev_req(fom->fo_fop)->ssd_fid;
 	sss_device_fom_ha_init(dfom, disk_fid);
-	rc = m0_ha_state_get(m0_ha_session_get(), &dfom->ssm_ha.nvec,
-			     &dfom->ssm_ha.chan);
+	rc = m0_ha_state_get(&dfom->ssm_ha.nvec, &dfom->ssm_ha.chan);
 	if (rc != 0)
 		sss_device_fom_ha_fini(dfom);
 	return M0_RC(rc);

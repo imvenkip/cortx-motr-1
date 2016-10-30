@@ -1039,7 +1039,7 @@ static int rlock_ctx_creditor_setup(struct rlock_ctx *rlx,
 	rc = _confc_phony_cache_append(&rlx->rlc_parent->rc_phony, fid, &obj);
 	if (rc != 0)
 		return M0_ERR(rc);
-	rc = m0_conf_obj_ha_update(m0_ha_session_get(), fid);
+	rc = m0_conf_obj_ha_update(fid);
 	if (rc != 0)
 		goto conf_obj_del;
 	if (obj->co_ha_state == M0_NC_FAILED) {
@@ -1732,7 +1732,7 @@ static int rconfc_entrypoint_consume(struct m0_rconfc *rconfc,
 	rconfc_entrypoint_debug_print(hep);
 	rc = rconfc_herd_update(rconfc, hep->hae_confd_eps,
 				&hep->hae_confd_fids) ?:
-	     m0_conf_confc_ha_update(m0_ha_session_get(), &rconfc->rc_phony);
+	     m0_conf_confc_ha_update(&rconfc->rc_phony);
 
 	return M0_RC(rc);
 }

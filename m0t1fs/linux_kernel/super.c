@@ -886,7 +886,6 @@ err_pools_destroy:
 	m0_pools_destroy(&csb->csb_pools_common);
 err_pools_common_fini:
 	m0_pools_common_fini(&csb->csb_pools_common);
-	m0_ha_state_fini();
 err_conf_fs_close:
 	m0_confc_close(&fs->cf_obj);
 err_ha_client_del:

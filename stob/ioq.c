@@ -431,17 +431,15 @@ static void stob_ioq_notify_nvec(const struct m0_fid *conf_sdev)
 	struct m0_ha_note note;
 	struct m0_ha_nvec nvec;
 
-	if (m0_ha_session_get() != NULL) {
-		note = (struct m0_ha_note){
-			.no_id    = *conf_sdev,
-			.no_state = M0_NC_FAILED,
-		};
-		nvec = (struct m0_ha_nvec){
-			.nv_nr   = 1,
-			.nv_note = &note,
-		};
-		m0_ha_state_set(m0_ha_session_get(), &nvec);
-	}
+	note = (struct m0_ha_note){
+		.no_id    = *conf_sdev,
+		.no_state = M0_NC_FAILED,
+	};
+	nvec = (struct m0_ha_nvec){
+		.nv_nr   = 1,
+		.nv_note = &note,
+	};
+	m0_ha_state_set(&nvec);
 }
 
 /**

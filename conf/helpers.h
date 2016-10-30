@@ -201,14 +201,12 @@ M0_INTERNAL int m0_conf_process2service_get(struct m0_confc *confc,
  * @pre nvec->nv_nr <= M0_HA_STATE_UPDATE_LIMIT
  *
  */
-M0_INTERNAL int m0_conf_objs_ha_update(struct m0_rpc_session *ha_sess,
-				       struct m0_ha_nvec     *nvec);
+M0_INTERNAL int m0_conf_objs_ha_update(struct m0_ha_nvec *nvec);
 
 /**
  * @todo XXX RELOCATEME: This function belongs ha subsystem, not conf.
  */
-M0_INTERNAL int m0_conf_obj_ha_update(struct m0_rpc_session *ha_sess,
-				      const struct m0_fid   *obj_fid);
+M0_INTERNAL int m0_conf_obj_ha_update(const struct m0_fid *obj_fid);
 
 /**
  * @todo XXX RELOCATEME: This function belongs ha subsystem, not conf.
@@ -217,22 +215,6 @@ M0_INTERNAL int m0_conf_obj_ha_update(struct m0_rpc_session *ha_sess,
  * Fetches HA state of configuration objects from HA service and
  * updates local configuration cache.
  */
-M0_INTERNAL int m0_conf_confc_ha_update(struct m0_rpc_session *ha_sess,
-					struct m0_confc       *confc);
-
-/**
- * @todo XXX RELOCATEME: This function belongs ha subsystem, not conf.
- *
- * Update configuration objects ha state from ha service according to provided
- * HA note vector.
- *
- * The difference from m0_conf_ha_state_update() is dealing with an arbitrary
- * note vector. Client may fill in the vector following any logic that suits its
- * needs. All the status results which respective conf objects exist in the
- * provided confc instance cache will be applied to the cache.
- */
-M0_INTERNAL int m0_conf_ha_state_discover(struct m0_rpc_session *ha_sess,
-					  struct m0_ha_nvec     *nvec,
-					  struct m0_confc       *confc);
+M0_INTERNAL int m0_conf_confc_ha_update(struct m0_confc *confc);
 
 #endif /* __MERO_CONF_HELPERS_H__ */

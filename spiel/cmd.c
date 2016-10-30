@@ -1568,7 +1568,7 @@ static int spiel__proc_is_to_update_stats(const struct m0_fid *proc_fid,
 		 * There is no point to update process' HA state unless
 		 * the one is expected to host the required services.
 		 */
-		rc = m0_conf_obj_ha_update(m0_ha_session_get(), proc_fid);
+		rc = m0_conf_obj_ha_update(proc_fid);
 		if (rc != 0)
 			goto diter_fini;
 		*update = proc_obj->co_ha_state == M0_NC_ONLINE;
