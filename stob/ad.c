@@ -1088,7 +1088,13 @@ static void stob_ad_write_credit(const struct m0_stob_domain *dom,
 
 	if (ballroom->ab_ops->bo_alloc_credit != NULL)
 		ballroom->ab_ops->bo_alloc_credit(ballroom, bfrags, accum);
-	m0_be_emap_credit(&adom->sad_adata, M0_BEO_PASTE, frags, accum);
+
+	/*
+	 * XXX We don't know if MERO-2099 is triggered by miscalulating of
+	 * emap credit (BETREE_DELETE epecially). Adding one more extra credit
+	 * of 'emap paste' (that is frags + 1) to verify this idea.
+	 */
+	m0_be_emap_credit(&adom->sad_adata, M0_BEO_PASTE, frags + 1, accum);
 
 	if (adom->sad_overwrite && ballroom->ab_ops->bo_free_credit != NULL) {
 		/* for each emap_paste() seg_free() could be called 3 times */

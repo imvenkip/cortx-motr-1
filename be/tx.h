@@ -411,7 +411,8 @@ struct m0_be_tx_remid {
 	typeof(cr_user) cu = (cr_user);                                  \
 	typeof(credit)  cr = (credit);                                   \
 	cr->tc_balance[cu] += (n);                                       \
-	M0_LOG(M0_DEBUG, "cr=%p balance=%d", cr, cr->tc_balance[cu]);    \
+	M0_LOG(M0_DEBUG, "INC cr=%p user=%d balance=%d", cr, (int)cu,    \
+			 cr->tc_balance[cu]);                            \
 })
 
 /**
@@ -422,7 +423,8 @@ struct m0_be_tx_remid {
 #define M0_BE_CREDIT_DEC(cr_user, tx) ({                                 \
 	struct m0_be_tx_credit *cr = &(tx)->t_prepared;                  \
 	typeof(cr_user)         cu = (cr_user);                          \
-	M0_LOG(M0_DEBUG, "cr=%p balance=%d", cr, cr->tc_balance[cu]);    \
+	M0_LOG(M0_DEBUG, "DEC cr=%p user=%d balance=%d", cr, (int)cu,    \
+			 cr->tc_balance[cu]);                            \
 	M0_CNT_DEC(cr->tc_balance[cu]);                                  \
 })
 

@@ -220,13 +220,6 @@ M0_INTERNAL int m0_stob_punch(struct m0_stob *stob,
 	return M0_RC(rc);
 }
 
-M0_INTERNAL void m0_stob_write_credit(struct m0_stob_domain *dom,
-				      const struct m0_stob_io *io,
-				      struct m0_be_tx_credit *accum)
-{
-	dom->sd_ops->sdo_stob_write_credit(dom, io, accum);
-}
-
 M0_INTERNAL uint64_t m0_stob_dom_id_get(struct m0_stob *stob)
 {
 	return m0_stob_id_dom_id_get(m0_stob_id_get(stob));

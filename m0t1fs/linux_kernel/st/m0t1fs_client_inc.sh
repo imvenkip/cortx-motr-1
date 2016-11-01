@@ -134,9 +134,10 @@ bulkio_test()
 	local m0t1fs_mount_dir=$MERO_M0T1FS_MOUNT_DIR
 	local m0t1fs_file=$m0t1fs_mount_dir/1:23456
 	local unit_size=$1
-	local io_counts=$2
-	local mode=$3
-	local mountopt=$4
+	local io_size=$2
+	local io_counts=$3
+	local mode=$4
+	local mountopt=$5
 
 	mount_m0t1fs $m0t1fs_mount_dir "$mode,$mountopt" || return 1
 
@@ -227,24 +228,18 @@ io_combinations()
 	    do
 		io_size=`expr $io_size '*' $stripe_size`
 		io_size=${io_size}K
-		echo -n "Test: I/O for stripe = ${stripe_size}K," \
-		     "bs = $io_size, count = 1... "
-		bulkio_test $unit_size 1 $mode "" &>> $MERO_TEST_LOGFILE
-		if [ $? -ne "0" ]
-		then
-			return 1
-		fi
-		show_write_speed
 
-		# Multiple I/Os
-		echo -n "Test: I/O for stripe = ${stripe_size}K," \
-		     "bs = $io_size, count = 2... "
-		bulkio_test $unit_size 2 $mode "" &>> $MERO_TEST_LOGFILE
-		if [ $? -ne "0" ]
-		then
-			return 1
-		fi
-		show_write_speed
+		for io_count in 1 2
+		do
+			echo -n "Test: I/O for stripe = ${stripe_size}K," \
+			     "bs = $io_size, count = $io_count... "
+			bulkio_test $unit_size $io_size $io_count $mode "" &>> $MERO_TEST_LOGFILE
+			if [ $? -ne "0" ]
+			then
+				return 1
+			fi
+			show_write_speed
+		done
 	    done
 
 	done
@@ -505,16 +500,13 @@ rmw_test()
 		for io in 1 2 3 4 5 15 16 17 32
 		do
 			io_size=${io}K
-			echo -n "IORMW Test: I/O for unit ="\
-			     "${unit_size}K, bs = $io_size, count = 1... "
-			bulkio_test $unit_size 1 $mode $mountopt &>> $MERO_TEST_LOGFILE || return 1
-			show_write_speed
-
-			# Multiple I/O
-			echo -n "IORMW Test: I/O for unit ="\
-			   "${unit_size}K, bs = $io_size, count = 2... "
-			bulkio_test $unit_size 2 $mode $mountopt &>> $MERO_TEST_LOGFILE || return 1
-			show_write_speed
+			for io_count in 1 2
+			do
+				echo -n "IORMW Test: I/O for unit ="\
+				     "${unit_size}K, bs = $io_size, count = $io_count ... "
+				bulkio_test $unit_size $io_size $io_count $mode $mountopt &>> $MERO_TEST_LOGFILE || return 1
+				show_write_speed
+			done
 		done
 	done
 
@@ -810,8 +802,31 @@ m0t1fs_big_bs_io_test()
 	return $rc
 }
 
+m0t1fs_test_MERO_2099()
+{
+	local rc=0
+	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR || rc=1
+
+	for i in 0:00{0..9}{0..1}; do
+		m0t1fs_file=$MERO_M0T1FS_MOUNT_DIR/${i}
+		touch_file $m0t1fs_file 8192 && run "dd if=/dev/zero of=$m0t1fs_file bs=200M count=1" || rc=1
+	done
+	for i in 0:00{0..9}{0..1}; do
+		m0t1fs_file=$MERO_M0T1FS_MOUNT_DIR/${i}
+		rm -f $m0t1fs_file
+	done
+	unmount_and_clean
+	return $rc
+}
+
+
 m0t1fs_system_tests()
 {
+	m0t1fs_test_MERO_2099 || {
+		echo "Failed: MERO-2099."
+		return 1
+	}
+
 	file_creation_test $MAX_NR_FILES || {
 		echo "Failed: File creation test failed."
 		return 1
