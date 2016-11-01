@@ -57,6 +57,10 @@ M0_INTERNAL void m0_semaphore_up(struct m0_semaphore *semaphore);
  */
 M0_INTERNAL bool m0_semaphore_trydown(struct m0_semaphore *semaphore);
 
+/**
+ * Brings down the semaphore to 0.
+ */
+M0_INTERNAL void m0_semaphore_drain(struct m0_semaphore *semaphore);
 
 /**
    Returns the number of times a P-operation could be executed without blocking.

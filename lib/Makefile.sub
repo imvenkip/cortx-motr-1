@@ -78,6 +78,7 @@ mero_libmero_la_SOURCES += lib/assert.c \
                            lib/mutex.c \
                            lib/queue.c \
                            lib/refs.c \
+                           lib/semaphore.c \
                            lib/string.c \
                            lib/thread.c \
                            lib/thread_pool.c \

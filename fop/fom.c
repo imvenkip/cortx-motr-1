@@ -750,6 +750,11 @@ static void loc_handler_thread(struct m0_loc_thread *th)
 
 			m0_addb2_force(M0_MKTIME(5, 0));
 			/*
+			 * All foms that have been queued up in runqueue will be
+			 * executed, clearing their accumulation in semaphore.
+			 */
+			m0_semaphore_drain(&clink->cl_group->cl_wait);
+			/*
 			 * Check for a blocked thread that tries to unblock and
 			 * complete a phase transition.
 			 */

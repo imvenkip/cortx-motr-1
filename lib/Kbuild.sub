@@ -28,6 +28,7 @@ m0mero_objects += lib/assert.o \
                   lib/refs.o \
                   lib/string.o \
                   lib/string_xc.o \
+                  lib/semaphore.o \
                   lib/thread.o \
                   lib/time.o \
                   lib/timer.o \
