@@ -786,7 +786,7 @@ M0_INTERNAL void m0_xcode_union_close(struct m0_xcode_type *un)
 	struct m0_xcode_field *f;
 	size_t                 maxsize = 0;
 
-	M0_PRE(un->xct_aggr = M0_XA_UNION);
+	M0_PRE(un->xct_aggr == M0_XA_UNION);
 
 	for (i = 1; i < un->xct_nr; ++i) {
 		f = &un->xct_child[i];

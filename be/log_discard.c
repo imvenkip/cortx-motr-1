@@ -411,7 +411,7 @@ m0_be_log_discard_item_finished(struct m0_be_log_discard      *ld,
 	M0_LOG(M0_DEBUG, "ld=%p ldi=%p", ld, ldi);
 
 	be_log_discard_lock(ld);
-	M0_PRE(ldi->ldi_state = LDI_STARTING);
+	M0_PRE(ldi->ldi_state == LDI_STARTING);
 	ldi->ldi_time_finish = m0_time_now();
 	ldi->ldi_state = LDI_FINISHED;
 	be_log_discard_item_trydiscard(ld, ldi);
