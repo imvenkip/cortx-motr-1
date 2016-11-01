@@ -442,7 +442,7 @@ static void creq_item_prepare(const struct m0_cas_req      *req,
 	item->ri_deadline = M0_TIME_IMMEDIATELY;
 }
 
-static int cas_fop_send(struct m0_cas_req *req)
+static void cas_fop_send(struct m0_cas_req *req)
 {
 	struct m0_rpc_item *item;
 	int                 rc;
@@ -452,9 +452,8 @@ static int cas_fop_send(struct m0_cas_req *req)
 	item = cas_req_to_item(req);
 	creq_item_prepare(req, item, &cas_item_ops);
 	rc = m0_rpc_post(item);
-	if (rc == 0)
-		cas_req_state_set(req, CASREQ_INPROGRESS);
-	return M0_RC(rc);
+	M0_LOG(M0_NOTICE, "RPC post returned %d", rc);
+	cas_req_state_set(req, CASREQ_INPROGRESS);
 }
 
 static int creq_kv_buf_add(const struct m0_cas_req *req,
@@ -962,6 +961,8 @@ static void cas_req_replied_cb(struct m0_rpc_item *item)
 	struct m0_cas_req *req = item_to_cas_req(item);
 
 	M0_ENTRY();
+	if (M0_FI_ENABLED("send-failure"))
+		item->ri_error = -ENOTCONN;
 	if (item->ri_error == 0) {
 		M0_ASSERT(item->ri_reply != NULL);
 		req->ccr_reply_item = item->ri_reply;
@@ -972,9 +973,8 @@ static void cas_req_replied_cb(struct m0_rpc_item *item)
 		m0_rpc_item_get(item->ri_reply);
 		req->ccr_replied_ast.sa_cb = cas_req_replied_ast;
 		m0_sm_ast_post(cas_req_smgrp(req), &req->ccr_replied_ast);
-	} else {
+	} else
 		cas_req_failure_ast_post(req, item->ri_error);
-	}
 	M0_LEAVE();
 }
 
@@ -1049,10 +1049,11 @@ M0_INTERNAL int m0_cas_index_create(struct m0_cas_req   *req,
 	M0_PRE(m0_cas_req_is_locked(req));
 	(void)dtx;
 	rc = cas_index_op_prepare(req, indices, indices_nr, false, &op);
-	if (rc != 0)
-		return M0_ERR(rc);
-	creq_fop_init(req, &cas_put_fopt, op);
-	return M0_RC(cas_fop_send(req));
+	if (rc == 0) {
+		creq_fop_init(req, &cas_put_fopt, op);
+		cas_fop_send(req);
+	}
+	return M0_RC(rc);
 }
 
 static void cas_rep_copy(const struct m0_cas_req *req,
@@ -1089,10 +1090,11 @@ M0_INTERNAL int m0_cas_index_delete(struct m0_cas_req   *req,
 	M0_PRE(m0_cas_req_is_locked(req));
 	(void)dtx;
 	rc = cas_index_op_prepare(req, indices, indices_nr, false, &op);
-	if (rc != 0)
-		return M0_ERR(rc);
-	creq_fop_init(req, &cas_del_fopt, op);
-	return M0_RC(cas_fop_send(req));
+	if (rc == 0) {
+		creq_fop_init(req, &cas_del_fopt, op);
+		cas_fop_send(req);
+	}
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_cas_index_delete_rep(struct m0_cas_req       *req,
@@ -1115,10 +1117,11 @@ M0_INTERNAL int m0_cas_index_lookup(struct m0_cas_req   *req,
 	M0_PRE(req->ccr_sess != NULL);
 	M0_PRE(m0_cas_req_is_locked(req));
 	rc = cas_index_op_prepare(req, indices, indices_nr, true, &op);
-	if (rc != 0)
-		return M0_ERR(rc);
-	creq_fop_init(req, &cas_get_fopt, op);
-	return M0_RC(cas_fop_send(req));
+	if (rc == 0) {
+		creq_fop_init(req, &cas_get_fopt, op);
+		cas_fop_send(req);
+	}
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_cas_index_lookup_rep(struct m0_cas_req       *req,
@@ -1142,11 +1145,12 @@ M0_INTERNAL int m0_cas_index_list(struct m0_cas_req   *req,
 	M0_PRE(req->ccr_sess != NULL);
 	M0_PRE(m0_cas_req_is_locked(req));
 	rc = cas_index_op_prepare(req, start_fid, 1, false, &op);
-	if (rc != 0)
-		return M0_ERR(rc);
-	op->cg_rec.cr_rec[0].cr_rc = indices_nr;
-	creq_fop_init(req, &cas_cur_fopt, op);
-	return M0_RC(cas_fop_send(req));
+	if (rc == 0) {
+		op->cg_rec.cr_rec[0].cr_rc = indices_nr;
+		creq_fop_init(req, &cas_cur_fopt, op);
+		cas_fop_send(req);
+	}
+	return M0_RC(rc);
 }
 
 static int cas_next_rc(int64_t service_rc)
@@ -1249,10 +1253,11 @@ M0_INTERNAL int m0_cas_put(struct m0_cas_req      *req,
 
 	(void)dtx;
 	rc = cas_records_op_prepare(req, index, keys, values, flags, &op);
-	if (rc != 0)
-		return M0_ERR(rc);
-	creq_fop_init(req, &cas_put_fopt, op);
-	return M0_RC(cas_fop_send(req));
+	if (rc == 0) {
+		creq_fop_init(req, &cas_put_fopt, op);
+		cas_fop_send(req);
+	}
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_cas_put_rep(struct m0_cas_req       *req,
@@ -1294,11 +1299,12 @@ M0_INTERNAL int m0_cas_get(struct m0_cas_req      *req,
 		op->cg_rec.cr_nr = i;
 		creq_recv_fini(&op->cg_rec);
 		creq_op_free(op);
-		return M0_ERR(rc);
+	} else {
+		req->ccr_keys = keys;
+		creq_fop_init(req, &cas_get_fopt, op);
+		cas_fop_send(req);
 	}
-	req->ccr_keys = keys;
-	creq_fop_init(req, &cas_get_fopt, op);
-	return M0_RC(cas_fop_send(req));
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_cas_get_rep(const struct m0_cas_req *req,
@@ -1339,13 +1345,14 @@ M0_INTERNAL int m0_cas_next(struct m0_cas_req *req,
 		flags |= COF_SLANT;
 
 	rc = cas_records_op_prepare(req, index, start_keys, NULL, flags, &op);
-	if (rc != 0)
-		return M0_ERR(rc);
-	for (i = 0; i < start_keys->ov_vec.v_nr; i++)
-		op->cg_rec.cr_rec[i].cr_rc = recs_nr[i];
-	req->ccr_keys = start_keys;
-	creq_fop_init(req, &cas_cur_fopt, op);
-	return M0_RC(cas_fop_send(req));
+	if (rc == 0) {
+		for (i = 0; i < start_keys->ov_vec.v_nr; i++)
+			op->cg_rec.cr_rec[i].cr_rc = recs_nr[i];
+		req->ccr_keys = start_keys;
+		creq_fop_init(req, &cas_cur_fopt, op);
+		cas_fop_send(req);
+	}
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_cas_rep_mlock(const struct m0_cas_req *req,
@@ -1388,10 +1395,11 @@ M0_INTERNAL int m0_cas_del(struct m0_cas_req *req,
 
 	(void)dtx;
 	rc = cas_records_op_prepare(req, index, keys, NULL, 0, &op);
-	if (rc != 0)
-		return M0_ERR(rc);
-	creq_fop_init(req, &cas_del_fopt, op);
-	return M0_RC(cas_fop_send(req));
+	if (rc == 0) {
+		creq_fop_init(req, &cas_del_fopt, op);
+		cas_fop_send(req);
+	}
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_cas_del_rep(struct m0_cas_req       *req,
