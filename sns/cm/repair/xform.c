@@ -235,9 +235,10 @@ M0_INTERNAL int m0_sns_cm_repair_cp_xform(struct m0_cm_cp *cp)
 	scp = cp2snscp(cp);
 	sns_ag = ag2snsag(ag);
 	rag = sag2repairag(sns_ag);
-	M0_ASSERT(M0_IN(rag->rag_math.pmi_parity_algo,
-			(M0_PARITY_CAL_ALGO_XOR,
-			 M0_PARITY_CAL_ALGO_REED_SOLOMON)));
+	M0_ASSERT_INFO(M0_IN(rag->rag_math.pmi_parity_algo,
+			     (M0_PARITY_CAL_ALGO_XOR,
+			      M0_PARITY_CAL_ALGO_REED_SOLOMON)),
+		       "parity_algo=%d", (int)rag->rag_math.pmi_parity_algo);
 
 	m0_cm_ag_lock(ag);
 	M0_LOG(M0_DEBUG, "xform: id=["M0_AG_F"] local_cp_nr=[%lu]"
