@@ -61,6 +61,7 @@ enum {
 	HA_MAX_RPCS_IN_FLIGHT = 2,
 	HA_DISCONNECT_TIMEOUT = 5,
 	HA_RESEND_INTERVAL    = 1,
+	HA_RECONNECT_INTERVAL = 1,
 	HA_NR_SENT_MAX        = 10,
 };
 
@@ -266,6 +267,7 @@ static void ha_link_conn_cfg_make(struct m0_ha_link_conn_cfg *hl_conn_cfg,
 		.hlcc_connect_timeout    = M0_TIME_NEVER,
 		.hlcc_disconnect_timeout = M0_MKTIME(HA_DISCONNECT_TIMEOUT, 0),
 		.hlcc_resend_interval    = M0_MKTIME(HA_RESEND_INTERVAL, 0),
+		.hlcc_reconnect_interval = M0_MKTIME(HA_RECONNECT_INTERVAL, 0),
 		.hlcc_nr_sent_max        = HA_NR_SENT_MAX,
 	};
 }

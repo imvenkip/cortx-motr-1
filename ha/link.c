@@ -219,8 +219,10 @@ M0_INTERNAL int m0_ha_link_init(struct m0_ha_link     *hl,
 	m0_mutex_init(&hl->hln_quiesce_chan_lock);
 	m0_chan_init(&hl->hln_quiesce_chan, &hl->hln_quiesce_chan_lock);
 	m0_clink_add_lock(&hl->hln_quiesce_chan, &hl->hln_quiesce_wait);
+	m0_sm_timer_init(&hl->hln_reconnect_wait_timer);
 	hl->hln_rpc_wait.cl_is_oneshot = true;
 	hl->hln_reconnect = false;
+	hl->hln_reconnect_wait = false;
 	hl->hln_reconnect_cfg_is_set = false;
 	hl->hln_waking_up = false;
 	hl->hln_fom_is_stopping = false;
@@ -232,6 +234,7 @@ M0_INTERNAL int m0_ha_link_init(struct m0_ha_link     *hl,
 M0_INTERNAL void m0_ha_link_fini(struct m0_ha_link *hl)
 {
 	M0_ENTRY("hl=%p", hl);
+	m0_sm_timer_fini(&hl->hln_reconnect_wait_timer);
 	m0_clink_del_lock(&hl->hln_quiesce_wait);
 	m0_chan_fini_lock(&hl->hln_quiesce_chan);
 	m0_mutex_fini(&hl->hln_quiesce_chan_lock);
@@ -1215,6 +1218,18 @@ static void ha_link_cb_disconnecting_reused(struct m0_ha_link *hl)
 	         hl, !!cb_disconnecting, !!cb_reused);
 }
 
+void ha_link_outgoing_reconnect_timeout(struct m0_sm_timer *timer)
+{
+	struct m0_ha_link *hl = container_of(timer, struct m0_ha_link,
+					     hln_reconnect_wait_timer);
+
+	m0_mutex_lock(&hl->hln_lock);
+	hl->hln_reconnect_wait = false;
+	m0_mutex_unlock(&hl->hln_lock);
+
+	ha_link_outgoing_fom_wakeup(hl);
+}
+
 static int ha_link_outgoing_fom_tick(struct m0_fom *fom)
 {
 	enum ha_link_outgoing_fom_state  phase;
@@ -1225,6 +1240,7 @@ static int ha_link_outgoing_fom_tick(struct m0_fom *fom)
 	bool                             stopping;
 	bool                             rpc_event_occurred;
 	bool                             reconnect;
+	bool                             reconnect_wait;
 	bool                             quiesced;
 	int                              reply_rc;
 	int                              rc;
@@ -1409,6 +1425,32 @@ static int ha_link_outgoing_fom_tick(struct m0_fom *fom)
 					M0_HA_LINK_STATE_LINK_FAILED);
 			m0_sm_state_set(&hl->hln_sm, M0_HA_LINK_STATE_IDLE);
 			m0_sm_group_unlock(&hl->hln_sm_group);
+
+			m0_mutex_lock(&hl->hln_lock);
+			hl->hln_reconnect_wait = true;
+			m0_mutex_unlock(&hl->hln_lock);
+
+			return M0_RC(M0_FSO_WAIT);
+		}
+		m0_mutex_lock(&hl->hln_lock);
+		reconnect_wait = hl->hln_reconnect_wait;
+		m0_mutex_unlock(&hl->hln_lock);
+		if (reconnect_wait) {
+			time_t rtime = hl->hln_conn_cfg.hlcc_reconnect_interval;
+			M0_LOG(M0_DEBUG, "link failed, reconnect wait case");
+			if (m0_sm_timer_is_armed(&hl->hln_reconnect_wait_timer))
+				return M0_RC(M0_FSO_WAIT);
+
+			M0_LOG(M0_DEBUG, "link failed, reconnect wait case "
+			       "armed");
+			m0_sm_timer_fini(&hl->hln_reconnect_wait_timer);
+			m0_sm_timer_init(&hl->hln_reconnect_wait_timer);
+			rc = m0_sm_timer_start(&hl->hln_reconnect_wait_timer,
+				       hl->hln_fom_locality->lo_grp,
+				       ha_link_outgoing_reconnect_timeout,
+				       m0_time_add(m0_time_now(), rtime));
+			M0_ASSERT_INFO(rc == 0, "hl->hln_reconnect_wait_timer "
+				       "failed to start, rc=%d", rc);
 			return M0_RC(M0_FSO_WAIT);
 		}
 		m0_mutex_lock(&hl->hln_lock);

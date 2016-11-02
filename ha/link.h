@@ -169,6 +169,7 @@ struct m0_ha_link_conn_cfg {
 	m0_time_t                 hlcc_connect_timeout;
 	m0_time_t                 hlcc_disconnect_timeout;
 	m0_time_t                 hlcc_resend_interval;
+	m0_time_t                 hlcc_reconnect_interval;
 	uint64_t                  hlcc_nr_sent_max;
 };
 
@@ -222,6 +223,8 @@ struct m0_ha_link {
 	bool                        hln_rpc_event_occurred;
 	bool                        hln_reconnect;
 	bool                        hln_reconnect_cfg_is_set;
+	bool                        hln_reconnect_wait;
+	struct m0_sm_timer          hln_reconnect_wait_timer;
 	int                         hln_rpc_rc;
 	/** It's protected by outgoing fom sm group lock */
 	int                         hln_reply_rc;
