@@ -28,10 +28,6 @@
 #include "dix/layout.h"    /* m0_dix_ldesc */
 
 /**
- * Experimental implementation of Clovis Index API by wrapping the mds
- * operations with a slim layer. This will be replaced by K-V store operations
- * when it is in place.
- *
  * A clovis index is a key-value store.
  *
  * An index stores records, each record consisting of a key and a value. Keys
@@ -49,18 +45,22 @@
  *     - DEL: given a set of keys, delete the matching records from the index;
  *
  *     - NEXT: given a set of keys, return the records with the next (in the
- *       ascending key order) keys from the index. (origin definition)
-
- *     - NEXT: given a start key and the number of K-V pair wanted, return the
- *       records with the next (in the ascending key order) keys from the index.
+ *       ascending key order) keys from the index.
  *
- * The clovis implementation guarantees that concurrent calls to the same index
- * are linearizable.
+ * @todo Currently, the user can specify only one start key for NEXT operation,
+ * not a set.
+ *
+ * Generally, the clovis implementation doesn't guarantee that concurrent calls
+ * to the same index are linearizable. But in some configurations there is such
+ * a guarantee, e.g. for non-distributed indices with Mero DIX service.
+ * See https://en.wikipedia.org/wiki/Linearizability.
  *
  * Clovis doesn't assume any relationship between index and container. A
  * container can have any number of indices and have to manage them itself.
- * In some cases,  multiple containers can even share index.
+ * In some cases, multiple containers can even share index.
  *
+ * Actual key-value storage functionality is provided by clovis index back-end
+ * service. All existing services are enumerated in m0_clovis_idx_service_type.
  */
 
 /** Imported. */
@@ -68,8 +68,20 @@ struct m0_clovis_op_idx;
 
 /** Types of index services supported by Clovis. */
 enum m0_clovis_idx_service_type {
+	/** Simple service without persistent storage. */
 	M0_CLOVIS_IDX_MOCK,
+	/**
+	 * Service based on Mero distributed indexing component.
+	 * Two types of indices are supported:
+	 * - distributed index, which is distributed over multiple storage
+	 *   devices and network nodes in the cluster for performance,
+	 *   scalability and fault tolerance.
+	 * - non-distributed index, which is stored on a single node. Clovis
+	 *   user can't choose the node, the first CAS service from Mero
+	 *   configuration is used.
+	 */
 	M0_CLOVIS_IDX_DIX,
+	/** Service using Cassandra database as persistent storage. */
 	M0_CLOVIS_IDX_CASS,
 	M0_CLOVIS_IDX_MAX_SERVICE_ID
 };
@@ -85,7 +97,7 @@ enum m0_clovis_op_idx_flags {
 
 /**
  * Query operations for an index service. The operations in this data
- * structure can be devided into 2 groups:
+ * structure can be divided into 2 groups:
  * (a) Operations over indices: iqo_namei_create/delete/lookup/list.
  * (b) Queries on a specific index: get/put/del/next, see the comments above for
  *     details.
@@ -120,7 +132,7 @@ struct m0_clovis_idx_service_ops {
 };
 
 /**
- * Clovis separates the definitions of index service ant its instances(ctx)
+ * Clovis separates the definitions of index service and its instances(ctx)
  * to allow a Clovis instance to have its own kind of index service.
  */
 struct m0_clovis_idx_service {
@@ -146,11 +158,13 @@ struct m0_idx_cass_config {
 	int   cc_max_column_family_num;
 };
 
-/** Configuration for Mero DIX (distributed indices) index back-end. */
+/**
+ * Configuration for Mero DIX (distributed indices) index service.
+ */
 struct m0_idx_dix_config {
 	/**
 	 * Indicates whether distributed index meta-data should be created in
-	 * file system during back-end initialisation. Meta-data is global for
+	 * file system during service initialisation. Meta-data is global for
 	 * the file system and normally is created during cluster provisioning,
 	 * so this flag is unset usually. Layouts of 'layout' and 'layout-descr'
 	 * indices are provided by kc_layout_ldesc and kc_ldescr_ldesc fields.

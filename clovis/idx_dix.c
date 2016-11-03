@@ -40,19 +40,20 @@
 
 #define OI_IFID(oi) (struct m0_fid *)&(oi)->oi_idx->in_entity.en_id
 
-static bool dixreq_clink_cb(struct m0_clink *cl);
-static bool dix_meta_req_clink_cb(struct m0_clink *cl);
-
+/**
+ * Instance of Mero DIX clovis index service.
+ */
 struct dix_inst {
+	/** Mero DIX client. */
 	struct m0_dix_cli di_dixc;
 	/**
 	 * Default mero pool version, where all distributed indices are created.
 	 */
 	/**
 	 * @todo This field is temporary. Clovis interface should be extended,
-	 * so user can define pool version for index. Use constant pool version
-	 * until this is done. Actually, this pool version equals to the one
-	 * used for root index, which is defined in filesystem configuration
+	 * so user can define pool version for an index. Use constant pool
+	 * version until this is done. Actually, this pool version equals to the
+	 * one used for root index, which is defined in filesystem configuration
 	 * object.
 	 */
 	struct m0_fid     di_index_pver;
@@ -67,10 +68,32 @@ struct dix_req {
 	 * It's allocated internally and key value is copied from user.
 	 */
 	struct m0_bufvec         idr_start_key;
+	/** DIX request to invoke operations against distributed indices. */
 	struct m0_dix_req        idr_dreq;
+	/** CAS request to invoke operations against non-distributed indices. */
+	struct m0_cas_req        idr_creq;
 	/** DIX meta-request for index list operation. */
 	struct m0_dix_meta_req   idr_mreq;
+	/**
+	 * Indicates that DIX meta-request idr_mreq is used instead of idr_dreq.
+	 * It's true for M0_CLOVIS_IC_LOOKUP and M0_CLOVIS_IC_LIST operations.
+	 */
+	bool                     idr_meta;
 };
+
+static bool dixreq_clink_cb(struct m0_clink *cl);
+static bool dix_meta_req_clink_cb(struct m0_clink *cl);
+static void dix_req_immed_failure(struct dix_req *req, int rc);
+static void dixreq_completed_post(struct dix_req *req, int rc);
+
+static bool idx_is_distributed(const struct m0_clovis_op_idx *oi)
+{
+	uint8_t ifid_type = m0_fid_tget(OI_IFID(oi));
+
+	M0_PRE(M0_IN(ifid_type, (m0_dix_fid_type.ft_id,
+				 m0_cas_index_fid_type.ft_id)));
+	return ifid_type == m0_dix_fid_type.ft_id;
+}
 
 static struct dix_inst *dix_inst(const struct m0_clovis_op_idx *oi)
 {
@@ -85,11 +108,350 @@ static struct m0_dix_cli *op_dixc(const struct m0_clovis_op_idx *oi)
 	return &dix_inst(oi)->di_dixc;
 }
 
+/*--------------------------------------------------------------------------*
+ *                  Non-distributed (CAS) indices routines                  *
+ *--------------------------------------------------------------------------*/
+/**
+ * @todo Currently, the implementation of non-distributed indices is very
+ * similar to the distributed indices implementation. This makes bug fixing more
+ * difficult: every error has to be fixed twice. To solve this issue the
+ * implementation should be generalised for both cases in this file. A
+ * non-distributed index should be treated as a special type of distributed
+ * index (with 1 component catalogue).
+ */
+static struct m0_reqh_service_ctx *svc_find(const struct m0_clovis_op_idx *oi)
+{
+	struct m0_clovis *m0c;
+
+	m0c = m0_clovis__entity_instance(oi->oi_oc.oc_op.op_entity);
+	return m0_tl_find(pools_common_svc_ctx, ctx,
+			  &m0c->m0c_pools_common.pc_svc_ctxs,
+			  ctx->sc_type == M0_CST_CAS);
+}
+
+static void cas_list_reply_copy(struct m0_cas_req *req,
+				int32_t           *rcs,
+				struct m0_bufvec  *bvec)
+{
+	uint64_t                  rep_count = m0_cas_req_nr(req);
+	struct m0_cas_ilist_reply rep;
+	uint64_t                  i;
+
+	/* Assertion is guaranteed by CAS client. */
+	M0_PRE(bvec->ov_vec.v_nr == rep_count);
+	for (i = 0; i < rep_count; i++) {
+		m0_cas_index_list_rep(req, i, &rep);
+		rcs[i] = rep.clr_rc;
+		if (rep.clr_rc == 0) {
+			/* User should allocate buffer of appropriate size */
+			M0_ASSERT(bvec->ov_vec.v_count[i] ==
+				  sizeof(struct m0_fid));
+			*(struct m0_fid *)bvec->ov_buf[i] = rep.clr_fid;
+		}
+	}
+}
+
+static void cas_get_reply_copy(struct m0_cas_req *req,
+			       int32_t           *rcs,
+			       struct m0_bufvec  *bvec)
+{
+	uint64_t                rep_count = m0_cas_req_nr(req);
+	struct m0_cas_get_reply rep;
+	uint64_t                i;
+
+	/* Assertion is guaranteed by CAS client. */
+	M0_PRE(bvec->ov_vec.v_nr >= rep_count);
+	for (i = 0; i < rep_count; i++) {
+		m0_cas_get_rep(req, i, &rep);
+		M0_ASSERT(bvec->ov_vec.v_count[i] == 0);
+		M0_ASSERT(bvec->ov_buf[i] == NULL);
+		rcs[i] = rep.cge_rc;
+		if (rep.cge_rc == 0) {
+			m0_cas_rep_mlock(req, i);
+			bvec->ov_vec.v_count[i] = rep.cge_val.b_nob;
+			bvec->ov_buf[i] = rep.cge_val.b_addr;
+		}
+	}
+}
+
+static void cas_next_reply_copy(struct m0_cas_req *req,
+				int32_t           *rcs,
+				struct m0_bufvec  *keys,
+				struct m0_bufvec  *vals)
+{
+	uint64_t                 rep_count = m0_cas_req_nr(req);
+	struct m0_cas_next_reply rep;
+	uint64_t                 i;
+
+	/* Assertions are guaranteed by CAS client. */
+	M0_PRE(keys->ov_vec.v_nr == rep_count);
+	M0_PRE(vals->ov_vec.v_nr >= rep_count);
+	for (i = 0; i < rep_count; i++) {
+		m0_cas_next_rep(req, i, &rep);
+		rcs[i] = rep.cnp_rc;
+		if (rep.cnp_rc == 0) {
+			m0_cas_rep_mlock(req, i);
+			keys->ov_vec.v_count[i] = rep.cnp_key.b_nob;
+			keys->ov_buf[i] = rep.cnp_key.b_addr;
+			vals->ov_vec.v_count[i] = rep.cnp_val.b_nob;
+			vals->ov_buf[i] = rep.cnp_val.b_addr;
+		}
+	}
+}
+
+static bool casreq_clink_cb(struct m0_clink *cl)
+{
+	struct dix_req          *dix_req = container_of(cl, struct dix_req,
+							idr_clink);
+	struct m0_clovis_op_idx *oi = dix_req->idr_oi;
+	struct m0_sm            *req_sm = container_of(cl->cl_chan,
+						       struct m0_sm, sm_chan);
+	struct m0_cas_req       *creq = container_of(req_sm, struct m0_cas_req,
+						    ccr_sm);
+	uint32_t                 state = creq->ccr_sm.sm_state;
+	struct m0_clovis_op     *op;
+	int                      rc;
+	struct m0_cas_rec_reply  rep;
+	uint64_t                 i;
+
+	if (!M0_IN(state, (CASREQ_FAILURE, CASREQ_FINAL)))
+		return false;
+
+	m0_clink_del(cl);
+	op = &oi->oi_oc.oc_op;
+
+	rc = m0_cas_req_generic_rc(creq);
+	if (rc == 0) {
+		/*
+		 * Response from CAS service is validated by CAS client,
+		 * including number of records in response.
+		 */
+		switch (op->op_code) {
+		case M0_CLOVIS_EO_CREATE:
+			M0_ASSERT(m0_cas_req_nr(creq) == 1);
+			m0_cas_index_create_rep(creq, 0, &rep);
+			rc = rep.crr_rc;
+			break;
+		case M0_CLOVIS_EO_DELETE:
+			M0_ASSERT(m0_cas_req_nr(creq) == 1);
+			m0_cas_index_delete_rep(creq, 0, &rep);
+			rc = rep.crr_rc;
+			break;
+		case M0_CLOVIS_IC_LOOKUP:
+			M0_ASSERT(m0_cas_req_nr(creq) == 1);
+			m0_cas_index_lookup_rep(creq, 0, &rep);
+			rc = rep.crr_rc;
+			break;
+		case M0_CLOVIS_IC_LIST:
+			cas_list_reply_copy(creq, oi->oi_rcs, oi->oi_keys);
+			break;
+		case M0_CLOVIS_IC_PUT:
+			for (i = 0; i < m0_cas_req_nr(creq); i++) {
+				m0_cas_put_rep(creq, 0, &rep);
+				oi->oi_rcs[i] = rep.crr_rc;
+			}
+			break;
+		case M0_CLOVIS_IC_GET:
+			cas_get_reply_copy(creq, oi->oi_rcs, oi->oi_vals);
+			break;
+		case M0_CLOVIS_IC_DEL:
+			for (i = 0; i < m0_cas_req_nr(creq); i++) {
+				m0_cas_del_rep(creq, 0, &rep);
+				oi->oi_rcs[i] = rep.crr_rc;
+			}
+			break;
+		case M0_CLOVIS_IC_NEXT:
+			cas_next_reply_copy(creq, oi->oi_rcs, oi->oi_keys,
+					    oi->oi_vals);
+			break;
+		default:
+			M0_IMPOSSIBLE("Invalid op code");
+		}
+	}
+
+	dixreq_completed_post(dix_req, rc);
+	return false;
+}
+
+static void cas_req_prepare(struct dix_req          *req,
+			    struct m0_cas_id        *cid,
+			    struct m0_clovis_op_idx *oi)
+{
+	cid->ci_fid = *OI_IFID(oi);
+	m0_clink_add(&req->idr_creq.ccr_sm.sm_chan, &req->idr_clink);
+}
+
+
+static void cas_index_create_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
+{
+	struct dix_req          *dix_req = ast->sa_datum;
+	struct m0_clovis_op_idx *oi = dix_req->idr_oi;
+	struct m0_cas_req       *creq = &dix_req->idr_creq;
+	struct m0_cas_id         cid = {};
+	int                      rc;
+
+	M0_ENTRY();
+	cas_req_prepare(dix_req, &cid, oi);
+	rc = m0_cas_index_create(creq, &cid, 1, NULL);
+	if (rc != 0)
+		dix_req_immed_failure(dix_req, M0_ERR(rc));
+	M0_LEAVE();
+}
+
+static void cas_index_delete_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
+{
+	struct dix_req          *dix_req = ast->sa_datum;
+	struct m0_clovis_op_idx *oi = dix_req->idr_oi;
+	struct m0_cas_req       *creq = &dix_req->idr_creq;
+	struct m0_cas_id         cid = {};
+	int                      rc;
+
+	M0_ENTRY();
+	cas_req_prepare(dix_req, &cid, oi);
+	rc = m0_cas_index_delete(creq, &cid, 1, NULL);
+	if (rc != 0)
+		dix_req_immed_failure(dix_req, M0_ERR(rc));
+	M0_LEAVE();
+}
+
+static void cas_index_lookup_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
+{
+	struct dix_req          *dix_req = ast->sa_datum;
+	struct m0_clovis_op_idx *oi = dix_req->idr_oi;
+	struct m0_cas_req       *creq = &dix_req->idr_creq;
+	struct m0_cas_id         cid = {};
+	int                      rc;
+
+	M0_ENTRY();
+	cas_req_prepare(dix_req, &cid, oi);
+	rc = m0_cas_index_lookup(creq, &cid, 1);
+	if (rc != 0)
+		dix_req_immed_failure(dix_req, M0_ERR(rc));
+	M0_LEAVE();
+}
+
+static void cas_index_list_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
+{
+	struct dix_req          *dix_req = ast->sa_datum;
+	struct m0_clovis_op_idx *oi = dix_req->idr_oi;
+	struct m0_cas_req       *creq = &dix_req->idr_creq;
+	int                      rc;
+
+	M0_ENTRY();
+	m0_clink_add(&creq->ccr_sm.sm_chan, &dix_req->idr_clink);
+	rc = m0_cas_index_list(creq, OI_IFID(oi), oi->oi_keys->ov_vec.v_nr);
+	if (rc != 0)
+		dix_req_immed_failure(dix_req, M0_ERR(rc));
+	M0_LEAVE();
+}
+
+static void cas_put_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
+{
+	struct dix_req          *dix_req = ast->sa_datum;
+	struct m0_clovis_op_idx *oi = dix_req->idr_oi;
+	struct m0_cas_id         idx;
+	struct m0_cas_req       *creq = &dix_req->idr_creq;
+	uint32_t                 flags = 0;
+	int                      rc;
+
+	M0_ENTRY();
+	cas_req_prepare(dix_req, &idx, oi);
+	if (oi->oi_flags & M0_OIF_OVERWRITE)
+		flags |= COF_OVERWRITE;
+	rc = m0_cas_put(creq, &idx, oi->oi_keys, oi->oi_vals, NULL, flags);
+	if (rc != 0)
+		dix_req_immed_failure(dix_req, M0_ERR(rc));
+	M0_LEAVE();
+}
+
+static void cas_get_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
+{
+	struct dix_req          *dix_req = ast->sa_datum;
+	struct m0_clovis_op_idx *oi = dix_req->idr_oi;
+	struct m0_cas_id         idx;
+	struct m0_cas_req       *creq = &dix_req->idr_creq;
+	int                      rc;
+
+	M0_ENTRY();
+	cas_req_prepare(dix_req, &idx, oi);
+	rc = m0_cas_get(creq, &idx, oi->oi_keys);
+	if (rc != 0)
+		dix_req_immed_failure(dix_req, M0_ERR(rc));
+	M0_LEAVE();
+}
+
+static void cas_del_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
+{
+	struct dix_req          *dix_req = ast->sa_datum;
+	struct m0_clovis_op_idx *oi = dix_req->idr_oi;
+	struct m0_cas_id         idx;
+	struct m0_cas_req       *creq = &dix_req->idr_creq;
+	int                      rc;
+
+	M0_ENTRY();
+	cas_req_prepare(dix_req, &idx, oi);
+	rc = m0_cas_del(creq, &idx, oi->oi_keys, NULL);
+	if (rc != 0)
+		dix_req_immed_failure(dix_req, M0_ERR(rc));
+	M0_LEAVE();
+}
+
+static void cas_next_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
+{
+	struct dix_req          *dix_req = ast->sa_datum;
+	struct m0_clovis_op_idx *oi = dix_req->idr_oi;
+	struct m0_cas_id         idx;
+	struct m0_cas_req       *creq = &dix_req->idr_creq;
+	m0_bcount_t              ksize;
+	struct m0_bufvec        *start_key = &dix_req->idr_start_key;
+	int                      rc;
+
+	M0_ENTRY();
+	cas_req_prepare(dix_req, &idx, oi);
+	/**
+	 * @todo Currently there is no way to pass several starting keys
+	 * along with number of consecutive records for each key through
+	 * m0_clovis_idx_op().
+	 */
+	ksize = oi->oi_keys->ov_vec.v_count[0];
+	if (ksize == 0) {
+		M0_ASSERT(oi->oi_keys->ov_buf[0] == NULL);
+		/*
+		 * Request records from the index beginning. Use the smallest
+		 * key (1-byte zero key).
+		 */
+		m0_bufvec_alloc(start_key, 1, sizeof(uint8_t));
+		*(uint8_t *)start_key->ov_buf[0] = 0;
+	} else {
+		m0_bufvec_alloc(start_key, 1, ksize);
+		memcpy(start_key->ov_buf[0], oi->oi_keys->ov_buf[0], ksize);
+	}
+	rc = m0_cas_next(creq, &idx, start_key, &oi->oi_keys->ov_vec.v_nr,
+			 true);
+	if (rc != 0)
+		dix_req_immed_failure(dix_req, M0_ERR(rc));
+	M0_LEAVE();
+}
+
+/*--------------------------------------------------------------------------*
+ *                    Distributed (DIX) indices routines                    *
+ *--------------------------------------------------------------------------*/
 static void dix_build(const struct m0_clovis_op_idx *oi,
 		      struct m0_dix                 *out)
 {
 	M0_SET0(out);
 	out->dd_fid = *OI_IFID(oi);
+}
+
+static void cas_req_init(struct dix_req          *req,
+			 struct m0_clovis_op_idx *oi)
+{
+	struct m0_reqh_service_ctx *svc;
+
+	svc = svc_find(oi);
+	M0_ASSERT(svc != NULL);
+	m0_cas_req_init(&req->idr_creq, &svc->sc_rlink.rlk_sess, oi->oi_sm_grp);
+	m0_clink_init(&req->idr_clink, casreq_clink_cb);
 }
 
 static int dix_mreq_create(struct m0_clovis_op_idx  *oi,
@@ -100,9 +462,16 @@ static int dix_mreq_create(struct m0_clovis_op_idx  *oi,
 	M0_ALLOC_PTR(req);
 	if (req == NULL)
 		return M0_ERR(-ENOMEM);
-	m0_dix_meta_req_init(&req->idr_mreq, op_dixc(oi), oi->oi_sm_grp);
-	m0_clink_init(&req->idr_clink, dix_meta_req_clink_cb);
+	if (idx_is_distributed(oi)) {
+		m0_dix_meta_req_init(&req->idr_mreq, op_dixc(oi),
+				     oi->oi_sm_grp);
+		m0_clink_init(&req->idr_clink, dix_meta_req_clink_cb);
+	} else {
+		cas_req_init(req, oi);
+	}
+
 	req->idr_oi = oi;
+	req->idr_meta = true;
 	*out = req;
 	return M0_RC(0);
 }
@@ -115,8 +484,13 @@ static int dix_req_create(struct m0_clovis_op_idx  *oi,
 
 	M0_ALLOC_PTR(req);
 	if (req != NULL) {
-		m0_dix_req_init(&req->idr_dreq, op_dixc(oi), oi->oi_sm_grp);
-		m0_clink_init(&req->idr_clink, dixreq_clink_cb);
+		if (idx_is_distributed(oi)) {
+			m0_dix_req_init(&req->idr_dreq, op_dixc(oi),
+					oi->oi_sm_grp);
+			m0_clink_init(&req->idr_clink, dixreq_clink_cb);
+		} else {
+			cas_req_init(req, oi);
+		}
 		req->idr_oi = oi;
 		*out = req;
 	} else
@@ -129,11 +503,14 @@ static void dix_req_destroy(struct dix_req *req)
 	M0_ENTRY();
 	m0_clink_fini(&req->idr_clink);
 	m0_bufvec_free(&req->idr_start_key);
-	if (M0_IN(req->idr_oi->oi_oc.oc_op.op_code,
-		  (M0_CLOVIS_IC_LIST, M0_CLOVIS_IC_LOOKUP)))
-		m0_dix_meta_req_fini(&req->idr_mreq);
-	else
-		m0_dix_req_fini(&req->idr_dreq);
+	if (idx_is_distributed(req->idr_oi)) {
+		if (req->idr_meta)
+			m0_dix_meta_req_fini(&req->idr_mreq);
+		else
+			m0_dix_req_fini(&req->idr_dreq);
+	} else {
+		m0_cas_req_fini(&req->idr_creq);
+	}
 	m0_free(req);
 	M0_LEAVE();
 }
@@ -187,7 +564,7 @@ static int dix_list_reply_copy(struct m0_dix_meta_req *req,
 	 */
 	for (i = rep_count; i < bvec->ov_vec.v_nr; i++)
 		rcs[i] = -ENOENT;
-	return rep_count > 0 ? M0_RC(0) : M0_ERR(-ENODATA);
+	return M0_RC(0);
 }
 
 static void dix_get_reply_copy(struct m0_dix_req *dreq,
@@ -256,6 +633,7 @@ static bool dix_meta_req_clink_cb(struct m0_clink *cl)
 
 	m0_clink_del(cl);
 	op = &oi->oi_oc.oc_op;
+	M0_ASSERT(dix_req->idr_meta);
 	M0_ASSERT(M0_IN(op->op_code,(M0_CLOVIS_IC_LIST, M0_CLOVIS_IC_LOOKUP)));
 	rc = m0_dix_meta_generic_rc(mreq) ?:
 		(op->op_code == M0_CLOVIS_IC_LIST) ?
@@ -369,21 +747,10 @@ static void dix_index_create_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 
 static bool dix_iname_args_are_valid(const struct m0_clovis_op_idx *oi)
 {
-	return m0_dix_fid_validate_dix(OI_IFID(oi));
-}
+	struct m0_fid *ifid = OI_IFID(oi);
 
-static int dix_index_create(struct m0_clovis_op_idx *oi)
-{
-	struct dix_req *req;
-	int             rc;
-
-	M0_ASSERT(dix_iname_args_are_valid(oi));
-
-	rc = dix_req_create(oi, &req);
-	if (rc != 0)
-		return M0_ERR(rc);
-	dix_req_exec(req, dix_index_create_ast);
-	return 1;
+	return idx_is_distributed(oi) ? m0_dix_fid_validate_dix(ifid) :
+		m0_fid_tget(ifid) == m0_cas_index_fid_type.ft_id;
 }
 
 static void dix_index_delete_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
@@ -403,19 +770,6 @@ static void dix_index_delete_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	M0_LEAVE();
 }
 
-static int dix_index_delete(struct m0_clovis_op_idx *oi)
-{
-	struct dix_req *req;
-	int             rc;
-
-	M0_ASSERT(dix_iname_args_are_valid(oi));
-	rc = dix_req_create(oi, &req);
-	if (rc != 0)
-		return M0_ERR(rc);
-	dix_req_exec(req, dix_index_delete_ast);
-	return 1;
-}
-
 static void dix_index_lookup_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
 	struct dix_req          *dix_req = ast->sa_datum;
@@ -429,19 +783,6 @@ static void dix_index_lookup_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	if (rc != 0)
 		dix_req_immed_failure(dix_req, M0_ERR(rc));
 	M0_LEAVE();
-}
-
-static int dix_index_lookup(struct m0_clovis_op_idx *oi)
-{
-	struct dix_req *req;
-	int             rc;
-
-	M0_ASSERT(dix_iname_args_are_valid(oi));
-	rc = dix_mreq_create(oi, &req);
-	if (rc != 0)
-		return M0_ERR(rc);
-	dix_req_exec(req, dix_index_lookup_ast);
-	return 1;
 }
 
 static void dix_index_list_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
@@ -459,19 +800,6 @@ static void dix_index_list_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	if (rc != 0)
 		dix_req_immed_failure(dix_req, M0_ERR(rc));
 	M0_LEAVE();
-}
-
-static int dix_index_list(struct m0_clovis_op_idx *oi)
-{
-	struct dix_req *req;
-	int             rc;
-
-	M0_ASSERT(dix_iname_args_are_valid(oi));
-	rc = dix_mreq_create(oi, &req);
-	if (rc != 0)
-		return M0_ERR(rc);
-	dix_req_exec(req, dix_index_list_ast);
-	return 1;
 }
 
 static void dix_dreq_prepare(struct dix_req          *req,
@@ -501,18 +829,6 @@ static void dix_put_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	M0_LEAVE();
 }
 
-static int dix_put(struct m0_clovis_op_idx *oi)
-{
-	struct dix_req *req;
-	int             rc;
-
-	rc = dix_req_create(oi, &req);
-	if (rc != 0)
-		return M0_ERR(rc);
-	dix_req_exec(req, dix_put_ast);
-	return 1;
-}
-
 static void dix_get_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
 	struct dix_req          *dix_req = ast->sa_datum;
@@ -529,23 +845,6 @@ static void dix_get_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	M0_LEAVE();
 }
 
-static int dix_get(struct m0_clovis_op_idx *oi)
-{
-	struct dix_req *req;
-	int             rc;
-
-	M0_ASSERT_INFO(oi->oi_keys->ov_vec.v_nr != 0,
-		       "At least one key should be specified");
-	M0_ASSERT_INFO(!m0_exists(i, oi->oi_keys->ov_vec.v_nr,
-			          oi->oi_keys->ov_buf[i] == NULL),
-		       "NULL key is not allowed");
-	rc = dix_req_create(oi, &req);
-	if (rc != 0)
-		return M0_ERR(rc);
-	dix_req_exec(req, dix_get_ast);
-	return 1;
-}
-
 static void dix_del_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
 	struct dix_req          *dix_req = ast->sa_datum;
@@ -560,18 +859,6 @@ static void dix_del_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	if (rc != 0)
 		dix_req_immed_failure(dix_req, M0_ERR(rc));
 	M0_LEAVE();
-}
-
-static int dix_del(struct m0_clovis_op_idx *oi)
-{
-	struct dix_req *req;
-	int             rc;
-
-	rc = dix_req_create(oi, &req);
-	if (rc != 0)
-		return M0_ERR(rc);
-	dix_req_exec(req, dix_del_ast);
-	return 1;
 }
 
 static void dix_next_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
@@ -610,6 +897,108 @@ static void dix_next_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	M0_LEAVE();
 }
 
+/*--------------------------------------------------------------------------*
+ *                          Index query operations                          *
+ *--------------------------------------------------------------------------*/
+
+static int dix_index_create(struct m0_clovis_op_idx *oi)
+{
+	struct dix_req *req;
+	int             rc;
+
+	M0_ASSERT(dix_iname_args_are_valid(oi));
+
+	rc = dix_req_create(oi, &req);
+	if (rc != 0)
+		return M0_ERR(rc);
+	dix_req_exec(req, idx_is_distributed(oi) ?
+			dix_index_create_ast : cas_index_create_ast);
+	return 1;
+}
+
+static int dix_index_delete(struct m0_clovis_op_idx *oi)
+{
+	struct dix_req *req;
+	int             rc;
+
+	M0_ASSERT(dix_iname_args_are_valid(oi));
+	rc = dix_req_create(oi, &req);
+	if (rc != 0)
+		return M0_ERR(rc);
+	dix_req_exec(req, idx_is_distributed(oi) ?
+			dix_index_delete_ast : cas_index_delete_ast);
+	return 1;
+}
+
+static int dix_index_lookup(struct m0_clovis_op_idx *oi)
+{
+	struct dix_req *req;
+	int             rc;
+
+	M0_ASSERT(dix_iname_args_are_valid(oi));
+	rc = dix_mreq_create(oi, &req);
+	if (rc != 0)
+		return M0_ERR(rc);
+	dix_req_exec(req, idx_is_distributed(oi) ?
+			dix_index_lookup_ast : cas_index_lookup_ast);
+	return 1;
+}
+
+static int dix_index_list(struct m0_clovis_op_idx *oi)
+{
+	struct dix_req *req;
+	int             rc;
+
+	M0_ASSERT(dix_iname_args_are_valid(oi));
+	rc = dix_mreq_create(oi, &req);
+	if (rc != 0)
+		return M0_ERR(rc);
+	dix_req_exec(req, idx_is_distributed(oi) ?
+			dix_index_list_ast : cas_index_list_ast);
+	return 1;
+}
+
+static int dix_put(struct m0_clovis_op_idx *oi)
+{
+	struct dix_req *req;
+	int             rc;
+
+	rc = dix_req_create(oi, &req);
+	if (rc != 0)
+		return M0_ERR(rc);
+	dix_req_exec(req, idx_is_distributed(oi) ? dix_put_ast : cas_put_ast);
+	return 1;
+}
+
+static int dix_get(struct m0_clovis_op_idx *oi)
+{
+	struct dix_req *req;
+	int             rc;
+
+	M0_ASSERT_INFO(oi->oi_keys->ov_vec.v_nr != 0,
+		       "At least one key should be specified");
+	M0_ASSERT_INFO(!m0_exists(i, oi->oi_keys->ov_vec.v_nr,
+			          oi->oi_keys->ov_buf[i] == NULL),
+		       "NULL key is not allowed");
+	rc = dix_req_create(oi, &req);
+	if (rc != 0)
+		return M0_ERR(rc);
+	dix_req_exec(req, idx_is_distributed(oi) ? dix_get_ast : cas_get_ast);
+	return 1;
+}
+
+static int dix_del(struct m0_clovis_op_idx *oi)
+{
+	struct dix_req *req;
+	int             rc;
+
+	rc = dix_req_create(oi, &req);
+	if (rc != 0)
+		return M0_ERR(rc);
+	dix_req_exec(req, idx_is_distributed(oi) ? dix_del_ast : cas_del_ast);
+	return 1;
+}
+
 static int dix_next(struct m0_clovis_op_idx *oi)
 {
 	struct dix_req *req;
@@ -618,7 +1007,7 @@ static int dix_next(struct m0_clovis_op_idx *oi)
 	rc = dix_req_create(oi, &req);
 	if (rc != 0)
 		return M0_ERR(rc);
-	dix_req_exec(req, dix_next_ast);
+	dix_req_exec(req, idx_is_distributed(oi) ? dix_next_ast : cas_next_ast);
 	return 1;
 }
 
@@ -634,8 +1023,8 @@ static struct m0_clovis_idx_query_ops dix_query_ops = {
 	.iqo_next         = dix_next,
 };
 
-/**-------------------------------------------------------------------------*
- *               Index backend Initialisation and Finalisation              *
+/*--------------------------------------------------------------------------*
+ *               Index back-end initialisation and finalisation             *
  *--------------------------------------------------------------------------*/
 
 static int dix_root_idx_pver(struct m0_clovis *m0c, struct m0_fid *out)

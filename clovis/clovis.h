@@ -683,6 +683,14 @@ struct m0_clovis_obj {
  *
  * An index can be iterated starting from a given key. Keys are ordered in the
  * lexicographical order of their bit-representations.
+ *
+ * Entity identifier in_entity::en_id format depends on index service type.
+ * M0_CLOVIS_IDX_MOCK and M0_CLOVIS_IDX_CASS services accept arbitrary
+ * identifiers. M0_CLOVIS_IDX_DIX service supports two types of indices:
+ * - distributed index, which is identified by well-formed mero fid having
+ *   m0_dix_fid_type type.
+ * - non-distributed index, which is identified by well-formed mero fid having
+ *   m0_cas_index_fid_type type.
  */
 struct m0_clovis_idx {
 	struct m0_clovis_entity in_entity;

@@ -163,14 +163,29 @@ static int *rcs_alloc(int count)
 	return rcs;
 }
 
-static void ut_dix_namei_ops(void)
+static uint8_t ifid_type(bool dist)
+{
+	return dist ? m0_dix_fid_type.ft_id : m0_cas_index_fid_type.ft_id;
+}
+
+static void general_ifid_fill(struct m0_fid *ifid, bool dist)
+{
+	*ifid = M0_FID_TINIT(ifid_type(dist), 2, 1);
+}
+
+static void zero_ifid_fill(struct m0_fid *ifid, bool dist)
+{
+	*ifid = M0_FID_TINIT(ifid_type(dist), 0, 0);
+}
+
+static void ut_dix_namei_ops(bool dist)
 {
 	struct m0_clovis_container realm;
 	struct m0_clovis_idx       idx;
 	struct m0_clovis_idx       idup;
 	struct m0_clovis_idx       idx0;
-	struct m0_fid              ifid = M0_FID_TINIT('x', 2, 1);
-	struct m0_fid              ifid0 = M0_FID_TINIT('x', 0, 0);
+	struct m0_fid              ifid;
+	struct m0_fid              ifid0;
 	struct m0_clovis_op       *op = NULL;
 	struct m0_bufvec           keys;
 	int                       *rcs;
@@ -179,6 +194,7 @@ static void ut_dix_namei_ops(void)
 	idx_dix_ut_init();
 	m0_clovis_container_init(&realm, NULL, &M0_CLOVIS_UBER_REALM, ut_m0c);
 
+	general_ifid_fill(&ifid, dist);
 	/* Create the index. */
 	m0_clovis_idx_init(&idx, &realm.co_realm, (struct m0_uint128 *)&ifid);
 	rc = m0_clovis_entity_create(&idx.in_entity, &op);
@@ -213,6 +229,7 @@ static void ut_dix_namei_ops(void)
 
 	/* List all indices (only one exists). */
 	rcs = rcs_alloc(2);
+	zero_ifid_fill(&ifid0, dist);
 	rc = m0_bufvec_alloc(&keys, 2, sizeof(struct m0_fid));
 	M0_UT_ASSERT(rc == 0);
 	m0_clovis_idx_init(&idx0, &realm.co_realm, (struct m0_uint128 *)&ifid0);
@@ -260,6 +277,16 @@ static void ut_dix_namei_ops(void)
 	idx_dix_ut_fini();
 }
 
+static void ut_dix_namei_ops_dist(void)
+{
+	ut_dix_namei_ops(true);
+}
+
+static void ut_dix_namei_ops_non_dist(void)
+{
+	ut_dix_namei_ops(false);
+}
+
 static uint64_t dix_key(uint64_t i)
 {
 	return 100 + i;
@@ -270,11 +297,11 @@ static uint64_t dix_val(uint64_t i)
 	return 100 + i * i;
 }
 
-static void ut_dix_record_ops(void)
+static void ut_dix_record_ops(bool dist)
 {
 	struct m0_clovis_container realm;
 	struct m0_clovis_idx       idx;
-	struct m0_fid              ifid = M0_FID_TINIT('x', 2, 1);
+	struct m0_fid              ifid;
 	struct m0_clovis_op       *op = NULL;
 	struct m0_bufvec           keys;
 	struct m0_bufvec           vals;
@@ -287,6 +314,7 @@ static void ut_dix_record_ops(void)
 	int                       *rcs;
 
 	idx_dix_ut_init();
+	general_ifid_fill(&ifid, dist);
 	m0_clovis_container_init(&realm, NULL, &M0_CLOVIS_UBER_REALM, ut_m0c);
 	m0_clovis_idx_init(&idx, &realm.co_realm, (struct m0_uint128 *)&ifid);
 
@@ -433,9 +461,9 @@ static void ut_dix_record_ops(void)
 	rc = m0_bufvec_empty_alloc(&keys, CNT + 1) ?:
 	     m0_bufvec_empty_alloc(&vals, CNT + 1);
 	M0_UT_ASSERT(rc == 0);
-	keys.ov_buf[0] = m0_alloc(sizeof(uint64_t));
+	cur_key = dix_key(0);
+	keys.ov_buf[0] = &cur_key;
 	keys.ov_vec.v_count[0] = sizeof(uint64_t);
-	*(uint64_t *)keys.ov_buf[0] = dix_key(0);
 	rc = m0_clovis_idx_op(&idx, M0_CLOVIS_IC_NEXT, &keys, &vals, rcs, 0,
 			      &op);
 	M0_UT_ASSERT(rc == 0);
@@ -490,9 +518,8 @@ static void ut_dix_record_ops(void)
 		     m0_bufvec_empty_alloc(&vals, 2);
 		M0_UT_ASSERT(rc == 0);
 		if (cur_key != 0) {
-			keys.ov_buf[0] = m0_alloc(sizeof(uint64_t));
+			keys.ov_buf[0] = &cur_key;
 			keys.ov_vec.v_count[0] = sizeof(uint64_t);
-			*(uint64_t *)keys.ov_buf[0] = cur_key;
 		} else {
 			/*
 			 * Pass NULL in order to request records starting from
@@ -564,15 +591,27 @@ static void ut_dix_record_ops(void)
 	idx_dix_ut_fini();
 }
 
+static void ut_dix_record_ops_dist(void)
+{
+	ut_dix_record_ops(true);
+}
+
+static void ut_dix_record_ops_non_dist(void)
+{
+	ut_dix_record_ops(false);
+}
+
 struct m0_ut_suite ut_suite_clovis_idx_dix = {
 	.ts_name   = "clovis-idx-dix",
 	.ts_owners = "Egor",
 	.ts_init   = NULL,
 	.ts_fini   = NULL,
 	.ts_tests  = {
-		{ "init-fini",        ut_dix_init_fini,              "Egor" },
-		{ "namei-ops",        ut_dix_namei_ops,              "Egor" },
-		{ "record-ops",       ut_dix_record_ops,             "Egor" },
+		{ "init-fini",           ut_dix_init_fini,             "Egor" },
+		{ "namei-ops-dist",      ut_dix_namei_ops_dist,        "Egor" },
+		{ "namei-ops-non-dist",  ut_dix_namei_ops_non_dist,    "Egor" },
+		{ "record-ops-dist",     ut_dix_record_ops_dist,       "Egor" },
+		{ "record-ops-non-dist", ut_dix_record_ops_non_dist,   "Egor" },
 		{ NULL, NULL }
 	}
 };

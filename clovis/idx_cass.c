@@ -38,7 +38,7 @@
  * index service, Cassandra driver should be able to make good use of its
  * advance features to achive good performance, load balance, scalability and
  * HA, we have the following requirements in mind:
- * (1) Clovis index interfac requires K-V pairs are sorted in order by keys,
+ * (1) Clovis index interface requires K-V pairs are sorted in order by keys,
  *     particularly for NEXT operation.
  *
  * (2) A Clovis application may use the index API in different ways, taking S3
