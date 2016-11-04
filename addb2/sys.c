@@ -337,20 +337,15 @@ int m0_addb2_sys_net_start_with(struct m0_addb2_sys *sys, struct m0_tl *head)
 	}
 
 	m0_tl_for(pools_common_svc_ctx, head, service) {
-		/**
-		 * @todo somewhat arbitrary assumption that MD and IO services
-		 * should receive addb2 records. The proper solution is to add
-		 * addb2 services to conf.
-		 */
-		if (!M0_IN(service->sc_type, (M0_CST_MDS, M0_CST_IOS)))
-			continue;
-		conn = &service->sc_rlink.rlk_conn;
-		sys_lock(sys);
-		result = m0_addb2_net_add(sys->sy_net, conn);
-		sys_unlock(sys);
-		if (result != 0) {
-			m0_addb2_sys_net_stop(sys);
-			break;
+		if (service->sc_type == M0_CST_ADDB2) {
+			conn = &service->sc_rlink.rlk_conn;
+			sys_lock(sys);
+			result = m0_addb2_net_add(sys->sy_net, conn);
+			sys_unlock(sys);
+			if (result != 0) {
+				m0_addb2_sys_net_stop(sys);
+				break;
+			}
 		}
 	} m0_tl_endfor;
 	return result;
