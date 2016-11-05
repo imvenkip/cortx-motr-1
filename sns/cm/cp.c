@@ -293,9 +293,10 @@ M0_INTERNAL void m0_sns_cm_cp_complete(struct m0_cm_cp *cp)
 M0_INTERNAL void m0_sns_cm_cp_free(struct m0_cm_cp *cp)
 {
 	M0_PRE(cp != NULL);
+
+	m0_cm_cp_buf_release(cp);
 	if (cp->c_ag != NULL)
 		m0_cm_ag_cp_del(cp->c_ag, cp);
-	m0_cm_cp_buf_release(cp);
 	m0_free(cp2snscp(cp));
 }
 

@@ -899,6 +899,7 @@ M0_INTERNAL int m0_cm_init(struct m0_cm *cm, struct m0_cm_type *cm_type,
 	m0_chan_init(&cm->cm_wait, &cm->cm_wait_mutex);
 	m0_chan_init(&cm->cm_ast_run_fom_wait, &cm->cm_ast_run_fom_wait_mutex);
 	m0_chan_init(&cm->cm_complete, &cm->cm_sm_group.s_lock);
+
 	M0_POST(m0_cm_invariant(cm));
 	m0_cm_unlock(cm);
 
@@ -1089,7 +1090,6 @@ M0_INTERNAL int m0_cm_complete(struct m0_cm *cm)
 		else
 			m0_cm_ag_store_complete(&cm->cm_ag_store);
 	}
-
 	cm->cm_done = true;
 	/*
 	 * Finalising proxies is a blocking operation becuase we wait until
@@ -1113,15 +1113,34 @@ M0_INTERNAL void m0_cm_proxies_init_wait(struct m0_cm *cm, struct m0_fom *fom)
 M0_INTERNAL void m0_cm_frozen_ag_cleanup(struct m0_cm *cm, struct m0_cm_proxy *proxy)
 {
 	struct m0_cm_aggr_group *ag = NULL;
+	struct m0_cm_proxy      *pxy = NULL;
+	bool                     proxies_done = true;
 
 	M0_PRE(m0_cm_is_locked(cm));
 
 	m0_tlist_for(&aggr_grps_in_tl, &cm->cm_aggr_grps_in, ag) {
+		m0_cm_ag_lock(ag);
 		if (ag->cag_ops->cago_is_frozen_on(ag, proxy) &&
-		    !m0_cm_ag_has_pending_cps(ag)) {
+		    ag->cag_ops->cago_ag_can_fini(ag)) {
 			m0_cm_ag_fini_post(ag);
 		}
+		m0_cm_ag_unlock(ag);
 	} m0_tlist_endfor;
+
+	m0_tl_for(proxy, &cm->cm_proxies, pxy) {
+		if (!M0_IN(pxy->px_status, (M0_PX_STOP, M0_PX_FAILED))) {
+			proxies_done = false;
+			break;
+		}
+	} m0_tl_endfor;
+
+	if (proxies_done && cm->cm_aggr_grps_out_nr > 0) {
+		m0_tlist_for(&aggr_grps_out_tl, &cm->cm_aggr_grps_out, ag) {
+			m0_cm_ag_lock(ag);
+			m0_cm_ag_fini_post(ag);
+			m0_cm_ag_unlock(ag);
+		} m0_tlist_endfor;
+	}
 }
 
 M0_INTERNAL void m0_cm_proxy_failed_cleanup(struct m0_cm *cm)

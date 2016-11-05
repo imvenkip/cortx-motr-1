@@ -136,19 +136,19 @@ M0_INTERNAL void m0_cm_proxy_cp_add(struct m0_cm_proxy *pxy,
 				    struct m0_cm_cp *cp)
 {
 	M0_ENTRY("proxy: %p cp: %p ep: %s", pxy, cp, pxy->px_endpoint);
-	m0_mutex_lock(&pxy->px_mutex);
+	M0_PRE(m0_cm_proxy_is_locked(pxy));
 	M0_PRE(!proxy_cp_tlink_is_in(cp));
+
 	proxy_cp_tlist_add_tail(&pxy->px_pending_cps, cp);
 	ID_LOG("proxy ag_id", &cp->c_ag->cag_id);
 	M0_POST(proxy_cp_tlink_is_in(cp));
-	m0_mutex_unlock(&pxy->px_mutex);
 	M0_LEAVE();
 }
 
 static void cm_proxy_cp_del(struct m0_cm_proxy *pxy,
 			    struct m0_cm_cp *cp)
 {
-	M0_PRE(m0_mutex_is_locked(&pxy->px_mutex));
+	M0_PRE(m0_cm_proxy_is_locked(pxy));
 	M0_PRE(proxy_cp_tlink_is_in(cp));
 	proxy_cp_tlist_del(cp);
 	M0_POST(!proxy_cp_tlink_is_in(cp));
@@ -174,6 +174,20 @@ static void __wake_up_pending_cps(struct m0_cm_proxy *pxy)
 
 }
 
+static int epoch_check(struct m0_cm_proxy *pxy, m0_time_t px_epoch)
+{
+	if (px_epoch != pxy->px_epoch) {
+		M0_LOG(M0_WARN, "Mismatch Epoch,"
+		       "current: %llu" "received: %llu",
+		       (unsigned long long)pxy->px_epoch,
+		       (unsigned long long)px_epoch);
+
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
 M0_INTERNAL void m0_cm_proxy_update(struct m0_cm_proxy *pxy,
 				    struct m0_cm_ag_id *lo,
 				    struct m0_cm_ag_id *hi,
@@ -183,6 +197,7 @@ M0_INTERNAL void m0_cm_proxy_update(struct m0_cm_proxy *pxy,
 {
 	struct m0_cm    *cm;
 	struct m0_cm_sw  sw;
+	int              rc;
 
 	M0_ENTRY("proxy: %p lo: %p hi: %p ep: %s", pxy, lo, hi,
 		 pxy->px_endpoint);
@@ -193,7 +208,7 @@ M0_INTERNAL void m0_cm_proxy_update(struct m0_cm_proxy *pxy,
 			 "nr_updates: %u", pxy->px_endpoint, px_status,
 			 pxy->px_status, (unsigned)cm->cm_proxy_init_updated);
 
-	m0_mutex_lock(&pxy->px_mutex);
+	m0_cm_proxy_lock(pxy);
 
 	switch (pxy->px_status) {
 	case M0_PX_INIT :
@@ -217,32 +232,28 @@ M0_INTERNAL void m0_cm_proxy_update(struct m0_cm_proxy *pxy,
 		}
 		break;
 	case M0_PX_READY:
+		rc = epoch_check(pxy, px_epoch);
+		if (rc == 0)
+			pxy->px_status = px_status;
+		break;
+	case M0_PX_FAILED:
 	case M0_PX_ACTIVE:
 	case M0_PX_COMPLETE:
 	case M0_PX_STOP:
-	case M0_PX_FAILED:
-		if (px_epoch != pxy->px_epoch) {
-			M0_LOG(M0_WARN, "Mismatch Epoch,"
-			       "current: %llu" "received: %llu",
-			       (unsigned long long)pxy->px_epoch,
-			       (unsigned long long)px_epoch);
+		rc = epoch_check(pxy, px_epoch);
+		if (rc != 0)
 			break;
-		}
 		pxy->px_status = px_status;
-		if (M0_IN(px_status, (M0_PX_ACTIVE, M0_PX_COMPLETE, M0_PX_STOP,
-				      M0_PX_FAILED))) {
-			pxy->px_sw.sw_lo = *lo;
-			pxy->px_sw.sw_hi = *hi;
-			pxy->px_last_out_recvd = *last_out;
-			ID_LOG("proxy lo", &pxy->px_sw.sw_lo);
-			ID_LOG("proxy hi", &pxy->px_sw.sw_hi);
-			__wake_up_pending_cps(pxy);
-			if ((cm->cm_abort || cm->cm_quiesce) &&
-			    M0_IN(px_status, (M0_PX_COMPLETE, M0_PX_STOP, M0_PX_FAILED))) {
-				m0_cm_frozen_ag_cleanup(cm, pxy);
-			}
-			M0_ASSERT(cm_proxy_invariant(pxy));
-		}
+		pxy->px_sw.sw_lo = *lo;
+		pxy->px_sw.sw_hi = *hi;
+		pxy->px_last_out_recvd = *last_out;
+		ID_LOG("proxy lo", &pxy->px_sw.sw_lo);
+		ID_LOG("proxy hi", &pxy->px_sw.sw_hi);
+		__wake_up_pending_cps(pxy);
+		if (M0_IN(px_status, (M0_PX_COMPLETE, M0_PX_STOP, M0_PX_FAILED)) ||
+		    cm->cm_abort || cm->cm_quiesce)
+			m0_cm_frozen_ag_cleanup(cm, pxy);
+		M0_ASSERT(cm_proxy_invariant(pxy));
 		break;
 	default:
 		break;
@@ -253,7 +264,7 @@ M0_INTERNAL void m0_cm_proxy_update(struct m0_cm_proxy *pxy,
 	 */
 	if (m0_cm_is_ready(cm) && cm->cm_proxy_init_updated == cm->cm_proxy_nr)
 		m0_cm_notify(cm);
-	m0_mutex_unlock(&pxy->px_mutex);
+	m0_cm_proxy_unlock(pxy);
 
 	M0_LEAVE();
 }
@@ -293,10 +304,8 @@ static void proxy_sw_onwire_ast_cb(struct m0_sm_group *grp,
 	} else {
 		if (proxy->px_nr_updates_posted == 0) {
 			proxy->px_is_done = true;
-			if (proxy->px_status != M0_PX_FAILED) {
-				/* Send one final notification to the proxy. */
-				m0_cm_proxy_remote_update(proxy, &sw);
-			}
+			/* Send one final notification to the remote proxy. */
+			m0_cm_proxy_remote_update(proxy, &sw);
 			M0_CNT_DEC(cm->cm_proxy_nr);
 			m0_cm_notify(cm);
 		}
@@ -306,10 +315,11 @@ static void proxy_sw_onwire_ast_cb(struct m0_sm_group *grp,
 	 * Cannot send updates to dead proxy, all the aggregation groups,
 	 * frozen on that proxy must be destroyed.
 	 */
-	if (proxy->px_status == M0_PX_FAILED && m0_cm_state_get(cm) != M0_CMS_FAIL) {
-		m0_mutex_lock(&proxy->px_mutex);
+	if (proxy->px_status == M0_PX_FAILED || m0_cm_state_get(cm) == M0_CMS_FAIL ||
+	    cm->cm_quiesce || cm->cm_abort) {
+		m0_cm_proxy_lock(proxy);
 		__wake_up_pending_cps(proxy);
-		m0_mutex_unlock(&proxy->px_mutex);
+		m0_cm_proxy_unlock(proxy);
 		/* Here we have already received notification from HA about
 		 * the proxy failure and might receive explicit abort command as well.
 		 * So no need to transition cm to FAILED state, just aborting the
@@ -318,7 +328,7 @@ static void proxy_sw_onwire_ast_cb(struct m0_sm_group *grp,
 		m0_cm_abort(cm, 0);
 		m0_cm_frozen_ag_cleanup(cm, proxy);
 	}
-	if (cm->cm_proxy_nr == 0)
+        if (cm->cm_proxy_nr == 0)
 		m0_chan_signal(&cm->cm_complete);
 }
 
@@ -451,10 +461,10 @@ M0_INTERNAL bool m0_cm_proxy_agid_is_in_sw(struct m0_cm_proxy *pxy,
 {
 	bool result;
 
-	m0_mutex_lock(&pxy->px_mutex);
+	m0_cm_proxy_lock(pxy);
 	result =  m0_cm_ag_id_cmp(id, &pxy->px_sw.sw_lo) >= 0 &&
 		  m0_cm_ag_id_cmp(id, &pxy->px_sw.sw_hi) <= 0;
-	m0_mutex_unlock(&pxy->px_mutex);
+	m0_cm_proxy_unlock(pxy);
 
 	return result;
 }
@@ -478,10 +488,10 @@ static bool proxy_clink_cb(struct m0_clink *clink)
 	M0_PRE(m0_conf_obj_type(svc_obj) == &M0_CONF_SERVICE_TYPE);
 
 	if (M0_IN(svc_obj->co_ha_state, (M0_NC_FAILED, M0_NC_TRANSIENT))) {
-		m0_mutex_lock(&pxy->px_mutex);
+		m0_cm_proxy_lock(pxy);
 		pxy->px_status = M0_PX_FAILED;
 		proxy_fail_tlist_add_tail(&pxy->px_cm->cm_failed_proxies, pxy);
-		m0_mutex_unlock(&pxy->px_mutex);
+		m0_cm_proxy_unlock(pxy);
 	} else if (svc_obj->co_ha_state == M0_NC_ONLINE &&
 		   pxy->px_status == M0_PX_FAILED) {
 		/* XXX Need to check repair/rebalance status. */
@@ -497,6 +507,21 @@ M0_INTERNAL void m0_cm_proxy_event_handle_register(struct m0_cm_proxy *pxy,
 {
 	m0_clink_init(&pxy->px_ha_link, proxy_clink_cb);
 	m0_clink_add_lock(&svc_obj->co_ha_chan, &pxy->px_ha_link);
+}
+
+M0_INTERNAL bool m0_cm_proxy_is_locked(struct m0_cm_proxy *pxy)
+{
+	return m0_mutex_is_locked(&pxy->px_mutex);
+}
+
+M0_INTERNAL void m0_cm_proxy_lock(struct m0_cm_proxy *pxy)
+{
+	m0_mutex_lock(&pxy->px_mutex);
+}
+
+M0_INTERNAL void m0_cm_proxy_unlock(struct m0_cm_proxy *pxy)
+{
+	m0_mutex_unlock(&pxy->px_mutex);
 }
 
 #undef M0_TRACE_SUBSYSTEM

@@ -54,12 +54,24 @@ M0_INTERNAL int m0_sns_cm_repair_cp_recv_wait(struct m0_cm_cp *cp);
 
 static void acc_cp_free(struct m0_cm_cp *cp)
 {
-        struct m0_sns_cm_repair_ag *rag = sag2repairag(ag2snsag(cp->c_ag));
+	struct m0_sns_cm_repair_ag             *rag = sag2repairag(ag2snsag(cp->c_ag));
+	struct m0_sns_cm_repair_ag_failure_ctx *fc;
 
 	M0_PRE(cp != NULL);
 
-	M0_CNT_INC(rag->rag_acc_freed);
 	m0_cm_cp_buf_release(cp);
+	fc = container_of(cp2snscp(cp), struct m0_sns_cm_repair_ag_failure_ctx,
+			  fc_tgt_acc_cp);
+	if (fc->fc_is_inuse && fc->fc_is_active) {
+		M0_CNT_INC(rag->rag_acc_freed);
+		m0_cm_ag_cp_del(cp->c_ag, cp);
+	}
+}
+
+static int acc_cp_fini(struct m0_cm_cp *cp)
+{
+
+	return 0;
 }
 
 const struct m0_cm_cp_ops m0_sns_cm_acc_cp_ops = {
@@ -76,7 +88,7 @@ const struct m0_cm_cp_ops m0_sns_cm_acc_cp_ops = {
 		[M0_CCP_RECV_WAIT]     = &m0_sns_cm_cp_recv_wait,
 		[M0_CCP_FAIL]          = &m0_sns_cm_cp_fail,
 		/* To satisfy the m0_cm_cp_invariant() */
-		[M0_CCP_FINI]          = &m0_sns_cm_cp_fini,
+		[M0_CCP_FINI]          = &acc_cp_fini,
 	},
 	.co_action_nr            = M0_CCP_NR,
 	.co_phase_next           = &m0_sns_cm_cp_phase_next,
@@ -96,7 +108,7 @@ M0_INTERNAL void m0_sns_cm_acc_cp_init(struct m0_sns_cm_cp *scp,
 
         M0_PRE(scp != NULL);
 
-	cp->c_ag = &sag->sag_base;
+	m0_cm_ag_cp_add(&sag->sag_base, cp);
 	cp->c_ops = &m0_sns_cm_acc_cp_ops;
 	/*
 	 * Initialise the bitmap representing the copy packets

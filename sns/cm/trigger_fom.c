@@ -46,6 +46,8 @@
 
 #include "pool/pool_machine.h"
 
+#include "sns/cm/repair/ag.h"
+
 /*
  * Implements a simplistic sns repair trigger FOM for corresponding trigger FOP.
  * This is solely for testing purpose and a separate trigger FOP/FOM will be
@@ -165,7 +167,25 @@ static void trigger_rep_set(struct m0_fom *fom)
 
 	trep->rc = cm->cm_mach.sm_rc != 0 ? cm->cm_mach.sm_rc : m0_fom_rc(fom);
 	fom->fo_rep_fop = rfop;
-	M0_LOG(M0_DEBUG, "sending back trigger reply:%d", trep->rc);
+}
+
+static void print__ag(const struct m0_tl_descr *descr, const struct m0_tl *head)
+{
+	struct m0_cm_aggr_group *ag;
+
+	m0_tlist_for(descr, head, ag) {
+		int64_t ag_ref = m0_ref_read(&ag->cag_ref);
+		M0_LOG(M0_DEBUG, M0_AG_F, M0_AG_P(&ag->cag_id));
+		M0_LOG(M0_DEBUG, " freed=%u local_cp=%u transformed=%u ref=%u",
+			(unsigned)ag->cag_freed_cp_nr, (unsigned)ag->cag_cp_local_nr,
+			(unsigned)ag->cag_transformed_cp_nr, (unsigned)ag_ref);
+	} m0_tlist_endfor;
+}
+
+static void print_ag(struct m0_cm *cm)
+{
+	print__ag(&aggr_grps_in_tl, &cm->cm_aggr_grps_in);
+	print__ag(&aggr_grps_out_tl, &cm->cm_aggr_grps_out);
 }
 
 static int prepare(struct m0_fom *fom)
@@ -186,8 +206,6 @@ static int prepare(struct m0_fom *fom)
 		return M0_FSO_WAIT;
 	}
 
-	cm_state = m0_cm_state_get(cm);
-
 	if (M0_IN(treq->op, (SNS_REPAIR_ABORT, SNS_REBALANCE_ABORT))) {
 		/* setting abort flag */
 		m0_cm_lock(cm);
@@ -202,6 +220,10 @@ static int prepare(struct m0_fom *fom)
 		return M0_FSO_WAIT;
 	}
 
+	m0_cm_lock(cm);
+	cm_state = m0_cm_state_get(cm);
+	m0_cm_unlock(cm);
+
 	if (M0_IN(treq->op, (SNS_REPAIR_STATUS, SNS_REBALANCE_STATUS))) {
 		struct m0_fop                *rfop = fom->fo_rep_fop;
 		struct m0_sns_status_rep_fop *trep = m0_fop_data(rfop);
@@ -212,14 +234,8 @@ static int prepare(struct m0_fom *fom)
 				 treq->op, cm_state);
 
 		/* For debugging purpose. */
-		if (progress > 25) {
-			M0_LOG(M0_WARN, "in: %u out: %u",
-					(unsigned)cm->cm_aggr_grps_in_nr,
-					(unsigned)cm->cm_aggr_grps_out_nr);
-			M0_LOG(M0_WARN, "sw_last:"M0_AG_F" out_last:"M0_AG_F,
-					M0_AG_P(&cm->cm_sw_last_updated_hi),
-					M0_AG_P(&cm->cm_last_out_hi));
-		}
+		if (progress > 10)
+			print_ag(cm);
 		switch (cm_state) {
 			case M0_CMS_IDLE:
 			case M0_CMS_STOP:
@@ -271,7 +287,7 @@ static int prepare(struct m0_fom *fom)
 	} else if (M0_IN(cm_state, (M0_CMS_READY, M0_CMS_ACTIVE))) {
 		/* CM is busy */
 		rc = -EBUSY;
-		M0_LOG(M0_WARN, "CM is still active.");
+		M0_LOG(M0_WARN, "CM is still active, state: %d", cm_state);
 	} else
 		m0_fom_phase_set(fom, M0_SNS_TPH_READY);
 
@@ -339,10 +355,10 @@ static int (*trig_action[]) (struct m0_fom *) = {
 
 static int trigger_fom_tick(struct m0_fom *fom)
 {
-	struct trigger_fop     *treq = m0_fop_data(fom->fo_fop);
-	struct m0_cm           *cm;
-	enum m0_cm_state        cm_state;
-	int                     rc = 0;
+	struct trigger_fop         *treq = m0_fop_data(fom->fo_fop);
+	struct m0_cm               *cm;
+	enum m0_cm_state            cm_state;
+	int                         rc = 0;
 
 	if (m0_fom_phase(fom) < M0_FOPH_NR) {
 		cm = trig2cm(fom);
@@ -372,7 +388,10 @@ static int trigger_fom_tick(struct m0_fom *fom)
 	} else
 		rc = trig_action[m0_fom_phase(fom)](fom);
 	if (rc < 0) {
-		m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
+		if (rc == -EBUSY)
+			m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
+		else
+			m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
 		trigger_rep_set(fom);
 		rc = M0_FSO_AGAIN;
 	}

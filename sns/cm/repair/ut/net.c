@@ -244,7 +244,12 @@ static uint64_t dummy_home_loc_helper(const struct m0_cm_cp *cp)
 
 static void cm_cp_free(struct m0_cm_cp *cp)
 {
+	struct m0_cm_aggr_group *ag = cp->c_ag;
+
 	m0_cm_cp_buf_release(cp);
+
+	if (ag != NULL)
+		m0_cm_ag_cp_del(ag, cp);
 }
 
 static bool sender_cm_cp_invariant(const struct m0_cm_cp *cp)
@@ -449,17 +454,19 @@ static void read_and_verify()
 /* Create and add the aggregation group to the list in copy machine. */
 static void receiver_ag_create(struct m0_cm *cm)
 {
-	int                  i;
-	struct m0_sns_cm_ag *sag;
-	struct m0_sns_cm_cp *sns_cp;
+	int                      i;
+	struct m0_sns_cm_ag     *sag;
+	struct m0_cm_aggr_group *ag;
+	struct m0_sns_cm_cp     *sns_cp;
 
 	sag = &rag.rag_base;
 	ag_setup(sag, cm);
+	ag = &sag->sag_base;
 	sag->sag_base.cag_cm = cm;
 	sag->sag_base.cag_has_incoming = true;
-	m0_mutex_init(&sag->sag_base.cag_mutex);
-	aggr_grps_in_tlink_init(&sag->sag_base);
-	aggr_grps_out_tlink_init(&sag->sag_base);
+	m0_mutex_init(&ag->cag_mutex);
+	aggr_grps_in_tlink_init(ag);
+	aggr_grps_out_tlink_init(ag);
 	M0_ALLOC_ARR(rag.rag_fc, FAIL_NR);
 	M0_UT_ASSERT(rag.rag_fc != NULL);
 	for (i = 0; i < sag->sag_fnr; ++i) {
@@ -935,6 +942,7 @@ static void test_cp_send_mismatch_epoch()
 	s_sns_cp.sc_index = 0;
 	s_sns_cp.sc_base.c_data_seg_nr = SEG_NR * BUF_NR;
 	s_sns_cp.sc_base.c_ag = &sag->sag_base;
+	m0_cm_ag_cp_add(&sag->sag_base, &s_sns_cp.sc_base);
 	/* Assume this as accumulator copy packet to be sent on remote side. */
 	s_sns_cp.sc_base.c_ag_cp_idx = ~0;
 
@@ -1018,6 +1026,7 @@ static void test_cp_send_recv_verify()
 	s_sns_cp.sc_index = 0;
 	s_sns_cp.sc_base.c_data_seg_nr = SEG_NR * BUF_NR;
 	s_sns_cp.sc_base.c_ag = &sag->sag_base;
+	m0_cm_ag_cp_add(&sag->sag_base, &s_sns_cp.sc_base);
 	/* Assume this as accumulator copy packet to be sent on remote side. */
 	s_sns_cp.sc_base.c_ag_cp_idx = ~0;
 	s_sns_cp.sc_base.c_epoch = sender_cm.cm_epoch;

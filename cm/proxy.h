@@ -176,6 +176,10 @@ M0_INTERNAL void m0_cm_proxy_pending_cps_wakeup(struct m0_cm *cm);
 M0_INTERNAL void m0_cm_proxy_event_handle_register(struct m0_cm_proxy *pxy,
 						   struct m0_conf_obj *svc_obj);
 
+M0_INTERNAL bool m0_cm_proxy_is_locked(struct m0_cm_proxy *pxy);
+M0_INTERNAL void m0_cm_proxy_lock(struct m0_cm_proxy *pxy);
+M0_INTERNAL void m0_cm_proxy_unlock(struct m0_cm_proxy *pxy);
+
 M0_TL_DESCR_DECLARE(proxy, M0_EXTERN);
 M0_TL_DECLARE(proxy, M0_INTERNAL, struct m0_cm_proxy);
 

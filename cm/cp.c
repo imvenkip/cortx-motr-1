@@ -413,23 +413,12 @@ M0_BOB_DEFINE(static, &cp_bob, m0_cm_cp);
 
 M0_INTERNAL void m0_cm_cp_fom_fini(struct m0_fom *fom)
 {
-	struct m0_cm_cp         *cp = bob_of(fom, struct m0_cm_cp, c_fom,
-					     &cp_bob);
-	struct m0_cm_aggr_group *ag = cp->c_ag;
-	bool                     can_fini;
-
+	struct m0_cm_cp *cp = bob_of(fom, struct m0_cm_cp, c_fom,
+				     &cp_bob);
 	M0_ENTRY();
 
 	m0_cm_cp_fini(cp);
 	cp->c_ops->co_free(cp);
-	if (ag != NULL) {
-		m0_cm_ag_lock(ag);
-		M0_CNT_INC(ag->cag_freed_cp_nr);
-		can_fini = ag->cag_ops->cago_ag_can_fini(ag);
-		m0_cm_ag_unlock(ag);
-		if (can_fini)
-			m0_cm_ag_fini_post(ag);
-	}
 
 	M0_LEAVE();
 }
@@ -504,12 +493,14 @@ static struct m0_sm_state_descr m0_cm_cp_state_descr[] = {
 	[M0_CCP_READ] = {
 		.sd_flags       = 0,
 		.sd_name        = "Read",
-		.sd_allowed     = M0_BITS(M0_CCP_IO_WAIT, M0_CCP_FAIL)
+		.sd_allowed     = M0_BITS(M0_CCP_IO_WAIT, M0_CCP_FAIL,
+					  M0_CCP_FINI)
 	},
 	[M0_CCP_WRITE] = {
 		.sd_flags       = 0,
 		.sd_name        = "Write",
-		.sd_allowed     = M0_BITS(M0_CCP_IO_WAIT, M0_CCP_FAIL)
+		.sd_allowed     = M0_BITS(M0_CCP_IO_WAIT, M0_CCP_FAIL,
+					  M0_CCP_FINI)
 	},
 	[M0_CCP_IO_WAIT] = {
 		.sd_flags       = 0,

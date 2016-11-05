@@ -70,7 +70,8 @@ static struct m0_sm_state_descr ai_sd[AIS_NR] = {
 	[AIS_FID_ATTR] = {
 		.sd_flags   = 0,
 		.sd_name    = "ag iter fid attr",
-		.sd_allowed = M0_BITS(AIS_GROUP_NEXT, AIS_FID_LOCK, AIS_FINI)
+		.sd_allowed = M0_BITS(AIS_GROUP_NEXT, AIS_FID_LOCK,
+				      AIS_FID_NEXT, AIS_FINI)
 	},
 	[AIS_GROUP_NEXT] = {
 		.sd_flags   = 0,
@@ -198,6 +199,10 @@ static int ai_fid_attr(struct m0_sns_cm_ag_iter *ai)
 	}
 	if (rc == 0)
 		ai_state_set(ai, AIS_GROUP_NEXT);
+	if (rc == -ENOENT) {
+		ai_state_set(ai, AIS_FID_NEXT);
+		rc = 0;
+	}
 
 	return M0_RC(rc);
 }
@@ -489,9 +494,10 @@ M0_INTERNAL bool m0_sns_cm_ag_is_frozen_on(struct m0_cm_aggr_group *ag, struct m
 	 */
 	if (ag->cag_ops->cago_has_incoming_from(ag, pxy)) {
 		if ((pxy->px_status == M0_PX_COMPLETE &&
-		    m0_cm_ag_id_cmp(&pxy->px_last_out_recvd, &ag->cag_id) < 0) ||
-		    M0_IN(pxy->px_status, (M0_PX_FAILED, M0_PX_STOP))) {
-			m0_bitmap_set(&sag->sag_proxy_incoming_map, pxy->px_id, false);
+		     m0_cm_ag_id_cmp(&pxy->px_last_out_recvd, &ag->cag_id) < 0) ||
+		     M0_IN(pxy->px_status, (M0_PX_FAILED, M0_PX_STOP))) {
+			m0_bitmap_set(&sag->sag_proxy_incoming_map, pxy->px_id,
+				      false);
 			M0_CNT_INC(sag->sag_not_coming);
 		}
 	}

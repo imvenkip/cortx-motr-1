@@ -216,6 +216,7 @@ static int __file_context_init(struct m0_sns_cm_iter *it)
 	else
 		it->si_fc.ifc_sa.sa_group = 0;
 	it->si_fc.ifc_sa.sa_unit = 0;
+	it->si_ag = NULL;
 	M0_SET0(&cm->cm_last_processed_out);
 
 	return M0_RC(0);
@@ -248,6 +249,11 @@ static int iter_fid_attr_layout(struct m0_sns_cm_iter *it)
 	if (rc == -EAGAIN) {
 		m0_sns_cm_file_attr_and_layout_wait(fctx, it->si_fom);
 		return M0_RC(M0_FSO_WAIT);
+	}
+
+	if (rc == -ENOENT) {
+		iter_phase_set(it, ITPH_FID_NEXT);
+		rc = 0;
 	}
 
 	return M0_RC(rc);
@@ -793,7 +799,7 @@ static struct m0_sm_state_descr cm_iter_sd[ITPH_NR] = {
 	[ITPH_FID_ATTR_LAYOUT] = {
 		.sd_flags   = 0,
 		.sd_name    = "File attr and layout fetch",
-		.sd_allowed = M0_BITS(ITPH_GROUP_NEXT, ITPH_IDLE)
+		.sd_allowed = M0_BITS(ITPH_GROUP_NEXT, ITPH_FID_NEXT, ITPH_IDLE)
 	},
 	[ITPH_CP_SETUP] = {
 		.sd_flags   = 0,

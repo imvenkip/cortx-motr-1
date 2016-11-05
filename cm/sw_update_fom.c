@@ -156,11 +156,11 @@ static int cm_swu_fom_tick(struct m0_fom *fom)
 		M0_LOG(M0_DEBUG, "Sliding window update"
 		      " fom complete with rc: %d", rc);
 		swu->swu_is_complete = true;
-		if (!M0_IN(rc, (-ENOBUFS, -ENOENT, -ENODATA))) {
-			m0_cm_lock(cm);
+		m0_cm_lock(cm);
+		m0_chan_signal(&cm->cm_complete);
+		if (!M0_IN(rc, (-ENOBUFS, -ENOENT, -ENODATA)))
 			m0_cm_abort(cm, rc);
-			m0_cm_unlock(cm);
-		}
+		m0_cm_unlock(cm);
 		m0_fom_phase_move(fom, 0, SWU_FINI);
 		rc = M0_FSO_WAIT;
 	}

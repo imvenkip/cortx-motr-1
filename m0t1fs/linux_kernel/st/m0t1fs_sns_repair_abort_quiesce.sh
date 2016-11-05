@@ -112,7 +112,7 @@ sns_repair_rebalance_quiesce_test()
 
 	echo "Aborting SNS rebalance"
 	sns_rebalance_abort
-	wait_for_sns_repair_or_rebalance "repair" || return $?
+	wait_for_sns_repair_or_rebalance "rebalance" || return $?
 
 	echo "Continue SNS Re-balance..."
 	sns_rebalance || return $?

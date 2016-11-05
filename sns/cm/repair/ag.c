@@ -26,6 +26,7 @@
 #include "lib/memory.h"
 #include "lib/errno.h"
 #include "lib/misc.h"
+#include "lib/arith.h"
 
 #include "fid/fid.h"
 #include "sns/parity_repair.h"
@@ -161,15 +162,16 @@ static void incr_recover_fini(struct m0_sns_cm_repair_ag *rag)
 
 static void acc_check_fini(struct m0_sns_cm_repair_ag *rag)
 {
-	struct m0_cm_cp          *cp;
-	struct m0_sns_cm_ag      *sag = &rag->rag_base;
-	struct m0_cm_aggr_group  *ag = &sag->sag_base;
-	struct m0_sns_cm         *scm = cm2sns(ag->cag_cm);
-	struct m0_pdclust_layout *pl = m0_layout_to_pdl(sag->sag_fctx->sf_layout);
-	uint32_t                  nr_cp_bufs;
-	uint32_t                  unused_cps = 0;
-	uint32_t                  nr_bufs;
-	int                       i;
+	struct m0_cm_cp           *cp;
+	struct m0_sns_cm_ag       *sag = &rag->rag_base;
+	struct m0_cm_aggr_group   *ag = &sag->sag_base;
+	struct m0_sns_cm          *scm = cm2sns(ag->cag_cm);
+	struct m0_pdclust_layout  *pl = m0_layout_to_pdl(sag->sag_fctx->sf_layout);
+	struct m0_net_buffer_pool *bp;
+	uint32_t                   nr_cp_bufs;
+	uint32_t                   unused_cps = 0;
+	uint32_t                   nr_bufs;
+	int                        i;
 
 	M0_PRE(rag != NULL);
 
@@ -193,8 +195,14 @@ static void acc_check_fini(struct m0_sns_cm_repair_ag *rag)
 	if (ag->cag_has_incoming) {
 		unused_cps += sag->sag_not_coming * sag->sag_local_tgts_nr;
 		nr_bufs = unused_cps * nr_cp_bufs;
-		scm->sc_ibp_reserved_nr -= nr_bufs;
+		scm->sc_ibp_reserved_nr -= min32u(scm->sc_ibp_reserved_nr, nr_bufs);
 	}
+
+	bp = &scm->sc_ibp.sb_bp;
+	/* Wakeup foms waiting for buffers. */
+	m0_net_buffer_pool_lock(bp);
+	bp->nbp_ops->nbpo_not_empty(bp);
+	m0_net_buffer_pool_unlock(bp);
 }
 
 static void repair_ag_fini(struct m0_cm_aggr_group *ag)
@@ -220,12 +228,35 @@ static void repair_ag_fini(struct m0_cm_aggr_group *ag)
 	M0_LEAVE();
 }
 
+static uint32_t repair_ag_inactive_acc_nr(struct m0_cm_aggr_group *ag)
+{
+	struct m0_sns_cm_ag        *sag = ag2snsag(ag);
+	struct m0_sns_cm_repair_ag *rag = sag2repairag(sag);
+	uint32_t                    inactive_acc_nr = 0;
+	int                         i;
+
+	for (i = 0; i < sag->sag_fnr; ++i) {
+		if (rag->rag_fc[i].fc_is_inuse && !rag->rag_fc[i].fc_is_active)
+			M0_CNT_INC(inactive_acc_nr);
+	}
+
+	return inactive_acc_nr;
+}
+
 static bool repair_ag_can_fini(const struct m0_cm_aggr_group *ag)
 {
-	struct m0_sns_cm_repair_ag *rag = sag2repairag(ag2snsag(ag));
+	struct m0_sns_cm_ag        *sag = ag2snsag(ag);
+	struct m0_sns_cm_repair_ag *rag = sag2repairag(sag);
+	int64_t                     ag_ref = m0_ref_read(&ag->cag_ref);
+	uint32_t                    inactive_accs = 0;
 
-	return (rag->rag_acc_inuse_nr + ag->cag_transformed_cp_nr) ==
-		ag->cag_freed_cp_nr;
+	if (sag->sag_not_coming > 0) {
+		inactive_accs = repair_ag_inactive_acc_nr(&sag->sag_base);
+		return ag_ref == inactive_accs;
+	}
+
+	return (rag->rag_acc_inuse_nr == rag->rag_acc_freed) &&
+		(ag->cag_transformed_cp_nr == (ag->cag_freed_cp_nr - rag->rag_acc_freed));
 }
 
 static const struct m0_cm_aggr_group_ops sns_cm_repair_ag_ops = {

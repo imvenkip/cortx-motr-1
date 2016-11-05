@@ -296,13 +296,15 @@ M0_TL_DECLARE(rpcbulk, M0_INTERNAL, struct m0_rpc_bulk_buf);
 M0_INTERNAL int m0_sns_cm_cp_send_wait(struct m0_cm_cp *cp)
 {
 	struct m0_rpc_bulk *rbulk = &cp->c_bulk;
+	int                 c_rc;
 
 	M0_PRE(cp != NULL);
 
-	if (cp->c_rc != 0) {
-		M0_LOG(M0_ERROR, "rc=%d", cp->c_rc);
+	c_rc = cp->c_rc;
+	if (c_rc != 0 && c_rc != -ENOENT) {
+		M0_LOG(M0_ERROR, "rc=%d", c_rc);
 		/* Cleanup rpc bulk in m0_cm_cp_only_fini().*/
-		m0_fom_phase_move(&cp->c_fom, cp->c_rc, M0_CCP_FAIL);
+		m0_fom_phase_move(&cp->c_fom, c_rc, M0_CCP_FAIL);
 		return M0_FSO_AGAIN;
 	}
 
@@ -310,13 +312,15 @@ M0_INTERNAL int m0_sns_cm_cp_send_wait(struct m0_cm_cp *cp)
 	 * Wait on channel till all net buffers are deleted from
 	 * transfer machine.
 	 */
-	m0_mutex_lock(&rbulk->rb_mutex);
-	if (!rpcbulk_tlist_is_empty(&rbulk->rb_buflist)) {
-		m0_fom_wait_on(&cp->c_fom, &rbulk->rb_chan, &cp->c_fom.fo_cb);
+	if (c_rc == 0) {
+		m0_mutex_lock(&rbulk->rb_mutex);
+		if (!rpcbulk_tlist_is_empty(&rbulk->rb_buflist)) {
+			m0_fom_wait_on(&cp->c_fom, &rbulk->rb_chan, &cp->c_fom.fo_cb);
+			m0_mutex_unlock(&rbulk->rb_mutex);
+			return M0_FSO_WAIT;
+		}
 		m0_mutex_unlock(&rbulk->rb_mutex);
-		return M0_FSO_WAIT;
 	}
-	m0_mutex_unlock(&rbulk->rb_mutex);
 
 	return cp->c_ops->co_phase_next(cp);
 }
@@ -382,11 +386,11 @@ static int snscpx_to_snscp(const struct m0_sns_cpx *sns_cpx,
 	cm = cpfom2cm(&sns_cp->sc_base.c_fom);
 	m0_cm_lock(cm);
 	ag = m0_cm_aggr_group_locate(cm, &ag_id, true);
+	m0_cm_unlock(cm);
 	if (ag == NULL) {
 		M0_LOG(M0_WARN, "ag="M0_AG_F" not found", M0_AG_P(&ag_id));
 		return -ENOENT;
 	}
-	m0_cm_unlock(cm);
 	m0_cm_ag_cp_add(ag, &sns_cp->sc_base);
 
 	sns_cp->sc_base.c_ag_cp_idx = sns_cpx->scx_cp.cpx_ag_cp_idx;
@@ -518,6 +522,7 @@ M0_INTERNAL int m0_sns_cm_cp_sw_check(struct m0_cm_cp *cp)
 	struct m0_cm           *cm          = cpfom2cm(&cp->c_fom);
 	struct m0_cm_proxy     *cm_proxy;
 	struct m0_conf_obj     *svc;
+	enum m0_cm_state        cm_state;
 	const char             *remote_rep;
 	int                     rc;
 	struct m0_pool_version *pv;
@@ -537,6 +542,15 @@ M0_INTERNAL int m0_sns_cm_cp_sw_check(struct m0_cm_cp *cp)
 	} else
 		cm_proxy = cp->c_cm_proxy;
 
+	m0_cm_lock(cm);
+	cm_state = m0_cm_state_get(cm);
+	m0_cm_unlock(cm);
+	/* abort in case of cm failure */
+	if (cm_state == M0_CMS_FAIL) {
+		m0_fom_phase_move(&cp->c_fom, 0, M0_CCP_FINI);
+		return M0_FSO_WAIT;
+	}
+	m0_cm_proxy_lock(cm_proxy);
 	if (m0_cm_ag_id_cmp(&cp->c_ag->cag_id, &cm_proxy->px_sw.sw_lo) >= 0 &&
 	    m0_cm_ag_id_cmp(&cp->c_ag->cag_id, &cm_proxy->px_sw.sw_hi) <= 0) {
 		rc = cp->c_ops->co_phase_next(cp);
@@ -546,14 +560,14 @@ M0_INTERNAL int m0_sns_cm_cp_sw_check(struct m0_cm_cp *cp)
 		 * all the pending copy packets addressed to that copy machine
 		 * must be finalised.
 		 */
-		if (M0_IN(cm_proxy->px_status, (M0_PX_COMPLETE, M0_PX_STOP,
-						M0_PX_FAILED))) {
+		if (M0_IN(cm_proxy->px_status, (M0_PX_COMPLETE, M0_PX_STOP, M0_PX_FAILED))) {
 			m0_fom_phase_move(&cp->c_fom, 0, M0_CCP_FINI);
 		} else
 			m0_cm_proxy_cp_add(cm_proxy, cp);
 
 		rc = M0_FSO_WAIT;
 	}
+	m0_cm_proxy_unlock(cm_proxy);
 
 	return M0_RC(rc);
 }

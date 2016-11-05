@@ -57,6 +57,7 @@ struct m0_cm_cp_pump {
 	 */
 	struct m0_cm_cp       *p_cp;
 	uint64_t               p_magix;
+	struct m0_clink        p_complete;
 	struct m0_sm_ast       p_wakeup;
 };
 

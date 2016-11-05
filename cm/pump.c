@@ -179,15 +179,6 @@ enodata:
 	return M0_RC(rc);
 }
 
-static void pump_wait(struct m0_cm_cp_pump *pump)
-{
-	struct m0_cm  *cm = pump2cm(pump);
-	struct m0_fom *p_fom;
-
-	p_fom = &pump->p_fom;
-	m0_fom_wait_on(p_fom, &cm->cm_complete, &p_fom->fo_cb);
-}
-
 static int cpp_complete(struct m0_cm_cp_pump *cp_pump)
 {
 	struct m0_cm *cm = pump2cm(cp_pump);
@@ -196,20 +187,16 @@ static int cpp_complete(struct m0_cm_cp_pump *cp_pump)
 	m0_cm_lock(cm);
 	if (!m0_cm_aggr_group_tlists_are_empty(cm) ||
 	    !cm->cm_sw_update.swu_is_complete) {
-		pump_wait(cp_pump);
-		/* Allow asts posted to cm group run */
 		m0_cm_unlock(cm);
 		return M0_FSO_WAIT;
 	}
 
 	rc = m0_cm_complete(cm);
-	if (rc == -EAGAIN) {
-		pump_wait(cp_pump);
-		m0_cm_unlock(cm);
-		return M0_FSO_WAIT;
-	}
 	m0_cm_unlock(cm);
+	if (rc == -EAGAIN)
+		return M0_FSO_WAIT;
 
+	m0_clink_del_lock(&cp_pump->p_complete);
 	M0_LOG(M0_DEBUG, "pump completed. Stopping the CM");
 	pump_move(cp_pump, 0, CPP_STOP);
 
@@ -265,6 +252,7 @@ static int cpp_stop(struct m0_cm_cp_pump *cp_pump)
 	}
 	M0_SET0(dtx);
 
+	m0_clink_fini(&cp_pump->p_complete);
 	pump_move(cp_pump, 0, CPP_FINI);
 
 	return M0_FSO_WAIT;
@@ -431,6 +419,31 @@ M0_INTERNAL void m0_cm_cp_pump_destroy(struct m0_cm *cm)
 	cm_cp_pump_fom_fini(&cm->cm_cp_pump.p_fom);
 }
 
+static void wakeup(struct m0_sm_group *grp, struct m0_sm_ast *ast)
+{
+        struct m0_cm_cp_pump *pump = M0_AMB(pump, ast, p_wakeup);
+
+	M0_ENTRY();
+
+        if (m0_cm_cp_pump_is_complete(pump) && m0_fom_is_waiting(&pump->p_fom))
+                m0_fom_ready(&pump->p_fom);
+
+	M0_LEAVE();
+}
+
+static bool pump_cb(struct m0_clink *link)
+{
+	struct m0_cm_cp_pump *pump = container_of(link, struct m0_cm_cp_pump, p_complete);
+	struct m0_sm_group   *grp;
+
+        grp = &pump->p_fom.fo_loc->fl_group;
+        pump->p_wakeup.sa_cb = wakeup;
+	if (pump->p_wakeup.sa_next == NULL)
+		m0_sm_ast_post(grp, &pump->p_wakeup);
+
+	return true;
+}
+
 M0_INTERNAL void m0_cm_cp_pump_start(struct m0_cm *cm)
 {
 	struct m0_cm_cp_pump *cp_pump;
@@ -439,6 +452,8 @@ M0_INTERNAL void m0_cm_cp_pump_start(struct m0_cm *cm)
 	M0_PRE(m0_cm_is_locked(cm));
 
 	cp_pump = &cm->cm_cp_pump;
+	m0_clink_init(&cp_pump->p_complete, pump_cb);
+	m0_clink_add(&cm->cm_complete, &cp_pump->p_complete);
 	m0_fom_queue(&cp_pump->p_fom);
 	M0_LEAVE();
 }
