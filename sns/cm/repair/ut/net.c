@@ -142,16 +142,8 @@ static uint64_t cp_single_get(const struct m0_cm_aggr_group *ag)
 
 static void cp_ag_fini(struct m0_cm_aggr_group *ag)
 {
-	struct m0_sns_cm_repair_ag *rag = sag2repairag(ag2snsag(ag));
 
 	M0_PRE(ag != NULL);
-
-	/*
-	 * We wait until accumulator write is complete, before proceeding
-	 * for read.
-	 */
-	if (rag->rag_acc_inuse_nr > 0)
-		m0_semaphore_up(&write_cp_sem);
 
 	m0_cm_aggr_group_fini(ag);
 }
@@ -160,8 +152,19 @@ static bool cp_ag_can_fini(const struct m0_cm_aggr_group *ag)
 {
 	struct m0_sns_cm_repair_ag *rag = sag2repairag(ag2snsag(ag));
 
-	return (rag->rag_acc_inuse_nr + ag->cag_transformed_cp_nr) ==
-		ag->cag_freed_cp_nr;
+	if ((rag->rag_acc_inuse_nr + ag->cag_transformed_cp_nr) ==
+	     ag->cag_freed_cp_nr) {
+		/*
+		 * We wait until accumulator write is complete, before proceeding
+		 * for read.
+		 */
+		if (rag->rag_acc_inuse_nr > 0)
+			m0_semaphore_up(&write_cp_sem);
+		return true;
+	}
+
+	return false;
+
 }
 
 static const struct m0_cm_aggr_group_ops group_ops = {
@@ -668,6 +671,7 @@ static void sender_ag_create()
 {
 	struct m0_sns_cm_ag  *sag;
 
+	M0_SET0(&s_rag);
 	sag = &s_rag.rag_base;
 	ag_setup(sag, &sender_cm);
 	m0_cm_lock(&sender_cm);
@@ -838,7 +842,9 @@ static void sender_fini()
 
 static void test_fini()
 {
+	m0_chan_signal_lock(&sender_cm.cm_complete);
 	sender_fini();
+	m0_chan_signal_lock(&recv_cm->cm_complete);
 	receiver_fini();
 }
 

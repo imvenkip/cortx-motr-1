@@ -179,21 +179,13 @@ enodata:
 	return M0_RC(rc);
 }
 
-static void wakeup(struct m0_sm_group *grp, struct m0_sm_ast *ast)
-{
-	struct m0_cm_cp_pump *pump = M0_AMB(pump, ast, p_wakeup);
-	m0_fom_wakeup(&pump->p_fom);
-}
-
 static void pump_wait(struct m0_cm_cp_pump *pump)
 {
-	struct m0_sm_group *grp;
-	struct m0_fom      *p_fom;
+	struct m0_cm  *cm = pump2cm(pump);
+	struct m0_fom *p_fom;
 
 	p_fom = &pump->p_fom;
-	grp = &p_fom->fo_loc->fl_group;
-	pump->p_wakeup.sa_cb = wakeup;
-	m0_sm_ast_post(grp, &pump->p_wakeup);
+	m0_fom_wait_on(p_fom, &cm->cm_complete, &p_fom->fo_cb);
 }
 
 static int cpp_complete(struct m0_cm_cp_pump *cp_pump)
@@ -201,22 +193,22 @@ static int cpp_complete(struct m0_cm_cp_pump *cp_pump)
 	struct m0_cm *cm = pump2cm(cp_pump);
 	int           rc;
 
+	m0_cm_lock(cm);
 	if (!m0_cm_aggr_group_tlists_are_empty(cm) ||
 	    !cm->cm_sw_update.swu_is_complete) {
-		m0_cm_lock(cm);
-		m0_cm_proxy_failed_cleanup(cm);
-		m0_cm_unlock(cm);
 		pump_wait(cp_pump);
+		/* Allow asts posted to cm group run */
+		m0_cm_unlock(cm);
 		return M0_FSO_WAIT;
 	}
 
-	m0_cm_lock(cm);
 	rc = m0_cm_complete(cm);
-	m0_cm_unlock(cm);
 	if (rc == -EAGAIN) {
 		pump_wait(cp_pump);
+		m0_cm_unlock(cm);
 		return M0_FSO_WAIT;
 	}
+	m0_cm_unlock(cm);
 
 	M0_LOG(M0_DEBUG, "pump completed. Stopping the CM");
 	pump_move(cp_pump, 0, CPP_STOP);

@@ -220,6 +220,7 @@ M0_INTERNAL void m0_cm_proxy_update(struct m0_cm_proxy *pxy,
 	case M0_PX_ACTIVE:
 	case M0_PX_COMPLETE:
 	case M0_PX_STOP:
+	case M0_PX_FAILED:
 		if (px_epoch != pxy->px_epoch) {
 			M0_LOG(M0_WARN, "Mismatch Epoch,"
 			       "current: %llu" "received: %llu",
@@ -228,7 +229,8 @@ M0_INTERNAL void m0_cm_proxy_update(struct m0_cm_proxy *pxy,
 			break;
 		}
 		pxy->px_status = px_status;
-		if (M0_IN(px_status, (M0_PX_ACTIVE, M0_PX_COMPLETE, M0_PX_STOP))) {
+		if (M0_IN(px_status, (M0_PX_ACTIVE, M0_PX_COMPLETE, M0_PX_STOP,
+				      M0_PX_FAILED))) {
 			pxy->px_sw.sw_lo = *lo;
 			pxy->px_sw.sw_hi = *hi;
 			pxy->px_last_out_recvd = *last_out;
@@ -236,7 +238,7 @@ M0_INTERNAL void m0_cm_proxy_update(struct m0_cm_proxy *pxy,
 			ID_LOG("proxy hi", &pxy->px_sw.sw_hi);
 			__wake_up_pending_cps(pxy);
 			if ((cm->cm_abort || cm->cm_quiesce) &&
-			    M0_IN(px_status, (M0_PX_COMPLETE, M0_PX_STOP))) {
+			    M0_IN(px_status, (M0_PX_COMPLETE, M0_PX_STOP, M0_PX_FAILED))) {
 				m0_cm_frozen_ag_cleanup(cm, pxy);
 			}
 			M0_ASSERT(cm_proxy_invariant(pxy));
@@ -316,6 +318,8 @@ static void proxy_sw_onwire_ast_cb(struct m0_sm_group *grp,
 		m0_cm_abort(cm, 0);
 		m0_cm_frozen_ag_cleanup(cm, proxy);
 	}
+	if (cm->cm_proxy_nr == 0)
+		m0_chan_signal(&cm->cm_complete);
 }
 
 static void proxy_sw_onwire_item_sent_cb(struct m0_rpc_item *item)

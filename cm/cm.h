@@ -228,6 +228,8 @@ struct m0_cm {
 	struct m0_chan                   cm_wait;
 	struct m0_mutex                  cm_wait_mutex;
 
+	struct m0_chan                   cm_complete;
+
 	struct m0_fom_simple             cm_ast_run_fom;
 	struct m0_chan                   cm_ast_run_fom_wait;
 	struct m0_mutex                  cm_ast_run_fom_wait_mutex;

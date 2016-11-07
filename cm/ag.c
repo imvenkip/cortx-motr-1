@@ -139,6 +139,8 @@ static void _fini_ast_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	}
 	cm->cm_ag_store.s_data.d_cm_epoch = cm->cm_epoch;
 	ag->cag_ops->cago_fini(ag);
+	if (m0_cm_aggr_group_tlists_are_empty(cm))
+		m0_chan_signal(&cm->cm_complete);
 }
 
 M0_INTERNAL void m0_cm_aggr_group_init(struct m0_cm_aggr_group *ag,
@@ -257,8 +259,6 @@ m0_cm_aggr_group_locate(struct m0_cm *cm, const struct m0_cm_ag_id *id,
 	} else {
 		ag = __aggr_group_locate(id, &aggr_grps_out_tl,
 					 &cm->cm_aggr_grps_out);
-		//if (ag != NULL && has_incoming)
-		//	m0_cm_aggr_group_add(cm, ag, true);
 	}
 	return ag;
 }

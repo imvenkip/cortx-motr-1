@@ -220,7 +220,7 @@ M0_INTERNAL int m0_sns_cm_cp_send(struct m0_cm_cp *cp, struct m0_fop_type *ft)
 	fop = &cp_fop->cf_fop;
 	m0_fop_init(fop, ft, NULL, cp_fop_release);
 	rc = m0_fop_data_alloc(fop);
-	if (rc  != 0) {
+	if (rc != 0) {
 		m0_fop_fini(fop);
 		m0_free(cp_fop);
 		goto out;
@@ -357,7 +357,7 @@ static uint32_t seg_nr_get(const struct m0_sns_cpx *sns_cpx, uint32_t ivec_nr)
 }
 
 /* Converts onwire copy packet structure to in-memory copy packet structure. */
-static void snscpx_to_snscp(const struct m0_sns_cpx *sns_cpx,
+static int snscpx_to_snscp(const struct m0_sns_cpx *sns_cpx,
                             struct m0_sns_cm_cp *sns_cp)
 {
 	struct m0_cm_ag_id       ag_id;
@@ -382,7 +382,10 @@ static void snscpx_to_snscp(const struct m0_sns_cpx *sns_cpx,
 	cm = cpfom2cm(&sns_cp->sc_base.c_fom);
 	m0_cm_lock(cm);
 	ag = m0_cm_aggr_group_locate(cm, &ag_id, true);
-	M0_ASSERT_INFO(ag != NULL, M0_AG_F, M0_AG_P(&ag_id));
+	if (ag == NULL) {
+		M0_LOG(M0_WARN, "ag="M0_AG_F" not found", M0_AG_P(&ag_id));
+		return -ENOENT;
+	}
 	m0_cm_unlock(cm);
 	m0_cm_ag_cp_add(ag, &sns_cp->sc_base);
 
@@ -395,6 +398,8 @@ static void snscpx_to_snscp(const struct m0_sns_cpx *sns_cpx,
 	sns_cp->sc_base.c_buf_nr = 0;
 	sns_cp->sc_base.c_data_seg_nr = seg_nr_get(sns_cpx,
 			sns_cpx->scx_ivecs.cis_nr);
+
+	return 0;
 }
 
 M0_INTERNAL int m0_sns_cm_cp_recv_init(struct m0_cm_cp *cp)
@@ -428,7 +433,13 @@ M0_INTERNAL int m0_sns_cm_cp_recv_init(struct m0_cm_cp *cp)
 		return M0_FSO_WAIT;
 	}
 
-	snscpx_to_snscp(sns_cpx, sns_cp);
+	rc = snscpx_to_snscp(sns_cpx, sns_cp);
+	if (rc != 0) {
+		cp->c_rc = rc;
+		cp_reply_post(cp);
+		m0_fom_phase_set(&cp->c_fom, M0_CCP_FINI);
+		return M0_FSO_WAIT;
+	}
 	rc = cp_buf_acquire(cp);
 
 	session = fop->f_item.ri_session;

@@ -898,7 +898,7 @@ M0_INTERNAL int m0_cm_init(struct m0_cm *cm, struct m0_cm_type *cm_type,
 	m0_mutex_init(&cm->cm_ast_run_fom_wait_mutex);
 	m0_chan_init(&cm->cm_wait, &cm->cm_wait_mutex);
 	m0_chan_init(&cm->cm_ast_run_fom_wait, &cm->cm_ast_run_fom_wait_mutex);
-
+	m0_chan_init(&cm->cm_complete, &cm->cm_sm_group.s_lock);
 	M0_POST(m0_cm_invariant(cm));
 	m0_cm_unlock(cm);
 
@@ -928,6 +928,7 @@ M0_INTERNAL void m0_cm_fini(struct m0_cm *cm)
 	m0_sm_fini(&cm->cm_mach);
 	m0_chan_fini_lock(&cm->cm_wait);
 	m0_chan_fini_lock(&cm->cm_ast_run_fom_wait);
+	m0_chan_fini(&cm->cm_complete);
 	m0_mutex_fini(&cm->cm_wait_mutex);
 	m0_mutex_fini(&cm->cm_ast_run_fom_wait_mutex);
 	m0_cm_unlock(cm);
