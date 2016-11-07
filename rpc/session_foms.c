@@ -182,6 +182,7 @@ M0_INTERNAL int m0_rpc_fom_conn_establish_tick(struct m0_fom *fom)
 	struct m0_rpc_machine                *machine;
 	struct m0_rpc_session                *session0;
 	struct m0_rpc_conn                   *conn;
+	struct m0_rpc_conn                   *est_conn;
 	static struct m0_fom_timeout         *fom_timeout = NULL;
 	int                                   rc;
 
@@ -238,24 +239,38 @@ M0_INTERNAL int m0_rpc_fom_conn_establish_tick(struct m0_fom *fom)
 
 	machine = item->ri_rmachine;
 	m0_rpc_machine_lock(machine);
-	if (m0_rpc_machine_find_conn(machine, item) != NULL) {
+	est_conn = m0_rpc_machine_find_conn(machine, item);
+	if (est_conn != NULL) {
+		/* This connection should aready be setup. */
+		M0_ASSERT(m0_rpc_conn_invariant(est_conn));
+
 		/* This is a duplicate request that was accepted
 		   after original conn-establish request was accepted but
 		   before the conn-establish operation completed.
 
-		   Ignore this item.
+		   It seems that server connect reply was dropped by client
+		   due to the lack of free buffers. Let us resuse the existing
+		   connection.
 		 */
 		M0_LOG(M0_INFO, "Duplicate conn-establish request %p", item);
-		m0_rpc_machine_unlock(machine);
 		m0_free(conn);
-		goto ret;
+
+		/*
+		 * Reuse existing conn and proceed just like this is very
+		 * first connection attempt.
+		 */
+		conn = est_conn;
+		rc = 0;
+	} else {
+		rc = m0_rpc_rcv_conn_init(conn, ctx->cec_sender_ep, machine,
+					  &header->osr_uuid);
+		if (rc == 0) {
+			conn->c_sender_id = m0_rpc_id_generate();
+			conn_state_set(conn, M0_RPC_CONN_ACTIVE);
+		}
 	}
-	rc = m0_rpc_rcv_conn_init(conn, ctx->cec_sender_ep, machine,
-				  &header->osr_uuid);
 	if (rc == 0) {
 		session0 = m0_rpc_conn_session0(conn);
-		conn->c_sender_id = m0_rpc_id_generate();
-		conn_state_set(conn, M0_RPC_CONN_ACTIVE);
 		item->ri_session = session0;
 		/* freed at m0_rpc_item_process_reply() */
 		m0_rpc_session_hold_busy(session0);
