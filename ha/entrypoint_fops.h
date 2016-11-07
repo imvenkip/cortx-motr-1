@@ -45,12 +45,38 @@
 #include "ha/link_fops_xc.h"    /* m0_ha_link_parameters_xc */
 
 /**
+ * Command passed to the entrypoint consumer side to control entrypoint request
+ * flow. Producer side may request consumer to keep querying entrypoint, or
+ * stop querying and force process to quit.
+ */
+enum m0_ha_entrypoint_control {
+	M0_HA_ENTRYPOINT_CONSUME,      /**< Entrypoint is good to be consumed */
+	M0_HA_ENTRYPOINT_QUIT,         /**< Remote consumer requested to quit */
+	M0_HA_ENTRYPOINT_QUERY,        /**< Remote consumer must query again */
+#if 0   /*
+	 * XXX: Possible way to introduce explicit delay. The entry implies the
+	 * value to be transformed to M0_HA_ENTRYPOINT_QUERY immediately in the
+	 * interface API m0_halon_interface_entrypoint_reply() along with
+	 * setting delay value correspondingly.
+	 */
+	M0_HA_ENTRYPOINT_QUERY_1SEC,   /**< Query again, with 1 sec delay */
+	/*
+	 * Other ways to introduce the delay between HA client queries:
+	 * - add explicit delay_ns parameter to the Halon interface API
+	 *   m0_halon_interface_entrypoint_reply(), or
+	 * - synthesize delay value on HA client side based on some policy
+	 *   (predefined constant, or algorithmic, or statistics-based), or
+	 * - transform control values like M0_HA_ENTRYPOINT_QUERY_1SEC to
+	 *   M0_HA_ENTRYPOINT_QUERY and delay on HA client side.
+	 */
+#endif
+};
+
+/**
  * Cluster entry point contains information necessary to access cluster
  * configuration. This information is maintained by HA subsystem.
  */
 struct m0_ha_entrypoint_rep_fop {
-	/** Negative if accessing cluster configuration is impossible. */
-	int32_t                  hbp_rc;
 	/**
 	 * Minimum number of confd servers agreed upon current configuration
 	 * version in cluster. Client shouldn't access configuration if this
@@ -74,6 +100,9 @@ struct m0_ha_entrypoint_rep_fop {
 	 * RPC endpoint of RM service.
 	 */
 	struct m0_buf            hbp_active_rm_ep;
+
+	/** Data passed back to client to control query flow */
+	uint32_t                 hbp_control;
 
 	/* link parameters */
 	struct m0_ha_link_params hbp_link_params;
@@ -107,15 +136,16 @@ struct m0_ha_entrypoint_req {
 };
 
 struct m0_ha_entrypoint_rep {
-	int                        hae_rc;
-	uint32_t                   hae_quorum;
-	struct m0_fid_arr          hae_confd_fids;
-	const char               **hae_confd_eps;
-	struct m0_fid              hae_active_rm_fid;
-	char                      *hae_active_rm_ep;
-
-	struct m0_ha_link_params   hae_link_params;
-	bool                       hae_link_do_reconnect;
+	uint32_t                        hae_quorum;
+	struct m0_fid_arr               hae_confd_fids;
+	const char                    **hae_confd_eps;
+	struct m0_fid                   hae_active_rm_fid;
+	char                           *hae_active_rm_ep;
+	/** Data passed back to client to control query flow */
+	enum m0_ha_entrypoint_control   hae_control;
+	/* link parameters */
+	struct m0_ha_link_params        hae_link_params;
+	bool                            hae_link_do_reconnect;
 };
 
 extern struct m0_fop_type m0_ha_entrypoint_req_fopt;

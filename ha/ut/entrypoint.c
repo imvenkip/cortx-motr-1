@@ -47,7 +47,7 @@ enum {
 struct ha_ut_entrypoint_usecase_ctx {
 	struct m0_ha_entrypoint_server   ueus_server;
 	struct m0_ha_entrypoint_client   ueus_client;
-	int                              ueus_rc;
+	enum m0_ha_entrypoint_control    ueus_control;
 	uint32_t                         ueus_quorum;
 	uint32_t                         ueus_confd_nr;
 	struct m0_fid                   *ueus_confd_fids;
@@ -70,15 +70,15 @@ static void ha_ut_entrypoint_request_arrived(
 			    ueus_server);
 	M0_ALLOC_PTR(rep);
 	*rep = (struct m0_ha_entrypoint_rep){
-		.hae_rc            = uctx->ueus_rc,
-		.hae_quorum        = uctx->ueus_quorum,
-		.hae_confd_fids    = {
+		.hae_quorum     = uctx->ueus_quorum,
+		.hae_confd_fids = {
 			.af_count =  uctx->ueus_confd_nr,
 			.af_elems =  uctx->ueus_confd_fids,
 		},
 		.hae_confd_eps     = (const char **)uctx->ueus_confd_endpoints,
 		.hae_active_rm_fid = uctx->ueus_rm_fid,
 		.hae_active_rm_ep  = uctx->ueus_rm_ep,
+		.hae_control       = uctx->ueus_control,
 	};
 	++uctx->ueus_req_count;
 	m0_ha_entrypoint_server_reply(hes, req_id, rep);
@@ -93,7 +93,7 @@ ha_ut_entrypoint_reply_init(struct ha_ut_entrypoint_usecase_ctx *uctx)
 	int      rc;
 	int      i;
 
-	uctx->ueus_rc       = 0;
+	uctx->ueus_control  = M0_HA_ENTRYPOINT_CONSUME;
 	uctx->ueus_confd_nr = HA_UT_ENTRYPOINT_USECASE_CONFD_NR;
 	uctx->ueus_quorum   = HA_UT_ENTRYPOINT_USECASE_CONFD_NR / 2 + 1;
 	M0_ALLOC_ARR(uctx->ueus_confd_fids,      uctx->ueus_confd_nr);
@@ -129,8 +129,8 @@ ha_ut_entrypoint_reply_check(struct ha_ut_entrypoint_usecase_ctx *uctx,
 {
 	int i;
 
-	M0_UT_ASSERT(rep->hae_rc                  == uctx->ueus_rc);
-	M0_UT_ASSERT(rep->hae_quorum              == uctx->ueus_quorum);
+	M0_UT_ASSERT(rep->hae_control == uctx->ueus_control);
+	M0_UT_ASSERT(rep->hae_quorum == uctx->ueus_quorum);
 	M0_UT_ASSERT(rep->hae_confd_fids.af_count == uctx->ueus_confd_nr);
 	for (i = 0; i < uctx->ueus_confd_nr; ++i) {
 		M0_UT_ASSERT(m0_fid_eq(&rep->hae_confd_fids.af_elems[i],
@@ -138,7 +138,7 @@ ha_ut_entrypoint_reply_check(struct ha_ut_entrypoint_usecase_ctx *uctx,
 		M0_UT_ASSERT(m0_streq(rep->hae_confd_eps[i],
 		                      uctx->ueus_confd_endpoints[i]));
 	}
-	M0_UT_ASSERT(m0_streq(  rep->hae_active_rm_ep,   uctx->ueus_rm_ep));
+	M0_UT_ASSERT(m0_streq(rep->hae_active_rm_ep, uctx->ueus_rm_ep));
 	M0_UT_ASSERT(m0_fid_eq(&rep->hae_active_rm_fid, &uctx->ueus_rm_fid));
 }
 

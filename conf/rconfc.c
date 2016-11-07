@@ -259,22 +259,22 @@
                                        |  m0_fom_init()
          !m0_confc_is_inited() ||      |  m0_fom_queue()
          !m0_confc_is_online()         V
-      +--------------------------- RLS_INIT
+      +--------------------------- M0_RLF_INIT
       |                                |
       |                                |  wait for M0_RPC_SESSION_IDLE
       |                                V
-      +---------------------- RLS_SESS_WAIT_IDLE
+      +---------------------- M0_RLF_SESS_WAIT_IDLE
       |                                |
       |                                |  m0_rpc_session_terminate()
       |                                V
-      +---------------------- RLS_SESS_TERMINATING
+      +---------------------- M0_RLF_SESS_TERMINATING
       |                                |  m0_rpc_session_fini()
       |                                |  m0_rpc_conn_terminate()
       |                                V
-      +---------------------- RLS_CONN_TERMINATING
+      +---------------------- M0_RLF_CONN_TERMINATING
       |                                |  m0_rpc_conn_fini()
       |                                V
-      +--------------------------->RLS_FINI
+      +--------------------------->M0_RLF_FINI
                                        |  m0_fom_fini()
                                        |  rconfc_herd_link_fini()
                                        V
@@ -574,7 +574,6 @@ static bool rconfc_gate_check(struct m0_confc *confc);
 static int  rconfc_gate_skip(struct m0_confc *confc);
 static bool rconfc_gate_drain(struct m0_clink *clink);
 static bool ha_clink_cb(struct m0_clink *clink);
-static void ha_entrypoint_rep_reset(struct m0_ha_entrypoint_rep *rep);
 
 struct m0_confc_gate_ops m0_rconfc_gate_ops = {
 	.go_check = rconfc_gate_check,
@@ -1780,6 +1779,17 @@ static int rconfc_entrypoint_consume(struct m0_rconfc *rconfc,
 	M0_ENTRY();
 	rconfc_state_set(rconfc, M0_RCS_ENTRYPOINT_CONSUME);
 	hep = &rconfc->rc_ha_entrypoint_rep;
+	if (hep->hae_control == M0_HA_ENTRYPOINT_QUIT)
+		/* HA commanded stop querying. No operation permitted. */
+		return M0_ERR(-EPERM);
+	if (!m0_fid_is_set(&hep->hae_active_rm_fid))
+		/*
+		 * The situation when active RM fid is unset cannot happen
+		 * during regular cluster operation. Whichever reason actually
+		 * caused the fid to be zero, it must be considered an
+		 * unrecoverable issue preventing rconfc from further running.
+		 */
+		return M0_ERR(-ENOKEY);
 	rconfc->rc_quorum = hep->hae_quorum;
 	rlx->rlc_rm_fid = hep->hae_active_rm_fid;
 	*rm_addr = hep->hae_active_rm_ep;
@@ -1803,7 +1813,12 @@ static int rconfc_start_internal(struct m0_rconfc *rconfc)
 
 	rc = rconfc_entrypoint_consume(rconfc, &rm_addr);
 	if (rc != 0) {
-		rconfc_herd_destroy(rconfc);
+		if (M0_IN(rc, (-ENOKEY, -EPERM)))
+			/* HA requested rconfc to stop querying entrypoint */
+			rconfc_fail(rconfc, rc);
+		else
+			/* rconfc is to keep trying with next entrypoint */
+			rconfc_herd_destroy(rconfc);
 		return M0_ERR(rc);
 	}
 	rconfc_state_set(rconfc, M0_RCS_CREDITOR_SETUP);
@@ -1831,7 +1846,7 @@ static void rconfc_start(struct m0_rconfc *rconfc)
 	while (rconfc_state(rconfc) != M0_RCS_FAILURE) {
 		rconfc_state_set(rconfc, M0_RCS_ENTRYPOINT_WAIT);
 
-		if (rconfc->rc_ha_entrypoint_rep.hae_rc != 0) {
+		if (rconfc->rc_ha_entrypoint_rep.hae_control == M0_HA_ENTRYPOINT_QUERY) {
 			M0_LOG(M0_DEBUG, "Querying ENTRYPOINT...");
 			m0_ha_entrypoint_client_request(ecl);
 			break;
@@ -1839,16 +1854,16 @@ static void rconfc_start(struct m0_rconfc *rconfc)
 
 		M0_LOG(M0_DEBUG, "ENTRYPOINT ready...");
 		rc = rconfc_start_internal(rconfc);
-		ha_entrypoint_rep_reset(&rconfc->rc_ha_entrypoint_rep);
 		m0_ha_entrypoint_rep_free(&rconfc->rc_ha_entrypoint_rep);
+		rconfc->rc_ha_entrypoint_rep.hae_control = M0_HA_ENTRYPOINT_QUERY;
 		if (rc == 0)
 			break;
 		M0_LOG(M0_DEBUG, "Try reconnecting after rc=%d", rc);
 		M0_CNT_INC(rconfc->rc_ha_entrypoint_retries);
 	}
 
-	M0_LEAVE("rc=%d hae_rc=%d is_failed=%s entrypoint_retries=%"PRIu32,
-		 rc, rconfc->rc_ha_entrypoint_rep.hae_rc,
+	M0_LEAVE("rc=%d hae_control=%d is_failed=%s entrypoint_retries=%"PRIu32,
+		 rc, rconfc->rc_ha_entrypoint_rep.hae_control,
 		 m0_bool_to_str(rconfc_state(rconfc) == M0_RCS_FAILURE),
 		 rconfc->rc_ha_entrypoint_retries);
 }
@@ -2619,7 +2634,7 @@ M0_INTERNAL int m0_rconfc_init(struct m0_rconfc      *rconfc,
 	m0_clink_init(&rconfc->rc_ha_entrypoint_cl, ha_clink_cb);
 	m0_clink_add_lock(m0_ha_entrypoint_client_chan(&ha->h_entrypoint_client),
 			  &rconfc->rc_ha_entrypoint_cl);
-	ha_entrypoint_rep_reset(&rconfc->rc_ha_entrypoint_rep);
+	rconfc->rc_ha_entrypoint_rep.hae_control = M0_HA_ENTRYPOINT_QUERY;
 
 	return M0_RC(0);
 confc_err:
@@ -2845,7 +2860,8 @@ static bool ha_clink_cb(struct m0_clink *clink)
 	if (rconfc->rc_local_conf != NULL)
 		return true;
 
-        if (state == M0_HEC_AVAILABLE && ecl->ecl_rep.hae_rc == 0) {
+        if (state == M0_HEC_AVAILABLE &&
+	    ecl->ecl_rep.hae_control != M0_HA_ENTRYPOINT_QUERY) {
                 m0_rconfc_lock(rconfc);
 		rc = m0_ha_entrypoint_rep_copy(&rconfc->rc_ha_entrypoint_rep,
 					       &ecl->ecl_rep);
@@ -2861,11 +2877,6 @@ static bool ha_clink_cb(struct m0_clink *clink)
 
         M0_LEAVE();
         return true;
-}
-
-static void ha_entrypoint_rep_reset(struct m0_ha_entrypoint_rep *rep)
-{
-	rep->hae_rc = -EINVAL;
 }
 
 /** @} rconfc_dlspec */

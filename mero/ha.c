@@ -40,6 +40,7 @@
 #include "lib/memory.h"         /* m0_free */
 #include "lib/assert.h"         /* M0_ASSERT */
 #include "lib/errno.h"          /* EHOSTUNREACH */
+#include "lib/finject.h"        /* M0_FI_ENABLED */
 
 #include "conf/helpers.h"       /* m0_conf_service_open */
 #include "conf/schema.h"        /* M0_CST_MGS */
@@ -172,7 +173,13 @@ static int mero_ha_entrypoint_rep_confds_fill(const struct m0_fid      *profile,
 	int rc;
 
 	if (!m0_fid_is_set(profile))
-		return M0_ERR(-EAGAIN);
+		/*
+		 * Profile fid is a key attribute of REQH, which seems not set
+		 * up proper way. It is not possible to serve ha entrypoint
+		 * requests with wrongly set up mero instance. So any further
+		 * communication makes no sense and must not be permitted.
+		 */
+		return M0_ERR(-EPERM);
 	rc = mero_ha_confd_iter(profile, confc, rep, &confd_count);
 	if (rc != 0)
 		return M0_ERR(rc);
@@ -210,6 +217,8 @@ static int mero_ha_entrypoint_rep_rm_fill(const struct m0_fid  *profile,
 	struct m0_conf_diter       it;
 	int                        rc;
 
+	if (M0_FI_ENABLED("no_rms_fid"))
+		return M0_ERR(-EPERM);
 	/*
 	 * This code is executed only for testing purposes if there is no real
 	 * HA service in cluster.
@@ -241,7 +250,8 @@ static int mero_ha_entrypoint_rep_rm_fill(const struct m0_fid  *profile,
 	m0_conf_diter_fini(&it);
 	m0_confc_close(&fs->cf_obj);
 	if (*active_rm_ep == NULL)
-		return M0_ERR(-EHOSTUNREACH);
+		/* Further operation not permitted on client side */
+		return M0_ERR(-EPERM);
 
 	return M0_RC(0);
 }
@@ -255,17 +265,34 @@ mero_ha_entrypoint_request_cb(struct m0_ha                      *ha,
 	struct m0_confc             *confc   = m0_reqh2confc(reqh);
 	struct m0_fid               *profile = &reqh->rh_profile;
 	struct m0_ha_entrypoint_rep  rep = {0};
+	int                          rc;
 
-	M0_ENTRY();
-	rep.hae_rc =
-		mero_ha_entrypoint_rep_confds_fill(profile, confc, &rep) ?:
+	rc = mero_ha_entrypoint_rep_confds_fill(profile, confc, &rep) ?:
 		mero_ha_entrypoint_rep_rm_fill(profile, confc,
 					       &rep.hae_active_rm_fid,
 					       &rep.hae_active_rm_ep);
+	switch (rc) {
+	case 0:
+		M0_ASSERT(rep.hae_confd_eps[0] != NULL);
+		rep.hae_control = M0_HA_ENTRYPOINT_CONSUME;
+		break;
+	case -EPERM:
+		rep.hae_control = M0_HA_ENTRYPOINT_QUIT;
+		break;
+	case -EAGAIN:
+		rep.hae_control = M0_HA_ENTRYPOINT_QUERY;
+		/*
+		 * XXX: need to develop some policy in regard to .hec_delay_ns
+		 * in case the re-querying is requested.
+		 */
+		break;
+	default:
+		M0_IMPOSSIBLE("rc=%d is not expected", rc);
+	}
 	m0_ha_entrypoint_reply(ha, req_id, &rep, NULL);
 	m0_free(rep.hae_active_rm_ep);
 	mero_ha_entrypoint_rep_confds_free(&rep);
-	M0_LEAVE("rep.hae_rc=%d", rep.hae_rc);
+	M0_LEAVE("rc=%d hae_control=%d", rc, rep.hae_control);
 }
 
 static void mero_ha_entrypoint_replied_cb(struct m0_ha                *ha,

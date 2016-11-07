@@ -875,7 +875,6 @@ static int ha_entrypoint_get_fom_tick(struct m0_fom *fom)
 	struct ha_entrypoint_server_fom *server_fom;
 	struct m0_ha_entrypoint_server  *hes;
 	struct ha_entrypoint_service    *he_service;
-	struct m0_ha_entrypoint_rep_fop *rep_data;
 	int                              rc;
 
 	he_service = ha_entrypoint_service_container(fom->fo_service);
@@ -906,9 +905,8 @@ static int ha_entrypoint_get_fom_tick(struct m0_fom *fom)
 		ha_entrypoint_server_deregister(hes, server_fom);
 		m0_ha_entrypoint_req_free(&server_fom->esf_req);
 		rc = 0;
-		rep_data = m0_fop_data(fom->fo_rep_fop);
-		rep_data->hbp_rc = rc;
-		m0_rpc_reply_post(&fom->fo_fop->f_item, &fom->fo_rep_fop->f_item);
+		m0_rpc_reply_post(&fom->fo_fop->f_item,
+				  &fom->fo_rep_fop->f_item);
 		m0_fom_phase_set(fom, M0_HES_FINI);
 	}
 	M0_LEAVE("rc=%d", rc);

@@ -895,7 +895,6 @@ void m0_halon_interface_entrypoint_reply(
 	         FID_P(rm_fid == NULL ? &M0_FID0 : rm_fid), rm_eps);
 
 	rep = (struct m0_ha_entrypoint_rep){
-		.hae_rc            = rc,
 		.hae_quorum        = confd_quorum,
 		.hae_confd_fids    = {
 			.af_count = confd_nr,
@@ -904,6 +903,8 @@ void m0_halon_interface_entrypoint_reply(
 		.hae_confd_eps     = confd_eps_data,
 		.hae_active_rm_fid = rm_fid == NULL ? M0_FID0 : *rm_fid,
 		.hae_active_rm_ep  = (char *)rm_eps,
+		.hae_control       = rc == 0 ? M0_HA_ENTRYPOINT_CONSUME :
+					       M0_HA_ENTRYPOINT_QUERY,
 	};
 	m0_ha_entrypoint_reply(&hi->hif_internal->hii_ha, req_id, &rep, NULL);
 	M0_LEAVE();
@@ -919,7 +920,8 @@ void m0_halon_interface_send(struct m0_halon_interface *hi,
 	M0_PRE(m0_halon_interface_internal_bob_check(hii));
 	M0_PRE(m0_get() == &hii->hii_instance);
 
-	M0_ENTRY("hi=%p ha=%p hl=%p msg=%p tag=%p", hi, &hii->hii_ha, hl, msg, tag);
+	M0_ENTRY("hi=%p ha=%p hl=%p msg=%p tag=%p", hi, &hii->hii_ha, hl, msg,
+		 tag);
 	m0_ha_msg_debug_print(msg, __func__);
 	m0_ha_send(&hii->hii_ha, hl, msg, tag);
 	M0_LEAVE("hi=%p ha=%p hl=%p msg=%p tag=%"PRIu64,

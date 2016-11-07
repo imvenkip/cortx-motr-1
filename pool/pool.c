@@ -960,7 +960,8 @@ static bool service_ctx_ha_entrypoint_cb(struct m0_clink *clink)
 	int                                 rc;
 
 	state = m0_ha_entrypoint_client_state_get(ecl);
-	if (state == M0_HEC_AVAILABLE && rep->hae_rc == 0 &&
+	if (state == M0_HEC_AVAILABLE &&
+	    rep->hae_control != M0_HA_ENTRYPOINT_QUERY &&
 	    m0_fid_is_set(&rep->hae_active_rm_fid) &&
 	    !m0_fid_eq(&pc->pc_rm_ctx->sc_fid, &rep->hae_active_rm_fid)) {
 

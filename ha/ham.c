@@ -318,12 +318,12 @@ static void ham_entrypoint_request(struct m0_ha *ha,
 {
 	struct m0_ha_link          *hl;
 	struct m0_ha_entrypoint_rep rep = {
-		.hae_rc            = 0,
 		.hae_quorum        = 1,
 		.hae_confd_fids    = {},
 		.hae_confd_eps     = NULL,
 		.hae_active_rm_fid = M0_FID_TINIT('s', HAM_ID, 1),
 		.hae_active_rm_ep  = NULL,
+		.hae_control       = M0_HA_ENTRYPOINT_CONSUME,
 	};
 
 	ham_say("Got entrypoint request. Replying");

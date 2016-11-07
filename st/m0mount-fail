@@ -77,7 +77,7 @@ conf_without_rms() {
 (profile-0 filesystem=filesystem-0)
 (filesystem-0 rootfid=(11, 22) redundancy=2
     params=["pool_width=3", "nr_data_units=1", "nr_parity_units=1",
-            "unit_size=4096"]
+            "unit_size=4096"] imeta_pver=pver-0
     mdpool=pool-0 nodes=[node-0] pools=[pool-0] racks=[rack-0])
 (node-0 memsize=16000 nr_cpu=2 last_state=3 flags=2 pool_id=pool-0
     processes=[process-0])
@@ -126,7 +126,7 @@ conf_normal() {
 (profile-0 filesystem=filesystem-0)
 (filesystem-0 rootfid=(11, 22) redundancy=2
     params=["pool_width=3", "nr_data_units=1", "nr_parity_units=1",
-            "unit_size=4096"]
+            "unit_size=4096"] imeta_pver=pver-0
     mdpool=pool-0 nodes=[node-0] pools=[pool-0] racks=[rack-0])
 (node-0 memsize=16000 nr_cpu=2 last_state=3 flags=2 pool_id=pool-0
     processes=[process-0])

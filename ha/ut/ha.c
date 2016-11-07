@@ -99,12 +99,12 @@ static void ha_ut_usecase_entrypoint_request
 	M0_UT_ASSERT(m0_fid_eq(&M0_FID_TINIT('p', 3, 4),
 			       &req->heq_profile_fid));
 	rep = (struct m0_ha_entrypoint_rep){
-		.hae_rc            = 0,
 		.hae_quorum        = 1,
 		.hae_confd_fids    = {},
 		.hae_confd_eps     = NULL,
 		.hae_active_rm_fid = M0_FID_INIT(5, 6),
 		.hae_active_rm_ep  = NULL,
+		.hae_control       = M0_HA_ENTRYPOINT_CONSUME,
 	};
 	m0_ha_entrypoint_reply(ha, req_id, &rep, &hl);
 	ha_ut_usecase_link_check(huc, hl);
@@ -118,7 +118,7 @@ static void ha_ut_usecase_entrypoint_replied(struct m0_ha                *ha,
 	M0_UT_ASSERT(huc->huc_entrypoint_replied_nr == 0);
 	++huc->huc_entrypoint_replied_nr;
 
-	M0_UT_ASSERT(rep->hae_rc == 0);
+	M0_UT_ASSERT(rep->hae_control == M0_HA_ENTRYPOINT_CONSUME);
 	M0_UT_ASSERT(rep->hae_quorum == 1);
 	M0_UT_ASSERT(m0_fid_eq(&M0_FID_INIT(5, 6), &rep->hae_active_rm_fid));
 }

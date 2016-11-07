@@ -123,15 +123,15 @@ m0_ha_entrypoint_fop2rep(const struct m0_ha_entrypoint_rep_fop *rep_fop,
 	int      rc;
 
 	*rep = (struct m0_ha_entrypoint_rep){
-		.hae_rc             = rep_fop->hbp_rc,
-		.hae_quorum         = rep_fop->hbp_quorum,
+		.hae_quorum     = rep_fop->hbp_quorum,
 		.hae_confd_fids = {
 			.af_count = rep_fop->hbp_confd_fids.af_count,
 		},
-		.hae_active_rm_fid  = rep_fop->hbp_active_rm_fid,
-		.hae_active_rm_ep   = m0_buf_strdup(&rep_fop->hbp_active_rm_ep),
-		.hae_link_params    = rep_fop->hbp_link_params,
+		.hae_active_rm_fid = rep_fop->hbp_active_rm_fid,
+		.hae_active_rm_ep  = m0_buf_strdup(&rep_fop->hbp_active_rm_ep),
+		.hae_link_params   = rep_fop->hbp_link_params,
 		.hae_link_do_reconnect = rep_fop->hbp_link_do_reconnect == 1,
+		.hae_control           = rep_fop->hbp_control,
 	};
 	M0_ASSERT(rep->hae_active_rm_ep != NULL);
 	M0_ASSERT(rep->hae_confd_fids.af_count ==
@@ -159,9 +159,8 @@ m0_ha_entrypoint_rep2fop(const struct m0_ha_entrypoint_rep *rep,
 	rm_ep = rep->hae_active_rm_ep == NULL ?
 		m0_strdup("") : m0_strdup(rep->hae_active_rm_ep);
 	*rep_fop = (struct m0_ha_entrypoint_rep_fop){
-		.hbp_rc                = rep->hae_rc,
-		.hbp_quorum            = rep->hae_quorum,
-		.hbp_confd_fids        = {
+		.hbp_quorum     = rep->hae_quorum,
+		.hbp_confd_fids = {
 			.af_count = rep->hae_confd_fids.af_count,
 		},
 		.hbp_confd_eps         = {
@@ -171,6 +170,7 @@ m0_ha_entrypoint_rep2fop(const struct m0_ha_entrypoint_rep *rep,
 		.hbp_active_rm_ep      = M0_BUF_INITS(rm_ep),
 		.hbp_link_params       = rep->hae_link_params,
 		.hbp_link_do_reconnect = rep->hae_link_do_reconnect ? 1 : 0,
+		.hbp_control           = rep->hae_control,
 	};
 	M0_ALLOC_ARR(rep_fop->hbp_confd_eps.ab_elems,
 		     rep_fop->hbp_confd_eps.ab_count);
@@ -213,13 +213,13 @@ M0_INTERNAL int  m0_ha_entrypoint_rep_copy(struct m0_ha_entrypoint_rep *to,
 	if (from->hae_confd_fids.af_count == 0 || from->hae_confd_eps == NULL)
 		return M0_RC(-EINVAL);
 
-	M0_SET0(to);
-	to->hae_rc            = from->hae_rc;
-	to->hae_quorum        = from->hae_quorum;
-	to->hae_active_rm_fid = from->hae_active_rm_fid;
-	to->hae_link_params   = from->hae_link_params;
-
-	to->hae_active_rm_ep  = m0_strdup(from->hae_active_rm_ep);
+	*to = (struct m0_ha_entrypoint_rep) {
+		.hae_quorum        = from->hae_quorum,
+		.hae_active_rm_fid = from->hae_active_rm_fid,
+		.hae_link_params   = from->hae_link_params,
+		.hae_active_rm_ep  = m0_strdup(from->hae_active_rm_ep),
+		.hae_control       = from->hae_control,
+	};
 	if (to->hae_active_rm_ep == NULL) {
 		rc = -ENOMEM;
 		goto out;
@@ -240,7 +240,6 @@ out:
 	m0_ha_entrypoint_rep_free(to);
 	return M0_RC(rc);
 }
-
 
 #undef M0_TRACE_SUBSYSTEM
 

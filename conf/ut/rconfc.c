@@ -288,7 +288,7 @@ static bool ha_clink_cb_bad_rm(struct m0_clink *clink)
 
 	M0_PRE(rconfc->rc_sm.sm_state == M0_RCS_ENTRYPOINT_WAIT);
         if (m0_ha_entrypoint_client_state_get(ecl) == M0_HEC_AVAILABLE &&
-	    ecl->ecl_rep.hae_rc == 0) {
+	    ecl->ecl_rep.hae_control != M0_HA_ENTRYPOINT_QUERY) {
 		char       *rm_addr = ecl->ecl_rep.hae_active_rm_ep;
 		char       *rm_fake = NULL;
 		static bool do_fake = true;
@@ -369,6 +369,16 @@ static void test_no_rms(void)
 
 	rc = rconfc_ut_mero_start(&mach, &rctx);
 	M0_UT_ASSERT(rc == 0);
+
+	/* quit on command from HA */
+	m0_fi_enable_once("mero_ha_entrypoint_rep_rm_fill", "no_rms_fid");
+	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_rconfc_start_sync(&rconfc, &profile);
+	M0_UT_ASSERT(rc == -EPERM);
+	/* see if we can stop after start failure */
+	m0_rconfc_stop_sync(&rconfc);
+	m0_rconfc_fini(&rconfc);
 
 	/* start with rms up and running */
 	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);

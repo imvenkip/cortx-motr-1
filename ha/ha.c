@@ -294,7 +294,7 @@ static bool ha_entrypoint_state_cb(struct m0_clink *clink)
 
 	switch (state) {
 	case M0_HEC_AVAILABLE:
-		M0_LOG(M0_DEBUG, "ha=%p rep->hae_rc=%d", ha, rep->hae_rc);
+		M0_LOG(M0_DEBUG, "ha=%p hae_contol=%d", ha, rep->hae_control);
 		ha_link_conn_cfg_make(&hl_conn_cfg, ha->h_cfg.hcf_addr);
 		hl_conn_cfg.hlcc_params = rep->hae_link_params;
 		hl = &ha->h_link_ctx->hlx_link;
@@ -309,12 +309,17 @@ static bool ha_entrypoint_state_cb(struct m0_clink *clink)
 				m0_ha_link_reconnect_cancel(hl);
 			}
 		}
-		if (rep->hae_rc != 0) {
+		if (rep->hae_control == M0_HA_ENTRYPOINT_QUERY) {
+			/*
+			 * XXX: it looks like delay belongs here, or maybe
+			 * m0_ha_entrypoint_client_request() itself should
+			 * implement deferred request somehow.
+			 */
 			m0_ha_entrypoint_client_request(ecl);
 		} else {
 			ha->h_cfg.hcf_ops.hao_entrypoint_replied(ha, rep);
+			consumed = false;
 		}
-		consumed = rep->hae_rc != 0;
 		break;
 	case M0_HEC_UNAVAILABLE:
 		m0_ha_entrypoint_client_request(ecl);

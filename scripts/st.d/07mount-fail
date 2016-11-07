@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
 set -eu
 
-echo "#"
-echo "# --- XXX: 07mount-fail disabled because of MERO-2150 ---"
-echo "# ---      need to be enabled when MERO-2151 is ready ---"
-echo "#"
-exit
 exec $SUDO $M0_SRC_DIR/st/m0mount-fail
