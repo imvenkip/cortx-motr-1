@@ -828,95 +828,44 @@ static void cob_verify(struct m0_fom *fom, const bool exists)
 	        m0_free(nskey);
 }
 
+static void md_cob_fop_create_delete_test(bool create_p,
+					  const struct m0_fid *pver,
+					  int expected_reply_rc)
+{
+	struct m0_fop              *fop;
+	struct m0_fop_cob_common   *common;
+	struct m0_fop_cob_op_reply *reply;
+	int                         rc;
+
+	cut->cu_gobindex = 0;
+	cobfops_create();
+	fop = *(create_p ? cut->cu_createfops : cut->cu_deletefops);
+	common = m0_cobfop_common_get(fop);
+	common->c_body.b_valid = M0_COB_PVER | M0_COB_NLINK;
+	common->c_body.b_pver  = *pver;
+	common->c_body.b_nlink = !!create_p;
+	common->c_cob_type = M0_COB_MD;
+	rc = m0_rpc_post_sync(fop, &cut->cu_cctx.rcx_session, NULL,
+			      0 /* deadline */);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_rpc_item_wait_for_reply(&fop->f_item, M0_TIME_NEVER);
+	M0_UT_ASSERT(rc == 0);
+	reply = m0_fop_data(m0_rpc_item_to_fop(fop->f_item.ri_reply));
+	M0_UT_ASSERT(reply->cor_rc == expected_reply_rc);
+	cobfops_destroy(&m0_fop_cob_create_fopt, &m0_fop_cob_delete_fopt);
+}
+
 static void md_cob_create_delete()
 {
-	int                         rc;
-	struct m0_fop              *fop;
-	struct m0_fop_cob_op_reply *rfop;
-	struct m0_fop_cob_common   *common;
-
 	M0_UT_ASSERT(cut != NULL);
-
 	cut->cu_cobfop_nr = 2;
-	cut->cu_gobindex = 0;
-	cobfops_create();
-	fop = cut->cu_createfops[0];
-
-	common = m0_cobfop_common_get(fop);
-	common->c_body.b_valid = M0_COB_PVER | M0_COB_NLINK;
-	common->c_body.b_pver = CONF_PVER_FID;
-	common->c_body.b_nlink = 1;
-	common->c_cob_type = M0_COB_MD;
-	M0_LOG(M0_DEBUG, "gobfid="FID_F" cobfid="FID_F,
-		FID_P(&common->c_gobfid), FID_P(&common->c_cobfid));
-
-	rc = m0_rpc_post_sync(fop, &cut->cu_cctx.rcx_session, NULL,
-			      0 /* deadline */);
-	M0_UT_ASSERT(rc == 0);
-	rc = m0_rpc_item_wait_for_reply(&fop->f_item, M0_TIME_NEVER);
-	M0_UT_ASSERT(rc == 0);
-	rfop = m0_fop_data(m0_rpc_item_to_fop(fop->f_item.ri_reply));
-	M0_UT_ASSERT(rfop->cor_rc == 0);
-
+	md_cob_fop_create_delete_test(true, &CONF_PVER_FID, 0);
 	/* Create the same mdcob again. */
-	cobfops_destroy(&m0_fop_cob_create_fopt, &m0_fop_cob_delete_fopt);
-	cut->cu_gobindex = 0;
-	cobfops_create();
-	fop = cut->cu_createfops[0];
-	common->c_body.b_valid = M0_COB_PVER | M0_COB_NLINK;
-	common->c_body.b_pver = CONF_PVER_FID;
-	common->c_body.b_nlink = 1;
-	common->c_cob_type = M0_COB_MD;
-	M0_LOG(M0_DEBUG, "gobfid="FID_F" cobfid="FID_F,
-		FID_P(&common->c_gobfid), FID_P(&common->c_cobfid));
-
-	rc = m0_rpc_post_sync(fop, &cut->cu_cctx.rcx_session, NULL,
-			      0 /* deadline */);
-	M0_UT_ASSERT(rc == 0);
-	rc = m0_rpc_item_wait_for_reply(&fop->f_item, M0_TIME_NEVER);
-	M0_UT_ASSERT(rc == 0);
-	rfop = m0_fop_data(m0_rpc_item_to_fop(fop->f_item.ri_reply));
-	M0_UT_ASSERT(rfop->cor_rc == -17);
-
+	md_cob_fop_create_delete_test(true, &CONF_PVER_FID, -EEXIST);
 	/* Create the same mdcob with different pool version. */
-	cobfops_destroy(&m0_fop_cob_create_fopt, &m0_fop_cob_delete_fopt);
-	cut->cu_gobindex = 0;
-	cobfops_create();
-	fop = cut->cu_createfops[0];
-	common->c_body.b_valid = M0_COB_PVER | M0_COB_NLINK;
-	common->c_body.b_pver = CONF_PVER_FID1;
-	common->c_body.b_nlink = 1;
-	common->c_cob_type = M0_COB_MD;
-	M0_LOG(M0_DEBUG, "gobfid="FID_F" cobfid="FID_F,
-		FID_P(&common->c_gobfid), FID_P(&common->c_cobfid));
-
-	rc = m0_rpc_post_sync(fop, &cut->cu_cctx.rcx_session, NULL,
-			      0 /* deadline */);
-	M0_UT_ASSERT(rc == 0);
-	rc = m0_rpc_item_wait_for_reply(&fop->f_item, M0_TIME_NEVER);
-	M0_UT_ASSERT(rc == 0);
-	rfop = m0_fop_data(m0_rpc_item_to_fop(fop->f_item.ri_reply));
-	M0_UT_ASSERT(rfop->cor_rc == 0);
-	cobfops_destroy(&m0_fop_cob_create_fopt, &m0_fop_cob_delete_fopt);
-
+	md_cob_fop_create_delete_test(true, &CONF_PVER_FID1, 0);
 	/* Delete the mdcob. */
-	cut->cu_gobindex = 0;
-	cobfops_create();
-	fop = cut->cu_deletefops[0];
-	common = m0_cobfop_common_get(fop);
-	common->c_body.b_valid = M0_COB_PVER | M0_COB_NLINK;
-	common->c_body.b_pver = CONF_PVER_FID1;
-	common->c_body.b_nlink = 0;
-	common->c_cob_type = M0_COB_MD;
-	rc = m0_rpc_post_sync(fop, &cut->cu_cctx.rcx_session, NULL,
-			      0 /* deadline */);
-	M0_UT_ASSERT(rc == 0);
-	rc = m0_rpc_item_wait_for_reply(&fop->f_item, M0_TIME_NEVER);
-	M0_UT_ASSERT(rc == 0);
-	rfop = m0_fop_data(m0_rpc_item_to_fop(fop->f_item.ri_reply));
-	M0_UT_ASSERT(rfop->cor_rc == 0);
-
-	cobfops_destroy(&m0_fop_cob_create_fopt, &m0_fop_cob_delete_fopt);
+	md_cob_fop_create_delete_test(false, &CONF_PVER_FID1, 0);
 }
 
 /*
