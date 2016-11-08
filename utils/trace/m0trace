@@ -872,10 +872,10 @@ sub process_cli_options
             when (/^(?:confd|ha|(?:mds|ios)\d*)$/)   {
                 $file_pattern = "trace-m0d-$ARGV[0]-*.bin";
             }
-            when (/^m0d[-@].*$/)   {
+            when (/^m0d[-@][:x[:xdigit:]]+$/)   {
                 $file_pattern = "trace-$ARGV[0]-*.bin";
             }
-            when (/^(?:confd|ha|(?:rms|mds|ios)\d*)-buf$/) {
+            when (/^(?:confd|ha|(?:rms|mds|ios)\d*|m0d[-@][:x[:xdigit:]]+)-buf$/) {
                 $file_pattern = "m0trace.*";
                 $ARGV[0] =~ m/^(?<sname>.*)-buf$/xms;
                 $cli_option{log_dir} = "$cli_option{mero_dir}/$+{sname}";
@@ -891,6 +891,9 @@ sub process_cli_options
                     . " for example 'confd', 'mds-buf', 'ios2', 'ios2-buf'\n";
             }
         }
+
+        die "Log directory '$cli_option{log_dir}' doesn't exist\n"
+            if ! -d $cli_option{log_dir};
 
         $cli_option{input_file}
             = qx(bash -c 'ls -1t $cli_option{log_dir}/$file_pattern 2>/dev/null | head -n1');

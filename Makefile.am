@@ -608,7 +608,8 @@ include $(top_srcdir)/sns/cm/st/Makefile.sub
 #
 
 bin_SCRIPTS                   += utils/trace/m0trace \
-                                 utils/trace/m0kdump2trace
+                                 utils/trace/m0kdump2trace \
+                                 utils/trace/m0tracepurge
 
 bin_PROGRAMS                  += utils/trace/m0tracedump
 utils_trace_m0tracedump_LDADD  = $(top_builddir)/mero/libmero.la
@@ -639,10 +640,10 @@ utils_layout_m0layout_LDADD     = $(top_builddir)/mero/libmero.la
 
 sbin_SCRIPTS  += utils/m0gendisks \
                  utils/m0genfacts \
-                 utils/m0setup \
-                 utils/m0singlenode \
                  utils/m0reportbug \
-                 utils/m0run
+                 utils/m0run \
+                 utils/m0setup \
+                 utils/m0singlenode
 
 bin_SCRIPTS += utils/m0confgen
 
@@ -1042,7 +1043,7 @@ all-local: build-kernel-modules $(LTLIBRARIES) $(PROGRAMS)
 	@$(top_srcdir)/scripts/build/check-sources $(top_srcdir)
 	@$(top_srcdir)/scripts/build/check-public-api
 	@$(top_srcdir)/scripts/build/print-elf-sizes
-	@$(LN_S) -f $(PROGRAMS:%=../%) ../ut/m0kut utils/
+	@$(LN_S) -f $(PROGRAMS:%=../%) $(filter /trace/, $(bin_SCRIPTS:%=../%)) utils/
 
 # checks ---------------------------------------------- {{{3
 

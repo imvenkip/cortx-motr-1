@@ -183,6 +183,8 @@ M0_INTERNAL void m0_arch_trace_fini(void)
 	uint32_t  old_buffer_size = M0_TRACE_BUF_HEADER_SIZE +
 				    m0_trace_logbuf_size_get();
 
+	m0_logbuf_header->tbh_buf_flags &= ~M0_TRACE_BUF_DIRTY;
+
 	m0_trace_switch_to_static_logbuf();
 
 	if (m0_trace_use_mmapped_buffer())
@@ -192,7 +194,40 @@ M0_INTERNAL void m0_arch_trace_fini(void)
 
 M0_INTERNAL void m0_arch_trace_buf_header_init(struct m0_trace_buf_header *tbh)
 {
+	int     i;
+	int     cmdline_fd;
+	ssize_t read_bytes;
+
 	tbh->tbh_buf_type = M0_TRACE_BUF_USER;
+
+#define CMDLINE "/proc/self/cmdline"
+	cmdline_fd = open(CMDLINE, O_RDONLY);
+	if (cmdline_fd == -1)
+		return;
+
+	read_bytes = read(cmdline_fd, tbh->tbh_cli_args,
+			  sizeof(tbh->tbh_cli_args));
+	if (read_bytes == -1) {
+		warn("mero: failed to read " CMDLINE);
+	} else {
+		if (read_bytes == sizeof(tbh->tbh_cli_args)) {
+			warnx("mero: command line args don't fit into trace "
+			      "buffer, truncating after %zu bytes", read_bytes);
+			tbh->tbh_cli_args[read_bytes - 1] = '\0';
+		} else {
+			tbh->tbh_cli_args[read_bytes] = '\0';
+		}
+                /* cli args are separated with '\0', replace it with spaces */
+		for (i = 0; i < read_bytes - 1; ++i)
+                        if (tbh->tbh_cli_args[i] == '\0')
+                                tbh->tbh_cli_args[i] = ' ';
+	}
+#undef CMDLINE
+
+	if (strstr(tbh->tbh_cli_args, "m0mkfs") != NULL)
+		tbh->tbh_buf_flags |= M0_TRACE_BUF_MKFS;
+
+	tbh->tbh_buf_flags |= M0_TRACE_BUF_DIRTY;
 }
 
 static unsigned align(FILE *file, uint64_t align, uint64_t pos)
@@ -242,6 +277,7 @@ static void print_trace_buf_header(FILE *ofile,
 	char       time_str[512];
 	size_t     time_str_len;
 	time_t     time;
+	bool       need_comma = false;
 
 	fprintf(ofile, "header:\n");
 
@@ -257,10 +293,11 @@ static void print_trace_buf_header(FILE *ofile,
 	ptm = localtime_r(&time, &tm);
 	if (ptm != NULL) {
 		time_str_len = strftime(time_str, sizeof time_str,
-					"%b %e %H:%M:%S %Z %Y", &tm);
+					"%FT%T%z", &tm);
+					/*"%b %e %H:%M:%S %Z %Y", &tm);*/
 		if (time_str_len == 0)
 			fprintf(stderr, "  failed to format trace file timestamp\n");
-		fprintf(ofile, "  trace_time:         '%s'\n", time_str);
+		fprintf(ofile, "  trace_time:         %s\n", time_str);
 	} else {
 		fprintf(stderr, "incorrect timestamp value in trace header\n");
 		fprintf(ofile, "  trace_time:         ''\n");
@@ -271,6 +308,17 @@ static void print_trace_buf_header(FILE *ofile,
 		tbh->tbh_buf_type == M0_TRACE_BUF_USER   ? "USER"   :
 							   "UNKNOWN"
 	);
+	fprintf(ofile, "  flags:              [ ");
+	if (tbh->tbh_buf_flags & M0_TRACE_BUF_DIRTY) {
+		need_comma = true;
+		fprintf(ofile, "DIRTY");
+	}
+	if (tbh->tbh_buf_flags & M0_TRACE_BUF_MKFS) {
+		if (need_comma)
+			fprintf(ofile, ", ");
+		fprintf(ofile, "MKFS");
+	}
+	fprintf(ofile, " ]\n");
 
 	fprintf(ofile, "  header_addr:        %p\n", tbh->tbh_header_addr);
 	fprintf(ofile, "  header_size:        %u\t\t# bytes\n", tbh->tbh_header_size);
@@ -285,6 +333,8 @@ static void print_trace_buf_header(FILE *ofile,
 		fprintf(ofile, "  mod_core_size:      %u\t\t# bytes\n",
 				tbh->tbh_module_core_size);
 	}
+
+	fprintf(ofile, "  cli_args:           '%s'\n", tbh->tbh_cli_args);
 }
 
 static int mmap_m0mero_ko(const char *m0mero_ko_path, void **ko_addr)

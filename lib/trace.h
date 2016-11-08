@@ -302,6 +302,14 @@ enum m0_trace_buf_type {
 	M0_TRACE_BUF_USER   = 2,
 };
 
+enum m0_trace_buf_flags {
+	M0_TRACE_BUF_MKFS  = 1 << 0,
+	M0_TRACE_BUF_DIRTY = 1 << 1,
+
+	M0_TRACE_BUF_FLAGS_MAX
+};
+M0_BASSERT(M0_TRACE_BUF_FLAGS_MAX < UINT16_MAX);
+
 /**
  * Trace buffer header structure
  *
@@ -329,7 +337,9 @@ struct m0_trace_buf_header {
 			/** Trace buffer size */
 			uint32_t                tbh_buf_size;
 			/** enum m0_trace_buf_type */
-			uint32_t                tbh_buf_type;
+			uint16_t                tbh_buf_type;
+			/** enum m0_trace_buf_flags */
+			uint16_t                tbh_buf_flags;
 			/**
 			 * Current position in trace buffer, @see comments in
 			 * m0_trace_allot()
@@ -359,6 +369,8 @@ struct m0_trace_buf_header {
 			const void             *tbh_module_core_addr;
 			/** Size of loaded m0mero.ko module (used only for kernel trace) */
 			unsigned int            tbh_module_core_size;
+			/** Command line arguments string (only for user trace) */
+			char                    tbh_cli_args[1024];
 
 			/* XXX: add new field right above this line */
 		};
