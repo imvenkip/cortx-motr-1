@@ -1,6 +1,6 @@
 # Mero version
-m4_define([M0_VERSION_MAJOR],[0])
-m4_define([M0_VERSION_MINOR],[1])
+m4_define([M0_VERSION_MAJOR],[1])
+m4_define([M0_VERSION_MINOR],[0])
 m4_define([M0_VERSION_PATCH],[0])
 m4_define([M0_VERSION],[M0_VERSION_MAJOR.M0_VERSION_MINOR.M0_VERSION_PATCH])
 

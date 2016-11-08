@@ -86,7 +86,7 @@ run_command() {
 		$PDSH yum -y remove mero halon
 		;;
 	"install")
-		local MERO_RPM=$(ls -t $MERO_RPM_PATH | grep -m1 mero-0)
+		local MERO_RPM=$(ls -t $MERO_RPM_PATH | grep -m1 -P 'mero-\d\.\d\.\d')
 		local HALON_RPM=$(ls -t $HALON_RPM_PATH |
 				  grep -m1 'halon-.*devel')
 		$PDCP $MERO_RPM_PATH/$MERO_RPM $REMOTE_RPM_PATH
