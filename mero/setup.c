@@ -1593,6 +1593,12 @@ M0_INTERNAL struct m0_mero *m0_cs_ctx_get(struct m0_reqh *reqh)
 		      &rhctx_bob)->rc_mero;
 }
 
+M0_INTERNAL struct m0_storage_devs *m0_cs_storage_devs_get(void)
+{
+	return m0_get()->i_reqh_uses_ad_stob ?
+		&m0_get()->i_storage_devs : NULL;
+}
+
 static void cs_mero_init(struct m0_mero *cctx)
 {
 	ndom_tlist_init(&cctx->cc_ndoms);

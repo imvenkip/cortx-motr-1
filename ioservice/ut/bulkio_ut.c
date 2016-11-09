@@ -93,7 +93,6 @@ static void bulkio_stob_fom_fini(struct m0_fom *fom)
 
 	fom_obj = container_of(fom, struct m0_io_fom_cob_rw, fcrw_gen);
 	m0_stob_put(fom_obj->fcrw_stob);
-	M0_UT_ASSERT(fom_obj->fcrw_dev == NULL);
 	m0_fom_fini(fom);
 	m0_free(fom);
 }
@@ -283,17 +282,27 @@ static void fill_buffers_pool(uint32_t colour)
 
 static void builkio_ut_stob_get(struct m0_io_fom_cob_rw *fom_obj)
 {
+	struct m0_storage_devs  *devs = m0_cs_storage_devs_get();
+	struct m0_storage_dev   *dev;
+	struct m0_stob_domain   *dom;
+
+	M0_UT_ASSERT(devs != NULL);
 	M0_UT_ASSERT(fom_obj->fcrw_stob != NULL);
-	M0_UT_ASSERT(fom_obj->fcrw_dev  != NULL);
+	m0_stob_get(fom_obj->fcrw_stob);
+	dom = m0_stob_dom_get(fom_obj->fcrw_stob);
+	M0_UT_ASSERT(dom != NULL);
+	m0_storage_devs_lock(devs);
+	dev = m0_storage_devs_find_by_dom(devs, dom);
+	M0_UT_ASSERT(dev != NULL);
 	M0_LOG(M0_DEBUG, "get: dev=%p, ref=%" PRIi64
 	       "state=%d type=%d, %"PRIu64,
-	       fom_obj->fcrw_dev,
-	       m0_ref_read(&fom_obj->fcrw_dev->isd_ref),
-	       fom_obj->fcrw_dev->isd_ha_state,
-	       fom_obj->fcrw_dev->isd_srv_type,
-	       fom_obj->fcrw_dev->isd_cid);
-	m0_storage_dev_get(fom_obj->fcrw_dev);
-	m0_stob_get(fom_obj->fcrw_stob);
+	       dev,
+	       m0_ref_read(&dev->isd_ref),
+	       dev->isd_ha_state,
+	       dev->isd_srv_type,
+	       dev->isd_cid);
+	m0_storage_dev_get(dev);
+	m0_storage_devs_unlock(devs);
 }
 
 static void fom_phase_set(struct m0_fom *fom, int phase)
@@ -1334,7 +1343,8 @@ static void bulkio_server_write_fol_rec_undo_verify(void)
 	int			result;
 	struct m0_fol_frag     *dec_frag;
 	struct m0_buf           save_buf = M0_BUF_INIT0;
-	bool                    stob_ad = m0_get()->i_reqh_uses_ad_stob;
+	/* m0_get()->i_reqh_uses_ad_stob */
+	bool                    stob_ad = m0_cs_storage_devs_get() != NULL;
 
 	if (!stob_ad)
 		return;

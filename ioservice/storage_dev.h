@@ -33,7 +33,9 @@
 
 /* import */
 struct m0_stob;
+struct m0_stob_id;
 struct m0_stob_domain;
+struct m0_dtx;
 struct m0_be_seg;
 struct m0_conf_sdev;
 struct m0_reqh;
@@ -233,7 +235,7 @@ M0_INTERNAL void m0_storage_dev_attach(struct m0_storage_dev  *dev,
 M0_INTERNAL void m0_storage_dev_detach(struct m0_storage_dev *dev);
 
 /**
- * Detaches all storage devices.
+ * Synchronously detaches all storage devices.
  */
 M0_INTERNAL void m0_storage_devs_detach_all(struct m0_storage_devs *devs);
 
@@ -266,6 +268,38 @@ M0_INTERNAL int m0_storage_dev_format(struct m0_storage_dev *dev,
  * Does fdatasync on all stobs in storage devices.
  */
 M0_INTERNAL int m0_storage_devs_fdatasync(struct m0_storage_devs *devs);
+
+/**
+ * Creates a stob if it doesn't exist.
+ *
+ * This function is synchronised with possible storage device detach operation.
+ */
+M0_INTERNAL int m0_storage_dev_stob_create(struct m0_storage_devs *devs,
+					   struct m0_stob_id      *sid,
+					   struct m0_dtx          *dtx);
+
+/**
+ * Destroys stob and releases reference to the respective storage device.
+ */
+M0_INTERNAL int m0_storage_dev_stob_destroy(struct m0_storage_devs *devs,
+					    struct m0_stob         *stob,
+					    struct m0_dtx          *dtx);
+
+/**
+ * Finds and locates a stob which belongs to a storage device from the devs.
+ * On success acquires reference to the stob and respective storage device.
+ *
+ * @note CSS_NOENT is a valid state of the resulting stob.
+ */
+M0_INTERNAL int m0_storage_dev_stob_find(struct m0_storage_devs  *devs,
+					 struct m0_stob_id       *sid,
+					 struct m0_stob         **stob);
+
+/**
+ * Releases reference to the stob and respective storage device.
+ */
+M0_INTERNAL void m0_storage_dev_stob_put(struct m0_storage_devs *devs,
+					 struct m0_stob         *stob);
 
 /** @} end of sdev group */
 #endif /* __MERO_IOSERVICE_STORAGE_DEV_H__ */

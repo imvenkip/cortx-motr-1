@@ -32,6 +32,7 @@
 #include "conf/obj_ops.h"           /* M0_CONF_DIRNEXT */
 #include "stob/ad.h"                /* m0_stob_ad_type */
 #include "stob/linux.h"             /* m0_stob_linux */
+#include "stob/stob.h"              /* m0_stob_id_get */
 #include "ioservice/fid_convert.h"  /* m0_fid_validate_linuxstob */
 #include "ioservice/storage_dev.h"
 #include "reqh/reqh.h"              /* m0_reqh */
@@ -511,7 +512,7 @@ M0_INTERNAL void m0_storage_dev_attach(struct m0_storage_dev  *dev,
 	M0_PRE(storage_devs_is_locked(devs));
 	M0_PRE(m0_storage_devs_find_by_cid(devs, dev->isd_cid) == NULL);
 
-	M0_LOG(M0_DEBUG, "get: dev=%p, ref=%" PRIi64
+	M0_LOG(M0_DEBUG, "get: dev=%p, ref=%" PRIi64 " "
 	       "state=%d type=%d, %"PRIu64,
 	       dev,
 	       m0_ref_read(&dev->isd_ref),
@@ -532,7 +533,7 @@ M0_INTERNAL void m0_storage_dev_detach(struct m0_storage_dev *dev)
 		m0_storage_dev_clink_del(&dev->isd_clink);
 		m0_confc_close(obj);
 	}
-	M0_LOG(M0_DEBUG, "get: dev=%p, ref=%" PRIi64
+	M0_LOG(M0_DEBUG, "put: dev=%p, ref=%" PRIi64 " "
 	       "state=%d type=%d, %"PRIu64,
 	       dev,
 	       m0_ref_read(&dev->isd_ref),
@@ -562,13 +563,41 @@ M0_INTERNAL void m0_storage_dev_space(struct m0_storage_dev   *dev,
 	};
 }
 
+struct storage_devs_wait {
+	struct m0_clink     sdw_clink;
+	struct m0_semaphore sdw_sem;
+};
+
+static bool storage_devs_detached_cb(struct m0_clink *clink)
+{
+	struct storage_devs_wait *wait =
+		container_of(clink, struct storage_devs_wait, sdw_clink);
+
+	m0_semaphore_up(&wait->sdw_sem);
+
+	return true;
+}
+
 M0_INTERNAL void m0_storage_devs_detach_all(struct m0_storage_devs *devs)
 {
-	struct m0_storage_dev *dev;
+	struct storage_devs_wait  wait = {};
+	struct m0_storage_dev    *dev;
+	struct m0_clink          *clink;
 
+	m0_semaphore_init(&wait.sdw_sem, 0);
+	clink = &wait.sdw_clink;
 	m0_tl_for(storage_dev, &devs->sds_devices, dev) {
+		M0_SET0(clink);
+		m0_clink_init(clink, storage_devs_detached_cb);
+		clink->cl_is_oneshot = true;
+		m0_clink_add_lock(&dev->isd_detached_chan, clink);
+
 		m0_storage_dev_detach(dev);
+
+		m0_semaphore_down(&wait.sdw_sem);
+		m0_clink_fini(clink);
 	} m0_tl_endfor;
+	m0_semaphore_fini(&wait.sdw_sem);
 }
 
 M0_INTERNAL int m0_storage_dev_format(struct m0_storage_dev *dev,
@@ -602,6 +631,150 @@ M0_INTERNAL int m0_storage_devs_fdatasync(struct m0_storage_devs *sdevs)
 	rc = M0_PARALLEL_FOR(storage_dev, &sdevs->sds_pool,
 			     &sdevs->sds_devices, sdev_stob_fsync);
 	return rc;
+}
+
+/*
+ * XXX When mero/setup is configured to use linux stobs instead of ad stobs
+ * i_storage_devs isn't initialised. As a workaround, below functions accept
+ * NULL value of the devs and handle such a situation.
+ */
+
+M0_INTERNAL int m0_storage_dev_stob_create(struct m0_storage_devs *devs,
+					   struct m0_stob_id      *sid,
+					   struct m0_dtx          *dtx)
+{
+	struct m0_stob *stob = NULL;
+	int             rc;
+
+	M0_ENTRY("stob_id="STOB_ID_F, STOB_ID_P(sid));
+
+	if (devs != NULL)
+		m0_storage_devs_lock(devs);
+
+	rc = m0_stob_find(sid, &stob);
+	rc = rc ?: m0_stob_state_get(stob) == CSS_UNKNOWN ?
+		   m0_stob_locate(stob) : 0;
+	rc = rc ?: stob->so_state == CSS_NOENT ?
+		   m0_stob_create(stob, dtx, NULL) : 0;
+	if (stob != NULL)
+		m0_stob_put(stob);
+
+	if (devs != NULL)
+		m0_storage_devs_unlock(devs);
+
+	return M0_RC(rc);
+}
+
+M0_INTERNAL int m0_storage_dev_stob_destroy(struct m0_storage_devs *devs,
+					    struct m0_stob         *stob,
+					    struct m0_dtx          *dtx)
+{
+	struct m0_stob_domain *dom;
+	struct m0_storage_dev *dev;
+	int                    rc;
+
+	M0_ENTRY("stob=%p stob_id="STOB_ID_F,
+		 stob, STOB_ID_P(m0_stob_id_get(stob)));
+	M0_PRE(m0_stob_state_get(stob) == CSS_EXISTS);
+
+	if (devs != NULL)
+		m0_storage_devs_lock(devs);
+
+	dom = m0_stob_dom_get(stob);
+	rc  = m0_stob_destroy(stob, dtx);
+
+	if (devs != NULL) {
+		if (rc == 0) {
+			dev = m0_storage_devs_find_by_dom(devs, dom);
+			M0_ASSERT(dev != NULL);
+			M0_LOG(M0_DEBUG, "put: dev=%p, ref=%" PRIi64 " "
+			       "state=%d type=%d, %"PRIu64,
+			       dev,
+			       m0_ref_read(&dev->isd_ref),
+			       dev->isd_ha_state,
+			       dev->isd_srv_type,
+			       dev->isd_cid);
+			m0_storage_dev_put(dev);
+		}
+		m0_storage_devs_unlock(devs);
+	}
+
+	return M0_RC(rc);
+}
+
+M0_INTERNAL int m0_storage_dev_stob_find(struct m0_storage_devs  *devs,
+					 struct m0_stob_id       *sid,
+					 struct m0_stob         **stob)
+{
+	struct m0_stob_domain *dom;
+	struct m0_storage_dev *dev;
+	struct m0_stob        *stob2 = NULL;
+	int                    rc;
+
+	M0_ENTRY("stob_id="STOB_ID_F, STOB_ID_P(sid));
+
+	if (devs != NULL)
+		m0_storage_devs_lock(devs);
+
+	rc = m0_stob_find(sid, &stob2);
+	if (rc == 0) {
+		if (m0_stob_state_get(stob2) == CSS_UNKNOWN)
+			   rc = m0_stob_locate(stob2);
+		if (rc != 0)
+			m0_stob_put(stob2);
+	}
+
+	if (devs != NULL) {
+		if (rc == 0) {
+			dom = m0_stob_dom_get(stob2);
+			dev = m0_storage_devs_find_by_dom(devs, dom);
+			M0_ASSERT(dev != NULL);
+			M0_LOG(M0_DEBUG, "get: dev=%p, ref=%" PRIi64 " "
+			       "state=%d type=%d, %"PRIu64,
+			       dev,
+			       m0_ref_read(&dev->isd_ref),
+			       dev->isd_ha_state,
+			       dev->isd_srv_type,
+			       dev->isd_cid);
+			m0_storage_dev_get(dev);
+		}
+		m0_storage_devs_unlock(devs);
+	}
+
+	if (rc == 0)
+		*stob = stob2;
+
+	return M0_RC(rc);
+}
+
+M0_INTERNAL void m0_storage_dev_stob_put(struct m0_storage_devs *devs,
+					 struct m0_stob         *stob)
+{
+	struct m0_stob_domain *dom;
+	struct m0_storage_dev *dev;
+
+	M0_ENTRY("stob=%p stob_id="STOB_ID_F,
+		 stob, STOB_ID_P(m0_stob_id_get(stob)));
+
+	dom = m0_stob_dom_get(stob);
+	m0_stob_put(stob);
+
+	if (devs != NULL) {
+		m0_storage_devs_lock(devs);
+		dev = m0_storage_devs_find_by_dom(devs, dom);
+		M0_ASSERT(dev != NULL);
+		M0_LOG(M0_DEBUG, "put: dev=%p, ref=%" PRIi64 " "
+		       "state=%d type=%d, %"PRIu64,
+		       dev,
+		       m0_ref_read(&dev->isd_ref),
+		       dev->isd_ha_state,
+		       dev->isd_srv_type,
+		       dev->isd_cid);
+		m0_storage_dev_put(dev);
+		m0_storage_devs_unlock(devs);
+	}
+
+	M0_LEAVE();
 }
 
 #undef M0_TRACE_SUBSYSTEM

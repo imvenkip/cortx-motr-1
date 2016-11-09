@@ -22,7 +22,7 @@
 #include "lib/trace.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
-#include "mero/setup.h"
+#include "mero/setup.h"            /* m0_cs_storage_devs_get */
 
 #include "lib/finject.h"
 #include "sns/cm/ag.h"
@@ -31,6 +31,7 @@
 #include "sns/cm/file.h"
 
 #include "stob/domain.h"           /* m0_stob_domain_find_by_stob_id */
+#include "ioservice/storage_dev.h" /* m0_storage_dev_stob_find */
 #include "ioservice/io_foms.h"     /* m0_io_cob_stob_create */
 #include "ioservice/fid_convert.h" /* m0_fid_convert_stob2cob */
 #include "cob/cob.h"               /* m0_cob_tx_credit */
@@ -145,12 +146,10 @@ static int cp_prepare(struct m0_cm_cp *cp,
 
 static int cp_stob_io_init(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
 {
-	struct m0_stob_domain *dom;
-	struct m0_sns_cm_cp   *sns_cp;
-	struct m0_stob        *stob;
-	struct m0_stob_io     *stio;
-	uint32_t               bshift;
-	int                    rc;
+	struct m0_sns_cm_cp *sns_cp;
+	struct m0_stob_io   *stio;
+	uint32_t             bshift;
+	int                  rc;
 
 	M0_ENTRY("cp=%p op=%d", cp, op);
 
@@ -159,29 +158,20 @@ static int cp_stob_io_init(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
 
 	sns_cp = cp2snscp(cp);
 	stio = &sns_cp->sc_stio;
-	dom = m0_stob_domain_find_by_stob_id(&sns_cp->sc_stob_id);
 
-	if (dom == NULL)
-		return M0_ERR(-EINVAL);
+	rc = m0_storage_dev_stob_find(m0_cs_storage_devs_get(),
+				      &sns_cp->sc_stob_id, &sns_cp->sc_stob);
+	if (rc == 0) {
+		m0_stob_io_init(stio);
+		stio->si_flags = 0;
+		stio->si_opcode = op;
+		stio->si_fol_frag = &sns_cp->sc_fol_frag;
+		bshift = m0_stob_block_shift(sns_cp->sc_stob);
 
-	rc = m0_stob_find(&sns_cp->sc_stob_id, &sns_cp->sc_stob);
-	if (rc != 0)
-		return M0_ERR(rc);
-
-	stob = sns_cp->sc_stob;
-	rc = m0_stob_state_get(stob) == CSS_UNKNOWN ? m0_stob_locate(stob) : 0;
-	if (rc != 0) {
-		m0_stob_put(stob);
-		return M0_ERR(rc);
+		rc = cp_prepare(cp, &stio->si_stob, &stio->si_user,
+				sns_cp->sc_index, bshift);
 	}
-	m0_stob_io_init(stio);
-	stio->si_flags = 0;
-	stio->si_opcode = op;
-	stio->si_fol_frag = &sns_cp->sc_fol_frag;
-	bshift = m0_stob_block_shift(stob);
-
-	return cp_prepare(cp, &stio->si_stob, &stio->si_user, sns_cp->sc_index,
-			  bshift);
+	return rc;
 }
 
 M0_INTERNAL struct m0_cob_domain *m0_sns_cm_cp2cdom(struct m0_cm_cp *cp)
@@ -255,7 +245,7 @@ static int cp_io(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
 		m0_indexvec_free(&stio->si_stob);
 		bufvec_free(&stio->si_user);
 		m0_stob_io_fini(stio);
-		m0_stob_put(stob);
+		m0_storage_dev_stob_put(m0_cs_storage_devs_get(), stob);
 	}
 out:
 	if (rc != 0) {
@@ -306,7 +296,7 @@ M0_INTERNAL int m0_sns_cm_cp_io_wait(struct m0_cm_cp *cp)
 	m0_indexvec_free(&sns_cp->sc_stio.si_stob);
 	bufvec_free(&sns_cp->sc_stio.si_user);
 	m0_stob_io_fini(&sns_cp->sc_stio);
-	m0_stob_put(sns_cp->sc_stob);
+	m0_storage_dev_stob_put(m0_cs_storage_devs_get(), sns_cp->sc_stob);
 
 	rc = sns_cp->sc_stio.si_rc;
 	if (rc != 0) {

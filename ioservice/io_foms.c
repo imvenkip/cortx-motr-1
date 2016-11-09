@@ -41,13 +41,13 @@
 #include "ioservice/io_service.h"
 #include "ioservice/io_device.h"
 #include "ioservice/cob_foms.h"    /* m0_cc_stob_create */
+#include "ioservice/storage_dev.h" /* m0_storage_dev_stob_find */
 #include "cob/cob.h"               /* m0_cob_create */
 #include "mero/magic.h"
-#include "mero/setup.h"
+#include "mero/setup.h"            /* m0_cs_storage_devs_get */
 #include "pool/pool.h"
 #include "ioservice/io_addb2.h"
 #include "sns/cm/cm.h"             /* m0_sns_cm_fid_repair_done() */
-#include "module/instance.h"       /* m0_get() */
 #include "ioservice/fid_convert.h" /* m0_fid_convert_cob2stob */
 
 /**
@@ -1053,11 +1053,11 @@ static int align_bufvec(struct m0_fom    *fom,
  */
 static int stob_object_find(struct m0_fom *fom)
 {
-	int                      result;
+	struct m0_storage_devs  *devs = m0_cs_storage_devs_get();
 	struct m0_io_fom_cob_rw *fom_obj;
 	struct m0_stob_id        stob_id;
 	struct m0_fop_cob_rw    *rwfop;
-	enum m0_stob_state       stob_state;
+	int                      rc;
 
 	M0_PRE(fom != NULL);
 	M0_PRE(m0_is_io_fop(fom->fo_fop));
@@ -1069,21 +1069,11 @@ static int stob_object_find(struct m0_fom *fom)
 	rwfop = io_rw_get(fom->fo_fop);
 
 	m0_fid_convert_cob2stob(&rwfop->crw_fid, &stob_id);
-	result = m0_stob_find(&stob_id, &fom_obj->fcrw_stob);
-	if (result != 0)
-		return result;
-
-	stob_state = m0_stob_state_get(fom_obj->fcrw_stob);
-	if (stob_state == CSS_UNKNOWN)
-		result = m0_stob_locate(fom_obj->fcrw_stob);
-	if (result != 0) {
-		m0_stob_put(fom_obj->fcrw_stob);
+	rc = m0_storage_dev_stob_find(devs, &stob_id, &fom_obj->fcrw_stob);
+	if (rc != 0)
 		fom_obj->fcrw_stob = NULL;
-	}
-	M0_LOG(M0_DEBUG, "fid="FID_F" state=%d rc=%d", FID_P(&stob_id.si_fid),
-	       stob_state, result);
 
-	return result;
+	return rc;
 }
 
 /**
@@ -1130,7 +1120,6 @@ static int m0_io_fom_cob_rw_create(struct m0_fop *fop, struct m0_fom **out,
 	m0_fom_init(fom, &fop->f_type->ft_fom_type, &ops, fop, rep_fop, reqh);
 
 	fom_obj->fcrw_fom_start_time      = m0_time_now();
-	fom_obj->fcrw_dev                 = NULL;
 	fom_obj->fcrw_stob                = NULL;
 	fom_obj->fcrw_ndesc               = rwfop->crw_desc.id_nr;
 	fom_obj->fcrw_curr_desc_index     = 0;
@@ -1914,35 +1903,12 @@ static int indexvec_wire2mem(struct m0_fom *fom)
 	uint32_t                 bshift;
 	struct m0_io_fom_cob_rw *fom_obj;
 	struct m0_fop_cob_rw    *rwfop;
-	struct m0_stob_domain   *sdom;
-	struct m0_storage_devs  *devs = &m0_get()->i_storage_devs;
 
 	M0_PRE(fom != NULL);
 
 	fom_obj = container_of(fom, struct m0_io_fom_cob_rw, fcrw_gen);
 
-	m0_storage_devs_lock(devs);
 	rc = stob_object_find(fom);
-	if (rc == 0) {
-		sdom = m0_stob_dom_get(fom_obj->fcrw_stob);
-		M0_ASSERT(sdom != NULL);
-		fom_obj->fcrw_dev = m0_storage_devs_find_by_dom(devs, sdom);
-		if (fom_obj->fcrw_dev == NULL) {
-			m0_stob_put(fom_obj->fcrw_stob);
-			fom_obj->fcrw_stob = NULL;
-			rc = M0_ERR(-ENOENT);
-		} else {
-			M0_LOG(M0_DEBUG, "get: dev=%p, ref=%" PRIi64 " "
-			       "state=%d type=%d, %"PRIu64,
-			       fom_obj->fcrw_dev,
-			       m0_ref_read(&fom_obj->fcrw_dev->isd_ref),
-			       fom_obj->fcrw_dev->isd_ha_state,
-			       fom_obj->fcrw_dev->isd_srv_type,
-			       fom_obj->fcrw_dev->isd_cid);
-			m0_storage_dev_get(fom_obj->fcrw_dev);
-		}
-	}
-	m0_storage_devs_unlock(devs);
 	if (rc != 0)
 		return M0_ERR(rc);
 
@@ -2082,7 +2048,6 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 	struct m0_poolmach                       *poolmach;
 	struct m0_fop_cob_rw                     *rwfop;
 	struct m0_fop_cob_rw_reply               *rwrep;
-	struct m0_storage_devs                   *devs;
 
 	M0_PRE(fom != NULL);
 	M0_PRE(m0_is_io_fop(fom->fo_fop));
@@ -2140,19 +2105,8 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 		if (m0_fom_phase(fom) == M0_FOPH_FAILURE &&
 		    fom_obj->fcrw_stob != NULL &&
 		    m0_fom_rc(fom) == -E2BIG) {
-			m0_stob_put(fom_obj->fcrw_stob);
-			devs = &m0_get()->i_storage_devs;
-			m0_storage_devs_lock(devs);
-			M0_ASSERT(fom_obj->fcrw_dev != NULL);
-			M0_LOG(M0_DEBUG, "put: dev=%p, ref=%" PRIi64 " "
-			       "state=%d type=%d, %"PRIu64,
-			       fom_obj->fcrw_dev,
-			       m0_ref_read(&fom_obj->fcrw_dev->isd_ref),
-			       fom_obj->fcrw_dev->isd_ha_state,
-			       fom_obj->fcrw_dev->isd_srv_type,
-			       fom_obj->fcrw_dev->isd_cid);
-			m0_storage_dev_put(fom_obj->fcrw_dev);
-			m0_storage_devs_unlock(devs);
+			m0_storage_dev_stob_put(m0_cs_storage_devs_get(),
+						fom_obj->fcrw_stob);
 		}
 
 		rc = m0_fom_tick_generic(fom);
@@ -2175,19 +2129,8 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 	if (m0_fom_phase(fom) == M0_FOPH_SUCCESS ||
 	    m0_fom_phase(fom) == M0_FOPH_FAILURE) {
 		if (fom_obj->fcrw_stob != NULL) {
-			m0_stob_put(fom_obj->fcrw_stob);
-			devs = &m0_get()->i_storage_devs;
-			m0_storage_devs_lock(devs);
-			M0_ASSERT(fom_obj->fcrw_dev != NULL);
-			M0_LOG(M0_DEBUG, "put: dev=%p, ref=%" PRIi64 " "
-			       "state=%d type=%d, %"PRIu64,
-			       fom_obj->fcrw_dev,
-			       m0_ref_read(&fom_obj->fcrw_dev->isd_ref),
-			       fom_obj->fcrw_dev->isd_ha_state,
-			       fom_obj->fcrw_dev->isd_srv_type,
-			       fom_obj->fcrw_dev->isd_cid);
-			m0_storage_dev_put(fom_obj->fcrw_dev);
-			m0_storage_devs_unlock(devs);
+			m0_storage_dev_stob_put(m0_cs_storage_devs_get(),
+						fom_obj->fcrw_stob);
 		}
 		rwrep = io_rw_rep_get(fom->fo_rep_fop);
 		rwrep->rwr_rc    = m0_fom_rc(fom);

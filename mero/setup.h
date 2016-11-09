@@ -530,6 +530,12 @@ char *m0_cs_profile_get(struct m0_mero *cctx);
 M0_INTERNAL struct m0_mero *m0_cs_ctx_get(struct m0_reqh *reqh);
 
 /**
+ * Returns m0_storage_devs object from m0 instance. Returns NULL if
+ * the object is not initialised.
+ */
+M0_INTERNAL struct m0_storage_devs *m0_cs_storage_devs_get(void);
+
+/**
  * Finds network domain for specified network transport in a given mero
  * context.
  *

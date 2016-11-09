@@ -25,6 +25,9 @@
 
 #include "cob/cob.h"
 
+/* import */
+struct m0_storage_dev;
+
 /**
  * Phases of cob create/delete state machine.
  */

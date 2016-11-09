@@ -25,6 +25,7 @@
 #include "ioservice/fid_convert.h" /* m0_fid_convert_cob2stob */
 #include "ioservice/io_device.h" /* M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH */
 #include "ioservice/io_service.h"  /* m0_reqh_io_service */
+#include "ioservice/storage_dev.h" /* m0_storage_dev_stob_find */
 #include "mero/setup.h"            /* m0_cs_ctx_get */
 #include "stob/domain.h"           /* m0_stob_domain_find_by_stob_id */
 
@@ -298,20 +299,16 @@ static int cob_fom_pool_version_get(struct m0_fom *fom)
 
 static int cob_ops_stob_find(struct m0_fom_cob_op *co)
 {
-	int rc;
+	struct m0_storage_devs *devs = m0_cs_storage_devs_get();
+	int                     rc;
 
-	rc = m0_stob_find(&co->fco_stob_id, &co->fco_stob);
-	if (rc != 0)
-		return M0_RC(rc);
-	if (m0_stob_state_get(co->fco_stob) == CSS_UNKNOWN)
-		   rc = m0_stob_locate(co->fco_stob);
+	rc = m0_storage_dev_stob_find(devs, &co->fco_stob_id, &co->fco_stob);
 	if (rc == 0 && m0_stob_state_get(co->fco_stob) == CSS_NOENT) {
-		rc = -ENOENT;
-		m0_stob_put(co->fco_stob);
+		m0_storage_dev_stob_put(devs, co->fco_stob);
+		rc = M0_ERR(-ENOENT);
 	}
 	return M0_RC(rc);
 }
-
 
 static int cob_tick_prepare(struct m0_fom *fom)
 {
@@ -709,8 +706,10 @@ static int cob_ops_fom_tick(struct m0_fom *fom)
 						  M0_COB_OP_TRUNCATE);
 		} else {
 			rc = ce_stob_edit(fom, cob_op, M0_COB_OP_TRUNCATE);
-			if (cob_op->fco_is_done)
-				m0_stob_put(cob_op->fco_stob);
+			if (cob_op->fco_is_done) {
+				m0_storage_dev_stob_put(m0_cs_storage_devs_get(),
+							cob_op->fco_stob);
+			}
 		}
 
 		m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
@@ -748,17 +747,11 @@ M0_INTERNAL int m0_cc_stob_cr_credit(struct m0_stob_id *sid,
 
 M0_INTERNAL int m0_cc_stob_create(struct m0_fom *fom, struct m0_stob_id *sid)
 {
-	struct m0_stob *stob = NULL;
-	int             rc;
+	int rc;
 
 	M0_ENTRY("stob create fid="FID_F, FID_P(&sid->si_fid));
-	rc = m0_stob_find(sid, &stob);
-	rc = rc ?: stob->so_state == CSS_UNKNOWN ?
-		   m0_stob_locate(stob) : 0;
-	rc = rc ?: stob->so_state == CSS_NOENT ?
-		   m0_stob_create(stob, &fom->fo_tx, NULL) : 0;
-	if (stob != NULL)
-		m0_stob_put(stob);
+	rc = m0_storage_dev_stob_create(m0_cs_storage_devs_get(),
+					sid, &fom->fo_tx);
 	return M0_RC(rc);
 }
 
@@ -1091,13 +1084,14 @@ static int ce_stob_edit_credit(struct m0_fom *fom, struct m0_fom_cob_op *cc,
 static int ce_stob_edit(struct m0_fom *fom, struct m0_fom_cob_op *cd,
 			uint32_t cot)
 {
-	struct m0_stob     *stob = NULL;
-	struct m0_indexvec  range;
-	int                 rc;
+	struct m0_storage_devs *devs = m0_cs_storage_devs_get();
+	struct m0_stob         *stob = cd->fco_stob;
+	struct m0_indexvec      range;
+	int                     rc;
 
-	stob = cd->fco_stob;
 	M0_ASSERT(stob != NULL);
-	rc = cot == M0_COB_OP_DELETE ? m0_stob_destroy(stob, &fom->fo_tx) :
+	rc = cot == M0_COB_OP_DELETE ?
+			m0_storage_dev_stob_destroy(devs, stob, &fom->fo_tx) :
 			m0_indexvec_universal_set(&range) ?:
 			m0_stob_punch(stob, &range, &fom->fo_tx);
 	return M0_RC(rc);
