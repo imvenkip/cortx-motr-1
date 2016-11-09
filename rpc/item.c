@@ -471,6 +471,20 @@ m0_bcount_t m0_rpc_item_payload_size(struct m0_rpc_item *item)
 	return item->ri_type->rit_ops->rito_payload_size(item);
 }
 
+M0_INTERNAL
+bool m0_rpc_item_max_payload_exceeded(struct m0_rpc_item    *item,
+				      struct m0_rpc_session *session)
+{
+	M0_PRE(item != NULL);
+	M0_PRE(session != NULL);
+
+	if (M0_FI_ENABLED("payload_too_large"))
+		return true;
+
+	return (m0_rpc_item_payload_size(item) >
+		m0_rpc_session_get_max_item_payload_size(session));
+}
+
 M0_INTERNAL bool m0_rpc_item_is_update(const struct m0_rpc_item *item)
 {
 	return (item->ri_type->rit_flags & M0_RPC_ITEM_TYPE_MUTABO) != 0;

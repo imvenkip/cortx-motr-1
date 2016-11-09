@@ -348,6 +348,7 @@ do {                                                   \
 #endif /* __KERNEL__ */
 
 M0_INTERNAL void m0_cas_id_fini(struct m0_cas_id *cid);
+M0_INTERNAL bool m0_cas_id_invariant(const struct m0_cas_id *cid);
 
 M0_INTERNAL bool cas_in_ut(void);
 

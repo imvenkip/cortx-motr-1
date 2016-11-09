@@ -416,7 +416,7 @@ static int cas_rep_validate(const struct m0_cas_req *req)
 	struct m0_cas_op    *op = m0_fop_data(rfop);
 	struct m0_cas_rep   *rep = cas_rep(cas_req_to_item(req)->ri_reply);
 
-	return cas_rep__validate(rfop->f_type, op, rep);
+	return rep->cgr_rc ?: cas_rep__validate(rfop->f_type, op, rep);
 }
 
 static void cas_req_failure(struct m0_cas_req *req, int32_t rc)
@@ -1080,6 +1080,7 @@ M0_INTERNAL int m0_cas_index_create(struct m0_cas_req      *req,
 	M0_ENTRY();
 	M0_PRE(req->ccr_sess != NULL);
 	M0_PRE(m0_cas_req_is_locked(req));
+	M0_PRE(m0_forall(i, cids_nr, m0_cas_id_invariant(&cids[i])));
 	(void)dtx;
 	rc = cas_index_op_prepare(req, cids, cids_nr, false, 0, &op);
 	if (rc == 0) {
@@ -1122,6 +1123,7 @@ M0_INTERNAL int m0_cas_index_delete(struct m0_cas_req      *req,
 	M0_ENTRY();
 	M0_PRE(req->ccr_sess != NULL);
 	M0_PRE(m0_cas_req_is_locked(req));
+	M0_PRE(m0_forall(i, cids_nr, m0_cas_id_invariant(&cids[i])));
 	(void)dtx;
 	rc = cas_index_op_prepare(req, cids, cids_nr, false, flags, &op);
 	if (rc == 0) {
@@ -1150,6 +1152,7 @@ M0_INTERNAL int m0_cas_index_lookup(struct m0_cas_req      *req,
 	M0_ENTRY();
 	M0_PRE(req->ccr_sess != NULL);
 	M0_PRE(m0_cas_req_is_locked(req));
+	M0_PRE(m0_forall(i, cids_nr, m0_cas_id_invariant(&cids[i])));
 	rc = cas_index_op_prepare(req, cids, cids_nr, true, 0, &op);
 	if (rc == 0) {
 		creq_fop_init(req, &cas_get_fopt, op);
@@ -1294,6 +1297,7 @@ M0_INTERNAL int m0_cas_put(struct m0_cas_req      *req,
 	M0_PRE(!(flags & COF_CREATE) || !(flags & COF_OVERWRITE));
 	/* Only create, overwrite and crow flags are allowed. */
 	M0_PRE((flags & ~(COF_CREATE | COF_OVERWRITE | COF_CROW)) == 0);
+	M0_PRE(m0_cas_id_invariant(index));
 
 	(void)dtx;
 	rc = cas_records_op_prepare(req, index, keys, values, flags, &op);
@@ -1326,6 +1330,7 @@ M0_INTERNAL int m0_cas_get(struct m0_cas_req      *req,
 	M0_ENTRY();
 	M0_PRE(keys != NULL);
 	M0_PRE(m0_cas_req_is_locked(req));
+	M0_PRE(m0_cas_id_invariant(index));
 
 	rc = cas_records_op_prepare(req, index, keys, NULL, 0, &op);
 	if (rc != 0)
@@ -1386,6 +1391,7 @@ M0_INTERNAL int m0_cas_next(struct m0_cas_req *req,
 	M0_ENTRY();
 	M0_PRE(start_keys != NULL);
 	M0_PRE(m0_cas_req_is_locked(req));
+	M0_PRE(m0_cas_id_invariant(index));
 
 	if (slant)
 		flags |= COF_SLANT;
@@ -1439,6 +1445,7 @@ M0_INTERNAL int m0_cas_del(struct m0_cas_req *req,
 	M0_ENTRY();
 	M0_PRE(keys != NULL);
 	M0_PRE(m0_cas_req_is_locked(req));
+	M0_PRE(m0_cas_id_invariant(index));
 
 	(void)dtx;
 	rc = cas_records_op_prepare(req, index, keys, NULL, 0, &op);

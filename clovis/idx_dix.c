@@ -277,6 +277,7 @@ static void cas_req_prepare(struct dix_req          *req,
 			    struct m0_cas_id        *cid,
 			    struct m0_clovis_op_idx *oi)
 {
+	M0_SET0(cid);
 	cid->ci_fid = *OI_IFID(oi);
 	m0_clink_add(&req->idr_creq.ccr_sm.sm_chan, &req->idr_clink);
 }
@@ -287,7 +288,7 @@ static void cas_index_create_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	struct dix_req          *dix_req = ast->sa_datum;
 	struct m0_clovis_op_idx *oi = dix_req->idr_oi;
 	struct m0_cas_req       *creq = &dix_req->idr_creq;
-	struct m0_cas_id         cid = {};
+	struct m0_cas_id         cid;
 	int                      rc;
 
 	M0_ENTRY();
@@ -303,7 +304,7 @@ static void cas_index_delete_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	struct dix_req          *dix_req = ast->sa_datum;
 	struct m0_clovis_op_idx *oi = dix_req->idr_oi;
 	struct m0_cas_req       *creq = &dix_req->idr_creq;
-	struct m0_cas_id         cid = {};
+	struct m0_cas_id         cid;
 	int                      rc;
 
 	M0_ENTRY();
@@ -319,7 +320,7 @@ static void cas_index_lookup_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	struct dix_req          *dix_req = ast->sa_datum;
 	struct m0_clovis_op_idx *oi = dix_req->idr_oi;
 	struct m0_cas_req       *creq = &dix_req->idr_creq;
-	struct m0_cas_id         cid = {};
+	struct m0_cas_id         cid;
 	int                      rc;
 
 	M0_ENTRY();

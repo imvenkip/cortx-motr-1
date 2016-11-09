@@ -1206,7 +1206,6 @@ static void meta_insert_fail(void)
 	M0_UT_ASSERT(rep_check(0, -ENOMEM, BUNSET, BUNSET));
 	index_op(&cas_put_fopt, &ifid, 1, 2);
 	M0_UT_ASSERT(rep.cgr_rc == -ENOENT);
-	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 1);
 	/* Lookup process should return zero records. */
 	meta_fid_submit(&cas_get_fopt, &ifid);
 	M0_UT_ASSERT(rep_check(0, -ENOENT, BUNSET, BUNSET));
@@ -1289,7 +1288,6 @@ static void lookup_fail(void)
 	m0_fi_enable_once("ctg_buf_get", "cas_alloc_fail");
 	index_op(&cas_get_fopt, &ifid, 1, NOVAL);
 	M0_UT_ASSERT(rep.cgr_rc == -ENOMEM);
-	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 1);
 	/* Secondary search OK. */
 	index_op(&cas_get_fopt, &ifid, 1, NOVAL);
 	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BSET));

@@ -182,6 +182,19 @@ M0_INTERNAL void m0_cas_id_fini(struct m0_cas_id *cid)
 	M0_SET0(cid);
 }
 
+M0_INTERNAL bool m0_cas_id_invariant(const struct m0_cas_id *cid)
+{
+	return _0C(cid != NULL) &&
+	       _0C(M0_IN(m0_fid_type_getfid(&cid->ci_fid),
+		      (&m0_cas_index_fid_type, &m0_cctg_fid_type,
+		       &m0_dix_fid_type))) &&
+	       _0C(M0_IN(cid->ci_layout.dl_type, (DIX_LTYPE_UNKNOWN,
+				       DIX_LTYPE_ID, DIX_LTYPE_DESCR))) &&
+	       _0C(ergo(m0_fid_type_getfid(&cid->ci_fid) ==
+				       &m0_cas_index_fid_type,
+			M0_IS0(&cid->ci_layout)));
+}
+
 M0_INTERNAL bool cas_in_ut(void)
 {
 	return M0_FI_ENABLED("ut");

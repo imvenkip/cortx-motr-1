@@ -313,6 +313,11 @@ M0_EXTERN m0_bcount_t m0_rpc_item_onwire_footer_size;
 m0_bcount_t m0_rpc_item_payload_size(struct m0_rpc_item *item);
 m0_bcount_t m0_rpc_item_size(struct m0_rpc_item *item);
 
+/** Checks whether item payload exceeds max item payload. */
+M0_INTERNAL
+bool m0_rpc_item_max_payload_exceeded(struct m0_rpc_item    *item,
+				      struct m0_rpc_session *session);
+
 /**
    Waits until item reaches in one of states specified in
    _states_ or absolute timeout specified by _timeout_ is

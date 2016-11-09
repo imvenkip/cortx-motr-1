@@ -792,6 +792,23 @@ static int cas_op_recs_check(struct cas_fom    *fom,
 		M0_RC(0) : M0_ERR(-EPROTO);
 }
 
+static bool cas_max_reply_payload_exceeded(struct cas_fom *fom)
+{
+	struct m0_fom *fom0 = &fom->cf_fom;
+	bool           payload_exceeded = false;
+
+	/*
+	 * For some unit tests it is ok when item session is NULL, we can't call
+	 * m0_rpc_item_max_payload_exceeded() in this case.
+	 */
+	if (!cas_in_ut() || fom0->fo_fop->f_item.ri_session != NULL)
+		payload_exceeded =
+			m0_rpc_item_max_payload_exceeded(
+				&fom0->fo_rep_fop->f_item,
+				fom0->fo_fop->f_item.ri_session);
+	return payload_exceeded;
+}
+
 static void cas_fom_cleanup(struct cas_fom *fom, bool ctg_op_fini)
 {
 	struct m0_ctg_op  *ctg_op     = &fom->cf_ctg_op;
@@ -813,7 +830,27 @@ static void cas_fom_cleanup(struct cas_fom *fom, bool ctg_op_fini)
 
 static void cas_fom_failure(struct cas_fom *fom, int rc, bool ctg_op_fini)
 {
+	struct m0_cas_rep *repdata;
+	struct m0_cas_rec *repv;
+	uint64_t           i;
+
 	M0_PRE(rc < 0);
+
+	/*
+	 * Some generic error happened, no input record can be processed.
+	 * Clean already filled items in reply operation results.
+	 * CAS client shouldn't access cgr_rep array if cgr_rc is non-zero.
+	 */
+	repdata = m0_fop_data(fom->cf_fom.fo_rep_fop);
+	for (i = 0; i < repdata->cgr_rep.cr_nr; i++) {
+		repv = &repdata->cgr_rep.cr_rec[i];
+		m0_rpc_at_fini(&repv->cr_key);
+		m0_rpc_at_fini(&repv->cr_val);
+	}
+	m0_free(repdata->cgr_rep.cr_rec);
+	repdata->cgr_rep.cr_rec = NULL;
+	repdata->cgr_rep.cr_nr  = 0;
+
 	cas_fom_cleanup(fom, ctg_op_fini);
 	m0_fom_phase_move(&fom->cf_fom, rc, M0_FOPH_FAILURE);
 }
@@ -1044,7 +1081,15 @@ static int cas_fom_tick(struct m0_fom *fom0)
 		if (ipos == op->cg_rec.cr_nr ||
 		    /* ... or all output has been generated. */
 		    fom->cf_opos == rep->cgr_rep.cr_nr) {
-			cas_fom_success(fom, opc);
+			/*
+			 * Check reply payload size against max RPC item payload
+			 * size.
+			 */
+			if (cas_max_reply_payload_exceeded(fom))
+				cas_fom_failure(fom, M0_ERR(-E2BIG),
+						opc == CO_CUR);
+			else
+				cas_fom_success(fom, opc);
 		} else {
 			do_ctidx = cas_ctidx_op_needed(fom, opc, ct, ipos);
 			result = cas_exec(fom, opc, ct, ctg, ipos,
@@ -2188,7 +2233,8 @@ static struct m0_sm_state_descr cas_fom_phases[] = {
 	[CAS_LOOP] = {
 		.sd_name      = "loop",
 		.sd_allowed   = M0_BITS(CAS_CTIDX, CAS_INSERT_TO_DEAD,
-					CAS_PREPARE_SEND, M0_FOPH_SUCCESS)
+					CAS_PREPARE_SEND, M0_FOPH_SUCCESS,
+					M0_FOPH_FAILURE)
 	},
 
 
@@ -2309,7 +2355,8 @@ struct m0_sm_trans_descr cas_fom_trans[] = {
 	{ "tx-credit-calculated", CAS_PREP,             M0_FOPH_TXN_OPEN },
 	{ "keys-vals-invalid",    CAS_PREP,             M0_FOPH_FAILURE },
 	{ "all-done?",            CAS_LOOP,             M0_FOPH_SUCCESS },
-	{ "op-launched",          CAS_LOOP,             CAS_CTIDX },
+	{ "reply-too_large",      CAS_LOOP,             M0_FOPH_FAILURE },
+	{ "do-ctidx-op",          CAS_LOOP,             CAS_CTIDX },
 	{ "op-launched",          CAS_LOOP,             CAS_PREPARE_SEND },
 	{ "ready-to-send",        CAS_PREPARE_SEND,     CAS_SEND_KEY },
 	{ "prep-error",           CAS_PREPARE_SEND,     CAS_DONE },
@@ -2333,7 +2380,6 @@ struct m0_sm_trans_descr cas_fom_trans[] = {
 	{ "ctidx-lookup-failed",  CAS_CTIDX_MEM_FREE,   CAS_PREPARE_SEND },
 	{ "ctidx-do-delete",      CAS_CTIDX_DELETE,     CAS_PREPARE_SEND },
 	{ "ctidx-del-idx-drop",   CAS_CTIDX_DELETE,     CAS_IDROP_LOOP },
-
 	{ "key-add-reply",        CAS_DONE,             CAS_LOOP },
 	{ "op-launched",          CAS_LOOP,             CAS_INSERT_TO_DEAD },
 	{ "idx-drop-reply-sent",  CAS_DONE,             CAS_IDROP_LOCK_LOOP },

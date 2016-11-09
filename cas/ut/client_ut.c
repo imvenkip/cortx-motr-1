@@ -797,7 +797,7 @@ static void idx_tree_insert(void)
 	struct m0_cas_get_reply rep[COUNT_TREE];
 	struct m0_cas_rec_reply rec_rep[COUNT_TREE];
 	struct m0_fid           ifid[COUNT_TREE];
-	struct m0_cas_id        index;
+	struct m0_cas_id        index = {};
 	struct m0_bufvec        keys;
 	struct m0_bufvec        values;
 	int                     rc;
@@ -851,7 +851,7 @@ static void idx_tree_delete(void)
 {
 	struct m0_cas_rec_reply rep[COUNT_TREE];
 	struct m0_fid           ifid[COUNT_TREE];
-	struct m0_cas_id        index;
+	struct m0_cas_id        index = {};
 	struct m0_bufvec        keys;
 	struct m0_bufvec        values;
 	int                     rc;
@@ -905,7 +905,7 @@ static void idx_tree_delete_fail(void)
 	struct m0_cas_rec_reply rep[COUNT_TREE];
 	struct m0_cas_get_reply get_rep[COUNT_TREE];
 	struct m0_fid           ifid[COUNT_TREE];
-	struct m0_cas_id        index;
+	struct m0_cas_id        index = {};
 	struct m0_bufvec        keys;
 	struct m0_bufvec        values;
 	int                     rc;
@@ -1089,7 +1089,7 @@ static void next_common(struct m0_bufvec *keys,
 	struct m0_cas_rec_reply   rep[COUNT];
 	struct m0_cas_next_reply  next_rep[COUNT];
 	const struct m0_fid       ifid = IFID(2, 3);
-	struct m0_cas_id          index;
+	struct m0_cas_id          index = {};
 	struct m0_bufvec          start_key;
 	uint32_t                  recs_nr;
 	uint64_t                  rep_count;
@@ -1266,7 +1266,7 @@ static void next_fail(void)
 	struct m0_cas_rec_reply  rep[COUNT];
 	struct m0_cas_next_reply next_rep[COUNT];
 	const struct m0_fid      ifid = IFID(2, 3);
-	struct m0_cas_id         index;
+	struct m0_cas_id         index = {};
 	struct m0_bufvec         keys;
 	struct m0_bufvec         values;
 	struct m0_bufvec         start_key;
@@ -1323,7 +1323,7 @@ static void next_multi_common(struct m0_bufvec *keys, struct m0_bufvec *values)
 	struct m0_cas_rec_reply  rep[COUNT];
 	struct m0_cas_next_reply next_rep[COUNT];
 	const struct m0_fid      ifid = IFID(2, 3);
-	struct m0_cas_id         index;
+	struct m0_cas_id         index = {};
 	struct m0_bufvec         start_keys;
 	uint32_t                 recs_nr[3];
 	uint64_t                 rep_count;
@@ -1448,7 +1448,7 @@ static void put_common(struct m0_bufvec *keys, struct m0_bufvec *values)
 {
 	struct m0_cas_rec_reply rep[COUNT];
 	const struct m0_fid     ifid = IFID(2, 3);
-	struct m0_cas_id        index;
+	struct m0_cas_id        index = {};
 	int                     rc;
 
 	M0_UT_ASSERT(keys != NULL && values != NULL);
@@ -1559,7 +1559,7 @@ static void put_save_common(uint32_t flags)
 	struct m0_cas_rec_reply rep[1];
 	struct m0_cas_get_reply grep[1];
 	const struct m0_fid     ifid = IFID(2, 3);
-	struct m0_cas_id        index;
+	struct m0_cas_id        index = {};
 	struct m0_bufvec        keys;
 	struct m0_bufvec        values;
 	int                     rc;
@@ -1651,7 +1651,7 @@ static void put_crow(void)
 	struct m0_cas_rec_reply rep[1];
 	struct m0_cas_get_reply grep[1];
 	const struct m0_fid     ifid = IFID(2, 3);
-	struct m0_cas_id        index;
+	struct m0_cas_id        index = {};
 	struct m0_bufvec        keys;
 	struct m0_bufvec        values;
 	int                     rc;
@@ -1697,7 +1697,7 @@ static void put_crow_fail(void)
 	struct m0_cas_rec_reply rep[1];
 	struct m0_cas_get_reply grep[1];
 	const struct m0_fid     ifid = IFID(2, 3);
-	struct m0_cas_id        index;
+	struct m0_cas_id        index = {};
 	struct m0_bufvec        keys;
 	struct m0_bufvec        values;
 	int                     rc;
@@ -1737,7 +1737,7 @@ static void put_fail_common(struct m0_bufvec *keys, struct m0_bufvec *values)
 {
 	struct m0_cas_rec_reply rep[COUNT];
 	const struct m0_fid     ifid = IFID(2, 3);
-	struct m0_cas_id        index;
+	struct m0_cas_id        index = {};
 	int                     rc;
 
 	casc_ut_init(&casc_ut_sctx, &casc_ut_cctx);
@@ -1794,7 +1794,7 @@ static void upd(void)
 	struct m0_cas_rec_reply  rep[COUNT];
 	struct m0_cas_get_reply  get_rep[COUNT];
 	const struct m0_fid      ifid = IFID(2, 3);
-	struct m0_cas_id         index;
+	struct m0_cas_id         index = {};
 	struct m0_bufvec         keys;
 	struct m0_bufvec         values;
 	int                      rc;
@@ -1847,7 +1847,7 @@ static void del_common(struct m0_bufvec *keys, struct m0_bufvec *values)
 	struct m0_cas_rec_reply rep[COUNT];
 	struct m0_cas_get_reply get_rep[COUNT];
 	const struct m0_fid     ifid = IFID(2, 3);
-	struct m0_cas_id        index;
+	struct m0_cas_id        index = {};
 	int                     rc;
 
 	M0_SET_ARR0(rep);
@@ -1915,7 +1915,7 @@ static void del_fail(void)
 	struct m0_cas_rec_reply rep[COUNT];
 	struct m0_cas_get_reply get_rep[COUNT];
 	const struct m0_fid     ifid = IFID(2, 3);
-	struct m0_cas_id        index;
+	struct m0_cas_id        index = {};
 	struct m0_bufvec        keys;
 	struct m0_bufvec        values;
 	int                     rc;
@@ -1963,7 +1963,7 @@ static void del_n(void)
 	struct m0_cas_rec_reply rep[COUNT];
 	struct m0_cas_get_reply get_rep[COUNT];
 	const struct m0_fid     ifid = IFID(2, 3);
-	struct m0_cas_id        index;
+	struct m0_cas_id        index = {};
 	struct m0_bufvec        keys;
 	struct m0_bufvec        values;
 	int                     rc;
@@ -2015,7 +2015,7 @@ static void null_value(void)
 	struct m0_cas_get_reply  get_rep[COUNT];
 	struct m0_cas_next_reply next_rep[COUNT];
 	const struct m0_fid      ifid = IFID(2, 3);
-	struct m0_cas_id         index;
+	struct m0_cas_id         index = {};
 	struct m0_bufvec         keys;
 	struct m0_bufvec         values;
 	struct m0_bufvec         start_key;
@@ -2079,7 +2079,7 @@ static void get_common(struct m0_bufvec *keys, struct m0_bufvec *values)
 	struct m0_cas_rec_reply rep[COUNT];
 	struct m0_cas_get_reply get_rep[COUNT];
 	const struct m0_fid     ifid = IFID(2, 3);
-	struct m0_cas_id        index;
+	struct m0_cas_id        index = {};
 	int                     rc;
 
 	M0_SET_ARR0(rep);
@@ -2189,7 +2189,7 @@ static void get_fail(void)
 	struct m0_cas_rec_reply rep[COUNT];
 	struct m0_cas_get_reply get_rep[COUNT];
 	const struct m0_fid     ifid = IFID(2, 3);
-	struct m0_cas_id        index;
+	struct m0_cas_id        index = {};
 	struct m0_bufvec        keys;
 	struct m0_bufvec        values;
 	int                     rc;
@@ -2228,11 +2228,11 @@ static void get_fail(void)
 	casc_ut_fini(&casc_ut_sctx, &casc_ut_cctx);
 }
 
-void recs_count(void)
+static void recs_count(void)
 {
 	struct m0_cas_rec_reply rep[COUNT];
 	const struct m0_fid     ifid = IFID(2, 3);
-	struct m0_cas_id        index;
+	struct m0_cas_id        index = {};
 	struct m0_bufvec        keys;
 	struct m0_bufvec        values;
 	int                     rc;
@@ -2273,10 +2273,76 @@ void recs_count(void)
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(m0_ctg_rec_nr() == COUNT);
 	M0_UT_ASSERT(m0_ctg_rec_size() == ~0ULL);
+	/* Remove index. */
+	rc = ut_idx_delete(&casc_ut_cctx, &ifid, 1, rep);
+	M0_UT_ASSERT(rc == 0);
 	m0_bufvec_free(&keys);
 	m0_bufvec_free(&values);
 	casc_ut_fini(&casc_ut_sctx, &casc_ut_cctx);
 }
+
+static void reply_too_large(void)
+{
+	struct m0_bufvec         keys;
+	struct m0_bufvec         values;
+	struct m0_cas_rec_reply  rep[COUNT];
+	struct m0_cas_get_reply  get_rep[COUNT];
+	struct m0_cas_next_reply next_rep[COUNT];
+	const struct m0_fid      ifid = IFID(2, 3);
+	struct m0_bufvec         start_key;
+	uint32_t                 recs_nr;
+	uint64_t                 rep_count;
+	struct m0_cas_id         index = {};
+	int                      rc;
+
+	casc_ut_init(&casc_ut_sctx, &casc_ut_cctx);
+	rc = m0_bufvec_alloc(&keys, COUNT, sizeof(uint64_t));
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_bufvec_alloc(&values, COUNT, sizeof(uint64_t));
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(keys.ov_vec.v_nr == COUNT);
+	M0_UT_ASSERT(keys.ov_vec.v_nr == values.ov_vec.v_nr);
+	m0_forall(i, keys.ov_vec.v_nr, (*(uint64_t*)keys.ov_buf[i]   = i,
+					*(uint64_t*)values.ov_buf[i] = i * i,
+					true));
+	M0_SET_ARR0(rep);
+	M0_SET_ARR0(get_rep);
+
+	rc = ut_idx_create(&casc_ut_cctx, &ifid, 1, rep);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(rep[0].crr_rc == 0);
+	index.ci_fid = ifid;
+	/* Insert new records */
+	rc = ut_rec_put(&casc_ut_cctx, &index, &keys, &values, rep, 0);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(m0_forall(i, COUNT, rep[i].crr_rc == 0));
+
+	m0_fi_enable_once("m0_rpc_item_max_payload_exceeded",
+			  "payload_too_large");
+	rc = ut_rec_get(&casc_ut_cctx, &index, &keys, get_rep);
+	M0_UT_ASSERT(rc == -E2BIG);
+
+	M0_SET_ARR0(next_rep);
+	rc = m0_bufvec_alloc(&start_key, 1, keys.ov_vec.v_count[0]);
+	M0_UT_ASSERT(rc == 0);
+	/* perform next for all records */
+	recs_nr = COUNT;
+	value_create(start_key.ov_vec.v_count[0], 0, start_key.ov_buf[0]);
+	m0_fi_enable_once("m0_rpc_item_max_payload_exceeded",
+			  "payload_too_large");
+	rc = ut_next_rec(&casc_ut_cctx, &index, &start_key, &recs_nr, next_rep,
+			 &rep_count, false);
+	M0_UT_ASSERT(rc == -E2BIG);
+
+	/* Remove index. */
+	rc = ut_idx_delete(&casc_ut_cctx, &ifid, 1, rep);
+	M0_UT_ASSERT(rc == 0);
+
+	m0_bufvec_free(&keys);
+	m0_bufvec_free(&values);
+	casc_ut_fini(&casc_ut_sctx, &casc_ut_cctx);
+}
+
 
 struct m0_ut_suite cas_client_ut = {
 	.ts_name   = "cas-client",
@@ -2320,6 +2386,7 @@ struct m0_ut_suite cas_client_ut = {
 		{ "idx-tree-delete",        idx_tree_delete,        "Leonid" },
 		{ "idx-tree-delete-fail",   idx_tree_delete_fail,   "Leonid" },
 		{ "recs-count",             recs_count,             "Leonid" },
+		{ "reply-too-large",        reply_too_large,        "Sergey" },
 		{ NULL, NULL }
 	}
 };
