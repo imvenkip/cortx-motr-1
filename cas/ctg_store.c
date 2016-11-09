@@ -64,6 +64,10 @@ struct m0_cas_state {
 	 */
         uint64_t                cs_rec_size;
         struct m0_format_footer cs_footer;
+	/**
+	 * Mutex to protect m0_cas_ctg init after load.
+	 */
+	struct m0_mutex         cs_ctg_init_mutex;
 };
 
 struct m0_ctg_store {
@@ -261,13 +265,17 @@ static void ctg_init(struct m0_cas_ctg *ctg, struct m0_be_seg *seg)
 		.ot_type    = M0_FORMAT_TYPE_EXT,
 		.ot_footer_offset = offsetof(struct m0_cas_ctg, cc_foot)
 	});
+	M0_ENTRY();
 	m0_be_btree_init(&ctg->cc_tree, seg, &cas_btree_ops);
 	m0_long_lock_init(&ctg->cc_lock);
+	ctg->cc_inited = true;
 	m0_format_footer_update(ctg);
 }
 
 static void ctg_fini(struct m0_cas_ctg *ctg)
 {
+	M0_ENTRY();
+	ctg->cc_inited = false;
 	m0_be_btree_fini(&ctg->cc_tree);
 	m0_long_lock_fini(&ctg->cc_lock);
 }
@@ -299,8 +307,9 @@ static int ctg_create(struct m0_be_seg *seg, struct m0_be_tx *tx,
 
 static void ctg_destroy(struct m0_cas_ctg *ctg, struct m0_be_tx *tx)
 {
-	struct m0_be_seg  *seg = ctg->cc_tree.bb_seg;
+	struct m0_be_seg *seg = ctg->cc_tree.bb_seg;
 
+	M0_ENTRY();
 	M0_BE_OP_SYNC(op, m0_be_btree_destroy(&ctg->cc_tree, tx, &op));
 	ctg_fini(ctg);
 	M0_BE_FREE_PTR_SYNC(ctg, seg, tx);
@@ -336,6 +345,10 @@ static int ctg_meta_find_ctidx(struct m0_cas_ctg  *meta,
 				rc = M0_ERR_INFO(-EPROTO, "Unexpected: %"PRIx64,
 						 buf.b_nob);
 		}
+		/*
+		 * Free read lock acquired in m0_be_btree_lookup_inplace().
+		 */
+		m0_be_btree_release(NULL, &anchor);
 	}
 
 	return M0_RC(rc);
@@ -390,6 +403,7 @@ static void ctg_meta_delete(struct m0_be_btree *meta,
 	uint8_t       key_data[KV_HDR_SIZE + sizeof(struct m0_fid)];
 	struct m0_buf key;
 
+	M0_ENTRY();
 	ctg_fid_key_fill((void *)&key_data, fid);
 	key = M0_BUF_INIT_PTR(&key_data);
 	M0_BE_OP_SYNC(op, m0_be_btree_delete(meta, tx, &op, &key));
@@ -460,6 +474,7 @@ static int ctg_state_create(struct m0_be_seg     *seg,
         struct m0_be_btree  *bt;
         int                  rc;
 
+	M0_ENTRY();
 	*state = NULL;
 	M0_BE_ALLOC_PTR_SYNC(out, seg, tx);
 	if (out == NULL)
@@ -506,6 +521,7 @@ static int ctg_store__init(struct m0_be_seg *seg, struct m0_cas_state *state)
 	M0_ENTRY();
 
 	ctg_store.cs_state = state;
+	m0_mutex_init(&state->cs_ctg_init_mutex);
 	ctg_init(state->cs_meta, seg);
 
 	/* Searching for catalogue-index catalogue. */
@@ -547,6 +563,7 @@ static int ctg_store_create(struct m0_be_seg *seg)
 	rc = ctg_state_create(seg, &tx, &state);
 	if (rc != 0)
 		goto end;
+	m0_mutex_init(&state->cs_ctg_init_mutex);
 
 	/* Create catalog-index catalogue. */
 	rc = ctg_create(seg, &tx, &ctidx);
@@ -606,6 +623,9 @@ M0_INTERNAL int m0_ctg_store_init()
 		 * @todo Add checking, use header and footer.
 		 */
 		M0_ASSERT(state != NULL);
+		M0_LOG(M0_DEBUG,
+		       "cas_state from storage: cs_meta %p, cs_rec_nr %"PRIx64,
+		       state->cs_meta, state->cs_rec_nr);
 		result = ctg_store__init(seg, state);
 	} else if (result == -ENOENT) {
 		M0_LOG(M0_DEBUG, "Ctg store state wasn't found on a disk.");
@@ -626,6 +646,7 @@ static void ctg_store_release(struct m0_ref *ref)
 {
 	struct m0_ctg_store *ctg_store = M0_AMB(ctg_store, ref, cs_ref);
 
+	M0_ENTRY();
 	m0_mutex_fini(&ctg_store->cs_state_mutex);
 	ctg_store->cs_state = NULL;
 	ctg_store->cs_ctidx = NULL;
@@ -634,6 +655,7 @@ static void ctg_store_release(struct m0_ref *ref)
 
 M0_INTERNAL void m0_ctg_store_fini()
 {
+	M0_ENTRY();
 	m0_ref_put(&ctg_store.cs_ref);
 }
 
@@ -693,6 +715,9 @@ static uint64_t ctg_state_update(struct m0_be_tx *tx, uint64_t size,
 	}
 	m0_mutex_unlock(&ctg_store.cs_state_mutex);
 
+	M0_LOG(M0_DEBUG, "ctg_state_update: rec_nr %"PRIx64 " rec_size %"PRIx64,
+	       ctg_store.cs_state->cs_rec_nr,
+	       ctg_store.cs_state->cs_rec_size);
 	M0_BE_TX_CAPTURE_PTR(seg, tx, ctg_store.cs_state);
 	return *recs_nr;
 }
@@ -705,6 +730,24 @@ static void ctg_state_inc_update(struct m0_be_tx *tx, uint64_t size)
 static void ctg_state_dec_update(struct m0_be_tx *tx, uint64_t size)
 {
 	(void)ctg_state_update(tx, size, false);
+}
+
+/**
+ * Initialise catalog meta-data volatile stuff: mutexes etc.
+ */
+static void ctg_try_init(struct m0_cas_ctg *ctg)
+{
+	M0_ENTRY();
+	m0_mutex_lock(&ctg_store.cs_state->cs_ctg_init_mutex);
+	/*
+	 * ctg is null if this is entry for Meta: it is not filled.
+	 */
+	if (ctg != NULL && !ctg->cc_inited) {
+		M0_LOG(M0_DEBUG, "ctg_init %p", ctg);
+		ctg_init(ctg, cas_seg());
+	} else
+		M0_LOG(M0_DEBUG, "ctg %p zero or inited", ctg);
+	m0_mutex_unlock(&ctg_store.cs_state->cs_ctg_init_mutex);
 }
 
 static bool ctg_op_cb(struct m0_clink *clink)
@@ -739,6 +782,10 @@ static bool ctg_op_cb(struct m0_clink *clink)
 			    ctg_op->co_out_val.b_nob !=
 			    sizeof(struct m0_cas_ctg *))
 				rc = M0_ERR(-EFAULT);
+			if (rc == 0 && ct == CT_META) {
+				ctg_try_init(*(struct m0_cas_ctg **)
+					     ctg_op->co_out_val.b_addr);
+			}
 			break;
 		case CTG_OP_COMBINE(CO_DEL, CT_BTREE):
 			ctg_state_dec_update(tx, 0);
@@ -755,6 +802,10 @@ static bool ctg_op_cb(struct m0_clink *clink)
 			if (rc == 0)
 				rc = ctg_buf(&cur_val,
 					     &ctg_op->co_out_val);
+			if (rc == 0 && ct == CT_META) {
+				ctg_try_init(*(struct m0_cas_ctg **)
+					     ctg_op->co_out_val.b_addr);
+			}
 			break;
 		case CTG_OP_COMBINE(CO_PUT, CT_BTREE):
 			ctg_memcpy(arena, ctg_op->co_val.b_addr,
@@ -1094,10 +1145,24 @@ M0_INTERNAL int m0_ctg_cursor_next(struct m0_ctg_op *ctg_op,
 
 	ctg_op->co_cur_phase = CPH_NEXT;
 
-	/* BE operation must be initialised each time when next called. */
+	/* BE operation must be initialised each time when next is called. */
 	m0_be_op_init(&ctg_op->co_cur.bc_op);
 
 	return ctg_exec(ctg_op, ctg_op->co_ctg, NULL, next_phase);
+}
+
+M0_INTERNAL int m0_ctg_meta_cursor_next(struct m0_ctg_op *ctg_op,
+					int               next_phase)
+{
+	M0_PRE(ctg_op != NULL);
+	M0_PRE(ctg_op->co_cur_phase != CPH_INIT);
+
+	ctg_op->co_cur_phase = CPH_NEXT;
+
+	/* BE operation must be initialised each time when next called. */
+	m0_be_op_init(&ctg_op->co_cur.bc_op);
+
+	return ctg_op_exec(ctg_op, next_phase);
 }
 
 M0_INTERNAL void m0_ctg_cursor_kv_get(struct m0_ctg_op *ctg_op,

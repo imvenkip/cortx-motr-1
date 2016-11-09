@@ -96,6 +96,12 @@ struct m0_cas_ctg {
 	 */
 	struct m0_be_btree      cc_tree;
 	struct m0_long_lock     cc_lock;
+	/*
+	 * Indicates whether catalogue is initialised after its fetch from BE
+	 * segment. Non-meta catalogue is initialised on its first lookup in
+	 * meta.
+	 */
+	bool                    cc_inited;
 };
 
 enum m0_cas_ctg_format_version {
@@ -357,6 +363,15 @@ M0_INTERNAL void m0_ctg_meta_cursor_init(struct m0_ctg_op *ctg_op);
 M0_INTERNAL int  m0_ctg_meta_cursor_get(struct m0_ctg_op    *ctg_op,
 					const struct m0_fid *fid,
 					int                  next_phase);
+
+/**
+ * Moves meta catalogue cursor to the next record.
+ *
+ * @param ctg_op     Catalogue operation context.
+ * @param next_phase Next phase of caller FOM.
+ */
+M0_INTERNAL int  m0_ctg_meta_cursor_next(struct m0_ctg_op *ctg_op,
+					 int               next_phase);
 
 /**
  * Initialises cursor for catalogue @ctg.

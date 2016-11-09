@@ -1396,7 +1396,9 @@ static int cas_exec(struct cas_fom *fom, enum m0_cas_opcode opc,
 						       next);
 			else
 				m0_ctg_cursor_get(ctg_op, &kbuf, next);
-		} else
+		} else if (ct == CT_META)
+			m0_ctg_meta_cursor_next(ctg_op, next);
+		else
 			m0_ctg_cursor_next(ctg_op, next);
 		break;
 	}

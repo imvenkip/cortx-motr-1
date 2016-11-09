@@ -106,7 +106,7 @@ static int at_inline_fill(struct m0_rpc_at_buf *dst, struct m0_rpc_at_buf *src)
 	return m0_buf_copy(&dst->u.ab_buf, &src->u.ab_buf);
 }
 
-static void reqh_init(void)
+static void reqh_init(bool mkfs)
 {
 	int result;
 
@@ -120,16 +120,24 @@ static void reqh_init(void)
 			      .rhia_fid     = &g_process_fid);
 	M0_UT_ASSERT(result == 0);
 	be.but_dom_cfg.bc_engine.bec_reqh = &reqh;
-	m0_be_ut_backend_init(&be);
+	if (mkfs)
+		result = m0_be_ut_backend_init_cfg(&be, NULL, true);
+	else {
+		struct m0_be_domain_cfg cfg = {};
+
+		m0_be_ut_backend_cfg_default(&cfg);
+		result = m0_be_ut_backend_init_cfg(&be, &cfg, false);
+	}
+	M0_ASSERT(result == 0);
 }
 
-static void init(void)
+static void _init(bool mkfs)
 {
 	int result;
 
 	/* Check validity of IFID definition. */
 	M0_UT_ASSERT(m0_cas_index_fid_type.ft_id == 'i');
-	reqh_init();
+	reqh_init(mkfs);
 	result = m0_reqh_service_allocate(&cas, &m0_cas_service_type, NULL);
 	M0_UT_ASSERT(result == 0);
 	m0_reqh_service_init(cas, &reqh, NULL);
@@ -137,6 +145,11 @@ static void init(void)
 	m0_reqh_start(&reqh);
 	cas__ut_cb_done = &cb_done;
 	cas__ut_cb_fini = &cb_fini;
+}
+
+static void init(void)
+{
+	_init(true);
 }
 
 static void service_stop(void)
@@ -157,6 +170,12 @@ static void fini(void)
 	cas__ut_cb_fini = NULL;
 }
 
+static void reinit_nomkfs(void)
+{
+	fini();
+	_init(false);
+}
+
 /**
  * "init-fini" test: initialise and finalise a cas service.
  */
@@ -173,7 +192,7 @@ static void init_fail(void)
 {
 	int rc;
 
-	reqh_init();
+	reqh_init(true);
 
 	/* Failure to add meta-index to segment dictionary. */
 	rc = m0_reqh_service_allocate(&cas, &m0_cas_service_type, NULL);
@@ -1079,7 +1098,6 @@ static void lookup_restart(void)
 /**
  * Test iteration over multiple values (with restart).
  */
-
 static void cur_N(void)
 {
 	int i;
@@ -1612,6 +1630,74 @@ static void multi_delete_fail(void)
 	fini();
 }
 
+/**
+ * Tests different operations after server re-start.
+ * Server restart is emulated by re-initialisation of request handler along with
+ * BE subsystem. No mkfs is performed for BE, so on-disk data between restarts
+ * is not modified.
+ */
+static void server_restart_nomkfs(void)
+{
+	struct m0_cas_id cid = { .ci_fid = ifid };
+
+	init();
+	meta_fid_submit(&cas_put_fopt, &ifid);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
+	index_op(&cas_put_fopt, &ifid, 1, 2);
+	M0_UT_ASSERT(rep.cgr_rc == 0);
+	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 1);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
+
+	/* Check that index and record are present. */
+	reinit_nomkfs();
+	meta_fop_submit(&cas_cur_fopt,
+			(struct meta_rec[]) {
+				{ .cid = cid, .rc = 1 } },
+			1);
+	M0_UT_ASSERT(rep.cgr_rc == 0);
+	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 1);
+	M0_UT_ASSERT(rep_check(0, 1, BSET, BUNSET));
+	M0_UT_ASSERT(m0_fid_eq(repv[0].cr_key.u.ab_buf.b_addr, &ifid));
+
+	index_op(&cas_get_fopt, &ifid, 1, NOVAL);
+	M0_UT_ASSERT(rep.cgr_rc == 0);
+	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 1);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BSET));
+	M0_UT_ASSERT(rep.cgr_rep.cr_rec[0].cr_val.u.ab_buf.b_nob
+		     == sizeof (uint64_t));
+	M0_UT_ASSERT(2 ==
+		     *(uint64_t *)rep.cgr_rep.cr_rec[0].cr_val.u.ab_buf.b_addr);
+
+	/* Check that the same record can't be inserted. */
+	reinit_nomkfs();
+	index_op(&cas_put_fopt, &ifid, 1, 2);
+	M0_UT_ASSERT(rep.cgr_rc == 0);
+	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 1);
+	M0_UT_ASSERT(rep_check(0, -EEXIST, BUNSET, BUNSET));
+
+	/* Check that record can be deleted. */
+	reinit_nomkfs();
+	index_op(&cas_del_fopt, &ifid, 1, NOVAL);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
+
+	/* Check that record was really deleted. */
+	reinit_nomkfs();
+	index_op(&cas_del_fopt, &ifid, 1, NOVAL);
+	M0_UT_ASSERT(rep_check(0, -ENOENT, BUNSET, BUNSET));
+
+	/* Check that index can deleted. */
+	reinit_nomkfs();
+	meta_fid_submit(&cas_del_fopt, &ifid);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
+
+	/* Check that index was deleted. */
+	reinit_nomkfs();
+	meta_fid_submit(&cas_del_fopt, &ifid);
+	M0_UT_ASSERT(rep_check(0, -ENOENT, BUNSET, BUNSET));
+
+	fini();
+}
+
 struct m0_ut_suite cas_service_ut = {
 	.ts_name   = "cas-service",
 	.ts_owners = "Nikita",
@@ -1665,6 +1751,7 @@ struct m0_ut_suite cas_service_ut = {
 		{ "cctg-create",             &cctg_create,           "Sergey" },
 		{ "cctg-create-lookup",      &cctg_create_lookup,    "Sergey" },
 		{ "cctg-create-delete",      &cctg_create_delete,    "Sergey" },
+		{ "server-restart-nomkfs",   &server_restart_nomkfs, "Egor"   },
 		{ NULL, NULL }
 	}
 };
