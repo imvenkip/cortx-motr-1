@@ -43,6 +43,7 @@ M0_INTERNAL struct m0_fop_type cas_put_fopt;
 M0_INTERNAL struct m0_fop_type cas_del_fopt;
 M0_INTERNAL struct m0_fop_type cas_cur_fopt;
 M0_INTERNAL struct m0_fop_type cas_rep_fopt;
+M0_INTERNAL struct m0_fop_type cas_gc_fopt;
 
 static int cas_fops_init(const struct m0_sm_conf           *sm_conf,
 			 const struct m0_fom_type_ops      *fom_ops,
@@ -88,18 +89,29 @@ static int cas_fops_init(const struct m0_sm_conf           *sm_conf,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY,
 			 .xt        = m0_cas_rep_xc,
 			 .svc_type  = svctype);
+	M0_FOP_TYPE_INIT(&cas_gc_fopt,
+			 .name      = "cas-gc-wait",
+			 .opcode    = M0_CAS_GCW_FOP_OPCODE,
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
+			 .xt        = m0_cas_op_xc,
+			 .fom_ops   = fom_ops,
+			 .sm        = sm_conf,
+			 .svc_type  = svctype);
 	return  m0_fop_type_addb2_instrument(&cas_get_fopt) ?:
 		m0_fop_type_addb2_instrument(&cas_put_fopt) ?:
 		m0_fop_type_addb2_instrument(&cas_del_fopt) ?:
-		m0_fop_type_addb2_instrument(&cas_cur_fopt);
+		m0_fop_type_addb2_instrument(&cas_cur_fopt) ?:
+		m0_fop_type_addb2_instrument(&cas_gc_fopt);
 }
 
 static void cas_fops_fini(void)
 {
+	m0_fop_type_addb2_deinstrument(&cas_gc_fopt);
 	m0_fop_type_addb2_deinstrument(&cas_cur_fopt);
 	m0_fop_type_addb2_deinstrument(&cas_del_fopt);
 	m0_fop_type_addb2_deinstrument(&cas_put_fopt);
 	m0_fop_type_addb2_deinstrument(&cas_get_fopt);
+	m0_fop_type_fini(&cas_gc_fopt);
 	m0_fop_type_fini(&cas_rep_fopt);
 	m0_fop_type_fini(&cas_cur_fopt);
 	m0_fop_type_fini(&cas_del_fopt);
@@ -117,6 +129,11 @@ M0_INTERNAL struct m0_fid m0_cas_meta_fid = M0_FID_TINIT('i', 0, 0);
  * FID of the catalogue-index index.
  */
 M0_INTERNAL struct m0_fid m0_cas_ctidx_fid = M0_FID_TINIT('i', 0, 1);
+
+/**
+ * FID of the "dead index" catalogue (used to collect deleted indices).
+ */
+M0_INTERNAL struct m0_fid m0_cas_dead_index_fid = M0_FID_TINIT('i', 0, 2);
 
 M0_INTERNAL const struct m0_fid_type m0_cas_index_fid_type = {
 	.ft_id   = 'i',

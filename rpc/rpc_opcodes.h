@@ -270,6 +270,8 @@ enum M0_RPC_OPCODES {
 	M0_CAS_DEL_FOP_OPCODE               = 232,
 	M0_CAS_CUR_FOP_OPCODE               = 233,
 	M0_CAS_REP_FOP_OPCODE               = 234,
+	M0_CAS_GCW_FOP_OPCODE               = 235,
+	M0_CAS_GCF_FOP_OPCODE               = 236,
 
 	/** Fault Injection command fops. */
 	M0_FI_COMMAND_OPCODE                = 260,

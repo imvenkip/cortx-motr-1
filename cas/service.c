@@ -44,6 +44,7 @@
 #include "cas/cas.h"
 #include "cas/cas_xc.h"
 #include "dix/fid_convert.h"         /* m0_dix_fid_cctg_device_id */
+#include "cas/index_gc.h"
 
 
 /**
@@ -163,20 +164,42 @@
  *                          |          |            |            |        |
  *                          |          |            | ctg_crow   |        |
  *                          |          |            +----------+ |        |
- *                          |          |            |          | |        |
- *                          |          |            |          V |        |
- *                          V          |            |   CAS_CTG_CROW_DONE |
- *     SUCCESS<---------CAS_LOOP<----+ |            V                     |
- *                          |        | |    +->CAS_LOAD_KEY<--------------+
- *                          |        | |    |       |
- *                          |        | |    |       V
- *                          |        | |    |  CAS_LOAD_VAL
- *          ctidx_op_needed |        | |    |       |
- *        +-----------------+        | |    |       V
- *        |                 |        | |    +--CAS_LOAD_DONE
- *        V                 V        | |            |
- *    CAS_CTIDX---->CAS_PREPARE_SEND | |            V
- *                          |        | |        CAS_LOCK------------+
+ * +----------------------->|          |            |          | |        |
+ * |                        |          |            |          V |        |
+ * |                        V          |            |   CAS_CTG_CROW_DONE |
+ * |   SUCCESS<---------CAS_LOOP<----+ |            V                     |
+ * |            index drop  |        | |    +->CAS_LOAD_KEY<-------------+
+ * |        +---------------+        | |    |       |
+ * |        |               |        | |    |       V
+ * |        V               |        | |    |  CAS_LOAD_VAL
+ * |  CAS_INSERT_TO_DEAD    |        | |    |       |
+ * |        |               |        | |    |       V
+ * |        V               |        | |    +--CAS_LOAD_DONE
+ * |  CAS_DELETE_FROM_META->|        | |            |
+ * |                        |        | |            |
+ * |        ctidx_op_needed |        | |            |
+ * |      +-----------------+        | |            |
+ * |      |                 |        | |            |
+ * |      V                 |        | |            |
+ * |  CAS_CTIDX------------>|        | |            |  index drop
+ * |                        |        | |            +-------------+
+ * |          index drop    |        | |            |             |
+ * |       +----------------+        | |            |             V
+ * |       |                |        | |            |<---CAS_DEAD_INDEX_LOCK
+ * |       V                |        | |            |
+ * +--CAS_IDROP_LOOP        |        | |            |
+ *         |                |        | |            |
+ *         V                |        | |            |
+ *  CAS_IDROP_LOCK_LOOP     |        | |            |
+ *   |       |              |        | |            |
+ *   |       V              |        | |            |
+ *   |   CAS_IDROP_LOCKED-->|        | |            |
+ *   |                      |        | |            |
+ *   V                      |        | |            |
+ * CAS_IDROP_START_GC       |        | |            |
+ *   |                      V        | |            |
+ *   V              CAS_PREPARE_SEND | |            |
+ * SUCCESS                  |        | |        CAS_LOCK------------+
  *                          V        | |            |               |
  *                     CAS_SEND_KEY  | |            |meta_op        |
  *                          |        | |            |               |
@@ -185,6 +208,7 @@
  *                          |        | |            |               |
  *                          V        | |            V               |
  *                      CAS_DONE-----+ +--------CAS_PREP<-----------+
+ *
  * @endverbatim
  *
  * @subsection cas-lspec-thread Threading and Concurrency Model
@@ -254,6 +278,7 @@ struct cas_fom {
 	struct m0_long_lock_link  cf_lock;
 	struct m0_long_lock_link  cf_meta;
 	struct m0_long_lock_link  cf_ctidx;
+	struct m0_long_lock_link  cf_dead_index;
 	uint64_t                  cf_curpos;
 	/**
 	 * Key/value pairs from incoming FOP.
@@ -271,12 +296,17 @@ struct cas_fom {
 	struct m0_cas_id         *cf_in_cids;
 	/** ->cf_in_cids array size. */
 	uint64_t                  cf_in_cids_nr;
+	/**
+	 * Index descriptors for dropped indices (moved to dead_index).
+	 */
+	struct m0_cas_ctg       **cf_moved_ctgs;
 	struct m0_fom_thralldom   cf_thrall;
 	int                       cf_thrall_rc;
 	/* ADDB2 structures to collect long-lock contention metrics. */
 	struct m0_long_lock_addb2 cf_lock_addb2;
 	struct m0_long_lock_addb2 cf_meta_addb2;
 	struct m0_long_lock_addb2 cf_ctidx_addb2;
+	struct m0_long_lock_addb2 cf_dead_index_addb2;
 	/* AT helper fields. */
 	struct m0_buf             cf_out_key;
 	struct m0_buf             cf_out_val;
@@ -285,7 +315,6 @@ struct cas_fom {
 enum cas_fom_phase {
 	CAS_LOOP = M0_FOPH_TYPE_SPECIFIC,
 	CAS_DONE,
-
 	CAS_START,
 	CAS_META_LOCK,
 	CAS_META_LOOKUP,
@@ -303,6 +332,13 @@ enum cas_fom_phase {
 	CAS_KEY_SENT,
 	CAS_SEND_VAL,
 	CAS_VAL_SENT,
+	CAS_DEAD_INDEX_LOCK,
+	CAS_INSERT_TO_DEAD,
+	CAS_DELETE_FROM_META,
+	CAS_IDROP_LOOP,
+	CAS_IDROP_LOCK_LOOP,
+	CAS_IDROP_LOCKED,
+	CAS_IDROP_START_GC,
 	CAS_NR
 };
 
@@ -397,10 +433,12 @@ M0_INTERNAL void m0_cas_svc_init(void)
 		M0_BITS(M0_FOPH_TXN_COMMIT_WAIT);
 	m0_sm_conf_init(&cas_sm_conf);
 	m0_reqh_service_type_register(&m0_cas_service_type);
+	m0_cas_gc_init();
 }
 
 M0_INTERNAL void m0_cas_svc_fini(void)
 {
+	m0_cas_gc_fini();
 	m0_reqh_service_type_unregister(&m0_cas_service_type);
 	m0_sm_conf_fini(&cas_sm_conf);
 }
@@ -416,10 +454,26 @@ M0_INTERNAL void m0_cas_svc_fop_args(struct m0_sm_conf            **sm_conf,
 
 static int cas_service_start(struct m0_reqh_service *svc)
 {
+	int                 rc;
 	struct cas_service *service = M0_AMB(service, svc, c_service);
 
 	M0_PRE(m0_reqh_service_state_get(svc) == M0_RST_STARTING);
-	return m0_ctg_store_init();
+	rc = m0_ctg_store_init();
+	if (rc == 0) {
+		/*
+		 * Start deleted index garbage collector at boot to continue
+		 * index drop possibly interrupted by system restart.
+		 * If no pending index drop, it finishes soon.
+		 */
+		m0_cas_gc_start(svc->rs_reqh);
+	}
+	return rc;
+}
+
+static void cas_service_prepare_to_stop(struct m0_reqh_service *svc)
+{
+	/* Wait until garbage collector destroys all dead indices. */
+	m0_cas_gc_wait_sync();
 }
 
 static void cas_service_stop(struct m0_reqh_service *svc)
@@ -506,6 +560,8 @@ static int cas_fom_create(struct m0_fop *fop,
 				       &fom->cf_meta_addb2);
 		m0_long_lock_link_init(&fom->cf_ctidx, fom0,
 				       &fom->cf_ctidx_addb2);
+		m0_long_lock_link_init(&fom->cf_dead_index, fom0,
+				       &fom->cf_dead_index_addb2);
 		return M0_RC(0);
 	} else {
 		m0_free(ikv);
@@ -605,6 +661,7 @@ static struct m0_rpc_at_buf *cas_out_complementary(enum m0_cas_opcode      opc,
 	switch (opc) {
 	case CO_PUT:
 	case CO_DEL:
+	case CO_GC:
 		ret = NULL;
 		break;
 	case CO_GET:
@@ -695,9 +752,13 @@ static int cas_op_recs_check(struct cas_fom    *fom,
 			     enum m0_cas_type   ct,
 			     struct m0_cas_op  *op)
 {
+	/*
+	 * Tricky: cas_is_valid() has side effects when working
+	 * with meta: it fills ->cf_in_cids.
+	 */
 	return op->cg_rec.cr_nr != 0 && op->cg_rec.cr_rec != NULL &&
 		m0_forall(i, op->cg_rec.cr_nr,
-			 cas_is_valid(fom, opc, ct, cas_at(op, i), i)) ?
+			  cas_is_valid(fom, opc, ct, cas_at(op, i), i)) ?
 		M0_RC(0) : M0_ERR(-EPROTO);
 }
 
@@ -724,31 +785,55 @@ static int cas_op_check(struct m0_cas_op *op,
 			rc = M0_ERR(-ENOMEM);
 	}
 	if (rc == 0)
+		/* Note: fill ->cf_in_cids there. */
 		rc = cas_op_recs_check(fom, opc, ct, op);
 
 	return M0_RC(rc);
 }
 
-static void cas_fom_failure(struct cas_fom *fom, int rc, bool ctg_op_fini)
+static void cas_fom_cleanup(struct cas_fom *fom, bool ctg_op_fini)
 {
-	struct m0_fom     *fom0   = &fom->cf_fom;
-	struct m0_ctg_op  *ctg_op = &fom->cf_ctg_op;
-	struct m0_cas_ctg *meta   = m0_ctg_meta();
-	struct m0_cas_ctg *ctidx  = m0_ctg_ctidx();
-
-	M0_PRE(rc < 0);
+	struct m0_ctg_op  *ctg_op     = &fom->cf_ctg_op;
+	struct m0_cas_ctg *meta       = m0_ctg_meta();
+	struct m0_cas_ctg *ctidx      = m0_ctg_ctidx();
+	struct m0_cas_ctg *dead_index = m0_ctg_dead_index();
 
 	m0_long_unlock(&meta->cc_lock, &fom->cf_meta);
 	m0_long_unlock(&ctidx->cc_lock, &fom->cf_ctidx);
+	m0_long_unlock(&dead_index->cc_lock, &fom->cf_dead_index);
 	if (fom->cf_ctg != NULL)
-		m0_long_unlock(&fom->cf_ctg->cc_lock,
-			       &fom->cf_lock);
+		m0_long_unlock(&fom->cf_ctg->cc_lock, &fom->cf_lock);
 	if (ctg_op_fini) {
 		if (m0_ctg_cursor_is_initialised(ctg_op))
 			m0_ctg_cursor_fini(ctg_op);
 		m0_ctg_op_fini(ctg_op);
 	}
-	m0_fom_phase_move(fom0, rc, M0_FOPH_FAILURE);
+}
+
+static void cas_fom_failure(struct cas_fom *fom, int rc, bool ctg_op_fini)
+{
+	M0_PRE(rc < 0);
+	cas_fom_cleanup(fom, ctg_op_fini);
+	m0_fom_phase_move(&fom->cf_fom, rc, M0_FOPH_FAILURE);
+}
+
+static void cas_fom_success(struct cas_fom *fom, enum m0_cas_opcode opc)
+{
+	cas_fom_cleanup(fom, opc == CO_CUR);
+	m0_fom_phase_set(&fom->cf_fom, M0_FOPH_SUCCESS);
+}
+
+/**
+ * Checks if operation is index drop.
+ *
+ * @param opc opcode
+ * @param ct  operation type: DDL or DML?
+ * @return true if this is index drop
+ */
+static bool op_is_index_drop(enum m0_cas_opcode  opc,
+			     enum m0_cas_type    ct)
+{
+	return CTG_OP_COMBINE(CO_DEL, CT_META) == CTG_OP_COMBINE(opc, ct);
 }
 
 static int cas_fom_tick(struct m0_fom *fom0)
@@ -771,13 +856,29 @@ static int cas_fom_tick(struct m0_fom *fom0)
 	struct m0_cas_ctg  *meta    = m0_ctg_meta();
 	struct m0_cas_ctg  *ctidx   = m0_ctg_ctidx();
 	struct m0_cas_rec  *rec     = NULL;
+	bool                is_index_drop;
+	bool                do_ctidx;
 
+	M0_ENTRY("fom %p phase %d", fom, phase);
+	is_index_drop = op_is_index_drop(opc, ct);
 	M0_PRE(ctidx != NULL);
 	M0_PRE(cas_fom_invariant(fom));
 	switch (phase) {
 	case M0_FOPH_INIT ... M0_FOPH_NR - 1:
 		if (phase == M0_FOPH_INIT) {
 			rc = cas_op_check(op, fom);
+			if (rc == 0 && fom->cf_ikv_nr != 0 && is_index_drop) {
+				/*
+				 * Store here pointers to records in dead_index
+				 * to be able to lock dropped indices. Need
+				 * to store fom->cf_ikv_nr records (== number of
+				 * keys to delete).
+				 */
+				M0_ALLOC_ARR(fom->cf_moved_ctgs,
+					     fom->cf_ikv_nr);
+				if (fom->cf_moved_ctgs == NULL)
+					rc = M0_ERR(-ENOMEM);
+			}
 			if (rc != 0) {
 				m0_fom_phase_move(fom0, M0_ERR(rc),
 						  M0_FOPH_FAILURE);
@@ -796,6 +897,10 @@ static int cas_fom_tick(struct m0_fom *fom0)
 		break;
 	case CAS_START:
 		if (is_meta) {
+			/*
+			 * Assign meta to ctg to re-use CAS_LOCK state.
+			 * If this is write op on meta, will need W lock.
+			 */
 			fom->cf_ctg = meta;
 			m0_fom_phase_set(fom0, CAS_LOAD_KEY);
 		} else
@@ -861,7 +966,8 @@ static int cas_fom_tick(struct m0_fom *fom0)
 			if (rc != 0)
 				cas_fom_failure(fom, M0_ERR(rc), false);
 			else
-				m0_fom_phase_set(fom0, CAS_LOCK);
+				m0_fom_phase_set(fom0, is_index_drop ?
+					CAS_DEAD_INDEX_LOCK : CAS_LOCK);
 			break;
 		}
 		/* Load next key/value. */
@@ -869,8 +975,13 @@ static int cas_fom_tick(struct m0_fom *fom0)
 		break;
 	case CAS_LOCK:
 		M0_ASSERT(ctg != NULL);
+		/*
+		 * In case of index drop use cf_meta lock: we need cf_lock to
+		 * lock index.
+		 */
 		result = m0_long_lock(&ctg->cc_lock,
 				      !cas_is_ro(opc),
+				      is_index_drop ? &fom->cf_meta :
 				      &fom->cf_lock,
 				      is_meta ? CAS_CTIDX_LOCK : CAS_PREP);
 		result = M0_FOM_LONG_LOCK_RETURN(result);
@@ -881,6 +992,11 @@ static int cas_fom_tick(struct m0_fom *fom0)
 	case CAS_CTIDX_LOCK:
 		result = m0_long_lock(&m0_ctg_ctidx()->cc_lock, !cas_is_ro(opc),
 				      &fom->cf_ctidx, CAS_PREP);
+		result = M0_FOM_LONG_LOCK_RETURN(result);
+		break;
+	case CAS_DEAD_INDEX_LOCK:
+		result = m0_long_write_lock(&m0_ctg_dead_index()->cc_lock,
+				      &fom->cf_dead_index, CAS_LOCK);
 		result = M0_FOM_LONG_LOCK_RETURN(result);
 		break;
 	case CAS_PREP:
@@ -922,22 +1038,12 @@ static int cas_fom_tick(struct m0_fom *fom0)
 		if (pos == op->cg_rec.cr_nr ||
 		    /* ... or all output has been generated. */
 		    fom->cf_opos == rep->cgr_rep.cr_nr) {
-			m0_long_unlock(&ctg->cc_lock, &fom->cf_lock);
-			m0_long_unlock(&ctidx->cc_lock, &fom->cf_ctidx);
-			if (opc == CO_CUR) {
-				if (m0_ctg_cursor_is_initialised(ctg_op))
-					m0_ctg_cursor_fini(ctg_op);
-				m0_ctg_op_fini(ctg_op);
-			}
-			m0_fom_phase_set(fom0, M0_FOPH_SUCCESS);
+			cas_fom_success(fom, opc);
 		} else {
-			bool do_ctidx;
-			/*
-			 * Check whether operation over catalogue-index
-			 * index should be done.
-			 */
 			do_ctidx = cas_ctidx_op_needed(fom, opc, ct, pos);
 			result = cas_exec(fom, opc, ct, ctg, pos,
+					  is_index_drop ?
+					  CAS_INSERT_TO_DEAD :
 					  do_ctidx ? CAS_CTIDX :
 					  CAS_PREPARE_SEND);
 		}
@@ -949,8 +1055,126 @@ static int cas_fom_tick(struct m0_fom *fom0)
 		if (rec->cr_rc == 0)
 			rec->cr_rc = cas_ctidx_exec(fom, opc, ct, pos,
 						    m0_ctg_op_rc(ctg_op));
+		m0_fom_phase_set(fom0,
+				 is_index_drop ? CAS_IDROP_LOOP :
+				 CAS_PREPARE_SEND);
+		break;
+
+		/*
+		 * Here are states specific to index drop.
+		 */
+	case CAS_INSERT_TO_DEAD:
+		/*
+		 * We are here if this is index drop.
+		 * Now insert it into dead_index to process actual tree delete
+		 * by background garbage collector.
+		 */
+		rc = m0_ctg_op_rc(ctg_op);
+		if (rc == 0) {
+			/*
+			 * Just completed meta lookup for this fid.
+			 */
+			fom->cf_ctg = m0_ctg_meta_lookup_result(ctg_op);
+			/*
+			 * Meta stores pointers to catalogues.
+			 * We will need catalogue later to lock it.
+			 */
+			fom->cf_moved_ctgs[pos] = fom->cf_ctg;
+			/*
+			 * Insert to dead index, then can remove from meta.
+			 */
+			m0_ctg_op_fini(ctg_op);
+			m0_ctg_op_init(&fom->cf_ctg_op, fom0, 0);
+			M0_LOG(M0_DEBUG, "Insert to dead ctg %p", fom->cf_ctg);
+			m0_ctg_dead_index_insert(ctg_op,
+						 fom->cf_ctg,
+						 CAS_DELETE_FROM_META);
+		} else {
+			M0_LOG(M0_DEBUG, "lookup in meta failed");
+			fom->cf_moved_ctgs[pos] = NULL;
+			m0_fom_phase_set(fom0, CAS_PREPARE_SEND);
+		}
+		break;
+	case CAS_DELETE_FROM_META:
+		rc = m0_ctg_op_rc(ctg_op);
+		if (rc == 0) {
+			m0_ctg_op_fini(ctg_op);
+			m0_ctg_op_init(&fom->cf_ctg_op, fom0, 0);
+			do_ctidx = cas_ctidx_op_needed(fom, opc, ct, pos);
+			m0_ctg_meta_delete(ctg_op,
+					   &fom->cf_in_cids[pos].ci_fid,
+					   do_ctidx ? CAS_CTIDX :
+					   CAS_IDROP_LOOP);
+		} else {
+			M0_LOG(M0_DEBUG, "insert to meta failed");
+			m0_fom_phase_set(fom0, CAS_PREPARE_SEND);
+		}
+		break;
+	case CAS_IDROP_LOOP:
+		rc = m0_ctg_op_rc(ctg_op);
+		fom->cf_ipos = ++pos;
+		if (pos < op->cg_rec.cr_nr)
+			m0_fom_phase_set(fom0, CAS_LOOP);
+		else {
+			m0_ctg_op_fini(ctg_op);
+			/*
+			 * Moved all records from meta to
+			 * dead_index. Now can unlock meta catalogues and
+			 * wait until dropping indices are not used.
+			 */
+			m0_long_unlock(&meta->cc_lock, &fom->cf_meta);
+			m0_long_unlock(&ctidx->cc_lock, &fom->cf_ctidx);
+			fom->cf_ipos = 0;
+			m0_fom_phase_set(fom0, rc == 0 ? CAS_IDROP_LOCK_LOOP :
+					 CAS_PREPARE_SEND);
+		}
+		break;
+	case CAS_IDROP_LOCK_LOOP:
+		if (pos == op->cg_rec.cr_nr) {
+			/*
+			 * Unlock dead index, so index garbage collector (if
+			 * running) can safely proceed with newly added indices
+			 * in "dead index" catalogue.
+			 */
+			m0_long_unlock(&m0_ctg_dead_index()->cc_lock,
+				       &fom->cf_dead_index);
+			m0_fom_phase_set(fom0, CAS_IDROP_START_GC);
+		} else if (fom->cf_moved_ctgs[pos] != NULL) {
+			/*
+			 * Actually we do not need this ctg_op, but in CAS_DONE
+			 * state we free it. Let's do not change it.
+			 */
+			m0_ctg_op_init(&fom->cf_ctg_op, fom0, 0);
+			/*
+			 * Lock dropping index to be sure nobody keep
+			 * using it.
+			 */
+			result = m0_long_write_lock(
+				&fom->cf_moved_ctgs[pos]->cc_lock,
+				&fom->cf_lock,
+				CAS_IDROP_LOCKED);
+			result = M0_FOM_LONG_LOCK_RETURN(result);
+		} else
+			m0_fom_phase_set(fom0, CAS_LOOP);
+		break;
+	case CAS_IDROP_LOCKED:
+		/*
+		 * Now can unlock: index is not visible any more and nobody use
+		 * it for sure.
+		 */
+		m0_long_unlock(&fom->cf_moved_ctgs[pos]->cc_lock,
+			       &fom->cf_lock);
 		m0_fom_phase_set(fom0, CAS_PREPARE_SEND);
 		break;
+	case CAS_IDROP_START_GC:
+		/* Start garbage collector, if it is not already running. */
+		m0_cas_gc_start(service->c_service.rs_reqh);
+		cas_fom_success(fom, opc);
+		break;
+		/*
+		 * End of states specific to index drop.
+		 */
+
 	case CAS_PREPARE_SEND:
 		M0_ASSERT(fom->cf_opos < rep->cgr_rep.cr_nr);
 		rec = cas_out_at(rep, fom->cf_opos);
@@ -989,8 +1213,10 @@ static int cas_fom_tick(struct m0_fom *fom0)
 		m0_fom_phase_set(fom0, CAS_DONE);
 		break;
 	case CAS_DONE:
-		cas_done(fom, op, rep, opc);
-		m0_fom_phase_set(fom0, CAS_LOOP);
+		if (cas_done(fom, op, rep, opc) == 0 && is_index_drop)
+			m0_fom_phase_set(fom0, CAS_IDROP_LOCK_LOOP);
+		else
+			m0_fom_phase_set(fom0, CAS_LOOP);
 		break;
 	default:
 		M0_IMPOSSIBLE("Invalid phase");
@@ -1013,10 +1239,12 @@ static void cas_fom_fini(struct m0_fom *fom0)
 	for (i = 0; i < fom->cf_in_cids_nr; i++)
 		m0_cas_id_fini(&fom->cf_in_cids[i]);
 	m0_free(fom->cf_in_cids);
+	m0_free(fom->cf_moved_ctgs);
 	m0_free(fom->cf_ikv);
 	m0_long_lock_link_fini(&fom->cf_meta);
 	m0_long_lock_link_fini(&fom->cf_lock);
 	m0_long_lock_link_fini(&fom->cf_ctidx);
+	m0_long_lock_link_fini(&fom->cf_dead_index);
 	m0_fom_fini(fom0);
 	m0_free(fom);
 	if (cas_in_ut() && cas__ut_cb_fini != NULL)
@@ -1159,6 +1387,12 @@ static bool cas_is_valid(struct cas_fom *fom, enum m0_cas_opcode opc,
 		break;
 	case CO_REP:
 		result = !gotval == (((int64_t)rec->cr_rc) < 0 || meta);
+		break;
+	case CO_GC:
+	case CO_MIN:
+	case CO_TRUNC:
+	case CO_DROP:
+		result = true;
 		break;
 	default:
 		M0_IMPOSSIBLE("Wrong opcode.");
@@ -1310,9 +1544,9 @@ static void cas_prep(struct cas_fom *fom, enum m0_cas_opcode opc,
 				m0_ctg_ctidx_delete_credits(cid, accum);
 		}
 		if (opc == CO_PUT)
-			m0_ctg_meta_insert_credit(accum);
+			m0_ctg_create_credit(accum);
 		else
-			m0_ctg_meta_delete_credit(accum);
+			m0_ctg_mark_deleted_credit(accum);
 		break;
 	case CTG_OP_COMBINE(CO_PUT, CT_BTREE):
 	case CTG_OP_COMBINE(CO_DEL, CT_BTREE):
@@ -1381,17 +1615,21 @@ static int cas_exec(struct cas_fom *fom, enum m0_cas_opcode opc,
 	case CTG_OP_COMBINE(CO_DEL, CT_BTREE):
 		ret = m0_ctg_delete(ctg_op, ctg, &kbuf, next);
 		break;
+	case CTG_OP_COMBINE(CO_DEL, CT_META):
+		/*
+		 * This is index drop. Move record from meta to dead_index.
+		 * First load record from meta, then insert into dead_index,
+		 * then delete from meta.
+		 * So currnt step is to fetch pointer to ctg from meta.
+		 */
 	case CTG_OP_COMBINE(CO_GET, CT_META):
 		ret = m0_ctg_meta_lookup(ctg_op, &cid->ci_fid, next);
 		break;
 	case CTG_OP_COMBINE(CO_PUT, CT_META):
 		ret = m0_ctg_meta_insert(ctg_op, &cid->ci_fid, next);
 		break;
-	case CTG_OP_COMBINE(CO_DEL, CT_META):
-		/**
-		 * @todo delete the btree in META case.
-		 */
-		ret = m0_ctg_meta_delete(ctg_op, &cid->ci_fid, next);
+	case CTG_OP_COMBINE(CO_GC, CT_META):
+		ret = m0_ctg_gc_wait(ctg_op, next);
 		break;
 	case CTG_OP_COMBINE(CO_CUR, CT_BTREE):
 	case CTG_OP_COMBINE(CO_CUR, CT_META):
@@ -1482,9 +1720,7 @@ static int cas_prep_send(struct cas_fom *fom, enum m0_cas_opcode opc,
 		switch (CTG_OP_COMBINE(opc, ct)) {
 		case CTG_OP_COMBINE(CO_GET, CT_BTREE):
 			m0_ctg_lookup_result(ctg_op, &val);
-			rc = cas_place(&fom->cf_out_val,
-				       &val,
-				       rpc_cutoff);
+			rc = cas_place(&fom->cf_out_val, &val, rpc_cutoff);
 			break;
 		case CTG_OP_COMBINE(CO_GET, CT_META):
 		case CTG_OP_COMBINE(CO_DEL, CT_META):
@@ -1756,7 +1992,8 @@ static struct m0_sm_state_descr cas_fom_phases[] = {
 	},
 	[CAS_LOAD_DONE] = {
 		.sd_name      = "load-done",
-		.sd_allowed   = M0_BITS(CAS_LOAD_KEY, CAS_LOCK)
+		.sd_allowed   = M0_BITS(CAS_LOAD_KEY, CAS_LOCK,
+					CAS_DEAD_INDEX_LOCK)
 	},
 	[CAS_PREP] = {
 		.sd_name      = "prep",
@@ -1764,16 +2001,16 @@ static struct m0_sm_state_descr cas_fom_phases[] = {
 	},
 	[CAS_LOOP] = {
 		.sd_name      = "loop",
-		.sd_allowed   = M0_BITS(CAS_CTIDX, CAS_PREPARE_SEND,
-					M0_FOPH_SUCCESS)
+		.sd_allowed   = M0_BITS(CAS_CTIDX, CAS_INSERT_TO_DEAD,
+					CAS_PREPARE_SEND, M0_FOPH_SUCCESS)
 	},
 	[CAS_CTIDX] = {
 		.sd_name      = "ctidx",
-		.sd_allowed   = M0_BITS(CAS_PREPARE_SEND)
+		.sd_allowed   = M0_BITS(CAS_PREPARE_SEND, CAS_IDROP_LOOP)
 	},
 	[CAS_DONE] = {
 		.sd_name      = "done",
-		.sd_allowed   = M0_BITS(CAS_LOOP)
+		.sd_allowed   = M0_BITS(CAS_LOOP, CAS_IDROP_LOCK_LOOP)
 	},
 	[CAS_PREPARE_SEND] = {
 		.sd_name      = "prep-send",
@@ -1795,6 +2032,37 @@ static struct m0_sm_state_descr cas_fom_phases[] = {
 		.sd_name      = "val-sent",
 		.sd_allowed   = M0_BITS(CAS_DONE)
 	},
+	[CAS_DEAD_INDEX_LOCK] = {
+		.sd_name      = "dead-index-lock",
+		.sd_allowed   = M0_BITS(CAS_LOCK)
+	},
+	[CAS_INSERT_TO_DEAD] = {
+		.sd_name      = "insert-dead-index",
+		.sd_allowed   = M0_BITS(CAS_DELETE_FROM_META, CAS_PREPARE_SEND)
+	},
+	[CAS_DELETE_FROM_META] = {
+		.sd_name      = "detele-from-meta",
+		.sd_allowed   = M0_BITS(CAS_CTIDX, CAS_IDROP_LOOP,
+					CAS_PREPARE_SEND)
+	},
+	[CAS_IDROP_LOOP] = {
+		.sd_name      = "index-drop-loop",
+		.sd_allowed   = M0_BITS(CAS_LOOP, CAS_IDROP_LOCK_LOOP,
+					CAS_PREPARE_SEND)
+	},
+	[CAS_IDROP_LOCK_LOOP] = {
+		.sd_name      = "index-drop-lock-loop",
+		.sd_allowed   = M0_BITS(CAS_IDROP_LOCKED, CAS_IDROP_START_GC,
+					CAS_LOOP)
+	},
+	[CAS_IDROP_LOCKED] = {
+		.sd_name      = "index-drop-locked",
+		.sd_allowed   = M0_BITS(CAS_PREPARE_SEND)
+	},
+	[CAS_IDROP_START_GC] = {
+		.sd_name      = "index-drop-start-gc",
+		.sd_allowed   = M0_BITS(M0_FOPH_SUCCESS)
+	}
 };
 
 struct m0_sm_trans_descr cas_fom_trans[] = {
@@ -1817,6 +2085,9 @@ struct m0_sm_trans_descr cas_fom_trans[] = {
 	{ "meta-locked",          CAS_LOCK,             CAS_CTIDX_LOCK },
 	{ "ctidx-locked",         CAS_CTIDX_LOCK,       CAS_PREP },
 	{ "load-finished",        CAS_LOAD_DONE,        CAS_LOCK },
+	{ "load-finished-idrop",  CAS_LOAD_DONE,        CAS_DEAD_INDEX_LOCK },
+	{ "index-locked",         CAS_LOCK,             CAS_PREP },
+	{ "meta-locked",          CAS_LOCK,             CAS_CTIDX_LOCK },
 	{ "tx-credit-calculated", CAS_PREP,             M0_FOPH_TXN_OPEN },
 	{ "keys-vals-invalid",    CAS_PREP,             M0_FOPH_FAILURE },
 	{ "all-done?",            CAS_LOOP,             M0_FOPH_SUCCESS },
@@ -1833,6 +2104,23 @@ struct m0_sm_trans_descr cas_fom_trans[] = {
 	{ "goto-next-rec",        CAS_DONE,             CAS_LOOP },
 	{ "ctidx-inserted",       CAS_CTIDX,            CAS_PREPARE_SEND },
 	{ "key-add-reply",        CAS_DONE,             CAS_LOOP },
+	{ "op-launched",          CAS_LOOP,             CAS_INSERT_TO_DEAD },
+	{ "ctidx-ins-idx-drop",   CAS_CTIDX,            CAS_IDROP_LOOP },
+	{ "idx-drop-reply-sent",  CAS_DONE,             CAS_IDROP_LOCK_LOOP },
+	{ "dead-index-locked",    CAS_DEAD_INDEX_LOCK,  CAS_LOCK },
+	{ "dead-index-inserted",  CAS_INSERT_TO_DEAD,   CAS_DELETE_FROM_META },
+	{ "meta-lookup-fail",     CAS_INSERT_TO_DEAD,   CAS_PREPARE_SEND },
+	{ "meta-deleted",         CAS_DELETE_FROM_META, CAS_IDROP_LOOP },
+	{ "meta-deleted-ctidx",   CAS_DELETE_FROM_META, CAS_CTIDX },
+	{ "dead-index-ins-fail",  CAS_DELETE_FROM_META, CAS_PREPARE_SEND },
+	{ "idx-drop-start-lock",  CAS_IDROP_LOOP,       CAS_IDROP_LOCK_LOOP },
+	{ "idx-drop-next",        CAS_IDROP_LOOP,       CAS_LOOP },
+	{ "idx-lock-failed",      CAS_IDROP_LOOP,       CAS_PREPARE_SEND },
+	{ "idx-drop-locking",     CAS_IDROP_LOCK_LOOP,  CAS_IDROP_LOCKED },
+	{ "idx-drop-locked",      CAS_IDROP_LOCK_LOOP,  CAS_IDROP_START_GC },
+	{ "idx-drop-skip-lock",   CAS_IDROP_LOCK_LOOP,  CAS_LOOP },
+	{ "idx-dropped-ok",       CAS_IDROP_LOCKED,     CAS_PREPARE_SEND },
+	{ "idx-drop-all-done",    CAS_IDROP_START_GC,   M0_FOPH_SUCCESS },
 
 	{ "ut-short-cut",         M0_FOPH_QUEUE_REPLY, M0_FOPH_TXN_COMMIT_WAIT }
 };
@@ -1850,10 +2138,11 @@ static const struct m0_reqh_service_type_ops cas_service_type_ops = {
 };
 
 static const struct m0_reqh_service_ops cas_service_ops = {
-	.rso_start_async = &m0_reqh_service_async_start_simple,
-	.rso_start       = &cas_service_start,
-	.rso_stop        = &cas_service_stop,
-	.rso_fini        = &cas_service_fini
+	.rso_start_async     = &m0_reqh_service_async_start_simple,
+	.rso_start           = &cas_service_start,
+	.rso_prepare_to_stop = &cas_service_prepare_to_stop,
+	.rso_stop            = &cas_service_stop,
+	.rso_fini            = &cas_service_fini
 };
 
 M0_INTERNAL struct m0_reqh_service_type m0_cas_service_type = {

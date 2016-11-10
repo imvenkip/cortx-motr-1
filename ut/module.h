@@ -55,6 +55,7 @@ struct m0_ut_module {
 	const char         *ut_sandbox;
 	/** Whether to keep sandbox directory after UT execution. */
 	bool                ut_keep_sandbox;
+	bool                ut_small_credits;
 	struct m0_ut_suite *ut_suites[M0_UT_SUITES_MAX];
 	unsigned            ut_suites_nr;
 	struct m0_atomic64  ut_asserts;

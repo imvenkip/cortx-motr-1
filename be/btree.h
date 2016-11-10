@@ -161,6 +161,21 @@ M0_INTERNAL void m0_be_btree_create(struct m0_be_btree *tree,
 M0_INTERNAL void m0_be_btree_destroy(struct m0_be_btree *tree,
 				     struct m0_be_tx *tx,
 				     struct m0_be_op *op);
+
+/**
+ * Truncate btree: delete all records, keep empty root.
+ *
+ * That routine may be called more than once to fit into transaction.
+ * Btree between calls is not in usable state.
+ * Typically new transaction must be started for each call.
+ * It is ok to continue tree truncate after system restart.
+ * 'Limit' is a maximum number of records to be deleted.
+ */
+M0_INTERNAL void m0_be_btree_truncate(struct m0_be_btree *tree,
+				      struct m0_be_tx    *tx,
+				      struct m0_be_op    *op,
+				      m0_bcount_t         limit);
+
 
 /* ------------------------------------------------------------------
  * Btree credits
@@ -180,6 +195,24 @@ M0_INTERNAL void m0_be_btree_create_credit(const struct m0_be_btree *tree,
  */
 M0_INTERNAL void m0_be_btree_destroy_credit(struct m0_be_btree *tree,
 					    struct m0_be_tx_credit *accum);
+
+
+/**
+ * Calculates the credit needed to destroy index tree.
+ *
+ * Separate credits by components to handle big btree clear not fitting into
+ * single transaction. The total number of credits to destroy index tree is
+ * fixed_part + single_record * records_nr.
+ *
+ * @param tree btree to proceed
+ * @param fixed_part fixed credits part which definitely must be reserved
+ * @param single_record credits to delete single index record
+ * @param records_nr number of records in that index
+ */
+M0_INTERNAL void m0_be_btree_clear_credit(struct m0_be_btree     *tree,
+					  struct m0_be_tx_credit *fixed_part,
+					  struct m0_be_tx_credit *single_record,
+					  m0_bcount_t            *records_nr);
 
 /**
  * Calculates how many internal resources of tx_engine, described by

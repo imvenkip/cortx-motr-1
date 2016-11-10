@@ -971,6 +971,95 @@ static void btree_destroy(struct m0_be_btree *btree, struct m0_be_tx *tx)
 }
 
 /**
+ * Truncate btree: delete all records and keep empty root node.
+ *
+ * That function can be called multiple times, having maximum number of records
+ * to be deleted limited to not exceed transaction capacity.
+ * After first call tree can't be used for operations other than truncate or
+ * destroy.
+ *
+ * @param btee btree to truncate
+ * @param tx transaction
+ * @param limit maximum number of records to delete
+ */
+static void btree_truncate(struct m0_be_btree *btree, struct m0_be_tx *tx,
+			   m0_bcount_t limit)
+
+{
+	struct m0_be_bnode *node;
+	struct m0_be_bnode *parent;
+	int                 i;
+
+	/* Add one more reserve for non-leaf node. */
+	if (limit > 1)
+		limit--;
+
+	node = btree->bb_root;
+
+	while (node != NULL && limit > 0) {
+		parent = NULL;
+		if (!node->b_leaf) {
+			parent = node;
+			i = node->b_nr_active;
+			node = node->b_children[i];
+		}
+		if (!node->b_leaf)
+			continue;
+
+		while (node->b_nr_active > 0 && limit > 0) {
+			limit--;
+			node->b_nr_active--;
+			i = node->b_nr_active;
+			btree_pair_release(btree, tx, &node->b_key_vals[i]);
+		}
+		m0_format_footer_update(node);
+		if (node->b_nr_active > 0)
+			continue;
+		/*
+		 * Cleared all keys in the leaf node.
+		 */
+		if (node == btree->bb_root) {
+			/*
+			 * Do not destroy tree root. Keep empty
+			 * tree alive. So, we are done.
+			 */
+			break;
+		}
+		btree_node_free(node, btree, tx);
+		if (parent != NULL) {
+			/*
+			 * If this is not a root (checked above), sure node has
+			 * a parent.
+			 * If parent is empty, reclassify it to a leaf.
+			 */
+			i = parent->b_nr_active;
+			btree_pair_release(btree, tx, &parent->b_key_vals[i]);
+			if (limit > 0)
+				limit--;
+			if (i == 0)
+				parent->b_leaf = true;
+			else
+				parent->b_nr_active--;
+			if (parent == btree->bb_root &&
+			    parent->b_nr_active == 0) {
+				/*
+				 * Cleared the root, but still have 1
+				 * child. Move the root.
+				 */
+				btree_root_set(btree, parent->b_children[0]);
+				mem_update(btree, tx, btree,
+					   sizeof(struct m0_be_btree));
+				btree_node_free(parent, btree, tx);
+			}
+			m0_format_footer_update(parent);
+			/* Simplify our life: restart from the root. */
+			node = btree->bb_root;
+		}
+	}
+	m0_format_footer_update(btree->bb_root);
+}
+
+/**
  * Function used to search a node in a B-Tree
  * @param btree The B-tree to be searched
  * @param key Key of the node to be search
@@ -1219,6 +1308,27 @@ M0_INTERNAL void m0_be_btree_destroy(struct m0_be_btree *tree,
 	m0_rwlock_write_lock(btree_rwlock(tree));
 
 	btree_destroy(tree, tx);
+
+	m0_rwlock_write_unlock(btree_rwlock(tree));
+	op_tree(op)->t_rc = 0;
+	m0_be_op_done(op);
+	M0_LEAVE();
+}
+
+M0_INTERNAL void m0_be_btree_truncate(struct m0_be_btree *tree,
+				      struct m0_be_tx    *tx,
+				      struct m0_be_op    *op,
+				      m0_bcount_t         limit)
+{
+	M0_ENTRY("tree=%p", tree);
+	M0_PRE(tree->bb_root != NULL && tree->bb_ops != NULL);
+
+	btree_op_fill(op, tree, tx, M0_BBO_DESTROY, NULL);
+
+	m0_be_op_active(op);
+	m0_rwlock_write_lock(btree_rwlock(tree));
+
+	btree_truncate(tree, tx, limit);
 
 	m0_rwlock_write_unlock(btree_rwlock(tree));
 	op_tree(op)->t_rc = 0;
@@ -1485,6 +1595,36 @@ M0_INTERNAL void m0_be_btree_destroy_credit(struct m0_be_btree     *tree,
 
 	cred = M0_BE_TX_CREDIT_TYPE(struct m0_be_btree);
 	m0_be_tx_credit_add(accum, &cred);
+}
+
+M0_INTERNAL void m0_be_btree_clear_credit(struct m0_be_btree     *tree,
+					  struct m0_be_tx_credit *fixed_part,
+					  struct m0_be_tx_credit *single_record,
+					  m0_bcount_t            *records_nr)
+{
+	struct m0_be_tx_credit cred = {};
+	int                    nodes_nr;
+	int                    items_nr;
+	m0_bcount_t            ksize;
+	m0_bcount_t            vsize;
+
+	nodes_nr = iter_prepare(tree->bb_root, false);
+	items_nr = btree_count_items(tree, &ksize, &vsize);
+	items_nr++;
+	M0_LOG(M0_DEBUG, "nodes=%d items=%d ksz=%d vsz%d",
+		nodes_nr, items_nr, (int)ksize, (int)vsize);
+
+	M0_SET0(single_record);
+	kv_delete_credit(tree, ksize, vsize, single_record);
+	*records_nr = items_nr;
+
+	M0_SET0(&cred);
+	btree_node_free_credit(tree, &cred);
+	m0_be_tx_credit_mac(fixed_part, &cred, nodes_nr);
+
+	cred = M0_BE_TX_CREDIT_TYPE(struct m0_be_btree);
+	m0_be_tx_credit_add(fixed_part, &cred);
+	m0_be_tx_credit_add(fixed_part, single_record);
 }
 
 static void be_btree_insert(struct m0_be_btree *tree,

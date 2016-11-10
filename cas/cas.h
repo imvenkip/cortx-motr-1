@@ -234,12 +234,17 @@ enum m0_cas_opcode {
 	CO_DEL,
 	CO_CUR,
 	CO_REP,
+	CO_GC,
+	CO_MIN,
+	CO_TRUNC,
+	CO_DROP,
 	CO_NR
 };
 
 enum m0_cas_type {
 	CT_META,
-	CT_BTREE
+	CT_BTREE,
+	CT_DEAD_INDEX
 };
 
 /**
@@ -304,6 +309,7 @@ struct m0_cas_rep {
 
 M0_EXTERN struct m0_reqh_service_type m0_cas_service_type;
 M0_EXTERN struct m0_fid               m0_cas_meta_fid;
+M0_EXTERN struct m0_fid               m0_cas_dead_index_fid;
 M0_EXTERN struct m0_fid               m0_cas_ctidx_fid;
 M0_EXTERN const struct m0_fid_type    m0_cas_index_fid_type;
 M0_EXTERN const struct m0_fid_type    m0_dix_fid_type;
@@ -314,6 +320,7 @@ M0_EXTERN struct m0_fop_type cas_put_fopt;
 M0_EXTERN struct m0_fop_type cas_del_fopt;
 M0_EXTERN struct m0_fop_type cas_cur_fopt;
 M0_EXTERN struct m0_fop_type cas_rep_fopt;
+M0_EXTERN struct m0_fop_type cas_gc_fopt;
 
 /**
  * CAS server side is able to compile in user-space only. Use stubs in kernel

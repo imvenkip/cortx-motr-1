@@ -108,7 +108,8 @@ static int at_inline_fill(struct m0_rpc_at_buf *dst, struct m0_rpc_at_buf *src)
 
 static void reqh_init(bool mkfs)
 {
-	int result;
+	struct m0_be_domain_cfg cfg = {};
+	int                     result;
 
 	M0_SET0(&reqh);
 	M0_SET0(&be);
@@ -120,14 +121,11 @@ static void reqh_init(bool mkfs)
 			      .rhia_fid     = &g_process_fid);
 	M0_UT_ASSERT(result == 0);
 	be.but_dom_cfg.bc_engine.bec_reqh = &reqh;
-	if (mkfs)
-		result = m0_be_ut_backend_init_cfg(&be, NULL, true);
-	else {
-		struct m0_be_domain_cfg cfg = {};
-
-		m0_be_ut_backend_cfg_default(&cfg);
-		result = m0_be_ut_backend_init_cfg(&be, &cfg, false);
-	}
+	m0_be_ut_backend_cfg_default(&cfg);
+	if (m0_ut_small_credits())
+		cfg.bc_engine.bec_tx_size_max =
+			M0_BE_TX_CREDIT(1 << 17, 40UL << 17);
+	result = m0_be_ut_backend_init_cfg(&be, &cfg, mkfs);
 	M0_ASSERT(result == 0);
 }
 
@@ -767,23 +765,27 @@ static void meta_cur_all(void)
 	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
 	meta_fop_submit(&cas_cur_fopt,
 			(struct meta_rec[]) {
-				{ .cid = cid , .rc = 4 } },
+				{ .cid = cid , .rc = 5 } },
 			1);
 	M0_UT_ASSERT(rep.cgr_rc == 0);
-	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 4);
+	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 5);
 	/* meta-index record */
 	M0_UT_ASSERT(rep_check(0, 1, BSET, BUNSET));
 	/* catalogue-index index record */
 	M0_UT_ASSERT(rep_check(1, 2, BSET, BUNSET));
-	/* newly inserted record */
+	/* moved meta record */
 	M0_UT_ASSERT(rep_check(2, 3, BSET, BUNSET));
+	/* newly inserted record */
+	M0_UT_ASSERT(rep_check(3, 4, BSET, BUNSET));
 	/* nonexistent record */
-	M0_UT_ASSERT(rep_check(3, -ENOENT, BUNSET, BUNSET));
+	M0_UT_ASSERT(rep_check(4, -ENOENT, BUNSET, BUNSET));
 	M0_UT_ASSERT(m0_fid_eq(repv[0].cr_key.u.ab_buf.b_addr,
 			       &m0_cas_meta_fid));
 	M0_UT_ASSERT(m0_fid_eq(repv[1].cr_key.u.ab_buf.b_addr,
 			       &m0_cas_ctidx_fid));
-	M0_UT_ASSERT(m0_fid_eq(repv[2].cr_key.u.ab_buf.b_addr, &fid));
+	M0_UT_ASSERT(m0_fid_eq(repv[2].cr_key.u.ab_buf.b_addr,
+			       &m0_cas_dead_index_fid));
+	M0_UT_ASSERT(m0_fid_eq(repv[3].cr_key.u.ab_buf.b_addr, &fid));
 	fini();
 }
 
@@ -1698,6 +1700,146 @@ static void server_restart_nomkfs(void)
 	fini();
 }
 
+static void multi_create_drop(void)
+{
+	struct m0_cas_id nonce0 = { .ci_fid = IFID(2, 3) };
+	struct m0_cas_id nonce1 = { .ci_fid = IFID(2, 4) };
+
+	init();
+	meta_fop_submit(&cas_put_fopt,
+			(struct meta_rec[]) {
+				{ .cid = nonce0 },
+				{ .cid = nonce1 } },
+			2);
+	M0_UT_ASSERT(rep.cgr_rc == 0);
+	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 2);
+
+	meta_fop_submit(&cas_get_fopt,
+			(struct meta_rec[]) {
+				{ .cid = nonce0 },
+				{ .cid = nonce1 } },
+			2);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
+	M0_UT_ASSERT(rep_check(1, 0, BUNSET, BUNSET));
+
+	meta_fop_submit(&cas_del_fopt,
+			(struct meta_rec[]) {
+				{ .cid = nonce0 },
+				{ .cid = nonce1 } },
+			2);
+	M0_UT_ASSERT(rep.cgr_rc == 0);
+	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 2);
+
+	meta_fop_submit(&cas_get_fopt,
+			(struct meta_rec[]) {
+				{ .cid = nonce0 },
+				{ .cid = nonce1 } },
+			2);
+	M0_UT_ASSERT(rep_check(0, -ENOENT, BUNSET, BUNSET));
+	M0_UT_ASSERT(rep_check(1, -ENOENT, BUNSET, BUNSET));
+
+	meta_fop_submit(&cas_put_fopt,
+			(struct meta_rec[]) {
+				{ .cid = nonce0 },
+				{ .cid = nonce1 } },
+			2);
+	M0_UT_ASSERT(rep.cgr_rc == 0);
+	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 2);
+
+	meta_fop_submit(&cas_get_fopt,
+			(struct meta_rec[]) {
+				{ .cid = nonce0 },
+				{ .cid = nonce1 } },
+			2);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
+	M0_UT_ASSERT(rep_check(1, 0, BUNSET, BUNSET));
+
+	fini();
+}
+
+enum {
+	/*
+	 * Better have more rows, for 3-levels b-tree and multiple transactions,
+	 * but only 7000 can fit into typical 1Mb file.
+	 * 2000 is enough to test multiple transactions if decrease transaction
+	 * size limit by using -c switch.
+	 */
+	BIG_ROWS_NUMBER = 2000,
+	/*
+	 * Number of rows for 2-level btree.
+	 */
+	SMALL_ROWS_NUMBER = 257
+};
+
+/**
+ * Test for index drop GC.
+ *
+ * To test dididing tree clear by transactions run:
+ * sudo ./utils/m0run m0ut -- -t cas-service:create-insert-drop -c
+ */
+static void create_insert_drop(void)
+{
+	struct m0_cas_id nonce0 = { .ci_fid = IFID(2, 3) };
+	struct m0_cas_id nonce1 = { .ci_fid = IFID(2, 4) };
+	int              i;
+
+	init();
+	/*
+	 * Create 2 catalogs.
+	 */
+	meta_fop_submit(&cas_put_fopt,
+			(struct meta_rec[]) {
+				{ .cid = nonce0 },
+				{ .cid = nonce1 } },
+			2);
+	M0_UT_ASSERT(rep.cgr_rc == 0);
+	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 2);
+
+	for (i = 0 ; i < BIG_ROWS_NUMBER ; ++i) {
+		index_op(&cas_put_fopt, &nonce0.ci_fid, i+1, i+2);
+		M0_UT_ASSERT(rep.cgr_rc == 0);
+		M0_UT_ASSERT(rep.cgr_rep.cr_nr == 1);
+		M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
+	}
+	for (i = 0 ; i < SMALL_ROWS_NUMBER ; ++i) {
+		index_op(&cas_put_fopt, &nonce1.ci_fid, i+1, i+2);
+		M0_UT_ASSERT(rep.cgr_rc == 0);
+		M0_UT_ASSERT(rep.cgr_rep.cr_nr == 1);
+		M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
+	}
+
+	/*
+	 * Drop 2 catalogs.
+	 */
+	meta_fop_submit(&cas_del_fopt,
+			(struct meta_rec[]) {
+				{ .cid = nonce0 },
+				{ .cid = nonce1 } },
+			2);
+	M0_UT_ASSERT(rep.cgr_rc == 0);
+	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 2);
+
+	/*
+	 * Check that both catalogs are dropped.
+	 */
+	meta_fop_submit(&cas_get_fopt,
+			(struct meta_rec[]) {
+				{ .cid = nonce0 },
+				{ .cid = nonce1 } },
+			2);
+	M0_UT_ASSERT(rep_check(0, -ENOENT, BUNSET, BUNSET));
+	M0_UT_ASSERT(rep_check(1, -ENOENT, BUNSET, BUNSET));
+
+	/*
+	 * Wait for GC complete.
+	 */
+	meta_fop_submit(&cas_gc_fopt,
+			(struct meta_rec[]) {
+				{ .cid = nonce0 }},
+			1);
+	fini();
+}
+
 struct m0_ut_suite cas_service_ut = {
 	.ts_name   = "cas-service",
 	.ts_owners = "Nikita",
@@ -1748,6 +1890,8 @@ struct m0_ut_suite cas_service_ut = {
 		{ "multi-insert-fail",       &multi_insert_fail,     "Leonid" },
 		{ "multi-lookup-fail",       &multi_lookup_fail,     "Leonid" },
 		{ "multi-delete-fail",       &multi_delete_fail,     "Leonid" },
+		{ "multi-create-drop",       &multi_create_drop,     "Eugene" },
+		{ "create-insert-drop",      &create_insert_drop,    "Eugene" },
 		{ "cctg-create",             &cctg_create,           "Sergey" },
 		{ "cctg-create-lookup",      &cctg_create_lookup,    "Sergey" },
 		{ "cctg-create-delete",      &cctg_create_delete,    "Sergey" },

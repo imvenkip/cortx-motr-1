@@ -143,6 +143,11 @@ M0_INTERNAL void m0_ut_shuffle(unsigned seed);
 M0_INTERNAL int m0_ut_run(void);
 
 /**
+ * Return "small transaction credits" flag command line parameter
+ */
+M0_INTERNAL bool m0_ut_small_credits(void);
+
+/**
  print all available test suites in YAML format to STDOUT
 
  @param with_tests - if true, then all tests of each suite are printed in

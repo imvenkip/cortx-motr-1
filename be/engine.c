@@ -559,6 +559,12 @@ static void be_engine_got_tx_grouping(struct m0_be_engine *en)
 		rc = be_engine_tx_trygroup(en, tx);
 		if (rc != 0)
 			break;
+		/*
+		 * XXX if be_engine_tx_trygroup return eny error, upper levels
+		 * will not be informed. Actually, I saw situation when
+		 * be_engine_tx_trygroup() does not find transaction and returns
+		 * EBUSY, then transaction is forever in grouping state.
+		 */
 	}
 }
 static void be_engine_got_tx_closed(struct m0_be_engine *en,

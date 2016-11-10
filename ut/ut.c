@@ -595,6 +595,12 @@ M0_INTERNAL bool m0_ut_assertimpl(bool c, const char *str_c, const char *file,
 }
 M0_EXPORTED(m0_ut_assertimpl);
 
+M0_INTERNAL bool m0_ut_small_credits(void)
+{
+	return ut_module()->ut_small_credits;
+}
+M0_EXPORTED(m0_ut_small_credits);
+
 #ifndef __KERNEL__
 #include <stdlib.h>                       /* qsort */
 

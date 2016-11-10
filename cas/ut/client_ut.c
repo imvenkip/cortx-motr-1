@@ -50,7 +50,8 @@ enum {
 	 */
 	COUNT = 24,
 	COUNT_TREE = 10,
-	COUNT_VAL_BYTES = 4096
+	COUNT_VAL_BYTES = 4096,
+	COUNT_META_ENTRIES = 3
 };
 
 enum idx_operation {
@@ -967,7 +968,7 @@ static void idx_tree_delete_fail(void)
 static void idx_list(void)
 {
 	struct m0_cas_rec_reply   rep[COUNT];
-	struct m0_cas_ilist_reply rep_list[COUNT + 3];
+	struct m0_cas_ilist_reply rep_list[COUNT + COUNT_META_ENTRIES + 1];
 	struct m0_fid             ifid[COUNT];
 	uint64_t                  rep_count;
 	int                       rc;
@@ -1010,15 +1011,18 @@ static void idx_list(void)
 
 	/* Get list of indices from start (provide m0_cas_meta_fid). */
 	rc = ut_idx_list(&casc_ut_cctx, &m0_cas_meta_fid,
-			 COUNT + 3 /* meta, catalogue-index and -ENOENT */,
+			 /* meta, catalogue-index, dead-index and -ENOENT */
+			 COUNT + COUNT_META_ENTRIES + 1,
 			 &rep_count, rep_list);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(rep_count == COUNT + 3);
+	M0_UT_ASSERT(rep_count == COUNT + COUNT_META_ENTRIES + 1);
 	M0_UT_ASSERT(m0_fid_eq(&rep_list[0].clr_fid, &m0_cas_meta_fid));
 	M0_UT_ASSERT(m0_fid_eq(&rep_list[1].clr_fid, &m0_cas_ctidx_fid));
-	for (i = 2; i < COUNT + 2; i++)
-		M0_UT_ASSERT(m0_fid_eq(&rep_list[i].clr_fid, &ifid[i-2]));
-	M0_UT_ASSERT(rep_list[COUNT + 2].clr_rc == -ENOENT);
+	M0_UT_ASSERT(m0_fid_eq(&rep_list[2].clr_fid, &m0_cas_dead_index_fid));
+	for (i = COUNT_META_ENTRIES; i < COUNT + COUNT_META_ENTRIES; i++)
+		M0_UT_ASSERT(m0_fid_eq(&rep_list[i].clr_fid,
+				       &ifid[i-COUNT_META_ENTRIES]));
+	M0_UT_ASSERT(rep_list[COUNT + COUNT_META_ENTRIES].clr_rc == -ENOENT);
 
 	/* Delete all indices. */
 	rc = ut_idx_delete(&casc_ut_cctx, ifid, COUNT, rep);

@@ -31,6 +31,7 @@
 #include "module/instance.h"
 
 #include "cas/ctg_store.h"
+#include "cas/index_gc.h"
 
 enum {
 	M0_CAS_STATE_FORMAT_VERSION = 1,
@@ -81,6 +82,12 @@ struct m0_ctg_store {
 	struct m0_cas_ctg   *cs_ctidx;
 
 	/**
+	 * Records from cs_meta are moved there on idx delete.
+	 * To be used by deleted index garbage collector.
+	 */
+	struct m0_cas_ctg   *cs_dead_index;
+
+	/**
 	 * Reference counter for number of catalogue store users.
 	 * When it drops to 0, catalogue store structure is finalised.
 	 */
@@ -101,27 +108,28 @@ enum cursor_phase {
 
 static struct m0_be_seg *cas_seg(void);
 
-static int  ctg_berc           (struct m0_ctg_op *ctg_op);
-static int  ctg_buf            (const struct m0_buf *val, struct m0_buf *buf);
-static int  ctg_buf_get        (struct m0_buf *dst, const struct m0_buf *src);
-static void ctg_fid_key_fill   (void *key, const struct m0_fid *fid);
-static void ctg_init           (struct m0_cas_ctg *ctg, struct m0_be_seg *seg);
-static void ctg_fini           (struct m0_cas_ctg *ctg);
-static int  ctg_create         (struct m0_be_seg *seg, struct m0_be_tx *tx,
-				struct m0_cas_ctg **out);
-static void ctg_destroy        (struct m0_cas_ctg *ctg, struct m0_be_tx *tx);
-static int  ctg_meta_find_ctidx(struct m0_cas_ctg  *meta,
-				struct m0_cas_ctg **ctidx);
-static int  ctg_meta_insert    (struct m0_be_btree *meta,
-				struct m0_fid      *fid,
-				struct m0_cas_ctg  *ctg,
-				struct m0_be_tx    *tx);
-static int  ctg_meta_selfadd   (struct m0_be_btree *meta,
-				struct m0_be_tx    *tx);
-static void ctg_meta_delete    (struct m0_be_btree *meta,
-				struct m0_fid      *fid,
-				struct m0_be_tx    *tx);
-static void ctg_meta_selfrm    (struct m0_be_btree *meta, struct m0_be_tx *tx);
+static int  ctg_berc         (struct m0_ctg_op *ctg_op);
+static int  ctg_buf          (const struct m0_buf *val, struct m0_buf *buf);
+static int  ctg_buf_get      (struct m0_buf *dst, const struct m0_buf *src);
+static void ctg_fid_key_fill (void *key, const struct m0_fid *fid);
+static void ctg_init         (struct m0_cas_ctg *ctg, struct m0_be_seg *seg);
+static void ctg_fini         (struct m0_cas_ctg *ctg);
+static int  ctg_create       (struct m0_be_seg *seg, struct m0_be_tx *tx,
+			      struct m0_cas_ctg **out);
+static void ctg_destroy      (struct m0_cas_ctg *ctg, struct m0_be_tx *tx);
+static int  ctg_meta_find_ctg(struct m0_cas_ctg    *meta,
+			      const struct m0_fid  *ctg_fid,
+			      struct m0_cas_ctg   **ctg);
+static int  ctg_meta_insert  (struct m0_be_btree  *meta,
+			      const struct m0_fid *fid,
+			      struct m0_cas_ctg   *ctg,
+			      struct m0_be_tx     *tx);
+static int  ctg_meta_selfadd (struct m0_be_btree *meta,
+			      struct m0_be_tx    *tx);
+static void ctg_meta_delete  (struct m0_be_btree *meta,
+			      struct m0_fid      *fid,
+			      struct m0_be_tx    *tx);
+static void ctg_meta_selfrm  (struct m0_be_btree *meta, struct m0_be_tx *tx);
 
 static void ctg_meta_insert_credit   (struct m0_be_btree     *bt,
 				      m0_bcount_t             nr,
@@ -274,7 +282,7 @@ static void ctg_init(struct m0_cas_ctg *ctg, struct m0_be_seg *seg)
 
 static void ctg_fini(struct m0_cas_ctg *ctg)
 {
-	M0_ENTRY();
+	M0_ENTRY("ctg=%p", ctg);
 	ctg->cc_inited = false;
 	m0_be_btree_fini(&ctg->cc_tree);
 	m0_long_lock_fini(&ctg->cc_lock);
@@ -307,25 +315,43 @@ static int ctg_create(struct m0_be_seg *seg, struct m0_be_tx *tx,
 
 static void ctg_destroy(struct m0_cas_ctg *ctg, struct m0_be_tx *tx)
 {
-	struct m0_be_seg *seg = ctg->cc_tree.bb_seg;
-
 	M0_ENTRY();
 	M0_BE_OP_SYNC(op, m0_be_btree_destroy(&ctg->cc_tree, tx, &op));
 	ctg_fini(ctg);
-	M0_BE_FREE_PTR_SYNC(ctg, seg, tx);
+	M0_BE_FREE_PTR_SYNC(ctg, cas_seg(), tx);
 }
 
-static int ctg_meta_find_ctidx(struct m0_cas_ctg  *meta,
-			       struct m0_cas_ctg **ctidx)
+M0_INTERNAL int m0_ctg_fini(struct m0_ctg_op  *ctg_op,
+			    struct m0_cas_ctg *ctg,
+			    int                next_phase)
+{
+	struct m0_be_tx *tx = &ctg_op->co_fom->fo_tx.tx_betx;
+
+	ctg_fini(ctg);
+	/*
+	 * TODO: implement asynchronous free after memory free API added into
+	 * ctg_exec in the scope of asynchronus ctidx operations task.
+	 */
+	M0_BE_FREE_PTR_SYNC(ctg, cas_seg(), tx);
+	m0_fom_phase_set(ctg_op->co_fom, next_phase);
+	return M0_FSO_AGAIN;
+}
+
+/**
+ * Lookup catalogue with provided fid in meta-catalogue synchronously.
+ */
+static int ctg_meta_find_ctg(struct m0_cas_ctg    *meta,
+			     const struct m0_fid  *ctg_fid,
+			     struct m0_cas_ctg   **ctg)
 {
 	uint8_t                   key_data[KV_HDR_SIZE + sizeof(struct m0_fid)];
 	struct m0_buf             key;
 	struct m0_be_btree_anchor anchor;
 	int                       rc;
 
-	*ctidx = NULL;
+	*ctg = NULL;
 
-	ctg_fid_key_fill((void *)&key_data, &m0_cas_ctidx_fid);
+	ctg_fid_key_fill((void *)&key_data, ctg_fid);
 	key = M0_BUF_INIT_PTR(&key_data);
 
 	rc = M0_BE_OP_SYNC_RET(op,
@@ -339,8 +365,8 @@ static int ctg_meta_find_ctidx(struct m0_cas_ctg  *meta,
 
 		rc = ctg_buf(&anchor.ba_value, &buf);
 		if (rc == 0) {
-			if (buf.b_nob == sizeof(*ctidx))
-				*ctidx = *(struct m0_cas_ctg **)buf.b_addr;
+			if (buf.b_nob == sizeof(*ctg))
+				*ctg = *(struct m0_cas_ctg **)buf.b_addr;
 			else
 				rc = M0_ERR_INFO(-EPROTO, "Unexpected: %"PRIx64,
 						 buf.b_nob);
@@ -354,10 +380,10 @@ static int ctg_meta_find_ctidx(struct m0_cas_ctg  *meta,
 	return M0_RC(rc);
 }
 
-static int ctg_meta_insert(struct m0_be_btree *meta,
-			   struct m0_fid      *fid,
-			   struct m0_cas_ctg  *ctg,
-			   struct m0_be_tx    *tx)
+static int ctg_meta_insert(struct m0_be_btree  *meta,
+			   const struct m0_fid *fid,
+			   struct m0_cas_ctg   *ctg,
+			   struct m0_be_tx     *tx)
 {
 	uint8_t                    key_data[KV_HDR_SIZE +
 					    sizeof(struct m0_fid)];
@@ -457,12 +483,23 @@ static void ctg_store_init_creds_calc(struct m0_be_seg       *seg,
 	m0_be_seg_dict_insert_credit(seg, cas_state_key, cred);
 	M0_BE_ALLOC_CREDIT_PTR(state, seg, cred);
 	M0_BE_ALLOC_CREDIT_PTR(ctidx, seg, cred);
-	m0_be_btree_create_credit(&dummy, 2, cred);
-	ctg_meta_insert_credit(&dummy, 2, cred);
+	/*
+	 * Credits for dead_index catalogue descriptor.
+	 */
+	M0_BE_ALLOC_CREDIT_PTR(ctidx, seg, cred);
+	/*
+	 * Credits for 3 trees: meta, ctidx, dead_index.
+	 */
+	m0_be_btree_create_credit(&dummy, 3, cred);
+	ctg_meta_insert_credit(&dummy, 3, cred);
 	/* Error case: tree destruction and freeing. */
-	ctg_meta_delete_credit(&dummy, 2, cred);
+	ctg_meta_delete_credit(&dummy, 3, cred);
 	m0_be_btree_destroy_credit(&dummy, cred);
 	M0_BE_FREE_CREDIT_PTR(state, seg, cred);
+	M0_BE_FREE_CREDIT_PTR(ctidx, seg, cred);
+	/*
+	 * Free for dead_index.
+	 */
 	M0_BE_FREE_CREDIT_PTR(ctidx, seg, cred);
 }
 
@@ -525,11 +562,17 @@ static int ctg_store__init(struct m0_be_seg *seg, struct m0_cas_state *state)
 	ctg_init(state->cs_meta, seg);
 
 	/* Searching for catalogue-index catalogue. */
-	rc = ctg_meta_find_ctidx(state->cs_meta, &ctg_store.cs_ctidx);
-	if (rc == 0)
+	rc = ctg_meta_find_ctg(state->cs_meta, &m0_cas_ctidx_fid,
+			       &ctg_store.cs_ctidx) ?:
+	     ctg_meta_find_ctg(state->cs_meta, &m0_cas_dead_index_fid,
+			       &ctg_store.cs_dead_index);
+	if (rc == 0) {
 		ctg_init(ctg_store.cs_ctidx, seg);
-	else
+		ctg_init(ctg_store.cs_dead_index, seg);
+	} else {
 		ctg_store.cs_ctidx = NULL;
+		ctg_store.cs_dead_index = NULL;
+	}
 	return M0_RC(rc);
 }
 
@@ -540,8 +583,13 @@ static int ctg_store__init(struct m0_be_seg *seg, struct m0_cas_state *state)
  */
 static int ctg_store_create(struct m0_be_seg *seg)
 {
+	/*
+	 * Currently catalog store has dictionary consisting of 3 catalogues:
+	 * meta itself, ctidx and dead_index.
+	 */
 	struct m0_cas_state    *state = NULL;
 	struct m0_cas_ctg      *ctidx = NULL;
+	struct m0_cas_ctg      *dead_index = NULL;
 	struct m0_be_tx         tx     = {};
 	struct m0_be_tx_credit  cred   = M0_BE_TX_CREDIT(0, 0);
 	struct m0_sm_group     *grp   = m0_locality0_get()->lo_grp;
@@ -568,7 +616,7 @@ static int ctg_store_create(struct m0_be_seg *seg)
 	/* Create catalog-index catalogue. */
 	rc = ctg_create(seg, &tx, &ctidx);
 	if (rc != 0)
-		goto meta_destroy;
+		goto state_destroy;
 	/*
 	 * Insert catalogue-index catalogue into meta-catalogue.
 	 */
@@ -577,21 +625,42 @@ static int ctg_store_create(struct m0_be_seg *seg)
 	if (rc != 0)
 		goto ctidx_destroy;
 
+	/*
+	 * Create place for records deleted from meta (actually moved there).
+	 */
+	rc = ctg_create(seg, &tx, &dead_index);
+	if (rc != 0)
+		goto ctidx_destroy;
+	/*
+	 * Insert "dead index" catalogue into meta-catalogue.
+	 */
+	rc = ctg_meta_insert(&state->cs_meta->cc_tree, &m0_cas_dead_index_fid,
+			     dead_index, &tx);
+	if (rc != 0)
+		goto dead_index_destroy;
+
 	rc = m0_be_seg_dict_insert(seg, &tx, cas_state_key, state);
 	if (rc != 0)
-		goto state_delete;
+		goto dead_index_delete;
 	M0_BE_TX_CAPTURE_PTR(seg, &tx, ctidx);
+	M0_BE_TX_CAPTURE_PTR(seg, &tx, dead_index);
 	M0_BE_TX_CAPTURE_PTR(seg, &tx, state);
 	ctg_store.cs_state = state;
 	ctg_store.cs_ctidx = ctidx;
+	ctg_store.cs_dead_index = dead_index;
 	goto end;
-state_delete:
+dead_index_delete:
+	ctg_meta_delete(&state->cs_meta->cc_tree,
+			&m0_cas_dead_index_fid,
+			&tx);
+dead_index_destroy:
+	ctg_destroy(dead_index, &tx);
 	ctg_meta_delete(&state->cs_meta->cc_tree,
 			&m0_cas_ctidx_fid,
 			&tx);
 ctidx_destroy:
 	ctg_destroy(ctidx, &tx);
-meta_destroy:
+state_destroy:
 	ctg_state_destroy(state, &tx);
 end:
 	m0_be_tx_close_sync(&tx);
@@ -750,6 +819,13 @@ static void ctg_try_init(struct m0_cas_ctg *ctg)
 	m0_mutex_unlock(&ctg_store.cs_state->cs_ctg_init_mutex);
 }
 
+/** Checks whether catalogue is a user catalogue (not meta). */
+static bool ctg_is_ordinary(const struct m0_cas_ctg *ctg)
+{
+	return !M0_IN(ctg, (m0_ctg_dead_index(), m0_ctg_ctidx(),
+			    m0_ctg_meta()));
+}
+
 static bool ctg_op_cb(struct m0_clink *clink)
 {
 	struct m0_ctg_op *ctg_op  = container_of(clink,
@@ -788,29 +864,37 @@ static bool ctg_op_cb(struct m0_clink *clink)
 			}
 			break;
 		case CTG_OP_COMBINE(CO_DEL, CT_BTREE):
-			ctg_state_dec_update(tx, 0);
+			if (ctg_is_ordinary(ctg_op->co_ctg))
+				ctg_state_dec_update(tx, 0);
+			/* Fall through. */
 		case CTG_OP_COMBINE(CO_DEL, CT_META):
+		case CTG_OP_COMBINE(CO_PUT, CT_DEAD_INDEX):
+		case CTG_OP_COMBINE(CO_TRUNC, CT_BTREE):
+		case CTG_OP_COMBINE(CO_DROP, CT_BTREE):
+		case CTG_OP_COMBINE(CO_GC, CT_META):
 			/* Nothing to do. */
+			break;
+		case CTG_OP_COMBINE(CO_MIN, CT_BTREE):
+			ctg_buf(&ctg_op->co_out_key, &cur_key);
+			ctg_op->co_out_key = cur_key;
 			break;
 		case CTG_OP_COMBINE(CO_CUR, CT_META):
 		case CTG_OP_COMBINE(CO_CUR, CT_BTREE):
 			m0_be_btree_cursor_kv_get(&ctg_op->co_cur,
 						  &cur_key,
 						  &cur_val);
-			rc = ctg_buf(&cur_key,
-				     &ctg_op->co_out_key);
+			rc = ctg_buf(&cur_key, &ctg_op->co_out_key);
 			if (rc == 0)
-				rc = ctg_buf(&cur_val,
-					     &ctg_op->co_out_val);
-			if (rc == 0 && ct == CT_META) {
+				rc = ctg_buf(&cur_val, &ctg_op->co_out_val);
+			if (rc == 0 && ct == CT_META)
 				ctg_try_init(*(struct m0_cas_ctg **)
 					     ctg_op->co_out_val.b_addr);
-			}
 			break;
 		case CTG_OP_COMBINE(CO_PUT, CT_BTREE):
 			ctg_memcpy(arena, ctg_op->co_val.b_addr,
 				   ctg_op->co_val.b_nob);
-			ctg_state_inc_update(tx,
+			if (ctg_is_ordinary(ctg_op->co_ctg))
+				ctg_state_inc_update(tx,
 					ctg_op->co_key.b_nob - KV_HDR_SIZE +
 					ctg_op->co_val.b_nob);
 			break;
@@ -908,13 +992,34 @@ static int ctg_op_exec(struct m0_ctg_op *ctg_op, int next_phase)
 					 sizeof(struct m0_cas_ctg *);
 		m0_be_btree_insert_inplace(btree, tx, beop, key, anchor);
 		break;
+	case CTG_OP_COMBINE(CO_PUT, CT_DEAD_INDEX):
+		/*
+		 * No need a value in dead index, but, seems, must put something
+		 * there. Do not fill anything in the callback after
+		 * m0_be_btree_insert_inplace() have 0 there.
+		 */
+		anchor->ba_value.b_nob = 8;
+		m0_be_btree_insert_inplace(btree, tx, beop, key, anchor);
+		break;
 	case CTG_OP_COMBINE(CO_GET, CT_BTREE):
 	case CTG_OP_COMBINE(CO_GET, CT_META):
 		m0_be_btree_lookup_inplace(btree, beop, key, anchor);
 		break;
+	case CTG_OP_COMBINE(CO_MIN, CT_BTREE):
+		m0_be_btree_minkey(btree, beop, &ctg_op->co_out_key);
+		break;
+	case CTG_OP_COMBINE(CO_TRUNC, CT_BTREE):
+		m0_be_btree_truncate(btree, tx, beop, ctg_op->co_cnt);
+		break;
+	case CTG_OP_COMBINE(CO_DROP, CT_BTREE):
+		m0_be_btree_destroy(btree, tx, beop);
+		break;
 	case CTG_OP_COMBINE(CO_DEL, CT_BTREE):
 	case CTG_OP_COMBINE(CO_DEL, CT_META):
 		m0_be_btree_delete(btree, tx, beop, key);
+		break;
+	case CTG_OP_COMBINE(CO_GC, CT_META):
+		m0_cas_gc_wait_async(beop);
 		break;
 	case CTG_OP_COMBINE(CO_CUR, CT_BTREE):
 	case CTG_OP_COMBINE(CO_CUR, CT_META):
@@ -940,8 +1045,9 @@ static int ctg_meta_exec(struct m0_ctg_op    *ctg_op,
 	ctg_op->co_ctg = ctg_store.cs_state->cs_meta;
 	ctg_op->co_ct = CT_META;
 
-	if (ctg_op->co_opcode != CO_CUR ||
-	    ctg_op->co_cur_phase != CPH_NEXT)
+	if (ctg_op->co_opcode != CO_GC &&
+	    (ctg_op->co_opcode != CO_CUR ||
+	     ctg_op->co_cur_phase != CPH_NEXT))
 		ctg_op->co_rc = ctg_buf_get(&ctg_op->co_key,
 					    &M0_BUF_INIT_CONST(
 						    sizeof(struct m0_fid),
@@ -967,6 +1073,19 @@ M0_INTERNAL int m0_ctg_meta_insert(struct m0_ctg_op    *ctg_op,
 	ctg_op->co_opcode = CO_PUT;
 
 	return ctg_meta_exec(ctg_op, fid, next_phase);
+}
+
+M0_INTERNAL int m0_ctg_gc_wait(struct m0_ctg_op *ctg_op,
+			       int               next_phase)
+{
+	M0_ENTRY();
+
+	M0_PRE(ctg_op != NULL);
+	M0_PRE(ctg_op->co_beop.bo_sm.sm_state == M0_BOS_INIT);
+
+	ctg_op->co_opcode = CO_GC;
+
+	return ctg_meta_exec(ctg_op, 0, next_phase);
 }
 
 M0_INTERNAL int m0_ctg_meta_lookup(struct m0_ctg_op    *ctg_op,
@@ -1011,6 +1130,29 @@ M0_INTERNAL int m0_ctg_meta_delete(struct m0_ctg_op    *ctg_op,
 	return ctg_meta_exec(ctg_op, fid, next_phase);
 }
 
+M0_INTERNAL int m0_ctg_dead_index_insert(struct m0_ctg_op  *ctg_op,
+					 struct m0_cas_ctg *ctg,
+					 int                next_phase)
+{
+	int ret;
+
+	ctg_op->co_ctg = m0_ctg_dead_index();
+	ctg_op->co_ct = CT_DEAD_INDEX;
+	ctg_op->co_opcode = CO_PUT;
+	/*
+	 * Actually we need just a catalogue.
+	 * Put struct m0_cas_ctg* into dead_index as a key, keep value empty.
+	 */
+	ctg_op->co_rc = ctg_buf_get(&ctg_op->co_key,
+				    &M0_BUF_INIT_CONST(sizeof(ctg), &ctg));
+	if (ctg_op->co_rc != 0) {
+		ret = M0_FSO_AGAIN;
+		m0_fom_phase_set(ctg_op->co_fom, next_phase);
+	} else
+		ret = ctg_op_exec(ctg_op, next_phase);
+	return ret;
+}
+
 static int ctg_exec(struct m0_ctg_op    *ctg_op,
 		    struct m0_cas_ctg   *ctg,
 		    const struct m0_buf *key,
@@ -1021,8 +1163,9 @@ static int ctg_exec(struct m0_ctg_op    *ctg_op,
 	ctg_op->co_ctg = ctg;
 	ctg_op->co_ct = CT_BTREE;
 
-	if (ctg_op->co_opcode != CO_CUR ||
-	    ctg_op->co_cur_phase != CPH_NEXT)
+	if (!M0_IN(ctg_op->co_opcode, (CO_MIN, CO_TRUNC, CO_DROP)) &&
+	    (ctg_op->co_opcode != CO_CUR ||
+	     ctg_op->co_cur_phase != CPH_NEXT))
 		ctg_op->co_rc = ctg_buf_get(&ctg_op->co_key, key);
 
 	if (ctg_op->co_rc != 0)
@@ -1091,6 +1234,46 @@ M0_INTERNAL void m0_ctg_lookup_result(struct m0_ctg_op *ctg_op,
 
 	*buf = ctg_op->co_out_val;
 }
+
+M0_INTERNAL int m0_ctg_minkey(struct m0_ctg_op  *ctg_op,
+			      struct m0_cas_ctg *ctg,
+			      int                next_phase)
+{
+	M0_PRE(ctg_op != NULL);
+	M0_PRE(ctg != NULL);
+
+	ctg_op->co_opcode = CO_MIN;
+
+	return ctg_exec(ctg_op, ctg, NULL, next_phase);
+}
+
+
+M0_INTERNAL int m0_ctg_truncate(struct m0_ctg_op    *ctg_op,
+				struct m0_cas_ctg   *ctg,
+				m0_bcount_t          limit,
+				int                  next_phase)
+{
+	M0_PRE(ctg_op != NULL);
+	M0_PRE(ctg != NULL);
+
+	ctg_op->co_opcode = CO_TRUNC;
+	ctg_op->co_cnt = limit;
+
+	return ctg_exec(ctg_op, ctg, NULL, next_phase);
+}
+
+M0_INTERNAL int m0_ctg_drop(struct m0_ctg_op    *ctg_op,
+			    struct m0_cas_ctg   *ctg,
+			    int                  next_phase)
+{
+	M0_PRE(ctg_op != NULL);
+	M0_PRE(ctg != NULL);
+
+	ctg_op->co_opcode = CO_DROP;
+
+	return ctg_exec(ctg_op, ctg, NULL, next_phase);
+}
+
 
 M0_INTERNAL bool m0_ctg_cursor_is_initialised(struct m0_ctg_op *ctg_op)
 {
@@ -1261,7 +1444,25 @@ M0_INTERNAL void m0_ctg_op_fini(struct m0_ctg_op *ctg_op)
 	M0_LEAVE();
 }
 
-M0_INTERNAL void m0_ctg_meta_insert_credit(struct m0_be_tx_credit *accum)
+M0_INTERNAL void m0_ctg_mark_deleted_credit(struct m0_be_tx_credit *accum)
+{
+	m0_bcount_t         knob;
+	m0_bcount_t         vnob;
+	struct m0_be_btree *btree  = &ctg_store.cs_state->cs_meta->cc_tree;
+	struct m0_be_btree *mbtree = &m0_ctg_dead_index()->cc_tree;
+	struct m0_cas_ctg  *ctg;
+
+	knob = KV_HDR_SIZE + sizeof(struct m0_fid);
+	vnob = KV_HDR_SIZE + sizeof(ctg);
+	/* Delete from meta. */
+	m0_be_btree_delete_credit(btree, 1, knob, vnob, accum);
+	knob = KV_HDR_SIZE + sizeof(ctg);
+	vnob = 8;
+	/* Insert into dead index. */
+	m0_be_btree_insert_credit2(mbtree, 1, knob, vnob, accum);
+}
+
+M0_INTERNAL void m0_ctg_create_credit(struct m0_be_tx_credit *accum)
 {
 	m0_bcount_t         knob;
 	m0_bcount_t         vnob;
@@ -1274,27 +1475,48 @@ M0_INTERNAL void m0_ctg_meta_insert_credit(struct m0_be_tx_credit *accum)
 	vnob = KV_HDR_SIZE + sizeof(ctg);
 	m0_be_btree_insert_credit2(btree, 1, knob, vnob, accum);
 	/*
-	 * Credits for cas_ctg allocated separately.
+	 * That are credits for cas_ctg body.
 	 */
 	M0_BE_ALLOC_CREDIT_PTR(ctg, cas_seg(), accum);
 }
 
-M0_INTERNAL void m0_ctg_meta_delete_credit(struct m0_be_tx_credit *accum)
+M0_INTERNAL void m0_ctg_drop_credit(struct m0_fom          *fom,
+				    struct m0_be_tx_credit *accum,
+				    struct m0_cas_ctg      *ctg,
+				    m0_bcount_t            *limit)
 {
-	m0_bcount_t         knob;
-	m0_bcount_t         vnob;
-	struct m0_be_btree *btree = &ctg_store.cs_state->cs_meta->cc_tree;
-	struct m0_cas_ctg  *ctg;
+	m0_bcount_t            records_nr;
+	m0_bcount_t            records_ok;
+	struct m0_be_tx_credit record_cred;
+
+	m0_be_btree_clear_credit(&ctg->cc_tree, accum, &record_cred,
+				 &records_nr);
+	records_nr = records_nr ?: 1;
+	for (records_ok = 0;
+	     !m0_be_should_break(m0_fom_tx(fom)->t_engine, accum,
+				 &record_cred) && records_ok < records_nr;
+	     records_ok++)
+		m0_be_tx_credit_add(accum, &record_cred);
+
+	*limit = records_ok;
+}
+
+M0_INTERNAL void m0_ctg_dead_clean_credit(struct m0_be_tx_credit *accum)
+{
+	struct m0_cas_ctg *ctg;
+	m0_bcount_t        knob;
+	m0_bcount_t        vnob;
 
 	/*
-	 * @todo It is not always possible to destroy a large btree in
-	 * one transaction. See HLD for the solution.
+	 * Define credits for delete from dead index.
 	 */
-	m0_be_btree_destroy_credit(btree, accum);
-
-	knob = KV_HDR_SIZE + sizeof(struct m0_fid);
-	vnob = KV_HDR_SIZE + sizeof(ctg);
-	m0_be_btree_delete_credit(btree, 1, knob, vnob, accum);
+	knob = KV_HDR_SIZE + sizeof(ctg);
+	vnob = KV_HDR_SIZE;
+	m0_be_btree_delete_credit(&m0_ctg_dead_index()->cc_tree,
+				  1, knob, vnob, accum);
+	/*
+	 * Credits for ctg free.
+	 */
 	M0_BE_FREE_CREDIT_PTR(ctg, cas_seg(), accum);
 }
 
@@ -1492,6 +1714,11 @@ M0_INTERNAL struct m0_cas_ctg *m0_ctg_meta()
 M0_INTERNAL struct m0_cas_ctg *m0_ctg_ctidx()
 {
 	return ctg_store.cs_ctidx;
+}
+
+M0_INTERNAL struct m0_cas_ctg *m0_ctg_dead_index(void)
+{
+	return ctg_store.cs_dead_index;
 }
 
 M0_INTERNAL uint64_t m0_ctg_rec_nr(void)

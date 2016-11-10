@@ -329,6 +329,9 @@ int main(int argc, char *argv[])
 				 "0 to shuffle randomly", "%i", &seed),
 		    M0_FLAGARG('k', "keep the sandbox directory",
 				&ut->ut_keep_sandbox),
+		    M0_FLAGARG('c',
+			       "Set small transaction credits.",
+				&ut->ut_small_credits),
 		    M0_FLAGARG('l', "list available test suites",
 				&list_ut),
 		    M0_VOIDARG('L', "list available test suites with"

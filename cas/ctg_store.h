@@ -159,6 +159,11 @@ struct m0_ctg_op {
 	uint32_t                  co_flags;
 	/** Operation result code. */
 	int                       co_rc;
+	/**
+	 * Maximum number of records (limit) allowed to be deleted in CO_TRUNC
+	 * operation, see m0_ctg_truncate().
+	 */
+	m0_bcount_t               co_cnt;
 };
 
 #define CTG_OP_COMBINE(opc, ct) (((uint64_t)(opc)) | ((ct) << 16))
@@ -199,9 +204,13 @@ M0_INTERNAL int  m0_ctg_store_init();
 M0_INTERNAL void m0_ctg_store_fini();
 
 /** Returns a pointer to meta catalogue context. */
-M0_INTERNAL struct m0_cas_ctg *m0_ctg_meta();
-/** Returns a pointer to catalogu-index catalogue context. */
-M0_INTERNAL struct m0_cas_ctg *m0_ctg_ctidx();
+M0_INTERNAL struct m0_cas_ctg *m0_ctg_meta(void);
+
+/** Returns a pointer to "dead index" catalogue context. */
+M0_INTERNAL struct m0_cas_ctg *m0_ctg_dead_index(void);
+
+/** Returns a pointer to catalogue-index catalogue context. */
+M0_INTERNAL struct m0_cas_ctg *m0_ctg_ctidx(void);
 
 /**
  * Initialises catalogue operation.
@@ -246,6 +255,31 @@ M0_INTERNAL void m0_ctg_op_fini    (struct m0_ctg_op *ctg_op);
 M0_INTERNAL int  m0_ctg_meta_insert(struct m0_ctg_op    *ctg_op,
 				    const struct m0_fid *fid,
 				    int                  next_phase);
+
+/**
+ * Forces FOM to wait until index garbage collector removes all catalogues
+ * pending for deletion in "dead index" catalogue. After garbage collector is
+ * done, FOM is waked up in the 'next_phase' phase.
+ *
+ * @param ctg_op     Catalogue operation context.
+ * @param next_phase Next phase of caller FOM.
+ *
+ * @ret M0_FSO_AGAIN or M0_FSO_WAIT.
+ */
+M0_INTERNAL int m0_ctg_gc_wait(struct m0_ctg_op *ctg_op,
+			       int               next_phase);
+
+/**
+ * Inserts 'ctg' into "dead index" catalogue, therefore scheduling 'ctg' for
+ * deletion by index garbage collector.
+ *
+ * @param ctg_op     Catalogue operation context.
+ * @param ctg        Catalogue to be inserted in "dead index" catalogue.
+ * @param next_phase Next phase of caller FOM.
+ */
+M0_INTERNAL int m0_ctg_dead_index_insert(struct m0_ctg_op  *ctg_op,
+					 struct m0_cas_ctg *ctg,
+					 int                next_phase);
 
 /**
  * Looks up a catalogue in meta catalogue.
@@ -340,6 +374,42 @@ M0_INTERNAL int m0_ctg_lookup(struct m0_ctg_op    *ctg_op,
  */
 M0_INTERNAL void m0_ctg_lookup_result(struct m0_ctg_op *ctg_op,
 				      struct m0_buf    *buf);
+
+/**
+ * Gets the minimal key in the tree (wrapper over m0_be_btree_minkey()).
+ *
+ * After operation complete min key value is in ctg_op->co_out_key.
+ *
+ * @param  ctg_op     Catalogue operation context.
+ * @parami ctg        Catalogue descriptor.
+ * @param  next_phase Next phase of caller FOM.
+ *
+ * @ret M0_FSO_AGAIN or M0_FSO_WAIT.
+ */
+M0_INTERNAL int m0_ctg_minkey(struct m0_ctg_op  *ctg_op,
+			      struct m0_cas_ctg *ctg,
+			      int                next_phase);
+/**
+ * Truncates catalogue: destroy all records, but not the B-tree root.
+ *
+ * That routine may be called more than once to fit into transaction. 'Limit'
+ * is a maximum number of records to be deleted. 'Limit' may be calculated
+ * through m0_ctg_drop_credit() (as well as necessary credits).
+ *
+ * After truncation is done, m0_ctg_drop() should be called to destroy
+ * associated B-tree completely.
+ */
+M0_INTERNAL int m0_ctg_truncate(struct m0_ctg_op  *ctg_op,
+				struct m0_cas_ctg *ctg,
+				m0_bcount_t        limit,
+				int                next_phase);
+
+/**
+ * Destroys B-tree associated with a catalogue. B-tree should be empty.
+ */
+M0_INTERNAL int m0_ctg_drop(struct m0_ctg_op  *ctg_op,
+			    struct m0_cas_ctg *ctg,
+			    int                next_phase);
 
 /**
  * Initialises cursor for meta catalogue.
@@ -446,20 +516,6 @@ M0_INTERNAL void m0_ctg_cursor_put(struct m0_ctg_op *ctg_op);
 M0_INTERNAL void m0_ctg_cursor_fini(struct m0_ctg_op *ctg_op);
 
 /**
- * Calculates credits for insertion into meta catalogue.
- *
- * @param accum Accumulated credits.
- */
-M0_INTERNAL void m0_ctg_meta_insert_credit(struct m0_be_tx_credit *accum);
-
-/**
- * Calculates credits for deletion from meta catalogue.
- *
- * @param accum Accumulated credits.
- */
-M0_INTERNAL void m0_ctg_meta_delete_credit(struct m0_be_tx_credit *accum);
-
-/**
  * Calculates credits for insertion of record into catalogue.
  *
  * @param ctg   Catalogue context.
@@ -492,6 +548,45 @@ M0_INTERNAL void m0_ctg_delete_credit(struct m0_cas_ctg      *ctg,
  */
 M0_INTERNAL void m0_ctg_ctidx_insert_credits(struct m0_cas_id       *cid,
 					     struct m0_be_tx_credit *accum);
+
+/**
+ * Calculates credits for destroying catalogue records.
+ *
+ * If it's not possible to destroy the catalogue in one BE transaction, then
+ * 'accum' contains credits that are necessary to delete 'limit' number of
+ * records. 'limit' is a maximum number of records that can be deleted in one BE
+ * transaction.
+ */
+M0_INTERNAL void m0_ctg_drop_credit(struct m0_fom          *fom,
+				    struct m0_be_tx_credit *accum,
+				    struct m0_cas_ctg      *ctg,
+				    m0_bcount_t            *limit);
+
+/**
+ * Finalises and deallocates the catalogue.
+ *
+ * Should be called after m0_ctg_drop().
+ */
+M0_INTERNAL int m0_ctg_fini(struct m0_ctg_op  *ctg_op,
+			    struct m0_cas_ctg *ctg,
+			    int                next_phase);
+
+/**
+ * Calculates credits necessary to move catalogue to "dead index" catalogue.
+ */
+M0_INTERNAL void m0_ctg_mark_deleted_credit(struct m0_be_tx_credit *accum);
+
+/**
+ * Calculates credits necessary to allocate new catalogue and add it to the meta
+ * catalogue.
+ */
+M0_INTERNAL void m0_ctg_create_credit(struct m0_be_tx_credit *accum);
+
+/**
+ * Calculates credits necessary to delete catalogue from "dead index" catalogue
+ * and to deallocate it.
+ */
+M0_INTERNAL void m0_ctg_dead_clean_credit(struct m0_be_tx_credit *accum);
 
 /**
  * Calculates credits for deletion from catalogue-index catalogue.
