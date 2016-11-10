@@ -318,7 +318,7 @@ static void test_ha_state_accept(void)
 	m0_free(n);
 }
 
-static void failure_sets_build(struct m0_reqh *reqh, struct m0_ha_nvec *nvec)
+static void ha_ut_conf_init(struct m0_reqh *reqh, struct m0_ha_nvec *nvec)
 {
 	int              rc;
 	struct m0_confc *confc = m0_reqh2confc(reqh);
@@ -334,14 +334,10 @@ static void failure_sets_build(struct m0_reqh *reqh, struct m0_ha_nvec *nvec)
 
         rc = m0_conf_full_load(fs);
         M0_UT_ASSERT(rc == 0);
-
-	rc = m0_flset_build(&reqh->rh_failure_set, fs);
-	M0_UT_ASSERT(rc == 0);
 }
 
-static void failure_sets_destroy(struct m0_reqh *reqh)
+static void ha_ut_conf_fini(struct m0_reqh *reqh)
 {
-	m0_flset_destroy(&reqh->rh_failure_set);
 	m0_confc_close(&fs->cf_obj);
 	m0_ha_client_del(m0_reqh2confc(reqh));
 	m0_confc_fini(m0_reqh2confc(reqh));
@@ -512,7 +508,7 @@ static void test_poolversion_get(void)
 	 */
 
 	m0_reqh_init(&reqh, &reqh_args);
-	failure_sets_build(&reqh, &nvec);
+	ha_ut_conf_init(&reqh, &nvec);
 
 	rc = m0_conf_pver_get(&reqh.rh_profile, confc, &pver0);
 	M0_UT_ASSERT(rc == 0);
@@ -588,7 +584,7 @@ static void test_poolversion_get(void)
 	m0_confc_close(&pver3->pv_obj);
 	m0_confc_close(&pver4->pv_obj);
 	m0_confc_close(&root->rt_obj);
-	failure_sets_destroy(&reqh);
+	ha_ut_conf_fini(&reqh);
 	m0_reqh_fini(&reqh);
 }
 

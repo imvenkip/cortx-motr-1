@@ -45,10 +45,10 @@
 #include "m0t1fs/linux_kernel/m0t1fs.h" /* m0t1fs_sb */
 #include "conf/helpers.h"
 #include "reqh/reqh.h"
-#include "pool/flset.h"         /* m0_flset_tl */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_M0T1FS
 #include "lib/trace.h"
+
 /* fsync_test declared in m0t1fs/linux_kernel/ut/fsync.c */
 void fsync_test(void);
 

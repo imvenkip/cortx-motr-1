@@ -60,7 +60,6 @@
 #include "ioservice/storage_dev.h"
 #include "ioservice/io_service.h"  /* m0_ios_net_buffer_pool_size_set */
 #include "stob/linux.h"
-#include "pool/flset.h"         /* m0_flset_build, m0_flset_destroy */
 #include "conf/ha.h"            /* m0_conf_ha_process_event_post */
 
 /**
@@ -2302,10 +2301,11 @@ out:
 
 int m0_cs_start(struct m0_mero *cctx)
 {
-	struct m0_reqh_context     *rctx = &cctx->cc_reqh_ctx;
-	struct m0_reqh             *reqh = mero2reqh(cctx);
-	int                         rc;
-	struct m0_conf_filesystem  *fs;
+	struct m0_reqh_context    *rctx = &cctx->cc_reqh_ctx;
+	struct m0_reqh            *reqh = mero2reqh(cctx);
+	struct m0_rpc_session     *ha_session = m0_ha_session_get();
+	int                        rc;
+	struct m0_conf_filesystem *fs;
 
 	M0_ENTRY();
 	M0_PRE(reqh_context_invariant(rctx));
@@ -2341,7 +2341,7 @@ int m0_cs_start(struct m0_mero *cctx)
 	if (rc != 0)
 		goto error;
 
-	rc = gotsignal ? -EINTR : m0_flset_build(&reqh->rh_failure_set, fs);
+	rc = gotsignal ? -EINTR : m0_conf_confc_ha_update(ha_session, m0_reqh2confc(reqh));
 
 error:
 	if (gotsignal)
@@ -2392,9 +2392,6 @@ void m0_cs_fini(struct m0_mero *cctx)
 
 	if (rctx->rc_state == RC_INITIALISED)
 		m0_reqh_layouts_cleanup(reqh);
-
-	if (m0_clink_is_armed(&reqh->rh_failure_set.fls_conf_expired))
-		m0_flset_destroy(&reqh->rh_failure_set);
 
 	m0_ha_client_del(m0_mero2confc(cctx));
 

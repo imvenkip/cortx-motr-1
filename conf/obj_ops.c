@@ -25,7 +25,6 @@
 #include "conf/cache.h"
 #include "conf/onwire.h"   /* m0_confx_obj */
 #include "conf/dir.h"      /* m0_conf_dir_tl */
-#include "pool/flset.h"    /* m0_flset_tl */
 #include "mero/magic.h"    /* M0_CONF_OBJ_MAGIC */
 #include "lib/errno.h"     /* ENOMEM */
 

@@ -496,122 +496,6 @@ static void test_version_change(void)
 	ut_mero_stop(&mach, &rctx);
 }
 
-static void flset_conf_ready(struct m0_rconfc *rconfc)
-{
-	M0_UT_ENTER();
-	m0_confc_ready_cb(rconfc);
-	m0_semaphore_up(&g_ready_sem);
-	M0_UT_RETURN();
-}
-
-static void flset_conf_exp(struct m0_rconfc *rconfc)
-{
-	M0_UT_ENTER();
-	m0_confc_expired_cb(rconfc);
-	m0_semaphore_up(&g_expired_sem);
-	M0_UT_RETURN();
-}
-
-static void flsets_build(struct m0_reqh *reqh)
-{
-	int                        rc;
-	struct m0_conf_filesystem *fs;
-	struct m0_confc           *confc = m0_reqh2confc(reqh);
-
-	rc = m0_fid_sscanf(M0_UT_CONF_PROFILE, &reqh->rh_profile);
-	M0_UT_ASSERT(rc == 0);
-	rc = m0_conf_fs_get(&reqh->rh_profile, confc, &fs);
-	M0_UT_ASSERT(rc == 0);
-        rc = m0_conf_full_load(fs);
-        M0_UT_ASSERT(rc == 0);
-	rc = m0_flset_build(&reqh->rh_failure_set, fs);
-	M0_UT_ASSERT(rc == 0);
-	m0_confc_close(&fs->cf_obj);
-}
-
-static void flsets_destroy(struct m0_reqh *reqh)
-{
-	m0_flset_destroy(&reqh->rh_failure_set);
-}
-
-static void test_flset_link_update(void)
-{
-	struct m0_rconfc         *rconfc;
-	struct m0_rpc_machine     mach;
-	int                       rc;
-	struct m0_rpc_server_ctx  rctx;
-	struct rlock_ctx         *rlx;
-	struct m0_conf_obj       *root_obj;
-	int                       i;
-
-	rc = ut_mero_start(&mach, &rctx);
-	M0_UT_ASSERT(rc == 0);
-
-	rc = m0_net_domain_init(&client_net_dom, xprt);
-	M0_UT_ASSERT(rc == 0);
-	rc = m0_rpc_client_start(&cctx);
-	M0_UT_ASSERT(rc == 0);
-	m0_semaphore_init(&g_expired_sem, 0);
-	m0_semaphore_init(&g_ready_sem, 0);
-
-	rconfc = &cctx.rcx_reqh.rh_rconfc;
-	rc = m0_rconfc_init(rconfc, &m0_conf_ut_grp, &mach, flset_conf_exp,
-			    flset_conf_ready);
-	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_start_sync(rconfc, &profile);
-	M0_UT_ASSERT(rc == 0);
-
-	flsets_build(&cctx.rcx_reqh);
-
-	/* Check that version 1 in use */
-	M0_UT_ASSERT(rconfc->rc_ver == 1);
-	rc = m0_confc_open_sync(&root_obj, rconfc->rc_confc.cc_root, M0_FID0);
-	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(M0_CONF_CAST(root_obj, m0_conf_root)->rt_verno == 1);
-	m0_confc_close(root_obj);
-
-	/* Update conf DB version and immitate read lock conflict */
-	update_confd_version(&rctx, 2);
-	rlx = rconfc->rc_rlock_ctx;
-	m0_rconfc_ri_ops.rio_conflict(&rlx->rlc_req);
-
-	/* Wait till version reelection is finished */
-	m0_semaphore_down(&g_expired_sem);
-	m0_semaphore_down(&g_ready_sem);
-	m0_sm_group_lock(rconfc->rc_sm.sm_grp);
-	m0_sm_timedwait(&rconfc->rc_sm, M0_BITS(RCS_IDLE, RCS_FAILURE),
-			M0_TIME_NEVER);
-	m0_sm_group_unlock(rconfc->rc_sm.sm_grp);
-	M0_UT_ASSERT(rconfc->rc_sm.sm_state == RCS_IDLE);
-
-	/* Check that version in use is 2 */
-	M0_UT_ASSERT(rconfc->rc_ver == 2);
-	rc = m0_confc_open_sync(&root_obj, rconfc->rc_confc.cc_root, M0_FID0);
-	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(M0_CONF_CAST(root_obj, m0_conf_root)->rt_verno == 2);
-	m0_confc_close(root_obj);
-
-	/*
-	 * Verify if all conf objects hardware resources
-	 * are armed with flsets clinks.
-	 */
-	M0_UT_ASSERT(cctx.rcx_reqh.rh_failure_set.fls_links_nr > 0);
-	for (i = 0; i < cctx.rcx_reqh.rh_failure_set.fls_links_nr; ++i) {
-		struct m0_flset_clink *link =
-			&cctx.rcx_reqh.rh_failure_set.fls_links[i];
-		M0_UT_ASSERT(m0_clink_is_armed(&link->fcl_link));
-	}
-
-	m0_semaphore_fini(&g_expired_sem);
-	m0_semaphore_fini(&g_ready_sem);
-	flsets_destroy(&cctx.rcx_reqh);
-	m0_rconfc_stop_sync(rconfc);
-	m0_rpc_client_stop(&cctx);
-	m0_net_domain_fini(&client_net_dom);
-	m0_rconfc_fini(rconfc);
-	ut_mero_stop(&mach, &rctx);
-}
-
 static void test_cache_drop(void)
 {
 	struct m0_rconfc         rconfc;
@@ -973,7 +857,6 @@ struct m0_ut_suite rconfc_ut = {
 		{ "impossible", test_quorum_impossible },
 		{ "gate-ops",   test_gops },
 		{ "change-ver", test_version_change },
-		{ "flset-link", test_flset_link_update },
 		{ "cache-drop", test_cache_drop },
 		{ "ctx-block",  test_confc_ctx_block },
 		{ "reconnect",  test_reconnect_success },

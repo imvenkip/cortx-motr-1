@@ -35,7 +35,6 @@
 #include "layout/layout.h"
 #include "ha/epoch.h"
 #include "rpc/session.h"
-#include "pool/flset.h"      /* m0_flset */
 
 /**
    @defgroup reqh Request handler
@@ -165,12 +164,6 @@ struct m0_reqh {
 
 	/** HA service context. */
 	struct m0_reqh_service_ctx   *rh_ha_rsctx;
-
-	/**
-	 * Failure set of resources.
-	 * @see m0_flset_build().
-	 */
-	struct m0_flset               rh_failure_set;
 
 	/** Process FID. */
 	struct m0_fid                 rh_fid;

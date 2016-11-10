@@ -45,7 +45,6 @@
 #include "reqh/reqh.h"
 #include "addb2/global.h"
 #include "addb2/sys.h"
-#include "pool/flset.h"        /* m0_flset_build, m0_flset_destroy */
 #include "module/instance.h"   /* m0_get */
 #include "ha/epoch.h"          /* m0_ha_client_add */
 #include "balloc/balloc.h"     /* BALLOC_DEF_BLOCK_SHIFT */
@@ -872,16 +871,12 @@ int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	if (rc != 0)
 		goto err_pool_versions_destroy;
 
-	rc = m0_flset_build(&reqh->rh_failure_set, fs);
-	if (rc != 0)
-		goto err_pool_versions_destroy;
 	rc = m0_addb2_sys_net_start_with(sys, &pc->pc_svc_ctxs);
 	if (rc == 0) {
 		m0_confc_close(&fs->cf_obj);
 		return M0_RC(0);
 	}
 
-	m0_flset_destroy(&reqh->rh_failure_set);
 err_pool_versions_destroy:
 	m0t1fs_sb_layouts_fini(csb);
 	m0_pool_versions_destroy(&csb->csb_pools_common);
@@ -923,7 +918,6 @@ static void m0t1fs_teardown(struct m0t1fs_sb *csb)
 	m0_addb2_sys_net_stop(m0_addb2_global_get());
 	m0t1fs_sb_layouts_fini(csb);
 	/* @todo Make a separate unconfigure api and do this in that */
-	m0_flset_destroy(&csb->csb_reqh.rh_failure_set);
 	m0_pool_versions_destroy(&csb->csb_pools_common);
 	m0_pools_service_ctx_destroy(&csb->csb_pools_common);
 	m0_pools_destroy(&csb->csb_pools_common);
