@@ -478,7 +478,8 @@ bool m0_rpc_item_max_payload_exceeded(struct m0_rpc_item    *item,
 	M0_PRE(item != NULL);
 	M0_PRE(session != NULL);
 
-	if (M0_FI_ENABLED("payload_too_large"))
+	if (M0_FI_ENABLED("payload_too_large1") ||
+	    M0_FI_ENABLED("payload_too_large2"))
 		return true;
 
 	return (m0_rpc_item_payload_size(item) >

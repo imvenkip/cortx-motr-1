@@ -86,16 +86,22 @@ static struct m0_sm_state_descr cas_req_states[] = {
 	[CASREQ_INIT] = {
 		.sd_flags     = M0_SDF_INITIAL | M0_SDF_FINAL,
 		.sd_name      = "init",
-		.sd_allowed   = M0_BITS(CASREQ_INPROGRESS)
+		.sd_allowed   = M0_BITS(CASREQ_SENT, CASREQ_FRAGM_SENT)
 	},
-	[CASREQ_INPROGRESS] = {
-		.sd_name      = "in-progress",
+	[CASREQ_SENT] = {
+		.sd_name      = "request-sent",
+		.sd_allowed   = M0_BITS(CASREQ_FINAL, CASREQ_FAILURE,
+					CASREQ_ASSEMBLY),
+	},
+	[CASREQ_FRAGM_SENT] = {
+		.sd_name      = "request-fragment-sent",
 		.sd_allowed   = M0_BITS(CASREQ_FINAL, CASREQ_FAILURE,
 					CASREQ_ASSEMBLY),
 	},
 	[CASREQ_ASSEMBLY] = {
 		.sd_name      = "assembly",
-		.sd_allowed   = M0_BITS(CASREQ_FINAL, CASREQ_FAILURE),
+		.sd_allowed   = M0_BITS(CASREQ_FRAGM_SENT, CASREQ_FINAL,
+					CASREQ_FAILURE),
 	},
 	[CASREQ_FINAL] = {
 		.sd_name      = "final",
@@ -108,12 +114,16 @@ static struct m0_sm_state_descr cas_req_states[] = {
 };
 
 static struct m0_sm_trans_descr cas_req_trans[] = {
-	{ "send-over-rpc", CASREQ_INIT,       CASREQ_INPROGRESS },
-	{ "rpc-failure",   CASREQ_INPROGRESS, CASREQ_FAILURE    },
-	{ "assembly",      CASREQ_INPROGRESS, CASREQ_ASSEMBLY   },
-	{ "req-processed", CASREQ_INPROGRESS, CASREQ_FINAL      },
-	{ "assembly-fail", CASREQ_ASSEMBLY,   CASREQ_FAILURE    },
-	{ "assembly-done", CASREQ_ASSEMBLY,   CASREQ_FINAL      },
+	{ "send-over-rpc",       CASREQ_INIT,       CASREQ_SENT       },
+	{ "send-fragm-over-rpc", CASREQ_INIT,       CASREQ_FRAGM_SENT },
+	{ "rpc-failure",         CASREQ_SENT,       CASREQ_FAILURE    },
+	{ "assembly",            CASREQ_SENT,       CASREQ_ASSEMBLY   },
+	{ "req-processed",       CASREQ_SENT,       CASREQ_FINAL      },
+	{ "rpc-failure",         CASREQ_FRAGM_SENT, CASREQ_FAILURE    },
+	{ "fragm-assembly",      CASREQ_FRAGM_SENT, CASREQ_ASSEMBLY   },
+	{ "req-processed",       CASREQ_FRAGM_SENT, CASREQ_FINAL      },
+	{ "assembly-fail",       CASREQ_ASSEMBLY,   CASREQ_FAILURE    },
+	{ "assembly-done",       CASREQ_ASSEMBLY,   CASREQ_FINAL      },
 };
 
 static const struct m0_sm_conf cas_req_sm_conf = {
@@ -123,6 +133,11 @@ static const struct m0_sm_conf cas_req_sm_conf = {
 	.scf_trans_nr  = ARRAY_SIZE(cas_req_trans),
 	.scf_trans     = cas_req_trans
 };
+
+static int cas_req_fragmentation(struct m0_cas_req *req);
+static int cas_req_fragment_continue(struct m0_cas_req *req,
+				     struct m0_cas_op  *op);
+static void creq_recv_fini(struct m0_cas_recv *recv, bool op_is_meta);
 
 static bool fid_is_meta(struct m0_fid *fid)
 {
@@ -214,6 +229,18 @@ static void cas_req_state_set(struct m0_cas_req     *req,
 	m0_sm_state_set(&req->ccr_sm, state);
 }
 
+static void cas_req_reply_fini(struct m0_cas_req *req)
+{
+	struct m0_cas_recv *recv = &req->ccr_reply.cgr_rep;
+	uint64_t            i;
+
+	for (i = 0; i < recv->cr_nr; i++) {
+		m0_rpc_at_fini(&recv->cr_rec[i].cr_key);
+		m0_rpc_at_fini(&recv->cr_rec[i].cr_val);
+	}
+	m0_free(req->ccr_reply.cgr_rep.cr_rec);
+}
+
 static void cas_req_fini(struct m0_cas_req *req)
 {
 	uint32_t cur_state = req->ccr_sm.sm_state;
@@ -221,11 +248,21 @@ static void cas_req_fini(struct m0_cas_req *req)
 	M0_ENTRY();
 	M0_PRE(m0_cas_req_is_locked(req));
 	M0_PRE(M0_IN(cur_state, (CASREQ_INIT, CASREQ_FINAL, CASREQ_FAILURE)));
-	if (cur_state == CASREQ_FINAL) {
-		M0_ASSERT(req->ccr_reply_item != NULL);
-		m0_rpc_item_put_lock(req->ccr_reply_item);
-		m0_fop_put_lock(&req->ccr_fop);
+	if (cur_state == CASREQ_FAILURE) {
+		if (req->ccr_reply_item != NULL)
+			m0_rpc_item_put_lock(req->ccr_reply_item);
+		if (req->ccr_fop != NULL) {
+			req->ccr_fop->f_data.fd_data = NULL;
+			m0_fop_put_lock(req->ccr_fop);
+		}
 	}
+	if (req->ccr_req_op != NULL) {
+		/* Restore records vector for proper freeing. */
+		req->ccr_req_op->cg_rec = req->ccr_rec_orig;
+		creq_recv_fini(&req->ccr_rec_orig, req->ccr_is_meta);
+		creq_op_free(req->ccr_req_op);
+	}
+	cas_req_reply_fini(req);
 	m0_free(req->ccr_asmbl_ikeys);
 	m0_sm_fini(&req->ccr_sm);
 	M0_LEAVE();
@@ -301,12 +338,14 @@ static void creq_recv_fini(struct m0_cas_recv *recv, bool op_is_meta)
 
 }
 
-static void creq_fop_fini(struct m0_fop *fop)
+static void creq_fop_destroy(struct m0_cas_req *req)
 {
-	struct m0_cas_op *op = CASREQ_FOP_DATA(fop);
+	struct m0_fop *fop = req->ccr_fop;
 
-	creq_recv_fini(&op->cg_rec, fid_is_meta(&op->cg_id.ci_fid));
+	fop->f_data.fd_data = NULL;
 	m0_fop_fini(fop);
+	m0_free(fop);
+	req->ccr_fop = NULL;
 }
 
 static void creq_fop_release(struct m0_ref *ref)
@@ -316,28 +355,78 @@ static void creq_fop_release(struct m0_ref *ref)
 	M0_ENTRY();
 	M0_PRE(ref != NULL);
 	fop = container_of(ref, struct m0_fop, f_ref);
-	creq_fop_fini(fop);
-	M0_SET0(fop);
+	m0_fop_fini(fop);
+	m0_free(fop);
 	M0_LEAVE();
 }
 
-static void creq_fop_init(struct m0_cas_req  *req,
-			  struct m0_fop_type *ftype,
-			  struct m0_cas_op   *op)
+static void creq_asmbl_fop_release(struct m0_ref *ref)
 {
-	m0_fop_init(&req->ccr_fop, ftype, (void *)op, creq_fop_release);
+	struct m0_fop    *fop;
+	struct m0_cas_op *op;
+
+	M0_ENTRY();
+	M0_PRE(ref != NULL);
+	fop = container_of(ref, struct m0_fop, f_ref);
+	op = CASREQ_FOP_DATA(fop);
+	creq_recv_fini(&op->cg_rec, fid_is_meta(&op->cg_id.ci_fid));
+	m0_fop_fini(fop);
+	M0_LEAVE();
 }
 
+static int creq_fop_create(struct m0_cas_req  *req,
+			   struct m0_fop_type *ftype,
+			   struct m0_cas_op   *op)
+{
+	struct m0_fop *fop;
+
+	M0_ALLOC_PTR(fop);
+	if (fop == NULL)
+		return M0_ERR(-ENOMEM);
+
+	m0_fop_init(fop, ftype, (void *)op, creq_fop_release);
+	fop->f_opaque = req;
+	req->ccr_fop = fop;
+	req->ccr_ftype = ftype;
+
+	return 0;
+}
+
+static int creq_fop_create_and_prepare(struct m0_cas_req     *req,
+				       struct m0_fop_type    *ftype,
+				       struct m0_cas_op      *op,
+				       enum m0_cas_req_state *next_state)
+{
+	int rc;
+
+	rc = creq_fop_create(req, ftype, op);
+	if (rc == 0) {
+		*next_state = CASREQ_SENT;
+		/*
+		 * Check whether original fop payload does not exceed
+		 * max rpc item payload.
+		 */
+		if (m0_rpc_item_max_payload_exceeded(
+			    &req->ccr_fop->f_item,
+			    req->ccr_sess)) {
+			*next_state = CASREQ_FRAGM_SENT;
+			rc = cas_req_fragmentation(req);
+		}
+		if (rc != 0)
+			creq_fop_destroy(req);
+	}
+	return M0_RC(rc);
+}
 
 static struct m0_cas_req *item_to_cas_req(struct m0_rpc_item *item)
 {
-	return container_of(m0_rpc_item_to_fop(item), struct m0_cas_req,
-			    ccr_fop);
+	struct m0_fop *fop = M0_AMB(fop, item, f_item);
+	return (struct m0_cas_req *)fop->f_opaque;
 }
 
 static struct m0_rpc_item *cas_req_to_item(const struct m0_cas_req *req)
 {
-	return (struct m0_rpc_item *)&req->ccr_fop.f_item;
+	return &req->ccr_fop->f_item;
 }
 
 static struct m0_cas_rep *cas_rep(struct m0_rpc_item *reply)
@@ -347,12 +436,21 @@ static struct m0_cas_rep *cas_rep(struct m0_rpc_item *reply)
 
 M0_INTERNAL int m0_cas_req_generic_rc(struct m0_cas_req *req)
 {
-	struct m0_rpc_item *reply = cas_req_to_item(req)->ri_reply;
+	struct m0_fop      *req_fop = req->ccr_fop;
+	struct m0_rpc_item *reply;
+	int                 rc;
 
 	M0_PRE(M0_IN(req->ccr_sm.sm_state, (CASREQ_FINAL, CASREQ_FAILURE)));
-	return M0_RC(req->ccr_sm.sm_rc ?:
-		     m0_rpc_item_generic_reply_rc(reply) ?:
-		     cas_rep(reply)->cgr_rc);
+
+	reply = req_fop != NULL ? cas_req_to_item(req)->ri_reply : NULL;
+
+	rc = req->ccr_sm.sm_rc;
+	if (rc == 0 && reply != NULL)
+		rc = m0_rpc_item_generic_reply_rc(reply);
+	if (rc == 0)
+		rc = req->ccr_reply.cgr_rc;
+
+	return M0_RC(rc);
 }
 
 static bool cas_rep_val_is_valid(struct m0_rpc_at_buf *val,
@@ -412,7 +510,7 @@ static int cas_rep__validate(const struct m0_fop_type *ftype,
 
 static int cas_rep_validate(const struct m0_cas_req *req)
 {
-	const struct m0_fop *rfop = &req->ccr_fop;
+	const struct m0_fop *rfop = req->ccr_fop;
 	struct m0_cas_op    *op = m0_fop_data(rfop);
 	struct m0_cas_rep   *rep = cas_rep(cas_req_to_item(req)->ri_reply);
 
@@ -457,16 +555,17 @@ static void creq_item_prepare(const struct m0_cas_req      *req,
 
 static void cas_fop_send(struct m0_cas_req *req)
 {
+	struct m0_cas_op   *op = m0_fop_data(req->ccr_fop);
 	struct m0_rpc_item *item;
 	int                 rc;
 
 	M0_ENTRY();
 	M0_PRE(m0_cas_req_is_locked(req));
+	req->ccr_sent_recs_nr += op->cg_rec.cr_nr;
 	item = cas_req_to_item(req);
 	creq_item_prepare(req, item, &cas_item_ops);
 	rc = m0_rpc_post(item);
 	M0_LOG(M0_NOTICE, "RPC post returned %d", rc);
-	cas_req_state_set(req, CASREQ_INPROGRESS);
 }
 
 static int creq_kv_buf_add(const struct m0_cas_req *req,
@@ -488,7 +587,8 @@ static void creq_asmbl_fop_init(struct m0_cas_req  *req,
 				struct m0_fop_type *ftype,
 				struct m0_cas_op   *op)
 {
-	m0_fop_init(&req->ccr_asmbl_fop, ftype, (void *)op, creq_fop_release);
+	m0_fop_init(&req->ccr_asmbl_fop, ftype, (void *)op,
+		    creq_asmbl_fop_release);
 }
 
 /**
@@ -526,7 +626,7 @@ static int greq_asmbl_add(struct m0_cas_req *req,
  */
 static uint64_t greq_asmbl_count(const struct m0_cas_req *req)
 {
-	const struct m0_fop  *rfop = &req->ccr_fop;
+	const struct m0_fop  *rfop = req->ccr_fop;
 	struct m0_cas_op     *req_op = m0_fop_data(rfop);
 	struct m0_cas_rep    *rep = cas_rep(cas_req_to_item(req)->ri_reply);
 	struct m0_cas_rec    *rcvd;
@@ -551,7 +651,7 @@ static uint64_t greq_asmbl_count(const struct m0_cas_req *req)
 
 static int greq_asmbl_fill(struct m0_cas_req *req, struct m0_cas_op *op)
 {
-	const struct m0_fop *rfop = &req->ccr_fop;
+	const struct m0_fop *rfop = req->ccr_fop;
 	struct m0_cas_op    *req_op = m0_fop_data(rfop);
 	struct m0_cas_rep   *rep = cas_rep(cas_req_to_item(req)->ri_reply);
 	struct m0_cas_rec   *rcvd;
@@ -682,7 +782,7 @@ static void creq_niter_fini(struct creq_niter *it)
  */
 static int nreq_asmbl_prep(struct m0_cas_req *req, struct m0_cas_op *op)
 {
-	struct m0_cas_op  *orig = m0_fop_data(&req->ccr_fop);
+	struct m0_cas_op  *orig = m0_fop_data(req->ccr_fop);
 	struct m0_cas_rec *rec;
 	uint64_t           i;
 	int                rc;
@@ -714,7 +814,7 @@ err:
 
 static int nreq_asmbl_fill(struct m0_cas_req *req, struct m0_cas_op *op)
 {
-	const struct m0_fop  *rfop = &req->ccr_fop;
+	const struct m0_fop  *rfop = req->ccr_fop;
 	struct m0_cas_rep    *reply = cas_rep(cas_req_to_item(req)->ri_reply);
 	struct m0_cas_rec    *rep;
 	struct m0_cas_rec    *rec;
@@ -768,7 +868,7 @@ static int nreq_asmbl_fill(struct m0_cas_req *req, struct m0_cas_op *op)
 
 static bool nreq_asmbl_post(struct m0_cas_req *req)
 {
-	const struct m0_fop *rfop = &req->ccr_fop;
+	const struct m0_fop *rfop = req->ccr_fop;
 	struct m0_cas_op    *req_op = m0_fop_data(rfop);
 	struct m0_cas_rep   *rep = cas_rep(cas_req_to_item(req)->ri_reply);
 	struct m0_rpc_item  *item = &req->ccr_asmbl_fop.f_item;
@@ -813,18 +913,6 @@ static bool nreq_asmbl_post(struct m0_cas_req *req)
 		}
 	}
 	return bulk;
-}
-
-static void cas_req_assembly(struct m0_cas_req *req)
-{
-	const struct m0_fop *rfop = &req->ccr_fop;
-	bool                 wait;
-
-	M0_PRE(M0_IN(rfop->f_type, (&cas_get_fopt, &cas_cur_fopt)));
-	wait = (rfop->f_type == &cas_get_fopt) ?
-		greq_asmbl_post(req) : nreq_asmbl_post(req);
-	if (!wait)
-		cas_req_state_set(req, CASREQ_FINAL);
 }
 
 static void creq_rep_override(struct m0_cas_rec *orig,
@@ -905,6 +993,53 @@ static void greq_asmbl_accept(struct m0_cas_req *req)
 	}
 }
 
+static int cas_req_reply_handle(struct m0_cas_req *req,
+				bool              *fragm_continue)
+{
+	struct m0_cas_rep  *reply = &req->ccr_reply;
+	struct m0_cas_rep  *rcvd_reply = cas_rep(req->ccr_reply_item);
+	struct m0_fop      *req_fop = req->ccr_fop;
+	struct m0_cas_op   *op = m0_fop_data(req_fop);
+	uint64_t            i;
+	uint64_t            reply_seed;
+	int                 rc = 0;
+
+	M0_ASSERT(req_fop->f_type == req->ccr_ftype);
+	M0_ASSERT(req->ccr_sent_recs_nr <= req->ccr_rec_orig.cr_nr);
+	M0_ASSERT(reply->cgr_rep.cr_nr + rcvd_reply->cgr_rep.cr_nr <=
+		  req->ccr_max_replies_nr);
+	*fragm_continue = false;
+	/*
+	 * Place reply buffers locally (without copying of actual data), zero
+	 * them in reply fop to avoid their freeing during reply fop destroying.
+	 */
+	reply_seed = reply->cgr_rep.cr_nr;
+	for (i = 0; i < rcvd_reply->cgr_rep.cr_nr; i++) {
+		reply->cgr_rep.cr_rec[reply_seed + i] =
+			rcvd_reply->cgr_rep.cr_rec[i];
+		/* Detach buffers to avoid double-freeing of received data. */
+		creq_kv_hold_down(&rcvd_reply->cgr_rep.cr_rec[i]);
+	}
+	reply->cgr_rep.cr_nr += rcvd_reply->cgr_rep.cr_nr;
+	/* Roger, reply item is not needed anymore. */
+	m0_rpc_item_put_lock(req->ccr_reply_item);
+	req->ccr_reply_item = NULL;
+	/*
+	 * Null fop data pointer to avoid cas_op freeing during fop finalisation
+	 * as cas_op is going to be reused for the rest fragments sending.
+	 */
+	req_fop->f_data.fd_data = NULL;
+	m0_fop_put_lock(req_fop);
+	req->ccr_fop = NULL;
+	if (req->ccr_sent_recs_nr < req->ccr_rec_orig.cr_nr) {
+		/* Continue fragmentation. */
+		rc = cas_req_fragment_continue(req, op);
+		if (rc == 0)
+			*fragm_continue = true;
+	}
+	return rc;
+}
+
 static void creq_asmbl_replied_ast(struct m0_sm_group *grp,
 				   struct m0_sm_ast   *ast)
 {
@@ -913,6 +1048,7 @@ static void creq_asmbl_replied_ast(struct m0_sm_group *grp,
 	struct m0_fop      *fop   = &req->ccr_asmbl_fop;
 	struct m0_rpc_item *item  = &fop->f_item;
 	struct m0_rpc_item *reply = item->ri_reply;
+	bool                fragm_continue;
 	int                 rc;
 
 	rc = m0_rpc_item_error(item) ?:
@@ -924,15 +1060,19 @@ static void creq_asmbl_replied_ast(struct m0_sm_group *grp,
 			greq_asmbl_accept(req);
 		else
 			nreq_asmbl_accept(req);
-		cas_req_state_set(req, CASREQ_FINAL);
-	} else {
-		/*
-		 * On assembly request error, just finish request processing.
-		 * All records that were requested via assembly request already
-		 * have error status code.
-		 */
-		cas_req_state_set(req, CASREQ_FINAL);
 	}
+	/*
+	 * On assembly request error, just continue request processing.
+	 * All records that were requested via assembly request already
+	 * have error status code.
+	 */
+	rc = cas_req_reply_handle(req, &fragm_continue);
+	if (rc == 0)
+		cas_req_state_set(req, !fragm_continue ?
+				  CASREQ_FINAL : CASREQ_FRAGM_SENT);
+	else
+		cas_req_failure(req, M0_ERR(rc));
+
 	m0_rpc_item_put_lock(item);
 }
 
@@ -950,22 +1090,30 @@ static void creq_asmbl_replied_cb(struct m0_rpc_item *item)
 
 static void cas_req_replied_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
-	struct m0_cas_req *req = container_of(ast, struct m0_cas_req,
-					      ccr_replied_ast);
-	struct m0_cas_op  *op = m0_fop_data(&req->ccr_fop);
-	int                rc;
+	struct m0_cas_req  *req = container_of(ast, struct m0_cas_req,
+					       ccr_replied_ast);
+	struct m0_fop_type *req_fop_type = req->ccr_fop->f_type;
+	bool                assembly_wait = false;
+	bool                fragm_continue;
+	int                 rc;
 
+	req->ccr_reply.cgr_rc = cas_rep(req->ccr_reply_item)->cgr_rc;
 	rc = cas_rep_validate(req);
-	if (rc == 0)
-		if (M0_IN(req->ccr_fop.f_type, (&cas_cur_fopt,
-						&cas_get_fopt)) &&
-			  !fid_is_meta(&op->cg_id.ci_fid)) {
-			cas_req_state_set(req, CASREQ_ASSEMBLY);
-			cas_req_assembly(req);
-		} else {
-			cas_req_state_set(req, CASREQ_FINAL);
+ 	if (rc == 0) {
+		if (M0_IN(req_fop_type, (&cas_cur_fopt, &cas_get_fopt)) &&
+		    !req->ccr_is_meta) {
+			assembly_wait = (req_fop_type == &cas_get_fopt) ?
+				greq_asmbl_post(req) : nreq_asmbl_post(req);
+			if (assembly_wait)
+				cas_req_state_set(req, CASREQ_ASSEMBLY);
 		}
-	else
+		if (!assembly_wait) {
+			rc = cas_req_reply_handle(req, &fragm_continue);
+			if (rc == 0 && !fragm_continue)
+				cas_req_state_set(req, CASREQ_FINAL);
+		}
+	}
+	if (rc != 0)
 		cas_req_failure(req, M0_ERR(rc));
 }
 
@@ -980,8 +1128,8 @@ static void cas_req_replied_cb(struct m0_rpc_item *item)
 		M0_ASSERT(item->ri_reply != NULL);
 		req->ccr_reply_item = item->ri_reply;
 		/*
-		 * Get additional reference to analyse reply in m0_cas_*_rep().
-		 * Will be released on CAS request finalisation.
+		 * Get additional reference to reply item to copy reply buffers
+		 * in replied ast call.
 		 */
 		m0_rpc_item_get(item->ri_reply);
 		req->ccr_replied_ast.sa_cb = cas_req_replied_ast;
@@ -1053,12 +1201,43 @@ static int cas_index_op_prepare(const struct m0_cas_req  *req,
 	return M0_RC(rc);
 }
 
+static int cas_index_req_prepare(struct m0_cas_req       *req,
+				 const struct m0_cas_id  *cids,
+				 uint64_t                 cids_nr,
+				 uint64_t                 max_replies_nr,
+				 bool                     recv_val,
+				 uint32_t                 flags,
+				 struct m0_cas_op       **op)
+{
+	struct m0_cas_recv *reply_recv;
+	int                 rc;
+
+	reply_recv = &req->ccr_reply.cgr_rep;
+	M0_ALLOC_ARR(reply_recv->cr_rec, max_replies_nr);
+	if (reply_recv->cr_rec == NULL)
+		return M0_ERR(-ENOMEM);
+	/* Set to 0 initially, will be increased when reply is received. */
+	reply_recv->cr_nr = 0;
+	req->ccr_max_replies_nr = max_replies_nr;
+	req->ccr_is_meta = true;
+	rc = cas_index_op_prepare(req, cids, cids_nr, recv_val, flags, op);
+	if (rc == 0) {
+		req->ccr_rec_orig = (*op)->cg_rec;
+		req->ccr_req_op = *op;
+	}
+	if (rc != 0) {
+		m0_free(reply_recv->cr_rec);
+		reply_recv->cr_nr = 0;
+		reply_recv->cr_rec = NULL;
+	}
+
+	return M0_RC(rc);
+
+}
+
 M0_INTERNAL uint64_t m0_cas_req_nr(const struct m0_cas_req *req)
 {
-	struct m0_rpc_item *reply = cas_req_to_item(req)->ri_reply;
-	struct m0_cas_rep  *cas_rep = m0_fop_data(m0_rpc_item_to_fop(reply));
-
-	return cas_rep->cgr_rep.cr_nr;
+	return req->ccr_reply.cgr_rep.cr_nr;
 }
 
 M0_INTERNAL int m0_cas_req_wait(struct m0_cas_req *req, uint64_t states,
@@ -1074,18 +1253,22 @@ M0_INTERNAL int m0_cas_index_create(struct m0_cas_req      *req,
 				    uint64_t                cids_nr,
 				    struct m0_dtx          *dtx)
 {
-	struct m0_cas_op *op;
-	int               rc;
+	struct m0_cas_op      *op;
+	enum m0_cas_req_state  next_state;
+	int                    rc;
 
 	M0_ENTRY();
 	M0_PRE(req->ccr_sess != NULL);
 	M0_PRE(m0_cas_req_is_locked(req));
 	M0_PRE(m0_forall(i, cids_nr, m0_cas_id_invariant(&cids[i])));
 	(void)dtx;
-	rc = cas_index_op_prepare(req, cids, cids_nr, false, 0, &op);
+	rc = cas_index_req_prepare(req, cids, cids_nr, cids_nr, false, 0, &op);
+	if (rc != 0)
+		return M0_ERR(rc);
+	rc = creq_fop_create_and_prepare(req, &cas_put_fopt, op, &next_state);
 	if (rc == 0) {
-		creq_fop_init(req, &cas_put_fopt, op);
 		cas_fop_send(req);
+		cas_req_state_set(req, next_state);
 	}
 	return M0_RC(rc);
 }
@@ -1094,8 +1277,7 @@ static void cas_rep_copy(const struct m0_cas_req *req,
 			 uint64_t                 idx,
 			 struct m0_cas_rec_reply *rep)
 {
-	struct m0_rpc_item *item = m0_fop_to_rpc_item(&req->ccr_fop);
-	struct m0_cas_recv *recv = &cas_rep(item->ri_reply)->cgr_rep;
+	const struct m0_cas_recv *recv = &req->ccr_reply.cgr_rep;
 
 	M0_ASSERT(idx < m0_cas_req_nr(req));
 	rep->crr_rc = recv->cr_rec[idx].cr_rc;
@@ -1117,18 +1299,23 @@ M0_INTERNAL int m0_cas_index_delete(struct m0_cas_req      *req,
 				    struct m0_dtx          *dtx,
 				    uint32_t                flags)
 {
-	struct m0_cas_op *op;
-	int               rc;
+	struct m0_cas_op      *op;
+	enum m0_cas_req_state  next_state;
+	int                    rc;
 
 	M0_ENTRY();
 	M0_PRE(req->ccr_sess != NULL);
 	M0_PRE(m0_cas_req_is_locked(req));
 	M0_PRE(m0_forall(i, cids_nr, m0_cas_id_invariant(&cids[i])));
 	(void)dtx;
-	rc = cas_index_op_prepare(req, cids, cids_nr, false, flags, &op);
+	rc = cas_index_req_prepare(req, cids, cids_nr, cids_nr, false, flags,
+				   &op);
+	if (rc != 0)
+		return M0_ERR(rc);
+	rc = creq_fop_create_and_prepare(req, &cas_del_fopt, op, &next_state);
 	if (rc == 0) {
-		creq_fop_init(req, &cas_del_fopt, op);
 		cas_fop_send(req);
+		cas_req_state_set(req, CASREQ_SENT);
 	}
 	return M0_RC(rc);
 }
@@ -1146,17 +1333,21 @@ M0_INTERNAL int m0_cas_index_lookup(struct m0_cas_req      *req,
 				    const struct m0_cas_id *cids,
 				    uint64_t                cids_nr)
 {
-	struct m0_cas_op *op;
-	int               rc;
+	struct m0_cas_op      *op;
+	enum m0_cas_req_state  next_state;
+	int                    rc;
 
 	M0_ENTRY();
 	M0_PRE(req->ccr_sess != NULL);
 	M0_PRE(m0_cas_req_is_locked(req));
 	M0_PRE(m0_forall(i, cids_nr, m0_cas_id_invariant(&cids[i])));
-	rc = cas_index_op_prepare(req, cids, cids_nr, true, 0, &op);
+	rc = cas_index_req_prepare(req, cids, cids_nr, cids_nr, true, 0, &op);
+	if (rc != 0)
+		return M0_ERR(rc);
+	rc = creq_fop_create_and_prepare(req, &cas_get_fopt, op, &next_state);
 	if (rc == 0) {
-		creq_fop_init(req, &cas_get_fopt, op);
 		cas_fop_send(req);
+		cas_req_state_set(req, next_state);
 	}
 	return M0_RC(rc);
 }
@@ -1174,19 +1365,24 @@ M0_INTERNAL int m0_cas_index_list(struct m0_cas_req   *req,
 				  const struct m0_fid *start_fid,
 				  uint32_t             indices_nr)
 {
-	struct m0_cas_op *op;
-	struct m0_cas_id  cid = { .ci_fid = *start_fid };
-	int               rc;
+	struct m0_cas_op      *op;
+	struct m0_cas_id       cid = { .ci_fid = *start_fid };
+	enum m0_cas_req_state  next_state;
+	int                    rc;
 
 	M0_ENTRY();
 	M0_PRE(start_fid != NULL);
 	M0_PRE(req->ccr_sess != NULL);
 	M0_PRE(m0_cas_req_is_locked(req));
-	rc = cas_index_op_prepare(req, &cid, 1, false, 0, &op);
+
+	rc = cas_index_req_prepare(req, &cid, 1, indices_nr, false, 0, &op);
+	if (rc != 0)
+		return M0_ERR(rc);
+	op->cg_rec.cr_rec[0].cr_rc = indices_nr;
+	rc = creq_fop_create_and_prepare(req, &cas_cur_fopt, op, &next_state);
 	if (rc == 0) {
-		op->cg_rec.cr_rec[0].cr_rc = indices_nr;
-		creq_fop_init(req, &cas_cur_fopt, op);
 		cas_fop_send(req);
+		cas_req_state_set(req, next_state);
 	}
 	return M0_RC(rc);
 }
@@ -1220,8 +1416,7 @@ M0_INTERNAL void m0_cas_index_list_rep(struct m0_cas_req         *req,
 				       uint32_t                   idx,
 				       struct m0_cas_ilist_reply *rep)
 {
-	struct m0_rpc_item *item  = m0_fop_to_rpc_item(&req->ccr_fop);
-	struct m0_cas_recv *recv  = &cas_rep(item->ri_reply)->cgr_rep;
+	struct m0_cas_recv *recv = &req->ccr_reply.cgr_rep;
 	struct m0_cas_rec  *rec;
 	struct m0_buf       fid;
 
@@ -1232,10 +1427,70 @@ M0_INTERNAL void m0_cas_index_list_rep(struct m0_cas_req         *req,
 	rep->clr_rc = cas_next_rc(rec->cr_rc) ?:
 		      m0_rpc_at_rep_get(NULL, &rec->cr_key, &fid);
 	if (rep->clr_rc == 0) {
-		rep->clr_fid = *(struct m0_fid*)fid.b_addr;
+		rep->clr_fid = *(struct m0_fid *)fid.b_addr;
 		rep->clr_hint = recv->cr_rec[idx].cr_hint;
 	}
 	M0_LEAVE();
+}
+
+static int cas_req_fragmentation(struct m0_cas_req *req)
+{
+	struct m0_cas_op *op = m0_fop_data(req->ccr_fop);
+	int               rc = 0;
+
+	if (M0_FI_ENABLED("fragm_error"))
+		return -E2BIG;
+
+	M0_PRE(req->ccr_rec_orig.cr_nr != 0 &&
+	       req->ccr_rec_orig.cr_rec != NULL);
+	M0_PRE(req->ccr_sent_recs_nr < req->ccr_rec_orig.cr_nr);
+	/*
+	 * Flush records counter and reset records pointer to the first record
+	 * to be sent.
+	 */
+	op->cg_rec.cr_nr = 0;
+	op->cg_rec.cr_rec = &req->ccr_rec_orig.cr_rec[req->ccr_sent_recs_nr];
+	do {
+		op->cg_rec.cr_nr++;
+		if (m0_rpc_item_max_payload_exceeded(&req->ccr_fop->f_item,
+						     req->ccr_sess)) {
+			/*
+			 * Found the number of records when item payload exceeds
+			 * max rpc item payload, chose previous number of
+			 * records (current - 1) for sending.
+			 */
+			op->cg_rec.cr_nr--;
+			break;
+		}
+	} while (req->ccr_sent_recs_nr + op->cg_rec.cr_nr <
+		 req->ccr_rec_orig.cr_nr);
+	if (op->cg_rec.cr_nr == 0)
+		rc = -E2BIG; /* Almost impossible case. */
+	if (rc != 0)
+		/*
+		 * Restore original records vector in case of error for proper
+		 * finalisation of data structures.
+		 */
+		op->cg_rec = req->ccr_rec_orig;
+
+	return M0_RC(rc);
+}
+
+static int cas_req_fragment_continue(struct m0_cas_req  *req,
+				     struct m0_cas_op   *op)
+{
+	int rc;
+
+	rc = creq_fop_create(req, req->ccr_ftype, op);
+	if (rc != 0)
+		return M0_ERR(rc);
+	rc = cas_req_fragmentation(req);
+	if (rc == 0)
+		cas_fop_send(req);
+	else
+		creq_fop_destroy(req);
+
+	return M0_RC(rc);
 }
 
 static int cas_records_op_prepare(const struct m0_cas_req  *req,
@@ -1278,6 +1533,38 @@ static int cas_records_op_prepare(const struct m0_cas_req  *req,
 	return M0_RC(rc);
 }
 
+static int cas_req_prep(struct m0_cas_req       *req,
+			const struct m0_cas_id  *index,
+			const struct m0_bufvec  *keys,
+			const struct m0_bufvec  *values,
+			uint64_t                 max_replies_nr,
+			uint32_t                 flags,
+			struct m0_cas_op       **op)
+{
+	struct m0_cas_recv *reply_recv;
+	int                 rc;
+
+	reply_recv = &req->ccr_reply.cgr_rep;
+	M0_ALLOC_ARR(reply_recv->cr_rec, max_replies_nr);
+	if (reply_recv->cr_rec == NULL)
+		return M0_ERR(-ENOMEM);
+	/* Set to 0 initially, will be increased when reply is received. */
+	reply_recv->cr_nr = 0;
+	req->ccr_max_replies_nr = max_replies_nr;
+	req->ccr_is_meta = false;
+	rc = cas_records_op_prepare(req, index, keys, values, flags, op);
+	if (rc == 0) {
+		req->ccr_rec_orig = (*op)->cg_rec;
+		req->ccr_req_op = *op;
+	}
+	if (rc != 0) {
+		m0_free(reply_recv->cr_rec);
+		reply_recv->cr_nr = 0;
+		reply_recv->cr_rec = NULL;
+	}
+	return M0_RC(rc);
+}
+
 M0_INTERNAL int m0_cas_put(struct m0_cas_req      *req,
 			   struct m0_cas_id       *index,
 			   const struct m0_bufvec *keys,
@@ -1285,8 +1572,9 @@ M0_INTERNAL int m0_cas_put(struct m0_cas_req      *req,
 			   struct m0_dtx          *dtx,
 			   uint32_t                flags)
 {
-	struct m0_cas_op *op;
-	int               rc;
+	struct m0_cas_op      *op;
+	enum m0_cas_req_state  next_state;
+	int                    rc;
 
 	M0_ENTRY();
 	M0_PRE(keys != NULL);
@@ -1300,10 +1588,14 @@ M0_INTERNAL int m0_cas_put(struct m0_cas_req      *req,
 	M0_PRE(m0_cas_id_invariant(index));
 
 	(void)dtx;
-	rc = cas_records_op_prepare(req, index, keys, values, flags, &op);
+	rc = cas_req_prep(req, index, keys, values, keys->ov_vec.v_nr, flags,
+			  &op);
+	if (rc != 0)
+		return M0_ERR(rc);
+	rc = creq_fop_create_and_prepare(req, &cas_put_fopt, op, &next_state);
 	if (rc == 0) {
-		creq_fop_init(req, &cas_put_fopt, op);
 		cas_fop_send(req);
+		cas_req_state_set(req, next_state);
 	}
 	return M0_RC(rc);
 }
@@ -1313,7 +1605,7 @@ M0_INTERNAL void m0_cas_put_rep(struct m0_cas_req       *req,
 				struct m0_cas_rec_reply *rep)
 {
 	M0_ENTRY();
-	M0_PRE(req->ccr_fop.f_type == &cas_put_fopt);
+	M0_PRE(req->ccr_ftype == &cas_put_fopt);
 	cas_rep_copy(req, idx, rep);
 	M0_LEAVE();
 }
@@ -1322,17 +1614,18 @@ M0_INTERNAL int m0_cas_get(struct m0_cas_req      *req,
 			   struct m0_cas_id       *index,
 			   const struct m0_bufvec *keys)
 {
-	struct m0_cas_op     *op;
-	int                   rc;
-	struct m0_rpc_at_buf *ab;
-	uint32_t              i;
+	struct m0_cas_op      *op;
+	int                    rc;
+	struct m0_rpc_at_buf  *ab;
+	enum m0_cas_req_state  next_state;
+	uint32_t               i;
 
 	M0_ENTRY();
 	M0_PRE(keys != NULL);
 	M0_PRE(m0_cas_req_is_locked(req));
 	M0_PRE(m0_cas_id_invariant(index));
 
-	rc = cas_records_op_prepare(req, index, keys, NULL, 0, &op);
+	rc = cas_req_prep(req, index, keys, NULL, keys->ov_vec.v_nr, 0, &op);
 	if (rc != 0)
 		return M0_ERR(rc);
 	for (i = 0; i < keys->ov_vec.v_nr; i++) {
@@ -1351,8 +1644,10 @@ M0_INTERNAL int m0_cas_get(struct m0_cas_req      *req,
 		creq_op_free(op);
 	} else {
 		req->ccr_keys = keys;
-		creq_fop_init(req, &cas_get_fopt, op);
+		rc = creq_fop_create_and_prepare(req, &cas_get_fopt, op,
+						 &next_state);
 		cas_fop_send(req);
+		cas_req_state_set(req, next_state);
 	}
 	return M0_RC(rc);
 }
@@ -1361,19 +1656,18 @@ M0_INTERNAL void m0_cas_get_rep(const struct m0_cas_req *req,
 				uint64_t                 idx,
 				struct m0_cas_get_reply *rep)
 {
-	struct m0_rpc_item *reply = cas_req_to_item(req)->ri_reply;
-	struct m0_cas_rep  *cas_rep = m0_fop_data(m0_rpc_item_to_fop(reply));
-	struct m0_cas_rec  *sent;
-	struct m0_cas_rec  *rcvd;
+	const struct m0_cas_rep *cas_rep = &req->ccr_reply;
+	struct m0_cas_rec       *sent;
+	struct m0_cas_rec       *rcvd;
 
 	M0_ENTRY();
 	M0_PRE(idx < m0_cas_req_nr(req));
-	M0_PRE(req->ccr_fop.f_type == &cas_get_fopt);
+	M0_PRE(req->ccr_ftype == &cas_get_fopt);
 	rcvd = &cas_rep->cgr_rep.cr_rec[idx];
-	sent = &CASREQ_FOP_DATA(&req->ccr_fop)->cg_rec.cr_rec[idx];
-	rep->cge_rc = rcvd->cr_rc ?:
-		      m0_rpc_at_rep_get(&sent->cr_val, &rcvd->cr_val,
-					  &rep->cge_val);
+	sent = &req->ccr_rec_orig.cr_rec[idx];
+	rep->cge_rc = rcvd->cr_rc;
+	if (rep->cge_rc == 0)
+	      m0_rpc_at_rep_get(&sent->cr_val, &rcvd->cr_val, &rep->cge_val);
 	M0_LEAVE();
 }
 
@@ -1383,10 +1677,12 @@ M0_INTERNAL int m0_cas_next(struct m0_cas_req *req,
 			    uint32_t          *recs_nr,
 			    bool               slant)
 {
-	struct m0_cas_op *op;
-	int               rc;
-	uint32_t          i;
-	uint32_t          flags = 0;
+	struct m0_cas_op      *op;
+	enum m0_cas_req_state  next_state;
+	uint64_t               max_replies_nr = 0;
+	uint32_t               flags = 0;
+	uint32_t               i;
+	int                    rc;
 
 	M0_ENTRY();
 	M0_PRE(start_keys != NULL);
@@ -1396,13 +1692,20 @@ M0_INTERNAL int m0_cas_next(struct m0_cas_req *req,
 	if (slant)
 		flags |= COF_SLANT;
 
-	rc = cas_records_op_prepare(req, index, start_keys, NULL, flags, &op);
+	for (i = 0; i < start_keys->ov_vec.v_nr; i++)
+		max_replies_nr += recs_nr[i];
+	rc = cas_req_prep(req, index, start_keys, NULL, max_replies_nr, flags,
+			  &op);
+	if (rc != 0)
+		return M0_ERR(rc);
+	for (i = 0; i < start_keys->ov_vec.v_nr; i++)
+		op->cg_rec.cr_rec[i].cr_rc = recs_nr[i];
+	req->ccr_keys = start_keys;
+	rc = creq_fop_create_and_prepare(req, &cas_cur_fopt, op,
+					 &next_state);
 	if (rc == 0) {
-		for (i = 0; i < start_keys->ov_vec.v_nr; i++)
-			op->cg_rec.cr_rec[i].cr_rc = recs_nr[i];
-		req->ccr_keys = start_keys;
-		creq_fop_init(req, &cas_cur_fopt, op);
 		cas_fop_send(req);
+		cas_req_state_set(req, next_state);
 	}
 	return M0_RC(rc);
 }
@@ -1410,10 +1713,9 @@ M0_INTERNAL int m0_cas_next(struct m0_cas_req *req,
 M0_INTERNAL void m0_cas_rep_mlock(const struct m0_cas_req *req,
 				  uint64_t                 idx)
 {
-	struct m0_rpc_item *reply = cas_req_to_item(req)->ri_reply;
-	struct m0_cas_rep  *cas_rep = m0_fop_data(m0_rpc_item_to_fop(reply));
+	const struct m0_cas_rep *cas_rep = &req->ccr_reply;
 
-	M0_PRE(M0_IN(req->ccr_fop.f_type, (&cas_get_fopt, &cas_cur_fopt)));
+	M0_PRE(M0_IN(req->ccr_ftype, (&cas_get_fopt, &cas_cur_fopt)));
 	creq_kv_hold_down(&cas_rep->cgr_rep.cr_rec[idx]);
 }
 
@@ -1421,13 +1723,12 @@ M0_INTERNAL void m0_cas_next_rep(const struct m0_cas_req  *req,
 				 uint32_t                  idx,
 				 struct m0_cas_next_reply *rep)
 {
-	struct m0_rpc_item *reply = cas_req_to_item(req)->ri_reply;
-	struct m0_cas_rep  *cas_rep = m0_fop_data(m0_rpc_item_to_fop(reply));
-	struct m0_cas_rec  *rcvd;
+	const struct m0_cas_rep *cas_rep = &req->ccr_reply;
+	struct m0_cas_rec       *rcvd;
 
 	M0_ENTRY();
 	M0_PRE(idx < m0_cas_req_nr(req));
-	M0_PRE(req->ccr_fop.f_type == &cas_cur_fopt);
+	M0_PRE(req->ccr_ftype == &cas_cur_fopt);
 	rcvd = &cas_rep->cgr_rep.cr_rec[idx];
 	rep->cnp_rc = cas_next_rc(rcvd->cr_rc) ?:
 		      m0_rpc_at_rep_get(NULL, &rcvd->cr_key, &rep->cnp_key) ?:
@@ -1439,8 +1740,9 @@ M0_INTERNAL int m0_cas_del(struct m0_cas_req *req,
 			   struct m0_bufvec  *keys,
 			   struct m0_dtx     *dtx)
 {
-	struct m0_cas_op *op;
-	int               rc;
+	struct m0_cas_op      *op;
+	enum m0_cas_req_state  next_state;
+	int                    rc;
 
 	M0_ENTRY();
 	M0_PRE(keys != NULL);
@@ -1448,10 +1750,13 @@ M0_INTERNAL int m0_cas_del(struct m0_cas_req *req,
 	M0_PRE(m0_cas_id_invariant(index));
 
 	(void)dtx;
-	rc = cas_records_op_prepare(req, index, keys, NULL, 0, &op);
+	rc = cas_req_prep(req, index, keys, NULL, keys->ov_vec.v_nr, 0, &op);
+	if (rc != 0)
+		return M0_ERR(rc);
+	rc = creq_fop_create_and_prepare(req, &cas_del_fopt, op, &next_state);
 	if (rc == 0) {
-		creq_fop_init(req, &cas_del_fopt, op);
 		cas_fop_send(req);
+		cas_req_state_set(req, next_state);
 	}
 	return M0_RC(rc);
 }
@@ -1461,7 +1766,7 @@ M0_INTERNAL void m0_cas_del_rep(struct m0_cas_req       *req,
 				struct m0_cas_rec_reply *rep)
 {
 	M0_ENTRY();
-	M0_PRE(req->ccr_fop.f_type == &cas_del_fopt);
+	M0_PRE(req->ccr_ftype == &cas_del_fopt);
 	cas_rep_copy(req, idx, rep);
 	M0_LEAVE();
 }

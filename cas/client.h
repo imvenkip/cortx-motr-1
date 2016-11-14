@@ -107,7 +107,8 @@ struct m0_rpc_session;
 enum m0_cas_req_state {
 	CASREQ_INVALID,
 	CASREQ_INIT,
-	CASREQ_INPROGRESS,
+	CASREQ_SENT,
+	CASREQ_FRAGM_SENT,
 	CASREQ_ASSEMBLY,
 	CASREQ_FINAL,
 	CASREQ_FAILURE,
@@ -126,12 +127,26 @@ struct m0_cas_req {
 	/** RPC session with remote CAS service. */
 	struct m0_rpc_session  *ccr_sess;
 	/** FOP carrying CAS request. */
-	struct m0_fop           ccr_fop;
+	struct m0_fop          *ccr_fop;
 	/**
 	 * FOP to assemble key/values that weren't fit
 	 * in the first server reply.
 	 */
 	struct m0_fop           ccr_asmbl_fop;
+	/** Maximum number of reply records. */
+	uint64_t                ccr_max_replies_nr;
+	/** Pointer to currently executing CAS operation. */
+	struct m0_cas_op       *ccr_req_op;
+	/** Outgoing fop type. */
+	struct m0_fop_type     *ccr_ftype;
+	/** Shows whether operation is done over catalogues. */
+	bool                    ccr_is_meta;
+	/** Final reply. */
+	struct m0_cas_rep       ccr_reply;
+	/** Original vector of records. */
+	struct m0_cas_recv      ccr_rec_orig;
+	/** Number of currently sent records. */
+	uint64_t                ccr_sent_recs_nr;
 	/** RPC reply item. */
 	struct m0_rpc_item     *ccr_reply_item;
 	/** AST to post RPC-related events. */

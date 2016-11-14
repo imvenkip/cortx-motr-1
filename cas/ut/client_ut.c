@@ -1492,6 +1492,211 @@ static void put(void)
 	casc_ut_fini(&casc_ut_sctx, &casc_ut_cctx);
 }
 
+/*
+ * Test fragmented requests.
+ */
+static void recs_fragm(void)
+{
+	struct m0_cas_rec_reply  rep[COUNT];
+	struct m0_cas_get_reply  get_rep[COUNT];
+	struct m0_cas_next_reply next_rep[60];
+	const struct m0_fid      ifid = IFID(2, 3);
+	struct m0_cas_id         index = {};
+	struct m0_bufvec         keys;
+	struct m0_bufvec         values;
+	struct m0_bufvec         start_keys;
+	uint64_t                 rep_count;
+	uint32_t                 recs_nr[20];
+	int                      i;
+	int                      j;
+	int                      k;
+	int                      rc;
+
+	casc_ut_init(&casc_ut_sctx, &casc_ut_cctx);
+	rc = m0_bufvec_alloc(&keys, COUNT, sizeof(uint64_t));
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_bufvec_alloc(&values, COUNT, sizeof(uint64_t));
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(keys.ov_vec.v_nr != 0);
+	M0_UT_ASSERT(keys.ov_vec.v_nr == values.ov_vec.v_nr);
+	m0_forall(i, keys.ov_vec.v_nr, (*(uint64_t*)keys.ov_buf[i]   = i,
+					*(uint64_t*)values.ov_buf[i] = i * i,
+					true));
+
+	M0_SET_ARR0(rep);
+
+	rc = ut_idx_create(&casc_ut_cctx, &ifid, 1, rep);
+	M0_UT_ASSERT(rc == 0);
+	index.ci_fid = ifid;
+
+
+	/* Test fragmented PUT. */
+	m0_fi_enable_once("m0_rpc_item_max_payload_exceeded",
+			  "payload_too_large1");
+	m0_fi_enable_off_n_on_m("m0_rpc_item_max_payload_exceeded",
+				"payload_too_large2",
+				10, 1);
+	//m0_fi_enable_once("cas_req_fragmentation", "fragm_error");
+	rc = ut_rec_put(&casc_ut_cctx, &index, &keys, &values, rep, 0);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(m0_forall(i, COUNT, rep[i].crr_rc == 0));
+	m0_fi_disable("m0_rpc_item_max_payload_exceeded", "payload_too_large2");
+
+
+	/* Test fragmented GET. */
+	M0_SET_ARR0(rep);
+	M0_SET_ARR0(get_rep);
+	m0_fi_enable_once("m0_rpc_item_max_payload_exceeded",
+			  "payload_too_large1");
+	m0_fi_enable_off_n_on_m("m0_rpc_item_max_payload_exceeded",
+				"payload_too_large2",
+				10, 1);
+	rc = ut_rec_get(&casc_ut_cctx, &index, &keys, get_rep);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(m0_forall(i, keys.ov_vec.v_nr,
+		     memcmp(get_rep[i].cge_val.b_addr,
+			    values.ov_buf[i],
+			    values.ov_vec.v_count[i] ) == 0));
+	m0_fi_disable("m0_rpc_item_max_payload_exceeded", "payload_too_large2");
+	ut_get_rep_clear(get_rep, keys.ov_vec.v_nr);
+
+
+	/* Test fragmented NEXT. */
+	M0_SET_ARR0(rep);
+	M0_SET_ARR0(next_rep);
+	rc = m0_bufvec_alloc(&start_keys, 20, keys.ov_vec.v_count[0]);
+	M0_UT_ASSERT(rc == 0);
+	for (i = 0; i < 20; i++) {
+		value_create(start_keys.ov_vec.v_count[i], i,
+			     start_keys.ov_buf[i]);
+		recs_nr[i] = 3;
+	}
+	m0_fi_enable_once("m0_rpc_item_max_payload_exceeded",
+			  "payload_too_large1");
+	m0_fi_enable_off_n_on_m("m0_rpc_item_max_payload_exceeded",
+				"payload_too_large2",
+				10, 1);
+	rc = ut_next_rec(&casc_ut_cctx, &index, &start_keys, recs_nr, next_rep,
+			 &rep_count, false);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(rep_count == 60);
+	M0_UT_ASSERT(m0_forall(i, rep_count, next_rep[i].cnp_rc == 0));
+	m0_fi_disable("m0_rpc_item_max_payload_exceeded", "payload_too_large2");
+
+	k = 0;
+	for (i = 0; i < 20; i++) {
+		for (j = 0; j < 3; j++) {
+			M0_UT_ASSERT(next_rep_equals(&next_rep[k++],
+						     keys.ov_buf[i + j],
+						     values.ov_buf[i + j]));
+		}
+	}
+	ut_next_rep_clear(next_rep, rep_count);
+
+
+	/* Test fragmented DEL. */
+	M0_SET_ARR0(rep);
+	M0_SET_ARR0(get_rep);
+	m0_fi_enable_once("m0_rpc_item_max_payload_exceeded",
+			  "payload_too_large1");
+	m0_fi_enable_off_n_on_m("m0_rpc_item_max_payload_exceeded",
+				"payload_too_large2",
+				10, 1);
+	rc = ut_rec_del(&casc_ut_cctx, &index, &keys, rep);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(m0_forall(i, COUNT, rep[i].crr_rc == 0));
+	m0_fi_disable("m0_rpc_item_max_payload_exceeded", "payload_too_large2");
+
+
+	/* Check selected values - must be empty. */
+	m0_fi_enable_once("m0_rpc_item_max_payload_exceeded",
+			  "payload_too_large1");
+	m0_fi_enable_off_n_on_m("m0_rpc_item_max_payload_exceeded",
+				"payload_too_large2",
+				10, 1);
+	rc = ut_rec_get(&casc_ut_cctx, &index, &keys, get_rep);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(m0_forall(i, COUNT, get_rep[i].cge_rc == -ENOENT));
+	m0_fi_disable("m0_rpc_item_max_payload_exceeded", "payload_too_large2");
+	ut_get_rep_clear(get_rep, COUNT);
+
+
+	/* Remove index. */
+	rc = ut_idx_delete(&casc_ut_cctx, &ifid, 1, rep);
+	M0_UT_ASSERT(rc == 0);
+
+	m0_bufvec_free(&start_keys);
+	m0_bufvec_free(&keys);
+	m0_bufvec_free(&values);
+	casc_ut_fini(&casc_ut_sctx, &casc_ut_cctx);
+}
+
+/*
+ * Test errors during fragmented requests.
+ */
+static void recs_fragm_fail(void)
+{
+	struct m0_cas_rec_reply rep[COUNT];
+	const struct m0_fid     ifids[2] = {IFID(2, 3), IFID(2, 4)};
+	struct m0_cas_id        index = {};
+	struct m0_bufvec        keys;
+	struct m0_bufvec        values;
+	int                     rc;
+
+	casc_ut_init(&casc_ut_sctx, &casc_ut_cctx);
+
+	rc = m0_bufvec_alloc(&keys, COUNT, sizeof(uint64_t));
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_bufvec_alloc(&values, COUNT, sizeof(uint64_t));
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(keys.ov_vec.v_nr != 0);
+	M0_UT_ASSERT(keys.ov_vec.v_nr == values.ov_vec.v_nr);
+	m0_forall(i, keys.ov_vec.v_nr, (*(uint64_t*)keys.ov_buf[i]   = i,
+					*(uint64_t*)values.ov_buf[i] = i * i,
+					true));
+	M0_SET_ARR0(rep);
+
+	/* Create indices. */
+	rc = ut_idx_create(&casc_ut_cctx, ifids, 2, rep);
+	M0_UT_ASSERT(rc == 0);
+
+	index.ci_fid = ifids[0];
+
+	m0_fi_enable_once("m0_rpc_item_max_payload_exceeded",
+			  "payload_too_large1");
+	m0_fi_enable_off_n_on_m("m0_rpc_item_max_payload_exceeded",
+				"payload_too_large2",
+				10, 1);
+	m0_fi_enable_off_n_on_m("cas_req_fragmentation", "fragm_error", 1, 1);
+	rc = ut_rec_put(&casc_ut_cctx, &index, &keys, &values, rep, 0);
+	m0_fi_disable("m0_rpc_item_max_payload_exceeded", "payload_too_large2");
+	m0_fi_disable("cas_req_fragmentation", "fragm_error");
+	M0_UT_ASSERT(rc == -E2BIG);
+
+	M0_SET_ARR0(rep);
+
+	index.ci_fid = ifids[1];
+
+	m0_fi_enable_once("m0_rpc_item_max_payload_exceeded",
+			  "payload_too_large1");
+	m0_fi_enable_off_n_on_m("m0_rpc_item_max_payload_exceeded",
+				"payload_too_large2",
+				10, 1);
+	m0_fi_enable_off_n_on_m("cas_req_replied_cb", "send-failure", 1, 1);
+	rc = ut_rec_put(&casc_ut_cctx, &index, &keys, &values, rep, 0);
+	m0_fi_disable("m0_rpc_item_max_payload_exceeded", "payload_too_large2");
+	m0_fi_disable("cas_req_replied_cb", "send-failure");
+	M0_UT_ASSERT(rc == -ENOTCONN);
+
+	/* Remove indices. */
+	rc = ut_idx_delete(&casc_ut_cctx, ifids, 2, rep);
+	M0_UT_ASSERT(rc == 0);
+
+	m0_bufvec_free(&keys);
+	m0_bufvec_free(&values);
+
+	casc_ut_fini(&casc_ut_sctx, &casc_ut_cctx);
+}
 
 /*
  * Put Large Keys and Values.
@@ -2317,8 +2522,8 @@ static void reply_too_large(void)
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(m0_forall(i, COUNT, rep[i].crr_rc == 0));
 
-	m0_fi_enable_once("m0_rpc_item_max_payload_exceeded",
-			  "payload_too_large");
+	m0_fi_enable_off_n_on_m("m0_rpc_item_max_payload_exceeded",
+				"payload_too_large1", 1, 1);
 	rc = ut_rec_get(&casc_ut_cctx, &index, &keys, get_rep);
 	M0_UT_ASSERT(rc == -E2BIG);
 
@@ -2328,11 +2533,10 @@ static void reply_too_large(void)
 	/* perform next for all records */
 	recs_nr = COUNT;
 	value_create(start_key.ov_vec.v_count[0], 0, start_key.ov_buf[0]);
-	m0_fi_enable_once("m0_rpc_item_max_payload_exceeded",
-			  "payload_too_large");
 	rc = ut_next_rec(&casc_ut_cctx, &index, &start_key, &recs_nr, next_rep,
 			 &rep_count, false);
 	M0_UT_ASSERT(rc == -E2BIG);
+	m0_fi_disable("m0_rpc_item_max_payload_exceeded", "payload_too_large1");
 
 	/* Remove index. */
 	rc = ut_idx_delete(&casc_ut_cctx, &ifid, 1, rep);
@@ -2387,6 +2591,8 @@ struct m0_ut_suite cas_client_ut = {
 		{ "idx-tree-delete-fail",   idx_tree_delete_fail,   "Leonid" },
 		{ "recs-count",             recs_count,             "Leonid" },
 		{ "reply-too-large",        reply_too_large,        "Sergey" },
+		{ "recs-fragm",             recs_fragm,             "Sergey" },
+		{ "recs_fragm_fail",        recs_fragm_fail,        "Sergey" },
 		{ NULL, NULL }
 	}
 };
