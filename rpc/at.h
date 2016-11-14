@@ -108,7 +108,8 @@
  *
  * Client specifies in request the preferred way of buffer transmission: inline
  * or inbulk. For inbulk transmission client allocates incoming net buffer of
- * sufficient size and sends its descriptor in request.
+ * sufficient size and sends its descriptor in request. Client uses empty buffer
+ * (of type M0_RPC_AT_EMPTY) to specify that inline transmission is preferred.
  *
  * Server chooses the way of buffer transmission using the following algorithm:
  * - If inline is requested and is possible (buffer is not too big), than inline
@@ -413,7 +414,6 @@ M0_INTERNAL bool m0_rpc_at_rep_is_bulk(const struct m0_rpc_at_buf *rcvd,
  *
  * AT buffer is considered to be empty if:
  * - Buffer is initialised, but no data is attached (has type M0_RPC_AT_EMPTY).
- * - Buffer has inline type, but the attached buffer is empty.
  * - Buffer is intented for buffer reception.
  * - Buffer has type M0_RPC_AT_BULK_REP, but no bytes were transmitted via bulk.
  */

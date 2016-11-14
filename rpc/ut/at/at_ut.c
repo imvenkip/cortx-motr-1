@@ -244,9 +244,6 @@ static void reqbuf_check(uint32_t test_id, const struct m0_buf *buf, int rc)
 	case AT_TEST_INLINE_RECV:
 	case AT_TEST_INLINE_RECV_UNK:
 	case AT_TEST_INBULK_RECV_UNK:
-		M0_UT_ASSERT(rc == 0);
-		M0_UT_ASSERT(atdata_is_correct(buf, 0));
-		break;
 	case AT_TEST_INBULK_RECV:
 		M0_UT_ASSERT(rc == -EPROTO);
 		break;
@@ -271,7 +268,7 @@ static void load_check(uint32_t test_id, const struct m0_rpc_at_buf *ab,
 	case AT_TEST_INLINE_RECV_UNK:
 	case AT_TEST_INBULK_RECV_UNK:
 		M0_UT_ASSERT(result == M0_FSO_AGAIN);
-		M0_UT_ASSERT(atbuf_check(ab, 0, M0_RPC_AT_INLINE));
+		M0_UT_ASSERT(atbuf_check(ab, 0, M0_RPC_AT_EMPTY));
 		break;
 	case AT_TEST_INBULK_RECV:
 		M0_UT_ASSERT(result == M0_FSO_AGAIN);
@@ -652,7 +649,7 @@ static void inline__recv(uint32_t test_id, uint32_t len)
 	m0_rpc_at_init(ab);
 	rc = m0_rpc_at_recv(ab, client_conn(), len, false);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(ab->ab_type == M0_RPC_AT_INLINE);
+	M0_UT_ASSERT(ab->ab_type == M0_RPC_AT_EMPTY);
 	req_send(req, &rep);
 	M0_UT_ASSERT(rep->arp_rc == 0);
 	M0_UT_ASSERT(m0_rpc_at_is_set(&rep->arp_buf));
@@ -692,7 +689,7 @@ static void inbulk_recv_unk(void)
 	m0_rpc_at_init(ab);
 	rc = m0_rpc_at_recv(ab, client_conn(), M0_RPC_AT_UNKNOWN_LEN, false);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(ab->ab_type == M0_RPC_AT_INLINE);
+	M0_UT_ASSERT(ab->ab_type == M0_RPC_AT_EMPTY);
 	req_send(req, &rep);
 	M0_UT_ASSERT(rep->arp_rc == -ENOMSG);
 	M0_UT_ASSERT(m0_rpc_at_is_set(&rep->arp_buf));

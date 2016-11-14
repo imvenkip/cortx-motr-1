@@ -245,12 +245,6 @@ struct cas_service {
 	struct cas_index       *c_meta;
 };
 
-enum cas_phase_transmit {
-	CAS_PT_KEY = 0,
-	CAS_PT_VAL,
-	CAS_PT_NR
-};
-
 struct cas_fom {
 	struct m0_fom             cf_fom;
 	size_t                    cf_ipos;
@@ -274,7 +268,6 @@ struct cas_fom {
 	struct m0_long_lock_addb2 cf_lock_addb2;
 	struct m0_long_lock_addb2 cf_meta_addb2;
 	/* AT helper fields. */
-	enum cas_phase_transmit   cf_phase_transmit;
 	struct m0_buf             cf_out_key;
 	struct m0_buf             cf_out_val;
 };
@@ -289,11 +282,14 @@ enum cas_fom_phase {
 	CAS_META_LOOKUP_DONE,
 	CAS_LOCK,
 	CAS_PREP,
-	CAS_LOAD,
+	CAS_LOAD_KEY,
+	CAS_LOAD_VAL,
 	CAS_LOAD_DONE,
 	CAS_PREPARE_SEND,
-	CAS_SEND,
-	CAS_SEND_DONE,
+	CAS_SEND_KEY,
+	CAS_KEY_SENT,
+	CAS_SEND_VAL,
+	CAS_VAL_SENT,
 	CAS_NR
 };
 
@@ -335,7 +331,7 @@ static int                  cas_buf    (const struct m0_buf *src,
 static void                 cas_release(struct cas_fom *fom,
 					struct m0_fom *fom0);
 static struct m0_cas_rec   *cas_at     (struct m0_cas_op *op, int idx);
-static struct m0_cas_rec   *cas_out_at (struct m0_cas_rep *rep, int idx);
+static struct m0_cas_rec   *cas_out_at (const struct m0_cas_rep *rep, int idx);
 static bool                 cas_is_ro  (enum cas_opcode opc);
 static enum cas_opcode      cas_opcode (const struct m0_fop *fop);
 static uint64_t             cas_nr     (const struct m0_fop *fop);
@@ -571,10 +567,10 @@ static int cas_load_check(const struct m0_cas_op *op)
  * Returns AT buffer from client request that is used to transmit key/value from
  * server.
  */
-static struct m0_rpc_at_buf *cas_out_complementary(enum cas_opcode    opc,
-						   struct m0_cas_op  *op,
-						   bool               key,
-						   size_t             opos)
+static struct m0_rpc_at_buf *cas_out_complementary(enum cas_opcode         opc,
+						   const struct m0_cas_op *op,
+						   bool                    key,
+						   size_t                  opos)
 {
 	struct m0_rpc_at_buf *ret;
 	struct m0_cas_rec    *rec = NULL;
@@ -613,6 +609,61 @@ static struct m0_rpc_at_buf *cas_out_complementary(enum cas_opcode    opc,
 	return ret;
 }
 
+/**
+ * Fills outgoing key AT buffer for current outgoing record in processing.
+ *
+ * The key buffer usually is not sent over network right here, but just included
+ * into outgoing FOP. If the key is too big to fit into the FOP, then 'inbulk'
+ * AT transmission method comes to play. See cas_at_reply() for more info.
+ *
+ * Current outgoing record in the outgoing FOP is identified by fom->cf_opos
+ * index.
+ */
+static int cas_key_send(struct cas_fom          *fom,
+			const struct m0_cas_op  *op,
+			enum cas_opcode          opc,
+			const struct m0_cas_rep *rep,
+			enum cas_fom_phase       next_phase)
+{
+	struct m0_cas_rec    *orec = cas_out_at(rep, fom->cf_opos);
+	struct m0_rpc_at_buf *in;
+	int                   result;
+
+	M0_ENTRY("fom %p, opc %d, opos %"PRIu64, fom, opc, fom->cf_opos);
+	m0_rpc_at_init(&orec->cr_key);
+	in = cas_out_complementary(opc, op, true, fom->cf_opos);
+	result = cas_at_reply(in,
+			      &orec->cr_key,
+			      &fom->cf_out_key,
+			      &fom->cf_fom,
+			      next_phase);
+	return result;
+}
+
+/**
+ * Similar to cas_key_send(), but fills value AT buffer.
+ */
+static int cas_val_send(struct cas_fom          *fom,
+			const struct m0_cas_op  *op,
+			enum cas_opcode          opc,
+			const struct m0_cas_rep *rep,
+			enum cas_fom_phase       next_phase)
+{
+	struct m0_cas_rec    *orec = cas_out_at(rep, fom->cf_opos);
+	struct m0_rpc_at_buf *in;
+	int                   result;
+
+	M0_ENTRY("fom %p, opc %d, opos %"PRIu64, fom, opc, fom->cf_opos);
+	m0_rpc_at_init(&orec->cr_val);
+	in = cas_out_complementary(opc, op, false, fom->cf_opos);
+	result = cas_at_reply(in,
+			      &orec->cr_val,
+			      &fom->cf_out_val,
+			      &fom->cf_fom,
+			      next_phase);
+	return result;
+}
+
 static int cas_fom_tick(struct m0_fom *fom0)
 {
 	int                 i;
@@ -629,6 +680,7 @@ static int cas_fom_tick(struct m0_fom *fom0)
 	struct cas_service *service = M0_AMB(service,
 					     fom0->fo_service, c_service);
 	struct cas_index   *meta    = service->c_meta;
+	struct m0_cas_rec  *rec;
 
 	M0_PRE(cas_fom_invariant(fom));
 	switch (phase) {
@@ -662,7 +714,7 @@ static int cas_fom_tick(struct m0_fom *fom0)
 	case CAS_START:
 		if (ct == CT_META) {
 			fom->cf_index = meta;
-			m0_fom_phase_set(fom0, CAS_LOAD);
+			m0_fom_phase_set(fom0, CAS_LOAD_KEY);
 		} else
 			m0_fom_phase_set(fom0, CAS_META_LOCK);
 		break;
@@ -693,7 +745,7 @@ static int cas_fom_tick(struct m0_fom *fom0)
 				fom->cf_index = buf.b_addr;
 				cas_index_init(fom->cf_index, cas_seg());
 				cas_release(fom, fom0);
-				m0_fom_phase_set(fom0, CAS_LOAD);
+				m0_fom_phase_set(fom0, CAS_LOAD_KEY);
 				break;
 			} else
 				rc = M0_ERR_INFO(-EPROTO, "Unexpected: %"PRIx64,
@@ -701,39 +753,35 @@ static int cas_fom_tick(struct m0_fom *fom0)
 		}
 		m0_fom_phase_move(fom0, rc, M0_FOPH_FAILURE);
 		break;
-	case CAS_LOAD:
-		M0_ASSERT(fom->cf_phase_transmit < CAS_PT_NR);
-		if (fom->cf_phase_transmit < CAS_PT_VAL)
-			result = cas_at_load(&cas_at(op, pos)->cr_key, fom0,
-					     CAS_LOAD_DONE);
-		else
-			result = cas_at_load(&cas_at(op, pos)->cr_val, fom0,
-					     CAS_LOAD_DONE);
+	case CAS_LOAD_KEY:
+		result = cas_at_load(&cas_at(op, pos)->cr_key, fom0,
+				     CAS_LOAD_VAL);
+		break;
+	case CAS_LOAD_VAL:
+		/*
+		 * Don't check result of key loading here, result codes for all
+		 * keys/values are checked in cas_load_check().
+		 */
+		result = cas_at_load(&cas_at(op, pos)->cr_val, fom0,
+				     CAS_LOAD_DONE);
 		break;
 	case CAS_LOAD_DONE:
-		M0_ASSERT(fom->cf_phase_transmit < CAS_PT_NR);
-		if (fom->cf_phase_transmit < CAS_PT_VAL)
-			/* start load value, key has been loaded. */
-			fom->cf_phase_transmit++;
-		else {
-			/* Key and value are loaded. */
-			fom->cf_ipos++;
-			fom->cf_phase_transmit = CAS_PT_KEY;
-			M0_ASSERT(fom->cf_ipos <= op->cg_rec.cr_nr);
-			/* Do we need to load other keys and values from rec? */
-			if (fom->cf_ipos == op->cg_rec.cr_nr) {
-				fom->cf_ipos = 0;
-				rc = cas_load_check(op);
-				if (rc != 0)
-					m0_fom_phase_move(fom0, M0_ERR(rc),
-							  M0_FOPH_FAILURE);
-				else
-					m0_fom_phase_set(fom0, CAS_LOCK);
-				break;
-			}
+		/* Record key/value are loaded. */
+		fom->cf_ipos++;
+		M0_ASSERT(fom->cf_ipos <= op->cg_rec.cr_nr);
+		/* Do we need to load other keys and values from op? */
+		if (fom->cf_ipos == op->cg_rec.cr_nr) {
+			fom->cf_ipos = 0;
+			rc = cas_load_check(op);
+			if (rc != 0)
+				m0_fom_phase_move(fom0, M0_ERR(rc),
+						  M0_FOPH_FAILURE);
+			else
+				m0_fom_phase_set(fom0, CAS_LOCK);
+			break;
 		}
-		/* load next item*/
-		m0_fom_phase_set(fom0, CAS_LOAD);
+		/* Load next key/value. */
+		m0_fom_phase_set(fom0, CAS_LOAD_KEY);
 		break;
 	case CAS_LOCK:
 		M0_ASSERT(index != NULL);
@@ -741,7 +789,6 @@ static int cas_fom_tick(struct m0_fom *fom0)
 							      !cas_is_ro(opc),
 							      &fom->cf_lock,
 							      CAS_PREP));
-		fom->cf_phase_transmit = CAS_PT_KEY;
 		fom->cf_ipos = 0;
 		if (ct != CT_META)
 			m0_long_read_unlock(&meta->ci_lock, &fom->cf_meta);
@@ -783,48 +830,39 @@ static int cas_fom_tick(struct m0_fom *fom0)
 		break;
 	case CAS_PREPARE_SEND:
 		M0_ASSERT(fom->cf_opos < rep->cgr_rep.cr_nr);
-		rep->cgr_rep.cr_rec[fom->cf_opos].cr_rc =
-				cas_prep_send(fom, opc, ct,
-					      cas_at(op, pos), cas_berc(fom));
-		fom->cf_phase_transmit = CAS_PT_KEY;
-		m0_fom_phase_set(fom0, CAS_SEND);
+		rec = cas_out_at(rep, fom->cf_opos);
+		M0_ASSERT(rec != NULL);
+		rec->cr_rc = cas_prep_send(fom, opc, ct, cas_at(op, pos),
+					   cas_berc(fom));
+		m0_fom_phase_set(fom0, rec->cr_rc == 0 ?
+					CAS_SEND_KEY : CAS_DONE);
 		break;
-	case CAS_SEND:
-		M0_ASSERT(fom->cf_phase_transmit < CAS_PT_NR);
-		if (fom->cf_phase_transmit < CAS_PT_VAL) {
-			struct m0_cas_rec    *orec = cas_out_at(rep,
-					                        fom->cf_opos);
-			struct m0_rpc_at_buf *in;
-
-			m0_rpc_at_init(&orec->cr_key);
-			in = cas_out_complementary(opc, op, true, fom->cf_opos);
-			result = cas_at_reply(in,
-					      &orec->cr_key,
-					      &fom->cf_out_key,
-					      fom0,
-					      CAS_SEND_DONE);
-		} else {
-			struct m0_cas_rec    *orec = cas_out_at(rep,
-								fom->cf_opos);
-			struct m0_rpc_at_buf *in;
-
-			m0_rpc_at_init(&orec->cr_val);
-			in = cas_out_complementary(opc, op, false,
-						   fom->cf_opos);
-			result = cas_at_reply(in,
-					      &orec->cr_val,
-					      &fom->cf_out_val,
-					      fom0,
-					      CAS_SEND_DONE);
-		}
+	case CAS_SEND_KEY:
+		if (opc == CO_CUR)
+			result = cas_key_send(fom, op, opc, rep, CAS_KEY_SENT);
+		else
+			m0_fom_phase_set(fom0, CAS_SEND_VAL);
 		break;
-	case CAS_SEND_DONE:
-		M0_ASSERT(fom->cf_phase_transmit < CAS_PT_NR);
-		if (fom->cf_phase_transmit < CAS_PT_VAL)
-			m0_fom_phase_set(fom0, CAS_SEND);
+	case CAS_KEY_SENT:
+		rec = cas_out_at(rep, fom->cf_opos);
+		rec->cr_rc = m0_rpc_at_reply_rc(&rec->cr_key);
+		/*
+		 * Try to send value even if a key is not sent successfully.
+		 * It's necessary to return proper reply in case if bulk
+		 * transmission is required, but the user sent empty AT buffer.
+		 */
+		m0_fom_phase_set(fom0, CAS_SEND_VAL);
+		break;
+	case CAS_SEND_VAL:
+		if (ct == CT_BTREE && M0_IN(opc, (CO_GET, CO_CUR)))
+			result = cas_val_send(fom, op, opc, rep, CAS_VAL_SENT);
 		else
 			m0_fom_phase_set(fom0, CAS_DONE);
-		fom->cf_phase_transmit++;
+		break;
+	case CAS_VAL_SENT:
+		rec = cas_out_at(rep, fom->cf_opos);
+		rec->cr_rc = m0_rpc_at_reply_rc(&rec->cr_val);
+		m0_fom_phase_set(fom0, CAS_DONE);
 		break;
 	case CAS_DONE:
 		cas_done(fom, op, rep, opc);
@@ -931,7 +969,7 @@ static bool cas_is_valid(enum cas_opcode opc, enum cas_type ct,
 		result = gotkey && (gotval == !meta) && rec->cr_rc == 0;
 		break;
 	case CO_CUR:
-		result = gotkey && !gotval && rec->cr_rc >= 0;
+		result = gotkey && !gotval;
 		break;
 	case CO_REP:
 		result = !gotval == (((int64_t)rec->cr_rc) < 0 || meta);
@@ -985,6 +1023,8 @@ static struct m0_be_op *cas_beop(struct cas_fom *fom)
 
 static int cas_berc(struct cas_fom *fom)
 {
+	if (M0_FI_ENABLED("be-failure"))
+		return M0_ERR(-ENOMEM);
 	return cas_beop(fom)->bo_u.u_btree.t_rc;
 }
 
@@ -1105,7 +1145,7 @@ static struct m0_cas_rec *cas_at(struct m0_cas_op *op, int idx)
 	return &op->cg_rec.cr_rec[idx];
 }
 
-static struct m0_cas_rec *cas_out_at(struct m0_cas_rep *rep, int idx)
+static struct m0_cas_rec *cas_out_at(const struct m0_cas_rep *rep, int idx)
 {
 	M0_PRE(0 <= idx && idx < rep->cgr_rep.cr_nr);
 	return &rep->cgr_rep.cr_rec[idx];
@@ -1229,25 +1269,26 @@ static int cas_done(struct cas_fom *fom, struct m0_cas_op *op,
 {
 	struct m0_cas_rec *rec_out;
 	struct m0_cas_rec *rec;
-	int                rc;
-	int                rc2;
+	int                berc = cas_berc(fom);
 	bool               at_fini = true;
 
 	M0_ASSERT(fom->cf_ipos < op->cg_rec.cr_nr);
 	rec_out = cas_out_at(rep, fom->cf_opos);
 	rec     = cas_at(op, fom->cf_ipos);
-	rc      = rec_out->cr_rc;
 
 	cas_release(fom, &fom->cf_fom);
 	if (opc == CO_CUR) {
-		if (rc == 0 && (rc = ++fom->cf_curpos) < rec->cr_rc) {
+		fom->cf_curpos++;
+		if (rec_out->cr_rc == 0 && berc == 0)
+			rec_out->cr_rc = fom->cf_curpos;
+		if (berc == 0 && fom->cf_curpos < rec->cr_rc) {
 			/* Continue with the same iteration. */
 			--fom->cf_ipos;
 			at_fini = false;
 		} else {
 			/*
-			 * On error, always end the iteration to avoid infinite
-			 * loop.
+			 * On BE error, always end the iteration because the
+			 * iterator is broken.
 			 */
 			m0_be_btree_cursor_put(&fom->cf_cur);
 			fom->cf_curpos = 0;
@@ -1255,13 +1296,6 @@ static int cas_done(struct cas_fom *fom, struct m0_cas_op *op,
 	}
 	++fom->cf_ipos;
 	++fom->cf_opos;
-	if (rc >= 0) {
-		rc2 = m0_rpc_at_reply_rc(&rec_out->cr_key) ?:
-		      m0_rpc_at_reply_rc(&rec_out->cr_val);
-		if (rc2 != 0)
-			rc = rc2;
-	}
-	rec_out->cr_rc = rc;
 	if (at_fini) {
 		/* Finalise input AT buffers. */
 		cas_at_fini(&rec->cr_key);
@@ -1538,7 +1572,7 @@ static const struct m0_fom_type_ops cas_fom_type_ops = {
 static struct m0_sm_state_descr cas_fom_phases[] = {
 	[CAS_START] = {
 		.sd_name      = "start",
-		.sd_allowed   = M0_BITS(CAS_META_LOCK, CAS_LOAD)
+		.sd_allowed   = M0_BITS(CAS_META_LOCK, CAS_LOAD_KEY)
 	},
 	[CAS_META_LOCK] = {
 		.sd_name      = "meta-lock",
@@ -1550,19 +1584,23 @@ static struct m0_sm_state_descr cas_fom_phases[] = {
 	},
 	[CAS_META_LOOKUP_DONE] = {
 		.sd_name      = "meta-lookup-done",
-		.sd_allowed   = M0_BITS(CAS_LOAD, M0_FOPH_FAILURE)
+		.sd_allowed   = M0_BITS(CAS_LOAD_KEY, M0_FOPH_FAILURE)
 	},
 	[CAS_LOCK] = {
 		.sd_name      = "lock",
 		.sd_allowed   = M0_BITS(CAS_PREP)
 	},
-	[CAS_LOAD] = {
-		.sd_name      = "load",
+	[CAS_LOAD_KEY] = {
+		.sd_name      = "load-key",
+		.sd_allowed   = M0_BITS(CAS_LOAD_VAL)
+	},
+	[CAS_LOAD_VAL] = {
+		.sd_name      = "load-value",
 		.sd_allowed   = M0_BITS(CAS_LOAD_DONE)
 	},
 	[CAS_LOAD_DONE] = {
 		.sd_name      = "load-done",
-		.sd_allowed   = M0_BITS(CAS_LOAD, CAS_LOCK)
+		.sd_allowed   = M0_BITS(CAS_LOAD_KEY, CAS_LOCK)
 	},
 	[CAS_PREP] = {
 		.sd_name      = "prep",
@@ -1578,42 +1616,54 @@ static struct m0_sm_state_descr cas_fom_phases[] = {
 	},
 	[CAS_PREPARE_SEND] = {
 		.sd_name      = "prep-send",
-		.sd_allowed   = M0_BITS(CAS_SEND)
+		.sd_allowed   = M0_BITS(CAS_SEND_KEY, CAS_DONE)
 	},
-	[CAS_SEND] = {
-		.sd_name      = "send",
-		.sd_allowed   = M0_BITS(CAS_SEND_DONE)
+	[CAS_SEND_KEY] = {
+		.sd_name      = "send-key",
+		.sd_allowed   = M0_BITS(CAS_KEY_SENT, CAS_SEND_VAL)
 	},
-	[CAS_SEND_DONE] = {
-		.sd_name      = "send-done",
-		.sd_allowed   = M0_BITS(CAS_SEND, CAS_DONE)
+	[CAS_KEY_SENT] = {
+		.sd_name      = "key-sent",
+		.sd_allowed   = M0_BITS(CAS_SEND_VAL)
 	},
-
+	[CAS_SEND_VAL] = {
+		.sd_name      = "send-val",
+		.sd_allowed   = M0_BITS(CAS_VAL_SENT, CAS_DONE)
+	},
+	[CAS_VAL_SENT] = {
+		.sd_name      = "val-sent",
+		.sd_allowed   = M0_BITS(CAS_DONE)
+	},
 };
 
 struct m0_sm_trans_descr cas_fom_trans[] = {
 	[ARRAY_SIZE(m0_generic_phases_trans)] =
 	{ "tx-initialised",       M0_FOPH_TXN_OPEN,     CAS_START },
 	{ "btree-op?",            CAS_START,            CAS_META_LOCK },
-	{ "meta-op?",             CAS_START,            CAS_LOAD },
+	{ "meta-op?",             CAS_START,            CAS_LOAD_KEY },
 	{ "meta-locked",          CAS_META_LOCK,        CAS_META_LOOKUP },
 	{ "meta-lookup-launched", CAS_META_LOOKUP,      CAS_META_LOOKUP_DONE },
 	{ "key-alloc-failure",    CAS_META_LOOKUP,      M0_FOPH_FAILURE },
-	{ "meta-lookup-done",     CAS_META_LOOKUP_DONE, CAS_LOAD },
+	{ "meta-lookup-done",     CAS_META_LOOKUP_DONE, CAS_LOAD_KEY },
 	{ "meta-lookup-fail",     CAS_META_LOOKUP_DONE, M0_FOPH_FAILURE },
 	{ "index-locked",         CAS_LOCK,             CAS_PREP },
-	{ "kv-loaded",            CAS_LOAD,             CAS_LOAD_DONE },
-	{ "key-loaded",           CAS_LOAD_DONE,        CAS_LOAD },
+	{ "key-loaded",           CAS_LOAD_KEY,         CAS_LOAD_VAL },
+	{ "val-loaded",           CAS_LOAD_VAL,         CAS_LOAD_DONE },
+	{ "more-kv-to-load",      CAS_LOAD_DONE,        CAS_LOAD_KEY },
 	{ "load-finished",        CAS_LOAD_DONE,        CAS_LOCK },
 	{ "tx-credit-calculated", CAS_PREP,             M0_FOPH_TXN_OPEN },
 	{ "keys-vals-invalid",    CAS_PREP,             M0_FOPH_FAILURE },
 	{ "all-done?",            CAS_LOOP,             M0_FOPH_SUCCESS },
 	{ "op-launched",          CAS_LOOP,             CAS_PREPARE_SEND },
-	{ "ready-to-send",        CAS_PREPARE_SEND,     CAS_SEND },
-	{ "key-add-reply",        CAS_DONE,             CAS_LOOP },
-	{ "kv-added-reply",       CAS_SEND,             CAS_SEND_DONE },
-	{ "val-add-reply",        CAS_SEND_DONE,        CAS_SEND },
-	{ "next",                 CAS_SEND_DONE,        CAS_DONE },
+	{ "ready-to-send",        CAS_PREPARE_SEND,     CAS_SEND_KEY },
+	{ "prep-error",           CAS_PREPARE_SEND,     CAS_DONE },
+	{ "key-sent",             CAS_SEND_KEY,         CAS_KEY_SENT },
+	{ "skip-key-sending",     CAS_SEND_KEY,         CAS_SEND_VAL },
+	{ "send-val",             CAS_KEY_SENT,         CAS_SEND_VAL },
+	{ "val-sent",             CAS_SEND_VAL,         CAS_VAL_SENT },
+	{ "skip-val-sending",     CAS_SEND_VAL,         CAS_DONE },
+	{ "processing-done",      CAS_VAL_SENT,         CAS_DONE },
+	{ "goto-next-rec",        CAS_DONE,             CAS_LOOP },
 
 	{ "ut-short-cut",         M0_FOPH_QUEUE_REPLY, M0_FOPH_TXN_COMMIT_WAIT }
 };

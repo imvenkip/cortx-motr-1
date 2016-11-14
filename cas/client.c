@@ -49,7 +49,7 @@
  * - Request record (creq_niter::cni_req) containing starting key related to
  *   response record.
  *
- * Usually there are several response records for one request request record.
+ * Usually there are several response records for one request record.
  * See m0_cas_rec::cr_rc for more information about CUR reply format.
  */
 struct creq_niter {

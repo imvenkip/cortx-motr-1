@@ -289,6 +289,20 @@ enum {
 	BANY   = 2
 };
 
+enum {
+	/**
+	 * Record value in request is empty (has 0 bytes length). It is a valid
+	 * value that is acceptable by CAS service.
+	 */
+	EMPTYVAL = 0,
+
+	/**
+	 * AT buffer with record value in request is unset (has M0_RPC_AT_EMPTY
+	 * type).
+	 */
+	NOVAL    = (uint64_t)-1,
+};
+
 static bool rec_check(const struct m0_cas_rec *rec, int rc, int key, int val)
 {
 	return ergo(rc  != BANY, rc == rec->cr_rc) &&
@@ -648,14 +662,17 @@ static void index_op_rc(struct m0_fop_type *ft, struct m0_fid *index,
 			uint64_t key, uint64_t val, uint64_t rc)
 {
 	struct m0_buf no = M0_BUF_INIT(0, NULL);
+
 	fop_submit(ft, index,
 		   (struct m0_cas_rec[]) {
 		   { .cr_key.u.ab_buf = key != 0 ?
 					M0_BUF_INIT(sizeof key, &key) : no,
-		     .cr_key.ab_type = key != 0 ? M0_RPC_AT_INLINE : 0,
-		     .cr_val.u.ab_buf = val != 0 ?
+		     .cr_key.ab_type = key != 0 ? M0_RPC_AT_INLINE :
+						   M0_RPC_AT_EMPTY,
+		     .cr_val.u.ab_buf = !M0_IN(val, (NOVAL, EMPTYVAL)) ?
 					M0_BUF_INIT(sizeof val, &val) : no,
-		     .cr_val.ab_type = val != 0 ? M0_RPC_AT_INLINE : 0,
+		     .cr_val.ab_type = val != NOVAL ? M0_RPC_AT_INLINE :
+						      M0_RPC_AT_EMPTY,
 		     .cr_rc  = rc },
 		   { .cr_rc = ~0ULL } });
 }
@@ -693,7 +710,7 @@ static void insert_lookup(void)
 	M0_UT_ASSERT(rep.cgr_rc == 0);
 	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 1);
 	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
-	index_op(&cas_get_fopt, &ifid, 1, 0);
+	index_op(&cas_get_fopt, &ifid, 1, NOVAL);
 	M0_UT_ASSERT(rep.cgr_rc == 0);
 	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 1);
 	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BSET));
@@ -713,11 +730,11 @@ static void insert_delete(void)
 	meta_submit(&cas_put_fopt, &ifid);
 	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
 	index_op(&cas_put_fopt, &ifid, 1, 2);
-	index_op(&cas_get_fopt, &ifid, 1, 0);
+	index_op(&cas_get_fopt, &ifid, 1, NOVAL);
 	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BSET));
-	index_op(&cas_del_fopt, &ifid, 1, 0);
+	index_op(&cas_del_fopt, &ifid, 1, NOVAL);
 	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
-	index_op(&cas_get_fopt, &ifid, 1, 0);
+	index_op(&cas_get_fopt, &ifid, 1, NOVAL);
 	M0_UT_ASSERT(rep_check(0, -ENOENT, BUNSET, BUNSET));
 	fini();
 }
@@ -731,7 +748,33 @@ static void lookup_none(void)
 	meta_submit(&cas_put_fopt, &ifid);
 	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
 	index_op(&cas_put_fopt, &ifid, 1, 2);
-	index_op(&cas_get_fopt, &ifid, 3, 0);
+	index_op(&cas_get_fopt, &ifid, 3, NOVAL);
+	M0_UT_ASSERT(rep_check(0, -ENOENT, BUNSET, BUNSET));
+	fini();
+}
+
+/**
+ * Test insert, lookup, delete of the record with NULL value.
+ */
+static void empty_value(void)
+{
+	init();
+	meta_submit(&cas_put_fopt, &ifid);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
+	index_op(&cas_put_fopt, &ifid, 1, EMPTYVAL);
+	M0_UT_ASSERT(rep.cgr_rc == 0);
+	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 1);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
+	index_op(&cas_get_fopt, &ifid, 1, NOVAL);
+	M0_UT_ASSERT(rep.cgr_rc == 0);
+	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 1);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BSET));
+	M0_UT_ASSERT(rep.cgr_rep.cr_rec[0].cr_val.u.ab_buf.b_nob == 0);
+	M0_UT_ASSERT(rep.cgr_rep.cr_rec[0].cr_val.u.ab_buf.b_addr == NULL);
+	index_op(&cas_del_fopt, &ifid, 1, NOVAL);
+	M0_UT_ASSERT(rep.cgr_rc == 0);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
+	index_op(&cas_get_fopt, &ifid, 1, NOVAL);
 	M0_UT_ASSERT(rep_check(0, -ENOENT, BUNSET, BUNSET));
 	fini();
 }
@@ -748,7 +791,7 @@ static void insert_2(void)
 	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
 	index_op(&cas_put_fopt, &ifid, 1, 2);
 	M0_UT_ASSERT(rep_check(0, -EEXIST, BUNSET, BUNSET));
-	index_op(&cas_get_fopt, &ifid, 1, 0);
+	index_op(&cas_get_fopt, &ifid, 1, NOVAL);
 	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BSET));
 	fini();
 }
@@ -761,7 +804,7 @@ static void delete_2(void)
 	init();
 	meta_submit(&cas_put_fopt, &ifid);
 	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
-	index_op(&cas_del_fopt, &ifid, 1, 0);
+	index_op(&cas_del_fopt, &ifid, 1, NOVAL);
 	M0_UT_ASSERT(rep_check(0, -ENOENT, BUNSET, BUNSET));
 	fini();
 }
@@ -792,7 +835,7 @@ static void lookup_all(struct m0_fid *index)
 	int i;
 
 	for (i = 1; i < INSERTS; ++i) {
-		index_op(&cas_get_fopt, index, CB(i), 0);
+		index_op(&cas_get_fopt, index, CB(i), NOVAL);
 		if (i & 1) {
 			M0_UT_ASSERT(rep_check(0, 0, BUNSET, BSET));
 			M0_UT_ASSERT(repv[0].cr_val.u.ab_buf.b_nob ==
@@ -859,14 +902,15 @@ static void cur_N(void)
 		int j;
 		int k;
 
-		index_op_rc(&cas_cur_fopt, &ifid, CB(i), 0, INSERTS);
+		index_op_rc(&cas_cur_fopt, &ifid, CB(i), NOVAL, INSERTS);
 		if (!(i & 1)) {
 			M0_UT_ASSERT(rep_check(0, -ENOENT, BUNSET, BUNSET));
 			continue;
 		}
 		for (j = i, k = 0; j < INSERTS; j += 2, ++k) {
 			struct m0_cas_rec *r = &repv[k];
-			struct m0_buf *buf;
+			struct m0_buf     *buf;
+
 			buf = &r->cr_val.u.ab_buf;
 			M0_UT_ASSERT(rep_check(k, k + 1, BSET, BSET));
 			M0_UT_ASSERT(buf->b_nob == sizeof (uint64_t));
@@ -985,7 +1029,7 @@ static void insert_fail(void)
 	meta_submit(&cas_get_fopt, &ifid);
 	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
 	/* Search key, ENOENT. */
-	index_op(&cas_get_fopt, &ifid, 1, 0);
+	index_op(&cas_get_fopt, &ifid, 1, NOVAL);
 	M0_UT_ASSERT(rep.cgr_rc == 0);
 	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 1);
 	M0_UT_ASSERT(rep.cgr_rep.cr_rec[0].cr_rc == -ENOENT);
@@ -1011,11 +1055,11 @@ static void lookup_fail(void)
 	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
 	/* Search key, ENOMEM - fi. */
 	m0_fi_enable_once("cas_buf_get", "cas_alloc_fail");
-	index_op(&cas_get_fopt, &ifid, 1, 0);
+	index_op(&cas_get_fopt, &ifid, 1, NOVAL);
 	M0_UT_ASSERT(rep.cgr_rc == -ENOMEM);
 	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 1);
 	/* Secondary search OK. */
-	index_op(&cas_get_fopt, &ifid, 1, 0);
+	index_op(&cas_get_fopt, &ifid, 1, NOVAL);
 	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BSET));
 	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 1);
 	M0_UT_ASSERT(rep.cgr_rc == 0);
@@ -1038,26 +1082,26 @@ static void delete_fail(void)
 	M0_UT_ASSERT(rep.cgr_rc == 0);
 	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 1);
 	/* Search key OK. */
-	index_op(&cas_get_fopt, &ifid, 1, 0);
+	index_op(&cas_get_fopt, &ifid, 1, NOVAL);
 	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BSET));
 	M0_UT_ASSERT(repv[0].cr_val.u.ab_buf.b_nob == sizeof (uint64_t));
 	M0_UT_ASSERT(*(uint64_t *)repv[0].cr_val.u.ab_buf.b_addr == 2);
 	/* Delete key, ENOMEM - fi. */
 	m0_fi_enable_once("cas_buf_get", "cas_alloc_fail");
-	index_op(&cas_del_fopt, &ifid, 1, 0);
+	index_op(&cas_del_fopt, &ifid, 1, NOVAL);
 	M0_UT_ASSERT(rep.cgr_rc == -ENOMEM);
 	/* Search key OK. */
-	index_op(&cas_get_fopt, &ifid, 1, 0);
+	index_op(&cas_get_fopt, &ifid, 1, NOVAL);
 	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BSET));
 	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 1);
 	M0_UT_ASSERT(rep.cgr_rc == 0);
 	M0_UT_ASSERT(repv[0].cr_val.u.ab_buf.b_nob == sizeof (uint64_t));
 	M0_UT_ASSERT(*(uint64_t *)repv[0].cr_val.u.ab_buf.b_addr == 2);
 	/* Delete key OK. */
-	index_op(&cas_del_fopt, &ifid, 1, 0);
+	index_op(&cas_del_fopt, &ifid, 1, NOVAL);
 	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
 	/* Search key, ENOENT. */
-	index_op(&cas_get_fopt, &ifid, 1, 0);
+	index_op(&cas_get_fopt, &ifid, 1, NOVAL);
 	M0_UT_ASSERT(rep.cgr_rc == 0);
 	M0_UT_ASSERT(rep.cgr_rep.cr_nr == 1);
 	M0_UT_ASSERT(rep.cgr_rep.cr_rec[0].cr_rc == -ENOENT);
@@ -1115,16 +1159,16 @@ static void cur_fail(void)
 				rep.cgr_rep.cr_rec[i].cr_rc == 0));
 	/* Iterate from beginning, -ENOMEM. */
 	m0_fi_enable_once("cas_buf_get", "cas_alloc_fail");
-	index_op_rc(&cas_cur_fopt, &ifid, 1, 0, MULTI_INS);
+	index_op_rc(&cas_cur_fopt, &ifid, 1, NOVAL, MULTI_INS);
 	M0_UT_ASSERT(rep.cgr_rc == -ENOMEM);
 	/*
 	 * Iterate from begining, first - OK, second - fail.
 	 * Service stops request processing after failure, all other reply
 	 * records are empty.
 	 */
-	m0_fi_enable_off_n_on_m("cas_place", "place_fail", 2, 1);
-	index_op_rc(&cas_cur_fopt, &ifid, 1, 0, MULTI_INS);
-	m0_fi_disable("cas_place", "place_fail");
+	m0_fi_enable_off_n_on_m("cas_berc", "be-failure", 2, 1);
+	index_op_rc(&cas_cur_fopt, &ifid, 1, NOVAL, MULTI_INS);
+	m0_fi_disable("cas_berc", "be-failure");
 	M0_UT_ASSERT(rep.cgr_rc == 0);
 	M0_UT_ASSERT(rep.cgr_rep.cr_nr == MULTI_INS);
 	M0_UT_ASSERT(repv[0].cr_rc == 1);
@@ -1398,6 +1442,7 @@ struct m0_ut_suite cas_service_ut = {
 		{ "insert-lookup",           &insert_lookup,         "Nikita" },
 		{ "insert-delete",           &insert_delete,         "Nikita" },
 		{ "lookup-none",             &lookup_none,           "Nikita" },
+		{ "empty-value",             &empty_value,           "Egor"   },
 		{ "insert-2",                &insert_2,              "Nikita" },
 		{ "delete-2",                &delete_2,              "Nikita" },
 		{ "lookup-N",                &lookup_N,              "Nikita" },

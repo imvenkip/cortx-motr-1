@@ -137,7 +137,7 @@ struct m0_cas_rec {
 	 * Should be empty for GET, DEL, CUR requests.
 	 * For PUT request it should be empty if record is inserted in
 	 * meta-index and filled otherwise. If operation is successful then
-	 * replies for GET, CUR have this field set.
+	 * replies for non-meta GET, CUR have this field set.
 	 */
 	struct m0_rpc_at_buf cr_val;
 

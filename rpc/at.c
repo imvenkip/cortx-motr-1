@@ -436,6 +436,7 @@ M0_INTERNAL bool m0_rpc_at_is_set(const struct m0_rpc_at_buf *ab)
 		return false;
 	case M0_RPC_AT_INLINE:
 	case M0_RPC_AT_BULK_SEND:
+		return true;
 	case M0_RPC_AT_BULK_REP:
 		return m0_rpc_at_len(ab) > 0;
 	default:
@@ -453,13 +454,13 @@ M0_INTERNAL int m0_rpc_at_recv(struct m0_rpc_at_buf     *ab,
 	M0_PRE(!m0_rpc_at_is_set(ab));
 	M0_PRE(conn != NULL);
 
-	if (len == M0_RPC_AT_UNKNOWN_LEN ||
-	    len < rpc_at_bulk_cutoff(conn)) {
-		ab->ab_type = M0_RPC_AT_INLINE;
-	} else {
+	if ((len == M0_RPC_AT_UNKNOWN_LEN ||
+	     len < rpc_at_bulk_cutoff(conn)) &&
+	    !force_bulk)
+		ab->ab_type = M0_RPC_AT_EMPTY;
+	else
 		rc = rpc_at_bulk_init(ab, conn) ?:
 		     rpc_at_bulk_crecv(ab, len);
-	}
 	return M0_RC(rc);
 }
 
@@ -482,7 +483,7 @@ M0_INTERNAL int m0_rpc_at_reply(struct m0_rpc_at_buf *in,
 	if (blen < rpc_at_bulk_cutoff(conn)) {
 		if (in != NULL && in->ab_type == M0_RPC_AT_BULK_RECV) {
 			use_bulk = true;
-		} else if (in == NULL || in->ab_type == M0_RPC_AT_INLINE) {
+		} else if (in == NULL || in->ab_type == M0_RPC_AT_EMPTY) {
 			out->ab_type = M0_RPC_AT_INLINE;
 			out->u.ab_buf = *repbuf;
 		} else {
@@ -551,7 +552,7 @@ M0_INTERNAL int m0_rpc_at_rep_get(struct m0_rpc_at_buf *sent,
 	int                 rc = 0;
 
 	M0_PRE(sent == NULL || M0_IN(sent->ab_type,
-				     (M0_RPC_AT_BULK_RECV, M0_RPC_AT_INLINE)));
+				     (M0_RPC_AT_BULK_RECV, M0_RPC_AT_EMPTY)));
 
 	if (!M0_IN(rcvd->ab_type, (M0_RPC_AT_INLINE, M0_RPC_AT_BULK_REP)))
 		return M0_ERR_INFO(-EPROTO, "Incorrect AT type rcvd %u",
