@@ -974,8 +974,8 @@ M0_INTERNAL int m0_rpc_conn_terminate_sync(struct m0_rpc_conn *conn,
 						 M0_RPC_CONN_FAILED),
 				   M0_TIME_NEVER);
 
-	M0_ASSERT(M0_IN(conn_state(conn), (M0_RPC_CONN_TERMINATED,
-					   M0_RPC_CONN_FAILED)));
+	M0_POST(M0_IN(conn_state(conn), (M0_RPC_CONN_TERMINATED,
+					 M0_RPC_CONN_FAILED)));
 	return M0_RC(rc);
 }
 M0_EXPORTED(m0_rpc_conn_terminate_sync);
@@ -1007,7 +1007,7 @@ M0_INTERNAL int m0_rpc_conn_terminate(struct m0_rpc_conn *conn,
 		rc = -ENOMEM;
 		conn_failed(conn, rc);
 		m0_rpc_machine_unlock(machine);
-		return M0_ERR_INFO(rc, "conn_terminate_fop: Memory Allocation");
+		return M0_ERR(rc);
 	}
 	if (conn_state(conn) == M0_RPC_CONN_TERMINATING) {
 		m0_fop_put(fop);
@@ -1027,7 +1027,9 @@ M0_INTERNAL int m0_rpc_conn_terminate(struct m0_rpc_conn *conn,
 		conn_failed(conn, rc);
 		rpc_conn_sessions_cleanup_fail(conn, true);
 		m0_rpc_machine_unlock(machine);
-		return M0_ERR_INFO(rc, "conn_terminate: conn is known dead");
+		return M0_ERR_INFO(rc, "Connection is known to be dead:"
+				   " sender_id=%"PRIu64" svc_fid="FID_F,
+				   conn->c_sender_id, FID_P(&conn->c_svc_fid));
 	}
 
 	session_0 = m0_rpc_conn_session0(conn);
@@ -1048,7 +1050,7 @@ M0_INTERNAL int m0_rpc_conn_terminate(struct m0_rpc_conn *conn,
 		conn_failed(conn, rc);
 
 	m0_fop_put(fop);
-	M0_ASSERT(m0_rpc_conn_invariant(conn));
+	M0_POST(m0_rpc_conn_invariant(conn));
 	M0_POST(ergo(rc != 0, conn_state(conn) == M0_RPC_CONN_FAILED));
 	/*
 	 * CAUTION: Following assertion is not guaranteed as soon as
@@ -1126,8 +1128,10 @@ M0_INTERNAL void m0_rpc_conn_terminate_reply_received(struct m0_rpc_item *item)
 			rc = M0_ERR(-EPROTO);
 	}
 	if (rc != 0)
-		conn_failed(conn, M0_ERR(rc));
-
+		conn_failed(conn, M0_ERR_INFO(rc, "sender_id=%"PRIu64
+					      " svc_fid="FID_F,
+					      conn->c_sender_id,
+					      FID_P(&conn->c_svc_fid)));
 	M0_POST(m0_rpc_conn_invariant(conn));
 	M0_POST(M0_IN(conn_state(conn), (M0_RPC_CONN_TERMINATED,
 					 M0_RPC_CONN_FAILED)));
