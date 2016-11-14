@@ -32,15 +32,23 @@ ls_users() {
 	##     gerrit ls-members mero-core-users --recursive
 	## See https://git.eclipse.org/r/Documentation/cmd-ls-members.html
 	cat <<EOF
-anatoliy.bilenko@seagate.com	abilenko
-andriy.tkachuk@seagate.com	andriy
+abrar.habib@seagate.com
+alexander.vershilov@tweag.io
+alp.mestanogullari@seagate.com
+anatoliy.bilenko@seagate.com	anatoliy
 andy.nimmo@seagate.com
+andriy.tkachuk@seagate.com	andriy
 arjun.hariharan@seagate.com
+arnaud.spiwack@seagate.com
+benjamin.clifford@seagate.com
 bikrant.singh@seagate.com
+bobby.korah@seagate.com
+brian.oki@seagate.com
 david.adair@seagate.com
 dmitriy.chumak@seagate.com	dima.c
 dmytro.podgornyi@seagate.com	dpodgornyi
 egor.nikulenkov@seagate.com
+evgeny.exarevskiy@seagate.com
 facundo.d.laumann@seagate.com
 ganesan.umanesan@seagate.com
 hua.huang@seagate.com	huanghua
@@ -48,28 +56,39 @@ igor.m.perelyotov@seagate.com	igor.perelyotov
 igor.vartanov@seagate.com	ivartanov
 ivan.tishchenko@seagate.com
 james.s.morse@seagate.com
+jean-philippe.bernardy@seagate.com
 john.forgan@seagate.com
 john.suykerbuyk@seagate.com
 juan.gonzalez@seagate.com
 kaustubh.deorukhkar@seagate.com
+leonid.nikulin@seagate.com
 madhav.vemuri@seagate.com	madhav
 mandar.sawant@seagate.com	mandar
 manish.honap@seagate.com
+mateusz.kowalczyk@seagate.com
+mathieu.j.boespflug@seagate.com
 max.medved@seagate.com	max
-mikhail.v.antropov@seagate.com	m.antropov
-mikhail.v.pridushchenko@seagate.com	misha.prid7ko
+mikhail.v.antropov@seagate.com
+mikhail.v.pridushchenko@seagate.com
 nachiket.sahasrabuddhe@seagate.com	nachiket
 nicholas.clarke@seagate.com	nclarke
 nikita.danilov@seagate.com	nikita
-pritam.bhavsar@seagate.com	pritam
+pratik.shinde@seagate.com
+pritam.bhavsar@seagate.com
 rajanikant.chirmade@seagate.com	rajanikant
 rajesh.nambiar@seagate.com
+sergey.shilov@seagate.com
 sergey.vasilyev@seagate.com
 sining.wu@seagate.com
+subhash.arya@seagate.com	subhash.a
+sushant.mane@seagate.com
+tim.pasek@seagate.com
 trupti.patil@seagate.com	trupti
 valery.vorotyntsev@seagate.com	vvv
+vinayak.kale@seagate.com
 vladimir.stepanchenko@seagate.com
 yuriy.umanets@seagate.com	umka
+yves.pares@seagate.com
 EOF
 }
 
@@ -180,6 +199,13 @@ is_owner() {
 
 ### ------------------------------------------------------------------
 ### main
+
+DUPLICATES=$(ls_users | awk '{print $1}' | sort | uniq -d)
+[ -z "$DUPLICATES" ] || {
+    echo "**ERROR** Duplicates found:" >&2
+    echo "$DUPLICATES" | sed 's/^/  /' >&2
+    exit 1
+}
 
 for x in css js; do
 	[ -f vis.$x ] || curl -o vis.$x ${VIS_DIST}/vis.$x
