@@ -846,7 +846,9 @@ static struct dentry *m0t1fs_lookup(struct inode     *dir,
 		if (rc != 0) {
 			make_bad_inode(inode);
 			iput(inode);
-			inode = NULL;
+			m0t1fs_fs_unlock(csb);
+			M0_LEAVE("rc:%d", rc);
+			return NULL;
 		}
 		goto out;
 	}
