@@ -382,12 +382,12 @@ $only_list_disks ||
         "with $ios_num ioservice(s), $info_msg"
 
 [[ -d $etc_mero_dir ]] || {
-    warn "'$etc_mero_dir' doesn't exits, creating.." ;
+    warn "'$etc_mero_dir' doesn't exist, creating.." ;
     mkdir -p "$etc_mero_dir" ;
 }
 
 [[ -d $etc_halon_dir ]] || {
-    warn "'$etc_halon_dir' doesn't exits, creating.." ;
+    warn "'$etc_halon_dir' doesn't exist, creating.." ;
     mkdir -p "$etc_halon_dir" ;
 }
 
