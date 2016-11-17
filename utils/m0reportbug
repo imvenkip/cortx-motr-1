@@ -3,117 +3,7 @@ set -eu
 # set -x
 export PS4='+ [${FUNCNAME[0]:+${FUNCNAME[0]}:}${LINENO}] '
 
-VERSION=0.15.1
-###
-### History:
-###
-### Date       Version Description
-### ---------- ------- ----------------------------------------------------
-### 2016-10-05 0.15.1  Show dependencies of Mero and Halon rpms.
-###
-### 2016-09-06 0.15    More probes: halond -v, rpm -qi halon, systemctl status,
-###                    etc.
-###
-### 2016-08-15 0.14.3  Get /var/log/halon.decision.log.
-###
-### 2016-05-29 0.14.2  Don't query free space of `m0t1fs' and `nfs' mount
-###                    point(s).
-###
-### 2016-04-21 0.14.1  * Add `m0ut' to _path_rpm().
-###                    * Add `lt-m0mkfs' to _path_src().
-###                    * Suppress "No such file" warning for the binaries,
-###                      which are provided by optional rpms.
-###                    * Use "**ERROR**" prefix to make errors noticeable.
-###
-### 2016-04-05 0.14    Collect Halon data: /tmp/halond.log file,
-###                    /var/log/halon-persistence/ directory, m0traces
-###                    from /var/lib/halon/ directory.
-###
-### 2016-03-29 0.13.2  misc_files(): Don't fail if some file is missing.
-###                    `/var/mero/confd/conf.xc', referred to by
-###                    MERO_CONF_XC variable, is not guaranteed to exist.
-###
-### 2016-03-03 0.13.1  Add `lt-m0rwlock' to _path_src().
-###
-### 2016-03-01 0.13    * m0traces(): Collect at least two trace files from
-###                      each of $IN_DIR/m0d-*/ directories.
-###                    * Collect /etc/sysconfig/{m0d,m0t1fs,mero}* files.
-###                    * Collect $IN_DIR/*.{log,xc} files.
-###
-### 2016-02-24 0.12    Collect kernel buffer if possible.
-###
-### 2016-02-04 0.11.1  Warn, don't fail in case of VERSION discrepancy.
-###
-### 2016-02-04 0.11    * Collect /etc/mero/genders.
-###                    * Get stack of `mount' process.
-###
-### 2016-02-02 0.10.2  Add `df -h' probe.
-###
-### 2016-01-27 0.10.1  * _path_src() is able to handle `lt-m0d'.
-###                    * Compare VERSION with that of the topmost History
-###                      entry. Fail if the values differ.
-###
-### 2016-01-19 0.10    Create .tar.gz archive. bzip2 is not always available.
-###
-### 2016-01-05 0.9.2   * Do not collect ADDB data unless `--addb' option
-###                      is provided. (Collection of ADDB data may hang.)
-###                    * Don't tolerate invalid CLI options.
-###                    * Perform optional ADDB collection at the very end
-###                      of the execution.
-###
-### 2015-12-31 0.9.1   [fix] gdb_bt(): Do not call `dirname' without argument.
-###
-### 2015-12-29 0.9     * Collect addb data.
-###                    * Add `journalctl` probe.
-###                    * Do not fetch binaries unless there is a core dump
-###                      or `-b' CLI option is provided.
-###                    * Show duration of slow stages.
-###                    * [bugfix] _path_rpm(): Use proper quotes.
-###
-### 2015-12-24 0.8.1   Do not attach gdb to dd and fio processes.
-###
-### 2015-12-10 0.8     * Require superuser privileges; drop sudo-s.
-###                    * Fetch binaries: libmero.so, m0mkfs, m0d, lt-m0ut, etc.
-###                    * Pack results into .tar.bz2 archive.
-###                    * gdb_bt(): Show `info sharedlibrary'.
-###
-### 2015-12-08 0.7.1   * Core dumps and m0trace files may be not world-readable.
-###                      Run `touch -r' with sudo.
-###                    * Canonicalize $IN_DIR to allow symbolic links.
-###
-### 2015-12-04 0.7     * Use preset paths, different for rpm and non-rpm
-###                      (source) installations.
-###                    * Tolerate the absence of gdb.
-###                    * Collect no more than 20 most recent m0trace files.
-###                    * Limit the size of _compressed_ core dump file,
-###                      not the original file.
-###                    * gdb_bt(): set solib-search-path to obtain meaningful
-###                      backtraces at Jenkins nodes.
-###                    * backtraces_live(): Don't fail if a process disappears.
-###                    * Add `--path' CLI option.
-###
-### 2015-11-25 0.6     * Add more probes.
-###                    * Collect stderr output of probes.
-###                    * Get stacks of `dd' and `fio' processes.
-###                    * Update backtraces_cores() to work on Jenkins nodes.
-###                    * Add `--version' CLI option.
-###                    * [bugfix] backtraces_live(): Make `lt-' prefix optional.
-###
-### 2015-11-15 0.5.1   Specify input directory via CLI argument.
-###
-### 2015-11-03 0.4     * Delete old $OUT_DIR without asking user.
-###                    * Let the packed m0trace files have timestamps
-###                      of original files.
-###                    * [bugfix] Fix the issue of `find_exec' not working
-###                      properly with relative paths.
-###
-### 2015-10-31 0.3     Process raw m0traces with `m0tracedump'.
-###
-### 2015-10-27 0.2     `m0version' calls `m0d -v'.
-###
-### 2015-10-19 0.1     Initial release: system probes, backtraces (running
-###                    lt-m0* processes, core dumps), m0traces.
-###
+VERSION=0.16
 
 IN_DIR=/var/mero # default value; overruled by CLI argument
 OUT_DIR=m0reportbug-data
@@ -137,7 +27,7 @@ main() {
         binaries # will be skipped unless COLLECT_BINARIES_P=1
         m0traces
         addb # Should go after `m0traces' stage (m0addb2dump creates new
-             # m0traces, which we do not want to collect).
+             # m0traces, which we don't want to collect).
     )
 
     [ `id -u` -eq 0 ] || die 'Must be run by superuser'
@@ -212,6 +102,9 @@ probes() {
         'systemctl status -l'
         'systemctl status -l halond'
         'systemctl status -l mero-kernel'
+        'hctl cluster status'
+        'hctl debug eq'
+        'hctl debug cep'
         'find /var/mero'
     )
     for p in "${probes[@]}"; do
@@ -241,7 +134,9 @@ misc_files() {
                 echo $f
                 grep '^MERO_CONF_XC=' $f | cut -d\' -f2 # may produce duplicates
             done | sort -u
-        for f in /var/log/halon.decision.log /tmp/halond.log; do
+        for f in /etc/halon/halon_facts.yaml \
+                 /var/log/halon.decision.log \
+                 /tmp/halond.log; do
             if [ -f $f ]; then echo $f; fi
         done
     } | while read path; do
@@ -468,7 +363,8 @@ backtraces_cores() {
              fi
          }
      done)
-    if [ -d $outdir ]; then
+    if [ -d $outdir ] && ! rmdir $outdir 2>/dev/null; then
+        ## Core dumps were collected. We need to collect binaries.
         COLLECT_BINARIES_P=1
     fi
 }
@@ -536,18 +432,21 @@ _tracedump() {
 }
 
 m0traces() {
-    local outdir path dir
+    local path dir
     local m0trace=$(path m0trace)
+    local m0tracedump=$(path m0tracedump)
+    local outdir=$(readlink -f .)/m0traces
 
-    (outdir=$(readlink -f .)/m0traces
-     mkdir $outdir
+    ## Kernel buffer.
+    if [ -x "$m0trace" ] && lsmod | grep -q '^m0ctl\b'; then
+        mkdir $outdir
+        $m0trace kernel-buf -Y | gzip >$outdir/kernel-buf.yaml.gz
+        echo $outdir/kernel-buf.yaml.gz
+    fi
 
-     ## Kernel buffer.
-     if lsmod | grep -q '^m0ctl\b'; then
-         $m0trace kernel-buf -Y | gzip >$outdir/kernel-buf.yaml.gz
-     fi
+    [ -x "$m0tracedump" ] || return 0 # don't fail
 
-     cd "$IN_DIR"
+    (cd "$IN_DIR"
      {
          find . -type f -name m0trace.\* | last_modified "${M0TRACES_MAX:-}"
          find . -maxdepth 1 -type d -name m0d-\* | while read dir; do
@@ -559,14 +458,11 @@ m0traces() {
      done)
 
     section Halon traces
-    if [ -d /var/lib/halon ]; then
-        (outdir=$(readlink -f .)/m0traces-halon
-         cd /var/lib/halon
-         find . -type f -name m0trace.\* | last_modified "${M0TRACES_MAX:-}" |
-             cut -c3- | while read path; do
-             _tracedump $path $outdir
-         done)
-    fi
+    (cd /var/log
+     find . -maxdepth 1 -type f -name m0trace.\* |
+         last_modified "${M0TRACES_MAX:-}" | cut -c3- | while read path; do
+             _tracedump $path $outdir/var/log
+     done)
 }
 
 addb() {
@@ -653,3 +549,126 @@ optparse() {
 [ $VERSION = "$(grep -A2 '^### Date' $PROG | tail -1 | cut -d' ' -f3)" ] ||
     warn 'VERSION must be updated'
 main "$@"
+exit
+
+###
+### History:
+###
+### Date       Version Description
+### ---------- ------- ----------------------------------------------------
+### 2016-11-17 0.16    * m0traces(): Change location of halond traces to
+###                      /var/log/.
+###                    * If m0trace or m0tracedump is not found, don't try
+###                      to run it.
+###                    * Collect /etc/halon/halon_facts.yaml, if available.
+###                    * New probes: hctl cluster status, hctl debug eq,
+###                      hctl debug cep.
+###                    * Don't leave empty cores/ directory.
+###                    * Collect binaries only if there are core dumps fetched
+###                      or `--binaries' option is provided.
+###
+### 2016-10-05 0.15.1  Show dependencies of Mero and Halon rpms.
+###
+### 2016-09-06 0.15    More probes: halond -v, rpm -qi halon, systemctl status,
+###                    etc.
+###
+### 2016-08-15 0.14.3  Get /var/log/halon.decision.log.
+###
+### 2016-05-29 0.14.2  Don't query free space of `m0t1fs' and `nfs' mount
+###                    point(s).
+###
+### 2016-04-21 0.14.1  * Add `m0ut' to _path_rpm().
+###                    * Add `lt-m0mkfs' to _path_src().
+###                    * Suppress "No such file" warning for the binaries,
+###                      which are provided by optional rpms.
+###                    * Use "**ERROR**" prefix to make errors noticeable.
+###
+### 2016-04-05 0.14    Collect Halon data: /tmp/halond.log file,
+###                    /var/log/halon-persistence/ directory, m0traces
+###                    from /var/lib/halon/ directory.
+###
+### 2016-03-29 0.13.2  misc_files(): Don't fail if some file is missing.
+###                    `/var/mero/confd/conf.xc', referred to by
+###                    MERO_CONF_XC variable, is not guaranteed to exist.
+###
+### 2016-03-03 0.13.1  Add `lt-m0rwlock' to _path_src().
+###
+### 2016-03-01 0.13    * m0traces(): Collect at least two trace files from
+###                      each of $IN_DIR/m0d-*/ directories.
+###                    * Collect /etc/sysconfig/{m0d,m0t1fs,mero}* files.
+###                    * Collect $IN_DIR/*.{log,xc} files.
+###
+### 2016-02-24 0.12    Collect kernel buffer if possible.
+###
+### 2016-02-04 0.11.1  Warn, don't fail in case of VERSION discrepancy.
+###
+### 2016-02-04 0.11    * Collect /etc/mero/genders.
+###                    * Get stack of `mount' process.
+###
+### 2016-02-02 0.10.2  Add `df -h' probe.
+###
+### 2016-01-27 0.10.1  * _path_src() is able to handle `lt-m0d'.
+###                    * Compare VERSION with that of the topmost History
+###                      entry. Fail if the values differ.
+###
+### 2016-01-19 0.10    Create .tar.gz archive. bzip2 is not always available.
+###
+### 2016-01-05 0.9.2   * Do not collect ADDB data unless `--addb' option
+###                      is provided. (Collection of ADDB data may hang.)
+###                    * Don't tolerate invalid CLI options.
+###                    * Perform optional ADDB collection at the very end
+###                      of the execution.
+###
+### 2015-12-31 0.9.1   [fix] gdb_bt(): Do not call `dirname' without argument.
+###
+### 2015-12-29 0.9     * Collect addb data.
+###                    * Add `journalctl' probe.
+###                    * Do not fetch binaries unless there is a core dump
+###                      or `-b' CLI option is provided.
+###                    * Show duration of slow stages.
+###                    * [bugfix] _path_rpm(): Use proper quotes.
+###
+### 2015-12-24 0.8.1   Do not attach gdb to dd and fio processes.
+###
+### 2015-12-10 0.8     * Require superuser privileges; drop sudo-s.
+###                    * Fetch binaries: libmero.so, m0mkfs, m0d, lt-m0ut, etc.
+###                    * Pack results into .tar.bz2 archive.
+###                    * gdb_bt(): Show `info sharedlibrary'.
+###
+### 2015-12-08 0.7.1   * Core dumps and m0trace files may be not world-readable.
+###                      Run `touch -r' with sudo.
+###                    * Canonicalize $IN_DIR to allow symbolic links.
+###
+### 2015-12-04 0.7     * Use preset paths, different for rpm and non-rpm
+###                      (source) installations.
+###                    * Tolerate the absence of gdb.
+###                    * Collect no more than 20 most recent m0trace files.
+###                    * Limit the size of _compressed_ core dump file,
+###                      not the original file.
+###                    * gdb_bt(): set solib-search-path to obtain meaningful
+###                      backtraces at Jenkins nodes.
+###                    * backtraces_live(): Don't fail if a process disappears.
+###                    * Add `--path' CLI option.
+###
+### 2015-11-25 0.6     * Add more probes.
+###                    * Collect stderr output of probes.
+###                    * Get stacks of `dd' and `fio' processes.
+###                    * Update backtraces_cores() to work on Jenkins nodes.
+###                    * Add `--version' CLI option.
+###                    * [bugfix] backtraces_live(): Make `lt-' prefix optional.
+###
+### 2015-11-15 0.5.1   Specify input directory via CLI argument.
+###
+### 2015-11-03 0.4     * Delete old $OUT_DIR without asking user.
+###                    * Let the packed m0trace files have timestamps
+###                      of original files.
+###                    * [bugfix] Fix the issue of `find_exec' not working
+###                      properly with relative paths.
+###
+### 2015-10-31 0.3     Process raw m0traces with `m0tracedump'.
+###
+### 2015-10-27 0.2     `m0version' calls `m0d -v'.
+###
+### 2015-10-19 0.1     Initial release: system probes, backtraces (running
+###                    lt-m0* processes, core dumps), m0traces.
+###
