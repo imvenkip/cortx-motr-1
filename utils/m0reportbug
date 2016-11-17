@@ -3,17 +3,20 @@ set -eu
 # set -x
 export PS4='+ [${FUNCNAME[0]:+${FUNCNAME[0]}:}${LINENO}] '
 
-VERSION=0.18
+VERSION=0.19
 
 IN_DIR=/var/mero # default value; overruled by CLI argument
-OUT_DIR=m0reportbug-data
-OUTPUT=m0reportbug.txt # the file is created in $OUT_DIR/
+OUT_DATA_DIR=m0reportbug-data
+OUT_CORES_DIR=m0reportbug-cores
+OUT_TRACES_DIR=m0reportbug-traces
+REPORT=m0reportbug.txt # the file is created in $OUT_DATA_DIR/
 MERO_PACKAGE_VERSION=1.0.0 # must correspond to `M0_VERSION' in configure.ac
 M0TRACES_MAX=20 # how many most recently modified m0trace files to collect
 M0TRACES_M0D_MAX=2 # additionally, collect that many m0trace files from each
                    # $IN_DIR/m0d-* directory
 ADDB_TAIL=100000 # limit each m0addb2dump output file to that many lines
 STAGE_TIME_LIMIT=10 # seconds; if a stage runs longer, show its duration
+readonly START_DIR=$PWD
 
 umask 0002
 
@@ -39,9 +42,10 @@ main() {
     ## `find -H $IN_DIR` would depend on $PWD if $IN_DIR is a relative path.
     IN_DIR=$(readlink -f $IN_DIR)
 
-    mkcd $OUT_DIR
-    echo m0reportbug $VERSION >$OUTPUT
-    echo IN_DIR=$IN_DIR >>$OUTPUT
+    mkcd $OUT_DATA_DIR
+    echo m0reportbug $VERSION >$REPORT
+    echo IN_DIR=$IN_DIR >>$REPORT
+    echo PWD=$START_DIR >>$REPORT
 
     for g in "${stages[@]}"; do
         case $g in
@@ -53,10 +57,24 @@ main() {
         t=$(date +%s)
         $g
         echo "OK$(_time $t)" >&2
-    done >>$OUTPUT
+    done >>$REPORT
     cd ..
-    tar --remove-files -czf $OUT_DIR.tar.gz $OUT_DIR
-    echo "Please attach $OUT_DIR.tar.gz to the bug report." >&2
+
+    rm -f {$OUT_DATA_DIR,$OUT_CORES_DIR,$OUT_TRACES_DIR}.tar.gz
+    tar --remove-files -czf $OUT_DATA_DIR.tar.gz $OUT_DATA_DIR
+    local files=$OUT_DATA_DIR.tar.gz
+    for t in $OUT_CORES_DIR $OUT_TRACES_DIR; do
+        if [ -d $t ]; then
+            tar --remove-files -czf $t.tar.gz $t
+            files+=":$t.tar.gz"
+        fi
+    done
+    if echo $files | grep -q :; then
+        echo 'Please attach these files to the bug report:' >&2
+        echo $files | sed -e 's/^/  /' -e 's/:/\n  /g' >&2
+    else
+        echo "Please attach $files to the bug report." >&2
+    fi
 }
 
 probes() {
@@ -193,7 +211,7 @@ program_from_core() {
 }
 
 ### Since $0 may be a relative path (e.g., 'utils/m0reportbug'),
-### we might not be able to canonicalize it after cd-ing to $OUT_DIR.
+### we might not be able to canonicalize it after cd-ing to $OUT_DATA_DIR.
 PROG=$(readlink -f $0)
 
 check_package_version() {
@@ -343,7 +361,7 @@ backtraces_live() {
 }
 
 backtraces_cores() {
-    local outdir=cores
+    local outdir=$START_DIR/$OUT_CORES_DIR
     local core
 
     ## Print backtraces.
@@ -356,8 +374,7 @@ backtraces_cores() {
 
     ## Pack core dumps.
     section core dumps
-    (outdir=$(readlink -f .)/$outdir
-     cd "$IN_DIR"
+    (cd "$IN_DIR"
      find . -type f -name core.\* | cut -c3- | while read core; do
          mkdir -p $outdir/$(dirname $core)
          ls -sh $core # print size
@@ -384,6 +401,7 @@ backtraces_cores() {
 }
 
 binaries() {
+    local outdir=$START_DIR/$OUT_CORES_DIR/binaries
     local -r libs=(
         libmero.so
         libmero-xcode-ff2c.so
@@ -392,14 +410,14 @@ binaries() {
     )
     local f s
 
-    mkdir binaries
+    mkdir -p $outdir
     ## Note, that we intentionally skip `m0mero.ko' as it's too big (42M).
     for f in m0mkfs m0d m0ham m0ut ${libs[@]}; do
         s=$(path $f binary)
         if [ -n "$s" ]; then
             ## Strip `.0.0' suffix when copying.
             f=$(basename $s)
-            cp -pv $s binaries/${f%.0.0}
+            cp -pv $s $outdir/${f%.0.0}
             ## RATIONALE: Shared libraries, required by a binary, have
             ## `.0.0' suffix stripped.
             ##
@@ -409,7 +427,7 @@ binaries() {
             ##
             ## By stripping `.0.0' suffixes, we let developers load
             ## shared library symbol files by executing
-            ## `set solib-search-path m0reportbug-data/binaries' GDB command.
+            ## `set solib-search-path m0reportbug-cores/binaries' GDB command.
             ## If the full name of shared library was preserved (e.g.,
             ## `libmero-ut.so.0.0.0'), gdb would not be able to find this
             ## library.
@@ -449,7 +467,7 @@ m0traces() {
     local path dir
     local m0trace=$(path m0trace)
     local m0tracedump=$(path m0tracedump)
-    local outdir=$(readlink -f .)/m0traces
+    local outdir=$START_DIR/$OUT_TRACES_DIR
 
     ## Kernel buffer.
     if [ -x "$m0trace" ] && lsmod | grep -q '^m0ctl\b'; then
@@ -570,6 +588,11 @@ exit
 ###
 ### Date       Version Description
 ### ---------- ------- ----------------------------------------------------
+### 2016-12-21 0.19    Produce 3 output archives:
+###                    - m0reportbug-cores.tar.gz (cores & binaries);
+###                    - m0reportbug-traces.tar.gz (m0traces);
+###                    - m0reportbug-data.tar.gz (main report & other data).
+###
 ### 2016-12-21 0.18    * Add `m0ham' to _path_src(), _path_rpm() and binaries().
 ###                    * Use proper path to libmero.so.
 ###
@@ -679,7 +702,7 @@ exit
 ###
 ### 2015-11-15 0.5.1   Specify input directory via CLI argument.
 ###
-### 2015-11-03 0.4     * Delete old $OUT_DIR without asking user.
+### 2015-11-03 0.4     * Delete old $OUT_DATA_DIR without asking user.
 ###                    * Let the packed m0trace files have timestamps
 ###                      of original files.
 ###                    * [bugfix] Fix the issue of `find_exec' not working
