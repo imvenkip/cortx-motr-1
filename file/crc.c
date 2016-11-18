@@ -64,7 +64,7 @@ static void crc_mktable(void)
 	}
 }
 
-uint32_t crc32(uint32_t crc, unsigned char const *data, m0_bcount_t len)
+static uint32_t crc32(uint32_t crc, unsigned char const *data, m0_bcount_t len)
 {
 	M0_PRE(data != NULL);
 	M0_PRE(len > 0);
