@@ -2907,7 +2907,7 @@ id_racks:
                    bmc_user: "admin"
                    bmc_pass: "admin"
              enc_hosts:
-                 - h_fqdn: "castor-dev1-1-cc1"
+                 - h_fqdn: "castor-dev1-1-cc1.xy01.xyratex.com"
                    h_memsize: 64231.09
                    h_cpucount: 20
                    h_interfaces:
@@ -2929,7 +2929,7 @@ id_racks:
                    bmc_user: "admin"
                    bmc_pass: "admin"
              enc_hosts:
-                 - h_fqdn: "castor-dev1-1-ssu-1-11"
+                 - h_fqdn: "castor-dev1-1-ssu-1-11.xy01.xyratex.com"
                    h_memsize: 64230.46
                    h_cpucount: 20
                    h_interfaces:
@@ -2949,7 +2949,7 @@ id_racks:
                    bmc_user: "admin"
                    bmc_pass: "admin"
              enc_hosts:
-                 - h_fqdn: "castor-dev1-1-ssu-1-3"
+                 - h_fqdn: "castor-dev1-1-ssu-1-3.xy01.xyratex.com"
                    h_memsize: 64230.46
                    h_cpucount: 20
                    h_interfaces:
@@ -2969,7 +2969,7 @@ id_racks:
                    bmc_user: "admin"
                    bmc_pass: "admin"
              enc_hosts:
-                 - h_fqdn: "castor-dev1-1-ssu-1-5"
+                 - h_fqdn: "castor-dev1-1-ssu-1-5.xy01.xyratex.com"
                    h_memsize: 64230.46
                    h_cpucount: 20
                    h_interfaces:
@@ -2989,7 +2989,7 @@ id_racks:
                    bmc_user: "admin"
                    bmc_pass: "admin"
              enc_hosts:
-                 - h_fqdn: "castor-dev1-1-ssu-1-6"
+                 - h_fqdn: "castor-dev1-1-ssu-1-6.xy01.xyratex.com"
                    h_memsize: 64230.46
                    h_cpucount: 20
                    h_interfaces:
@@ -3009,7 +3009,7 @@ id_racks:
                    bmc_user: "admin"
                    bmc_pass: "admin"
              enc_hosts:
-                 - h_fqdn: "castor-dev1-1-ssu-1-8"
+                 - h_fqdn: "castor-dev1-1-ssu-1-8.xy01.xyratex.com"
                    h_memsize: 64230.46
                    h_cpucount: 20
                    h_interfaces:
@@ -3029,7 +3029,7 @@ id_racks:
                    bmc_user: "admin"
                    bmc_pass: "admin"
              enc_hosts:
-                 - h_fqdn: "castor-dev1-1-ssu-1-9"
+                 - h_fqdn: "castor-dev1-1-ssu-1-9.xy01.xyratex.com"
                    h_memsize: 64230.46
                    h_cpucount: 20
                    h_interfaces:
@@ -3041,7 +3041,7 @@ id_racks:
                        if_ipAddrs: [172.18.1.9]
 
 id_m0_servers:
-  - m0h_fqdn: "castor-dev1-1-ssu-1-3"
+  - m0h_fqdn: "castor-dev1-1-ssu-1-3.xy01.xyratex.com"
     host_mem_as: 536870912
     host_mem_rss: 65772544
     host_mem_stack: 65772544
@@ -3466,7 +3466,7 @@ id_m0_servers:
         m0d_bsize: 4096
         m0d_size: 4000787030016
         m0d_path: "/dev/disk/by-id/wwn-0x5000c50078cf7dd6"
-  - m0h_fqdn: "castor-dev1-1-ssu-1-5"
+  - m0h_fqdn: "castor-dev1-1-ssu-1-5.xy01.xyratex.com"
     host_mem_as: 536870912
     host_mem_rss: 65772544
     host_mem_stack: 65772544
@@ -3888,7 +3888,7 @@ id_m0_servers:
         m0d_bsize: 4096
         m0d_size: 4000787030016
         m0d_path: "/dev/disk/by-id/wwn-0x5000c50079272494"
-  - m0h_fqdn: "castor-dev1-1-ssu-1-6"
+  - m0h_fqdn: "castor-dev1-1-ssu-1-6.xy01.xyratex.com"
     host_mem_as: 536870912
     host_mem_rss: 65772544
     host_mem_stack: 65772544
@@ -4310,7 +4310,7 @@ id_m0_servers:
         m0d_bsize: 4096
         m0d_size: 4000787030016
         m0d_path: "/dev/disk/by-id/wwn-0x5000c50078d022b5"
-  - m0h_fqdn: "castor-dev1-1-ssu-1-8"
+  - m0h_fqdn: "castor-dev1-1-ssu-1-8.xy01.xyratex.com"
     host_mem_as: 536870912
     host_mem_rss: 65772544
     host_mem_stack: 65772544
@@ -4732,7 +4732,7 @@ id_m0_servers:
         m0d_bsize: 4096
         m0d_size: 4000787030016
         m0d_path: "/dev/disk/by-id/wwn-0x5000c5007925243d"
-  - m0h_fqdn: "castor-dev1-1-ssu-1-9"
+  - m0h_fqdn: "castor-dev1-1-ssu-1-9.xy01.xyratex.com"
     host_mem_as: 536870912
     host_mem_rss: 65772544
     host_mem_stack: 65772544
@@ -5170,7 +5170,7 @@ EOF
 
 	# this SSU is temporary unused
 	cat << EOF > /dev/null
-  - m0h_fqdn: "castor-dev1-1-ssu-1-11"
+  - m0h_fqdn: "castor-dev1-1-ssu-1-11.xy01.xyratex.com"
     host_mem_as: 536870912
     host_mem_rss: 65772544
     host_mem_stack: 65772544
