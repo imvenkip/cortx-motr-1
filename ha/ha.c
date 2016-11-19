@@ -906,6 +906,8 @@ M0_INTERNAL void m0_ha_process_failed(struct m0_ha        *ha,
 	M0_PRE(m0_fid_tget(process_fid) ==
 	       M0_CONF_PROCESS_TYPE.cot_ftype.ft_id);
 	*/
+	if (m0_fid_eq(process_fid, &ha->h_cfg.hcf_process_fid))
+		M0_LOG(M0_WARN, "disconnecting local link");
 	m0_mutex_lock(&ha->h_lock);
 	m0_tl_for(ha_links, &ha->h_links_incoming, hlx) {
 		if (!m0_fid_eq(process_fid, &hlx->hlx_process_fid))
