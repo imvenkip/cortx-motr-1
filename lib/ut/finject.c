@@ -27,13 +27,38 @@
 
 static const char test_tag[] = "test_fp";
 
+/*
+ * Use this pythoc script to caclulate P_ERROR value if you see
+ * test_enable_random() failure:
+ *
+ * @verbatim
+ * #!/usr/bin/env python
+ *
+ * import math
+ *
+ * def nCr(n,r):
+ * 	f = math.factorial
+ * 	return f(n) / (f(r) * f(n - r))
+ *
+ * P = 40
+ * P_ERROR = 30
+ * TEST_COUNT = 100
+ * p = P / 100.
+ * total = 0.
+ * for r in range(P - P_ERROR, P + P_ERROR):
+ * 	total += nCr(TEST_COUNT, r) * pow(p, r) * pow(1 - p, TEST_COUNT - r)
+ * print 1.0 - total
+ * @endverbatim
+ *
+ * It prints probability of test_enable_random() failure.
+ */
 enum {
 	STATE_DATA_MAGIC = 0xfa57ccd0,
 	TEST_COUNT       = 100,
 	N                = 7,
 	M                = 4,
-	P                = 30,
-	P_ERROR          = 15,
+	P                = 40,
+	P_ERROR          = 30,
 };
 
 typedef bool (*target_func_t)(void);
