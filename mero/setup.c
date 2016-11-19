@@ -115,15 +115,6 @@ M0_TL_DEFINE(ndom, static, struct m0_net_domain);
 static struct m0_bob_type ndom_bob;
 M0_BOB_DEFINE(static, &ndom_bob, m0_net_domain);
 
-static bool reqh_ctx_args_are_valid(const struct m0_reqh_context *rctx)
-{
-	struct m0_mero *cctx = container_of(rctx, struct m0_mero, cc_reqh_ctx);
-
-	return cctx->cc_no_storage || (_0C(rctx->rc_stype  != NULL) &&
-				       _0C(rctx->rc_stpath != NULL) &&
-				       _0C(rctx->rc_bepath != NULL));
-}
-
 static bool reqh_ctx_services_are_valid(const struct m0_reqh_context *rctx)
 {
 	struct m0_mero *cctx = container_of(rctx, struct m0_mero, cc_reqh_ctx);
@@ -1733,11 +1724,14 @@ static int cs_reqh_ctx_validate(struct m0_mero *cctx)
 	struct cs_endpoint_and_xprt *ep;
 	M0_ENTRY();
 
-	if (!reqh_ctx_args_are_valid(rctx))
-		return M0_ERR_INFO(-EINVAL,
-				   "Parameters are missing or invalid\n"
-				   "Failed condition: %s", m0_failed_condition);
-
+	if (!cctx->cc_no_storage) {
+		if (rctx->rc_stype == NULL)
+			return M0_ERR_INFO(-EINVAL, "rc_stype is not set");
+		if (rctx->rc_stpath == NULL)
+			return M0_ERR_INFO(-EINVAL, "rc_stpath is not set");
+		if (rctx->rc_bepath == NULL)
+			return M0_ERR_INFO(-EINVAL, "rc_bepath is not set");
+	}
 	cctx->cc_recv_queue_min_length = max64(cctx->cc_recv_queue_min_length,
 					       M0_NET_TM_RECV_QUEUE_DEF_LEN);
 	rctx->rc_recv_queue_min_length = max64(rctx->rc_recv_queue_min_length,
