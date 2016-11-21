@@ -310,8 +310,9 @@ M0_INTERNAL int m0_sns_reopen_stob_devices(struct m0_cm *cm)
 	return M0_RC(rc);
 }
 
-int rebalance_cob_locate(struct m0_sns_cm *scm, struct m0_cob_domain *cdom,
-		         struct m0_poolmach *pm, const struct m0_fid *cob_fid)
+static int
+rebalance_cob_locate(struct m0_sns_cm *scm, struct m0_cob_domain *cdom,
+                     struct m0_poolmach *pm, const struct m0_fid *cob_fid)
 {
 	return m0_sns_cm_cob_locate(cdom, cob_fid);
 }

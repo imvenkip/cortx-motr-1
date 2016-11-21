@@ -611,7 +611,7 @@ static const struct timespec ioq_timeout_default = {
 	.tv_nsec = 0
 };
 
-unsigned long stob_ioq_timer_cb(unsigned long data)
+static unsigned long stob_ioq_timer_cb(unsigned long data)
 {
 	struct m0_semaphore *stop_sem = (void *)data;
 

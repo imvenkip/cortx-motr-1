@@ -169,8 +169,9 @@ static bool repair_ag_is_relevant(struct m0_sns_cm *scm,
 	return M0_RC(false);
 }
 
-int repair_cob_locate(struct m0_sns_cm *scm, struct m0_cob_domain *cdom,
-		      struct m0_poolmach *pm, const struct m0_fid *cob_fid)
+static int
+repair_cob_locate(struct m0_sns_cm *scm, struct m0_cob_domain *cdom,
+                  struct m0_poolmach *pm, const struct m0_fid *cob_fid)
 {
 	int rc;
 

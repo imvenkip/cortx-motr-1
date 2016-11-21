@@ -318,7 +318,7 @@ M0_INTERNAL void m0_stats_svc_fini(void)
 static int stats_update_fom_create(struct m0_fop  *fop, struct m0_fom **out,
 				   struct m0_reqh *reqh);
 static int stats_update_fom_tick(struct m0_fom *fom);
-void stats_update_fom_fini(struct m0_fom *fom);
+static void stats_update_fom_fini(struct m0_fom *fom);
 static size_t stats_fom_home_locality(const struct m0_fom *fom);
 
 /**
@@ -506,7 +506,7 @@ static int stats_update_fom_tick(struct m0_fom *fom)
 /**
  * Finalise stats update FOM.
  */
-void stats_update_fom_fini(struct m0_fom *fom)
+static void stats_update_fom_fini(struct m0_fom *fom)
 {
 	struct stats_update_fom *ufom;
 

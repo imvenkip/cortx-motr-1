@@ -277,37 +277,37 @@ static void mero_ha_msg_received_cb(struct m0_ha      *ha,
 	m0_ha_delivered(ha, hl, msg);
 }
 
-void mero_ha_msg_is_delivered_cb(struct m0_ha      *ha,
-                                 struct m0_ha_link *hl,
-                                 uint64_t           tag)
+static void mero_ha_msg_is_delivered_cb(struct m0_ha      *ha,
+                                        struct m0_ha_link *hl,
+                                        uint64_t           tag)
 {
 }
 
-void mero_ha_msg_is_not_delivered_cb(struct m0_ha      *ha,
-                                     struct m0_ha_link *hl,
-                                     uint64_t           tag)
+static void mero_ha_msg_is_not_delivered_cb(struct m0_ha      *ha,
+                                            struct m0_ha_link *hl,
+                                            uint64_t           tag)
 {
 }
 
-void mero_ha_link_connected_cb(struct m0_ha            *ha,
-                               const struct m0_uint128 *req_id,
-                               struct m0_ha_link       *hl)
+static void mero_ha_link_connected_cb(struct m0_ha            *ha,
+                                      const struct m0_uint128 *req_id,
+                                      struct m0_ha_link       *hl)
 {
 }
 
-void mero_ha_link_reused_cb(struct m0_ha            *ha,
-                            const struct m0_uint128 *req_id,
-                            struct m0_ha_link       *hl)
+static void mero_ha_link_reused_cb(struct m0_ha            *ha,
+                                   const struct m0_uint128 *req_id,
+                                   struct m0_ha_link       *hl)
 {
 }
 
-void mero_ha_link_is_disconnecting_cb(struct m0_ha      *ha,
-                                      struct m0_ha_link *hl)
+static void mero_ha_link_is_disconnecting_cb(struct m0_ha      *ha,
+                                             struct m0_ha_link *hl)
 {
 	m0_ha_disconnect_incoming(ha, hl);
 }
 
-void mero_ha_link_disconnected_cb(struct m0_ha      *ha,
+static void mero_ha_link_disconnected_cb(struct m0_ha      *ha,
                                   struct m0_ha_link *hl)
 {
 }

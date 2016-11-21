@@ -1218,7 +1218,7 @@ static void ha_link_cb_disconnecting_reused(struct m0_ha_link *hl)
 	         hl, !!cb_disconnecting, !!cb_reused);
 }
 
-void ha_link_outgoing_reconnect_timeout(struct m0_sm_timer *timer)
+static void ha_link_outgoing_reconnect_timeout(struct m0_sm_timer *timer)
 {
 	struct m0_ha_link *hl = container_of(timer, struct m0_ha_link,
 					     hln_reconnect_wait_timer);

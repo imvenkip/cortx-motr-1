@@ -328,7 +328,8 @@ static void outgoing_queue(enum m0_rm_outgoing_type  otype,
 	M0_PRE(owner != NULL);
 
 	if (in != NULL)
-		pin_add(in, &outreq->ou_req.rog_want.rl_credit, M0_RPF_TRACK);
+		m0_rm_pin_add(in, &outreq->ou_req.rog_want.rl_credit,
+			      M0_RPF_TRACK);
 
 	m0_rm_ur_tlist_add(&owner->ro_outgoing[OQS_GROUND],
 			   &outreq->ou_req.rog_want.rl_credit);

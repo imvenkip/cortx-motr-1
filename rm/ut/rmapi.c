@@ -95,7 +95,7 @@ static void credits_api_test (void)
 	/*
 	 * 6. Test m0_rm_credit_get - Success case.
 	 * Indirectly tests owner_balance, incoming_check, incoming_check_with,
-	 * incoming_complete, pin_add.
+	 * incoming_complete, m0_pin_pin_add.
 	 */
 	m0_rm_incoming_init(&rm_test_data.rd_in, rm_test_data.rd_owner,
 			    M0_RIT_LOCAL, RIP_NONE, RIF_LOCAL_WAIT);

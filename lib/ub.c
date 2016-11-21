@@ -94,7 +94,7 @@ static void timeval_diff(const struct timeval *start, const struct timeval *end,
 	timeval_norm(diff);
 }
 
-double delay(const struct timeval *start, const struct timeval *end)
+static double delay(const struct timeval *start, const struct timeval *end)
 {
 	struct timeval diff;
 

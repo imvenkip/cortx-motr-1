@@ -268,8 +268,9 @@ halon_interface_entrypoint_request_cb(struct m0_ha                      *ha,
 	M0_LEAVE();
 }
 
-void halon_interface_entrypoint_replied_cb(struct m0_ha                *ha,
-                                           struct m0_ha_entrypoint_rep *rep)
+static void
+halon_interface_entrypoint_replied_cb(struct m0_ha                *ha,
+                                      struct m0_ha_entrypoint_rep *rep)
 {
 	struct m0_halon_interface_internal *hii = halon_interface_ha2hii(ha);
 
@@ -281,10 +282,10 @@ void halon_interface_entrypoint_replied_cb(struct m0_ha                *ha,
 	M0_LEAVE();
 }
 
-void halon_interface_msg_received_cb(struct m0_ha      *ha,
-                                     struct m0_ha_link *hl,
-                                     struct m0_ha_msg  *msg,
-                                     uint64_t           tag)
+static void halon_interface_msg_received_cb(struct m0_ha      *ha,
+                                            struct m0_ha_link *hl,
+                                            struct m0_ha_msg  *msg,
+                                            uint64_t           tag)
 {
 	struct m0_halon_interface_internal *hii = halon_interface_ha2hii(ha);
 
@@ -301,9 +302,9 @@ void halon_interface_msg_received_cb(struct m0_ha      *ha,
 	M0_LEAVE();
 }
 
-void halon_interface_msg_is_delivered_cb(struct m0_ha      *ha,
-                                         struct m0_ha_link *hl,
-                                         uint64_t           tag)
+static void halon_interface_msg_is_delivered_cb(struct m0_ha      *ha,
+                                                struct m0_ha_link *hl,
+                                                uint64_t           tag)
 {
 	struct m0_halon_interface_internal *hii = halon_interface_ha2hii(ha);
 
@@ -313,9 +314,9 @@ void halon_interface_msg_is_delivered_cb(struct m0_ha      *ha,
 	M0_LEAVE();
 }
 
-void halon_interface_msg_is_not_delivered_cb(struct m0_ha      *ha,
-                                             struct m0_ha_link *hl,
-                                             uint64_t           tag)
+static void halon_interface_msg_is_not_delivered_cb(struct m0_ha      *ha,
+						    struct m0_ha_link *hl,
+						    uint64_t           tag)
 {
 	struct m0_halon_interface_internal *hii = halon_interface_ha2hii(ha);
 
@@ -325,9 +326,9 @@ void halon_interface_msg_is_not_delivered_cb(struct m0_ha      *ha,
 	M0_LEAVE();
 }
 
-void halon_interface_link_connected_cb(struct m0_ha            *ha,
-                                       const struct m0_uint128 *req_id,
-                                       struct m0_ha_link       *hl)
+static void halon_interface_link_connected_cb(struct m0_ha            *ha,
+                                              const struct m0_uint128 *req_id,
+                                              struct m0_ha_link       *hl)
 {
 	struct m0_halon_interface_internal *hii = halon_interface_ha2hii(ha);
 
@@ -337,9 +338,9 @@ void halon_interface_link_connected_cb(struct m0_ha            *ha,
 	M0_LEAVE();
 }
 
-void halon_interface_link_reused_cb(struct m0_ha            *ha,
-                                    const struct m0_uint128 *req_id,
-                                    struct m0_ha_link       *hl)
+static void halon_interface_link_reused_cb(struct m0_ha            *ha,
+                                           const struct m0_uint128 *req_id,
+                                           struct m0_ha_link       *hl)
 {
 	struct m0_halon_interface_internal *hii = halon_interface_ha2hii(ha);
 
@@ -349,8 +350,8 @@ void halon_interface_link_reused_cb(struct m0_ha            *ha,
 	M0_LEAVE();
 }
 
-void halon_interface_link_is_disconnecting_cb(struct m0_ha      *ha,
-                                              struct m0_ha_link *hl)
+static void halon_interface_link_is_disconnecting_cb(struct m0_ha      *ha,
+						     struct m0_ha_link *hl)
 {
 	struct m0_halon_interface_internal *hii = halon_interface_ha2hii(ha);
 
@@ -359,8 +360,8 @@ void halon_interface_link_is_disconnecting_cb(struct m0_ha      *ha,
 	M0_LEAVE();
 }
 
-void halon_interface_link_disconnected_cb(struct m0_ha      *ha,
-                                          struct m0_ha_link *hl)
+static void halon_interface_link_disconnected_cb(struct m0_ha      *ha,
+                                                 struct m0_ha_link *hl)
 {
 	struct m0_halon_interface_internal *hii = halon_interface_ha2hii(ha);
 

@@ -37,7 +37,7 @@
 
 bool m0_console_verbose;
 
-void depth_print(int depth)
+static void depth_print(int depth)
 {
 	static const char ruler[] = "\t\t\t\t\t\t\t\t\t\t";
 	if (m0_console_verbose)
@@ -156,8 +156,8 @@ static struct m0_cons_atom_ops atom_ops[M0_XAT_NR] = {
 	[M0_XAT_U64]  = { u64_get, u64_set, default_show }
 };
 
-void console_xc_atom_process(struct m0_xcode_cursor_frame *top,
-			     enum m0_cons_data_process_type type)
+static void console_xc_atom_process(struct m0_xcode_cursor_frame *top,
+                                    enum m0_cons_data_process_type type)
 {
 	const char                         *name;
 	struct m0_xcode_obj                *cur   = &top->s_obj;

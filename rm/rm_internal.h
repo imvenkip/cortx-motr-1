@@ -63,8 +63,9 @@ struct m0_rm_remote_incoming {
  * Sticks a tracking pin on @credit. When @credit is released, the all incoming
  * requests that stuck pins into it are notified.
  */
-int pin_add(struct m0_rm_incoming *in, struct m0_rm_credit *credit,
-	    uint32_t flag);
+M0_INTERNAL int m0_rm_pin_add(struct m0_rm_incoming *in,
+                              struct m0_rm_credit   *credit,
+                              uint32_t               flags);
 
 /**
  * Check if credit that was granted by remote owner should be reserved by some

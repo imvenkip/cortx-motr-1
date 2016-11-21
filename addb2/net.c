@@ -112,7 +112,7 @@ static bool net_invariant(const struct m0_addb2_net *net);
 static void net_fop_init (struct m0_fop *fop, struct m0_addb2_net *net,
 			  struct m0_addb2_trace *trace);
 
-bool                       src_has_item(const struct m0_rpc_item_source *ris);
+static bool                src_has_item(const struct m0_rpc_item_source *ris);
 static void                src_conn_terminating(struct m0_rpc_item_source *ris);
 static struct m0_rpc_item *src_get_item(struct m0_rpc_item_source *ris,
 					m0_bcount_t size);
@@ -346,7 +346,7 @@ static void net_force(struct m0_addb2_net *net)
  *
  * This is called by rpc after an rpc packet (m0_rpc_packet) is formed.
  */
-bool src_has_item(const struct m0_rpc_item_source *ris)
+static bool src_has_item(const struct m0_rpc_item_source *ris)
 {
 	struct source       *s   = M0_AMB(s, ris, s_src);
 	struct m0_addb2_net *net = s->s_net;

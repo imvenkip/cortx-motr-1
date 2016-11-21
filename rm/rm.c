@@ -1602,13 +1602,6 @@ M0_EXPORTED(m0_rm_revoke_commit);
  */
 /** @{ */
 
-bool same_group(struct m0_rm_owner    *o,
-				 struct m0_rm_incoming *in)
-{
-	return !m0_uint128_eq(&o->ro_group_id, &m0_rm_no_group) &&
-		m0_uint128_eq(&o->ro_group_id, &in->rin_want.cr_group_id);
-}
-
 static bool credit_group_cmp(struct m0_uint128 *g1, struct m0_uint128 *g2)
 {
 	return (m0_uint128_eq(g1, g2) &&
@@ -1772,7 +1765,7 @@ static int cached_credits_hold(struct m0_rm_incoming *in)
 			rc = credit_diff(&rest, held_credit);
 			if (rc != 0)
 				break;
-			pin_add(in, held_credit, M0_RPF_PROTECT);
+			m0_rm_pin_add(in, held_credit, M0_RPF_PROTECT);
 			pin_del(pin);
 		}
 
@@ -2062,7 +2055,7 @@ static int credit_maybe_track(struct m0_rm_incoming *in,
 	M0_PRE(credit_is_reserved(cr) || in->rin_flags & WAIT_TRY_FLAGS);
 
 	if (!(in->rin_flags & RIF_LOCAL_TRY)) {
-		rc = pin_add(in, cr, M0_RPF_TRACK);
+		rc = m0_rm_pin_add(in, cr, M0_RPF_TRACK);
 		if (rc == 0 && notify)
 			conflict_notify(cr);
 		(*wait)++;
@@ -2180,10 +2173,10 @@ static int credit_reservation_check(struct m0_rm_incoming *in,
 			 * to a credit from a single request */
 			pin->rp_flags &= ~M0_RPF_BARRIER;
 			pin->rp_flags |= M0_RPF_TRACK;
-			rc = pin_add(in, cr, M0_RPF_BARRIER);
+			rc = m0_rm_pin_add(in, cr, M0_RPF_BARRIER);
 		}
 	} else if (in->rin_flags & RIF_RESERVE) {
-		rc = pin_add(in, cr, M0_RPF_BARRIER);
+		rc = m0_rm_pin_add(in, cr, M0_RPF_BARRIER);
 	}
 	return M0_RC(rc);
 }
@@ -2261,7 +2254,8 @@ static int incoming_check_with(struct m0_rm_incoming *in,
 			if (rc == 0 && use_credit) {
 				rc = credit_reservation_check(in, r, &wait);
 				if (rc == 0 && wait == 0)
-					rc = pin_add(in, r, M0_RPF_PROTECT);
+					rc = m0_rm_pin_add(in, r,
+							   M0_RPF_PROTECT);
 				rc = rc ?: credit_diff(rest, r);
 			}
 
@@ -2466,7 +2460,8 @@ static int outgoing_check(struct m0_rm_incoming    *in,
 					 * @todo adjust outgoing requests
 					 * priority (priority inheritance)
 					 */
-					rc = pin_add(in, scan, M0_RPF_TRACK) ?:
+					rc = m0_rm_pin_add(in, scan,
+							   M0_RPF_TRACK) ?:
 					     credit_diff(credit, scan);
 					if (rc != 0)
 						return M0_ERR(rc);
@@ -2649,8 +2644,9 @@ M0_INTERNAL int granted_maybe_reserve(struct m0_rm_credit *granted,
 	 */
 	m0_tl_for(pr, &granted->cr_pins, pin) {
 		curr = pin->rp_incoming;
-		rc = pin_add(curr, to_cache,
-			     (curr == best) ? M0_RPF_BARRIER : M0_RPF_TRACK);
+		rc = m0_rm_pin_add(curr, to_cache,
+		                   (curr == best) ?
+				   M0_RPF_BARRIER : M0_RPF_TRACK);
 		if (rc != 0)
 			break;
 	} m0_tl_endfor;
@@ -3066,9 +3062,9 @@ static void pin_del(struct m0_rm_pin *pin)
  * Sticks a tracking pin on credit. When credit is released, the all incoming
  * requests that stuck pins into it are notified.
  */
-int pin_add(struct m0_rm_incoming *in,
-	    struct m0_rm_credit   *credit,
-	    uint32_t               flags)
+M0_INTERNAL int m0_rm_pin_add(struct m0_rm_incoming *in,
+                              struct m0_rm_credit   *credit,
+                              uint32_t               flags)
 {
 	struct m0_rm_pin *pin;
 
