@@ -82,7 +82,7 @@ _sort() { LC_ALL=C sort; }
 _comm() { LC_ALL=C comm "$@"; }
 
 func_list=$(mktemp)
-nm "$libmero" | awk '$2 == "T" && $3 ~ /^m0_.*|tlist/ {print $3}' |
+nm "$libmero" | awk '$2 == "T" {print $3}' |
 	_sort > $func_list
 
 pub_api_sorted=$(mktemp)
