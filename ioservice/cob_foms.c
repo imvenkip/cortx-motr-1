@@ -274,10 +274,6 @@ static void cob_fom_populate(struct m0_fom *fom)
 			  cob_is_md(cfom) ? "MD" : "IO");
 }
 
-/* defined in io_foms.c */
-extern int ios__poolmach_check(struct m0_poolmach *poolmach,
-			       struct m0_poolmach_versions *cliv);
-
 static int cob_fom_pool_version_get(struct m0_fom *fom)
 {
 	struct m0_fom_cob_op     *cob_op;
@@ -324,7 +320,7 @@ static int cob_tick_prepare(struct m0_fom *fom)
 	cob_op = cob_fom_get(fom);
 	/* pool machine check for meta-data cobs is not needed. */
 	rc = cob_is_md(cob_op) ? 0 : cob_fom_pool_version_get(fom) ?:
-	  ios__poolmach_check(&cob_op->fco_pver->pv_mach,
+	  m0_ios__poolmach_check(&cob_op->fco_pver->pv_mach,
 			      (struct m0_poolmach_versions*)&common->c_version);
 
 	if (rc == 0 || rc == M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH) {

@@ -1148,8 +1148,8 @@ static int m0_io_fom_cob_rw_create(struct m0_fop *fop, struct m0_fom **out,
  * Checks client and server pool machine version numbers.
  * Checks target device state for cob fid.
  */
-int ios__poolmach_check(struct m0_poolmach *poolmach,
-			struct m0_poolmach_versions *cliv)
+M0_INTERNAL int m0_ios__poolmach_check(struct m0_poolmach *poolmach,
+                                       struct m0_poolmach_versions *cliv)
 {
 	struct m0_poolmach_versions curr;
 
@@ -1232,7 +1232,7 @@ static int io_prepare(struct m0_fom *fom)
 				 poolmach, poolmach->pm_pver,
 				 rwfop->crw_index,
 				 device_state);
-		rc = ios__poolmach_check(poolmach, cliv);
+		rc = m0_ios__poolmach_check(poolmach, cliv);
 	}
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "pm=(%p:%p device=%d state=%d)",
