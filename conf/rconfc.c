@@ -1239,10 +1239,48 @@ static bool rconfc_herd_link__on_death_cb(struct m0_clink *clink)
 		 */
 		rconfc_herd_link_fini(lnk);
 		/**
-		 * @todo This confd fid removal from cache here is based on the
-		 * assumption that HA never puts a node ever known dead back to
-		 * operational state until cluster shutdown. Should be properly
-		 * handled when the design changes.
+		 * @todo The dead confd fid is removed from cache, and the link
+		 * object gets destroyed. Therefore, no way remains to listen
+		 * for the confd state changes in future. You may be tempted by
+		 * an idea of reviving the link in case the confd is announced
+		 * M0_NC_ONLINE later, but consider the following analysis:
+		 *
+		 * Merits:
+		 *
+		 * The only merit of getting the link online is this may bring
+		 * an additional active list entry into the effect, in case the
+		 * revived confd runs version that was elected previously.
+		 *
+		 * Demerits:
+		 *
+		 * a) The phony object must remain cached, and the herd link
+		 * object must remain in the list during all the rconfc life.
+		 *
+		 * b) Herd link revival is not an instant action. It requires
+		 * the confc to connect, and invoke conf reading in case of
+		 * success. If reading succeeds, the conf version must be
+		 * qualified, and in case it matches with the currently elected
+		 * one, the entry must be finally added to active list. The
+		 * entire routine seems to require an additional state machine
+		 * to be added to herd link. The machine must be reconciled with
+		 * rconfc state machine. This is ultimately to additionally
+		 * complicate the existing rconfc state machine, and do that
+		 * rather seriously. Otherwise, controlling rconfc state while
+		 * having the revival in background may result in unpredictable
+		 * races.
+		 *
+		 * c) There may be several concurrent M0_NC_ONLINE events, or
+		 * state jitters, that in combination with async processing make
+		 * the whole logic be really non-trivial compared to on-death
+		 * processing.
+		 *
+		 * So the merit of having an additional active entry is going to
+		 * be achieved at the cost of over-complicating the existing
+		 * rconfc design and an impact on rconfc code maintainability
+		 * and extensibility. At the same time a simple version
+		 * reelection may achieve the same result at sufficiently lower
+		 * cost, as all the logic of entrypoint re-querying is already
+		 * implemented in the context of MERO-2113,2150.
 		 */
 		lnk->rl_state = CONFC_DEAD;
 	}
