@@ -3,7 +3,7 @@ set -eu
 # set -x
 export PS4='+ [${FUNCNAME[0]:+${FUNCNAME[0]}:}${LINENO}] '
 
-VERSION=0.17
+VERSION=0.18
 
 IN_DIR=/var/mero # default value; overruled by CLI argument
 OUT_DIR=m0reportbug-data
@@ -214,8 +214,9 @@ _path_rpm() {
     case $name in
         m0d|m0mkfs|m0trace|m0tracedump) echo "/usr/bin/$name";;
         m0addb2dump) echo "/usr/sbin/$name";;
-        libmero.so) echo "/usr/lib64/libmero-${MERO_PACKAGE_VERSION}.so";;
+        libmero.so) echo "/usr/lib64/libmero.so.${MERO_PACKAGE_VERSION}";;
         m0mero.ko) echo "/lib/module/$(uname -r)/kernel/fs/mero/$name";;
+        m0ham|lt-m0ham) echo "/usr/sbin/$name";;
         m0ut|lt-m0ut)
             ## Provided by mero-tests-ut-*.rpm (optional).
             echo "?/usr/bin/${name#lt-}";;
@@ -245,8 +246,9 @@ _path_src() {
         m0addb2dump)
             [ -z "$subdir" ] || die "${FUNCNAME[0]}: Unexpected argument"
             echo "$src/addb2/$name";;
-        libmero.so) echo "$src/mero/.libs/libmero-${MERO_PACKAGE_VERSION}.so";;
+        libmero.so) echo "$src/mero/.libs/libmero.so.${MERO_PACKAGE_VERSION}";;
         m0mero.ko) echo "$src/mero/$name";;
+        m0ham|lt-m0ham) echo "$src/ha/.libs/$name";;
         m0ut|lt-m0ut) echo "$src/ut/.libs/$name";;
         libmero-ut.so) echo "$src/ut/.libs/$name.0.0.0";;
         libmero-xcode-ff2c.so) echo "$src/xcode/ff2c/.libs/$name.0.0.0";;
@@ -392,7 +394,7 @@ binaries() {
 
     mkdir binaries
     ## Note, that we intentionally skip `m0mero.ko' as it's too big (42M).
-    for f in m0mkfs m0d m0ut ${libs[@]}; do
+    for f in m0mkfs m0d m0ham m0ut ${libs[@]}; do
         s=$(path $f binary)
         if [ -n "$s" ]; then
             ## Strip `.0.0' suffix when copying.
@@ -568,6 +570,9 @@ exit
 ###
 ### Date       Version Description
 ### ---------- ------- ----------------------------------------------------
+### 2016-12-21 0.18    * Add `m0ham' to _path_src(), _path_rpm() and binaries().
+###                    * Use proper path to libmero.so.
+###
 ### 2016-12-05 0.17    Bump MERO_PACKAGE_VERSION to 1.0.0.
 ###                    check_package_version(): New function.
 ###
