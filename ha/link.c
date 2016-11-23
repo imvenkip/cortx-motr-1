@@ -1273,6 +1273,8 @@ static int ha_link_outgoing_fom_tick(struct m0_fom *fom)
 		m0_fom_phase_set(fom, HA_LINK_OUTGOING_STATE_NOT_CONNECTED);
 		return M0_RC(M0_FSO_AGAIN);
 	case HA_LINK_OUTGOING_STATE_RPC_LINK_FINI:
+		if (m0_sm_timer_is_armed(&hl->hln_reconnect_wait_timer))
+			m0_sm_timer_cancel(&hl->hln_reconnect_wait_timer);
 		m0_rpc_link_fini(&hl->hln_rpc_link);
 		m0_sm_group_lock(&hl->hln_sm_group);
 		m0_sm_state_set(&hl->hln_sm, M0_HA_LINK_STATE_STOP);
