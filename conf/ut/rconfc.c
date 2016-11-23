@@ -392,6 +392,207 @@ static void test_no_rms(void)
 	rconfc_ut_mero_stop(&mach, &rctx);
 }
 
+static void rconfc_ut_ha_state_set(const struct m0_fid *fid, uint32_t state)
+{
+	struct m0_ha_note note = { .no_id = *fid, .no_state = state };
+	struct m0_ha_nvec nvec = { .nv_nr = 1, .nv_note = &note };
+
+	m0_ha_state_set(m0_ha_session_get(), &nvec);
+}
+
+static struct m0_semaphore sem_death;
+
+M0_TL_DESCR_DECLARE(rpc_conn, M0_EXTERN);
+M0_TL_DEFINE(rpc_conn, M0_INTERNAL, struct m0_rpc_conn);
+
+static void _on_death_cb(struct rconfc_link *lnk)
+{
+	M0_UT_ASSERT(lnk->rl_state == CONFC_DEAD);
+	/* herd link confc not connected */
+	M0_UT_ASSERT(lnk->rl_confc.cc_rpc_conn.c_rpc_machine == NULL);
+	/* herd link confc uninitialised */
+	M0_UT_ASSERT(lnk->rl_confc.cc_group == NULL);
+	m0_semaphore_up(&sem_death);
+}
+
+M0_TL_DESCR_DECLARE(rcnf_herd, M0_EXTERN);
+M0_TL_DECLARE(rcnf_herd, M0_INTERNAL, struct rconfc_link);
+
+enum ut_confc_control {
+	UT_CC_KEEP_AS_IS,
+	UT_CC_DISCONNECT,
+	UT_CC_DEINITIALISE,
+};
+
+static void on_death_cb_install(struct m0_rconfc     *rconfc,
+				enum ut_confc_control ctrl)
+{
+	struct rconfc_link *lnk;
+
+	m0_tl_for(rcnf_herd, &rconfc->rc_herd, lnk) {
+		lnk->rl_on_state_cb = _on_death_cb;
+		switch (ctrl) {
+		case UT_CC_KEEP_AS_IS:
+			break;
+		case UT_CC_DISCONNECT:
+			m0_confc_reconnect(&lnk->rl_confc, NULL, NULL);
+			break;
+		case UT_CC_DEINITIALISE:
+			m0_confc_reconnect(&lnk->rl_confc, NULL, NULL);
+			m0_confc_fini(&lnk->rl_confc);
+			break;
+		}
+	} m0_tl_endfor;
+}
+
+/*
+ * The test is to verify rconfc_herd_link__on_death_cb() passage as well as
+ * ability for rconfc to stop while having herd link dead.
+ *
+ * Rconfc gets successfully started with a single confd in conf. Later the confd
+ * is announced M0_NC_FAILED that invokes the corresponding herd link callback.
+ * When notification is successfully processed, rconfc is tested for shutting
+ * down with the herd link being in CONFC_DEAD state.
+ *
+ * As the death notification may arrive when the link's confc can be in any
+ * state, all the states (online, disconnected, finalised) must be tested for
+ * safe going down.
+ */
+static void test_dead_down(void)
+{
+	struct m0_rpc_machine    mach;
+	struct m0_rpc_server_ctx rctx;
+	int                      rc;
+	struct m0_rconfc         rconfc;
+	struct m0_fid            confd_fid = M0_FID_TINIT('s', 1, 6);
+
+	rc = rconfc_ut_mero_start(&mach, &rctx);
+	M0_UT_ASSERT(rc == 0);
+
+	/* 1. Normal case */
+	rconfc_ut_ha_state_set(&confd_fid, M0_NC_ONLINE);
+	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_rconfc_start_sync(&rconfc, &profile);
+	M0_UT_ASSERT(rc == 0);
+	m0_rconfc_lock(&rconfc);
+	on_death_cb_install(&rconfc, UT_CC_KEEP_AS_IS);
+	m0_rconfc_unlock(&rconfc);
+	m0_semaphore_init(&sem_death, 0);
+	rconfc_ut_ha_state_set(&confd_fid, M0_NC_FAILED);
+	m0_semaphore_down(&sem_death);
+	m0_semaphore_fini(&sem_death);
+	m0_rconfc_stop_sync(&rconfc);
+	m0_rconfc_fini(&rconfc);
+
+	/* 2. Notification jitters */
+	rconfc_ut_ha_state_set(&confd_fid, M0_NC_ONLINE);
+	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_rconfc_start_sync(&rconfc, &profile);
+	M0_UT_ASSERT(rc == 0);
+	m0_rconfc_lock(&rconfc);
+	on_death_cb_install(&rconfc, UT_CC_KEEP_AS_IS);
+	m0_rconfc_unlock(&rconfc);
+	m0_semaphore_init(&sem_death, 0);
+	rconfc_ut_ha_state_set(&confd_fid, M0_NC_FAILED); /* legal tap  */
+	rconfc_ut_ha_state_set(&confd_fid, M0_NC_FAILED); /* double tap */
+	m0_semaphore_down(&sem_death);
+	m0_semaphore_fini(&sem_death);
+	m0_rconfc_stop_sync(&rconfc);
+	m0_rconfc_fini(&rconfc);
+
+	/* 3. Deal with already disconnected confc */
+	rconfc_ut_ha_state_set(&confd_fid, M0_NC_ONLINE);
+	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_rconfc_start_sync(&rconfc, &profile);
+	M0_UT_ASSERT(rc == 0);
+	m0_rconfc_lock(&rconfc);
+	on_death_cb_install(&rconfc, UT_CC_DISCONNECT);
+	m0_rconfc_unlock(&rconfc);
+	m0_semaphore_init(&sem_death, 0);
+	rconfc_ut_ha_state_set(&confd_fid, M0_NC_FAILED);
+	m0_semaphore_down(&sem_death);
+	m0_semaphore_fini(&sem_death);
+	m0_rconfc_stop_sync(&rconfc);
+	m0_rconfc_fini(&rconfc);
+
+	/* 4. Deal with already finalised confc */
+	rconfc_ut_ha_state_set(&confd_fid, M0_NC_ONLINE);
+	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_rconfc_start_sync(&rconfc, &profile);
+	M0_UT_ASSERT(rc == 0);
+	m0_rconfc_lock(&rconfc);
+	on_death_cb_install(&rconfc, UT_CC_DEINITIALISE);
+	m0_rconfc_unlock(&rconfc);
+	m0_semaphore_init(&sem_death, 0);
+	rconfc_ut_ha_state_set(&confd_fid, M0_NC_FAILED);
+	m0_semaphore_down(&sem_death);
+	m0_semaphore_fini(&sem_death);
+	m0_rconfc_stop_sync(&rconfc);
+	m0_rconfc_fini(&rconfc);
+
+	/*
+	 * Test error paths in fom tick
+	 *
+	 * 5. Survive from session failure
+	 */
+	rconfc_ut_ha_state_set(&confd_fid, M0_NC_ONLINE);
+	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_rconfc_start_sync(&rconfc, &profile);
+	M0_UT_ASSERT(rc == 0);
+	m0_rconfc_lock(&rconfc);
+	on_death_cb_install(&rconfc, UT_CC_KEEP_AS_IS);
+	m0_rconfc_unlock(&rconfc);
+	m0_semaphore_init(&sem_death, 0);
+	m0_fi_enable("rconfc_link_fom_tick", "sess_fail");
+	rconfc_ut_ha_state_set(&confd_fid, M0_NC_FAILED);
+	m0_semaphore_down(&sem_death);
+	m0_semaphore_fini(&sem_death);
+	m0_rconfc_stop_sync(&rconfc);
+	m0_rconfc_fini(&rconfc);
+
+	/* 6. Survive from connection failure */
+	rconfc_ut_ha_state_set(&confd_fid, M0_NC_ONLINE);
+	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_rconfc_start_sync(&rconfc, &profile);
+	M0_UT_ASSERT(rc == 0);
+	m0_rconfc_lock(&rconfc);
+	on_death_cb_install(&rconfc, UT_CC_KEEP_AS_IS);
+	m0_rconfc_unlock(&rconfc);
+	m0_semaphore_init(&sem_death, 0);
+	m0_fi_enable("rconfc_link_fom_tick", "conn_fail");
+	rconfc_ut_ha_state_set(&confd_fid, M0_NC_FAILED);
+	m0_semaphore_down(&sem_death);
+	m0_semaphore_fini(&sem_death);
+	m0_rconfc_stop_sync(&rconfc);
+	m0_rconfc_fini(&rconfc);
+
+	/* 7. Survive from both session and connection failures */
+	rconfc_ut_ha_state_set(&confd_fid, M0_NC_ONLINE);
+	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_rconfc_start_sync(&rconfc, &profile);
+	M0_UT_ASSERT(rc == 0);
+	m0_rconfc_lock(&rconfc);
+	on_death_cb_install(&rconfc, UT_CC_KEEP_AS_IS);
+	m0_rconfc_unlock(&rconfc);
+	m0_semaphore_init(&sem_death, 0);
+	m0_fi_enable("rconfc_link_fom_tick", "sess_fail");
+	m0_fi_enable("rconfc_link_fom_tick", "conn_fail");
+	rconfc_ut_ha_state_set(&confd_fid, M0_NC_FAILED);
+	m0_semaphore_down(&sem_death);
+	m0_semaphore_fini(&sem_death);
+	m0_rconfc_stop_sync(&rconfc);
+	m0_rconfc_fini(&rconfc);
+
+	rconfc_ut_mero_stop(&mach, &rctx);
+}
+
 static void test_reading(void)
 {
 	struct m0_rpc_machine    mach;
@@ -1018,6 +1219,7 @@ struct m0_ut_suite rconfc_ut = {
 		{ "fail-abort", test_fail_abort },
 		{ "fail-retry", test_fail_retry },
 		{ "no-rms",     test_no_rms },
+		{ "dead-down",  test_dead_down },
 		{ "reading",    test_reading },
 		{ "impossible", test_quorum_impossible },
 		{ "quorum-retry",test_quorum_retry },

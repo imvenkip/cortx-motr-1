@@ -24,6 +24,7 @@
 #define __MERO_CONF_RCONFC_INTERNAL_H__
 
 #include "fid/fid.h"       /* m0_fid */
+#include "fop/fom.h"       /* m0_fom */
 #include "rm/rm_rwlock.h"  /* m0_rm_rw_lock */
 
 /**
@@ -94,8 +95,8 @@ struct ver_accm {
 struct rconfc_link {
 	struct m0_confc      rl_confc;         /**< confc instance           */
 	struct m0_rconfc    *rl_rconfc;        /**< back link to owner       */
-	struct m0_confc_ctx  rl_cctx;          /**< wait context             */
-	struct m0_clink      rl_clink;         /**< wait clink               */
+	struct m0_confc_ctx  rl_cctx;          /**< confc read context       */
+	struct m0_clink      rl_clink;         /**< confc read wait clink    */
 	struct m0_tlink      rl_herd;          /**< link to herd list        */
 	struct m0_tlink      rl_active;        /**< link to active list      */
 	uint64_t             rl_magic;         /**< confc link magic         */
@@ -105,6 +106,11 @@ struct rconfc_link {
 	int                  rl_rc;            /**< confc result             */
 	int                  rl_state;         /**< current state            */
 	bool                 rl_preserve;      /**< preserve on herd update  */
+	struct m0_fom        rl_fom;           /**< disconnection FOM        */
+	struct m0_clink      rl_fom_clink;     /**< disconnection wait clink */
+	bool                 rl_fom_queued;    /**< fom already in queue     */
+	/* XXX: intended for UT only */
+	void (*rl_on_state_cb)(struct rconfc_link *lnk);
 };
 
 /*

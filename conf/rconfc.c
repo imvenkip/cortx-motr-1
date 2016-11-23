@@ -24,26 +24,28 @@
 #include "lib/trace.h"
 #include "lib/tlist.h"
 #include "lib/mutex.h"
-#include "lib/memory.h"    /* M0_ALLOC_PTR, m0_free */
+#include "lib/memory.h"           /* M0_ALLOC_PTR, m0_free */
 #include "lib/errno.h"
-#include "lib/locality.h"  /* m0_locality0_get() */
 #include "lib/string.h"
-#include "lib/buf.h"       /* m0_buf_strdup */
-#include "lib/finject.h"   /* M0_FI_ENABLED */
+#include "lib/buf.h"              /* m0_buf_strdup */
+#include "lib/finject.h"          /* M0_FI_ENABLED */
 #include "mero/magic.h"
 #include "rm/rm.h"
-#include "rm/rm_service.h" /* m0_rm_svc_rwlock_get */
-#include "rpc/conn.h"      /* m0_rpc_conn_sessions_cancel */
-#include "rpc/rpclib.h"    /* m0_rpc_client_connect */
+#include "rm/rm_service.h"        /* m0_rm_svc_rwlock_get */
+#include "rpc/conn.h"             /* m0_rpc_conn_sessions_cancel */
+#include "rpc/rpclib.h"           /* m0_rpc_client_connect */
 #include "conf/cache.h"
-#include "conf/obj_ops.h"  /* m0_conf_obj_find */
+#include "conf/obj_ops.h"         /* m0_conf_obj_find */
 #include "conf/confc.h"
-#include "conf/helpers.h"  /* m0_conf_ha_state_update */
+#include "conf/helpers.h"         /* m0_conf_ha_state_update */
 #include "conf/rconfc.h"
-#include "conf/rconfc_internal.h"
-#include "ha/entrypoint.h"      /* m0_ha_entrypoint_client */
-#include "ha/ha.h"              /* m0_ha */
-#include "module/instance.h"    /* m0_get */
+#include "conf/rconfc_internal.h" /* rlock_ctx, rconfc_link,
+				   * ver_item, ver_accm
+				   */
+#include "conf/rconfc_link_fom.h" /* rconfc_herd_link__on_death_cb */
+#include "ha/entrypoint.h"        /* m0_ha_entrypoint_client */
+#include "ha/ha.h"                /* m0_ha */
+#include "module/instance.h"      /* m0_get */
 
 /**
  * @page rconfc-lspec rconfc Internals
@@ -57,6 +59,7 @@
  *   - @ref rconfc-lspec-gate-check
  *   - @ref rconfc-lspec-gate-drain
  *   - @ref rconfc-lspec-gate-skip
+ * - @ref rconfc-lspec-clean
  * - @ref rconfc_dlspec "Detailed Logical Specification"
  *
  * <hr> <!------------------------------------------------------------>
@@ -242,7 +245,39 @@
  * - Drop connection.
  * - Finalise internal confc.
  * - Mark herd link as CONFC_DEAD, so this confd doesn't participate in possible
- *   confd switch (see @ref rconfc-lspec-gate-skip) or reelection.
+ *   confd switch (see @ref rconfc-lspec-gate-skip).
+ *
+ * Death notification is basically handled by @ref rconfc_link::rl_fom that is
+ * queued from rconfc_herd_link__on_death_cb(). The FOM is intended to safely
+ * disconnect herd link from problem confd when session and connection
+ * termination may be timed out. The FOM prevents client's locality from being
+ * blocked for a noticeably long time.
+
+   @verbatim
+                                       |  m0_fom_init()
+         !m0_confc_is_inited() ||      |  m0_fom_queue()
+         !m0_confc_is_online()         V
+      +--------------------------- RLS_INIT
+      |                                |
+      |                                |  wait for M0_RPC_SESSION_IDLE
+      |                                V
+      +---------------------- RLS_SESS_WAIT_IDLE
+      |                                |
+      |                                |  m0_rpc_session_terminate()
+      |                                V
+      +---------------------- RLS_SESS_TERMINATING
+      |                                |  m0_rpc_session_fini()
+      |                                |  m0_rpc_conn_terminate()
+      |                                V
+      +---------------------- RLS_CONN_TERMINATING
+      |                                |  m0_rpc_conn_fini()
+      |                                V
+      +--------------------------->RLS_FINI
+                                       |  m0_fom_fini()
+                                       |  rconfc_herd_link_fini()
+                                       V
+   @endverbatim
+ *
  *
  * @attention Currently HA notifications processing doesn't take "conductor"
  * confc into account. This confc instance is separated from those used in herd
@@ -532,7 +567,7 @@
 
 static inline uint32_t rconfc_state(const struct m0_rconfc *rconfc);
 static void rconfc_stop_internal(struct m0_rconfc *rconfc);
-static void rconfc_herd_link_fini(struct rconfc_link *lnk);
+
 static bool rconfc_gate_check(struct m0_confc *confc);
 static int  rconfc_gate_skip(struct m0_confc *confc);
 static bool rconfc_gate_drain(struct m0_clink *clink);
@@ -636,6 +671,8 @@ M0_TL_DESCR_DEFINE(rcnf_active, "rconfc's active confc list", M0_INTERNAL,
 	);
 M0_TL_DEFINE(rcnf_active, M0_INTERNAL, struct rconfc_link);
 
+/* -------------- Thread for async full conf loading -------------- */
+
 static void rconfc_load_ast_thread(struct rconfc_load_ctx *rx)
 {
 	while (rx->rx_ast.run) {
@@ -714,6 +751,49 @@ static void rconfc_conf_full_load(struct m0_sm_group *grp,
 /***************************************
  * Helpers
  ***************************************/
+
+/* -------------- Confc Helpers -------------- */
+
+static uint64_t _confc_ver_read(const struct m0_confc *confc)
+{
+	return confc->cc_cache.ca_ver;
+}
+
+/** Safe remote confd address reading */
+static const char *_confc_remote_addr_read(const struct m0_confc *confc)
+{
+	return m0_confc_is_online(confc) ?
+		m0_rpc_conn_addr(&confc->cc_rpc_conn) : NULL;
+}
+
+static int _confc_cache_clean(struct m0_confc *confc)
+{
+	struct m0_conf_cache *cache = &confc->cc_cache;
+
+	M0_ENTRY();
+	m0_conf_cache_clean(cache, NULL);
+	/* Clear version to prevent version mismatch error after reelection */
+	cache->ca_ver = M0_CONF_VER_UNKNOWN;
+	/**
+	 * @todo Confc root pointer is not valid anymore after cache cleanup, so
+	 * it should be reinitialised. The easiest way would be to reinitialise
+	 * confc completely, but user can create confc contexts during
+	 * reelection, so let's reinitialise root object the hackish way.
+	 */
+	return M0_RC(m0_conf_obj_find(cache, &M0_CONF_ROOT_FID,
+				      &confc->cc_root));
+}
+
+static int _confc_cache_clean_lock(struct m0_confc *confc)
+{
+	int rc;
+
+	M0_ENTRY();
+	m0_conf_cache_lock(&confc->cc_cache);
+	rc = _confc_cache_clean(confc);
+	m0_conf_cache_unlock(&confc->cc_cache);
+	return M0_RC(rc);
+}
 
 /* ------------------- Phony confc ------------------ */
 
@@ -1018,59 +1098,6 @@ static void ver_accm_init(struct ver_accm *va, int total)
 	M0_LEAVE();
 }
 
-/* -------------- Confc Helpers -------------- */
-
-static uint64_t _confc_ver_read(const struct m0_confc *confc)
-{
-	return confc->cc_cache.ca_ver;
-}
-
-static bool _confc_is_online(const struct m0_confc *confc)
-{
-	return confc->cc_rpc_conn.c_rpc_machine != NULL;
-}
-
-/** Safe remote confd address reading */
-static const char *_confc_remote_addr_read(const struct m0_confc *confc)
-{
-	return _confc_is_online(confc) ?
-		m0_rpc_conn_addr(&confc->cc_rpc_conn) : NULL;
-}
-
-static bool _confc_is_inited(struct m0_confc *confc)
-{
-	return confc->cc_group != NULL;
-}
-
-static int _confc_cache_clean(struct m0_confc *confc)
-{
-	struct m0_conf_cache *cache = &confc->cc_cache;
-
-	M0_ENTRY();
-	m0_conf_cache_clean(cache, NULL);
-	/* Clear version to prevent version mismatch error after reelection */
-	cache->ca_ver = M0_CONF_VER_UNKNOWN;
-	/**
-	 * @todo Confc root pointer is not valid anymore after cache cleanup, so
-	 * it should be reinitialised. The easiest way would be to reinitialise
-	 * confc completely, but user can create confc contexts during
-	 * reelection, so let's reinitialise root object the hackish way.
-	 */
-	return M0_RC(m0_conf_obj_find(cache, &M0_CONF_ROOT_FID,
-				      &confc->cc_root));
-}
-
-static int _confc_cache_clean_lock(struct m0_confc *confc)
-{
-	int rc;
-
-	M0_ENTRY();
-	m0_conf_cache_lock(&confc->cc_cache);
-	rc = _confc_cache_clean(confc);
-	m0_conf_cache_unlock(&confc->cc_cache);
-	return M0_RC(rc);
-}
-
 /* -------------- Rconfc Helpers -------------- */
 
 static inline uint32_t rconfc_state(const struct m0_rconfc *rconfc)
@@ -1239,6 +1266,11 @@ static void rconfc_herd_link_unsubscribe(struct rconfc_link *lnk)
 		m0_clink_del_lock(&lnk->rl_ha_clink);
 }
 
+static inline struct m0_reqh *rconfc_link2reqh(struct rconfc_link *lnk)
+{
+	return lnk->rl_rconfc->rc_rmach->rm_reqh;
+}
+
 /**
  * The callback is called when corresponding HA notification arrives to phony
  * confc. Death notification results in disabling respective link and putting it
@@ -1246,29 +1278,26 @@ static void rconfc_herd_link_unsubscribe(struct rconfc_link *lnk)
  */
 static bool rconfc_herd_link__on_death_cb(struct m0_clink *clink)
 {
-	struct rconfc_link *lnk;
-	struct m0_conf_obj *obj;
+	struct rconfc_link *lnk = M0_AMB(lnk, clink, rl_ha_clink);
+	struct m0_conf_obj *obj = M0_AMB(obj, clink->cl_chan, co_ha_chan);
 
-	M0_ENTRY();
-	lnk = container_of(clink, struct rconfc_link, rl_ha_clink);
-	obj = container_of(clink->cl_chan, struct m0_conf_obj, co_ha_chan);
+	M0_ENTRY("lnk=%p", lnk);
 	M0_ASSERT(m0_fid_eq(&lnk->rl_confd_fid, &obj->co_id));
 	if (obj->co_ha_state != M0_NC_FAILED) {
 		M0_LEAVE("co_ha_state = %d, return true", obj->co_ha_state);
 		return true;
 	}
 	m0_rconfc_lock(lnk->rl_rconfc);
-	if (lnk->rl_state != CONFC_DEAD) {
-		if (lnk->rl_state != CONFC_FAILED)
-			m0_confc_reconnect(&lnk->rl_confc, NULL, NULL);
+	if (lnk->rl_state != CONFC_DEAD && !lnk->rl_fom_queued) {
+		lnk->rl_fom_queued = true;
+		m0_fom_init(&lnk->rl_fom, &rconfc_link_fom_type,
+			    &rconfc_link_fom_ops, NULL, NULL,
+			    rconfc_link2reqh(lnk));
+		m0_fom_queue(&lnk->rl_fom);
 		/**
-		 * @todo Do something more intelligent here to terminate RPC
-		 * session and connection to already dead endpoint.
-		 */
-		rconfc_herd_link_fini(lnk);
-		/**
-		 * @todo The dead confd fid is removed from cache, and the link
-		 * object gets destroyed. Therefore, no way remains to listen
+		 * @todo The dead confd fid is going to be removed from phony
+		 * cache, and the link object to be finalised in
+		 * rconfc_link_fom_fini(). Therefore, no way remains to listen
 		 * for the confd state changes in future. You may be tempted by
 		 * an idea of reviving the link in case the confd is announced
 		 * M0_NC_ONLINE later, but consider the following analysis:
@@ -1278,6 +1307,12 @@ static bool rconfc_herd_link__on_death_cb(struct m0_clink *clink)
 		 * The only merit of getting the link online is this may bring
 		 * an additional active list entry into the effect, in case the
 		 * revived confd runs version that was elected previously.
+		 *
+		 * The merit is diminished by the fact that rconfc performs full
+		 * conf load every time it obtains read lock, so using an
+		 * alternative active link may be needed only during the conf
+		 * load, and never happens after that until the moment of next
+		 * version reelection.
 		 *
 		 * Demerits:
 		 *
@@ -1310,10 +1345,12 @@ static bool rconfc_herd_link__on_death_cb(struct m0_clink *clink)
 		 * cost, as all the logic of entrypoint re-querying is already
 		 * implemented in the context of MERO-2113,2150.
 		 */
-		lnk->rl_state = CONFC_DEAD;
+	} else {
+		M0_LOG(M0_INFO, "Link to "FID_F" known to be CONFC_DEAD",
+		       FID_P(&lnk->rl_confd_fid));
 	}
 	m0_rconfc_unlock(lnk->rl_rconfc);
-	M0_LEAVE("co_ha_state = M0_NC_FAILED, return false");
+	M0_LEAVE("lnk=%p co_ha_state = M0_NC_FAILED, return false", lnk);
 	return false;
 }
 
@@ -1340,16 +1377,24 @@ static void rconfc_herd_link_init(struct rconfc_link *lnk)
 	M0_LEAVE();
 }
 
-static void rconfc_herd_link_fini(struct rconfc_link *lnk)
+/*
+ * M0_INTERNAL here is used for the sake of rconfc_herd_link_die() in
+ * conf/rconfc_link_fom.c
+ */
+M0_INTERNAL void rconfc_herd_link_fini(struct rconfc_link *lnk)
 {
 	M0_ENTRY("lnk %p", lnk);
+	M0_PRE(rconfc_is_locked(lnk->rl_rconfc));
+	M0_PRE(lnk->rl_fom_clink.cl_chan == NULL);
+	M0_PRE(lnk->rl_fom_queued || M0_IS0(&lnk->rl_fom));
 	/* dead confc has no internals to fini */
 	if (lnk->rl_state != CONFC_DEAD) {
 		rconfc_herd_link_unsubscribe(lnk);
 		_confc_phony_cache_remove(&lnk->rl_rconfc->rc_phony,
 					  &lnk->rl_confd_fid);
 		m0_clink_fini(&lnk->rl_ha_clink);
-		m0_confc_fini(&lnk->rl_confc);
+		if (m0_confc_is_inited(&lnk->rl_confc))
+			m0_confc_fini(&lnk->rl_confc);
 	}
 	M0_LEAVE();
 }
@@ -1380,9 +1425,9 @@ static int rconfc_herd_fini(struct m0_rconfc *rconfc)
 		} else if (m0_confc_ctx_is_completed(&lnk->rl_cctx)) {
 			m0_confc_ctx_fini_locked(&lnk->rl_cctx);
 		} else {
-			m0_rpc_conn_sessions_cancel(&lnk->rl_confc.cc_rpc_conn);
 			m0_clink_add(&lnk->rl_cctx.fc_mach.sm_chan,
 				     &rconfc->rc_herd_cl);
+			m0_rpc_conn_sessions_cancel(&lnk->rl_confc.cc_rpc_conn);
 			return M0_RC(1);
 		}
 	} m0_tl_endfor;
@@ -1533,7 +1578,7 @@ static int rconfc_conductor_connect(struct m0_rconfc   *rconfc,
 		 lnk != NULL ? lnk->rl_confd_addr : "(null)");
 	M0_PRE(rconfc != NULL);
 	M0_PRE(lnk    != NULL);
-	if (!_confc_is_inited(&rconfc->rc_confc)) {
+	if (!m0_confc_is_inited(&rconfc->rc_confc)) {
 		int rc;
 		/* first use, initialization required */
 		M0_PRE(_confc_ver_read(&rconfc->rc_confc) ==
@@ -1791,7 +1836,7 @@ static void rconfc_conductor_drained(struct m0_rconfc *rconfc)
 
 	M0_ENTRY("rconfc = %p", rconfc);
 	/* disconnect confc until read lock being granted */
-	if (_confc_is_inited(&rconfc->rc_confc))
+	if (m0_confc_is_inited(&rconfc->rc_confc))
 		m0_confc_reconnect(&rconfc->rc_confc, NULL, NULL);
 	/* return read lock back to RM */
 	rconfc_read_lock_put(rconfc);
@@ -2004,7 +2049,7 @@ static void rconfc_stop_internal(struct m0_rconfc *rconfc)
 	if (rlock_ctx_is_online(rlx))
 		rlock_ctx_creditor_unset(rlx);
 	rconfc_state_set(rconfc, M0_RCS_CONDUCTOR_DRAIN);
-	if (!_confc_is_inited(&rconfc->rc_confc)) {
+	if (!m0_confc_is_inited(&rconfc->rc_confc)) {
 		rconfc_state_set(rconfc, M0_RCS_FINAL);
 		goto exit;
 	}
@@ -2160,7 +2205,7 @@ static int rconfc_conductor_engage(struct m0_rconfc *rconfc)
 	 * See if the confc not initialized yet, or having different
 	 * version compared to the newly elected one
 	 */
-	if (!_confc_is_inited(&rconfc->rc_confc) ||
+	if (!m0_confc_is_inited(&rconfc->rc_confc) ||
 	    _confc_ver_read(&rconfc->rc_confc) != rconfc->rc_ver) {
 		/* need to connect conductor to a new version confd */
 		rc = rconfc_conductor_iterate(rconfc);
@@ -2195,7 +2240,7 @@ static void rconfc_version_elected(struct m0_sm_group *grp,
 		 * Start re-election. As version was not elected, the conductor
 		 * never was engaged, and therefore needs no draining.
 		 */
-		if (_confc_is_inited(&rconfc->rc_confc))
+		if (m0_confc_is_inited(&rconfc->rc_confc))
 			m0_confc_fini(&rconfc->rc_confc);
 		rconfc_conductor_drained(rconfc);
 		M0_CNT_INC(rconfc->rc_ha_entrypoint_retries);
@@ -2519,7 +2564,7 @@ M0_INTERNAL void m0_rconfc_stop_sync(struct m0_rconfc *rconfc)
 {
 	M0_ENTRY("rconfc = %p", rconfc);
 	if (rconfc_state(rconfc) == M0_RCS_INIT &&
-	    !_confc_is_inited(&rconfc->rc_confc))
+	    !m0_confc_is_inited(&rconfc->rc_confc))
 		goto leave;
 	m0_rconfc_stop(rconfc);
 	m0_rconfc_lock(rconfc);
@@ -2534,7 +2579,7 @@ M0_INTERNAL void m0_rconfc_fini(struct m0_rconfc *rconfc)
 	M0_ENTRY("rconfc = %p", rconfc);
 	M0_PRE(rconfc != NULL);
 	M0_PRE(rconfc->rc_rlock_ctx != NULL);
-	M0_PRE(_confc_is_inited(&rconfc->rc_phony));
+	M0_PRE(m0_confc_is_inited(&rconfc->rc_phony));
 
 	m0_clink_del_lock(&rconfc->rc_ha_entrypoint_cl);
 	m0_clink_fini(&rconfc->rc_ha_entrypoint_cl);
@@ -2551,7 +2596,7 @@ M0_INTERNAL void m0_rconfc_fini(struct m0_rconfc *rconfc)
 	m0_free(rconfc->rc_local_conf);
 	m0_free(rconfc->rc_qctx);
 	rlock_ctx_destroy(rconfc->rc_rlock_ctx);
-	if (_confc_is_inited(&rconfc->rc_confc))
+	if (m0_confc_is_inited(&rconfc->rc_confc))
 		m0_confc_fini(&rconfc->rc_confc);
 	rconfc_active_all_unlink(rconfc);
 	rcnf_active_tlist_fini(&rconfc->rc_active);
@@ -2651,7 +2696,7 @@ M0_INTERNAL void m0_rconfc_rm_fid(struct m0_rconfc *rconfc, struct m0_fid *out)
 M0_INTERNAL bool m0_rconfc_is_preloaded(struct m0_rconfc *rconfc)
 {
 	return rconfc_state(rconfc) == M0_RCS_INIT &&
-		_confc_is_inited(&rconfc->rc_confc) &&
+		m0_confc_is_inited(&rconfc->rc_confc) &&
 		rconfc->rc_local_conf != NULL;
 }
 

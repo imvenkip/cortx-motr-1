@@ -994,7 +994,11 @@ M0_INTERNAL int m0_rpc_conn_terminate(struct m0_rpc_conn *conn,
 	M0_PRE(conn->c_rpc_machine != NULL);
 
 	machine = conn->c_rpc_machine;
-	fop = m0_fop_alloc(&m0_rpc_fop_conn_terminate_fopt, NULL, machine);
+	if (M0_FI_ENABLED("fail_allocation"))
+		fop = NULL;
+	else
+		fop = m0_fop_alloc(&m0_rpc_fop_conn_terminate_fopt, NULL,
+				   machine);
 	m0_rpc_machine_lock(machine);
 	M0_ASSERT(m0_rpc_conn_invariant(conn));
 	M0_PRE(M0_IN(conn_state(conn), (M0_RPC_CONN_ACTIVE,

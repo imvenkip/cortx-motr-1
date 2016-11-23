@@ -426,7 +426,6 @@ static bool ctx_invariant(const struct m0_confc_ctx *ctx)
  * m0_confc
  * ------------------------------------------------------------------ */
 static int confc_cache_preload(struct m0_confc *confc, const char *local_conf);
-static bool confc_is_online(const struct m0_confc *confc);
 static int connect_to_confd(struct m0_confc *confc, const char *confd_addr,
 			    struct m0_rpc_machine *rpc_mach);
 static void disconnect_from_confd(struct m0_confc *confc);
@@ -434,6 +433,17 @@ static void confc_lock(struct m0_confc *confc);
 static void confc_unlock(struct m0_confc *confc);
 static bool confc_is_locked(const struct m0_confc *confc);
 static void clink_cleanup_fini(struct m0_clink *link);
+
+M0_INTERNAL bool m0_confc_is_inited(const struct m0_confc *confc)
+{
+	return confc->cc_group != NULL;
+}
+
+M0_INTERNAL bool m0_confc_is_online(const struct m0_confc *confc)
+{
+	return confc->cc_rpc_conn.c_rpc_machine != NULL;
+}
+
 
 static bool not_empty(const char *s)
 {
@@ -469,9 +479,9 @@ M0_INTERNAL int m0_confc_reconnect(struct m0_confc       *confc,
 
 	M0_ENTRY("confc = %p, confd_addr = %s", confc, confd_addr);
 	confc_lock(confc);
-	if (confc_is_online(confc))
+	if (m0_confc_is_online(confc))
 		disconnect_from_confd(confc);
-	M0_ASSERT(!confc_is_online(confc));
+	M0_ASSERT(!m0_confc_is_online(confc));
 	if (confd_addr == NULL)
 		/*
 		 * Just want to disconnect confc in rconfc_conductor_drained()
@@ -482,7 +492,7 @@ M0_INTERNAL int m0_confc_reconnect(struct m0_confc       *confc,
 		rc = M0_ERR(-EINVAL);
 	else
 		rc = connect_to_confd(confc, confd_addr, rpc_mach);
-	M0_POST(not_empty(confd_addr) == confc_is_online(confc));
+	M0_POST(not_empty(confd_addr) == m0_confc_is_online(confc));
 	M0_POST(m0_confc_invariant(confc));
 	confc_unlock(confc);
 	return M0_RC(rc);
@@ -511,7 +521,7 @@ M0_INTERNAL int m0_confc_init_wait(struct m0_confc       *confc,
 
 	confc->cc_rpc_timeout = timeout_ns;
 	M0_SET0(&confc->cc_rpc_conn);
-	M0_ASSERT(!confc_is_online(confc));
+	M0_ASSERT(!m0_confc_is_online(confc));
 	if (not_empty(confd_addr))
 		rc = connect_to_confd(confc, confd_addr, rpc_mach);
 
@@ -524,7 +534,7 @@ M0_INTERNAL int m0_confc_init_wait(struct m0_confc       *confc,
 		confc->cc_gops = NULL;
 		m0_clink_init(&confc->cc_drain, NULL);
 
-		M0_POST(not_empty(confd_addr) == confc_is_online(confc));
+		M0_POST(not_empty(confd_addr) == m0_confc_is_online(confc));
 		M0_POST(m0_confc_invariant(confc));
 		return M0_RC(0);
 	}
@@ -557,7 +567,7 @@ M0_INTERNAL void m0_confc_fini(struct m0_confc *confc)
 	confc->cc_gops = NULL;
 	m0_confc_bob_fini(confc); /* performs _confc_check() */
 
-	if (confc_is_online(confc))
+	if (m0_confc_is_online(confc))
 		disconnect_from_confd(confc);
 
 	confc->cc_group = NULL;
@@ -1533,11 +1543,6 @@ cache_grow(struct m0_confc *confc, const struct m0_conf_fetch_resp *resp)
  * Networking
  * ------------------------------------------------------------------ */
 
-static bool confc_is_online(const struct m0_confc *confc)
-{
-	return confc->cc_rpc_conn.c_rpc_machine != NULL;
-}
-
 static inline m0_time_t confc_deadline(struct m0_confc *confc)
 {
 	return confc->cc_rpc_timeout == M0_TIME_NEVER ? M0_TIME_NEVER :
@@ -1557,7 +1562,7 @@ static int connect_to_confd(struct m0_confc *confc, const char *confd_addr,
 	rc = m0_rpc_client_connect(&confc->cc_rpc_conn, &confc->cc_rpc_session,
 				   rpc_mach, confd_addr, NULL,
 				   MAX_RPCS_IN_FLIGHT, confc_deadline(confc));
-	M0_POST((rc == 0) == confc_is_online(confc));
+	M0_POST((rc == 0) == m0_confc_is_online(confc));
 	return M0_RC(rc);
 }
 
@@ -1565,7 +1570,7 @@ static void disconnect_from_confd(struct m0_confc *confc)
 {
 	M0_ENTRY();
 
-	M0_PRE(confc_is_online(confc));
+	M0_PRE(m0_confc_is_online(confc));
 	M0_PRE(confc->cc_rpc_session.s_conn == &confc->cc_rpc_conn);
 
 	(void)m0_rpc_session_destroy(&confc->cc_rpc_session,
@@ -1680,7 +1685,7 @@ static int request_create(struct m0_confc_ctx *ctx,
 	uint32_t              len;
 
 	M0_ENTRY("ctx=%p orig=%p ri=%zu", ctx, orig, ri);
-	M0_PRE(ctx_invariant(ctx) && confc_is_online(ctx->fc_confc) &&
+	M0_PRE(ctx_invariant(ctx) && m0_confc_is_online(ctx->fc_confc) &&
 	       ctx->fc_rpc_item == NULL);
 
 	p = confc_fop_alloc(ctx);
@@ -1712,7 +1717,7 @@ static bool request_check(const struct m0_confc_ctx *ctx)
 	const struct m0_conf_fetch *req;
 	const struct m0_rpc_item   *item = ctx->fc_rpc_item;
 
-	M0_PRE(item != NULL && confc_is_online(ctx->fc_confc));
+	M0_PRE(item != NULL && m0_confc_is_online(ctx->fc_confc));
 
 	req = m0_fop_data(m0_rpc_item_to_fop(item));
 

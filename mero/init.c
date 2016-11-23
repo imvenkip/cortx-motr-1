@@ -68,6 +68,7 @@
 #include "mdservice/md_service.h"
 #include "rm/rm_service.h"
 #include "rm/rm_rwlock.h"
+#include "conf/rconfc_link_fom.h" /* m0_rconfc_mod_init, m0_rconfc_mod_fini */
 #include "stats/stats_srv.h"
 #include "sns/sns.h"
 #include "sns/parity_ops.h"
@@ -206,6 +207,7 @@ struct init_fini_call subsystem[] = {
 	{ &m0_parity_init,      &m0_parity_fini,      "parity_math" },
 	{ &m0_dtm_global_init,  &m0_dtm_global_fini,  "dtm" },
 	{ &m0_ha_mod_init,      &m0_ha_mod_fini,      "ha" },
+	{ &m0_rconfc_mod_init,  &m0_rconfc_mod_fini,  "rconfc" },
 };
 
 static void fini_nr(struct init_fini_call *arr, int nr)

@@ -21,6 +21,7 @@ nobase_mero_include_HEADERS += \
                                conf/preload.h \
                                conf/pvers.h \
                                conf/rconfc.h \
+                               conf/rconfc_link_fom.h \
                                conf/schema.h \
                                conf/validation.h \
                                conf/walk.h
@@ -48,6 +49,7 @@ mero_libmero_la_SOURCES += \
                            conf/pvers.c \
                            conf/rconfc.c \
                            conf/rconfc_internal.h \
+                           conf/rconfc_link_fom.c \
                            conf/validation.c \
                            conf/walk.c
 
