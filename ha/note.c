@@ -196,14 +196,6 @@ M0_INTERNAL void m0_ha_state_accept(const struct m0_ha_nvec *note)
 	m0_ha_clients_iterate((m0_ha_client_cb_t)ha_state_accept, note);
 }
 
-static void ha_conf_cache_get(void *client, void *data)
-{
-	struct m0_confc *confc = client;
-	struct m0_confc **confc_ptr = data;
-
-	*confc_ptr = confc;
-}
-
 M0_INTERNAL void m0_ha_msg_accept(const struct m0_ha_msg *msg,
                                   struct m0_ha_link      *hl)
 {
@@ -241,11 +233,7 @@ M0_INTERNAL void m0_ha_msg_accept(const struct m0_ha_msg *msg,
 				  msg->hm_data.u.hed_nvec.hmnv_id_of_get);
 		}
 	} else {
-		confc = NULL;
-		/* get the first confc */
-		m0_ha_clients_iterate((m0_ha_client_cb_t)&ha_conf_cache_get,
-				      &confc);
-		M0_ASSERT(confc != NULL);
+		confc = m0_reqh2confc(hl->hln_cfg.hlc_reqh);
 		cache = &confc->cc_cache;
 		nvec_req = &msg->hm_data.u.hed_nvec;
 		m0_conf_cache_lock(cache);
