@@ -568,24 +568,18 @@ M0_INTERNAL int m0_rpc_session_validate(struct m0_rpc_session *session)
 {
 	M0_ENTRY();
 	M0_PRE(session != NULL);
-	if (session->s_cancelled) {
-		M0_LOG(M0_DEBUG, "Session already cancelled to the moment");
-		return M0_ERR(-ECANCELED);
-	}
+	if (session->s_cancelled)
+		return M0_ERR_INFO(-ECANCELED, "Cancelled session");
 	if (!M0_IN(session_state(session), (M0_RPC_SESSION_IDLE,
-					    M0_RPC_SESSION_BUSY))) {
-		M0_LOG(M0_DEBUG, "Session state %s is not valid",
-		       m0_rpc_session_state_to_str(session_state(session)));
-		return M0_ERR(-EINVAL);
-	}
-	if (session->s_conn == NULL) {
-		M0_LOG(M0_DEBUG, "Session connection is NULL");
-		return M0_ERR(-ENOMEDIUM);
-	}
-	if (session->s_conn->c_rpc_machine == NULL) {
-		M0_LOG(M0_DEBUG, "Session connection rpc machine is NULL");
-		return M0_ERR(-ENOMEDIUM);
-	}
+					    M0_RPC_SESSION_BUSY)))
+		return M0_ERR_INFO(-EINVAL, "Session state %s is not valid",
+				   m0_rpc_session_state_to_str(
+					   session_state(session)));
+	if (session->s_conn == NULL)
+		return M0_ERR_INFO(-ENOMEDIUM, "Session connection is NULL");
+	if (session->s_conn->c_rpc_machine == NULL)
+		return M0_ERR_INFO(-ENOMEDIUM,
+				   "Session connection rpc machine is NULL");
 	return M0_RC(0);
 }
 
@@ -888,25 +882,25 @@ M0_INTERNAL void m0_rpc_session_item_failed(struct m0_rpc_item *item)
 	}
 }
 
-#define S_CASE(x) case x: return #x;
 M0_INTERNAL const char *
 m0_rpc_session_state_to_str(enum m0_rpc_session_state state)
 {
 	switch (state) {
-		S_CASE(M0_RPC_SESSION_INITIALISED)
-		S_CASE(M0_RPC_SESSION_ESTABLISHING)
-		S_CASE(M0_RPC_SESSION_IDLE)
-		S_CASE(M0_RPC_SESSION_BUSY)
-		S_CASE(M0_RPC_SESSION_FAILED)
-		S_CASE(M0_RPC_SESSION_TERMINATING)
-		S_CASE(M0_RPC_SESSION_TERMINATED)
-		S_CASE(M0_RPC_SESSION_FINALISED)
-	}
-	M0_LOG(M0_ERROR, "State %d unknown", state);
-	M0_ASSERT(NULL == "No transcript");
-	return NULL;
-}
+#define S_CASE(x) case x: return #x
+		S_CASE(M0_RPC_SESSION_INITIALISED);
+		S_CASE(M0_RPC_SESSION_ESTABLISHING);
+		S_CASE(M0_RPC_SESSION_IDLE);
+		S_CASE(M0_RPC_SESSION_BUSY);
+		S_CASE(M0_RPC_SESSION_FAILED);
+		S_CASE(M0_RPC_SESSION_TERMINATING);
+		S_CASE(M0_RPC_SESSION_TERMINATED);
+		S_CASE(M0_RPC_SESSION_FINALISED);
 #undef S_CASE
+		default:
+			M0_LOG(M0_ERROR, "Invalid state: %d", state);
+			return NULL;
+	}
+}
 
 #undef M0_TRACE_SUBSYSTEM
 
