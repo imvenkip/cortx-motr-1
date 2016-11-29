@@ -301,7 +301,7 @@ static int cob_ops_stob_find(struct m0_fom_cob_op *co)
 	rc = m0_storage_dev_stob_find(devs, &co->fco_stob_id, &co->fco_stob);
 	if (rc == 0 && m0_stob_state_get(co->fco_stob) == CSS_NOENT) {
 		m0_storage_dev_stob_put(devs, co->fco_stob);
-		rc = M0_ERR(-ENOENT);
+		rc = -ENOENT;
 	}
 	return M0_RC(rc);
 }
