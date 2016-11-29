@@ -27,6 +27,7 @@
 #include "lib/arith.h"               /* min_check, M0_3WAY */
 #include "lib/misc.h"                /* M0_IN */
 #include "lib/errno.h"               /* ENOMEM, EPROTO */
+#include "lib/ext.h"
 #include "fop/fom_long_lock.h"
 #include "fop/fom_generic.h"
 #include "fop/fom_interpose.h"
@@ -142,11 +143,20 @@
  * @subsection cas-lspec-state State Specification
  *
  * @verbatim
- *                               cas_id_check() failed
- *                      FOPH_INIT-------------------->FAILURE
- *                          |     || !cas_is_valid()
- *                          |
- *                   [generic phases]
+ *                          +----------------------------+
+ *                          |                            |
+ *                          V    !cas_op_checked         |
+ *                      FOPH_INIT---------------+        |
+ *                          |                   |        |
+ *                          |                   V        |
+ *                          |             CAS_CHECK_PRE  |
+ *                          |                   |        |
+ *                          |                   V        |
+ *                          |               CAS_CHECK----+
+ *                          |                   |
+ *                          |                   | cas_op_check() failed
+ *                          V                   |
+ *                   [generic phases]        FAILURE
  *                          .
  *                          .                               meta_op
  *                          .                       +---------------------+
@@ -279,6 +289,7 @@ struct cas_fom {
 	struct m0_long_lock_link  cf_meta;
 	struct m0_long_lock_link  cf_ctidx;
 	struct m0_long_lock_link  cf_dead_index;
+	bool                      cf_op_checked;
 	uint64_t                  cf_curpos;
 	/**
 	 * Key/value pairs from incoming FOP.
@@ -315,6 +326,8 @@ struct cas_fom {
 enum cas_fom_phase {
 	CAS_LOOP = M0_FOPH_TYPE_SPECIFIC,
 	CAS_DONE,
+	CAS_CHECK_PRE,
+	CAS_CHECK,
 	CAS_START,
 	CAS_META_LOCK,
 	CAS_META_LOOKUP,
@@ -322,7 +335,14 @@ enum cas_fom_phase {
 	CAS_CTG_CROW_DONE,
 	CAS_LOCK,
 	CAS_CTIDX_LOCK,
+
 	CAS_CTIDX,
+	CAS_CTIDX_INSERT,
+	CAS_CTIDX_LOOKUP,
+	CAS_CTIDX_DELETE,
+	CAS_CTIDX_MEM_PLACE,
+	CAS_CTIDX_MEM_FREE,
+
 	CAS_PREP,
 	CAS_LOAD_KEY,
 	CAS_LOAD_VAL,
@@ -347,6 +367,9 @@ M0_BASSERT(M0_CAS_PUT_FOP_OPCODE == CO_PUT + M0_CAS_GET_FOP_OPCODE);
 M0_BASSERT(M0_CAS_DEL_FOP_OPCODE == CO_DEL + M0_CAS_GET_FOP_OPCODE);
 M0_BASSERT(M0_CAS_CUR_FOP_OPCODE == CO_CUR + M0_CAS_GET_FOP_OPCODE);
 M0_BASSERT(M0_CAS_REP_FOP_OPCODE == CO_REP + M0_CAS_GET_FOP_OPCODE);
+
+#define LAYOUT_IMASK_PTR(l) (&(l)->u.dl_desc.ld_imask)
+#define CID_IMASK_PTR(cid)  LAYOUT_IMASK_PTR(&(cid)->ci_layout)
 
 static int    cas_service_start        (struct m0_reqh_service *service);
 static void   cas_service_stop         (struct m0_reqh_service *service);
@@ -379,9 +402,6 @@ static int                  cas_exec   (struct cas_fom *fom,
 static int  cas_done(struct cas_fom *fom, struct m0_cas_op *op,
 		     struct m0_cas_rep *rep, enum m0_cas_opcode opc);
 
-static int  cas_ctidx_exec(struct cas_fom *fom,enum m0_cas_opcode opc,
-			   enum m0_cas_type ct, uint64_t rec_pos, uint64_t rc);
-
 static bool cas_ctidx_op_needed(struct cas_fom *fom, enum m0_cas_opcode opc,
 				enum m0_cas_type ct, uint64_t rec_pos);
 
@@ -399,13 +419,12 @@ static bool cas_fom_invariant(const struct cas_fom *fom);
 static int  cas_buf_cid_decode(struct m0_buf    *enc_buf,
 			       struct m0_cas_id *cid);
 static bool cas_fid_is_cctg(const struct m0_fid *fid);
-static int  cas_id_check(const struct m0_cas_id *cid,
-			 uint32_t                flags);
-static int  cas_device_check(struct cas_service     *svc,
+static int  cas_id_check(const struct m0_cas_id *cid);
+static int  cas_device_check(const struct cas_fom   *fom,
 			     const struct m0_cas_id *cid);
-static int  cas_op_check(struct m0_cas_op *op,
-			 struct cas_fom   *fom);
-
+static int cas_op_check(struct m0_cas_op *op,
+			struct cas_fom   *fom,
+			bool              is_index_drop);
 static void cas_incoming_kv(const struct cas_fom *fom,
 			    uint64_t              rec_pos,
 			    struct m0_buf        *key,
@@ -415,6 +434,16 @@ static int  cas_incoming_kv_setup(struct cas_fom         *fom,
 
 static int cas_ctg_crow_handle(struct cas_fom *fom,
 			       const struct m0_cas_id *cid);
+
+static int cas_ctidx_mem_place(struct cas_fom *fom,
+			       const struct m0_cas_id *in_cid, int next);
+static int cas_ctidx_mem_free(struct cas_fom *fom, int next);
+static int cas_ctidx_insert(struct cas_fom *fom, const struct m0_cas_id *in_cid,
+			    int next);
+static int cas_ctidx_lookup(struct cas_fom *fom, const struct m0_cas_id *in_cid,
+			    int next);
+static int cas_ctidx_delete(struct cas_fom *fom, const struct m0_cas_id *in_cid,
+			    int next);
 
 static const struct m0_reqh_service_ops      cas_service_ops;
 static const struct m0_reqh_service_type_ops cas_service_type_ops;
@@ -428,6 +457,7 @@ M0_INTERNAL void m0_cas_svc_init(void)
 	m0_sm_conf_extend(m0_generic_conf.scf_state, cas_fom_phases,
 			  m0_generic_conf.scf_nr_states);
 	m0_sm_conf_trans_extend(&m0_generic_conf, &cas_sm_conf);
+	cas_fom_phases[M0_FOPH_INIT].sd_allowed |= M0_BITS(CAS_CHECK_PRE);
 	cas_fom_phases[M0_FOPH_TXN_OPEN].sd_allowed |= M0_BITS(CAS_START);
 	cas_fom_phases[M0_FOPH_QUEUE_REPLY].sd_allowed |=
 		M0_BITS(M0_FOPH_TXN_COMMIT_WAIT);
@@ -762,35 +792,6 @@ static int cas_op_recs_check(struct cas_fom    *fom,
 		M0_RC(0) : M0_ERR(-EPROTO);
 }
 
-static int cas_op_check(struct m0_cas_op *op,
-			struct cas_fom   *fom)
-{
-	struct m0_fom      *fom0    = &fom->cf_fom;
-	enum m0_cas_opcode  opc     = m0_cas_opcode(fom0->fo_fop);
-	enum m0_cas_type    ct      = cas_type(fom0);
-	bool                is_meta = ct == CT_META;
-	struct cas_service *service = M0_AMB(service,
-					     fom0->fo_service, c_service);
-	int                 rc      = 0;
-
-	if (is_meta && opc == CO_PUT &&
-	     (cas_op(fom0)->cg_flags & COF_OVERWRITE))
-		rc = M0_ERR(-EPROTO);
-	if (rc == 0)
-		rc = cas_id_check(&op->cg_id, op->cg_flags) ?:
-		     cas_device_check(service, &op->cg_id);
-	if (rc == 0 && is_meta && fom->cf_ikv_nr != 0) {
-		M0_ALLOC_ARR(fom->cf_in_cids, fom->cf_ikv_nr);
-		if (fom->cf_in_cids == NULL)
-			rc = M0_ERR(-ENOMEM);
-	}
-	if (rc == 0)
-		/* Note: fill ->cf_in_cids there. */
-		rc = cas_op_recs_check(fom, opc, ct, op);
-
-	return M0_RC(rc);
-}
-
 static void cas_fom_cleanup(struct cas_fom *fom, bool ctg_op_fini)
 {
 	struct m0_ctg_op  *ctg_op     = &fom->cf_ctg_op;
@@ -849,7 +850,8 @@ static int cas_fom_tick(struct m0_fom *fom0)
 	enum m0_cas_type    ct      = cas_type(fom0);
 	bool                is_meta = ct == CT_META;
 	struct m0_cas_ctg  *ctg     = fom->cf_ctg;
-	size_t              pos     = fom->cf_ipos;
+	size_t              ipos    = fom->cf_ipos;
+	struct m0_cas_id   *icid    = &fom->cf_in_cids[ipos];
 	struct m0_ctg_op   *ctg_op  = &fom->cf_ctg_op;
 	struct cas_service *service = M0_AMB(service,
 					     fom0->fo_service, c_service);
@@ -865,25 +867,10 @@ static int cas_fom_tick(struct m0_fom *fom0)
 	M0_PRE(cas_fom_invariant(fom));
 	switch (phase) {
 	case M0_FOPH_INIT ... M0_FOPH_NR - 1:
-		if (phase == M0_FOPH_INIT) {
-			rc = cas_op_check(op, fom);
-			if (rc == 0 && fom->cf_ikv_nr != 0 && is_index_drop) {
-				/*
-				 * Store here pointers to records in dead_index
-				 * to be able to lock dropped indices. Need
-				 * to store fom->cf_ikv_nr records (== number of
-				 * keys to delete).
-				 */
-				M0_ALLOC_ARR(fom->cf_moved_ctgs,
-					     fom->cf_ikv_nr);
-				if (fom->cf_moved_ctgs == NULL)
-					rc = M0_ERR(-ENOMEM);
-			}
-			if (rc != 0) {
-				m0_fom_phase_move(fom0, M0_ERR(rc),
-						  M0_FOPH_FAILURE);
-				break;
-			}
+
+		if (phase == M0_FOPH_INIT && !fom->cf_op_checked) {
+			m0_fom_phase_set(fom0, CAS_CHECK_PRE);
+			break;
 		}
 		result = m0_fom_tick_generic(fom0);
 		if (m0_fom_phase(fom0) == M0_FOPH_TXN_OPEN) {
@@ -894,6 +881,25 @@ static int cas_fom_tick(struct m0_fom *fom0)
 			M0_ASSERT(phase == M0_FOPH_TXN_COMMIT);
 			m0_fom_phase_set(fom0, M0_FOPH_TXN_COMMIT_WAIT);
 		}
+		break;
+	case CAS_CHECK_PRE:
+		rc = cas_id_check(&op->cg_id);
+		if (rc == 0) {
+			if (cas_fid_is_cctg(&op->cg_id.ci_fid))
+				result = cas_ctidx_lookup(fom, &op->cg_id,
+							  CAS_CHECK);
+			else
+				m0_fom_phase_set(fom0, CAS_CHECK);
+		} else
+			m0_fom_phase_move(fom0, M0_ERR(rc), M0_FOPH_FAILURE);
+		break;
+	case CAS_CHECK:
+		rc = cas_op_check(op, fom, is_index_drop);
+		if (rc == 0) {
+			fom->cf_op_checked = true;
+			m0_fom_phase_set(fom0, M0_FOPH_INIT);
+		} else
+			m0_fom_phase_move(fom0, M0_ERR(rc), M0_FOPH_FAILURE);
 		break;
 	case CAS_START:
 		if (is_meta) {
@@ -944,7 +950,7 @@ static int cas_fom_tick(struct m0_fom *fom0)
 			cas_fom_failure(fom, fom->cf_thrall_rc, false);
 		break;
 	case CAS_LOAD_KEY:
-		result = cas_at_load(&cas_at(op, pos)->cr_key, fom0,
+		result = cas_at_load(&cas_at(op, ipos)->cr_key, fom0,
 				     CAS_LOAD_VAL);
 		break;
 	case CAS_LOAD_VAL:
@@ -952,7 +958,7 @@ static int cas_fom_tick(struct m0_fom *fom0)
 		 * Don't check result of key loading here, result codes for all
 		 * keys/values are checked in cas_load_check().
 		 */
-		result = cas_at_load(&cas_at(op, pos)->cr_val, fom0,
+		result = cas_at_load(&cas_at(op, ipos)->cr_val, fom0,
 				     CAS_LOAD_DONE);
 		break;
 	case CAS_LOAD_DONE:
@@ -1031,33 +1037,55 @@ static int cas_fom_tick(struct m0_fom *fom0)
 		break;
 	case CAS_LOOP:
 		/* Skip empty CUR requests. */
-		while (opc == CO_CUR && pos < op->cg_rec.cr_nr &&
-		       cas_at(op, pos)->cr_rc == 0)
-			fom->cf_ipos = ++pos;
+		while (opc == CO_CUR && ipos < op->cg_rec.cr_nr &&
+		       cas_at(op, ipos)->cr_rc == 0)
+			fom->cf_ipos = ++ipos;
 		/* If all input has been processed... */
-		if (pos == op->cg_rec.cr_nr ||
+		if (ipos == op->cg_rec.cr_nr ||
 		    /* ... or all output has been generated. */
 		    fom->cf_opos == rep->cgr_rep.cr_nr) {
 			cas_fom_success(fom, opc);
 		} else {
-			do_ctidx = cas_ctidx_op_needed(fom, opc, ct, pos);
-			result = cas_exec(fom, opc, ct, ctg, pos,
+			do_ctidx = cas_ctidx_op_needed(fom, opc, ct, ipos);
+			result = cas_exec(fom, opc, ct, ctg, ipos,
 					  is_index_drop ?
 					  CAS_INSERT_TO_DEAD :
 					  do_ctidx ? CAS_CTIDX :
 					  CAS_PREPARE_SEND);
 		}
 		break;
+		/*
+		 * Here are states specific to catalogue-index.
+		 */
 	case CAS_CTIDX:
 		M0_ASSERT(fom->cf_opos < rep->cgr_rep.cr_nr);
 		rec = cas_out_at(rep, fom->cf_opos);
 		M0_ASSERT(rec != NULL);
-		if (rec->cr_rc == 0)
-			rec->cr_rc = cas_ctidx_exec(fom, opc, ct, pos,
-						    m0_ctg_op_rc(ctg_op));
-		m0_fom_phase_set(fom0,
-				 is_index_drop ? CAS_IDROP_LOOP :
-				 CAS_PREPARE_SEND);
+		if (rec->cr_rc == 0 && m0_ctg_op_rc(ctg_op) == 0) {
+			m0_ctg_op_fini(ctg_op);
+			m0_fom_phase_set(fom0,
+					 opc == CO_PUT ? CAS_CTIDX_MEM_PLACE :
+					 CAS_CTIDX_LOOKUP);
+		} else
+			m0_fom_phase_set(fom0, CAS_PREPARE_SEND);
+		break;
+	case CAS_CTIDX_MEM_PLACE:
+		result = cas_ctidx_mem_place(fom, icid, CAS_CTIDX_INSERT);
+		break;
+	case CAS_CTIDX_INSERT:
+		result = cas_ctidx_insert(fom, icid, is_index_drop ?
+					  CAS_IDROP_LOOP :
+					  CAS_PREPARE_SEND);
+		break;
+	case CAS_CTIDX_LOOKUP:
+		result = cas_ctidx_lookup(fom, icid, CAS_CTIDX_MEM_FREE);
+		break;
+	case CAS_CTIDX_MEM_FREE:
+		result = cas_ctidx_mem_free(fom, CAS_CTIDX_DELETE);
+		break;
+	case CAS_CTIDX_DELETE:
+		result = cas_ctidx_delete(fom, icid,
+			is_index_drop ? CAS_IDROP_LOOP : CAS_PREPARE_SEND);
 		break;
 
 		/*
@@ -1079,7 +1107,7 @@ static int cas_fom_tick(struct m0_fom *fom0)
 			 * Meta stores pointers to catalogues.
 			 * We will need catalogue later to lock it.
 			 */
-			fom->cf_moved_ctgs[pos] = fom->cf_ctg;
+			fom->cf_moved_ctgs[ipos] = fom->cf_ctg;
 			/*
 			 * Insert to dead index, then can remove from meta.
 			 */
@@ -1091,7 +1119,7 @@ static int cas_fom_tick(struct m0_fom *fom0)
 						 CAS_DELETE_FROM_META);
 		} else {
 			M0_LOG(M0_DEBUG, "lookup in meta failed");
-			fom->cf_moved_ctgs[pos] = NULL;
+			fom->cf_moved_ctgs[ipos] = NULL;
 			m0_fom_phase_set(fom0, CAS_PREPARE_SEND);
 		}
 		break;
@@ -1100,9 +1128,9 @@ static int cas_fom_tick(struct m0_fom *fom0)
 		if (rc == 0) {
 			m0_ctg_op_fini(ctg_op);
 			m0_ctg_op_init(&fom->cf_ctg_op, fom0, 0);
-			do_ctidx = cas_ctidx_op_needed(fom, opc, ct, pos);
+			do_ctidx = cas_ctidx_op_needed(fom, opc, ct, ipos);
 			m0_ctg_meta_delete(ctg_op,
-					   &fom->cf_in_cids[pos].ci_fid,
+					   &fom->cf_in_cids[ipos].ci_fid,
 					   do_ctidx ? CAS_CTIDX :
 					   CAS_IDROP_LOOP);
 		} else {
@@ -1112,8 +1140,8 @@ static int cas_fom_tick(struct m0_fom *fom0)
 		break;
 	case CAS_IDROP_LOOP:
 		rc = m0_ctg_op_rc(ctg_op);
-		fom->cf_ipos = ++pos;
-		if (pos < op->cg_rec.cr_nr)
+		fom->cf_ipos = ++ipos;
+		if (ipos < op->cg_rec.cr_nr)
 			m0_fom_phase_set(fom0, CAS_LOOP);
 		else {
 			m0_ctg_op_fini(ctg_op);
@@ -1130,7 +1158,7 @@ static int cas_fom_tick(struct m0_fom *fom0)
 		}
 		break;
 	case CAS_IDROP_LOCK_LOOP:
-		if (pos == op->cg_rec.cr_nr) {
+		if (ipos == op->cg_rec.cr_nr) {
 			/*
 			 * Unlock dead index, so index garbage collector (if
 			 * running) can safely proceed with newly added indices
@@ -1139,7 +1167,7 @@ static int cas_fom_tick(struct m0_fom *fom0)
 			m0_long_unlock(&m0_ctg_dead_index()->cc_lock,
 				       &fom->cf_dead_index);
 			m0_fom_phase_set(fom0, CAS_IDROP_START_GC);
-		} else if (fom->cf_moved_ctgs[pos] != NULL) {
+		} else if (fom->cf_moved_ctgs[ipos] != NULL) {
 			/*
 			 * Actually we do not need this ctg_op, but in CAS_DONE
 			 * state we free it. Let's do not change it.
@@ -1150,7 +1178,7 @@ static int cas_fom_tick(struct m0_fom *fom0)
 			 * using it.
 			 */
 			result = m0_long_write_lock(
-				&fom->cf_moved_ctgs[pos]->cc_lock,
+				&fom->cf_moved_ctgs[ipos]->cc_lock,
 				&fom->cf_lock,
 				CAS_IDROP_LOCKED);
 			result = M0_FOM_LONG_LOCK_RETURN(result);
@@ -1162,7 +1190,7 @@ static int cas_fom_tick(struct m0_fom *fom0)
 		 * Now can unlock: index is not visible any more and nobody use
 		 * it for sure.
 		 */
-		m0_long_unlock(&fom->cf_moved_ctgs[pos]->cc_lock,
+		m0_long_unlock(&fom->cf_moved_ctgs[ipos]->cc_lock,
 			       &fom->cf_lock);
 		m0_fom_phase_set(fom0, CAS_PREPARE_SEND);
 		break;
@@ -1303,19 +1331,25 @@ static int cas_sdev_state(struct m0_poolmach    *pm,
  * Client should send requests against catalogues which are available. DIX
  * degraded mode logic is responsible to guarantee this.
  */
-static int cas_device_check(struct cas_service     *svc,
+static int cas_device_check(const struct cas_fom   *fom,
 			    const struct m0_cas_id *cid)
 {
 	uint32_t                device_id;
 	enum m0_pool_nd_state   state;
 	struct m0_pool_version *pver;
 	struct m0_poolmach     *pm;
+	struct cas_service     *svc = M0_AMB(svc, fom->cf_fom.fo_service,
+					     c_service);
+	struct m0_pools_common *pc = svc->c_service.rs_reqh->rh_pools;
 	int                     rc = 0;
 
-	M0_PRE(svc != NULL);
-	if (cas_fid_is_cctg(&cid->ci_fid)) {
+	/*
+	 * For some unit tests it's ok when pools is NULL, skip checking of
+	 * device in this case.
+	 */
+	if (cas_fid_is_cctg(&cid->ci_fid) && (!cas_in_ut() || pc != NULL)) {
 		device_id = m0_dix_fid_cctg_device_id(&cid->ci_fid);
-		pver = m0_pool_version_find(svc->c_service.rs_reqh->rh_pools,
+		pver = m0_pool_version_find(pc,
 					    &cid->ci_layout.u.dl_desc.ld_pver);
 		if (pver != NULL) {
 			pm = &pver->pv_mach;
@@ -1329,36 +1363,83 @@ static int cas_device_check(struct cas_service     *svc,
 	return M0_RC(rc);
 }
 
-static int cas_id_check(const struct m0_cas_id *cid,
-			uint32_t                flags)
+static int cas_id_check(const struct m0_cas_id *cid)
 {
+	const struct m0_dix_layout *layout;
+	int                         rc = 0;
+
+	if (!m0_fid_is_valid(&cid->ci_fid) ||
+	    !M0_IN(m0_fid_type_getfid(&cid->ci_fid), (&m0_cas_index_fid_type,
+						      &m0_cctg_fid_type)))
+		rc = M0_ERR(-EPROTO);
+
+	if (rc == 0 && cas_fid_is_cctg(&cid->ci_fid)) {
+		layout = &cid->ci_layout;
+		if (layout->dl_type != DIX_LTYPE_DESCR)
+			rc = M0_ERR(-EPROTO);
+	}
+	return rc;
+}
+
+static int cas_op_check(struct m0_cas_op *op,
+			struct cas_fom   *fom,
+			bool              is_index_drop)
+{
+	struct m0_fom              *fom0    = &fom->cf_fom;
+	enum m0_cas_opcode          opc     = m0_cas_opcode(fom0->fo_fop);
+	enum m0_cas_type            ct      = cas_type(fom0);
+	bool                        is_meta = ct == CT_META;
+	struct m0_ctg_op           *ctg_op  = &fom->cf_ctg_op;
+	const struct m0_cas_id     *cid     = &op->cg_id;
+	uint32_t                    flags   = cas_op(fom0)->cg_flags;
+	struct m0_buf               buf;
 	const struct m0_dix_layout *layout;
 	struct m0_dix_layout       *stored_layout;
 	int                         rc = 0;
 
-	/* Check fid. */
-	if (!m0_fid_is_valid(&cid->ci_fid) ||
-	    !M0_IN(m0_fid_type_getfid(&cid->ci_fid), (&m0_cas_index_fid_type,
-						      &m0_cctg_fid_type)))
-		return M0_ERR(-EPROTO);
-
 	if (cas_fid_is_cctg(&cid->ci_fid)) {
-		layout = &cid->ci_layout;
-		if (layout->dl_type == DIX_LTYPE_DESCR) {
-			rc = m0_ctg_ctidx_lookup(&cid->ci_fid, &stored_layout);
+		rc = m0_ctg_op_rc(ctg_op);
+		if (rc == 0) {
+			m0_ctg_lookup_result(ctg_op, &buf);
+			layout = &cid->ci_layout;
+			stored_layout = (struct m0_dix_layout *)buf.b_addr;
+					/* Match stored and received layouts. */
+			if (!m0_dix_layout_eq(layout, stored_layout))
+				rc = M0_ERR(-EKEYEXPIRED);
+		} else if (rc == -ENOENT && (flags & COF_CROW))
 			/*
 			 * It's OK to not find layout with CROW flag set,
 			 * because the catalogue may be not created yet.
 			 */
-			if (rc == -ENOENT && (flags & COF_CROW))
-				rc = 0;
-			/* Match stored and received layouts. */
-			else if (rc == 0 &&
-				 !m0_dix_layout_eq(layout, stored_layout))
-				rc = M0_ERR(-EKEYEXPIRED);
-		} else
-			rc = M0_ERR(-EPROTO);
+			rc = 0;
+		m0_ctg_op_fini(ctg_op);
 	}
+
+	if (rc == 0) {
+		rc = cas_device_check(fom, &op->cg_id);
+		if (rc == 0 && is_meta && fom->cf_ikv_nr != 0) {
+			M0_ALLOC_ARR(fom->cf_in_cids, fom->cf_ikv_nr);
+			if (fom->cf_in_cids == NULL)
+				rc = -ENOMEM;
+			if (is_index_drop) {
+				/*
+				 * Store here pointers to records in dead_index
+				 * to be able to lock dropped indices. Need
+				 * to store fom->cf_ikv_nr records (== number of
+				 * keys to delete).
+				 */
+				M0_ALLOC_ARR(fom->cf_moved_ctgs,
+					     fom->cf_ikv_nr);
+				if (fom->cf_moved_ctgs == NULL)
+					rc = -ENOMEM;
+			}
+		}
+	}
+	if (rc == 0)
+		/*
+		 * Note: fill cf_in_cids there.
+		 */
+		rc = cas_op_recs_check(fom, opc, ct, op);
 
 	return M0_RC(rc);
 }
@@ -1675,31 +1756,128 @@ static bool cas_ctidx_op_needed(struct cas_fom *fom, enum m0_cas_opcode opc,
 	return is_needed;
 }
 
-static int cas_ctidx_exec(struct cas_fom *fom, enum m0_cas_opcode opc,
-			  enum m0_cas_type ct, uint64_t rec_pos,
-			  uint64_t rc)
+static int cas_ctidx_mem_place(struct cas_fom *fom,
+			       const struct m0_cas_id *in_cid, int next)
 {
-	struct m0_cas_id *cid;
-	struct m0_be_tx  *tx = &fom->cf_fom.fo_tx.tx_betx;
+	const struct m0_dix_imask *imask;
+	struct m0_fom             *fom0   = &fom->cf_fom;
+	struct m0_ctg_op          *ctg_op = &fom->cf_ctg_op;
+	enum m0_fom_phase_outcome  ret    = M0_FSO_AGAIN;
+	struct m0_buf              buf;
 
+	imask = CID_IMASK_PTR(in_cid);
+
+	if (!m0_dix_imask_is_empty(imask)) {
+		m0_ctg_op_init(ctg_op, fom0, 0);
+		buf.b_nob = imask->im_nr * sizeof(imask->im_range[0]);
+		buf.b_addr = imask->im_range;
+		ret = m0_ctg_mem_place(ctg_op, &buf, next);
+	} else
+		m0_fom_phase_set(fom0, next);
+
+	return ret;
+}
+
+static int cas_ctidx_mem_free(struct cas_fom *fom, int next)
+{
+	struct m0_dix_layout      *layout;
+	struct m0_dix_imask       *imask;
+	struct m0_fom             *fom0        = &fom->cf_fom;
+	struct m0_ctg_op          *ctg_op      = &fom->cf_ctg_op;
+	enum m0_fom_phase_outcome  ret         = M0_FSO_AGAIN;
+	bool                       free_called = false;
+	struct m0_buf              buf;
+	int                        rc;
+
+	rc = m0_ctg_op_rc(ctg_op);
 	if (rc == 0) {
-		switch (CTG_OP_COMBINE(opc, ct)) {
-		case CTG_OP_COMBINE(CO_PUT, CT_META):
-		case CTG_OP_COMBINE(CO_DEL, CT_META):
-			cid = &fom->cf_in_cids[rec_pos];
-			M0_ASSERT(cas_fid_is_cctg(&cid->ci_fid));
-			if (opc == CO_PUT)
-				rc = m0_ctg_ctidx_insert(cid, tx);
-			else
-				rc = m0_ctg_ctidx_delete(cid, tx);
-			break;
-		default:
-			/* Nothing to do. */
-			break;
+		m0_ctg_lookup_result(ctg_op, &buf);
+		M0_ASSERT(buf.b_nob == sizeof(struct m0_dix_layout));
+		layout = (struct m0_dix_layout *)buf.b_addr;
+		imask = LAYOUT_IMASK_PTR(layout);
+		if (!m0_dix_imask_is_empty(imask)) {
+			m0_ctg_op_fini(ctg_op);
+			m0_ctg_op_init(ctg_op, fom0, 0);
+			ret = m0_ctg_mem_free(ctg_op, imask->im_range,
+					      CAS_CTIDX_DELETE);
+			free_called = true;
 		}
 	}
+	if (rc != 0 || !free_called)
+		m0_fom_phase_set(fom0, next);
+	return ret;
+}
 
-	return rc;
+static int cas_ctidx_delete(struct cas_fom *fom, const struct m0_cas_id *in_cid,
+			    int next)
+{
+	struct m0_fom             *fom0   = &fom->cf_fom;
+	struct m0_ctg_op          *ctg_op = &fom->cf_ctg_op;
+	enum m0_fom_phase_outcome  ret    = M0_FSO_AGAIN;
+	struct m0_buf              kbuf;
+
+	if (m0_ctg_op_rc(ctg_op) == 0) {
+		m0_ctg_op_fini(ctg_op);
+		m0_ctg_op_init(ctg_op, fom0, 0);
+		/* The key is a component catalogue FID. */
+		kbuf = M0_BUF_INIT_PTR_CONST(&in_cid->ci_fid);
+		ret = m0_ctg_delete(ctg_op, m0_ctg_ctidx(), &kbuf, next);
+	} else
+		m0_fom_phase_set(fom0, next);
+	return ret;
+}
+
+static int cas_ctidx_lookup(struct cas_fom *fom, const struct m0_cas_id *in_cid,
+			    int next)
+{
+	struct m0_fom    *fom0   = &fom->cf_fom;
+	struct m0_ctg_op *ctg_op = &fom->cf_ctg_op;
+	struct m0_buf     kbuf;
+
+	m0_ctg_op_init(ctg_op, fom0, 0);
+	/* The key is a component catalogue FID. */
+	kbuf = M0_BUF_INIT_PTR_CONST(&in_cid->ci_fid);
+	return m0_ctg_lookup(ctg_op, m0_ctg_ctidx(), &kbuf, next);
+}
+
+static int cas_ctidx_insert(struct cas_fom *fom, const struct m0_cas_id *in_cid,
+			    int next)
+{
+	struct m0_fom       *fom0      = &fom->cf_fom;
+	struct m0_cas_id     cid_copy  = *in_cid;
+	struct m0_ctg_op    *ctg_op    = &fom->cf_ctg_op;
+	bool                 ctg_op_ok = true;
+	int                  ret       = M0_FSO_AGAIN;
+	struct m0_dix_imask *imask;
+	struct m0_buf        kbuf;
+	struct m0_buf        vbuf;
+	struct m0_buf        mbuf;
+
+	imask = CID_IMASK_PTR(&cid_copy);
+	if (!m0_dix_imask_is_empty(imask)) {
+		if (m0_ctg_op_rc(ctg_op) == 0) {
+			m0_ctg_mem_place_get(ctg_op, &mbuf);
+			m0_ctg_op_fini(ctg_op);
+			M0_ASSERT(imask->im_nr ==
+				  mbuf.b_nob / sizeof(imask->im_range[0]));
+			/*
+			 * Substitude imask range array with its BE copy before
+			 * insertion into ctidx tree.
+			 */
+			imask->im_range = (struct m0_ext *)mbuf.b_addr;
+		} else
+			ctg_op_ok = false;
+	}
+
+	if (ctg_op_ok == true) {
+		m0_ctg_op_init(ctg_op, fom0, 0);
+		/* The key is a component catalogue FID. */
+		kbuf = M0_BUF_INIT_PTR(&cid_copy.ci_fid);
+		vbuf = M0_BUF_INIT_PTR(&cid_copy.ci_layout);
+		ret = m0_ctg_insert(ctg_op, m0_ctg_ctidx(), &kbuf, &vbuf, next);
+	}
+
+	return ret;
 }
 
 static m0_bcount_t cas_rpc_cutoff(const struct cas_fom *fom)
@@ -1953,6 +2131,14 @@ static const struct m0_fom_type_ops cas_fom_type_ops = {
 };
 
 static struct m0_sm_state_descr cas_fom_phases[] = {
+	[CAS_CHECK_PRE] = {
+		.sd_name      = "cas-op-check-prepare",
+		.sd_allowed   = M0_BITS(CAS_CHECK)
+	},
+	[CAS_CHECK] = {
+		.sd_name      = "cas-op-check",
+		.sd_allowed   = M0_BITS(M0_FOPH_INIT, M0_FOPH_FAILURE)
+	},
 	[CAS_START] = {
 		.sd_name      = "start",
 		.sd_allowed   = M0_BITS(CAS_META_LOCK, CAS_LOAD_KEY)
@@ -2004,10 +2190,38 @@ static struct m0_sm_state_descr cas_fom_phases[] = {
 		.sd_allowed   = M0_BITS(CAS_CTIDX, CAS_INSERT_TO_DEAD,
 					CAS_PREPARE_SEND, M0_FOPH_SUCCESS)
 	},
+
+
+
 	[CAS_CTIDX] = {
 		.sd_name      = "ctidx",
+		.sd_allowed   = M0_BITS(CAS_PREPARE_SEND, CAS_CTIDX_MEM_PLACE,
+					CAS_CTIDX_LOOKUP)
+	},
+	[CAS_CTIDX_MEM_PLACE] = {
+		.sd_name      = "ctidx-im-range-alloc",
+		.sd_allowed   = M0_BITS(CAS_CTIDX_INSERT)
+	},
+	[CAS_CTIDX_INSERT] = {
+		.sd_name      = "ctidx-insert",
 		.sd_allowed   = M0_BITS(CAS_PREPARE_SEND, CAS_IDROP_LOOP)
 	},
+
+	[CAS_CTIDX_LOOKUP] = {
+		.sd_name      = "ctidx-lookup",
+		.sd_allowed   = M0_BITS(CAS_CTIDX_MEM_FREE)
+	},
+	[CAS_CTIDX_MEM_FREE] = {
+		.sd_name      = "ctidx-im-range-free",
+		.sd_allowed   = M0_BITS(CAS_PREPARE_SEND, CAS_CTIDX_DELETE)
+	},
+	[CAS_CTIDX_DELETE] = {
+		.sd_name      = "ctidx-delete",
+		.sd_allowed   = M0_BITS(CAS_PREPARE_SEND, CAS_IDROP_LOOP)
+	},
+
+
+
 	[CAS_DONE] = {
 		.sd_name      = "done",
 		.sd_allowed   = M0_BITS(CAS_LOOP, CAS_IDROP_LOCK_LOOP)
@@ -2067,6 +2281,10 @@ static struct m0_sm_state_descr cas_fom_phases[] = {
 
 struct m0_sm_trans_descr cas_fom_trans[] = {
 	[ARRAY_SIZE(m0_generic_phases_trans)] =
+	{ "cas-op-check-prepare", M0_FOPH_INIT,         CAS_CHECK_PRE },
+	{ "cas-op-check",         CAS_CHECK_PRE,        CAS_CHECK },
+	{ "cas-op-checked",       CAS_CHECK,            M0_FOPH_INIT },
+	{ "cas-op-check-failed",  CAS_CHECK,            M0_FOPH_FAILURE },
 	{ "tx-initialised",       M0_FOPH_TXN_OPEN,     CAS_START },
 	{ "btree-op?",            CAS_START,            CAS_META_LOCK },
 	{ "meta-op?",             CAS_START,            CAS_LOAD_KEY },
@@ -2102,10 +2320,22 @@ struct m0_sm_trans_descr cas_fom_trans[] = {
 	{ "skip-val-sending",     CAS_SEND_VAL,         CAS_DONE },
 	{ "processing-done",      CAS_VAL_SENT,         CAS_DONE },
 	{ "goto-next-rec",        CAS_DONE,             CAS_LOOP },
-	{ "ctidx-inserted",       CAS_CTIDX,            CAS_PREPARE_SEND },
+	{ "ctidx-insert",         CAS_CTIDX,            CAS_CTIDX_MEM_PLACE },
+	{ "ctidx-delete",         CAS_CTIDX,            CAS_CTIDX_LOOKUP },
+	{ "op-failed",            CAS_CTIDX,            CAS_PREPARE_SEND },
+
+	{ "ctidx-mem-place",      CAS_CTIDX_MEM_PLACE,  CAS_CTIDX_INSERT },
+	{ "ctidx-do-insert",      CAS_CTIDX_INSERT,     CAS_PREPARE_SEND },
+	{ "ctidx-ins-idx-drop",   CAS_CTIDX_INSERT,     CAS_IDROP_LOOP },
+
+	{ "ctidx-lookup",         CAS_CTIDX_LOOKUP,     CAS_CTIDX_MEM_FREE },
+	{ "ctidx-mem-free",       CAS_CTIDX_MEM_FREE,   CAS_CTIDX_DELETE },
+	{ "ctidx-lookup-failed",  CAS_CTIDX_MEM_FREE,   CAS_PREPARE_SEND },
+	{ "ctidx-do-delete",      CAS_CTIDX_DELETE,     CAS_PREPARE_SEND },
+	{ "ctidx-del-idx-drop",   CAS_CTIDX_DELETE,     CAS_IDROP_LOOP },
+
 	{ "key-add-reply",        CAS_DONE,             CAS_LOOP },
 	{ "op-launched",          CAS_LOOP,             CAS_INSERT_TO_DEAD },
-	{ "ctidx-ins-idx-drop",   CAS_CTIDX,            CAS_IDROP_LOOP },
 	{ "idx-drop-reply-sent",  CAS_DONE,             CAS_IDROP_LOCK_LOOP },
 	{ "dead-index-locked",    CAS_DEAD_INDEX_LOCK,  CAS_LOCK },
 	{ "dead-index-inserted",  CAS_INSERT_TO_DEAD,   CAS_DELETE_FROM_META },

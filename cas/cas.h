@@ -238,13 +238,16 @@ enum m0_cas_opcode {
 	CO_MIN,
 	CO_TRUNC,
 	CO_DROP,
+	CO_MEM_PLACE,
+	CO_MEM_FREE,
 	CO_NR
 };
 
 enum m0_cas_type {
 	CT_META,
 	CT_BTREE,
-	CT_DEAD_INDEX
+	CT_DEAD_INDEX,
+	CT_MEM
 };
 
 /**

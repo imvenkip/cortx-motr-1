@@ -151,6 +151,7 @@ struct m0_ctg_op {
 	struct m0_buf             co_out_key;
 	/** Value out buffer. */
 	struct m0_buf             co_out_val;
+	struct m0_buf             co_mem_buf;
 	/** Operation code to be executed. */
 	int                       co_opcode;
 	/** Operation type (meta or ordinary catalogue). */
@@ -604,8 +605,8 @@ M0_INTERNAL void m0_ctg_ctidx_delete_credits(struct m0_cas_id       *cid,
  *
  * @ret 0 on success or negative error code.
  */
-M0_INTERNAL int m0_ctg_ctidx_insert(const struct m0_cas_id *cid,
-				    struct m0_be_tx        *tx);
+M0_INTERNAL int m0_ctg_ctidx_insert_sync(const struct m0_cas_id *cid,
+					 struct m0_be_tx        *tx);
 
 /**
  * Synchronous record deletion from catalogue-index catalogue.
@@ -615,8 +616,8 @@ M0_INTERNAL int m0_ctg_ctidx_insert(const struct m0_cas_id *cid,
  *
  * @ret 0 on success or negative error code.
  */
-M0_INTERNAL int m0_ctg_ctidx_delete(const struct m0_cas_id *cid,
-				    struct m0_be_tx        *tx);
+M0_INTERNAL int m0_ctg_ctidx_delete_sync(const struct m0_cas_id *cid,
+					 struct m0_be_tx        *tx);
 
 /**
  * Synchronous record lookup in catalogue-index catalogue.
@@ -627,8 +628,17 @@ M0_INTERNAL int m0_ctg_ctidx_delete(const struct m0_cas_id *cid,
  *
  * @ret 0 on success or negative error code.
  */
-M0_INTERNAL int m0_ctg_ctidx_lookup(const struct m0_fid   *fid,
-				    struct m0_dix_layout **layout);
+M0_INTERNAL int m0_ctg_ctidx_lookup_sync(const struct m0_fid   *fid,
+					 struct m0_dix_layout **layout);
+
+M0_INTERNAL int  m0_ctg_mem_place(struct m0_ctg_op    *ctg_op,
+				  const struct m0_buf *buf,
+				  int                  next_phase);
+M0_INTERNAL void m0_ctg_mem_place_get(struct m0_ctg_op *ctg_op,
+				      struct m0_buf    *buf);
+M0_INTERNAL int  m0_ctg_mem_free(struct m0_ctg_op *ctg_op,
+				 void             *area,
+				 int               next_phase);
 
 /**
  * Total number of records in catalogue store in all user (non-meta) catalogues.

@@ -828,9 +828,7 @@ static bool ctg_is_ordinary(const struct m0_cas_ctg *ctg)
 
 static bool ctg_op_cb(struct m0_clink *clink)
 {
-	struct m0_ctg_op *ctg_op  = container_of(clink,
-						struct m0_ctg_op,
-						co_clink);
+	struct m0_ctg_op *ctg_op   = M0_AMB(ctg_op, clink, co_clink);
 	struct m0_be_op  *op      = ctg_beop(ctg_op);
 	int               opc     = ctg_op->co_opcode;
 	int               ct      = ctg_op->co_ct;
@@ -838,6 +836,8 @@ static bool ctg_op_cb(struct m0_clink *clink)
 	void             *arena   = ctg_op->co_anchor.ba_value.b_addr;
 	struct m0_buf     cur_key = {};
 	struct m0_buf     cur_val = {};
+	struct m0_buf    *dst;
+	struct m0_buf    *src;
 	int               rc;
 
 	if (op->bo_sm.sm_state != M0_BOS_DONE)
@@ -909,6 +909,22 @@ static bool ctg_op_cb(struct m0_clink *clink)
 					&ctg_op->co_fom->fo_tx.tx_betx,
 					(struct m0_cas_ctg **)
 					(arena + KV_HDR_SIZE));
+			break;
+		case CTG_OP_COMBINE(CO_MEM_PLACE, CT_MEM):
+			/*
+			 * Copy user provided buffer to the buffer allocated in
+			 * BE and capture it.
+			 */
+			src = &ctg_op->co_val;
+			dst = &ctg_op->co_mem_buf;
+			M0_ASSERT(src->b_nob == dst->b_nob);
+			memcpy(dst->b_addr, src->b_addr, src->b_nob);
+			m0_be_tx_capture(
+				&ctg_op->co_fom->fo_tx.tx_betx,
+				&M0_BE_REG(cas_seg(), dst->b_nob, dst->b_addr));
+			break;
+		case CTG_OP_COMBINE(CO_MEM_FREE, CT_MEM):
+			/* Nothing to do. */
 			break;
 		}
 	}
@@ -1030,6 +1046,25 @@ static int ctg_op_exec(struct m0_ctg_op *ctg_op, int next_phase)
 				       !!(ctg_op->co_flags & COF_SLANT));
 		else
 			m0_be_btree_cursor_next(cur);
+		break;
+	}
+
+	return ctg_op_tick_ret(ctg_op, next_phase);
+}
+
+static int ctg_mem_op_exec(struct m0_ctg_op *ctg_op, int next_phase)
+{
+	struct m0_be_tx *tx   = &ctg_op->co_fom->fo_tx.tx_betx;
+	struct m0_be_op *beop = ctg_beop(ctg_op);
+	int              opc  = ctg_op->co_opcode;
+	int              ct   = ctg_op->co_ct;
+
+	switch (CTG_OP_COMBINE(opc, ct)) {
+	case CTG_OP_COMBINE(CO_MEM_PLACE, CT_MEM):
+		M0_BE_ALLOC_BUF(&ctg_op->co_mem_buf, cas_seg(), tx, beop);
+		break;
+	case CTG_OP_COMBINE(CO_MEM_FREE, CT_MEM):
+		M0_BE_FREE_PTR(ctg_op->co_mem_buf.b_addr, cas_seg(), tx, beop);
 		break;
 	}
 
@@ -1174,6 +1209,13 @@ static int ctg_exec(struct m0_ctg_op    *ctg_op,
 		ret = ctg_op_exec(ctg_op, next_phase);
 
 	return ret;
+}
+
+static int ctg_mem_exec(struct m0_ctg_op *ctg_op,
+			int               next_phase)
+{
+	ctg_op->co_ct = CT_MEM;
+	return ctg_mem_op_exec(ctg_op, next_phase);
 }
 
 M0_INTERNAL int m0_ctg_insert(struct m0_ctg_op    *ctg_op,
@@ -1586,8 +1628,8 @@ M0_INTERNAL void m0_ctg_ctidx_delete_credits(struct m0_cas_id       *cid,
 	ctg_ctidx_op_credits(cid, false, accum);
 }
 
-M0_INTERNAL int m0_ctg_ctidx_lookup(const struct m0_fid  *fid,
-				    struct m0_dix_layout **layout)
+M0_INTERNAL int m0_ctg_ctidx_lookup_sync(const struct m0_fid  *fid,
+					 struct m0_dix_layout **layout)
 {
 	uint8_t                   key_data[KV_HDR_SIZE + sizeof(struct m0_fid)];
 	struct m0_buf             key;
@@ -1628,8 +1670,8 @@ M0_INTERNAL int m0_ctg_ctidx_lookup(const struct m0_fid  *fid,
 	return M0_RC(rc);
 }
 
-M0_INTERNAL int m0_ctg_ctidx_insert(const struct m0_cas_id *cid,
-				    struct m0_be_tx        *tx)
+M0_INTERNAL int m0_ctg_ctidx_insert_sync(const struct m0_cas_id *cid,
+					 struct m0_be_tx        *tx)
 {
 	uint8_t                    key_data[KV_HDR_SIZE +
 					    sizeof(struct m0_fid)];
@@ -1677,8 +1719,8 @@ M0_INTERNAL int m0_ctg_ctidx_insert(const struct m0_cas_id *cid,
 	return M0_RC(rc);
 }
 
-M0_INTERNAL int m0_ctg_ctidx_delete(const struct m0_cas_id *cid,
-				    struct m0_be_tx        *tx)
+M0_INTERNAL int m0_ctg_ctidx_delete_sync(const struct m0_cas_id *cid,
+					 struct m0_be_tx        *tx)
 {
 	struct m0_dix_layout *layout;
 	struct m0_dix_imask  *imask;
@@ -1688,7 +1730,7 @@ M0_INTERNAL int m0_ctg_ctidx_delete(const struct m0_cas_id *cid,
 	int                   rc;
 
 	/* Firstly we should free buffer allocated for imask ranges array. */
-	rc = m0_ctg_ctidx_lookup(&cid->ci_fid, &layout);
+	rc = m0_ctg_ctidx_lookup_sync(&cid->ci_fid, &layout);
 	if (rc != 0)
 		return rc;
 	imask = &layout->u.dl_desc.ld_imask;
@@ -1706,7 +1748,47 @@ M0_INTERNAL int m0_ctg_ctidx_delete(const struct m0_cas_id *cid,
 	return rc;
 }
 
-M0_INTERNAL struct m0_cas_ctg *m0_ctg_meta()
+M0_INTERNAL int m0_ctg_mem_place(struct m0_ctg_op    *ctg_op,
+				 const struct m0_buf *buf,
+				 int                  next_phase)
+{
+	M0_PRE(ctg_op != NULL);
+	M0_PRE(buf->b_nob != 0);
+	M0_PRE(buf->b_addr != NULL);
+	M0_PRE(ctg_op->co_beop.bo_sm.sm_state == M0_BOS_INIT);
+
+	ctg_op->co_opcode = CO_MEM_PLACE;
+	ctg_op->co_val = *buf;
+	ctg_op->co_mem_buf.b_nob = buf->b_nob;
+	return ctg_mem_exec(ctg_op, next_phase);
+}
+
+M0_INTERNAL void m0_ctg_mem_place_get(struct m0_ctg_op *ctg_op,
+				      struct m0_buf    *buf)
+{
+	M0_PRE(ctg_op != NULL);
+	M0_PRE(ctg_op->co_beop.bo_sm.sm_state == M0_BOS_DONE);
+	M0_PRE(ctg_op->co_opcode == CO_MEM_PLACE);
+	M0_PRE(ctg_op->co_ct == CT_MEM);
+	M0_PRE(ctg_op->co_rc == 0);
+
+	*buf = ctg_op->co_mem_buf;
+}
+
+M0_INTERNAL int m0_ctg_mem_free(struct m0_ctg_op *ctg_op,
+				void             *area,
+				int               next_phase)
+{
+	M0_PRE(ctg_op != NULL);
+	M0_PRE(area != NULL);
+	M0_PRE(ctg_op->co_beop.bo_sm.sm_state == M0_BOS_INIT);
+
+	ctg_op->co_opcode = CO_MEM_FREE;
+	ctg_op->co_mem_buf.b_addr = area;
+	return ctg_mem_exec(ctg_op, next_phase);
+}
+
+M0_INTERNAL struct m0_cas_ctg *m0_ctg_meta(void)
 {
 	return ctg_store.cs_state->cs_meta;
 }

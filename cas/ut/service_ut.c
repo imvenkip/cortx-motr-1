@@ -509,7 +509,8 @@ static void create(void)
 static void cctg_create(void)
 {
 	int                  rc;
-	struct m0_cas_id     cid = { .ci_fid = TFID(1, 1) };
+	struct m0_cas_id     cid1 = { .ci_fid = TFID(1, 1) };
+	struct m0_cas_id     cid2 = { .ci_fid = TFID(1, 2) };
 	struct m0_dix_ldesc *desc = NULL;
 	struct m0_ext        range[] = {
 		{ .e_start = 1, .e_end = 3 },
@@ -518,12 +519,17 @@ static void cctg_create(void)
 	};
 
 	init();
-	cid.ci_layout.dl_type = DIX_LTYPE_DESCR;
-	desc = &cid.ci_layout.u.dl_desc;
+	cid1.ci_layout.dl_type = DIX_LTYPE_DESCR;
+	cid2.ci_layout.dl_type = DIX_LTYPE_DESCR;
+	/* Submit CID with empty imask ranges. */
+	meta_cid_submit(&cas_put_fopt, &cid1);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
+	/* Submit CID with non-empty imask ranges. */
+	desc = &cid2.ci_layout.u.dl_desc;
 	rc = m0_dix_ldesc_init(desc, range, ARRAY_SIZE(range), HASH_FNC_CITY,
 			       &M0_FID_INIT(10, 10));
 	M0_UT_ASSERT(rc == 0);
-	meta_cid_submit(&cas_put_fopt, &cid);
+	meta_cid_submit(&cas_put_fopt, &cid2);
 	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
 	m0_dix_ldesc_fini(desc);
 	fini();
@@ -573,6 +579,16 @@ static void cctg_create_delete(void)
 
 	init();
 	cid.ci_layout.dl_type = DIX_LTYPE_DESCR;
+
+	/* Test operations with empty imask ranges. */
+	meta_cid_submit(&cas_put_fopt, &cid);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
+	meta_cid_submit(&cas_del_fopt, &cid);
+	M0_UT_ASSERT(rep_check(0, 0, BUNSET, BUNSET));
+	meta_cid_submit(&cas_get_fopt, &cid);
+	M0_UT_ASSERT(rep_check(0, -ENOENT, BUNSET, BUNSET));
+
+	/* Test operations with non-empty imask ranges. */
 	desc = &cid.ci_layout.u.dl_desc;
 	rc = m0_dix_ldesc_init(desc, range, ARRAY_SIZE(range), HASH_FNC_CITY,
 			       &M0_FID_INIT(10, 10));
