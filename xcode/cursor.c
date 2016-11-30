@@ -55,8 +55,8 @@ M0_INTERNAL int m0_xcode_next(struct m0_xcode_cursor *it)
 	xt  = top->s_obj.xo_type;
 	nr  = xt->xct_nr;
 
-	M0_ASSERT_EX(m0_xcode_type_invariant(xt));
-
+	M0_ASSERT_INFO_EX(m0_xcode_type_invariant(xt),
+			  "xct_name: %s", xt->xct_name);
 	switch (top->s_flag) {
 	case M0_XCODE_CURSOR_NONE:
 		top->s_flag = M0_XCODE_CURSOR_PRE;
