@@ -47,7 +47,7 @@ enum {
 	NTCS_TMID_DATA_CLIENTS    = NTCS_TMID_NODES + NTCS_NODES_MAX * 1,
 	NTCS_TMID_CMD_SERVERS	  = NTCS_TMID_NODES + NTCS_NODES_MAX * 2,
 	NTCS_TMID_DATA_SERVERS    = NTCS_TMID_NODES + NTCS_NODES_MAX * 3,
-	NTCS_ACCEPLABLE_MSG_LOSS  = 20,	/**< 20% */
+	NTCS_ACCEPTABLE_MSG_LOSS  = 20,	/**< 20% */
 };
 
 static struct m0_net_test_node_cfg node_cfg[NTCS_NODES_MAX * 2];
@@ -137,18 +137,16 @@ static void msg_nr_print(const char *prefix,
 static bool msg_nr_in_range(size_t nr1, size_t nr2)
 {
 	size_t nr1_x100 = nr1 * 100;
-	return nr1_x100 >= nr2 * (100 - NTCS_ACCEPLABLE_MSG_LOSS) &&
-	       nr1_x100 <= nr2 * (100 + NTCS_ACCEPLABLE_MSG_LOSS);
+	return nr1_x100 >= nr2 * (100 - NTCS_ACCEPTABLE_MSG_LOSS) &&
+	       nr1_x100 <= nr2 * (100 + NTCS_ACCEPTABLE_MSG_LOSS);
 }
 
-static void nrchk(struct m0_net_test_msg_nr *nr1,
-		  struct m0_net_test_msg_nr *nr2)
-{
-	size_t total1 = nr1->ntmn_total;
-	size_t total2 = nr2->ntmn_total;
-
-	M0_UT_ASSERT(msg_nr_in_range(total1, total2));
-	M0_UT_ASSERT(msg_nr_in_range(total2, total1));
+#define nrchk(nr1, nr2)                                      \
+{                                                            \
+	size_t total1 = (nr1)->ntmn_total;                   \
+	size_t total2 = (nr2)->ntmn_total;                   \
+	M0_UT_ASSERT(msg_nr_in_range(total1, total2));       \
+	M0_UT_ASSERT(msg_nr_in_range(total2, total1));       \
 }
 
 /*
@@ -277,6 +275,15 @@ static void net_test_client_server(const char *nid,
 					     M0_NET_TEST_CMD_STATUS);
 		M0_UT_ASSERT(rc == clients_nr);
 	} while (!console->ntcc_clients.ntcrc_sd->ntcsd_finished);
+	/*
+	 * Sleep a second to wait test update its status.
+	 * TODO: Making a quiesce command (or is_quiesced query) for servers
+	 * which will tell if all buffer callbacks are executed. After this is
+	 * done and it’s called from the test, 1s delay will no longer be
+	 * needed. So the bug is actually in UT which compares the values that
+	 * can’t be compared. From @max.
+	 */
+	m0_nanosleep(m0_time(1,0), NULL);
 	/* send STATUS command to the test clients */
 	rc = m0_net_test_console_cmd(console, M0_NET_TEST_ROLE_CLIENT,
 				     M0_NET_TEST_CMD_STATUS);
@@ -361,9 +368,9 @@ void m0_net_test_client_server_ping_ut(void)
 	/*
 	 * - 0@lo interface
 	 * - 8 test clients, 8 test servers
-	 * - 4k test messages x 4KiB per message
 	 * - 8 pairs of concurrent buffers on each test client
 	 * - 128 concurrent buffers on each test server
+	 * - 4k test messages x 4KiB per message
 	 */
 	net_test_client_server("0@lo", M0_NET_TEST_TYPE_PING,
 			       8, 8, 8, 128, 0x1000, 0x1000,
@@ -380,9 +387,9 @@ void m0_net_test_client_server_bulk_ut(void)
 	/*
 	 * - 0@lo interface
 	 * - 2 test clients, 2 test servers
-	 * - 64 test messages x 1MiB per message
 	 * - 2 pairs of concurrent buffers on each test client
 	 * - 8 concurrent buffers on each test server
+	 * - 64 test messages x 1MiB per message
 	 * - 8(16) network buffers for network buffer descriptors
 	 *   on the test client(server) with 4KiB per buffer and
 	 *   64k maximum buffer descriptors in buffer

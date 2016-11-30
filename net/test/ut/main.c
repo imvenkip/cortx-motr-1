@@ -76,10 +76,7 @@ struct m0_ut_suite m0_net_test_ut = {
 #if 0
 		{ "client-server-ping",	m0_net_test_client_server_ping_ut },
 #endif
-		/* XXX temporarily disabled. See MERO-1654 */
-#if 0
 		{ "client-server-bulk",	m0_net_test_client_server_bulk_ut },
-#endif
 		{ NULL,			NULL				  }
 	}
 };
