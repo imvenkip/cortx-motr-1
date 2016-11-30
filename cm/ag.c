@@ -115,9 +115,15 @@ static void _fini_ast_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	M0_SET0(&out_id);
 
 
-	/* make sure ag is not locked during finalisation */
+	/* m0_cm_aggr_group:cag_fini_ast is posted with ag lock held
+	 * in m0_cm::cm_sm_group, posted ast can be immediately picked
+	 * for execution in context of m0_cm_{lock, unlock}. Here we
+	 * acquire m0_cm_ag_lock and release it to make sure its not
+	 * held during its finalisation.
+	 */
 	m0_cm_ag_lock(ag);
 	m0_cm_ag_unlock(ag);
+
 	/*
 	 * Update m0_cm::cm_store to persist lowest aggregation group in
 	 * sliding window and out going groups.
@@ -148,16 +154,6 @@ static void _fini_ast_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 		m0_chan_signal(&cm->cm_complete);
 }
 
-static void ag_release(struct m0_ref *ref)
-{
-	struct m0_cm_aggr_group *ag;
-
-	ag = container_of(ref, struct m0_cm_aggr_group, cag_ref);
-	M0_ASSERT(m0_cm_ag_is_locked(ag));
-	if (ag->cag_ops->cago_ag_can_fini(ag))
-		m0_cm_ag_fini_post(ag);
-}
-
 M0_INTERNAL void m0_cm_aggr_group_init(struct m0_cm_aggr_group *ag,
 				       struct m0_cm *cm,
 				       const struct m0_cm_ag_id *id,
@@ -180,7 +176,7 @@ M0_INTERNAL void m0_cm_aggr_group_init(struct m0_cm_aggr_group *ag,
 	aggr_grps_out_tlink_init(ag);
 	ag->cag_ops = ag_ops;
 	ag->cag_cp_local_nr = ag->cag_ops->cago_local_cp_nr(ag);
-	m0_ref_init(&ag->cag_ref, 0, ag_release);
+	ag->cag_ref = 0;
 	ag->cag_fini_ast.sa_cb = _fini_ast_cb;
 	M0_LEAVE();
 }
@@ -398,18 +394,42 @@ M0_INTERNAL struct m0_cm_aggr_group *m0_cm_ag_lo(struct m0_cm *cm)
 	return aggr_grps_in_tlist_head(&cm->cm_aggr_grps_in);
 }
 
-M0_INTERNAL void m0_cm_ag_get(struct m0_cm_aggr_group *ag)
+static void cm_ag_get(struct m0_cm_aggr_group *ag)
 {
 	M0_PRE(m0_cm_ag_is_locked(ag));
 
-	m0_ref_get(&ag->cag_ref);
+	M0_CNT_INC(ag->cag_ref);
+}
+
+static void cm_ag_put(struct m0_cm_aggr_group *ag)
+{
+	M0_PRE(m0_cm_ag_is_locked(ag));
+
+	M0_CNT_DEC(ag->cag_ref);
+	if (ag->cag_ref == 0 && ag->cag_ops->cago_ag_can_fini(ag))
+		m0_cm_ag_fini_post(ag);
+}
+
+M0_INTERNAL void m0_cm_ag_get(struct m0_cm_aggr_group *ag)
+{
+	m0_cm_ag_lock(ag);
+	cm_ag_get(ag);
+	m0_cm_ag_unlock(ag);
 }
 
 M0_INTERNAL void m0_cm_ag_put(struct m0_cm_aggr_group *ag)
 {
+	m0_cm_ag_lock(ag);
+	cm_ag_put(ag);
+	m0_cm_ag_unlock(ag);
+}
+
+M0_INTERNAL void m0_cm_ag_cp_add_locked(struct m0_cm_aggr_group *ag, struct m0_cm_cp *cp)
+{
 	M0_PRE(m0_cm_ag_is_locked(ag));
 
-	m0_ref_put(&ag->cag_ref);
+	cp->c_ag = ag;
+	cm_ag_get(ag);
 }
 
 M0_INTERNAL void m0_cm_ag_cp_add(struct m0_cm_aggr_group *ag, struct m0_cm_cp *cp)
@@ -418,8 +438,7 @@ M0_INTERNAL void m0_cm_ag_cp_add(struct m0_cm_aggr_group *ag, struct m0_cm_cp *c
 	M0_PRE(cp != NULL);
 
 	m0_cm_ag_lock(ag);
-	cp->c_ag = ag;
-	m0_cm_ag_get(ag);
+	m0_cm_ag_cp_add_locked(ag, cp);
 	m0_cm_ag_unlock(ag);
 }
 
@@ -430,7 +449,7 @@ M0_INTERNAL void m0_cm_ag_cp_del(struct m0_cm_aggr_group *ag, struct m0_cm_cp *c
 
 	m0_cm_ag_lock(ag);
 	M0_CNT_INC(ag->cag_freed_cp_nr);
-	m0_cm_ag_put(ag);
+	cm_ag_put(ag);
 	m0_cm_ag_unlock(ag);
 }
 

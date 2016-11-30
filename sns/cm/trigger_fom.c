@@ -174,11 +174,10 @@ static void print__ag(const struct m0_tl_descr *descr, const struct m0_tl *head)
 	struct m0_cm_aggr_group *ag;
 
 	m0_tlist_for(descr, head, ag) {
-		int64_t ag_ref = m0_ref_read(&ag->cag_ref);
 		M0_LOG(M0_DEBUG, M0_AG_F, M0_AG_P(&ag->cag_id));
 		M0_LOG(M0_DEBUG, " freed=%u local_cp=%u transformed=%u ref=%u",
 			(unsigned)ag->cag_freed_cp_nr, (unsigned)ag->cag_cp_local_nr,
-			(unsigned)ag->cag_transformed_cp_nr, (unsigned)ag_ref);
+			(unsigned)ag->cag_transformed_cp_nr, (unsigned)ag->cag_ref);
 	} m0_tlist_endfor;
 }
 

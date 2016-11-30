@@ -411,6 +411,8 @@ static void ag_setup(struct m0_sns_cm_ag *sag, struct m0_cm *cm)
 	sag->sag_fnr = FAIL_NR;
 	sag->sag_base.cag_cp_global_nr =
 		sag->sag_base.cag_cp_local_nr + FAIL_NR;
+	M0_ALLOC_ARR(sag->sag_proxy_in_count, 1);
+	M0_UT_ASSERT(sag->sag_proxy_in_count != NULL);
 }
 
 /*
@@ -464,6 +466,9 @@ static void receiver_ag_create(struct m0_cm *cm)
 	ag = &sag->sag_base;
 	sag->sag_base.cag_cm = cm;
 	sag->sag_base.cag_has_incoming = true;
+	sag->sag_local_tgts_nr = 1;
+	m0_bitmap_init(&sag->sag_proxy_incoming_map, cm->cm_proxy_nr);
+	m0_bitmap_set(&sag->sag_proxy_incoming_map, recv_cm_proxy->px_id, true);
 	m0_mutex_init(&ag->cag_mutex);
 	aggr_grps_in_tlink_init(ag);
 	aggr_grps_out_tlink_init(ag);
@@ -552,8 +557,6 @@ static void receiver_init(bool ag_create)
 	cm_ready(recv_cm);
 	recv_cm->cm_sw_update.swu_is_complete = true;
 
-	if (ag_create)
-		receiver_ag_create(recv_cm);
 	receiver_stob_create();
 	M0_ALLOC_PTR(recv_cm_proxy);
 	M0_UT_ASSERT(recv_cm_proxy != NULL);
@@ -561,6 +564,8 @@ static void receiver_init(bool ag_create)
 	m0_cm_lock(recv_cm);
 	m0_cm_proxy_add(recv_cm, recv_cm_proxy);
 	m0_cm_unlock(recv_cm);
+	if (ag_create)
+		receiver_ag_create(recv_cm);
 	rc = m0_cm_start(recv_cm);
 	M0_UT_ASSERT(rc == 0);
 }

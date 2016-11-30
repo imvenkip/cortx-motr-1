@@ -450,6 +450,9 @@ M0_INTERNAL int m0_sns_cm_ag_init(struct m0_sns_cm_ag *sag,
 	upg = m0_sns_cm_ag_size(pl);
 	m0_bitmap_init(&sag->sag_fmap, upg);
 	m0_bitmap_init(&sag->sag_proxy_incoming_map, scm->sc_base.cm_proxy_nr);
+	M0_ALLOC_ARR(sag->sag_proxy_in_count, scm->sc_base.cm_proxy_nr);
+	if (sag->sag_proxy_in_count == NULL)
+		return M0_ERR(-ENOMEM);
 
 	sag->sag_fctx = fctx;
 	pm_state = fctx->sf_pm->pm_state;
@@ -460,13 +463,15 @@ M0_INTERNAL int m0_sns_cm_ag_init(struct m0_sns_cm_ag *sag,
 	    M0_FI_ENABLED("ag_init_failure")) {
 		m0_bitmap_fini(&sag->sag_fmap);
 		m0_bitmap_fini(&sag->sag_proxy_incoming_map);
+		m0_free(sag->sag_proxy_in_count);
 		m0_sns_cm_fctx_put(scm, id);
 		return M0_ERR(-EINVAL);
 	}
 	sag->sag_fnr = f_nr;
 	if (has_incoming)
-		sag->sag_incoming_nr = m0_sns_cm_ag_max_incoming_units(scm, id, fctx,
-								       &sag->sag_proxy_incoming_map);
+		sag->sag_incoming_nr =
+		m0_sns_cm_ag_max_incoming_units(scm, id, fctx,
+						&sag->sag_proxy_incoming_map);
 	m0_cm_aggr_group_init(&sag->sag_base, cm, id, has_incoming, ag_ops);
 	sag->sag_base.cag_cp_global_nr = m0_sns_cm_ag_nr_global_units(sag, pl);
 	M0_LEAVE("ag: %p", sag);
@@ -488,6 +493,9 @@ M0_INTERNAL bool m0_sns_cm_ag_is_frozen_on(struct m0_cm_aggr_group *ag, struct m
 	uint32_t             local_cps = 0;
 	uint32_t             expected_free = 0;
 
+	M0_ENTRY();
+	M0_PRE(m0_cm_ag_is_locked(ag));
+
 	/*
 	 * Find out if there are any incoming copy packets from the given proxy that
 	 * is already completed and the copy packets will no longer be arriving.
@@ -506,8 +514,9 @@ M0_INTERNAL bool m0_sns_cm_ag_is_frozen_on(struct m0_cm_aggr_group *ag, struct m
 	 * Calculate the expected copy packets that can be created and finalised
 	 * in-order to mark aggregation group as frozen.
 	 */
-	if (sag->sag_not_coming > 0 || (m0_cm_cp_pump_is_complete(&cm->cm_cp_pump) &&
-					sag->sag_cp_created_nr != ag->cag_cp_local_nr)) {
+	if (sag->sag_not_coming > 0 ||
+	    (m0_cm_cp_pump_is_complete(&cm->cm_cp_pump) &&
+	    sag->sag_cp_created_nr != ag->cag_cp_local_nr)) {
 		not_coming = sag->sag_not_coming * sag->sag_local_tgts_nr;
 		if (ag->cag_cp_local_nr > 0) {
 			local_cps = ag->cag_cp_local_nr + sag->sag_outgoing_nr;
@@ -518,9 +527,12 @@ M0_INTERNAL bool m0_sns_cm_ag_is_frozen_on(struct m0_cm_aggr_group *ag, struct m
 		}
 		expected_free =  local_cps + sag->sag_incoming_nr - not_coming;
 
-		return ag->cag_freed_cp_nr >= expected_free;
+		sag->sag_is_frozen = ag->cag_freed_cp_nr >= expected_free;
+		return sag->sag_is_frozen;
 	} else
 		return false;
+
+	M0_LEAVE();
 }
 
 /** @} SNSCMAG */

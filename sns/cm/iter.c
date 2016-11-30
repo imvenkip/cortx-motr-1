@@ -455,6 +455,8 @@ static int __group_next(struct m0_sns_cm_iter *it)
 	ifc->ifc_groups_nr = m0_sns_cm_nr_groups(pl, fctx->sf_attr.ca_size);
 	sa = &ifc->ifc_sa;
 	gfid = &ifc->ifc_gfid;
+	if (it->si_ag != NULL)
+		m0_cm_ag_put(it->si_ag);
 	it->si_ag = NULL;
 	pm = fctx->sf_pm;
 	if (m0_sns_cm_pver_is_dirty(pm->pm_pver))
@@ -466,6 +468,8 @@ static int __group_next(struct m0_sns_cm_iter *it)
 		nrlu = m0_sns_cm_ag_nr_local_units(scm, ifc->ifc_fctx, group);
 		if (has_incoming || nrlu > 0) {
 			rc = __group_alloc(scm, gfid, group, pl, has_incoming, &it->si_ag);
+			if (it->si_ag != NULL)
+				m0_cm_ag_get(it->si_ag);
 			if (rc != 0) {
 				if (rc == -ENOBUFS)
 					iter_phase_set(it, ITPH_AG_SETUP);
@@ -739,6 +743,9 @@ M0_INTERNAL int m0_sns_cm_iter_next(struct m0_cm *cm, struct m0_cm_cp *cp)
 				M0_LOG(M0_DEBUG, "%lu: Got %s cmd: returning -ENODATA",
 						 cm->cm_id,
 						 cm->cm_quiesce ? "QUIESCE" : "ABORT");
+				if (iter_phase(it) == ITPH_GROUP_NEXT && it->si_ag != NULL)
+					m0_cm_ag_put(it->si_ag);
+
 				return M0_RC(-ENODATA);
 			}
 		}

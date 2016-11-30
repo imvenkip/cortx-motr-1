@@ -53,6 +53,8 @@ struct m0_sns_cm_ag {
 	 */
 	struct m0_bitmap                 sag_proxy_incoming_map;
 
+	uint32_t                        *sag_proxy_in_count;
+
 	/** Number of local copy packets created by data iterator. */
 	uint32_t                         sag_cp_created_nr;
 
@@ -74,8 +76,8 @@ struct m0_sns_cm_ag {
 	/** Bitmap of failed units in the aggregation group. */
 	struct m0_bitmap                 sag_fmap;
 
-	/** If this aggregation group has local spare units on the replica. */
-	bool                             sag_is_relevant;
+	/** If this aggregation group cannot make further progress. */
+	bool                             sag_is_frozen;
 };
 
 struct m0_sns_cm_ag_iter {

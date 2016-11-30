@@ -360,6 +360,25 @@ static uint32_t seg_nr_get(const struct m0_sns_cpx *sns_cpx, uint32_t ivec_nr)
 	return seg_nr;
 }
 
+static void ag_cp_recvd_from_proxy(struct m0_cm_aggr_group *ag, struct m0_cm_proxy *proxy)
+{
+	struct m0_sns_cm_ag *sag = ag2snsag(ag);
+
+	M0_PRE(m0_cm_ag_is_locked(ag));
+
+	M0_CNT_INC(sag->sag_proxy_in_count[proxy->px_id]);
+	M0_ASSERT(sag->sag_proxy_in_count[proxy->px_id] <=
+		  sag->sag_local_tgts_nr);
+
+	if (sag->sag_proxy_in_count[proxy->px_id] == sag->sag_local_tgts_nr) {
+		/* Received all incoming units from given proxy
+		 * unset incoming bit in proxy map.
+		 */
+		m0_bitmap_set(&sag->sag_proxy_incoming_map, proxy->px_id,
+			      false);
+	}
+}
+
 /* Converts onwire copy packet structure to in-memory copy packet structure. */
 static int snscpx_to_snscp(const struct m0_sns_cpx *sns_cpx,
                             struct m0_sns_cm_cp *sns_cp)
@@ -391,7 +410,11 @@ static int snscpx_to_snscp(const struct m0_sns_cpx *sns_cpx,
 		M0_LOG(M0_WARN, "ag="M0_AG_F" not found", M0_AG_P(&ag_id));
 		return -ENOENT;
 	}
-	m0_cm_ag_cp_add(ag, &sns_cp->sc_base);
+
+	m0_cm_ag_lock(ag);
+	ag_cp_recvd_from_proxy(ag, sns_cp->sc_base.c_cm_proxy);
+	m0_cm_ag_cp_add_locked(ag, &sns_cp->sc_base);
+	m0_cm_ag_unlock(ag);
 
 	sns_cp->sc_base.c_ag_cp_idx = sns_cpx->scx_cp.cpx_ag_cp_idx;
 	m0_bitmap_init(&sns_cp->sc_base.c_xform_cp_indices,

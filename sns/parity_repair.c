@@ -161,7 +161,10 @@ static uint64_t frame_get(struct m0_pdclust_instance *pi, uint64_t spare_frame,
 
         M0_PRE(pi != NULL);
 
-        /* Start with the (group_number - 1), to match the frame. */
+	/* We look at spare_frame - 1, spare_frame and spare_frame + 1 to find
+	 * appropriate data/parity unit corresponding to spare unit for a
+	 * given group number.
+	 */
         if (spare_frame != 0) {
                 frame = spare_frame - 1;
                 frame_found = frame_eq(pi, group_number, frame, device_index);

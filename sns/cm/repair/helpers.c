@@ -90,8 +90,8 @@ static uint64_t repair_ag_max_incoming_units(const struct m0_sns_cm *scm,
 				M0_CNT_INC(local_spares);
 			}
 		}
-		if (!is_failed && !m0_sns_cm_is_local_cob(cm, pm->pm_pver,
-					                  &cobfid)) {
+		if (proxy_in_map != NULL && !is_failed &&
+		    !m0_sns_cm_is_local_cob(cm, pm->pm_pver, &cobfid)) {
 			ep = m0_sns_cm_tgt_ep(cm, pm->pm_pver, &cobfid, &svc);
 			pxy = m0_tl_find(proxy, pxy, &cm->cm_proxies,
 					 m0_streq(ep, pxy->px_endpoint));

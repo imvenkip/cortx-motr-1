@@ -66,12 +66,23 @@ src_count=2
 
 verify()
 {
-	for ((i=0; i < ${#files[*]}; i++)) ; do
+	start_file=$1;
+
+	for ((i=$start_file; i < ${#files[*]}; i++)) ; do
 		local_read $((${unit_size[$i]} * 1024)) ${file_size[$i]} || return $?
 		read_and_verify ${files[$i]} $((${unit_size[$i]} * 1024)) ${file_size[$i]} || return $?
 	done
 
 	echo "file verification sucess"
+}
+
+delete_files()
+{
+	for ((i=0; i < 7; i++)) ; do
+		_rm ${files[$i]} || return $?
+	done
+
+	echo "files deleted"
 }
 
 sns_repair_test()
@@ -88,7 +99,7 @@ sns_repair_test()
 		_dd ${files[$i]} $((${unit_size[$i]} * 1024)) ${file_size[$i]}
 	done
 
-	verify || return $?
+	verify 0 || return $?
 
 	for ((i=0; i < ${#IOSEP[*]}; i++)) ; do
 		ios_eps="$ios_eps -S ${lnet_nid}:${IOSEP[$i]}"
@@ -102,7 +113,7 @@ sns_repair_test()
 	disk_state_get $fail_device1 $fail_device2 || return $?
 
 	echo "Device $fail_device1 and $fail_device2 failed. Do dgmode read"
-	verify || return $?
+	verify 0 || return $?
 
 	disk_state_set "repairing" $fail_device1 $fail_device2 || return $?
 	sns_repair || return $?
@@ -119,7 +130,7 @@ sns_repair_test()
 ####### Query device state
 	disk_state_get $fail_device1 $fail_device2 || return $?
 
-	verify || return $?
+	verify 0 || return $?
 
         echo "Starting SNS Re-balance for device $fail_device1"
 	disk_state_set "rebalancing" $fail_device1 || return $?
@@ -135,11 +146,15 @@ sns_repair_test()
 	echo "Device $fail_device1 rebalanced"
 	disk_state_get $fail_device1 $fail_device2 || return $?
 
-	verify || return $?
+	verify 0 || return $?
 
 	disk_state_set "failed" $fail_device3 || return $?
 
 	disk_state_set "repairing" $fail_device3 || return $?
+
+	echo "Deleting files"
+	delete_files || return $?
+
 	sns_repair || return $?
 
 	echo "wait for sns repair"
@@ -152,7 +167,7 @@ sns_repair_test()
 	disk_state_get $fail_device3 || return $?
 
 	echo "SNS Repair done."
-	verify || return $?
+	verify 8 || return $?
 
         echo "Starting SNS Re-balance for device $fail_device3"
 	disk_state_set "rebalancing" $fail_device3 || return $?
@@ -168,7 +183,7 @@ sns_repair_test()
 	echo "Device $fail_device3 rebalanced"
 	disk_state_get $fail_device1 $fail_device2 $fail_device3
 
-	verify || return $?
+	verify 8 || return $?
 
         echo "Starting SNS Re-balance for device $fail_device2"
 	disk_state_set "rebalancing" $fail_device2 || return $?
@@ -183,7 +198,7 @@ sns_repair_test()
 
 	echo "Device $fail_device2 rebalanced"
 
-	verify || return $?
+	verify 8 || return $?
 
 # Fail, repair and rebalance all the 3 device at once.
 
@@ -192,7 +207,7 @@ sns_repair_test()
 	disk_state_get $fail_device1 $fail_device2 $fail_device3 || return $?
 
 	echo "Devices $fail_device1 $fail_device2 $fail_device3 failed. Do dgmode read"
-	verify || return $?
+	verify 8 || return $?
 
 	disk_state_set "repairing" $fail_device1 $fail_device2 $fail_device3 || return $?
 	sns_repair || return $?
@@ -208,7 +223,7 @@ sns_repair_test()
 
 	disk_state_get $fail_device1 $fail_device2 $fail_device3 || return $?
 
-	verify || return $?
+	verify 8 || return $?
 
         echo "Starting SNS Re-balance for devices $fail_device1 $fail_device2 $fail_device3"
 	disk_state_set "rebalancing" $fail_device1 $fail_device2 $fail_device3 || return $?
@@ -224,7 +239,7 @@ sns_repair_test()
 	echo "Device $fail_device1 $fail_device2 $fail_device3 rebalanced"
 	disk_state_get $fail_device1 $fail_device2 $fail_device3 || return $?
 
-	verify || return $?
+	verify 8 || return $?
 
 	return $?
 }

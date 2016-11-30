@@ -71,7 +71,7 @@ struct m0_cm_aggr_group {
 
 	struct m0_sm_ast                   cag_fini_ast;
 
-	struct m0_ref                      cag_ref;
+	uint64_t                           cag_ref;
 
 	/**
 	 * Number of global copy packets that correspond to this aggregation
@@ -257,6 +257,8 @@ M0_INTERNAL bool m0_cm_ag_is_locked(struct m0_cm_aggr_group *ag);
 M0_INTERNAL void m0_cm_ag_get(struct m0_cm_aggr_group *ag);
 M0_INTERNAL void m0_cm_ag_put(struct m0_cm_aggr_group *ag);
 
+M0_INTERNAL void m0_cm_ag_cp_add_locked(struct m0_cm_aggr_group *ag,
+					struct m0_cm_cp *cp);
 M0_INTERNAL void m0_cm_ag_cp_add(struct m0_cm_aggr_group *ag, struct m0_cm_cp *cp);
 M0_INTERNAL void m0_cm_ag_cp_del(struct m0_cm_aggr_group *ag, struct m0_cm_cp *cp);
 M0_INTERNAL bool m0_cm_ag_has_pending_cps(struct m0_cm_aggr_group *ag);

@@ -65,6 +65,7 @@ static void acc_cp_free(struct m0_cm_cp *cp)
 	if (fc->fc_is_inuse && fc->fc_is_active) {
 		M0_CNT_INC(rag->rag_acc_freed);
 		m0_cm_ag_cp_del(cp->c_ag, cp);
+		fc->fc_is_active = false;
 	}
 }
 

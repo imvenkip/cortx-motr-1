@@ -321,6 +321,18 @@ _dd()
 	}
 }
 
+_rm()
+{
+	local FILE=$1
+
+	echo "rm -f $MERO_M0T1FS_MOUNT_DIR/$FILE"
+	rm -f $MERO_M0T1FS_MOUNT_DIR/$FILE &>> $MERO_TEST_LOGFILE || {
+		echo "$FILE delete failed"
+		unmount_and_clean &>> $MERO_TEST_LOGFILE
+		return 1
+	}
+}
+
 local_write()
 {
 	local BS=$1

@@ -240,19 +240,21 @@ static uint32_t repair_ag_inactive_acc_nr(struct m0_cm_aggr_group *ag)
 			M0_CNT_INC(inactive_acc_nr);
 	}
 
-	return inactive_acc_nr;
+	if (inactive_acc_nr >= rag->rag_acc_freed)
+		return inactive_acc_nr - rag->rag_acc_freed;
+	else
+		return rag->rag_acc_freed - inactive_acc_nr;
 }
 
 static bool repair_ag_can_fini(const struct m0_cm_aggr_group *ag)
 {
 	struct m0_sns_cm_ag        *sag = ag2snsag(ag);
 	struct m0_sns_cm_repair_ag *rag = sag2repairag(sag);
-	int64_t                     ag_ref = m0_ref_read(&ag->cag_ref);
 	uint32_t                    inactive_accs = 0;
 
-	if (sag->sag_not_coming > 0) {
+	if (sag->sag_is_frozen) {
 		inactive_accs = repair_ag_inactive_acc_nr(&sag->sag_base);
-		return ag_ref == inactive_accs;
+		return ag->cag_ref == inactive_accs;
 	}
 
 	return (rag->rag_acc_inuse_nr == rag->rag_acc_freed) &&

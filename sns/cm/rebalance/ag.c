@@ -68,14 +68,13 @@ static void rebalance_ag_fini(struct m0_cm_aggr_group *ag)
 
 static bool rebalance_ag_can_fini(const struct m0_cm_aggr_group *ag)
 {
-	struct m0_sns_cm_ag           *sag = ag2snsag(ag);
-	int64_t                        ag_ref = m0_ref_read(&ag->cag_ref);
+	struct m0_sns_cm_ag *sag = ag2snsag(ag);
 
 	M0_PRE(ag != NULL);
 
         if (ag->cag_has_incoming) {
-		if (sag->sag_not_coming > 0 )
-			return ag_ref == 0;
+		if (sag->sag_is_frozen )
+			return ag->cag_ref == 0;
 
 		return ag->cag_freed_cp_nr == sag->sag_incoming_nr +
 					      ag->cag_cp_local_nr;
