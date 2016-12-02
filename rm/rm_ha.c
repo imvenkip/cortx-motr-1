@@ -203,7 +203,7 @@ static void rm_ha_sbscr_fs_opened(struct m0_sm_group *grp,
 	struct m0_confc_ctx        *cctx = &sbscr->rhs_cctx;
 	int                         rc;
 
-	rc = m0_confc_ctx_error(cctx);
+	rc = m0_confc_ctx_error_lock(cctx);
 	if (rc == 0) {
 		sbscr->rhs_dir_root = m0_confc_ctx_result(&sbscr->rhs_cctx);
 		rc = m0_conf_diter_init(&sbscr->rhs_diter, sbscr->rhs_confc,

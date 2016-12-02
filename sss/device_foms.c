@@ -440,7 +440,7 @@ static int sss_disk_info_use(struct m0_sss_dfom *dfom)
 		sss_device_fom_ha_update(dfom);
 	}
 
-	rc = m0_confc_ctx_error(ctx);
+	rc = m0_confc_ctx_error_lock(ctx);
 	if (rc == 0) {
 		disk = M0_CONF_CAST(m0_confc_ctx_result(ctx), m0_conf_disk);
 		dfom->ssm_fid = disk->ck_dev->sd_obj.co_id;
@@ -546,7 +546,7 @@ static int sss_device_fom_fs_info_use(struct m0_sss_dfom  *dfom,
 	struct m0_confc_ctx *confc_ctx = &dfom->ssm_confc_ctx;
 	int                  rc;
 
-	rc = m0_confc_ctx_error(confc_ctx);
+	rc = m0_confc_ctx_error_lock(confc_ctx);
 	if (rc == 0)
 		*fs_obj = m0_confc_ctx_result(confc_ctx);
 	return M0_RC(rc);
@@ -615,7 +615,7 @@ static int sss_device_stob_attach(struct m0_fom *fom)
 	M0_ENTRY();
 	dfom = container_of(fom, struct m0_sss_dfom, ssm_fom);
 	confc_ctx = &dfom->ssm_confc_ctx;
-	rc = m0_confc_ctx_error(confc_ctx);
+	rc = m0_confc_ctx_error_lock(confc_ctx);
 	if (rc != 0)
 		goto out;
 	sdev = M0_CONF_CAST(m0_confc_ctx_result(confc_ctx),

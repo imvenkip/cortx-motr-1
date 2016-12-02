@@ -402,7 +402,8 @@ static int diter_wait(struct m0_conf_diter *it)
 	lvl = diter_lvl(it);
 	ctx = diter_lvl_ctx(lvl);
 	prev = diter_lvl_dir_obj(lvl);
-	rc = m0_confc_ctx_error(ctx);
+	rc = it->di_locked ? m0_confc_ctx_error(ctx) :
+			     m0_confc_ctx_error_lock(ctx);
 	if (rc != 0) {
 		diter_confc_ctx_fini(it, ctx);
 		return M0_ERR(rc);

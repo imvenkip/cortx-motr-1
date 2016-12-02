@@ -58,10 +58,10 @@ M0_INTERNAL int conf_ut_waiter_wait(struct conf_ut_waiter *w,
 {
 	int rc;
 
-	while (!m0_confc_ctx_is_completed(&w->w_ctx))
+	while (!m0_confc_ctx_is_completed_lock(&w->w_ctx))
 		m0_chan_wait(&w->w_clink);
 
-	rc = m0_confc_ctx_error(&w->w_ctx);
+	rc = m0_confc_ctx_error_lock(&w->w_ctx);
 	if (rc == 0 && result != NULL)
 		*result = m0_confc_ctx_result(&w->w_ctx);
 

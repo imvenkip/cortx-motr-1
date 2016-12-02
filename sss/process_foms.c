@@ -456,7 +456,7 @@ static bool ss_process_confc_ctx_completed(struct m0_fom *fom)
 	struct m0_sss_process_fom *pfom;
 
 	pfom = container_of(fom, struct m0_sss_process_fom, spm_fom);
-	if (!m0_confc_ctx_is_completed(&pfom->spm_confc_ctx)) {
+	if (!m0_confc_ctx_is_completed_lock(&pfom->spm_confc_ctx)) {
 		ss_process_confc_ctx_arm(pfom);
 		return false;
 	}
@@ -503,7 +503,7 @@ static int ss_process_reconfig(struct m0_fom *fom)
 	pfom = container_of(fom, struct m0_sss_process_fom, spm_fom);
 	confc_ctx = &pfom->spm_confc_ctx;
 
-	rc = m0_confc_ctx_error(confc_ctx);
+	rc = m0_confc_ctx_error_lock(confc_ctx);
 	if (rc == 0)
 		process = M0_CONF_CAST(m0_confc_ctx_result(confc_ctx),
 				       m0_conf_process);

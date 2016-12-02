@@ -677,23 +677,40 @@ static bool _ctx_check(const void *bob)
 	const struct m0_confc_ctx *ctx = bob;
 	const struct m0_sm        *mach = &ctx->fc_mach;
 
-	return  m0_confc_invariant(ctx->fc_confc) &&
-		ctx->fc_ast.sa_datum == &ctx->fc_ast_datum &&
-		ctx->fc_clink.cl_cb == on_object_updated &&
-		ergo(ctx->fc_rpc_item != NULL, request_check(ctx)) &&
-		ergo(mach->sm_state == S_TERMINAL, mach->sm_rc == 0) &&
-		ergo(mach->sm_state == S_FAILURE, mach->sm_rc < 0);
+	return  _0C(m0_confc_invariant(ctx->fc_confc)) &&
+		_0C(ctx->fc_ast.sa_datum == &ctx->fc_ast_datum) &&
+		_0C(ctx->fc_clink.cl_cb == on_object_updated) &&
+		_0C(ergo(ctx->fc_rpc_item != NULL, request_check(ctx))) &&
+		_0C(ergo(mach->sm_state == S_TERMINAL, mach->sm_rc == 0)) &&
+		_0C(ergo(mach->sm_state == S_FAILURE, mach->sm_rc < 0));
 }
 
 M0_INTERNAL bool m0_confc_ctx_is_completed(const struct m0_confc_ctx *ctx)
 {
+	M0_PRE(confc_group_is_locked(ctx->fc_confc));
 	M0_PRE(ctx_invariant(ctx));
 	return M0_IN(ctx->fc_mach.sm_state, (S_TERMINAL, S_FAILURE));
+}
+
+M0_INTERNAL bool m0_confc_ctx_is_completed_lock(const struct m0_confc_ctx *ctx)
+{
+	bool res;
+
+	confc_group_lock(ctx->fc_confc);
+	res = m0_confc_ctx_is_completed(ctx);
+	confc_group_unlock(ctx->fc_confc);
+	return res;
 }
 
 M0_INTERNAL int32_t m0_confc_ctx_error(const struct m0_confc_ctx *ctx)
 {
 	M0_PRE(m0_confc_ctx_is_completed(ctx));
+	return ctx->fc_mach.sm_rc;
+}
+
+M0_INTERNAL int32_t m0_confc_ctx_error_lock(const struct m0_confc_ctx *ctx)
+{
+	M0_PRE(m0_confc_ctx_is_completed_lock(ctx));
 	return ctx->fc_mach.sm_rc;
 }
 
@@ -724,8 +741,10 @@ struct sm_waiter {
 /** Filters out intermediate state transitions of m0_confc_ctx::fc_mach. */
 static bool sm__filter(struct m0_clink *link)
 {
-	return !m0_confc_ctx_is_completed(&container_of(link, struct sm_waiter,
-							w_clink)->w_ctx);
+	struct m0_confc_ctx *ctx = &container_of(link, struct sm_waiter,
+						 w_clink)->w_ctx;
+	M0_PRE(confc_group_is_locked(ctx->fc_confc));
+	return !m0_confc_ctx_is_completed(ctx);
 }
 
 static void sm_waiter_init(struct sm_waiter *w, struct m0_confc *confc)
@@ -748,10 +767,14 @@ static int sm_waiter_wait(struct sm_waiter *w, struct m0_conf_obj **result)
 
 	M0_ENTRY();
 
-	while (!m0_confc_ctx_is_completed(&w->w_ctx))
+	/*
+	 * The context may be changed by AST callback, and it is possible that
+	 * the one is not in invariant state when checking for completion. To
+	 * prevent this, we need to ensure that the confc is locked.
+	 */
+	while (!m0_confc_ctx_is_completed_lock(&w->w_ctx))
 		m0_chan_wait(&w->w_clink);
-
-	rc = m0_confc_ctx_error(&w->w_ctx);
+	rc = m0_confc_ctx_error_lock(&w->w_ctx);
 	if (rc == 0)
 		*result = m0_confc_ctx_result(&w->w_ctx);
 

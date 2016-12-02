@@ -748,6 +748,8 @@ M0_INTERNAL int m0_confc_reconnect(struct m0_confc       *confc,
  */
 M0_INTERNAL bool m0_confc_ctx_is_completed(const struct m0_confc_ctx *ctx);
 
+M0_INTERNAL bool m0_confc_ctx_is_completed_lock(const struct m0_confc_ctx *ctx);
+
 /**
  * Returns error status of asynchronous configuration retrieval operation.
  *
@@ -758,6 +760,8 @@ M0_INTERNAL bool m0_confc_ctx_is_completed(const struct m0_confc_ctx *ctx);
  * @pre  m0_confc_ctx_is_completed(ctx)
  */
 M0_INTERNAL int32_t m0_confc_ctx_error(const struct m0_confc_ctx *ctx);
+
+M0_INTERNAL int32_t m0_confc_ctx_error_lock(const struct m0_confc_ctx *ctx);
 
 /**
  * Retrieves the resulting object of a configuration request.
