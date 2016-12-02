@@ -15,12 +15,6 @@ set -o pipefail
 WORKSPASE=$(pwd)
 ARTIFACTS=$WORKSPASE/artifacts
 
-if [[ -d $ARTIFACTS ]] ; then
-    rm -f $ARTIFACTS/*
-else
-    mkdir $ARTIFACTS
-fi
-
 # for backward compatibility with old Jenkins environment we need to `cd` into
 # 'workdir/src' directory if it exists, that is where old Jenkins jobs stored
 # mero sources
@@ -30,6 +24,12 @@ src_dir=workdir/src
 sudo git clean -dfx
 sudo git submodule foreach git clean -dfx
 git submodule update
+
+if [[ -d $ARTIFACTS ]] ; then
+    rm -f $ARTIFACTS/*
+else
+    mkdir $ARTIFACTS
+fi
 
 sudo ./scripts/install-build-deps
 ./autogen.sh |& tee $ARTIFACTS/configure.log
