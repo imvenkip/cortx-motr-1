@@ -300,7 +300,7 @@ M0_INTERNAL void m0_ha_msg_nvec_send(const struct m0_ha_nvec *nvec,
 		},
 	};
 	M0_ASSERT(nvec->nv_nr > 0 &&
-		  nvec->nv_nr <
+		  nvec->nv_nr <=
 		  ARRAY_SIZE(msg->hm_data.u.hed_nvec.hmnv_arr.hmna_arr));
 	memcpy(msg->hm_data.u.hed_nvec.hmnv_arr.hmna_arr, nvec->nv_note,
 	       nvec->nv_nr * sizeof(nvec->nv_note[0]));
