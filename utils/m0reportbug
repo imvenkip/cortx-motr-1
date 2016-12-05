@@ -3,12 +3,12 @@ set -eu
 # set -x
 export PS4='+ [${FUNCNAME[0]:+${FUNCNAME[0]}:}${LINENO}] '
 
-VERSION=0.16
+VERSION=0.17
 
 IN_DIR=/var/mero # default value; overruled by CLI argument
 OUT_DIR=m0reportbug-data
 OUTPUT=m0reportbug.txt # the file is created in $OUT_DIR/
-MERO_PACKAGE_VERSION=0.1.0 # must correspond to `M0_VERSION' in configure.ac
+MERO_PACKAGE_VERSION=1.0.0 # must correspond to `M0_VERSION' in configure.ac
 M0TRACES_MAX=20 # how many most recently modified m0trace files to collect
 M0TRACES_M0D_MAX=2 # additionally, collect that many m0trace files from each
                    # $IN_DIR/m0d-* directory
@@ -30,6 +30,7 @@ main() {
              # m0traces, which we don't want to collect).
     )
 
+    check_package_version
     [ `id -u` -eq 0 ] || die 'Must be run by superuser'
     optparse "$@"
     [ -d "$IN_DIR" ] || die "$IN_DIR: no such directory"
@@ -194,6 +195,17 @@ program_from_core() {
 ### Since $0 may be a relative path (e.g., 'utils/m0reportbug'),
 ### we might not be able to canonicalize it after cd-ing to $OUT_DIR.
 PROG=$(readlink -f $0)
+
+check_package_version() {
+    local conf="$(dirname $PROG)/../configure.ac"
+    if [ -f "$conf" ]; then
+        local actual=$(
+            grep -E '^m4_define\(\[M0_VERSION_(MAJOR|MINOR|PATCH)' "$conf" |
+                cut -d, -f2 | tr -d '[])' | tr \\n . | sed 's/\.$//')
+        [ $MERO_PACKAGE_VERSION = "$actual" ] ||
+            die "MERO_PACKAGE_VERSION=$MERO_PACKAGE_VERSION, should be $actual"
+    fi
+}
 
 _path_rpm() {
     [ $# -eq 1 ] || die "Usage: ${FUNCNAME[0]} <name>"
@@ -556,6 +568,9 @@ exit
 ###
 ### Date       Version Description
 ### ---------- ------- ----------------------------------------------------
+### 2016-12-05 0.17    Bump MERO_PACKAGE_VERSION to 1.0.0.
+###                    check_package_version(): New function.
+###
 ### 2016-11-17 0.16    * m0traces(): Change location of halond traces to
 ###                      /var/log/.
 ###                    * If m0trace or m0tracedump is not found, don't try
