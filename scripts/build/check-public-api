@@ -81,9 +81,11 @@ set -e
 _sort() { LC_ALL=C sort; }
 _comm() { LC_ALL=C comm "$@"; }
 
+readonly IGNORED_FUNCS='__dummy_function|_fini|_init|raw_io_getevents'
 func_list=$(mktemp)
 nm "$libmero" | awk '$2 == "T" {print $3}' |
-	_sort > $func_list
+    grep -Ev "^($IGNORED_FUNCS)$" |
+    _sort > $func_list
 
 pub_api_sorted=$(mktemp)
 sed -e '/^#/d' -e '/^$/d' -e 's/^\*//' $pub_api | _sort > $pub_api_sorted
