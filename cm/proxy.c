@@ -439,6 +439,7 @@ M0_INTERNAL void m0_cm_proxy_fini(struct m0_cm_proxy *pxy)
 	M0_ENTRY("%p", pxy);
 	M0_PRE(pxy != NULL);
 	M0_PRE(proxy_cp_tlist_is_empty(&pxy->px_pending_cps));
+
 	proxy_cp_tlist_fini(&pxy->px_pending_cps);
 	m0_cm_proxy_bob_fini(pxy);
 	if (m0_clink_is_armed(&pxy->px_ha_link)) {

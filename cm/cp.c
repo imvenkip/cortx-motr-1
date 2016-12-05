@@ -789,7 +789,7 @@ M0_INTERNAL int m0_cm_cp_dup(struct m0_cm_cp *src, struct m0_cm_cp **dest)
 	cp = cm->cm_ops->cmo_cp_alloc(cm);
 	if (cp == NULL)
 		return -ENOMEM;
-	m0_cm_ag_cp_add(src->c_ag, cp);
+	m0_cm_ag_cp_add_locked(src->c_ag, cp);
 	cp->c_ag_cp_idx = src->c_ag_cp_idx;
 	cp->c_data_seg_nr = src->c_data_seg_nr;
 	m0_cm_cp_fom_init(cm, cp, NULL, NULL);

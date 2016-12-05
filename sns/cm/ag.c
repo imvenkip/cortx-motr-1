@@ -419,6 +419,7 @@ M0_INTERNAL void m0_sns_cm_ag_fini(struct m0_sns_cm_ag *sag)
 	scm = cm2sns(cm);
 	m0_bitmap_fini(&sag->sag_fmap);
 	m0_bitmap_fini(&sag->sag_proxy_incoming_map);
+	m0_free(sag->sag_proxy_in_count);
 	m0_sns_cm_fctx_put(scm, &ag->cag_id);
 	m0_cm_aggr_group_fini_and_progress(ag);
         M0_LEAVE();

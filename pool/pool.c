@@ -1464,12 +1464,16 @@ M0_INTERNAL int m0_pool_versions_setup(struct m0_pools_common    *pc,
 					    &pver->pv_id));
 		M0_LOG(M0_DEBUG, "%spver:"FID_F, pver != NULL ? "! ":"",
 		       FID_P(&pver_obj->pv_obj.co_id));
-		if (pver != NULL)
+		if (pver != NULL) {
 			/*
 			 * Version is already in pool, so we must be in pools
 			 * refreshing cycle.
 			 */
+			rc = m0_pool_version_device_map_init(pver, pver_obj, pc);
+			if (rc != 0)
+				break;
 			continue;
+		}
 		M0_ALLOC_PTR(pver);
 		if (pver == NULL) {
 			rc = M0_ERR(-ENOMEM);
