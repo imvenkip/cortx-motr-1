@@ -70,7 +70,7 @@ static bool _concrete_obj_invariant(const struct m0_conf_obj *obj)
 {
 	bool ret = obj->co_ops->coo_invariant(obj);
 	if (unlikely(!ret))
-		M0_LOG(M0_INFO, "Configuration object invariant does not hold:"
+		M0_LOG(M0_ERROR, "Configuration object invariant does not hold:"
 		       " id="FID_F, FID_P(&obj->co_id));
 	return ret;
 }
