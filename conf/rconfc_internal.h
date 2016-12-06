@@ -108,7 +108,7 @@ struct rconfc_link {
 	bool                 rl_preserve;      /**< preserve on herd update  */
 	struct m0_fom        rl_fom;           /**< disconnection FOM        */
 	struct m0_clink      rl_fom_clink;     /**< disconnection wait clink */
-	bool                 rl_fom_queued;    /**< fom already in queue     */
+	bool                 rl_fom_queued;    /**< if FOM already in queue  */
 	/* XXX: intended for UT only */
 	void (*rl_on_state_cb)(struct rconfc_link *lnk);
 };

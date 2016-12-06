@@ -96,6 +96,7 @@ static void rconfc_link_fom_fini(struct m0_fom *fom)
 	M0_ENTRY("lnk=%p", lnk);
 	m0_fom_fini(fom);
 	m0_rconfc_lock(lnk->rl_rconfc);
+	m0_mutex_lock(&lnk->rl_rconfc->rc_herd_lock);
 	rconfc_herd_link_fini(lnk);
 	/*
 	 * Note: rl_state must be set to CONFC_DEAD only after link finalisation
@@ -109,6 +110,8 @@ static void rconfc_link_fom_fini(struct m0_fom *fom)
 		lnk->rl_on_state_cb(lnk);
 	M0_SET0(&lnk->rl_fom);
 	lnk->rl_fom_queued = false;
+	m0_chan_broadcast(&lnk->rl_rconfc->rc_herd_chan);
+	m0_mutex_unlock(&lnk->rl_rconfc->rc_herd_lock);
 	m0_rconfc_unlock(lnk->rl_rconfc);
 	M0_LEAVE();
 }

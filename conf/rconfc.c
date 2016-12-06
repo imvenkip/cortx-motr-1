@@ -1288,7 +1288,10 @@ static bool rconfc_herd_link__on_death_cb(struct m0_clink *clink)
 		return true;
 	}
 	m0_rconfc_lock(lnk->rl_rconfc);
+	m0_mutex_lock(&lnk->rl_rconfc->rc_herd_lock);
 	if (lnk->rl_state != CONFC_DEAD && !lnk->rl_fom_queued) {
+		if (lnk->rl_on_state_cb != NULL)  /* For UT only */
+			lnk->rl_on_state_cb(lnk);
 		lnk->rl_fom_queued = true;
 		m0_fom_init(&lnk->rl_fom, &rconfc_link_fom_type,
 			    &rconfc_link_fom_ops, NULL, NULL,
@@ -1349,6 +1352,7 @@ static bool rconfc_herd_link__on_death_cb(struct m0_clink *clink)
 		M0_LOG(M0_INFO, "Link to "FID_F" known to be CONFC_DEAD",
 		       FID_P(&lnk->rl_confd_fid));
 	}
+	m0_mutex_unlock(&lnk->rl_rconfc->rc_herd_lock);
 	m0_rconfc_unlock(lnk->rl_rconfc);
 	M0_LEAVE("lnk=%p co_ha_state = M0_NC_FAILED, return false", lnk);
 	return false;
@@ -1402,6 +1406,7 @@ M0_INTERNAL void rconfc_herd_link_fini(struct rconfc_link *lnk)
 static void rconfc_herd_ast(struct m0_sm_group *grp,
 			    struct m0_sm_ast   *ast)
 {
+	M0_LOG(M0_DEBUG, "Re-trying to stop...");
 	rconfc_stop_internal(ast->sa_datum);
 }
 
@@ -1419,18 +1424,40 @@ static int rconfc_herd_fini(struct m0_rconfc *rconfc)
 	struct rconfc_link *lnk;
 
 	M0_ENTRY("rconfc = %p", rconfc);
+	M0_PRE(rconfc_is_locked(rconfc));
+	m0_mutex_lock(&rconfc->rc_herd_lock);
 	m0_tl_for(rcnf_herd, &rconfc->rc_herd, lnk) {
 		if (lnk->rl_cctx.fc_confc == NULL) {
 			M0_LOG(M0_DEBUG, "lnk %p is finalised", lnk);
 		} else if (m0_confc_ctx_is_completed(&lnk->rl_cctx)) {
 			m0_confc_ctx_fini_locked(&lnk->rl_cctx);
 		} else {
+			/*
+			 * Found link which conf reading context is still
+			 * active. We need to cancel context operations and wait
+			 * until the context is completed.
+			 */
+			M0_LOG(M0_DEBUG, "Stop re-trying required (cctx)");
 			m0_clink_add(&lnk->rl_cctx.fc_mach.sm_chan,
 				     &rconfc->rc_herd_cl);
 			m0_rpc_conn_sessions_cancel(&lnk->rl_confc.cc_rpc_conn);
+			m0_mutex_unlock(&rconfc->rc_herd_lock);
+			return M0_RC(1);
+		}
+		if (lnk->rl_fom_queued) {
+			/*
+			 * Found link already queued for finalisation. We need
+			 * to wait until FOM finalisation is announced on the
+			 * channel m0_rconfc::rc_herd_chan.
+			 */
+			M0_LOG(M0_DEBUG, "Stop re-trying required (link FOM)");
+			m0_clink_add(&rconfc->rc_herd_chan,
+				     &rconfc->rc_herd_cl);
+			m0_mutex_unlock(&rconfc->rc_herd_lock);
 			return M0_RC(1);
 		}
 	} m0_tl_endfor;
+	m0_mutex_unlock(&rconfc->rc_herd_lock);
 	m0_tl_for(rcnf_herd, &rconfc->rc_herd, lnk) {
 		rconfc_herd_link_fini(lnk);
 	} m0_tl_endfor;
@@ -2488,6 +2515,8 @@ M0_INTERNAL int m0_rconfc_init(struct m0_rconfc      *rconfc,
 	rcnf_active_tlist_init(&rconfc->rc_active);
 	m0_clink_init(&rconfc->rc_unpinned_cl, rconfc_unpinned_cb);
 	m0_clink_init(&rconfc->rc_herd_cl, rconfc_herd_fini_cb);
+	m0_mutex_init(&rconfc->rc_herd_lock);
+	m0_chan_init(&rconfc->rc_herd_chan, &rconfc->rc_herd_lock);
 	m0_sm_init(&rconfc->rc_sm, &rconfc_sm_conf, M0_RCS_INIT, sm_group);
 
 	/* Subscribe on ha entrypoint callbacks */
@@ -2602,6 +2631,10 @@ M0_INTERNAL void m0_rconfc_fini(struct m0_rconfc *rconfc)
 	rcnf_active_tlist_fini(&rconfc->rc_active);
 	rconfc_herd_prune(rconfc);
 	rcnf_herd_tlist_fini(&rconfc->rc_herd);
+	m0_mutex_lock(&rconfc->rc_herd_lock);
+	m0_chan_fini(&rconfc->rc_herd_chan);
+	m0_mutex_unlock(&rconfc->rc_herd_lock);
+	m0_mutex_fini(&rconfc->rc_herd_lock);
 	_confc_phony_fini(&rconfc->rc_phony);
 	m0_rconfc_lock(rconfc);
 	m0_sm_fini(&rconfc->rc_sm);

@@ -401,18 +401,26 @@ static void rconfc_ut_ha_state_set(const struct m0_fid *fid, uint32_t state)
 }
 
 static struct m0_semaphore sem_death;
+static bool expected_fom_queued_value;
 
 M0_TL_DESCR_DECLARE(rpc_conn, M0_EXTERN);
 M0_TL_DEFINE(rpc_conn, M0_INTERNAL, struct m0_rpc_conn);
 
 static void _on_death_cb(struct rconfc_link *lnk)
 {
-	M0_UT_ASSERT(lnk->rl_state == CONFC_DEAD);
-	/* herd link confc not connected */
-	M0_UT_ASSERT(lnk->rl_confc.cc_rpc_conn.c_rpc_machine == NULL);
-	/* herd link confc uninitialised */
-	M0_UT_ASSERT(lnk->rl_confc.cc_group == NULL);
-	m0_semaphore_up(&sem_death);
+	M0_UT_ASSERT(m0_mutex_is_locked(&lnk->rl_rconfc->rc_herd_lock));
+	if (lnk->rl_fom_queued) {
+		M0_UT_ASSERT(lnk->rl_state == CONFC_DEAD);
+		/* herd link confc not connected */
+		M0_UT_ASSERT(lnk->rl_confc.cc_rpc_conn.c_rpc_machine == NULL);
+		/* herd link confc uninitialised */
+		M0_UT_ASSERT(lnk->rl_confc.cc_group == NULL);
+	}
+	if (lnk->rl_fom_queued == expected_fom_queued_value) {
+		M0_LOG(M0_DEBUG, "Done %s waiting for FOM fini",
+		       lnk->rl_fom_queued ? "after" : "with no");
+		m0_semaphore_up(&sem_death);
+	}
 }
 
 M0_TL_DESCR_DECLARE(rcnf_herd, M0_EXTERN);
@@ -465,6 +473,12 @@ static void test_dead_down(void)
 	int                      rc;
 	struct m0_rconfc         rconfc;
 	struct m0_fid            confd_fid = M0_FID_TINIT('s', 1, 6);
+
+	/*
+	 * The tests below are going to wait for FOM being queued and finalised
+	 * regular way.
+	 */
+	expected_fom_queued_value = true;
 
 	rc = rconfc_ut_mero_start(&mach, &rctx);
 	M0_UT_ASSERT(rc == 0);
@@ -589,6 +603,47 @@ static void test_dead_down(void)
 	m0_semaphore_fini(&sem_death);
 	m0_rconfc_stop_sync(&rconfc);
 	m0_rconfc_fini(&rconfc);
+
+	rconfc_ut_mero_stop(&mach, &rctx);
+}
+
+/*
+ * The test is to verify rconfc_herd_link__on_death_cb() passing safe being
+ * concurrent with rconfc stopping.
+ */
+static void test_dead_stop(void)
+{
+	struct m0_rpc_machine    mach;
+	struct m0_rpc_server_ctx rctx;
+	int                      rc;
+	struct m0_rconfc         rconfc;
+	struct m0_fid            confd_fid = M0_FID_TINIT('s', 1, 6);
+
+	/*
+	 * Run link FOM concurrent with stopping.
+	 *
+	 * The concurrent execution is achieved by releasing sem_dead right
+	 * before queueing FOM in rconfc_herd_link__on_death_cb().
+	 */
+	expected_fom_queued_value = false;
+
+	rc = rconfc_ut_mero_start(&mach, &rctx);
+	M0_UT_ASSERT(rc == 0);
+
+	rconfc_ut_ha_state_set(&confd_fid, M0_NC_ONLINE);
+	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_rconfc_start_sync(&rconfc, &profile);
+	M0_UT_ASSERT(rc == 0);
+	m0_rconfc_lock(&rconfc);
+	on_death_cb_install(&rconfc, UT_CC_KEEP_AS_IS);
+	m0_rconfc_unlock(&rconfc);
+	m0_semaphore_init(&sem_death, 0);
+	rconfc_ut_ha_state_set(&confd_fid, M0_NC_FAILED);
+	m0_semaphore_down(&sem_death);
+	m0_rconfc_stop_sync(&rconfc);
+	m0_rconfc_fini(&rconfc);
+	m0_semaphore_fini(&sem_death);
 
 	rconfc_ut_mero_stop(&mach, &rctx);
 }
@@ -1220,6 +1275,7 @@ struct m0_ut_suite rconfc_ut = {
 		{ "fail-retry", test_fail_retry },
 		{ "no-rms",     test_no_rms },
 		{ "dead-down",  test_dead_down },
+		{ "dead-stop",  test_dead_stop },
 		{ "reading",    test_reading },
 		{ "impossible", test_quorum_impossible },
 		{ "quorum-retry",test_quorum_retry },

@@ -363,6 +363,19 @@ struct m0_rconfc {
 	struct m0_sm_ast          rc_load_ast;
 	/** AST used for full conf load finalisation */
 	struct m0_sm_ast          rc_load_fini_ast;
+	/**
+	 * The mutex is to protect m0_rconfc::rc_herd_chan.
+	 *
+	 * As well, rconfc_link::rl_fom_queued value is accessed by rconfc
+	 * code strictly under the lock.
+	 */
+	struct m0_mutex           rc_herd_lock;
+	/**
+	 * The channel is to announce herd link finalisation completion. Herd
+	 * must be safe to finalise only when having no links which FOMs are
+	 * already queued for finalisation.
+	 */
+	struct m0_chan            rc_herd_chan;
 	/** HA ENTRYPOINT reply local copy */
 	struct m0_ha_entrypoint_rep rc_ha_entrypoint_rep;
 	/**
