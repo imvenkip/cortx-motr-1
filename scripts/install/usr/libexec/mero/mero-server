@@ -142,16 +142,7 @@ m0_server()
     fi
 
     # enable core dumps
-    #ulimit -c unlimited
-
-    # limit core dump size (specified in 512-byte blocks)
-    # this is required to reduce core file creation time and workaround issue
-    # when multiple m0d@FID instances are running for the same FID (could happen
-    # if m0d crashes and is hanging around while dumping it's core, but Halon
-    # immediately restarts another m0d instance)
-    local max_coredump_size_gb=5
-    m0_log "max core dump size limited to ${max_coredump_size_gb}GiB"
-    ulimit -c $(( $max_coredump_size_gb * 1024**3 / 512 ))
+    ulimit -c unlimited
 
     # show actual exec commands in log file
     set -x
