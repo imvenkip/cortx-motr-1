@@ -67,6 +67,9 @@ struct _fs_stats_ctx {
 	 */
 	int                   fx_rc;
 	struct m0_spiel_core *fx_spc;         /**< spiel instance      */
+	uint32_t              fx_svc_total;   /**< fs total IOS and MDS count  */
+	uint32_t              fx_svc_processed; /**< count queried services */
+	uint32_t              fx_svc_replied; /**< fs services replied to call */
 	m0_bcount_t           fx_free_seg;    /**< free space in BE segments */
 	m0_bcount_t           fx_total_seg;   /**< total space in BE segments */
 	m0_bcount_t           fx_free_disk;   /**< free space on disks */
@@ -75,6 +78,9 @@ struct _fs_stats_ctx {
 	struct m0_fid         fx_fid;         /**< filesystem fid      */
 	/** stats item type to be enlisted */
 	const struct m0_conf_obj_type *fx_type;
+	struct m0_mutex       fx_guard;       /** protects access to fields */
+	/** Barrier for waiting requests completion */
+	struct m0_semaphore   fx_barrier;
 };
 
 #define SPIEL_LOGLVL M0_DEBUG

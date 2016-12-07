@@ -1421,6 +1421,235 @@ M0_EXPORTED(m0_spiel_pool_rebalance_abort);
 /*                    Filesystem                    */
 /****************************************************/
 
+/**
+ * A context for asynchronous request to a process when fetching filesystem
+ * statistics.
+ */
+struct spiel_proc_item {
+	/** Process fid */
+	struct m0_fid         spi_fid;
+	/** Rpc link for connect to a process */
+	struct m0_rpc_link    spi_rlink;
+	/**
+	 * Signalled when session is established. @see
+	 * m0_rpc_link_connect_async
+	 */
+	struct m0_clink       spi_rlink_wait;
+	/** Process health request. @see m0_ss_process_req */
+	struct m0_fop         spi_fop;
+	struct m0_sm_ast      spi_ast;
+	struct m0_tlink       spi_link;
+	struct _fs_stats_ctx *spi_ctx;
+	/** A number of IO and MD services in the corresponding process */
+	uint32_t              spi_svc_count;
+	uint64_t              spi_magic;
+};
+
+M0_TL_DESCR_DEFINE(spiel_proc_items, "spiel_proc_items", static,
+		    struct spiel_proc_item, spi_link, spi_magic,
+		    M0_SPIEL_PROC_MAGIC, M0_SPIEL_PROC_HEAD_MAGIC);
+
+M0_TL_DEFINE(spiel_proc_items, static, struct spiel_proc_item);
+
+static inline void _fs_stats_ctx_lock(struct _fs_stats_ctx *fsx)
+{
+	m0_mutex_lock(&fsx->fx_guard);
+}
+
+static inline void _fs_stats_ctx_unlock(struct _fs_stats_ctx *fsx)
+{
+	m0_mutex_unlock(&fsx->fx_guard);
+}
+
+static void spiel_proc_item_postprocess(struct spiel_proc_item *proc)
+{
+	struct _fs_stats_ctx *fsx = proc->spi_ctx;
+
+	_fs_stats_ctx_lock(fsx);
+	fsx->fx_svc_processed += proc->spi_svc_count;
+	if (fsx->fx_svc_processed == fsx->fx_svc_total)
+		m0_semaphore_up(&fsx->fx_barrier);
+	_fs_stats_ctx_unlock(fsx);
+}
+
+static bool spiel_proc_item_disconnect_cb(struct m0_clink *clink)
+{
+	struct spiel_proc_item *proc = M0_AMB(proc, clink, spi_rlink_wait);
+
+	M0_ENTRY(FID_F, FID_P(&proc->spi_fid));
+	spiel_proc_item_postprocess(proc);
+	M0_LEAVE();
+	return true;
+}
+
+static void spiel_process_disconnect_async(struct spiel_proc_item *proc)
+{
+	m0_time_t conn_timeout;
+
+	M0_ENTRY(FID_F, FID_P(&proc->spi_fid));
+	conn_timeout = m0_time_from_now(SPIEL_CONN_TIMEOUT, 0);
+	m0_clink_init(&proc->spi_rlink_wait, spiel_proc_item_disconnect_cb);
+	proc->spi_rlink_wait.cl_is_oneshot = true;
+	m0_rpc_link_disconnect_async(&proc->spi_rlink, conn_timeout,
+				     &proc->spi_rlink_wait);
+	M0_LEAVE();
+}
+
+static void spiel_process_health_replied_ast(struct m0_sm_group *grp,
+					     struct m0_sm_ast   *ast)
+{
+	struct spiel_proc_item   *proc = M0_AMB(proc, ast, spi_ast);
+	struct _fs_stats_ctx     *ctx = proc->spi_ctx;
+	struct m0_rpc_item       *item = &proc->spi_fop.f_item;
+	struct m0_ss_process_rep *rep;
+	int                       rc;
+
+	M0_ENTRY(FID_F, FID_P(&proc->spi_fid));
+	rc = M0_FI_ENABLED("item_error") ? -EINVAL : m0_rpc_item_error(item);
+	/**
+	 * @todo Need to understand if it would make sense from consumer's
+	 * standpoint to interrupt stats collection here on a network error.
+	 */
+	if (rc != 0)
+		goto leave;
+	rep = spiel_process_reply_data(&proc->spi_fop);
+	if (rep->sspr_health >= M0_HEALTH_GOOD) {
+		_fs_stats_ctx_lock(ctx);
+		if (M0_FI_ENABLED("overflow") ||
+		    m0_addu64_will_overflow(rep->sspr_free_seg,
+					    ctx->fx_free_seg) ||
+		    m0_addu64_will_overflow(rep->sspr_total_seg,
+					    ctx->fx_total_seg) ||
+		    m0_addu64_will_overflow(rep->sspr_free_disk,
+					    ctx->fx_free_disk) ||
+		    m0_addu64_will_overflow(rep->sspr_total_disk,
+					    ctx->fx_total_disk)) {
+			ctx->fx_rc = M0_ERR(-EOVERFLOW);
+		} else {
+			ctx->fx_free_seg    += rep->sspr_free_seg;
+			ctx->fx_total_seg   += rep->sspr_total_seg;
+			ctx->fx_free_disk   += rep->sspr_free_disk;
+			ctx->fx_total_disk  += rep->sspr_total_disk;
+			ctx->fx_svc_replied += proc->spi_svc_count;
+		}
+		_fs_stats_ctx_unlock(ctx);
+	}
+leave:
+	m0_rpc_machine_lock(ctx->fx_spc->spc_rmachine);
+	m0_fop_put(&proc->spi_fop);
+	m0_fop_fini(&proc->spi_fop);
+	m0_rpc_machine_unlock(ctx->fx_spc->spc_rmachine);
+	spiel_process_disconnect_async(proc);
+	M0_LEAVE();
+}
+
+static void spiel_proc_item_disconnect_ast(struct m0_sm_group *grp,
+					   struct m0_sm_ast   *ast)
+{
+	spiel_process_disconnect_async(container_of(ast, struct spiel_proc_item,
+				       spi_ast));
+}
+
+static struct m0_sm_group* spiel_proc_sm_group(const struct spiel_proc_item *p)
+{
+	return p->spi_ctx->fx_spc->spc_confc->cc_group;
+}
+
+static void spiel_process_health_replied(struct m0_rpc_item *item)
+{
+	struct m0_fop          *fop  = m0_rpc_item_to_fop(item);
+	struct spiel_proc_item *proc = M0_AMB(proc, fop, spi_fop);
+
+	M0_ENTRY(FID_F, FID_P(&proc->spi_fid));
+	proc->spi_ast.sa_cb = spiel_process_health_replied_ast;
+	m0_sm_ast_post(spiel_proc_sm_group(proc), &proc->spi_ast);
+	M0_LEAVE();
+}
+
+struct m0_rpc_item_ops spiel_process_health_ops = {
+	.rio_replied = spiel_process_health_replied
+};
+
+static bool spiel_proc_item_rlink_cb(struct m0_clink *clink)
+{
+	struct spiel_proc_item   *proc = M0_AMB(proc, clink, spi_rlink_wait);
+	struct m0_ss_process_req *req;
+	struct _fs_stats_ctx     *ctx  = proc->spi_ctx;
+	struct m0_fop            *fop = &proc->spi_fop;
+	struct m0_rpc_item       *item;
+	int                       rc;
+
+	M0_ENTRY(FID_F, FID_P(&proc->spi_fid));
+	m0_clink_fini(clink);
+	if (proc->spi_rlink.rlk_rc != 0) {
+		M0_LOG(M0_ERROR, "connect failed");
+		goto proc_handled;
+	}
+	m0_fop_init(fop, &m0_fop_process_fopt, NULL, m0_fop_release);
+	rc = M0_FI_ENABLED("alloc_fail") ? -ENOMEM : m0_fop_data_alloc(fop);
+	if (rc != 0) {
+		M0_LOG(M0_ERROR, "fop data alloc failed");
+		goto fop_fini;
+	}
+	fop->f_item.ri_rmachine = ctx->fx_spc->spc_rmachine;
+	req                     = m0_ss_fop_process_req(fop);
+	req->ssp_cmd            = M0_PROCESS_HEALTH;
+	req->ssp_id             = proc->spi_fid;
+	item                    = &fop->f_item;
+	item->ri_ops            = &spiel_process_health_ops;
+	item->ri_session        = &proc->spi_rlink.rlk_sess;
+	item->ri_prio           = M0_RPC_ITEM_PRIO_MID;
+	m0_fop_get(fop);
+	rc = M0_FI_ENABLED("rpc_post") ? -ENOTCONN : m0_rpc_post(item);
+	if (rc != 0) {
+		M0_LOG(M0_ERROR, "rpc post failed");
+		goto fop_put;
+	}
+	M0_LEAVE();
+	return true;
+fop_put:
+	m0_fop_put_lock(fop);
+fop_fini:
+	m0_fop_fini(fop);
+	proc->spi_ast.sa_cb = spiel_proc_item_disconnect_ast;
+	m0_sm_ast_post(spiel_proc_sm_group(proc), &proc->spi_ast);
+	return true;
+proc_handled:
+	spiel_proc_item_postprocess(proc);
+	M0_LEAVE();
+	return true;
+}
+
+static void spiel_process__health_async(struct _fs_stats_ctx    *fsx,
+					struct spiel_proc_item  *proc)
+{
+	struct m0_conf_process *process;
+	m0_time_t               conn_timeout;
+	int                     rc;
+
+	M0_ENTRY("proc fid "FID_F, FID_P(&proc->spi_fid));
+	rc = M0_FI_ENABLED("obj_find") ? -ENOENT :
+		spiel_proc_conf_obj_find(fsx->fx_spc, &proc->spi_fid, &process);
+	if (rc != 0)
+		goto err;
+	m0_confc_close(&process->pc_obj);
+	conn_timeout = m0_time_from_now(SPIEL_CONN_TIMEOUT, 0);
+	rc = m0_rpc_link_init(&proc->spi_rlink, fsx->fx_spc->spc_rmachine, NULL,
+			      process->pc_endpoint, SPIEL_MAX_RPCS_IN_FLIGHT);
+	if (rc != 0)
+		goto err;
+	m0_clink_init(&proc->spi_rlink_wait, spiel_proc_item_rlink_cb);
+	proc->spi_rlink_wait.cl_is_oneshot = true;
+	m0_rpc_link_connect_async(&proc->spi_rlink, conn_timeout,
+				  &proc->spi_rlink_wait);
+	M0_LEAVE();
+	return;
+err:
+	spiel_proc_item_postprocess(proc);
+	M0_ERR(rc);
+}
+
+
 static void spiel__fs_stats_ctx_init(struct _fs_stats_ctx *fsx,
 				     struct m0_spiel_core *spc,
 				     const struct m0_fid  *fs_fid,
@@ -1431,18 +1660,24 @@ static void spiel__fs_stats_ctx_init(struct _fs_stats_ctx *fsx,
 	fsx->fx_spc = spc;
 	fsx->fx_fid = *fs_fid;
 	fsx->fx_type = item_type;
-	m0_fids_tlist_init(&fsx->fx_items);
-	M0_POST(m0_fids_tlist_invariant(&fsx->fx_items));
+	m0_semaphore_init(&fsx->fx_barrier, 0);
+	m0_mutex_init(&fsx->fx_guard);
+	spiel_proc_items_tlist_init(&fsx->fx_items);
+	M0_POST(spiel_proc_items_tlist_invariant(&fsx->fx_items));
 }
 
 static void spiel__fs_stats_ctx_fini(struct _fs_stats_ctx *fsx)
 {
-	struct m0_fid_item *si;
+	struct spiel_proc_item *si;
 
-	m0_tl_teardown(m0_fids, &fsx->fx_items, si) {
+	m0_tl_teardown(spiel_proc_items, &fsx->fx_items, si) {
+		if (!M0_IS0(&si->spi_rlink))
+			m0_rpc_link_fini(&si->spi_rlink);
 		m0_free(si);
 	}
-	m0_fids_tlist_fini(&fsx->fx_items);
+	spiel_proc_items_tlist_fini(&fsx->fx_items);
+	m0_mutex_fini(&fsx->fx_guard);
+	m0_semaphore_fini(&fsx->fx_barrier);
 }
 
 /**
@@ -1453,24 +1688,23 @@ static void spiel__fs_stats_ctx_fini(struct _fs_stats_ctx *fsx)
  */
 static bool spiel__item_enlist(const struct m0_conf_obj *item, void *ctx)
 {
-	struct _fs_stats_ctx *fsx = ctx;
-	struct m0_fid_item   *si;
+	struct _fs_stats_ctx   *fsx = ctx;
+	struct spiel_proc_item *si  = NULL;
 
 	M0_LOG(SPIEL_LOGLVL, "arrived: " FID_F " (%s)", FID_P(&item->co_id),
 	       m0_fid_type_getfid(&item->co_id)->ft_name);
-	/* continue iterating only when no issue occurred previously */
-	if (fsx->fx_rc != 0)
-		return false;
 	/* skip all but requested object types */
 	if (m0_conf_obj_type(item) != fsx->fx_type)
 		return true;
-	M0_ALLOC_PTR(si);
+	if (!M0_FI_ENABLED("alloc fail"))
+		M0_ALLOC_PTR(si);
 	if (si == NULL) {
 		fsx->fx_rc = M0_ERR(-ENOMEM);
 		return false;
 	}
-	si->i_fid = item->co_id;
-	m0_fids_tlink_init_at(si, &fsx->fx_items);
+	si->spi_fid = item->co_id;
+	si->spi_ctx = fsx;
+	spiel_proc_items_tlink_init_at(si, &fsx->fx_items);
 	M0_LOG(SPIEL_LOGLVL, "* booked: " FID_F " (%s)", FID_P(&item->co_id),
 	       m0_fid_type_getfid(&item->co_id)->ft_name);
 	return true;
@@ -1484,96 +1718,52 @@ static bool spiel__fs_test(const struct m0_conf_obj *fs_obj, void *ctx)
 }
 
 /**
- * Updates filesystem stats by list item.
- */
-static void spiel__fs_stats_ctx_update(const struct m0_fid  *proc_fid,
-				       struct _fs_stats_ctx *fsx)
-{
-	struct m0_fop            *reply_fop = NULL;
-	struct m0_ss_process_rep *reply_data;
-	int                       rc;
-
-	M0_PRE(fsx->fx_rc == 0);
-	rc = spiel_process__health(fsx->fx_spc, proc_fid, &reply_fop);
-	M0_LOG(SPIEL_LOGLVL, "* next:  rc = %d " FID_F " (%s)",
-	       rc, FID_P(proc_fid),
-	       m0_fid_type_getfid(proc_fid)->ft_name);
-	if (rc >= M0_HEALTH_GOOD) {
-		/* some real health returned, not error code */
-		reply_data = spiel_process_reply_data(reply_fop);
-
-		if (m0_addu64_will_overflow(reply_data->sspr_free_seg,
-					    fsx->fx_free_seg) ||
-		    m0_addu64_will_overflow(reply_data->sspr_total_seg,
-					    fsx->fx_total_seg) ||
-		    m0_addu64_will_overflow(reply_data->sspr_free_disk,
-					    fsx->fx_free_disk) ||
-		    m0_addu64_will_overflow(reply_data->sspr_total_disk,
-					    fsx->fx_total_disk))
-		{
-			fsx->fx_rc = M0_ERR(-EOVERFLOW);
-			goto leave;
-		}
-
-		fsx->fx_free_seg   += reply_data->sspr_free_seg;
-		fsx->fx_total_seg  += reply_data->sspr_total_seg;
-		fsx->fx_free_disk  += reply_data->sspr_free_disk;
-		fsx->fx_total_disk += reply_data->sspr_total_disk;
-	} else {
-		/* error occurred */
-		fsx->fx_rc = M0_ERR(rc);
-	}
-leave:
-	if (reply_fop != NULL)
-		m0_fop_put_lock(reply_fop);
-}
-
-/**
  * Determines whether process with given fid should update fs stats.
  *
  * Process, in case it hosts MDS or IOS, and is M0_NC_ONLINE to the moment of
  * call, should update collected fs stats.
  */
-static int spiel__proc_is_to_update_stats(const struct m0_fid *proc_fid,
-					  struct m0_confc     *confc,
-					  uint32_t            *svc_count,
-					  bool                *update)
+static int spiel__proc_is_to_update_stats(struct spiel_proc_item *proc,
+					  struct m0_confc        *confc)
 {
 	struct m0_conf_diter    it;
+	struct m0_fid          *proc_fid = &proc->spi_fid;
 	struct m0_conf_obj     *proc_obj;
 	struct m0_conf_service *svc;
 	int                     rc;
 
 	M0_ENTRY("proc_fid = "FID_F, FID_P(proc_fid));
 	M0_PRE(m0_conf_fid_type(proc_fid) == &M0_CONF_PROCESS_TYPE);
-	M0_PRE(svc_count != NULL);
-	M0_PRE(update != NULL);
 
-	*svc_count = 0;
-	*update = false;
-	rc = m0_confc_open_by_fid_sync(confc, proc_fid, &proc_obj);
+	rc = M0_FI_ENABLED("open_by_fid") ? -EINVAL :
+			  m0_confc_open_by_fid_sync(confc, proc_fid, &proc_obj);
 	if (rc != 0)
 		return M0_ERR(rc);
-	rc = m0_conf_diter_init(&it, confc, proc_obj,
-				M0_CONF_PROCESS_SERVICES_FID);
+	if (proc_obj->co_ha_state != M0_NC_ONLINE) {
+		rc = M0_ERR(-EINVAL);
+		goto obj_close;
+	}
+	rc = M0_FI_ENABLED("diter_init") ? -EINVAL :
+			m0_conf_diter_init(&it, confc, proc_obj,
+					   M0_CONF_PROCESS_SERVICES_FID);
 	if (rc != 0)
 		goto obj_close;
 	while (m0_conf_diter_next_sync(&it, NULL) > 0) {
 		svc = M0_CONF_CAST(m0_conf_diter_result(&it), m0_conf_service);
 		if (M0_IN(svc->cs_type, (M0_CST_IOS, M0_CST_MDS)))
-			++ *svc_count;
+			M0_CNT_INC(proc->spi_svc_count);
 	}
-	if (*svc_count > 0) {
+	if (proc->spi_svc_count > 0) {
 		/*
 		 * There is no point to update process' HA state unless
 		 * the one is expected to host the required services.
 		 */
-		rc = m0_conf_obj_ha_update(proc_fid);
-		if (rc != 0)
-			goto diter_fini;
-		*update = proc_obj->co_ha_state == M0_NC_ONLINE;
+		rc = M0_FI_ENABLED("ha_update") ? -EINVAL :
+			m0_conf_obj_ha_update(proc_fid);
 	}
-diter_fini:
+	else {
+		rc = -ENOENT;
+	}
 	m0_conf_diter_fini(&it);
 obj_close:
 	m0_confc_close(proc_obj);
@@ -1584,16 +1774,9 @@ M0_INTERNAL int m0_spiel__fs_stats_fetch(struct m0_spiel_core *spc,
 					 const struct m0_fid  *fs_fid,
 					 struct m0_fs_stats   *stats)
 {
-	struct _fs_stats_ctx  fsx;
-	struct m0_fid_item   *proc;
-	/* count of services in the process the stats to be updated by */
-	uint32_t              svc_count;
-	/* total count of IOS and MDS services in the filesystem */
-	uint32_t              svc_total_in_fs = 0;
-	/* count of services successfully polled and replied */
-	uint32_t              svc_replied = 0;
-	bool                  update_stats;
-	int                   rc;
+	struct _fs_stats_ctx    fsx;
+	struct spiel_proc_item *proc;
+	int                     rc;
 
 	M0_ENTRY();
 	M0_PRE(spc != NULL);
@@ -1613,51 +1796,36 @@ M0_INTERNAL int m0_spiel__fs_stats_fetch(struct m0_spiel_core *spc,
 	if (rc != 0)
 		goto end;
 	/* update stats by the list of found processes */
-	m0_tl_for(m0_fids, &fsx.fx_items, proc) {
-		rc = spiel__proc_is_to_update_stats(&proc->i_fid, spc->spc_confc,
-						    &svc_count, &update_stats);
-		if (rc != 0)
-			goto end;
-		M0_ASSERT(!update_stats || svc_count > 0);
-		svc_total_in_fs += svc_count;
-		if (!update_stats)
+	m0_tl_for(spiel_proc_items, &fsx.fx_items, proc) {
+		rc = spiel__proc_is_to_update_stats(proc, spc->spc_confc);
+		if (rc != 0) {
+			rc = 0;
+			spiel_proc_items_tlist_del(proc);
+			m0_free(proc);
 			continue;
-		/*
-		 * XXX We could improve performance by sending health requests
-		 * asynchronously. Oh well.
-		 */
-		spiel__fs_stats_ctx_update(&proc->i_fid, &fsx);
-		if (fsx.fx_rc != 0) {
-			if (fsx.fx_rc == -EOVERFLOW) {
-				svc_replied += svc_count;
-				rc = M0_ERR(-EOVERFLOW);
-				goto end;
-			}
-			M0_LOG(SPIEL_LOGLVL, "* fsx.fx_rc = %d with "FID_F,
-			       fsx.fx_rc, FID_P(&proc->i_fid));
-			/* unset error code for letting further processing */
-			fsx.fx_rc = 0;
-		} else {
-			svc_replied += svc_count;
 		}
-		/**
-		 * @todo Need to understand if it would make sense from
-		 * consumer's standpoint to interrupt stats collection here on
-		 * a network error got from m0_spiel_process_health().
-		 */
+		fsx.fx_svc_total += proc->spi_svc_count;
 	} m0_tl_endfor;
+	m0_tl_for(spiel_proc_items, &fsx.fx_items, proc) {
+		spiel_process__health_async(&fsx, proc);
+	} m0_tl_endfor;
+	m0_semaphore_down(&fsx.fx_barrier);
+	_fs_stats_ctx_lock(&fsx);
+	M0_ASSERT(fsx.fx_svc_processed == fsx.fx_svc_total &&
+		  fsx.fx_svc_replied <= fsx.fx_svc_total);
 	/* report stats to consumer */
 	*stats = (struct m0_fs_stats) {
 		.fs_free_seg = fsx.fx_free_seg,
 		.fs_total_seg = fsx.fx_total_seg,
 		.fs_free_disk = fsx.fx_free_disk,
 		.fs_total_disk = fsx.fx_total_disk,
-		.fs_svc_total = svc_total_in_fs,
-		.fs_svc_replied = svc_replied,
+		.fs_svc_total = fsx.fx_svc_total,
+		.fs_svc_replied = fsx.fx_svc_replied,
 	};
+	_fs_stats_ctx_unlock(&fsx);
 end:
 	spiel__fs_stats_ctx_fini(&fsx);
-	return M0_RC(rc);
+	return M0_RC(rc ? rc : fsx.fx_rc);
 }
 M0_EXPORTED(m0_spiel_filesystem_stats_fetch);
 

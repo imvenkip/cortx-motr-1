@@ -28,6 +28,7 @@
 #include "conf/confd.h"       /* m0_confd_stype */
 #include "module/instance.h"  /* m0_get */
 #include "stob/domain.h"      /* m0_stob_domain */
+#include "rpc/rpc_opcodes.h"  /* M0_RPC_SESSION_ESTABLISH_REP_OPCODE */
 #include "rm/rm_service.h"    /* m0_rms_type */
 #include "lib/finject.h"
 #include "lib/fs.h"           /* m0_file_read */
@@ -365,7 +366,7 @@ static bool test_spiel_filter_service(const struct m0_conf_obj *obj)
 	return m0_conf_obj_type(obj) == &M0_CONF_SERVICE_TYPE;
 }
 
-static uint64_t test_spiel_fs_stats_ios_total(const struct m0_fid *fs_fid)
+static uint64_t test_spiel_fs_ios_total(const struct m0_fid *fs_fid)
 {
 	struct m0_confc         confc;
 	struct m0_conf_diter    it;
@@ -406,13 +407,29 @@ static uint64_t test_spiel_fs_stats_ios_total(const struct m0_fid *fs_fid)
 	return total;
 }
 
+static void spiel_fs_stats_check(const struct m0_fs_stats *stats)
+{
+	M0_UT_ASSERT(stats->fs_free_disk <= stats->fs_total_disk);
+	M0_UT_ASSERT(stats->fs_svc_total >= stats->fs_svc_replied);
+}
+
+extern uint32_t m0_rpc__filter_opcode[4];
+
 void test_spiel_fs_stats(void)
 {
 	int                 rc;
+	uint64_t            ios_total;
 	const struct m0_fid fs_fid = M0_FID_TINIT('f', 1,  1);
 	const struct m0_fid fs_bad = M0_FID_TINIT('f', 1,  200);
 	struct m0_fs_stats  fs_stats = {0};
-	uint64_t            ios_total = test_spiel_fs_stats_ios_total(&fs_fid);
+	struct m0_ha_note   note = {
+		.no_id = M0_FID_TINIT('r', 1, 5),
+		.no_state = M0_NC_FAILED
+	};
+	struct m0_ha_nvec   nvec = {
+		.nv_nr = 1,
+		.nv_note = &note
+	};
 
 	m0_fi_enable_once("cs_storage_devs_init", "init_via_conf");
 	m0_fi_enable("m0_storage_dev_new_by_conf", "no_real_dev");
@@ -424,19 +441,73 @@ void test_spiel_fs_stats(void)
 	rc = m0_spiel_filesystem_stats_fetch(&spiel, &fs_bad, &fs_stats);
 	M0_UT_ASSERT(rc == -ENOENT);
 
+	m0_fi_enable_once("spiel__item_enlist", "alloc fail");
+	rc = m0_spiel_filesystem_stats_fetch(&spiel, &fs_fid, &fs_stats);
+	M0_UT_ASSERT(rc == -ENOMEM);
+
+	/* spiel__proc_is_to_update_stats */
+	m0_fi_enable_once("spiel__proc_is_to_update_stats", "open_by_fid");
+	rc = m0_spiel_filesystem_stats_fetch(&spiel, &fs_fid, &fs_stats);
+	M0_UT_ASSERT(rc == 0);
+	spiel_fs_stats_check(&fs_stats);
+	m0_fi_enable_once("spiel__proc_is_to_update_stats", "diter_init");
+	rc = m0_spiel_filesystem_stats_fetch(&spiel, &fs_fid, &fs_stats);
+	M0_UT_ASSERT(rc == 0);
+	spiel_fs_stats_check(&fs_stats);
+	m0_fi_enable_once("spiel__proc_is_to_update_stats", "ha_update");
+	rc = m0_spiel_filesystem_stats_fetch(&spiel, &fs_fid, &fs_stats);
+	M0_UT_ASSERT(rc == 0);
+	spiel_fs_stats_check(&fs_stats);
+	m0_ha_client_add(spiel.spl_core.spc_confc);
+	m0_ha_state_accept(&nvec);
+	rc = m0_spiel_filesystem_stats_fetch(&spiel, &fs_fid, &fs_stats);
+	M0_UT_ASSERT(rc == 0);
+	spiel_fs_stats_check(&fs_stats);
+	note.no_state = M0_NC_ONLINE;
+	m0_ha_state_accept(&nvec);
+	m0_ha_client_del(spiel.spl_core.spc_confc);
+
+	/* spiel_process__health_async */
+	m0_fi_enable_once("m0_net_end_point_create", "fake_error");
+	rc = m0_spiel_filesystem_stats_fetch(&spiel, &fs_fid, &fs_stats);
+	M0_UT_ASSERT(rc == 0);
+	spiel_fs_stats_check(&fs_stats);
+	m0_fi_enable_once("spiel_process__health_async", "obj_find");
+	rc = m0_spiel_filesystem_stats_fetch(&spiel, &fs_fid, &fs_stats);
+	M0_UT_ASSERT(rc == 0);
+	spiel_fs_stats_check(&fs_stats);
+
+	/* spiel_proc_item_rlink_cb */
+	m0_fi_enable("item_received_fi", "drop_opcode");
+	m0_rpc__filter_opcode[0] = M0_RPC_SESSION_ESTABLISH_REP_OPCODE;
+	rc = m0_spiel_filesystem_stats_fetch(&spiel, &fs_fid, &fs_stats);
+	m0_fi_disable("item_received_fi", "drop_opcode");
+	M0_UT_ASSERT(rc == 0);
+	spiel_fs_stats_check(&fs_stats);
+	m0_fi_enable_once("spiel_proc_item_rlink_cb", "alloc_fail");
+	rc = m0_spiel_filesystem_stats_fetch(&spiel, &fs_fid, &fs_stats);
+	M0_UT_ASSERT(rc == 0);
+	spiel_fs_stats_check(&fs_stats);
+	m0_fi_enable_once("spiel_proc_item_rlink_cb", "rpc_post");
+	rc = m0_spiel_filesystem_stats_fetch(&spiel, &fs_fid, &fs_stats);
+	M0_UT_ASSERT(rc == 0);
+	spiel_fs_stats_check(&fs_stats);
+	/* spiel_process_health_replied_ast */
+	m0_fi_enable_once("spiel_process_health_replied_ast", "item_error");
+	rc = m0_spiel_filesystem_stats_fetch(&spiel, &fs_fid, &fs_stats);
+	M0_UT_ASSERT(rc == 0);
+	spiel_fs_stats_check(&fs_stats);
+	m0_fi_enable_once("spiel_process_health_replied_ast", "overflow");
+	rc = m0_spiel_filesystem_stats_fetch(&spiel, &fs_fid, &fs_stats);
+	M0_UT_ASSERT(rc == -EOVERFLOW);
 	/* test the existent one */
 	m0_fi_enable("ss_ios_stats_ingest", "take_dsx_in_effect");
 	rc = m0_spiel_filesystem_stats_fetch(&spiel, &fs_fid, &fs_stats);
 	M0_UT_ASSERT(rc == 0);
 	m0_fi_disable("ss_ios_stats_ingest", "take_dsx_in_effect");
-	/*
-	 * fs_stats.fs_total contains sum of ios total space and be total space
-	 */
+	spiel_fs_stats_check(&fs_stats);
+	ios_total = test_spiel_fs_ios_total(&M0_FID_TINIT('f', 1,  1));
 	M0_UT_ASSERT(fs_stats.fs_total_disk > ios_total);
-	M0_UT_ASSERT(fs_stats.fs_free_disk > 0 && fs_stats.fs_free_disk <=
-		     fs_stats.fs_total_disk);
-	M0_UT_ASSERT(fs_stats.fs_svc_replied > 0);
-	M0_UT_ASSERT(fs_stats.fs_svc_total >= fs_stats.fs_svc_replied);
 	spiel_ci_ut_fini();
 }
 
