@@ -1404,6 +1404,16 @@ static void abandoned_svc_ctxs_cleanup(struct m0_pools_common *pc)
 	}
 }
 
+M0_INTERNAL void
+m0_pools_common_service_ctx_connect_sync(struct m0_pools_common *pc)
+{
+	struct m0_reqh_service_ctx *ctx;
+
+	m0_tl_for (pools_common_svc_ctx, &pc->pc_svc_ctxs, ctx) {
+		m0_reqh_service_connect_wait(ctx);
+	} m0_tl_endfor;
+}
+
 M0_INTERNAL void m0_pools_service_ctx_destroy(struct m0_pools_common *pc)
 {
 	M0_ENTRY();

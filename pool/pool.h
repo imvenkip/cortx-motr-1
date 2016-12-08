@@ -343,6 +343,8 @@ M0_INTERNAL struct m0_reqh_service_ctx *
 m0_pools_common_service_ctx_find(const struct m0_pools_common *pc,
 				 const struct m0_fid *id,
 				 enum m0_conf_service_type type);
+M0_INTERNAL void
+m0_pools_common_service_ctx_connect_sync(struct m0_pools_common *pc);
 
 /**
  * A state that a pool node/device can be in.

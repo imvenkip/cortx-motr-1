@@ -873,10 +873,11 @@ static int reqh_service_ctx_state_wait(struct m0_reqh_service_ctx *ctx,
 
 M0_INTERNAL void m0_reqh_service_connect_wait(struct m0_reqh_service_ctx *ctx)
 {
-	int rc;
 
-	rc = reqh_service_ctx_state_wait(ctx, M0_RSC_ONLINE);
-	M0_ASSERT(rc == 0);
+	if (ctx->sc_service->co_ha_state == M0_NC_ONLINE) {
+		int rc = reqh_service_ctx_state_wait(ctx, M0_RSC_ONLINE);
+		M0_ASSERT(rc == 0);
+	}
 }
 
 M0_INTERNAL int m0_reqh_service_disconnect_wait(struct m0_reqh_service_ctx *ctx)
@@ -971,6 +972,9 @@ static void reqh_service_ctx_ast_cb(struct m0_sm_group *grp,
 	bool                        disconnect;
 
 	reqh_service_ctx_sm_lock(ctx);
+	M0_ENTRY("'%s' ctx of service '%s' state: %d",
+		 m0_rpc_machine_ep(ctx->sc_rlink.rlk_conn.c_rpc_machine),
+		 m0_rpc_link_end_point(&ctx->sc_rlink), CTX_STATE(ctx));
 	M0_PRE(M0_IN(CTX_STATE(ctx), (M0_RSC_CONNECTING,
 				      M0_RSC_DISCONNECTING)));
 
@@ -998,6 +1002,7 @@ static void reqh_service_ctx_ast_cb(struct m0_sm_group *grp,
 	default:
 		M0_IMPOSSIBLE("Invalid state: %d", CTX_STATE(ctx));
 	}
+	M0_LOG(M0_DEBUG, "state: %d", CTX_STATE(ctx));
 
 	/* Cancel only established session. */
 	if (reqh_service_ctx_flag_is_set(ctx, RSC_RLINK_CANCEL) && connected) {
