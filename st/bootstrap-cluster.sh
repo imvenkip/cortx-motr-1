@@ -64,6 +64,9 @@ configure_common() {
 
 run_command() {
 	case "$1" in
+	"prepare_build_node")
+		prepare_build_node
+		;;
 	"build_mero")
 		build_mero
 		;;
@@ -184,18 +187,19 @@ Options:
                     missing, the script will try to guess by hostname.
 
 Commands:
-    build_mero        Build Mero rpm from sources.
-    build_halon       Build Halon rpm from sources. Requires \`build_mero'
-                      to be called earlier.
-    install           Install the latest Mero and Halon rpms from rpm build
-                      directories. Requires \`pdcp' (part of \`pdsh' package)
-                      to be available at all cluster nodes.
-    uninstall         Uninstall Mero and Halon rpms.
-    start_halon       Start TS on the first node and SAT on all nodes.
-    bootstrap         halonctl cluster load
-    status            halonctl status
-    stop              Stop all halond and mero services.
-    halon_facts_yaml  Show halon_facts.yaml for the cluster.
+    prepare_build_node  Install tools necessary to build Mero and Halon.
+    build_mero          Build Mero rpm from sources.
+    build_halon         Build Halon rpm from sources. Requires \`build_mero'
+                        to be called earlier.
+    install             Install the latest Mero and Halon rpms from rpm build
+                        directories. Requires \`pdcp' (part of \`pdsh' package)
+                        to be available at all cluster nodes.
+    uninstall           Uninstall Mero and Halon rpms.
+    start_halon         Start TS on the first node and SAT on all nodes.
+    bootstrap           halonctl cluster load
+    status              halonctl status
+    stop                Stop all halond and mero services.
+    halon_facts_yaml    Show halon_facts.yaml for the cluster.
 EOF
 }
 
@@ -224,6 +228,22 @@ main() {
 		run_command $cmd
 		shift
 	done
+}
+
+prepare_build_node() {
+	# use the following commands to checkout Mero and Halon before
+	# running prepare_build_nodes():
+	# git clone --recursive http://es-gerrit.xyus.xyratex.com:8080/mero
+	# git clone --recursive https://github.com/seagate-ssg/halon.git
+	mco castor puppet --off
+	mero/scripts/install-build-deps
+	FPCO=https://s3.amazonaws.com/download.fpcomplete.com/centos/7/fpco.repo
+	curl -sSL $FPCO | sudo tee /etc/yum.repos.d/fpco.repo
+	sudo yum -y install leveldb-devel libgenders-devel stack pdsh
+	(cd /opt/packages && yumdownloader pdsh pdsh-rcmd-ssh)
+	createrepo /opt/packages
+	$PDSH yum clean all
+	$PDSH yum -y install pdsh
 }
 
 build_mero() {
