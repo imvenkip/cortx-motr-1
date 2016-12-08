@@ -1382,12 +1382,19 @@ rpms:
 	$(MAKE) __rpm_pre
 	$(MAKE) __rpm_tests
 	$(MAKE) __rpm
+	$(MAKE) __rpm_srpm
 	$(MAKE) __rpm_post
 
 .PHONY: rpms-notests
 rpms-notests:
 	$(MAKE) __rpm_pre
 	$(MAKE) __rpm
+	$(MAKE) __rpm_post
+
+.PHONY: rpms-tests
+rpms-tests:
+	$(MAKE) __rpm_pre
+	$(MAKE) __rpm_tests
 	$(MAKE) __rpm_post
 
 .PHONY: rpms-mock
@@ -1511,6 +1518,7 @@ help:
 	@echo '  srpm            - build source rpm package'
 	@echo '  rpms            - build Mero rpm packages'
 	@echo '  rpms-notests    - build Mero rpm packages, excluding tests'
+	@echo '  rpms-tests      - build Mero tests rpm package only'
 	@echo '  rpms-mock       - build Mero rpm packages using "mock" environment (ensures clean rpm deps)'
 	@echo ''
 	@echo 'Information:'
