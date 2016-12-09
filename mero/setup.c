@@ -2400,8 +2400,12 @@ void m0_cs_fini(struct m0_mero *cctx)
                 if (ha_was_started)
                         cs_ha_stop(cctx);
 
-                cs_reqh_stop(rctx);
+		/*
+		 * Need to shut rconfc down prior to stopping REQH services, as
+		 * rconfc needs RPC be up and running to safely stop and fini.
+		 */
                 cs_conf_fini(cctx);
+                cs_reqh_stop(rctx);
 
                 if (ha_was_started)
                         cs_ha_fini(cctx);

@@ -412,9 +412,9 @@ static void _on_death_cb(struct rconfc_link *lnk)
 	if (lnk->rl_fom_queued) {
 		M0_UT_ASSERT(lnk->rl_state == CONFC_DEAD);
 		/* herd link confc not connected */
-		M0_UT_ASSERT(lnk->rl_confc.cc_rpc_conn.c_rpc_machine == NULL);
+		M0_UT_ASSERT(!m0_confc_is_online(&lnk->rl_confc));
 		/* herd link confc uninitialised */
-		M0_UT_ASSERT(lnk->rl_confc.cc_group == NULL);
+		M0_UT_ASSERT(!m0_confc_is_inited(&lnk->rl_confc));
 	}
 	if (lnk->rl_fom_queued == expected_fom_queued_value) {
 		M0_LOG(M0_DEBUG, "Done %s waiting for FOM fini",

@@ -441,9 +441,8 @@ M0_INTERNAL bool m0_confc_is_inited(const struct m0_confc *confc)
 
 M0_INTERNAL bool m0_confc_is_online(const struct m0_confc *confc)
 {
-	return confc->cc_rpc_conn.c_rpc_machine != NULL;
+	return confc->cc_rlink.rlk_conn.c_rpc_machine != NULL;
 }
-
 
 static bool not_empty(const char *s)
 {
@@ -520,7 +519,7 @@ M0_INTERNAL int m0_confc_init_wait(struct m0_confc       *confc,
 		goto err;
 
 	confc->cc_rpc_timeout = timeout_ns;
-	M0_SET0(&confc->cc_rpc_conn);
+	M0_SET0(m0_confc2conn(confc));
 	M0_ASSERT(!m0_confc_is_online(confc));
 	if (not_empty(confd_addr))
 		rc = connect_to_confd(confc, confd_addr, rpc_mach);
@@ -992,6 +991,16 @@ M0_INTERNAL int m0_confc_readdir_sync(struct m0_conf_obj *dir,
 /* ------------------------------------------------------------------
  * Casts
  * ------------------------------------------------------------------ */
+
+M0_INTERNAL struct m0_rpc_conn *m0_confc2conn(struct m0_confc *confc)
+{
+	return &confc->cc_rlink.rlk_conn;
+}
+
+M0_INTERNAL struct m0_rpc_session *m0_confc2sess(struct m0_confc *confc)
+{
+	return &confc->cc_rlink.rlk_sess;
+}
 
 static struct m0_confc_ctx *mach_to_ctx(struct m0_sm *mach)
 {
@@ -1559,10 +1568,11 @@ static int connect_to_confd(struct m0_confc *confc, const char *confd_addr,
 	M0_ENTRY();
 	M0_PRE(not_empty(confd_addr) && rpc_mach != NULL);
 
-	rc = m0_rpc_client_connect(&confc->cc_rpc_conn, &confc->cc_rpc_session,
-				   rpc_mach, confd_addr, NULL,
-				   MAX_RPCS_IN_FLIGHT, confc_deadline(confc));
-	M0_POST((rc == 0) == m0_confc_is_online(confc));
+	rc = m0_rpc_link_init(&confc->cc_rlink, rpc_mach, NULL, confd_addr,
+			      MAX_RPCS_IN_FLIGHT);
+	rc = m0_rpc_link_connect_sync(&confc->cc_rlink, confc_deadline(confc));
+	M0_POST((rc == 0) == confc->cc_rlink.rlk_connected);
+	M0_POST(rc != 0 || m0_confc_is_online(confc));
 	return M0_RC(rc);
 }
 
@@ -1571,11 +1581,11 @@ static void disconnect_from_confd(struct m0_confc *confc)
 	M0_ENTRY();
 
 	M0_PRE(m0_confc_is_online(confc));
-	M0_PRE(confc->cc_rpc_session.s_conn == &confc->cc_rpc_conn);
+	M0_PRE(m0_confc2sess(confc)->s_conn == m0_confc2conn(confc));
 
-	(void)m0_rpc_session_destroy(&confc->cc_rpc_session,
-				     confc_deadline(confc));
-	(void)m0_rpc_conn_destroy(&confc->cc_rpc_conn, confc_deadline(confc));
+	(void)m0_rpc_link_disconnect_sync(&confc->cc_rlink,
+					  confc_deadline(confc));
+	m0_rpc_link_fini(&confc->cc_rlink);
 
 	M0_LEAVE();
 }
@@ -1674,7 +1684,7 @@ static const struct m0_rpc_item_ops confc_item_ops = {
  * @param ri    Starting position (in ctx->fc_path[]) of the path to be
  *              sent to confd.
  *
- * @pre  confc_is_online(ctx->fc_confc)
+ * @pre  m0_confc_is_online(ctx->fc_confc)
  */
 static int request_create(struct m0_confc_ctx *ctx,
 			  const struct m0_conf_obj *orig, size_t ri)
@@ -1695,7 +1705,7 @@ static int request_create(struct m0_confc_ctx *ctx,
 	/* Setup rpc item. */
 	item = &p->cf_fop.f_item;
 	item->ri_ops = &confc_item_ops;
-	item->ri_session = &ctx->fc_confc->cc_rpc_session;
+	item->ri_session = m0_confc2sess(ctx->fc_confc);
 
 	/* Setup payload. */
 	req = m0_fop_data(&p->cf_fop);
@@ -1727,7 +1737,7 @@ static bool request_check(const struct m0_confc_ctx *ctx)
 		item->ri_type == &m0_conf_fetch_fopt.ft_rpc_item_type &&
 		item->ri_ops != NULL &&
 		item->ri_ops->rio_replied == on_replied &&
-		item->ri_session == &ctx->fc_confc->cc_rpc_session &&
+		item->ri_session == m0_confc2sess(ctx->fc_confc) &&
 		item_to_ctx(item) == ctx;
 }
 

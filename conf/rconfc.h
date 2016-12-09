@@ -196,6 +196,7 @@ enum m0_rconfc_state {
 	M0_RCS_IDLE,
 	M0_RCS_RLOCK_CONFLICT,
 	M0_RCS_CONDUCTOR_DRAIN,
+	M0_RCS_CONDUCTOR_DISCONNECT,
 	M0_RCS_STOPPING,
 	M0_RCS_FAILURE,
 	M0_RCS_FINAL
@@ -373,6 +374,8 @@ struct m0_rconfc {
 	 * already queued for finalisation.
 	 */
 	struct m0_chan            rc_herd_chan;
+	/** Clink for asynchronous conductor connection/disconnection. */
+	struct m0_clink           rc_conductor_clink;
 	/** HA ENTRYPOINT reply local copy */
 	struct m0_ha_entrypoint_rep rc_ha_entrypoint_rep;
 	/**

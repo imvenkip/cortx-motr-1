@@ -25,8 +25,7 @@
 #include "conf/onwire.h"  /* m0_conf_fetch */
 #include "lib/mutex.h"    /* m0_mutex */
 #include "sm/sm.h"        /* m0_sm, m0_sm_ast */
-#include "rpc/conn.h"     /* m0_rpc_conn */
-#include "rpc/session.h"  /* m0_rpc_session */
+#include "rpc/link.h"     /* m0_rpc_link */
 
 struct m0_conf_obj;
 
@@ -523,11 +522,8 @@ struct m0_confc {
 	 */
 	struct m0_conf_obj      *cc_root;
 
-	/** Connection to confd. */
-	struct m0_rpc_conn       cc_rpc_conn;
-
-	/** RPC session with confd. */
-	struct m0_rpc_session    cc_rpc_session;
+	/** RPC link to confd. */
+	struct m0_rpc_link       cc_rlink;
 
 	/**
 	 * The number of configuration retrieval contexts associated
@@ -950,6 +946,9 @@ M0_INTERNAL bool m0_confc_invariant(const struct m0_confc *confc);
 
 M0_INTERNAL bool m0_confc_is_inited(const struct m0_confc *confc);
 M0_INTERNAL bool m0_confc_is_online(const struct m0_confc *confc);
+
+M0_INTERNAL struct m0_rpc_conn    *m0_confc2conn(struct m0_confc *confc);
+M0_INTERNAL struct m0_rpc_session *m0_confc2sess(struct m0_confc *confc);
 
 /** @} confc_dfspec */
 #endif /* __MERO_CONF_CONFC_H__ */

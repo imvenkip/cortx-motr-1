@@ -103,9 +103,11 @@
  *      "M0_RCS_IDLE" -> "M0_RCS_RLOCK_CONFLICT"
  *      "M0_RCS_IDLE" -> "M0_RCS_STOPPING"
  *      "M0_RCS_RLOCK_CONFLICT" -> "M0_RCS_CONDUCTOR_DRAIN"
- *      "M0_RCS_CONDUCTOR_DRAIN" -> "M0_RCS_ENTRYPOINT_WAIT"
+ *      "M0_RCS_CONDUCTOR_DRAIN" -> "M0_RCS_CONDUCTOR_DISCONNECT"
  *      "M0_RCS_CONDUCTOR_DRAIN" -> "M0_RCS_FAILURE"
  *      "M0_RCS_CONDUCTOR_DRAIN" -> "M0_RCS_FINAL"
+ *      "M0_RCS_CONDUCTOR_DISCONNECT" -> "M0_RCS_ENTRYPOINT_WAIT"
+ *      "M0_RCS_CONDUCTOR_DISCONNECT" -> "M0_RCS_FAILURE"
  *      "M0_RCS_STOPPING" -> "M0_RCS_CONDUCTOR_DRAIN"
  *      "M0_RCS_FAILURE" -> "M0_RCS_STOPPING"
  *  }
@@ -631,8 +633,12 @@ static struct m0_sm_state_descr rconfc_states[] = {
 	},
 	[M0_RCS_CONDUCTOR_DRAIN] = {
 		.sd_name      = "M0_RCS_CONDUCTOR_DRAIN",
-		.sd_allowed   = M0_BITS(M0_RCS_ENTRYPOINT_WAIT, M0_RCS_FAILURE,
-					M0_RCS_FINAL),
+		.sd_allowed   = M0_BITS(M0_RCS_CONDUCTOR_DISCONNECT,
+					M0_RCS_FAILURE, M0_RCS_FINAL),
+	},
+	[M0_RCS_CONDUCTOR_DISCONNECT] = {
+		.sd_name      = "M0_RCS_CONDUCTOR_DISCONNECT",
+		.sd_allowed   = M0_BITS(M0_RCS_ENTRYPOINT_WAIT, M0_RCS_FAILURE),
 	},
 	[M0_RCS_STOPPING] = {
 		.sd_name      = "M0_RCS_STOPPING",
@@ -763,7 +769,8 @@ static uint64_t _confc_ver_read(const struct m0_confc *confc)
 static const char *_confc_remote_addr_read(const struct m0_confc *confc)
 {
 	return m0_confc_is_online(confc) ?
-		m0_rpc_conn_addr(&confc->cc_rpc_conn) : NULL;
+		m0_rpc_conn_addr(m0_confc2conn((struct m0_confc *)confc)) :
+		NULL;
 }
 
 static int _confc_cache_clean(struct m0_confc *confc)
@@ -1440,7 +1447,8 @@ static int rconfc_herd_fini(struct m0_rconfc *rconfc)
 			M0_LOG(M0_DEBUG, "Stop re-trying required (cctx)");
 			m0_clink_add(&lnk->rl_cctx.fc_mach.sm_chan,
 				     &rconfc->rc_herd_cl);
-			m0_rpc_conn_sessions_cancel(&lnk->rl_confc.cc_rpc_conn);
+			m0_rpc_conn_sessions_cancel(
+				m0_confc2conn(&lnk->rl_confc));
 			m0_mutex_unlock(&rconfc->rc_herd_lock);
 			return M0_RC(1);
 		}
@@ -1601,6 +1609,16 @@ static void rconfc_active_populate(struct m0_rconfc *rconfc)
 static int rconfc_conductor_connect(struct m0_rconfc   *rconfc,
 				    struct rconfc_link *lnk)
 {
+	/*
+	 * As the conductor is expected to operate on rcnf_active list entries,
+	 * i.e. previously known to be connectable alright, there is no need in
+	 * any lengthy timeout here.
+	 *
+	 * In case active list iteration brings no success, rconfc is just to
+	 * repeat version election starting with ENTRYPOINT request.
+	 */
+	enum { CONDUCTOR_TIMEOUT_DEFAULT = 200ULL * M0_TIME_ONE_MSEC };
+
 	M0_ENTRY("rconfc = %p, lnk = %p, confd_addr = %s", rconfc, lnk,
 		 lnk != NULL ? lnk->rl_confd_addr : "(null)");
 	M0_PRE(rconfc != NULL);
@@ -1610,9 +1628,10 @@ static int rconfc_conductor_connect(struct m0_rconfc   *rconfc,
 		/* first use, initialization required */
 		M0_PRE(_confc_ver_read(&rconfc->rc_confc) ==
 		       M0_CONF_VER_UNKNOWN);
-		rc = m0_confc_init(&rconfc->rc_confc, rconfc->rc_sm.sm_grp,
-				   lnk->rl_confd_addr, rconfc->rc_rmach,
-				   rconfc->rc_local_conf);
+		rc = m0_confc_init_wait(&rconfc->rc_confc, rconfc->rc_sm.sm_grp,
+					lnk->rl_confd_addr, rconfc->rc_rmach,
+					rconfc->rc_local_conf,
+					CONDUCTOR_TIMEOUT_DEFAULT);
 		if (rc != 0)
 			return M0_ERR(rc);
 		m0_confc_gate_ops_set(&rconfc->rc_confc, &rconfc->rc_gops);
@@ -1668,6 +1687,7 @@ static int rconfc_conductor_iterate(struct m0_rconfc *rconfc)
 		next = rcnf_active_tlist_next(&rconfc->rc_active, prev) ?:
 			rcnf_active_tlist_head(&rconfc->rc_active);
 		if (next->rl_state == CONFC_FAILED)
+			/* this is to start version reelection */
 			return M0_ERR(-ENOENT);
 		rc = rconfc_conductor_connect(rconfc, next);
 		if (rc == 0 && !M0_FI_ENABLED("conductor_conn_fail")) {
@@ -1679,6 +1699,42 @@ static int rconfc_conductor_iterate(struct m0_rconfc *rconfc)
 		next->rl_state = CONFC_FAILED;
 		prev = next;
 	}
+	/**
+	 * @note The iteration procedure above performs synchronous connection
+	 * in rconfc_conductor_connect() with every remote confd in rcnf_active
+	 * list until the connection succeeds.  Every failed case is going to
+	 * take some time until CONDUCTOR_TIMEOUT_DEFAULT expires. Theoretically
+	 * this may keep rconfc AST thread busy for some time while conductor is
+	 * still trying to get to connected state.
+	 *
+	 * It is worth mentioning that the iteration is done with empty
+	 * conductor's cache, so there are no consumers trying to access conf
+	 * objects from other threads while rconfc remains locked.  This may
+	 * diminish the influence of possible blocking effect of the synchronous
+	 * connection approach.
+	 *
+	 * Nevertheless, this synchronism may be a subject for future rconfc
+	 * redesign in case any negative effects get revealed.
+	 *
+	 * New design is to partition the rconfc_conductor_iterate() logic. The
+	 * first part preceding the while() above is to prepare iteration and
+	 * start iterator FOM that is to re-implement the logic of the while()
+	 * block. rconfc_version_elected() is going to be affected as well.  New
+	 * design is going to bring extra complexity into existent rconfc
+	 * design.
+	 *
+	 * However, the redesign must take into consideration the fact that
+	 * rconfc_gate_skip() re-uses the rconfc_conductor_iterate() logic and
+	 * currently expects it to be performed exactly synchronous way. So, the
+	 * redesign must be done not only in regard to post-election phase
+	 * (rconfc_version_elected() partitioning), but asynchronous confc
+	 * gating must be designed as well.
+	 *
+	 * Again, it is worth mentioning that with current logic of full conf
+	 * loading before rconfc announces the conf ready, the confd skipping
+	 * may occur only during conf loading, when it is guaranteed to have no
+	 * conf consumers accessing objects in cache at the time.
+	 */
 }
 
 static void rconfc_read_lock_get(struct m0_rconfc *rconfc)
@@ -1856,15 +1912,12 @@ static void rconfc_creditor_death_handle(struct m0_rconfc *rconfc)
 	M0_LEAVE();
 }
 
-static void rconfc_conductor_drained(struct m0_rconfc *rconfc)
+static void rconfc_conductor_disconnected(struct m0_rconfc *rconfc)
 {
-	struct rlock_ctx   *rlx = rconfc->rc_rlock_ctx;
+	struct rlock_ctx   *rlx   = rconfc->rc_rlock_ctx;
 	struct m0_rm_owner *owner = &rlx->rlc_owner;
 
 	M0_ENTRY("rconfc = %p", rconfc);
-	/* disconnect confc until read lock being granted */
-	if (m0_confc_is_inited(&rconfc->rc_confc))
-		m0_confc_reconnect(&rconfc->rc_confc, NULL, NULL);
 	/* return read lock back to RM */
 	rconfc_read_lock_put(rconfc);
 	/* prepare for version election */
@@ -1882,6 +1935,40 @@ static void rconfc_conductor_drained(struct m0_rconfc *rconfc)
 		 */
 		rconfc_start(rconfc);
 	}
+	M0_LEAVE();
+}
+
+static void rconfc_conductor_disconnected_ast(struct m0_sm_group *grp,
+					      struct m0_sm_ast   *ast)
+{
+	struct m0_rconfc *rconfc = ast->sa_datum;
+
+	m0_clink_cleanup(&rconfc->rc_conductor_clink);
+	m0_rpc_link_fini(&rconfc->rc_confc.cc_rlink);
+	rconfc_conductor_disconnected(rconfc);
+}
+
+static bool rconfc_conductor_disconnect_cb(struct m0_clink *clink)
+{
+	struct m0_rconfc *rconfc = M0_AMB(rconfc, clink, rc_conductor_clink);
+
+	M0_ENTRY("rconfc = %p", rconfc);
+	rconfc_ast_post(rconfc, rconfc_conductor_disconnected_ast);
+	M0_LEAVE();
+	return true;
+}
+
+static void rconfc_conductor_drained(struct m0_rconfc *rconfc)
+{
+	M0_ENTRY("rconfc = %p", rconfc);
+	/* disconnect confc until read lock being granted */
+	rconfc_state_set(rconfc, M0_RCS_CONDUCTOR_DISCONNECT);
+	m0_clink_init(&rconfc->rc_conductor_clink,
+		      rconfc_conductor_disconnect_cb);
+	rconfc->rc_conductor_clink.cl_is_oneshot = true;
+	m0_rpc_link_disconnect_async(&rconfc->rc_confc.cc_rlink,
+				     m0_rpc__down_timeout(),
+				     &rconfc->rc_conductor_clink);
 	M0_LEAVE();
 }
 
@@ -2265,11 +2352,12 @@ static void rconfc_version_elected(struct m0_sm_group *grp,
 		rconfc_herd_destroy(rconfc);
 		/*
 		 * Start re-election. As version was not elected, the conductor
-		 * never was engaged, and therefore needs no draining.
+		 * never was engaged, and therefore needs no draining...
 		 */
 		if (m0_confc_is_inited(&rconfc->rc_confc))
 			m0_confc_fini(&rconfc->rc_confc);
-		rconfc_conductor_drained(rconfc);
+		/* ... and no disconnection. */
+		rconfc_conductor_disconnected(rconfc);
 		M0_CNT_INC(rconfc->rc_ha_entrypoint_retries);
 	} else {
 		M0_SET0(&rconfc->rc_rx);

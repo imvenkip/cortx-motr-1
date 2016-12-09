@@ -258,6 +258,7 @@ static struct rpc_link_state_transition rpc_link_disc_states[] = {
 static void rpc_link_conn_fom_wait_on(struct m0_fom *fom,
 				      struct m0_rpc_link *rlink)
 {
+	M0_SET0(&rlink->rlk_fomcb);
 	m0_fom_callback_init(&rlink->rlk_fomcb);
 	m0_fom_wait_on(fom, &CONN_CHAN(&rlink->rlk_conn), &rlink->rlk_fomcb);
 }
@@ -265,6 +266,7 @@ static void rpc_link_conn_fom_wait_on(struct m0_fom *fom,
 static void rpc_link_sess_fom_wait_on(struct m0_fom *fom,
 				      struct m0_rpc_link *rlink)
 {
+	M0_SET0(&rlink->rlk_fomcb);
 	m0_fom_callback_init(&rlink->rlk_fomcb);
 	m0_fom_wait_on(fom, &SESS_CHAN(&rlink->rlk_sess), &rlink->rlk_fomcb);
 }

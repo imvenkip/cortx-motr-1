@@ -126,7 +126,7 @@ static size_t rconfc_link_fom_locality(const struct m0_fom *fom)
 static bool rconfc_link__on_sess_idle(struct m0_clink *clink)
 {
 	struct rconfc_link    *lnk  = M0_AMB(lnk, clink, rl_fom_clink);
-	struct m0_rpc_session *sess = &lnk->rl_confc.cc_rpc_session;
+	struct m0_rpc_session *sess = m0_confc2sess(&lnk->rl_confc);
 
 	if (!M0_IN(sess->s_sm.sm_state, (M0_RPC_SESSION_IDLE,
 					 M0_RPC_SESSION_FAILED)))
@@ -138,7 +138,7 @@ static bool rconfc_link__on_sess_idle(struct m0_clink *clink)
 static bool rconfc_link__on_sess_terminated(struct m0_clink *clink)
 {
 	struct rconfc_link    *lnk  = M0_AMB(lnk, clink, rl_fom_clink);
-	struct m0_rpc_session *sess = &lnk->rl_confc.cc_rpc_session;
+	struct m0_rpc_session *sess = m0_confc2sess(&lnk->rl_confc);
 
 	if (!M0_IN(sess->s_sm.sm_state, (M0_RPC_SESSION_TERMINATED,
 					 M0_RPC_SESSION_FAILED)))
@@ -149,8 +149,8 @@ static bool rconfc_link__on_sess_terminated(struct m0_clink *clink)
 
 static bool rconfc_link__on_conn_terminated(struct m0_clink *clink)
 {
-	struct rconfc_link    *lnk  = M0_AMB(lnk, clink, rl_fom_clink);
-	struct m0_rpc_conn    *conn = &lnk->rl_confc.cc_rpc_conn;
+	struct rconfc_link *lnk  = M0_AMB(lnk, clink, rl_fom_clink);
+	struct m0_rpc_conn *conn = m0_confc2conn(&lnk->rl_confc);
 
 	if (!M0_IN(conn->c_sm.sm_state, (M0_RPC_CONN_TERMINATED,
 					 M0_RPC_CONN_FAILED)))
@@ -162,8 +162,8 @@ static bool rconfc_link__on_conn_terminated(struct m0_clink *clink)
 static void rconfc_herd_link_fom_wait_on(struct rconfc_link *lnk,
 					 int                 phase)
 {
-	struct m0_rpc_session *sess  = &lnk->rl_confc.cc_rpc_session;
-	struct m0_rpc_conn    *conn  = &lnk->rl_confc.cc_rpc_conn;
+	struct m0_rpc_session *sess = m0_confc2sess(&lnk->rl_confc);
+	struct m0_rpc_conn    *conn = m0_confc2conn(&lnk->rl_confc);
 	struct m0_chan        *chan[] = {
 		[M0_RLF_INIT]             = &sess->s_sm.sm_chan,
 		[M0_RLF_SESS_WAIT_IDLE]   = &sess->s_sm.sm_chan,
@@ -182,8 +182,8 @@ static void rconfc_herd_link_fom_wait_on(struct rconfc_link *lnk,
 static int rconfc_link_fom_tick(struct m0_fom *fom)
 {
 	struct rconfc_link    *lnk   = M0_AMB(lnk, fom, rl_fom);
-	struct m0_rpc_session *sess  = &lnk->rl_confc.cc_rpc_session;
-	struct m0_rpc_conn    *conn  = &lnk->rl_confc.cc_rpc_conn;
+	struct m0_rpc_session *sess = m0_confc2sess(&lnk->rl_confc);
+	struct m0_rpc_conn    *conn = m0_confc2conn(&lnk->rl_confc);
 	int                    phase = m0_fom_phase(fom);
 	int                    rc;
 
