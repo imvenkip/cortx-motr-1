@@ -258,6 +258,10 @@ M0_INTERNAL int nlx_xo_core_bev_to_net_bev(struct m0_net_transfer_mc *tm,
 	nbev->nbe_buffer = nb;
 	nbev->nbe_status = lcbev->cbe_status;
 	nbev->nbe_time   = m0_time_add(lcbev->cbe_time, nb->nb_add_time);
+	if (!lcbev->cbe_unlinked)
+		nb->nb_flags |= M0_NET_BUF_RETAIN;
+	else
+		nb->nb_flags &= ~M0_NET_BUF_RETAIN;
 	if (nbev->nbe_status != 0) {
 		if (nbev->nbe_status == -ECANCELED &&
 		    nb->nb_flags & M0_NET_BUF_TIMED_OUT)
@@ -279,15 +283,13 @@ M0_INTERNAL int nlx_xo_core_bev_to_net_bev(struct m0_net_transfer_mc *tm,
 	    nb->nb_qtype == M0_NET_QT_ACTIVE_BULK_RECV) {
 		nbev->nbe_length = lcbev->cbe_length;
 	}
-	if (!lcbev->cbe_unlinked)
-		nb->nb_flags |= M0_NET_BUF_RETAIN;
  done:
 	NLXDBG(tp,2,nlx_print_core_buffer_event("bev_to_net_bev: cbev", lcbev));
 	NLXDBG(tp,2,nlx_print_net_buffer_event("bev_to_net_bev: nbev:", nbev));
 	NLXDBG(tp,2,NLXP("bev_to_net_bev: rc=%d\n", rc));
 
 	M0_POST(ergo(nb->nb_flags & M0_NET_BUF_RETAIN,
-		     rc == 0 && !lcbev->cbe_unlinked));
+		     !lcbev->cbe_unlinked));
 	/* currently we only support RETAIN for received messages */
 	M0_POST(ergo(nb->nb_flags & M0_NET_BUF_RETAIN,
 		     nb->nb_qtype == M0_NET_QT_MSG_RECV));
