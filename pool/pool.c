@@ -1190,6 +1190,7 @@ static bool pools_common_conf_ready_async_cb(struct m0_clink *clink)
 	int                     rc;
 
 	M0_ENTRY("pc %p", pc);
+	M0_PRE(pools_common_invariant(pc));
 
 	if (pc->pc_rm_ctx == NULL) {
 		M0_LEAVE("The mandatory rmservice is missing.");
@@ -1264,11 +1265,13 @@ M0_INTERNAL int m0_pools_common_init(struct m0_pools_common *pc,
 		.pc_confc         = m0_confc_from_obj(&fs->cf_obj),
 		.pc_cur_pver      = NULL
 	};
-	reqh = m0_confc2reqh(pc->pc_confc);
-	m0_mutex_init(&pc->pc_mutex);
 	rc = pools_common__dev2ios_build(pc, fs);
-	if (rc != 0)
+	if (rc != 0) {
+		/* We want pools_common_invariant(pc) to fail. */
+		pc->pc_confc = NULL;
 		return M0_ERR(rc);
+	}
+	m0_mutex_init(&pc->pc_mutex);
 	pools_common_svc_ctx_tlist_init(&pc->pc_abandoned_svc_ctxs);
 	pools_common_svc_ctx_tlist_init(&pc->pc_svc_ctxs);
 	pools_tlist_init(&pc->pc_pools);
@@ -1279,10 +1282,12 @@ M0_INTERNAL int m0_pools_common_init(struct m0_pools_common *pc,
 	m0_clink_init(&pc->pc_conf_ready, pools_common_conf_ready_cb);
 	m0_clink_init(&pc->pc_conf_ready_async,
 		      pools_common_conf_ready_async_cb);
+	reqh = m0_confc2reqh(pc->pc_confc);
 	m0_clink_add_lock(&reqh->rh_conf_cache_exp, &pc->pc_conf_exp);
 	m0_clink_add_lock(&reqh->rh_conf_cache_ready, &pc->pc_conf_ready);
 	m0_clink_add_lock(&reqh->rh_conf_cache_ready_async,
 			  &pc->pc_conf_ready_async);
+	M0_POST(pools_common_invariant(pc));
 	return M0_RC(0);
 }
 
@@ -1359,7 +1364,7 @@ M0_INTERNAL void m0_pools_common_fini(struct m0_pools_common *pc)
 	pools_common_svc_ctx_tlist_fini(&pc->pc_abandoned_svc_ctxs);
 	pools_common_svc_ctx_tlist_fini(&pc->pc_svc_ctxs);
 	pools_tlist_fini(&pc->pc_pools);
-	m0_free(pc->pc_dev2svc);
+	m0_free0(&pc->pc_dev2svc);
 	m0_mutex_fini(&pc->pc_mutex);
 	m0_clink_cleanup(&pc->pc_conf_exp);
 	m0_clink_cleanup(&pc->pc_conf_ready);
@@ -1367,7 +1372,11 @@ M0_INTERNAL void m0_pools_common_fini(struct m0_pools_common *pc)
 	m0_clink_fini(&pc->pc_conf_exp);
 	m0_clink_fini(&pc->pc_conf_ready);
 	m0_clink_fini(&pc->pc_conf_ready_async);
-
+	/*
+	 * We want pools_common_invariant(pc) to fail after
+	 * m0_pools_common_fini().
+	 */
+	pc->pc_confc = NULL;
 	M0_LEAVE();
 }
 
