@@ -239,7 +239,7 @@ M0_INTERNAL void m0_clink_add(struct m0_chan *chan, struct m0_clink *link)
 	}
 
 	M0_ASSERT(m0_chan_invariant(chan));
-	chan->ch_waiters++;
+	M0_CNT_INC(chan->ch_waiters);
 	clink_tlist_add_tail(&chan->ch_links, link);
 	if (chan->ch_addb2 != NULL)
 		m0_addb2_counter_mod(&chan->ch_addb2->ca_queue_counter,
@@ -272,8 +272,7 @@ M0_INTERNAL void m0_clink_del(struct m0_clink *link)
 	M0_PRE(ergo(!clink_is_head(link), m0_clink_is_armed(link->cl_group)));
 
 	M0_ASSERT(m0_chan_invariant(chan));
-	M0_ASSERT(chan->ch_waiters > 0);
-	chan->ch_waiters--;
+	M0_CNT_DEC(chan->ch_waiters);
 	clink_tlist_del(link);
 	if (chan->ch_addb2 != NULL)
 		m0_addb2_counter_mod(&chan->ch_addb2->ca_queue_counter,
