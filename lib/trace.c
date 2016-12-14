@@ -149,7 +149,7 @@ M0_INTERNAL void m0_trace_fini(void)
 /*
  * XXX x86_64 version.
  */
-static inline uint64_t rdtsc(void)
+static inline uint64_t m0_rdtsc(void)
 {
 	uint32_t count_hi;
 	uint32_t count_lo;
@@ -266,7 +266,7 @@ M0_INTERNAL void m0_trace_allot(const struct m0_trace_descr *td,
 	header->trh_no        = record_num;
 	header->trh_pos       = pos;
 	header->trh_sp        = sp;
-	header->trh_timestamp = rdtsc();
+	header->trh_timestamp = m0_rdtsc();
 	header->trh_descr     = td;
 	header->trh_string_data_size = str_data_size;
 	header->trh_record_size = record_len;
