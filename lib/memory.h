@@ -159,6 +159,13 @@ M0_INTERNAL int m0_pagesize_get(void);
  */
 M0_INTERNAL bool m0_is_poisoned(const void *p);
 
+/**
+ * Mark this memory region to be excluded from core dump.
+ * see madvise(2).
+ */
+M0_INTERNAL int m0_dont_dump(void *p, size_t size);
+
+
 /** @} end of memory group */
 #endif /* __MERO_LIB_MEMORY_H__ */
 

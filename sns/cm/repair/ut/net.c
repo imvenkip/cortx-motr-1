@@ -764,7 +764,7 @@ static void sender_init()
 	ndom = &rmach_ctx.rmc_net_dom;
 	colours = m0_reqh_nr_localities(&rmach_ctx.rmc_reqh);
 	rc = m0_net_buffer_pool_init(&nbp, ndom, 0, SEG_NR, SEG_SIZE,
-				     colours, M0_0VEC_SHIFT);
+				     colours, M0_0VEC_SHIFT, false);
 	M0_UT_ASSERT(rc == 0);
 	nbp.nbp_ops = &bp_ops;
 	m0_net_buffer_pool_lock(&nbp);

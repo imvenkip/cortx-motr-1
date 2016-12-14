@@ -246,7 +246,8 @@ M0_INTERNAL int m0_rpc_net_buffer_pool_setup(struct m0_net_domain *ndom,
 	app_pool->nbp_ops = &b_ops;
 	rc = m0_net_buffer_pool_init(app_pool, ndom,
 				     M0_NET_BUFFER_POOL_THRESHOLD,
-				     segs_nr, seg_size, tm_nr, M0_SEG_SHIFT);
+				     segs_nr, seg_size, tm_nr, M0_SEG_SHIFT,
+				     false);
 	if (rc != 0)
 		return M0_ERR_INFO(rc, "net_buf_pool: Initialization");
 

@@ -114,6 +114,11 @@ M0_INTERNAL size_t m0_arch_allocated(void)
 	return 0;
 }
 
+M0_INTERNAL int m0_arch_dont_dump(void *p, size_t size)
+{
+	return 0;
+}
+
 M0_INTERNAL int m0_arch_memory_init(void)
 {
 	return 0;

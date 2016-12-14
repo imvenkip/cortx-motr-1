@@ -230,6 +230,11 @@ M0_INTERNAL int m0_bufvec_alloc_aligned(struct m0_bufvec *bufvec,
 					m0_bcount_t seg_size, unsigned shift);
 
 /**
+ * Make all its memory excluded from core dump.
+ */
+M0_INTERNAL int m0__bufvec_dont_dump(struct m0_bufvec *bufvec);
+
+/**
    Frees the buffers pointed to by m0_bufvec.ov_buf and
    the m0_bufvec.ov_vec vector, using m0_free().
    @param bufvec Pointer to the m0_bufvec.

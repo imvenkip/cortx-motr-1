@@ -172,7 +172,7 @@ M0_INTERNAL int m0_net_buffer_pool_init(struct m0_net_buffer_pool *pool,
 					struct m0_net_domain *ndom,
 					uint32_t threshold, uint32_t seg_nr,
 					m0_bcount_t seg_size, uint32_t colours,
-					unsigned shift);
+					unsigned shift, bool dont_dump);
 
 /**
    It adds the buf_nr buffers in the buffer pool.
@@ -269,8 +269,10 @@ struct m0_net_buffer_pool {
 	    lists.
 	*/
 	struct m0_tl			    *nbp_colours;
-	/* Alignment for network buffers */
+	/** Alignment for network buffers */
 	unsigned			     nbp_align;
+	/** Memory in this pool is excluded in core dump or not */
+	bool                                 nbp_dont_dump;
 	/**
 	   A list of all buffers in the pool.
 	   This list is maintained in LRU order. The head of this list (which is

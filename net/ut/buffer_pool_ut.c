@@ -58,7 +58,7 @@ static void test_init(void)
 	bp.nbp_ops = &b_ops;
 	rc = m0_net_buffer_pool_init(&bp, bp.nbp_ndom,
 				      M0_NET_BUFFER_POOL_THRESHOLD, seg_nr,
-				      seg_size, colours, shift);
+				      seg_size, colours, shift, false);
 	M0_UT_ASSERT(rc == 0);
 	m0_chan_init(&buf_chan, &bp.nbp_mutex);
 	m0_net_buffer_pool_lock(&bp);

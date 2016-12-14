@@ -178,6 +178,7 @@ prepare()
 	modload_m0gf >& /dev/null
 	echo 8 > /proc/sys/kernel/printk
 	load_kernel_module || return $?
+	sysctl -w vm.max_map_count=30000000 || return $?
 }
 
 unprepare()

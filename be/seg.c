@@ -291,8 +291,13 @@ static void be_seg_madvise(struct m0_be_seg *seg, m0_bcount_t dump_limit,
 	if (dump_limit >= seg->bs_size)
 		return;
 
-	rc = madvise(seg->bs_addr + dump_limit, seg->bs_size - dump_limit,
-		     flag);
+	if (flag == MADV_DONTDUMP)
+		rc = m0_dont_dump(seg->bs_addr + dump_limit,
+				  seg->bs_size - dump_limit);
+	else
+		rc = madvise(seg->bs_addr + dump_limit,
+			     seg->bs_size - dump_limit,
+			     flag);
 
 	if (rc == 0)
 		M0_LOG(M0_INFO, "madvise(%p, %"PRIu64", %d) = %d",

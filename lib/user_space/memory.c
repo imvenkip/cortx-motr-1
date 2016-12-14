@@ -171,6 +171,27 @@ M0_INTERNAL void m0_arch_memory_pagein(void *addr, size_t size)
 		*current_byte = 0xCC;
 }
 
+/**
+ * sysctl vm.max_map_count default value is 65530. Half of this value
+ * can be marked as MADV_DONTDUMP.
+ * We need to set it to a larger number in our production system
+ * with large memory, e.g.:
+ * sysctl -w vm.max_map_count=30000000
+ */
+M0_INTERNAL int m0_arch_dont_dump(void *p, size_t size)
+{
+	int rc;
+	rc = madvise(p, size, MADV_DONTDUMP);
+	if (rc != 0) {
+		rc = -errno;
+		M0_LOG(M0_ERROR, "madvised failed: %d. Please "
+				 "sysctl -w vm.max_map_count=a_larger_number",
+				 rc);
+	}
+
+	return rc;
+}
+
 M0_INTERNAL int m0_arch_memory_init(void)
 {
 	void *nothing;

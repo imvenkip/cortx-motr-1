@@ -245,11 +245,13 @@ M0_INTERNAL int m0_ios_create_buffer_pool(struct m0_reqh_service *service)
 		segment_size = m0_rpc_max_seg_size(newbp->rios_ndom);
 		segments_nr  = m0_rpc_max_segs_nr(newbp->rios_ndom);
 
+		M0_LOG(M0_DEBUG, "ios segments_nr=%d", segments_nr);
 		rc = m0_net_buffer_pool_init(&newbp->rios_bp,
 					      newbp->rios_ndom,
 					      M0_NET_BUFFER_POOL_THRESHOLD,
 					      segments_nr, segment_size,
-					      colours, M0_0VEC_SHIFT);
+					      colours, M0_0VEC_SHIFT,
+					      /* dont_dump */true);
 		if (rc != 0) {
 			m0_free(newbp);
 			break;

@@ -284,6 +284,33 @@ M0_INTERNAL int m0_bufvec_merge(struct m0_bufvec *dst_bufvec,
 }
 M0_EXPORTED(m0_bufvec_merge);
 
+/**
+ * Exclude all the buffers in this vector from core dump.
+ */
+M0_INTERNAL int m0__bufvec_dont_dump(struct m0_bufvec *bufvec)
+{
+	uint32_t i;
+	uint32_t num_segs = bufvec->ov_vec.v_nr;
+	int rc = 0;
+
+	M0_ENTRY();
+	M0_PRE(num_segs > 0);
+
+	for (i = 0; i < num_segs; ++i) {
+		rc = m0_dont_dump(bufvec->ov_buf[i],
+				  (size_t)bufvec->ov_vec.v_count[i]);
+		if (rc != 0) {
+			M0_LOG(M0_ERROR, "%d: don't dump addr %p+%lu failed: %d",
+					 i, bufvec->ov_buf[i],
+					 (size_t)bufvec->ov_vec.v_count[i], rc);
+			break;
+		}
+	}
+
+	return M0_RC(rc);
+}
+M0_EXPORTED(m0__bufvec_dont_dump);
+
 M0_INTERNAL int m0_bufvec_alloc_aligned(struct m0_bufvec *bufvec,
 					uint32_t num_segs,
 					m0_bcount_t seg_size, unsigned shift)

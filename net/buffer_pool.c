@@ -81,7 +81,7 @@ M0_INTERNAL int m0_net_buffer_pool_init(struct m0_net_buffer_pool *pool,
 					struct m0_net_domain *ndom,
 					uint32_t threshold, uint32_t seg_nr,
 					m0_bcount_t seg_size, uint32_t colours,
-					unsigned shift)
+					unsigned shift, bool dont_dump)
 {
 	int i;
 
@@ -98,6 +98,7 @@ M0_INTERNAL int m0_net_buffer_pool_init(struct m0_net_buffer_pool *pool,
 	pool->nbp_seg_size   = seg_size;
 	pool->nbp_colours_nr = colours;
 	pool->nbp_align      = shift;
+	pool->nbp_dont_dump  = dont_dump;
 
 	if (colours == 0)
 		pool->nbp_colours = NULL;
@@ -279,6 +280,15 @@ static bool net_buffer_pool_grow(struct m0_net_buffer_pool *pool)
 				     pool->nbp_seg_size, pool->nbp_align);
 	if (rc != 0)
 		goto clean;
+	if(pool->nbp_align != 0 && pool->nbp_dont_dump) {
+		rc = m0__bufvec_dont_dump(&nb->nb_buffer);
+		if (rc != 0) {
+			M0_LOG(M0_ERROR, "failed to mark bufvec %p dont_dump",
+					 &nb->nb_buffer);
+			goto clean;
+		}
+	}
+
 	rc = m0_net_buffer_register(nb, pool->nbp_ndom);
 	if (rc != 0)
 		goto clean;

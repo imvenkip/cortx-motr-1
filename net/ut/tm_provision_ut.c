@@ -258,7 +258,7 @@ static void test_net_tm_prov(void)
 
 	/* allocate buffers for testing */
 	rc = m0_net_buffer_pool_init(pool_prov, dom, POOL_THRESHOLD, buf_segs,
-				buf_seg_size, POOL_COLOURS, shift);
+				buf_seg_size, POOL_COLOURS, shift, false);
 	m0_net_buffer_pool_lock(pool_prov);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_net_buffer_pool_provision(pool_prov, POOL_BUF_NR);

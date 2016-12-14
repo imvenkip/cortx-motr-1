@@ -91,6 +91,7 @@ M0_INTERNAL void   m0_arch_free_wired(void *data, size_t size, unsigned shift);
 M0_INTERNAL void  *m0_arch_alloc_aligned(size_t alignment, size_t size);
 M0_INTERNAL void   m0_arch_free_aligned(void *data, size_t size, unsigned shft);
 M0_INTERNAL int    m0_arch_pagesize_get(void);
+M0_INTERNAL int    m0_arch_dont_dump(void *p, size_t size);
 M0_INTERNAL int    m0_arch_memory_init (void);
 M0_INTERNAL void   m0_arch_memory_fini (void);
 
@@ -227,6 +228,14 @@ M0_EXPORTED(m0_freed_total);
 M0_INTERNAL int m0_pagesize_get(void)
 {
 	return m0_arch_pagesize_get();
+}
+
+M0_INTERNAL int m0_dont_dump(void *p, size_t size)
+{
+	int pagesize = m0_pagesize_get();
+	M0_PRE(((unsigned long)p / pagesize * pagesize) == (unsigned long)p);
+
+	return m0_arch_dont_dump(p, size);
 }
 
 M0_INTERNAL int m0_memory_init(void)

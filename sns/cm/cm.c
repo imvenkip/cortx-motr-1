@@ -512,13 +512,16 @@ M0_INTERNAL int m0_sns_cm_setup(struct m0_cm *cm)
 	scm->sc_obp.sb_bp.nbp_ops = &bp_ops;
 	segment_size = m0_rpc_max_seg_size(ndom);
 	segments_nr  = m0_rpc_max_segs_nr(ndom);
+	M0_LOG(M0_DEBUG, "sns segments_nr=%d", segments_nr);
 	rc = m0_net_buffer_pool_init(&scm->sc_ibp.sb_bp, ndom,
 				     0, segments_nr, segment_size,
-				     colours, M0_0VEC_SHIFT);
+				     colours, M0_0VEC_SHIFT,
+				     /* dont_dump */true);
 	if (rc == 0) {
 		rc = m0_net_buffer_pool_init(&scm->sc_obp.sb_bp, ndom,
 					     0, segments_nr, segment_size,
-					     colours, M0_0VEC_SHIFT);
+					     colours, M0_0VEC_SHIFT,
+					     /* dont_dump */true);
 		if (rc != 0)
 			m0_net_buffer_pool_fini(&scm->sc_ibp.sb_bp);
 	}
