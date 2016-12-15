@@ -222,6 +222,17 @@ static void body_wire2mem(struct m0_cob_attr *attr,
 	attr->ca_version = body->b_version;
 }
 
+M0_INTERNAL void m0t1fs_fs_conf_lock(struct m0t1fs_sb *csb)
+{
+	m0t1fs_ref_get_lock(csb);
+	m0t1fs_fs_lock(csb);
+}
+
+M0_INTERNAL void m0t1fs_fs_conf_unlock(struct m0t1fs_sb *csb)
+{
+	m0t1fs_fs_unlock(csb);
+	m0t1fs_ref_put_lock(csb);
+}
 /**
    Allocate fid of global file.
 
@@ -306,19 +317,19 @@ out:
 int m0t1fs_setxattr(struct dentry *dentry, const char *name,
 		    const void *value, size_t size, int flags)
 {
-	struct m0t1fs_inode        *ci = M0T1FS_I(dentry->d_inode);
-	struct m0t1fs_sb           *csb = M0T1FS_SB(ci->ci_inode.i_sb);
-	int                         layout_id;
-	struct m0t1fs_mdop          mo;
-	int                         rc;
-	struct m0_fop              *rep_fop = NULL;
+	struct m0t1fs_inode *ci = M0T1FS_I(dentry->d_inode);
+	struct m0t1fs_sb    *csb = M0T1FS_SB(ci->ci_inode.i_sb);
+	int                  layout_id;
+	struct m0t1fs_mdop   mo;
+	int                  rc;
+	struct m0_fop       *rep_fop = NULL;
+
 	M0_THREAD_ENTER;
 
 	M0_ENTRY("Setting %.*s's xattr %s=%.*s", dentry->d_name.len,
 		 (char*)dentry->d_name.name, name, (int)size, (char *)value);
 
-	m0t1fs_fs_lock(csb);
-
+	m0t1fs_fs_conf_lock(csb);
 	M0_SET0(&mo);
 	mo.mo_attr.ca_tfid = *m0t1fs_inode_fid(ci);
 	m0_buf_init(&mo.mo_attr.ca_name, (char*)dentry->d_name.name,
@@ -380,7 +391,7 @@ int m0t1fs_setxattr(struct dentry *dentry, const char *name,
 		m0_fop_put0_lock(rep_fop);
 	}
 out:
-	m0t1fs_fs_unlock(csb);
+	m0t1fs_fs_conf_unlock(csb);
 	return M0_RC(rc);
 }
 
@@ -399,28 +410,26 @@ ssize_t m0t1fs_getxattr(struct dentry *dentry, const char *name,
 	struct m0_fop_getxattr_rep *rep = NULL;
 	struct m0t1fs_mdop          mo;
 	int                         rc;
-	struct m0_fop              *rep_fop;
+	struct m0_fop              *rep_fop = NULL;
 	M0_THREAD_ENTER;
 
 	M0_ENTRY("Getting %.*s's xattr %s", dentry->d_name.len,
 		 (char*)dentry->d_name.name, name);
-
-	m0t1fs_fs_lock(csb);
+	m0t1fs_fs_conf_lock(csb);
 	if (m0_streq(name, "pver")) {
 		M0_LOG(M0_DEBUG, "buffer:%p size:%d"FID_F, buffer, (int)size,
 				FID_P(&ci->ci_pver));
 		if (buffer != NULL) {
 			if ((size_t)sizeof(struct m0_fid) > size) {
 				rc = M0_ERR(-ERANGE);
-				m0t1fs_fs_unlock(csb);
-				return M0_RC(rc);
+				goto out;
 			}
 			sprintf(buffer, FID_F, FID_P(&ci->ci_pver));
-			m0t1fs_fs_unlock(csb);
-			return M0_RC(rc = strlen(buffer));
+			rc = strlen(buffer);
+			goto out;
 		}
-		m0t1fs_fs_unlock(csb);
-		return M0_RC(rc = M0_FID_STR_LEN);
+		rc = M0_FID_STR_LEN;
+		goto out;
 	}
 	if (m0_streq(name, "lid")) {
 		M0_LOG(M0_DEBUG, "buffer:%p size:%d lid:%d"FID_F, buffer,
@@ -429,19 +438,18 @@ ssize_t m0t1fs_getxattr(struct dentry *dentry, const char *name,
 		if (buffer != NULL) {
 			if ((size_t)sizeof(uint64_t) > size) {
 				rc = M0_ERR(-ERANGE);
-				m0t1fs_fs_unlock(csb);
-				return M0_RC(rc);
+				goto out;
 			}
 			sprintf(buffer, "%d", (int)ci->ci_layout_id);
-			m0t1fs_fs_unlock(csb);
-			return M0_RC(rc = strlen(buffer));
+			rc = strlen(buffer);
+			goto out;
 		}
-		m0t1fs_fs_unlock(csb);
-		return M0_RC(rc = UINT32_STR_LEN);
+		rc = UINT32_STR_LEN;
+		goto out;
 	}
 	if (csb->csb_oostore) {
-		m0t1fs_fs_unlock(csb);
-		return M0_RC(-EOPNOTSUPP);
+		rc = M0_ERR(-EOPNOTSUPP);
+		goto out;
 	}
 
 	M0_SET0(&mo);
@@ -466,7 +474,7 @@ ssize_t m0t1fs_getxattr(struct dentry *dentry, const char *name,
 		rc = M0_ERR(-ENODATA);
 out:
 	m0_fop_put0_lock(rep_fop);
-	m0t1fs_fs_unlock(csb);
+	m0t1fs_fs_conf_unlock(csb);
 	return M0_RC(rc);
 }
 
@@ -502,7 +510,7 @@ int m0t1fs_removexattr(struct dentry *dentry, const char *name)
 
 	if (csb->csb_oostore)
 		return M0_RC(-EOPNOTSUPP);
-	m0t1fs_fs_lock(csb);
+	m0t1fs_fs_conf_lock(csb);
 
 	M0_SET0(&mo);
 	mo.mo_attr.ca_tfid = *m0t1fs_inode_fid(ci);
@@ -513,9 +521,8 @@ int m0t1fs_removexattr(struct dentry *dentry, const char *name)
 	rc = m0t1fs_mds_cob_delxattr(csb, &mo, &rep_fop);
 	if (rc == -ENOENT)
 		rc = M0_ERR(-ENODATA);
-
 	m0_fop_put0_lock(rep_fop);
-	m0t1fs_fs_unlock(csb);
+	m0t1fs_fs_conf_unlock(csb);
 	return M0_RC(rc);
 }
 
@@ -603,6 +610,7 @@ static int m0t1fs_create(struct inode     *dir,
 	int                       rc;
 	struct m0_fop            *rep_fop = NULL;
 	struct m0_pool_version   *pv;
+	bool                      i_err = false;
 
 	M0_THREAD_ENTER;
 	M0_ENTRY();
@@ -611,30 +619,34 @@ static int m0t1fs_create(struct inode     *dir,
 	       (char*)dentry->d_name.name, dir->i_ino,
 	       FID_P(m0t1fs_inode_fid(M0T1FS_I(dir))));
 
-	m0t1fs_fs_lock(csb);
+	m0t1fs_fs_conf_lock(csb);
 	rc = m0_pool_version_get(&csb->csb_pools_common, &pv);
 	if (rc != 0) {
-		m0t1fs_fs_unlock(csb);
-		return M0_ERR(-ENOENT);
+		rc = M0_ERR(-ENOENT);
+		goto out;
 	}
 	inode = new_inode(sb);
 	if (inode == NULL) {
-		m0t1fs_fs_unlock(csb);
-		return M0_ERR(-ENOMEM);
+		rc = M0_ERR(-ENOMEM);
+		goto out;
 	}
 	if (csb->csb_oostore) {
 		rc = m0_fid_sscanf(dentry->d_name.name, &new_fid);
 		if (rc != 0) {
 			M0_LOG(M0_ERROR, "Cannot parse fid \"%s\" in oostore",
 					 (char*)dentry->d_name.name);
+			i_err = true;
 			goto out;
 		}
 	} else {
 		m0t1fs_fid_alloc(csb, &new_fid);
 	}
 	rc = m0t1fs_fid_check(&new_fid);
-	if (rc != 0)
+	if (rc != 0) {
+		i_err = true;
 		goto out;
+	}
+
 	m0_fid_gob_make(&gfid, new_fid.f_container, new_fid.f_key);
 	M0_LOG(M0_DEBUG, "New fid = "FID_F, FID_P(&new_fid));
 	inode->i_ino = m0_fid_hash(&gfid);
@@ -669,8 +681,10 @@ static int m0t1fs_create(struct inode     *dir,
 
 	m0t1fs_file_lock_init(ci, csb);
 	rc = m0t1fs_inode_layout_init(ci);
-	if (rc != 0)
+	if (rc != 0) {
+		i_err = true;
 		goto out;
+	}
 
 	M0_SET0(&mo);
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
@@ -699,39 +713,44 @@ static int m0t1fs_create(struct inode     *dir,
 
 	if (!csb->csb_oostore) {
 		rc = m0t1fs_mds_cob_create(csb, &mo, &rep_fop);
-		if (rc != 0)
+		if (rc != 0) {
+			i_err = true;
 			goto out;
+		}
 	}
 	if (S_ISREG(mode) && csb->csb_oostore) {
 		rc = m0t1fs_component_objects_op(ci, &mo, m0t1fs_ios_cob_create);
-		if (rc != 0)
+		if (rc != 0) {
+			i_err = true;
 			goto out;
+		}
 	}
 
 	if (insert_inode_locked4(inode, inode->i_ino,
 				 &m0t1fs_inode_test, &gfid) < 0) {
 		M0_LOG(M0_ERROR, "Duplicate inode: "FID_F, FID_P(&gfid));
 		rc = M0_ERR(-EIO);
+		i_err = true;
 		goto out;
 	}
-
-	m0_fop_put0_lock(rep_fop);
-	m0t1fs_fs_unlock(csb);
+	m0_mutex_lock(&csb->csb_inodes_lock);
+	csb_inodes_tlist_add_tail(&csb->csb_inodes, ci);
+	m0_mutex_unlock(&csb->csb_inodes_lock);
 	unlock_new_inode(inode);
-	M0_ADDB2_ADD(M0_AVI_FS_CREATE,
-		     new_fid.f_container, new_fid.f_key, mode, 0);
 	mark_inode_dirty(dir);
 	d_instantiate(dentry, inode);
-	return M0_RC(0);
+
 out:
 	m0_fop_put0_lock(rep_fop);
-	clear_nlink(inode);
-	m0t1fs_fs_unlock(csb);
-	make_bad_inode(inode);
-	iput(inode);
+	m0t1fs_fs_conf_unlock(csb);
+	if (i_err) {
+		clear_nlink(inode);
+		make_bad_inode(inode);
+		iput(inode);
+	}
 	M0_ADDB2_ADD(M0_AVI_FS_CREATE,
 		     new_fid.f_container, new_fid.f_key, mode, rc);
-	return M0_ERR(rc);
+	return M0_RC(rc);
 }
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
@@ -769,7 +788,10 @@ static struct dentry *m0t1fs_lookup(struct inode     *dir,
 	struct m0_fop_lookup_rep *rep = NULL;
 	struct m0t1fs_mdop        mo;
 	int                       rc;
+	void                     *err_ptr = NULL;
 	struct m0_fop            *rep_fop = NULL;
+	bool                      dcache_splice = false;
+	bool                      i_err = false;
 
 	M0_THREAD_ENTER;
 	M0_ENTRY();
@@ -783,8 +805,7 @@ static struct dentry *m0t1fs_lookup(struct inode     *dir,
 	}
 
 	M0_LOG(M0_INFO, "Name: \"%s\"", (char*)dentry->d_name.name);
-
-	m0t1fs_fs_lock(csb);
+	m0t1fs_fs_conf_lock(csb);
 	if (csb->csb_oostore) {
 		struct m0_fid           new_fid;
 		struct m0_fid           gfid;
@@ -795,13 +816,13 @@ static struct dentry *m0t1fs_lookup(struct inode     *dir,
 		if (rc != 0) {
 			M0_LOG(M0_ERROR, "Cannot parse fid \"%s\" in oostore",
 					 (char*)dentry->d_name.name);
-			m0t1fs_fs_unlock(csb);
-			return ERR_PTR(-EINVAL);
+			err_ptr = ERR_PTR(-EINVAL);
+			goto out;
 		}
 		rc = m0t1fs_fid_check(&new_fid);
 		if (rc != 0) {
-			m0t1fs_fs_unlock(csb);
-			return ERR_PTR(-EINVAL);
+			err_ptr = ERR_PTR(-EINVAL);
+			goto out;
 		}
 		m0_fid_gob_make(&gfid, new_fid.f_container, new_fid.f_key);
 		body.b_valid = (M0_COB_MODE | M0_COB_LID);
@@ -809,24 +830,24 @@ static struct dentry *m0t1fs_lookup(struct inode     *dir,
 		body.b_mode = S_IFREG;
 		rc = m0_pool_version_get(&csb->csb_pools_common, &pv);
 		if (rc != 0) {
-			m0t1fs_fs_unlock(csb);
-			return ERR_PTR(rc);
+			M0_LEAVE("ERROR: rc:%d", rc);
+			err_ptr = ERR_PTR(rc);
+			goto out;
 		}
 		body.b_pver = pv->pv_id;
 		inode = m0t1fs_iget(dir->i_sb, &gfid, &body);
 		if (IS_ERR(inode)) {
 			M0_LEAVE("ERROR: %p", ERR_CAST(inode));
-			m0t1fs_fs_unlock(csb);
-			return ERR_CAST(inode);
+			err_ptr =  ERR_CAST(inode);
+			goto out;
 		}
 		rc = m0t1fs_cob_getattr(inode);
 		if (rc != 0) {
-			make_bad_inode(inode);
-			iput(inode);
-			m0t1fs_fs_unlock(csb);
 			M0_LEAVE("rc:%d", rc);
-			return NULL;
+			i_err = true;
+			goto out;
 		}
+		dcache_splice = true;
 		goto out;
 	}
 
@@ -835,24 +856,30 @@ static struct dentry *m0t1fs_lookup(struct inode     *dir,
 	m0_buf_init(&mo.mo_attr.ca_name, (char*)dentry->d_name.name,
 		    dentry->d_name.len);
 	rc = m0t1fs_mds_cob_lookup(csb, &mo, &rep_fop);
-	if (rc == 0) {
-		rep = m0_fop_data(rep_fop);
-		mo.mo_attr.ca_tfid = rep->l_body.b_tfid;
-		inode = m0t1fs_iget(dir->i_sb, &mo.mo_attr.ca_tfid,
-				    &rep->l_body);
-		if (IS_ERR(inode)) {
-			M0_LEAVE("ERROR: %p", ERR_CAST(inode));
-			m0_fop_put0_lock(rep_fop);
-			m0t1fs_fs_unlock(csb);
-			return ERR_CAST(inode);
-		}
+	if (rc != 0) {
+		M0_LEAVE("rc:%d", rc);
+		goto out;
 	}
-	m0_fop_put0_lock(rep_fop);
+	rep = m0_fop_data(rep_fop);
+	mo.mo_attr.ca_tfid = rep->l_body.b_tfid;
+	inode = m0t1fs_iget(dir->i_sb, &mo.mo_attr.ca_tfid,
+			    &rep->l_body);
+	if (IS_ERR(inode)) {
+		M0_LEAVE("ERROR: %p", ERR_CAST(inode));
+		err_ptr =  ERR_CAST(inode);
+		goto out;
+	}
+	dcache_splice = true;
 out:
-	m0t1fs_fs_unlock(csb);
+	m0_fop_put0_lock(rep_fop);
+	m0t1fs_fs_conf_unlock(csb);
+	if (i_err) {
+		make_bad_inode(inode);
+		iput(inode);
+	}
 	M0_LEAVE();
 
-	return d_splice_alias(inode, dentry);
+	return dcache_splice ? d_splice_alias(inode, dentry) : err_ptr;
 }
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
@@ -960,19 +987,19 @@ static int m0t1fs_readdir(struct file *f,
 	struct m0t1fs_inode             *ci;
 	struct m0t1fs_mdop               mo;
 	struct m0t1fs_sb                *csb;
-	struct m0_fop_readdir_rep       *rep;
-	struct dentry                   *dentry;
-	struct inode                    *dir;
-	struct m0_dirent                *ent;
-	struct m0t1fs_filedata          *fd;
-	int                              type;
-	ino_t                            ino;
-	int                              i;
-	int                              rc;
-	int                              over;
-	bool                             dot_filled = false;
-	bool                             dotdot_filled = false;
-	struct m0_fop                   *rep_fop;
+	struct m0_fop_readdir_rep *rep;
+	struct dentry             *dentry;
+	struct inode              *dir;
+	struct m0_dirent          *ent;
+	struct m0t1fs_filedata    *fd;
+	int                        type;
+	ino_t                      ino;
+	int                        i;
+	int                        rc;
+	int                        over;
+	bool                       dot_filled = false;
+	bool                       dotdot_filled = false;
+	struct m0_fop             *rep_fop;
 
 	M0_THREAD_ENTER;
 	M0_ENTRY();
@@ -989,7 +1016,7 @@ static int m0t1fs_readdir(struct file *f,
 	if (fd->fd_direof)
 		return M0_RC(0);
 
-	m0t1fs_fs_lock(csb);
+	m0t1fs_fs_conf_lock(csb);
 
 switch_mds:
 	M0_SET0(&mo);
@@ -1096,7 +1123,7 @@ switch_mds:
 out:
 	if (rc != 0)
 		m0_fop_put0_lock(rep_fop);
-	m0t1fs_fs_unlock(csb);
+	m0t1fs_fs_conf_unlock(csb);
 	return M0_RC(rc);
 }
 
@@ -1110,13 +1137,13 @@ static int m0t1fs_fid_link(struct dentry *old, struct inode *dir,
 static int m0t1fs_link(struct dentry *old, struct inode *dir,
 		       struct dentry *new)
 {
-	struct m0t1fs_sb                *csb;
-	struct m0t1fs_mdop               mo;
-	struct m0t1fs_inode             *ci;
-	struct inode                    *inode;
-	struct timespec                  now;
-	int                              rc;
-	struct m0_fop                   *rep_fop;
+	struct m0t1fs_sb    *csb;
+	struct m0t1fs_mdop   mo;
+	struct m0t1fs_inode *ci;
+	struct inode        *inode;
+	struct timespec      now;
+	int                  rc;
+	struct m0_fop       *rep_fop;
 
 	M0_THREAD_ENTER;
 	/*
@@ -1130,7 +1157,7 @@ static int m0t1fs_link(struct dentry *old, struct inode *dir,
 	ci    = M0T1FS_I(inode);
 	csb   = M0T1FS_SB(inode->i_sb);
 
-	m0t1fs_fs_lock(csb);
+	m0t1fs_fs_conf_lock(csb);
 
 	M0_SET0(&mo);
 	now = CURRENT_TIME_SEC;
@@ -1156,7 +1183,7 @@ static int m0t1fs_link(struct dentry *old, struct inode *dir,
 
 out:
 	m0_fop_put0_lock(rep_fop);
-	m0t1fs_fs_unlock(csb);
+	m0t1fs_fs_conf_unlock(csb);
 	return M0_RC(rc);
 }
 
@@ -1168,15 +1195,15 @@ static int m0t1fs_fid_unlink(struct inode *dir, struct dentry *dentry)
 
 static int m0t1fs_unlink(struct inode *dir, struct dentry *dentry)
 {
-	struct m0t1fs_sb                *csb;
-	struct inode                    *inode;
-	struct m0t1fs_inode             *ci;
-	struct m0t1fs_mdop               mo;
-	struct timespec                  now;
-	int                              rc = 0;
-	struct m0_fop                   *lookup_rep_fop = NULL;
-	struct m0_fop                   *unlink_rep_fop = NULL;
-	struct m0_fop                   *setattr_rep_fop = NULL;
+	struct m0t1fs_sb     *csb;
+	struct inode         *inode;
+	struct m0t1fs_inode  *ci;
+	struct m0t1fs_mdop    mo;
+	struct timespec       now;
+	int                   rc = 0;
+	struct m0_fop        *lookup_rep_fop = NULL;
+	struct m0_fop        *unlink_rep_fop = NULL;
+	struct m0_fop        *setattr_rep_fop = NULL;
 
 	M0_THREAD_ENTER;
 	M0_ENTRY();
@@ -1187,7 +1214,7 @@ static int m0t1fs_unlink(struct inode *dir, struct dentry *dentry)
 	csb   = M0T1FS_SB(inode->i_sb);
 	ci    = M0T1FS_I(inode);
 
-	m0t1fs_fs_lock(csb);
+	m0t1fs_fs_conf_lock(csb);
 
 	M0_SET0(&mo);
 	now = CURRENT_TIME_SEC;
@@ -1213,8 +1240,7 @@ static int m0t1fs_unlink(struct inode *dir, struct dentry *dentry)
 			       FID_F", size=%lld",
 			       rc, FID_P(m0t1fs_inode_fid(ci)),
 			       ci->ci_inode.i_size);
-		m0t1fs_fs_unlock(csb);
-		return M0_RC(rc);
+		goto out;
 	}
 
 	rc = m0t1fs_mds_cob_lookup(csb, &mo, &lookup_rep_fop);
@@ -1268,7 +1294,7 @@ out:
 	m0_fop_put0_lock(lookup_rep_fop);
 	m0_fop_put0_lock(unlink_rep_fop);
 	m0_fop_put0_lock(setattr_rep_fop);
-	m0t1fs_fs_unlock(csb);
+	m0t1fs_fs_conf_unlock(csb);
 	return M0_RC(rc);
 }
 
@@ -1346,13 +1372,13 @@ M0_INTERNAL int m0t1fs_fid_getattr(struct vfsmount *mnt, struct dentry *dentry,
 	inode = dentry->d_inode;
 	csb   = M0T1FS_SB(inode->i_sb);
 
-	m0t1fs_fs_lock(csb);
+	m0t1fs_fs_conf_lock(csb);
 
 	/* Return cached attributes for files in .mero/fid dir */
 	body = &csb->csb_virt_body;
 	rc = m0t1fs_inode_update_stat(inode, body, stat);
+	m0t1fs_fs_conf_unlock(csb);
 
-	m0t1fs_fs_unlock(csb);
 	return M0_RC(rc);
 }
 
@@ -1377,8 +1403,7 @@ M0_INTERNAL int m0t1fs_getattr(struct vfsmount *mnt, struct dentry *dentry,
 	csb   = M0T1FS_SB(inode->i_sb);
 	ci    = M0T1FS_I(inode);
 
-	m0t1fs_fs_lock(csb);
-
+	m0t1fs_fs_conf_lock(csb);
 	if (m0t1fs_inode_is_root(&ci->ci_inode)) {
 		m0t1fs_inode_update_stat(inode, NULL, stat);
 		goto out;
@@ -1408,7 +1433,7 @@ M0_INTERNAL int m0t1fs_getattr(struct vfsmount *mnt, struct dentry *dentry,
 	rc = m0t1fs_inode_update_stat(inode, body, stat);
 out:
 	m0_fop_put0_lock(rep_fop);
-	m0t1fs_fs_unlock(csb);
+	m0t1fs_fs_conf_unlock(csb);
 	return M0_RC(rc);
 }
 
@@ -1460,7 +1485,7 @@ M0_INTERNAL int m0t1fs_setattr(struct dentry *dentry, struct iattr *attr)
 	struct m0t1fs_inode  *ci;
 	struct m0t1fs_mdop    mo;
 	int                   rc;
-	struct m0_fop        *rep_fop;
+	struct m0_fop        *rep_fop = NULL;
 	struct m0_rm_incoming rm_in;
 
 	M0_THREAD_ENTER;
@@ -1476,13 +1501,12 @@ M0_INTERNAL int m0t1fs_setattr(struct dentry *dentry, struct iattr *attr)
 	if (rc != 0)
 		return M0_ERR(rc);
 
-	m0t1fs_fs_lock(csb);
+	m0t1fs_fs_conf_lock(csb);
+
 	if (!csb->csb_oostore) {
 		rc = file_lock_acquire(&rm_in, ci);
-		if (rc != 0) {
-			m0t1fs_fs_unlock(csb);
-			return M0_RC(rc);
-		}
+		if (rc != 0)
+			goto out;
 	}
 	M0_SET0(&mo);
 	mo.mo_attr.ca_tfid = *m0t1fs_inode_fid(ci);
@@ -1546,12 +1570,11 @@ M0_INTERNAL int m0t1fs_setattr(struct dentry *dentry, struct iattr *attr)
 
 	if (!csb->csb_oostore) {
 		rc = m0t1fs_mds_cob_setattr(csb, &mo, &rep_fop);
-		if (rc != 0) {
-			m0_fop_put0_lock(rep_fop);
+		if (rc != 0)
 			goto out;
-		}
 	} else {
-		rc = m0t1fs_component_objects_op(ci, &mo, m0t1fs_ios_cob_setattr);
+		rc = m0t1fs_component_objects_op(ci, &mo,
+						 m0t1fs_ios_cob_setattr);
 		if (rc != 0)
 			goto out;
 	}
@@ -1573,7 +1596,9 @@ M0_INTERNAL int m0t1fs_setattr(struct dentry *dentry, struct iattr *attr)
 out:
 	if (!csb->csb_oostore)
 		file_lock_release(&rm_in);
-	m0t1fs_fs_unlock(csb);
+
+	m0_fop_put0_lock(rep_fop);
+	m0t1fs_fs_conf_unlock(csb);
 	return M0_RC(rc);
 }
 
@@ -2136,7 +2161,13 @@ static int m0t1fs_ios_cob_op(struct cob_req            *cr,
 	gob_fid = m0t1fs_inode_fid(ci);
 
 	pver = m0_pool_version_find(&csb->csb_pools_common, &ci->ci_pver);
-	M0_ASSERT(pver != NULL);
+	if (pver == NULL) {
+		M0_ASSERT(ci->ci_layout_instance == NULL);
+		return M0_ERR_INFO(-ENOENT, "Pool version "FID_F" associated"
+				   " with gob "FID_F" is unavailable."
+				   " Has configuration got updated?",
+				   FID_P(&ci->ci_pver), FID_P(gob_fid));
+	}
 	if (mop->mo_cob_type == M0_COB_MD) {
 		session = m0_reqh_mdpool_service_index_to_session(
 				&csb->csb_reqh, gob_fid, idx);
@@ -2325,10 +2356,12 @@ M0_INTERNAL int m0t1fs_cob_setattr(struct inode *inode, struct m0t1fs_mdop *mo)
 	int                  rc;
 	M0_ENTRY();
 
-	m0t1fs_fs_lock(csb);
+	m0t1fs_fs_conf_lock(csb);
+
 	/* Updating size to ios. */
 	rc = m0t1fs_component_objects_op(ci, mo, m0t1fs_ios_cob_setattr);
-	m0t1fs_fs_unlock(csb);
+
+	m0t1fs_fs_conf_unlock(csb);
 	return M0_RC(rc);
 }
 

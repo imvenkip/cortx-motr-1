@@ -101,6 +101,9 @@ struct m0_pool_version {
 	/** pool version ditry flag.*/
 	bool                         pv_is_dirty;
 
+	/** Is pool version present in the conf cache? */
+	bool                         pv_is_stale;
+
 	/** Layout attributes associated with this pool version. */
 	struct m0_pdclust_attr       pv_attr;
 
@@ -214,8 +217,6 @@ struct m0_pools_common {
 	struct m0_tl                      pc_abandoned_svc_ctxs;
 	/** Listener for configuration expiration event from rconfc. */
 	struct m0_clink                   pc_conf_exp;
-	/** Listener for configuration ready event from rconfc. */
-	struct m0_clink                   pc_conf_ready;
 	/**
 	 * Listener for configuration ready event from rconfc to be run
 	 * asynchronously.
@@ -241,6 +242,7 @@ M0_INTERNAL int m0_pools_common_init(struct m0_pools_common *pc,
 
 M0_INTERNAL void m0_pools_common_fini(struct m0_pools_common *pc);
 
+M0_INTERNAL bool m0_pools_common_conf_ready_async_cb(struct m0_clink *clink);
 
 M0_INTERNAL int m0_pools_service_ctx_create(struct m0_pools_common *pc,
 					    struct m0_conf_filesystem *fs);

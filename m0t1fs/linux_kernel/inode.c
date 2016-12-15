@@ -180,11 +180,11 @@ static void m0t1fs_inode_init(struct m0t1fs_inode *ci)
 	M0_SET0(&ci->ci_fowner);
 	ci->ci_layout_instance = NULL;
 	ci->ci_layout_changed = false;
-
+	m0_mutex_init(&ci->ci_layout_lock);
 	m0_mutex_init(&ci->ci_pending_tx_lock);
 	ispti_tlist_init(&ci->ci_pending_tx);
-
 	m0t1fs_inode_bob_init(ci);
+	csb_inodes_tlink_init(ci);
 	M0_LEAVE();
 }
 
@@ -206,17 +206,25 @@ static void m0t1fs_inode_ispti_fini(struct m0t1fs_inode *ci)
 
 static void m0t1fs_inode_fini(struct m0t1fs_inode *ci)
 {
+	struct m0t1fs_sb *csb;
+	struct inode     *inode;
+
 	M0_THREAD_ENTER;
 	M0_ENTRY("ci: %p, is_root %s, layout_instance %p",
 		 ci, m0_bool_to_str(m0t1fs_inode_is_root(&ci->ci_inode)),
 		 ci->ci_layout_instance);
 
 	M0_PRE(m0t1fs_inode_bob_check(ci));
+	csb = M0T1FS_SB(ci->ci_inode.i_sb);
+	inode = &ci->ci_inode;
+	m0_mutex_lock(&csb->csb_inodes_lock);
+	csb_inodes_tlist_remove(ci);
+	m0_mutex_unlock(&csb->csb_inodes_lock);
 	m0t1fs_inode_bob_fini(ci);
-
 	/* Empty the list, then free the list lock */
 	m0t1fs_inode_ispti_fini(ci);
 	m0_mutex_fini(&ci->ci_pending_tx_lock);
+	m0_mutex_fini(&ci->ci_layout_lock);
 	M0_LEAVE();
 }
 
@@ -236,7 +244,6 @@ M0_INTERNAL struct inode *m0t1fs_alloc_inode(struct super_block *sb)
 		return NULL;
 	}
 	m0t1fs_inode_init(ci);
-
 	M0_LEAVE("inode: %p", &ci->ci_inode);
 	return &ci->ci_inode;
 }
@@ -252,8 +259,15 @@ M0_INTERNAL void m0t1fs_destroy_inode(struct inode *inode)
 
 	M0_ENTRY("inode: %p, fid: "FID_F, inode, FID_P(fid));
 	if (m0_fid_is_set(fid) && !m0t1fs_inode_is_root(inode)) {
+		/**
+		 * The function is called by kernel, and thus can be called
+		 * concurrently with rconfc refresh callbacks.
+		 * @see inodes_layout_ref_drop().
+		 */
+		m0_mutex_lock(&ci->ci_layout_lock);
 		if (ci->ci_layout_instance != NULL)
 			m0_layout_instance_fini(ci->ci_layout_instance);
+		m0_mutex_unlock(&ci->ci_layout_lock);
 		m0t1fs_file_lock_fini(ci);
 	}
 	m0t1fs_inode_fini(ci);
@@ -458,6 +472,9 @@ static int m0t1fs_inode_read(struct inode      *inode,
 		if (rc != 0)
 			M0_LOG(M0_WARN, "m0t1fs_inode_layout_init() failed,"
 					"rc=%d", rc);
+		m0_mutex_lock(&csb->csb_inodes_lock);
+		csb_inodes_tlist_add_tail(&csb->csb_inodes, ci);
+		m0_mutex_unlock(&csb->csb_inodes_lock);
 	}
 	if (rc == 0)
 		m0t1fs_fid_accept(csb, m0t1fs_inode_fid(M0T1FS_I(inode)));
@@ -572,18 +589,22 @@ M0_INTERNAL int m0t1fs_inode_layout_init(struct m0t1fs_inode *ci)
 M0_INTERNAL int m0t1fs_inode_layout_rebuild(struct m0t1fs_inode *ci,
 					    struct m0_fop_cob *body)
 {
-	int rc = 0;
-
 	M0_ENTRY();
 	M0_PRE(ci != NULL);
 	M0_PRE(body != NULL);
 	M0_PRE(body->b_valid & (M0_COB_LID | M0_COB_PVER));
 
 	if (ci->ci_layout_id != body->b_lid ||
-	    m0_fid_cmp(&ci->ci_pver, &body->b_pver)) {
+	    m0_fid_cmp(&ci->ci_pver, &body->b_pver) ||
+	    /*
+	     * Layout instance belongs to a virtual pool version.
+	     * There is a possibility that the instance has been
+	     * deleted by confc update.
+	     */
+	    ci->ci_layout_instance == NULL) {
 		ci->ci_layout_id = body->b_lid;
 		ci->ci_pver = body->b_pver;
-		rc = m0t1fs_inode_layout_init(ci);
+		return M0_RC(m0t1fs_inode_layout_init(ci));
 	}
-	return M0_RC(rc);
+	return M0_RC(0);
 }

@@ -89,6 +89,17 @@ m0_conf_cache_add(struct m0_conf_cache *cache, struct m0_conf_obj *obj)
 	return M0_RC(0);
 }
 
+M0_INTERNAL bool m0_conf_cache_contains(struct m0_conf_cache *cache,
+				        const struct m0_fid *fid)
+{
+	bool ret;
+
+	m0_conf_cache_lock(cache);
+	ret = m0_conf_cache_lookup(cache, fid) != NULL;
+	m0_conf_cache_unlock(cache);
+	return ret;
+}
+
 M0_INTERNAL struct m0_conf_obj *
 m0_conf_cache_lookup(const struct m0_conf_cache *cache,
 		     const struct m0_fid *id)

@@ -201,16 +201,20 @@ enum m0_magic_satchel {
 	M0_T1FS_TLIST_HEAD_MAGIC = 0x33affab1ec105e77,
 
 	/* m0t1fs_fsync_fop_wrapper (sliced zodiac) */
-	M0_T1FS_FFW_TLIST_MAGIC1 = 0x33511CED20D1AC77,
+	M0_T1FS_FFW_TLIST_MAGIC1 = 0x33511ced20d1ac77,
 
 	/* m0t1fs_fsync_fop_wrapper (idealised dab) */
-	M0_T1FS_FFW_TLIST_MAGIC2 = 0x331DEA115EDDAB77,
+	M0_T1FS_FFW_TLIST_MAGIC2 = 0x331dea115eddab77,
 
 	/* m0t1fs_inode::ci_service_pending_txid_list (baseball zeal) */
-	M0_T1FS_INODE_PTI_MAGIC1 = 0x33BA5EBA112EA177,
+	M0_T1FS_INODE_PTI_MAGIC1 = 0x33ba5eba112ea177,
 
 	/* m0t1fs_inode::ci_service_pending_txid_list (so sidesaddle) */
-	M0_T1FS_INODE_PTI_MAGIC2 = 0x335051DE5ADD1E77,
+	M0_T1FS_INODE_PTI_MAGIC2 = 0x335051de5add1e77,
+
+	/* m0t1fs_csb::csb_inode_list::tl_magic (biblical bell) */
+	M0_T1FS_INODE_HEAD_MAGIC = 0x33b1b11ca1be1177,
+
 
 /* Configuration */
 	/* m0_conf_cache::ca_registry::t_magic (fabled feodal) */

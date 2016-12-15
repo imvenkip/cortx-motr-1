@@ -664,6 +664,11 @@ enum io_req_type {
 	IRT_TYPE_NR,
 };
 
+enum m0t1fs_conf_state {
+	MCS_READY,
+	MCS_REVOKED,
+	MCS_GETTING_READY,
+};
 /**
    In memory m0t1fs super block. One instance per mounted file-system.
    super_block::s_fs_info points to instance of this type.
@@ -731,6 +736,8 @@ struct m0t1fs_sb {
 	/** /.mero/fid virtual dir dentry */
 	struct dentry                          *csb_fid_dentry;
 
+	/** Superblock from VFS in which csb is present in sb_fs_info. */
+	struct super_block                     *csb_sb;
 	/** virtual dirs cached attributes */
 	struct m0_fop_cob                       csb_virt_body;
 
@@ -744,19 +751,48 @@ struct m0t1fs_sb {
 
 	struct m0_mero_ha                       csb_mero_ha;
 
+	/** List of m0t1fs inodes linked through m0t1fs_inode::ci_sb_linkage. */
+	struct m0_tl                            csb_inodes;
+	struct m0_mutex                         csb_inodes_lock;
+
 	/**
-	 * list of pending transactions, by service,
+	 * List of pending transactions, by service,
 	 * protected by csb_service_pending_txid_map_lock
 	 */
 	struct m0_htable                        csb_service_pending_txid_map;
 	struct m0_mutex                         csb_service_pending_txid_map_lock;
 
+	/**
+	 * This clink gets subscribed to "conf has expired" event, broadcasted
+	 * at m0_reqh::rh_conf_cache_exp cahnnel.
+	 */
 	struct m0_clink                         csb_conf_exp;
+	/**
+	 * This clink gets subscribed to "new conf is ready" event, broadcasted
+	 * at m0_reqh::rh_conf_cache_ready cahnnel.
+	 */
 	struct m0_clink                         csb_conf_ready;
 	/**
-	 * Indicates that rconfc read lock is revoked by a creditor.
+	 * This clink gets subscribed to "new conf is ready" event, broadcasted
+	 * at m0_reqh::rh_conf_cache_ready_async channel.
 	 */
-	bool                                    csb_rlock_revoked;
+	struct m0_clink                         csb_conf_ready_async;
+
+	/**
+	 * io and md requests wait on this channel till the revoked conf
+	 * is restored.
+	 */
+	struct m0_chan                          csb_conf_ready_chan;
+	/**
+	 * A lock for probing/updating csb_conf_state, and for updating
+	 * csb_reqs_nr. The same lock acts as a guard for
+	 * csb_conf_ready_chan.
+	 */
+	struct m0_mutex                         csb_conf_state_lock;
+	/** Indicates the state of conf with respect to csb.  */
+	enum m0t1fs_conf_state                  csb_conf_state;
+	/** Number of active requests under csb. */
+	uint64_t                                csb_reqs_nr;
 
 	struct m0_fid                           csb_process_fid;
 	struct m0_fid                           csb_profile_fid;
@@ -795,6 +831,8 @@ struct m0t1fs_inode {
 	struct m0_fid              ci_fid;
 	/** layout and related information for the file's data */
 	struct m0_layout_instance *ci_layout_instance;
+	/** Protects the layout instance. */
+	struct m0_mutex            ci_layout_lock;
 	/**
 	 * Locking mechanism provided by resource manager
 	 * ci_flock::fi_fid contains fid of gob
@@ -808,16 +846,19 @@ struct m0t1fs_inode {
 	struct m0_fid              ci_pver;
 	/** File layout ID */
 	uint64_t                   ci_layout_id;
-
 	/** list of pending transactions */
 	struct m0_tl               ci_pending_tx;
 	struct m0_mutex            ci_pending_tx_lock;
 
 	uint64_t                   ci_magic;
-
-	/* Have layout changed via setfattr? */
-	bool			   ci_layout_changed;
+	/** A link into list (csb_inodes) anchored in m0t1fs superblock. */
+	struct m0_tlink            ci_sb_linkage;
+	/* Has layout been changed via setfattr? */
+	bool                       ci_layout_changed;
 };
+
+M0_TL_DESCR_DECLARE(csb_inodes, M0_EXTERN);
+M0_TL_DECLARE(csb_inodes, M0_EXTERN, struct m0t1fs_inode);
 
 /** CPUs semaphore - to control CPUs usage by parity calcs. */
 extern struct m0_semaphore m0t1fs_cpus_sem;
@@ -864,6 +905,9 @@ M0_INTERNAL void m0t1fs_fs_lock(struct m0t1fs_sb *csb);
 M0_INTERNAL void m0t1fs_fs_unlock(struct m0t1fs_sb *csb);
 M0_INTERNAL bool m0t1fs_fs_is_locked(const struct m0t1fs_sb *csb);
 
+M0_INTERNAL void m0t1fs_fs_conf_lock(struct m0t1fs_sb *csb);
+M0_INTERNAL void m0t1fs_fs_conf_unlock(struct m0t1fs_sb *csb);
+
 M0_INTERNAL int m0t1fs_getattr(struct vfsmount *mnt, struct dentry *de,
 			       struct kstat *stat);
 M0_INTERNAL int m0t1fs_fid_getattr(struct vfsmount *mnt, struct dentry *de,
@@ -872,6 +916,12 @@ M0_INTERNAL int m0t1fs_setattr(struct dentry *de, struct iattr *attr);
 M0_INTERNAL int m0t1fs_fid_setattr(struct dentry *de, struct iattr *attr);
 M0_INTERNAL void m0t1fs_inode_update(struct inode *inode,
 				     struct m0_fop_cob *body);
+/**
+ * Takes a superblock reference. If configuration is being updated, the
+ * function blocks till new conf is ready.
+ */
+M0_INTERNAL void m0t1fs_ref_get_lock(struct m0t1fs_sb *csb);
+M0_INTERNAL void m0t1fs_ref_put_lock(struct m0t1fs_sb *csb);
 
 M0_INTERNAL struct m0_rpc_session *
 m0t1fs_container_id_to_session(const struct m0_pool_version *pver,

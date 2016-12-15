@@ -35,12 +35,13 @@
 #include "lib/memory.h"    /* M0_ALLOC_PTR, m0_free */
 #include "conf/confc.h"    /* m0_confc */
 #include "conf/helpers.h"  /* m0_conf_fs_get */
+#include "conf/cache.h"    /* m0_conf_cache_contains */
 #include "rpc/rpclib.h"    /* m0_rcp_client_connect */
-#include "lib/uuid.h"   /* m0_uuid_generate */
+#include "lib/uuid.h"      /* m0_uuid_generate */
 #include "net/lnet/lnet.h"
 #include "rpc/rpc_internal.h"
 #include "net/lnet/lnet_core_types.h"
-#include "rm/rm_service.h"                 /* m0_rms_type */
+#include "rm/rm_service.h"     /* m0_rms_type */
 #include "reqh/reqh_service.h" /* m0_reqh_service_ctx */
 #include "reqh/reqh.h"
 #include "addb2/global.h"
@@ -82,6 +83,9 @@ MODULE_PARM_DESC(addb2_net_disable, "Disable addb2 records network submit");
 
 M0_INTERNAL void io_bob_tlists_init(void);
 static int m0t1fs_statfs(struct dentry *dentry, struct kstatfs *buf);
+static void inodes_layout_ref_drop(struct m0t1fs_sb *csb);
+static bool m0t1fs_conf_ready_async_cb(struct m0_clink *clink);
+static void conf_ready_async_cb_locked(struct m0t1fs_sb *csb);
 
 static const struct super_operations m0t1fs_super_operations = {
 	.statfs        = m0t1fs_statfs,
@@ -90,6 +94,13 @@ static const struct super_operations m0t1fs_super_operations = {
 	.drop_inode    = generic_delete_inode, /* provided by linux kernel */
 	.sync_fs       = m0t1fs_sync_fs
 };
+
+M0_TL_DESCR_DEFINE(csb_inodes, "m0t1fs_inode anchored in m0t1fs_sb", M0_INTERNAL,
+			struct m0t1fs_inode,
+			ci_sb_linkage, ci_magic,
+			M0_T1FS_INODE_MAGIC, M0_T1FS_INODE_HEAD_MAGIC);
+
+M0_TL_DEFINE(csb_inodes, M0_INTERNAL, struct m0t1fs_inode);
 
 M0_INTERNAL void m0t1fs_fs_lock(struct m0t1fs_sb *csb)
 {
@@ -212,7 +223,7 @@ static int m0t1fs_statfs(struct dentry *dentry, struct kstatfs *buf)
 	M0_THREAD_ENTER;
 	M0_ENTRY();
 
-	m0t1fs_fs_lock(csb);
+	m0t1fs_fs_conf_lock(csb);
 	rc = _fs_stats_fetch(csb, &stats);
 	if (rc == 0) {
 		/**
@@ -237,7 +248,7 @@ static int m0t1fs_statfs(struct dentry *dentry, struct kstatfs *buf)
 		buf->f_namelen = M0T1FS_NAME_LEN;
 		buf->f_type    = M0_T1FS_SUPER_MAGIC;
 	}
-	m0t1fs_fs_unlock(csb);
+	m0t1fs_fs_conf_unlock(csb);
 	return M0_RC(rc);
 }
 
@@ -440,7 +451,12 @@ M0_INTERNAL void m0t1fs_sb_init(struct m0t1fs_sb *csb)
 	m0_atomic64_set(&csb->csb_pending_io_nr, 0);
 	csb->csb_oostore = false;
 	csb->csb_verify  = false;
-	csb->csb_rlock_revoked = false;
+	csb->csb_reqs_nr = 0;
+	csb->csb_conf_state = MCS_REVOKED;
+	m0_mutex_init(&csb->csb_conf_state_lock);
+	m0_mutex_init(&csb->csb_inodes_lock);
+	csb_inodes_tlist_init(&csb->csb_inodes);
+	m0_chan_init(&csb->csb_conf_ready_chan, &csb->csb_conf_state_lock);
 	M0_LEAVE();
 }
 
@@ -448,10 +464,15 @@ M0_INTERNAL void m0t1fs_sb_fini(struct m0t1fs_sb *csb)
 {
 	M0_ENTRY();
 	M0_PRE(csb != NULL);
+	m0_chan_fini_lock(&csb->csb_conf_ready_chan);
+	csb_inodes_tlist_fini(&csb->csb_inodes);
+	m0_mutex_fini(&csb->csb_inodes_lock);
+	m0_mutex_fini(&csb->csb_conf_state_lock);
 	m0_chan_fini_lock(&csb->csb_iowait);
 	m0_sm_group_fini(&csb->csb_iogroup);
 	m0_mutex_fini(&csb->csb_mutex);
 	csb->csb_next_key = 0;
+	csb->csb_conf_state = MCS_REVOKED;
 	M0_LEAVE();
 }
 
@@ -722,7 +743,43 @@ void m0t1fs_rpc_fini(struct m0t1fs_sb *csb)
 	M0_LEAVE();
 }
 
-static bool m0t1fs_rconfc_expired_cb(struct m0_clink *clink)
+/*
+ * XXX Under various scenarios it's possible that the following function blocks
+ * indefinitely. MERO-2341 addresses the issue by taking into consideration all
+ * the possibilities.
+ */
+M0_INTERNAL void m0t1fs_ref_get_lock(struct m0t1fs_sb *csb)
+{
+	struct m0_clink clink;
+
+	while (1) {
+		m0_mutex_lock(&csb->csb_conf_state_lock);
+		if (csb->csb_conf_state == MCS_READY)
+			break;
+		m0_clink_init(&clink, NULL);
+		m0_clink_add(&csb->csb_conf_ready_chan, &clink);
+
+		m0_mutex_unlock(&csb->csb_conf_state_lock);
+		/* Wait till configuration is updated. */
+		m0_chan_wait(&clink);
+
+		m0_clink_del_lock(&clink);
+		m0_clink_fini(&clink);
+	}
+	M0_CNT_INC(csb->csb_reqs_nr);
+	m0_mutex_unlock(&csb->csb_conf_state_lock);
+}
+
+M0_INTERNAL void m0t1fs_ref_put_lock(struct m0t1fs_sb *csb)
+{
+	m0_mutex_lock(&csb->csb_conf_state_lock);
+	M0_CNT_DEC(csb->csb_reqs_nr);
+	if (csb->csb_reqs_nr == 0 && csb->csb_conf_state == MCS_GETTING_READY)
+		conf_ready_async_cb_locked(csb);
+	m0_mutex_unlock(&csb->csb_conf_state_lock);
+}
+
+static bool m0t1fs_conf_expired_cb(struct m0_clink *clink)
 {
 	struct m0t1fs_sb           *csb = container_of(clink, struct m0t1fs_sb,
 						       csb_conf_exp);
@@ -732,7 +789,14 @@ static bool m0t1fs_rconfc_expired_cb(struct m0_clink *clink)
 	M0_ENTRY("super %p", csb);
 	if (csb->csb_reqh.rh_rconfc.rc_stopping)
 		return true;
-	csb->csb_rlock_revoked = true;
+
+	m0_mutex_lock(&csb->csb_conf_state_lock);
+	/*
+	 * Close the gate for new io and metadata requests.
+	 */
+	csb->csb_conf_state = MCS_REVOKED;
+	m0_mutex_unlock(&csb->csb_conf_state_lock);
+
 	/*
 	 * Cancel sessions to IO services that were used during IO request
 	 * handling. This is done in order to call rio_replied callback for
@@ -747,18 +811,118 @@ static bool m0t1fs_rconfc_expired_cb(struct m0_clink *clink)
 		    && ctx->sc_rlink.rlk_connected)
 			m0_reqh_service_cancel_reconnect(ctx);
 	}
+
 	M0_LEAVE();
 	return true;
 }
 
-static bool m0t1fs_rconfc_ready_cb(struct m0_clink *clink)
+static void stale_pvers_mark(struct m0_pools_common *pc)
 {
-	struct m0t1fs_sb *csb = container_of(clink, struct m0t1fs_sb,
-					     csb_conf_ready);
+	struct m0_pool         *pool;
+	struct m0_pool_version *pver;
+	struct m0_conf_cache   *cache = &pc->pc_confc->cc_cache;
+
+	if (pc->pc_confc == NULL)
+		/* May happen during m0t1fs_setup(). */
+		return;
+	m0_mutex_lock(&pc->pc_mutex);
+	m0_tl_for(pools, &pc->pc_pools, pool) {
+		m0_tl_for(pool_version, &pool->po_vers, pver) {
+			if (!m0_conf_cache_contains(cache, &pver->pv_id))
+				pver->pv_is_stale = true;
+		} m0_tl_endfor;
+	} m0_tl_endfor;
+	m0_mutex_unlock(&pc->pc_mutex);
+}
+
+static void inodes_layout_ref_drop(struct m0t1fs_sb *csb)
+{
+	struct m0t1fs_inode    *ci;
+	struct m0_pool_version *pver;
+
+	m0_mutex_lock(&csb->csb_inodes_lock);
+	m0_tl_for(csb_inodes, &csb->csb_inodes, ci) {
+		pver = m0_pool_version_find(&csb->csb_pools_common,
+					    &ci->ci_pver);
+		if (pver != NULL && !pver->pv_is_stale)
+			continue;
+		m0_mutex_lock(&ci->ci_layout_lock);
+		if (ci->ci_layout_instance != NULL) {
+			m0_layout_instance_fini(ci->ci_layout_instance);
+			ci->ci_layout_instance = NULL;
+		}
+		m0_mutex_unlock(&ci->ci_layout_lock);
+	} m0_tl_endfor;
+	m0_mutex_unlock(&csb->csb_inodes_lock);
+}
+
+static bool m0t1fs_conf_ready_async_cb(struct m0_clink *clink)
+{
+	struct m0t1fs_sb *csb = M0_AMB(csb, clink, csb_conf_ready_async);
 
 	M0_ENTRY("super %p", csb);
-	csb->csb_rlock_revoked = false;
+
+	m0_mutex_lock(&csb->csb_conf_state_lock);
+	if (csb->csb_reqs_nr == 0 && csb->csb_conf_state == MCS_GETTING_READY)
+		conf_ready_async_cb_locked(csb);
+	m0_mutex_unlock(&csb->csb_conf_state_lock);
+
 	M0_LEAVE();
+	return true;
+}
+
+static void conf_ready_async_cb_locked(struct m0t1fs_sb *csb)
+{
+	struct m0_clink *pc_clink = &csb->csb_pools_common.pc_conf_ready_async;
+
+	M0_PRE(m0_mutex_is_locked(&csb->csb_conf_state_lock));
+
+	stale_pvers_mark(&csb->csb_pools_common);
+	inodes_layout_ref_drop(csb);
+	/*
+	 * During m0t1fs_setup() pools_common stays uninitialized
+	 * at this point.
+	 */
+	if (csb->csb_pools_common.pc_confc != NULL)
+		m0_pools_common_conf_ready_async_cb(pc_clink);
+	csb->csb_conf_state = MCS_READY;
+	m0_chan_broadcast(&csb->csb_conf_ready_chan);
+}
+
+/**
+ * When configuration is revoked, m0t1fs_sb::csb_conf_state changes to
+ * MCS_CONF_REVOKED. Subsequent io requests do not update
+ * m0t1fs_sb::csb_reqs_nr, and instead wait on m0t1fs_sb::csb_conf_ready_chan,
+ * till m0t1fs_sb returns to MCS_READY. Any io request that is not waiting and
+ * has registered its presence by incrementing m0t1fs_sb::csb_reqs_nr is called
+ * as an active request. An active request continues with its usual
+ * flow of operations even when state of m0t1fs_sb changes to MCS_CONF_REVOKED.
+ *
+ * When new configuration becomes available, in-memory representations of
+ * stale pool versions need to be removed. In order to do this it is
+ * necessary to ensure that there are no active requests, since they are the
+ * potential users of these pool versions.
+ *
+ * On availability of the new configuration the callback works in two phases.
+ * Callback that's triggered on m0_reqh::rh_conf_cache_ready channel changes
+ * the state of m0t1fs_sb to MCS_GETTING_READY. When a callback on
+ * m0_reqh::rh_conf_cache_ready_async is triggered, it checks if any active
+ * requests are present and cleans the stale pool versions in case there are
+ * no active requests. When an active request is present this callback
+ * returns without removing stale pool versions. In this case the last active
+ * request clears the stale pool versions before leaving.
+ *
+ * The process of clearing stale pool versions also involves removal of layouts
+ * associated with them from the layout domain, and updating the state of
+ * m0t1fs_sb to MCS_READY, before signalling the requests waiting on
+ * m0t1fs_sb::csb_conf_ready_chan.
+ */
+static bool m0t1fs_conf_ready_cb(struct m0_clink *clink)
+{
+	struct m0t1fs_sb *csb = M0_AMB(csb, clink, csb_conf_ready);
+	m0_mutex_lock(&csb->csb_conf_state_lock);
+	csb->csb_conf_state = MCS_GETTING_READY;
+	m0_mutex_unlock(&csb->csb_conf_state_lock);
 	return true;
 }
 
@@ -780,7 +944,6 @@ int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	struct m0_confc_args      *confc_args;
 	struct m0_reqh            *reqh = &csb->csb_reqh;
 	struct m0_conf_filesystem *fs;
-	struct m0_rconfc          *rconfc;
 	struct m0_pool_version    *pv = NULL;
 	int                        rc;
 
@@ -810,7 +973,7 @@ int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	confc_args = &(struct m0_confc_args) {
 		.ca_profile = mops->mo_profile,
 		.ca_rmach   = &csb->csb_rpc_machine,
-		.ca_group   = &csb->csb_iogroup,
+		.ca_group   = m0_locality0_get()->lo_grp,
 	};
 
 	rc = m0t1fs_ha_init(csb, mops->mo_ha);
@@ -820,17 +983,21 @@ int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	rc = m0_reqh_conf_setup(reqh, confc_args);
 	if (rc != 0)
 		goto err_ha_fini;
-
-	rconfc = m0_csb2rconfc(csb);
-	m0_clink_init(&csb->csb_conf_exp, m0t1fs_rconfc_expired_cb);
-	m0_clink_init(&csb->csb_conf_ready, m0t1fs_rconfc_ready_cb);
+	m0_clink_init(&csb->csb_conf_exp, m0t1fs_conf_expired_cb);
+	m0_clink_init(&csb->csb_conf_ready, m0t1fs_conf_ready_cb);
+	m0_clink_init(&csb->csb_conf_ready_async, m0t1fs_conf_ready_async_cb);
+	/*
+	 * Note: csb clinks shall be registered with conf update channels before
+	 * pools_common's clinks. @see m0_reqh.
+	 */
 	m0_clink_add_lock(&reqh->rh_conf_cache_exp, &csb->csb_conf_exp);
 	m0_clink_add_lock(&reqh->rh_conf_cache_ready, &csb->csb_conf_ready);
+	m0_clink_add_lock(&reqh->rh_conf_cache_ready_async,
+			  &csb->csb_conf_ready_async);
 	rc = m0_rconfc_start_sync(m0_csb2rconfc(csb), &reqh->rh_profile) ?:
 		m0_ha_client_add(m0_reqh2confc(reqh));
 	if (rc != 0)
 		goto err_rconfc_stop;
-
 	rc = m0_conf_fs_get(&reqh->rh_profile, m0_reqh2confc(reqh), &fs);
 	if (rc != 0)
 		goto err_ha_client_del;
@@ -895,8 +1062,10 @@ err_rconfc_stop:
 	m0_rconfc_fini(m0_csb2rconfc(csb));
 	m0_clink_del_lock(&csb->csb_conf_exp);
 	m0_clink_del_lock(&csb->csb_conf_ready);
+	m0_clink_del_lock(&csb->csb_conf_ready_async);
 	m0_clink_fini(&csb->csb_conf_exp);
 	m0_clink_fini(&csb->csb_conf_ready);
+	m0_clink_fini(&csb->csb_conf_ready_async);
 err_ha_fini:
 	m0t1fs_ha_fini(csb);
 err_rpc_fini:
@@ -926,8 +1095,10 @@ static void m0t1fs_teardown(struct m0t1fs_sb *csb)
 	m0_rconfc_fini(m0_csb2rconfc(csb));
 	m0_clink_del_lock(&csb->csb_conf_exp);
 	m0_clink_del_lock(&csb->csb_conf_ready);
+	m0_clink_del_lock(&csb->csb_conf_ready_async);
 	m0_clink_fini(&csb->csb_conf_exp);
 	m0_clink_fini(&csb->csb_conf_ready);
+	m0_clink_fini(&csb->csb_conf_ready_async);
 	m0t1fs_ha_fini(csb);
 	m0_reqh_services_terminate(&csb->csb_reqh);
 	m0t1fs_rpc_fini(csb);
@@ -1116,6 +1287,7 @@ static int m0t1fs_fill_super(struct super_block *sb, void *data,
 		goto end;
 	}
 	m0t1fs_sb_init(csb);
+	csb->csb_sb = sb;
 	rc = mount_opts_parse(csb, data, &mops);
 	if (rc != 0)
 		goto sb_fini;

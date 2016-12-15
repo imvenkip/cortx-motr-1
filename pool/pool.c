@@ -31,6 +31,7 @@
 #include "conf/diter.h"    /* m0_conf_diter_next_sync */
 #include "conf/obj_ops.h"  /* M0_CONF_DIRNEXT */
 #include "conf/pvers.h"    /* m0_conf_pver_find_by_fid */
+#include "conf/cache.h"    /* m0_conf_cache_contains */
 #include "ioservice/io_device.h"  /* m0_ios_poolmach_get */
 #include "reqh/reqh_service.h" /* m0_reqh_service_ctx */
 #include "reqh/reqh.h"
@@ -259,6 +260,11 @@ static int pools_common__dev2ios_build(struct m0_pools_common    *pc,
 				       struct m0_conf_filesystem *fs);
 static int pool_version_get_locked(struct m0_pools_common  *pc,
 				   struct m0_pool_version **pv);
+static void pool_version__layouts_evict(struct m0_pool_version *pv,
+					struct m0_layout_domain *ldom);
+
+static void pool__layouts_evict(struct m0_pool *pool,
+				struct m0_layout_domain *ldom);
 
 M0_INTERNAL int m0_pools_init(void)
 {
@@ -521,6 +527,7 @@ M0_INTERNAL int m0_pool_version_init(struct m0_pool_version *pv,
 	m0_pool_version_bob_init(pv);
 	pool_version_tlink_init(pv);
 	pv->pv_is_dirty = false;
+	pv->pv_is_stale = false;
 
 	M0_POST(pool_version_invariant(pv));
 	M0_LEAVE();
@@ -1034,10 +1041,6 @@ static void reqh_service_ctx_abandon(struct m0_reqh_service_ctx *ctx)
 {
 	struct m0_pools_common *pc = ctx->sc_pc;
 
-	/* Drop links to rconfc events. */
-	m0_clink_cleanup_locked(&pc->pc_conf_ready);
-	m0_clink_cleanup_locked(&pc->pc_conf_exp);
-
 	/* Move the context to the list of abandoned ones. */
 	pools_common_svc_ctx_tlink_del_fini(ctx);
 	pools_common_svc_ctx_tlink_init_at_tail(ctx,
@@ -1093,25 +1096,16 @@ static void pools_common__md_pool_cleanup(struct m0_pools_common *pc)
 	pc->pc_md_pool = NULL;
 }
 
-static bool in_cache(struct m0_conf_cache *cache, struct m0_fid *fid)
-{
-	bool is_in;
-
-	m0_conf_cache_lock(cache);
-	is_in = m0_conf_cache_lookup(cache, fid) != NULL;
-	m0_conf_cache_unlock(cache);
-	return is_in;
-}
-
 static void pools_common__pools_update_or_cleanup(struct m0_pools_common *pc)
 {
 	struct m0_pool         *pool;
 	struct m0_pool_version *pver;
 	struct m0_conf_cache   *cache = &pc->pc_confc->cc_cache;
+	struct m0_reqh         *reqh = m0_confc2reqh(pc->pc_confc);
 	bool                    in_conf;
 
 	m0_tl_for(pools, &pc->pc_pools, pool) {
-		in_conf = in_cache(cache, &pool->po_id);
+		in_conf = m0_conf_cache_contains(cache, &pool->po_id);
 		M0_LOG(M0_DEBUG, "pool %p "FID_F" is %sknown", pool,
 		       FID_P(&pool->po_id), in_conf ? "":"not ");
 
@@ -1120,19 +1114,60 @@ static void pools_common__pools_update_or_cleanup(struct m0_pools_common *pc)
 				pools_common__md_pool_cleanup(pc);
 			/* cleanup */
 			pools_tlink_del_fini(pool);
+			pool__layouts_evict(pool, &reqh->rh_ldom);
 			m0_pool_versions_fini(pool);
 			m0_pool_fini(pool);
 			m0_free(pool);
 		} else {
 			m0_tl_for(pool_version, &pool->po_vers, pver) {
-				if (!in_cache(cache, &pver->pv_id)) {
+				if (!m0_conf_cache_contains(cache,
+							    &pver->pv_id)) {
 					pool_version_tlink_del_fini(pver);
+					pool_version__layouts_evict(pver,
+								&reqh->rh_ldom);
 					m0_pool_version_fini(pver);
 					m0_free(pver);
 				}
 			} m0_tl_endfor;
 		}
 	} m0_tl_endfor;
+}
+
+static void pool__layouts_evict(struct m0_pool *pool,
+				struct m0_layout_domain *ldom)
+{
+
+	struct m0_pool_version *pver;
+
+	m0_tl_for(pool_version, &pool->po_vers, pver) {
+		pool_version__layouts_evict(pver, ldom);
+	} m0_tl_endfor;
+
+}
+
+static void pool_version__layouts_evict(struct m0_pool_version *pv,
+					struct m0_layout_domain *ldom)
+{
+	struct m0_pdclust_attr *pa = &pv->pv_attr;
+	uint64_t                layout_id;
+	struct m0_layout       *layout;
+	int                     i;
+
+	for (i = M0_DEFAULT_LAYOUT_ID; i < m0_lid_to_unit_map_nr; ++i) {
+		pa->pa_unit_size = m0_lid_to_unit_map[i];
+		m0_uint128_init(&pa->pa_seed, M0_PDCLUST_SEED);
+		layout_id = m0_pool_version2layout_id(&pv->pv_id, i);
+		layout = m0_layout_find(ldom, layout_id);
+		if (layout != NULL) {
+			m0_layout_put(layout);
+			/*
+			 * Assumes that all referees of layout have put the
+			 * reference.
+			 */
+			M0_ASSERT(m0_ref_read(&layout->l_ref) == 1);
+			m0_layout_put(layout);
+		}
+	}
 }
 
 static int pools_common__update_by_conf(struct m0_pools_common *pc)
@@ -1154,36 +1189,9 @@ static int pools_common__update_by_conf(struct m0_pools_common *pc)
 }
 
 /**
- * Callback called when new configuration is ready which fact is detected by
- * rconfc.
+ * Callback called when new configuration is ready.
  */
-static bool pools_common_conf_ready_cb(struct m0_clink *clink)
-{
-	struct m0_pools_common *pc = M0_AMB(pc, clink, pc_conf_ready);
-
-	M0_ENTRY("pc %p", pc);
-
-	if (pc->pc_rm_ctx == NULL) {
-		M0_LEAVE("The mandatory rmservice is missing.");
-		/*
-		 * Something went wrong. The newly loaded conf does not include
-		 * active RM service.
-		 *
-		 * Under the circumstances do nothing with pool related
-		 * structures, as no file operation is to be done without RM
-		 * credits, so no IOS is going to be functional from mow on.
-		 */
-		return true;
-	}
-	pools_common__ctx_subscribe_or_abandon(pc);
-	M0_LEAVE();
-	return true;
-}
-
-/**
- * Callback called when new configuration is ready. Asynchronous part.
- */
-static bool pools_common_conf_ready_async_cb(struct m0_clink *clink)
+M0_INTERNAL bool m0_pools_common_conf_ready_async_cb(struct m0_clink *clink)
 {
 	struct m0_pools_common *pc = M0_AMB(pc, clink, pc_conf_ready_async);
 	struct m0_pool_version *pv;
@@ -1206,6 +1214,8 @@ static bool pools_common_conf_ready_async_cb(struct m0_clink *clink)
 	}
 
 	m0_mutex_lock(&pc->pc_mutex);
+
+	pools_common__ctx_subscribe_or_abandon(pc);
 	/*
 	 * prepare for refreshing pools common:
 	 * - zero counters
@@ -1279,14 +1289,20 @@ M0_INTERNAL int m0_pools_common_init(struct m0_pools_common *pc,
 	m0_mutex_init(&pc->pc_rm_lock);
 	m0_clink_init(&pc->pc_ha_clink, service_ctx_ha_entrypoint_cb);
 	m0_clink_init(&pc->pc_conf_exp, pools_common_conf_expired_cb);
-	m0_clink_init(&pc->pc_conf_ready, pools_common_conf_ready_cb);
-	m0_clink_init(&pc->pc_conf_ready_async,
-		      pools_common_conf_ready_async_cb);
 	reqh = m0_confc2reqh(pc->pc_confc);
 	m0_clink_add_lock(&reqh->rh_conf_cache_exp, &pc->pc_conf_exp);
-	m0_clink_add_lock(&reqh->rh_conf_cache_ready, &pc->pc_conf_ready);
+#ifndef __KERNEL__
+	m0_clink_init(&pc->pc_conf_ready_async,
+		      m0_pools_common_conf_ready_async_cb);
+	/*
+	 * The async callback for pools_common shall get called after
+	 * m0t1fs_sb's async callback. For this reason pools_common's
+	 * async callback is not registered directly with rconfc channel
+	 * from m0_reqh. Instead m0t1fs_sb's async callback internally calls it.
+	 */
 	m0_clink_add_lock(&reqh->rh_conf_cache_ready_async,
 			  &pc->pc_conf_ready_async);
+#endif
 	M0_POST(pools_common_invariant(pc));
 	return M0_RC(0);
 }
@@ -1367,11 +1383,11 @@ M0_INTERNAL void m0_pools_common_fini(struct m0_pools_common *pc)
 	m0_free0(&pc->pc_dev2svc);
 	m0_mutex_fini(&pc->pc_mutex);
 	m0_clink_cleanup(&pc->pc_conf_exp);
-	m0_clink_cleanup(&pc->pc_conf_ready);
-	m0_clink_cleanup(&pc->pc_conf_ready_async);
 	m0_clink_fini(&pc->pc_conf_exp);
-	m0_clink_fini(&pc->pc_conf_ready);
+#ifndef __KERNEL__
+	m0_clink_cleanup(&pc->pc_conf_ready_async);
 	m0_clink_fini(&pc->pc_conf_ready_async);
+#endif
 	/*
 	 * We want pools_common_invariant(pc) to fail after
 	 * m0_pools_common_fini().

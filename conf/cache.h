@@ -164,6 +164,11 @@ M0_INTERNAL void m0_conf_cache_del(const struct m0_conf_cache *cache,
 				   struct m0_conf_obj *obj);
 
 /**
+ * Checks if an object with given fid exists in conf cache.
+ */
+M0_INTERNAL bool m0_conf_cache_contains(struct m0_conf_cache *cache,
+				        const struct m0_fid *fid);
+/**
  * Searches for a configuration object given its identity (type & id).
  *
  * Returns NULL if there is no such object in the cache.

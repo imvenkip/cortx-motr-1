@@ -463,7 +463,7 @@ static inline uint64_t page_nr(m0_bcount_t size)
 	return size >> PAGE_CACHE_SHIFT;
 }
 
-static inline struct m0_layout_instance *
+static struct m0_layout_instance *
 layout_instance(const struct io_request *req)
 {
 	return m0t1fs_file_to_m0inode(req->ir_file)->ci_layout_instance;
@@ -4242,7 +4242,7 @@ static int ioreq_iosm_handle(struct io_request *req)
 				seg_endpos(&req->ir_ivec,
 					req->ir_ivec.iv_vec.v_nr - 1));
 		rc = m0t1fs_size_update(req->ir_file->f_dentry, newsize);
-		if (rc != 0 && csb->csb_rlock_revoked) {
+		if (rc != 0 && csb->csb_conf_state != MCS_READY) {
 			rc = M0_ERR(-ESTALE);
 			goto fail_locked;
 		}
@@ -4276,11 +4276,14 @@ static int io_request_init(struct io_request        *req,
 			   const struct m0_indexvec *ivec,
 			   enum io_req_type          rw)
 {
-	struct m0t1fs_sb           *sb;
-	int                         rc;
-	uint32_t                    seg;
-	uint32_t                    i;
-	uint32_t                    max_failures;
+	struct m0t1fs_inode       *ci;
+	struct m0t1fs_sb          *csb;
+	struct m0_pool_version    *pver;
+	struct m0_layout_instance *li;
+	int                        rc;
+	uint32_t                   seg;
+	uint32_t                   i;
+	uint32_t                   max_failures;
 
 	M0_ENTRY("[%p] rw %d", req, rw);
 
@@ -4291,7 +4294,8 @@ static int io_request_init(struct io_request        *req,
 	M0_PRE(M0_IN(rw, (IRT_READ, IRT_WRITE)));
 	M0_PRE(M0_IS0(req));
 
-	sb = file_to_sb(file);
+	csb = file_to_sb(file);
+	m0t1fs_ref_get_lock(csb);
 	req->ir_rc	  = 0;
 	req->ir_file      = file;
 	req->ir_type      = rw;
@@ -4300,19 +4304,45 @@ static int io_request_init(struct io_request        *req,
 	req->ir_copied_nr = 0;
 	req->ir_direct_io = !!(file->f_flags & O_DIRECT);
 	req->ir_sns_state = SRS_UNINITIALIZED;
-	req->ir_ops       = sb->csb_oostore ?
+	req->ir_ops       = csb->csb_oostore ?
 		&ioreq_oostore_ops : &ioreq_ops;
 
+	/*
+	 * rconfc might have refreshed pool versions, and pool version for
+	 * this file might have got evicted forever. Check if we still have
+	 * the ground underneath.
+	 */
+	ci = m0t1fs_file_to_m0inode(req->ir_file);
+	pver =  m0_pool_version_find(&csb->csb_pools_common, &ci->ci_pver);
+	if (pver == NULL) {
+		rc = M0_ERR_INFO(-ENOENT, "Cannot find pool version "FID_F,
+				 FID_P(&ci->ci_pver));
+		goto err;
+	}
+	li = ci->ci_layout_instance;
+	/*
+	 * File resides on a virtual pool version that got refreshed during
+	 * rconfc update leading to evicting the layout.
+	 */
+	if (li == NULL) {
+		rc = m0t1fs_inode_layout_init(ci);
+		if (rc != 0)
+			goto err;
+	}
 	io_request_bob_init(req);
 	nw_xfer_request_init(&req->ir_nwxfer);
-	if (req->ir_nwxfer.nxr_rc != 0)
-		return M0_ERR_INFO(req->ir_nwxfer.nxr_rc,
-				   "[%p] nw_xfer_req_init() failed", req);
+	if (req->ir_nwxfer.nxr_rc != 0) {
+		rc = M0_ERR_INFO(req->ir_nwxfer.nxr_rc,
+				 "[%p] nw_xfer_req_init() failed", req);
+		goto err;
+	}
 	max_failures = tolerance_of_level(req, M0_CONF_PVER_LVL_CTRLS);
 	M0_ALLOC_ARR(req->ir_failed_session, max_failures + 1);
-	if (req->ir_failed_session == NULL)
-		return M0_ERR_INFO(-ENOMEM, "[%p] Allocation of an array of "
-				   "failed sessions.", req);
+	if (req->ir_failed_session == NULL) {
+		rc = M0_ERR_INFO(-ENOMEM, "[%p] Allocation of an array of "
+			         "failed sessions.", req);
+		goto err;
+	}
 	for (i = 0; i < max_failures; ++i) {
 		req->ir_failed_session[i] = ~(uint64_t)0;
 	}
@@ -4324,8 +4354,8 @@ static int io_request_init(struct io_request        *req,
 
 	if (rc != 0) {
 		m0_free(req->ir_failed_session);
-		return M0_ERR_INFO(-ENOMEM, "[%p] Allocation of m0_indexvec",
-				   req);
+		M0_LOG(M0_ERROR, "[%p] Allocation of m0_indexvec", req);
+		goto err;
 	}
 
 	for (seg = 0; seg < SEG_NR(ivec); ++seg) {
@@ -4336,25 +4366,25 @@ static int io_request_init(struct io_request        *req,
 	/* Sorts the index vector in increasing order of file offset. */
 	indexvec_sort(&req->ir_ivec);
 	indexvec_dump(&req->ir_ivec);
-	if (sb->csb_rlock_revoked)
-		goto err;
 	M0_POST_EX(ergo(rc == 0, io_request_invariant(req)));
-	return M0_RC(rc);
+
+	return M0_RC(0);
 err:
-	m0_free(req->ir_failed_session);
-	m0_indexvec_free(&req->ir_ivec);
-	return M0_ERR(-ESTALE);
+	m0t1fs_ref_put_lock(csb);
+	return M0_RC(rc);
 }
 
 static void io_request_fini(struct io_request *req)
 {
 	struct target_ioreq *ti;
 	struct m0_sm_group  *grp;
+	struct m0t1fs_sb    *csb;
 
 	M0_PRE_EX(io_request_invariant(req));
 
 	M0_ENTRY("[%p]", req);
 
+	csb = file_to_sb(req->ir_file);
 	grp = req->ir_sm.sm_grp;
 
 	m0_sm_group_lock(grp);
@@ -4384,6 +4414,7 @@ static void io_request_fini(struct io_request *req)
 
 	m0_free(req->ir_failed_session);
 	m0_sm_group_unlock(grp);
+	m0t1fs_ref_put_lock(csb);
 	M0_LEAVE();
 }
 
@@ -5039,7 +5070,6 @@ again:
 		count = 0;
 		goto last;
 	}
-
 	rc = req->ir_ops->iro_iomaps_prepare(req);
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "[%p] Failed to prepare IO fops, rc %d",
@@ -5683,7 +5713,7 @@ static void cc_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	 */
 	inode = m0t1fs_file_to_m0inode(req->ir_file);
 	csb = M0T1FS_SB(inode->ci_inode.i_sb);
-	if (csb->csb_rlock_revoked)
+	if (csb->csb_conf_state != MCS_READY)
 		rc = M0_ERR(-ESTALE);
 ref_dec:
 	if (ti->ti_rc == 0 && rc != 0)
@@ -5859,7 +5889,7 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	ctx = m0_reqh_service_ctx_from_session(reply_item->ri_session);
 	inode = m0t1fs_file_to_m0inode(req->ir_file);
 	csb = M0T1FS_SB(inode->ci_inode.i_sb);
-	if (csb->csb_rlock_revoked) {
+	if (csb->csb_conf_state != MCS_READY) {
 		rc = M0_ERR(-ESTALE);
 		goto ref_dec;
 	}

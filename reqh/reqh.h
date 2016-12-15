@@ -206,12 +206,20 @@ struct m0_reqh {
 	 *
 	 * The channel callback is allowed to do synchronous reading on
 	 * m0_reqh::rh_rconfc::rc_confc.
+	 *
+	 * @note: The order of clink subscription matters:
+	 * m0_pools_common::pc_conf_ready_async should be the last clink to
+	 * subscribe this channel. Rationale: the subsystems using
+	 * m0_pool/m0_pool_version/m0_layout/ should relinquish their
+	 * pointers/references for in-memory objects before pools_common's
+	 * callback is executed. Currently this is achieved by registering
+	 * pools_common's clinks after registering clinks of all layout users.
+	 * @see: MERO-2343.
 	 */
 	struct m0_chan                rh_conf_cache_ready_async;
 
 	/** AST for rconfc cache events to be done asynchronously. */
 	struct m0_sm_ast              rh_conf_cache_ast;
-
 };
 
 /**
