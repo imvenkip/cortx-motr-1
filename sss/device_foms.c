@@ -30,13 +30,16 @@
 #include "conf/obj_ops.h"         /* M0_CONF_DIRNEXT */
 #include "fop/fop.h"
 #include "fop/fom_generic.h"
-#include "ioservice/io_device.h"  /* m0_ios_poolmach_get */
-#include "module/instance.h"
 #include "pool/pool.h"
 #include "pool/pool_machine.h"
 #include "reqh/reqh.h"
 #include "sss/device_fops.h"
 #include "sss/device_foms.h"
+#ifndef __KERNEL__
+ #include "mero/setup.h"          /* m0_cs_storage_devs_get */
+ #include "ioservice/io_device.h" /* m0_ios_poolmach_get */
+ #include "ioservice/storage_dev.h"
+#endif
 
 extern struct m0_reqh_service_type m0_ios_type;
 
@@ -605,7 +608,7 @@ static int sss_device_fom_sdev_opening(struct m0_fom *fom)
 static int sss_device_stob_attach(struct m0_fom *fom)
 {
 	struct m0_sss_dfom     *dfom;
-	struct m0_storage_devs *devs = &m0_get()->i_storage_devs;
+	struct m0_storage_devs *devs = m0_cs_storage_devs_get();
 	struct m0_storage_dev  *dev;
 	struct m0_storage_dev  *dev_new = NULL;
 	struct m0_confc_ctx    *confc_ctx;
@@ -683,7 +686,7 @@ static int sss_device_pool_machine_detach(struct m0_fom *fom)
 static int sss_device_stob_detach(struct m0_fom *fom, bool arm_wakeup)
 {
 	struct m0_sss_dfom     *dfom;
-	struct m0_storage_devs *devs = &m0_get()->i_storage_devs;
+	struct m0_storage_devs *devs = m0_cs_storage_devs_get();
 	struct m0_storage_dev  *dev;
 	int                     rc;
 	struct m0_confc        *confc = m0_reqh2confc(m0_fom_reqh(fom));
@@ -717,7 +720,7 @@ static int sss_device_stob_detach(struct m0_fom *fom, bool arm_wakeup)
 static int sss_device_format(struct m0_fom *fom)
 {
 	struct m0_sss_dfom     *dfom;
-	struct m0_storage_devs *devs = &m0_get()->i_storage_devs;
+	struct m0_storage_devs *devs = m0_cs_storage_devs_get();
 	struct m0_storage_dev  *dev;
 	int                     rc;
 	struct m0_confc        *confc = m0_reqh2confc(m0_fom_reqh(fom));

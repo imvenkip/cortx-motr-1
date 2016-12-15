@@ -43,6 +43,7 @@
  #include "module/instance.h"
  #include <unistd.h>
  #include "mero/process_attr.h"
+ #include "mero/setup.h"            /* m0_cs_storage_devs_get */
  #include "pool/pool_machine.h"     /* m0_pool_machine_state */
  #include "pool/pool.h"             /* m0_pooldev */
  #include "ioservice/storage_dev.h" /* m0_storage_dev_space */
@@ -290,9 +291,13 @@ static int ss_be_segs_stats_ingest(struct m0_ss_process_rep *rep)
 
 static int ss_ios_stats_ingest(struct m0_ss_process_rep *rep)
 {
-	struct m0_storage_devs   *sds = &m0_get()->i_storage_devs;
+	struct m0_storage_devs   *sds = m0_cs_storage_devs_get();
 	struct m0_storage_dev    *dev;
 	struct m0_storage_space   sp;
+
+	/* XXX Remove this block when storage_dev supports linuxstobs. */
+	if (sds == NULL)
+		return M0_RC(0);
 
 	/* collect sdevs stats */
 	m0_tl_for(storage_dev, &sds->sds_devices, dev) {

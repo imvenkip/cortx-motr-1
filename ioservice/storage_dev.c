@@ -626,6 +626,10 @@ M0_INTERNAL int m0_storage_devs_fdatasync(struct m0_storage_devs *sdevs)
 {
 	int rc;
 
+	/* XXX Remove this block when storage_dev supports linuxstobs. */
+	if (sdevs == NULL)
+		return 0;
+
 	M0_PRE(storage_devs_is_locked(sdevs));
 
 	rc = M0_PARALLEL_FOR(storage_dev, &sdevs->sds_pool,

@@ -32,8 +32,7 @@
 #include "ioservice/io_fops.h"     /* m0_fop_fsync_ios_fopt */
 #include "rpc/rpc_opcodes.h"
 #include "ioservice/storage_dev.h" /* m0_storage_dev */
-#include "module/instance.h"       /* m0_get */
-#include "mero/setup.h"
+#include "mero/setup.h"            /* m0_cs_storage_devs_get */
 
 #include "fop/fom_generic.h"
 #include "be/domain.h" /* m0_be_domain */
@@ -212,7 +211,7 @@ static int fsync_fom_tick(struct m0_fom *fom)
 			 M0_FOPH_FSYNC_DATASYNC)));
 
 	if (phase == M0_FOPH_FSYNC_DATASYNC) {
-		struct m0_storage_devs *sdevs = &m0_get()->i_storage_devs;
+		struct m0_storage_devs *sdevs = m0_cs_storage_devs_get();
 
 		m0_fom_block_enter(fom);
 
