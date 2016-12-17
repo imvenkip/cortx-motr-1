@@ -1318,8 +1318,7 @@ static int pools_common_refresh_locked(struct m0_pools_common    *pc,
 	M0_POST(pools_common_invariant(pc));
 	return M0_RC(0);
 err:
-	m0_free(pc->pc_mds_map);
-	pc->pc_mds_map = NULL;
+	m0_free0(&pc->pc_mds_map);
 	service_ctxs_destroy(pc);
 	return M0_ERR(rc);
 }
@@ -1423,7 +1422,7 @@ M0_INTERNAL void m0_pools_service_ctx_destroy(struct m0_pools_common *pc)
 	if (m0_clink_is_armed(&pc->pc_ha_clink))
 		m0_clink_del_lock(&pc->pc_ha_clink);
 	service_ctxs_destroy(pc);
-	m0_free(pc->pc_mds_map);
+	m0_free0(&pc->pc_mds_map);
 	abandoned_svc_ctxs_cleanup(pc);
 	M0_LEAVE();
 }

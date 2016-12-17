@@ -149,6 +149,8 @@ M0_INTERNAL int m0_reqh_mdpool_layout_build(struct m0_reqh *reqh)
 	uint64_t                lid;
 
 	M0_ENTRY();
+	M0_PRE(_0C(pc != NULL) && _0C(pc->pc_md_pool != NULL));
+
 	pv = pool_version_tlist_head(&pc->pc_md_pool->po_vers);
 	lid = m0_pool_version2layout_id(&pv->pv_id, M0_DEFAULT_LAYOUT_ID);
 	layout = m0_layout_find(&reqh->rh_ldom, lid);
