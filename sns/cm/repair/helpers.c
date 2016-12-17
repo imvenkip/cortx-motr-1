@@ -32,10 +32,12 @@
 M0_INTERNAL int m0_sns_cm_repair_ag_setup(struct m0_sns_cm_ag *sag,
 					  struct m0_pdclust_layout *pl);
 
-static uint64_t repair_ag_max_incoming_units(const struct m0_sns_cm *scm,
-					     const struct m0_cm_ag_id *id,
-					     struct m0_sns_cm_file_ctx *fctx,
-					     struct m0_bitmap *proxy_in_map)
+static int repair_ag_in_cp_units(const struct m0_sns_cm *scm,
+				 const struct m0_cm_ag_id *id,
+				 struct m0_sns_cm_file_ctx *fctx,
+				 uint32_t *in_cp_nr,
+				 uint32_t *in_units_nr,
+				 struct m0_bitmap *proxy_in_map)
 {
 	const struct m0_cm         *cm = &scm->sc_base;
 	struct m0_pdclust_src_addr  sa;
@@ -49,25 +51,33 @@ static uint64_t repair_ag_max_incoming_units(const struct m0_sns_cm *scm,
 	const char                 *ep;
 	struct m0_pdclust_layout   *pl;
 	bool                        is_failed;
-	uint32_t                    incoming = 0;
+	uint32_t                    incps = 0;
+	uint32_t                    inunits = 0;
 	uint32_t                    local_spares = 0;
 	uint32_t                    tgt_unit_prev;
 	uint64_t                    unit;
+	uint64_t                    nr_total_du;
 	int                         rc;
 
 	M0_ENTRY();
-	M0_PRE(fctx != NULL);
+	M0_PRE(scm != NULL && id != NULL && fctx != NULL);
+	M0_PRE(in_cp_nr != NULL && in_units_nr != NULL && proxy_in_map != NULL);
 
 	agid2fid(id, &fctx->sf_fid);
 	sa.sa_group = agid2group(id);
 	pm = fctx->sf_pm;
 	pl = m0_layout_to_pdl(fctx->sf_layout);
+	nr_total_du = m0_sns_cm_file_data_units(fctx);
 	for (unit = 0; unit < m0_sns_cm_ag_size(pl); ++unit) {
 		sa.sa_unit = unit;
 		m0_sns_cm_unit2cobfid(fctx, &sa, &ta, &cobfid);
 		is_failed = m0_sns_cm_is_cob_failed(pm, ta.ta_obj);
 		if (m0_sns_cm_unit_is_spare(fctx, sa.sa_group, unit))
 			continue;
+		if (m0_sns_cm_file_unit_is_EOF(pl, nr_total_du, sa.sa_group,
+					       unit))
+			continue;
+
 		/* Count number of spares corresponding to the failures
 		 * on a node. This is required to calculate exact number of
 		 * incoming copy packets.
@@ -90,7 +100,7 @@ static uint64_t repair_ag_max_incoming_units(const struct m0_sns_cm *scm,
 				M0_CNT_INC(local_spares);
 			}
 		}
-		if (proxy_in_map != NULL && !is_failed &&
+		if (!is_failed &&
 		    !m0_sns_cm_is_local_cob(cm, pm->pm_pver, &cobfid)) {
 			ep = m0_sns_cm_tgt_ep(cm, pm->pm_pver, &cobfid, &svc);
 			pxy = m0_tl_find(proxy, pxy, &cm->cm_proxies,
@@ -98,13 +108,17 @@ static uint64_t repair_ag_max_incoming_units(const struct m0_sns_cm *scm,
 			m0_confc_close(svc);
 			if (!m0_bitmap_get(proxy_in_map, pxy->px_id)) {
 				m0_bitmap_set(proxy_in_map, pxy->px_id, true);
-				M0_CNT_INC(incoming);
+				M0_CNT_INC(incps);
 			}
+			M0_CNT_INC(inunits);
 		}
 	}
 
+	*in_cp_nr = incps * local_spares;
+	*in_units_nr = inunits;
+
 	M0_LEAVE();
-	return M0_RC(incoming * local_spares);
+	return M0_RC(rc);
 }
 
 static uint64_t repair_ag_unit_start(const struct m0_pdclust_layout *pl)
@@ -185,12 +199,12 @@ repair_cob_locate(struct m0_sns_cm *scm, struct m0_cob_domain *cdom,
 }
 
 const struct m0_sns_cm_helpers repair_helpers = {
-	.sch_ag_max_incoming_units  = repair_ag_max_incoming_units,
-	.sch_ag_unit_start          = repair_ag_unit_start,
-	.sch_ag_unit_end            = repair_ag_unit_end,
-	.sch_ag_is_relevant         = repair_ag_is_relevant,
-	.sch_ag_setup               = m0_sns_cm_repair_ag_setup,
-	.sch_cob_locate             = repair_cob_locate
+	.sch_ag_in_cp_units  = repair_ag_in_cp_units,
+	.sch_ag_unit_start   = repair_ag_unit_start,
+	.sch_ag_unit_end     = repair_ag_unit_end,
+	.sch_ag_is_relevant  = repair_ag_is_relevant,
+	.sch_ag_setup        = m0_sns_cm_repair_ag_setup,
+	.sch_cob_locate      = repair_cob_locate
 };
 
 #undef M0_TRACE_SUBSYSTEM

@@ -35,6 +35,7 @@
 #include "mero/setup.h"
 #include "net/net.h"
 #include "ioservice/io_device.h"
+#include "ioservice/io_service.h"
 #include "reqh/reqh.h"
 #include "rpc/rpc.h"
 #include "cob/ns_iter.h"
@@ -584,6 +585,8 @@ M0_INTERNAL int m0_sns_cm_prepare(struct m0_cm *cm)
 	rc = m0_sns_cm_ag_iter_init(&scm->sc_ag_it);
 	scm->sc_total_read_size = NULL;
 	scm->sc_total_write_size = NULL;
+	rc = m0_ios_cdom_get(scm->sc_base.cm_service.rs_reqh,
+			     &scm->sc_cob_dom);
 
 	M0_LEAVE();
 	return M0_RC(rc);
@@ -778,22 +781,27 @@ m0_sns_cm_incoming_reserve_bufs(struct m0_sns_cm *scm,
 	struct m0_bitmap           proxy_map;
 	uint64_t                   nr_cp_bufs;
 	uint64_t                   cp_data_seg_nr;
-	uint64_t                   nr_incoming;
+	uint32_t                   nr_cps_in;
+	uint32_t                   nr_units_in;
 	struct m0_pdclust_layout  *pl;
 	struct m0_sns_cm_file_ctx *fctx;
+	int                        rc;
 
 	fctx = m0_sns_cm_fctx_get(scm, id);
 	M0_ASSERT(fctx != NULL);
 
 	pl = m0_layout_to_pdl(fctx->sf_layout);
 	m0_bitmap_init(&proxy_map, scm->sc_base.cm_proxy_nr);
-	nr_incoming = m0_sns_cm_ag_max_incoming_units(scm, id, fctx, &proxy_map);
+	rc = m0_sns_cm_ag_in_cp_units(scm, id, fctx, &nr_cps_in,
+				      &nr_units_in, &proxy_map);
+	if (rc != 0)
+		return ~0;
 	cp_data_seg_nr = m0_sns_cm_data_seg_nr(scm, pl);
 	nr_cp_bufs = m0_sns_cm_cp_buf_nr(&scm->sc_ibp.sb_bp, cp_data_seg_nr);
 	m0_bitmap_fini(&proxy_map);
 	m0_sns_cm_fctx_put(scm, id);
 
-	return nr_cp_bufs * nr_incoming;
+	return nr_cp_bufs * nr_cps_in;
 }
 
 /**

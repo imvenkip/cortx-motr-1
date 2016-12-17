@@ -212,7 +212,7 @@ M0_INTERNAL void m0_cm_proxy_update(struct m0_cm_proxy *pxy,
 
 	switch (pxy->px_status) {
 	case M0_PX_INIT :
-		if (px_status == M0_PX_READY) {
+		if (M0_IN(px_status, (M0_PX_READY, M0_PX_ACTIVE))) {
 			pxy->px_epoch = px_epoch;
 			/*
 			 * Here we select the minimum of the sliding window
@@ -304,9 +304,9 @@ static void proxy_sw_onwire_ast_cb(struct m0_sm_group *grp,
 	} else {
 		if (proxy->px_nr_updates_posted == 0) {
 			proxy->px_is_done = true;
+			M0_CNT_DEC(cm->cm_proxy_nr);
 			/* Send one final notification to the remote proxy. */
 			m0_cm_proxy_remote_update(proxy, &sw);
-			M0_CNT_DEC(cm->cm_proxy_nr);
 			m0_cm_notify(cm);
 		}
 	}

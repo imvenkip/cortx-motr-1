@@ -106,8 +106,6 @@ struct m0_sns_cm_iter {
 	/** Iterator state machine. */
 	struct m0_sm                     si_sm;
 
-	struct m0_cob_domain            *si_cob_dom;
-
 	/** Layout details of a file. */
 	struct m0_sns_cm_iter_file_ctx   si_fc;
 

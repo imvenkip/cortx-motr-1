@@ -50,8 +50,6 @@ struct m0_sns_cm_cp {
 	 */
 	bool                   sc_is_local;
 
-	bool                   sc_has_no_cob;
-
 	uint64_t               sc_failed_idx;
 
 	bool                   sc_is_acc;

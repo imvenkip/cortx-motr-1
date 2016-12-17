@@ -41,11 +41,12 @@ static bool is_spare_relevant(const struct m0_sns_cm *scm,
 			      struct m0_sns_cm_file_ctx *fctx,
 			      uint64_t group, uint32_t spare);
 
-static uint64_t
-rebalance_ag_max_incoming_units(const struct m0_sns_cm *scm,
-				const struct m0_cm_ag_id *id,
-				struct m0_sns_cm_file_ctx *fctx,
-				struct m0_bitmap *proxy_in_map)
+static int rebalance_ag_in_cp_units(const struct m0_sns_cm *scm,
+				    const struct m0_cm_ag_id *id,
+				    struct m0_sns_cm_file_ctx *fctx,
+				    uint32_t *in_cp_nr,
+				    uint32_t *in_units_nr,
+				    struct m0_bitmap *proxy_in_map)
 {
 	struct m0_fid		    cobfid;
 	struct m0_fid		    gfid;
@@ -57,7 +58,7 @@ rebalance_ag_max_incoming_units(const struct m0_sns_cm *scm,
 	const char                 *ep;
 	struct m0_pdclust_layout   *pl;
 	struct m0_poolmach         *pm;
-	int32_t                     incoming_nr = 0;
+	uint32_t                    incps = 0;
 	uint32_t                    tgt_unit;
 	uint32_t                    tgt_unit_prev;
 	uint64_t                    unit;
@@ -83,7 +84,7 @@ rebalance_ag_max_incoming_units(const struct m0_sns_cm *scm,
                         continue;
 		if (m0_pdclust_unit_classify(pl, unit) == M0_PUT_SPARE) {
 			if (is_spare_relevant(scm, fctx, sa.sa_group, unit))
-				M0_CNT_INC(incoming_nr);
+				M0_CNT_INC(incps);
 			continue;
 		}
 		m0_sns_cm_fctx_lock(fctx);
@@ -91,7 +92,7 @@ rebalance_ag_max_incoming_units(const struct m0_sns_cm *scm,
 					     unit, &tgt_unit, &tgt_unit_prev);
 		m0_sns_cm_fctx_unlock(fctx);
                 if (rc != 0)
-                        return ~0;
+                        return M0_ERR(rc);
 		M0_SET0(&ta);
 		M0_SET0(&cobfid);
                 sa.sa_unit = tgt_unit;
@@ -103,10 +104,13 @@ rebalance_ag_max_incoming_units(const struct m0_sns_cm *scm,
 			m0_confc_close(svc);
 			if (!m0_bitmap_get(proxy_in_map, pxy->px_id))
 				m0_bitmap_set(proxy_in_map, pxy->px_id, true);
-			M0_CNT_INC(incoming_nr);
+			M0_CNT_INC(incps);
 		}
 	}
-        return incoming_nr;
+
+	*in_cp_nr = *in_units_nr = incps;
+
+        return rc;
 }
 
 static uint64_t rebalance_ag_unit_start(const struct m0_pdclust_layout *pl)
@@ -318,12 +322,12 @@ rebalance_cob_locate(struct m0_sns_cm *scm, struct m0_cob_domain *cdom,
 }
 
 const struct m0_sns_cm_helpers rebalance_helpers = {
-	.sch_ag_max_incoming_units  = rebalance_ag_max_incoming_units,
-	.sch_ag_unit_start          = rebalance_ag_unit_start,
-	.sch_ag_unit_end            = rebalance_ag_unit_end,
-	.sch_ag_is_relevant         = rebalance_ag_is_relevant,
-	.sch_ag_setup               = m0_sns_cm_rebalance_ag_setup,
-	.sch_cob_locate             = rebalance_cob_locate
+	.sch_ag_in_cp_units  = rebalance_ag_in_cp_units,
+	.sch_ag_unit_start   = rebalance_ag_unit_start,
+	.sch_ag_unit_end     = rebalance_ag_unit_end,
+	.sch_ag_is_relevant  = rebalance_ag_is_relevant,
+	.sch_ag_setup        = m0_sns_cm_rebalance_ag_setup,
+	.sch_cob_locate      = rebalance_cob_locate
 };
 
 #undef M0_TRACE_SUBSYSTEM

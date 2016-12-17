@@ -199,6 +199,11 @@ M0_INTERNAL void m0_sns_cm_file_bwd_map(struct m0_sns_cm_file_ctx *fctx,
 M0_INTERNAL void m0_sns_cm_fctx_lock(struct m0_sns_cm_file_ctx *fctx);
 M0_INTERNAL void m0_sns_cm_fctx_unlock(struct m0_sns_cm_file_ctx *fctx);
 
+M0_INTERNAL uint64_t m0_sns_cm_file_data_units(struct m0_sns_cm_file_ctx *fctx);
+M0_INTERNAL bool m0_sns_cm_file_unit_is_EOF(struct m0_pdclust_layout *pl,
+					    uint64_t nr_max_data_units,
+					    uint64_t group, uint32_t unit);
+
 M0_HT_DESCR_DECLARE(m0_scmfctx, M0_EXTERN);
 M0_HT_DECLARE(m0_scmfctx, M0_EXTERN, struct m0_sns_cm_file_ctx,
               struct m0_fid);

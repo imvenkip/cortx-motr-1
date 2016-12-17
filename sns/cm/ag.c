@@ -109,8 +109,8 @@ static void ai_state_set(struct m0_sns_cm_ag_iter *ai, int state)
 static bool _is_fid_valid(struct m0_sns_cm_ag_iter *ai, struct m0_fid *fid)
 {
 	struct m0_fid         fid_out = {0, 0};
-	struct m0_cob_domain *cdom = ai->ai_cdom;
 	struct m0_sns_cm     *scm = ai2sns(ai);
+	struct m0_cob_domain *cdom = scm->sc_cob_dom;
 	int                   rc;
 
 	if (!m0_sns_cm_fid_is_valid(scm, fid))
@@ -246,12 +246,13 @@ static int ai_fid_next(struct m0_sns_cm_ag_iter *ai)
 {
 	struct m0_fid     fid = {0, 0};
 	struct m0_fid     fid_curr = ai->ai_fid;
-	int               rc;
+	struct m0_sns_cm *scm = ai2sns(ai);
+	int               rc = 0;
 
 	do {
 		M0_CNT_INC(fid_curr.f_key);
-		rc = m0_cob_ns_next_of(&ai->ai_cdom->cd_namespace, &fid_curr,
-				       &fid);
+		rc = m0_cob_ns_next_of(&scm->sc_cob_dom->cd_namespace,
+				       &fid_curr, &fid);
 		fid_curr = fid;
 	} while (rc == 0 &&
 		 (m0_fid_eq(&fid, &M0_COB_ROOT_FID) ||
@@ -329,16 +330,12 @@ M0_INTERNAL int m0_sns_cm_ag__next(struct m0_sns_cm *scm,
 M0_INTERNAL int m0_sns_cm_ag_iter_init(struct m0_sns_cm_ag_iter *ai)
 {
 	struct m0_sns_cm     *scm = ai2sns(ai);
-	int                   rc;
 
 	M0_SET0(ai);
-	ai->ai_cdom = NULL;
-	rc = m0_ios_cdom_get(m0_sns_cm2reqh(scm), &ai->ai_cdom);
-	if (rc == 0)
-	     m0_sm_init(&ai->ai_sm, &ai_sm_conf, AIS_FID_LOCK,
-			&scm->sc_base.cm_sm_group);
+	m0_sm_init(&ai->ai_sm, &ai_sm_conf, AIS_FID_LOCK,
+		   &scm->sc_base.cm_sm_group);
 
-	return M0_RC(rc);
+	return M0_RC(0);
 }
 
 M0_INTERNAL void m0_sns_cm_ag_iter_fini(struct m0_sns_cm_ag_iter *ai)
@@ -470,9 +467,10 @@ M0_INTERNAL int m0_sns_cm_ag_init(struct m0_sns_cm_ag *sag,
 	}
 	sag->sag_fnr = f_nr;
 	if (has_incoming)
-		sag->sag_incoming_nr =
-		m0_sns_cm_ag_max_incoming_units(scm, id, fctx,
-						&sag->sag_proxy_incoming_map);
+		rc = m0_sns_cm_ag_in_cp_units(scm, id, fctx,
+					      &sag->sag_incoming_cp_nr,
+					      &sag->sag_incoming_units_nr,
+					      &sag->sag_proxy_incoming_map);
 	m0_cm_aggr_group_init(&sag->sag_base, cm, id, has_incoming, ag_ops);
 	sag->sag_base.cag_cp_global_nr = m0_sns_cm_ag_nr_global_units(sag, pl);
 	M0_LEAVE("ag: %p", sag);
@@ -526,7 +524,7 @@ M0_INTERNAL bool m0_sns_cm_ag_is_frozen_on(struct m0_cm_aggr_group *ag, struct m
 				local_cps = sag->sag_cp_created_nr;
 			}
 		}
-		expected_free =  local_cps + sag->sag_incoming_nr - not_coming;
+		expected_free =  local_cps + sag->sag_incoming_cp_nr - not_coming;
 
 		sag->sag_is_frozen = ag->cag_freed_cp_nr >= expected_free;
 		return sag->sag_is_frozen;

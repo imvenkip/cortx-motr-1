@@ -150,8 +150,6 @@ static void _fini_ast_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	}
 	cm->cm_ag_store.s_data.d_cm_epoch = cm->cm_epoch;
 	ag->cag_ops->cago_fini(ag);
-        if (m0_cm_aggr_group_tlists_are_empty(cm))
-		m0_chan_signal(&cm->cm_complete);
 }
 
 M0_INTERNAL void m0_cm_aggr_group_init(struct m0_cm_aggr_group *ag,
@@ -228,6 +226,9 @@ M0_INTERNAL void m0_cm_aggr_group_fini_and_progress(struct m0_cm_aggr_group *ag)
 		ID_LOG("hi", &hi->cag_id);
 	}
 	m0_cm_aggr_group_fini(ag);
+
+	if (m0_cm_aggr_group_tlists_are_empty(cm))
+		m0_chan_signal(&cm->cm_complete);
 
 	M0_LOG(M0_DEBUG, "%lu: ["M0_AG_F"] in=[%lu] %p out=[%lu] %p ",
 	       cm->cm_id, M0_AG_P(&id), cm->cm_aggr_grps_in_nr, &cm->cm_aggr_grps_in,
@@ -455,8 +456,7 @@ M0_INTERNAL void m0_cm_ag_cp_del(struct m0_cm_aggr_group *ag, struct m0_cm_cp *c
 
 M0_INTERNAL void m0_cm_ag_fini_post(struct m0_cm_aggr_group *ag)
 {
-	if (ag->cag_fini_ast.sa_next == NULL)
-		m0_sm_ast_post(&ag->cag_cm->cm_sm_group, &ag->cag_fini_ast);
+	m0_sm_ast_post(&ag->cag_cm->cm_sm_group, &ag->cag_fini_ast);
 }
 
 /** @} CMAG */

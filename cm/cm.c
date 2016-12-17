@@ -1115,15 +1115,17 @@ M0_INTERNAL void m0_cm_frozen_ag_cleanup(struct m0_cm *cm, struct m0_cm_proxy *p
 	struct m0_cm_aggr_group *ag = NULL;
 	struct m0_cm_proxy      *pxy = NULL;
 	bool                     proxies_done = true;
+	bool                     cleanup;
 
 	M0_PRE(m0_cm_is_locked(cm));
 
 	m0_tlist_for(&aggr_grps_in_tl, &cm->cm_aggr_grps_in, ag) {
 		m0_cm_ag_lock(ag);
-		if (ag->cag_ops->cago_is_frozen_on(ag, proxy) &&
-		    ag->cag_ops->cago_ag_can_fini(ag))
-			m0_cm_ag_fini_post(ag);
+		cleanup = ag->cag_ops->cago_is_frozen_on(ag, proxy) &&
+			  ag->cag_ops->cago_ag_can_fini(ag);
 		m0_cm_ag_unlock(ag);
+		if (cleanup)
+			ag->cag_ops->cago_fini(ag);
 	} m0_tlist_endfor;
 
 	m0_tl_for(proxy, &cm->cm_proxies, pxy) {
@@ -1135,9 +1137,7 @@ M0_INTERNAL void m0_cm_frozen_ag_cleanup(struct m0_cm *cm, struct m0_cm_proxy *p
 
 	if (proxies_done && cm->cm_aggr_grps_out_nr > 0) {
 		m0_tlist_for(&aggr_grps_out_tl, &cm->cm_aggr_grps_out, ag) {
-			m0_cm_ag_lock(ag);
-			m0_cm_ag_fini_post(ag);
-			m0_cm_ag_unlock(ag);
+			ag->cag_ops->cago_fini(ag);
 		} m0_tlist_endfor;
 	}
 }

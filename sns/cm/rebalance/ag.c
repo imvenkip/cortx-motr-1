@@ -76,7 +76,7 @@ static bool rebalance_ag_can_fini(const struct m0_cm_aggr_group *ag)
 		if (sag->sag_is_frozen)
 			return ag->cag_ref == 0;
 
-		return ag->cag_freed_cp_nr == sag->sag_incoming_nr +
+		return ag->cag_freed_cp_nr == sag->sag_incoming_cp_nr +
 					      ag->cag_cp_local_nr;
         } else
 		return ag->cag_freed_cp_nr == ag->cag_cp_local_nr;
@@ -116,7 +116,7 @@ M0_INTERNAL int m0_sns_cm_rebalance_ag_alloc(struct m0_cm *cm,
                 return M0_RC(rc);
         }
 
-	sag->sag_local_tgts_nr = sag->sag_incoming_nr;
+	sag->sag_local_tgts_nr = sag->sag_incoming_cp_nr;
 	*out = &sag->sag_base;
 	M0_LEAVE("ag: %p", &sag->sag_base);
 	return M0_RC(rc);

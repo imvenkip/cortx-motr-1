@@ -402,6 +402,16 @@ static int __group_alloc(struct m0_sns_cm *scm, struct m0_fid *gfid,
 		if (m0_cm_ag_id_cmp(&agid,
 				    &cm->cm_sw_last_updated_hi) <= 0) {
 			*ag = m0_cm_aggr_group_locate(cm, &agid, has_incoming);
+			/* It is possible that the aggregation group was
+			 * created (by sliding window update fom) and finalised
+			 * before iterator got to it. Ignore the error and
+			 * continue.
+			 */
+			if (*ag == NULL) {
+				M0_LOG(M0_DEBUG, "group "M0_AG_F" not found",
+					M0_AG_P(&agid)); 
+				return -ENOENT;
+			}
 			goto out;
 		}
 	}
@@ -468,6 +478,10 @@ static int __group_next(struct m0_sns_cm_iter *it)
 		nrlu = m0_sns_cm_ag_nr_local_units(scm, ifc->ifc_fctx, group);
 		if (has_incoming || nrlu > 0) {
 			rc = __group_alloc(scm, gfid, group, pl, has_incoming, &it->si_ag);
+			if (rc == -ENOENT) {
+				rc = 0;
+				continue;
+			}
 			if (it->si_ag != NULL)
 				m0_cm_ag_get(it->si_ag);
 			if (rc != 0) {
@@ -645,27 +659,29 @@ static int iter_cob_next(struct m0_sns_cm_iter *it)
 	struct m0_fid                  *cob_fid;
 	struct m0_pdclust_src_addr     *sa;
 	struct m0_sns_cm               *scm;
-	struct m0_sns_cm_cp            *scp;
-	int                             rc;
+	struct m0_pdclust_layout       *pl;
+	uint64_t                        nr_max_du = 0;
+	int                             rc = 0;
 
 	M0_ENTRY("it=%p", it);
 
 	ifc = &it->si_fc;
 	sa = &ifc->ifc_sa;
 	scm = it2sns(it);
-	scp = it->si_cp;
 	cob_fid = &ifc->ifc_cob_fid;
+	nr_max_du = m0_sns_cm_file_data_units(ifc->ifc_fctx);
+	pl = m0_layout_to_pdl(ifc->ifc_fctx->sf_layout);
 	do {
-		/*
-		 * Reset scp->sc_has_no_cob, as same copy packet is used to
-		 * read next data/parity unit in the parity group if the
-		 * data was not read from earlier iteration.
-		 */
-		scp->sc_has_no_cob = false;
 		if (sa->sa_unit >= ifc->ifc_upg) {
 			++sa->sa_group;
 			iter_phase_set(it, ITPH_GROUP_NEXT);
 			return M0_RC(0);
+		}
+		if (m0_sns_cm_file_unit_is_EOF(pl, nr_max_du, sa->sa_group,
+					       sa->sa_unit)) {
+			++sa->sa_unit;
+			rc = -ENOENT;
+			continue;
 		}
 		/*
 		 * Calculate COB fid corresponding to the unit and advance
@@ -674,19 +690,7 @@ static int iter_cob_next(struct m0_sns_cm_iter *it)
 		 * proceed to next parity group in the GOB.
 		 */
 		unit_to_cobfid(ifc, cob_fid);
-		rc = scm->sc_helpers->sch_cob_locate(scm, it->si_cob_dom,
-						     ifc->ifc_fctx->sf_pm,
-						     cob_fid);
-		/*
-		 * m0t1fs creates cobs on write(CROW), there's a possibility that
-		 * a particular data cob may not be present (because of EOF or
-		 * a HOLE), sns repair must handle this situation.
-		 */
-		if (rc == -ENODEV) {
-			rc = 0;
-			it->si_cp->sc_has_no_cob = true;
-		}
-		M0_LOG(M0_DEBUG, "cob locate rc = %d", rc);
+		rc = m0_sns_cm_cob_locate(scm->sc_cob_dom, cob_fid);
 		++sa->sa_unit;
 	} while (rc == -ENOENT ||
 		 m0_sns_cm_is_cob_failed(ifc->ifc_fctx->sf_pm,
@@ -835,22 +839,17 @@ M0_INTERNAL int m0_sns_cm_iter_init(struct m0_sns_cm_iter *it)
 {
 	struct m0_sns_cm *scm = it2sns(it);
 	struct m0_cm     *cm;
-	int               rc;
 
 	M0_PRE(it != NULL);
 
 	cm = &scm->sc_base;
-        rc = m0_ios_cdom_get(cm->cm_service.rs_reqh, &it->si_cob_dom);
-        if (rc != 0) {
-                return M0_ERR(rc);
-	}
 	m0_sm_init(&it->si_sm, &cm_iter_sm_conf, ITPH_INIT, &cm->cm_sm_group);
 	m0_sns_cm_iter_bob_init(it);
 	it->si_total_files = 0;
 	if (it->si_fom == NULL)
 		it->si_fom = &scm->sc_base.cm_cp_pump.p_fom;
 
-	return M0_RC(rc);
+	return M0_RC(0);
 }
 
 M0_INTERNAL int m0_sns_cm_iter_start(struct m0_sns_cm_iter *it)
@@ -866,7 +865,7 @@ M0_INTERNAL int m0_sns_cm_iter_start(struct m0_sns_cm_iter *it)
 
 	agid2fid(&cm->cm_last_processed_out, &gfid_start);
 	m0_fid_gob_make(&gfid, gfid_start.f_container, gfid_start.f_key);
-	rc = m0_cob_ns_iter_init(&it->si_cns_it, &gfid, it->si_cob_dom);
+	rc = m0_cob_ns_iter_init(&it->si_cns_it, &gfid, scm->sc_cob_dom);
 	if (iter_phase(it) == ITPH_INIT)
 		iter_phase_set(it, ITPH_IDLE);
 

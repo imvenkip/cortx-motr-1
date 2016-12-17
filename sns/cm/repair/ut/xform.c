@@ -559,7 +559,7 @@ static int xform_init(void)
         M0_ASSERT(cm != NULL);
 
         scm = cm2sns(cm);
-	scm->sc_it.si_cob_dom = cdom;
+	scm->sc_cob_dom = cdom;
 	scm->sc_helpers = &xform_ut_repair_helpers;
 
 	ag_init(&s_rag);

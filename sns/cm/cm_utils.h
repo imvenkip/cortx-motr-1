@@ -91,11 +91,12 @@ M0_INTERNAL uint64_t m0_sns_cm_ag_nr_parity_units(const struct m0_pdclust_layout
 
 M0_INTERNAL uint64_t m0_sns_cm_ag_nr_spare_units(const struct m0_pdclust_layout *pl);
 
-M0_INTERNAL uint64_t
-m0_sns_cm_ag_max_incoming_units(const struct m0_sns_cm *scm,
-				const struct m0_cm_ag_id *id,
-				struct m0_sns_cm_file_ctx *fctx,
-				struct m0_bitmap *proxy_in_map);
+M0_INTERNAL int m0_sns_cm_ag_in_cp_units(const struct m0_sns_cm *scm,
+					 const struct m0_cm_ag_id *id,
+					 struct m0_sns_cm_file_ctx *fctx,
+					 uint32_t *in_cp_nr,
+					 uint32_t *in_units_nr,
+					 struct m0_bitmap *proxy_in_map);
 
 M0_INTERNAL bool m0_sns_cm_is_cob_failed(struct m0_poolmach *pm,
 					 uint32_t cob_index);

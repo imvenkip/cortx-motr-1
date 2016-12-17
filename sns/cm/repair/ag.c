@@ -545,7 +545,7 @@ M0_INTERNAL bool m0_sns_cm_ag_acc_is_full_with(const struct m0_cm_cp *acc,
 			M0_CNT_INC(xform_cp_nr);
 	}
 
-	return xform_cp_nr == nr_cps;
+	return xform_cp_nr >= nr_cps;
 }
 
 /** @} SNSCMAG */

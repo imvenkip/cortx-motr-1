@@ -18,6 +18,7 @@
  * Original creation date: 10/22/2012
  */
 
+#include "ioservice/io_service.h"        /* m0_ios_cdom_get */
 #include "net/lnet/lnet.h"               /* m0_net_lnet_xprt */
 #include "mero/setup.h"                  /* m0_mero */
 #include "sns/cm/repair/ut/cp_common.h"  /* cs_fini */
@@ -101,10 +102,11 @@ void cp_prepare(struct m0_cm_cp *cp, struct m0_net_buffer *buf,
 		struct m0_sns_cm_ag *sns_ag,
 		char data, struct m0_fom_ops *cp_fom_ops,
 		struct m0_reqh *reqh, uint64_t cp_ag_idx, bool is_acc_cp,
-		struct m0_cm *scm)
+		struct m0_cm *cm)
 {
 	struct m0_reqh_service *service;
-	struct m0_cm           *cm;
+	struct m0_sns_cm       *scm;
+	int                     rc;
 
 	M0_UT_ASSERT(cp != NULL);
 	M0_UT_ASSERT(buf != NULL);
@@ -115,13 +117,15 @@ void cp_prepare(struct m0_cm_cp *cp, struct m0_net_buffer *buf,
 	else
 		bv_populate(&buf->nb_buffer, data, bv_seg_nr, bv_seg_size);
 	cp->c_ag = &sns_ag->sag_base;
-	if (scm == NULL) {
+	if (cm == NULL) {
 		service = m0_reqh_service_find(&sns_repair_cmt.ct_stype, reqh);
 		M0_UT_ASSERT(service != NULL);
 		cm = container_of(service, struct m0_cm, cm_service);
 		M0_UT_ASSERT(cm != NULL);
-	} else
-		cm = scm;
+		scm = cm2sns(cm);
+		rc = m0_ios_cdom_get(reqh, &scm->sc_cob_dom);
+		M0_UT_ASSERT(rc == 0);
+	}
 	cp->c_ag->cag_cm = cm;
 	if (!is_acc_cp)
 		cp->c_ops = &m0_sns_cm_repair_cp_ops;

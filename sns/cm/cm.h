@@ -139,10 +139,12 @@ struct m0_sns_cm_helpers {
 	 * Returns maximum possible number of aggregation group units to be
 	 * received by this replica.
 	 */
-	uint64_t (*sch_ag_max_incoming_units)(const struct m0_sns_cm *scm,
-					      const struct m0_cm_ag_id *id,
-					      struct m0_sns_cm_file_ctx *fctx,
-					      struct m0_bitmap *proxy_in_map);
+	int (*sch_ag_in_cp_units)(const struct m0_sns_cm *scm,
+				  const struct m0_cm_ag_id *id,
+				  struct m0_sns_cm_file_ctx *fctx,
+				  uint32_t *in_cp_nr,
+				  uint32_t *in_units_nr,
+				  struct m0_bitmap *proxy_in_map);
 
 	/**
 	 * Returns index of starting unit of the given aggregation group to
@@ -198,6 +200,8 @@ struct m0_sns_cm {
 	 * machine operation, viz. repair or re-balance.
 	 */
 	const struct m0_sns_cm_helpers *sc_helpers;
+
+	struct m0_cob_domain           *sc_cob_dom;
 
 	/** SNS copy machine data iterator. */
 	struct m0_sns_cm_iter           sc_it;

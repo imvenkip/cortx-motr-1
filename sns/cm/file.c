@@ -707,6 +707,40 @@ M0_INTERNAL void m0_sns_cm_file_bwd_map(struct m0_sns_cm_file_ctx *fctx,
 	m0_sns_cm_fctx_unlock(fctx);
 }
 
+M0_INTERNAL uint64_t m0_sns_cm_file_data_units(struct m0_sns_cm_file_ctx *fctx)
+{
+	size_t                    fsize;
+	uint64_t                  nr_total_du = 0;
+	struct m0_pdclust_layout *pl = m0_layout_to_pdl(fctx->sf_layout);
+
+	M0_PRE(fctx != NULL);
+	M0_ENTRY();
+
+	fsize = fctx->sf_attr.ca_size;
+	nr_total_du = fsize / m0_pdclust_unit_size(pl);
+	if (fsize % m0_pdclust_unit_size(pl) > 0)
+		M0_CNT_INC(nr_total_du);
+
+	M0_LEAVE();
+	return nr_total_du;
+}
+
+M0_INTERNAL bool m0_sns_cm_file_unit_is_EOF(struct m0_pdclust_layout *pl,
+					    uint64_t nr_max_data_units,
+					    uint64_t group, uint32_t unit)
+{
+	uint32_t d;
+
+	M0_PRE(pl != NULL);
+
+	if (m0_pdclust_unit_classify(pl, unit) == M0_PUT_DATA) {
+		d = m0_sns_cm_ag_nr_data_units(pl);
+		return (group * d + unit + 1) > nr_max_data_units;
+	}
+
+	return false;
+}
+
 #undef _AST2FCTX
 
 /** @} SNSCMFILE */

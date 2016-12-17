@@ -30,17 +30,16 @@
 #include "sns/cm/repair/ut/cp_common.h"
 #include "sns/cm/file.h"
 #include "ioservice/fid_convert.h"	/* m0_fid_convert_cob2stob */
-#include "ioservice/io_service.h"
 #include "ut/stob.h"			/* m0_ut_stob_create_by_stob_id */
 #include "module/instance.h"            /* m0_get */
+#include "sns/cm/cm.h"
 
 M0_INTERNAL void cob_delete(struct m0_cob_domain *cdom,
 			    uint64_t cont, const struct m0_fid *gfid);
-struct m0_reqh_service          *service;
+static struct m0_sns_cm         *scm;
 static struct m0_reqh           *reqh;
 static struct m0_semaphore       sem;
 static struct m0_net_buffer_pool nbp;
-static struct m0_cob_domain     *cdom;
 
 /* Global structures for write copy packet. */
 static struct m0_sns_cm_ag  w_sag;
@@ -205,7 +204,8 @@ void write_post(void)
 	fctx.sf_pm = &pm;
 	w_sag.sag_fctx = &fctx;
 	cp_prepare(&w_sns_cp.sc_base, &w_buf, SEG_NR, SEG_SIZE,
-		   &w_sag, 'e', &dummy_cp_fom_ops, reqh, 0, false, NULL);
+		   &w_sag, 'e', &dummy_cp_fom_ops, reqh, 0, false, &scm->sc_base);
+	scm = cm2sns(w_sag.sag_base.cag_cm);
 	w_sns_cp.sc_base.c_ops = &write_cp_dummy_ops;
 	m0_fid_convert_cob2stob(&cob_fid, &w_sns_cp.sc_stob_id);
 	w_sns_cp.sc_cobfid = M0_MDSERVICE_SLASH_FID;
@@ -256,7 +256,7 @@ static void read_post(void)
 	 * that write operation is writing 'e' to the bv.
 	 */
 	cp_prepare(&r_sns_cp.sc_base, &r_buf, SEG_NR, SEG_SIZE,
-		   &r_sag, ' ', &dummy_cp_fom_ops, reqh, 0, false, NULL);
+		   &r_sag, ' ', &dummy_cp_fom_ops, reqh, 0, false, &scm->sc_base);
 	r_sns_cp.sc_base.c_ops = &read_cp_dummy_ops;
 	r_sag.sag_base.cag_cp_local_nr = 1;
 	r_sag.sag_fnr = 1;
@@ -324,9 +324,7 @@ static void test_cp_write_read(void)
 	bv_free(&r_buf.nb_buffer);
 	bv_free(&w_buf.nb_buffer);
 
-	rc = m0_ios_cdom_get(reqh, &cdom);
-	M0_UT_ASSERT(rc == 0);
-	cob_delete(cdom, 1, &gob_fid);
+	cob_delete(scm->sc_cob_dom, 1, &gob_fid);
 	m0_fi_disable("m0_sns_cm_tgt_ep", "local-ep");
 
 	cs_fini(&sctx);

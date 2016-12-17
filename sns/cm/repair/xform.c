@@ -187,7 +187,7 @@ static int repair_ag_fc_acc_post(struct m0_sns_cm_repair_ag *rag,
 	 * aggregation group are transformed, then transformation can
 	 * be marked complete.
 	 */
-	incoming_nr = ag->cag_cp_global_nr - sag->sag_fnr;
+	incoming_nr = sag->sag_incoming_units_nr + ag->cag_cp_local_nr;
 	pver = m0_sns_cm_pool_version_get(sag->sag_fctx),
 	is_local_cob = m0_sns_cm_is_local_cob(ag->cag_cm, pver,
 					      &fc->fc_tgt_cobfid);

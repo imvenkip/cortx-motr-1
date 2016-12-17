@@ -62,7 +62,13 @@ struct m0_sns_cm_ag {
 	 * Actual number of incoming data/parity units for this aggregation
 	 * group.
 	 */
-	uint32_t                         sag_incoming_nr;
+	uint32_t                         sag_incoming_units_nr;
+
+	/**
+	 * Number incoming copy packets expected for this aggregation
+	 * group.
+	 */
+	uint32_t                         sag_incoming_cp_nr;
 
 	/** Number of outgoing copy packets. */
 	uint32_t                         sag_outgoing_nr;
@@ -86,7 +92,6 @@ struct m0_sns_cm_ag_iter {
 	struct m0_sns_cm_file_ctx *ai_fctx;
 	struct m0_cm_ag_id         ai_id_curr;
 	struct m0_cm_ag_id         ai_id_next;
-	struct m0_cob_domain      *ai_cdom;
 };
 
 M0_INTERNAL int m0_sns_cm_ag__next(struct m0_sns_cm *scm,

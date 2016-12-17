@@ -181,9 +181,11 @@ M0_INTERNAL uint64_t m0_sns_cm_ag_nr_local_units(struct m0_sns_cm *scm,
 	uint64_t                       nrlu = 0;
 	struct m0_poolmach            *pm;
 	struct m0_pdclust_layout      *pl;
+	uint64_t                       nr_max_du = 0;
 	int                            i;
 	int                            start;
 	int                            end;
+
 	M0_ENTRY();
 
 	M0_PRE(scm != NULL && fctx != NULL);
@@ -193,13 +195,14 @@ M0_INTERNAL uint64_t m0_sns_cm_ag_nr_local_units(struct m0_sns_cm *scm,
 	end = m0_sns_cm_ag_unit_end(scm, pl);
 	sa.sa_group = group;
 	pm = fctx->sf_pm;
+	nr_max_du = m0_sns_cm_file_data_units(fctx);
 	for (i = start; i < end; ++i) {
 		sa.sa_unit = i;
 		m0_sns_cm_unit2cobfid(fctx, &sa, &ta, &cobfid);
-		if (m0_sns_cm_is_local_cob(&scm->sc_base, pm->pm_pver,
-					   &cobfid) &&
+		if (m0_sns_cm_cob_locate(scm->sc_cob_dom, &cobfid) == 0 &&
 		    !m0_sns_cm_is_cob_failed(pm, ta.ta_obj) &&
-		    !m0_sns_cm_unit_is_spare(fctx, group, i))
+		    !m0_sns_cm_unit_is_spare(fctx, group, i) &&
+		    !m0_sns_cm_file_unit_is_EOF(pl, nr_max_du, group, i))
 			M0_CNT_INC(nrlu);
 	}
 	M0_LEAVE("number of local units = %lu", nrlu);
@@ -520,15 +523,17 @@ M0_INTERNAL bool m0_sns_cm_ag_is_relevant(struct m0_sns_cm *scm,
         return M0_RC(result);
 }
 
-M0_INTERNAL uint64_t
-m0_sns_cm_ag_max_incoming_units(const struct m0_sns_cm *scm,
-				const struct m0_cm_ag_id *id,
-				struct m0_sns_cm_file_ctx *fctx,
-				struct m0_bitmap *proxy_in_map)
+M0_INTERNAL int m0_sns_cm_ag_in_cp_units(const struct m0_sns_cm *scm,
+					 const struct m0_cm_ag_id *id,
+					 struct m0_sns_cm_file_ctx *fctx,
+					 uint32_t *in_cp_nr,
+					 uint32_t *in_units_nr,
+					 struct m0_bitmap *proxy_in_map)
 {
 	M0_PRE(m0_cm_is_locked(&scm->sc_base));
 
-	return scm->sc_helpers->sch_ag_max_incoming_units(scm, id, fctx, proxy_in_map);
+	return scm->sc_helpers->sch_ag_in_cp_units(scm, id, fctx, in_cp_nr,
+						   in_units_nr, proxy_in_map);
 }
 
 M0_INTERNAL bool m0_sns_cm_fid_is_valid(const struct m0_sns_cm *snscm,
