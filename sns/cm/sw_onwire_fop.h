@@ -51,7 +51,8 @@ M0_INTERNAL int
 m0_sns_cm_sw_onwire_fop_setup(struct m0_cm *cm, struct m0_fop_type *ft,
 			      struct m0_fop *fop,
 			      void (*fop_release)(struct m0_ref *),
-			      const char *local_ep, const struct m0_cm_sw *sw,
+			      uint64_t proxy_id, const char *local_ep,
+			      const struct m0_cm_sw *sw,
 			      const struct m0_cm_ag_id *last_out);
 
 extern struct m0_fop_type m0_sns_cm_sw_onwire_fopt;

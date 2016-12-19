@@ -24,6 +24,7 @@
 #include "lib/assert.h"
 #include "lib/memory.h"
 #include "lib/misc.h"           /* M0_IN() */
+#include "lib/hash.h"
 
 #include "fop/fop.h"
 #include "fop/fop_item_type.h"
@@ -120,7 +121,10 @@ static void sw_onwire_fom_fini(struct m0_fom *fom)
 
 static size_t sw_onwire_fom_home_locality(const struct m0_fom *fom)
 {
-	return m0_fop_opcode(fom->fo_fop);
+	struct m0_sns_cm_sw_onwire *swo_fop;
+
+	swo_fop = m0_fop_data(fom->fo_fop);
+	return m0_rnd(1 << 30, &swo_fop->swo_base.swo_sender_id);
 }
 
 static const struct m0_fom_ops sw_onwire_fom_ops = {
@@ -132,7 +136,7 @@ static const struct m0_fom_ops sw_onwire_fom_ops = {
 static int sw_onwire_fom_create(struct m0_fop *fop, struct m0_fom **out,
 				struct m0_reqh *reqh)
 {
-	struct m0_fom          *fom;
+	struct m0_fom *fom;
 
 	M0_PRE(fop != NULL);
 	M0_PRE(out != NULL);

@@ -58,8 +58,12 @@ struct m0_cm_local_ep {
 struct m0_cm_sw_onwire {
 	/** Beginning of copy machine operation. */
 	m0_time_t             swo_cm_epoch;
+
+	uint64_t              swo_sender_id;
+
 	/** Replica's local endpoint. */
 	struct m0_cm_local_ep swo_cm_ep;
+
 	/** Replica's sliding window. */
 	struct m0_cm_sw       swo_sw;
 
@@ -75,7 +79,8 @@ struct m0_cm_sw_update {
 };
 
 M0_INTERNAL int m0_cm_sw_onwire_init(struct m0_cm *cm, struct m0_cm_sw_onwire *sw_onwire,
-				     const char *ep, const struct m0_cm_sw *sw,
+				     uint64_t proxy_id, const char *ep,
+				     const struct m0_cm_sw *sw,
 				     const struct m0_cm_ag_id *last_out);
 
 M0_INTERNAL void m0_cm_sw_set(struct m0_cm_sw *dst,

@@ -72,7 +72,8 @@ M0_INTERNAL void m0_cm_sw_copy(struct m0_cm_sw *dst,
 }
 
 M0_INTERNAL int m0_cm_sw_onwire_init(struct m0_cm *cm, struct m0_cm_sw_onwire *sw_onwire,
-				     const char *ep, const struct m0_cm_sw *sw,
+				     uint64_t proxy_id, const char *ep,
+				     const struct m0_cm_sw *sw,
 				     const struct m0_cm_ag_id *last_out)
 {
 	M0_PRE(m0_cm_is_locked(cm));
@@ -82,6 +83,7 @@ M0_INTERNAL int m0_cm_sw_onwire_init(struct m0_cm *cm, struct m0_cm_sw_onwire *s
 	sw_onwire->swo_last_out = *last_out;
 	sw_onwire->swo_cm_ep.ep_size = CS_MAX_EP_ADDR_LEN;
 	sw_onwire->swo_cm_epoch = cm->cm_epoch;
+	sw_onwire->swo_sender_id = proxy_id;
 	M0_ALLOC_ARR(sw_onwire->swo_cm_ep.ep, CS_MAX_EP_ADDR_LEN);
 	if (sw_onwire->swo_cm_ep.ep == NULL )
 		return M0_ERR(-ENOMEM);

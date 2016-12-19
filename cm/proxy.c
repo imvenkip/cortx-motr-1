@@ -411,7 +411,8 @@ M0_INTERNAL int m0_cm_proxy_remote_update(struct m0_cm_proxy *proxy,
 	conn = proxy->px_conn;
 	rc = cm->cm_ops->cmo_sw_onwire_fop_setup(cm, fop,
 						 proxy_sw_onwire_release,
-						 ep, sw, &cm->cm_last_out_hi);
+						 proxy->px_id, ep, sw,
+						 &cm->cm_last_out_hi);
 	if (rc != 0) {
 		m0_fop_put_lock(fop);
 		m0_free(sw_fop);

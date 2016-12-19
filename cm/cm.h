@@ -334,7 +334,7 @@ struct m0_cm_ops {
 	 */
 	int (*cmo_sw_onwire_fop_setup)(struct m0_cm *cm, struct m0_fop *fop,
 				       void (*fop_release)(struct m0_ref *),
-				       const char *local_ep,
+				       uint64_t proxy_id, const char *local_ep,
 				       const struct m0_cm_sw *sw,
 				       const struct m0_cm_ag_id *last_out);
 
