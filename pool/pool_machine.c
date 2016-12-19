@@ -591,8 +591,8 @@ static void spare_usage_arr_update(struct m0_poolmach *pm,
  *       |            |
  *       |            |
  *       v            v
- *    ONLINE -----> FAILED --> SNS_REPAIRING --> SNS_REPAIRED
- *       ^                                            |
+ *    ONLINE -----> FAILED <--> SNS_REPAIRING --> SNS_REPAIRED
+ *       ^                                            ^
  *       |                                            |
  *       |                                            v
  *       |                                       SNS_REBALANCING
@@ -682,7 +682,8 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach       *pm,
 			return M0_ERR(-EINVAL);
 		break;
 	case M0_PNDS_SNS_REPAIRING:
-		if (event->pe_state != M0_PNDS_SNS_REPAIRED)
+		if (!M0_IN(event->pe_state, (M0_PNDS_SNS_REPAIRED,
+					     M0_PNDS_FAILED)))
 			return M0_ERR(-EINVAL);
 		break;
 	case M0_PNDS_SNS_REPAIRED:
@@ -691,7 +692,8 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach       *pm,
 		break;
 	case M0_PNDS_SNS_REBALANCING:
 		if (!M0_IN(event->pe_state, (M0_PNDS_ONLINE,
-					     M0_PNDS_FAILED)))
+					     M0_PNDS_FAILED,
+					     M0_PNDS_SNS_REPAIRED)))
 			return M0_ERR(-EINVAL);
 		break;
 	default:
@@ -763,7 +765,8 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach       *pm,
 		if (M0_IN(old_state, (M0_PNDS_UNKNOWN, M0_PNDS_ONLINE,
 				      M0_PNDS_OFFLINE)))
 			spare_usage_arr_update(pm, event);
-		if (old_state != M0_PNDS_OFFLINE)
+		if (!M0_IN(old_state, (M0_PNDS_OFFLINE, M0_PNDS_SNS_REPAIRED,
+				       M0_PNDS_SNS_REBALANCING)))
 			M0_CNT_INC(state->pst_nr_failures);
 		if (!pool_failed_devs_tlink_is_in(pd) &&
 		    !disk_is_in(&pool->po_failed_devices, pd))

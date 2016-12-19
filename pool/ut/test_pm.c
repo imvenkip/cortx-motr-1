@@ -549,6 +549,7 @@ static void pm_test_spare_slot(void)
 	M0_UT_ASSERT(rc == -ENOENT);
 	for (state = M0_PNDS_ONLINE; state < M0_PNDS_NR; state++) {
 		if (state == M0_PNDS_SNS_REPAIRED ||
+		    state == M0_PNDS_FAILED ||
 		    state == M0_PNDS_SNS_REPAIRING)
 			continue;
 		/* transit to other state other than the above one is invalid */
@@ -607,6 +608,7 @@ static void pm_test_spare_slot(void)
 	for (state = M0_PNDS_ONLINE; state < M0_PNDS_NR; state++) {
 		if (state == M0_PNDS_ONLINE ||
 		    state == M0_PNDS_SNS_REBALANCING ||
+		    state == M0_PNDS_SNS_REPAIRED ||
 		    state == M0_PNDS_FAILED)
 			continue;
 		/* transit to other state other than the above one is invalid */
