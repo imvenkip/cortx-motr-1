@@ -32,6 +32,12 @@
 
 #define SERVER_ENDPOINT_ADDR "0@lo:12345:34:1"
 
+enum {
+	CID1 = 10,
+	CID2 = 12,
+	CID3 = 13,
+};
+
 static int rpc_start(struct m0_rpc_server_ctx *rpc_srv)
 {
 	enum {
@@ -125,6 +131,7 @@ static void storage_dev_test(void)
 	/* init */
 	domain = m0_stob_domain_find_by_location(location);
 	rc = m0_storage_devs_init(&devs,
+				  M0_STORAGE_DEV_TYPE_AD,
 				  rpc_srv.rsx_mero_ctx.cc_reqh_ctx.rc_beseg,
 				  domain,
 				  &rpc_srv.rsx_mero_ctx.cc_reqh_ctx.rc_reqh);
@@ -197,12 +204,106 @@ static void storage_dev_test(void)
 	free(cwd);
 }
 
+static void storage_dev_linux(void)
+{
+	struct m0_rpc_server_ctx *rpc_srv;
+	struct m0_storage_devs   *devs;
+	struct m0_storage_dev    *dev1;
+	struct m0_storage_dev    *dev2;
+	struct m0_stob_id         stob_id;
+	struct m0_stob           *stob;
+	char                     *cwd;
+	char                     *path1;
+	char                     *path2;
+	char                     *location1;
+	char                     *location2;
+	int                       rc;
+
+	cwd = get_current_dir_name();
+	M0_UT_ASSERT(cwd != NULL);
+	rc = asprintf(&path1, "%s/test1", cwd);
+	M0_UT_ASSERT(rc > 0);
+	rc = asprintf(&path2, "%s/test2", cwd);
+	M0_UT_ASSERT(rc > 0);
+
+	M0_ALLOC_PTR(devs);
+	M0_ALLOC_PTR(rpc_srv);
+	rc = rpc_start(rpc_srv);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_storage_devs_init(devs, M0_STORAGE_DEV_TYPE_LINUX, NULL, NULL,
+				  &rpc_srv->rsx_mero_ctx.cc_reqh_ctx.rc_reqh);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_storage_dev_new(devs, CID1, path1, 0, NULL, &dev1);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(dev1 != NULL);
+	rc = m0_storage_dev_new(devs, CID2, path2, 0, NULL, &dev2);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(dev2 != NULL);
+	m0_storage_devs_lock(devs);
+	m0_storage_dev_attach(dev1, devs);
+	m0_storage_dev_attach(dev2, devs);
+	M0_UT_ASSERT(m0_storage_devs_find_by_cid(devs, CID1) != NULL);
+	M0_UT_ASSERT(m0_storage_devs_find_by_cid(devs, CID2) != NULL);
+	m0_storage_devs_unlock(devs);
+
+	location1 = m0_strdup(m0_stob_domain_location_get(dev1->isd_domain));
+	location2 = m0_strdup(m0_stob_domain_location_get(dev2->isd_domain));
+
+	m0_stob_id_make(0, 1, &dev1->isd_domain->sd_id, &stob_id);
+	rc = m0_storage_dev_stob_create(devs, &stob_id, NULL);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_storage_dev_stob_find(devs, &stob_id, &stob);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(dev1->isd_domain == m0_stob_dom_get(stob));
+	m0_storage_dev_stob_put(devs, stob);
+
+	m0_storage_devs_lock(devs);
+	m0_storage_dev_detach(dev1);
+	M0_UT_ASSERT(m0_storage_devs_find_by_cid(devs, CID1) == NULL);
+	m0_storage_devs_unlock(devs);
+	rc = m0_storage_dev_stob_find(devs, &stob_id, &stob);
+	M0_UT_ASSERT(rc != 0);
+
+	rc = m0_storage_dev_new(devs, CID1, path1, 0, NULL, &dev1);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(dev1 != NULL);
+	m0_storage_devs_lock(devs);
+	m0_storage_dev_attach(dev1, devs);
+	M0_UT_ASSERT(m0_storage_devs_find_by_cid(devs, CID1) != NULL);
+	m0_storage_devs_unlock(devs);
+	rc = m0_storage_dev_stob_find(devs, &stob_id, &stob);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(dev1->isd_domain == m0_stob_dom_get(stob));
+	rc = m0_storage_dev_stob_destroy(devs, stob, NULL);
+	M0_UT_ASSERT(rc == 0);
+
+	m0_storage_devs_lock(devs);
+	m0_storage_devs_detach_all(devs);
+	m0_storage_devs_unlock(devs);
+	rc = m0_stob_domain_destroy_location(location1);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_stob_domain_destroy_location(location2);
+	M0_UT_ASSERT(rc == 0);
+	m0_free(location1);
+	m0_free(location2);
+	m0_storage_devs_fini(devs);
+	m0_rpc_server_stop(rpc_srv);
+	m0_free(rpc_srv);
+	m0_free(devs);
+
+	free(path1);
+	free(path2);
+	free(cwd);
+}
+
 const struct m0_ut_suite storage_dev_ut = {
 	.ts_name = "storage-dev-ut",
 	.ts_init = NULL,
 	.ts_fini = NULL,
 	.ts_tests = {
-		{ "storage-dev-test", storage_dev_test },
+		{ "storage-dev-test",  storage_dev_test  },
+		{ "storage-dev-linux", storage_dev_linux },
 		{ NULL, NULL },
 	},
 };

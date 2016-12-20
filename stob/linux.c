@@ -560,6 +560,34 @@ m0_stob_linux_conf_sdev_associate(struct m0_stob      *stob,
 	lstob->sl_conf_sdev = *conf_sdev;
 }
 
+M0_INTERNAL int m0_stob_linux_domain_fd_get(struct m0_stob_domain *dom, int *fd)
+{
+	char *path;
+	int   rc;
+
+	path = stob_linux_file_domain_id(dom->sd_location_data);
+	if (path == NULL)
+		return M0_ERR(-EOVERFLOW);
+	rc = open(path, O_RDONLY);
+	m0_free(path);
+	if (rc < 0)
+		return M0_ERR(-errno);
+	*fd = rc;
+	return M0_RC(0);
+}
+
+M0_INTERNAL int m0_stob_linux_domain_fd_put(struct m0_stob_domain *dom, int fd)
+{
+	return close(fd) == 0 ? 0 : M0_ERR(-errno);
+}
+
+M0_INTERNAL bool m0_stob_linux_domain_directio(struct m0_stob_domain *dom)
+{
+	struct m0_stob_linux_domain *ldom = m0_stob_linux_domain_container(dom);
+
+	return ldom->sld_cfg.sldc_use_directio;
+}
+
 static struct m0_stob_type_ops stob_linux_type_ops = {
 	.sto_register                = &stob_linux_type_register,
 	.sto_deregister              = &stob_linux_type_deregister,

@@ -117,6 +117,14 @@ struct m0 {
 	struct m0_be_ut_backend   *i_be_ut_backend;
 	struct m0_poolmach_state  *i_pool_module;
 	struct m0_storage_devs     i_storage_devs;
+	/**
+	 * Is true iff ioservice performs all operations with specific storage
+	 * device M0_SDEV_CID_DEFAULT regardless of the cob_fid values.
+	 * Such behaviour is used only by tests and should be removed.
+	 * @see cs_storage_devs_init()
+	 * @see m0_fid_convert_cob2linuxstob()
+	 */
+	bool                       i_storage_is_fake;
 	bool                       i_reqh_uses_ad_stob;
 	bool                       i_disable_addb2_storage;
 	/** Key for ioservice cob domain */

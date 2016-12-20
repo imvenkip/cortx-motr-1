@@ -267,7 +267,7 @@ static int cs_conf_storage_attach_by_srv(struct cs_stobs        *cs_stob,
 			sdev = M0_CONF_CAST(m0_conf_diter_result(&it),
 					    m0_conf_sdev);
 			M0_LOG(M0_DEBUG,
-			       "sdev " FID_F "device index: %d"
+			       "sdev " FID_F " device index: %d "
 			       "sdev.sd_filename: %s, "
 			       "sdev.sd_size: %" PRIu64,
 			       FID_P(&sdev->sd_obj.co_id), sdev->sd_dev_idx,
@@ -294,9 +294,10 @@ static int cs_conf_storage_attach_by_srv(struct cs_stobs        *cs_stob,
 			}
 			m0_storage_dev_attach(dev, devs);
 			stob = m0_storage_devs_find_by_cid(devs,
-					    sdev->sd_dev_idx)->isd_stob,
-			m0_stob_linux_conf_sdev_associate(stob,
-							  &sdev->sd_obj.co_id);
+					    sdev->sd_dev_idx)->isd_stob;
+			if (stob != NULL)
+				m0_stob_linux_conf_sdev_associate(stob,
+							   &sdev->sd_obj.co_id);
 
 		}
 		m0_conf_diter_fini(&it);
@@ -361,7 +362,8 @@ M0_INTERNAL int cs_conf_storage_init(struct cs_stobs        *stob,
 	if (svc_fid != NULL)
 		M0_LOG(M0_DEBUG, "svc_fid: "FID_F, FID_P(svc_fid));
 
-	return M0_RC(cs_conf_storage_attach_by_srv(stob, devs, svc_fid, confc));
+	rc = cs_conf_storage_attach_by_srv(stob, devs, svc_fid, confc);
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int cs_conf_services_init(struct m0_mero *cctx)

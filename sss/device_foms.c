@@ -644,6 +644,10 @@ static int sss_device_stob_attach(struct m0_fom *fom)
 		if (dev == NULL)
 			m0_storage_dev_attach(dev_new, devs);
 		else {
+			/*
+			 * XXX TODO Don't destroy `dev_new', this will cause
+			 * destroying stob with so_ref > 1.
+			 */
 			m0_storage_dev_destroy(dev_new);
 			rc = M0_ERR(-EEXIST);
 		}

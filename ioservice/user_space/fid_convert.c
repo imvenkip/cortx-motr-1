@@ -115,7 +115,8 @@ M0_INTERNAL void m0_fid_convert_cob2linuxstob(const struct m0_fid *cob_fid,
 
 	M0_PRE(m0_fid_validate_cob(cob_fid));
 
-	device_id = M0_AD_STOB_LINUX_DOM_KEY;
+	device_id = m0_get()->i_storage_is_fake ? M0_SDEV_CID_DEFAULT :
+					     m0_fid__device_id_extract(cob_fid);
 	stob_id->si_fid = *cob_fid;
 	m0_fid_tassume(&stob_id->si_fid, &m0_stob_linux_type.st_fidt);
 	m0_fid_tset(&stob_id->si_domain_fid, m0_stob_linux_type.st_fidt.ft_id,

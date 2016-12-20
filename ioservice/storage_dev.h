@@ -60,15 +60,22 @@ struct m0_reqh;
  * @{
  */
 
+enum m0_storage_dev_type {
+	M0_STORAGE_DEV_TYPE_LINUX = 1,
+	M0_STORAGE_DEV_TYPE_AD,
+};
+
 /**
  * Data structure represents storage device object.
  */
 struct m0_storage_dev {
-	/** linux stob of device */
+	/** Type of underlying stobs. */
+	enum m0_storage_dev_type   isd_type;
+	/** Linux stob which is backing store for the AD stob domain. */
 	struct m0_stob            *isd_stob;
-	/** AD stob domain for AD stobs of device */
+	/** Stob domain for stobs of device. */
 	struct m0_stob_domain     *isd_domain;
-	/** Storage device ID */
+	/** Storage device ID. */
 	uint64_t                   isd_cid;
 	/** Linkage into list of storage devices. */
 	struct m0_tlink            isd_linkage;
@@ -115,7 +122,9 @@ M0_TL_DECLARE(storage_dev, M0_EXTERN, struct m0_storage_dev);
  * and their common additional data.
  */
 struct m0_storage_devs {
-	/** Mutex to protect sds_devices list */
+	/** Type of storage devices. */
+	enum m0_storage_dev_type sds_type;
+	/** Mutex to protect sds_devices list. */
 	struct m0_mutex          sds_lock;
 	/** Linkage into list of storage devices. */
 	struct m0_tl             sds_devices;
@@ -123,8 +132,10 @@ struct m0_storage_devs {
 	struct m0_stob_domain   *sds_back_domain;
 	/** Backend segment. One per all storage devices. */
 	struct m0_be_seg        *sds_be_seg;
-	/** Parallel pool processing list of storage devs */
+	/** Parallel pool processing list of storage devs. */
 	struct m0_parallel_pool  sds_pool;
+	/** Use directio for linuxstob domains. */
+	bool                     sds_use_directio;
 
 	/* Conf event callbacks provisioning. */
 
@@ -144,10 +155,11 @@ struct m0_storage_devs {
  *
  * Backing store domain should be already created and initialised.
  */
-M0_INTERNAL int m0_storage_devs_init(struct m0_storage_devs *devs,
-				     struct m0_be_seg       *be_seg,
-				     struct m0_stob_domain  *bstore_dom,
-				     struct m0_reqh         *reqh);
+M0_INTERNAL int m0_storage_devs_init(struct m0_storage_devs   *devs,
+				     enum m0_storage_dev_type  type,
+				     struct m0_be_seg         *be_seg,
+				     struct m0_stob_domain    *bstore_dom,
+				     struct m0_reqh           *reqh);
 /**
  * Finalises storage devices structure.
  */
@@ -162,6 +174,14 @@ M0_INTERNAL void m0_storage_devs_lock(struct m0_storage_devs *devs);
  * Unlocks storage devices structure.
  */
 M0_INTERNAL void m0_storage_devs_unlock(struct m0_storage_devs *devs);
+
+/**
+ * Enables or disables direct I/O for linuxstobs.
+ *
+ * @pre storage_dev_tlist_is_empty(&devs->sds_devices)
+ */
+M0_INTERNAL void m0_storage_devs_use_directio(struct m0_storage_devs *devs,
+					      bool                    directio);
 
 /**
  * Finds storage device by its cid.
@@ -211,8 +231,7 @@ M0_INTERNAL int m0_storage_dev_new(struct m0_storage_devs *devs,
 /**
  * Destroys storage device object.
  *
- * Finalises (but not destroys) the underlying AD stob domain and backing store
- * stob.
+ * Finalises (but doesn't destroy) the underlying stob domain.
  */
 M0_INTERNAL void m0_storage_dev_destroy(struct m0_storage_dev *dev);
 

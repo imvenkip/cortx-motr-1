@@ -37,6 +37,7 @@
 #include "ioservice/storage_dev.h"
 #include "reqh/reqh.h"              /* m0_reqh */
 #include <unistd.h>                 /* fdatasync */
+#include <sys/vfs.h>                /* fstatfs */
 #ifndef __KERNEL__
 #  include "pool/pool.h"            /* m0_pools_common */
 #endif
@@ -76,16 +77,19 @@ M0_INTERNAL void m0_storage_devs_unlock(struct m0_storage_devs *devs)
 	m0_mutex_unlock(&devs->sds_lock);
 }
 
-M0_INTERNAL int m0_storage_devs_init(struct m0_storage_devs *devs,
-				     struct m0_be_seg       *be_seg,
-				     struct m0_stob_domain  *bstore_dom,
-				     struct m0_reqh         *reqh)
+M0_INTERNAL int m0_storage_devs_init(struct m0_storage_devs   *devs,
+				     enum m0_storage_dev_type  type,
+				     struct m0_be_seg         *be_seg,
+				     struct m0_stob_domain    *bstore_dom,
+				     struct m0_reqh           *reqh)
 {
 	M0_ENTRY();
-	M0_PRE(bstore_dom != NULL);
+	M0_PRE(equi(bstore_dom != NULL, type == M0_STORAGE_DEV_TYPE_AD));
+
+	devs->sds_type        = type;
+	devs->sds_be_seg      = be_seg;
 	devs->sds_back_domain = bstore_dom;
 	storage_dev_tlist_init(&devs->sds_devices);
-	devs->sds_be_seg = be_seg;
 	m0_mutex_init(&devs->sds_lock);
 	m0_clink_init(&devs->sds_conf_ready_async,
 		      storage_devs_conf_ready_async_cb);
@@ -119,6 +123,17 @@ M0_INTERNAL void m0_storage_devs_fini(struct m0_storage_devs *devs)
 
 	storage_dev_tlist_fini(&devs->sds_devices);
 	m0_mutex_fini(&devs->sds_lock);
+}
+
+M0_INTERNAL void m0_storage_devs_use_directio(struct m0_storage_devs *devs,
+					      bool                    directio)
+{
+	M0_PRE(storage_dev_tlist_is_empty(&devs->sds_devices));
+	M0_PRE(ergo(devs->sds_type == M0_STORAGE_DEV_TYPE_AD,
+		    m0_stob_linux_domain_directio(devs->sds_back_domain) ==
+		    directio));
+
+	devs->sds_use_directio = directio;
 }
 
 M0_INTERNAL struct m0_storage_dev *
@@ -324,27 +339,58 @@ static bool storage_devs_conf_ready_async_cb(struct m0_clink *clink)
 	return true;
 }
 
-static int stob_domain_create_or_init(uint64_t                 cid,
-				      const struct m0_be_seg  *be_seg,
-				      const struct m0_stob_id *bstore_id,
-				      m0_bcount_t              size,
-				      struct m0_stob_domain  **out)
+static int stob_domain_create_or_init(struct m0_storage_dev  *dev,
+				      struct m0_storage_devs *devs,
+				      m0_bcount_t             size)
 {
-	char  location[64];
-	char *cfg;
-	int   rc;
+	enum m0_storage_dev_type  type     = dev->isd_type;
+	unsigned long long        cid      = (unsigned long long)dev->isd_cid;
+	char                     *cfg      = NULL;
+	const char               *cfg_init = NULL;
+	char                     *location;
+	int                       len;
+	int                       rc;
 
-	rc = snprintf(location, sizeof(location),
-		      "adstob:%llu", (unsigned long long)cid);
-	if (rc < 0)
-		return M0_ERR(rc);
-	M0_ASSERT(rc < sizeof(location));
+	M0_PRE(ergo(type == M0_STORAGE_DEV_TYPE_LINUX,
+		    dev->isd_filename != NULL));
+	M0_PRE(ergo(type == M0_STORAGE_DEV_TYPE_AD, devs->sds_be_seg != NULL));
+	M0_PRE(ergo(type == M0_STORAGE_DEV_TYPE_AD, dev->isd_stob != NULL));
 
-	m0_stob_ad_cfg_make(&cfg, be_seg, bstore_id, size);
-	if (cfg == NULL)
-		return M0_ERR(-ENOMEM);
-	rc = m0_stob_domain_create_or_init(location, NULL, cid, cfg, out);
+	switch (type) {
+	case M0_STORAGE_DEV_TYPE_LINUX:
+		len = snprintf(NULL, 0, "linuxstob:%s", dev->isd_filename);
+		location = len > 0 ? m0_alloc(len + 1) : NULL;
+		if (location == NULL)
+			return len < 0 ? M0_ERR(len) : M0_ERR(-ENOMEM);
+		rc = snprintf(location, len + 1, "linuxstob:%s",
+			      dev->isd_filename);
+		cfg_init = devs->sds_use_directio ? "directio=true" :
+						    "directio=false";
+		M0_ASSERT_INFO(rc == len, "rc=%d", rc);
+		break;
+	case M0_STORAGE_DEV_TYPE_AD:
+		len = snprintf(NULL, 0, "adstob:%llu", cid);
+		location = len > 0 ? m0_alloc(len + 1) : NULL;
+		if (location == NULL)
+			return len < 0 ? M0_ERR(len) : M0_ERR(-ENOMEM);
+		rc = snprintf(location, len + 1, "adstob:%llu", cid);
+		M0_ASSERT_INFO(rc == len, "rc=%d", rc);
+		m0_stob_ad_cfg_make(&cfg, devs->sds_be_seg,
+				    m0_stob_id_get(dev->isd_stob), size);
+		if (cfg == NULL) {
+			m0_free(location);
+			return M0_ERR(-ENOMEM);
+		}
+		break;
+	default:
+		M0_IMPOSSIBLE("Unknown m0_storage_dev type.");
+	};
+
+	rc = m0_stob_domain_create_or_init(location, cfg_init, cid, cfg,
+					   &dev->isd_domain);
 	m0_free(cfg);
+	m0_free(location);
+
 	return M0_RC(rc);
 }
 
@@ -380,15 +426,18 @@ static int storage_dev_new(struct m0_storage_devs *devs,
 			   struct m0_conf_sdev    *conf_sdev,
 			   struct m0_storage_dev **out)
 {
-	struct m0_storage_dev  *device;
-	struct m0_conf_service *conf_service;
-	struct m0_conf_obj     *srv_obj;
-	struct m0_stob_id       stob_id;
-	struct m0_stob         *stob;
-	const char             *path = fi_no_dev ? NULL : path_orig;
-	int                     rc;
+	enum m0_storage_dev_type  type = devs->sds_type;
+	struct m0_storage_dev    *device;
+	struct m0_conf_service   *conf_service;
+	struct m0_conf_obj       *srv_obj;
+	struct m0_stob_id         stob_id;
+	struct m0_stob           *stob;
+	const char               *path = fi_no_dev ? NULL : path_orig;
+	int                       rc;
 
 	M0_ENTRY("cid=%"PRIu64, cid);
+	M0_PRE(M0_IN(type, (M0_STORAGE_DEV_TYPE_LINUX, M0_STORAGE_DEV_TYPE_AD)));
+	M0_PRE(ergo(type == M0_STORAGE_DEV_TYPE_LINUX, path_orig != NULL));
 
 	M0_ALLOC_PTR(device);
 	if (device == NULL)
@@ -402,35 +451,40 @@ static int storage_dev_new(struct m0_storage_devs *devs,
 		}
 	}
 	m0_ref_init(&device->isd_ref, 0, storage_dev_release);
-	device->isd_cid = cid;
+	device->isd_type = type;
+	device->isd_cid  = cid;
+	device->isd_stob = NULL;
 
-	m0_stob_id_make(0, cid, &devs->sds_back_domain->sd_id, &stob_id);
-	rc = m0_stob_find(&stob_id, &device->isd_stob);
-	if (rc != 0)
-		goto end;
-	stob = device->isd_stob;
-
-	if (m0_stob_state_get(stob) == CSS_UNKNOWN) {
-		rc = m0_stob_locate(stob);
+	if (type == M0_STORAGE_DEV_TYPE_AD) {
+		m0_stob_id_make(0, cid, &devs->sds_back_domain->sd_id, &stob_id);
+		rc = m0_stob_find(&stob_id, &stob);
 		if (rc != 0)
-			goto stob_put;
-	}
-	if (m0_stob_state_get(stob) == CSS_NOENT) {
-		rc = m0_stob_create(stob, NULL, path);
-		if (rc != 0)
-			goto stob_put;
+			goto end;
+
+		if (m0_stob_state_get(stob) == CSS_UNKNOWN) {
+			rc = m0_stob_locate(stob);
+			if (rc != 0)
+				goto stob_put;
+		}
+		if (m0_stob_state_get(stob) == CSS_NOENT) {
+			rc = m0_stob_create(stob, NULL, path);
+			if (rc != 0)
+				goto stob_put;
+		}
+		device->isd_stob = stob;
 	}
 
-	rc = stob_domain_create_or_init(cid, devs->sds_be_seg, &stob_id, size,
-					&device->isd_domain);
+	rc = stob_domain_create_or_init(device, devs, size);
+	M0_ASSERT(ergo(rc == 0, device->isd_domain != NULL));
 	if (rc == 0) {
 		if (M0_FI_ENABLED("ad_domain_locate_fail")) {
 			m0_stob_domain_fini(device->isd_domain);
 			M0_ASSERT(conf_sdev != NULL);
 			m0_confc_close(&conf_sdev->sd_obj);
-			rc = -EINVAL;
+			rc = M0_ERR(-EINVAL);
 		} else if (conf_sdev != NULL) {
-			if (m0_fid_validate_linuxstob(&stob_id))
+			if (type == M0_STORAGE_DEV_TYPE_AD &&
+			    m0_fid_validate_linuxstob(&stob_id))
 				m0_stob_linux_conf_sdev_associate(stob,
 						&conf_sdev->sd_obj.co_id);
 			m0_conf_obj_get_lock(&conf_sdev->sd_obj);
@@ -442,8 +496,10 @@ static int storage_dev_new(struct m0_storage_devs *devs,
 		}
 	}
 stob_put:
-	/* Decrement stob reference counter, incremented by m0_stob_find() */
-	m0_stob_put(stob);
+	if (type == M0_STORAGE_DEV_TYPE_AD) {
+		/* Release reference, taken by m0_stob_find(). */
+		m0_stob_put(stob);
+	}
 end:
 	if (rc == 0) {
 		m0_mutex_init(&device->isd_detached_lock);
@@ -481,25 +537,26 @@ M0_INTERNAL int m0_storage_dev_new_by_conf(struct m0_storage_devs *devs,
 
 M0_INTERNAL void m0_storage_dev_destroy(struct m0_storage_dev *dev)
 {
-	enum m0_stob_state st;
-	int                rc;
+	struct m0_stob *stob;
+	int             rc = 0;
 
 	M0_PRE(m0_ref_read(&dev->isd_ref) == 0);
 
-	/* Find the linux stob and acquire a reference. */
-	rc = m0_stob_find(&dev->isd_stob->so_id, &dev->isd_stob);
-	if (rc == 0) {
-		/* Finalise the AD stob domain.*/
-		m0_stob_domain_fini(dev->isd_domain);
-		/* Destroy linux stob. */
-		st = m0_stob_state_get(dev->isd_stob);
-		if (st == CSS_EXISTS)
-			rc = m0_stob_destroy(dev->isd_stob, NULL);
+	/* Acquire a reference to the backing store for adstob configuration. */
+	if (dev->isd_type == M0_STORAGE_DEV_TYPE_AD)
+		rc = m0_stob_find(m0_stob_id_get(dev->isd_stob), &stob);
+
+	m0_stob_domain_fini(dev->isd_domain);
+
+	if (dev->isd_type == M0_STORAGE_DEV_TYPE_AD && rc == 0) {
+		/* Destroy backing store. */
+		if (m0_stob_state_get(stob) == CSS_EXISTS)
+			rc = m0_stob_destroy(stob, NULL);
 		else
-			m0_stob_put(dev->isd_stob);
+			m0_stob_put(stob);
 	}
 	if (rc != 0)
-		M0_LOG(M0_ERROR, "Failed to destroy linux stob rc=%d", rc);
+		M0_LOG(M0_ERROR, "Failed to destroy backing store rc=%d", rc);
 	m0_chan_fini_lock(&dev->isd_detached_chan);
 	m0_mutex_fini(&dev->isd_detached_lock);
 	m0_free(dev->isd_filename);
@@ -548,19 +605,49 @@ M0_INTERNAL void m0_storage_dev_space(struct m0_storage_dev   *dev,
 {
 	struct m0_stob_ad_domain *ad_domain;
 	struct m0_balloc         *balloc;
+	struct statfs             st;
+	int                       fd = -1;
+	int                       rc;
+	int                       rc1;
 
 	M0_ENTRY();
 	M0_ASSERT(dev != NULL);
 
-	ad_domain = stob_ad_domain2ad(dev->isd_domain);
-	balloc = b2m0(ad_domain->sad_ballroom);
-	M0_ASSERT(balloc != NULL);
+	switch (dev->isd_type) {
+	case M0_STORAGE_DEV_TYPE_AD:
+		ad_domain = stob_ad_domain2ad(dev->isd_domain);
+		balloc = b2m0(ad_domain->sad_ballroom);
+		M0_ASSERT(balloc != NULL);
 
-	*space = (struct m0_storage_space) {
-		.sds_free_blocks = balloc->cb_sb.bsb_freeblocks,
-		.sds_block_size  = balloc->cb_sb.bsb_blocksize,
-		.sds_total_size  = balloc->cb_sb.bsb_totalsize
-	};
+		*space = (struct m0_storage_space) {
+			.sds_free_blocks = balloc->cb_sb.bsb_freeblocks,
+			.sds_block_size  = balloc->cb_sb.bsb_blocksize,
+			.sds_total_size  = balloc->cb_sb.bsb_totalsize
+		};
+		break;
+	case M0_STORAGE_DEV_TYPE_LINUX:
+		rc = m0_stob_linux_domain_fd_get(dev->isd_domain, &fd);
+		if (rc == 0) {
+			rc  = fstatfs(fd, &st);
+			rc  = rc == -1 ? M0_ERR(-errno) : 0;
+			rc1 = m0_stob_linux_domain_fd_put(dev->isd_domain, fd);
+			if (rc1 != 0)
+				M0_LOG(M0_ERROR, "m0_stob_linux_domain_fd_put: "
+						 "rc=%d", rc1);
+		}
+		if (rc == 0)
+			*space = (struct m0_storage_space) {
+				.sds_free_blocks = st.f_bfree,
+				.sds_block_size  = st.f_bsize,
+				.sds_total_size  = st.f_blocks * st.f_bsize
+			};
+		if (rc != 0)
+			M0_LOG(M0_ERROR, "Can't obtain fstatfs, rc=%d", rc);
+
+		break;
+	default:
+		M0_IMPOSSIBLE("Unknown storage_dev type.");
+	}
 }
 
 struct storage_devs_wait {
@@ -611,37 +698,38 @@ M0_INTERNAL int m0_storage_dev_format(struct m0_storage_dev *dev,
 
 static int sdev_stob_fsync(void *psdev)
 {
-	int rc;
 	struct m0_storage_dev *sdev = (struct m0_storage_dev *)psdev;
-	struct m0_stob_linux *lstob = m0_stob_linux_container(sdev->isd_stob);
+	struct m0_stob_linux  *lstob;
+	int                    fd = -1;
+	int                    rc;
+	int                    rc1;
 
-	rc = fdatasync(lstob->sl_fd);
-	M0_POST(rc == 0); /* XXX */
+	M0_ENTRY("sdev=%p", sdev);
 
-	M0_LOG(M0_DEBUG, "fsync on fd: %d, done", lstob->sl_fd);
-	return rc;
+	if (sdev->isd_type == M0_STORAGE_DEV_TYPE_AD) {
+		lstob = m0_stob_linux_container(sdev->isd_stob);
+		rc = fdatasync(lstob->sl_fd);
+		rc = rc != 0 ? M0_ERR(-errno) : 0;
+	} else {
+		M0_ASSERT(sdev->isd_type == M0_STORAGE_DEV_TYPE_LINUX);
+		rc = m0_stob_linux_domain_fd_get(sdev->isd_domain, &fd);
+		if (rc == 0) {
+			rc  = syncfs(fd);
+			rc  = rc != 0 ? M0_ERR(-errno) : 0;
+			rc1 = m0_stob_linux_domain_fd_put(sdev->isd_domain, fd);
+			rc  = rc ?: rc1;
+		}
+	}
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_storage_devs_fdatasync(struct m0_storage_devs *sdevs)
 {
-	int rc;
-
-	/* XXX Remove this block when storage_dev supports linuxstobs. */
-	if (sdevs == NULL)
-		return 0;
-
 	M0_PRE(storage_devs_is_locked(sdevs));
 
-	rc = M0_PARALLEL_FOR(storage_dev, &sdevs->sds_pool,
-			     &sdevs->sds_devices, sdev_stob_fsync);
-	return rc;
+	return M0_PARALLEL_FOR(storage_dev, &sdevs->sds_pool,
+			       &sdevs->sds_devices, sdev_stob_fsync);
 }
-
-/*
- * XXX When mero/setup is configured to use linux stobs instead of ad stobs
- * i_storage_devs isn't initialised. As a workaround, below functions accept
- * NULL value of the devs and handle such a situation.
- */
 
 M0_INTERNAL int m0_storage_dev_stob_create(struct m0_storage_devs *devs,
 					   struct m0_stob_id      *sid,
@@ -652,19 +740,18 @@ M0_INTERNAL int m0_storage_dev_stob_create(struct m0_storage_devs *devs,
 
 	M0_ENTRY("stob_id="STOB_ID_F, STOB_ID_P(sid));
 
-	if (devs != NULL)
-		m0_storage_devs_lock(devs);
-
+	m0_storage_devs_lock(devs);
 	rc = m0_stob_find(sid, &stob);
-	rc = rc ?: m0_stob_state_get(stob) == CSS_UNKNOWN ?
-		   m0_stob_locate(stob) : 0;
-	rc = rc ?: stob->so_state == CSS_NOENT ?
-		   m0_stob_create(stob, dtx, NULL) : 0;
-	if (stob != NULL)
+	if (rc == 0) {
+		rc = rc ?: m0_stob_state_get(stob) == CSS_UNKNOWN ?
+			   m0_stob_locate(stob) : 0;
+		rc = rc ?: stob->so_state == CSS_NOENT ?
+			   m0_stob_create(stob, dtx, NULL) : 0;
+		M0_ASSERT_EX(m0_storage_devs_find_by_dom(devs,
+			     m0_stob_dom_get(stob)) != NULL);
 		m0_stob_put(stob);
-
-	if (devs != NULL)
-		m0_storage_devs_unlock(devs);
+	}
+	m0_storage_devs_unlock(devs);
 
 	return M0_RC(rc);
 }
@@ -681,27 +768,22 @@ M0_INTERNAL int m0_storage_dev_stob_destroy(struct m0_storage_devs *devs,
 		 stob, STOB_ID_P(m0_stob_id_get(stob)));
 	M0_PRE(m0_stob_state_get(stob) == CSS_EXISTS);
 
-	if (devs != NULL)
-		m0_storage_devs_lock(devs);
-
+	m0_storage_devs_lock(devs);
 	dom = m0_stob_dom_get(stob);
 	rc  = m0_stob_destroy(stob, dtx);
-
-	if (devs != NULL) {
-		if (rc == 0) {
-			dev = m0_storage_devs_find_by_dom(devs, dom);
-			M0_ASSERT(dev != NULL);
-			M0_LOG(M0_DEBUG, "put: dev=%p, ref=%" PRIi64 " "
-			       "state=%d type=%d, %"PRIu64,
-			       dev,
-			       m0_ref_read(&dev->isd_ref),
-			       dev->isd_ha_state,
-			       dev->isd_srv_type,
-			       dev->isd_cid);
-			m0_storage_dev_put(dev);
-		}
-		m0_storage_devs_unlock(devs);
+	if (rc == 0) {
+		dev = m0_storage_devs_find_by_dom(devs, dom);
+		M0_ASSERT(dev != NULL);
+		M0_LOG(M0_DEBUG, "put: dev=%p, ref=%" PRIi64 " "
+		       "state=%d type=%d, %"PRIu64,
+		       dev,
+		       m0_ref_read(&dev->isd_ref),
+		       dev->isd_ha_state,
+		       dev->isd_srv_type,
+		       dev->isd_cid);
+		m0_storage_dev_put(dev);
 	}
+	m0_storage_devs_unlock(devs);
 
 	return M0_RC(rc);
 }
@@ -717,9 +799,7 @@ M0_INTERNAL int m0_storage_dev_stob_find(struct m0_storage_devs  *devs,
 
 	M0_ENTRY("stob_id="STOB_ID_F, STOB_ID_P(sid));
 
-	if (devs != NULL)
-		m0_storage_devs_lock(devs);
-
+	m0_storage_devs_lock(devs);
 	rc = m0_stob_find(sid, &stob2);
 	if (rc == 0) {
 		if (m0_stob_state_get(stob2) == CSS_UNKNOWN)
@@ -727,23 +807,20 @@ M0_INTERNAL int m0_storage_dev_stob_find(struct m0_storage_devs  *devs,
 		if (rc != 0)
 			m0_stob_put(stob2);
 	}
-
-	if (devs != NULL) {
-		if (rc == 0) {
-			dom = m0_stob_dom_get(stob2);
-			dev = m0_storage_devs_find_by_dom(devs, dom);
-			M0_ASSERT(dev != NULL);
-			M0_LOG(M0_DEBUG, "get: dev=%p, ref=%" PRIi64 " "
-			       "state=%d type=%d, %"PRIu64,
-			       dev,
-			       m0_ref_read(&dev->isd_ref),
-			       dev->isd_ha_state,
-			       dev->isd_srv_type,
-			       dev->isd_cid);
-			m0_storage_dev_get(dev);
-		}
-		m0_storage_devs_unlock(devs);
+	if (rc == 0) {
+		dom = m0_stob_dom_get(stob2);
+		dev = m0_storage_devs_find_by_dom(devs, dom);
+		M0_ASSERT(dev != NULL);
+		M0_LOG(M0_DEBUG, "get: dev=%p, ref=%" PRIi64 " "
+		       "state=%d type=%d, %"PRIu64,
+		       dev,
+		       m0_ref_read(&dev->isd_ref),
+		       dev->isd_ha_state,
+		       dev->isd_srv_type,
+		       dev->isd_cid);
+		m0_storage_dev_get(dev);
 	}
+	m0_storage_devs_unlock(devs);
 
 	if (rc == 0)
 		*stob = stob2;
@@ -763,20 +840,18 @@ M0_INTERNAL void m0_storage_dev_stob_put(struct m0_storage_devs *devs,
 	dom = m0_stob_dom_get(stob);
 	m0_stob_put(stob);
 
-	if (devs != NULL) {
-		m0_storage_devs_lock(devs);
-		dev = m0_storage_devs_find_by_dom(devs, dom);
-		M0_ASSERT(dev != NULL);
-		M0_LOG(M0_DEBUG, "put: dev=%p, ref=%" PRIi64 " "
-		       "state=%d type=%d, %"PRIu64,
-		       dev,
-		       m0_ref_read(&dev->isd_ref),
-		       dev->isd_ha_state,
-		       dev->isd_srv_type,
-		       dev->isd_cid);
-		m0_storage_dev_put(dev);
-		m0_storage_devs_unlock(devs);
-	}
+	m0_storage_devs_lock(devs);
+	dev = m0_storage_devs_find_by_dom(devs, dom);
+	M0_ASSERT(dev != NULL);
+	M0_LOG(M0_DEBUG, "put: dev=%p, ref=%" PRIi64 " "
+	       "state=%d type=%d, %"PRIu64,
+	       dev,
+	       m0_ref_read(&dev->isd_ref),
+	       dev->isd_ha_state,
+	       dev->isd_srv_type,
+	       dev->isd_cid);
+	m0_storage_dev_put(dev);
+	m0_storage_devs_unlock(devs);
 
 	M0_LEAVE();
 }

@@ -197,9 +197,12 @@ static bool spiel_stob_exists(uint64_t cid)
 	struct m0_stob         *stob;
 	int                     rc;
 
+	/* Current function is aware of internal logic of adstob storage */
+	M0_PRE(devs->sds_type == M0_STORAGE_DEV_TYPE_AD);
+
 	m0_stob_id_make(0, cid, &devs->sds_back_domain->sd_id, &id);
 	rc = m0_stob_lookup(&id, &stob);
-	if (stob != NULL)
+	if (rc == 0 && stob != NULL)
 		m0_stob_put(stob);
 	return rc == 0 && stob != NULL;
 }

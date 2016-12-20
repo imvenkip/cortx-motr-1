@@ -719,6 +719,7 @@ static int cs_buffer_pool_setup(struct m0_mero *cctx)
 static int stob_file_id_get(yaml_document_t *doc, yaml_node_t *node,
 			    uint64_t *id)
 {
+	char             *endptr;
 	const char       *key_str;
 	yaml_node_pair_t *pair;
 
@@ -727,13 +728,13 @@ static int stob_file_id_get(yaml_document_t *doc, yaml_node_t *node,
 		key_str = (const char *)yaml_document_get_node(doc,
 					pair->key)->data.scalar.value;
 		if (m0_strcaseeq(key_str, "id")) {
-			*id = atoll((const char *)yaml_document_get_node(doc,
-				     pair->value)->data.scalar.value);
-			return 0;
+			*id = strtoll((const char *)yaml_document_get_node(doc,
+				      pair->value)->data.scalar.value, &endptr,
+				      10);
+			return *endptr == '\0' ? M0_RC(0) : M0_ERR(-EINVAL);
 		}
 	}
-
-	return -ENOENT;
+	return M0_RC(-ENOENT);
 }
 
 static const char *stob_file_path_get(yaml_document_t *doc, yaml_node_t *node)
@@ -795,9 +796,11 @@ static void cs_storage_devs_fini(void)
 /**
  * Initialise storage devices used by IO service.
  */
-static int cs_storage_devs_init(struct cs_stobs       *stob,
-				struct m0_be_seg      *seg,
-				struct m0_stob_domain *bstore_dom)
+static int cs_storage_devs_init(struct cs_stobs          *stob,
+				enum m0_storage_dev_type  type,
+				struct m0_be_seg         *seg,
+				const char               *stob_path,
+				bool                      disable_direct_io)
 {
 	int                     rc;
 	int                     result;
@@ -821,15 +824,17 @@ static int cs_storage_devs_init(struct cs_stobs       *stob,
 	struct m0_conf_sdev    *conf_sdev;
 
 	M0_ENTRY();
+	M0_PRE(ergo(type == M0_STORAGE_DEV_TYPE_AD, stob->s_sdom != NULL));
 
 	rctx = container_of(stob, struct m0_reqh_context, rc_stob);
 	reqh = &rctx->rc_reqh;
 	cctx = container_of(rctx, struct m0_mero, cc_reqh_ctx);
 	confc = m0_mero2confc(cctx);
 	conf_profile = &rctx->rc_reqh.rh_profile;
-	rc = m0_storage_devs_init(devs, seg, bstore_dom, reqh);
+	rc = m0_storage_devs_init(devs, type, seg, stob->s_sdom, reqh);
 	if (rc != 0)
 		return M0_ERR(rc);
+	m0_storage_devs_use_directio(devs, !disable_direct_io);
 
 	/*
 	 * There is no concurrent access to the devs on this stage. But we lock
@@ -856,8 +861,12 @@ static int cs_storage_devs_init(struct cs_stobs       *stob,
 				if (rc == 0) {
 					rc = m0_conf_sdev_get(confc, &sdev_fid,
 						              &conf_sdev);
-					if (rc != 0)
+					if (rc != 0) {
+						M0_LOG(M0_ERROR,
+						       "Cannot open sdev "FID_F,
+						       FID_P(&sdev_fid));
 						break;
+					}
 					M0_LOG(M0_DEBUG, "cid:0x%"PRIx64
 					       " -> sdev_fid:"FID_F" idx:0x%x",
 					       cid, FID_P(&sdev_fid),
@@ -872,16 +881,34 @@ static int cs_storage_devs_init(struct cs_stobs       *stob,
 					m0_storage_dev_attach(dev, devs);
 				if (conf_sdev != NULL)
 					m0_confc_close(&conf_sdev->sd_obj);
-				if (rc != 0)
+				if (rc != 0) {
+					M0_LOG(M0_ERROR, "Storage device failed"
+					       " cid=%"PRIu64, cid);
 					break;
+				}
 			}
 		}
 	} else if (stob->s_ad_disks_init || M0_FI_ENABLED("init_via_conf")) {
 		M0_LOG(M0_DEBUG, "conf config");
 		rc = cs_conf_storage_init(stob, devs);
 	} else {
-		rc = m0_storage_dev_new(devs, M0_AD_STOB_DOM_KEY_DEFAULT,
-					NULL, size, NULL, &dev);
+		/*
+		 * This is special case for tests. We don't have configured
+		 * storages. Therefore, create a default one.
+		 * Unit tests with m0_rpc_server_start() and sss/st don't
+		 * configure storages properly via conf.xc or YAML file and
+		 * rely on these storages with specific IDs. Such tests should
+		 * provide valid conf.xc or YAML file instead of using default
+		 * storages with hardcoded IDs.
+		 */
+		M0_LOG(M0_DEBUG, "creating default storage");
+		if (type == M0_STORAGE_DEV_TYPE_AD)
+			rc = m0_storage_dev_new(devs,
+						M0_AD_STOB_DOM_KEY_DEFAULT,
+						NULL, size, NULL, &dev);
+		else
+			rc = m0_storage_dev_new(devs, M0_SDEV_CID_DEFAULT,
+						stob_path, size, NULL, &dev);
 		if (rc == 0)
 			m0_storage_dev_attach(dev, devs);
 	}
@@ -891,47 +918,75 @@ static int cs_storage_devs_init(struct cs_stobs       *stob,
 	return M0_RC(rc);
 }
 
-static int cs_storage_bstore_prepare(const char             *stob_path,
-				     const char             *str_cfg_init,
-				     uint64_t                dom_key,
-				     bool                    mkfs,
-				     bool                    force,
-				     struct m0_stob_domain **out)
+/** Generates linuxstob domain location which must be freed with m0_free(). */
+static char *cs_storage_ldom_location_gen(const char *stob_path)
 {
-	int                rc;
 	char              *location;
 	static const char  prefix[] = "linuxstob:";
+
+	M0_ALLOC_ARR(location, strlen(stob_path) + ARRAY_SIZE(prefix));
+	if (location != NULL)
+		sprintf(location, "%s%s", prefix, stob_path);
+
+	return location;
+}
+
+/**
+ * Destroys linuxstob domain. This function is used when mkfs runs with the
+ * force option. Therefore, domain may not exist.
+ */
+static int cs_storage_ldom_destroy(const char *stob_path,
+				   const char *str_cfg_init)
+{
+	struct m0_stob_domain *dom;
+	char                  *location;
+	int                    rc;
 
 	M0_ENTRY();
 	M0_PRE(stob_path != NULL);
 
-	M0_ALLOC_ARR(location, strlen(stob_path) + ARRAY_SIZE(prefix));
+	location = cs_storage_ldom_location_gen(stob_path);
 	if (location == NULL)
-		return M0_RC(-ENOMEM);
+		return M0_ERR(-ENOMEM);
 
-	sprintf(location, "%s%s", prefix, stob_path);
+	rc = m0_stob_domain_init(location, str_cfg_init, &dom);
+	if (rc == 0)
+		rc = m0_stob_domain_destroy(dom);
+	else if (rc == -ENOENT)
+		/* Don't fail if domain doesn't exist. */
+		rc = 0;
+
+	m0_free(location);
+	return M0_RC(rc);
+}
+
+static int cs_storage_bstore_prepare(const char             *stob_path,
+				     const char             *str_cfg_init,
+				     uint64_t                dom_key,
+				     bool                    mkfs,
+				     struct m0_stob_domain **out)
+{
+	int   rc;
+	char *location;
+
+	M0_ENTRY();
+	M0_PRE(stob_path != NULL);
+
+	location = cs_storage_ldom_location_gen(stob_path);
+	if (location == NULL)
+		return M0_ERR(-ENOMEM);
+
 	rc = m0_stob_domain_init(location, str_cfg_init, out);
-	if (mkfs) {
-		/* Found existing stob domain, kill it. */
-		if (rc == 0 && force) {
-			rc = m0_stob_domain_destroy(*out);
-			if (rc != 0)
-				goto out;
-		}
-		if (force || rc != 0) {
-			rc = m0_stob_domain_create(location, str_cfg_init,
-						   dom_key, NULL, out);
-			if (rc != 0)
-				M0_LOG(M0_ERROR,
-				       "m0_stob_domain_create: rc=%d", rc);
-		} else {
-			M0_LOG(M0_INFO, "Found alive filesystem, do nothing.");
-		}
-	} else {
+	if (mkfs && rc == -ENOENT) {
+		rc = m0_stob_domain_create(location, str_cfg_init,
+					   dom_key, NULL, out);
 		if (rc != 0)
-			M0_LOG(M0_ERROR, "m0_stob_domain_init: rc=%d", rc);
-	}
-out:
+			M0_LOG(M0_ERROR, "Cannot create stob domain rc=%d", rc);
+	} else if (rc != 0)
+		M0_LOG(M0_ERROR, "Cannot init stob domain rc=%d", rc);
+	else if (mkfs && rc == 0)
+		M0_LOG(M0_INFO, "Found alive filesystem, do nothing.");
+
 	m0_free(location);
 	return M0_RC(rc);
 }
@@ -951,31 +1006,47 @@ static int cs_storage_init(const char *stob_type,
 			   bool mkfs, bool force,
 			   bool disable_direct_io)
 {
-	int                rc;
+	const char *ldom_cfg_init;
+	bool        linux_stob;
+	bool        fake_storage;
+	int         rc = 0;
 
 	M0_ENTRY();
 	M0_PRE(stob_type != NULL);
-	M0_PRE(stob_path != NULL);
 	M0_PRE(stob != NULL);
+	M0_PRE(stob->s_sdom == NULL);
 	M0_PRE(stype_is_valid(stob_type));
 
-	rc = cs_storage_bstore_prepare(stob_path,
-	                               disable_direct_io ? "directio=false" :
-							   "directio=true",
-				       dom_key, mkfs, force, &stob->s_sdom);
-	if (rc != 0)
-		return M0_ERR(rc);
+	/* XXX `-F` (force) doesn't work for linuxstob storage devices. */
 
-	if (m0_strcaseeq(stob_type, m0_cs_stypes[M0_LINUX_STOB])) {
-		m0_get()->i_reqh_uses_ad_stob = false;
+	ldom_cfg_init = disable_direct_io ? "directio=false" : "directio=true";
+
+	linux_stob = m0_strcaseeq(stob_type, m0_cs_stypes[M0_LINUX_STOB]);
+	m0_get()->i_reqh_uses_ad_stob = !linux_stob;
+	m0_get()->i_storage_is_fake   = fake_storage =
+		linux_stob && stob_path != NULL && !stob->s_ad_disks_init &&
+		!stob->s_sfile.sf_is_initialised;
+
+
+	if (mkfs && force && (fake_storage || !linux_stob))
+		rc = cs_storage_ldom_destroy(stob_path, NULL);
+	if (linux_stob) {
+		rc = rc ?: cs_storage_devs_init(stob, M0_STORAGE_DEV_TYPE_LINUX,
+						NULL, stob_path,
+						disable_direct_io);
 	} else {
-		m0_get()->i_reqh_uses_ad_stob = true;
-		rc = cs_storage_devs_init(stob, seg, stob->s_sdom);
-		if (rc != 0) {
-			M0_LOG(M0_ERROR, "cs_storage_devs_init: rc=%d", rc);
-			m0_stob_domain_fini(stob->s_sdom);
-		}
+		rc = rc ?: cs_storage_bstore_prepare(stob_path, ldom_cfg_init,
+						     dom_key, mkfs,
+						     &stob->s_sdom);
+		if (rc != 0)
+			stob->s_sdom = NULL;
+		rc = rc ?: cs_storage_devs_init(stob, M0_STORAGE_DEV_TYPE_AD,
+						seg, stob_path,
+						disable_direct_io);
 	}
+	if (rc != 0 && stob->s_sdom != NULL)
+		m0_stob_domain_fini(stob->s_sdom);
+
 	return M0_RC(rc);
 }
 
@@ -984,8 +1055,7 @@ static int cs_storage_init(const char *stob_type,
  */
 static void cs_storage_fini(struct cs_stobs *stob)
 {
-	if (m0_get()->i_reqh_uses_ad_stob)
-		cs_storage_devs_fini();
+	cs_storage_devs_fini();
 	if (stob->s_sdom != NULL)
 		m0_stob_domain_fini(stob->s_sdom);
 	if (stob->s_sfile.sf_is_initialised)
@@ -1214,12 +1284,15 @@ static int cs_addb_storage_init(struct m0_reqh_context *rctx,
 				uint64_t key, bool mkfs, bool force)
 {
 	struct m0_stob_domain **dom = &addb_stob->cas_stobs.s_sdom;
+	const char             *str_cfg_init;
 	int                     rc;
 
 	M0_ENTRY();
 
+	/* XXX Should it depend on `-I` option? */
+	str_cfg_init = "directio=true";
 	rc = m0_stob_domain_init(rctx->rc_addb_stlocation,
-				 "directio=true", dom);
+				 str_cfg_init, dom);
 	if (mkfs) {
 		/* Found existing stob domain, kill it. */
 		if (rc == 0 && force) {
@@ -1230,8 +1303,9 @@ static int cs_addb_storage_init(struct m0_reqh_context *rctx,
 		if (rc != 0 || force) {
 			/** @todo allow different stob type for data
 			    stobs & ADDB stobs? */
-			rc = m0_stob_domain_create_or_init
-				(rctx->rc_addb_stlocation, NULL, 0, NULL, dom);
+			rc = m0_stob_domain_create_or_init(
+					rctx->rc_addb_stlocation, str_cfg_init,
+					M0_ADDB2_STOB_DOM_KEY, NULL, dom);
 		}
 	}
 	if (rc != 0)
@@ -1595,8 +1669,7 @@ M0_INTERNAL struct m0_mero *m0_cs_ctx_get(struct m0_reqh *reqh)
 
 M0_INTERNAL struct m0_storage_devs *m0_cs_storage_devs_get(void)
 {
-	return m0_get()->i_reqh_uses_ad_stob ?
-		&m0_get()->i_storage_devs : NULL;
+	return &m0_get()->i_storage_devs;
 }
 
 static void cs_mero_init(struct m0_mero *cctx)

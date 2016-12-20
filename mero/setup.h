@@ -134,6 +134,7 @@ enum {
 
 enum {
 	M0_AD_STOB_DOM_KEY_DEFAULT = 0x1,
+	M0_ADDB2_STOB_DOM_KEY      = 0xaddbf11e, /* ADDB file */
 	M0_ADDB2_STOB_KEY          = 2,
 	M0_BE_SEG_SIZE_DEFAULT	   = 128 * 1024 * 1024ULL,
 };

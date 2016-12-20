@@ -83,6 +83,18 @@ M0_INTERNAL void
 m0_stob_linux_conf_sdev_associate(struct m0_stob      *stob,
                                   const struct m0_fid *conf_sdev);
 
+/**
+ * Obtains file descriptor of a file which is stored on the same local
+ * filesystem where objects are.
+ */
+M0_INTERNAL int
+m0_stob_linux_domain_fd_get(struct m0_stob_domain *dom, int *fd);
+
+/** Closes previously obtained file descriptor. */
+M0_INTERNAL int m0_stob_linux_domain_fd_put(struct m0_stob_domain *dom, int fd);
+
+M0_INTERNAL bool m0_stob_linux_domain_directio(struct m0_stob_domain *dom);
+
 extern const struct m0_stob_type m0_stob_linux_type;
 
 /** @} end group stoblinux */

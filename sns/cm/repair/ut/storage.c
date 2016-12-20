@@ -30,8 +30,6 @@
 #include "sns/cm/repair/ut/cp_common.h"
 #include "sns/cm/file.h"
 #include "ioservice/fid_convert.h"	/* m0_fid_convert_cob2stob */
-#include "ut/stob.h"			/* m0_ut_stob_create_by_stob_id */
-#include "module/instance.h"            /* m0_get */
 #include "sns/cm/cm.h"
 
 M0_INTERNAL void cob_delete(struct m0_cob_domain *cdom,

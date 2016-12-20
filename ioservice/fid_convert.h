@@ -79,6 +79,8 @@ enum {
 	M0_FID_DEVICE_ID_MAX      = (1ULL << M0_FID_DEVICE_ID_BITS) - 1,
 	M0_FID_GOB_CONTAINER_MASK = (1ULL << M0_FID_DEVICE_ID_OFFSET) - 1,
 	M0_AD_STOB_LINUX_DOM_KEY  = 0xadf11e, /* AD file */
+	/** Default cid for fake linuxstob storage. */
+	M0_SDEV_CID_DEFAULT       = 1,
 };
 
 M0_INTERNAL void m0_fid_gob_make(struct m0_fid *gob_fid,
