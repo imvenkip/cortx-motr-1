@@ -540,6 +540,17 @@ static inline uint64_t target_offset(uint64_t		       frame,
 	       (gob_offset % layout_unit_size(play));
 }
 
+static inline uint32_t target_ioreq_type_get(struct target_ioreq *ti)
+{
+	return ti->ti_req_type;
+}
+
+static inline void target_ioreq_type_set(struct target_ioreq *ti,
+					 enum target_ioreq_type type)
+{
+	ti->ti_req_type = type;
+}
+
 static bool is_pver_dud(uint32_t fdev_nr, uint32_t dev_k, uint32_t fsvc_nr,
 			uint32_t svc_k);
 
@@ -766,6 +777,8 @@ static void device_state_reset(struct nw_xfer_request *xfer, bool rmw);
 
 static void io_rpc_item_cb (struct m0_rpc_item *item);
 static void io_req_fop_release(struct m0_ref *ref);
+static void cc_rpc_item_cb(struct m0_rpc_item *item);
+static void cc_fop_release(struct m0_ref *ref);
 
 /*
  * io_rpc_item_cb can not be directly invoked from io fops code since it
@@ -777,7 +790,9 @@ static const struct m0_rpc_item_ops io_item_ops = {
 	.rio_replied = io_rpc_item_cb,
 };
 
-static bool should_iosm_reach_terminal(struct io_request *req);
+static const struct m0_rpc_item_ops cc_item_ops = {
+	.rio_replied = cc_rpc_item_cb,
+};
 
 static bool nw_xfer_request_invariant(const struct nw_xfer_request *xfer);
 
@@ -868,9 +883,11 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 				 m0_bcount_t	                   count,
 				 struct pargrp_iomap              *map);
 
+static int target_cob_create_fop_prepare(struct target_ioreq *ti);
 static const struct target_ioreq_ops tioreq_ops = {
-	.tio_seg_add	    = target_ioreq_seg_add,
-	.tio_iofops_prepare = target_ioreq_iofops_prepare,
+	.tio_seg_add	     = target_ioreq_seg_add,
+	.tio_iofops_prepare  = target_ioreq_iofops_prepare,
+	.tio_cc_fops_prepare = target_cob_create_fop_prepare,
 };
 
 static int io_req_fop_dgmode_read(struct io_req_fop *irfop);
@@ -880,6 +897,8 @@ static struct data_buf *data_buf_alloc_init(enum page_attr pattr);
 static void data_buf_dealloc_fini(struct data_buf *buf);
 
 static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast);
+
+static void cc_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast);
 
 static int  ioreq_iomaps_prepare(struct io_request *req);
 
@@ -902,6 +921,8 @@ static void ioreq_no_unlock     (struct io_request *req);
 static int ioreq_dgmode_read    (struct io_request *req, bool rmw);
 static int ioreq_dgmode_write   (struct io_request *req, bool rmw);
 static int ioreq_dgmode_recover (struct io_request *req);
+
+static bool should_req_sm_complete(struct io_request *req);
 
 static const struct io_request_ops ioreq_ops = {
 	.iro_iomaps_prepare = ioreq_iomaps_prepare,
@@ -1182,6 +1203,7 @@ static void nw_xfer_request_init(struct nw_xfer_request *xfer)
 	nw_xfer_request_bob_init(xfer);
 	xfer->nxr_rc	= 0;
 	xfer->nxr_bytes = 0;
+	m0_atomic64_set(&xfer->nxr_ccfop_nr, 0);
 	m0_atomic64_set(&xfer->nxr_iofop_nr, 0);
 	m0_atomic64_set(&xfer->nxr_rdbulk_nr, 0);
 	xfer->nxr_state = NXS_INITIALIZED;
@@ -3346,7 +3368,7 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 	struct data_buf            *dbuf;
 	struct pargrp_iomap        *iomap;
 	struct inode               *inode;
-	struct m0t1fs_sb            *csb;
+	struct m0t1fs_sb           *csb;
 
 	M0_ENTRY("nw_xfer_request %p", xfer);
 	M0_PRE_EX(nw_xfer_request_invariant(xfer));
@@ -3469,6 +3491,23 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 				ti->ti_ops->tio_seg_add(ti, &src, &tgt, pgstart,
 							layout_unit_size(play),
 							iomap);
+			}
+			if (!csb->csb_oostore || req->ir_type != IRT_WRITE)
+				continue;
+			/* Cob create for spares. */
+			for (unit = layout_k(play); unit < 2 * layout_k(play);
+			     ++unit) {
+				src.sa_unit = layout_n(play) + unit;
+				rc = xfer->nxr_ops->nxo_tioreq_map(xfer, &src,
+								   &tgt, &ti);
+				if (rc != 0) {
+					M0_LOG(M0_ERROR, "[%p] map %p,"
+					       "nxo_tioreq_map() failed, rc %d"
+						,req, iomap, rc);
+				}
+				if (target_ioreq_type_get(ti) != TI_NONE)
+					continue;
+				target_ioreq_type_set(ti, TI_COB_CREATE);
 			}
 		}
 	}
@@ -3710,7 +3749,7 @@ static int ioreq_dgmode_write(struct io_request *req, bool rmw)
 	 * from IO fops are still enqueued in transfer machine and removal
 	 * of these buffers would lead to finalization of rpc bulk object.
 	 */
-	M0_LOG(M0_DEBUG, "[%p] About to nxo_complete()", req);
+	M0_LOG(M0_ERROR, "[%p] Degraded write:About to nxo_complete()", req);
 	xfer->nxr_ops->nxo_complete(xfer, rmw);
 	/*
 	 * Resets count of data bytes and parity bytes along with
@@ -3722,6 +3761,7 @@ static int ioreq_dgmode_write(struct io_request *req, bool rmw)
 		ti->ti_databytes = 0;
 		ti->ti_parbytes  = 0;
 		ti->ti_rc        = 0;
+		ti->ti_req_type  = TI_NONE;
 	} m0_htable_endfor;
 
 	/*
@@ -4568,6 +4608,8 @@ static int target_ioreq_init(struct target_ioreq    *ti,
 	ti->ti_fid       = *cobfid;
 	ti->ti_nwxfer    = xfer;
 	ti->ti_dgvec     = NULL;
+	ti->ti_req_type  = TI_NONE;
+	M0_SET0(&ti->ti_cc_fop);
 	/*
 	 * Target object is usually in ONLINE state unless explicitly
 	 * told otherwise.
@@ -4871,7 +4913,7 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 			       "[%p] ti %p, v_nr=%u, page_nr=%llu",
 			       req, ti, ivec->iv_vec.v_nr, cnt);
 	}
-
+	target_ioreq_type_set(ti, TI_READ_WRITE);
 	M0_LEAVE();
 }
 
@@ -5403,7 +5445,7 @@ static void client_passive_recv(const struct m0_net_buffer_event *evt)
 		 */
 		if (m0_atomic64_get(&ioreq->ir_nwxfer.nxr_rdbulk_nr) > 0)
 			m0_atomic64_dec(&ioreq->ir_nwxfer.nxr_rdbulk_nr);
-		if (should_iosm_reach_terminal(ioreq)) {
+		if (should_req_sm_complete(ioreq)) {
 			ioreq_sm_state_set(ioreq,
 					   (M0_IN(req_sm_state,
 						  (IRS_READING,
@@ -5415,12 +5457,6 @@ static void client_passive_recv(const struct m0_net_buffer_event *evt)
 
 	m0_mutex_unlock(&ioreq->ir_nwxfer.nxr_lock);
 	M0_LEAVE();
-}
-
-static bool should_iosm_reach_terminal(struct io_request *ioreq)
-{
-	return m0_atomic64_get(&ioreq->ir_nwxfer.nxr_iofop_nr) == 0 &&
-		m0_atomic64_get(&ioreq->ir_nwxfer.nxr_rdbulk_nr) == 0;
 }
 
 const struct m0_net_buffer_callbacks client_buf_bulk_cb  = {
@@ -5584,6 +5620,107 @@ static void io_req_fop_release(struct m0_ref *ref)
 	m0_io_fop_fini(iofop);
 	m0_free(reqfop);
 	++iommstats.d_io_req_fop_nr;
+}
+
+static void cc_rpc_item_cb(struct m0_rpc_item *item)
+{
+	struct io_request          *req;
+	struct cc_req_fop          *cc_fop;
+	struct target_ioreq        *ti;
+	struct m0_fop              *fop;
+	struct m0_fop              *rep_fop;
+
+	fop = m0_rpc_item_to_fop(item);
+	cc_fop = container_of(fop, struct cc_req_fop, crf_fop);
+	ti = container_of(cc_fop, struct target_ioreq, ti_cc_fop);
+	req  = bob_of(ti->ti_nwxfer, struct io_request,
+		      ir_nwxfer, &ioreq_bobtype);
+	cc_fop->crf_ast.sa_cb = cc_bottom_half;
+	cc_fop->crf_ast.sa_datum = (void *)ti;
+	/* Reference on fop and its reply are released in cc_bottom_half. */
+	m0_fop_get(fop);
+	if (item->ri_reply != NULL) {
+		rep_fop = m0_rpc_item_to_fop(item->ri_reply);
+		m0_fop_get(rep_fop);
+	}
+
+	m0_sm_ast_post(req->ir_sm.sm_grp, &cc_fop->crf_ast);
+}
+
+static void cc_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
+{
+	struct nw_xfer_request          *xfer;
+	struct target_ioreq             *ti;
+	struct cc_req_fop               *cc_fop;
+	struct io_request               *req;
+	struct m0_fop_cob_op_reply      *reply;
+	struct m0_fop                   *reply_fop = NULL;
+	struct m0t1fs_inode             *inode;
+	struct m0t1fs_sb                *csb;
+	struct m0_rpc_item              *req_item;
+	struct m0_rpc_item              *reply_item;
+	int                              rc;
+
+	ti = (struct target_ioreq *)ast->sa_datum;
+	req    = bob_of(ti->ti_nwxfer, struct io_request, ir_nwxfer,
+			&ioreq_bobtype);
+	xfer = ti->ti_nwxfer;
+	cc_fop = &ti->ti_cc_fop;
+	req_item = &cc_fop->crf_fop.f_item;
+	reply_item = req_item->ri_reply;
+	rc = req_item->ri_error;
+	if (reply_item != NULL) {
+		reply_fop = m0_rpc_item_to_fop(reply_item);
+		rc = rc ?: m0_rpc_item_generic_reply_rc(reply_item);
+	}
+	if (rc < 0 || reply_item == NULL) {
+		M0_ASSERT(ergo(reply_item == NULL, rc != 0));
+		goto ref_dec;
+	}
+
+	reply = m0_fop_data(m0_rpc_item_to_fop(cc_fop->crf_fop.f_item.ri_reply));
+	/*
+	 * Ignoring the case when an attempt is made to create a cob on target
+	 * where previous IO had created it.
+	 */
+	rc = rc ? M0_IN(reply->cor_rc, (0, -EEXIST)) ? 0 : reply->cor_rc : 0;
+
+	/*
+	 * In case the conf is updated is revoked
+	 * abort the ongoing request.
+	 */
+	inode = m0t1fs_file_to_m0inode(req->ir_file);
+	csb = M0T1FS_SB(inode->ci_inode.i_sb);
+	if (csb->csb_rlock_revoked)
+		rc = M0_ERR(-ESTALE);
+ref_dec:
+	if (ti->ti_rc == 0 && rc != 0)
+		ti->ti_rc = rc;
+	if (xfer->nxr_rc == 0 && rc != 0)
+		xfer->nxr_rc = rc;
+	m0_fop_put0_lock(&cc_fop->crf_fop);
+	if (reply_fop != NULL)
+		m0_fop_put0_lock(reply_fop);
+	m0_mutex_lock(&xfer->nxr_lock);
+	m0_atomic64_dec(&xfer->nxr_ccfop_nr);
+	if (should_req_sm_complete(req))
+		ioreq_sm_state_set_nolock(req, IRS_WRITE_COMPLETE);
+	m0_mutex_unlock(&xfer->nxr_lock);
+}
+
+static bool should_req_sm_complete(struct io_request *req)
+{
+	struct m0t1fs_sb    *csb;
+	struct m0t1fs_inode *inode;
+
+
+	inode = m0t1fs_file_to_m0inode(req->ir_file);
+	csb = M0T1FS_SB(inode->ci_inode.i_sb);
+
+	return m0_atomic64_get(&req->ir_nwxfer.nxr_iofop_nr) == 0  &&
+	    m0_atomic64_get(&req->ir_nwxfer.nxr_rdbulk_nr) == 0 &&
+	    ((csb->csb_oostore && ioreq_sm_state(req) == IRS_WRITING) ?
+	    m0_atomic64_get(&req->ir_nwxfer.nxr_ccfop_nr) == 0 : true);
 }
 
 static void io_rpc_item_cb(struct m0_rpc_item *item)
@@ -5768,7 +5905,6 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	gen_rep = m0_fop_data(m0_rpc_item_to_fop(reply_item));
 	rc = gen_rep->gr_rc;
 	rw_reply = io_rw_rep_get(reply_fop);
-	rc       = rc ?: rw_reply->rwr_rc;
 	remid    = &rw_reply->rwr_mod_rep.fmr_remid;
 	req->ir_sns_state = rw_reply->rwr_repair_done;
 	M0_LOG(M0_DEBUG, "[%p] item %p[%u], reply received = %d, "
@@ -5834,7 +5970,7 @@ ref_dec:
 
 	m0_mutex_lock(&xfer->nxr_lock);
 	m0_atomic64_dec(&xfer->nxr_iofop_nr);
-	if (should_iosm_reach_terminal(req)) {
+	if (should_req_sm_complete(req)) {
 		ioreq_sm_state_set_nolock(req, (M0_IN(ioreq_sm_state(req),
 			       (IRS_READING, IRS_DEGRADED_READING)) ?
 			       IRS_READ_COMPLETE : IRS_WRITE_COMPLETE));
@@ -5874,6 +6010,14 @@ static int nw_xfer_req_dispatch(struct nw_xfer_request *xfer)
 			       req, FID_P(&ti->ti_fid));
 			continue;
 		}
+		if (target_ioreq_type_get(ti) == TI_COB_CREATE &&
+		    ioreq_sm_state(req) == IRS_WRITING) {
+			rc = ti->ti_ops->tio_cc_fops_prepare(ti);
+			if (rc != 0)
+				return M0_ERR_INFO(rc, "[%p] cob create fop"
+						   "failed", req);
+			continue;
+		}
 		rc = ti->ti_ops->tio_iofops_prepare(ti, PA_DATA);
 		if (rc != 0)
 			return M0_ERR_INFO(rc, "[%p] data fop failed", req);
@@ -5896,6 +6040,15 @@ static int nw_xfer_req_dispatch(struct nw_xfer_request *xfer)
 		      (int)iofops_tlist_length(&ti->ti_iofops),
 		      m0_atomic64_get(&xfer->nxr_iofop_nr));
 
+		if (target_ioreq_type_get(ti) == TI_COB_CREATE &&
+		    ioreq_sm_state(req) == IRS_WRITING) {
+			/*
+			 * An error returned by rpc post has been ignored.
+			 * It will be handled in the respective bottom half.
+			 */
+			rc = m0_rpc_post(&ti->ti_cc_fop.crf_fop.f_item);
+			continue;
+		}
 		m0_tl_for (iofops, &ti->ti_iofops, irfop) {
 			rc = iofop_async_submit(&irfop->irf_iofop,
 						ti->ti_session);
@@ -5950,6 +6103,8 @@ static void nw_xfer_req_complete(struct nw_xfer_request *xfer, bool rmw)
 	struct io_req_fop   *irfop;
 	struct m0_fop       *fop;
 	struct m0_rpc_item  *item;
+	struct m0t1fs_inode *inode;
+	struct m0t1fs_sb    *csb;
 
 	M0_ENTRY("nw_xfer_request %p, rmw %s", xfer,
 		 rmw ? (char *)"true" : (char *)"false");
@@ -5957,6 +6112,8 @@ static void nw_xfer_req_complete(struct nw_xfer_request *xfer, bool rmw)
 
 	xfer->nxr_state = NXS_COMPLETE;
 	req = bob_of(xfer, struct io_request, ir_nwxfer, &ioreq_bobtype);
+	inode = m0t1fs_file_to_m0inode(req->ir_file);
+	csb = M0T1FS_SB(inode->ci_inode.i_sb);
 
 	M0_LOG(M0_DEBUG, "[%p] nxr_iofop_nr %llu, nxr_rdbulk_nr %llu, "
 	       "rmw %s", req,
@@ -5978,6 +6135,12 @@ static void nw_xfer_req_complete(struct nw_xfer_request *xfer, bool rmw)
 		if (ti->ti_rc == M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH)
 			/* Resets status code before dgmode read IO. */
 			ti->ti_rc = 0;
+		if (csb->csb_oostore && ti->ti_req_type == TI_COB_CREATE &&
+		    ioreq_sm_state(req) == IRS_WRITE_COMPLETE) {
+			target_ioreq_type_set(ti, TI_NONE);
+			m0_fop_put_lock(&ti->ti_cc_fop.crf_fop);
+			continue;
+		}
 		m0_tl_teardown(iofops, &ti->ti_iofops, irfop) {
 			fop = &irfop->irf_iofop.if_fop;
 			item = m0_fop_to_rpc_item(fop);
@@ -6179,6 +6342,56 @@ static int bulk_buffer_add(struct io_req_fop	   *irfop,
 	}
 
 	M0_POST(ergo(rc == 0, *rbuf != NULL));
+	return M0_RC(rc);
+}
+
+static void cc_fop_release(struct m0_ref *ref)
+{
+	struct m0_fop *fop;
+
+	M0_ENTRY();
+	fop  = container_of(ref, struct m0_fop, f_ref);
+	m0_fop_fini(fop);
+	M0_LEAVE();
+}
+
+static int target_cob_create_fop_prepare(struct target_ioreq *ti)
+{
+	struct m0_fop            *fop;
+	struct m0_fop_cob_common *common;
+	struct io_request        *req;
+	int                       rc;
+
+	M0_PRE(ti->ti_req_type == TI_COB_CREATE);
+	fop = &ti->ti_cc_fop.crf_fop;
+	m0_fop_init(fop, &m0_fop_cob_create_fopt, NULL, cc_fop_release);
+	rc = m0_fop_data_alloc(fop);
+	if (rc != 0) {
+		m0_fop_fini(fop);
+		goto out;
+	}
+	fop->f_item.ri_rmachine = m0_fop_session_machine(ti->ti_session);
+
+	fop->f_item.ri_session         = ti->ti_session;
+	fop->f_item.ri_ops             = &cc_item_ops;
+	fop->f_item.ri_nr_sent_max     = M0T1FS_RPC_MAX_RETRIES;
+	fop->f_item.ri_resend_interval = M0T1FS_RPC_RESEND_INTERVAL;
+	req = bob_of(ti->ti_nwxfer, struct io_request, ir_nwxfer,
+		     &ioreq_bobtype);
+	common = m0_cobfop_common_get(fop);
+	common->c_gobfid = *file_to_fid(req->ir_file);
+	common->c_cobfid = ti->ti_fid;
+	common->c_pver = m0t1fs_file_to_m0inode(req->ir_file)->ci_pver;
+	common->c_cob_type = M0_COB_IO;
+	common->c_cob_idx = m0_fid_cob_device_id(&ti->ti_fid);
+	common->c_flags |= M0_IO_FLAG_CROW;
+	common->c_body.b_pver = m0t1fs_file_to_m0inode(req->ir_file)->ci_pver;
+	common->c_body.b_nlink = 1;
+	common->c_body.b_valid |= M0_COB_PVER;
+	common->c_body.b_valid |= M0_COB_NLINK;
+	m0_atomic64_inc(&ti->ti_nwxfer->nxr_ccfop_nr);
+
+out:
 	return M0_RC(rc);
 }
 

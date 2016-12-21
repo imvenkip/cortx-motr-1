@@ -788,14 +788,19 @@ m0t1fs_big_bs_io_test()
 {
 	local mode=$1
 	echo "Big BS IO test"
-	rc=1
+	rc=0
 	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR "$mode" || rc=1
 	mount | grep m0t1fs                         || rc=1
 	echo "Create file"
 	i=0:1000000
 	touch $MERO_M0T1FS_MOUNT_DIR/$i                        || rc=1
-	setfattr -n writesize -v $BS $MERO_M0T1FS_MOUNT_DIR/$i || rc=1
-	dd if=/dev/zero of=$MERO_M0T1FS_MOUNT_DIR/$fid bs=10G count=1  || rc=0
+	setfattr -n writesize -v 65536 $MERO_M0T1FS_MOUNT_DIR/$i || rc=1
+	dd if=/dev/zero of=$MERO_M0T1FS_MOUNT_DIR/$i bs=32M count=1  || rc=1
+	rm -f $MERO_M0T1FS_MOUNT_DIR/$i                                || rc=1
+	echo "Test the error case"
+	touch $MERO_M0T1FS_MOUNT_DIR/$i                        || rc=1
+	setfattr -n writesize -v 4096 $MERO_M0T1FS_MOUNT_DIR/$i || rc=1
+	dd if=/dev/zero of=$MERO_M0T1FS_MOUNT_DIR/$i bs=32M count=1  || rc=0
 	rm -f $MERO_M0T1FS_MOUNT_DIR/$i                                || rc=1
 	unmount_and_clean
 

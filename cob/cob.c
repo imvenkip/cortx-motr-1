@@ -1589,8 +1589,13 @@ M0_INTERNAL int m0_cob_name_add(struct m0_cob *cob,
 	m0_buf_init(&key, nskey, m0_cob_nskey_size(nskey));
 	m0_buf_init(&val, nsrec, sizeof *nsrec);
 	rc = cob_table_lookup(&cob->co_dom->cd_namespace, &key, &val);
-	if (rc == 0)
-		return M0_ERR(-EEXIST);
+	if (rc == 0) {
+		/**
+		 * Since CROW is used in conjunction with pre-creation of cobs
+		 * for spares, -EEXIST is a valid possible case.
+		 */
+		return M0_RC(-EEXIST);
+	}
 
 	/**
 	 * Add new name to object index table. Table insert should fail
