@@ -67,6 +67,20 @@ m0_exit()
     exit 1
 }
 
+_trap_munge()
+{
+    local cmd=$1
+    local signal=$2
+
+    [[ -n $cmd && -n $signal ]] || {
+        m0_exit "$FUNCNAME: not enough arguments provided"
+    }
+
+    local old_cmd=$(trap -p $signal | awk -F"'" '{print $2}')
+
+    trap "$cmd;$old_cmd" $signal
+}
+
 # path to binaries inside working directory
 declare -rA _path_inside_workdir=(
     [m0mero.ko]='mero/m0mero.ko'
@@ -187,9 +201,20 @@ m0_load_modules()
 
     if [ -n "$MERO_DEVEL_WORKDIR_PATH" ] ; then
         insmod $(m0_path_to m0gf.ko) || m0_exit "Failed to load m0gf module"
-        insmod $(m0_path_to m0mero.ko) $m0mero_params\
-            || m0_exit "Failed to load m0mero module"
-        insmod $(m0_path_to m0ctl.ko) || m0_exit "Failed to load m0ctl module"
+        _trap_munge "rmmod $(m0_path_to m0gf.ko)" ERR
+
+        insmod $(m0_path_to m0mero.ko) $m0mero_params || {
+            rmmod $(m0_path_to m0gf.ko)
+            m0_exit "Failed to load m0mero module"
+        }
+        _trap_munge "rmmod $(m0_path_to m0mero.ko)" ERR
+
+        insmod $(m0_path_to m0ctl.ko) || {
+            rmmod $(m0_path_to m0mero.ko)
+            rmmod $(m0_path_to m0gf.ko)
+            m0_exit "Failed to load m0ctl module"
+        }
+        _trap_munge "rmmod $(m0_path_to m0ctl.ko)" ERR
     else
         set -x
         modprobe m0mero $m0mero_params
