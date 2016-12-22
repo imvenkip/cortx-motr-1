@@ -958,7 +958,6 @@ static void item_timedout(struct m0_rpc_item *item)
 
 	case M0_RPC_ITEM_SENDING:
 		item->ri_error = -ETIMEDOUT;
-		m0_rpc_item_put(item);
 		/* item will be moved to FAILED state in item_done() */
 		break;
 
@@ -1077,7 +1076,7 @@ M0_INTERNAL void m0_rpc_item_send(struct m0_rpc_item *item)
 	m0_rpc_frm_enq_item(&item2conn(item)->c_rpcchan->rc_frm, item);
 	/*
 	 * Rpc always acquires an *internal* reference to "all" items.
-	 * This reference is released when the item is sent.
+	 * This reference is released in item_sent()
 	 */
 	if (item->ri_error == 0)
 		m0_rpc_item_get(item);

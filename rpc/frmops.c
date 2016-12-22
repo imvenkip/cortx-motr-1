@@ -53,6 +53,8 @@ static void bufvec_geometry(struct m0_net_domain *ndom,
 
 static void item_done(struct m0_rpc_packet *p, struct m0_rpc_item *item,
 		      int rc);
+static void item_fail(struct m0_rpc_packet *p, struct m0_rpc_item *item,
+		      int rc);
 static void item_sent(struct m0_rpc_item *item);
 
 /*
@@ -166,7 +168,7 @@ out:
 err_free:
 	m0_free(rpcbuf);
 err:
-	m0_rpc_packet_traverse_items(p, item_done, rc);
+	m0_rpc_packet_traverse_items(p, item_fail, rc);
 	m0_rpc_packet_discard(p);
 
 	return M0_RC(rc);
@@ -394,21 +396,26 @@ static void buf_send_cb(const struct m0_net_buffer_event *ev)
 		stats->rs_nr_sent_packets++;
 		stats->rs_nr_sent_bytes += p->rp_size;
 	} else {
-		struct m0_rpc_item *item;
-		stats->rs_nr_failed_packets++;
-		for_each_item_in_packet(item, p) {
-			/*
-			 * Normally this put() would happen at
-			 * m0_rpc_item_process_reply(), but there
-			 * won't be any replies for non-oneway items
-			 * of this packet already.
-			 */
-			if (m0_rpc_item_is_request(item) &&
-			    !m0_rpc_item_is_oneway(item))
-				m0_rpc_item_put(item);
-		} end_for_each_item_in_packet;
+                stats->rs_nr_failed_packets++;
 	}
 
+	/*
+	 * At this point, rpc subsystem is normally having 4 refs on item/fop:
+	 * - m0_rpc__post_locked()
+	 * - m0_rpc_item_send()
+	 * - item pending cache
+	 * - for the formation queue or package (depends on item state)
+	 *
+	 * Two more refs can be taken in the following cases:
+	 * - sync rpc_post (normally used in UT)
+	 * - fop_alloc takes first ref but the caller may release it right
+	 * after sending to rpc subsystem
+	 *
+	 * Exceptions:
+	 * - session0 fops (such as session termination) normally have 3 refs,
+	 * as they don't add items to pending cache
+	 * - reply item may have 4 refs but they are taken other places
+	 */
 	m0_rpc_packet_traverse_items(p, item_done, p->rp_status);
 	m0_rpc_frm_packet_done(p);
 	m0_rpc_packet_discard(p);
@@ -432,7 +439,20 @@ static void item_done(struct m0_rpc_packet *p, struct m0_rpc_item *item, int rc)
 		item->ri_error = 0;
 	}
 
+	/*
+	 * Item timeout by sending deadline is also counted as sending error
+	 * and the ref, released in processing reply, is released here.
+	 */
 	item->ri_error = item->ri_error ?: rc;
+	if (item->ri_error != 0) {
+		/*
+		 * Normally this put() would call at m0_rpc_item_process_reply(),
+		 * but there won't be any replies for non-oneway items of this
+		 * packet already.
+		 */
+		if (m0_rpc_item_is_request(item) && !m0_rpc_item_is_oneway(item))
+			m0_rpc_item_put(item);
+	}
 	if (item->ri_error != 0 &&
 	    item->ri_sm.sm_state != M0_RPC_ITEM_FAILED) {
 		M0_LOG(M0_ERROR, "packet %p, item %p[%"PRIu32"] failed with"
@@ -514,6 +534,25 @@ static void item_sent(struct m0_rpc_item *item)
 	}
 
 	M0_LEAVE();
+}
+
+static void item_fail(struct m0_rpc_packet *p, struct m0_rpc_item *item, int rc)
+{
+        /* This is only called from packet_ready() error handling code path. */
+        M0_PRE(item != NULL);
+        M0_ENTRY("item=%p[%"PRIu32"] ri_error=%"PRIi32" rc=%d",
+                 item, item->ri_type->rit_opcode, item->ri_error, rc);
+
+        item->ri_error = rc;
+        if (item->ri_error != 0) {
+                M0_LOG(M0_ERROR, "packet %p, item %p[%"PRIu32"] failed with"
+                       " ri_error=%"PRIi32, p, item, item->ri_type->rit_opcode,
+                       item->ri_error);
+                if (item->ri_sm.sm_state != M0_RPC_ITEM_FAILED)
+                        m0_rpc_item_failed(item, item->ri_error);
+        }
+
+        M0_LEAVE();
 }
 
 #undef M0_TRACE_SUBSYSTEM
