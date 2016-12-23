@@ -5,7 +5,7 @@ Tests:
     dir      : src/utils/
     executor : Xperior::Executor::MeroTest
     #executor : Xperior::Executor::Skip
-    sandbox  : /var/mero/sandbox.00userspace-tests
+    sandbox  : /var/mero/m0ut
     polltime : 15
     timeout  : 1800
 
