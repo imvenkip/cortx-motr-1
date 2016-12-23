@@ -777,6 +777,8 @@ static const struct m0_rpc_item_ops io_item_ops = {
 	.rio_replied = io_rpc_item_cb,
 };
 
+static bool should_iosm_reach_terminal(struct io_request *req);
+
 static bool nw_xfer_request_invariant(const struct nw_xfer_request *xfer);
 
 static int  nw_xfer_io_distribute(struct nw_xfer_request *xfer);
@@ -3664,7 +3666,7 @@ static int ioreq_dgmode_write(struct io_request *req, bool rmw)
 	M0_ENTRY("[%p]", req);
 	csb = file_to_sb(req->ir_file);
 	/* In oostore mode we do not enter the degraded mode write. */
-	if (csb->csb_oostore || M0_IN(xfer->nxr_rc, (0, -E2BIG)))
+	if (csb->csb_oostore || M0_IN(xfer->nxr_rc, (0, -E2BIG, -ESTALE)))
 		return M0_RC(xfer->nxr_rc);
 
 	rc = device_check(req);
@@ -3755,18 +3757,28 @@ static int ioreq_dgmode_read(struct io_request *req, bool rmw)
 	enum m0_pool_nd_state    state;
 	struct m0_poolmach      *pm;
 	struct nw_xfer_request  *xfer;
+	struct m0t1fs_sb       *csb;
+
 
 	M0_PRE_EX(io_request_invariant(req));
 
+	csb = M0T1FS_SB(m0t1fs_file_to_inode(req->ir_file)->i_sb);
 	xfer = &req->ir_nwxfer;
 	M0_ENTRY("[%p] xfer->nxr_rc %d", req, xfer->nxr_rc);
 
 	/*
 	 * If all devices are ONLINE, all requests return success.
 	 * In case of read before write, due to CROW, COB will not be present,
-	 * resulting into ENOENT error.
+	 * resulting into ENOENT error. When conf cache is drained io should
+	 * not proceed.
 	 */
-	if (xfer->nxr_rc == 0 || xfer->nxr_rc == -ENOENT)
+	if (M0_IN(xfer->nxr_rc, (0, -ENOENT, -ESTALE)) ||
+	   /*
+	    * For rmw in oostore case return immediately without
+	    * bothering to check if degraded read can be done.
+	    * Write IO should be aborted in this case.
+	    */
+	    (csb->csb_oostore && req->ir_type == IRT_WRITE))
 		return M0_RC(xfer->nxr_rc);
 
 	rc = device_check(req);
@@ -5347,7 +5359,6 @@ static void client_passive_recv(const struct m0_net_buffer_event *evt)
 	struct m0_io_fop       *iofop;
 	struct io_req_fop      *reqfop;
 	struct io_request      *ioreq;
-	struct m0t1fs_sb       *csb;
 	uint32_t                req_sm_state;
 
 	M0_ENTRY();
@@ -5362,8 +5373,6 @@ static void client_passive_recv(const struct m0_net_buffer_event *evt)
 	reqfop = bob_of(iofop, struct io_req_fop, irf_iofop, &iofop_bobtype);
 	ioreq = bob_of(reqfop->irf_tioreq->ti_nwxfer, struct io_request,
 		       ir_nwxfer, &ioreq_bobtype);
-	csb = M0T1FS_SB(m0t1fs_file_to_inode(ioreq->ir_file)->i_sb);
-
 	M0_ASSERT(rbulk == &reqfop->irf_iofop.if_rbulk);
 	M0_LOG(M0_DEBUG, "[%p] PASSIVE recv, e %p, status %d, len %llu, "
 	       "nbuf %p", ioreq, evt, evt->nbe_status, evt->nbe_length, nb);
@@ -5383,9 +5392,6 @@ static void client_passive_recv(const struct m0_net_buffer_event *evt)
 	m0_rpc_bulk_default_cb(evt);
 	if (evt->nbe_status != 0)
 		return;
-
-	if (csb->csb_rlock_revoked)
-		ioreq_sm_failed(ioreq, -ESTALE);
 	m0_mutex_lock(&ioreq->ir_nwxfer.nxr_lock);
 	req_sm_state = ioreq_sm_state(ioreq);
 	if (req_sm_state != IRS_READ_COMPLETE &&
@@ -5397,9 +5403,7 @@ static void client_passive_recv(const struct m0_net_buffer_event *evt)
 		 */
 		if (m0_atomic64_get(&ioreq->ir_nwxfer.nxr_rdbulk_nr) > 0)
 			m0_atomic64_dec(&ioreq->ir_nwxfer.nxr_rdbulk_nr);
-		if (ioreq_sm_state(ioreq) != IRS_FAILED &&
-		    m0_atomic64_get(&ioreq->ir_nwxfer.nxr_iofop_nr) == 0 &&
-		    m0_atomic64_get(&ioreq->ir_nwxfer.nxr_rdbulk_nr) == 0) {
+		if (should_iosm_reach_terminal(ioreq)) {
 			ioreq_sm_state_set(ioreq,
 					   (M0_IN(req_sm_state,
 						  (IRS_READING,
@@ -5411,6 +5415,12 @@ static void client_passive_recv(const struct m0_net_buffer_event *evt)
 
 	m0_mutex_unlock(&ioreq->ir_nwxfer.nxr_lock);
 	M0_LEAVE();
+}
+
+static bool should_iosm_reach_terminal(struct io_request *ioreq)
+{
+	return m0_atomic64_get(&ioreq->ir_nwxfer.nxr_iofop_nr) == 0 &&
+		m0_atomic64_get(&ioreq->ir_nwxfer.nxr_rdbulk_nr) == 0;
 }
 
 const struct m0_net_buffer_callbacks client_buf_bulk_cb  = {
@@ -5785,7 +5795,6 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	inode = m0t1fs_file_to_m0inode(req->ir_file);
 	csb = M0T1FS_SB(inode->ci_inode.i_sb);
 	if (csb->csb_rlock_revoked) {
-		ioreq_sm_failed(req, -ESTALE);
 		rc = M0_ERR(-ESTALE);
 		goto ref_dec;
 	}
@@ -5801,7 +5810,8 @@ ref_dec:
 	if (tioreq->ti_rc == 0)
 		tioreq->ti_rc = rc;
 
-	if (xfer->nxr_rc == 0 && rc != 0) {
+	/* For stale conf cache override the error. */
+	if (rc == -ESTALE || (xfer->nxr_rc == 0 && rc != 0)) {
 		xfer->nxr_rc = rc;
 		M0_LOG(M0_ERROR, "[%p][type=%d] rc %d, tioreq->ti_rc %d, "
 				 "nwxfer rc = %d @"FID_F,
@@ -5824,9 +5834,7 @@ ref_dec:
 
 	m0_mutex_lock(&xfer->nxr_lock);
 	m0_atomic64_dec(&xfer->nxr_iofop_nr);
-	if (ioreq_sm_state(req) != IRS_FAILED &&
-	    m0_atomic64_get(&xfer->nxr_iofop_nr) == 0 &&
-	    m0_atomic64_get(&xfer->nxr_rdbulk_nr) == 0) {
+	if (should_iosm_reach_terminal(req)) {
 		ioreq_sm_state_set_nolock(req, (M0_IN(ioreq_sm_state(req),
 			       (IRS_READING, IRS_DEGRADED_READING)) ?
 			       IRS_READ_COMPLETE : IRS_WRITE_COMPLETE));
