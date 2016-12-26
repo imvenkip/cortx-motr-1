@@ -1768,13 +1768,20 @@ static void spiel_conf_cancel(void)
 static void spiel_conf_load_send(void)
 {
 	struct m0_spiel_tx tx;
+	int                i;
 	int                rc;
 
 	spiel_conf_ut_init();
-	spiel_conf_create_configuration(&spiel, &tx);
-	rc = m0_spiel_tx_commit(&tx);
-	M0_UT_ASSERT(rc == 0);
-	m0_spiel_tx_close(&tx);
+	/*
+	 * Check that the second commit is possible and there is no panic.
+	 * See MERO-2311.
+	 */
+	for (i = 0; i < 2; i++) {
+		spiel_conf_create_configuration(&spiel, &tx);
+		rc = m0_spiel_tx_commit(&tx);
+		M0_UT_ASSERT(rc == 0);
+		m0_spiel_tx_close(&tx);
+	}
 	spiel_conf_ut_fini();
 }
 

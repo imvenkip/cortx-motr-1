@@ -594,7 +594,7 @@ ctx_destroy:
 	wlock_ctx_disconnect(wlx);
 ctx_free:
 	m0_free(wlx->wlc_rm_addr);
-	m0_free(wlx);
+	m0_free0(&spl->spl_wlock_ctx);
 fail:
 	return M0_ERR(rc);
 }
@@ -614,19 +614,17 @@ static void _spiel_tx_write_lock_put(struct m0_spiel_wlock_ctx *wlx)
 
 static void spiel_tx_write_lock_put(struct m0_spiel_tx *tx)
 {
-	struct m0_spiel           *spl;
-	struct m0_spiel_wlock_ctx *wlx;
+	struct m0_spiel *spl;
 
 	M0_PRE(tx != NULL);
 	M0_ENTRY("tx %p", tx);
 
 	spl = tx->spt_spiel;
-	wlx = spl->spl_wlock_ctx;
 	_spiel_tx_write_lock_put(spl->spl_wlock_ctx);
 	wlock_ctx_destroy(spl->spl_wlock_ctx);
 	wlock_ctx_disconnect(spl->spl_wlock_ctx);
-	m0_free(wlx->wlc_rm_addr);
-	m0_free(wlx);
+	m0_free(spl->spl_wlock_ctx->wlc_rm_addr);
+	m0_free0(&spl->spl_wlock_ctx);
 	M0_LEAVE();
 }
 
