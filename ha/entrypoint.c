@@ -509,9 +509,8 @@ static int ha_entrypoint_client_fom_tick(struct m0_fom *fom)
 	struct m0_fop                      *fop;
 	m0_time_t                           deadline;
 	bool                                stopping;
+	struct m0_ha_entrypoint_client     *ecl = M0_AMB(ecl, fom, ecl_fom);
 	int                                 rc = 0;
-	struct m0_ha_entrypoint_client     *ecl =
-		container_of(fom, struct m0_ha_entrypoint_client, ecl_fom);
 
 	M0_ENTRY();
 
@@ -547,8 +546,12 @@ static int ha_entrypoint_client_fom_tick(struct m0_fom *fom)
 		break;
 
 	case M0_HEC_CONNECT_WAIT:
-		next_state = ecl->ecl_rlink.rlk_rc == 0 ? M0_HEC_FILL :
-							  M0_HEC_UNAVAILABLE;
+		if (ecl->ecl_rlink.rlk_rc == 0) {
+			next_state = M0_HEC_FILL;
+		} else {
+			next_state = M0_HEC_UNAVAILABLE;
+			M0_LOG(M0_WARN, "rlk_rc=%d", ecl->ecl_rlink.rlk_rc);
+		}
 		rc = M0_FSO_AGAIN;
 		break;
 
@@ -585,10 +588,8 @@ static int ha_entrypoint_client_fom_tick(struct m0_fom *fom)
 		item->ri_prio     = M0_RPC_ITEM_PRIO_MID;
 		item->ri_deadline = M0_TIME_IMMEDIATELY;
 		fop->f_opaque = ecl;
-		rc = m0_rpc_post(item);
-
 		next_state = M0_HEC_SEND_WAIT;
-		rc = rc == 0 ? M0_FSO_WAIT : M0_FSO_AGAIN;
+		rc = m0_rpc_post(item) == 0 ? M0_FSO_WAIT : M0_FSO_AGAIN;
 		break;
 
 	case M0_HEC_SEND_WAIT:
@@ -633,7 +634,7 @@ static int ha_entrypoint_client_fom_tick(struct m0_fom *fom)
 		return M0_RC(M0_FSO_WAIT);
 
 	default:
-		M0_IMPOSSIBLE("Unexpected state");
+		M0_IMPOSSIBLE("Unexpected state: %d", state);
 	}
 
 	M0_LOG(M0_DEBUG, "%s -> %s",
