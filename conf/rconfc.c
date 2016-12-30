@@ -2723,6 +2723,7 @@ M0_INTERNAL void m0_rconfc_fini(struct m0_rconfc *rconfc)
 	m0_chan_fini(&rconfc->rc_herd_chan);
 	m0_mutex_unlock(&rconfc->rc_herd_lock);
 	m0_mutex_fini(&rconfc->rc_herd_lock);
+	m0_clink_fini(&rconfc->rc_herd_cl);
 	_confc_phony_fini(&rconfc->rc_phony);
 	m0_rconfc_lock(rconfc);
 	m0_sm_fini(&rconfc->rc_sm);
