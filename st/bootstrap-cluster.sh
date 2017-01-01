@@ -40,11 +40,11 @@ configure_hvt() {
 }
 
 configure_common() {
-	HALON_SOURCES=/root/halon
-	MERO_SOURCES=/root/mero
-	MERO_RPM_PATH=/root/rpmbuild/RPMS/x86_64
+	HALON_SOURCES=${HALON_SOURCES:-/root/halon}
+	MERO_SOURCES=${MERO_SOURCES:-/root/mero}
+	MERO_RPM_PATH=${MERO_RPM_PATH:-/root/rpmbuild/RPMS/x86_64}
 	HALON_RPM_PATH=$HALON_SOURCES/rpmbuild/RPMS/x86_64
-	REMOTE_RPM_PATH=/tmp
+	REMOTE_RPM_PATH=${REMOTE_RPM_PATH:-/tmp}
 
 	HALON_FACTS_HOST="172.16.0.41"
 	HALON_FACTS_PATH="/etc/halon/halon_facts.yaml"
