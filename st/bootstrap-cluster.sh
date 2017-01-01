@@ -25,6 +25,13 @@ configure_dev2_1() {
 	HALON_FACTS_FUNC="halon_facts_yaml_dev2_1"
 }
 
+configure_dev2_2() {
+	CMU_HOST="172.16.0.42"
+	HOSTS_LIST="$CMU_HOST,172.16.2.[1-7,9-10]"
+	CLIENTS_LIST="172.16.2.[9-10]"
+	HALON_FACTS_FUNC="halon_facts_yaml_auto"
+}
+
 configure_fre7n1() {
 	CMU_HOST="172.16.0.41"
 	HOSTS_LIST="172.16.1.[1-5]"
@@ -134,6 +141,7 @@ setup() {
 			castor-beta1-cc1.xy01.xyratex.com) cluster=beta1;;
 			castor-dev1-1-cc1.xy01.xyratex.com) cluster=dev1_1;;
 			castor-dev2-1-cc1.xy01.xyratex.com) cluster=dev2_1;;
+			castor-dev2-2-cc1.xy01.xyratex.com) cluster=dev2_2;;
 			vmc-rekvm-cc1.xy01.xyratex.com) cluster=fre7n1;;
 			vmc-rekvm-hvt-cc1.xy01.xyratex.com) cluster=hvt;;
 			*) die 'Cannot deduce cluster name.' \
@@ -145,6 +153,7 @@ setup() {
 		beta1) configure_beta1;;
 		dev1_1) configure_dev1_1;;
 		dev2_1) configure_dev2_1;;
+		dev2_2) configure_dev2_2;;
 		fre7n1) configure_fre7n1;;
 		hvt) configure_hvt;;
 		*) die "Unsupported cluster: $cluster";;
@@ -159,8 +168,8 @@ Usage: ${0##*/} [OPTION]... [--] COMMAND...
 Options:
     -h, --help      Show this help and exit.
     --cluster NAME  Use specific cluster configuration. Supported clusters:
-                    beta1, dev1_1, dev2_1, fre7n1, hvt.  If this option is
-                    missing, the script will try to guess by hostname.
+                    beta1, dev1_1, dev2_1, dev2_2, fre7n1, hvt.  If this option
+                    is missing, the script will try to guess by hostname.
 
 Commands:
     prepare_build_node  Install tools necessary to build Mero and Halon.
