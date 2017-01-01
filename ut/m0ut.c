@@ -433,7 +433,7 @@ int main(int argc, char *argv[])
 ut_fini:
 	m0_ut_fini();
 end:
-	if (!parse_trace) {
+	if (!parse_trace && !list_ut && !list_owners) {
 		m0_performance_counters(performance_counters,
 		                        ARRAY_SIZE(performance_counters));
 		printf("%s", performance_counters);
