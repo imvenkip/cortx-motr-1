@@ -1,29 +1,37 @@
 #!/usr/bin/env bash
-set -eux
+set -eu
 
 # IP address of a network interface.
 # It should be configured to be used with LNET
 # (it should be in `lctl list_nids`).
 # It is also used by halond and halonctl.
-IP=${IP:-172.16.1.212}
+IP=${IP:-$(ip -4 address show label eth\* up |
+		sed -rn 's:^ +inet ([^/]+).*:\1:p')}
+
+HALON_BIN=${HALON_BIN:-$HOME/.local/bin}
+
 # Path to halond binary.
-HALOND=${HALOND:-/home/mask/.local/bin/halond}
+HALOND=${HALOND:-$HALON_BIN/halond}
+
 # Path to halonctl binary.
-HALONCTL=${HALONCTL:-/home/mask/.local/bin/halonctl}
+HALONCTL=${HALONCTL:-$HALON_BIN/halonctl}
+
 # Path to the Halon source tree.
 HALON_SOURCES=${HALON_SOURCES:-/work/halon}
+
 # These variables can be used to run this test if Halon is installed from rpm.
 MERO_ROLE_MAPPINGS=${MERO_ROLE_MAPPINGS:-$HALON_SOURCES/mero-halon/scripts/mero_provisioner_role_mappings.ede}
 HALON_ROLES=${HALON_ROLE_MAPPINGS:-$HALON_SOURCES/mero-halon/scripts/halon_roles.yaml}
+
 # Path to the halon_facts.yaml.
 # The script overwrites the file with it's own configuration
 # (see halon_facts_yaml() function) and then uses the file
 # in `halonctl cluster load` command.
 HALON_FACTS_YAML=${HALON_FACTS_YAML:-halon_facts.yaml}
 
-HOSTNAME="`hostname`"
+USE_SYSTEM_MERO=
 
-USE_SYSTEM_MERO=""
+die() { echo "$@" >&2; exit 1; }
 
 show_help() {
 	cat << EOF
@@ -72,10 +80,11 @@ function stop_everything() {
 }
 
 function cluster_start() {
+	set -x
 	stop_everything
 	sudo rm -rf halon-persistence
 
-        [ -z $USE_SYSTEM_MERO ] && {
+	[ -z $USE_SYSTEM_MERO ] && {
 		sudo scripts/install-mero-service -u
 		sudo scripts/install-mero-service -l
 	}
@@ -102,6 +111,7 @@ function cluster_start() {
 }
 
 function cluster_stop() {
+	set -x
 	sudo $HALONCTL -l $IP:9010 -a $IP:9000 cluster stop && sleep 180
 	sudo $HALONCTL -l $IP:9010 -a $IP:9000 cluster status &
 	sleep 5
@@ -145,7 +155,7 @@ id_racks:
       bmc_pass: admin
     enc_hosts:
     - h_cpucount: 8
-      h_fqdn: $HOSTNAME
+      h_fqdn: `hostname`
       h_memsize: 4096
       h_interfaces:
       - if_network: Data
@@ -201,7 +211,7 @@ id_m0_servers:
     m0d_path: /dev/loop8
     m0d_size: 596000000000
   host_mem_rss: 1
-  m0h_fqdn: $HOSTNAME
+  m0h_fqdn: `hostname`
   m0h_roles:
   - name: confd
   - name: ha
@@ -221,4 +231,6 @@ id_m0_globals:
 EOF
 }
 
+[ -x $HALOND ] || die "$HALOND: No such executable"
+[ -x $HALONCTL ] || die "$HALONCTL: No such executable"
 main "$@"
