@@ -199,11 +199,13 @@ static void rlut_remote_delay(void)
 	m0_fi_disable("item_received_fi", "drop_opcode");
 	m0_rpc_link_fini(rlink);
 	/* delay on session establishing and connection termination */
+	M0_SET0(rlink);
 	m0_fi_enable("item_received_fi", "drop_opcode");
 	m0_rpc__filter_opcode[0] = M0_RPC_SESSION_ESTABLISH_REP_OPCODE;
 	m0_rpc__filter_opcode[1] = M0_RPC_CONN_TERMINATE_REP_OPCODE;
 	rc = m0_rpc_link_init(rlink, mach, NULL, remote_ep,
 			      RLUT_MAX_RPCS_IN_FLIGHT);
+	M0_UT_ASSERT(rc == 0);
 	rc = m0_rpc_link_connect_sync(rlink,
 				      m0_time_from_now(RLUT_SESS_TIMEOUT, 0));
 	M0_UT_ASSERT(rc != 0 && !m0_rpc_link_is_connected(rlink));
@@ -212,6 +214,7 @@ static void rlut_remote_delay(void)
 	m0_fi_disable("item_received_fi", "drop_opcode");
 	m0_rpc_link_fini(rlink);
 	/* delay on session termination */
+	M0_SET0(rlink);
 	m0_fi_enable("item_received_fi", "drop_opcode");
 	m0_rpc__filter_opcode[0] = M0_RPC_SESSION_TERMINATE_REP_OPCODE;
 	rc = m0_rpc_link_init(rlink, mach, NULL, remote_ep,
@@ -222,11 +225,12 @@ static void rlut_remote_delay(void)
 	M0_UT_ASSERT(rc == 0 && m0_rpc_link_is_connected(rlink));
 	rc = m0_rpc_link_disconnect_sync(rlink,
 					m0_time_from_now(RLUT_SESS_TIMEOUT, 0));
-	M0_UT_ASSERT(rc == 0 && !m0_rpc_link_is_connected(rlink));
+	M0_UT_ASSERT(rc == -ETIMEDOUT && !m0_rpc_link_is_connected(rlink));
 	m0_rpc__filter_opcode[0] = 0;
 	m0_fi_disable("item_received_fi", "drop_opcode");
 	m0_rpc_link_fini(rlink);
 	/* delay on connection termination */
+	M0_SET0(rlink);
 	rc = m0_rpc_link_init(rlink, mach, NULL, remote_ep,
 			      RLUT_MAX_RPCS_IN_FLIGHT);
 	M0_UT_ASSERT(rc == 0);
@@ -237,7 +241,7 @@ static void rlut_remote_delay(void)
 	m0_rpc__filter_opcode[0] = M0_RPC_CONN_TERMINATE_REP_OPCODE;
 	rc = m0_rpc_link_disconnect_sync(rlink,
 					m0_time_from_now(RLUT_SESS_TIMEOUT, 0));
-	M0_UT_ASSERT(rc == 0 && !m0_rpc_link_is_connected(rlink));
+	M0_UT_ASSERT(rc == -ETIMEDOUT && !m0_rpc_link_is_connected(rlink));
 	m0_rpc__filter_opcode[0] = 0;
 	m0_fi_disable("item_received_fi", "drop_opcode");
 	m0_rpc_link_fini(rlink);

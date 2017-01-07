@@ -54,6 +54,7 @@ struct rpc_link_state_transition {
 	/** Function which executes current phase */
 	int       (*rlst_state_function)(struct m0_rpc_link *);
 	int         rlst_next_phase;
+	int         rlst_fail_phase;
 	/** Description of phase */
 	const char *rlst_st_desc;
 };
@@ -191,68 +192,71 @@ static void rpc_link_sess_cleanup(struct m0_rpc_link *rlink)
 
 static int rpc_link_conn_failure(struct m0_rpc_link *rlink)
 {
-	if (rlink->rlk_rc == 0)
-		rlink->rlk_rc = m0_fom_rc(&rlink->rlk_fom);
+	M0_PRE(rlink->rlk_rc != 0);
 	m0_rpc_conn_ha_unsubscribe_lock(&rlink->rlk_conn);
 	return M0_FSO_WAIT;
 }
 
 static int rpc_link_sess_failure(struct m0_rpc_link *rlink)
 {
-	int rc;
-
-	if (rlink->rlk_rc == 0)
-		rlink->rlk_rc = m0_fom_rc(&rlink->rlk_fom);
-	m0_rpc_conn_ha_unsubscribe_lock(&rlink->rlk_conn);
-	rc = rpc_link_conn_terminate(rlink);
-	return rc == 0 ? M0_FSO_AGAIN : rc;
+	M0_PRE(rlink->rlk_rc != 0);
+	/*
+	 * Terminate connection even if session termination failed.
+	 * We don't rewrite rlink->rlk_rc, therefore, ignore return code.
+	 * M0_RPC_CONN_FAILED is handled by foms in M0_RLS_CONN_TERMINATING
+	 * phase.
+	 */
+	(void)rpc_link_conn_terminate(rlink);
+	return M0_FSO_AGAIN;
 }
 
 static struct rpc_link_state_transition rpc_link_conn_states[] = {
 
 	[M0_RLS_INIT] =
-	{ &rpc_link_conn_establish, M0_RLS_CONN_CONNECTING, "Initialised" },
+	{ &rpc_link_conn_establish, M0_RLS_CONN_CONNECTING,
+	  M0_RLS_CONN_FAILURE, "Initialised" },
 
 	[M0_RLS_CONN_CONNECTING] =
 	{ &rpc_link_sess_establish, M0_RLS_SESS_ESTABLISHING,
-	  "Connection establish" },
+	  M0_RLS_SESS_FAILURE, "Connection establish" },
 
 	[M0_RLS_SESS_ESTABLISHING] =
-	{ &rpc_link_sess_established, M0_RLS_FINI, "Session establishing" },
+	{ &rpc_link_sess_established, M0_RLS_FINI, 0, "Session establishing" },
 
 	[M0_RLS_CONN_FAILURE] =
-	{ &rpc_link_conn_failure, M0_RLS_FINI, "Failure in connection" },
+	{ &rpc_link_conn_failure, M0_RLS_FINI, 0, "Failure in connection" },
 
 	[M0_RLS_SESS_FAILURE] =
-	{ &rpc_link_sess_failure, M0_RLS_CONN_TERMINATING,
-		"Failure in establishing session" },
+	{ &rpc_link_sess_failure, M0_RLS_CONN_TERMINATING, 0,
+	  "Failure in establishing session" },
 
 	[M0_RLS_CONN_TERMINATING] =
-	{ &rpc_link_conn_failure, M0_RLS_FINI, "terminate connection" },
+	{ &rpc_link_conn_failure, M0_RLS_FINI, 0, "terminate connection" },
 
 };
 
 static struct rpc_link_state_transition rpc_link_disc_states[] = {
 
 	[M0_RLS_INIT] =
-	{ &rpc_link_disc_init, M0_RLS_SESS_WAIT_IDLE, "Initialised" },
+	{ &rpc_link_disc_init, M0_RLS_SESS_WAIT_IDLE, 0, "Initialised" },
 
 	[M0_RLS_SESS_WAIT_IDLE] =
-	{ &rpc_link_sess_terminate, M0_RLS_SESS_TERMINATING,"IDLE state wait" },
+	{ &rpc_link_sess_terminate, M0_RLS_SESS_TERMINATING,
+	  M0_RLS_SESS_FAILURE, "IDLE state wait" },
 
 	[M0_RLS_SESS_TERMINATING] =
 	{ &rpc_link_conn_terminate, M0_RLS_CONN_TERMINATING,
-	  "Session termination" },
+	  M0_RLS_CONN_FAILURE, "Session termination" },
 
 	[M0_RLS_CONN_TERMINATING] =
-	{ &rpc_link_conn_terminated, M0_RLS_FINI, "Conn termination" },
+	{ &rpc_link_conn_terminated, M0_RLS_FINI, 0, "Conn termination" },
 
 	[M0_RLS_CONN_FAILURE] =
-	{ &rpc_link_conn_failure, M0_RLS_FINI, "Failure in disconnection" },
+	{ &rpc_link_conn_failure, M0_RLS_FINI, 0, "Failure in disconnection" },
 
 	[M0_RLS_SESS_FAILURE] =
-	{ &rpc_link_sess_failure, M0_RLS_CONN_TERMINATING,
-		"Failure in sess termination" },
+	{ &rpc_link_sess_failure, M0_RLS_CONN_TERMINATING, 0,
+	  "Failure in sess termination" },
 };
 
 static void rpc_link_conn_fom_wait_on(struct m0_fom *fom,
@@ -273,12 +277,13 @@ static void rpc_link_sess_fom_wait_on(struct m0_fom *fom,
 
 static int rpc_link_conn_fom_tick(struct m0_fom *fom)
 {
-	int                    rc    = 0;
-	int                    phase = m0_fom_phase(fom);
-	bool                   armed = false;
-	uint32_t               state;
-	struct m0_rpc_link    *rlink;
-	struct m0_rpc_machine *rpcmach;
+	int                      rc    = 0;
+	int                      phase = m0_fom_phase(fom);
+	bool                     armed = false;
+	uint32_t                 state;
+	struct m0_rpc_link      *rlink;
+	struct m0_rpc_machine   *rpcmach;
+	enum m0_rpc_link_states  fail_phase;
 
 	M0_ENTRY("fom=%p phase=%s", fom, m0_fom_phase_name(fom, phase));
 
@@ -291,8 +296,10 @@ static int rpc_link_conn_fom_tick(struct m0_fom *fom)
 		state = CONN_STATE(&rlink->rlk_conn);
 		M0_ASSERT(M0_IN(state, (M0_RPC_CONN_CONNECTING,
 				M0_RPC_CONN_ACTIVE, M0_RPC_CONN_FAILED)));
-		if (state == M0_RPC_CONN_FAILED)
-			rc = CONN_RC(&rlink->rlk_conn);
+		if (state == M0_RPC_CONN_FAILED) {
+			fail_phase = M0_RLS_CONN_FAILURE;
+			rc         = CONN_RC(&rlink->rlk_conn);
+		}
 		if (state == M0_RPC_CONN_CONNECTING) {
 			rpc_link_conn_fom_wait_on(fom, rlink);
 			armed = true;
@@ -304,8 +311,10 @@ static int rpc_link_conn_fom_tick(struct m0_fom *fom)
 		M0_ASSERT(M0_IN(state, (M0_RPC_SESSION_ESTABLISHING,
 				M0_RPC_SESSION_IDLE, M0_RPC_SESSION_FAILED)));
 		if (state == M0_RPC_SESSION_FAILED) {
-			rc = SESS_RC(&rlink->rlk_sess);
-		} if (state == M0_RPC_SESSION_ESTABLISHING) {
+			fail_phase = M0_RLS_SESS_FAILURE;
+			rc         = SESS_RC(&rlink->rlk_sess);
+		}
+		if (state == M0_RPC_SESSION_ESTABLISHING) {
 			rpc_link_sess_fom_wait_on(fom, rlink);
 			armed = true;
 			rc    = M0_FSO_WAIT;
@@ -319,6 +328,10 @@ static int rpc_link_conn_fom_tick(struct m0_fom *fom)
 		M0_ASSERT(M0_IN(state, (M0_RPC_CONN_TERMINATING,
 				M0_RPC_CONN_TERMINATED,
 				M0_RPC_CONN_FAILED)));
+		/*
+		 * No need to fail when state == M0_RPC_CONN_FAILED, because
+		 * this is terminating path after session failure.
+		 */
 		if (state == M0_RPC_CONN_TERMINATING) {
 			rpc_link_conn_fom_wait_on(fom, rlink);
 			armed = true;
@@ -334,16 +347,15 @@ static int rpc_link_conn_fom_tick(struct m0_fom *fom)
 		if (rc > 0) {
 			phase = rpc_link_conn_states[phase].rlst_next_phase;
 			m0_fom_phase_set(fom, phase);
-		}
+		} else
+			fail_phase = rpc_link_conn_states[phase].rlst_fail_phase;
 	}
 
 	if (rc < 0) {
 		if (armed)
 			m0_fom_callback_cancel(&rlink->rlk_fomcb);
-		if (SESS_STATE(&rlink->rlk_sess) == M0_RPC_SESSION_FAILED)
-			m0_fom_phase_move(fom, rc, M0_RLS_SESS_FAILURE);
-		else
-			m0_fom_phase_move(fom, rc, M0_RLS_CONN_FAILURE);
+		rlink->rlk_rc = rlink->rlk_rc ?: rc;
+		m0_fom_phase_set(fom, fail_phase);
 		rc = M0_FSO_AGAIN;
 	}
 	return M0_RC(rc);
@@ -351,12 +363,13 @@ static int rpc_link_conn_fom_tick(struct m0_fom *fom)
 
 static int rpc_link_disc_fom_tick(struct m0_fom *fom)
 {
-	int                    rc    = 0;
-	int                    phase = m0_fom_phase(fom);
-	bool                   armed = false;
-	uint32_t               state;
-	struct m0_rpc_link    *rlink;
-	struct m0_rpc_machine *rpcmach;
+	int                      rc    = 0;
+	int                      phase = m0_fom_phase(fom);
+	bool                     armed = false;
+	uint32_t                 state;
+	struct m0_rpc_link      *rlink;
+	struct m0_rpc_machine   *rpcmach;
+	enum m0_rpc_link_states  fail_phase;
 
 	M0_ENTRY("fom=%p phase=%s", fom, m0_fom_phase_name(fom, phase));
 
@@ -369,8 +382,10 @@ static int rpc_link_disc_fom_tick(struct m0_fom *fom)
 		state = SESS_STATE(&rlink->rlk_sess);
 		M0_ASSERT(M0_IN(state, (M0_RPC_SESSION_IDLE,
 				M0_RPC_SESSION_BUSY, M0_RPC_SESSION_FAILED)));
-		if (state == M0_RPC_SESSION_FAILED)
-			rc = SESS_RC(&rlink->rlk_sess);
+		if (state == M0_RPC_SESSION_FAILED) {
+			fail_phase = M0_RLS_SESS_FAILURE;
+			rc         = SESS_RC(&rlink->rlk_sess);
+		}
 		if (state == M0_RPC_SESSION_BUSY) {
 			rpc_link_sess_fom_wait_on(fom, rlink);
 			armed = true;
@@ -382,10 +397,10 @@ static int rpc_link_disc_fom_tick(struct m0_fom *fom)
 		M0_ASSERT(M0_IN(state, (M0_RPC_SESSION_TERMINATING,
 				M0_RPC_SESSION_TERMINATED,
 				M0_RPC_SESSION_FAILED)));
-		/*
-		 * We need to terminate connection even if session termination
-		 * failed.
-		 */
+		if (state == M0_RPC_SESSION_FAILED) {
+			fail_phase = M0_RLS_SESS_FAILURE;
+			rc         = SESS_RC(&rlink->rlk_sess);
+		}
 		if (state == M0_RPC_SESSION_TERMINATING) {
 			rpc_link_sess_fom_wait_on(fom, rlink);
 			armed = true;
@@ -397,6 +412,10 @@ static int rpc_link_disc_fom_tick(struct m0_fom *fom)
 		M0_ASSERT(M0_IN(state, (M0_RPC_CONN_TERMINATING,
 				M0_RPC_CONN_TERMINATED,
 				M0_RPC_CONN_FAILED)));
+		if (state == M0_RPC_CONN_FAILED) {
+			fail_phase = M0_RLS_CONN_FAILURE;
+			rc         = CONN_RC(&rlink->rlk_conn);
+		}
 		if (state == M0_RPC_CONN_TERMINATING) {
 			rpc_link_conn_fom_wait_on(fom, rlink);
 			armed = true;
@@ -412,16 +431,15 @@ static int rpc_link_disc_fom_tick(struct m0_fom *fom)
 		if (rc > 0) {
 			phase = rpc_link_disc_states[phase].rlst_next_phase;
 			m0_fom_phase_set(fom, phase);
-		}
+		} else
+			fail_phase = rpc_link_disc_states[phase].rlst_fail_phase;
 	}
 
 	if (rc < 0) {
 		if (armed)
 			m0_fom_callback_cancel(&rlink->rlk_fomcb);
-		if (SESS_STATE(&rlink->rlk_sess) == M0_RPC_SESSION_FAILED)
-			m0_fom_phase_move(fom, rc, M0_RLS_SESS_FAILURE);
-		else
-			m0_fom_phase_move(fom, rc, M0_RLS_CONN_FAILURE);
+		rlink->rlk_rc = rlink->rlk_rc ?: rc;
+		m0_fom_phase_set(fom, fail_phase);
 		rc = M0_FSO_AGAIN;
 	}
 	return M0_RC(rc);
@@ -461,12 +479,12 @@ static struct m0_sm_state_descr rpc_link_conn_state_descr[] = {
 					  M0_RLS_CONN_CONNECTING)
 	},
 	[M0_RLS_CONN_FAILURE] = {
-		.sd_flags       = M0_SDF_FAILURE,
+		.sd_flags       = 0,
 		.sd_name        = "Conn failure",
 		.sd_allowed     = M0_BITS(M0_RLS_FINI)
 	},
 	[M0_RLS_SESS_FAILURE] = {
-		.sd_flags       = M0_SDF_FAILURE,
+		.sd_flags       = 0,
 		.sd_name        = "Session failure",
 		.sd_allowed     = M0_BITS(M0_RLS_CONN_TERMINATING)
 	},
@@ -479,6 +497,7 @@ static struct m0_sm_state_descr rpc_link_conn_state_descr[] = {
 		.sd_flags       = 0,
 		.sd_name        = "Connection establishing",
 		.sd_allowed     = M0_BITS(M0_RLS_CONN_FAILURE,
+					  M0_RLS_SESS_FAILURE,
 					  M0_RLS_SESS_ESTABLISHING)
 	},
 	[M0_RLS_SESS_ESTABLISHING] = {
@@ -505,16 +524,15 @@ static struct m0_sm_state_descr rpc_link_disc_state_descr[] = {
 	[M0_RLS_INIT] = {
 		.sd_flags       = M0_SDF_INITIAL,
 		.sd_name        = "Initialised",
-		.sd_allowed     = M0_BITS(M0_RLS_CONN_FAILURE,
-					  M0_RLS_SESS_WAIT_IDLE)
+		.sd_allowed     = M0_BITS(M0_RLS_SESS_WAIT_IDLE)
 	},
 	[M0_RLS_CONN_FAILURE] = {
-		.sd_flags       = M0_SDF_FAILURE,
+		.sd_flags       = 0,
 		.sd_name        = "Conn failure",
 		.sd_allowed     = M0_BITS(M0_RLS_FINI)
 	},
 	[M0_RLS_SESS_FAILURE] = {
-		.sd_flags       = M0_SDF_FAILURE,
+		.sd_flags       = 0,
 		.sd_name        = "Session failure",
 		.sd_allowed     = M0_BITS(M0_RLS_CONN_TERMINATING)
 	},
@@ -528,6 +546,7 @@ static struct m0_sm_state_descr rpc_link_disc_state_descr[] = {
 		.sd_flags       = 0,
 		.sd_name        = "Session termination",
 		.sd_allowed     = M0_BITS(M0_RLS_SESS_FAILURE,
+					  M0_RLS_CONN_FAILURE,
 					  M0_RLS_CONN_TERMINATING)
 	},
 	[M0_RLS_CONN_TERMINATING] = {
@@ -665,6 +684,7 @@ M0_INTERNAL void m0_rpc_link_connect_async(struct m0_rpc_link *rlink,
 {
 	M0_ENTRY("rlink=%p", rlink);
 	M0_PRE(!rlink->rlk_connected);
+	M0_PRE(rlink->rlk_rc == 0);
 	rlink->rlk_timeout = abs_timeout;
 	rpc_link_fom_queue(rlink, wait_clink, &rpc_link_conn_fom_type,
 			   &rpc_link_conn_fom_ops);
@@ -684,6 +704,7 @@ M0_INTERNAL void m0_rpc_link_disconnect_async(struct m0_rpc_link *rlink,
 {
 	M0_ENTRY("rlink=%p", rlink);
 	M0_PRE(rlink->rlk_connected);
+	M0_PRE(rlink->rlk_rc == 0);
 	rlink->rlk_timeout = abs_timeout;
 	rpc_link_fom_queue(rlink, wait_clink, &rpc_link_disc_fom_type,
 			   &rpc_link_disc_fom_ops);
