@@ -217,7 +217,7 @@ M0_INTERNAL bool sm_invariant0(const struct m0_sm *mach)
 
 M0_INTERNAL bool m0_sm_invariant(const struct m0_sm *mach)
 {
-	return _0C(sm_is_locked(mach)) && _0C(sm_invariant0(mach));
+	return _0C(sm_is_locked(mach)) && sm_invariant0(mach);
 }
 
 static bool conf_invariant(const struct m0_sm_conf *conf)
