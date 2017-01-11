@@ -337,6 +337,7 @@ static void btree_save_test(struct m0_be_btree *tree)
 	struct m0_be_op *op;
 	char             k[INSERT_SIZE];
 	char             v[INSERT_SIZE];
+	char             r[INSERT_SIZE];
 	int              rc;
 
 	M0_ALLOC_PTR(op);
@@ -344,6 +345,7 @@ static void btree_save_test(struct m0_be_btree *tree)
 
 	m0_buf_init(&key, k, sizeof k);
 	m0_buf_init(&val, v, sizeof v);
+	m0_buf_init(&ret_val, r, sizeof r);
 
 	/* Hope that a0a0 is not in the tree. */
 	sprintf(k, "%0*x", INSERT_SIZE-1, 0xa0a0);
