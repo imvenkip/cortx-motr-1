@@ -2104,6 +2104,7 @@ static void rlock_conflict_handle(struct m0_sm_group *grp,
 
 	M0_ENTRY("rconfc = %p, exp_cb = %p, ready_cb = %p", rconfc,
 		 rconfc->rc_exp_cb, rconfc->rc_ready_cb);
+	M0_PRE(rconfc_is_locked(rconfc));
 	/* prepare for emptying conductor's cache */
 	if (rconfc->rc_exp_cb != NULL)
 		rconfc->rc_exp_cb(rconfc);
@@ -2177,6 +2178,7 @@ static void rconfc_stop_ast_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	struct m0_rconfc *rconfc = ast->sa_datum;
 
 	M0_ENTRY("rconfc = %p", rconfc);
+	M0_PRE(rconfc_is_locked(rconfc));
 	rconfc->rc_stopping = true;
 	if (rconfc->rc_exp_cb != NULL)
 		rconfc->rc_exp_cb(rconfc);
@@ -2211,6 +2213,7 @@ static void rconfc_read_lock_conflict(struct m0_rm_incoming *in)
 static void rconfc_idle(struct m0_rconfc *rconfc)
 {
 	M0_ENTRY("rconfc = %p", rconfc);
+	M0_PRE(rconfc_is_locked(rconfc));
 	if (rconfc->rc_stopping) {
 		rconfc_stop_internal(rconfc);
 		M0_LEAVE("Stopped internally");
@@ -2240,6 +2243,7 @@ static bool rconfc_quorum_is_possible(struct m0_rconfc *rconfc)
 	int              ver_count_max;
 	int              armed_count;
 
+	M0_PRE(rconfc_is_locked(rconfc));
 	armed_count = m0_tl_reduce(rcnf_herd, lnk, &rconfc->rc_herd, 0,
 				   + (lnk->rl_state == CONFC_ARMED));
 	ver_count_max = m0_fold(idx, acc, va->va_count, 0,
@@ -2525,6 +2529,7 @@ static void rconfc_local_load(struct m0_rconfc *rconfc)
 
 	M0_ENTRY("rconfc %p, local_conf = '%s'", rconfc, rconfc->rc_local_conf);
 	M0_PRE(rconfc->rc_local_conf != NULL && *rconfc->rc_local_conf != '\0');
+	M0_PRE(!rconfc_is_locked(rconfc));
 	rc = m0_confc_init(&rconfc->rc_confc, rconfc->rc_sm.sm_grp,
 			   NULL, rconfc->rc_rmach, rconfc->rc_local_conf) ?:
 		m0_conf_root_open(&rconfc->rc_confc, &root);
@@ -2533,8 +2538,10 @@ static void rconfc_local_load(struct m0_rconfc *rconfc)
 		m0_confc_close(&root->rt_obj);
 	}
 	rconfc->rc_sm.sm_rc = rc;
+	m0_rconfc_lock(rconfc);
 	if (rconfc->rc_ready_cb != NULL)
 		rconfc->rc_ready_cb(rconfc);
+	m0_rconfc_unlock(rconfc);
 	M0_LEAVE("rc=%d", rc);
 }
 

@@ -275,12 +275,16 @@ struct m0_rconfc {
 	/**
 	 * Rconfc expiration callback. Installed during m0_rconfc_init(), but is
 	 * allowed to be re-set later if required, on a locked rconfc instance.
+	 *
+	 * The callback is executed being under rconfc lock.
 	 */
 	m0_rconfc_exp_cb_t        rc_exp_cb;
 
 	/**
 	 * Rconfc idle callback. Initially unset. Allowed to be
 	 * installed later if required, on a locked rconfc instance.
+	 *
+	 * The callback is executed being under rconfc lock.
 	 */
 	m0_rconfc_ready_cb_t      rc_ready_cb;
 
