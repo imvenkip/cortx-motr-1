@@ -680,8 +680,7 @@ static int stob_ad_destroy_credit(struct m0_stob *stob,
 	struct m0_stob_ad        *astob = stob_ad_stob2ad(stob);
 	struct m0_ad_balloc      *ballroom;
 	int                       rc;
-	m0_bcount_t               i = 0;
-	m0_bcount_t               segs;
+	m0_bcount_t               segs = 0;
 
 	adom = stob_ad_domain2ad(m0_stob_dom_get(stob));
 	ballroom = adom->sad_ballroom;
@@ -689,18 +688,11 @@ static int stob_ad_destroy_credit(struct m0_stob *stob,
 	rc = stob_ad_cursor(adom, stob, 0, &it);
 	if (rc != 0)
 		return M0_RC(rc);
-	rc = m0_be_emap_count(&it, &segs);
-	if (rc == 0)
-		rc = m0_be_emap_op_rc(&it);
-	m0_be_emap_close(&it);
-	rc = stob_ad_cursor(adom, stob, 0, &it);
-	if (rc != 0)
-		return M0_RC(rc);
 	op = m0_be_emap_op(&it);
 	eng = m0_be_domain_engine(m0_be_emap_seg_domain(it.ec_map));
 
 	if (rc == 0) {
-		for (i = 1; i <= segs; ++i) {
+		for ( ;; ) {
 			seg = m0_be_emap_seg_get(&it);
 			M0_ASSERT(m0_ext_is_valid(&seg->ee_ext) &&
 			  !m0_ext_is_empty(&seg->ee_ext));
@@ -712,14 +704,16 @@ static int stob_ad_destroy_credit(struct m0_stob *stob,
 				break;
 			}
 			m0_be_tx_credit_add(accum, &cred);
-			if (!m0_be_emap_ext_is_last(&seg->ee_ext)) {
-				M0_SET0(op);
-				rc = M0_BE_OP_SYNC_RET_WITH(op,
+			segs++;
+
+			if (m0_be_emap_ext_is_last(&seg->ee_ext))
+				break;
+			M0_SET0(op);
+			rc = M0_BE_OP_SYNC_RET_WITH(op,
 						    m0_be_emap_next(&it),
 						    bo_u.u_emap.e_rc);
-				if (rc != 0)
-					break;
-			}
+			if (rc != 0)
+				break;
 		}
 	}
 	if (rc == 0) {
