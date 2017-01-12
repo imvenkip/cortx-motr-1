@@ -658,7 +658,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 	M0_PRE(M0_IN(filter, (PA_DATA, PA_PARITY)));
 
 	rc = m0_rpc_session_validate(ti->ti_session);
-	if (rc != 0)
+	if (rc != 0 && rc != -ECANCELED)
 		return M0_ERR(rc);
 
 	xfer = ti->ti_nwxfer;
@@ -790,7 +790,6 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 
 		rw_fop->crw_fid = ti->ti_fid;
 		rw_fop->crw_pver = ioo->ioo_pver;
-		/*rw_fop->crw_pver = instance->m0c_pool_version->pv_id;*/
 
 		/*
 		 * XXX(Sining): This is a bit tricky: m0_io_fop_prepare in
@@ -825,6 +824,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 	}
 
 	return M0_RC(0);
+
 fini_fop:
 	irfop_fini(irfop);
 err:
@@ -1066,10 +1066,12 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 
 			u_ext.e_start = pgstart + unit * unit_size;
 			u_ext.e_end   = u_ext.e_start + unit_size;
+			m0_ext_init(&u_ext);
 
 			v_ext.e_start  = m0_ivec_cursor_index(&cursor);
 			v_ext.e_end    = v_ext.e_start +
 				m0_ivec_cursor_step(&cursor);
+			m0_ext_init(&v_ext);
 
 			m0_ext_intersection(&u_ext, &v_ext, &r_ext);
 			if (!m0_ext_is_valid(&r_ext)) {
@@ -1190,11 +1192,18 @@ static void nw_xfer_req_complete(struct nw_xfer_request *xfer, bool rmw)
 		 rmw ? (char *)"true" : (char *)"false");
 
 	M0_PRE(xfer != NULL);
-
 	xfer->nxr_state = NXS_COMPLETE;
 	ioo = bob_of(xfer, struct m0_clovis_op_io, ioo_nwxfer, &ioo_bobtype);
 	M0_PRE(m0_sm_group_is_locked(ioo->ioo_sm.sm_grp));
-	M0_PRE(m0_clovis_op_io_invariant(ioo));
+	/*
+ 	 * Ignore the following invariant check as there exists cases in which
+ 	 * io fops are created sucessfully for some target services but fail
+ 	 * for some services in nxo_dispatch (for example, session/connection
+ 	 * to a service is invalid, resulting a 'dirty' op in which
+ 	 * nr_iofops != 0 and nxr_state == NXS_COMPLETE.
+ 	 *
+	 * M0_PRE_EX(m0_clovis_op_io_invariant(ioo));
+	 */
 
 	m0_htable_for(tioreqht, ti, &xfer->nxr_tioreqs_hash) {
 
@@ -1261,8 +1270,15 @@ static void nw_xfer_req_complete(struct nw_xfer_request *xfer, bool rmw)
 			xfer->nxr_bytes = 0;
 	}
 
-	/* TODO: merge this with op->op_sm.sm_rc ? */
-	ioo->ioo_rc = xfer->nxr_rc;
+	/*
+	 * nxo_dispatch may fail if connections to services have not been
+	 * established yet. In this case, ioo_rc contains error code and
+	 * xfer->nxr_rc == 0, don't overwrite ioo_rc.
+	 *
+	 * TODO: merge this with op->op_sm.sm_rc ?
+	 */
+	if (xfer->nxr_rc != 0)
+		ioo->ioo_rc = xfer->nxr_rc;
 
 	M0_LEAVE();
 }
@@ -1329,8 +1345,8 @@ static int nw_xfer_req_dispatch(struct nw_xfer_request *xfer)
 			       FID_F"@%p, item %p, fops nr=%llu, rc=%d, "
 			       "ri_error=%d", ioo, FID_P(&ti->ti_fid), irfop,
 			       &irfop->irf_iofop.if_fop.f_item,
-			       (unsigned long long)m0_atomic64_get(
-				&xfer->nxr_iofop_nr),
+			       (unsigned long long)
+			       m0_atomic64_get(&xfer->nxr_iofop_nr),
 			       rc, ri_error);
 
 			if (rc != 0)
@@ -1368,8 +1384,20 @@ out:
 	       (unsigned long long)m0_atomic64_get(&xfer->nxr_rdbulk_nr),
 	       (unsigned long long)nr_dispatched);
 
-
 	return M0_RC(rc);
+}
+
+static bool should_spare_be_mapped(struct m0_clovis_op_io *ioo,
+				   enum m0_pool_nd_state device_state)
+{
+	return (M0_IN(ioreq_sm_state(ioo),
+		       (IRS_READING, IRS_DEGRADED_READING)) &&
+		device_state == M0_PNDS_SNS_REPAIRED) ||
+	       (ioreq_sm_state(ioo) == IRS_DEGRADED_WRITING &&
+		(device_state == M0_PNDS_SNS_REPAIRED ||
+		 (device_state == M0_PNDS_SNS_REPAIRING &&
+		  ioo->ioo_sns_state == SRS_REPAIR_DONE)));
+
 }
 
 /**
@@ -1494,16 +1522,9 @@ static int nw_xfer_tioreq_map(struct nw_xfer_request           *xfer,
 	 *    req->ir_sns_state == SRS_REPAIR_NOTDONE.
 	 *    Unlikely case! What to do in this case?
 	 */
-	M0_LOG(M0_INFO, "device state = %d\n", device_state);
-	/** TODO: make this if condition readable */
-	if ((M0_IN(ioreq_sm_state(ioo),
-		   (IRS_READING, IRS_DEGRADED_READING)) &&
-	     device_state == M0_PNDS_SNS_REPAIRED) ||
-	    (ioreq_sm_state(ioo) == IRS_DEGRADED_WRITING &&
-	     (device_state == M0_PNDS_SNS_REPAIRED ||
-	      (device_state == M0_PNDS_SNS_REPAIRING &&
-	       ioo->ioo_sns_state == SRS_REPAIR_DONE)))) {
-
+	M0_LOG(M0_INFO, "[%p] tfid "FID_F ", device state = %d\n",
+	       ioo, FID_P(&tfid), device_state);
+	if (should_spare_be_mapped(ioo, device_state)) {
 		gfid = &ioo->ioo_oo.oo_fid;
 		rc = m0_sns_repair_spare_map(
 				pm, gfid, play, play_instance, src->sa_group,

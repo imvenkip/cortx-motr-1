@@ -1,0 +1,34 @@
+
+clovis_st_user_space_c0st_SOURCES = clovis/st/user_space/clovis_st_main.c \
+		      clovis/st/clovis_st.c \
+		      clovis/st/clovis_st_misc.c \
+		      clovis/st/clovis_st_worker.c \
+		      clovis/st/clovis_st_assert.c \
+		      clovis/st/clovis_api.c \
+		      clovis/st/clovis_oid.c \
+		      clovis/st/clovis_obj.c  \
+		      clovis/st/clovis_idx.c \
+		      clovis/st/clovis_read.c \
+		      clovis/st/clovis_write.c \
+		      clovis/st/clovis_osync.c \
+		      clovis/st/clovis_example.c \
+		      clovis/st/clovis_st_assert.h \
+		      clovis/st/clovis_st.h \
+		      clovis/st/clovis_st_misc.h
+
+clovis_st_utils_c0touch_SOURCES = clovis/st/utils/clovis_touch.c
+clovis_st_utils_c0unlink_SOURCES = clovis/st/utils/clovis_unlink.c
+clovis_st_utils_c0cat_SOURCES = clovis/st/utils/clovis_cat.c
+clovis_st_utils_c0cp_SOURCES = clovis/st/utils/clovis_copy.c
+clovis_st_utils_c0cp_mt_SOURCES = clovis/st/utils/clovis_copy_mt.c
+
+EXTRA_DIST  += clovis/st/utils/clovis_local_conf.sh \
+	       clovis/st/utils/clovis_cmd.sh \
+	       clovis/st/utils/clovis_st_inc.sh \
+	       clovis/st/utils/clovis_sys_test.sh \
+	       clovis/st/utils/clovis_mero_st.sh \
+	       clovis/st/utils/clovis_device_util.sh \
+	       clovis/st/utils/clovis_dgmode_io_demo.sh \
+	       clovis/st/utils/mero_fs.sh \
+	       clovis/st/utils/mero_services.sh \
+	       clovis/st/linux_kernel/clovis_st_kmain.c

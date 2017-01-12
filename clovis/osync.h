@@ -81,10 +81,11 @@ struct clovis_osync_interactions {
  * Service must be specified, one or both of csb/inode should be specified.
  * new_txid may be null.
  */
-void clovis_osync_record_update(struct m0_reqh_service_ctx *service,
-				struct m0_clovis           *m0c,
-				struct m0_clovis_obj       *obj,
-				struct m0_be_tx_remid      *btr);
+M0_INTERNAL void
+clovis_osync_record_update(struct m0_reqh_service_ctx *service,
+			   struct m0_clovis           *m0c,
+			   struct m0_clovis_obj       *obj,
+			   struct m0_be_tx_remid      *btr);
 
 
 /**

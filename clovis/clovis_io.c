@@ -227,7 +227,7 @@ static void clovis_obj_io_cb_launch(struct m0_clovis_op_common *oc)
 	op = &oc->oc_op;
 	oo = bob_of(oc, struct m0_clovis_op_obj, oo_oc, &oo_bobtype);
 	ioo = bob_of(oo, struct m0_clovis_op_io, ioo_oo, &ioo_bobtype);
-	M0_PRE(m0_clovis_op_io_invariant(ioo));
+	M0_PRE_EX(m0_clovis_op_io_invariant(ioo));
 	instance = m0_clovis__op_instance(op);
 	M0_PRE(instance != NULL);
 
@@ -283,7 +283,7 @@ static void clovis_obj_io_ast_fini(struct m0_sm_group *grp,
 	M0_PRE(grp != NULL);
 	M0_PRE(m0_sm_group_is_locked(grp));
 	ioo = bob_of(ast, struct m0_clovis_op_io, ioo_ast, &ioo_bobtype);
-	M0_PRE(m0_clovis_op_io_invariant(ioo));
+	M0_PRE_EX(m0_clovis_op_io_invariant(ioo));
 	/* XXX Shouldn't this be a controlled rc? */
 	M0_PRE(M0_IN(ioo->ioo_sm.sm_state,
 		     (IRS_REQ_COMPLETE, IRS_FAILED, IRS_INITIALIZED)));
@@ -338,7 +338,7 @@ static void clovis_obj_io_cb_fini(struct m0_clovis_op_common *oc)
 
 	oo = bob_of(oc, struct m0_clovis_op_obj, oo_oc, &oo_bobtype);
 	ioo = bob_of(oo, struct m0_clovis_op_io, ioo_oo, &ioo_bobtype);
-	M0_PRE(m0_clovis_op_io_invariant(ioo));
+	M0_PRE_EX(m0_clovis_op_io_invariant(ioo));
 
 	/* Finalise the io state machine */
 	/* We do this by posting the fini callback AST, and waiting for it
@@ -405,6 +405,7 @@ void m0_clovis_obj_op(struct m0_clovis_obj       *obj,
 	struct m0_clovis_entity    *entity;
 	struct m0_locality         *locality;
 	struct m0_clovis           *instance;
+	struct m0_pool_version     *pv;
 
 	M0_ENTRY();
 
@@ -515,13 +516,19 @@ void m0_clovis_obj_op(struct m0_clovis_obj       *obj,
 	m0_fid_gob_make(&ioo->ioo_oo.oo_fid,
 			obj->ob_entity.en_id.u_hi, obj->ob_entity.en_id.u_lo);
 
+
+	/* Get current pool version for the object. */
+	rc = m0_clovis_pool_version_get(instance, &pv);
+	if (rc != 0)
+		goto fail;
+	ioo->ioo_pver = pv->pv_id;
+
 	/*
 	 * Build layout instance: current implementation of Clovis doesn't
 	 * retrieve latest latest layout id of an object (and it doesn't
 	 * even have an API to change layout id). So only M0_DEFALUT_LAYOUT_ID
 	 * is used. Something needs to be done here[TODO].
 	 */
-	ioo->ioo_pver = instance->m0c_pool_version->pv_id;
 	layout_id = m0_pool_version2layout_id(&ioo->ioo_pver,
 			m0_clovis_obj_default_layout_id_get(instance));
 	rc = m0_clovis_obj_layout_instance_build(instance, layout_id,
@@ -570,7 +577,7 @@ void m0_clovis_obj_op(struct m0_clovis_obj       *obj,
 		ioo->ioo_attr_mask = mask;
 	}
 
-	M0_POST(m0_clovis_op_io_invariant(ioo));
+	M0_POST_EX(m0_clovis_op_io_invariant(ioo));
 	M0_POST(*op != NULL &&
 		(*op)->op_code == opcode &&
 		(*op)->op_sm.sm_state == M0_CLOVIS_OS_INITIALISED);

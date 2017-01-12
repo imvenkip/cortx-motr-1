@@ -810,10 +810,13 @@ static bool clovis_rconfc_expired_cb(struct m0_clink *clink)
 	 * handling. This is done in order to call rio_replied callback for
 	 * the rpc items and interrupt io_requests.
 	 * A cancelled session is reconnected. See MERO-1642.
+	 *
+	 * Note: Clovis doesn't use CAS services, so they are not of interest.
 	 */
 	for (i = 0; i < m0c->m0c_pools_common.pc_nr_devices; i++) {
-		ctx = m0c->m0c_pools_common.pc_dev2ios[i].pds_ctx;
-		if (ctx != NULL && ctx->sc_rlink.rlk_connected)
+		ctx = m0c->m0c_pools_common.pc_dev2svc[i].pds_ctx;
+		if (ctx != NULL &&
+		    ctx->sc_type == M0_CST_IOS && ctx->sc_rlink.rlk_connected)
 			m0_reqh_service_cancel_reconnect(ctx);
 	}
 	M0_LEAVE();
@@ -922,7 +925,6 @@ static void clovis_confc_fini(struct m0_clovis *m0c)
 	m0_clink_del_lock(&m0c->m0c_conf_ready);
 	m0_clink_fini(&m0c->m0c_conf_exp);
 	m0_clink_fini(&m0c->m0c_conf_ready);
-	m0_conf_ha_notify(&m0c->m0c_reqh.rh_fid, M0_NC_FAILED);
 	m0_sm_group_lock(&m0c->m0c_sm_group);
 }
 
@@ -952,20 +954,13 @@ static int clovis_pools_init(struct m0_clovis *m0c)
 {
 	int                     rc;
 	struct m0_pools_common *pools = &m0c->m0c_pools_common;
-	struct m0_reqh         *reqh = &m0c->m0c_reqh;
 
 	m0_sm_group_unlock(&m0c->m0c_sm_group);
-
-	rc = m0_flset_build(&reqh->rh_failure_set,
-			    &reqh->rh_pools->pc_ha_ctx->sc_rlink.rlk_sess,
-			    clovis_conf_fs);
-	if (rc != 0)
-		goto err_exit;
 
 	rc = m0_pools_common_init(pools, &m0c->m0c_rpc_machine,
 				  clovis_conf_fs);
 	if (rc != 0)
-		goto err_failure_set_destroy;
+		goto err_exit;
 	M0_ASSERT(ergo(m0c->m0c_config->cc_is_oostore,
 		       pools->pc_md_redundancy > 0));
 
@@ -977,6 +972,8 @@ static int clovis_pools_init(struct m0_clovis *m0c)
 	if (rc != 0)
 		goto err_pools_destroy;
 
+	m0_pools_common_service_ctx_connect_sync(pools);
+
 	m0_sm_group_lock(&m0c->m0c_sm_group);
 	return M0_RC(0);
 
@@ -984,9 +981,6 @@ err_pools_destroy:
 	m0_pools_destroy(pools);
 err_pools_common_fini:
 	m0_pools_common_fini(pools);
-err_failure_set_destroy:
-	m0_flset_destroy(&m0c->m0c_reqh.rh_failure_set);
-	m0_ha_state_fini();
 err_exit:
 	m0_sm_group_lock(&m0c->m0c_sm_group);
 	return M0_RC(rc);
@@ -996,7 +990,6 @@ static void clovis_pools_fini(struct m0_clovis *m0c)
 {
 	struct m0_pools_common *pools = &m0c->m0c_pools_common;
 
-	m0_flset_destroy(&m0c->m0c_reqh.rh_failure_set);
 	m0_pools_service_ctx_destroy(pools);
 	m0_pools_destroy(pools);
 	m0_pools_common_fini(pools);
@@ -1043,22 +1036,22 @@ static int clovis_initlift_pool_version(struct m0_sm *mach)
 		m0_sm_group_unlock(&m0c->m0c_sm_group);
 
 		rc = m0_pool_versions_setup(pools, clovis_conf_fs, NULL, NULL, NULL);
-		if (rc != 0)
- 			goto sm_group_lock;
-		rc = m0_pool_version_get(pools, &pv);
-		if (rc != 0)
-			m0_pool_versions_destroy(pools);
-
-sm_group_lock:
-		m0_sm_group_lock(&m0c->m0c_sm_group);
-		if (rc == 0) {
-			m0c->m0c_pool_version = pv;
-			M0_ASSERT(m0c->m0c_pool_version != NULL);
-		} else
+		if (rc != 0) {
+			m0_sm_group_lock(&m0c->m0c_sm_group);
 			clovis_initlift_fail(rc, m0c);
+ 			goto exit;
+		}
+
+		rc = m0_pool_version_get(pools, &pv);
+		if (!M0_IN(rc, (0, -ENOENT))) {
+			m0_pool_versions_destroy(pools);
+			clovis_initlift_fail(rc, m0c);
+		}
+		m0_sm_group_lock(&m0c->m0c_sm_group);
 	} else /* CLOVIS_SHUTDOWN */
 		m0_pool_versions_destroy(pools);
 
+exit:
 	return M0_RC(clovis_initlift_get_next_floor(m0c));
 }
 
@@ -1126,19 +1119,22 @@ static int clovis_initlift_layouts(struct m0_sm *mach)
 {
 	int               rc;
 	struct m0_clovis *m0c;
+	struct m0_reqh   *reqh;
 
 	M0_ENTRY();
 	M0_PRE(mach != NULL);
 
 	m0c = bob_of(mach, struct m0_clovis, m0c_initlift_sm, &m0c_bobtype);
 	M0_ASSERT(clovis_m0c_invariant(m0c));
+	reqh = &m0c->m0c_reqh;
 
 	if (m0c->m0c_initlift_direction == CLOVIS_STARTUP) {
-		rc = m0_reqh_mdpool_layout_build(&m0c->m0c_reqh);
+		rc = m0_reqh_mdpool_layout_build(reqh);
 		if (rc != 0)
 			clovis_initlift_fail(rc, m0c);
-	} else
-		m0_reqh_layouts_cleanup(&m0c->m0c_reqh);
+	} else  {
+		m0_reqh_layouts_cleanup(reqh);
+	}
 
 	return M0_RC(clovis_initlift_get_next_floor(m0c));
 }
@@ -1228,6 +1224,9 @@ static int clovis_rootfid_lookup(struct m0_clovis  *m0c)
 	pc = &m0c->m0c_pools_common;
 	ctx = pc->pc_mds_map[0];
 	M0_ASSERT(ctx != NULL);
+
+	/* Wait till the connection is ready. */
+	m0_reqh_service_connect_wait(ctx);
 	session = &ctx->sc_rlink.rlk_sess;
 	M0_ASSERT(session != NULL);
 
@@ -1441,6 +1440,7 @@ int m0_clovis_init(struct m0_clovis **m0c_p,
 	/* Initialise Mero if needed at the very beginning. */
 #ifndef __KERNEL__
 	if (init_m0) {
+		M0_SET0(&m0_clovis_mero_instance);
 		rc = m0_init(&m0_clovis_mero_instance);
 		if (rc != 0)
 			return M0_RC(rc);
@@ -1498,15 +1498,16 @@ int m0_clovis_init(struct m0_clovis **m0c_p,
 	rc = m0c->m0c_initlift_rc;
 	if (rc == 0) {
 		m0_confc_close(&clovis_conf_fs->cf_obj);
-		m0_conf_ha_notify(&m0c->m0c_reqh.rh_fid, M0_NC_ONLINE);
 		clovis_conf_fs = NULL;
+
+		/*
+		 * m0t1fs posts the `STARTED` event during `mount`, clovis
+		 * doesn't have corresponding `mount` operation, instead
+		 * clovis posts this event when all initialisation steps
+		 * are completed successfully.
+ 	 	 */
+		clovis_ha_process_event(m0c, M0_CONF_HA_PROCESS_STARTED);
 	}
-	/*
-	 * m0t1fs posts the `STARTED` event during `mount`, clovis doesn't have
-	 * corresponding `mount` operation, instead clovis posts this event
-	 * when all initialisation steps are completed successfully.
- 	 */
-	clovis_ha_process_event(m0c, M0_CONF_HA_PROCESS_STARTED);
 
 	m0_sm_group_unlock(&m0c->m0c_sm_group);
 

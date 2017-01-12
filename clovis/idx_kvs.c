@@ -116,73 +116,72 @@ static void casreq_completed_post(struct kvs_req *req, int rc)
 	M0_LEAVE();
 }
 
-static int kvs_list_reply_copy(struct m0_cas_req *req, struct m0_bufvec *bvec)
+static void kvs_list_reply_copy(struct m0_cas_req *req,
+				int32_t           *rcs,
+				struct m0_bufvec  *bvec)
 {
 	uint64_t                  rep_count = m0_cas_req_nr(req);
 	struct m0_cas_ilist_reply rep;
 	uint64_t                  i;
-	uint64_t                  k = 0;
 
 	/* Assertion is guaranteed by CAS client. */
 	M0_PRE(bvec->ov_vec.v_nr >= rep_count);
 	for (i = 0; i < rep_count; i++) {
 		m0_cas_index_list_rep(req, i, &rep);
+		rcs[i] = rep.clr_rc;
 		if (rep.clr_rc == 0) {
-			/* User should allocate buffer of appropriate size */
-			M0_ASSERT(bvec->ov_vec.v_count[k] ==
+			/* User should allocate buffer of appropriate size. */
+			M0_ASSERT(bvec->ov_vec.v_count[i] ==
 				  sizeof(struct m0_fid));
-			*(struct m0_fid *)bvec->ov_buf[k] = rep.clr_fid;
-			k++;
+			*(struct m0_fid *)bvec->ov_buf[i] = rep.clr_fid;
 		}
 	}
-	return k > 0 ? M0_RC(0) : M0_ERR(-ENODATA);
 }
 
-static int kvs_get_reply_copy(struct m0_cas_req *req, struct m0_bufvec *bvec)
+static void kvs_get_reply_copy(struct m0_cas_req *req,
+			       int32_t           *rcs,
+			       struct m0_bufvec  *bvec)
 {
 	uint64_t                rep_count = m0_cas_req_nr(req);
 	struct m0_cas_get_reply rep;
 	uint64_t                i;
-	int                     rc = 0;
 
 	/* Assertion is guaranteed by CAS client. */
 	M0_PRE(bvec->ov_vec.v_nr >= rep_count);
 	for (i = 0; i < rep_count; i++) {
 		m0_cas_get_rep(req, i, &rep);
+		M0_ASSERT(bvec->ov_vec.v_count[i] == 0);
+		M0_ASSERT(bvec->ov_buf[i] == NULL);
+		rcs[i] = rep.cge_rc;
 		if (rep.cge_rc == 0) {
 			m0_cas_rep_mlock(req, i);
 			bvec->ov_vec.v_count[i] = rep.cge_val.b_nob;
 			bvec->ov_buf[i] = rep.cge_val.b_addr;
-		} else {
-			M0_ASSERT(bvec->ov_vec.v_count[i] == 0);
-			M0_ASSERT(bvec->ov_buf[i] == NULL);
-			rc = M0_ERR(rep.cge_rc);
 		}
 	}
-	return M0_RC(rc);
 }
 
 static void kvs_next_reply_copy(struct m0_cas_req *req,
+				int32_t           *rcs,
 				struct m0_bufvec  *keys,
 				struct m0_bufvec  *vals)
 {
 	uint64_t                 rep_count = m0_cas_req_nr(req);
 	struct m0_cas_next_reply rep;
 	uint64_t                 i;
-	uint64_t                 k = 0;
 
 	/* Assertions are guaranteed by CAS client. */
 	M0_PRE(keys->ov_vec.v_nr >= rep_count);
 	M0_PRE(vals->ov_vec.v_nr >= rep_count);
 	for (i = 0; i < rep_count; i++) {
 		m0_cas_next_rep(req, i, &rep);
+		rcs[i] = rep.cnp_rc;
 		if (rep.cnp_rc == 0) {
 			m0_cas_rep_mlock(req, i);
-			keys->ov_vec.v_count[k] = rep.cnp_key.b_nob;
-			keys->ov_buf[k] = rep.cnp_key.b_addr;
-			vals->ov_vec.v_count[k] = rep.cnp_val.b_nob;
-			vals->ov_buf[k] = rep.cnp_val.b_addr;
-			k++;
+			keys->ov_vec.v_count[i] = rep.cnp_key.b_nob;
+			keys->ov_buf[i] = rep.cnp_key.b_addr;
+			vals->ov_vec.v_count[i] = rep.cnp_val.b_nob;
+			vals->ov_buf[i] = rep.cnp_val.b_addr;
 		}
 	}
 }
@@ -231,31 +230,26 @@ static bool casreq_clink_cb(struct m0_clink *cl)
 			rc = rep.crr_rc;
 			break;
 		case M0_CLOVIS_IC_LIST:
-			rc = kvs_list_reply_copy(creq, oi->oi_keys);
+			kvs_list_reply_copy(creq, oi->oi_rcs, oi->oi_keys);
 			break;
 		case M0_CLOVIS_IC_PUT:
 			for (i = 0; i < m0_cas_req_nr(creq); i++) {
 				m0_cas_put_rep(creq, 0, &rep);
-				if (rep.crr_rc != 0) {
-					rc = M0_ERR(rep.crr_rc);
-					break;
-				}
+				oi->oi_rcs[i] = rep.crr_rc;
 			}
 			break;
 		case M0_CLOVIS_IC_GET:
-			rc = kvs_get_reply_copy(creq, oi->oi_vals);
+			kvs_get_reply_copy(creq, oi->oi_rcs, oi->oi_vals);
 			break;
 		case M0_CLOVIS_IC_DEL:
 			for (i = 0; i < m0_cas_req_nr(creq); i++) {
 				m0_cas_del_rep(creq, 0, &rep);
-				if (rep.crr_rc != 0) {
-					rc = M0_ERR(rep.crr_rc);
-					break;
-				}
+				oi->oi_rcs[i] = rep.crr_rc;
 			}
 			break;
 		case M0_CLOVIS_IC_NEXT:
-			kvs_next_reply_copy(creq, oi->oi_keys, oi->oi_vals);
+			kvs_next_reply_copy(creq, oi->oi_rcs, oi->oi_keys,
+					    oi->oi_vals);
 			break;
 		default:
 			M0_IMPOSSIBLE("Invalid op code");
@@ -412,7 +406,7 @@ static void kvs_put_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 
 	M0_ENTRY();
 	kvs_creq_prepare(kvs_req, &idx, oi);
-	rc = m0_cas_put(creq, &idx, oi->oi_keys, oi->oi_vals, NULL);
+	rc = m0_cas_put(creq, &idx, oi->oi_keys, oi->oi_vals, NULL, 0);
 	if (rc != 0)
 		kvs_req_immed_failure(kvs_req, M0_ERR(rc));
 	M0_LEAVE();

@@ -413,7 +413,7 @@ M0_INTERNAL bool nw_xfer_request_invariant(const struct nw_xfer_request *xfer);
  * Finalises a target_ioreq, freeing any auxillary memory.
  * @param ti The target_ioreq to finalise.
  */
-void target_ioreq_fini(struct target_ioreq *ti);
+M0_INTERNAL void target_ioreq_fini(struct target_ioreq *ti);
 
 /**
  * Retrieves the cob:fid on a target server for the provided

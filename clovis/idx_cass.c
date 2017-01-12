@@ -100,9 +100,13 @@ struct idx_cass_instance {
  *                          Helper Functions                                *
  *--------------------------------------------------------------------------*/
 
-#define CASS_TABLE_MAGIC        ("clovis_cass_v150915")
-#define MAX_CASS_TABLE_NAME_LEN (64)
-#define MAX_CASS_QUERY_LEN      (128)
+static const char cass_table_magic[]     = "clovis_cass_v150915";
+static const char cass_idx_table_magic[] = "clovis_cass_idx_v150915";
+
+enum idx_cass_table_query_len {
+	MAX_CASS_TABLE_NAME_LEN = 64,
+	MAX_CASS_QUERY_LEN      = 128
+};
 
 enum idx_cass_prepared_statement_type {
 	IDX_CASS_GET = 0,
@@ -111,6 +115,7 @@ enum idx_cass_prepared_statement_type {
 	IDX_CASS_NEXT,
 	IDX_CASS_STATEMENT_TYPE_NR
 };
+
 
 static int idx_cass_nr_tables;
 static const CassPrepared **idx_cass_prepared_set;
@@ -124,9 +129,9 @@ static int get_table_id(struct m0_uint128 fid)
 	return 0;
 }
 
-static void make_table_name(char *table, int table_id)
+static void make_table_name(char *table, int table_id, const char *table_magic)
 {
-	sprintf(table, "%s_%d", CASS_TABLE_MAGIC, table_id);
+	sprintf(table, "%s_%d", table_magic, table_id);
 }
 
 static void print_query_error(CassFuture *future)
@@ -216,7 +221,15 @@ static const CassPrepared* create_prepared(CassSession *session, char *query)
 #define CQL_NEXT \
 	("SELECT * FROM %s WHERE index_fid = ? AND key > ?")
 
-static char* make_query_string(int query_type, int table_id)
+static const char *query_type_map[] = {
+		[IDX_CASS_GET]  = CQL_GET,
+		[IDX_CASS_PUT]  = CQL_PUT,
+		[IDX_CASS_DEL]  = CQL_DEL,
+		[IDX_CASS_NEXT] = CQL_NEXT
+};
+
+static char *make_query_string(int query_type, int table_id,
+			       const char *table_magic)
 {
 	char  table[MAX_CASS_TABLE_NAME_LEN];
 	char *query = NULL;
@@ -225,27 +238,15 @@ static char* make_query_string(int query_type, int table_id)
 	if (query == NULL)
 		goto exit;
 
-	make_table_name(table, table_id);
-	switch (query_type) {
-	case IDX_CASS_GET:
-		sprintf(query, CQL_GET, table);
-		break;
-	case IDX_CASS_PUT:
-		sprintf(query, CQL_PUT, table);
-		break;
-	case IDX_CASS_DEL:
-		sprintf(query, CQL_DEL, table);
-		break;
-	case IDX_CASS_NEXT:
-		sprintf(query, CQL_NEXT, table);
-		break;
-	default:
-		M0_LOG(M0_ERROR, "Query type NOT supported yet.");
-		m0_free(query);
-		query = NULL;
-		break;
-	};
+	make_table_name(table, table_id, table_magic);
 
+	M0_CASSERT(ARRAY_SIZE(query_type_map) == IDX_CASS_STATEMENT_TYPE_NR);
+	if (IS_IN_ARRAY(query_type, query_type_map))
+		sprintf(query, query_type_map[query_type], table);
+	else {
+		M0_LOG(M0_ERROR, "Query type %i NOT supported.", query_type);
+		m0_free0(&query);
+	}
 exit:
 	return query;
 }
@@ -258,7 +259,7 @@ static int set_prepared(CassSession *session, int query_type, int table_id)
 
 	M0_ENTRY();
 
-	query = make_query_string(query_type, table_id);
+	query = make_query_string(query_type, table_id, cass_table_magic);
 	if (query == NULL)
 		return M0_ERR(-ENOMEM);
 
@@ -334,7 +335,8 @@ static void free_prepared_set()
 
 #ifdef CLOVIS_IDX_CASS_DRV_V22 /* Cassandra cpp driver version >=2.2. */
 
-static int table_exists(CassSession *session, char *keyspace, int table_id)
+static int table_exists(CassSession *session, char *keyspace, int table_id,
+		        const char *table_magic)
 {
 	int                     rc;
 	char                    table[MAX_CASS_TABLE_NAME_LEN];
@@ -351,7 +353,7 @@ static int table_exists(CassSession *session, char *keyspace, int table_id)
 		goto exit;
 	}
 
-	make_table_name(table, table_id);
+	make_table_name(table, table_id, table_magic);
 	table_meta = cass_keyspace_meta_table_by_name(keyspace_meta, table);
 	if (table_meta != NULL)
 		rc = 1;
@@ -365,7 +367,8 @@ exit:
 
 #else /* Cassandra cpp driver version < 2.2. */
 
-static int table_exists(CassSession *session, char *keyspace, int table_id)
+static int table_exists(CassSession *session, char *keyspace, int table_id,
+		        const char *table_magic)
 {
 	int                   rc;
 	char                  table[MAX_CASS_TABLE_NAME_LEN];
@@ -380,7 +383,7 @@ static int table_exists(CassSession *session, char *keyspace, int table_id)
 		goto exit;
 	}
 
-	make_table_name(table, table_id);
+	make_table_name(table, table_id, table_magic);
 	table_meta = cass_schema_meta_get_entry(keyspace_meta, table);
 	if (table_meta != NULL)
 		rc = 1;
@@ -394,7 +397,7 @@ exit:
 #endif
 
 static int row_exists(CassSession *session, int table_id,
-		      struct m0_uint128 idx_fid)
+		      struct m0_uint128 idx_fid, const char *table_magic)
 {
 	int           rc = 0;
 	char          *query;
@@ -408,7 +411,7 @@ static int row_exists(CassSession *session, int table_id,
 	if (query == NULL)
 		return M0_ERR(-ENOMEM);
 
-	make_table_name(table, table_id);
+	make_table_name(table, table_id, table_magic);
 	sprintf(query, "SELECT * FROM %s WHERE index_fid = ?", table);
 
 	statement = cass_statement_new(query, 1);
@@ -442,6 +445,34 @@ static struct idx_cass_instance* get_cass_inst(struct m0_clovis_op_idx *oi)
 	return (struct idx_cass_instance *) m0c->m0c_idx_svc_ctx.isc_svc_inst;
 }
 
+static bool idx_exists(struct m0_clovis_op_idx *oi)
+{
+	int                 table_id;
+	struct m0_uint128   idx_fid;
+	CassSession        *session;
+	int                 exist;
+	char               *keyspace;
+
+	M0_ENTRY();
+
+	idx_fid = oi->oi_idx->in_entity.en_id;
+
+	/* Form a 'SELECT' query string. */
+	session  = get_cass_inst(oi)->ci_session;
+	keyspace = get_cass_inst(oi)->ci_keyspace;
+	table_id = get_table_id(idx_fid);
+
+	/* Check if the table storing rows of this index exists. */
+	exist = table_exists(session, keyspace, table_id, cass_idx_table_magic);
+	if (exist > 0) {
+		/* Check if there exists any row for this index. */
+		exist = row_exists(session, table_id, idx_fid,
+				   cass_idx_table_magic);
+	}
+
+	return exist > 0 ? M0_RC(true) : M0_RC(false);
+}
+
 /**-------------------------------------------------------------------------*
  *                           Query Operations                               *
  *--------------------------------------------------------------------------*/
@@ -451,15 +482,12 @@ static struct idx_cass_instance* get_cass_inst(struct m0_clovis_op_idx *oi)
  */
 static void idx_cass_query_cb(CassFuture* future, void* data)
 {
-	int                      i;
-	struct m0_clovis_op     *op;
 	struct m0_clovis_op_idx *oi;
 	CassError                rc;
 
 	M0_ENTRY();
 
 	oi = (struct m0_clovis_op_idx *)data;
-	op = &oi->oi_oc.oc_op;
 
 	rc = cass_future_error_code(future);
 	if (rc != CASS_OK) {
@@ -472,20 +500,13 @@ static void idx_cass_query_cb(CassFuture* future, void* data)
 		return;
 
 	/*
-	 * An index GET/NEXT queryClovis is considered success if only
-	 * one of the 'select' queries it sends to server returns value.
+	 * An index GET queryClovis is considered success only if operation is
+	 * executed successfully. If operation failed to execute, i.e. global
+	 * error code, oi->oi_query_rc, is not success clovis will call
+	 * fail callback.
+	 * In all other cases, operation is considered success.
+	 * (Even if all the keys presented in queries are absent from store.).
 	 */
-	rc = oi->oi_query_rc;
-	if (op->op_code == M0_CLOVIS_IC_GET ||
-	    op->op_code == M0_CLOVIS_IC_NEXT) {
-		for (i = 0; i < oi->oi_keys->ov_vec.v_nr; i++)
-			if (oi->oi_vals->ov_buf[i] != NULL) break;
-		if (i < oi->oi_keys->ov_vec.v_nr)
-			rc = CASS_OK;
-		else
-			rc = ENOENT;
-	}
-
 	if (rc == CASS_OK) {
 		oi->oi_ar.ar_ast.sa_cb = &clovis_idx_op_ast_complete;
 		oi->oi_ar.ar_rc = 0;
@@ -500,31 +521,47 @@ static void idx_cass_query_cb(CassFuture* future, void* data)
 
 static int idx_cass_namei_new(struct m0_clovis_op_idx *oi)
 {
-	int                       table_id;
-	bool                      exist;
-	char                     *keyspace;
+	char                     *query;
+	char                      table[MAX_CASS_TABLE_NAME_LEN];
 	CassSession              *session;
+	CassStatement            *statement;
 	struct idx_cass_instance *cass_inst;
+	char                idx_fid_str[64];
 	struct m0_uint128         idx_fid;
 
 	cass_inst = get_cass_inst(oi);
 	session   = cass_inst->ci_session;
-	keyspace  = cass_inst->ci_keyspace;
 	idx_fid  = oi->oi_idx->in_entity.en_id;
-	table_id  = get_table_id(idx_fid);
 
-	/* Check if the table storing rows of this index exists. */
-	exist = table_exists(session, keyspace, table_id);
-	if (exist) {
-		/* Check if there exists any row for this index. */
-		exist = row_exists(session, table_id, idx_fid);
-		if (exist)
-			return M0_ERR(-EEXIST);
-		else
-			return M0_RC(0);
-	}
+	/* If the index exits */
+	if (idx_exists(oi))
+		return M0_ERR(-EEXIST);
 
-	return M0_ERR(-EINVAL);
+	oi->oi_query_rc = CASS_OK;
+	oi->oi_nr_queries = 1;
+
+	query = m0_alloc(MAX_CASS_QUERY_LEN);
+	if (query == NULL)
+		return M0_ERR(-ENOMEM);
+
+	make_table_name(table,
+			get_table_id(oi->oi_idx->in_entity.en_id),
+			cass_idx_table_magic);
+	sprintf(query,
+		"INSERT INTO %s (index_fid) VALUES(?)", table);
+	statement = cass_statement_new(query, 1);
+	sprintf(idx_fid_str, "%"PRIx64"_%"PRIx64,
+		idx_fid.u_hi, idx_fid.u_lo);
+
+	cass_statement_bind_string(statement, 0, idx_fid_str);
+
+	execute_query_async(session,
+			    statement, idx_cass_query_cb, oi);
+	m0_free(query);
+	cass_statement_free(statement);
+
+	/* Return 1 */
+	return M0_RC(1);
 }
 
 static int idx_cass_namei_drop(struct m0_clovis_op_idx *oi)
@@ -534,15 +571,17 @@ static int idx_cass_namei_drop(struct m0_clovis_op_idx *oi)
 	CassSession              *session;
 	CassStatement            *statement;
 	struct idx_cass_instance *cass_inst;
-	char                idx_fid_str[64];
-	struct m0_uint128   idx_fid;
+	char                      idx_fid_str[64];
+	struct m0_uint128         idx_fid;
+	CassBatch                *batch;
 
 	cass_inst = get_cass_inst(oi);
 	session   = cass_inst->ci_session;
-	idx_fid  = oi->oi_idx->in_entity.en_id;
+	idx_fid   = oi->oi_idx->in_entity.en_id;
+	batch     = cass_batch_new(CASS_BATCH_TYPE_LOGGED);
+
 	/*
-	 * As Clovis packs K-V pairs of an index into rows, deleting an index
-	 * has to remove all rows belong to the index.
+	 * Delete all the KV-pairs associated with an index.
 	 */
 	oi->oi_query_rc = CASS_OK;
 	oi->oi_nr_queries = 1;
@@ -550,20 +589,29 @@ static int idx_cass_namei_drop(struct m0_clovis_op_idx *oi)
 	query = m0_alloc(MAX_CASS_QUERY_LEN);
 	if (query == NULL)
 		return M0_ERR(-ENOMEM);
-	make_table_name(table, get_table_id(oi->oi_idx->in_entity.en_id));
+
+	make_table_name(table, get_table_id(oi->oi_idx->in_entity.en_id),
+			cass_table_magic);
 	sprintf(query,
 		"DELETE from %s where  index_fid = ?", table);
 
 	statement = cass_statement_new(query, 1);
-
 	sprintf(idx_fid_str, "%"PRIx64"_%"PRIx64, idx_fid.u_hi, idx_fid.u_lo);
-	/*cass_statement_bind_bytes(statement, 0,
-			(cass_byte_t *)&oi->oi_idx->in_entity.en_id,
-			sizeof struct m0_uint128);*/
-
 	cass_statement_bind_string(statement, 0, idx_fid_str);
+	cass_batch_add_statement(batch, statement);
+	cass_statement_free(statement);
 
-	execute_query_async(session, statement, idx_cass_query_cb, oi);
+	/* Now delete the index entry from the index table. */
+	make_table_name(table, get_table_id(oi->oi_idx->in_entity.en_id),
+			cass_idx_table_magic);
+	sprintf(query,
+		"DELETE from %s where  index_fid = ?", table);
+
+	statement = cass_statement_new(query, 1);
+	sprintf(idx_fid_str, "%"PRIx64"_%"PRIx64, idx_fid.u_hi, idx_fid.u_lo);
+	cass_statement_bind_string(statement, 0, idx_fid_str);
+	cass_batch_add_statement(batch, statement);
+	execute_query_batch(session, batch, idx_cass_query_cb, oi);
 
 	m0_free(query);
 	cass_statement_free(statement);
@@ -604,12 +652,16 @@ static void idx_cass_get_cb(CassFuture* future, void* data)
 	vals   = oi->oi_vals;
 
 	result = cass_future_get_result(future);
-	if (result == NULL)
+	if (result == NULL) {
+		oi->oi_rcs[kv_idx] = -ENOENT;
 		goto query_cb;
+	}
 
 	iterator = cass_iterator_from_result(result);
-	if (iterator == NULL)
+	if (iterator == NULL) {
+		oi->oi_rcs[kv_idx] = -ENOENT;
 		goto query_cb;
+	}
 
 	if (cass_iterator_next(iterator)) {
 		M0_LOG(M0_DEBUG, "Get row and extract values.");
@@ -624,6 +676,9 @@ static void idx_cass_get_cb(CassFuture* future, void* data)
 			goto query_cb;
 		memcpy(vals->ov_buf[kv_idx], bytes, nr_bytes);
 		vals->ov_vec.v_count[kv_idx] = nr_bytes;
+		oi->oi_rcs[kv_idx] = 0;
+	} else {
+		oi->oi_rcs[kv_idx] = -ENOENT;
 	}
 
 
@@ -654,6 +709,7 @@ static int idx_cass_get(struct m0_clovis_op_idx *oi)
 	CassSession        *session;
 	CassStatement      *statement;
 	struct get_cb_data *gcd;
+	bool                exist;
 
 	M0_ENTRY();
 
@@ -663,7 +719,13 @@ static int idx_cass_get(struct m0_clovis_op_idx *oi)
 	/* Form a 'SELECT' query string. */
 	session  = get_cass_inst(oi)->ci_session;
 	table_id = get_table_id(idx_fid);
-	query = make_query_string(IDX_CASS_GET, table_id);
+
+	/* If the index exits */
+	exist = idx_exists(oi);
+	if (!exist)
+		return M0_ERR(-ENOENT);
+
+	query = make_query_string(IDX_CASS_GET, table_id, cass_table_magic);
 	if (query == NULL)
 		return M0_ERR(-ENOMEM);
 
@@ -715,6 +777,7 @@ static int idx_cass_put(struct m0_clovis_op_idx *oi)
 	struct m0_bufvec   *vals;
 	struct m0_uint128   idx_fid;
 	char                idx_fid_str[64];
+	bool                exist;
 
 	M0_ENTRY();
 
@@ -730,6 +793,11 @@ static int idx_cass_put(struct m0_clovis_op_idx *oi)
 	table_id = get_table_id(idx_fid);
 	session  = get_cass_inst(oi)->ci_session;
 	batch    = cass_batch_new(CASS_BATCH_TYPE_LOGGED);
+
+	/* If the index exits */
+	exist = idx_exists(oi);
+	if (!exist)
+		return M0_ERR(-ENOENT);
 
 	oi->oi_nr_queries = 1;
 	oi->oi_query_rc = CASS_OK;
@@ -785,7 +853,7 @@ static int idx_cass_del(struct m0_clovis_op_idx *oi)
 	/* Form a 'DELETE' query string. */
 	session  = get_cass_inst(oi)->ci_session;
 	table_id = get_table_id(idx_fid);
-	query = make_query_string(IDX_CASS_DEL, table_id);
+	query = make_query_string(IDX_CASS_DEL, table_id, cass_table_magic);
 	if (query == NULL)
 		return M0_ERR(-ENOMEM);
 
@@ -880,8 +948,9 @@ static void idx_cass_next_cb(CassFuture* future, void* data)
 		/* Copy key and value. */
 		rc = copy_to_kv(kv_cnt, keys, vals,
 				k_bytes, k_size, v_bytes, v_size);
-		if (rc != 0)
+		if (rc != 0) {
 			break;
+		}
 
 		kv_cnt++;
 		if (kv_cnt >= keys->ov_vec.v_nr)
@@ -908,6 +977,7 @@ static int idx_cass_next(struct m0_clovis_op_idx *oi)
 	CassSession        *session;
 	CassStatement      *statement;
 	int64_t             null_key = 0;
+	bool                exist;
 
 	M0_ENTRY();
 
@@ -915,9 +985,17 @@ static int idx_cass_next(struct m0_clovis_op_idx *oi)
 	idx_fid = oi->oi_idx->in_entity.en_id;
 	sprintf(idx_fid_str, "%"PRIx64"_%"PRIx64, idx_fid.u_hi, idx_fid.u_lo);
 
+	session  = get_cass_inst(oi)->ci_session;
+
 	/* Make a query statement for NEXT. */
 	table_id = get_table_id(idx_fid);
-	query = make_query_string(IDX_CASS_NEXT, table_id);
+
+	/* If the index exists */
+	exist = idx_exists(oi);
+	if (!exist)
+		return M0_ERR(-ENOENT);
+
+	query = make_query_string(IDX_CASS_NEXT, table_id, cass_table_magic);
 	if (query == NULL)
 		return M0_ERR(-ENOMEM);
 
@@ -946,7 +1024,6 @@ static int idx_cass_next(struct m0_clovis_op_idx *oi)
 	/* Set callback and its data, then issue the query. */
 	oi->oi_nr_queries = 1;
 	oi->oi_query_rc = CASS_OK;
-	session  = get_cass_inst(oi)->ci_session;
 	execute_query_async(session, statement, idx_cass_next_cb, oi);
 
 	/* Post-processing.*/

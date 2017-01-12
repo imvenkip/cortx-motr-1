@@ -214,6 +214,10 @@ static void clovis_cob_fail_oo(struct m0_clovis_op_obj *oo, int rc)
 	op_grp = &op->op_sm_group;
 	en_grp = &op->op_entity->en_sm_group;
 
+	/* Avoid cancelling rpc items and setting op's state multiple times. */
+	if (op->op_sm.sm_rc != 0)
+		goto out;
+
 	/* Cancel any pending fop for this op. */
 	icr_nr = oo->oo_icr_nr;
 	for (i = 0; i < icr_nr; ++i) {
@@ -244,6 +248,7 @@ static void clovis_cob_fail_oo(struct m0_clovis_op_obj *oo, int rc)
 	m0_clovis_op_failed(op);
 	m0_sm_group_unlock(op_grp);
 
+out:
 	M0_LEAVE();
 }
 
@@ -532,8 +537,9 @@ m0_clovis_obj_container_id_to_session(struct m0_pool_version *pver,
 	M0_PRE(pver != NULL);
 	M0_PRE(container_id < pver->pv_pc->pc_nr_devices);
 
-	ios_ctx = pver->pv_pc->pc_dev2ios[container_id].pds_ctx;
+	ios_ctx = pver->pv_pc->pc_dev2svc[container_id].pds_ctx;
 	M0_ASSERT(ios_ctx != NULL);
+	M0_ASSERT(ios_ctx->sc_type == M0_CST_IOS);
 
 	if (M0_FI_ENABLED("rpc_session_cancel")) {
 		m0_rpc_session_cancel(&ios_ctx->sc_rlink.rlk_sess);

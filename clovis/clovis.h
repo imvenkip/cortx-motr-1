@@ -1034,10 +1034,9 @@ void m0_clovis_idx_fini(struct m0_clovis_idx *idx);
  *   will be included in a result.
  * - 'vals' vector should be at least of the same size as 'keys' and should
  *   contain NULLs. After successful operation completion retrieved index
- *   records are stored in 'keys' and 'vals' buffer vectors. If number of
- *   records retrieved is less than requested (end of index is reached), then an
- *   operation has successful return code, but buffers in the vector's tail will
- *   be set to NULL.
+ *   records are stored in 'keys' and 'vals' buffer vectors. If some error
+ *   occurred during i-th index record retrieval then rcs[i] != 0. -ENOENT error
+ *   means that there are no more records to return.
  *
  * For M0_CLOVIS_IC_GET operation arguments should be as follows:
  * - 'keys' buffer vector should contain keys for records being requested.
@@ -1045,16 +1044,31 @@ void m0_clovis_idx_fini(struct m0_clovis_idx *idx);
  * - 'vals' vector should be at least of the same size as 'keys' and should
  *   contain NULLs. After successful operation completion retrieved record
  *   values are stored in 'vals' buffer vector. If some value retrieval has
- *   failed, then corresponding element in 'vals' has NULL value. On operation
- *   completion the operation return code (op->op_sm->sm_rc) is set to negative
- *   value if at least one record wasn't retrieved, i.e. there is at least one
- *   NULL in 'vals' vector.
+ *   failed, then corresponding element in 'rcs' array != 0.
+ *
+ * 'rcs' holds array of per-item return codes for the operation. It should be
+ * allocated by user with a size of at least 'keys->ov_vec.v_nr' elements. For
+ * example, 6 records with keys k0...k5 were requested through GET request with
+ * k3 being absent in the index. After operation completion rcs[3] will be
+ * -ENOENT and rcs[0,1,2,4,5] will be 0.
+ *
+ * Per-item return codes are more fine-grained than global operation return
+ * code (op->op_sm.sm_rc). On operation completion the global return code
+ * is set to negative value if it's impossible to process any item (invalid
+ * index fid, lost RPC connection, etc.).
+ * - If the operation global return code is 0, then user should check per-item
+ *   return codes.
+ * - If the operation global return code is not 0, then per-item return codes
+ *   are undefined.
+ *
+ * 'rcs' argument is mandatory for all operations except M0_CLOVIS_IC_LOOKUP.
  *
  * @pre idx != NULL
  * @pre M0_IN(opcode, (M0_CLOVIS_IC_LOOKUP, M0_CLOVIS_IC_LIST,
  *                     M0_CLOVIS_IC_GET, M0_CLOVIS_IC_PUT,
  *                     M0_CLOVIS_IC_DEL, M0_CLOVIS_IC_NEXT))
  * @pre ergo(*op != NULL, *op->op_size >= sizeof **op)
+ * @pre ergo(opcode == M0_CLOVIS_IC_LOOKUP, rcs != NULL)
  * @pre ergo(opcode != M0_CLOVIS_IC_LOOKUP, keys != NULL)
  * @pre M0_IN(opcode, (M0_CLOVIS_IC_DEL,
  *                     M0_CLOVIS_IC_LOOKUP,
@@ -1070,10 +1084,16 @@ void m0_clovis_idx_fini(struct m0_clovis_idx *idx);
  * @post ergo(result == 0, *op != NULL && *op->op_code == opcode &&
  *                         *op->op_sm.sm_state == M0_CLOVIS_OS_INITIALISED)
  */
+/**
+ * @todo For now 'rcs' may be NULL if index backend is not Mero KVS
+ * and operation code is not M0_CLOVIS_IC_GET.
+ * All backends should be updated to fill 'rcs' for all operation codes.
+ */
 int m0_clovis_idx_op(struct m0_clovis_idx       *idx,
 		     enum m0_clovis_idx_opcode   opcode,
 		     struct m0_bufvec           *keys,
 		     struct m0_bufvec           *vals,
+		     int32_t                    *rcs,
 		     struct m0_clovis_op       **op);
 
 void m0_clovis_realm_create(struct m0_clovis_realm    *realm,

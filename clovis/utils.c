@@ -21,10 +21,12 @@
  * Revision:        Pratik Shinde   <pratik.shinde@seagate.com>
  * Original creation date: 14-Oct-2013
  */
+
 #include "clovis/clovis.h"
 #include "clovis/pg.h"
 #include "clovis/io.h"
 #include "lib/trace.h"           /* M0_LOG */
+#include "lib/finject.h"         /* M0_FI_ENABLE */
 
 M0_INTERNAL bool addr_is_network_aligned(void *addr)
 {
@@ -303,6 +305,9 @@ M0_INTERNAL uint64_t tolerance_of_level(struct m0_clovis_op_io *ioo, uint64_t lv
 	struct m0_pool_version     *pver;
 
 	M0_PRE(lv < M0_CONF_PVER_HEIGHT);
+
+	if (M0_FI_ENABLED("fake_tolerance_of_level"))
+		return 0;
 
 	play_instance = pdlayout_instance(layout_instance(ioo));
 	pver = play_instance->pi_base.li_l->l_pver;

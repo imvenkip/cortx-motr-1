@@ -375,7 +375,8 @@ struct pargrp_iomap_ops {
 	 */
 	int (*pi_populate)  (struct pargrp_iomap      *iomap,
 			     const struct m0_indexvec *ivec,
-			     struct m0_ivec_cursor    *cursor);
+			     struct m0_ivec_cursor    *cursor,
+			     struct m0_bufvec_cursor  *buf_cursor);
 
 	/**
 	 * Returns true if the given segment is spanned by existing segments
@@ -422,7 +423,8 @@ struct pargrp_iomap_ops {
 	 */
 	int (*pi_seg_process)    (struct pargrp_iomap *map,
 				  uint64_t             segid,
-				  bool                 rmw);
+				  bool                 rmw,
+				  struct m0_bufvec_cursor *buf_cursor);
 
 	/**
 	 * Processes the data buffers in pargrp_iomap::pi_databufs
@@ -434,7 +436,8 @@ struct pargrp_iomap_ops {
 
 	int (*pi_databuf_alloc)(struct pargrp_iomap *map,
 				uint32_t             row,
-				uint32_t             col);
+				uint32_t             col,
+				struct m0_bufvec_cursor *buf_cursor);
 
 
 	/**

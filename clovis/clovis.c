@@ -267,7 +267,7 @@ M0_INTERNAL bool clovis_entity_invariant_full(struct m0_clovis_entity *ent)
 }
 
 /**
- * Entity invariant. Checks id, type and state machine.
+ * Entity invariant. Checks type and state machine.
  *
  * @param ent An entity.
  * @return Whether the entities type is valid.

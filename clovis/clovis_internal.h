@@ -166,8 +166,11 @@ struct m0_clovis_op_idx {
 	struct m0_bufvec           *oi_keys;
 	struct m0_bufvec           *oi_vals;
 
+	/* Hold per key-value query return code. */
+	int32_t                    *oi_rcs;
+
 	/* Number of queries sent to index*/
-	int                         oi_nr_queries;
+	int32_t                     oi_nr_queries;
 	bool                        oi_query_rc;
 
 	struct m0_sm_group         *oi_sm_grp;
@@ -379,10 +382,8 @@ struct m0_clovis {
 	 * The following fields picture the pools in mero.
 	 * m0c_pools_common: details about all pools in mero.
 	 * m0c_pool: current pool used by this clovis instance
-	 * m0c_pool_version: current pool version used by this clovis instance
 	 */
 	struct m0_pools_common                  m0c_pools_common;
-	struct m0_pool_version                 *m0c_pool_version;
 
 	/** HA service context. */
 	struct m0_reqh_service_ctx             *m0c_ha_rsctx;
@@ -611,6 +612,18 @@ M0_INTERNAL void m0_clovis_entity_init(struct m0_clovis_entity *entity,
 				       struct m0_clovis_realm  *parent,
 				       const struct m0_uint128 *id,
 				       const enum m0_clovis_entity_type type);
+/**
+ * Gets current valid pool version from clovis instance.
+ *
+ * @param instance The clovis instance containing information of pool and pool
+ *                 versions.
+ * @param pv The returned pool version.
+ */
+
+M0_INTERNAL int
+m0_clovis_pool_version_get(struct m0_clovis *instance,
+			   struct m0_pool_version **pv);
+
 /**
  * Gets the default layout identifier from confd.
  *

@@ -238,7 +238,7 @@ static void ioreq_iosm_handle_launch(struct m0_sm_group *grp,
 	M0_PRE(m0_sm_group_is_locked(grp));
 	M0_PRE(ast != NULL);
 	ioo = bob_of(ast, struct m0_clovis_op_io, ioo_ast, &ioo_bobtype);
-	M0_PRE(m0_clovis_op_io_invariant(ioo));
+	M0_PRE_EX(m0_clovis_op_io_invariant(ioo));
 	op = &ioo->ioo_oo.oo_oc.oc_op;
 
 	/* @todo Do error handling based on m0_sm::sm_rc. */
@@ -365,7 +365,7 @@ static void ioreq_iosm_handle_executed(struct m0_sm_group *grp,
 	M0_PRE(ast != NULL);
 	M0_PRE(m0_sm_group_is_locked(grp));
 	ioo = bob_of(ast, struct m0_clovis_op_io, ioo_ast, &ioo_bobtype);
-	M0_PRE(m0_clovis_op_io_invariant(ioo));
+	M0_PRE_EX(m0_clovis_op_io_invariant(ioo));
 	op = &ioo->ioo_oo.oo_oc.oc_op;
 	instance = m0_clovis__op_instance(op);
 	M0_PRE(instance != NULL);
@@ -717,6 +717,7 @@ static int ioreq_iomaps_prepare(struct m0_clovis_op_io *ioo)
 	uint64_t                  map;
 	struct m0_pdclust_layout *play;
 	struct m0_ivec_cursor     cursor;
+	struct m0_bufvec_cursor   buf_cursor;
 
 	M0_ENTRY("op_io = %p", ioo);
 
@@ -740,7 +741,7 @@ static int ioreq_iomaps_prepare(struct m0_clovis_op_io *ioo)
 	}
 
 	m0_ivec_cursor_init(&cursor, &ioo->ioo_ext);
-
+	m0_bufvec_cursor_init(&buf_cursor, &ioo->ioo_data);
 	/*
 	 * cursor is advanced maximum by parity group size in one iteration
 	 * of this loop.
@@ -765,7 +766,8 @@ static int ioreq_iomaps_prepare(struct m0_clovis_op_io *ioo)
 
 		/* @cursor is advanced in the following function */
 		rc = ioo->ioo_iomaps[map]->pi_ops->
-		     pi_populate(ioo->ioo_iomaps[map], &ioo->ioo_ext, &cursor);
+		     pi_populate(ioo->ioo_iomaps[map], &ioo->ioo_ext, &cursor,
+				 &buf_cursor);
 		if (rc != 0)
 			goto failed;
 		M0_LOG(M0_INFO, "pargrp_iomap id : %"PRIu64" populated",
@@ -805,7 +807,7 @@ static uint64_t data_buf_copy(struct data_buf          *clovis_data,
 
 	M0_PRE(clovis_data != NULL);
 	M0_PRE(app_datacur != NULL);
-	M0_PRE(data_buf_invariant(clovis_data));
+	M0_PRE_EX(data_buf_invariant(clovis_data));
 	M0_PRE(M0_IN(dir, (CD_COPY_FROM_APP, CD_COPY_TO_APP)));
 
 	bytes = clovis_data->db_buf.b_nob;
@@ -878,7 +880,7 @@ static int clovis_application_data_copy(struct pargrp_iomap      *map,
 	M0_PRE(datacur != NULL);
 	/* XXX: get rid of obj from the parameters */
 	M0_PRE(map->pi_ioo->ioo_obj == obj);
-	M0_PRE(pargrp_iomap_invariant(map));
+	M0_PRE_EX(pargrp_iomap_invariant(map));
 	M0_PRE(end > start);
 	/* start/end are in the same object block */
 	M0_PRE(start >> obj->ob_attr.oa_bshift ==
@@ -897,8 +899,10 @@ static int clovis_application_data_copy(struct pargrp_iomap      *map,
 
 	if (dir == CD_COPY_FROM_APP) {
 		if ((clovis_data->db_flags & filter) == filter) {
-			if (clovis_data->db_flags & PA_COPY_FRMUSR_DONE)
+			if (clovis_data->db_flags & PA_COPY_FRMUSR_DONE) {
+				m0_bufvec_cursor_move(datacur, end-start);
 				return M0_RC(0);
+			}
 
 			/*
 			 * Copies page to auxiliary buffer before it gets
@@ -990,7 +994,7 @@ static int ioreq_application_data_copy(struct m0_clovis_op_io *ioo,
 		 filter);
 
 	M0_PRE(M0_IN(dir, (CD_COPY_FROM_APP, CD_COPY_TO_APP)));
-	M0_PRE(m0_clovis_op_io_invariant(ioo));
+	M0_PRE_EX(m0_clovis_op_io_invariant(ioo));
 
 	m0_bufvec_cursor_init(&appdatacur, &ioo->ioo_data);
 	m0_ivec_cursor_init(&extcur, &ioo->ioo_ext);
@@ -1049,7 +1053,7 @@ static int ioreq_parity_recalc(struct m0_clovis_op_io *ioo)
 
 	m0_semaphore_down(&clovis_cpus_sem);
 
-	M0_PRE(m0_clovis_op_io_invariant(ioo));
+	M0_PRE_EX(m0_clovis_op_io_invariant(ioo));
 
 	for (map = 0; map < ioo->ioo_iomap_nr; ++map) {
 		rc = ioo->ioo_iomaps[map]->pi_ops->pi_parity_recalc(ioo->
@@ -1078,7 +1082,7 @@ static int ioreq_dgmode_recover(struct m0_clovis_op_io *ioo)
 	uint64_t cnt;
 
 	M0_ENTRY();
-	M0_PRE(m0_clovis_op_io_invariant(ioo));
+	M0_PRE_EX(m0_clovis_op_io_invariant(ioo));
 	M0_PRE(ioreq_sm_state(ioo) == IRS_READ_COMPLETE);
 
 	for (cnt = 0; cnt < ioo->ioo_iomap_nr; ++cnt) {
@@ -1149,14 +1153,6 @@ static int device_check(struct m0_clovis_op_io *ioo)
 	play = pdlayout_get(ioo);
 	max_failures = tolerance_of_level(ioo, M0_CONF_PVER_LVL_CTRLS);
 
-	/*
-	 * Note: ioo_pver keeps pool version for an object and it should be
-	 * retrieved from service as part of metadata. Currently clovis
-	 * doesn't retrieve object metadata in an IO op, instead it sets
-	 * ioo->ioo_pver to the pool version stored in the clovis instance
-	 * (m0_clovis::m0c_pool_version). There exists cases in which
-	 * object pool version != instance's pool version.
-	 */
 	pv = m0_pool_version_find(&instance->m0c_pools_common, &ioo->ioo_pver);
 	M0_ASSERT(pv != NULL);
 	pm = &pv->pv_mach;
@@ -1220,7 +1216,7 @@ static int ioreq_dgmode_read(struct m0_clovis_op_io *ioo, bool rmw)
 	struct m0_poolmach     *pm;
 
 	M0_ENTRY();
-	M0_PRE(m0_clovis_op_io_invariant(ioo));
+	M0_PRE_EX(m0_clovis_op_io_invariant(ioo));
 
 	/*
 	 * Note: If devices are in the state of M0_PNDS_SNS_REPARED, the op
@@ -1265,6 +1261,13 @@ static int ioreq_dgmode_read(struct m0_clovis_op_io *ioo, bool rmw)
 	M0_ASSERT(pm != NULL);
 
 	m0_htable_for(tioreqht, ti, &xfer->nxr_tioreqs_hash) {
+		/*
+		 * Data was retrieved successfully, so no need to check the
+		 * state of the device.
+		 */
+		if (ti->ti_rc == 0)
+			continue;
+
 		/* state is already queried in device_check() and stored
 		 * in ti->ti_state. Why do we do this again?
 		 */
@@ -1274,6 +1277,7 @@ static int ioreq_dgmode_read(struct m0_clovis_op_io *ioo, bool rmw)
 			return M0_ERR(rc);
 		M0_LOG(M0_INFO, "device state for "FID_F" is %d",
 		       FID_P(&ti->ti_fid), state);
+		ti->ti_state = state;
 
 		if (!M0_IN(state, (M0_PNDS_FAILED, M0_PNDS_OFFLINE,
 			   M0_PNDS_SNS_REPAIRING, M0_PNDS_SNS_REPAIRED,
@@ -1308,7 +1312,7 @@ static int ioreq_dgmode_read(struct m0_clovis_op_io *ioo, bool rmw)
 			ioreq_sm_state_set_locked(ioo, IRS_DEGRADED_READING);
 		for (id = 0; id < ioo->ioo_iomap_nr; ++id) {
 			rc = ioo->ioo_iomaps[id]->pi_ops->
-			     pi_dgmode_postprocess(ioo->ioo_iomaps[id]);
+			        pi_dgmode_postprocess(ioo->ioo_iomaps[id]);
 			if (rc != 0)
 				break;
 		}
@@ -1368,7 +1372,7 @@ static int ioreq_dgmode_write(struct m0_clovis_op_io *ioo, bool rmw)
 	struct m0_clovis        *instance;
 
 	M0_ENTRY();
-	M0_PRE(m0_clovis_op_io_invariant(ioo));
+	M0_PRE_EX(m0_clovis_op_io_invariant(ioo));
 
 	instance = m0_clovis__op_instance(&ioo->ioo_oo.oo_oc.oc_op);
 	xfer = &ioo->ioo_nwxfer;
@@ -1468,7 +1472,7 @@ static int ioreq_parity_verify(struct m0_clovis_op_io *ioo)
 	struct m0_clovis_op  *op;
 
 	M0_ENTRY("m0_clovis_op_io : %p", ioo);
-	M0_PRE(m0_clovis_op_io_invariant(ioo));
+	M0_PRE_EX(m0_clovis_op_io_invariant(ioo));
 
 	op = &ioo->ioo_oo.oo_oc.oc_op;
 	instance = m0_clovis__op_instance(op);

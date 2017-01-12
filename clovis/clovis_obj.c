@@ -275,6 +275,24 @@ static void clovis_obj_namei_cb_fini(struct m0_clovis_op_common *oc)
 	M0_LEAVE();
 }
 
+M0_INTERNAL int
+m0_clovis_pool_version_get(struct m0_clovis *instance,
+			   struct m0_pool_version **pv)
+{
+	int rc;
+
+	if (M0_FI_ENABLED("fake_pool_version")) {
+		*pv = instance->m0c_pools_common.pc_cur_pver;
+		if (pv == NULL)
+			return M0_ERR(-ENOENT);
+		return 0;
+	}
+
+	/* Get pool version */
+	rc = m0_pool_version_get(&instance->m0c_pools_common, pv);
+	return M0_RC(rc);
+}
+
 M0_INTERNAL uint64_t
 m0_clovis_obj_default_layout_id_get(struct m0_clovis *instance)
 {
@@ -509,10 +527,11 @@ static int clovis_obj_op_obj_init(struct m0_clovis_op_obj *oo)
 	cinst = m0_clovis__oo_instance(oo);
 	M0_ASSERT(cinst != NULL);
 
-	/* Set pool version */
-	oo->oo_pver = cinst->m0c_pool_version->pv_id;
-	pv = m0_pool_version_find(&cinst->m0c_pools_common, &oo->oo_pver);
-	M0_ASSERT(pv != NULL);
+	/* Get pool version */
+	if (m0_clovis_pool_version_get(cinst, &pv) != 0)
+		return M0_ERR(-ENOENT);
+
+	oo->oo_pver = pv->pv_id;
 	pool_width = pv->pv_attr.pa_P;
 	M0_ASSERT(pool_width > 0);
 
@@ -524,8 +543,10 @@ static int clovis_obj_op_obj_init(struct m0_clovis_op_obj *oo)
 		return M0_ERR(-ENOMEM);
 
 	M0_ALLOC_ARR(oo->oo_ios_completed, pool_width);
-	if (oo->oo_ios_completed == NULL)
+	if (oo->oo_ios_completed == NULL) {
+		m0_free(oo->oo_ios_fop);
 		return M0_ERR(-ENOMEM);
+	}
 
 	/** TODO: hash the fid to chose a locality */
 	locality = m0_clovis_locality_pick(cinst);
@@ -624,27 +645,6 @@ op_free:
 }
 
 /**
- * Gets the clean pool version.
- *
- * @param m0c Clovis instance.
- */
-static int clovis_pool_refresh(struct m0_clovis *m0c)
-{
-	int                     rc;
-	struct m0_pool_version *pv;
-
-	if (m0c->m0c_pool_version->pv_is_dirty) {
-		rc = m0_pool_version_get(&m0c->m0c_pools_common, &pv);
-		if (rc != 0)
-			return M0_ERR(-ENOENT);
-
-		m0c->m0c_pool_version = pv;
-	}
-
-	return M0_RC(0);
-}
-
-/**
  * Sets a entity operation to modify the object namespace.
  * This type of operation on entities allow creating and deleting entities.
  *
@@ -667,11 +667,6 @@ static int clovis_entity_namei_op(struct m0_clovis_entity *entity,
 	M0_PRE(entity->en_sm.sm_state == M0_CLOVIS_ES_INIT);
 	M0_PRE(op != NULL);
 	M0_PRE(M0_IN(opcode, (M0_CLOVIS_EO_CREATE, M0_CLOVIS_EO_DELETE)));
-
-	/* Refresh pool version to ensure a clean one is used. */
-	rc = clovis_pool_refresh(m0_clovis__entity_instance(entity));
-	if (rc != 0)
-		goto error;
 
 	switch (entity->en_type) {
 	case M0_CLOVIS_ET_OBJ:

@@ -177,7 +177,7 @@ static int idx_rm(struct m0_uint128 idx_fid)
 	rc = remove(idx_fname);
 	m0_free(idx_fname);
 
-	return M0_ERR(rc);
+	return M0_RC(rc);
 }
 
 static struct index* idx_load(struct m0_uint128 idx_fid)
@@ -188,6 +188,16 @@ static struct index* idx_load(struct m0_uint128 idx_fid)
 	struct kv_pair *kvp;
 	struct index   *midx = NULL;
 	FILE           *fp;
+
+	/* Open and scan the index file. */
+	idx_fname = m0_alloc(MAX_IDX_FNAME_LEN);
+	if (idx_fname == NULL)
+		goto error;
+
+	make_idx_fname(idx_fname, idx_fid);
+	fp = fopen(idx_fname, "r+");
+	if (fp == NULL)
+		goto error;
 
 	midx = m0_alloc(sizeof *midx);
 	if (midx == NULL)
@@ -201,16 +211,6 @@ static struct index* idx_load(struct m0_uint128 idx_fid)
 	/* Allocate memory for line buffer and midx.*/
 	line = m0_alloc(1024);
 	if (line == NULL)
-		goto error;
-
-	/* Open and scan the index file. */
-	idx_fname = m0_alloc(MAX_IDX_FNAME_LEN);
-	if (idx_fname == NULL)
-		goto error;
-
-	make_idx_fname(idx_fname, midx->i_fid);
-	fp = fopen(idx_fname, "r+");
-	if (fp == NULL)
 		goto error;
 
 	while(fgets(line, 1024, fp)) {
@@ -233,9 +233,9 @@ static struct index* idx_load(struct m0_uint128 idx_fid)
 	return midx;
 
 error:
-	if (line) m0_free(line);
-	if (midx) m0_free(line);
-	if (idx_fname) m0_free(line);
+	m0_free(line);
+	m0_free(midx);
+	m0_free(idx_fname);
 
 	return NULL;
 }
@@ -337,7 +337,7 @@ static int idx_find(struct m0_uint128 idx_fid,
 
 	found_midx = m0_htable_lookup(&idx_htable, &idx_fid);
 	if (found_midx != NULL) {
-		if (to_load && midx != NULL)
+		if (midx != NULL)
 			*midx = found_midx;
 		return 1;
 	}
@@ -454,7 +454,7 @@ static int idx_mock_get(struct m0_clovis_op_idx *oi)
 	idx_fid = oi->oi_idx->in_entity.en_id;
 	rc = idx_find(idx_fid, &midx, true);
 	if (rc == 0)
-		return M0_ERR(-EINVAL);
+		return M0_RC(-ENOENT);
 	else if (rc < 0)
 		return M0_RC(rc);
 
@@ -465,6 +465,7 @@ static int idx_mock_get(struct m0_clovis_op_idx *oi)
 		kvp = m0_htable_lookup(&midx->i_kv_pairs, &mkey);
 
 		if (kvp == NULL) {
+			oi->oi_rcs[i] = -ENOENT;
 			vals->ov_buf[i] = NULL;
 			continue;
 		}
@@ -476,14 +477,13 @@ static int idx_mock_get(struct m0_clovis_op_idx *oi)
 			break;
 		memcpy(vals->ov_buf[i], mval.v_data, mval.v_len);
 		vals->ov_vec.v_count[i] = mval.v_len;
+		oi->oi_rcs[i] = 0;
 
 		nr_found++;
 	}
 
-	/* The query is considered successful if nr_found > 0. */
-	rc = (nr_found > 0)?0:-ENOENT;
-
-	return M0_RC(rc);
+	/* Whether or not key found, operation is successful */
+	return M0_RC(0);
 }
 
 static int idx_mock_put(struct m0_clovis_op_idx *oi)
@@ -509,7 +509,7 @@ static int idx_mock_put(struct m0_clovis_op_idx *oi)
 	idx_fid = oi->oi_idx->in_entity.en_id;
 	rc = idx_find(idx_fid, &midx, true);
 	if (rc == 0)
-		return M0_ERR(-ENOENT);
+		return M0_RC(-ENOENT);
 	else if (rc < 0)
 		return M0_RC(rc);
 
@@ -583,7 +583,7 @@ static int idx_mock_del(struct m0_clovis_op_idx *oi)
 	idx_fid = oi->oi_idx->in_entity.en_id;
 	rc = idx_find(idx_fid, &midx, true);
 	if (rc == 0)
-		return M0_ERR(-ENOENT);
+		return M0_RC(-ENOENT);
 	else if (rc < 0)
 		return M0_RC(rc);
 
@@ -615,7 +615,20 @@ static int idx_mock_del(struct m0_clovis_op_idx *oi)
 
 static int idx_mock_next(struct m0_clovis_op_idx *oi)
 {
-	return 0;
+	int                rc;
+	struct index      *midx;
+	struct m0_uint128  idx_fid;
+
+	M0_ENTRY();
+
+	idx_fid = oi->oi_idx->in_entity.en_id;
+	rc = idx_find(idx_fid, &midx, true);
+	if (rc == 0)
+		return M0_RC(-ENOENT);
+	else if (rc < 0)
+		return M0_RC(rc);
+
+	return M0_RC(0);
 }
 
 static struct m0_clovis_idx_query_ops idx_mock_query_ops = {
