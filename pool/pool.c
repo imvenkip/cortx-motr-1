@@ -1039,13 +1039,30 @@ static bool reqh_service_ctx_is_matching(const struct m0_reqh_service_ctx *ctx,
  */
 static void reqh_service_ctx_abandon(struct m0_reqh_service_ctx *ctx)
 {
-	struct m0_pools_common *pc = ctx->sc_pc;
+	/*
+	 * The context is unsubscribed by now. When configuration updates,
+	 * pools_common_conf_ready_cb() is always called after
+	 * pools_common_conf_expired_cb():
+	 *
+	 * read lock conflict
+	 *  \_ pools_common_conf_expired_cb()
+	        \_ m0_reqh_service_ctx_unsubscribe() <-- context clinks cleanup
+	 *
+	 * ... new conf version distribution ...
+	 *
+	 * read lock acquisition && full conf load
+	 *  \_ pools_common_conf_ready_cb()
+	 *      \_ pools_common__ctx_subscribe_or_abandon()
+	 *          \_ reqh_service_ctx_abandon()    <-- YOU ARE HERE
+	 */
+	M0_PRE(ctx->sc_svc_event.cl_chan == NULL);
+	M0_PRE(ctx->sc_process_event.cl_chan == NULL);
 
 	/* Move the context to the list of abandoned ones. */
+	M0_PRE(ctx->sc_pc != NULL);
 	pools_common_svc_ctx_tlink_del_fini(ctx);
-	pools_common_svc_ctx_tlink_init_at_tail(ctx,
-						&pc->pc_abandoned_svc_ctxs);
-
+	pools_common_svc_ctx_tlink_init_at_tail(ctx, &ctx->sc_pc->
+						pc_abandoned_svc_ctxs);
 	/*
 	 * The context found disappeared from conf, so go start disconnecting it
 	 * asynchronously if needed.
