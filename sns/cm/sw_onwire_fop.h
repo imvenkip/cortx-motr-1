@@ -37,12 +37,12 @@
    @{
  */
 
-struct m0_sns_cm_sw_onwire {
-	struct m0_cm_sw_onwire swo_base;
-}M0_XCA_RECORD;
-
 M0_INTERNAL void m0_sns_cm_sw_onwire_fop_init(struct m0_fop_type *ft,
+					      const struct m0_fom_type_ops *fomt_ops,
 					      enum M0_RPC_OPCODES op,
+					      const char *name,
+					      const struct m0_xcode_type *xt,
+					      uint64_t rpc_flags,
 					      struct m0_cm_type *cmt);
 
 M0_INTERNAL void m0_sns_cm_sw_onwire_fop_fini(struct m0_fop_type *ft);

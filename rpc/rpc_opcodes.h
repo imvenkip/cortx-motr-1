@@ -240,6 +240,10 @@ enum M0_RPC_OPCODES {
 	M0_SNS_REBALANCE_ABORT_OPCODE       = 162,
 	M0_SNS_REBALANCE_ABORT_REP_OPCODE   = 163,
 
+	/* SNS sliding window update reply fop. */
+	M0_SNS_CM_REPAIR_SW_REP_FOP_OPCODE  = 164,
+	M0_SNS_CM_REBALANCE_SW_REP_FOP_OPCODE = 165,
+
 	/** SSS Service fops */
 	M0_SSS_SVC_REQ_OPCODE               = 200,
 	M0_SSS_SVC_REP_OPCODE               = 201,

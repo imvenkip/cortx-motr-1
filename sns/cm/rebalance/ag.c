@@ -73,7 +73,7 @@ static bool rebalance_ag_can_fini(const struct m0_cm_aggr_group *ag)
 	M0_PRE(ag != NULL);
 
         if (ag->cag_has_incoming) {
-		if (sag->sag_is_frozen)
+		if (ag->cag_is_frozen)
 			return ag->cag_ref == 0;
 
 		return ag->cag_freed_cp_nr == sag->sag_incoming_cp_nr +

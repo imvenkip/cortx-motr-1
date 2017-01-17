@@ -180,6 +180,8 @@ static void iter_setup(enum m0_sns_cm_op op, uint64_t fd)
 	m0_cm_state_set(cm, M0_CMS_READY);
 	rc = cm->cm_ops->cmo_start(cm);
 	M0_UT_ASSERT(rc == 0);
+	rc = m0_bitmap_init(&cm->cm_proxy_update_map, cm->cm_proxy_nr);
+	M0_UT_ASSERT(rc == 0);
 	m0_cm_state_set(cm, M0_CMS_ACTIVE);
 	m0_cm_unlock(cm);
         service = m0_reqh_service_find(&m0_rms_type, reqh),

@@ -550,8 +550,6 @@ static void receiver_init(bool ag_create)
 	M0_UT_ASSERT(recv_cm->cm_ops->cmo_prepare(recv_cm) == 0);
 	m0_cm_state_set(recv_cm, M0_CMS_PREPARE);
 
-	m0_cm_sw_update_start(recv_cm);
-	m0_cm_cp_pump_prepare(recv_cm);
 	m0_cm_unlock(recv_cm);
 
 	cm_ready(recv_cm);
@@ -563,11 +561,11 @@ static void receiver_init(bool ag_create)
 	m0_cm_proxy_init(recv_cm_proxy, 0, &ag_id, &ag_id, client_addr);
 	m0_cm_lock(recv_cm);
 	m0_cm_proxy_add(recv_cm, recv_cm_proxy);
+	M0_UT_ASSERT(recv_cm->cm_ops->cmo_start(recv_cm) == 0);
+	m0_cm_state_set(recv_cm, M0_CMS_ACTIVE);
 	m0_cm_unlock(recv_cm);
 	if (ag_create)
 		receiver_ag_create(recv_cm);
-	rc = m0_cm_start(recv_cm);
-	M0_UT_ASSERT(rc == 0);
 }
 
 static struct m0_cm_cp* sender_cm_cp_alloc(struct m0_cm *cm)
@@ -756,8 +754,6 @@ static void sender_init()
 	M0_UT_ASSERT(sender_cm.cm_ops->cmo_prepare(&sender_cm) == 0);
 	m0_cm_state_set(&sender_cm, M0_CMS_PREPARE);
 
-	m0_cm_sw_update_start(&sender_cm);
-	m0_cm_cp_pump_prepare(&sender_cm);
 	m0_cm_unlock(&sender_cm);
 
 	cm_ready(&sender_cm);
@@ -795,9 +791,9 @@ static void sender_init()
 	m0_cm_lock(&sender_cm);
 	m0_cm_proxy_init(sender_cm_proxy, 0, &ag_id, &ag_id, m0_rpc_conn_addr(&conn));
 	m0_cm_proxy_add(&sender_cm, sender_cm_proxy);
+	M0_UT_ASSERT(sender_cm.cm_ops->cmo_start(&sender_cm) == 0);
+	m0_cm_state_set(&sender_cm, M0_CMS_ACTIVE);
 	m0_cm_unlock(&sender_cm);
-	rc = m0_cm_start(&sender_cm);
-	M0_UT_ASSERT(rc == 0);
 }
 
 static void receiver_fini()
@@ -808,7 +804,10 @@ static void receiver_fini()
 
 	recv_cm_proxy->px_is_done = true;
 	m0_cm_lock(recv_cm);
-	m0_sm_timedwait(&recv_cm->cm_mach, M0_BITS(M0_CMS_STOP, M0_CMS_IDLE), M0_TIME_NEVER);
+	m0_cm_proxy_del(recv_cm, recv_cm_proxy);
+	m0_cm_proxy_fini(recv_cm_proxy);
+	recv_cm->cm_ops->cmo_stop(recv_cm);
+	m0_cm_state_set(recv_cm, M0_CMS_STOP);
 	m0_cm_unlock(recv_cm);
 	m0_fid_convert_cob2stob(&cob_fid, &stob_id);
 	rc = m0_ut_stob_destroy_by_stob_id(&stob_id);
@@ -827,7 +826,10 @@ static void sender_fini()
 
 	sender_cm_proxy->px_is_done = true;
 	m0_cm_lock(&sender_cm);
-	m0_sm_timedwait(&sender_cm.cm_mach, M0_BITS(M0_CMS_STOP, M0_CMS_IDLE), M0_TIME_NEVER);
+	m0_cm_proxy_del(&sender_cm, sender_cm_proxy);
+	m0_cm_proxy_fini(sender_cm_proxy);
+	sender_cm.cm_ops->cmo_stop(&sender_cm);
+	m0_cm_state_set(&sender_cm, M0_CMS_STOP);
 	m0_cm_unlock(&sender_cm);
 	rc = m0_rpc_session_destroy(&session, M0_TIME_NEVER);
 	M0_UT_ASSERT(rc == 0);
@@ -972,7 +974,6 @@ static void test_cp_send_mismatch_epoch()
 	m0_fi_disable("cpp_data_next", "enodata");
 	m0_fi_disable("m0_ha_local_state_set", "no_ha");
 }
-
 
 static void test_cp_send_recv_verify()
 {

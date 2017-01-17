@@ -90,19 +90,18 @@ M0_INTERNAL int m0_cm_sw_onwire_init(struct m0_cm *cm, struct m0_cm_sw_onwire *s
 	strncpy(sw_onwire->swo_cm_ep.ep, ep, CS_MAX_EP_ADDR_LEN);
 	if (m0_cm_state_get(cm) == M0_CMS_FAIL)
 		sw_onwire->swo_cm_status = M0_PX_FAILED;
-	else if (!m0_cm_cp_pump_is_complete(&cm->cm_cp_pump) ||
-		 !cm->cm_sw_update.swu_is_complete)
+	else if (m0_cm_state_get(cm) == M0_CMS_READY)
+			sw_onwire->swo_cm_status = M0_PX_READY;
+	else if ((!m0_cm_cp_pump_is_complete(&cm->cm_cp_pump) ||
+		 !cm->cm_sw_update.swu_is_complete) &&
+		 m0_cm_state_get(cm) == M0_CMS_ACTIVE)
 			sw_onwire->swo_cm_status = M0_PX_ACTIVE;
 	else if (m0_cm_cp_pump_is_complete(&cm->cm_cp_pump) &&
 		 cm->cm_sw_update.swu_is_complete &&
 		 !m0_cm_aggr_group_tlists_are_empty(cm))
 			sw_onwire->swo_cm_status = M0_PX_COMPLETE;
-	else if (m0_cm_cp_pump_is_complete(&cm->cm_cp_pump) &&
-		 cm->cm_sw_update.swu_is_complete &&
-		 m0_cm_aggr_group_tlists_are_empty(cm))
-			sw_onwire->swo_cm_status = M0_PX_STOP;
-	else if (M0_IN(m0_cm_state_get(cm), (M0_CMS_PREPARE, M0_CMS_READY)))
-			sw_onwire->swo_cm_status = M0_PX_READY;
+	else
+		sw_onwire->swo_cm_status = M0_PX_STOP;
 
 	return 0;
 }

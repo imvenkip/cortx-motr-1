@@ -69,8 +69,9 @@ static struct m0_cm *cm_ut_sctx2cm(void)
 	struct m0_reqh_service *svc;
 
 	reqh = m0_cs_reqh_get(&cm_ut_sctx.rsx_mero_ctx);
-	svc = m0_reqh_service_find(m0_reqh_service_type_find("sns_repair"),
+	svc = m0_reqh_service_find(m0_reqh_service_type_find("cm_ut"),
 				   reqh);
+	M0_UT_ASSERT(svc != NULL);
 	return container_of(svc, struct m0_cm, cm_service);
 }
 
@@ -104,42 +105,25 @@ static int cm_ut_fini(void)
 
 static void cm_setup_ut(void)
 {
-	struct m0_locality *locality;
-	struct m0_cm       *cm = &cm_ut[0].ut_cm;
-	struct m0_confc    *confc;
-	char               *confstr = NULL;
-	int                 rc;
+	struct m0_cm *cm;
+	int           rc;
 
-	cm_ut_service_alloc_init();
-	confc = m0_reqh2confc(cm_ut_service->rs_reqh);
-	rc = m0_file_read(M0_UT_PATH("diter.xc"), &confstr);
-	M0_UT_ASSERT(rc == 0);
-	locality = m0_locality0_get();
-	rc = m0_confc_init(confc, locality->lo_grp, NULL, NULL, confstr);
-	M0_UT_ASSERT(rc == 0);
-	m0_free0(&confstr);
-
+	cm_ut_service_alloc_init(m0_cs_reqh_get(&cm_ut_sctx.rsx_mero_ctx));
 	/* Internally calls m0_cm_setup(). */
 	rc = m0_reqh_service_start(cm_ut_service);
 	M0_UT_ASSERT(rc == 0);
-
-	cm_ut_service->rs_reqh_ctx->rc_mero->cc_profile = M0_UT_CONF_PROFILE;
-	rc = m0_fid_sscanf(cm_ut_service->rs_reqh_ctx->rc_mero->cc_profile,
-			   &cm_ut_service->rs_reqh->rh_profile);
+	cm = cm_ut_sctx2cm();
+	rc = m0_cm_prepare(cm);
 	M0_UT_ASSERT(rc == 0);
-
-	m0_cm_lock(cm);
-	rc = cm->cm_ops->cmo_prepare(cm);
-	M0_UT_ASSERT(rc == 0);
-	m0_cm_state_set(cm, M0_CMS_PREPARE);
-	m0_cm_sw_update_start(cm);
-	m0_cm_cp_pump_prepare(cm);
+	//m0_cm_lock(cm);
 	/*
 	 * Start sliding window update FOM to avoid failure during
 	 * m0_cm_stop().
 	 */
-	m0_cm_state_set(cm, M0_CMS_READY);
-	m0_cm_unlock(cm);
+	//m0_cm_state_set(cm, M0_CMS_READY);
+	//m0_cm_unlock(cm);
+	rc = m0_cm_ready(cm);
+	M0_UT_ASSERT(rc == 0);
 	/* Checks if the restructuring process is started successfully. */
 	rc = m0_cm_start(cm);
 	M0_UT_ASSERT(rc == 0);
@@ -148,8 +132,10 @@ static void cm_setup_ut(void)
 	       !m0_cm_cp_pump_is_complete(&cm->cm_cp_pump))
 		usleep(200);
 
-	m0_reqh_shutdown_wait(&cmut_rmach_ctx.rmc_reqh);
-	m0_confc_fini(confc);
+	m0_cm_lock(cm);
+	m0_cm_complete_notify(cm);
+	m0_cm_unlock(cm);
+	m0_reqh_idle_wait(cm->cm_service.rs_reqh);
 	cm_ut_service_cleanup();
 }
 
@@ -163,7 +149,7 @@ static void cm_init_failure_ut(void)
 	/* Set the global cm_ut_service pointer to NULL */
 	cm_ut_service = NULL;
 	ut_cm_id = 0;
-	M0_SET0(&cm_ut[0].ut_cm);
+	M0_SET0(&cm_ut[ut_cm_id].ut_cm);
 	M0_UT_ASSERT(rc != 0);
 }
 
@@ -171,7 +157,7 @@ static void cm_setup_failure_ut(void)
 {
 	int rc;
 
-	cm_ut_service_alloc_init();
+	cm_ut_service_alloc_init(m0_cs_reqh_get(&cm_ut_sctx.rsx_mero_ctx));
 	m0_fi_enable_once("m0_cm_setup", "setup_failure_2");
 	rc = m0_reqh_service_start(cm_ut_service);
 	M0_UT_ASSERT(rc != 0);
@@ -180,67 +166,65 @@ static void cm_setup_failure_ut(void)
 
 static void cm_prepare_failure_ut(void)
 {
-	struct m0_cm *cm = cm_ut_sctx2cm();
+	struct m0_cm *cm;
 	int           rc;
 
+	cm_ut_service_alloc_init(m0_cs_reqh_get(&cm_ut_sctx.rsx_mero_ctx));
+	rc = m0_reqh_service_start(cm_ut_service);
+	M0_UT_ASSERT(rc == 0);
+	cm = cm_ut_sctx2cm();
+	cm->cm_service.rs_reqh = &cm_ut_sctx.rsx_mero_ctx.cc_reqh_ctx.rc_reqh;
 	m0_fi_enable_once("m0_cm_prepare", "prepare_failure");
 	rc = m0_cm_prepare(cm);
 	M0_UT_ASSERT(rc != 0);
-}
-
-static void cm_wait_pre(struct m0_cm *cm, struct m0_clink *clink)
-{
-	m0_clink_init(clink, NULL);
-	clink->cl_is_oneshot = true;
-	m0_mutex_lock(&cm->cm_wait_mutex);
-	m0_clink_add(&cm->cm_wait, clink);
-	m0_mutex_unlock(&cm->cm_wait_mutex);
-}
-
-static void cm_wait_post(struct m0_cm *cm, struct m0_clink *clink)
-{
-	m0_chan_wait(clink);
-	m0_clink_fini(clink);
+	m0_reqh_idle_wait(cm->cm_service.rs_reqh);
+	cm_ut_service_cleanup();
 }
 
 static void cm_ready_failure_ut(void)
 {
-	struct m0_cm     *cm = cm_ut_sctx2cm();
-	struct m0_sns_cm *scm = cm2sns(cm);
-	struct m0_clink   cm_wait_link;
-	int               rc;
+	struct m0_cm *cm;
+	int           rc;
 
+	cm_ut_service_alloc_init(m0_cs_reqh_get(&cm_ut_sctx.rsx_mero_ctx));
+	rc = m0_reqh_service_start(cm_ut_service);
+	M0_UT_ASSERT(rc == 0);
+	cm = cm_ut_sctx2cm();
 	m0_fi_enable_once("m0_cm_ready", "ready_failure");
-	cm_wait_pre(cm, &cm_wait_link);
-	scm->sc_op = SNS_REPAIR;
 	rc = m0_cm_prepare(cm);
 	M0_UT_ASSERT(rc == 0);
-	cm_wait_post(cm, &cm_wait_link);
-	rc = m0_cm_ready(cm);
+	do {
+		usleep(200);
+		rc = m0_cm_ready(cm);
+	} while ((rc == -EAGAIN));
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(cm->cm_mach.sm_rc != 0);
-	m0_reqh_idle_wait_for(cm->cm_service.rs_reqh, &cm->cm_service);
+	m0_reqh_idle_wait(cm->cm_service.rs_reqh);
+	cm_ut_service_cleanup();
 }
 
 static void cm_start_failure_ut(void)
 {
-	struct m0_cm     *cm = cm_ut_sctx2cm();
-	struct m0_sns_cm *scm = cm2sns(cm);
-	struct m0_clink   cm_wait_link;
-	int               rc;
+	struct m0_cm *cm;
+	int           rc;
 
+	cm_ut_service_alloc_init(m0_cs_reqh_get(&cm_ut_sctx.rsx_mero_ctx));
+	rc = m0_reqh_service_start(cm_ut_service);
+	M0_UT_ASSERT(rc == 0);
+	cm = cm_ut_sctx2cm();
 	m0_fi_enable_once("m0_cm_start", "start_failure");
-	cm_wait_pre(cm, &cm_wait_link);
-	scm->sc_op = SNS_REPAIR;
 	rc = m0_cm_prepare(cm);
 	M0_UT_ASSERT(rc == 0);
-	cm_wait_post(cm, &cm_wait_link);
 	rc = m0_cm_ready(cm);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_cm_start(cm);
+	do {
+		usleep(200);
+		rc = m0_cm_start(cm);
+	} while ((rc == -EAGAIN));
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(cm->cm_mach.sm_rc != 0);
-	m0_reqh_idle_wait_for(cm->cm_service.rs_reqh, &cm->cm_service);
+	m0_reqh_idle_wait(cm->cm_service.rs_reqh);
+	cm_ut_service_cleanup();
 }
 
 static void ag_id_assign(struct m0_cm_ag_id *id, uint64_t hi_hi, uint64_t hi_lo,
@@ -316,7 +300,7 @@ static void cm_ag_ut(void)
 	test_ready_fop = false;
 	M0_UT_ASSERT(ut_cm_id == 0);
 	cm = &cm_ut[ut_cm_id].ut_cm;
-	cm_ut_service_alloc_init();
+	cm_ut_service_alloc_init(m0_cs_reqh_get(&cm_ut_sctx.rsx_mero_ctx));
 	rc = m0_reqh_service_start(cm_ut_service);
 	M0_UT_ASSERT(rc == 0);
 
@@ -343,6 +327,7 @@ static void cm_ag_ut(void)
 		m0_cm_aggr_group_fini_and_progress(&ags[i]);
 	m0_cm_unlock(cm);
 
+	m0_reqh_idle_wait(cm->cm_service.rs_reqh);
 	cm_ut_service_cleanup();
 }
 

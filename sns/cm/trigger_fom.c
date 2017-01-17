@@ -309,7 +309,9 @@ static int ready(struct m0_fom *fom)
 		return M0_RC(rc);
 	}
 	if (cm->cm_proxy_nr > 0) {
+		m0_cm_lock(cm);
 		m0_cm_proxies_init_wait(cm, fom);
+		m0_cm_unlock(cm);
 		rc = M0_FSO_WAIT;
 	} else
 		rc = M0_FSO_AGAIN;

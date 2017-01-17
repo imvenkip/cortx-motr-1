@@ -154,6 +154,11 @@ struct m0_cm_type {
 	uint64_t                      ct_magix;
 };
 
+struct m0_cm_ast_run {
+	struct m0_thread car_th;
+	bool             car_run;
+};
+
 /** Copy machine replica. */
 struct m0_cm {
 	struct m0_sm			 cm_mach;
@@ -196,7 +201,6 @@ struct m0_cm {
 
 	uint64_t                         cm_aggr_grps_in_nr;
 
-	struct m0_cm_ag_id               cm_sw_last_persisted_hi;
 	/**
 	 * Saved aggregation group identifier for the last processed
 	 * aggregation group with the highest identifier in the sliding window.
@@ -230,17 +234,7 @@ struct m0_cm {
 
 	struct m0_chan                   cm_complete;
 
-	struct m0_fom_simple             cm_ast_run_fom;
-	struct m0_chan                   cm_ast_run_fom_wait;
-	struct m0_mutex                  cm_ast_run_fom_wait_mutex;
-
-	/**
-	 * Counter to track number of ready fops received from other replicas.
-	 * Once the m0_cm::cm_ready_fops_recvd ==
-	 * proxy_tlist_length(m0_cm::cm_proxies), then the copy machine
-	 * transitions to next phase, i.e. M0_CMS_ACTIVE.
-	 */
-	uint64_t                         cm_ready_fops_recvd;
+	struct m0_chan                   cm_proxy_init_wait;
 
 	/**
 	 * List of m0_cm_proxy objects representing remote replicas.
@@ -252,7 +246,8 @@ struct m0_cm {
 
 	uint64_t                         cm_proxy_nr;
 
-	uint64_t                         cm_proxy_init_updated;
+	struct m0_bitmap                 cm_proxy_update_map;
+	uint64_t                         cm_nr_proxy_updated;
 
 	/** Copy packet pump FOM for this copy machine. */
 	struct m0_cm_cp_pump             cm_cp_pump;
@@ -260,6 +255,8 @@ struct m0_cm {
 	struct m0_cm_sw_update           cm_sw_update;
 
 	struct m0_cm_ag_store            cm_ag_store;
+
+	struct m0_cm_ast_run             cm_asts_run;
 
 	bool                             cm_done;
 
@@ -509,11 +506,13 @@ M0_INTERNAL void m0_cm_notify(struct m0_cm *cm);
 M0_INTERNAL void m0_cm_wait(struct m0_cm *cm, struct m0_fom *fom);
 M0_INTERNAL void m0_cm_wait_cancel(struct m0_cm *cm, struct m0_fom *fom);
 M0_INTERNAL int m0_cm_complete(struct m0_cm *cm);
+M0_INTERNAL void m0_cm_complete_notify(struct m0_cm *cm);
 M0_INTERNAL void m0_cm_proxies_init_wait(struct m0_cm *cm, struct m0_fom *fom);
 M0_INTERNAL void m0_cm_frozen_ag_cleanup(struct m0_cm *cm, struct m0_cm_proxy *proxy);
 M0_INTERNAL void m0_cm_proxy_failed_cleanup(struct m0_cm *cm);
 M0_INTERNAL void m0_cm_abort(struct m0_cm *cm, int rc);
 M0_INTERNAL bool m0_cm_is_dirty(struct m0_cm *cm);
+M0_INTERNAL bool m0_cm_proxies_updated(struct m0_cm *cm);
 
 /** @} endgroup CM */
 

@@ -55,6 +55,7 @@ M0_INTERNAL void m0_cm_ag_store_init(struct m0_cm_type *cmtype);
 M0_INTERNAL void m0_cm_ag_store_fom_start(struct m0_cm *cm);
 M0_INTERNAL void m0_cm_ag_store_complete(struct m0_cm_ag_store *store);
 M0_INTERNAL void m0_cm_ag_store_fini(struct m0_cm_ag_store *store);
+M0_INTERNAL bool m0_cm_ag_store_is_complete(struct m0_cm_ag_store *store);
 
 /** @} CMSTORE */
 

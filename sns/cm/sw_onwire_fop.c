@@ -38,19 +38,22 @@
    @{
  */
 
-extern const struct m0_fom_type_ops m0_sns_cm_sw_onwire_fom_type_ops;
 extern const struct m0_sm_conf m0_sns_cm_sw_onwire_conf;
 
 M0_INTERNAL void m0_sns_cm_sw_onwire_fop_init(struct m0_fop_type *ft,
+					      const struct m0_fom_type_ops *fomt_ops,
 					      enum M0_RPC_OPCODES op,
+					      const char *name,
+					      const struct m0_xcode_type *xt,
+					      uint64_t rpc_flags,
 					      struct m0_cm_type *cmt)
 {
 	M0_FOP_TYPE_INIT(ft,
-			 .name      = "sns cm sw update fop",
+			 .name      = name,
 			 .opcode    = op,
-			 .xt        = m0_sns_cm_sw_onwire_xc,
-			 .rpc_flags = M0_RPC_ITEM_TYPE_ONEWAY,
-			 .fom_ops   = &m0_sns_cm_sw_onwire_fom_type_ops,
+			 .xt        = xt,
+			 .rpc_flags = rpc_flags,
+			 .fom_ops   = fomt_ops,
 			 .sm        = &m0_sns_cm_sw_onwire_conf,
 			 .svc_type  = &cmt->ct_stype);
 }
@@ -68,8 +71,8 @@ m0_sns_cm_sw_onwire_fop_setup(struct m0_cm *cm, struct m0_fop_type *ft,
 			      const struct m0_cm_sw *sw,
 			      const struct m0_cm_ag_id *last_out)
 {
-	struct m0_sns_cm_sw_onwire *swo_fop;
-	int                         rc = 0;
+	struct m0_cm_sw_onwire *swo_fop;
+	int                     rc = 0;
 
 	M0_PRE(cm != NULL && sw != NULL && local_ep != NULL);
 
@@ -80,7 +83,7 @@ m0_sns_cm_sw_onwire_fop_setup(struct m0_cm *cm, struct m0_fop_type *ft,
 		return M0_RC(rc);
 	}
 	swo_fop = m0_fop_data(fop);
-	rc = m0_cm_sw_onwire_init(cm, &swo_fop->swo_base, proxy_id, local_ep, sw, last_out);
+	rc = m0_cm_sw_onwire_init(cm, swo_fop, proxy_id, local_ep, sw, last_out);
 
 	return M0_RC(rc);
 }

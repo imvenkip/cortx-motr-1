@@ -44,7 +44,7 @@
 
 struct m0_cm_cp;
 
-enum proxy_state {
+enum m0_proxy_state {
 	M0_PX_INIT,
 	M0_PX_READY,
 	M0_PX_ACTIVE,
@@ -83,11 +83,16 @@ struct m0_cm_proxy {
 
 	struct m0_sm_ast        px_sw_onwire_ast;
 
-	enum proxy_state        px_status;
+	enum m0_proxy_state     px_status;
 
 	bool                    px_is_done;
 
 	uint64_t                px_nr_updates_posted;
+
+	/** 0 if sw update was successfull. */
+	int                     px_update_rc;
+
+	bool                    px_update_is_pending;
 
 	/** Back reference to local copy machine. */
 	struct m0_cm           *px_cm;
@@ -150,12 +155,12 @@ M0_INTERNAL void m0_cm_proxy_del(struct m0_cm *cm, struct m0_cm_proxy *pxy);
 M0_INTERNAL struct m0_cm_proxy *m0_cm_proxy_locate(struct m0_cm *cm,
 						   const char *ep);
 
-M0_INTERNAL void m0_cm_proxy_update(struct m0_cm_proxy *pxy,
-				    struct m0_cm_ag_id *lo,
-				    struct m0_cm_ag_id *hi,
-				    struct m0_cm_ag_id *last_out,
-				    uint32_t px_status,
-				    m0_time_t px_epoch);
+M0_INTERNAL int m0_cm_proxy_update(struct m0_cm_proxy *pxy,
+				   struct m0_cm_ag_id *lo,
+				   struct m0_cm_ag_id *hi,
+				   struct m0_cm_ag_id *last_out,
+				   uint32_t px_status,
+				   m0_time_t px_epoch);
 
 M0_INTERNAL int m0_cm_proxy_remote_update(struct m0_cm_proxy *proxy,
 					  struct m0_cm_sw *sw);
@@ -179,6 +184,8 @@ M0_INTERNAL void m0_cm_proxy_event_handle_register(struct m0_cm_proxy *pxy,
 M0_INTERNAL bool m0_cm_proxy_is_locked(struct m0_cm_proxy *pxy);
 M0_INTERNAL void m0_cm_proxy_lock(struct m0_cm_proxy *pxy);
 M0_INTERNAL void m0_cm_proxy_unlock(struct m0_cm_proxy *pxy);
+
+M0_INTERNAL bool m0_cm_proxies_ready(const struct m0_cm *cm);
 
 M0_TL_DESCR_DECLARE(proxy, M0_EXTERN);
 M0_TL_DECLARE(proxy, M0_INTERNAL, struct m0_cm_proxy);

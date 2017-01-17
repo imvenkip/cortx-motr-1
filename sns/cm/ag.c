@@ -263,6 +263,10 @@ static int ai_fid_next(struct m0_sns_cm_ag_iter *ai)
 		ai->ai_fid = fid;
 		ai_state_set(ai, AIS_FID_LOCK);
 	}
+
+	if (rc == -ENOENT)
+		rc = -ENODATA;
+
 	return M0_RC(rc);
 }
 
@@ -283,8 +287,6 @@ M0_INTERNAL int m0_sns_cm_ag__next(struct m0_sns_cm *scm,
 	struct m0_fid              fid;
 	int                        rc;
 
-	if (ai_state(ai) > AIS_GROUP_NEXT)
-		return -ENOENT;
 	ai->ai_id_curr = *id_curr;
 	agid2fid(&ai->ai_id_curr, &fid);
 	fctx = ai->ai_fctx;
@@ -463,7 +465,8 @@ M0_INTERNAL int m0_sns_cm_ag_init(struct m0_sns_cm_ag *sag,
 		m0_bitmap_fini(&sag->sag_proxy_incoming_map);
 		m0_free(sag->sag_proxy_in_count);
 		m0_sns_cm_fctx_put(scm, id);
-		return M0_ERR(-EINVAL);
+		return M0_ERR_INFO(-EINVAL, "nr failures: %u in group "M0_AG_F,
+				    (unsigned)f_nr, M0_AG_P(id));
 	}
 	sag->sag_fnr = f_nr;
 	if (has_incoming)
@@ -488,50 +491,45 @@ M0_INTERNAL bool m0_sns_cm_ag_is_frozen_on(struct m0_cm_aggr_group *ag, struct m
 {
 	struct m0_cm        *cm = ag->cag_cm;
 	struct m0_sns_cm_ag *sag = ag2snsag(ag);
-	uint32_t             not_coming = 0;
-	uint32_t             local_cps = 0;
-	uint32_t             expected_free = 0;
 
 	M0_ENTRY();
 	M0_PRE(m0_cm_ag_is_locked(ag));
 
+	if (!cm->cm_abort && !cm->cm_quiesce)
+		return false;
 	/*
 	 * Find out if there are any incoming copy packets from the given proxy that
 	 * is already completed and the copy packets will no longer be arriving.
 	 */
 	if (ag->cag_ops->cago_has_incoming_from(ag, pxy)) {
-		if ((pxy->px_status == M0_PX_COMPLETE &&
+		if ((M0_IN(pxy->px_status, (M0_PX_COMPLETE, M0_PX_STOP)) &&
 		     m0_cm_ag_id_cmp(&pxy->px_last_out_recvd, &ag->cag_id) < 0) ||
-		     M0_IN(pxy->px_status, (M0_PX_FAILED, M0_PX_STOP))) {
+		     M0_IN(pxy->px_status, (M0_PX_FAILED))) {
 			m0_bitmap_set(&sag->sag_proxy_incoming_map, pxy->px_id,
 				      false);
 			M0_CNT_INC(sag->sag_not_coming);
 		}
 	}
 
-	/*
-	 * Calculate the expected copy packets that can be created and finalised
-	 * in-order to mark aggregation group as frozen.
-	 */
-	if (sag->sag_not_coming > 0 ||
-	    (m0_cm_cp_pump_is_complete(&cm->cm_cp_pump) &&
-	    sag->sag_cp_created_nr != ag->cag_cp_local_nr)) {
-		not_coming = sag->sag_not_coming * sag->sag_local_tgts_nr;
-		if (ag->cag_cp_local_nr > 0) {
-			local_cps = ag->cag_cp_local_nr + sag->sag_outgoing_nr;
-			if (m0_cm_cp_pump_is_complete(&cm->cm_cp_pump) &&
-			    sag->sag_cp_created_nr != ag->cag_cp_local_nr) {
-				local_cps = sag->sag_cp_created_nr;
-			}
-		}
-		expected_free =  local_cps + sag->sag_incoming_cp_nr - not_coming;
+	ag->cag_is_frozen = sag->sag_not_coming > 0;
 
-		sag->sag_is_frozen = ag->cag_freed_cp_nr >= expected_free;
-		return sag->sag_is_frozen;
-	} else
-		return false;
+	if (!ag->cag_is_frozen && m0_cm_cp_pump_is_complete(&cm->cm_cp_pump) &&
+	    sag->sag_cp_created_nr != ag->cag_cp_local_nr)
+			ag->cag_is_frozen = true;
+
+	return ag->cag_is_frozen;
 
 	M0_LEAVE();
+}
+
+M0_INTERNAL bool m0_sns_cm_ag_has_data(struct m0_sns_cm_file_ctx *fctx, uint64_t group)
+{
+	struct m0_pdclust_layout *pl;
+	uint32_t                  nr_max_du;
+
+	nr_max_du = m0_sns_cm_file_data_units(fctx);
+	pl = m0_layout_to_pdl(fctx->sf_layout);
+	return !m0_sns_cm_file_unit_is_EOF(pl, nr_max_du, group, 0);
 }
 
 /** @} SNSCMAG */

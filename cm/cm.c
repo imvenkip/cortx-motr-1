@@ -443,7 +443,8 @@ M0_TL_DEFINE(cmtypes, static, struct m0_cm_type);
 static struct m0_bob_type cmtypes_bob;
 M0_BOB_DEFINE(static, &cmtypes_bob, m0_cm_type);
 
-static void cm_ast_run_fom_init(struct m0_cm *cm);
+static int cm_ast_run_thread_init(struct m0_cm *cm);
+static void cm_ast_run_thread_fini(struct m0_cm *cm);
 
 static struct m0_sm_state_descr cm_state_descr[M0_CMS_NR] = {
 	[M0_CMS_INIT] = {
@@ -641,6 +642,9 @@ static int cm_replicas_connect(struct m0_cm *cm, struct m0_rpc_machine *rmach,
 			M0_LOG(M0_DEBUG, "Connected to %s", dep);
 		}
 	} m0_tl_endfor;
+
+	rc = m0_bitmap_init(&cm->cm_proxy_update_map, cm->cm_proxy_nr);
+
 	M0_LOG(M0_DEBUG, "Connected to its proxies from local ep %s", lep);
 	return M0_RC(rc);
 }
@@ -687,7 +691,7 @@ M0_INTERNAL int m0_cm_prepare(struct m0_cm *cm)
 					   M0_CMS_FAIL)));
 
 	cm->cm_done = false;
-	cm->cm_proxy_init_updated = 0;
+	cm->cm_nr_proxy_updated = 0;
 	cm->cm_quiesce = false;
 	cm->cm_abort   = false;
 	cm->cm_reset   = true;
@@ -697,16 +701,16 @@ M0_INTERNAL int m0_cm_prepare(struct m0_cm *cm)
 	if (rc == -ENOENT)
 		rc = 0;
 	if (rc == 0) {
-		if (M0_FI_ENABLED("prepare_failure"))
-			rc = -EINVAL;
-		else
+		if (M0_FI_ENABLED("prepare_failure")) {
+			m0_cm_unlock(cm);
+			return -EINVAL;
+		} else
 			rc = cm->cm_ops->cmo_prepare(cm);
 	}
 	if (rc == 0) {
-		cm->cm_ready_fops_recvd = 0;
+		m0_cm_state_set(cm, M0_CMS_PREPARE);
 		m0_cm_ag_store_fom_start(cm);
 		m0_cm_cp_pump_prepare(cm);
-		m0_cm_state_set(cm, M0_CMS_PREPARE);
 	}
 	if (rc != 0) {
 		m0_cm_fail(cm, rc);
@@ -726,17 +730,19 @@ M0_INTERNAL int m0_cm_ready(struct m0_cm *cm)
 	M0_PRE(cm->cm_type != NULL);
 
 	m0_cm_lock(cm);
-	M0_PRE(m0_cm_state_get(cm) == M0_CMS_PREPARE);
+	M0_PRE(M0_IN(m0_cm_state_get(cm), (M0_CMS_PREPARE, M0_CMS_FAIL)));
 	M0_PRE(m0_cm_invariant(cm));
 
-	cm_ast_run_fom_init(cm);
 	rc = cm_rc(cm);
 	if (M0_FI_ENABLED("ready_failure"))
 		rc = -EINVAL;
+
+	if (rc == 0)
+		cm_ast_run_thread_init(cm);
+
 	if (rc == 0) {
+		m0_cm_state_set(cm, M0_CMS_READY);
 		rc = m0_cm_sw_remote_update(cm);
-		if (rc == 0)
-			m0_cm_state_set(cm, M0_CMS_READY);
 	}
 
 	if (rc != 0) {
@@ -773,10 +779,10 @@ M0_INTERNAL int m0_cm_start(struct m0_cm *cm)
 	M0_PRE(M0_IN(m0_cm_state_get(cm), (M0_CMS_READY, M0_CMS_FAIL)));
 	M0_PRE(m0_cm_invariant(cm));
 
-	if (M0_FI_ENABLED("start_failure"))
-		rc = -EINVAL;
 	if (rc == 0)
 		rc = cm->cm_ops->cmo_start(cm);
+	if (M0_FI_ENABLED("start_failure"))
+		rc = -EINVAL;
 	/* Start pump FOM to create copy packets. */
 	if (rc == 0) {
 		m0_cm_cp_pump_start(cm);
@@ -825,13 +831,16 @@ M0_INTERNAL int m0_cm_stop(struct m0_cm *cm)
 					   M0_CMS_ACTIVE, M0_CMS_FAIL)));
 	M0_PRE(m0_cm_invariant(cm));
 
-	m0_cm_ast_run_fom_wakeup(cm);
 	cm->cm_ops->cmo_stop(cm);
 	/* In-case of failure (rc != 0) keep copy machine in failed state. */
 	if (rc == 0)
 		m0_cm_state_set(cm, M0_CMS_STOP);
+	m0_bitmap_fini(&cm->cm_proxy_update_map);
 	M0_POST(m0_cm_invariant(cm));
 	m0_cm_unlock(cm);
+
+	if (cm->cm_asts_run.car_run)
+		cm_ast_run_thread_fini(cm);
 
 	M0_LEAVE("rc: %d", rc);
 	return M0_RC(rc);
@@ -895,10 +904,9 @@ M0_INTERNAL int m0_cm_init(struct m0_cm *cm, struct m0_cm_type *cm_type,
 	proxy_tlist_init(&cm->cm_proxies);
 	proxy_fail_tlist_init(&cm->cm_failed_proxies);
 	m0_mutex_init(&cm->cm_wait_mutex);
-	m0_mutex_init(&cm->cm_ast_run_fom_wait_mutex);
 	m0_chan_init(&cm->cm_wait, &cm->cm_wait_mutex);
-	m0_chan_init(&cm->cm_ast_run_fom_wait, &cm->cm_ast_run_fom_wait_mutex);
 	m0_chan_init(&cm->cm_complete, &cm->cm_sm_group.s_lock);
+	m0_chan_init(&cm->cm_proxy_init_wait, &cm->cm_sm_group.s_lock);
 
 	M0_POST(m0_cm_invariant(cm));
 	m0_cm_unlock(cm);
@@ -928,10 +936,9 @@ M0_INTERNAL void m0_cm_fini(struct m0_cm *cm)
 	proxy_fail_tlist_fini(&cm->cm_failed_proxies);
 	m0_sm_fini(&cm->cm_mach);
 	m0_chan_fini_lock(&cm->cm_wait);
-	m0_chan_fini_lock(&cm->cm_ast_run_fom_wait);
 	m0_chan_fini(&cm->cm_complete);
+	m0_chan_fini(&cm->cm_proxy_init_wait);
 	m0_mutex_fini(&cm->cm_wait_mutex);
-	m0_mutex_fini(&cm->cm_ast_run_fom_wait_mutex);
 	m0_cm_unlock(cm);
 
 	m0_sm_group_fini(&cm->cm_sm_group);
@@ -1025,43 +1032,9 @@ M0_INTERNAL void m0_cm_buffer_put(struct m0_net_buffer_pool *bp,
 	m0_net_buffer_pool_put(bp, buf, colour);
 }
 
-static int cm_ast_run_fom_tick(struct m0_fom *fom, struct m0_cm *cm, int *phase)
-{
-	int  result = M0_FSO_WAIT;
-
-	if (m0_mutex_trylock(&cm->cm_sm_group.s_lock) == 0) {
-		m0_cm_invariant(cm);
-		m0_cm_unlock(cm);
-	}
-
-	if (M0_IN(m0_cm_state_get(cm), (M0_CMS_IDLE, M0_CMS_ACTIVE,
-					M0_CMS_STOP, M0_CMS_FAIL)) && cm->cm_proxy_nr == 0 &&
-		cm->cm_aggr_grps_out_nr == 0 && cm->cm_aggr_grps_in_nr == 0)
-		result = -ESHUTDOWN;
-	else {
-		m0_mutex_lock(&cm->cm_ast_run_fom_wait_mutex);
-		m0_fom_wait_on(fom, &cm->cm_ast_run_fom_wait, &fom->fo_cb);
-		m0_mutex_unlock(&cm->cm_ast_run_fom_wait_mutex);
-	}
-
-	return result;
-}
-
-static void cm_ast_run_fom_init(struct m0_cm *cm)
-{
-	M0_FOM_SIMPLE_POST(&cm->cm_ast_run_fom, cm->cm_service.rs_reqh, NULL,
-			   cm_ast_run_fom_tick, NULL, cm, 1);
-}
-
-M0_INTERNAL void m0_cm_ast_run_fom_wakeup(struct m0_cm *cm)
-{
-	m0_chan_signal_lock(&cm->cm_ast_run_fom_wait);
-}
-
 M0_INTERNAL void m0_cm_notify(struct m0_cm *cm)
 {
-	if (m0_chan_has_waiters(&cm->cm_wait))
-		m0_chan_signal_lock(&cm->cm_wait);
+	m0_chan_signal_lock(&cm->cm_wait);
 }
 
 M0_INTERNAL void m0_cm_wait(struct m0_cm *cm, struct m0_fom *fom)
@@ -1089,8 +1062,10 @@ M0_INTERNAL int m0_cm_complete(struct m0_cm *cm)
 			m0_cm_ag_store_fini(&cm->cm_ag_store);
 		else
 			m0_cm_ag_store_complete(&cm->cm_ag_store);
+
+		cm->cm_done = true;
+		m0_cm_sw_remote_update(cm);
 	}
-	cm->cm_done = true;
 	/*
 	 * Finalising proxies is a blocking operation becuase we wait until
 	 * the remote replica, corresponding to the copy machine proxy is
@@ -1100,21 +1075,30 @@ M0_INTERNAL int m0_cm_complete(struct m0_cm *cm)
 	rc = m0_cm_proxies_fini(cm);
 	if (rc == -EAGAIN)
 		return M0_RC(rc);
+	if (!m0_cm_ag_store_is_complete(&cm->cm_ag_store))
+		return -EAGAIN;
+
 	m0_cm_notify(cm);
 
 	return M0_RC(rc);
 }
 
+M0_INTERNAL void m0_cm_complete_notify(struct m0_cm *cm)
+{
+	M0_ASSERT(m0_cm_is_locked(cm));
+
+	m0_chan_signal(&cm->cm_complete);
+}
+
 M0_INTERNAL void m0_cm_proxies_init_wait(struct m0_cm *cm, struct m0_fom *fom)
 {
-	m0_cm_wait(cm, fom);
+	M0_PRE(m0_cm_is_locked(cm));
+	m0_fom_wait_on(fom, &cm->cm_proxy_init_wait, &fom->fo_cb);
 }
 
 M0_INTERNAL void m0_cm_frozen_ag_cleanup(struct m0_cm *cm, struct m0_cm_proxy *proxy)
 {
 	struct m0_cm_aggr_group *ag = NULL;
-	struct m0_cm_proxy      *pxy = NULL;
-	bool                     proxies_done = true;
 	bool                     cleanup;
 
 	M0_PRE(m0_cm_is_locked(cm));
@@ -1122,24 +1106,16 @@ M0_INTERNAL void m0_cm_frozen_ag_cleanup(struct m0_cm *cm, struct m0_cm_proxy *p
 	m0_tlist_for(&aggr_grps_in_tl, &cm->cm_aggr_grps_in, ag) {
 		m0_cm_ag_lock(ag);
 		cleanup = ag->cag_ops->cago_is_frozen_on(ag, proxy) &&
-			  ag->cag_ops->cago_ag_can_fini(ag);
+			  m0_cm_ag_can_fini(ag);
 		m0_cm_ag_unlock(ag);
-		if (cleanup)
+		if (cleanup) {
+			M0_ASSERT(cm->cm_abort || cm->cm_quiesce);
+			M0_ASSERT(ag->cag_fini_ast.sa_next == NULL);
+			M0_LOG(M0_DEBUG, "finalizing frozen aggregation group ["M0_AG_F"]",
+					 M0_AG_P(&ag->cag_id));
 			ag->cag_ops->cago_fini(ag);
-	} m0_tlist_endfor;
-
-	m0_tl_for(proxy, &cm->cm_proxies, pxy) {
-		if (!M0_IN(pxy->px_status, (M0_PX_STOP, M0_PX_FAILED))) {
-			proxies_done = false;
-			break;
 		}
-	} m0_tl_endfor;
-
-	if (proxies_done && cm->cm_aggr_grps_out_nr > 0) {
-		m0_tlist_for(&aggr_grps_out_tl, &cm->cm_aggr_grps_out, ag) {
-			ag->cag_ops->cago_fini(ag);
-		} m0_tlist_endfor;
-	}
+	} m0_tlist_endfor;
 }
 
 M0_INTERNAL void m0_cm_proxy_failed_cleanup(struct m0_cm *cm)
@@ -1167,6 +1143,39 @@ M0_INTERNAL bool m0_cm_is_dirty(struct m0_cm *cm)
 {
 	return cm->cm_abort || cm->cm_quiesce || m0_cm_state_get(cm) == M0_CMS_FAIL;
 }
+
+M0_INTERNAL bool m0_cm_proxies_updated(struct m0_cm *cm)
+{
+	M0_PRE(m0_cm_is_locked(cm));
+
+	return cm->cm_nr_proxy_updated == cm->cm_proxy_nr;
+}
+
+static void cm_ast_run_thread(struct m0_cm *cm)
+{
+	while (cm->cm_asts_run.car_run) {
+		m0_chan_wait(&cm->cm_sm_group.s_clink);
+		m0_sm_group_lock(&cm->cm_sm_group);
+		m0_sm_asts_run(&cm->cm_sm_group);
+		m0_sm_group_unlock(&cm->cm_sm_group);
+	}
+}
+
+static int cm_ast_run_thread_init(struct m0_cm *cm)
+{
+	M0_SET0(&cm->cm_asts_run);
+	cm->cm_asts_run.car_run = true;
+	return M0_THREAD_INIT(&cm->cm_asts_run.car_th, struct m0_cm *,
+			      NULL, &cm_ast_run_thread, cm, "cm_ast_run_thr");
+}
+
+static void cm_ast_run_thread_fini(struct m0_cm *cm)
+{
+	cm->cm_asts_run.car_run = false;
+	m0_clink_signal(&cm->cm_sm_group.s_clink);
+	m0_thread_join(&cm->cm_asts_run.car_th);
+}
+
 
 #undef M0_TRACE_SUBSYSTEM
 

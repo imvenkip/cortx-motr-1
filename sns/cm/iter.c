@@ -215,6 +215,7 @@ static int __file_context_init(struct m0_sns_cm_iter *it)
 		it->si_fc.ifc_sa.sa_group = agid2group(&cm->cm_last_processed_out) + 1;
 	else
 		it->si_fc.ifc_sa.sa_group = 0;
+
 	it->si_fc.ifc_sa.sa_unit = 0;
 	it->si_ag = NULL;
 	M0_SET0(&cm->cm_last_processed_out);
@@ -356,29 +357,39 @@ static bool __has_incoming(struct m0_sns_cm *scm,
 	return m0_sns_cm_ag_is_relevant(scm, fctx, &agid);
 }
 
+
 static bool __group_skip(struct m0_sns_cm_iter *it, uint64_t group)
 {
 	struct m0_sns_cm_iter_file_ctx *ifc = &it->si_fc;
+	struct m0_sns_cm_file_ctx      *fctx = ifc->ifc_fctx;
 	struct m0_fid                   cobfid;
 	struct m0_pdclust_src_addr      sa;
 	struct m0_pdclust_tgt_addr      ta;
+	uint32_t                        nr_max_du;
 	int                             i;
-	struct m0_poolmach             *pm = ifc->ifc_fctx->sf_pm;
+	struct m0_poolmach             *pm = fctx->sf_pm;
+	struct m0_pdclust_layout       *pl;
 
 	M0_ENTRY("it: %p group: %lu", it, (unsigned long)group);
 
-	for (i = 0; i < it->si_fc.ifc_upg; ++i) {
+	if (!m0_sns_cm_ag_has_data(fctx, group))
+		return true;
+	pl = m0_layout_to_pdl(fctx->sf_layout);
+	nr_max_du = m0_sns_cm_file_data_units(fctx);
+	for (i = 0; i < ifc->ifc_upg; ++i) {
 		sa.sa_unit = i;
 		sa.sa_group = group;
-		m0_sns_cm_unit2cobfid(ifc->ifc_fctx, &sa, &ta, &cobfid);
+		m0_sns_cm_unit2cobfid(fctx, &sa, &ta, &cobfid);
 		if (m0_sns_cm_is_cob_failed(pm, ta.ta_obj) &&
 		    !m0_sns_cm_is_cob_repaired(pm, ta.ta_obj) &&
-		    !m0_sns_cm_unit_is_spare(ifc->ifc_fctx, group, sa.sa_unit))
+		    !m0_sns_cm_unit_is_spare(fctx, group, sa.sa_unit) &&
+		    !m0_sns_cm_file_unit_is_EOF(pl, nr_max_du, sa.sa_group, sa.sa_unit))
 			return false;
 	}
 
 	return true;
 }
+
 
 static int __group_alloc(struct m0_sns_cm *scm, struct m0_fid *gfid,
 			 uint64_t group, struct m0_pdclust_layout *pl,
@@ -402,15 +413,16 @@ static int __group_alloc(struct m0_sns_cm *scm, struct m0_fid *gfid,
 		if (m0_cm_ag_id_cmp(&agid,
 				    &cm->cm_sw_last_updated_hi) <= 0) {
 			*ag = m0_cm_aggr_group_locate(cm, &agid, has_incoming);
-			/* It is possible that the aggregation group was
-			 * created (by sliding window update fom) and finalised
-			 * before iterator got to it. Ignore the error and
-			 * continue.
+			/* SNS repair abort or quiesce ca lead to frozen
+			 * aggregation groups. It is possible that the
+			 * aggregation group was detected frozen in such
+			 * incident and was finalised. In regular sns operation
+			 * this situation is not expected.
 			 */
 			if (*ag == NULL) {
 				M0_LOG(M0_DEBUG, "group "M0_AG_F" not found",
 					M0_AG_P(&agid)); 
-				return -ENOENT;
+				rc = -ENOENT;
 			}
 			goto out;
 		}
@@ -451,8 +463,9 @@ static int __group_next(struct m0_sns_cm_iter *it)
 	struct m0_pdclust_src_addr     *sa;
 	struct m0_fid                  *gfid;
 	struct m0_pdclust_layout       *pl;
+	struct m0_sns_cm_ag            *sag;
 	uint64_t                        group;
-	uint64_t                        nrlu;
+	uint64_t                        nrlu = 0;
 	bool                            has_incoming = false;
 	int                             rc = 0;
 	struct m0_poolmach             *pm;
@@ -465,8 +478,11 @@ static int __group_next(struct m0_sns_cm_iter *it)
 	ifc->ifc_groups_nr = m0_sns_cm_nr_groups(pl, fctx->sf_attr.ca_size);
 	sa = &ifc->ifc_sa;
 	gfid = &ifc->ifc_gfid;
-	if (it->si_ag != NULL)
+	if (it->si_ag != NULL) {
+		sag = ag2snsag(it->si_ag);
+		M0_ASSERT(sag->sag_base.cag_cp_local_nr == sag->sag_cp_created_nr);
 		m0_cm_ag_put(it->si_ag);
+	}
 	it->si_ag = NULL;
 	pm = fctx->sf_pm;
 	if (m0_sns_cm_pver_is_dirty(pm->pm_pver))
@@ -475,7 +491,8 @@ static int __group_next(struct m0_sns_cm_iter *it)
 		if (__group_skip(it, group))
 			continue;
 		has_incoming = __has_incoming(scm, ifc->ifc_fctx, group);
-		nrlu = m0_sns_cm_ag_nr_local_units(scm, ifc->ifc_fctx, group);
+		if (!has_incoming)
+			nrlu = m0_sns_cm_ag_nr_local_units(scm, ifc->ifc_fctx, group);
 		if (has_incoming || nrlu > 0) {
 			rc = __group_alloc(scm, gfid, group, pl, has_incoming, &it->si_ag);
 			if (rc == -ENOENT) {
@@ -492,6 +509,8 @@ static int __group_next(struct m0_sns_cm_iter *it)
 					rc = 0;
 					goto fid_next;
 				}
+				if (rc == -ENOENT)
+					continue;
 			}
 			ifc->ifc_sa.sa_group = group;
 			ifc->ifc_sa.sa_unit = 0;

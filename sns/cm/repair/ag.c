@@ -215,6 +215,8 @@ static void repair_ag_fini(struct m0_cm_aggr_group *ag)
 
 	sag = ag2snsag(ag);
 	rag = sag2repairag(sag);
+	M0_ASSERT(ag->cag_fini_ast.sa_next == NULL);
+
 	/* In-case the aggregation group is being forcefully finalised
 	 * (e.g. quiesce or abort), we need to release accumulator copy packet
 	 * buffers.
@@ -252,13 +254,13 @@ static bool repair_ag_can_fini(const struct m0_cm_aggr_group *ag)
 	struct m0_sns_cm_repair_ag *rag = sag2repairag(sag);
 	uint32_t                    inactive_accs = 0;
 
-	if (sag->sag_is_frozen) {
+	if (ag->cag_is_frozen) {
 		inactive_accs = repair_ag_inactive_acc_nr(&sag->sag_base);
 		return ag->cag_ref == inactive_accs;
 	}
 
 	return (rag->rag_acc_inuse_nr == rag->rag_acc_freed) &&
-		(ag->cag_transformed_cp_nr == (ag->cag_freed_cp_nr - rag->rag_acc_freed));
+	       (ag->cag_transformed_cp_nr == (ag->cag_freed_cp_nr - rag->rag_acc_freed));
 }
 
 static const struct m0_cm_aggr_group_ops sns_cm_repair_ag_ops = {

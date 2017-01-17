@@ -46,7 +46,7 @@ extern struct m0_reqh_service    *cm_ut_service;
 extern struct m0_ut_rpc_mach_ctx  cmut_rmach_ctx;
 
 enum {
-	AG_ID_NR = 4096,
+	AG_ID_NR = 100,
 	CM_UT_LOCAL_CP_NR = 4,
 	MAX_CM_NR = 2
 };
@@ -70,7 +70,7 @@ extern const struct m0_cm_aggr_group_ops cm_ag_ut_ops;
 extern uint64_t                          ut_cm_id;
 extern bool                              test_ready_fop;
 
-void cm_ut_service_alloc_init();
+void cm_ut_service_alloc_init(struct m0_reqh *reqh);
 void cm_ut_service_cleanup();
 
 #endif /** __MERO_CM_UT_COMMON_SERVICE_H__ */

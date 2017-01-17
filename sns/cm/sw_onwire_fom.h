@@ -34,6 +34,9 @@ enum sns_cm_sw_onwire_phases {
 	SWOPH_FINI = M0_FOM_PHASE_FINISH,
 };
 
+M0_INTERNAL int m0_sns_cm_sw_onwire_fom_create(struct m0_fop *fop, struct m0_fop *r_fop,
+					       struct m0_fom **out, struct m0_reqh *reqh);
+
 /** @} SNSCMSW */
 
 #endif /* __MERO_SNS_CM_SW_ONWIRE_FOM_H__ */

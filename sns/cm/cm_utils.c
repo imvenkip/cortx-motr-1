@@ -202,7 +202,7 @@ M0_INTERNAL uint64_t m0_sns_cm_ag_nr_local_units(struct m0_sns_cm *scm,
 		if (m0_sns_cm_cob_locate(scm->sc_cob_dom, &cobfid) == 0 &&
 		    !m0_sns_cm_is_cob_failed(pm, ta.ta_obj) &&
 		    !m0_sns_cm_unit_is_spare(fctx, group, i) &&
-		    !m0_sns_cm_file_unit_is_EOF(pl, nr_max_du, group, i))
+		    !m0_sns_cm_file_unit_is_EOF(pl, nr_max_du, group, sa.sa_unit))
 			M0_CNT_INC(nrlu);
 	}
 	M0_LEAVE("number of local units = %lu", nrlu);
@@ -288,6 +288,7 @@ M0_INTERNAL bool m0_sns_cm_unit_is_spare(struct m0_sns_cm_file_ctx *fctx,
 	struct m0_poolmach         *pm;
 	struct m0_pdclust_instance *pi;
 	struct m0_pdclust_layout   *pl;
+	uint64_t                    nr_max_du;
 	enum m0_pool_nd_state       state_out = 0;
 	bool                        result = true;
 	int                         rc;
@@ -337,6 +338,9 @@ M0_INTERNAL bool m0_sns_cm_unit_is_spare(struct m0_sns_cm_file_ctx *fctx,
 
 		sa.sa_unit = data_unit_id_out;
 		sa.sa_group = group_nr;
+		nr_max_du = m0_sns_cm_file_data_units(fctx);
+		if (m0_sns_cm_file_unit_is_EOF(pl, nr_max_du, sa.sa_group, sa.sa_unit))
+			return true;
 
 		/*
 		 * The mechanism to reverse map the spare unit to any of the
@@ -473,14 +477,20 @@ M0_INTERNAL size_t m0_sns_cm_ag_unrepaired_units(const struct m0_sns_cm *scm,
 	struct m0_fid              cobfid;
 	uint64_t                   upg;
 	uint64_t                   unit;
+	uint32_t                   nr_max_du;
 	size_t                     group_failures = 0;
+	struct m0_pdclust_layout  *pl;
 	struct m0_poolmach        *pm;
 	M0_ENTRY();
 
 	M0_PRE(scm != NULL && fctx != NULL);
 
+	if (!m0_sns_cm_ag_has_data(fctx, group))
+		return 0;
 	pm = fctx->sf_pm;
-	upg = m0_sns_cm_ag_size(m0_layout_to_pdl(fctx->sf_layout));
+	nr_max_du = m0_sns_cm_file_data_units(fctx);
+	pl = m0_layout_to_pdl(fctx->sf_layout);
+	upg = m0_sns_cm_ag_size(pl);
 	sa.sa_group = group;
 	for (unit = 0; unit < upg; ++unit) {
 		if (m0_sns_cm_unit_is_spare(fctx, group, unit))
@@ -488,7 +498,8 @@ M0_INTERNAL size_t m0_sns_cm_ag_unrepaired_units(const struct m0_sns_cm *scm,
 		sa.sa_unit = unit;
 		m0_sns_cm_unit2cobfid(fctx, &sa, &ta, &cobfid);
 		if (m0_sns_cm_is_cob_failed(pm, ta.ta_obj) &&
-		    !m0_sns_cm_is_cob_repaired(pm, ta.ta_obj)) {
+		    !m0_sns_cm_is_cob_repaired(pm, ta.ta_obj) &&
+		    !m0_sns_cm_file_unit_is_EOF(pl, nr_max_du, sa.sa_group, sa.sa_unit)) {
 			M0_CNT_INC(group_failures);
 			if (fmap_out != NULL) {
 				M0_ASSERT(fmap_out->b_nr == upg);

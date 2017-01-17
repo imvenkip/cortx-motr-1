@@ -262,9 +262,7 @@ static void test_cp_multi_thread(void)
  */
 static int cm_cp_init(void)
 {
-	int                 rc;
-	struct m0_locality *locality;
-	char               *confstr = NULL;
+	int rc;
 
 	M0_SET0(&cmut_rmach_ctx);
 	cmut_rmach_ctx.rmc_cob_id.id = DUMMY_COB_ID;
@@ -273,21 +271,9 @@ static int cm_cp_init(void)
 	m0_ut_rpc_mach_init_and_add(&cmut_rmach_ctx);
 	rc = m0_cm_type_register(&cm_ut_cmt);
 	M0_ASSERT(rc == 0);
-	cm_ut_service_alloc_init();
-
-	rc = m0_file_read(M0_UT_PATH("diter.xc"), &confstr);
-	M0_UT_ASSERT(rc == 0);
-	locality = m0_locality0_get();
-	rc = m0_confc_init(m0_reqh2confc(cm_ut_service->rs_reqh),
-			   locality->lo_grp, NULL, NULL, confstr);
-	M0_UT_ASSERT(rc == 0);
-	m0_free0(&confstr);
+	cm_ut_service_alloc_init(&cmut_rmach_ctx.rmc_reqh);
 
 	rc = m0_reqh_service_start(cm_ut_service);
-	M0_ASSERT(rc == 0);
-	cm_ut_service->rs_reqh_ctx->rc_mero->cc_profile = M0_UT_CONF_PROFILE;
-	rc = m0_fid_sscanf(cm_ut_service->rs_reqh_ctx->rc_mero->cc_profile,
-			   &cm_ut_service->rs_reqh->rh_profile);
 	M0_ASSERT(rc == 0);
 
 	return 0;
@@ -296,12 +282,9 @@ static int cm_cp_init(void)
 /* Finalises the request handler. */
 static int cm_cp_fini(void)
 {
-	struct m0_reqh *reqh = cm_ut_service->rs_reqh;
-
 	cm_ut_service_cleanup();
 	m0_cm_type_deregister(&cm_ut_cmt);
 	m0_ut_rpc_mach_fini(&cmut_rmach_ctx);
-	m0_confc_fini(m0_reqh2confc(reqh));
 	return 0;
 }
 

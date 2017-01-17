@@ -63,7 +63,10 @@ static int rebalance_ag_in_cp_units(const struct m0_sns_cm *scm,
 	uint32_t                    tgt_unit_prev;
 	uint64_t                    unit;
 	uint64_t                    upg;
-	int                         rc;
+	uint32_t                    nr_max_du;
+	int                         rc = 0;
+
+	M0_ENTRY();
 
 	M0_SET0(&sa);
 	cm = &scm->sc_base;
@@ -72,13 +75,15 @@ static int rebalance_ag_in_cp_units(const struct m0_sns_cm *scm,
 	pl = m0_layout_to_pdl(fctx->sf_layout);
 	pm = fctx->sf_pm;
 	upg = m0_sns_cm_ag_size(pl);
+	nr_max_du = m0_sns_cm_file_data_units(fctx);
 	for (unit = 0; unit < upg; ++unit) {
 		sa.sa_unit = unit;
 		M0_SET0(&ta);
 		M0_SET0(&cobfid);
 		M0_ASSERT(pm != NULL);
 		m0_sns_cm_unit2cobfid(fctx, &sa, &ta, &cobfid);
-		if (!m0_sns_cm_is_cob_failed(pm, ta.ta_obj))
+		if (!m0_sns_cm_is_cob_failed(pm, ta.ta_obj) ||
+		    m0_sns_cm_file_unit_is_EOF(pl, nr_max_du, sa.sa_group, sa.sa_unit))
 			continue;
                 if (!m0_sns_cm_is_local_cob(cm, pm->pm_pver, &cobfid))
                         continue;
@@ -88,7 +93,7 @@ static int rebalance_ag_in_cp_units(const struct m0_sns_cm *scm,
 			continue;
 		}
 		m0_sns_cm_fctx_lock(fctx);
-                rc = m0_sns_repair_spare_map(pm, &gfid, pl, fctx->sf_pi, sa.sa_group,
+		rc = m0_sns_repair_spare_map(pm, &gfid, pl, fctx->sf_pi, sa.sa_group,
 					     unit, &tgt_unit, &tgt_unit_prev);
 		m0_sns_cm_fctx_unlock(fctx);
                 if (rc != 0)
@@ -110,7 +115,8 @@ static int rebalance_ag_in_cp_units(const struct m0_sns_cm *scm,
 
 	*in_cp_nr = *in_units_nr = incps;
 
-        return rc;
+	M0_LEAVE("incps=%u", (unsigned)incps);
+        return M0_RC(rc);
 }
 
 static uint64_t rebalance_ag_unit_start(const struct m0_pdclust_layout *pl)
@@ -248,18 +254,23 @@ static bool rebalance_ag_is_relevant(struct m0_sns_cm *scm,
 	struct m0_poolmach         *pm;
 	struct m0_pdclust_layout   *pl;
 	int                         rc;
+	uint32_t                    nr_max_du;
+
 	M0_PRE(fctx != NULL);
 
 	pl = m0_layout_to_pdl(fctx->sf_layout);
 	upg = m0_sns_cm_ag_size(pl);
 	sa.sa_group = group;
 	pm = fctx->sf_pm;
+	nr_max_du = m0_sns_cm_file_data_units(fctx);
 	for (i = 0; i < upg; ++i) {
 		sa.sa_unit = i;
 		m0_sns_cm_unit2cobfid(fctx, &sa, &ta, &cobfid);
 		if (m0_sns_cm_is_cob_rebalancing(pm, ta.ta_obj) &&
 		    m0_sns_cm_is_local_cob(&scm->sc_base, pm->pm_pver,
-			    &cobfid)) {
+					   &cobfid) &&
+		    !m0_sns_cm_file_unit_is_EOF(pl, nr_max_du, sa.sa_group,
+						sa.sa_unit)) {
 			tunit = sa.sa_unit;
 			if (m0_pdclust_unit_classify(pl, tunit) ==
 					M0_PUT_SPARE) {

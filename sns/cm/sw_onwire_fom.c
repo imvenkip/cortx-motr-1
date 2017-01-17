@@ -66,8 +66,11 @@ static int sw_onwire_fom_tick(struct m0_fom *fom)
 {
 	struct m0_reqh_service     *service;
 	struct m0_cm               *cm;
-	struct m0_sns_cm_sw_onwire *swo_fop;
+	struct m0_cm_sw_onwire     *swo_fop;
+	struct m0_cm_sw_onwire_rep *swo_rep;
 	struct m0_cm_proxy         *cm_proxy;
+	struct m0_fop              *rfop;
+	int                         rc;
 	const char                 *ep;
 
 	service = fom->fo_service;
@@ -78,30 +81,35 @@ static int sw_onwire_fom_tick(struct m0_fom *fom)
 		if (cm == NULL)
 			return M0_ERR(-EINVAL);
 		M0_LOG(M0_DEBUG, "Rcvd from %s hi: [%lu] [%lu] [%lu] [%lu] "
-				 "[%lu] [%lu] [%lu] [%lu]",
-		       swo_fop->swo_base.swo_cm_ep.ep,
-		       swo_fop->swo_base.swo_sw.sw_hi.ai_hi.u_hi,
-		       swo_fop->swo_base.swo_sw.sw_hi.ai_hi.u_lo,
-		       swo_fop->swo_base.swo_sw.sw_hi.ai_lo.u_hi,
-		       swo_fop->swo_base.swo_sw.sw_hi.ai_lo.u_lo,
+				 "[%lu] [%lu] [%lu]",
+		       swo_fop->swo_cm_ep.ep,
+		       swo_fop->swo_sw.sw_hi.ai_hi.u_hi,
+		       swo_fop->swo_sw.sw_hi.ai_hi.u_lo,
+		       swo_fop->swo_sw.sw_hi.ai_lo.u_hi,
+		       swo_fop->swo_sw.sw_hi.ai_lo.u_lo,
 		       cm->cm_aggr_grps_in_nr,
 		       cm->cm_aggr_grps_out_nr,
-		       cm->cm_ready_fops_recvd,
 		       cm->cm_proxy_nr);
 
-		ep = swo_fop->swo_base.swo_cm_ep.ep;
+		ep = swo_fop->swo_cm_ep.ep;
 		m0_cm_lock(cm);
 		cm_proxy = m0_cm_proxy_locate(cm, ep);
 		if (cm_proxy != NULL) {
 			ID_LOG("proxy hi", &cm_proxy->px_sw.sw_hi);
-			m0_cm_proxy_update(cm_proxy,
-					   &swo_fop->swo_base.swo_sw.sw_lo,
-					   &swo_fop->swo_base.swo_sw.sw_hi,
-					   &swo_fop->swo_base.swo_last_out,
-					   swo_fop->swo_base.swo_cm_status,
-					   swo_fop->swo_base.swo_cm_epoch);
-		}
+			rc = m0_cm_proxy_update(cm_proxy,
+						&swo_fop->swo_sw.sw_lo,
+						&swo_fop->swo_sw.sw_hi,
+						&swo_fop->swo_last_out,
+						swo_fop->swo_cm_status,
+						swo_fop->swo_cm_epoch);
+		} else
+			rc = -ENOENT;
 		m0_cm_unlock(cm);
+
+		rfop = fom->fo_rep_fop;
+		swo_rep = m0_fop_data(rfop);
+		swo_rep->swr_rc = rc;
+		m0_rpc_reply_post(&fom->fo_fop->f_item, &rfop->f_item);
 		m0_fom_phase_set(fom, SWOPH_FINI);
 		break;
 	default:
@@ -121,10 +129,10 @@ static void sw_onwire_fom_fini(struct m0_fom *fom)
 
 static size_t sw_onwire_fom_home_locality(const struct m0_fom *fom)
 {
-	struct m0_sns_cm_sw_onwire *swo_fop;
+	struct m0_cm_sw_onwire *swo_fop;
 
 	swo_fop = m0_fop_data(fom->fo_fop);
-	return m0_rnd(1 << 30, &swo_fop->swo_base.swo_sender_id);
+	return m0_rnd(1 << 30, &swo_fop->swo_sender_id);
 }
 
 static const struct m0_fom_ops sw_onwire_fom_ops = {
@@ -133,8 +141,8 @@ static const struct m0_fom_ops sw_onwire_fom_ops = {
 	.fo_home_locality = sw_onwire_fom_home_locality,
 };
 
-static int sw_onwire_fom_create(struct m0_fop *fop, struct m0_fom **out,
-				struct m0_reqh *reqh)
+M0_INTERNAL int m0_sns_cm_sw_onwire_fom_create(struct m0_fop *fop, struct m0_fop *r_fop,
+					       struct m0_fom **out, struct m0_reqh *reqh)
 {
 	struct m0_fom *fom;
 
@@ -146,15 +154,11 @@ static int sw_onwire_fom_create(struct m0_fop *fop, struct m0_fom **out,
 		return M0_ERR(-ENOMEM);
 
 	m0_fom_init(fom, &fop->f_type->ft_fom_type, &sw_onwire_fom_ops, fop,
-		    NULL, reqh);
+		    r_fop, reqh);
 
 	*out = fom;
 	return 0;
 }
-
-const struct m0_fom_type_ops m0_sns_cm_sw_onwire_fom_type_ops = {
-	.fto_create = sw_onwire_fom_create,
-};
 
 #undef M0_TRACE_SUBSYSTEM
 

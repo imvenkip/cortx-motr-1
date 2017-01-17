@@ -31,6 +31,7 @@
 
 #include "cm/sw.h"
 #include "cm/cm.h"
+#include "cm/proxy.h"
 
 #include "be/op.h"           /* M0_BE_OP_SYNC */
 
@@ -48,9 +49,8 @@
 */
 
 enum cm_sw_update_fom_phase {
-	SWU_START  = M0_FOM_PHASE_INIT,
+	SWU_UPDATE = M0_FOM_PHASE_INIT,
 	SWU_FINI   = M0_FOM_PHASE_FINISH,
-	SWU_UPDATE,
 	SWU_NR
 };
 
@@ -58,13 +58,8 @@ static const struct m0_fom_type_ops cm_sw_update_fom_type_ops = {
 };
 
 static struct m0_sm_state_descr cm_sw_update_sd[SWU_NR] = {
-	[SWU_START] = {
-		.sd_flags   = M0_SDF_INITIAL,
-		.sd_name    = "Update",
-		.sd_allowed = M0_BITS(SWU_UPDATE, SWU_FINI)
-	},
 	[SWU_UPDATE] = {
-		.sd_flags   = 0,
+		.sd_flags   = M0_SDF_INITIAL,
 		.sd_name    = "Update",
 		.sd_allowed = M0_BITS(SWU_FINI)
 	},
@@ -91,50 +86,16 @@ static struct m0_cm_sw_update *cm_fom2swu(struct m0_fom *fom)
 	return container_of(fom, struct m0_cm_sw_update, swu_fom);
 }
 
-static int swu_start(struct m0_cm_sw_update *swu)
-{
-	struct m0_cm   *cm = cm_swu2cm(swu);
-	struct m0_fom  *fom = &swu->swu_fom;
-	int             rc;
-
-	M0_ENTRY();
-
-	m0_cm_lock(cm);
-	rc = m0_cm_sw_local_update(cm);
-	if (M0_IN(rc, (-ENOBUFS, -ENOENT, -ENODATA))) {
-		if (rc != -ENOENT) {
-			m0_fom_phase_move(fom, 0, SWU_UPDATE);
-			rc = rc == -ENOBUFS ? M0_FSO_WAIT : M0_FSO_AGAIN;
-		}
-		/* Notify copy machine on updating initial sliding window. */
-		m0_cm_notify(cm);
-	}
-	m0_cm_unlock(cm);
-
-	return M0_RC(rc);
-}
-
 static int swu_update(struct m0_cm_sw_update *swu)
 {
 	struct m0_cm *cm = cm_swu2cm(swu);
 	int           rc;
 
-	m0_cm_lock(cm);
 	rc = m0_cm_sw_local_update(cm);
-	if (rc == M0_FSO_WAIT)
-		goto out;
-	if (rc == -ENOBUFS)
-		rc = M0_FSO_WAIT;
-	if (rc < 0)
-		swu->swu_is_complete = true;
-out:
-	m0_cm_unlock(cm);
-	rc = rc == 0 ? M0_FSO_AGAIN : rc;
 	return M0_RC(rc);
 }
 
 static int (*swu_action[]) (struct m0_cm_sw_update *swu) = {
-	[SWU_START]  = swu_start,
 	[SWU_UPDATE] = swu_update,
 };
 
@@ -151,19 +112,24 @@ static int cm_swu_fom_tick(struct m0_fom *fom)
 
 	swu = cm_fom2swu(fom);
 	cm = cm_swu2cm(swu);
+	m0_cm_lock(cm);
 	rc = swu_action[phase](swu);
 	if (rc < 0) {
-		M0_LOG(M0_DEBUG, "Sliding window update"
-		      " fom complete with rc: %d", rc);
-		swu->swu_is_complete = true;
-		m0_cm_lock(cm);
-		m0_chan_signal(&cm->cm_complete);
-		if (!M0_IN(rc, (-ENOBUFS, -ENOENT, -ENODATA)))
-			m0_cm_abort(cm, rc);
-		m0_cm_unlock(cm);
-		m0_fom_phase_move(fom, 0, SWU_FINI);
+		if (rc != -ENOBUFS) {
+			M0_LOG(M0_DEBUG, "Sliding window update"
+			      " fom complete with rc: %d", rc);
+			swu->swu_is_complete = true;
+			m0_cm_complete_notify(cm);
+			if (!M0_IN(rc, (-ENOBUFS, -ENODATA)))
+				m0_cm_abort(cm, rc);
+			m0_fom_phase_move(fom, 0, SWU_FINI);
+		}
 		rc = M0_FSO_WAIT;
+		m0_cm_sw_remote_update(cm);
 	}
+	if (rc == 0)
+		rc = M0_FSO_AGAIN;
+	m0_cm_unlock(cm);
 
 	return M0_RC(rc);
 }

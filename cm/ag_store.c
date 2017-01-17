@@ -183,15 +183,16 @@ static int ag_store_init_load(struct m0_cm_ag_store *store, struct m0_cm_ag_stor
 /**
  * Setting in and out AG id and epoch to in-memory store and its original cm.
  */
-static void in_out_epoch_set(struct m0_cm *cm, struct m0_cm_ag_store *store,
-			     struct m0_cm_ag_store_data* s_data)
+static void in_out_set(struct m0_cm *cm,
+		       struct m0_cm_ag_store *store,
+		       struct m0_cm_ag_store_data* s_data)
 {
+	m0_cm_lock(cm);
 	store->s_data.d_in  = s_data->d_in;
 	store->s_data.d_out = s_data->d_out;
 
-	cm->cm_sw_last_persisted_hi = s_data->d_in;
-	cm->cm_sw_last_updated_hi   = s_data->d_in;
-	cm->cm_last_processed_out   = s_data->d_out;
+	cm->cm_sw_last_updated_hi = s_data->d_in;
+	cm->cm_last_processed_out = s_data->d_out;
 
 	if (s_data->d_cm_epoch != 0) {
 		/* Only do this if the epoch is valid. */
@@ -199,6 +200,7 @@ static void in_out_epoch_set(struct m0_cm *cm, struct m0_cm_ag_store *store,
 		cm->cm_epoch = s_data->d_cm_epoch;
 	}
 	M0_SET0(&cm->cm_last_out_hi);
+	m0_cm_unlock(cm);
 }
 
 static int ag_store_init(struct m0_cm_ag_store *store)
@@ -218,13 +220,13 @@ static int ag_store_init(struct m0_cm_ag_store *store)
 	rc = ag_store_init_load(store, &s_data);
 	if (rc == 0 || rc == -ENOENT) {
 		if (rc == 0) {
-			in_out_epoch_set(cm, store, s_data);
+			in_out_set(cm, store, s_data);
 			phase = AG_STORE_START;
 			if (cm->cm_reset) {
 				M0_SET0(&cm->cm_sw_last_updated_hi);
 				M0_SET0(&cm->cm_last_processed_out);
-				M0_SET0(&cm->cm_sw_last_persisted_hi);
 			}
+
 			if (cm->cm_proxy_nr > 0) {
 				/*
 				 * Wait until we receive sliding window updates
@@ -292,16 +294,18 @@ static int ag_store_init_wait(struct m0_cm_ag_store *store)
 		if (rc != 0)
 			return M0_ERR_INFO(rc, "Cannot load ag store, status=%d phase=%d",
 						store->s_status, m0_fom_phase(fom));
-		m0_cm_lock(cm);
-		in_out_epoch_set(cm, store, s_data);
-		m0_cm_unlock(cm);
-		m0_cm_notify(cm);
+		in_out_set(cm, store, s_data);
 		m0_fom_phase_move(fom, 0, AG_STORE_START);
 		if (cm->cm_proxy_nr > 0) {
+			m0_cm_lock(cm);
 			m0_cm_proxies_init_wait(cm, fom);
-			return M0_FSO_WAIT;
+			m0_cm_unlock(cm);
+			rc = M0_FSO_WAIT;
 		} else
-			return M0_FSO_AGAIN;
+			rc = M0_FSO_AGAIN;
+
+		m0_cm_notify(cm);
+		return rc;
 	default :
 		break;
 	}
@@ -488,7 +492,11 @@ static int ag_store_fom_tick(struct m0_fom *fom)
 
 static void ag_store_fom_fini(struct m0_fom *fom)
 {
+	struct m0_cm_ag_store *store = fom2store(fom);
+	struct m0_cm *cm = store2cm(store);
+
 	m0_fom_fini(fom);
+	m0_chan_signal_lock(&cm->cm_complete);
 }
 
 static const struct m0_fom_ops ag_store_update_fom_ops = {
@@ -512,6 +520,11 @@ M0_INTERNAL void m0_cm_ag_store_complete(struct m0_cm_ag_store *store)
 M0_INTERNAL void m0_cm_ag_store_fini(struct m0_cm_ag_store *store)
 {
 	store->s_status = S_FINI;
+}
+
+M0_INTERNAL bool m0_cm_ag_store_is_complete(struct m0_cm_ag_store *store)
+{
+	return m0_fom_phase(&store->s_fom) == AG_STORE_FINI;
 }
 
 M0_INTERNAL void m0_cm_ag_store_fom_start(struct m0_cm *cm)

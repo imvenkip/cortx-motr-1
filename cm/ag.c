@@ -227,8 +227,8 @@ M0_INTERNAL void m0_cm_aggr_group_fini_and_progress(struct m0_cm_aggr_group *ag)
 	}
 	m0_cm_aggr_group_fini(ag);
 
-	if (m0_cm_aggr_group_tlists_are_empty(cm))
-		m0_chan_signal(&cm->cm_complete);
+        if (m0_cm_aggr_group_tlists_are_empty(cm))
+		m0_cm_complete_notify(cm);
 
 	M0_LOG(M0_DEBUG, "%lu: ["M0_AG_F"] in=[%lu] %p out=[%lu] %p ",
 	       cm->cm_id, M0_AG_P(&id), cm->cm_aggr_grps_in_nr, &cm->cm_aggr_grps_in,
@@ -407,7 +407,7 @@ static void cm_ag_put(struct m0_cm_aggr_group *ag)
 	M0_PRE(m0_cm_ag_is_locked(ag));
 
 	M0_CNT_DEC(ag->cag_ref);
-	if (ag->cag_ref == 0 && ag->cag_ops->cago_ag_can_fini(ag))
+	if ((ag->cag_ref == 0 || ag->cag_is_frozen) && m0_cm_ag_can_fini(ag))
 		m0_cm_ag_fini_post(ag);
 }
 
@@ -457,6 +457,18 @@ M0_INTERNAL void m0_cm_ag_cp_del(struct m0_cm_aggr_group *ag, struct m0_cm_cp *c
 M0_INTERNAL void m0_cm_ag_fini_post(struct m0_cm_aggr_group *ag)
 {
 	m0_sm_ast_post(&ag->cag_cm->cm_sm_group, &ag->cag_fini_ast);
+}
+
+M0_INTERNAL bool m0_cm_ag_can_fini(struct m0_cm_aggr_group *ag)
+{
+	M0_PRE(m0_cm_ag_is_locked(ag));
+
+	if (ag->cag_ops->cago_ag_can_fini(ag) && !ag->cag_is_finalising) {
+		ag->cag_is_finalising = true;
+		return true;
+	}
+
+	return false;
 }
 
 /** @} CMAG */

@@ -223,15 +223,15 @@ M0_CM_TYPE_DECLARE(cm_ut, M0_CM_UT_OPCODE, &cm_ut_service_type_ops, "cm_ut", 0);
 struct m0_mero         mero = { .cc_pool_width = 10 };
 struct m0_reqh_context rctx = { .rc_mero = &mero };
 
-void cm_ut_service_alloc_init()
+void cm_ut_service_alloc_init(struct m0_reqh *reqh)
 {
 	int rc;
 	/* Internally calls m0_cm_init(). */
 	M0_ASSERT(cm_ut_service == NULL);
 	rc = m0_reqh_service_allocate(&cm_ut_service, &cm_ut_cmt.ct_stype,
-				      &rctx);
+				      NULL);
 	M0_ASSERT(rc == 0);
-	m0_reqh_service_init(cm_ut_service, &cmut_rmach_ctx.rmc_reqh, NULL);
+	m0_reqh_service_init(cm_ut_service, reqh, NULL);
 }
 
 void cm_ut_service_cleanup()

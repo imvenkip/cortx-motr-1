@@ -94,6 +94,11 @@ struct m0_cm_aggr_group {
 	/** If this group has incoming copy packets or not. */
 	bool                               cag_has_incoming;
 
+	bool                               cag_is_finalising;
+
+	/** True iff aggregation group cannot be processed further. */
+	bool                               cag_is_frozen;
+
 	/**
 	 * Linkage into the sorted queue of aggregation groups having incoming
 	 * copy packets to this copy machine replica, sorted by identifiers.
@@ -263,6 +268,7 @@ M0_INTERNAL void m0_cm_ag_cp_add(struct m0_cm_aggr_group *ag, struct m0_cm_cp *c
 M0_INTERNAL void m0_cm_ag_cp_del(struct m0_cm_aggr_group *ag, struct m0_cm_cp *cp);
 M0_INTERNAL bool m0_cm_ag_has_pending_cps(struct m0_cm_aggr_group *ag);
 M0_INTERNAL void m0_cm_ag_fini_post(struct m0_cm_aggr_group *ag);
+M0_INTERNAL bool m0_cm_ag_can_fini(struct m0_cm_aggr_group *ag);
 
 M0_TL_DESCR_DECLARE(aggr_grps_in, M0_EXTERN);
 M0_TL_DECLARE(aggr_grps_in, M0_INTERNAL, struct m0_cm_aggr_group);

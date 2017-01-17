@@ -151,6 +151,9 @@ enodata:
 	if (rc == M0_FSO_WAIT)
 		return M0_RC(rc);
 	if (rc < 0) {
+		m0_cm_lock(cm);
+		m0_cm_sw_remote_update(cm);
+		m0_cm_unlock(cm);
 		if (rc == -ENOBUFS)
 			return M0_FSO_WAIT;
 		else if (rc == -ENODATA) {
@@ -187,6 +190,7 @@ static int cpp_complete(struct m0_cm_cp_pump *cp_pump)
 	m0_cm_lock(cm);
 	if (!m0_cm_aggr_group_tlists_are_empty(cm) ||
 	    !cm->cm_sw_update.swu_is_complete) {
+		m0_cm_sw_remote_update(cm);
 		m0_cm_unlock(cm);
 		return M0_FSO_WAIT;
 	}
@@ -419,13 +423,14 @@ M0_INTERNAL void m0_cm_cp_pump_destroy(struct m0_cm *cm)
 	cm_cp_pump_fom_fini(&cm->cm_cp_pump.p_fom);
 }
 
-static void wakeup(struct m0_sm_group *grp, struct m0_sm_ast *ast)
+static void complete_wakeup(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
         struct m0_cm_cp_pump *pump = M0_AMB(pump, ast, p_wakeup);
 
 	M0_ENTRY();
 
-        if (m0_cm_cp_pump_is_complete(pump) && m0_fom_is_waiting(&pump->p_fom))
+        if (m0_fom_phase(&pump->p_fom) == CPP_COMPLETE &&
+	    m0_fom_is_waiting(&pump->p_fom))
                 m0_fom_ready(&pump->p_fom);
 
 	M0_LEAVE();
@@ -437,7 +442,7 @@ static bool pump_cb(struct m0_clink *link)
 	struct m0_sm_group   *grp;
 
         grp = &pump->p_fom.fo_loc->fl_group;
-        pump->p_wakeup.sa_cb = wakeup;
+        pump->p_wakeup.sa_cb = complete_wakeup;
 	if (pump->p_wakeup.sa_next == NULL)
 		m0_sm_ast_post(grp, &pump->p_wakeup);
 

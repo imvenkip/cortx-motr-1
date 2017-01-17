@@ -57,7 +57,7 @@ static int repair_ag_in_cp_units(const struct m0_sns_cm *scm,
 	uint32_t                    tgt_unit_prev;
 	uint64_t                    unit;
 	uint64_t                    nr_total_du;
-	int                         rc;
+	int                         rc = 0;
 
 	M0_ENTRY();
 	M0_PRE(scm != NULL && id != NULL && fctx != NULL);
@@ -71,13 +71,12 @@ static int repair_ag_in_cp_units(const struct m0_sns_cm *scm,
 	for (unit = 0; unit < m0_sns_cm_ag_size(pl); ++unit) {
 		sa.sa_unit = unit;
 		m0_sns_cm_unit2cobfid(fctx, &sa, &ta, &cobfid);
-		is_failed = m0_sns_cm_is_cob_failed(pm, ta.ta_obj);
-		if (m0_sns_cm_unit_is_spare(fctx, sa.sa_group, unit))
-			continue;
-		if (m0_sns_cm_file_unit_is_EOF(pl, nr_total_du, sa.sa_group,
+		if (m0_sns_cm_unit_is_spare(fctx, sa.sa_group, unit) ||
+		    m0_sns_cm_file_unit_is_EOF(pl, nr_total_du, sa.sa_group,
 					       unit))
 			continue;
 
+		is_failed = m0_sns_cm_is_cob_failed(pm, ta.ta_obj);
 		/* Count number of spares corresponding to the failures
 		 * on a node. This is required to calculate exact number of
 		 * incoming copy packets.
@@ -143,6 +142,7 @@ static bool repair_ag_is_relevant(struct m0_sns_cm *scm,
 	uint32_t                    K;
 	uint32_t                    j;
 	uint32_t                    spare;
+	uint32_t                    nr_max_du;
 	struct m0_pdclust_layout   *pl;
 	struct m0_poolmach         *pm;
 	int                         rc;
@@ -154,6 +154,7 @@ static bool repair_ag_is_relevant(struct m0_sns_cm *scm,
 	pl = m0_layout_to_pdl(fctx->sf_layout);
 	N = m0_sns_cm_ag_nr_data_units(pl);
 	K = m0_sns_cm_ag_nr_parity_units(pl);
+	nr_max_du = m0_sns_cm_file_data_units(fctx);
 	sa.sa_group = group;
 	for (j = N + K; j < N + 2 * K; ++j) {
 		sa.sa_unit = j;
@@ -176,7 +177,8 @@ static bool repair_ag_is_relevant(struct m0_sns_cm *scm,
 			continue;
 		sa.sa_unit = data_unit;
 		m0_sns_cm_unit2cobfid(fctx, &sa, &ta, &cobfid);
-		if (m0_sns_cm_is_cob_repairing(pm, ta.ta_obj))
+		if (m0_sns_cm_is_cob_repairing(pm, ta.ta_obj) &&
+		    !m0_sns_cm_file_unit_is_EOF(pl, nr_max_du, sa.sa_group, sa.sa_unit))
 			return true;
 	}
 

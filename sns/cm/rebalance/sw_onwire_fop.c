@@ -20,10 +20,14 @@
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CM
 
+#include "lib/trace.h"
 #include "fop/fop.h"
 
 #include "cm/cm.h"
 #include "sns/cm/sw_onwire_fop.h"
+#include "sns/cm/sw_onwire_fom.h"
+
+#include "sns/cm/sw_onwire_fop_xc.h"
 
 /**
    @addtogroup SNSCMSW
@@ -32,18 +36,49 @@
  */
 
 struct m0_fop_type rebalance_sw_onwire_fopt;
+struct m0_fop_type rebalance_sw_onwire_rep_fopt;
 extern struct m0_cm_type sns_rebalance_cmt;
+
+static int rebalance_sw_fom_create(struct m0_fop *fop, struct m0_fom **m,
+				   struct m0_reqh *reqh)
+{
+	struct m0_fop *r_fop;
+	int            rc;
+
+	r_fop = m0_fop_reply_alloc(fop, &rebalance_sw_onwire_rep_fopt);
+	if (r_fop == NULL)
+		return M0_ERR(-ENOMEM);
+	rc = m0_sns_cm_sw_onwire_fom_create(fop, r_fop, m, reqh);
+
+	return M0_RC(rc);
+}
+
+const struct m0_fom_type_ops rebalance_sw_fom_type_ops = {
+	.fto_create = rebalance_sw_fom_create
+};
 
 M0_INTERNAL void m0_sns_cm_rebalance_sw_onwire_fop_init(void)
 {
         m0_sns_cm_sw_onwire_fop_init(&rebalance_sw_onwire_fopt,
+				     &rebalance_sw_fom_type_ops,
 				     M0_SNS_CM_REBALANCE_SW_FOP_OPCODE,
+				     "sns cm sw update fop",
+				     m0_cm_sw_onwire_xc,
+				     M0_RPC_ITEM_TYPE_REQUEST,
+				     &sns_rebalance_cmt);
+        m0_sns_cm_sw_onwire_fop_init(&rebalance_sw_onwire_rep_fopt,
+				     &rebalance_sw_fom_type_ops,
+				     M0_SNS_CM_REBALANCE_SW_REP_FOP_OPCODE,
+				     "sns cm sw update rep fop",
+				     m0_cm_sw_onwire_rep_xc,
+				     M0_RPC_ITEM_TYPE_REPLY,
 				     &sns_rebalance_cmt);
 }
 
 M0_INTERNAL void m0_sns_cm_rebalance_sw_onwire_fop_fini(void)
 {
 	m0_sns_cm_sw_onwire_fop_fini(&rebalance_sw_onwire_fopt);
+	m0_sns_cm_sw_onwire_fop_fini(&rebalance_sw_onwire_rep_fopt);
 }
 
 M0_INTERNAL int
