@@ -13,6 +13,8 @@ readonly self=$(readlink -f $0)
 readonly base_dir=$(dirname $self)
 readonly etc_mero_dir='/etc/mero'
 readonly etc_halon_dir='/etc/halon'
+readonly linuxstob_min_ios_num=3
+readonly DEFAULT_POOL_WIDTH=8
 
 # variables
 verbose=false
@@ -24,14 +26,17 @@ do_genfacts=false
 do_mkfs=false
 activate_singlenode=false
 only_list_disks=false
-pool_width=8
+pool_width=$DEFAULT_POOL_WIDTH
 data_units=2
 parity_units=1
 ios_num=1
+ios_num_is_set=false
 loop_img_dir='/var/mero'
 mero_data_dir='/var/mero'
+linuxstob_stobs_dir=
 loop_img_size_gb=64
 disk_pattern=
+linuxstob_mode=false
 
 #
 # Usage
@@ -47,12 +52,13 @@ usage()
 {
     cat <<USAGE_END
 Usage: $PROG_NAME [-h|--help] [-v|--verbose] [-c]
-               [-P|--pool-width num] [-N|--data-units num] [-K|--parity-units num]
-               [-i|--ios-number num] [-d|--loop-img-dir path] [-m|--mero-dir path]
-               [-s|--disk-size GiBs]
+               [-P|--pool-width num] [-N|--data-units num]      [-K|--parity-units num]
+               [-i|--ios-number num] [-d|--loop-img-dir path]   [-m|--mero-dir path]
+               [-s|--disk-size GiBs] [-z|--linuxstob-path path] [-Z|--linuxstob-mode[=path]]
 
    -P|--pool-width num     Total number of disks in the pool. So many loop
                            devices will be provisioned. Default is ${pool_width}.
+                           In 'linuxstob' mode (-z|-Z) it defaults to ${linuxstob_min_ios_num}
 
    -N|--data-units num     Number of data units in parity group.
                            Default is ${data_units}.
@@ -61,6 +67,7 @@ Usage: $PROG_NAME [-h|--help] [-v|--verbose] [-c]
                            Default is ${parity_units}.
 
    -i|--ios-number num     Number of ioservices to start. Default is ${ios_num}.
+                           In 'linuxstob' mode (-z|-Z) it defaults to ${linuxstob_min_ios_num}
 
    -d|--loop-img-dir path  Directory, where to create image files for loop
                            devices. Default is '$loop_img_dir'.
@@ -98,6 +105,8 @@ Usage: $PROG_NAME [-h|--help] [-v|--verbose] [-c]
    -H|--halon-facts        Produce Halon facts YAML configuration instead of
                            a genders-based config. Implies '-G'.
 
+   -M|--mkfs               Perform 'mero-mkfs' after generating configuration.
+
    -A|--activate-singlenode-services
 
                            Unmask singlenode services, such as 'mero-mkfs',
@@ -106,7 +115,17 @@ Usage: $PROG_NAME [-h|--help] [-v|--verbose] [-c]
                            after mero.rpm installation to prevent interference
                            with Halon controlled services.
 
-   -M|--mkfs               Perform 'mero-mkfs' after generating configuration.
+   -z|--linuxstob-path path
+
+                           Use linuxstobs instead of adstobs for data storage.
+                           Linuxstobs will be created under provided 'path'
+                           argument.
+
+   -Z|--linuxstob-mode=[path]
+
+                           Use linuxstobs instead of adstobs for data storage.
+                           If 'path' argument provided, all mero data and
+                           meta-data will be created under that path.
 
    -v|--verbose            Enable verbose output.
 
@@ -123,8 +142,8 @@ parse_cli_options()
     # Note that we use `"$@"' to let each command-line parameter expand to a
     # separate word. The quotes around `$@' are essential!
     # We need TEMP as the `eval set --' would nuke the return value of getopt.
-    TEMP=$( getopt --options hvclCEGHAMP:N:K:i:d:m:s:p: \
-                   --longoptions help,verbose,cleanup,use-existing-loop-imgs,no-gendisk,halon-facts,activate-singlenode-services,mkfs,list-disks,pool-width:,data-units:,parity-units:,ios-number:,loop-img-dir:,mero-dir:,disk-size:,disk-pattern: \
+    TEMP=$( getopt --options hvclCEGHAMP:N:K:i:d:m:s:p:z:Z:: \
+                   --longoptions help,verbose,cleanup,use-existing-loop-imgs,no-gendisk,halon-facts,activate-singlenode-services,mkfs,list-disks,pool-width:,data-units:,parity-units:,ios-number:,loop-img-dir:,mero-dir:,disk-size:,disk-pattern:,linuxstob-path:,linuxstob-mode:: \
                    --name "$PROG_NAME" -- "$@" )
 
     [[ $? -ne 0 ]] && help
@@ -140,15 +159,26 @@ parse_cli_options()
             -C)                 do_cleanup=true;      shift   ;;
             -E|--use-existing-loop-imgs)
                                 use_existing_loop_imgs=true; shift ;;
+            -M|--mkfs)          do_mkfs=true;         shift   ;;
             -G|--no-gendisk)    do_gendisk=false;     shift   ;;
             -H|--halon-facts)   do_genfacts=true; do_gendisk=false; shift ;;
             -A|--activate-singlenode-services)
-                                activate_singlenode=true; shift ;;
-            -M|--mkfs)          do_mkfs=true;         shift   ;;
+                                activate_singlenode=true
+                                shift ;;
+            -z|--linuxstob-path)
+                                linuxstob_mode=true
+                                linuxstob_stobs_dir=$2
+                                do_gendisk=false
+                                shift 2 ;;
+            -Z|--linuxstob-mode)
+                                linuxstob_mode=true
+                                [[ -n $2 ]] && mero_data_dir=$2
+                                do_gendisk=false
+                                shift 2 ;;
             -P|--pool-width)    pool_width=$2;        shift 2 ;;
             -N|--data-units)    data_units=$2;        shift 2 ;;
             -K|--parity-units)  parity_units=$2;      shift 2 ;;
-            -i|--ios-number)    ios_num=$2;           shift 2 ;;
+            -i|--ios-number)    ios_num=$2; ios_num_is_set=true; shift 2 ;;
             -d|--loop-img-dir)  loop_img_dir=$2;      shift 2 ;;
             -m|--mero-dir)      mero_data_dir=$2;     shift 2 ;;
             -s|--disk-size)     loop_img_size_gb=$2;  shift 2 ;;
@@ -287,7 +317,20 @@ $hostname  m0_pool_width=$pool_width
 $hostname  m0_data_units=$data_units
 $hostname  m0_parity_units=$parity_units
 $hostname  m0_disk_size_in_bytes=$((loop_img_size_gb * 1024**3))
+$hostname  m0_datadir=$mero_data_dir
 GENDERS_END
+
+    if $linuxstob_mode ; then
+        cat <<GENDERS_END >> $genders_file
+$hostname  m0_stob_mode=linux
+GENDERS_END
+
+        if [[ -n $linuxstob_stobs_dir ]] ; then
+            cat <<GENDERS_END >> $genders_file
+$hostname  m0_stobdir=$linuxstob_stobs_dir
+GENDERS_END
+        fi
+    fi
 
     debug "genders:\n-----BEGIN GENDERS-----\n$(cat $genders_file)\n-----END GENDERS-----"
 }
@@ -301,7 +344,7 @@ generate_halon_facts()
 
     local vopt=$( $verbose && echo '-v' )
     local halon_facts="$etc_halon_dir/halon_facts.yaml"
-    local pattern=${disk_pattern:-"/dev/loop{1..$pool_width}"}
+    local pattern="${disk_pattern:-/dev/loop{1..$pool_width}}"
     local disks=$(m0gendisks -l -d $pool_width -p "$pattern")
 
     [[ -n $disks ]] ||
@@ -395,6 +438,26 @@ if $only_list_disks && [[ -z $disk_pattern ]] ; then
     die "-l|--list-disks option requires the -p|--disk-pattern option"
 fi
 
+[[ -d $mero_data_dir ]] ||
+    die "Path '$mero_data_dir' doesn't exist"
+
+[[ -z $linuxstob_stobs_dir || -d $linuxstob_stobs_dir ]] ||
+    die "Path '$linuxstob_stobs_dir' doesn't exist"
+
+if $linuxstob_mode ; then
+    if $ios_num_is_set && [[ $ios_num -lt $linuxstob_min_ios_num ]] ; then
+        die "In linuxtob mode number of ios services can't be less than" \
+            "$linuxstob_min_ios_num, requested ios-number was $ios_num"
+    elif ! $ios_num_is_set ; then
+        ios_num=$linuxstob_min_ios_num
+    fi
+
+    if [[ $pool_width -eq $DEFAULT_POOL_WIDTH ]] ; then
+        pool_width=$ios_num
+        data_units=1
+    fi
+fi
+
 [[ $(( $pool_width % $ios_num )) -eq 0 ]] ||
     die "Requested configuration with pool-width=$pool_width and" \
         "ios-number=$ios_num is not supported, pool-width should be a multiple" \
@@ -402,6 +465,8 @@ fi
 
 if [[ -n $disk_pattern ]] ; then
     info_msg="disk pattern $disk_pattern"
+elif $linuxstob_mode ; then
+    info_msg="${loop_img_size_gb}GiB linuxstobs in '${linuxstob_stobs_dir:-$mero_data_dir}'"
 else
     info_msg="${loop_img_size_gb}GiB disks in '$loop_img_dir'"
 fi
@@ -425,7 +490,7 @@ if [[ -n $disk_pattern ]] ; then
         $(path_of m0gendisks) -l -d $pool_width -p "$disk_pattern"
         exit 0
     fi
-else
+elif ! $linuxstob_mode ; then
     init_loop_devices
 fi
 

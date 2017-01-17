@@ -41,6 +41,8 @@ readonly default_m0d_min_rpc_recvq_len=16
 readonly default_m0d_beseg_size=536870912
 readonly default_m0d_ios_beseg_size=4294967296
 
+readonly MERO_M0D_DEFAULT_DATA_DIR='/var/mero'
+
 #
 # Library functions
 #
@@ -244,7 +246,13 @@ m0_get_m0d_data_dir_for()
 {
     local service=$1
 
-    echo "${MERO_M0D_DATA_DIR:-$(m0_genders_value_of m0_datadir)}/$service"
+    local data_dir=$MERO_M0D_DEFAULT_DATA_DIR
+
+    if m0_genders_has_variable m0_datadir ; then
+        data_dir=$(m0_genders_value_of m0_datadir)
+    fi
+
+    echo "${MERO_M0D_DATA_DIR:-$data_dir}/$service"
 }
 
 # Return space-separated list of all nodes in the cluster from genders file
@@ -489,7 +497,29 @@ m0_get_global_ep_of()
     echo $(m0_get_global_eps_of $stype) | awk '{print $1}'
 }
 
-#
+# Return stob mode if defined or the default one.
+m0_get_stob_mode()
+{
+    if m0_genders_has_variable m0_stob_mode ; then
+        m0_genders_value_of m0_stob_mode
+    else
+        echo ad
+    fi
+}
+
+# Return stob mode if defined or the default one.
+#   @param  $1  service
+m0_get_ios_stob_path_for()
+{
+    local service=$1
+
+    if m0_genders_has_variable m0_stobdir ; then
+        echo "$(m0_genders_value_of m0_stobdir)/$service"
+    else
+        echo stobs
+    fi
+}
+
 # Build parameters list for m0d running "core" services
 #
 #   @param $1 directory to store configuration file.
@@ -557,7 +587,7 @@ m0_get_core_params()
     local msg_size=${MERO_M0D_MAX_RPC_MSG_SIZE:-$(m0_genders_value_of m0_max_rpc_msg_size)}
     local qlen=${MERO_M0D_MIN_RPC_RECVQ_LEN:-$(m0_genders_value_of m0_min_rpc_recvq_len)}
 
-    echo " -D db -S stobs -A linuxstob:addb-stobs" \
+    echo " -D db -A linuxstob:addb-stobs" \
          " -P <${MERO_PROFILE_FID:-$m0_prof_opt}>" \
          " -m ${msg_size:-$default_m0d_max_rpc_msg_size}" \
          " -q ${qlen:-$default_m0d_min_rpc_recvq_len}" \

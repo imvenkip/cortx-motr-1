@@ -42,7 +42,7 @@ MERO_M0T1FS_MOUNTPOINT='/mnt/m0t1fs'
 #MERO_KMOD_EXTRA_PARAMS=
 
 # Where m0d stores it's data, by default it's /var/mero.
-MERO_M0D_DATA_DIR=/var/mero
+#MERO_M0D_DATA_DIR=/var/mero
 
 # Override total number of disks in a cluster.
 #MERO_M0D_POOL_WIDTH=8

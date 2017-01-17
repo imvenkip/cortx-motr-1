@@ -73,7 +73,8 @@ m0_server()
 
     MERO_M0D_OPTS=${MERO_M0D_OPTS:-$(m0_get_core_params)}
 
-    local stob_type='-T ad'
+    local stob_type="-T $(m0_get_stob_mode)"
+    local stob_path='-S stobs'
     local stob_opts
     local proc_fid="<$(m0_get_proc_fid_for $service)>"
 
@@ -95,6 +96,7 @@ m0_server()
                else
                    stob_opts+=' -U '
                fi
+               stob_path="-S $(m0_get_ios_stob_path_for $service)"
             ;;
 
         confd|ha*)
@@ -150,7 +152,7 @@ m0_server()
     # show actual exec commands in log file
     set -x
 
-    exec $binary -e $service_ep -f $proc_fid $stob_type $MERO_M0D_OPTS \
+    exec $binary -e $service_ep -f $proc_fid $stob_type $stob_path $MERO_M0D_OPTS \
                     $stob_opts $cmd_opts $MERO_M0D_EXTRA_OPTS
 }
 
