@@ -21,6 +21,7 @@
 #include "lib/semaphore.h"
 #include "lib/assert.h"
 #include "lib/errno.h"
+#include "lib/types.h"      /* INT_MAX */
 
 /**
    @addtogroup semaphore
@@ -101,6 +102,23 @@ M0_INTERNAL bool m0_semaphore_timeddown(struct m0_semaphore *semaphore,
 			.tv_nsec = m0_time_nanoseconds(abs_timeout_realtime)
 	};
 	int		rc;
+
+	/*
+	 * Workaround for sem_timedwait(3) on Centos >= 7.2, which returns
+	 * -ETIMEDOUT immediately if tv_sec is greater than
+	 * gettimeofday(2) + INT_MAX.
+	 *
+	 *  For more information refer to:
+	 *    https://bugzilla.redhat.com/show_bug.cgi?id=1412082
+	 *    https://jts.seagate.com/browse/CASTOR-1990
+	 *    `git blame` these lines and read commit message
+	 *    doc/workarounds.md
+	 *
+	 *  It should be reverted when glibc is fixed in future RedHat releases.
+	 */
+	if (ts.tv_sec > INT_MAX - 1)
+		ts.tv_sec = INT_MAX - 1;
+	/* ----- end of workaround ----- */
 
 	do
 		rc = sem_timedwait(&semaphore->s_sem, &ts);
