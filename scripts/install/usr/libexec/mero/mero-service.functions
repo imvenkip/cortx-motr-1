@@ -794,7 +794,7 @@ _build_service_objects()
 
             objs="$objs${objs:+,\n  }{0x73| (($name), $type_id, [1: "\"$ep\""], $disk_ids)}"
 
-	        addb="$(m0_build_service_fid "addb2$idx" $node_idx)"
+            addb="$(m0_build_service_fid "addb2$idx" $node_idx)"
             type_id=$(_type_id "addb")
             objs="$objs${objs:+,\n  }{0x73| (($addb), $type_id, [1: "\"$ep\""], [0])}"
 
