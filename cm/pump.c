@@ -173,8 +173,8 @@ enodata:
 		return M0_RC(M0_FSO_AGAIN);
 	}
 	if (rc == M0_FSO_AGAIN) {
-		m0_cm_cp_enqueue(cm, cp);
-		pump_move(cp_pump, 0, CPP_ALLOC);
+		int rc1 = m0_cm_cp_enqueue(cm, cp);
+		pump_move(cp_pump, rc1, rc1 == 0 ? CPP_ALLOC : CPP_FAIL);
 	}
 	return M0_RC(rc);
 }

@@ -105,6 +105,13 @@ static int ha_link_service_start(struct m0_reqh_service *service)
 	return M0_RC(0);
 }
 
+static int ha_link_service_fop_accept(struct m0_reqh_service *service,
+				      struct m0_fop *fop)
+{
+	M0_ENTRY();
+	return M0_RC(0);
+}
+
 static void ha_link_service_stop(struct m0_reqh_service *service)
 {
 	M0_ENTRY();
@@ -238,9 +245,10 @@ M0_INTERNAL void m0_ha_link_service_deregister(struct m0_reqh_service *service,
 }
 
 static const struct m0_reqh_service_ops ha_link_service_ops = {
-	.rso_start = ha_link_service_start,
-	.rso_stop  = ha_link_service_stop,
-	.rso_fini  = ha_link_service_fini,
+	.rso_start      = ha_link_service_start,
+	.rso_fop_accept = ha_link_service_fop_accept,
+	.rso_stop       = ha_link_service_stop,
+	.rso_fini       = ha_link_service_fini,
 };
 
 static int ha_link_service_allocate(struct m0_reqh_service            **service,

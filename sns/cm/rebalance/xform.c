@@ -95,7 +95,7 @@ M0_INTERNAL int m0_sns_cm_rebalance_cp_xform(struct m0_cm_cp *cp)
 			 } else
 				M0_CNT_INC(sns_ag->sag_incoming_cp_nr);
 
-			m0_cm_cp_enqueue(cm, tgt_cp);
+			rc = m0_cm_cp_enqueue(cm, tgt_cp);
 		}
 	}
 

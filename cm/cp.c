@@ -667,16 +667,19 @@ M0_INTERNAL void m0_cm_cp_fini(struct m0_cm_cp *cp)
 	m0_cm_cp_only_fini(cp);
 }
 
-M0_INTERNAL void m0_cm_cp_enqueue(struct m0_cm *cm, struct m0_cm_cp *cp)
+M0_INTERNAL int m0_cm_cp_enqueue(struct m0_cm *cm, struct m0_cm_cp *cp)
 {
 	struct m0_fom  *fom = &cp->c_fom;
 	struct m0_reqh *reqh = cm->cm_service.rs_reqh;
 
 	M0_PRE(reqh != NULL);
-	M0_PRE(m0_reqh_state_get(reqh) == M0_REQH_ST_NORMAL);
 	M0_PRE(m0_cm_cp_invariant(cp));
 
+	if (m0_reqh_state_get(reqh) >= M0_REQH_ST_DRAIN)
+		return M0_ERR(-ESHUTDOWN);
+
 	m0_fom_queue(fom);
+	return M0_RC(0);
 }
 
 M0_INTERNAL void m0_cm_cp_buf_add(struct m0_cm_cp *cp, struct m0_net_buffer *nb)

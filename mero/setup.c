@@ -1517,6 +1517,19 @@ be_fini:
 	return M0_ERR(rc);
 }
 
+static void cs_reqh_shutdown(struct m0_reqh_context *rctx)
+{
+	struct m0_reqh *reqh = &rctx->rc_reqh;
+
+	M0_ENTRY();
+	M0_PRE(reqh_context_invariant(rctx));
+
+	if (m0_reqh_state_get(reqh) == M0_REQH_ST_NORMAL)
+		m0_reqh_shutdown_wait(reqh);
+
+	M0_LEAVE();
+}
+
 /**
    Finalises a request handler context.
    Sets m0_reqh::rh_shutdown true, and checks if the request handler can be
@@ -1534,9 +1547,6 @@ static void cs_reqh_stop(struct m0_reqh_context *rctx)
 
 	M0_ENTRY();
 	M0_PRE(reqh_context_invariant(rctx));
-
-	if (m0_reqh_state_get(reqh) == M0_REQH_ST_NORMAL)
-		m0_reqh_shutdown_wait(reqh);
 
 	if (M0_IN(m0_reqh_state_get(reqh), (M0_REQH_ST_DRAIN, M0_REQH_ST_INIT)))
 		m0_reqh_pre_storage_fini_svcs_stop(reqh);
@@ -2383,17 +2393,17 @@ void m0_cs_fini(struct m0_mero *cctx)
 
 	cs_ha_process_event(cctx, M0_CONF_HA_PROCESS_STOPPING);
 
-	if (rctx->rc_state == RC_INITIALISED)
-		m0_reqh_layouts_cleanup(reqh);
-
 	m0_ha_client_del(m0_mero2confc(cctx));
 
 	if (rctx->rc_state >= RC_REQH_INITIALISED) {
+		cs_reqh_shutdown(rctx);
                 /* cctx->cc_ha_is_started is being changed, we need old one */
                 bool ha_was_started = cctx->cc_ha_is_started;
 
-		if (rctx->rc_state == RC_INITIALISED)
+		if (rctx->rc_state == RC_INITIALISED) {
 			cs_storage_fini(&rctx->rc_stob);
+			m0_reqh_layouts_cleanup(reqh);
+		}
 
                 cs_conf_destroy(cctx);
 
@@ -2412,6 +2422,7 @@ void m0_cs_fini(struct m0_mero *cctx)
 
                 cs_rpc_machines_fini(reqh);
 	}
+
 	if (rctx->rc_state == RC_INITIALISED)
 		cs_reqh_storage_fini(rctx);
 	cs_reqh_ctx_fini(rctx);

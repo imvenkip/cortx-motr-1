@@ -161,9 +161,8 @@ static int res_cp_enqueue(struct m0_cm_cp *cp)
 	rc = repair_cp_bufvec_split(cp);
 	if (rc != 0)
 		return M0_ERR(rc);
-	m0_cm_cp_enqueue(cp->c_ag->cag_cm, cp);
 
-	return M0_RC(0);
+	return M0_RC(m0_cm_cp_enqueue(cp->c_ag->cag_cm, cp));
 }
 
 static int repair_ag_fc_acc_post(struct m0_sns_cm_repair_ag *rag,
@@ -292,6 +291,11 @@ M0_INTERNAL int m0_sns_cm_repair_cp_xform(struct m0_cm_cp *cp)
 		}
 	}
 out:
+	if (rc == -ESHUTDOWN) {
+		m0_fom_phase_move(&cp->c_fom, rc, M0_CCP_FAIL);
+		m0_cm_ag_unlock(ag);
+		return M0_RC(M0_FSO_AGAIN);
+	}
 	/*
 	 * Once transformation is complete, transition copy packet fom to
 	 * M0_CCP_FINI since it is not needed anymore. This copy packet will
@@ -302,6 +306,7 @@ out:
 	 */
 	if (rc == 0 || rc == -ENOENT)
 		rc = repair_cp_bufvec_split(cp);
+
 	m0_fom_phase_move(&cp->c_fom, rc, M0_CCP_FINI);
 	rc = M0_FSO_WAIT;
 	m0_cm_ag_unlock(ag);

@@ -102,6 +102,13 @@ static int ha_entrypoint_service_start(struct m0_reqh_service *service)
 	return M0_RC(0);
 }
 
+static int ha_entrypoint_service_fop_accept(struct m0_reqh_service *service,
+					    struct m0_fop *fop)
+{
+	M0_ENTRY();
+	return M0_RC(0);
+}
+
 static void ha_entrypoint_service_stop(struct m0_reqh_service *service)
 {
 	M0_ENTRY();
@@ -109,9 +116,10 @@ static void ha_entrypoint_service_stop(struct m0_reqh_service *service)
 }
 
 static const struct m0_reqh_service_ops ha_entrypoint_service_ops = {
-	.rso_start = ha_entrypoint_service_start,
-	.rso_stop  = ha_entrypoint_service_stop,
-	.rso_fini  = ha_entrypoint_service_fini,
+	.rso_start      = ha_entrypoint_service_start,
+	.rso_fop_accept = ha_entrypoint_service_fop_accept,
+	.rso_stop       = ha_entrypoint_service_stop,
+	.rso_fini       = ha_entrypoint_service_fini,
 };
 
 static int

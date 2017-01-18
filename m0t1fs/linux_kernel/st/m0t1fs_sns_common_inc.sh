@@ -174,6 +174,27 @@ sns_repair_abort()
 	return $rc
 }
 
+sns_repair_abort_skip_4()
+{
+	local ios_eps_not_4=''
+	local rc=0
+
+	for ((i=0; i < 3; i++)) ; do
+		ios_eps_not_4="$ios_eps_not_4 -S ${lnet_nid}:${IOSEP[$i]}"
+	done
+
+	repair_abort_trigger="$M0_SRC_DIR/sns/cm/st/m0repair -O 128 -C ${lnet_nid}:${SNS_QUIESCE_CLI_EP} $ios_eps_not_4"
+	echo $repair_abort_trigger
+	eval $repair_abort_trigger
+	rc=$?
+	echo "SNS abort cmd sent: rc=$rc"
+	if [ $rc != 0 ]; then
+		echo "SNS Repair abort failed"
+	fi
+
+	return $rc
+}
+
 sns_repair_or_rebalance_status_not_4()
 {
 	local ios_eps_not_4=''
