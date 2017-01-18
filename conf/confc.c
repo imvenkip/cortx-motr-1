@@ -542,7 +542,7 @@ err:
 	m0_conf_cache_fini(&confc->cc_cache);
 	m0_mutex_fini(&confc->cc_lock);
 
-	return M0_ERR(rc);
+	return M0_ERR_INFO(rc, "confc=%p confd_addr=%s", confc, confd_addr);
 }
 
 M0_INTERNAL int m0_confc_init(struct m0_confc       *confc,

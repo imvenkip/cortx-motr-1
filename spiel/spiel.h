@@ -793,11 +793,11 @@ int m0_spiel_tx_dump_debug(struct m0_spiel_tx *tx, uint64_t ver_forced,
  * m0_spiel_rconfc_start(&spiel);
  * @endcode
  *
- * @param spiel              Spiel instance
- * @param m0_rconfc_exp_cb_t Rconfc expiration callback
+ * @param spiel          Spiel instance
+ * @param m0_rconfc_cb_t Rconfc expiration callback
  */
-int m0_spiel_rconfc_start(struct m0_spiel    *spiel,
-			  m0_rconfc_exp_cb_t  exp_cb);
+int m0_spiel_rconfc_start(struct m0_spiel *spiel,
+			  m0_rconfc_cb_t   expired_cb);
 
 /**
  * Stops spiel instance.

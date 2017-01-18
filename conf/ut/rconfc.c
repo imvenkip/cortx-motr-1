@@ -37,10 +37,13 @@
 
 static struct m0_semaphore   g_expired_sem;
 static struct m0_semaphore   g_ready_sem;
+static struct m0_semaphore   g_fatal_sem;
 static struct m0_reqh       *ut_reqh;
 static struct m0_net_domain  client_net_dom;
 static struct m0_net_xprt   *xprt = &m0_net_lnet_xprt;
 static struct m0_fid         profile = M0_FID_TINIT('p', 1, 0);
+static bool (*ha_clink_cb_orig)(struct m0_clink *clink);
+
 
 M0_EXTERN struct m0_confc_gate_ops  m0_rconfc_gate_ops;
 M0_EXTERN struct m0_rm_incoming_ops m0_rconfc_ri_ops;
@@ -223,17 +226,32 @@ static void test_start_failures(void)
 	rconfc_ut_mero_stop(&mach, &rctx);
 }
 
-static bool (*ha_clink_cb_orig)(struct m0_clink *clink);
+static void rconfc_ut_fatal_cb(struct m0_rconfc *rconfc)
+{
+	M0_UT_ASSERT(rconfc->rc_sm.sm_state == M0_RCS_FAILURE);
+	m0_semaphore_up(&g_fatal_sem);
+}
 
 static bool ha_clink_cb_suppress(struct m0_clink *clink)
 {
 	struct m0_rconfc *rconfc = M0_AMB(rconfc, clink, rc_ha_entrypoint_cl);
 
-	M0_PRE(rconfc->rc_sm.sm_state == M0_RCS_ENTRYPOINT_WAIT);
+	m0_rconfc_lock(rconfc);
+	M0_UT_ASSERT(rconfc->rc_sm.sm_state == M0_RCS_ENTRYPOINT_WAIT);
+	if (rconfc->rc_fatal_cb == NULL)
+		m0_rconfc_fatal_cb_set(rconfc, rconfc_ut_fatal_cb);
+	else /* installed previously */
+		M0_UT_ASSERT(rconfc->rc_fatal_cb == rconfc_ut_fatal_cb);
+	m0_rconfc_unlock(rconfc);
 	/* do nothing as if HA client went dead */
 	return true;
 }
 
+/*
+ * The test is to check timeout expiration during rconfc synchronous start with
+ * limited timeout. As well, fatal callback passage is checked due to rconfc
+ * failure. The callback is installed in the course of rconfc start.
+ */
 static void test_fail_abort(void)
 {
 	struct m0_rpc_machine    mach;
@@ -250,9 +268,12 @@ static void test_fail_abort(void)
 	 * Suppress ha entrypoint response to cause timeout. Imitation of not
 	 * responding HA.
 	 */
+	m0_semaphore_init(&g_fatal_sem, 0);
 	ha_clink_cb_orig = rconfc.rc_ha_entrypoint_cl.cl_cb;
 	rconfc.rc_ha_entrypoint_cl.cl_cb = ha_clink_cb_suppress;
 	rc = m0_rconfc_start_wait(&rconfc, &profile, 3ULL * M0_TIME_ONE_SECOND);
+	m0_semaphore_down(&g_fatal_sem);
+	m0_semaphore_fini(&g_fatal_sem);
 	M0_UT_ASSERT(rc == -ETIMEDOUT);
 	M0_UT_ASSERT(rconfc.rc_sm_state_on_abort == M0_RCS_ENTRYPOINT_WAIT);
 	M0_UT_ASSERT(rconfc.rc_ha_entrypoint_retries == 0);

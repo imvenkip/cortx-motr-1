@@ -256,6 +256,18 @@ static int mero_ha_entrypoint_rep_rm_fill(const struct m0_fid  *profile,
 	return M0_RC(0);
 }
 
+/**
+ * Private API for UT only. UT is responsible for loading test configuration to
+ * the confc instance prior the instance is put in use.
+ *
+ * @see test_cs_ut_rconfc_fail()
+ */
+M0_INTERNAL struct m0_confc *m0_ha_entrypoint_confc_override(void)
+{
+	static struct m0_confc confc;
+	return &confc;
+}
+
 static void
 mero_ha_entrypoint_request_cb(struct m0_ha                      *ha,
 			      const struct m0_ha_entrypoint_req *req,
@@ -266,6 +278,9 @@ mero_ha_entrypoint_request_cb(struct m0_ha                      *ha,
 	struct m0_fid               *profile = &reqh->rh_profile;
 	struct m0_ha_entrypoint_rep  rep = {0};
 	int                          rc;
+
+	if (M0_FI_ENABLED("ut_confc"))
+		confc = m0_ha_entrypoint_confc_override();
 
 	rc = mero_ha_entrypoint_rep_confds_fill(profile, confc, &rep) ?:
 		mero_ha_entrypoint_rep_rm_fill(profile, confc,

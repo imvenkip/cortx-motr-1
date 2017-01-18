@@ -24,6 +24,10 @@
 #include "ut/cs_fop.h"     /* CS_UT_SERVICE1 */
 #include "ut/misc.h"       /* M0_UT_PATH */
 #include "ut/ut.h"
+#include "rm/st/wlock_helper.h"
+
+#define SERVER_ENDPOINT_ADDR "0@lo:12345:34:1"
+#define SERVER_ENDPOINT      "lnet:" SERVER_ENDPOINT_ADDR
 
 extern const struct m0_tl_descr ndoms_descr;
 
@@ -39,8 +43,8 @@ struct cl_ctx {
 static char *cs_ut_service_one_cmd[] = { "m0d", "-T", "linux",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-A", "linuxstob:cs_addb_stob",
-                                "-e", "lnet:0@lo:12345:34:1",
-                                "-H", "0@lo:12345:34:1",
+                                "-e", SERVER_ENDPOINT,
+                                "-H", SERVER_ENDPOINT_ADDR,
 				"-w", "10",
 				"-P", M0_UT_CONF_PROFILE,
 				"-c", M0_UT_PATH("conf.xc")};
@@ -49,17 +53,17 @@ static char *cs_ut_services_many_cmd[] = { "m0d", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-A", "linuxstob:cs_addb_stob",
 				"-w", "10",
-                                "-e", "lnet:0@lo:12345:34:1",
+                                "-e", SERVER_ENDPOINT,
                                 "-e", "bulk-mem:127.0.0.1:35678",
-                                "-H", "0@lo:12345:34:1",
+                                "-H", SERVER_ENDPOINT_ADDR,
 				"-P", M0_UT_CONF_PROFILE,
 				"-c", M0_UT_PATH("conf.xc")};
 
 static char *cs_ut_opts_jumbled_cmd[] = { "m0d", "-D",
                                 "cs_sdb", "-T", "AD",
 				"-w", "10",
-                                "-e", "lnet:0@lo:12345:34:1",
-                                "-H", "0@lo:12345:34:1",
+                                "-e", SERVER_ENDPOINT,
+                                "-H", SERVER_ENDPOINT_ADDR,
                                 "-S", "cs_stob", "-A", "linuxstob:cs_addb_stob",
 				"-P", M0_UT_CONF_PROFILE,
 				"-c", M0_UT_PATH("conf.xc")};
@@ -69,8 +73,8 @@ static char *cs_ut_dev_stob_cmd[] = { "m0d", "-T", "AD",
                                 "-A", "linuxstob:cs_addb_stob",
 				"-w", "10",
 				"-U",
-                                "-e", "lnet:0@lo:12345:34:1",
-                                "-H", "0@lo:12345:34:1",
+                                "-e", SERVER_ENDPOINT,
+                                "-H", SERVER_ENDPOINT_ADDR,
 				"-P", M0_UT_CONF_PROFILE,
 				"-c", M0_UT_PATH("conf.xc")};
 
@@ -78,8 +82,8 @@ static char *cs_ut_stype_bad_cmd[] = { "m0d", "-T", "asdadd",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-A", "linuxstob:cs_addb_sdb",
 				"-w", "10",
-                                "-e", "lnet:0@lo:12345:34:1",
-                                "-H", "0@lo:12345:34:1",
+                                "-e", SERVER_ENDPOINT,
+                                "-H", SERVER_ENDPOINT_ADDR,
 				"-P", M0_UT_CONF_PROFILE,
 				"-c", M0_UT_PATH("conf.xc")};
 
@@ -115,8 +119,8 @@ static char *cs_ut_args_bad_cmd[] = { "m0d", "-D", "cs_sdb",
 static char *cs_ut_buffer_pool_cmd[] = { "m0d", "-T", "linux",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-A", "linuxstob:cs_addb_stob", "-w", "10",
-                                "-e", "lnet:0@lo:12345:34:1",
-                                "-H", "0@lo:12345:34:1",
+                                "-e", SERVER_ENDPOINT,
+                                "-H", SERVER_ENDPOINT_ADDR,
                                 /*
 				 * -m is temporary set to 32768.
 				 * It's required to handle m0_ha_msg transfer.
@@ -129,8 +133,8 @@ static char *cs_ut_lnet_cmd[] = { "m0d", "-T", "linux",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-A", "linuxstob:cs_addb_sdb",
 				"-w", "10",
-                                "-e", "lnet:0@lo:12345:34:1",
-                                "-H", "0@lo:12345:34:1",
+                                "-e", SERVER_ENDPOINT,
+                                "-H", SERVER_ENDPOINT_ADDR,
 				"-P", M0_UT_CONF_PROFILE,
 				"-c", M0_UT_PATH("conf.xc")};
 
@@ -138,10 +142,10 @@ static char *cs_ut_lnet_mult_if_cmd[] = { "m0d", "-T", "linux",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-A", "linuxstob:cs_addb_stob",
 				"-w", "10",
-                                "-e", "lnet:0@lo:12345:34:1",
+                                "-e", SERVER_ENDPOINT,
                                 "-e", "lnet:172.18.50.40@tcp:12345:30:101",
                                 "-e", "lnet:172.18.50.40@o2ib0:12345:34:101",
-                                "-H", "0@lo:12345:34:1",
+                                "-H", SERVER_ENDPOINT_ADDR,
 				"-P", M0_UT_CONF_PROFILE,
 				"-c", M0_UT_PATH("conf.xc")};
 
@@ -151,12 +155,12 @@ static char *cs_ut_ep_mixed_dup_cmd[] = { "m0d", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-A", "linuxstob:cs_addb_stob",
 				"-w", "10",
-                                "-e", "lnet:0@lo:12345:34:1",
+                                "-e", SERVER_ENDPOINT,
                                 "-e", "lnet:172.18.50.40@tcp:12345:30:101",
                                 "-e", "lnet:172.18.50.40@o2ib0:12345:34:101",
                                 "-e", "lnet:172.18.50.40@o2ib1:12345:30:101",
                                 "-e", "lnet:172.18.50.40@o2ib1:12345:30:101",
-                                "-H", "0@lo:12345:34:1",
+                                "-H", SERVER_ENDPOINT_ADDR,
 				"-P", M0_UT_CONF_PROFILE,
 				"-c", M0_UT_PATH("conf.xc")};
 
@@ -164,10 +168,10 @@ static char *cs_ut_lnet_dup_tcp_if_cmd[] = { "m0d", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-A", "linuxstob:cs_addb_stob",
 				"-w", "10",
-                                "-e", "lnet:0@lo:12345:34:1",
+                                "-e", SERVER_ENDPOINT,
                                 "-e", "lnet:172.18.50.40@tcp:12345:30:101",
                                 "-e", "lnet:172.18.50.40@tcp:12345:32:105",
-                                "-H", "0@lo:12345:34:1",
+                                "-H", SERVER_ENDPOINT_ADDR,
 				"-P", M0_UT_CONF_PROFILE,
 				"-c", M0_UT_PATH("conf.xc")};
 
@@ -182,8 +186,8 @@ static char *cs_ut_lnet_ep_bad_cmd[] = { "m0d", "-T", "AD",
 static char *cs_ut_bad_profile[] = { "m0d", "-T", "linux",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-A", "linuxstob:cs_addb_stob",
-                                "-e", "lnet:0@lo:12345:34:1",
-                                "-H", "0@lo:12345:34:1",
+                                "-e", SERVER_ENDPOINT,
+                                "-H", SERVER_ENDPOINT_ADDR,
 				"-w", "10",
 				"-P", M0_UT_CONF_PROFILE_BAD,
 				"-c", M0_UT_PATH("conf.xc")};
@@ -191,7 +195,7 @@ static char *cs_ut_bad_profile[] = { "m0d", "-T", "linux",
 
 static const char *cdbnames[] = { "cdb1", "cdb2" };
 static const char *cl_ep_addrs[] = { "0@lo:12345:34:2", "127.0.0.1:34569" };
-static const char *srv_ep_addrs[] = { "0@lo:12345:34:1", "127.0.0.1:35678" };
+static const char *srv_ep_addrs[] = { SERVER_ENDPOINT_ADDR, "127.0.0.1:35678" };
 
 /*
   Transports used in mero a context.
@@ -245,11 +249,11 @@ static void cs_ut_client_fini(struct cl_ctx *cctx)
 /** Sends fops to server. */
 int m0_cs_ut_send_fops(struct m0_rpc_session *cl_rpc_session, int dstype)
 {
-	int                      rc;
-        uint32_t                 i;
-        struct m0_fop           *fop[10] = { 0 };
-	struct cs_ds1_req_fop   *cs_ds1_fop;
-	struct cs_ds2_req_fop   *cs_ds2_fop;
+	int                    rc;
+        uint32_t               i;
+        struct m0_fop         *fop[10] = { 0 };
+	struct cs_ds1_req_fop *cs_ds1_fop;
+	struct cs_ds2_req_fop *cs_ds2_fop;
 
 	M0_PRE(cl_rpc_session != NULL && dstype > 0);
 
@@ -296,11 +300,11 @@ static int cs_ut_test_helper_success(struct cl_ctx *cctx, size_t cctx_nr,
 	int i;
 	int stype;
 	struct m0_rpc_server_ctx sctx = {
-		.rsx_xprts            = cs_xprts,
-		.rsx_xprts_nr         = ARRAY_SIZE(cs_xprts),
-		.rsx_argv             = cs_argv,
-		.rsx_argc             = cs_argc,
-		.rsx_log_file_name    = SERVER_LOG_FILE_NAME
+		.rsx_xprts         = cs_xprts,
+		.rsx_xprts_nr      = ARRAY_SIZE(cs_xprts),
+		.rsx_argv          = cs_argv,
+		.rsx_argc          = cs_argc,
+		.rsx_log_file_name = SERVER_LOG_FILE_NAME
 	};
 
 	rc = m0_rpc_server_start(&sctx);
@@ -328,11 +332,11 @@ static void cs_ut_test_helper_failure(char *cs_argv[], int cs_argc)
 {
 	int rc;
 	struct m0_rpc_server_ctx sctx = {
-		.rsx_xprts            = cs_xprts,
-		.rsx_xprts_nr         = ARRAY_SIZE(cs_xprts),
-		.rsx_argv             = cs_argv,
-		.rsx_argc             = cs_argc,
-		.rsx_log_file_name    = SERVER_LOG_FILE_NAME
+		.rsx_xprts         = cs_xprts,
+		.rsx_xprts_nr      = ARRAY_SIZE(cs_xprts),
+		.rsx_argv          = cs_argv,
+		.rsx_argc          = cs_argc,
+		.rsx_log_file_name = SERVER_LOG_FILE_NAME
 	};
 
 	rc = m0_rpc_server_start(&sctx);
@@ -528,6 +532,146 @@ static void test_cs_ut_setup_fail(void)
 				  ARRAY_SIZE(cs_ut_service_one_cmd));
 }
 
+static void test_cs_ut_rconfc_fail(void)
+{
+	/* Standalone confc instance the dummy HA to work on */
+	M0_INTERNAL struct m0_confc *m0_ha_entrypoint_confc_override(void);
+	/*
+	 * Server configuration making no local conf available. Therefore, mero
+	 * instance is to request entrypoint info during rconfc start.
+	 */
+	static char *setup_conf[] = { "m0d", "-T", "linux",
+				      "-D", "cs_sdb", "-S", "cs_stob",
+				      "-A", "linuxstob:cs_addb_stob",
+				      "-e", SERVER_ENDPOINT,
+				      "-H", SERVER_ENDPOINT_ADDR,
+				      "-w", "10",
+				      "-P", M0_UT_CONF_PROFILE};
+	struct m0_confc *confc = m0_ha_entrypoint_confc_override();
+	char            *confstr;
+	int              rc;
+
+	/*
+	 * We have to let dummy HA respond with entrypoint info working on a
+	 * standalone confc instead of the one returned by m0_reqh2confc(). So
+	 * need to pre-load it with standard configuration beforehand.
+	 */
+	rc = m0_file_read(M0_UT_PATH("conf.xc"), &confstr);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_confc_init(confc, m0_locality0_get()->lo_grp, NULL, NULL,
+			   confstr);
+	M0_UT_ASSERT(rc == 0);
+	m0_free0(&confstr);
+	/* Now wire it up */
+	m0_fi_enable("mero_ha_entrypoint_request_cb", "ut_confc");
+	/*
+	 * m0_rconfc_start_sync() is to fail inside cs_conf_setup() because
+	 * dummy HA breaks rconfc operation by reporting no RMS.
+	 */
+	m0_fi_enable_once("mero_ha_entrypoint_rep_rm_fill", "no_rms_fid");
+	cs_ut_test_helper_failure(setup_conf, ARRAY_SIZE(setup_conf));
+
+	m0_confc_fini(confc);
+	m0_fi_disable("mero_ha_entrypoint_request_cb", "ut_confc");
+}
+
+extern volatile sig_atomic_t gotsignal;
+
+static void cs_ut_term_sig_handler(int signum)
+{
+	gotsignal = signum;
+}
+
+static int cs_ut_register_signal(void)
+{
+	struct sigaction term_act;
+	int              rc;
+
+	gotsignal = 0;
+	term_act.sa_handler = cs_ut_term_sig_handler;
+	sigemptyset(&term_act.sa_mask);
+	term_act.sa_flags = 0;
+
+	rc = sigaction(SIGUSR2, &term_act, NULL);
+	M0_UT_ASSERT(rc == 0);
+	return rc;
+}
+
+static struct m0_rpc_machine *cs_ut_reqh2rmach(struct m0_reqh *reqh)
+{
+	struct m0_rpc_machine *rmach;
+
+	rmach = m0_reqh_rpc_mach_tlist_head(&reqh->rh_rpc_machines);
+	M0_UT_ASSERT(rmach != NULL);
+	return rmach;
+}
+
+static void cs_ut_write_lock_trigger(struct m0_reqh *reqh)
+{
+	int rc = rm_write_lock_get(cs_ut_reqh2rmach(reqh),
+				   SERVER_ENDPOINT_ADDR);
+	M0_UT_ASSERT(rc == 0);
+	sleep(2);
+	rm_write_lock_put();
+}
+
+/**
+ * Test fatal signal delivery.
+ *
+ * Standard m0_rpc_server_start() invokes mero instance running confd, RM and
+ * dummy HA. A standalone rconfc is launched and wired to standard
+ * cs_rconfc_fatal_cb() (borrowed from server already running). Write lock
+ * triggering makes rconfc cancel its read lock. On next read lock arrival fault
+ * injection makes rconfc fail, and therefore, rise signal via
+ * cs_rconfc_fatal_cb().
+ */
+static void test_cs_ut_rconfc_fatal(void)
+{
+	struct m0_rpc_server_ctx sctx = {
+		.rsx_xprts         = cs_xprts,
+		.rsx_xprts_nr      = ARRAY_SIZE(cs_xprts),
+		.rsx_argv          = cs_ut_service_one_cmd,
+		.rsx_argc          = ARRAY_SIZE(cs_ut_service_one_cmd),
+		.rsx_log_file_name = SERVER_LOG_FILE_NAME
+	};
+	struct m0_reqh *reqh = &sctx.rsx_mero_ctx.cc_reqh_ctx.rc_reqh;
+	struct m0_rconfc       rconfc;
+	int                    rc;
+
+	rc = m0_rpc_server_start(&sctx);
+	M0_UT_ASSERT(rc == 0);
+	/* Prepare and launch standalone rconfc */
+	rc = m0_rconfc_init(&rconfc, m0_locality0_get()->lo_grp,
+			    cs_ut_reqh2rmach(reqh), NULL, NULL);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_rconfc_start_sync(&rconfc, &reqh->rh_profile);
+	M0_UT_ASSERT(rc == 0);
+	/*
+	 * Register SIGUSR2 handler. The signal is to be sent by
+	 * cs_rconfc_fatal_cb() and caught by cs_ut_term_sig_handler().
+	 */
+	rc = cs_ut_register_signal();
+	M0_UT_ASSERT(gotsignal == 0);
+	M0_UT_ASSERT(rc == 0);
+	/* Install fatal callback to the rconfc instance. */
+	m0_rconfc_lock(&rconfc);
+	m0_rconfc_fatal_cb_set(&rconfc, reqh->rh_rconfc.rc_fatal_cb);
+	m0_rconfc_unlock(&rconfc);
+
+	m0_fi_enable_once("cs_rconfc_fatal_cb", "ut_signal");
+	m0_fi_enable_once("rconfc_read_lock_complete", "rlock_req_failed");
+	cs_ut_write_lock_trigger(reqh);
+	sleep(1);
+	/* Make sure SIGUSR2 has been got. */
+	M0_UT_ASSERT(gotsignal == SIGUSR2);
+	/* Make sure failed rconfc is able to stop regular way. */
+	M0_UT_ASSERT(rconfc.rc_sm.sm_state == M0_RCS_FAILURE);
+	m0_rconfc_stop_sync(&rconfc);
+	m0_rconfc_fini(&rconfc);
+
+	m0_rpc_server_stop(&sctx);
+}
+
 struct m0_ut_suite m0d_ut = {
         .ts_name = "m0d-ut",
         .ts_tests = {
@@ -548,6 +692,8 @@ struct m0_ut_suite m0d_ut = {
 		{ "cs-lnet-multiple-interfaces", test_cs_ut_lnet_multiple_if},
 		{ "cs-lnet-options", test_cs_ut_lnet},
 		{ "cs-setup-fail", test_cs_ut_setup_fail},
+		{ "cs-rconfc-fail", test_cs_ut_rconfc_fail},
+		{ "cs-rconfc-fatal", test_cs_ut_rconfc_fatal},
                 { NULL, NULL },
         }
 };

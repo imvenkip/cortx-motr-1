@@ -211,32 +211,8 @@ struct rconfc_load_ctx {
 	int                rx_rc;
 };
 
-/**
- * Rconfc expiration callback is called when rconfc election happens. On the
- * event came in the consumer must close all configuration objects currently
- * held and invalidate locally stored configuration data copies if any.
- *
- * @note The callback is called when rconfc is being locked, so no configuration
- * read is granted at the time. Therefore, consumer should schedule reading for
- * some time in future.
- *
- * @note The callback is called as well in the situation when reaching quorum
- * appeared impossible. Consumer is able to find out this particular detail by
- * checking rconfc->rc_ver against M0_CONF_VER_UNKNOWN.
- *
- * @see m0_rconfc_exp_cb_set
- */
-typedef void (*m0_rconfc_exp_cb_t)(struct m0_rconfc *rconfc);
+typedef void (*m0_rconfc_cb_t)(struct m0_rconfc *rconfc);
 
-/**
- * Rconfc ready callback is called when m0_rconfc::rc_sm is switched to
- * M0_RCS_IDLE state and an rconfc client is able to read configuration.
- *
- * @note The callback is called from rconfc instance being in locked state.
- *
- * @see m0_rconfc_ready_cb_set
- */
-typedef void (*m0_rconfc_ready_cb_t)(struct m0_rconfc *rconfc);
 /**
  * Redundant configuration client.
  */
@@ -277,16 +253,55 @@ struct m0_rconfc {
 	 * allowed to be re-set later if required, on a locked rconfc instance.
 	 *
 	 * The callback is executed being under rconfc lock.
+	 *
+	 * Rconfc expiration callback is called when rconfc election happens.
+	 * The callee side must close all configuration objects currently held
+	 * and invalidate locally stored configuration data copies if any.
+	 *
+	 * @note No configuration reading is granted during the call because of
+	 * rconfc locked state. Therefore, configuration reader should schedule
+	 * reading for some time in future. The callback will also be called
+	 * when reaching quorum is not possible. In this case rconfc->rc_ver ==
+	 * M0_CONF_VER_UNKNOWN.
 	 */
-	m0_rconfc_exp_cb_t        rc_exp_cb;
+	m0_rconfc_cb_t            rc_expired_cb;
 
 	/**
 	 * Rconfc idle callback. Initially unset. Allowed to be
 	 * installed later if required, on a locked rconfc instance.
 	 *
 	 * The callback is executed being under rconfc lock.
+	 *
+	 * Rconfc ready callback is called when m0_rconfc::rc_sm is switched to
+	 * M0_RCS_IDLE state. Callback indicates that configuration is available
+	 * for reading using m0_rconfc::rc_confc.
+	 *
+	 * @note No configuration reading is possible during the callback
+	 * execution due to the locked state, and the reading should be
+	 * scheduled for some time in future.
 	 */
-	m0_rconfc_ready_cb_t      rc_ready_cb;
+	m0_rconfc_cb_t            rc_ready_cb;
+
+	/**
+	 * Rconfc callback called when M0_RCS_FAILURE state reached. Initially
+	 * unset. Allowed to be installed after start if required, on a locked
+	 * rconfc instance.
+	 *
+	 * @note Do not set m0_rconfc::rc_fatal_cb directly, use
+	 * m0_rconfc_fatal_cb_set() instead.
+	 *
+	 * Rconfc is expected to start without the callback set up. This lets us
+	 * distinguish a failure during mero setup from a failure at runtime,
+	 * and handle those appropriately.
+	 *
+	 * @note Rconfc fatal callback is called when m0_rconfc::rc_sm is
+	 * switched to M0_RCS_FAILURE. This makes impossible to read
+	 * configuration from m0_rconfc::rc_confc::cc_cache during the callback
+	 * execution. Besides, the cache starts to be drained right before the
+	 * call, so no part of the cache is guaranteed to remain available after
+	 * call completion.
+	 */
+	m0_rconfc_cb_t            rc_fatal_cb;
 
 	/** RPC machine the rconfc to work on. */
 	struct m0_rpc_machine    *rc_rmach;
@@ -414,8 +429,8 @@ struct m0_rconfc {
 M0_INTERNAL int m0_rconfc_init(struct m0_rconfc      *rconfc,
 			       struct m0_sm_group    *sm_group,
 			       struct m0_rpc_machine *rmach,
-			       m0_rconfc_exp_cb_t     exp_cb,
-			       m0_rconfc_ready_cb_t   ready_cb);
+			       m0_rconfc_cb_t         expired_cb,
+			       m0_rconfc_cb_t         ready_cb);
 
 /**
  * Rconfc starts with obtaining all necessary information (cluster "entry
@@ -503,25 +518,12 @@ M0_INTERNAL void m0_rconfc_unlock(struct m0_rconfc *rconfc);
 M0_INTERNAL uint64_t m0_rconfc_ver_max_read(struct m0_rconfc *rconfc);
 
 /**
- * Set expiration callback.
- *
- * @note The alternative to providing expiration callback is detecting rconfc
- * M0_RCS_CONDUCTOR_DRAIN state. Once the consumer observes the rconfc instance in
- * this state, the consumer must close all opened configuration objects and
- * invalidate local copies of configuration objects.
+ * Installs rconfc fatal callback.
  *
  * @pre rconfc is locked.
  */
-M0_INTERNAL void m0_rconfc_exp_cb_set(struct m0_rconfc   *rconfc,
-				      m0_rconfc_exp_cb_t  cb);
-
-/**
- * Set rconfc idle callback.
- *
- * @pre rconfc is locked.
- */
-M0_INTERNAL void m0_rconfc_ready_cb_set(struct m0_rconfc     *rconfc,
-					m0_rconfc_ready_cb_t  cb);
+M0_INTERNAL void m0_rconfc_fatal_cb_set(struct m0_rconfc *rconfc,
+					m0_rconfc_cb_t    cb);
 
 /**
  * Allocates and fills eps with confd endpoints from m0_rconfc::rc_herd list.

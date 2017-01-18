@@ -530,8 +530,8 @@
 
    @subsection rmw-lspec-abort IO request aborting
    When m0t1fs rconfc lost read lock it can't read configuration and all
-   existing IO requests must be stopped at the current point of progress.  Once
-   rconfc lost read lock, m0_rconfc::rc_exp_cb is triggered. It sets
+   existing IO requests must be stopped at the current point of progress. Once
+   rconfc loses read lock, m0_rconfc::rc_expired_cb is triggered. It sets
    m0t1fs_sb::csb_rlock_revoked to true and cancel sessions to IO services.
    ioreq_iosm_handle checks the flag after its subroutines and interrupt
    handling, if the read lock is revoked.

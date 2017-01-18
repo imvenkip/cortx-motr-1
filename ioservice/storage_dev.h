@@ -139,7 +139,9 @@ struct m0_storage_devs {
 
 	/* Conf event callbacks provisioning. */
 
-	/** Link to subscribe to conf expiration event m0_rconfc::rc_exp_cb. */
+	/**
+	 * Link to subscribe to conf expiration event m0_rconfc::rc_expired_cb.
+	 */
 	struct m0_clink          sds_conf_exp;
 	/** Link to subscribe to conf ready event m0_rconfc::rc_ready_cb. */
 	struct m0_clink          sds_conf_ready_async;

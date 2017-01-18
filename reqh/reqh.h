@@ -178,7 +178,7 @@ struct m0_reqh {
 	 * Channel for configuration cache expiry events.
 	 *
 	 * The channel callbacks are to be executed synchronously in the context
-	 * of the thread where m0_rconfc::rc_exp_cb is called.
+	 * of the thread where m0_rconfc::rc_expired_cb is called.
 	 *
 	 * The channel callback must not attempt to do synchronous reading on
 	 * m0_reqh::rh_rconfc::rc_confc.

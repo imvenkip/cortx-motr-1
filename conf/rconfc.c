@@ -1207,9 +1207,12 @@ static void rconfc_fail(struct m0_rconfc *rconfc, int rc)
 	 * write lock requests from completion.
 	 */
 	rconfc_read_lock_put(rconfc);
+	rconfc->rc_sm_state_on_abort = rconfc_state(rconfc);
 	m0_sm_fail(&rconfc->rc_sm, M0_RCS_FAILURE, rc);
 	if (rconfc->rc_stopping)
 		rconfc_stop_internal(rconfc);
+	if (rconfc->rc_fatal_cb != NULL)
+		rconfc->rc_fatal_cb(rconfc);
 	M0_LEAVE();
 }
 
@@ -2117,12 +2120,12 @@ static void rlock_conflict_handle(struct m0_sm_group *grp,
 {
 	struct m0_rconfc *rconfc = ast->sa_datum;
 
-	M0_ENTRY("rconfc = %p, exp_cb = %p, ready_cb = %p", rconfc,
-		 rconfc->rc_exp_cb, rconfc->rc_ready_cb);
+	M0_ENTRY("rconfc = %p, expired_cb = %p, ready_cb = %p", rconfc,
+		 rconfc->rc_expired_cb, rconfc->rc_ready_cb);
 	M0_PRE(rconfc_is_locked(rconfc));
 	/* prepare for emptying conductor's cache */
-	if (rconfc->rc_exp_cb != NULL)
-		rconfc->rc_exp_cb(rconfc);
+	if (rconfc->rc_expired_cb != NULL)
+		rconfc->rc_expired_cb(rconfc);
 	/*
 	 * if no context attached, call it directly, otherwise it is
 	 * going to be called during the very last context finalisation
@@ -2195,8 +2198,8 @@ static void rconfc_stop_ast_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	M0_ENTRY("rconfc = %p", rconfc);
 	M0_PRE(rconfc_is_locked(rconfc));
 	rconfc->rc_stopping = true;
-	if (rconfc->rc_exp_cb != NULL)
-		rconfc->rc_exp_cb(rconfc);
+	if (rconfc->rc_expired_cb != NULL)
+		rconfc->rc_expired_cb(rconfc);
 	rconfc_stop_internal(rconfc);
 	M0_LEAVE();
 }
@@ -2267,8 +2270,8 @@ static bool rconfc_quorum_is_possible(struct m0_rconfc *rconfc)
 		M0_LOG(M0_WARN, "No chance left to reach the quorum");
 		rconfc->rc_ver = M0_CONF_VER_UNKNOWN;
 		/* Notify consumer about conf expired */
-		if (rconfc->rc_exp_cb != NULL)
-			rconfc->rc_exp_cb(rconfc);
+		if (rconfc->rc_expired_cb != NULL)
+			rconfc->rc_expired_cb(rconfc);
 		return false;
 	}
 	return true;
@@ -2356,8 +2359,15 @@ static void rconfc_version_elected(struct m0_sm_group *grp,
 	M0_PRE(rconfc_is_locked(rconfc));
 	M0_ENTRY("rconfc = %p", rconfc);
 	m0_tl_for(rcnf_herd, &rconfc->rc_herd, lnk) {
-		M0_PRE(M0_IN(lnk->rl_state,
-			     (CONFC_OPEN, CONFC_FAILED, CONFC_ARMED)));
+		if (lnk->rl_state == CONFC_DEAD)
+			/*
+			 * Even with version elected some links may remain dead
+			 * in the herd and require no finalisation. Dead link is
+			 * a link that failed to connect to the respective confd
+			 * during version election.
+			 */
+			continue;
+		M0_ASSERT(lnk->rl_state != CONFC_IDLE);
 		m0_clink_del(&lnk->rl_clink);
 		m0_clink_fini(&lnk->rl_clink);
 		if (m0_confc_ctx_is_completed(&lnk->rl_cctx))
@@ -2583,8 +2593,8 @@ M0_INTERNAL void m0_rconfc_unlock(struct m0_rconfc *rconfc)
 M0_INTERNAL int m0_rconfc_init(struct m0_rconfc      *rconfc,
 			       struct m0_sm_group    *sm_group,
 			       struct m0_rpc_machine *rmach,
-			       m0_rconfc_exp_cb_t     exp_cb,
-			       m0_rconfc_ready_cb_t   ready_cb)
+			       m0_rconfc_cb_t         expired_cb,
+			       m0_rconfc_cb_t         ready_cb)
 {
 	int               rc;
 	struct rlock_ctx *rlock_ctx;
@@ -2610,7 +2620,6 @@ M0_INTERNAL int m0_rconfc_init(struct m0_rconfc      *rconfc,
 		goto confc_err;
 	}
 	rconfc->rc_rmach   = rmach;
-	rconfc->rc_exp_cb  = exp_cb;
 	rconfc->rc_qctx    = va;
 	rconfc->rc_ver     = M0_CONF_VER_UNKNOWN;
 	rconfc->rc_gops = (struct m0_confc_gate_ops) {
@@ -2618,6 +2627,7 @@ M0_INTERNAL int m0_rconfc_init(struct m0_rconfc      *rconfc,
 		.go_skip  = m0_rconfc_gate_ops.go_skip,
 		.go_drain = NULL,
 	};
+	rconfc->rc_expired_cb = expired_cb;
 	rconfc->rc_ready_cb   = ready_cb;
 	rconfc->rc_rlock_ctx  = rlock_ctx;
 
@@ -2648,6 +2658,7 @@ M0_INTERNAL void m0_rconfc_start(struct m0_rconfc *rconfc,
 				 struct m0_fid    *profile)
 {
 	M0_ENTRY("rconfc = %p, profile = "FID_F, rconfc, FID_P(profile));
+	M0_PRE(rconfc->rc_fatal_cb == NULL);
 	rconfc->rc_profile = profile;
 	if (rconfc->rc_local_conf != NULL)
 		rconfc_local_load(rconfc);
@@ -2674,7 +2685,6 @@ M0_INTERNAL int m0_rconfc_start_wait(struct m0_rconfc *rconfc,
 		if (m0_sm_timedwait(&rconfc->rc_sm,
 				    M0_BITS(M0_RCS_IDLE, M0_RCS_FAILURE),
 				    deadline) == -ETIMEDOUT) {
-			rconfc->rc_sm_state_on_abort = rconfc_state(rconfc);
 			rconfc_fail(rconfc, M0_ERR(-ETIMEDOUT));
 		}
 		m0_rconfc_unlock(rconfc);
@@ -2769,18 +2779,18 @@ M0_INTERNAL uint64_t m0_rconfc_ver_max_read(struct m0_rconfc *rconfc)
 	return ver_max;
 }
 
-M0_INTERNAL void m0_rconfc_exp_cb_set(struct m0_rconfc   *rconfc,
-				      m0_rconfc_exp_cb_t  cb)
+M0_INTERNAL void m0_rconfc_fatal_cb_set(struct m0_rconfc *rconfc,
+					m0_rconfc_cb_t    cb)
 {
 	M0_PRE(rconfc_is_locked(rconfc));
-	rconfc->rc_exp_cb = cb;
-}
-
-M0_INTERNAL void m0_rconfc_ready_cb_set(struct m0_rconfc    *rconfc,
-				       m0_rconfc_ready_cb_t  cb)
-{
-	M0_PRE(rconfc_is_locked(rconfc));
-	rconfc->rc_ready_cb = cb;
+	M0_PRE(rconfc->rc_fatal_cb == NULL);
+	rconfc->rc_fatal_cb = cb;
+	if (rconfc_state(rconfc) == M0_RCS_FAILURE)
+		/*
+		 * Failure might occur between successful rconfc start and this
+		 * callback setup. If occurred, callback is fired right away.
+		 */
+		cb(rconfc);
 }
 
 M0_INTERNAL int m0_rconfc_confd_endpoints(struct m0_rconfc   *rconfc,

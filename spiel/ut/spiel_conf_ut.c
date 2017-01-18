@@ -193,8 +193,8 @@ static void spiel_conf_ut_init(void)
 	/* Use a copy of conf.xc file as confd path - file may have changed */
 	m0_spiel__ut_init(&spiel, "tmp-conf.xc", false);
 	m0_rconfc_lock(rconfc);
-	m0_rconfc_exp_cb_set(rconfc, &m0_confc_expired_cb);
-	m0_rconfc_ready_cb_set(rconfc, &m0_confc_ready_cb);
+	rconfc->rc_expired_cb = &m0_confc_expired_cb;
+	rconfc->rc_ready_cb   = &m0_confc_ready_cb;
 	m0_rconfc_unlock(rconfc);
 	/** @todo Use fid convert function to set kind. */
 	spiel_obj_fid[SPIEL_UT_OBJ_PVER_F].f_container |=

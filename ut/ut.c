@@ -419,8 +419,14 @@ static int run_suite(const struct m0_ut_suite *suite, int max_name_len)
 			M0_ERR_INFO(rc, "Unit-test suite initialization failure.");
 	}
 
-	for (test = suite->ts_tests; test->t_name != NULL; ++test)
+	for (test = suite->ts_tests; test->t_name != NULL; ++test) {
+#ifndef __KERNEL__
+		M0_INTERNAL void m0_cs_gotsignal_reset(void);
+
+		m0_cs_gotsignal_reset();
+#endif
 		run_test(test, max_name_len);
+	}
 
 	if (suite->ts_fini != NULL) {
 		rc = suite->ts_fini();

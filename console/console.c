@@ -23,15 +23,16 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_OTHER
 #include "lib/trace.h"
 
-#include "lib/errno.h"        /* ETIMEDOUT */
-#include "lib/memory.h"       /* m0_free */
-#include "lib/getopts.h"      /* M0_GETOPTS */
-#include "mero/init.h"        /* m0_init */
-#include "rpc/rpclib.h"       /* m0_rpc_post_sync */
+#include "lib/errno.h"           /* ETIMEDOUT */
+#include "lib/memory.h"          /* m0_free */
+#include "lib/getopts.h"         /* M0_GETOPTS */
+#include "mero/init.h"           /* m0_init */
+#include "rpc/rpclib.h"          /* m0_rpc_post_sync */
 #include "fop/fop.h"
-#include "fid/fid.h"          /* M0_FID_TINIT */
-#include "conf/obj.h"         /* M0_CONF_PROCESS_TYPE */
-#include "module/instance.h"  /* m0 */
+#include "fid/fid.h"             /* M0_FID_TINIT */
+#include "fis/fi_command_fops.h" /* m0_fi_command_fop_init */
+#include "conf/obj.h"            /* M0_CONF_PROCESS_TYPE */
+#include "module/instance.h"     /* m0 */
 #include "console/console.h"
 #include "console/console_mesg.h"
 #include "console/console_it.h"
@@ -87,23 +88,24 @@ static int fop_send_and_print(struct m0_rpc_client_ctx *cctx, uint32_t opcode,
 
 	ftype = m0_fop_type_find(opcode);
 	if (ftype == NULL)
-		return M0_RC(-EINVAL);
-
+		return M0_ERR_INFO(-EINVAL, "opcode=%u, fop type not found",
+				   opcode);
 	fop = m0_fop_alloc(ftype, NULL, &cctx->rcx_rpc_machine);
 	if (fop == NULL)
-		return M0_RC(-EINVAL);
-
+		return M0_ERR_INFO(-ENOMEM, "opcode=%u, m0_fop_alloc() failed",
+				   opcode);
 	rc = fop_input == NULL ? m0_cons_fop_obj_input(fop) :
 		m0_xcode_read(&M0_FOP_XCODE_OBJ(fop), fop_input);
 	if (rc != 0)
-		return M0_RC(rc);
+		return M0_ERR_INFO(rc, "rc=%d with fop_input=%s", rc,
+				   fop_input);
 
 	printf("Sending FOP: ");
 	m0_cons_fop_name_print(ftype);
 
 	rc = m0_cons_fop_obj_output(fop);
 	if (rc != 0)
-		return M0_RC(rc);
+		return M0_ERR(rc);
 
 	fop->f_item.ri_nr_sent_max = timeout;
 	rc = m0_rpc_post_sync(fop, &cctx->rcx_session, NULL, 0 /* deadline*/);
@@ -217,7 +219,6 @@ int main(int argc, char **argv)
 	struct m0_net_domain  client_net_dom = {};
 	uint32_t              tm_recv_queue_len = M0_NET_TM_RECV_QUEUE_DEF_LEN;
 	uint32_t              max_rpc_msg_size  = M0_RPC_DEF_MAX_RPC_MSG_SIZE;
-
 
 	struct m0_rpc_client_ctx cctx = {
 		.rcx_net_dom               = &client_net_dom,
@@ -335,7 +336,8 @@ int main(int argc, char **argv)
 	cctx.rcx_max_rpc_msg_size      = max_rpc_msg_size;
 	cctx.rcx_abs_timeout = m0_time_from_now(M0_RPCLIB_UTIL_CONN_TIMEOUT, 0);
 
-	printf("connecting from %s to %s\n", cctx.rcx_local_addr, cctx.rcx_remote_addr);
+	printf("connecting from %s to %s\n", cctx.rcx_local_addr,
+	       cctx.rcx_remote_addr);
 	result = m0_rpc_client_start(&cctx);
 	if (result != 0) {
 		fprintf(stderr, "m0_rpc_client_start failed\n");
@@ -347,6 +349,11 @@ int main(int argc, char **argv)
 	printf("Console Address = %s\n", cctx.rcx_local_addr);
 	printf("Server Address = %s\n", cctx.rcx_remote_addr);
 
+	/*
+	 * Need to init fic fop explicitly here as normally it gets initialised
+	 * at FI Service start (see fis_start()).
+	 */
+	m0_fi_command_fop_init();
 	/* Build the fop/fom/item and send */
 	result = fop_send_and_print(&cctx, opcode, fop_desc);
 	if (result != 0) {
@@ -355,6 +362,7 @@ int main(int argc, char **argv)
 		goto cleanup;
 	}
 cleanup:
+	m0_fi_command_fop_fini();
 	result = m0_rpc_client_stop(&cctx);
 	M0_ASSERT(result == 0);
 end:

@@ -2494,7 +2494,34 @@ static int cs_reqh_mdpool_layouts_setup(struct m0_mero *cctx)
 	return M0_RC(m0_reqh_mdpool_layout_build(&cctx->cc_reqh_ctx.rc_reqh));
 }
 
+/**
+ * The callback is installed to m0_rconfc::rc_fatal_cb intended to catch rconfc
+ * failure state, and because of that shut down m0d nicely. With rconfc failed
+ * mero instance becomes non-functional, as long as conf reading is impossible.
+ *
+ * The callback sends SIGINT to itself resulting eventually in m0_cs_fini() call.
+ */
+static void cs_rconfc_fatal_cb(struct m0_rconfc *rconfc)
+{
+	int signum = M0_FI_ENABLED("ut_signal") ? SIGUSR2 : SIGINT;
+
+	M0_ENTRY("signum=%d", signum);
+	if (kill(getpid(), signum) != 0)
+		M0_LOG(M0_ERROR, "kill() failed with errno=%d", errno);
+	M0_LEAVE();
+}
+
 volatile sig_atomic_t gotsignal;
+
+/**
+ * For the sake of UT framework. Possible signal value sent due to rconfc fell
+ * into failed state in the course of UT passage needs to be cleaned up.
+ */
+M0_INTERNAL void m0_cs_gotsignal_reset(void)
+{
+	/* get rid of remnants of cs_rconfc_fatal_cb() if called */
+	gotsignal = 0;
+}
 
 int m0_cs_setup_env(struct m0_mero *cctx, int argc, char **argv)
 {
@@ -2544,6 +2571,18 @@ out:
 	 */
 	if (cctx->cc_mkfs)
 		cs_ha_process_event(cctx, M0_CONF_HA_PROCESS_STARTED);
+	if (!cctx->cc_no_conf && /* otherwise rconfc did not start */
+	    rc == 0) {
+		/*
+		 * So far rconfc has no fatal callback installed to distinguish
+		 * rconfc failure occurred during m0_rconfc_start_wait() from
+		 * failure state reached after successful rconfc start. To catch
+		 * the after-start failure, fatal callback is installed here.
+		 */
+		m0_rconfc_lock(mero2rconfc(cctx));
+		m0_rconfc_fatal_cb_set(mero2rconfc(cctx), cs_rconfc_fatal_cb);
+		m0_rconfc_unlock(mero2rconfc(cctx));
+	}
 	return M0_RC(rc);
 }
 
