@@ -104,7 +104,9 @@ m0_server()
 
                stob_type='-T linux'
                MERO_M0D_OPTS+=" -c $MERO_CONF_XC"
-               if [[ ! -r $MERO_CONF_XC ]]; then
+               if [[ ! -r $MERO_CONF_XC ||
+                     $(stat -c%Y $MERO_GENDERS_CONF) -gt $(stat -c%Y MERO_CONF_XC) ]]
+               then
                    m0_build_local_conf > $MERO_CONF_XC
                fi
             ;;
