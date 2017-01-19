@@ -36,6 +36,9 @@ struct m0_arch_mutex {
 	struct mutex m_mutex;
 };
 
+#define M0_ARCH_MUTEX_SINIT(arch_m) \
+	{ .m_mutex = __MUTEX_INITIALIZER((arch_m).m_mutex) }
+
 /** @} end of mutex group */
 
 /* __MERO_LIB_LINUX_KERNEL_MUTEX_H__ */

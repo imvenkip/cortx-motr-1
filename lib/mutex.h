@@ -48,6 +48,18 @@ struct m0_mutex {
 	struct m0_mutex_addb2 *m_addb2;
 };
 
+/**
+ * Mutex static initialiser.
+ *
+ * @code
+ * static struct m0_mutex lock = M0_MUTEX_SINIT(&lock);
+ * @endcode
+ *
+ * This macro is useful only for global static mutexes, in other cases
+ * m0_mutex_init() should be used.
+ */
+#define M0_MUTEX_SINIT(m) { .m_arch = M0_ARCH_MUTEX_SINIT((m)->m_arch) }
+
 M0_INTERNAL void m0_mutex_init(struct m0_mutex *mutex);
 M0_INTERNAL void m0_mutex_fini(struct m0_mutex *mutex);
 

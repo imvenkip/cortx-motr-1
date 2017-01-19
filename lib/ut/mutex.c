@@ -30,6 +30,7 @@ enum {
 static int counter;
 static struct m0_thread t[NR];
 static struct m0_mutex  m[NR];
+static struct m0_mutex  static_m = M0_MUTEX_SINIT(&static_m);
 
 static void t0(int n)
 {
@@ -54,6 +55,12 @@ static void t1(int n)
 		for (j = 0; j < NR; ++j)
 			m0_mutex_unlock(&m[j]);
 	}
+}
+
+static void static_mutex_test(void)
+{
+	m0_mutex_lock(&static_m);
+	m0_mutex_unlock(&static_m);
 }
 
 void test_mutex(void)
@@ -95,6 +102,8 @@ void test_mutex(void)
 		m0_mutex_fini(&m[i]);
 
 	M0_UT_ASSERT(counter == sum * NR);
+
+	static_mutex_test();
 }
 
 

@@ -37,6 +37,8 @@ struct m0_arch_mutex {
 	pthread_mutex_t m_impl;
 };
 
+#define M0_ARCH_MUTEX_SINIT(arch_m) { .m_impl = PTHREAD_MUTEX_INITIALIZER }
+
 /** @} end of mutex group */
 #endif /* __MERO_LIB_USER_SPACE_MUTEX_H__ */
 
