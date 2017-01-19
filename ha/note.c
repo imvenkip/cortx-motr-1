@@ -86,7 +86,7 @@ M0_INTERNAL int m0_ha_state_get(struct m0_ha_nvec *note, struct m0_chan *chan)
 	return M0_RC(0);
 }
 
-M0_INTERNAL void m0_ha_state_set(struct m0_ha_nvec *note)
+M0_INTERNAL void m0_ha_state_set(const struct m0_ha_nvec *note)
 {
 	M0_ENTRY("note->nv_nr=%"PRIi32" note->nv_note[0].no_id="FID_F
 	         " note->nv_note[0].no_state=%u", note->nv_nr,
@@ -96,11 +96,10 @@ M0_INTERNAL void m0_ha_state_set(struct m0_ha_nvec *note)
 	m0_ha_msg_nvec_send(note, 0, M0_HA_NVEC_SET, NULL);
 }
 
-M0_INTERNAL void m0_ha_local_state_set(struct m0_ha_nvec *nvec)
+M0_INTERNAL void m0_ha_local_state_set(const struct m0_ha_nvec *nvec)
 {
-	if (M0_FI_ENABLED("no_ha"))
-		return;
-	m0_ha_state_set(nvec);
+	if (!M0_FI_ENABLED("no_ha"))
+		m0_ha_state_set(nvec);
 }
 
 static void ha_state_single_fop_data_free(struct m0_fop *fop)

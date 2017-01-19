@@ -273,11 +273,11 @@ M0_INTERNAL int m0_ha_state_get(struct m0_ha_nvec *note, struct m0_chan *chan);
  *    ergo(M0_IN(note->nv_note[i].no_state, (M0_NC_REPAIR, M0_NC_REBALANCE)),
  *         m0_conf_fid_type(&note->nv_note[i].no_id) == &M0_CONF_POOL_TYPE))
  */
-M0_INTERNAL void m0_ha_state_set(struct m0_ha_nvec *note);
+M0_INTERNAL void m0_ha_state_set(const struct m0_ha_nvec *note);
 /**
  * Notify local HA about state of configuration objects.
  */
-M0_INTERNAL void m0_ha_local_state_set(struct m0_ha_nvec *nvec);
+M0_INTERNAL void m0_ha_local_state_set(const struct m0_ha_nvec *nvec);
 
 /**
  * Asynchronous version of m0_ha_state_set() intended for posting single state.

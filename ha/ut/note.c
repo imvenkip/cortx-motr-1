@@ -178,7 +178,7 @@ static void done_get_chan_fini(void)
 
 static void local_confc_init(struct m0_confc *confc)
 {
-	char *confstr = NULL;
+	char *confstr;
 	int   rc;
 
 	rc = m0_file_read(M0_UT_PATH("conf.xc"), &confstr);
@@ -317,7 +317,7 @@ static void test_ha_state_accept(void)
 	m0_free(n);
 }
 
-static void ha_ut_conf_init(struct m0_reqh *reqh, struct m0_ha_nvec *nvec)
+static void ha_ut_conf_init(struct m0_reqh *reqh, const struct m0_ha_nvec *nvec)
 {
 	int              rc;
 	struct m0_confc *confc = m0_reqh2confc(reqh);
