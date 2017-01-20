@@ -80,6 +80,7 @@ m0_conf_ha_service_event_post(struct m0_ha                  *ha,
                               const struct m0_fid           *source_process_fid,
                               const struct m0_fid           *source_service_fid,
                               const struct m0_fid           *service_fid,
+                              uint64_t                       pid,
                               enum m0_conf_ha_service_event  event,
                               enum m0_conf_service_type      service_type)
 {
@@ -107,6 +108,7 @@ m0_conf_ha_service_event_post(struct m0_ha                  *ha,
 			.u.hed_event_service = {
 				.chs_event = event,
 				.chs_type  = service_type,
+				.chs_pid   = pid,
 			},
 		},
 	};

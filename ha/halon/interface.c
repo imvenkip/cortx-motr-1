@@ -46,7 +46,7 @@
 #include "lib/errno.h"          /* ENOSYS */
 #include "lib/string.h"         /* strcmp */
 #include "lib/uuid.h"           /* m0_node_uuid_string_set */
-#include "lib/thread.h"         /* m0_pid */
+#include "lib/thread.h"         /* m0_process */
 
 #include "net/net.h"            /* M0_NET_TM_RECV_QUEUE_DEF_LEN */
 #include "net/lnet/lnet.h"      /* m0_net_lnet_xprt */
@@ -474,7 +474,7 @@ halon_interface_process_event(struct m0_halon_interface_internal *hii,
 {
 	m0_conf_ha_process_event_post(&hii->hii_ha, hii->hii_outgoing_link,
 	                              &hii->hii_cfg.hic_process_fid,
-	                              m0_pid(), event,
+	                              m0_process(), event,
 	                              M0_CONF_HA_PROCESS_M0D);
 }
 
@@ -486,6 +486,7 @@ halon_interface_service_event(struct m0_halon_interface_internal *hii,
 	                              &hii->hii_cfg.hic_process_fid,
 	                              &hii->hii_cfg.hic_ha_service_fid,
 	                              &hii->hii_cfg.hic_ha_service_fid,
+	                              m0_process(),
 	                              event, M0_CST_HA);
 }
 

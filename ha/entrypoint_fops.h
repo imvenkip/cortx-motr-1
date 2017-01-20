@@ -87,6 +87,7 @@ struct m0_ha_entrypoint_req_fop {
 	struct m0_fid            erf_profile_fid;
 	struct m0_ha_link_params erf_link_params;
 	struct m0_buf            erf_git_rev_id;
+	uint64_t                 erf_pid;
 } M0_XCA_RECORD;
 
 struct m0_ha_entrypoint_req {
@@ -102,6 +103,7 @@ struct m0_ha_entrypoint_req {
 	struct m0_ha_link_params  heq_link_params;
 	/* m0_build_info::bi_git_rev_id */
 	const char               *heq_git_rev_id;
+	uint64_t                  heq_pid;
 };
 
 struct m0_ha_entrypoint_rep {

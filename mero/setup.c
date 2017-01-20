@@ -35,7 +35,7 @@
 #include "lib/locality.h"
 #include "lib/uuid.h"       /* m0_uuid_generate */
 #include "lib/fs.h"         /* m0_file_read */
-#include "lib/thread.h"     /* m0_pid */
+#include "lib/thread.h"     /* m0_process */
 #include "fid/fid.h"
 #include "stob/ad.h"
 #include "net/net.h"
@@ -606,7 +606,7 @@ static void cs_ha_process_event(struct m0_mero                *cctx,
 		m0_conf_ha_process_event_post(&cctx->cc_mero_ha.mh_ha,
 		                              cctx->cc_mero_ha.mh_link,
 		                              &cctx->cc_reqh_ctx.rc_fid,
-		                              m0_pid(), event, type);
+		                              m0_process(), event, type);
 	}
 }
 

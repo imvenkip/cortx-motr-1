@@ -90,6 +90,7 @@ struct m0_conf_ha_process {
 	/**
 	 * PID of the current process.
 	 * 0 if it's a kernel mode "process" (m0t1fs mount, for example).
+	 * @see m0_conf_ha_service:chs_pid, m0_process().
 	 */
 	uint64_t chp_pid;
 } M0_XCA_RECORD;
@@ -134,6 +135,12 @@ struct m0_conf_ha_service {
 	uint64_t chs_event;
 	/** @see m0_conf_service_type for values */
 	uint64_t chs_type;
+	/**
+	 * PID of the current process.
+	 * 0 if it's a kernel mode "process" (m0t1fs mount, for example).
+	 * @see m0_conf_ha_process:chp_pid, m0_process().
+	 */
+	uint64_t chs_pid;
 } M0_XCA_RECORD;
 
 /** Sends notification about process state to HA */
@@ -153,6 +160,7 @@ m0_conf_ha_service_event_post(struct m0_ha                  *ha,
                               const struct m0_fid           *source_process_fid,
                               const struct m0_fid           *source_service_fid,
                               const struct m0_fid           *service_fid,
+                              uint64_t                       pid,
                               enum m0_conf_ha_service_event  event,
                               enum m0_conf_service_type      service_type);
 

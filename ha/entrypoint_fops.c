@@ -84,6 +84,7 @@ m0_ha_entrypoint_req2fop(const struct m0_ha_entrypoint_req *req,
 		.erf_profile_fid     = req->heq_profile_fid,
 		.erf_link_params     = req->heq_link_params,
 		.erf_git_rev_id      = M0_BUF_INITS(git_rev_id_dup),
+		.erf_pid             = req->heq_pid,
 	};
 	return 0;
 }
@@ -109,6 +110,7 @@ m0_ha_entrypoint_fop2req(const struct m0_ha_entrypoint_req_fop *req_fop,
 		.heq_rpc_endpoint    = rpc_endpoint_dup,
 		.heq_link_params     = req_fop->erf_link_params,
 		.heq_git_rev_id      = git_rev_id_dup,
+		.heq_pid             = req_fop->erf_pid,
 	};
 	return M0_RC(0);
 }

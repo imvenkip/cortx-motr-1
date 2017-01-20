@@ -221,6 +221,7 @@ static void reqh_service_ha_event(struct m0_reqh_service     *service,
 	                              &service->rs_reqh->rh_fid,
 	                              &service->rs_service_fid,
 	                              &service->rs_service_fid,
+	                              m0_process(),
 	                              state2event[state],
 	                              service->rs_type->rst_typecode);
 }
