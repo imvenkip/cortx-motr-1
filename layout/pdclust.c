@@ -337,7 +337,12 @@ M0_INTERNAL int m0_pdclust_build(struct m0_layout_domain *dom,
 
 M0_INTERNAL bool m0_pdclust_attr_check(const struct m0_pdclust_attr *attr)
 {
-	return attr->pa_P >= attr->pa_N + 2 * attr->pa_K;
+	bool res = attr->pa_P >= attr->pa_N + 2 * attr->pa_K;
+	if (!res)
+		M0_LOG(M0_ERROR, "Bad pdclust attributes (P < N + 2K):"
+		       " P=%"PRIu32" N=%"PRIu32" K=%"PRIu32,
+		       attr->pa_P, attr->pa_N, attr->pa_K);
+	return res;
 }
 
 M0_INTERNAL uint32_t m0_pdclust_N(const struct m0_pdclust_layout *pl)
