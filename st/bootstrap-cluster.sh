@@ -46,6 +46,13 @@ configure_hvt() {
 	HALON_FACTS_FUNC="halon_facts_yaml_auto"
 }
 
+configure_kvm2dm() {
+	CMU_HOST="172.16.0.41"
+	HOSTS_LIST="$CMU_HOST,172.16.1.[1-7]"
+	CLIENTS_LIST="172.16.1.[1-2]"
+	HALON_FACTS_FUNC="halon_facts_yaml_auto"
+}
+
 configure_common() {
 	HALON_SOURCES=${HALON_SOURCES:-/root/halon}
 	MERO_SOURCES=${MERO_SOURCES:-/root/mero}
@@ -147,6 +154,7 @@ setup() {
 			castor-dev2-2-cc1.xy01.xyratex.com) cluster=dev2_2;;
 			vmc-rekvm-cc1.xy01.xyratex.com) cluster=fre7n1;;
 			vmc-rekvm-hvt-cc1.xy01.xyratex.com) cluster=hvt;;
+			vmc-rekvm-2dm-cc1.xy01.xyratex.com) cluster=kvm2dm;;
 			*) die 'Cannot deduce cluster name.' \
 			       'Use --cluster option.';;
 		esac
@@ -159,6 +167,7 @@ setup() {
 		dev2_2) configure_dev2_2;;
 		fre7n1) configure_fre7n1;;
 		hvt) configure_hvt;;
+		kvm2dm) configure_kvm2dm;;
 		*) die "Unsupported cluster: $cluster";;
 	esac
 	configure_common
