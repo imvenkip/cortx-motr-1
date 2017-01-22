@@ -317,7 +317,7 @@ static void test_ha_state_accept(void)
 	m0_free(n);
 }
 
-static void ha_ut_conf_init(struct m0_reqh *reqh, const struct m0_ha_nvec *nvec)
+static void ha_ut_conf_init(struct m0_reqh *reqh)
 {
 	int              rc;
 	struct m0_confc *confc = m0_reqh2confc(reqh);
@@ -326,13 +326,15 @@ static void ha_ut_conf_init(struct m0_reqh *reqh, const struct m0_ha_nvec *nvec)
 	M0_UT_ASSERT(rc == 0);
 	local_confc_init(confc);
 	m0_ha_client_add(confc);
-	m0_ha_state_set(nvec);
 
 	rc = m0_conf_fs_get(&reqh->rh_profile, confc, &fs);
 	M0_UT_ASSERT(rc == 0);
 
         rc = m0_conf_full_load(fs);
         M0_UT_ASSERT(rc == 0);
+	/*
+	 * All conf objects are M0_NC_ONLINE now; see m0_conf_obj_create().
+	 */
 }
 
 static void ha_ut_conf_fini(struct m0_reqh *reqh)
@@ -507,7 +509,7 @@ static void test_poolversion_get(void)
 	 */
 
 	m0_reqh_init(&reqh, &reqh_args);
-	ha_ut_conf_init(&reqh, &nvec);
+	ha_ut_conf_init(&reqh);
 
 	rc = m0_conf_pver_get(&reqh.rh_profile, confc, &pver0);
 	M0_UT_ASSERT(rc == 0);
