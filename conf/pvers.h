@@ -118,6 +118,10 @@ M0_INTERNAL int m0_conf_pver_find(const struct m0_conf_pool *pool,
  * Finds or creates (restores) a pool version by its fid.
  *
  * @pre  m0_conf_fid_type(fid) == &M0_CONF_PVER_TYPE
+ *
+ * @note  m0_conf_pver_find_by_fid() does not pin `out' object
+ *        (i.e., it does not increment m0_conf_obj::co_nrefs).
+ *        XXX Isn't this a bug?
  */
 M0_INTERNAL int m0_conf_pver_find_by_fid(const struct m0_fid *fid,
 					 const struct m0_conf_root *root,

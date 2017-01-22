@@ -360,8 +360,9 @@ static bool test_is_objv(const struct m0_conf_obj *obj)
 	return m0_conf_obj_type(obj) == &M0_CONF_OBJV_TYPE;
 }
 
-static void test_pver(struct m0_confc *confc,
-		      struct m0_fid   *pver_fid)
+/** Ensures that pver subtree exists and is traversable. */
+static void check_pver_subtree(struct m0_confc *confc,
+			       const struct m0_fid *pver_fid)
 {
 	struct m0_conf_diter  it;
 	struct m0_conf_obj   *pver_obj;
@@ -370,19 +371,17 @@ static void test_pver(struct m0_confc *confc,
 
 	rc = m0_conf_obj_find_lock(&confc->cc_cache, pver_fid, &pver_obj);
 	M0_UT_ASSERT(rc == 0);
-
 	rc = m0_conf_diter_init(&it, confc, pver_obj,
 				M0_CONF_PVER_RACKVS_FID,
 				M0_CONF_RACKV_ENCLVS_FID,
 				M0_CONF_ENCLV_CTRLVS_FID,
 				M0_CONF_CTRLV_DISKVS_FID);
 	M0_UT_ASSERT(rc == 0);
-
 	while ((rc = m0_conf_diter_next_sync(&it, test_is_objv)) ==
 	       M0_CONF_DIRNEXT) {
 		struct m0_conf_obj *obj = m0_conf_diter_result(&it);
 		objv = M0_CONF_CAST(obj, m0_conf_objv);
-		M0_LOG(M0_DEBUG, "fid="FID_F", idx=%d, state=%d\n",
+		M0_LOG(M0_DEBUG, "fid="FID_F" idx=%d state=%d",
 				  FID_P(&obj->co_id), objv->cv_ix,
 				  objv->cv_real->co_ha_state);
 	}
@@ -441,21 +440,20 @@ static void test_failvec_fetch(void)
 static void pool_machine_fid_populate(struct m0_poolmach *pool_mach)
 {
 	uint32_t i;
-	uint32_t key;
 
-	for (i = 0, key = 0; i < pool_mach->pm_state->pst_nr_devices; ++i)
+	for (i = 0; i < pool_mach->pm_state->pst_nr_devices; ++i)
 		pool_mach->pm_state->pst_devices_array[i].pd_id =
-			M0_FID_TINIT('d', 1, key++);
+			M0_FID_TINIT('d', 1, i);
 }
 
 static int pm_event_construct_and_apply(struct m0_poolmach *pm,
 					uint32_t dev_idx, uint32_t state)
 {
-	struct m0_poolmach_event event;
-
-	event.pe_type = M0_POOL_DEVICE;
-	event.pe_index = dev_idx;
-	event.pe_state = state;
+	const struct m0_poolmach_event event = {
+		.pe_type  = M0_POOL_DEVICE,
+		.pe_index = dev_idx,
+		.pe_state = state
+	};
 	return m0_poolmach_state_transit(pm, &event, NULL);
 }
 
@@ -467,32 +465,45 @@ static void pool_machine_fini(struct m0_poolmach *pool_mach)
 	m0_free(pool_mach->pm_state);
 }
 
+/* XXX Move to ha/note.h? */
+static void ha_state_accept_1(const struct m0_fid *fid, uint32_t state)
+{
+	struct m0_ha_note note = { .no_id = *fid, .no_state = state };
+
+	m0_ha_state_accept(&(const struct m0_ha_nvec){ 1, &note });
+}
+
+static uint32_t recd_disks(const struct m0_conf_pver *pver)
+{
+	M0_PRE(M0_IN(pver->pv_kind, (M0_CONF_PVER_ACTUAL,
+				     M0_CONF_PVER_VIRTUAL)));
+	return pver->pv_u.subtree.pvs_recd[M0_CONF_PVER_LVL_DISKS];
+}
+
 static void test_poolversion_get(void)
 {
-	int                  rc;
-	struct m0_reqh       reqh;
-	struct m0_conf_pver *pver0 = NULL;
-	struct m0_conf_pver *pver1 = NULL;
-	struct m0_conf_pver *pver2 = NULL;
-	struct m0_conf_pver *pver3 = NULL;
-	struct m0_conf_pver *pver4 = NULL;
-	const struct m0_conf_pver *fpver;
-	struct m0_confc     *confc = m0_reqh2confc(&reqh);
-	struct m0_conf_root *root;
-	struct m0_ha_note n1[] = {
-		{ M0_FID_TINIT('a', 1, 3),  M0_NC_ONLINE },
-		{ M0_FID_TINIT('e', 1, 7),  M0_NC_ONLINE },
-		{ M0_FID_TINIT('c', 1, 11), M0_NC_ONLINE },
-		{ M0_FID_TINIT('k', 1, 76), M0_NC_ONLINE },
-		{ M0_FID_TINIT('k', 1, 77), M0_NC_ONLINE },
-		{ M0_FID_TINIT('k', 1, 78), M0_NC_ONLINE },
+	static const struct m0_fid disk_76 = M0_FID_TINIT('k', 1, 76);
+	static const struct m0_fid disk_77 = M0_FID_TINIT('k', 1, 77);
+	static const struct m0_fid disk_78 = M0_FID_TINIT('k', 1, 78);
+	struct m0_ha_note notes[] = {
+		{ M0_FID_TINIT('a', 1, 3),  M0_NC_ONLINE }, // rack-3
+		{ M0_FID_TINIT('e', 1, 7),  M0_NC_ONLINE }, // enclosure-7
+		{ M0_FID_TINIT('c', 1, 11), M0_NC_ONLINE }, // controller-11
+		{ disk_76,                  M0_NC_ONLINE },
+		{ disk_77,                  M0_NC_ONLINE },
+		{ disk_78,                  M0_NC_ONLINE }
 	};
-	struct m0_ha_nvec nvec = { ARRAY_SIZE(n1), n1 };
-	struct m0_ha_nvec nvec1 = { 1, n1 };
-	struct m0_fid     vpverfid;
-	uint64_t          fpver_id;
+	const struct m0_ha_nvec nvec = { ARRAY_SIZE(notes), notes };
+	struct m0_conf_pver    *pver0 = NULL;
+	struct m0_conf_pver    *pver1 = NULL;
+	struct m0_conf_pver    *pver2 = NULL;
+	struct m0_conf_pver    *pver3 = NULL;
+	struct m0_conf_pver    *pver4 = NULL;
+	struct m0_reqh          reqh;
+	struct m0_confc        *confc = m0_reqh2confc(&reqh);
+	int                     rc;
 	/*
-	 * You can generate a diagram of conf objects using bash commands:
+	 * Use these bash commands to visualize the tree of conf objects:
 	 *
 	 *     # helper function
 	 *     cg() { utils/m0confgen "$@"; }
@@ -507,7 +518,6 @@ static void test_poolversion_get(void)
 	 *
 	 *     open /tmp/conf.png
 	 */
-
 	m0_reqh_init(&reqh, &reqh_args);
 	ha_ut_conf_init(&reqh);
 
@@ -516,75 +526,55 @@ static void test_poolversion_get(void)
 	M0_UT_ASSERT(pver0 != NULL);
 	ha_ut_pver_kind_check(&pver0->pv_obj.co_id, M0_CONF_PVER_ACTUAL);
 	M0_UT_ASSERT(m0_fid_eq(&pver0->pv_obj.co_id, &M0_FID_TINIT('v', 1, 8)));
+	check_pver_subtree(confc, &pver0->pv_obj.co_id);
+	M0_UT_ASSERT(recd_disks(pver0) == 0);
 
-	/* Make disk from pool version 0  FAILED */
-	test_pver(confc, &pver0->pv_obj.co_id);
-	/* Make disk from pool verison 0  FAILED */
-	n1[0].no_id   = M0_FID_TINIT('k', 1, 77);
-	n1[0].no_state = M0_NC_TRANSIENT;
-	m0_ha_state_accept(&nvec1);
-
+	ha_state_accept_1(&disk_77, M0_NC_TRANSIENT);
 	rc = m0_conf_pver_get(&reqh.rh_profile, confc, &pver1);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(pver1 != NULL);
-	M0_UT_ASSERT(pver0->pv_u.subtree.pvs_recd[M0_CONF_PVER_LVL_DISKS] == 1);
-
+	M0_UT_ASSERT(pver1 != pver0);
 	ha_ut_pver_kind_check(&pver1->pv_obj.co_id, M0_CONF_PVER_VIRTUAL);
-	test_pver(confc, &pver1->pv_obj.co_id);
+	check_pver_subtree(confc, &pver1->pv_obj.co_id);
+	M0_UT_ASSERT(recd_disks(pver0) == 1);
 
-	rc = m0_conf_root_open(confc, &root);
-	M0_UT_ASSERT(rc == 0);
-	m0_conf_pver_fid_read(&pver1->pv_obj.co_id, NULL, (uint64_t *)&fpver_id,
-			      NULL);
-	rc = m0_conf_pver_formulaic_find(fpver_id, root, &fpver);
-	M0_UT_ASSERT(rc == 0);
-	ha_ut_pver_kind_check(&fpver->pv_obj.co_id, M0_CONF_PVER_FORMULAIC);
-	/* Make another disk from pool verison 0  FAILED */
-	n1[0].no_id   = M0_FID_TINIT('k', 1, 78);
-	n1[0].no_state = M0_NC_TRANSIENT;
-	m0_ha_state_accept(&nvec1);
-
-	vpverfid = m0_conf_pver_fid(M0_CONF_PVER_VIRTUAL, 1, 27);
-
-	rc = m0_conf_pver_find_by_fid(&vpverfid, root, &pver2);
-	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(pver2 != NULL);
-	ha_ut_pver_kind_check(&pver2->pv_obj.co_id, M0_CONF_PVER_VIRTUAL);
-	test_pver(confc, &pver2->pv_obj.co_id);
-
+	ha_state_accept_1(&disk_78, M0_NC_FAILED);
 	rc = m0_conf_pver_get(&reqh.rh_profile, confc, &pver2);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(pver2 != NULL);
-	M0_UT_ASSERT(pver0->pv_u.subtree.pvs_recd[M0_CONF_PVER_LVL_DISKS] == 2);
+	M0_UT_ASSERT(pver2 != pver1 && pver2 != pver0);
 	ha_ut_pver_kind_check(&pver2->pv_obj.co_id, M0_CONF_PVER_VIRTUAL);
+	check_pver_subtree(confc, &pver2->pv_obj.co_id);
+	M0_UT_ASSERT(recd_disks(pver0) == 2);
 
-	/* Make another disk from pool version 0  FAILED */
-	n1[0].no_id   = M0_FID_TINIT('k', 1, 76);
-	n1[0].no_state = M0_NC_TRANSIENT;
-	m0_ha_state_accept(&nvec1);
+	ha_state_accept_1(&disk_76, M0_NC_TRANSIENT);
 	rc = m0_conf_pver_get(&reqh.rh_profile, confc, &pver3);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(pver3 != NULL);
-	M0_UT_ASSERT(pver0->pv_u.subtree.pvs_recd[M0_CONF_PVER_LVL_DISKS] == 3);
-	/* Three disk failure, exceeds allowance_vector. */
+	M0_UT_ASSERT(pver3 != pver2 && pver3 != pver1 && pver3 != pver0);
+	/*
+	 * Three disks has failed. This exceeds allowances of formulaic
+	 * pvers of pool-4 ==> Mero switches to another pool.
+	 */
 	ha_ut_pver_kind_check(&pver3->pv_obj.co_id, M0_CONF_PVER_ACTUAL);
 	M0_UT_ASSERT(m0_fid_eq(&pver3->pv_obj.co_id,
 			       &M0_FID_TINIT('v', 1, 57)));
+	check_pver_subtree(confc, &pver3->pv_obj.co_id);
+	M0_UT_ASSERT(recd_disks(pver0) == 3);
+	M0_UT_ASSERT(recd_disks(pver3) == 0);
 
+	/* Put all disks back online. */
 	m0_ha_state_accept(&nvec);
 	rc = m0_conf_pver_get(&reqh.rh_profile, confc, &pver4);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(pver4 != NULL);
-	M0_UT_ASSERT(pver0->pv_u.subtree.pvs_recd[M0_CONF_PVER_LVL_DISKS] == 0);
-	ha_ut_pver_kind_check(&pver4->pv_obj.co_id, M0_CONF_PVER_ACTUAL);
-	M0_UT_ASSERT(pver0 == pver4);
+	M0_UT_ASSERT(pver4 == pver0);
+	M0_UT_ASSERT(recd_disks(pver0) == 0);
 
 	m0_confc_close(&pver0->pv_obj);
 	m0_confc_close(&pver1->pv_obj);
 	m0_confc_close(&pver2->pv_obj);
 	m0_confc_close(&pver3->pv_obj);
 	m0_confc_close(&pver4->pv_obj);
-	m0_confc_close(&root->rt_obj);
 	ha_ut_conf_fini(&reqh);
 	m0_reqh_fini(&reqh);
 }
@@ -633,7 +623,6 @@ static int ha_state_ut_init(void)
 
 	done_get_chan_init();
 	start_rpc_client_and_server();
-        m0_fi_enable("pool_version_update", "no-pver-create");
 	return 0;
 }
 
@@ -642,7 +631,6 @@ static int ha_state_ut_fini(void)
 	stop_rpc_client_and_server();
 	done_get_chan_fini();
 	ast_thread_fini();
-        m0_fi_disable("pool_version_update", "no-pver-create");
 	return 0;
 }
 
