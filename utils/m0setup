@@ -24,6 +24,7 @@ use_existing_loop_imgs=false
 do_gendisk=true
 do_genfacts=false
 do_mkfs=false
+directio=true
 activate_singlenode=false
 only_list_disks=false
 pool_width=$DEFAULT_POOL_WIDTH
@@ -91,6 +92,8 @@ Usage: $PROG_NAME [-h|--help] [-v|--verbose] [-c]
                            is taken from '-P|--pool-width' and image files
                            location from '-d|--loop-img-dir' options.
 
+   -I|--no-directio        Disable direct-IO for mero storage.
+
    -C                      Clean generated config files only, doesn't affect loop
                            devices.
 
@@ -119,13 +122,14 @@ Usage: $PROG_NAME [-h|--help] [-v|--verbose] [-c]
 
                            Use linuxstobs instead of adstobs for data storage.
                            Linuxstobs will be created under provided 'path'
-                           argument.
+                           argument. Implies --no-directio.
 
    -Z|--linuxstob-mode=[path]
 
                            Use linuxstobs instead of adstobs for data storage.
                            If 'path' argument provided, all mero data and
                            meta-data will be created under that path.
+                           Implies --no-directio.
 
    -v|--verbose            Enable verbose output.
 
@@ -142,8 +146,8 @@ parse_cli_options()
     # Note that we use `"$@"' to let each command-line parameter expand to a
     # separate word. The quotes around `$@' are essential!
     # We need TEMP as the `eval set --' would nuke the return value of getopt.
-    TEMP=$( getopt --options hvclCEGHAMP:N:K:i:d:m:s:p:z:Z:: \
-                   --longoptions help,verbose,cleanup,use-existing-loop-imgs,no-gendisk,halon-facts,activate-singlenode-services,mkfs,list-disks,pool-width:,data-units:,parity-units:,ios-number:,loop-img-dir:,mero-dir:,disk-size:,disk-pattern:,linuxstob-path:,linuxstob-mode:: \
+    TEMP=$( getopt --options hvclICEGHAMP:N:K:i:d:m:s:p:z:Z:: \
+                   --longoptions help,verbose,cleanup,use-existing-loop-imgs,no-directio,no-gendisk,halon-facts,activate-singlenode-services,mkfs,list-disks,pool-width:,data-units:,parity-units:,ios-number:,loop-img-dir:,mero-dir:,disk-size:,disk-pattern:,linuxstob-path:,linuxstob-mode:: \
                    --name "$PROG_NAME" -- "$@" )
 
     [[ $? -ne 0 ]] && help
@@ -156,6 +160,7 @@ parse_cli_options()
             -h|--help)          help stdout ;;
             -c|--cleanup)       do_cleanup=true; do_loop_cleanup=true; shift ;;
             -l|--list-disks)    only_list_disks=true; shift   ;;
+            -I|--no-directio)   directio=false;       shift   ;;
             -C)                 do_cleanup=true;      shift   ;;
             -E|--use-existing-loop-imgs)
                                 use_existing_loop_imgs=true; shift ;;
@@ -169,11 +174,13 @@ parse_cli_options()
                                 linuxstob_mode=true
                                 linuxstob_stobs_dir=$2
                                 do_gendisk=false
+                                directio=false
                                 shift 2 ;;
             -Z|--linuxstob-mode)
                                 linuxstob_mode=true
                                 [[ -n $2 ]] && mero_data_dir=$2
                                 do_gendisk=false
+                                directio=false
                                 shift 2 ;;
             -P|--pool-width)    pool_width=$2;        shift 2 ;;
             -N|--data-units)    data_units=$2;        shift 2 ;;
@@ -317,6 +324,7 @@ $hostname  m0_pool_width=$pool_width
 $hostname  m0_data_units=$data_units
 $hostname  m0_parity_units=$parity_units
 $hostname  m0_disk_size_in_bytes=$((loop_img_size_gb * 1024**3))
+$hostname  m0_directio=$directio
 $hostname  m0_datadir=$mero_data_dir
 GENDERS_END
 

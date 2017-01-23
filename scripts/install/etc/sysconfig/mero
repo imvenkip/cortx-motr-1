@@ -88,6 +88,9 @@ MERO_M0T1FS_MOUNTPOINT='/mnt/m0t1fs'
 #MERO_M0D_BETX_REG_SIZE_MAX=16777216
 #MERO_M0D_BETX_PAYLOAD_SIZE_MAX=2097152
 
+# Control data path (stob) direct-IO, by default is 'true'
+#MERO_M0D_DIRECT_IO=false
+
 # Override default options of m0d.
 #MERO_M0D_OPTS=
 
