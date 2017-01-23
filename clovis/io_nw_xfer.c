@@ -647,9 +647,6 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 	struct ioreq_fop            *irfop;
 	struct m0_net_domain        *ndom;
 	struct m0_rpc_bulk_buf      *rbuf;
-	struct m0_poolmach          *pm;
-	struct m0_poolmach_versions  curr;
-	struct m0_poolmach_versions *cli;
 	struct m0_io_fop            *iofop;
 	struct m0_fop_cob_rw        *rw_fop;
 	struct nw_xfer_request      *xfer;
@@ -712,13 +709,8 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 			goto err;
 		}
 
-		pm = clovis_ioo_to_poolmach(ioo);
-		M0_ASSERT(pm != NULL);
-		m0_poolmach_current_version_get(pm, &curr);
 		iofop = &irfop->irf_iofop;
 		rw_fop = io_rw_get(&iofop->if_fop);
-		cli = (struct m0_poolmach_versions *)&rw_fop->crw_version;
-		*cli = curr;
 
 		rc = bulk_buffer_add(irfop, ndom, &rbuf, &delta, maxsize);
 		if (rc != 0) {
@@ -1212,10 +1204,6 @@ static void nw_xfer_req_complete(struct nw_xfer_request *xfer, bool rmw)
 
 		xfer->nxr_bytes += ti->ti_databytes;
 		ti->ti_databytes = 0;
-
-		if (ti->ti_rc == M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH)
-			/* Resets status code before dgmode read IO. */
-			ti->ti_rc = 0;
 
 		m0_tl_teardown(iofops, &ti->ti_iofops, irfop) {
 			fop = &irfop->irf_iofop.if_fop;

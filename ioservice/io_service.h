@@ -166,8 +166,6 @@ M0_INTERNAL int m0_ios_getattr_async(struct m0_reqh *reqh,
  */
 M0_INTERNAL void m0_ios_net_buffer_pool_size_set(uint32_t buffer_pool_size);
 
-M0_INTERNAL int m0_ios__poolmach_check(struct m0_poolmach *poolmach,
-                                       struct m0_poolmach_versions *cliv);
 /** @} end of io_service */
 
 #endif /* __MERO_IOSERVICE_IO_SERVICE_H__ */

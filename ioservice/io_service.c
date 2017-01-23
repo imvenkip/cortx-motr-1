@@ -164,14 +164,6 @@ M0_INTERNAL int m0_ios_register(void)
 {
 	int rc;
 
-	/*
-	 * The onwire version-number structure is declared as a struct,
-	 * not a sequence (which is more like an array.
-	 * This avoid dynamic memory for every request and reply fop.
-	 */
-	M0_CASSERT(sizeof (struct m0_poolmach_versions) ==
-		   sizeof (struct m0_fv_version));
-
 	rc = m0_ioservice_fop_init();
 	if (rc != 0)
 		return M0_ERR_INFO(rc, "Unable to initialize fops");
@@ -851,7 +843,6 @@ static void ios_cob_fop_populate(struct m0_reqh      *reqh,
 				 uint32_t             cob_idx)
 {
 	struct m0_fop_cob_common *common;
-	struct m0_poolmach       *poolmach;
 
 	M0_PRE(fop != NULL);
 	M0_PRE(fop->f_type != NULL);
@@ -861,10 +852,6 @@ static void ios_cob_fop_populate(struct m0_reqh      *reqh,
 	common = m0_cobfop_common_get(fop);
 	M0_ASSERT(common != NULL);
 
-	poolmach = m0_ios_poolmach_get(reqh);
-	/* fill in the current client known version */
-	m0_poolmach_current_version_get(poolmach,
-		(struct m0_poolmach_versions *)&common->c_version);
 	common->c_gobfid   = *gob_fid;
 	common->c_cobfid   = *cob_fid;
 	common->c_cob_idx  = cob_idx;

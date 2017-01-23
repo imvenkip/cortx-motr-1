@@ -398,9 +398,6 @@ static void ioreq_iosm_handle_executed(struct m0_sm_group *grp,
 			 */
 			rc = ioo->ioo_ops->iro_dgmode_read(ioo, rmw);
 			if (rc != 0) {
-				if (rc ==
-				    M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH)
-					rc = -EAGAIN;
 				M0_LOG(M0_INFO,
 				       "iro_dgmode_read() returns error: %d",
 				       rc);
@@ -441,9 +438,6 @@ static void ioreq_iosm_handle_executed(struct m0_sm_group *grp,
 			 */
 			rc = ioo->ioo_ops->iro_dgmode_write(ioo, rmw);
 			if (rc != 0) {
-				if (rc ==
-				    M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH)
-					rc = -EAGAIN;
 				M0_LOG(M0_ERROR, "iro_dgmode_write() failed, "
 						 "rc=%d", rc);
 				goto fail_locked;

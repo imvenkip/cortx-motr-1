@@ -1125,7 +1125,7 @@ static void dgmode_readio_test(void)
 	ioreq_sm_state_set(req, IRS_READ_COMPLETE);
 	ioreq_sm_state_set(req, IRS_DEGRADED_READING);
 	rw_rep = io_rw_rep_get(reply);
-	rw_rep->rwr_rc = M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH;
+	rw_rep->rwr_rc = 0;
 	io_req_fop_dgmode_read(irfop);
 
 	play = pdlayout_get(req);

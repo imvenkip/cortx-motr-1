@@ -73,72 +73,6 @@ M0_INTERNAL bool ioreq_fop_invariant(const struct ioreq_fop *fop)
 }
 
 /**
- * Callback to re-synchronise the pool machine, called when a server responds
- * with M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH.
- * This is heavily based on m0t1fs/linux_kernel/file.c::failure_vector_mismatch
- *
- * @param irfop The failed fop - used to extract the 'current' failure vector
- *              version number.
- */
-static inline void failure_vector_mismatch(struct ioreq_fop *irfop)
-{
-	uint32_t                     i = 0;
-	int                          c_count;
-	struct m0_fop               *reply;
-	struct m0_rpc_item          *reply_item;
-	struct m0_fop_cob_rw_reply  *rw_reply;
-	struct m0_fv_version        *reply_version;
-	struct m0_fv_updates        *reply_updates;
-	struct m0_clovis_op_io      *ioo;
-	struct m0_poolmach_versions *cli;
-	struct m0_poolmach_versions *srv;
-	struct m0_poolmach_event    *event;
-	struct m0_poolmach          *pm;
-
-	M0_ENTRY();
-
-	M0_PRE(irfop != NULL);
-
-	ioo = bob_of(irfop->irf_tioreq->ti_nwxfer, struct m0_clovis_op_io,
-		     ioo_nwxfer, &ioo_bobtype);
-	pm = clovis_ioo_to_poolmach(ioo);
-	M0_ASSERT(pm != NULL);
-
-	reply_item    = irfop->irf_iofop.if_fop.f_item.ri_reply;
-	reply         = m0_rpc_item_to_fop(reply_item);
-	rw_reply      = io_rw_rep_get(reply);
-	reply_version = &rw_reply->rwr_fv_version;
-	reply_updates = &rw_reply->rwr_fv_updates;
-	srv           = (struct m0_poolmach_versions *)reply_version;
-	cli = &pm->pm_state->pst_version;
-
-	M0_LOG(M0_DEBUG, ">>>VERSION MISMATCH!");
-	m0_poolmach_version_dump(cli);
-	m0_poolmach_version_dump(srv);
-
-	/*
-	 * Retrieve the latest server version and
-	 * updates and apply to the client's copy.
-	 * When -EAGAIN is return, this system
-	 * call will be restarted.
-	 */
-	while (i < reply_updates->fvu_count) {
-		c_count = pm->pm_state->pst_version.pvn_version[PVE_READ];
-		if (c_count == reply_version->fvv_read)
-			break;
-
-		event = (struct m0_poolmach_event*)&reply_updates->fvu_events[i];
-		m0_poolmach_event_dump(event);
-		m0_poolmach_state_transit(pm, event, NULL);
-		i++;
-	}
-
-	M0_LOG(M0_DEBUG, "<<<VERSION MISMATCH!");
-
-	M0_LEAVE();
-}
-
-/**
  * AST-Callback for the rpc layer when it receives a reply fop.
  * This is heavily based on m0t1fs/linux_kernel/file.c::io_bottom_half
  *
@@ -212,18 +146,6 @@ static void clovis_io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast
 	rc = gen_rep->gr_rc;
 	rc = rc ?: rw_reply->rwr_rc;
 
-	/*
-	 * ##TODO: A cleaner approach to ignore
-	 *         M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH error
-	 *         will be handeled as part of MERO-1502.
-	 *
-	 * if (rc == M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH) {
-	 *	M0_ASSERT(rw_reply != NULL);
-	 *	M0_LOG(M0_FATAL, "[%p] item %p, VERSION_MISMATCH received on "
-	 *	FID_F, req, req_item, FID_P(&tioreq->ti_fid));
-	 *	failure_vector_mismatch(irfop);
-	 * }
-	 */
 	irfop->irf_reply_rc = rc;
 
 

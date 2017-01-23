@@ -730,8 +730,6 @@ static struct m0_fom *cc_fom_alloc()
 	fop_alloc(fom, COB_CREATE);
 	M0_UT_ASSERT(fom->fo_fop != NULL);
 	cob_fom_populate(fom);
-	/* To populate pool version. */
-	cob_fom_pool_version_get(fom);
 	m0_fom_phase_set(fom, M0_FOPH_COB_OPS_PREPARE);
 
 	return fom;
@@ -1041,8 +1039,6 @@ static struct m0_fom *cd_fom_alloc()
 	fop_alloc(fom, COB_DELETE);
 	M0_UT_ASSERT(fom->fo_fop != NULL);
 	cob_fom_populate(fom);
-	/* To populate pool version. */
-	cob_fom_pool_version_get(fom);
 	m0_fom_phase_set(fom, M0_FOPH_COB_OPS_PREPARE);
 
 	return fom;
@@ -1329,59 +1325,6 @@ static void cob_delete_api_test(void)
 }
 
 # if 0
-static void cobfoms_fv_updates(void)
-{
-	struct m0_reqh          *reqh;
-	struct m0_poolmach      *pm;
-	struct m0_poolmach_event event;
-	struct m0_be_tx_credit   cred = {};
-	struct m0_be_tx          tx = {};
-	struct m0_sm_group      *grp  = m0_locality0_get()->lo_grp;
-	struct m0_mero          *mero;
-	struct m0_pool_version  *pver;
-	int                      rc;
-
-	event.pe_type  = M0_POOL_DEVICE;
-	event.pe_index = 1;
-	event.pe_state = M0_PNDS_FAILED;
-
-	reqh = m0_cs_reqh_get(&cut->cu_sctx.rsx_mero_ctx);
-        mero = m0_cs_ctx_get(reqh);
-        pver = m0_pool_version_find(&mero->cc_pools_common,
-                                    &CONF_PVER_FID);
-        M0_UT_ASSERT(pver != NULL);
-        pm = &pver->pv_mach;
-	M0_UT_ASSERT(pm != NULL);
-
-	m0_sm_group_lock(grp);
-	m0_be_tx_init(&tx, 0,reqh->rh_beseg->bs_domain, grp,
-		      NULL, NULL, NULL, NULL);
-	m0_poolmach_store_credit(pm, &cred);
-
-	m0_be_tx_prep(&tx, &cred);
-	rc = m0_be_tx_open_sync(&tx);
-	M0_ASSERT(rc == 0);
-	rc = m0_poolmach_state_transit(pm, &event, &tx);
-	m0_be_tx_close_sync(&tx);
-	m0_be_tx_fini(&tx);
-	M0_UT_ASSERT(rc == 0);
-	m0_sm_group_unlock(grp);
-
-	cobfoms_send_internal(&m0_fop_cob_create_fopt, NULL, 0,
-			      M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH,
-			      M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH,
-			      COB_FOP_SINGLE);
-}
-#endif
-
-/** @todo: MERO-1502: When HA will be in place we no longer require
- *         VERSION_MISMATCH error as server/client will fetch latest
- *         pool machine states from HA at every crash/reboot.
- *         Please visit the Jira page for more details.
- *         Commenting this now as a cleaner approach to ignore it
- *         is being handeled as part of MERO-1502.
- */
-# if 0
 #define COB_DATA(data) M0_XCODE_OBJ(m0_fop_cob_common_xc, data)
 
 static int cob_cd_op(struct m0_fol_rec *rec, struct m0_fop *fop, bool undo) {
@@ -1617,17 +1560,6 @@ struct m0_ut_suite cobfoms_ut = {
 		 * to read back from stob finalized transactions payloads.
 		 * This might be available along with recovery.
 		{ "cob_create_delete_fol_verify",   cobfoms_fol_verify}, */
-
-/** @todo: MERO-1502: When HA will be in place we no longer require
- *         VERSION_MISMATCH error as server/client will fetch latest
- *         pool machine states from HA at every crash/reboot.
- *         Please visit the Jira page for more details.
- *         Commenting this now as a cleaner approach to ignore it
- *         is being handeled as part of MERO-1502.
- */
-#if 0
-		{ "single_fop_with_mismatch_fv",    cobfoms_fv_updates},
-#endif
 		{ "cobfoms_utfini",                 cobfoms_utfini},
 		{ NULL, NULL }
 	}

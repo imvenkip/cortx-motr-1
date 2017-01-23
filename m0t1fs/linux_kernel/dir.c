@@ -93,30 +93,7 @@ static void cob_rpc_item_cb(struct m0_rpc_item *item)
 
 	M0_LOG(M0_DEBUG, "%p[%u], item->ri_error %d, reply->cor_rc %d", item,
 	       item->ri_type->rit_opcode, item->ri_error, reply->cor_rc);
-	if (reply->cor_rc == M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH) {
-		struct m0_fv_event     *event;
-		struct m0t1fs_sb       *csb = creq->cr_csb;
-		uint32_t                i;
-		struct m0_pool_version *pv;
-
-		/* Retrieve the latest server version and update and apply
-		 * to the client's copy.
-		 */
-		pv = m0_pool_version_find(&csb->csb_pools_common,
-					  &creq->cr_pver);
-		if (pv == NULL) {
-			creq->cr_rc = -ENOENT;
-			goto out;
-		}
-		rc = 0;
-		for (i = 0; i < reply->cor_common.cor_fv_updates.fvu_count; ++i) {
-			event = &reply->cor_common.cor_fv_updates.fvu_events[i];
-			m0_poolmach_state_transit(&pv->pv_mach,
-						  (struct m0_poolmach_event*)event,
-						  NULL);
-		}
-	} else
-		rc = reply->cor_rc;
+	rc = reply->cor_rc;
 out:
 	if (creq->cr_rc == 0)
 		creq->cr_rc = rc;
@@ -2080,11 +2057,8 @@ static int m0t1fs_ios_cob_fop_populate(struct m0t1fs_sb         *csb,
 				       const struct m0_fid      *gob_fid,
 				       uint32_t                  cob_idx)
 {
-	struct m0_fop_cob_common    *common;
-	struct m0_poolmach_versions *cli;
-	struct m0_poolmach_versions  curr;
-	struct m0_fop_cob_truncate  *ct;
-	struct m0_pool_version      *pv;
+	struct m0_fop_cob_common   *common;
+	struct m0_fop_cob_truncate *ct;
 
 	M0_PRE(fop != NULL);
 	M0_PRE(fop->f_type != NULL);
@@ -2096,15 +2070,6 @@ static int m0t1fs_ios_cob_fop_populate(struct m0t1fs_sb         *csb,
 	common = m0_cobfop_common_get(fop);
 	M0_ASSERT(common != NULL);
 
-	/* fill in the current client known version */
-	pv = m0_pool_version_find(&csb->csb_pools_common,
-				  &mop->mo_attr.ca_pver);
-	if (pv == NULL)
-		return M0_ERR(-ENOENT);
-
-	m0_poolmach_current_version_get(&pv->pv_mach, &curr);
-	cli = (struct m0_poolmach_versions*)&common->c_version;
-	*cli = curr;
 	body_mem2wire(&common->c_body, &mop->mo_attr, mop->mo_attr.ca_valid);
 
 	common->c_gobfid = *gob_fid;
@@ -2333,29 +2298,6 @@ M0_INTERNAL int m0t1fs_cob_getattr(struct inode *inode)
 		rc = getattr_rep->cgr_rc;
 		M0_LOG(M0_DEBUG, "%p[%u] getattr returned: %d", &fop->f_item,
 		       m0_fop_opcode(fop), rc);
-
-		if (rc == M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH) {
-			struct m0_fop_cob_op_rep_common *r_common;
-			struct m0_fv_event              *event;
-			uint32_t                         i;
-			struct m0_pool_version          *pv;
-			/* Retrieve the latest server version and updates
-			 * and apply to the client's copy.
-			 */
-			pv = m0_pool_version_find(&csb->csb_pools_common,
-						  &mo.mo_attr.ca_pver);
-			if (pv == NULL) {
-				m0_fop_put0_lock(fop);
-				return M0_ERR(-ENOENT);
-			}
-			rc = 0;
-			r_common = &getattr_rep->cgr_common;
-			for (i = 0; i < r_common->cor_fv_updates.fvu_count; ++i) {
-				event = &r_common->cor_fv_updates.fvu_events[i];
-				m0_poolmach_state_transit(&pv->pv_mach,
-					(struct m0_poolmach_event*)event, NULL);
-			}
-		}
 
 		if (rc == 0) {
 			body = &getattr_rep->cgr_body;

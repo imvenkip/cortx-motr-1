@@ -952,8 +952,6 @@ static const struct io_request_ops ioreq_oostore_ops = {
 	.iro_dgmode_recover = ioreq_dgmode_recover,
 };
 
-static inline void failure_vector_mismatch(struct io_req_fop *irfop);
-
 static inline uint32_t ioreq_sm_state(const struct io_request *req)
 {
 	return req->ir_sm.sm_state;
@@ -2901,7 +2899,7 @@ static int pargrp_iomap_dgmode_postprocess(struct pargrp_iomap *map)
 			dbuf = map->pi_databufs[row][col];
 			/*
 			 * Marks only those data buffers which lie within EOF.
-			 * Since all IO fops receive VERSION_MISMATCH error
+			 * Since all IO fops receive error
 			 * once sns repair starts (M0_PNDS_SNS_REPAIRING state)
 			 * read is not done for any of these fops.
 			 * Hence all pages other than the one which encountered
@@ -4085,8 +4083,6 @@ static int ioreq_iosm_handle(struct io_request *req)
 			 */
 			rc = req->ir_ops->iro_dgmode_read(req, rmw);
 			if (rc != 0) {
-				if (rc == M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH)
-					rc = -EAGAIN;
 				M0_LOG(M0_ERROR, "[%p] iro_dgmode_read() "
 				       "failed: rc=%d", req, rc);
 				goto fail_locked;
@@ -4112,8 +4108,6 @@ static int ioreq_iosm_handle(struct io_request *req)
 			 */
 			rc = req->ir_ops->iro_dgmode_write(req, rmw);
 			if (rc != 0) {
-				if (rc == M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH)
-					rc = -EAGAIN;
 				M0_LOG(M0_ERROR, "[%p] iro_dgmode_write() "
 				       "failed: rc=%d", req, rc);
 				goto fail_locked;
@@ -4231,8 +4225,6 @@ static int ioreq_iosm_handle(struct io_request *req)
 		/* Returns immediately if all devices are in healthy state. */
 		rc = req->ir_ops->iro_dgmode_write(req, rmw);
 		if (rc != 0) {
-			if (rc == M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH)
-				rc = -EAGAIN;
 			M0_LOG(M0_ERROR, "[%p] iro_dgmode_write() failed: "
 					"rc=%d", req, rc);
 			goto fail_locked;
@@ -5767,56 +5759,6 @@ static void io_rpc_item_cb(struct m0_rpc_item *item)
 	M0_LEAVE();
 }
 
-static inline void failure_vector_mismatch(struct io_req_fop *irfop)
-{
-	struct m0_poolmach_versions *cli;
-	struct m0_poolmach_versions *srv;
-	struct m0_fop               *reply;
-	struct m0_rpc_item          *reply_item;
-	struct m0_fop_cob_rw_reply  *rw_reply;
-	struct m0_fv_version        *reply_version;
-	struct m0_fv_updates        *reply_updates;
-	struct m0_poolmach_event    *event;
-	struct io_request           *req;
-        struct m0_poolmach          *pm;
-	uint32_t                     i = 0;
-	int                          c_count;
-
-	M0_PRE(irfop != NULL);
-
-	req = bob_of(irfop->irf_tioreq->ti_nwxfer, struct io_request, ir_nwxfer,
-		     &ioreq_bobtype);
-        pm = m0t1fs_file_to_poolmach(req->ir_file);
-        M0_ASSERT(pm != NULL);
-
-	reply_item = irfop->irf_iofop.if_fop.f_item.ri_reply;
-	reply      = m0_rpc_item_to_fop(reply_item);
-	rw_reply   = io_rw_rep_get(reply);
-	reply_version = &rw_reply->rwr_fv_version;
-	reply_updates = &rw_reply->rwr_fv_updates;
-	srv = (struct m0_poolmach_versions *)reply_version;
-	cli = &pm->pm_state->pst_version;
-	M0_LOG(M0_DEBUG, "[%p] >>>VERSION MISMATCH!", req);
-	m0_poolmach_version_dump(cli);
-	m0_poolmach_version_dump(srv);
-	/*
-	 * Retrieve the latest server version and
-	 * update and apply to the client's copy.
-	 * When -EAGAIN is returned, this system
-	 * call will be restarted.
-	 */
-	while (i < reply_updates->fvu_count) {
-		c_count = pm->pm_state->pst_version.pvn_version[PVE_READ];
-		if (c_count == reply_version->fvv_read)
-			break;
-		event = (struct m0_poolmach_event*)&reply_updates->fvu_events[i];
-		m0_poolmach_event_dump(event);
-		m0_poolmach_state_transit(pm, event, NULL);
-		i++;
-	}
-	M0_LOG(M0_DEBUG, "[%p] <<<VERSION MISMATCH!", req);
-}
-
 M0_INTERNAL struct m0_file *m0_fop_to_file(struct m0_fop *fop)
 {
 	struct m0_io_fop  *iofop;
@@ -5910,19 +5852,6 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	M0_LOG(M0_DEBUG, "[%p] item %p[%u], reply received = %d, "
 			 "sns state = %d", req, req_item,
 			 req_item->ri_type->rit_opcode, rc, req->ir_sns_state);
-
-	/*
-	 * ##TODO: A cleaner approach to ignore
-	 *         M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH error
-	 *         will be handeled as part of MERO-1502.
-	 *
-	 * if (rc == M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH) {
-	 *	M0_ASSERT(rw_reply != NULL);
-	 *	M0_LOG(M0_FATAL, "[%p] item %p, VERSION_MISMATCH received on "
-	 *	FID_F, req, req_item, FID_P(&tioreq->ti_fid));
-	 *	failure_vector_mismatch(irfop);
-	 * }
-	 */
 
 	irfop->irf_reply_rc = rc;
 
@@ -6132,9 +6061,6 @@ static void nw_xfer_req_complete(struct nw_xfer_request *xfer, bool rmw)
 		xfer->nxr_bytes += ti->ti_databytes;
 		ti->ti_databytes = 0;
 
-		if (ti->ti_rc == M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH)
-			/* Resets status code before dgmode read IO. */
-			ti->ti_rc = 0;
 		if (csb->csb_oostore && ti->ti_req_type == TI_COB_CREATE &&
 		    ioreq_sm_state(req) == IRS_WRITE_COMPLETE) {
 			target_ioreq_type_set(ti, TI_NONE);
@@ -6398,26 +6324,23 @@ out:
 static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 				       enum page_attr       filter)
 {
-	int			     rc = 0;
-	uint32_t		     seg = 0;
+	int                     rc = 0;
+	uint32_t                seg = 0;
 	/* Number of segments in one m0_rpc_bulk_buf structure. */
-	uint32_t		     bbsegs;
-	uint32_t		     maxsize;
-	uint32_t		     delta;
-	enum page_attr		     rw;
-	enum page_attr              *pattr;
-	struct m0_bufvec            *bvec;
-	struct io_request           *req;
-	struct m0_indexvec          *ivec;
-	struct io_req_fop           *irfop;
-	struct m0_net_domain        *ndom;
-	struct m0_rpc_bulk_buf      *rbuf;
-	struct m0_poolmach_versions  curr;
-	struct m0_poolmach_versions *cli;
-	struct m0_io_fop            *iofop;
-	struct m0_fop_cob_rw        *rw_fop;
-        struct m0_poolmach          *pm;
-	struct nw_xfer_request      *xfer;
+	uint32_t                bbsegs;
+	uint32_t                maxsize;
+	uint32_t                delta;
+	enum page_attr          rw;
+	enum page_attr         *pattr;
+	struct m0_bufvec       *bvec;
+	struct io_request      *req;
+	struct m0_indexvec     *ivec;
+	struct io_req_fop      *irfop;
+	struct m0_net_domain   *ndom;
+	struct m0_rpc_bulk_buf *rbuf;
+	struct m0_io_fop       *iofop;
+	struct m0_fop_cob_rw   *rw_fop;
+	struct nw_xfer_request *xfer;
 
 	M0_PRE_EX(target_ioreq_invariant(ti));
 	M0_PRE(M0_IN(filter, (PA_DATA, PA_PARITY)));
@@ -6482,13 +6405,8 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		}
 		++iommstats.a_io_req_fop_nr;
 
-		pm = m0t1fs_file_to_poolmach(req->ir_file);
-		M0_ASSERT(pm != NULL);
-		m0_poolmach_current_version_get(pm, &curr);
 		iofop = &irfop->irf_iofop;
 		rw_fop = io_rw_get(&iofop->if_fop);
-		cli = (struct m0_poolmach_versions *)&rw_fop->crw_version;
-		*cli = curr;
 
 		rc = bulk_buffer_add(irfop, ndom, &rbuf, &delta, maxsize);
 		if (rc != 0) {

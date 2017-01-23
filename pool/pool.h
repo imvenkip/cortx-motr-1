@@ -137,6 +137,9 @@ struct m0_pool_version {
 
 /**
  * Contains resources that are shared among the pools in the filesystem.
+ * In-memory references for members should be used under pc_mutex lock as
+ * due to configuration expiration they may be updated, and long term users
+ * should subscribe with rconfc update channels.
  */
 struct m0_pools_common {
 	struct m0_tl                      pc_pools;

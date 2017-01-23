@@ -311,34 +311,6 @@ struct m0_io_descs {
 } M0_XCA_SEQUENCE;
 
 /**
- * Failure vector (pool machine state) version numbers.
- * This is declared as a record, not a sequence (which is more like an
- * array, such that to avoid dynamic memory allocation for every
- * request and reply fop. The size of this struct will be assert to
- * be the same of struct m0_pool_version_numbers.
- */
-struct m0_fv_version {
-	uint64_t fvv_read;
-	uint64_t fvv_write;
-} M0_XCA_RECORD;
-
-struct m0_fv_event {
-	uint32_t fve_type;
-	uint32_t fve_index;
-	uint32_t fve_state;
-} M0_XCA_RECORD;
-
-/**
- * Failure vector updates.
- * This update is represented as an array of chars. This is the serialized
- * representation of failure vector.
- */
-struct m0_fv_updates {
-	uint32_t            fvu_count;
-	struct m0_fv_event *fvu_events;
-} M0_XCA_SEQUENCE;
-
-/**
  * A common sub structure to be referred by read and write reply fops.
  */
 struct m0_fop_cob_rw_reply {
@@ -347,15 +319,6 @@ struct m0_fop_cob_rw_reply {
 
 	/** Number of bytes read or written. */
 	uint64_t                rwr_count;
-
-	/** latest version number */
-	struct m0_fv_version    rwr_fv_version;
-
-	/**
-	 * Failure vector updates. This field is valid  iff rc is some
-	 * defined special code.
-	 */
-	struct m0_fv_updates    rwr_fv_updates;
 
 	/**
 	 * A field indicating whether repair has finished or not for given
@@ -399,9 +362,6 @@ enum m0_io_flags {
  * Common structure for read and write request fops.
  */
 struct m0_fop_cob_rw {
-	/** Client known failure vector version number */
-	struct m0_fv_version      crw_version;
-
 	/**
 	 * File identifier for global file. This is needed during degraded
 	 * mode write IO when SNS repair subsystem is queried for status of
@@ -474,9 +434,6 @@ struct m0_test_ios_fop {
 } M0_XCA_RECORD;
 
 struct m0_fop_cob_common {
-	/** Client known failure vector version number */
-	struct m0_fv_version c_version;
-
 	/** attributes of this cob */
 	struct m0_fop_cob    c_body;
 	/**
@@ -537,15 +494,6 @@ struct m0_fop_cob_truncate {
  * and "cob getattr" requests.
  */
 struct m0_fop_cob_op_rep_common {
-	/** latest version number */
-	struct m0_fv_version    cor_fv_version;
-
-	/**
-	 * Failure vector updates. This field is valid  iff rc is some
-	 * defined special code.
-	 */
-	struct m0_fv_updates    cor_fv_updates;
-
 	/** Returned values for an UPDATE operation */
 	struct m0_fop_mod_rep   cor_mod_rep;
 } M0_XCA_RECORD;
@@ -556,18 +504,6 @@ struct m0_fop_cob_op_rep_common {
 struct m0_fop_cob_op_reply {
 	int32_t                         cor_rc;
 	struct m0_fop_cob_op_rep_common cor_common;
-} M0_XCA_RECORD;
-
-/**
- * Fop to notify the failure vector version number if changed.
- * This fop itself contains the latest failure vector version number.
- */
-struct m0_fop_fv_notification {
-	/** the pool id of this failure vector */
-	uint64_t             fvn_poolid;
-
-	/** its latest failure vector version */
-	struct m0_fv_version fvn_version;
 } M0_XCA_RECORD;
 
 /**

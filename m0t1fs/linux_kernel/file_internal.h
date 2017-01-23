@@ -807,8 +807,7 @@
      locks are not available yet.
      IO path will block until the distributed lock is not granted.
 
-   - When SNS repair starts, the normal write IO will fail with a version
-     mismatch error.
+   - When SNS repair starts, the normal write IO will fail with an error.
 
    - The IO reply fop will be incorporated with a U64 field which will indicate
      whether SNS repair has finished or is yet to start on given file fid.
@@ -850,11 +849,6 @@
          will handle degraded mode write IO.
        - ioreq_iosm_handle() will be modified to handle new state whenever
          write IO fails with a particular error code.
-
-     - struct pargrp_iomap
-       - There will be no change in pargrp_iomap since when write IO request
-         fails with version mismatch error, no write has been done. And
-	 all pages need to be sent again for write IO.
 
      - struct nw_xfer_request
        - Needs change in nw_xfer_tioreq_map() to factor out common code

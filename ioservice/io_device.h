@@ -23,9 +23,6 @@
 #ifndef __MERO_IOSERVICE_IO_DEVICE_H__
 #define __MERO_IOSERVICE_IO_DEVICE_H__
 
-struct m0_fv_version;
-struct m0_fv_updates;
-
 /**
    @page io_calls_params_dld-fspec I/O calls Parameters Functional Specification
 
@@ -37,38 +34,6 @@ struct m0_fv_updates;
    - m0_fop_cob_rw_reply
    - m0_fop_cob_common
    - m0_fop_cob_op_reply
-
-   The followsing code is used to present the failure vector version which is
-   tagged to every i/o request, and failure vector updates which is replied
-   to clients or other services.
-
-   @code
-
-   DEF(m0_fv_version, RECORD,
-          _(fvv_read, U64),
-          _(fvv_write, U64));
-
-   DEF(m0_fv_event, RECORD,
-	_(fve_type, U32),
-	_(fve_index, U32),
-	_(fve_state, U32));
-
-   DEF(m0_fv_updates, SEQUENCE,
-          _(fvu_count, U32),
-          _(fvu_events, struct m0_fv_event));
-
-   @endcode
-
-   The failure vector updates are transferred on network as a sequence of
-   byte stream. The serialization and un-serialization is not designed in this
-   document.
-
-   The listed I/O requests will embed the failure vector version and the I/O
-   replies will embed the failure vector updates. The failure updates will not
-   exist for every reply. Actually for normal replies, they don't have the
-   failure vector updates. Only then the I/O services have detected the failure
-   vector version unmatched, a special error code is returned, along with the
-   failure vector updates.
 
    @see @ref io_calls_params_dldDFS "Detailed Functional Specification"
    @see @ref poolmach "pool machine"
@@ -91,14 +56,6 @@ struct m0_ios_poolmach_args {
 	uint32_t nr_nodes;
 };
 
-enum {
-	/**
-	 * i/o reply error code to indicate the client known failure vector
-	 * version is mismatch with the server's.
-	 */
-	M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH = -1001
-};
-
 /**
  * Initializes the pool machine. This will create a shared reqh key
  * and call m0_poolmach_init() internally.
@@ -114,20 +71,6 @@ M0_INTERNAL struct m0_poolmach *m0_ios_poolmach_get(struct m0_reqh *reqh);
  * Finializes the pool machine when it is no longer used.
  */
 M0_INTERNAL void m0_ios_poolmach_fini(struct m0_reqh_service *service);
-
-/**
- * Pack the current server version and delta of failure vectors
- * into (reply) buffers.
- * @param pm the pool machine.
- * @param cli the client known version.
- * @param version [out] pack the server known version into this.
- * @param updates [out] pack events from @cli to @version into this buffer.
- */
-M0_INTERNAL int
-m0_ios_poolmach_version_updates_pack(struct m0_poolmach         *pm,
-				     const struct m0_fv_version *cli,
-				     struct m0_fv_version       *version,
-				     struct m0_fv_updates       *updates);
 
 /** @} */ /* io_calls_params_dldDFS end group */
 

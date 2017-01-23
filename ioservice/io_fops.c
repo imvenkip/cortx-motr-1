@@ -370,12 +370,6 @@ M0_INTERNAL int m0_ioservice_fop_init(void)
 			 .xt        = m0_fop_cob_op_reply_xc,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
 
-	M0_FOP_TYPE_INIT(&m0_fop_fv_notification_fopt,
-			 .name      = "failure-vector-update",
-			 .opcode    = M0_IOSERVICE_FV_NOTIFICATION_OPCODE,
-			 .xt        = m0_fop_fv_notification_xc,
-			 .rpc_flags = M0_RPC_ITEM_TYPE_ONEWAY);
-
 	M0_FOP_TYPE_INIT(&m0_fop_cob_getattr_fopt,
 			 .name      = "getattr",
 			 .opcode    = M0_IOSERVICE_COB_GETATTR_OPCODE,

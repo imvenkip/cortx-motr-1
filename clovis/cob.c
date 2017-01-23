@@ -489,17 +489,6 @@ static void clovis_cob_ios_rio_replied(struct m0_rpc_item *item)
 
 	/* Failure in operation specific phase? */
 	rc = cob_rep->cor_rc;
-	if (rc == M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH) {
-		/* Post an ast to resend the request. */
-		icr->icr_ar.ar_ast.sa_cb =
-			&clovis_icr_ast_ver_mismatch;
-		m0_sm_ast_post(icr->icr_oo->oo_sm_grp,
-			       &icr->icr_ar.ar_ast);
-
-		/* New request triggered: not your business anymore. */
-		goto out;
-	}
-
 	if (rc != 0)
 		goto error;
 
@@ -572,8 +561,6 @@ static int clovis_cob_ios_fop_populate(struct m0_clovis_op_obj *oo,
 	int                          valid = 0;
 	struct m0_cob_attr           attr;
 	struct m0_fop_cob_common    *common;
-	struct m0_poolmach_versions *cli;
-	struct m0_poolmach_versions  curr;
 	struct m0_pool_version      *pv;
 	struct m0_clovis            *cinst;
 	uint32_t                     cob_type;
@@ -596,9 +583,6 @@ static int clovis_cob_ios_fop_populate(struct m0_clovis_op_obj *oo,
 	pv = m0_pool_version_find(&cinst->m0c_pools_common, &oo->oo_pver);
 	if (pv == NULL)
 		return M0_RC(-ENOENT);
-	m0_poolmach_current_version_get(&pv->pv_mach, &curr);
-	cli = (struct m0_poolmach_versions*)&common->c_version;
-	*cli = curr;
 
 	/*
 	 * Fill the m0_fop_cob_common. Note: commit c5ba7b47f68 introduced

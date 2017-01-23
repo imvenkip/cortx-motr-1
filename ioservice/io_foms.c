@@ -1144,40 +1144,6 @@ static int m0_io_fom_cob_rw_create(struct m0_fop *fop, struct m0_fom **out,
 	return M0_RC(rc);
 }
 
-/**
- * Checks client and server pool machine version numbers.
- * Checks target device state for cob fid.
- */
-M0_INTERNAL int m0_ios__poolmach_check(struct m0_poolmach *poolmach,
-                                       struct m0_poolmach_versions *cliv)
-{
-	struct m0_poolmach_versions curr;
-
-	M0_ENTRY();
-
-	m0_poolmach_current_version_get(poolmach, &curr);
-
-	/* Check the client version and server version before any processing */
-
-	/** @todo: MERO-1502: When HA will be in place we no longer require
-	 *         VERSION_MISMATCH error as server/client will fetch latest
-	 *         pool machine states from HA at every crash/reboot.
-	 *         Please visit the Jira page for more details.
-	 *         Commenting this now as a cleaner approach to ignore it
-	 *         is being handeled as part of MERO-1502.
-	 *
-	 * if (!m0_poolmach_version_equal(cliv, &curr)) {
-	 *	   M0_LOG(M0_DEBUG, "VERSION MISMATCH! poolmach = %p", poolmach);
-	 *	   m0_poolmach_version_dump(cliv);
-	 *	   m0_poolmach_version_dump(&curr);
-	 *	   m0_poolmach_event_list_dump(poolmach);
-	 *	   m0_poolmach_device_state_dump(poolmach);
-	 *	   return M0_RC(M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH);
-	 * }
-	 */
-	return M0_RC(0);
-}
-
 static int io_prepare(struct m0_fom *fom)
 {
 	struct m0_fop_cob_rw        *rwfop;
@@ -1186,9 +1152,9 @@ static int io_prepare(struct m0_fom *fom)
 	struct m0_reqh              *reqh;
 	struct m0_mero              *mero;
 	struct m0_fop_cob_rw_reply  *rwrep;
-	struct m0_poolmach_versions *cliv;
 	enum m0_pool_nd_state        device_state = 0;
 	int                          rc;
+	struct m0_pools_common      *pc;
 
 	M0_ENTRY("fom=%p", fom);
 
@@ -1199,6 +1165,7 @@ static int io_prepare(struct m0_fom *fom)
 	rwrep = io_rw_rep_get(fom->fo_rep_fop);
 	M0_ASSERT(fom_obj->fcrw_pver == NULL);
 	mero = m0_cs_ctx_get(reqh);
+	pc = &mero->cc_pools_common;
 	M0_LOG(M0_DEBUG, "Preparing %s IO index:%d @"FID_F"pver"FID_F,
 	       m0_is_read_fop(fom->fo_fop) ? "Read": "Write",
 	       (int)rwfop->crw_index,
@@ -1215,25 +1182,33 @@ static int io_prepare(struct m0_fom *fom)
 		rc = M0_FSO_AGAIN;
 		goto out;
 	}
-	poolmach = &fom_obj->fcrw_pver->pv_mach;
-	cliv = (struct m0_poolmach_versions*)(&rwfop->crw_version);
 
 	/*
 	 * Dumps the state of SNS repair with respect to global fid
 	 * from IO fop.
 	 * The IO request has already acquired file level lock on
 	 * given global fid.
+	 * Also due configuration update pool version may not be present in memory,
+	 * so check for in memory pool version.
 	 */
+	m0_mutex_lock(&pc->pc_mutex);
+	fom_obj->fcrw_pver = m0_pool_version_lookup(pc, &rwfop->crw_pver);
+	if (fom_obj->fcrw_pver == NULL) {
+		m0_mutex_unlock(&pc->pc_mutex);
+		M0_LOG(M0_ERROR, "pool version not found for %s IO index:%d @"
+				FID_F"pver"FID_F,
+				m0_is_read_fop(fom->fo_fop) ? "Read": "Write",
+				(int)rwfop->crw_index,
+				FID_P(&rwfop->crw_fid), FID_P(&rwfop->crw_pver));
+		m0_fom_phase_move(fom, -EINVAL, M0_FOPH_FAILURE);
+		rc = M0_FSO_AGAIN;
+		goto out;
+	}
+	poolmach = &fom_obj->fcrw_pver->pv_mach;
 	rc = m0_poolmach_device_state(poolmach,
 				      rwfop->crw_index,
 				      &device_state);
-	if (rc == 0) {
-		M0_LOG(M0_DEBUG, "pm=(%p:%p device=%d state=%d)",
-				 poolmach, poolmach->pm_pver,
-				 rwfop->crw_index,
-				 device_state);
-		rc = m0_ios__poolmach_check(poolmach, cliv);
-	}
+	m0_mutex_unlock(&pc->pc_mutex);
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "pm=(%p:%p device=%d state=%d)",
 				 poolmach, poolmach->pm_pver,
@@ -2045,7 +2020,6 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 	int                                       rc;
 	struct m0_io_fom_cob_rw                  *fom_obj;
 	struct m0_io_fom_cob_rw_state_transition  st;
-	struct m0_poolmach                       *poolmach;
 	struct m0_fop_cob_rw                     *rwfop;
 	struct m0_fop_cob_rw_reply               *rwrep;
 
@@ -2128,23 +2102,14 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 	/* Set operation status in reply fop if FOM ends.*/
 	if (m0_fom_phase(fom) == M0_FOPH_SUCCESS ||
 	    m0_fom_phase(fom) == M0_FOPH_FAILURE) {
-		if (fom_obj->fcrw_stob != NULL) {
+		if (fom_obj->fcrw_stob != NULL)
 			m0_storage_dev_stob_put(m0_cs_storage_devs_get(),
 						fom_obj->fcrw_stob);
-		}
 		rwrep = io_rw_rep_get(fom->fo_rep_fop);
 		rwrep->rwr_rc    = m0_fom_rc(fom);
 		rwrep->rwr_count = fom_obj->fcrw_count << fom_obj->fcrw_bshift;
 		/* Information about the transaction for this update op. */
 		m0_fom_mod_rep_fill(&rwrep->rwr_mod_rep, fom);
-		if (fom_obj->fcrw_pver != NULL) {
-			poolmach = &fom_obj->fcrw_pver->pv_mach;
-			M0_ASSERT(poolmach != NULL);
-			m0_ios_poolmach_version_updates_pack(poolmach,
-						     &rwfop->crw_version,
-						     &rwrep->rwr_fv_version,
-						     &rwrep->rwr_fv_updates);
-		}
 		return M0_RC(rc);
 	}
 
@@ -2261,7 +2226,6 @@ static void io_fom_addb2_descr(struct m0_fom *fom)
 
 	M0_ADDB2_ADD(M0_AVI_IOS_IO_DESCR,
 		     FID_P(&rwfop->crw_gfid), FID_P(&rwfop->crw_fid),
-		     rwfop->crw_version.fvv_read, rwfop->crw_version.fvv_write,
 		     iv->ci_nr,
 		     iv->ci_iosegs != NULL ? m0_io_count(iv) : 0,
 		     iv->ci_iosegs != NULL ? iv->ci_iosegs[0].ci_index : 0,
