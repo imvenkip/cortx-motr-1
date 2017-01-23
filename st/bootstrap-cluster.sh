@@ -116,10 +116,13 @@ run_command() {
 		;;
 	"bootstrap")
 		${HALON_FACTS_FUNC} | ssh $HALON_FACTS_HOST "cat > halon_facts.yaml"
-		ssh $HALON_FACTS_HOST hctl bootstrap cluster \
+		# -r 30000000 increases Halon lease timeout.
+		# It's a temporary workaround implemented as part of HALON-612.
+		ssh $HALON_FACTS_HOST "HALOND_STATION_OPTIONS='-r 30000000' \
+					hctl bootstrap cluster \
 					--facts halon_facts.yaml \
 					--roles $MERO_ROLE_MAPPINGS \
-					--halonroles $HALON_ROLE_MAPPINGS
+					--halonroles $HALON_ROLE_MAPPINGS"
 					# --facts $HALON_FACTS_PATH \
 		;;
 	"status")
