@@ -858,7 +858,7 @@ static int active_rm_ctx_create(struct m0_pools_common *pc,
 	active_rm = pc->pc_ha_ecl->ecl_rep.hae_active_rm_fid;
 	if (m0_fid_is_set(&active_rm)) {
 		rc = m0_conf_service_get(pc->pc_confc, &active_rm, &svc);
-		if (!rc == 0)
+		if (rc != 0)
 			return M0_ERR(rc);
 		rc = __service_ctx_create(pc, svc, service_connect);
 		m0_confc_close(&svc->cs_obj);
