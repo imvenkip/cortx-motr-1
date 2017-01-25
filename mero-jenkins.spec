@@ -104,6 +104,7 @@ Requires:       perl-Sereal
 Requires:       perl-MCE
 Requires:       ruby
 Requires:       facter
+Requires:       rubygem-net-ssh
 
 %description
 Mero filesystem runtime environment and servers.

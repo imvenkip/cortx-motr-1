@@ -4,10 +4,10 @@
 ---
 id_racks:
 <%- client_rack = 0 -%>
-<%- @q_dbfacts.values.select { |x| x['role'] != 'cc' }.map { |x| x['rack'] }.sort.uniq.select{ |x| !x.nil? }.each do |racknum| -%>
+<%- q_dbfacts.values.select { |x| x['role'] != 'cc' }.map { |x| x['rack'] }.sort.uniq.select{ |x| !x.nil? }.each do |racknum| -%>
    - rack_idx: <%= racknum %>
      rack_enclosures:
-  <%- @q_dbfacts.values.select { |x| x['role'] != 'cc' }.sort_by { |j| j["hostname"] }.uniq.each do |dbfact| -%>
+  <%- q_dbfacts.values.select { |x| x['role'] != 'cc' }.sort_by { |j| j["hostname"] }.uniq.each do |dbfact| -%>
     <%- if racknum == dbfact['rack'] -%>
        - enc_idx: <%=  dbfact['vpos'] %>
          enc_id: "<%=  dbfact['serial_no'] %>"
@@ -30,17 +30,29 @@ id_racks:
                  if_network: Data
                  if_ipAddrs: [<%= dbfact['vlan_data_ip'] -%>]
              h_halon:
-               hs_address: <%= dbfact['vlan_data_ip'] -%>:9000
-               hs_roles: ['station', 'ssu']
+               address: "<%= dbfact['vlan_data_ip'] -%>:<%= halon_port %>"
+               roles:
+      <%- if dbfact['role'].include? 'station' or station_nodes.include? dbfact['vlan_data_ip'] -%>
+                  - name: station
+      <%- end -%>
+      <%- if dbfact['role'].include? 'storage' -%>
+                  - name: ssu
+      <%- end -%>
+      <%- if dbfact['role'].include? 'cc' -%>
+                  - name: cmu
+      <%- end -%>
+      <%- if dbfact['role'].include? 'datamover' or m0t1fs_nodes.include? dbfact['vlan_data_ip'] -%>
+                  - name: dm
+      <%- end -%>
     <%- end -%>
   <%- end -%>
   <%- client_rack = racknum.to_i + 1 -%>
 <%- end -%>
-<%- if @extra_clients and !@extra_clients.empty? -%>
+<%- if extra_clients and !extra_clients.empty? -%>
   <%- count = 1 -%>
    - rack_idx: <%= client_rack %>
      rack_enclosures:
-  <%- @extra_clients.each do |x| -%>
+  <%- extra_clients.each do |x| -%>
        - enc_idx: <%= count %>
          enc_id: "<%= count %>"
          enc_bmc:
@@ -61,34 +73,33 @@ id_racks:
                - if_macAddress: ""
                  if_network: Data
                  if_ipAddrs: [<%= x['lnid'].split('@').first %>]
-             h_halon:
-               hs_address: <%= dbfact['vlan_data_ip'] -%>:9000
-               hs_roles: ['dm']
     <%- count += 1 -%>
   <%- end -%>
 <%- end -%>
 id_m0_servers:
-<%- @q_dbfacts.values.select { |x| x['role'] != 'cc' }.sort_by { |j| j["hostname"] }.uniq.each do |dbfact| -%>
-  <%- cpuarr = []; processorcount.to_i.times do |cpu| cpuarr.push(1); end -%>
+<%- q_dbfacts.values.select { |x| x['role'] != 'cc' }.sort_by { |j| j["hostname"] }.uniq.each do |dbfact| -%>
+  <%- cpuarr = []; dbfact['processorcount'].to_i.times do |cpu| cpuarr.push(1); end -%>
   - m0h_fqdn: "<%= dbfact['fqdn'] %>"
     host_mem_as: <%= m0_be_seg_size %>
-    host_mem_rss: <%= memorysize_mb.to_i * 1024 %>
-    host_mem_stack: <%= memorysize_mb.to_i * 1024 %>
-    host_mem_memlock: <%= memorysize_mb.to_i * 1024 %>
+    host_mem_rss: <%= dbfact['memorysize_mb'].to_i * 1024 %>
+    host_mem_stack: <%= dbfact['memorysize_mb'].to_i * 1024 %>
+    host_mem_memlock: <%= dbfact['memorysize_mb'].to_i * 1024 %>
     host_cores: <%= cpuarr %>
     lnid: "<%= dbfact['vlan_data_ip'] -%>@tcp"
-  <%- if dbfact['role'] == 'storage' -%>
     m0h_roles:
       - name: ha
+  <%- if dbfact['role'].include? 'storage' -%>
       - name: storage
-    <%- if @station_nodes.include? dbfact['vlan_data_ip'] -%>
-      - name: mds
-      - name: confd
+  <%- end -%>
+  <%- if dbfact['role'].include? 'datamover' or m0t1fs_nodes.include? dbfact['vlan_data_ip'] -%>
       - name: m0t1fs
-    <%- end -%>
-    <%- if !ios_hash.empty? -%>
+  <%- end -%>
+  <%- if dbfact['role'].include? 'confd' or confd_nodes.include? dbfact['vlan_data_ip'] -%>
+      - name: confd
+  <%- end -%>
+    <%- if !ios_hash[ dbfact['hostname'] ].empty? -%>
     m0h_devices:
-      <%- ios_hash.values.each do |key| -%>
+      <%- ios_hash[ dbfact['hostname'] ].each do |key| -%>
       - m0d_wwn: "<%= key['wwn'] %>"
         m0d_serial: "<%= key['serial'] %>"
         m0d_bsize: <%= m0_block_size %>
@@ -98,10 +109,9 @@ id_m0_servers:
     <%- else -%>
     m0h_devices: []
     <%- end -%>
-  <%- end -%>
 <%- end -%>
-<%- if @extra_clients and !@extra_clients.empty? -%>
-  <%= @extra_clients.to_yaml.gsub(/---\s*\n\s*/, '') + "\n" -%>
+<%- if extra_clients and !extra_clients.empty? -%>
+  <%= extra_clients.to_yaml.gsub(/---\s*\n\s*/, '') + "\n" -%>
 <%- end -%>
 id_m0_globals:
   m0_be_ios_seg_size: <%= m0_be_ios_seg_size %>
@@ -122,5 +132,9 @@ id_m0_globals:
   m0_min_rpc_recvq_len: <%= m0_min_rpc_recvq_len %>
   m0_parity_units: <%= m0_parity_units %>
   m0_failure_set_gen:
-    tag: Dynamic
-    contents: []
+    tag: Formulaic
+    contents:
+      - [0,0,0,0,1]
+      - [0,0,0,0,2]
+      - [0,0,0,1,0]
+      - [0,0,0,1,1]

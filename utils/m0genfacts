@@ -1,9 +1,14 @@
 #!/usr/bin/env ruby
 
 require 'optparse'
+require 'English'
+require 'net/ssh'
+require 'socket'
 require 'facter'
 require 'yaml'
+require 'json'
 require 'erb'
+require 'pp'
 
 #
 # Constants
@@ -11,195 +16,473 @@ require 'erb'
 
 SELF       = File.expand_path(__FILE__)
 PROG_NAME  = File.basename(SELF)
-TOP_SRCDIR = File.dirname(SELF).gsub(/^\/usr\/s?bin|\/?utils\/?$/, '')
+TOP_SRCDIR = File.dirname(SELF).gsub(%r{/usr/s?bin|/?utils/?$}, '')
 
-DEFAULT_TEMPLATE_FILE_PATH = '/usr/share/mero/templates/halon_facts.yaml.erb'
+DEFAULT_TEMPLATE_FILE_PATH = '/usr/share/mero/templates/halon_facts.yaml.erb'.freeze
 
 TEMPLATE_FILE_PATH = TOP_SRCDIR.empty? \
                         ? DEFAULT_TEMPLATE_FILE_PATH
                         : TOP_SRCDIR + '/scripts/install' + DEFAULT_TEMPLATE_FILE_PATH
 
-DATA_UNITS      = 8
-PARITY_UNITS    = 2
-BLOCK_SIZE      = 4096
-BE_SEGMENT_SIZE = 536870912
-MD_REDUNDANCY   = 1
+DATA_UNITS                 = 8
+PARITY_UNITS               = 2
+BLOCK_SIZE                 = 4096
+MD_REDUNDANCY              = 1
+MIN_RPC_RECVQ_LEN          = 2048
+BE_SEGMENT_SIZE            = 128 * 1024 * 1024  # 128MiB
+BE_IOS_SEG_SIZE            = 512 * 1024 * 1024  # 512MiB
+BE_LOG_SIZE                = 128 * 1024 * 1024  # 128MiB
+BE_TX_PAYLOAD_SIZE_MAX     = 2   * 1024 * 1204  # 2MiB
+BE_TX_REG_NR_MAX           = 256 * 1024
+BE_TX_REG_SIZE_MAX         = 32  * 1024 * 1024  # 32MiB
+BE_TXGR_FREEZE_TIMEOUT_MAX = 300                # 5min
+BE_TXGR_FREEZE_TIMEOUT_MIN = 300                # 5min
+BE_TXGR_PAYLOAD_SIZE_MAX   = 128 * 1024 * 1024  # 128MiB
+BE_TXGR_REG_NR_MAX         = 2   * 1024 * 1204
+BE_TXGR_REG_SIZE_MAX       = 512 * 1024 * 1024  # 512MiB
+BE_TXGR_TX_NR_MAX          = 82
 
 #
 # Command line options
 #
 
-options = {
-    output:        STDOUT,
-    template:      TEMPLATE_FILE_PATH,
-    dataunits:     DATA_UNITS,
-    parityunits:   PARITY_UNITS,
-    blocksize:     BLOCK_SIZE,
-    segsize:       BE_SEGMENT_SIZE,
-    mdredundancy:  MD_REDUNDANCY,
+$options = {
+    config:                 STDIN,
+    output:                 STDOUT,
+    template:               TEMPLATE_FILE_PATH,
+    dataunits:              DATA_UNITS,
+    parityunits:            PARITY_UNITS,
+    blocksize:              BLOCK_SIZE,
+    mdredundancy:           MD_REDUNDANCY,
+    minrpcrecvqlen:         MIN_RPC_RECVQ_LEN,
+    besegsize:              BE_SEGMENT_SIZE,
+    beiossegsize:           BE_IOS_SEG_SIZE,
+    belogsize:              BE_LOG_SIZE,
+    betxpayloadsizemax:     BE_TX_PAYLOAD_SIZE_MAX,
+    betxregnrmax:           BE_TX_REG_NR_MAX,
+    betxregsizemax:         BE_TX_REG_SIZE_MAX,
+    betxgrfreezetimeoutmax: BE_TXGR_FREEZE_TIMEOUT_MAX,
+    betxgrfreezetimeoutmin: BE_TXGR_FREEZE_TIMEOUT_MIN,
+    betxgrpayloadsizemax:   BE_TXGR_PAYLOAD_SIZE_MAX,
+    betxgrregnrmax:         BE_TXGR_REG_NR_MAX,
+    betxgrregsizemax:       BE_TXGR_REG_SIZE_MAX,
+    betxgrtxnrmax:          BE_TXGR_TX_NR_MAX,
 }
 
 OptionParser.new do |opts|
     opts.banner = <<END_USAGE
-usage: #{PROG_NAME} [options] disk1 disk2 ...
+usage: #{PROG_NAME} [$options] disk1 disk2 ...
+       #{PROG_NAME} [$options] < hosts.yml
 
   Arguments:
 
-    A list of block devices to be used for "ioservice". Block device configuration
-    can be provided via options, otherwise it will be queried using `blockdev`.
+    #{PROG_NAME} can operate in two modes: singlenode and cluster.
+
+    In a singlenode mode, halon_facts.yml configuration is created only for
+    the current host, which is assigned 'confd', 'storage' and 'm0t1fs' roles.
+    In this mode a list of storage devices should be passed as command-line
+    arguments. Size of block devices can be provided via -S|--dev-size option,
+    otherwise it will be queried automatically using `blockdev` command.
+
+    In a cluster mode, a simplified cluster configuration should be passed via
+    -c|--config option or it will be read from STDIN:
+
+        clients: [ hostA1, ... ]
+        confds:  [ hostB1, ... ]
+        ssus:    [ { host: 'hostC1', disks: 'sh-glob-pattern' }, ... ]
 
   Options:
 
 END_USAGE
 
+    opts.on('-c', '--config FILE',
+            "Input configuration. By default, it's read from STDIN") do |val|
+        $options[:config] = val
+    end
+
     opts.on('-o', '--output FILE',
-            'Output file. By default, configuration is printed on STDOUT') do |val|
-       options[:output] = val
+            'Output file. By default, generated config is printed on STDOUT') do |val|
+        $options[:output] = val
     end
 
     opts.on('-t', '--template FILE',
             "Input template file. Default is '#{TEMPLATE_FILE_PATH}'") do |val|
-       options[:template] = val
+        $options[:template] = val
     end
 
     opts.on('-e', '--netif IFNAME',
             'LNet interface. By default, a first network interface is used') do |val|
-       options[:iface] = val
+        $options[:iface] = val
     end
 
     opts.on('-N', '--data-units NUM',
             "Number of data units in parity group, default is #{DATA_UNITS}") do |val|
-       options[:dataunits] = val
+        $options[:dataunits] = val
     end
 
     opts.on('-K', '--parity-units NUM',
             "Number of parity units in parity group, default is #{PARITY_UNITS}") do |val|
-       options[:parityunits] = val
+        $options[:parityunits] = val
     end
 
     opts.on('-b', '--block-size BYTES',
             "Mero block size in bytes, default is #{BLOCK_SIZE}") do |val|
-       options[:blocksize] = val
-    end
-
-    opts.on('-s', '--segment-size BYTES',
-            "Mero BE segment size in bytes, default is #{BE_SEGMENT_SIZE}") do |val|
-       options[:segsize] = val
+        $options[:blocksize] = val
     end
 
     opts.on('-m', '--md-redundancy NUM',
             "Meta-data redundancy level, default is #{MD_REDUNDANCY}") do |val|
-       options[:mdredundancy] = val
+        $options[:mdredundancy] = val
     end
 
-    opts.on('-S', '--dev-size BYTES', "Blockdevice size in bytes") do |val|
-       options[:devsize] = val
+    opts.on('-S', '--dev-size BYTES', 'Blockdevice size in bytes') do |val|
+        $options[:devsize] = val
+    end
+
+    opts.on('--min-rpc-recvq-len NUM', "default #{MIN_RPC_RECVQ_LEN}") do |val|
+        $options[:minrpcrecvqlen] = val
+    end
+
+    opts.on('-s', '--be-segment-size BYTES',
+            "Mero BE segment size in bytes, default is #{BE_SEGMENT_SIZE}") do |val|
+        $options[:besegsize] = val
+    end
+
+    opts.on('--be-ios-seg-size BYTES', "default #{BE_IOS_SEG_SIZE}") do |val|
+        $options[:beiossegsize] = val
+    end
+
+    opts.on('--be-log-size BYTES', "default #{BE_LOG_SIZE}") do |val|
+        $options[:belogsize] = val
+    end
+
+    opts.on('--be-tx-payload-size-max BYTES', "default #{BE_TX_PAYLOAD_SIZE_MAX}") do |val|
+        $options[:betxpayloadsizemax] = val
+    end
+
+    opts.on('--be-tx-reg-nr-max NUM', "default #{BE_TX_REG_NR_MAX}") do |val|
+        $options[:betxregnrmax] = val
+    end
+
+    opts.on('--be-tx-reg-size-max BYTES', "default #{BE_TX_REG_SIZE_MAX}") do |val|
+        $options[:betxregsizemax] = val
+    end
+
+    opts.on('--be-txgr-freeze-timeout-max SEC', "default #{BE_TXGR_FREEZE_TIMEOUT_MAX}") do |val|
+        $options[:betxgrfreezetimeoutmax] = val
+    end
+
+    opts.on('--be-txgr-freeze-timeout-min SEC', "default #{BE_TXGR_FREEZE_TIMEOUT_MIN}") do |val|
+        $options[:betxgrfreezetimeoutmin] = val
+    end
+
+    opts.on('--be-txgr-payload-size-max BYTES', "default #{BE_TXGR_PAYLOAD_SIZE_MAX}") do |val|
+        $options[:betxgrpayloadsizemax] = val
+    end
+
+    opts.on('--be-txgr-reg-nr-max NUM', "default #{BE_TXGR_REG_NR_MAX}") do |val|
+        $options[:betxgrregnrmax] = val
+    end
+
+    opts.on('--be-txgr-reg-size-max BYTES', "default #{BE_TXGR_REG_SIZE_MAX}") do |val|
+        $options[:betxgrregsizemax] = val
+    end
+
+    opts.on('--be-txgr-tx-nr-max NUM', "default #{BE_TXGR_TX_NR_MAX}") do |val|
+        $options[:betxgrtxnrmax] = val
     end
 
     opts.on('-v', '--[no-]verbose',
             'Run verbosely, print messages into STDERR') do |val|
-        options[:verbose] = val
+        $options[:verbose] = val
     end
 
     opts.on_tail('-h', '--help', 'Print help message and exit') do
         puts opts
         exit
     end
-
 end.parse!
 
 #
 # Utility functions
 #
 
+def log(*messages)
+    STDERR.puts('--->  ' + messages.join('') )
+end
+
+def debug(*messages)
+    STDERR.puts('--->  ' + messages.join('') ) if $options[:verbose]
+end
+
 def die(*messages)
     abort "#{PROG_NAME}: ERROR: " + messages.join('')
 end
 
 #
-# Facts
+# Helpers
 #
 
-hostname = Facter.value(:hostname)
-fqdn     = Facter.value(:fqdn)
-iface    = options[:iface] || Facter.value(:interfaces).split(',')[0]
-mac_addr = Facter.value("macaddress_#{iface}")
-ip_addr  = Facter.value("ipaddress_#{iface}")
+Role_of = {
+    'clients' => 'datamover',
+    'confds'  => 'confd',
+    'ssus'    => 'storage',
+}.freeze
+
+def build_nodes_from(config)
+    rack_idx  = 1
+    host_idx  = 0
+    uniq_host = {}
+
+    config.each_key do |host_type|
+        config[host_type].each do |element|
+            if element.is_a?(Hash)
+                host  = element['host']
+                disks = element['disks']
+            else
+                host  = element
+            end
+
+            if uniq_host.has_key?(host)
+                uniq_host[host]['roles'].push(Role_of[host_type])
+                uniq_host[host]['disks'] = disks unless disks.nil?
+            else
+                uniq_host[host] = {
+                    'address' =>  host,
+                    'roles'   =>  ['station', Role_of[host_type]],
+                    'rack'    =>  rack_idx,
+                    'pos'     =>  host_idx,
+                }
+                uniq_host[host]['disks'] = disks unless disks.nil?
+                host_idx += 1
+            end
+        end
+    end
+
+    return uniq_host.values.sort { |x, y| x['pos'] <=> y['pos'] }
+end
+
+def run(cmd, host: Facter.value(:hostname))
+    current_host = IPSocket.getaddress(Facter.value(:hostname))
+    target_host  = IPSocket.getaddress(host)
+
+    debug "run [#{host}]: #{cmd}"
+
+    if current_host == target_host
+        # local command
+        output = `#{cmd}`.chomp
+
+        die "local command failed with code #{$CHILD_STATUS.exitstatus}: [#{host}]: #{cmd}" \
+            if !$options[:devsize] && $CHILD_STATUS.exitstatus.nonzero?
+    else
+        # remote command
+        Net::SSH.start(target_host, Facter.value(:id)) do |ssh|
+            output = ssh.exec!(cmd)
+            output.chomp! unless output.nil?
+        end
+    end
+
+    return output
+end
+
+def collect_facts_for(node)
+    current_host = IPSocket.getaddress( Facter.value(:hostname) )
+    target_host  = IPSocket.getaddress( node['address'] )
+
+    if current_host == target_host
+        # get local facts
+        fqdn            = Facter.value(:fqdn)
+        iface           = $options[:iface] || Facter.value(:interfaces).split(',')[0]
+        mac_addr        = Facter.value("macaddress_#{iface}")
+        ip_addr         = Facter.value("ipaddress_#{iface}")
+        processorcount  = Facter.value(:processors)['count']
+        memorysize_mb   = Facter.value(:memorysize_mb).to_i
+    else
+        # get remote facts
+        Net::SSH.start(target_host, Facter.value(:id)) do |ssh|
+            facter = ssh.exec!('which facter 2>/dev/null')
+
+            die "`facter` is not found on host '#{target_host}', try to install" \
+                + ' it with `yum install facter`' if facter.nil?
+
+            fqdn            = ssh.exec!('facter fqdn').chomp
+            iface           = $options[:iface] ||
+                              ssh.exec!('facter interfaces').split(',')[0].chomp
+            mac_addr        = ssh.exec!("facter macaddress_#{iface}").chomp
+            ip_addr         = ssh.exec!("facter ipaddress_#{iface}").chomp
+            processors      = ssh.exec!('facter --json processors')
+            processorcount  = JSON.parse(processors)['processors']['count']
+            memorysize_mb   = ssh.exec!('facter memorysize_mb').to_i
+        end
+    end
+
+    return {
+        'rack'                   => node['rack'],
+        'vpos'                   => node['pos'],
+        'serial_no'              => 'ENC#1',
+        'role'                   => node['roles'],
+        'hostname'               => node['address'],
+        'fqdn'                   => fqdn,
+        'bmc_ip'                 => '0.0.0.0',
+        'bmc2_ip'                => '0.0.0.0',
+        'vlan_manage_macaddress' => '00:00:00:00:00:00',
+        'vlan_manage_ip'         => '0.0.0.0',
+        'vlan_data_macaddress'   => mac_addr,
+        'vlan_data_ip'           => ip_addr,
+        'processorcount'         => processorcount,
+        'memorysize_mb'          => memorysize_mb,
+    }
+end
+
+def build_disk_info(host, disk_path, index)
+    debug "processing disk '#{disk_path}'"
+
+    size = $options[:devsize] ||
+           run("blockdev --getsize64 #{disk_path} 2>/dev/null", host: host)
+
+    die "[#{host}]: failed to obtain device size for '#{disk_path}' disk" \
+        if size.nil?
+
+    serial = run("lsblk -ndo SERIAL #{disk_path} 2>/dev/null", host: host)
+    if serial.to_s.strip.empty?
+        stob   = size.to_i.zero? ? 'STOBLNX' : 'STOBAD'
+        serial = stob + format('%03d', index)
+    end
+
+    wwn = run("lsblk -ndo WWN #{disk_path} 2>/dev/null", host: host)
+    wwn = '0x0000000' + format('%04d', index) if wwn.to_s.strip.empty?
+
+    return {
+        'path'   => disk_path,
+        'size'   => size,
+        'serial' => serial,
+        'wwn'    => wwn,
+    }
+end
+
+# FIXME: ugly global variable
+$disk_index = 0
+
+def collect_disks_for(node)
+    if node['disks'].is_a?(Array)
+        disks = node['disks']
+    elsif node['disks'].is_a?(String)
+        disk_string = run("echo #{node['disks']}", host: node['address'])
+
+        die "[#{node['address']}]: failed to find disks matching pattern '#{node['disks']}'" \
+            if disk_string == node['disks']
+
+        disks = disk_string.split(' ')
+    else
+        die "unsupported format of 'disks' list for host '#{node['address']}'," \
+            + ' should be either a string or an array'
+    end
+
+    disks_info = []
+
+    disks.each do |disk_path|
+        $disk_index += 1
+        disks_info.push(
+            build_disk_info(node['address'], disk_path, $disk_index))
+    end
+
+    return disks_info
+end
 
 #
 # Template substitution variables
 #
 
-processorcount     = Facter.value(:processors)['count']
-memorysize_mb      = Facter.value(:memorysize_mb).to_i
+m0_data_units                  = $options[:dataunits]
+m0_parity_units                = $options[:parityunits]
+m0_block_size                  = $options[:blocksize]
+m0_be_seg_size                 = $options[:besegsize]
+m0_md_redundancy               = $options[:mdredundancy]
+m0_min_rpc_recvq_len           = $options[:minrpcrecvqlen]
+m0_be_ios_seg_size             = $options[:beiossegsize]
+m0_be_log_size                 = $options[:belogsize]
+m0_be_tx_payload_size_max      = $options[:betxpayloadsizemax]
+m0_be_tx_reg_nr_max            = $options[:betxregnrmax]
+m0_be_tx_reg_size_max          = $options[:betxregsizemax]
+m0_be_txgr_freeze_timeout_max  = $options[:betxgrfreezetimeoutmax]
+m0_be_txgr_freeze_timeout_min  = $options[:betxgrfreezetimeoutmin]
+m0_be_txgr_payload_size_max    = $options[:betxgrpayloadsizemax]
+m0_be_txgr_reg_nr_max          = $options[:betxgrregnrmax]
+m0_be_txgr_reg_size_max        = $options[:betxgrregsizemax]
+m0_be_txgr_tx_nr_max           = $options[:betxgrtxnrmax]
 
-m0_data_units      = options[:dataunits]
-m0_parity_units    = options[:parityunits]
-m0_block_size      = options[:blocksize]
-m0_be_seg_size     = options[:segsize]
-m0_md_redundancy   = options[:mdredundancy]
+halon_port      = 9000
+q_dbfacts       = {}
+ios_hash        = {}
+station_nodes   = []
+m0t1fs_nodes    = []
+confd_nodes     = []
+extra_clients   = []
 
-# TODO: add cli options to set these values
-m0_be_ios_seg_size             = ''
-m0_be_log_size                 = ''
-m0_be_tx_payload_size_max      = ''
-m0_be_tx_reg_nr_max            = ''
-m0_be_tx_reg_size_max          = ''
-m0_be_txgr_freeze_timeout_max  = ''
-m0_be_txgr_freeze_timeout_min  = ''
-m0_be_txgr_payload_size_max    = ''
-m0_be_txgr_reg_nr_max          = ''
-m0_be_txgr_reg_size_max        = ''
-m0_be_txgr_tx_nr_max           = ''
-m0_min_rpc_recvq_len           = ''
+#
+# Read configuration
+#
 
-@station_nodes     = [ ip_addr ]
-@extra_clients     = []
+cluster_config = {}
 
-@q_dbfacts = YAML.load <<END_DB
----
-#{hostname}:
-  rack: 1
-  vpos: 1
-  serial_no: "XXX00000000000X"
-  role:      "storage"
-  hostname:  "#{hostname}"
-  fqdn:      "#{fqdn}"
-  bmc_ip:    "0.0.0.0"
-  bmc2_ip:   "0.0.0.0"
-  vlan_manage_macaddress: "00:00:00:00:00:00"
-  vlan_manage_ip:         "0.0.0.0"
-  vlan_data_iface:        "#{iface}"
-  vlan_data_macaddress:   "#{mac_addr}"
-  vlan_data_ip:           "#{ip_addr}"
-  processorcount:   #{processorcount}
-  memorysize_mb:    #{memorysize_mb}
-END_DB
+if ARGV.empty?
+    log 'Generating Halon facts for a cluster'
+    input = $options[:config] == STDIN ? 'STDIN' : $options[:config]
+    log "Reading cluster configuration from #{input}"
 
-die "a list of block devices can't be empty, see `#{PROG_NAME} --help` for more info" \
-    if ARGV.empty?
+    if $options[:config] != STDIN
+        $options[:config] = File.open($options[:config], 'r')
+    end
 
-ios_hash = {}
+    cluster_config = YAML.load( $options[:config].read )
 
-ARGV.each_with_index do |disk, index|
-    ios_hash[disk] = {
-        'wwn'    => "0xfff000000000000#{index + 1}",
-        'serial' => "XXX0000#{index + 1}",
-        'size'   => options[:devsize] || `blockdev --getsize64 #{disk}`.chomp,
-        'path'   => disk,
+    die "invalid cluster config - it can't be empty" \
+        unless cluster_config
+
+    ['clients', 'confds', 'ssus'].each do |key|
+        unless cluster_config.has_key?(key)
+            die "invalid cluster config: '#{key}' list is missing or empty"
+        end
+    end
+else
+    log 'Generating Halon facts for singlenode'
+    log 'Reading disks configuration from CLI arguments'
+
+    cluster_config = {
+        'clients'  => [ Facter.value(:hostname) ],
+        'confds'   => [ Facter.value(:hostname) ],
+        'ssus'     => [{
+           'host'  => Facter.value(:hostname),
+           'disks' => ARGV,
+        }],
     }
+end
 
-    die "failed to obtain device size for '#{disk}' disk" \
-        if !options[:devsize] && $?.exitstatus != 0
+#
+# Collect facts
+#
+
+log 'Collecting facts about nodes and disks'
+build_nodes_from(cluster_config).each do |node|
+    log "Getting facts about '#{node['address']}' node"
+    q_dbfacts[ node['address'] ] = collect_facts_for(node)
+    ios_hash[ node['address'] ] =
+        if node.has_key?('disks')
+            log "Getting disks info for '#{node['address']}' node"
+            collect_disks_for(node)
+        else
+            []
+        end
 end
 
 #
 # Process template and print results
 #
 
-if options[:output] != STDOUT
-    options[:output] = File.open(options[:output], 'w')
+if $options[:output] != STDOUT
+    $options[:output] = File.open($options[:output], 'w')
 end
 
-template = ERB.new( File.read(options[:template]), nil, '-' )
-options[:output].puts( template.result(binding) )
+template = ERB.new( File.read($options[:template]), nil, '-' )
+log 'Producing halon facts YAML'
+$options[:output].puts( template.result(binding) )

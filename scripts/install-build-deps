@@ -49,6 +49,7 @@ declare -rA RPM_PACKAGE=(
     [killall]='psmisc'
     [ruby]='ruby'
     [facter]='facter'
+    [ruby-ssh]='rubygem-net-ssh'
     [py-yaml]='PyYAML'
 )
 
