@@ -185,14 +185,6 @@ sns_repair_test()
 	echo "killing ios4 ..."
 	kill_ios4_ioservice
 
-	# XXX m0repair sends command in background and an IOS needs time to
-	# subscribe to svc state changes. If M0_NC_FAILED is sent before this,
-	# wait_for_sns_repair_or_rebalance_not_4() gets stuck below.
-	# See MERO-2166
-	#echo 'Sleeping for 20 seconds...'
-	#sleep 20
-
-	#echo "HA notifies that ios4 failed."
 	ha_notify_ios4_failure_or_online "failed"
 	sleep 2
 

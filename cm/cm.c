@@ -641,6 +641,15 @@ static int cm_replicas_connect(struct m0_cm *cm, struct m0_rpc_machine *rmach,
 			m0_cm_proxy_add(cm, pxy);
 			m0_cm_proxy_event_handle_register(pxy, svc_obj);
 			M0_CNT_INC(proxy_cnt);
+			if (M0_IN(svc_obj->co_ha_state, (M0_NC_FAILED,
+							 M0_NC_TRANSIENT))) {
+				m0_cm_proxy_lock(pxy);
+				pxy->px_status = M0_PX_FAILED;
+				pxy->px_is_done = true;
+				proxy_fail_tlist_add_tail(
+					   &pxy->px_cm->cm_failed_proxies, pxy);
+				m0_cm_proxy_unlock(pxy);
+			}
 			M0_LOG(M0_DEBUG, "Connected to %s", dep);
 		}
 	} m0_tl_endfor;
