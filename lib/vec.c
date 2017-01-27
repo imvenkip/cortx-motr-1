@@ -430,6 +430,7 @@ M0_INTERNAL int m0_indexvec_alloc(struct m0_indexvec *ivec,
 	ivec->iv_vec.v_nr = len;
 	return 0;
 }
+M0_EXPORTED(m0_indexvec_alloc);
 
 M0_INTERNAL void m0_indexvec_free(struct m0_indexvec *ivec)
 {
@@ -439,6 +440,7 @@ M0_INTERNAL void m0_indexvec_free(struct m0_indexvec *ivec)
 	m0_free0(&ivec->iv_vec.v_count);
 	ivec->iv_vec.v_nr = 0;
 }
+M0_EXPORTED(m0_indexvec_free);
 
 M0_INTERNAL void m0_bufvec_cursor_init(struct m0_bufvec_cursor *cur,
 				       const struct m0_bufvec *bvec)

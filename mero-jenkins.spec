@@ -177,6 +177,7 @@ fi
 %{_mandir}/*
 %{_localstatedir}/mero
 /lib/modules/*/kernel/fs/mero/*
+%exclude /lib/modules/*/kernel/fs/clovis/st/linux_kernel/clovis_st_kmod.ko
 %config  %{_sysconfdir}/*
 %exclude %{_bindir}/m0kut*
 %exclude %{_bindir}/m0ut

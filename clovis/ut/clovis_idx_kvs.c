@@ -118,6 +118,19 @@ static void ut_kvs_init_fini(void)
 	idx_kvs_ut_fini();
 }
 
+static int *kvs_rcs_alloc(int count)
+{
+	int  i;
+	int *rcs;
+
+	M0_ALLOC_ARR(rcs, count);
+	M0_UT_ASSERT(rcs != NULL);
+	for (i = 0; i < count; i++)
+		/* Set to some value to assert that UT actually changed rc. */
+		rcs[i] = 0x5f;
+	return rcs;
+}
+
 static void ut_kvs_namei_ops(void)
 {
 	struct m0_clovis_container realm;
@@ -128,6 +141,7 @@ static void ut_kvs_namei_ops(void)
 	struct m0_fid              ifid0 = M0_FID_TINIT('i', 0, 0);
 	struct m0_clovis_op       *op = NULL;
 	struct m0_bufvec           keys;
+	int                       *rcs;
 	int                        rc;
 
 	idx_kvs_ut_init();
@@ -165,14 +179,17 @@ static void ut_kvs_namei_ops(void)
 	m0_free0(&op);
 
 	/* List all indices (only one exists). */
+	rcs = kvs_rcs_alloc(2);
 	rc = m0_bufvec_alloc(&keys, 2, sizeof(struct m0_fid));
 	M0_UT_ASSERT(rc == 0);
 	m0_clovis_idx_init(&idx0, &realm.co_realm, (struct m0_uint128 *)&ifid0);
-	rc = m0_clovis_idx_op(&idx, M0_CLOVIS_IC_LIST, &keys, NULL, NULL, &op);
+	rc = m0_clovis_idx_op(&idx, M0_CLOVIS_IC_LIST, &keys, NULL, rcs, &op);
 	M0_UT_ASSERT(rc == 0);
 	m0_clovis_op_launch(&op, 1);
 	rc = m0_clovis_op_wait(op, M0_BITS(M0_CLOVIS_OS_STABLE), WAIT_TIMEOUT);
 	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(rcs[0] == 0);
+	M0_UT_ASSERT(rcs[1] == -ENOENT);
 	M0_UT_ASSERT(keys.ov_vec.v_nr == 2);
 	M0_UT_ASSERT(keys.ov_vec.v_count[0] == sizeof(struct m0_fid));
 	M0_UT_ASSERT(m0_fid_eq(keys.ov_buf[0], &ifid));
@@ -180,6 +197,7 @@ static void ut_kvs_namei_ops(void)
 	M0_UT_ASSERT(!m0_fid_is_set(keys.ov_buf[1]));
 	m0_clovis_op_fini(op);
 	m0_free0(&op);
+	m0_free0(&rcs);
 	m0_clovis_idx_fini(&idx0);
 
 	/* Delete the index. */
@@ -215,19 +233,6 @@ static uint64_t kvs_key(uint64_t i)
 static uint64_t kvs_val(uint64_t i)
 {
 	return 100 + i * i;
-}
-
-static int *kvs_rcs_alloc(int count)
-{
-	int  i;
-	int *rcs;
-
-	M0_ALLOC_ARR(rcs, count);
-	M0_UT_ASSERT(rcs != NULL);
-	for (i = 0; i < count; i++)
-		/* Set to some value to assert that UT actually changed rc. */
-		rcs[i] = 0x5f;
-	return rcs;
 }
 
 static void ut_kvs_record_ops(void)

@@ -16,9 +16,12 @@ mero_libmero_la_SOURCES  += clovis/clovis.c \
 			    clovis/cob.c \
 			    clovis/clovis_obj.c \
 			    clovis/idx_mock.c \
-			    clovis/idx_cass.c \
 			    clovis/idx_kvs.c \
 			    clovis/clovis_idx.c \
 			    clovis/clovis_osync.c \
 			    clovis/clovis_realm.c \
 			    clovis/utils.c
+
+if CLOVIS_IDX_STORE_CASS
+mero_libmero_la_SOURCES += clovis/idx_cass.c
+endif

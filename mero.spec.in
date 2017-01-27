@@ -188,6 +188,7 @@ fi
 %exclude /lib/modules/*/kernel/fs/net/*
 %exclude /lib/modules/*/kernel/fs/rpc/*
 %exclude /lib/modules/*/kernel/fs/ut/*
+%exclude /lib/modules/*/kernel/fs/clovis/*
 %endif # with ut
 
 %if %{with ut}

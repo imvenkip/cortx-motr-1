@@ -367,7 +367,7 @@ static int ut_clovis_mock_ioreq_dgmode_read(struct m0_clovis_op_io *ioo,
 {
 	if (M0_FI_ENABLED("ut_mock_dgmode_read_fails")) {
 		ioo->ioo_rc = -EAGAIN;
-		return M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH;
+		return -EAGAIN;
 	}
 	return 0;
 }
@@ -377,7 +377,7 @@ static int ut_clovis_mock_ioreq_dgmode_write(struct m0_clovis_op_io *ioo,
 {
 	if (M0_FI_ENABLED("ut_mock_dgmode_write_fails")) {
 		ioo->ioo_rc = -EAGAIN;
-		return M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH;
+		return -EAGAIN;
 	}
 	return 0;
 }

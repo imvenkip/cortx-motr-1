@@ -178,7 +178,8 @@ lib_LTLIBRARIES          += mero/libmero.la
 mero_libmero_la_CPPFLAGS  = -DM0_TARGET='libmero' $(AM_CPPFLAGS)
 mero_libmero_la_LDFLAGS   = -version-info @LT_VERSION@ -pthread $(AM_LDFLAGS)
 mero_libmero_la_LIBADD    = @MATH_LIBS@ @PTHREAD_LIBS@ @AIO_LIBS@ @RT_LIBS@ \
-                            @YAML_LIBS@ @PROFILER_LIBS@ @UUID_LIBS@ @GF_LIBS@
+                            @YAML_LIBS@ @PROFILER_LIBS@ @UUID_LIBS@ @GF_LIBS@ \
+                            @CASSANDRA_LIBS@ @UV_LIBS@
 
 # install directory for public libmero headers
 mero_includedir             = $(includedir)/mero
@@ -197,6 +198,7 @@ include $(top_srcdir)/be/Makefile.sub
 include $(top_srcdir)/be/tool/Makefile.sub
 include $(top_srcdir)/capa/Makefile.sub
 include $(top_srcdir)/cas/Makefile.sub
+include $(top_srcdir)/clovis/Makefile.sub
 include $(top_srcdir)/cm/Makefile.sub
 include $(top_srcdir)/cob/Makefile.sub
 include $(top_srcdir)/conf/Makefile.sub
@@ -240,7 +242,6 @@ include $(top_srcdir)/stob/Makefile.sub
 include $(top_srcdir)/stats/Makefile.sub
 include $(top_srcdir)/udb/Makefile.sub
 include $(top_srcdir)/xcode/Makefile.sub
-
 #
 # libmero-altogether.so ------------------------------- {{{2
 #
@@ -308,6 +309,7 @@ include $(top_srcdir)/balloc/ut/Makefile.sub
 include $(top_srcdir)/be/ut/Makefile.sub
 include $(top_srcdir)/capa/ut/Makefile.sub
 include $(top_srcdir)/cas/ut/Makefile.sub
+include $(top_srcdir)/clovis/ut/Makefile.sub
 include $(top_srcdir)/cm/ut/Makefile.sub
 include $(top_srcdir)/cob/ut/Makefile.sub
 include $(top_srcdir)/conf/ut/Makefile.sub
@@ -604,6 +606,43 @@ sns_cm_st_m0repair_LDADD     = $(top_builddir)/mero/libmero.la
 include $(top_srcdir)/sns/cm/st/Makefile.sub
 
 #
+# clovis/st ------------------------------------------- {{{2
+#
+if ENABLE_UNIT_TESTS
+noinst_PROGRAMS                   += clovis/st/user_space/c0st
+noinst_PROGRAMS                   += clovis/st/utils/c0touch
+noinst_PROGRAMS                   += clovis/st/utils/c0unlink
+noinst_PROGRAMS                   += clovis/st/utils/c0cat
+noinst_PROGRAMS                   += clovis/st/utils/c0cp
+noinst_PROGRAMS                   += clovis/st/utils/c0cp_mt
+endif
+
+clovis_st_user_space_c0st_CPPFLAGS = -DM0_TARGET='c0st' $(AM_CPPFLAGS)
+clovis_st_user_space_c0st_LDADD    = $(top_builddir)/mero/libmero.la \
+                                     $(top_builddir)/ut/libmero-ut.la
+
+clovis_st_utils_c0touch_CPPFLAGS = -DM0_TARGET='c0touch' $(AM_CPPFLAGS)
+clovis_st_utils_c0touch_LDADD    = $(top_builddir)/mero/libmero.la \
+                                    $(top_builddir)/ut/libmero-ut.la
+
+clovis_st_utils_c0unlink_CPPFLAGS = -DM0_TARGET='c0unlink' $(AM_CPPFLAGS)
+clovis_st_utils_c0unlink_LDADD    = $(top_builddir)/mero/libmero.la \
+                                    $(top_builddir)/ut/libmero-ut.la
+
+clovis_st_utils_c0cat_CPPFLAGS =  -DM0_TARGET='c0cat' $(AM_CPPFLAGS)
+clovis_st_utils_c0cat_LDADD    = $(top_builddir)/mero/libmero.la \
+                                 $(top_builddir)/ut/libmero-ut.la
+
+clovis_st_utils_c0cp_CPPFLAGS =  -DM0_TARGET='c0cp' $(AM_CPPFLAGS)
+clovis_st_utils_c0cp_LDADD    = $(top_builddir)/mero/libmero.la \
+                                 $(top_builddir)/ut/libmero-ut.la
+
+clovis_st_utils_c0cp_mt_CPPFLAGS =  -DM0_TARGET='c0cp_mt' $(AM_CPPFLAGS)
+clovis_st_utils_c0cp_mt_LDADD    = $(top_builddir)/mero/libmero.la \
+                                 $(top_builddir)/ut/libmero-ut.la
+
+include $(top_srcdir)/clovis/st/Makefile.sub
+#
 # utils/trace ----------------------------------------- {{{2
 #
 
@@ -809,6 +848,8 @@ EXTRA_DIST += \
               be/ut/Kbuild.sub \
               cas/Kbuild.sub \
               cob/Kbuild.sub \
+              clovis/Kbuild.sub\
+              clovis/st/Kbuild.sub\
               conf/Kbuild.sub \
               conf/ut/Kbuild.sub \
               dtm/Kbuild.sub \
@@ -1151,6 +1192,11 @@ kuick: generate-files gf-complete
 	@echo 'Building kernel-space Unit Tests'
 	@$(MAKE) $(AM_MAKEFLAGS) build-kernel-modules M0_BUILD_KERNEL_UT_ONLY=yes
 
+.PHONY: clovis_st
+clovis_st: generate-files gf-complete
+	@echo 'Building mero for clovis system test.'
+	@$(MAKE) $(AM_MAKEFLAGS) build-kernel-modules M0_BUILD_CLOVIS_ST=yes
+
 #
 # Clean targets --------------------------------------- {{{2
 #
@@ -1440,6 +1486,5 @@ help:
 	@echo '  list-libs       - list all libraries built in mero'
 	@echo '  list-modules    - list all kernel modules built in mero'
 	@echo '  print-elf-sizes - show ELF sizes of the main binaries'
-
 
 # vim: textwidth=80 nowrap foldmethod=marker

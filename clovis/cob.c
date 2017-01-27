@@ -385,76 +385,6 @@ static void clovis_icr_ast_fail(struct m0_sm_group *grp,
 }
 
 /**
- * AST callback that resends a create/delete cob fop to an ioservice due to a
- * version mismatch.
- *
- * @param grp group the AST is executed in.
- * @param ast callback being executed.
- */
-static void clovis_icr_ast_ver_mismatch(struct m0_sm_group *grp,
-						struct m0_sm_ast *ast)
-{
-	uint32_t                         i;
-	int                              rc;
-	struct m0_clovis_ios_cob_req    *icr;
-	struct m0_clovis_ast_rc         *ar;
-	struct m0_fop                   *fop;
-	struct m0_fop                   *rep_fop;
-	struct m0_fop_cob_op_reply      *cob_rep;
-	struct m0_fop_cob_op_rep_common *cob_rep_common;
-	struct m0_fv_event              *event;
-	struct m0_clovis                *cinst;
-	struct m0_pool_version          *pv;
-
-	M0_ENTRY();
-
-	M0_PRE(grp != NULL);
-	M0_PRE(m0_sm_group_is_locked(grp));
-	M0_PRE(ast != NULL);
-
-	ar = bob_of(ast, struct m0_clovis_ast_rc, ar_ast, &ar_bobtype);
-	icr = bob_of(ar, struct m0_clovis_ios_cob_req, icr_ar, &icr_bobtype);
-	M0_PRE(icr->icr_oo != NULL);
-
-	cinst = m0_clovis__oo_instance(icr->icr_oo);
-	M0_PRE(cinst != NULL);
-	M0_PRE(&cinst->m0c_sm_group != grp);
-
-	fop = icr->icr_oo->oo_ios_fop[icr->icr_index];
-	M0_ASSERT(fop != NULL);
-	rep_fop = m0_rpc_item_to_fop(fop->f_item.ri_reply);
-	M0_ASSERT(rep_fop != NULL);
-	cob_rep = m0_fop_data(rep_fop);
-	cob_rep_common = &cob_rep->cor_common;
-
-	/*
-	 * Retrieve the latest server version and updates and apply to the
-	 * client's copy.
-	 */
-	pv = m0_pool_version_find(&cinst->m0c_pools_common,
-				  &icr->icr_oo->oo_pver);
-	M0_ASSERT(pv != NULL);
-
-	m0_sm_group_lock(&cinst->m0c_sm_group);
-	for (i = 0; i < cob_rep_common->cor_fv_updates.fvu_count; ++i) {
-		event = &cob_rep_common->cor_fv_updates.fvu_events[i];
-		m0_poolmach_state_transit(&pv->pv_mach,
-					  (struct m0_poolmach_event*)event,
-					  NULL);
-	}
-	m0_sm_group_unlock(&cinst->m0c_sm_group);
-
-	/* Resend the request. */
-	rc = clovis_cob_ios_send(icr->icr_oo, icr->icr_index);
-	if (rc != 0) {
-		/* we're already in an ast */
-		clovis_cob_fail_oo(icr->icr_oo, rc);
-	}
-
-	M0_LEAVE();
-}
-
-/**
  * rio_replied RPC callback to be executed whenever a reply to a create/delete
  * cob fop is received from an ioservice.
  *
@@ -501,7 +431,6 @@ static void clovis_cob_ios_rio_replied(struct m0_rpc_item *item)
 	icr->icr_ar.ar_ast.sa_cb = &clovis_icr_ast_complete;
 	m0_sm_ast_post(icr->icr_oo->oo_sm_grp, &icr->icr_ar.ar_ast);
 
-out:
 	M0_LEAVE();
 	return;
 

@@ -154,7 +154,11 @@ M0_INTERNAL void m0_clovis_idx_service_register(int svc_id,
 M0_INTERNAL void m0_clovis_idx_services_register(void);
 
 M0_INTERNAL void m0_clovis_idx_mock_register(void);
+
+#ifdef CLOVIS_IDX_STORE_CASS
 M0_INTERNAL void m0_clovis_idx_cass_register(void);
+#endif
+
 M0_INTERNAL void m0_clovis_idx_kvs_register(void);
 
 #endif /* __MERO_CLOVIS_CLOVIS_IDX_H__ */

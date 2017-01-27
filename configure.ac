@@ -108,7 +108,8 @@ AC_ARG_VAR([KCFLAGS], [kernel-space CFLAGS])
 AC_ARG_VAR([GCCXML],  [gccxml command])
 
 # define macros --------------------------------------- {{{2
-
+AH_TEMPLATE([CLOVIS_IDX_STORE_CASS],  [Use Cassandra as KVS backend.])
+AH_TEMPLATE([CLOVIS_IDX_CASS_DRV_V22],[Cassandra driver version >= 2.2.])
 AH_TEMPLATE([CONFIG_LNET_MAX_PAYLOAD],[Max LNET payload.])
 AH_TEMPLATE([ENABLE_DIST_MODE],       [Enable distribution mode (only for package building).])
 AH_TEMPLATE([ENABLE_DEV_MODE],        [Enable developer mode.])
@@ -337,6 +338,27 @@ AS_IF([test -z "$TRACE_UBUF_SIZE" || test "x$TRACE_UBUF_SIZE" = xyes ||
 )
 AC_DEFINE_UNQUOTED([M0_TRACE_UBUF_SIZE], [($TRACE_UBUF_SIZE * 1024 * 1024UL)])
 
+# cassandra {{{3
+AC_ARG_WITH([cassandra],
+        [AS_HELP_STRING([--with-cassandra],
+                        [set Cassandra as KVS backend])],
+        [CASS_DRV_VERSION=$with_cassandra;
+         CASS_IDX=yes;
+         case "${CASS_DRV_VERSION}" in
+                    2.2) CASS_DRV_VERSION=2.2;;
+                    *) CASS_DRV_VERSION=2.1;;
+                    esac],
+        [CASS_IDX=no]
+)
+
+AS_IF([test "x$CASS_IDX" = xyes],
+      [AC_DEFINE([CLOVIS_IDX_STORE_CASS])])
+
+AS_VERSION_COMPARE(${CASS_DRV_VERSION}, "2.2", [CASS_DRV_V22=0], [CASS_DRV_V22=1], [CASS_DRV_V22=1])
+
+AS_IF([test "$CASS_DRV_V22" = 1],
+      AC_DEFINE([CLOVIS_IDX_CASS_DRV_V22]))
+
 # linux {{{3
 AC_ARG_WITH([linux],
         [AS_HELP_STRING([--with-linux=path],
@@ -482,6 +504,7 @@ MERO_SEARCH_LIBS([uuid_generate], [uuid c], [UUID_LIBS],
 	[uuid_generate cannot be found! Try to install libuuid and libuuid-devel.])
 AC_SUBST([UUID_LIBS])
 
+
 #
 # Checking for required header files
 #
@@ -491,6 +514,7 @@ AC_CHECK_HEADERS([arpa/inet.h fcntl.h limits.h malloc.h memory.h netdb.h \
                   sys/socket.h sys/time.h unistd.h])
 
 AC_CHECK_HEADERS([pthread.h], [], [AC_MSG_ERROR([pthread.h cannot be found!])])
+
 
 AC_HEADER_STDBOOL
 
@@ -571,6 +595,33 @@ AS_IF([test x$enable_systemd = xyes],
          AM_CONDITIONAL([HAVE_SYSTEMD], [true])
       ],[
          AM_CONDITIONAL([HAVE_SYSTEMD], [false])
+      ]
+)
+
+#
+# Checking cassandra availability ------------------------------------------- {{{1
+#
+AS_IF([test x$CASS_IDX = xyes],
+      [
+         AC_CHECK_HEADERS([cassandra.h], [],
+                 [AC_MSG_ERROR([cassandra.h cannot be found! \
+                                try to install cassandra-cpp-driver-devel])])
+
+         AC_CHECK_HEADERS([uv.h], [],
+                 [AC_MSG_ERROR([uv.h cannot be found! \
+                                try to install libuv-devel])])
+         MERO_SEARCH_LIBS([cass_cluster_new], [cassandra c], [CASSANDRA_LIBS],
+                  [cass_cluster_new cannot be found! Try to install cppdriver.]
+         )
+         AC_SUBST([CASSANDRA_LIBS])
+
+         MERO_SEARCH_LIBS([uv_loop_new], [uv c], [UV_LIBS],
+                 [uv_loop_new cannot be found! Try to install libuv.]
+         )
+         AC_SUBST([UV_LIBS])
+         AM_CONDITIONAL([CLOVIS_IDX_STORE_CASS], [true])
+      ],[
+         AM_CONDITIONAL([CLOVIS_IDX_STORE_CASS], [false])
       ]
 )
 
@@ -827,26 +878,30 @@ echo "Mero version :  $PACKAGE_VERSION"
 echo ""
 echo "CONFIGURE_OPT:  $BUILD_CONFIGURE_OPTS"
 echo ""
-echo "M0_CPPFLAGS  :  \"$M0_CPPFLAGS\""
-echo "M0_CFLAGS    :  \"$M0_CFLAGS\""
-echo "M0_KCPPFLAGS :  \"$M0_KCPPFLAGS\""
-echo "M0_KCFLAGS   :  \"$M0_KCFLAGS\""
-echo "M0_LDFLAGS   :  \"$M0_LDFLAGS\""
+echo "M0_CPPFLAGS    :  \"$M0_CPPFLAGS\""
+echo "M0_CFLAGS      :  \"$M0_CFLAGS\""
+echo "M0_KCPPFLAGS   :  \"$M0_KCPPFLAGS\""
+echo "M0_KCFLAGS     :  \"$M0_KCFLAGS\""
+echo "M0_LDFLAGS     :  \"$M0_LDFLAGS\""
 echo ""
-echo "MATH_LIBS    :  \"$MATH_LIBS\""
-echo "PTHREAD_LIBS :  \"$PTHREAD_LIBS\""
-echo "AIO_LIBS     :  \"$AIO_LIBS\""
-echo "RT_LIBS      :  \"$RT_LIBS\""
-echo "PROFILER_LIBS:  \"$PROFILER_LIBS\""
-echo "GF_LIBS      :  \"$GF_LIBS\""
-echo "YAML_LIBS    :  \"$YAML_LIBS\""
-echo "UUID_LIBS    :  \"$UUID_LIBS\""
+echo "MATH_LIBS      :  \"$MATH_LIBS\""
+echo "PTHREAD_LIBS   :  \"$PTHREAD_LIBS\""
+echo "AIO_LIBS       :  \"$AIO_LIBS\""
+echo "RT_LIBS        :  \"$RT_LIBS\""
+echo "PROFILER_LIBS  :  \"$PROFILER_LIBS\""
+echo "GF_LIBS        :  \"$GF_LIBS\""
+echo "YAML_LIBS      :  \"$YAML_LIBS\""
+echo "UUID_LIBS      :  \"$UUID_LIBS\""
 echo ""
-echo "Gcc          :  \"$BUILD_GCC\""
-echo "Linux kernel :  \"$LINUX_OBJ\""
-echo "Lustre       :  \"$LUSTRE\""
+echo "Gcc            :  \"$BUILD_GCC\""
+echo "Linux kernel   :  \"$LINUX_OBJ\""
+echo "Lustre         :  \"$LUSTRE\""
 echo ""
 
+AS_IF([test "x$CASS_IDX" = xyes],
+      [echo "CASSANDRA_LIBS :  \"$CASSANDRA_LIBS\""]
+      [echo "UV_LIBS        :  \"$UV_LIBS\""]
+      [echo "Cassandra driver       :  \"$CASS_DRV_VERSION\""])
 echo 'Run `make` to build Mero or `make help` for other options'
 
 

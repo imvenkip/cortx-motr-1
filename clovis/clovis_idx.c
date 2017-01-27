@@ -541,7 +541,9 @@ M0_INTERNAL void m0_clovis_idx_service_register(int svc_id,
 M0_INTERNAL void m0_clovis_idx_services_register(void)
 {
 	m0_clovis_idx_mock_register();
+#ifdef CLOVIS_IDX_STORE_CASS
 	m0_clovis_idx_cass_register();
+#endif
 	/** @todo Register KVS in kernel also. */
 #ifndef __KERNEL__
 	m0_clovis_idx_kvs_register();

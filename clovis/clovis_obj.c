@@ -343,8 +343,6 @@ m0_clovis_obj_default_layout_id_get(struct m0_clovis *instance)
 	}
 
 EXIT:
-	m0_confc_close(&fs->cf_obj);
-
 	M0_LEAVE();
 	return M0_DEFAULT_LAYOUT_ID;
 }

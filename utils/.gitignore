@@ -38,4 +38,10 @@
 /net_test
 /server
 /ub
+/c0cat
+/c0cp
+/c0cp_mt
+/c0st
+/c0touch
+/c0unlink
 /ut

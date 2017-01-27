@@ -23,6 +23,14 @@ else ifdef M0_BUILD_KERNEL_UT_ONLY
 obj-m := ut/linux_kernel/m0ut.o
 #obj-m += m0t1fs/linux_kernel/m0loop-ut.o
 
+else ifdef M0_BUILD_CLOVIS_ST
+
+obj-m := mero/m0mero.o
+obj-m += clovis/st/linux_kernel/clovis_st_kmod.o
+
+else ifdef M0_BUILD_CLOVIS_ST_ALLINONE
+
+obj-m := mero/m0mero.o
 else
 
 # these modules are installed system wide and included into rpm package, they
@@ -42,6 +50,7 @@ obj-$(enable_test_modules) += ut/linux_kernel/m0ut.o
 obj-$(enable_test_modules) += net/lnet/st/linux_kernel/m0lnetping.o
 obj-$(enable_test_modules) += rpc/it/linux_kernel/m0rpcping.o
 obj-$(enable_test_modules) += net/test/linux_kernel/m0nettestd.o
+obj-$(enable_test_modules) += clovis/st/linux_kernel/clovis_st_kmod.o
 #obj-$(enable_test_modules) += m0t1fs/linux_kernel/m0loop-ut.o
 
 endif
@@ -62,6 +71,7 @@ include $(src)/m0t1fs/Kbuild.sub
 include $(src)/addb2/Kbuild.sub
 include $(src)/be/Kbuild.sub
 include $(src)/cas/Kbuild.sub
+include $(src)/clovis/Kbuild.sub
 include $(src)/conf/Kbuild.sub
 include $(src)/cob/Kbuild.sub
 include $(src)/console/Kbuild.sub
@@ -199,5 +209,10 @@ m0nettestd_objects :=
 include $(src)/net/test/Kbuild.sub # TODO: factor out net-test files from
                                    # m0mero.ko into a separate module
 
+# clovis_st_kmod --------------------------------------- {{{1
+#
+clovis/st/linux_kernel/clovis_st_kmod-y = $(clovis_st_objects)
+clovis_st_objects :=
+include $(src)/clovis/st/Kbuild.sub
 
 # vim: filetype=make textwidth=80 nowrap foldmethod=marker

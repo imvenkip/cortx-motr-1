@@ -1106,13 +1106,6 @@ static void ut_clovis_test_clovis_cob_ios_fop_populate(void)
 	m0_rwlock_fini(&mach->pm_lock);
 	m0_sm_group_unlock(&oo_grp);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(cc->cc_common.c_version.fvv_read == 99);
-	M0_UT_ASSERT(cc->cc_common.c_version.fvv_write == 88);
-	M0_UT_ASSERT(cc->cc_common.c_gobfid.f_container == 0xDEAF);
-	M0_UT_ASSERT(cc->cc_common.c_gobfid.f_key == 0xDAD);
-	M0_UT_ASSERT(cc->cc_common.c_cobfid.f_container == 0xBAD);
-	M0_UT_ASSERT(cc->cc_common.c_cobfid.f_key == 0xBEE);
-	M0_UT_ASSERT(cc->cc_common.c_cob_idx == 777);
 
 	/* fini */
 	m0_sm_group_fini(&oo_grp);

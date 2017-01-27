@@ -79,6 +79,7 @@
 #include "ha/ha.h"            /* m0_ha_mod_init */
 #include "xcode/init.h"
 #include "module/instance.h"  /* m0_instance_setup */
+#include "clovis/clovis_internal.h"  /* m0_clovis_global_init */
 
 M0_INTERNAL int m0_utime_init(void);
 M0_INTERNAL void m0_utime_fini(void);
@@ -207,6 +208,7 @@ struct init_fini_call subsystem[] = {
 	{ &m0_parity_init,      &m0_parity_fini,      "parity_math" },
 	{ &m0_dtm_global_init,  &m0_dtm_global_fini,  "dtm" },
 	{ &m0_ha_mod_init,      &m0_ha_mod_fini,      "ha" },
+	{ &m0_clovis_global_init, &m0_clovis_global_fini, "clovis" },
 	{ &m0_rconfc_mod_init,  &m0_rconfc_mod_fini,  "rconfc" },
 };
 
