@@ -336,7 +336,7 @@ M0_INTERNAL int m0_conf_pver_fid_read(const struct m0_fid *fid,
 		*container = _container;
 	if (key != NULL)
 		*key = fid->f_key;
-	return M0_RC(0);
+	return 0;
 }
 
 /** Generates new fid for a m0_conf_objv of virtual pver subtree. */
