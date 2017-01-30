@@ -1871,16 +1871,14 @@ M0_INTERNAL int m0_pool_device_reopen(struct m0_poolmach *pm,
 	return M0_RC(rc);
 }
 
-static int pool_device_index(struct m0_poolmach *pm, struct m0_fid *fid)
+static int pool_device_index(const struct m0_poolmach *pm,
+			     const struct m0_fid      *fid)
 {
-	int dev;
-
-	for (dev = 0; dev < pm->pm_state->pst_nr_devices; ++dev)
-		if (m0_fid_eq(&pm->pm_state->pst_devices_array[dev].pd_id, fid))
-			return dev;
-	return POOL_DEVICE_INDEX_INVALID;
+	int j;
+	return m0_exists(i, pm->pm_state->pst_nr_devices,
+			 m0_fid_eq(&pm->pm_state->pst_devices_array[j=i].pd_id,
+				   fid)) ? j : POOL_DEVICE_INDEX_INVALID;
 }
-
 
 static void pool_device_state_last_revert(struct m0_pools_common *pc,
 					  struct m0_fid          *dev_fid,
