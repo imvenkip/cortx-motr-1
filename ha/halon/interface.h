@@ -345,6 +345,7 @@ int m0_halon_interface_start(struct m0_halon_interface *hi,
 				 const struct m0_fid    *process_fid,
 				 const struct m0_fid    *profile_fid,
 				 const char             *git_rev_id,
+				 uint64_t                pid,
 				 bool                    first_request),
 			     void                     (*msg_received_cb)
 				(struct m0_halon_interface *hi,

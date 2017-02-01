@@ -90,6 +90,7 @@ struct m0_halon_interface_cfg {
 		 const struct m0_fid               *process_fid,
 		 const struct m0_fid               *profile_fid,
 		 const char                        *git_rev_id,
+		 uint64_t                           pid,
 		 bool                               first_request);
 	void           (*hic_msg_received_cb)
 		(struct m0_halon_interface *hi,
@@ -258,12 +259,14 @@ halon_interface_entrypoint_request_cb(struct m0_ha                      *ha,
 	         "process_fid="FID_F" profile_fid="FID_F,
 	         hii->hii_hi, req, U128_P(req_id), req->heq_rpc_endpoint,
 	         FID_P(&req->heq_process_fid), FID_P(&req->heq_profile_fid));
-	M0_LOG(M0_DEBUG, "git_rev_id=%s", req->heq_git_rev_id);
+	M0_LOG(M0_DEBUG, "git_rev_id=%s generation=%"PRIu64" pid=%"PRIu64,
+	       req->heq_git_rev_id, req->heq_generation, req->heq_pid);
 	hii->hii_cfg.hic_entrypoint_request_cb(hii->hii_hi, req_id,
 	                                       req->heq_rpc_endpoint,
 	                                       &req->heq_process_fid,
 	                                       &req->heq_profile_fid,
 	                                       req->heq_git_rev_id,
+	                                       req->heq_pid,
 	                                       req->heq_first_request);
 	M0_LEAVE();
 }
@@ -779,6 +782,7 @@ int m0_halon_interface_start(struct m0_halon_interface *hi,
 				 const struct m0_fid    *process_fid,
 				 const struct m0_fid    *profile_fid,
 				 const char             *git_rev_id,
+				 uint64_t                pid,
 				 bool                    first_request),
 			     void                     (*msg_received_cb)
 				(struct m0_halon_interface *hi,
