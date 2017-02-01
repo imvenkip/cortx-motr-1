@@ -234,9 +234,14 @@ M0_INTERNAL bool m0_is_awkward(void)
 	return m0_thread_tls()->tls_arch.tat_awkward != 0;
 }
 
-M0_INTERNAL uint64_t m0_process_id(void)
+M0_INTERNAL uint64_t m0_pid(void)
 {
 	return getpid();
+}
+
+M0_INTERNAL uint64_t m0_process(void)
+{
+	return m0_pid();
 }
 
 M0_INTERNAL int m0_thread_arch_adopt(struct m0_thread *thread,

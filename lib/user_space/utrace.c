@@ -50,7 +50,7 @@
    @{
  */
 
-pid_t m0_pid;
+pid_t m0_pid_cached;
 
 static int logfd;
 
@@ -156,7 +156,7 @@ M0_INTERNAL int m0_arch_trace_init()
 	int         rc;
 	const char *var;
 
-	m0_pid = getpid();
+	m0_pid_cached = getpid();
 
 	var = getenv("M0_TRACE_IMMEDIATE_MASK");
 	rc = m0_trace_set_immediate_mask(var);

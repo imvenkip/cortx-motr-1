@@ -280,7 +280,13 @@ M0_INTERNAL bool m0_is_awkward(void);
 /**
  * Returns "process identifier", depending on the architecture.
  */
-M0_INTERNAL uint64_t m0_process_id(void);
+M0_INTERNAL uint64_t m0_pid(void);
+
+/**
+ * Returns "process identifier" for userspace process and 0 in the kernel.
+ * @see m0_pid().
+ */
+M0_INTERNAL uint64_t m0_process(void);
 
 /**
  * Accepts a thread as a Mero thread.

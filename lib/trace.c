@@ -261,7 +261,7 @@ M0_INTERNAL void m0_trace_allot(const struct m0_trace_descr *td,
 #ifdef __KERNEL__
 	header->trh_pid       = current->pid;
 #else
-	header->trh_pid       = m0_pid;
+	header->trh_pid       = m0_pid_cached;
 #endif
 	header->trh_no        = record_num;
 	header->trh_pos       = pos;

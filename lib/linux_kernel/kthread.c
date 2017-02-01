@@ -282,9 +282,14 @@ M0_INTERNAL void m0_thread_tls_back(struct m0_thread_tls *tls)
 	current->journal_info = tls;
 }
 
-M0_INTERNAL uint64_t m0_process_id(void)
+M0_INTERNAL uint64_t m0_pid(void)
 {
 	return current->pid;
+}
+
+M0_INTERNAL uint64_t m0_process(void)
+{
+	return 0;
 }
 
 M0_INTERNAL int m0_thread_arch_adopt(struct m0_thread *thread,

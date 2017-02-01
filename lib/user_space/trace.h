@@ -34,7 +34,7 @@
 
  */
 
-extern pid_t m0_pid;
+extern pid_t m0_pid_cached;
 
 M0_INTERNAL int m0_trace_parse(FILE *trace_file, FILE *output_file,
 			       bool yaml_stream_mode, bool header_only,

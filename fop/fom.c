@@ -929,7 +929,7 @@ static int loc_init(struct m0_fom_locality *loc, struct m0_fom_domain *dom,
 	loc->fl_idx = idx;
 	m0_thread_tls()->tls_addb2_mach = loc->fl_addb2_mach;
 	m0_addb2_push(M0_AVI_NODE, M0_ADDB2_OBJ(&m0_node_uuid));
-	M0_ADDB2_PUSH(M0_AVI_PID, m0_process_id());
+	M0_ADDB2_PUSH(M0_AVI_PID, m0_pid());
 	M0_ADDB2_PUSH(M0_AVI_LOCALITY, loc->fl_idx);
 	m0_addb2_clock_add(&loc->fl_clock, M0_AVI_CLOCK, -1);
 	m0_addb2_counter_add(&loc->fl_fom_active, M0_AVI_FOM_ACTIVE, -1);
