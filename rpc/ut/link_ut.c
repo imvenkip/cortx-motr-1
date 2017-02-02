@@ -250,12 +250,68 @@ static void rlut_remote_delay(void)
 	stop_rpc_client_and_server();
 }
 
+static void rlut_reset(void)
+{
+	struct m0_rpc_machine *mach;
+	struct m0_rpc_link    *rlink;
+	const char            *remote_ep;
+	int                    rc;
+
+	start_rpc_client_and_server();
+	mach = &cctx.rcx_rpc_machine;
+	remote_ep = cctx.rcx_remote_addr;
+
+	M0_ALLOC_PTR(rlink);
+	M0_UT_ASSERT(rlink != NULL);
+	rc = m0_rpc_link_init(rlink, mach, NULL, remote_ep,
+			      RLUT_MAX_RPCS_IN_FLIGHT);
+	M0_UT_ASSERT(rc == 0);
+
+	/* delay on session establishing */
+	m0_fi_enable("item_received_fi", "drop_opcode");
+	m0_rpc__filter_opcode[0] = M0_RPC_SESSION_ESTABLISH_REP_OPCODE;
+	rc = m0_rpc_link_connect_sync(rlink,
+				      m0_time_from_now(RLUT_SESS_TIMEOUT, 0));
+	M0_UT_ASSERT(rc != 0 && !m0_rpc_link_is_connected(rlink));
+	m0_rpc__filter_opcode[0] = 0;
+	m0_fi_disable("item_received_fi", "drop_opcode");
+
+	/* normal connect */
+	m0_rpc_link_reset(rlink);
+	rc = m0_rpc_link_connect_sync(rlink,
+				      m0_time_from_now(RLUT_SESS_TIMEOUT, 0));
+	M0_UT_ASSERT(rc == 0 && m0_rpc_link_is_connected(rlink));
+
+	/* delay on session termination */
+	m0_fi_enable("item_received_fi", "drop_opcode");
+	m0_rpc__filter_opcode[0] = M0_RPC_SESSION_TERMINATE_REP_OPCODE;
+	rc = m0_rpc_link_disconnect_sync(rlink,
+					m0_time_from_now(RLUT_SESS_TIMEOUT, 0));
+	M0_UT_ASSERT(rc != 0 && !m0_rpc_link_is_connected(rlink));
+	m0_rpc__filter_opcode[0] = 0;
+	m0_fi_disable("item_received_fi", "drop_opcode");
+
+	/* normal connect/disconnect */
+	m0_rpc_link_reset(rlink);
+	rc = m0_rpc_link_connect_sync(rlink,
+				      m0_time_from_now(RLUT_SESS_TIMEOUT, 0));
+	M0_UT_ASSERT(rc == 0 && m0_rpc_link_is_connected(rlink));
+	rc = m0_rpc_link_disconnect_sync(rlink,
+					m0_time_from_now(RLUT_SESS_TIMEOUT, 0));
+	M0_UT_ASSERT(rc == 0 && !m0_rpc_link_is_connected(rlink));
+
+	m0_rpc_link_fini(rlink);
+	m0_free(rlink);
+	stop_rpc_client_and_server();
+}
+
 struct m0_ut_suite link_lib_ut = {
 	.ts_name = "rpc-link-ut",
 	.ts_tests = {
 		{ "remote-unreacheable", rlut_remote_unreachable },
-		{ "reconnect", rlut_reconnect },
-		{ "remote-delay", rlut_remote_delay },
+		{ "reconnect",           rlut_reconnect          },
+		{ "remote-delay",        rlut_remote_delay       },
+		{ "reset",               rlut_reset              },
 		{ NULL, NULL }
 	}
 };

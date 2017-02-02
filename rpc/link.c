@@ -183,11 +183,8 @@ static void rpc_link_sess_cleanup(struct m0_rpc_link *rlink)
 	if (M0_IN(SESS_STATE(&rlink->rlk_sess), (M0_RPC_SESSION_INITIALISED,
 						 M0_RPC_SESSION_FINALISED)))
 		return;
-	if (m0_rpc_session_search(sess->s_conn, sess->s_session_id) != NULL)
-		m0_rpc_conn_remove_session(sess);
 	if (SESS_STATE(sess) != M0_RPC_SESSION_FAILED)
 		m0_rpc_session_cancel(sess);
-	m0_rpc_session_fini_locked(sess);
 }
 
 static int rpc_link_conn_failure(struct m0_rpc_link *rlink)
