@@ -249,13 +249,16 @@ def build_nodes_from(config)
             else
                 uniq_host[host] = {
                     'address' =>  host,
-                    'roles'   =>  ['station', Role_of[host_type]],
+                    'roles'   =>  [ Role_of[host_type] ],
                     'rack'    =>  rack_idx,
                     'pos'     =>  host_idx,
                 }
                 uniq_host[host]['disks'] = disks unless disks.nil?
                 host_idx += 1
             end
+
+            uniq_host[host]['roles'].push('station') \
+                if uniq_host[host]['roles'].include? 'confd'
         end
     end
 
