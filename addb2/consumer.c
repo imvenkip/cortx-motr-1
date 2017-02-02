@@ -33,6 +33,7 @@
 
 #include "addb2/consumer.h"
 #include "addb2/addb2.h"
+#include "addb2/internal.h"
 
 M0_TL_DESCR_DEFINE(philter, "addb2 source philters",
 		   static, struct m0_addb2_philter, ph_linkage, ph_magix,
@@ -124,19 +125,34 @@ struct m0_addb2_source *m0_addb2_cursor_source(struct m0_addb2_cursor *c)
 	return &c->cu_src;
 }
 
+static void philter_consume(struct m0_addb2_source *src,
+			    struct m0_addb2_philter *ph,
+			    const struct m0_addb2_record *rec)
+{
+	struct m0_addb2_callback *callback;
+
+	if (ph->ph_matches(ph, rec)) {
+		m0_tl_for(callback, &ph->ph_callback, callback) {
+			callback->ca_fire(src, ph, callback, rec);
+		} m0_tl_endfor;
+	}
+}
+
 void m0_addb2_consume(struct m0_addb2_source *src,
 		      const struct m0_addb2_record *rec)
 {
 	struct m0_addb2_philter  *ph;
-	struct m0_addb2_callback *callback;
+	struct m0_addb2_module   *am = m0_addb2_module_get();
+	int                       i;
 
 	m0_tl_for(philter, &src->so_philter, ph) {
-		if (ph->ph_matches(ph, rec)) {
-			m0_tl_for(callback, &ph->ph_callback, callback) {
-				callback->ca_fire(src, ph, callback, rec);
-			} m0_tl_endfor;
-		}
+		philter_consume(src, ph, rec);
 	} m0_tl_endfor;
+
+	for (i = 0; i < ARRAY_SIZE(am->am_philter); ++i) {
+		if (am->am_philter[i] != NULL)
+			philter_consume(src, am->am_philter[i], rec);
+	}
 }
 
 void m0_addb2_philter_true_init(struct m0_addb2_philter *ph)
@@ -159,6 +175,34 @@ static bool id_matches(struct m0_addb2_philter *philter,
 		       const struct m0_addb2_record *rec)
 {
 	return rec->ar_val.va_id == (uint64_t)philter->ph_datum;
+}
+
+void m0_addb2_philter_global_add(struct m0_addb2_philter *ph)
+{
+	struct m0_addb2_module *am = m0_addb2_module_get();
+	int                     i;
+
+	for (i = 0; i < ARRAY_SIZE(am->am_philter); ++i) {
+		if (am->am_philter[i] == NULL) {
+			am->am_philter[i] = ph;
+			return;
+		}
+	}
+	M0_IMPOSSIBLE("Too many global philters.");
+}
+
+void m0_addb2_philter_global_del(struct m0_addb2_philter *ph)
+{
+	struct m0_addb2_module *am = m0_addb2_module_get();
+	int                     i;
+
+	for (i = 0; i < ARRAY_SIZE(am->am_philter); ++i) {
+		if (am->am_philter[i] == ph) {
+			am->am_philter[i] = NULL;
+			return;
+		}
+	}
+	M0_IMPOSSIBLE("Unknown global philter.");
 }
 
 #undef M0_TRACE_SUBSYSTEM

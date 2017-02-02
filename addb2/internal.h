@@ -76,9 +76,35 @@ enum storage_constants {
 	BSIZE   = M0_BITS(BSHIFT)
 };
 
+struct m0_addb2_counter_data;
+struct m0_addb2_sensor;
+
 M0_INTERNAL void m0_addb2__counter_snapshot(struct m0_addb2_sensor *s,
 					    uint64_t *area);
 M0_INTERNAL void m0_addb2__counter_data_init(struct m0_addb2_counter_data *d);
+
+enum {
+	/**
+	 * Maximal number of global philters. Arbitrary.
+	 */
+	M0_ADDB2_GLOBAL_PHILTERS = 512
+};
+
+/**
+ * Global addb2 state (per m0 instance).
+ */
+struct m0_addb2_module {
+	/**
+	 * Sys instance used by global.c.
+	 */
+	struct m0_addb2_sys     *am_sys;
+	/**
+	 * Array of global philters.
+	 */
+	struct m0_addb2_philter *am_philter[M0_ADDB2_GLOBAL_PHILTERS];
+};
+
+M0_INTERNAL struct m0_addb2_module *m0_addb2_module_get(void);
 
 /** @} end of addb2 group */
 #endif /* __MERO_ADDB2_INTERNAL_H__ */

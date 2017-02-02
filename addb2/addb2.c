@@ -134,6 +134,7 @@
 #include "lib/mutex.h"
 #include "lib/locality.h"
 #include "fid/fid.h"
+#include "module/instance.h"                 /* m0_get */
 
 #include "addb2/addb2.h"
 #include "addb2/internal.h"
@@ -755,14 +756,27 @@ int m0_addb2_cursor_next(struct m0_addb2_cursor *cur)
 	return 0;
 }
 
+M0_INTERNAL struct m0_addb2_module *m0_addb2_module_get(void)
+{
+	return m0_get()->i_moddata[M0_MODULE_ADDB2];
+}
+
 int m0_addb2_module_init(void)
 {
-	m0_addb2__dummy_payload[0] = tag(DATA | 0, M0_AVI_NODATA);
-	return 0;
+	struct m0_addb2_module *am;
+
+	M0_ALLOC_PTR(am);
+	if (am != NULL) {
+		m0_get()->i_moddata[M0_MODULE_ADDB2] = am;
+		m0_addb2__dummy_payload[0] = tag(DATA | 0, M0_AVI_NODATA);
+		return 0;
+	} else
+		return M0_ERR(-ENOMEM);
 }
 
 void m0_addb2_module_fini(void)
 {
+	m0_free(m0_addb2_module_get());
 }
 
 /**

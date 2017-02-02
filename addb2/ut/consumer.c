@@ -113,7 +113,7 @@ static uint64_t payload[1024];
 
 /**
  * "empty-push-pop" test: check that trace with context manipulations only
- * contains to records.
+ * contains no records.
  */
 static void empty_push_pop(void)
 {
@@ -350,6 +350,41 @@ static void id_philter(void)
 	M0_UT_ASSERT(sensor_finalised);
 }
 
+/**
+ * "global-philter" test: check that m0_addb2_philter_global_{add,del}()
+ * manipulate global philter list.
+ */
+static void global_philter(void)
+{
+	fire = &cmp_fire;
+	fired = 0;
+	m0_addb2_philter_true_init(&p);
+	m0_addb2_callback_init(&c, &test_fire, NULL);
+	m0_addb2_callback_add(&p, &c);
+	m0_addb2_philter_global_add(&p);
+	M0_ADDB2_ADD(LABEL_ID, 2, 3, 5, 7, 11);
+	M0_UT_ASSERT(fired == 1);
+	m0_addb2_philter_global_del(&p);
+	m0_addb2_callback_del(&c);
+	m0_addb2_callback_fini(&c);
+	m0_addb2_philter_fini(&p);
+	fired = 0;
+	M0_ADDB2_ADD(LABEL_ID, 2, 3, 5, 7, 11);
+	M0_UT_ASSERT(fired == 0);
+	m0_addb2_philter_true_init(&p);
+	m0_addb2_callback_init(&c, &test_fire, NULL);
+	m0_addb2_callback_add(&p, &c);
+	m0_addb2_philter_global_add(&p);
+	m0_addb2_philter_global_add(&p);
+	M0_ADDB2_ADD(LABEL_ID, 2, 3, 5, 7, 11);
+	M0_UT_ASSERT(fired == 2);
+	m0_addb2_philter_global_del(&p);
+	m0_addb2_philter_global_del(&p);
+	m0_addb2_callback_del(&c);
+	m0_addb2_callback_fini(&c);
+	m0_addb2_philter_fini(&p);
+}
+
 struct m0_ut_suite addb2_consumer_ut = {
 	.ts_name = "addb2-consumer",
 	.ts_init = NULL,
@@ -362,6 +397,7 @@ struct m0_ut_suite addb2_consumer_ut = {
 		{ "sensor",               &sensor },
 		{ "sensor-N",             &sensor_N },
 		{ "id-philter",           &id_philter },
+		{ "global-philter",       &global_philter },
 		{ NULL, NULL }
 	}
 };

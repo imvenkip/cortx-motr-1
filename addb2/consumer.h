@@ -227,6 +227,16 @@ void m0_addb2_philter_true_init(struct m0_addb2_philter *ph);
  */
 void m0_addb2_philter_id_init(struct m0_addb2_philter *ph, uint64_t id);
 
+/**
+ * Adds a global philter that will be matched with every records produced by any
+ * addb2 machine.
+ */
+void m0_addb2_philter_global_add(struct m0_addb2_philter *ph);
+
+/**
+ * Removes a global philter.
+ */
+void m0_addb2_philter_global_del(struct m0_addb2_philter *ph);
 /** @} end of addb2 group */
 #endif /* __MERO_ADDB2_CONSUMER_H__ */
 

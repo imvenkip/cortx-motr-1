@@ -36,7 +36,7 @@
 #include "addb2/identifier.h"         /* M0_AVI_THREAD */
 #include "addb2/addb2.h"
 
-#define SYS() (m0_get()->i_moddata[M0_MODULE_ADDB2])
+#define SYS() (m0_addb2_module_get()->am_sys)
 
 M0_INTERNAL void m0_addb2_global_thread_enter(void)
 {

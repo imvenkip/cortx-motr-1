@@ -44,6 +44,8 @@ m0_addb2_module_init
 m0_addb2_philter_add
 m0_addb2_philter_del
 m0_addb2_philter_fini
+m0_addb2_philter_global_add
+m0_addb2_philter_global_del
 m0_addb2_philter_id_init
 m0_addb2_philter_init
 m0_addb2_philter_true_init
