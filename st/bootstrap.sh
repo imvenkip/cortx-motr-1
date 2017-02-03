@@ -175,41 +175,49 @@ id_m0_servers:
     m0d_wwn: wwn-1
     m0d_path: /dev/loop1
     m0d_size: 596000000000
+    m0d_slot: 1
   - m0d_serial: serial-2
     m0d_bsize: 4096
     m0d_wwn: wwn-2
     m0d_path: /dev/loop2
     m0d_size: 596000000000
+    m0d_slot: 2
   - m0d_serial: serial-3
     m0d_bsize: 4096
     m0d_wwn: wwn-3
     m0d_path: /dev/loop3
     m0d_size: 596000000000
+    m0d_slot: 3
   - m0d_serial: serial-4
     m0d_bsize: 4096
     m0d_wwn: wwn-4
     m0d_path: /dev/loop4
     m0d_size: 596000000000
+    m0d_slot: 4
   - m0d_serial: serial-5
     m0d_bsize: 4096
     m0d_wwn: wwn-5
     m0d_path: /dev/loop5
     m0d_size: 596000000000
+    m0d_slot: 5
   - m0d_serial: serial-6
     m0d_bsize: 4096
     m0d_wwn: wwn-6
     m0d_path: /dev/loop6
     m0d_size: 596000000000
+    m0d_slot: 6
   - m0d_serial: serial-7
     m0d_bsize: 4096
     m0d_wwn: wwn-7
     m0d_path: /dev/loop7
     m0d_size: 596000000000
+    m0d_slot: 7
   - m0d_serial: serial-8
     m0d_bsize: 4096
     m0d_wwn: wwn-8
     m0d_path: /dev/loop8
     m0d_size: 596000000000
+    m0d_slot: 8
   host_mem_rss: 1
   m0h_fqdn: `hostname`
   m0h_roles:
