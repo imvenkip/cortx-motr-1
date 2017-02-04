@@ -598,7 +598,10 @@ M0_INTERNAL void m0_confc_gate_ops_set(struct m0_confc          *confc,
 static bool _confc_check(const void *bob)
 {
 	const struct m0_confc *confc = bob;
-	return confc->cc_group != NULL;
+	return
+		_0C(confc->cc_group != NULL) &&
+		_0C(confc->cc_root == NULL ||
+		    m0_conf_obj_invariant(confc->cc_root));
 }
 
 static void clink_cleanup_fini(struct m0_clink *link)
@@ -703,7 +706,9 @@ static bool _ctx_check(const void *bob)
 		_0C(ctx->fc_clink.cl_cb == on_object_updated) &&
 		_0C(ergo(ctx->fc_rpc_item != NULL, request_check(ctx))) &&
 		_0C(ergo(mach->sm_state == S_TERMINAL, mach->sm_rc == 0)) &&
-		_0C(ergo(mach->sm_state == S_FAILURE, mach->sm_rc < 0));
+		_0C(ergo(mach->sm_state == S_FAILURE, mach->sm_rc < 0)) &&
+		_0C(ergo(ctx->fc_origin != NULL,
+			 m0_conf_obj_invariant(ctx->fc_origin)));
 }
 
 M0_INTERNAL bool m0_confc_ctx_is_completed(const struct m0_confc_ctx *ctx)
@@ -813,26 +818,54 @@ M0_INTERNAL void m0_confc__open(struct m0_confc_ctx *ctx,
 				struct m0_conf_obj  *origin,
 				const struct m0_fid *path)
 {
-	int rc;
+	int rc = 0;
 
-	M0_ENTRY("ctx=%p", ctx);
+	M0_ENTRY("ctx=%p origin=%p", ctx, origin);
 	M0_PRE(ctx_invariant(ctx) && ctx->fc_mach.sm_state == S_INITIAL);
 	M0_PRE(ctx->fc_origin == NULL && eop(ctx->fc_path));
-	M0_PRE(ergo(origin != NULL,
-		    origin->co_cache == &ctx->fc_confc->cc_cache));
 	M0_PRE(ctx->fc_allowed);
 
-	ctx->fc_origin = origin == NULL ? ctx->fc_confc->cc_root : origin;
-
-	rc = path_copy(path, ctx->fc_path, ARRAY_SIZE(ctx->fc_path));
+	if (origin == NULL) {
+		ctx->fc_origin = ctx->fc_confc->cc_root;
+	} else if (M0_FI_ENABLED("invalid-origin") ||
+		   unlikely(origin->co_cache != &ctx->fc_confc->cc_cache)) {
+		/*
+		 * `origin' may be freed at this point.
+		 *
+		 * Possible scenario (MERO-2363):
+		 *
+		 * -- Let confc->cc_root = A.
+		 * m0_conf_fs_get
+		 *  \_ m0_confc_open_sync (origin=A)
+		 *      \_ m0_confc__open_sync
+		 *          \_ sm_waiter_init
+		 *          |   \_ m0_confc_ctx_init
+		 *          |       \_ rconfc_gate_check -- blocks until
+		 *          |                            -- conf cache is ready
+		 * ------------------------------------------------------------
+		 * -- Another thread calls _confc_cache_clean(). The function
+		 * -- frees all conf objects - including 'A'! - and changes
+		 * -- the value of confc->cc_root pointer.
+		 * ------------------------------------------------------------
+		 *          \_ m0_confc__open (origin=A)
+		 * -- Since `A' has already been freed, origin->co_cache will
+		 * -- be garbage.
+		 */
+		rc = M0_ERR_INFO(-EAGAIN, "Invalid origin: %p", origin);
+	} else {
+		M0_PRE(m0_conf_obj_invariant(origin));
+		ctx->fc_origin = origin;
+	}
+	rc = rc ?: path_copy(path, ctx->fc_path, ARRAY_SIZE(ctx->fc_path));
 	if (rc == 0)
 		ast_state_set(&ctx->fc_ast, S_CHECK);
 	else
 		ast_fail(&ctx->fc_ast, rc);
+	M0_LEAVE();
 }
 
 M0_INTERNAL int m0_confc__open_sync(struct m0_conf_obj **result,
-				    struct m0_conf_obj *origin,
+				    struct m0_conf_obj  *origin,
 				    const struct m0_fid *path)
 {
 	struct sm_waiter w;
@@ -840,6 +873,7 @@ M0_INTERNAL int m0_confc__open_sync(struct m0_conf_obj **result,
 
 	M0_ENTRY();
 	M0_PRE(origin != NULL);
+	M0_PRE(m0_conf_obj_invariant(origin));
 
 	sm_waiter_init(&w, m0_confc_from_obj(origin));
 	if (!w.w_ctx.fc_allowed) {
@@ -1180,7 +1214,8 @@ static int grow_cache_st_in(struct m0_sm *mach)
 /** Actions to perform on entering S_FAILURE state. */
 static int failure_st_in(struct m0_sm *mach)
 {
-	M0_ENTRY("mach=%p", mach);
+	struct m0_confc_ctx *ctx = mach_to_ctx(mach);
+	M0_ENTRY("mach=%p ctx=%p", mach, ctx);
 
 	/*
 	 * Unset M0_CS_LOADING object with path_walk() in order for
@@ -1190,11 +1225,13 @@ static int failure_st_in(struct m0_sm *mach)
 	 *         \_ _obj_del
 	 *             \_ m0_conf_obj_delete
 	 *                 \_ M0_PRE(obj->co_status != M0_CS_LOADING)
+	 *
+	 * ctx->fc_origin may be NULL; see "Invalid origin" in m0_confc__open().
 	 */
-	(void)path_walk(mach_to_ctx(mach));
+	if (likely(ctx->fc_origin != NULL))
+		(void)path_walk(mach_to_ctx(mach));
 
-	M0_LEAVE("retval=-1");
-	return -1;
+	return M0_RC(-1);
 }
 
 /** Handles `RPC replied' event (i.e. response arrival or an error). */

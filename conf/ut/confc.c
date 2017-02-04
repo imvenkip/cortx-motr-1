@@ -28,6 +28,7 @@
 #include "conf/ut/common.h"       /* conf_ut_waiter */
 #include "conf/ut/rpc_helpers.h"  /* m0_ut_rpc_machine_start */
 #include "rpc/rpclib.h"           /* m0_rpc_server_ctx */
+#include "lib/finject.h"          /* m0_fi_enable_once */
 #include "lib/errno.h"            /* ENOENT */
 #include "lib/memory.h"           /* m0_free */
 #include "ut/ut.h"
@@ -78,6 +79,11 @@ static void sync_open_test(struct m0_conf_obj *nodes_dir)
 
 	M0_UT_ASSERT(obj == &node->cn_obj);
 	m0_confc_close(obj);
+
+	m0_fi_enable_once("m0_confc__open", "invalid-origin");
+	rc = m0_confc_open_sync(&obj, nodes_dir,
+				m0_ut_conf_fids[M0_UT_CONF_NODE]);
+	M0_UT_ASSERT(rc == -EAGAIN);
 }
 
 static void sdev_disk_check(struct m0_confc *confc)
