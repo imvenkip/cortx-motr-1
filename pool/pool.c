@@ -1643,12 +1643,14 @@ M0_INTERNAL int m0_pools_setup(struct m0_pools_common    *pc,
 			continue;
 		M0_ALLOC_PTR(pool);
 		if (pool == NULL) {
-			rc = -ENOMEM;
+			rc = M0_ERR(-ENOMEM);
 			break;
 		}
 		rc = m0_pool_init(pool, &pool_obj->co_id);
-		if (rc != 0)
+		if (rc != 0) {
+			m0_free(pool);
 			break;
+		}
 		pools_tlink_init_at_tail(pool, &pc->pc_pools);
 	}
 
@@ -1667,9 +1669,9 @@ M0_INTERNAL void m0_pool_versions_destroy(struct m0_pools_common *pc)
         struct m0_pool *p;
 
 	M0_ENTRY();
-        m0_tl_teardown(pools, &pc->pc_pools, p) {
+        m0_tl_for(pools, &pc->pc_pools, p) {
                 m0_pool_versions_fini(p);
-        }
+        } m0_tl_endfor;
 	M0_LEAVE();
 }
 

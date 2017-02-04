@@ -2146,16 +2146,14 @@ static int cs_conf_setup(struct m0_mero *cctx)
 		M0_LOG(M0_WARN, "No conf");
 		return M0_RC(0);
 	}
-
-	if (cctx->cc_reqh_ctx.rc_confdb != NULL) {
+	if (cctx->cc_reqh_ctx.rc_confdb == NULL) {
+		cs_ha_connect(cctx);
+	} else {
 		rc = m0_file_read(cctx->cc_reqh_ctx.rc_confdb,
 				  &conf_args.ca_confstr);
 		if (rc != 0)
 			return M0_ERR(rc);
 	}
-
-	if (cctx->cc_reqh_ctx.rc_confdb == NULL)
-		cs_ha_connect(cctx);
 
 	rc = m0_reqh_conf_setup(reqh, &conf_args);
 	/* confstr is not needed after m0_reqh_conf_setup() */
@@ -2196,11 +2194,17 @@ static int cs_conf_setup(struct m0_mero *cctx)
 	if (cctx->cc_pools_common.pc_md_redundancy > 0)
 		mero2reqh(cctx)->rh_oostore = true;
 
-	if (!cctx->cc_mkfs)
+	if (!cctx->cc_mkfs) {
 		rc = cs_reqh_ctx_services_validate(cctx);
+		if (rc != 0)
+			goto pools_destroy;
+	}
+	M0_ASSERT(rc == 0);
 	m0_confc_close(&fs->cf_obj);
-	return M0_RC(rc);
+	return M0_RC(0);
 
+pools_destroy:
+	m0_pools_destroy(&cctx->cc_pools_common);
 pools_common_fini:
 	m0_pools_common_fini(&cctx->cc_pools_common);
 conf_fs_close:
@@ -2215,9 +2219,7 @@ rconfc_stop:
 
 static void cs_conf_destroy(struct m0_mero *cctx)
 {
-	struct m0_confc *confc = m0_mero2confc(cctx);
-
-	if (confc->cc_group != NULL) {
+	if (m0_mero2confc(cctx)->cc_group != NULL) {
 		m0_pool_versions_destroy(&cctx->cc_pools_common);
 		m0_pools_service_ctx_destroy(&cctx->cc_pools_common);
 		m0_pools_destroy(&cctx->cc_pools_common);
@@ -2226,9 +2228,7 @@ static void cs_conf_destroy(struct m0_mero *cctx)
 
 static void cs_conf_fini(struct m0_mero *cctx)
 {
-	struct m0_confc *confc = m0_mero2confc(cctx);
-
-	if (confc->cc_group != NULL) {
+	if (m0_mero2confc(cctx)->cc_group != NULL) {
 		m0_pools_common_fini(&cctx->cc_pools_common);
 		m0_rconfc_stop_sync(mero2rconfc(cctx));
 		m0_rconfc_fini(mero2rconfc(cctx));
