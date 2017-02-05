@@ -412,8 +412,8 @@ static int idx_test_prepare(void)
 	for (i = 0; i < ST_MAX_INDEX_NUM; i++) {
 		/* get index's fid. */
 		clovis_oid_get(&id);
-		/* Make mero kvs happy*/
-		idx_fid = M0_FID_TINIT('i', id.u_hi, id.u_lo);
+		/* Make mero KVS happy */
+		idx_fid = M0_FID_TINIT('x', id.u_hi, id.u_lo);
 		id.u_hi = idx_fid.f_container;
 		id.u_lo = idx_fid.f_key;
 
@@ -857,8 +857,8 @@ static void idx_query_callbacks(void)
 
 	/* get index's fid. */
 	clovis_oid_get(&id);
-	/* Make mero kvs happy*/
-	idx_fid = M0_FID_TINIT('i', id.u_hi, id.u_lo);
+	/* Make mero DIX happy. */
+	idx_fid = M0_FID_TINIT('x', id.u_hi, id.u_lo);
 	id.u_hi = idx_fid.f_container;
 	id.u_lo = idx_fid.f_key;
 

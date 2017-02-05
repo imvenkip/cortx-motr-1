@@ -544,7 +544,7 @@ M0_INTERNAL void m0_clovis_idx_services_register(void)
 #ifdef CLOVIS_IDX_STORE_CASS
 	m0_clovis_idx_cass_register();
 #endif
-	m0_clovis_idx_kvs_register();
+	m0_clovis_idx_dix_register();
 }
 
 #undef M0_TRACE_SUBSYSTEM

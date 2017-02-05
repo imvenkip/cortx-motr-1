@@ -8,5 +8,7 @@ ut_libmero_ut_la_SOURCES += clovis/ut/clovis.c \
 			    clovis/ut/clovis_io.c \
 			    clovis/ut/clovis_idx.c \
 			    clovis/ut/clovis_osync.c \
-			    clovis/ut/clovis_idx_kvs.c \
+			    clovis/ut/clovis_idx_dix.c \
 			    clovis/ut/clovis.h
+
+CONFXC_FILES += clovis/ut/dix_conf.xc

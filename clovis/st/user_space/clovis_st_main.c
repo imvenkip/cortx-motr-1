@@ -51,6 +51,7 @@ static struct m0_clovis_config  clovis_conf;
 #include "clovis/clovis_internal.h"
 #include "sm/sm.h"
 
+static struct m0_idx_dix_config  dix_conf;
 static struct m0_idx_cass_config cass_conf;
 
 int clovis_st_is_stackptr(void *ptr)
@@ -98,8 +99,13 @@ static int clovis_st_init_instance(void)
 	clovis_conf.cc_max_rpc_msg_size      = M0_RPC_DEF_MAX_RPC_MSG_SIZE;
 
 	if (clovis_index_service == IDX_MERO) {
-		clovis_conf.cc_idx_service_id   = M0_CLOVIS_IDX_MERO;
-		clovis_conf.cc_idx_service_conf = NULL;
+		clovis_conf.cc_idx_service_id   = M0_CLOVIS_IDX_DIX;
+		/*
+		 * Automatically create metadata for Mero DIX subsystem on
+		 * clovis initialisation. DIX won't work without metadata.
+		 */
+		dix_conf.kc_create_meta = true;
+		clovis_conf.cc_idx_service_conf = &dix_conf;
 	} else if (clovis_index_service == IDX_MOCK) {
 		/* mocked index driver */
 		clovis_conf.cc_idx_service_id   = M0_CLOVIS_IDX_MOCK;

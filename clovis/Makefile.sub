@@ -16,7 +16,7 @@ mero_libmero_la_SOURCES  += clovis/clovis.c \
 			    clovis/cob.c \
 			    clovis/clovis_obj.c \
 			    clovis/idx_mock.c \
-			    clovis/idx_kvs.c \
+			    clovis/idx_dix.c \
 			    clovis/clovis_idx.c \
 			    clovis/clovis_osync.c \
 			    clovis/clovis_realm.c \

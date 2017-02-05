@@ -1014,6 +1014,23 @@ void m0_clovis_obj_op(struct m0_clovis_obj       *obj,
 		      uint64_t                    mask,
 		      struct m0_clovis_op       **op);
 
+/**
+ * Initialises clovis index in a given realm.
+ *
+ * Notes for M0_CLOVIS_IDX_DIX index service type:
+ * 'id' should be a valid mero fid of type 'x' (see m0_dix_fid_type). Zero fid
+ * container is reserved for distributed meta-indices and shouldn't be used for
+ * user indices, i.e. indices with M0_FID_TINIT('x', 0, *) fids are reserved.
+ *
+ * @code
+ * struct m0_fid fid = M0_FID_TINIT('x', 1, 1);
+ *
+ * m0_clovis_idx_init(&idx, &realm, (struct m0_uint128 *)&fid);
+ * @endcode
+ *
+ * Non-distributed indices (having fid type 'i') are going to be supported in
+ * future.
+ */
 void m0_clovis_idx_init(struct m0_clovis_idx    *idx,
 			struct m0_clovis_realm  *parent,
 			const struct m0_uint128 *id);

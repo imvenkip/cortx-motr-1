@@ -68,7 +68,7 @@ extern struct m0_ut_suite ut_suite_clovis_io_req;
 extern struct m0_ut_suite ut_suite_clovis_io_req_fop;
 extern struct m0_ut_suite ut_suite_clovis_osync;
 extern struct m0_ut_suite ut_suite_clovis_idx;
-extern struct m0_ut_suite ut_suite_clovis_idx_kvs;
+extern struct m0_ut_suite ut_suite_clovis_idx_dix;
 extern struct m0_ut_suite cm_cp_ut;
 extern struct m0_ut_suite cm_generic_ut;
 extern struct m0_ut_suite cob_ut;
@@ -182,7 +182,7 @@ static void tests_add(struct m0_ut_module *m)
 	m0_ut_add(m, &ut_suite_clovis_io_req_fop, true);
 	m0_ut_add(m, &ut_suite_clovis_osync, true);
 	m0_ut_add(m, &ut_suite_clovis_idx, true);
-	m0_ut_add(m, &ut_suite_clovis_idx_kvs, true);
+	m0_ut_add(m, &ut_suite_clovis_idx_dix, true);
 	m0_ut_add(m, &cm_cp_ut, true);
 	m0_ut_add(m, &cm_generic_ut, true);
 	m0_ut_add(m, &cob_ut, true);

@@ -25,6 +25,7 @@
 #define __MERO_CLOVIS_CLOVIS_IDX_H__
 
 #include "clovis/clovis.h" /* m0_clovis_entity_opcode */
+#include "dix/layout.h"    /* m0_dix_ldesc */
 
 /**
  * Experimental implementation of Clovis Index API by wrapping the mds
@@ -68,7 +69,7 @@ struct m0_clovis_op_idx;
 /** Types of index services supported by Clovis. */
 enum m0_clovis_idx_service_type {
 	M0_CLOVIS_IDX_MOCK,
-	M0_CLOVIS_IDX_MERO,
+	M0_CLOVIS_IDX_DIX,
 	M0_CLOVIS_IDX_CASS,
 	M0_CLOVIS_IDX_MAX_SERVICE_ID
 };
@@ -136,6 +137,35 @@ struct m0_idx_cass_config {
 	int   cc_max_column_family_num;
 };
 
+/** Configuration for Mero DIX (distributed indices) index back-end. */
+struct m0_idx_dix_config {
+	/**
+	 * Indicates whether distributed index meta-data should be created in
+	 * file system during back-end initialisation. Meta-data is global for
+	 * the file system and normally is created during cluster provisioning,
+	 * so this flag is unset usually. Layouts of 'layout' and 'layout-descr'
+	 * indices are provided by kc_layout_ldesc and kc_ldescr_ldesc fields.
+	 *
+	 * Setting this flag is useful for unit tests.
+	 *
+	 * See dix/client.h for more information.
+	 */
+	bool                kc_create_meta;
+
+	/**
+	 * Layout of 'layout' meta-index.
+	 * Ignored if kc_create_meta is unset.
+	 */
+	struct m0_dix_ldesc kc_layout_ldesc;
+
+	/**
+	 * Layout of 'layout-descr' meta-index.
+	 * Ignored if kc_create_meta is unset.
+	 */
+	struct m0_dix_ldesc kc_ldescr_ldesc;
+
+};
+
 M0_INTERNAL void clovis_idx_op_ast_complete(struct m0_sm_group *grp,
 				       struct m0_sm_ast *ast);
 M0_INTERNAL void clovis_idx_op_ast_fail(struct m0_sm_group *grp,
@@ -159,7 +189,7 @@ M0_INTERNAL void m0_clovis_idx_mock_register(void);
 M0_INTERNAL void m0_clovis_idx_cass_register(void);
 #endif
 
-M0_INTERNAL void m0_clovis_idx_kvs_register(void);
+M0_INTERNAL void m0_clovis_idx_dix_register(void);
 
 #endif /* __MERO_CLOVIS_CLOVIS_IDX_H__ */
 

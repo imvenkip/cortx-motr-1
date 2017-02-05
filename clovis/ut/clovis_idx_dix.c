@@ -31,12 +31,16 @@
 #include "clovis/clovis.h"
 #include "clovis/clovis_internal.h"
 #include "clovis/clovis_idx.h"
+#include "dix/layout.h"
+#include "dix/client.h"
+#include "dix/meta.h"
 
 #define WAIT_TIMEOUT               M0_TIME_NEVER
 #define SERVER_LOG_FILE_NAME       "cas_server.log"
 
-static struct m0_clovis        *ut_m0c;
-static struct m0_clovis_config  ut_m0c_config;
+static struct m0_clovis         *ut_m0c;
+static struct m0_clovis_config   ut_m0c_config;
+static struct m0_idx_dix_config  ut_dix_config;
 
 enum {
 	MAX_RPCS_IN_FLIGHT = 10,
@@ -51,14 +55,14 @@ static char *cas_startup_cmd[] = { "m0d", "-T", "linux",
 				"-w", "10",
 				"-F",
 				"-P", M0_UT_CONF_PROFILE,
-				"-c", M0_SRC_PATH("cas/ut/conf.xc")};
+				"-c", M0_SRC_PATH("clovis/ut/dix_conf.xc")};
 
 static const char         *local_ep_addr = "0@lo:12345:34:2";
 static const char         *srv_ep_addr   = { "0@lo:12345:34:1" };
 static const char         *process_fid   = "<0x7200000000000000:0>";
 static struct m0_net_xprt *cs_xprts[]    = { &m0_net_lnet_xprt };
 
-static struct m0_rpc_server_ctx kvs_ut_sctx = {
+static struct m0_rpc_server_ctx dix_ut_sctx = {
 		.rsx_xprts            = cs_xprts,
 		.rsx_xprts_nr         = ARRAY_SIZE(cs_xprts),
 		.rsx_argv             = cas_startup_cmd,
@@ -66,7 +70,29 @@ static struct m0_rpc_server_ctx kvs_ut_sctx = {
 		.rsx_log_file_name    = SERVER_LOG_FILE_NAME
 };
 
-static void idx_kvs_ut_clovis_init()
+static void dix_config_init()
+{
+	struct m0_fid pver = M0_FID_TINIT('v', 1, 100);
+	int           rc;
+	struct m0_ext range[] = {{ .e_start = 0, .e_end = IMASK_INF }};
+
+	/* Create meta indices (root, layout, layout-descr). */
+	rc = m0_dix_ldesc_init(&ut_dix_config.kc_layout_ldesc, range,
+			       ARRAY_SIZE(range), HASH_FNC_FNV1, &pver);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_dix_ldesc_init(&ut_dix_config.kc_ldescr_ldesc, range,
+			       ARRAY_SIZE(range), HASH_FNC_FNV1, &pver);
+	M0_UT_ASSERT(rc == 0);
+	ut_dix_config.kc_create_meta = true;
+}
+
+static void dix_config_fini()
+{
+	m0_dix_ldesc_fini(&ut_dix_config.kc_layout_ldesc);
+	m0_dix_ldesc_fini(&ut_dix_config.kc_ldescr_ldesc);
+}
+
+static void idx_dix_ut_clovis_init()
 {
 	int rc;
 
@@ -80,8 +106,8 @@ static void idx_kvs_ut_clovis_init()
 	ut_m0c_config.cc_process_fid           = process_fid;
 	ut_m0c_config.cc_tm_recv_queue_min_len = M0_NET_TM_RECV_QUEUE_DEF_LEN;
 	ut_m0c_config.cc_max_rpc_msg_size      = M0_RPC_DEF_MAX_RPC_MSG_SIZE;
-	ut_m0c_config.cc_idx_service_id        = M0_CLOVIS_IDX_MERO;
-	ut_m0c_config.cc_idx_service_conf      = NULL;
+	ut_m0c_config.cc_idx_service_id        = M0_CLOVIS_IDX_DIX;
+	ut_m0c_config.cc_idx_service_conf      = &ut_dix_config;
 
 	m0_fi_enable_once("clovis_ha_init", "skip-ha-init");
 	m0_fi_enable_once("clovis_initlift_addb2", "no-addb2");
@@ -92,33 +118,39 @@ static void idx_kvs_ut_clovis_init()
 	ut_m0c->m0c_mero = m0_get();
 }
 
-static void idx_kvs_ut_init()
+static void idx_dix_ut_init()
 {
 	int rc;
 
-	M0_SET0(&kvs_ut_sctx.rsx_mero_ctx);
-	rc = m0_rpc_server_start(&kvs_ut_sctx);
+	M0_SET0(&dix_ut_sctx.rsx_mero_ctx);
+	rc = m0_rpc_server_start(&dix_ut_sctx);
 	M0_ASSERT(rc == 0);
-	idx_kvs_ut_clovis_init();
+	dix_config_init();
+	idx_dix_ut_clovis_init();
 }
 
-static void idx_kvs_ut_fini()
+static void idx_dix_ut_fini()
 {
+	/*
+	 * Meta-indices are destroyed automatically during m0_rpc_server_stop()
+	 * along with the whole BE data.
+	 */
+	dix_config_fini();
 	m0_fi_enable_once("clovis_ha_fini", "skip-ha-fini");
 	m0_fi_enable_once("clovis_initlift_addb2", "no-addb2");
 	m0_fi_enable("clovis_ha_process_event", "no-link");
 	m0_clovis_fini(&ut_m0c, false);
 	m0_fi_disable("clovis_ha_process_event", "no-link");
-	m0_rpc_server_stop(&kvs_ut_sctx);
+	m0_rpc_server_stop(&dix_ut_sctx);
 }
 
-static void ut_kvs_init_fini(void)
+static void ut_dix_init_fini(void)
 {
-	idx_kvs_ut_init();
-	idx_kvs_ut_fini();
+	idx_dix_ut_init();
+	idx_dix_ut_fini();
 }
 
-static int *kvs_rcs_alloc(int count)
+static int *rcs_alloc(int count)
 {
 	int  i;
 	int *rcs;
@@ -127,28 +159,28 @@ static int *kvs_rcs_alloc(int count)
 	M0_UT_ASSERT(rcs != NULL);
 	for (i = 0; i < count; i++)
 		/* Set to some value to assert that UT actually changed rc. */
-		rcs[i] = 0x5f;
+		rcs[i] = 0xdb;
 	return rcs;
 }
 
-static void ut_kvs_namei_ops(void)
+static void ut_dix_namei_ops(void)
 {
 	struct m0_clovis_container realm;
 	struct m0_clovis_idx       idx;
 	struct m0_clovis_idx       idup;
 	struct m0_clovis_idx       idx0;
-	struct m0_fid              ifid = M0_FID_TINIT('i', 2, 1);
-	struct m0_fid              ifid0 = M0_FID_TINIT('i', 0, 0);
+	struct m0_fid              ifid = M0_FID_TINIT('x', 2, 1);
+	struct m0_fid              ifid0 = M0_FID_TINIT('x', 0, 0);
 	struct m0_clovis_op       *op = NULL;
 	struct m0_bufvec           keys;
 	int                       *rcs;
 	int                        rc;
 
-	idx_kvs_ut_init();
+	idx_dix_ut_init();
 	m0_clovis_container_init(&realm, NULL, &M0_CLOVIS_UBER_REALM, ut_m0c);
-	m0_clovis_idx_init(&idx, &realm.co_realm, (struct m0_uint128 *)&ifid);
 
 	/* Create the index. */
+	m0_clovis_idx_init(&idx, &realm.co_realm, (struct m0_uint128 *)&ifid);
 	rc = m0_clovis_entity_create(&idx.in_entity, &op);
 	M0_UT_ASSERT(rc == 0);
 	m0_clovis_op_launch(&op, 1);
@@ -179,7 +211,7 @@ static void ut_kvs_namei_ops(void)
 	m0_free0(&op);
 
 	/* List all indices (only one exists). */
-	rcs = kvs_rcs_alloc(2);
+	rcs = rcs_alloc(2);
 	rc = m0_bufvec_alloc(&keys, 2, sizeof(struct m0_fid));
 	M0_UT_ASSERT(rc == 0);
 	m0_clovis_idx_init(&idx0, &realm.co_realm, (struct m0_uint128 *)&ifid0);
@@ -199,6 +231,7 @@ static void ut_kvs_namei_ops(void)
 	m0_free0(&op);
 	m0_free0(&rcs);
 	m0_clovis_idx_fini(&idx0);
+	m0_bufvec_free(&keys);
 
 	/* Delete the index. */
 	rc = m0_clovis_entity_delete(&idx.in_entity, &op);
@@ -222,24 +255,24 @@ static void ut_kvs_namei_ops(void)
 	m0_clovis_idx_fini(&idup);
 
 	m0_clovis_idx_fini(&idx);
-	idx_kvs_ut_fini();
+	idx_dix_ut_fini();
 }
 
-static uint64_t kvs_key(uint64_t i)
+static uint64_t dix_key(uint64_t i)
 {
 	return 100 + i;
 }
 
-static uint64_t kvs_val(uint64_t i)
+static uint64_t dix_val(uint64_t i)
 {
 	return 100 + i * i;
 }
 
-static void ut_kvs_record_ops(void)
+static void ut_dix_record_ops(void)
 {
 	struct m0_clovis_container realm;
 	struct m0_clovis_idx       idx;
-	struct m0_fid              ifid = M0_FID_TINIT('i', 2, 1);
+	struct m0_fid              ifid = M0_FID_TINIT('x', 2, 1);
 	struct m0_clovis_op       *op = NULL;
 	struct m0_bufvec           keys;
 	struct m0_bufvec           vals;
@@ -251,7 +284,7 @@ static void ut_kvs_record_ops(void)
 	int                        rc;
 	int                       *rcs;
 
-	idx_kvs_ut_init();
+	idx_dix_ut_init();
 	m0_clovis_container_init(&realm, NULL, &M0_CLOVIS_UBER_REALM, ut_m0c);
 	m0_clovis_idx_init(&idx, &realm.co_realm, (struct m0_uint128 *)&ifid);
 
@@ -265,11 +298,11 @@ static void ut_kvs_record_ops(void)
 	m0_free0(&op);
 
 	/* Get non-existing key. */
-	rcs = kvs_rcs_alloc(1);
+	rcs = rcs_alloc(1);
 	rc = m0_bufvec_alloc(&keys, 1, sizeof(uint64_t)) ?:
 	     m0_bufvec_empty_alloc(&vals, 1);
 	M0_UT_ASSERT(rc == 0);
-	*(uint64_t*)keys.ov_buf[0] = kvs_key(10);
+	*(uint64_t*)keys.ov_buf[0] = dix_key(10);
 	rc = m0_clovis_idx_op(&idx, M0_CLOVIS_IC_GET, &keys, &vals, rcs, &op);
 	M0_UT_ASSERT(rc == 0);
 	m0_clovis_op_launch(&op, 1);
@@ -286,13 +319,13 @@ static void ut_kvs_record_ops(void)
 
 
 	/* Add records to the index. */
-	rcs = kvs_rcs_alloc(CNT);
+	rcs = rcs_alloc(CNT);
 	rc = m0_bufvec_alloc(&keys, CNT, sizeof(uint64_t)) ?:
 	     m0_bufvec_alloc(&vals, CNT, sizeof(uint64_t));
 	M0_UT_ASSERT(rc == 0);
 	for (i = 0; i < keys.ov_vec.v_nr; i++) {
-		*(uint64_t *)keys.ov_buf[i] = kvs_key(i);
-		*(uint64_t *)vals.ov_buf[i] = kvs_val(i);
+		*(uint64_t *)keys.ov_buf[i] = dix_key(i);
+		*(uint64_t *)vals.ov_buf[i] = dix_val(i);
 	}
 	rc = m0_clovis_idx_op(&idx, M0_CLOVIS_IC_PUT, &keys, &vals, rcs, &op);
 	M0_UT_ASSERT(rc == 0);
@@ -307,12 +340,12 @@ static void ut_kvs_record_ops(void)
 	m0_free0(&rcs);
 
 	/* Get records from the index by keys. */
-	rcs = kvs_rcs_alloc(CNT);
+	rcs = rcs_alloc(CNT);
 	rc = m0_bufvec_alloc(&keys, CNT, sizeof(uint64_t)) ?:
 	     m0_bufvec_empty_alloc(&vals, CNT);
 	M0_UT_ASSERT(rc == 0);
 	for (i = 0; i < keys.ov_vec.v_nr; i++)
-		*(uint64_t*)keys.ov_buf[i] = kvs_key(i);
+		*(uint64_t*)keys.ov_buf[i] = dix_key(i);
 	rc = m0_clovis_idx_op(&idx, M0_CLOVIS_IC_GET, &keys, &vals, rcs, &op);
 	M0_UT_ASSERT(rc == 0);
 	m0_clovis_op_launch(&op, 1);
@@ -320,7 +353,7 @@ static void ut_kvs_record_ops(void)
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(m0_forall(i, CNT,
 			       rcs[i] == 0 &&
-		               *(uint64_t *)vals.ov_buf[i] == kvs_val(i)));
+		               *(uint64_t *)vals.ov_buf[i] == dix_val(i)));
 	m0_bufvec_free(&keys);
 	m0_bufvec_free(&vals);
 	m0_clovis_op_fini(op);
@@ -328,13 +361,13 @@ static void ut_kvs_record_ops(void)
 	m0_free0(&rcs);
 
 	/* Get records with all existing keys, except the one. */
-	rcs = kvs_rcs_alloc(CNT);
+	rcs = rcs_alloc(CNT);
 	rc = m0_bufvec_alloc(&keys, CNT, sizeof(uint64_t)) ?:
 	     m0_bufvec_empty_alloc(&vals, CNT);
 	M0_UT_ASSERT(rc == 0);
 	for (i = 0; i < keys.ov_vec.v_nr; i++)
-		*(uint64_t*)keys.ov_buf[i] = kvs_key(i);
-	*(uint64_t *)keys.ov_buf[5] = kvs_key(999);
+		*(uint64_t*)keys.ov_buf[i] = dix_key(i);
+	*(uint64_t *)keys.ov_buf[5] = dix_key(999);
 	rc = m0_clovis_idx_op(&idx, M0_CLOVIS_IC_GET, &keys, &vals, rcs, &op);
 	M0_UT_ASSERT(rc == 0);
 	m0_clovis_op_launch(&op, 1);
@@ -343,7 +376,7 @@ static void ut_kvs_record_ops(void)
 	for (i = 0; i < CNT; i++) {
 		if (i != 5) {
 			M0_UT_ASSERT(rcs[i] == 0);
-			M0_UT_ASSERT(*(uint64_t *)vals.ov_buf[i] == kvs_val(i));
+			M0_UT_ASSERT(*(uint64_t *)vals.ov_buf[i] == dix_val(i));
 		} else {
 			M0_UT_ASSERT(rcs[i] == -ENOENT);
 			M0_UT_ASSERT(vals.ov_buf[5] == NULL);
@@ -356,13 +389,13 @@ static void ut_kvs_record_ops(void)
 	m0_free0(&rcs);
 
 	/* Iterate over all records in the index. */
-	rcs = kvs_rcs_alloc(CNT);
-	rc = m0_bufvec_empty_alloc(&keys, CNT) ?:
-	     m0_bufvec_empty_alloc(&vals, CNT);
+	rcs = rcs_alloc(CNT + 1);
+	rc = m0_bufvec_empty_alloc(&keys, CNT + 1) ?:
+	     m0_bufvec_empty_alloc(&vals, CNT + 1);
 	M0_UT_ASSERT(rc == 0);
 	keys.ov_buf[0] = m0_alloc(sizeof(uint64_t));
 	keys.ov_vec.v_count[0] = sizeof(uint64_t);
-	*(uint64_t *)keys.ov_buf[0] = kvs_key(0);
+	*(uint64_t *)keys.ov_buf[0] = dix_key(0);
 	rc = m0_clovis_idx_op(&idx, M0_CLOVIS_IC_NEXT, &keys, &vals, rcs, &op);
 	M0_UT_ASSERT(rc == 0);
 	m0_clovis_op_launch(&op, 1);
@@ -370,8 +403,11 @@ static void ut_kvs_record_ops(void)
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(m0_forall(i, CNT,
 			       rcs[i] == 0 &&
-			       *(uint64_t*)keys.ov_buf[i] == kvs_key(i) &&
-			       *(uint64_t*)vals.ov_buf[i] == kvs_val(i)));
+			       *(uint64_t*)keys.ov_buf[i] == dix_key(i) &&
+			       *(uint64_t*)vals.ov_buf[i] == dix_val(i)));
+	M0_UT_ASSERT(rcs[CNT] == -ENOENT);
+	M0_UT_ASSERT(keys.ov_buf[CNT] == NULL);
+	M0_UT_ASSERT(vals.ov_buf[CNT] == NULL);
 	m0_bufvec_free(&keys);
 	m0_bufvec_free(&vals);
 	m0_clovis_op_fini(op);
@@ -385,7 +421,7 @@ static void ut_kvs_record_ops(void)
 	accum = 0;
 	cur_key = 0;
 	do {
-		rcs = kvs_rcs_alloc(2);
+		rcs = rcs_alloc(2);
 		rc = m0_bufvec_empty_alloc(&keys, 2) ?:
 		     m0_bufvec_empty_alloc(&vals, 2);
 		M0_UT_ASSERT(rc == 0);
@@ -414,9 +450,9 @@ static void ut_kvs_record_ops(void)
 		eof = recs_nr < keys.ov_vec.v_nr;
 		for (i = 0; i < recs_nr; i++) {
 			M0_UT_ASSERT(*(uint64_t *)keys.ov_buf[i] ==
-				     kvs_key(accum + i));
+				     dix_key(accum + i));
 			M0_UT_ASSERT(*(uint64_t *)vals.ov_buf[i] ==
-				     kvs_val(accum + i));
+				     dix_val(accum + i));
 			cur_key = *(uint64_t *)keys.ov_buf[i];
 		}
 		m0_bufvec_free(&keys);
@@ -436,10 +472,10 @@ static void ut_kvs_record_ops(void)
 	M0_UT_ASSERT(accum == CNT);
 
 	/* Remove the records from the index. */
-	rcs = kvs_rcs_alloc(CNT);
+	rcs = rcs_alloc(CNT);
 	rc = m0_bufvec_alloc(&keys, CNT, sizeof(uint64_t));
 	for (i = 0; i < keys.ov_vec.v_nr; i++)
-		*(uint64_t *)keys.ov_buf[i] = kvs_key(i);
+		*(uint64_t *)keys.ov_buf[i] = dix_key(i);
 	rc = m0_clovis_idx_op(&idx, M0_CLOVIS_IC_DEL, &keys, NULL, rcs, &op);
 	M0_UT_ASSERT(rc == 0);
 	m0_clovis_op_launch(&op, 1);
@@ -461,18 +497,18 @@ static void ut_kvs_record_ops(void)
 	m0_free0(&op);
 
 	m0_clovis_idx_fini(&idx);
-	idx_kvs_ut_fini();
+	idx_dix_ut_fini();
 }
 
-struct m0_ut_suite ut_suite_clovis_idx_kvs = {
-	.ts_name   = "clovis-idx-kvs",
+struct m0_ut_suite ut_suite_clovis_idx_dix = {
+	.ts_name   = "clovis-idx-dix",
 	.ts_owners = "Egor",
 	.ts_init   = NULL,
 	.ts_fini   = NULL,
 	.ts_tests  = {
-		{ "init-fini",  ut_kvs_init_fini,  "Egor" },
-		{ "namei-ops",  ut_kvs_namei_ops,  "Egor" },
-		{ "record-ops", ut_kvs_record_ops, "Egor" },
+		{ "init-fini",        ut_dix_init_fini,              "Egor" },
+		{ "namei-ops",        ut_dix_namei_ops,              "Egor" },
+		{ "record-ops",       ut_dix_record_ops,             "Egor" },
 		{ NULL, NULL }
 	}
 };
