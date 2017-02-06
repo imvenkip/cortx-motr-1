@@ -22,8 +22,6 @@
  *
  * m0ham (HA messenger) --- CLI utility for sending/receiving m0_ha_msg.
  *
- * @todo Write a functional test (aka ST).
- *
  * @todo Fix memory leaks:
  * - m0_ha_entrypoint_req_fop::erf_git_rev_id
  * - m0_ha_entrypoint_rep_fop::hbp_active_rm_ep
