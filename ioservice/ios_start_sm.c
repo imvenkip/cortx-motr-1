@@ -522,21 +522,21 @@ static bool ios_start_ast_conf_fs_get_cb(struct m0_clink *cl)
 static int ios_start_fs_obj_open(struct m0_ios_start_sm *ios_sm)
 {
 	struct m0_confc *confc = m0_reqh2confc(ios_sm->ism_reqh);
+	int              rc;
 
 	M0_ENTRY();
-	m0_confc_ctx_init(&ios_sm->ism_confc_ctx, confc);
-	if (!ios_sm->ism_confc_ctx.fc_allowed) {
-		m0_confc_ctx_fini(&ios_sm->ism_confc_ctx);
-		return M0_ERR(-EPERM);
+
+	rc = m0_confc_ctx_init(&ios_sm->ism_confc_ctx, confc);
+	if (rc == 0) {
+		m0_clink_init(&ios_sm->ism_clink, ios_start_ast_conf_fs_get_cb);
+		m0_clink_add(&ios_sm->ism_confc_ctx.fc_mach.sm_chan,
+			     &ios_sm->ism_clink);
+		m0_confc_open(&ios_sm->ism_confc_ctx, confc->cc_root,
+			      M0_CONF_ROOT_PROFILES_FID,
+			      *m0_reqh2profile(ios_sm->ism_reqh),
+			      M0_CONF_PROFILE_FILESYSTEM_FID);
 	}
-	m0_clink_init(&ios_sm->ism_clink, ios_start_ast_conf_fs_get_cb);
-	m0_clink_add(&ios_sm->ism_confc_ctx.fc_mach.sm_chan,
-		     &ios_sm->ism_clink);
-	m0_confc_open(&ios_sm->ism_confc_ctx, confc->cc_root,
-		      M0_CONF_ROOT_PROFILES_FID,
-		      *m0_reqh2profile(ios_sm->ism_reqh),
-		      M0_CONF_PROFILE_FILESYSTEM_FID);
-	return M0_RC(0);
+	return M0_RC(rc);
 }
 
 static void ios_start_fs_obj_close(struct m0_ios_start_sm *ios_sm)
@@ -669,8 +669,7 @@ static void ios_start_pm_disk_add(struct m0_ios_start_sm *ios_sm,
 
 		if (m0_tl_exists(m0_fids, item, &ios_sm->ism_sdevs_fid,
 				 m0_fid_eq(&item->i_fid,
-					   &d->ck_dev->sd_obj.co_id)))
-		{
+					   &d->ck_dev->sd_obj.co_id))) {
 			idx = ios_sm->ism_pool_index;
 			M0_ASSERT(idx < ios_sm->ism_poolmach_args.nr_sdevs);
 			ios_sm->ism_poolmach->pm_state->

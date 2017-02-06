@@ -245,22 +245,20 @@ static void rm_ha_fs_open(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	struct m0_rm_ha_subscriber *sbscr = ast->sa_datum;
 	struct m0_confc            *confc = sbscr->rhs_confc;
 	struct m0_confc_ctx        *cctx = &sbscr->rhs_cctx;
-	struct m0_reqh             *reqh;
+	struct m0_reqh             *reqh = m0_confc2reqh(confc);
+	int                         rc;
 
-	reqh = m0_confc2reqh(confc);
-	m0_confc_ctx_init(cctx, confc);
-	if (!cctx->fc_allowed) {
-		m0_confc_ctx_fini(cctx);
-		rm_ha_sbscr_fail(sbscr, M0_ERR(-ENOENT));
-	} else {
+	rc = m0_confc_ctx_init(cctx, confc);
+	if (rc == 0) {
 		rm_ha_sbscr_state_set(sbscr, RM_HA_SBSCR_FS_OPEN);
-		m0_clink_init(&sbscr->rhs_clink,
-			      rm_ha_sbscr_fs_open_cb);
+		m0_clink_init(&sbscr->rhs_clink, rm_ha_sbscr_fs_open_cb);
 		m0_clink_add_lock(&cctx->fc_mach.sm_chan, &sbscr->rhs_clink);
 		m0_confc_open(cctx, confc->cc_root,
 			      M0_CONF_ROOT_PROFILES_FID,
 			      *m0_reqh2profile(reqh),
 			      M0_CONF_PROFILE_FILESYSTEM_FID);
+	} else {
+		rm_ha_sbscr_fail(sbscr, M0_ERR(rc));
 	}
 }
 

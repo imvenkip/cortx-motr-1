@@ -19,9 +19,9 @@
  * Original creation date: 03-Mar-2015
  */
 
-#define M0_TRACE_SUBSYSTEM   M0_TRACE_SUBSYS_CONF
-
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CONF
 #include "lib/trace.h"
+
 #include "lib/tlist.h"
 #include "lib/mutex.h"
 #include "lib/memory.h"           /* M0_ALLOC_PTR, m0_free */
@@ -40,8 +40,7 @@
 #include "conf/helpers.h"         /* m0_conf_ha_state_update */
 #include "conf/rconfc.h"
 #include "conf/rconfc_internal.h" /* rlock_ctx, rconfc_link,
-				   * ver_item, ver_accm
-				   */
+				   * ver_item, ver_accm */
 #include "conf/rconfc_link_fom.h" /* rconfc_herd_link__on_death_cb */
 #include "ha/entrypoint.h"        /* m0_ha_entrypoint_client */
 #include "ha/ha.h"                /* m0_ha */
@@ -332,23 +331,18 @@
    textcolor="#0000ff"];
    rc=>rc  [ label = "rconfc_conductor_engage" ];
    rc=>rc  [ label = "state = M0_RCS_IDLE" ];
-   rc note rc [ label = "reading allowed = true" ];
+   rc note rc [ label = "reading allowed" ];
    ... ;
    m=>x   [ label = "m0_confc_ctx_init"];
    x=>c   [ label = "get .go_check"];
    x<<c   [ label = ".go_check"];
    ---    [ label = "if (.go_check != NULL)" ];
    x=>>rc [ label = "rconfc_gate_check" ];
-   rc>>x  [ label = "allowed = true" ];
+   rc>>x  [ label = "reading allowed" ];
    ---    [ label = "else // reading allowed by default" ];
-   x note x [ label = "fc_allowed = true" ];
    x>>m   [ label = "return from init" ];
-   m=>x   [ label = "m0_confc_open_sync(...)" ];
-   x=>x   [ label = "test if fc_allowed is true" ];
-   ... ;
-   x>>m   [ label = "return" ];
+   ...
    ||| ;
-
    @endmsc
 
  * <br/><center>
@@ -366,7 +360,7 @@
    ||| ;
    rm note rm [ label = "revoke read lock", textcolor="#cc0000" ];
    rm=>>rc [ label = "rconfc_read_lock_conflict", textcolor="#cc0000"];
-   rc note rc [ label = "reading allowed = false" ];
+   rc note rc [ label = "reading not allowed" ];
    rc=>rc  [ label = ".go_drain = rconfc_gate_drain" ];
    x<=m    [ label = "m0_confc_ctx_fini" ];
    rc<<=x  [ label = "rconfc_gate_drain" ];
@@ -392,18 +386,13 @@
    textcolor="#00aa00"];
    rc=>rc  [ label = "rconfc_conductor_engage" ];
    rc=>rc  [ label = "state = M0_RCS_IDLE" ];
-   rc note rc [ label = "reading allowed = true" ];
+   rc note rc [ label = "reading allowed" ];
    ---    [ label = "waking up in rconfc_gate_check", linecolor="#0000ff",
    textcolor="#0000ff"];
-   rc>>x  [ label = "reading allowed = true" ];
-   x note x [ label = "fc_allowed = true" ];
+   rc>>x  [ label = "reading allowed" ];
    x>>m   [ label = "return from init" ];
-   m=>x   [ label = "m0_confc_open_sync(...)" ];
-   x=>x   [ label = "test if fc_allowed is true" ];
-   ... ;
-   x>>m   [ label = "return success" ];
+   ...
    ||| ;
-
    @endmsc
 
  * <br/><center>
@@ -421,7 +410,7 @@
    ||| ;
    rm note rm [ label = "revoke read lock", textcolor="#cc0000" ];
    rm=>>rc [ label = "rconfc_read_lock_conflict", textcolor="#cc0000"];
-   rc note rc [ label = "reading allowed = false" ];
+   rc note rc [ label = "reading not allowed" ];
    rc=>rc [ label = ".go_drain = rconfc_gate_drain" ];
    x<=m   [ label = "m0_confc_ctx_fini" ];
    rc<<=x [ label = "rconfc_gate_drain" ];
@@ -443,18 +432,13 @@
    rm note rc [ label = "communication failed", textcolor="#cc0000" ];
    rm=>>rc [ label = "rconfc_read_lock_complete(rc != 0)", textcolor="#cc0000"];
    rc=>rc  [ label = "state = M0_RCS_FAILURE"];
-   rc note rc [ label = "reading allowed = false" ];
+   rc note rc [ label = "reading not allowed" ];
    ---    [ label = "waking up in rconfc_gate_check", linecolor="#0000ff",
    textcolor="#0000ff"];
-   rc>>x  [ label = "reading allowed = false" ];
-   x note x [ label = "fc_allowed = false" ];
+   rc>>x  [ label = "reading not allowed" ];
    x>>m   [ label = "return from init" ];
-   m=>x   [ label = "m0_confc_open_sync(...)" ];
-   x=>x   [ label = "test if fc_allowed is true" ];
-   x>>m   [ label = "return -EINVAL" ];
    ... ;
    ||| ;
-
    @endmsc
 
  * <br/><center>

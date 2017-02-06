@@ -627,30 +627,41 @@ static void confc_group_lock(const struct m0_confc *confc);
 static void confc_group_unlock(const struct m0_confc *confc);
 static bool confc_group_is_locked(const struct m0_confc *confc);
 
-M0_INTERNAL void
+M0_INTERNAL int
 m0_confc_ctx_init(struct m0_confc_ctx *ctx, struct m0_confc *confc)
 {
-	M0_ENTRY("ctx=%p confc=%p", ctx, confc);
+	bool ok;
+
+	M0_ENTRY("ctx=%p", ctx);
 	M0_PRE(m0_confc_invariant(confc));
 
-	M0_SET0(ctx);
-	ctx->fc_confc = confc;
-
 	confc_lock(confc);
-	ctx->fc_allowed = confc->cc_gops == NULL ? true :
+	ok = confc->cc_gops == NULL ||
+		/**
+		 * This call may block.
+		 * @see rconfc_gate_check()
+		 */
 		confc->cc_gops->go_check(confc);
-	M0_CNT_INC(confc->cc_nr_ctx); /* attach to m0_confc */
+	if (ok) {
+		M0_LOG(M0_INFO, "ctx=%p confc=%p nr_ctx: %"PRIu32" -> %"PRIu32,
+		       ctx, confc, confc->cc_nr_ctx, confc->cc_nr_ctx + 1);
+		M0_CNT_INC(confc->cc_nr_ctx); /* attach to m0_confc */
+	}
 	confc_unlock(confc);
+	if (!ok)
+		return M0_ERR_INFO(-EPERM, "Conf reading is not allowed"
+				   " [ctx=%p]", ctx);
 
+	*ctx = (struct m0_confc_ctx){ .fc_confc = confc };
 	m0_sm_init(&ctx->fc_mach, &confc_ctx_states_conf, S_INITIAL,
 		   confc->cc_group);
-
 	ctx->fc_ast.sa_datum = &ctx->fc_ast_datum;
 	m0_clink_init(&ctx->fc_clink, on_object_updated);
 	m0_confc_ctx_bob_init(ctx);
 
 	M0_POST(ctx_invariant(ctx));
-	M0_LEAVE();
+	M0_LEAVE("ctx=%p", ctx);
+	return 0;
 }
 
 M0_INTERNAL void m0_confc_ctx_fini_locked(struct m0_confc_ctx *ctx)
@@ -667,6 +678,8 @@ M0_INTERNAL void m0_confc_ctx_fini_locked(struct m0_confc_ctx *ctx)
 	confc_lock(confc);
 	if (ctx->fc_mach.sm_state == S_TERMINAL && ctx->fc_result != NULL)
 		m0_conf_obj_put(ctx->fc_result);
+	M0_LOG(M0_INFO, "ctx=%p confc=%p nr_ctx: %"PRIu32" -> %"PRIu32,
+	       ctx, confc, confc->cc_nr_ctx, confc->cc_nr_ctx - 1);
 	M0_CNT_DEC(confc->cc_nr_ctx); /* detach from m0_confc */
 	if (confc->cc_nr_ctx == 0)
 		m0_chan_signal_lock(&confc->cc_unattached);
@@ -771,11 +784,14 @@ static bool sm__filter(struct m0_clink *link)
 							w_clink)->w_ctx);
 }
 
-static void sm_waiter_init(struct sm_waiter *w, struct m0_confc *confc)
+static int sm_waiter_init(struct sm_waiter *w, struct m0_confc *confc)
 {
-	m0_confc_ctx_init(&w->w_ctx, confc);
-	m0_clink_init(&w->w_clink, sm__filter);
-	m0_clink_add_lock(&w->w_ctx.fc_mach.sm_chan, &w->w_clink);
+	int rc = m0_confc_ctx_init(&w->w_ctx, confc);
+	if (rc == 0) {
+		m0_clink_init(&w->w_clink, sm__filter);
+		m0_clink_add_lock(&w->w_ctx.fc_mach.sm_chan, &w->w_clink);
+	}
+	return M0_RC(rc);
 }
 
 static void sm_waiter_fini(struct sm_waiter *w)
@@ -823,7 +839,6 @@ M0_INTERNAL void m0_confc__open(struct m0_confc_ctx *ctx,
 	M0_ENTRY("ctx=%p origin=%p", ctx, origin);
 	M0_PRE(ctx_invariant(ctx) && ctx->fc_mach.sm_state == S_INITIAL);
 	M0_PRE(ctx->fc_origin == NULL && eop(ctx->fc_path));
-	M0_PRE(ctx->fc_allowed);
 
 	if (origin == NULL) {
 		ctx->fc_origin = ctx->fc_confc->cc_root;
@@ -875,12 +890,9 @@ M0_INTERNAL int m0_confc__open_sync(struct m0_conf_obj **result,
 	M0_PRE(origin != NULL);
 	M0_PRE(m0_conf_obj_invariant(origin));
 
-	sm_waiter_init(&w, m0_confc_from_obj(origin));
-	if (!w.w_ctx.fc_allowed) {
-		sm_waiter_fini(&w);
-		M0_LOG(M0_ERROR, "Reading not allowed");
-		return M0_ERR(-EINVAL);
-	}
+	rc = sm_waiter_init(&w, m0_confc_from_obj(origin));
+	if (rc != 0)
+		return M0_ERR(rc);
 	m0_confc__open(&w.w_ctx, origin, path);
 	rc = sm_waiter_wait(&w, result);
 	sm_waiter_fini(&w);
@@ -920,12 +932,9 @@ M0_INTERNAL int m0_confc_open_by_fid_sync(struct m0_confc      *confc,
 
 	M0_ENTRY();
 
-	sm_waiter_init(&w, confc);
-	if (!w.w_ctx.fc_allowed) {
-		sm_waiter_fini(&w);
-		M0_LOG(M0_ERROR, "Reading not allowed");
-		return M0_ERR(-EINVAL);
-	}
+	rc = sm_waiter_init(&w, confc);
+	if (rc != 0)
+		return M0_ERR(rc);
 	m0_confc_open_by_fid(&w.w_ctx, fid);
 	rc = sm_waiter_wait(&w, result);
 	sm_waiter_fini(&w);
@@ -970,7 +979,6 @@ M0_INTERNAL int m0_confc_readdir(struct m0_confc_ctx *ctx,
 	M0_ENTRY("ctx=%p dir=%p *pptr=%p", ctx, dir, *pptr);
 	M0_PRE(m0_conf_obj_type(dir) == &M0_CONF_DIR_TYPE &&
 	       dir->co_cache == &ctx->fc_confc->cc_cache);
-	M0_PRE(ctx->fc_allowed);
 
 	confc_lock(m0_confc_from_obj(dir));
 	rc = dir->co_ops->coo_readdir(dir, pptr);
@@ -986,12 +994,9 @@ M0_INTERNAL int m0_confc_readdir(struct m0_confc_ctx *ctx,
 			(*pptr)->co_id,
 			M0_FID0
 		};
-
 		m0_confc__open(ctx, dir->co_parent, path);
 	}
 	confc_unlock(m0_confc_from_obj(dir));
-
-	M0_LEAVE("retval=%d", rc);
 	return M0_RC(rc);
 }
 
@@ -1003,22 +1008,16 @@ M0_INTERNAL int m0_confc_readdir_sync(struct m0_conf_obj *dir,
 
 	M0_ENTRY("dir=%p *pptr=%p", dir, *pptr);
 
-	sm_waiter_init(&w, m0_confc_from_obj(dir));
-	if (!w.w_ctx.fc_allowed) {
-		sm_waiter_fini(&w);
-		M0_LOG(M0_ERROR, "Reading not allowed");
-		return M0_ERR(-EINVAL);
-	}
-
+	rc = sm_waiter_init(&w, m0_confc_from_obj(dir));
+	if (rc != 0)
+		return M0_ERR(rc);
 	rc = m0_confc_readdir(&w.w_ctx, dir, pptr);
 	if (rc == M0_CONF_DIRMISS)
 		rc = sm_waiter_wait(&w, pptr) ?:
 			(*pptr == NULL ? M0_CONF_DIREND : M0_CONF_DIRNEXT);
 	else
 		M0_ASSERT(M0_IN(rc, (M0_CONF_DIRNEXT, M0_CONF_DIREND)));
-
 	sm_waiter_fini(&w);
-	M0_LEAVE("retval=%d", rc);
 	return M0_RC(rc);
 }
 
@@ -1101,11 +1100,8 @@ static int wait_reply_st_in(struct m0_sm *mach)
 	M0_PRE(ctx->fc_rpc_item != NULL);
 
 	rc = m0_rpc_post(ctx->fc_rpc_item);
-	if (rc == 0) {
-		M0_LEAVE("retval=-1");
-		return -1;
-	}
-
+	if (rc == 0)
+		return M0_RC(-1);
 	mach->sm_rc = rc;
 	M0_LEAVE("retval=S_FAILURE");
 	return S_FAILURE;
@@ -1229,7 +1225,7 @@ static int failure_st_in(struct m0_sm *mach)
 	 * ctx->fc_origin may be NULL; see "Invalid origin" in m0_confc__open().
 	 */
 	if (likely(ctx->fc_origin != NULL))
-		(void)path_walk(mach_to_ctx(mach));
+		(void)path_walk(ctx);
 
 	return M0_RC(-1);
 }
@@ -1411,7 +1407,6 @@ path_walk_complete(struct m0_confc_ctx *ctx, struct m0_conf_obj *obj, size_t ri)
 
 	case M0_CS_MISSING:
 		obj->co_status = M0_CS_LOADING;
-
 		if (m0_conf_obj_type(obj) == &M0_CONF_DIR_TYPE) {
 			/*
 			 * Directory objects don't travel over the
@@ -1421,7 +1416,6 @@ path_walk_complete(struct m0_confc_ctx *ctx, struct m0_conf_obj *obj, size_t ri)
 			obj = obj->co_parent;
 			M0_CNT_DEC(ri);
 		}
-
 		rc = request_create(ctx, obj, ri);
 		if (rc == 0) {
 			M0_LEAVE("retval=M0_CS_MISSING");
@@ -1442,9 +1436,7 @@ path_walk_complete(struct m0_confc_ctx *ctx, struct m0_conf_obj *obj, size_t ri)
 	default:
 		M0_IMPOSSIBLE("Invalid object status");
 	}
-
-	M0_LEAVE("retval=-1");
-	return -1;
+	return M0_RC(-1);
 }
 
 /* ------------------------------------------------------------------

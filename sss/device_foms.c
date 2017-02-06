@@ -307,16 +307,12 @@ static void sss_device_fom_switch(struct m0_fom *fom)
 static int sss_confc_ctx_init(struct m0_sss_dfom *dfom)
 {
 	struct m0_confc_ctx *ctx = &dfom->ssm_confc_ctx;
-	struct m0_confc     *confc =
-		m0_reqh2confc(m0_fom_reqh(&dfom->ssm_fom));
+	struct m0_confc     *confc = m0_reqh2confc(m0_fom_reqh(&dfom->ssm_fom));
+	int                  rc;
 
-	m0_confc_ctx_init(ctx, confc);
-	if (!ctx->fc_allowed) {
-		m0_confc_ctx_fini(ctx);
-		return M0_ERR(-EPERM);
-	}
-	M0_POST(confc == ctx->fc_confc);
-	return M0_RC(0);
+	rc = m0_confc_ctx_init(ctx, confc);
+	M0_POST(ergo(rc == 0, confc == ctx->fc_confc));
+	return M0_RC(rc);
 }
 
 static int sss_device_fom_conf_obj_open(struct m0_sss_dfom  *dfom,

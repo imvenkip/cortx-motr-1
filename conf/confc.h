@@ -190,7 +190,7 @@ struct m0_conf_obj;
  *         struct m0_clink     w_clink;
  * };
  *
- * static void sm_waiter_init(struct sm_waiter *w, struct m0_confc *confc);
+ * static int  sm_waiter_init(struct sm_waiter *w, struct m0_confc *confc);
  * static void sm_waiter_fini(struct sm_waiter *w);
  *
  * // Uses asynchronous m0_confc_open() to get filesystem configuration.
@@ -199,7 +199,9 @@ struct m0_conf_obj;
  *         struct sm_waiter w;
  *         int              rc;
  *
- *         sm_waiter_init(&w, g_confc);
+ *         rc = sm_waiter_init(&w, g_confc);
+ *         if (rc != 0)
+ *                 return M0_ERR(rc);
  *
  *         m0_confc_open(&w.w_ctx, NULL,
  *                       M0_CONF_ROOT_PROFILES_FID,
@@ -212,7 +214,6 @@ struct m0_conf_obj;
  *         if (rc == 0)
  *                 *fs = M0_CONF_CAST(m0_confc_ctx_result(&w.w_ctx),
  *                                    m0_conf_filesystem);
- *
  *         sm_waiter_fini(&w);
  *         return rc;
  * }
@@ -240,11 +241,14 @@ struct m0_conf_obj;
  *                                                         w_clink)->w_ctx);
  * }
  *
- * static void sm_waiter_init(struct sm_waiter *w, struct m0_confc *confc)
+ * static int sm_waiter_init(struct sm_waiter *w, struct m0_confc *confc)
  * {
- *         m0_confc_ctx_init(&w->w_ctx, confc);
- *         m0_clink_init(&w->w_clink, sm_filter);
- *         m0_clink_add(&w->w_ctx.fc_mach.sm_chan, &w->w_clink);
+ *         int rc = m0_confc_ctx_init(&w->w_ctx, confc);
+ *         if (rc == 0) {
+ *                 m0_clink_init(&w->w_clink, sm_filter);
+ *                 m0_clink_add(&w->w_ctx.fc_mach.sm_chan, &w->w_clink);
+ *         }
+ *         return rc;
  * }
  *
  * static void sm_waiter_fini(struct sm_waiter *w)
@@ -492,7 +496,7 @@ struct m0_confc {
 	 * Serialises configuration retrieval state machines
 	 * (m0_confc_ctx::fc_mach).
 	 */
-	struct m0_sm_group      *cc_group;
+	struct m0_sm_group       *cc_group;
 
 	/**
 	 * Confc cache lock.
@@ -507,10 +511,10 @@ struct m0_confc {
 	 *
 	 * @see confc-lspec-thread
 	 */
-	struct m0_mutex          cc_lock;
+	struct m0_mutex           cc_lock;
 
 	/** Configuration cache. */
-	struct m0_conf_cache     cc_cache;
+	struct m0_conf_cache      cc_cache;
 
 	/**
 	 * Root of the DAG of configuration objects.
@@ -520,10 +524,10 @@ struct m0_confc {
 	 * way appears pinned as any other object. Under the circumstances the
 	 * root object requires for being closed same explicit way.
 	 */
-	struct m0_conf_obj      *cc_root;
+	struct m0_conf_obj       *cc_root;
 
 	/** RPC link to confd. */
-	struct m0_rpc_link       cc_rlink;
+	struct m0_rpc_link        cc_rlink;
 
 	/**
 	 * The number of configuration retrieval contexts associated
@@ -534,7 +538,7 @@ struct m0_confc {
 	 *
 	 * @see m0_confc_ctx
 	 */
-	uint32_t                 cc_nr_ctx;
+	uint32_t                  cc_nr_ctx;
 
 	/**
 	 * Gating ops. Allowed to be NULL indicating in such case no gating in
@@ -565,7 +569,7 @@ struct m0_confc {
 	struct m0_mutex           cc_unatt_guard;
 
 	/** Magic number. */
-	uint64_t                 cc_magic;
+	uint64_t                  cc_magic;
 };
 
 /**
@@ -650,33 +654,20 @@ M0_INTERNAL void m0_confc_gate_ops_set(struct m0_confc          *confc,
 
 /** Configuration retrieval context. */
 struct m0_confc_ctx {
-	/**
-	 * Reading allowed flag.
-	 *
-	 * The value is set up during m0_confc_ctx_init() and
-	 * tested during m0_confc_open(), m0_confc_open_sync(),
-	 * m0_confc_readdir(), m0_confc_readdir_sync() calls.
-	 *
-	 * @note Allowed by default. For a context initialised with confc
-	 * instance belonging to rconfc, the value is set up according to if
-	 * rconfc currently allows configuration reading or not.
-	 */
-	bool                 fc_allowed;
-
 	/** The confc instance this context belongs to. */
-	struct m0_confc     *fc_confc;
+	struct m0_confc    *fc_confc;
 
 	/** Context state machine. */
-	struct m0_sm         fc_mach;
+	struct m0_sm        fc_mach;
 
 	/**
 	 * Asynchronous system trap, used by the implementation to
 	 * schedule a transition of ->fc_mach state machine.
 	 */
-	struct m0_sm_ast     fc_ast;
+	struct m0_sm_ast    fc_ast;
 
 	/** Provides AST's callback with an integer value. */
-	int                  fc_ast_datum;
+	int                 fc_ast_datum;
 
 	/**
 	 * Origin of the requested path.
@@ -686,16 +677,16 @@ struct m0_confc_ctx {
 	 * measures to pin this object for the duration of path
 	 * traversal.  See the note in @ref confc-fspec-sub-use.
 	 */
-	struct m0_conf_obj  *fc_origin;
+	struct m0_conf_obj *fc_origin;
 
 	/** Path to the object being requested by the application. */
-	struct m0_fid        fc_path[M0_CONF_PATH_MAX + 1];
+	struct m0_fid       fc_path[M0_CONF_PATH_MAX + 1];
 
 	/**
 	 * Record of interest in `object loading completed' or
 	 * `object unpinned' events.
 	 */
-	struct m0_clink      fc_clink;
+	struct m0_clink     fc_clink;
 
 	/**
 	 * Pointer to the requested configuration object.
@@ -703,27 +694,25 @@ struct m0_confc_ctx {
 	 * The application should use m0_confc_ctx_result() instead of
 	 * accessing this field directly.
 	 */
-	struct m0_conf_obj  *fc_result;
+	struct m0_conf_obj *fc_result;
 
 	/** RPC item to be delivered to confd. */
-	struct m0_rpc_item  *fc_rpc_item;
+	struct m0_rpc_item *fc_rpc_item;
 
 	/** Magic number. */
-	uint64_t             fc_magic;
+	uint64_t            fc_magic;
 };
 
 /**
  * Initialises configuration retrieval context.
+ *
  * @pre  confc is initialised
  *
- * @note The call may be blocked in case the confc instance belongs to rconfc
- * currently not allowing configuration reading. The blocking is done inside
- * m0_confc::cc_gops::go_check(). It unblocks when rconfc acquires read lock, or
- * read lock request fails, and returns boolean value of reading allowed or
- * not. The result is directly set as the value of m0_confc_ctx::fc_allowed.
+ * @note  m0_confc_ctx_init() may block at confc->cc_gops->go_check() call.
+ *        It will unblock when rconfc acquires read lock or fails to do so.
  */
-M0_INTERNAL void m0_confc_ctx_init(struct m0_confc_ctx *ctx,
-				   struct m0_confc *confc);
+M0_INTERNAL int m0_confc_ctx_init(struct m0_confc_ctx *ctx,
+				  struct m0_confc *confc);
 
 M0_INTERNAL void m0_confc_ctx_fini(struct m0_confc_ctx *ctx);
 

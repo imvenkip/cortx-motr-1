@@ -272,7 +272,6 @@ M0_INTERNAL bool m0_locality_invariant(const struct m0_fom_locality *loc)
 					 fom->fo_loc == loc)) &&
 		M0_CHECK_EX(m0_tl_forall(wail, fom, &loc->fl_wail,
 					 fom->fo_loc == loc));
-
 }
 
 M0_INTERNAL struct m0_reqh *m0_fom_reqh(const struct m0_fom *fom)

@@ -479,26 +479,20 @@ static bool ss_process_confc_ctx_completed(struct m0_fom *fom)
 
 static int ss_process_reconfig_data_get(struct m0_fom *fom)
 {
-	struct m0_sss_process_fom *pfom;
+	struct m0_sss_process_fom *pfom = M0_AMB(pfom, fom, spm_fom);
+	struct m0_reqh            *reqh = m0_fom_reqh(fom);
 	struct m0_ss_process_req  *req;
-	struct m0_reqh            *reqh;
+	int                        rc;
 
 	M0_ENTRY();
 
-	pfom = M0_AMB(pfom, fom, spm_fom);
-	req  = m0_ss_fop_process_req(fom->fo_fop);
-	reqh = m0_fom_reqh(fom);
-
-	m0_confc_ctx_init(&pfom->spm_confc_ctx, m0_reqh2confc(reqh));
-	if (!pfom->spm_confc_ctx.fc_allowed) {
-		m0_confc_ctx_fini(&pfom->spm_confc_ctx);
-		return M0_ERR(-ENODEV);
+	rc = m0_confc_ctx_init(&pfom->spm_confc_ctx, m0_reqh2confc(reqh));
+	if (rc == 0) {
+		ss_process_confc_ctx_arm(pfom);
+		req = m0_ss_fop_process_req(fom->fo_fop);
+		m0_confc_open_by_fid(&pfom->spm_confc_ctx, &req->ssp_id);
 	}
-
-	ss_process_confc_ctx_arm(pfom);
-	m0_confc_open_by_fid(&pfom->spm_confc_ctx, &req->ssp_id);
-
-	return M0_RC(0);
+	return M0_RC(rc);
 }
 
 static int ss_process_reconfig(struct m0_fom *fom)
