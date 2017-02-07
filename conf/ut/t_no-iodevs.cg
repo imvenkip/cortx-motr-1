@@ -1,4 +1,4 @@
-#= <7300000000000001:2>: `sdevs' of an IO service may not be empty
+#= <7300000000000001:2>: `sdevs' of an IO service must not be empty
 (root-0 verno=2 profiles=[profile-0])
 (profile-0 filesystem=filesystem-0)
 (filesystem-0 rootfid=profile-0 redundancy=1 params=["410 8 2"] mdpool=pool-0

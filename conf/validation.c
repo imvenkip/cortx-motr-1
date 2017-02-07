@@ -660,14 +660,31 @@ static char *conf_service_type_error(const struct m0_conf_cache *cache,
 	return conf_fs_apply(_conf_service_type_error, cache, buf, buflen);
 }
 
+static char *_conf_service_sdevs_error(const struct m0_conf_service *svc,
+				       char *buf, size_t buflen)
+{
+	bool has_sdevs = !m0_conf_dir_tlist_is_empty(&svc->cs_sdevs->cd_items);
+
+	if (M0_IN(svc->cs_type, (M0_CST_IOS, M0_CST_CAS)))
+		return has_sdevs ? NULL : m0_vsnprintf(
+			buf, buflen,
+			FID_F": `sdevs' of %s service must not be empty",
+			FID_P(&svc->cs_obj.co_id),
+			svc->cs_type == M0_CST_IOS ? "an IO" : "a CAS");
+	return has_sdevs ? m0_vsnprintf(
+		buf, buflen,
+		FID_F": `sdevs' must be empty (neither IOS nor CAS)",
+		FID_P(&svc->cs_obj.co_id)) : NULL;
+}
+
 static char *conf_service_sdevs_error(const struct m0_conf_cache *cache,
 				      char *buf, size_t buflen)
 {
-	struct m0_conf_glob           glob;
-	const struct m0_conf_obj     *objv[CONF_GLOB_BATCH];
-	const struct m0_conf_service *svc;
-	int                           i;
-	int                           rc;
+	struct m0_conf_glob       glob;
+	const struct m0_conf_obj *objv[CONF_GLOB_BATCH];
+	char                     *err;
+	int                       i;
+	int                       rc;
 
 	m0_conf_glob_init(&glob, M0_CONF_GLOB_ERR, NULL, cache, NULL,
 			  M0_CONF_ROOT_PROFILES_FID, M0_CONF_ANY_FID,
@@ -677,17 +694,11 @@ static char *conf_service_sdevs_error(const struct m0_conf_cache *cache,
 			  M0_CONF_PROCESS_SERVICES_FID, M0_CONF_ANY_FID);
 	while ((rc = m0_conf_glob(&glob, ARRAY_SIZE(objv), objv)) > 0) {
 		for (i = 0; i < rc; ++i) {
-			svc = M0_CONF_CAST(objv[i], m0_conf_service);
-			if ((svc->cs_type == M0_CST_IOS) ==
-			    m0_conf_dir_tlist_is_empty(
-				    &svc->cs_sdevs->cd_items))
-				return m0_vsnprintf(
-					buf, buflen,
-					FID_F": `sdevs' of %s be empty",
-					FID_P(&objv[i]->co_id),
-					(svc->cs_type == M0_CST_IOS ?
-					 "an IO service may not" :
-					 "a non-IO service must"));
+			err = _conf_service_sdevs_error(
+				M0_CONF_CAST(objv[i], m0_conf_service),
+				buf, buflen);
+			if (err != NULL)
+				return err;
 		}
 	}
 	return rc < 0 ? m0_conf_glob_error(&glob, buf, buflen) : NULL;
