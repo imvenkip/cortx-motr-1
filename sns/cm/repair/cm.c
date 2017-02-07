@@ -126,6 +126,7 @@ static void repair_cm_stop(struct m0_cm *cm)
 		nvec.nv_note[i].no_state = pstate;
 		m0_ha_local_state_set(&nvec);
 		m0_free(nvec.nv_note);
+		i = 0;
 	} m0_tl_endfor;
 out:
 
