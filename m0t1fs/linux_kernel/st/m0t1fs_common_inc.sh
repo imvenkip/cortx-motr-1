@@ -295,11 +295,13 @@ function build_conf()
 	    local SNS_REB_OBJ="{0x73| (($SNS_REB_NAME), 9, [1: $iosep], [0])}"
 	    local RM_NAME="$RMS_FID_CON:$M0D"
             local RM_OBJ="{0x73| (($RM_NAME), 4, [1: $iosep], [0])}"
+	    local CAS_NAME="$CAS_FID_CON:$i"
+	    local CAS_OBJ="{0x73| (($CAS_NAME), 11, [1: $iosep], [0])}"
 
 	    PROC_NAME="$PROC_FID_CONT:$M0D"
-	    IOS_NAMES[$i]="$IOS_NAME, $ADDB_NAME, $SNS_REP_NAME, $SNS_REB_NAME, $RM_NAME"
-	    PROC_OBJ="{0x72| (($PROC_NAME), [1:3], 0, 0, 0, 0, $iosep, [5: ${IOS_NAMES[$i]}])}"
-	    IOS_OBJS="$IOS_OBJS${IOS_OBJS:+, }\n  $IOS_OBJ, \n  $ADDB_OBJ, \n $SNS_REP_OBJ, \n  $SNS_REB_OBJ, \n $RM_OBJ"
+	    IOS_NAMES[$i]="$IOS_NAME, $ADDB_NAME, $SNS_REP_NAME, $SNS_REB_NAME, $RM_NAME, $CAS_NAME"
+	    PROC_OBJ="{0x72| (($PROC_NAME), [1:3], 0, 0, 0, 0, $iosep, [6: ${IOS_NAMES[$i]}])}"
+	    IOS_OBJS="$IOS_OBJS${IOS_OBJS:+, }\n  $IOS_OBJ, \n  $ADDB_OBJ, \n $SNS_REP_OBJ, \n  $SNS_REB_OBJ, \n $RM_OBJ, \n $CAS_OBJ"
 	    PROC_OBJS="$PROC_OBJS${PROC_OBJS:+, }\n  $PROC_OBJ"
 	    PROC_NAMES="$PROC_NAMES${PROC_NAMES:+, }$PROC_NAME"
 	done
@@ -415,7 +417,7 @@ function build_conf()
  # Here "15" configuration objects includes services excluding ios & mds,
  # pools, racks, enclosures, controllers and their versioned objects.
 	echo -e "
- [$(($((${#ioservices[*]} * 6)) + $((${#mdservices[*]} * 4)) + $NR_IOS_DEVS + 18 + $PVER1_OBJ_COUNT + 4)):
+ [$(($((${#ioservices[*]} * 7)) + $((${#mdservices[*]} * 4)) + $NR_IOS_DEVS + 18 + $PVER1_OBJ_COUNT + 4)):
   {0x74| (($ROOT), 1, [1: $PROF])},
   {0x70| (($PROF), $FS)},
   {0x66| (($FS), (11, 22), $MD_REDUNDANCY,

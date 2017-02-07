@@ -11,3 +11,4 @@ ADDB_FID_CON='^s|9'       # addb
 ADDB_CONF_FID_CON='^s|10' # addb for confd
 ADDB_IO_FID_CON='^s|11'   # addb for ioservice
 ADDB_MD_FID_CON='^s|12'   # addb for mdservice
+CAS_FID_CON='^s|13'       # CAS service
