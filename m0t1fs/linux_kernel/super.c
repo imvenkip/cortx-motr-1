@@ -1221,6 +1221,22 @@ static int m0t1fs_obf_alloc(struct super_block *sb)
 	return M0_RC(0);
 }
 
+static void service_connect_wait(struct m0t1fs_sb *csb)
+{
+	struct m0t1fs_mdop          mo;
+	struct m0_rpc_session      *session;
+	struct m0_reqh_service_ctx *ctx;
+
+	M0_SET0(&mo);
+	session = m0t1fs_filename_to_mds_session(csb,
+			mo.mo_attr.ca_name.b_addr,
+			mo.mo_attr.ca_name.b_nob,
+			mo.mo_use_hint,
+			mo.mo_hash_hint);
+	ctx = m0_reqh_service_ctx_from_session(session);
+	m0_reqh_service_connect_wait(ctx);
+}
+
 static int m0t1fs_root_alloc(struct super_block *sb)
 {
 	struct inode             *root_inode;
@@ -1233,6 +1249,7 @@ static int m0t1fs_root_alloc(struct super_block *sb)
 	M0_ENTRY();
 
 	if (!csb->csb_oostore) {
+		service_connect_wait(csb);
 		rc = m0t1fs_mds_statfs(csb, &rep_fop);
 		if (rc != 0)
 			goto out;
