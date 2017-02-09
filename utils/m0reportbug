@@ -3,7 +3,7 @@ set -eu
 # set -x
 export PS4='+ [${FUNCNAME[0]:+${FUNCNAME[0]}:}${LINENO}] '
 
-VERSION=0.19
+VERSION=0.20
 
 IN_DIR=/var/mero # default value; overruled by CLI argument
 OUT_DATA_DIR=m0reportbug-data
@@ -335,7 +335,7 @@ EOF
 backtraces_live() {
     local pid task
 
-    pgrep '\<(lt-)?m0|\<(dd|fio|mount)\>' | while read pid; do
+    pgrep '\<(lt-)?m0|\<(halond|dd|fio|mount)\>' | while read pid; do
         local args="$(ps h -o args $pid)"
         [ -n "$args" ] || continue # the process may be gone
         local prog=$(echo $args | cut -d' ' -f1)
@@ -588,6 +588,8 @@ exit
 ###
 ### Date       Version Description
 ### ---------- ------- ----------------------------------------------------
+### 2017-02-09 0.20    backtraces_live(): Collect backtrace of halond.
+###
 ### 2016-12-21 0.19    Produce 3 output archives:
 ###                    - m0reportbug-cores.tar.gz (cores & binaries);
 ###                    - m0reportbug-traces.tar.gz (m0traces);
