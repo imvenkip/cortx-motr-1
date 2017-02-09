@@ -97,14 +97,9 @@ static int confd_fill(const struct m0_conf_service *service,
 		       struct m0_ha_entrypoint_rep *rep,
 		       uint32_t                     index)
 {
-	uint32_t i;
-
 	rep->hae_confd_eps[index] = m0_strdup(service->cs_endpoints[0]);
-	if (rep->hae_confd_eps[index] == NULL) {
-		for (i = 0; i < index; i++)
-			m0_free((void *)rep->hae_confd_eps[i]);
+	if (rep->hae_confd_eps[index] == NULL)
 		return M0_ERR(-ENOMEM);
-	}
 	rep->hae_confd_fids.af_elems[index] = service->cs_obj.co_id;
 	return 0;
 }
@@ -158,6 +153,18 @@ leave:
 	return M0_RC(rc);
 }
 
+static void
+mero_ha_entrypoint_rep_confds_free(struct m0_ha_entrypoint_rep *rep)
+{
+	int i;
+
+	m0_free0(&rep->hae_confd_fids.af_elems);
+	for (i = 0; i < rep->hae_confd_fids.af_count; i++)
+		m0_free((void *)rep->hae_confd_eps[i]);
+	m0_free0(&rep->hae_confd_eps);
+	rep->hae_confd_fids.af_count = 0;
+}
+
 static int mero_ha_entrypoint_rep_confds_fill(const struct m0_fid      *profile,
 					     struct m0_confc             *confc,
 					     struct m0_ha_entrypoint_rep *rep)
@@ -175,12 +182,14 @@ static int mero_ha_entrypoint_rep_confds_fill(const struct m0_fid      *profile,
 	M0_ALLOC_ARR(rep->hae_confd_fids.af_elems,
 		     rep->hae_confd_fids.af_count);
 	if (rep->hae_confd_fids.af_elems == NULL) {
-		m0_free(rep->hae_confd_eps);
+		m0_free0(&rep->hae_confd_eps);
 		return M0_ERR(-ENOMEM);
 	}
 	rc = mero_ha_confd_iter(profile, confc, rep, &confd_fill);
 	if (rc == 0)
 		rep->hae_quorum = rep->hae_confd_fids.af_count / 2 + 1;
+	else
+		mero_ha_entrypoint_rep_confds_free(rep);
 	return M0_RC(rc);
 }
 
@@ -239,24 +248,24 @@ static int mero_ha_entrypoint_rep_rm_fill(const struct m0_fid  *profile,
 
 static void
 mero_ha_entrypoint_request_cb(struct m0_ha                      *ha,
-                              const struct m0_ha_entrypoint_req *req,
-                              const struct m0_uint128           *req_id)
+			      const struct m0_ha_entrypoint_req *req,
+			      const struct m0_uint128           *req_id)
 {
 	struct m0_reqh              *reqh    = ha->h_cfg.hcf_reqh;
 	struct m0_confc             *confc   = m0_reqh2confc(reqh);
 	struct m0_fid               *profile = &reqh->rh_profile;
 	struct m0_ha_entrypoint_rep  rep = {0};
-	int                          i;
 
-	rep.hae_rc = mero_ha_entrypoint_rep_confds_fill(profile, confc, &rep) ?:
-		     mero_ha_entrypoint_rep_rm_fill(profile, confc,
-		                                    &rep.hae_active_rm_fid,
-		                                    &rep.hae_active_rm_ep);
-	M0_ASSERT(ergo(rep.hae_rc == 0, rep.hae_confd_eps[0] != NULL));
+	M0_ENTRY();
+	rep.hae_rc =
+		mero_ha_entrypoint_rep_confds_fill(profile, confc, &rep) ?:
+		mero_ha_entrypoint_rep_rm_fill(profile, confc,
+					       &rep.hae_active_rm_fid,
+					       &rep.hae_active_rm_ep);
 	m0_ha_entrypoint_reply(ha, req_id, &rep, NULL);
-	for (i = 0; i < rep.hae_confd_fids.af_count; i++)
-		m0_free((void *)rep.hae_confd_eps[i]);
 	m0_free(rep.hae_active_rm_ep);
+	mero_ha_entrypoint_rep_confds_free(&rep);
+	M0_LEAVE("rep.hae_rc=%d", rep.hae_rc);
 }
 
 static void mero_ha_entrypoint_replied_cb(struct m0_ha                *ha,
