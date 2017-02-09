@@ -4,6 +4,7 @@ m0mero_objects += clovis/clovis.o \
 		  clovis/clovis_obj.o \
 		  clovis/idx_mock.o \
 		  clovis/idx_cass.o \
+		  clovis/idx_kvs.o \
 		  clovis/clovis_idx.o \
 		  clovis/io_pargrp.o \
 		  clovis/io_req_fop.o \
