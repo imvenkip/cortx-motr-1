@@ -74,13 +74,13 @@ M0_INTERNAL void m0_cm_sw_copy(struct m0_cm_sw *dst,
 M0_INTERNAL int m0_cm_sw_onwire_init(struct m0_cm *cm, struct m0_cm_sw_onwire *sw_onwire,
 				     uint64_t proxy_id, const char *ep,
 				     const struct m0_cm_sw *sw,
-				     const struct m0_cm_ag_id *last_out)
+				     const struct m0_cm_sw *out_interval)
 {
 	M0_PRE(m0_cm_is_locked(cm));
 	M0_PRE(sw_onwire != NULL && ep != NULL && sw != NULL);
 
-	m0_cm_sw_copy(&sw_onwire->swo_sw, sw);
-	sw_onwire->swo_last_out = *last_out;
+	m0_cm_sw_copy(&sw_onwire->swo_in_interval, sw);
+	m0_cm_sw_copy(&sw_onwire->swo_out_interval, out_interval);
 	sw_onwire->swo_cm_ep.ep_size = CS_MAX_EP_ADDR_LEN;
 	sw_onwire->swo_cm_epoch = cm->cm_epoch;
 	sw_onwire->swo_sender_id = proxy_id;
@@ -121,32 +121,30 @@ M0_INTERNAL int m0_cm_sw_local_update(struct m0_cm *cm)
 
 M0_INTERNAL int m0_cm_sw_remote_update(struct m0_cm *cm)
 {
-	struct m0_cm_proxy      *pxy;
-	struct m0_cm_sw          sw;
-	struct m0_cm_aggr_group *lo;
-        struct m0_cm_ag_id       id_lo;
-        struct m0_cm_ag_id       id_hi;
-	int                      rc = 0;
+	struct m0_cm_proxy *pxy;
+	struct m0_cm_sw     in_interval;
+	struct m0_cm_sw     out_interval;
+	int                 rc = 0;
 	M0_ENTRY();
 
 	M0_PRE(cm != NULL);
 	M0_PRE(m0_cm_is_locked(cm));
 
-        M0_SET0(&id_lo);
-        M0_SET0(&id_hi);
-        lo = m0_cm_ag_lo(cm);
-	/*
-	 * lo can be NULL mainly if the copy machine operation is just started
-	 * and sliding window is empty.
+	m0_cm_ag_in_interval(cm, &in_interval);
+	/* We reset in_interval::sw_hi in M0_CMS_READY state to
+	 * struct m0_cm::cm_sw_last_updated_hi, read from persistent
+	 * store, saved from previous sns operation which could have
+	 * been quiesced and in-order to resume from the same.
 	 */
-	if (lo != NULL)
-		id_lo = lo->cag_id;
-	id_hi = cm->cm_sw_last_updated_hi;
-	m0_cm_sw_set(&sw, &id_lo, &id_hi);
+	if (m0_cm_state_get(cm) == M0_CMS_READY)
+		m0_cm_ag_id_copy(&in_interval.sw_hi,
+				 &cm->cm_sw_last_updated_hi);
+	m0_cm_ag_out_interval(cm, &out_interval);
 	m0_tl_for(proxy, &cm->cm_proxies, pxy) {
 		ID_LOG("proxy last updated",
-		       &pxy->px_last_sw_onwire_sent.sw_hi);
-		rc = m0_cm_proxy_remote_update(pxy, &sw);
+				&pxy->px_last_sw_onwire_sent.sw_hi);
+		rc = m0_cm_proxy_remote_update(pxy, &in_interval,
+					       &out_interval);
 		if (rc != 0)
 			break;
 	} m0_tl_endfor;
@@ -158,11 +156,11 @@ M0_INTERNAL int m0_cm_sw_remote_update(struct m0_cm *cm)
 
 /** @} CMSW */
 /*
- *  Local variables:
- *  c-indentation-style: "K&R"
- *  c-basic-offset: 8
- *  tab-width: 8
- *  fill-column: 80
- *  scroll-step: 1
- *  End:
- */
+*  Local variables:
+*  c-indentation-style: "K&R"
+*  c-basic-offset: 8
+*  tab-width: 8
+*  fill-column: 80
+*  scroll-step: 1
+*  End:
+*/

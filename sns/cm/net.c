@@ -325,16 +325,13 @@ M0_INTERNAL int m0_sns_cm_cp_send_wait(struct m0_cm_cp *cp)
 	return cp->c_ops->co_phase_next(cp);
 }
 
-static int cp_buf_acquire(struct m0_cm_cp *cp)
+static void cp_buf_acquire(struct m0_cm_cp *cp)
 {
 	struct m0_sns_cm *sns_cm = cm2sns(cp->c_ag->cag_cm);
 	int               rc;
 
 	rc = m0_sns_cm_buf_attach(&sns_cm->sc_ibp.sb_bp, cp);
-	if (rc == -ENOBUFS)
-		rc = M0_FSO_WAIT;
-
-	return M0_RC(rc);
+	M0_ASSERT(rc == 0);
 }
 
 static void cp_reply_post(struct m0_cm_cp *cp)
@@ -360,23 +357,20 @@ static uint32_t seg_nr_get(const struct m0_sns_cpx *sns_cpx, uint32_t ivec_nr)
 	return seg_nr;
 }
 
-static void ag_cp_recvd_from_proxy(struct m0_cm_aggr_group *ag, struct m0_cm_proxy *proxy)
+static int ag_cp_recvd_from_proxy(struct m0_cm_aggr_group *ag,
+				  struct m0_sns_cm_cp *scp)
 {
 	struct m0_sns_cm_ag *sag = ag2snsag(ag);
+	struct m0_cm_proxy  *proxy = scp->sc_base.c_cm_proxy;
 
 	M0_PRE(m0_cm_ag_is_locked(ag));
 
-	M0_CNT_INC(sag->sag_proxy_in_count[proxy->px_id]);
-	M0_ASSERT(sag->sag_proxy_in_count[proxy->px_id] <=
-		  sag->sag_local_tgts_nr);
+	if (ag->cag_is_frozen)
+		return -EINVAL;
+	M0_CNT_DEC(sag->sag_proxy_in_count.p_count[proxy->px_id]);
+	m0_cm_ag_cp_add_locked(ag, &scp->sc_base);
 
-	if (sag->sag_proxy_in_count[proxy->px_id] == sag->sag_local_tgts_nr) {
-		/* Received all incoming units from given proxy
-		 * unset incoming bit in proxy map.
-		 */
-		m0_bitmap_set(&sag->sag_proxy_incoming_map, proxy->px_id,
-			      false);
-	}
+	return 0;
 }
 
 /* Converts onwire copy packet structure to in-memory copy packet structure. */
@@ -386,6 +380,7 @@ static int snscpx_to_snscp(const struct m0_sns_cpx *sns_cpx,
 	struct m0_cm_ag_id       ag_id;
 	struct m0_cm            *cm;
 	struct m0_cm_aggr_group *ag;
+	int                      rc;
 
 	M0_PRE(sns_cp != NULL);
 	M0_PRE(sns_cpx != NULL);
@@ -412,9 +407,11 @@ static int snscpx_to_snscp(const struct m0_sns_cpx *sns_cpx,
 	}
 
 	m0_cm_ag_lock(ag);
-	ag_cp_recvd_from_proxy(ag, sns_cp->sc_base.c_cm_proxy);
-	m0_cm_ag_cp_add_locked(ag, &sns_cp->sc_base);
+	rc = ag_cp_recvd_from_proxy(ag, sns_cp);
 	m0_cm_ag_unlock(ag);
+
+	if (rc != 0)
+		return M0_ERR(rc);
 
 	sns_cp->sc_base.c_ag_cp_idx = sns_cpx->scx_cp.cpx_ag_cp_idx;
 	m0_bitmap_init(&sns_cp->sc_base.c_xform_cp_indices,
@@ -467,8 +464,8 @@ M0_INTERNAL int m0_sns_cm_cp_recv_init(struct m0_cm_cp *cp)
 		m0_fom_phase_set(&cp->c_fom, M0_CCP_FINI);
 		return M0_FSO_WAIT;
 	}
-	rc = cp_buf_acquire(cp);
 
+	cp_buf_acquire(cp);
 	session = fop->f_item.ri_session;
 	ndom = session->s_conn->c_rpc_machine->rm_tm.ntm_dom;
 	rbulk = &cp->c_bulk;
@@ -583,12 +580,14 @@ M0_INTERNAL int m0_sns_cm_cp_sw_check(struct m0_cm_cp *cp)
 		 * all the pending copy packets addressed to that copy machine
 		 * must be finalised.
 		 */
-		if (M0_IN(cm_proxy->px_status, (M0_PX_COMPLETE, M0_PX_STOP, M0_PX_FAILED))) {
-			m0_fom_phase_move(&cp->c_fom, 0, M0_CCP_FINI);
-		} else
+		if (M0_IN(cm_proxy->px_status, (M0_PX_COMPLETE, M0_PX_STOP, M0_PX_FAILED)) ||
+		    m0_cm_ag_id_cmp(&cp->c_ag->cag_id, &cm_proxy->px_sw.sw_lo) < 0) {
+			m0_fom_phase_move(&cp->c_fom, -ENOENT, M0_CCP_FAIL);
+			rc = M0_FSO_AGAIN;
+		} else {
 			m0_cm_proxy_cp_add(cm_proxy, cp);
-
-		rc = M0_FSO_WAIT;
+			rc = M0_FSO_WAIT;
+		}
 	}
 	m0_cm_proxy_unlock(cm_proxy);
 

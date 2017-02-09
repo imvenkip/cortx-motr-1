@@ -28,6 +28,7 @@
 
 #include "cm/ag.h"
 #include "sns/cm/cp.h"
+#include "cm/proxy.h"
 
 /**
    @defgroup SNSCMAG SNS copy machine aggregation group
@@ -48,12 +49,10 @@ struct m0_sns_cm_ag {
 	uint32_t                         sag_fnr;
 
 	/**
-	 * m0_cm::cm_proxy_nr size of bitmap which identifies if there are any
-	 * incoming copy packets from the corresponding proxy.
+	 * Accounts for number for incoming copy packets for this aggregation
+	 * group per struct m0_cm_proxy.
 	 */
-	struct m0_bitmap                 sag_proxy_incoming_map;
-
-	uint32_t                        *sag_proxy_in_count;
+	struct m0_cm_proxy_in_count      sag_proxy_in_count;
 
 	/** Number of local copy packets created by data iterator. */
 	uint32_t                         sag_cp_created_nr;

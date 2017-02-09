@@ -127,8 +127,6 @@ static int cm_swu_fom_tick(struct m0_fom *fom)
 		rc = M0_FSO_WAIT;
 		m0_cm_sw_remote_update(cm);
 	}
-	if (rc == 0)
-		rc = M0_FSO_AGAIN;
 	m0_cm_unlock(cm);
 
 	return M0_RC(rc);

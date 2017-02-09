@@ -319,11 +319,14 @@ struct m0_cm_ops {
 			   struct m0_cm_ag_id *id_next);
 
 	/**
-	 * Returns true if copy machine has enough buffers for all the incoming
-	 * copy packets.
+	 * Returns required numbers in @count if copy machine has enough buffers for
+	 * all the incoming copy packets.
+	 *
+	 * @retval 0 on success
+	 * @retval -ENOSPC on failure
 	 */
-	bool (*cmo_has_space)(struct m0_cm *cm, const struct m0_cm_ag_id *id,
-			      struct m0_layout *l);
+	int (*cmo_get_space_for)(struct m0_cm *cm, const struct m0_cm_ag_id *id,
+				 size_t *count);
 
 	/**
 	 * Initialises the given fop with copy machine specific sliding window
@@ -333,7 +336,7 @@ struct m0_cm_ops {
 				       void (*fop_release)(struct m0_ref *),
 				       uint64_t proxy_id, const char *local_ep,
 				       const struct m0_cm_sw *sw,
-				       const struct m0_cm_ag_id *last_out);
+				       const struct m0_cm_sw *out_interval);
 
 	/** Copy machine specific finalisation routine. */
 	void (*cmo_fini)(struct m0_cm *cm);

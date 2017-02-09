@@ -335,7 +335,7 @@ static int iter_fid_next(struct m0_sns_cm_iter *it)
 			m0_layout_put(ifc->ifc_fctx->sf_layout);
 	}
 	if (rc == -ENOENT) {
-		M0_LOG(M0_DEBUG, "no more data: returning -ENODATA");
+		M0_LOG(M0_DEBUG, "no more data: returning -ENODATA last fid" FID_F, FID_P(&ifc->ifc_gfid));
 		return M0_RC(-ENODATA);
 	}
 
@@ -397,6 +397,7 @@ static int __group_alloc(struct m0_sns_cm *scm, struct m0_fid *gfid,
 {
 	struct m0_cm        *cm = &scm->sc_base;
 	struct m0_cm_ag_id   agid;
+	size_t               nr_bufs;
 	int                  rc = 0;
 
 	m0_sns_cm_ag_agid_setup(gfid, group, &agid);
@@ -428,17 +429,19 @@ static int __group_alloc(struct m0_sns_cm *scm, struct m0_fid *gfid,
 		}
 	}
 
-	m0_net_buffer_pool_lock(&scm->sc_ibp.sb_bp);
-	if (has_incoming && !cm->cm_ops->cmo_has_space(cm, &agid,
-					m0_pdl_to_layout(pl))) {
+	if (has_incoming) {
+		rc = cm->cm_ops->cmo_get_space_for(cm, &agid, &nr_bufs);
+		if (rc == 0)
+			m0_sns_cm_reserve_space(scm, nr_bufs);
 		M0_LOG(M0_DEBUG, "agid [%lu] [%lu] [%lu] [%lu]",
 		       agid.ai_hi.u_hi, agid.ai_hi.u_lo,
 		       agid.ai_lo.u_hi, agid.ai_lo.u_lo);
-		rc = -ENOSPC;
 	}
-	m0_net_buffer_pool_unlock(&scm->sc_ibp.sb_bp);
-	if (rc == 0)
+	if (rc == 0) {
 		rc = m0_cm_aggr_group_alloc(cm, &agid, has_incoming, ag);
+		if (rc != 0 && has_incoming)
+			m0_sns_cm_cancel_reservation(scm, nr_bufs);
+	}
 
 out:
 	if (*ag != NULL && has_incoming) {
@@ -509,7 +512,7 @@ static int __group_next(struct m0_sns_cm_iter *it)
 					rc = 0;
 					goto fid_next;
 				}
-				if (rc == -ENOENT)
+				if (M0_IN(rc, (-ENOENT, -ESHUTDOWN)))
 					continue;
 			}
 			ifc->ifc_sa.sa_group = group;

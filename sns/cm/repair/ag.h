@@ -135,9 +135,9 @@ M0_INTERNAL bool m0_sns_cm_ag_acc_is_full_with(const struct m0_cm_cp *acc,
 /**
  * Calculates number of buffers required for all the incoming copy packets.
  */
-M0_INTERNAL uint64_t m0_sns_cm_repair_ag_inbufs(struct m0_sns_cm *scm,
-						struct m0_sns_cm_file_ctx *fctx,
-						const struct m0_cm_ag_id *id);
+M0_INTERNAL int64_t m0_sns_cm_repair_ag_inbufs(struct m0_sns_cm *scm,
+					       struct m0_sns_cm_file_ctx *fctx,
+					       const struct m0_cm_ag_id *id);
 
 M0_INTERNAL struct m0_sns_cm_repair_ag *
 sag2repairag(const struct m0_sns_cm_ag *sag);

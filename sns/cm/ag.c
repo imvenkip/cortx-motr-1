@@ -136,6 +136,7 @@ static int ai_group_next(struct m0_sns_cm_ag_iter *ai)
 	uint64_t                  nr_groups = m0_sns_cm_nr_groups(pl, fsize);
 	uint64_t                  group = agid2group(&ai->ai_id_curr);
 	uint64_t                  i;
+	size_t                    nr_bufs;
 	int                       rc = 0;
 
 	/* Move to next file if pool version is dirty already. */
@@ -150,30 +151,33 @@ static int ai_group_next(struct m0_sns_cm_ag_iter *ai)
 		m0_sns_cm_ag_agid_setup(&ai->ai_fid, i, &ag_id);
 		if (!m0_sns_cm_ag_is_relevant(scm, fctx, &ag_id))
 			continue;
-		m0_net_buffer_pool_lock(&scm->sc_ibp.sb_bp);
-		if (!cm->cm_ops->cmo_has_space(cm, &ag_id, l)) {
-			m0_fom_wait_on(fom, &scm->sc_ibp.sb_wait, &fom->fo_cb);
+		ag = m0_cm_aggr_group_locate(cm, &ag_id, true);
+		if (ag != NULL)
+			continue;
+		rc = cm->cm_ops->cmo_get_space_for(cm, &ag_id, &nr_bufs);
+		if (rc == -ENOSPC) {
+			m0_sns_cm_buf_wait(&scm->sc_ibp, fom);
 			rc = -ENOBUFS;
 		}
-		m0_net_buffer_pool_unlock(&scm->sc_ibp.sb_bp);
 		if (rc == 0) {
-			ai->ai_id_next = ag_id;
-			ag = m0_cm_aggr_group_locate(cm, &ag_id, true);
-			if (ag == NULL) {
-				rc = m0_cm_aggr_group_alloc(cm, &ag_id,
-							    true, &ag);
-				if (rc != 0) {
-					if (rc != ENOMEM) {
-						m0_sns_cm_pver_dirty_set(pver);
-						rc = 0;
-						goto fid_next;
-					}
-					return M0_ERR(rc);
-				}
-			}
-			rc = M0_FSO_AGAIN;
+			m0_sns_cm_reserve_space(scm, nr_bufs);
+			rc = m0_cm_aggr_group_alloc(cm, &ag_id, true, &ag);
+			if (rc != 0)
+				m0_sns_cm_cancel_reservation(scm, nr_bufs);
+			if (rc == 0)
+				ai->ai_id_next = ag_id;
 		}
-		return M0_RC(rc);
+		if (rc < 0) {
+			if (M0_IN(rc, (-ENOMEM, -ENOBUFS)))
+				return M0_RC(rc);
+			else if (M0_IN(rc,  (-ENOENT, -ESHUTDOWN)))
+				continue;
+			else {
+				m0_sns_cm_pver_dirty_set(pver);
+				rc = 0;
+				goto fid_next;
+			}
+		}
 	}
 
 fid_next:
@@ -319,10 +323,7 @@ M0_INTERNAL int m0_sns_cm_ag__next(struct m0_sns_cm *scm,
 		rc = ai_action[ai_state(ai)](ai);
 	} while (rc == 0);
 
-	if (rc == M0_FSO_AGAIN) {
-		*id_next = ai->ai_id_next;
-		rc = 0;
-	}
+	*id_next = ai->ai_id_next;
 	if (rc == -EAGAIN)
 		rc = M0_FSO_WAIT;
 
@@ -417,8 +418,7 @@ M0_INTERNAL void m0_sns_cm_ag_fini(struct m0_sns_cm_ag *sag)
         M0_ASSERT(cm != NULL);
 	scm = cm2sns(cm);
 	m0_bitmap_fini(&sag->sag_fmap);
-	m0_bitmap_fini(&sag->sag_proxy_incoming_map);
-	m0_free(sag->sag_proxy_in_count);
+	m0_cm_proxy_in_count_free(&sag->sag_proxy_in_count);
 	m0_sns_cm_fctx_put(scm, &ag->cag_id);
 	m0_cm_aggr_group_fini_and_progress(ag);
         M0_LEAVE();
@@ -449,10 +449,11 @@ M0_INTERNAL int m0_sns_cm_ag_init(struct m0_sns_cm_ag *sag,
 	pl = m0_layout_to_pdl(fctx->sf_layout);
 	upg = m0_sns_cm_ag_size(pl);
 	m0_bitmap_init(&sag->sag_fmap, upg);
-	m0_bitmap_init(&sag->sag_proxy_incoming_map, scm->sc_base.cm_proxy_nr);
-	M0_ALLOC_ARR(sag->sag_proxy_in_count, scm->sc_base.cm_proxy_nr);
-	if (sag->sag_proxy_in_count == NULL)
-		return M0_ERR(-ENOMEM);
+	if (cm->cm_proxy_nr > 0)
+		rc = m0_cm_proxy_in_count_alloc(&sag->sag_proxy_in_count,
+						cm->cm_proxy_nr);
+	if (rc != 0)
+		goto fail;
 
 	sag->sag_fctx = fctx;
 	pm_state = fctx->sf_pm->pm_state;
@@ -461,30 +462,43 @@ M0_INTERNAL int m0_sns_cm_ag_init(struct m0_sns_cm_ag *sag,
 	if (f_nr == 0 || f_nr > m0_pdclust_K(pl) ||
 	    pm_state->pst_nr_failures > pm_state->pst_max_device_failures ||
 	    M0_FI_ENABLED("ag_init_failure")) {
-		m0_bitmap_fini(&sag->sag_fmap);
-		m0_bitmap_fini(&sag->sag_proxy_incoming_map);
-		m0_free(sag->sag_proxy_in_count);
-		m0_sns_cm_fctx_put(scm, id);
-		return M0_ERR_INFO(-EINVAL, "nr failures: %u in group "M0_AG_F,
-				    (unsigned)f_nr, M0_AG_P(id));
+		rc = M0_ERR_INFO(-EINVAL, "nr failures: %u group "M0_AG_F
+				   " pst_nr_failures: %u pst_max_device_failures: %u",
+				    (unsigned)f_nr, M0_AG_P(id), (unsigned)pm_state->pst_nr_failures,
+				    (unsigned)pm_state->pst_max_device_failures);
+		goto fail;
 	}
 	sag->sag_fnr = f_nr;
-	if (has_incoming)
+	if (has_incoming) {
 		rc = m0_sns_cm_ag_in_cp_units(scm, id, fctx,
 					      &sag->sag_incoming_cp_nr,
 					      &sag->sag_incoming_units_nr,
-					      &sag->sag_proxy_incoming_map);
+					      &sag->sag_proxy_in_count);
+		if (rc != 0)
+			goto fail;
+	}
 	m0_cm_aggr_group_init(&sag->sag_base, cm, id, has_incoming, ag_ops);
 	sag->sag_base.cag_cp_global_nr = m0_sns_cm_ag_nr_global_units(sag, pl);
 	M0_LEAVE("ag: %p", sag);
 	return M0_RC(rc);
+fail:
+	m0_bitmap_fini(&sag->sag_fmap);
+	m0_sns_cm_fctx_put(scm, id);
+	m0_cm_proxy_in_count_free(&sag->sag_proxy_in_count);
+	return M0_ERR(rc);
 }
 
 M0_INTERNAL bool m0_sns_cm_ag_has_incoming_from(struct m0_cm_aggr_group *ag,
 						struct m0_cm_proxy *proxy)
 {
 	struct m0_sns_cm_ag *sag = ag2snsag(ag);
-	return m0_bitmap_get(&sag->sag_proxy_incoming_map, proxy->px_id);
+	return sag->sag_proxy_in_count.p_count[proxy->px_id] > 0;
+}
+
+static bool ag_id_is_in(const struct m0_cm_ag_id *id, const struct m0_cm_sw *interval)
+{
+	return m0_cm_ag_id_cmp(id, &interval->sw_lo) >= 0 &&
+	       m0_cm_ag_id_cmp(id, &interval->sw_hi) <= 0;
 }
 
 M0_INTERNAL bool m0_sns_cm_ag_is_frozen_on(struct m0_cm_aggr_group *ag, struct m0_cm_proxy *pxy)
@@ -495,18 +509,16 @@ M0_INTERNAL bool m0_sns_cm_ag_is_frozen_on(struct m0_cm_aggr_group *ag, struct m
 	M0_ENTRY();
 	M0_PRE(m0_cm_ag_is_locked(ag));
 
-	if (!cm->cm_abort && !cm->cm_quiesce)
-		return false;
 	/*
 	 * Find out if there are any incoming copy packets from the given proxy that
 	 * is already completed and the copy packets will no longer be arriving.
 	 */
 	if (ag->cag_ops->cago_has_incoming_from(ag, pxy)) {
-		if ((M0_IN(pxy->px_status, (M0_PX_COMPLETE, M0_PX_STOP)) &&
-		     m0_cm_ag_id_cmp(&pxy->px_last_out_recvd, &ag->cag_id) < 0) ||
-		     M0_IN(pxy->px_status, (M0_PX_FAILED))) {
-			m0_bitmap_set(&sag->sag_proxy_incoming_map, pxy->px_id,
-				      false);
+		if ((M0_IN(pxy->px_status, (M0_PX_COMPLETE)) &&
+		     !ag_id_is_in(&ag->cag_id, &pxy->px_out_interval)) ||
+		     M0_IN(pxy->px_status, (M0_PX_STOP, M0_PX_FAILED)) ||
+		     m0_cm_ag_id_cmp(&ag->cag_id, &pxy->px_out_interval.sw_lo) < 0) {
+			sag->sag_proxy_in_count.p_count[pxy->px_id] = 0;
 			M0_CNT_INC(sag->sag_not_coming);
 		}
 	}

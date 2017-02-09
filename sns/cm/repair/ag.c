@@ -63,14 +63,14 @@ sag2repairag(const struct m0_sns_cm_ag *sag)
 	return container_of(sag, struct m0_sns_cm_repair_ag, rag_base);
 }
 
-M0_INTERNAL uint64_t m0_sns_cm_repair_ag_inbufs(struct m0_sns_cm *scm,
-						struct m0_sns_cm_file_ctx *fctx,
-						const struct m0_cm_ag_id *id)
+M0_INTERNAL int64_t m0_sns_cm_repair_ag_inbufs(struct m0_sns_cm *scm,
+					       struct m0_sns_cm_file_ctx *fctx,
+					       const struct m0_cm_ag_id *id)
 {
 	uint64_t                  nr_cp_bufs;
 	uint64_t                  cp_data_seg_nr;
 	uint64_t                  nr_acc_bufs;
-	uint64_t                  nr_in_bufs;
+	int64_t                   nr_in_bufs;
 	struct m0_pdclust_layout *pl = m0_layout_to_pdl(fctx->sf_layout);
 
 	cp_data_seg_nr = m0_sns_cm_data_seg_nr(scm, pl);
@@ -81,6 +81,8 @@ M0_INTERNAL uint64_t m0_sns_cm_repair_ag_inbufs(struct m0_sns_cm *scm,
 	nr_cp_bufs = m0_sns_cm_cp_buf_nr(&scm->sc_ibp.sb_bp, cp_data_seg_nr);
 	/* Calculate number of buffers required for incoming copy packets. */
 	nr_in_bufs = m0_sns_cm_incoming_reserve_bufs(scm, id);
+	if (nr_in_bufs < 0)
+		return nr_in_bufs;
 	/* Calculate number of buffers required for accumulator copy packets. */
 	nr_acc_bufs = nr_cp_bufs * m0_sns_cm_ag_unrepaired_units(scm, fctx,
 							id->ai_lo.u_lo, NULL);
@@ -160,6 +162,25 @@ static void incr_recover_fini(struct m0_sns_cm_repair_ag *rag)
 	m0_parity_math_fini(&rag->rag_math);
 }
 
+/**
+ * Calculates remaining of the unused reserved buffers for a given
+ * @rag aggregation group.
+ */
+static uint32_t ag_in_remaining_bufs(struct m0_sns_cm_repair_ag *rag)
+{
+	struct m0_sns_cm_ag       *sag = &rag->rag_base;
+	struct m0_cm_aggr_group   *ag = &sag->sag_base;
+	struct m0_sns_cm          *scm = cm2sns(ag->cag_cm);
+	struct m0_pdclust_layout  *pl = m0_layout_to_pdl(sag->sag_fctx->sf_layout);
+	uint32_t                   nr_cp_bufs;
+	uint32_t                   nr_incoming_freed;
+
+	nr_cp_bufs = m0_sns_cm_cp_buf_nr(&scm->sc_ibp.sb_bp,
+					 m0_sns_cm_data_seg_nr(scm, pl));
+	nr_incoming_freed = ag->cag_freed_cp_nr - (sag->sag_cp_created_nr + rag->rag_acc_freed);
+	return (sag->sag_incoming_cp_nr - nr_incoming_freed) * nr_cp_bufs;
+}
+
 static void acc_check_fini(struct m0_sns_cm_repair_ag *rag)
 {
 	struct m0_cm_cp           *cp;
@@ -167,7 +188,6 @@ static void acc_check_fini(struct m0_sns_cm_repair_ag *rag)
 	struct m0_cm_aggr_group   *ag = &sag->sag_base;
 	struct m0_sns_cm          *scm = cm2sns(ag->cag_cm);
 	struct m0_pdclust_layout  *pl = m0_layout_to_pdl(sag->sag_fctx->sf_layout);
-	struct m0_net_buffer_pool *bp;
 	uint32_t                   nr_cp_bufs;
 	uint32_t                   unused_cps = 0;
 	uint32_t                   nr_bufs;
@@ -193,16 +213,9 @@ static void acc_check_fini(struct m0_sns_cm_repair_ag *rag)
 	 * the reservation if any of the accumulators is not in use.
 	 */
 	if (ag->cag_has_incoming) {
-		unused_cps += sag->sag_not_coming * sag->sag_local_tgts_nr;
-		nr_bufs = unused_cps * nr_cp_bufs;
-		scm->sc_ibp_reserved_nr -= min32u(scm->sc_ibp_reserved_nr, nr_bufs);
+		nr_bufs = unused_cps * nr_cp_bufs + ag_in_remaining_bufs(rag);
+		m0_sns_cm_cancel_reservation(scm, nr_bufs);
 	}
-
-	bp = &scm->sc_ibp.sb_bp;
-	/* Wakeup foms waiting for buffers. */
-	m0_net_buffer_pool_lock(bp);
-	bp->nbp_ops->nbpo_not_empty(bp);
-	m0_net_buffer_pool_unlock(bp);
 }
 
 static void repair_ag_fini(struct m0_cm_aggr_group *ag)
@@ -254,7 +267,7 @@ static bool repair_ag_can_fini(const struct m0_cm_aggr_group *ag)
 	struct m0_sns_cm_repair_ag *rag = sag2repairag(sag);
 	uint32_t                    inactive_accs = 0;
 
-	if (ag->cag_is_frozen) {
+	if (ag->cag_is_frozen || ag->cag_rc != 0) {
 		inactive_accs = repair_ag_inactive_acc_nr(&sag->sag_base);
 		return ag->cag_ref == inactive_accs;
 	}

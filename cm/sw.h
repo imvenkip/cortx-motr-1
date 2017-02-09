@@ -64,10 +64,11 @@ struct m0_cm_sw_onwire {
 	/** Replica's local endpoint. */
 	struct m0_cm_local_ep swo_cm_ep;
 
-	/** Replica's sliding window. */
-	struct m0_cm_sw       swo_sw;
+	/** Sender copy machine's [hi, lo] from incoming aggregation groups. */
+	struct m0_cm_sw       swo_in_interval;
 
-	struct m0_cm_ag_id    swo_last_out;
+	/** Sender copy machine's [hi, lo] from outgoing aggregation groups. */
+	struct m0_cm_sw       swo_out_interval;
 
 	uint32_t              swo_cm_status;
 }M0_XCA_RECORD;
@@ -85,7 +86,7 @@ struct m0_cm_sw_update {
 M0_INTERNAL int m0_cm_sw_onwire_init(struct m0_cm *cm, struct m0_cm_sw_onwire *sw_onwire,
 				     uint64_t proxy_id, const char *ep,
 				     const struct m0_cm_sw *sw,
-				     const struct m0_cm_ag_id *last_out);
+				     const struct m0_cm_sw *out_interval);
 
 M0_INTERNAL void m0_cm_sw_set(struct m0_cm_sw *dst,
 			      const struct m0_cm_ag_id *lo,

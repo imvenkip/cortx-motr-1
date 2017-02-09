@@ -776,11 +776,10 @@ M0_INTERNAL uint64_t m0_sns_cm_data_seg_nr(struct m0_sns_cm *scm,
 	       scm->sc_obp.sb_bp.nbp_seg_size;
 }
 
-M0_INTERNAL uint64_t
+M0_INTERNAL int64_t
 m0_sns_cm_incoming_reserve_bufs(struct m0_sns_cm *scm,
 				const struct m0_cm_ag_id *id)
 {
-	struct m0_bitmap           proxy_map;
 	uint64_t                   nr_cp_bufs;
 	uint64_t                   cp_data_seg_nr;
 	uint32_t                   nr_cps_in;
@@ -793,14 +792,12 @@ m0_sns_cm_incoming_reserve_bufs(struct m0_sns_cm *scm,
 	M0_ASSERT(fctx != NULL);
 
 	pl = m0_layout_to_pdl(fctx->sf_layout);
-	m0_bitmap_init(&proxy_map, scm->sc_base.cm_proxy_nr);
 	rc = m0_sns_cm_ag_in_cp_units(scm, id, fctx, &nr_cps_in,
-				      &nr_units_in, &proxy_map);
+				      &nr_units_in, NULL);
 	if (rc != 0)
-		return ~0;
+		return M0_ERR(rc);
 	cp_data_seg_nr = m0_sns_cm_data_seg_nr(scm, pl);
 	nr_cp_bufs = m0_sns_cm_cp_buf_nr(&scm->sc_ibp.sb_bp, cp_data_seg_nr);
-	m0_bitmap_fini(&proxy_map);
 	m0_sns_cm_fctx_put(scm, id);
 
 	return nr_cp_bufs * nr_cps_in;
@@ -815,25 +812,46 @@ m0_sns_cm_incoming_reserve_bufs(struct m0_sns_cm *scm,
  * enough free buffers to receive all the remote units corresponding
  * to a parity group.
  */
-M0_INTERNAL bool m0_sns_cm_has_space_for(struct m0_sns_cm *scm,
-					 struct m0_pdclust_layout *pl,
-					 uint64_t nr_bufs)
+M0_INTERNAL int m0_sns_cm_has_space_for(struct m0_sns_cm *scm,
+					struct m0_pdclust_layout *pl,
+					uint64_t nr_bufs)
 {
-	bool result = false;
+	struct m0_net_buffer_pool *ibp;
+	int                        rc = 0;
 
 	M0_PRE(scm != NULL && pl != NULL);
 	M0_PRE(m0_cm_is_locked(&scm->sc_base));
 
-	if (nr_bufs + scm->sc_ibp_reserved_nr > scm->sc_ibp.sb_bp.nbp_free)
-		goto out;
-	scm->sc_ibp_reserved_nr += nr_bufs;
-	result = true;
-out:
+	ibp = &scm->sc_ibp.sb_bp;
+	m0_net_buffer_pool_lock(ibp);
+	if (nr_bufs + scm->sc_ibp_reserved_nr > ibp->nbp_free)
+		rc = -ENOSPC;
+	m0_net_buffer_pool_unlock(ibp);
 	M0_LOG(M0_DEBUG, "nr_bufs: [%lu] free buffers in: [%u] out: [%u] \
-	       sc_ibp_reserved_nr: [%lu]", nr_bufs, scm->sc_ibp.sb_bp.nbp_free,
+	       sc_ibp_reserved_nr: [%lu]", nr_bufs, ibp->nbp_free,
 	       scm->sc_obp.sb_bp.nbp_free, scm->sc_ibp_reserved_nr);
 
-	return result;
+	return M0_RC(rc);
+}
+
+M0_INTERNAL void m0_sns_cm_reserve_space(struct m0_sns_cm *scm, size_t nr_bufs)
+{
+	M0_PRE(m0_cm_is_locked(&scm->sc_base));
+
+	scm->sc_ibp_reserved_nr += nr_bufs;
+}
+
+M0_INTERNAL void m0_sns_cm_cancel_reservation(struct m0_sns_cm *scm, size_t nr_bufs)
+{
+	struct m0_net_buffer_pool *ibp;
+
+	M0_PRE(m0_cm_is_locked(&scm->sc_base));
+
+	scm->sc_ibp_reserved_nr -= min32u(scm->sc_ibp_reserved_nr, nr_bufs);
+	ibp = &scm->sc_ibp.sb_bp;
+	m0_net_buffer_pool_lock(ibp);
+	ibp->nbp_ops->nbpo_not_empty(ibp);
+	m0_net_buffer_pool_unlock(ibp);
 }
 
 M0_INTERNAL int m0_sns_cm_ag_next(struct m0_cm *cm,

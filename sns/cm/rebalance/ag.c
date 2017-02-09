@@ -54,12 +54,27 @@ static void rebalance_ag_fini(struct m0_cm_aggr_group *ag)
 {
 	struct m0_sns_cm_rebalance_ag *rag;
 	struct m0_sns_cm_ag           *sag;
+	struct m0_sns_cm              *scm;
+	struct m0_pdclust_layout      *pl;
+	uint32_t                       nr_cp_bufs;
+	uint32_t                       unused_cps;
+	uint32_t                       nr_bufs;
+
 
 	M0_ENTRY();
 	M0_PRE(ag != NULL);
 
 	sag = ag2snsag(ag);
 	rag = sag2rebalanceag(sag);
+	scm = cm2sns(ag->cag_cm);
+	pl = m0_layout_to_pdl(sag->sag_fctx->sf_layout);
+	nr_cp_bufs = m0_sns_cm_cp_buf_nr(&scm->sc_ibp.sb_bp,
+					 m0_sns_cm_data_seg_nr(scm, pl));
+	if (ag->cag_has_incoming) {
+		unused_cps = sag->sag_not_coming * sag->sag_local_tgts_nr;
+		nr_bufs = unused_cps * nr_cp_bufs;
+		m0_sns_cm_cancel_reservation(scm, nr_bufs);
+	}
 	m0_sns_cm_ag_fini(sag);
 	m0_free(rag);
 
@@ -72,10 +87,9 @@ static bool rebalance_ag_can_fini(const struct m0_cm_aggr_group *ag)
 
 	M0_PRE(ag != NULL);
 
+	if (ag->cag_is_frozen || ag->cag_rc != 0)
+		return ag->cag_ref == 0;
         if (ag->cag_has_incoming) {
-		if (ag->cag_is_frozen)
-			return ag->cag_ref == 0;
-
 		return ag->cag_freed_cp_nr == sag->sag_incoming_cp_nr +
 					      ag->cag_cp_local_nr;
         } else
@@ -111,7 +125,6 @@ M0_INTERNAL int m0_sns_cm_rebalance_ag_alloc(struct m0_cm *cm,
         rc = m0_sns_cm_ag_init(&rag->rag_base, cm, id, &sns_cm_rebalance_ag_ops,
                                has_incoming);
         if (rc != 0) {
-		m0_cm_aggr_group_fini(&sag->sag_base);
                 m0_free(rag);
                 return M0_RC(rc);
         }

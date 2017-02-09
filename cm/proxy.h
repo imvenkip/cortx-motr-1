@@ -73,7 +73,7 @@ struct m0_cm_proxy {
 	 * Identifier of the last aggregation group received from this proxy
 	 * having outgoing copy packets.
 	 */
-	struct m0_cm_ag_id      px_last_out_recvd;
+	struct m0_cm_sw         px_out_interval;
 
 	/**
 	 * Identifier of last aggregation group sent to this proxy
@@ -132,6 +132,16 @@ struct m0_cm_proxy {
 };
 
 /**
+ * Incoming copy packet counter from every m0_cm_proxy
+ */
+struct m0_cm_proxy_in_count {
+	/** Number of proxies. */
+	uint32_t  p_nr;
+	/** Array of number of copy packets from each proxy. */
+	uint32_t *p_count;
+};
+
+/**
  * Sliding window update fop context for a remote replica proxy.
  * @see m0_cm_proxy_remote_update()
  */
@@ -156,14 +166,14 @@ M0_INTERNAL struct m0_cm_proxy *m0_cm_proxy_locate(struct m0_cm *cm,
 						   const char *ep);
 
 M0_INTERNAL int m0_cm_proxy_update(struct m0_cm_proxy *pxy,
-				   struct m0_cm_ag_id *lo,
-				   struct m0_cm_ag_id *hi,
-				   struct m0_cm_ag_id *last_out,
+				   struct m0_cm_sw *in_interval,
+				   struct m0_cm_sw *out_interval,
 				   uint32_t px_status,
 				   m0_time_t px_epoch);
 
 M0_INTERNAL int m0_cm_proxy_remote_update(struct m0_cm_proxy *proxy,
-					  struct m0_cm_sw *sw);
+					  struct m0_cm_sw *in_interval,
+					  struct m0_cm_sw *out_interval);
 
 M0_INTERNAL void m0_cm_proxy_cp_add(struct m0_cm_proxy *pxy,
 				    struct m0_cm_cp *cp);
@@ -186,6 +196,10 @@ M0_INTERNAL void m0_cm_proxy_lock(struct m0_cm_proxy *pxy);
 M0_INTERNAL void m0_cm_proxy_unlock(struct m0_cm_proxy *pxy);
 
 M0_INTERNAL bool m0_cm_proxies_ready(const struct m0_cm *cm);
+
+M0_INTERNAL int m0_cm_proxy_in_count_alloc(struct m0_cm_proxy_in_count *pcount,
+					   uint32_t nr_proxies);
+M0_INTERNAL void m0_cm_proxy_in_count_free(struct m0_cm_proxy_in_count *pcount);
 
 M0_TL_DESCR_DECLARE(proxy, M0_EXTERN);
 M0_TL_DECLARE(proxy, M0_INTERNAL, struct m0_cm_proxy);

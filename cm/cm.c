@@ -1109,7 +1109,6 @@ M0_INTERNAL void m0_cm_frozen_ag_cleanup(struct m0_cm *cm, struct m0_cm_proxy *p
 			  m0_cm_ag_can_fini(ag);
 		m0_cm_ag_unlock(ag);
 		if (cleanup) {
-			M0_ASSERT(cm->cm_abort || cm->cm_quiesce);
 			M0_ASSERT(ag->cag_fini_ast.sa_next == NULL);
 			M0_LOG(M0_DEBUG, "finalizing frozen aggregation group ["M0_AG_F"]",
 					 M0_AG_P(&ag->cag_id));

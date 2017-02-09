@@ -210,6 +210,7 @@ M0_INTERNAL void m0_cm_aggr_group_fini_and_progress(struct m0_cm_aggr_group *ag)
 	struct m0_cm_ag_id        id;
 	struct m0_cm_aggr_group  *hi;
 	struct m0_cm_aggr_group  *lo;
+	int                       rc;
 
 	M0_ENTRY("ag: %p", ag);
 	M0_ASSERT(ag != NULL);
@@ -217,9 +218,10 @@ M0_INTERNAL void m0_cm_aggr_group_fini_and_progress(struct m0_cm_aggr_group *ag)
 	cm = ag->cag_cm;
 	M0_ASSERT(m0_cm_is_locked(cm));
 	id = ag->cag_id;
-	hi = m0_cm_ag_hi(cm);
-	lo = m0_cm_ag_lo(cm);
+	hi = m0_cm_ag_in_hi(cm);
+	lo = m0_cm_ag_in_lo(cm);
 
+	rc = ag->cag_rc;
 	ID_INCOMING_LOG("id", &id, ag->cag_has_incoming);
 	if (lo != NULL && hi != NULL) {
 		ID_LOG("lo", &lo->cag_id);
@@ -230,9 +232,9 @@ M0_INTERNAL void m0_cm_aggr_group_fini_and_progress(struct m0_cm_aggr_group *ag)
         if (m0_cm_aggr_group_tlists_are_empty(cm))
 		m0_cm_complete_notify(cm);
 
-	M0_LOG(M0_DEBUG, "%lu: ["M0_AG_F"] in=[%lu] %p out=[%lu] %p ",
-	       cm->cm_id, M0_AG_P(&id), cm->cm_aggr_grps_in_nr, &cm->cm_aggr_grps_in,
-	       cm->cm_aggr_grps_out_nr, &cm->cm_aggr_grps_out);
+	M0_LOG(M0_DEBUG, "%lu: ["M0_AG_F"] in=[%lu] out=[%lu] rc: %d",
+	       cm->cm_id, M0_AG_P(&id), cm->cm_aggr_grps_in_nr,
+	       cm->cm_aggr_grps_out_nr, rc);
 
 	M0_LEAVE();
 }
@@ -378,7 +380,7 @@ M0_INTERNAL int m0_cm_ag_advance(struct m0_cm *cm)
 	return M0_RC(rc);
 }
 
-M0_INTERNAL struct m0_cm_aggr_group *m0_cm_ag_hi(struct m0_cm *cm)
+M0_INTERNAL struct m0_cm_aggr_group *m0_cm_ag_in_hi(const struct m0_cm *cm)
 {
 
 	M0_PRE(cm != NULL);
@@ -387,12 +389,64 @@ M0_INTERNAL struct m0_cm_aggr_group *m0_cm_ag_hi(struct m0_cm *cm)
 	return aggr_grps_in_tlist_tail(&cm->cm_aggr_grps_in);
 }
 
-M0_INTERNAL struct m0_cm_aggr_group *m0_cm_ag_lo(struct m0_cm *cm)
+M0_INTERNAL struct m0_cm_aggr_group *m0_cm_ag_in_lo(const struct m0_cm *cm)
 {
 	M0_PRE(cm != NULL);
 	M0_PRE(m0_cm_is_locked(cm));
 
 	return aggr_grps_in_tlist_head(&cm->cm_aggr_grps_in);
+}
+
+M0_INTERNAL struct m0_cm_aggr_group *m0_cm_ag_out_lo(const struct m0_cm *cm)
+{
+	M0_PRE(cm != NULL);
+	M0_PRE(m0_cm_is_locked(cm));
+
+	return aggr_grps_out_tlist_head(&cm->cm_aggr_grps_out);
+}
+
+M0_INTERNAL struct m0_cm_aggr_group *m0_cm_ag_out_hi(const struct m0_cm *cm)
+{
+	M0_PRE(cm != NULL);
+	M0_PRE(m0_cm_is_locked(cm));
+
+	return aggr_grps_out_tlist_tail(&cm->cm_aggr_grps_out);
+}
+
+M0_INTERNAL void m0_cm_ag_in_interval(const struct m0_cm *cm,
+				      struct m0_cm_sw *in_interval)
+{
+	struct m0_cm_aggr_group *ag;
+
+	M0_PRE(m0_cm_is_locked(cm));
+	M0_PRE(in_interval != NULL);
+
+	M0_SET0(&in_interval->sw_lo);
+	M0_SET0(&in_interval->sw_hi);
+	ag = m0_cm_ag_in_hi(cm);
+	if (ag != NULL)
+		m0_cm_ag_id_copy(&in_interval->sw_hi, &ag->cag_id);
+	ag = m0_cm_ag_in_lo(cm);
+	if (ag != NULL)
+		m0_cm_ag_id_copy(&in_interval->sw_lo, &ag->cag_id);
+}
+
+M0_INTERNAL void m0_cm_ag_out_interval(const struct m0_cm *cm,
+				       struct m0_cm_sw *out_interval)
+{
+	struct m0_cm_aggr_group *ag;
+
+	M0_PRE(m0_cm_is_locked(cm));
+	M0_PRE(out_interval != NULL);
+
+	M0_SET0(&out_interval->sw_lo);
+	M0_SET0(&out_interval->sw_hi);
+	ag = m0_cm_ag_out_hi(cm);
+	if (ag != NULL)
+		m0_cm_ag_id_copy(&out_interval->sw_hi, &ag->cag_id);
+	ag = m0_cm_ag_out_lo(cm);
+	if (ag != NULL)
+		m0_cm_ag_id_copy(&out_interval->sw_lo, &ag->cag_id);
 }
 
 static void cm_ag_get(struct m0_cm_aggr_group *ag)
@@ -407,7 +461,7 @@ static void cm_ag_put(struct m0_cm_aggr_group *ag)
 	M0_PRE(m0_cm_ag_is_locked(ag));
 
 	M0_CNT_DEC(ag->cag_ref);
-	if ((ag->cag_ref == 0 || ag->cag_is_frozen) && m0_cm_ag_can_fini(ag))
+	if ((ag->cag_ref == 0 || ag->cag_is_frozen || ag->cag_rc != 0) && m0_cm_ag_can_fini(ag))
 		m0_cm_ag_fini_post(ag);
 }
 
@@ -449,6 +503,8 @@ M0_INTERNAL void m0_cm_ag_cp_del(struct m0_cm_aggr_group *ag, struct m0_cm_cp *c
 	M0_PRE(cp != NULL);
 
 	m0_cm_ag_lock(ag);
+	if (cp->c_rc != 0)
+		ag->cag_rc = cp->c_rc;
 	M0_CNT_INC(ag->cag_freed_cp_nr);
 	cm_ag_put(ag);
 	m0_cm_ag_unlock(ag);

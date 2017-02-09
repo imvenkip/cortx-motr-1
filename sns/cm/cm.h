@@ -144,7 +144,7 @@ struct m0_sns_cm_helpers {
 				  struct m0_sns_cm_file_ctx *fctx,
 				  uint32_t *in_cp_nr,
 				  uint32_t *in_units_nr,
-				  struct m0_bitmap *proxy_in_map);
+				  struct m0_cm_proxy_in_count *pcount);
 
 	/**
 	 * Returns index of starting unit of the given aggregation group to
@@ -298,7 +298,7 @@ M0_INTERNAL void m0_sns_cm_complete(struct m0_cm *cm);
 
 M0_INTERNAL void m0_sns_cm_fini(struct m0_cm *cm);
 
-M0_INTERNAL uint64_t
+M0_INTERNAL int64_t
 m0_sns_cm_incoming_reserve_bufs(struct m0_sns_cm *scm,
 				const struct m0_cm_ag_id *id);
 
@@ -308,9 +308,13 @@ M0_INTERNAL uint64_t m0_sns_cm_data_seg_nr(struct m0_sns_cm *scm,
 M0_INTERNAL uint64_t m0_sns_cm_cp_buf_nr(struct m0_net_buffer_pool *bp,
                                          uint64_t data_seg_nr);
 
-M0_INTERNAL bool m0_sns_cm_has_space_for(struct m0_sns_cm *scm,
-					 struct m0_pdclust_layout *pl,
-					 uint64_t nr_bufs);
+M0_INTERNAL int m0_sns_cm_has_space_for(struct m0_sns_cm *scm,
+					struct m0_pdclust_layout *pl,
+					uint64_t nr_bufs);
+
+M0_INTERNAL void m0_sns_cm_reserve_space(struct m0_sns_cm *scm, size_t nr_bufs);
+
+M0_INTERNAL void m0_sns_cm_cancel_reservation(struct m0_sns_cm *scm, size_t nr_bufs);
 
 /**
  * Returns state of SNS repair process with respect to @gfid.

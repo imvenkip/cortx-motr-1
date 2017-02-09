@@ -42,6 +42,7 @@
 
 struct m0_cm_cp;
 struct m0_cm_proxy;
+struct m0_cm_sw;
 
 /** Unique aggregation group identifier. */
 struct m0_cm_ag_id {
@@ -116,6 +117,8 @@ struct m0_cm_aggr_group {
 	 * @see m0_cm::cm_aggr_groups_out
 	 */
 	struct m0_tlink			   cag_cm_out_linkage;
+
+	int                                cag_rc;
 
 	uint64_t                           cag_magic;
 };
@@ -235,7 +238,7 @@ M0_INTERNAL void m0_cm_aggr_group_add(struct m0_cm *cm,
  *
  * @pre cm != NULL && m0_cm_is_locked == true
  */
-M0_INTERNAL struct m0_cm_aggr_group *m0_cm_ag_hi(struct m0_cm *cm);
+M0_INTERNAL struct m0_cm_aggr_group *m0_cm_ag_in_hi(const struct m0_cm *cm);
 
 /**
  * Returns the aggregation group with the lowest aggregation grou id from the
@@ -243,8 +246,29 @@ M0_INTERNAL struct m0_cm_aggr_group *m0_cm_ag_hi(struct m0_cm *cm);
  *
  * @pre cm != NULL && m0_cm_is_locked == true
  */
-M0_INTERNAL struct m0_cm_aggr_group *m0_cm_ag_lo(struct m0_cm *cm);
+M0_INTERNAL struct m0_cm_aggr_group *m0_cm_ag_in_lo(const struct m0_cm *cm);
 
+M0_INTERNAL struct m0_cm_aggr_group *m0_cm_ag_out_hi(const struct m0_cm *cm);
+
+M0_INTERNAL struct m0_cm_aggr_group *m0_cm_ag_out_lo(const struct m0_cm *cm);
+
+/**
+ * Returns the incoming aggregation groups interval [lo, hi] in the
+ * given @in_interval.
+ *
+ * @pre m0_cm_is_locked == true && in_interval != NULL
+ */
+M0_INTERNAL void m0_cm_ag_in_interval(const struct m0_cm *cm,
+				      struct m0_cm_sw *in_interval);
+
+/**
+ * Returns the outgoing aggregation groups interval [lo, hi] in the
+ * given @out_interval.
+ *
+ * @pre m0_cm_is_locked == true && out_interval != NULL
+ */
+M0_INTERNAL void m0_cm_ag_out_interval(const struct m0_cm *cm,
+				       struct m0_cm_sw *out_interval);
 /**
  * Advances the sliding window Hi as far as it can, by invoking m0_cm_ops::
  * cmo_ag_next() until it fails.

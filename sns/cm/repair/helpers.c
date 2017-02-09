@@ -37,7 +37,7 @@ static int repair_ag_in_cp_units(const struct m0_sns_cm *scm,
 				 struct m0_sns_cm_file_ctx *fctx,
 				 uint32_t *in_cp_nr,
 				 uint32_t *in_units_nr,
-				 struct m0_bitmap *proxy_in_map)
+				 struct m0_cm_proxy_in_count *pcount)
 {
 	const struct m0_cm         *cm = &scm->sc_base;
 	struct m0_pdclust_src_addr  sa;
@@ -48,6 +48,7 @@ static int repair_ag_in_cp_units(const struct m0_sns_cm *scm,
 	struct m0_poolmach         *pm;
 	struct m0_cm_proxy         *pxy;
 	struct m0_conf_obj         *svc;
+	struct m0_bitmap            proxy_map;
 	const char                 *ep;
 	struct m0_pdclust_layout   *pl;
 	bool                        is_failed;
@@ -58,16 +59,20 @@ static int repair_ag_in_cp_units(const struct m0_sns_cm *scm,
 	uint64_t                    unit;
 	uint64_t                    nr_total_du;
 	int                         rc = 0;
+	int                         i;
 
 	M0_ENTRY();
 	M0_PRE(scm != NULL && id != NULL && fctx != NULL);
-	M0_PRE(in_cp_nr != NULL && in_units_nr != NULL && proxy_in_map != NULL);
+	M0_PRE(in_cp_nr != NULL && in_units_nr != NULL);
 
 	agid2fid(id, &fctx->sf_fid);
 	sa.sa_group = agid2group(id);
 	pm = fctx->sf_pm;
 	pl = m0_layout_to_pdl(fctx->sf_layout);
 	nr_total_du = m0_sns_cm_file_data_units(fctx);
+	rc = m0_bitmap_init(&proxy_map, scm->sc_base.cm_proxy_nr);
+	if (rc != 0)
+		return M0_ERR(rc);
 	for (unit = 0; unit < m0_sns_cm_ag_size(pl); ++unit) {
 		sa.sa_unit = unit;
 		m0_sns_cm_unit2cobfid(fctx, &sa, &ta, &cobfid);
@@ -88,8 +93,10 @@ static int repair_ag_in_cp_units(const struct m0_sns_cm *scm,
 						     (unsigned *)&sa.sa_unit,
 						     &tgt_unit_prev);
 			m0_sns_cm_fctx_unlock(fctx);
-			if (rc != 0)
+			if (rc != 0) {
+				m0_bitmap_fini(&proxy_map);
 				return M0_ERR(rc);
+			}
 
 			m0_sns_cm_unit2cobfid(fctx, &sa, &ta, &spare_cob);
 			if (m0_sns_cm_unit_is_spare(fctx, sa.sa_group,
@@ -105,16 +112,30 @@ static int repair_ag_in_cp_units(const struct m0_sns_cm *scm,
 			pxy = m0_tl_find(proxy, pxy, &cm->cm_proxies,
 					 m0_streq(ep, pxy->px_endpoint));
 			m0_confc_close(svc);
-			if (!m0_bitmap_get(proxy_in_map, pxy->px_id)) {
-				m0_bitmap_set(proxy_in_map, pxy->px_id, true);
+			if (M0_IN(pxy->px_status, (M0_PX_STOP, M0_PX_FAILED))) {
+				rc = pxy->px_status == M0_PX_STOP ? -ESHUTDOWN : -EHOSTDOWN;
+				m0_bitmap_fini(&proxy_map);
+				return M0_ERR_INFO(rc, " %s", pxy->px_endpoint);
+			}
+
+			if (!m0_bitmap_get(&proxy_map, pxy->px_id)) {
+				m0_bitmap_set(&proxy_map, pxy->px_id, true);
 				M0_CNT_INC(incps);
 			}
 			M0_CNT_INC(inunits);
 		}
 	}
 
+	/* set incoming copy packets count per proxy based on local spares */
+	if (pcount != NULL) {
+		for (i = 0; i < pcount->p_nr; ++i) {
+			if (m0_bitmap_get(&proxy_map, i))
+				pcount->p_count[i] = local_spares;
+		}
+	}
 	*in_cp_nr = incps * local_spares;
 	*in_units_nr = inunits;
+	m0_bitmap_fini(&proxy_map);
 
 	M0_LEAVE();
 	return M0_RC(rc);

@@ -206,47 +206,43 @@ static void proxy_done(struct m0_cm_proxy *proxy)
  * aggregation group proccessed with @last_out and proxy status with
  * @px_status.
  */
-static void _sw_update(struct m0_cm_proxy *pxy, struct m0_cm_ag_id *lo,
-		       struct m0_cm_ag_id *hi, struct m0_cm_ag_id *last_out,
-		       uint32_t px_status)
+static void _sw_update(struct m0_cm_proxy *pxy, struct m0_cm_sw *in_interval,
+		       struct m0_cm_sw *out_interval, uint32_t px_status)
 {
-	struct m0_cm_sw sw;
-
 	ID_LOG("proxy lo", &pxy->px_sw.sw_lo);
 	ID_LOG("proxy hi", &pxy->px_sw.sw_hi);
 
-	sw.sw_lo = *lo;
-	sw.sw_hi = *hi;
-	if (m0_cm_sw_cmp(&sw, &pxy->px_sw) > 0) {
-		pxy->px_sw = sw;
-		if (m0_cm_ag_id_cmp(last_out, &pxy->px_last_out_recvd) > 0)
-			pxy->px_last_out_recvd = *last_out;
-	}
+	if (m0_cm_sw_cmp(in_interval, &pxy->px_sw) > 0)
+		m0_cm_sw_copy(&pxy->px_sw, in_interval);
+	if (m0_cm_sw_cmp(out_interval, &pxy->px_out_interval) > 0)
+		m0_cm_sw_copy(&pxy->px_out_interval, out_interval);
 	pxy->px_status = px_status;
 	__wake_up_pending_cps(pxy);
 	M0_ASSERT(cm_proxy_invariant(pxy));
 }
 
-static int px_ready(struct m0_cm_proxy *p, struct m0_cm_ag_id *lo,
-		    struct m0_cm_ag_id *hi, struct m0_cm_ag_id *last_out,
-		    m0_time_t px_epoch, uint32_t px_status)
+static int px_ready(struct m0_cm_proxy *p, struct m0_cm_sw *in_interval,
+		    struct m0_cm_sw *out_interval, m0_time_t px_epoch,
+		    uint32_t px_status)
 {
-	struct m0_cm *cm = p->px_cm;
-	int           rc = 0;
+	struct m0_cm       *cm = p->px_cm;
+	struct m0_cm_ag_id  hi;
+	int                 rc = 0;
 
 	if (p->px_epoch == 0 && m0_cm_state_get(cm) == M0_CMS_READY) {
 		p->px_epoch = px_epoch;
 		p->px_status = px_status;
+		hi = in_interval->sw_hi;
 		/*
 		 * Here we select the minimum of the sliding window
 		 * starting point provided by each remote copy machine,
 		 * from which this copy machine will start in-order to
 		 * keep all the copy machines in sync.
 		 */
-		if (m0_cm_ag_id_is_set(hi) &&
+		if (m0_cm_ag_id_is_set(&hi) &&
 		    (!m0_cm_ag_id_is_set(&cm->cm_sw_last_updated_hi) ||
-		     (m0_cm_ag_id_cmp(hi, &cm->cm_sw_last_updated_hi) < 0))) {
-			cm->cm_sw_last_updated_hi = *hi;
+		     (m0_cm_ag_id_cmp(&hi, &cm->cm_sw_last_updated_hi) < 0))) {
+			cm->cm_sw_last_updated_hi = hi;
 		}
 		M0_CNT_INC(cm->cm_nr_proxy_updated);
 		rc = 0;
@@ -256,36 +252,41 @@ static int px_ready(struct m0_cm_proxy *p, struct m0_cm_ag_id *lo,
 	return M0_RC(rc);
 }
 
-static int px_active(struct m0_cm_proxy *p, struct m0_cm_ag_id *lo,
-		     struct m0_cm_ag_id *hi, struct m0_cm_ag_id *last_out,
-		     m0_time_t px_epoch, uint32_t px_status)
+static int px_active(struct m0_cm_proxy *p, struct m0_cm_sw *in_interval,
+		     struct m0_cm_sw *out_interval, m0_time_t px_epoch,
+		     uint32_t px_status)
 {
-	_sw_update(p, lo, hi, last_out, px_status);
-	return 0;
-}
-
-static int px_complete(struct m0_cm_proxy *p, struct m0_cm_ag_id *lo,
-		       struct m0_cm_ag_id *hi, struct m0_cm_ag_id *last_out,
-		       m0_time_t px_epoch, uint32_t px_status)
-{
-	_sw_update(p, lo, hi, last_out, px_status);
+	_sw_update(p, in_interval, out_interval, px_status);
+	/* TODO This is expensive during M0_CMS_CTIVE phase but needed to
+	 * handle cleanup in case of copy machine failures during active
+	 * phase. Try to find another alternative.
+	 */
 	m0_cm_frozen_ag_cleanup(p->px_cm, p);
 	return 0;
 }
 
-static int px_stop_fail(struct m0_cm_proxy *p, struct m0_cm_ag_id *lo,
-			struct m0_cm_ag_id *hi, struct m0_cm_ag_id *last_out,
-			m0_time_t px_epoch, uint32_t px_status)
+static int px_complete(struct m0_cm_proxy *p, struct m0_cm_sw *in_interval,
+		       struct m0_cm_sw *out_interval, m0_time_t px_epoch,
+		       uint32_t px_status)
 {
-	_sw_update(p, lo, hi, last_out, px_status);
+	_sw_update(p, in_interval, out_interval, px_status);
+	m0_cm_frozen_ag_cleanup(p->px_cm, p);
+	return 0;
+}
+
+static int px_stop_fail(struct m0_cm_proxy *p, struct m0_cm_sw *in_interval,
+			struct m0_cm_sw *out_interval, m0_time_t px_epoch,
+			uint32_t px_status)
+{
+	_sw_update(p, in_interval, out_interval, px_status);
 	m0_cm_frozen_ag_cleanup(p->px_cm, p);
 	proxy_done(p);
 	return 0;
 }
 
-static int (*px_action[])(struct m0_cm_proxy *px, struct m0_cm_ag_id *lo,
-			  struct m0_cm_ag_id *hi, struct m0_cm_ag_id *last_out,
-			  m0_time_t px_epoch, uint32_t px_status) = {
+static int (*px_action[])(struct m0_cm_proxy *px, struct m0_cm_sw *in_interval,
+			  struct m0_cm_sw *out_interval, m0_time_t px_epoch,
+			  uint32_t px_status) = {
 	[M0_PX_READY] = px_ready,
 	[M0_PX_ACTIVE] = px_active,
 	[M0_PX_COMPLETE] = px_complete,
@@ -294,18 +295,16 @@ static int (*px_action[])(struct m0_cm_proxy *px, struct m0_cm_ag_id *lo,
 };
 
 M0_INTERNAL int m0_cm_proxy_update(struct m0_cm_proxy *pxy,
-				   struct m0_cm_ag_id *lo,
-				   struct m0_cm_ag_id *hi,
-				   struct m0_cm_ag_id *last_out,
+				   struct m0_cm_sw *in_interval,
+				   struct m0_cm_sw *out_interval,
 				   uint32_t px_status,
 				   m0_time_t px_epoch)
 {
 	struct m0_cm *cm;
 	int           rc;
 
-	M0_ENTRY("proxy: %p lo: %p hi: %p ep: %s", pxy, lo, hi,
-		 pxy->px_endpoint);
-	M0_PRE(pxy != NULL && lo != NULL && hi != NULL);
+	M0_ENTRY("proxy: %p ep: %s", pxy, pxy->px_endpoint);
+	M0_PRE(pxy != NULL && in_interval != NULL && out_interval != NULL);
 	M0_PRE(px_status >= pxy->px_status);
 
 	m0_cm_proxy_lock(pxy);
@@ -320,7 +319,7 @@ M0_INTERNAL int m0_cm_proxy_update(struct m0_cm_proxy *pxy,
 		return -EINVAL;
 	}
 
-	rc = px_action[px_status](pxy, lo, hi, last_out, px_epoch, px_status);
+	rc = px_action[px_status](pxy, in_interval, out_interval, px_epoch, px_status);
 	if (m0_cm_state_get(cm) == M0_CMS_READY && m0_cm_proxies_ready(cm))
 			m0_chan_broadcast(&cm->cm_proxy_init_wait);
 	m0_cm_proxy_unlock(pxy);
@@ -334,25 +333,13 @@ static void proxy_sw_onwire_ast_cb(struct m0_sm_group *grp,
 	struct m0_cm_proxy      *proxy = container_of(ast, struct m0_cm_proxy,
 						      px_sw_onwire_ast);
 	struct m0_cm            *cm    = proxy->px_cm;
-	struct m0_cm_aggr_group *lo;
-	struct m0_cm_aggr_group *hi;
-	struct m0_cm_ag_id       id_lo;
-	struct m0_cm_ag_id       id_hi;
-	struct m0_cm_sw          sw;
+	struct m0_cm_sw          in_interval;
+	struct m0_cm_sw          out_interval;
 
 	M0_ASSERT(cm_proxy_invariant(proxy));
 
-	M0_SET0(&id_lo);
-	M0_SET0(&id_hi);
-	lo = m0_cm_ag_lo(cm);
-	if (lo != NULL)
-		id_lo = lo->cag_id;
-	hi = m0_cm_ag_hi(cm);
-	if (hi != NULL)
-		id_hi = hi->cag_id;
-	if (m0_cm_is_ready(cm))
-		id_hi = cm->cm_sw_last_updated_hi;
-	m0_cm_sw_set(&sw, &id_lo, &id_hi);
+	m0_cm_ag_in_interval(cm, &in_interval);
+	m0_cm_ag_out_interval(cm, &out_interval);
 	M0_LOG(M0_DEBUG, "proxy ep: %s, cm->cm_aggr_grps_in_nr %lu",
 			 proxy->px_endpoint, cm->cm_aggr_grps_in_nr);
 	ID_LOG("proxy last updated hi", &proxy->px_last_sw_onwire_sent.sw_hi);
@@ -364,13 +351,15 @@ static void proxy_sw_onwire_ast_cb(struct m0_sm_group *grp,
 	 */
 	if (proxy->px_nr_updates_posted > 0)
 		M0_CNT_DEC(proxy->px_nr_updates_posted);
-	if (((m0_cm_sw_cmp(&sw, &proxy->px_last_sw_onwire_sent) > 0 ||
+	/* TODO Try to simply the condition. */
+	if (((m0_cm_sw_cmp(&in_interval, &proxy->px_last_sw_onwire_sent) > 0 ||
+	      m0_cm_sw_cmp(&out_interval, &proxy->px_out_interval) > 0 ||
 	    m0_cm_state_get(cm) == M0_CMS_READY || proxy->px_status <= M0_PX_READY ||
 	    proxy->px_update_rc != 0) && proxy->px_update_rc != -ECANCELED &&
 	    !M0_IN(proxy->px_status, (M0_PX_STOP, M0_PX_FAILED))) ||
 	    proxy->px_update_is_pending) {
 		proxy->px_update_is_pending = proxy->px_nr_updates_posted != 0;
-		m0_cm_proxy_remote_update(proxy, &sw);
+		m0_cm_proxy_remote_update(proxy, &in_interval, &out_interval);
 	}
 
 	if (m0_cm_state_get(cm) == M0_CMS_READY &&
@@ -475,7 +464,8 @@ static void proxy_sw_onwire_release(struct m0_ref *ref)
 }
 
 M0_INTERNAL int m0_cm_proxy_remote_update(struct m0_cm_proxy *proxy,
-					  struct m0_cm_sw *sw)
+					  struct m0_cm_sw *in_interval,
+					  struct m0_cm_sw *out_interval)
 {
 	struct m0_cm                 *cm;
 	struct m0_rpc_machine        *rmach;
@@ -485,7 +475,7 @@ M0_INTERNAL int m0_cm_proxy_remote_update(struct m0_cm_proxy *proxy,
 	const char                   *ep;
 	int                           rc;
 
-	M0_ENTRY("proxy: %p sw: %p", proxy, sw);
+	M0_ENTRY("proxy: %p", proxy);
 	M0_PRE(proxy != NULL);
 	cm = proxy->px_cm;
 	M0_PRE(m0_cm_is_locked(cm));
@@ -503,8 +493,8 @@ M0_INTERNAL int m0_cm_proxy_remote_update(struct m0_cm_proxy *proxy,
 	conn = proxy->px_conn;
 	rc = cm->cm_ops->cmo_sw_onwire_fop_setup(cm, fop,
 						 proxy_sw_onwire_release,
-						 proxy->px_id, ep, sw,
-						 &cm->cm_last_out_hi);
+						 proxy->px_id, ep, in_interval,
+						 out_interval);
 	if (rc != 0) {
 		m0_fop_put_lock(fop);
 		m0_free(sw_fop);
@@ -514,9 +504,9 @@ M0_INTERNAL int m0_cm_proxy_remote_update(struct m0_cm_proxy *proxy,
 	ID_LOG("proxy last updated hi", &proxy->px_last_sw_onwire_sent.sw_hi);
 
 	cm_proxy_sw_onwire_post(proxy, fop, conn);
-	m0_cm_sw_copy(&proxy->px_last_sw_onwire_sent, sw);
+	m0_cm_sw_copy(&proxy->px_last_sw_onwire_sent, in_interval);
 	M0_LOG(M0_DEBUG, "Sending to %s hi: ["M0_AG_F"]",
-	       proxy->px_endpoint, M0_AG_P(&sw->sw_hi));
+	       proxy->px_endpoint, M0_AG_P(&in_interval->sw_hi));
 	return M0_RC(0);
 }
 
@@ -626,6 +616,28 @@ M0_INTERNAL bool m0_cm_proxies_ready(const struct m0_cm *cm)
 
 	nr_failed_proxies = proxy_fail_tlist_length(&cm->cm_failed_proxies);
 	return cm->cm_nr_proxy_updated == (cm->cm_proxy_nr - nr_failed_proxies) * 2;
+}
+
+M0_INTERNAL int m0_cm_proxy_in_count_alloc(struct m0_cm_proxy_in_count *pcount,
+					   uint32_t nr_proxies)
+{
+	M0_PRE(nr_proxies > 0);
+
+	M0_ALLOC_ARR(pcount->p_count, nr_proxies);
+	if (pcount->p_count == NULL)
+		return -ENOMEM;
+	pcount->p_nr = nr_proxies;
+
+	return 0;
+}
+
+M0_INTERNAL void m0_cm_proxy_in_count_free(struct m0_cm_proxy_in_count *pcount)
+{
+	M0_PRE(pcount != NULL);
+
+	m0_free(pcount->p_count);
+	pcount->p_count = NULL;
+	pcount->p_nr = 0;
 }
 
 #undef M0_TRACE_SUBSYSTEM

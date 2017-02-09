@@ -83,10 +83,10 @@ static int sw_onwire_fom_tick(struct m0_fom *fom)
 		M0_LOG(M0_DEBUG, "Rcvd from %s hi: [%lu] [%lu] [%lu] [%lu] "
 				 "[%lu] [%lu] [%lu]",
 		       swo_fop->swo_cm_ep.ep,
-		       swo_fop->swo_sw.sw_hi.ai_hi.u_hi,
-		       swo_fop->swo_sw.sw_hi.ai_hi.u_lo,
-		       swo_fop->swo_sw.sw_hi.ai_lo.u_hi,
-		       swo_fop->swo_sw.sw_hi.ai_lo.u_lo,
+		       swo_fop->swo_in_interval.sw_hi.ai_hi.u_hi,
+		       swo_fop->swo_in_interval.sw_hi.ai_hi.u_lo,
+		       swo_fop->swo_in_interval.sw_hi.ai_lo.u_hi,
+		       swo_fop->swo_in_interval.sw_hi.ai_lo.u_lo,
 		       cm->cm_aggr_grps_in_nr,
 		       cm->cm_aggr_grps_out_nr,
 		       cm->cm_proxy_nr);
@@ -97,9 +97,8 @@ static int sw_onwire_fom_tick(struct m0_fom *fom)
 		if (cm_proxy != NULL) {
 			ID_LOG("proxy hi", &cm_proxy->px_sw.sw_hi);
 			rc = m0_cm_proxy_update(cm_proxy,
-						&swo_fop->swo_sw.sw_lo,
-						&swo_fop->swo_sw.sw_hi,
-						&swo_fop->swo_last_out,
+						&swo_fop->swo_in_interval,
+						&swo_fop->swo_out_interval,
 						swo_fop->swo_cm_status,
 						swo_fop->swo_cm_epoch);
 		} else

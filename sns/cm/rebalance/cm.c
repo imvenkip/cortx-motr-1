@@ -45,7 +45,7 @@ m0_sns_cm_rebalance_sw_onwire_fop_setup(struct m0_cm *cm, struct m0_fop *fop,
 					void (*fop_release)(struct m0_ref *),
 					uint64_t proxy_id, const char *local_ep,
 					const struct m0_cm_sw *sw,
-					const struct m0_cm_ag_id *last_out);
+					const struct m0_cm_sw *out_interval);
 
 
 M0_INTERNAL int m0_sns_reopen_stob_devices(struct m0_cm *cm);
@@ -149,17 +149,17 @@ out:
  * enough free buffers to receive all the remote units corresponding
  * to a parity group.
  */
-static bool rebalance_cm_has_space(struct m0_cm *cm,
-				   const struct m0_cm_ag_id *id,
-				   struct m0_layout *l)
+static int rebalance_cm_get_space_for(struct m0_cm *cm,
+				      const struct m0_cm_ag_id *id,
+				      size_t *count)
 {
 	struct m0_sns_cm          *scm = cm2sns(cm);
-	struct m0_pdclust_layout  *pl  = m0_layout_to_pdl(l);
+	struct m0_pdclust_layout  *pl;
 	struct m0_fid              fid;
 	struct m0_sns_cm_file_ctx *fctx;
-	uint64_t                   tot_inbufs;
+	int64_t                    tot_inbufs;
 
-	M0_PRE(cm != NULL && id != NULL && l != NULL);
+	M0_PRE(cm != NULL && id != NULL);
 	M0_PRE(m0_cm_is_locked(cm));
 
 	agid2fid(id, &fid);
@@ -167,8 +167,13 @@ static bool rebalance_cm_has_space(struct m0_cm *cm,
 	fctx = m0_sns_cm_fctx_locate(scm, &fid);
 	m0_mutex_unlock(&scm->sc_file_ctx_mutex);
 	M0_ASSERT(fctx != NULL);
+	pl = m0_layout_to_pdl(fctx->sf_layout);
 	tot_inbufs = m0_sns_cm_incoming_reserve_bufs(scm, id);
-	return m0_sns_cm_has_space_for(scm, pl, tot_inbufs);
+	if (tot_inbufs > 0) {
+		*count = tot_inbufs;
+		return m0_sns_cm_has_space_for(scm, pl, tot_inbufs);
+	}
+	return M0_RC((int)tot_inbufs);
 }
 
 /** Copy machine operations. */
@@ -180,7 +185,7 @@ const struct m0_cm_ops sns_rebalance_ops = {
 	.cmo_cp_alloc            = rebalance_cm_cp_alloc,
 	.cmo_data_next           = m0_sns_cm_iter_next,
 	.cmo_ag_next             = m0_sns_cm_ag_next,
-	.cmo_has_space           = rebalance_cm_has_space,
+	.cmo_get_space_for       = rebalance_cm_get_space_for,
 	.cmo_sw_onwire_fop_setup = m0_sns_cm_rebalance_sw_onwire_fop_setup,
 	.cmo_stop                = rebalance_cm_stop,
 	.cmo_fini                = m0_sns_cm_fini

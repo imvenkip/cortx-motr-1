@@ -246,14 +246,8 @@ static int cp_io(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
 out:
 	if (rc != 0) {
 		if (rc < 0) {
-			/* Ignore non-existing cob/stob, drop copy packet. */
-			if (rc == -ENOENT) {
-				m0_fom_phase_set(cp_fom, M0_CCP_FINI);
-				rc = M0_FSO_WAIT;
-			} else {
-				m0_fom_phase_move(cp_fom, rc, M0_CCP_FAIL);
-				rc = M0_FSO_AGAIN;
-			}
+			m0_fom_phase_move(cp_fom, rc, M0_CCP_FAIL);
+			rc = M0_FSO_AGAIN;
 		}
 		return rc;
 	}

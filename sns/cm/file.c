@@ -654,7 +654,7 @@ m0_sns_cm_file_attr_and_layout(struct m0_sns_cm_file_ctx *fctx)
 		_fctx_status_set(fctx, M0_SCFS_ATTR_FETCHED);
 	case M0_SCFS_ATTR_FETCHED :
 		if (fctx->sf_rc != 0)
-			return M0_ERR(fctx->sf_rc);
+			return M0_ERR_INFO(fctx->sf_rc, FID_F, FID_P(&fctx->sf_fid));
 
 		/* populate fctx->sf_pm here */
 		fctx->sf_pm = sns_cm_poolmach_get(fctx);

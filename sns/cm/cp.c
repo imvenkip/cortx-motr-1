@@ -202,14 +202,21 @@ M0_INTERNAL int m0_sns_cm_cp_fail(struct m0_cm_cp *cp)
 	rc = m0_sns_cm_cp_tx_close(cp);
 	if (rc > 0)
 		return M0_FSO_WAIT;
+	/* Move copy packet to CPP_FAIL phase on -ENOENT but do not abort, save
+	 * error code in its corresponding aggregation group.
+	 * Check aggregation group struct m0_cm_aggr_group::cag_rc during cleanup
+	 * for copy packet failures.
+	 */
 	sag = ag2snsag(cp->c_ag);
 	pver = sag->sag_fctx->sf_pm->pm_pver;
-	m0_sns_cm_pver_dirty_set(pver);
 	cp->c_rc = m0_fom_rc(&cp->c_fom);
 	cm = cp->c_ag->cag_cm;
-	m0_cm_lock(cm);
-	m0_cm_abort(cm, cp->c_rc);
-	m0_cm_unlock(cm);
+	if (cp->c_rc != -ENOENT) {
+		m0_sns_cm_pver_dirty_set(pver);
+		m0_cm_lock(cm);
+		m0_cm_abort(cm, cp->c_rc);
+		m0_cm_unlock(cm);
+	}
 	m0_fom_phase_move(&cp->c_fom, 0, M0_CCP_FINI);
 
 	return M0_FSO_WAIT;

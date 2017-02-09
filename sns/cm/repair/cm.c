@@ -45,7 +45,7 @@ m0_sns_cm_repair_sw_onwire_fop_setup(struct m0_cm *cm, struct m0_fop *fop,
                                      void (*fop_release)(struct m0_ref *),
                                      uint64_t proxy_id, const char *local_ep,
 				     const struct m0_cm_sw *sw,
-				     const struct m0_cm_ag_id *last_out);
+				     const struct m0_cm_sw *out_interval);
 
 static struct m0_cm_cp *repair_cm_cp_alloc(struct m0_cm *cm)
 {
@@ -135,24 +135,23 @@ out:
 }
 
 /**
- * Returns true iff the copy machine has enough space to receive all
+ * Returns 0 iff the copy machine has enough space to receive all
  * the copy packets from the given relevant group "id".
- * Reserves buffers from incoming buffer pool struct m0_sns_cm::sc_ibp
- * corresponding to all the incoming copy packets.
- * e.g. sns repair copy machine checks if the incoming buffer pool has
- * enough free buffers to receive all the remote units corresponding
- * to a parity group.
+ * Calculates required number of buffers from incoming buffer pool
+ * struct m0_sns_cm::sc_ibp corresponding to all the incoming copy packets
+ * and checks if the incoming buffer pool has enough free buffers to
+ * receive all the remote units corresponding to a parity group.
  */
-static bool repair_cm_has_space(struct m0_cm *cm, const struct m0_cm_ag_id *id,
-				struct m0_layout *l)
+static int repair_cm_get_space_for(struct m0_cm *cm, const struct m0_cm_ag_id *id,
+				   size_t *count)
 {
 	struct m0_sns_cm          *scm = cm2sns(cm);
-	struct m0_pdclust_layout  *pl  = m0_layout_to_pdl(l);
 	struct m0_fid              fid;
 	struct m0_sns_cm_file_ctx *fctx;
-	uint64_t                   total_inbufs;
+	struct m0_pdclust_layout  *pl;
+	int64_t                    total_inbufs;
 
-	M0_PRE(cm != NULL && id != NULL && pl != NULL);
+	M0_PRE(cm != NULL && id != NULL);
 	M0_PRE(m0_cm_is_locked(cm));
 
 	agid2fid(id, &fid);
@@ -160,8 +159,13 @@ static bool repair_cm_has_space(struct m0_cm *cm, const struct m0_cm_ag_id *id,
 	fctx = m0_sns_cm_fctx_locate(scm, &fid);
 	m0_mutex_unlock(&scm->sc_file_ctx_mutex);
 	M0_ASSERT(fctx != NULL);
+	pl = m0_layout_to_pdl(fctx->sf_layout);
 	total_inbufs = m0_sns_cm_repair_ag_inbufs(scm, fctx, id);
-	return m0_sns_cm_has_space_for(scm, pl, total_inbufs);
+	if (total_inbufs > 0) {
+		*count = total_inbufs;
+		return m0_sns_cm_has_space_for(scm, pl, total_inbufs);
+	}
+	return M0_RC((int)total_inbufs);
 }
 
 M0_INTERNAL enum sns_repair_state
@@ -212,7 +216,7 @@ const struct m0_cm_ops sns_repair_ops = {
 	.cmo_cp_alloc            = repair_cm_cp_alloc,
 	.cmo_data_next           = m0_sns_cm_iter_next,
 	.cmo_ag_next             = m0_sns_cm_ag_next,
-	.cmo_has_space           = repair_cm_has_space,
+	.cmo_get_space_for       = repair_cm_get_space_for,
 	.cmo_sw_onwire_fop_setup = m0_sns_cm_repair_sw_onwire_fop_setup,
 	.cmo_stop                = repair_cm_stop,
 	.cmo_fini                = m0_sns_cm_fini

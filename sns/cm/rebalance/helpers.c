@@ -39,14 +39,39 @@ M0_INTERNAL int m0_sns_cm_rebalance_ag_setup(struct m0_sns_cm_ag *sag,
 
 static bool is_spare_relevant(const struct m0_sns_cm *scm,
 			      struct m0_sns_cm_file_ctx *fctx,
-			      uint64_t group, uint32_t spare);
+			      uint64_t group, uint32_t spare,
+			      uint32_t *incoming_unit);
+
+static int cob_to_proxy(struct m0_fid *cobfid, const struct m0_cm *cm,
+			struct m0_poolmach *pm, struct m0_cm_proxy **pxy)
+{
+	struct m0_conf_obj *s;
+	struct m0_cm_proxy *p;
+	const char         *ep;
+	int                 rc;
+
+	M0_PRE(m0_fid_is_set(cobfid));
+	M0_PRE(cm != NULL && pm != NULL);
+
+	ep = m0_sns_cm_tgt_ep(cm, pm->pm_pver, cobfid, &s);
+	p = m0_tl_find(proxy, p, &cm->cm_proxies,
+		       m0_streq(ep, p->px_endpoint));
+	m0_confc_close(s);
+	if (M0_IN(p->px_status, (M0_PX_STOP, M0_PX_FAILED))) {
+		rc = p->px_status == M0_PX_STOP ? -ESHUTDOWN : -EHOSTDOWN;
+		return M0_ERR(rc);
+	}
+	*pxy = p;
+
+	return 0;
+}
 
 static int rebalance_ag_in_cp_units(const struct m0_sns_cm *scm,
 				    const struct m0_cm_ag_id *id,
 				    struct m0_sns_cm_file_ctx *fctx,
 				    uint32_t *in_cp_nr,
 				    uint32_t *in_units_nr,
-				    struct m0_bitmap *proxy_in_map)
+				    struct m0_cm_proxy_in_count *pcount)
 {
 	struct m0_fid		    cobfid;
 	struct m0_fid		    gfid;
@@ -54,8 +79,6 @@ static int rebalance_ag_in_cp_units(const struct m0_sns_cm *scm,
 	struct m0_pdclust_tgt_addr  ta;
 	struct m0_cm_proxy         *pxy;
 	const struct m0_cm         *cm;
-	struct m0_conf_obj         *svc;
-	const char                 *ep;
 	struct m0_pdclust_layout   *pl;
 	struct m0_poolmach         *pm;
 	uint32_t                    incps = 0;
@@ -88,8 +111,19 @@ static int rebalance_ag_in_cp_units(const struct m0_sns_cm *scm,
                 if (!m0_sns_cm_is_local_cob(cm, pm->pm_pver, &cobfid))
                         continue;
 		if (m0_pdclust_unit_classify(pl, unit) == M0_PUT_SPARE) {
-			if (is_spare_relevant(scm, fctx, sa.sa_group, unit))
+			if (is_spare_relevant(scm, fctx, sa.sa_group, unit, &tgt_unit)) {
+				if (pcount != NULL) {
+					M0_SET0(&ta);
+					M0_SET0(&cobfid);
+					sa.sa_unit = tgt_unit;
+					m0_sns_cm_unit2cobfid(fctx, &sa, &ta, &cobfid);
+					rc = cob_to_proxy(&cobfid, cm, pm, &pxy);
+					if (rc != 0)
+						return M0_ERR(rc);
+					M0_CNT_INC(pcount->p_count[pxy->px_id]);
+				}
 				M0_CNT_INC(incps);
+			}
 			continue;
 		}
 		m0_sns_cm_fctx_lock(fctx);
@@ -103,12 +137,12 @@ static int rebalance_ag_in_cp_units(const struct m0_sns_cm *scm,
                 sa.sa_unit = tgt_unit;
                 m0_sns_cm_unit2cobfid(fctx, &sa, &ta, &cobfid);
                 if (!m0_sns_cm_is_local_cob(cm, pm->pm_pver, &cobfid)) {
-			ep = m0_sns_cm_tgt_ep(cm, pm->pm_pver, &cobfid, &svc);
-			pxy = m0_tl_find(proxy, pxy, &cm->cm_proxies,
-					 m0_streq(ep, pxy->px_endpoint));
-			m0_confc_close(svc);
-			if (!m0_bitmap_get(proxy_in_map, pxy->px_id))
-				m0_bitmap_set(proxy_in_map, pxy->px_id, true);
+			if (pcount != NULL) {
+				rc = cob_to_proxy(&cobfid, cm, pm, &pxy);
+				if (rc != 0)
+					return M0_ERR(rc);
+				M0_CNT_INC(pcount->p_count[pxy->px_id]);
+			}
 			M0_CNT_INC(incps);
 		}
 	}
@@ -200,7 +234,8 @@ M0_INTERNAL int m0_sns_cm_rebalance_tgt_info(struct m0_sns_cm_ag *sag,
 
 static bool is_spare_relevant(const struct m0_sns_cm *scm,
 			      struct m0_sns_cm_file_ctx *fctx,
-			      uint64_t group, uint32_t spare)
+			      uint64_t group, uint32_t spare,
+			      uint32_t *incoming_unit)
 {
 	struct m0_pdclust_src_addr  sa;
 	struct m0_pdclust_tgt_addr  ta;
@@ -231,8 +266,10 @@ static bool is_spare_relevant(const struct m0_sns_cm *scm,
 				sa.sa_group = group;
 				m0_sns_cm_unit2cobfid(fctx, &sa, &ta, &cobfid);
 				if (!m0_sns_cm_is_local_cob(&scm->sc_base, pm->pm_pver,
-							    &cobfid))
+							    &cobfid)) {
+					*incoming_unit = spare;
 					return true;
+				}
 			}
 		}
 	}
@@ -251,6 +288,7 @@ static bool rebalance_ag_is_relevant(struct m0_sns_cm *scm,
 	uint64_t                    upg;
 	uint32_t                    i;
 	uint32_t                    tunit;
+	uint32_t                    in_unit;
 	struct m0_poolmach         *pm;
 	struct m0_pdclust_layout   *pl;
 	int                         rc;
@@ -274,7 +312,8 @@ static bool rebalance_ag_is_relevant(struct m0_sns_cm *scm,
 			tunit = sa.sa_unit;
 			if (m0_pdclust_unit_classify(pl, tunit) ==
 					M0_PUT_SPARE) {
-				if (!is_spare_relevant(scm, fctx, group, tunit))
+				if (!is_spare_relevant(scm, fctx, group, tunit,
+						       &in_unit))
 					continue;
 			}
 			m0_sns_cm_fctx_lock(fctx);

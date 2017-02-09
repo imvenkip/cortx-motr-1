@@ -96,7 +96,7 @@ M0_INTERNAL int m0_sns_cm_ag_in_cp_units(const struct m0_sns_cm *scm,
 					 struct m0_sns_cm_file_ctx *fctx,
 					 uint32_t *in_cp_nr,
 					 uint32_t *in_units_nr,
-					 struct m0_bitmap *proxy_in_map);
+					 struct m0_cm_proxy_in_count *pcount);
 
 M0_INTERNAL bool m0_sns_cm_is_cob_failed(struct m0_poolmach *pm,
 					 uint32_t cob_index);

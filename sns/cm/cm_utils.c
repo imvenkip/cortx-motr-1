@@ -539,12 +539,12 @@ M0_INTERNAL int m0_sns_cm_ag_in_cp_units(const struct m0_sns_cm *scm,
 					 struct m0_sns_cm_file_ctx *fctx,
 					 uint32_t *in_cp_nr,
 					 uint32_t *in_units_nr,
-					 struct m0_bitmap *proxy_in_map)
+					 struct m0_cm_proxy_in_count *pcount)
 {
 	M0_PRE(m0_cm_is_locked(&scm->sc_base));
 
 	return scm->sc_helpers->sch_ag_in_cp_units(scm, id, fctx, in_cp_nr,
-						   in_units_nr, proxy_in_map);
+						   in_units_nr, pcount);
 }
 
 M0_INTERNAL bool m0_sns_cm_fid_is_valid(const struct m0_sns_cm *snscm,
