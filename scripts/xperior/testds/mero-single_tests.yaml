@@ -215,7 +215,7 @@ Tests:
     #executor : Xperior::Executor::Skip
     sandbox  : /var/mero/sandbox.22rpc-cancel-test
     polltime : 30
-    timeout  : 900
+    timeout  : 1800
 
   - id       : 23m0d-signal-test
     script   : m0d-signal-test.sh
