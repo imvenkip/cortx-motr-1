@@ -502,7 +502,7 @@ static void receiver_stob_create()
 	struct m0_stob_id     stob_id;
 	int                   rc;
 
-	M0_UT_ASSERT(m0_ios_cdom_get(s0_reqh, &cdom) == 0);
+	m0_ios_cdom_get(s0_reqh, &cdom);
 	cob_create(cdom, 0, &gob_fid, 0);
 
 	/*
@@ -813,8 +813,7 @@ static void receiver_fini()
 	m0_fid_convert_cob2stob(&cob_fid, &stob_id);
 	rc = m0_ut_stob_destroy_by_stob_id(&stob_id);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_ios_cdom_get(s0_reqh, &cdom);
-	M0_UT_ASSERT(rc == 0);
+	m0_ios_cdom_get(s0_reqh, &cdom);
 	cob_delete(cdom, 0, &gob_fid);
 	m0_free(r_rag.rag_fc);
 	cs_fini(&sctx);

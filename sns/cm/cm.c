@@ -585,8 +585,7 @@ M0_INTERNAL int m0_sns_cm_prepare(struct m0_cm *cm)
 	rc = m0_sns_cm_ag_iter_init(&scm->sc_ag_it);
 	scm->sc_total_read_size = NULL;
 	scm->sc_total_write_size = NULL;
-	rc = m0_ios_cdom_get(scm->sc_base.cm_service.rs_reqh,
-			     &scm->sc_cob_dom);
+	m0_ios_cdom_get(scm->sc_base.cm_service.rs_reqh, &scm->sc_cob_dom);
 
 	M0_LEAVE();
 	return M0_RC(rc);

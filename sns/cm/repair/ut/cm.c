@@ -194,14 +194,6 @@ static bool cp_verify(struct m0_sns_cm_cp *scp)
 	       !cp_data_buf_tlist_is_empty(&scp->sc_base.c_buffers);
 }
 
-static void cob_domain_get(struct m0_cob_domain **cdom)
-{
-	int rc;
-
-	rc = m0_ios_cdom_get(cm->cm_service.rs_reqh, cdom);
-	M0_UT_ASSERT(rc == 0);
-}
-
 M0_INTERNAL void cob_create(struct m0_cob_domain *cdom,
 			    uint64_t cont, struct m0_fid *gfid, uint32_t cob_idx)
 {
@@ -315,7 +307,7 @@ static void cobs_create(uint64_t nr_files, uint64_t nr_cobs)
 	int                   i;
 	int                   j;
 
-	cob_domain_get(&cdom);
+	m0_ios_cdom_get(cm->cm_service.rs_reqh, &cdom);
 	for (i = 0; i < nr_files; ++i) {
 		m0_fid_gob_make(&gfid, 0, M0_MDSERVICE_START_FID.f_key + i);
 		cob_idx = 0;
@@ -333,7 +325,7 @@ static void cobs_delete(uint64_t nr_files, uint64_t nr_cobs)
 	int                   i;
 	int                   j;
 
-	cob_domain_get(&cdom);
+	m0_ios_cdom_get(cm->cm_service.rs_reqh, &cdom);
 	for (i = 0; i < nr_files; ++i) {
 		m0_fid_gob_make(&gfid, 0, M0_MDSERVICE_START_FID.f_key + i);
 		for (j = 1; j <= nr_cobs; ++j)

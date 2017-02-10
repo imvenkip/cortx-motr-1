@@ -804,8 +804,7 @@ static void cob_verify(struct m0_fom *fom, const bool exists)
 
 	m0_fid_gob_make(&gfid, 0, COB_TEST_KEY);
 	m0_fid_convert_gob2cob(&gfid, &cfid, M0_AD_STOB_DOM_KEY_DEFAULT);
-	rc = m0_ios_cdom_get(m0_fom_reqh(fom), &cobdom);
-	M0_UT_ASSERT(rc == 0);
+	m0_ios_cdom_get(m0_fom_reqh(fom), &cobdom);
 	M0_UT_ASSERT(cobdom != NULL);
 
         snprintf(nskey_bs, UINT32_STR_LEN, "%u", cob_idx);

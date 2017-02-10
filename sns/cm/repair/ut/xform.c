@@ -232,8 +232,7 @@ static void tgt_fid_cob_create(struct m0_reqh *reqh)
 	struct m0_stob_id stob_id;
         int		  rc;
 
-	rc = m0_ios_cdom_get(reqh, &cdom);
-	M0_ASSERT(rc == 0);
+	m0_ios_cdom_get(reqh, &cdom);
         cob_create(cdom, 0, &gob_fid, m0_fid_cob_device_id(&cob_fid));
 	m0_fid_convert_cob2stob(&cob_fid, &stob_id);
 	rc = m0_ut_stob_create_by_stob_id(&stob_id, NULL);
@@ -582,8 +581,7 @@ static int xform_fini(void)
 	m0_fid_convert_cob2stob(&cob_fid, &stob_id);
 	rc = m0_ut_stob_destroy_by_stob_id(&stob_id);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_ios_cdom_get(reqh, &cdom);
-	M0_UT_ASSERT(rc == 0);
+	m0_ios_cdom_get(reqh, &cdom);
 	cob_delete(cdom, 0, &gob_fid);
         cs_fini(&sctx);
         return 0;

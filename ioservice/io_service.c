@@ -461,64 +461,18 @@ static void ios_stop(struct m0_reqh_service *service)
 
 /**
  * @todo: This function is used by copy machine module, but not used by IO
- * service. Also it is code duplication with asynchronous code in
- * ioservice/ios_start_sm.c.
+ * service.
  * Corresponding ticket: MERO-1190.
  */
-M0_INTERNAL int m0_ios_cdom_get(struct m0_reqh *reqh,
-				struct m0_cob_domain **out)
+M0_INTERNAL void m0_ios_cdom_get(struct m0_reqh *reqh,
+				 struct m0_cob_domain **out)
 {
-	static uint64_t          cid = M0_IOS_COB_ID_START;
-	int                      rc = 0;
-	struct m0_cob_domain    *cdom;
-	struct m0_cob_domain_id  cdom_id;
-	struct m0_dtx            tx = {};
-	struct m0_sm_group      *grp = m0_locality0_get()->lo_grp;
-
 	M0_PRE(reqh != NULL);
 
 	m0_rwlock_write_lock(&reqh->rh_rwlock);
-
-	cdom = m0_reqh_lockers_get(reqh, m0_get()->i_ios_cdom_key);
-	if (cdom == NULL) {
-		cdom_id.id = cid;
-		M0_CNT_INC(cid);
-		m0_sm_group_lock(grp);
-		rc = m0_cob_domain_create(&cdom, grp, &cdom_id, reqh->rh_beseg);
-		m0_sm_group_unlock(grp);
-		if (rc != 0)
-			goto cdom_fini;
-
-		m0_reqh_lockers_set(reqh, m0_get()->i_ios_cdom_key, cdom);
-		M0_LOG(M0_DEBUG, "key init for reqh=%p, key=%d",
-		       reqh, m0_get()->i_ios_cdom_key);
-
-		m0_sm_group_lock(grp);
-		m0_dtx_init(&tx, reqh->rh_beseg->bs_domain, grp);
-		m0_cob_tx_credit(cdom, M0_COB_OP_DOMAIN_MKFS, &tx.tx_betx_cred);
-		rc = m0_dtx_open_sync(&tx);
-		if (rc == 0) {
-			rc = m0_cob_domain_mkfs(cdom, &M0_MDSERVICE_SLASH_FID,
-						&tx.tx_betx);
-			m0_dtx_done_sync(&tx);
-		}
-		m0_dtx_fini(&tx);
-		m0_sm_group_unlock(grp);
-		if (rc != 0)
-			goto cdom_destroy;
-	} else {
-		m0_cob_domain_init(cdom, reqh->rh_beseg, NULL);
-	}
-	*out = cdom;
-	goto out;
-
-cdom_destroy:
-	m0_cob_domain_destroy(cdom, grp);
-cdom_fini:
-	m0_cob_domain_fini(cdom);
-out:
+	*out = m0_reqh_lockers_get(reqh, m0_get()->i_ios_cdom_key);
+	M0_ASSERT(*out != NULL);
 	m0_rwlock_write_unlock(&reqh->rh_rwlock);
-	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_ios_cdom_fini(struct m0_reqh *reqh)
