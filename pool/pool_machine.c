@@ -260,6 +260,7 @@ void m0_poolmach__state_init(struct m0_poolmach_state   *state,
 	state->pst_nr_devices          = nr_devices;
 	state->pst_max_node_failures   = max_node_failures;
 	state->pst_max_device_failures = max_device_failures;
+	state->pst_nr_failures         = 0;
 
 	for (i = 0; i < state->pst_nr_nodes; i++) {
 		m0_format_header_pack(&state->pst_nodes_array[i].pn_header,
@@ -741,14 +742,15 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach       *pm,
 				break;
 			}
 		}
-		if (old_state == M0_PNDS_OFFLINE) {
+		if (old_state == M0_PNDS_UNKNOWN) {
 			M0_ASSERT(!pool_failed_devs_tlink_is_in(pd));
-			M0_CNT_DEC(state->pst_nr_failures);
+			break;
 		}
-		if (pool_failed_devs_tlink_is_in(pd)) {
-			M0_CNT_DEC(state->pst_nr_failures);
+		M0_ASSERT(M0_IN(old_state, (M0_PNDS_OFFLINE,
+					    M0_PNDS_SNS_REBALANCING)));
+		M0_CNT_DEC(state->pst_nr_failures);
+		if (pool_failed_devs_tlink_is_in(pd))
 			pool_failed_devs_tlist_del(pd);
-		}
 		break;
 	case M0_PNDS_OFFLINE:
 		M0_CNT_INC(state->pst_nr_failures);
@@ -819,6 +821,12 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach       *pm,
 					&state->pst_events_list);
 		}
 	}
+	/** @todo Add ADDB error message here. */
+	if (state->pst_nr_failures > state->pst_max_device_failures)
+		M0_LOG(M0_DEBUG, FID_F": nr_failures:%d event_index:%d"
+				"event_state:%d", FID_P(&pm->pm_pver->pv_id),
+				state->pst_nr_failures, event->pe_index,
+				event->pe_state);
 	pm->pm_pver->pv_is_dirty = state->pst_nr_failures > 0;
 	/* Finally: unlock the poolmach */
 	m0_rwlock_write_unlock(&pm->pm_lock);

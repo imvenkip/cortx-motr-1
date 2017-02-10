@@ -209,10 +209,41 @@ pool_version_assignment()
 
 
 	## Mark all disks ONLINE again.
-
-	## keep "disk1_from_pver_actual_0" failed to verify smoothly virtual pool versions setup on mount
-	## issue MER0-1896.
+	## Transition from FAILED -> REPAIRING -> REPAIRED -> REBALANCING -> ONLINE
+	change_device_state "$disk2_from_pver_actual_0" "failed" "0" "${all_eps[*]}" "$console_ep" || {
+		unmount_and_clean $multiple_pools
+		return 1
+	}
+	change_device_state "$disk2_from_pver_actual_0" "repair" "0" "${all_eps[*]}" "$console_ep" || {
+		unmount_and_clean $multiple_pools
+		return 1
+	}
+	change_device_state "$disk2_from_pver_actual_0" "repaired" "0" "${all_eps[*]}" "$console_ep" || {
+		unmount_and_clean $multiple_pools
+		return 1
+	}
+	change_device_state "$disk2_from_pver_actual_0" "rebalance" "0" "${all_eps[*]}" "$console_ep" || {
+		unmount_and_clean $multiple_pools
+		return 1
+	}
 	change_device_state "$disk2_from_pver_actual_0" "online" "0" "${all_eps[*]}" "$console_ep" || {
+		unmount_and_clean $multiple_pools
+		return 1
+	}
+
+	change_device_state "$disk3_from_pver_actual_0" "failed" "0" "${all_eps[*]}" "$console_ep" || {
+		unmount_and_clean $multiple_pools
+		return 1
+	}
+	change_device_state "$disk3_from_pver_actual_0" "repair" "0" "${all_eps[*]}" "$console_ep" || {
+		unmount_and_clean $multiple_pools
+		return 1
+	}
+	change_device_state "$disk3_from_pver_actual_0" "repaired" "0" "${all_eps[*]}" "$console_ep" || {
+		unmount_and_clean $multiple_pools
+		return 1
+	}
+	change_device_state "$disk3_from_pver_actual_0" "rebalance" "0" "${all_eps[*]}" "$console_ep" || {
 		unmount_and_clean $multiple_pools
 		return 1
 	}
@@ -220,6 +251,7 @@ pool_version_assignment()
 		unmount_and_clean $multiple_pools
 		return 1
 	}
+
 	change_device_state "$disk1_from_pver_actual_1" "online" "0" "${all_eps[*]}" "$console_ep" || {
 		unmount_and_clean $multiple_pools
 		return 1
