@@ -11,34 +11,31 @@
 # because ios need to hash gfid to mds. In COPYTOOL
 # mode, filename is the string format of gfid.
 ###################################################
-files=(
-	0:10000
-	0:10001
-	0:10002
-	0:10003
-	0:10004
-	0:10005
-	0:10006
-	0:10007
-	0:10008
-	0:10009
-	0:10010
-	0:10011
-)
 
-new_files=(
-	0:10012
-	0:10013
-	0:10014
-	0:10015
-	0:10016
-	0:10017
-	0:10018
-	0:10019
-	0:10020
-	0:10021
-	0:10022
-	0:10023
+# Files used for:
+# - SNS Repair concurrent with IO testing
+# - SNS Repair concurrent with delete testing
+files=(
+	10000
+	10001
+	10002
+	10003
+	10004
+	10005
+	10006
+	10007
+	10008
+	10009
+	10010
+	10011
+	10012
+	10013
+	10014
+	10015
+	10016
+	10017
+	10018
+	10019
 )
 
 bs=(
@@ -54,6 +51,14 @@ bs=(
 	10240
 	32
 	32
+	32
+	32
+	32
+	32
+	32
+	32
+	32
+	1024
 )
 
 file_size=(
@@ -69,7 +74,26 @@ file_size=(
 	15
 	5
 	80
+	50
+	120
+	100
+	0
+	150
+	80
+	130
+	90
 )
+
+CC_REPAIR_READ_CONTAINER=111:
+CC_REPAIR_WRITE_CONTAINER=999:
+CC_REPAIR_DELETE_CONTAINER=222:
+CC_REBAL_DELETE_CONTAINER=333:
+
+CC_REPAIR_READ_FILES_NR=12
+CC_REPAIR_WRITE_FILES_BATCH1_NR=4
+CC_REPAIR_WRITE_FILES_BATCH2_NR=8
+CC_REPAIR_DELETE_FILES_NR=${#files[*]}
+CC_REBAL_DELETE_FILES_NR=${#files[*]}
 
 N=3
 K=3
@@ -77,6 +101,9 @@ P=15
 stride=64
 src_bs=10M
 src_count=17
+fail_device1=1
+fail_device2=9
+fail_device3=3
 
 verify()
 {
@@ -92,58 +119,84 @@ verify()
 
 verify_all()
 {
-	local fids=("${!1}")
+	local container=$1
 	local start=$2
 	local end=$3
 
         for ((i=$start; i < $end; i++)) ; do
-		verify ${fids[$i]} $((${bs[$i]} * 1024))  ${file_size[$i]} || return $?
+		verify "$container${files[$i]}" $((${bs[$i]} * 1024))  ${file_size[$i]} || return $?
         done
 }
 
-create_files_and_checksum()
+delete_all()
 {
-	local fids=("${!1}")
+	local container=$1
 	local start=$2
 	local end=$3
-	local unit_size=$((stride * 1024))
+
+	echo "start $start, end $end"
+	for ((i=$start; i < $end; i++)) ; do
+		echo "rm -f $MERO_M0T1FS_MOUNT_DIR/$container${files[$i]} &"
+		rm -f $MERO_M0T1FS_MOUNT_DIR/$container${files[$i]} &
+	done
+	sleep 5
+}
+
+ls_all()
+{
+	local container=$1
+	local start=$2
+	local end=$3
+	local expected_rc=$4
+
+	echo "start $start, end $end"
+	for ((i=$start; i < $end; i++)) ; do
+		ls -lh $MERO_M0T1FS_MOUNT_DIR/$container${files[$i]}
+		rc=$?
+		if [ $rc -ne $4 ]; then
+			echo "Error: ls -lh $MERO_M0T1FS_MOUNT_DIR/$container${files[$i]}: rc $rc"
+			return 1 # $rc may be 0 if $expected_rc is 0
+		fi
+        done
+}
+
+
+create_files_and_checksum()
+{
+	local container=$1
+	local start=$2
+	local end=$3
 
 	# With unit size of 32K dd fails for the file "1009".
 	# It runs with unit size 64K. A jira MERO-1086 tracks this issue.
 	for ((i=$start; i < $end; i++)) ; do
-		touch_file $MERO_M0T1FS_MOUNT_DIR/${fids[$i]} $stride
-		_dd ${fids[$i]} $((${bs[$i]} * 1024)) ${file_size[$i]}
-		verify ${fids[$i]} $((${bs[$i]} * 1024)) ${file_size[$i]}
+		touch_file $MERO_M0T1FS_MOUNT_DIR/$container${files[$i]} $stride
+		_dd $container${files[$i]} $((${bs[$i]} * 1024)) ${file_size[$i]}
+		verify $container${files[$i]} $((${bs[$i]} * 1024)) ${file_size[$i]}
 	done
 }
 
-sns_repair_test()
+sns_repair_rebal_cc_io_test()
 {
+	local container=$CC_REPAIR_READ_CONTAINER
+	local files_nr=$CC_REPAIR_READ_FILES_NR
 	local rc=0
-	local fail_device1=1
-	local fail_device2=9
-	local fail_device3=3
-	local unit_size=$((stride * 1024))
 
-	echo "Creating local source file"
-	local_write $src_bs $src_count  || return $?
 
-	echo "Starting SNS repair testing ..."
+	echo "*********************************************************"
+	echo "TC-1 Start: SNS Repair concurrent with IO testing"
+	echo "*********************************************************"
 
-	create_files_and_checksum files[@] 0 ${#files[*]}
+	echo "**** List all the files before setting device failure. ****"
+	ls_all $container 0 $files_nr 0 || return $?
 
-	for ((i=0; i < ${#IOSEP[*]}; i++)) ; do
-		ios_eps="$ios_eps -S ${lnet_nid}:${IOSEP[$i]}"
-	done
-
-	mount
-
-####### Set Failure device
+	echo "*** Set device Failure ***"
 	disk_state_set "failed" $fail_device1 $fail_device2 || return $?
 
 	echo "Device $fail_device1 and $fail_device2 failed. Do dgmode read"
-	verify_all files[@] 0 ${#files[*]} || return $?
+	verify_all $container 0 $files_nr || return $?
 
+	echo "*** Query device state ***"
 	disk_state_get $fail_device1 $fail_device2 || return $?
 
 	echo "*** Start sns repair and it will run in background ****"
@@ -151,21 +204,21 @@ sns_repair_test()
 	sns_repair
 	sleep 5
 	#echo "**** Create files while sns repair is in-progress ****"
-	#create_files_and_checksum new_files[@] 0 4
+	#create_files_and_checksum $CC_REPAIR_WRITE_CONTAINER 0 $CC_REPAIR_WRITE_FILES_BATCH1_NR
 
 	echo **** Perform read during repair. ****
-	verify_all files[@] 0 ${#files[*]} || return $?
-	#verify_all new_files[@] 0 4 || return $?
+	verify_all $container 0 $files_nr || return $?
+	#verify_all $CC_REPAIR_WRITE_CONTAINER 0 $CC_REPAIR_WRITE_FILES_BATCH1_NR || return $?
 
 	echo "wait for sns repair"
 	wait_for_sns_repair_or_rebalance "repair" || return $?
 	disk_state_set "repaired" $fail_device1 $fail_device2 || return $?
 	echo "SNS Repair done."
 
-	verify_all files[@] 0 ${#files[*]} || return $?
-	#verify_all new_files[@] 0 4 || return $?
+	verify_all $container 0 $files_nr || return $?
+	#verify_all $CC_REPAIR_WRITE_CONTAINER 0 $CC_REPAIR_WRITE_FILES_BATCH1_NR || return $?
 
-####### Query device state
+	echo "*** Query device state ***"
 	disk_state_get $fail_device1 $fail_device2 || return $?
 
         echo "Starting SNS Re-balance.."
@@ -176,8 +229,8 @@ sns_repair_test()
 	disk_state_set "online" $fail_device1 $fail_device2 || return $?
 	echo "SNS Rebalance done."
 
-	verify_all files[@] 0 ${#files[*]} || return $?
-	#verify_all new_files[@] 0 4 || return $?
+	verify_all $container 0 $files_nr || return $?
+	#verify_all $CC_REPAIR_WRITE_CONTAINER 0 $CC_REPAIR_WRITE_FILES_BATCH1_NR || return $?
 
 	disk_state_set "failed" $fail_device3 || return $?
 
@@ -186,41 +239,197 @@ sns_repair_test()
 	sns_repair
 	sleep 5
 	#echo "**** Create files while sns repair is in-progress ****"
-	#create_files_and_checksum new_files[@] 4 8
+	#create_files_and_checksum $CC_REPAIR_WRITE_CONTAINER $CC_REPAIR_WRITE_FILES_BATCH1_NR $CC_REPAIR_WRITE_FILES_BATCH2_NR
 
 	echo **** Perform read during repair. ****
-	verify_all files[@] 0 ${#files[*]} || return $?
-	#verify_all new_files[@] 0 8 || return $?
+	verify_all $container 0 $files_nr || return $?
+	#verify_all $CC_REPAIR_WRITE_CONTAINER 0 $CC_REPAIR_WRITE_FILES_BATCH2_NR || return $?
 
 	echo "wait for sns repair"
 	wait_for_sns_repair_or_rebalance "repair" || return $?
 	disk_state_set "repaired" $fail_device3 || return $?
 
 	echo "SNS Repair done."
-	verify_all files[@] 0 ${#files[*]} || return $?
-	#verify_all new_files[@] 0 8 || return $?
+	verify_all $container 0 $files_nr || return $?
+	#verify_all $CC_REPAIR_WRITE_CONTAINER 0 $CC_REPAIR_WRITE_FILES_BATCH2_NR || return $?
 
+	echo "*** Query device state ***"
 	disk_state_get $fail_device3 || return $?
 
-	verify_all files[@] 0 ${#files[*]} || return $?
+	verify_all $container 0 $files_nr || return $?
 
-	echo "Starting SNS Re-balance.."
+	echo "Starting SNS Re-balance and it will run in background..."
 	disk_state_set "rebalance" $fail_device3 || return $?
 	sns_rebalance || return $?
 
-	echo "SNS Rebalance done."
-	verify_all files[@] 0 ${#files[*]} || return $?
-	#verify_all new_files[@] 0 8 || return $?
+	echo "Perform read during SNS Rebalance."
+	verify_all $container 0 $files_nr || return $?
+	#verify_all $CC_REPAIR_WRITE_CONTAINER 0 $CC_REPAIR_WRITE_FILES_BATCH2_NR || return $?
 
 	echo "wait for SNS Re-balance "
 	wait_for_sns_repair_or_rebalance "rebalance" || return $?
 	disk_state_set "online" $fail_device3 || return $?
+	echo "SNS Rebalance done."
 
+	echo "*** Query device state ***"
 	disk_state_get $fail_device1 $fail_device2 $fail_device3
 
-	verify_all files[@] 0 ${#files[*]} || return $?
+	verify_all $container 0 $files_nr || return $?
 
-	return $?
+	echo "*********************************************************"
+	echo "TC-1 End: SNS Repair concurrent with IO testing"
+	echo "*********************************************************"
+	return 0
+}
+
+sns_repair_cc_delete_test()
+{
+	local container=$CC_REPAIR_DELETE_CONTAINER
+	local files_nr=$CC_REPAIR_DELETE_FILES_NR
+	local rc=0
+
+	echo "*********************************************************"
+	echo "TC-2 Start: SNS Repair concurrent with delete testing"
+	echo "*********************************************************"
+
+	verify_all $container 0 $files_nr || return $?
+
+	echo "*** Set device Failure ***"
+	disk_state_set "failed" $fail_device1 $fail_device2 || return $?
+
+	echo "*** Query device state ***"
+	disk_state_get $fail_device1 $fail_device2 || return $?
+
+	echo "**** List all the files before repair. ****"
+	ls_all $container 0 $files_nr 0 || return $?
+
+	echo "*** Start sns repair and it will run in background ****"
+	disk_state_set "repair" $fail_device1 $fail_device2 || return $?
+	sns_repair
+	sleep 5
+
+	echo -e "**** Perform delete during repair. ****"
+	delete_all $container 0 $files_nr
+
+	echo "wait for sns repair"
+	wait_for_sns_repair_or_rebalance "repair" || return $?
+	disk_state_set "repaired" $fail_device1 $fail_device2 || return $?
+	echo "SNS Repair done."
+
+	sns_repair_or_rebalance_status "repair" || return $?
+
+	echo "fsync before verifying that all the files are deleted"
+	$M0_SRC_DIR/m0t1fs/linux_kernel/st/m0t1fs_fsync_test_helper $MERO_M0T1FS_MOUNT_DIR
+	rc=$?
+	if [ $rc -ne 0 ]; then
+		echo "fsync failed"
+		return 1
+	fi
+
+	ps aux | grep $MERO_M0T1FS_MOUNT_DIR | grep -v "grep"
+	rm_count=`ps aux | grep $MERO_M0T1FS_MOUNT_DIR | grep -v "grep" -c`
+	echo "rm_count : $rm_count"
+	if [ $rm_count -ne 0 ]; then
+		echo "Error: $rm_count rm jobs still running...."
+		return 1
+	fi
+
+	echo -e "\n**** List all the files after concurrent repair and delete (shall not be found) ****\n"
+	ls_all $container 0 $files_nr 2 || return $?
+
+	echo "*********************************************************"
+	echo "TC-2 End: SNS Repair concurrent with delete testing"
+	echo "*********************************************************"
+
+	return 0
+}
+
+sns_rebalance_cc_delete_test()
+{
+	local container=$CC_REBAL_DELETE_CONTAINER
+	local files_nr=$CC_REBAL_DELETE_FILES_NR
+	local rc=0
+
+	echo "*********************************************************"
+	echo "TC-3 Start: SNS Rebalance concurrent with delete testing"
+	echo "*********************************************************"
+
+	echo "*** Set device Failure ***"
+	disk_state_set "failed" $fail_device1 $fail_device2 || return $?
+
+	echo "*** Query device state ***"
+	disk_state_get $fail_device1 $fail_device2 || return $?
+
+	echo "*** Start sns repair and it will run in background ****"
+	disk_state_set "repair" $fail_device1 $fail_device2 || return $?
+	sns_repair
+	sleep 5
+
+	echo "wait for sns repair"
+	wait_for_sns_repair_or_rebalance "repair" || return $?
+	disk_state_set "repaired" $fail_device1 $fail_device2 || return $?
+	echo "SNS Repair done."
+
+	sns_repair_or_rebalance_status "repair" || return $?
+
+	verify_all $container 0 $files_nr || return $?
+
+	echo "**** List all the files before rebalance. ****"
+	ls_all $container 0 $files_nr 0 || return $?
+
+	echo "*** Start sns rebalance and it will run in background ****"
+	disk_state_set "rebalance" $fail_device1 $fail_device2 || return $?
+	sns_rebalance || return $?
+
+	echo -e "**** Perform delete during rebalance. ****"
+	delete_all $container 0 $files_nr
+
+	echo "wait for SNS Re-balance"
+	wait_for_sns_repair_or_rebalance "rebalance" || return $?
+	disk_state_set "online" $fail_device1 $fail_device2 || return $?
+	echo "SNS Rebalance done."
+
+	sns_repair_or_rebalance_status "rebalance" || return $?
+
+	echo "fsync before verifying that all the files are deleted"
+	$M0_SRC_DIR/m0t1fs/linux_kernel/st/m0t1fs_fsync_test_helper $MERO_M0T1FS_MOUNT_DIR
+	rc=$?
+	if [ $rc -ne 0 ]; then
+		echo "fsync failed"
+		return 1
+	fi
+
+	ps aux | grep $MERO_M0T1FS_MOUNT_DIR| grep -v "grep"
+	rm_count=`ps aux | grep $MERO_M0T1FS_MOUNT_DIR| grep -v "grep" -c`
+	echo "rm_count : $rm_count"
+	if [ $rm_count -ne 0 ]; then
+		"Error: $rm_count rm jobs still running...."
+		return 1
+	fi
+
+	echo -e "\n**** List all the files after concurrent rebalance and delete (shall not be found) ****\n"
+	ls_all $container 0 $files_nr 2 || return $?
+
+	echo "*********************************************************"
+	echo "TC-3 End: SNS Rebalance concurrent with delete testing"
+	echo "*********************************************************"
+
+	return 0
+}
+
+create_files()
+{
+	echo "*** Creating local source file ***"
+	local_write $src_bs $src_count || rc=$?
+
+	echo -e "\n*** Creating files for 'repair/rebalance concurrent with IO' test ***"
+	create_files_and_checksum $CC_REPAIR_READ_CONTAINER 0 $CC_REPAIR_READ_FILES_NR
+
+	echo -e "\n*** Creating files for 'repair concurrent with delete' test ***"
+	create_files_and_checksum $CC_REPAIR_DELETE_CONTAINER 0 $CC_REPAIR_DELETE_FILES_NR
+
+	echo -e "\n*** Creating files for 'rebalance concurrent with delete' test ***"
+	create_files_and_checksum $CC_REBAL_DELETE_CONTAINER 0 $CC_REBAL_DELETE_FILES_NR
 }
 
 main()
@@ -239,8 +448,24 @@ main()
 
 	sns_repair_mount || rc=$?
 
-	if [[ $rc -eq 0 ]] && ! sns_repair_test ; then
-		echo "Failed: SNS repair failed.."
+	for ((i=0; i < ${#IOSEP[*]}; i++)) ; do
+		ios_eps="$ios_eps -S ${lnet_nid}:${IOSEP[$i]}"
+	done
+
+	create_files
+
+	if [[ $rc -eq 0 ]] && ! sns_repair_rebal_cc_io_test ; then
+		echo "Failed: SNS repair concurrent with IO failed.."
+		rc=1
+	fi
+
+	if [[ $rc -eq 0 ]] && ! sns_repair_cc_delete_test ; then
+		echo "Failed: SNS repair concurrent with delete failed.."
+		rc=1
+	fi
+
+	if [[ $rc -eq 0 ]] && ! sns_rebalance_cc_delete_test ; then
+		echo "Failed: SNS rebalance concurrent with delete failed.."
 		rc=1
 	fi
 
@@ -262,4 +487,4 @@ main()
 
 trap unprepare EXIT
 main
-report_and_exit sns-multi $?
+report_and_exit sns-cc $?

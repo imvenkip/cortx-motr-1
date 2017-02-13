@@ -86,6 +86,8 @@ enum m0_stob_state {
 	CSS_EXISTS,
 	/** The underlying storage object is known to not exist. */
 	CSS_NOENT,
+	/** The underlying storage object has been requested to be deleted. */
+	CSS_DELETE,
 };
 
 /**
@@ -161,6 +163,10 @@ struct m0_stob {
 	struct m0_stob_id         so_id;
 	enum m0_stob_state	  so_state;
 	uint64_t		  so_ref;
+	/** Channel where drop in ref count for the stob is signalled. */
+	struct m0_chan            so_ref_chan;
+	/* so_ref_chan protection. */
+	struct m0_mutex           so_ref_mutex;
 	struct m0_tlink		  so_cache_linkage;
 	uint64_t		  so_cache_magic;
 	void			 *so_private;
@@ -250,6 +256,23 @@ M0_INTERNAL int m0_stob_create(struct m0_stob *stob,
  */
 M0_INTERNAL int m0_stob_destroy_credit(struct m0_stob *stob,
 				       struct m0_be_tx_credit *accum);
+
+/**
+ * Marks stob state as CSS_DELETE to indicate that it has been requested to be
+ * deleted.
+ * Once a stob's state is marked as CSS_DELETE:
+ * - If stob_ref > 1, the stob-delete FOM is made to wait on so_ref_chan channel
+ * - This waiting channel is signalled when the stob_ref drops to 1, e.g. by
+ *   SNS copy-machine FOM when it is done with the copy operation
+ * - Copy-machine FOMs which may be created after 'stob-delete FOM is made to
+ *   wait for so_ref drop to 1', exit right-away by releasing the so_ref
+ * - The ongoing copy-machine FOMs proceed as usual
+ * - Any copy-machine FOM when releases stob_ref, checks if the so_ref now is 1
+ *   and if there is any cob-delete FOM waiting on the so_ref_chan channel. If
+ *   yes, it signals the so_ref_chan channel
+ */
+M0_INTERNAL void m0_stob_delete_mark(struct m0_stob *stob);
+
 /*
  * Destroys stob.
  *

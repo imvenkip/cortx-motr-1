@@ -743,6 +743,7 @@ M0_INTERNAL int m0_storage_dev_stob_create(struct m0_storage_devs *devs,
 	m0_storage_devs_lock(devs);
 	rc = m0_stob_find(sid, &stob);
 	if (rc == 0) {
+		M0_ASSERT(stob->so_state != CSS_DELETE);
 		rc = rc ?: m0_stob_state_get(stob) == CSS_UNKNOWN ?
 			   m0_stob_locate(stob) : 0;
 		rc = rc ?: stob->so_state == CSS_NOENT ?
@@ -766,7 +767,7 @@ M0_INTERNAL int m0_storage_dev_stob_destroy(struct m0_storage_devs *devs,
 
 	M0_ENTRY("stob=%p stob_id="STOB_ID_F,
 		 stob, STOB_ID_P(m0_stob_id_get(stob)));
-	M0_PRE(m0_stob_state_get(stob) == CSS_EXISTS);
+	M0_PRE(m0_stob_state_get(stob) == CSS_DELETE);
 
 	m0_storage_devs_lock(devs);
 	dom = m0_stob_dom_get(stob);
@@ -795,6 +796,7 @@ M0_INTERNAL int m0_storage_dev_stob_find(struct m0_storage_devs  *devs,
 	struct m0_stob_domain *dom;
 	struct m0_storage_dev *dev;
 	struct m0_stob        *stob2 = NULL;
+	enum m0_stob_state     stob_state;
 	int                    rc;
 
 	M0_ENTRY("stob_id="STOB_ID_F, STOB_ID_P(sid));
@@ -802,7 +804,10 @@ M0_INTERNAL int m0_storage_dev_stob_find(struct m0_storage_devs  *devs,
 	m0_storage_devs_lock(devs);
 	rc = m0_stob_find(sid, &stob2);
 	if (rc == 0) {
-		if (m0_stob_state_get(stob2) == CSS_UNKNOWN)
+		stob_state = m0_stob_state_get(stob2);
+		if (stob_state == CSS_DELETE)
+			rc = -ENOENT;
+		else if (stob_state == CSS_UNKNOWN)
 			   rc = m0_stob_locate(stob2);
 		if (rc != 0)
 			m0_stob_put(stob2);

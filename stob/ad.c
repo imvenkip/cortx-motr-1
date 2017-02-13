@@ -684,8 +684,8 @@ static int stob_ad_destroy_credit(struct m0_stob *stob,
 			rc = -EAGAIN;
 	}
 
-	M0_LOG(M0_DEBUG, "segs=%llu seglast="EXT_F" seg="EXT_F" rc=%d",
-		(unsigned long long)segs,
+	M0_LOG(M0_DEBUG, "stob=%p, segs=%llu seglast="EXT_F" seg="EXT_F" rc=%d",
+		stob, (unsigned long long)segs,
 		EXT_P(&astob->ad_op_it.oc_seg_last.ee_ext),
 		EXT_P(&seg->ee_ext), rc);
 
@@ -773,10 +773,11 @@ static int ext_punch(struct m0_stob *stob, struct m0_dtx *tx,
 	if (rc != 0)
 		return M0_ERR(rc);
 	ext = &it.ec_seg.ee_ext;
-	M0_LOG(M0_DEBUG, "target ext="EXT_F" existing ext="EXT_F" val=0x%lx",
-			 EXT_P(todo), EXT_P(ext), it.ec_seg.ee_val);
 	astob = stob_ad_stob2ad(stob);
 	seg = &astob->ad_op_it.oc_seg_last;
+	M0_LOG(M0_DEBUG, "stob %p target ext="EXT_F" existing ext="EXT_F
+	       " val=0x%lx, last ext="EXT_F, stob, EXT_P(todo), EXT_P(ext),
+	       it.ec_seg.ee_val, EXT_P(&seg->ee_ext));
 	M0_ASSERT(m0_ext_is_valid(&seg->ee_ext) &&
 		  !m0_ext_is_empty(&seg->ee_ext));
 	if (!m0_be_emap_ext_is_last(&seg->ee_ext)) {
@@ -871,7 +872,7 @@ static int stob_ad_punch(struct m0_stob *stob, const struct m0_indexvec *range,
 		count  = m0_ivec_cursor_step(&cur);
 		todo.e_start = offset;
 		todo.e_end   = offset + count;
-		M0_LOG(M0_DEBUG, "punching "EXT_F, EXT_P(&todo));
+		M0_LOG(M0_DEBUG, "stob %p, punching "EXT_F, stob, EXT_P(&todo));
 		rc = ext_punch(stob, tx, &todo);
 		if (rc != 0)
 			return M0_ERR(rc);
@@ -1842,8 +1843,8 @@ static int stob_ad_io_launch(struct m0_stob_io *io)
 	/* only read-write at the moment */
 	M0_ASSERT(io->si_opcode == SIO_READ || io->si_opcode == SIO_WRITE);
 
-	M0_ENTRY("op=%d stob_id="STOB_ID_F,
-		 io->si_opcode, STOB_ID_P(&io->si_obj->so_id));
+	M0_ENTRY("op=%d, stob %p, stob_id="STOB_ID_F,
+		 io->si_opcode, io->si_obj, STOB_ID_P(&io->si_obj->so_id));
 
 	adom = stob_ad_domain2ad(m0_stob_dom_get(io->si_obj));
 	rc = stob_ad_cursors_init(io, adom, &it, &src, &dst, &map);
@@ -1898,6 +1899,9 @@ static bool stob_ad_endio(struct m0_clink *link)
 
 	aio = container_of(link, struct m0_stob_ad_io, ai_clink);
 	io = aio->ai_fore;
+
+	M0_ENTRY("op=%di, stob %p, stob_id="STOB_ID_F,
+		 io->si_opcode, io->si_obj, STOB_ID_P(&io->si_obj->so_id));
 
 	M0_ASSERT(io->si_state == SIS_BUSY);
 	M0_ASSERT(aio->ai_back.si_state == SIS_IDLE);

@@ -237,11 +237,18 @@ static void cc_fom_fini(struct m0_fom *fom)
 	m0_free(cfom);
 }
 
+M0_INTERNAL size_t m0_cob_io_fom_locality(const struct m0_fid *fid)
+{
+	uint64_t hash = m0_fid_hash(fid);
+
+	return m0_rnd(1 << 30, &hash) >> 1;
+}
+
 static size_t cob_fom_locality_get(const struct m0_fom *fom)
 {
 	M0_PRE(fom != NULL);
 
-	return m0_fid_cob_device_id(&cob_fom_get(fom)->fco_cfid);
+	return m0_cob_io_fom_locality(&cob_fom_get(fom)->fco_cfid);
 }
 
 static void cob_fom_populate(struct m0_fom *fom)
@@ -311,7 +318,8 @@ static int cob_getattr_fom_tick(struct m0_fom *fom)
 	M0_PRE(fom->fo_type != NULL);
 
 	cob_op = cob_fom_get(fom);
-	M0_ENTRY("cob_getattr for "FID_F, FID_P(&cob_op->fco_gfid));
+	M0_ENTRY("cob_getattr for "FID_F", phase %s", FID_P(&cob_op->fco_gfid),
+		 m0_fom_phase_name(fom, m0_fom_phase(fom)));
 
 	fop = fom->fo_fop;
 	reply = m0_fop_data(fom->fo_rep_fop);
@@ -336,7 +344,8 @@ static int cob_getattr_fom_tick(struct m0_fom *fom)
 		rc = cob_getattr(fom, cob_op, &attr);
 		m0_md_cob_mem2wire(&reply->cgr_body, &attr);
 		m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
-	        M0_LOG(M0_DEBUG, "Cob %s operation finished with %d", ops, rc);
+	        M0_LOG(M0_DEBUG, "Cob %s operation for "FID_F" finished with "
+		       "%d", ops, FID_P(&cob_op->fco_gfid), rc);
 		break;
 	default:
 		M0_IMPOSSIBLE("Invalid phase for cob getattr fom.");
@@ -367,7 +376,8 @@ static int cob_setattr_fom_tick(struct m0_fom *fom)
 	M0_PRE(fom->fo_type != NULL);
 
 	cob_op = cob_fom_get(fom);
-	M0_ENTRY("cob_setattr for "FID_F, FID_P(&cob_op->fco_gfid));
+	M0_ENTRY("cob_setattr for "FID_F", phase %s", FID_P(&cob_op->fco_gfid),
+		 m0_fom_phase_name(fom, m0_fom_phase(fom)));
 
 	fop = fom->fo_fop;
 	cs_common = m0_cobfop_common_get(fop);
@@ -490,6 +500,23 @@ static int cob_stob_delete_credit(struct m0_fom *fom)
 	return M0_RC(rc);
 }
 
+static int cob_stob_ref_drop_wait(struct m0_fom *fom)
+{
+	struct m0_stob *stob = cob_fom_get(fom)->fco_stob;
+
+	M0_PRE(cob_fom_get(fom)->fco_fop_type == M0_COB_OP_DELETE);
+	M0_PRE(m0_stob_state_get(stob) == CSS_EXISTS);
+	M0_PRE(!m0_chan_has_waiters(&stob->so_ref_chan));
+
+	m0_chan_lock(&stob->so_ref_chan);
+	m0_fom_wait_on(fom, &stob->so_ref_chan, &fom->fo_cb);
+	m0_chan_unlock(&stob->so_ref_chan);
+	M0_LOG(M0_DEBUG, "fom %p, stob %p, stob->so_ref = %"PRIu64
+	       ", waiting for ref to drop to 1", fom, stob, stob->so_ref);
+
+	return M0_RC(M0_FSO_WAIT);
+}
+
 static int cob_ops_fom_tick(struct m0_fom *fom)
 {
 	struct m0_fom_cob_op            *cob_op;
@@ -502,6 +529,7 @@ static int cob_ops_fom_tick(struct m0_fom *fom)
 	struct m0_fop                   *fop;
 	struct m0_fop_cob_op_rep_common *r_common;
 	struct m0_fop_cob_op_reply      *reply;
+	struct m0_stob                  *stob = NULL;
 
 	M0_PRE(fom != NULL);
 	M0_PRE(fom->fo_ops != NULL);
@@ -513,9 +541,39 @@ static int cob_ops_fom_tick(struct m0_fom *fom)
 	r_common = &reply->cor_common;
 	cob_op = cob_fom_get(fom);
 	fop_type = cob_op->fco_fop_type;
+
+	M0_ENTRY("fom %p, fop %p, item %p[%u], phase %s, "FID_F" stob %p",
+                 fom, fom->fo_fop, m0_fop_to_rpc_item(fom->fo_fop),
+                 m0_fop_opcode(fom->fo_fop),
+                 m0_fom_phase_name(fom, m0_fom_phase(fom)),
+                 FID_P(&cob_op->fco_cfid), cob_op->fco_stob);
 	if (m0_fom_phase(fom) < M0_FOPH_NR) {
 		switch (m0_fom_phase(fom)) {
 		case M0_FOPH_INIT:
+			/*
+			 * If M0_FOPH_INIT phase is being entered the second
+			 * time or beyond, specifically by the cob-delete fom,
+			 * after waiting for so_ref to drop to 1, then there is
+			 * nothing more to be done in this phase.
+			 */
+			if (!cob_is_md(cob_op) &&
+			    fop_type == M0_COB_OP_DELETE &&
+			    cob_op->fco_stob != NULL) {
+				stob = cob_op->fco_stob;
+				if (stob->so_ref > 1)
+					return M0_RC(
+						cob_stob_ref_drop_wait(fom));
+				M0_LOG(M0_DEBUG, "fom %p, fom_type %d, "
+				       "stob %p, Finished waiting for "
+				       "ref to drop to 1", fom,
+				       cob_op->fco_fop_type, stob);
+				/* Mark the stob state as CSS_DELETE */
+				m0_stob_delete_mark(cob_op->fco_stob);
+				break;
+			}
+
+			M0_ASSERT(cob_op->fco_stob == NULL);
+
 			/* Check if cob with different pool version exists. */
 			if (fop_type == M0_COB_OP_CREATE &&
 			    cob_pool_version_mismatch(fom)) {
@@ -561,6 +619,21 @@ static int cob_ops_fom_tick(struct m0_fom *fom)
 				}
 				cob_op->fco_is_done = true;
 				goto tail;
+			}
+
+			/*
+			 * TODO Optimise this code with the similar code above
+			 * for entering the M0_FOPH_INIT state for the
+			 * second time and beyond.
+			 */
+			if (!cob_is_md(cob_op) &&
+			    fop_type == M0_COB_OP_DELETE) {
+				if (cob_op->fco_stob->so_ref > 1)
+					return M0_RC(
+						cob_stob_ref_drop_wait(fom));
+				else
+					/* Mark the stob state as CSS_DELETE */
+					m0_stob_delete_mark(cob_op->fco_stob);
 			}
 			break;
 		case M0_FOPH_TXN_OPEN:
@@ -1009,7 +1082,8 @@ static int ce_stob_edit_credit(struct m0_fom *fom, struct m0_fom_cob_op *cc,
 
 	stob = cc->fco_stob;
 	M0_ASSERT(stob != NULL);
-	M0_ASSERT(m0_stob_state_get(stob) == CSS_EXISTS);
+	M0_ASSERT(M0_IN(m0_stob_state_get(stob), (CSS_EXISTS, CSS_DELETE)));
+
 	rc = cot == M0_COB_OP_TRUNCATE ? m0_stob_punch_credit(stob, accum) :
 					 m0_stob_destroy_credit(stob, accum);
 	return M0_RC(rc);
@@ -1023,7 +1097,29 @@ static int ce_stob_edit(struct m0_fom *fom, struct m0_fom_cob_op *cd,
 	struct m0_indexvec      range;
 	int                     rc;
 
-	M0_ASSERT(stob != NULL);
+	M0_PRE(M0_IN(cot, (M0_COB_OP_DELETE, M0_COB_OP_TRUNCATE)));
+	M0_PRE(!cob_is_md(cd));
+
+	M0_PRE(stob != NULL);
+	M0_PRE(ergo((cd->fco_fop_type == M0_COB_OP_DELETE &&
+		     cot == M0_COB_OP_DELETE),
+		    (m0_stob_state_get(stob) == CSS_DELETE &&
+		     stob->so_ref == 1)));
+	M0_PRE(ergo((cd->fco_fop_type == M0_COB_OP_DELETE &&
+		     cot == M0_COB_OP_TRUNCATE &&
+		     stob->so_ref > 1),
+		    m0_stob_state_get(stob) == CSS_EXISTS));
+	M0_PRE(ergo((cd->fco_fop_type == M0_COB_OP_DELETE &&
+		     cot == M0_COB_OP_TRUNCATE &&
+		     stob->so_ref == 1),
+		    m0_stob_state_get(stob) == CSS_DELETE));
+	M0_PRE(ergo(cd->fco_fop_type == M0_COB_OP_TRUNCATE,
+		    (cot == M0_COB_OP_TRUNCATE &&
+		     m0_stob_state_get(stob) == CSS_EXISTS)));
+
+	M0_ENTRY("fom %p, fom_type %d, cot %d, stob %p, "FID_F,
+		 fom, cd->fco_fop_type, cot, stob, FID_P(&stob->so_id.si_fid));
+
 	rc = cot == M0_COB_OP_DELETE ?
 			m0_storage_dev_stob_destroy(devs, stob, &fom->fo_tx) :
 			m0_indexvec_universal_set(&range) ?:

@@ -978,6 +978,7 @@ static void cc_fom_state_test(void)
 
 	fom_dtx_init(dfom, grp, M0_COB_OP_DELETE);
 	fom_stob_tx_credit(dfom, M0_COB_OP_DELETE);
+	m0_stob_delete_mark(cob_fom_get(dfom)->fco_stob);
 	rc = cob_ops_fom_tick(dfom); /* for M0_FOPH_COB_OPS_PREPARE */
 	M0_UT_ASSERT(rc == M0_FSO_AGAIN);
 	rc = cob_ops_fom_tick(dfom); /* for M0_FOPH_COB_OPS_EXECUTE */
@@ -1153,6 +1154,7 @@ static void cd_stob_delete_test()
 	cd = cob_fom_get(dfom);
 	fom_dtx_init(dfom, grp, M0_COB_OP_DELETE);
 	fom_stob_tx_credit(dfom, M0_COB_OP_DELETE);
+	m0_stob_delete_mark(cd->fco_stob);
 	rc = ce_stob_edit(dfom, cd, M0_COB_OP_DELETE);
 	M0_UT_ASSERT(m0_fom_phase(dfom) == M0_FOPH_COB_OPS_PREPARE);
 	M0_ASSERT(rc == 0);
@@ -1212,6 +1214,7 @@ static void cd_cob_delete_test()
 	 */
 	fom_dtx_init(dfom, grp, M0_COB_OP_DELETE);
 	fom_stob_tx_credit(dfom, M0_COB_OP_DELETE);
+	m0_stob_delete_mark(cd->fco_stob);
 	rc = cd_cob_delete(dfom, cd, &attr);
 	M0_UT_ASSERT(rc != 0);
 
@@ -1246,6 +1249,7 @@ static void cd_fom_state_test(void)
 
 	fom_dtx_init(dfom, grp, M0_COB_OP_DELETE);
 	fom_stob_tx_credit(dfom, M0_COB_OP_DELETE);
+	m0_stob_delete_mark(cob_fom_get(dfom)->fco_stob);
 	rc = cob_ops_fom_tick(dfom);
 	M0_UT_ASSERT(rc == M0_FSO_AGAIN);
 	rc = cob_ops_fom_tick(dfom);

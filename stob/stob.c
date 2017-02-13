@@ -128,12 +128,14 @@ M0_INTERNAL int m0_stob_locate(struct m0_stob *stob)
 
 	M0_ENTRY();
 	M0_PRE(stob->so_ref > 0);
-	M0_PRE(m0_stob_state_get(stob) == CSS_UNKNOWN);
+	M0_PRE(M0_IN(m0_stob_state_get(stob), (CSS_UNKNOWN, CSS_NOENT)));
 
 	rc = dom->sd_ops->sdo_stob_init(stob, dom, m0_stob_fid_get(stob));
-	if (rc == 0)
+	if (rc == 0) {
 		m0_stob__state_set(stob, CSS_EXISTS);
-	else if (rc == -ENOENT)
+		m0_mutex_init(&stob->so_ref_mutex);
+		m0_chan_init(&stob->so_ref_chan, &stob->so_ref_mutex);
+	} else if (rc == -ENOENT)
 		m0_stob__state_set(stob, CSS_NOENT);
 
 	return M0_RC(M0_IN(rc, (0, -ENOENT)) ? 0 : rc);
@@ -154,8 +156,8 @@ M0_INTERNAL int m0_stob_create(struct m0_stob *stob,
 	void				*cfg;
 	int				 rc;
 
-	M0_ENTRY();
-	M0_PRE(m0_stob_state_get(stob) != CSS_UNKNOWN);
+	M0_ENTRY("stob %p "FID_F, stob, FID_P(&stob->so_id.si_fid));
+	M0_PRE(M0_IN(m0_stob_state_get(stob), (CSS_EXISTS, CSS_NOENT)));
 	M0_PRE(stob->so_ref > 0);
 
 	rc = dom_ops->sdo_stob_cfg_parse(str_cfg, &cfg);
@@ -164,6 +166,10 @@ M0_INTERNAL int m0_stob_create(struct m0_stob *stob,
 		     dom_ops->sdo_stob_create(stob, dom, dtx,
 					      m0_stob_fid_get(stob), cfg);
 		dom_ops->sdo_stob_cfg_free(cfg);
+		if (rc == 0) {
+			m0_mutex_init(&stob->so_ref_mutex);
+			m0_chan_init(&stob->so_ref_chan, &stob->so_ref_mutex);
+		}
 	}
 	m0_stob__state_set(stob,
 			   rc == 0 ? CSS_EXISTS : m0_stob_state_get(stob));
@@ -179,23 +185,33 @@ M0_INTERNAL int m0_stob_destroy_credit(struct m0_stob *stob,
 	return stob->so_ops->sop_destroy_credit(stob, accum);
 }
 
+M0_INTERNAL void m0_stob_delete_mark(struct m0_stob *stob)
+{
+	M0_PRE(m0_stob_state_get(stob) == CSS_EXISTS);
+
+	m0_stob__state_set(stob, CSS_DELETE);
+}
+
 M0_INTERNAL int m0_stob_destroy(struct m0_stob *stob, struct m0_dtx *dtx)
 {
 	int rc;
 
-	M0_ENTRY();
+	M0_ENTRY("stob %p "FID_F, stob, FID_P(&stob->so_id.si_fid));
 	/*
 	 * ioservice ensures stob existence.
 	 * @see cob_ops_fom_tick().
 	 */
-	M0_PRE(m0_stob_state_get(stob) == CSS_EXISTS);
+	M0_PRE(M0_IN(m0_stob_state_get(stob), (CSS_EXISTS, CSS_DELETE)));
 	M0_ASSERT_INFO(stob->so_ref == 1,
 		       "stob->so_ref = %"PRIu64, stob->so_ref);
 
 	rc = stob->so_ops->sop_destroy(stob, dtx);
 	if (rc == 0 || rc == -EAGAIN) {
-		if (rc == 0)
+		if (rc == 0) {
 			m0_stob__state_set(stob, CSS_NOENT);
+			m0_chan_fini_lock(&stob->so_ref_chan);
+			m0_mutex_fini(&stob->so_ref_mutex);
+		}
 		rc = 0;
 		m0_stob_put(stob);
 	}
@@ -214,8 +230,8 @@ M0_INTERNAL int m0_stob_punch(struct m0_stob *stob,
 {
 	int rc;
 
-	M0_ENTRY();
-	M0_PRE(m0_stob_state_get(stob) == CSS_EXISTS);
+	M0_ENTRY("stob %p "FID_F, stob, FID_P(&stob->so_id.si_fid));
+	M0_PRE(M0_IN(m0_stob_state_get(stob), (CSS_EXISTS, CSS_DELETE)));
 	rc = stob->so_ops->sop_punch(stob, range, dtx);
 	return M0_RC(rc);
 }
@@ -275,6 +291,15 @@ M0_INTERNAL void m0_stob_put(struct m0_stob *stob)
 	if (stob->so_ref == 0)
 		m0_stob_cache_idle(cache, stob);
 	m0_stob_cache_unlock(cache);
+
+	M0_LOG(M0_DEBUG, "stob %p, fid="FID_F" so_ref %"PRIu64", released ref, "
+	       "chan_waiters %"PRIu32, stob, FID_P(&stob->so_id.si_fid),
+	       stob->so_ref, stob->so_ref_chan.ch_waiters);
+	if (m0_chan_has_waiters(&stob->so_ref_chan)) {
+		M0_ASSERT(stob->so_ref >= 1);
+		if (stob->so_ref == 1)
+			m0_chan_signal_lock(&stob->so_ref_chan);
+	}
 }
 
 M0_INTERNAL void m0_stob__id_set(struct m0_stob *stob,

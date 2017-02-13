@@ -73,7 +73,7 @@ M0_INTERNAL struct m0_cm *cpfom2cm(struct m0_fom *fom)
 }
 
 /*
- * Use device id to select a request handler locality for copy packet FOM.
+ * Uses stob fid to select a request handler locality for copy packet FOM.
  */
 M0_INTERNAL uint64_t cp_home_loc_helper(const struct m0_cm_cp *cp)
 {
@@ -82,14 +82,17 @@ M0_INTERNAL uint64_t cp_home_loc_helper(const struct m0_cm_cp *cp)
 	struct m0_sns_cpx   *sns_cpx;
 
 	/*
-         * Serialize read on a particular stob by returning target
-         * container id to assign a reqh locality to the cp fom.
-         */
+	 * Return reqh locality to be assigned to the CP FOM such that
+	 * following can be serialized:
+	 * - read on a particular stob, performed using CP FOM
+	 * - deletion of the same stob, performed using COB FOM
+	 */
+
 	if (fop != NULL && (m0_fom_phase(&cp->c_fom) != M0_CCP_FINI)) {
 		sns_cpx = m0_fop_data(fop);
-		return m0_fid__device_id_extract(&sns_cpx->scx_stob_id.si_fid);
+		return m0_cob_io_fom_locality(&sns_cpx->scx_stob_id.si_fid);
 	} else
-		return m0_fid_cob_device_id(&sns_cp->sc_cobfid);
+		return m0_cob_io_fom_locality(&sns_cp->sc_cobfid);
 }
 
 M0_INTERNAL int m0_sns_cm_cp_init(struct m0_cm_cp *cp)

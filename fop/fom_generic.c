@@ -277,7 +277,7 @@ static int fom_tx_wait(struct m0_fom *fom)
 	if (fom_is_update(fom)) {
 		struct m0_be_tx *tx = m0_fom_tx(fom);
 
-		M0_ENTRY("fom=%p", fom);
+		M0_ENTRY("fom=%p, tx_state %d", fom, m0_be_tx_state(tx));
 		M0_PRE(M0_IN(m0_be_tx_state(tx), (M0_BTS_OPENING,
 						  M0_BTS_GROUPING,
 						  M0_BTS_ACTIVE,
@@ -434,6 +434,11 @@ static int fom_queue_reply(struct m0_fom *fom)
 {
 	M0_PRE(fom->fo_rep_fop != NULL);
 
+	M0_LOG(M0_DEBUG, "request %p[%u], reply %p, reply->ri_error %d",
+	       m0_fop_to_rpc_item(fom->fo_fop),
+	       m0_fop_to_rpc_item(fom->fo_fop)->ri_type->rit_opcode,
+	       m0_fop_to_rpc_item(fom->fo_rep_fop),
+	       m0_fop_to_rpc_item(fom->fo_rep_fop)->ri_error);
 	if (!fom->fo_local)
 		m0_rpc_reply_post(m0_fop_to_rpc_item(fom->fo_fop),
 				  m0_fop_to_rpc_item(fom->fo_rep_fop));

@@ -162,6 +162,11 @@ static int cp_stob_io_init(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
 	rc = m0_storage_dev_stob_find(m0_cs_storage_devs_get(),
 				      &sns_cp->sc_stob_id, &sns_cp->sc_stob);
 	if (rc == 0) {
+		M0_LOG(M0_DEBUG, "fom %p, %p stob found, fid="FID_F
+		       ", state %d, so_ref %"PRIu64, &cp->c_fom,
+		       sns_cp->sc_stob, FID_P(&sns_cp->sc_stob_id.si_fid),
+		       m0_stob_state_get(sns_cp->sc_stob),
+		       sns_cp->sc_stob->so_ref);
 		m0_stob_io_init(stio);
 		stio->si_flags = 0;
 		stio->si_opcode = op;
@@ -170,7 +175,9 @@ static int cp_stob_io_init(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
 
 		rc = cp_prepare(cp, &stio->si_stob, &stio->si_user,
 				sns_cp->sc_index, bshift);
-	}
+	} else
+		M0_LOG(M0_DEBUG, "fom %p, ag_id "M0_AG_F", stob not found, rc %d",
+		       &cp->c_fom, M0_AG_P(&cp->c_ag->cag_id), rc);
 	return rc;
 }
 
@@ -203,6 +210,7 @@ static int cp_io(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
 	struct m0_sns_cm_cp    *sns_cp;
 	struct m0_stob         *stob;
 	struct m0_stob_io      *stio;
+	enum m0_stob_state      stob_state;
 	int                     rc;
 
 	M0_ENTRY("cp=%p op=%d", cp, op);
@@ -230,6 +238,14 @@ static int cp_io(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
 			goto out;
 	}
 	stob = sns_cp->sc_stob;
+	stob_state = m0_stob_state_get(stob);
+	M0_LOG(M0_DEBUG, "fom %p, stob %p, fid="FID_F" so_state %d, "
+	       "so_ref %"PRIu64, cp_fom, sns_cp->sc_stob,
+	       FID_P(&stob->so_id.si_fid), stob_state, stob->so_ref);
+
+	M0_ASSERT_INFO(stob_state == CSS_EXISTS, "stob %p, stob_state %d",
+		       stob, stob_state);
+
 	if (M0_FI_ENABLED("io-fail"))
 		rc = M0_ERR(-EIO);
 	else

@@ -90,6 +90,8 @@ M0_INTERNAL int m0_cc_cob_nskey_make(struct m0_cob_nskey **nskey,
 				     const struct m0_fid *gfid,
 				     uint32_t cob_idx);
 
+M0_INTERNAL size_t m0_cob_io_fom_locality(const struct m0_fid *fid);
+
 #endif    /* __MERO_IOSERVICE_COB_FOMS_H__ */
 
 /*

@@ -604,7 +604,7 @@ static int sender_cm_ag_next(struct m0_cm *cm,
 			     const struct m0_cm_ag_id *id_curr,
 			     struct m0_cm_ag_id *id_next)
 {
-	return -ENOENT;
+	return -ENODATA;
 }
 
 static const struct m0_cm_ops sender_cm_ops = {

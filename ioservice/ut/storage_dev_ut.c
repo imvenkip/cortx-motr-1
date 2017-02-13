@@ -27,6 +27,7 @@
 #include "balloc/balloc.h"         /* BALLOC_DEF_BLOCK_SHIFT */
 #include "rpc/rpclib.h"            /* m0_rpc_server_ctx */
 #include "lib/finject.h"
+#include "stob/stob.h"
 #include "ut/misc.h"               /* M0_UT_PATH */
 #include "ut/ut.h"
 
@@ -275,6 +276,8 @@ static void storage_dev_linux(void)
 	rc = m0_storage_dev_stob_find(devs, &stob_id, &stob);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(dev1->isd_domain == m0_stob_dom_get(stob));
+	/* Mark the stob state as CSS_DELETE */
+	m0_stob_delete_mark(stob);
 	rc = m0_storage_dev_stob_destroy(devs, stob, NULL);
 	M0_UT_ASSERT(rc == 0);
 

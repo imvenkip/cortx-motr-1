@@ -95,6 +95,8 @@ static void stob_cache_evict(struct m0_stob_cache *cache,
 static void stob_cache_idle_del(struct m0_stob_cache *cache,
 				struct m0_stob *stob)
 {
+	M0_ENTRY("stob %p, stob_fid "FID_F, stob,
+	       FID_P(m0_stob_fid_get(stob)));
 	stob_cache_tlink_del_fini(stob);
 	--cache->sc_idle_used;
 }
