@@ -108,6 +108,7 @@ BuildRequires:  libuv
 
 Requires:       kernel = %{kernel_ver_requires}
 Requires:       %{lustre_modules}
+Requires:       lustre-client
 Requires:       libyaml
 Requires:       genders
 Requires:       sysvinit-tools

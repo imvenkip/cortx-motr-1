@@ -88,6 +88,7 @@ BuildRequires:  libuv
 
 Requires:       kernel = %{kernel_ver_requires}
 Requires:       kmod-lustre-client
+Requires:       lustre-client
 Requires:       libyaml
 Requires:       genders
 Requires:       sysvinit-tools
