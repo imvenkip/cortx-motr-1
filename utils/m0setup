@@ -18,6 +18,7 @@ readonly etc_halon_dir='/etc/halon'
 verbose=false
 do_cleanup=false
 do_loop_cleanup=false
+use_existing_loop_imgs=false
 do_gendisk=true
 do_genfacts=false
 do_mkfs=false
@@ -86,6 +87,12 @@ Usage: $PROG_NAME [-h|--help] [-v|--verbose] [-c]
    -C                      Clean generated config files only, doesn't affect loop
                            devices.
 
+   -E|--use-existing-loop-imgs
+
+                           Don't remove existing disk images for loop devices.
+                           Attach them if they exist. Otherwise report an error
+                           if any image file is missing.
+
    -G|--no-gendisk         Don't generate YAML file with disk information.
 
    -H|--halon-facts        Produce Halon facts YAML configuration instead of
@@ -116,8 +123,8 @@ parse_cli_options()
     # Note that we use `"$@"' to let each command-line parameter expand to a
     # separate word. The quotes around `$@' are essential!
     # We need TEMP as the `eval set --' would nuke the return value of getopt.
-    TEMP=$( getopt --options hvclCGHAMP:N:K:i:d:m:s:p: \
-                   --longoptions help,verbose,cleanup,no-gendisk,halon-facts,activate-singlenode-services,mkfs,list-disks,pool-width:,data-units:,parity-units:,ios-number:,loop-img-dir:,mero-dir:,disk-size:,disk-pattern: \
+    TEMP=$( getopt --options hvclCEGHAMP:N:K:i:d:m:s:p: \
+                   --longoptions help,verbose,cleanup,use-existing-loop-imgs,no-gendisk,halon-facts,activate-singlenode-services,mkfs,list-disks,pool-width:,data-units:,parity-units:,ios-number:,loop-img-dir:,mero-dir:,disk-size:,disk-pattern: \
                    --name "$PROG_NAME" -- "$@" )
 
     [[ $? -ne 0 ]] && help
@@ -131,6 +138,8 @@ parse_cli_options()
             -c|--cleanup)       do_cleanup=true; do_loop_cleanup=true; shift ;;
             -l|--list-disks)    only_list_disks=true; shift   ;;
             -C)                 do_cleanup=true;      shift   ;;
+            -E|--use-existing-loop-imgs)
+                                use_existing_loop_imgs=true; shift ;;
             -G|--no-gendisk)    do_gendisk=false;     shift   ;;
             -H|--halon-facts)   do_genfacts=true; do_gendisk=false; shift ;;
             -A|--activate-singlenode-services)
@@ -185,11 +194,22 @@ init_loop_devices()
 {
     cleanup_loop_devices
 
-    if [[ ! -d $loop_img_dir ]] ; then
-        warn "'$loop_img_dir' doesn't exist, creating.."
-        mkdir -p "$loop_img_dir"
+    if ! $use_existing_loop_imgs ; then
+        cleanup_loop_images
+
+        if [[ ! -d $loop_img_dir ]] ; then
+            warn "'$loop_img_dir' doesn't exist, creating.."
+            mkdir -p "$loop_img_dir"
+        fi
+
+        create_loop_images
     fi
 
+    setup_loop_devices
+}
+
+create_loop_images()
+{
     log "Creating $pool_width file images, ${loop_img_size_gb}GiB each, in '$loop_img_dir'"
     for i in $(seq $pool_width) ; do
         local img_file="$loop_img_dir/disk$i.img"
@@ -197,11 +217,16 @@ init_loop_devices()
         dd if=/dev/zero of="$img_file" \
            bs=1M seek=$(( $loop_img_size_gb * 1024 - 1 )) count=1 &>/dev/null
     done
+}
 
+setup_loop_devices()
+{
     log "Setting up loop devices"
     for i in $(seq $pool_width) ; do
         local img_file="$loop_img_dir/disk$i.img"
         debug "/dev/loop$i => $img_file"
+        [[ -e $img_file ]] ||
+            die "image file '$img_file' doesn't exist"
         losetup /dev/loop$i "$img_file"
     done
 }
@@ -210,7 +235,10 @@ cleanup_loop_devices()
 {
     log "Removing loop devices"
     losetup -D
+}
 
+cleanup_loop_images()
+{
     log "Removing file images"
     for i in $(seq $pool_width) ; do
         local img_file="$loop_img_dir/disk$i.img"
@@ -351,6 +379,7 @@ parse_cli_options "$@"
 if $do_cleanup ; then
     if $do_loop_cleanup ; then
         cleanup_loop_devices
+        cleanup_loop_images
     fi
     cleanup_ios_configs
     cleanup_mero_configs
