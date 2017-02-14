@@ -84,11 +84,12 @@ static int spiel_root_add(struct m0_spiel_tx *tx)
 
 	m0_mutex_lock(&tx->spt_lock);
 	rc = m0_conf_obj_find(&tx->spt_cache, &M0_CONF_ROOT_FID, &obj);
-	if (obj != NULL && obj->co_status != M0_CS_MISSING)
+	if (rc == 0 && obj->co_status != M0_CS_MISSING)
 		rc = M0_ERR(-EEXIST);
 	if (rc == 0) {
 		root = M0_CONF_CAST(obj, m0_conf_root);
-		/* Real version number will be set during transaction commit
+		/*
+		 * Real version number will be set during transaction commit
 		 * one of the two ways:
 		 *
 		 * 1. Spiel client may provide version number explicitly when
@@ -136,13 +137,12 @@ static int spiel_root_ver_update(struct m0_spiel_tx *tx, uint64_t verno)
 	return M0_RC(rc);
 }
 
-void m0_spiel_tx_open(struct m0_spiel    *spiel,
-		      struct m0_spiel_tx *tx)
+void m0_spiel_tx_open(struct m0_spiel *spiel, struct m0_spiel_tx *tx)
 {
 	int rc;
 
+	M0_ENTRY("tx=%p", tx);
 	M0_PRE(tx != NULL);
-	M0_ENTRY("tx %p", tx);
 
 	tx->spt_spiel = spiel;
 	tx->spt_buffer = NULL;
@@ -196,7 +196,7 @@ M0_EXPORTED(m0_spiel_tx_validate);
  */
 void m0_spiel_tx_close(struct m0_spiel_tx *tx)
 {
-	M0_ENTRY();
+	M0_ENTRY("tx=%p", tx);
 	m0_conf_cache_fini(&tx->spt_cache);
 	m0_mutex_fini(&tx->spt_lock);
 	M0_LEAVE();
@@ -211,18 +211,16 @@ static bool spiel_load_cmd_invariant(struct m0_spiel_load_command *cmd)
 
 static uint64_t spiel_root_conf_version(struct m0_spiel_tx *tx)
 {
-	int                  rc;
-	uint64_t             verno;
-	struct m0_conf_obj  *obj;
-	struct m0_conf_root *root;
+	int                 rc;
+	uint64_t            verno;
+	struct m0_conf_obj *obj;
 
-	M0_ENTRY();
+	M0_ENTRY("tx=%p", tx);
 
 	m0_mutex_lock(&tx->spt_lock);
 	rc = m0_conf_obj_find(&tx->spt_cache, &M0_CONF_ROOT_FID, &obj);
 	M0_ASSERT(_0C(rc == 0) && _0C(obj != NULL));
-	root = M0_CONF_CAST(obj, m0_conf_root);
-	verno = root->rt_verno;
+	verno = M0_CONF_CAST(obj, m0_conf_root)->rt_verno;
 	m0_mutex_unlock(&tx->spt_lock);
 
 	return verno;
@@ -244,12 +242,9 @@ static void spiel_load_fop_fini(struct m0_spiel_load_command *spiel_cmd)
  */
 static void spiel_load_fop_release(struct m0_ref *ref)
 {
-	struct m0_spiel_load_command *spiel_cmd;
-	struct m0_fop                *fop;
-
-	fop = container_of(ref, struct m0_fop, f_ref);
-	spiel_cmd = container_of(fop, struct m0_spiel_load_command,
-				 slc_load_fop);
+	struct m0_fop                *fop = M0_AMB(fop, ref, f_ref);
+	struct m0_spiel_load_command *spiel_cmd = M0_AMB(spiel_cmd, fop,
+							 slc_load_fop);
 	spiel_load_fop_fini(spiel_cmd);
 }
 
@@ -265,13 +260,13 @@ static int spiel_load_fop_init(struct m0_spiel_load_command *spiel_cmd,
 	int                      rc;
 	struct m0_fop_conf_load *conf_fop;
 
+	M0_ENTRY();
 	M0_PRE(spiel_cmd != NULL);
 	M0_PRE(tx != NULL);
 
 	m0_fop_init(&spiel_cmd->slc_load_fop, &m0_fop_conf_load_fopt, NULL,
 		    spiel_load_fop_release);
 	rc = m0_fop_data_alloc(&spiel_cmd->slc_load_fop);
-
 	if (rc == 0) {
 		/* Fill Spiel Conf FOP specific data*/
 		conf_fop = m0_conf_fop_to_load_fop(&spiel_cmd->slc_load_fop);
@@ -294,11 +289,9 @@ static int spiel_load_fop_create(struct m0_spiel_tx           *tx,
 	m0_bcount_t             seg_size;
 	m0_bcount_t             size = strlen(tx->spt_buffer)+1;
 
-
 	rc = spiel_load_fop_init(spiel_cmd, tx);
-	if (rc != 0) {
+	if (rc != 0)
 		return M0_ERR(rc);
-	}
 
 	/* Fill RPC Bulk part of Spiel FOM */
 	nd = spiel_rmachine(tx->spt_spiel)->rm_tm.ntm_dom;
@@ -317,7 +310,6 @@ static int spiel_load_fop_create(struct m0_spiel_tx           *tx,
 		size -= seg_size;
 	}
 	rbuf->bb_nbuf->nb_qtype = M0_NET_QT_PASSIVE_BULK_SEND;
-
 	return rc;
 }
 
@@ -329,9 +321,10 @@ static int spiel_load_fop_send(struct m0_spiel_tx           *tx,
 	struct m0_fop               *rep;
 	struct m0_fop_conf_load_rep *load_rep;
 
+	M0_ENTRY();
 	rc = spiel_load_fop_create(tx, spiel_cmd);
 	if (rc != 0)
-		return rc;
+		return M0_ERR(rc);
 
 	load_fop = m0_conf_fop_to_load_fop(&spiel_cmd->slc_load_fop);
 	rc = m0_rpc_bulk_store(&spiel_cmd->slc_rbulk,
@@ -339,7 +332,7 @@ static int spiel_load_fop_send(struct m0_spiel_tx           *tx,
 			       &load_fop->clf_desc,
 			       &m0_rpc__buf_bulk_cb);
 	if (rc != 0)
-		return rc;
+		return M0_ERR(rc);
 
 	rc = m0_rpc_post_sync(&spiel_cmd->slc_load_fop,
 			      &spiel_cmd->slc_session,
@@ -356,17 +349,13 @@ static int spiel_load_fop_send(struct m0_spiel_tx           *tx,
 	} else {
 		rc = M0_ERR(-ENOENT);
 	}
-
 	m0_fop_put_lock(&spiel_cmd->slc_load_fop);
-
-	return rc;
+	return M0_RC(rc);
 }
 
 static void spiel_flip_fop_release(struct m0_ref *ref)
 {
-	struct m0_fop *fop;
-	fop = container_of(ref, struct m0_fop, f_ref);
-	m0_fop_fini(fop);
+	m0_fop_fini(container_of(ref, struct m0_fop, f_ref));
 }
 
 static int spiel_flip_fop_send(struct m0_spiel_tx           *tx,
@@ -377,39 +366,30 @@ static int spiel_flip_fop_send(struct m0_spiel_tx           *tx,
 	struct m0_fop               *rep;
 	struct m0_fop_conf_flip_rep *flip_rep;
 
-	M0_PRE(spiel_cmd != NULL);
-
 	M0_ENTRY();
+	M0_PRE(spiel_cmd != NULL);
 
 	m0_fop_init(&spiel_cmd->slc_flip_fop, &m0_fop_conf_flip_fopt, NULL,
 		    spiel_flip_fop_release);
-
 	rc = m0_fop_data_alloc(&spiel_cmd->slc_flip_fop);
-
 	if (rc == 0) {
 		flip_fop = m0_conf_fop_to_flip_fop(&spiel_cmd->slc_flip_fop);
 		flip_fop->cff_prev_version = spiel_cmd->slc_version;
 		flip_fop->cff_next_version = spiel_root_conf_version(tx);
 		flip_fop->cff_tx_id = (uint64_t)tx;
-	}
-
-	if (rc == 0)
 		rc = m0_rpc_post_sync(&spiel_cmd->slc_flip_fop,
-				      &spiel_cmd->slc_session,
-				      NULL, 0);
-
+				      &spiel_cmd->slc_session, NULL, 0);
+	}
 	rep = rc == 0 ? m0_rpc_item_to_fop(
 				spiel_cmd->slc_flip_fop.f_item.ri_reply)
 			: NULL;
-
 	flip_rep = rep != NULL ? m0_conf_fop_to_flip_fop_rep(rep) : NULL;
 	rc = flip_rep != NULL ? flip_rep->cffr_rc : M0_ERR(-ENOENT);
 	m0_fop_put_lock(&spiel_cmd->slc_flip_fop);
-
 	return M0_RC(rc);
 }
 
-static int  wlock_ctx_semaphore_init(struct m0_spiel_wlock_ctx *wlx)
+static int wlock_ctx_semaphore_init(struct m0_spiel_wlock_ctx *wlx)
 {
 	return m0_semaphore_init(&wlx->wlc_sem, 0);
 }
@@ -424,14 +404,12 @@ static int wlock_ctx_create(struct m0_spiel *spl)
 	struct m0_spiel_wlock_ctx *wlx;
 	int                        rc;
 
+	M0_ENTRY();
 	M0_PRE(spl->spl_wlock_ctx == NULL);
 
-	M0_ENTRY();
 	M0_ALLOC_PTR(wlx);
-	if (wlx == NULL) {
-		rc = M0_ERR(-ENOMEM);
-		goto err;
-	}
+	if (wlx == NULL)
+		return M0_ERR(-ENOMEM);
 
 	wlx->wlc_rmach = spiel_rmachine(spl);
 	spiel_rwlockable_write_domain_init(wlx);
@@ -439,27 +417,23 @@ static int wlock_ctx_create(struct m0_spiel *spl)
 	m0_fid_tgenerate(&wlx->wlc_owner_fid, M0_RM_OWNER_FT);
 	m0_rm_rwlock_owner_init(&wlx->wlc_owner, &wlx->wlc_owner_fid,
 				&wlx->wlc_rwlock, NULL);
-	rc = m0_rconfc_rm_endpoint(&spl->spl_rconfc, &wlx->wlc_rm_addr);
-	if (rc != 0)
-		goto rwlock_alloc;
-	rc = wlock_ctx_semaphore_init(wlx);
-	if (rc != 0)
-		goto rwlock_alloc;
+	rc = m0_rconfc_rm_endpoint(&spl->spl_rconfc, &wlx->wlc_rm_addr) ?:
+		wlock_ctx_semaphore_init(wlx);
+	if (rc != 0) {
+		m0_free(wlx);
+		return M0_ERR(rc);
+	}
 	spl->spl_wlock_ctx = wlx;
 	return M0_RC(0);
-rwlock_alloc:
-	m0_free(wlx);
-err:
-	return M0_ERR(rc);
 }
 
 static void wlock_ctx_destroy(struct m0_spiel_wlock_ctx *wlx)
 {
 	int rc;
 
+	M0_ENTRY("wlx=%p", wlx);
 	M0_PRE(wlx != NULL);
 
-	M0_ENTRY("wlock ctx %p", wlx);
 	m0_rm_owner_windup(&wlx->wlc_owner);
 	rc = m0_rm_owner_timedwait(&wlx->wlc_owner,
 				   M0_BITS(ROS_FINAL, ROS_INSOLVENT),
@@ -476,37 +450,36 @@ static int wlock_ctx_connect(struct m0_spiel_wlock_ctx *wlx)
 {
 	enum { MAX_RPCS_IN_FLIGHT = 15 };
 
+	M0_ENTRY("wlx=%p", wlx);
 	M0_PRE(wlx != NULL);
-	return m0_rpc_client_connect(&wlx->wlc_conn, &wlx->wlc_sess,
-				     wlx->wlc_rmach, wlx->wlc_rm_addr,
-				     NULL, MAX_RPCS_IN_FLIGHT,
-				     M0_TIME_NEVER);
+	return M0_RC(m0_rpc_client_connect(&wlx->wlc_conn, &wlx->wlc_sess,
+					   wlx->wlc_rmach, wlx->wlc_rm_addr,
+					   NULL, MAX_RPCS_IN_FLIGHT,
+					   M0_TIME_NEVER));
 }
 
 static void wlock_ctx_disconnect(struct m0_spiel_wlock_ctx *wlx)
 {
-	int               rc;
+	int rc;
 
+	M0_ENTRY("wlx=%p", wlx);
 	M0_PRE(_0C(wlx != NULL) && _0C(!M0_IS0(&wlx->wlc_sess)));
-	M0_ENTRY("wlock ctx %p", wlx);
 	rc = m0_rpc_session_destroy(&wlx->wlc_sess, M0_TIME_NEVER);
 	if (rc != 0)
-		M0_LOG(M0_ERROR, "Failed to destroy wlock session");
+		M0_LOG(M0_ERROR, "Failed to destroy wlock session; rc=%d", rc);
 	rc = m0_rpc_conn_destroy(&wlx->wlc_conn, M0_TIME_NEVER);
 	if (rc != 0)
-		M0_LOG(M0_ERROR, "Failed to destroy wlock connection");
+		M0_LOG(M0_ERROR, "Failed to destroy wlock connection; rc=%d",
+		       rc);
 	M0_LEAVE();
-
 }
 
 static void spiel_tx_write_lock_complete(struct m0_rm_incoming *in,
 					 int32_t                rc)
 {
-	struct m0_spiel_wlock_ctx *wlx = container_of(in,
-						      struct m0_spiel_wlock_ctx,
-						      wlc_req);
+	struct m0_spiel_wlock_ctx *wlx = M0_AMB(wlx, in, wlc_req);
 
-	M0_ENTRY("incoming %p, rc %d", in, rc);
+	M0_ENTRY("in=%p rc=%d", in, rc);
 	wlx->wlc_rc = rc;
 	wlock_ctx_semaphore_up(wlx);
 	M0_LEAVE();
@@ -524,11 +497,11 @@ static struct m0_rm_incoming_ops spiel_tx_ri_ops = {
 
 static void wlock_ctx_creditor_setup(struct m0_spiel_wlock_ctx *wlx)
 {
-	struct m0_rm_owner    *owner;
-	struct m0_rm_remote   *creditor;
+	struct m0_rm_owner  *owner;
+	struct m0_rm_remote *creditor;
 
+	M0_ENTRY("wlx=%p", wlx);
 	M0_PRE(wlx != NULL);
-	M0_ENTRY("wlx = %p", wlx);
 	owner = &wlx->wlc_owner;
 	creditor = &wlx->wlc_creditor;
 	m0_rm_remote_init(creditor, owner->ro_resource);
@@ -541,8 +514,8 @@ static void _spiel_tx_write_lock_get(struct m0_spiel_wlock_ctx *wlx)
 {
 	struct m0_rm_incoming *req;
 
+	M0_ENTRY("wlx=%p", wlx);
 	M0_PRE(wlx != NULL);
-	M0_ENTRY("wlock ctx = %p", wlx);
 	req = &wlx->wlc_req;
 	m0_rm_rwlock_req_init(req, &wlx->wlc_owner, &spiel_tx_ri_ops,
 			      RIF_MAY_BORROW | RIF_MAY_REVOKE | RIF_LOCAL_WAIT |
@@ -553,8 +526,8 @@ static void _spiel_tx_write_lock_get(struct m0_spiel_wlock_ctx *wlx)
 
 static void wlock_ctx_creditor_unset(struct m0_spiel_wlock_ctx *wlx)
 {
+	M0_ENTRY("wlx=%p", wlx);
 	M0_PRE(wlx != NULL);
-	M0_ENTRY("wlx = %p", wlx);
 	m0_rm_remote_fini(&wlx->wlc_creditor);
 	wlx->wlc_owner.ro_creditor = NULL;
 	M0_LEAVE();
@@ -562,7 +535,9 @@ static void wlock_ctx_creditor_unset(struct m0_spiel_wlock_ctx *wlx)
 
 static void wlock_ctx_semaphore_down(struct m0_spiel_wlock_ctx *wlx)
 {
+	M0_ENTRY("wlx=%p", wlx);
 	m0_semaphore_down(&wlx->wlc_sem);
+	M0_LEAVE();
 }
 
 static int spiel_tx_write_lock_get(struct m0_spiel_tx *tx)
@@ -606,8 +581,8 @@ static void _spiel_tx_write_lock_put(struct m0_spiel_wlock_ctx *wlx)
 {
 	struct m0_rm_incoming *req;
 
+	M0_ENTRY("wlx=%p", wlx);
 	M0_PRE(wlx != NULL);
-	M0_ENTRY("wlock ctx = %p", wlx);
 	req = &wlx->wlc_req;
 	m0_rm_credit_put(req);
 	m0_rm_incoming_fini(req);
@@ -617,17 +592,16 @@ static void _spiel_tx_write_lock_put(struct m0_spiel_wlock_ctx *wlx)
 
 static void spiel_tx_write_lock_put(struct m0_spiel_tx *tx)
 {
-	struct m0_spiel *spl;
+	struct m0_spiel_wlock_ctx *wlx;
 
-	M0_PRE(tx != NULL);
-	M0_ENTRY("tx %p", tx);
-
-	spl = tx->spt_spiel;
-	_spiel_tx_write_lock_put(spl->spl_wlock_ctx);
-	wlock_ctx_destroy(spl->spl_wlock_ctx);
-	wlock_ctx_disconnect(spl->spl_wlock_ctx);
-	m0_free(spl->spl_wlock_ctx->wlc_rm_addr);
-	m0_free0(&spl->spl_wlock_ctx);
+	M0_ENTRY("tx=%p", tx);
+	M0_PRE(_0C(tx != NULL) && _0C(tx->spt_spiel != NULL));
+	wlx = tx->spt_spiel->spl_wlock_ctx;
+	_spiel_tx_write_lock_put(wlx);
+	wlock_ctx_destroy(wlx);
+	wlock_ctx_disconnect(wlx);
+	m0_free(wlx->wlc_rm_addr);
+	m0_free0(&tx->spt_spiel->spl_wlock_ctx);
 	M0_LEAVE();
 }
 
@@ -1068,7 +1042,6 @@ int m0_spiel_node_add(struct m0_spiel_tx  *tx,
 	M0_ENTRY();
 
 	m0_mutex_lock(&tx->spt_lock);
-
 	rc = SPIEL_CONF_CHECK(&tx->spt_cache,
 			      {fid, &M0_CONF_NODE_TYPE, &obj },
 			      {pool_fid, &M0_CONF_POOL_TYPE, &pool},
@@ -1355,7 +1328,6 @@ int m0_spiel_pool_add(struct m0_spiel_tx  *tx,
 	M0_ENTRY();
 
 	m0_mutex_lock(&tx->spt_lock);
-
 	rc = SPIEL_CONF_CHECK(&tx->spt_cache,
 			      {fid, &M0_CONF_POOL_TYPE, &obj },
 			      {parent, &M0_CONF_FILESYSTEM_TYPE, &obj_parent});
@@ -1401,7 +1373,6 @@ int m0_spiel_rack_add(struct m0_spiel_tx  *tx,
 	M0_ENTRY();
 
 	m0_mutex_lock(&tx->spt_lock);
-
 	rc = SPIEL_CONF_CHECK(&tx->spt_cache,
 			      {fid, &M0_CONF_RACK_TYPE, &obj },
 			      {parent, &M0_CONF_FILESYSTEM_TYPE, &obj_parent});
@@ -1446,7 +1417,6 @@ int m0_spiel_enclosure_add(struct m0_spiel_tx  *tx,
 	M0_ENTRY();
 
 	m0_mutex_lock(&tx->spt_lock);
-
 	rc = SPIEL_CONF_CHECK(&tx->spt_cache,
 			      {fid, &M0_CONF_ENCLOSURE_TYPE, &obj },
 			      {parent, &M0_CONF_RACK_TYPE, &obj_parent});
@@ -1493,7 +1463,6 @@ int m0_spiel_controller_add(struct m0_spiel_tx  *tx,
 	M0_ENTRY();
 
 	m0_mutex_lock(&tx->spt_lock);
-
 	rc = SPIEL_CONF_CHECK(&tx->spt_cache,
 			      {fid, &M0_CONF_CONTROLLER_TYPE, &obj },
 			      {parent, &M0_CONF_ENCLOSURE_TYPE, &obj_parent},
@@ -1539,7 +1508,6 @@ int m0_spiel_disk_add(struct m0_spiel_tx  *tx,
 	M0_ENTRY();
 
 	m0_mutex_lock(&tx->spt_lock);
-
 	rc = SPIEL_CONF_CHECK(&tx->spt_cache,
 			      {fid, &M0_CONF_DISK_TYPE, &obj },
 			      {parent, &M0_CONF_CONTROLLER_TYPE, &obj_parent});
@@ -1698,10 +1666,9 @@ int m0_spiel_rack_v_add(struct m0_spiel_tx  *tx,
 
 	real_obj = m0_conf_cache_lookup(&tx->spt_cache, real);
 	if (real_obj == NULL)
-		return M0_RC(-ENOENT);
+		return M0_ERR(-ENOENT);
 
 	m0_mutex_lock(&tx->spt_lock);
-
 	rc = SPIEL_CONF_CHECK(&tx->spt_cache,
 			      {fid, &M0_CONF_OBJV_TYPE, &obj },
 			      {parent, &M0_CONF_PVER_TYPE, &obj_parent},
@@ -1750,7 +1717,6 @@ int m0_spiel_enclosure_v_add(struct m0_spiel_tx  *tx,
 	M0_ENTRY();
 
 	m0_mutex_lock(&tx->spt_lock);
-
 	rc = SPIEL_CONF_CHECK(&tx->spt_cache,
 			      {fid, &M0_CONF_OBJV_TYPE, &obj },
 			      {parent, &M0_CONF_OBJV_TYPE, &obj_parent},
@@ -1799,7 +1765,6 @@ int m0_spiel_controller_v_add(struct m0_spiel_tx  *tx,
 	M0_ENTRY();
 
 	m0_mutex_lock(&tx->spt_lock);
-
 	rc = SPIEL_CONF_CHECK(&tx->spt_cache,
 			      {fid, &M0_CONF_OBJV_TYPE, &obj },
 			      {parent, &M0_CONF_OBJV_TYPE, &obj_parent},
@@ -1848,7 +1813,6 @@ int m0_spiel_disk_v_add(struct m0_spiel_tx  *tx,
 	M0_ENTRY();
 
 	m0_mutex_lock(&tx->spt_lock);
-
 	rc = SPIEL_CONF_CHECK(&tx->spt_cache,
 			      {fid, &M0_CONF_OBJV_TYPE, &obj },
 			      {parent, &M0_CONF_OBJV_TYPE, &obj_parent},
@@ -2010,8 +1974,8 @@ int m0_spiel_pool_version_done(struct m0_spiel_tx  *tx,
 	rc = spiel_pver_iterator(&pver->pv_u.subtree.pvs_rackvs->cd_obj, pver,
 				 &spiel_pver_add);
 	if (rc != 0) {
-		spiel_pver_iterator(&pver->pv_u.subtree.pvs_rackvs->cd_obj, pver,
-				    &spiel_objv_remove);
+		spiel_pver_iterator(&pver->pv_u.subtree.pvs_rackvs->cd_obj,
+				    pver, &spiel_objv_remove);
 		/*
 		 * TODO: Remove this line once m0_spiel_element_del removes
 		 * the object itself and all its m0_conf_dir members.
@@ -2034,14 +1998,12 @@ static void spiel_pver_remove(struct m0_conf_cache *cache,
 	struct m0_conf_obj *obj;
 
 	M0_ENTRY();
-
 	m0_tl_for (m0_conf_cache, &cache->ca_registry, obj) {
 		if (M0_IN(m0_conf_obj_type(obj),
 			  (&M0_CONF_RACK_TYPE, &M0_CONF_ENCLOSURE_TYPE,
 			   &M0_CONF_CONTROLLER_TYPE, &M0_CONF_DISK_TYPE)))
 			spiel_pver_delete(obj, pver);
 	} m0_tl_endfor;
-
 	M0_LEAVE();
 }
 
