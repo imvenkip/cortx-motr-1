@@ -1,4 +1,5 @@
 ut_libmero_ut_la_SOURCES += lib/ut/main.c \
+                            lib/ut/assert.c \
                             lib/ut/atomic.c \
                             lib/ut/bitmap.c \
                             lib/ut/bob.c \

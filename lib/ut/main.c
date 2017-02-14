@@ -23,6 +23,7 @@
 /* sort test suites in alphabetic order */
 extern void m0_test_lib_uuid(void);
 extern void m0_ut_lib_buf_test(void);
+extern void test_0C(void);
 extern void test_atomic(void);
 extern void test_bitmap(void);
 extern void test_bitmap_onwire(void);
@@ -60,6 +61,7 @@ struct m0_ut_suite libm0_ut = {
 	.ts_name = "libm0-ut",
 	.ts_owners = "Nikita",
 	.ts_tests = {
+		{ "0C",               test_0C            },
 		{ "atomic",           test_atomic        },
 		{ "bitmap",           test_bitmap        },
 		{ "onwire-bitmap",    test_bitmap_onwire },

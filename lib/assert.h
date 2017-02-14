@@ -281,14 +281,19 @@ bool foo_invariant(const struct foo *f)
 
    @note This compiles to "exp" if M0_ASSERT_OFF is true.
  */
-#define _0C(exp)				\
-({						\
-	bool __exp = (exp);			\
-	if (!M0_ASSERT_OFF && !__exp) {		\
-		m0_failed_condition = #exp;	\
-		m0__assertion_hook();		\
-	}					\
-	__exp;					\
+#define _0C(exp)                                            \
+({                                                          \
+	bool __exp = (exp);                                 \
+	if (!M0_ASSERT_OFF) {                               \
+		if (__exp) {                                \
+			m0_failed_condition = NULL;         \
+		} else {                                    \
+			if (m0_failed_condition == NULL)    \
+				m0_failed_condition = #exp; \
+			m0__assertion_hook();               \
+		}                                           \
+	}                                                   \
+	__exp;                                              \
 })
 
 /**
