@@ -571,31 +571,34 @@ static int spiel_tx_write_lock_get(struct m0_spiel_tx *tx)
 	struct m0_spiel_wlock_ctx *wlx;
 	int                        rc;
 
+	M0_ENTRY("tx=%p", tx);
 	M0_PRE(tx != NULL);
-	M0_ENTRY("tx %p", tx);
 
 	spl = tx->spt_spiel;
 	rc = wlock_ctx_create(spl);
 	if (rc != 0)
-		goto fail;
+		return M0_ERR(rc);
 	wlx = spl->spl_wlock_ctx;
 	rc = wlock_ctx_connect(wlx);
 	if (rc != 0)
-		goto ctx_free;
+		goto err;
 	wlock_ctx_creditor_setup(wlx);
+	if (M0_FI_ENABLED("borrow-request-failure")) {
+		wlx->wlc_rc = -EIO;  /* simulate MERO-2364 */
+		goto wlock_err;
+	}
 	_spiel_tx_write_lock_get(wlx);
 	wlock_ctx_semaphore_down(wlx);
+	if (wlx->wlc_rc == 0)
+		return M0_RC(0);
+wlock_err:
 	rc = wlx->wlc_rc;
-	if (rc != 0)
-		goto ctx_destroy;
-	return M0_RC(0);
-ctx_destroy:
+	wlock_ctx_creditor_unset(wlx);
 	wlock_ctx_destroy(wlx);
 	wlock_ctx_disconnect(wlx);
-ctx_free:
+err:
 	m0_free(wlx->wlc_rm_addr);
 	m0_free0(&spl->spl_wlock_ctx);
-fail:
 	return M0_ERR(rc);
 }
 

@@ -2038,24 +2038,39 @@ static void spiel_conf_expired(void)
 	m0_fi_disable("rm_ha_sbscr_diter_next", "subscribe");
 }
 
+static void spiel_conf_wlock_get_fail(void)
+{
+	struct m0_spiel_tx tx;
+	int                rc;
+
+	spiel_conf_ut_init();
+	spiel_conf_create_configuration(&spiel, &tx);
+	m0_fi_enable_once("spiel_tx_write_lock_get", "borrow-request-failure");
+	rc = m0_spiel_tx_commit(&tx);
+	M0_UT_ASSERT(rc == -EIO);
+	m0_spiel_tx_close(&tx);
+	spiel_conf_ut_fini();
+}
+
 const struct m0_ut_suite spiel_conf_ut = {
 	.ts_name = "spiel-conf-ut",
 	.ts_tests = {
-		{ "create-ok",   spiel_conf_create_ok   },
-		{ "create-fail", spiel_conf_create_fail },
-		{ "delete",      spiel_conf_delete      },
-		{ "file",        spiel_conf_file        },
-		{ "cancel",      spiel_conf_cancel      },
-		{ "load-send",   spiel_conf_load_send   },
-		{ "flip-fail",   spiel_conf_flip_fail   },
-		{ "check-fail",  spiel_conf_check_fail  },
-		{ "load-fail",   spiel_conf_load_fail   },
-		{ "dump",        spiel_conf_dump        },
-		{ "tx-invalid",  spiel_conf_tx_invalid  },
-		{ "tx-no-spiel", spiel_conf_tx_no_spiel },
-		{ "drop-svc",    spiel_conf_drop_svc    },
-		{ "add-svc",     spiel_conf_add_svc     },
-		{ "conf-expired", spiel_conf_expired    },
+		{ "create-ok",      spiel_conf_create_ok      },
+		{ "create-fail",    spiel_conf_create_fail    },
+		{ "delete",         spiel_conf_delete         },
+		{ "file",           spiel_conf_file           },
+		{ "cancel",         spiel_conf_cancel         },
+		{ "load-send",      spiel_conf_load_send      },
+		{ "flip-fail",      spiel_conf_flip_fail      },
+		{ "check-fail",     spiel_conf_check_fail     },
+		{ "load-fail",      spiel_conf_load_fail      },
+		{ "dump",           spiel_conf_dump           },
+		{ "tx-invalid",     spiel_conf_tx_invalid     },
+		{ "tx-no-spiel",    spiel_conf_tx_no_spiel    },
+		{ "drop-svc",       spiel_conf_drop_svc       },
+		{ "add-svc",        spiel_conf_add_svc        },
+		{ "conf-expired",   spiel_conf_expired        },
+		{ "wlock-get-fail", spiel_conf_wlock_get_fail },
 		{ NULL, NULL },
 		/*
 		 * Disabled.
