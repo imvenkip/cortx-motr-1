@@ -4323,8 +4323,10 @@ static int io_request_init(struct io_request        *req,
 	M0_PRE(M0_IS0(req));
 
 	csb = file_to_sb(file);
-	m0t1fs_ref_get_lock(csb);
-	req->ir_rc        = 0;
+	rc = m0t1fs_ref_get_lock(csb);
+	if (rc != 0)
+		return M0_ERR(rc);
+	req->ir_rc	  = 0;
 	req->ir_file      = file;
 	req->ir_type      = rw;
 	req->ir_iovec     = iov;
@@ -4398,7 +4400,7 @@ static int io_request_init(struct io_request        *req,
 	return M0_RC(0);
 err:
 	m0t1fs_ref_put_lock(csb);
-	return M0_RC(rc);
+	return M0_ERR(rc);
 }
 
 static void io_request_fini(struct io_request *req)

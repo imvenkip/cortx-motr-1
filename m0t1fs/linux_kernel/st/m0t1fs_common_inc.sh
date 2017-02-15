@@ -333,6 +333,7 @@ function build_conf()
 	local  NODE='^n|1:2'
 	local CONFD="$CONF_FID_CON:0"
 	local HA_SVC_ID='^s|1:6'
+	local FIS_SVC_ID='^s|1:7'
 	local  RACKID='^a|1:6'
 	local  ENCLID='^e|1:7'
 	local  CTRLID='^c|1:8'
@@ -462,7 +463,7 @@ function build_conf()
 	RM_NAME="$RMS_FID_CON:$M0D"
 	RM_OBJ="{0x73| (($RM_NAME), 4, [1: $HA_ENDPOINT], [0])}"
 	RM_OBJS="$RM_OBJS${RM_OBJS:+,} \n $RM_OBJ"
-	PROC_OBJ="{0x72| (($PROC_NAME), [1:3], 0, 0, 0, 0, "${HA_ENDPOINT}", [2: $HA_SVC_ID, $RM_NAME])}"
+	PROC_OBJ="{0x72| (($PROC_NAME), [1:3], 0, 0, 0, 0, "${HA_ENDPOINT}", [3: $HA_SVC_ID, $FIS_SVC_ID, $RM_NAME])}"
 	PROC_OBJS="$PROC_OBJS, \n $PROC_OBJ"
 	PROC_NAMES="$PROC_NAMES, $PROC_NAME"
 	PROC_NAME="$PROC_FID_CONT:$((M0D++))"
@@ -551,7 +552,7 @@ function build_conf()
  # Here "15" configuration objects includes services excluding ios & mds,
  # pools, racks, enclosures, controllers and their versioned objects.
 	echo -e "
-[$(($IOS_OBJS_NR + $((${#mdservices[*]} * 4)) + $NR_IOS_DEVS + 18 + $MD_OBJ_COUNT + $PVER1_OBJ_COUNT + 4 + $DIX_PVER_OBJ_COUNT)):
+[$(($IOS_OBJS_NR + $((${#mdservices[*]} * 4)) + $NR_IOS_DEVS + 19 + $MD_OBJ_COUNT + $PVER1_OBJ_COUNT + 4 + $DIX_PVER_OBJ_COUNT)):
   {0x74| (($ROOT), 1, [1: $PROF])},
   {0x70| (($PROF), $FS)},
   {0x66| (($FS), (11, 22), $MD_REDUNDANCY,
@@ -566,6 +567,7 @@ function build_conf()
   $PROC_OBJS,
   {0x73| (($CONFD), 3, [1: $CONFD_ENDPOINT], [0])},
   {0x73| (($HA_SVC_ID), 6, [1: $HA_ENDPOINT], [0])},
+  {0x73| (($FIS_SVC_ID), 16, [1: $HA_ENDPOINT], [0])},
   $M0T1FS_RM,
   $MDS_OBJS,
   $IOS_OBJS,

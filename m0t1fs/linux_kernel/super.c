@@ -223,7 +223,9 @@ static int m0t1fs_statfs(struct dentry *dentry, struct kstatfs *buf)
 	M0_THREAD_ENTER;
 	M0_ENTRY();
 
-	m0t1fs_fs_conf_lock(csb);
+	rc = m0t1fs_fs_conf_lock(csb);
+	if (rc != 0)
+		return M0_ERR(rc);
 	rc = _fs_stats_fetch(csb, &stats);
 	if (rc == 0) {
 		/**
@@ -706,12 +708,10 @@ struct m0t1fs_sb *reqh2sb(struct m0_reqh *reqh)
 	return container_of(reqh, struct m0t1fs_sb, csb_reqh);
 }
 
-#if 0
 static struct m0t1fs_sb *rconfc2csb(struct m0_rconfc *rconfc)
 {
 	return reqh2sb(container_of(rconfc, struct m0_reqh, rh_rconfc));
 }
-#endif
 
 M0_INTERNAL struct m0_rconfc *m0_csb2rconfc(struct m0t1fs_sb *csb)
 {
@@ -742,13 +742,14 @@ void m0t1fs_rpc_fini(struct m0t1fs_sb *csb)
  * indefinitely. MERO-2341 addresses the issue by taking into consideration all
  * the possibilities.
  */
-M0_INTERNAL void m0t1fs_ref_get_lock(struct m0t1fs_sb *csb)
+M0_INTERNAL int m0t1fs_ref_get_lock(struct m0t1fs_sb *csb)
 {
 	struct m0_clink clink;
 
+	M0_ENTRY("csb=%p", csb);
 	while (1) {
 		m0_mutex_lock(&csb->csb_conf_state_lock);
-		if (csb->csb_conf_state == MCS_READY)
+		if (M0_IN(csb->csb_conf_state, (MCS_READY, MCS_FAILED)))
 			break;
 		m0_clink_init(&clink, NULL);
 		m0_clink_add(&csb->csb_conf_ready_chan, &clink);
@@ -762,6 +763,7 @@ M0_INTERNAL void m0t1fs_ref_get_lock(struct m0t1fs_sb *csb)
 	}
 	M0_CNT_INC(csb->csb_reqs_nr);
 	m0_mutex_unlock(&csb->csb_conf_state_lock);
+	return M0_RC(csb->csb_conf_state == MCS_READY ? 0 : -ESTALE);
 }
 
 M0_INTERNAL void m0t1fs_ref_put_lock(struct m0t1fs_sb *csb)
@@ -920,6 +922,16 @@ static bool m0t1fs_conf_ready_cb(struct m0_clink *clink)
 	return true;
 }
 
+static void m0t1fs_rconfc_fatal_cb(struct m0_rconfc *rconfc)
+{
+	struct m0t1fs_sb *csb = rconfc2csb(rconfc);
+
+	M0_ENTRY("rconfc %p", rconfc);
+	csb->csb_conf_state = MCS_FAILED;
+	m0_chan_broadcast_lock(&csb->csb_conf_ready_chan);
+	M0_LEAVE();
+}
+
 static int m0t1fs_fid_sscanf(const char    *s,
 			     struct m0_fid *fid,
 			     const char    *descr)
@@ -988,8 +1000,11 @@ int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	m0_clink_add_lock(&reqh->rh_conf_cache_ready, &csb->csb_conf_ready);
 	m0_clink_add_lock(&reqh->rh_conf_cache_ready_async,
 			  &csb->csb_conf_ready_async);
-	rc = m0_rconfc_start_sync(m0_csb2rconfc(csb), &reqh->rh_profile) ?:
-		m0_ha_client_add(m0_reqh2confc(reqh));
+
+	rc = m0_rconfc_start_sync(m0_csb2rconfc(csb), &reqh->rh_profile);
+	if (rc != 0)
+		goto err_rconfc_stop;
+	rc = m0_ha_client_add(m0_reqh2confc(reqh));
 	if (rc != 0)
 		goto err_rconfc_stop;
 	rc = m0_conf_fs_get(&reqh->rh_profile, m0_reqh2confc(reqh), &fs);
@@ -1037,6 +1052,10 @@ int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	rc = m0_addb2_sys_net_start_with(sys, &pc->pc_svc_ctxs);
 	if (rc == 0) {
 		m0_confc_close(&fs->cf_obj);
+		m0_rconfc_lock(m0_csb2rconfc(csb));
+		m0_rconfc_fatal_cb_set(m0_csb2rconfc(csb),
+				       m0t1fs_rconfc_fatal_cb);
+		m0_rconfc_unlock(m0_csb2rconfc(csb));
 		return M0_RC(0);
 	}
 

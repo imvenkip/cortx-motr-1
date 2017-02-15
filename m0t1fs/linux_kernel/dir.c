@@ -222,10 +222,16 @@ static void body_wire2mem(struct m0_cob_attr *attr,
 	attr->ca_version = body->b_version;
 }
 
-M0_INTERNAL void m0t1fs_fs_conf_lock(struct m0t1fs_sb *csb)
+M0_INTERNAL int m0t1fs_fs_conf_lock(struct m0t1fs_sb *csb)
 {
-	m0t1fs_ref_get_lock(csb);
+	int rc;
+
+	M0_ENTRY("csb=%p", csb);
+	rc = m0t1fs_ref_get_lock(csb);
+	if (rc != 0)
+		return M0_ERR(rc);
 	m0t1fs_fs_lock(csb);
+	return M0_RC(0);
 }
 
 M0_INTERNAL void m0t1fs_fs_conf_unlock(struct m0t1fs_sb *csb)
@@ -329,7 +335,9 @@ int m0t1fs_setxattr(struct dentry *dentry, const char *name,
 	M0_ENTRY("Setting %.*s's xattr %s=%.*s", dentry->d_name.len,
 		 (char*)dentry->d_name.name, name, (int)size, (char *)value);
 
-	m0t1fs_fs_conf_lock(csb);
+	rc = m0t1fs_fs_conf_lock(csb);
+	if (rc != 0)
+		return M0_ERR(rc);
 	M0_SET0(&mo);
 	mo.mo_attr.ca_tfid = *m0t1fs_inode_fid(ci);
 	m0_buf_init(&mo.mo_attr.ca_name, (char*)dentry->d_name.name,
@@ -415,7 +423,9 @@ ssize_t m0t1fs_getxattr(struct dentry *dentry, const char *name,
 
 	M0_ENTRY("Getting %.*s's xattr %s", dentry->d_name.len,
 		 (char*)dentry->d_name.name, name);
-	m0t1fs_fs_conf_lock(csb);
+	rc = m0t1fs_fs_conf_lock(csb);
+	if (rc != 0)
+		return M0_ERR(rc);
 	if (m0_streq(name, "pver")) {
 		M0_LOG(M0_DEBUG, "buffer:%p size:%d"FID_F, buffer, (int)size,
 				FID_P(&ci->ci_pver));
@@ -510,7 +520,9 @@ int m0t1fs_removexattr(struct dentry *dentry, const char *name)
 
 	if (csb->csb_oostore)
 		return M0_RC(-EOPNOTSUPP);
-	m0t1fs_fs_conf_lock(csb);
+	rc = m0t1fs_fs_conf_lock(csb);
+	if (rc != 0)
+		return M0_ERR(rc);
 
 	M0_SET0(&mo);
 	mo.mo_attr.ca_tfid = *m0t1fs_inode_fid(ci);
@@ -619,7 +631,9 @@ static int m0t1fs_create(struct inode     *dir,
 	       (char*)dentry->d_name.name, dir->i_ino,
 	       FID_P(m0t1fs_inode_fid(M0T1FS_I(dir))));
 
-	m0t1fs_fs_conf_lock(csb);
+	rc = m0t1fs_fs_conf_lock(csb);
+	if (rc != 0)
+		return M0_ERR(rc);
 	rc = m0_pool_version_get(&csb->csb_pools_common, &pv);
 	if (rc != 0) {
 		rc = M0_ERR(-ENOENT);
@@ -805,7 +819,9 @@ static struct dentry *m0t1fs_lookup(struct inode     *dir,
 	}
 
 	M0_LOG(M0_INFO, "Name: \"%s\"", (char*)dentry->d_name.name);
-	m0t1fs_fs_conf_lock(csb);
+	rc = m0t1fs_fs_conf_lock(csb);
+	if (rc != 0)
+		return ERR_PTR(rc);
 	if (csb->csb_oostore) {
 		struct m0_fid           new_fid;
 		struct m0_fid           gfid;
@@ -1016,7 +1032,9 @@ static int m0t1fs_readdir(struct file *f,
 	if (fd->fd_direof)
 		return M0_RC(0);
 
-	m0t1fs_fs_conf_lock(csb);
+	rc = m0t1fs_fs_conf_lock(csb);
+	if (rc != 0)
+		return M0_ERR(rc);
 
 switch_mds:
 	M0_SET0(&mo);
@@ -1157,7 +1175,9 @@ static int m0t1fs_link(struct dentry *old, struct inode *dir,
 	ci    = M0T1FS_I(inode);
 	csb   = M0T1FS_SB(inode->i_sb);
 
-	m0t1fs_fs_conf_lock(csb);
+	rc = m0t1fs_fs_conf_lock(csb);
+	if (rc != 0)
+		return M0_ERR(rc);
 
 	M0_SET0(&mo);
 	now = CURRENT_TIME_SEC;
@@ -1214,7 +1234,9 @@ static int m0t1fs_unlink(struct inode *dir, struct dentry *dentry)
 	csb   = M0T1FS_SB(inode->i_sb);
 	ci    = M0T1FS_I(inode);
 
-	m0t1fs_fs_conf_lock(csb);
+	rc = m0t1fs_fs_conf_lock(csb);
+	if (rc != 0)
+		return M0_ERR(rc);
 
 	M0_SET0(&mo);
 	now = CURRENT_TIME_SEC;
@@ -1372,13 +1394,14 @@ M0_INTERNAL int m0t1fs_fid_getattr(struct vfsmount *mnt, struct dentry *dentry,
 	inode = dentry->d_inode;
 	csb   = M0T1FS_SB(inode->i_sb);
 
-	m0t1fs_fs_conf_lock(csb);
+	rc = m0t1fs_fs_conf_lock(csb);
+	if (rc != 0)
+		return M0_ERR(rc);
 
 	/* Return cached attributes for files in .mero/fid dir */
 	body = &csb->csb_virt_body;
 	rc = m0t1fs_inode_update_stat(inode, body, stat);
 	m0t1fs_fs_conf_unlock(csb);
-
 	return M0_RC(rc);
 }
 
@@ -1403,7 +1426,9 @@ M0_INTERNAL int m0t1fs_getattr(struct vfsmount *mnt, struct dentry *dentry,
 	csb   = M0T1FS_SB(inode->i_sb);
 	ci    = M0T1FS_I(inode);
 
-	m0t1fs_fs_conf_lock(csb);
+	rc = m0t1fs_fs_conf_lock(csb);
+	if (rc != 0)
+		return M0_ERR(rc);
 	if (m0t1fs_inode_is_root(&ci->ci_inode)) {
 		m0t1fs_inode_update_stat(inode, NULL, stat);
 		goto out;
@@ -1501,7 +1526,9 @@ M0_INTERNAL int m0t1fs_setattr(struct dentry *dentry, struct iattr *attr)
 	if (rc != 0)
 		return M0_ERR(rc);
 
-	m0t1fs_fs_conf_lock(csb);
+	rc = m0t1fs_fs_conf_lock(csb);
+	if (rc != 0)
+		return M0_ERR(rc);
 
 	if (!csb->csb_oostore) {
 		rc = file_lock_acquire(&rm_in, ci);
@@ -2370,7 +2397,9 @@ M0_INTERNAL int m0t1fs_cob_setattr(struct inode *inode, struct m0t1fs_mdop *mo)
 	int                  rc;
 	M0_ENTRY();
 
-	m0t1fs_fs_conf_lock(csb);
+	rc = m0t1fs_fs_conf_lock(csb);
+	if (rc != 0)
+		return M0_ERR(rc);
 
 	/* Updating size to ios. */
 	rc = m0t1fs_component_objects_op(ci, mo, m0t1fs_ios_cob_setattr);

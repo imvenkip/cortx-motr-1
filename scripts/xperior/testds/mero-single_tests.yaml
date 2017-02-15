@@ -298,6 +298,14 @@ Tests:
     polltime : 30
     timeout  : 900
 
+  - id       : 32m0t1fs-rconfc-fail-test
+    script   : m0t1fs_rconfc_fail_test.sh
+    dir      : src/m0t1fs/linux_kernel/st/
+    executor : Xperior::Executor::MeroTest
+    sandbox  : /var/mero/sandbox.32m0t1fs-rconfc-fail-test
+    polltime : 30
+    timeout  : 1800
+
 # 25 min
 dangerous: 'yes'
 description: Set of Mero  tests

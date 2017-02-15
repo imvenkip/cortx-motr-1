@@ -355,7 +355,7 @@ EOF
 
 		# spawn ha agent
 		opts="$common_opts -T linux -e $XPT:${lnet_nid}:$HA_EP \
-		      -c $CONFDB -f $proc_fid"
+		      -c $CONFDB -f $proc_fid ${FI_OPT:-}"
 		DIR=$MERO_M0T1FS_TEST_DIR/ha
 		cmd="cd $DIR && exec $prog_start $opts |& tee -a m0d.log"
 		local m0d_log=$DIR/m0d.log

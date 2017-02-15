@@ -668,7 +668,9 @@ enum m0t1fs_conf_state {
 	MCS_READY,
 	MCS_REVOKED,
 	MCS_GETTING_READY,
+	MCS_FAILED,
 };
+
 /**
    In memory m0t1fs super block. One instance per mounted file-system.
    super_block::s_fs_info points to instance of this type.
@@ -907,7 +909,7 @@ M0_INTERNAL void m0t1fs_fs_lock(struct m0t1fs_sb *csb);
 M0_INTERNAL void m0t1fs_fs_unlock(struct m0t1fs_sb *csb);
 M0_INTERNAL bool m0t1fs_fs_is_locked(const struct m0t1fs_sb *csb);
 
-M0_INTERNAL void m0t1fs_fs_conf_lock(struct m0t1fs_sb *csb);
+M0_INTERNAL int m0t1fs_fs_conf_lock(struct m0t1fs_sb *csb);
 M0_INTERNAL void m0t1fs_fs_conf_unlock(struct m0t1fs_sb *csb);
 
 M0_INTERNAL int m0t1fs_getattr(struct vfsmount *mnt, struct dentry *de,
@@ -920,9 +922,13 @@ M0_INTERNAL void m0t1fs_inode_update(struct inode *inode,
 				     struct m0_fop_cob *body);
 /**
  * Takes a superblock reference. If configuration is being updated, the
- * function blocks till new conf is ready.
+ * function blocks till new conf is ready or configuration reading impossible
+ * due to rconfc fail.
+ *
+ * @return 0 if lock is taken,
+ * @return -ESTALE if rconfc fails and reading configuration is disallowed,
  */
-M0_INTERNAL void m0t1fs_ref_get_lock(struct m0t1fs_sb *csb);
+M0_INTERNAL int m0t1fs_ref_get_lock(struct m0t1fs_sb *csb);
 M0_INTERNAL void m0t1fs_ref_put_lock(struct m0t1fs_sb *csb);
 
 M0_INTERNAL struct m0_rpc_session *
