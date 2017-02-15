@@ -356,6 +356,7 @@ def build_disk_info(host, disk_path, index)
     wwn = '0x0000000' + format('%04d', index) if wwn.to_s.strip.empty?
 
     return {
+        'bay'    => index,
         'path'   => disk_path,
         'size'   => size,
         'serial' => serial,
@@ -364,7 +365,7 @@ def build_disk_info(host, disk_path, index)
 end
 
 # FIXME: ugly global variable
-$disk_index = 0
+$disk_index = 1
 
 def collect_disks_for(node)
     if node['disks'].is_a?(Array)

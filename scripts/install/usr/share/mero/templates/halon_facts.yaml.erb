@@ -105,6 +105,7 @@ id_m0_servers:
         m0d_bsize: <%= m0_block_size %>
         m0d_size: <%= key['size'] %>
         m0d_path: "<%= key['path'] %>"
+        m0d_slot: <%= key['bay'] %>
       <%- end -%>
     <%- else -%>
     m0h_devices: []
