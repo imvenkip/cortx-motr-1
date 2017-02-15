@@ -1163,7 +1163,14 @@ static int cas_next_rc(int64_t service_rc)
 	 * success.
 	 */
 	if (service_rc == 0)
-		rc = M0_ERR(-EPROTO);
+		/*
+		 * Don't use M0_ERR() here to not pollute trace log.
+		 * Service places zero return code in all records following the
+		 * record having negative return code. It can happen in a
+		 * totally valid case when client requests more records than
+		 * available in a catalogue.
+		 */
+		rc = -EPROTO;
 	else if (service_rc < 0)
 		rc = service_rc;
 	else
