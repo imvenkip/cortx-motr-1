@@ -44,6 +44,7 @@
 #include "reqh/reqh.h"
 #include "lib/timer.h"
 #include "fid/fid.h"
+#include "fis/fi_service.h"
 #include "fop/fom_simple.h"
 #include "fop/fom_generic.h"
 #include "graph/graph.h"
@@ -210,6 +211,7 @@ struct init_fini_call subsystem[] = {
 	{ &m0_ha_mod_init,      &m0_ha_mod_fini,      "ha" },
 	{ &m0_clovis_global_init, &m0_clovis_global_fini, "clovis" },
 	{ &m0_rconfc_mod_init,  &m0_rconfc_mod_fini,  "rconfc" },
+	{ &m0_fis_register,     &m0_fis_unregister,   FI_SERVICE_NAME },
 };
 
 static void fini_nr(struct init_fini_call *arr, int nr)

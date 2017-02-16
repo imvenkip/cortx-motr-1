@@ -215,6 +215,7 @@ include $(top_srcdir)/dtm/Makefile.sub
 include $(top_srcdir)/fd/Makefile.sub
 include $(top_srcdir)/fid/Makefile.sub
 include $(top_srcdir)/file/Makefile.sub
+include $(top_srcdir)/fis/Makefile.sub
 include $(top_srcdir)/fol/Makefile.sub
 include $(top_srcdir)/fop/Makefile.sub
 include $(top_srcdir)/format/Makefile.sub
@@ -324,6 +325,7 @@ include $(top_srcdir)/dix/ut/Makefile.sub
 include $(top_srcdir)/dtm/ut/Makefile.sub
 include $(top_srcdir)/fd/ut/Makefile.sub
 include $(top_srcdir)/file/ut/Makefile.sub
+include $(top_srcdir)/fis/ut/Makefile.sub
 include $(top_srcdir)/fol/ut/Makefile.sub
 include $(top_srcdir)/fop/ub/Makefile.sub
 include $(top_srcdir)/fop/ut/Makefile.sub
@@ -876,6 +878,7 @@ EXTRA_DIST += \
               fd/Kbuild.sub \
               fd/ut/Kbuild.sub \
               fid/Kbuild.sub \
+              fis/Kbuild.sub \
               fol/Kbuild.sub \
               fop/Kbuild.sub \
               fop/ut/Kbuild.sub \

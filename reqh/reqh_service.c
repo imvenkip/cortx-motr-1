@@ -170,7 +170,7 @@ m0_reqh_service_type_find(const char *sname)
 
 	m0_rwlock_read_lock(&rstypes_rwlock);
 
-	t = m0_tl_find(rstypes, t, &rstypes, strcmp(t->rst_name, sname) == 0);
+	t = m0_tl_find(rstypes, t, &rstypes, m0_streq(t->rst_name, sname));
 	if (t != NULL)
 		M0_ASSERT(m0_reqh_service_type_bob_check(t));
 

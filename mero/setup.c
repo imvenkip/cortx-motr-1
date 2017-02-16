@@ -1092,9 +1092,8 @@ static int cs_service_init(const char *name, struct m0_reqh_context *rctx,
 static int reqh_context_services_init(struct m0_reqh_context *rctx,
                                       struct m0_mero         *cctx)
 {
-	const char *name;
-	uint32_t    i;
-	int         rc = 0;
+	uint32_t i;
+	int      rc = 0;
 
 	M0_ENTRY();
 	M0_PRE(reqh_context_invariant(rctx));
@@ -1103,10 +1102,20 @@ static int reqh_context_services_init(struct m0_reqh_context *rctx,
 		if (rctx->rc_services[i] == NULL ||
 		    M0_IN(i, (M0_CST_HA, M0_CST_SSS)))
 			continue;
-		name = rctx->rc_services[i];
-		M0_LOG(M0_DEBUG, "service: %s" FID_F, name,
-			FID_P(&rctx->rc_service_fids[i]));
-		rc = cs_service_init(name, rctx, &rctx->rc_reqh,
+		if (i == M0_CST_FIS) {
+			if (!rctx->rc_fis_enabled)
+				/*
+				 * Even in case FIS is present in conf, the
+				 * service must stay down being not enabled by
+				 * command line parameter '-j'.
+				 */
+				continue;
+			else
+				M0_LOG(M0_DEBUG, "FIS enabled by command opt.");
+		}
+		M0_LOG(M0_DEBUG, "service: %s" FID_F, rctx->rc_services[i],
+		       FID_P(&rctx->rc_service_fids[i]));
+		rc = cs_service_init(rctx->rc_services[i], rctx, &rctx->rc_reqh,
 				     &rctx->rc_service_fids[i]);
 	}
 	if (rc != 0) {
@@ -2188,6 +2197,11 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv)
 				LAMBDA(void, (void)
 				{
 					rctx->rc_disable_direct_io = true;
+				})),
+			M0_VOIDARG('j', "Fault Injection Service enabled",
+				LAMBDA(void, (void)
+				{
+					rctx->rc_fis_enabled = true;
 				})),
 			M0_NUMBERARG('E', "Set buffer pool size for ioservice",
 				LAMBDA(void, (int64_t size)

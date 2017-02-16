@@ -817,6 +817,10 @@ enum m0_magic_satchel {
 	/* rmach_watch_tl::td_head_magic "COCOAA CALLED" */
 	M0_RPC_MACHINE_WATCH_HEAD_MAGIC = 0x33C0C0AACA11ED77,
 
+/* FIS */
+	/* m0_reqh_fi_service::fis_magix (saddled bleed) */
+	M0_FI_SERVICE_MAGIC = 0x335add1edb1eed77,
+
 /* SNS repair */
 	/** m0_sns_cm_file_ctx::sf_magic (labelled babe) */
 	M0_SNS_CM_FILE_CTX_MAGIC = 0x331ABE11EDBABE77,

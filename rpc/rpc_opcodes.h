@@ -271,6 +271,10 @@ enum M0_RPC_OPCODES {
 	M0_CAS_CUR_FOP_OPCODE               = 233,
 	M0_CAS_REP_FOP_OPCODE               = 234,
 
+	/** Fault Injection command fops. */
+	M0_FI_COMMAND_OPCODE                = 260,
+	M0_FI_COMMAND_REP_OPCODE            = 261,
+
 	/*
 	 * Identifiers below are for fop-less foms, not fops.
 	 */

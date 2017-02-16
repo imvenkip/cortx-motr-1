@@ -22,16 +22,17 @@
 #include "lib/trace.h"
 
 #include "conf/helpers.h"
-#include "conf/obj_ops.h"  /* m0_conf_obj_find_lock */
-#include "conf/confc.h"    /* m0_confc_open_sync */
-#include "conf/dir.h"      /* m0_conf_dir_len */
-#include "conf/diter.h"    /* m0_conf_diter_next_sync */
-#include "conf/pvers.h"    /* m0_conf_pver_find */
-#include "ha/note.h"       /* m0_ha_nvec */
-#include "reqh/reqh.h"     /* m0_reqh2confc */
-#include "lib/string.h"    /* m0_strdup */
-#include "lib/memory.h"    /* M0_ALLOC_ARR */
-#include "lib/finject.h"   /* M0_FI_ENABLED */
+#include "conf/obj_ops.h"     /* m0_conf_obj_find_lock */
+#include "conf/confc.h"       /* m0_confc_open_sync */
+#include "conf/dir.h"         /* m0_conf_dir_len */
+#include "conf/diter.h"       /* m0_conf_diter_next_sync */
+#include "conf/pvers.h"       /* m0_conf_pver_find */
+#include "ha/note.h"          /* m0_ha_nvec */
+#include "reqh/reqh.h"        /* m0_reqh2confc */
+#include "lib/string.h"       /* m0_strdup */
+#include "lib/memory.h"       /* M0_ALLOC_ARR */
+#include "lib/finject.h"      /* M0_FI_ENABLED */
+#include "fis/fi_service.h"   /* FI_SERVICE_NAME */
 
 enum { CACHE_LOCALITY = 1 };
 
@@ -425,22 +426,23 @@ M0_INTERNAL bool m0_conf_service_is_top_rms(const struct m0_conf_service *svc)
 }
 
 static const char *service_name[] = {
-	[0]              = NULL,           /* unused, enum declarations start
-					    *  from 1
-					    */
-	[M0_CST_MDS]     = "mdservice",    /* Meta-data service. */
-	[M0_CST_IOS]     = "ioservice",    /* IO/data service. */
-	[M0_CST_MGS]     = "confd",        /* Management service (confd). */
-	[M0_CST_RMS]     = "rmservice",    /* RM service. */
-	[M0_CST_STS]     = "stats",        /* Stats service. */
-	[M0_CST_HA]      = "haservice",    /* HA service. */
-	[M0_CST_SSS]     = "sss",          /* Start/stop service. */
-	[M0_CST_SNS_REP] = "sns_repair",   /* SNS repair. */
-	[M0_CST_SNS_REB] = "sns_rebalance",/* SNS re-balance. */
-	[M0_CST_ADDB2]   = "addb2",        /* Addb. */
-	[M0_CST_CAS]     = "cas",          /* Catalogue service. */
-	[M0_CST_DS1]     = "ds1",          /* Dummy service 1. */
-	[M0_CST_DS2]     = "ds2"           /* Dummy service 2. */
+	[0]              = NULL,             /* unused, enum declarations start
+					      *  from 1
+					      */
+	[M0_CST_MDS]     = "mdservice",      /* Meta-data service. */
+	[M0_CST_IOS]     = "ioservice",      /* IO/data service. */
+	[M0_CST_MGS]     = "confd",          /* Management service (confd). */
+	[M0_CST_RMS]     = "rmservice",      /* RM service. */
+	[M0_CST_STS]     = "stats",          /* Stats service. */
+	[M0_CST_HA]      = "haservice",      /* HA service. */
+	[M0_CST_SSS]     = "sss",            /* Start/stop service. */
+	[M0_CST_SNS_REP] = "sns_repair",     /* SNS repair. */
+	[M0_CST_SNS_REB] = "sns_rebalance",  /* SNS re-balance. */
+	[M0_CST_ADDB2]   = "addb2",          /* Addb. */
+	[M0_CST_CAS]     = "cas",            /* Catalogue service. */
+	[M0_CST_DS1]     = "ds1",            /* Dummy service 1. */
+	[M0_CST_DS2]     = "ds2",            /* Dummy service 2. */
+	[M0_CST_FIS]     = FI_SERVICE_NAME,  /* FI service. */
 };
 
 M0_INTERNAL char *m0_conf_service_name_dup(const struct m0_conf_service *svc)

@@ -176,6 +176,7 @@ enum m0_conf_service_type {
 	 */
 	M0_CST_DS1, /**< Dummy service1 */
 	M0_CST_DS2, /**< Dummy service2 */
+	M0_CST_FIS, /**< Fault injection service */
 	M0_CST_NR
 };
 

@@ -33,6 +33,7 @@ file.c -->
 - @subpage spiel-dld "SPIEL API DLD" <!-- spiel/spiel.h -->
 - @subpage m0loop-dld "The new m0loop device driver DLD" <!-- m0t1fs/linux_kernel/m0loop.c -->
 - @subpage cas-dld "The catalogue service (CAS)" <!-- cas/service.c -->
+- @subpage fis-dld "Fault Injection at run time" <!-- fis/fi_service.h -->
 
 Detailed designs should use the <i>@subpage DLD "Mero DLD Template"
 <!-- doc/dld-template.c --> </i> as a style guide.

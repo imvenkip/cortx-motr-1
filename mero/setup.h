@@ -352,6 +352,9 @@ struct m0_reqh_context {
 
 	/** Disable direct I/O for data from clients */
 	bool                         rc_disable_direct_io;
+
+	/** Enable Fault Injection Service */
+	bool                         rc_fis_enabled;
 };
 
 /**
