@@ -322,7 +322,7 @@ def collect_facts_for(node)
     return {
         'rack'                   => node['rack'],
         'vpos'                   => node['pos'],
-        'serial_no'              => 'ENC#1',
+        'serial_no'              => "ENC##{node['pos']}",
         'role'                   => node['roles'],
         'hostname'               => node['address'],
         'fqdn'                   => fqdn,
