@@ -570,18 +570,21 @@ static bool proxy_clink_cb(struct m0_clink *clink)
 
 	M0_PRE(m0_conf_obj_type(svc_obj) == &M0_CONF_SERVICE_TYPE);
 
+	m0_cm_proxy_lock(pxy);
 	if (M0_IN(svc_obj->co_ha_state, (M0_NC_FAILED, M0_NC_TRANSIENT))) {
-		m0_cm_proxy_lock(pxy);
 		pxy->px_status = M0_PX_FAILED;
 		pxy->px_is_done = true;
-		proxy_fail_tlist_add_tail(&pxy->px_cm->cm_failed_proxies, pxy);
-		m0_cm_proxy_unlock(pxy);
+		if (!proxy_fail_tlink_is_in(pxy))
+			proxy_fail_tlist_add_tail(&pxy->px_cm->cm_failed_proxies, pxy);
 	} else if (svc_obj->co_ha_state == M0_NC_ONLINE &&
 		   pxy->px_status == M0_PX_FAILED) {
 		/* XXX Need to check repair/rebalance status. */
 		pxy->px_status = M0_PX_INIT;
 		pxy->px_is_done = false;
+		if (proxy_fail_tlink_is_in(pxy))
+			proxy_fail_tlist_del(pxy);
 	}
+	m0_cm_proxy_unlock(pxy);
 
 	return true;
 }

@@ -70,7 +70,7 @@ static int sw_onwire_fom_tick(struct m0_fom *fom)
 	struct m0_cm_sw_onwire_rep *swo_rep;
 	struct m0_cm_proxy         *cm_proxy;
 	struct m0_fop              *rfop;
-	int                         rc;
+	int                         rc = 0;
 	const char                 *ep;
 
 	service = fom->fo_service;
@@ -101,8 +101,7 @@ static int sw_onwire_fom_tick(struct m0_fom *fom)
 						&swo_fop->swo_out_interval,
 						swo_fop->swo_cm_status,
 						swo_fop->swo_cm_epoch);
-		} else
-			rc = -ENOENT;
+		}
 		m0_cm_unlock(cm);
 
 		rfop = fom->fo_rep_fop;
