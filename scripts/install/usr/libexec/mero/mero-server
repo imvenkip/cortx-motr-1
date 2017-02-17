@@ -144,6 +144,9 @@ m0_server()
     # enable core dumps
     ulimit -c unlimited
 
+    # Increase vm.max_map_count. MERO-2171 MERO-2396
+    sysctl -w vm.max_map_count=30000000
+
     # show actual exec commands in log file
     set -x
 
