@@ -340,7 +340,7 @@ static void ut_clovis_test_clovis_op_common_invariant(void)
  * Tests only the pre-conditions of m0_clovis_obj_layout_instance_build().
  */
 static void
-ut_clovis_test_m0_clovis_obj_layout_instance_build(void)
+ut_clovis_test_m0_clovis__obj_layout_instance_build(void)
 {
 	int                        rc = 0; /* required */
 	uint64_t                   lid = 0;
@@ -361,7 +361,7 @@ ut_clovis_test_m0_clovis_obj_layout_instance_build(void)
 	/* base case */
 	fid.f_key = 777;
 	lid = m0_pool_version2layout_id(&pv.pv_id, M0_DEFAULT_LAYOUT_ID);
-	rc = m0_clovis_obj_layout_instance_build(
+	rc = m0_clovis__obj_layout_instance_build(
 			instance, lid, &fid,&linst);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(linst == &ut_clovis_layout_instance);
@@ -430,7 +430,7 @@ static void ut_clovis_test_clovis_obj_namei_op_init(void)
 	m0_clovis_op_common_bob_init(&oo.oo_oc);
 	m0_clovis_ast_rc_bob_init(&oo.oo_ar);
 
-	m0_fi_enable_once("m0_clovis_obj_default_layout_id_get", "return_default_layout");
+	m0_fi_enable_once("m0_clovis__obj_layout_id_get", "fake_obj_layout_id");
 	rc = clovis_obj_namei_op_init(&ent, &oo.oo_oc.oc_op);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(oo.oo_layout_instance == &ut_clovis_layout_instance);
@@ -578,7 +578,8 @@ static void ut_clovis_test_clovis_obj_op_prepare(void)
 	/* base case */
 	op = NULL;
 	instance->m0c_pools_common.pc_cur_pver->pv_attr.pa_P = 7;
-	m0_clovis_obj_init(&obj, &uber_realm.co_realm, &id);
+	m0_clovis_obj_init(&obj, &uber_realm.co_realm, &id,
+			   m0_clovis_default_layout_id(instance));
 
 	/* OP Allocation fails */
 	m0_fi_enable_once("m0_alloc", "fail_allocation");
@@ -639,8 +640,8 @@ static void ut_clovis_entity_namei_op(enum m0_clovis_entity_opcode opcode)
 	id.u_lo++;
 
 	/* m0_clovis_obj_default_layout_id_get need to talk to confc. */
-	m0_fi_enable_once("m0_clovis_obj_default_layout_id_get", "return_default_layout");
-	m0_fi_enable_once("m0_clovis_pool_version_get", "fake_pool_version");
+	m0_fi_enable_once("m0_clovis__obj_layout_id_get", "fake_obj_layout_id");
+	m0_fi_enable_once("m0_clovis__pool_version_get", "fake_pool_version");
 
 	/* base case: no error, then check the output */
 	ent.en_type = M0_CLOVIS_ET_OBJ;
@@ -1435,8 +1436,8 @@ const struct m0_ut_suite ut_suite_clovis_obj = {
 			&ut_clovis_test_m0_clovis_entity_create},
 		{ "m0_clovis_entity_delete(object)",
 			&ut_clovis_test_m0_clovis_entity_delete},
-		{ "m0_clovis_obj_layout_instance_build",
-			&ut_clovis_test_m0_clovis_obj_layout_instance_build},
+		{ "m0_clovis__obj_layout_instance_build",
+			&ut_clovis_test_m0_clovis__obj_layout_instance_build},
 		{ "clovis_obj_fid_make_name",
 				&ut_clovis_test_clovis_obj_fid_make_name},
 		{ "clovis_obj_namei_op_init",

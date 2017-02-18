@@ -165,7 +165,8 @@ static int create_object(struct m0_uint128 id)
  	/* Initialize obj structures
  	 * Note: This api doesnot create an object. It simply fills
  	 * obj structure with require data. */
-	m0_clovis_obj_init(&obj, &clovis_uber_realm, &id);
+	m0_clovis_obj_init(&obj, &clovis_uber_realm, &id,
+			   m0_clovis_default_layout_id(clovis_instance));
 
 	/* Create object-create request */
 	m0_clovis_entity_create(&obj.ob_entity, &ops[0]);
@@ -217,7 +218,8 @@ static int write_data_to_object(struct m0_uint128 id,
 	memset(&obj, 0, sizeof(struct m0_clovis_obj));
 
 	/* Set the object entity we want to write */
-	m0_clovis_obj_init(&obj, &clovis_uber_realm, &id);
+	m0_clovis_obj_init(&obj, &clovis_uber_realm, &id,
+			   m0_clovis_default_layout_id(clovis_instance));
 
 	/* Create the write request */
 	m0_clovis_obj_op(&obj, M0_CLOVIS_OC_WRITE,

@@ -277,10 +277,10 @@ M0_INTERNAL const char *m0_bool_to_str(bool b);
 M0_INTERNAL const char *m0_short_file_name(const char *fname);
 
 /* strtoull for user- and kernel-space */
-M0_INTERNAL uint64_t m0_strtou64(const char *str, char **endptr, int base);
+uint64_t m0_strtou64(const char *str, char **endptr, int base);
 
 /* strtoul for user- and kernel-space */
-M0_INTERNAL uint32_t m0_strtou32(const char *str, char **endptr, int base);
+uint32_t m0_strtou32(const char *str, char **endptr, int base);
 
 /*
  * Helper macros for implication and equivalence.

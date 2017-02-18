@@ -37,6 +37,8 @@
 
 struct m0_clovis_container clovis_st_read_container;
 extern struct m0_addb_ctx m0_clovis_addb_ctx;
+static uint32_t unit_size = DEFAULT_PARGRP_UNIT_SIZE;
+static uint64_t default_layout_id;
 
 #define MAX_READ_OID_NUM (256)
 static int read_oid_num = 0;
@@ -74,7 +76,8 @@ static int create_objs(int nr_objs)
 
 		/* Create an entity */
 		clovis_st_obj_init(&obj,
-			&clovis_st_read_container.co_realm, &id);
+			&clovis_st_read_container.co_realm,
+			&id, default_layout_id);
 		clovis_st_entity_create(&obj.ob_entity, &ops[0]);
 
 		clovis_st_op_launch(ops, 1);
@@ -124,7 +127,7 @@ static int write_objs(void)
 
 	/* Prepare the data with 'value' */
 	blk_cnt = 4;
-	blk_size = 4096;
+	blk_size = unit_size;
 
 	rc = m0_bufvec_alloc(&data, blk_cnt, blk_size);
 	if (rc != 0)
@@ -165,8 +168,9 @@ static int write_objs(void)
 		id = read_oid_get(i);
 
 		/* Set the object entity we want to write */
-		clovis_st_obj_init(&obj,
-			&clovis_st_read_container.co_realm, &id);
+		clovis_st_obj_init(
+			&obj, &clovis_st_read_container.co_realm,
+			&id, default_layout_id);
 
 		/* Create the write request */
 		clovis_st_obj_op(&obj, M0_CLOVIS_OC_WRITE,
@@ -226,14 +230,14 @@ static void read_one_block(void)
 		return;
 
 	ext.iv_index[0] = 0;
-	ext.iv_vec.v_count[0] = 4096;
+	ext.iv_vec.v_count[0] = DEFAULT_PARGRP_UNIT_SIZE;
 	CLOVIS_ST_ASSERT_FATAL(ext.iv_vec.v_nr == 1);
 
 	/*
 	 * this allocates 1 * 4K buffers for data, and initialises
 	 * the bufvec for us.
 	 */
-	rc = m0_bufvec_alloc(&data, 1, 4096);
+	rc = m0_bufvec_alloc(&data, 1, DEFAULT_PARGRP_UNIT_SIZE);
 	if (rc != 0)
 		return;
 	rc = m0_bufvec_alloc(&attr, 1, 1);
@@ -245,7 +249,8 @@ static void read_one_block(void)
 
 	/* Get the id of an existing object (written via m0t1fs). */
 	id = read_oid_get(0);
-	clovis_st_obj_init(&obj, &clovis_st_read_container.co_realm, &id);
+	clovis_st_obj_init(&obj, &clovis_st_read_container.co_realm,
+			   &id, default_layout_id);
 
 	/* Create the read request */
 	clovis_st_obj_op(&obj, M0_CLOVIS_OC_READ, &ext, &data, &attr, 0, &ops[0]);
@@ -299,17 +304,17 @@ static void read_multiple_blocks(void)
 
 	/* Extent indexes and lengths */
 	ext.iv_index[0] = 0;
-	ext.iv_vec.v_count[0] = 4096;
-	ext.iv_index[1] = 4096;
-	ext.iv_vec.v_count[1] = 4096;
-	ext.iv_index[2] = 2*4096;
-	ext.iv_vec.v_count[2] = 4096;
+	ext.iv_vec.v_count[0] = DEFAULT_PARGRP_UNIT_SIZE;
+	ext.iv_index[1] = DEFAULT_PARGRP_UNIT_SIZE;
+	ext.iv_vec.v_count[1] = DEFAULT_PARGRP_UNIT_SIZE;
+	ext.iv_index[2] = 2*DEFAULT_PARGRP_UNIT_SIZE;
+	ext.iv_vec.v_count[2] = DEFAULT_PARGRP_UNIT_SIZE;
 
 	/*
 	 * this allocates 3 * 4K buffers for data, and initialises
 	 * the bufvec for us.
 	 */
-	rc = m0_bufvec_alloc(&data, 3, 4096);
+	rc = m0_bufvec_alloc(&data, 3, DEFAULT_PARGRP_UNIT_SIZE);
 	if (rc != 0)
 		return;
 	rc = m0_bufvec_alloc(&attr, 3, 1);
@@ -323,7 +328,8 @@ static void read_multiple_blocks(void)
 
 	/* Get the id of an existing object. */
 	id = read_oid_get(0);
-	clovis_st_obj_init(&obj, &clovis_st_read_container.co_realm, &id);
+	clovis_st_obj_init(&obj, &clovis_st_read_container.co_realm,
+			   &id, default_layout_id);
 
 	/* Create the read request */
 	clovis_st_obj_op(&obj, M0_CLOVIS_OC_READ, &ext, &data, &attr, 0, &ops[0]);
@@ -365,33 +371,33 @@ static void read_multiple_blocks(void)
  */
 static void read_multiple_blocks_into_aligned_buffers(void)
 {
-	int                        rc;
-	struct m0_clovis_op       *ops[1] = {NULL};
-	struct m0_clovis_obj       obj;
-	struct m0_uint128          id;
-	struct m0_indexvec         ext;
-	struct m0_bufvec           data;
-	struct m0_bufvec           attr;
-	void                      *stashed_buffers[2];
+	int                   rc;
+	struct m0_clovis_op  *ops[1] = {NULL};
+	struct m0_clovis_obj  obj;
+	struct m0_uint128     id;
+	struct m0_indexvec    ext;
+	struct m0_bufvec      data;
+	struct m0_bufvec      attr;
+	void                 *stashed_buffers[2];
 
 	M0_CLOVIS_THREAD_ENTER;
 
-	/* we want to read 2x 4K starting with the second blockof  the object */
+	/* we want to read 2 units starting with the second blockof  the object */
 	rc = m0_indexvec_alloc(&ext, 2);
 	if (rc != 0)
 		return;
 
 	/* Extent indexes and lengths */
-	ext.iv_index[0] = 4096;
-	ext.iv_vec.v_count[0] = 4096;
-	ext.iv_index[1] = 2*4096;
-	ext.iv_vec.v_count[1] = 4096;
+	ext.iv_index[0] = unit_size;
+	ext.iv_vec.v_count[0] = unit_size;
+	ext.iv_index[1] = 2 * unit_size;
+	ext.iv_vec.v_count[1] = unit_size;
 
 	/*
-	 * this allocates 2 * 4K buffers for data, and initialises
+	 * this allocates 2 * unit_size buffers for data, and initialises
 	 * the bufvec for us.
 	 */
-	rc = m0_bufvec_alloc(&data, 2, 4096);
+	rc = m0_bufvec_alloc(&data, 2, unit_size);
 	if (rc != 0)
 		return;
 	rc = m0_bufvec_alloc(&attr, 2, 1);
@@ -403,10 +409,10 @@ static void read_multiple_blocks_into_aligned_buffers(void)
 	 * aligned buffers.
 	 */
 	stashed_buffers[0] = data.ov_buf[0];
-	clovis_st_alloc_aligned(&data.ov_buf[0], 4096, 4096);
+	clovis_st_alloc_aligned(&data.ov_buf[0], unit_size, unit_size);
 	CLOVIS_ST_ASSERT_FATAL(data.ov_buf[0] != NULL);
 	stashed_buffers[1] = data.ov_buf[1];
-	clovis_st_alloc_aligned(&data.ov_buf[1], 4096, 4096);
+	clovis_st_alloc_aligned(&data.ov_buf[1], unit_size, unit_size);
 	CLOVIS_ST_ASSERT_FATAL(data.ov_buf[1] != NULL);
 
 	/* we don't want any attributes */
@@ -415,7 +421,8 @@ static void read_multiple_blocks_into_aligned_buffers(void)
 
 	/* Get the id of an existing object. */
 	id = read_oid_get(0);
-	clovis_st_obj_init(&obj, &clovis_st_read_container.co_realm, &id);
+	clovis_st_obj_init(&obj, &clovis_st_read_container.co_realm,
+			   &id, default_layout_id);
 
 	/* Create the read request */
 	clovis_st_obj_op(&obj, M0_CLOVIS_OC_READ, &ext, &data, &attr, 0, &ops[0]);
@@ -444,9 +451,9 @@ static void read_multiple_blocks_into_aligned_buffers(void)
 	clovis_st_entity_fini(&obj.ob_entity);
 
 	/* Swap the buffers back */
-	clovis_st_free_aligned(data.ov_buf[0], 4096, 4096);
+	clovis_st_free_aligned(data.ov_buf[0], unit_size, unit_size);
 	data.ov_buf[0] = stashed_buffers[0];
-	clovis_st_free_aligned(data.ov_buf[1], 4096, 4096);
+	clovis_st_free_aligned(data.ov_buf[1], unit_size, unit_size);
 	data.ov_buf[1] = stashed_buffers[1];
 
 	m0_indexvec_free(&ext);
@@ -476,14 +483,14 @@ static void read_one_block_from_nowhere(void)
 		return;
 
 	ext.iv_index[0] = 0;
-	ext.iv_vec.v_count[0] = 4096;
+	ext.iv_vec.v_count[0] = unit_size;
 	CLOVIS_ST_ASSERT_FATAL(ext.iv_vec.v_nr == 1);
 
 	/*
 	 * this allocates 1 * 4K buffers for data, and initialises
 	 * the bufvec for us.
 	 */
-	rc = m0_bufvec_alloc(&data, 1, 4096);
+	rc = m0_bufvec_alloc(&data, 1, unit_size);
 	if (rc != 0)
 		return;
 	rc = m0_bufvec_alloc(&attr, 1, 1);
@@ -496,7 +503,8 @@ static void read_one_block_from_nowhere(void)
 	/* Get the id of a non-existent object. */
 	id = read_oid_get(-1);
 
-	clovis_st_obj_init(&obj, &clovis_st_read_container.co_realm, &id);
+	clovis_st_obj_init(&obj, &clovis_st_read_container.co_realm,
+			   &id, default_layout_id);
 
 	/* Create the read request */
 	clovis_st_obj_op(&obj, M0_CLOVIS_OC_READ, &ext, &data, &attr, 0, &ops[0]);
@@ -546,7 +554,8 @@ static void read_after_delete(void)
 
 	/* 1. Delete the object fisrt*/
 	memset(&obj, 0, sizeof obj);
-	clovis_st_obj_init(&obj, &clovis_st_read_container.co_realm, &id);
+	clovis_st_obj_init(&obj, &clovis_st_read_container.co_realm,
+			   &id, default_layout_id);
 	rc = clovis_st_entity_delete(&obj.ob_entity, &ops[0]);
 	CLOVIS_ST_ASSERT_FATAL(rc == 0);
 
@@ -570,14 +579,14 @@ static void read_after_delete(void)
 		return;
 
 	ext.iv_index[0] = 0;
-	ext.iv_vec.v_count[0] = 4096;
+	ext.iv_vec.v_count[0] = unit_size;
 	CLOVIS_ST_ASSERT_FATAL(ext.iv_vec.v_nr == 1);
 
 	/*
 	 * this allocates 1 * 4K buffers for data, and initialises
 	 * the bufvec for us.
 	 */
-	rc = m0_bufvec_alloc(&data, 1, 4096);
+	rc = m0_bufvec_alloc(&data, 1, unit_size);
 	if (rc != 0)
 		return;
 
@@ -592,7 +601,8 @@ static void read_after_delete(void)
 	memset(&obj, 0, sizeof obj);
 
 	console_printf("Read after delete \n");
-	clovis_st_obj_init(&obj, &clovis_st_read_container.co_realm, &id);
+	clovis_st_obj_init(&obj, &clovis_st_read_container.co_realm,
+			   &id, default_layout_id);
 	clovis_st_obj_op(&obj, M0_CLOVIS_OC_READ, &ext, &data, &attr, 0, &ops[0]);
 
 	clovis_st_op_launch(ops, ARRAY_SIZE(ops));
@@ -649,7 +659,7 @@ static void read_objs_in_parallel(void)
 
 	for (i = 0; i < nr_objs; i++) {
 		if (m0_indexvec_alloc(&ext[i], 1) ||
-		    m0_bufvec_alloc(&data[i], 1, 4096) ||
+		    m0_bufvec_alloc(&data[i], 1, unit_size) ||
 		    m0_bufvec_alloc(&attr[i], 1, 1))
 		{
 			rc = -ENOMEM;
@@ -657,7 +667,7 @@ static void read_objs_in_parallel(void)
 		}
 
 		ext[i].iv_index[0] = 0;
-		ext[i].iv_vec.v_count[0] = 4096;
+		ext[i].iv_vec.v_count[0] = unit_size;
 		attr[i].ov_vec.v_count[0] = 0;
 	}
 
@@ -666,7 +676,7 @@ static void read_objs_in_parallel(void)
 		id = read_oid_get(i);
 
 		clovis_st_obj_init(&objs[i], &clovis_st_read_container.co_realm,
-				  &id);
+				   &id, default_layout_id);
 		clovis_st_obj_op(&objs[i], M0_CLOVIS_OC_READ,
 			      &ext[i], &data[i], &attr[i], 0, &ops[i]);
 		if (ops[i] == NULL)
@@ -737,6 +747,9 @@ static int clovis_st_read_suite_init(void)
 		console_printf("Failed to open uber realm\n");
 		goto EXIT;
 	}
+
+	default_layout_id =
+		m0_clovis_default_layout_id(clovis_st_get_instance());
 
 	/*
 	 * Create objects for tests including a few more used

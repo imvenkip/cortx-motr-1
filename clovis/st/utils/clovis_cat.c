@@ -137,7 +137,8 @@ static int cat()
 	}
 
 	/* Read the requisite number of blocks from the entity */
-	m0_clovis_obj_init(&obj, &clovis_uber_realm, &id);
+	m0_clovis_obj_init(&obj, &clovis_uber_realm, &id,
+			   m0_clovis_default_layout_id(clovis_instance));
 	/* Create the read request */
 	m0_clovis_obj_op(&obj, M0_CLOVIS_OC_READ, &ext, &data, &attr, 0, &ops[0]);
 	assert(rc == 0);

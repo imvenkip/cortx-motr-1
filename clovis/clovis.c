@@ -354,7 +354,8 @@ M0_INTERNAL void m0_clovis_entity_init(struct m0_clovis_entity *entity,
 
 void m0_clovis_obj_init(struct m0_clovis_obj    *obj,
 			struct m0_clovis_realm  *parent,
-			const struct m0_uint128 *id)
+			const struct m0_uint128 *id,
+			uint64_t                 layout_id)
 {
 	M0_ENTRY();
 
@@ -368,6 +369,8 @@ void m0_clovis_obj_init(struct m0_clovis_obj    *obj,
 
 	/* set the blocksize to a reasonable default */
 	obj->ob_attr.oa_bshift = CLOVIS_DEFAULT_BUF_SHIFT;
+	M0_ASSERT(layout_id > 0 && layout_id < m0_lid_to_unit_map_nr);
+	obj->ob_attr.oa_layout_id = layout_id;
 
 	M0_LEAVE();
 }

@@ -45,6 +45,7 @@
 
 static struct m0_uint128 test_id;
 struct m0_clovis_container clovis_st_obj_container;
+static uint64_t default_layout_id;
 
 /**
  * Creates an object.
@@ -64,7 +65,8 @@ static void obj_create_simple(void)
 	/* Initialise ids. */
 	clovis_oid_get(&id);
 
-	clovis_st_obj_init(obj, &clovis_st_obj_container.co_realm, &id);
+	clovis_st_obj_init(obj, &clovis_st_obj_container.co_realm,
+			   &id, default_layout_id);
 	rc = clovis_st_entity_create(&obj->ob_entity, &ops[0]);
 	CLOVIS_ST_ASSERT_FATAL(rc == 0);
 	CLOVIS_ST_ASSERT_FATAL(ops[0] != NULL);
@@ -106,8 +108,10 @@ static void obj_create_double_same_id(void)
 	/* Initialise ids. */
 	clovis_oid_get(&id);
 
-	clovis_st_obj_init(obj[0], &clovis_st_obj_container.co_realm, &id);
-	clovis_st_obj_init(obj[1], &clovis_st_obj_container.co_realm, &id);
+	clovis_st_obj_init(obj[0], &clovis_st_obj_container.co_realm,
+			   &id, default_layout_id);
+	clovis_st_obj_init(obj[1], &clovis_st_obj_container.co_realm,
+			   &id, default_layout_id);
 
 	clovis_st_entity_create(&obj[0]->ob_entity, &ops[0]);
 	CLOVIS_ST_ASSERT_FATAL(ops[0] != NULL);
@@ -175,7 +179,7 @@ static void obj_create_multiple_objects(void)
 	/* Create different objects. */
 	for (i = 0; i < CREATE_MULTIPLE_N_OBJS; ++i) {
 		clovis_st_obj_init(objs[i], &clovis_st_obj_container.co_realm,
-				   &id[i]);
+				   &id[i], default_layout_id);
 		rc = clovis_st_entity_create(&objs[i]->ob_entity, &ops[i]);
 		CLOVIS_ST_ASSERT_FATAL(rc == 0);
 		CLOVIS_ST_ASSERT_FATAL(ops[i] != NULL);
@@ -229,7 +233,8 @@ static void obj_delete_non_existent(void)
 	/* initialise the id */
 	clovis_oid_get(&id);
 
-	clovis_st_obj_init(obj, &clovis_st_obj_container.co_realm, &id);
+	clovis_st_obj_init(obj, &clovis_st_obj_container.co_realm,
+			   &id, default_layout_id);
 
 	/* Delete the entity. but it does not exist! I know! :'( */
 	rc = clovis_st_entity_delete(&obj->ob_entity, &ops[0]);
@@ -271,7 +276,8 @@ static void obj_create_then_delete(void)
 	clovis_oid_get(&id);
 
 	for (i = 0; i < rounds; i++) {
-		clovis_st_obj_init(obj, &clovis_st_obj_container.co_realm, &id);
+		clovis_st_obj_init(obj, &clovis_st_obj_container.co_realm,
+				   &id, default_layout_id);
 
 		/* Create the entity */
 		rc = clovis_st_entity_create(&obj->ob_entity, &ops_c[0]);
@@ -368,7 +374,8 @@ static void obj_delete_multiple(void)
 			obj_used[idx] = true;
 
 			clovis_st_obj_init(&objs[idx],
-				&clovis_st_obj_container.co_realm, &ids[idx]);
+				&clovis_st_obj_container.co_realm,
+				&ids[idx], default_layout_id);
 			if (obj_exists[idx]) {
 				rc = clovis_st_entity_delete(
 					&objs[idx].ob_entity, &ops[j]);
@@ -436,7 +443,8 @@ static void obj_no_wait(void)
 	/* Initialise ids. */
 	clovis_oid_get(&id);
 
-	clovis_st_obj_init(obj, &clovis_st_obj_container.co_realm, &id);
+	clovis_st_obj_init(obj, &clovis_st_obj_container.co_realm,
+			   &id, default_layout_id);
 	rc = clovis_st_entity_create(&obj->ob_entity, &ops[0]);
 	CLOVIS_ST_ASSERT_FATAL(rc == 0);
 	CLOVIS_ST_ASSERT_FATAL(ops[0] != NULL);
@@ -476,7 +484,8 @@ static void obj_wait_no_launch(void)
 	/* Initialise ids. */
 	clovis_oid_get(&id);
 
-	clovis_st_obj_init(obj, &clovis_st_obj_container.co_realm, &id);
+	clovis_st_obj_init(obj, &clovis_st_obj_container.co_realm,
+			   &id, default_layout_id);
 	rc = clovis_st_entity_create(&obj->ob_entity, &ops[0]);
 	CLOVIS_ST_ASSERT_FATAL(rc == 0);
 	CLOVIS_ST_ASSERT_FATAL(ops[0] != NULL);
@@ -513,7 +522,8 @@ static void obj_wait_twice(void)
 	/* Initialise ids. */
 	clovis_oid_get(&id);
 
-	clovis_st_obj_init(obj, &clovis_st_obj_container.co_realm, &id);
+	clovis_st_obj_init(obj, &clovis_st_obj_container.co_realm,
+			   &id, default_layout_id);
 	rc = clovis_st_entity_create(&obj->ob_entity, &ops[0]);
 	CLOVIS_ST_ASSERT_FATAL(rc == 0);
 	CLOVIS_ST_ASSERT_FATAL(ops[0] != NULL);
@@ -582,7 +592,8 @@ static void obj_op_setup(void)
 
 	/* Initilise an CREATE op. */
 	clovis_oid_get(&id);
-	clovis_st_obj_init(obj, &clovis_st_obj_container.co_realm, &id);
+	clovis_st_obj_init(obj, &clovis_st_obj_container.co_realm,
+			   &id, default_layout_id);
 	rc = clovis_st_entity_create(&obj->ob_entity, &ops[0]);
 	CLOVIS_ST_ASSERT_FATAL(rc == 0);
 	CLOVIS_ST_ASSERT_FATAL(ops[0] != NULL);
@@ -609,7 +620,8 @@ static void obj_op_setup(void)
 	memset(obj, 0, sizeof *obj);
 	clovis_oid_get(&id);
 
-	clovis_st_obj_init(obj, &clovis_st_obj_container.co_realm, &id);
+	clovis_st_obj_init(obj, &clovis_st_obj_container.co_realm,
+			   &id, default_layout_id);
 	rc = clovis_st_entity_delete(&obj->ob_entity, &ops[0]);
 	CLOVIS_ST_ASSERT_FATAL(rc == 0);
 
@@ -655,6 +667,8 @@ static int clovis_st_obj_suite_init(void)
 	test_id = M0_CLOVIS_ID_APP;
 	test_id.u_lo += generate_random(0xffff);
 
+	default_layout_id =
+		m0_clovis_default_layout_id(clovis_st_get_instance());
 	return rc;
 }
 

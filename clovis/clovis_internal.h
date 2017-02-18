@@ -184,13 +184,14 @@ struct m0_clovis_op_obj {
 	struct m0_sm_group         *oo_sm_grp;
 	struct m0_clovis_ast_rc     oo_ar;
 
-	struct m0_layout_instance  *oo_layout_instance;
-	struct m0_fid               oo_pver;     /* cob pool version */
 	struct m0_fid               oo_fid;
 #ifdef CLOVIS_FOR_M0T1FS
 	struct m0_fid               oo_pfid;
 	struct m0_buf               oo_name;
 #endif
+
+	struct m0_fid               oo_pver;     /* cob pool version */
+	struct m0_layout_instance  *oo_layout_instance;
 
 	/* MDS fop */
 	struct m0_fop              *oo_mds_fop;
@@ -651,8 +652,8 @@ M0_INTERNAL void m0_clovis_entity_init(struct m0_clovis_entity *entity,
  */
 
 M0_INTERNAL int
-m0_clovis_pool_version_get(struct m0_clovis *instance,
-			   struct m0_pool_version **pv);
+m0_clovis__pool_version_get(struct m0_clovis *instance,
+			    struct m0_pool_version **pv);
 
 /**
  * Gets the default layout identifier from confd.
@@ -661,7 +662,7 @@ m0_clovis_pool_version_get(struct m0_clovis *instance,
  * @return Default layout id.
  */
 M0_INTERNAL uint64_t
-m0_clovis_obj_default_layout_id_get(struct m0_clovis *instance);
+m0_clovis__obj_layout_id_get(struct m0_clovis_op_obj *oo);
 
 /**
  * Builds a layout instance using the supplied layout.
@@ -674,10 +675,10 @@ m0_clovis_obj_default_layout_id_get(struct m0_clovis *instance);
  * @remark This function might trigger network traffic.
  */
 M0_INTERNAL int
-m0_clovis_obj_layout_instance_build(struct m0_clovis *cinst,
-				    const uint64_t layout_id,
-				    const struct m0_fid *fid,
-				    struct m0_layout_instance **linst);
+m0_clovis__obj_layout_instance_build(struct m0_clovis *cinst,
+				     const uint64_t layout_id,
+				     const struct m0_fid *fid,
+				     struct m0_layout_instance **linst);
 
 #ifdef CLOVIS_MOCK
 /* these functions are how the mock stores state */

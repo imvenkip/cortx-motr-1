@@ -518,24 +518,22 @@ void m0_clovis_obj_op(struct m0_clovis_obj       *obj,
 	m0_fid_gob_make(&ioo->ioo_oo.oo_fid,
 			obj->ob_entity.en_id.u_hi, obj->ob_entity.en_id.u_lo);
 
-
 	/* Get current pool version for the object. */
-	rc = m0_clovis_pool_version_get(instance, &pv);
+	rc = m0_clovis__pool_version_get(instance, &pv);
 	if (rc != 0)
 		goto fail;
 	ioo->ioo_pver = pv->pv_id;
 
 	/*
-	 * Build layout instance: current implementation of Clovis doesn't
-	 * retrieve latest latest layout id of an object (and it doesn't
-	 * even have an API to change layout id). So only M0_DEFALUT_LAYOUT_ID
-	 * is used. Something needs to be done here[TODO].
+	 * TODO: Build layout instance: current implementation of Clovis
+	 * doesn't retrieve latest latest layout id of an object (and it
+	 * doesn't even have an API to change layout id).
 	 */
 	layout_id = m0_pool_version2layout_id(&ioo->ioo_pver,
-			m0_clovis_obj_default_layout_id_get(instance));
-	rc = m0_clovis_obj_layout_instance_build(instance, layout_id,
-						 &oo->oo_fid,
-						 &oo->oo_layout_instance);
+			m0_clovis__obj_layout_id_get(oo));
+	rc = m0_clovis__obj_layout_instance_build(instance, layout_id,
+						  &oo->oo_fid,
+						  &oo->oo_layout_instance);
 	if (rc != 0)
 		goto fail;
 

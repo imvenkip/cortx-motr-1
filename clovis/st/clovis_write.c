@@ -37,34 +37,32 @@
 
 struct m0_clovis_container clovis_st_write_container;
 extern struct m0_addb_ctx m0_clovis_addb_ctx;
-
-
-
-#define PARGRP_UNIT_SIZE     (4096)
-#define PARGRP_DATA_UNIT_NUM (2)
-#define PARGRP_DATA_SIZE     (PARGRP_DATA_UNIT_NUM * PARGRP_UNIT_SIZE)
+static uint64_t default_layout_id;
 
 #define MAX_OPS (16)
 
 /* Parity group aligned (in units)*/
 enum {
-	SMALL_OBJ_SIZE  = 1    * PARGRP_DATA_UNIT_NUM,
-	MEDIUM_OBJ_SIZE = 100  * PARGRP_DATA_UNIT_NUM,
-	LARGE_OBJ_SIZE  = 2000 * PARGRP_DATA_UNIT_NUM
+	SMALL_OBJ_SIZE  = 1   * DEFAULT_PARGRP_DATA_SIZE,
+	MEDIUM_OBJ_SIZE = 12  * DEFAULT_PARGRP_DATA_SIZE,
+	LARGE_OBJ_SIZE  = 120 * DEFAULT_PARGRP_DATA_SIZE
 };
 
-static int create_obj(struct m0_uint128 *oid)
+static int create_obj(struct m0_uint128 *oid, int unit_size)
 {
 	int                   rc = 0;
 	struct m0_clovis_op  *ops[1] = {NULL};
 	struct m0_clovis_obj  obj;
 	struct m0_uint128     id;
+	uint64_t              lid;
 
 	/* Make sure everything in 'obj' is clean*/
 	memset(&obj, 0, sizeof(obj));
 
 	clovis_oid_get(&id);
-	clovis_st_obj_init(&obj, &clovis_st_write_container.co_realm, &id);
+	lid = m0_clovis_obj_unit_size_to_layout_id(unit_size);
+	clovis_st_obj_init(&obj, &clovis_st_write_container.co_realm, &id, lid);
+
 	clovis_st_entity_create(&obj.ob_entity, &ops[0]);
 	if (ops[0] == NULL)
 		return -ENOENT;
@@ -128,7 +126,7 @@ static int compare_data(struct m0_bufvec b1, struct m0_bufvec b2)
 
 /* Verify each stride one by one */
 static int write_verify(struct m0_bufvec *data_w, struct m0_uint128 oid,
-			int start, int stride, int nr_ops)
+			int start, int stride, int unit_size, int nr_ops)
 {
 	int                   i;
 	int                   rc;
@@ -137,27 +135,29 @@ static int write_verify(struct m0_bufvec *data_w, struct m0_uint128 oid,
 	struct m0_indexvec    ext_r;
 	struct m0_bufvec      data_r;
 	struct m0_bufvec      attr_r;
+	uint64_t              lid;
 
 	rc = 0;
+	lid = m0_clovis_obj_unit_size_to_layout_id(unit_size);
 
 	/* Setup bufvec, indexvec and ops for READs */
 	for (i = 0; i < nr_ops; i++) {
 		M0_SET0(&obj);
 		ops_r[0] = NULL;
 
-		clovis_st_obj_init(&obj,
-			&clovis_st_write_container.co_realm, &oid);
+		clovis_st_obj_init(&obj, &clovis_st_write_container.co_realm,
+				   &oid, lid);
 
 		if (m0_indexvec_alloc(&ext_r, 1) ||
-		    m0_bufvec_alloc(&data_r, 1, 4096 * stride) ||
+		    m0_bufvec_alloc(&data_r, 1, unit_size * stride) ||
 		    m0_bufvec_alloc(&attr_r, 1, 1))
 		{
 			rc = -ENOMEM;
 			goto CLEANUP;
 		}
 
-		ext_r.iv_index[0] = 4096 * (start + i * stride);
-		ext_r.iv_vec.v_count[0] = 4096 * stride;
+		ext_r.iv_index[0] = unit_size * (start + i * stride);
+		ext_r.iv_vec.v_count[0] = unit_size * stride;
 		attr_r.ov_vec.v_count[0] = 0;
 
 		/* Create and launch the read requests */
@@ -205,10 +205,11 @@ CLEANUP:
  * stride: in units
  */
 static int write_obj(struct m0_uint128 oid, int start,
-		     int stride, int nr_ops, bool verify)
+		     int stride, int unit_size, int nr_ops, bool verify)
 {
 	int                    i;
 	int                    rc = 0;
+	uint64_t               lid;
 	struct m0_clovis_obj   obj;
 	struct m0_clovis_op  **ops_w;
 	struct m0_indexvec    *ext_w;
@@ -221,7 +222,8 @@ static int write_obj(struct m0_uint128 oid, int start,
 		return -EINVAL;
 
 	/* Init obj */
-	clovis_st_obj_init(&obj, &clovis_st_write_container.co_realm, &oid);
+	lid = m0_clovis_obj_unit_size_to_layout_id(unit_size);
+	clovis_st_obj_init(&obj, &clovis_st_write_container.co_realm, &oid, lid);
 
 	/* Setup bufvec, indexvec and ops for WRITEs */
 	MEM_ALLOC_ARR(ops_w, nr_ops);
@@ -233,22 +235,21 @@ static int write_obj(struct m0_uint128 oid, int start,
 
 	for (i = 0; i < nr_ops; i++) {
 		if (m0_indexvec_alloc(&ext_w[i], 1) ||
-		    m0_bufvec_alloc(&data_w[i], 1, 4096 * stride) ||
+		    m0_bufvec_alloc(&data_w[i], 1, unit_size * stride) ||
 		    m0_bufvec_alloc(&attr_w[i], 1, 1))
 		{
 			rc = -ENOMEM;
 			goto CLEANUP;
 		}
 
-		memset(data_w[i].ov_buf[0], 'A', 4096 * stride);
-		ext_w[i].iv_index[0] = 4096 * (start +  i * stride);
-		ext_w[i].iv_vec.v_count[0] = 4096 * stride;
+		memset(data_w[i].ov_buf[0], 'A', unit_size * stride);
+		ext_w[i].iv_index[0] = unit_size * (start +  i * stride);
+		ext_w[i].iv_vec.v_count[0] = unit_size * stride;
 		attr_w[i].ov_vec.v_count[0] = 0;
 	}
 
 	/* Create and launch write requests */
 	for (i = 0; i < nr_ops; i++) {
-		//clovis_obj_init(&obj, &clovis_st_write_container.co_realm, &id);
 		ops_w[i] = NULL;
 		clovis_st_obj_op(&obj, M0_CLOVIS_OC_WRITE,
 			      &ext_w[i], &data_w[i], &attr_w[i], 0, &ops_w[i]);
@@ -273,8 +274,7 @@ static int write_obj(struct m0_uint128 oid, int start,
 	/* 3. Verify the data written */
 	if (!verify)
 		goto CLEANUP;
-
-	rc = write_verify(data_w, oid, start, stride, nr_ops);
+	rc = write_verify(data_w, oid, start, stride, unit_size, nr_ops);
 
 CLEANUP:
 	clovis_st_entity_fini(&obj.ob_entity);
@@ -301,54 +301,60 @@ CLEANUP:
  * in top function), we duplicate for the following small/medium/large tests
  * to get more assert checks.
  */
-#define write_objs(nr_objs, size, verify) \
+#define write_objs(nr_objs, size, unit_size, verify) \
 	do { \
 		int               rc; \
 		int               i; \
 		int               j; \
 		int               start = 0; \
-		int               nr_pargrps; \
 		int               nr_units; \
+		int               nr_pargrps; \
 		struct m0_uint128 oid; \
                                                 \
-		nr_pargrps = size / PARGRP_DATA_SIZE; \
-		nr_units   = size / PARGRP_UNIT_SIZE; \
+		nr_units = size / unit_size; \
+		nr_pargrps = nr_units / DEFAULT_PARGRP_DATA_UNIT_NUM; \
                                                                       \
 		for (i = 0; i < nr_objs; i++) { \
-			rc = create_obj(&oid); \
+			rc = create_obj(&oid, unit_size); \
 			CLOVIS_ST_ASSERT_FATAL(rc == 0);\
                                                         \
 			for (j = 0; j < nr_pargrps; j++) { \
-				start = j * PARGRP_DATA_UNIT_NUM; \
+				start = j * DEFAULT_PARGRP_DATA_UNIT_NUM; \
 				rc = write_obj(oid, start, \
-					PARGRP_DATA_UNIT_NUM, 1, verify);\
-				CLOVIS_ST_ASSERT_FATAL(rc == 0);         \
-			}                                                        \
-										 \
-			/* write the rest of data */				 \
-			start += PARGRP_DATA_UNIT_NUM;				 \
-			if (start >= nr_units)					 \
-				continue;					 \
-									 	 \
+					DEFAULT_PARGRP_DATA_UNIT_NUM, \
+					unit_size, 1, verify);\
+				CLOVIS_ST_ASSERT_FATAL(rc == 0);	\
+			}						\
+									\
+			/* write the rest of data */			\
+			start += DEFAULT_PARGRP_DATA_UNIT_NUM;		\
+			if (start >= nr_units)				\
+				continue;				\
+									\
 			rc = write_obj(oid, start, \
-				nr_units - start, 1, verify); \
+				nr_units - start, unit_size, 1, verify); \
 			CLOVIS_ST_ASSERT_FATAL(rc == 0); \
 		} \
 	} while(0)
 
 static void write_small_objs(void)
 {
-	write_objs(10, SMALL_OBJ_SIZE, true);
+	write_objs(10, SMALL_OBJ_SIZE, DEFAULT_PARGRP_UNIT_SIZE, true);
 }
 
 static void write_medium_objs(void)
 {
-	write_objs(10, MEDIUM_OBJ_SIZE, false);
+	write_objs(10, MEDIUM_OBJ_SIZE, DEFAULT_PARGRP_UNIT_SIZE, false);
 }
 
 static void write_large_objs(void)
 {
-	write_objs(1, LARGE_OBJ_SIZE, false);
+	write_objs(1, LARGE_OBJ_SIZE, DEFAULT_PARGRP_UNIT_SIZE, false);
+}
+
+static void write_with_layout_id(void)
+{
+	write_objs(1, LARGE_OBJ_SIZE, 16384, true);
 }
 
 static void write_pargrps_in_parallel_ops(void)
@@ -362,13 +368,16 @@ static void write_pargrps_in_parallel_ops(void)
 	nr_rounds = 4;
 
 	/* Create an object */
-	rc = create_obj(&oid);
+	rc = create_obj(&oid, DEFAULT_PARGRP_UNIT_SIZE);
 	CLOVIS_ST_ASSERT_FATAL(rc == 0);
 
 	/* We change the number of ops issued together in each round */
 	nr_ops = 2^nr_rounds;
 	for (i = 0; i < nr_rounds; i++) {
-		rc = write_obj(oid, 0, PARGRP_DATA_UNIT_NUM, nr_ops, true);
+		rc = write_obj(oid, 0,
+			       DEFAULT_PARGRP_DATA_UNIT_NUM,
+			       DEFAULT_PARGRP_UNIT_SIZE,
+			       nr_ops, true);
 		CLOVIS_ST_ASSERT_FATAL(rc == 0);
 
 		nr_ops /= 2;
@@ -384,7 +393,7 @@ static void write_pargrps_rmw(void)
 	struct m0_uint128 oid;
 
 	/* Create an object */
-	rc = create_obj(&oid);
+	rc = create_obj(&oid, DEFAULT_PARGRP_UNIT_SIZE);
 	CLOVIS_ST_ASSERT_FATAL(rc == 0);
 
 	/*
@@ -392,7 +401,8 @@ static void write_pargrps_rmw(void)
 	 */
 	start  = 0;
 	for (i = 0; i < 10; i++) {
-		rc = write_obj(oid, start, strides[i], 1, true);
+		rc = write_obj(oid, start, strides[i],
+			       DEFAULT_PARGRP_UNIT_SIZE, 1, true);
 		CLOVIS_ST_ASSERT_FATAL(rc == 0);
 		start += strides[i];
 	}
@@ -411,7 +421,7 @@ static void write_pargrps(void)
 	struct m0_uint128 oid;
 
 	/* 1. Create an object */
-	rc = create_obj(&oid);
+	rc = create_obj(&oid, DEFAULT_PARGRP_UNIT_SIZE);
 	CLOVIS_ST_ASSERT_FATAL(rc == 0);
 
 	/*
@@ -419,10 +429,11 @@ static void write_pargrps(void)
 	 *    of the object
 	 */
 	start  = 0;
-	stride = 100; /* or PARGRP_DATA_UNIT_NUM */;
+	stride = 100; /* or DEFAULT_PARGRP_DATA_UNIT_NUM */;
 	nr_rounds = 2;
 	for (i = 0; i < nr_rounds; i++) {
-		rc = write_obj(oid, start, stride, 1, true);
+		rc = write_obj(oid, start, stride,
+			       DEFAULT_PARGRP_UNIT_SIZE, 1, true);
 		CLOVIS_ST_ASSERT_FATAL(rc == 0);
 		start += stride;
 	}
@@ -448,6 +459,9 @@ static int clovis_st_write_init(void)
 	if (rc != 0)
 		console_printf("Failed to open uber realm\n");
 
+	default_layout_id =
+		m0_clovis_default_layout_id(clovis_st_get_instance());
+
 	return rc;
 }
 
@@ -469,6 +483,7 @@ struct clovis_st_suite st_suite_clovis_write = {
 		{ "write_small_objs",  &write_small_objs},
 		{ "write_medium_objs", &write_medium_objs},
 		{ "write_large_objs", &write_large_objs},
+		{ "write_with_layout_id", &write_with_layout_id},
 		{ NULL, NULL }
 	}
 };

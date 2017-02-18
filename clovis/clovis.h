@@ -272,7 +272,7 @@
  * m0_clovis_op  *ops[2] = {};
  *
  * // initialise object in-memory structure.
- * m0_clovis_obj_init(&o, &container, &id);
+ * m0_clovis_obj_init(&o, &container, &id, 0);
  *
  * // initiate object creation. m0_clovis_entity_create() allocated the
  * // operation and stores the pointer to it in ops[0].
@@ -938,19 +938,22 @@ void m0_clovis_dtx_init      (struct m0_clovis_dtx       *dtx,
  * read, write, alloc and free operations executed on it.
  *
  * The size of data and parity buffer (m0_clovis_obj::ob_attr::oa_bshift) is
- * set to default value 'CLOVIS_DEFAULT_BUF_SHIFT'.
+ * set to default value 'CLOVIS_DEFAULT_BUF_SHIFT'. If layout_id == 0, this
+ * object will be set with default layout id.
  *
  * @param obj The object to initialise.
  * @param parent The realm operations on this object will be part of.
  * @param id The identifier assigned by the application to this object.
+ * @param layout_id The layout id assigned by the application to this object.
  *
  * @pre obj != NULL
  * @pre parent != NULL
  * @pre id != NULL && m0_uint128_cmp(&M0_CLOVIS_ID_APP, id) < 0
  */
-void m0_clovis_obj_init      (struct m0_clovis_obj       *obj,
-			      struct m0_clovis_realm     *parent,
-			      const struct m0_uint128    *id);
+void m0_clovis_obj_init(struct m0_clovis_obj    *obj,
+			struct m0_clovis_realm  *parent,
+			const struct m0_uint128 *id,
+			uint64_t                 layout_id);
 /**
  * Finalises an obj, leading to finilise entity and to free any additiona
  *  memory allocated to represent it.
@@ -1254,6 +1257,35 @@ int m0_clovis_sync(struct m0_clovis *m0c, bool wait);
  * @return Whether the entities type is valid.
  */
 M0_INTERNAL int m0_entity_type_is_valid(struct m0_clovis_entity *ent);
+
+/**
+ * Maps a unit size to a layout id defined in Mero.
+ *
+ * @param unit_size Parity group unit size set. Only those unit sizes defined
+ *                  in layout/layout_pver.c are valid.
+ * @return 0 for invalid unit sizes and layout id for valid unit sizes.
+ *
+ */
+uint64_t m0_clovis_obj_unit_size_to_layout_id(int unit_size);
+
+/**
+ * Maps a layout id to unit size.
+ *
+ * @param layout_id The layout id to query. The layout_id must be one of the valid
+ *                  layout ids defined in Mero.
+ * @return The corresponding unit size of queried layout id.
+ *
+ */
+int m0_clovis_obj_layout_id_to_unit_size(uint64_t layout_id);
+
+/**
+ * Gets the default layout id.
+ *
+ * @param instance The Clovis instance to query.
+ * @return If Clovis instance hasn't set the default layout id, retrieve
+ *         it from confd.
+ */
+uint64_t m0_clovis_default_layout_id(struct m0_clovis *instance);
 
 /** @} end of clovis group */
 

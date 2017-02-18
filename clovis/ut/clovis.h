@@ -40,6 +40,7 @@ extern struct m0_clovis_config clovis_default_config;
 									 \
 		confp->cc_is_oostore            = false; \
 		confp->cc_is_read_verify        = false; \
+		confp->cc_layout_id             = 1; \
 		confp->cc_local_addr            = CLOVIS_DEFAULT_EP;\
 		confp->cc_ha_addr               = CLOVIS_DEFAULT_HA_ADDR;\
 		confp->cc_confd                 = CLOVIS_DEFAULT_CONFD_ADDR;\

@@ -31,15 +31,17 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_LIB
 #include "lib/trace.h"
 
-M0_INTERNAL uint64_t m0_strtou64(const char *str, char **endptr, int base)
+uint64_t m0_strtou64(const char *str, char **endptr, int base)
 {
 	return strtoull(str, endptr, base);
 }
+M0_EXPORTED(m0_strtou64);
 
-M0_INTERNAL uint32_t m0_strtou32(const char *str, char **endptr, int base)
+uint32_t m0_strtou32(const char *str, char **endptr, int base)
 {
 	return strtoul(str, endptr, base);
 }
+M0_EXPORTED(m0_strtou32);
 
 /** Resolve a hostname to a stringified IP address */
 M0_INTERNAL int m0_host_resolve(const char *name, char *buf, size_t bufsiz)

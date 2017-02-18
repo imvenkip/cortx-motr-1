@@ -38,11 +38,11 @@ void clovis_st_container_init(struct m0_clovis_container *con,
 	m0_clovis_container_init(con, parent, id, instance);
 }
 
-void clovis_st_obj_init(struct m0_clovis_obj    *obj,
+void clovis_st_obj_init(struct m0_clovis_obj *obj,
 		     struct m0_clovis_realm  *parent,
-		     const struct m0_uint128 *id)
+		     const struct m0_uint128 *id, uint64_t layout_id)
 {
-	m0_clovis_obj_init(obj, parent, id);
+	m0_clovis_obj_init(obj, parent, id, layout_id);
 	clovis_st_mark_entity(&obj->ob_entity);
 }
 

@@ -29,7 +29,9 @@
 #include "lib/errno.h"
 #include "fid/fid.h"               /* m0_fid */
 #include "lib/locality.h"          /* m0_locality_here() */
+#include "lib/misc.h"              /* m0_strtou64() */
 #include "ioservice/fid_convert.h" /* m0_fid_convert_ */
+#include "layout/layout.h"         /* m0_lid_to_unit_map */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CLOVIS
 #include "lib/trace.h"
@@ -276,8 +278,8 @@ static void clovis_obj_namei_cb_fini(struct m0_clovis_op_common *oc)
 }
 
 M0_INTERNAL int
-m0_clovis_pool_version_get(struct m0_clovis *instance,
-			   struct m0_pool_version **pv)
+m0_clovis__pool_version_get(struct m0_clovis *instance,
+	 		    struct m0_pool_version **pv)
 {
 	int rc;
 
@@ -294,65 +296,29 @@ m0_clovis_pool_version_get(struct m0_clovis *instance,
 }
 
 M0_INTERNAL uint64_t
-m0_clovis_obj_default_layout_id_get(struct m0_clovis *instance)
+m0_clovis__obj_layout_id_get(struct m0_clovis_op_obj *oo)
 {
-	int                        rc;
-	int                        i;
-	uint64_t                   lid;
-	const uint64_t             FS_LID_INDEX = 1;
-	struct m0_reqh            *reqh = &instance->m0c_reqh;
-	struct m0_conf_filesystem *fs;
+	uint64_t              lid;
+	struct m0_clovis_obj *obj;
 
 	M0_ENTRY();
-	M0_PRE(instance != NULL);
 
-	if (M0_FI_ENABLED("return_default_layout"))
-		return M0_DEFAULT_LAYOUT_ID;
+	if (M0_FI_ENABLED("fake_obj_layout_id"))
+		return 1;
 
-	/*
-	 * TODO:This layout selection is a temporary solution for s3 team
-	 * requirement. In future this has to be replaced by more sophisticated
-	 * solution.
-	 */
-	if (instance->m0c_config->cc_layout_id)
-		return instance->m0c_config->cc_layout_id;
+	obj = M0_AMB(obj, oo->oo_oc.oc_op.op_entity, ob_entity);
+	lid = obj->ob_attr.oa_layout_id;
+	M0_ASSERT(lid > 0 && lid < m0_lid_to_unit_map_nr);
 
-	rc = m0_conf_fs_get(&reqh->rh_profile, m0_reqh2confc(reqh), &fs);
-	if (rc != 0)
-		goto EXIT;
-
-	if (fs->cf_params == NULL)
-		M0_LOG(M0_WARN, "fs->cf_params == NULL");
-
-	for (i = 0;
-	    fs->cf_params != NULL && fs->cf_params[i] != NULL; ++i) {
-		M0_LOG(M0_DEBUG, "param(%d): %s", i, fs->cf_params[i]);
-		if (i == FS_LID_INDEX) {
-#ifdef __KERNEL__
-			lid = simple_strtoul(fs->cf_params[i], NULL, 0);
-#else
-			lid = strtoul(fs->cf_params[i], NULL, 0);
-#endif
-			M0_LOG(M0_DEBUG, "fetched layout id: %s, %llu",
-			       fs->cf_params[i], (unsigned long long)lid);
-
-			M0_LEAVE();
-			m0_confc_close(&fs->cf_obj);
-			return lid;
-		}
-	}
-
-	m0_confc_close(&fs->cf_obj);
-EXIT:
 	M0_LEAVE();
-	return M0_DEFAULT_LAYOUT_ID;
+	return lid;
 }
 
 M0_INTERNAL int
-m0_clovis_obj_layout_instance_build(struct m0_clovis *cinst,
-				    const uint64_t layout_id,
-				    const struct m0_fid *fid,
-				    struct m0_layout_instance **linst)
+m0_clovis__obj_layout_instance_build(struct m0_clovis *cinst,
+				     const uint64_t layout_id,
+				     const struct m0_fid *fid,
+				     struct m0_layout_instance **linst)
 {
 	int                     rc = 0;
 	struct m0_layout       *layout;
@@ -422,7 +388,7 @@ static int clovis_obj_namei_op_init(struct m0_clovis_entity *entity,
 	char                       *obj_name;
 	uint64_t                    obj_key;
 	uint64_t                    obj_container;
-	uint64_t                    layout_id;
+	uint64_t                    lid;
 	struct m0_clovis_op_obj    *oo;
 	struct m0_clovis_op_common *oc;
 	struct m0_layout_instance  *linst;
@@ -475,10 +441,10 @@ static int clovis_obj_namei_op_init(struct m0_clovis_entity *entity,
 	m0_fid_gob_make(&oo->oo_fid, obj_container, obj_key);
 
 	/* Get a layout instance for the object. */
-	layout_id = m0_pool_version2layout_id(&oo->oo_pver,
-			m0_clovis_obj_default_layout_id_get(cinst));
-	rc = m0_clovis_obj_layout_instance_build(
-			cinst, layout_id, &oo->oo_fid, &linst);
+	lid = m0_pool_version2layout_id(&oo->oo_pver,
+				 	m0_clovis__obj_layout_id_get(oo));
+	rc = m0_clovis__obj_layout_instance_build(cinst, lid,
+						  &oo->oo_fid, &linst);
 	if (rc != 0)
 		goto error;
 	oo->oo_layout_instance = linst;
@@ -527,7 +493,7 @@ static int clovis_obj_op_obj_init(struct m0_clovis_op_obj *oo)
 	M0_ASSERT(cinst != NULL);
 
 	/* Get pool version */
-	if (m0_clovis_pool_version_get(cinst, &pv) != 0)
+	if (m0_clovis__pool_version_get(cinst, &pv) != 0)
 		return M0_ERR(-ENOENT);
 
 	oo->oo_pver = pv->pv_id;
@@ -723,6 +689,70 @@ int m0_clovis_entity_delete(struct m0_clovis_entity *entity,
 	return M0_RC(clovis_entity_namei_op(entity, op, M0_CLOVIS_EO_DELETE));
 }
 M0_EXPORTED(m0_clovis_entity_delete);
+
+uint64_t m0_clovis_obj_unit_size_to_layout_id(int unit_size)
+{
+	uint64_t i;
+
+	for (i = 0; i < m0_lid_to_unit_map_nr; i++)
+		if (m0_lid_to_unit_map[i] == unit_size)
+			break;
+
+	if (i == m0_lid_to_unit_map_nr)
+		return 0;
+	else
+		return i;
+}
+M0_EXPORTED(m0_clovis_obj_unit_size_to_layout_id);
+
+int m0_clovis_obj_layout_id_to_unit_size(uint64_t layout_id)
+{
+	M0_ASSERT(layout_id > 0 && layout_id < m0_lid_to_unit_map_nr);
+
+	return m0_lid_to_unit_map[layout_id];
+}
+M0_EXPORTED(m0_clovis_obj_layout_id_to_unit_size);
+
+uint64_t m0_clovis_default_layout_id(struct m0_clovis *instance)
+{
+	int                        rc;
+	uint64_t                   lid;
+	const uint64_t             FS_LID_INDEX = 1;
+	struct m0_reqh            *reqh = &instance->m0c_reqh;
+	struct m0_conf_filesystem *fs;
+
+	M0_ENTRY();
+	M0_PRE(instance != NULL);
+
+	if (M0_FI_ENABLED("return_default_layout"))
+		return M0_DEFAULT_LAYOUT_ID;
+
+	/*
+	 * TODO:This layout selection is a temporary solution for s3 team
+	 * requirement. In future this has to be replaced by more sophisticated
+	 * solution.
+	 */
+	if (instance->m0c_config->cc_layout_id != 0)
+		return instance->m0c_config->cc_layout_id;
+
+	rc = m0_conf_fs_get(&reqh->rh_profile, m0_reqh2confc(reqh), &fs);
+	if (rc != 0)
+		goto EXIT;
+	if (fs->cf_params != NULL && fs->cf_params[FS_LID_INDEX] != NULL) {
+		lid = m0_strtou64(fs->cf_params[FS_LID_INDEX], NULL, 0);
+		M0_LOG(M0_DEBUG, "fetched layout id: %s, %llu",
+		       fs->cf_params[FS_LID_INDEX], (unsigned long long)lid);
+		m0_confc_close(&fs->cf_obj);
+		instance->m0c_config->cc_layout_id = lid;
+		M0_LEAVE();
+		return lid;
+	}
+	m0_confc_close(&fs->cf_obj);
+EXIT:
+	M0_LEAVE();
+	return M0_DEFAULT_LAYOUT_ID;
+}
+M0_EXPORTED(m0_clovis_default_layout_id);
 
 #undef M0_TRACE_SUBSYSTEM
 

@@ -21,15 +21,17 @@
 #include <linux/cpu.h> /* simple_strtoull, simple_strtoul */
 #include "lib/misc.h"
 
-M0_INTERNAL uint64_t m0_strtou64(const char *str, char **endptr, int base)
+uint64_t m0_strtou64(const char *str, char **endptr, int base)
 {
 	return simple_strtoull(str, endptr, base);
 }
+M0_EXPORTED(m0_strtou64);
 
-M0_INTERNAL uint32_t m0_strtou32(const char *str, char **endptr, int base)
+uint32_t m0_strtou32(const char *str, char **endptr, int base)
 {
 	return simple_strtoul(str, endptr, base);
 }
+M0_EXPORTED(m0_strtou32);
 
 /*
  *  Local variables:

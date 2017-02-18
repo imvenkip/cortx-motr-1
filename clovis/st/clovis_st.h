@@ -55,15 +55,16 @@
  *
  * @{
  * */
-/* XXX juan: remove these macros once CLOVIS_ST_ASSERT_FATAL gets totally accepted */
-#define CLOVIS_ST_FINALLY finally
-
-#define CLOVIS_ST_ASSERT(a) if (!clovis_st_assertimpl((a), #a, __FILE__, \
-						     __LINE__, __func__)) { \
-				goto CLOVIS_ST_FINALLY; }
 
 enum {
 	CLOVIS_ST_MAX_WORKER_NUM = 32
+};
+
+enum {
+	DEFAULT_PARGRP_UNIT_SIZE     = 4096,
+	DEFAULT_PARGRP_DATA_UNIT_NUM = 3,
+	DEFAULT_PARGRP_DATA_SIZE     = DEFAULT_PARGRP_UNIT_SIZE *
+				       DEFAULT_PARGRP_DATA_UNIT_NUM
 };
 
 /*
@@ -269,9 +270,9 @@ void clovis_st_container_init(struct m0_clovis_container *con,
 		           struct m0_clovis_realm     *parent,
 	      		   const struct m0_uint128    *id,
 	      		   struct m0_clovis           *instance);
-void clovis_st_obj_init(struct m0_clovis_obj    *obj,
+void clovis_st_obj_init(struct m0_clovis_obj *obj,
 		     struct m0_clovis_realm  *parent,
-		     const struct m0_uint128 *id);
+		     const struct m0_uint128 *id, uint64_t layout_id);
 void clovis_st_obj_fini(struct m0_clovis_obj *obj);
 int clovis_st_entity_create(struct m0_clovis_entity *entity,
   			 struct m0_clovis_op **op);
@@ -283,12 +284,12 @@ int32_t clovis_st_op_wait(struct m0_clovis_op *op, uint64_t bits, m0_time_t to);
 void clovis_st_op_fini(struct m0_clovis_op *op);
 void clovis_st_op_free(struct m0_clovis_op *op);
 void clovis_st_obj_op(struct m0_clovis_obj       *obj,
-		   enum m0_clovis_obj_opcode   opcode,
-		   struct m0_indexvec         *ext,
-		   struct m0_bufvec           *data,
-		   struct m0_bufvec           *attr,
-		   uint64_t                    mask,
-		   struct m0_clovis_op       **op);
+		      enum m0_clovis_obj_opcode   opcode,
+		      struct m0_indexvec         *ext,
+		      struct m0_bufvec           *data,
+		      struct m0_bufvec           *attr,
+		      uint64_t                    mask,
+		      struct m0_clovis_op       **op);
 
 void clovis_st_idx_init(struct m0_clovis_idx *idx,
 		     struct m0_clovis_realm  *parent,
