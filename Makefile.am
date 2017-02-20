@@ -137,6 +137,11 @@ if HAVE_SYSTEMD
 override RPMBUILD_FLAGS += --with systemd
 endif
 
+if CLOVIS_IDX_STORE_CASS
+# override is needed to allow user to provide some additional options in
+# RPMBUILD_FLAGS variable in command line
+override RPMBUILD_FLAGS += --with cassandra
+endif
 
 ################################################################################
 #                     Internal programs required for build                  {{{1

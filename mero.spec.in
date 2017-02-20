@@ -26,6 +26,7 @@
 %bcond_with systemd
 %bcond_with debuginfo
 %bcond_with debuginfo_sources
+%bcond_with cassandra
 
 # workaround issue with mero-debuginfo package, which injects incorrect
 # dependencies on itself into mero package when internal deps generator is used;
@@ -34,12 +35,18 @@
 %global _use_internal_dependency_generator 0
 %define _use_internal_dependency_generator 0
 
-%if %{with ut}
-%define  configure_opts  --enable-dev-mode --disable-altogether-mode
-%else
-%define  configure_opts  --enable-release --with-trace-kbuf-size=256 --with-trace-ubuf-size=64
+# configure options
+%define  configure_release_opts     --enable-release --with-trace-kbuf-size=256 --with-trace-ubuf-size=64
+%define  configure_ut_opts          --enable-dev-mode --disable-altogether-mode
+%if %{with cassandra}
+%define  configure_cassandra_opts   --with-cassandra
 %endif
 
+%if %{with ut}
+%define  configure_opts  %{configure_ut_opts} %{?configure_cassandra_opts}
+%else
+%define  configure_opts  %{configure_release_opts} %{?configure_cassandra_opts}
+%endif
 
 Name:           @PACKAGE@
 Version:        @PACKAGE_VERSION@
@@ -78,6 +85,10 @@ BuildRequires:  python-ply
 %if %{with systemd}
 BuildRequires:  perl-autodie
 BuildRequires:  systemd-devel
+%endif
+%if %{with cassandra}
+BuildRequires:  libcassandra
+BuildRequires:  libuv
 %endif
 
 Requires:       kernel = %{kernel_ver_requires}

@@ -29,11 +29,19 @@
 %define kernel_ver_requires %( echo %{raw_kernel_ver} | sed -e 's/\.x86_64$//' )
 
 %bcond_with ut
+%bcond_with cassandra
+
+# configure options
+%define  configure_release_opts     --enable-release --with-trace-kbuf-size=256 --with-trace-ubuf-size=64
+%define  configure_ut_opts          --enable-dev-mode --disable-altogether-mode
+%if %{with cassandra}
+%define  configure_cassandra_opts   --with-cassandra
+%endif
 
 %if %{with ut}
-%define  configure_opts  --enable-dev-mode --disable-altogether-mode
+%define  configure_opts  %{configure_ut_opts} %{?configure_cassandra_opts}
 %else
-%define  configure_opts  --enable-release --with-trace-kbuf-size=256 --with-trace-ubuf-size=64
+%define  configure_opts  %{configure_release_opts} %{?configure_cassandra_opts}
 %endif
 
 Name:           %{_xyr_package_name}
@@ -73,6 +81,10 @@ BuildRequires:  binutils-devel
 BuildRequires:  perl-autodie
 BuildRequires:  systemd-devel
 BuildRequires:  python-ply
+%if %{with cassandra}
+BuildRequires:  libcassandra
+BuildRequires:  libuv
+%endif
 
 Requires:       kernel = %{kernel_ver_requires}
 Requires:       kmod-lustre-client
