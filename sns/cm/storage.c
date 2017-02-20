@@ -228,10 +228,6 @@ static int cp_io(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
 	if (rc != 0)
 		goto out;
 
-	m0_mutex_lock(&stio->si_mutex);
-	m0_fom_wait_on(cp_fom, &stio->si_wait, &cp_fom->fo_cb);
-	m0_mutex_unlock(&stio->si_mutex);
-
 	if (op == SIO_WRITE) {
 		rc = cob_stob_check(cp);
 		if (rc != 0)
@@ -239,12 +235,17 @@ static int cp_io(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
 	}
 	stob = sns_cp->sc_stob;
 	stob_state = m0_stob_state_get(stob);
+	if (stob_state != CSS_EXISTS) {
+		rc = -ENOENT;
+		goto out;
+	}
 	M0_LOG(M0_DEBUG, "fom %p, stob %p, fid="FID_F" so_state %d, "
 	       "so_ref %"PRIu64, cp_fom, sns_cp->sc_stob,
 	       FID_P(&stob->so_id.si_fid), stob_state, stob->so_ref);
 
-	M0_ASSERT_INFO(stob_state == CSS_EXISTS, "stob %p, stob_state %d",
-		       stob, stob_state);
+	m0_mutex_lock(&stio->si_mutex);
+	m0_fom_wait_on(cp_fom, &stio->si_wait, &cp_fom->fo_cb);
+	m0_mutex_unlock(&stio->si_mutex);
 
 	if (M0_FI_ENABLED("io-fail"))
 		rc = M0_ERR(-EIO);
