@@ -360,14 +360,16 @@ static uint32_t seg_nr_get(const struct m0_sns_cpx *sns_cpx, uint32_t ivec_nr)
 static int ag_cp_recvd_from_proxy(struct m0_cm_aggr_group *ag,
 				  struct m0_sns_cm_cp *scp)
 {
-	struct m0_sns_cm_ag *sag = ag2snsag(ag);
-	struct m0_cm_proxy  *proxy = scp->sc_base.c_cm_proxy;
+	struct m0_sns_cm_ag         *sag = ag2snsag(ag);
+	struct m0_cm_proxy          *proxy = scp->sc_base.c_cm_proxy;
+	struct m0_cm_proxy_in_count *pcount;
 
 	M0_PRE(m0_cm_ag_is_locked(ag));
 
-	if (ag->cag_is_frozen)
-		return -EINVAL;
-	M0_CNT_DEC(sag->sag_proxy_in_count.p_count[proxy->px_id]);
+	pcount = &sag->sag_proxy_in_count;
+	if (ag->cag_is_frozen && pcount->p_count[proxy->px_id] == 0)
+		return -ENOENT;
+	M0_CNT_DEC(pcount->p_count[proxy->px_id]);
 	m0_cm_ag_cp_add_locked(ag, &scp->sc_base);
 
 	return 0;
