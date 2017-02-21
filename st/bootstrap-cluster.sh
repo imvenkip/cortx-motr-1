@@ -267,13 +267,13 @@ prepare_build_node() {
 	# running prepare_build_nodes():
 	# git clone --recursive http://es-gerrit.xyus.xyratex.com:8080/mero
 	# git clone --recursive https://github.com/seagate-ssg/halon.git
-	mco castor puppet --off
 	mero/scripts/install-build-deps
 	FPCO=https://s3.amazonaws.com/download.fpcomplete.com/centos/7/fpco.repo
 	curl -sSL $FPCO | sudo tee /etc/yum.repos.d/fpco.repo
 	sudo yum -y install leveldb-devel libgenders-devel stack pdsh
-	(cd /opt/packages && yumdownloader pdsh pdsh-rcmd-ssh)
-	createrepo /opt/packages
+	ssh $CMU_HOST mco castor puppet --off
+	ssh $CMU_HOST 'cd /opt/packages && yumdownloader pdsh pdsh-rcmd-ssh'
+	ssh $CMU_HOST createrepo /opt/packages
 	$PDSH yum clean all
 	$PDSH yum -y install pdsh
 }
