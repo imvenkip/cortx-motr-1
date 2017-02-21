@@ -3,7 +3,7 @@ set -eu
 # set -x
 export PS4='+ [${FUNCNAME[0]:+${FUNCNAME[0]}:}${LINENO}] '
 
-VERSION=0.20
+VERSION=0.21
 
 IN_DIR=/var/mero # default value; overruled by CLI argument
 OUT_DATA_DIR=m0reportbug-data
@@ -15,6 +15,7 @@ M0TRACES_MAX=20 # how many most recently modified m0trace files to collect
 M0TRACES_M0D_MAX=2 # additionally, collect that many m0trace files from each
                    # $IN_DIR/m0d-* directory
 ADDB_TAIL=100000 # limit each m0addb2dump output file to that many lines
+CRASH_AGE_MAX=3 # maximal age (days) of vmcore-dmesg.txt files to be collected
 STAGE_TIME_LIMIT=10 # seconds; if a stage runs longer, show its duration
 readonly START_DIR=$PWD
 
@@ -121,6 +122,7 @@ probes() {
         'systemctl status -l'
         'systemctl status -l halond'
         'systemctl status -l mero-kernel'
+        'lctl dk'
         'hctl cluster status'
         'hctl debug eq'
         'hctl debug cep'
@@ -130,6 +132,18 @@ probes() {
         section $p
         $p 2>&1 || true
     done
+}
+
+_kdump_files() {
+    local kdump_path=
+
+    if [ -f /etc/kdump.conf ]; then
+        kdump_path=$(sed -n 's/^path \+//p' /etc/kdump.conf)
+    fi
+    [ -n "$kdump_path" -a -d $kdump_path ] || kdump_path=/var/crash
+    if [ -d $kdump_path ]; then
+        find $kdump_path -type f -name vmcore-dmesg.txt -ctime -$CRASH_AGE_MAX
+    fi
 }
 
 misc_files() {
@@ -158,6 +172,7 @@ misc_files() {
                  /tmp/halond.log; do
             if [ -f $f ]; then echo $f; fi
         done
+        _kdump_files
     } | while read path; do
         [ "$path" != "${path#/}" ] || {
             warn "${FUNCNAME[0]}: Absolute path expected: $path"
@@ -588,6 +603,9 @@ exit
 ###
 ### Date       Version Description
 ### ---------- ------- ----------------------------------------------------
+### 2017-02-21 0.21    * misc_files(): Collect /var/crash/*/vmcore-dmesg.txt.
+###                    * Add `lctl dk' probe.
+###
 ### 2017-02-09 0.20    backtraces_live(): Collect backtrace of halond.
 ###
 ### 2016-12-21 0.19    Produce 3 output archives:
