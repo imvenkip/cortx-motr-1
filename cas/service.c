@@ -29,7 +29,7 @@
 #include "lib/errno.h"               /* ENOMEM, EPROTO */
 #include "lib/ext.h"                 /* m0_ext */
 #include "be/btree.h"
-#include "be/domain.h"               /* m0_be_domain_seg0_get */
+#include "be/domain.h"               /* m0_be_domain_seg_first */
 #include "be/tx_credit.h"
 #include "be/op.h"
 #include "fop/fom_long_lock.h"
@@ -165,9 +165,9 @@
  *     SUCCESS<---------CAS_LOOP<----+ |            V               |
  *                          |        | |    +->CAS_LOAD_KEY<--------+
  *                          |        | |    |       |
- *                          |        | |    |       V 
- *                          |        | |    |  CAS_LOAD_VAL 
- *          ctidx_op_needed |        | |    |       | 
+ *                          |        | |    |       V
+ *                          |        | |    |  CAS_LOAD_VAL
+ *          ctidx_op_needed |        | |    |       |
  *        +-----------------+        | |    |       V
  *        |                 |        | |    +--CAS_LOAD_DONE
  *        V                 V        | |            |
@@ -197,11 +197,12 @@
  *
  * @subsection cas-lspec-layout
  *
- * Memory for all indices (including meta-index) is allocated in a meta-segment
- * (seg0) of Mero global BE domain (m0::i_be_dom). Address of a meta-index is
- * stored in this segment dictionary. Meta-index btree stores information about
- * existing indices (including itself) as key-value pairs, where key is a FID of
- * an index and value is a pointer to it.
+ * Memory for all indices (including meta-index) is allocated in the first
+ * segment (m0_be_domain_seg_first()) of Mero global BE domain
+ * (m0::i_be_dom). Address of a meta-index is stored in this segment
+ * dictionary. Meta-index btree stores information about existing indices
+ * (including itself) as key-value pairs, where key is a FID of an index and
+ * value is a pointer to it.
  *
  * <hr>
  * @section cas-conformance Conformance
@@ -761,7 +762,7 @@ static int cas_val_send(struct cas_fom          *fom,
 			      next_phase);
 	return result;
 }
-	
+
 static int cas_op_recs_check(struct cas_fom    *fom,
 			     enum cas_opcode   opc,
 			     enum cas_type     ct,
@@ -2008,31 +2009,31 @@ static void cas_meta_destroy(struct cas_index *meta,
 }
 
 
-static void cas_init_creds_calc(struct m0_be_seg       *seg0,
+static void cas_init_creds_calc(struct m0_be_seg       *seg,
 				struct cas_index       *meta,
 				struct cas_index       *ctidx,
 				struct m0_be_tx_credit *cred)
 {
 	struct m0_be_btree dummy = {{ 0 }};
 
-	dummy.bb_seg = seg0;
+	dummy.bb_seg = seg;
 
-	m0_be_seg_dict_insert_credit(seg0, cas_key, cred);
-	M0_BE_ALLOC_CREDIT_PTR(meta, seg0, cred);
-	M0_BE_ALLOC_CREDIT_PTR(ctidx, seg0, cred);
+	m0_be_seg_dict_insert_credit(seg, cas_key, cred);
+	M0_BE_ALLOC_CREDIT_PTR(meta, seg, cred);
+	M0_BE_ALLOC_CREDIT_PTR(ctidx, seg, cred);
 	m0_be_btree_create_credit(&dummy, 2, cred);
 	cas_meta_insert_credit(&dummy, 2, cred);
 	/* Error case: tree destruction and freeing. */
 	cas_meta_delete_credit(&dummy, 2, cred);
 	m0_be_btree_destroy_credit(&dummy, cred);
 	m0_be_btree_destroy_credit(&dummy, cred);
-	M0_BE_FREE_CREDIT_PTR(meta, seg0, cred);
-	M0_BE_FREE_CREDIT_PTR(ctidx, seg0, cred);
+	M0_BE_FREE_CREDIT_PTR(meta, seg, cred);
+	M0_BE_FREE_CREDIT_PTR(ctidx, seg, cred);
 }
 
 static int cas_init(struct cas_service *service)
 {
-	struct m0_be_seg       *seg0  = cas_seg();
+	struct m0_be_seg       *seg   = cas_seg();
 	struct m0_sm_group     *grp   = m0_locality0_get()->lo_grp;
 	struct cas_index       *meta  = NULL;
 	struct cas_index       *ctidx = NULL;
@@ -2040,10 +2041,12 @@ static int cas_init(struct cas_service *service)
 	struct m0_be_tx_credit  cred  = M0_BE_TX_CREDIT(0, 0);
 	int                     result;
 
+	if (seg == NULL)
+		return M0_ERR_INFO(-EINVAL, "No first segment.");
 	/**
 	 * @todo Use 0type.
 	 */
-	result = m0_be_seg_dict_lookup(seg0, cas_key, (void **)&meta);
+	result = m0_be_seg_dict_lookup(seg, cas_key, (void **)&meta);
 	if (result == 0) {
 		/**
 		 * @todo Add checking, use header and footer.
@@ -2052,13 +2055,13 @@ static int cas_init(struct cas_service *service)
 			result = M0_ERR(-EPROTO);
 		else {
 			service->c_meta = meta;
-			cas_index_init(meta, seg0);
+			cas_index_init(meta, seg);
 
 			/* Searching for catalogue-index index. */
 			result = cas_meta_find_ctidx(meta, &ctidx);
 			if (result == 0) {
 				service->c_ctidx = ctidx;
-				cas_index_init(ctidx, seg0);
+				cas_index_init(ctidx, seg);
 			} else
 				service->c_ctidx = NULL;
 
@@ -2071,7 +2074,7 @@ static int cas_init(struct cas_service *service)
 	m0_sm_group_lock(grp);
 	m0_be_tx_init(&tx, 0, m0_get()->i_be_dom, grp, NULL, NULL, NULL, NULL);
 
-	cas_init_creds_calc(seg0, meta, ctidx, &cred);
+	cas_init_creds_calc(seg, meta, ctidx, &cred);
 
 	m0_be_tx_prep(&tx, &cred);
 	result = m0_be_tx_exclusive_open_sync(&tx);
@@ -2080,10 +2083,10 @@ static int cas_init(struct cas_service *service)
 		return M0_ERR(result);
 	}
 
-	result = cas_meta_create(seg0, &tx, &meta);
+	result = cas_meta_create(seg, &tx, &meta);
 	if (result == 0) {
 		/* Create catalog-index index. */
-		result = cas_ctidx_create(seg0, &tx, &ctidx);
+		result = cas_ctidx_create(seg, &tx, &ctidx);
 		if (result == 0) {
 			/* Insert catalogue-index index into meta-index. */
 			result = cas_meta_insert(&meta->ci_tree,
@@ -2091,15 +2094,14 @@ static int cas_init(struct cas_service *service)
 						 ctidx,
 						 &tx);
 			if (result != 0)
-				cas_ctidx_destroy(ctidx, seg0, &tx);
+				cas_ctidx_destroy(ctidx, seg, &tx);
 		}
 
 		if (result == 0) {
-			result = m0_be_seg_dict_insert(seg0, &tx, cas_key,
-						       meta);
+			result = m0_be_seg_dict_insert(seg, &tx, cas_key, meta);
 			if (result == 0) {
-				M0_BE_TX_CAPTURE_PTR(seg0, &tx, ctidx);
-				M0_BE_TX_CAPTURE_PTR(seg0, &tx, meta);
+				M0_BE_TX_CAPTURE_PTR(seg, &tx, ctidx);
+				M0_BE_TX_CAPTURE_PTR(seg, &tx, meta);
 				service->c_meta = meta;
 				service->c_ctidx = ctidx;
 			} else {
@@ -2107,12 +2109,12 @@ static int cas_init(struct cas_service *service)
 				cas_meta_delete(&meta->ci_tree,
 						&m0_cas_ctidx_fid,
 						&tx);
-				cas_ctidx_destroy(ctidx, seg0, &tx);
+				cas_ctidx_destroy(ctidx, seg, &tx);
 				/* Cleanup meta-index. */
-				cas_meta_destroy(meta, seg0, &tx);
+				cas_meta_destroy(meta, seg, &tx);
 			}
 		} else
-			cas_meta_destroy(meta, seg0, &tx);
+			cas_meta_destroy(meta, seg, &tx);
 	}
 
 	m0_be_tx_close_sync(&tx);
@@ -2146,7 +2148,7 @@ static int cas_index_create(struct cas_index *index, struct m0_be_tx *tx)
 	if (M0_FI_ENABLED("ci_create_failure"))
 		return M0_ERR(-EFAULT);
 
-	cas_index_init(index, m0_be_domain_seg0_get(tx->t_engine->eng_domain));
+	cas_index_init(index, cas_seg());
 	rc = M0_BE_OP_SYNC_RET(op, m0_be_btree_create(&index->ci_tree, tx, &op),
 			       bo_u.u_btree.t_rc);
 	if (rc != 0)
@@ -2188,7 +2190,12 @@ static int cas_cmp(const void *key0, const void *key1)
 
 static struct m0_be_seg *cas_seg(void)
 {
-	return m0_be_domain_seg0_get(m0_get()->i_be_dom);
+	struct m0_be_domain *dom = m0_get()->i_be_dom;
+	struct m0_be_seg    *seg = m0_be_domain_seg_first(dom);
+
+	if (seg == NULL && cas_in_ut())
+		seg = m0_be_domain_seg0_get(dom);
+	return seg;
 }
 
 static bool cas_in_ut(void)
