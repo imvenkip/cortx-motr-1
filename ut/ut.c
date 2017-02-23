@@ -170,7 +170,7 @@ exists(const struct m0_ut_module *m, const char *s_name, const char *t_name)
 
 	s = suite_find(m, s_name);
 	if (s == NULL) {
-		M0_LOG(M0_ERROR, "Unit-test suite '%s' not found!", s_name);
+		M0_LOG(M0_FATAL, "Unit-test suite '%s' not found!", s_name);
 		return false;
 	}
 
@@ -181,7 +181,7 @@ exists(const struct m0_ut_module *m, const char *s_name, const char *t_name)
 	/* got here? then need to check test existence */
 	t = get_test_by_name(m, s_name, t_name);
 	if (t == NULL) {
-		M0_LOG(M0_ERROR, "Unit-test '%s:%s' not found!", s_name, t_name);
+		M0_LOG(M0_FATAL, "Unit-test '%s:%s' not found!", s_name, t_name);
 		return false;
 	}
 	return true;
