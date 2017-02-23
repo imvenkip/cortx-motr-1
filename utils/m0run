@@ -346,6 +346,11 @@ load_modules
 # enable core dumps
 ulimit -c unlimited
 
+# Increase the maximum number of memory map areas a process may have.
+# m0d process may allocate and madvise() at least 2,000,000 memory map areas.
+# See MERO-2171 for more details.
+sysctl -w vm.max_map_count=30000000
+
 if [[ -n $debugger ]] ; then
     # libmero will attach debugger in case of panic, disable this as we already
     # going to run it under debugger
