@@ -960,6 +960,24 @@ int m0_spiel_process_list_services(struct m0_spiel              *spl,
 				   struct m0_spiel_running_svc **services);
 
 /**
+ * Loads a library in the process address space.
+ *
+ * Library loading is supported only in user space at the moment. The library
+ * must be loadable by dlopen(3).
+ *
+ * When the library is loaded, mero_lib_init() function in it (if present) is
+ * invoked without parameters. This funciton is called in a fom tick context, so
+ * it shouldn't block.
+ *
+ * @param spl            spiel instance
+ * @param proc_fid       process fid from configuration DB
+ * @param libname        full path to the library in the server file system.
+ */
+int m0_spiel_process_lib_load(struct m0_spiel     *spl,
+			      const struct m0_fid *proc_fid,
+			      const char          *libname);
+
+/**
  * Starts pool repair.
  *
  * The command is synchronous. It waits replies from all SNS or DIX services

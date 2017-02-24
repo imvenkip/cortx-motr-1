@@ -315,6 +315,7 @@ m0_spiel_pool_add
 m0_spiel_pool_version_done
 m0_spiel_process_add
 m0_spiel_process_health
+m0_spiel_process_lib_load
 m0_spiel_process_list_services
 m0_spiel_process_quiesce
 m0_spiel_process_reconfig

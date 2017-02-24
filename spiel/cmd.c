@@ -737,21 +737,28 @@ static struct m0_ss_process_rep *spiel_process_reply_data(struct m0_fop *fop)
 static int spiel_process_command_execute(struct m0_spiel_core *spc,
 					 const struct m0_fid  *proc_fid,
 					 int                   cmd,
+					 const struct m0_buf  *param,
 					 struct m0_fop       **reply)
 {
-	struct m0_fop *fop;
-	int            rc;
+	struct m0_fop            *fop;
+	struct m0_ss_process_req *req;
+	int                       rc;
 
 	M0_ENTRY();
 
 	M0_PRE(spc != NULL);
 	M0_PRE(proc_fid != NULL);
-	M0_PRE(m0_conf_fid_type(proc_fid) == &M0_CONF_PROCESS_TYPE);
 
+	if (m0_conf_fid_type(proc_fid) != &M0_CONF_PROCESS_TYPE)
+		return M0_ERR(-EINVAL);
 	fop = m0_ss_process_fop_create(spc->spc_rmachine, cmd, proc_fid);
 	if (fop == NULL)
 		return M0_ERR(-ENOMEM);
+	req = m0_ss_fop_process_req(fop);
+	if (param != NULL)
+		req->ssp_param = *param;
 	rc = spiel_process_command_send(spc, proc_fid, fop);
+	req->ssp_param = M0_BUF_INIT0; /* Clean param before destruction. */
 	if (rc == 0) {
 		rc = spiel_process_reply_data(fop)->sspr_rc;
 		if (reply != NULL)
@@ -762,15 +769,18 @@ static int spiel_process_command_execute(struct m0_spiel_core *spc,
 	return M0_RC(rc);
 }
 
+static int spiel_process_command(struct m0_spiel      *spl,
+				 const struct m0_fid  *proc_fid,
+				 int                   cmd)
+{
+	return spiel_process_command_execute(&spl->spl_core, proc_fid,
+					     cmd, NULL, NULL);
+}
+
 int m0_spiel_process_stop(struct m0_spiel *spl, const struct m0_fid *proc_fid)
 {
 	M0_ENTRY();
-
-	if (m0_conf_fid_type(proc_fid) != &M0_CONF_PROCESS_TYPE)
-		return M0_ERR(-EINVAL);
-
-	return M0_RC(spiel_process_command_execute(&spl->spl_core, proc_fid,
-						   M0_PROCESS_STOP, NULL));
+	return M0_RC(spiel_process_command(spl, proc_fid, M0_PROCESS_STOP));
 }
 M0_EXPORTED(m0_spiel_process_stop);
 
@@ -778,12 +788,7 @@ int m0_spiel_process_reconfig(struct m0_spiel     *spl,
 			      const struct m0_fid *proc_fid)
 {
 	M0_ENTRY();
-
-	if (m0_conf_fid_type(proc_fid) != &M0_CONF_PROCESS_TYPE)
-		return M0_ERR(-EINVAL);
-
-	return M0_RC(spiel_process_command_execute(&spl->spl_core, proc_fid,
-						   M0_PROCESS_RECONFIG, NULL));
+	return M0_RC(spiel_process_command(spl, proc_fid, M0_PROCESS_RECONFIG));
 }
 M0_EXPORTED(m0_spiel_process_reconfig);
 
@@ -797,12 +802,10 @@ static int spiel_process__health(struct m0_spiel_core *spc,
 
 	M0_ENTRY();
 
-	if (m0_conf_fid_type(proc_fid) != &M0_CONF_PROCESS_TYPE)
-		return M0_ERR(-EINVAL);
 	reply_fop = NULL;
 	health = M0_HEALTH_UNKNOWN;
 	rc = spiel_process_command_execute(spc, proc_fid, M0_PROCESS_HEALTH,
-					   &reply_fop);
+					   NULL, &reply_fop);
 	if (reply_fop != NULL) {
 		M0_ASSERT(rc == 0);
 		health = spiel_process_reply_data(reply_fop)->sspr_health;
@@ -825,12 +828,7 @@ int m0_spiel_process_quiesce(struct m0_spiel     *spl,
 			     const struct m0_fid *proc_fid)
 {
 	M0_ENTRY();
-
-	if (m0_conf_fid_type(proc_fid) != &M0_CONF_PROCESS_TYPE)
-		return M0_ERR(-EINVAL);
-
-	return M0_RC(spiel_process_command_execute(&spl->spl_core, proc_fid,
-						   M0_PROCESS_QUIESCE, NULL));
+	return M0_RC(spiel_process_command(spl, proc_fid, M0_PROCESS_QUIESCE));
 }
 M0_EXPORTED(m0_spiel_process_quiesce);
 
@@ -894,6 +892,19 @@ int m0_spiel_process_list_services(struct m0_spiel              *spl,
 	return M0_RC(rc);
 }
 M0_EXPORTED(m0_spiel_process_list_services);
+
+int m0_spiel_process_lib_load(struct m0_spiel     *spl,
+			      const struct m0_fid *proc_fid,
+			      const char          *libname)
+{
+	const struct m0_buf param = M0_BUF_INIT_CONST(strlen(libname) + 1,
+						      libname);
+	M0_ENTRY(); /* The terminating NUL is part of param. */
+	return M0_RC(spiel_process_command_execute(&spl->spl_core, proc_fid,
+						   M0_PROCESS_LIB_LOAD,
+						   &param, NULL));
+}
+M0_EXPORTED(m0_spiel_process_lib_load);
 
 /****************************************************/
 /*                      Pools                       */

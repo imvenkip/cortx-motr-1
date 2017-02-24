@@ -35,6 +35,8 @@
 #include "conf/ut/common.h"   /* conf_ut_ast_thread_fini */
 #include "ut/misc.h"          /* M0_UT_PATH */
 #include "ut/ut.h"
+#include "mero/version.h"     /* m0_build_info_get */
+
 
 static struct m0_spiel spiel;
 
@@ -145,6 +147,7 @@ static void test_spiel_process_cmds(void)
 				M0_CONF_PROCESS_TYPE.cot_ftype.ft_id, 1, 13);
 	const struct m0_fid process_invalid_fid = M0_FID_TINIT(
 				M0_CONF_SERVICE_TYPE.cot_ftype.ft_id, 4, 15);
+	char *libpath;
 
 	spiel_ci_ut_init();
 	/* Reconfig */
@@ -168,6 +171,18 @@ static void test_spiel_process_cmds(void)
 
 	rc = m0_spiel_process_health(&spiel, &process_fid);
 	M0_UT_ASSERT(rc == M0_HEALTH_GOOD);
+
+	/* Load test library. */
+	rc = asprintf(&libpath, "%s/%s", m0_build_info_get()->bi_build_dir,
+		      "ut/.libs/libtestlib.so.0.0.0");
+	M0_UT_ASSERT(rc >= 0);
+	rc = m0_spiel_process_lib_load(&spiel, &process_fid, libpath);
+	M0_UT_ASSERT(rc == 0);
+	free(libpath);
+
+	/* Load non-existent library. */
+	rc = m0_spiel_process_lib_load(&spiel, &process_fid, "/funnylib");
+	M0_UT_ASSERT(rc == -EINVAL);
 
 	/* Stop */
 	rc = m0_spiel_process_stop(&spiel, &process_invalid_fid);

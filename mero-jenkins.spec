@@ -161,6 +161,7 @@ find %{buildroot} \
         -o -name m0run \
         -o -name m0gentestds \
         -o -name 'm0kut*' \
+        -o -name 'libtestlib*.so*' \
         -o -name 'libmero*.so*' \
         -o -name 'libgf_complete*.so*' |
     sed -e 's#^%{buildroot}##' >> tests-ut.files
@@ -208,6 +209,7 @@ fi
 %exclude %{_bindir}/m0ff2c
 %exclude %{_libdir}/*.la
 %exclude %{_libdir}/libmero-ut*
+%exclude %{_libdir}/libtestlib*
 %exclude %{_libdir}/libmero-xcode-ff2c*
 %exclude %{_libdir}/pkgconfig/mero.pc
 %exclude %{_includedir}

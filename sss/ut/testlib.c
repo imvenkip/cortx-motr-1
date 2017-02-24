@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2017 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -14,41 +14,29 @@
  * THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
  * http://www.xyratex.com/contact
  *
- * Original author: Dmitriy Chumak <dmitriy_chumak@xyratex.com>
- * Original creation date: 8-Apr-2013
+ * Original author: Nikita Danilov <nikita.danilov@seagate.com>
+ * Original creation date: 23-Feb-2017
  */
 
-#pragma once
+/**
+ * @addtogroup SSS
+ *
+ * @{
+ */
 
-#ifndef __MERO_MERO_VERSION_H__
-#define __MERO_MERO_VERSION_H__
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_UT
+#include "lib/trace.h"
+#include "lib/finject.h"
 
-#include "mero/version_macros.h"
-#include "lib/types.h"
+void mero_lib_init(void)
+{
+	m0_fi_enable_once("sss_process_lib_load_testlib_test", "loaded");
+}
 
-struct m0_build_info {
-	uint32_t     bi_version;
-	const char  *bi_version_string;
-	const char  *bi_git_rev_id;
-	const char  *bi_git_describe;
-	const char  *bi_git_branch;
-	const char  *bi_host;
-	const char  *bi_user;
-	const char  *bi_time;
-	const char  *bi_toolchain;
-	const char  *bi_kernel;
-	const char  *bi_cflags;
-	const char  *bi_kcflags;
-	const char  *bi_ldflags;
-	const char  *bi_configure_opts;
-	const char  *bi_build_dir;
-};
 
-const struct m0_build_info *m0_build_info_get(void);
+#undef M0_TRACE_SUBSYSTEM
 
-void m0_build_info_print(void);
-
-#endif /* __MERO_MERO_VERSION_H__ */
+/** @} end of SSS group */
 
 /*
  *  Local variables:

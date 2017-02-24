@@ -168,15 +168,15 @@ M0_INTERNAL struct m0_ss_process_req *m0_ss_fop_process_req(struct m0_fop *fop)
 	M0_PRE(fop != NULL);
 	M0_PRE(m0_ss_fop_is_process_req(fop));
 
-	return (struct m0_ss_process_req *)m0_fop_data(fop);
+	return m0_fop_data(fop);
 }
 
-M0_INTERNAL struct m0_ss_process_rep* m0_ss_fop_process_rep(struct m0_fop *fop)
+M0_INTERNAL struct m0_ss_process_rep *m0_ss_fop_process_rep(struct m0_fop *fop)
 {
 	M0_PRE(fop != NULL);
 	M0_PRE(ss_fop_is_process_rep(fop));
 
-	return (struct m0_ss_process_rep *)m0_fop_data(fop);
+	return m0_fop_data(fop);
 }
 
 M0_INTERNAL struct m0_ss_process_svc_list_rep *
@@ -184,7 +184,7 @@ M0_INTERNAL struct m0_ss_process_svc_list_rep *
 {
 	M0_PRE(fop != NULL);
 	M0_PRE(ss_fop_is_process_svc_list_rep(fop));
-	return (struct m0_ss_process_svc_list_rep *)m0_fop_data(fop);
+	return m0_fop_data(fop);
 }
 
 /*

@@ -50,6 +50,7 @@ AC_SUBST([LT_VERSION], [M0_VERSION_MAJOR:M0_VERSION_MINOR:M0_VERSION_PATCH])
 SRCDIR="$srcdir"
 ABS_SRCDIR="$(cd $srcdir; pwd)"
 ABS_BUILDDIR="$(pwd)"
+AC_SUBST([ABS_BUILDDIR])
 
 AC_SUBST([M0_VERSION_CODE],
          ["$(( (M0_VERSION_MAJOR << 24) + (M0_VERSION_MINOR << 16) + (M0_VERSION_PATCH << 8) ))U"]
@@ -499,6 +500,11 @@ MERO_SEARCH_LIBS([aio_read], [rt aio c], [RT_LIBS],
         [aio_read cannot be found! Try to install librt-devel or libaio-devel.]
 )
 AC_SUBST([RT_LIBS])
+
+MERO_SEARCH_LIBS([dlopen], [c dl], [DL_LIBS],
+        [dlopen cannot be found! Try to install libdl.]
+)
+AC_SUBST([DL_LIBS])
 
 MERO_SEARCH_LIBS([uuid_generate], [uuid c], [UUID_LIBS],
 	[uuid_generate cannot be found! Try to install libuuid and libuuid-devel.])

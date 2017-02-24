@@ -29,6 +29,7 @@
 #include "lib/finject.h"
 #include "ut/misc.h"           /* M0_UT_PATH */
 #include "ut/ut.h"
+#include "mero/version.h"      /* m0_build_info_get */
 
 #define SERVER_DB_NAME        "sss_ut_server.db"
 #define SERVER_STOB_NAME      "sss_ut_server.stob"
@@ -229,10 +230,20 @@ static struct m0_fop *ut_sss_process_create_req(uint32_t cmd)
 	return fop;
 }
 
+static void ut_sss_process_param_set(struct m0_fop *fop, const char *name)
+{
+	struct m0_ss_process_req *req = m0_fop_data(fop);
+
+	if (name != NULL)
+		req->ssp_param = M0_BUF_INIT_CONST(strlen(name) + 1, name);
+	else
+		req->ssp_param = M0_BUF_INIT0;
+}
+
 /**
- * Process commands test
+ * Processes commands test
  */
-static int ut_sss_process_req(struct m0_fop *fop, int ssr_rc_exptd)
+static void ut_sss_process_req(struct m0_fop *fop, int ssr_rc_exptd)
 {
 	int                       rc;
 	struct m0_fop            *rfop;
@@ -248,53 +259,42 @@ static int ut_sss_process_req(struct m0_fop *fop, int ssr_rc_exptd)
 
 	process_fop_resp = m0_fop_data(rfop);
 	M0_UT_ASSERT(process_fop_resp->sspr_rc == ssr_rc_exptd);
-	rc = process_fop_resp->sspr_rc;
-
+	ut_sss_process_param_set(fop, NULL);
 	m0_fop_put_lock(fop);
-
-	return rc;
 }
 
 static void sss_process_quiesce_test(void)
 {
-	int            rc;
 	struct m0_fop *fop;
 
 	fop = ut_sss_process_create_req(M0_PROCESS_QUIESCE);
-	rc = ut_sss_process_req(fop, 0);
-	M0_UT_ASSERT(rc == 0);
+	ut_sss_process_req(fop, 0);
 }
 
 static void sss_process_reconfig_test(void)
 {
-	int rc;
 	struct m0_fop *fop;
 
 	m0_fi_enable_once("ss_process_reconfig", "unit_test");
 	fop = ut_sss_process_create_req(M0_PROCESS_RECONFIG);
-	rc = ut_sss_process_req(fop, 0);
-	M0_UT_ASSERT(rc == 0);
+	ut_sss_process_req(fop, 0);
 }
 
 static void sss_process_health_test(void)
 {
-	int rc;
 	struct m0_fop *fop;
 
 	fop = ut_sss_process_create_req(M0_PROCESS_HEALTH);
-	rc = ut_sss_process_req(fop, 0);
-	M0_UT_ASSERT(rc == M0_HEALTH_GOOD);
+	ut_sss_process_req(fop, M0_HEALTH_GOOD);
 }
 
 static void sss_process_stop_test(void)
 {
-	int rc;
 	struct m0_fop *fop;
 
 	m0_fi_enable_once("m0_ss_process_stop_fop_release", "no_kill");
 	fop = ut_sss_process_create_req(M0_PROCESS_STOP);
-	rc = ut_sss_process_req(fop, 0);
-	M0_UT_ASSERT(rc == 0);
+	ut_sss_process_req(fop, 0);
 }
 
 static void sss_process_commands_test(void)
@@ -305,7 +305,7 @@ static void sss_process_commands_test(void)
 	sss_process_stop_test();
 }
 
-static void sss_process_svc_list_test()
+static void sss_process_svc_list_test(void)
 {
 	int                                rc;
 	struct m0_fop                     *fop;
@@ -331,10 +331,68 @@ static void sss_process_svc_list_test()
 	m0_fop_put_lock(fop);
 }
 
+static void sss_process_lib_load_noent_test(void)
+{
+	struct m0_fop *fop;
+
+	fop = ut_sss_process_create_req(M0_PROCESS_LIB_LOAD);
+	ut_sss_process_param_set(fop, "no-such-library");
+	ut_sss_process_req(fop, -EINVAL);
+}
+
+static void sss_process_lib_load_libc_test(void)
+{
+	struct m0_fop *fop;
+
+	fop = ut_sss_process_create_req(M0_PROCESS_LIB_LOAD);
+	ut_sss_process_param_set(fop, "/lib64/libc.so.6"); /* OK, fragile. */
+	ut_sss_process_req(fop, 0);
+}
+
+/**
+ * Tests library loading request processing.
+ *
+ * Loads libtestlib.so library. The "mero_lib_init()" function in this library
+ * (sss/ut/testlib.c) is invoked and enables a specific failure injection point,
+ * checked by this test.
+ */
+static void sss_process_lib_load_testlib_test(void)
+{
+	struct m0_fop *fop;
+	char          *sopath;
+	int            rc;
+	int            i;
+
+	/*
+	 * This failure injection can enabled, because libtestlib.so is also
+	 * loaded by other tests.
+	 */
+	m0_fi_disable("sss_process_lib_load_testlib_test", "loaded");
+	/*
+	 * Convoluted code below because, M0_FI_ENABLED() introduces a static
+	 * structure. That is, multiple M0_FI_ENABLED(LABEL) with the same
+	 * label are *different* fi points.
+	 */
+	for (i = 0; i < 2; ++i) {
+		M0_UT_ASSERT(!!M0_FI_ENABLED("loaded") == !!i);
+		if (i == 0) {
+			rc = asprintf(&sopath, "%s/%s",
+				      m0_build_info_get()->bi_build_dir,
+				      "ut/.libs/libtestlib.so.0.0.0");
+			M0_UT_ASSERT(rc >= 0);
+			M0_UT_ASSERT(sopath != NULL);
+			fop = ut_sss_process_create_req(M0_PROCESS_LIB_LOAD);
+			ut_sss_process_param_set(fop, sopath);
+			ut_sss_process_req(fop, 0);
+		} else
+			free(sopath);
+	}
+}
+
 static void sss_fop_ut_release(struct m0_ref *ref)
 {
-	struct m0_fop    *fop;
-	fop  = container_of(ref, struct m0_fop, f_ref);
+	struct m0_fop *fop;
+	fop = M0_AMB(fop, ref, f_ref);
 	m0_free(fop);
 }
 
@@ -422,6 +480,9 @@ const struct m0_ut_suite sss_ut = {
 		{ "process-services-list", sss_process_svc_list_test },
 		{ "process-fom-create-fail", sss_process_fom_create_fail },
 		{ "device-fom-fail", sss_device_fom_create_fail },
+		{ "lib-load-noent", sss_process_lib_load_noent_test },
+		{ "lib-load-libc", sss_process_lib_load_libc_test },
+		{ "lib-testlib", sss_process_lib_load_testlib_test },
 		{ NULL, NULL },
 	},
 };

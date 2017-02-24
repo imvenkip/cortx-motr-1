@@ -49,6 +49,7 @@ enum m0_ss_process_req_cmd {
 	M0_PROCESS_HEALTH,
 	M0_PROCESS_QUIESCE,
 	M0_PROCESS_RUNNING_LIST,
+	M0_PROCESS_LIB_LOAD,
 	M0_PROCESS_NR
 };
 
@@ -64,6 +65,13 @@ struct m0_ss_process_req {
 	 * fid type should set to M0_CONF_PROCESS_TYPE.cot_ftype
 	 */
 	struct m0_fid ssp_id;
+	/**
+	 * Additional parameter.
+	 *
+	 * Currently used only by M0_PROCESS_LIB_LOAD to pass the name of the
+	 * library.
+	 */
+	struct m0_buf ssp_param;
 } M0_XCA_RECORD;
 
 /** Response to m0_ss_process_req. */

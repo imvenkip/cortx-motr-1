@@ -45,6 +45,7 @@ static const struct m0_build_info build_info = {
 	.bi_kcflags        = M0_VERSION_BUILD_KCFLAGS,
 	.bi_ldflags        = M0_VERSION_BUILD_LDFLAGS,
 	.bi_configure_opts = M0_VERSION_BUILD_CONFIGURE_OPTS,
+	.bi_build_dir      = M0_VERSION_BUILD_DIR
 };
 
 const struct m0_build_info *m0_build_info_get(void)
@@ -57,10 +58,10 @@ void m0_build_info_print(void)
 	const struct m0_build_info *bi = m0_build_info_get();
 
 	m0_console_printf(BI_PREFIX
-			  "Mero %s  built on %s  by %s@%s  for %s kernel\n",
+			  "Mero %s built on %s  by %s@%s at %s for %s kernel\n",
 			  bi->bi_version_string,
 			  bi->bi_time,
-			  bi->bi_user, bi->bi_host,
+			  bi->bi_user, bi->bi_host, bi->bi_build_dir,
 			  bi->bi_kernel);
 
 	m0_console_printf(BI_PREFIX "\n");

@@ -53,7 +53,7 @@ sss_send() {
 }
 
 sss_process_send() {
-	[ $# -eq 2 ] || die 'Invalid arguments'
+	[ $# -eq 3 ] || die 'Invalid arguments'
 	local CMD=
 	case "$1" in  # see m0_ss_process_req_cmd for the values
 		M0_PROCESS_STOP) CMD=0;;
@@ -61,10 +61,11 @@ sss_process_send() {
 		M0_PROCESS_HEALTH) CMD=2;;
 		M0_PROCESS_QUIESCE) CMD=3;;
 		M0_PROCESS_RUNNING_LIST) CMD=4;;
+		M0_PROCESS_LIB_LOAD) CMD=5;;
 		*) die 'Invalid value';;
 	esac
 	local ID="$2"
-
+	local PARAM="${3:-[0]}"
 	# timeout was increase to 90 sec by tiket MERO-1239
 	# if bug MERO-1239 will be reproduce then need research
 	# $SANDBOX_DIR/console.log for additional information
@@ -72,7 +73,7 @@ sss_process_send() {
 	env ${TRACE_console:-} timeout 90 $M0_SRC_DIR/console/m0console \
 		-f $(opcode M0_SSS_PROCESS_REQ_OPCODE) \
 		-s $(endpoint $SERVER_TMID) -c $(endpoint $CLIENT_TMID) \
-		-d "($CMD, $ID)" -v || true
+		-d "($CMD, $ID, $PARAM)" -v || true
 	echo rc_send = $? >&2
 }
 
@@ -111,14 +112,16 @@ sss_check() {
 }
 
 sss_process_check() {
-	[ $# -eq 4 ] || die 'Invalid arguments'
+	[ $# -eq 5 ] || die 'Invalid arguments'
 	local COMMAND="$1"
 	local PROCESS_ID="$2"
-	local KEY_NAME="$3"
-	local EXPECTED_VALUE="$4"
+	local PARAM="$3"
+	local KEY_NAME="$4"
+	local EXPECTED_VALUE="$5"
 
 	echo -n "$COMMAND $PROCESS_ID... " >&2
-	sss_process_send $COMMAND "$PROCESS_ID" &>$SANDBOX_DIR/console.log
+	sss_process_send $COMMAND "$PROCESS_ID" "$PARAM" \
+	    &>$SANDBOX_DIR/console.log
 	local ACTUAL=$(awk "/$KEY_NAME/ {print \$3}" $SANDBOX_DIR/console.log)
 	local EXPECTED=$(svc_state $EXPECTED_VALUE)
 	[ A"$ACTUAL" != A ] || die "Generic error = " \
@@ -196,10 +199,16 @@ $M0_SRC_DIR/conf/st insmod
 sandbox_init
 m0d_start
 
-sss_process_check M0_PROCESS_RECONFIG "$PROC_ID" sspr_rc OK
+sss_process_check M0_PROCESS_RECONFIG "$PROC_ID" "" sspr_rc OK
 # wait reconfigure
 sleep 5
 sss_process_restart_check
+
+#
+# Load shared library.
+#
+sss_process_check M0_PROCESS_LIB_LOAD "$PROC_ID" '"/lib64/libc.so.6 "' sspr_rc OK
+sss_process_check M0_PROCESS_LIB_LOAD "$PROC_ID" '"bah.so "' sspr_rc _EINVAL
 
 sss_check ioservice M0_SERVICE_STATUS "$SVC_ID" ssr_state M0_RST_STARTED
 sss_check ioservice M0_SERVICE_STATUS "$SVC_ID_NOENT" ssr_rc _ENOENT  # invalid id
