@@ -154,8 +154,8 @@ make DESTDIR=%{buildroot} install-tests
 find %{buildroot} -name m0mero.ko -o -name m0ut.ko -o -name m0loop-ut.ko \
     -o -name m0gf.ko | sed -e 's#^%{buildroot}##' > tests-ut.files
 
-find %{buildroot} -name m0ut -o -name m0ub -o -name m0run -o -name 'm0kut*' \
-    -o -name 'libmero*.so*' -o -name 'libgf_complete*.so*' |
+find %{buildroot} -name m0ut -o -name m0ut-isolated -o -name m0ub -o -name m0run \
+    -o -name 'm0kut*' -o -name 'libmero*.so*' -o -name 'libgf_complete*.so*' |
     sed -e 's#^%{buildroot}##' >> tests-ut.files
 
 sort -o tests-ut.files tests-ut.files
@@ -196,7 +196,7 @@ fi
 %exclude /lib/modules/*/kernel/fs/clovis/st/linux_kernel/clovis_st_kmod.ko
 %config  %{_sysconfdir}/*
 %exclude %{_bindir}/m0kut*
-%exclude %{_bindir}/m0ut
+%exclude %{_bindir}/m0ut*
 %exclude %{_bindir}/m0ub
 %exclude %{_bindir}/m0ff2c
 %exclude %{_libdir}/*.la

@@ -461,6 +461,7 @@ net_lnet_ut_m0kut_helper_LDADD     = $(top_builddir)/mero/libmero.la \
 if ENABLE_UNIT_TESTS
 bin_PROGRAMS     += ut/m0ut
 bin_SCRIPTS      += ut/m0kut
+bin_SCRIPTS      += ut/m0ut-isolated
 endif
 ut_m0ut_CPPFLAGS  = -DM0_TARGET='m0ut' $(AM_CPPFLAGS)
 ut_m0ut_LDADD     = $(top_builddir)/ut/libmero-ut.la \
@@ -1242,7 +1243,7 @@ clean-local: clean-kernel-modules clean-doc
 	@rm -vf $(FF_CLEAN_FILE)
 	@rm -vf $(CONFXC_CLEAN_FILE)
 	@rm -vf m0.trace.*
-	@for p in $(PROGRAMS) m0kut; do \
+	@for p in $(PROGRAMS) ; do \
 		rm -fv utils/$$(basename $$p); \
 	done
 	@if test x@ENABLE_COVERAGE@ = xyes; then \

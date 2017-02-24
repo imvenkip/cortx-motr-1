@@ -331,7 +331,7 @@ fi
 # console by default, to prevent cluttering of UT output with "fake" error
 # messages, generated while testing various error paths using fault injection;
 # this can be overridden with '-e' CLI option of `m0ut`.
-if [[ $binary =~ .*m0ut$ ]] ; then
+if [[ $binary =~ .*m0ut(-isolated)?$ ]] ; then
     export M0_TRACE_LEVEL='fatal+'
 fi
 

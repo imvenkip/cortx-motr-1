@@ -37,4 +37,5 @@ CONFXC_FILES += ut/conf.xc \
 
 EXTRA_DIST += ut/linux_kernel/ut.c \
               ut/linux_kernel/m0ut_main.c \
+              ut/m0ut-isolated \
               ut/m0kut
