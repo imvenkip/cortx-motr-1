@@ -462,6 +462,7 @@ if ENABLE_UNIT_TESTS
 bin_PROGRAMS     += ut/m0ut
 bin_SCRIPTS      += ut/m0kut
 bin_SCRIPTS      += ut/m0ut-isolated
+bin_SCRIPTS      += scripts/xperior/m0gentestds
 endif
 ut_m0ut_CPPFLAGS  = -DM0_TARGET='m0ut' $(AM_CPPFLAGS)
 ut_m0ut_LDADD     = $(top_builddir)/ut/libmero-ut.la \
