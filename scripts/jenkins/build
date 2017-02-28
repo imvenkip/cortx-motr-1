@@ -31,7 +31,6 @@ else
     mkdir $ARTIFACTS
 fi
 
-sudo ./scripts/install-build-deps
 ./autogen.sh |& tee $ARTIFACTS/configure.log
 ./configure --enable-detailed-backtrace |& tee -a $ARTIFACTS/configure.log
 
