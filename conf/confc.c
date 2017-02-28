@@ -1737,7 +1737,7 @@ static int request_create(struct m0_confc_ctx *ctx,
 
 	p = confc_fop_alloc(ctx);
 	if (p == NULL)
-		return M0_RC(-ENOMEM);
+		return M0_ERR(-ENOMEM);
 
 	/* Setup rpc item. */
 	item = &p->cf_fop.f_item;

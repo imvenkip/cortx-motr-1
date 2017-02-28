@@ -268,9 +268,7 @@ HEALTH_GOOD, HEALTH_BAD, HEALTH_INACTIVE, HEALTH_UNKNOWN = range(4)
 construct_db() {
     $M0_SRC_DIR/utils/spiel/m0spiel $M0_SPIEL_OPTS <<EOF
 $FIDS_LIST
-N = 2
-K = 1
-P = 4
+N, K, P = 2, 1, 4
 mask = c_uint64(3)
 cores = Bitmap(1, pointer(mask))
 
@@ -280,104 +278,87 @@ if spiel.cmd_profile_set(str(fids['profile'])) != 0:
 tx = SpielTx(spiel.spiel)
 spiel.tx_open(tx)
 
-conf_objs_add = [('profile_add', tx, fids['profile']),
-                 ('filesystem_add', tx, fids['fs'], fids['profile'], 10,
-                  fids['profile'], fids['pool'], fids['pver'],
-                  ["{0} {1} {2}".format(P,N,K)]),
-                 ('pool_add', tx, fids['pool'], fids['fs'], 2),
-                 ('rack_add', tx, fids['rack'], fids['fs']),
-                 ('enclosure_add', tx, fids['encl'], fids['rack']),
-                 ('node_add', tx, fids['node'], fids['fs'], 256L, 2, 10L,
-                  0xff00ff00L, fids['pool']),
-                 ('controller_add', tx, fids['ctrl'], fids['encl'],
-                  fids['node']),
-                 ('disk_add', tx, fids['disk0'], fids['ctrl']),
-                 ('disk_add', tx, fids['disk1'], fids['ctrl']),
-                 ('disk_add', tx, fids['disk2'], fids['ctrl']),
-                 ('disk_add', tx, fids['disk3'], fids['ctrl']),
-                 ('disk_add', tx, fids['disk4'], fids['ctrl']),
-                 ('pver_actual_add', tx, fids['pver'], fids['pool'],
-                  [0, 0, 0, 0, 1],
-                  PdclustAttr(N, K, P, 1024*1024, Fid(0x01, 0x02))),
-                 ('rack_v_add', tx, fids['rackv'], fids['pver'],
-                  fids['rack']),
-                 ('enclosure_v_add', tx, fids['enclv'], fids['rackv'],
-                  fids['encl']),
-                 ('controller_v_add', tx, fids['ctrlv'], fids['enclv'],
-                  fids['ctrl']),
-                 ('disk_v_add', tx, fids['diskv1'], fids['ctrlv'],
-                  fids['disk1']),
-                 ('disk_v_add', tx, fids['diskv2'], fids['ctrlv'],
-                  fids['disk2']),
-                 ('disk_v_add', tx, fids['diskv3'], fids['ctrlv'],
-                  fids['disk3']),
-                 ('disk_v_add', tx, fids['diskv4'], fids['ctrlv'],
-                  fids['disk4']),
-                 ('pool_version_done', tx, fids['pver']),
-                 ('process_add', tx, fids['process'], fids['node'], cores,
-                  0L, 0L, 0L, 0L, "$M0D1_ENDPOINT"),
-                 ('process_add', tx, fids['process1'], fids['node'], cores,
-                  0L, 0L, 0L, 0L, "$M0T1FS_ENDPOINT:1"),
-                 ('process_add', tx, fids['process2'], fids['node'],
-                  cores, 0L, 0L, 0L, 0L, "$M0D2_ENDPOINT"),
-                 ('service_add', tx, fids['confd'], fids['process'], M0_CST_MGS,
-                  ["$M0D1_ENDPOINT"], ServiceInfoParameters(confdb_path =
-		  "$M0D1_ENDPOINT")),
-                 ('service_add', tx, fids['confd2'], fids['process2'], M0_CST_MGS,
-                  ["$M0D2_ENDPOINT"], ServiceInfoParameters(confdb_path =
-		  "$M0D2_ENDPOINT")),
-                 ('service_add', tx, fids['rms'], fids['process'], M0_CST_RMS,
-                  ["$M0D1_ENDPOINT"], ServiceInfoParameters()),
-                 ('service_add', tx, fids['rms2'], fids['process2'], M0_CST_RMS,
-                  ["$M0D2_ENDPOINT"], ServiceInfoParameters()),
-                 ('service_add', tx, fids['ha'], fids['process2'], M0_CST_HA,
-                  ["$M0D2_ENDPOINT"], ServiceInfoParameters()),
-                 ('service_add', tx, fids['ios'], fids['process2'], M0_CST_IOS,
-                  ["$M0D2_ENDPOINT"], ServiceInfoParameters()),
-                 ('service_add', tx, fids['sns_repair'], fids['process2'],
-                  M0_CST_SNS_REP, ["$M0D2_ENDPOINT"], ServiceInfoParameters()),
-                 ('service_add', tx, fids['addb2'], fids['process2'],
-                  M0_CST_ADDB2, ["$M0D2_ENDPOINT"], ServiceInfoParameters()),
-                 ('service_add', tx, fids['sns_rebalance'], fids['process2'],
-                  M0_CST_SNS_REB, ["$M0D2_ENDPOINT"], ServiceInfoParameters()),
-                 ('service_add', tx, fids['mds'], fids['process'], M0_CST_MDS,
-                  ["$M0D1_ENDPOINT"], ServiceInfoParameters()),
-                 ('service_add', tx, fids['mds2'], fids['process2'], M0_CST_MDS,
-                  ["$M0D2_ENDPOINT"], ServiceInfoParameters()),
-                 ('service_add', tx, fids['rms3'], fids['process1'], M0_CST_RMS,
-                  ["$M0T1FS_ENDPOINT:1"], ServiceInfoParameters()),
-                 ('device_add', tx, fids['sdev0'], fids['mds2'],
-                  fids['disk0'], 1, M0_CFG_DEVICE_INTERFACE_SCSI,
-                  M0_CFG_DEVICE_MEDIA_SSD, 1024, $((2 * DEV_SIZE))L, 123L, 0x55L,
-                  "dev/loop0"),
-                 ('device_add', tx, fids['sdev1'], fids['ios'],
-                  fids['disk1'], 1, M0_CFG_DEVICE_INTERFACE_SCSI,
-                  M0_CFG_DEVICE_MEDIA_SSD, 1024, $((2 * DEV_SIZE))L, 123L, 0x55L,
-                  "dev/loop1"),
-                 ('device_add', tx, fids['sdev2'], fids['ios'],
-                  fids['disk2'], 2, M0_CFG_DEVICE_INTERFACE_SCSI,
-                  M0_CFG_DEVICE_MEDIA_SSD, 1024, $((2 * DEV_SIZE))L, 123L, 0x55L,
-                  "dev/loop2"),
-                 ('device_add', tx, fids['sdev3'], fids['ios'],
-                  fids['disk3'], 3, M0_CFG_DEVICE_INTERFACE_SCSI,
-                  M0_CFG_DEVICE_MEDIA_SSD, 1024, $((2 * DEV_SIZE))L, 123L, 0x55L,
-                  "dev/loop3"),
-                 ('device_add', tx, fids['sdev4'], fids['ios'],
-                  fids['disk4'], 0, M0_CFG_DEVICE_INTERFACE_SCSI,
-                  M0_CFG_DEVICE_MEDIA_SSD, 1024, $((2 * DEV_SIZE))L, 123L, 0x55L,
-                  "dev/loop4"),
-                 ('tx_commit', tx)
+commands = [
+    ('profile_add', tx, fids['profile']),
+    ('filesystem_add', tx, fids['fs'], fids['profile'], 10, fids['profile'],
+     fids['pool'], fids['pver'], ['{0} {1} {2}'.format(P, N, K)]),
+    ('pool_add', tx, fids['pool'], fids['fs'], 2),
+    ('rack_add', tx, fids['rack'], fids['fs']),
+    ('enclosure_add', tx, fids['encl'], fids['rack']),
+    ('node_add', tx, fids['node'], fids['fs'], 256L, 2, 10L, 0xff00ff00L,
+     fids['pool']),
+    ('controller_add', tx, fids['ctrl'], fids['encl'], fids['node']),
+    ('disk_add', tx, fids['disk0'], fids['ctrl']),
+    ('disk_add', tx, fids['disk1'], fids['ctrl']),
+    ('disk_add', tx, fids['disk2'], fids['ctrl']),
+    ('disk_add', tx, fids['disk3'], fids['ctrl']),
+    ('disk_add', tx, fids['disk4'], fids['ctrl']),
+    ('pver_actual_add', tx, fids['pver'], fids['pool'], [0, 0, 0, 0, 1],
+     PdclustAttr(N, K, P, 1024*1024, Fid(1, 2))),
+    ('rack_v_add', tx, fids['rackv'], fids['pver'], fids['rack']),
+    ('enclosure_v_add', tx, fids['enclv'], fids['rackv'], fids['encl']),
+    ('controller_v_add', tx, fids['ctrlv'], fids['enclv'], fids['ctrl']),
+    ('disk_v_add', tx, fids['diskv1'], fids['ctrlv'], fids['disk1']),
+    ('disk_v_add', tx, fids['diskv2'], fids['ctrlv'], fids['disk2']),
+    ('disk_v_add', tx, fids['diskv3'], fids['ctrlv'], fids['disk3']),
+    ('disk_v_add', tx, fids['diskv4'], fids['ctrlv'], fids['disk4']),
+    ('pool_version_done', tx, fids['pver']),
+    ('process_add', tx, fids['process'], fids['node'], cores, 0L, 0L, 0L, 0L,
+     '$M0D1_ENDPOINT'),
+    ('process_add', tx, fids['process1'], fids['node'], cores, 0L, 0L, 0L, 0L,
+     '$M0T1FS_ENDPOINT:1'),
+    ('process_add', tx, fids['process2'], fids['node'], cores, 0L, 0L, 0L, 0L,
+     '$M0D2_ENDPOINT'),
+    ('service_add', tx, fids['confd'], fids['process'], M0_CST_MGS,
+     ['$M0D1_ENDPOINT'], ServiceInfoParameters(confdb_path='$M0D1_ENDPOINT')),
+    ('service_add', tx, fids['confd2'], fids['process2'], M0_CST_MGS,
+     ['$M0D2_ENDPOINT'], ServiceInfoParameters(confdb_path='$M0D2_ENDPOINT')),
+    ('service_add', tx, fids['rms'], fids['process'], M0_CST_RMS,
+     ['$M0D1_ENDPOINT'], ServiceInfoParameters()),
+    ('service_add', tx, fids['rms2'], fids['process2'], M0_CST_RMS,
+     ['$M0D2_ENDPOINT'], ServiceInfoParameters()),
+    ('service_add', tx, fids['ha'], fids['process2'], M0_CST_HA,
+     ['$M0D2_ENDPOINT'], ServiceInfoParameters()),
+    ('service_add', tx, fids['ios'], fids['process2'], M0_CST_IOS,
+     ['$M0D2_ENDPOINT'], ServiceInfoParameters()),
+    ('service_add', tx, fids['sns_repair'], fids['process2'], M0_CST_SNS_REP,
+     ['$M0D2_ENDPOINT'], ServiceInfoParameters()),
+    ('service_add', tx, fids['addb2'], fids['process2'], M0_CST_ADDB2,
+     ['$M0D2_ENDPOINT'], ServiceInfoParameters()),
+    ('service_add', tx, fids['sns_rebalance'], fids['process2'], M0_CST_SNS_REB,
+     ['$M0D2_ENDPOINT'], ServiceInfoParameters()),
+    ('service_add', tx, fids['mds'], fids['process'], M0_CST_MDS,
+     ['$M0D1_ENDPOINT'], ServiceInfoParameters()),
+    ('service_add', tx, fids['mds2'], fids['process2'], M0_CST_MDS,
+     ['$M0D2_ENDPOINT'], ServiceInfoParameters()),
+    ('service_add', tx, fids['rms3'], fids['process1'], M0_CST_RMS,
+     ['$M0T1FS_ENDPOINT:1'], ServiceInfoParameters()),
+    ('device_add', tx, fids['sdev0'], fids['mds2'], fids['disk0'], 1,
+     M0_CFG_DEVICE_INTERFACE_SCSI, M0_CFG_DEVICE_MEDIA_SSD, 1024,
+     $((2 * DEV_SIZE))L, 123L, 0x55L, 'dev/loop0'),
+    ('device_add', tx, fids['sdev1'], fids['ios'], fids['disk1'], 1,
+     M0_CFG_DEVICE_INTERFACE_SCSI, M0_CFG_DEVICE_MEDIA_SSD, 1024,
+     $((2 * DEV_SIZE))L, 123L, 0x55L, 'dev/loop1'),
+    ('device_add', tx, fids['sdev2'], fids['ios'], fids['disk2'], 2,
+     M0_CFG_DEVICE_INTERFACE_SCSI, M0_CFG_DEVICE_MEDIA_SSD, 1024,
+     $((2 * DEV_SIZE))L, 123L, 0x55L, 'dev/loop2'),
+    ('device_add', tx, fids['sdev3'], fids['ios'], fids['disk3'], 3,
+     M0_CFG_DEVICE_INTERFACE_SCSI, M0_CFG_DEVICE_MEDIA_SSD, 1024,
+     $((2 * DEV_SIZE))L, 123L, 0x55L, 'dev/loop3'),
+    ('device_add', tx, fids['sdev4'], fids['ios'], fids['disk4'], 0,
+     M0_CFG_DEVICE_INTERFACE_SCSI, M0_CFG_DEVICE_MEDIA_SSD, 1024,
+     $((2 * DEV_SIZE))L, 123L, 0x55L, 'dev/loop4'),
+    ('tx_commit', tx)
 ]
 
-error = False
-for conf_obj_add in conf_objs_add:
+for cmd in commands:
     try:
-        rc = getattr(spiel, conf_obj_add[0])(*conf_obj_add[1:])
+        rc = getattr(spiel, cmd[0])(*cmd[1:])
         if rc != 0:
-            sys.exit("error {0} while {1} executing".format(rc, conf_obj_add[0]))
+            sys.exit('error {0} while {1} executing'.format(rc, cmd[0]))
     except:
-        sys.exit("an error occurred while {0} executing: {1}".format(
-                 conf_obj_add[0], sys.exc_info()[0]))
+        sys.exit('an error occurred while {0} executing: {1}'.format(
+            cmd[0], sys.exc_info()[0]))
 
 spiel.tx_close(tx)
 EOF
