@@ -515,18 +515,31 @@ M0_INTERNAL int m0_ut_run(void)
 }
 M0_EXPORTED(m0_ut_run);
 
-M0_INTERNAL void m0_ut_list(bool with_tests)
+M0_INTERNAL void m0_ut_list(bool with_tests, bool yaml_output)
 {
 	const struct m0_ut_module *m = ut_module();
 	const struct m0_ut        *t;
 	int                        i;
 
+	if (yaml_output)
+		m0_console_printf("---\n");
+
 	for (i = 0; i < m->ut_suites_nr; ++i) {
-		m0_console_printf("%s\n", m->ut_suites[i]->ts_name);
-		if (with_tests)
-			for (t = m->ut_suites[i]->ts_tests; t->t_name != NULL;
-			     ++t)
-				m0_console_printf("  %s\n", t->t_name);
+		if (yaml_output) {
+			m0_console_printf("- %s:\n", m->ut_suites[i]->ts_name);
+			if (m->ut_suites[i]->ts_yaml_config_string != NULL)
+				m0_console_printf("    config: %s\n",
+					m->ut_suites[i]->ts_yaml_config_string);
+		} else {
+			m0_console_printf("%s\n", m->ut_suites[i]->ts_name);
+		}
+		if (with_tests) {
+			if (yaml_output)
+				m0_console_printf("    tests:\n");
+			for (t = m->ut_suites[i]->ts_tests; t->t_name != NULL; ++t)
+				m0_console_printf(yaml_output ? "      - %s\n" :
+						  "  %s\n", t->t_name);
+		}
 	}
 }
 

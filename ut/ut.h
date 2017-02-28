@@ -100,6 +100,12 @@ struct m0_ut_suite {
 	/** suite owners names */
 	const char                *ts_owners;
 	/**
+	 * optional configuration string in YAML format, it's interpreted by
+	 * m0gentestds utility, check it's documentation regarding format of
+	 * YAML data
+	 */
+	const char                *ts_yaml_config_string;
+	/**
 	 * This function is run after ->ts_deps are satisfied, but
 	 * before the tests are executed. It is optional.
 	 */
@@ -142,7 +148,7 @@ M0_INTERNAL int m0_ut_run(void);
  @param with_tests - if true, then all tests of each suite are printed in
                      addition
  */
-M0_INTERNAL void m0_ut_list(bool with_tests);
+M0_INTERNAL void m0_ut_list(bool with_tests, bool yaml_output);
 
 /**
  * Print owners of all UTs on STDOUT

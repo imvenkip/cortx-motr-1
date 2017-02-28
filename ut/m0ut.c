@@ -277,6 +277,7 @@ int main(int argc, char *argv[])
 	bool  list_ut              = false;
 	bool  with_tests           = false;
 	bool  list_owners          = false;
+	bool  yaml_output          = false;
 	bool  finject_stats_before = false;
 	bool  finject_stats_after  = false;
 	bool  parse_trace          = false;
@@ -372,6 +373,7 @@ int main(int argc, char *argv[])
 					 tests_exclude = str;
 				      })
 				),
+		    M0_FLAGARG('Y', "produce lists in YAML format", &yaml_output),
 		    );
 	if (rc != 0)
 		goto end;
@@ -448,7 +450,7 @@ int main(int argc, char *argv[])
 		}
 
 		if (list_ut)
-			m0_ut_list(with_tests);
+			m0_ut_list(with_tests, yaml_output);
 		else if (list_owners)
 			m0_ut_list_owners();
 		else
