@@ -225,7 +225,7 @@ use Sereal::Encoder qw( SRL_SNAPPY );
 use MCE;
 use MCE::Candy;
 
-# debuging
+# debugging
 #use Data::Dumper;
 
 
