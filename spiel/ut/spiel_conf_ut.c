@@ -2047,7 +2047,6 @@ const struct m0_ut_suite spiel_conf_ut = {
 		{ "file",        spiel_conf_file        },
 		{ "cancel",      spiel_conf_cancel      },
 		{ "load-send",   spiel_conf_load_send   },
-		{ "big-db",      spiel_conf_big_db      },
 		{ "flip-fail",   spiel_conf_flip_fail   },
 		{ "check-fail",  spiel_conf_check_fail  },
 		{ "load-fail",   spiel_conf_load_fail   },
@@ -2058,6 +2057,12 @@ const struct m0_ut_suite spiel_conf_ut = {
 		{ "add-svc",     spiel_conf_add_svc     },
 		{ "conf-expired", spiel_conf_expired    },
 		{ NULL, NULL },
+		/*
+		 * Disabled.
+		 * See https://jts.seagate.com/browse/MERO-2421 for
+		 * the reference.
+		 */
+		{ "big-db",      spiel_conf_big_db      },
 	},
 };
 M0_EXPORTED(spiel_conf_ut);
