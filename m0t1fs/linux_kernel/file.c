@@ -5390,10 +5390,11 @@ int m0t1fs_flush(struct file *file, fl_owner_t id)
 	M0_SET0(&mo);
 	mo.mo_attr.ca_tfid   = *m0t1fs_inode_fid(ci);
 	mo.mo_attr.ca_size   = inode->i_size;
-	mo.mo_attr.ca_valid |= M0_COB_SIZE;
 	mo.mo_attr.ca_nlink  = inode->i_nlink;
-	mo.mo_attr.ca_valid |= M0_COB_NLINK;
-	mo.mo_attr.ca_pver = m0t1fs_file_to_pver(file)->pv_id;
+	mo.mo_attr.ca_pver   = m0t1fs_file_to_pver(file)->pv_id;
+	mo.mo_attr.ca_lid    = ci->ci_layout_id;
+	mo.mo_attr.ca_valid |= (M0_COB_SIZE | M0_COB_NLINK |
+				M0_COB_PVER | M0_COB_LID);
 
 	rc = m0t1fs_cob_setattr(inode, &mo);
 	return rc != 0 ? M0_ERR_INFO(rc, FID_F, FID_P(&mo.mo_attr.ca_tfid)) :

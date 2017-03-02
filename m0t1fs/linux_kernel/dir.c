@@ -1509,6 +1509,21 @@ M0_INTERNAL int m0t1fs_setattr(struct dentry *dentry, struct iattr *attr)
 			goto out;
 	}
 	M0_SET0(&mo);
+
+	if (m0_fid_is_set(&ci->ci_pver) && m0_fid_is_valid(&ci->ci_pver)) {
+		mo.mo_attr.ca_pver = ci->ci_pver;
+		mo.mo_attr.ca_valid |= M0_COB_PVER;
+		M0_LOG(M0_DEBUG, "pver" FID_F"for object" FID_F,
+				FID_P(&ci->ci_pver),
+				FID_P(m0t1fs_inode_fid(ci)));
+	} else {
+		M0_LOG(M0_ERROR, "invalid inode");
+		rc = -EINVAL;
+		goto out;
+	}
+	mo.mo_attr.ca_lid    = ci->ci_layout_id;
+	mo.mo_attr.ca_valid |= M0_COB_LID;
+
 	mo.mo_attr.ca_tfid = *m0t1fs_inode_fid(ci);
 	m0_buf_init(&mo.mo_attr.ca_name, (char*)dentry->d_name.name,
 		    dentry->d_name.len);
