@@ -5832,7 +5832,6 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	struct m0t1fs_inode         *inode;
 	struct m0t1fs_sb            *csb;
 	struct m0_be_tx_remid       *remid;
-	struct m0_fop_generic_reply *gen_rep;
 	uint64_t                     actual_bytes = 0;
 	int                          rc;
 
@@ -5858,13 +5857,13 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	req_item   = &iofop->if_fop.f_item;
 	reply_item = req_item->ri_reply;
 	M0_LOG(M0_DEBUG, "[%p] nxr_iofop_nr %llu, nxr_rdbulk_nr %llu, "
-		"item %p[%u], ri_error %d", req,
+		"req item %p[%u], ri_error %d", req,
 		(unsigned long long)m0_atomic64_get(&xfer->nxr_iofop_nr),
 		(unsigned long long)m0_atomic64_get(&xfer->nxr_rdbulk_nr),
 		req_item, req_item->ri_type->rit_opcode, req_item->ri_error);
+
 	rc = req_item->ri_error;
 	if (reply_item != NULL) {
-		reply_fop = m0_rpc_item_to_fop(reply_item);
 		rc = rc ?: m0_rpc_item_generic_reply_rc(reply_item);
 	}
 	if (rc < 0 || reply_item == NULL) {
@@ -5872,13 +5871,13 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 		M0_LOG(M0_ERROR, "[%p] item %p, rc=%d", req, req_item, rc);
 		goto ref_dec;
 	}
-	M0_ASSERT(!m0_rpc_item_is_generic_reply_fop(reply_item));
+
+	reply_fop = m0_rpc_item_to_fop(reply_item);
 	M0_ASSERT(m0_is_io_fop_rep(reply_fop));
 
-	gen_rep = m0_fop_data(m0_rpc_item_to_fop(reply_item));
-	rc = gen_rep->gr_rc;
 	rw_reply = io_rw_rep_get(reply_fop);
-	remid    = &rw_reply->rwr_mod_rep.fmr_remid;
+	rc = rw_reply->rwr_rc;
+	remid = &rw_reply->rwr_mod_rep.fmr_remid;
 	req->ir_sns_state = rw_reply->rwr_repair_done;
 	M0_LOG(M0_DEBUG, "[%p] item %p[%u], reply received = %d, "
 			 "sns state = %d", req, req_item,
