@@ -147,5 +147,22 @@ const struct m0_conf_obj_type M0_CONF_SERVICE_TYPE = {
 	.cot_magic   = M0_CONF_SERVICE_MAGIC
 };
 
+/**
+ * @todo Use m0_xcode_enum_print() once
+ * http://es-gerrit.xyus.xyratex.com:8080/#/c/15147/ is landed.
+ */
+M0_INTERNAL const char *
+m0_conf_service_type2str(enum m0_conf_service_type type)
+{
+	static const char *names[] = {
+#define X_CST(name) [name] = #name,
+		M0_CONF_SERVICE_TYPES
+#undef X_CST
+	};
+
+	M0_PRE(m0_conf_service_type_is_valid(type));
+	return names[type];
+}
+
 #undef XCAST
 #undef M0_TRACE_SUBSYSTEM

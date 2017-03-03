@@ -1764,8 +1764,15 @@ static void cs_reqh_shutdown(struct m0_reqh_context *rctx)
 	M0_ENTRY();
 	M0_PRE(reqh_context_invariant(rctx));
 
-	if (m0_reqh_state_get(reqh) == M0_REQH_ST_NORMAL)
+	if (m0_reqh_state_get(reqh) == M0_REQH_ST_NORMAL) {
+		/*
+		 * In case incomplete contexts exist, those need to be offlined
+		 * early to unblock fom domains and let reqh shut down smooth.
+		 */
+		if (!rctx->rc_mero->cc_no_conf)
+			m0_reqh_service_ctxs_shutdown_prepare(reqh);
 		m0_reqh_shutdown_wait(reqh);
+	}
 
 	M0_LEAVE();
 }

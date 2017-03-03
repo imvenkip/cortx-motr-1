@@ -1484,7 +1484,6 @@ M0_INTERNAL void m0_pools_service_ctx_destroy(struct m0_pools_common *pc)
 {
 	M0_ENTRY();
 	M0_PRE(pools_common_invariant(pc));
-
 	/* m0_cs_fini() calls this function even without m0_cs_start() */
 	if (m0_clink_is_armed(&pc->pc_ha_clink))
 		m0_clink_del_lock(&pc->pc_ha_clink);

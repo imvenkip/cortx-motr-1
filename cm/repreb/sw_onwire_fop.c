@@ -38,9 +38,6 @@
    @{
  */
 
-//<<<<<<< HEAD:sns/cm/sw_onwire_fop.c
-//extern const struct m0_sm_conf m0_sns_cm_sw_onwire_conf;
-
 extern const struct m0_sm_conf m0_cm_repreb_sw_onwire_conf;
 
 M0_INTERNAL

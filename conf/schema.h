@@ -159,29 +159,37 @@ enum {
  * inserting a new service type in the middle), hard-coded values in existing
  * configuration files (including ut/conf.cg) should be updated.
  */
-enum m0_conf_service_type {
-	M0_CST_MDS = 1, /**< Meta-data service. */
-	M0_CST_IOS,     /**< IO/data service. */
-	M0_CST_MGS,     /**< Management service (confd). */
-	M0_CST_RMS,     /**< Resource management service. */
-	M0_CST_STS,     /**< Stats service */
-	M0_CST_HA,      /**< HA service */
-	M0_CST_SSS,     /**< Start/stop service */
-	M0_CST_SNS_REP, /**< SNS repair */
-	M0_CST_SNS_REB, /**< SNS rebalance */
-	M0_CST_ADDB2,   /**< ADDB */
-	M0_CST_CAS,     /**< Catalogue service */
-	M0_CST_DIX_REP, /**< Dix repair. */
-	M0_CST_DIX_REB, /**< Dix rebalance. */
-
+#define M0_CONF_SERVICE_TYPES                                    \
+	X_CST(M0_CST__UNUSED)                                    \
+	X_CST(M0_CST_MDS)     /**< Meta-data service */          \
+	X_CST(M0_CST_IOS)     /**< IO service */                 \
+	X_CST(M0_CST_MGS)     /**< Management service (confd) */ \
+	X_CST(M0_CST_RMS)     /**< Resource management */        \
+	X_CST(M0_CST_STS)     /**< Stats service */              \
+	X_CST(M0_CST_HA)      /**< HA service */                 \
+	X_CST(M0_CST_SSS)     /**< Start/stop service */         \
+	X_CST(M0_CST_SNS_REP) /**< SNS repair */                 \
+	X_CST(M0_CST_SNS_REB) /**< SNS rebalance */              \
+	X_CST(M0_CST_ADDB2)   /**< ADDB service */               \
+	X_CST(M0_CST_CAS)     /**< Catalogue service */          \
+	X_CST(M0_CST_DIX_REP) /**< Dix repair. */                \
+	X_CST(M0_CST_DIX_REB) /**< Dix rebalance. */             \
 	/*
-	 * Keep dummy services at the end of enumeration.
-	 */
-	M0_CST_DS1, /**< Dummy service1 */
-	M0_CST_DS2, /**< Dummy service2 */
-	M0_CST_FIS, /**< Fault injection service */
+	 * Keep dumy services at the end of enumeration
+	 */                                                      \
+	X_CST(M0_CST_DS1)     /**< Dummy service 1 */            \
+	X_CST(M0_CST_DS2)     /**< Dummy service 2 */            \
+	X_CST(M0_CST_FIS)     /**< Fault injection service */
+
+enum m0_conf_service_type {
+#define X_CST(name) name,
+	M0_CONF_SERVICE_TYPES
+#undef X_CST
 	M0_CST_NR
 };
+
+M0_INTERNAL const char *
+m0_conf_service_type2str(enum m0_conf_service_type type);
 
 static inline bool m0_conf_service_type_is_valid(enum m0_conf_service_type t)
 {

@@ -36,6 +36,7 @@
 #include "rpc/rpclib.h"
 #include "reqh/reqh.h"
 #include "reqh/reqh_service.h"
+#include "reqh/reqh_service_internal.h"
 #include "rpc/rpc.h"          /* m0_rpc__down_timeout */
 #include "rpc/rpc_machine.h"  /* m0_rpc_machine_ep */
 #include "mero/magic.h"
@@ -67,7 +68,7 @@ enum {
 	 * If endpoint is unreachable the timeout allows to disconnect from
 	 * reqh service when -ETIMEDOUT is returned.
 	 */
-	REQH_SVC_CONNECT_TIMEOUT = 5,
+	REQH_SVC_CONNECT_TIMEOUT = 1,
 };
 
 M0_TL_DESCR_DECLARE(abandoned_svc_ctxs, M0_EXTERN);
@@ -611,29 +612,6 @@ static bool service_type_is_valid(enum m0_conf_service_type t)
 	return 0 < t && t < M0_CST_NR;
 }
 
-enum {
-	M0_RSC_OFFLINE,
-	M0_RSC_ONLINE,
-	M0_RSC_CONNECTING,
-	M0_RSC_DISCONNECTING,
-	M0_RSC_CANCELLED,
-};
-
-enum {
-	/* Is set after `sc_rlink` initialisation. */
-	RSC_RLINK_INITED,
-	/*
-	 * Is set when m0_reqh_service_connect() is called. Remains set
-	 * after m0_reqh_service_disconnect().
-	 */
-	RSC_RLINK_CONNECT,
-	RSC_RLINK_DISCONNECT,
-	/* Is set when rpc session can not be cancelled immediately. */
-	RSC_RLINK_CANCEL,
-};
-
-#define CTX_STATE(ctx) (ctx)->sc_sm.sm_state
-
 /**
  * State diagram.
  *
@@ -710,43 +688,6 @@ static bool reqh_service_context_invariant(const struct m0_reqh_service_ctx *ctx
 	       _0C(service_type_is_valid(ctx->sc_type));
 }
 
-static void reqh_service_ctx_sm_lock(struct m0_reqh_service_ctx *ctx)
-{
-	m0_sm_group_lock(&ctx->sc_sm_grp);
-}
-
-static void reqh_service_ctx_sm_unlock(struct m0_reqh_service_ctx *ctx)
-{
-	m0_sm_group_unlock(&ctx->sc_sm_grp);
-}
-
-static void reqh_service_ctx_state_move(struct m0_reqh_service_ctx *ctx,
-					int                         state)
-{
-	m0_sm_state_set(&ctx->sc_sm, state);
-}
-
-static void reqh_service_ctx_flag_set(struct m0_reqh_service_ctx *ctx,
-				      int                         flag)
-{
-	uint64_t bits = M0_BITS(flag);
-	ctx->sc_conn_flags |= bits;
-}
-
-static void reqh_service_ctx_flag_clear(struct m0_reqh_service_ctx *ctx,
-					int                         flag)
-{
-	uint64_t bits = M0_BITS(flag);
-	ctx->sc_conn_flags &= ~bits;
-}
-
-static bool reqh_service_ctx_flag_is_set(const struct m0_reqh_service_ctx *ctx,
-					 int                               flag)
-{
-	uint64_t bits = M0_BITS(flag);
-	return !!(ctx->sc_conn_flags & bits);
-}
-
 M0_INTERNAL void m0_reqh_service_ctx_subscribe(struct m0_reqh_service_ctx *ctx)
 {
 	m0_conf_obj_get(ctx->sc_service);
@@ -788,24 +729,26 @@ M0_INTERNAL void m0_reqh_service_connect(struct m0_reqh_service_ctx *ctx)
 {
 	struct m0_conf_obj *obj = ctx->sc_service;
 
-	M0_ENTRY("'%s' Connect to service '%s'",
+	M0_ENTRY("ctx=%p '%s' Connect to service '%s' type=%s", ctx,
 		 m0_rpc_machine_ep(ctx->sc_rlink.rlk_conn.c_rpc_machine),
-		 m0_rpc_link_end_point(&ctx->sc_rlink));
+		 m0_rpc_link_end_point(&ctx->sc_rlink),
+		 m0_conf_service_type2str(ctx->sc_type));
 	M0_PRE(reqh_service_context_invariant(ctx));
 	M0_PRE(m0_conf_cache_is_locked(obj->co_cache));
-	M0_PRE(reqh_service_ctx_flag_is_set(ctx, RSC_RLINK_INITED));
+	M0_PRE(reqh_service_ctx_flag_is_set(ctx, M0_RSC_RLINK_INITED));
 
 	reqh_service_ctx_sm_lock(ctx);
 	M0_ASSERT(CTX_STATE(ctx) == M0_RSC_OFFLINE);
-	reqh_service_ctx_flag_set(ctx, RSC_RLINK_CONNECT);
+	reqh_service_ctx_flag_set(ctx, M0_RSC_RLINK_CONNECT);
 	/*
-	 * Set RSC_RLINK_CANCEL according to service conf object.
-	 * This simulates behaviour of service_event_handler() for
-	 * events that are lost before subscription.
+	 * Set M0_RSC_RLINK_CANCEL according to service conf object.  This
+	 * simulates behaviour of service_event_handler() for events that are
+	 * lost before subscription.
 	 */
 	if (obj->co_ha_state == M0_NC_FAILED)
-		reqh_service_ctx_flag_set(ctx, RSC_RLINK_CANCEL);
-	reqh_service_connect_locked(ctx, M0_TIME_NEVER);
+		reqh_service_ctx_flag_set(ctx, M0_RSC_RLINK_CANCEL);
+	reqh_service_connect_locked(ctx,
+		m0_time_from_now(REQH_SVC_CONNECT_TIMEOUT, 0));
 	m0_reqh_service_ctx_subscribe(ctx);
 	reqh_service_ctx_sm_unlock(ctx);
 	M0_LEAVE();
@@ -814,7 +757,7 @@ M0_INTERNAL void m0_reqh_service_connect(struct m0_reqh_service_ctx *ctx)
 M0_INTERNAL bool
 m0_reqh_service_ctx_is_connected(const struct m0_reqh_service_ctx *ctx)
 {
-	return reqh_service_ctx_flag_is_set(ctx, RSC_RLINK_CONNECT);
+	return reqh_service_ctx_flag_is_set(ctx, M0_RSC_RLINK_CONNECT);
 }
 
 static void
@@ -839,12 +782,14 @@ M0_INTERNAL void m0_reqh_service_disconnect(struct m0_reqh_service_ctx *ctx)
 		 m0_rpc_link_end_point(&ctx->sc_rlink));
 	M0_PRE(reqh_service_context_invariant(ctx));
 
-	reqh_service_ctx_sm_lock(ctx);
-	M0_ASSERT(CTX_STATE(ctx) != M0_RSC_OFFLINE);
 	m0_reqh_service_ctx_unsubscribe(ctx);
-	reqh_service_ctx_flag_set(ctx, RSC_RLINK_DISCONNECT);
-	reqh_service_ctx_flag_clear(ctx, RSC_RLINK_CANCEL);
-	/* 'ING states will be handled in reqh_service_ctx_ast_cb() */
+	reqh_service_ctx_sm_lock(ctx);
+	reqh_service_ctx_flag_set(ctx, M0_RSC_RLINK_DISCONNECT);
+	reqh_service_ctx_flag_clear(ctx, M0_RSC_RLINK_CANCEL);
+	/*
+	 * 'ING states will be handled in reqh_service_ctx_ast_cb().
+	 * Offline state does not require disconnection either.
+	 */
 	if (M0_IN(CTX_STATE(ctx), (M0_RSC_ONLINE, M0_RSC_CANCELLED)))
 		reqh_service_disconnect_locked(ctx);
 	reqh_service_ctx_sm_unlock(ctx);
@@ -899,7 +844,7 @@ static void reqh_service_reconnect_locked(struct m0_reqh_service_ctx *ctx,
 	if (M0_IN(CTX_STATE(ctx), (M0_RSC_DISCONNECTING,
 				   M0_RSC_CONNECTING))) {
 		/* 'ING states reach ONLINE eventually */
-		reqh_service_ctx_flag_clear(ctx, RSC_RLINK_CANCEL);
+		reqh_service_ctx_flag_clear(ctx, M0_RSC_RLINK_CANCEL);
 		return;
 	}
 	reqh_service_disconnect_locked(ctx);
@@ -913,7 +858,7 @@ m0_reqh_service_cancel_reconnect(struct m0_reqh_service_ctx *ctx)
 	reqh_service_ctx_sm_lock(ctx);
 	M0_PRE(reqh_service_context_invariant(ctx));
 	M0_PRE(m0_reqh_service_ctx_is_connected(ctx));
-	M0_PRE(!reqh_service_ctx_flag_is_set(ctx, RSC_RLINK_DISCONNECT));
+	M0_PRE(!reqh_service_ctx_flag_is_set(ctx, M0_RSC_RLINK_DISCONNECT));
 	if (CTX_STATE(ctx) == M0_RSC_ONLINE) {
 		m0_rpc_session_cancel(&ctx->sc_rlink.rlk_sess);
 		reqh_service_disconnect_locked(ctx);
@@ -924,26 +869,105 @@ m0_reqh_service_cancel_reconnect(struct m0_reqh_service_ctx *ctx)
 
 static void reqh_service_session_cancel(struct m0_reqh_service_ctx *ctx)
 {
-	M0_PRE(m0_sm_group_is_locked(&ctx->sc_sm_grp));
+	M0_PRE(reqh_service_ctx_sm_is_locked(ctx));
 	M0_PRE(M0_IN(CTX_STATE(ctx), (M0_RSC_ONLINE,
 				      M0_RSC_CONNECTING,
 				      M0_RSC_DISCONNECTING)));
-	M0_PRE(!reqh_service_ctx_flag_is_set(ctx, RSC_RLINK_CANCEL));
+	M0_PRE(!reqh_service_ctx_flag_is_set(ctx, M0_RSC_RLINK_CANCEL));
 
 	if (CTX_STATE(ctx) == M0_RSC_ONLINE) {
 		m0_rpc_session_cancel(&ctx->sc_rlink.rlk_sess);
 		reqh_service_ctx_state_move(ctx, M0_RSC_CANCELLED);
 	} else {
-		reqh_service_ctx_flag_set(ctx, RSC_RLINK_CANCEL);
+		reqh_service_ctx_flag_set(ctx, M0_RSC_RLINK_CANCEL);
 	}
 }
 
 static bool reqh_service_ctx_is_cancelled(struct m0_reqh_service_ctx *ctx)
 {
-	M0_PRE(m0_sm_group_is_locked(&ctx->sc_sm_grp));
+	M0_PRE(reqh_service_ctx_sm_is_locked(ctx));
 
-	return reqh_service_ctx_flag_is_set(ctx, RSC_RLINK_CANCEL) ||
+	return reqh_service_ctx_flag_is_set(ctx, M0_RSC_RLINK_CANCEL) ||
 	       CTX_STATE(ctx) == M0_RSC_CANCELLED;
+}
+
+M0_INTERNAL void m0_reqh_service_ctxs_shutdown_prepare(struct m0_reqh *reqh)
+{
+	struct m0_reqh_service_ctx *ctx;
+
+	M0_ENTRY();
+	/*
+	 * Step 1: Flag every context for abortion.
+	 *
+	 * The idea is to make any reconnecting service context to encounter the
+	 * flag and go offline before real context destruction occurs.
+	 */
+	m0_tl_for(pools_common_svc_ctx, &reqh->rh_pools->pc_svc_ctxs, ctx) {
+		M0_ASSERT(!reqh_service_ctx_sm_is_locked(ctx));
+		/*
+		 * Need to prevent context from being activated by HA
+		 * notification, service or process related.
+		 */
+		m0_reqh_service_ctx_unsubscribe(ctx);
+		reqh_service_ctx_sm_lock(ctx);
+		/*
+		 * Context is unconditionally flagged to abort. In case of
+		 * connection broken due to network reasons, the context will be
+		 * put offline and prevented from further connection.
+		 *
+		 * This way yet still incomplete context is commanded to go
+		 * offline.  Presently offline context does not require any
+		 * special attention.
+		 */
+		reqh_service_ctx_flag_set(ctx, M0_RSC_RLINK_ABORT);
+		reqh_service_ctx_sm_unlock(ctx);
+	} m0_tl_endfor;
+
+	/*
+	 * Step 2: Spot a still connecting context and wait for fom activity.
+	 *
+	 * The idea is to let not a context with dormant fom go for destruction.
+	 * The rpc link fom activity has to occur first to make sure abortion
+	 * flag goes in effect. Besides the current one, any other reconnecting
+	 * context may be offlined in background because of abortion flag
+	 * already installed on previous step.
+	 */
+	m0_tl_for(pools_common_svc_ctx, &reqh->rh_pools->pc_svc_ctxs, ctx) {
+		bool connecting;
+
+		M0_ASSERT(!reqh_service_ctx_sm_is_locked(ctx));
+		reqh_service_ctx_sm_lock(ctx);
+		connecting = CTX_STATE(ctx) == M0_RSC_CONNECTING;
+		M0_LOG(M0_DEBUG, "[%d] %s (%d)", CTX_STATE(ctx),
+		       m0_rpc_link_end_point(&ctx->sc_rlink), ctx->sc_type);
+		if (connecting) {
+			/*
+			 * .rlk_rc must not be 0 to meet M0_RSC_OFFLINE
+			 * conditions.
+			 * */
+			ctx->sc_rlink.rlk_rc = M0_ERR(-EPERM);
+			reqh_service_ctx_flag_clear(ctx, M0_RSC_RLINK_CONNECT);
+			/*
+			 * From this moment we rely on rpc link timeout to wake
+			 * up the link fom to be ultimately aborted by the flag
+			 * specification.
+			 */
+		}
+		reqh_service_ctx_sm_unlock(ctx);
+		/* Do waiting outside the sm lock. */
+		if (connecting) {
+			m0_clink_add_lock(&ctx->sc_rlink.rlk_wait,
+					  &ctx->sc_rlink_abort);
+			/*
+			 * While we were leaving the sm lock the fom activity
+			 * might happen alright, thus timed waiting.
+			 */
+			m0_chan_timedwait(&ctx->sc_rlink_abort,
+				m0_time_from_now(REQH_SVC_CONNECT_TIMEOUT, 0));
+			m0_clink_del_lock(&ctx->sc_rlink_abort);
+		}
+	} m0_tl_endfor;
+	M0_LEAVE();
 }
 
 M0_INTERNAL void m0_reqh_service_ctx_fini(struct m0_reqh_service_ctx *ctx)
@@ -957,12 +981,13 @@ M0_INTERNAL void m0_reqh_service_ctx_fini(struct m0_reqh_service_ctx *ctx)
 	reqh_service_ctx_sm_unlock(ctx);
 	m0_sm_group_fini(&ctx->sc_sm_grp);
 	m0_clink_fini(&ctx->sc_rlink_wait);
+	m0_clink_fini(&ctx->sc_rlink_abort);
 	m0_clink_fini(&ctx->sc_process_event);
 	m0_clink_fini(&ctx->sc_svc_event);
 	m0_mutex_fini(&ctx->sc_max_pending_tx_lock);
 	m0_semaphore_fini(&ctx->sc_state_wait);
 	m0_reqh_service_ctx_bob_fini(ctx);
-	if (reqh_service_ctx_flag_is_set(ctx, RSC_RLINK_INITED))
+	if (reqh_service_ctx_flag_is_set(ctx, M0_RSC_RLINK_INITED))
 		m0_rpc_link_fini(&ctx->sc_rlink);
 
 	M0_LEAVE();
@@ -972,7 +997,6 @@ static void reqh_service_ctx_ast_cb(struct m0_sm_group *grp,
 				    struct m0_sm_ast   *ast)
 {
 	struct m0_reqh_service_ctx *ctx = M0_AMB(ctx, ast, sc_rlink_ast);
-	m0_time_t                   deadline;
 	bool                        connected;
 	bool                        disconnect;
 
@@ -984,17 +1008,23 @@ static void reqh_service_ctx_ast_cb(struct m0_sm_group *grp,
 				      M0_RSC_DISCONNECTING)));
 
 	connected  = m0_rpc_link_is_connected(&ctx->sc_rlink);
-	disconnect = reqh_service_ctx_flag_is_set(ctx, RSC_RLINK_DISCONNECT);
+	disconnect = reqh_service_ctx_flag_is_set(ctx, M0_RSC_RLINK_DISCONNECT);
 
 	switch (CTX_STATE(ctx)) {
 	case M0_RSC_CONNECTING:
 		if (connected) {
 			M0_ASSERT(ctx->sc_rlink.rlk_rc == 0);
 			reqh_service_ctx_state_move(ctx, M0_RSC_ONLINE);
+			M0_LOG(M0_DEBUG, "connecting -> online: %s (%d)",
+			       m0_rpc_link_end_point(&ctx->sc_rlink),
+			       ctx->sc_type);
 		} else {
 			M0_ASSERT(ctx->sc_rlink.rlk_rc != 0);
 			/* Reconnect later. */
 			reqh_service_ctx_state_move(ctx, M0_RSC_OFFLINE);
+			M0_LOG(M0_DEBUG, "connecting -> offline: %s (%d)",
+			       m0_rpc_link_end_point(&ctx->sc_rlink),
+			       ctx->sc_type);
 		}
 		break;
 
@@ -1002,6 +1032,8 @@ static void reqh_service_ctx_ast_cb(struct m0_sm_group *grp,
 		M0_ASSERT(!connected);
 		reqh_service_ctx_state_move(ctx, M0_RSC_OFFLINE);
 		reqh_service_ctx_destroy_if_abandoned(ctx);
+		M0_LOG(M0_DEBUG, "disconnecting -> offline: %s (%d)",
+		       m0_rpc_link_end_point(&ctx->sc_rlink), ctx->sc_type);
 		break;
 
 	default:
@@ -1010,18 +1042,22 @@ static void reqh_service_ctx_ast_cb(struct m0_sm_group *grp,
 	M0_LOG(M0_DEBUG, "state: %d", CTX_STATE(ctx));
 
 	/* Cancel only established session. */
-	if (reqh_service_ctx_flag_is_set(ctx, RSC_RLINK_CANCEL) && connected) {
+	if (reqh_service_ctx_flag_is_set(ctx, M0_RSC_RLINK_CANCEL) &&
+	    connected) {
 		m0_rpc_session_cancel(&ctx->sc_rlink.rlk_sess);
 		reqh_service_ctx_state_move(ctx, M0_RSC_CANCELLED);
-		reqh_service_ctx_flag_clear(ctx, RSC_RLINK_CANCEL);
+		reqh_service_ctx_flag_clear(ctx, M0_RSC_RLINK_CANCEL);
 	}
 	/*
 	 * Reconnect every time `ctx' reaches OFFLINE state until
-	 * m0_reqh_service_disconnect() is called.
+	 * m0_reqh_service_disconnect() is called unless explicit abortion is
+	 * requested.
 	 */
-	if (CTX_STATE(ctx) == M0_RSC_OFFLINE && !disconnect) {
-		deadline = m0_time_from_now(REQH_SVC_CONNECT_TIMEOUT, 0);
-		reqh_service_connect_locked(ctx, deadline);
+	if (CTX_STATE(ctx) == M0_RSC_OFFLINE) {
+		if (!reqh_service_ctx_flag_is_set(ctx, M0_RSC_RLINK_ABORT) &&
+		    !disconnect)
+			reqh_service_connect_locked(ctx,
+				m0_time_from_now(REQH_SVC_CONNECT_TIMEOUT, 0));
 	}
 	/* m0_reqh_service_disconnect() was called during connecting. */
 	if (CTX_STATE(ctx) == M0_RSC_ONLINE && disconnect)
@@ -1075,7 +1111,7 @@ static bool process_event_handler(struct m0_clink *clink)
 
 	process = M0_CONF_CAST(obj, m0_conf_process);
 	reqh_service_ctx_sm_lock(ctx);
-	if (!reqh_service_ctx_flag_is_set(ctx, RSC_RLINK_CONNECT)) {
+	if (!reqh_service_ctx_flag_is_set(ctx, M0_RSC_RLINK_CONNECT)) {
 		/* Ignore notifications for offline services. */
 		goto exit_unlock;
 	}
@@ -1145,7 +1181,7 @@ static bool service_event_handler(struct m0_clink *clink)
 						       &obj->co_id,
 						       service->cs_type));
 	reqh_service_ctx_sm_lock(ctx);
-	if (!reqh_service_ctx_flag_is_set(ctx, RSC_RLINK_CONNECT)) {
+	if (!reqh_service_ctx_flag_is_set(ctx, M0_RSC_RLINK_CONNECT)) {
 		/* Ignore notifications for offline services. */
 		goto exit_unlock;
 	}
@@ -1201,7 +1237,7 @@ M0_INTERNAL int m0_reqh_service_ctx_init(struct m0_reqh_service_ctx *ctx,
 				      addr, max_rpc_nr_in_flight);
 		if (rc != 0)
 			return M0_ERR(rc);
-		reqh_service_ctx_flag_set(ctx, RSC_RLINK_INITED);
+		reqh_service_ctx_flag_set(ctx, M0_RSC_RLINK_INITED);
 	}
 	ctx->sc_fid = svc_obj->co_id;
 	ctx->sc_service = svc_obj;
@@ -1214,6 +1250,7 @@ M0_INTERNAL int m0_reqh_service_ctx_init(struct m0_reqh_service_ctx *ctx,
 	m0_clink_init(&ctx->sc_svc_event, service_event_handler);
 	m0_clink_init(&ctx->sc_process_event, process_event_handler);
 	m0_clink_init(&ctx->sc_rlink_wait, reqh_service_ctx_rlink_cb);
+	m0_clink_init(&ctx->sc_rlink_abort, NULL);
 	m0_sm_group_init(&ctx->sc_sm_grp);
 	m0_sm_init(&ctx->sc_sm, &service_ctx_states_conf,
 		   M0_RSC_OFFLINE, &ctx->sc_sm_grp);
@@ -1269,8 +1306,6 @@ m0_reqh_service_ctx_from_session(struct m0_rpc_session *session)
 
 	return ret;
 }
-
-#undef CTX_STATE
 
 static void abandoned_ctx_destroy_cb(struct m0_sm_group *grp,
 				     struct m0_sm_ast   *ast)

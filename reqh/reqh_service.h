@@ -753,6 +753,7 @@ struct m0_reqh_service_ctx {
 	enum m0_conf_service_type   sc_type;
 
 	struct m0_rpc_link          sc_rlink;
+	struct m0_clink             sc_rlink_abort;
 	struct m0_clink             sc_rlink_wait;
 	struct m0_sm_ast            sc_rlink_ast;
 	uint64_t                    sc_conn_flags;
@@ -804,6 +805,20 @@ M0_INTERNAL int m0_reqh_service_ctx_create(struct m0_conf_obj *svc_obj,
 /** Finalises and destroys given service context. */
 M0_INTERNAL void
 m0_reqh_service_ctx_destroy(struct m0_reqh_service_ctx *ctx);
+
+/**
+ * Iterates typed list m0_pools_common::pc_svc_ctxs and prepares all the
+ * contexts to REQH shutdown.
+ *
+ * Service context may appear to be (re)connecting, and in this sense
+ * incomplete, when REQH services are about to shutdown. To free fom domains the
+ * respective rpc link foms are in the incomplete contexts need to be told to go
+ * offline instead.
+ *
+ * Besides, every context gets unsubscribed from HA notifications here to have
+ * shutdown process undisturbed by cluster events.
+ */
+M0_INTERNAL void m0_reqh_service_ctxs_shutdown_prepare(struct m0_reqh *reqh);
 
 /**
  * Establishes rpc connection asynchronously.

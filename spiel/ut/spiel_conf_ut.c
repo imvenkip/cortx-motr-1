@@ -1829,21 +1829,21 @@ static void spiel_conf_add_svc(void)
 static void spiel_conf_big_db(void)
 {
 #define SVC_EP "192.168.252.132@tcp:12345:41:201"
-	struct m0_spiel_tx  tx;
-	int                 rc;
-	int                 i;
-	int                 svc_nr;
-	struct m0_fid       fid = spiel_obj_fid[SPIEL_UT_OBJ_SERVICE11];
-	const char         *svc_ep[] = { SVC_EP, NULL };
+	struct m0_spiel_tx tx;
+	int                rc;
+	int                i;
+	int                svc_nr;
+	struct m0_fid      fid = spiel_obj_fid[SPIEL_UT_OBJ_SERVICE11];
+	const char        *svc_ep[] = { SVC_EP, NULL };
 	struct m0_spiel_service_info svc_info = {
-			.svi_type = M0_CST_IOS,
-			.svi_endpoints = svc_ep
-			};
-	m0_bcount_t         seg_size;
-	char               *cache_str;
-	uint32_t            svc_str_size = sizeof(
-			"{0x73|(((0x7300000000000001,0)),0x1,"
-			"[0x1: " SVC_EP "], [0])},") - 1;
+		.svi_type = M0_CST_DS1,
+		.svi_endpoints = svc_ep
+	};
+	m0_bcount_t        seg_size;
+	char              *cache_str;
+	uint32_t           svc_str_size =
+		sizeof("{0x73|(((0x7300000000000001,0)),1,"
+		       "[1: " SVC_EP "], [0])},") - 1;
 
 	spiel_conf_ut_init();
 	spiel_conf_create_configuration(&spiel, &tx);
@@ -2047,6 +2047,7 @@ const struct m0_ut_suite spiel_conf_ut = {
 		{ "file",           spiel_conf_file           },
 		{ "cancel",         spiel_conf_cancel         },
 		{ "load-send",      spiel_conf_load_send      },
+		{ "big-db",         spiel_conf_big_db         },
 		{ "flip-fail",      spiel_conf_flip_fail      },
 		{ "check-fail",     spiel_conf_check_fail     },
 		{ "load-fail",      spiel_conf_load_fail      },
@@ -2058,12 +2059,6 @@ const struct m0_ut_suite spiel_conf_ut = {
 		{ "conf-expired",   spiel_conf_expired        },
 		{ "wlock-get-fail", spiel_conf_wlock_get_fail },
 		{ NULL, NULL },
-		/*
-		 * Disabled.
-		 * See https://jts.seagate.com/browse/MERO-2421 for
-		 * the reference.
-		 */
-		{ "big-db",      spiel_conf_big_db      },
 	},
 };
 M0_EXPORTED(spiel_conf_ut);
