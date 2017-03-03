@@ -47,7 +47,12 @@ struct m0_net_xprt *sr_xprts[] = {
 
 FILE           *lfile;
 struct m0_mero  sctx;
-
+enum {
+	PDCLUST_N = 8,
+	PDCLUST_K = 2,
+	PDCLUST_P = 24,
+	PDCLUST_UNIT_SIZE = 4096,
+};
 void bv_populate(struct m0_bufvec *b, char data, uint32_t seg_nr,
 		 uint32_t seg_size)
 {
@@ -182,6 +187,40 @@ void cs_fini(struct m0_mero *sctx)
 {
 	m0_cs_fini(sctx);
 	fclose(lfile);
+}
+
+void layout_gen(struct m0_pdclust_layout **pdlay, struct m0_reqh *reqh)
+{
+	struct m0_layout_linear_enum *llenum;
+	struct m0_layout_linear_attr  llattr;
+	struct m0_pdclust_attr        pdattr;
+	int                           rc;
+
+	llattr = (struct m0_layout_linear_attr) {
+	        .lla_nr = PDCLUST_P,
+	        .lla_A  = 1,
+	        .lla_B  = 1,
+	};
+	llenum = NULL;
+	rc = m0_linear_enum_build(&reqh->rh_ldom, &llattr, &llenum);
+	M0_ASSERT(rc == 0);
+
+	pdattr = (struct m0_pdclust_attr) {
+	        .pa_N         = PDCLUST_N,
+	        .pa_K         = PDCLUST_K,
+	        .pa_P         = PDCLUST_P,
+	        .pa_unit_size = PDCLUST_UNIT_SIZE,
+	};
+	m0_uint128_init(&pdattr.pa_seed, "upjumpandpumpim,");
+	rc = m0_pdclust_build(&reqh->rh_ldom, M0_DEFAULT_LAYOUT_ID,
+			      &pdattr, &llenum->lle_base, pdlay);
+	M0_ASSERT(rc == 0);
+	M0_ASSERT(*pdlay != NULL);
+}
+
+void layout_destroy(struct m0_pdclust_layout *pdlay)
+{
+	m0_layout_put(&pdlay->pl_base.sl_base);
 }
 
 /*

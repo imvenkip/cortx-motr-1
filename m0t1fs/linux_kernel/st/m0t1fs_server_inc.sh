@@ -184,13 +184,17 @@ mero_service()
 	local PROC_FID_CNTR=0x7200000000000001
 	local rc=0
 
-	if [ $# -eq 6 ]
+	if [ $# -ge 6 ]
 	then
 		stride=$3
 		N=$4
 		K=$5
 		P=$6
 		unit_size=$((stride * 1024))
+	fi
+	if [ $# -eq 7 ]
+	then
+		FI_OPTS="-o $7"
 	fi
 
         prog_mkfs="$M0_SRC_DIR/utils/mkfs/m0mkfs"
@@ -276,10 +280,9 @@ EOF
 		DIR=$MERO_M0T1FS_TEST_DIR/confd
 		CONFDB="$DIR/conf.xc"
 		build_conf $N $K $P $multiple_pools | tee $DIR/conf.xc
-
 		common_opts="-D db -S stobs -A linuxstob:addb-stobs \
 			     -w $P -m $MAX_RPC_MSG_SIZE \
-			     -q $TM_MIN_RECV_QUEUE_LEN -P '$PROF_OPT' -N 100663296 -C 262144  -K 100663296 -k 262144 "
+			     -q $TM_MIN_RECV_QUEUE_LEN -P '$PROF_OPT' -N 100663296 -C 262144  -K 100663296 -k 262144"
 
 		# mkfs for confd server
 		opts="$common_opts -T linux -e $XPT:${CONFD_EP%:*:*}:$MKFS_PORTAL:1\
@@ -335,7 +338,7 @@ EOF
 			ulimit -c unlimited
 			cmd="cd $DIR && exec \
 			$prog_mkfs -F -T $MERO_STOB_DOMAIN \
-			$common_opts -e $XPT:${lnet_nid}:${IOSEP[$i]%:*:*}:$MKFS_PORTAL:$tmid \
+			$common_opts -e $XPT:${lnet_nid}:${IOSEP[$i]%:*:*}:$MKFS_PORTAL:$tmid  $FI_OPTS \
 			-c $CONFDB |& tee -a m0mkfs.log"
 			echo $cmd
 			eval "$cmd"
@@ -347,7 +350,7 @@ EOF
 			ulimit -c unlimited
 			cmd="cd $DIR && exec \
 			$prog_mkfs -F -T $MERO_STOB_DOMAIN \
-			$common_opts -e $XPT:${lnet_nid}:${IOS_PVER2_EP%:*:*}:$MKFS_PORTAL:$tmid \
+			$common_opts -e $XPT:${lnet_nid}:${IOS_PVER2_EP%:*:*}:$MKFS_PORTAL:$tmid  $FI_OPTS \
 			-c $CONFDB |& tee -a m0mkfs.log"
 			echo $cmd
 			eval "$cmd"
@@ -432,7 +435,7 @@ EOF
 			ulimit -c unlimited
 			cmd="cd $DIR && exec \
 			$prog_start -T $MERO_STOB_DOMAIN \
-			$common_opts -e $XPT:${lnet_nid}:$IOS_PVER2_EP\
+			$common_opts -e $XPT:${lnet_nid}:$IOS_PVER2_EP \
                         -f $proc_fid \
 			-H ${lnet_nid}:$HA_EP |& tee -a m0d.log"
 			echo $cmd

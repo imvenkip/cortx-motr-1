@@ -21,6 +21,7 @@
 #include <stdio.h>     /* fprintf */
 #include <sys/stat.h>  /* mkdir */
 #include <unistd.h>    /* daemon */
+#include <err.h>
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_M0D
 #include "lib/trace.h"
@@ -890,6 +891,12 @@ static int cs_storage_devs_init(struct cs_stobs          *stob,
 					/* Every storage device need not have a
 					 * counterpart in configuration. */
 					conf_sdev = NULL;
+				if (M0_FI_ENABLED("spare_reserve"))
+					/*
+					 * We intend to fill disks faster, hence
+					 * sizes reduced to 256 MB.
+					 */
+					size = 1024ULL *1024 * 256;
 				rc = m0_storage_dev_new(devs, cid, f_path, size,
 							conf_sdev, &dev);
 				if (rc == 0)
@@ -1889,7 +1896,8 @@ static void cs_mero_fini(struct m0_mero *cctx)
 	cs_buffer_pools_tlist_fini(&cctx->cc_buffer_pools);
 	ndom_tlist_fini(&cctx->cc_ndoms);
 	m0_rwlock_fini(&cctx->cc_rwlock);
-
+	if (cctx->cc_enable_finj)
+		m0_fi_fini();
 	while (cctx->cc_args.ca_argc > 0)
 		m0_free(cctx->cc_args.ca_argv[--cctx->cc_args.ca_argc]);
 	m0_free(cctx->cc_args.ca_argv);
@@ -2366,6 +2374,14 @@ static int _args_parse(struct m0_mero *cctx, int argc, char **argv)
 				LAMBDA(void, (void)
 				{
 					rctx->rc_fis_enabled = true;
+				})),
+			M0_STRINGARG('o', "Enable fault injection in m0d"
+				     "startup",
+				LAMBDA(void, (const char *s)
+				{
+				      cctx->cc_enable_finj = true;
+				      m0_fi_init();
+				      rc = m0_fi_enable_fault_point(s);
 				})),
 			M0_NUMBERARG('E', "Set buffer pool size for ioservice",
 				LAMBDA(void, (int64_t size)

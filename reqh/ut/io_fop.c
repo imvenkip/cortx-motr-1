@@ -39,6 +39,7 @@
 #include "fop/fop_item_type.h"
 #include "reqh/ut/io_fop.h"
 #include "reqh/ut/io_fop_xc.h"
+#include "ut/ut.h"
 
 /**
    @defgroup stobio
@@ -540,7 +541,9 @@ static int stob_write_fom_tick(struct m0_fom *fom)
 			stio->si_opcode = SIO_WRITE;
 			stio->si_fol_frag = &fom_obj->sif_fol_frag;
 			stio->si_flags  = 0;
-
+			result = m0_stob_io_private_setup(stio, stobj);
+			M0_UT_ASSERT(result == 0);
+			m0_stob_ad_balloc_set(stio, M0_BALLOC_NORMAL_ZONE);
 			m0_mutex_lock(&stio->si_mutex);
 			m0_fom_wait_on(fom, &stio->si_wait, &fom->fo_cb);
 			m0_mutex_unlock(&stio->si_mutex);

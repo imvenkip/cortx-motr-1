@@ -497,7 +497,12 @@ M0_INTERNAL void *m0_stob_addr_open(const void *buf, uint32_t shift);
  */
 M0_INTERNAL void m0_stob_iovec_sort(struct m0_stob_io *stob);
 
-
+/**
+ * On success, ensures that io->si_stob_private is setup to launch IO against
+ * the object "obj".
+ */
+M0_INTERNAL int m0_stob_io_private_setup(struct m0_stob_io *io,
+					 struct m0_stob *obj);
 /** @} end of stob group */
 #endif /* __MERO_STOB_IO_H__ */
 

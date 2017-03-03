@@ -977,12 +977,13 @@ static void test_cp_send_mismatch_epoch()
 
 static void test_cp_send_recv_verify()
 {
-	struct m0_sns_cm_ag   *sag;
-	struct m0_net_buffer  *nbuf;
-	int                    i;
-	char                   data;
-	struct m0_pool_version pv;
-	struct m0_poolmach     pm;
+	struct m0_sns_cm_ag      *sag;
+	struct m0_net_buffer     *nbuf;
+	int                       i;
+	char                      data;
+	struct m0_pool_version    pv;
+	struct m0_poolmach        pm;
+	struct m0_pdclust_layout *pdlay;
 
 	m0_fi_enable("m0_sns_cm_tgt_ep", "local-ep");
 	m0_fi_enable("cpp_data_next", "enodata");
@@ -995,9 +996,11 @@ static void test_cp_send_recv_verify()
 	m0_semaphore_init(&cp_sem, 0);
 	m0_semaphore_init(&write_cp_sem, 0);
 
+	layout_gen(&pdlay, s0_reqh);
 	sag = &s_rag.rag_base;
 	pm.pm_pver = &pv;
 	fctx.sf_pm = &pm;
+	fctx.sf_layout = m0_pdl_to_layout(pdlay);
 	sag->sag_fctx = &fctx;
 	data = START_DATA;
         m0_net_buffer_pool_lock(&nbp);
@@ -1054,6 +1057,7 @@ static void test_cp_send_recv_verify()
 
 	m0_semaphore_fini(&write_cp_sem);
 
+	layout_destroy(pdlay);
 	test_fini();
 
 	m0_fi_disable("m0_sns_cm_tgt_ep", "local-ep");

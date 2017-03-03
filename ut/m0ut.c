@@ -433,13 +433,13 @@ int main(int argc, char *argv[])
 
 	/* enable fault points as early as possible */
 	if (fault_point != NULL) {
-		rc = m0_ut_enable_fault_point(fault_point);
+		rc = m0_fi_enable_fault_point(fault_point);
 		if (rc != 0)
 			goto ut_fini;
 	}
 
 	if (fp_file_name != NULL) {
-		rc = m0_ut_enable_fault_points_from_file(fp_file_name);
+		rc = m0_fi_enable_fault_points_from_file(fp_file_name);
 		if (rc != 0)
 			goto ut_fini;
 	}

@@ -73,13 +73,15 @@ struct m0_ad_balloc_ops {
 	 */
 	int  (*bo_init)(struct m0_ad_balloc *ballroom, struct m0_be_seg *db,
 			uint32_t bshift, m0_bcount_t container_size,
-			m0_bcount_t blocks_per_group);
+			m0_bcount_t blocks_per_group,
+			m0_bcount_t spare_blocks_per_group);
 	/** Finalises and destroys struct m0_balloc instance. */
 	void (*bo_fini)(struct m0_ad_balloc *ballroom);
 	/** Allocates count of blocks. On success, allocated extent, also
 	    measured in blocks, is returned in out parameter. */
 	int  (*bo_alloc)(struct m0_ad_balloc *ballroom, struct m0_dtx *dtx,
-			 m0_bcount_t count, struct m0_ext *out);
+			 m0_bcount_t count, struct m0_ext *out,
+			 uint64_t alloc_zone);
 	/** Free space (possibly a sub-extent of an extent allocated
 	    earlier). */
 	int  (*bo_free)(struct m0_ad_balloc *ballroom, struct m0_dtx *dtx,
@@ -100,6 +102,7 @@ struct m0_stob_ad_domain {
 	uint32_t                sad_bshift;
 	int32_t                 sad_babshift;
 	m0_bcount_t             sad_blocks_per_group;
+	m0_bcount_t             sad_spare_blocks_per_group;
 	char                    sad_path[MAXPATHLEN];
 	bool                    sad_overwrite;
 	char                    sad_pad[7];
@@ -164,6 +167,13 @@ struct m0_stob_ad_io {
 	struct m0_stob_io *ai_fore;
 	struct m0_stob_io  ai_back;
 	struct m0_clink    ai_clink;
+	/**
+	 * Balloc zone to which allocation be made. Note
+	 * that these flags should be explicitly set before
+	 * launching IO in order to succeed allocation, as
+	 * they are not set by default. See @enum m0_balloc_allocation_flag.
+	 */
+	uint64_t           ai_balloc_flags;
 };
 
 extern const struct m0_stob_type m0_stob_ad_type;
@@ -184,6 +194,21 @@ M0_INTERNAL int stob_ad_cursor(struct m0_stob_ad_domain *adom,
 			       struct m0_stob *obj,
 			       uint64_t offset,
 			       struct m0_be_emap_cursor *it);
+
+/**
+ * Sets the flags associated with the balloc zones (spare/non-spare).
+ */
+M0_INTERNAL void m0_stob_ad_balloc_set(struct m0_stob_io *io, uint64_t flags);
+
+/**
+ * Clears allocation context from previous IO.
+ */
+M0_INTERNAL void m0_stob_ad_balloc_clear(struct m0_stob_io *io);
+
+/**
+ * Calculates the count of spare blocks to be reserved for a given group.
+ */
+M0_INTERNAL m0_bcount_t m0_stob_ad_spares_calc(m0_bcount_t grp);
 
 
 /** @} end group stobad */

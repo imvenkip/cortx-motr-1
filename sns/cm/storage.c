@@ -35,6 +35,7 @@
 #include "ioservice/io_foms.h"     /* m0_io_cob_stob_create */
 #include "ioservice/fid_convert.h" /* m0_fid_convert_stob2cob */
 #include "cob/cob.h"               /* m0_cob_tx_credit */
+#include "balloc/balloc.h"         /* M0_BALLOC_SPARE_ZONE */
 
 /**
  * @addtogroup SNSCMCP
@@ -206,12 +207,14 @@ static bool cp_stob_io_is_initialised(struct m0_stob_io *io)
 
 static int cp_io(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
 {
-	struct m0_fom          *cp_fom;
-	struct m0_sns_cm_cp    *sns_cp;
-	struct m0_stob         *stob;
-	struct m0_stob_io      *stio;
-	enum m0_stob_state      stob_state;
-	int                     rc;
+	struct m0_fom       *cp_fom;
+	struct m0_sns_cm_cp *sns_cp;
+	struct m0_stob      *stob;
+	struct m0_stob_io   *stio;
+	enum m0_stob_state   stob_state;
+	enum m0_sns_cm_op    sns_op;
+	uint64_t             balloc_flags = M0_BALLOC_NORMAL_ZONE;
+	int                  rc;
 
 	M0_ENTRY("cp=%p op=%d", cp, op);
 
@@ -227,7 +230,6 @@ static int cp_io(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
 	rc = m0_sns_cm_cp_tx_open(cp);
 	if (rc != 0)
 		goto out;
-
 	if (op == SIO_WRITE) {
 		rc = cob_stob_check(cp);
 		if (rc != 0)
@@ -242,15 +244,28 @@ static int cp_io(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
 	M0_LOG(M0_DEBUG, "fom %p, stob %p, fid="FID_F" so_state %d, "
 	       "so_ref %"PRIu64, cp_fom, sns_cp->sc_stob,
 	       FID_P(&stob->so_id.si_fid), stob_state, stob->so_ref);
-
 	m0_mutex_lock(&stio->si_mutex);
 	m0_fom_wait_on(cp_fom, &stio->si_wait, &cp_fom->fo_cb);
 	m0_mutex_unlock(&stio->si_mutex);
-
+	sns_op =
+	  (enum m0_sns_cm_op)((struct m0_sns_cm *)cp->c_ag->cag_cm)->sc_op;
 	if (M0_FI_ENABLED("io-fail"))
 		rc = M0_ERR(-EIO);
-	else
-		rc = m0_stob_io_launch(stio, stob, &cp_fom->fo_tx, NULL);
+	else {
+		rc = m0_stob_io_private_setup(stio, stob);
+		if (rc == 0) {
+			if (sns_op == SNS_REPAIR)
+				balloc_flags = M0_BALLOC_NORMAL_ZONE |
+					M0_BALLOC_SPARE_ZONE;
+			m0_stob_ad_balloc_set(stio, balloc_flags);
+			rc = m0_stob_io_launch(stio, stob, &cp_fom->fo_tx,
+					       NULL);
+		} else {
+			M0_LOG(M0_ERROR, "Launching IO against the stob with"
+					 "id "FID_F"is not feasible",
+					 FID_P(&stob->so_id.si_fid));
+		}
+	}
 	if (rc != 0) {
 		m0_mutex_lock(&stio->si_mutex);
 		m0_fom_callback_cancel(&cp_fom->fo_cb);
@@ -270,6 +285,7 @@ out:
 	}
 	return cp->c_ops->co_phase_next(cp);
 }
+
 
 M0_INTERNAL int m0_sns_cm_cp_read(struct m0_cm_cp *cp)
 {

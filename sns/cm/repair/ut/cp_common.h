@@ -48,6 +48,9 @@ void cp_prepare(struct m0_cm_cp *cp, struct m0_net_buffer *buf,
 		uint64_t cp_ag_idx, bool is_acc_cp, struct m0_cm *scm);
 struct m0_sns_cm *reqh2snscm(struct m0_reqh *reqh);
 
+void layout_gen(struct m0_pdclust_layout **pdlay, struct m0_reqh *reqh);
+void layout_destroy(struct m0_pdclust_layout *pdlay);
+
 int cs_init(struct m0_mero *sctx);
 void cs_fini(struct m0_mero *sctx);
 

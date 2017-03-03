@@ -44,6 +44,23 @@ static void m0_stob_io_private_fini(struct m0_stob_io *io)
 	}
 }
 
+M0_INTERNAL int m0_stob_io_private_setup(struct m0_stob_io *io,
+					 struct m0_stob *obj)
+{
+	uint8_t type_id;
+	int     result;
+
+	type_id = m0_stob_domain__type_id(
+			m0_stob_domain_id_get(m0_stob_dom_get(obj)));
+	if (io->si_stob_magic != type_id) {
+		m0_stob_io_private_fini(io);
+		result = obj->so_ops->sop_io_init(obj, io);
+		io->si_stob_magic = type_id;
+	} else
+		result = 0;
+	return result;
+}
+
 M0_INTERNAL void m0_stob_io_init(struct m0_stob_io *io)
 {
 	M0_SET0(io);
@@ -79,7 +96,6 @@ M0_INTERNAL int m0_stob_io_launch(struct m0_stob_io *io, struct m0_stob *obj,
 	const struct m0_fid *fid = m0_stob_fid_get(obj);
 	struct m0_indexvec  *iv  = &io->si_stob;
 	struct m0_bufvec    *bv  = &io->si_user;
-	uint8_t              type_id;
 	int                  result;
 
 	M0_PRE(m0_stob_state_get(obj) == CSS_EXISTS);
@@ -99,14 +115,7 @@ M0_INTERNAL int m0_stob_io_launch(struct m0_stob_io *io, struct m0_stob *obj,
 	M0_ADDB2_PUSH(M0_AVI_STOB_IO_LAUNCH, FID_P(fid),
 		      m0_vec_count(&bv->ov_vec),
 		      bv->ov_vec.v_nr, iv->iv_vec.v_nr, iv->iv_index[0]);
-	type_id = m0_stob_domain__type_id(
-			m0_stob_domain_id_get(m0_stob_dom_get(obj)));
-	if (io->si_stob_magic != type_id) {
-		m0_stob_io_private_fini(io);
-		result = obj->so_ops->sop_io_init(obj, io);
-		io->si_stob_magic = type_id;
-	} else
-		result = 0;
+	result = m0_stob_io_private_setup(io, obj);
 
 	if (result == 0) {
 		io->si_obj   = obj;

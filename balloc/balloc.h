@@ -53,8 +53,16 @@ struct m0_balloc_group_desc {
 	m0_bcount_t             bgd_freeblocks;
 	/** nr of freespace fragments */
 	m0_bcount_t             bgd_fragments;
+	/** number of free spare space fragments */
+	m0_bcount_t             bgd_spare_frags;
+	/** total free spare blocks */
+	m0_bcount_t             bgd_spare_freeblocks;
+	/** starting block for a spare. */
+	m0_bcount_t             bgd_sparestart;
 	/** max bytes of freespace chunk */
 	m0_bcount_t             bgd_maxchunk;
+	/** max contiguous free spare space. */
+	m0_bcount_t             bgd_spare_maxchunk;
 	struct m0_format_footer bgd_footer;
 };
 
@@ -69,6 +77,58 @@ enum m0_balloc_group_desc_format_version {
 	M0_BALLOC_GROUP_DESC_FORMAT_VERSION = M0_BALLOC_GROUP_DESC_FORMAT_VERSION_1
 };
 
+enum m0_balloc_allocation_flag {
+	/** prefer goal again. length */
+	M0_BALLOC_HINT_MERGE              = 1 << 0,
+
+	/** blocks already reserved */
+	M0_BALLOC_HINT_RESERVED           = 1 << 1,
+
+	/** metadata is being allocated */
+	M0_BALLOC_HINT_METADATA           = 1 << 2,
+
+	/** use the first found extent */
+	M0_BALLOC_HINT_FIRST              = 1 << 3,
+
+	/** search for the best chunk */
+	M0_BALLOC_HINT_BEST               = 1 << 4,
+
+	/** data is being allocated */
+	M0_BALLOC_HINT_DATA               = 1 << 5,
+
+	/** don't preallocate (for tails) */
+	M0_BALLOC_HINT_NOPREALLOC         = 1 << 6,
+
+	/** allocate for locality group */
+	M0_BALLOC_HINT_GROUP_ALLOC        = 1 << 7,
+
+	/** allocate goal blocks or none */
+	M0_BALLOC_HINT_GOAL_ONLY          = 1 << 8,
+
+	/** goal is meaningful */
+	M0_BALLOC_HINT_TRY_GOAL           = 1 << 9,
+
+	/** blocks already pre-reserved by delayed allocation */
+	M0_BALLOC_DELALLOC_RESERVED       = 1 << 10,
+
+	/** We are doing stream allocation */
+	M0_BALLOC_STREAM_ALLOC            = 1 << 11,
+
+	/** Allocate in spare zone. */
+	M0_BALLOC_SPARE_ZONE              = 1 << 12,
+
+	/** Allocate in normal zone. */
+	M0_BALLOC_NORMAL_ZONE             = 1 << 13,
+};
+
+struct m0_balloc_zone_param {
+	enum m0_balloc_allocation_flag  bzp_type;
+	struct m0_ext                   bzp_range;
+	m0_bcount_t                     bzp_freeblocks;
+	m0_bcount_t                     bzp_fragments;
+	m0_bcount_t                     bzp_maxchunk;
+	struct m0_list                  bzp_extents;
+};
 
 /** Linked extents */
 struct m0_lext {
@@ -82,29 +142,23 @@ struct m0_lext {
    In-memory data structure for group
  */
 struct m0_balloc_group_info {
-	struct m0_format_header bgi_header;
+	struct m0_format_header      bgi_header;
 	/** @see m0_balloc_group_info_state for values */
-	uint64_t                bgi_state;
+	uint64_t                     bgi_state;
 	/** group number */
-	m0_bindex_t             bgi_groupno;
-	/** total free blocks */
-	m0_bcount_t             bgi_freeblocks;
-	/** nr of freespace fragments */
-	m0_bcount_t             bgi_fragments;
-	/** max bytes of freespace chunk */
-	m0_bcount_t             bgi_maxchunk;
+	m0_bindex_t                  bgi_groupno;
+	struct m0_balloc_zone_param  bgi_normal;
+	struct m0_balloc_zone_param  bgi_spare;
 	/** list of pre-alloc */
-	struct m0_list          bgi_prealloc_list;
+	struct m0_list               bgi_prealloc_list;
 	/** Array of group extents */
-	struct m0_lext         *bgi_extents;
-	/** List of the same group extents */
-	struct m0_list          bgi_ext_list;
-	struct m0_format_footer bgi_footer;
+	struct m0_lext              *bgi_extents;
+	struct m0_format_footer      bgi_footer;
 	/*
 	 * volatile-only fields
 	 */
 	/** per-group lock */
-	struct m0_be_mutex      bgi_mutex;
+	struct m0_be_mutex           bgi_mutex;
 };
 
 enum m0_balloc_group_info_format_version {
@@ -125,7 +179,6 @@ enum m0_balloc_group_info_state {
 	M0_BALLOC_GROUP_INFO_DIRTY = 1 << 1,
 };
 
-
 /**
    On-disk and in-memory super block stored in db
  */
@@ -137,8 +190,10 @@ struct m0_balloc_super_block {
 
         m0_bcount_t	bsb_totalsize;        /**< total size in bytes */
         m0_bcount_t	bsb_freeblocks;       /**< nr of free blocks */
+	m0_bcount_t     bsb_freespare;        /**< nr free spare blocks */
         m0_bcount_t	bsb_blocksize;        /**< block size in bytes */
         m0_bcount_t	bsb_groupsize;        /**< group size in blocks */
+	m0_bcount_t     bsb_sparesize;        /**< spare blocks per group */
 	uint32_t	bsb_bsbits;           /**< block size bits: power of 2*/
 	uint32_t	bsb_gsbits;           /**< group size bits: power of 2*/
         m0_bcount_t	bsb_groupcount;       /**< # of group */
@@ -224,9 +279,14 @@ static inline struct m0_balloc *b2m0(const struct m0_ad_balloc *ballroom)
    Request to format a container.
  */
 struct m0_balloc_format_req {
-	m0_bcount_t 	bfr_totalsize;	      /*< total size in bytes  */
-	m0_bcount_t	bfr_blocksize;        /*< block size in bytes  */
-	m0_bcount_t	bfr_groupsize;        /*< group size in blocks */
+	/** Total size in bytes. */
+	m0_bcount_t	bfr_totalsize;
+	/** Block size in bytes. */
+	m0_bcount_t	bfr_blocksize;
+	/** Group size in blocks. */
+	m0_bcount_t	bfr_groupsize;
+	/** Spare blocks per group. Should be a power of two. */
+	m0_bcount_t     bfr_spare_reserved_blocks;
 };
 
 struct m0_balloc_free_extent {
@@ -253,45 +313,6 @@ struct m0_balloc_allocate_req {
 
 	void           *bar_prealloc;/*< [in][out]User opaque prealloc result */
 };
-
-enum m0_balloc_allocation_flag {
-	/** prefer goal again. length */
-	M0_BALLOC_HINT_MERGE              = 1 << 0,
-
-	/** blocks already reserved */
-	M0_BALLOC_HINT_RESERVED           = 1 << 1,
-
-	/** metadata is being allocated */
-	M0_BALLOC_HINT_METADATA           = 1 << 2,
-
-	/** use the first found extent */
-	M0_BALLOC_HINT_FIRST              = 1 << 3,
-
-	/** search for the best chunk */
-	M0_BALLOC_HINT_BEST               = 1 << 4,
-
-	/** data is being allocated */
-	M0_BALLOC_HINT_DATA               = 1 << 5,
-
-	/** don't preallocate (for tails) */
-	M0_BALLOC_HINT_NOPREALLOC         = 1 << 6,
-
-	/** allocate for locality group */
-	M0_BALLOC_HINT_GROUP_ALLOC        = 1 << 7,
-
-	/** allocate goal blocks or none */
-	M0_BALLOC_HINT_GOAL_ONLY          = 1 << 8,
-
-	/** goal is meaningful */
-	M0_BALLOC_HINT_TRY_GOAL           = 1 << 9,
-
-	/** blocks already pre-reserved by delayed allocation */
-	M0_BALLOC_DELALLOC_RESERVED       = 1 << 10,
-
-	/** We are doing stream allocation */
-	M0_BALLOC_STREAM_ALLOC            = 1 << 11,
-};
-
 
 /**
    Request to free multiple blocks to a container.
@@ -321,7 +342,7 @@ enum {
 	 */
 	BALLOC_DEF_GROUPS_NR            = 64,
 	/** Used as minimal group size */
-	BALLOC_DEF_BLOCKS_PER_GROUP     = 32768
+	BALLOC_DEF_BLOCKS_PER_GROUP     = 32768,
 };
 
 /**

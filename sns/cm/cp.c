@@ -364,7 +364,7 @@ M0_INTERNAL int m0_sns_cm_cp_setup(struct m0_sns_cm_cp *scp,
 	 * Set the bit value of own index if it is not an accumulator copy
 	 * packet.
 	 */
-	if (ag_cp_idx != ~0)
+	if (ag_cp_idx < scp->sc_base.c_ag->cag_cp_global_nr)
 		m0_bitmap_set(&scp->sc_base.c_xform_cp_indices, ag_cp_idx,
 			      true);
 

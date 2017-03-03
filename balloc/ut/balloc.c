@@ -38,6 +38,7 @@
 #include "ut/ast_thread.h"
 #include "balloc/balloc.h"
 #include "be/ut/helper.h"
+#include "stob/ad.h"      /* m0_stob_ad_spares_calc */
 
 #define BALLOC_DBNAME "./__balloc_db"
 
@@ -80,7 +81,7 @@ bool balloc_ut_invariant(struct m0_balloc *mero_balloc,
 		 return false;
 	}
 
-	return mero_balloc->cb_group_info[group].bgi_freeblocks ==
+	return mero_balloc->cb_group_info[group].bgi_normal.bzp_freeblocks ==
 		prev_group_info_free_blocks[group] &&
 		mero_balloc->cb_sb.bsb_freeblocks ==
 		prev_free_blocks;
@@ -109,14 +110,15 @@ int test_balloc_ut_ops(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg)
 
 	result = mero_balloc->cb_ballroom.ab_ops->bo_init
 		(&mero_balloc->cb_ballroom, seg, BALLOC_DEF_BLOCK_SHIFT,
-		 BALLOC_DEF_CONTAINER_SIZE, BALLOC_DEF_BLOCKS_PER_GROUP);
+		 BALLOC_DEF_CONTAINER_SIZE, BALLOC_DEF_BLOCKS_PER_GROUP,
+		 m0_stob_ad_spares_calc(BALLOC_DEF_BLOCKS_PER_GROUP));
 
 	if (result == 0) {
 		prev_free_blocks = mero_balloc->cb_sb.bsb_freeblocks;
 		M0_ALLOC_ARR(prev_group_info_free_blocks, GROUP_SIZE);
 		for (i = 0; i < GROUP_SIZE; ++i) {
 			prev_group_info_free_blocks[i] =
-				mero_balloc->cb_group_info[i].bgi_freeblocks;
+			 mero_balloc->cb_group_info[i].bgi_normal.bzp_freeblocks;
 		}
 
 		for (i = 0; i < MAX; ++i) {
@@ -132,7 +134,7 @@ int test_balloc_ut_ops(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg)
 			//tmp.e_start = tmp.e_end;
 			result = mero_balloc->cb_ballroom.ab_ops->bo_alloc(
 				    &mero_balloc->cb_ballroom, &dtx, count,
-				    &tmp);
+				    &tmp, M0_BALLOC_NORMAL_ZONE);
 			M0_UT_ASSERT(result == 0);
 			if (result < 0) {
 				M0_LOG(M0_ERROR, "Error in allocation");
@@ -144,14 +146,6 @@ int test_balloc_ut_ops(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg)
 			/* The result extent length should be less than
 			 * or equal to the requested length. */
 			M0_UT_ASSERT(m0_ext_length(&ext[i]) <= count);
-			if (m0_ext_length(&ext[i]) > count) {
-				M0_LOG(M0_ERROR, "Allocation size mismatch: "
-					"requested count = %5d, result = %5d",
-					(int)count,
-					(int)m0_ext_length(&ext[i]));
-				result = -EINVAL;
-			}
-
 			M0_UT_ASSERT(balloc_ut_invariant(mero_balloc, ext[i],
 							 INVAR_ALLOC));
 			M0_LOG(M0_INFO, "%3d:rc=%d: req=%5d, got=%5d: "
@@ -240,18 +234,9 @@ int test_balloc_ut_ops(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg)
 				if (result == 0)
 					m0_balloc_debug_dump_group_extent(
 						    "balloc ut", grp);
-				M0_UT_ASSERT(grp->bgi_freeblocks ==
-					mero_balloc->cb_sb.bsb_groupsize);
-				if (grp->bgi_freeblocks !=
-				    mero_balloc->cb_sb.bsb_groupsize) {
-					M0_LOG(M0_ERROR, "corrupted grp %d: "
-					       "%llx != %llx",
-					       i, (unsigned long long)
-					       grp->bgi_freeblocks,
-					       (unsigned long long)
-					       mero_balloc->cb_sb.bsb_groupsize);
-					result = -EINVAL;
-				}
+				M0_UT_ASSERT(grp->bgi_normal.bzp_freeblocks ==
+					     mero_balloc->cb_sb.bsb_groupsize -
+					     mero_balloc->cb_sb.bsb_sparesize);
 				m0_balloc_release_extents(grp);
 				m0_balloc_unlock_group(grp);
 			}

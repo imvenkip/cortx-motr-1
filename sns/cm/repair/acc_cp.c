@@ -131,8 +131,9 @@ M0_INTERNAL int m0_sns_cm_acc_cp_setup(struct m0_sns_cm_cp *scp,
 				       uint64_t failed_unit_idx,
 				       uint64_t data_seg_nr)
 {
-	struct m0_sns_cm_ag *sag = ag2snsag(scp->sc_base.c_ag);
-	struct m0_cm *cm = sag->sag_base.cag_cm;
+	struct m0_sns_cm_ag                    *sag = ag2snsag(scp->sc_base.c_ag);
+	struct m0_cm                           *cm = sag->sag_base.cag_cm;
+	struct m0_sns_cm_repair_ag_failure_ctx *rag_fc;
 
         M0_PRE(scp != NULL && sag != NULL);
 	M0_PRE(m0_cm_is_locked(cm));
@@ -140,8 +141,9 @@ M0_INTERNAL int m0_sns_cm_acc_cp_setup(struct m0_sns_cm_cp *scp,
 	if (!sag->sag_base.cag_has_incoming)
 		scp->sc_is_local = true;
 	scp->sc_is_acc = true;
+	rag_fc = M0_AMB(rag_fc, scp, fc_tgt_acc_cp);
 	return m0_sns_cm_cp_setup(scp, tgt_cobfid, tgt_cob_index, data_seg_nr,
-				  failed_unit_idx, ~0);
+				  failed_unit_idx, rag_fc->fc_tgt_idx);
 }
 
 /** @} SNSCMCP */

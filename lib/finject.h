@@ -435,8 +435,10 @@ void m0_fi_register(struct m0_fi_fault_point *fp);
  */
 bool m0_fi_enabled(struct m0_fi_fpoint_state *fps);
 
-#else /* ENABLE_FAULT_INJECTION */
+M0_INTERNAL enum m0_fi_fpoint_type m0_fi_fpoint_type_from_str(const char
+							      *type_name);
 
+#else /* ENABLE_FAULT_INJECTION */
 #define M0_FI_ENABLED(tag)                               (false)
 
 static inline void m0_fi_enable_generic(const char *fp_func, const char *fp_tag,
@@ -487,7 +489,8 @@ static inline bool m0_fi_enabled(struct m0_fi_fpoint_state *fps)
 }
 
 #endif /* ENABLE_FAULT_INJECTION */
-
+M0_INTERNAL int m0_fi_enable_fault_point(const char *str);
+M0_INTERNAL int m0_fi_enable_fault_points_from_file(const char *file_name);
 /** @} end of finject group */
 #endif /* __MERO_LIB_FINJECT_H__ */
 

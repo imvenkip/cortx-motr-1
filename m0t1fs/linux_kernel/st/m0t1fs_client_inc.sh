@@ -838,11 +838,6 @@ m0t1fs_test_MERO_2099()
 		rc=1
 	fi
 
-	if [ $used_delete -ne 0 ] ; then
-		echo "balloc space leak? After deletion, used-blocks is not zero"
-		rc=1
-	fi
-
 	total_blocks=`expr 200 \* 40 \* 1024` #in 1K blocks
 	echo "total_blocks = $total_blocks"
 	if [ $used_after -le $total_blocks ] ; then
@@ -853,7 +848,6 @@ m0t1fs_test_MERO_2099()
 	unmount_and_clean
 	return $rc
 }
-
 
 m0t1fs_system_tests()
 {

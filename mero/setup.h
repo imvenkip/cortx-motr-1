@@ -448,6 +448,9 @@ struct m0_mero {
 	/** Skip all-to-all connection init. Useful in dummy HA */
 	bool                        cc_no_all2all_connections;
 
+	/** Enables fault injection during m0d bootup. */
+	bool                        cc_enable_finj;
+
 	/** Command line arguments. */
 	struct cs_args		    cc_args;
 

@@ -34,6 +34,7 @@
 
 M0_INTERNAL void cob_delete(struct m0_cob_domain *cdom,
 			    uint64_t cont, const struct m0_fid *gfid);
+
 static struct m0_sns_cm         *scm;
 static struct m0_reqh           *reqh;
 static struct m0_semaphore       sem;
@@ -191,7 +192,7 @@ const struct m0_cm_cp_ops write_cp_dummy_ops = {
 	.co_complete                = &dummy_cp_complete,
 };
 
-void write_post(void)
+void write_post(struct m0_pdclust_layout *pdlay)
 {
 	struct m0_sns_cm_file_ctx fctx;
 	struct m0_pool_version    pv;
@@ -201,6 +202,7 @@ void write_post(void)
 	w_buf.nb_pool = &nbp;
 	pm.pm_pver = &pv;
 	fctx.sf_pm = &pm;
+	fctx.sf_layout = m0_pdl_to_layout(pdlay);
 	w_sag.sag_fctx = &fctx;
 	cp_prepare(&w_sns_cp.sc_base, &w_buf, SEG_NR, SEG_SIZE,
 		   &w_sag, 'e', &dummy_cp_fom_ops, reqh, 0, false, &scm->sc_base);
@@ -240,7 +242,7 @@ const struct m0_cm_cp_ops read_cp_dummy_ops = {
 	.co_complete                = &dummy_cp_complete,
 };
 
-static void read_post(void)
+static void read_post(struct m0_pdclust_layout *pdlay)
 {
 	struct m0_sns_cm_file_ctx fctx;
 	struct m0_pool_version    pv;
@@ -249,6 +251,7 @@ static void read_post(void)
 
 	pm.pm_pver = &pv;
 	fctx.sf_pm = &pm;
+	fctx.sf_layout = m0_pdl_to_layout(pdlay);
 	r_buf.nb_pool = &nbp;
 	/*
 	 * Purposefully fill the read bv with spaces i.e. ' '. This should get
@@ -272,7 +275,8 @@ static void read_post(void)
 
 static void test_cp_write_read(void)
 {
-	int rc;
+	struct m0_pdclust_layout *pdlay;
+	int                       rc;
 
 	rc = cs_init(&sctx);
 	M0_ASSERT(rc == 0);
@@ -282,14 +286,16 @@ static void test_cp_write_read(void)
 	m0_fid_gob_make(&gob_fid, 1, M0_MDSERVICE_START_FID.f_key);
 	m0_fid_convert_gob2cob(&gob_fid, &cob_fid, 1);
 	reqh = m0_cs_reqh_get(&sctx);
+	layout_gen(&pdlay, reqh);
 	/*
 	 * Write using a dummy copy packet. This data which is written, will
 	 * be used by the next copy packet to read.
 	 */
-	write_post();
+	write_post(pdlay);
 
 	/* Read the previously written bv. */
-	read_post();
+	read_post(pdlay);
+	layout_destroy(pdlay);
 
 	/*
 	 * Compare the bv that is read with the previously written bv.
@@ -302,10 +308,11 @@ static void test_cp_write_read(void)
 
 	M0_SET0(&w_sns_cp);
 	M0_SET0(&r_sns_cp);
+	layout_gen(&pdlay, reqh);
+	write_post(pdlay);
 
-	write_post();
-
-	read_post();
+	read_post(pdlay);
+	layout_destroy(pdlay);
 
 	m0_fi_disable("cp_stob_io_init", "no-stob");
 
@@ -315,10 +322,11 @@ static void test_cp_write_read(void)
 	M0_SET0(&w_sns_cp);
 	M0_SET0(&r_sns_cp);
 
-	write_post();
+	layout_gen(&pdlay, reqh);
+	write_post(pdlay);
 
-	read_post();
-
+	read_post(pdlay);
+	layout_destroy(pdlay);
 	m0_fi_disable("cp_io", "io-fail");
 
 	bv_free(&r_buf.nb_buffer);

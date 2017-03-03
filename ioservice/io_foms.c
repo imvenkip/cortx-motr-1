@@ -49,6 +49,7 @@
 #include "ioservice/io_addb2.h"
 #include "sns/cm/cm.h"             /* m0_sns_cm_fid_repair_done() */
 #include "ioservice/fid_convert.h" /* m0_fid_convert_cob2stob */
+#include "balloc/balloc.h"         /* M0_BALLOC_NORMAL_ZONE */
 
 /**
    @page DLD-bulk-server DLD of Bulk Server
@@ -1683,12 +1684,14 @@ static int io_launch(struct m0_fom *fom)
 		struct m0_indexvec     *mem_ivec;
 		struct m0_stob_io_desc *stio_desc;
 		struct m0_stob_io      *stio;
+		struct m0_stob         *stob;
 		m0_bcount_t             ivec_count;
 		struct m0_buf          *di_buf;
 		struct m0_bufvec        cksum_data;
 
 		stio_desc = &fom_obj->fcrw_stio[index++];
 		stio      = &stio_desc->siod_stob_io;
+		stob      = fom_obj->fcrw_stob;
 		mem_ivec  = &stio->si_stob;
 		stobio_tlink_init(stio_desc);
 
@@ -1713,6 +1716,7 @@ static int io_launch(struct m0_fom *fom)
 			uint32_t di_size = m0_di_size_get(file, ivec_count);
 			uint32_t curr_pos = m0_di_size_get(file,
 						fom_obj->fcrw_curr_size);
+
 			di_buf = &rwfop->crw_di_data;
 			if (di_buf != NULL) {
 				struct m0_buf buf = M0_BUF_INIT(di_size,
@@ -1744,6 +1748,22 @@ static int io_launch(struct m0_fom *fom)
 		       m0_vec_count(&stio->si_user.ov_vec), ivec_count);
 		fom_obj->fcrw_io_launch_time = m0_time_now();
 
+		rc = m0_stob_io_private_setup(stio, stob);
+		if (rc != 0) {
+			M0_LOG(M0_ERROR, "Can not setup adio for stob with"
+					 "id "FID_F" rc = %d",
+					 FID_P(&stob->so_id.si_fid), rc);
+			break;
+		}
+		/*
+		 * XXX: @todo: This makes sense for oostore mode as
+		 * there is no degraded write. Eventually write fop
+		 * should have the info. about the zone to which
+		 * write goes
+		 * (spare or non-spare unit of a parity group).
+		 */
+		if (m0_is_write_fop(fop))
+			m0_stob_ad_balloc_set(stio, M0_BALLOC_NORMAL_ZONE);
 		rc = m0_stob_io_launch(stio, fom_obj->fcrw_stob,
 				       &fom->fo_tx, NULL);
 		if (rc != 0) {
@@ -1834,6 +1854,7 @@ static int io_finish(struct m0_fom *fom)
 		struct m0_stob_io *stio;
 
 		stio = &stio_desc->siod_stob_io;
+		m0_stob_ad_balloc_clear(stio);
 
 		if (stio->si_rc != 0) {
 			rc = stio->si_rc;

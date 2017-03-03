@@ -99,7 +99,8 @@ static int reqh_ut_balloc_init(struct m0_ad_balloc *ballroom,
 			       struct m0_be_seg *db,
 			       uint32_t bshift,
 			       m0_bindex_t container_size,
-			       m0_bcount_t groupsize)
+			       m0_bcount_t groupsize,
+			       m0_bcount_t spare_reserve)
 {
 	struct reqh_ut_balloc *rb = getballoc(ballroom);
 
@@ -117,7 +118,8 @@ static void reqh_ut_balloc_fini(struct m0_ad_balloc *ballroom)
 static int reqh_ut_balloc_alloc(struct m0_ad_balloc *ballroom,
 				struct m0_dtx *tx,
 				m0_bcount_t count,
-				struct m0_ext *out)
+				struct m0_ext *out,
+				uint64_t alloc_zone)
 {
 	struct reqh_ut_balloc	*rb = getballoc(ballroom);
 

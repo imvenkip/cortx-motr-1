@@ -99,7 +99,8 @@ static int mock_balloc_init(struct m0_ad_balloc *ballroom,
 			    struct m0_be_seg *seg,
 			    uint32_t bshift,
 			    m0_bindex_t container_size,
-			    m0_bcount_t groupsize)
+			    m0_bcount_t groupsize,
+			    m0_bcount_t spare_reserve)
 {
 	return 0;
 }
@@ -109,7 +110,8 @@ static void mock_balloc_fini(struct m0_ad_balloc *ballroom)
 }
 
 static int mock_balloc_alloc(struct m0_ad_balloc *ballroom, struct m0_dtx *dtx,
-			     m0_bcount_t count, struct m0_ext *out)
+			     m0_bcount_t count, struct m0_ext *out,
+			     uint64_t alloc_type)
 {
 	struct mock_balloc *mb = b2mock(ballroom);
 	m0_bcount_t giveout;
@@ -272,6 +274,9 @@ static void test_write(int nr, struct m0_dtx *tx)
 	io.si_stob.iv_vec.v_nr = nr;
 	io.si_stob.iv_vec.v_count = stob_vc;
 	io.si_stob.iv_index = stob_vi;
+	rc = m0_stob_io_private_setup(&io, obj_fore);
+	M0_UT_ASSERT(rc == 0);
+	m0_stob_ad_balloc_set(&io, M0_BALLOC_NORMAL_ZONE);
 
 	m0_clink_init(&clink, NULL);
 	m0_clink_add_lock(&io.si_wait, &clink);

@@ -72,6 +72,7 @@ struct ad_domain_cfg {
 	m0_bcount_t       adg_container_size;
 	uint32_t          adg_bshift;
 	m0_bcount_t       adg_blocks_per_group;
+	m0_bcount_t       adg_spare_blocks_per_group;
 };
 
 struct ad_domain_map {
@@ -266,10 +267,24 @@ static int stob_ad_domain_cfg_create_parse(const char *str_cfg_create,
 		grp_blocks = 1 << m0_log2(grp_blocks);
 		grp_blocks = max64u(grp_blocks, BALLOC_DEF_BLOCKS_PER_GROUP);
 		cfg->adg_blocks_per_group = grp_blocks;
+		cfg->adg_spare_blocks_per_group =
+			m0_stob_ad_spares_calc(grp_blocks);
 		M0_LOG(M0_DEBUG, "device size %lu", cfg->adg_container_size);
 		*cfg_create = cfg;
 	}
 	return M0_RC(rc);
+}
+
+/*
+ * XXX @todo: A more sophisticated version of this function is necessary,
+ * that will take into account the number of pool versions that the disk
+ * belongs to, along with parameters of pdclust. The following module will
+ * return a value around 20 % of blocks per group.
+ */
+M0_INTERNAL m0_bcount_t m0_stob_ad_spares_calc(m0_bcount_t grp_blocks)
+{
+
+	return  grp_blocks % 5 == 0 ? grp_blocks / 5 : grp_blocks / 5 + 1;
 }
 
 static void stob_ad_domain_cfg_create_free(void *cfg_create)
@@ -350,10 +365,12 @@ static int stob_ad_domain_init(struct m0_stob_type *type,
 
 		ballroom = adom->sad_ballroom;
 		m0_balloc_init(b2m0(ballroom));
-		rc = ballroom->ab_ops->bo_init(ballroom, seg,
-					       adom->sad_bshift,
-					       adom->sad_container_size,
-					       adom->sad_blocks_per_group);
+		rc =
+		 ballroom->ab_ops->bo_init(ballroom, seg,
+					   adom->sad_bshift,
+					   adom->sad_container_size,
+					   adom->sad_blocks_per_group,
+					   adom->sad_spare_blocks_per_group);
 		balloc_inited = rc == 0;
 
 		rc = rc ?: stob_ad_bstore(&adom->sad_bstore_id,
@@ -366,6 +383,9 @@ static int stob_ad_domain_init(struct m0_stob_type *type,
 			adom->sad_be_seg = seg;
 			adom->sad_babshift = adom->sad_bshift -
 					m0_stob_block_shift(adom->sad_bstore);
+			M0_LOG(M0_DEBUG, "sad_bshift = %lu\tstob bshift=%lu",
+			       (unsigned long)adom->sad_bshift,
+			  (unsigned long)m0_stob_block_shift(adom->sad_bstore));
 			M0_ASSERT(adom->sad_babshift >= 0);
 		}
 	}
@@ -467,6 +487,8 @@ static int stob_ad_domain_create(struct m0_stob_type *type,
 		adom->sad_container_size   = cfg->adg_container_size;
 		adom->sad_bshift           = cfg->adg_bshift;
 		adom->sad_blocks_per_group = cfg->adg_blocks_per_group;
+		adom->sad_spare_blocks_per_group =
+			cfg->adg_spare_blocks_per_group;
 		adom->sad_bstore_id        = cfg->adg_id;
 		adom->sad_overwrite        = false;
 		strcpy(adom->sad_path, location_data);
@@ -985,7 +1007,8 @@ static void *stob_ad_addr_open(const void *buf, uint32_t shift)
    storage object.
  */
 static int stob_ad_balloc(struct m0_stob_ad_domain *adom, struct m0_dtx *tx,
-			  m0_bcount_t count, struct m0_ext *out)
+			  m0_bcount_t count, struct m0_ext *out,
+			  uint64_t alloc_type)
 {
 	struct m0_ad_balloc *ballroom = adom->sad_ballroom;
 	int                  rc;
@@ -993,7 +1016,7 @@ static int stob_ad_balloc(struct m0_stob_ad_domain *adom, struct m0_dtx *tx,
 	count >>= adom->sad_babshift;
 	M0_LOG(M0_DEBUG, "count=%lu", (unsigned long)count);
 	M0_ASSERT(count > 0);
-	rc = ballroom->ab_ops->bo_alloc(ballroom, tx, count, out);
+	rc = ballroom->ab_ops->bo_alloc(ballroom, tx, count, out, alloc_type);
 	out->e_start <<= adom->sad_babshift;
 	out->e_end   <<= adom->sad_babshift;
 	m0_ext_init(out);
@@ -1765,7 +1788,8 @@ static int stob_ad_write_prepare(struct m0_stob_io        *io,
 	while (1) {
 		m0_bcount_t got;
 
-		rc = stob_ad_balloc(adom, io->si_tx, todo, &wext->we_ext);
+		rc = stob_ad_balloc(adom, io->si_tx, todo, &wext->we_ext,
+				    aio->ai_balloc_flags);
 		if (rc != 0)
 			break;
 		got = m0_ext_length(&wext->we_ext);
@@ -1973,6 +1997,20 @@ static int stob_ad_rec_frag_undo_redo_op(struct m0_fol_frag *frag,
 		}
 	}
 	return M0_RC(rc);
+}
+
+M0_INTERNAL void m0_stob_ad_balloc_set(struct m0_stob_io *io, uint64_t flags)
+{
+	struct m0_stob_ad_io *aio = io->si_stob_private;
+
+	aio->ai_balloc_flags = flags;
+}
+
+M0_INTERNAL void m0_stob_ad_balloc_clear(struct m0_stob_io *io)
+{
+	struct m0_stob_ad_io *aio = io->si_stob_private;
+
+	aio->ai_balloc_flags = 0;
 }
 
 static const struct m0_stob_io_op stob_ad_io_op = {
