@@ -1086,9 +1086,13 @@ static int clovis_initlift_resource_manager(struct m0_sm *mach)
 	 *       FID to mount.
 	 */
 	if (!m0_fid_eq(&reqh->rh_fid, &fake_pfid)) {
+
+		/* Confc needs the lock to proceed. */
+		m0_sm_group_unlock(&m0c->m0c_sm_group);
 		rc = m0_conf_process2service_get(&reqh->rh_rconfc.rc_confc,
 						 &reqh->rh_fid, M0_CST_RMS,
 						 &sfid);
+		m0_sm_group_lock(&m0c->m0c_sm_group);
 		if (rc != 0) {
 			clovis_initlift_fail(rc, m0c);
 			goto exit;
