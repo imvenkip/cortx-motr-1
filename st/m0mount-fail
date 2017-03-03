@@ -220,7 +220,7 @@ TEST_CASES=(
     [5]="m0_pool_versions_setup() to fail"
     [6]="m0_flset_build() to fail"
     [7]="m0_pool_version_get() to fail"
-    [8]="m0t1fs_reqh_services_start() to fail"
+    [8]="m0t1fs_rm_service_start() to fail"
 )
 
 FINJECT_WHERE=(

@@ -99,7 +99,7 @@ M0_TL_DECLARE(rpcbulk, M0_INTERNAL, struct m0_rpc_bulk_buf);
 
 int m0t1fs_rpc_init(struct m0t1fs_sb *csb, const char *ep);
 int m0t1fs_net_init(struct m0t1fs_sb *csb, const char *ep);
-int m0t1fs_reqh_services_start(struct m0t1fs_sb *csb);
+int m0t1fs_rm_service_start(struct m0t1fs_sb *csb);
 int m0t1fs_ha_init(struct m0t1fs_sb *csb, const char *ha_addr);
 void m0t1fs_rpc_fini(struct m0t1fs_sb *csb);
 void m0t1fs_net_fini(struct m0t1fs_sb *csb);
@@ -265,7 +265,7 @@ static int file_io_ut_init(void)
 
 	m0t1fs_fs_lock(&csb);
 
-	rc = m0t1fs_reqh_services_start(&csb);
+	rc = m0t1fs_rm_service_start(&csb);
 	M0_ASSERT(rc == 0);
 
 	/* Tries to build a layout. */

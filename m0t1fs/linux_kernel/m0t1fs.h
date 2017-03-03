@@ -797,6 +797,8 @@ struct m0t1fs_sb {
 	struct m0_fid                           csb_process_fid;
 	struct m0_fid                           csb_profile_fid;
 
+	struct m0_reqh_service                 *csb_rm_service;
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)
 	struct backing_dev_info                 csb_backing_dev_info;
 #endif

@@ -553,15 +553,12 @@ static void m0t1fs_sb_layouts_fini(struct m0t1fs_sb *csb)
 	M0_LEAVE();
 }
 
-static int m0t1fs_service_start(struct m0_reqh_service_type *stype,
-				struct m0_reqh *reqh, struct m0_fid *sfid)
+void m0t1fs_rm_service_quit(struct m0t1fs_sb *csb)
 {
-	struct m0_reqh_service *service;
-
-	return m0_reqh_service_setup(&service, stype, reqh, NULL, sfid);
+	m0_reqh_service_quit(csb->csb_rm_service);
 }
 
-int m0t1fs_reqh_services_start(struct m0t1fs_sb *csb)
+int m0t1fs_rm_service_start(struct m0t1fs_sb *csb)
 {
 	struct m0_reqh *reqh = &csb->csb_reqh;
 	struct m0_fid           sfid;
@@ -586,13 +583,10 @@ int m0t1fs_reqh_services_start(struct m0t1fs_sb *csb)
 		m0_fid_tassume(&sfid, &M0_CONF_SERVICE_TYPE.cot_ftype);
 	}
 
-	rc = m0t1fs_service_start(&m0_rms_type, reqh, &sfid);
-	if (rc)
-		goto err;
-	return M0_RC(rc);
-err:
-	m0_reqh_services_terminate(reqh);
-	return M0_RC(rc);
+	rc = m0_reqh_service_setup(&csb->csb_rm_service, &m0_rms_type,
+				   reqh, NULL, &sfid);
+	return rc == 0 ? M0_RC(rc) :
+	       M0_ERR_INFO(rc, "failed to start RM service: rc=%d", rc);
 }
 
 int m0t1fs_net_init(struct m0t1fs_sb *csb, const char *ep)
@@ -1032,14 +1026,13 @@ int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	if (!M0_IN(rc, (0, -ENOENT)))
 		goto err_pool_versions_destroy;
 
-	/* Start resource manager service */
-	rc = m0t1fs_reqh_services_start(csb);
+	rc = m0t1fs_rm_service_start(csb);
 	if (rc != 0)
 		goto err_pool_versions_destroy;
 
 	rc = m0t1fs_sb_mdpool_layouts_init(csb);
 	if (rc != 0)
-		goto err_pool_versions_destroy;
+		goto err_rm_service_quit;
 
 	rc = m0_addb2_sys_net_start_with(sys, &pc->pc_svc_ctxs);
 	if (rc == 0) {
@@ -1047,6 +1040,8 @@ int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 		return M0_RC(0);
 	}
 
+err_rm_service_quit:
+	m0t1fs_rm_service_quit(csb);
 err_pool_versions_destroy:
 	m0t1fs_sb_layouts_fini(csb);
 	m0_pool_versions_destroy(&csb->csb_pools_common);
@@ -1102,6 +1097,12 @@ static void m0t1fs_teardown(struct m0t1fs_sb *csb)
 	m0_clink_fini(&csb->csb_conf_exp);
 	m0_clink_fini(&csb->csb_conf_ready);
 	m0_clink_fini(&csb->csb_conf_ready_async);
+	/*
+	 * Finalise explicitly to send HA service events STOPPING/STOPPED.
+	 * See MERO-2427 for the reference.
+	 * @see m0_conf_ha_service_event, m0_conf_ha_service_event_post().
+	 */
+	m0t1fs_rm_service_quit(csb);
 	m0t1fs_ha_fini(csb);
 	m0_reqh_services_terminate(&csb->csb_reqh);
 	m0t1fs_rpc_fini(csb);
