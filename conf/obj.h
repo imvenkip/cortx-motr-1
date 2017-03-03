@@ -352,7 +352,11 @@ struct m0_conf_filesystem {
 	struct m0_fid       cf_mdpool;
 	/**
 	 * Distributed index meta-data pool version.
-	 * See "Index meta-data" section in dix/client.h for more information.
+	 *
+	 * If there are no CAS services defined in the configuration,
+	 * ->cf_imeta_pver is M0_FID0.
+	 *
+	 * @see "Index meta-data" section in dix/client.h for more information.
 	 */
 	struct m0_fid       cf_imeta_pver;
 	uint32_t            cf_redundancy;

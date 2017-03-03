@@ -112,6 +112,7 @@
  * virtual pool version subtree.
  */
 M0_INTERNAL int m0_conf_pver_find(const struct m0_conf_pool *pool,
+				  const struct m0_fid *pver_to_skip,
 				  struct m0_conf_pver **out);
 
 /**

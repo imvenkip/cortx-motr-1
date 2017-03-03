@@ -112,7 +112,7 @@ M0_INTERNAL int m0_conf_pver_get(const struct m0_fid  *profile,
 	while ((rc = m0_conf_diter_next_sync(&it, m0_conf_obj_is_pool)) ==
 		M0_CONF_DIRNEXT) {
 		pool = M0_CONF_CAST(m0_conf_diter_result(&it), m0_conf_pool);
-		rc = m0_conf_pver_find(pool, &pver);
+		rc = m0_conf_pver_find(pool, &fs->cf_imeta_pver, &pver);
 		if (rc != 0)
 			/* No suitable pver in this pool. Try next one. */
 			continue;

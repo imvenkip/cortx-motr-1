@@ -99,32 +99,35 @@ static void test_pver_find(void)
 	pool = M0_CONF_CAST(m0_conf_cache_lookup(cache, /* pool-0 */
 						 &M0_FID_TINIT('o', 1, 0)),
 			    m0_conf_pool);
-	rc = m0_conf_pver_find(pool, &pver);
+	rc = m0_conf_pver_find(pool, NULL, &pver);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(pver->pv_kind == M0_CONF_PVER_ACTUAL);
 	M0_UT_ASSERT(m0_fid_eq(&pver->pv_obj.co_id, &base));
 	M0_UT_ASSERT(M0_IS0(&pver->pv_u.subtree.pvs_recd));
 
+	rc = m0_conf_pver_find(pool, &pver->pv_obj.co_id, &pver);
+	M0_UT_ASSERT(rc == -ENOENT);
+
 	conf_ut_ha_state_set(cache, &failed[0], M0_NC_FAILED);
-	rc = m0_conf_pver_find(pool, &pver);
+	rc = m0_conf_pver_find(pool, NULL, &pver);
 	M0_UT_ASSERT(rc == -ENOENT);
 	for (i = 1; i < ARRAY_SIZE(failed); ++i)
 		conf_ut_ha_state_set(cache, &failed[i], M0_NC_FAILED);
-	rc = m0_conf_pver_find(pool, &pver_virt);
+	rc = m0_conf_pver_find(pool, NULL, &pver_virt);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(pver_virt->pv_kind == M0_CONF_PVER_VIRTUAL);
 	M0_UT_ASSERT(!m0_fid_eq(&pver_virt->pv_obj.co_id, &base));
 	M0_UT_ASSERT(pver_virt->pv_u.subtree.pvs_attr.pa_P <
 		     pver->pv_u.subtree.pvs_attr.pa_P);
 
-	rc = m0_conf_pver_find(pool, &pver);
+	rc = m0_conf_pver_find(pool, NULL, &pver);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(pver == pver_virt);
 	M0_UT_ASSERT(!memcmp(pver->pv_u.subtree.pvs_tolerance,
 			     tolvec, sizeof tolvec));
 	for (i = 0; i < ARRAY_SIZE(failed); ++i)
 		conf_ut_ha_state_set(cache, &failed[i], M0_NC_ONLINE);
-	rc = m0_conf_pver_find(pool, &pver);
+	rc = m0_conf_pver_find(pool, NULL, &pver);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(pver->pv_kind == M0_CONF_PVER_ACTUAL);
 	M0_UT_ASSERT(!memcmp(pver->pv_u.subtree.pvs_tolerance,

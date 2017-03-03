@@ -118,6 +118,7 @@ static int conf_pver_base_recd_update(const struct m0_conf_pool *pool)
 }
 
 static int conf_pver_find_locked(const struct m0_conf_pool *pool,
+				 const struct m0_fid *pver_to_skip,
 				 struct m0_conf_pver **out)
 {
 	const struct m0_conf_obj *obj;
@@ -132,6 +133,12 @@ static int conf_pver_find_locked(const struct m0_conf_pool *pool,
 			   FID_P(&pool->pl_obj.co_id));
 	m0_tl_for (m0_conf_dir, &pool->pl_pvers->cd_items, obj) {
 		pver = M0_CONF_CAST(obj, m0_conf_pver);
+		M0_LOG(M0_DEBUG, "pver="FID_F, FID_P(&pver->pv_obj.co_id));
+		if (pver_to_skip != NULL &&
+		    m0_fid_eq(&pver->pv_obj.co_id, pver_to_skip)) {
+			M0_LOG(M0_INFO, "Skipping "FID_F, FID_P(pver_to_skip));
+			continue;
+		}
 		if (!m0_conf_pver_is_clean(pver))
 			continue;
 		if (pver->pv_kind == M0_CONF_PVER_ACTUAL) {
@@ -191,13 +198,14 @@ static int conf_pver_find_by_fid_locked(const struct m0_fid *fid,
 	return M0_RC(rc);
 }
 
-M0_INTERNAL int
-m0_conf_pver_find(const struct m0_conf_pool *pool, struct m0_conf_pver **out)
+M0_INTERNAL int m0_conf_pver_find(const struct m0_conf_pool *pool,
+				  const struct m0_fid *pver_to_skip,
+				  struct m0_conf_pver **out)
 {
 	int rc;
 
 	m0_conf_cache_lock(pool->pl_obj.co_cache);
-	rc = conf_pver_find_locked(pool, out);
+	rc = conf_pver_find_locked(pool, pver_to_skip, out);
 	m0_conf_cache_unlock(pool->pl_obj.co_cache);
 	return rc;
 }
@@ -251,6 +259,8 @@ M0_INTERNAL bool m0_conf_pver_is_clean(const struct m0_conf_pver *pver)
 	struct m0_conf_pver *base = NULL;
 	const uint32_t      *recd;
 	const uint32_t      *allowance;
+
+	M0_ENTRY("pver=%p "FID_F, pver, FID_P(&pver->pv_obj.co_id));
 
 	if (pver->pv_kind == M0_CONF_PVER_ACTUAL) {
 		recd = pver->pv_u.subtree.pvs_recd;

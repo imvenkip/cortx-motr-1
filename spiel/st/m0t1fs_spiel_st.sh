@@ -1,14 +1,13 @@
 #!/usr/bin/env bash
 set -eu
-
-#set -x
-#export PS4='+ ${FUNCNAME[0]:+${FUNCNAME[0]}():}line ${LINENO}: '
+# set -x
+export PS4='+ ${FUNCNAME[0]:+${FUNCNAME[0]}():}line ${LINENO}: '
 
 ## CAUTION: This path will be removed by superuser.
 SANDBOX_DIR=${SANDBOX_DIR:-/var/mero/sandbox.spiel-st}
 
-M0_TRACE_IMMEDIATE_MASK=${M0_TRACE_IMMEDIATE_MASK:-all}
-M0_TRACE_LEVEL=${M0_TRACE_LEVEL:-warn}
+M0_TRACE_IMMEDIATE_MASK=${M0_TRACE_IMMEDIATE_MASK:-!rpc,formation,fop,memory,rm}
+M0_TRACE_LEVEL=${M0_TRACE_LEVEL:-warn+}
 M0_TRACE_PRINT_CONTEXT=${M0_TRACE_PRINT_CONTEXT:-}
 
 MAX_RPC_MSG_SIZE=163840
@@ -109,7 +108,7 @@ stub_confdb() {
 (filesystem-0 rootfid=(11, 22) redundancy=2
     params=["pool_width=3", "nr_data_units=1", "nr_parity_units=1",
             "unit_size=4096"]
-    mdpool=pool-0 imeta_pver=pver-0 nodes=[node-0] pools=[pool-0]
+    mdpool=pool-0 imeta_pver=(0, 0) nodes=[node-0] pools=[pool-0]
     racks=[rack-0])
 (node-0 memsize=16000 nr_cpu=2 last_state=3 flags=2 pool_id=pool-0
     processes=[process-0, process-1])
@@ -281,7 +280,7 @@ spiel.tx_open(tx)
 commands = [
     ('profile_add', tx, fids['profile']),
     ('filesystem_add', tx, fids['fs'], fids['profile'], 10, fids['profile'],
-     fids['pool'], fids['pver'], ['{0} {1} {2}'.format(P, N, K)]),
+     fids['pool'], Fid(0, 0), ['{0} {1} {2}'.format(P, N, K)]),
     ('pool_add', tx, fids['pool'], fids['fs'], 2),
     ('rack_add', tx, fids['rack'], fids['fs']),
     ('enclosure_add', tx, fids['encl'], fids['rack']),
@@ -365,6 +364,7 @@ EOF
 }
 
 validate_health() {
+    say 'Validate health'
     $M0_SRC_DIR/utils/spiel/m0spiel $M0_SPIEL_OPTS <<EOF
 $FIDS_LIST
 $SERVICES
@@ -426,10 +426,8 @@ EOF
 }
 
 perform_io() {
-    #local TEST_STR="`head -c 512 /dev/urandom`"
     local TEST_STR="Hello world"
     local TEST_FILE=$SANDBOX_DIR/mnt/file.txt
-    #local TEST_FILE=$SANDBOX_DIR/mnt/test.txt
 
     ls $SANDBOX_DIR/mnt
     touch $TEST_FILE || die "m0t1fs: Can't touch file"
@@ -533,8 +531,6 @@ construct_db || stop
 
 say "Test m0d start"
 test_m0d_start || stop
-
-say "Validate health"
 validate_health || stop
 
 say "Fetch filesystem stats"
@@ -542,27 +538,21 @@ fs_stats_fetch || stop
 
 say "Restart services"
 restart_services || stop
-
-say "Validate health"
 validate_health || stop
 
 say "Reconfig Process"
 reconfig_process || stop
 
-say "wait for reconfigure"
+say "Wait for reconfigure"
 sleep 10
 grep -q "Restarting" $SANDBOX_DIR/systest-$$/m0d.log ||
 	die "Reconfigure is not finished"
-
-say "Validate health"
 validate_health || stop
 
 _mount || stop $?
 
 say "Perform IO"
 perform_io || stop
-
-say "Validate health"
 validate_health || stop
 
 say "Device commands"

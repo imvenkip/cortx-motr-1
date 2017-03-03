@@ -105,14 +105,14 @@ void m0t1fs_rpc_fini(struct m0t1fs_sb *csb);
 void m0t1fs_net_fini(struct m0t1fs_sb *csb);
 void m0t1fs_ha_fini(struct m0t1fs_sb *csb);
 
-#define LOCAL_EP   "0@lo:12345:45:1"
+#define LOCAL_EP "0@lo:12345:45:1"
 
-char local_conf[] = "[36:\
+static char local_conf[] = "[36:\
    {0x74| ((^t|1:0), 1, [1 : ^p|1:0])},\
    {0x70| ((^p|1:0), ^f|1:1)},\
    {0x66| ((^f|1:1),\
         (11, 22), 41212, [3: \"param-0\", \"param-1\", \"param-2\"],\
-        ^o|1:23, ^v|1:24,\
+        ^o|1:23, (0, 0),\
            [1: ^n|1:2],\
            [1: ^o|1:23],\
            [1: ^a|1:15])},\

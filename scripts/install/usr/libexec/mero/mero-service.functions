@@ -865,7 +865,7 @@ m0_build_local_conf()
   {0x70| (($prof), $fs)},
   {0x66| (($fs), (11, 22), 1,
           [1: "$pool_width $data_units $parity_units"],
-          $poolid, $pverid,
+          $poolid, (0, 0),
           [1: $node],
           [1: $poolid],
           [1: $rackid])},
