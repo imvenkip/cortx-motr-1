@@ -807,19 +807,49 @@ m0t1fs_big_bs_io_test()
 	return $rc
 }
 
+#
+# This test does large file creation and write with large block-size.
+# It also checks the disk space usage before and after the written,
+# and after file deletion. This check is to verify balloc alloc/free.
+# This test writes 8GB data. It requires at least 8GB disk space in test dir.
 m0t1fs_test_MERO_2099()
 {
 	local rc=0
 	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR || rc=1
 
-	for i in 0:00{0..9}{0..1}; do
+	df $MERO_M0T1FS_MOUNT_DIR -h
+	used_before=`df $MERO_M0T1FS_MOUNT_DIR --output=used | tail -n 1`
+	for i in 0:00{0..9}{0..3}; do
+		# This is to create 40 files, 200MB for each, 8GB in total.
 		m0t1fs_file=$MERO_M0T1FS_MOUNT_DIR/${i}
 		touch_file $m0t1fs_file 8192 && run "dd if=/dev/zero of=$m0t1fs_file bs=200M count=1" || rc=1
 	done
-	for i in 0:00{0..9}{0..1}; do
+	df $MERO_M0T1FS_MOUNT_DIR -h
+	used_after=`df $MERO_M0T1FS_MOUNT_DIR --output=used | tail -n 1`
+	for i in 0:00{0..9}{0..3}; do
 		m0t1fs_file=$MERO_M0T1FS_MOUNT_DIR/${i}
 		rm -f $m0t1fs_file
 	done
+	df $MERO_M0T1FS_MOUNT_DIR -h
+	used_delete=`df $MERO_M0T1FS_MOUNT_DIR --output=used | tail -n 1`
+	echo "used_before used_after used_delete $used_before $used_after $used_delete"
+	if [ $used_before -ne $used_delete ] ; then
+		echo "balloc space leak? After deletion, used blocks are not the same as before."
+		rc=1
+	fi
+
+	if [ $used_delete -ne 0 ] ; then
+		echo "balloc space leak? After deletion, used-blocks is not zero"
+		rc=1
+	fi
+
+	total_blocks=`expr 200 \* 40 \* 1024` #in 1K blocks
+	echo "total_blocks = $total_blocks"
+	if [ $used_after -le $total_blocks ] ; then
+		echo "Are you kidding? The used blocks are less than expected."
+		rc=1
+	fi
+
 	unmount_and_clean
 	return $rc
 }

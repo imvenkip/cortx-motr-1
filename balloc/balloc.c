@@ -2219,6 +2219,7 @@ static int balloc_alloc(struct m0_ad_balloc *ballroom, struct m0_dtx *tx,
 	struct m0_balloc		*mero = b2m0(ballroom);
 	struct m0_balloc_allocate_req	 req;
 	int				 rc;
+	m0_bcount_t	                 freeblocks;
 
 	M0_ENTRY("goal=0x%lx count=%lu",
 			(unsigned long)out->e_start,
@@ -2232,6 +2233,7 @@ static int balloc_alloc(struct m0_ad_balloc *ballroom, struct m0_dtx *tx,
 	M0_SET0(out);
 
 	m0_mutex_lock(&mero->cb_sb_mutex.bm_u.mutex);
+	freeblocks = mero->cb_sb.bsb_freeblocks;
 	rc = balloc_allocate_internal(mero, &tx->tx_betx, &req);
 	if (rc == 0) {
 		if (m0_ext_is_empty(&req.bar_result)) {
@@ -2243,6 +2245,11 @@ static int balloc_alloc(struct m0_ad_balloc *ballroom, struct m0_dtx *tx,
 			mero->cb_last = out->e_end;
 		}
 	}
+	M0_LOG(M0_DEBUG, "BAlloc=%p rc=%d freeblocks %llu -> %llu",
+			 mero, rc,
+			 (unsigned long long)freeblocks,
+			 (unsigned long long)mero->cb_sb.bsb_freeblocks);
+
 	m0_mutex_unlock(&mero->cb_sb_mutex.bm_u.mutex);
 
 	return M0_RC(rc);
@@ -2258,12 +2265,17 @@ static int balloc_free(struct m0_ad_balloc *ballroom, struct m0_dtx *tx,
 	struct m0_balloc		*mero = b2m0(ballroom);
 	struct m0_balloc_free_req	 req;
 	int				 rc;
+	m0_bcount_t	                 freeblocks;
 
 	req.bfr_physical = ext->e_start;
 	req.bfr_len	 = m0_ext_length(ext);
 
+	freeblocks = mero->cb_sb.bsb_freeblocks;
 	rc = balloc_free_internal(mero, &tx->tx_betx, &req);
-
+	M0_LOG(M0_DEBUG, "BFree=%p rc=%d freeblocks %llu -> %llu",
+			 mero, rc,
+			 (unsigned long long)freeblocks,
+			 (unsigned long long)mero->cb_sb.bsb_freeblocks);
 	if (rc == 0)
 		mero->cb_last = ext->e_start;
 
