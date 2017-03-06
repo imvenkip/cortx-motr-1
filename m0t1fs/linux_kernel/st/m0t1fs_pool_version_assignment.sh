@@ -132,6 +132,26 @@ pool_version_assignment()
                 return 1
         fi
 
+	echo "############# Check if iafter re-mount new files will get the sane virtual pool version ######"
+	unmount_and_clean $multiple_pools
+
+	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR "$1"|| {
+		return 1
+	}
+	touch $MERO_M0T1FS_MOUNT_DIR/$file6 || {
+		unmount_and_clean $multiple_pools
+		return 1
+	}
+
+	pver_6=$(getfattr -n pver $MERO_M0T1FS_MOUNT_DIR/$file6 | awk -F '=' 'NF > 1 { print $2 }')
+	echo "pver_6:  $pver_6"
+	echo "pver_virtual_0:  $pver_virtual_0"
+	if  [ "$pver_virtual_0" != "$pver_6" ]
+        then
+                echo "Wrong pool version."
+                unmount_and_clean $multiple_pools
+	fi
+
 	setfattr -n lid -v 8 $MERO_M0T1FS_MOUNT_DIR/$file2
 	dd if=/dev/zero of=$MERO_M0T1FS_MOUNT_DIR/$file2 bs=1M count=5 || {
 		unmount_and_clean $multiple_pools
@@ -173,7 +193,7 @@ pool_version_assignment()
 		unmount_and_clean $multiple_pools
 		return 1
 	}
-	pver_actual_1=$(getfattr -n pver $MERO_M0T1FS_MOUNT_DIR/$file4| awk -F '=' 'NF > 1 { print $2 }')
+	=$(getfattr -n pver $MERO_M0T1FS_MOUNT_DIR/$file4| awk -F '=' 'NF > 1 { print $2 }')
 	echo "pver_actual_1:  $pver_actual_1"
 	if  [ "$pver_actual_1" == "$pver_virtual_1" ]
         then
@@ -464,7 +484,7 @@ main()
 	sandbox_init
 
 	set -o pipefail
-	m0t1fs_pool_version_assignment && m0t1fs_pool_version_assignment "oostore" 2>&1 | tee -a $MERO_TEST_LOGFILE
+	m0t1fs_pool_version_assignment "oostore" 2>&1 | tee -a $MERO_TEST_LOGFILE
 	rc=$?
 
 	if [ $rc -eq 0 ]; then

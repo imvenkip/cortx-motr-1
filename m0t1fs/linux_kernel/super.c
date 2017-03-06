@@ -1005,6 +1005,9 @@ int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	rc = m0_conf_full_load(fs);
 	if (rc != 0)
 		goto err_conf_fs_close;
+	rc = m0_conf_confc_ha_update(m0_reqh2confc(reqh));
+	if (rc != 0)
+		goto err_conf_fs_close;
 
 	rc = m0_pools_common_init(pc, &csb->csb_rpc_machine, fs);
 	if (rc != 0)

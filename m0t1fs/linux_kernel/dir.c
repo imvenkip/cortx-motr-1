@@ -1528,7 +1528,6 @@ M0_INTERNAL int m0t1fs_setattr(struct dentry *dentry, struct iattr *attr)
 	m0_buf_init(&mo.mo_attr.ca_name, (char*)dentry->d_name.name,
 		    dentry->d_name.len);
 
-	mo.mo_attr.ca_pver = ci->ci_pver;
 	if (attr->ia_valid & ATTR_CTIME) {
 		mo.mo_attr.ca_ctime = attr->ia_ctime.tv_sec;
 		mo.mo_attr.ca_valid |= M0_COB_CTIME;
