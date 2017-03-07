@@ -170,9 +170,10 @@ static int ai_group_next(struct m0_sns_cm_ag_iter *ai)
 		if (rc < 0) {
 			if (M0_IN(rc, (-ENOMEM, -ENOBUFS)))
 				return M0_RC(rc);
-			else if (M0_IN(rc,  (-ENOENT, -ESHUTDOWN)))
+			else if (M0_IN(rc,  (-ENOENT, -ESHUTDOWN))) {
+				rc = 0;
 				continue;
-			else {
+			} else {
 				m0_sns_cm_pver_dirty_set(pver);
 				rc = 0;
 				goto fid_next;

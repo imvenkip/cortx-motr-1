@@ -169,11 +169,10 @@ static int rebalance_cm_get_space_for(struct m0_cm *cm,
 	M0_ASSERT(fctx != NULL);
 	pl = m0_layout_to_pdl(fctx->sf_layout);
 	tot_inbufs = m0_sns_cm_incoming_reserve_bufs(scm, id);
-	if (tot_inbufs > 0) {
-		*count = tot_inbufs;
-		return m0_sns_cm_has_space_for(scm, pl, tot_inbufs);
-	}
-	return M0_RC((int)tot_inbufs);
+	if (tot_inbufs <= 0)
+		return -ENOENT;
+	*count = tot_inbufs;
+	return m0_sns_cm_has_space_for(scm, pl, tot_inbufs);
 }
 
 /** Copy machine operations. */

@@ -512,8 +512,10 @@ static int __group_next(struct m0_sns_cm_iter *it)
 					rc = 0;
 					goto fid_next;
 				}
-				if (M0_IN(rc, (-ENOENT, -ESHUTDOWN)))
+				if (M0_IN(rc, (-ENOENT, -ESHUTDOWN))) {
+					rc = 0;
 					continue;
+				}
 			}
 			ifc->ifc_sa.sa_group = group;
 			ifc->ifc_sa.sa_unit = 0;
