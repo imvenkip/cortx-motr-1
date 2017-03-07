@@ -29,6 +29,8 @@ HALON_ROLES=${HALON_ROLE_MAPPINGS:-$HALON_SOURCES/mero-halon/scripts/halon_roles
 # in `halonctl cluster load` command.
 HALON_FACTS_YAML=${HALON_FACTS_YAML:-halon_facts.yaml}
 
+# Use Mero libraries installed from rpm.
+# Set to non-emptry value if you want this.
 USE_SYSTEM_MERO=
 
 die() { echo "$@" >&2; exit 1; }
@@ -97,6 +99,10 @@ function cluster_start() {
 
 	halon_facts_yaml > $HALON_FACTS_YAML
 
+	if [ -n $USE_SYSTEM_MERO ]; then
+		HALOND="LD_LIBRARY_PATH=mero/.libs $HALOND"
+		HALONCTL="LD_LIBRARY_PATH=mero/.libs $HALONCTL"
+	fi
 	sudo $HALOND -l $IP:9000 >& /tmp/halond.log &
 	true
 	sleep 2
