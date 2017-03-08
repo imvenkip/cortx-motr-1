@@ -45,7 +45,8 @@ static void sc_result_add(struct m0_dix_next_sort_ctx  *key_ctx,
 			  uint32_t                      key_id,
 			  struct m0_cas_next_reply     *rep);
 
-static int sc_rep_cmp(struct m0_cas_next_reply *a, struct m0_cas_next_reply *b)
+static int sc_rep_cmp(const struct m0_cas_next_reply *a,
+		      const struct m0_cas_next_reply *b)
 {
 	if (a == NULL && b == NULL)
 		return 0;
@@ -58,12 +59,14 @@ static int sc_rep_cmp(struct m0_cas_next_reply *a, struct m0_cas_next_reply *b)
 		M0_3WAY(a->cnp_key.b_nob, b->cnp_key.b_nob);
 }
 
-static bool sc_rep_le(struct m0_cas_next_reply *a, struct m0_cas_next_reply *b)
+static bool sc_rep_le(const struct m0_cas_next_reply *a,
+		      const struct m0_cas_next_reply *b)
 {
 	return sc_rep_cmp(a, b) < 0;
 }
 
-static bool sc_rep_eq(struct m0_cas_next_reply *a, struct m0_cas_next_reply *b)
+static bool sc_rep_eq(const struct m0_cas_next_reply *a,
+		      const struct m0_cas_next_reply *b)
 {
 	return sc_rep_cmp(a, b) == 0;
 }
@@ -81,7 +84,7 @@ static int sc_rep_get(struct m0_dix_next_sort_ctx  *ctx,
 	*rep = NULL;
 	if (ctx->sc_done || ctx->sc_pos >= ctx->sc_reps_nr)
 		return PROCESSING_IS_DONE;
-	if (ctx->sc_stop == true)
+	if (ctx->sc_stop)
 		return NOENT;
 	*rep = &ctx->sc_reps[ctx->sc_pos];
 	if ((*rep)->cnp_rc == NOENT) {
@@ -136,9 +139,8 @@ static bool sc_min_val_get(struct m0_dix_next_sort_ctx_arr  *ctxarr,
 
 	*ret_ctx = NULL;
 	ctx_arr  = ctxarr->sca_ctx;
-	for (ctx_id = 0; ctx_id < ctxarr->sca_nr &&
-			 done_cnt != ctxarr->sca_nr &&
-			 nokey_cnt != ctxarr->sca_nr; ctx_id++) {
+	/* Find minimal value in sort contexts. */
+	for (ctx_id = 0; ctx_id < ctxarr->sca_nr; ctx_id++) {
 		ctx = &ctx_arr[ctx_id];
 		rc = sc_rep_get(ctx, &val);
 		if (rc == NOENT) {
@@ -155,20 +157,20 @@ static bool sc_min_val_get(struct m0_dix_next_sort_ctx_arr  *ctxarr,
 			*ret_idx = ctx->sc_pos;
 		}
 	}
-	for (ctx_id = 0; ctx_id < ctxarr->sca_nr &&
-			 done_cnt != ctxarr->sca_nr &&
-			 nokey_cnt != ctxarr->sca_nr; ctx_id++) {
+	*rep = min;
+	if (done_cnt == ctxarr->sca_nr || nokey_cnt == ctxarr->sca_nr)
+		return true;
+
+	/* Advance positions (if necessary) in all sort contexts. */
+	for (ctx_id = 0; ctx_id < ctxarr->sca_nr; ctx_id++) {
 		ctx = &ctx_arr[ctx_id];
-		if (ctx->sc_stop) {
-			nokey_cnt++;
+		if (ctx->sc_stop)
 			continue;
-		}
 		sc_rep_get(ctx, &val);
 		if (val == NULL || sc_rep_eq(val, min))
 			sc_next(ctx);
 	}
-	*rep = min;
-	return done_cnt == ctxarr->sca_nr || nokey_cnt == ctxarr->sca_nr;
+	return false;
 }
 
 static int dix_rs_vals_alloc(struct m0_dix_next_resultset *rs,
@@ -268,12 +270,11 @@ M0_INTERNAL int m0_dix_next_result_prepare(struct m0_dix_req *req)
 
 		/* Setup key position for all contexts. */
 		for (ctx_id = 0; ctx_id < ctxs_nr; ctx_id++)
-			sc_key_pos_set(&ctxs[ctx_id], key_id,
-				       recs_nr);
+			sc_key_pos_set(&ctxs[ctx_id], key_id, recs_nr);
 		i = 0;
 		while (rc == 0 && i < recs_nr[key_id]) {
-			if ((done = sc_min_val_get(ctx_arr, &rep,
-						   &key_ctx, &cidx)))
+			if ((done = sc_min_val_get(ctx_arr, &rep, &key_ctx,
+						   &cidx)))
 				break;
 			if (rep != NULL &&
 			   (i == 0 || !sc_rep_eq(last_rep, rep))) {
