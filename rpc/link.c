@@ -305,8 +305,15 @@ static int rpc_link_conn_fom_tick(struct m0_fom *fom)
 		break;
 	case M0_RLS_SESS_ESTABLISHING:
 		state = SESS_STATE(&rlink->rlk_sess);
+		/*
+		 * There might chances of some subsystem send item
+		 * as soon as session established and it becomes idle.
+		 * So M0_RPC_SESSION_BUSY state also possible.
+		 */
 		M0_ASSERT(M0_IN(state, (M0_RPC_SESSION_ESTABLISHING,
-				M0_RPC_SESSION_IDLE, M0_RPC_SESSION_FAILED)));
+					M0_RPC_SESSION_IDLE,
+					M0_RPC_SESSION_BUSY,
+					M0_RPC_SESSION_FAILED)));
 		if (state == M0_RPC_SESSION_FAILED) {
 			fail_phase = M0_RLS_SESS_FAILURE;
 			rc         = SESS_RC(&rlink->rlk_sess);
