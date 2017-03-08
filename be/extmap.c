@@ -26,6 +26,7 @@
 #include "lib/errno.h"
 #include "lib/arith.h"      /* M0_3WAY */
 #include "lib/misc.h"
+#include "lib/finject.h"
 #include "format/format.h"  /* m0_format_header_pack */
 
 /**
@@ -330,12 +331,28 @@ M0_INTERNAL void m0_be_emap_close(struct m0_be_emap_cursor *it)
 	be_emap_close(it);
 }
 
+static bool be_emap_changed(struct m0_be_emap_cursor *it, m0_bindex_t off)
+{
+	if (it->ec_version != it->ec_map->em_version || M0_FI_ENABLED("yes")) {
+		M0_LOG(M0_DEBUG, "versions mismatch: %d != %d",
+		       (int)it->ec_version, (int)it->ec_map->em_version);
+		be_emap_lookup(it->ec_map, &it->ec_key.ek_prefix, off, it);
+		return true;
+	} else
+		return false;
+}
+
 M0_INTERNAL void m0_be_emap_next(struct m0_be_emap_cursor *it)
 {
 	M0_PRE(!m0_be_emap_ext_is_last(&it->ec_seg.ee_ext));
 
 	m0_be_op_active(&it->ec_op);
-	be_emap_next(it);
+
+	m0_rwlock_read_lock(emap_rwlock(it->ec_map));
+	if (!be_emap_changed(it, it->ec_key.ek_offset))
+		be_emap_next(it);
+	m0_rwlock_read_unlock(emap_rwlock(it->ec_map));
+
 	m0_be_op_done(&it->ec_op);
 }
 
@@ -344,7 +361,12 @@ M0_INTERNAL void m0_be_emap_prev(struct m0_be_emap_cursor *it)
 	M0_PRE(!m0_be_emap_ext_is_first(&it->ec_seg.ee_ext));
 
 	m0_be_op_active(&it->ec_op);
-	be_emap_prev(it);
+
+	m0_rwlock_read_lock(emap_rwlock(it->ec_map));
+	if (!be_emap_changed(it, it->ec_rec.er_start - 1))
+		be_emap_prev(it);
+	m0_rwlock_read_unlock(emap_rwlock(it->ec_map));
+
 	m0_be_op_done(&it->ec_op);
 }
 
@@ -703,15 +725,8 @@ M0_INTERNAL int m0_be_emap_caret_move(struct m0_be_emap_caret *car,
 		step = m0_be_emap_caret_step(car);
 		if (count >= step) {
 			struct m0_be_emap_cursor *it = car->ct_it;
-			if (it->ec_version != it->ec_map->em_version) {
-				M0_LOG(M0_DEBUG, "caret version:%d "
-						 "emap version :%d ",
-						(int)it->ec_version,
-						(int)it->ec_map->em_version);
-				rc = be_emap_lookup(it->ec_map,
-						    &it->ec_key.ek_prefix,
-						    car->ct_index, it);
-			}
+			if (be_emap_changed(it, car->ct_index))
+				rc = it->ec_op.bo_u.u_emap.e_rc;
 			rc = rc ?: be_emap_next(it);
 			if (rc < 0)
 				break;
@@ -960,8 +975,17 @@ static int be_emap_next(struct m0_be_emap_cursor *it)
 static int
 be_emap_prev(struct m0_be_emap_cursor *it)
 {
+	struct m0_be_op *op = &it->ec_cursor.bc_op;
+	int              rc;
+
+	M0_SET0(op);
+	m0_be_op_init(op);
 	m0_be_btree_cursor_prev(&it->ec_cursor);
-	return emap_it_open(it);
+	m0_be_op_wait(op);
+	rc = emap_it_open(it);
+	m0_be_op_fini(op);
+
+	return rc;
 }
 
 #if 1

@@ -26,6 +26,7 @@
 #include "lib/types.h"
 #include "lib/ub.h"
 #include "lib/misc.h"
+#include "lib/finject.h"
 #include "ut/ut.h"
 #include "be/ut/helper.h"
 #include "be/extmap.h"
@@ -257,7 +258,7 @@ static void test_split(void)
 	split(0, 5, true);
 }
 
-static void test_print(void)
+static int test_print(void)
 {
 	int i;
 	int rc;
@@ -282,6 +283,48 @@ static void test_print(void)
 		m0_be_op_fini(it_op);
 	}
 	m0_be_emap_close(&it);
+
+	return i;
+}
+
+static void test_next_prev(void)
+{
+	int i;
+	int rc;
+	int n;
+
+	n = test_print();
+
+	rc = be_emap_lookup(emap, &prefix, 0, &it);
+	M0_UT_ASSERT(rc == 0);
+
+	m0_fi_enable_once("be_emap_changed", "yes");
+	for (i = 0; ; ++i) {
+		if (m0_be_emap_ext_is_last(&seg->ee_ext))
+			break;
+		M0_SET0(it_op);
+		m0_be_op_init(it_op);
+		m0_be_emap_next(&it);
+		m0_be_op_wait(it_op);
+		M0_UT_ASSERT(it_op->bo_u.u_emap.e_rc == 0);
+		m0_be_op_fini(it_op);
+	}
+	M0_UT_ASSERT(i == n);
+
+	m0_fi_enable_once("be_emap_changed", "yes");
+	for (i = 0; ; ++i) {
+		if (m0_be_emap_ext_is_first(&seg->ee_ext))
+			break;
+		M0_SET0(it_op);
+		m0_be_op_init(it_op);
+		m0_be_emap_prev(&it);
+		m0_be_op_wait(it_op);
+		M0_UT_ASSERT(it_op->bo_u.u_emap.e_rc == 0);
+		m0_be_op_fini(it_op);
+	}
+	M0_UT_ASSERT(i == n);
+	m0_be_emap_close(&it);
+
 }
 
 static void test_merge(void)
@@ -411,6 +454,7 @@ void m0_be_ut_emap(void)
 	test_lookup();
 	test_split();
 	test_print();
+	test_next_prev();
 	test_merge();
 	test_paste();
 	test_obj_fini(&tx2);
