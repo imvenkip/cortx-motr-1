@@ -644,7 +644,10 @@ static int cob_ops_fom_tick(struct m0_fom *fom)
 			case M0_COB_OP_DELETE:
 			case M0_COB_OP_TRUNCATE:
 				rc = cob_stob_delete_credit(fom);
-				rc = rc == -EAGAIN ? 0 : rc;
+				if (rc == -EAGAIN)
+					rc = 0;
+				if (rc != 0)
+					goto tail;
 				break;
 			default:
 				M0_IMPOSSIBLE("Invalid fop type!");
