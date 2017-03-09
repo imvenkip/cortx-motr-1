@@ -634,7 +634,7 @@ M0_INTERNAL struct m0_ha_link *m0_ha_connect(struct m0_ha *ha)
 	struct m0_ha_link *hl;
 	int                rc;
 
-	M0_ENTRY("ha=%p ep=%s", ha, ha->h_cfg.hcf_addr);
+	M0_ENTRY("ha=%p hcf_addr=%s", ha, ha->h_cfg.hcf_addr);
 	rc = m0_module_init(&ha->h_module, M0_HA_LEVEL_CONNECT);
 	if (rc == 0) {
 		m0_mutex_lock(&ha->h_lock);
@@ -645,13 +645,13 @@ M0_INTERNAL struct m0_ha_link *m0_ha_connect(struct m0_ha *ha)
 		M0_LOG(M0_ERROR, "rc=%d", rc);
 		hl = NULL;
 	}
-	M0_LEAVE();
+	M0_LEAVE("ha=%p hcf_addr=%s hl=%p", ha, ha->h_cfg.hcf_addr, hl);
 	return hl;
 }
 
 M0_INTERNAL void m0_ha_disconnect(struct m0_ha *ha)
 {
-	M0_ENTRY("ha=%p", ha);
+	M0_ENTRY("ha=%p hcf_addr=%s", ha, ha->h_cfg.hcf_addr);
 	m0_module_fini(&ha->h_module, M0_HA_LEVEL_START);
 	M0_LEAVE();
 }
@@ -763,6 +763,8 @@ static void ha_link_handle(struct m0_ha                       *ha,
 	}
 	if (hl_ptr != NULL)
 		*hl_ptr = &hlx->hlx_link;
+	M0_LEAVE("ha=%p heq_rpc_endpoint=%s hl=%p",
+		 ha, req->heq_rpc_endpoint, &hlx->hlx_link);
 }
 
 void m0_ha_entrypoint_reply(struct m0_ha                       *ha,
