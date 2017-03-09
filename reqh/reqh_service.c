@@ -215,8 +215,12 @@ static void reqh_service_ha_event(struct m0_reqh_service     *service,
 	if (!M0_IN(state, (M0_RST_STARTING, M0_RST_STARTED,
 	                   M0_RST_STOPPING, M0_RST_STOPPED, M0_RST_FAILED)))
 		return;
-	if (m0_get()->i_ha == NULL || m0_get()->i_ha_link == NULL)
+	if (m0_get()->i_ha == NULL || m0_get()->i_ha_link == NULL) {
+		M0_LOG(M0_DEBUG, "can't report service HA event=%d "
+		       "service_fid="FID_F, state2event[state],
+		       FID_P(&service->rs_service_fid));
 		return;
+	}
 	m0_conf_ha_service_event_post(m0_get()->i_ha, m0_get()->i_ha_link,
 	                              &service->rs_reqh->rh_fid,
 	                              &service->rs_service_fid,
