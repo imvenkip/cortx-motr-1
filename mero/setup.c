@@ -1134,6 +1134,50 @@ static int reqh_context_services_init(struct m0_reqh_context *rctx,
 	return M0_RC(rc);
 }
 
+static void cs_service_fini(struct m0_reqh_service *service)
+{
+	struct m0_reqh *reqh = service->rs_reqh;
+	/*
+	 * XXX: The following lines are going to be refactored. Currently it's
+	 * not so easy to extract proper interface from reqh/reqh.c.
+	 */
+	M0_ASSERT(m0_reqh_service_invariant(service));
+	if (M0_IN(m0_reqh_service_state_get(service),
+		  (M0_RST_STARTED, M0_RST_STOPPING))) {
+		m0_reqh_service_prepare_to_stop(service);
+		m0_reqh_idle_wait_for(reqh, service);
+		m0_reqh_service_stop(service);
+	}
+	M0_LOG(M0_DEBUG, "service=%s", service->rs_type->rst_name);
+	m0_reqh_service_fini(service);
+}
+
+static void reqh_context_services_fini(struct m0_reqh_context *rctx,
+				       struct m0_mero         *cctx)
+{
+	struct m0_reqh_service *service;
+	const char *name;
+	uint32_t    i;
+	int         rc = 0;
+
+	M0_ENTRY();
+
+	for (i = 0; i < M0_CST_NR && rc == 0; ++i) {
+		if (rctx->rc_services[i] == NULL ||
+		    M0_IN(i, (M0_CST_HA, M0_CST_SSS)))
+			continue;
+		name = rctx->rc_services[i];
+		M0_LOG(M0_DEBUG, "service: %s" FID_F, name,
+			FID_P(&rctx->rc_service_fids[i]));
+		service = m0_reqh_service_lookup(&rctx->rc_reqh,
+						 &rctx->rc_service_fids[i]);
+		if (service != NULL)
+			cs_service_fini(service);
+	}
+
+	M0_LEAVE();
+}
+
 static int reqh_services_start(struct m0_reqh_context *rctx,
 			       struct m0_mero         *cctx)
 {
@@ -2494,6 +2538,7 @@ void m0_cs_fini(struct m0_mero *cctx)
 
                 cs_conf_destroy(cctx);
 
+		reqh_context_services_fini(&cctx->cc_reqh_ctx, cctx);
                 if (ha_was_started)
                         cs_ha_stop(cctx);
 

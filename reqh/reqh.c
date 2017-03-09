@@ -652,6 +652,8 @@ static void __reqh_svcs_stop(struct m0_reqh *reqh, unsigned level)
 			m0_reqh_idle_wait_for(reqh, service);
 			m0_reqh_service_stop(service);
 		}
+		M0_LOG(M0_DEBUG, "service=%s level=%d srvlev=%d",
+		       service->rs_type->rst_name, level, service->rs_level);
 		m0_reqh_service_fini(service);
 		if (service == reqh->rh_rpc_service)
 			reqh->rh_rpc_service = NULL;
@@ -677,7 +679,10 @@ M0_INTERNAL void m0_reqh_pre_storage_fini_svcs_stop(struct m0_reqh *reqh)
 
 	m0_rwlock_write_unlock(&reqh->rh_rwlock);
 	__reqh_svcs_stop(reqh, M0_RS_LEVEL_NORMAL);
+	__reqh_svcs_stop(reqh, M0_RS_LEVEL_BEFORE_NORMAL + 1);
 	__reqh_svcs_stop(reqh, M0_RS_LEVEL_BEFORE_NORMAL);
+	__reqh_svcs_stop(reqh, M0_RS_LEVEL_BEFORE_NORMAL - 1);
+	__reqh_svcs_stop(reqh, M0_RS_LEVEL_BEFORE_NORMAL - 2);
 
 	m0_rwlock_write_lock(&reqh->rh_rwlock);
 	reqh_state_set(reqh, M0_REQH_ST_STOPPED);
@@ -688,6 +693,7 @@ M0_INTERNAL void m0_reqh_post_storage_fini_svcs_stop(struct m0_reqh *reqh)
 {
 	M0_PRE(m0_reqh_state_get(reqh) == M0_REQH_ST_STOPPED);
 	__reqh_svcs_stop(reqh, M0_RS_LEVEL_EARLY);
+	__reqh_svcs_stop(reqh, M0_RS_LEVEL_EARLIEST);
 }
 
 M0_INTERNAL void m0_reqh_start(struct m0_reqh *reqh)
