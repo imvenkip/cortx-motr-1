@@ -99,10 +99,6 @@ function cluster_start() {
 
 	halon_facts_yaml > $HALON_FACTS_YAML
 
-	if [ -n $USE_SYSTEM_MERO ]; then
-		HALOND="LD_LIBRARY_PATH=mero/.libs $HALOND"
-		HALONCTL="LD_LIBRARY_PATH=mero/.libs $HALONCTL"
-	fi
 	sudo $HALOND -l $IP:9000 >& /tmp/halond.log &
 	true
 	sleep 2
@@ -126,6 +122,10 @@ function cluster_stop() {
 }
 
 main() {
+	if [ -n $USE_SYSTEM_MERO ]; then
+		HALOND="LD_LIBRARY_PATH=mero/.libs $HALOND"
+		HALONCTL="LD_LIBRARY_PATH=mero/.libs $HALONCTL"
+	fi
 	if [ $# -eq 0 ]; then
 		show_help
 		echo "Running cluster_start command"
