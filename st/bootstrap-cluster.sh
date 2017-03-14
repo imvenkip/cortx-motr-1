@@ -46,6 +46,14 @@ configure_hvt() {
 	HALON_FACTS_FUNC="halon_facts_yaml_auto"
 }
 
+configure_s3single() {
+	CMU_HOST="192.168.0.2"
+	HOSTS_LIST="$CMU_HOST,192.168.0.1"
+	CLIENTS_LIST=""
+	HALON_FACTS_FUNC="halon_facts_yaml_auto"
+	MERO_ROLE_MAPPINGS="/etc/halon/role_maps/s3server.ede"
+}
+
 configure_kvm2dm() {
 	CMU_HOST="172.16.0.41"
 	HOSTS_LIST="$CMU_HOST,172.16.1.[1-7]"
@@ -62,7 +70,7 @@ configure_common() {
 
 	HALON_FACTS_HOST="$CMU_HOST"
 	HALON_FACTS_PATH="/etc/halon/halon_facts.yaml"
-	MERO_ROLE_MAPPINGS="/etc/halon/mero_role_mappings"
+	MERO_ROLE_MAPPINGS="${MERO_ROLE_MAPPINGS:-/etc/halon/mero_role_mappings}"
 	HALON_ROLE_MAPPINGS="/etc/halon/halon_role_mappings"
 
 	PDSH="pdsh -w $HOSTS_LIST"
@@ -139,6 +147,21 @@ run_command() {
 	"halon_facts_yaml")
 		${HALON_FACTS_FUNC}
 		;;
+	"run_m0setup")
+		if [ "$HALON_FACTS_FUNC" ==  "halon_facts_yaml_auto" ]; then
+			# backup the facts file
+			${HALON_FACTS_FUNC} | ssh $HALON_FACTS_HOST "cat > halon_facts.yaml"
+		fi
+		sudo m0setup -v -P 8 -N 2 -K 1 -i 1 -d /var/mero/img -s 128 -c
+		if [ "$HALON_FACTS_FUNC" ==  "halon_facts_yaml_auto" ]; then
+			# restore the facts file
+			ssh $HALON_FACTS_HOST cp halon_facts.yaml $HALON_FACTS_PATH
+		fi
+		sudo m0setup -v -P 8 -N 2 -K 1 -i 1 -d /var/mero/img -s 128
+		sudo rm -vf /etc/mero/genders
+		sudo rm -vf /etc/mero/conf.xc
+		sudo rm -vf /etc/mero/disks*.conf
+		;;
 	*)
 		die "Unknown command: $1"
 	esac
@@ -167,6 +190,7 @@ setup() {
 		dev2_2) configure_dev2_2;;
 		fre7n1) configure_fre7n1;;
 		hvt) configure_hvt;;
+		s3single) configure_s3single;;
 		kvm2dm) configure_kvm2dm;;
 		*) die "Unsupported cluster: $cluster";;
 	esac
@@ -180,7 +204,7 @@ Usage: ${0##*/} [OPTION]... [--] COMMAND...
 Options:
     -h, --help      Show this help and exit.
     --cluster NAME  Use specific cluster configuration. Supported clusters:
-                    beta1, dev1_1, dev2_1, dev2_2, fre7n1, hvt.  If this option
+                    beta1, dev1_1, dev2_1, dev2_2, fre7n1, hvt, s3single. If this option
                     is missing, the script will try to guess by hostname.
 
 Commands:
@@ -197,6 +221,7 @@ Commands:
     status              halonctl status
     stop                Stop all halond and mero services.
     halon_facts_yaml    Show halon_facts.yaml for the cluster.
+    run_m0setup         Run m0setup to create loopback devices.
 EOF
 }
 
