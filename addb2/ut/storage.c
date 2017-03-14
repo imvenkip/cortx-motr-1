@@ -130,6 +130,7 @@ static void write_init_fini(void)
 	m0_semaphore_down(&idlewait);
 	M0_UT_ASSERT(idled);
 	m0_addb2_storage_fini(stor);
+	m0_semaphore_fini(&idlewait);
 	stor = NULL;
 	stob_put(true);
 }
@@ -203,8 +204,8 @@ static void stor_fini(bool destroy)
 	m0_addb2_storage_fini(stor);
 	stor = NULL;
 	stob_put(destroy);
-	m0_semaphore_fini(&idlewait);
 	m0_semaphore_fini(&machwait);
+	m0_semaphore_fini(&idlewait);
 }
 
 static void submit_one(void)
@@ -489,6 +490,8 @@ static void fini_io(void)
 		.sto_done = &io_done
 	};
 
+	m0_semaphore_init(&pump_start, 0);
+	m0_semaphore_init(&pump_done, 0);
 	for (i = 0; i < ARRAY_SIZE(t); ++i) {
 		result = M0_THREAD_INIT(&t[i], int, NULL, &io_thread, 0,
 					"io_thread");
@@ -509,12 +512,15 @@ static void fini_io(void)
 		m0_semaphore_down(&idlewait);
 		M0_UT_ASSERT(idled);
 		m0_addb2_storage_fini(stor);
+		m0_semaphore_fini(&idlewait);
 	}
 	for (i = 0; i < ARRAY_SIZE(t); ++i) {
 		m0_thread_join(&t[i]);
 		m0_thread_fini(&t[i]);
 	}
 	stob_put(true);
+	m0_semaphore_fini(&pump_done);
+	m0_semaphore_fini(&pump_start);
 }
 
 struct m0_ut_suite addb2_storage_ut = {
