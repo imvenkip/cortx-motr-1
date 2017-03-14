@@ -5,6 +5,12 @@
 random_mode=
 tests=
 
+# Get the location of this script and look for c0st and kernel
+# module in known locations (should changed to a more robust way)
+st_util_dir=`dirname $0`
+MERO_SRC=$st_util_dir/../../../.
+. $MERO_SRC/m0t1fs/linux_kernel/st/m0t1fs_common_inc.sh
+
 # kernel mode
 function clovis_st_start_k ()
 {
@@ -81,7 +87,9 @@ function clovis_st_start_u()
 
 	esac
 
-	local st_args="-m $LOCAL_EP -h $HA_EP -c $CONFD_EP -p '$PROF_OPT' -f '$PROC_FID' -I $idx_service"
+	local st_args="-m $CLOVIS_LOCAL_EP -h $CLOVIS_HA_EP -c $CLOVIS_CONFD_EP \
+		       -p '$CLOVIS_PROF_OPT' -f '$CLOVIS_PROC_FID' \
+		       -I $idx_service"
 	if [ $random_mode -eq 1 ]; then
 		st_args="$st_args -r"
 	fi
@@ -89,6 +97,24 @@ function clovis_st_start_u()
 		st_args="$st_args -t $tests"
 	fi
 	local st_u="$st_exec $st_args"
+
+	if [ $idx_service -eq 1 ]; then
+		#create DIX metadata
+		local m0dixinit="$MERO_SRC/dix/utils/m0dixinit"
+		local cmd
+
+		local pverid=$(echo $DIX_PVERID | tr -d ^)
+
+		if [ ! -f $dixinit] ; then
+			echo "Can't find m0dixinit"
+			return 1
+		fi
+
+		cmd="$m0dixinit -l $CLOVIS_LOCAL_EP -H $CLOVIS_HA_EP \
+	     	     -p '$CLOVIS_PROF_OPT' -I '$pverid' -d '$pverid' -a create"
+		echo $cmd
+		eval "$cmd"
+	fi
 
 	# Run it
 	echo Running system tests ...
@@ -134,10 +160,6 @@ function clovis_st_list_tests ()
 
 	return 0
 }
-
-# Get the location of this script and look for c0st and kernel
-# module in known locations (should changed to a more robust way)
-st_util_dir=`dirname $0`
 
 # Local variables:
 # sh-basic-offset: 8

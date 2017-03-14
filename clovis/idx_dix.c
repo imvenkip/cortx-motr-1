@@ -644,18 +644,13 @@ static int dix_root_idx_pver(struct m0_clovis *m0c, struct m0_fid *out)
 	struct m0_conf_filesystem *fs;
 	int                        rc;
 
-	/**
-	 * @todo
-	 * Clovis startup SM executes in the same group as confc context.
-	 * How to properly handle it?
-	 */
-	m0_sm_group_unlock(m0c->m0c_initlift_sm.sm_grp);
+	/* Clovis will release the lock on confc before calling idx_dix_init() */
 	rc = m0_conf_fs_get(&reqh->rh_profile, m0_reqh2confc(reqh), &fs);
 	if (rc != 0)
 		return M0_ERR(rc);
 	*out = fs->cf_imeta_pver;
 	m0_confc_close(&fs->cf_obj);
-	m0_sm_group_lock(m0c->m0c_initlift_sm.sm_grp);
+
 	return 0;
 }
 

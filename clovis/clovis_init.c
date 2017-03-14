@@ -1166,7 +1166,11 @@ static int clovis_initlift_idx_service(struct m0_sm *mach)
 			  service->is_svc_ops != NULL &&
 			  service->is_svc_ops->iso_init != NULL);
 
+		/* Confc needs the lock to proceed. */
+		m0_sm_group_unlock(&m0c->m0c_sm_group);
 		rc = service->is_svc_ops->iso_init((void *)ctx);
+		m0_sm_group_lock(&m0c->m0c_sm_group);
+
 		if (rc != 0)
 			clovis_initlift_fail(rc, m0c);
 	} else {

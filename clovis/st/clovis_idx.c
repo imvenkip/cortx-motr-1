@@ -914,7 +914,7 @@ static void idx_query_empty_next(void)
 
 	clovis_oid_get(&id);
 	/* Make mero kvs happy*/
-	idx_fid = M0_FID_TINIT('i', id.u_hi, id.u_lo);
+	idx_fid = M0_FID_TINIT('x', id.u_hi, id.u_lo);
 	id.u_hi = idx_fid.f_container;
 	id.u_lo = idx_fid.f_key;
 
@@ -957,7 +957,7 @@ static void idx_query_next_not_exist_index(void)
 
 	clovis_oid_get(&id);
 	/* Make mero kvs happy*/
-	idx_fid = M0_FID_TINIT('i', id.u_hi, id.u_lo);
+	idx_fid = M0_FID_TINIT('x', id.u_hi, id.u_lo);
 	id.u_hi = idx_fid.f_container;
 	id.u_lo = idx_fid.f_key;
 
@@ -995,7 +995,7 @@ static void idx_query_drop_index(void)
 
 	clovis_oid_get(&id);
 	/* Make mero kvs happy*/
-	idx_fid = M0_FID_TINIT('i', id.u_hi, id.u_lo);
+	idx_fid = M0_FID_TINIT('x', id.u_hi, id.u_lo);
 	id.u_hi = idx_fid.f_container;
 	id.u_lo = idx_fid.f_key;
 

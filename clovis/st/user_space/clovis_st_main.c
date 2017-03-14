@@ -100,11 +100,8 @@ static int clovis_st_init_instance(void)
 
 	if (clovis_index_service == IDX_MERO) {
 		clovis_conf.cc_idx_service_id   = M0_CLOVIS_IDX_DIX;
-		/*
-		 * Automatically create metadata for Mero DIX subsystem on
-		 * clovis initialisation. DIX won't work without metadata.
-		 */
-		dix_conf.kc_create_meta = true;
+		/* DIX- Metadata is created by m0dixinit() in ST script. */
+		dix_conf.kc_create_meta = false;
 		clovis_conf.cc_idx_service_conf = &dix_conf;
 	} else if (clovis_index_service == IDX_MOCK) {
 		/* mocked index driver */
