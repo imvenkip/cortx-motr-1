@@ -159,8 +159,6 @@ void m0_rpc_item_source_register_locked(struct m0_rpc_conn *conn,
  */
 void m0_rpc_item_source_deregister(struct m0_rpc_item_source *ris);
 
-M0_INTERNAL void m0_rpc_item_drain_sources_locked(struct m0_rpc_machine *rm);
-
 /** @} end of rpc group */
 
 #endif /* __MERO_RPC_ITEM_SOURCE_H__ */

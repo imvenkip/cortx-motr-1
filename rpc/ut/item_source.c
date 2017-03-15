@@ -204,11 +204,10 @@ static void item_source_test(void)
 			m0_rpc_machine_unlock(conn->c_rpc_machine);
 			break;
 		case 1:
-			/* Wake-up rpc-worker thread */
-			m0_clink_signal(
-				&conn->c_rpc_machine->rm_sm_grp.s_clink);
-			/* Give rpc-worker thread a chance to run. */
-			m0_nanosleep(m0_time(0, 100 * MILLISEC), NULL);
+			m0_rpc_machine_lock(conn->c_rpc_machine);
+			m0_rpc_machine_drain_item_sources(conn->c_rpc_machine,
+							  128);
+			m0_rpc_machine_unlock(conn->c_rpc_machine);
 			break;
 		default:
 			M0_IMPOSSIBLE("only two triggers");

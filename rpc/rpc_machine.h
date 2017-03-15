@@ -195,7 +195,8 @@ void m0_rpc_machine_get_stats(struct m0_rpc_machine *machine,
 			      struct m0_rpc_stats *stats, bool reset);
 
 M0_INTERNAL void
-m0_rpc_machine_drain_item_sources(struct m0_rpc_machine *machine);
+m0_rpc_machine_drain_item_sources(struct m0_rpc_machine *machine,
+				  uint32_t               max_per_source);
 
 M0_INTERNAL const char *m0_rpc_machine_ep(const struct m0_rpc_machine *rmach);
 

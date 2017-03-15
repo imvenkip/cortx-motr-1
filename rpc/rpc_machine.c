@@ -338,9 +338,24 @@ m0_rpc_machine_cleanup_incoming_connections(struct m0_rpc_machine *machine)
 	M0_POST(rpc_conn_tlist_is_empty(&machine->rm_incoming_conns));
 }
 
+enum {
+	/**
+	 * RPC worker thread drains item sources no more than once per this
+	 * interval.
+	 */
+	DRAIN_INTERVAL = M0_MKTIME(5, 0),
+	/**
+	 * Maximum number of items that can be drained from each source at
+	 * a time.
+	 */
+	DRAIN_MAX      = 128,
+};
+
 /* Not static because formation ut requires it. */
 M0_INTERNAL void rpc_worker_thread_fn(struct m0_rpc_machine *machine)
 {
+	m0_time_t drained = m0_time_now();
+
 	M0_ENTRY();
 	M0_PRE(machine != NULL);
 
@@ -352,19 +367,24 @@ M0_INTERNAL void rpc_worker_thread_fn(struct m0_rpc_machine *machine)
 			return;
 		}
 		m0_sm_asts_run(&machine->rm_sm_grp);
-		m0_rpc_machine_drain_item_sources(machine);
+		if (m0_time_is_in_past(drained + DRAIN_INTERVAL)) {
+			m0_rpc_machine_drain_item_sources(machine, DRAIN_MAX);
+			drained = m0_time_now();
+		}
 		m0_rpc_machine_unlock(machine);
 		m0_chan_wait(&machine->rm_sm_grp.s_clink);
 	}
 }
 
-M0_INTERNAL void m0_rpc_machine_drain_item_sources(struct m0_rpc_machine
-						   *machine)
+M0_INTERNAL void
+m0_rpc_machine_drain_item_sources(struct m0_rpc_machine *machine,
+				  uint32_t               max_per_source)
 {
 	struct m0_rpc_item_source *source;
 	struct m0_rpc_conn        *conn;
 	struct m0_rpc_item        *item;
 	m0_bcount_t                max_size;
+	uint32_t                   sent;
 
 	M0_ENTRY();
 
@@ -373,14 +393,26 @@ M0_INTERNAL void m0_rpc_machine_drain_item_sources(struct m0_rpc_machine
 	M0_LOG(M0_DEBUG, "max_size: %llu", (unsigned long long)max_size);
 	m0_tl_for(rpc_conn, &machine->rm_outgoing_conns, conn) {
 		m0_tl_for(item_source, &conn->c_item_sources, source) {
-			while (source->ris_ops->riso_has_item(source)) {
+			sent = 0;
+			while (sent < max_per_source &&
+			       source->ris_ops->riso_has_item(source)) {
 				item = source->ris_ops->riso_get_item(source,
 								     max_size);
 				if (item == NULL)
 					break;
 				M0_LOG(M0_DEBUG, "item: %p", item);
+				/*
+				 * Avoid placing items to the urgent queue.
+				 * Otherwise, an RPC packet would be created
+				 * draining item sources over the limit to
+				 * fill the packet.
+				 * @see frm_fill_packet_from_item_sources()
+				 */
+				item->ri_deadline = m0_time_now() +
+						    DRAIN_INTERVAL / 2;
 				m0_rpc_oneway_item_post_locked(conn, item);
 				m0_rpc_item_put(item);
+				M0_CNT_INC(sent);
 			}
 		} m0_tl_endfor;
 	} m0_tl_endfor;
