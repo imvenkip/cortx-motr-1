@@ -67,7 +67,7 @@
 #include "sm/sm.h"            /* m0_sm */
 #include "cas/client.h"       /* m0_cas_req */
 #include "dix/layout.h"       /* m0_dix_layout */
-#include "dix/req_internal.h"
+#include "dix/req_internal.h" /* m0_dix_idxop_ctx */
 
 /* Import */
 struct m0_bufvec;

@@ -1,17 +1,17 @@
 nobase_mero_include_HEADERS += \
                             dix/client.h \
-                            dix/req.h
+                            dix/meta.h \
+                            dix/layout.h \
+                            dix/imask.h \
+                            dix/req.h \
+                            dix/req_internal.h
 
 mero_libmero_la_SOURCES  += \
                             dix/client_internal.h \
-                            dix/req_internal.h \
-                            dix/imask.h \
                             dix/imask.c \
-                            dix/layout.h \
                             dix/layout.c \
                             dix/client.c \
                             dix/req.c \
-                            dix/meta.h \
                             dix/meta.c \
                             dix/encdec.h \
                             dix/encdec.c \
