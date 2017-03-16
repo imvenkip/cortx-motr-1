@@ -28,17 +28,17 @@
 #include "lib/trace.h"
 
 #include "lib/errno.h"
-#include "lib/finject.h" /* M0_FI_ENABLED() */
-#include "lib/misc.h"    /* offsetof */
-#include "be/btree.h"
+#include "lib/finject.h"       /* M0_FI_ENABLED() */
+#include "lib/misc.h"          /* offsetof */
 #include "be/alloc.h"
+#include "be/btree.h"
+#include "be/btree_internal.h" /* m0_be_bnode */
 #include "be/seg.h"
-#include "be/tx.h"       /* m0_be_tx_capture */
+#include "be/tx.h"             /* m0_be_tx_capture */
 
 /* btree constants */
 enum {
 	BTREE_ALLOC_SHIFT = 0,
-	KV_NR             = 2 * BTREE_FAN_OUT - 1,
 };
 
 enum btree_save_optype {
@@ -46,25 +46,6 @@ enum btree_save_optype {
 	BTREE_SAVE_UPDATE,
 	BTREE_SAVE_OVERWRITE
 };
-
-struct bt_key_val {
-	void                   *key;
-	void                   *val;
-};
-
-/* WARNING!: fields position is paramount, see node_update() */
-struct m0_be_bnode {
-	struct m0_format_header b_header;
-	struct m0_be_bnode     *b_next;
-	unsigned int            b_nr_active; /**< Number of active keys. */
-	unsigned int            b_level;     /**< Level in the B-Tree. */
-	bool                    b_leaf;      /**< Leaf node? */
-	char                    b_pad[7];
-	struct bt_key_val       b_key_vals[KV_NR];
-	struct m0_be_bnode     *b_children[KV_NR + 1];
-	struct m0_format_footer b_footer;
-};
-M0_BASSERT(sizeof(bool) == 1);
 
 enum m0_be_bnode_format_version {
 	M0_BE_BNODE_FORMAT_VERSION_1 = 1,

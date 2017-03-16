@@ -873,12 +873,12 @@ static void cas_fom_cleanup(struct cas_fom *fom, bool ctg_op_fini)
 	struct m0_cas_ctg *ctidx      = m0_ctg_ctidx();
 	struct m0_cas_ctg *dead_index = m0_ctg_dead_index();
 
-	m0_long_unlock(&meta->cc_lock, &fom->cf_meta);
-	m0_long_unlock(&ctidx->cc_lock, &fom->cf_ctidx);
-	m0_long_unlock(&dead_index->cc_lock, &fom->cf_dead_index);
+	m0_long_unlock(m0_ctg_lock(meta), &fom->cf_meta);
+	m0_long_unlock(m0_ctg_lock(ctidx), &fom->cf_ctidx);
+	m0_long_unlock(m0_ctg_lock(dead_index), &fom->cf_dead_index);
 	m0_long_unlock(m0_ctg_del_lock(), &fom->cf_del_lock);
 	if (fom->cf_ctg != NULL)
-		m0_long_unlock(&fom->cf_ctg->cc_lock, &fom->cf_lock);
+		m0_long_unlock(m0_ctg_lock(fom->cf_ctg), &fom->cf_lock);
 	if (ctg_op_fini) {
 		if (m0_ctg_cursor_is_initialised(ctg_op))
 			m0_ctg_cursor_fini(ctg_op);
@@ -1014,7 +1014,7 @@ static int cas_fom_tick(struct m0_fom *fom0)
 			m0_fom_phase_set(fom0, CAS_META_LOCK);
 		break;
 	case CAS_META_LOCK:
-		result = m0_long_read_lock(&meta->cc_lock,
+		result = m0_long_read_lock(m0_ctg_lock(meta),
 					   &fom->cf_meta,
 					   CAS_META_LOOKUP);
 		result = M0_FOM_LONG_LOCK_RETURN(result);
@@ -1033,7 +1033,7 @@ static int cas_fom_tick(struct m0_fom *fom0)
 			m0_fom_phase_set(fom0, CAS_LOAD_KEY);
 		} else if (rc == -ENOENT && opc == CO_PUT &&
 			   (op->cg_flags & COF_CROW)) {
-			m0_long_unlock(&meta->cc_lock, &fom->cf_meta);
+			m0_long_unlock(m0_ctg_lock(meta), &fom->cf_meta);
 			rc = cas_ctg_crow_handle(fom, &op->cg_id);
 			if (rc == 0) {
 				m0_fom_phase_set(fom0, CAS_CTG_CROW_DONE);
@@ -1113,7 +1113,7 @@ static int cas_fom_tick(struct m0_fom *fom0)
 		 * In case of index drop use cf_meta lock: we need cf_lock to
 		 * lock index.
 		 */
-		result = m0_long_lock(&ctg->cc_lock,
+		result = m0_long_lock(m0_ctg_lock(ctg),
 				      !cas_is_ro(opc),
 				      is_index_drop ? &fom->cf_meta :
 				      &fom->cf_lock,
@@ -1121,15 +1121,15 @@ static int cas_fom_tick(struct m0_fom *fom0)
 		result = M0_FOM_LONG_LOCK_RETURN(result);
 		fom->cf_ipos = 0;
 		if (!is_meta)
-			m0_long_read_unlock(&meta->cc_lock, &fom->cf_meta);
+			m0_long_read_unlock(m0_ctg_lock(meta), &fom->cf_meta);
 		break;
 	case CAS_CTIDX_LOCK:
-		result = m0_long_lock(&m0_ctg_ctidx()->cc_lock, !cas_is_ro(opc),
+		result = m0_long_lock(m0_ctg_lock(m0_ctg_ctidx()), !cas_is_ro(opc),
 				      &fom->cf_ctidx, CAS_PREP);
 		result = M0_FOM_LONG_LOCK_RETURN(result);
 		break;
 	case CAS_DEAD_INDEX_LOCK:
-		result = m0_long_write_lock(&m0_ctg_dead_index()->cc_lock,
+		result = m0_long_write_lock(m0_ctg_lock(m0_ctg_dead_index()),
 				      &fom->cf_dead_index, CAS_LOCK);
 		result = M0_FOM_LONG_LOCK_RETURN(result);
 		break;
@@ -1286,8 +1286,8 @@ static int cas_fom_tick(struct m0_fom *fom0)
 			 * dead_index. Now can unlock meta catalogues and
 			 * wait until dropping indices are not used.
 			 */
-			m0_long_unlock(&meta->cc_lock, &fom->cf_meta);
-			m0_long_unlock(&ctidx->cc_lock, &fom->cf_ctidx);
+			m0_long_unlock(m0_ctg_lock(meta), &fom->cf_meta);
+			m0_long_unlock(m0_ctg_lock(ctidx), &fom->cf_ctidx);
 			fom->cf_ipos = 0;
 			m0_fom_phase_set(fom0, rc == 0 ? CAS_IDROP_LOCK_LOOP :
 					 CAS_PREPARE_SEND);
@@ -1300,7 +1300,7 @@ static int cas_fom_tick(struct m0_fom *fom0)
 			 * running) can safely proceed with newly added indices
 			 * in "dead index" catalogue.
 			 */
-			m0_long_unlock(&m0_ctg_dead_index()->cc_lock,
+			m0_long_unlock(m0_ctg_lock(m0_ctg_dead_index()),
 				       &fom->cf_dead_index);
 			m0_fom_phase_set(fom0, CAS_IDROP_START_GC);
 		} else if (fom->cf_moved_ctgs[ipos] != NULL) {
@@ -1314,7 +1314,7 @@ static int cas_fom_tick(struct m0_fom *fom0)
 			 * using it.
 			 */
 			result = m0_long_write_lock(
-				&fom->cf_moved_ctgs[ipos]->cc_lock,
+				m0_ctg_lock(fom->cf_moved_ctgs[ipos]),
 				&fom->cf_lock,
 				CAS_IDROP_LOCKED);
 			result = M0_FOM_LONG_LOCK_RETURN(result);
@@ -1326,7 +1326,7 @@ static int cas_fom_tick(struct m0_fom *fom0)
 		 * Now can unlock: index is not visible any more and nobody use
 		 * it for sure.
 		 */
-		m0_long_unlock(&fom->cf_moved_ctgs[ipos]->cc_lock,
+		m0_long_unlock(m0_ctg_lock(fom->cf_moved_ctgs[ipos]),
 			       &fom->cf_lock);
 		m0_fom_phase_set(fom0, CAS_PREPARE_SEND);
 		break;

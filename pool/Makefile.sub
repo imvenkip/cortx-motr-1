@@ -10,8 +10,12 @@ mero_libmero_la_SOURCES  += pool/pool.c \
 			    pool/pool_foms.c \
 			    pool/pm_internal.h
 
-nodist_mero_libmero_la_SOURCES  += pool/pool_fops_xc.c
+nodist_mero_libmero_la_SOURCES  += pool/pool_xc.c \
+				   pool/pool_machine_xc.c \
+				   pool/pool_fops_xc.c
 
 pool_m0poolmach_SOURCES  = pool/pool_trigger.c
 
-XC_FILES   += pool/pool_fops_xc.h
+XC_FILES   += pool/pool_xc.h \
+	      pool/pool_machine_xc.h \
+	      pool/pool_fops_xc.h

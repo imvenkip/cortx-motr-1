@@ -112,20 +112,26 @@ mero_libmero_la_SOURCES += lib/assert.c \
 
 nodist_mero_libmero_la_SOURCES  += \
                            lib/bitmap_xc.c \
+                           lib/bitstring_xc.c \
                            lib/buf_xc.c \
                            lib/cookie_xc.c \
                            lib/ext_xc.c \
+                           lib/list_xc.c \
                            lib/protocol_xc.c \
                            lib/string_xc.c \
+                           lib/tlist_xc.c \
                            lib/types_xc.c \
                            lib/vec_xc.c
 
 XC_FILES += lib/bitmap_xc.h \
+            lib/bitstring_xc.h \
             lib/buf_xc.h \
             lib/cookie_xc.h \
             lib/ext_xc.h \
+            lib/list_xc.h \
             lib/protocol_xc.h \
             lib/string_xc.h \
+            lib/tlist_xc.h \
             lib/types_xc.h \
             lib/vec_xc.h
 

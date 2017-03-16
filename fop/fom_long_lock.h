@@ -183,6 +183,25 @@ struct m0_long_lock {
 	uint64_t                l_magix;
 };
 
+//#ifdef __KERNEL__
+#if 1 /* XXX */
+#define M0_BE_LONG_LOCK_PAD (264 + 88)
+#else
+#define M0_BE_LONG_LOCK_PAD (136 + 40)
+#endif
+
+/**
+ * Persistent long lock structure.
+ */
+struct m0_be_long_lock {
+	union {
+		struct m0_long_lock llock;
+		char                pad[M0_BE_LONG_LOCK_PAD];
+	} bll_u;
+} M0_XCA_BLOB M0_XCA_DOMAIN(be);
+M0_BASSERT(sizeof(struct m0_long_lock) <=
+	   sizeof(M0_FIELD_VALUE(struct m0_be_long_lock, bll_u.pad)));
+
 /**
  * A macros to request a long lock from a fom phase transition function. The
  * value of macros should be returned from the phase transition function. The

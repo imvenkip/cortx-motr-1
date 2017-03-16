@@ -28,6 +28,8 @@
 #include "be/log.h"             /* m0_be_log_cfg */
 #include "be/pd.h"              /* m0_be_pd */
 #include "be/log_discard.h"     /* m0_be_log_discard */
+#include "stob/stob.h"          /* m0_stob_id */
+#include "stob/stob_xc.h"
 
 #include "lib/tlist.h"          /* m0_tl */
 #include "module/module.h"
@@ -66,7 +68,7 @@ struct m0_be_log;
 
 struct m0_be_0type_log_cfg {
 	struct m0_stob_id blc_stob_id;
-};
+} M0_XCA_RECORD;
 
 struct m0_be_0type_seg_cfg {
 	uint64_t     bsc_stob_key;
@@ -74,7 +76,7 @@ struct m0_be_0type_seg_cfg {
 	m0_bcount_t  bsc_size;
 	void	    *bsc_addr;
 	const char  *bsc_stob_create_cfg;
-};
+} M0_XCA_RECORD;
 
 struct m0_be_domain_cfg {
 	/** BE engine configuration. */

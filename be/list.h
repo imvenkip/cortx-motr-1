@@ -24,7 +24,9 @@
 #define __MERO_BE_LIST_H__
 
 #include "lib/tlist.h"          /* m0_tl */
+#include "lib/tlist_xc.h"
 #include "format/format.h"      /* m0_format_header */
+#include "format/format_xc.h"
 
 /* import */
 struct m0_be_op;
@@ -60,7 +62,7 @@ struct m0_be_list {
 	 * volatile-only fields
 	 */
 	struct m0_be_seg        *bl_seg;
-};
+} M0_XCA_RECORD;
 
 /** List operations that modify memory. */
 enum m0_be_list_op {

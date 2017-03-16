@@ -44,34 +44,6 @@ enum {
 	KV_HDR_SIZE                 = sizeof(uint64_t)
 };
 
-/** Catalogue store state persisted on a disk. */
-struct m0_cas_state {
-        struct m0_format_header cs_header;
-	/**
-	 * Pointer to descriptor of meta catalogue. Descriptor itself is
-	 * allocated elsewhere. This pointer is there (not in m0_ctg_store)
-	 * because m0_cas_state is saved in seg_dict.
-	 */
-        struct m0_cas_ctg      *cs_meta;
-        /**
-	 * Total number of records in all catalogues in catalogue store. It's
-	 * used by repair/re-balance services to report progress.
-	 */
-        uint64_t                cs_rec_nr;
-        /**
-	 * Total size of all records in catalogue store. The value is
-	 * incremented on every record insertion. On record deletion it's not
-	 * decremented, because before record deletion the size of the value is
-	 * unknown.
-	 */
-        uint64_t                cs_rec_size;
-        struct m0_format_footer cs_footer;
-	/**
-	 * Mutex to protect m0_cas_ctg init after load.
-	 */
-	struct m0_mutex         cs_ctg_init_mutex;
-};
-
 struct m0_ctg_store {
 	/** The part of a catalogue store persisted on a disk. */
 	struct m0_cas_state *cs_state;
@@ -283,9 +255,9 @@ static void ctg_init(struct m0_cas_ctg *ctg, struct m0_be_seg *seg)
 	});
 	M0_ENTRY();
 	m0_be_btree_init(&ctg->cc_tree, seg, &cas_btree_ops);
-	m0_long_lock_init(&ctg->cc_lock);
-	m0_mutex_init(&ctg->cc_chan_guard);
-	m0_chan_init(&ctg->cc_chan, &ctg->cc_chan_guard);
+	m0_long_lock_init(m0_ctg_lock(ctg));
+	m0_mutex_init(&ctg->cc_chan_guard.bm_u.mutex);
+	m0_chan_init(&ctg->cc_chan.bch_chan, &ctg->cc_chan_guard.bm_u.mutex);
 	ctg->cc_inited = true;
 	m0_format_footer_update(ctg);
 }
@@ -295,9 +267,9 @@ static void ctg_fini(struct m0_cas_ctg *ctg)
 	M0_ENTRY("ctg=%p", ctg);
 	ctg->cc_inited = false;
 	m0_be_btree_fini(&ctg->cc_tree);
-	m0_long_lock_fini(&ctg->cc_lock);
-	m0_chan_fini_lock(&ctg->cc_chan);
-	m0_mutex_fini(&ctg->cc_chan_guard);
+	m0_long_lock_fini(m0_ctg_lock(ctg));
+	m0_chan_fini_lock(&ctg->cc_chan.bch_chan);
+	m0_mutex_fini(&ctg->cc_chan_guard.bm_u.mutex);
 }
 
 static int ctg_create(struct m0_be_seg *seg, struct m0_be_tx *tx,
@@ -573,7 +545,7 @@ static int ctg_store__init(struct m0_be_seg *seg, struct m0_cas_state *state)
 	M0_ENTRY();
 
 	ctg_store.cs_state = state;
-	m0_mutex_init(&state->cs_ctg_init_mutex);
+	m0_mutex_init(&state->cs_ctg_init_mutex.bm_u.mutex);
 	ctg_init(state->cs_meta, seg);
 
 	/* Searching for catalogue-index catalogue. */
@@ -626,7 +598,7 @@ static int ctg_store_create(struct m0_be_seg *seg)
 	rc = ctg_state_create(seg, &tx, &state);
 	if (rc != 0)
 		goto end;
-	m0_mutex_init(&state->cs_ctg_init_mutex);
+	m0_mutex_init(&state->cs_ctg_init_mutex.bm_u.mutex);
 
 	/* Create catalog-index catalogue. */
 	rc = ctg_create(seg, &tx, &ctidx);
@@ -824,7 +796,7 @@ static void ctg_state_dec_update(struct m0_be_tx *tx, uint64_t size)
 static void ctg_try_init(struct m0_cas_ctg *ctg)
 {
 	M0_ENTRY();
-	m0_mutex_lock(&ctg_store.cs_state->cs_ctg_init_mutex);
+	m0_mutex_lock(&ctg_store.cs_state->cs_ctg_init_mutex.bm_u.mutex);
 	/*
 	 * ctg is null if this is entry for Meta: it is not filled.
 	 */
@@ -833,7 +805,7 @@ static void ctg_try_init(struct m0_cas_ctg *ctg)
 		ctg_init(ctg, cas_seg());
 	} else
 		M0_LOG(M0_DEBUG, "ctg %p zero or inited", ctg);
-	m0_mutex_unlock(&ctg_store.cs_state->cs_ctg_init_mutex);
+	m0_mutex_unlock(&ctg_store.cs_state->cs_ctg_init_mutex.bm_u.mutex);
 }
 
 /** Checks whether catalogue is a user catalogue (not meta). */
@@ -853,7 +825,7 @@ static bool ctg_op_cb(struct m0_clink *clink)
 	void             *arena   = ctg_op->co_anchor.ba_value.b_addr;
 	struct m0_buf     cur_key = {};
 	struct m0_buf     cur_val = {};
-	struct m0_chan   *ctg_chan = &ctg_op->co_ctg->cc_chan;
+	struct m0_chan   *ctg_chan = &ctg_op->co_ctg->cc_chan.bch_chan;
 	struct m0_buf    *dst;
 	struct m0_buf    *src;
 	int               rc;
@@ -1737,7 +1709,7 @@ M0_INTERNAL int m0_ctg_ctidx_insert_sync(const struct m0_cas_id *cid,
 				(anchor.ba_value.b_addr + KV_HDR_SIZE);
 			layout->u.dl_desc.ld_imask.im_range = im_range;
 		}
-		m0_chan_broadcast_lock(&ctidx->cc_chan);
+		m0_chan_broadcast_lock(&ctidx->cc_chan.bch_chan);
 	}
 	m0_be_btree_release(tx, &anchor);
 	return M0_RC(rc);
@@ -1768,7 +1740,7 @@ M0_INTERNAL int m0_ctg_ctidx_delete_sync(const struct m0_cas_id *cid,
 	key = M0_BUF_INIT_PTR(&key_data);
 	/** @todo Make it asynchronous. */
 	M0_BE_OP_SYNC(op, m0_be_btree_delete(&ctidx->cc_tree, tx, &op, &key));
-	m0_chan_broadcast_lock(&ctidx->cc_chan);
+	m0_chan_broadcast_lock(&ctidx->cc_chan.bch_chan);
 	return rc;
 }
 
@@ -1842,6 +1814,11 @@ M0_INTERNAL uint64_t m0_ctg_rec_size(void)
 M0_INTERNAL struct m0_long_lock *m0_ctg_del_lock(void)
 {
 	return &ctg_store.cs_del_lock;
+}
+
+M0_INTERNAL struct m0_long_lock *m0_ctg_lock(struct m0_cas_ctg *ctg)
+{
+	return &ctg->cc_lock.bll_u.llock;
 }
 
 static const struct m0_be_btree_kv_ops cas_btree_ops = {

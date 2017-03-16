@@ -244,7 +244,8 @@ static void dix_cm_iter_init(struct m0_dix_cm_iter *iter)
 
 	/* Subscribe to meta catalogue modifications. */
 	m0_clink_init(&iter->di_meta_clink, dix_cm_iter_meta_clink_cb);
-	m0_clink_add_lock(&m0_ctg_meta()->cc_chan, &iter->di_meta_clink);
+	m0_clink_add_lock(&m0_ctg_meta()->cc_chan.bch_chan,
+			  &iter->di_meta_clink);
 }
 
 static void dix_cm_iter_dtx_fini(struct m0_dix_cm_iter *iter)
@@ -266,9 +267,9 @@ static void dix_cm_iter_tgts_fini(struct m0_dix_cm_iter *iter)
 static void dix_cm_iter_fini(struct m0_dix_cm_iter *iter)
 {
 	if (iter->di_cctg != NULL)
-		m0_long_unlock(&iter->di_cctg->cc_lock, &iter->di_lock_link);
-	m0_long_unlock(&m0_ctg_ctidx()->cc_lock, &iter->di_meta_lock_link);
-	m0_long_unlock(&m0_ctg_meta()->cc_lock, &iter->di_meta_lock_link);
+		m0_long_unlock(m0_ctg_lock(iter->di_cctg), &iter->di_lock_link);
+	m0_long_unlock(m0_ctg_lock(m0_ctg_ctidx()), &iter->di_meta_lock_link);
+	m0_long_unlock(m0_ctg_lock(m0_ctg_meta()), &iter->di_meta_lock_link);
 	m0_long_unlock(m0_ctg_del_lock(), &iter->di_del_lock_link);
 	m0_buf_free(&iter->di_prev_key);
 	m0_buf_free(&iter->di_key);
@@ -1019,7 +1020,7 @@ static int dix_cm_iter_next_key(struct m0_dix_cm_iter *iter,
 static void dix_cm_iter_meta_unlock(struct m0_dix_cm_iter *iter)
 {
 	iter->di_meta_modified = false;
-	m0_long_read_unlock(&m0_ctg_meta()->cc_lock,
+	m0_long_read_unlock(m0_ctg_lock(m0_ctg_meta()),
 			    &iter->di_meta_lock_link);
 }
 
@@ -1050,7 +1051,7 @@ static int dix_cm_iter_fom_tick(struct m0_fom *fom)
 			m0_fom_phase_set(fom, DIX_ITER_EOF);
 		else
 			result = M0_FOM_LONG_LOCK_RETURN(m0_long_read_lock(
-						       &m0_ctg_ctidx()->cc_lock,
+						    m0_ctg_lock(m0_ctg_ctidx()),
 						       &iter->di_meta_lock_link,
 						       DIX_ITER_DEL_LOCK));
 		break;
@@ -1085,11 +1086,11 @@ static int dix_cm_iter_fom_tick(struct m0_fom *fom)
 			iter->di_ldesc = layout->u.dl_desc;
 			iter->di_cctg_processed_recs_nr = 0;
 		}
-		m0_long_read_unlock(&m0_ctg_ctidx()->cc_lock,
+		m0_long_read_unlock(m0_ctg_lock(m0_ctg_ctidx()),
 				    &iter->di_meta_lock_link);
 		if (rc == 0) {
 			result = M0_FOM_LONG_LOCK_RETURN(m0_long_read_lock(
-						&m0_ctg_meta()->cc_lock,
+						m0_ctg_lock(m0_ctg_meta()),
 						&iter->di_meta_lock_link,
 						DIX_ITER_META_LOCK));
 		} else if (rc == -ENOENT) {
@@ -1128,7 +1129,7 @@ static int dix_cm_iter_fom_tick(struct m0_fom *fom)
 			}
 
 			result = M0_FOM_LONG_LOCK_RETURN(
-				m0_long_lock(&iter->di_cctg->cc_lock,
+				m0_long_lock(m0_ctg_lock(iter->di_cctg),
 					     dix_cm->dcm_type !=
 					     &dix_repair_dcmt,
 					     &iter->di_lock_link, next_state));
@@ -1142,7 +1143,7 @@ static int dix_cm_iter_fom_tick(struct m0_fom *fom)
 			dix_cm_iter_meta_unlock(iter);
 			result = M0_FOM_LONG_LOCK_RETURN(
 				m0_long_read_lock(
-					&m0_ctg_ctidx()->cc_lock,
+					m0_ctg_lock(m0_ctg_ctidx()),
 					&iter->di_meta_lock_link,
 					DIX_ITER_CTIDX_REPOS));
 
@@ -1214,7 +1215,7 @@ static int dix_cm_iter_fom_tick(struct m0_fom *fom)
 		M0_LOG(M0_DEBUG, "%s CM, unlock",
 		       dix_cm->dcm_type == &dix_repair_dcmt ? "Repair" :
 		       "Re-balance");
-		m0_long_unlock(&iter->di_cctg->cc_lock, &iter->di_lock_link);
+		m0_long_unlock(m0_ctg_lock(iter->di_cctg), &iter->di_lock_link);
 
 		if (rc == 0)
 			result = dix_cm_iter_idle(iter);
@@ -1227,7 +1228,7 @@ static int dix_cm_iter_fom_tick(struct m0_fom *fom)
 			m0_ctg_cursor_fini(&iter->di_ctg_op);
 			m0_ctg_op_fini(&iter->di_ctg_op);
 			result = M0_FOM_LONG_LOCK_RETURN(m0_long_read_lock(
-						  &m0_ctg_ctidx()->cc_lock,
+						  m0_ctg_lock(m0_ctg_ctidx()),
 						  &iter->di_meta_lock_link,
 						  DIX_ITER_CTIDX_NEXT));
 		} else
@@ -1348,13 +1349,13 @@ static int dix_cm_iter_fom_tick(struct m0_fom *fom)
 			if (dix_cm->dcm_type == &dix_repair_dcmt)
 				result = M0_FOM_LONG_LOCK_RETURN(
 					m0_long_read_lock(
-						&iter->di_cctg->cc_lock,
+						m0_ctg_lock(iter->di_cctg),
 						&iter->di_lock_link,
 						DIX_ITER_CCTG_CONT));
 			else
 				result = M0_FOM_LONG_LOCK_RETURN(
 					m0_long_write_lock(
-						&iter->di_cctg->cc_lock,
+						m0_ctg_lock(iter->di_cctg),
 						&iter->di_lock_link,
 						DIX_ITER_CCTG_CONT));
 		} else {
@@ -1363,7 +1364,7 @@ static int dix_cm_iter_fom_tick(struct m0_fom *fom)
 			m0_ctg_cursor_fini(&iter->di_ctidx_op);
 			result = M0_FOM_LONG_LOCK_RETURN(
 				m0_long_read_lock(
-					&m0_ctg_ctidx()->cc_lock,
+					m0_ctg_lock(m0_ctg_ctidx()),
 					&iter->di_meta_lock_link,
 					DIX_ITER_CTIDX_REPOS));
 		}

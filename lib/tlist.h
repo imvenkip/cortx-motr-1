@@ -24,6 +24,7 @@
 #define __MERO_LIB_TLIST_H__
 
 #include "lib/list.h"
+#include "lib/list_xc.h"
 #include "lib/types.h"                    /* uint64_t */
 
 /**
@@ -223,7 +224,7 @@ struct m0_tl_descr {
 	uint64_t    td_head_magic;
 	/** Size of the ambient object. */
 	size_t      td_container_size;
-};
+} M0_XCA_RECORD;
 
 #define M0_TL_DESCR(name, ambient_type, link_field, link_magic_field,	\
                     link_magic, head_magic)				\
@@ -254,7 +255,7 @@ struct m0_tl {
 	/** Underlying m0_list. */
 	struct m0_list t_head;
 	char           t_pad[7];
-};
+} M0_XCA_RECORD;
 M0_BASSERT(sizeof(bool) == 1);
 
 /**
@@ -263,7 +264,7 @@ M0_BASSERT(sizeof(bool) == 1);
 struct m0_tlink {
 	/** Underlying m0_list link. */
 	struct m0_list_link t_link;
-};
+} M0_XCA_RECORD;
 
 M0_INTERNAL void m0_tlist_init(const struct m0_tl_descr *d, struct m0_tl *list);
 M0_INTERNAL void m0_tlist_fini(const struct m0_tl_descr *d, struct m0_tl *list);

@@ -23,8 +23,9 @@
 
 #include "be/op.h"              /* m0_be_op */
 #include "be/seg.h"
+#include "be/seg_xc.h"
 #include "format/format.h"      /* m0_format_header */
-#include "lib/rwlock.h"
+#include "format/format_xc.h"
 #include "lib/buf.h"
 
 /**
@@ -35,10 +36,10 @@
 
 /* export */
 struct m0_be_btree;
-struct m0_be_bnode;
 struct m0_be_btree_kv_ops;
 
 /* import */
+struct m0_be_bnode;
 struct m0_be_tx;
 struct m0_be_tx_credit;
 
@@ -60,7 +61,7 @@ struct m0_be_btree {
 	struct m0_be_seg                *bb_seg;
 	/** operation vector, treating keys and values, given by the user */
 	const struct m0_be_btree_kv_ops *bb_ops;
-};
+} M0_XCA_RECORD;
 
 enum m0_be_btree_format_version {
 	M0_BE_BTREE_FORMAT_VERSION_1 = 1,

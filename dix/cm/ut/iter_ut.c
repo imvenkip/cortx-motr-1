@@ -309,13 +309,13 @@ static int iter_ut_fom_tick(struct m0_fom *fom0)
 		break;
 	case ITER_UT_FOM_CTIDX_LOCK:
 		result = M0_FOM_LONG_LOCK_RETURN(m0_long_write_lock(
-						 &m0_ctg_ctidx()->cc_lock,
+						 m0_ctg_lock(m0_ctg_ctidx()),
 						 &fom->iu_lock_link,
 						 ITER_UT_FOM_EXEC));
 		break;
 	case ITER_UT_FOM_META_LOCK:
 		result = M0_FOM_LONG_LOCK_RETURN(m0_long_write_lock(
-						 &m0_ctg_meta()->cc_lock,
+						 m0_ctg_lock(m0_ctg_meta()),
 						 &fom->iu_lock_link,
 						 ITER_UT_FOM_EXEC));
 		break;
@@ -328,12 +328,12 @@ static int iter_ut_fom_tick(struct m0_fom *fom0)
 		if (fom->iu_op == ITER_UT_OP_CTIDX_DELETE) {
 			m0_long_write_unlock(m0_ctg_del_lock(),
 					     &fom->iu_del_lock_link);
-			m0_long_write_unlock(&m0_ctg_ctidx()->cc_lock,
+			m0_long_write_unlock(m0_ctg_lock(m0_ctg_ctidx()),
 					     &fom->iu_lock_link);
 		} else if (fom->iu_op == ITER_UT_OP_META_DELETE) {
 			m0_long_write_unlock(m0_ctg_del_lock(),
 					     &fom->iu_del_lock_link);
-			m0_long_write_unlock(&m0_ctg_meta()->cc_lock,
+			m0_long_write_unlock(m0_ctg_lock(m0_ctg_meta()),
 					     &fom->iu_lock_link);
 		}
 
@@ -588,8 +588,8 @@ static void iter_ut_pool_init()
 	M0_UT_ASSERT(result == 0);
 	iter_ut_devs_setup();
 	/** @todo Ugly workaround to do finalisation successfully. */
-	m0_clink_init(&pv.pv_mach.pm_state->pst_conf_exp, NULL);
-	m0_clink_init(&pv.pv_mach.pm_state->pst_conf_ready, NULL);
+	m0_clink_init(&pv.pv_mach.pm_state->pst_conf_exp.bc_u.clink, NULL);
+	m0_clink_init(&pv.pv_mach.pm_state->pst_conf_ready.bc_u.clink, NULL);
 	pool_version_tlist_add(&pool.po_vers, &pv);
 	pools_tlist_init(&pc.pc_pools);
 	pools_tlink_init_at_tail(&pool, &pc.pc_pools);

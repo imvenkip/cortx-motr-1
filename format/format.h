@@ -24,6 +24,7 @@
 #include "lib/misc.h"   /* M0_FIELD_VALUE */
 #include "lib/mutex.h"
 #include "lib/rwlock.h"
+#include "lib/chan.h"   /* m0_clink */
 
 /**
  * @defgroup format Persistent objects format
@@ -157,23 +158,47 @@ M0_INTERNAL int m0_format_footer_verify_generic(
  */
 M0_INTERNAL int m0_format_footer_verify(const void *buffer);
 
+//#ifdef __KERNEL__
+#if 1 /* XXX */
+#define M0_BE_MUTEX_PAD (184 + 56)
+#define M0_BE_RWLOCK_PAD (144 + 48)
+#define M0_BE_CLINK_PAD (152 + 48)
+#else
+#define M0_BE_MUTEX_PAD (56 + 16)
+#define M0_BE_RWLOCK_PAD (56 + 16)
+#define M0_BE_CLINK_PAD (88 + 24)
+#endif
+
 struct m0_be_mutex {
 	union {
 		struct m0_mutex mutex;
-		char            pad[168];
+		char            pad[M0_BE_MUTEX_PAD];
 	} bm_u;
-};
+} M0_XCA_BLOB;
 M0_BASSERT(sizeof(struct m0_mutex) <=
 	   sizeof(M0_FIELD_VALUE(struct m0_be_mutex, bm_u.pad)));
 
 struct m0_be_rwlock {
 	union {
 		struct m0_rwlock rwlock;
-		char             pad[144];
+		char             pad[M0_BE_RWLOCK_PAD];
 	} bl_u;
-};
+} M0_XCA_BLOB;
 M0_BASSERT(sizeof(struct m0_rwlock) <=
 	   sizeof(M0_FIELD_VALUE(struct m0_be_rwlock, bl_u.pad)));
+
+struct m0_be_clink {
+	union {
+		struct m0_clink clink;
+		char            pad[M0_BE_CLINK_PAD];
+	} bc_u;
+} M0_XCA_BLOB;
+M0_BASSERT(sizeof(struct m0_clink) <=
+	   sizeof(M0_FIELD_VALUE(struct m0_be_clink, bc_u.pad)));
+
+struct m0_be_chan {
+	struct m0_chan bch_chan;
+} M0_XCA_BLOB M0_XCA_DOMAIN(be);
 
 /** @} end of format group */
 #endif /* __MERO_FORMAT_FORMAT_H__ */

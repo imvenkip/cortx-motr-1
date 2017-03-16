@@ -25,8 +25,12 @@
 
 #include "lib/types.h"		/* uint64_t */
 #include "lib/tlist.h"		/* m0_tlink */
+#include "lib/tlist_xc.h"
+#include "fid/fid.h"            /* m0_fid */
+#include "fid/fid_xc.h"
 
 #include "stob/cache.h"		/* m0_stob_cache */
+#include "stob/cache_xc.h"
 
 /**
  * @defgroup stob Storage object
@@ -98,7 +102,7 @@ struct m0_stob_domain {
 	/** Magic for sd_domain_linkage */
 	uint64_t			 sd_magic;
 	struct m0_stob_cache		 sd_cache;
-};
+} M0_XCA_RECORD; /* TODO Remove xcode tag */
 
 /** Stob domain operations vector. */
 struct m0_stob_domain_ops {

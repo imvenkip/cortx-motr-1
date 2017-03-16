@@ -262,7 +262,7 @@ static int cgc_fom_tick(struct m0_fom *fom0)
 			 * Also lock dead index for write.
 			 */
 			result = m0_long_write_lock(
-					&m0_ctg_dead_index()->cc_lock,
+					m0_ctg_lock(m0_ctg_dead_index()),
 					&fom->cg_dead_index,
 					M0_FOPH_TXN_INIT);
 			result = M0_FOM_LONG_LOCK_RETURN(result);
@@ -321,7 +321,7 @@ static int cgc_fom_tick(struct m0_fom *fom0)
 					     CGC_LOCK_DEAD_INDEX);
 		} else {
 			M0_LOG(M0_DEBUG, "out of credits, commit & restart");
-			m0_long_unlock(&m0_ctg_dead_index()->cc_lock,
+			m0_long_unlock(m0_ctg_lock(m0_ctg_dead_index()),
 			       &fom->cg_dead_index);
 			cgc_retry();
 			/*
@@ -350,7 +350,7 @@ static int cgc_fom_tick(struct m0_fom *fom0)
 				       &fom->cg_ctg_key, CGC_SUCCESS);
 		break;
 	case CGC_SUCCESS:
-		m0_long_unlock(&m0_ctg_dead_index()->cc_lock,
+		m0_long_unlock(m0_ctg_lock(m0_ctg_dead_index()),
 			       &fom->cg_dead_index);
 		m0_ctg_op_fini(ctg_op);
 		/*

@@ -243,7 +243,7 @@ M0_INTERNAL int m0_dix_cm_cp_recv_wait(struct m0_cm_cp *cp)
 
 		M0_ASSERT(meta != NULL);
 		/* Key and value are loaded, lock meta-catalogue. */
-		result = m0_long_read_lock(&meta->cc_lock,
+		result = m0_long_read_lock(m0_ctg_lock(meta),
 					   &dix_cp->dc_meta_lock,
 					   M0_CCP_XFORM);
 		result = M0_FOM_LONG_LOCK_RETURN(result);

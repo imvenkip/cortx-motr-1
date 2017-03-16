@@ -44,7 +44,7 @@ struct m0_list_link {
 	 * Previous entry in the list
 	 */
 	struct m0_list_link *ll_prev;
-};
+} M0_XCA_RECORD;
 
 /**
  initialize list link entry
@@ -77,7 +77,7 @@ struct m0_list {
 	 * Pointer to the last entry in the list.
 	 */
 	struct m0_list_link *l_tail;
-};
+} M0_XCA_RECORD;
 
 /*
    It is necessary that m0_list and m0_list_link structures have exactly the

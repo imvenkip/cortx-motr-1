@@ -39,34 +39,6 @@
    @{
  */
 
-struct m0_poolnode_rec {
-	enum m0_pool_nd_state pn_state;
-	struct m0_uint128     pn_node_id;
-};
-
-struct m0_pooldev_rec {
-	enum m0_pool_nd_state pd_state;
-	struct m0_uint128     pd_dev_id;
-	struct m0_uint128     pd_node_id;
-};
-
-struct m0_pool_spare_usage_rec {
-	uint32_t              psu_device_index;
-	enum m0_pool_nd_state psu_device_state;
-};
-
-struct m0_poolmach_state_rec {
-	struct m0_poolmach_versions psr_version;
-	uint32_t                    psr_nr_nodes;
-	uint32_t                    psr_nr_devices;
-	uint32_t                    psr_max_node_failures;
-	uint32_t                    psr_max_device_failures;
-};
-
-struct m0_poolmach_event_rec {
-	struct m0_poolmach_event per_event;
-};
-
 static int pool0_init(struct m0_be_domain *dom, const char *suffix,
 		      const struct m0_buf *data)
 {

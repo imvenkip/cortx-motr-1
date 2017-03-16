@@ -25,8 +25,6 @@
 #include "lib/memory.h"
 #include "lib/string.h"                         /* m0_streq */
 #include "lib/arith.h"                          /* m0_align, max_check */
-#include "be/op.h"
-#include "be/alloc.h"
 #include "xcode/xcode.h"
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_XCODE

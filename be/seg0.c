@@ -19,11 +19,11 @@
  */
 
 #include <stdio.h>
+#include "be/alloc.h"
 #include "be/domain.h"
+#include "be/op.h"
 #include "be/seg0.h"
 #include "be/seg.h"
-#include "be/op.h"
-#include "be/alloc.h"
 
 #include "lib/mutex.h"
 #include "lib/buf.h"

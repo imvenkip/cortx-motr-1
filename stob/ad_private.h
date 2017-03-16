@@ -30,6 +30,13 @@
 #include "stob/stob.h"     /* m0_stob_id */
 #include "stob/stob_xc.h"  /* m0_stob_id */
 
+struct stob_ad_0type_rec {
+	struct m0_format_header   sa0_header;
+	/* XXX pointer won't work with be_segment migration */
+	struct m0_stob_ad_domain *sa0_ad_domain;
+	struct m0_format_footer   sa0_footer;
+} M0_XCA_RECORD;
+
 struct stob_ad_rec_frag_seg {
 	uint32_t                ps_segments;
 	struct m0_be_emap_seg  *ps_old_data;

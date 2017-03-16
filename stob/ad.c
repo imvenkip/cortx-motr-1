@@ -82,13 +82,6 @@ struct ad_domain_map {
 	uint64_t                  adm_magic;
 };
 
-struct stob_ad_0type_rec {
-	struct m0_format_header   sa0_header;
-	/* XXX pointer won't work with be_segment migration */
-	struct m0_stob_ad_domain *sa0_ad_domain;
-	struct m0_format_footer   sa0_footer;
-};
-
 enum m0_stob_ad_0type_rec_format_version {
 	M0_STOB_AD_0TYPE_REC_FORMAT_VERSION_1 = 1,
 

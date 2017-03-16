@@ -1806,7 +1806,7 @@ static bool disks_poolmach_state_update_cb(struct m0_clink *cl)
 	struct m0_conf_obj       *obj =
 		container_of(cl->cl_chan, struct m0_conf_obj, co_ha_chan);
 	struct m0_pooldev        *pdev =
-		container_of(cl, struct m0_pooldev, pd_clink);
+		container_of(cl, struct m0_pooldev, pd_clink.bc_u.clink);
 
 	M0_ENTRY();
 	M0_PRE(m0_conf_obj_type(obj) == &M0_CONF_DISK_TYPE);

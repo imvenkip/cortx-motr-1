@@ -24,13 +24,16 @@
 #define __MERO_POOL_POOL_H__
 
 #include "format/format.h"     /* m0_format_header */
+#include "lib/chan.h"          /* m0_clink */
 #include "lib/rwlock.h"
 #include "lib/tlist.h"
+#include "lib/tlist_xc.h"
 #include "fd/fd.h"             /* m0_fd_tile */
 #include "reqh/reqh_service.h" /* m0_reqh_service_ctx */
 #include "conf/obj.h"
 #include "layout/pdclust.h"    /* m0_pdclust_attr */
 #include "pool/pool_machine.h"
+#include "pool/pool_machine_xc.h"
 
 
 /**
@@ -354,38 +357,6 @@ M0_INTERNAL void
 m0_pools_common_service_ctx_connect_sync(struct m0_pools_common *pc);
 
 /**
- * A state that a pool node/device can be in.
- */
-enum m0_pool_nd_state {
-	/** a node/device is unknown */
-	M0_PNDS_UNKNOWN,
-
-	/** a node/device is online and serving IO */
-	M0_PNDS_ONLINE,
-
-	/** a node/device is considered failed */
-	M0_PNDS_FAILED,
-
-	/** a node/device turned off-line by an administrative request */
-	M0_PNDS_OFFLINE,
-
-	/** a node/device is active in sns repair. */
-	M0_PNDS_SNS_REPAIRING,
-
-	/**
-	 * a node/device completed sns repair. Its data is re-constructed
-	 * on its corresponding spare space
-	 */
-	M0_PNDS_SNS_REPAIRED,
-
-	/** a node/device is active in sns re-balance. */
-	M0_PNDS_SNS_REBALANCING,
-
-	/** number of state */
-	M0_PNDS_NR
-};
-
-/**
  * pool node. Data structure representing a node in a pool.
  *
  * Pool node and pool server are two different views of the same physical
@@ -399,12 +370,12 @@ enum m0_pool_nd_state {
  */
 struct m0_poolnode {
 	struct m0_format_header pn_header;
-	enum m0_pool_nd_state   pn_state;
+	uint32_t                pn_state M0_XCA_FENUM(m0_pool_nd_state);
 	char                    pn_pad[4];
 	/** Pool node identity. */
 	struct m0_fid           pn_id;
 	struct m0_format_footer pn_footer;
-};
+} M0_XCA_RECORD;
 M0_BASSERT(sizeof(enum m0_pool_nd_state) == 4);
 
 enum m0_poolnode_format_version {
@@ -423,7 +394,7 @@ struct m0_pooldev {
 	struct m0_format_header pd_header;
 	/** device state (as part of pool machine state). This field is only
 	    meaningful when m0_pooldev::pd_node.pn_state is PNS_ONLINE */
-	enum m0_pool_nd_state   pd_state;
+	uint32_t                pd_state M0_XCA_FENUM(m0_pool_nd_state);
 	char                    pd_pad[4];
 	/** pool device identity */
 	struct m0_fid           pd_id;
@@ -445,7 +416,7 @@ struct m0_pooldev {
 	 * Link to receive HA state change notification. This will wait on
 	 * disk obj's wait channel i.e. m0_conf_obj::co_ha_chan.
 	 */
-	struct m0_clink         pd_clink;
+	struct m0_be_clink      pd_clink;
 
 	/**
 	 * Link into list of failed devices in the pool.
@@ -455,7 +426,7 @@ struct m0_pooldev {
 	uint64_t                pd_magic;
 
 	struct m0_format_footer pd_footer;
-};
+} M0_XCA_RECORD;
 
 enum m0_pooldev_format_version {
 	M0_POOLDEV_FORMAT_VERSION_1 = 1,
@@ -481,9 +452,9 @@ struct m0_pool_spare_usage {
 	uint32_t                psu_device_index;
 
 	/** state of the device to use this spare slot */
-	enum m0_pool_nd_state   psu_device_state;
+	uint32_t                psu_device_state M0_XCA_FENUM(m0_pool_nd_state);
 	struct m0_format_footer psu_footer;
-};
+} M0_XCA_RECORD;
 
 enum m0_pool_spare_usage_format_version {
 	M0_POOL_SPARE_USAGE_FORMAT_VERSION_1 = 1,

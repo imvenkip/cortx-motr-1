@@ -24,6 +24,7 @@
 #define __MERO_BE_FL_H__
 
 #include "be/list.h"    /* m0_be_list */
+#include "be/list_xc.h"
 
 /**
  * @defgroup be
@@ -58,7 +59,7 @@ enum m0_be_fl_op {
  */
 struct m0_be_fl_size {
 	struct m0_be_list bfs_list;
-};
+} M0_XCA_RECORD;
 
 /** m0_be free list */
 struct m0_be_fl {
@@ -71,7 +72,7 @@ struct m0_be_fl {
 	 * @see m0_be_fl_add(), m0_be_fl_pick().
 	 */
 	struct m0_be_fl_size bfl_free[M0_BE_FL_NR + 1];
-};
+} M0_XCA_RECORD;
 
 M0_INTERNAL void m0_be_fl_init(struct m0_be_fl *fl, struct m0_be_seg *seg);
 M0_INTERNAL void m0_be_fl_fini(struct m0_be_fl *fl);

@@ -27,6 +27,7 @@
 #include "fop/fom_long_lock.h"
 #include "be/op.h"
 #include "be/btree.h"
+#include "be/btree_xc.h"
 #include "be/tx_credit.h"
 #include "format/format.h"
 #include "cas/cas.h"
@@ -95,18 +96,18 @@ struct m0_cas_ctg {
 	 * before the m0_format_footer, where only persistent fields allowed
 	 */
 	struct m0_be_btree      cc_tree;
-	struct m0_long_lock     cc_lock;
+	struct m0_be_long_lock  cc_lock;
 	/** Channel to announce catalogue modifications (put, delete). */
-	struct m0_chan          cc_chan;
+	struct m0_be_chan       cc_chan;
 	/** Mutex protecting cc_chan. */
-	struct m0_mutex         cc_chan_guard;
+	struct m0_be_mutex      cc_chan_guard;
 	/*
 	 * Indicates whether catalogue is initialised after its fetch from BE
 	 * segment. Non-meta catalogue is initialised on its first lookup in
 	 * meta.
 	 */
 	bool                    cc_inited;
-};
+} M0_XCA_RECORD;
 
 enum m0_cas_ctg_format_version {
 	M0_CAS_CTG_FORMAT_VERSION_1 = 1,
@@ -118,6 +119,34 @@ enum m0_cas_ctg_format_version {
 	/** Current version, should point to the latest version present */
 	M0_CAS_CTG_FORMAT_VERSION = M0_CAS_CTG_FORMAT_VERSION_1
 };
+
+/** Catalogue store state persisted on a disk. */
+struct m0_cas_state {
+        struct m0_format_header cs_header;
+	/**
+	 * Pointer to descriptor of meta catalogue. Descriptor itself is
+	 * allocated elsewhere. This pointer is there (not in m0_ctg_store)
+	 * because m0_cas_state is saved in seg_dict.
+	 */
+        struct m0_cas_ctg      *cs_meta;
+        /**
+	 * Total number of records in all catalogues in catalogue store. It's
+	 * used by repair/re-balance services to report progress.
+	 */
+        uint64_t                cs_rec_nr;
+        /**
+	 * Total size of all records in catalogue store. The value is
+	 * incremented on every record insertion. On record deletion it's not
+	 * decremented, because before record deletion the size of the value is
+	 * unknown.
+	 */
+        uint64_t                cs_rec_size;
+        struct m0_format_footer cs_footer;
+	/**
+	 * Mutex to protect m0_cas_ctg init after load.
+	 */
+	struct m0_be_mutex      cs_ctg_init_mutex;
+} M0_XCA_RECORD;
 
 /** Structure that describes catalogue operation. */
 struct m0_ctg_op {
@@ -676,6 +705,12 @@ M0_INTERNAL uint64_t m0_ctg_rec_size(void);
  * catalogue in degraded mode.
  */
 M0_INTERNAL struct m0_long_lock *m0_ctg_del_lock(void);
+
+/**
+ * Returns a reference to the catalogue long lock. This accessor hides internal
+ * representation of the long lock, because it needs to be padded.
+ */
+M0_INTERNAL struct m0_long_lock *m0_ctg_lock(struct m0_cas_ctg *ctg);
 
 /** @} end of cas-ctg-store group */
 #endif /* __MERO_CAS_CTG_STORE_H__ */

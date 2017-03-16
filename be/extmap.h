@@ -108,6 +108,10 @@
 #include "lib/types_xc.h"  /* m0_uint128_xc */
 #include "be/tx.h"
 #include "be/btree.h"
+#include "be/btree_xc.h"
+
+#include "be/extmap_internal.h"
+#include "be/extmap_internal_xc.h"
 
 /* import */
 struct m0_be_emap;
@@ -186,6 +190,26 @@ struct m0_be_emap_seg {
 	/** Value associated with the extent. */
 	uint64_t          ee_val;
 } M0_XCA_RECORD;
+
+/**
+   Cursor iterating through the extent map.
+ */
+struct m0_be_emap_cursor {
+	/** Map this cursor is iterating through. */
+	struct m0_be_emap        *ec_map;
+	/** Segment currently reached. */
+	struct m0_be_emap_seg     ec_seg;
+	/** Emap current version. */
+	uint64_t                  ec_version;
+	/** Data-base cursor. */
+	struct m0_be_btree_cursor ec_cursor;
+	struct m0_be_emap_key     ec_key;
+	struct m0_be_emap_rec     ec_rec;
+	struct m0_buf             ec_keybuf;
+	struct m0_buf             ec_recbuf;
+	struct m0_uint128         ec_prefix;
+	struct m0_be_op           ec_op;
+};
 
 /** True iff the extent is the last one in a map. */
 M0_INTERNAL bool m0_be_emap_ext_is_last(const struct m0_ext *ext);
@@ -337,8 +361,6 @@ M0_INTERNAL void m0_be_emap_extent_update(struct m0_be_emap_cursor *it,
    Release the resources associated with the cursor.
  */
 M0_INTERNAL void m0_be_emap_close(struct m0_be_emap_cursor *it);
-
-#include "be/extmap_internal.h"
 
 /**
     Extent map caret.

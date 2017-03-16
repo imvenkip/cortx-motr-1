@@ -23,9 +23,12 @@
 #ifndef __MERO_POOL_MACHINE_H__
 #define __MERO_POOL_MACHINE_H__
 
+#include "format/format.h" /* m0_be_clink */
+#include "format/format_xc.h"
 #include "lib/tlist.h"
-#include "lib/rwlock.h"   /* m0_rwlock */
-#include "conf/helpers.h" /* m0_conf_fs_get() */
+#include "lib/tlist_xc.h"
+#include "lib/rwlock.h"    /* m0_rwlock */
+#include "conf/helpers.h"  /* m0_conf_fs_get() */
 
 /**
    @defgroup poolmach Pool machine
@@ -44,7 +47,38 @@ struct m0_poolmach_event;
 struct m0_poolmach_event_link;
 struct m0_conf_pver;
 struct m0_mero;
-enum m0_pool_nd_state;
+
+/**
+ * A state that a pool node/device can be in.
+ */
+enum m0_pool_nd_state {
+	/** a node/device is unknown */
+	M0_PNDS_UNKNOWN,
+
+	/** a node/device is online and serving IO */
+	M0_PNDS_ONLINE,
+
+	/** a node/device is considered failed */
+	M0_PNDS_FAILED,
+
+	/** a node/device turned off-line by an administrative request */
+	M0_PNDS_OFFLINE,
+
+	/** a node/device is active in sns repair. */
+	M0_PNDS_SNS_REPAIRING,
+
+	/**
+	 * a node/device completed sns repair. Its data is re-constructed
+	 * on its corresponding spare space
+	 */
+	M0_PNDS_SNS_REPAIRED,
+
+	/** a node/device is active in sns re-balance. */
+	M0_PNDS_SNS_REBALANCING,
+
+	/** number of state */
+	M0_PNDS_NR
+} M0_XCA_ENUM;
 
 /** pool version numer type */
 enum m0_poolmach_version {
@@ -69,7 +103,7 @@ enum {
  */
 struct m0_poolmach_versions {
 	uint64_t pvn_version[PVE_NR];
-};
+} M0_XCA_RECORD;
 
 /**
  * Persistent pool machine state.
@@ -133,9 +167,9 @@ struct m0_poolmach_state {
 	 */
 	struct m0_tl                pst_event_queue;
 
-	struct m0_clink             pst_conf_exp;
-	struct m0_clink             pst_conf_ready;
-};
+	struct m0_be_clink          pst_conf_exp;
+	struct m0_be_clink          pst_conf_ready;
+} M0_XCA_RECORD;
 
 /**
  * pool machine. Data structure representing replicated pool state machine.
@@ -168,21 +202,21 @@ struct m0_poolmach {
 enum m0_poolmach_event_owner_type {
         M0_POOL_NODE,
         M0_POOL_DEVICE
-};
+} M0_XCA_ENUM;
 
 /**
  * Pool event that is used to change the state of a node or device.
  */
 struct m0_poolmach_event {
         /** Event owner type. */
-        enum m0_poolmach_event_owner_type  pe_type;
+        uint32_t pe_type M0_XCA_FENUM(m0_poolmach_event_owner_type);
 
         /** Event owner index. */
-        uint32_t                           pe_index;
+        uint32_t pe_index;
 
         /** New state for this node or device. */
-        uint32_t                           pe_state;
-};
+        uint32_t pe_state;
+} M0_XCA_RECORD;
 
 /**
  * This link is used by pool machine to record all state change history.
@@ -207,7 +241,7 @@ struct m0_poolmach_event_link {
         struct m0_tlink             pel_linkage;
 
         uint64_t                    pel_magic;
-};
+} M0_XCA_RECORD;
 
 M0_INTERNAL uint32_t m0_poolmach_equeue_length(struct m0_poolmach *pm);
 

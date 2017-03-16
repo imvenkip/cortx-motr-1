@@ -4,10 +4,11 @@ nobase_mero_include_HEADERS += \
                                be/alloc_internal.h  \
                                be/be.h              \
                                be/btree.h           \
+                               be/btree_internal.h  \
 			       be/domain.h          \
 			       be/engine.h          \
-                               be/extmap.h          \
                                be/extmap_internal.h \
+                               be/extmap.h          \
                                be/fl.h              \
 			       be/fmt.h		    \
                                be/ha.h              \
@@ -71,15 +72,35 @@ mero_libmero_la_SOURCES += be/alloc.c           \
 			   be/tx_service.c      \
                            be/ut/helper.c
 
-nodist_mero_libmero_la_SOURCES  += \
-			   be/extmap_xc.c \
-			   be/fmt_xc.c \
-			   be/ha_xc.c \
+nodist_mero_libmero_la_SOURCES  +=                 \
+			   be/alloc_xc.c           \
+			   be/alloc_internal_xc.c  \
+			   be/btree_xc.c           \
+			   be/btree_internal_xc.c  \
+			   be/domain_xc.c          \
+			   be/extmap_internal_xc.c \
+			   be/extmap_xc.c          \
+			   be/fl_xc.c              \
+			   be/fmt_xc.c             \
+			   be/ha_xc.c              \
+                           be/list_xc.c            \
+                           be/seg_xc.c             \
+                           be/seg_internal_xc.c    \
 			   be/tx_xc.c
 
-XC_FILES += be/extmap_xc.h \
-	    be/fmt_xc.h	   \
-            be/ha_xc.h     \
-	    be/tx_xc.h
+XC_FILES += be/alloc_xc.h           \
+            be/alloc_internal_xc.h  \
+            be/btree_xc.h           \
+            be/btree_internal_xc.h  \
+            be/domain_xc.h          \
+            be/extmap_internal_xc.h \
+            be/extmap_xc.h          \
+            be/fl_xc.h              \
+            be/fmt_xc.h             \
+            be/ha_xc.h              \
+            be/list_xc.h            \
+            be/seg_xc.h             \
+            be/seg_internal_xc.h    \
+            be/tx_xc.h
 
 EXTRA_DIST += be/linux_kernel/stubs.c

@@ -27,10 +27,16 @@ mero_libmero_la_SOURCES  += stob/ad.c \
                                   stob/type.c
 
 nodist_mero_libmero_la_SOURCES  += \
+                                  stob/ad_xc.c \
                                   stob/ad_private_xc.c \
+                                  stob/cache_xc.c \
+                                  stob/domain_xc.c \
                                   stob/ioq_error_xc.c \
                                   stob/stob_xc.c
 
-XC_FILES   += stob/ad_private_xc.h \
+XC_FILES   += stob/ad_xc.h \
+	      stob/ad_private_xc.h \
+	      stob/cache_xc.h \
+	      stob/domain_xc.h \
 	      stob/ioq_error_xc.h \
 	      stob/stob_xc.h

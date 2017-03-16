@@ -234,9 +234,9 @@ M0_INTERNAL int m0_dix_cm_cp_fail(struct m0_cm_cp    *cp,
 	M0_ENTRY("cp: %p, ft: %s", cp, ft->ft_name);
 	M0_PRE(m0_fom_phase(&cp->c_fom) == M0_CCP_FAIL);
 
-	m0_long_unlock(&meta->cc_lock, &dix_cp->dc_meta_lock);
+	m0_long_unlock(m0_ctg_lock(meta), &dix_cp->dc_meta_lock);
 	if (dix_cp->dc_ctg != NULL)
-		m0_long_unlock(&dix_cp->dc_ctg->cc_lock, &dix_cp->dc_ctg_lock);
+		m0_long_unlock(m0_ctg_lock(dix_cp->dc_ctg), &dix_cp->dc_ctg_lock);
 	cp->c_rc = m0_fom_rc(&cp->c_fom);
 	dix_cm_cp_reply_send(cp, ft, cp->c_rc);
 	m0_fom_phase_move(&cp->c_fom, 0, M0_CCP_FINI);
@@ -373,9 +373,9 @@ M0_INTERNAL int m0_dix_cm_cp_write_pre(struct m0_cm_cp *cp)
 
 		dix_cp->dc_ctg = m0_ctg_meta_lookup_result(ctg_op);
 		M0_ASSERT(dix_cp->dc_ctg != NULL);
-		m0_long_read_unlock(&meta->cc_lock,
+		m0_long_read_unlock(m0_ctg_lock(meta),
 				    &dix_cp->dc_meta_lock);
-		result = m0_long_write_lock(&dix_cp->dc_ctg->cc_lock,
+		result = m0_long_write_lock(m0_ctg_lock(dix_cp->dc_ctg),
 					    &dix_cp->dc_ctg_lock,
 					    M0_CCP_TX_OPEN);
 		result = M0_FOM_LONG_LOCK_RETURN(result);
@@ -496,7 +496,7 @@ M0_INTERNAL int m0_dix_cm_cp_io_wait(struct m0_cm_cp    *cp,
 		dix_cm_cp_dtx_fini(cp);
 		if (rc == 0) {
 			cp->c_ops->co_complete(cp);
-			m0_long_write_unlock(&dix_cp->dc_ctg->cc_lock,
+			m0_long_write_unlock(m0_ctg_lock(dix_cp->dc_ctg),
 					     &dix_cp->dc_ctg_lock);
 			M0_LOG(M0_DEBUG, "move to next state CPP_FINI");
 			m0_fom_phase_set(fom, M0_CCP_FINI);

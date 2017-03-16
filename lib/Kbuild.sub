@@ -2,6 +2,7 @@ m0mero_objects += lib/assert.o \
                   lib/bitmap.o \
                   lib/bitmap_xc.o \
                   lib/bitstring.o \
+                  lib/bitstring_xc.o \
                   lib/bob.o \
                   lib/buf.o \
                   lib/buf.o \
@@ -18,6 +19,7 @@ m0mero_objects += lib/assert.o \
                   lib/hash_fnc.o \
                   lib/getopts.o \
                   lib/list.o \
+                  lib/list_xc.o \
                   lib/locality.o \
                   lib/lockers.o \
                   lib/m0lib.o \
@@ -34,6 +36,7 @@ m0mero_objects += lib/assert.o \
                   lib/time.o \
                   lib/timer.o \
                   lib/tlist.o \
+                  lib/tlist_xc.o \
                   lib/trace.o \
                   lib/types_xc.o \
                   lib/uuid.o \

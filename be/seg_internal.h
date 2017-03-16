@@ -23,8 +23,13 @@
 #define __MERO_BE_SEG_INTERNAL_H__
 
 #include "be/alloc_internal.h"  /* m0_be_allocator_header */
+#include "be/alloc_internal_xc.h"
 #include "be/btree.h"           /* m0_be_btree */
+#include "be/btree_xc.h"
 #include "be/seg.h"
+#include "be/seg_xc.h"
+#include "format/format.h"      /* m0_format_header */
+#include "format/format_xc.h"
 
 /**
  * @addtogroup be
@@ -41,7 +46,7 @@ struct m0_be_seg_hdr {
 	struct m0_format_header       bh_header;
 	uint64_t                      bh_id;
 	struct m0_be_allocator_header bh_alloc;
-	uint16_t                      bh_items_nr;
+	uint32_t                      bh_items_nr;
 	struct m0_be_seg_geom         bh_items[M0_BE_SEG_HDR_GEOM_ITMES_MAX];
 	struct m0_format_footer       bh_footer;
 	/*
@@ -49,7 +54,7 @@ struct m0_be_seg_hdr {
 	 * before the m0_format_footer, where only persistent fields allowed
 	 */
 	struct m0_be_btree            bs_dict;  /**< Segment dictionary */
-};
+} M0_XCA_RECORD;
 
 enum m0_be_seg_hdr_format_version {
 	M0_BE_SEG_HDR_FORMAT_VERSION_1 = 1,

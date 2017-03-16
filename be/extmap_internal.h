@@ -34,8 +34,12 @@
    @{
  */
 
-#include "lib/types.h"     /* struct m0_uint128 */
-#include "be/btree.h"
+#include "lib/buf.h"       /* m0_buf */
+#include "lib/buf_xc.h"
+#include "lib/types.h"     /* m0_uint128 */
+#include "lib/types_xc.h"
+#include "be/btree.h"      /* m0_btree */
+#include "be/btree_xc.h"
 
 enum m0_be_emap_key_format_version {
 	M0_BE_EMAP_KEY_FORMAT_VERSION_1 = 1,
@@ -69,7 +73,7 @@ struct m0_be_emap_key {
 	 */
 	m0_bindex_t             ek_offset;
 	struct m0_format_footer ek_footer;
-};
+} M0_XCA_RECORD;
 
 enum m0_be_emap_rec_format_version {
 	M0_BE_EMAP_REC_FORMAT_VERSION_1 = 1,
@@ -103,7 +107,7 @@ struct m0_be_emap_rec {
 	 */
 	uint64_t                er_value;
 	struct m0_format_footer er_footer;
-};
+} M0_XCA_RECORD;
 
 enum m0_be_emap_format_version {
 	M0_BE_EMAP_FORMAT_VERSION_1 = 1,
@@ -141,27 +145,7 @@ struct m0_be_emap {
 	struct m0_buf           em_val_buf;
 	struct m0_be_emap_key   em_key;
 	struct m0_be_emap_rec   em_rec;
-};
-
-/**
-   Cursor iterating through the extent map.
- */
-struct m0_be_emap_cursor {
-	/** Map this cursor is iterating through. */
-	struct m0_be_emap        *ec_map;
-	/** Segment currently reached. */
-	struct m0_be_emap_seg     ec_seg;
-	/** Emap current version. */
-	uint64_t                  ec_version;
-	/** Data-base cursor. */
-	struct m0_be_btree_cursor ec_cursor;
-	struct m0_be_emap_key     ec_key;
-	struct m0_be_emap_rec     ec_rec;
-	struct m0_buf             ec_keybuf;
-	struct m0_buf             ec_recbuf;
-	struct m0_uint128         ec_prefix;
-	struct m0_be_op           ec_op;
-};
+} M0_XCA_RECORD;
 
 /** @} end group extmap */
 

@@ -26,7 +26,9 @@
 
 #include "lib/types.h"	/* m0_bcount_t */
 #include "be/list.h"	/* m0_be_list */
+#include "be/list_xc.h"
 #include "be/alloc.h"	/* m0_be_allocator_stats */
+#include "be/alloc_xc.h"
 
 /**
  * @defgroup be Meta-data back-end
@@ -84,7 +86,7 @@ struct m0_be_alloc_zone {
 	m0_bcount_t baz_size;
 	/** Number of free bytes in zone. */
 	m0_bcount_t baz_free;
-};
+} M0_XCA_RECORD;
 
 /**
  * @brief Allocator header.
@@ -102,7 +104,7 @@ struct m0_be_allocator_header {
 	m0_bcount_t		      bah_size;		/**< memory size */
 	struct m0_be_alloc_zone       bah_zone[M0_BAP_NR]; /**< zones */
 	void			     *bah_addr;		/**< memory address */
-};
+} M0_XCA_RECORD;
 
 /** @} end of be group */
 

@@ -27,8 +27,10 @@
 #include "fid/fid.h"		/* m0_fid */
 #include "lib/types.h"		/* m0_bcount_t */
 #include "stob/domain.h"	/* m0_stob_domain */
+#include "stob/domain_xc.h"
 #include "stob/io.h"		/* m0_stob_io */
 #include "stob/stob.h"		/* m0_stob */
+#include "stob/stob_xc.h"
 
 /**
    @defgroup stobad Storage objects with extent maps.
@@ -60,7 +62,7 @@ struct m0_be_seg;
  */
 struct m0_ad_balloc {
 	const struct m0_ad_balloc_ops *ab_ops;
-};
+} M0_XCA_RECORD;
 
 struct m0_ad_balloc_ops {
 	/** Initialises this balloc instance, creating its persistent state, if
@@ -116,7 +118,7 @@ struct m0_stob_ad_domain {
 	 * volatile-only fields
 	 */
 	struct m0_be_seg       *sad_be_seg;
-};
+} M0_XCA_RECORD;
 M0_BASSERT(sizeof(M0_FIELD_VALUE(struct m0_stob_ad_domain, sad_path)) % 8 == 0);
 M0_BASSERT(sizeof(bool) == 1);
 

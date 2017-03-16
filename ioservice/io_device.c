@@ -170,7 +170,7 @@ static int ios_poolmach_devices_add(struct m0_poolmach        *poolmach,
 			pooldev->pd_index = device_idx;
 			pooldev->pd_id = disk->ck_obj.co_id;
 			pooldev->pd_node = poolnode;
-			m0_pooldev_clink_add(&pooldev->pd_clink,
+			m0_pooldev_clink_add(&pooldev->pd_clink.bc_u.clink,
 					     &obj->co_ha_chan);
 			M0_CNT_INC(device_idx);
 		}

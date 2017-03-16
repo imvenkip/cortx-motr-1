@@ -58,6 +58,21 @@ M0_TL_DESCR_DEFINE(poolmach_equeue, "pool machine events queue", static,
 
 M0_TL_DEFINE(poolmach_equeue, static, struct poolmach_equeue_link);
 
+static struct m0_clink *pooldev_clink(struct m0_pooldev *pdev)
+{
+	return &pdev->pd_clink.bc_u.clink;
+}
+
+static struct m0_clink *exp_clink(struct m0_poolmach_state *state)
+{
+	return &state->pst_conf_exp.bc_u.clink;
+}
+
+static struct m0_clink *ready_clink(struct m0_poolmach_state *state)
+{
+	return &state->pst_conf_ready.bc_u.clink;
+}
+
 M0_INTERNAL bool m0_poolmach_version_equal(const struct m0_poolmach_versions
 					   *v1,
 					   const struct m0_poolmach_versions
@@ -108,7 +123,8 @@ static int poolmach_state_update(struct m0_poolmach_state *st,
 		pdev->pd_index = *idx_devices;
 		pdev->pd_node = &st->pst_nodes_array[*idx_nodes];
 		m0_conf_obj_get_lock(&d->ck_obj);
-		m0_pooldev_clink_add(&pdev->pd_clink, &d->ck_obj.co_ha_chan);
+		m0_pooldev_clink_add(pooldev_clink(pdev),
+				     &d->ck_obj.co_ha_chan);
 
 		pme.pe_type = M0_POOL_DEVICE;
 		pme.pe_index = *idx_devices;
@@ -133,13 +149,13 @@ static bool poolmach_conf_expired_cb(struct m0_clink *clink)
 	struct m0_conf_obj       *obj;
 	struct m0_poolmach_state *state =
 				   container_of(clink, struct m0_poolmach_state,
-						pst_conf_exp);
+						pst_conf_exp.bc_u.clink);
 	int                       i;
 
 	M0_ENTRY();
 	for (i = 0; i < state->pst_nr_devices; ++i) {
 		dev = &state->pst_devices_array[i];
-		cl = &dev->pd_clink;
+		cl = pooldev_clink(dev);
 		if (cl->cl_chan == NULL)
 			continue;
 		obj = container_of(cl->cl_chan, struct m0_conf_obj,
@@ -159,7 +175,7 @@ static bool poolmach_conf_ready_cb(struct m0_clink *clink)
 	struct m0_pooldev        *dev;
 	struct m0_poolmach_state *state =
 				   container_of(clink, struct m0_poolmach_state,
-						pst_conf_ready);
+						pst_conf_ready.bc_u.clink);
 	struct m0_reqh           *reqh = container_of(clink->cl_chan,
 						      struct m0_reqh,
 						      rh_conf_cache_ready);
@@ -180,7 +196,7 @@ static bool poolmach_conf_ready_cb(struct m0_clink *clink)
 			       _0C(m0_conf_obj_invariant(obj)),
 			       "dev->pd_id "FID_F,
 			       FID_P(&dev->pd_id));
-		m0_pooldev_clink_add(&dev->pd_clink, &obj->co_ha_chan);
+		m0_pooldev_clink_add(pooldev_clink(dev), &obj->co_ha_chan);
 		m0_conf_obj_get_lock(obj);
 	}
 	M0_LEAVE();
@@ -222,12 +238,12 @@ M0_INTERNAL int m0_poolmach_init_by_conf(struct m0_poolmach *pm,
 	if (rc != 0)
 		return M0_RC(rc);
 
-	m0_clink_init(&pm->pm_state->pst_conf_exp, &poolmach_conf_expired_cb);
-	m0_clink_init(&pm->pm_state->pst_conf_ready, &poolmach_conf_ready_cb);
+	m0_clink_init(exp_clink(pm->pm_state), &poolmach_conf_expired_cb);
+	m0_clink_init(ready_clink(pm->pm_state), &poolmach_conf_ready_cb);
 	m0_clink_add_lock(&reqh->rh_conf_cache_exp,
-			  &pm->pm_state->pst_conf_exp);
+			  exp_clink(pm->pm_state));
 	m0_clink_add_lock(&reqh->rh_conf_cache_ready,
-			  &pm->pm_state->pst_conf_ready);
+			  ready_clink(pm->pm_state));
 	M0_LOG(M0_DEBUG, "nodes:%d devices: %d", idx_nodes, idx_devices);
 	M0_POST(idx_devices <= pm->pm_state->pst_nr_devices);
 	return M0_RC(rc);
@@ -448,7 +464,7 @@ M0_INTERNAL void m0_poolmach_fini(struct m0_poolmach *pm)
 		} m0_tl_endfor;
 
 		for (i = 0; i < state->pst_nr_devices; ++i) {
-			cl = &state->pst_devices_array[i].pd_clink;
+			cl = pooldev_clink(&state->pst_devices_array[i]);
 			if (cl->cl_chan == NULL)
 				continue;
 			obj = container_of(cl->cl_chan, struct m0_conf_obj,
@@ -462,10 +478,10 @@ M0_INTERNAL void m0_poolmach_fini(struct m0_poolmach *pm)
 				pool_failed_devs_tlist_del(pd);
 			pool_failed_devs_tlink_fini(pd);
 		}
-		m0_clink_cleanup(&state->pst_conf_exp);
-		m0_clink_cleanup(&state->pst_conf_ready);
-		m0_clink_fini(&state->pst_conf_exp);
-		m0_clink_fini(&state->pst_conf_ready);
+		m0_clink_cleanup(exp_clink(state));
+		m0_clink_cleanup(ready_clink(state));
+		m0_clink_fini(exp_clink(state));
+		m0_clink_fini(ready_clink(state));
 		m0_free(state->pst_spare_usage_array);
 		m0_free(state->pst_devices_array);
 		m0_free(state->pst_nodes_array);

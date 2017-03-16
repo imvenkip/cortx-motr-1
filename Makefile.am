@@ -928,6 +928,7 @@ EXTRA_DIST += $(CONFXC_FILES:.xc=.cg)
 EXTRA_DIST += \
               addb2/Kbuild.sub \
               addb2/ut/Kbuild.sub \
+              balloc/Kbuild.sub \
               be/Kbuild.sub \
               be/ut/Kbuild.sub \
               cas/Kbuild.sub \

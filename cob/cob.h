@@ -30,9 +30,11 @@
 #include "lib/rwlock.h"
 #include "lib/refs.h"
 #include "lib/bitstring.h"
+#include "lib/bitstring_xc.h"
 #include "fid/fid.h"
 #include "mdservice/md_fid.h"
 #include "be/btree.h"
+#include "be/btree_xc.h"
 
 /* import */
 struct m0_be_tx;
@@ -236,7 +238,7 @@ enum {
  */
 struct m0_cob_domain_id {
 	uint64_t id;
-};
+} M0_XCA_RECORD;
 
 /**
    cob domain
@@ -274,7 +276,7 @@ struct m0_cob_domain {
 	 * volatile-only fields
 	 */
 	struct m0_be_seg       *cd_seg;
-};
+} M0_XCA_RECORD;
 
 enum m0_cob_domain_format_version {
 	M0_COB_DOMAIN_FORMAT_VERSION_1 = 1,
@@ -380,7 +382,7 @@ struct m0_cob_attr {
 struct m0_cob_nskey {
 	struct m0_fid       cnk_pfid;
 	struct m0_bitstring cnk_name;
-};
+} M0_XCA_RECORD;
 
 M0_INTERNAL size_t m0_cob_nskey_size(const struct m0_cob_nskey *nskey);
 
@@ -418,7 +420,7 @@ struct m0_cob_nsrec {
 	uint64_t                cnr_lid;     /**< layout id */
 	struct m0_fid           cnr_pver;    /**< cob pool version */
 	struct m0_format_footer cnr_footer;
-};
+} M0_XCA_RECORD;
 
 enum m0_cob_nsrec_format_version {
 	M0_COB_NSREC_FORMAT_VERSION_1 = 1,
@@ -437,7 +439,7 @@ M0_INTERNAL void m0_cob_nsrec_init(struct m0_cob_nsrec *nsrec);
 struct m0_cob_oikey {
 	struct m0_fid     cok_fid;
 	uint32_t          cok_linkno;  /**< hardlink ordinal index */
-};
+} M0_XCA_RECORD;
 
 /**
  * Fileattr_basic table, key is m0_cob_fabkey
@@ -453,23 +455,23 @@ struct m0_cob_oikey {
  */
 struct m0_cob_fabkey {
 	struct m0_fid     cfb_fid;
-};
+} M0_XCA_RECORD;
 
 struct m0_cob_fabrec {
 	struct m0_fid     cfb_pver;     /**< pool version fid */
 	uint64_t          cfb_version;  /**< version from last fop */
 	uint64_t          cfb_layoutid; /**< reference to layout */
-	uint16_t          cfb_linklen;  /**< symlink len if any */
+	uint32_t          cfb_linklen;  /**< symlink len if any */
 	char              cfb_link[0];  /**< symlink body */
 	/* add ACL, Besides ACL, no further metadata is needed for stat(2). */
-};
+} M0_XCA_RECORD;
 
 /**
  * Omg (owner/mode/group) table key
  */
 struct m0_cob_omgkey {
 	uint64_t          cok_omgid;   /**< omg id ref */
-};
+} M0_XCA_RECORD;
 
 /**
  * Protection and access flags are stored in omg table.
@@ -478,19 +480,19 @@ struct m0_cob_omgrec {
 	uint32_t          cor_uid;     /**< user ID of owner */
 	uint32_t          cor_mode;    /**< protection */
 	uint32_t          cor_gid;     /**< group ID of owner */
-};
+} M0_XCA_RECORD;
 
 /** Extended attributes table key */
 struct m0_cob_eakey {
 	struct m0_fid       cek_fid;   /**< EA owner fid */
 	struct m0_bitstring cek_name;  /**< EA name */
-};
+} M0_XCA_RECORD;
 
 /** Extended attributes table value */
 struct m0_cob_earec {
-	uint16_t          cer_size;    /**< EA len */
+	uint32_t          cer_size;    /**< EA len */
 	char              cer_body[0]; /**< EA body */
-};
+} M0_XCA_RECORD;
 
 /**
  * In-memory representation of a component object.
