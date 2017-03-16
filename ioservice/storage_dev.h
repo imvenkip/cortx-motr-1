@@ -215,6 +215,7 @@ M0_INTERNAL void m0_storage_dev_put(struct m0_storage_dev *dev);
  */
 M0_INTERNAL int m0_storage_dev_new_by_conf(struct m0_storage_devs *devs,
 					   struct m0_conf_sdev    *sdev,
+					   bool                    force,
 					   struct m0_storage_dev **dev);
 
 /**
@@ -228,6 +229,7 @@ M0_INTERNAL int m0_storage_dev_new(struct m0_storage_devs *devs,
 				   const char             *path,
 				   uint64_t                size,
 				   struct m0_conf_sdev    *sdev,
+				   bool                    force,
 				   struct m0_storage_dev **dev);
 
 /**

@@ -816,6 +816,7 @@ static int cs_storage_devs_init(struct cs_stobs          *stob,
 				enum m0_storage_dev_type  type,
 				struct m0_be_seg         *seg,
 				const char               *stob_path,
+				bool                      force,
 				bool                      disable_direct_io)
 {
 	int                     rc;
@@ -898,7 +899,7 @@ static int cs_storage_devs_init(struct cs_stobs          *stob,
 					 */
 					size = 1024ULL *1024 * 256;
 				rc = m0_storage_dev_new(devs, cid, f_path, size,
-							conf_sdev, &dev);
+							conf_sdev, force, &dev);
 				if (rc == 0)
 					m0_storage_dev_attach(dev, devs);
 				if (conf_sdev != NULL)
@@ -912,7 +913,7 @@ static int cs_storage_devs_init(struct cs_stobs          *stob,
 		}
 	} else if (stob->s_ad_disks_init || M0_FI_ENABLED("init_via_conf")) {
 		M0_LOG(M0_DEBUG, "conf config");
-		rc = cs_conf_storage_init(stob, devs);
+		rc = cs_conf_storage_init(stob, devs, force);
 	} else {
 		/*
 		 * This is special case for tests. We don't have configured
@@ -927,10 +928,11 @@ static int cs_storage_devs_init(struct cs_stobs          *stob,
 		if (type == M0_STORAGE_DEV_TYPE_AD)
 			rc = m0_storage_dev_new(devs,
 						M0_AD_STOB_DOM_KEY_DEFAULT,
-						NULL, size, NULL, &dev);
+						NULL, size, NULL, force, &dev);
 		else
 			rc = m0_storage_dev_new(devs, M0_SDEV_CID_DEFAULT,
-						stob_path, size, NULL, &dev);
+						stob_path, size, NULL,
+						force, &dev);
 		if (rc == 0)
 			m0_storage_dev_attach(dev, devs);
 	}
@@ -1067,7 +1069,7 @@ static int cs_storage_init(const char *stob_type,
 		rc = cs_storage_ldom_destroy(stob_path, NULL);
 	if (linux_stob) {
 		rc = rc ?: cs_storage_devs_init(stob, M0_STORAGE_DEV_TYPE_LINUX,
-						NULL, stob_path,
+						NULL, stob_path, force,
 						disable_direct_io);
 	} else {
 		rc = rc ?: cs_storage_bstore_prepare(stob_path, ldom_cfg_init,
@@ -1076,7 +1078,7 @@ static int cs_storage_init(const char *stob_type,
 		if (rc != 0)
 			stob->s_sdom = NULL;
 		rc = rc ?: cs_storage_devs_init(stob, M0_STORAGE_DEV_TYPE_AD,
-						seg, stob_path,
+						seg, stob_path, false,
 						disable_direct_io);
 	}
 	if (rc != 0 && stob->s_sdom != NULL)

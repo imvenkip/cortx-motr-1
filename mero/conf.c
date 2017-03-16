@@ -241,7 +241,8 @@ static bool is_device(const struct m0_conf_obj *obj)
 static int cs_conf_storage_attach_by_srv(struct cs_stobs        *cs_stob,
 					 struct m0_storage_devs *devs,
 					 struct m0_fid          *svc_fid,
-					 struct m0_confc        *confc)
+					 struct m0_confc        *confc,
+					 bool                    force)
 {
 	struct m0_storage_dev *dev;
 	struct m0_conf_obj    *svc_obj;
@@ -297,7 +298,7 @@ static int cs_conf_storage_attach_by_srv(struct cs_stobs        *cs_stob,
 			M0_ASSERT(sdev->sd_dev_idx <= M0_FID_DEVICE_ID_MAX);
 			if (sdev->sd_obj.co_ha_state == M0_NC_FAILED)
 				continue;
-			rc = m0_storage_dev_new_by_conf(devs, sdev, &dev);
+			rc = m0_storage_dev_new_by_conf(devs, sdev, force, &dev);
 			if (rc == -ENOENT) {
 				M0_LOG(M0_DEBUG, "co_id="FID_F" path=%s rc=%d",
 				       FID_P(&sdev->sd_obj.co_id),
@@ -337,7 +338,8 @@ static int cs_conf_storage_attach_by_srv(struct cs_stobs        *cs_stob,
 }
 
 M0_INTERNAL int cs_conf_storage_init(struct cs_stobs        *stob,
-				     struct m0_storage_devs *devs)
+				     struct m0_storage_devs *devs,
+				     bool                    force)
 {
 	int                     rc;
 	struct m0_mero         *cctx;
@@ -383,7 +385,7 @@ M0_INTERNAL int cs_conf_storage_init(struct cs_stobs        *stob,
 	if (svc_fid != NULL)
 		M0_LOG(M0_DEBUG, "svc_fid: "FID_F, FID_P(svc_fid));
 
-	rc = cs_conf_storage_attach_by_srv(stob, devs, svc_fid, confc);
+	rc = cs_conf_storage_attach_by_srv(stob, devs, svc_fid, confc, force);
 	return M0_RC(rc);
 }
 

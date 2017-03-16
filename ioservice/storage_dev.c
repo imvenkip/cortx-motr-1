@@ -255,7 +255,7 @@ static int storage_dev_update_by_conf(struct m0_storage_dev  *dev,
 
 	M0_PRE(m0_ref_read(&dev->isd_ref) == 1);
 	m0_storage_dev_detach(dev);
-	rc = m0_storage_dev_new_by_conf(storage_devs, sdev, &dev_new);
+	rc = m0_storage_dev_new_by_conf(storage_devs, sdev, false, &dev_new);
 	if (rc != 0)
 		return M0_ERR(rc);
 	M0_ASSERT(dev_new != NULL);
@@ -342,7 +342,8 @@ static bool storage_devs_conf_ready_async_cb(struct m0_clink *clink)
 
 static int stob_domain_create_or_init(struct m0_storage_dev  *dev,
 				      struct m0_storage_devs *devs,
-				      m0_bcount_t             size)
+				      m0_bcount_t             size,
+				      bool                    force)
 {
 	enum m0_storage_dev_type  type     = dev->isd_type;
 	unsigned long long        cid      = (unsigned long long)dev->isd_cid;
@@ -387,8 +388,16 @@ static int stob_domain_create_or_init(struct m0_storage_dev  *dev,
 		M0_IMPOSSIBLE("Unknown m0_storage_dev type.");
 	};
 
-	rc = m0_stob_domain_create_or_init(location, cfg_init, cid, cfg,
+	rc = m0_stob_domain_init(location, cfg_init, &dev->isd_domain);
+	if (force && rc == 0) {
+		rc = m0_stob_domain_destroy(dev->isd_domain);
+		if (rc != 0)
+			goto out_free;
+	}
+	if (force || rc != 0)
+		rc = m0_stob_domain_create(location, cfg_init, cid, cfg,
 					   &dev->isd_domain);
+out_free:
 	m0_free(cfg);
 	m0_free(location);
 
@@ -425,6 +434,7 @@ static int storage_dev_new(struct m0_storage_devs *devs,
 			   const char             *path_orig,
 			   uint64_t                size,
 			   struct m0_conf_sdev    *conf_sdev,
+			   bool                    force,
 			   struct m0_storage_dev **out)
 {
 	enum m0_storage_dev_type  type = devs->sds_type;
@@ -475,7 +485,7 @@ static int storage_dev_new(struct m0_storage_devs *devs,
 		device->isd_stob = stob;
 	}
 
-	rc = stob_domain_create_or_init(device, devs, size);
+	rc = stob_domain_create_or_init(device, devs, size, force);
 	M0_ASSERT(ergo(rc == 0, device->isd_domain != NULL));
 	if (rc == 0) {
 		if (M0_FI_ENABLED("ad_domain_locate_fail")) {
@@ -519,21 +529,24 @@ M0_INTERNAL int m0_storage_dev_new(struct m0_storage_devs *devs,
 				   const char             *path,
 				   uint64_t                size,
 				   struct m0_conf_sdev    *conf_sdev,
+				   bool                    force,
 				   struct m0_storage_dev **dev)
 {
 	return storage_dev_new(devs, cid,
 			       M0_FI_ENABLED("no_real_dev"), path,
-			       size, conf_sdev, dev);
+			       size, conf_sdev, force, dev);
 }
 
 M0_INTERNAL int m0_storage_dev_new_by_conf(struct m0_storage_devs *devs,
 					   struct m0_conf_sdev    *sdev,
+					   bool                    force,
 					   struct m0_storage_dev **dev)
 {
 	return storage_dev_new(devs, sdev->sd_dev_idx,
 			       M0_FI_ENABLED("no_real_dev"), sdev->sd_filename,
 			       sdev->sd_size,
-			       M0_FI_ENABLED("no-conf-dev") ? NULL : sdev, dev);
+			       M0_FI_ENABLED("no-conf-dev") ? NULL : sdev,
+			       force, dev);
 }
 
 M0_INTERNAL void m0_storage_dev_destroy(struct m0_storage_dev *dev)

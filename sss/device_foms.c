@@ -636,21 +636,18 @@ static int sss_device_stob_attach(struct m0_fom *fom)
 	 * block since it is possibly long operation.
 	 */
 	m0_fom_block_enter(fom);
-	rc = m0_storage_dev_new_by_conf(devs, sdev, &dev_new);
+	rc = m0_storage_dev_new_by_conf(devs, sdev, false, &dev_new);
 	m0_fom_block_leave(fom);
 	if (rc == 0) {
 		m0_storage_devs_lock(devs);
-		dev = m0_storage_devs_find_by_cid(devs, sdev->sd_dev_idx);
-		if (dev == NULL)
-			m0_storage_dev_attach(dev_new, devs);
-		else {
-			/*
-			 * XXX TODO Don't destroy `dev_new', this will cause
-			 * destroying stob with so_ref > 1.
-			 */
-			m0_storage_dev_destroy(dev_new);
-			rc = M0_ERR(-EEXIST);
-		}
+		/*
+		 * There is a race window where the devs is unlocked above.
+		 * But current fom is the only place where a storage device
+		 * can be attached "on fly". Therefore, there is no user that
+		 * would try to create and attach storage device with the
+		 * same cid.
+		 */
+		m0_storage_dev_attach(dev_new, devs);
 		m0_storage_devs_unlock(devs);
 	}
 confc_close:

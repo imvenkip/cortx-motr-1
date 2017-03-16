@@ -146,7 +146,8 @@ static void storage_dev_test(void)
 	 */
 	grp_size = BALLOC_DEF_BLOCKS_PER_GROUP * block_size;
 	total_size = grp_size;
-	rc = m0_storage_dev_new(&devs, 10, fname2, total_size, NULL, &dev1);
+	rc = m0_storage_dev_new(&devs, 10, fname2, total_size,
+				NULL, false, &dev1);
 	M0_UT_ASSERT(rc == 0);
 	m0_storage_dev_attach(dev1, &devs);
 
@@ -154,19 +155,19 @@ static void storage_dev_test(void)
 	sdev.sd_filename = fname1;
 	sdev.sd_dev_idx = 12;
 	m0_fi_enable("m0_storage_dev_new_by_conf", "no-conf-dev");
-	rc = m0_storage_dev_new_by_conf(&devs, &sdev, &dev2);
+	rc = m0_storage_dev_new_by_conf(&devs, &sdev, false, &dev2);
 	M0_UT_ASSERT(rc == 0);
 	m0_storage_dev_attach(dev2, &devs);
 	m0_fi_disable("m0_storage_dev_new_by_conf", "no-conf-dev");
 
 	m0_fi_enable_once("m0_alloc", "fail_allocation");
 	rc = m0_storage_dev_new(&devs, 13, "../../some-file", total_size,
-				NULL, &dev3);
+				NULL, false, &dev3);
 	M0_UT_ASSERT(rc == -ENOMEM);
 
 	m0_fi_enable_off_n_on_m("m0_alloc", "fail_allocation", 1, 1);
 	rc = m0_storage_dev_new(&devs, 13, "../../some-file", total_size,
-				NULL, &dev3);
+				NULL, false, &dev3);
 	m0_fi_disable("m0_alloc", "fail_allocation");
 	M0_UT_ASSERT(rc == -ENOMEM);
 
@@ -183,11 +184,12 @@ static void storage_dev_test(void)
 	/* space */
 	m0_storage_dev_space(dev1, &space);
 	M0_UT_ASSERT(space.sds_block_size  == block_size);
-	/* Free blocks don't include blocks for reserved groups and we have
-	 * only one non-reserved group */
+	/*
+	 * Free blocks don't include blocks for reserved groups and we have
+	 * only one non-reserved group
+	 */
 	M0_UT_ASSERT(space.sds_free_blocks == BALLOC_DEF_BLOCKS_PER_GROUP);
 	M0_UT_ASSERT(space.sds_total_size  == total_size);
-
 
 	/* detach */
 	m0_storage_dev_detach(dev1);
@@ -198,8 +200,10 @@ static void storage_dev_test(void)
 	m0_storage_devs_fini(&devs);
 
 	m0_rpc_server_stop(&rpc_srv);
-	unlink("test1");
-	unlink("test2");
+	rc = unlink(fname1);
+	M0_UT_ASSERT(rc == 0);
+	rc = unlink(fname2);
+	M0_UT_ASSERT(rc == 0);
 	free(fname1);
 	free(fname2);
 	free(cwd);
@@ -235,10 +239,10 @@ static void storage_dev_linux(void)
 				  &rpc_srv->rsx_mero_ctx.cc_reqh_ctx.rc_reqh);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_storage_dev_new(devs, CID1, path1, 0, NULL, &dev1);
+	rc = m0_storage_dev_new(devs, CID1, path1, 0, NULL, false, &dev1);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(dev1 != NULL);
-	rc = m0_storage_dev_new(devs, CID2, path2, 0, NULL, &dev2);
+	rc = m0_storage_dev_new(devs, CID2, path2, 0, NULL, false, &dev2);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(dev2 != NULL);
 	m0_storage_devs_lock(devs);
@@ -257,6 +261,7 @@ static void storage_dev_linux(void)
 	rc = m0_storage_dev_stob_find(devs, &stob_id, &stob);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(dev1->isd_domain == m0_stob_dom_get(stob));
+	M0_UT_ASSERT(m0_stob_state_get(stob) == CSS_EXISTS);
 	m0_storage_dev_stob_put(devs, stob);
 
 	m0_storage_devs_lock(devs);
@@ -266,7 +271,7 @@ static void storage_dev_linux(void)
 	rc = m0_storage_dev_stob_find(devs, &stob_id, &stob);
 	M0_UT_ASSERT(rc != 0);
 
-	rc = m0_storage_dev_new(devs, CID1, path1, 0, NULL, &dev1);
+	rc = m0_storage_dev_new(devs, CID1, path1, 0, NULL, false, &dev1);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(dev1 != NULL);
 	m0_storage_devs_lock(devs);
@@ -280,6 +285,27 @@ static void storage_dev_linux(void)
 	m0_stob_delete_mark(stob);
 	rc = m0_storage_dev_stob_destroy(devs, stob, NULL);
 	M0_UT_ASSERT(rc == 0);
+
+	/* force option */
+	rc = m0_storage_dev_stob_create(devs, &stob_id, NULL);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_storage_dev_stob_find(devs, &stob_id, &stob);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(m0_stob_state_get(stob) == CSS_EXISTS);
+	m0_storage_dev_stob_put(devs, stob);
+	m0_storage_devs_lock(devs);
+	m0_storage_dev_detach(dev1);
+	m0_storage_devs_unlock(devs);
+	rc = m0_storage_dev_new(devs, CID1, path1, 0, NULL, true, &dev1);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(dev1 != NULL);
+	m0_storage_devs_lock(devs);
+	m0_storage_dev_attach(dev1, devs);
+	m0_storage_devs_unlock(devs);
+	rc = m0_storage_dev_stob_find(devs, &stob_id, &stob);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(m0_stob_state_get(stob) == CSS_NOENT);
+	m0_storage_dev_stob_put(devs, stob);
 
 	m0_storage_devs_lock(devs);
 	m0_storage_devs_detach_all(devs);
