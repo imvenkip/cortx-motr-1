@@ -5031,6 +5031,7 @@ static void ioreq_failed_fini(struct io_request *req, int rc)
 {
 	ioreq_sm_failed(req, rc);
 	ioreq_sm_state_set(req, IRS_REQ_COMPLETE);
+	req->ir_nwxfer.nxr_state = NXS_COMPLETE;
 	io_request_fini(req);
 }
 
@@ -5084,7 +5085,6 @@ again:
 		M0_LOG(M0_ERROR, "[%p] Failed to distribute file data "
 		       "between target_ioreq objects, rc %d", req, rc);
 		req->ir_ops->iro_iomaps_destroy(req);
-		req->ir_nwxfer.nxr_state = NXS_COMPLETE;
 		ioreq_failed_fini(req, rc);
 		count = 0;
 		goto last;
