@@ -298,7 +298,7 @@ static bool ha_clink_cb_bad_rm(struct m0_clink *clink)
 		 * guarantees successful connection to RM.
 		 */
 		if (do_fake) {
-			rm_fake = suffix_subst(rm_addr, ':', "999");
+			rm_fake = suffix_subst(rm_addr, ':', ":999");
 			ecl->ecl_rep.hae_active_rm_ep = rm_fake;
 			do_fake = false; /* not next time */
 		}
@@ -316,7 +316,7 @@ static bool ha_clink_cb_bad_rm(struct m0_clink *clink)
 	return true;
 }
 
-static void test_fail_retry(void)
+static void test_fail_retry_rm(void)
 {
 	struct m0_rpc_machine    mach;
 	struct m0_rpc_server_ctx rctx;
@@ -331,10 +331,77 @@ static void test_fail_retry(void)
 	/*
 	 * Distort ha entrypoint response (active rm) to cause HA request
 	 * retry. Imitation of the situation when HA reports dead active RM
-	 * endpoint and later reports connectable one.
+	 * endpoint and later reports a connectable one.
 	 */
 	ha_clink_cb_orig = rconfc.rc_ha_entrypoint_cl.cl_cb;
 	rconfc.rc_ha_entrypoint_cl.cl_cb = ha_clink_cb_bad_rm;
+	rc = m0_rconfc_start_sync(&rconfc, &profile);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(rconfc.rc_ha_entrypoint_retries > 0);
+	/* restore original callback */
+	rconfc.rc_ha_entrypoint_cl.cl_cb = ha_clink_cb_orig;
+	m0_rconfc_stop_sync(&rconfc);
+	m0_rconfc_fini(&rconfc);
+
+	rconfc_ut_mero_stop(&mach, &rctx);
+}
+
+static bool ha_clink_cb_bad_confd(struct m0_clink *clink)
+{
+	struct m0_rconfc               *rconfc = M0_AMB(rconfc, clink,
+							rc_ha_entrypoint_cl);
+	struct m0_ha_entrypoint_client *ecl =
+		&m0_get()->i_ha->h_entrypoint_client;
+
+	M0_PRE(rconfc->rc_sm.sm_state == M0_RCS_ENTRYPOINT_WAIT);
+        if (m0_ha_entrypoint_client_state_get(ecl) == M0_HEC_AVAILABLE &&
+	    ecl->ecl_rep.hae_control == M0_HA_ENTRYPOINT_CONSUME) {
+		const char *confd_addr = ecl->ecl_rep.hae_confd_eps[0];
+		char       *confd_fake = NULL;
+		static bool do_fake = true;
+		/*
+		 * The test is to fake the confd addr only once to provide that
+		 * the next time correct confd addr reaches rconfc
+		 * non-distorted, which guarantees successful connection to it.
+		 */
+		if (do_fake) {
+			do_fake = false;
+			confd_fake = suffix_subst(confd_addr, ':', ":999");
+			*(char **)&ecl->ecl_rep.hae_confd_eps[0] = confd_fake;
+		}
+		/*
+		 * call original handler to let rconfc copy this version of
+		 * response and go on with connection
+		 */
+		ha_clink_cb_orig(clink);
+		/*
+		 * get real active rm address back to entrypoint response
+		 */
+		ecl->ecl_rep.hae_confd_eps[0] = confd_addr;
+		m0_free(confd_fake);
+	}
+	return true;
+}
+
+static void test_fail_retry_confd(void)
+{
+	struct m0_rpc_machine    mach;
+	struct m0_rpc_server_ctx rctx;
+	int                      rc;
+	struct m0_rconfc         rconfc;
+
+	rc = rconfc_ut_mero_start(&mach, &rctx);
+	M0_UT_ASSERT(rc == 0);
+
+	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
+	M0_UT_ASSERT(rc == 0);
+	/*
+	 * Distort ha entrypoint response (confd) to cause HA request
+	 * retry. Imitation of the situation when HA reports dead confd
+	 * endpoint and later reports a connectable one.
+	 */
+	ha_clink_cb_orig = rconfc.rc_ha_entrypoint_cl.cl_cb;
+	rconfc.rc_ha_entrypoint_cl.cl_cb = ha_clink_cb_bad_confd;
 	rc = m0_rconfc_start_sync(&rconfc, &profile);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(rconfc.rc_ha_entrypoint_retries > 0);
@@ -1277,23 +1344,24 @@ struct m0_ut_suite rconfc_ut = {
 	.ts_init  = rconfc_ut_init,
 	.ts_fini  = rconfc_ut_fini,
 	.ts_tests = {
-		{ "init-fini",  test_init_fini },
-		{ "start-stop", test_start_stop },
-		{ "local-conf", test_start_stop_local },
-		{ "start-fail", test_start_failures },
-		{ "fail-abort", test_fail_abort },
-		{ "fail-retry", test_fail_retry },
-		{ "no-rms",     test_no_rms },
-		{ "dead-down",  test_dead_down },
-		{ "dead-stop",  test_dead_stop },
-		{ "reading",    test_reading },
-		{ "impossible", test_quorum_impossible },
-		{ "quorum-retry",test_quorum_retry },
-		{ "gate-ops",   test_gops },
-		{ "change-ver", test_version_change },
-		{ "cache-drop", test_cache_drop },
-		{ "ctx-block",  test_confc_ctx_block },
-		{ "reconnect",  test_reconnect_success },
+		{ "init-fini",        test_init_fini },
+		{ "start-stop",       test_start_stop },
+		{ "local-conf",       test_start_stop_local },
+		{ "start-fail",       test_start_failures },
+		{ "fail-abort",       test_fail_abort },
+		{ "fail-retry-rm",    test_fail_retry_rm },
+		{ "fail-retry-confd", test_fail_retry_confd },
+		{ "no-rms",           test_no_rms },
+		{ "dead-down",        test_dead_down },
+		{ "dead-stop",        test_dead_stop },
+		{ "reading",          test_reading },
+		{ "impossible",       test_quorum_impossible },
+		{ "quorum-retry",     test_quorum_retry },
+		{ "gate-ops",         test_gops },
+		{ "change-ver",       test_version_change },
+		{ "cache-drop",       test_cache_drop },
+		{ "ctx-block",        test_confc_ctx_block },
+		{ "reconnect",        test_reconnect_success },
 		/*
 		 * Temporary disabled because now rconfc entrypoint request
 		 * can't fail. Will be fixed somehow in MERO-1774 patch.

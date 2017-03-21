@@ -1610,6 +1610,8 @@ static int connect_to_confd(struct m0_confc *confc, const char *confd_addr,
 	rc = m0_rpc_link_connect_sync(&confc->cc_rlink, confc_deadline(confc));
 	M0_POST((rc == 0) == confc->cc_rlink.rlk_connected);
 	M0_POST(rc != 0 || m0_confc_is_online(confc));
+	if (rc != 0)
+		m0_rpc_link_fini(&confc->cc_rlink);
 	return M0_RC(rc);
 }
 
