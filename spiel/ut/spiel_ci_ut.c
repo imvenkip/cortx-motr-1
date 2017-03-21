@@ -113,7 +113,7 @@ static void test_spiel_service_cmds(void)
 
 	/* Stopping of Top Level RM is disallowed */
 	rc = m0_spiel_service_stop(&spiel, &top_level_rm_fid);
-	M0_UT_ASSERT(rc = -EPERM);
+	M0_UT_ASSERT(rc == -EPERM);
 	spiel_ci_ut_fini();
 }
 
@@ -755,7 +755,7 @@ static void test_spiel_pool_rebalance(enum m0_repreb_type type)
 
 	wait_for_repair_rebalance(type, CM_OP_REBALANCE, &status, &pool_fid, &svc_fid);
 	M0_UT_ASSERT(m0_fid_eq(&status[0].srs_fid, &svc_fid));
-	M0_UT_ASSERT(status[0].srs_state = CM_STATUS_PAUSED);
+	M0_UT_ASSERT(status[0].srs_state == CM_STATUS_PAUSED);
 	M0_UT_ASSERT(status[0].srs_progress >= 0);
 	m0_free(status);
 

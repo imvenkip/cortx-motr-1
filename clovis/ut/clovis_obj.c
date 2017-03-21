@@ -1207,7 +1207,7 @@ static void ut_clovis_test_clovis_cob_name_mem2wire(void)
 	M0_UT_ASSERT(name.b_nob ==  strlen(str));
 	rc = clovis_cob_name_mem2wire(&tgt, &name);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(tgt.s_len = name.b_nob);
+	M0_UT_ASSERT(tgt.s_len == name.b_nob);
 	M0_UT_ASSERT(!strncmp((char *)tgt.s_buf, (char *)name.b_addr, tgt.s_len));
 
 	m0_free(tgt.s_buf);

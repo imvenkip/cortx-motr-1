@@ -178,7 +178,7 @@ static void ut_clovis_test_target_session(void)
 
 	ioo->ioo_pver = pv->pv_id;
 	session = target_session(ioo, tfid);
-	M0_UT_ASSERT(session = &ctx->sc_rlink.rlk_sess);
+	M0_UT_ASSERT(session == &ctx->sc_rlink.rlk_sess);
 
 	m0_free(pv->pv_pc->pc_dev2svc);
 	m0_free(ctx);

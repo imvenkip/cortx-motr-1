@@ -535,8 +535,8 @@ void layout_encdec(void)
 	m0_bufvec_free(&key);
 	m0_bufvec_free(&val);
 	M0_UT_ASSERT(m0_fid_eq(&fid1, &fid2));
-	M0_UT_ASSERT(dlay1.dl_type = dlay2.dl_type);
-	M0_UT_ASSERT(dlay2.dl_type = DIX_LTYPE_ID);
+	M0_UT_ASSERT(dlay1.dl_type == dlay2.dl_type);
+	M0_UT_ASSERT(dlay2.dl_type == DIX_LTYPE_ID);
 
 	rc = m0_dix_ldesc_init(&dld1, range, ARRAY_SIZE(range),
 			       HASH_FNC_FNV1, &fid);
@@ -550,8 +550,8 @@ void layout_encdec(void)
 	m0_bufvec_free(&key);
 	m0_bufvec_free(&val);
 	M0_UT_ASSERT(m0_fid_eq(&fid1, &fid2));
-	M0_UT_ASSERT(dlay1.dl_type = dlay2.dl_type);
-	M0_UT_ASSERT(dlay2.dl_type = DIX_LTYPE_DESCR);
+	M0_UT_ASSERT(dlay1.dl_type == dlay2.dl_type);
+	M0_UT_ASSERT(dlay2.dl_type == DIX_LTYPE_DESCR);
 	pdld = &dlay2.u.dl_desc;
 	M0_UT_ASSERT(pdld->ld_hash_fnc == HASH_FNC_FNV1);
 	M0_UT_ASSERT(pdld->ld_hash_fnc == dld1.ld_hash_fnc);
