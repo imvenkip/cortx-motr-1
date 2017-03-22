@@ -95,6 +95,45 @@ EOF
 	return $?
 }
 
+mkiosmddevs()
+{
+	local nr_ios=$1
+	local P=$2
+	local nr_dev_per_ios=$(($P / $nr_ios))
+	local nr_dev_rem=$(($P % $nr_ios))
+	local MDDEV_ID=1
+	local nr_dev=$nr_dev_per_ios
+
+	for ((i=0; i < $nr_ios; i++)); do
+		local ios=`expr $i + 1`
+		local ddisk_id="^k|1:$MDDEV_ID"
+		local mddiskv_id="^j|2:$MDDEV_ID"
+
+		local mddiskv_obj="{0x6a| (($mddiskv_id), $ddisk_id, [0])}"
+		if (($i == 0))
+		then
+			MDISKV_FIDS="$mddiskv_id"
+		else
+			MDISKV_FIDS="$MDISKV_FIDS, $mddiskv_id"
+		fi
+
+		if (($i == 0))
+		then
+			IOS_MD_DEVS="$mddiskv_obj"
+		else
+			IOS_MD_DEVS="$IOS_MD_DEVS, \n $mddiskv_obj"
+		fi
+
+		if (($i < $nr_dev_rem))
+		then
+			nr_dev=$(($nr_dev_per_ios + 1))
+		else
+			nr_dev=$nr_dev_per_ios
+		fi
+		MDDEV_ID=$((MDDEV_ID + nr_dev))
+	done
+}
+
 servers_stop()
 {
 	prog=$1
@@ -208,6 +247,7 @@ mero_service()
 			mkiosloopdevs $ios $nr_dev $DIR || return 1
 		done
 
+		mkiosmddevs ${#IOSEP[*]} $P || return 1
                 #create devs for backup pool
 		if ((multiple_pools == 1)); then
 			DIR=$MERO_M0T1FS_TEST_DIR/ios5

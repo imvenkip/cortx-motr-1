@@ -222,6 +222,8 @@ struct m0_pools_common {
 	 * asynchronously.
 	 */
 	struct m0_clink                   pc_conf_ready_async;
+	/** Pool of cas services used to store dix. */
+	struct m0_pool                   *pc_dix_pool;
 };
 
 M0_TL_DESCR_DECLARE(pools_common_svc_ctx, M0_EXTERN);

@@ -1282,7 +1282,7 @@ static void test_drain(void)
 
 	rc = m0_conf_fs_get(&profile, &rconfc->rc_confc, &fs_obj.fs);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(fs_obj.fs->cf_redundancy == 41212);
+	M0_UT_ASSERT(fs_obj.fs->cf_redundancy == 1);
 	M0_UT_ASSERT(fs_obj.fs->cf_obj.co_nrefs != 0);
 	drain_fs_fid = fs_obj.fs->cf_obj.co_id;
 	/*

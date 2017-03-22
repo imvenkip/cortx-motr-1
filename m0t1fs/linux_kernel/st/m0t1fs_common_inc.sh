@@ -28,6 +28,7 @@ export M0_TRACE_PRINT_CONTEXT=short
 MERO_STOB_DOMAIN="ad -d disks.conf"
 
 IOS_DEVS=""
+IOS_MD_DEVS=""
 NR_IOS_DEVS=0
 IOS_DEV_IDS=
 
@@ -38,6 +39,7 @@ NR_SDEVS=0
 DISK_FIDS=""
 NR_DISK_FIDS=0
 DISKV_FIDS=""
+MDISKV_FIDS=""
 NR_DISKV_FIDS=0
 
 DDEV_ID=1          #data devices
@@ -95,6 +97,7 @@ TM_MIN_RECV_QUEUE_LEN=16
 MAX_RPC_MSG_SIZE=65536
 XPT=lnet
 PVERID='^v|1:10'
+MDPVERID='^v|2:10'
 M0T1FS_PROC_ID='<0x7200000000000001:64>'
 
 unload_kernel_module()
@@ -334,12 +337,18 @@ function build_conf()
 	local  ENCLID='^e|1:7'
 	local  CTRLID='^c|1:8'
 	local  POOLID='^o|1:9'
+	local  MDPOOLID='^o|2:9'
 	local  PVERFID1='^v|0x40000000000001:11'
 	local  PVERFID2='^v|0x40000000000001:12'
 	#"pool_width" number of objv created for devv conf objects
 	local  RACKVID="^j|1:$(($pool_width + 1))"
 	local  ENCLVID="^j|1:$(($pool_width + 2))"
 	local  CTRLVID="^j|1:$(($pool_width + 3))"
+	#mdpool objects
+	local  MDRACKVID="^j|2:$(($pool_width + 1))"
+	local  MDENCLVID="^j|2:$(($pool_width + 2))"
+	local  MDCTRLVID="^j|2:$(($pool_width + 3))"
+
 	local M0T1FS_RMID="^s|1:101"
 	local M0T1FS_PROCID="^r|1:100"
 
@@ -427,6 +436,21 @@ function build_conf()
 		DIX_PVER_OBJ_COUNT=0
 		DIX_PVER_OBJS=""
 	fi
+
+	# Add a separate mdpool with a disk from each of the ioservice
+	local nr_ios=${#ioservices[*]}
+	local MDPOOL="{0x6f| (($MDPOOLID), 0, [1: $MDPVERID])}"
+	local MDPVER="{0x76| (($MDPVERID), {0| ($nr_ios, 0, $nr_ios, [5: 1, 0, 0, 0, 1], [1: $MDRACKVID])})}"
+	local MDRACKV="{0x6a| (($MDRACKVID), $RACKID, [1: $MDENCLVID])}"
+	local MDENCLV="{0x6a| (($MDENCLVID), $ENCLID, [1: $MDCTRLVID])}"
+	local MDCTRLV="{0x6a| (($MDCTRLVID), $CTRLID, [${#ioservices[*]}: $MDISKV_FIDS])}"
+
+	MD_OBJS=", \n$MDPOOL, \n$MDPVER, \n$MDRACKV, \n$MDENCLV, \n$MDCTRLV, \n$IOS_MD_DEVS"
+	MD_OBJ_COUNT=$((5 + ${#ioservices[*]}))
+	PVER_IDS="$PVER_IDS, $MDPVERID"
+	pvers_count=$(($pvers_count + 1))
+	POOLS="$POOLS, $MDPOOLID"
+	pool_count=$(($pool_count + 1))
 
 	PROC_NAME="$PROC_FID_CONT:$((M0D++))"
 	RM_NAME="$RMS_FID_CON:$M0D"
@@ -521,12 +545,12 @@ function build_conf()
  # Here "15" configuration objects includes services excluding ios & mds,
  # pools, racks, enclosures, controllers and their versioned objects.
 	echo -e "
-[$(($IOS_OBJS_NR + $((${#mdservices[*]} * 4)) + $NR_IOS_DEVS + 18 + $PVER1_OBJ_COUNT + 4 + $DIX_PVER_OBJ_COUNT)):
+[$(($IOS_OBJS_NR + $((${#mdservices[*]} * 4)) + $NR_IOS_DEVS + 18 + $MD_OBJ_COUNT + $PVER1_OBJ_COUNT + 4 + $DIX_PVER_OBJ_COUNT)):
   {0x74| (($ROOT), 1, [1: $PROF])},
   {0x70| (($PROF), $FS)},
   {0x66| (($FS), (11, 22), $MD_REDUNDANCY,
 	      [1: \"$pool_width $nr_data_units $nr_parity_units\"],
-	      $POOLID,
+	      $MDPOOLID,
 	      $IMETA_PVER,
 	      [$node_count: $NODES],
 	      [$pool_count: $POOLS],
@@ -550,7 +574,7 @@ function build_conf()
   $PVER_F2,
   $RACKV,
   $ENCLV,
-  $CTRLV $PVER1_OBJS $DIX_PVER_OBJS]"
+  $CTRLV $MD_OBJS $PVER1_OBJS $DIX_PVER_OBJS]"
 }
 
 service_eps_with_m0t1fs_get()

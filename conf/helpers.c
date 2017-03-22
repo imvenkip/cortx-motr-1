@@ -116,16 +116,7 @@ M0_INTERNAL int m0_conf_pver_get(const struct m0_fid  *profile,
 		if (rc != 0)
 			/* No suitable pver in this pool. Try next one. */
 			continue;
-		if (m0_fid_eq(&pool->pl_obj.co_id, &fs->cf_mdpool) &&
-		   /*
-		    * XXX TODO: UTs and STs use the same pool for both MD and IO.
-		    * They have to be fixed and use a dedicated MD pool.
-		    * After this is done, no need to make == ACTUAL && K == 0
-		    * checks and will only need m0_fid_eq() comparison.
-		    */
-		    pver->pv_kind == M0_CONF_PVER_ACTUAL &&
-		    pver->pv_u.subtree.pvs_attr.pa_K == 0)
-			/* This pver belongs to MD pool. Skip it. */
+		if (m0_fid_eq(&pool->pl_obj.co_id, &fs->cf_mdpool))
 			continue;
 		pvobj = &pver->pv_obj;
 		m0_conf_obj_get_lock(pvobj);

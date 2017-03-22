@@ -105,10 +105,10 @@ stub_confdb() {
     cat <<EOF
 (root-0 verno=1 profiles=[profile-0])
 (profile-0 filesystem=filesystem-0)
-(filesystem-0 rootfid=(11, 22) redundancy=2
+(filesystem-0 rootfid=(11, 22) redundancy=1
     params=["pool_width=3", "nr_data_units=1", "nr_parity_units=1",
             "unit_size=4096"]
-    mdpool=pool-0 imeta_pver=(0, 0) nodes=[node-0] pools=[pool-0]
+    mdpool=pool-1 imeta_pver=(0, 0) nodes=[node-0] pools=[pool-0, pool-1]
     racks=[rack-0])
 (node-0 memsize=16000 nr_cpu=2 last_state=3 flags=2 pool_id=pool-0
     processes=[process-0, process-1])
@@ -153,6 +153,12 @@ stub_confdb() {
     flags=4 filename="/dev/sdev3")
 (sdev-4 dev_idx=3 iface=7 media=2 bsize=8192 size=320000000000 last_state=2
     flags=4 filename="/dev/sdev4")
+(pool-1 order=0 pvers=[pver-10])
+(pver-10 N=1 K=0 P=1 tolerance=[0, 0, 0, 0, 1] rackvs=[objv-10])
+(objv-10 real=rack-0 children=[objv-11])
+(objv-11 real=enclosure-0 children=[objv-12])
+(objv-12 real=controller-0 children=[objv-13])
+(objv-13 real=disk-0 children=[])
 EOF
 }
 
@@ -215,6 +221,7 @@ fids = {'profile'       : Fid(0x7000000000000001, 0),
         'fs'            : Fid(0x6600000000000001, 1),
         'node'          : Fid(0x6e00000000000001, 2),
         'pool'          : Fid(0x6f00000000000001, 9),
+        'mdpool'        : Fid(0x6f00000000000001, 10),
         'rack'          : Fid(0x6100000000000001, 6),
         'encl'          : Fid(0x6500000000000001, 7),
         'ctrl'          : Fid(0x6300000000000001, 8),
@@ -224,6 +231,7 @@ fids = {'profile'       : Fid(0x7000000000000001, 0),
         'disk3'         : Fid(0x6b00000000000001, 5),
         'disk4'         : Fid(0x6b00000000000001, 6),
         'pver'          : Fid(0x7600000000000001, 10),
+        'mdpver'        : Fid(0x7600000000000001, 11),
         'pver_f'        : Fid(0x7640000000000001, 11),
         'rackv'         : Fid(0x6a00000000000001, 2),
         'enclv'         : Fid(0x6a00000000000001, 3),
@@ -233,6 +241,10 @@ fids = {'profile'       : Fid(0x7000000000000001, 0),
         'diskv2'        : Fid(0x6a00000000000001, 7),
         'diskv3'        : Fid(0x6a00000000000001, 8),
         'diskv4'        : Fid(0x6a00000000000001, 9),
+        'mdrackv'       : Fid(0x6a00000000000001, 20),
+        'mdenclv'       : Fid(0x6a00000000000001, 21),
+        'mdctrlv'       : Fid(0x6a00000000000001, 22),
+	'mddiskv'       : Fid(0x6a00000000000001, 23),
         'process'       : Fid($PROC_FID_CNTR, $PROC_FID_KEY),
         'process2'      : Fid($PROC_FID_CNTR, $PROC_FID_KEY2),
         'process1'      : Fid(0x7200000000000002, 1),
@@ -280,7 +292,7 @@ spiel.tx_open(tx)
 commands = [
     ('profile_add', tx, fids['profile']),
     ('filesystem_add', tx, fids['fs'], fids['profile'], 10, fids['profile'],
-     fids['pool'], Fid(0, 0), ['{0} {1} {2}'.format(P, N, K)]),
+     fids['mdpool'], Fid(0, 0), ['{0} {1} {2}'.format(P, N, K)]),
     ('pool_add', tx, fids['pool'], fids['fs'], 2),
     ('rack_add', tx, fids['rack'], fids['fs']),
     ('enclosure_add', tx, fids['encl'], fids['rack']),
@@ -301,6 +313,13 @@ commands = [
     ('disk_v_add', tx, fids['diskv2'], fids['ctrlv'], fids['disk2']),
     ('disk_v_add', tx, fids['diskv3'], fids['ctrlv'], fids['disk3']),
     ('disk_v_add', tx, fids['diskv4'], fids['ctrlv'], fids['disk4']),
+    ('pool_add', tx, fids['mdpool'], fids['fs'], 2),
+    ('pver_actual_add', tx, fids['mdpver'], fids['mdpool'], [0, 0, 0, 0, 1],
+     PdclustAttr(1, 0, 1, 1024*1024, Fid(1, 2))),
+    ('rack_v_add', tx, fids['mdrackv'], fids['mdpver'], fids['rack']),
+    ('enclosure_v_add', tx, fids['mdenclv'], fids['mdrackv'], fids['encl']),
+    ('controller_v_add', tx, fids['mdctrlv'], fids['mdenclv'], fids['ctrl']),
+    ('disk_v_add', tx, fids['mddiskv'], fids['mdctrlv'], fids['disk1']),
     ('pool_version_done', tx, fids['pver']),
     ('process_add', tx, fids['process'], fids['node'], cores, 0L, 0L, 0L, 0L,
      '$M0D1_ENDPOINT'),

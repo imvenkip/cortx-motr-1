@@ -298,6 +298,17 @@ M0_INTERNAL int m0_ios_poolmach_init(struct m0_reqh_service *service)
 	if (rc != 0)
 		goto poolmach_free;
 
+	m0_tl_for (pools, &pc->pc_pools, pool) {
+		if (m0_fid_eq(&pc->pc_md_pool->po_id, &pool->po_id) ||
+		    (pc->pc_dix_pool != NULL &&
+		     m0_fid_eq(&pc->pc_dix_pool->po_id, &pool->po_id))) {
+			continue;
+		} else {
+			pver = pool_version_tlist_head(&pool->po_vers);
+			break;
+		}
+	} m0_tl_endfor;
+
 	rc = ios_poolmach_args_init(confc, fs, &ios_poolmach_args);
 	if (rc != 0)
 		goto fs_close;

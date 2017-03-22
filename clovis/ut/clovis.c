@@ -265,12 +265,14 @@ static void ut_clovis_test_m0_clovis_init(void)
 
 M0_INTERNAL int ut_m0_clovis_init(struct m0_clovis **instance)
 {
-	int             i;
-	int             rc;
-	struct m0_sm   *sm;
-	struct m0_pool *pool;
-	struct m0_fid   id;
+	int                     i;
+	int                     rc;
+	struct m0_sm           *sm;
+	struct m0_fid           id;
+	struct m0_pool         *pool;
+	struct m0_pool         *mdpool;
 	struct m0_pool_version *pv;
+	struct m0_pool_version *mdpv;
 
 	m0_fi_enable_once("clovis_initlift_move_next_floor", "immediate_ret");
 	rc = CLOVIS_INIT(instance);
@@ -297,16 +299,27 @@ M0_INTERNAL int ut_m0_clovis_init(struct m0_clovis **instance)
 		pools_tlist_init(&(*instance)->m0c_pools_common.pc_pools);
 		pools_tlink_init_at_tail(pool, &((*instance)->m0c_pools_common.pc_pools));
 
+		M0_ALLOC_PTR(mdpool);
+		M0_UT_ASSERT(mdpool != NULL);
+		id.f_key=1;
+		m0_pool_init(mdpool, &id);
+		pools_tlink_init_at_tail(mdpool, &((*instance)->m0c_pools_common.pc_pools));
+
 		M0_ALLOC_PTR(pv);
 		M0_UT_ASSERT(pv != NULL);
 		M0_SET0(pv);
 		pv->pv_pool = pool;
-		pool_version_tlink_init(pv);
-		pool_version_tlist_add_tail(&pool->po_vers, pv);
+		pool_version_tlink_init_at_tail(pv, &pool->po_vers);
 
 		(*instance)->m0c_pools_common.pc_cur_pver = pv;
 		(*instance)->m0c_pools_common.pc_confc = (struct m0_confc *)DUMMY_PTR;
 
+		M0_ALLOC_PTR(mdpv);
+		M0_UT_ASSERT(mdpv != NULL);
+		M0_SET0(mdpv);
+		mdpv->pv_pool = mdpool;
+		pool_version_tlink_init_at_tail(mdpv, &mdpool->po_vers);
+		(*instance)->m0c_pools_common.pc_md_pool = mdpool;
 	}
 	m0_fi_disable("clovis_initlift_get_next_floor", "clovis_ut");
 

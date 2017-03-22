@@ -573,6 +573,7 @@ function start_server ()
 
 	# Generate configuration entries for devices.
 	gen_device_conf_ids
+	mkiosmddevs ${#SERVICES[*]} $POOL_WIDTH || return 1
 	lnet_nid=`sudo lctl list_nids | head -1`
 	server_nid=${server_nid:-$lnet_nid}
 	#server_id is a global variable and is used inside build_conf() for HA.

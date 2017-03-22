@@ -818,7 +818,8 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach       *pm,
 		}
 	}
 	/** @todo Add ADDB error message here. */
-	if (state->pst_nr_failures > state->pst_max_device_failures) {
+	if (state->pst_nr_failures > state->pst_max_device_failures &&
+	    state->pst_max_device_failures > 0) { /* Skip mdpool */
 		M0_LOG(M0_ERROR, FID_F": nr_failures:%d max_failures:%d"
 				"event_index:%d event_state:%d",
 				FID_P(&pm->pm_pver->pv_id),

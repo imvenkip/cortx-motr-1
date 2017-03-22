@@ -1147,6 +1147,8 @@ static void pools_common__pools_update_or_cleanup(struct m0_pools_common *pc)
 		if (!in_conf) {
 			if (pc->pc_md_pool == pool)
 				pools_common__md_pool_cleanup(pc);
+			if (pc->pc_dix_pool != NULL && pc->pc_dix_pool == pool)
+				pc->pc_dix_pool = NULL;
 			/* cleanup */
 			pools_tlink_del_fini(pool);
 			pool__layouts_evict(pool, &reqh->rh_ldom);
@@ -1308,7 +1310,9 @@ M0_INTERNAL int m0_pools_common_init(struct m0_pools_common *pc,
 		.pc_rmach         = rmach,
 		.pc_md_redundancy = fs->cf_redundancy,
 		.pc_confc         = m0_confc_from_obj(&fs->cf_obj),
-		.pc_cur_pver      = NULL
+		.pc_cur_pver      = NULL,
+		.pc_md_pool       = NULL,
+		.pc_dix_pool      = NULL
 	};
 	rc = pools_common__dev2ios_build(pc, fs);
 	if (rc != 0) {
@@ -1696,6 +1700,20 @@ M0_INTERNAL int m0_pools_setup(struct m0_pools_common    *pc,
 	M0_ASSERT(pc->pc_md_pool != NULL);
 	M0_LOG(M0_DEBUG, "md pool "FID_F, FID_P(&fs->cf_mdpool));
 
+	if (m0_fid_is_set(&fs->cf_imeta_pver)) {
+		struct m0_conf_obj  *dix_pver_obj;
+		struct m0_conf_pool *dix_pool;
+
+		m0_conf_obj_find_lock(&pc->pc_confc->cc_cache,
+				      &fs->cf_imeta_pver, &dix_pver_obj);
+		dix_pool = M0_CONF_CAST(
+				m0_conf_obj_grandparent(dix_pver_obj),
+				m0_conf_pool);
+		pc->pc_dix_pool = m0_pool_find(pc, &dix_pool->pl_obj.co_id);
+		M0_ASSERT(pc->pc_dix_pool != NULL);
+		M0_LOG(M0_DEBUG, "dix pool "FID_F,
+				FID_P(&pc->pc_dix_pool->po_id));
+	}
 	return M0_RC(rc);
 }
 
