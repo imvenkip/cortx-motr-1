@@ -137,11 +137,12 @@ rebalance_abort()
         echo "wait for sns Re-balance abort (1)"
         spiel_wait_for_sns_rebalance || return $?
 
-	echo "Set Failure devices: $faile_device1 $fail_device2"
-	disk_state_set "failed" $fail_device1 $fail_device2 || return $?
-        sleep 2
+	echo "Set $faile_device1 back to "repaired""
+	disk_state_set "repaired" $fail_device1 || return $?
+	echo "Set $fail_device2 to "failed""
+	disk_state_set "failed" $fail_device2 || return $?
+	disk_state_set "repair" $fail_device2 || return $?
 
-	disk_state_set "repair" $fail_device1 $fail_device2 || return $?
 	echo "Start SNS repair again"
 	spiel_sns_repair_start
 	sleep 2
@@ -150,7 +151,7 @@ rebalance_abort()
 	spiel_wait_for_sns_repair || return $?
 	verify || return $?
 
-	disk_state_set "repaired" $fail_device1 $fail_device2 || return $?
+	disk_state_set "repaired" $fail_device2 || return $?
 
 	disk_state_get $fail_device1 $fail_device2 || return $?
 

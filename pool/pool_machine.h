@@ -422,6 +422,7 @@ M0_INTERNAL int m0_poolmach_sns_rebalance_spare_query(struct m0_poolmach *pm,
 M0_INTERNAL void m0_poolmach_version_dump(struct m0_poolmach_versions *v);
 M0_INTERNAL void m0_poolmach_event_dump(const struct m0_poolmach_event *e);
 M0_INTERNAL void m0_poolmach_event_list_dump(struct m0_poolmach *pm);
+M0_INTERNAL void m0_poolmach_event_list_dump_locked(struct m0_poolmach *pm);
 M0_INTERNAL void m0_poolmach_device_state_dump(struct m0_poolmach *pm);
 M0_INTERNAL uint64_t m0_poolmach_nr_dev_failures(struct m0_poolmach *pm);
 

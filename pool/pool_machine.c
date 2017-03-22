@@ -693,7 +693,6 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach       *pm,
 		break;
 	case M0_PNDS_SNS_REBALANCING:
 		if (!M0_IN(event->pe_state, (M0_PNDS_ONLINE,
-					     M0_PNDS_FAILED,
 					     M0_PNDS_SNS_REPAIRED)))
 			return M0_ERR(-EINVAL);
 		break;
@@ -761,14 +760,11 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach       *pm,
 		  * Alloc a sns repair spare slot only once for
 		  * M0_PNDS_ONLINE->M0_PNDS_FAILED or
 		  * M0_PNDS_OFFLINE->M0_PNDS_FAILED transition.
-		  * A device can also transit to M0_PNDS_FAILED state
-		  * from M0_PNDS_SNS_REBALANCING state as well.
 		  */
 		if (M0_IN(old_state, (M0_PNDS_UNKNOWN, M0_PNDS_ONLINE,
 				      M0_PNDS_OFFLINE)))
 			spare_usage_arr_update(pm, event);
-		if (!M0_IN(old_state, (M0_PNDS_OFFLINE, M0_PNDS_SNS_REPAIRED,
-				       M0_PNDS_SNS_REBALANCING)))
+		if (!M0_IN(old_state, (M0_PNDS_OFFLINE, M0_PNDS_SNS_REPAIRING)))
 			M0_CNT_INC(state->pst_nr_failures);
 		if (!pool_failed_devs_tlink_is_in(pd) &&
 		    !disk_is_in(&pool->po_failed_devices, pd))
@@ -822,11 +818,16 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach       *pm,
 		}
 	}
 	/** @todo Add ADDB error message here. */
-	if (state->pst_nr_failures > state->pst_max_device_failures)
-		M0_LOG(M0_DEBUG, FID_F": nr_failures:%d event_index:%d"
-				"event_state:%d", FID_P(&pm->pm_pver->pv_id),
-				state->pst_nr_failures, event->pe_index,
+	if (state->pst_nr_failures > state->pst_max_device_failures) {
+		M0_LOG(M0_ERROR, FID_F": nr_failures:%d max_failures:%d"
+				"event_index:%d event_state:%d",
+				FID_P(&pm->pm_pver->pv_id),
+				state->pst_nr_failures,
+				state->pst_max_device_failures,
+				event->pe_index,
 				event->pe_state);
+		m0_poolmach_event_list_dump_locked(pm);
+	}
 	pm->pm_pver->pv_is_dirty = state->pst_nr_failures > 0;
 	/* Finally: unlock the poolmach */
 	m0_rwlock_write_unlock(&pm->pm_lock);
@@ -1263,17 +1264,30 @@ M0_INTERNAL void m0_poolmach_event_dump(const struct m0_poolmach_event *e)
 
 M0_INTERNAL void m0_poolmach_event_list_dump(struct m0_poolmach *pm)
 {
-	struct m0_tl                  *head = &pm->pm_state->pst_events_list;
-	struct m0_poolmach_event_link *scan;
-
 	M0_LOG(POOL_TRACE_LEVEL, ">>>>>");
 	m0_rwlock_read_lock(&pm->pm_lock);
-	m0_tl_for(poolmach_events, head, scan) {
-		m0_poolmach_event_dump(&scan->pel_event);
-		m0_poolmach_version_dump(&scan->pel_new_version);
-	} m0_tl_endfor;
+	m0_poolmach_event_list_dump_locked(pm);
 	m0_rwlock_read_unlock(&pm->pm_lock);
 	M0_LOG(POOL_TRACE_LEVEL, "=====");
+}
+
+M0_INTERNAL void m0_poolmach_event_list_dump_locked(struct m0_poolmach *pm)
+{
+	struct m0_tl                  *head = &pm->pm_state->pst_events_list;
+	struct m0_poolmach_event_link *scan;
+	struct m0_poolmach_event      *e;
+        uint32_t                       i;
+
+	m0_tl_for (poolmach_events, head, scan) {
+		e = &scan->pel_event;
+		i = e->pe_index;
+		if (e->pe_type == M0_POOL_DEVICE &&
+		    pm->pm_state->pst_devices_array[i].pd_state !=
+		    M0_PNDS_UNKNOWN)
+			M0_LOG(M0_WARN, "device[%d]"FID_F"state: %d", i,
+			       FID_P(&pm->pm_state->pst_devices_array[i].pd_id),
+			       e->pe_state);
+	} m0_tl_endfor;
 }
 
 M0_INTERNAL void m0_poolmach_device_state_dump(struct m0_poolmach *pm)
