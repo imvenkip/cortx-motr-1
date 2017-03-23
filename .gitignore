@@ -95,6 +95,7 @@ modules.builtin
 #
 *.gccxml
 *_xc.[hc]
+*_xc.yml
 *_ff.[hc]
 
 #

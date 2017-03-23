@@ -44,16 +44,26 @@
 #define M0_XCA_SEQUENCE M0_XC_ATTR("atype", "M0_XA_SEQUENCE")
 #define M0_XCA_ARRAY    M0_XC_ATTR("atype", "M0_XA_ARRAY")
 #define M0_XCA_UNION    M0_XC_ATTR("atype", "M0_XA_UNION")
+#define M0_XCA_BLOB     M0_XC_ATTR("atype", "M0_XA_BLOB")
+#define M0_XCA_ENUM     M0_XC_ATTR("enum",  "nonce")
 
-#define M0_XCA_ENUM  M0_XC_ATTR("enum", "nonce")
-
-/**
- * Shortened versions of M0_XC_ATTR for TAG and OPAQUE attributes.
- */
 #define M0_XCA_OPAQUE(value)   M0_XC_ATTR("opaque", value)
 #define M0_XCA_TAG(value)      M0_XC_ATTR("tag", value)
-#define M0_XCA_FENUM(value)      M0_XC_ATTR("fenum", #value)
-#define M0_XCA_FBITMASK(value)      M0_XC_ATTR("fbitmask", #value)
+#define M0_XCA_FENUM(value)    M0_XC_ATTR("fenum", #value)
+#define M0_XCA_FBITMASK(value) M0_XC_ATTR("fbitmask", #value)
+
+/**
+ * Set "xcode domain" attribute on a struct. The domain is used in `m0protocol`
+ * utility to separate xcode structs into groups.
+ *
+ * @param  value  a domain name, valid values are 'be', 'rpc', 'conf' or any
+ *                combination of those separated by a '|' (pipe symbol) without
+ *                spaces, e.g. 'be|rpc|conf'.
+ *
+ * @example  M0_XCA_DOMAIN(be)
+ *           M0_XCA_DOMAIN(be|conf)
+ */
+#define M0_XCA_DOMAIN(value)   M0_XC_ATTR("domain", #value)
 
 /** @} end of xcode group */
 

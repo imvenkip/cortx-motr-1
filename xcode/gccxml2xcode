@@ -55,6 +55,10 @@ BEGIN {
     &$check_module_availability('XML/LibXML.pm', 'libxml-libxml-perl',
                                                  'perl-XML-LibXML');
 
+    # check YAML::XS module
+    &$check_module_availability('YAML/XS.pm', 'libyaml-libyaml-perl',
+                                              'perl-YAML-LibYAML');
+
     # check List::MoreUtils module
     &$check_module_availability('List/MoreUtils.pm', 'liblist-moreutils-perl',
                                                      'perl-List-MoreUtils');
@@ -82,13 +86,16 @@ use Pod::Usage;
 use Fatal qw( open close );
 use English qw( -no_match_vars ); # avoids regex performance penalty
 use Fcntl qw( :flock );
+use Scalar::Util qw( looks_like_number );
 
 # external modules (not included into base perl distribution)
 use XML::LibXML;
+use YAML::XS;
+use List::Util qw[min max];
 use List::MoreUtils qw( none );
 use File::Slurp;  # TODO: use 'qw( :std :edit )' when moved to Centos7
 #use Data::Dumper;
-use List::Util qw[min max];
+#use Devel::StackTrace;
 
 # ###############################################
 #  Parser
@@ -131,7 +138,7 @@ sub get_member_nodes_of
     }
     # Handle enumerations.
     for my $enum_val ($node->findnodes('./EnumValue')) {
-	push @member_nodes, $enum_val;
+        push @member_nodes, $enum_val;
     }
     return @member_nodes;
 }
@@ -140,7 +147,11 @@ sub get_type_node_of
 {
     my $node = shift;
 
-    my $type_id     = $node->getAttribute('type');
+    my $type_id = $node->getAttribute('type');
+
+    return
+        if !defined $type_id;
+
     my ($type_node) = $dom->findnodes(qq{//*[\@id='$type_id']});
 
     return $type_node;
@@ -160,20 +171,33 @@ sub set_item_attr
 {
     my ($item, $node) = @_;
 
-    if (defined (my $item_attributes = $node->getAttribute('attributes'))) {
+    my $item_attr_string = $node->getAttribute('attributes') // '';
+    my $type_node        = get_type_node_of($node);
 
-        my ($attr_name, $attr_value)
-            = $item_attributes =~ / gccxml \( (\w+) , (\w+) \) /xms;
+    if (defined $type_node) {
+        $item_attr_string .= $type_node->getAttribute('attributes') // '';
+    }
 
-        croak "Incorrect format of gccxml attributes near " . $item->{'name'}
-              . ' at ' . get_file_name_of($node) . ':'
-              . $node->getAttribute('line')
-            if !defined $attr_name || !defined $attr_value;
+    if ($item_attr_string ne '') {
+        while ($item_attr_string =~ / gccxml \( (?<name>\w+) , (?<value>[\w|]+) \) /xmsg)
+        {
+            croak "Incorrect format of gccxml attributes near " . $item->{'name'}
+                . ' at ' . get_file_name_of($node) . ':'
+                . $node->getAttribute('line')
+                if !defined $+{name} || !defined $+{value};
 
-        $item->{'attribute'}->{$attr_name} = $attr_value;
+            $item->{'attribute'}{$+{name}} = $+{value};
 
-        if ($attr_name =~ /^xc_opaque$/xms) {
-            $item->{'xc_type'} = '&M0_XT_OPAQUE';
+            if ($+{name} eq 'xc_tag' && !looks_like_number($+{value})) {
+                my ($enum_node) = $dom->findnodes(qq{//EnumValue[\@name='$+{value}']});
+
+                die "Error: failed to find definition of '$+{value}' enum value"
+                    . " in '$header_file_path', did you forget to include a"
+                    . " header which defines it?\n"
+                    if !defined $enum_node;
+
+                $item->{'attribute'}{'xc_tag_num'} = $enum_node->getAttribute('init');
+            }
         }
     }
 }
@@ -191,6 +215,7 @@ sub check_xc_atype_invariant
         M0_XA_ARRAY     => { min_members => 1, max_members => 1 },
         M0_XA_TYPEDEF   => { min_members => 1, max_members => 1 },
         M0_XA_OPAQUE    => { min_members => 0, max_members => 0 },
+        M0_XA_BLOB      => { min_members => 1, max_members => 1 },
         M0_XA_ATOM      => { min_members => 0, max_members => 0 },
     );
 
@@ -225,14 +250,17 @@ sub check_xc_atype_invariant
 
 sub get_info_about
 {
-    my $node = shift;
+    my $node  = shift;
+    my %param = (%{{recursive => 1, xc_atype => ''}}, @_);
 
     my $item->{'name'}   = $node->getAttribute('name');
        $item->{'offset'} = $node->getAttribute('offset');
     my $type_node        = get_type_node_of($node);
 
+    set_item_attr($item, $node);
+
     given ($type_node->nodeName()) {
-        when (/FundamentalType/) {
+        when ('FundamentalType') {
             $item->{'size'}    = $type_node->getAttribute('size');
             $item->{'type'}    = $type_node->getAttribute('name');
 
@@ -247,45 +275,73 @@ sub get_info_about
                                     : '&M0_XT_U' . $item->{'size'};
         }
 
-        when (/Typedef/) {
-            $item->{'size'}    = get_info_about($type_node)->{'size'};
+        when ('Typedef') {
+            $item->{'size'}    = get_info_about($type_node, %param)->{'size'};
             $item->{'type'}    = $type_node->getAttribute('name');
-            $item->{'xc_type'} = get_info_about($type_node)->{'xc_type'};
+            $item->{'xc_type'} = get_info_about($type_node, %param)->{'xc_type'};
         }
 
-        when (/CvQualifiedType/) {
-            $item->{'size'}    = get_info_about($type_node)->{'size'};
-            $item->{'type'}    = 'const ' . get_info_about($type_node)->{'type'};
-            $item->{'xc_type'} = get_info_about($type_node)->{'xc_type'};
+        when ('CvQualifiedType') {
+            $item->{'size'}    = get_info_about($type_node, %param)->{'size'};
+            $item->{'type'}    = 'const ' . get_info_about($type_node, %param)->{'type'};
+            $item->{'xc_type'} = get_info_about($type_node, %param)->{'xc_type'};
         }
 
-        when (/PointerType/) {
-            $item->{'size'}    = $type_node->getAttribute('size');
-            $item->{'type'}    = get_info_about($type_node)->{'type'} . '*';
+        when ('PointerType') {
+            my $tn_info = get_info_about($type_node, %param, recursive => 0);
+
+            $item->{'size'} = $type_node->getAttribute('size');
+            $item->{'type'} = $tn_info->{'type'} . '*';
+
             $item->{'xc_type'}
-                = get_info_about($type_node)->{'type'} eq 'void'
-                    # pointer to 'void' is treated specially, because 'void'
-                    # type doesn't have size, but 'void*' is a commonly used
-                    # type for buffers; in order to be able to serialize such
-                    # buffers with xcode, we set it the same as pointer to
-                    # 'unsigned char' or 'u8'.
-                    ? '&M0_XT_U8'
-                    : get_info_about($type_node)->{'xc_type'};
+                  # if parent structure is an xcode sequence, the xcode type of
+                  # the pointed object should be used unless it's a pointer to
+                  # 'void'
+                = $param{'xc_atype'} eq 'M0_XA_SEQUENCE'
+                  # pointer to 'void' is treated specially, because 'void' type
+                  # doesn't have size, but 'void*' is a commonly used type for
+                  # buffers; in order to be able to serialize such buffers with
+                  # xcode, we set it the same as a pointer to 'unsigned char'
+                  # or 'u8'
+                ? ( $tn_info->{'type'} eq 'void' ? '&M0_XT_U8' : $tn_info->{'xc_type'} )
+                  # otherwise a pointer is encoded as a 'uint64_t' value, this
+                  # is currently useful only for m0protocol, xcode runtime
+                  # doesn't support pointers anywhere except in a sequence or
+                  # when it's marked as opaque
+                : '&M0_XT_U64';
+
+            if ($tn_info->{'type'} ne 'void') {
+                $item->{'attribute'}{'xc_domain'} = $tn_info->{'attribute'}{'xc_domain'};
+            }
         }
 
-        when (/ArrayType/) {
+        when ('FunctionType') {
+            # this type is used for pointers to a function, for now it's
+            # hard-coded as a 'void*' of size 64bits; this won't work in
+            # run-time for encoding/decoding because core xcode implementation
+            # doesn't support it, but this is enough to provide meta-information
+            # to `m0protocol`
+            $item->{'size'}    = 64;
+            $item->{'type'}    = 'void';
+            $item->{'xc_type'} = '&M0_XT_U64';
+        }
+
+        when ('ArrayType') {
             $item->{'size'} = $type_node->getAttribute('size');
 
-            if ($item->{'name'} eq 'm0_void_t') {
+            if ($item->{'name'} eq 'm0_void_t' or $item->{'size'} == 0) {
                 # a special-case array `typedef char m0_void_t[0];` which is an
                 # xcode stub to trick C compiler, it requires these special
                 # handling:
                 #   1. 'xc_type' should be '&M0_XT_VOID'
                 #   2. 'type' field should be absent
+                # OR a gcc extension for zero-length array field at the end of a
+                # struct, which should be treated the same way as 'm0_void_t' to
+                # avoid incorrect struct size calculation
                 $item->{'xc_type'} = '&M0_XT_VOID';
             }
             else {
-                my $tn_info = get_info_about($type_node);
+                my $tn_info = get_info_about($type_node, %param);
 
                 $item->{'xc_type'} = $tn_info->{'xc_type'};
                 $item->{'type'}    = $tn_info->{'type'};
@@ -306,12 +362,19 @@ sub get_info_about
 
             # if sturct/union is defined in current header file (the one we
             # are processing), then also get information about its members
-            if ($type_node->getAttribute('file') eq $header_file_id) {
+            if ($type_node->getAttribute('file') eq $header_file_id && $param{'recursive'})
+            {
                 my @member_nodes = get_member_nodes_of($type_node);
 
                 for my $member_node (@member_nodes) {
-                    push @{$item->{'members'}}, get_info_about($member_node);
+                    my $atype = $item->{'attribute'}->{'xc_atype'};
+                    push @{$item->{'members'}}
+                         , get_info_about($member_node
+                                          , defined $atype ? (xc_atype => $atype) : ());
                 }
+            }
+            else {
+                $item->{'members'} = [];
             }
         }
 
@@ -320,7 +383,9 @@ sub get_info_about
         }
     }
 
-    set_item_attr($item, $node);
+    if (exists $item->{'attribute'}{'xc_opaque'}) {
+        $item->{'xc_type'} = '&M0_XT_OPAQUE';
+    }
 
     return $item;
 }
@@ -331,8 +396,30 @@ sub count_members_of
 
     # count union fields as a direct members of enclosing structure, so each
     # union is counted as many times as many members it has
-    return scalar map { $_->{'type'} =~ /union/ ? @{$_->{'members'}} : $_ }
+    return scalar map {
+                        defined $_->{'type'} && $_->{'type'} =~ /union/
+                        ? @{$_->{'members'}} : $_
+                      }
                       @{$item->{'members'}};
+}
+
+sub flags_of
+{
+    my $item = shift;
+
+    my @flags;
+
+    if (defined $item->{'attribute'}{'xc_domain'}) {
+        push @flags,
+             map { 'M0_XCODE_TYPE_FLAG_DOM_' . uc $_ }
+             split(/\|/, $item->{'attribute'}{'xc_domain'});
+    }
+
+    if (!@flags) {
+        push @flags, 0;
+    }
+
+    return join ' | ', @flags;
 }
 
 sub get_global_namespace_id
@@ -387,24 +474,47 @@ sub init_xml_parser
 
 sub process_node
 {
-    my ($item, $node, $enump) = @_;
+    my ($node, $enump) = @_;
 
+    my $item;
     $item->{'type'}    = lc $node->nodeName();
     $item->{'name'}    = $node->getAttribute('name');
     $item->{'size'}    = $node->getAttribute('size');
 
     set_item_attr($item, $node);
 
-    my @member_nodes = get_member_nodes_of($node);
+    my $atype = $item->{'attribute'}->{'xc_atype'};
 
-    # get information about all members
-    for my $member_node (@member_nodes) {
-	push @{$item->{'members'}},
-	    $enump ? $member_node : get_info_about($member_node);
+    if (defined $atype && $atype eq 'M0_XA_BLOB') {
+        # ignore real members of a "blob" structure and create a single fake
+        # array member with size of the whole structure
+        $item->{'is_blob'} = 1;
+        $item->{'attribute'}->{'xc_atype'} = 'M0_XA_ARRAY';
+        $item->{'members'} = [{
+                name      => 'blob',
+                xc_type   => '&M0_XT_U8',
+                offset    => 0,
+                size      => $item->{'size'},
+                attribute => {
+                    # gccxml provides offset and size values in bits
+                    xc_tag   => $item->{'size'} / 8,
+                },
+        }];
+    }
+    else {
+        # get information about all members
+        my @member_nodes = get_member_nodes_of($node);
+        for my $member_node (@member_nodes) {
+            push @{$item->{'members'}}
+            , $enump ? $member_node
+            :          get_info_about($member_node
+                , defined $atype ? (xc_atype => $atype) : ());
+        }
     }
 
-    $item->{'scope'} = $node->getAttribute('context')
-	eq get_global_namespace_id() ? '' : 'static ';
+    $item->{'scope'}
+        = $node->getAttribute('context') eq get_global_namespace_id() ? '' : 'static ';
+
     return $item;
 }
 
@@ -423,11 +533,9 @@ sub build_item_list
     my @items;
 
     for my $struct_node (@struct_nodes) {
-        my $item;
-
-	$item = process_node($item, $struct_node, 0);
+        my $item = process_node($struct_node, 0);
         check_xc_atype_invariant($item);
-	push @items, $item;
+        push @items, $item;
     }
 
     my @enum_nodes
@@ -436,10 +544,8 @@ sub build_item_list
                                       and contains(\@attributes, 'gccxml')]});
     my @enums;
     for my $enum_node (@enum_nodes) {
-        my $enum;
-
-	$enum = process_node($enum, $enum_node, 1);
-	push @enums, $enum;
+        my $enum = process_node($enum_node, 1);
+        push @enums, $enum;
     }
     return (\@items, \@enums);
 }
@@ -485,13 +591,25 @@ sub gen_xc_h
 
     # forward declarations of xcode type pointers for all global structures
     for my $item (grep { $_->{'scope'} !~ /static/ } @$items) {
+        $xcode .= "#if !defined(__KERNEL__)\n"
+                  if defined $item->{'attribute'}{'xc_domain'}
+                     && $item->{'attribute'}{'xc_domain'} eq 'be';
         $xcode .= "extern struct m0_xcode_type *$item->{name}_xc;\n";
+        $xcode .= "#endif\n"
+                  if defined $item->{'attribute'}{'xc_domain'}
+                     && $item->{'attribute'}{'xc_domain'} eq 'be';
     }
     $xcode .= "\n";
 
     # prototypes of init function for all global structures
     for my $item (@$items) {
+        $xcode .= "#if !defined(__KERNEL__)\n"
+                  if defined $item->{'attribute'}{'xc_domain'}
+                     && $item->{'attribute'}{'xc_domain'} eq 'be';
         $xcode .= "M0_INTERNAL void m0_xc_$item->{name}_struct_init(void);\n";
+        $xcode .= "#endif\n"
+                  if defined $item->{'attribute'}{'xc_domain'}
+                     && $item->{'attribute'}{'xc_domain'} eq 'be';
     }
     $xcode .= "\n";
 
@@ -546,7 +664,13 @@ sub gen_xc_c_type_struct_decl
     my $xcode = "";
 
     for my $item (@items) {
+        $xcode .= "#if !defined(__KERNEL__)\n"
+                  if defined $item->{'attribute'}{'xc_domain'}
+                     && $item->{'attribute'}{'xc_domain'} eq 'be';
         $xcode .= $item->{'scope'} . 'struct m0_xcode_type *' . $item->{'name'} . "_xc;\n";
+        $xcode .= "#endif\n"
+                  if defined $item->{'attribute'}{'xc_domain'}
+                     && $item->{'attribute'}{'xc_domain'} eq 'be';
     }
 
     return $xcode;
@@ -561,9 +685,15 @@ sub gen_xc_c_opaque_func_decl
     my $gen_opaque_func_decl = sub {
         my $item = shift;
         if (defined $item->{'attribute'} && defined $item->{'attribute'}->{'xc_opaque'}) {
+            $xcode .= "#if !defined(__KERNEL__)\n"
+                      if defined $item->{'attribute'}{'xc_domain'}
+                         && $item->{'attribute'}{'xc_domain'} eq 'be';
             $xcode .= 'int ' . $item->{'attribute'}->{'xc_opaque'}
                       . "(const struct m0_xcode_obj *par,\n\t\t"
                       . "const struct m0_xcode_type **out);\n";
+            $xcode .= "#endif\n"
+                      if defined $item->{'attribute'}{'xc_domain'}
+                          && $item->{'attribute'}{'xc_domain'} eq 'be';
         }
     };
 
@@ -586,7 +716,11 @@ sub gen_xc_c_helper_type_struct_def
         my $xc_atype       = $item->{'attribute'}->{'xc_atype'};
         my $scope          = $item->{'scope'};
         my $members_number = count_members_of($item);
+        my $flags          = flags_of($item);
 
+        $xcode .= "#if !defined(__KERNEL__)\n"
+                  if defined $item->{'attribute'}{'xc_domain'}
+                     && $item->{'attribute'}{'xc_domain'} eq 'be';
         $xcode .= <<"END_STRUCT"
 static struct _${name}_s {
 \tstruct m0_xcode_type  _type;
@@ -597,15 +731,19 @@ static struct _${name}_s {
 \t\t.xct_name   = "$name",
 \t\t.xct_sizeof = sizeof ($type $name),
 \t\t.xct_nr     = $members_number,
+\t\t.xct_flags  = $flags,
 \t}
 };
 
 ${scope}struct m0_xcode_type *${name}_xc = &_${name}._type;
 M0_BASSERT(offsetof(struct _${name}_s, _child[0]) ==
 \toffsetof(struct m0_xcode_type, xct_child[0]));
-
 END_STRUCT
 ;
+        $xcode .= "#endif\n"
+                  if defined $item->{'attribute'}{'xc_domain'}
+                     && $item->{'attribute'}{'xc_domain'} eq 'be';
+        $xcode .= "\n";
     }
 
     return $xcode . "\n";
@@ -629,7 +767,17 @@ sub gen_xc_c_compiletime_checks
         # generated C code)
         my $size = $item->{'size'} / 8;
 
-        $xcode .= "M0_BASSERT(sizeof($type $name) == ${size}U);\n\n";
+        $xcode .= "#if !defined(__KERNEL__)\n"
+                  if defined $item->{'attribute'}{'xc_domain'}
+                     && $item->{'attribute'}{'xc_domain'} eq 'be';
+        $xcode .= "M0_BASSERT(sizeof($type $name) == ${size}U);\n";
+        $xcode .= "#endif\n"
+                  if defined $item->{'attribute'}{'xc_domain'}
+                     && $item->{'attribute'}{'xc_domain'} eq 'be';
+        $xcode .= "\n";
+
+        return $xcode . "\n"
+            if defined $item->{'is_blob'};
 
         for my $member (@{$item->{'members'}}) {
 
@@ -642,14 +790,20 @@ sub gen_xc_c_compiletime_checks
 
                 my $child = shift;
 
+            $xcode .= "#if !defined(__KERNEL__)\n"
+                      if defined $item->{'attribute'}{'xc_domain'}
+                         && $item->{'attribute'}{'xc_domain'} eq 'be';
             $xcode .= <<"END_BASSERT"
 M0_BASSERT(sizeof (($type $name *)0)->$member->{'name'}$union_field == ${member_size}U);
 M0_BASSERT(offsetof($type $name, $member->{'name'}$union_field) == ${member_offset}U);
 END_BASSERT
 ;
+            $xcode .= "#endif\n"
+                      if defined $item->{'attribute'}{'xc_domain'}
+                         && $item->{'attribute'}{'xc_domain'} eq 'be';
             };
 
-            if ($member->{'type'} =~ /union/) {
+            if (defined $member->{'type'} && $member->{'type'} =~ /union/) {
                 # if member type is union, than generate code for each
                 # field of the union instead of union itself
                 for my $union_member (@{$member->{'members'}}) {
@@ -677,7 +831,11 @@ sub gen_xc_c_init_func_for
 {
     my $item = shift;
 
-    my $xcode = "M0_INTERNAL void m0_xc_$item->{'name'}_struct_init(void)\n{\n";
+    my $xcode;
+    $xcode  = "#if !defined(__KERNEL__)\n"
+              if defined $item->{'attribute'}{'xc_domain'}
+                 && $item->{'attribute'}{'xc_domain'} eq 'be';
+    $xcode .= "M0_INTERNAL void m0_xc_$item->{'name'}_struct_init(void)\n{\n";
     my $child_idx = 0;
 
     for my $member (@{$item->{'members'}}) {
@@ -694,6 +852,8 @@ sub gen_xc_c_init_func_for
             my $fbitmask = 'NULL';
             my $fread = 'NULL';
             my $fdecor = 'NULL';
+            my $offset = defined $item->{'is_blob'} ? $child->{'offset'}
+                       : "offsetof($item->{'type'} $item->{'name'}, $member->{'name'}$union_field)";
 
             if (defined $child->{'attribute'}) {
                 $xc_tag = $child->{'attribute'}->{'xc_tag'} // 0;
@@ -713,13 +873,30 @@ sub gen_xc_c_init_func_for
                 $fread = "&m0_xcode_bitmask_field_read";
                 $fdecor = "&m0_xc_" . $fbitmask . "_enum";
             }
+
+            my $before_type = '';
+            my $after_type  = '';
+            if (defined $child->{'attribute'}{'xc_domain'}
+                && $child->{'attribute'}{'xc_domain'} eq 'be')
+            {
+                $before_type = <<"END_BEFORE_TYPE"
+#ifdef __KERNEL__
+\t\t.xf_type   = &M0_XT_VOID,
+#else
+END_BEFORE_TYPE
+;
+                $after_type = "#endif";
+            }
+
             $xcode .= <<"END_CHILD_INIT"
 \t_$item->{'name'}._child[$child_idx] = (struct m0_xcode_field) {
 \t\t.xf_name   = "$child->{'name'}",
+$before_type
 \t\t.xf_type   = $child->{'xc_type'},
+$after_type
 \t\t.xf_tag    = $xc_tag,
 \t\t.xf_opaque = $opaque_func_name,
-\t\t.xf_offset = offsetof($item->{'type'} $item->{'name'}, $member->{'name'}$union_field),
+\t\t.xf_offset = $offset,
 \t\t.xf_read   = $fread,
 \t\t.xf_decor  = {
 \t\t\t[M0_XCODE_DECOR_READ] = $fdecor
@@ -727,13 +904,17 @@ sub gen_xc_c_init_func_for
 \t};
 END_CHILD_INIT
 ;
+            $xcode .= "#if !defined(__KERNEL__)\n"
+                      if defined $child->{'attribute'}{'xc_domain'}
+                         && $child->{'attribute'}{'xc_domain'} eq 'be';
+
             # call XC init function for child's type
             given($child->{'xc_type'}) {
                 when (/M0_XT_(U\d{1,2}|VOID|OPAQUE)/) {
-                    $xcode .= "\tm0_xc_" . lc($1) . "_init();\n\n";
+                    $xcode .= "\tm0_xc_" . lc($1) . "_init();\n";
                 }
                 when (/^(.*)_xc$/) {
-                    $xcode .= "\tm0_xc_${1}_struct_init();\n\n";
+                    $xcode .= "\tm0_xc_${1}_struct_init();\n";
                 }
                 default {
                     croak "Unhandled xc_type in child init function generation for"
@@ -741,10 +922,15 @@ END_CHILD_INIT
                 }
             }
 
+            $xcode .= "#endif\n"
+                      if defined $child->{'attribute'}{'xc_domain'}
+                         && $child->{'attribute'}{'xc_domain'} eq 'be';
+            $xcode .= "\n";
+
             $child_idx++;
         };
 
-        if ($member->{'type'} =~ /union/) {
+        if (defined $member->{'type'} && $member->{'type'} =~ /union/) {
             # if member type is union, than generate init code for each
             # field of the union instead of union itself
             for my $union_member (@{$member->{'members'}}) {
@@ -759,7 +945,11 @@ END_CHILD_INIT
         }
     }
     $xcode .= "\tM0_POST(m0_xcode_type_invariant($item->{'name'}_xc));";
-    $xcode .= "\n}\n\n";
+    $xcode .= "\n}\n";
+    $xcode .= "#endif\n"
+              if defined $item->{'attribute'}{'xc_domain'}
+                 && $item->{'attribute'}{'xc_domain'} eq 'be';
+    $xcode .= "\n";
 
     return $xcode;
 }
@@ -777,7 +967,13 @@ sub gen_xc_c_init_func
 
     $xcode .= "M0_INTERNAL void m0_xc_${xcode_id}_init(void)\n{\n";
     for my $item (@items) {
+        $xcode .= "#if !defined(__KERNEL__)\n"
+                  if defined $item->{'attribute'}{'xc_domain'}
+                     && $item->{'attribute'}{'xc_domain'} eq 'be';
         $xcode .= "\tm0_xc_$item->{name}_struct_init();\n";
+        $xcode .= "#endif\n"
+                  if defined $item->{'attribute'}{'xc_domain'}
+                     && $item->{'attribute'}{'xc_domain'} eq 'be';
     }
     $xcode .= "}\n\n";
 
@@ -799,19 +995,20 @@ sub gen_xc_c_enums
     for my $enum (@enums) {
         my $name           = $enum->{'name'};
         my $members_number = 0 + @{$enum->{'members'}};
-	my $idx            = 0;
-	my $maxlen         = -1;
+        my $idx            = 0;
+        my $maxlen         = -1;
 
         $xcode .= "const struct m0_xcode_enum_val ${name}_data[] = {\n";
-	for my $val (@{$enum->{'members'}}) {
-	    $xcode .= <<"END_VAL"
+        for my $val (@{$enum->{'members'}}) {
+            $xcode .= <<"END_VAL"
 	{ .xev_idx = $idx, .xev_name = "$val->{name}", .xev_val = $val->{init} },
 END_VAL
-		;
-	    $idx = $idx + 1;
-	    $maxlen = max($maxlen, length($val->{name}));
-	}
-	$xcode .= <<"END_ENUM"
+;
+            $idx = $idx + 1;
+            $maxlen = max($maxlen, length($val->{name}));
+        }
+
+        $xcode .= <<"END_ENUM"
 	{ .xev_idx = -1, .xev_name = "Invalid value of enum '$name'." }
 };
 
@@ -934,7 +1131,7 @@ sub update_xlist_file
     my $blk_end         = quotemeta $xlist_block_end;
     my $blk_placeholder = quotemeta $xlist_block_placeholder;
     my $xlist           = gen_xlist($items, $enums);
-    my $lock            = xlist_lock('/tmp/gccxml2xcode.lock');
+    my $lock            = xlist_lock('.gccxml2xcode.lock');
 
     # if xlist file doesn't exist, create it
     if (! -e $cli_option{'list_file_name'}) {
@@ -1004,6 +1201,9 @@ sub process_cli_options
     if ($cli_option{'output_prefix'} eq '-') {
         $cli_option{'output_h_file_name'} = '-';
         $cli_option{'output_c_file_name'} = '-';
+    }
+    else {
+        $cli_option{'output_items_file_name'} = $cli_option{'output_prefix'} . '_xc.yml';
     }
 }
 
@@ -1082,6 +1282,14 @@ sub main
     # add records to the list file
     if (defined $cli_option{'list_file_name'}) {
         update_xlist_file($items, $enums);
+    }
+
+    # save records for further processing (used for protocol description generation)
+    if (defined $cli_option{'output_items_file_name'}) {
+        open my $dump_file, ">$cli_option{'output_items_file_name'}";
+        print {$dump_file} Dump($items)
+            or croak "Failed to write '$dump_file' file";
+        close $dump_file;
     }
 }
 

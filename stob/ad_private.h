@@ -25,7 +25,8 @@
 
 #include "fid/fid.h"       /* m0_fid */
 #include "fid/fid_xc.h"    /* m0_fid_xc */
-#include "be/extmap_xc.h"  /* m0_be_emap_seg */
+#include "be/extmap.h"     /* m0_be_emap_seg */
+#include "be/extmap_xc.h"
 #include "stob/stob.h"     /* m0_stob_id */
 #include "stob/stob_xc.h"  /* m0_stob_id */
 

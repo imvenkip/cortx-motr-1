@@ -72,14 +72,14 @@ static struct m0_xcode_type **xt[] = {
 
 static void field_print(const struct m0_xcode_field *f, int i);
 static void type_print(const struct m0_xcode_type *xt);
-static void protocol_print(void);
+static void protocol_print(int dom);
 static int  cmp(const void *p0, const void *p1);
 
 static void type_print(const struct m0_xcode_type *xt)
 {
 	int i;
 
-	printf("\n%-30s %8.8s %4zi",
+	printf("\n%-30s %8.8s %6zi",
 	       xt->xct_name,
 	       xt->xct_aggr == M0_XA_ATOM ?
 	       m0_xcode_atom_type_name[xt->xct_atype] :
@@ -90,14 +90,29 @@ static void type_print(const struct m0_xcode_type *xt)
 	printf("\nend %s", xt->xct_name);
 }
 
-static void protocol_print(void)
+static const char *xcode_domain_name = "all";
+
+static void protocol_print(int dom)
 {
+	const struct m0_xcode_type *xtype;
+	size_t total_structs = ARRAY_SIZE(xt);
 	int i;
 
 	qsort(xt, ARRAY_SIZE(xt), sizeof xt[0], &cmp);
-	printf("\nMero binary protocol.\n");
-	for (i = 0; i < ARRAY_SIZE(xt); ++i)
-		type_print(*(xt[i]));
+	if (dom != 0)
+		for (i = 0, xtype = *(xt[0]), total_structs = 0;
+		     i < ARRAY_SIZE(xt);
+		     xtype = *(xt[++i]))
+			if (xtype->xct_flags & dom)
+				total_structs++;
+
+	printf("Mero binary protocol\n");
+	printf("Domains: %s\n", xcode_domain_name);
+	printf("Total structures: %zu\n", total_structs);
+
+	for (i = 0, xtype = *(xt[0]); i < ARRAY_SIZE(xt); xtype = *(xt[++i]))
+		if (dom == 0 /* any domain */ || xtype->xct_flags & dom)
+			type_print(xtype);
 	printf("\n");
 }
 
@@ -111,7 +126,7 @@ static int cmp(const void *p0, const void *p1)
 
 static void field_print(const struct m0_xcode_field *f, int i)
 {
-	printf("\n    %4i %-20s %-20s %4"PRIi32" [%"PRIx64"]",
+	printf("\n    %4i %-20s %-20s %4"PRIi32" [%#"PRIx64"]",
 	       i, f->xf_name, f->xf_type->xct_name, f->xf_offset, f->xf_tag);
 }
 
@@ -122,6 +137,9 @@ void usage_print(const char* progname) {
 		"Usage: %s [options]\n"
 		"  -p|--only-proto    print only protocol, skip"
 					" any other useful info\n"
+		"  -d|--domain DOM    print only protocol for a particular"
+					" xcode domain, available domains are:"
+					" 'be', 'conf' and 'rpc'\n"
 		"\n"
 		"  -v|--version       print version information\n"
 		"  -h|--help          print usage information\n",
@@ -132,6 +150,7 @@ int main(int argc, char **argv)
 {
 	struct m0 instance = {};
 	bool      only_protocol = false;
+	int       xcode_domain  = 0;  /* any domain */
 	int       i;
 	int       result;
 
@@ -153,6 +172,33 @@ int main(int argc, char **argv)
 		if (strcmp(argv[i], "-p") == 0 ||
 		    strcmp(argv[i], "--only-proto") == 0)
 		{
+			only_protocol = true;
+			continue;
+		}
+		if (strcmp(argv[i], "-d") == 0 ||
+		    strcmp(argv[i], "--domain") == 0)
+		{
+			if (i + 1 >= argc) {
+				warnx("Error: missing argument for"
+				      " '-d|--domain' option\n");
+				usage_print(basename(argv[0]));
+				exit(EX_USAGE);
+			}
+
+			if (strcmp(argv[i + 1], "be") == 0) {
+				xcode_domain = M0_XCODE_TYPE_FLAG_DOM_BE;
+			} else if (strcmp(argv[i + 1], "conf") == 0) {
+				xcode_domain = M0_XCODE_TYPE_FLAG_DOM_CONF;
+			} else if (strcmp(argv[i + 1], "rpc") == 0) {
+				xcode_domain = M0_XCODE_TYPE_FLAG_DOM_RPC;
+			} else {
+				warnx("Error: invaid domain '%s' specified for"
+				      " '-d|--domain' option\n", argv[i + 1]);
+				usage_print(basename(argv[0]));
+				exit(EX_USAGE);
+			}
+
+			xcode_domain_name = argv[++i];
 			only_protocol = true;
 			continue;
 		}
@@ -185,7 +231,7 @@ int main(int argc, char **argv)
 
 	if (result != 0)
 		err(EX_CONFIG, "Cannot initialise mero: %d", result);
-	protocol_print();
+	protocol_print(xcode_domain);
 
 	if (only_protocol)
 		m0_xcode_fini();

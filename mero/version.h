@@ -32,6 +32,10 @@ struct m0_build_info {
 	const char  *bi_git_rev_id;
 	const char  *bi_git_describe;
 	const char  *bi_git_branch;
+	const char  *bi_xcode_protocol_checksum;
+	const char  *bi_xcode_protocol_be_checksum;
+	const char  *bi_xcode_protocol_conf_checksum;
+	const char  *bi_xcode_protocol_rpc_checksum;
 	const char  *bi_host;
 	const char  *bi_user;
 	const char  *bi_time;

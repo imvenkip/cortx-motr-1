@@ -294,6 +294,16 @@ struct m0_xcode_field {
 
 };
 
+enum m0_xcode_type_flags {
+	/** Type belongs to BE xcode domain, @see M0_XCA_DOMAIN */
+	M0_XCODE_TYPE_FLAG_DOM_BE     = 1 << 0,
+	/** Type belongs to RPC xcode domain, @see M0_XCA_DOMAIN */
+	M0_XCODE_TYPE_FLAG_DOM_RPC    = 1 << 1,
+	/** Type belongs to CONF xcode domain, @see M0_XCA_DOMAIN */
+	M0_XCODE_TYPE_FLAG_DOM_CONF   = 1 << 2,
+};
+M0_BASSERT(sizeof(enum m0_xcode_type_flags) <= sizeof(uint32_t));
+
 /**
    This struct represents a data-type.
  */
@@ -311,6 +321,11 @@ struct m0_xcode_type {
 	    This field is valid only when xt->xct_aggr == M0_XA_ATOM.
 	 */
 	enum m0_xode_atom_type          xct_atype;
+	/**
+	   Flags, associated with this type (if any).
+	   For possible values @see m0_xcode_type_flags enum.
+	 */
+	uint32_t                        xct_flags;
 	/**
 	   "Decorations" are used by xcode users to associate additional
 	   information with introspection elements.

@@ -1,5 +1,5 @@
 protocol_checksum.h
-protocol.txt
-protocol.md5
+protocol*.txt
+protocol*.md5
 xlist.h
 m0protocol

@@ -41,7 +41,6 @@
 #include "reqh/reqh_service.h"
 #include "mero/process_attr.h"
 #include "ha/note.h"          /* M0_NC_ONLINE */
-#include "xcode/protocol_checksum.h"    /* M0_XCODE_PROTOCOL_CHECKSUM_MD5 */
 
 /**
    @addtogroup m0d
@@ -69,7 +68,6 @@ enum result_status
 
 extern volatile sig_atomic_t gotsignal;
 static bool regsignal = false;
-static const char *xcode_protocol_checksum_md5 = M0_XCODE_PROTOCOL_CHECKSUM_MD5;
 
 /**
    Signal handler registered so that pause()
@@ -130,7 +128,6 @@ M0_INTERNAL int main(int argc, char **argv)
 	if (argc > 1 &&
 	    (strcmp(argv[1], "-v") == 0 || strcmp(argv[1], "--version") == 0)) {
 		m0_build_info_print();
-		printf("xcode protocol md5: %s\n", xcode_protocol_checksum_md5);
 		exit(EXIT_SUCCESS);
 	}
 

@@ -27,6 +27,7 @@ declare -rA RPM_PACKAGE=(
     [perl-autodie]='perl-autodie'       # check-sources
     [perl-find]='perl-File-Find-Rule'   # check-sources
     [perl-io]='perl-IO-All'             # check-sources
+    [perl-yaml]='perl-YAML-LibYAML'     # gccxml2xcode
     [python-ply]='python-ply'           # m0confgen
     [python-dev]='python-devel'         # m0spiel
     [libc-dev]='glibc-headers'

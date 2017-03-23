@@ -74,6 +74,7 @@ BuildRequires:  perl-List-MoreUtils
 BuildRequires:  perl-File-Find-Rule
 BuildRequires:  perl-IO-All
 BuildRequires:  perl-File-Slurp
+BuildRequires:  perl-YAML-LibYAML
 BuildRequires:  kernel-devel = %{kernel_ver_requires}
 BuildRequires:  lustre-client-devel
 BuildRequires:  libuuid-devel

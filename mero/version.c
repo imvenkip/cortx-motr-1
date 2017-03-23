@@ -19,6 +19,7 @@
  */
 
 #include "mero/version.h"
+#include "xcode/protocol_checksum.h"
 #ifdef __KERNEL__
 #  include <linux/kernel.h>  /* KERN_INFO */
 #endif
@@ -45,7 +46,12 @@ static const struct m0_build_info build_info = {
 	.bi_kcflags        = M0_VERSION_BUILD_KCFLAGS,
 	.bi_ldflags        = M0_VERSION_BUILD_LDFLAGS,
 	.bi_configure_opts = M0_VERSION_BUILD_CONFIGURE_OPTS,
-	.bi_build_dir      = M0_VERSION_BUILD_DIR
+	.bi_build_dir      = M0_VERSION_BUILD_DIR,
+
+	.bi_xcode_protocol_checksum      = M0_XCODE_PROTOCOL_CHECKSUM_MD5,
+	.bi_xcode_protocol_be_checksum   = M0_XCODE_PROTOCOL_BE_CHECKSUM_MD5,
+	.bi_xcode_protocol_conf_checksum = M0_XCODE_PROTOCOL_CONF_CHECKSUM_MD5,
+	.bi_xcode_protocol_rpc_checksum  = M0_XCODE_PROTOCOL_RPC_CHECKSUM_MD5,
 };
 
 const struct m0_build_info *m0_build_info_get(void)
@@ -69,6 +75,17 @@ void m0_build_info_print(void)
 	m0_console_printf(BI_PREFIX "Git branch   : %s\n", bi->bi_git_branch);
 	m0_console_printf(BI_PREFIX "Git describe : %s\n", bi->bi_git_describe);
 	m0_console_printf(BI_PREFIX "Git revision : %s\n", bi->bi_git_rev_id);
+
+	m0_console_printf(BI_PREFIX "\n");
+
+	m0_console_printf(BI_PREFIX "xcode protocol checksum: %s\n",
+			  bi->bi_xcode_protocol_checksum);
+	m0_console_printf(BI_PREFIX "xcode BE protocol checksum: %s\n",
+			  bi->bi_xcode_protocol_be_checksum);
+	m0_console_printf(BI_PREFIX "xcode CONF protocol checksum: %s\n",
+			  bi->bi_xcode_protocol_conf_checksum);
+	m0_console_printf(BI_PREFIX "xcode RPC protocol checksum: %s\n",
+			  bi->bi_xcode_protocol_rpc_checksum);
 
 	m0_console_printf(BI_PREFIX "\n");
 
