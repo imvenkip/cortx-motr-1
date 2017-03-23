@@ -414,7 +414,7 @@ static struct m0_semaphore sem_death;
 static bool expected_fom_queued_value;
 
 M0_TL_DESCR_DECLARE(rpc_conn, M0_EXTERN);
-M0_TL_DEFINE(rpc_conn, M0_INTERNAL, struct m0_rpc_conn);
+M0_TL_DECLARE(rpc_conn, M0_INTERNAL, struct m0_rpc_conn);
 
 static void _on_death_cb(struct rconfc_link *lnk)
 {
