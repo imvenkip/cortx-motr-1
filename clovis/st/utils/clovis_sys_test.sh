@@ -3,7 +3,6 @@
 # Script for starting or stopping Clovis system tests
 
 . `dirname $0`/clovis_st_inc.sh
-
 # enable core dumps
 ulimit -c unlimited
 
@@ -13,9 +12,16 @@ usage()
 	cat <<.
 Usage:
 
-$ sudo clovis_sys_test [start|stop|list] [local|remote] [-i Index-service] [-t tests] [-k] [-u]
+$ sudo clovis_sys_test [start|stop|list|run] [local|remote] [-i Index-service]\
+[-t tests] [-k] [-u]
 
 Where:
+
+start: starts only clovis system tests.
+stop : stops clovis system tests.
+list : Lists all the available clovis system tests.
+run  : Starts Mero services, executes clovis system tests and then\
+stops mero services.
 
 -i: Select Index service:
     CASS : Cassandra
@@ -86,6 +92,15 @@ case "$cmd" in
 		else
 			clovis_st_start_k $index
 		fi
+		;;
+	run)
+		( exec `dirname $0`/mero_services.sh start )
+		if [ $umod -eq 1 ]; then
+			clovis_st_start_u $index
+		else
+			clovis_st_start_k $index
+		fi
+		( exec `dirname $0`/mero_services.sh stop )
 		;;
 	stop)
 		if [ $umod -eq 1 ]; then
