@@ -290,6 +290,7 @@ void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg)
 					m0_atomic64_add_return(&dom_key, 1),
 				.lsc_size = 1 << 27,
 				.lsc_stob_create_cfg = NULL,
+				.lsc_stob_dont_zero = true,
 				.lsc_rbuf_nr = 3,
 				/* other fields are filled by domain and log */
 			},

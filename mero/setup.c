@@ -1424,6 +1424,7 @@ static int cs_be_init(struct m0_reqh_context *rctx,
 	snprintf(*loc, len, "linuxstob:%s%s", name[0] == '/' ? "" : "./", name);
 
 	m0_be_ut_backend_cfg_default(&be->but_dom_cfg);
+	be->but_dom_cfg.bc_log.lc_store_cfg.lsc_stob_dont_zero = false;
 	be->but_dom_cfg.bc_log.lc_store_cfg.lsc_stob_create_cfg =
 		rctx->rc_be_log_path;
 	be->but_dom_cfg.bc_seg0_cfg.bsc_stob_create_cfg = rctx->rc_be_seg0_path;

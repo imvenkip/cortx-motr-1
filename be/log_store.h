@@ -165,13 +165,18 @@ struct m0_be_log_store_cfg {
 	 */
 	const char       *lsc_stob_domain_create_cfg;
 
-	/* Total size of backing stob. */
+	/** Total size of backing stob. */
 	m0_bcount_t       lsc_size;
-	/* m0_stob_create() 3rd parameter for the backing store stob. */
+	/** m0_stob_create() 3rd parameter for the backing store stob. */
 	const char       *lsc_stob_create_cfg;
+	/**
+	 * Don't zero stob after creation. It avoids unnecessary I/O when
+	 * the stob is already zeroed.
+	 */
+	bool              lsc_stob_dont_zero;
 	/** Number of redundant buffers. */
 	unsigned          lsc_rbuf_nr;
-	/* Size of redundant buffer. */
+	/** Size of redundant buffer. */
 	m0_bcount_t       lsc_rbuf_size;
 };
 

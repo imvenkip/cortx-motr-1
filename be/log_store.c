@@ -283,8 +283,12 @@ static int be_log_store_level_enter(struct m0_module *module)
 		return m0_stob_state_get(ls->ls_stob) == CSS_EXISTS ?
 		       0 : M0_ERR(-ENOENT);
 	case M0_BE_LOG_STORE_LEVEL_ZERO:
-		if (ls->ls_create_mode)
-			return be_log_store_zero(ls, ls->ls_cfg.lsc_size);
+		if (ls->ls_create_mode) {
+			M0_ASSERT(ergo(ls->ls_cfg.lsc_stob_create_cfg != NULL,
+				       !ls->ls_cfg.lsc_stob_dont_zero));
+			return ls->ls_cfg.lsc_stob_dont_zero ? 0 :
+			       be_log_store_zero(ls, ls->ls_cfg.lsc_size);
+		}
 		return 0;
 	case M0_BE_LOG_STORE_LEVEL_LS_HEADER_INIT:
 		return m0_be_fmt_log_store_header_init(&ls->ls_header,
