@@ -1522,7 +1522,7 @@ struct pargrp_iomap {
 	 * Segment counts in this index vector are multiple of
 	 * PAGE_CACHE_SIZE.
 	 */
-	struct m0_indexvec              pi_ivec;
+	struct m0_indexvec_varr         pi_ivec_varr;
 
 	/**
 	 * Type of read approach used only in case of rmw IO.

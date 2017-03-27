@@ -27,6 +27,7 @@
 static void test_ivec_cursor(void);
 static void test_bufvec_cursor(void);
 static void test_bufvec_cursor_copyto_copyfrom(void);
+static void test_indexvec_varr_cursor(void);
 
 enum {
 	NR  = 255,
@@ -136,25 +137,112 @@ void test_vec(void)
 	test_bufvec_cursor_copyto_copyfrom();
 
 	test_ivec_cursor();
+
+	test_indexvec_varr_cursor();
 }
 
+static void test_indexvec_varr_cursor(void)
+{
+	struct m0_indexvec_varr ivv;
+	struct m0_ivec_varr_cursor ivc;
+	m0_bcount_t *v_count;
+	m0_bindex_t *v_index;
+	m0_bcount_t  c;
+	int          nr;
+	int          rc;
+
+	M0_SET0(&ivv);
+	rc = m0_indexvec_varr_alloc(&ivv, 3);
+	M0_UT_ASSERT(rc == 0);
+
+	/* data initialization begins */
+	v_count = m0_varr_ele_get(&ivv.iv_count, 0);
+	*v_count = 2;
+	v_count = m0_varr_ele_get(&ivv.iv_count, 1);
+	*v_count = 2;
+	v_count = m0_varr_ele_get(&ivv.iv_count, 2);
+	*v_count = 4;
+
+	v_index = m0_varr_ele_get(&ivv.iv_index, 0);
+	*v_index = 0;
+	v_index = m0_varr_ele_get(&ivv.iv_index, 1);
+	*v_index = 2;
+	v_index = m0_varr_ele_get(&ivv.iv_index, 2);
+	*v_index = 8;
+	/* data initialization ends */
+
+	m0_varr_for(&ivv.iv_count, uint64_t *, i, countp) {
+		/*printf("data[%d] = %d\n", (int)i, (int)*(uint64_t*)countp);*/
+	} m0_varr_endfor;
+	m0_varr_for(&ivv.iv_index, uint64_t *, i, indexp) {
+		/*printf("data[%d] = %d\n", (int)i, (int)*(uint64_t*)indexp);*/
+	} m0_varr_endfor;
+
+	/* test move */
+	m0_ivec_varr_cursor_init(&ivc, &ivv);
+	M0_UT_ASSERT(ivc.vc_ivv    == &ivv);
+	M0_UT_ASSERT(ivc.vc_seg    == 0);
+	M0_UT_ASSERT(ivc.vc_offset == 0);
+
+	M0_UT_ASSERT( m0_ivec_varr_cursor_step (&ivc) == 2);
+	M0_UT_ASSERT( m0_ivec_varr_cursor_index(&ivc) == 0);
+
+	M0_UT_ASSERT(!m0_ivec_varr_cursor_move (&ivc, 1)  );
+	M0_UT_ASSERT( m0_ivec_varr_cursor_index(&ivc) == 1);
+	M0_UT_ASSERT( m0_ivec_varr_cursor_step (&ivc) == 1);
+
+	M0_UT_ASSERT(!m0_ivec_varr_cursor_move (&ivc, 1)  );
+	M0_UT_ASSERT( m0_ivec_varr_cursor_index(&ivc) == 2);
+	M0_UT_ASSERT( m0_ivec_varr_cursor_step (&ivc) == 2);
+
+	M0_UT_ASSERT(!m0_ivec_varr_cursor_move (&ivc, 2)  );
+	M0_UT_ASSERT( m0_ivec_varr_cursor_index(&ivc) == 8);
+	M0_UT_ASSERT( m0_ivec_varr_cursor_step (&ivc) == 4);
+
+	M0_UT_ASSERT( m0_ivec_varr_cursor_move (&ivc, 4)  ); /* at the end*/
+
+	/* test move_to */
+	m0_ivec_varr_cursor_init(&ivc, &ivv);
+	M0_UT_ASSERT(!m0_ivec_varr_cursor_move_to(&ivc, 1));
+	M0_UT_ASSERT( m0_ivec_varr_cursor_index(&ivc) == 1);
+	M0_UT_ASSERT( m0_ivec_varr_cursor_step (&ivc) == 1);
+
+	M0_UT_ASSERT(!m0_ivec_varr_cursor_move_to(&ivc, 3));
+	M0_UT_ASSERT( m0_ivec_varr_cursor_index(&ivc) == 3);
+	M0_UT_ASSERT( m0_ivec_varr_cursor_step (&ivc) == 1);
+	M0_UT_ASSERT(!m0_ivec_varr_cursor_move_to(&ivc, 10));
+	M0_UT_ASSERT( m0_ivec_varr_cursor_index(&ivc) ==10);
+	M0_UT_ASSERT( m0_ivec_varr_cursor_step (&ivc) == 2);
+	M0_UT_ASSERT( m0_ivec_varr_cursor_move_to(&ivc, 12)); /* at the end*/
+
+	m0_ivec_varr_cursor_init(&ivc, &ivv);
+	c = 0;
+	nr = 0;
+	while (!m0_ivec_varr_cursor_move(&ivc, c)) {
+		c = m0_ivec_varr_cursor_step(&ivc);
+		++nr;
+	}
+	M0_UT_ASSERT(nr == 3);
+
+	m0_indexvec_varr_free(&ivv);
+}
 static void test_ivec_cursor(void)
 {
-	int		      nr;
-	m0_bindex_t	      segs[3];
-	m0_bcount_t	      counts[3];
-	m0_bcount_t	      c;
+	int                   nr;
+	m0_bindex_t           indexes[3];
+	m0_bcount_t           counts[3];
+	m0_bcount_t           c;
 	struct m0_indexvec    ivec;
 	struct m0_ivec_cursor cur;
 
-	segs[0]   = 0;
-	segs[1]   = 2;
-	segs[2]   = 8;
+	indexes[0] = 0;
+	indexes[1] = 2;
+	indexes[2] = 8;
 	counts[0] = 2;
 	counts[1] = 2;
 	counts[2] = 4;
 
-	ivec.iv_index       = segs;
+	ivec.iv_index       = indexes;
 	ivec.iv_vec.v_nr    = 3;
 	ivec.iv_vec.v_count = counts;
 

@@ -857,6 +857,11 @@ m0t1fs_test_MERO_2099()
 
 m0t1fs_system_tests()
 {
+	m0t1fs_basic || {
+		echo "Failed: m0t1fs basic test failed."
+		return 1
+	}
+
 	m0t1fs_test_MERO_2099 || {
 		echo "Failed: MERO-2099."
 		return 1
@@ -869,11 +874,6 @@ m0t1fs_system_tests()
 
 	file_creation_test $MAX_NR_FILES "oostore" || {
 		echo "Failed: File creation test failed."
-		return 1
-	}
-
-	m0t1fs_basic || {
-		echo "Failed: m0t1fs basic test failed."
 		return 1
 	}
 

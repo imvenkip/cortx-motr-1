@@ -23,7 +23,6 @@
 #ifndef __MERO_LIB_VIRTUAL_ARRAY_H__
 #define __MERO_LIB_VIRTUAL_ARRAY_H__
 
-#include "lib/vec.h"
 #include "lib/assert.h"
 #include "lib/misc.h"
 

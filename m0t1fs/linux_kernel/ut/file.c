@@ -427,7 +427,7 @@ static void ds_test(void)
 	 * Input index vector :
 	 * {{21340, 1024}, {20316, 1024}, {19292, 1024}, {18268, 1024}}
 	 */
-	M0_UT_ASSERT(m0_vec_count(&map->pi_ivec.iv_vec) ==
+	M0_UT_ASSERT(indexvec_varr_count(&map->pi_ivec_varr) ==
 		     PAGE_CACHE_SIZE * 2);
 
 	/*
@@ -439,8 +439,8 @@ static void ds_test(void)
 	 * in the data matrix.
 	 * Rest all pages in data matrix will be NULL.
 	 */
-	M0_UT_ASSERT(map->pi_ivec.iv_index[0] == PAGE_CACHE_SIZE * 4);
-	M0_UT_ASSERT(map->pi_ivec.iv_vec.v_count[0] == 2 * PAGE_CACHE_SIZE);
+	M0_UT_ASSERT(V_INDEX(&map->pi_ivec_varr, 0) == PAGE_CACHE_SIZE * 4);
+	M0_UT_ASSERT(V_COUNT(&map->pi_ivec_varr, 0) == 2 * PAGE_CACHE_SIZE);
 	M0_UT_ASSERT(map->pi_databufs   != NULL);
 	M0_UT_ASSERT(map->pi_paritybufs != NULL);
 	M0_UT_ASSERT(map->pi_ops        != NULL);
@@ -529,8 +529,6 @@ static void ds_test(void)
 	M0_UT_ASSERT(map->pi_ops   == NULL);
 	M0_UT_ASSERT(map->pi_rtype == PIR_NONE);
 	M0_UT_ASSERT(map->pi_magic == 0);
-	M0_UT_ASSERT(map->pi_ivec.iv_index       == NULL);
-	M0_UT_ASSERT(map->pi_ivec.iv_vec.v_count == NULL);
 	M0_UT_ASSERT(map->pi_databufs   == NULL);
 	M0_UT_ASSERT(map->pi_paritybufs == NULL);
 	M0_UT_ASSERT(map->pi_ioreq      == NULL);
@@ -563,6 +561,7 @@ static int dummy_readrest(struct pargrp_iomap *map)
 	return 0;
 }
 
+struct pargrp_iomap     map;
 static void pargrp_iomap_test(void)
 {
 	int                     rc;
@@ -575,7 +574,6 @@ static void pargrp_iomap_test(void)
 	struct io_request       req;
 	struct m0_indexvec      ivec;
 	struct m0_ivec_cursor   cur;
-	struct pargrp_iomap     map;
 	struct pargrp_iomap_ops piops;
 
 	rc = m0_indexvec_alloc(&ivec, ARRAY_SIZE(iovec_arr));
@@ -606,14 +604,15 @@ static void pargrp_iomap_test(void)
 	map.pi_databufs[0][0] = NULL;
 
 	for (cnt = 0; cnt < ARRAY_SIZE(iovec_arr); ++cnt) {
-		INDEX(&map.pi_ivec, cnt) = (m0_bindex_t)(cnt * PAGE_CACHE_SIZE);
-		COUNT(&map.pi_ivec, cnt) = PAGE_CACHE_SIZE;
-		++map.pi_ivec.iv_vec.v_nr;
+		V_INDEX(&map.pi_ivec_varr, cnt) =
+					(m0_bindex_t)(cnt * PAGE_CACHE_SIZE);
+		V_COUNT(&map.pi_ivec_varr, cnt) = PAGE_CACHE_SIZE;
+		++map.pi_ivec_varr.iv_nr;
 
 		rc = pargrp_iomap_seg_process(&map, cnt, true);
 		M0_UT_ASSERT(rc == 0);
 
-		page_pos_get(&map, INDEX(&map.pi_ivec, cnt), &row, &col);
+		page_pos_get(&map, V_INDEX(&map.pi_ivec_varr, cnt), &row, &col);
 		M0_UT_ASSERT(map.pi_databufs[row][col] != NULL);
 		M0_UT_ASSERT(map.pi_databufs[row][col]->db_flags & PA_WRITE);
 		M0_UT_ASSERT(map.pi_databufs[row][col]->db_flags &
@@ -621,7 +620,7 @@ static void pargrp_iomap_test(void)
 		M0_UT_ASSERT(map.pi_databufs[row][col]->db_flags & ~PA_READ);
 	}
 
-	/* Checks if given segment falls in pargrp_iomap::pi_ivec. */
+	/* Checks if given segment falls in pargrp_iomap::pi_ivec_varr. */
 	M0_UT_ASSERT(pargrp_iomap_spans_seg (&map, 0,     PAGE_CACHE_SIZE));
 	M0_UT_ASSERT(pargrp_iomap_spans_seg (&map, 1234,  10));
 	M0_UT_ASSERT(!pargrp_iomap_spans_seg(&map, PAGE_CACHE_SIZE * 10,
@@ -711,32 +710,32 @@ static void pargrp_iomap_test(void)
 	rc = pargrp_iomap_populate(&map, &req.ir_ivec, &cur);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(map.pi_databufs != NULL);
-	M0_UT_ASSERT(m0_vec_count(&map.pi_ivec.iv_vec) > 0);
+	M0_UT_ASSERT(indexvec_varr_count(&map.pi_ivec_varr) > 0);
 	M0_UT_ASSERT(map.pi_grpid == 0);
-	M0_UT_ASSERT(map.pi_ivec.iv_vec.v_nr == 4);
+	M0_UT_ASSERT(map.pi_ivec_varr.iv_nr == 4);
 
-	M0_UT_ASSERT(map.pi_ivec.iv_index[0] == 0);
-	M0_UT_ASSERT(map.pi_ivec.iv_vec.v_count[0] == 2 * PAGE_CACHE_SIZE);
+	M0_UT_ASSERT(V_INDEX(&map.pi_ivec_varr, 0) == 0);
+	M0_UT_ASSERT(V_COUNT(&map.pi_ivec_varr, 0) == 2 * PAGE_CACHE_SIZE);
 	M0_UT_ASSERT(map.pi_databufs[0][0] != NULL);
 	M0_UT_ASSERT(map.pi_databufs[1][0] != NULL);
 
-	M0_UT_ASSERT(map.pi_ivec.iv_index[1] == 2 * PAGE_CACHE_SIZE);
-	M0_UT_ASSERT(map.pi_ivec.iv_vec.v_count[1] == 2 * PAGE_CACHE_SIZE);
+	M0_UT_ASSERT(V_INDEX(&map.pi_ivec_varr, 1) == 2 * PAGE_CACHE_SIZE);
+	M0_UT_ASSERT(V_COUNT(&map.pi_ivec_varr, 1) == 2 * PAGE_CACHE_SIZE);
 	M0_UT_ASSERT(map.pi_databufs[2][0] != NULL);
 	M0_UT_ASSERT(map.pi_databufs[0][1] != NULL);
 
-	M0_UT_ASSERT(map.pi_ivec.iv_index[2] == 4 * PAGE_CACHE_SIZE);
-	M0_UT_ASSERT(map.pi_ivec.iv_vec.v_count[2] == 2 * PAGE_CACHE_SIZE);
+	M0_UT_ASSERT(V_INDEX(&map.pi_ivec_varr, 2) == 4 * PAGE_CACHE_SIZE);
+	M0_UT_ASSERT(V_COUNT(&map.pi_ivec_varr, 2) == 2 * PAGE_CACHE_SIZE);
 	M0_UT_ASSERT(map.pi_databufs[1][1] != NULL);
 	M0_UT_ASSERT(map.pi_databufs[2][1] != NULL);
 
-	M0_UT_ASSERT(map.pi_ivec.iv_index[3] == 6 * PAGE_CACHE_SIZE);
-	M0_UT_ASSERT(map.pi_ivec.iv_vec.v_count[3] == PAGE_CACHE_SIZE);
+	M0_UT_ASSERT(V_INDEX(&map.pi_ivec_varr, 3) == 6 * PAGE_CACHE_SIZE);
+	M0_UT_ASSERT(V_COUNT(&map.pi_ivec_varr, 3) == PAGE_CACHE_SIZE);
 	M0_UT_ASSERT(map.pi_databufs[0][2] != NULL);
 
 	rc = pargrp_iomap_readrest(&map);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(map.pi_ivec.iv_index[3] + map.pi_ivec.iv_vec.v_count[3] ==
+	M0_UT_ASSERT(v_seg_endpos(&map.pi_ivec_varr, 3) ==
 		     data_size(pdlay));
 	M0_UT_ASSERT(map.pi_databufs[1][2] != NULL);
 	M0_UT_ASSERT(map.pi_databufs[1][2]->db_flags & PA_READ);

@@ -92,7 +92,7 @@ struct m0_ut_suite libm0_ut = {
 		{ "trace",            test_trace,        "Dima, Andriy" },
 		{ "uuid",             m0_test_lib_uuid   },
 		{ "varr",             test_varr          },
-		{ "vec",              test_vec           },
+		{ "vec",              test_vec,          "Huang Hua"},
 		{ "zerovec",          test_zerovec       },
 		{ "fold",             test_fold,         "Nikita" },
 		{ "tpool",            m0_ut_lib_thread_pool_test },

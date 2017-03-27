@@ -933,6 +933,138 @@ M0_INTERNAL bool m0_indexvec_is_universal(const struct m0_indexvec *iv)
 	return m0_vec_count(&iv->iv_vec) == (m0_bcount_t)~0ULL;
 }
 
+M0_INTERNAL int m0_indexvec_varr_alloc(struct m0_indexvec_varr *ivec,
+				       uint32_t len)
+{
+	int rc;
+
+	M0_PRE(ivec != NULL);
+	M0_PRE(len   > 0);
+
+	M0_SET0(ivec);
+	rc = m0_varr_init(&ivec->iv_count, len, sizeof(m0_bcount_t),
+			  m0_pagesize_get());
+	if (rc == 0) {
+		rc = m0_varr_init(&ivec->iv_index, len, sizeof(m0_bindex_t),
+				  m0_pagesize_get());
+		if (rc != 0)
+			m0_varr_fini(&ivec->iv_count);
+	}
+	M0_LOG(M0_DEBUG, "ivec varr allocated for %p[%u] rc=%d", ivec, len, rc);
+	return rc;
+}
+M0_EXPORTED(m0_indexvec_varr_alloc);
+
+M0_INTERNAL void m0_indexvec_varr_free(struct m0_indexvec_varr *ivec)
+{
+	M0_PRE(ivec != NULL);
+	m0_varr_fini(&ivec->iv_count);
+	m0_varr_fini(&ivec->iv_index);
+	M0_LOG(M0_DEBUG, "ivec varr freed for %p", ivec);
+}
+M0_EXPORTED(m0_indexvec_varr_free);
+
+static void m0_ivec_varr_cursor_normalize(struct m0_ivec_varr_cursor *cur)
+{
+	m0_bcount_t *v_count;
+
+	while (cur->vc_seg < m0_varr_size(&cur->vc_ivv->iv_count)) {
+		v_count = m0_varr_ele_get(&cur->vc_ivv->iv_count, cur->vc_seg);
+		if (*v_count == 0) {
+			++cur->vc_seg;
+			cur->vc_offset = 0;
+		} else
+			break;
+	}
+}
+
+M0_INTERNAL void m0_ivec_varr_cursor_init(struct m0_ivec_varr_cursor *cur,
+					  struct m0_indexvec_varr *ivec)
+{
+	M0_PRE(cur  != NULL);
+	M0_PRE(ivec != NULL);
+	M0_PRE(m0_varr_size(&ivec->iv_index) > 0);
+	M0_PRE(m0_varr_size(&ivec->iv_index) == m0_varr_size(&ivec->iv_count));
+
+	cur->vc_ivv    = ivec;
+	cur->vc_seg    = 0;
+	cur->vc_offset = 0;
+	m0_ivec_varr_cursor_normalize(cur);
+}
+M0_EXPORTED(m0_ivec_varr_cursor_init);
+
+M0_INTERNAL bool m0_ivec_varr_cursor_move(struct m0_ivec_varr_cursor *cur,
+					  m0_bcount_t count)
+{
+	M0_PRE(cur != NULL);
+
+	M0_LOG(M0_DEBUG, "ivec %p cur %p forward %llu", cur->vc_ivv, cur,
+			 (unsigned long long)count);
+	while (count > 0 && cur->vc_seg < m0_varr_size(&cur->vc_ivv->iv_count)){
+		m0_bcount_t step;
+
+		step = m0_ivec_varr_cursor_step(cur);
+		if (count >= step) {
+			cur->vc_seg++;
+			cur->vc_offset = 0;
+			count -= step;
+		} else {
+			cur->vc_offset += count;
+			count = 0;
+		}
+		m0_ivec_varr_cursor_normalize(cur);
+	}
+	return cur->vc_seg == m0_varr_size(&cur->vc_ivv->iv_count);
+}
+M0_EXPORTED(m0_ivec_varr_cursor_move);
+
+M0_INTERNAL m0_bcount_t
+m0_ivec_varr_cursor_step(const struct m0_ivec_varr_cursor *cur)
+{
+	m0_bcount_t *v_count;
+
+	M0_PRE(cur != NULL);
+	M0_PRE(cur->vc_seg < m0_varr_size(&cur->vc_ivv->iv_count));
+
+	v_count = m0_varr_ele_get(&cur->vc_ivv->iv_count, cur->vc_seg);
+	return *v_count - cur->vc_offset;
+}
+M0_EXPORTED(m0_ivec_varr_cursor_step);
+
+M0_INTERNAL m0_bindex_t
+m0_ivec_varr_cursor_index(struct m0_ivec_varr_cursor *cur)
+{
+	m0_bindex_t *v_index;
+
+	M0_PRE(cur != NULL);
+	M0_PRE(!m0_ivec_varr_cursor_move(cur, 0));
+
+	v_index = m0_varr_ele_get(&cur->vc_ivv->iv_index, cur->vc_seg);
+	return *v_index + cur->vc_offset;
+}
+M0_EXPORTED(m0_ivec_varr_cursor_index);
+
+M0_INTERNAL bool
+m0_ivec_varr_cursor_move_to(struct m0_ivec_varr_cursor *cur, m0_bindex_t dest)
+{
+	m0_bindex_t min;
+	bool        ret = false;
+
+	M0_PRE(cur  != NULL);
+	M0_PRE(dest >= m0_ivec_varr_cursor_index(cur));
+
+	while (m0_ivec_varr_cursor_index(cur) != dest) {
+		min = min64u(dest, m0_ivec_varr_cursor_index(cur) +
+			     m0_ivec_varr_cursor_step(cur));
+		ret = m0_ivec_varr_cursor_move(cur, min -
+					       m0_ivec_varr_cursor_index(cur));
+		if (ret)
+			break;
+	}
+	return ret;
+}
+M0_EXPORTED(m0_ivec_varr_cursor_move_to);
+
 #undef M0_TRACE_SUBSYSTEM
 
 /** @} end of vec group */

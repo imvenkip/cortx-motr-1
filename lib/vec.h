@@ -25,6 +25,7 @@
 
 #include "lib/types.h"
 #include "lib/buf.h"
+#include "lib/varr.h"
 #include "xcode/xcode_attr.h"
 
 #ifdef __KERNEL__
@@ -618,6 +619,88 @@ M0_INTERNAL int m0_indexvec_universal_set(struct m0_indexvec *iv);
  * Returns true if the input indexvec is universal.
  */
 M0_INTERNAL bool m0_indexvec_is_universal(const struct m0_indexvec *iv);
+
+
+/** Vector of extents stored in m0_varr */
+struct m0_indexvec_varr {
+	/** Number of extents and their sizes. */
+	struct m0_varr iv_count;
+
+	/** Array of starting extent indices, with the same size of iv_count. */
+	struct m0_varr iv_index;
+
+	/** number of used elements, set by users */
+	uint32_t       iv_nr;
+};
+
+struct m0_ivec_varr_cursor {
+	struct m0_indexvec_varr *vc_ivv;
+	/** Segment that the cursor is currently in. */
+	uint32_t             vc_seg;
+	/** Offset within the segment that the cursor is positioned at. */
+	m0_bindex_t          vc_offset;
+};
+
+/**
+ * Allocates memory in m0_varr for index array and counts array in index vector.
+ * @param len Number of elements to allocate memory for.
+ * @pre   ivec != NULL && len > 0.
+ * @ret   return 0 iff memory allocation succeeds. -ENOMEM on failure.
+ */
+M0_INTERNAL int m0_indexvec_varr_alloc(struct m0_indexvec_varr *ivec,
+				       uint32_t len);
+
+/**
+ * Deallocates the memory buffers in m0_varr.
+ * @pre  ivec != NULL.
+ */
+M0_INTERNAL void m0_indexvec_varr_free (struct m0_indexvec_varr *ivec);
+
+/**
+ * Initializes given index vector cursor.
+ * @param cur  Given index vector cursor.
+ * @param ivec Given index vector to be associated with cursor.
+ */
+M0_INTERNAL void
+m0_ivec_varr_cursor_init(struct m0_ivec_varr_cursor *cur,
+			 struct m0_indexvec_varr *ivec);
+/**
+ * Moves the index vector cursor forward by @count.
+ * @param cur   Given index vector cursor.
+ * @param count Count by which cursor has to be moved.
+ * @ret   true  iff end of vector has been reached while
+ *              moving cursor by @count. Returns false otherwise.
+ */
+M0_INTERNAL bool
+m0_ivec_varr_cursor_move(struct m0_ivec_varr_cursor *cur,
+			 m0_bcount_t count);
+/**
+ * Moves index vector cursor forward until it reaches index @dest.
+ * @pre   dest >= m0_ivec_cursor_index(cursor).
+ * @param dest Index uptil which cursor has to be moved.
+ * @ret   true iff end of vector has been reached while
+ *             moving cursor. Returns false otherwise.
+ * @post  m0_ivec_varr_cursor_index(cursor) == to.
+*/
+M0_INTERNAL bool
+m0_ivec_varr_cursor_move_to(struct m0_ivec_varr_cursor *cur,
+			    m0_bindex_t dest);
+/**
+ * Returns the number of bytes needed to move cursor to next segment in given
+ * index vector.
+ * @param cur Index vector to be moved.
+ * @ret   Number of bytes needed to move the cursor to next segment.
+ */
+M0_INTERNAL m0_bcount_t
+m0_ivec_varr_cursor_step(const struct m0_ivec_varr_cursor *cur);
+
+/**
+ * Returns index at current cursor position.
+ * @param cur Given index vector cursor.
+ * @ret   Index at current cursor position.
+ */
+M0_INTERNAL m0_bindex_t
+m0_ivec_varr_cursor_index(struct m0_ivec_varr_cursor *cur);
 
 /** @} end of vec group */
 

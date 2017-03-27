@@ -182,7 +182,6 @@ static void test_size(void)
 	enum data_types dt;
 	size_t		obj_size;
 
-	M0_SET0(&varr);
 	for (dt = DT_ATOMIC_8; dt <= DT_NON_POWTWO; ++dt) {
 		obj_size = size_get(dt);
 		M0_SET0(&varr);
@@ -223,7 +222,9 @@ static void tree_sanity_check(const struct m0_varr *varr, uint32_t depth)
 	uint64_t num_accomodated;
 
 	for (num_trees = 0; num_trees < M0_VA_TNODE_NR &&
-		varr->va_tree[num_trees] != NULL; ++num_trees);
+		varr->va_tree[num_trees] != NULL; ++num_trees)
+		/* do nothing */;
+
 	/* Maximum possible leaf buffers for a given depth. */
 	buff_nr = M0_BITS(varr->va_bufptr_nr_shift * (varr->va_depth - 2));
 	buff_nr *= num_trees;
@@ -297,10 +298,10 @@ void  test_ut_iterate(uint64_t buff_nr)
 	uint8_t        atomic8_obj;
 	uint64_t       atomic64_obj;
 
-	test_iterate(&varr, obj_po2, DT_POWTWO, buff_nr);
-	test_iterate(&varr, obj_non_po2, DT_NON_POWTWO, buff_nr);
-	test_iterate(&varr, atomic8_obj, DT_ATOMIC_8, buff_nr);
-	test_iterate(&varr, atomic64_obj, DT_ATOMIC_64, buff_nr);
+	test_iterate(&varr, obj_po2,      DT_POWTWO,     buff_nr);
+	test_iterate(&varr, obj_non_po2,  DT_NON_POWTWO, buff_nr);
+	test_iterate(&varr, atomic8_obj,  DT_ATOMIC_8,   buff_nr);
+	test_iterate(&varr, atomic64_obj, DT_ATOMIC_64,  buff_nr);
 }
 
 void test_ub_iterate(void)
