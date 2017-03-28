@@ -1154,26 +1154,6 @@ fail:
 }
 M0_EXPORTED(m0_spiel_process_add);
 
-static int spiel_service_info_copy(struct m0_conf_service             *service,
-				   const struct m0_spiel_service_info *info)
-{
-	if (!m0_conf_service_type_is_valid(info->svi_type))
-		return M0_ERR(-EINVAL);
-
-	if (info->svi_type == M0_CST_MGS && info->svi_u.confdb_path == NULL)
-		return M0_ERR(-EINVAL);
-
-	/* TODO: Check what parameters are used by which service types */
-	memcpy(&service->cs_u, &info->svi_u, sizeof(service->cs_u));
-
-	if (info->svi_type == M0_CST_MGS) {
-		service->cs_u.confdb_path = m0_strdup(info->svi_u.confdb_path);
-		if (service->cs_u.confdb_path == NULL)
-			return M0_ERR(-ENOMEM);
-	}
-	return M0_RC(0);
-}
-
 int m0_spiel_service_add(struct m0_spiel_tx                 *tx,
 			 const struct m0_fid                *fid,
 			 const struct m0_fid                *parent,
@@ -1186,7 +1166,8 @@ int m0_spiel_service_add(struct m0_spiel_tx                 *tx,
 	struct m0_conf_process *process;
 
 	M0_ENTRY();
-	if (service_info == NULL)
+	if (service_info == NULL ||
+	    !m0_conf_service_type_is_valid(service_info->svi_type))
 		return M0_ERR(-EINVAL);
 	m0_mutex_lock(&tx->spt_lock);
 
@@ -1203,12 +1184,6 @@ int m0_spiel_service_add(struct m0_spiel_tx                 *tx,
 		rc = M0_ERR(-ENOMEM);
 		goto fail;
 	}
-	/* XXX FIXME: service->cs_endpoints will leak in case of error */
-
-	/* Copy Different service-specific parameters */
-	rc = spiel_service_info_copy(service, service_info);
-	if (rc != 0)
-		goto fail;
 
 	rc = spiel_service_dirs_create(&tx->spt_cache, service);
 	if (rc != 0)

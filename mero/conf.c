@@ -407,14 +407,14 @@ M0_INTERNAL int cs_conf_services_init(struct m0_mero *cctx)
 		    M0_ASSERT(rctx->rc_services[svc->cs_type] == NULL);
 		*/
 		M0_ASSERT(svc->cs_type < M0_CST_NR);
-		rctx->rc_services[svc->cs_type] = sname;
-		if (rctx->rc_services[svc->cs_type] == NULL) {
+		if (sname == NULL) {
 			int i;
 			rc = M0_ERR(-ENOMEM);
 			for (i = 0; i < rctx->rc_nr_services; ++i)
 				m0_free(rctx->rc_services[i]);
 			break;
 		}
+		rctx->rc_services[svc->cs_type] = sname;
 		rctx->rc_service_fids[svc->cs_type] = svc->cs_obj.co_id;
 		M0_LOG(M0_DEBUG, "service:%s fid:" FID_F,
 		       rctx->rc_services[svc->cs_type],

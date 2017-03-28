@@ -95,7 +95,7 @@ static void ha_link_service_fini(struct m0_reqh_service *service)
 	m0_mutex_fini(&hl_service->hls_lock);
 	ha_link_service_bob_fini(hl_service);
 	/* allocated in ha_link_service_allocate() */
-	m0_free(container_of(service, struct ha_link_service, hls_service));
+	m0_free(hl_service);
 	M0_LEAVE();
 }
 

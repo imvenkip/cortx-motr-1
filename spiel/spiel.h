@@ -493,12 +493,6 @@ struct m0_spiel_service_info {
 	 * NULL terminated array of C strings.
 	 */
 	const char              **svi_endpoints;
-	/** Different service-specific parameters */
-	union {
-		uint32_t      repair_limits;
-		struct m0_fid addb_stobid;
-		const char   *confdb_path;
-	} svi_u;
 };
 
 /**

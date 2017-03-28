@@ -429,11 +429,6 @@ static int spiel_svc_fop_fill(struct m0_fop          *fop,
 
 	/* TODO: Check what parameters are used by which service types
 	 * and fill ss_fop->ss_param appropriately */
-	if (svc->cs_type == M0_CST_MGS && svc->cs_u.confdb_path != NULL) {
-		m0_buf_init(&ss_fop->ss_param,
-			    (void *)svc->cs_u.confdb_path,
-			    strlen(svc->cs_u.confdb_path));
-	}
 
 	return 0;
 }

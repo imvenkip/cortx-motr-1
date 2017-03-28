@@ -534,11 +534,6 @@ struct m0_conf_service {
 	 * NULL-terminated array of C strings.
 	 */
 	const char              **cs_endpoints;
-	union {
-		uint32_t      repair_limits;
-		struct m0_fid addb_stobid;
-		const char   *confdb_path;
-	} cs_u;
 };
 
 /** Hardware resource --- rack. */

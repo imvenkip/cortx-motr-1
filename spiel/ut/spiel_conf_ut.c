@@ -418,7 +418,6 @@ static void spiel_conf_create_conf_with_opt(struct m0_spiel    *spiel,
 	M0_UT_ASSERT(rc == 0);
 
 	service_info.svi_type = M0_CST_IOS;
-	service_info.svi_u.repair_limits = 10;
 			rc = m0_spiel_service_add(tx,
 				  &spiel_obj_fid[SPIEL_UT_OBJ_SERVICE],
 				  &spiel_obj_fid[SPIEL_UT_OBJ_PROCESS],
@@ -433,7 +432,6 @@ static void spiel_conf_create_conf_with_opt(struct m0_spiel    *spiel,
 	M0_UT_ASSERT(rc == 0);
 
 	service_info.svi_type = M0_CST_MGS;
-	service_info.svi_u.confdb_path = ep[0];
 			rc = m0_spiel_service_add(tx,
 				  &spiel_obj_fid[SPIEL_UT_OBJ_SERVICE3],
 				  &spiel_obj_fid[SPIEL_UT_OBJ_PROCESS],
@@ -692,7 +690,6 @@ static void spiel_conf_create_invalid_configuration(struct m0_spiel    *spiel,
 	M0_UT_ASSERT(rc == 0);
 
 	service_info.svi_type = M0_CST_IOS;
-	service_info.svi_u.repair_limits = 10;
 	rc = m0_spiel_service_add(tx,
 				  FID_MOVE(spiel_obj_fid[SPIEL_UT_OBJ_SERVICE], 12),
 				  &spiel_obj_fid[SPIEL_UT_OBJ_PROCESS],
@@ -1278,7 +1275,6 @@ static void spiel_conf_create_fail(void)
 	/* Service */
 	service_info.svi_endpoints = ep;
 	service_info.svi_type = M0_CST_MGS;
-	service_info.svi_u.confdb_path = ep[0];
 	rc = m0_spiel_service_add(&tx,
 				  &fake_fid,
 				  &spiel_obj_fid[SPIEL_UT_OBJ_PROCESS],
@@ -1307,7 +1303,6 @@ static void spiel_conf_create_fail(void)
 
 	/* Check copy cs_u parameter & switch by type */
 	service_info.svi_type = M0_CST_MDS;
-	service_info.svi_u.repair_limits = 5;
 	rc = m0_spiel_service_add(&tx,
 				  &spiel_obj_fid[SPIEL_UT_OBJ_SERVICE],
 				  &spiel_obj_fid[SPIEL_UT_OBJ_PROCESS],
@@ -1315,7 +1310,6 @@ static void spiel_conf_create_fail(void)
 	M0_UT_ASSERT(rc == 0);
 
 	service_info.svi_type = M0_CST_IOS;
-	service_info.svi_u.repair_limits = 10;
 	spiel_obj_fid[SPIEL_UT_OBJ_SERVICE].f_container += 0x0100;
 	spiel_obj_fid[SPIEL_UT_OBJ_SERVICE].f_key += 0x0100;
 	rc = m0_spiel_service_add(&tx,
@@ -1325,7 +1319,6 @@ static void spiel_conf_create_fail(void)
 	M0_UT_ASSERT(rc == 0);
 
 	service_info.svi_type = M0_CST_MGS;
-	service_info.svi_u.confdb_path = ep[0];
 	spiel_obj_fid[SPIEL_UT_OBJ_SERVICE].f_container += 0x0100;
 	spiel_obj_fid[SPIEL_UT_OBJ_SERVICE].f_key += 0x0100;
 	rc = m0_spiel_service_add(&tx,
@@ -1335,7 +1328,6 @@ static void spiel_conf_create_fail(void)
 	M0_UT_ASSERT(rc == 0);
 
 	service_info.svi_type = M0_CST_RMS;
-	service_info.svi_u.confdb_path = ep[0];
 	spiel_obj_fid[SPIEL_UT_OBJ_SERVICE].f_container += 0x0100;
 	spiel_obj_fid[SPIEL_UT_OBJ_SERVICE].f_key += 0x0100;
 	rc = m0_spiel_service_add(&tx,
@@ -1345,7 +1337,6 @@ static void spiel_conf_create_fail(void)
 	M0_UT_ASSERT(rc == 0);
 
 	service_info.svi_type = M0_CST_SSS;
-	service_info.svi_u.addb_stobid = fake_fid;
 	spiel_obj_fid[SPIEL_UT_OBJ_SERVICE].f_container += 0x0100;
 	spiel_obj_fid[SPIEL_UT_OBJ_SERVICE].f_key += 0x0100;
 	rc = m0_spiel_service_add(&tx,
@@ -1355,7 +1346,6 @@ static void spiel_conf_create_fail(void)
 	M0_UT_ASSERT(rc == 0);
 
 	service_info.svi_type = M0_CST_HA;
-	service_info.svi_u.addb_stobid = fake_fid;
 	spiel_obj_fid[SPIEL_UT_OBJ_SERVICE].f_container += 0x0100;
 	spiel_obj_fid[SPIEL_UT_OBJ_SERVICE].f_key += 0x0100;
 	rc = m0_spiel_service_add(&tx,
@@ -1365,7 +1355,6 @@ static void spiel_conf_create_fail(void)
 	M0_UT_ASSERT(rc == 0);
 
 	service_info.svi_type = M0_CST_NR;
-	service_info.svi_u.addb_stobid = fake_fid;
 	spiel_obj_fid[SPIEL_UT_OBJ_SERVICE].f_container += 0x0100;
 	spiel_obj_fid[SPIEL_UT_OBJ_SERVICE].f_key += 0x0100;
 	rc = m0_spiel_service_add(&tx,
@@ -1376,7 +1365,6 @@ static void spiel_conf_create_fail(void)
 
 	/* Normal */
 	service_info.svi_type = M0_CST_MGS;
-	service_info.svi_u.confdb_path = ep[0];
 	spiel_obj_fid[SPIEL_UT_OBJ_SERVICE].f_container += 0x0100;
 	spiel_obj_fid[SPIEL_UT_OBJ_SERVICE].f_key += 0x0100;
 	rc = m0_spiel_service_add(&tx,
@@ -1703,14 +1691,12 @@ static void spiel_conf_file_create_tree(struct m0_spiel_tx *tx)
 				  &bitmap, 4000, 1, 2, 3, ep[0]);
 	M0_UT_ASSERT(rc == 0);
 
-	service_info1.svi_type = 3;
-	service_info1.svi_u.confdb_path = ep[0];
+	service_info1.svi_type = M0_CST_MGS;
 	rc = m0_spiel_service_add(tx, &fid_service1, &fid_process1,
 				  &service_info1);
 	M0_UT_ASSERT(rc == 0);
 
-	service_info2.svi_type = 1;
-	service_info2.svi_u.repair_limits = 10;
+	service_info2.svi_type = M0_CST_MDS;
 	rc = m0_spiel_service_add(tx, &fid_service2, &fid_process2,
 				  &service_info2);
 	M0_UT_ASSERT(rc == 0);
