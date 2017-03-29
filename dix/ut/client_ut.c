@@ -111,8 +111,8 @@ static char *dix_startup_cmd[] = { "m0d", "-T", "linux",
 				"-A", "linuxstob:cs_addb_stob",
 				"-e", "lnet:0@lo:12345:34:1",
 				"-H", "0@lo:12345:34:1",
-				"-w", "10",
-				"-F",
+				"-w", "10", "-F",
+				"-f", M0_UT_CONF_PROCESS,
 				"-P", M0_UT_CONF_PROFILE,
 				"-c", M0_SRC_PATH("dix/ut/conf.xc")};
 static const char *cdbnames[]         = { "dix1" };

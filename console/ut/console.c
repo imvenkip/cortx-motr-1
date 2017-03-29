@@ -79,6 +79,7 @@ static char *server_argv[] = {
 	"console_ut", "-T", "AD", "-D", SERVER_DB_FILE_NAME,
 	"-S", SERVER_STOB_FILE_NAME, "-A", SERVER_ADDB_STOB_FILE_NAME,
 	"-w", "10", "-e", SERVER_ENDPOINT,  "-H", SERVER_ENDPOINT_ADDR,
+	"-f", M0_UT_CONF_PROCESS,
 	"-c", M0_UT_PATH("conf.xc"), "-P", M0_UT_CONF_PROFILE
 };
 

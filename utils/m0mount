@@ -159,7 +159,10 @@ setup_local_server_config=0
 wait_after_mount=1
 verbosity=0
 #@todo Eliminate this after using the proc fid from the configuration.
-proc_fid="'<0x7200000000000001:1>'"
+proc_fid_ios="'<0x7200000000000001:0>'"
+proc_fid_mds="'<0x7200000000000001:1>'"
+proc_fid_ha="'<0x7200000000000001:2>'"
+proc_fid_confd="'<0x7200000000000001:3>'"
 
 M0MKFS_TRACE_MASK=m0d,fop,cob,ioservice,stob,adstob,extmap,conf
 M0MKFS_TRACE_LEVEL=warn+
@@ -597,7 +600,7 @@ M0_TRACE_PRINT_CONTEXT=$M0D_TRACE_CONTEXT \
 $M0D -T linux -D $DIR/db -S $DIR/stobs \
 -A linuxstob:$DIR/addb-stobs \
 -e $XPT:$CONFD_EP -c $CONF_FILE -P '$PROF_OPT' \
-$XPT_SETUP -f $proc_fid" > ${SLOG}-confd.log &
+$XPT_SETUP -f $proc_fid_confd" > ${SLOG}-confd.log &
 		if [ $? -ne 0 ]; then
 			echo ERROR: Failed to start confd server on $H
 			return 1
@@ -615,7 +618,7 @@ M0_TRACE_LEVEL=$M0D_TRACE_LEVEL \
 M0_TRACE_PRINT_CONTEXT=$M0D_TRACE_CONTEXT \
 $M0D -T linux -D $DIR/db -S $DIR/stobs -A linuxstob:$DIR/addb-stobs \
 -w $POOL_WIDTH -e $XPT:$HA_EP -P '$PROF_OPT' -c $CONF_FILE \
-$XPT_SETUP -f $proc_fid" >> ${SLOG}-ha.log &
+$XPT_SETUP -f $proc_fid_ha" >> ${SLOG}-ha.log &
 		if [ $? -ne 0 ]; then
 			echo ERROR: Failed to start m0d on $H
 			return 1
@@ -633,14 +636,14 @@ M0_TRACE_LEVEL=$M0D_TRACE_LEVEL \
 M0_TRACE_PRINT_CONTEXT=$M0D_TRACE_CONTEXT \
 $M0D -T linux -D $DIR/db -S $DIR/stobs -A linuxstob:$DIR/addb-stobs \
 -w $POOL_WIDTH -e $XPT:$MDS_EP -P '$PROF_OPT' -H $HA_EP -c $CONF_FILE \
-$XPT_SETUP -f $proc_fid" >> ${SLOG}-mds.log &
+$XPT_SETUP -f $proc_fid_mds" >> ${SLOG}-mds.log &
 		if [ $? -ne 0 ]; then
 			echo ERROR: Failed to start m0d on $H
 			return 1
 		fi
 		sleep 2
 	fi
-	SNAME+=" -P '$PROF_OPT' -H $HA_EP -f $proc_fid"
+	SNAME+=" -P '$PROF_OPT' -H $HA_EP -f $proc_fid_ios"
 
 	if [ $run_mkfs -eq 1 ]; then
 		mkfs "$DDIR" "$STOB_PARAMS" "-H $HA_EP" "-e $XPT:$EP" || return 1

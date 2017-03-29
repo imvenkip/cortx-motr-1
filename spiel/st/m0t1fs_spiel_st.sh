@@ -28,7 +28,7 @@ CONF_FILE=$SANDBOX_DIR/confd/conf.txt
 CONF_DISKS=$SANDBOX_DIR/confd/disks.conf
 
 PROC_FID_CNTR=0x7200000000000001
-PROC_FID_KEY=3
+PROC_FID_KEY=0
 PROC_FID_KEY2=4
 PROC_FID="<$PROC_FID_CNTR:$PROC_FID_KEY>"
 PROC_FID2="<$PROC_FID_CNTR:$PROC_FID_KEY2>"
@@ -247,7 +247,7 @@ fids = {'profile'       : Fid(0x7000000000000001, 0),
 	'mddiskv'       : Fid(0x6a00000000000001, 23),
         'process'       : Fid($PROC_FID_CNTR, $PROC_FID_KEY),
         'process2'      : Fid($PROC_FID_CNTR, $PROC_FID_KEY2),
-        'process1'      : Fid(0x7200000000000002, 1),
+        'process1'      : Fid(0x7200000000000001, 1),
         'ios'           : Fid(0x7300000000000002, 0),
         'mds'           : Fid(0x7300000000000002, 2),
         'mds2'          : Fid(0x7300000000000002, 3),
@@ -476,7 +476,7 @@ EOF
 }
 
 _mount() {
-    local MOUNT_OPTS="-t m0t1fs -o pfid=<0x7200000000000002:1>,profile=$PROF_OPT,ha=$M0D2_ENDPOINT \
+    local MOUNT_OPTS="-t m0t1fs -o pfid=<0x7200000000000001:1>,profile=$PROF_OPT,ha=$M0D2_ENDPOINT \
 none $SANDBOX_DIR/mnt"
     echo "mount $MOUNT_OPTS"
     mount $MOUNT_OPTS || return $?

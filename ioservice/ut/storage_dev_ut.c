@@ -62,7 +62,7 @@ static int rpc_start(struct m0_rpc_server_ctx *rpc_srv)
 		NAME(""), "-T", "AD", "-D", NAME(".db"),
 		"-S", NAME(".stob"), "-A", "linuxstob:"NAME(""),
 		"-w", "10", "-e", full_ep, "-H", SERVER_ENDPOINT_ADDR,
-		"-f", "<0x7200000000000001:1>",
+		"-f", M0_UT_CONF_PROCESS,
 		"-m", max_rpc_size,
 		"-c", M0_UT_PATH("conf.xc"), "-P", M0_UT_CONF_PROFILE
 	};

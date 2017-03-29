@@ -46,6 +46,7 @@ static char *cs_ut_service_one_cmd[] = { "m0d", "-T", "linux",
                                 "-e", SERVER_ENDPOINT,
                                 "-H", SERVER_ENDPOINT_ADDR,
 				"-w", "10",
+				"-f", M0_UT_CONF_PROCESS,
 				"-P", M0_UT_CONF_PROFILE,
 				"-c", M0_UT_PATH("conf.xc")};
 
@@ -56,6 +57,7 @@ static char *cs_ut_services_many_cmd[] = { "m0d", "-T", "AD",
                                 "-e", SERVER_ENDPOINT,
                                 "-e", "bulk-mem:127.0.0.1:35678",
                                 "-H", SERVER_ENDPOINT_ADDR,
+				"-f", M0_UT_CONF_PROCESS,
 				"-P", M0_UT_CONF_PROFILE,
 				"-c", M0_UT_PATH("conf.xc")};
 
@@ -66,6 +68,7 @@ static char *cs_ut_opts_jumbled_cmd[] = { "m0d", "-D",
                                 "-H", SERVER_ENDPOINT_ADDR,
                                 "-S", "cs_stob", "-A", "linuxstob:cs_addb_stob",
 				"-P", M0_UT_CONF_PROFILE,
+				"-f", M0_UT_CONF_PROCESS,
 				"-c", M0_UT_PATH("conf.xc")};
 
 static char *cs_ut_dev_stob_cmd[] = { "m0d", "-T", "AD",
@@ -76,6 +79,7 @@ static char *cs_ut_dev_stob_cmd[] = { "m0d", "-T", "AD",
                                 "-e", SERVER_ENDPOINT,
                                 "-H", SERVER_ENDPOINT_ADDR,
 				"-P", M0_UT_CONF_PROFILE,
+				"-f", M0_UT_CONF_PROCESS,
 				"-c", M0_UT_PATH("conf.xc")};
 
 static char *cs_ut_stype_bad_cmd[] = { "m0d", "-T", "asdadd",
@@ -85,6 +89,7 @@ static char *cs_ut_stype_bad_cmd[] = { "m0d", "-T", "asdadd",
                                 "-e", SERVER_ENDPOINT,
                                 "-H", SERVER_ENDPOINT_ADDR,
 				"-P", M0_UT_CONF_PROFILE,
+				"-f", M0_UT_CONF_PROCESS,
 				"-c", M0_UT_PATH("conf.xc")};
 
 static char *cs_ut_xprt_bad_cmd[] = { "m0d", "-T", "AD",
@@ -93,6 +98,7 @@ static char *cs_ut_xprt_bad_cmd[] = { "m0d", "-T", "AD",
 				"-w", "10",
                                 "-e", "asdasdada:172.18.50.40@o2ib1:34567:2",
 				"-P", M0_UT_CONF_PROFILE,
+				"-f", M0_UT_CONF_PROCESS,
 				"-c", M0_UT_PATH("conf.xc")};
 
 static char *cs_ut_ep_bad_cmd[] = { "m0d", "-T", "AD",
@@ -100,6 +106,7 @@ static char *cs_ut_ep_bad_cmd[] = { "m0d", "-T", "AD",
                                 "-A", "linuxstob:cs_addb_sdb", "-w", "10",
                                 "-e", "lnet:asdad:asdsd:sadasd",
 				"-P", M0_UT_CONF_PROFILE,
+				"-f", M0_UT_CONF_PROCESS,
 				"-c", M0_UT_PATH("conf.xc")};
 
 static char *cs_ut_service_bad_cmd[] = { "m0d", "-T", "AD",
@@ -107,6 +114,7 @@ static char *cs_ut_service_bad_cmd[] = { "m0d", "-T", "AD",
                                 "-A", "linuxstob:cs_addb_sdb", "-w", "10",
                                 "-e", "lnet:172.18.50.40@o2ib1:12345:34:1",
 				"-P", M0_UT_CONF_PROFILE,
+				"-f", M0_UT_CONF_PROCESS,
 				"-c", M0_UT_PATH("conf.xc")};
 
 static char *cs_ut_args_bad_cmd[] = { "m0d", "-D", "cs_sdb",
@@ -114,6 +122,7 @@ static char *cs_ut_args_bad_cmd[] = { "m0d", "-D", "cs_sdb",
 				"-w", "10",
                                 "-e", "lnet:172.18.50.40@o2ib1:12345:34:1",
 				"-P", M0_UT_CONF_PROFILE,
+				"-f", M0_UT_CONF_PROCESS,
 				"-c", M0_UT_PATH("conf.xc")};
 
 static char *cs_ut_buffer_pool_cmd[] = { "m0d", "-T", "linux",
@@ -127,6 +136,7 @@ static char *cs_ut_buffer_pool_cmd[] = { "m0d", "-T", "linux",
 				 */
                                 "-q", "4", "-m", "32768",
 				"-P", M0_UT_CONF_PROFILE,
+				"-f", M0_UT_CONF_PROCESS,
 				"-c", M0_UT_PATH("conf.xc")};
 
 static char *cs_ut_lnet_cmd[] = { "m0d", "-T", "linux",
@@ -136,6 +146,7 @@ static char *cs_ut_lnet_cmd[] = { "m0d", "-T", "linux",
                                 "-e", SERVER_ENDPOINT,
                                 "-H", SERVER_ENDPOINT_ADDR,
 				"-P", M0_UT_CONF_PROFILE,
+				"-f", M0_UT_CONF_PROCESS,
 				"-c", M0_UT_PATH("conf.xc")};
 
 static char *cs_ut_lnet_mult_if_cmd[] = { "m0d", "-T", "linux",
@@ -147,6 +158,7 @@ static char *cs_ut_lnet_mult_if_cmd[] = { "m0d", "-T", "linux",
                                 "-e", "lnet:172.18.50.40@o2ib0:12345:34:101",
                                 "-H", SERVER_ENDPOINT_ADDR,
 				"-P", M0_UT_CONF_PROFILE,
+				"-f", M0_UT_CONF_PROCESS,
 				"-c", M0_UT_PATH("conf.xc")};
 
 /** @todo Remove passing of multiple endpoints to m0d, as is not needed. */
@@ -162,6 +174,7 @@ static char *cs_ut_ep_mixed_dup_cmd[] = { "m0d", "-T", "AD",
                                 "-e", "lnet:172.18.50.40@o2ib1:12345:30:101",
                                 "-H", SERVER_ENDPOINT_ADDR,
 				"-P", M0_UT_CONF_PROFILE,
+				"-f", M0_UT_CONF_PROCESS,
 				"-c", M0_UT_PATH("conf.xc")};
 
 static char *cs_ut_lnet_dup_tcp_if_cmd[] = { "m0d", "-T", "AD",
@@ -173,6 +186,7 @@ static char *cs_ut_lnet_dup_tcp_if_cmd[] = { "m0d", "-T", "AD",
                                 "-e", "lnet:172.18.50.40@tcp:12345:32:105",
                                 "-H", SERVER_ENDPOINT_ADDR,
 				"-P", M0_UT_CONF_PROFILE,
+				"-f", M0_UT_CONF_PROCESS,
 				"-c", M0_UT_PATH("conf.xc")};
 
 static char *cs_ut_lnet_ep_bad_cmd[] = { "m0d", "-T", "AD",
@@ -181,6 +195,7 @@ static char *cs_ut_lnet_ep_bad_cmd[] = { "m0d", "-T", "AD",
 				"-w", "10",
                                 "-e", "lnet:asdad:asdsd:sadasd",
 				"-P", M0_UT_CONF_PROFILE,
+				"-f", M0_UT_CONF_PROCESS,
 				"-c", M0_UT_PATH("conf.xc")};
 
 static char *cs_ut_bad_profile[] = { "m0d", "-T", "linux",
@@ -190,6 +205,7 @@ static char *cs_ut_bad_profile[] = { "m0d", "-T", "linux",
                                 "-H", SERVER_ENDPOINT_ADDR,
 				"-w", "10",
 				"-P", M0_UT_CONF_PROFILE_BAD,
+				"-f", M0_UT_CONF_PROCESS,
 				"-c", M0_UT_PATH("conf.xc")};
 
 

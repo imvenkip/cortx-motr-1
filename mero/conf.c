@@ -184,24 +184,39 @@ cs_conf_to_args(struct cs_args *dest, struct m0_conf_filesystem *fs)
 
 static bool is_local_service(const struct m0_conf_obj *obj)
 {
-	const char                   *lep;
-	struct m0_mero               *cctx;
 	const struct m0_conf_service *svc;
-	const struct m0_conf_process *p;
+	const struct m0_conf_process *proc;
+	struct m0_mero *cctx = m0_cs_ctx_get(m0_conf_obj2reqh(obj));
+	const struct m0_fid *proc_fid = &cctx->cc_reqh_ctx.rc_fid;
+	const char *local_ep;
 
 	if (m0_conf_obj_type(obj) != &M0_CONF_SERVICE_TYPE)
 		return false;
 	svc = M0_CONF_CAST(obj, m0_conf_service);
-	p = M0_CONF_CAST(m0_conf_obj_grandparent(&svc->cs_obj),
-			 m0_conf_process);
-	cctx = m0_cs_ctx_get(m0_conf_obj2reqh(obj));
-	lep = m0_rpc_machine_ep(m0_mero_to_rmach(cctx));
-	M0_LOG(M0_DEBUG, "lep: %s svc ep: %s type:%d process:"FID_F"service:"
-			 FID_F, lep,
-			 p->pc_endpoint, svc->cs_type,
-			 FID_P(&p->pc_obj.co_id),
-			 FID_P(&svc->cs_obj.co_id));
-	return m0_streq(lep, p->pc_endpoint);
+	proc = M0_CONF_CAST(m0_conf_obj_grandparent(&svc->cs_obj),
+			    m0_conf_process);
+	local_ep = m0_rpc_machine_ep(m0_mero_to_rmach(cctx));
+	M0_LOG(M0_DEBUG, "local_ep=%s pc_endpoint=%s type=%d process="FID_F
+	       " service=" FID_F, local_ep, proc->pc_endpoint, svc->cs_type,
+	       FID_P(&proc->pc_obj.co_id), FID_P(&svc->cs_obj.co_id));
+	/*
+	 * It is expected for subordinate m0d service to have endpoint equal to
+	 * respective process' endpoint.
+	 */
+	M0_ASSERT_INFO(cctx->cc_mkfs || /* ignore mkfs run */
+		       !m0_fid_eq(&proc->pc_obj.co_id, proc_fid) ||
+		       m0_streq(local_ep, svc->cs_endpoints[0]),
+		       "process=" FID_F " process_fid=" FID_F
+		       " local_ep=%s pc_endpoint=%s cs_endpoints[0]=%s",
+		       FID_P(&proc->pc_obj.co_id), FID_P(proc_fid), local_ep,
+		       proc->pc_endpoint, svc->cs_endpoints[0]);
+	return m0_fid_eq(&proc->pc_obj.co_id, proc_fid) &&
+		/*
+		 * Comparing fids is not enough, since two different processes
+		 * (e.g., m0mkfs and m0d) may have the same fid but different
+		 * endpoints.
+		 */
+		m0_streq(proc->pc_endpoint, local_ep);
 }
 
 static bool is_ios(const struct m0_conf_obj *obj)
@@ -399,13 +414,8 @@ M0_INTERNAL int cs_conf_services_init(struct m0_mero *cctx)
 							   m0_conf_service);
 		char                   *sname = m0_conf_service_name_dup(svc);
 		M0_LOG(M0_DEBUG, "service:%s fid:" FID_F, sname,
-				FID_P(&svc->cs_obj.co_id));
-		if (!M0_FI_ENABLED("skip_service_count_check"))
-			M0_ASSERT(rctx->rc_nr_services < M0_CST_NR);
-		/** @todo Check only one service of each service type is present
-			  per endpoint in the configuration.
-		    M0_ASSERT(rctx->rc_services[svc->cs_type] == NULL);
-		*/
+		       FID_P(&svc->cs_obj.co_id));
+		M0_ASSERT(rctx->rc_nr_services < M0_CST_NR);
 		M0_ASSERT(svc->cs_type < M0_CST_NR);
 		if (sname == NULL) {
 			int i;
@@ -414,6 +424,11 @@ M0_INTERNAL int cs_conf_services_init(struct m0_mero *cctx)
 				m0_free(rctx->rc_services[i]);
 			break;
 		}
+		M0_ASSERT_INFO(rctx->rc_services[svc->cs_type] == NULL,
+			       "registering " FID_F " service type=%d when "
+			       FID_F " for the type is already registered",
+			       FID_P(&svc->cs_obj.co_id), svc->cs_type,
+			       FID_P(&rctx->rc_service_fids[svc->cs_type]));
 		rctx->rc_services[svc->cs_type] = sname;
 		rctx->rc_service_fids[svc->cs_type] = svc->cs_obj.co_id;
 		M0_LOG(M0_DEBUG, "service:%s fid:" FID_F,

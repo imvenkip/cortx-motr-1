@@ -16,7 +16,7 @@ conf_ios_device_setup()
 		eval $ids_out="'$_ids, $ddev_id'"
 	fi
 
-	eval $id_count_out=`expr $_id_count + 1`
+	eval $id_count_out=$(( $_id_count + 1 ))
 
 	#dev conf obj
 	local ddev_obj="{0x64| (($ddev_id), $(($_DDEV_ID - 1)), 4, 1, 4096, 596000000000, 3, 4, \"/dev/loop$_DDEV_ID\")}"
@@ -28,7 +28,7 @@ conf_ios_device_setup()
 	else
 		DISK_FIDS="$DISK_FIDS, $ddisk_id"
 	fi
-	NR_DISK_FIDS=`expr $NR_DISK_FIDS + 1`
+	NR_DISK_FIDS=$(( $NR_DISK_FIDS + 1 ))
 
 	#diskv conf obj
 	local ddiskv_obj="{0x6a| (($ddiskv_id), $ddisk_id, [0])}"
@@ -38,7 +38,7 @@ conf_ios_device_setup()
 	else
 		DISKV_FIDS="$DISKV_FIDS, $ddiskv_id"
 	fi
-	NR_DISKV_FIDS=`expr $NR_DISKV_FIDS + 1`
+	NR_DISKV_FIDS=$(( $NR_DISKV_FIDS + 1 ))
 
 	if (($NR_IOS_DEVS == 0))
 	then
@@ -46,7 +46,7 @@ conf_ios_device_setup()
 	else
 		IOS_DEVS="$IOS_DEVS, \n $ddev_obj, \n $ddisk_obj, \n $ddiskv_obj"
 	fi
-	NR_IOS_DEVS=`expr $NR_IOS_DEVS + 3`
+	NR_IOS_DEVS=$(( $NR_IOS_DEVS + 3 ))
 	((NR_SDEVS++))
 }
 
@@ -64,7 +64,7 @@ mkiosloopdevs()
 
 	cd $dir || return 1
 
-	ADEV_ID=`expr $ADEV_ID + 1`
+	ADEV_ID=$(( $ADEV_ID + 1 ))
 	dd if=/dev/zero of=$ADEV_ID$adisk bs=1M seek=1M count=1 || return 1
 	cat > disks.conf << EOF
 Device:
@@ -89,7 +89,7 @@ EOF
 EOF
 	done
 
-	IOS_DEV_IDS[`expr $ios - 1`]="[$id_count: $ids]"
+	IOS_DEV_IDS[$(( $ios - 1 ))]="[$id_count: $ids]"
 
 	cd - >/dev/null
 	return $?
@@ -105,7 +105,7 @@ mkiosmddevs()
 	local nr_dev=$nr_dev_per_ios
 
 	for ((i=0; i < $nr_ios; i++)); do
-		local ios=`expr $i + 1`
+		local ios=$(( $i + 1 ))
 		local ddisk_id="^k|1:$MDDEV_ID"
 		local mddiskv_id="^j|2:$MDDEV_ID"
 
@@ -213,9 +213,6 @@ mero_service()
 		NR_DISKV_FIDS=0
 
 		local i
-		# Use one process fid for all processes for now.
-		#@todo Eliminate this after using the proc fid from the configuration.
-		local proc_fid=\''<'$PROC_FID_CNTR:1'>'\'
 
 		prepare
 
@@ -233,7 +230,7 @@ mero_service()
 
 		#create ios devices
 		for ((i=0; i < $nr_ios; i++)) ; do
-			local ios=`expr $i + 1`
+			local ios=$(( $i + 1 ))
 			local nr_dev=$nr_dev_per_ios
 			DIR=$MERO_M0T1FS_TEST_DIR/ios$ios
 			rm -rf $DIR
@@ -293,6 +290,9 @@ EOF
 		(eval "$cmd")
 
 		# spawn confd
+		local ha_key=$(( ${#MDSEP[*]} + ${#IOSEP[*]} ))
+		local confd_key=$(( $ha_key + 1 ))
+		local proc_fid="'<"$PROC_FID_CNTR:$confd_key">'"
 		opts="$common_opts -f $proc_fid -T linux -e $XPT:$CONFD_EP \
 		      -c $CONFDB"
 		cmd="cd $DIR && exec $prog_start $opts |& tee -a m0d.log"
@@ -311,7 +311,7 @@ EOF
 
 		#mds mkfs
 		for ((i=0; i < ${#MDSEP[*]}; i++)) ; do
-			local mds=`expr $i + 1`
+			local mds=$(( $i + 1 ))
 			DIR=$MERO_M0T1FS_TEST_DIR/mds$mds
 			rm -rf $DIR
 			mkdir -p $DIR
@@ -328,7 +328,7 @@ EOF
 
 		#ios mkfs
 		for ((i=0; i < ${#IOSEP[*]}; i++)) ; do
-			local ios=`expr $i + 1`
+			local ios=$(( $i + 1 ))
 			DIR=$MERO_M0T1FS_TEST_DIR/ios$ios
 
 			tmid=$(echo ${IOSEP[$i]} | cut -d: -f3)
@@ -354,6 +354,7 @@ EOF
 		fi
 
 		# spawn ha agent
+		proc_fid="'<"$PROC_FID_CNTR:$ha_key">'"
 		opts="$common_opts -T linux -e $XPT:${lnet_nid}:$HA_EP \
 		      -c $CONFDB -f $proc_fid ${FI_OPT:-}"
 		DIR=$MERO_M0T1FS_TEST_DIR/ha
@@ -372,7 +373,9 @@ EOF
 
 		# spawn mds
 		for ((i=0; i < ${#MDSEP[*]}; i++)) ; do
-			local mds=`expr $i + 1`
+			local mds=$(( $i + 1 ))
+			local mds_key=$(( $i + ${#IOSEP[*]} ))
+			local proc_fid="'<"$PROC_FID_CNTR:$mds_key">'"
 			DIR=$MERO_M0T1FS_TEST_DIR/mds$mds
 
 			ulimit -c unlimited
@@ -404,7 +407,9 @@ EOF
 
 		# spawn ios
 		for ((i=0; i < ${#IOSEP[*]}; i++)) ; do
-			local ios=`expr $i + 1`
+			local ios=$(( $i + 1 ))
+			proc_fid="'<"$PROC_FID_CNTR:$i">'"
+
 			DIR=$MERO_M0T1FS_TEST_DIR/ios$ios
 
 			ulimit -c unlimited
@@ -422,6 +427,7 @@ EOF
 			IOS4_CMD=$cmd
 		done
 		if ((multiple_pools == 1)); then
+			proc_fid="'<0x720000000000000a:1>'"
 			DIR=$MERO_M0T1FS_TEST_DIR/ios5
 			ulimit -c unlimited
 			cmd="cd $DIR && exec \
@@ -448,7 +454,7 @@ EOF
 
 		# Wait for mds to start
 		for ((i=0; i < ${#MDSEP[*]}; i++)) ; do
-			local mds=`expr $i + 1`
+			local mds=$(( $i + 1 ))
 			DIR=$MERO_M0T1FS_TEST_DIR/mds$mds
 			local m0d_log=$DIR/m0d.log
 			while ! grep CTRL $m0d_log > /dev/null; do
@@ -459,7 +465,7 @@ EOF
 
 		# Wait for ios to start
 		for ((i=0; i < ${#IOSEP[*]}; i++)) ; do
-			local ios=`expr $i + 1`
+			local ios=$(( $i + 1 ))
 			DIR=$MERO_M0T1FS_TEST_DIR/ios$ios
 			local m0d_log=$DIR/m0d.log
 			while ! grep CTRL $m0d_log > /dev/null; do

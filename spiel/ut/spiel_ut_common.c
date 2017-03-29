@@ -124,7 +124,7 @@ M0_INTERNAL int m0_spiel__ut_rpc_server_start(struct m0_rpc_server_ctx *rpc_srv,
 	char *argv[] = {
 		NAME(""), "-T", "AD", "-D", NAME(".db"), "-S", NAME(".stob"),
 		"-A", "linuxstob:"NAME("-addb_stob"), "-w", "10",
-		"-e", full_ep, "-H", (char *)ha_ep, "-f", "<0x7200000000000002:1>",
+		"-e", full_ep, "-H", (char *)ha_ep, "-f", M0_UT_CONF_PROCESS,
 		"-m", max_rpc_size, "-G", full_ep,
 		"-c", (char *)confdb_path, "-P", M0_UT_CONF_PROFILE
 	};

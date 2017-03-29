@@ -170,6 +170,7 @@ static char *g_argv[] = {
 	"-T", "AD", "-D", NAME(".db"), "-S", NAME(".stob"),
 	"-A", "linuxstob:"NAME(".addb-stob"),
 	"-e", SERVER_ENDPOINT, "-H", SERVER_ENDPOINT_ADDR,
+	"-f", M0_UT_CONF_PROCESS,
 	"-c", M0_UT_PATH("conf.xc"), "-P", M0_UT_CONF_PROFILE
 };
 

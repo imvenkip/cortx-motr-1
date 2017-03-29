@@ -109,7 +109,7 @@ static char *server_args[] = {
 	"m0d", "-T", "AD", "-D", "cobfoms_ut.db", "-S",
 	"cobfoms_ut_stob", "-A", "linuxstob:cobfoms_ut_addb_stob",
 	"-w", "10", "-e", SERVER_ENDP, "-H", SERVER_EP_ADDR,
-	"-f", "<0x7200000000000001:1>",
+	"-f", M0_UT_CONF_PROCESS,
 	"-q", COB_FOP_NR_STR,
 	"-c", M0_UT_PATH("diter.xc"), "-P", M0_UT_CONF_PROFILE
 };

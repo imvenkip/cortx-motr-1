@@ -207,40 +207,24 @@ static bool spiel_stob_exists(uint64_t cid)
 	return rc == 0 && stob != NULL;
 }
 
-static void spiel_change_svc_type(struct m0_confc *confc,
-				  const struct m0_fid *fid)
-{
-	struct m0_conf_obj     *obj;
-	struct m0_conf_service *svc;
-	int                     rc;
-
-	rc = m0_confc_open_by_fid_sync(confc, fid, &obj);
-	M0_UT_ASSERT(rc == 0);
-	svc = M0_CONF_CAST(obj, m0_conf_service);
-	svc->cs_type = M0_CST_IOS;
-	m0_confc_close(obj);
-}
-
 static void test_spiel_device_cmds(void)
 {
 	/*
 	 * According to ut/conf.xc:
-	 * - disk-16 is associated with sdev-15;
-	 * - sdev-15 belongs IO service-9;
+	 * - disk-78 is associated with sdev-74;
+	 * - sdev-74 belongs to IO service-9 of process-5;
 	 * - disk-55 is associated with sdev-51;
-	 * - sdev-51 belongs service-27, which is not an IO service;
+	 * - sdev-51 belongs to IO service-27 of process-49;
 	 * - disk-23 does not exist.
 	 */
-	uint64_t            io_sdev = 7;
-	uint64_t            nonio_sdev = 51;
+	uint64_t            io_sdev = 5;
+	uint64_t            foreign_sdev = 51;
 	const struct m0_fid io_disk = M0_FID_TINIT(
-				M0_CONF_DISK_TYPE.cot_ftype.ft_id, 1, 87);
-	const struct m0_fid nonio_disk = M0_FID_TINIT(
+				M0_CONF_DISK_TYPE.cot_ftype.ft_id, 1, 78);
+	const struct m0_fid foreign_disk = M0_FID_TINIT(
 				M0_CONF_DISK_TYPE.cot_ftype.ft_id, 1, 55);
 	const struct m0_fid nosuch_disk = M0_FID_TINIT(
 				M0_CONF_DISK_TYPE.cot_ftype.ft_id, 1, 23);
-	const struct m0_fid nonio_svc = M0_FID_TINIT(
-				M0_CONF_SERVICE_TYPE.cot_ftype.ft_id, 1, 27);
 	int                 rc;
 	uint32_t            ha_state;
 
@@ -273,28 +257,23 @@ static void test_spiel_device_cmds(void)
 	M0_UT_ASSERT(spiel_stob_exists(io_sdev));
 
 	/*
-	 * Change type nonio_svc (owner nonio_disk) to IO service for this test
-	 * only.
-	 * Now client part m0_spiel_device_xxx command process nonio_disk as
-	 * IO disk, server part process disk as disk from another node.
+	 * Server part processes foreign_disk as disk from another process.
 	 */
-	spiel_change_svc_type(spiel_confc(&spiel), &nonio_svc);
-
-	rc = m0_spiel_device_format(&spiel, &nonio_disk);
+	rc = m0_spiel_device_format(&spiel, &foreign_disk);
 	M0_UT_ASSERT(rc == 0);
 
 	m0_fi_enable_once("m0_storage_dev_new_by_conf", "no_real_dev");
-	rc = m0_spiel_device_attach(&spiel, &nonio_disk);
+	rc = m0_spiel_device_attach(&spiel, &foreign_disk);
 	M0_UT_ASSERT(rc == 0);
 	/*
-	 * Stob is not created for device that does not belong IO service
-	 * current node.
+	 * Stob is not created for device that does not belong to IO service
+	 * of current process, which is process-5.
 	 */
-	M0_UT_ASSERT(!spiel_stob_exists(nonio_sdev));
+	M0_UT_ASSERT(!spiel_stob_exists(foreign_sdev));
 
-	rc = m0_spiel_device_detach(&spiel, &nonio_disk);
+	rc = m0_spiel_device_detach(&spiel, &foreign_disk);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(!spiel_stob_exists(nonio_sdev));
+	M0_UT_ASSERT(!spiel_stob_exists(foreign_sdev));
 
 	rc = m0_spiel_device_attach(&spiel, &nosuch_disk);
 	M0_UT_ASSERT(rc == -ENOENT);

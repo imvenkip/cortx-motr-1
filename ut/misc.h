@@ -40,6 +40,7 @@
 
 #define M0_UT_CONF_PROFILE     "<0x7000000000000001:0>"
 #define M0_UT_CONF_PROFILE_BAD "<0x7000000000000000:999>" /* non-existent */
+#define M0_UT_CONF_PROCESS     "<0x7200000000000001:5>"
 
 /**
  * Random shuffles an array.

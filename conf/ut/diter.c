@@ -72,7 +72,7 @@ static const struct m0_fid fids[] = {
 	[PROF]        = M0_FID_TINIT('p', 1, 0),
 	[FS]          = M0_FID_TINIT('f', 1, 1),
 	[NODE]        = M0_FID_TINIT('n', 1, 2),
-	[PROCESS0]    = M0_FID_TINIT('r', 1, 3),
+	[PROCESS0]    = M0_FID_TINIT('r', 1, 5),
 	[SERVICE0]    = M0_FID_TINIT('s', 1, 0),
 	[SERVICE1]    = M0_FID_TINIT('s', 1, 1),
 	[SERVICE2]    = M0_FID_TINIT('s', 1, 2),
@@ -324,6 +324,7 @@ static void test_diter_net(void)
 		NAME(""), "-T", "AD", "-D", NAME(".db"),
 		"-S", NAME(".stob"), "-A", "linuxstob:"NAME("-addb.stob"),
 		"-w", "10", "-e", SERVER_ENDPOINT, "-H", SERVER_ENDPOINT_ADDR,
+		"-f", M0_UT_CONF_PROCESS,
 		"-c", M0_UT_PATH("diter.xc"), "-P", M0_UT_CONF_PROFILE
 	};
 	struct m0_rpc_server_ctx confd = {

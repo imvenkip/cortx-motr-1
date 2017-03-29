@@ -82,7 +82,6 @@ SPIEL_FIDS_LIST="
 fids = {'profile'       : Fid(0x7000000000000001, 0),
         'pool'          : Fid(0x6f00000000000001, 9),
         'ios'           : Fid(0x7300000000000001, 3),
-        'process'       : Fid(0x7200000000000001, 7),
 }"
 
 SPIEL_RCONF_START="

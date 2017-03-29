@@ -36,7 +36,7 @@ static const char *SERVER_LOGFILE = "cm_ut.log";
 char  *cm_ut_server_args[] = { "m0d", "-T", "LINUX",
 				"-D", "sr_db", "-S", "sr_stob",
 				"-A", "linuxstob:sr_addb_stob",
-				"-f", "<0x7200000000000001:1>",
+				"-f", M0_UT_CONF_PROCESS,
 				"-w", "10",
 				"-F",
 				"-G", "lnet:0@lo:12345:34:1",
