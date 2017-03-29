@@ -76,14 +76,15 @@ function stop_everything() {
 	sudo systemctl stop mero-kernel &
 	sudo killall -9 lt-m0d m0d lt-m0mkfs m0mkfs || true
 	wait
-	sudo systemctl start mero-kernel || true
-	sudo systemctl stop mero-kernel || true
+	if systemctl is-failed mero-kernel; then
+		sudo systemctl start mero-kernel || true
+		sudo systemctl stop mero-kernel || true
+	fi
 	sudo rmmod m0mero m0gf || true
 }
 
 function cluster_start() {
 	set -x
-	stop_everything
 	sudo rm -rf halon-persistence
 
 	[ -z $USE_SYSTEM_MERO ] && {
@@ -97,6 +98,8 @@ function cluster_start() {
 	sudo rm -vf /etc/mero/conf.xc
 	sudo rm -vf /etc/mero/disks*.conf
 
+	stop_everything
+
 	halon_facts_yaml > $HALON_FACTS_YAML
 
 	sudo $HALOND -l $IP:9000 >& /tmp/halond.log &
@@ -108,7 +111,7 @@ function cluster_start() {
 					-f $HALON_FACTS_YAML \
 					-r $MERO_ROLE_MAPPINGS \
 					-s $HALON_ROLES
-	sudo $HALONCTL -l $IP:9010 -a $IP:9000 cluster start && sleep 120
+	sudo $HALONCTL -l $IP:9010 -a $IP:9000 cluster start && sleep 10
 	sudo $HALONCTL -l $IP:9010 -a $IP:9000 cluster status
 }
 
