@@ -194,6 +194,27 @@ static void test_start_stop_local(void)
 	rconfc_ut_mero_stop(&mach, &rctx);
 }
 
+static void test_local_load_fail(void)
+{
+	struct m0_rpc_machine    mach;
+	struct m0_rpc_server_ctx rctx;
+	int                      rc;
+	struct m0_rconfc         rconfc;
+
+	rc = rconfc_ut_mero_start(&mach, &rctx);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
+	M0_UT_ASSERT(rc == 0);
+	rconfc.rc_local_conf = m0_strdup("abracadabra");
+	rc = m0_rconfc_start_sync(&rconfc, &profile);
+	M0_UT_ASSERT(rc != 0);
+	M0_UT_ASSERT(!m0_rconfc_is_preloaded(&rconfc));
+	M0_UT_ASSERT(rconfc.rc_ver == 0);
+	m0_rconfc_stop_sync(&rconfc);
+	m0_rconfc_fini(&rconfc);
+	rconfc_ut_mero_stop(&mach, &rctx);
+}
+
 static void test_start_failures(void)
 {
 	struct m0_rpc_machine    mach;
@@ -1369,6 +1390,7 @@ struct m0_ut_suite rconfc_ut = {
 		{ "init-fini",        test_init_fini },
 		{ "start-stop",       test_start_stop },
 		{ "local-conf",       test_start_stop_local },
+		{ "local-load-fail",  test_local_load_fail },
 		{ "start-fail",       test_start_failures },
 		{ "fail-abort",       test_fail_abort },
 		{ "fail-retry-rm",    test_fail_retry_rm },

@@ -598,7 +598,8 @@ static void test_ha_session_states(void)
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_file_read(M0_UT_PATH("conf.xc"), &cl_rconfc->rc_local_conf);
 	M0_UT_ASSERT(rc == 0);
-	m0_rconfc_start(cl_rconfc, &reqh->rh_profile);
+	rc = m0_rconfc_start(cl_rconfc, &reqh->rh_profile);
+	M0_UT_ASSERT(rc == 0);
 	m0_ha_client_add(&cl_rconfc->rc_confc);
 	rc = m0_rpc_conn_ha_subscribe(&cctx.rcx_connection, &fid);
 	M0_UT_ASSERT(rc == 0);

@@ -301,7 +301,8 @@ static void test_resend(void)
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_file_read(M0_UT_PATH("conf.xc"), &cl_rconfc->rc_local_conf);
 	M0_UT_ASSERT(rc == 0);
-	m0_rconfc_start(cl_rconfc, &reqh->rh_profile);
+	rc = m0_rconfc_start(cl_rconfc, &reqh->rh_profile);
+	M0_UT_ASSERT(rc == 0);
 	rc = m0_rpc_conn_ha_subscribe(session->s_conn, &sfid);
 	M0_UT_ASSERT(rc == 0);
 
@@ -1111,7 +1112,8 @@ static void test_ha_cancel(void)
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_file_read(M0_UT_PATH("conf.xc"), &cl_rconfc->rc_local_conf);
 	M0_UT_ASSERT(rc == 0);
-	m0_rconfc_start(cl_rconfc, &reqh->rh_profile);
+	rc = m0_rconfc_start(cl_rconfc, &reqh->rh_profile);
+	M0_UT_ASSERT(rc == 0);
 
 	/*
 	 * Re-initiate rpc conn subscription to HA notes. This will replace
@@ -1185,7 +1187,8 @@ static void test_ha_notify()
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_file_read(M0_UT_PATH("conf.xc"), &cl_rconfc->rc_local_conf);
 	M0_UT_ASSERT(rc == 0);
-	m0_rconfc_start(cl_rconfc, &reqh->rh_profile);
+	rc = m0_rconfc_start(cl_rconfc, &reqh->rh_profile);
+	M0_UT_ASSERT(rc == 0);
 	rc = m0_rpc_conn_ha_subscribe(session->s_conn, &sfid);
 	M0_UT_ASSERT(rc == 0);
 

@@ -2548,7 +2548,7 @@ static void rconfc_read_lock_complete(struct m0_rm_incoming *in, int32_t rc)
 	M0_LEAVE();
 }
 
-static void rconfc_local_load(struct m0_rconfc *rconfc)
+static int rconfc_local_load(struct m0_rconfc *rconfc)
 {
 	struct m0_conf_root *root;
 	int                  rc;
@@ -2562,13 +2562,12 @@ static void rconfc_local_load(struct m0_rconfc *rconfc)
 	if (rc == 0) {
 		rconfc->rc_ver = root->rt_verno;
 		m0_confc_close(&root->rt_obj);
+		m0_rconfc_lock(rconfc);
+		if (rconfc->rc_ready_cb != NULL)
+			rconfc->rc_ready_cb(rconfc);
+		m0_rconfc_unlock(rconfc);
 	}
-	rconfc->rc_sm.sm_rc = rc;
-	m0_rconfc_lock(rconfc);
-	if (rconfc->rc_ready_cb != NULL)
-		rconfc->rc_ready_cb(rconfc);
-	m0_rconfc_unlock(rconfc);
-	M0_LEAVE("rc=%d", rc);
+	return M0_RC(rc);
 }
 
 /**************************************
@@ -2655,29 +2654,31 @@ rlock_err:
 	return M0_ERR(rc);
 }
 
-M0_INTERNAL void m0_rconfc_start(struct m0_rconfc *rconfc,
-				 struct m0_fid    *profile)
+M0_INTERNAL int m0_rconfc_start(struct m0_rconfc    *rconfc,
+				const struct m0_fid *profile)
 {
 	M0_ENTRY("rconfc = %p, profile = "FID_F, rconfc, FID_P(profile));
 	M0_PRE(rconfc->rc_fatal_cb == NULL);
 	rconfc->rc_profile = profile;
 	if (rconfc->rc_local_conf != NULL)
-		rconfc_local_load(rconfc);
-	else
-		rconfc_ast_post(rconfc, rconfc_start_ast_cb);
-	M0_LEAVE();
+		return M0_RC(rconfc_local_load(rconfc));
+	rconfc_ast_post(rconfc, rconfc_start_ast_cb);
+	return M0_RC(0);
 }
 
-M0_INTERNAL int m0_rconfc_start_wait(struct m0_rconfc *rconfc,
-				     struct m0_fid    *profile,
-				     uint64_t          timeout_ns)
+M0_INTERNAL int m0_rconfc_start_wait(struct m0_rconfc    *rconfc,
+				     const struct m0_fid *profile,
+				     uint64_t             timeout_ns)
 {
 	struct rlock_ctx *rlx = M0_MEMBER(rconfc, rc_rlock_ctx);
+	int rc;
 
 	M0_ENTRY("rconfc = %p, profile = "FID_F, rconfc, FID_P(profile));
 	if (timeout_ns != M0_TIME_NEVER)
 		rlx->rlc_timeout = timeout_ns;
-	m0_rconfc_start(rconfc, profile);
+	rc = m0_rconfc_start(rconfc, profile);
+	if (rc != 0)
+		return M0_ERR(rc);
 	if (!m0_rconfc_is_preloaded(rconfc)) {
 		m0_time_t deadline = timeout_ns == M0_TIME_NEVER ?
 			M0_TIME_NEVER : m0_time_from_now(0, timeout_ns);

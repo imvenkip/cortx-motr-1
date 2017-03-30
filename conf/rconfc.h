@@ -368,7 +368,7 @@ struct m0_rconfc {
 	 */
 	char                     *rc_local_conf;
 	/** Profile FID rconfc to work on */
-	struct m0_fid            *rc_profile;
+	const struct m0_fid      *rc_profile;
 	/**
 	 * Context for full conf loading.
 	 *
@@ -463,19 +463,19 @@ M0_INTERNAL int m0_rconfc_init(struct m0_rconfc      *rconfc,
  *
  * @see m0_rconfc_is_preloaded()
  */
-M0_INTERNAL void m0_rconfc_start(struct m0_rconfc *rconfc,
-				 struct m0_fid    *profile);
+M0_INTERNAL int m0_rconfc_start(struct m0_rconfc    *rconfc,
+				const struct m0_fid *profile);
 
 /**
  * Synchronous version of m0_rconfc_start() with limited deadline. Use
  * M0_TIME_NEVER value to indicate infinite waiting.
  */
-M0_INTERNAL int m0_rconfc_start_wait(struct m0_rconfc *rconfc,
-				     struct m0_fid    *profile,
-				     uint64_t          timeout_ns);
+M0_INTERNAL int m0_rconfc_start_wait(struct m0_rconfc    *rconfc,
+				     const struct m0_fid *profile,
+				     uint64_t             timeout_ns);
 
-static inline int m0_rconfc_start_sync(struct m0_rconfc *rconfc,
-				       struct m0_fid    *profile)
+static inline int m0_rconfc_start_sync(struct m0_rconfc    *rconfc,
+				       const struct m0_fid *profile)
 {
 	return m0_rconfc_start_wait(rconfc, profile, M0_TIME_NEVER);
 }
