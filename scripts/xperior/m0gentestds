@@ -197,10 +197,11 @@ sub make_descriptor
     my $name    = shift;
     my $timeout = shift;
     my $options = shift // '';
+    my $exclude = shift // '';
 
     return <<"END_DESCRIPTOR"
-  - id       : $prefix-$idx-$name$options
-    script   : m0run $options m0ut -- -t $name
+  - id       : $prefix$options-$idx-$name
+    script   : m0run $options m0ut -- -t $name $exclude
     dir      : src/utils/
     executor : Xperior::Executor::MeroTest
     sandbox  : /var/mero/m0ut/$name
@@ -321,9 +322,10 @@ sub main
                                 } @$tests )
             {
                 my $test_name = [keys %$test]->[0];
+                my $idx       = sprintf '%03d', $i++;
 
                 VARIANTS:
-                for my $vname (keys $test->{$test_name}{config}) {
+                for my $vname (grep { $_ ne 'exclude' } keys $test->{$test_name}{config}) {
                     if ( none { $_ eq $vname } @supported_valgrind_variants ) {
                         warning "Unsupported valgrind vname '$vname' found"
                                 . " for test suite '$test_name'\n";
@@ -331,7 +333,7 @@ sub main
                     }
                     debug "  $test_name [$vname]";
 
-                    my $idx     = sprintf '%03d', $i++;
+                    my $exclude = $test->{$test_name}{config}{exclude};
                     my $variant = $test->{$test_name}{config}{$vname};
                     $variant->{full_name} = $vname eq 'valgrind' ? $vname : "valgrind-$vname";
 
@@ -341,8 +343,9 @@ sub main
                         : defined $cli_option{timeout} ? $cli_option{timeout}
                         :                                $default_timeout_sec;
 
-                    print {$output_fh} make_descriptor('00userspace', $idx, $test_name,
-                                            $timeout, "-d$variant->{full_name}");
+                    print {$output_fh} make_descriptor('00userspace', $idx, $test_name
+                                            , $timeout, "-d$variant->{full_name}"
+                                            , defined $exclude ? '-x ' . join(',', @$exclude) : '');
                 }
             }
         }

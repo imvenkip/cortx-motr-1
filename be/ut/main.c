@@ -136,8 +136,14 @@ extern void m0_be_ut_fmt(void);
 
 struct m0_ut_suite be_ut = {
 	.ts_name = "be-ut",
-	.ts_yaml_config_string = "{ valgrind: { timeout: 300 },"
-				 "  helgrind: { timeout: 600 } }",
+	.ts_yaml_config_string = "{ valgrind: { timeout: 1200 },"
+				 "  helgrind: { timeout: 1200 },"
+				 "  exclude:  ["
+				 "    btree,"
+				 "    emap,"
+				 "    tx-concurrent,"
+				 "    tx-concurrent-excl"
+				 "  ] }",
 	.ts_init = NULL,
 	.ts_fini = NULL,
 	.ts_tests = {
