@@ -6426,8 +6426,10 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 			continue;
 		}
 		M0_ALLOC_PTR(irfop);
-		if (irfop == NULL)
+		if (irfop == NULL) {
+			rc = M0_ERR(-ENOMEM);
 			goto err;
+		}
 		rc = io_req_fop_init(irfop, ti, filter);
 		if (rc != 0) {
 			m0_free(irfop);
