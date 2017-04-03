@@ -301,6 +301,7 @@ struct m0_ha {
 	struct m0_clink                 h_clink;
 	uint64_t                        h_link_id_counter;
 	uint64_t                        h_generation_counter;
+	bool                            h_warn_local_link_disconnect;
 };
 
 M0_INTERNAL int m0_ha_init(struct m0_ha *ha, struct m0_ha_cfg *ha_cfg);

@@ -362,9 +362,10 @@ static int ha_level_enter(struct m0_module *module)
 		ha_links_tlist_init(&ha->h_links_outgoing);
 		ha_links_tlist_init(&ha->h_links_stopping);
 		m0_clink_init(&ha->h_clink, ha_entrypoint_state_cb);
-		ha->h_link_id_counter    = 1;
-		ha->h_generation_counter = 1;
-		ha->h_link_started       = false;
+		ha->h_link_id_counter            = 1;
+		ha->h_generation_counter         = 1;
+		ha->h_link_started               = false;
+		ha->h_warn_local_link_disconnect = true;
 		return M0_RC(0);
 	case M0_HA_LEVEL_ADDR_STRDUP:
 		addr = m0_strdup(ha->h_cfg.hcf_addr);
@@ -516,6 +517,7 @@ static void ha_level_leave(struct m0_module *module)
 		m0_free(ha->h_link_ctx);
 		break;
 	case M0_HA_LEVEL_LINK_CTX_INIT:
+		ha->h_warn_local_link_disconnect = false;
 		/* @see ha_entrypoint_state_cb for m0_ha_link_start() */
 		if (ha->h_link_started) {
 			m0_ha_link_cb_disconnecting(&ha->h_link_ctx->hlx_link);
@@ -946,7 +948,8 @@ M0_INTERNAL void m0_ha_process_failed(struct m0_ha        *ha,
 	M0_PRE(m0_fid_tget(process_fid) ==
 	       M0_CONF_PROCESS_TYPE.cot_ftype.ft_id);
 	*/
-	if (m0_fid_eq(process_fid, &ha->h_cfg.hcf_process_fid))
+	if (ha->h_warn_local_link_disconnect &&
+	    m0_fid_eq(process_fid, &ha->h_cfg.hcf_process_fid))
 		M0_LOG(M0_WARN, "disconnecting local link");
 	m0_mutex_lock(&ha->h_lock);
 	m0_tl_for(ha_links, &ha->h_links_incoming, hlx) {
