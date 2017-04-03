@@ -102,6 +102,7 @@ function cluster_start() {
 
 	halon_facts_yaml > $HALON_FACTS_YAML
 
+	ulimit -c unlimited
 	sudo $HALOND -l $IP:9000 &> /tmp/halond.log &
 	true
 	sleep 2
