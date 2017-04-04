@@ -180,7 +180,7 @@ sns_repair_test()
 
 	echo "Start SNS repair again ..."
 	# Start repair in background and kill ioservice.
-	sns_repair &
+	sns_repair || return $?
 
 	echo "killing ios4 ..."
 	kill_ios4_ioservice
@@ -189,16 +189,16 @@ sns_repair_test()
 	# subscribe to svc state changes. If M0_NC_FAILED is sent before this,
 	# wait_for_sns_repair_or_rebalance_not_4() gets stuck below.
 	# See MERO-2166
-	echo 'Sleeping for 20 seconds...'
-	sleep 20
+	#echo 'Sleeping for 20 seconds...'
+	#sleep 20
 
 	#echo "HA notifies that ios4 failed."
 	ha_notify_ios4_failure_or_online "failed"
 	sleep 2
 
-	echo "ios4 failed, we have to abort SNS repair"
-	sns_repair_abort
-	sleep 2
+	#echo "ios4 failed, we have to abort SNS repair"
+	#sns_repair_abort
+	#sleep 2
 
 	wait_for_sns_repair_or_rebalance_not_4 "repair" || return $?
 

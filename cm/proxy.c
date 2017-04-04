@@ -418,8 +418,11 @@ static void proxy_sw_onwire_ast_cb(struct m0_sm_group *grp,
 		m0_cm_abort(cm, 0);
 		m0_cm_frozen_ag_cleanup(cm, proxy);
 	}
-	if (cm->cm_done)
+	if (cm->cm_done || proxy->px_status == M0_PX_FAILED ||
+			   m0_cm_state_get(cm) == M0_CMS_FAIL) {
+		/* Wake up anyone waiting to handle further process (cleanup/completion). */
 		m0_cm_complete_notify(cm);
+	}
 }
 
 static void proxy_sw_onwire_item_replied_cb(struct m0_rpc_item *req_item)
@@ -600,17 +603,18 @@ static bool proxy_clink_cb(struct m0_clink *clink)
 
 	m0_cm_proxy_lock(pxy);
 	if (M0_IN(svc_obj->co_ha_state, (M0_NC_FAILED, M0_NC_TRANSIENT))) {
+		M0_LOG(M0_INFO, "proxy %s is failed", pxy->px_endpoint);
 		pxy->px_status = M0_PX_FAILED;
 		pxy->px_is_done = true;
 		if (!proxy_fail_tlink_is_in(pxy))
 			proxy_fail_tlist_add_tail(&pxy->px_cm->cm_failed_proxies, pxy);
 	} else if (svc_obj->co_ha_state == M0_NC_ONLINE &&
 		   pxy->px_status == M0_PX_FAILED) {
-		/* XXX Need to check repair/rebalance status. */
-		pxy->px_status = M0_PX_INIT;
-		pxy->px_is_done = false;
-		if (proxy_fail_tlink_is_in(pxy))
-			proxy_fail_tlist_del(pxy);
+		/*
+		 * Do nothing for now, ongoing sns operation must cleanup and complete
+		 * and sns repair/rebalance must be restarted.
+		 */
+		M0_LOG(M0_INFO, "proxy %s is online", pxy->px_endpoint);
 	}
 	m0_cm_proxy_unlock(pxy);
 

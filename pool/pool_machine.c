@@ -830,6 +830,10 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach       *pm,
 		m0_poolmach_event_list_dump_locked(pm);
 	}
 	pm->pm_pver->pv_is_dirty = state->pst_nr_failures > 0;
+	/* Clear any dirty sns flags set during previous repair */
+	pm->pm_pver->pv_sns_flags = state->pst_nr_failures <=
+				    state->pst_max_device_failures ?
+				    0 : pm->pm_pver->pv_sns_flags;;
 	/* Finally: unlock the poolmach */
 	m0_rwlock_write_unlock(&pm->pm_lock);
 	return M0_RC(rc);
