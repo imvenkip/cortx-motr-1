@@ -228,7 +228,7 @@ M0_INTERNAL void m0_addb2_net_stop(struct m0_addb2_net *net,
 	struct m0_tl              *q = &net->ne_queue;
 	struct m0_addb2_trace_obj *obj;
 
-
+	net_lock(net);
 	M0_PRE(net->ne_callback == NULL);
 	/*
 	 * If there are no sources, it makes no sense to wait for queue drain.
@@ -258,6 +258,7 @@ M0_INTERNAL void m0_addb2_net_stop(struct m0_addb2_net *net,
 		net->ne_callback = callback;
 		net->ne_datum    = datum;
 	}
+	net_unlock(net);
 }
 
 M0_INTERNAL bool m0_addb2_net__is_not_locked(const struct m0_addb2_net *net)
