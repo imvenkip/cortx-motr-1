@@ -815,7 +815,7 @@ be_alloc_chunk_trysplit(struct m0_be_allocator *a,
 	uintptr_t	       addr_end;
 	const uintptr_t	       hdr_size = sizeof *c;
 
-	M0_PRE(be_alloc_chunk_invariant(a, c));
+	M0_PRE_EX(be_alloc_chunk_invariant(a, c));
 	M0_PRE(alignment != 0);
 	if (c->bac_free) {
 		addr_start = (uintptr_t) c;
