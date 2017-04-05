@@ -188,7 +188,7 @@ static void tests_add(struct m0_ut_module *m)
 	m0_ut_add(m, &ut_suite_clovis_io_req_fop, true);
 	m0_ut_add(m, &ut_suite_clovis_osync, true);
 	m0_ut_add(m, &ut_suite_clovis_idx, true);
-	m0_ut_add(m, &ut_suite_clovis_idx_dix, true);
+	m0_ut_add(m, &ut_suite_clovis_idx_dix, false);
 	m0_ut_add(m, &cm_cp_ut, true);
 	m0_ut_add(m, &cm_generic_ut, true);
 	m0_ut_add(m, &cob_ut, true);
@@ -204,7 +204,7 @@ static void tests_add(struct m0_ut_module *m)
 	m0_ut_add(m, &conf_walk_ut, true);
 	m0_ut_add(m, &rconfc_ut, true);
 	m0_ut_add(m, &conn_ut, true);
-	m0_ut_add(m, &dix_client_ut, true);
+	m0_ut_add(m, &dix_client_ut, false);
 	m0_ut_add(m, &dix_cm_iter_ut, true);
 	m0_ut_add(m, &dtm_nucleus_ut, true);
 	m0_ut_add(m, &dtm_transmit_ut, true);
