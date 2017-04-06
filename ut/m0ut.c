@@ -205,7 +205,7 @@ static void tests_add(struct m0_ut_module *m)
 	m0_ut_add(m, &conf_walk_ut, true);
 	m0_ut_add(m, &rconfc_ut, true);
 	m0_ut_add(m, &conn_ut, true);
-	m0_ut_add(m, &dix_client_ut, false);
+	m0_ut_add(m, &dix_client_ut, true);
 	m0_ut_add(m, &dix_cm_iter_ut, true);
 	m0_ut_add(m, &dtm_nucleus_ut, true);
 	m0_ut_add(m, &dtm_transmit_ut, true);

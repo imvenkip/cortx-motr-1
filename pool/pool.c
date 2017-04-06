@@ -1029,7 +1029,37 @@ static bool pools_common_conf_expired_cb(struct m0_clink *clink)
 	m0_tl_for(pools_common_svc_ctx, &pc->pc_svc_ctxs, ctx) {
 		m0_reqh_service_ctx_unsubscribe(ctx);
 	} m0_tl_endfor;
-
+#ifndef __KERNEL__
+	/*
+	 * The async callback for pools_common shall be called after
+	 * configuration expired and new configuration ready events. For this
+	 * reason the clink isn't added to m0_reqh::rh_conf_cache_ready_async
+	 * chan in m0_pools_common_init(), because it might be triggered when
+	 * rconfc starts at the first time.
+	 */
+	m0_clink_cleanup(&pc->pc_conf_ready_async);
+	/*
+	 * Note: m0_reqh::rh_conf_cache_ready_async and
+	 * m0_reqh::rh_conf_cache_exp are protected with different mutexes, but
+	 * deadlock is impossible due to the fact that broadcast on
+	 * rh_conf_cache_ready_async happens only atfer broadcasting on
+	 * rh_conf_cache_ready chan which is protected with same mutex as
+	 * rh_conf_cache_exp. Thus, here the sequence of locks is constant:
+	 * 1. When conf expired:
+	 * m0_mutex_lock(m0_reqh::rh_guard
+	 * m0_mutex_lock(m0_reqh::rh_guard_async
+	 * m0_mutex_unlock(m0_reqh::rh_guard_async
+	 * m0_mutex_unlock(m0_reqh::rh_guard
+	 * 2. When conf ready
+	 * m0_mutex_lock(m0_reqh::rh_guard
+	 * m0_mutex_unlock(m0_reqh::rh_guard
+	 * m0_mutex_lock(m0_reqh::rh_guard_async
+	 * m0_mutex_unlock(m0_reqh::rh_guard_async
+	 */
+	m0_clink_add_lock(
+			&m0_confc2reqh(pc->pc_confc)->rh_conf_cache_ready_async,
+			&pc->pc_conf_ready_async);
+#endif
 	M0_LEAVE();
 	return true;
 }
@@ -1337,16 +1367,14 @@ M0_INTERNAL int m0_pools_common_init(struct m0_pools_common *pc,
 	reqh = m0_confc2reqh(pc->pc_confc);
 	m0_clink_add_lock(&reqh->rh_conf_cache_exp, &pc->pc_conf_exp);
 #ifndef __KERNEL__
+	/*
+	 * m0_pools_common_conf_ready_async_cb() is called directly by
+	 * m0t1fs_ref_put_lock() in m0t1fs code. No need to register the
+	 * callback in kernel space.
+	 * @see m0t1fs_ref_put_lock()
+	 */
 	m0_clink_init(&pc->pc_conf_ready_async,
 		      m0_pools_common_conf_ready_async_cb);
-	/*
-	 * The async callback for pools_common shall get called after
-	 * m0t1fs_sb's async callback. For this reason pools_common's
-	 * async callback is not registered directly with rconfc channel
-	 * from m0_reqh. Instead m0t1fs_sb's async callback internally calls it.
-	 */
-	m0_clink_add_lock(&reqh->rh_conf_cache_ready_async,
-			  &pc->pc_conf_ready_async);
 #endif
 	M0_POST(pools_common_invariant(pc));
 	return M0_RC(0);

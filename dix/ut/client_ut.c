@@ -3126,7 +3126,7 @@ static void server_is_down(void)
 }
 
 struct m0_ut_suite dix_client_ut = {
-	.ts_name   = "dix-client",
+	.ts_name   = "dix-client-ut",
 	.ts_owners = "Leonid",
 	.ts_init   = NULL,
 	.ts_fini   = NULL,
