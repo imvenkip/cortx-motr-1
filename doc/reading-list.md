@@ -42,7 +42,7 @@ DTM
     - [New value logging in the Echo replicated file system](http://www.hpl.hp.com/techreports/Compaq-DEC/SRC-RR-104.html)
 * [Reliable Communication in the Presence of Failures](http://ksuseer1.ist.psu.edu/viewdoc/summary?doi=10.1.1.106.6258)
 * [Implementing Fault-Tolerant Services Using the State Machine Approach: A Tutorial](http://citeseerx.ist.psu.edu/viewdoc/summary?doi=10.1.1.20.4762)
-* [The black art of file system recovery](https://docs.google.com/a/xyratex.com/document/d/10HjxEuQStcc9AEQJZLaSuQ0IXq308f9S_slacpom2q8/edit?hl=en_US)
+* [The black art of file system recovery](https://docs.google.com/document/d/1iQA4yNj4knRgzDbcmrEqRZiNO8Eo5Kox_kkdWPqHkpA)
 * [The Two-Phase Commit Protocol](http://ei.cs.vt.edu/~cs5204/sp99/distributedDBMS/duckett/tpcp.html)
 * [Paxos overview](https://docs.google.com/a/xyratex.com/Doc?docid=0ATg1HFjUZcaZZGNkNXg4cXpfNzhnZzl3cGdoYg&hl=en_US)
 
