@@ -28,7 +28,7 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_XCODE
 
 #include <stdio.h>
-#include <string.h>                   /* strcmp */
+#include <string.h>                   /* strcmp, basename */
 #include <stdlib.h>                   /* qsort */
 #include <err.h>
 #include <sys/stat.h>
@@ -36,7 +36,9 @@
 
 #include "lib/uuid.h"                 /* m0_node_uuid_string_set */
 #include "lib/misc.h"                 /* ARRAY_SIZE */
+#include "lib/user_space/types.h"     /* bool */
 #include "mero/init.h"
+#include "mero/version.h"             /* m0_build_info_print */
 #include "module/instance.h"
 #include "sm/sm.h"                    /* m0_sm_conf_print */
 #include "lib/user_space/trace.h"     /* m0_trace_set_mmapped_buffer */
@@ -114,9 +116,22 @@ static void field_print(const struct m0_xcode_field *f, int i)
 
 void (*m0_sm__conf_init)(const struct m0_sm_conf *conf);
 
+void usage_print(const char* progname) {
+	fprintf(stderr,
+		"Usage: %s [options]\n"
+		"  -p|--only-proto    print only protocol, skip"
+					" any other useful info\n"
+		"\n"
+		"  -v|--version       print version information\n"
+		"  -h|--help          print usage information\n",
+		progname);
+}
+
 int main(int argc, char **argv)
 {
 	struct m0 instance = {};
+	bool      only_protocol = false;
+	int       i;
 	int       result;
 
 	/* prevent creation of trace file for ourselves */
@@ -128,7 +143,41 @@ int main(int argc, char **argv)
 	 */
 	m0_node_uuid_string_set(NULL);
 
-	m0_sm__conf_init = &m0_sm_conf_print;
+	/*
+	 * using "manual" option processing because M0_GETOPTS expects m0_init()
+	 * to be already done (due to m0_alloc() which uses fault injection
+	 * which in turn uses m0_mutex)
+	 */
+	for (i = 1; i < argc; ++i) {
+		if (strcmp(argv[i], "-p") == 0 ||
+		    strcmp(argv[i], "--only-proto") == 0)
+		{
+			only_protocol = true;
+			continue;
+		}
+		if (strcmp(argv[i], "-v") == 0 ||
+		    strcmp(argv[i], "--version") == 0)
+		{
+			m0_build_info_print();
+			exit(EXIT_SUCCESS);
+		}
+
+		/* show usage if requested or for an unknown option */
+		if (strcmp(argv[i], "-h") == 0 ||
+		    strcmp(argv[i], "--help") == 0)
+		{
+			usage_print(basename(argv[0]));
+			exit(EXIT_SUCCESS);
+		} else {
+			warnx("Error: unknown option '%s'\n", argv[i]);
+			usage_print(basename(argv[0]));
+			exit(EX_USAGE);
+		}
+	}
+
+	if (!only_protocol)
+		m0_sm__conf_init = &m0_sm_conf_print;
+
 	result = m0_init(&instance);
 	if (result != 0)
 		err(EX_CONFIG, "Cannot initialise mero: %d", result);
