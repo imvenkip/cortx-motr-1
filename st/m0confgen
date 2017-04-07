@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+
+SANDBOX_DIR=${SANDBOX_DIR:-/var/mero/sandbox.m0confgen}
+M0_SRC_DIR=`readlink -f $0`
+M0_SRC_DIR=${M0_SRC_DIR%/*/*}
+
+. $M0_SRC_DIR/utils/functions # report_and_exit
+# TODO: `m0confgen --self-check` can be started only from mero source tree
+#       it won't work from any other directory
+#[[ -d $SANDBOX_DIR ]] || mkdir -p $SANDBOX_DIR
+#cd $SANDBOX_DIR
+
+$M0_SRC_DIR/utils/m0confgen --self-check
+rc=$?
+
+if [[ $rc -eq 0 && -d $SANDBOX_DIR ]]; then
+    rm -r $SANDBOX_DIR
+fi
+
+report_and_exit m0confgen $rc
