@@ -526,6 +526,7 @@ enum m0_clovis_entity_opcode {
 	M0_CLOVIS_EO_INVALID,
 	M0_CLOVIS_EO_CREATE,
 	M0_CLOVIS_EO_DELETE,
+	M0_CLOVIS_EO_SYNC,
 	M0_CLOVIS_EO_NR
 };
 
@@ -555,7 +556,8 @@ enum m0_clovis_idx_opcode {
 	/** Check an index for an existence. */
 	M0_CLOVIS_IC_LOOKUP,
 	/** Given an index id, get the list of next indices. */
-	M0_CLOVIS_IC_LIST
+	M0_CLOVIS_IC_LIST,
+	M0_CLOVIS_IC_NR
 };
 
 /**
@@ -594,7 +596,9 @@ struct m0_clovis_op {
 	size_t                         op_size;
 	/** Part of a cookie (m0_cookie) used to identify this operation. */
 	uint64_t                       op_gen;
-
+	/** list of pending transactions. */
+	struct m0_tl                   op_pending_tx;
+	struct m0_mutex                op_pending_tx_lock;
 	/* Operation's private data, can be used as arguments for callbacks.*/
 	void                          *op_datum;
 };
@@ -646,6 +650,9 @@ struct m0_clovis_entity {
 	struct m0_sm               en_sm;
 	/** Each entity has its own sm group. */
 	struct m0_sm_group         en_sm_group;
+	/** list of pending transactions. */
+	struct m0_tl               en_pending_tx;
+	struct m0_mutex            en_pending_tx_lock;
 };
 
 /**
@@ -669,10 +676,6 @@ struct m0_clovis_obj_attr {
 struct m0_clovis_obj {
 	struct m0_clovis_entity   ob_entity;
 	struct m0_clovis_obj_attr ob_attr;
-
-	/** list of pending transactions */
-	struct m0_tl              ob_pending_tx;
-	struct m0_mutex           ob_pending_tx_lock;
 };
 
 /**
@@ -1197,21 +1200,52 @@ int m0_clovis_init(struct m0_clovis **m0c,
 void m0_clovis_fini(struct m0_clovis **m0c, bool fini_m0);
 
 /**
- * clovis osync entry point [Experimental]
+ * Allocates and initialises an SYNC operation.
  *
- * @param obj The object is going to be sync'ed.
+ * @param sop A new SYNC op is created, entities and ops can be added
+ *            into this SYNC op once it's initialised.
  * @return 0 for success, anything else for an error.
  */
-int m0_clovis_obj_sync(struct m0_clovis_obj *obj);
+int m0_clovis_sync_op_init(struct m0_clovis_op **sop);
 
 /**
- * Clovis sync instance entry point [Experimental]
+ * Adds an entity to SYNC op.
  *
- * @param obj The object is going to be sync'ed.
- * @param wait Ask clovis to wait till pending tx's are done if set to be ture.
+ * @param sop The SYNC op where an entity is added to.
+ * @param entity The entity to be SYNC-ed.
  * @return 0 for success, anything else for an error.
  */
-int m0_clovis_sync(struct m0_clovis *m0c, int wait);
+int m0_clovis_sync_entity_add(struct m0_clovis_op *sop,
+			      struct m0_clovis_entity *ent);
+/**
+ * Adds an `op` to SYNC op.
+ *
+ * @param sop The SYNC op where an entity is added to.
+ * @param op The operation to be SYNC-ed.
+ * @return 0 for success, anything else for an error.
+ */
+int m0_clovis_sync_op_add(struct m0_clovis_op *sop,
+			  struct m0_clovis_op *op);
+
+/**
+ * Blocking version of entity sync API, corresponding to m0t1fs_fsync()
+ * in m0t1fs.
+ *
+ * @param ent The object is going to be sync'ed.
+ * @return 0 for success, anything else for an error.
+ */
+int m0_clovis_entity_sync(struct m0_clovis_entity *ent);
+
+/**
+ * Clovis sync instance entry point, corresponding to m0t1fs_sync_fs()
+ * in m0t1fs.
+ *
+ * @param m0c The Clovis instance is going to be sync'ed.
+ * @param wait Ask clovis to wait till pending tx's are done if set to
+ *             be "ture".
+ * @return 0 for success, anything else for an error.
+ */
+int m0_clovis_sync(struct m0_clovis *m0c, bool wait);
 
 /**
  * Entity type is valid helper.

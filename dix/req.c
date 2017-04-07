@@ -544,13 +544,20 @@ static bool dix_idxop_clink_cb(struct m0_clink *cl)
 	struct m0_dix_req       *dreq;
 
 	if (M0_IN(state, (CASREQ_FINAL, CASREQ_FAILURE))) {
+		dreq = creq->ds_parent;
+
+		/* Update txid records in Clovis. */
+		if (dreq->dr_cli->dx_sync_rec_update != NULL)
+			dreq->dr_cli->dx_sync_rec_update(
+				dreq, creq->ds_creq.ccr_sess,
+				&creq->ds_creq.ccr_remid);
+
 		m0_clink_del(cl);
 		m0_clink_fini(cl);
 		idxop = &creq->ds_parent->dr_idxop;
 		idxop->dcd_completed_nr++;
 		M0_PRE(idxop->dcd_completed_nr <= idxop->dcd_cas_reqs_nr);
 		if (idxop->dcd_completed_nr == idxop->dcd_cas_reqs_nr) {
-			dreq = creq->ds_parent;
 			idxop->dcd_ast.sa_cb = dix_idxop_completed;
 			idxop->dcd_ast.sa_datum = dreq;
 			m0_sm_ast_post(dix_req_smgrp(dreq), &idxop->dcd_ast);
@@ -782,6 +789,13 @@ static bool dix_idxop_meta_update_clink_cb(struct m0_clink *cl)
 {
 	struct m0_dix_req *req = container_of(cl, struct m0_dix_req, dr_clink);
 
+	/*
+	 * Sining: no need to update SYNC records in Clovis from this callback
+	 * as it is invoked in meta.c::dix_meta_op_done_cb() and reply fops
+	 * have been processed to update SYNC records in dix_cas_rop_clink_cb()
+	 * before it.
+	 */
+
 	m0_clink_del(cl);
 	m0_clink_fini(cl);
 	req->dr_ast.sa_cb = dix_idxop_meta_update_ast_cb;
@@ -834,6 +848,8 @@ static int dix_idxop_meta_update(struct m0_dix_req *req)
 	M0_ASSERT(k == fids_nr);
 
 	m0_dix_meta_req_init(meta_req, req->dr_cli, dix_req_smgrp(req));
+	/* Pass down the SYNC datum. */
+	meta_req->dmr_req.dr_sync_datum = req->dr_sync_datum;
 	m0_clink_init(&req->dr_clink, dix_idxop_meta_update_clink_cb);
 	m0_clink_add_lock(&meta_req->dmr_chan, &req->dr_clink);
 	rc = create ?
@@ -1524,20 +1540,32 @@ static void dix_rop_completed(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 
 static bool dix_cas_rop_clink_cb(struct m0_clink *cl)
 {
-	struct m0_dix_cas_rop *crop = container_of(cl, struct m0_dix_cas_rop,
-						   crp_clink);
-	uint32_t               state = crop->crp_creq.ccr_sm.sm_state;
-	struct m0_dix_rop_ctx *rop;
-	struct m0_dix_req     *dreq;
+	struct m0_dix_cas_rop  *crop = container_of(cl, struct m0_dix_cas_rop,
+						    crp_clink);
+	uint32_t                state = crop->crp_creq.ccr_sm.sm_state;
+	struct m0_dix_rop_ctx  *rop;
+	struct m0_dix_req      *dreq;
 
 	if (M0_IN(state, (CASREQ_FINAL, CASREQ_FAILURE))) {
+		dreq = crop->crp_parent;
+
+		/*
+		 * Update pending transaction number. Note: as
+		 * m0_cas_req::ccr_fop is set to NULL in cas_req_reply_handle()
+		 * we must get the returned remid before that.
+	 	 */
+		if (dreq->dr_cli->dx_sync_rec_update != NULL)
+			dreq->dr_cli->dx_sync_rec_update(
+				dreq, crop->crp_creq.ccr_sess,
+				&crop->crp_creq.ccr_remid);
+
+
 		m0_clink_del(cl);
 		m0_clink_fini(cl);
 		rop = crop->crp_parent->dr_rop;
 		rop->dg_completed_nr++;
 		M0_PRE(rop->dg_completed_nr <= rop->dg_cas_reqs_nr);
 		if (rop->dg_completed_nr == rop->dg_cas_reqs_nr) {
-			dreq = crop->crp_parent;
 			rop->dg_ast.sa_cb = dix_rop_completed;
 			rop->dg_ast.sa_datum = dreq;
 			m0_sm_ast_post(dix_req_smgrp(dreq), &rop->dg_ast);

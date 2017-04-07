@@ -59,21 +59,21 @@ static void ut_clovis_op_idx_free(struct m0_clovis_op_idx *oi)
 /**
  * Tests clovis_op_obj_invariant().
  */
-static void ut_clovis_idx_op_invariant(void)
+static void ut_clovis__idx_op_invariant(void)
 {
 	bool                     rc;
 	struct m0_clovis_op_idx *oi;
 
 	/* Base cases. */
 	oi = ut_clovis_op_idx_alloc();
-	rc = clovis_idx_op_invariant(oi);
+	rc = m0_clovis__idx_op_invariant(oi);
 	M0_UT_ASSERT(rc == true);
 
-	rc = clovis_idx_op_invariant(NULL);
+	rc = m0_clovis__idx_op_invariant(NULL);
 	M0_UT_ASSERT(rc == false);
 
 	oi->oi_oc.oc_op.op_size = sizeof *oi - 1;
-	rc = clovis_idx_op_invariant(oi);
+	rc = m0_clovis__idx_op_invariant(oi);
 	M0_UT_ASSERT(rc == false);
 
 	ut_clovis_op_idx_free(oi);
@@ -100,8 +100,8 @@ static void ut_clovis_idx_op_get(void)
         M0_UT_ASSERT(rc != 0);
 
 	/* Base case 2: *op != NULL. */
-	op = m0_alloc(sizeof *op);
-	op->op_size = sizeof *op;
+	op = m0_alloc(sizeof(struct m0_clovis_op_idx));
+	op->op_size = sizeof(struct m0_clovis_op_idx);
 	rc = clovis_idx_op_get(&op);
 	M0_UT_ASSERT(rc == 0);
 	m0_free(op);
@@ -326,6 +326,10 @@ static void ut_clovis_idx_op_cb_launch(void)
 	/* Base case 1: asynchronous queries */
 	for (op_code = M0_CLOVIS_EO_CREATE;
 	     op_code < M0_CLOVIS_EO_NR; op_code++) {
+		/* Ignore SYNC. */
+		if (op_code == M0_CLOVIS_EO_SYNC)
+			continue;
+
 		dummy_query_rc = 1;
 		oi->oi_oc.oc_op.op_code = op_code;
 		m0_sm_init(&oi->oi_oc.oc_op.op_sm, &clovis_op_conf,
@@ -703,8 +707,8 @@ const struct m0_ut_suite ut_suite_clovis_idx = {
 	.ts_init = ut_clovis_idx_init,
 	.ts_fini = ut_clovis_idx_fini,
 	.ts_tests = {
-		{ "clovis_idx_op_invariant",
-			&ut_clovis_idx_op_invariant},
+		{ "clovis__idx_op_invariant",
+			&ut_clovis__idx_op_invariant},
 		{ "clovis_idx_op_init",
 			&ut_clovis_idx_op_init},
 		{ "clovis_idx_op_get",

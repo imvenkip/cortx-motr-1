@@ -160,6 +160,8 @@ struct m0_cas_req {
 	 * request. It's used only to assemble "GET" request.
 	 */
 	uint64_t               *ccr_asmbl_ikeys;
+	/* Returned tx REMID inforation from service to update FSYNC records. */
+	struct m0_be_tx_remid  ccr_remid;
 };
 
 /**

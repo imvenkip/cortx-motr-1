@@ -27,6 +27,9 @@
 #include "rpc/rpc_opcodes.h"
 #include "cas/cas.h"
 #include "cas/cas_xc.h"
+#include "mdservice/fsync_foms.h"       /* m0_fsync_fom_conf */
+#include "mdservice/fsync_fops.h"       /* m0_fsync_fom_ops */
+#include "mdservice/fsync_fops_xc.h"    /* m0_fop_fsync_xc */
 
 struct m0_fom_type_ops;
 struct m0_sm_conf;
@@ -44,6 +47,7 @@ M0_INTERNAL struct m0_fop_type cas_del_fopt;
 M0_INTERNAL struct m0_fop_type cas_cur_fopt;
 M0_INTERNAL struct m0_fop_type cas_rep_fopt;
 M0_INTERNAL struct m0_fop_type cas_gc_fopt;
+struct m0_fop_type m0_fop_fsync_cas_fopt;
 
 static int cas_fops_init(const struct m0_sm_conf           *sm_conf,
 			 const struct m0_fom_type_ops      *fom_ops,
@@ -97,11 +101,22 @@ static int cas_fops_init(const struct m0_sm_conf           *sm_conf,
 			 .fom_ops   = fom_ops,
 			 .sm        = sm_conf,
 			 .svc_type  = svctype);
+	M0_FOP_TYPE_INIT(&m0_fop_fsync_cas_fopt,
+			 .name      = "fsync-cas",
+			 .opcode    = M0_FSYNC_CAS_OPCODE,
+			 .xt        = m0_fop_fsync_xc,
+#ifndef __KERNEL__
+			 .svc_type  = svctype,
+			 .sm        = &m0_fsync_fom_conf,
+			 .fom_ops   = &m0_fsync_fom_ops,
+#endif
+			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST);
 	return  m0_fop_type_addb2_instrument(&cas_get_fopt) ?:
 		m0_fop_type_addb2_instrument(&cas_put_fopt) ?:
 		m0_fop_type_addb2_instrument(&cas_del_fopt) ?:
 		m0_fop_type_addb2_instrument(&cas_cur_fopt) ?:
-		m0_fop_type_addb2_instrument(&cas_gc_fopt);
+		m0_fop_type_addb2_instrument(&cas_gc_fopt)?:
+		m0_fop_type_addb2_instrument(&m0_fop_fsync_cas_fopt);
 }
 
 static void cas_fops_fini(void)
@@ -111,12 +126,14 @@ static void cas_fops_fini(void)
 	m0_fop_type_addb2_deinstrument(&cas_del_fopt);
 	m0_fop_type_addb2_deinstrument(&cas_put_fopt);
 	m0_fop_type_addb2_deinstrument(&cas_get_fopt);
+	m0_fop_type_addb2_deinstrument(&m0_fop_fsync_cas_fopt);
 	m0_fop_type_fini(&cas_gc_fopt);
 	m0_fop_type_fini(&cas_rep_fopt);
 	m0_fop_type_fini(&cas_cur_fopt);
 	m0_fop_type_fini(&cas_del_fopt);
 	m0_fop_type_fini(&cas_put_fopt);
 	m0_fop_type_fini(&cas_get_fopt);
+	m0_fop_type_fini(&m0_fop_fsync_cas_fopt);
 }
 
 /**

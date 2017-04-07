@@ -28,6 +28,7 @@
 #include "pool/pool.h"         /* pools_common_svc_ctx */
 #include "clovis/clovis_internal.h"
 #include "clovis/clovis_idx.h"
+#include "clovis/sync.h"
 #include "dix/fid_convert.h"
 #include "dix/meta.h"
 #include "dix/client.h"
@@ -94,6 +95,52 @@ static bool idx_is_distributed(const struct m0_clovis_op_idx *oi)
 				 m0_cas_index_fid_type.ft_id)));
 	return ifid_type == m0_dix_fid_type.ft_id;
 }
+
+static void  idx_sync_record_update(struct m0_clovis_op_idx *oi,
+				    struct m0_rpc_session   *rpc_session,
+				    struct m0_be_tx_remid   *remid)
+{
+	/* Check and ensure oi is valid here. */
+	M0_ASSERT(m0_clovis__idx_op_invariant(oi));
+
+	clovis_sync_record_update(m0_reqh_service_ctx_from_session(rpc_session),
+				  &oi->oi_idx->in_entity,
+				  &oi->oi_oc.oc_op, remid);
+}
+
+static void cas_sync_record_update(struct m0_cas_req *creq,
+				   struct m0_rpc_session *rpc_session,
+				   struct m0_be_tx_remid *remid)
+{
+	struct dix_req *dix_req;
+
+	dix_req = M0_AMB(dix_req, creq, idr_creq);
+	if (M0_IN(dix_req->idr_oi->oi_oc.oc_op.op_code,
+		  (M0_CLOVIS_EO_CREATE, M0_CLOVIS_EO_DELETE,
+		   M0_CLOVIS_IC_PUT, M0_CLOVIS_IC_DEL)))
+		idx_sync_record_update(dix_req->idr_oi, rpc_session, remid);
+}
+
+static void  dix_sync_record_update(struct m0_dix_req *dreq,
+				    struct m0_rpc_session *rpc_session,
+				    struct m0_be_tx_remid *remid)
+{
+	struct m0_clovis_op_idx *oi;
+
+	/* Ignores non-update dix requests. */
+	if (M0_IN(dreq->dr_type, (DIX_CCTGS_LOOKUP, DIX_NEXT, DIX_GET)))
+		return;
+
+	/*
+ 	 * `oi` is needed to recover info on clovis op and entity, so SYNC
+ 	 * records can be updated. `oi` is stored in each dreq issued from
+ 	 * Clovis (and is passed further down to lower dreq if meta dreq is
+ 	 * required for some index ops, for example dix_index_create).
+ 	 */
+	oi = (struct m0_clovis_op_idx *)dreq->dr_sync_datum;
+	idx_sync_record_update(oi, rpc_session, remid);
+}
+
 
 static struct dix_inst *dix_inst(const struct m0_clovis_op_idx *oi)
 {
@@ -201,13 +248,10 @@ static void cas_next_reply_copy(struct m0_cas_req *req,
 
 static bool casreq_clink_cb(struct m0_clink *cl)
 {
-	struct dix_req          *dix_req = container_of(cl, struct dix_req,
-							idr_clink);
+	struct dix_req          *dix_req = M0_AMB(dix_req, cl, idr_clink);
 	struct m0_clovis_op_idx *oi = dix_req->idr_oi;
-	struct m0_sm            *req_sm = container_of(cl->cl_chan,
-						       struct m0_sm, sm_chan);
-	struct m0_cas_req       *creq = container_of(req_sm, struct m0_cas_req,
-						    ccr_sm);
+	struct m0_sm            *req_sm = M0_AMB(req_sm, cl->cl_chan, sm_chan);
+	struct m0_cas_req       *creq = M0_AMB(creq, req_sm, ccr_sm);
 	uint32_t                 state = creq->ccr_sm.sm_state;
 	struct m0_clovis_op     *op;
 	int                      rc;
@@ -268,6 +312,9 @@ static bool casreq_clink_cb(struct m0_clink *cl)
 			M0_IMPOSSIBLE("Invalid op code");
 		}
 	}
+
+	/* Update TXID. */
+	cas_sync_record_update(creq, creq->ccr_sess, &creq->ccr_remid);
 
 	dixreq_completed_post(dix_req, rc);
 	return false;
@@ -470,6 +517,11 @@ static int dix_mreq_create(struct m0_clovis_op_idx  *oi,
 		m0_dix_meta_req_init(&req->idr_mreq, op_dixc(oi),
 				     oi->oi_sm_grp);
 		m0_clink_init(&req->idr_clink, dix_meta_req_clink_cb);
+
+		/*
+		 * Currently only LOOKUP and LIST create meta request, so
+		 * don't need to set callback datum here.
+		 */
 	} else {
 		cas_req_init(req, oi);
 	}
@@ -492,6 +544,12 @@ static int dix_req_create(struct m0_clovis_op_idx  *oi,
 			m0_dix_req_init(&req->idr_dreq, op_dixc(oi),
 					oi->oi_sm_grp);
 			m0_clink_init(&req->idr_clink, dixreq_clink_cb);
+
+			/* Store oi for dix callbacks to update SYNC records. */
+			if (M0_IN(oi->oi_oc.oc_op.op_code,
+				  (M0_CLOVIS_EO_CREATE, M0_CLOVIS_EO_DELETE,
+				   M0_CLOVIS_IC_PUT, M0_CLOVIS_IC_DEL)))
+				req->idr_dreq.dr_sync_datum = (void *)oi;
 		} else {
 			cas_req_init(req, oi);
 		}
@@ -628,8 +686,7 @@ static void dix_next_reply_copy(struct m0_dix_req *req,
 
 static bool dix_meta_req_clink_cb(struct m0_clink *cl)
 {
-	struct dix_req          *dix_req = container_of(cl, struct dix_req,
-							idr_clink);
+	struct dix_req          *dix_req = M0_AMB(dix_req, cl, idr_clink);
 	struct m0_clovis_op_idx *oi = dix_req->idr_oi;
 	struct m0_dix_meta_req  *mreq = &dix_req->idr_mreq;
 	struct m0_clovis_op     *op;
@@ -649,13 +706,10 @@ static bool dix_meta_req_clink_cb(struct m0_clink *cl)
 
 static bool dixreq_clink_cb(struct m0_clink *cl)
 {
-	struct dix_req          *dix_req = container_of(cl, struct dix_req,
-							idr_clink);
+	struct dix_req          *dix_req = M0_AMB(dix_req, cl, idr_clink);
 	struct m0_clovis_op_idx *oi = dix_req->idr_oi;
-	struct m0_sm            *req_sm = container_of(cl->cl_chan,
-						       struct m0_sm, sm_chan);
-	struct m0_dix_req       *dreq = container_of(req_sm, struct m0_dix_req,
-						     dr_sm);
+	struct m0_sm            *req_sm = M0_AMB(req_sm, cl->cl_chan, sm_chan);
+	struct m0_dix_req       *dreq = M0_AMB(dreq, req_sm, dr_sm);
 	uint32_t                 state = dreq->dr_sm.sm_state;
 	struct m0_clovis_op     *op;
 	int                      i;
@@ -1088,6 +1142,9 @@ static int dix_client_init(struct dix_inst          *inst,
 	if (rc != 0)
 		goto cli_fini;
 
+	/* Set the callback funtion to update FSYNC records. */
+	dixc->dx_sync_rec_update = &dix_sync_record_update;
+
 	/*
 	 * Use pool version of root index as default pool version for all
 	 * distributed indices. It is temporary until clovis interface is
@@ -1115,7 +1172,7 @@ static int idx_dix_init(void *svc)
 	M0_ALLOC_PTR(inst);
 	if (inst == NULL)
 		return M0_ERR(-ENOMEM);
-	m0c = container_of(ctx, struct m0_clovis, m0c_idx_svc_ctx);
+	m0c = M0_AMB(m0c, ctx, m0c_idx_svc_ctx);
 
 	rc = dix_client_init(inst, m0c,
 			(struct m0_idx_dix_config *)ctx->isc_svc_conf);

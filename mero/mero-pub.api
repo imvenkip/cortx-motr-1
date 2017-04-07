@@ -83,6 +83,7 @@ m0_build_info_print
 m0_clovis_container_init
 m0_clovis_entity_create
 m0_clovis_entity_delete
+m0_clovis_entity_sync
 m0_clovis_entity_fini
 m0_clovis_obj_init
 m0_clovis_obj_fini
@@ -98,7 +99,10 @@ m0_clovis_op_setup
 m0_clovis_op_wait
 m0_clovis_init
 m0_clovis_fini
-m0_clovis_obj_sync
+m0_clovis_sync
+m0_clovis_sync_op_init
+m0_clovis_sync_entity_add
+m0_clovis_sync_op_add
 m0_clovis_sync
 m0_cob_domain_fini
 m0_cob_domain_init

@@ -31,8 +31,10 @@
 #include "lib/buf_xc.h"
 #include "lib/cookie.h"
 #include "lib/cookie_xc.h"
-#include "rpc/at.h"         /* m0_rpc_at_buf */
-#include "rpc/at_xc.h"      /* m0_rpc_at_buf_xc */
+#include "rpc/at.h"             /* m0_rpc_at_buf */
+#include "rpc/at_xc.h"          /* m0_rpc_at_buf_xc */
+#include "fop/fom_generic.h"    /* m0_fop_mod_rep */
+#include "fop/fom_generic_xc.h" /* m0_fop_mod_rep */
 #include "dix/layout.h"
 #include "dix/layout_xc.h"
 
@@ -311,7 +313,7 @@ struct m0_cas_rep {
 	 * successfully. Operation status code of individual input record can
 	 * be obtained through m0_cas_rep::cgr_rep::cg_rec::cr_rc.
 	 */
-	int32_t            cgr_rc;
+	int32_t                 cgr_rc;
 
 	/**
 	 * Array of operation results for each input record.
@@ -322,7 +324,10 @@ struct m0_cas_rep {
 	 *
 	 * For CAS-CUR this describes next records.
 	 */
-	struct m0_cas_recv cgr_rep;
+	struct m0_cas_recv      cgr_rep;
+
+	/** Returned values for an UPDATE operation, such as CAS-PUT. */
+	struct m0_fop_mod_rep   cgr_mod_rep;
 } M0_XCA_RECORD;
 
 M0_EXTERN struct m0_reqh_service_type m0_cas_service_type;
@@ -339,6 +344,7 @@ M0_EXTERN struct m0_fop_type cas_del_fopt;
 M0_EXTERN struct m0_fop_type cas_cur_fopt;
 M0_EXTERN struct m0_fop_type cas_rep_fopt;
 M0_EXTERN struct m0_fop_type cas_gc_fopt;
+extern    struct m0_fop_type m0_fop_fsync_cas_fopt;
 
 /**
  * CAS server side is able to compile in user-space only. Use stubs in kernel

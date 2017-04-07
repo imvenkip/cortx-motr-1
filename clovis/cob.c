@@ -24,7 +24,7 @@
 #include "clovis/clovis.h"
 #include "clovis/clovis_internal.h"
 #include "clovis/clovis_idx.h"
-#include "clovis/osync.h"
+#include "clovis/sync.h"
 
 #include "lib/errno.h"
 #include "lib/finject.h"
@@ -38,8 +38,6 @@
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CLOVIS
 #include "lib/trace.h"
-
-#define CLOVIS_OSYNC
 
 /**
  * Cob create/delete fop send deadline (in ns).
@@ -949,10 +947,8 @@ static void clovis_cob_mds_rio_replied(struct m0_rpc_item *item)
 	struct m0_fop_unlink_rep    *unlink_rep;
 	struct m0_clovis            *cinst;
 	struct m0_clovis_op_obj     *oo;
-#ifdef CLOVIS_OSYNC
 	struct m0_reqh_service_ctx *ctx;
 	struct m0_be_tx_remid      *remid = NULL;
-#endif
 
 	M0_ENTRY();
 
@@ -984,9 +980,7 @@ static void clovis_cob_mds_rio_replied(struct m0_rpc_item *item)
 
 		create_rep = m0_fop_data(rep_fop);
 		rc = create_rep->c_body.b_rc;
-#ifdef CLOVIS_OSYNC
 		remid = &create_rep->c_mod_rep.fmr_remid;
-#endif
 		break;
 
 	case M0_MDSERVICE_UNLINK_REP_OPCODE:
@@ -994,9 +988,7 @@ static void clovis_cob_mds_rio_replied(struct m0_rpc_item *item)
 
 		unlink_rep = m0_fop_data(rep_fop);
 		rc = unlink_rep->u_body.b_rc;
-#ifdef CLOVIS_OSYNC
 		remid = &unlink_rep->u_mod_rep.fmr_remid;
-#endif
 		break;
 
 	default:
@@ -1007,13 +999,11 @@ static void clovis_cob_mds_rio_replied(struct m0_rpc_item *item)
 	if (rc != 0)
 		goto error;
 
-#ifdef CLOVIS_OSYNC
 	/* Update pending transaction number */
 	if (remid != NULL) {
 		ctx = m0_reqh_service_ctx_from_session(item->ri_session);
-		clovis_osync_record_update(ctx, cinst, NULL, remid);
+		clovis_sync_record_update(ctx, NULL, &oo->oo_oc.oc_op, remid);
 	}
-#endif
 
 	/*
 	 * Commit 2332f298 introduced a optimisation for CREATE

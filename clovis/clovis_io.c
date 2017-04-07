@@ -379,8 +379,8 @@ static void clovis_obj_io_cb_free(struct m0_clovis_op_common *oc)
 	M0_PRE((oc->oc_op.op_size >= sizeof *ioo));
 
 	/* Can't use bob_of here */
-	oo = container_of(oc, struct m0_clovis_op_obj, oo_oc);
-	ioo = container_of(oo, struct m0_clovis_op_io, ioo_oo);
+	oo = M0_AMB(oo, oc, oo_oc);
+	ioo = M0_AMB(ioo, oo, ioo_oo);
 
 	m0_free(ioo);
 
@@ -465,6 +465,8 @@ void m0_clovis_obj_op(struct m0_clovis_obj       *obj,
 		memset(*op, 0, cached_size);
 		(*op)->op_size = cached_size;
 	}
+	m0_mutex_init(&(*op)->op_pending_tx_lock);
+	spti_tlist_init(&(*op)->op_pending_tx);
 
 	/*
 	 * Sanity test before proceeding.
@@ -472,9 +474,9 @@ void m0_clovis_obj_op(struct m0_clovis_obj       *obj,
 	 * initilised yet.
 	 */
 	M0_ASSERT((*op)->op_size >= sizeof *ioo);
-	oc = container_of((*op), struct m0_clovis_op_common, oc_op);
-	oo = container_of(oc, struct m0_clovis_op_obj, oo_oc);
-	ioo = container_of(oo, struct m0_clovis_op_io, ioo_oo);
+	oc = M0_AMB(oc, *op, oc_op);
+	oo = M0_AMB(oo, oc, oo_oc);
+	ioo = M0_AMB(ioo, oo, ioo_oo);
 
 	/* Initialise the operation */
 	rc = m0_clovis_op_init(*op, &clovis_op_conf, entity);

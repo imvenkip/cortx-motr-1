@@ -797,8 +797,7 @@ static bool clovis_rconfc_expired_cb(struct m0_clink *clink)
 {
 	uint32_t                    i;
 	struct m0_reqh_service_ctx *ctx;
-	struct m0_clovis           *m0c = container_of(clink, struct m0_clovis,
-					               m0c_conf_exp);
+	struct m0_clovis           *m0c = M0_AMB(m0c, clink, m0c_conf_exp);
 
 	M0_ENTRY();
 	if (m0c->m0c_reqh.rh_rconfc.rc_stopping)
@@ -825,8 +824,7 @@ static bool clovis_rconfc_expired_cb(struct m0_clink *clink)
 
 static bool clovis_rconfc_ready_cb(struct m0_clink *clink)
 {
-	struct m0_clovis *m0c = container_of(clink, struct m0_clovis,
-					     m0c_conf_ready);
+	struct m0_clovis *m0c = M0_AMB(m0c, clink, m0c_conf_ready);
 
 	M0_ENTRY();
 	m0c->m0c_rlock_revoked = false;

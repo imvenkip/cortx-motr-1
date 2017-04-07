@@ -56,6 +56,7 @@
 #include "clovis/clovis.h"      /* m0_clovis_* */
 #include "clovis/clovis_idx.h"  /* m0_clovis_idx_* */
 #include "clovis/pg.h"          /* nwxfer and friends */
+#include "clovis/sync.h"        /* clovis_sync_request */
 
 struct m0_clovis_idx_service_ctx;
 
@@ -144,13 +145,6 @@ struct m0_clovis_op_common {
 	void                 (*oc_cb_executed)(void *args);
 	void                 (*oc_cb_stable)(void *args);
 	void                 (*oc_cb_failed)(void *args);
-};
-
-struct m0_clovis_ios_cob_req {
-	struct m0_clovis_op_obj *icr_oo;
-	uint32_t                 icr_index;
-	struct m0_clovis_ast_rc  icr_ar;
-	uint64_t                 icr_magic;
 };
 
 /**
@@ -313,6 +307,39 @@ bool m0_clovis_op_md_invariant(const struct m0_clovis_op_md *mop);
 union m0_clovis_max_size_op {
 	struct m0_clovis_op_io io;
 	struct m0_clovis_op_md md;
+};
+
+/**
+ * SYNC operation and related data structures.
+ */
+struct m0_clovis_op_sync {
+	struct m0_clovis_op_common  os_oc;
+	uint64_t                    os_magic;
+
+	struct m0_sm_group         *os_sm_grp;
+	struct m0_clovis_ast_rc     os_ar;
+
+	struct clovis_sync_request *os_req;
+
+	/**
+ 	 * Mode to set the fsync fop (m0_fop_fsync::ff_fsync_mode).
+ 	 * mdservice/fsync_fops.h defines 2 modes: M0_FSYNC_MODE_ACTIVE and
+ 	 * M0_FSYNC_MODE_PASSIVE. In passive mode the fsync fom merely
+	 * waits for the transactions to become committed, in active mode it
+	 * uses m0_be_tx_force(), to cause the transactions to make progress
+	 * more quickly than they otherwise would.
+ 	 */
+	int32_t                     os_mode;
+};
+
+/**
+ * Request to ioservice component object (COB).
+ */
+struct m0_clovis_ios_cob_req {
+	struct m0_clovis_op_obj *icr_oo;
+	uint32_t                 icr_index;
+	struct m0_clovis_ast_rc  icr_ar;
+	uint64_t                 icr_magic;
 };
 
 /** miscallaneous constants */

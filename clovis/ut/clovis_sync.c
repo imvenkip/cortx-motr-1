@@ -35,19 +35,16 @@
 #include "ut/ut.h"                        /* m0_test_suite */
 #include "lib/tlist.h"
 #include "lib/hash.h"
-#include "lib/trace.h"
 #include "mdservice/fsync_fops.h"         /* m0_fop_fsync_mds_fopt */
 #include "lib/misc.h"                     /* M0_SET0() */
 #include "reqh/reqh_service.h"            /* m0_reqh_service_txid */
 
 #include "clovis/ut/clovis.h"
 #include "clovis/clovis_internal.h"
-#include "clovis/osync.h"                 /* clovis_osync_interactions */
+#include "clovis/sync.h"                 /* clovis_sync_interactions */
+#include "clovis/clovis_sync.c"
 
-const struct m0_ut_suite                ut_suite_clovis_osync;
-
-/* declared in fsync.c */
-extern struct clovis_osync_interactions  osi;
+const struct m0_ut_suite                ut_suite_clovis_sync;
 
 /* counters to indicate how many times each sub is/was called */
 static int                               ut_post_rpc_count = 0;
@@ -67,19 +64,24 @@ static struct m0_fop                     reply_fop;
 /* The reply data */
 static struct m0_fop_fsync_rep           reply_data;
 
+/* The fake sync request and target. */
+static struct clovis_sync_request         sreq;
+static struct clovis_sync_target          stgt;
+
 /* The fake records that need fsycning */
 #define NUM_STRECORDS 10
 static struct m0_reqh_service_txid        stx[NUM_STRECORDS];
+static struct m0_reqh_service_txid        sreq_stx[NUM_STRECORDS];
 
 /* copy of the fsync interactions -
  *	used to restore the original function pointers */
-static struct clovis_osync_interactions  copy;
+static struct clovis_sync_interactions    copy;
 
 /* The fake object we try to fsync against */
 static struct m0_clovis_obj               obj;
 
 /* The fake clovis instance we fsync against */
-static struct m0_clovis                  cinst;
+static struct m0_clovis                   cinst;
 
 /* The fake clovis realm */
 static struct m0_clovis_realm             realm;
@@ -173,8 +175,9 @@ static void fake_clovis_setup(void)
 
 	realm.re_instance = &cinst;
 	obj.ob_entity.en_realm = &realm;
-	m0_mutex_init(&obj.ob_pending_tx_lock);
-	ospti_tlist_init(&obj.ob_pending_tx);
+	obj.ob_entity.en_type = M0_CLOVIS_ET_OBJ;
+	m0_mutex_init(&obj.ob_entity.en_pending_tx_lock);
+	spti_tlist_init(&obj.ob_entity.en_pending_tx);
 
 	m0_mutex_init(&service.sc_max_pending_tx_lock);
 	service.sc_type = M0_CST_IOS;
@@ -184,26 +187,45 @@ static void fake_clovis_setup(void)
 	/* Add some records that need syncing
 	 * This creates @10 records, all for the same service that need
 	 * syncing. This would never happen in reality.
-	 * clovis_osync_record_update will only ever update the first service it
+	 * clovis_sync_record_update will only ever update the first service it
 	 * finds, assuming that there are no duplicates.
 	 */
 	for (i = 0; i < NUM_STRECORDS; i++) {
-		m0_tlink_init(&ospti_tl, &stx[i]);
+		m0_tlink_init(&spti_tl, &stx[i]);
 		stx[i].stx_tri.tri_txid = 3;
 		stx[i].stx_tri.tri_locality = 7;
 		stx[i].stx_service_ctx = &service;
-		ospti_tlist_add(&obj.ob_pending_tx, &stx[i]);
+		spti_tlist_add(&obj.ob_entity.en_pending_tx, &stx[i]);
+	}
+
+	/* Add the object and build stx list in the sync list.*/
+	M0_SET0(&sreq);
+	spf_tlist_init(&sreq.sr_fops);
+	spti_tlist_init(&sreq.sr_stxs);
+	clovis_sync_target_tlist_init(&sreq.sr_targets);
+	m0_mutex_init(&sreq.sr_fops_lock);
+
+	stgt.srt_type  = CLOVIS_SYNC_ENTITY;
+	stgt.u.srt_ent = &obj.ob_entity;
+	clovis_sync_target_tlink_init_at(&stgt, &sreq.sr_targets);
+
+	for (i = 0; i < NUM_STRECORDS; i++) {
+		m0_tlink_init(&spti_tl, &sreq_stx[i]);
+		sreq_stx[i].stx_tri.tri_txid = 3;
+		sreq_stx[i].stx_tri.tri_locality = 7;
+		sreq_stx[i].stx_service_ctx = &service;
+		spti_tlist_add(&sreq.sr_stxs, &sreq_stx[i]);
 	}
 }
 
 /**
- * Tests the clovis_osync_request_create function.
+ * Tests the clovis_sync_request_fop_send function.
  */
-static void ut_clovis_test_clovis_osync_request_create(void)
+static void ut_clovis_test_clovis_sync_request_fop_send(void)
 {
-	int                              rv;
-	struct clovis_osync_fop_wrapper *ofw;
-	struct m0_reqh_service_txid      stx;
+	int                             rv;
+	struct clovis_sync_fop_wrapper *sfw;
+	struct m0_reqh_service_txid     stx;
 	struct m0_fop_fsync             *ffd;
 
 	fake_clovis_setup();
@@ -213,12 +235,12 @@ static void ut_clovis_test_clovis_osync_request_create(void)
 
 	/* Copy the fsync_interactions struct so that we can restore it to
 	 * default values later */
-	copy = osi;
+	copy = si;
 
 	/* we need to override post rpc and fop_fini */
-	osi.post_rpc = &ut_post_rpc;
-	osi.fop_fini = &ut_fop_fini;
-	osi.fop_put = &ut_fop_fini;
+	si.si_post_rpc = &ut_post_rpc;
+	si.si_fop_fini = &ut_fop_fini;
+	si.si_fop_put = &ut_fop_fini;
 
 	/* Test the values get packed into the fop correctly */
 	ut_reset_stub_counters();
@@ -226,9 +248,10 @@ static void ut_clovis_test_clovis_osync_request_create(void)
 	stx.stx_service_ctx = &service;
 	stx.stx_tri.tri_txid = 4000ULL;
 	stx.stx_tri.tri_locality = 11;
-	rv = clovis_osync_request_create(&stx, &ofw, M0_FSYNC_MODE_ACTIVE);
+	rv = clovis_sync_request_fop_send(NULL, &stx,
+					  M0_FSYNC_MODE_ACTIVE, false, &sfw);
 	M0_UT_ASSERT(rv == 0);
-	ffd = m0_fop_data(&ofw->ofw_fop);
+	ffd = m0_fop_data(&sfw->sfw_fop);
 	M0_UT_ASSERT(ffd != NULL);
 	M0_UT_ASSERT(ffd->ff_be_remid.tri_txid == stx.stx_tri.tri_txid);
 	M0_UT_ASSERT(ffd->ff_be_remid.tri_locality == stx.stx_tri.tri_locality);
@@ -236,8 +259,8 @@ static void ut_clovis_test_clovis_osync_request_create(void)
 	M0_UT_ASSERT(ut_fop_fini_count == 0);
 
 	/* reset anything that got initalised */
-	m0_fop_fini(&ofw->ofw_fop);
-	m0_free(ofw);
+	m0_fop_fini(&sfw->sfw_fop);
+	m0_free(sfw);
 	M0_SET0(&stx);
 
 	/* cause post_rpc to fail */
@@ -246,28 +269,29 @@ static void ut_clovis_test_clovis_osync_request_create(void)
 	stx.stx_service_ctx = &service;
 	stx.stx_tri.tri_txid = 4000ULL;
 	stx.stx_tri.tri_locality = 99;
-	rv = clovis_osync_request_create(&stx, &ofw, M0_FSYNC_MODE_ACTIVE);
+	rv = clovis_sync_request_fop_send(NULL, &stx,
+					  M0_FSYNC_MODE_ACTIVE, false, &sfw);
 	M0_UT_ASSERT(rv == ut_post_rpc_return);
 	M0_UT_ASSERT(ut_fop_fini_count == 1);
 
 	/* Restore the fsync_interactions struct */
-	osi = copy;
+	si = copy;
 }
 
 int clovis_default_txid = 42;
 int clovis_default_locality = 7;
 
 void
-test_clovis_osync_reply_process_init(
-			struct clovis_osync_fop_wrapper *ofw,
+test_clovis_sync_reply_wait_init(
+			struct clovis_sync_fop_wrapper *sfw,
 			struct m0_reqh_service_txid *stx)
 {
 	struct m0_fop_fsync *ffd;
 
 	/* Initialise the fops */
-	m0_fop_init(&ofw->ofw_fop, &m0_fop_fsync_mds_fopt, NULL, &m0_fop_release);
-	m0_fop_data_alloc(&ofw->ofw_fop);
-	ffd = m0_fop_data(&ofw->ofw_fop);
+	m0_fop_init(&sfw->sfw_fop, &m0_fop_fsync_mds_fopt, NULL, &m0_fop_release);
+	m0_fop_data_alloc(&sfw->sfw_fop);
+	ffd = m0_fop_data(&sfw->sfw_fop);
 	M0_UT_ASSERT(ffd != NULL);
 	ffd->ff_be_remid.tri_txid = clovis_default_txid;
 	ffd->ff_be_remid.tri_locality = clovis_default_locality;
@@ -278,75 +302,76 @@ test_clovis_osync_reply_process_init(
 	reply_data.ffr_rc = 0;
 	reply_data.ffr_be_remid.tri_txid = clovis_default_txid;
 	reply_data.ffr_be_remid.tri_locality = clovis_default_locality;
-	ofw->ofw_stx = stx;
+	sfw->sfw_stx = stx;
 }
 
 
 void
-call_clovis_osync_reply_process(struct m0_clovis                *input_cinst,
-                                struct m0_clovis_obj            *input_obj,
-                                struct clovis_osync_fop_wrapper *input_ofw,
-                                int                              expect_return,
-                                int                              expect_ut_wait_for_reply_count,
-                                int                              expect_ut_fop_fini_count,
-                                uint64_t                         expect_txid,
-                                size_t                           expect_locality)
+call_clovis_sync_reply_wait(struct m0_clovis                *input_cinst,
+			    struct m0_clovis_obj            *input_obj,
+			    struct clovis_sync_fop_wrapper *input_sfw,
+			    int                              expect_return,
+			    int                              expect_ut_wait_for_reply_count,
+			    int                              expect_ut_fop_fini_count,
+			    uint64_t                         expect_txid,
+			    size_t                           expect_locality)
 {
 	int rv;
 
-	rv = clovis_osync_reply_process(input_cinst, input_obj, input_ofw);
+	input_sfw->sfw_req = &sreq;
+	rv = clovis_sync_reply_wait(input_sfw);
 	M0_UT_ASSERT(rv == expect_return);
 	M0_UT_ASSERT(ut_wait_for_reply_count == expect_ut_wait_for_reply_count);
 	M0_UT_ASSERT(ut_fop_fini_count == expect_ut_fop_fini_count);
-	M0_UT_ASSERT(input_ofw->ofw_stx->stx_tri.tri_txid == expect_txid);
-	M0_UT_ASSERT(input_ofw->ofw_stx->stx_tri.tri_locality ==
+	M0_UT_ASSERT(input_sfw->sfw_stx->stx_tri.tri_txid == expect_txid);
+	M0_UT_ASSERT(input_sfw->sfw_stx->stx_tri.tri_locality ==
 		     expect_locality);
 }
 
 /**
- * Tests the clovis_osync_reply_process function.
+ * Tests the clovis_sync_reply_wait function.
  */
-void ut_clovis_test_clovis_osync_reply_process(void)
+void ut_clovis_test_clovis_sync_reply_wait(void)
 {
-	struct m0_reqh_service_txid     *iter;
-	struct clovis_osync_fop_wrapper  ofw;
-	struct m0_reqh_service_txid      stx;
-	struct m0_fop_fsync             *ffd;
+	struct m0_reqh_service_txid    *iter;
+	struct clovis_sync_fop_wrapper  sfw;
+	struct m0_reqh_service_txid     stx;
+	struct m0_fop_fsync            *ffd;
 
 	fake_clovis_setup();
 
-	M0_SET0(&ofw);
+	M0_SET0(&sfw);
 	M0_SET0(&stx);
 	M0_SET0(&ffd);
 	M0_SET0(&copy);
 
 	/* Copy the fsync_interactions struct so that we can restore it to
 	 * default values later */
-	copy = osi;
+	copy = si;
 
 	/* we need to override wait for reply and fop_fini */
-	osi.wait_for_reply = &ut_wait_for_reply;
-	osi.fop_fini = &ut_fop_fini;
-	osi.fop_put = &ut_fop_fini;
+	si.si_wait_for_reply = &ut_wait_for_reply;
+	si.si_fop_fini = &ut_fop_fini;
+	si.si_fop_put = &ut_fop_fini;
 
 	/* Initialise the fops */
-	test_clovis_osync_reply_process_init(&ofw, &stx);
+	test_clovis_sync_reply_wait_init(&sfw, &stx);
 
 	/* wait for reply fails */
 	ut_reset_stub_counters();
 	ut_wait_for_reply_return = -EINVAL;
 	ut_wait_for_reply_remote_return = 0;
-	call_clovis_osync_reply_process(NULL, &obj, &ofw,
+	call_clovis_sync_reply_wait(NULL, &obj, &sfw,
 	                                ut_wait_for_reply_return,
 	                                1, 1, clovis_default_txid,
 					clovis_default_locality);
 
 	/* remote fop fails */
-	test_clovis_osync_reply_process_init(&ofw, &stx);
+	test_clovis_sync_reply_wait_init(&sfw, &stx);
 	ut_reset_stub_counters();
 	ut_wait_for_reply_return = 0;
 	ut_wait_for_reply_remote_return = -EINVAL;
-	call_clovis_osync_reply_process(NULL, &obj, &ofw,
+	call_clovis_sync_reply_wait(NULL, &obj, &sfw,
 	                                ut_wait_for_reply_remote_return,
 	                                1, 1, clovis_default_txid,
 					clovis_default_locality);
@@ -355,8 +380,8 @@ void ut_clovis_test_clovis_osync_reply_process(void)
 	/* super block record should still be updated - this can happen
 	 * when the inode has been updated, and we raced to get the super_block
 	 * lock before the thread updating the inode */
-	test_clovis_osync_reply_process_init(&ofw, &stx);
-	ffd = m0_fop_data(&ofw.ofw_fop);
+	test_clovis_sync_reply_wait_init(&sfw, &stx);
+	ffd = m0_fop_data(&sfw.sfw_fop);
 	M0_UT_ASSERT(ffd != NULL);
 	ffd->ff_be_remid.tri_txid = 42;
 	stx.stx_tri.tri_txid = 50;
@@ -370,7 +395,7 @@ void ut_clovis_test_clovis_osync_reply_process(void)
 	ut_reset_stub_counters();
 	ut_wait_for_reply_return = 0;
 	ut_wait_for_reply_remote_return = 0;
-	call_clovis_osync_reply_process(NULL, &obj, &ofw, 0,
+	call_clovis_sync_reply_wait(NULL, &obj, &sfw, 0,
 	                                1, 1, 50, 2);
 	/* Check superblock record was updated */
 	m0_mutex_lock(&service.sc_max_pending_tx_lock);
@@ -379,11 +404,17 @@ void ut_clovis_test_clovis_osync_reply_process(void)
 	M0_UT_ASSERT(iter->stx_tri.tri_locality == 0);
 	m0_mutex_unlock(&service.sc_max_pending_tx_lock);
 
-	/* super-block:transaction-to-sync increased while fop was in flight */
-	/* inode record should still be updated - this can happen
-	 * when another file was modified */
-	test_clovis_osync_reply_process_init(&ofw, &stx);
-	ffd = m0_fop_data(&ofw.ofw_fop);
+	/*
+	 * Clovis instance: transaction-to-sync increased while fop
+	 * was in flight.
+	 */
+	/*
+	 * As sfw->sfw_stx stores stx that is merged from all involved
+	 * targets, clovis updates stx's of targets only, not the one
+	 * sfw->sfw_stx.
+	 */
+	test_clovis_sync_reply_wait_init(&sfw, &stx);
+	ffd = m0_fop_data(&sfw.sfw_fop);
 	M0_UT_ASSERT(ffd != NULL);
 	ffd->ff_be_remid.tri_txid = 42;
 	stx.stx_tri.tri_txid = 42;
@@ -398,7 +429,7 @@ void ut_clovis_test_clovis_osync_reply_process(void)
 	ut_reset_stub_counters();
 	ut_wait_for_reply_return = 0;
 	ut_wait_for_reply_remote_return = 0;
-	call_clovis_osync_reply_process(NULL, &obj, &ofw, 0,
+	call_clovis_sync_reply_wait(NULL, &obj, &sfw, 0,
 	                                1, 1, 0, 0);
 	/* Check superblock record was not updated */
 	m0_mutex_lock(&service.sc_max_pending_tx_lock);
@@ -408,8 +439,8 @@ void ut_clovis_test_clovis_osync_reply_process(void)
 	m0_mutex_unlock(&service.sc_max_pending_tx_lock);
 
 	/* transaction-to-sync set to 0 on success */
-	test_clovis_osync_reply_process_init(&ofw, &stx);
-	ffd = m0_fop_data(&ofw.ofw_fop);
+	test_clovis_sync_reply_wait_init(&sfw, &stx);
+	ffd = m0_fop_data(&sfw.sfw_fop);
 	M0_UT_ASSERT(ffd != NULL);
 	ffd->ff_be_remid.tri_txid = 42;
 	stx.stx_tri.tri_txid = 42;
@@ -425,7 +456,7 @@ void ut_clovis_test_clovis_osync_reply_process(void)
 	ut_reset_stub_counters();
 	ut_wait_for_reply_return = 0;
 	ut_wait_for_reply_remote_return = 0;
-	call_clovis_osync_reply_process(NULL, &obj, &ofw, 0,
+	call_clovis_sync_reply_wait(NULL, &obj, &sfw, 0,
 	                                1, 1, 0, 0);
 	/* Check superblock record was updated */
 	m0_mutex_lock(&service.sc_max_pending_tx_lock);
@@ -435,13 +466,13 @@ void ut_clovis_test_clovis_osync_reply_process(void)
 	m0_mutex_unlock(&service.sc_max_pending_tx_lock);
 
 	/* Restore the fsync_interactions struct */
-	osi = copy;
+	si = copy;
 }
 
 /**
- * Tests the clovis_osync_record_update function.
+ * Tests the clovis_sync_record_update function.
  */
-void ut_clovis_test_clovis_osync_record_update(void)
+void ut_clovis_test_clovis_sync_record_update(void)
 {
 	struct m0_reqh_service_txid *iter;
 	struct m0_be_tx_remid        btr;
@@ -451,7 +482,7 @@ void ut_clovis_test_clovis_osync_record_update(void)
 	/* test the inode record is updated */
 	btr.tri_txid = 50;
 	btr.tri_locality = 3;
-	clovis_osync_record_update(&service, NULL, &obj, &btr);
+	clovis_sync_record_update(&service, &obj.ob_entity, NULL, &btr);
 	/* test the first record was updated */
 	M0_UT_ASSERT(stx[NUM_STRECORDS-1].stx_tri.tri_txid == 50ULL);
 	/* check later records were not updated */
@@ -464,20 +495,21 @@ void ut_clovis_test_clovis_osync_record_update(void)
 	m0_mutex_unlock(&service.sc_max_pending_tx_lock);
 	btr.tri_txid = 999;
 	btr.tri_locality = 18;
-	clovis_osync_record_update(&service, NULL, &obj, &btr);
+	clovis_sync_record_update(&service, &obj.ob_entity, NULL, &btr);
 	M0_UT_ASSERT(iter->stx_tri.tri_txid == 999ULL);
 	M0_UT_ASSERT(iter->stx_tri.tri_locality == 18);
 }
 
-void call_clovis_osync_core(struct m0_clovis_obj *input_obj,
-                            int input_flag, int expect_return,
-                            int expect_ut_post_rpc_count,
-                            int expect_ut_wait_for_reply_count,
-                            int expect_ut_fop_fini_count)
+void call_clovis_sync_request_launch_and_wait(
+				struct m0_clovis_obj *input_obj,
+				int input_flag, int expect_return,
+				int expect_ut_post_rpc_count,
+				int expect_ut_wait_for_reply_count,
+				int expect_ut_fop_fini_count)
 {
 	int rv;
 
-	rv = clovis_osync_core(input_obj, input_flag);
+	rv = clovis_sync_request_launch_and_wait(&sreq, input_flag);
 	M0_UT_ASSERT(rv == expect_return);
 	M0_UT_ASSERT(ut_post_rpc_count == expect_ut_post_rpc_count);
 	M0_UT_ASSERT(ut_wait_for_reply_count == expect_ut_wait_for_reply_count);
@@ -485,9 +517,9 @@ void call_clovis_osync_core(struct m0_clovis_obj *input_obj,
 }
 
 /**
- * Tests the clovis_osync_core function.
+ * Tests the clovis_sync_launch_and_wait function.
  */
-static void ut_clovis_test_clovis_osync_core(void)
+static void ut_clovis_test_clovis_sync_request_launch_and_wait(void)
 {
 	int i;
 
@@ -499,21 +531,21 @@ static void ut_clovis_test_clovis_osync_core(void)
 
 	/* Copy the fsync_interactions struct so that we can restore it to
 	 * default values later */
-	copy = osi;
+	copy = si;
 
 	/* Load the stubs over the top of the fsync_interactions struct */
-	osi.post_rpc = &ut_post_rpc;
-	osi.wait_for_reply = &ut_wait_for_reply;
-	osi.fop_fini = &ut_fop_fini;
-	osi.fop_put = &ut_fop_fini;
+	si.si_post_rpc = &ut_post_rpc;
+	si.si_wait_for_reply = &ut_wait_for_reply;
+	si.si_fop_fini = &ut_fop_fini;
+	si.si_fop_put = &ut_fop_fini;
 
 	/* Cause fop sending to fail at the first attempt - check an error
 	 * is returned and that we don't wait for a reply to the failed fop */
 	ut_reset_stub_counters();
 	ut_post_rpc_return = -EINVAL;
 	ut_post_rpc_early_return = -EINVAL;
-	call_clovis_osync_core(&obj, M0_FSYNC_MODE_ACTIVE,
-	                       ut_post_rpc_return, 1, 0,1);
+	call_clovis_sync_request_launch_and_wait(
+		&obj, M0_FSYNC_MODE_ACTIVE, ut_post_rpc_return, 1, 0,1);
 
 	/* Cause fop sending to fail after a few have been sent - check those
 	 * that were sent correctly have their replies processed */
@@ -523,12 +555,12 @@ static void ut_clovis_test_clovis_osync_core(void)
 	ut_post_rpc_return = -EINVAL;
 	ut_wait_for_reply_return = 0;
 	ut_wait_for_reply_remote_return = 0;
-	call_clovis_osync_core(&obj, M0_FSYNC_MODE_ACTIVE,
+	call_clovis_sync_request_launch_and_wait(&obj, M0_FSYNC_MODE_ACTIVE,
 	                       ut_post_rpc_return, ut_post_rpc_delay,
 	                       ut_post_rpc_delay-1, ut_post_rpc_delay);
 	/* reset replies */
 	for (i = 0; i < NUM_STRECORDS; i++)
-		stx[i].stx_tri.tri_txid = 3;
+		sreq_stx[i].stx_tri.tri_txid = 3;
 
 	/* Cause a remote fop to fail - test the error is propogated */
 	ut_reset_stub_counters();
@@ -537,12 +569,12 @@ static void ut_clovis_test_clovis_osync_core(void)
 	ut_post_rpc_return = 0;
 	ut_wait_for_reply_return = 0;
 	ut_wait_for_reply_remote_return = -EINVAL;
-	call_clovis_osync_core(&obj, M0_FSYNC_MODE_ACTIVE,
+	call_clovis_sync_request_launch_and_wait(&obj, M0_FSYNC_MODE_ACTIVE,
 	                       ut_wait_for_reply_remote_return,
 	                       NUM_STRECORDS, NUM_STRECORDS, NUM_STRECORDS);
 	/* reset replies */
 	for (i = 0; i < NUM_STRECORDS; i++)
-		stx[i].stx_tri.tri_txid = 3;
+		sreq_stx[i].stx_tri.tri_txid = 3;
 
 	/* Send replies for the versions requested - test records are updated
 	 so that repeated calls to fsync have no effect */
@@ -550,12 +582,10 @@ static void ut_clovis_test_clovis_osync_core(void)
 	ut_post_rpc_return = 0;
 	ut_wait_for_reply_return = 0;
 	ut_wait_for_reply_remote_return = 0;
-	call_clovis_osync_core(&obj, M0_FSYNC_MODE_ACTIVE, 0,
+	call_clovis_sync_request_launch_and_wait(&obj, M0_FSYNC_MODE_ACTIVE, 0,
 	                       NUM_STRECORDS, NUM_STRECORDS, NUM_STRECORDS);
 	/* test the records were updated */
-	for (i = 0; i < NUM_STRECORDS; i++)
-		M0_UT_ASSERT(stx[i].stx_tri.tri_txid == 0);
-
+	M0_UT_ASSERT(stx[NUM_STRECORDS - 1].stx_tri.tri_txid == 0);
 	/* Don't reset replies ! */
 
 	/* Test a repeated call to fsync causes no fops to be sent */
@@ -563,10 +593,10 @@ static void ut_clovis_test_clovis_osync_core(void)
 	ut_post_rpc_return = 0;
 	ut_wait_for_reply_return = 0;
 	ut_wait_for_reply_remote_return = 0;
-	call_clovis_osync_core(&obj, M0_FSYNC_MODE_ACTIVE, 0, 0, 0, 0);
+	call_clovis_sync_request_launch_and_wait(&obj, M0_FSYNC_MODE_ACTIVE, -EINVAL, 0, 0, 0);
 
 	/* Restore the fsync_interactions struct */
-	osi = copy;
+	si = copy;
 
 }
 
@@ -577,7 +607,7 @@ void call_m0_clovis_obj_sync(struct m0_clovis_obj *obj,
 {
 	int rv;
 
-	rv = m0_clovis_obj_sync(obj);
+	rv = m0_clovis_entity_sync(&obj->ob_entity);
 	M0_UT_ASSERT(rv == expect_return);
 	M0_UT_ASSERT(ut_post_rpc_count == expect_ut_post_rpc_count);
 	M0_UT_ASSERT(ut_fop_fini_count == expect_ut_fop_fini_count);
@@ -585,41 +615,38 @@ void call_m0_clovis_obj_sync(struct m0_clovis_obj *obj,
 
 void ut_clovis_test_m0_clovis_obj_sync(void)
 {
-	int    i;
-
 	/*
 	 * Copy the fsync_interactions struct so that we can restore it to
 	 * default values later.
 	 */
 	M0_SET0(&copy);
-	copy = osi;
+	copy = si;
 
 	/* Setup fake test env */
 	fake_clovis_setup();
-	osi.post_rpc = &ut_post_rpc;
-	osi.wait_for_reply = &ut_wait_for_reply;
-	osi.fop_fini = &ut_fop_fini;
-	osi.fop_put = &ut_fop_fini;
+	si.si_post_rpc = &ut_post_rpc;
+	si.si_wait_for_reply = &ut_wait_for_reply;
+	si.si_fop_fini = &ut_fop_fini;
+	si.si_fop_put = &ut_fop_fini;
 
 	/* Check normal operation works */
 	ut_reset_stub_counters();
 	ut_post_rpc_return = 0;
 	ut_wait_for_reply_return = 0;
 	ut_wait_for_reply_remote_return = 0;
-	call_m0_clovis_obj_sync(&obj, 0, NUM_STRECORDS, NUM_STRECORDS);
+	call_m0_clovis_obj_sync(&obj, 0, 1, 1);
 
 	/* test the records were updated */
-	for (i = 0; i < NUM_STRECORDS; i++)
-		M0_UT_ASSERT(stx[i].stx_tri.tri_txid == 0);
+	M0_UT_ASSERT(stx[NUM_STRECORDS - 1].stx_tri.tri_txid == 0);
 
 	/* Restore the fsync_interactions struct */
-	osi = copy;
+	si = copy;
 }
 
-M0_INTERNAL int ut_clovis_osync_init(void)
+M0_INTERNAL int ut_clovis_sync_init(void)
 {
 #ifndef __KERNEL__
-	ut_clovis_shuffle_test_order(&ut_suite_clovis_osync);
+	ut_clovis_shuffle_test_order(&ut_suite_clovis_sync);
 #endif
 
 	m0_clovis_init_io_op();
@@ -627,27 +654,27 @@ M0_INTERNAL int ut_clovis_osync_init(void)
 	return 0;
 }
 
-M0_INTERNAL int ut_clovis_osync_fini(void)
+M0_INTERNAL int ut_clovis_sync_fini(void)
 {
 	return 0;
 }
 
-const struct m0_ut_suite ut_suite_clovis_osync = {
-	.ts_name = "clovis-osync-ut",
-	.ts_init = ut_clovis_osync_init,
-	.ts_fini = ut_clovis_osync_fini,
+const struct m0_ut_suite ut_suite_clovis_sync = {
+	.ts_name = "clovis-sync-ut",
+	.ts_init = ut_clovis_sync_init,
+	.ts_fini = ut_clovis_sync_fini,
 	.ts_tests = {
 
 		{ "m0_clovis_obj_sync",
-				  &ut_clovis_test_m0_clovis_obj_sync},
-		{ "clovis_osync_core",
-				  &ut_clovis_test_clovis_osync_core},
-		{ "clovis_osync_record_update",
-				  &ut_clovis_test_clovis_osync_record_update},
-		{ "clovis_osync_reply_process",
-				  &ut_clovis_test_clovis_osync_reply_process},
-		{ "clovis_osync_request_create",
-				  &ut_clovis_test_clovis_osync_request_create},
+		  &ut_clovis_test_m0_clovis_obj_sync},
+		{ "clovis_sync_request_launch_and_wait",
+		  &ut_clovis_test_clovis_sync_request_launch_and_wait},
+		{ "clovis_sync_record_update",
+		  &ut_clovis_test_clovis_sync_record_update},
+		{ "clovis_sync_reply_wait",
+		  &ut_clovis_test_clovis_sync_reply_wait},
+		{ "clovis_sync_request_fop_send",
+		  &ut_clovis_test_clovis_sync_request_fop_send},
 		{ NULL, NULL },
 	}
 };

@@ -532,6 +532,7 @@ extern struct clovis_st_suite st_suite_clovis_obj;
 extern struct clovis_st_suite st_suite_clovis_read;
 extern struct clovis_st_suite st_suite_clovis_write;
 extern struct clovis_st_suite st_suite_clovis_osync;
+extern struct clovis_st_suite st_suite_clovis_isync;
 extern struct clovis_st_suite st_suite_clovis_example;
 
 void clovis_st_add_suites()
@@ -542,6 +543,7 @@ void clovis_st_add_suites()
 	clovis_st_add(&st_suite_clovis_write);
 	clovis_st_add(&st_suite_clovis_osync);
 #ifndef __KERNEL__
+	clovis_st_add(&st_suite_clovis_isync);
 	clovis_st_add(&st_suite_clovis_idx);
 #endif
 }

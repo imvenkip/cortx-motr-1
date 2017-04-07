@@ -155,6 +155,9 @@
 /* Import */
 struct m0_pools_common;
 struct m0_layout_domain;
+struct m0_rpc_session;
+struct m0_be_tx_remid;
+struct m0_dix_req;
 
 struct m0_dix_cli {
 	struct m0_sm             dx_sm;
@@ -169,6 +172,15 @@ struct m0_dix_cli {
 	struct m0_dix_ldesc      dx_root;
 	struct m0_dix_ldesc      dx_layout;
 	struct m0_dix_ldesc      dx_ldescr;
+
+	/**
+	 * The callback function is triggerred to update FSYNC records
+	 * in Clovis when an reply fop to an index's update operation
+	 * is received.
+	 */
+	void  (*dx_sync_rec_update)(struct m0_dix_req *,
+				    struct m0_rpc_session *,
+				    struct m0_be_tx_remid *);
 };
 
 M0_INTERNAL int m0_dix_cli_init(struct m0_dix_cli       *cli,

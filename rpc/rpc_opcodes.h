@@ -204,6 +204,8 @@ enum M0_RPC_OPCODES {
 	M0_FSYNC_MDS_REP_OPCODE             = 120,
 	M0_FSYNC_IOS_OPCODE                 = 121,
 	M0_FSYNC_IOS_REP_OPCODE             = 122,
+	M0_FSYNC_CAS_OPCODE                 = 123,
+	M0_FSYNC_CAS_REP_OPCODE             = 124,
 
 	/* cob getattr & reply */
 	M0_IOSERVICE_COB_GETATTR_OPCODE     = 128,

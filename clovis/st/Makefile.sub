@@ -11,6 +11,7 @@ clovis_st_user_space_c0st_SOURCES = clovis/st/user_space/clovis_st_main.c \
 		      clovis/st/clovis_read.c \
 		      clovis/st/clovis_write.c \
 		      clovis/st/clovis_osync.c \
+		      clovis/st/clovis_isync.c \
 		      clovis/st/clovis_example.c \
 		      clovis/st/clovis_st_assert.h \
 		      clovis/st/clovis_st.h \

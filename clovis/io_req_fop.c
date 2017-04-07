@@ -28,6 +28,7 @@
 #include "clovis/clovis_addb.h"
 #include "clovis/pg.h"
 #include "clovis/io.h"
+#include "clovis/sync.h"
 
 #include "lib/memory.h"          /* m0_alloc, m0_free */
 #include "lib/errno.h"           /* ENOMEM */
@@ -38,11 +39,6 @@
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CLOVIS
 #include "lib/trace.h"           /* M0_LOG */
-
-#define CLOVIS_OSYNC             /* [Experimental] Clovis Object Sync */
-#ifdef  CLOVIS_OSYNC
-#include "clovis/osync.h"
-#endif
 
 /*
  * No initialisation for iofop_bobtype as it isn't const,
@@ -145,16 +141,12 @@ static void clovis_io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast
 
 	rc = gen_rep->gr_rc;
 	rc = rc ?: rw_reply->rwr_rc;
-
 	irfop->irf_reply_rc = rc;
 
-
-#ifdef CLOVIS_OSYNC
 	/* Update pending transaction number */
-	clovis_osync_record_update(
+	clovis_sync_record_update(
 		m0_reqh_service_ctx_from_session(reply_item->ri_session),
-		instance, ioo->ioo_obj, &rw_reply->rwr_mod_rep.fmr_remid);
-#endif
+		&ioo->ioo_obj->ob_entity, op, &rw_reply->rwr_mod_rep.fmr_remid);
 
 ref_dec:
 	/* For whatever reason, io didn't complete successfully.
@@ -245,7 +237,7 @@ static void io_rpc_item_cb(struct m0_rpc_item *item)
 	M0_ENTRY("rpc_item %p", item);
 
 	fop    = m0_rpc_item_to_fop(item);
-	iofop  = container_of(fop, struct m0_io_fop, if_fop);
+	iofop  = M0_AMB(iofop, fop, if_fop);
 	reqfop = bob_of(iofop, struct ioreq_fop, irf_iofop, &iofop_bobtype);
 	ioo    = bob_of(reqfop->irf_tioreq->ti_nwxfer, struct m0_clovis_op_io,
 			ioo_nwxfer, &ioo_bobtype);
@@ -309,7 +301,7 @@ static void client_passive_recv(const struct m0_net_buffer_event *evt)
 	M0_LOG(M0_DEBUG, "PASSIVE recv, e=%p status=%d, len=%"PRIu64" rbulk=%p",
 	       evt, evt->nbe_status, evt->nbe_length, rbulk);
 
-	iofop  = container_of(rbulk, struct m0_io_fop, if_rbulk);
+	iofop  = M0_AMB(iofop, rbulk, if_rbulk);
 	reqfop = bob_of(iofop, struct ioreq_fop, irf_iofop, &iofop_bobtype);
 	ioo    = bob_of(reqfop->irf_tioreq->ti_nwxfer, struct m0_clovis_op_io,
 			ioo_nwxfer, &ioo_bobtype);
@@ -520,9 +512,9 @@ static void ioreq_fop_release(struct m0_ref *ref)
 	M0_ENTRY("ref %p", ref);
 	M0_PRE(ref != NULL);
 
-	fop    = container_of(ref, struct m0_fop, f_ref);
+	fop    = M0_AMB(fop, ref, f_ref);
 	rmach  = m0_fop_rpc_machine(fop);
-	iofop  = container_of(fop, struct m0_io_fop, if_fop);
+	iofop  = M0_AMB(iofop, fop, if_fop);
 	reqfop = bob_of(iofop, struct ioreq_fop, irf_iofop, &iofop_bobtype);
 	rbulk  = &iofop->if_rbulk;
 	xfer   = reqfop->irf_tioreq->ti_nwxfer;

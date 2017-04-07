@@ -993,6 +993,23 @@ static void greq_asmbl_accept(struct m0_cas_req *req)
 	}
 }
 
+/**
+ * Gets transacation identifier information from returned reply fop
+ * of an `UPDATE` op.
+ */
+static void cas_req_fsync_remid_copy(struct m0_cas_req *req)
+{
+	struct m0_cas_rep *rep;
+
+	M0_PRE(req != NULL);
+	M0_PRE(req->ccr_fop != NULL);
+
+	rep = cas_rep(cas_req_to_item(req)->ri_reply);
+	M0_ASSERT(rep != NULL);
+
+	req->ccr_remid = rep->cgr_mod_rep.fmr_remid;
+}
+
 static int cas_req_reply_handle(struct m0_cas_req *req,
 				bool              *fragm_continue)
 {
@@ -1009,6 +1026,9 @@ static int cas_req_reply_handle(struct m0_cas_req *req,
 	M0_ASSERT(reply->cgr_rep.cr_nr + rcvd_reply->cgr_rep.cr_nr <=
 		  req->ccr_max_replies_nr);
 	*fragm_continue = false;
+
+	/* Copy tx remid before fop and rpc item in `req` are set to NULL*/
+	cas_req_fsync_remid_copy(req);
 	/*
 	 * Place reply buffers locally (without copying of actual data), zero
 	 * them in reply fop to avoid their freeing during reply fop destroying.

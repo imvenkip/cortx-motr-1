@@ -30,6 +30,7 @@
 #include "mdservice/fsync_foms.h"
 #include "mdservice/fsync_fops.h"
 #include "ioservice/io_fops.h"     /* m0_fop_fsync_ios_fopt */
+#include "cas/cas.h"               /* m0_fop_fsync_cas_fopt */
 #include "rpc/rpc_opcodes.h"
 #include "ioservice/storage_dev.h" /* m0_storage_dev */
 #include "mero/setup.h"            /* m0_cs_storage_devs_get */
@@ -336,9 +337,11 @@ M0_INTERNAL int m0_fsync_req_fom_create(struct m0_fop  *fop,
 	M0_PRE(fop != NULL);
 	M0_PRE(out != NULL);
 	M0_PRE(M0_IN(fop->f_type,
-		     (&m0_fop_fsync_mds_fopt, &m0_fop_fsync_ios_fopt)));
+		     (&m0_fop_fsync_mds_fopt, &m0_fop_fsync_ios_fopt,
+		      &m0_fop_fsync_cas_fopt)));
 	M0_PRE(M0_IN(m0_fop_opcode(fop),
-		     (M0_FSYNC_MDS_OPCODE, M0_FSYNC_IOS_OPCODE)));
+		     (M0_FSYNC_MDS_OPCODE, M0_FSYNC_IOS_OPCODE,
+		      M0_FSYNC_CAS_OPCODE)));
 
 	/* allocate the fom */
 	M0_ALLOC_PTR(fom);

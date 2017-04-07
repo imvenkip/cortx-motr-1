@@ -3,7 +3,7 @@ nobase_mero_include_HEADERS += clovis/clovis.h \
 			       clovis/clovis_internal.h \
 			       clovis/clovis_idx.h \
 			       clovis/io.h \
-			       clovis/osync.h \
+			       clovis/sync.h \
 			       clovis/pg.h
 
 mero_libmero_la_SOURCES  += clovis/clovis.c \
@@ -18,7 +18,7 @@ mero_libmero_la_SOURCES  += clovis/clovis.c \
 			    clovis/idx_mock.c \
 			    clovis/idx_dix.c \
 			    clovis/clovis_idx.c \
-			    clovis/clovis_osync.c \
+			    clovis/clovis_sync.c \
 			    clovis/clovis_realm.c \
 			    clovis/utils.c
 

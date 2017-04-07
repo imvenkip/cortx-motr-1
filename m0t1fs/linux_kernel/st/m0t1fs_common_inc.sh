@@ -66,8 +66,8 @@ IOS4_CMD=""
 # list of io server end points tmid in [800, 899)
 MDSEP=(
     12345:33:800   # MDS1 EP
-    12345:33:801   # MDS2 EP
-    12345:33:802   # MDS3 EP
+#    12345:33:801   # MDS2 EP
+#    12345:33:802   # MDS3 EP
 )
 
 # Use separate client endpoints for m0repair and m0poolmach utilities

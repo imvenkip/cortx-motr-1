@@ -968,6 +968,11 @@ static int cas_fom_tick(struct m0_fom *fom0)
 			m0_fom_phase_set(fom0, CAS_CHECK_PRE);
 			break;
 		}
+		if (phase == M0_FOPH_TXN_COMMIT) {
+			/* Piggyback some information about the transaction */
+			if (M0_IN(opc, (CO_PUT, CO_DEL)))
+				m0_fom_mod_rep_fill(&rep->cgr_mod_rep, fom0);
+		}
 		result = m0_fom_tick_generic(fom0);
 		if (m0_fom_phase(fom0) == M0_FOPH_TXN_OPEN) {
 			M0_ASSERT(phase == M0_FOPH_TXN_INIT);
@@ -1393,6 +1398,7 @@ static int cas_fom_tick(struct m0_fom *fom0)
 	default:
 		M0_IMPOSSIBLE("Invalid phase");
 	}
+
 	M0_POST(cas_fom_invariant(fom));
 	return M0_RC(result);
 }

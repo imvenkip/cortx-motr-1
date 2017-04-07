@@ -921,23 +921,38 @@ enum m0_magic_satchel {
 	M0_SS_FOM_MAGIC = 0x33f0551112e51077,
 
 /* clovis */
-	/** @todo: stare for an hour at some hex words to pick this properly */
-	M0_CLOVIS_SVC_CTX_MAGIC      = 0x3339816123512277,
-	M0_CLOVIS_SVC_CTX_HEAD_MAGIC = 0x3375423948712477,
+	/* target_ioreq::ti_magic */
 	M0_CLOVIS_TLIST_HEAD_MAGIC   = 0x3339816123512277,
+	/* ioo_bobtype::bt_magix */
 	M0_CLOVIS_IOFOP_MAGIC        = 0x3349816123512277,
+	/* ioreq_fop::irf_magic */
 	M0_CLOVIS_IOREQ_MAGIC        = 0x3359816123512277,
+	/* pgiomap_bobtype::bt_magix */
 	M0_CLOVIS_PGROUP_MAGIC       = 0x3369816123512277,
+	/* dtbuf_bobtype::bt_magix */
 	M0_CLOVIS_DTBUF_MAGIC        = 0x3379816123512277,
+	/* nwxfer_bobtype::bt_magix */
 	M0_CLOVIS_NWREQ_MAGIC        = 0x3389816123512277,
+	/* tioreq_bobtype::bt_magix */
 	M0_CLOVIS_TIOREQ_MAGIC       = 0x3399816123512277,
+	/* oc_bobtype::bt_magix */
 	M0_CLOVIS_OC_MAGIC           = 0x33a9816123512277,
+	/* oo_bobtype::bt_magix */
 	M0_CLOVIS_OO_MAGIC           = 0x33b9816123512277,
+	/* ar_bobtype::bt_magix */
 	M0_CLOVIS_AST_RC_MAGIC       = 0x33c9816123512277,
 	M0_CLOVIS_ICR_MAGIC          = 0x33d9816123512277,
+	/* op_bobtype::bt_magix */
 	M0_CLOVIS_OP_MAGIC           = 0x33e9816123512277,
 	M0_CLOVIS_M0C_MAGIC          = 0x33f9816123512277,
-	M0_CLOVIS_OI_MAGIC           = 0x3409816123512277,
+	/* oi_bobtype::bt_magix */
+	M0_CLOVIS_OI_MAGIC           = 0x3309816123512277,
+	/* os_bobtype::bt_magix */
+	M0_CLOVIS_OS_MAGIC           = 0x3319816123512277,
+	/* clovis_sync_fop_wrapper::sfw_magic */
+	M0_CLOVIS_SYNC_TGT_TL_MAGIC  = 0x3320816123512277,
+	/* clovis_sync_fop_wrapper::sfw_magic */
+	M0_CLOVIS_INSTANCE_PTI_MAGIC = 0x3321816123512277,
 
 /* module/param */
 	/* m0_param_source::ps_magic (boozed billie) */

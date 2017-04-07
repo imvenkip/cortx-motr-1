@@ -136,6 +136,7 @@ M0_INTERNAL int m0_dix_cli_init(struct m0_dix_cli       *cli,
 	cli->dx_pc   = pc;
 	cli->dx_ldom = ldom;
 	cli->dx_pver = m0_pool_version_find(pc, pver);
+	cli->dx_sync_rec_update = NULL;
 	m0_dix_ldesc_init(&cli->dx_root,
 			  &(struct m0_ext) { .e_start = 0,
 			                     .e_end = IMASK_INF },

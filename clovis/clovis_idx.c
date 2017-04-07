@@ -24,6 +24,7 @@
 #include "clovis/clovis_internal.h"
 #include "clovis/clovis_addb.h"
 #include "clovis/clovis_idx.h"
+#include "clovis/sync.h"
 
 #include "lib/errno.h"
 #include "lib/finject.h"
@@ -68,7 +69,7 @@ clovis_oi_instance(struct m0_clovis_op_idx *oi)
  * @return true if the operation is not malformed or false if some error
  * was detected.
  */
-static bool clovis_idx_op_invariant(struct m0_clovis_op_idx *oi)
+M0_INTERNAL bool m0_clovis__idx_op_invariant(struct m0_clovis_op_idx *oi)
 {
 	return M0_RC(oi != NULL &&
 		     m0_clovis_op_idx_bob_check(oi) &&
@@ -79,29 +80,32 @@ static bool clovis_idx_op_invariant(struct m0_clovis_op_idx *oi)
 
 static int clovis_idx_op_get(struct m0_clovis_op **op)
 {
-	int                      rc = 0;
+	int rc = 0;
 
 	M0_ENTRY();
 
 	M0_PRE(op != NULL);
 
 	/* Allocate the op if necessary. */
-	if (*op == NULL)
+	if (*op == NULL) {
 		rc = m0_clovis_op_alloc(op, sizeof(struct m0_clovis_op_idx));
-	else {
+		if (rc != 0)
+			return M0_ERR(rc);
+	} else {
 		size_t cached_size = (*op)->op_size;
 
 		if ((*op)->op_size < sizeof(struct m0_clovis_op_idx))
-			M0_ERR(-EMSGSIZE);
+			return M0_ERR(-EMSGSIZE);
 
 		/* 0 the pre-allocated operation. */
 		memset(*op, 0, cached_size);
 		(*op)->op_size = sizeof(struct m0_clovis_op_idx);
 	}
+	m0_mutex_init(&(*op)->op_pending_tx_lock);
+	spti_tlist_init(&(*op)->op_pending_tx);
 
 	return M0_RC(rc);
 }
-
 
 /**
  * Sets an index operation. Allocates the operation if it has not been pre-
@@ -139,16 +143,16 @@ static int clovis_idx_op_init(struct m0_clovis_idx *idx, int opcode,
 
 	/*
 	 * Init m0_clovis_op_common part.
-	 * bob_init()'s haven't been called yet: we use container_of.
+	 * bob_init()'s haven't been called yet: we use M0_AMB().
 	 */
-	oc = container_of(op, struct m0_clovis_op_common, oc_op);
+	oc = M0_AMB(oc, op, oc_op);
 	m0_clovis_op_common_bob_init(oc);
 	oc->oc_cb_launch = clovis_idx_op_cb_launch;
 	oc->oc_cb_fini   = clovis_idx_op_cb_fini;
 	oc->oc_cb_free   = clovis_idx_op_cb_free;
 
 	/* Init the m0_clovis_op_idx part. */
-	oi = container_of(oc, struct m0_clovis_op_idx, oi_oc);
+	oi = M0_AMB(oi, oc, oi_oc);
 	oi->oi_idx  = idx;
 	oi->oi_keys = keys;
 	oi->oi_vals = vals;
@@ -301,7 +305,7 @@ static void clovis_idx_op_cb_fini(struct m0_clovis_op_common *oc)
 	M0_PRE(oc->oc_op.op_size >= sizeof *oi);
 
 	oi = bob_of(oc, struct m0_clovis_op_idx, oi_oc, &oi_bobtype);
-	M0_PRE(clovis_idx_op_invariant(oi));
+	M0_PRE(m0_clovis__idx_op_invariant(oi));
 
 	m0_clovis_op_common_bob_fini(&oi->oi_oc);
 	m0_clovis_ast_rc_bob_fini(&oi->oi_ar);
@@ -325,7 +329,7 @@ static void clovis_idx_op_cb_free(struct m0_clovis_op_common *oc)
 	M0_PRE((oc->oc_op.op_size >= sizeof *oi));
 
 	/* By now, fini() has been called and bob_of cannot be used */
-	oi = container_of(oc, struct m0_clovis_op_idx, oi_oc);
+	oi = M0_AMB(oi, oc, oi_oc);
 	m0_free(oi);
 
 	M0_LEAVE();
@@ -478,7 +482,7 @@ M0_INTERNAL int m0_clovis_idx_op_namei(struct m0_clovis_entity *entity,
 	rc = clovis_idx_op_get(op);
 	if (rc == 0) {
 		M0_ASSERT(*op != NULL);
-		idx = container_of(entity, struct m0_clovis_idx, in_entity);
+		idx = M0_AMB(idx, entity, in_entity);
 		rc = clovis_idx_op_init(idx, opcode, NULL, NULL, NULL, 0, *op);
 	}
 

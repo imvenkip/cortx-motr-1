@@ -24,7 +24,7 @@
 #include "clovis/clovis.h"
 #include "clovis/clovis_internal.h"
 #include "clovis/clovis_idx.h"
-#include "clovis/osync.h"
+#include "clovis/sync.h"
 
 #include "lib/errno.h"
 #include "fid/fid.h"               /* m0_fid */
@@ -197,7 +197,7 @@ static void clovis_obj_namei_cb_free(struct m0_clovis_op_common *oc)
 	M0_PRE((oc->oc_op.op_size >= sizeof *oo));
 
 	/* By now, fini() has been called and bob_of cannot be used */
-	oo = container_of(oc, struct m0_clovis_op_obj, oo_oc);
+	oo = M0_AMB(oo, oc, oo_oc);
 	M0_PRE(clovis_obj_op_obj_invariant(oo));
 
 	m0_free(oo);
@@ -615,6 +615,8 @@ static int clovis_obj_op_prepare(struct m0_clovis_entity *entity,
 		memset(*op, 0, cached_size);
 		(*op)->op_size = cached_size;
 	}
+	m0_mutex_init(&(*op)->op_pending_tx_lock);
+	spti_tlist_init(&(*op)->op_pending_tx);
 
 	/* Initialise the operation's generic part. */
 	rc = m0_clovis_op_init(*op, &clovis_op_conf, entity);
@@ -622,12 +624,12 @@ static int clovis_obj_op_prepare(struct m0_clovis_entity *entity,
 		goto op_free;
 	(*op)->op_code = opcode;
 
-	/* No bob_init()'s have been called yet: we use container_of */
-	oc = container_of(*op, struct m0_clovis_op_common, oc_op);
+	/* No bob_init()'s have been called yet: we use M0_AMB(). */
+	oc = M0_AMB(oc, *op, oc_op);
 	m0_clovis_op_common_bob_init(oc);
 
 	/* Init the m0_clovis_op_obj part. */
-	oo = container_of(oc, struct m0_clovis_op_obj, oo_oc);
+	oo = M0_AMB(oo, oc, oo_oc);
 	rc = clovis_obj_op_obj_init(oo);
 	if (rc != 0)
 		goto op_fini;

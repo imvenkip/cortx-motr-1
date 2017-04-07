@@ -32,11 +32,7 @@
 #include "clovis/clovis_addb.h"
 #include "clovis/clovis.h"
 #include "clovis/clovis_internal.h"
-
-#define CLOVIS_OSYNC
-#ifdef  CLOVIS_OSYNC
-#include "clovis/osync.h"
-#endif
+#include "clovis/sync.h"
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CLOVIS
 #include "lib/trace.h"
@@ -295,6 +291,16 @@ M0_INTERNAL bool clovis_op_invariant(const struct m0_clovis_op *op)
 }
 
 /**
+ * Checks if entiry is valid for NON-SYNC ops.
+ */
+M0_INTERNAL bool clovis_op_entity_invariant(const struct m0_clovis_op *op)
+{
+	return (op->op_entity == NULL) == (op->op_code == M0_CLOVIS_EO_SYNC) &&
+	       ergo(op->op_entity != NULL,
+		    clovis_entity_invariant_full(op->op_entity));
+}
+
+/**
  * Check if entity's id is valid.
  */
 M0_INTERNAL bool clovis_entity_id_is_valid(const struct m0_uint128 *id)
@@ -340,7 +346,8 @@ M0_INTERNAL void m0_clovis_entity_init(struct m0_clovis_entity *entity,
 	grp = &entity->en_sm_group;
 	m0_sm_group_init(grp);
 	m0_sm_init(&entity->en_sm, &clovis_entity_conf, M0_CLOVIS_ES_INIT, grp);
-
+	m0_mutex_init(&entity->en_pending_tx_lock);
+	spti_tlist_init(&entity->en_pending_tx);
 	M0_ASSERT(clovis_entity_invariant_full(entity));
 	M0_LEAVE();
 }
@@ -362,17 +369,14 @@ void m0_clovis_obj_init(struct m0_clovis_obj    *obj,
 	/* set the blocksize to a reasonable default */
 	obj->ob_attr.oa_bshift = CLOVIS_DEFAULT_BUF_SHIFT;
 
-#ifdef CLOVIS_OSYNC
-	m0_mutex_init(&obj->ob_pending_tx_lock);
-	ospti_tlist_init(&obj->ob_pending_tx);
-#endif
-
 	M0_LEAVE();
 }
 M0_EXPORTED(m0_clovis_obj_init);
 
 void m0_clovis_entity_fini(struct m0_clovis_entity *entity)
 {
+	struct m0_reqh_service_txid *iter;
+
 	M0_ENTRY();
 
 	M0_PRE(entity != NULL);
@@ -380,40 +384,28 @@ void m0_clovis_entity_fini(struct m0_clovis_entity *entity)
 			    (M0_CLOVIS_ES_INIT, M0_CLOVIS_ES_FAILED)));
 	M0_ASSERT(clovis_entity_invariant_full(entity));
 
+	m0_tl_teardown(spti, &entity->en_pending_tx, iter)
+		m0_free0(&iter);
+	spti_tlist_fini(&entity->en_pending_tx);
+	m0_mutex_fini(&entity->en_pending_tx_lock);
 	m0_sm_group_lock(&entity->en_sm_group);
 	m0_sm_fini(&entity->en_sm);
 	m0_sm_group_unlock(&entity->en_sm_group);
 	m0_sm_group_fini(&entity->en_sm_group);
-
 	M0_SET0(entity);
-
 	M0_LEAVE();
 }
 M0_EXPORTED(m0_clovis_entity_fini);
 
 void m0_clovis_obj_fini(struct m0_clovis_obj *obj)
 {
-#ifdef CLOVIS_OSYNC
-	struct m0_reqh_service_txid *iter = NULL;
-#endif
 
 	M0_CLOVIS_THREAD_ENTER;
-	M0_ENTRY();
 
+	M0_ENTRY();
 	M0_PRE(obj != NULL);
 
 	m0_clovis_entity_fini(&obj->ob_entity);
-
-#ifdef CLOVIS_OSYNC
-	m0_mutex_lock(&obj->ob_pending_tx_lock);
-	m0_tl_teardown(ospti, &obj->ob_pending_tx, iter)
-		m0_free0(&iter);
-	ospti_tlist_fini(&obj->ob_pending_tx);
-	m0_mutex_unlock(&obj->ob_pending_tx_lock);
-
-	m0_mutex_fini(&obj->ob_pending_tx_lock);
-#endif
-
 	M0_SET0(obj);
 
 	M0_LEAVE();
@@ -491,8 +483,7 @@ M0_INTERNAL int m0_clovis_op_failed(struct m0_clovis_op *op)
  *
  * PRE(op != NULL);
  * PRE(op->op_sm.sm_state == M0_CLOVIS_OS_INITIALISED);
- * PRE(op->op_entity != NULL);
- * PRE(clovis_entity_invariant_full(op->op_entity));
+ * PRE(ergo(op->op_entity != NULL, clovis_entity_invariant_full(op->op_entity));
  * PRE((op->op_size >= sizeof(*oc)));
  *
  * @param op The operation to be launch
@@ -505,8 +496,8 @@ M0_INTERNAL void m0_clovis_op_launch_one(struct m0_clovis_op *op)
 
 	M0_PRE(clovis_op_invariant(op));
 	M0_PRE(op->op_sm.sm_state == M0_CLOVIS_OS_INITIALISED);
-	M0_PRE(op->op_entity != NULL);
-	M0_ASSERT(clovis_entity_invariant_full(op->op_entity));
+	/* SYNC op doesn't have `entity`. */
+	M0_PRE(clovis_op_entity_invariant(op));
 
 	oc = bob_of(op, struct m0_clovis_op_common, oc_op, &oc_bobtype);
 	M0_PRE(oc->oc_cb_launch != NULL);
@@ -525,15 +516,7 @@ void m0_clovis_op_launch(struct m0_clovis_op **op, uint32_t nr)
 	int i;
 
 	M0_ENTRY();
-
 	M0_PRE(op != NULL);
-	M0_PRE(op[0] != NULL);
-
-	/* Check all the operations have the same instance */
-	M0_PRE(m0_forall(i, nr,
-		         op[i] != NULL &&
-			 m0_clovis__op_instance(op[i]) ==
-			 m0_clovis__op_instance(op[0])));
 
 	for (i = 0; i < nr; i++)
 		m0_clovis_op_launch_one(op[i]);
@@ -623,9 +606,8 @@ M0_INTERNAL int m0_clovis_op_init(struct m0_clovis_op *op,
 
 	M0_PRE(op != NULL);
 	M0_PRE(conf != NULL);
-	M0_PRE(entity != NULL);
 	M0_PRE(m0_sm_conf_is_initialized(conf));
-	M0_ASSERT(clovis_entity_invariant_full(entity));
+	M0_ASSERT(ergo(entity != NULL, clovis_entity_invariant_full(entity)));
 
 	/* Initialise the operation. */
 	m0_clovis_op_bob_init(op);
@@ -656,8 +638,8 @@ void m0_clovis_op_fini(struct m0_clovis_op *op)
 
 	M0_PRE(op != NULL);
 	M0_PRE(M0_IN(op->op_sm.sm_state, (M0_CLOVIS_OS_INITIALISED,
-						 M0_CLOVIS_OS_STABLE,
-						 M0_CLOVIS_OS_FAILED)));
+					  M0_CLOVIS_OS_STABLE,
+					  M0_CLOVIS_OS_FAILED)));
 	M0_PRE(op->op_size >= sizeof *oc);
 
 	oc = bob_of(op, struct m0_clovis_op_common, oc_op, &oc_bobtype);
@@ -688,8 +670,8 @@ void m0_clovis_op_free(struct m0_clovis_op *op)
 	M0_PRE(op->op_sm.sm_state == M0_CLOVIS_OS_UNINITIALISED);
 	M0_PRE((op->op_size >= sizeof *oc));
 
-	/* bob_fini has been called in op_fini, using container_of here. */
-	oc = container_of(op, struct m0_clovis_op_common, oc_op);
+	/* bob_fini has been called in op_fini, using M0_AMB() here. */
+	oc = M0_AMB(oc, op, oc_op);
 	if (oc->oc_cb_free != NULL)
 		oc->oc_cb_free(oc);
 

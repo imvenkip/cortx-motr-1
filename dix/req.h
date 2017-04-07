@@ -168,6 +168,9 @@ struct m0_dix_req {
 	/** Request flags bitmask of m0_cas_op_flags values. */
 	uint32_t                      dr_flags;
 	struct m0_poolmach_versions   dr_pmach_ver;
+
+	/** Datum used to update clovis SYNC records. */
+	void                         *dr_sync_datum;
 };
 
 /**
