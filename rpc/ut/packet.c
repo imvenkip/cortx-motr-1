@@ -21,6 +21,7 @@
 #include "lib/memory.h"		/* M0_ALLOC_ARR */
 #include "lib/misc.h"
 #include "lib/arith.h"          /* m0_align() */
+#include "lib/finject.h"        /* m0_fi_enable_once */
 #include "ut/ut.h"
 #include "mero/init.h"
 #include "mero/magic.h"
@@ -94,9 +95,21 @@ static void test_packet_encode_decode(void)
 	rc = m0_rpc_packet_encode(&packet, &bufvec);
 	m0_sm_group_unlock(&rmachine.rm_sm_grp);
 	M0_UT_ASSERT(rc == 0);
+
+	m0_fi_enable_once("item_decode", "rito_decode_nomem");
+	m0_rpc_packet_init(&decoded_packet, &rmachine);
+	rc = m0_rpc_packet_decode(&decoded_packet, &bufvec, 0, bufvec_size);
+	M0_UT_ASSERT(rc == -ENOMEM);
+
+	m0_fi_enable_once("item_decode", "header_unpack");
+	m0_rpc_packet_init(&decoded_packet, &rmachine);
+	rc = m0_rpc_packet_decode(&decoded_packet, &bufvec, 0, bufvec_size);
+	M0_UT_ASSERT(rc == -EPROTO);
+
 	m0_rpc_packet_init(&decoded_packet, &rmachine);
 	rc = m0_rpc_packet_decode(&decoded_packet, &bufvec, 0, bufvec_size);
 	M0_UT_ASSERT(rc == 0);
+
 	packet_compare(&packet, &decoded_packet);
 	packet_fini(&packet);
 	packet_fini(&decoded_packet);

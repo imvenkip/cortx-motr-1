@@ -385,6 +385,8 @@ static int item_decode(struct m0_bufvec_cursor  *cursor,
 	M0_ENTRY();
 	M0_PRE(cursor != NULL && item_out != NULL);
 
+	*item_out = NULL;
+
 	rc = m0_rpc_item_header1_encdec(&ioh, cursor, M0_XCODE_DECODE);
 	if (rc != 0)
 		return M0_ERR(rc);
@@ -393,12 +395,13 @@ static int item_decode(struct m0_bufvec_cursor  *cursor,
 		return M0_ERR(-EPROTO);
 
 	/* check version compatibility. */
+	if (M0_FI_ENABLED("header_unpack"))
+		return M0_ERR(-EPROTO);
+
 	m0_format_header_unpack(&ioh_t, &ioh.ioh_header);
 	if (ioh_t.ot_version != M0_RPC_ITEM_FORMAT_VERSION ||
 	    ioh_t.ot_type != M0_FORMAT_TYPE_RPC_ITEM)
 		return M0_ERR(-EPROTO);
-
-	*item_out = NULL;
 
 	item_type = m0_rpc_item_type_lookup(ioh.ioh_opcode);
 	if (item_type == NULL)
@@ -406,6 +409,9 @@ static int item_decode(struct m0_bufvec_cursor  *cursor,
 
 	M0_ASSERT(item_type->rit_ops != NULL &&
 		  item_type->rit_ops->rito_decode != NULL);
+
+	if (M0_FI_ENABLED("rito_decode_nomem"))
+		return M0_ERR(-ENOMEM);
 
 	rc = item_type->rit_ops->rito_decode(item_type, item_out, cursor);
 	if (rc != 0)
@@ -460,7 +466,7 @@ M0_INTERNAL int m0_rpc_packet_decode_using_cursor(struct m0_rpc_packet *p,
 
 	for (i = 0; i < poh.poh_nr_items; ++i) {
 		rc = item_decode(cursor, &item);
-		if (rc == -EPROTO) {
+		if (item == NULL) {
 			/* Here fop is not allocated, no need to release it. */
 			return M0_ERR(rc);
 		} else if (rc != 0) {
