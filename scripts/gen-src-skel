@@ -96,7 +96,7 @@ my $user_name;
 my $user_email;
 my $copyright_header;
 my $footer;
-
+my $group = 'XXX';
 
 sub build_copyright_header
 {
@@ -164,13 +164,13 @@ $copyright_header
 #define $include_guard
 
 /**
- * \@defgroup XXX
+ * \@defgroup $group
  *
  * \@{
  */
 
 
-/** \@} end of XXX group */
+/** \@} end of $group group */
 #endif /* $include_guard */
 
 $footer
@@ -182,7 +182,7 @@ sub build_c_skeleton
     return <<"END_CSKEL"
 $copyright_header
 /**
- * \@addtogroup XXX
+ * \@addtogroup $group
  *
  * \@{
  */
@@ -194,7 +194,7 @@ $copyright_header
 
 #undef M0_TRACE_SUBSYSTEM
 
-/** \@} end of XXX group */
+/** \@} end of $group group */
 
 $footer
 END_CSKEL
@@ -236,6 +236,7 @@ sub process_cli_options
 {
     help() if !GetOptions(
         'f|force-overwrite' =>  \$cli_option{'force_overwrite'},
+	'g=s'       =>  \$group,
         'h|help'    =>  \&help,
         'usage'     =>  \&usage,
         'man'       =>  \&man
@@ -341,6 +342,10 @@ One or more output files. Files should have .h or .c extension.
 
 Overwrite existing files. By default program stops execution and exits with
 error status if one of output files already exists.
+
+=item B<-g group>
+
+Specify the Doxygen group.
 
 =item B<-h|--help>
 
