@@ -25,7 +25,7 @@ THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
 http://www.xyratex.com/contact
 """
 __author__ = 'Valery V. Vorotyntsev <valery.vorotyntsev@seagate.com>'
-__version__ = '1.6.4'
+__version__ = '1.6.5'
 __all__ = ['conf_objs_encode', 'conf_obj_encode']
 __doc__ = """Configuration string generator.
 
@@ -1073,11 +1073,6 @@ Expected 2 attributes, got 3""", conf_obj_encode,
                                 conf_objs_encode,
                                 [(('profile', 0), [('filesystem', 1)])] * 2,
                                 from_xcode=True)
-
-    def test_file(self):
-        conf_objs_encode(Parser().parse(file('ut/conf.cg').read()))
-        conf_objs_encode(XCParser().parse(file('ut/conf.xc').read()),
-                         from_xcode=True)
 
     def test_dot(self):
         self.assertEqual(conf_obj_encode(
