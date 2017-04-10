@@ -126,8 +126,13 @@ run_command() {
 		if [ "$CLUSTER_TYPE" == "kvm" ]; then
 			$PDSH systemctl disable sspl-ll
 		fi
+		$PDSH uptime
+		$PDSH "ps aux | grep halond"
+		$PDSH "ps aux | grep m0"
+		$PDSH "mount | grep m0"
 		$PDSH systemctl is-active halond
 		$PDSH systemctl is-enabled halond
+		$PDSH systemctl status halond
 		$PDSH systemctl stop halond
 		$PDSH systemctl disable halond
 		sleep 5
