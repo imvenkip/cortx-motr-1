@@ -197,11 +197,11 @@ sub make_descriptor
     my $name    = shift;
     my $timeout = shift;
     my $options = shift // '';
-    my $exclude = shift // '';
+    my $list    = shift // $name;
 
     return <<"END_DESCRIPTOR"
   - id       : $prefix$options-$idx-$name
-    script   : m0run $options m0ut -- -t $name $exclude
+    script   : m0run $options m0ut -- -t $list
     dir      : src/utils/
     executor : Xperior::Executor::MeroTest
     sandbox  : /var/mero/m0ut/$name
@@ -289,7 +289,7 @@ sub main
     my $m0run = locate_m0_binary('m0run');
     my $tests_list;
     {
-        open my $input_fh, '-|', "$m0run m0ut -- -l -Y";
+        open my $input_fh, '-|', "$m0run m0ut -- -L -Y";
         local $/;
         $tests_list = <$input_fh>;
         # ensure we catch piped command error and die
@@ -333,7 +333,16 @@ sub main
                     }
                     debug "  $test_name [$vname]";
 
-                    my $exclude = $test->{$test_name}{config}{exclude};
+                    my $list;
+                    if (defined $test->{$test_name}{config}{exclude}) {
+                        no if $] >= 5.018, warnings => 'experimental::smartmatch';
+                        $list = join ','
+                                , map {
+                                    !($_ ~~ @{$test->{$test_name}{config}{exclude}})
+                                        ? "$test_name:$_" : ();
+                                } @{$test->{$test_name}{tests}};
+                    }
+
                     my $variant = $test->{$test_name}{config}{$vname};
                     $variant->{full_name} = $vname eq 'valgrind' ? $vname : "valgrind-$vname";
 
@@ -345,7 +354,7 @@ sub main
 
                     print {$output_fh} make_descriptor('00userspace', $idx, $test_name
                                             , $timeout, "-d$variant->{full_name}"
-                                            , defined $exclude ? '-x ' . join(',', @$exclude) : '');
+                                            , $list);
                 }
             }
         }
