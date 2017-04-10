@@ -9,6 +9,7 @@ configure_beta1() {
 	HOSTS_LIST="172.16.1.[1-6]"
 	CLIENTS_LIST=""
 	HALON_FACTS_FUNC="halon_facts_yaml_beta1"
+	CLUSTER_TYPE="real"
 }
 
 configure_dev1_1() {
@@ -16,6 +17,7 @@ configure_dev1_1() {
 	HOSTS_LIST="172.16.1.[3,5,6,8,9]"
 	CLIENTS_LIST=""
 	HALON_FACTS_FUNC="halon_facts_yaml_dev1_1"
+	CLUSTER_TYPE="real"
 }
 
 configure_dev2_1() {
@@ -23,6 +25,7 @@ configure_dev2_1() {
 	HOSTS_LIST="172.16.1.[1-7],10.22.192.[51,52,59-63]"
 	CLIENTS_LIST="10.22.192.[51,52,59-63]"
 	HALON_FACTS_FUNC="halon_facts_yaml_dev2_1"
+	CLUSTER_TYPE="real"
 }
 
 configure_dev2_2() {
@@ -30,6 +33,7 @@ configure_dev2_2() {
 	HOSTS_LIST="$CMU_HOST,172.16.2.[1-7,9-10]"
 	CLIENTS_LIST="172.16.2.[9-10]"
 	HALON_FACTS_FUNC="halon_facts_yaml_auto"
+	CLUSTER_TYPE="real"
 }
 
 configure_fre7n1() {
@@ -37,6 +41,7 @@ configure_fre7n1() {
 	HOSTS_LIST="172.16.1.[1-5]"
 	CLIENTS_LIST=""
 	HALON_FACTS_FUNC="halon_facts_yaml_fre7n1"
+	CLUSTER_TYPE="kvm"
 }
 
 configure_hvt() {
@@ -44,6 +49,7 @@ configure_hvt() {
 	HOSTS_LIST="$CMU_HOST,172.16.1.[1-6]"
 	CLIENTS_LIST="172.16.1.1"
 	HALON_FACTS_FUNC="halon_facts_yaml_auto"
+	CLUSTER_TYPE="kvm"
 }
 
 configure_s3single() {
@@ -52,6 +58,7 @@ configure_s3single() {
 	CLIENTS_LIST=""
 	HALON_FACTS_FUNC="halon_facts_yaml_auto"
 	MERO_ROLE_MAPPINGS="/etc/halon/role_maps/s3server.ede"
+	CLUSTER_TYPE="real"
 }
 
 configure_kvm2dm() {
@@ -59,6 +66,7 @@ configure_kvm2dm() {
 	HOSTS_LIST="$CMU_HOST,172.16.1.[1-7]"
 	CLIENTS_LIST="172.16.1.[1-2]"
 	HALON_FACTS_FUNC="halon_facts_yaml_auto"
+	CLUSTER_TYPE="kvm"
 }
 
 configure_common() {
@@ -114,6 +122,10 @@ run_command() {
 		$PDSH yum -y install $REMOTE_RPM_PATH/$HALON_RPM
 		;;
 	"start_halon")
+		$PDSH status sspl-ll
+		if [ "$CLUSTER_TYPE" == "kvm" ]; then
+			$PDSH systemctl disable sspl-ll
+		fi
 		$PDSH systemctl is-active halond
 		$PDSH systemctl is-enabled halond
 		$PDSH systemctl stop halond
