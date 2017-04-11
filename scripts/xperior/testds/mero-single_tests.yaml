@@ -125,7 +125,7 @@ Tests:
     #executor : Xperior::Executor::Skip
     sandbox  : /var/mero/sandbox.12sns-cc-io-tests
     polltime : 30
-    timeout  : 1200
+    timeout  : 1800
 
   - id       : 13sns-repair-quiesce
     script   : m0t1fs_sns_repair_quiesce.sh
@@ -215,7 +215,7 @@ Tests:
     #executor : Xperior::Executor::Skip
     sandbox  : /var/mero/sandbox.22rpc-cancel-test
     polltime : 30
-    timeout  : 1800
+    timeout  : 900
 
   - id       : 23m0d-signal-test
     script   : m0d-signal-test.sh
@@ -261,6 +261,33 @@ Tests:
     sandbox  : /var/mero/sandbox.27sns-repair-io-fail-test
     polltime : 30
     timeout  : 900
+
+  - id       : 28clovis-sys-kvs-test
+    script   : clovis_sys_test.sh run local -i KVS
+    dir      : src/clovis/st/utils/
+    executor : Xperior::Executor::MeroTest
+    #executor : Xperior::Executor::Skip
+    sandbox  : /var/mero/sandbox.28clovis-sys-kvs-test
+    polltime : 30
+    timeout  : 900
+
+  - id       : 29confgen-test
+    script   : m0confgen
+    dir      : src/st/
+    executor : Xperior::Executor::MeroTest
+    #executor : Xperior::Executor::Skip
+    sandbox  : /var/mero/sandbox.29confgen-test
+    polltime : 30
+    timeout  : 300
+
+  - id       : 30hagen-test
+    script   : m0hagen
+    dir      : src/st/
+    executor : Xperior::Executor::MeroTest
+    #executor : Xperior::Executor::Skip
+    sandbox  : /var/mero/sandbox.30hagen-test
+    polltime : 30
+    timeout  : 300
 
 # 25 min
 dangerous: 'yes'
