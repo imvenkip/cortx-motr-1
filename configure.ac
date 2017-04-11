@@ -882,7 +882,7 @@ AS_IF([test "x$LIBS" != x],
 echo ""
 echo "Mero version :  $PACKAGE_VERSION"
 echo ""
-echo "CONFIGURE_OPT:  $BUILD_CONFIGURE_OPTS"
+echo "CONFIGURE_OPTS:  $BUILD_CONFIGURE_OPTS"
 echo ""
 echo "M0_CPPFLAGS    :  \"$M0_CPPFLAGS\""
 echo "M0_CFLAGS      :  \"$M0_CFLAGS\""
