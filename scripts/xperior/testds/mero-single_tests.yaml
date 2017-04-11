@@ -289,6 +289,15 @@ Tests:
     polltime : 30
     timeout  : 300
 
+  - id       : 31clovis-sys-kvs-kernel-test
+    script   : clovis_sys_test.sh start local -i KVS -k
+    dir      : src/clovis/st/utils/
+    executor : Xperior::Executor::MeroTest
+    #executor : Xperior::Executor::Skip
+    sandbox  : /var/mero/sandbox.31clovis-sys-kvs-kernel-test
+    polltime : 30
+    timeout  : 900
+
 # 25 min
 dangerous: 'yes'
 description: Set of Mero  tests
