@@ -193,7 +193,7 @@ pool_version_assignment()
 		unmount_and_clean $multiple_pools
 		return 1
 	}
-	=$(getfattr -n pver $MERO_M0T1FS_MOUNT_DIR/$file4| awk -F '=' 'NF > 1 { print $2 }')
+	pver_actual_1=$(getfattr -n pver $MERO_M0T1FS_MOUNT_DIR/$file4| awk -F '=' 'NF > 1 { print $2 }')
 	echo "pver_actual_1:  $pver_actual_1"
 	if  [ "$pver_actual_1" == "$pver_virtual_1" ]
         then
