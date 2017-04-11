@@ -949,6 +949,8 @@ M0_INTERNAL int m0_indexvec_varr_alloc(struct m0_indexvec_varr *ivec,
 				  m0_pagesize_get());
 		if (rc != 0)
 			m0_varr_fini(&ivec->iv_count);
+		else
+			ivec->iv_nr = len;
 	}
 	M0_LOG(M0_DEBUG, "ivec varr allocated for %p[%u] rc=%d", ivec, len, rc);
 	return rc;

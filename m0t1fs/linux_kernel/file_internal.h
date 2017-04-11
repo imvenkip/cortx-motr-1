@@ -1094,10 +1094,10 @@ enum page_attr {
 	PA_WRITE               = (1 << 3),
 
 	/** Page contains file data. */
-	PA_DATA		       = (1 << 4),
+	PA_DATA                = (1 << 4),
 
 	/** Page contains parity. */
-	PA_PARITY	       = (1 << 5),
+	PA_PARITY              = (1 << 5),
 
 	/**
 	 * Data has been copied from user-space into page.
@@ -1387,7 +1387,7 @@ struct io_request {
 	 * This vector is in sync with the array of iovec structures
 	 * below.
 	 */
-	struct m0_indexvec           ir_ivec;
+	struct m0_indexvec_varr      ir_ivv;
 
 	/**
 	 * Array of struct pargrp_iomap pointers.
@@ -1411,7 +1411,7 @@ struct io_request {
 
 	enum io_req_type             ir_type;
 
-	bool			     ir_direct_io;
+	bool                         ir_direct_io;
 
 	const struct io_request_ops *ir_ops;
 
@@ -1434,7 +1434,7 @@ struct io_request {
 	 * Total number of parity-maps associated with this request that are in
 	 * degraded mode.
 	 */
-	uint32_t		     ir_dgmap_nr;
+	uint32_t                     ir_dgmap_nr;
 
 	/**
 	 * An array holding ids of failed sessions. The vacant entries are
@@ -1522,7 +1522,7 @@ struct pargrp_iomap {
 	 * Segment counts in this index vector are multiple of
 	 * PAGE_CACHE_SIZE.
 	 */
-	struct m0_indexvec_varr         pi_ivec_varr;
+	struct m0_indexvec_varr         pi_ivv;
 
 	/**
 	 * Type of read approach used only in case of rmw IO.
@@ -1576,9 +1576,9 @@ struct pargrp_iomap_ops {
 	 * @post  m0_vec_count(&iomap->iv_vec) > 0 &&
 	 * iomap->pi_databufs != NULL.
 	 */
-	int (*pi_populate)  (struct pargrp_iomap      *iomap,
-			     const struct m0_indexvec *ivec,
-			     struct m0_ivec_cursor    *cursor);
+	int (*pi_populate)  (struct pargrp_iomap        *iomap,
+			     struct m0_indexvec_varr    *ivv,
+			     struct m0_ivec_varr_cursor *cursor);
 
 	/**
 	 * Returns true if the given segment is spanned by existing segments
@@ -1700,8 +1700,8 @@ struct target_ioreq_ops {
 	void (*tio_seg_add)     (struct target_ioreq              *ti,
 				 const struct m0_pdclust_src_addr *src,
 				 const struct m0_pdclust_tgt_addr *tgt,
-				 m0_bindex_t	                   gob_offset,
-				 m0_bcount_t	                   count,
+				 m0_bindex_t                       gob_offset,
+				 m0_bcount_t                       count,
 				 struct pargrp_iomap              *map);
 
 	/**
@@ -1729,19 +1729,19 @@ struct dgmode_rwvec {
 	 * Index vector to hold page indices during degraded mode
 	 * read/write IO.
 	 */
-	struct m0_indexvec   dr_ivec;
+	struct m0_indexvec_varr   dr_ivec_varr;
 
 	/**
 	 * Buffer vector to hold page addresses during degraded mode
 	 * read/write IO.
 	 */
-	struct m0_bufvec     dr_bufvec;
+	struct m0_bufvec          dr_bufvec;
 
 	/** Represents attributes for pages from ::ti_dgvec. */
-	enum page_attr      *dr_pageattrs;
+	enum page_attr           *dr_pageattrs;
 
 	/** Backlink to parent target_ioreq structure. */
-	struct target_ioreq *dr_tioreq;
+	struct target_ioreq      *dr_tioreq;
 };
 
 /**
@@ -1756,8 +1756,9 @@ enum target_ioreq_type {
 
 /**
  * Cob create request fop along with the respective ast that gets posted
- * in respective call back.  The call back does not do anything other than posting
- * the ast which then takes a lock over nw_xfer and conducts the operation further.
+ * in respective call back. The call back does not do anything other than
+ * posting the ast which then takes a lock over nw_xfer and conducts the
+ * operation further.
  */
 struct cc_req_fop {
 	struct m0_fop        crf_fop;
@@ -1809,7 +1810,7 @@ struct target_ioreq {
 	 * Each segment in this vector is worth PAGE_CACHE_SIZE except
 	 * the very last one.
 	 */
-	struct m0_indexvec             ti_ivec;
+	struct m0_indexvec_varr        ti_ivv;
 
 	/**
 	 * Buffer vector corresponding to index vector above.
@@ -1864,7 +1865,7 @@ struct io_req_fop {
 	struct m0_io_fop             irf_iofop;
 
 	/** Type of pages {PA_DATA, PA_PARITY} carried by io fop. */
-	enum page_attr		     irf_pattr;
+	enum page_attr               irf_pattr;
 
 	/** Callback per IO fop. */
 	struct m0_sm_ast             irf_ast;
