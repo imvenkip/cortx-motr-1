@@ -96,8 +96,11 @@ spiel_sns_repair_and_rebalance_test()
 
 	disk_state_get $fail_device1 $fail_device2 $fail_device3 || return $?
 
-        echo "Testing SNS rebalance abort"
-        rebalance_abort
+        echo "Testing SNS rebalance abort with new disk failure..."
+	rebalance_abort 1 9
+
+	echo "Testing SNS rebalance abort with repaired disk failure..."
+	rebalance_abort 1 1
 	#######################################################################
 	#  End                                                                #
 	#######################################################################
@@ -105,40 +108,32 @@ spiel_sns_repair_and_rebalance_test()
 	return 0
 }
 
-rebalance_abort()
+test_repaired_device_failure()
 {
-	local fail_device1=1
-	local fail_device2=9
+	local fail_device1=$1
 
-	echo "Set Failure device: $fail_device1"
-	disk_state_set "failed" $fail_device1 || return $?
-
-	echo "Start SNS repair."
-        echo "set $fail_device1 to repairing"
-	disk_state_set "repair" $fail_device1 || return $?
-	spiel_sns_repair_start
-	sleep 2
-
-	echo "wait for sns repair to finish."
-	spiel_wait_for_sns_repair || return $?
-
-	disk_state_set "repaired" $fail_device1 || return $?
-	echo "SNS Repair done."
-	verify || return $?
+	disk_state_get $fail_device1 || return $?
 
 	disk_state_set "rebalance" $fail_device1 || return $?
-	disk_state_get $fail_device1 || return $?
-        sleep 2
-	echo "Starting SNS Re-balance.."
+	echo "Starting SNS Rebalance.."
 	spiel_sns_rebalance_start
-	sleep 2
-        echo "Abort SNS Rebalance"
-        spiel_sns_rebalance_abort
-        echo "wait for sns Re-balance abort (1)"
-        spiel_wait_for_sns_rebalance || return $?
 
-	echo "Set $faile_device1 back to "repaired""
-	disk_state_set "repaired" $fail_device1 || return $?
+        echo "wait for sns Re-balance"
+        spiel_wait_for_sns_rebalance || return $?
+	sleep 2
+
+	disk_state_set "online" $fail_device1 || return $?
+	echo "SNS Rebalance done."
+
+	verify || return $?
+	disk_state_get $fail_device1 || return $?
+}
+
+test_new_device_failure()
+{
+	local fail_device1=$1
+	local fail_device2=$2
+
 	echo "Set $fail_device2 to "failed""
 	disk_state_set "failed" $fail_device2 || return $?
 	disk_state_set "repair" $fail_device2 || return $?
@@ -168,6 +163,48 @@ rebalance_abort()
 
 	verify || return $?
 	disk_state_get $fail_device1 $fail_device2 || return $?
+}
+
+rebalance_abort()
+{
+	local fail_device1=$1
+	local fail_device2=$2
+
+	echo "Set Failure device: $fail_device1"
+	disk_state_set "failed" $fail_device1 || return $?
+
+	echo "Start SNS repair."
+        echo "set $fail_device1 to repairing"
+	disk_state_set "repair" $fail_device1 || return $?
+	spiel_sns_repair_start
+	sleep 2
+
+	echo "wait for sns repair to finish."
+	spiel_wait_for_sns_repair || return $?
+
+	disk_state_set "repaired" $fail_device1 || return $?
+	echo "SNS Repair done."
+	verify || return $?
+
+	disk_state_set "rebalance" $fail_device1 || return $?
+	disk_state_get $fail_device1 || return $?
+        sleep 2
+	echo "Starting SNS Re-balance.."
+	spiel_sns_rebalance_start
+	sleep 2
+        echo "Abort SNS Rebalance"
+        spiel_sns_rebalance_abort
+        echo "wait for sns Re-balance abort (1)"
+        spiel_wait_for_sns_rebalance || return $?
+
+	echo "Set $fail_device1 back to "repaired""
+	disk_state_set "repaired" $fail_device1 || return $?
+	if [ $fail_device1 -eq $fail_device2 ]
+	then
+		test_repaired_device_failure $fail_device1
+	else
+		test_new_device_failure $fail_device1 $fail_device2
+	fi
 }
 
 main()
