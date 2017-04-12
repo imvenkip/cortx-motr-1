@@ -289,7 +289,7 @@ build_halon() {
 	fi
 	git clean -dfx
 	stack_call setup --no-docker
-	stack_call build --flag mero-halon:mero --no-docker --ghc-options -g
+	stack_call build --no-docker --ghc-options -g
 	make rpm-dev
 }
 
