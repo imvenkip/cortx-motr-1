@@ -105,20 +105,19 @@ function cluster_start() {
 	sudo $HALOND -l $IP:9000 &> /tmp/halond.log &
 	true
 	sleep 2
-	sudo $HALONCTL -l $IP:9010 -a $IP:9000 bootstrap station
-	sudo $HALONCTL -l $IP:9010 -a $IP:9000 bootstrap satellite -t $IP:9000
-	sudo $HALONCTL -l $IP:9010 -a $IP:9000 cluster load \
-					-f $HALON_FACTS_YAML \
-					-r $MERO_ROLE_MAPPINGS \
-					-s $HALON_ROLES
-	sudo $HALONCTL -l $IP:9010 -a $IP:9000 cluster start && sleep 10
-	sudo $HALONCTL -l $IP:9010 -a $IP:9000 cluster status
+	sudo $HALONCTL -l $IP:9010 -a $IP:9000 mero bootstrap \
+					--facts $HALON_FACTS_YAML \
+					--roles $MERO_ROLE_MAPPINGS \
+					--halonroles $HALON_ROLES \
+					--verbose
+	sleep 120
+	sudo $HALONCTL -l $IP:9010 -a $IP:9000 mero status
 }
 
 function cluster_stop() {
 	set -x
-	sudo $HALONCTL -l $IP:9010 -a $IP:9000 cluster stop && sleep 180
-	sudo $HALONCTL -l $IP:9010 -a $IP:9000 cluster status &
+	sudo $HALONCTL -l $IP:9010 -a $IP:9000 mero stop && sleep 5
+	sudo $HALONCTL -l $IP:9010 -a $IP:9000 mero status &
 	sleep 5
 	stop_everything
 	wait
@@ -158,6 +157,7 @@ id_racks:
 - rack_idx: 1
   rack_enclosures:
   - enc_idx: 1
+    enc_id: enclosure1
     enc_bmc:
     - bmc_user: admin
       bmc_addr: bmc.enclosure1
@@ -171,7 +171,11 @@ id_racks:
         if_macAddress: '10-00-00-00-00'
         if_ipAddrs:
         - $IP
-    enc_id: enclosure1
+      h_halon:
+        address: "$IP:9000"
+        roles:
+        - name: station
+        - name: ssu
 id_m0_servers:
 - host_mem_as: 1
   host_cores:
