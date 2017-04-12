@@ -1,8 +1,10 @@
 nobase_mero_include_HEADERS += xcode/xcode.h \
+                                  xcode/enum.h \
                                   xcode/init.h \
                                   xcode/xcode_attr.h
 
 mero_libmero_la_SOURCES  += xcode/string.c \
+                                  xcode/enum.c \
                                   xcode/init.c \
                                   xcode/xcode.c
 

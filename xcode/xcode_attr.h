@@ -45,6 +45,8 @@
 #define M0_XCA_ARRAY    M0_XC_ATTR("atype","M0_XA_ARRAY")
 #define M0_XCA_UNION    M0_XC_ATTR("atype","M0_XA_UNION")
 
+#define M0_XCA_ENUM     M0_XC_ATTR("enum","nonce")
+
 /**
  * Shortened versions of M0_XC_ATTR for TAG and OPAQUE attributes.
  */

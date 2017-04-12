@@ -26,7 +26,9 @@
 #include "lib/memory.h"
 #include "lib/vec.h"                        /* m0_bufvec */
 #include "lib/misc.h"                       /* M0_SET0 */
+#include "lib/arith.h"                      /* m0_rnd64 */
 #include "lib/errno.h"                      /* ENOENT */
+#include "lib/string.h"                     /* m0_streq */
 #include "ut/ut.h"
 
 #include "xcode/xcode.h"
@@ -940,6 +942,199 @@ static void xcode_find_test(void)
 	M0_UT_ASSERT(result == -ENOENT);
 }
 
+#define __ENUM_ONLY
+#include "test_gccxml_simple.h"
+
+extern const struct m0_xcode_enum m0_xc_testenum_enum;
+extern const struct m0_xcode_enum m0_xc_testbitmask_enum;
+
+static void xcode_enum_gccxml(void)
+{
+	M0_UT_ASSERT(m0_streq(m0_xc_testenum_enum.xe_name, "testenum"));
+	M0_UT_ASSERT(m0_xc_testenum_enum.xe_nr == 4);
+	M0_UT_ASSERT(m0_xc_testenum_enum.xe_maxlen == 5);
+	M0_UT_ASSERT(m0_xc_testenum_enum.xe_val[1].xev_val == 1);
+	M0_UT_ASSERT(m0_streq(m0_xc_testenum_enum.xe_val[1].xev_name, "TE_1"));
+
+	M0_UT_ASSERT(m0_streq(m0_xc_testbitmask_enum.xe_name, "testbitmask"));
+	M0_UT_ASSERT(m0_xc_testbitmask_enum.xe_nr == 5);
+	M0_UT_ASSERT(m0_xc_testbitmask_enum.xe_val[1].xev_val == M0_BITS(6));
+	M0_UT_ASSERT(m0_streq(m0_xc_testbitmask_enum.xe_val[1].xev_name,
+			      "BM_SIX"));
+}
+
+static void xcode_enum_print(void)
+{
+	char buf[30];
+#define CHECK(v)							\
+m0_streq(m0_xcode_enum_print(&m0_xc_testenum_enum, v, NULL), #v)
+	M0_UT_ASSERT(CHECK(TE_0));
+	M0_UT_ASSERT(CHECK(TE_1));
+	M0_UT_ASSERT(CHECK(TE_33));
+	M0_UT_ASSERT(CHECK(TE_5));
+#undef CHECK
+	M0_UT_ASSERT(strncmp(m0_xcode_enum_print(&m0_xc_testenum_enum,
+						 77, NULL),
+			     "Invalid", 7) == 0);
+	M0_UT_ASSERT(strncmp(m0_xcode_enum_print(&m0_xc_testenum_enum,
+						 0x4d, buf),
+			     "4d", 2) == 0);
+}
+
+static void enum_read_check(const char *name, int nr, uint64_t v, int rc)
+{
+	uint64_t read = 0;
+
+	M0_UT_ASSERT(m0_xcode_enum_read(&m0_xc_testenum_enum,
+					name, nr, &read) == rc);
+	M0_UT_ASSERT(ergo(rc == 0, read == v));
+}
+
+static void xcode_enum_read(void)
+{
+#define C(v) (enum_read_check(#v, strlen(#v), v, 0))
+	C(TE_0);
+	C(TE_1);
+	C(TE_33);
+	C(TE_5);
+#undef C
+	enum_read_check("4d", 2, 0x4d, 0);
+	enum_read_check("4d ", 3, 0, -EPROTO);
+	enum_read_check("4dZ", 3, 0, -EPROTO);
+	enum_read_check("", 0, 0, 0);
+	enum_read_check("TE_", 3, 0, -EPROTO);
+	enum_read_check("TE_02", 4, 0, 0);
+}
+
+static void bitmask_print_check(uint64_t mask,
+				int nr, bool ok, const char *out)
+{
+	char buf[256] = {};
+	int  result;
+
+	M0_UT_ASSERT(nr < ARRAY_SIZE(buf));
+	result = m0_xcode_bitmask_print(&m0_xc_testbitmask_enum,
+					mask, buf, nr);
+	M0_UT_ASSERT(ergo(!ok, result > nr));
+	M0_UT_ASSERT(ergo(ok, m0_streq(buf, out)));
+}
+
+static void xcode_bitmask_print(void)
+{
+	const struct test {
+		uint64_t    t_mask;
+		int         t_nr;
+		bool        t_ok;
+		const char *t_out;
+	} test[] = {
+	{ 0,                           1,       true,                    "" },
+	{ BM_ZERO,                    10,       true,             "BM_ZERO" },
+	{  BM_SIX,                    10,       true,              "BM_SIX" },
+	{ BM_FOUR,                    10,       true,             "BM_FOUR" },
+	{ BM_NINE,                    10,       true,             "BM_NINE" },
+	{ BM_FIVE,                    10,       true,             "BM_FIVE" },
+	{ BM_ZERO|BM_FOUR,            20,       true,     "BM_ZERO|BM_FOUR" },
+	{ BM_FOUR|BM_ZERO,            20,       true,     "BM_ZERO|BM_FOUR" },
+	{ BM_ZERO|BM_FOUR,            10,      false,                    "" },
+	{ 1024,                       10,       true,                 "400" },
+	{ 1024|BM_ZERO,               20,       true,         "BM_ZERO|400" },
+
+	};
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(test); ++i) {
+		const struct test *t = &test[i];
+
+		bitmask_print_check(t->t_mask, t->t_nr, t->t_ok, t->t_out);
+	}
+}
+
+static void bitmask_read_check(uint64_t mask, int nr, bool ok, const char *buf)
+{
+	uint64_t val;
+	int      result;
+
+	if (nr == -1)
+		nr = strlen(buf);
+	result = m0_xcode_bitmask_read(&m0_xc_testbitmask_enum, buf, nr, &val);
+	M0_UT_ASSERT(ok == (result == 0));
+	M0_UT_ASSERT(!ok == (result == -EPROTO));
+	M0_UT_ASSERT(ergo(ok, val == mask));
+}
+
+static void xcode_bitmask_read(void)
+{
+	const struct test {
+		uint64_t    t_mask;
+		int         t_nr;
+		bool        t_ok;
+		const char *t_out;
+	} test[] = {
+	{ 0,                           0,   true,                        "" },
+	{ BM_ZERO,                    -1,   true,                 "BM_ZERO" },
+	{  BM_SIX,                    -1,   true,                  "BM_SIX" },
+	{ BM_FOUR,                    -1,   true,                 "BM_FOUR" },
+	{ BM_NINE,                    -1,   true,                 "BM_NINE" },
+	{ BM_FIVE,                    -1,   true,                 "BM_FIVE" },
+	{ BM_ZERO|BM_FOUR,            -1,   true,         "BM_ZERO|BM_FOUR" },
+	{ BM_FOUR|BM_ZERO,            -1,   true,         "BM_FOUR|BM_ZERO" },
+	{ BM_FOUR|BM_ZERO|BM_NINE,    -1,   true, "BM_FOUR|BM_NINE|BM_ZERO" },
+	{ BM_FOUR|BM_NINE|0x400,      -1,   true,     "BM_FOUR|BM_NINE|400" },
+	{ 0,                          -1,  false,    "BM_FOUR|BM_NINE|400Z" },
+	{ 0,                          -1,  false,       "BM_FOUR|BM_NINE|Z" },
+	{ 0,                          -1,  false,       "ZZZZZZZZZZZZZZZZZ" },
+	{ BM_FOUR|BM_NINE|0x400,      -1,   true,    "BM_FOUR|BM_NINE|400|" },
+	{ 0,                          -1,  false,       "BM_FOUR|BM_NINE||" },
+	{ BM_FOUR|BM_NINE,            -1,   true,        "BM_FOUR|BM_NINE|" },
+	{ 0,                          -1,  false,      "|BM_FOUR|BM_NINE||" },
+	{ 0,                          -1,  false,                     "|||" },
+	{ 0,                          -1,  false,                      "||" },
+	{ 0,                          -1,  false,                       "|" },
+	{ 0,                          -1,  false,                      "|0" },
+	{ 0,                          -1,  false,                   "|0|0|" },
+	{ 0,                          -1,  false,                     "|0|" },
+	{ 0,                          -1,   true,                     "0|0" },
+	{ 1,                          -1,   true,                      "1|" },
+	{ BM_FOUR|BM_NINE|0x4400,     -1,   true,"BM_FOUR|4000|BM_NINE|400" },
+
+	};
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(test); ++i) {
+		const struct test *t = &test[i];
+
+		bitmask_read_check(t->t_mask, t->t_nr, t->t_ok, t->t_out);
+	}
+}
+
+static void xcode_enum_loop(void)
+{
+	char     buf[300];
+	int      i;
+	uint64_t val;
+	uint64_t val1;
+	uint64_t seed = (uint64_t)buf;
+	int      result;
+
+	for (i = 0; i < 2000; ++i) {
+		const char *out;
+		val = m0_rnd64(&seed);
+
+		out = m0_xcode_enum_print(&m0_xc_testenum_enum, val, buf);
+		result = m0_xcode_enum_read(&m0_xc_testenum_enum,
+					    out, strlen(out), &val1);
+		M0_UT_ASSERT(result == 0);
+		M0_UT_ASSERT(val == val1);
+		result = m0_xcode_bitmask_print(&m0_xc_testbitmask_enum,
+					     val, buf, sizeof buf);
+		M0_UT_ASSERT(result > 0);
+		result = m0_xcode_bitmask_read(&m0_xc_testbitmask_enum,
+					       buf, strlen(buf), &val1);
+		M0_UT_ASSERT(result == 0);
+		M0_UT_ASSERT(val == val1);
+	}
+}
+
 /*
  * Stub function, it's not meant to be used anywhere, it's defined to calm down
  * linker, which throws an "undefined reference to `m0_package_cred_get'"
@@ -968,6 +1163,13 @@ struct m0_ut_suite xcode_ut = {
 		{ "xcode-print",  xcode_print_test },
 #endif
 		{ "xcode-find",   xcode_find_test },
+
+		{ "xcode-enum-gccxml",    xcode_enum_gccxml,       "Nikita" },
+		{ "xcode-enum-print",     xcode_enum_print,        "Nikita" },
+		{ "xcode-enum-read",      xcode_enum_read,         "Nikita" },
+		{ "xcode-bitmask-print",  xcode_bitmask_print,     "Nikita" },
+		{ "xcode-bitmask-read",   xcode_bitmask_read,      "Nikita" },
+		{ "xcode-enum-loop",      xcode_enum_loop,         "Nikita" },
 		{ NULL, NULL }
 	}
 };

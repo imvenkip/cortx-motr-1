@@ -379,6 +379,12 @@ m0_xc_u32_init
 m0_xc_u64_init
 m0_xc_u8_init
 m0_xc_void_init
+m0_xcode_bitmask_is_valid
+m0_xcode_bitmask_print
+m0_xcode_bitmask_read
+m0_xcode_enum_is_valid
+m0_xcode_enum_print
+m0_xcode_enum_read
 m0_xcode_type_invariant
 m0_be_0type_add
 m0_be_0type_del

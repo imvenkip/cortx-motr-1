@@ -45,6 +45,7 @@
 #undef __MERO_XCODE_XLIST_H__
 
 #define _TI(x)
+#define _EN(x)
 #define _FI(x)
 #define _FF(x)
 
@@ -62,6 +63,7 @@ static struct m0_xcode_type **xt[] = {
 };
 
 #undef _TI
+#undef _EN
 #undef _FI
 #undef _FF
 

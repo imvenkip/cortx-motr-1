@@ -239,16 +239,12 @@ build system integration
 ------------------------
 
 The process of '*_xc.[hc]' files generation is automated. Let's say one needs to
-generate xocde for the 'xcode/ut/test_gccxml.h' header. For this, one just needs
+generate xcode for the 'xcode/ut/test_gccxml.h' header. For this, one just needs
 to add the following code into 'xcode/ut/Makefile.sub':
 
     ut_libmero_ut_la_SOURCES += xcode/ut/test_gccxml_xc.c
 
     XC_FILES += xcode/ut/test_gccxml_xc.h
-
-    CLEANFILES += xcode/ut/test_gccxml_xc.h \
-                  xcode/ut/test_gccxml_xc.c \
-                  xcode/ut/test_gccxml.gccxml
 
 What it does is:
 

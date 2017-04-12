@@ -3,8 +3,12 @@
 #ifndef __MERO_XCODE_UT_TEST_GCCXML_SIMPLE_H__
 #define __MERO_XCODE_UT_TEST_GCCXML_SIMPLE_H__
 
+#ifndef __ENUM_ONLY
+
+#ifndef __KERNEL__
 #include <sys/types.h>
 #include <stdint.h>
+#endif
 
 #include "xcode/xcode.h"
 #include "fid/fid.h"
@@ -50,5 +54,22 @@ struct inlinearray {
 	 */
 	struct testtypes ia_bugs[5];
 } M0_XCA_ARRAY;
+
+#endif /* __ENUM_ONLY */
+
+enum testenum {
+	TE_0,
+	TE_1,
+	TE_5  = TE_0 + 5,
+	TE_33 = 33
+} M0_XCA_ENUM;
+
+enum testbitmask {
+	BM_ZERO     = 1ULL << 0,
+	BM_SIX      = 1ULL << 6,
+	BM_FOUR     = 1ULL << 4,
+	BM_NINE     = 1ULL << 9,
+	BM_FIVE     = 1ULL << 5
+} M0_XCA_ENUM;
 
 #endif /* __MERO_XCODE_UT_TEST_GCCXML_SIMPLE_H__ */

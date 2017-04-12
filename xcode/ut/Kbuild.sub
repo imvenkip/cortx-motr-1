@@ -1,1 +1,2 @@
-m0ut_objects += xcode/ut/xcode.o
+m0ut_objects += xcode/ut/xcode.o \
+                xcode/ut/test_gccxml_simple_xc.o

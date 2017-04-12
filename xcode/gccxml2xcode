@@ -88,7 +88,7 @@ use XML::LibXML;
 use List::MoreUtils qw( none );
 use File::Slurp;  # TODO: use 'qw( :std :edit )' when moved to Centos7
 #use Data::Dumper;
-
+use List::Util qw[min max];
 
 # ###############################################
 #  Parser
@@ -113,23 +113,26 @@ my %cli_option  = (
 sub get_member_nodes_of
 {
     my $node = shift;
-
-    return if !$node->getAttribute('members');
-
-    my @member_ids = split /\s+/, $node->getAttribute('members');
     my @member_nodes;
 
-    for my $member_id (@member_ids) {
-        # The 'members' attribute may contain not only direct members of
-        # structure, so we need to search by id only for <Field> tags which are
-        # direct members of our node.
-        my ($member_node) = $dom->findnodes(qq{//Field[\@id='$member_id']});
+    if ($node->getAttribute('members')) {
+        my @member_ids = split /\s+/, $node->getAttribute('members');
 
-        if (defined $member_node) {
-            push @member_nodes, $member_node;
+        for my $member_id (@member_ids) {
+            # The 'members' attribute may contain not only direct members of
+            # structure, so we need to search by id only for <Field> tags which
+            # are direct members of our node.
+            my ($member_node) = $dom->findnodes(qq{//Field[\@id='$member_id']});
+
+            if (defined $member_node) {
+                push @member_nodes, $member_node;
+            }
         }
     }
-
+    # Handle enumerations.
+    for my $enum_val ($node->findnodes('./EnumValue')) {
+	push @member_nodes, $enum_val;
+    }
     return @member_nodes;
 }
 
@@ -382,6 +385,29 @@ sub init_xml_parser
     return;
 }
 
+sub process_node
+{
+    my ($item, $node, $enump) = @_;
+
+    $item->{'type'}    = lc $node->nodeName();
+    $item->{'name'}    = $node->getAttribute('name');
+    $item->{'size'}    = $node->getAttribute('size');
+
+    set_item_attr($item, $node);
+
+    my @member_nodes = get_member_nodes_of($node);
+
+    # get information about all members
+    for my $member_node (@member_nodes) {
+	push @{$item->{'members'}},
+	    $enump ? $member_node : get_info_about($member_node);
+    }
+
+    $item->{'scope'} = $node->getAttribute('context')
+	eq get_global_namespace_id() ? '' : 'static ';
+    return $item;
+}
+
 sub build_item_list
 {
     my $gccxml_file_name = shift;
@@ -397,32 +423,25 @@ sub build_item_list
     my @items;
 
     for my $struct_node (@struct_nodes) {
-
         my $item;
 
-        $item->{'type'}    = lc $struct_node->nodeName();
-        $item->{'name'}    = $struct_node->getAttribute('name');
-        $item->{'size'}    = $struct_node->getAttribute('size');
-
-        set_item_attr($item, $struct_node);
-
-        my @member_nodes = get_member_nodes_of($struct_node);
-
-        # get information about all members
-        for my $member_node (@member_nodes) {
-            push @{$item->{'members'}}, get_info_about($member_node);
-        }
-
-        $item->{'scope'}
-            = $struct_node->getAttribute('context')
-                eq get_global_namespace_id() ? '' : 'static ';
-
+	$item = process_node($item, $struct_node, 0);
         check_xc_atype_invariant($item);
-
-        push @items, $item;
+	push @items, $item;
     }
 
-    return @items;
+    my @enum_nodes
+        = $dom->findnodes(qq{//Enumeration[\@file='$header_file_id'
+                                      and not(\@incomplete)
+                                      and contains(\@attributes, 'gccxml')]});
+    my @enums;
+    for my $enum_node (@enum_nodes) {
+        my $enum;
+
+	$enum = process_node($enum, $enum_node, 1);
+	push @enums, $enum;
+    }
+    return (\@items, \@enums);
 }
 
 # ###############################################
@@ -460,19 +479,25 @@ END_FOOTER
 
 sub gen_xc_h
 {
-    my @items = @_;
+    my ($items, $enums) = @_;
 
     my $xcode = gen_xc_h_header();
 
     # forward declarations of xcode type pointers for all global structures
-    for my $item (grep { $_->{'scope'} !~ /static/ } @items) {
+    for my $item (grep { $_->{'scope'} !~ /static/ } @$items) {
         $xcode .= "extern struct m0_xcode_type *$item->{name}_xc;\n";
     }
     $xcode .= "\n";
 
     # prototypes of init function for all global structures
-    for my $item (@items) {
+    for my $item (@$items) {
         $xcode .= "M0_INTERNAL void m0_xc_$item->{name}_struct_init(void);\n";
+    }
+    $xcode .= "\n";
+
+    # prototypes of enum descriptors
+    for my $e (@$enums) {
+        $xcode .= "extern const struct m0_xcode_enum m0_xc_$e->{name}_enum;\n";
     }
     $xcode .= "\n";
 
@@ -743,18 +768,57 @@ sub gen_xc_c_fini_func
     return "M0_INTERNAL void m0_xc_${xcode_id}_fini(void)\n{\n}\n";
 }
 
+# generate definitions and initializations of helper type structures
+sub gen_xc_c_enums
+{
+    my @enums = @_;
+
+    my $xcode = "";
+
+    for my $enum (@enums) {
+        my $name           = $enum->{'name'};
+        my $members_number = 0 + @{$enum->{'members'}};
+	my $idx            = 0;
+	my $maxlen         = -1;
+
+        $xcode .= "const struct m0_xcode_enum_val ${name}_data[] = {\n";
+	for my $val (@{$enum->{'members'}}) {
+	    $xcode .= <<"END_VAL"
+	{ .xev_idx = $idx, .xev_name = "$val->{name}", .xev_val = $val->{init} },
+END_VAL
+		;
+	    $idx = $idx + 1;
+	    $maxlen = max($maxlen, length($val->{name}));
+	}
+	$xcode .= <<"END_ENUM"
+	{ .xev_idx = -1, .xev_name = "Invalid value of enum '$name'." }
+};
+
+const struct m0_xcode_enum m0_xc_${name}_enum = {
+	.xe_name   = "${name}",
+	.xe_nr     = ${members_number},
+	.xe_val    = ${name}_data,
+	.xe_maxlen = $maxlen
+};
+END_ENUM
+;
+    }
+    return $xcode . "\n";
+}
+
 sub gen_xc_c
 {
-    my @items = @_;
+    my ($items, $enums) = @_;
 
     my $xcode = gen_xc_c_header();
 
-    $xcode .= gen_xc_c_type_struct_decl(@items);
-    $xcode .= gen_xc_c_opaque_func_decl(@items);
-    $xcode .= gen_xc_c_helper_type_struct_def(@items);
-    $xcode .= gen_xc_c_compiletime_checks(@items);
-    $xcode .= gen_xc_c_init_func(@items);
-    $xcode .= gen_xc_c_fini_func(@items);
+    $xcode .= gen_xc_c_type_struct_decl(@$items);
+    $xcode .= gen_xc_c_opaque_func_decl(@$items);
+    $xcode .= gen_xc_c_helper_type_struct_def(@$items);
+    $xcode .= gen_xc_c_compiletime_checks(@$items);
+    $xcode .= gen_xc_c_enums(@$enums);
+    $xcode .= gen_xc_c_init_func(@$items);
+    $xcode .= gen_xc_c_fini_func(@$items);
 
     return $xcode;
 }
@@ -787,7 +851,7 @@ sub gen_xlist_template
 
 sub gen_xlist
 {
-    my @items = @_;
+    my ($items, $enums) = @_;
 
     if ($header_file_path =~ m#(?:ut|it|ub)/#) {
         return "$xlist_block_start/* Skipping UT/UB/IT xcode. */\n$xlist_block_end";
@@ -795,14 +859,20 @@ sub gen_xlist
 
     # m0_xcode_type-s
     my $xcode = $xlist_block_start;
-    for my $item (grep { $_->{'scope'} !~ /static/ } @items) {
+    for my $item (grep { $_->{'scope'} !~ /static/ } @$items) {
         $xcode .= "_XT($item->{name}_xc)\n";
     }
     $xcode .= "\n";
 
     # init functions for m0_xcode_type-s
-    for my $item (@items) {
+    for my $item (@$items) {
         $xcode .= "_TI(m0_xc_$item->{name}_struct_init)\n";
+    }
+    $xcode .= "\n";
+
+    # m0_xcode_enum-s
+    for my $enum (@$enums) {
+        $xcode .= "_EN(m0_xc_$enum->{name}_enum)\n";
     }
     $xcode .= "\n";
 
@@ -837,12 +907,12 @@ sub xlist_unlock
 
 sub update_xlist_file
 {
-    my @items = @_;
+    my ($items, $enums) = @_;
 
     my $blk_start       = quotemeta $xlist_block_start;
     my $blk_end         = quotemeta $xlist_block_end;
     my $blk_placeholder = quotemeta $xlist_block_placeholder;
-    my $xlist           = gen_xlist(@items);
+    my $xlist           = gen_xlist($items, $enums);
     my $lock            = xlist_lock('/tmp/gccxml2xcode.lock');
 
     # if xlist file doesn't exist, create it
@@ -973,24 +1043,24 @@ sub main
 
     # parse gccxml's output
     open my $gccxml_file, "<$cli_option{'input_file_name'}";
-    my @items = build_item_list($gccxml_file);
+    my ($items, $enums) = build_item_list($gccxml_file);
     close $gccxml_file;
 
     # generate xcode .h file
     open my $h_file, ">$cli_option{'output_h_file_name'}";
-    print {$h_file} gen_xc_h(@items)
+    print {$h_file} gen_xc_h($items, $enums)
         or croak "Failed to write '$h_file' file";
     close $h_file;
 
     # generate xcode .c file
     open my $c_file, ">$cli_option{'output_c_file_name'}";
-    print {$c_file} gen_xc_c(@items)
+    print {$c_file} gen_xc_c($items, $enums)
         or croak "Failed to write '$c_file' file";
     close $c_file;
 
     # add records to the list file
     if (defined $cli_option{'list_file_name'}) {
-        update_xlist_file(@items);
+        update_xlist_file($items, $enums);
     }
 }
 

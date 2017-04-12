@@ -49,6 +49,7 @@ m0mero_objects += lib/linux_kernel/finject_init.o \
                   lib/linux_kernel/ktime.o \
                   lib/linux_kernel/ktrace.o \
                   lib/linux_kernel/kvec.o \
+                  lib/linux_kernel/kmisc.o \
                   lib/linux_kernel/memory.o \
                   lib/linux_kernel/mutex.o \
                   lib/linux_kernel/processor.o \

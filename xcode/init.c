@@ -27,12 +27,14 @@
 
 #define _XT(x)
 #define _TI(x)
+#define _EN(x)
 #define _FI(x) M0_INTERNAL void x(void);
 #define _FF(x) M0_INTERNAL void x(void);
 #include "xcode/xlist.h"
 #undef __MERO_XCODE_XLIST_H__
 #undef _XT
 #undef _TI
+#undef _EN
 #undef _FI
 #undef _FF
 
@@ -40,12 +42,14 @@ M0_INTERNAL int m0_xcode_init(void)
 {
 #define _XT(x)
 #define _TI(x)
+#define _EN(x)
 #define _FI(x) x();
 #define _FF(x)
 #include "xcode/xlist.h"
 #undef __MERO_XCODE_XLIST_H__
 #undef _XT
 #undef _TI
+#undef _EN
 #undef _FI
 #undef _FF
 	return 0;
@@ -55,11 +59,13 @@ M0_INTERNAL void m0_xcode_fini(void)
 {
 #define _XT(x)
 #define _TI(x)
+#define _EN(x)
 #define _FI(x)
 #define _FF(x) x();
 #include "xcode/xlist.h"
 #undef _XT
 #undef _TI
+#undef _EN
 #undef _FI
 #undef _FF
 }
