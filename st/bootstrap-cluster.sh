@@ -89,7 +89,7 @@ run_command() {
 		build_halon
 		;;
 	"stop")
-		ssh $CMU_HOST hctl cluster stop || true
+		ssh $CMU_HOST hctl mero stop || true
 		if [ -n "$CLIENTS_LIST" ]; then
 			pdsh -w $CLIENTS_LIST systemctl stop mero-kernel
 		fi
@@ -134,7 +134,7 @@ run_command() {
 		# -r 30000000 increases Halon lease timeout.
 		# It's a temporary workaround implemented as part of HALON-612.
 		ssh $HALON_FACTS_HOST "HALOND_STATION_OPTIONS='-r 30000000' \
-					hctl bootstrap cluster \
+					hctl mero bootstrap \
 					--facts halon_facts.yaml \
 					--roles $MERO_ROLE_MAPPINGS \
 					--halonroles $HALON_ROLE_MAPPINGS"
@@ -142,7 +142,7 @@ run_command() {
 		;;
 	"status")
 		$PDSH systemctl status halond
-		ssh $CMU_HOST hctl cluster status
+		ssh $CMU_HOST hctl mero status
 		;;
 	"halon_facts_yaml")
 		${HALON_FACTS_FUNC}
