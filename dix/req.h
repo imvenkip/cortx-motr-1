@@ -263,7 +263,8 @@ M0_INTERNAL int m0_dix_del(struct m0_dix_req      *req,
 M0_INTERNAL int m0_dix_next(struct m0_dix_req      *req,
 			    const struct m0_dix    *index,
 			    const struct m0_bufvec *start_keys,
-			    const uint32_t         *recs_nr);
+			    const uint32_t         *recs_nr,
+			    uint32_t                flags);
 
 /**
  * Gets 'val_idx'-th value retrieved for 'key_idx'-th key as a result of

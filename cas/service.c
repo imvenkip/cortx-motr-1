@@ -179,7 +179,7 @@
  * |                        |          |            |          V |        |
  * |                        V          |            |   CAS_CTG_CROW_DONE |
  * |   SUCCESS<---------CAS_LOOP<----+ |            V                     |
- * |            index drop  |        | |    +->CAS_LOAD_KEY<-------------+
+ * |            index drop  |        | |    +->CAS_LOAD_KEY<--------------+
  * |        +---------------+        | |    |       |
  * |        |               |        | |    |       V
  * |        V               |        | |    |  CAS_LOAD_VAL
@@ -210,7 +210,10 @@
  * CAS_IDROP_START_GC       |        | |            |
  *   |                      V        | |            |
  *   V              CAS_PREPARE_SEND | |            |
- * SUCCESS                  |        | |        CAS_LOCK------------+
+ * SUCCESS                  |        | |            |
+ *                          |next_key| |            |
+ *                          +------->| |            |
+ *                          |        | |        CAS_LOCK------------+
  *                          V        | |            |               |
  *                     CAS_SEND_KEY  | |            |meta_op        |
  *                          |        | |            |               |
@@ -218,7 +221,7 @@
  *                     CAS_SEND_VAL  | |      CAS_CTIDX_LOCK        |
  *                          |        | |            |               |
  *                          V        | |            V               |
- *                      CAS_DONE-----+ +--------CAS_PREP<-----------+
+ *                       CAS_DONE----+ +--------CAS_PREP<-----------+
  *
  * @endverbatim
  *
@@ -297,6 +300,7 @@ struct cas_fom {
 	struct m0_long_lock_link  cf_del_lock;
 	bool                      cf_op_checked;
 	uint64_t                  cf_curpos;
+	bool                      cf_startkey_excluded;
 	/**
 	 * Key/value pairs from incoming FOP.
 	 * They are loaded once from incoming RPC AT buffers
@@ -412,8 +416,12 @@ static int  cas_done(struct cas_fom *fom, struct m0_cas_op *op,
 static bool cas_ctidx_op_needed(struct cas_fom *fom, enum m0_cas_opcode opc,
 				enum m0_cas_type ct, uint64_t rec_pos);
 
+static bool cas_key_need_to_send(struct cas_fom *fom, enum m0_cas_opcode opc,
+				 enum m0_cas_type ct, struct m0_cas_op *op,
+				 uint64_t rec_pos);
+
 static int  cas_prep_send(struct cas_fom *fom, enum m0_cas_opcode opc,
-			  enum m0_cas_type ct, uint64_t rc);
+			  enum m0_cas_type ct);
 
 static bool cas_is_valid     (struct cas_fom *fom, enum m0_cas_opcode opc,
 			      enum m0_cas_type ct, const struct m0_cas_rec *rec,
@@ -821,6 +829,43 @@ static bool cas_max_reply_payload_exceeded(struct cas_fom *fom)
 	return payload_exceeded;
 }
 
+static bool cas_key_need_to_send(struct cas_fom *fom, enum m0_cas_opcode opc,
+				 enum m0_cas_type ct, struct m0_cas_op *op,
+				 uint64_t rec_pos)
+{
+	struct m0_buf     in_key;
+	struct m0_buf     in_val;
+	struct m0_buf     key;
+	struct m0_buf     val;
+	struct m0_cas_id *cid;
+	struct m0_ctg_op *ctg_op   = &fom->cf_ctg_op;
+	bool              key_send = true;
+
+	if (opc == CO_CUR && fom->cf_curpos == 0) {
+		if (op->cg_flags & COF_EXCLUDE_START_KEY) {
+			if (op->cg_flags & COF_SLANT) {
+				m0_ctg_cursor_kv_get(ctg_op, &key, &val);
+				if (ct != CT_META) {
+					cas_incoming_kv(fom, rec_pos, &in_key,
+							&in_val);
+					if (m0_buf_eq(&key, &in_key))
+						key_send = false;
+				} else {
+					cid = &fom->cf_in_cids[rec_pos];
+					if (m0_fid_eq(&cid->ci_fid, key.b_addr))
+						key_send = false;
+				}
+			} else
+				key_send = false;
+		}
+
+		if (!key_send)
+			fom->cf_startkey_excluded = true;
+	}
+
+	return key_send;
+}
+
 static void cas_fom_cleanup(struct cas_fom *fom, bool ctg_op_fini)
 {
 	struct m0_ctg_op  *ctg_op     = &fom->cf_ctg_op;
@@ -910,6 +955,7 @@ static int cas_fom_tick(struct m0_fom *fom0)
 	struct m0_cas_rec  *rec     = NULL;
 	bool                is_index_drop;
 	bool                do_ctidx;
+	int                 next_phase;
 
 	M0_ENTRY("fom %p phase %d", fom, phase);
 	is_index_drop = op_is_index_drop(opc, ct);
@@ -1264,14 +1310,27 @@ static int cas_fom_tick(struct m0_fom *fom0)
 		 */
 
 	case CAS_PREPARE_SEND:
+		next_phase = CAS_DONE;
 		M0_ASSERT(fom->cf_opos < rep->cgr_rep.cr_nr);
 		rec = cas_out_at(rep, fom->cf_opos);
 		M0_ASSERT(rec != NULL);
-		if (rec->cr_rc == 0)
-			rec->cr_rc = cas_prep_send(fom, opc, ct,
-						   m0_ctg_op_rc(ctg_op));
-		m0_fom_phase_set(fom0, rec->cr_rc == 0 ?
-					CAS_SEND_KEY : CAS_DONE);
+		if (rec->cr_rc == 0) {
+			rec->cr_rc = m0_ctg_op_rc(ctg_op);
+			if (rec->cr_rc == 0) {
+				if (cas_key_need_to_send(fom, opc, ct, op,
+							 ipos)){
+					rec->cr_rc =
+						cas_prep_send(fom, opc, ct);
+					if (rec->cr_rc == 0)
+						next_phase = CAS_SEND_KEY;
+				} else {
+					if (opc == CO_CUR)
+						fom->cf_curpos++;
+					next_phase = CAS_LOOP;
+				}
+			}
+		}
+		m0_fom_phase_set(fom0, next_phase);
 		break;
 	case CAS_SEND_KEY:
 		if (opc == CO_CUR)
@@ -1969,36 +2028,36 @@ static m0_bcount_t cas_rpc_cutoff(const struct cas_fom *fom)
 }
 
 static int cas_prep_send(struct cas_fom *fom, enum m0_cas_opcode opc,
-			 enum m0_cas_type ct, uint64_t rc)
+			 enum m0_cas_type ct)
 {
+	uint64_t          rc = 0;
 	struct m0_buf     key;
 	struct m0_buf     val;
 	struct m0_ctg_op *ctg_op     = &fom->cf_ctg_op;
 	m0_bcount_t       rpc_cutoff = cas_rpc_cutoff(fom);
 
-	if (rc == 0) {
-		switch (CTG_OP_COMBINE(opc, ct)) {
-		case CTG_OP_COMBINE(CO_GET, CT_BTREE):
-			m0_ctg_lookup_result(ctg_op, &val);
-			rc = cas_place(&fom->cf_out_val, &val, rpc_cutoff);
-			break;
-		case CTG_OP_COMBINE(CO_GET, CT_META):
-		case CTG_OP_COMBINE(CO_DEL, CT_META):
-		case CTG_OP_COMBINE(CO_DEL, CT_BTREE):
-		case CTG_OP_COMBINE(CO_PUT, CT_BTREE):
-		case CTG_OP_COMBINE(CO_PUT, CT_META):
-			/* Nothing to do: return code is all the user gets. */
-			break;
-		case CTG_OP_COMBINE(CO_CUR, CT_BTREE):
-		case CTG_OP_COMBINE(CO_CUR, CT_META):
-			m0_ctg_cursor_kv_get(ctg_op, &key, &val);
-			rc = cas_place(&fom->cf_out_key, &key, rpc_cutoff);
-			if (ct == CT_BTREE && rc == 0)
-				rc = cas_place(&fom->cf_out_val, &val,
-					       rpc_cutoff);
-			break;
-		}
+	switch (CTG_OP_COMBINE(opc, ct)) {
+	case CTG_OP_COMBINE(CO_GET, CT_BTREE):
+		m0_ctg_lookup_result(ctg_op, &val);
+		rc = cas_place(&fom->cf_out_val, &val, rpc_cutoff);
+		break;
+	case CTG_OP_COMBINE(CO_GET, CT_META):
+	case CTG_OP_COMBINE(CO_DEL, CT_META):
+	case CTG_OP_COMBINE(CO_DEL, CT_BTREE):
+	case CTG_OP_COMBINE(CO_PUT, CT_BTREE):
+	case CTG_OP_COMBINE(CO_PUT, CT_META):
+		/* Nothing to do: return code is all the user gets. */
+		break;
+	case CTG_OP_COMBINE(CO_CUR, CT_BTREE):
+	case CTG_OP_COMBINE(CO_CUR, CT_META):
+		m0_ctg_cursor_kv_get(ctg_op, &key, &val);
+		rc = cas_place(&fom->cf_out_key, &key, rpc_cutoff);
+		if (ct == CT_BTREE && rc == 0)
+			rc = cas_place(&fom->cf_out_val, &val,
+				       rpc_cutoff);
+		break;
 	}
+
 	return rc;
 }
 
@@ -2019,8 +2078,12 @@ static int cas_done(struct cas_fom *fom, struct m0_cas_op *op,
 	if (opc == CO_CUR) {
 		fom->cf_curpos++;
 		if (rc == 0 && ctg_rc == 0)
-			rc = fom->cf_curpos;
-		if (ctg_rc == 0 && fom->cf_curpos < rec->cr_rc) {
+			rc = fom->cf_startkey_excluded ?
+				fom->cf_curpos - 1 : fom->cf_curpos;
+		if (ctg_rc == 0 &&
+		    ((fom->cf_curpos < rec->cr_rc) ||
+		     (fom->cf_startkey_excluded &&
+		      (fom->cf_curpos < rec->cr_rc + 1)))) {
 			/* Continue with the same iteration. */
 			--fom->cf_ipos;
 			at_fini = false;
@@ -2031,6 +2094,7 @@ static int cas_done(struct cas_fom *fom, struct m0_cas_op *op,
 			 */
 			m0_ctg_cursor_put(&fom->cf_ctg_op);
 			fom->cf_curpos = 0;
+			fom->cf_startkey_excluded = false;
 		}
 	} else
 		m0_ctg_op_fini(&fom->cf_ctg_op);
@@ -2048,6 +2112,7 @@ static int cas_done(struct cas_fom *fom, struct m0_cas_op *op,
 
 	M0_LOG(M0_DEBUG, "pos %zu: rc %d", fom->cf_opos, rc);
 	rec_out->cr_rc = rc;
+
 	if (at_fini) {
 		/* Finalise input AT buffers. */
 		cas_at_fini(&rec->cr_key);
@@ -2311,7 +2376,7 @@ static struct m0_sm_state_descr cas_fom_phases[] = {
 	},
 	[CAS_PREPARE_SEND] = {
 		.sd_name      = "prep-send",
-		.sd_allowed   = M0_BITS(CAS_SEND_KEY, CAS_DONE)
+		.sd_allowed   = M0_BITS(CAS_SEND_KEY, CAS_DONE, CAS_LOOP)
 	},
 	[CAS_SEND_KEY] = {
 		.sd_name      = "send-key",
@@ -2396,6 +2461,7 @@ struct m0_sm_trans_descr cas_fom_trans[] = {
 	{ "do-ctidx-op",          CAS_LOOP,             CAS_CTIDX },
 	{ "op-launched",          CAS_LOOP,             CAS_PREPARE_SEND },
 	{ "ready-to-send",        CAS_PREPARE_SEND,     CAS_SEND_KEY },
+	{ "next-key",             CAS_PREPARE_SEND,     CAS_LOOP },
 	{ "prep-error",           CAS_PREPARE_SEND,     CAS_DONE },
 	{ "key-sent",             CAS_SEND_KEY,         CAS_KEY_SENT },
 	{ "skip-key-sending",     CAS_SEND_KEY,         CAS_SEND_VAL },

@@ -403,7 +403,7 @@ static int ut_idx_list(struct cl_ctx             *cctx,
 	m0_clink_add_lock(chan, &cctx->cl_wait.aw_clink);
 
 	m0_cas_req_lock(&req);
-	rc = m0_cas_index_list(&req, start_fid, ids_nr);
+	rc = m0_cas_index_list(&req, start_fid, ids_nr, 0);
 	if (rc == 0) {
 		/* wait results */
 		m0_cas_req_wait(&req, M0_BITS(CASREQ_FINAL), M0_TIME_NEVER);
@@ -529,7 +529,7 @@ static int ut_next_rec(struct cl_ctx            *cctx,
 		       uint32_t                 *recs_nr,
 		       struct m0_cas_next_reply *rep,
 		       uint64_t                 *count,
-		       bool                      slant)
+		       uint32_t                  flags)
 {
 	struct m0_cas_req  req;
 	struct m0_chan    *chan;
@@ -546,7 +546,7 @@ static int ut_next_rec(struct cl_ctx            *cctx,
 	m0_clink_add_lock(chan, &cctx->cl_wait.aw_clink);
 
 	m0_cas_req_lock(&req);
-	rc = m0_cas_next(&req, index, start_keys, recs_nr, slant);
+	rc = m0_cas_next(&req, index, start_keys, recs_nr, flags);
 	if (rc == 0) {
 		/* wait results */
 		m0_cas_req_wait(&req, M0_BITS(CASREQ_FINAL), M0_TIME_NEVER);
@@ -1084,16 +1084,21 @@ static bool next_rep_equals(const struct m0_cas_next_reply *rep,
 
 static void next_common(struct m0_bufvec *keys,
 			struct m0_bufvec *values,
-			bool              slant)
+			uint32_t          flags)
 {
 	struct m0_cas_rec_reply   rep[COUNT];
 	struct m0_cas_next_reply  next_rep[COUNT];
 	const struct m0_fid       ifid = IFID(2, 3);
 	struct m0_cas_id          index = {};
 	struct m0_bufvec          start_key;
+	bool                      slant;
+	bool                      exclude_start_key;
 	uint32_t                  recs_nr;
 	uint64_t                  rep_count;
 	int                       rc;
+
+	slant = flags & COF_SLANT;
+	exclude_start_key = flags & COF_EXCLUDE_START_KEY;
 
 	M0_SET_ARR0(rep);
 	M0_SET_ARR0(next_rep);
@@ -1110,27 +1115,39 @@ static void next_common(struct m0_bufvec *keys,
 	recs_nr = COUNT;
 	value_create(start_key.ov_vec.v_count[0], 0, start_key.ov_buf[0]);
 	rc = ut_next_rec(&casc_ut_cctx, &index, &start_key, &recs_nr, next_rep,
-			 &rep_count, slant);
+			 &rep_count, flags);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(rep_count == recs_nr);
 	M0_UT_ASSERT(m0_forall(i, rep_count, next_rep[i].cnp_rc == 0));
-	M0_UT_ASSERT(m0_forall(i, rep_count,
-			       next_rep_equals(&next_rep[i],
-					       keys->ov_buf[i],
-					       values->ov_buf[i])));
+	if (!exclude_start_key || slant)
+		M0_UT_ASSERT(m0_forall(i, rep_count,
+				       next_rep_equals(&next_rep[i],
+						       keys->ov_buf[i],
+						       values->ov_buf[i])));
+	else
+		M0_UT_ASSERT(m0_forall(i, rep_count,
+				       next_rep_equals(&next_rep[i],
+						       keys->ov_buf[i + 1],
+						       values->ov_buf[i + 1])));
 	ut_next_rep_clear(next_rep, rep_count);
 
 	/* perform next for small rep */
 	recs_nr = COUNT / 2;
 	rc = ut_next_rec(&casc_ut_cctx, &index, &start_key, &recs_nr, next_rep,
-			 &rep_count, slant);
+			 &rep_count, flags);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(rep_count == COUNT / 2);
 	M0_UT_ASSERT(m0_forall(i, rep_count, next_rep[i].cnp_rc == 0));
-	M0_UT_ASSERT(m0_forall(i, rep_count,
-			       next_rep_equals(&next_rep[i],
-					       keys->ov_buf[i],
-					       values->ov_buf[i])));
+	if (!exclude_start_key || slant)
+		M0_UT_ASSERT(m0_forall(i, rep_count,
+				       next_rep_equals(&next_rep[i],
+						       keys->ov_buf[i],
+						       values->ov_buf[i])));
+	else
+		M0_UT_ASSERT(m0_forall(i, rep_count,
+				       next_rep_equals(&next_rep[i],
+						       keys->ov_buf[i + 1],
+						       values->ov_buf[i + 1])));
 	ut_next_rep_clear(next_rep, rep_count);
 
 	/* perform next for half records */
@@ -1139,14 +1156,24 @@ static void next_common(struct m0_bufvec *keys,
 		     start_key.ov_buf[0]);
 	recs_nr = COUNT;
 	rc = ut_next_rec(&casc_ut_cctx, &index, &start_key, &recs_nr, next_rep,
-			 &rep_count, slant);
+			 &rep_count, flags);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(rep_count <= recs_nr);
 	M0_UT_ASSERT(m0_forall(i, COUNT / 2, next_rep[i].cnp_rc == 0));
-	M0_UT_ASSERT(m0_forall(i, COUNT / 2,
-			       next_rep_equals(&next_rep[i],
-					       keys->ov_buf[COUNT / 2 + i],
-					       values->ov_buf[COUNT / 2 + i])));
+	if (!exclude_start_key)
+		M0_UT_ASSERT(
+			m0_forall(i, COUNT / 2,
+				  next_rep_equals(
+					  &next_rep[i],
+					  keys->ov_buf[COUNT / 2 + i],
+					  values->ov_buf[COUNT / 2 + i])));
+	else
+		M0_UT_ASSERT(
+			m0_forall(i, COUNT / 2,
+				  next_rep_equals(
+					  &next_rep[i],
+					  keys->ov_buf[COUNT / 2 + i + 1],
+					  values->ov_buf[COUNT / 2 + i + 1])));
 	M0_UT_ASSERT(next_rep[COUNT / 2].cnp_rc == -ENOENT);
 	ut_next_rep_clear(next_rep, rep_count);
 
@@ -1156,7 +1183,7 @@ static void next_common(struct m0_bufvec *keys,
 		     start_key.ov_buf[0]);
 	recs_nr = COUNT;
 	rc = ut_next_rec(&casc_ut_cctx, &index, &start_key, &recs_nr,
-			 next_rep, &rep_count, slant);
+			 next_rep, &rep_count, flags);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(rep_count >= 1);
 	M0_UT_ASSERT(next_rep[0].cnp_rc == -ENOENT);
@@ -1188,7 +1215,7 @@ static void next(void)
 					*(uint64_t*)values.ov_buf[i] = i * i,
 					true));
 	/* Call next_common() with 'slant' disabled. */
-	next_common(&keys, &values, false);
+	next_common(&keys, &values, 0);
 	m0_bufvec_free(&keys);
 	m0_bufvec_free(&values);
 
@@ -1208,9 +1235,41 @@ static void next(void)
 		   *(uint64_t*)values.ov_buf[i] = (i + 1) * (i + 1),
 		   true));
 	/* Call next_common() with 'slant' enabled. */
-	next_common(&keys, &values, true);
+	next_common(&keys, &values, COF_SLANT);
 	m0_bufvec_free(&keys);
 	m0_bufvec_free(&values);
+
+	/* 'First key exclude' case. */
+	rc = m0_bufvec_alloc(&keys, COUNT + 1, sizeof(uint64_t));
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_bufvec_alloc(&values, COUNT + 1, sizeof(uint64_t));
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(keys.ov_vec.v_nr == COUNT + 1);
+	M0_UT_ASSERT(keys.ov_vec.v_nr == values.ov_vec.v_nr);
+	m0_forall(i, keys.ov_vec.v_nr, (*(uint64_t*)keys.ov_buf[i]   = i,
+					*(uint64_t*)values.ov_buf[i] = i * i,
+					true));
+	/* Call next_common() with 'first key exclude' enabled. */
+	next_common(&keys, &values, COF_EXCLUDE_START_KEY);
+	m0_bufvec_free(&keys);
+	m0_bufvec_free(&values);
+
+	/* 'First key exclude' with 'slant' case. */
+	rc = m0_bufvec_alloc(&keys, COUNT + 1, sizeof(uint64_t));
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_bufvec_alloc(&values, COUNT + 1, sizeof(uint64_t));
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(keys.ov_vec.v_nr == COUNT + 1);
+	M0_UT_ASSERT(keys.ov_vec.v_nr == values.ov_vec.v_nr);
+	m0_forall(i, keys.ov_vec.v_nr,
+		  (*(uint64_t*)keys.ov_buf[i]   = i + 1,
+		   *(uint64_t*)values.ov_buf[i] = (i + 1) * (i + 1),
+		   true));
+	/* Call next_common() with 'first key exclude' and 'slant' enabled. */
+	next_common(&keys, &values, COF_SLANT | COF_EXCLUDE_START_KEY);
+	m0_bufvec_free(&keys);
+	m0_bufvec_free(&values);
+
 	casc_ut_fini(&casc_ut_sctx, &casc_ut_cctx);
 }
 
@@ -1225,7 +1284,7 @@ static void next_bulk(void)
 	/* Bulk keys and values. */
 	vals_create(COUNT, COUNT_VAL_BYTES, &keys);
 	vals_create(COUNT, COUNT_VAL_BYTES, &values);
-	next_common(&keys, &values, false);
+	next_common(&keys, &values, 0);
 	m0_bufvec_free(&keys);
 	m0_bufvec_free(&values);
 
@@ -1234,7 +1293,7 @@ static void next_bulk(void)
 	M0_UT_ASSERT(rc == 0);
 	m0_forall(i, keys.ov_vec.v_nr, (*(uint64_t*)keys.ov_buf[i] = i, true));
 	vals_create(COUNT, COUNT_VAL_BYTES, &values);
-	next_common(&keys, &values, false);
+	next_common(&keys, &values, 0);
 	m0_bufvec_free(&keys);
 	m0_bufvec_free(&values);
 
@@ -1244,7 +1303,7 @@ static void next_bulk(void)
 	M0_UT_ASSERT(rc == 0);
 	m0_forall(i, values.ov_vec.v_nr, (*(uint64_t*)values.ov_buf[i] = i,
 					true));
-	next_common(&keys, &values, false);
+	next_common(&keys, &values, 0);
 	m0_bufvec_free(&keys);
 	m0_bufvec_free(&values);
 
@@ -1254,7 +1313,7 @@ static void next_bulk(void)
 	m0_forall(i, keys.ov_vec.v_nr, (*(uint64_t*)keys.ov_buf[i]   = i,
 					true));
 	vals_mix_create(COUNT, COUNT_VAL_BYTES, &values);
-	next_common(&keys, &values, false);
+	next_common(&keys, &values, 0);
 	m0_bufvec_free(&keys);
 	m0_bufvec_free(&values);
 
@@ -1305,11 +1364,11 @@ static void next_fail(void)
 	*(uint64_t *)start_key.ov_buf[0] = 0;
 	m0_fi_enable_once("creq_op_alloc", "cas_alloc_fail");
 	rc = ut_next_rec(&casc_ut_cctx, &index, &start_key, &recs_nr, next_rep,
-			 &rep_count, false);
+			 &rep_count, 0);
 	M0_UT_ASSERT(rc == -ENOMEM);
 	m0_fi_enable_once("ctg_buf_get", "cas_alloc_fail");
 	rc = ut_next_rec(&casc_ut_cctx, &index, &start_key, &recs_nr,
-			 next_rep, &rep_count, false);
+			 next_rep, &rep_count, 0);
 	M0_UT_ASSERT(rc == -ENOMEM);
 
 	m0_bufvec_free(&start_key);
@@ -1352,7 +1411,7 @@ static void next_multi_common(struct m0_bufvec *keys, struct m0_bufvec *values)
 	recs_nr[1] = COUNT / 2 - 1;
 	recs_nr[2] = 1;
 	rc = ut_next_rec(&casc_ut_cctx, &index, &start_keys, recs_nr, next_rep,
-			 &rep_count, false);
+			 &rep_count, 0);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(rep_count == COUNT - 1);
 	M0_UT_ASSERT(m0_forall(i, COUNT - 2, next_rep[i].cnp_rc == 0));
@@ -1577,7 +1636,7 @@ static void recs_fragm(void)
 				"payload_too_large2",
 				10, 1);
 	rc = ut_next_rec(&casc_ut_cctx, &index, &start_keys, recs_nr, next_rep,
-			 &rep_count, false);
+			 &rep_count, 0);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(rep_count == 60);
 	M0_UT_ASSERT(m0_forall(i, rep_count, next_rep[i].cnp_rc == 0));
@@ -2258,7 +2317,7 @@ static void null_value(void)
 	recs_nr = COUNT;
 	value_create(start_key.ov_vec.v_count[0], 0, start_key.ov_buf[0]);
 	rc = ut_next_rec(&casc_ut_cctx, &index, &start_key, &recs_nr, next_rep,
-			 &rep_count, false);
+			 &rep_count, 0);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(rep_count == recs_nr);
@@ -2534,7 +2593,7 @@ static void reply_too_large(void)
 	recs_nr = COUNT;
 	value_create(start_key.ov_vec.v_count[0], 0, start_key.ov_buf[0]);
 	rc = ut_next_rec(&casc_ut_cctx, &index, &start_key, &recs_nr, next_rep,
-			 &rep_count, false);
+			 &rep_count, 0);
 	M0_UT_ASSERT(rc == -E2BIG);
 	m0_fi_disable("m0_rpc_item_max_payload_exceeded", "payload_too_large1");
 

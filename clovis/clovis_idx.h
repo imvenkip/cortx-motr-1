@@ -92,7 +92,12 @@ enum m0_clovis_op_idx_flags {
 	 * For M0_CLOVIS_IC_PUT operation, instructs it to silently overwrite
 	 * existing record with the same key, if any.
 	 */
-        M0_OIF_OVERWRITE = 1 << 0,
+        M0_OIF_OVERWRITE         = 1 << 0,
+	/**
+	 * For M0_CLOVIS_IC_NEXT operation, instructs it to skip record with the
+	 * given start key.
+	 */
+        M0_OIF_EXCLUDE_START_KEY = 1 << 1
 };
 
 /**

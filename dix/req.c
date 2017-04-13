@@ -1591,7 +1591,8 @@ static int dix_cas_rops_send(struct m0_dix_req *req)
 			break;
 		case DIX_NEXT:
 			rc = m0_cas_next(creq, &cctg_id, &cas_rop->crp_keys,
-					 req->dr_recs_nr, true);
+					 req->dr_recs_nr,
+					 cas_rop->crp_flags | COF_SLANT);
 			break;
 		default:
 			M0_IMPOSSIBLE("Unknown req type %u", req->dr_type);
@@ -2157,11 +2158,15 @@ M0_INTERNAL int m0_dix_del(struct m0_dix_req      *req,
 M0_INTERNAL int m0_dix_next(struct m0_dix_req      *req,
 			    const struct m0_dix    *index,
 			    const struct m0_bufvec *start_keys,
-			    const uint32_t         *recs_nr)
+			    const uint32_t         *recs_nr,
+			    uint32_t                flags)
 {
 	uint32_t keys_nr = start_keys->ov_vec.v_nr;
 	uint32_t i;
 	int      rc;
+
+	/* Only slant and exclude start key flags are allowed. */
+	M0_PRE((flags & ~(COF_SLANT | COF_EXCLUDE_START_KEY)) == 0);
 
 	rc = dix_req_indices_copy(req, index, 1);
 	if (rc != 0)
@@ -2176,6 +2181,7 @@ M0_INTERNAL int m0_dix_next(struct m0_dix_req      *req,
 	req->dr_items_nr = keys_nr;
 	req->dr_keys     = start_keys;
 	req->dr_type     = DIX_NEXT;
+	req->dr_flags    = flags;
 	for (i = 0; i < keys_nr; i++)
 		req->dr_recs_nr[i] = recs_nr[i];
 	dix_discovery(req);

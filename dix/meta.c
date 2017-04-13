@@ -694,7 +694,7 @@ M0_INTERNAL int m0_dix_index_list(struct m0_dix_meta_req *req,
 	}
 
 	m0_clink_add(&req->dmr_req.dr_sm.sm_chan, &req->dmr_clink);
-	rc = m0_dix_next(&req->dmr_req, &index, &req->dmr_keys, &keys_nr);
+	rc = m0_dix_next(&req->dmr_req, &index, &req->dmr_keys, &keys_nr, 0);
 	if (rc != 0) {
 		m0_clink_del(&req->dmr_clink);
 		m0_bufvec_free(keys);

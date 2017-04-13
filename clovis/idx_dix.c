@@ -340,7 +340,7 @@ static void cas_index_list_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 
 	M0_ENTRY();
 	m0_clink_add(&creq->ccr_sm.sm_chan, &dix_req->idr_clink);
-	rc = m0_cas_index_list(creq, OI_IFID(oi), oi->oi_keys->ov_vec.v_nr);
+	rc = m0_cas_index_list(creq, OI_IFID(oi), oi->oi_keys->ov_vec.v_nr, 0);
 	if (rc != 0)
 		dix_req_immed_failure(dix_req, M0_ERR(rc));
 	M0_LEAVE();
@@ -405,6 +405,7 @@ static void cas_next_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	struct m0_cas_req       *creq = &dix_req->idr_creq;
 	m0_bcount_t              ksize;
 	struct m0_bufvec        *start_key = &dix_req->idr_start_key;
+	uint32_t                 flags = COF_SLANT;
 	int                      rc;
 
 	M0_ENTRY();
@@ -427,8 +428,10 @@ static void cas_next_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 		m0_bufvec_alloc(start_key, 1, ksize);
 		memcpy(start_key->ov_buf[0], oi->oi_keys->ov_buf[0], ksize);
 	}
+	if (oi->oi_flags & M0_OIF_EXCLUDE_START_KEY)
+		flags |= COF_EXCLUDE_START_KEY;
 	rc = m0_cas_next(creq, &idx, start_key, &oi->oi_keys->ov_vec.v_nr,
-			 true);
+			 flags);
 	if (rc != 0)
 		dix_req_immed_failure(dix_req, M0_ERR(rc));
 	M0_LEAVE();
@@ -870,6 +873,7 @@ static void dix_next_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	struct m0_bufvec        *start_key = &dix_req->idr_start_key;
 	struct m0_dix            dix;
 	struct m0_dix_req       *dreq = &dix_req->idr_dreq;
+	uint32_t                 flags = 0;
 	int                      rc;
 
 	M0_ENTRY();
@@ -892,7 +896,10 @@ static void dix_next_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 		m0_bufvec_alloc(start_key, 1, ksize);
 		memcpy(start_key->ov_buf[0], oi->oi_keys->ov_buf[0], ksize);
 	}
-	rc = m0_dix_next(dreq, &dix, start_key, &oi->oi_keys->ov_vec.v_nr);
+        if (oi->oi_flags & M0_OIF_EXCLUDE_START_KEY)
+                flags |= COF_EXCLUDE_START_KEY;
+	rc = m0_dix_next(dreq, &dix, start_key, &oi->oi_keys->ov_vec.v_nr,
+			 flags);
 	if (rc != 0)
 		dix_req_immed_failure(dix_req, M0_ERR(rc));
 	M0_LEAVE();

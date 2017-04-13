@@ -235,7 +235,12 @@ enum m0_cas_op_flags {
 	 * the record being deleted. It is used by DIX client to handle delete
 	 * in degraded mode.
 	 */
-	COF_DEL_LOCK  = 1 << 5
+	COF_DEL_LOCK  = 1 << 5,
+	/**
+	 * For NEXT operation, instructs it to skip record with the given start
+	 * key.
+	 */
+	COF_EXCLUDE_START_KEY = 1 << 6
 };
 
 enum m0_cas_opcode {

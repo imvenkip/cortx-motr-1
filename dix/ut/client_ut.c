@@ -577,11 +577,12 @@ static uint64_t dix_val(uint32_t seq_num)
 }
 
 static void dix__vals_check(struct dix_rep_arr *rep,
-			    uint32_t            first,
-			    uint32_t            last)
+			    uint32_t            start_key,
+			    uint32_t            first_val,
+			    uint32_t            last_val)
 {
 	uint32_t i;
-	uint32_t count = last - first + 1;
+	uint32_t count = last_val - first_val + 1;
 	uint64_t key;
 	uint64_t val;
 
@@ -590,14 +591,14 @@ static void dix__vals_check(struct dix_rep_arr *rep,
 		M0_UT_ASSERT(rep->dra_rep[i].dre_rc == 0);
 		key = *(uint64_t *)rep->dra_rep[i].dre_key.b_addr;
 		val = *(uint64_t *)rep->dra_rep[i].dre_val.b_addr;
-		M0_UT_ASSERT(key == dix_key(i));
-		M0_UT_ASSERT(val == dix_val(i + first * 100));
+		M0_UT_ASSERT(key == dix_key(start_key + i));
+		M0_UT_ASSERT(val == dix_val(start_key + i + first_val * 100));
 	}
 }
 
 static void dix_vals_check(struct dix_rep_arr *rep, uint32_t count)
 {
-	dix__vals_check(rep, 0, count - 1);
+	dix__vals_check(rep, 0, 0, count - 1);
 }
 
 static void dix_index_init(struct m0_dix *index, uint32_t id)
@@ -1281,7 +1282,7 @@ static int dix_common_rec_op(const struct m0_dix    *index,
 		rc = m0_dix_get(&req, index, keys);
 		break;
 	case REQ_NEXT:
-		rc = m0_dix_next(&req, index, keys, recs_nr);
+		rc = m0_dix_next(&req, index, keys, recs_nr, flags);
 		break;
 	default:
 		M0_IMPOSSIBLE("Unknown req type %u", type);
@@ -1391,10 +1392,11 @@ static int dix_ut_del(const struct m0_dix    *index,
 static int dix_ut_next(const struct m0_dix    *index,
 		       const struct m0_bufvec *start_keys,
 		       const uint32_t         *recs_nr,
+		       uint32_t                flags,
 		       struct dix_rep_arr     *rep)
 {
-	return dix_common_rec_op(index, start_keys, NULL, recs_nr, 0, rep,
-				 REQ_NEXT);
+	return dix_common_rec_op(index, start_keys, NULL, recs_nr, flags,
+				 rep, REQ_NEXT);
 }
 
 static void dix_index_create_and_fill(const struct m0_dix    *index,
@@ -1738,7 +1740,7 @@ static void dix_put_overwrite(void)
 	dix_rep_free(&rep);
 	rc = dix_ut_get(&index, &keys, &rep);
 	M0_UT_ASSERT(rc == 0);
-	dix__vals_check(&rep, 10, 10 + COUNT - 1);
+	dix__vals_check(&rep, 0, 10, 10 + COUNT - 1);
 	dix_rep_free(&rep);
 
 	/* Removing records should clear the index. */
@@ -1750,7 +1752,7 @@ static void dix_put_overwrite(void)
 
 	m0_bufvec_alloc(&start_key, 1, sizeof(uint64_t));
 	*(uint64_t *)start_key.ov_buf[0] = 0;
-	rc = dix_ut_next(&index, &start_key, &recs_nr, &rep);
+	rc = dix_ut_next(&index, &start_key, &recs_nr, 0, &rep);
 	M0_UT_ASSERT(rc == -ENOENT);
 	dix_rep_free(&rep);
 	dix_kv_destroy(&keys, &vals);
@@ -2101,6 +2103,7 @@ static void dix_next(void)
 	int                i;
 	int                rc;
 
+	/* Usual case. */
 	ut_service_init();
 	dix_index_init(&index, 1);
 	dix_kv_alloc_and_fill(&keys, &vals, COUNT);
@@ -2113,12 +2116,36 @@ static void dix_next(void)
 		*(uint64_t *)next_keys.ov_buf[i] = dix_key(2 * i);
 		recs_nr[i]                       = 2;
 	}
-	rc = dix_ut_next(&index, &next_keys, recs_nr, &rep);
+	rc = dix_ut_next(&index, &next_keys, recs_nr, 0, &rep);
 	M0_UT_ASSERT(rc == 0);
 	dix_vals_check(&rep, COUNT);
 	dix_rep_free(&rep);
 	dix_kv_destroy(&keys, &vals);
 	dix_index_fini(&index);
+
+	ut_service_fini();
+
+	/* 'Exclude start key' case. */
+	ut_service_init();
+	dix_index_init(&index, 1);
+	dix_kv_alloc_and_fill(&keys, &vals, COUNT);
+	dix_index_create_and_fill(&index, &keys, &vals);
+	/* Get values by operation NEXT for existing keys. */
+	rc = m0_bufvec_alloc(&next_keys, COUNT/2, sizeof (uint64_t));
+	M0_UT_ASSERT(rc == 0);
+	/* Request NEXT for all keys excluding start key. */
+	for (i = 0; i < COUNT/2; i++) {
+		*(uint64_t *)next_keys.ov_buf[i] = dix_key(2 * i);
+		recs_nr[i]                       = 2;
+	}
+	rc = dix_ut_next(&index, &next_keys, recs_nr, COF_EXCLUDE_START_KEY,
+			 &rep);
+	M0_UT_ASSERT(rc == 0);
+	dix__vals_check(&rep, 1, 0, COUNT - 2);
+	dix_rep_free(&rep);
+	dix_kv_destroy(&keys, &vals);
+	dix_index_fini(&index);
+
 	ut_service_fini();
 }
 
@@ -2142,7 +2169,7 @@ static void dix_next_dgmode(void)
 
 	/* Fetch all records when one drive is failed. */
 	dix_disk_failure_set(10, M0_PNDS_FAILED);
-	rc = dix_ut_next(&index, &start_key, &recs_nr, &rep);
+	rc = dix_ut_next(&index, &start_key, &recs_nr, 0, &rep);
 	M0_UT_ASSERT(rc == 0);
 	dix_vals_check(&rep, COUNT);
 	dix_rep_free(&rep);
@@ -2151,7 +2178,7 @@ static void dix_next_dgmode(void)
 	/* Fetch all records when 2 drives are failed. */
 	dix_disk_failure_set(10, M0_PNDS_FAILED);
 	dix_disk_failure_set(11, M0_PNDS_FAILED);
-	rc = dix_ut_next(&index, &start_key, &recs_nr, &rep);
+	rc = dix_ut_next(&index, &start_key, &recs_nr, 0, &rep);
 	M0_UT_ASSERT(rc == 0);
 	dix_vals_check(&rep, COUNT);
 	dix_rep_free(&rep);
@@ -2166,7 +2193,7 @@ static void dix_next_dgmode(void)
 	dix_disk_failure_set(10, M0_PNDS_FAILED);
 	dix_disk_failure_set(11, M0_PNDS_FAILED);
 	dix_disk_failure_set(12, M0_PNDS_FAILED);
-	rc = dix_ut_next(&index, &start_key, &recs_nr, &rep);
+	rc = dix_ut_next(&index, &start_key, &recs_nr, 0, &rep);
 	M0_UT_ASSERT(rc == -EIO);
 	dix_rep_free(&rep);
 	dix_disk_online_set(10);
@@ -2375,7 +2402,7 @@ static void dix_null_value(void)
 	/* Get records using NEXT request. */
 	m0_bufvec_alloc(&start_key, 1, sizeof(uint64_t));
 	*(uint64_t *)start_key.ov_buf[0] = dix_key(0);
-	rc = dix_ut_next(&index, &start_key, &recs_nr, &rep);
+	rc = dix_ut_next(&index, &start_key, &recs_nr, 0, &rep);
 	M0_UT_ASSERT(rc == 0);
 	for (i = 0; i < keys.ov_vec.v_nr; i++) {
 		M0_UT_ASSERT(rep.dra_rep[i].dre_rc == 0);

@@ -483,6 +483,34 @@ static void ut_dix_record_ops(bool dist)
 	m0_free0(&op);
 	m0_free0(&rcs);
 
+	/* Iterate over all records in the index excluding the start key. */
+	rcs = rcs_alloc(CNT + 1);
+	rc = m0_bufvec_empty_alloc(&keys, CNT + 1) ?:
+	     m0_bufvec_empty_alloc(&vals, CNT + 1);
+	M0_UT_ASSERT(rc == 0);
+	cur_key = dix_key(0);
+	keys.ov_buf[0] = &cur_key;
+	keys.ov_vec.v_count[0] = sizeof(uint64_t);
+	rc = m0_clovis_idx_op(&idx, M0_CLOVIS_IC_NEXT, &keys, &vals, rcs,
+			      M0_OIF_EXCLUDE_START_KEY, &op);
+	M0_UT_ASSERT(rc == 0);
+	m0_clovis_op_launch(&op, 1);
+	rc = m0_clovis_op_wait(op, M0_BITS(M0_CLOVIS_OS_STABLE), WAIT_TIMEOUT);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(m0_forall(i, CNT - 1,
+			       rcs[i] == 0 &&
+			       *(uint64_t*)keys.ov_buf[i] == dix_key(i + 1) &&
+			       *(uint64_t*)vals.ov_buf[i] ==
+			       dix_val((i + 1) * 10)));
+	M0_UT_ASSERT(rcs[CNT - 1] == -ENOENT);
+	M0_UT_ASSERT(keys.ov_buf[CNT - 1] == NULL);
+	M0_UT_ASSERT(vals.ov_buf[CNT - 1] == NULL);
+	m0_bufvec_free(&keys);
+	m0_bufvec_free(&vals);
+	m0_clovis_op_fini(op);
+	m0_free0(&op);
+	m0_free0(&rcs);
+
 	/* Try to add recs again with OVERWRITE flag. */
 	rcs = rcs_alloc(CNT + 1);
 	rc = m0_bufvec_alloc(&keys, CNT, sizeof(uint64_t)) ?:

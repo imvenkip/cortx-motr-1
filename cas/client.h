@@ -395,7 +395,8 @@ M0_INTERNAL void m0_cas_index_lookup_rep(const struct m0_cas_req *req,
  */
 M0_INTERNAL int m0_cas_index_list(struct m0_cas_req   *req,
 				  const struct m0_fid *start_fid,
-				  uint32_t             indices_nr);
+				  uint32_t             indices_nr,
+				  uint32_t             flags);
 /**
  * Gets execution result of m0_cas_index_list() request.
  *
@@ -491,11 +492,11 @@ M0_INTERNAL void m0_cas_get_rep(const struct m0_cas_req *req,
  * There is no way to start iteration from the first record without knowledge of
  * key, at least one start key should always be set.
  *
- * A 'slant' argument allows iteration to start with the smallest key following
- * the start key.
+ * 'Flags' argument is a bitmask of m0_cas_op_flags values.
  *
  * @pre start_keys.ov_vec.v_nr > 0
  * @pre m0_forall(i, start_keys.ov_vec.v_nr, start_keys.ov_buf[i] != NULL)
+ * @pre	M0_PRE((flags & ~(COF_SLANT | COF_EXCLUDE_START_KEY)) == 0)
  * @pre m0_cas_req_is_locked(req)
  * @see m0_cas_next_rep()
  */
@@ -503,7 +504,8 @@ M0_INTERNAL int m0_cas_next(struct m0_cas_req *req,
 			    struct m0_cas_id  *index,
 			    struct m0_bufvec  *start_keys,
 			    uint32_t          *recs_nr,
-			    bool               slant);
+			    uint32_t           flags);
+
 /**
  * Gets execution result of m0_cas_next() request.
  *

@@ -1364,7 +1364,8 @@ M0_INTERNAL void m0_cas_index_lookup_rep(const struct m0_cas_req *req,
 
 M0_INTERNAL int m0_cas_index_list(struct m0_cas_req   *req,
 				  const struct m0_fid *start_fid,
-				  uint32_t             indices_nr)
+				  uint32_t             indices_nr,
+				  uint32_t             flags)
 {
 	struct m0_cas_op      *op;
 	struct m0_cas_id       cid = { .ci_fid = *start_fid };
@@ -1375,8 +1376,9 @@ M0_INTERNAL int m0_cas_index_list(struct m0_cas_req   *req,
 	M0_PRE(start_fid != NULL);
 	M0_PRE(req->ccr_sess != NULL);
 	M0_PRE(m0_cas_req_is_locked(req));
+	M0_PRE((flags & ~(COF_SLANT | COF_EXCLUDE_START_KEY)) == 0);
 
-	rc = cas_index_req_prepare(req, &cid, 1, indices_nr, false, 0, &op);
+	rc = cas_index_req_prepare(req, &cid, 1, indices_nr, false, flags, &op);
 	if (rc != 0)
 		return M0_ERR(rc);
 	op->cg_rec.cr_rec[0].cr_rc = indices_nr;
@@ -1676,12 +1678,11 @@ M0_INTERNAL int m0_cas_next(struct m0_cas_req *req,
 			    struct m0_cas_id  *index,
 			    struct m0_bufvec  *start_keys,
 			    uint32_t          *recs_nr,
-			    bool               slant)
+			    uint32_t           flags)
 {
 	struct m0_cas_op      *op;
 	enum m0_cas_req_state  next_state;
 	uint64_t               max_replies_nr = 0;
-	uint32_t               flags = 0;
 	uint32_t               i;
 	int                    rc;
 
@@ -1689,9 +1690,8 @@ M0_INTERNAL int m0_cas_next(struct m0_cas_req *req,
 	M0_PRE(start_keys != NULL);
 	M0_PRE(m0_cas_req_is_locked(req));
 	M0_PRE(m0_cas_id_invariant(index));
-
-	if (slant)
-		flags |= COF_SLANT;
+	/* Only slant and exclude start key flags are allowed. */
+	M0_PRE((flags & ~(COF_SLANT | COF_EXCLUDE_START_KEY)) == 0);
 
 	for (i = 0; i < start_keys->ov_vec.v_nr; i++)
 		max_replies_nr += recs_nr[i];
