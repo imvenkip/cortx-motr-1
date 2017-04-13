@@ -288,9 +288,11 @@ struct m0_ha {
 	struct m0_mutex                 h_lock;
 	struct m0_tl                    h_links_incoming;
 	struct m0_tl                    h_links_outgoing;
-	/** primary outgoing link */
+	/** Contains disconnecting incoming ha_links to avoid re-using. */
+	struct m0_tl                    h_links_stopping;
+	/** Primary outgoing link. */
 	struct m0_ha_link              *h_link;
-	/** struct ha_link_ctx for h_link */
+	/** Struct ha_link_ctx for h_link. */
 	struct ha_link_ctx             *h_link_ctx;
 	bool                            h_link_started;
 	struct m0_reqh_service         *h_hl_service;

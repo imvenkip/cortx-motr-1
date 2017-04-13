@@ -224,6 +224,10 @@ static void ha_link_ctx_fini(struct m0_ha *ha, struct ha_link_ctx *hlx)
 {
 	M0_ENTRY("ha=%p hlx=%p", ha, hlx);
 
+	M0_PRE(m0_mutex_is_locked(&ha->h_lock));
+	M0_PRE_EX(ergo(hlx->hlx_type == HLX_INCOMING,
+		       ha_links_tlist_contains(&ha->h_links_stopping, hlx)));
+
 	ha_links_tlink_del_fini(hlx);
 
 	M0_ASSERT(hlx->hlx_disconnecting);
@@ -356,6 +360,7 @@ static int ha_level_enter(struct m0_module *module)
 		m0_mutex_init(&ha->h_lock);
 		ha_links_tlist_init(&ha->h_links_incoming);
 		ha_links_tlist_init(&ha->h_links_outgoing);
+		ha_links_tlist_init(&ha->h_links_stopping);
 		m0_clink_init(&ha->h_clink, ha_entrypoint_state_cb);
 		ha->h_link_id_counter    = 1;
 		ha->h_generation_counter = 1;
@@ -446,12 +451,14 @@ static void ha_level_leave(struct m0_module *module)
 	struct ha_link_ctx *hlx;
 	enum m0_ha_level    level = module->m_cur;
 	struct m0_ha       *ha;
+	struct m0_tl       *list;
 
 	ha = container_of(module, struct m0_ha, h_module);
 	M0_ENTRY("ha=%p level=%d %s", ha, level, ha_levels[level].ml_name);
 	switch (level) {
 	case M0_HA_LEVEL_ASSIGNS:
 		m0_clink_fini(&ha->h_clink);
+		ha_links_tlist_fini(&ha->h_links_stopping);
 		ha_links_tlist_fini(&ha->h_links_outgoing);
 		ha_links_tlist_fini(&ha->h_links_incoming);
 		m0_mutex_fini(&ha->h_lock);
@@ -476,13 +483,31 @@ static void ha_level_leave(struct m0_module *module)
 		m0_ha_entrypoint_server_stop(&ha->h_entrypoint_server);
 		break;
 	case M0_HA_LEVEL_INCOMING_LINKS:
-		m0_tl_for(ha_links, &ha->h_links_incoming, hlx) {
+		/*
+		 * There is situation when m0_ha_process_failed() disconnects
+		 * more than one ha_link. Therefore, we need to empty
+		 * h_links_incoming first and then check h_links_stopping.
+		 */
+		list = &ha->h_links_incoming;
+		while (true) {
+			m0_mutex_lock(&ha->h_lock);
+			hlx = ha_links_tlist_head(list);
+			m0_mutex_unlock(&ha->h_lock);
+			if (hlx == NULL && list == &ha->h_links_incoming) {
+				list = &ha->h_links_stopping;
+				continue;
+			}
+			if (hlx == NULL && list == &ha->h_links_stopping)
+				break;
 			M0_LOG(M0_DEBUG, "hlx=%p", hlx);
-			m0_ha_process_failed(ha, &hlx->hlx_process_fid);
+			if (list == &ha->h_links_incoming)
+				m0_ha_process_failed(ha, &hlx->hlx_process_fid);
 			m0_semaphore_down(&hlx->hlx_stop_sem);
+			m0_mutex_lock(&ha->h_lock);
 			ha_link_ctx_fini(ha, hlx);
+			m0_mutex_unlock(&ha->h_lock);
 			m0_free(hlx);
-		} m0_tl_endfor;
+		}
 		break;
 	case M0_HA_LEVEL_START:
 		M0_IMPOSSIBLE("can't be here");
@@ -496,7 +521,9 @@ static void ha_level_leave(struct m0_module *module)
 			m0_ha_link_cb_disconnecting(&ha->h_link_ctx->hlx_link);
 			m0_semaphore_down(&ha->h_link_ctx->hlx_stop_sem);
 		}
+		m0_mutex_lock(&ha->h_lock);
 		ha_link_ctx_fini(ha, ha->h_link_ctx);
+		m0_mutex_unlock(&ha->h_lock);
 		break;
 	case M0_HA_LEVEL_ENTRYPOINT_CLIENT_START:
 		m0_ha_entrypoint_client_stop(&ha->h_entrypoint_client);
@@ -668,6 +695,10 @@ M0_INTERNAL void m0_ha_disconnect_incoming(struct m0_ha      *ha,
 
 	hlx = container_of(hl, struct ha_link_ctx, hlx_link);
 	M0_ENTRY("ha=%p hl=%p", ha, hl);
+	M0_PRE(hlx->hlx_type == HLX_INCOMING);
+	m0_mutex_lock(&ha->h_lock);
+	ha_links_tlist_move(&ha->h_links_stopping, hlx);
+	m0_mutex_unlock(&ha->h_lock);
 	m0_ha_link_stop(&hlx->hlx_link, &hlx->hlx_stop_clink);
 	M0_LEAVE();
 }
