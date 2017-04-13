@@ -46,6 +46,9 @@ dependencies:
     # instance, inconsistencies have occurred).
     - rmt . "sudo yum remove -y kernel-devel"
 
+    # Patch for lnet not picking the right kernel
+    - rmt . "/vagrant/install-repo $(nix-build /vagrant -A virtual.kernel)"
+
     # Installs environment for mero
     - rmt . "install-env mero"
 
