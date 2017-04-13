@@ -5,7 +5,7 @@ die() { echo "$@" >&2; exit 1; }
 sandbox_init() {
     [ -n "${SANDBOX_DIR:-}" ] || die 'SANDBOX_DIR: unbound variable'
     rm -rf $SANDBOX_DIR
-    mkdir $SANDBOX_DIR
+    mkdir -p $SANDBOX_DIR
     pushd $SANDBOX_DIR >/dev/null
 }
 

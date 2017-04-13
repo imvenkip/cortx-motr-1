@@ -191,7 +191,6 @@ unload_mero_ctl_module()
 
 prepare()
 {
-	sandbox_init || return $?
 	modload_m0gf >& /dev/null
 	echo 8 > /proc/sys/kernel/printk
 	load_kernel_module || return $?

@@ -36,7 +36,7 @@
 #include "be/alloc_internal.h"  /* be_alloc_chunk */
 
 enum {
-	BE_UT_ALLOC_SEG_SIZE = 0x20000,
+	BE_UT_ALLOC_SEG_SIZE = 0x40000,
 	BE_UT_ALLOC_SIZE     = 0x80,
 	BE_UT_ALLOC_SHIFT    = 13,
 	BE_UT_ALLOC_PTR_NR   = 0x20,
@@ -304,7 +304,7 @@ M0_INTERNAL void m0_be_ut_alloc_oom(void)
 		m0_be_ut_seg_init(&ut_seg, &be_ut_alloc_backend,
 				  m0_round_up(seg_size_start +
 					      seg_step * BE_UT_OOM_SEG_STEP,
-					      2 * PAGE_SIZE));
+					      PAGE_SIZE));
 		m0_be_ut_seg_allocator_init(&ut_seg, &be_ut_alloc_backend);
 		a = m0_be_seg_allocator(ut_seg.bus_seg);
 
@@ -320,6 +320,7 @@ M0_INTERNAL void m0_be_ut_alloc_oom(void)
 	M0_SET0(&be_ut_alloc_backend);
 }
 
+#ifdef ENABLE_BE_ALLOC_ZONES
 M0_INTERNAL void m0_be_ut_alloc_spare(void)
 {
 	struct {
@@ -403,6 +404,7 @@ M0_INTERNAL void m0_be_ut_alloc_spare(void)
 
 	M0_LEAVE();
 }
+#endif
 
 
 #undef M0_TRACE_SUBSYSTEM

@@ -220,7 +220,7 @@ io_combinations()
 	fi
 
 	# unit size in K
-	for unit_size in 4 8 16 32 64 128 256 512 1024 2048
+	for unit_size in 4 8 32 128 512 2048 4096
 	do
 	    stripe_size=`expr $unit_size '*' $data_units`
 
@@ -313,32 +313,30 @@ file_creation_test()
 {
 	local nr_files=$1
 	local mode=$2
-	local SOURCE_TXT=/tmp/source.txt
+	local SFILE=/tmp/source.txt
+	local DFILE=/tmp/dest.txt
 	local START_FID=15     # Added to skip root and other system fids.
+	local BS=$((4 * $NR_DATA * 2))K
 
-	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR "$mode,"verify"" || {
-		return 1
-	}
-	for i in {a..z} {A..Z} ; do
+	for i in {a..z} {A..Z}; do
 		for c in `seq 1 4095`;
 			do echo -n $i ;
 		done;
 		echo;
-	done > $SOURCE_TXT
+	done > $SFILE
 
 	NR_FILES=$[ $nr_files - $START_FID ]
 	NR_FILES=$[ $NR_FILES * $NR_FILES ]
-	echo "Test: Creating $NR_FILES files on m0t1fs..."
+
+	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $mode || return 1
+	echo "Test: Creating $NR_FILES files on m0t1fs ..."
 	for ((i=$START_FID; i<$nr_files; ++i)); do
 		for ((j=$START_FID; j<$nr_files; ++j)); do
 			touch $MERO_M0T1FS_MOUNT_DIR/$j:$i || break
-			cp -v $SOURCE_TXT $MERO_M0T1FS_MOUNT_DIR/$j:$i || break
-			dd if=$SOURCE_TXT of=$MERO_M0T1FS_MOUNT_DIR/$j:$i bs=8k conv=notrunc 2>/dev/null || break
-			cp -v $MERO_M0T1FS_MOUNT_DIR/$j:$i /tmp/dest.txt || break
-			diff -C 0 $SOURCE_TXT /tmp/dest.txt || {
+			run "dd if=$SFILE of=$MERO_M0T1FS_MOUNT_DIR/$j:$i bs=$BS" || break
+			dd if=$MERO_M0T1FS_MOUNT_DIR/$j:$i of=$DFILE bs=$BS 2>/dev/null || break
+			diff -C 0 $SFILE $DFILE || {
 				echo "file content differ!!!!!!!!!!!!!!!!! at $j:$i file. "
-#				echo "Press Enter to go";
-#				read;
 				break;
 			}
 		done
@@ -352,17 +350,52 @@ file_creation_test()
 		return 1
 	fi
 
-	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $mode || {
-		return 1
-	}
-	echo "Test: removing $NR_FILES files on m0t1fs..."
-	for ((i=$START_FID; i<$nr_files; ++i)); do
-		for ((j=$START_FID; j<$nr_files; ++j)); do
-			echo "rm -vf $MERO_M0T1FS_MOUNT_DIR/$j:$i"
-			rm -vf $MERO_M0T1FS_MOUNT_DIR/$j:$i || break
+	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $mode || return 1
+	echo "Test: removing half of the files on m0t1fs..."
+	for ((i=$START_FID; i<$nr_files; i+=2)); do
+		for ((j=$START_FID; j<$nr_files; j+=2)); do
+			run "rm -vf $MERO_M0T1FS_MOUNT_DIR/$j:$i" || break
 		done
 	done
+	unmount_and_clean
+	echo -n "Test: file removal: "
+	if (( $i >= $nr_files && $j >= $nr_files )); then
+		echo "success."
+	else
+		echo "failed."
+		return 1
+	fi
 
+	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $mode || return 1
+	echo "Test: Creating new $NR_FILES files on m0t1fs..."
+	for ((i=$START_FID; i<$nr_files; ++i)); do
+		for ((j=$START_FID; j<$nr_files; ++j)); do
+			touch $MERO_M0T1FS_MOUNT_DIR/1$j:$i || break
+			run "dd if=$SFILE of=$MERO_M0T1FS_MOUNT_DIR/1$j:$i bs=$BS" || break
+			dd if=$MERO_M0T1FS_MOUNT_DIR/1$j:$i of=$DFILE bs=$BS 2>/dev/null || break
+			diff -C 0 $SFILE $DFILE || {
+				echo "file content differ!!!!!!!!!!!!!!!!! at $j:$i file. "
+				break;
+			}
+		done
+	done
+	unmount_and_clean
+	echo -n "Test: file creation: "
+	if (( $i == $nr_files && $j == $nr_files )); then
+		echo "success."
+	else
+		echo "failed."
+		return 1
+	fi
+
+	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $mode || return 1
+	echo "Test: removing all the files on m0t1fs..."
+	for ((i=$START_FID; i<$nr_files; ++i)); do
+		for ((j=$START_FID; j<$nr_files; ++j)); do
+			run "rm -vf $MERO_M0T1FS_MOUNT_DIR/$j:$i" || break
+			run "rm -vf $MERO_M0T1FS_MOUNT_DIR/1$j:$i" || break
+		done
+	done
 	unmount_and_clean
 	echo -n "Test: file removal: "
 	if (( $i == $nr_files && $j == $nr_files )); then
@@ -382,7 +415,7 @@ file_creation_test()
 	for ((i=0; i<$nr_files; ++i)); do
 		#arbitrary file size. "1021" is a prime close to 1024.
 		touch $MERO_M0T1FS_MOUNT_DIR/file$i || break
-		dd if=$SOURCE_TXT of=/tmp/src bs=1021 count=`expr $i + 1` >/dev/null 2>&1 || break
+		dd if=$SFILE of=/tmp/src bs=1021 count=`expr $i + 1` >/dev/null 2>&1 || break
 		cp -v /tmp/src $MERO_M0T1FS_MOUNT_DIR/file$i      || break
 		cp -v $MERO_M0T1FS_MOUNT_DIR/file$i /tmp/dest     || break
 		diff -C 0 /tmp/src /tmp/dest || {
