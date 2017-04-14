@@ -11,4 +11,5 @@ mero_libmero_la_SOURCES  += xcode/string.c \
 xcode_m0protocol_SOURCES  = xcode/protocol.c
 
 EXTRA_DIST += xcode/gccxml2xcode \
-              xcode/cursor.c
+              xcode/cursor.c \
+              xcode/protocol_checksum.h.template

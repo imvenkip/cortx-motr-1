@@ -702,6 +702,8 @@ include $(top_srcdir)/utils/trace/Makefile.sub
 bin_PROGRAMS                  += utils/mkfs/m0mkfs
 utils_mkfs_m0mkfs_LDADD        = $(top_builddir)/mero/libmero.la
 
+utils/mkfs/m0mkfs.o: xcode/protocol_checksum.h
+
 #
 # utils/layout ---------------------------------------- {{{2
 #
@@ -859,6 +861,10 @@ dist_pkglibexec_SCRIPTS  = scripts/install/usr/libexec/mero/mero-service.functio
 ################################################################################
 #                             Auxiliary data files                          {{{1
 ################################################################################
+
+merodatadir    = $(datadir)/mero
+merodata_DATA  = xcode/protocol.txt \
+                 xcode/protocol.md5
 
 usr_lib_pkgconfigdir    = $(libdir)/pkgconfig
 usr_lib_pkgconfig_DATA  = scripts/install/usr/lib/pkgconfig/mero.pc
@@ -1239,6 +1245,23 @@ clovis_st: generate-files gf-complete
 	@echo 'Building mero for clovis system test.'
 	@$(MAKE) $(AM_MAKEFLAGS) build-kernel-modules M0_BUILD_CLOVIS_ST=yes
 
+# protocol -------------------------------------------- {{{3
+
+xcode/protocol.txt: xcode/m0protocol
+	@./$< -p > $@
+
+xcode/protocol.md5: xcode/protocol.txt
+	@md5sum $< | awk '{print $$1}' > $@
+
+PROTOCOL_CHECKSUM_HEADER_TEMPLATE := xcode/protocol_checksum.h.template
+
+xcode/protocol_checksum.h: xcode/protocol.md5 $(PROTOCOL_CHECKSUM_HEADER_TEMPLATE)
+	@sed -e "s/@CHECKSUM@/$$(cat $<)/" $(PROTOCOL_CHECKSUM_HEADER_TEMPLATE) > $@
+
+XC_PROTO_FILES := xcode/protocol.txt \
+                  xcode/protocol.md5 \
+                  xcode/protocol_checksum.h
+
 #
 # Clean targets --------------------------------------- {{{2
 #
@@ -1249,6 +1272,7 @@ clean-local: clean-kernel-modules clean-doc
 	@rm -vf $(XC_DEPS_FILE)
 	@rm -vf $(XC_CLEAN_FILE)
 	@rm -vf $(XC_LIST_FILE)
+	@rm -vf $(XC_PROTO_FILES)
 	@rm -vf $(FF_CLEAN_FILE)
 	@rm -vf $(CONFXC_CLEAN_FILE)
 	@rm -vf m0.trace.*

@@ -35,6 +35,7 @@
 #include "module/instance.h"  /* m0 */
 #include "net/lnet/lnet.h"
 #include "reqh/reqh_service.h"
+#include "xcode/protocol_checksum.h"    /* M0_XCODE_PROTOCOL_CHECKSUM_MD5 */
 
 /**
    @addtogroup m0mkfs
@@ -93,6 +94,8 @@ static struct m0_net_xprt *cs_xprts[] = {
 	&m0_net_lnet_xprt
 };
 
+static const char *xcode_protocol_checksum_md5 = M0_XCODE_PROTOCOL_CHECKSUM_MD5;
+
 M0_INTERNAL int main(int argc, char **argv)
 {
 	int              rc;
@@ -105,6 +108,7 @@ M0_INTERNAL int main(int argc, char **argv)
 	if (argc > 1 &&
 	    (strcmp(argv[1], "-v") == 0 || strcmp(argv[1], "--version") == 0)) {
 		m0_build_info_print();
+		printf("xcode protocol md5: %s\n", xcode_protocol_checksum_md5);
 		exit(EXIT_SUCCESS);
 	}
 
