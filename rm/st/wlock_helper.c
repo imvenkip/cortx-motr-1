@@ -119,15 +119,8 @@ static void _write_lock_get(struct wlock_ctx *wlx)
 
 static void wlock_ctx_destroy(struct wlock_ctx *wlx)
 {
-	int rc;
-
 	M0_ENTRY("wlx=%p", wlx);
 	M0_PRE(wlx != NULL);
-	m0_rm_owner_windup(&wlx->wlc_owner);
-	rc = m0_rm_owner_timedwait(&wlx->wlc_owner,
-				   M0_BITS(ROS_FINAL, ROS_INSOLVENT),
-				   M0_TIME_NEVER);
-	M0_ASSERT(rc == 0);
 	M0_LOG(M0_DEBUG, "owner wound up");
 	m0_rm_rwlock_owner_fini(&wlx->wlc_owner);
 	m0_rw_lockable_fini(&wlx->wlc_rwlock);
@@ -151,11 +144,25 @@ static void wlock_ctx_disconnect(struct wlock_ctx *wlx)
 
 }
 
+static void wlock_ctx_owner_windup(struct wlock_ctx *wlx)
+{
+	int rc;
+
+	M0_ENTRY("wlx=%p", wlx);
+	m0_rm_owner_windup(&wlx->wlc_owner);
+	rc = m0_rm_owner_timedwait(&wlx->wlc_owner,
+				   M0_BITS(ROS_FINAL, ROS_INSOLVENT),
+				   M0_TIME_NEVER);
+	M0_ASSERT(rc == 0);
+	M0_LEAVE();
+}
+
 static void wlock_ctx_creditor_unset(struct wlock_ctx *wlx)
 {
 	M0_ENTRY("wlx=%p", wlx);
 	M0_PRE(wlx != NULL);
 	m0_rm_remote_fini(&wlx->wlc_creditor);
+	M0_SET0(&wlx->wlc_creditor);
 	wlx->wlc_owner.ro_creditor = NULL;
 	M0_LEAVE();
 }
@@ -169,6 +176,7 @@ static void _write_lock_put(struct wlock_ctx *wlx)
 	req = &wlx->wlc_req;
 	m0_rm_credit_put(req);
 	m0_rm_incoming_fini(req);
+	wlock_ctx_owner_windup(wlx);
 	wlock_ctx_creditor_unset(wlx);
 	M0_LEAVE();
 }
@@ -178,7 +186,7 @@ M0_INTERNAL void rm_write_lock_put()
 	_write_lock_put(&wlx);
 	wlock_ctx_destroy(&wlx);
 	wlock_ctx_disconnect(&wlx);
-	m0_free(wlx.wlc_rm_addr);
+	m0_free0(&wlx.wlc_rm_addr);
 	M0_LEAVE();
 }
 
@@ -207,10 +215,12 @@ M0_INTERNAL int rm_write_lock_get(struct m0_rpc_machine *rpc_mach,
 	}
 	return M0_RC(rc);
 ctx_destroy:
+	wlock_ctx_owner_windup(&wlx);
+	wlock_ctx_creditor_unset(&wlx);
 	wlock_ctx_destroy(&wlx);
 	wlock_ctx_disconnect(&wlx);
 ctx_free:
-	m0_free(wlx.wlc_rm_addr);
+	m0_free0(&wlx.wlc_rm_addr);
 fail:
 	return M0_ERR(rc);
 }

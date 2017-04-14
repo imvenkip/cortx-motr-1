@@ -1075,6 +1075,7 @@ static void rlock_ctx_creditor_unset(struct rlock_ctx *rlx)
 	M0_ENTRY("rconfc = %p, rlx = %p", rlx->rlc_parent, rlx);
 	rlock_ctx_disconnect(rlx);
 	m0_rm_remote_fini(&rlx->rlc_creditor);
+	M0_SET0(&rlx->rlc_creditor);
 	rlx->rlc_owner.ro_creditor = NULL;
 	_confc_phony_cache_remove(&rlx->rlc_parent->rc_phony, &rlx->rlc_rm_fid);
 	M0_LEAVE();

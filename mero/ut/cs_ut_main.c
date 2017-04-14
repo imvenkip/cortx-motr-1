@@ -657,7 +657,11 @@ static void test_cs_ut_rconfc_fatal(void)
 	m0_rconfc_lock(&rconfc);
 	m0_rconfc_fatal_cb_set(&rconfc, reqh->rh_rconfc.rc_fatal_cb);
 	m0_rconfc_unlock(&rconfc);
-
+	/* Make sure read lock go and come does not cause any issue. */
+	cs_ut_write_lock_trigger(reqh);
+	sleep(1);
+	M0_UT_ASSERT(gotsignal == 0);
+	/* Imitate issue with read lock acquisition. */
 	m0_fi_enable_once("cs_rconfc_fatal_cb", "ut_signal");
 	m0_fi_enable_once("rconfc_read_lock_complete", "rlock_req_failed");
 	cs_ut_write_lock_trigger(reqh);
