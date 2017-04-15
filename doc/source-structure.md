@@ -87,10 +87,6 @@ must include foo/foo_internal.h as
 
     #include "foo/foo_internal.h"
 
-Oracle Berkeley data-base interfaces must be included as
-
-    #include <db.h>
-
 How Mero build system is organized?
 -----------------------------------
 
