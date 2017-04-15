@@ -1,5 +1,5 @@
 /*
- * COPYRIGHT 2011 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2011, 2017 XYRATEX TECHNOLOGY LIMITED
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -18,6 +18,8 @@
  * Original creation date: 04/17/2010
  */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_LIB
+#include "lib/trace.h"
 #include "lib/assert.h"
 #include "lib/list.h"
 
@@ -46,13 +48,20 @@ M0_INTERNAL bool m0_list_link_invariant(const struct m0_list_link *link)
 {
 	struct m0_list_link *scan;
 
-	if ((link->ll_next == link) != (link->ll_prev == link))
+	if ((link->ll_next == link) != (link->ll_prev == link)) {
+		M0_LOG(M0_FATAL, "%p <- %p -> %p",
+		       link->ll_prev, link, link->ll_next);
 		return false;
+	}
 
 	for (scan = link->ll_next; scan != link; scan = scan->ll_next) {
 		if (scan->ll_next->ll_prev != scan ||
-		    scan->ll_prev->ll_next != scan)
+		    scan->ll_prev->ll_next != scan) {
+			M0_LOG(M0_FATAL, "%p -> %p <- %p -> %p <- %p",
+			       scan->ll_prev->ll_next, scan->ll_prev,
+			       scan, scan->ll_next, scan->ll_next->ll_prev);
 			return false;
+		}
 	}
 	return true;
 }
@@ -178,6 +187,8 @@ M0_INTERNAL bool m0_list_link_is_last(const struct m0_list_link *link,
 {
 	return link->ll_next == (void *)head;
 }
+
+#undef M0_TRACE_SUBSYSTEM
 
 /** @} end of list group */
 
