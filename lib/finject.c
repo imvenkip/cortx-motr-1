@@ -438,6 +438,7 @@ void m0_fi_register(struct m0_fi_fault_point *fp)
 
 	m0_mutex_unlock(&fi_states_mutex);
 }
+M0_EXPORTED(m0_fi_register);
 
 bool m0_fi_enabled(struct m0_fi_fpoint_state *fps)
 {
@@ -454,6 +455,7 @@ bool m0_fi_enabled(struct m0_fi_fpoint_state *fps)
 
 	return enabled;
 }
+M0_EXPORTED(m0_fi_enabled);
 
 M0_INTERNAL void m0_fi_enable_generic(const char *fp_func, const char *fp_tag,
 				      const struct m0_fi_fpoint_data *fp_data)
