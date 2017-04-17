@@ -70,7 +70,7 @@ M0_INTERNAL void m0_xcode_fini(void)
 #undef _FF
 }
 
-/** @} end of XXX group */
+/** @} end of xcode group */
 
 /*
  *  Local variables:

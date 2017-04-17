@@ -23,6 +23,7 @@
 #include "lib/errno.h"
 #include "lib/assert.h"
 #include "lib/memory.h"
+#include "lib/string.h"                         /* m0_streq */
 #include "lib/arith.h"                          /* m0_align, max_check */
 #include "be/op.h"
 #include "be/alloc.h"
@@ -110,8 +111,8 @@ bool m0_xcode_type_invariant(const struct m0_xcode_type *xt)
 			    f->xf_offset) &&
 			/* field names are unique */
 			m0_forall(j, xt->xct_nr,
-				  !strcmp(f->xf_name,
-					  xt->xct_child[j].xf_name) ==
+				  m0_streq(f->xf_name,
+					   xt->xct_child[j].xf_name) ==
 				  (i == j)) &&
 			/* union tags are unique. */
 			_0C(ergo(xt->xct_aggr == M0_XA_UNION && i > 0,
@@ -826,14 +827,14 @@ M0_INTERNAL int m0_xcode_obj_enc_to_buf(struct m0_xcode_obj  *obj,
 }
 
 M0_INTERNAL int m0_xcode_obj_dec_from_buf(struct m0_xcode_obj  *obj,
-					  void                **buf,
-					  m0_bcount_t          *len)
+					  void                 *buf,
+					  m0_bcount_t           len)
 {
 	struct m0_bufvec        val;
 	struct m0_bufvec_cursor cur;
 
 	M0_PRE(obj != NULL);
-	val = M0_BUFVEC_INIT_BUF(buf, len);
+	val = M0_BUFVEC_INIT_BUF(&buf, &len);
 	m0_bufvec_cursor_init(&cur, &val);
 	return m0_xcode_encdec(obj, &cur, M0_XCODE_DECODE);
 }

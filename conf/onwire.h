@@ -29,6 +29,7 @@
 #include "lib/buf_xc.h"
 #include "fid/fid.h"
 #include "fid/fid_xc.h"
+#include "conf/schema_xc.h" /* m0_xc_m0_conf_service_type_enum */
 
 /* export */
 struct m0_conf_fetch;
@@ -183,7 +184,7 @@ struct m0_confx_process {
 struct m0_confx_service {
 	struct m0_confx_header xs_header;
 	/* Service type.  See m0_conf_service_type. */
-	uint32_t               xs_type;
+	uint32_t               xs_type M0_XCA_FENUM(m0_conf_service_type);
 	/* End-points from which this service is reachable. */
 	struct m0_bufs         xs_endpoints;
 	/* Devices associated with service. */

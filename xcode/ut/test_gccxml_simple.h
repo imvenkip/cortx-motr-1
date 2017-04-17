@@ -72,4 +72,11 @@ enum testbitmask {
 	BM_FIVE     = 1ULL << 5
 } M0_XCA_ENUM;
 
+struct enumfield {
+	uint64_t ef_0;
+	uint64_t ef_enum M0_XCA_FENUM(testenum);
+	uint64_t ef_bitm M0_XCA_FBITMASK(testbitmask);
+	uint64_t ef_1;
+} M0_XCA_RECORD;
+
 #endif /* __MERO_XCODE_UT_TEST_GCCXML_SIMPLE_H__ */

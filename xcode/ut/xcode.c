@@ -648,7 +648,8 @@ static void xcode_cmp_test(void)
 	m0_xcode_free_obj(&obj1);
 }
 
-static int custom_read(struct m0_xcode_obj *obj, const char *str)
+static int custom_read(const struct m0_xcode_cursor *it,
+		       struct m0_xcode_obj *obj, const char *str)
 {
 	static const char pattern[] = "!EXPECTED!";
 
@@ -944,9 +945,7 @@ static void xcode_find_test(void)
 
 #define __ENUM_ONLY
 #include "test_gccxml_simple.h"
-
-extern const struct m0_xcode_enum m0_xc_testenum_enum;
-extern const struct m0_xcode_enum m0_xc_testbitmask_enum;
+#include "test_gccxml_simple_xc.h"
 
 static void xcode_enum_gccxml(void)
 {
@@ -1135,6 +1134,29 @@ static void xcode_enum_loop(void)
 	}
 }
 
+static void xcode_enum_field(void)
+{
+	struct enumfield ef = {
+		.ef_0    = 1,
+		.ef_enum = TE_5,
+		.ef_bitm = BM_ZERO|BM_NINE,
+		.ef_1    = 2
+	};
+	struct enumfield    buf;
+	struct m0_xcode_obj obj = {
+		.xo_type = enumfield_xc,
+		.xo_ptr  = &buf
+	};
+	int result;
+
+	/* Initialise enumfield_xc. */
+	m0_xc_xcode_ut_test_gccxml_simple_init();
+
+	result = m0_xcode_read(&obj, "(1, @TE_5, @BM_ZERO|BM_NINE, 2)");
+	M0_UT_ASSERT(result == 0);
+	M0_UT_ASSERT(memcmp(&buf, &ef, sizeof ef) == 0);
+}
+
 /*
  * Stub function, it's not meant to be used anywhere, it's defined to calm down
  * linker, which throws an "undefined reference to `m0_package_cred_get'"
@@ -1170,6 +1192,7 @@ struct m0_ut_suite xcode_ut = {
 		{ "xcode-bitmask-print",  xcode_bitmask_print,     "Nikita" },
 		{ "xcode-bitmask-read",   xcode_bitmask_read,      "Nikita" },
 		{ "xcode-enum-loop",      xcode_enum_loop,         "Nikita" },
+		{ "xcode-enum-field",     xcode_enum_field,        "Nikita" },
 		{ NULL, NULL }
 	}
 };

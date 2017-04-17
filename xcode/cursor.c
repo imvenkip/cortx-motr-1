@@ -42,6 +42,18 @@ m0_xcode_cursor_top(struct m0_xcode_cursor *it)
 	return &it->xcu_stack[it->xcu_depth];
 }
 
+M0_INTERNAL const struct m0_xcode_field *
+m0_xcode_cursor_field(const struct m0_xcode_cursor *it)
+{
+	if (it->xcu_depth > 0) {
+		const struct m0_xcode_cursor_frame *pre =
+			m0_xcode_cursor_top((void *)it) - 1; /* Drop const. */
+		return &pre->s_obj.xo_type->xct_child[pre->s_fieldno];
+	} else
+		return NULL;
+}
+
+
 M0_INTERNAL int m0_xcode_next(struct m0_xcode_cursor *it)
 {
 	struct m0_xcode_cursor_frame *top;

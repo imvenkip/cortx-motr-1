@@ -55,12 +55,14 @@ mero_libmero_la_SOURCES += \
 
 nodist_mero_libmero_la_SOURCES  += \
                            conf/flip_fop_xc.c \
+                           conf/schema_xc.c \
                            conf/ha_xc.c \
                            conf/load_fop_xc.c \
                            conf/onwire_xc.c
 
 XC_FILES += \
             conf/flip_fop_xc.h \
+            conf/schema_xc.h \
             conf/ha_xc.h \
             conf/load_fop_xc.h \
             conf/onwire_xc.h

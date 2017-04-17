@@ -243,7 +243,8 @@ static const struct m0_fid_type misc = {
  *
  * @see xt_ops, m0_xcode_read().
  */
-static int xt_read(struct m0_xcode_obj *obj, const char *str)
+static int xt_read(const struct m0_xcode_cursor *it,
+		   struct m0_xcode_obj *obj, const char *str)
 {
 	int result;
 	int nr;

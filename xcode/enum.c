@@ -27,9 +27,9 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_XCODE
 #include "lib/trace.h"
 #include "lib/errno.h"                       /* EPROTO */
-#include "lib/string.h"                      /* strncmp */
 #include "lib/misc.h"                        /* M0_BITS, m0_strtou64 */
 
+#include "xcode/xcode.h"
 #include "xcode/enum.h"
 
 static const struct m0_xcode_enum_val *valget(const struct m0_xcode_enum *en,
@@ -37,6 +37,8 @@ static const struct m0_xcode_enum_val *valget(const struct m0_xcode_enum *en,
 static const struct m0_xcode_enum_val *nameget(const struct m0_xcode_enum *en,
 					       const char *name, int nr);
 static int enum_getnum(const char *buf, uint64_t *out);
+static const char *enum_id   (const char *buf);
+static const char *bitmask_id(const char *buf);
 
 bool m0_xcode_enum_is_valid(const struct m0_xcode_enum *en, uint64_t val)
 {
@@ -135,6 +137,32 @@ int m0_xcode_bitmask_read(const struct m0_xcode_enum *en,
 }
 M0_EXPORTED(m0_xcode_bitmask_read);
 
+M0_INTERNAL int m0_xcode_enum_field_read(const struct m0_xcode_cursor *it,
+					 struct m0_xcode_obj *obj,
+					 const char *str)
+{
+	const struct m0_xcode_field *f  = m0_xcode_cursor_field(it);
+	const struct m0_xcode_enum  *en = f->xf_decor[M0_XCODE_DECOR_READ];
+	int                          nr = enum_id(str) - str;
+
+	M0_PRE(M0_IN(f->xf_type, (&M0_XT_U8, &M0_XT_U32, &M0_XT_U64)));
+	M0_PRE(en != NULL);
+	return m0_xcode_enum_read(en, str, nr, obj->xo_ptr) ?: nr;
+}
+
+M0_INTERNAL int m0_xcode_bitmask_field_read(const struct m0_xcode_cursor *it,
+					    struct m0_xcode_obj *obj,
+					    const char *str)
+{
+	const struct m0_xcode_field *f  = m0_xcode_cursor_field(it);
+	const struct m0_xcode_enum  *en = f->xf_decor[M0_XCODE_DECOR_READ];
+	int                          nr = bitmask_id(str) - str;
+
+	M0_PRE(M0_IN(f->xf_type, (&M0_XT_U8, &M0_XT_U32, &M0_XT_U64)));
+	M0_PRE(en != NULL);
+	return m0_xcode_bitmask_read(en, str, nr, obj->xo_ptr) ?: nr;
+}
+
 static const struct m0_xcode_enum_val *valget(const struct m0_xcode_enum *en,
 					      uint64_t val)
 {
@@ -166,6 +194,28 @@ static int enum_getnum(const char *buf, uint64_t *out)
 
 	*out = m0_strtou64(buf, &endp, 0x10);
 	return endp - buf;
+}
+
+static bool enum_char(char ch)
+{
+#define BETWEEN(ch, l, h) ((l) <= (ch) && (ch) <= (h))
+	return  BETWEEN(ch, 'a', 'z') || BETWEEN(ch, 'A', 'Z') ||
+		BETWEEN(ch, '0', '9') || ch == '_';
+#undef BETWEEN
+}
+
+static const char *enum_id(const char *b)
+{
+	while (*b != 0 && enum_char(*b))
+		b++;
+	return b;
+}
+
+static const char *bitmask_id(const char *b)
+{
+	while (*b != 0 && (enum_char(*b) || *b == '|'))
+		b++;
+	return b;
 }
 
 #undef M0_TRACE_SUBSYSTEM

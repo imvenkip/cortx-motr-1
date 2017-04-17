@@ -1679,7 +1679,7 @@ static int cas_buf_cid_decode(struct m0_buf    *enc_buf,
 
 	return m0_xcode_obj_dec_from_buf(
 		&M0_XCODE_OBJ(m0_cas_id_xc, cid),
-		&enc_buf->b_addr, &enc_buf->b_nob);
+		enc_buf->b_addr, enc_buf->b_nob);
 }
 
 static bool cas_fid_is_cctg(const struct m0_fid *fid)

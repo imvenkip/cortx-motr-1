@@ -160,6 +160,28 @@ int         m0_xcode_bitmask_print   (const struct m0_xcode_enum *en,
  */
 int         m0_xcode_bitmask_read    (const struct m0_xcode_enum *en,
 				      const char *buf, int nr, uint64_t *val);
+struct m0_xcode_obj;
+struct m0_xcode_cursor;
+
+/**
+ * Custom field reader for enums.
+ *
+ * The pointer to this function is installed into m0_xcode_field::xf_read by
+ * gccxml2xcode for fields tagged with the M0_XCA_FENUM macro.
+ */
+M0_INTERNAL int m0_xcode_enum_field_read(const struct m0_xcode_cursor *it,
+					 struct m0_xcode_obj *obj,
+					 const char *str);
+
+/**
+ * Custom field reader for bitmasks.
+ *
+ * The pointer to this function is installed into m0_xcode_field::xf_read by
+ * gccxml2xcode for fields tagged with the M0_XCA_FBITMASK macro.
+ */
+M0_INTERNAL int m0_xcode_bitmask_field_read(const struct m0_xcode_cursor *it,
+					    struct m0_xcode_obj *obj,
+					    const char *str);
 
 /** @} end of xcode group */
 #endif /* __MERO_XCODE_ENUM_H__ */

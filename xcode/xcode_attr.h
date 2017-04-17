@@ -40,18 +40,20 @@
 /**
  * Shortened versions of M0_XC_ATTR to specifiy m0_xcode_aggr types.
  */
-#define M0_XCA_RECORD   M0_XC_ATTR("atype","M0_XA_RECORD")
-#define M0_XCA_SEQUENCE M0_XC_ATTR("atype","M0_XA_SEQUENCE")
-#define M0_XCA_ARRAY    M0_XC_ATTR("atype","M0_XA_ARRAY")
-#define M0_XCA_UNION    M0_XC_ATTR("atype","M0_XA_UNION")
+#define M0_XCA_RECORD   M0_XC_ATTR("atype", "M0_XA_RECORD")
+#define M0_XCA_SEQUENCE M0_XC_ATTR("atype", "M0_XA_SEQUENCE")
+#define M0_XCA_ARRAY    M0_XC_ATTR("atype", "M0_XA_ARRAY")
+#define M0_XCA_UNION    M0_XC_ATTR("atype", "M0_XA_UNION")
 
-#define M0_XCA_ENUM     M0_XC_ATTR("enum","nonce")
+#define M0_XCA_ENUM  M0_XC_ATTR("enum", "nonce")
 
 /**
  * Shortened versions of M0_XC_ATTR for TAG and OPAQUE attributes.
  */
-#define M0_XCA_OPAQUE(value)   M0_XC_ATTR("opaque",value)
-#define M0_XCA_TAG(value)      M0_XC_ATTR("tag",value)
+#define M0_XCA_OPAQUE(value)   M0_XC_ATTR("opaque", value)
+#define M0_XCA_TAG(value)      M0_XC_ATTR("tag", value)
+#define M0_XCA_FENUM(value)      M0_XC_ATTR("fenum", #value)
+#define M0_XCA_FBITMASK(value)      M0_XC_ATTR("fbitmask", #value)
 
 /** @} end of xcode group */
 

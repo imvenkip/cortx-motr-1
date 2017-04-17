@@ -36,4 +36,5 @@ m0mero_objects += \
                   conf/pvers.o \
                   conf/rconfc.o \
                   conf/rconfc_link_fom.o \
+                  conf/schema_xc.o \
                   conf/walk.o

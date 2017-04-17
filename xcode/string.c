@@ -58,7 +58,8 @@ M0_INTERNAL const char *space_skip(const char *str)
 	return str;
 }
 
-static int string_literal(struct m0_xcode_obj *obj, const char *str)
+static int string_literal(const struct m0_xcode_cursor *it,
+			  struct m0_xcode_obj *obj, const char *str)
 {
 	uint64_t                    len;
 	const char                 *eol;
@@ -90,14 +91,22 @@ static int string_literal(struct m0_xcode_obj *obj, const char *str)
 	}
 
 	if (len == 0)
-		return len;
+		return 1; /* Including closing '"'. */
 
 	*(void **)m0_xcode_addr(obj, 1, ~0ULL) = mem = m0_alloc(len);
 	if (mem != NULL) {
 		memcpy(mem, str, len);
-		return len;
+		return len + 1;
 	} else
 		return M0_ERR(-ENOMEM);
+}
+
+static int (*field_reader(const struct m0_xcode_cursor *it))
+				(const struct m0_xcode_cursor *,
+				 struct m0_xcode_obj *, const char *)
+{
+	const struct m0_xcode_field *field = m0_xcode_cursor_field(it);
+	return field != NULL ? field->xf_read : NULL;
 }
 
 static int char_check(const char **str, char ch)
@@ -136,8 +145,7 @@ static const char punctuation[M0_XA_NR][3] = {
 
 static char punctchar(struct m0_xcode_cursor *it)
 {
-	struct m0_xcode_cursor_frame *top = m0_xcode_cursor_top(it);
-	struct m0_xcode_cursor_frame *pre = top - 1;
+	struct m0_xcode_cursor_frame *pre = m0_xcode_cursor_top(it) - 1;
 	enum m0_xcode_aggr            par;
 	int                           order;
 
@@ -176,8 +184,8 @@ M0_INTERNAL int m0_xcode_read(struct m0_xcode_obj *obj, const char *str)
 
 		str = space_skip(str);
 		if (flag == M0_XCODE_CURSOR_PRE) {
-			bool  slit;
-			int (*custom)(struct m0_xcode_obj *, const char *);
+			int (*custom)(const struct m0_xcode_cursor *,
+				      struct m0_xcode_obj *, const char *);
 
 			result = m0_xcode_alloc_obj(&it, m0_xcode_alloc);
 			if (result != 0)
@@ -185,20 +193,22 @@ M0_INTERNAL int m0_xcode_read(struct m0_xcode_obj *obj, const char *str)
 			result = char_check(&str, punctchar(&it));
 			if (result != 0)
 				return result;
-			slit = m0_xcode_is_byte_array(xt) && *str == '"';
-			custom = *str == '^' && xt->xct_ops != NULL ?
-				xt->xct_ops->xto_read : NULL;
-			if (slit || custom != NULL) {
+			custom = *str == '"' && m0_xcode_is_byte_array(xt) ?
+				&string_literal :
+				*str == '^' && xt->xct_ops != NULL ?
+				xt->xct_ops->xto_read :
+				*str == '@' ? field_reader(&it) : NULL;
+			if (custom != NULL) {
 				/*
-				 * String literal (skip opening '"') or custom
-				 * reader (skip opening '^').
+				 * A string literal (skip opening '"'), a custom
+				 * type reader (skip opening '^') or a custom
+				 * field reader (skip opening '@').
 				 */
 				++str;
-				result = slit ? string_literal(cur, str) :
-					custom(cur, str);
+				result = custom(&it, cur, str);
 				if (result < 0)
 					return result;
-				str += result + !!slit; /* skip closing '"' */
+				str += result;
 				m0_xcode_skip(&it);
 				continue;
 			}

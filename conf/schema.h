@@ -22,6 +22,7 @@
 #define __MERO_CONF_SCHEMA_H__
 
 #include "lib/types.h"  /* bool */
+#include "xcode/xcode.h"
 
 /**
    @page DLD_conf_schema DLD for configuration schema
@@ -73,7 +74,7 @@ enum m0_cfg_state_bit {
 
 	/** set if Good, and clear if Failed    */
 	M0_CFG_STATE_GOOD    = 1 << 1
-};
+} M0_XCA_ENUM;
 
 /**
    Property flag bits for node, device, nic, etc. These bits can be OR'd and tested.
@@ -87,7 +88,7 @@ enum m0_cfg_flag_bit {
 
 	/** set if a disk/device is removable */
 	M0_CFG_FLAG_REMOVABLE     = 1 << 2,
-};
+} M0_XCA_ENUM;
 
 
 /**
@@ -108,7 +109,7 @@ enum m0_cfg_nic_type {
 
 	/** Infini/Band */
 	M0_CFG_NIC_INFINIBAND
-};
+} M0_XCA_ENUM;
 
 /**
    Mero device interface types.
@@ -122,7 +123,7 @@ enum m0_cfg_storage_device_interface_type {
 	M0_CFG_DEVICE_INTERFACE_SAS,      /**< SAS     */
 	M0_CFG_DEVICE_INTERFACE_SAS2,     /**< SAS II  */
 	M0_CFG_DEVICE_INTERFACE_NR
-};
+} M0_XCA_ENUM;
 
 #define M0_CFG_SDEV_INTERFACE_TYPE_IS_VALID(dtype)            \
 	(0 < (dtype) && (dtype) < M0_CFG_DEVICE_INTERFACE_NR)
@@ -143,7 +144,7 @@ enum m0_cfg_storage_device_media_type {
 	M0_CFG_DEVICE_MEDIA_ROM,
 
 	M0_CFG_DEVICE_MEDIA_NR
-};
+} M0_XCA_ENUM;
 #define M0_CFG_SDEV_MEDIA_TYPE_IS_VALID(dtype)            \
 	(0 < (dtype) && (dtype) < M0_CFG_DEVICE_MEDIA_NR)
 
@@ -186,7 +187,7 @@ enum m0_conf_service_type {
 	M0_CONF_SERVICE_TYPES
 #undef X_CST
 	M0_CST_NR
-};
+} M0_XCA_ENUM;
 
 M0_INTERNAL const char *
 m0_conf_service_type2str(enum m0_conf_service_type type);

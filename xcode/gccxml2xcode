@@ -497,7 +497,7 @@ sub gen_xc_h
 
     # prototypes of enum descriptors
     for my $e (@$enums) {
-        $xcode .= "extern const struct m0_xcode_enum m0_xc_$e->{name}_enum;\n";
+        $xcode .= "extern struct m0_xcode_enum m0_xc_$e->{name}_enum;\n";
     }
     $xcode .= "\n";
 
@@ -690,19 +690,40 @@ sub gen_xc_c_init_func_for
 
             my $xc_tag = 0;
             my $opaque_func_name = 'NULL';
+            my $fenum = 'NULL';
+            my $fbitmask = 'NULL';
+            my $fread = 'NULL';
+            my $fdecor = 'NULL';
 
             if (defined $child->{'attribute'}) {
                 $xc_tag = $child->{'attribute'}->{'xc_tag'} // 0;
                 $opaque_func_name = $child->{'attribute'}->{'xc_opaque'} // 'NULL';
+                $fenum = $child->{'attribute'}->{'xc_fenum'} // 'NULL';
+                $fbitmask = $child->{'attribute'}->{'xc_fbitmask'} // 'NULL';
             }
-
+            if ($fenum ne 'NULL' && $fbitmask ne 'NULL') {
+                croak "Error: both enum ($fenum) and bitmask ($fbitmask) " . 
+                    "are specified for $child."
+            }
+            if ($fenum ne 'NULL') {
+                $fread = "&m0_xcode_enum_field_read";
+                $fdecor = "&m0_xc_" . $fenum . "_enum";
+            }
+            if ($fbitmask ne 'NULL') {
+                $fread = "&m0_xcode_bitmask_field_read";
+                $fdecor = "&m0_xc_" . $fbitmask . "_enum";
+            }
             $xcode .= <<"END_CHILD_INIT"
 \t_$item->{'name'}._child[$child_idx] = (struct m0_xcode_field) {
 \t\t.xf_name   = "$child->{'name'}",
 \t\t.xf_type   = $child->{'xc_type'},
 \t\t.xf_tag    = $xc_tag,
 \t\t.xf_opaque = $opaque_func_name,
-\t\t.xf_offset = offsetof($item->{'type'} $item->{'name'}, $member->{'name'}$union_field)
+\t\t.xf_offset = offsetof($item->{'type'} $item->{'name'}, $member->{'name'}$union_field),
+\t\t.xf_read   = $fread,
+\t\t.xf_decor  = {
+\t\t\t[M0_XCODE_DECOR_READ] = $fdecor
+\t\t}
 \t};
 END_CHILD_INIT
 ;
@@ -794,7 +815,7 @@ END_VAL
 	{ .xev_idx = -1, .xev_name = "Invalid value of enum '$name'." }
 };
 
-const struct m0_xcode_enum m0_xc_${name}_enum = {
+struct m0_xcode_enum m0_xc_${name}_enum = {
 	.xe_name   = "${name}",
 	.xe_nr     = ${members_number},
 	.xe_val    = ${name}_data,

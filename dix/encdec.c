@@ -86,8 +86,8 @@ M0_INTERNAL int m0_dix__meta_val_dec(const struct m0_bufvec *vals,
 
 		M0_SET0(&x);
 		rc = m0_xcode_obj_dec_from_buf(&DIX_META_VAL_XCODE_OBJ(&x),
-					       &vals->ov_buf[i],
-					       &vals->ov_vec.v_count[i]);
+					       vals->ov_buf[i],
+					       vals->ov_vec.v_count[i]);
 		if (rc == 0) {
 			out_fid[i] = x.mv_fid;
 			rc = m0_dix_ldesc_copy(&out_dld[i], &x.mv_dld);
@@ -134,9 +134,9 @@ M0_INTERNAL int m0_dix__layout_vals_enc(const struct m0_fid        *fid,
 		if (enc_keys)
 			rc = m0_xcode_obj_enc_to_buf(
 					&DIX_FID_VAL_XCODE_OBJ(
-                                                (struct m0_fid *)&fid[i]),
-                                        &keys->ov_buf[i],
-                                        &keys->ov_vec.v_count[i]);
+						 (struct m0_fid *)&fid[i]),
+					&keys->ov_buf[i],
+					&keys->ov_vec.v_count[i]);
 		if (enc_vals)
 			rc = m0_xcode_obj_enc_to_buf(
 					&DIX_LAYOUT_VAL_XCODE_OBJ(
@@ -170,14 +170,12 @@ M0_INTERNAL int m0_dix__layout_vals_dec(const struct m0_bufvec *keys,
 		if (dec_keys)
 			rc = m0_xcode_obj_dec_from_buf(
 				&DIX_FID_VAL_XCODE_OBJ(&out_fid[i]),
-                                &keys->ov_buf[i],
-                                &keys->ov_vec.v_count[i]);
+				keys->ov_buf[i], keys->ov_vec.v_count[i]);
 		if (dec_vals) {
 			M0_SET0(out_dlay);
 			rc = m0_xcode_obj_dec_from_buf(
 				&DIX_LAYOUT_VAL_XCODE_OBJ(out_dlay),
-				&vals->ov_buf[i],
-				&vals->ov_vec.v_count[i]);
+				vals->ov_buf[i], vals->ov_vec.v_count[i]);
 			if (rc != 0)
 				break;
 		}
@@ -254,8 +252,7 @@ M0_INTERNAL int m0_dix__ldesc_vals_dec(const struct m0_bufvec *keys,
 			M0_SET0(&x);
 			rc = m0_xcode_obj_dec_from_buf(
 				&DIX_LDESC_VAL_XCODE_OBJ(&x),
-				&vals->ov_buf[i],
-				&vals->ov_vec.v_count[i]);
+				vals->ov_buf[i], vals->ov_vec.v_count[i]);
 			if (rc == 0) {
 				rc = m0_dix_ldesc_copy(&out_ldesc[i], &x);
 				m0_dix_ldesc_fini(&x);

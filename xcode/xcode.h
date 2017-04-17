@@ -150,6 +150,7 @@ struct m0_xcode_ctx;
 struct m0_xcode_obj;
 struct m0_xcode_field;
 struct m0_xcode_cursor;
+struct m0_xcode_field_ops;
 
 /**
    Type of aggregation for a data-type.
@@ -236,7 +237,10 @@ enum m0_xode_atom_type {
 /** Human-readable names of elements of m0_xcode_atom_type */
 extern const char *m0_xcode_atom_type_name[M0_XAT_NR];
 
-enum { M0_XCODE_DECOR_MAX = 10 };
+enum {
+	M0_XCODE_DECOR_READ,
+	M0_XCODE_DECOR_MAX = 10
+};
 
 /** Field of data-type. */
 struct m0_xcode_field {
@@ -261,7 +265,7 @@ struct m0_xcode_field {
 		  The discriminator is the value of the first field of the
 		  union.
 	 */
-	uint64_t                    xf_tag;
+	uint64_t                         xf_tag;
 	/**
 	   Fields with m0_xcode_type::xf_type == &M0_XT_OPAQUE are "opaque"
 	   fields. An opaque field corresponds to a
@@ -270,12 +274,12 @@ struct m0_xcode_field {
 	   the object pointed to. "par" parameter refers to the parent object to
 	   which the field belongs.
 	 */
-	int                       (*xf_opaque)(const struct m0_xcode_obj   *par,
-					  const struct m0_xcode_type **out);
+	int                        (*xf_opaque)(const struct m0_xcode_obj *par,
+					     const struct m0_xcode_type **out);
 	/**
 	   Byte offset of this field from the beginning of the object.
 	 */
-	uint32_t                    xf_offset;
+	uint32_t                         xf_offset;
 	/**
 	   "Decorations" are used by xcode users to associate additional
 	   information with introspection elements.
@@ -283,7 +287,11 @@ struct m0_xcode_field {
 	   @see m0_xcode_decor_register()
 	   @see m0_xcode_type::xct_decor[]
 	 */
-	void                       *xf_decor[M0_XCODE_DECOR_MAX];
+	void                        *xf_decor[M0_XCODE_DECOR_MAX];
+	int                        (*xf_read)(const struct m0_xcode_cursor *it,
+					      struct m0_xcode_obj *obj,
+					      const char *str);
+
 };
 
 /**
@@ -350,7 +358,8 @@ struct m0_xcode_type_ops {
 	 *
 	 * @see string_literal().
 	 */
-	int (*xto_read)(struct m0_xcode_obj *obj, const char *str);
+	int (*xto_read)(const struct m0_xcode_cursor *it,
+			struct m0_xcode_obj *obj, const char *str);
 };
 
 enum { M0_XCODE_DEPTH_MAX = 10 };
@@ -487,6 +496,10 @@ M0_INTERNAL void m0_xcode_skip(struct m0_xcode_cursor *it);
 M0_INTERNAL struct m0_xcode_cursor_frame *
 m0_xcode_cursor_top(struct m0_xcode_cursor *it);
 
+/** Returns the field currently being processed. */
+M0_INTERNAL const struct m0_xcode_field *
+m0_xcode_cursor_field(const struct m0_xcode_cursor *it);
+
 /** @} iteration. */
 
 /**
@@ -615,13 +628,11 @@ M0_INTERNAL int m0_xcode_encdec(struct m0_xcode_obj *obj,
 
 /** Allocates buffer and places there encoded object. */
 M0_INTERNAL int m0_xcode_obj_enc_to_buf(struct m0_xcode_obj *obj,
-					void **buf,
-					m0_bcount_t *len);
+					void **buf, m0_bcount_t *len);
 
 /** Takes buffer with encoded object and builds original object. */
 M0_INTERNAL int m0_xcode_obj_dec_from_buf(struct m0_xcode_obj *obj,
-					  void **buf,
-					  m0_bcount_t *len);
+					  void *buf, m0_bcount_t len);
 
 /** Initializes xcode context and returns the length of xcode object. */
 M0_INTERNAL int m0_xcode_data_size(struct m0_xcode_ctx *ctx,
@@ -665,15 +676,18 @@ m0_xcode_alloc_obj(struct m0_xcode_cursor *it,
  *     ATOM        ::= EMPTY | NUMBER
  *     TAG         ::= ATOM
  *     COUNT       ::= ATOM
- *     CUSTOM      ::= '^' CHAR*
+ *     CUSTOM      ::= '^' CHAR* | '@' CHAR*
  *
  * Where CHAR is any non-NUL character, NUMBER is anything recognizable by
  * sscanf(3) as a number and EMPTY is the empty string. White-spaces (\n, \t,
  * \v, \r, space and comments) between tokens are ignored. Comments start with a
  * hash symbol and run to the end of line.
  *
- * Custom representations start with a caret (^) and are recognised by
+ * Custom type representations start with a caret (^) and are recognised by
  * m0_xcode_type_ops::xto_read() call-backs.
+ *
+ * Custom field representations start with with '@' and are recognised by a
+ * call-back stored in m0_xcode_field::xf_read()
  *
  * Examples:
  * @verbatim
