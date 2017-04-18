@@ -24,14 +24,14 @@ source $service_funcs
 m0_log 'Stopping mero services..'
 systemctl stop mero-kernel || m0_exit 'Failed to stop mero services'
 
-data_dir=${MERO_M0D_DATA_DIR:$MERO_M0D_DEFAULT_DATA_DIR}
+data_dir=${MERO_M0D_DATA_DIR:-$MERO_M0D_DEFAULT_DATA_DIR}
 
 if [[ -d $data_dir ]] ; then
     m0_log "Cleaning up $data_dir"
     if ls -ld $data_dir/{confd,m0d-*} &>/dev/null ; then
         ls -ld $data_dir/{confd,m0d-*} 2>/dev/null
     fi
-    rm -rf $data_dir/{confd,m0d-*}
+    rm -rf -v $data_dir/{confd,m0d-*}
 fi
 
 if [[ -d $MERO_LOG_DIR ]] ; then
