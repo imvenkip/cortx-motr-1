@@ -1216,6 +1216,9 @@ static int pools_common__update_by_conf(struct m0_pools_common *pc)
 	struct m0_reqh            *reqh = m0_confc2reqh(pc->pc_confc);
 	int                        rc;
 
+	M0_ENTRY("pc=%p", pc);
+	if (pc->pc_md_pool_linst != NULL)
+		pools_common__md_pool_cleanup(pc);
 	rc = m0_conf_fs_get(&reqh->rh_profile, pc->pc_confc, &fs) ?:
 		pools_common_refresh_locked(pc, fs) ?:
 		pools_common__dev2ios_build(pc, fs) ?:
