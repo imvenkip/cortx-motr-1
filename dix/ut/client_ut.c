@@ -1401,17 +1401,19 @@ static int dix_ut_next(const struct m0_dix    *index,
 
 static void dix_index_create_and_fill(const struct m0_dix    *index,
 				      const struct m0_bufvec *keys,
-				      struct m0_bufvec       *vals)
+				      struct m0_bufvec       *vals,
+				      uint32_t                flags)
 {
+	uint32_t           count = keys->ov_vec.v_nr;
 	struct dix_rep_arr rep;
 	int                rc;
 
-	rc = dix_common_idx_op(index, 1, REQ_CREATE);
+	rc = dix_common_idx_flagged_op(index, 1, REQ_CREATE, flags);
 	M0_UT_ASSERT(rc == 0);
-	rc = dix_ut_put(index, keys, vals, 0, &rep);
+	rc = dix_ut_put(index, keys, vals, flags, &rep);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(rep.dra_nr == COUNT);
-	M0_UT_ASSERT(m0_forall(i, COUNT, rep.dra_rep[i].dre_rc == 0));
+	M0_UT_ASSERT(rep.dra_nr == count);
+	M0_UT_ASSERT(m0_forall(i, count, rep.dra_rep[i].dre_rc == 0));
 	dix_rep_free(&rep);
 }
 
@@ -1877,7 +1879,7 @@ static void dix_get(void)
 	ut_service_init();
 	dix_index_init(&index, 1);
 	dix_kv_alloc_and_fill(&keys, &vals, COUNT);
-	dix_index_create_and_fill(&index, &keys, &vals);
+	dix_index_create_and_fill(&index, &keys, &vals, 0);
 	/* Get values by existing keys. */
 	rc = m0_bufvec_alloc(&ret_vals, COUNT, sizeof (uint64_t));
 	M0_UT_ASSERT(rc == 0);
@@ -2065,7 +2067,7 @@ static void dix_get_resend(void)
 	ut_service_init();
 	dix_index_init(&index, 1);
 	dix_kv_alloc_and_fill(&keys, &vals, COUNT);
-	dix_index_create_and_fill(&index, &keys, &vals);
+	dix_index_create_and_fill(&index, &keys, &vals, 0);
 
 	/*
 	 * Imitate one failure during GET operation, the record should be
@@ -2107,7 +2109,7 @@ static void dix_next(void)
 	ut_service_init();
 	dix_index_init(&index, 1);
 	dix_kv_alloc_and_fill(&keys, &vals, COUNT);
-	dix_index_create_and_fill(&index, &keys, &vals);
+	dix_index_create_and_fill(&index, &keys, &vals, 0);
 	/* Get values by operation NEXT for existing keys. */
 	rc = m0_bufvec_alloc(&next_keys, COUNT/2, sizeof (uint64_t));
 	M0_UT_ASSERT(rc == 0);
@@ -2129,7 +2131,7 @@ static void dix_next(void)
 	ut_service_init();
 	dix_index_init(&index, 1);
 	dix_kv_alloc_and_fill(&keys, &vals, COUNT);
-	dix_index_create_and_fill(&index, &keys, &vals);
+	dix_index_create_and_fill(&index, &keys, &vals, 0);
 	/* Get values by operation NEXT for existing keys. */
 	rc = m0_bufvec_alloc(&next_keys, COUNT/2, sizeof (uint64_t));
 	M0_UT_ASSERT(rc == 0);
@@ -2149,6 +2151,59 @@ static void dix_next(void)
 	ut_service_fini();
 }
 
+static void dix_next_crow(void)
+{
+	struct m0_dix      index;
+	struct m0_bufvec   keys;
+	struct m0_bufvec   next_keys;
+	struct m0_bufvec   vals;
+	struct dix_rep_arr rep;
+	uint32_t           recs_nr[1];
+	int                rc;
+
+	ut_service_init();
+	dix_index_init(&index, 1);
+	dix_kv_alloc_and_fill(&keys, &vals, 1);
+
+	/* Create index with CROW flag. */
+	rc = dix_common_idx_flagged_op(&index, 1, REQ_CREATE, COF_CROW);
+	M0_UT_ASSERT(rc == 0);
+
+	/* Get values by operation NEXT from empty index. */
+	rc = m0_bufvec_alloc(&next_keys, 1, sizeof (uint64_t));
+	M0_UT_ASSERT(rc == 0);
+	*(uint64_t *)next_keys.ov_buf[0] = dix_key(0);
+	recs_nr[0] = 3;
+	rc = dix_ut_next(&index, &next_keys, recs_nr, 0, &rep);
+	M0_UT_ASSERT(rc == -ENOENT);
+	dix_rep_free(&rep);
+
+	/* Put one key with CROW flag. */
+	rc = dix_ut_put(&index, &keys, &vals, COF_CROW, &rep);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(rep.dra_nr == 1);
+	M0_UT_ASSERT(rep.dra_rep[0].dre_rc == 0);
+	dix_rep_free(&rep);
+
+	/* Get one record by operation NEXT for existing key. */
+	recs_nr[0] = 1;
+	rc = dix_ut_next(&index, &next_keys, recs_nr, 0, &rep);
+	M0_UT_ASSERT(rc == 0);
+	dix_vals_check(&rep, 1);
+	dix_rep_free(&rep);
+
+	/* Get three records by operation NEXT for existing key. */
+	recs_nr[0] = 3;
+	rc = dix_ut_next(&index, &next_keys, recs_nr, 0, &rep);
+	M0_UT_ASSERT(rc == 0);
+	dix_vals_check(&rep, 1);
+	dix_rep_free(&rep);
+
+	dix_kv_destroy(&keys, &vals);
+	dix_index_fini(&index);
+	ut_service_fini();
+}
+
 static void dix_next_dgmode(void)
 {
 	struct m0_dix      index;
@@ -2162,7 +2217,7 @@ static void dix_next_dgmode(void)
 	ut_service_init();
 	dix_index_init(&index, 1);
 	dix_kv_alloc_and_fill(&keys, &vals, COUNT);
-	dix_index_create_and_fill(&index, &keys, &vals);
+	dix_index_create_and_fill(&index, &keys, &vals, 0);
 	rc = m0_bufvec_alloc(&start_key, 1, sizeof (uint64_t));
 	M0_UT_ASSERT(rc == 0);
 	*(uint64_t *)start_key.ov_buf[0] = dix_key(0);
@@ -3102,6 +3157,7 @@ struct m0_ut_suite dix_client_ut = {
 		{ "get-resend",             dix_get_resend,          "Egor"   },
 		{ "get-dgmode",             dix_get_dgmode,          "Egor"   },
 		{ "next",                   dix_next,                "Leonid" },
+		{ "next-crow",              dix_next_crow,           "Sergey" },
 		{ "next-dgmode",            dix_next_dgmode,         "Egor"   },
 		{ "del",                    dix_del,                 "Leonid" },
 		{ "del-dgmode",             dix_del_dgmode,          "Egor"   },

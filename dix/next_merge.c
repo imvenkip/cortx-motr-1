@@ -82,9 +82,10 @@ static int sc_rep_get(struct m0_dix_next_sort_ctx  *ctx,
 		      struct m0_cas_next_reply    **rep)
 {
 	*rep = NULL;
-	if (ctx->sc_done || ctx->sc_pos >= ctx->sc_reps_nr)
+	if (ctx->sc_reps_nr != 0 &&
+	    (ctx->sc_done || ctx->sc_pos >= ctx->sc_reps_nr))
 		return PROCESSING_IS_DONE;
-	if (ctx->sc_stop)
+	if (ctx->sc_stop || ctx->sc_reps_nr == 0)
 		return NOENT;
 	*rep = &ctx->sc_reps[ctx->sc_pos];
 	if ((*rep)->cnp_rc == NOENT) {
@@ -102,6 +103,11 @@ static int sc_key_pos_set(struct m0_dix_next_sort_ctx *ctx,
 	uint32_t                  start_pos = 0;
 	uint32_t                  i;
 	struct m0_cas_next_reply *rep;
+
+	if (ctx->sc_reps_nr == 0) {
+		ctx->sc_stop = true;
+		return 0;
+	}
 
 	for (i = 0; i < key_idx && pos < ctx->sc_reps_nr; i++) {
 		rep = &ctx->sc_reps[pos];
