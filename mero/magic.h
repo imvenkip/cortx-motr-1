@@ -953,6 +953,7 @@ enum m0_magic_satchel {
 	M0_CLOVIS_SYNC_TGT_TL_MAGIC  = 0x3320816123512277,
 	/* clovis_sync_fop_wrapper::sfw_magic */
 	M0_CLOVIS_INSTANCE_PTI_MAGIC = 0x3321816123512277,
+	M0_CLOVIS_CR_MAGIC           = 0x3322816123512277,
 
 /* module/param */
 	/* m0_param_source::ps_magic (boozed billie) */

@@ -31,6 +31,7 @@
 #include "lib/types.h"
 #include "sm/sm.h"             /* struct m0_sm */
 #include "rpc/rpc_machine.h"   /* M0_RPC_DEF_MAX_RPC_MSG_SIZE */
+#include "fid/fid.h"
 
 /**
  * @defgroup clovis
@@ -527,6 +528,7 @@ enum m0_clovis_entity_opcode {
 	M0_CLOVIS_EO_CREATE,
 	M0_CLOVIS_EO_DELETE,
 	M0_CLOVIS_EO_SYNC,
+	M0_CLOVIS_EO_GETATTR,
 	M0_CLOVIS_EO_NR
 };
 
@@ -663,10 +665,13 @@ struct m0_clovis_entity {
  */
 struct m0_clovis_obj_attr {
 	/** Binary logarithm (bit-shift) of object IO buffer size. */
-	m0_bcount_t oa_bshift;
+	m0_bcount_t   oa_bshift;
 
 	/** Layout ID for an object. */
-	uint64_t    oa_layout_id;
+	uint64_t      oa_layout_id;
+
+	/** Pool version fid */
+	struct m0_fid oa_pver;
 };
 
 /**

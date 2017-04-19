@@ -405,7 +405,6 @@ void m0_clovis_obj_op(struct m0_clovis_obj       *obj,
 	struct m0_clovis_entity    *entity;
 	struct m0_locality         *locality;
 	struct m0_clovis           *instance;
-	struct m0_pool_version     *pv;
 
 	M0_ENTRY();
 
@@ -518,11 +517,10 @@ void m0_clovis_obj_op(struct m0_clovis_obj       *obj,
 	m0_fid_gob_make(&ioo->ioo_oo.oo_fid,
 			obj->ob_entity.en_id.u_hi, obj->ob_entity.en_id.u_lo);
 
-	/* Get current pool version for the object. */
-	rc = m0_clovis__pool_version_get(instance, &pv);
-	if (rc != 0)
-		goto fail;
-	ioo->ioo_pver = pv->pv_id;
+	M0_ASSERT(m0_pool_version_find(&instance->m0c_pools_common,
+				 &obj->ob_attr.oa_pver) != NULL);
+
+	ioo->ioo_pver = obj->ob_attr.oa_pver;
 
 	/*
 	 * TODO: Build layout instance: current implementation of Clovis

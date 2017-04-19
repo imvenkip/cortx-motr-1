@@ -37,14 +37,6 @@
 #include "lib/trace.h"
 #include "lib/finject.h"
 
-#ifdef CLOVIS_FOR_M0T1FS
-/**
- * Maximum length for an object's name.
- */
-enum {
-	OBJ_NAME_MAX_LEN = 64
-};
-#endif
 
 M0_INTERNAL struct m0_clovis*
 m0_clovis__oo_instance(struct m0_clovis_op_obj *oo)
@@ -52,6 +44,16 @@ m0_clovis__oo_instance(struct m0_clovis_op_obj *oo)
 	M0_PRE(oo != NULL);
 
 	return m0_clovis__entity_instance(oo->oo_oc.oc_op.op_entity);
+}
+
+M0_INTERNAL struct m0_clovis_obj*
+m0_clovis__obj_entity(struct m0_clovis_entity *entity)
+{
+	struct m0_clovis_obj *obj;
+
+	M0_PRE(entity != NULL);
+
+	return M0_AMB(obj, entity, ob_entity);
 }
 
 /**
@@ -124,6 +126,17 @@ static bool clovis_obj_op_obj_invariant(struct m0_clovis_op_obj *oo)
 M0_INTERNAL struct m0_locality *m0_clovis_locality_pick(struct m0_clovis *cinst)
 {
 	return  m0_locality_here();
+}
+
+M0_INTERNAL bool clovis__poolversion_is_valid(const struct m0_clovis_obj *obj)
+{
+	struct m0_clovis *cinst;
+
+	M0_PRE(obj != NULL);
+	cinst = m0_clovis__entity_instance(&obj->ob_entity);
+	return m0_conf_fid_is_valid(&obj->ob_attr.oa_pver) && (
+	       m0_pool_version_find(&cinst->m0c_pools_common,
+		                    &obj->ob_attr.oa_pver) != NULL);
 }
 
 /**
@@ -219,8 +232,6 @@ static void clovis_obj_namei_cb_fini(struct m0_clovis_op_common *oc)
 {
 	struct m0_clovis_op_obj *oo;
 	struct m0_clovis        *cinst;
-	uint32_t                 icr_nr;
-	int                      i;
 
 	M0_ENTRY();
 
@@ -229,34 +240,9 @@ static void clovis_obj_namei_cb_fini(struct m0_clovis_op_common *oc)
 
 	oo = bob_of(oc, struct m0_clovis_op_obj, oo_oc, &oo_bobtype);
 	M0_PRE(m0_clovis_op_obj_invariant(oo));
-	icr_nr = oo->oo_icr_nr;
 
 	cinst = m0_clovis__oo_instance(oo);
 	M0_ASSERT(cinst != NULL);
-
-	/* XXX: Can someone else access oo-> fields? do we need to lock? */
-	/* Release the mds fop. */
-	if (oo->oo_mds_fop != NULL) {
-		m0_fop_put_lock(oo->oo_mds_fop);
-		oo->oo_mds_fop = NULL;
-	}
-
-	/* Release the ios fops. */
-	if (oo->oo_ios_fop != NULL) {
-		for (i = 0; i < icr_nr; ++i) {
-			if (oo->oo_ios_fop[i] != NULL) {
-				m0_clovis_cob_ios_fop_fini(oo->oo_ios_fop[i]);
-				oo->oo_ios_fop[i] = NULL;
-			}
-		}
-		m0_free(oo->oo_ios_fop);
-		oo->oo_ios_fop = NULL;
-	}
-
-	if (oo->oo_ios_completed != NULL) {
-		m0_free(oo->oo_ios_completed);
-		oo->oo_ios_completed = NULL;
-	}
 
 	if (oo->oo_layout_instance != NULL) {
 		m0_layout_instance_fini(oo->oo_layout_instance);
@@ -346,32 +332,6 @@ out:
 	return M0_RC(rc);
 }
 
-#ifdef CLOVIS_FOR_M0T1FS
-/**
- * Generates a name for an object from its fid.
- *
- * @param name buffer where the name is stored.
- * @param name_len length of the name buffer.
- * @param fid fid of the object.
- * @return 0 if the name was correctly generated or -EINVAL otherwise.
- */
-static int clovis_obj_fid_make_name(char *name, size_t name_len,
-				    struct m0_fid *fid)
-{
-	int rc;
-
-	M0_PRE(name != NULL);
-	M0_PRE(name_len > 0);
-	M0_PRE(fid != NULL);
-
-	rc = snprintf(name, name_len, "%"PRIx64":%"PRIx64, FID_P(fid));
-	if (rc < 0 || rc >= name_len)
-		return M0_ERR(-EINVAL);
-
-	return M0_RC(0);
-}
-#endif
-
 /**
  * Initialises a m0_clovis_obj namespace operation. The operation is intended
  * to manage in the backend the object the provided entity is associated to.
@@ -385,7 +345,8 @@ static int clovis_obj_namei_op_init(struct m0_clovis_entity *entity,
 				    struct m0_clovis_op *op)
 {
 	int                         rc;
-	char                       *obj_name;
+	int                         nr_bytes;
+	char                       *obj_fid;
 	uint64_t                    obj_key;
 	uint64_t                    obj_container;
 	uint64_t                    lid;
@@ -459,14 +420,12 @@ static int clovis_obj_namei_op_init(struct m0_clovis_entity *entity,
 	oo->oo_pfid = cinst->m0c_root_fid;
 
 	/* Generate a valid oo_name. */
-	obj_name = m0_alloc(OBJ_NAME_MAX_LEN);
-	rc = clovis_obj_fid_make_name(obj_name, OBJ_NAME_MAX_LEN, &oo->oo_fid);
-	if (rc != 0)
+	obj_fid = m0_alloc(M0_FID_STR_LEN);
+	nr_bytes = m0_fid_print(obj_fid, M0_FID_STR_LEN, &oo->oo_fid);
+	if (nr_bytes <= 0)
 		goto error;
-	m0_buf_init(&oo->oo_name, obj_name, strlen(obj_name));
+	m0_buf_init(&oo->oo_name, obj_fid, strlen(obj_fid));
 #endif
-
-	M0_ASSERT(rc == 0);
 	return M0_RC(rc);
 error:
 	M0_ASSERT(rc != 0);
@@ -481,36 +440,32 @@ error:
  */
 static int clovis_obj_op_obj_init(struct m0_clovis_op_obj *oo)
 {
-	uint32_t                pool_width;
 	struct m0_clovis       *cinst;
 	struct m0_locality     *locality;
 	struct m0_pool_version *pv;
+	struct m0_clovis_obj   *obj;
 
 	M0_ENTRY();
 	M0_PRE(oo != NULL);
+	M0_IN(oo->oo_oc.oc_op.op_code, (M0_CLOVIS_EO_CREATE,
+					M0_CLOVIS_EO_DELETE));
 
 	cinst = m0_clovis__oo_instance(oo);
 	M0_ASSERT(cinst != NULL);
 
-	/* Get pool version */
-	if (m0_clovis__pool_version_get(cinst, &pv) != 0)
-		return M0_ERR(-ENOENT);
+	obj = m0_clovis__obj_entity(oo->oo_oc.oc_op.op_entity);
 
-	oo->oo_pver = pv->pv_id;
-	pool_width = pv->pv_attr.pa_P;
-	M0_ASSERT(pool_width > 0);
+	/** Validate the cached pool version. */
+	if (clovis__poolversion_is_valid(obj)) {
+		oo->oo_pver = obj->ob_attr.oa_pver;
+	} else {
+		/** Get the latest pool version. */
+		if (m0_clovis__pool_version_get(cinst, &pv) != 0)
+			return M0_ERR(-ENOENT);
 
-	/* Init and set FOP related members. */
-	oo->oo_mds_fop = NULL;
-
-	M0_ALLOC_ARR(oo->oo_ios_fop, pool_width);
-	if (oo->oo_ios_fop == NULL)
-		return M0_ERR(-ENOMEM);
-
-	M0_ALLOC_ARR(oo->oo_ios_completed, pool_width);
-	if (oo->oo_ios_completed == NULL) {
-		m0_free(oo->oo_ios_fop);
-		return M0_ERR(-ENOMEM);
+		oo->oo_pver = pv->pv_id;
+		/** Cache the valid pool version in object structure. */
+		obj->ob_attr.oa_pver = oo->oo_pver;
 	}
 
 	/** TODO: hash the fid to chose a locality */

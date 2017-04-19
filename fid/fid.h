@@ -59,6 +59,7 @@ M0_INTERNAL uint8_t m0_fid_tget(const struct m0_fid *fid);
 M0_INTERNAL void m0_fid_tchange(struct m0_fid *fid, uint8_t tid);
 
 M0_INTERNAL int m0_fid_sscanf(const char *s, struct m0_fid *fid);
+M0_INTERNAL int m0_fid_print(char *s, size_t s_len, const struct m0_fid *fid);
 
 M0_INTERNAL int m0_fid_init(void);
 M0_INTERNAL void m0_fid_fini(void);

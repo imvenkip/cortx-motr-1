@@ -126,7 +126,7 @@ static void example_abitmorecomplicated(void)
 			rc = clovis_st_op_wait(ops[j],
 					       M0_BITS(M0_CLOVIS_OS_FAILED,
 						       M0_CLOVIS_OS_STABLE),
-					       time_from_now(10,0));
+					               M0_TIME_NEVER);
 			CLOVIS_ST_ASSERT_FATAL(rc == 0);
 			CLOVIS_ST_ASSERT_FATAL(
 			    ops[j]->op_sm.sm_state == M0_CLOVIS_OS_STABLE

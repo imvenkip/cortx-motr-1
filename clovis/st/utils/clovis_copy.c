@@ -27,6 +27,8 @@
 #include <sys/time.h>
 #include <assert.h>
 
+#include "conf/obj.h"
+#include "fid/fid.h"
 #include "clovis/clovis.h"
 #include "clovis/clovis_idx.h"
 
@@ -278,7 +280,7 @@ static int copy()
 int main(int argc, char **argv)
 {
 	int rc;
-
+	struct m0_fid fid;
 	/* Get input parameters */
 	if (argc < 11) {
 		printf("Usage: c0cp laddr ha_addr confd_addr prof_opt proc_fid index_dir"
@@ -303,6 +305,8 @@ int main(int argc, char **argv)
 		return rc;
 	}
 
+	memset(&fid, 0, sizeof fid);
+	fprintf(stderr, "FID is"FID_F" is_Valid:%d", FID_P(&fid), m0_conf_fid_is_valid(&fid));
 	/* Read from the object */
 	copy();
 

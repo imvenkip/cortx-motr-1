@@ -291,21 +291,21 @@ static void ut_clovis_test_m0_clovis_op_obj_ast_rc_invariant(void)
 /**
  * Tests clovis_ios_cob_req_invariant().
  */
-static void ut_clovis_test_clovis_ios_cob_req_invariant(void)
+static void ut_clovis_test_clovis_cob_req_invariant(void)
 {
-	struct m0_clovis_ios_cob_req   *icr;
+	struct clovis_ios_cob_req      *icr;
 	bool                            rc;
 
 	/* Base cases. */
 	M0_ALLOC_PTR(icr);
-	m0_clovis_ios_cob_req_bob_init(icr);
+	clovis_ios_cob_req_bob_init(icr);
 	rc = clovis_ios_cob_req_invariant(icr);
 	M0_UT_ASSERT(rc == true);
 
 	rc = clovis_ios_cob_req_invariant(NULL);
 	M0_UT_ASSERT(rc == false);
 
-	m0_clovis_ios_cob_req_bob_fini(icr);
+	clovis_ios_cob_req_bob_fini(icr);
 	rc = clovis_ios_cob_req_invariant(icr);
 	M0_UT_ASSERT(rc == false);
 
@@ -376,16 +376,16 @@ ut_clovis_test_m0_clovis__obj_layout_instance_build(void)
 /**
  * Tests clovis_obj_fid_make_name().
  */
-static void ut_clovis_test_clovis_obj_fid_make_name(void)
+static void ut_clovis_test_m0_fid_print(void)
 {
 	struct m0_fid   fid;
-	char            name[32];
+	char            name[M0_FID_STR_LEN];
 	int             rc = 0; /* required */
 
 	/* base case */
 	m0_fid_set(&fid, 0xCAFE, 0xFEED);
-	rc = clovis_obj_fid_make_name(name, sizeof name, &fid);
-	M0_UT_ASSERT(rc == 0);
+	rc = m0_fid_print(name, sizeof name, &fid);
+	M0_UT_ASSERT(rc > 0);
 	M0_UT_ASSERT(!strcmp(name, "cafe:feed"));
 }
 
@@ -497,7 +497,6 @@ static void ut_clovis_test_clovis_obj_op_obj_invariant(void)
 static void ut_clovis_test_clovis_obj_op_obj_init(void)
 {
 	int                     rc = 0; /* required */
-	int                     i;
 	struct m0_clovis_op_obj oo;
 	struct m0_clovis_realm  realm;
 	struct m0_clovis_entity ent;
@@ -516,28 +515,8 @@ static void ut_clovis_test_clovis_obj_op_obj_init(void)
 	oo.oo_pver = instance->m0c_pools_common.pc_cur_pver->pv_id;
 	m0_clovis_op_common_bob_init(&oo.oo_oc);
 
-	/* M0_ALLOC_ARR fails */
-	m0_fi_enable_once("m0_alloc", "fail_allocation");
-	rc = clovis_obj_op_obj_init(&oo);
-	M0_UT_ASSERT(rc != 0);
-
-#if 0
-	m0_fi_enable_off_n_on_m("m0_alloc", "fail_allocation", 1, 1);
-	rc = clovis_obj_op_obj_init(&oo);
-	M0_UT_ASSERT(rc != 0);
-	m0_fi_disable("m0_alloc", "fail_allocation");
-#endif
-
 	rc = clovis_obj_op_obj_init(&oo);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(oo.oo_mds_fop == NULL);
-	for (i = 0; i < 13; ++i) {
-		M0_UT_ASSERT(oo.oo_ios_fop[i] == NULL);
-		M0_UT_ASSERT(oo.oo_ios_completed[i] == false);
-	}
-
-	m0_free(oo.oo_ios_completed);
-	m0_free(oo.oo_ios_fop);
 
 	m0_clovis_op_common_bob_fini(&oo.oo_oc);
 
@@ -662,8 +641,6 @@ static void ut_clovis_entity_namei_op(enum m0_clovis_entity_opcode opcode)
 	/* free memory */
 	oc = bob_of(op, struct m0_clovis_op_common, oc_op, &oc_bobtype);
 	oo = bob_of(oc, struct m0_clovis_op_obj, oo_oc, &oo_bobtype);
-	m0_free(oo->oo_ios_completed);
-	m0_free(oo->oo_ios_fop);
 	m0_free(oo->oo_name.b_addr);
 
 	/* fini */
@@ -888,13 +865,13 @@ static void ut_clovis_test_clovis_cob_fail_oo(void)
  */
 static void ut_clovis_test_rpc_item_to_ios_cob_req(void)
 {
-	struct m0_clovis_ios_cob_req    icr;
+	struct clovis_ios_cob_req       icr;
 	struct m0_fop                   fop;
-	struct m0_clovis_ios_cob_req   *ret = NULL; /* required */
+	struct clovis_ios_cob_req      *ret = NULL; /* required */
 
 	/* base case */
 	fop.f_opaque = &icr;
-	ret = rpc_item_to_ios_cob_req(&fop.f_item);
+	ret = rpc_item_to_cob_req(&fop.f_item);
 	M0_UT_ASSERT(ret == &icr);
 }
 
@@ -904,8 +881,9 @@ static void ut_clovis_test_rpc_item_to_ios_cob_req(void)
 static void ut_clovis_test_clovis_icr_ast_complete(void)
 {
 	struct m0_clovis             *instance = NULL;
+	struct clovis_cob_req        *cr;
 	struct m0_clovis_op_obj       oo;
-	struct m0_clovis_ios_cob_req  icr;
+	struct clovis_ios_cob_req     icr;
 	struct m0_sm_group           *en_grp;
 	struct m0_sm_group           *op_grp;
 	struct m0_sm_group            locality_grp;
@@ -917,12 +895,19 @@ static void ut_clovis_test_clovis_icr_ast_complete(void)
 	/* initialise clovis */
 	rc = ut_m0_clovis_init(&instance);
 	M0_UT_ASSERT(rc == 0);
+
+	cr = m0_alloc(sizeof *cr);
+	M0_ASSERT(cr != NULL);
+
 	M0_SET0(&ent);
 	M0_SET0(&oo);
+	M0_SET0(cr);
 	M0_SET0(&icr);
 	M0_SET0(&realm);
-	m0_clovis_ios_cob_req_bob_init(&icr);
+	clovis_ios_cob_req_bob_init(&icr);
 	m0_clovis_ast_rc_bob_init(&icr.icr_ar);
+	clovis_cob_req_bob_init(cr);
+	m0_clovis_ast_rc_bob_init(&cr->cr_ar);
 	m0_clovis_op_bob_init(&oo.oo_oc.oc_op);
 
 	ut_clovis_realm_entity_setup(&realm, &ent, instance);
@@ -936,14 +921,17 @@ static void ut_clovis_test_clovis_icr_ast_complete(void)
 	/* base case: one single ios cob request */
 	pool_width = 1;
 	instance->m0c_pools_common.pc_cur_pver->pv_attr.pa_P = pool_width;
-	icr.icr_oo = &oo;
+	cr->cr_cinst = instance;
+	cr->cr_oo = &oo;
+	icr.icr_cr = cr;
 	icr.icr_index = 0;
 	oo.oo_oc.oc_op.op_entity = &ent;
 	oo.oo_oc.oc_op.op_size = sizeof oo;
-	oo.oo_icr_type = M0_COB_IO;
-	oo.oo_icr_nr = 1;
-	M0_ALLOC_ARR(oo.oo_ios_completed, pool_width);
 
+	/* TODO ADd to cob ut*/
+	cr->cr_cob_type = M0_COB_IO;
+	cr->cr_icr_nr = 1;
+	M0_ALLOC_ARR(cr->cr_ios_completed, pool_width);
 	m0_sm_init(&oo.oo_oc.oc_op.op_sm, &clovis_op_conf,
 		   M0_CLOVIS_OS_INITIALISED, op_grp);
 	m0_sm_group_lock(en_grp);
@@ -964,13 +952,12 @@ static void ut_clovis_test_clovis_icr_ast_complete(void)
 
 	/* finalise */
 	m0_clovis_ast_rc_bob_fini(&icr.icr_ar);
-	m0_clovis_ios_cob_req_bob_fini(&icr);
+	clovis_ios_cob_req_bob_fini(&icr);
 	m0_clovis_op_bob_fini(&oo.oo_oc.oc_op);
 
 	m0_sm_group_lock(op_grp);
 	m0_sm_fini(&oo.oo_oc.oc_op.op_sm);
 	m0_sm_group_unlock(op_grp);
-	m0_free(oo.oo_ios_completed);
 
 	m0_sm_group_fini(&locality_grp);
 	m0_sm_group_fini(op_grp);
@@ -988,10 +975,11 @@ static void ut_clovis_test_clovis_icr_ast_fail(void)
 	struct m0_clovis_entity      ent;
 	struct m0_clovis_realm       realm;
 	struct m0_clovis_op_obj      oo;
-	struct m0_clovis_ios_cob_req icr;
+	struct clovis_ios_cob_req    icr;
 	struct m0_sm_group           oo_grp;
 	struct m0_sm_group          *op_grp;
 	struct m0_sm_group          *en_grp;
+	struct clovis_cob_req       *cr;
 
 	/* Init. */
 	M0_SET0(&oo);
@@ -999,6 +987,12 @@ static void ut_clovis_test_clovis_icr_ast_fail(void)
 	rc = ut_m0_clovis_init(&instance);
 	M0_UT_ASSERT(rc == 0);
 
+	cr = m0_alloc(sizeof *cr);
+	M0_ASSERT(cr != NULL);
+
+	clovis_cob_req_bob_init(cr);
+	m0_clovis_ast_rc_bob_init(&cr->cr_ar);
+	cr->cr_cinst = instance;
 	ut_clovis_realm_entity_setup(&realm, &ent, instance);
 	op_grp = &oo.oo_oc.oc_op.op_sm_group;
 	en_grp = &ent.en_sm_group;
@@ -1020,12 +1014,14 @@ static void ut_clovis_test_clovis_icr_ast_fail(void)
 	m0_sm_move(&oo.oo_oc.oc_op.op_sm, 0, M0_CLOVIS_OS_LAUNCHED);
 	m0_sm_group_unlock(op_grp);
 
-	m0_clovis_ios_cob_req_bob_init(&icr);
+	clovis_ios_cob_req_bob_init(&icr);
 	m0_clovis_ast_rc_bob_init(&icr.icr_ar);
 	m0_clovis_op_bob_init(&oo.oo_oc.oc_op);
 
 	/* Base case. */
-	icr.icr_oo = &oo;
+	cr->cr_oo = &oo;
+	cr->cr_icr_nr = 0;
+	icr.icr_cr = cr;
 	icr.icr_ar.ar_rc = 111;
 
 	m0_sm_group_lock(&oo_grp);
@@ -1035,7 +1031,7 @@ static void ut_clovis_test_clovis_icr_ast_fail(void)
 
 	/* finalise clovis */
 	m0_clovis_ast_rc_bob_fini(&icr.icr_ar);
-	m0_clovis_ios_cob_req_bob_fini(&icr);
+	clovis_ios_cob_req_bob_fini(&icr);
 	m0_clovis_op_bob_fini(&oo.oo_oc.oc_op);
 
 	m0_sm_group_fini(&oo_grp);
@@ -1102,11 +1098,11 @@ static void ut_clovis_test_clovis_cob_ios_fop_populate(void)
 	m0_sm_group_lock(&oo_grp);
 	m0_rwlock_init(&mach->pm_lock);
 	oo->oo_oc.oc_op.op_code = M0_CLOVIS_EO_CREATE;
-
-	rc = clovis_cob_ios_fop_populate(oo, &fop, &cob_fid, 777);
-	m0_rwlock_fini(&mach->pm_lock);
 	m0_sm_group_unlock(&oo_grp);
-	M0_UT_ASSERT(rc == 0);
+
+	/*rc = clovis_cob_ios_fop_populate(oo, &fop, &cob_fid, 777);
+	m0_rwlock_fini(&mach->pm_lock);
+	M0_UT_ASSERT(rc == 0);*/
 
 	/* fini */
 	m0_sm_group_fini(&oo_grp);
@@ -1161,25 +1157,22 @@ static void ut_clovis_test_clovis_cob_ios_send(void)
 }
 
 /**
- * Tests clovis_obj_rpc_item_to_oo().
+ * Tests clovis_obj_rpc_item_to_cr().
  */
-static void ut_clovis_test_rpc_item_to_oo(void)
+static void ut_clovis_test_rpc_item_to_cr(void)
 {
-	struct m0_fop            fop;
-	struct m0_clovis_op_obj *oo_p = NULL; /* required */
-	struct m0_clovis_op_obj  op_obj;
+	struct m0_fop           fop;
+	struct clovis_cob_req  *cr = NULL;  /* required */
+	struct clovis_cob_req   cob_req;
 
 	/* base case */
-	m0_clovis_op_obj_bob_init(&op_obj);
-	m0_clovis_ast_rc_bob_init(&op_obj.oo_ar);
-	m0_clovis_op_common_bob_init(&op_obj.oo_oc);
-	op_obj.oo_oc.oc_op.op_size = sizeof op_obj;
-	fop.f_opaque = &op_obj;
-	oo_p = rpc_item_to_oo(&fop.f_item);
-	M0_UT_ASSERT(oo_p == &op_obj);
-	m0_clovis_op_common_bob_fini(&op_obj.oo_oc);
-	m0_clovis_ast_rc_bob_fini(&op_obj.oo_ar);
-	m0_clovis_op_obj_bob_fini(&op_obj);
+	clovis_cob_req_bob_init(&cob_req);
+	m0_clovis_ast_rc_bob_init(&cob_req.cr_ar);
+	fop.f_opaque = &cob_req;
+	cr = rpc_item_to_cr(&fop.f_item);
+	M0_UT_ASSERT(cr == &cob_req);
+	m0_clovis_ast_rc_bob_fini(&cob_req.cr_ar);
+	clovis_cob_req_bob_fini(&cob_req);
 }
 
 static void ut_clovis_test_clovis_cob_ast_fail_oo(void)
@@ -1219,33 +1212,40 @@ static void ut_clovis_test_clovis_cob_name_mem2wire(void)
  */
 static void ut_clovis_test_clovis_cob_body_mem2wire(void)
 {
+	int                     rc;
 	struct m0_cob_attr      attr;
 	struct m0_fop_cob       body;
-	struct m0_clovis_op_obj oo;
+	struct clovis_cob_req   cr;
+	struct m0_clovis       *instance = NULL;
+
+	/* initialise clovis */
+	rc = ut_m0_clovis_init(&instance);
+	M0_UT_ASSERT(rc == 0);
 
 	/* init */
 	M0_SET0(&body);
-	M0_SET0(&oo);
+	M0_SET0(&cr);
 	attr.ca_nlink = 1;
 	attr.ca_valid = M0_COB_NLINK;
 
 	/* base case */
-	m0_fid_set(&oo.oo_fid, 0x66, 0x77);
+	m0_fid_set(&cr.cr_fid, 0x66, 0x77);
 #ifdef CLOVIS_FOR_M0T1FS
-	m0_fid_set(&oo.oo_pfid, 0x88, 0x99);
+	cr.cr_cinst = instance;
 #endif
 
 	clovis_cob_body_mem2wire(&body, &attr,
-				 attr.ca_valid, &oo);
+				 attr.ca_valid, &cr);
 
 	M0_UT_ASSERT(body.b_nlink == 1);
 	M0_UT_ASSERT(body.b_valid & M0_COB_NLINK);
 	M0_UT_ASSERT(body.b_tfid.f_container == 0x66);
 	M0_UT_ASSERT(body.b_tfid.f_key == 0x77);
 #ifdef CLOVIS_FOR_M0T1FS
-	M0_UT_ASSERT(body.b_pfid.f_container == 0x88);
-	M0_UT_ASSERT(body.b_pfid.f_key == 0x99);
+	M0_UT_ASSERT(body.b_pfid.f_container == instance->m0c_root_fid.f_container);
+	M0_UT_ASSERT(body.b_pfid.f_key == instance->m0c_root_fid.f_key);
 #endif
+	ut_m0_clovis_fini(&instance);
 }
 
 /**
@@ -1253,29 +1253,44 @@ static void ut_clovis_test_clovis_cob_body_mem2wire(void)
  */
 static void ut_clovis_test_clovis_cob_mds_fop_populate(void)
 {
-	struct m0_fop            fop;
-	struct m0_clovis_op_obj *oo;
-	struct m0_fop_create     create;
-	struct m0_fop_type       ft;
-	int                      rc = 0; /* required */
-	char                    *str = "HavantFTW";
-	struct m0_fid            fid = { .f_container = 66,
+	struct m0_clovis_op_obj   *oo;
+	struct m0_fop              fop;
+	struct clovis_cob_req     *cr;
+	struct m0_fop_create       create;
+	struct m0_fop_type         ft;
+	int                        rc = 0; /* required */
+	char                      *str = "HavantFTW";
+	struct m0_fid              fid = { .f_container = 66,
 				 	.f_key = 77 };
+	struct m0_clovis          *instance;
+
+	/* initialise clovis */
+	rc = ut_m0_clovis_init(&instance);
+	M0_UT_ASSERT(rc == 0);
+
+	M0_ALLOC_PTR(cr);
+	M0_UT_ASSERT(cr != NULL);
+
 	M0_ALLOC_PTR(oo);
 	M0_UT_ASSERT(oo != NULL);
 
-	/* base case */
 	oo->oo_fid = fid;
 	oo->oo_oc.oc_op.op_code = M0_CLOVIS_EO_CREATE;
+	/* base case */
 #ifdef CLOVIS_FOR_M0T1FS
 	m0_buf_init(&oo->oo_name, str, strlen(str));
 #endif
+	cr->cr_oo    = oo;
+	cr->cr_fid   = fid;
+	cr->cr_cinst = instance;
 	fop.f_data.fd_data = &create;
 	ft.ft_rpc_item_type.rit_opcode = M0_MDSERVICE_CREATE_OPCODE;
 	fop.f_type = &ft;
-	rc = clovis_cob_mds_fop_populate(oo, &fop);
+	cr->cr_opcode = M0_CLOVIS_EO_CREATE;
+	rc = clovis_cob_mds_fop_populate(cr, &fop);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(!m0_fid_cmp(&create.c_body.b_tfid, &oo->oo_fid));
+	ut_m0_clovis_fini(&instance);
 }
 
 /**
@@ -1379,7 +1394,6 @@ static void ut_clovis_test_clovis_obj_namei_cb_fini(void)
 	m0_clovis_op_common_bob_init(&oo.oo_oc);
 	oo.oo_oc.oc_op.op_entity = &ent;
 	oo.oo_oc.oc_op.op_size = sizeof oo;
-	oo.oo_icr_nr = 1;
 
 	/* base case: most fields are NULL */
 	clovis_obj_namei_cb_fini(&oo.oo_oc);
@@ -1426,8 +1440,8 @@ const struct m0_ut_suite ut_suite_clovis_obj = {
 			&ut_clovis_test_m0_clovis_op_obj_ast_rc_invariant},
 		{ "clovis_op_common_invariant",
 			ut_clovis_test_clovis_op_common_invariant},
-		{ "clovis_ios_cob_req_invariant",
-			&ut_clovis_test_clovis_ios_cob_req_invariant},
+		{ "clovis_cob_req_invariant",
+			&ut_clovis_test_clovis_cob_req_invariant},
 		{ "clovis_entity_namei_op(create)",
 			&ut_clovis_test_clovis_entity_namei_op_create},
 		{ "clovis_entity_namei_op(delete)",
@@ -1438,8 +1452,8 @@ const struct m0_ut_suite ut_suite_clovis_obj = {
 			&ut_clovis_test_m0_clovis_entity_delete},
 		{ "m0_clovis__obj_layout_instance_build",
 			&ut_clovis_test_m0_clovis__obj_layout_instance_build},
-		{ "clovis_obj_fid_make_name",
-				&ut_clovis_test_clovis_obj_fid_make_name},
+		{ "m0_fid_print",
+				&ut_clovis_test_m0_fid_print},
 		{ "clovis_obj_namei_op_init",
 				&ut_clovis_test_clovis_obj_namei_op_init},
 		{ "clovis_obj_op_obj_invariant",
@@ -1476,8 +1490,8 @@ const struct m0_ut_suite ut_suite_clovis_obj = {
 			&ut_clovis_test_m0_clovis_cob_ios_fop_fini},
 		{ "clovis_cob_ios_send",
 			&ut_clovis_test_clovis_cob_ios_send},
-		{ "rpc_item_to_oo",
-			&ut_clovis_test_rpc_item_to_oo},
+		{ "rpc_item_to_cr",
+			&ut_clovis_test_rpc_item_to_cr},
 		{ "clovis_cob_ast_fail_oo",
 			&ut_clovis_test_clovis_cob_ast_fail_oo},
 		{ "clovis_cob_rio_mds_replied",

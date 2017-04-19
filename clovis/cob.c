@@ -39,6 +39,41 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CLOVIS
 #include "lib/trace.h"
 
+#define CLOVIS_OSYNC
+
+struct clovis_ios_cob_req {
+	struct clovis_cob_req    *icr_cr;
+	struct m0_clovis_ast_rc   icr_ar;
+	uint32_t                  icr_index;
+	uint64_t                  icr_magic;
+};
+
+enum clovis_cob_request_flags {
+	CLOVIS_COB_REQ_ASYNC = (1 << 1),
+	CLOVIS_COB_REQ_SYNC  = (1 << 2),
+};
+
+/**
+ * Clovis cob request
+ */
+struct clovis_cob_req {
+	struct m0_clovis_op_obj  *cr_oo;
+	struct m0_clovis         *cr_cinst;
+	uint32_t                  cr_opcode;
+	struct m0_fid             cr_fid;
+	struct m0_buf             cr_name;
+	struct m0_fop            *cr_mds_fop;
+	struct m0_fop            *cr_rep_fop;
+	struct m0_clovis_ast_rc   cr_ar;
+	uint32_t                  cr_cob_type;
+	uint32_t                  cr_flags;
+	struct m0_fid             cr_pver;
+	uint32_t                  cr_icr_nr;
+	struct m0_fop           **cr_ios_fop;
+	bool                     *cr_ios_completed;
+	uint64_t                  cr_magic;
+};
+
 /**
  * Cob create/delete fop send deadline (in ns).
  * Used to utilize RPC formation when too many fops
@@ -46,25 +81,34 @@
  */
 enum {IOS_COB_REQ_DEADLINE = 2000000};
 
+const struct m0_bob_type cr_bobtype;
+M0_BOB_DEFINE(M0_INTERNAL, &cr_bobtype, clovis_cob_req);
+const struct m0_bob_type cr_bobtype = {
+	.bt_name         = "clovis_cr_bobtype",
+	.bt_magix_offset = offsetof(struct clovis_cob_req, cr_magic),
+	.bt_magix        = M0_CLOVIS_CR_MAGIC,
+	.bt_check        = NULL,
+};
+
 static const struct m0_bob_type icr_bobtype;
-M0_BOB_DEFINE(static, &icr_bobtype, m0_clovis_ios_cob_req);
+M0_BOB_DEFINE(static, &icr_bobtype, clovis_ios_cob_req);
 static const struct m0_bob_type icr_bobtype = {
 	.bt_name         = "icr_bobtype",
-	.bt_magix_offset = offsetof(struct m0_clovis_ios_cob_req, icr_magic),
+	.bt_magix_offset = offsetof(struct clovis_ios_cob_req, icr_magic),
 	.bt_magix        = M0_CLOVIS_ICR_MAGIC,
 	.bt_check        = NULL,
 };
 
-static int clovis_cob_ios_send(struct m0_clovis_op_obj *oo, uint32_t i);
+static int clovis_cob_ios_send(struct clovis_cob_req *cob_req, uint32_t idx);
 static void clovis_cob_ast_ios_io_send(struct m0_sm_group *grp,
-					struct m0_sm_ast *ast);
-static void clovis_cob_body_mem2wire(struct m0_fop_cob  *body,
-				     struct m0_cob_attr *attr,
-				     int                 valid,
-				     struct m0_clovis_op_obj *oo);
-static void clovis_cob_attr_init(struct m0_clovis_op_obj *oo,
-				     struct m0_cob_attr  *attr,
-				     int                 *valid);
+					struct m0_sm_ast  *ast);
+static void clovis_cob_body_mem2wire(struct m0_fop_cob     *body,
+				     struct m0_cob_attr    *attr,
+				     int                    valid,
+				     struct clovis_cob_req *cr);
+static void clovis_cob_attr_init(uint32_t             op_code,
+				 struct m0_cob_attr  *attr,
+				 int                 *valid);
 /**
  * Checks an IOS COB request is not malformed or corrupted.
  *
@@ -72,10 +116,10 @@ static void clovis_cob_attr_init(struct m0_clovis_op_obj *oo,
  * @return true if the operation is not malformed or false if some error
  * was detected.
  */
-static bool clovis_ios_cob_req_invariant(struct m0_clovis_ios_cob_req *icr)
+static bool clovis_ios_cob_req_invariant(struct clovis_ios_cob_req *icr)
 {
 	return M0_RC(icr != NULL &&
-		     m0_clovis_ios_cob_req_bob_check(icr));
+		     clovis_ios_cob_req_bob_check(icr));
 }
 
 /**
@@ -109,31 +153,31 @@ static int clovis_cob_name_mem2wire(struct m0_fop_str *tgt,
  * @param body cob fop to be filled.
  * @param oo obj operation the information is retrieved from.
  */
-static void clovis_cob_body_mem2wire(struct m0_fop_cob   *body,
-				 struct m0_cob_attr      *attr,
-				 int                      valid,
-				 struct m0_clovis_op_obj *oo)
+static void clovis_cob_body_mem2wire(struct m0_fop_cob *body,
+				 struct m0_cob_attr    *attr,
+				 int                    valid,
+				 struct clovis_cob_req *cr)
 {
 	M0_PRE(body != NULL);
-	M0_PRE(oo != NULL);
+	M0_PRE(cr != NULL);
 
-	body->b_tfid = oo->oo_fid;
+	body->b_tfid = cr->cr_fid;
 #ifdef CLOVIS_FOR_M0T1FS
-	body->b_pfid = oo->oo_pfid;
+	body->b_pfid = cr->cr_cinst->m0c_root_fid;
 #endif
 
 	if (valid & M0_COB_PVER)
-		body->b_pver = oo->oo_pver;
+		body->b_pver = cr->cr_pver;
 	if (valid & M0_COB_NLINK)
 		body->b_nlink = attr->ca_nlink;
 	body->b_valid |= valid;
 }
 
-static void clovis_cob_attr_init(struct m0_clovis_op_obj *oo,
-			         struct m0_cob_attr      *attr,
-				 int                     *valid)
+static void clovis_cob_attr_init(uint32_t            op_code,
+			         struct m0_cob_attr *attr,
+				 int                *valid)
 {
-	switch (oo->oo_oc.oc_op.op_code) {
+	switch (op_code) {
 		case M0_CLOVIS_EO_CREATE:
 			/* mds requires nlink > 0 */
 			attr->ca_nlink = 1;
@@ -143,9 +187,84 @@ static void clovis_cob_attr_init(struct m0_clovis_op_obj *oo,
 			attr->ca_nlink = 0;
 			*valid = M0_COB_NLINK;
 			break;
+		case M0_CLOVIS_EO_GETATTR:
+			memset(attr, 0, sizeof *attr);
+			*valid = 0;
+			break;
 		default:
 			M0_IMPOSSIBLE("Operation not supported");
 	}
+}
+
+/**
+ * Allocates and initializes object of clovis_cob_req structures.
+ *
+ * @param cinst clovis instance.
+ * @returns instance of clovis_cob_req if operation succeeds, NULL otherwise.
+ */
+static struct clovis_cob_req *clovis_cob_req_alloc(struct m0_pool_version *pv)
+{
+	struct clovis_cob_req *cr;
+	uint32_t               pool_width;
+
+	cr = m0_alloc(sizeof *cr);
+	if (cr == NULL)
+		return NULL;
+
+	clovis_cob_req_bob_init(cr);
+	m0_clovis_ast_rc_bob_init(&cr->cr_ar);
+
+	/* Initialises and sets FOP related members. */
+	cr->cr_pver = pv->pv_id;
+	pool_width  = pv->pv_attr.pa_P;
+	M0_ALLOC_ARR(cr->cr_ios_fop, pool_width);
+	M0_ALLOC_ARR(cr->cr_ios_completed, pool_width);
+	if (cr->cr_ios_fop == NULL || cr->cr_ios_completed == NULL) {
+		m0_free(cr->cr_ios_fop);
+		m0_free(cr->cr_ios_completed);
+		m0_free(cr);
+		return NULL;
+	}
+	return cr;
+}
+
+/**
+ * Frees clovis_cob_req object
+ */
+static void clovis_cob_req_free(struct clovis_cob_req *cr)
+{
+	int i;
+
+	M0_ASSERT(cr != NULL);
+	M0_ASSERT(cr->cr_cinst != NULL);
+
+	m0_clovis_ast_rc_bob_fini(&cr->cr_ar);
+	clovis_cob_req_bob_fini(cr);
+
+	/* XXX: Can someone else access cr-> fields? do we need to lock? */
+	/* Release the mds fop. */
+	if (cr->cr_mds_fop != NULL) {
+		m0_fop_put_lock(cr->cr_mds_fop);
+		cr->cr_mds_fop = NULL;
+	}
+
+	/* Release the ios fops. */
+	if (cr->cr_ios_fop != NULL) {
+		for (i = 0; i < cr->cr_icr_nr; ++i) {
+			if (cr->cr_ios_fop[i] != NULL) {
+				m0_clovis_cob_ios_fop_fini(cr->cr_ios_fop[i]);
+				cr->cr_ios_fop[i] = NULL;
+			}
+		}
+		m0_free0(&cr->cr_ios_fop);
+		cr->cr_ios_fop = NULL;
+	}
+
+	if (cr->cr_ios_completed != NULL) {
+		m0_free0(&cr->cr_ios_completed);
+		cr->cr_ios_completed = NULL;
+	}
+	m0_free(cr);
 }
 
 /**
@@ -197,17 +316,15 @@ static void clovis_cob_complete_oo(struct m0_clovis_op_obj *oo)
  */
 static void clovis_cob_fail_oo(struct m0_clovis_op_obj *oo, int rc)
 {
-	int                  i;
-	uint32_t             icr_nr;
 	struct m0_clovis_op *op;
 	struct m0_sm_group  *op_grp;
 	struct m0_sm_group  *en_grp;
 
 	M0_ENTRY();
 
-	M0_PRE(oo != NULL);
 	M0_PRE(rc != 0);
 	M0_PRE(m0_sm_group_is_locked(oo->oo_sm_grp));
+
 	op = &oo->oo_oc.oc_op;
 	op_grp = &op->op_sm_group;
 	en_grp = &op->op_entity->en_sm_group;
@@ -215,14 +332,6 @@ static void clovis_cob_fail_oo(struct m0_clovis_op_obj *oo, int rc)
 	/* Avoid cancelling rpc items and setting op's state multiple times. */
 	if (op->op_sm.sm_rc != 0)
 		goto out;
-
-	/* Cancel any pending fop for this op. */
-	icr_nr = oo->oo_icr_nr;
-	for (i = 0; i < icr_nr; ++i) {
-		if (!oo->oo_ios_completed[i] && oo->oo_ios_fop[i] != NULL) {
-			m0_rpc_item_cancel(&oo->oo_ios_fop[i]->f_item);
-		}
-	}
 
 	/*
 	 * Move the state machines: op and entity.
@@ -255,26 +364,26 @@ out:
  *-----------------------------------------------------------------------------*/
 
 /**
- * Retrieves the m0_clovis_ios_cob_req an rpc item is associated to. This allows
+ * Retrieves the clovis_ios_cob_req an rpc item is associated to. This allows
  * figuring out which slot inside the object operation corresponds to the
  * communication with a specific ioservice.
  *
  * @param item RPC item used to communicate to a specific ioservice. It contains
  * both the request sent from clovis and the reply received from the ioservice.
- * @return a m0_clovis_ios_cob_req, which points to a slot within an object
+ * @return a clovis_ios_cob_req, which points to a slot within an object
  * operation.
  */
-static struct m0_clovis_ios_cob_req *
-rpc_item_to_ios_cob_req(struct m0_rpc_item *item)
+static struct clovis_ios_cob_req *
+rpc_item_to_cob_req(struct m0_rpc_item *item)
 {
 	struct m0_fop                  *fop;
-	struct m0_clovis_ios_cob_req   *icr;
+	struct clovis_ios_cob_req   *icr;
 
 	M0_ENTRY();
 	M0_PRE(item != NULL);
 
 	fop = m0_rpc_item_to_fop(item);
-	icr = (struct m0_clovis_ios_cob_req *)fop->f_opaque;
+	icr = (struct clovis_ios_cob_req *)fop->f_opaque;
 
 	M0_LEAVE();
 	return icr;
@@ -292,14 +401,14 @@ rpc_item_to_ios_cob_req(struct m0_rpc_item *item)
 static void clovis_icr_ast_complete(struct m0_sm_group *grp,
 				    struct m0_sm_ast *ast)
 {
-	uint32_t                      i;
-	uint32_t                      icr_nr;
-	uint32_t                      cob_type;
-	struct m0_clovis_op_obj      *oo;
-	struct m0_clovis_ast_rc      *ar;
-	struct m0_clovis_ios_cob_req *icr;
-	struct m0_clovis             *cinst;
-	bool                          completed = true;
+	uint32_t                   i;
+	uint32_t                   icr_nr;
+	uint32_t                   cob_type;
+	struct m0_clovis_ast_rc   *ar;
+	struct clovis_cob_req     *cr;
+	struct clovis_ios_cob_req *icr;
+	struct m0_clovis          *cinst;
+	bool                       completed = true;
 
 	M0_ENTRY();
 
@@ -309,34 +418,37 @@ static void clovis_icr_ast_complete(struct m0_sm_group *grp,
 
 	ar = bob_of(ast, struct m0_clovis_ast_rc, ar_ast, &ar_bobtype);
 	M0_PRE(m0_clovis_op_obj_ast_rc_invariant(ar));
-	icr = bob_of(ar, struct m0_clovis_ios_cob_req, icr_ar, &icr_bobtype);
+	icr = bob_of(ar, struct clovis_ios_cob_req, icr_ar, &icr_bobtype);
 	M0_PRE(clovis_ios_cob_req_invariant(icr));
 	M0_ASSERT(ar->ar_rc == 0);
 
-	oo = icr->icr_oo;
-	M0_ASSERT(oo != NULL);
-	icr_nr = oo->oo_icr_nr;
+	cr = icr->icr_cr;
+	M0_ASSERT(cr != NULL);
+
+	icr_nr = cr->cr_icr_nr;
 	M0_ASSERT(icr->icr_index < icr_nr);
-	cob_type = oo->oo_icr_type;
+	cob_type = cr->cr_cob_type;
 	M0_ASSERT(M0_IN(cob_type, (M0_COB_IO, M0_COB_MD)));
-	cinst = m0_clovis__oo_instance(oo);
+	cinst = cr->cr_cinst;
 	M0_ASSERT(cinst != NULL);
 
 	/* Mark this single create/delete cob fop. */
-	oo->oo_ios_completed[icr->icr_index] = true;
+	cr->cr_ios_completed[icr->icr_index] = true;
 
 	/* Are the other fops completed? */
 	i = 0;
-	while (i < icr_nr &&(completed = oo->oo_ios_completed[i]))
+	while (i < icr_nr &&(completed = cr->cr_ios_completed[i]))
 		++i;
 
 	if (!completed)
 		goto out;
 
 	if (cob_type == M0_COB_IO ||
-	    oo->oo_oc.oc_op.op_code == M0_CLOVIS_EO_CREATE ) {
+	    cr->cr_oo->oo_oc.oc_op.op_code == M0_CLOVIS_EO_CREATE ) {
 		/* Last create/delete cob fop to complete? */
-		clovis_cob_complete_oo(oo);
+		clovis_cob_complete_oo(cr->cr_oo);
+		/* Free CR */
+		clovis_cob_req_free(cr);
 	} else {
 		/*
 		 * M0_COB_MD
@@ -344,9 +456,9 @@ static void clovis_icr_ast_complete(struct m0_sm_group *grp,
 		 * start the 2nd phase now (to prepare COB in all io services).
 		 */
 		for (i = 0; i < icr_nr; i++)
-			oo->oo_ios_completed[i] = false;
-		oo->oo_ar.ar_ast.sa_cb = &clovis_cob_ast_ios_io_send;
-		m0_sm_ast_post(oo->oo_sm_grp, &oo->oo_ar.ar_ast);
+			cr->cr_ios_completed[i] = false;
+		cr->cr_ar.ar_ast.sa_cb = &clovis_cob_ast_ios_io_send;
+		m0_sm_ast_post(cr->cr_oo->oo_sm_grp, &cr->cr_ar.ar_ast);
 	}
 
 out:
@@ -355,7 +467,7 @@ out:
 
 /**
  * AST callback to fail the whole m0_clovis_op_obj a
- * m0_clovis_ios_cob_req is associated to.
+ * clovis_ios_cob_req is associated to.
  *
  * @param grp group the AST is executed in.
  * @param ast callback being executed.
@@ -363,8 +475,11 @@ out:
 static void clovis_icr_ast_fail(struct m0_sm_group *grp,
 				    struct m0_sm_ast *ast)
 {
-	struct m0_clovis_ios_cob_req *icr;
-	struct m0_clovis_ast_rc      *ar;
+	int                        i;
+	uint32_t                   icr_nr;
+	struct clovis_ios_cob_req *icr;
+	struct m0_clovis_ast_rc   *ar;
+	struct clovis_cob_req     *cr;
 
 	M0_ENTRY();
 
@@ -373,12 +488,21 @@ static void clovis_icr_ast_fail(struct m0_sm_group *grp,
 	M0_PRE(ast != NULL);
 
 	ar = bob_of(ast, struct m0_clovis_ast_rc, ar_ast, &ar_bobtype);
-	icr = bob_of(ar, struct m0_clovis_ios_cob_req, icr_ar, &icr_bobtype);
+	icr = bob_of(ar, struct clovis_ios_cob_req, icr_ar, &icr_bobtype);
 	M0_ASSERT(ar->ar_rc != 0);
 
-	/* Have to fail the whole op. */
-	clovis_cob_fail_oo(icr->icr_oo, ar->ar_rc);
+	cr = icr->icr_cr;
 
+	/* Cancel any pending fop for this op. */
+	icr_nr = cr->cr_icr_nr;
+	for (i = 0; i < icr_nr; ++i)
+		if (!cr->cr_ios_completed[i] && cr->cr_ios_fop[i] != NULL)
+			m0_rpc_item_cancel(&cr->cr_ios_fop[i]->f_item);
+
+	/* Have to fail the whole op. */
+	clovis_cob_fail_oo(icr->icr_cr->cr_oo, ar->ar_rc);
+	/* Free CR */
+	clovis_cob_req_free(cr);
 	M0_LEAVE();
 }
 
@@ -390,20 +514,22 @@ static void clovis_icr_ast_fail(struct m0_sm_group *grp,
  */
 static void clovis_cob_ios_rio_replied(struct m0_rpc_item *item)
 {
-	struct m0_clovis_ios_cob_req *icr;
-	struct m0_fop                *rep_fop;
-	struct m0_fop_cob_op_reply   *cob_rep;
-	int                           rc;
+	struct clovis_ios_cob_req  *icr;
+	struct m0_fop              *rep_fop;
+	struct m0_fop_cob_op_reply *cob_rep;
+	struct clovis_cob_req      *cr;
+	int                         rc;
 
 	M0_ENTRY();
 
 	M0_PRE(item != NULL);
 
-	icr = rpc_item_to_ios_cob_req(item);
+	icr = rpc_item_to_cob_req(item);
 	M0_ASSERT(icr != NULL);
-	M0_ASSERT(icr->icr_oo != NULL);
+	M0_ASSERT(icr->icr_cr != NULL);
 	M0_ASSERT(icr->icr_ar.ar_rc == 0);
 
+	cr = icr->icr_cr;
 	/* Failure in rpc? */
 	rc = m0_rpc_item_error(item);
 	if (rc != 0) {
@@ -427,7 +553,7 @@ static void clovis_cob_ios_rio_replied(struct m0_rpc_item *item)
 
 	/* Complete this ios create/delete cob request. */
 	icr->icr_ar.ar_ast.sa_cb = &clovis_icr_ast_complete;
-	m0_sm_ast_post(icr->icr_oo->oo_sm_grp, &icr->icr_ar.ar_ast);
+	m0_sm_ast_post(cr->cr_oo->oo_sm_grp, &icr->icr_ar.ar_ast);
 
 	M0_LEAVE();
 	return;
@@ -441,7 +567,7 @@ error:
 	M0_ASSERT(rc != 0);
 	icr->icr_ar.ar_rc = rc;
 	icr->icr_ar.ar_ast.sa_cb = &clovis_icr_ast_fail;
-	m0_sm_ast_post(icr->icr_oo->oo_sm_grp, &icr->icr_ar.ar_ast);
+	m0_sm_ast_post(icr->icr_cr->cr_oo->oo_sm_grp, &icr->icr_ar.ar_ast);
 
 	M0_LEAVE();
 }
@@ -486,48 +612,43 @@ m0_clovis_obj_container_id_to_session(struct m0_pool_version *pver,
  * @param cob_fid fid of the cob being created/deleted.
  * @param cob_idx index of the cob inside the object's layout.
  */
-static int clovis_cob_ios_fop_populate(struct m0_clovis_op_obj *oo,
-				       struct m0_fop *fop,
-				       struct m0_fid *cob_fid,
-				       uint32_t cob_idx)
+static int clovis_cob_ios_fop_populate(struct clovis_cob_req *cr,
+				       struct m0_fop        *fop,
+				       struct m0_fid        *cob_fid,
+				       uint32_t              cob_idx)
 {
 	int                          valid = 0;
 	struct m0_cob_attr           attr;
 	struct m0_fop_cob_common    *common;
-	struct m0_pool_version      *pv;
 	struct m0_clovis            *cinst;
 	uint32_t                     cob_type;
 
 	M0_ENTRY();
 
-	M0_PRE(oo != NULL);
+	M0_PRE(cr != NULL);
 	M0_PRE(fop != NULL);
 	M0_PRE(cob_fid != NULL);
-	M0_PRE(M0_IN(oo->oo_oc.oc_op.op_code,
-		     (M0_CLOVIS_EO_CREATE, M0_CLOVIS_EO_DELETE)));
 
-	cob_type = oo->oo_icr_type;
+	cob_type = cr->cr_cob_type;
+
 	common = m0_cobfop_common_get(fop);
 	M0_ASSERT(common != NULL);
 
-	cinst = m0_clovis__oo_instance(oo);
+	cinst = cr->cr_cinst;
 	M0_ASSERT(cinst != NULL);
-
-	pv = m0_pool_version_find(&cinst->m0c_pools_common, &oo->oo_pver);
-	if (pv == NULL)
-		return M0_RC(-ENOENT);
 
 	/*
 	 * Fill the m0_fop_cob_common. Note: commit c5ba7b47f68 introduced
 	 * attributes in a ios cob fop (struct m0_fop_cob c_body), they
 	 * have to be set properly before sent on wire.
 	 */
-	clovis_cob_attr_init(oo, &attr, &valid);
-	clovis_cob_body_mem2wire(&common->c_body, &attr, valid, oo);
+	clovis_cob_attr_init(cr->cr_opcode, &attr, &valid);
 
-	common->c_gobfid = oo->oo_fid;
+	clovis_cob_body_mem2wire(&common->c_body, &attr, valid, cr);
+
+	common->c_gobfid = cr->cr_fid;
 	common->c_cobfid = *cob_fid;
-	common->c_pver   = oo->oo_pver;
+	common->c_pver   =  cr->cr_pver;
 	common->c_cob_type = cob_type;
 
 	/* For special "meta cobs", this would be some special value,
@@ -544,16 +665,15 @@ static int clovis_cob_ios_fop_populate(struct m0_clovis_op_obj *oo,
 
 M0_INTERNAL void m0_clovis_cob_ios_fop_fini(struct m0_fop *ios_fop)
 {
-	struct m0_clovis_ios_cob_req *icr;
-
+	struct clovis_ios_cob_req *icr;
 	M0_PRE(ios_fop != NULL);
 
 	M0_ENTRY();
 
 	if (ios_fop->f_opaque != NULL) {
-		icr = (struct m0_clovis_ios_cob_req *) ios_fop->f_opaque;
+		icr = (struct clovis_ios_cob_req *)ios_fop->f_opaque;
 		m0_clovis_ast_rc_bob_fini(&icr->icr_ar);
-		m0_clovis_ios_cob_req_bob_fini(icr);
+		clovis_ios_cob_req_bob_fini(icr);
 		m0_free(icr);
 	}
 
@@ -573,17 +693,17 @@ M0_INTERNAL void m0_clovis_cob_ios_fop_fini(struct m0_fop *ios_fop)
  * @param oo object operation being processed.
  * @param i index of the cob.
  */
-static struct m0_fop* clovis_cob_ios_fop_get(struct m0_clovis_op_obj *oo,
+static struct m0_fop *clovis_cob_ios_fop_get(struct clovis_cob_req *cr,
 					     uint32_t i, uint32_t cob_type,
 					     struct m0_rpc_session *session)
 {
 	struct m0_fop                *fop;
 	struct m0_fop_type           *ftype = NULL; /* required */
-	struct m0_clovis_ios_cob_req *icr;
+	struct clovis_ios_cob_req *icr;
 
-	if (oo->oo_ios_fop[i] != NULL) {
+	if (cr->cr_ios_fop[i] != NULL) {
 		/*
-		 * oo_ios_fop[i] != NULL could happen n the following 2 cases:
+		 * oo_ios_fop[i] != NULL could happen in the following 2 cases:
 		 * (1) resending a fop when Clovis has out of date pool version,
 		 * (2) sending ios cob io fops after ios cob md fops in oostore
 		 *     mode.
@@ -593,21 +713,23 @@ static struct m0_fop* clovis_cob_ios_fop_get(struct m0_clovis_op_obj *oo,
 		 *
 		 * TODO: revisit to check if we can re-use fop.
 		 */
-		fop = oo->oo_ios_fop[i];
+		fop = cr->cr_ios_fop[i];
 		M0_ASSERT(fop->f_opaque != NULL);
 
 		m0_clovis_cob_ios_fop_fini(fop);
-		oo->oo_ios_fop[i] = NULL;
-
+		cr->cr_ios_fop[i] = NULL;
 	}
 
 	/* Select the fop type to be sent to the ioservice. */
-	switch (oo->oo_oc.oc_op.op_code) {
+	switch (cr->cr_opcode) {
 		case M0_CLOVIS_EO_CREATE:
 			ftype = &m0_fop_cob_create_fopt;
 			break;
 		case M0_CLOVIS_EO_DELETE:
 			ftype = &m0_fop_cob_delete_fopt;
+			break;
+		case M0_CLOVIS_EO_GETATTR:
+			ftype = &m0_fop_cob_getattr_fopt;
 			break;
 		default:
 			M0_IMPOSSIBLE("Operation not supported");
@@ -619,23 +741,22 @@ static struct m0_fop* clovis_cob_ios_fop_get(struct m0_clovis_op_obj *oo,
 		goto error;
 
 	/* The rpc's callback must know which oo's slot they work on. */
-	M0_ALLOC_PTR(icr);
-	if (icr == NULL)
-		goto error;
-	m0_clovis_ios_cob_req_bob_init(icr);
-	m0_clovis_ast_rc_bob_init(&icr->icr_ar);
-	icr->icr_oo = oo;
-	icr->icr_index = i;
-
-	fop->f_opaque = icr;
-	oo->oo_ios_fop[i] = fop;
-
+	if (cr->cr_flags & CLOVIS_COB_REQ_ASYNC) {
+		M0_ALLOC_PTR(icr);
+		if (icr == NULL)
+			goto error;
+		clovis_ios_cob_req_bob_init(icr);
+		m0_clovis_ast_rc_bob_init(&icr->icr_ar);
+		icr->icr_index = i;
+		icr->icr_cr = cr;
+		fop->f_opaque = icr;
+	}
+	cr->cr_ios_fop[i] = fop;
 	return fop;
-
 error:
 	if (fop != NULL) {
-		m0_clovis_cob_ios_fop_fini(oo->oo_ios_fop[i]);
-		oo->oo_ios_fop[i] = NULL;
+		m0_clovis_cob_ios_fop_fini(cr->cr_ios_fop[i]);
+		cr->cr_ios_fop[i] = NULL;
 	}
 
 	return NULL;
@@ -650,7 +771,7 @@ error:
  * callback.
  * @remark This function might be used to re-send fop to an ioservice.
  */
-static int clovis_cob_ios_send(struct m0_clovis_op_obj *oo, uint32_t idx)
+static int clovis_cob_ios_send(struct clovis_cob_req *cr, uint32_t idx)
 {
 	int                     rc;
 	uint32_t                cob_idx;
@@ -669,17 +790,20 @@ static int clovis_cob_ios_send(struct m0_clovis_op_obj *oo, uint32_t idx)
 	 * or ios_io_send. In the case of ios_md_send, the instance
 	 * lock has been held.
 	 */
-	M0_PRE(oo != NULL);
-	cob_type = oo->oo_icr_type;
-	M0_PRE(M0_IN(cob_type, (M0_COB_IO, M0_COB_MD)));
+	M0_PRE(M0_IN(cr->cr_cob_type, (M0_COB_IO, M0_COB_MD)));
+	cob_type = cr->cr_cob_type;
 
-	cinst = m0_clovis__oo_instance(oo);
+	cinst = cr->cr_cinst;
 	M0_PRE(cinst != NULL);
 
 	/* Determine cob fid and idx*/
-	gob_fid = &oo->oo_fid;
-	pv = m0_pool_version_find(&cinst->m0c_pools_common, &oo->oo_pver);
+	gob_fid = &cr->cr_fid;
+
+	pv = m0_pool_version_find(&cinst->m0c_pools_common,
+				  &cr->cr_pver);
+
 	M0_ASSERT(pv != NULL);
+
 	if (cob_type == M0_COB_IO) {
 		m0_poolmach_gob2cob(&pv->pv_mach, gob_fid, idx, &cob_fid);
 		cob_idx = m0_fid_cob_device_id(&cob_fid);
@@ -699,14 +823,14 @@ static int clovis_cob_ios_send(struct m0_clovis_op_obj *oo, uint32_t idx)
 		return M0_ERR(rc);
 
 	/* Allocate ios fop if necessary */
-	fop = clovis_cob_ios_fop_get(oo, idx, cob_type, session);
+	fop = clovis_cob_ios_fop_get(cr, idx, cob_type, session);
 	if (fop == NULL) {
 		rc = -ENOMEM;
 		goto error;
 	}
 
 	/* Fill the cob fop. */
-	rc = clovis_cob_ios_fop_populate(oo, fop, &cob_fid, cob_idx);
+	rc = clovis_cob_ios_fop_populate(cr, fop, &cob_fid, cob_idx);
 	if (rc != 0)
 		goto error;
 
@@ -717,26 +841,30 @@ static int clovis_cob_ios_send(struct m0_clovis_op_obj *oo, uint32_t idx)
 	 * details).
 	 */
 	fop->f_item.ri_rmachine = m0_fop_session_machine(session);
-	fop->f_item.ri_session = session;
-	fop->f_item.ri_ops = &clovis_cob_ios_ri_ops;
-	fop->f_item.ri_prio = M0_RPC_ITEM_PRIO_MID;
+	fop->f_item.ri_session  = session;
+	fop->f_item.ri_prio     = M0_RPC_ITEM_PRIO_MID;
 	fop->f_item.ri_deadline = 0;
 				/*m0_time_from_now(0, IOS_COB_REQ_DEADLINE);*/
 	fop->f_item.ri_nr_sent_max = CLOVIS_RPC_MAX_RETRIES;
 	fop->f_item.ri_resend_interval = CLOVIS_RPC_RESEND_INTERVAL;
 
-	rc = m0_rpc_post(&fop->f_item);
-	if (rc != 0)
-		goto error;
+	if (cr->cr_flags & CLOVIS_COB_REQ_ASYNC) {
+		fop->f_item.ri_ops = &clovis_cob_ios_ri_ops;
+		rc = m0_rpc_post(&fop->f_item);
+		if (rc != 0)
+			goto error;
+	} else {
+		rc = m0_rpc_post_sync(fop, session, NULL, 0);
+		if (rc != 0)
+			goto error;
 
-	M0_ASSERT(rc == 0);
+	}
 	return M0_RC(0);
-
 error:
 	M0_ASSERT(rc != 0);
 	if (fop != NULL) {
-		m0_clovis_cob_ios_fop_fini(oo->oo_ios_fop[idx]);
-		oo->oo_ios_fop[idx] = NULL;
+		m0_clovis_cob_ios_fop_fini(cr->cr_ios_fop[idx]);
+		cr->cr_ios_fop[idx] = NULL;
 	}
 	return M0_RC(rc);
 }
@@ -753,11 +881,12 @@ static void clovis_cob_ast_ios_io_send(struct m0_sm_group *grp,
 {
 	int                      rc;
 	uint32_t                 i;
+	uint32_t                 icr_nr;
 	uint32_t                 pool_width;
-	struct m0_clovis_op_obj *oo;
 	struct m0_clovis_ast_rc *ar;
 	struct m0_clovis        *cinst;
 	struct m0_pool_version  *pv;
+	struct clovis_cob_req   *cr;
 
 	M0_ENTRY();
 
@@ -766,33 +895,43 @@ static void clovis_cob_ast_ios_io_send(struct m0_sm_group *grp,
 	M0_PRE(ast != NULL);
 
 	ar = bob_of(ast,  struct m0_clovis_ast_rc, ar_ast, &ar_bobtype);
-	oo = bob_of(ar, struct m0_clovis_op_obj, oo_ar, &oo_bobtype);
-	cinst = m0_clovis__oo_instance(oo);
+	cr = bob_of(ar, struct clovis_cob_req, cr_ar, &cr_bobtype);
+
+	cinst = cr->cr_cinst;
 	M0_ASSERT(cinst != NULL);
 
-	pv = m0_pool_version_find(&cinst->m0c_pools_common, &oo->oo_pver);
+	pv = m0_pool_version_find(&cinst->m0c_pools_common, &cr->cr_pver);
 	if (pv == NULL) {
 		M0_LOG(M0_ERROR, "Failed to get pool version "FID_F,
-		       FID_P(&oo->oo_pver));
-		clovis_cob_fail_oo(oo, -ENOENT);
-		goto EXIT;
+		       FID_P(&cr->cr_pver));
+		rc = M0_ERR(-ENOENT);
+		goto error;
 	}
 	pool_width = pv->pv_attr.pa_P;
 	M0_ASSERT(pool_width >= 1);
 
 	/* Send a fop to each ioservice. */
-	oo->oo_icr_type = M0_COB_IO;
-	oo->oo_icr_nr = pool_width;
+	cr->cr_cob_type = M0_COB_IO;
+	cr->cr_icr_nr = pool_width;
 
 	for (i = 0; i < pool_width; i++) {
-		rc = clovis_cob_ios_send(oo, i);
-		if (rc != 0) {
-			clovis_cob_fail_oo(oo, rc);
-			break;
-		}
+		rc = clovis_cob_ios_send(cr, i);
+		if (rc != 0)
+			goto error;
 	}
 
-EXIT:
+	M0_LEAVE();
+	return;
+error:
+	/* Cancel any pending fop for this op. */
+	icr_nr = cr->cr_icr_nr;
+	for (i = 0; i < icr_nr; ++i)
+		if (!cr->cr_ios_completed[i] && cr->cr_ios_fop[i] != NULL)
+			m0_rpc_item_cancel(&cr->cr_ios_fop[i]->f_item);
+
+	clovis_cob_fail_oo(cr->cr_oo, rc);
+	/* FREE CR */
+	clovis_cob_req_free(cr);
 	M0_LEAVE();
 }
 
@@ -803,7 +942,7 @@ EXIT:
  * @param oo object operation being processed.
  * @return 0 if success or an error code otherwise.
  */
-static int clovis_cob_ios_md_send(struct m0_clovis_op_obj *oo)
+static int clovis_cob_ios_md_send(struct clovis_cob_req *cr)
 {
 	int               i;
 	int               rc = 0;
@@ -811,19 +950,14 @@ static int clovis_cob_ios_md_send(struct m0_clovis_op_obj *oo)
 	struct m0_clovis *cinst;
 
 	M0_ENTRY();
+	M0_PRE(cr != NULL);
 
-	M0_PRE(oo != NULL);
-	M0_PRE(M0_IN(oo->oo_oc.oc_op.op_code,
-		     (M0_CLOVIS_EO_CREATE, M0_CLOVIS_EO_DELETE)));
-
-	cinst = m0_clovis__oo_instance(oo);
+	cinst = cr->cr_cinst;
 	M0_PRE(cinst != NULL);
-	icr_nr = cinst->m0c_pools_common.pc_md_redundancy;
-
-	cinst = m0_clovis__oo_instance(oo);
-	M0_ASSERT(cinst != NULL);
 	M0_ASSERT(cinst->m0c_config->cc_is_oostore == true);
 	M0_ASSERT(cinst->m0c_pools_common.pc_md_redundancy >= 1);
+
+	icr_nr = cinst->m0c_pools_common.pc_md_redundancy;
 
 	/*
 	 * Send to each redundant ioservice.
@@ -832,11 +966,11 @@ static int clovis_cob_ios_md_send(struct m0_clovis_op_obj *oo)
 	 * replied). So the content of 'oo' may be changed. Be aware of this
 	 * race condition!
 	 */
-	oo->oo_icr_type = M0_COB_MD;
-	oo->oo_icr_nr = icr_nr;
+	cr->cr_cob_type = M0_COB_MD;
+	cr->cr_icr_nr   = icr_nr;
 
 	for (i = 0; i < icr_nr; ++i) {
-		rc = clovis_cob_ios_send(oo, i);
+		rc = clovis_cob_ios_send(cr, i);
 		if (rc != 0)
 			break;
 	}
@@ -857,20 +991,19 @@ static int clovis_cob_ios_md_send(struct m0_clovis_op_obj *oo)
  * @return a pointer to the object operation that triggered the creation of the
  * item.
  */
-static struct m0_clovis_op_obj* rpc_item_to_oo(struct m0_rpc_item *item)
+static struct clovis_cob_req* rpc_item_to_cr(struct m0_rpc_item *item)
 {
-	struct m0_fop           *fop;
-	struct m0_clovis_op_obj *oo;
+	struct m0_fop         *fop;
+	struct clovis_cob_req *cr;
 
 	M0_ENTRY();
 	M0_PRE(item != NULL);
 
 	fop = m0_rpc_item_to_fop(item);
-	oo = (struct m0_clovis_op_obj *)fop->f_opaque;
-	M0_POST(m0_clovis_op_obj_invariant(oo));
+	cr = (struct clovis_cob_req *)fop->f_opaque;
 
 	M0_LEAVE();
-	return oo;
+	return cr;
 }
 
 /**
@@ -879,10 +1012,12 @@ static struct m0_clovis_op_obj* rpc_item_to_oo(struct m0_rpc_item *item)
  * @param grp group the AST is executed in.
  * @param ast callback being executed.
  */
-static void clovis_cob_ast_fail_oo(struct m0_sm_group *grp,
+static void clovis_cob_ast_fail_cr(struct m0_sm_group *grp,
 				   struct m0_sm_ast *ast)
 {
-	struct m0_clovis_op_obj *oo;
+	uint32_t                 i;
+	uint32_t                 icr_nr;
+	struct clovis_cob_req   *cr;
 	struct m0_clovis_ast_rc *ar;
 
 	M0_ENTRY();
@@ -892,11 +1027,20 @@ static void clovis_cob_ast_fail_oo(struct m0_sm_group *grp,
 	M0_PRE(ast != NULL);
 
 	ar = bob_of(ast,  struct m0_clovis_ast_rc, ar_ast, &ar_bobtype);
-	oo = bob_of(ar, struct m0_clovis_op_obj, oo_ar, &oo_bobtype);
+	cr = bob_of(ar, struct clovis_cob_req, cr_ar, &cr_bobtype);
 	M0_ASSERT(ar->ar_rc != 0);
 
-	clovis_cob_fail_oo(oo, ar->ar_rc);
+	/* Cancel any pending fop for this op. */
+	icr_nr = cr->cr_icr_nr;
+	for (i = 0; i < icr_nr; ++i) {
+		if (!cr->cr_ios_completed[i] && cr->cr_ios_fop[i] != NULL) {
+			m0_rpc_item_cancel(&cr->cr_ios_fop[i]->f_item);
+		}
+	}
 
+	clovis_cob_fail_oo(cr->cr_oo, ar->ar_rc);
+	/* Free CR */
+	clovis_cob_req_free(cr);
 	M0_LEAVE();
 }
 
@@ -906,11 +1050,11 @@ static void clovis_cob_ast_fail_oo(struct m0_sm_group *grp,
  * @param grp group the AST is executed in.
  * @param ast callback being executed.
  */
-static void clovis_cob_ast_complete_oo(struct m0_sm_group *grp,
+static void clovis_cob_ast_complete_cr(struct m0_sm_group *grp,
 				       struct m0_sm_ast *ast)
 {
-	struct m0_clovis_op_obj *oo;
 	struct m0_clovis_ast_rc *ar;
+	struct clovis_cob_req   *cr;
 
 	M0_ENTRY();
 
@@ -919,11 +1063,13 @@ static void clovis_cob_ast_complete_oo(struct m0_sm_group *grp,
 	M0_PRE(ast != NULL);
 
 	ar = bob_of(ast,  struct m0_clovis_ast_rc, ar_ast, &ar_bobtype);
-	oo = bob_of(ar, struct m0_clovis_op_obj, oo_ar, &oo_bobtype);
+	cr = bob_of(ar, struct clovis_cob_req, cr_ar, &cr_bobtype);
 	M0_ASSERT(ar->ar_rc == 0);
 
-	clovis_cob_complete_oo(oo);
+	clovis_cob_complete_oo(cr->cr_oo);
 
+	/* Free CR */
+	clovis_cob_req_free(cr);
 	M0_LEAVE();
 }
 
@@ -938,28 +1084,34 @@ static void clovis_cob_ast_complete_oo(struct m0_sm_group *grp,
  */
 static void clovis_cob_mds_rio_replied(struct m0_rpc_item *item)
 {
-	int                          rc = 0; /* Required. */
-	uint32_t                     rep_opcode;
-	uint32_t                     req_opcode;
-	struct m0_fop               *rep_fop;
-	struct m0_fop               *req_fop;
-	struct m0_fop_create_rep    *create_rep;
-	struct m0_fop_unlink_rep    *unlink_rep;
-	struct m0_clovis            *cinst;
-	struct m0_clovis_op_obj     *oo;
-	struct m0_reqh_service_ctx *ctx;
-	struct m0_be_tx_remid      *remid = NULL;
+	int                       rc = 0; /* Required. */
+	uint32_t                  rep_opcode;
+	uint32_t                  req_opcode;
+	struct m0_fop            *rep_fop;
+	struct m0_fop            *req_fop;
+	struct m0_fop_create_rep *create_rep;
+	struct m0_fop_unlink_rep *unlink_rep;
+	struct m0_clovis         *cinst;
+	struct clovis_cob_req    *cr;
+#ifdef CLOVIS_OSYNC
+	struct m0_reqh_service_ctx  *ctx;
+	struct m0_be_tx_remid       *remid = NULL;
+#endif
 
 	M0_ENTRY();
 
 	M0_PRE(item != NULL);
 
-	oo = rpc_item_to_oo(item);
-	M0_ASSERT(oo != NULL);
-	cinst = m0_clovis__oo_instance(oo);
+	cr = rpc_item_to_cr(item);
+	M0_ASSERT(cr != NULL);
+
+	cinst = cr->cr_cinst;
 	M0_ASSERT(cinst != NULL);
-	req_fop = oo->oo_mds_fop;
+
+	req_fop = cr->cr_mds_fop;
 	M0_ASSERT(req_fop != NULL);
+
+	M0_ASSERT(cr->cr_oo != NULL);
 
 	/* Failure in rpc? */
 	rc = m0_rpc_item_error(item);
@@ -1002,7 +1154,8 @@ static void clovis_cob_mds_rio_replied(struct m0_rpc_item *item)
 	/* Update pending transaction number */
 	if (remid != NULL) {
 		ctx = m0_reqh_service_ctx_from_session(item->ri_session);
-		clovis_sync_record_update(ctx, NULL, &oo->oo_oc.oc_op, remid);
+		clovis_sync_record_update(ctx, NULL, cr->cr_oo != NULL ?
+					  &cr->cr_oo->oo_oc.oc_op : NULL, remid);
 	}
 
 	/*
@@ -1010,20 +1163,22 @@ static void clovis_cob_mds_rio_replied(struct m0_rpc_item *item)
 	 * which delays creating COBs to the first time they are
 	 * written to.
 	 */
-	if (oo->oo_oc.oc_op.op_code == M0_CLOVIS_EO_CREATE)
-		oo->oo_ar.ar_ast.sa_cb = &clovis_cob_ast_complete_oo;
-	else
-		oo->oo_ar.ar_ast.sa_cb = &clovis_cob_ast_ios_io_send;
-	m0_sm_ast_post(oo->oo_sm_grp, &oo->oo_ar.ar_ast);
+	if (cr->cr_opcode == M0_CLOVIS_EO_CREATE) {
+		cr->cr_ar.ar_ast.sa_cb = &clovis_cob_ast_complete_cr;
+		m0_sm_ast_post(cr->cr_oo->oo_sm_grp, &cr->cr_ar.ar_ast);
+	} else {
+		cr->cr_ar.ar_ast.sa_cb = &clovis_cob_ast_ios_io_send;
+		m0_sm_ast_post(cr->cr_oo->oo_sm_grp, &cr->cr_ar.ar_ast);
+	}
 
 	M0_LEAVE();
 	return;
 
 error:
 	M0_ASSERT(rc != 0);
-	oo->oo_ar.ar_ast.sa_cb = &clovis_cob_ast_fail_oo;
-	oo->oo_ar.ar_rc = rc;
-	m0_sm_ast_post(oo->oo_sm_grp, &oo->oo_ar.ar_ast);
+	cr->cr_ar.ar_ast.sa_cb = &clovis_cob_ast_fail_cr;
+	cr->cr_ar.ar_rc = rc;
+	m0_sm_ast_post(cr->cr_oo->oo_sm_grp, &cr->cr_ar.ar_ast);
 	M0_LEAVE();
 }
 
@@ -1042,40 +1197,45 @@ static const struct m0_rpc_item_ops clovis_cob_mds_ri_ops = {
  * info to populate the fop with.
  * @param fop fop being stuffed.
  */
-static int clovis_cob_mds_fop_populate(struct m0_clovis_op_obj *oo,
-				       struct m0_fop *fop)
+static int clovis_cob_mds_fop_populate(struct clovis_cob_req *cr,
+				       struct m0_fop         *fop)
 {
-	int                   rc = 0;
-	int                   valid = 0;
-	struct m0_cob_attr    attr;
-	struct m0_fop_create *create;
-	struct m0_fop_unlink *unlink;
-	struct m0_fop_cob    *req;
+	int                      rc = 0;
+	int                      valid = 0;
+	struct m0_cob_attr       attr;
+	struct m0_fop_create    *create;
+	struct m0_fop_unlink    *unlink;
+	struct m0_fop_getattr   *getattr;
+	struct m0_fop_cob       *req;
 
 	M0_ENTRY();
 
-	M0_PRE(oo != NULL);
 	M0_PRE(fop != NULL);
 
-	clovis_cob_attr_init(oo, &attr, &valid);
+	clovis_cob_attr_init(cr->cr_opcode, &attr, &valid);
 
 	switch (m0_fop_opcode(fop)) {
 	case M0_MDSERVICE_CREATE_OPCODE:
 		create = m0_fop_data(fop);
 		req = &create->c_body;
-		clovis_cob_body_mem2wire(req, &attr, valid, oo);
+		clovis_cob_body_mem2wire(req, &attr, valid, cr);
 #ifdef CLOVIS_FOR_M0T1FS
-		rc = clovis_cob_name_mem2wire(&create->c_name, &oo->oo_name);
+		rc = clovis_cob_name_mem2wire(&create->c_name, &cr->cr_name);
 #endif
 		break;
 	case M0_MDSERVICE_UNLINK_OPCODE:
 		unlink = m0_fop_data(fop);
 		req = &unlink->u_body;
-
-		clovis_cob_body_mem2wire(req, &attr, valid, oo);
+		clovis_cob_body_mem2wire(req, &attr, valid, cr);
 #ifdef CLOVIS_FOR_M0T1FS
-		rc = clovis_cob_name_mem2wire(&unlink->u_name, &oo->oo_name);
+		rc = clovis_cob_name_mem2wire(&unlink->u_name, &cr->cr_name);
 #endif
+		break;
+	case M0_MDSERVICE_GETATTR_OPCODE:
+		getattr      = m0_fop_data(fop);
+		req          = &getattr->g_body;
+		req->b_tfid  = cr->cr_fid;
+		req->b_valid = 0;
 		break;
 	default:
 		rc = -ENOSYS;
@@ -1164,7 +1324,7 @@ fid_to_mds_session(struct m0_clovis *cinst, const struct m0_fid *fid)
  * @param oo object operation being processed.
  * @return 0 if success or an error code otherwise.
  */
-static int clovis_cob_mds_send(struct m0_clovis_op_obj *oo)
+static int clovis_cob_mds_send(struct clovis_cob_req *cr)
 {
 	int                    rc;
 	struct m0_fop         *fop;
@@ -1174,19 +1334,17 @@ static int clovis_cob_mds_send(struct m0_clovis_op_obj *oo)
 
 	M0_ENTRY();
 
-	M0_PRE(oo != NULL);
-	M0_PRE(M0_IN(oo->oo_oc.oc_op.op_code,
-		     (M0_CLOVIS_EO_CREATE, M0_CLOVIS_EO_DELETE)));
+	M0_PRE(cr != NULL);
 
-	cinst = m0_clovis__oo_instance(oo);
+	cinst = cr->cr_cinst;
 	M0_PRE(cinst != NULL);
 
 	/* Get the mdservice's session. */
 #ifdef CLOVIS_FOR_M0T1FS
 	session = filename_to_mds_session(cinst,
-		(unsigned char *)oo->oo_name.b_addr, oo->oo_name.b_nob);
+		(unsigned char *)cr->cr_name.b_addr, cr->cr_name.b_nob);
 #else
-	session = fid_to_mds_session(cinst, &oo->oo_fid);
+	session = fid_to_mds_session(cinst, &cr->cr_fid);
 #endif
 
 	M0_ASSERT(session != NULL);
@@ -1196,15 +1354,18 @@ static int clovis_cob_mds_send(struct m0_clovis_op_obj *oo)
 		return M0_ERR(rc);
 
 	/* Select the fop type to be sent to the mdservice. */
-	switch (oo->oo_oc.oc_op.op_code) {
+	switch (cr->cr_opcode) {
 		case M0_CLOVIS_EO_CREATE:
 			ftype = &m0_fop_create_fopt;
 			break;
 		case M0_CLOVIS_EO_DELETE:
 			ftype = &m0_fop_unlink_fopt;
 			break;
+		case M0_CLOVIS_EO_GETATTR:
+			ftype = &m0_fop_getattr_fopt;
+			break;
 		default:
-			M0_IMPOSSIBLE("Operation not supported");
+			M0_IMPOSSIBLE("Operation not supported:%d", cr->cr_opcode);
 	}
 
 	fop = m0_fop_alloc_at(session, ftype);
@@ -1213,62 +1374,246 @@ static int clovis_cob_mds_send(struct m0_clovis_op_obj *oo)
 		goto error;
 	}
 
-	rc = clovis_cob_mds_fop_populate(oo, fop);
+	rc = clovis_cob_mds_fop_populate(cr, fop);
 	if (rc != 0)
 		goto error;
 
-	fop->f_opaque = oo;
-	fop->f_item.ri_ops = &clovis_cob_mds_ri_ops;
-	fop->f_item.ri_session = session;
-	fop->f_item.ri_prio = M0_RPC_ITEM_PRIO_MID;
-	fop->f_item.ri_deadline = 0;
-	fop->f_item.ri_nr_sent_max = CLOVIS_RPC_MAX_RETRIES;
+	fop->f_opaque                  = cr;
+	fop->f_item.ri_session         = session;
+	fop->f_item.ri_prio            = M0_RPC_ITEM_PRIO_MID;
+	fop->f_item.ri_deadline        = 0;
+	fop->f_item.ri_nr_sent_max     = CLOVIS_RPC_MAX_RETRIES;
 	fop->f_item.ri_resend_interval = CLOVIS_RPC_RESEND_INTERVAL;
+	cr->cr_mds_fop = fop;
 
-	M0_ASSERT(oo->oo_mds_fop == NULL);
-	oo->oo_mds_fop = fop;
-
-	rc = m0_rpc_post(&fop->f_item);
-	if (rc != 0)
-		goto error;
-
-	M0_ASSERT(rc == 0);
+	if (cr->cr_flags & CLOVIS_COB_REQ_ASYNC) {
+		fop->f_item.ri_ops = &clovis_cob_mds_ri_ops;
+		rc = m0_rpc_post(&fop->f_item);
+		if (rc != 0)
+			goto error;
+	} else {
+		rc = m0_rpc_post_sync(fop, session, NULL, 0);
+		if (rc != 0)
+			goto error;
+		cr->cr_rep_fop = m0_rpc_item_to_fop(fop->f_item.ri_reply);
+	}
 	return M0_RC(0);
 error:
-	M0_ASSERT(rc != 0);
 	if (fop != NULL) {
-		m0_fop_put_lock(oo->oo_mds_fop);
-		oo->oo_mds_fop = NULL;
+		m0_fop_put_lock(cr->cr_mds_fop);
+		cr->cr_mds_fop = NULL;
 	}
 	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_clovis_cob_send(struct m0_clovis_op_obj *oo)
 {
-	int               rc;
-	struct m0_clovis *cinst;
+	int                     rc;
+	struct m0_clovis       *cinst;
+	struct clovis_cob_req  *cr;
+	struct m0_pool_version *pv;
 
 	M0_ENTRY();
-
 	M0_PRE(oo != NULL);
+
 	cinst = m0_clovis__oo_instance(oo);
+	M0_ASSERT(cinst != NULL);
+
+	pv = m0_pool_version_find(&cinst->m0c_pools_common,
+				  &oo->oo_pver);
+
+	cr = clovis_cob_req_alloc(pv);
+	if(cr == NULL) {
+		return M0_ERR(-ENOMEM);
+	}
+
+	cr->cr_cinst   = cinst;
+	cr->cr_opcode  = oo->oo_oc.oc_op.op_code;
+	cr->cr_fid     = oo->oo_fid;
+#ifdef CLOVIS_FOR_M0T1FS
+	cr->cr_name = oo->oo_name;
+#endif
+	cr->cr_oo  = oo;
+	cr->cr_flags |= CLOVIS_COB_REQ_ASYNC;
 
 	if (!cinst->m0c_config->cc_is_oostore)
 		/* Initiate the op by sending a fop to the mdservice. */
-		rc = clovis_cob_mds_send(oo);
+		rc = clovis_cob_mds_send(cr);
 	else
 		/* Send fops to redundant IOS's */
-		rc = clovis_cob_ios_md_send(oo);
+		rc = clovis_cob_ios_md_send(cr);
 
 	if (rc != 0) {
-		oo->oo_ar.ar_ast.sa_cb = &clovis_cob_ast_fail_oo;
-		oo->oo_ar.ar_rc = rc;
-		m0_sm_ast_post(oo->oo_sm_grp, &oo->oo_ar.ar_ast);
+		cr->cr_ar.ar_ast.sa_cb = &clovis_cob_ast_fail_cr;
+		cr->cr_ar.ar_rc = rc;
+		m0_sm_ast_post(oo->oo_sm_grp, &cr->cr_ar.ar_ast);
 	}
 
 	return M0_RC(rc);
 }
 
+M0_INTERNAL int clovis_cob_rep_fop_attr(struct clovis_cob_req *cr,
+					struct m0_fop_cob     *cob_attr,
+					int                    idx)
+{
+	int                              rc;
+	struct m0_fop_getattr_rep       *getattr_rep;
+	struct m0_fop_cob_getattr_reply *getattr_ios_rep;
+	struct m0_clovis                *cinst;
+
+	M0_PRE(cr != NULL);
+	cinst = cr->cr_cinst;
+
+	if (!cinst->m0c_config->cc_is_oostore) {
+		getattr_rep = m0_fop_data(cr->cr_rep_fop);
+		rc = getattr_rep->g_rc;
+		if (rc == 0)
+			memcpy((void *)cob_attr, (void *)&getattr_rep->g_body,
+				sizeof *cob_attr);
+	} else {
+		getattr_ios_rep = m0_fop_data(m0_rpc_item_to_fop(
+					      cr->cr_ios_fop[idx]->f_item.ri_reply));
+
+		rc = getattr_ios_rep->cgr_rc;
+		if(rc == 0)
+			memcpy((void *)cob_attr, (void *)&getattr_ios_rep->cgr_body,
+			       sizeof *cob_attr);
+	}
+
+	return M0_RC(rc);
+}
+
+M0_INTERNAL int clovis_cob_getattr(struct clovis_cob_req *cr,
+				   struct m0_fop_cob     *cob_attr)
+{
+	int                              rc = 0; /* required */
+	int                              i;
+	struct m0_clovis                *cinst;
+	struct m0_pool_version          *pv;
+
+	M0_PRE(cr != NULL);
+	cinst = cr->cr_cinst;
+
+	cr->cr_opcode   = M0_CLOVIS_EO_GETATTR;
+	cr->cr_cob_type = M0_COB_MD;
+
+	rc = m0_pool_version_get(&cinst->m0c_pools_common, &pv);
+	M0_ASSERT(rc == 0);
+
+	if (!cinst->m0c_config->cc_is_oostore) {
+		/* Initiate the op by sending a fop to the mdservice. */
+		rc = clovis_cob_mds_send(cr);
+		if (rc == 0 && (cr->cr_flags & CLOVIS_COB_REQ_SYNC))
+			rc = clovis_cob_rep_fop_attr(cr, cob_attr, 0);
+	} else {
+		for(i = 0; i < cinst->m0c_pools_common.pc_md_redundancy; i++) {
+			/* Send fops to redundant IOS' */
+			rc = clovis_cob_ios_send(cr, i);
+			if (rc != 0)
+				continue;
+
+			if (cr->cr_flags & CLOVIS_COB_REQ_SYNC) {
+				rc = clovis_cob_rep_fop_attr(cr, cob_attr, i);
+				if (rc == -ENOENT)
+					continue;
+				else
+					break;
+			}
+
+		}
+	}
+
+	return M0_RC(rc);
+}
+
+M0_INTERNAL int m0_clovis__cob_poolversion_get(struct m0_clovis_obj *obj)
+{
+	int                     rc;
+	struct m0_clovis       *cinst;
+	struct clovis_cob_req  *cr;
+	struct m0_fop_cob      *cob_attr;
+	struct m0_pool_version *pv;
+#ifdef CLOVIS_FOR_M0T1FS
+	char                   *object_fid_s;
+	struct m0_fid           object_fid;
+#endif
+
+	M0_ENTRY();
+
+	M0_PRE(obj != NULL);
+	cinst = m0_clovis__obj_instance(obj);
+
+	rc = m0_pool_version_get(&cinst->m0c_pools_common, &pv);
+	M0_ASSERT(rc == 0);
+
+	cr = clovis_cob_req_alloc(pv);
+	if (cr == NULL)
+		return -ENOMEM;
+
+	m0_fid_gob_make(&cr->cr_fid,
+			obj->ob_entity.en_id.u_hi, obj->ob_entity.en_id.u_lo);
+
+	cr->cr_flags |= CLOVIS_COB_REQ_SYNC;
+	cr->cr_cinst  = cinst;
+#ifdef CLOVIS_FOR_M0T1FS
+	/* Set the object's parent's fid. */
+	if (!m0_fid_is_set(&cinst->m0c_root_fid) ||
+	    !m0_fid_is_valid(&cinst->m0c_root_fid)) {
+		clovis_cob_req_free(cr);
+		rc = -EINVAL;
+		return M0_ERR(rc);
+	}
+
+	m0_fid_gob_make(&object_fid, obj->ob_entity.en_id.u_hi,
+			obj->ob_entity.en_id.u_lo);
+
+	/* Generate a valid oo_name. */
+	object_fid_s = m0_alloc(M0_FID_STR_LEN);
+	if (object_fid_s == NULL) {
+		clovis_cob_req_free(cr);
+		return M0_ERR(-ENOMEM);
+	}
+
+	rc = m0_fid_print(object_fid_s, M0_FID_STR_LEN, &object_fid);
+	if (rc <= 0) {
+		clovis_cob_req_free(cr);
+		return M0_ERR(rc);
+	}
+
+	cr->cr_name.b_addr = object_fid_s;
+	cr->cr_name.b_nob  = strlen(object_fid_s);
+#endif
+	cob_attr = m0_alloc(sizeof *cob_attr);
+	if (cob_attr == NULL) {
+		clovis_cob_req_free(cr);
+		return M0_ERR(-ENOMEM);
+	}
+
+	memset(cob_attr, 0, sizeof *cob_attr);
+	rc = clovis_cob_getattr(cr, cob_attr);
+	if (rc != 0) {
+		m0_free(cob_attr);
+		clovis_cob_req_free(cr);
+		return rc == -ENOENT ? M0_RC(rc) : M0_ERR(rc);
+	}
+
+	if (m0_pool_version_find(&cinst->m0c_pools_common,
+					 &cob_attr->b_pver) == NULL) {
+		clovis_cob_req_free(cr);
+		m0_free(cob_attr);
+		M0_LOG(M0_ERROR, "Unable to find a suitable pool version");
+		return M0_ERR(-EINVAL);
+	}
+
+	obj->ob_attr.oa_pver = cob_attr->b_pver;
+
+#ifdef CLOVIS_FOR_M0T1FS
+	m0_free(object_fid_s);
+#endif
+	m0_free(cob_attr);
+	clovis_cob_req_free(cr);
+	return M0_RC(0);
+}
 #undef M0_TRACE_SUBSYSTEM
 
 /*

@@ -87,7 +87,12 @@ static int create_objs(int nr_objs)
 			    M0_BITS(M0_CLOVIS_OS_FAILED,
 				    M0_CLOVIS_OS_STABLE),
 			    M0_TIME_NEVER);
-		if (rc < 0) return rc;
+		if (rc < 0)
+			return rc;
+
+		M0_ASSERT(rc == 0);
+		M0_ASSERT(ops[0]->op_sm.sm_state == M0_CLOVIS_OS_STABLE);
+		M0_ASSERT(ops[0]->op_sm.sm_rc == 0);
 
 		/* fini and release */
 		clovis_st_op_fini(ops[0]);
@@ -165,7 +170,7 @@ static int write_objs(void)
 		ops[0] = NULL;
 
 		/* Get object id. */
-		id = read_oid_get(i);
+		id = read_oids[i];
 
 		/* Set the object entity we want to write */
 		clovis_st_obj_init(
@@ -461,169 +466,6 @@ static void read_multiple_blocks_into_aligned_buffers(void)
 	m0_bufvec_free(&attr);
 }
 
-/**
- * Read a single block from a non-existent object,
- * test the expected value is returned.
- */
-static void read_one_block_from_nowhere(void)
-{
-	int                   rc;
-	struct m0_clovis_op  *ops[1] = {NULL};
-	struct m0_clovis_obj  obj;
-	struct m0_uint128     id;
-	struct m0_indexvec    ext;
-	struct m0_bufvec      data;
-	struct m0_bufvec      attr;
-
-	M0_CLOVIS_THREAD_ENTER;
-
-	/* we want to read 4K from the beginning of the object */
-	rc = m0_indexvec_alloc(&ext, 1);
-	if (rc != 0)
-		return;
-
-	ext.iv_index[0] = 0;
-	ext.iv_vec.v_count[0] = unit_size;
-	CLOVIS_ST_ASSERT_FATAL(ext.iv_vec.v_nr == 1);
-
-	/*
-	 * this allocates 1 * 4K buffers for data, and initialises
-	 * the bufvec for us.
-	 */
-	rc = m0_bufvec_alloc(&data, 1, unit_size);
-	if (rc != 0)
-		return;
-	rc = m0_bufvec_alloc(&attr, 1, 1);
-	if(rc != 0)
-		return;
-
-	/* we don't want any attributes */
-	attr.ov_vec.v_count[0] = 0;
-
-	/* Get the id of a non-existent object. */
-	id = read_oid_get(-1);
-
-	clovis_st_obj_init(&obj, &clovis_st_read_container.co_realm,
-			   &id, default_layout_id);
-
-	/* Create the read request */
-	clovis_st_obj_op(&obj, M0_CLOVIS_OC_READ, &ext, &data, &attr, 0, &ops[0]);
-	CLOVIS_ST_ASSERT_FATAL(rc == 0);
-	CLOVIS_ST_ASSERT_FATAL(ops[0] != NULL);
-	CLOVIS_ST_ASSERT_FATAL(ops[0]->op_sm.sm_rc == 0);
-
-	clovis_st_op_launch(ops, ARRAY_SIZE(ops));
-
-	/* wait */
-	rc = clovis_st_op_wait(ops[0],
-			    M0_BITS(M0_CLOVIS_OS_FAILED,
-				    M0_CLOVIS_OS_STABLE),
-		     M0_TIME_NEVER);
-	CLOVIS_ST_ASSERT_FATAL(rc == 0);
-	CLOVIS_ST_ASSERT_FATAL(ops[0]->op_sm.sm_state == M0_CLOVIS_OS_FAILED);
-	CLOVIS_ST_ASSERT_FATAL(ops[0]->op_sm.sm_rc == -ENOENT);
-
-	clovis_st_op_fini(ops[0]);
-	clovis_st_op_free(ops[0]);
-
-	clovis_st_entity_fini(&obj.ob_entity);
-
-	m0_indexvec_free(&ext);
-	m0_bufvec_free(&data);
-	m0_bufvec_free(&attr);
-}
-
-/**
- * Read a single block after the object is deleted.
- * test the expected value is returned.
- */
-static void read_after_delete(void)
-{
-	int                   rc;
-	struct m0_clovis_op  *ops[1] = {NULL};
-	struct m0_clovis_obj  obj;
-	struct m0_uint128     id;
-	struct m0_indexvec    ext;
-	struct m0_bufvec      data;
-	struct m0_bufvec      attr;
-
-	M0_CLOVIS_THREAD_ENTER;
-
-	/* The last oid in read_oids array is reserved for this test. */
-	id = read_oid_get(read_oid_num -1);
-
-	/* 1. Delete the object fisrt*/
-	memset(&obj, 0, sizeof obj);
-	clovis_st_obj_init(&obj, &clovis_st_read_container.co_realm,
-			   &id, default_layout_id);
-	rc = clovis_st_entity_delete(&obj.ob_entity, &ops[0]);
-	CLOVIS_ST_ASSERT_FATAL(rc == 0);
-
-	clovis_st_op_launch(ops, ARRAY_SIZE(ops));
-
-	rc = clovis_st_op_wait(ops[0],
-		M0_BITS(M0_CLOVIS_OS_FAILED, M0_CLOVIS_OS_STABLE),
-		M0_TIME_NEVER);
-	CLOVIS_ST_ASSERT_FATAL(rc == 0);
-	CLOVIS_ST_ASSERT_FATAL(ops[0]->op_sm.sm_state == M0_CLOVIS_OS_STABLE);
-
-	clovis_st_op_fini(ops[0]);
-	clovis_st_op_free(ops[0]);
-	clovis_st_entity_fini(&obj.ob_entity);
-
-	read_oid_num--;
-
-	/* 2. Then issue read operation to see what will happen. */
-	rc = m0_indexvec_alloc(&ext, 1);
-	if (rc != 0)
-		return;
-
-	ext.iv_index[0] = 0;
-	ext.iv_vec.v_count[0] = unit_size;
-	CLOVIS_ST_ASSERT_FATAL(ext.iv_vec.v_nr == 1);
-
-	/*
-	 * this allocates 1 * 4K buffers for data, and initialises
-	 * the bufvec for us.
-	 */
-	rc = m0_bufvec_alloc(&data, 1, unit_size);
-	if (rc != 0)
-		return;
-
-	/* we don't want any attributes */
-	rc = m0_bufvec_alloc(&attr, 1, 1);
-	if(rc != 0)
-		return;
-	attr.ov_vec.v_count[0] = 0;
-
-	/* Call Clovis */
-	ops[0] = NULL;
-	memset(&obj, 0, sizeof obj);
-
-	console_printf("Read after delete \n");
-	clovis_st_obj_init(&obj, &clovis_st_read_container.co_realm,
-			   &id, default_layout_id);
-	clovis_st_obj_op(&obj, M0_CLOVIS_OC_READ, &ext, &data, &attr, 0, &ops[0]);
-
-	clovis_st_op_launch(ops, ARRAY_SIZE(ops));
-
-	rc = clovis_st_op_wait(ops[0],
-			    M0_BITS(M0_CLOVIS_OS_FAILED,
-				    M0_CLOVIS_OS_STABLE),
-		     	    M0_TIME_NEVER);
-	CLOVIS_ST_ASSERT_FATAL(rc == 0);
-	CLOVIS_ST_ASSERT_FATAL(ops[0]->op_sm.sm_state == M0_CLOVIS_OS_FAILED);
-	CLOVIS_ST_ASSERT_FATAL(ops[0]->op_sm.sm_rc == -ENOENT);
-
-	clovis_st_op_fini(ops[0]);
-	clovis_st_op_free(ops[0]);
-	clovis_st_entity_fini(&obj.ob_entity);
-
-	m0_indexvec_free(&ext);
-	m0_bufvec_free(&data);
-	m0_bufvec_free(&attr);
-}
-
 static void read_objs_in_parallel(void)
 {
 	int                    i;
@@ -731,9 +573,6 @@ static int clovis_st_read_suite_init(void)
 	int rc = 0;
 	int nr_objs;
 
-	//clovis_st_obj_prev_trace_level = m0_trace_level;
-	//m0_trace_level = M0_DEBUG;
-
 	/*
 	 * Retrieve the uber realm. We don't need to open this,
 	 * as realms are not actually implemented yet
@@ -789,10 +628,6 @@ struct clovis_st_suite st_suite_clovis_read = {
 		  &read_multiple_blocks } ,
 		{ "read_multiple_blocks_into_aligned_buffers",
 		  &read_multiple_blocks_into_aligned_buffers},
-		{ "read_one_block_from_nowhere",
-		  &read_one_block_from_nowhere },
-		{ "read_after_delete",
-		  &read_after_delete },
 		{ "read_objs_in_parallel",
 		  &read_objs_in_parallel },
 		{ NULL, NULL }

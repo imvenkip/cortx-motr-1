@@ -372,6 +372,12 @@ void m0_clovis_obj_init(struct m0_clovis_obj    *obj,
 	M0_ASSERT(layout_id > 0 && layout_id < m0_lid_to_unit_map_nr);
 	obj->ob_attr.oa_layout_id = layout_id;
 
+	m0_clovis__cob_poolversion_get(obj);
+#ifdef CLOVIS_OSYNC
+	m0_mutex_init(&obj->ob_pending_tx_lock);
+	ospti_tlist_init(&obj->ob_pending_tx);
+#endif
+
 	M0_LEAVE();
 }
 M0_EXPORTED(m0_clovis_obj_init);

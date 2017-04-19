@@ -228,6 +228,21 @@ M0_INTERNAL int m0_fid_sscanf(const char *s, struct m0_fid *fid)
 	return fid_sscanf(s, fid, &nob);
 }
 
+M0_INTERNAL int m0_fid_print(char *s, size_t s_len, const struct m0_fid *fid)
+{
+	int rc;
+
+	M0_PRE(s != NULL);
+	M0_PRE(s_len >=  M0_FID_STR_LEN);
+	M0_PRE(fid != NULL);
+
+	rc = snprintf(s, s_len, "%"PRIx64":%"PRIx64, FID_P(fid));
+	if (rc < 0 || rc >= s_len)
+		return M0_ERR(-EINVAL);
+
+	return M0_RC(rc);
+}
+
 /**
  * Type of miscellaneous fids used in tests, etc.
  */

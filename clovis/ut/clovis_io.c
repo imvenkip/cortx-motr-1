@@ -756,7 +756,6 @@ static void ut_clovis_test_m0_clovis_obj_op(void)
 	struct m0_bufvec        attr;
 	struct m0_clovis_op    *op;
 	struct m0_clovis       *instance = NULL;
-	struct m0_pool_version  pv;
 	struct m0_clovis_op_io *ioop;
 
 	/* Keep gcc quiet during debug build */
@@ -774,11 +773,9 @@ static void ut_clovis_test_m0_clovis_obj_op(void)
 	/* initialise clovis */
 	instance = dummy_instance;
 
-	M0_SET0(&pv);
-	instance->m0c_pools_common.pc_cur_pver = &pv;
-
 	ut_clovis_realm_entity_setup(&realm, &obj.ob_entity, instance);
 	obj.ob_attr.oa_bshift = CLOVIS_MIN_BUF_SHIFT;
+	obj.ob_attr.oa_pver   = instance->m0c_pools_common.pc_cur_pver->pv_id;
 
 	/* m0_clovis_obj_default_layout_id_get need to talk to confc. */
 	m0_fi_enable_once("m0_clovis__obj_layout_id_get", "fake_obj_layout_id");

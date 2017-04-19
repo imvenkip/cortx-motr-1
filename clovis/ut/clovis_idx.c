@@ -327,7 +327,8 @@ static void ut_clovis_idx_op_cb_launch(void)
 	for (op_code = M0_CLOVIS_EO_CREATE;
 	     op_code < M0_CLOVIS_EO_NR; op_code++) {
 		/* Ignore SYNC. */
-		if (op_code == M0_CLOVIS_EO_SYNC)
+		if (op_code == M0_CLOVIS_EO_SYNC ||
+		    op_code == M0_CLOVIS_EO_GETATTR)
 			continue;
 
 		dummy_query_rc = 1;

@@ -195,12 +195,6 @@ struct m0_clovis_op_obj {
 
 	/* MDS fop */
 	struct m0_fop              *oo_mds_fop;
-
-	/* COB fop related */
-	uint32_t                    oo_icr_type; /* {M0_COB_MD, M0_COB_IO}*/
-	uint32_t                    oo_icr_nr;
-	struct m0_fop             **oo_ios_fop;
-	bool                       *oo_ios_completed;
 };
 
 /**
@@ -679,6 +673,15 @@ m0_clovis__obj_layout_instance_build(struct m0_clovis *cinst,
 				     const uint64_t layout_id,
 				     const struct m0_fid *fid,
 				     struct m0_layout_instance **linst);
+
+/**
+ * Fetches the pool version of supplied object and stores as an object
+ * attribute.
+ *
+ * @param obj object whose pool version needs to be found.
+ * @return 0 if the operation succeeds or an error code (<0) otherwise.
+ */
+M0_INTERNAL int m0_clovis__cob_poolversion_get(struct m0_clovis_obj *obj);
 
 #ifdef CLOVIS_MOCK
 /* these functions are how the mock stores state */
