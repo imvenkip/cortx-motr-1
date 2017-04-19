@@ -1038,10 +1038,23 @@ BUILT_SOURCES = pre-all
 
 # this is executed just before 'all' target
 .PHONY: pre-all
-pre-all: check-sources-prebuild
+pre-all: check-make-prebuild check-sources-prebuild
 	$(MAKE) generate-files
 
 # checks ---------------------------------------------- {{{3
+
+.PHONY: check-make-prebuild
+check-make-prebuild:
+	@echo -n 'Checking make files... '
+	@XC=`echo "$(mero_libmero_la_SOURCES)" | grep -Po '\S+_xc\.[ch]'` ; \
+		if [[ -n $$XC ]] ; then \
+			echo FAIL; \
+			echo "ERROR: xcode files in mero_libmero_la_SOURCES makefile variable:"; \
+			echo "$$XC"; \
+			echo "Please, move them into nodist_mero_libmero_la_SOURCES var instead."; \
+			exit 1; \
+		fi
+	@echo 'OK'
 
 .PHONY: check-sources-prebuild
 check-sources-prebuild:

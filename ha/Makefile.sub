@@ -18,7 +18,6 @@ mero_libmero_la_SOURCES  += ha/dispatcher.c \
                             ha/entrypoint_fops.c \
                             ha/epoch.c \
                             ha/failvec.c \
-                            ha/failvec_xc.c \
                             ha/ha.c \
                             ha/link.c \
                             ha/link_fops.c \
@@ -33,6 +32,7 @@ mero_libmero_la_SOURCES  += ha/dispatcher.c \
 nodist_mero_libmero_la_SOURCES  += \
                             ha/entrypoint_xc.c \
                             ha/entrypoint_fops_xc.c \
+                            ha/failvec_xc.c \
                             ha/link_fops_xc.c \
                             ha/msg_xc.c \
                             ha/note_xc.c \
