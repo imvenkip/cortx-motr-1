@@ -194,7 +194,9 @@ int main(int argc, char *argv[])
 	m0_sns_cm_rebalance_trigger_fop_init();
 	m0_dix_cm_repair_trigger_fop_init();
 	m0_dix_cm_rebalance_trigger_fop_init();
-	repair_client_init();
+	rc = repair_client_init();
+	if (rc != 0)
+		return M0_ERR(rc);
 
 	m0_mutex_init(&repair_wait_mutex);
 	m0_chan_init(&repair_wait, &repair_wait_mutex);

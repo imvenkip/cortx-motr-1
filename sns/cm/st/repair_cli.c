@@ -43,20 +43,18 @@ M0_INTERNAL int repair_client_init(void)
 	int rc;
 
 	rc = m0_net_domain_init(&cl_ndom, &m0_net_lnet_xprt);
-	M0_ASSERT(rc == 0);
+	if (rc == 0) {
+		cl_ctx.rcx_local_addr  = cl_ep_addr;
+		cl_ctx.rcx_remote_addr = srv_ep_addr[0];
 
-	cl_ctx.rcx_local_addr  = cl_ep_addr;
-	cl_ctx.rcx_remote_addr = srv_ep_addr[0];
-
-	return m0_rpc_client_start(&cl_ctx);
+		rc = m0_rpc_client_start(&cl_ctx);
+	}
+	return rc;
 }
 
 M0_INTERNAL void repair_client_fini(void)
 {
-	int rc;
-
-	rc = m0_rpc_client_stop(&cl_ctx);
-	M0_ASSERT(rc == 0);
+	m0_rpc_client_stop(&cl_ctx);
 
 	m0_net_domain_fini(&cl_ndom);
 }
@@ -72,14 +70,10 @@ M0_INTERNAL int repair_rpc_ctx_init(struct rpc_ctx *ctx, const char *sep)
 
 M0_INTERNAL void repair_rpc_ctx_fini(struct rpc_ctx *ctx)
 {
-	int rc;
-
 	if (ctx->ctx_rc != 0)
 		return;
-	rc = m0_rpc_session_destroy(&ctx->ctx_session, M0_TIME_NEVER);
-	M0_ASSERT(rc == 0);
-	rc = m0_rpc_conn_destroy(&ctx->ctx_conn, M0_TIME_NEVER);
-	M0_ASSERT(rc == 0);
+	m0_rpc_session_destroy(&ctx->ctx_session, M0_TIME_NEVER);
+	m0_rpc_conn_destroy(&ctx->ctx_conn, M0_TIME_NEVER);
 }
 
 M0_INTERNAL int repair_rpc_post(struct m0_fop *fop,
