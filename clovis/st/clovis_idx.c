@@ -522,7 +522,7 @@ static void idx_query_get(void)
 		CLOVIS_ST_ASSERT_FATAL(ops[0]->op_sm.sm_rc == 0);
 
 		for(j = 0; j < nr_kvp; j++) {
-			CLOVIS_ST_ASSERT_FATAL(rcs[i] == 0);
+			CLOVIS_ST_ASSERT_FATAL(rcs[j] == 0);
 		}
 
 		/* fini and release */
