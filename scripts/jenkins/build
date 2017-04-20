@@ -32,12 +32,13 @@ else
 fi
 
 ./autogen.sh |& tee $ARTIFACTS/configure.log
-./configure --enable-detailed-backtrace |& tee -a $ARTIFACTS/configure.log
 
 if [[ $1 = docs ]] ; then
+./configure --enable-detailed-backtrace --disable-systemd |& tee -a $ARTIFACTS/configure.log
 make -j doc |& tee $ARTIFACTS/make.log
 else
 [[ -d $HOME/rpmbuild ]] && rm -rf $HOME/rpmbuild/*
+./configure --enable-detailed-backtrace |& tee -a $ARTIFACTS/configure.log
 make -j |& tee $ARTIFACTS/make.log
 make -j rpms |& tee $ARTIFACTS/rpm.log
 cp -av $HOME/rpmbuild/RPMS/x86_64/mero*.rpm $ARTIFACTS/
