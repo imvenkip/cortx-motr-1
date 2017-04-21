@@ -92,6 +92,9 @@ case "$cmd" in
 		else
 			clovis_st_start_k $index
 		fi
+
+		rc=$?
+		report_and_exit clovis_sys_test $rc
 		;;
 	run)
 		( exec `dirname $0`/mero_services.sh start )
@@ -100,7 +103,11 @@ case "$cmd" in
 		else
 			clovis_st_start_k $index
 		fi
+
+		rc=$?
+
 		( exec `dirname $0`/mero_services.sh stop )
+		report_and_exit clovis_sys_test $rc
 		;;
 	stop)
 		if [ $umod -eq 1 ]; then

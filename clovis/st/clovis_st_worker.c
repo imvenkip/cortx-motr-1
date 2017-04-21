@@ -120,7 +120,15 @@ void thread_exit(void)
 
 static int thread_join(clovis_st_thread_t *th)
 {
-	return -pthread_join(*th, NULL);
+	void *result;
+	int   rc;
+
+	if (pthread_join(*th, &result) == 0) {
+		rc = *((int *)result);
+		m0_free(result);
+		return rc;
+	} else
+		return -1;
 }
 
 static void thread_fini(clovis_st_thread_t *th)
@@ -139,12 +147,14 @@ static int clovis_st_worker(void *in)
 static void* clovis_st_worker(void *in)
 #endif
 {
-	int                  idx;
-	int                  nr_rounds;
-	uint64_t             start;
-	uint64_t             end;
-	pid_t                tid;
-	struct clovis_st_cfg cfg;
+	int                   idx;
+	int                   nr_rounds;
+	uint64_t              start;
+	uint64_t              end;
+	pid_t                 tid;
+	struct clovis_st_cfg  cfg;
+	int                  *nr_failed_assertions;
+
 #ifndef __KERNEL__
 	struct m0_thread     *mthread;
 
@@ -154,8 +164,18 @@ static void* clovis_st_worker(void *in)
 	memset(mthread, 0, sizeof(struct m0_thread));
 
 	m0_thread_adopt(mthread, clovis_st_get_mero());
+
 #else
+	int                    k_sys_return;
 	M0_CLOVIS_THREAD_ENTER;
+#endif
+
+	nr_failed_assertions = m0_alloc(sizeof *nr_failed_assertions);
+	if (nr_failed_assertions == NULL)
+#ifndef __KERNEL__
+		return NULL;
+#else
+		return -ENOMEM;
 #endif
 
 	/* set tid of this worker thread*/
@@ -175,7 +195,7 @@ static void* clovis_st_worker(void *in)
 		 * at the same time
 		 */
 
-		clovis_st_run(clovis_st_get_tests());
+		*nr_failed_assertions = clovis_st_run(clovis_st_get_tests());
 
 		/*
 		 * tests don't continue if the thread runs out of
@@ -192,8 +212,13 @@ static void* clovis_st_worker(void *in)
 
 	/* wait for the thread_join is called*/
 	thread_exit();
-
-	return 0;
+#ifndef __KERNEL__
+	return nr_failed_assertions;
+#else
+	k_sys_return = *nr_failed_assertions;
+	m0_free(nr_failed_assertions);
+	return k_sys_return;
+#endif
 }
 
 int clovis_st_start_workers(void)
@@ -228,23 +253,25 @@ int clovis_st_start_workers(void)
 	return rc;
 }
 
-void clovis_st_stop_workers(void)
+int clovis_st_stop_workers(void)
 {
 	int i;
 	int nr_workers;
+	int rc = 0; /* required */
 
 	nr_workers = clovis_st_get_nr_workers();
 
 	if (nr_workers == 0 || workers == NULL)
-		return;
+		return rc;
 
 	for (i = 0; i < nr_workers; i++) {
-		thread_join(workers[i]);
+		rc = thread_join(workers[i]);
 		thread_fini(workers[i]);
 	}
 
 	/*free workers*/
 	mem_free(workers);
+	return rc;
 }
 
 /*

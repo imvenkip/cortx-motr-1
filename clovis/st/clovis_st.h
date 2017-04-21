@@ -251,7 +251,7 @@ int clovis_st_get_worker_idx(pid_t tid);
  * Start and stop worker threads for tests
  */
 int clovis_st_start_workers(void);
-void clovis_st_stop_workers(void);
+int clovis_st_stop_workers(void);
 
 /**
  * Object ID allocation and release

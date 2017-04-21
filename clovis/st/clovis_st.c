@@ -404,7 +404,7 @@ int clovis_st_run(const char *test_list_str)
 	/* Runs all test suites now*/
 	start = time_now();
 	ctx.sx_worker_stats[worker_idx].sws_nr_asserts = 0;
-	 ctx.sx_worker_stats[worker_idx].sws_nr_failed_asserts = 0;
+	ctx.sx_worker_stats[worker_idx].sws_nr_failed_asserts = 0;
 
 	if (test_list_str == NULL)
 		rc = run_suites(ctx.sx_all, ctx.sx_nr_all);
@@ -429,7 +429,7 @@ int clovis_st_run(const char *test_list_str)
 			       "\nClovis tests Done\n",
 			       time_seconds(duration), csec,
 			       nr_asserts, nr_failed_asserts);
-	return rc;
+	return nr_failed_asserts;
 }
 
 void clovis_st_list(bool with_tests)

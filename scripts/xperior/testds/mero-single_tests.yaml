@@ -265,8 +265,8 @@ Tests:
   - id       : 28clovis-sys-kvs-test
     script   : clovis_sys_test.sh run local -i KVS
     dir      : src/clovis/st/utils/
-    #executor : Xperior::Executor::MeroTest
-    executor : Xperior::Executor::Skip
+    executor : Xperior::Executor::MeroTest
+    #executor : Xperior::Executor::Skip
     sandbox  : /var/mero/sandbox.28clovis-sys-kvs-test
     polltime : 30
     timeout  : 900

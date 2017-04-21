@@ -138,9 +138,9 @@ static void clovis_st_fini_instance(void)
 	m0_clovis_fini(&instance, true);
 }
 
-static void clovis_st_wait_workers(void)
+static int clovis_st_wait_workers(void)
 {
-	clovis_st_stop_workers();
+	return clovis_st_stop_workers();
 }
 
 void clovis_st_usage()
@@ -244,6 +244,7 @@ void clovis_st_get_opts(int argc, char **argv)
 
 int main(int argc, char **argv)
 {
+	int rc;
 
 	/* initilise Clovis ST*/
 	clovis_st_init();
@@ -264,14 +265,14 @@ int main(int argc, char **argv)
 	clovis_st_start_workers();
 
 	/* wait till all workers complete */
-	clovis_st_wait_workers();
+	rc = clovis_st_wait_workers();
 	clovis_st_cleaner_fini();
 
 	/* clean-up */
 	clovis_st_fini_instance();
 	clovis_st_fini();
 
-	return 0;
+	return rc;
 }
 
 /*
