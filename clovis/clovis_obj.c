@@ -735,7 +735,7 @@ uint64_t m0_clovis_default_layout_id(struct m0_clovis *instance)
 	if (instance->m0c_config->cc_layout_id != 0)
 		return instance->m0c_config->cc_layout_id;
 
-	rc = m0_conf_fs_get(&reqh->rh_profile, m0_reqh2confc(reqh), &fs);
+	rc = m0_conf_fs_get(m0_reqh2profile(reqh), m0_reqh2confc(reqh), &fs);
 	if (rc != 0)
 		goto EXIT;
 	if (fs->cf_params != NULL && fs->cf_params[FS_LID_INDEX] != NULL) {

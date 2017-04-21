@@ -397,7 +397,7 @@ M0_INTERNAL int cs_conf_services_init(struct m0_mero *cctx)
 	rctx = &cctx->cc_reqh_ctx;
 	rctx->rc_nr_services = 0;
 	confc = m0_mero2confc(cctx);
-	rc = m0_conf_fs_get(&rctx->rc_reqh.rh_profile, confc, &fs);
+	rc = m0_conf_fs_get(m0_reqh2profile(&rctx->rc_reqh), confc, &fs);
 	if (rc != 0)
 		return M0_ERR_INFO(rc, "conf fs fail");;
 	rc = M0_FI_ENABLED("diter_fail") ? -ENOMEM :

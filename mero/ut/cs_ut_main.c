@@ -657,10 +657,11 @@ static void test_cs_ut_rconfc_fatal(void)
 	rc = m0_rpc_server_start(&sctx);
 	M0_UT_ASSERT(rc == 0);
 	/* Prepare and launch standalone rconfc */
-	rc = m0_rconfc_init(&rconfc, m0_locality0_get()->lo_grp,
+	rc = m0_rconfc_init(&rconfc, m0_reqh2profile(reqh),
+			    m0_locality0_get()->lo_grp,
 			    cs_ut_reqh2rmach(reqh), NULL, NULL);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_start_sync(&rconfc, &reqh->rh_profile);
+	rc = m0_rconfc_start_sync(&rconfc);
 	M0_UT_ASSERT(rc == 0);
 	/*
 	 * Register SIGUSR2 handler. The signal is to be sent by

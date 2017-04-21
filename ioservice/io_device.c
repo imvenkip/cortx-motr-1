@@ -294,7 +294,7 @@ M0_INTERNAL int m0_ios_poolmach_init(struct m0_reqh_service *service)
 		rc = M0_ERR(-ENOMEM);
 		goto exit;
 	}
-	rc = m0_conf_fs_get(&reqh->rh_profile, confc, &fs);
+	rc = m0_conf_fs_get(m0_reqh2profile(reqh), confc, &fs);
 	if (rc != 0)
 		goto poolmach_free;
 

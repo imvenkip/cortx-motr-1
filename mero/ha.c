@@ -275,7 +275,7 @@ mero_ha_entrypoint_request_cb(struct m0_ha                      *ha,
 {
 	struct m0_reqh              *reqh    = ha->h_cfg.hcf_reqh;
 	struct m0_confc             *confc   = m0_reqh2confc(reqh);
-	struct m0_fid               *profile = &reqh->rh_profile;
+	struct m0_fid               *profile = m0_reqh2profile(reqh);
 	struct m0_ha_entrypoint_rep  rep = {0};
 	int                          rc;
 

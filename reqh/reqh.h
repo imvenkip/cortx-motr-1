@@ -148,11 +148,6 @@ struct m0_reqh {
 	struct m0_reqh_lockers        rh_lockers;
 
 	/**
-	 * Configuration profile.
-	 */
-	struct m0_fid                 rh_profile;
-
-	/**
 	 * Rconfc instance.
 	 */
 	struct m0_rconfc              rh_rconfc;
@@ -434,6 +429,7 @@ m0_reqh_mdpool_service_index_to_session(const struct m0_reqh *reqh,
 				        uint32_t index);
 
 M0_INTERNAL struct m0_confc *m0_reqh2confc(struct m0_reqh *reqh);
+M0_INTERNAL struct m0_fid *m0_reqh2profile(struct m0_reqh *reqh);
 
 /** @} endgroup reqh */
 

@@ -564,7 +564,7 @@ static uint64_t default_layout_id_get(struct m0t1fs_sb *csb)
 
 	M0_ENTRY();
 
-	rc = m0_conf_fs_get(&reqh->rh_profile, m0_reqh2confc(reqh), &fs);
+	rc = m0_conf_fs_get(m0_reqh2profile(reqh), m0_reqh2confc(reqh), &fs);
 	if (rc == 0) {
 		/* TODO move the warning to the mount time */
 		if (fs->cf_params == NULL)

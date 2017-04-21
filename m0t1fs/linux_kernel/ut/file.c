@@ -91,7 +91,6 @@ static struct file                   lfile;
 static struct m0_confc              *confc = &csb.csb_reqh.rh_rconfc.rc_confc;
 static struct m0_rm_remote           creditor;
 static bool                          runast = false;
-static struct m0_fid                 profile;
 static struct m0_rpc_conn            conn;
 
 static struct pargrp_iomap           map;
@@ -239,11 +238,11 @@ static int file_io_ut_init(void)
 
 	rc = m0_reqh_conf_setup(reqh, confc_args);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_start_sync(&reqh->rh_rconfc, &profile);
+	rc = m0_rconfc_start_sync(&reqh->rh_rconfc);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_ha_client_add(m0_reqh2confc(reqh));
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_conf_fs_get(&reqh->rh_profile, m0_reqh2confc(reqh), &fs);
+	rc = m0_conf_fs_get(m0_reqh2profile(reqh), m0_reqh2confc(reqh), &fs);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_pools_common_init(&csb.csb_pools_common, NULL, fs);

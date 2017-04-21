@@ -296,13 +296,13 @@ static void test_resend(void)
 	struct m0_reqh     *reqh      = &sctx.rsx_mero_ctx.cc_reqh_ctx.rc_reqh;
 	struct m0_rconfc   *cl_rconfc = &cctx.rcx_reqh.rh_rconfc;
 
-	rc = m0_rconfc_init(cl_rconfc, m0_locality0_get()->lo_grp, machine,
+	rc = m0_rconfc_init(cl_rconfc, m0_reqh2profile(reqh),
+			    m0_locality0_get()->lo_grp, machine,
 			    NULL, NULL);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_file_read(M0_UT_PATH("conf.xc"), &cl_rconfc->rc_local_conf);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_start(cl_rconfc, &reqh->rh_profile);
-	M0_UT_ASSERT(rc == 0);
+	m0_rconfc_start(cl_rconfc);
 	rc = m0_rpc_conn_ha_subscribe(session->s_conn, &sfid);
 	M0_UT_ASSERT(rc == 0);
 
@@ -1107,13 +1107,13 @@ static void test_ha_cancel(void)
 	struct m0_conf_obj *obj;
 	int                 rc;
 
-	rc = m0_rconfc_init(cl_rconfc, m0_locality0_get()->lo_grp, machine,
+	rc = m0_rconfc_init(cl_rconfc, m0_reqh2profile(reqh),
+			    m0_locality0_get()->lo_grp, machine,
 			    NULL, NULL);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_file_read(M0_UT_PATH("conf.xc"), &cl_rconfc->rc_local_conf);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_start(cl_rconfc, &reqh->rh_profile);
-	M0_UT_ASSERT(rc == 0);
+	m0_rconfc_start(cl_rconfc);
 
 	/*
 	 * Re-initiate rpc conn subscription to HA notes. This will replace
@@ -1182,12 +1182,13 @@ static void test_ha_notify()
 	int                 cnt       = 0;
 	int                 rc;
 
-	rc = m0_rconfc_init(cl_rconfc, m0_locality0_get()->lo_grp, machine,
+	rc = m0_rconfc_init(cl_rconfc, m0_reqh2profile(reqh),
+			    m0_locality0_get()->lo_grp, machine,
 			    NULL, NULL);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_file_read(M0_UT_PATH("conf.xc"), &cl_rconfc->rc_local_conf);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_start(cl_rconfc, &reqh->rh_profile);
+	rc = m0_rconfc_start(cl_rconfc);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rpc_conn_ha_subscribe(session->s_conn, &sfid);
 	M0_UT_ASSERT(rc == 0);

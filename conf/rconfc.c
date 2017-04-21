@@ -736,7 +736,7 @@ static void rconfc_conf_full_load(struct m0_sm_group *grp,
 
 	M0_ENTRY("rconfc = %p", rconfc);
 	rc = m0_conf_obj_find_lock(cache, &M0_CONF_ROOT_FID, &confc->cc_root) ?:
-		m0_conf_fs_get(rconfc->rc_profile, confc, &fs) ?:
+		m0_conf_fs_get(&rconfc->rc_profile, confc, &fs) ?:
 		m0_conf_full_load(fs);
 	if (fs != NULL)
 		m0_confc_close(&fs->cf_obj);
@@ -2591,6 +2591,7 @@ M0_INTERNAL void m0_rconfc_unlock(struct m0_rconfc *rconfc)
 }
 
 M0_INTERNAL int m0_rconfc_init(struct m0_rconfc      *rconfc,
+			       const struct m0_fid   *profile,
 			       struct m0_sm_group    *sm_group,
 			       struct m0_rpc_machine *rmach,
 			       m0_rconfc_cb_t         expired_cb,
@@ -2616,9 +2617,9 @@ M0_INTERNAL int m0_rconfc_init(struct m0_rconfc      *rconfc,
 	if (rc != 0)
 		goto rlock_err;
 	rc = _confc_phony_init(&rconfc->rc_phony);
-	if (rc != 0) {
+	if (rc != 0)
 		goto confc_err;
-	}
+	rconfc->rc_profile = *profile;
 	rconfc->rc_rmach   = rmach;
 	rconfc->rc_qctx    = va;
 	rconfc->rc_ver     = M0_CONF_VER_UNKNOWN;
@@ -2654,29 +2655,29 @@ rlock_err:
 	return M0_ERR(rc);
 }
 
-M0_INTERNAL int m0_rconfc_start(struct m0_rconfc    *rconfc,
-				const struct m0_fid *profile)
+M0_INTERNAL int m0_rconfc_start(struct m0_rconfc *rconfc)
 {
-	M0_ENTRY("rconfc = %p, profile = "FID_F, rconfc, FID_P(profile));
+	M0_ENTRY("rconfc = %p, profile = "FID_F, rconfc,
+		 FID_P(&rconfc->rc_profile));
+	M0_PRE(m0_fid_is_set(&rconfc->rc_profile));
 	M0_PRE(rconfc->rc_fatal_cb == NULL);
-	rconfc->rc_profile = profile;
 	if (rconfc->rc_local_conf != NULL)
 		return M0_RC(rconfc_local_load(rconfc));
 	rconfc_ast_post(rconfc, rconfc_start_ast_cb);
 	return M0_RC(0);
 }
 
-M0_INTERNAL int m0_rconfc_start_wait(struct m0_rconfc    *rconfc,
-				     const struct m0_fid *profile,
-				     uint64_t             timeout_ns)
+M0_INTERNAL int m0_rconfc_start_wait(struct m0_rconfc *rconfc,
+				     uint64_t          timeout_ns)
 {
 	struct rlock_ctx *rlx = M0_MEMBER(rconfc, rc_rlock_ctx);
-	int rc;
+	int               rc;
 
-	M0_ENTRY("rconfc = %p, profile = "FID_F, rconfc, FID_P(profile));
+	M0_ENTRY("rconfc = %p, profile = "FID_F, rconfc,
+		 FID_P(&rconfc->rc_profile));
 	if (timeout_ns != M0_TIME_NEVER)
 		rlx->rlc_timeout = timeout_ns;
-	rc = m0_rconfc_start(rconfc, profile);
+	rc = m0_rconfc_start(rconfc);
 	if (rc != 0)
 		return M0_ERR(rc);
 	if (!m0_rconfc_is_preloaded(rconfc)) {

@@ -374,7 +374,7 @@ void rm_ctxs_conf_init(struct rm_ctx *rm_ctxs, int ctxs_nr)
 		 * Initialise confc instance in reqh. Confc is necessary to
 		 * track death of creditors/debtors.
 		 */
-		m0_fid_tset(&rmctx->rc_rmach_ctx.rmc_reqh.rh_profile,
+		m0_fid_tset(m0_reqh2profile(&rmctx->rc_rmach_ctx.rmc_reqh),
 			    M0_CONF_PROFILE_TYPE.cot_ftype.ft_id, 1, 0);
 		rc = m0_confc_init(confc,
 				   m0_locality0_get()->lo_grp,

@@ -861,7 +861,7 @@ static int clovis_confc_init(struct m0_clovis *m0c)
 	m0_clink_init(&m0c->m0c_conf_ready, clovis_rconfc_ready_cb);
 	m0_clink_add_lock(&reqh->rh_conf_cache_exp, &m0c->m0c_conf_exp);
 	m0_clink_add_lock(&reqh->rh_conf_cache_ready, &m0c->m0c_conf_ready);
-	rc = m0_rconfc_start_sync(rconfc, &reqh->rh_profile);
+	rc = m0_rconfc_start_sync(rconfc);
 	if (rc != 0)
 		goto err_rconfc_stop;
 
@@ -869,8 +869,8 @@ static int clovis_confc_init(struct m0_clovis *m0c)
 	if (rc != 0)
 		goto err_rconfc_stop;
 
-	rc = m0_conf_fs_get(&reqh->rh_profile,
-			    m0_reqh2confc(reqh), &clovis_conf_fs);
+	rc = m0_conf_fs_get(m0_reqh2profile(reqh), m0_reqh2confc(reqh),
+			    &clovis_conf_fs);
 	if (rc != 0)
 		goto err_ha_client_del;
 

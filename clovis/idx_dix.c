@@ -1096,7 +1096,7 @@ static int dix_root_idx_pver(struct m0_clovis *m0c, struct m0_fid *out)
 	int                        rc;
 
 	/* Clovis will release the lock on confc before calling idx_dix_init() */
-	rc = m0_conf_fs_get(&reqh->rh_profile, m0_reqh2confc(reqh), &fs);
+	rc = m0_conf_fs_get(m0_reqh2profile(reqh), m0_reqh2confc(reqh), &fs);
 	if (rc != 0)
 		return M0_ERR(rc);
 	*out = fs->cf_imeta_pver;

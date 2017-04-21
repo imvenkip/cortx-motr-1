@@ -633,7 +633,7 @@ static int pool_version_get_locked(struct m0_pools_common  *pc,
 		}
 	}
 
-	rc = m0_conf_pver_get(&reqh->rh_profile, pc->pc_confc, &pver);
+	rc = m0_conf_pver_get(m0_reqh2profile(reqh), pc->pc_confc, &pver);
 	if (rc != 0)
 		return M0_ERR(rc);
 
@@ -1249,7 +1249,7 @@ static int pools_common__update_by_conf(struct m0_pools_common *pc)
 	M0_ENTRY("pc=%p", pc);
 	if (pc->pc_md_pool_linst != NULL)
 		pools_common__md_pool_cleanup(pc);
-	rc = m0_conf_fs_get(&reqh->rh_profile, pc->pc_confc, &fs) ?:
+	rc = m0_conf_fs_get(m0_reqh2profile(reqh), pc->pc_confc, &fs) ?:
 		pools_common_refresh_locked(pc, fs) ?:
 		pools_common__dev2ios_build(pc, fs) ?:
 		m0_pools_setup(pc, fs, NULL, NULL, NULL) ?:

@@ -259,7 +259,7 @@ static void rm_ha_fs_open(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 		m0_clink_add_lock(&cctx->fc_mach.sm_chan, &sbscr->rhs_clink);
 		m0_confc_open(cctx, confc->cc_root,
 			      M0_CONF_ROOT_PROFILES_FID,
-			      reqh->rh_profile,
+			      *m0_reqh2profile(reqh),
 			      M0_CONF_PROFILE_FILESYSTEM_FID);
 	}
 }
@@ -286,7 +286,7 @@ static int rm_remote_ep_to_rms_obj(struct m0_confc     *confc,
 	reqh = m0_confc2reqh(confc);
 	rc = m0_confc_open_sync(&fs, confc->cc_root,
 				M0_CONF_ROOT_PROFILES_FID,
-				reqh->rh_profile,
+				*m0_reqh2profile(reqh),
 				M0_CONF_PROFILE_FILESYSTEM_FID);
 	if (rc != 0)
 		return M0_ERR(rc);

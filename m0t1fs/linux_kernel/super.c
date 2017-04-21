@@ -203,7 +203,7 @@ static int _fs_stats_fetch(struct m0t1fs_sb *csb, struct m0_fs_stats *stats)
 	int                  rc;
 	static struct m0_fid fs_fid;
 	struct m0_spiel_core spc = {
-		.spc_profile   = csb->csb_reqh.rh_profile,
+		.spc_profile   = *m0_reqh2profile(&csb->csb_reqh),
 		.spc_rmachine  = &csb->csb_rpc_machine,
 		.spc_confc     = m0_reqh2confc(&csb->csb_reqh),
 	};
@@ -1001,13 +1001,13 @@ int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	m0_clink_add_lock(&reqh->rh_conf_cache_ready_async,
 			  &csb->csb_conf_ready_async);
 
-	rc = m0_rconfc_start_sync(m0_csb2rconfc(csb), &reqh->rh_profile);
+	rc = m0_rconfc_start_sync(m0_csb2rconfc(csb));
 	if (rc != 0)
 		goto err_rconfc_stop;
 	rc = m0_ha_client_add(m0_reqh2confc(reqh));
 	if (rc != 0)
 		goto err_rconfc_stop;
-	rc = m0_conf_fs_get(&reqh->rh_profile, m0_reqh2confc(reqh), &fs);
+	rc = m0_conf_fs_get(m0_reqh2profile(reqh), m0_reqh2confc(reqh), &fs);
 	if (rc != 0)
 		goto err_ha_client_del;
 

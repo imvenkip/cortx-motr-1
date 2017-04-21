@@ -845,7 +845,7 @@ static int cs_storage_devs_init(struct cs_stobs          *stob,
 	reqh = &rctx->rc_reqh;
 	cctx = container_of(rctx, struct m0_mero, cc_reqh_ctx);
 	confc = m0_mero2confc(cctx);
-	conf_profile = &rctx->rc_reqh.rh_profile;
+	conf_profile = m0_reqh2profile(&rctx->rc_reqh);
 	rc = m0_storage_devs_init(devs, type, seg, stob->s_sdom, reqh);
 	if (rc != 0)
 		return M0_ERR(rc);
@@ -1461,7 +1461,7 @@ static int be_repair_zone_pcnt_get(struct m0_reqh *reqh,
 	int                        rc;
 
 	*repair_zone_pcnt = 0;
-	rc = m0_conf_fs_get(&reqh->rh_profile, m0_reqh2confc(reqh), &fs);
+	rc = m0_conf_fs_get(m0_reqh2profile(reqh), m0_reqh2confc(reqh), &fs);
 	M0_LOG(M0_DEBUG, "m0_conf_fs_get rc %d fs %p", rc, fs);
 	if (rc == 0) {
 		confc = m0_confc_from_obj(&fs->cf_obj);
@@ -2422,12 +2422,12 @@ static int cs_conf_setup(struct m0_mero *cctx)
 	if (rc != 0)
 		return M0_ERR(rc);
 
-	rc = m0_rconfc_start_sync(mero2rconfc(cctx), &reqh->rh_profile) ?:
+	rc = m0_rconfc_start_sync(mero2rconfc(cctx)) ?:
 		m0_ha_client_add(m0_mero2confc(cctx));
 	if (rc != 0)
 		goto rconfc_stop;
 
-	rc = m0_conf_fs_get(&reqh->rh_profile, m0_reqh2confc(reqh), &fs);
+	rc = m0_conf_fs_get(m0_reqh2profile(reqh), m0_reqh2confc(reqh), &fs);
 	if (rc != 0)
 		goto ha_client_del;
 
@@ -2613,7 +2613,7 @@ int m0_cs_start(struct m0_mero *cctx)
 	    cctx->cc_no_all2all_connections)
 		goto out;
 
-	rc = gotsignal ? -EINTR : m0_conf_fs_get(&reqh->rh_profile,
+	rc = gotsignal ? -EINTR : m0_conf_fs_get(m0_reqh2profile(reqh),
 						 m0_reqh2confc(reqh), &fs);
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "rc=%d", rc);

@@ -745,7 +745,7 @@ static void sender_init()
 	sender_cm_service->rs_reqh_ctx->rc_mero->cc_profile =
 		M0_UT_CONF_PROFILE;
 	rc = m0_fid_sscanf(sender_cm_service->rs_reqh_ctx->rc_mero->cc_profile,
-			   &sender_cm_service->rs_reqh->rh_profile);
+			   m0_reqh2profile(sender_cm_service->rs_reqh));
 	M0_UT_ASSERT(rc == 0);
 
 	m0_cm_cp_init(&sender_cm_cmt, NULL);

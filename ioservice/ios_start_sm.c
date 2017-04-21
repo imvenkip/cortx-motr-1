@@ -533,9 +533,9 @@ static int ios_start_fs_obj_open(struct m0_ios_start_sm *ios_sm)
 	m0_clink_add(&ios_sm->ism_confc_ctx.fc_mach.sm_chan,
 		     &ios_sm->ism_clink);
 	m0_confc_open(&ios_sm->ism_confc_ctx, confc->cc_root,
-			M0_CONF_ROOT_PROFILES_FID,
-			ios_sm->ism_reqh->rh_profile,
-			M0_CONF_PROFILE_FILESYSTEM_FID);
+		      M0_CONF_ROOT_PROFILES_FID,
+		      *m0_reqh2profile(ios_sm->ism_reqh),
+		      M0_CONF_PROFILE_FILESYSTEM_FID);
 	return M0_RC(0);
 }
 

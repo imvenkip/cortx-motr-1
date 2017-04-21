@@ -276,7 +276,8 @@ static void storage_devs_conf_refresh(struct m0_storage_devs *storage_devs,
 
 	m0_tl_for(storage_dev, &storage_devs->sds_devices, dev) {
 		rc = m0_conf_device_cid_to_fid(confc, dev->isd_cid,
-					       &reqh->rh_profile, &sdev_fid);
+					       m0_reqh2profile(reqh),
+					       &sdev_fid);
 		if (rc != 0)
 			/* Not all storage devices have a corresponding
 			 * m0_conf_sdev object.
@@ -301,7 +302,7 @@ static bool storage_devs_conf_ready_async_cb(struct m0_clink *clink)
 					      rh_conf_cache_ready_async);
 	struct m0_storage_dev  *dev;
 	struct m0_confc        *confc = m0_reqh2confc(reqh);
-	struct m0_fid          *profile = &reqh->rh_profile;
+	struct m0_fid          *profile = m0_reqh2profile(reqh);
 	struct m0_fid           sdev_fid;
 	struct m0_conf_sdev    *conf_sdev = NULL;
 	struct m0_conf_service *conf_service;

@@ -1053,8 +1053,7 @@ static int dix_client_init(struct cl_ctx *cctx, const char *cl_ep_addr,
 	 * Initialise pools common structure, it's necessary for normal DIX
 	 * client functioning.
 	 */
-	rc = m0_fid_sscanf(ut_profile,
-			   &cl_rpc_ctx->rcx_reqh.rh_profile);
+	rc = m0_fid_sscanf(ut_profile, m0_reqh2profile(&cl_rpc_ctx->rcx_reqh));
 	M0_UT_ASSERT(rc == 0);
 	confc_args = &(struct m0_confc_args) {
 		.ca_profile = ut_profile,
@@ -1063,10 +1062,9 @@ static int dix_client_init(struct cl_ctx *cctx, const char *cl_ep_addr,
 	};
 	rc = m0_reqh_conf_setup(&cl_rpc_ctx->rcx_reqh, confc_args);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_start_sync(&cl_rpc_ctx->rcx_reqh.rh_rconfc,
-				  &cl_rpc_ctx->rcx_reqh.rh_profile);
+	rc = m0_rconfc_start_sync(&cl_rpc_ctx->rcx_reqh.rh_rconfc);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_conf_fs_get(&cl_rpc_ctx->rcx_reqh.rh_profile,
+	rc = m0_conf_fs_get(m0_reqh2profile(&cl_rpc_ctx->rcx_reqh),
 			    m0_reqh2confc(&cl_rpc_ctx->rcx_reqh), &fs);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_pools_common_init(pc, &cl_rpc_ctx->rcx_rpc_machine, fs);
@@ -1147,7 +1145,7 @@ static int ut_pver_find(struct m0_reqh *reqh, struct m0_fid *out)
 	struct m0_conf_filesystem *fs;
 	int                        rc;
 
-	rc = m0_conf_fs_get(&reqh->rh_profile, m0_reqh2confc(reqh), &fs);
+	rc = m0_conf_fs_get(m0_reqh2profile(reqh), m0_reqh2confc(reqh), &fs);
 	if (rc != 0)
 		return M0_ERR(rc);
 	*out = fs->cf_imeta_pver;

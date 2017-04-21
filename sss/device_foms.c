@@ -472,7 +472,7 @@ static int sss_device_fom_disk_opened(struct m0_fom *fom)
 		m0_clink_init(&dfom->ssm_clink, sss_dfom_confc_ctx_check_cb);
 		m0_clink_add_lock(&ctx->fc_mach.sm_chan, &dfom->ssm_clink);
 		m0_confc_open(ctx, confc->cc_root, M0_CONF_ROOT_PROFILES_FID,
-			      m0_fom_reqh(fom)->rh_profile,
+			      *m0_reqh2profile(m0_fom_reqh(fom)),
 			      M0_CONF_PROFILE_FILESYSTEM_FID);
 	}
 	return M0_RC(rc);

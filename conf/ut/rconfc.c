@@ -142,8 +142,8 @@ static void test_init_fini(void)
 
 	rc = rconfc_ut_mero_start(&mach, &rctx);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, test_null_exp_cb,
-			    NULL);
+	rc = m0_rconfc_init(&rconfc, &profile, &m0_conf_ut_grp, &mach,
+			    test_null_exp_cb, NULL);
 	M0_UT_ASSERT(rc == 0);
 	m0_rconfc_fini(&rconfc);
 	rconfc_ut_mero_stop(&mach, &rctx);
@@ -159,9 +159,11 @@ static void test_start_stop(void)
 
 	rc = rconfc_ut_mero_start(&mach, &rctx);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
+	rc = m0_rconfc_init(&rconfc, &profile, &m0_conf_ut_grp, &mach, NULL,
+			    NULL);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_start_sync(&rconfc, &profile);
+	rconfc.rc_profile = profile;
+	rc = m0_rconfc_start_sync(&rconfc);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(rconfc.rc_ver != 0);
 	ver = m0_rconfc_ver_max_read(&rconfc);
@@ -181,11 +183,12 @@ static void test_start_stop_local(void)
 
 	rc = rconfc_ut_mero_start(&mach, &rctx);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
+	rc = m0_rconfc_init(&rconfc, &profile, &m0_conf_ut_grp, &mach, NULL,
+			    NULL);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_file_read(M0_UT_PATH("conf.xc"), &rconfc.rc_local_conf);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_start_sync(&rconfc, &profile);
+	rc = m0_rconfc_start_sync(&rconfc);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(m0_rconfc_is_preloaded(&rconfc));
 	M0_UT_ASSERT(rconfc.rc_ver != 0);
@@ -203,10 +206,10 @@ static void test_local_load_fail(void)
 
 	rc = rconfc_ut_mero_start(&mach, &rctx);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
+	rc = m0_rconfc_init(&rconfc, &profile, &m0_conf_ut_grp, &mach, NULL, NULL);
 	M0_UT_ASSERT(rc == 0);
 	rconfc.rc_local_conf = m0_strdup("abracadabra");
-	rc = m0_rconfc_start_sync(&rconfc, &profile);
+	rc = m0_rconfc_start_sync(&rconfc);
 	M0_UT_ASSERT(rc != 0);
 	M0_UT_ASSERT(!m0_rconfc_is_preloaded(&rconfc));
 	M0_UT_ASSERT(rconfc.rc_ver == 0);
@@ -225,9 +228,10 @@ static void test_start_failures(void)
 	rc = rconfc_ut_mero_start(&mach, &rctx);
 	M0_UT_ASSERT(rc == 0);
 	m0_fi_enable_once("rlock_ctx_connect", "rm_conn_failed");
-	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
+	rc = m0_rconfc_init(&rconfc, &profile, &m0_conf_ut_grp, &mach, NULL,
+			    NULL);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_start_sync(&rconfc, &profile);
+	rc = m0_rconfc_start_sync(&rconfc);
 	/*
 	 * If connection to RM fails, then rconfc will try to start from
 	 * beginning, because it is possible that RM creditor has changed during
@@ -238,9 +242,10 @@ static void test_start_failures(void)
 	m0_rconfc_fini(&rconfc);
 
 	m0_fi_enable_once("rconfc_read_lock_complete", "rlock_req_failed");
-	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
+	rc = m0_rconfc_init(&rconfc, &profile, &m0_conf_ut_grp, &mach, NULL,
+			    NULL);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_start_sync(&rconfc, &profile);
+	rc = m0_rconfc_start_sync(&rconfc);
 	M0_UT_ASSERT(rc == -ESRCH);
 	m0_rconfc_stop_sync(&rconfc);
 	m0_rconfc_fini(&rconfc);
@@ -284,7 +289,8 @@ static void test_fail_abort(void)
 	rc = rconfc_ut_mero_start(&mach, &rctx);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
+	rc = m0_rconfc_init(&rconfc, &profile, &m0_conf_ut_grp, &mach, NULL,
+			    NULL);
 	M0_UT_ASSERT(rc == 0);
 	/*
 	 * Suppress ha entrypoint response to cause timeout. Imitation of not
@@ -293,7 +299,7 @@ static void test_fail_abort(void)
 	m0_semaphore_init(&g_fatal_sem, 0);
 	ha_clink_cb_orig = rconfc.rc_ha_entrypoint_cl.cl_cb;
 	rconfc.rc_ha_entrypoint_cl.cl_cb = ha_clink_cb_suppress;
-	rc = m0_rconfc_start_wait(&rconfc, &profile, 3ULL * M0_TIME_ONE_SECOND);
+	rc = m0_rconfc_start_wait(&rconfc, 3ULL * M0_TIME_ONE_SECOND);
 	m0_semaphore_down(&g_fatal_sem);
 	m0_semaphore_fini(&g_fatal_sem);
 	M0_UT_ASSERT(rc == -ETIMEDOUT);
@@ -369,7 +375,8 @@ static void test_fail_retry_rm(void)
 	rc = rconfc_ut_mero_start(&mach, &rctx);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
+	rc = m0_rconfc_init(&rconfc, &profile, &m0_conf_ut_grp, &mach, NULL,
+			    NULL);
 	M0_UT_ASSERT(rc == 0);
 	/*
 	 * Distort ha entrypoint response (active rm) to cause HA request
@@ -378,7 +385,7 @@ static void test_fail_retry_rm(void)
 	 */
 	ha_clink_cb_orig = rconfc.rc_ha_entrypoint_cl.cl_cb;
 	rconfc.rc_ha_entrypoint_cl.cl_cb = ha_clink_cb_bad_rm;
-	rc = m0_rconfc_start_sync(&rconfc, &profile);
+	rc = m0_rconfc_start_sync(&rconfc);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(rconfc.rc_ha_entrypoint_retries > 0);
 	/* restore original callback */
@@ -436,7 +443,8 @@ static void test_fail_retry_confd(void)
 	rc = rconfc_ut_mero_start(&mach, &rctx);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
+	rc = m0_rconfc_init(&rconfc, &profile, &m0_conf_ut_grp, &mach, NULL,
+			    NULL);
 	M0_UT_ASSERT(rc == 0);
 	/*
 	 * Distort ha entrypoint response (confd) to cause HA request
@@ -445,7 +453,7 @@ static void test_fail_retry_confd(void)
 	 */
 	ha_clink_cb_orig = rconfc.rc_ha_entrypoint_cl.cl_cb;
 	rconfc.rc_ha_entrypoint_cl.cl_cb = ha_clink_cb_bad_confd;
-	rc = m0_rconfc_start_sync(&rconfc, &profile);
+	rc = m0_rconfc_start_sync(&rconfc);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(rconfc.rc_ha_entrypoint_retries > 0);
 	/* restore original callback */
@@ -482,18 +490,20 @@ static void test_no_rms(void)
 
 	/* quit on command from HA */
 	m0_fi_enable_once("mero_ha_entrypoint_rep_rm_fill", "no_rms_fid");
-	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
+	rc = m0_rconfc_init(&rconfc, &profile, &m0_conf_ut_grp, &mach, NULL,
+			    NULL);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_start_sync(&rconfc, &profile);
+	rc = m0_rconfc_start_sync(&rconfc);
 	M0_UT_ASSERT(rc == -EPERM);
 	/* see if we can stop after start failure */
 	m0_rconfc_stop_sync(&rconfc);
 	m0_rconfc_fini(&rconfc);
 
 	/* start with rms up and running */
-	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
+	rc = m0_rconfc_init(&rconfc, &profile, &m0_conf_ut_grp, &mach, NULL,
+			    NULL);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_start_sync(&rconfc, &profile);
+	rc = m0_rconfc_start_sync(&rconfc);
 	M0_UT_ASSERT(rc == 0);
 	/* see if we can stop when there is no rms around */
 	_stop_rms(&mach);
@@ -501,9 +511,10 @@ static void test_no_rms(void)
 	m0_rconfc_fini(&rconfc);
 
 	/* repeat with no rms around */
-	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
+	rc = m0_rconfc_init(&rconfc, &profile, &m0_conf_ut_grp, &mach, NULL,
+			    NULL);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_start_sync(&rconfc, &profile);
+	rc = m0_rconfc_start_sync(&rconfc);
 	M0_UT_ASSERT(rc == -ECONNREFUSED);
 	/* see if we can stop after start failure */
 	m0_rconfc_stop_sync(&rconfc);
@@ -605,9 +616,10 @@ static void test_dead_down(void)
 
 	/* 1. Normal case */
 	rconfc_ut_ha_state_set(&confd_fid, M0_NC_ONLINE);
-	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
+	rc = m0_rconfc_init(&rconfc, &profile, &m0_conf_ut_grp, &mach, NULL,
+			    NULL);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_start_sync(&rconfc, &profile);
+	rc = m0_rconfc_start_sync(&rconfc);
 	M0_UT_ASSERT(rc == 0);
 	m0_rconfc_lock(&rconfc);
 	on_death_cb_install(&rconfc, UT_CC_KEEP_AS_IS);
@@ -621,9 +633,10 @@ static void test_dead_down(void)
 
 	/* 2. Notification jitters */
 	rconfc_ut_ha_state_set(&confd_fid, M0_NC_ONLINE);
-	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
+	rc = m0_rconfc_init(&rconfc, &profile, &m0_conf_ut_grp, &mach, NULL,
+			    NULL);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_start_sync(&rconfc, &profile);
+	rc = m0_rconfc_start_sync(&rconfc);
 	M0_UT_ASSERT(rc == 0);
 	m0_rconfc_lock(&rconfc);
 	on_death_cb_install(&rconfc, UT_CC_KEEP_AS_IS);
@@ -638,9 +651,10 @@ static void test_dead_down(void)
 
 	/* 3. Deal with already disconnected confc */
 	rconfc_ut_ha_state_set(&confd_fid, M0_NC_ONLINE);
-	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
+	rc = m0_rconfc_init(&rconfc, &profile, &m0_conf_ut_grp, &mach, NULL,
+			    NULL);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_start_sync(&rconfc, &profile);
+	rc = m0_rconfc_start_sync(&rconfc);
 	M0_UT_ASSERT(rc == 0);
 	m0_rconfc_lock(&rconfc);
 	on_death_cb_install(&rconfc, UT_CC_DISCONNECT);
@@ -654,9 +668,10 @@ static void test_dead_down(void)
 
 	/* 4. Deal with already finalised confc */
 	rconfc_ut_ha_state_set(&confd_fid, M0_NC_ONLINE);
-	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
+	rc = m0_rconfc_init(&rconfc, &profile, &m0_conf_ut_grp, &mach, NULL,
+			    NULL);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_start_sync(&rconfc, &profile);
+	rc = m0_rconfc_start_sync(&rconfc);
 	M0_UT_ASSERT(rc == 0);
 	m0_rconfc_lock(&rconfc);
 	on_death_cb_install(&rconfc, UT_CC_DEINITIALISE);
@@ -674,9 +689,10 @@ static void test_dead_down(void)
 	 * 5. Survive from session failure
 	 */
 	rconfc_ut_ha_state_set(&confd_fid, M0_NC_ONLINE);
-	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
+	rc = m0_rconfc_init(&rconfc, &profile, &m0_conf_ut_grp, &mach, NULL,
+			    NULL);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_start_sync(&rconfc, &profile);
+	rc = m0_rconfc_start_sync(&rconfc);
 	M0_UT_ASSERT(rc == 0);
 	m0_rconfc_lock(&rconfc);
 	on_death_cb_install(&rconfc, UT_CC_KEEP_AS_IS);
@@ -691,9 +707,10 @@ static void test_dead_down(void)
 
 	/* 6. Survive from connection failure */
 	rconfc_ut_ha_state_set(&confd_fid, M0_NC_ONLINE);
-	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
+	rc = m0_rconfc_init(&rconfc, &profile, &m0_conf_ut_grp, &mach, NULL,
+			    NULL);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_start_sync(&rconfc, &profile);
+	rc = m0_rconfc_start_sync(&rconfc);
 	M0_UT_ASSERT(rc == 0);
 	m0_rconfc_lock(&rconfc);
 	on_death_cb_install(&rconfc, UT_CC_KEEP_AS_IS);
@@ -708,9 +725,10 @@ static void test_dead_down(void)
 
 	/* 7. Survive from both session and connection failures */
 	rconfc_ut_ha_state_set(&confd_fid, M0_NC_ONLINE);
-	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
+	rc = m0_rconfc_init(&rconfc, &profile, &m0_conf_ut_grp, &mach, NULL,
+			    NULL);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_start_sync(&rconfc, &profile);
+	rc = m0_rconfc_start_sync(&rconfc);
 	M0_UT_ASSERT(rc == 0);
 	m0_rconfc_lock(&rconfc);
 	on_death_cb_install(&rconfc, UT_CC_KEEP_AS_IS);
@@ -751,9 +769,10 @@ static void test_dead_stop(void)
 	M0_UT_ASSERT(rc == 0);
 
 	rconfc_ut_ha_state_set(&confd_fid, M0_NC_ONLINE);
-	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
+	rc = m0_rconfc_init(&rconfc, &profile, &m0_conf_ut_grp, &mach, NULL,
+			    NULL);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_start_sync(&rconfc, &profile);
+	rc = m0_rconfc_start_sync(&rconfc);
 	M0_UT_ASSERT(rc == 0);
 	m0_rconfc_lock(&rconfc);
 	on_death_cb_install(&rconfc, UT_CC_KEEP_AS_IS);
@@ -779,9 +798,10 @@ static void test_reading(void)
 
 	rc = rconfc_ut_mero_start(&mach, &rctx);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
+	rc = m0_rconfc_init(&rconfc, &profile, &m0_conf_ut_grp, &mach, NULL,
+			    NULL);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_start_sync(&rconfc, &profile);
+	rc = m0_rconfc_start_sync(&rconfc);
 	M0_UT_ASSERT(rc == 0);
 	ver = m0_rconfc_ver_max_read(&rconfc);
 	M0_UT_ASSERT(ver == rconfc.rc_ver);
@@ -836,11 +856,12 @@ static void test_quorum_impossible(void)
 	 */
 	M0_UT_ASSERT(rc == 0);
 	M0_SET0(&rconfc);
-	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
+	rc = m0_rconfc_init(&rconfc, &profile, &m0_conf_ut_grp, &mach, NULL,
+			    NULL);
 	M0_UT_ASSERT(rc == 0);
 	m0_clink_init(&clink, quorum_impossible_clink_cb);
 	m0_clink_add_lock(&rconfc.rc_sm.sm_chan, &clink);
-	rc = m0_rconfc_start_sync(&rconfc, &profile);
+	rc = m0_rconfc_start_sync(&rconfc);
 	M0_UT_ASSERT(rc == 0);
 	ver = m0_rconfc_ver_max_read(&rconfc);
 	M0_UT_ASSERT(ver != M0_CONF_VER_UNKNOWN);
@@ -865,11 +886,12 @@ static void test_quorum_retry(void)
 	 * 1. Have herd link online, but fetching bad version number. Once
 	 * failed, next re-election succeeds.
 	 */
-	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
+	rc = m0_rconfc_init(&rconfc, &profile, &m0_conf_ut_grp, &mach, NULL,
+			    NULL);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(rconfc.rc_ha_entrypoint_retries == 0);
 	m0_fi_enable_once("rconfc__cb_quorum_test", "read_ver_failed");
-	rc = m0_rconfc_start_sync(&rconfc, &profile);
+	rc = m0_rconfc_start_sync(&rconfc);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(rconfc.rc_ver != 0);
 	ver = m0_rconfc_ver_max_read(&rconfc);
@@ -882,11 +904,12 @@ static void test_quorum_retry(void)
 	 * 2. Have all herd links CONFC_DEAD. Once failed, next re-election
 	 * succeeds.
 	 */
-	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
+	rc = m0_rconfc_init(&rconfc, &profile, &m0_conf_ut_grp, &mach, NULL,
+			    NULL);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(rconfc.rc_ha_entrypoint_retries == 0);
 	m0_fi_enable_once("rconfc_herd_link_init", "confc_init");
-	rc = m0_rconfc_start_sync(&rconfc, &profile);
+	rc = m0_rconfc_start_sync(&rconfc);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(rconfc.rc_ver != 0);
 	ver = m0_rconfc_ver_max_read(&rconfc);
@@ -899,11 +922,12 @@ static void test_quorum_retry(void)
 	 * 3. Have conductor failed to engage. Once failed, next re-election
 	 * succeeds.
 	 */
-	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
+	rc = m0_rconfc_init(&rconfc, &profile, &m0_conf_ut_grp, &mach, NULL,
+			    NULL);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(rconfc.rc_ha_entrypoint_retries == 0);
 	m0_fi_enable_once("rconfc_conductor_iterate", "conductor_conn_fail");
-	rc = m0_rconfc_start_sync(&rconfc, &profile);
+	rc = m0_rconfc_start_sync(&rconfc);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(rconfc.rc_ver != 0);
 	ver = m0_rconfc_ver_max_read(&rconfc);
@@ -928,9 +952,10 @@ static void test_gops(void)
 	rc = rconfc_ut_mero_start(&mach, &rctx);
 	M0_UT_ASSERT(rc == 0);
 	M0_SET0(&rconfc);
-	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
+	rc = m0_rconfc_init(&rconfc, &profile, &m0_conf_ut_grp, &mach, NULL,
+			    NULL);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_start_sync(&rconfc, &profile);
+	rc = m0_rconfc_start_sync(&rconfc);
 	M0_UT_ASSERT(rc == 0);
 
 	/* imitate check op */
@@ -996,10 +1021,10 @@ static void test_version_change(void)
 	m0_semaphore_init(&g_ready_sem, 0);
 
 	M0_SET0(&rconfc);
-	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, conflict_exp_cb,
-			    conflict_ready_cb);
+	rc = m0_rconfc_init(&rconfc, &profile, &m0_conf_ut_grp, &mach,
+			    conflict_exp_cb, conflict_ready_cb);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_start_sync(&rconfc, &profile);
+	rc = m0_rconfc_start_sync(&rconfc);
 	M0_UT_ASSERT(rc == 0);
 
 	/* Check that version 1 in use */
@@ -1049,10 +1074,10 @@ static void test_cache_drop(void)
 	M0_UT_ASSERT(rc == 0);
 	m0_semaphore_init(&g_expired_sem, 0);
 	M0_SET0(&rconfc);
-	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, conflict_exp_cb,
-			    NULL);
+	rc = m0_rconfc_init(&rconfc, &profile, &m0_conf_ut_grp, &mach,
+			    conflict_exp_cb, NULL);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_start_sync(&rconfc, &profile);
+	rc = m0_rconfc_start_sync(&rconfc);
 	M0_UT_ASSERT(rc == 0);
 	/* Open root conf object */
 	confc = &rconfc.rc_confc;
@@ -1090,9 +1115,10 @@ static void test_confc_ctx_block(void)
 	rc = rconfc_ut_mero_start(&mach, &rctx);
 	M0_UT_ASSERT(rc == 0);
 	M0_SET0(&rconfc);
-	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
+	rc = m0_rconfc_init(&rconfc, &profile, &m0_conf_ut_grp, &mach, NULL,
+			    NULL);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_start_sync(&rconfc, &profile);
+	rc = m0_rconfc_start_sync(&rconfc);
 	M0_UT_ASSERT(rc == 0);
 	rlx = rconfc.rc_rlock_ctx;
 	m0_rconfc_ri_ops.rio_conflict(&rlx->rlc_req);
@@ -1122,9 +1148,10 @@ static void test_reconnect_success(void)
 
 	rc = rconfc_ut_mero_start(&mach, &rctx);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
+	rc = m0_rconfc_init(&rconfc, &profile, &m0_conf_ut_grp, &mach, NULL,
+			    NULL);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_start_sync(&rconfc, &profile);
+	rc = m0_rconfc_start_sync(&rconfc);
 	M0_UT_ASSERT(rc == 0);
 	ver = m0_rconfc_ver_max_read(&rconfc);
 	M0_UT_ASSERT(ver == rconfc.rc_ver);
@@ -1205,9 +1232,10 @@ M0_UNUSED static void test_ha_notify(void)
 
 	rc = rconfc_ut_mero_start(&mach, &rctx);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_init(&rconfc, &m0_conf_ut_grp, &mach, NULL, NULL);
+	rc = m0_rconfc_init(&rconfc, &profile, &m0_conf_ut_grp, &mach, NULL,
+			    NULL);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_start_sync(&rconfc, &profile);
+	rc = m0_rconfc_start_sync(&rconfc);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(rconfc.rc_ver != 0);
 
@@ -1316,11 +1344,10 @@ static void test_drain(void)
 
 	M0_UT_LOG("\n\n\t@reqh %p", &cctx.rcx_reqh);
 	rconfc = &cctx.rcx_reqh.rh_rconfc;
-        M0_SET0(rconfc);
-	rc = m0_rconfc_init(rconfc, &m0_conf_ut_grp, &mach, m0_confc_expired_cb,
-			    m0_confc_ready_cb);
+	rc = m0_rconfc_init(rconfc, &profile, &m0_conf_ut_grp, &mach,
+			    m0_confc_expired_cb, m0_confc_ready_cb);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_start_sync(rconfc, &profile);
+	rc = m0_rconfc_start_sync(rconfc);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_conf_fs_get(&profile, &rconfc->rc_confc, &fs_obj.fs);

@@ -257,13 +257,12 @@ static void test_conn_ha_subscribe()
 	struct m0_conf_obj      *svc_obj = NULL;
 	int                      rc;
 
-	cctx.rcx_reqh.rh_profile = profile;
+	*m0_reqh2profile(&cctx.rcx_reqh) = profile;
 	rconfc = &cctx.rcx_reqh.rh_rconfc;
-        M0_SET0(rconfc);
-	rc = m0_rconfc_init(rconfc, m0_locality0_get()->lo_grp, machine,
-			    m0_confc_expired_cb, m0_confc_ready_cb);
+	rc = m0_rconfc_init(rconfc, &profile, m0_locality0_get()->lo_grp,
+			    machine, m0_confc_expired_cb, m0_confc_ready_cb);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_start_sync(rconfc, &profile);
+	rc = m0_rconfc_start_sync(rconfc);
 	M0_UT_ASSERT(rc == 0);
 	M0_LOG(M0_DEBUG, "rconfc_init %p", rconfc);
 	rc = m0_net_end_point_create(&ep, &machine->rm_tm, remote_addr);

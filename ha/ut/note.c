@@ -323,12 +323,12 @@ static void ha_ut_conf_init(struct m0_reqh *reqh)
 	int              rc;
 	struct m0_confc *confc = m0_reqh2confc(reqh);
 
-	rc = m0_fid_sscanf(M0_UT_CONF_PROFILE, &reqh->rh_profile);
+	rc = m0_fid_sscanf(M0_UT_CONF_PROFILE, m0_reqh2profile(reqh));
 	M0_UT_ASSERT(rc == 0);
 	local_confc_init(confc);
 	m0_ha_client_add(confc);
 
-	rc = m0_conf_fs_get(&reqh->rh_profile, confc, &fs);
+	rc = m0_conf_fs_get(m0_reqh2profile(reqh), confc, &fs);
 	M0_UT_ASSERT(rc == 0);
 
         rc = m0_conf_full_load(fs);
@@ -522,7 +522,7 @@ static void test_poolversion_get(void)
 	m0_reqh_init(&reqh, &reqh_args);
 	ha_ut_conf_init(&reqh);
 
-	rc = m0_conf_pver_get(&reqh.rh_profile, confc, &pver0);
+	rc = m0_conf_pver_get(m0_reqh2profile(&reqh), confc, &pver0);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(pver0 != NULL);
 	ha_ut_pver_kind_check(&pver0->pv_obj.co_id, M0_CONF_PVER_ACTUAL);
@@ -531,7 +531,7 @@ static void test_poolversion_get(void)
 	M0_UT_ASSERT(recd_disks(pver0) == 0);
 
 	ha_state_accept_1(&disk_77, M0_NC_TRANSIENT);
-	rc = m0_conf_pver_get(&reqh.rh_profile, confc, &pver1);
+	rc = m0_conf_pver_get(m0_reqh2profile(&reqh), confc, &pver1);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(pver1 != NULL);
 	M0_UT_ASSERT(pver1 != pver0);
@@ -540,7 +540,7 @@ static void test_poolversion_get(void)
 	M0_UT_ASSERT(recd_disks(pver0) == 1);
 
 	ha_state_accept_1(&disk_78, M0_NC_FAILED);
-	rc = m0_conf_pver_get(&reqh.rh_profile, confc, &pver2);
+	rc = m0_conf_pver_get(m0_reqh2profile(&reqh), confc, &pver2);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(pver2 != NULL);
 	M0_UT_ASSERT(pver2 != pver1 && pver2 != pver0);
@@ -549,7 +549,7 @@ static void test_poolversion_get(void)
 	M0_UT_ASSERT(recd_disks(pver0) == 2);
 
 	ha_state_accept_1(&disk_76, M0_NC_TRANSIENT);
-	rc = m0_conf_pver_get(&reqh.rh_profile, confc, &pver3);
+	rc = m0_conf_pver_get(m0_reqh2profile(&reqh), confc, &pver3);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(pver3 != NULL);
 	M0_UT_ASSERT(pver3 != pver2 && pver3 != pver1 && pver3 != pver0);
@@ -566,7 +566,7 @@ static void test_poolversion_get(void)
 
 	/* Put all disks back online. */
 	m0_ha_state_accept(&nvec);
-	rc = m0_conf_pver_get(&reqh.rh_profile, confc, &pver4);
+	rc = m0_conf_pver_get(m0_reqh2profile(&reqh), confc, &pver4);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(pver4 == pver0);
 	M0_UT_ASSERT(recd_disks(pver0) == 0);
@@ -593,13 +593,13 @@ static void test_ha_session_states(void)
 	struct m0_ha_nvec  nvec = { .nv_nr = 1, .nv_note = &note};
 	int                rc;
 
-	rc = m0_rconfc_init(cl_rconfc, m0_locality0_get()->lo_grp,
-			    &cctx.rcx_rpc_machine, NULL, NULL);
+	rc = m0_rconfc_init(cl_rconfc, m0_reqh2profile(reqh),
+			    m0_locality0_get()->lo_grp, &cctx.rcx_rpc_machine,
+			    NULL, NULL);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_file_read(M0_UT_PATH("conf.xc"), &cl_rconfc->rc_local_conf);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_rconfc_start(cl_rconfc, &reqh->rh_profile);
-	M0_UT_ASSERT(rc == 0);
+	m0_rconfc_start(cl_rconfc);
 	m0_ha_client_add(&cl_rconfc->rc_confc);
 	rc = m0_rpc_conn_ha_subscribe(&cctx.rcx_connection, &fid);
 	M0_UT_ASSERT(rc == 0);

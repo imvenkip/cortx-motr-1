@@ -277,7 +277,7 @@ static int reqh_conf_service_find(struct m0_reqh           *reqh,
 			*svc_obj = NULL;
 		return M0_RC(0);
 	}
-	rc = m0_conf_fs_get(&reqh->rh_profile, confc, &fs) ?:
+	rc = m0_conf_fs_get(m0_reqh2profile(reqh), confc, &fs) ?:
 		m0_conf__diter_init(&it, confc, &fs->cf_obj, ARRAY_SIZE(path),
 				    path);
 	if (rc != 0)
@@ -410,7 +410,7 @@ M0_INTERNAL bool m0_conf_service_is_top_rms(const struct m0_conf_service *svc)
 	M0_PRE(svc->cs_type == M0_CST_RMS);
 
 	/* look up for confd on the same endpoint */
-	m0_conf_service_open(confc, &reqh->rh_profile, svc->cs_endpoints[0],
+	m0_conf_service_open(confc, m0_reqh2profile(reqh), svc->cs_endpoints[0],
 			     M0_CST_MGS, &confd);
 	m0_confc_close(&confd->cs_obj);
 	return confd != NULL;

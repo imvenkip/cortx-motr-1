@@ -270,12 +270,12 @@ static int dix_init(struct dix_ctx *ctx,
 	if (rc != 0)
 		goto err_ha_fini;
 
-	rc = m0_rconfc_start_sync(dix2rconfc(ctx), &reqh->rh_profile) ?:
+	rc = m0_rconfc_start_sync(dix2rconfc(ctx)) ?:
 		m0_ha_client_add(m0_reqh2confc(reqh));
 	if (rc != 0)
 		goto err_rconfc_stop;
 
-	rc = m0_conf_fs_get(&reqh->rh_profile, m0_reqh2confc(reqh), &fs);
+	rc = m0_conf_fs_get(m0_reqh2profile(reqh), m0_reqh2confc(reqh), &fs);
 	if (rc != 0)
 		goto err_rconfc_stop;
 
@@ -363,7 +363,7 @@ static int dix_root_pver_find(struct dix_ctx *ctx, struct m0_fid *out)
 	struct m0_conf_filesystem *fs;
 	int                        rc;
 
-	rc = m0_conf_fs_get(&reqh->rh_profile, m0_reqh2confc(reqh), &fs);
+	rc = m0_conf_fs_get(m0_reqh2profile(reqh), m0_reqh2confc(reqh), &fs);
 	if (rc != 0)
 		return M0_ERR(rc);
 	*out = fs->cf_imeta_pver;

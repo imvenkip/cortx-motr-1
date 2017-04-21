@@ -718,16 +718,17 @@ M0_INTERNAL int m0_reqh_conf_setup(struct m0_reqh *reqh,
 				   struct m0_confc_args *args)
 {
 	struct m0_rconfc *rconfc = &reqh->rh_rconfc;
+	struct m0_fid     profile;
 	int               rc;
 
 	M0_PRE(args->ca_group != NULL && args->ca_rmach != NULL);
 
-	rc = m0_fid_sscanf(args->ca_profile, &reqh->rh_profile);
+	rc = m0_fid_sscanf(args->ca_profile, &profile);
 	if (rc != 0)
 		return M0_ERR_INFO(rc, "Cannot parse profile `%s'",
 				   args->ca_profile);
 
-	rc = m0_rconfc_init(rconfc, args->ca_group, args->ca_rmach,
+	rc = m0_rconfc_init(rconfc, &profile, args->ca_group, args->ca_rmach,
 			    m0_confc_expired_cb, m0_confc_ready_cb);
 	if (rc == 0 && args->ca_confstr != NULL) {
 		rconfc->rc_local_conf = m0_strdup(args->ca_confstr);
@@ -740,6 +741,11 @@ M0_INTERNAL int m0_reqh_conf_setup(struct m0_reqh *reqh,
 M0_INTERNAL struct m0_confc *m0_reqh2confc(struct m0_reqh *reqh)
 {
 	return &reqh->rh_rconfc.rc_confc;
+}
+
+M0_INTERNAL struct m0_fid *m0_reqh2profile(struct m0_reqh *reqh)
+{
+	return &reqh->rh_rconfc.rc_profile;
 }
 
 #undef M0_TRACE_SUBSYSTEM
