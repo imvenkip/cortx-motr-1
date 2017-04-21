@@ -1204,13 +1204,15 @@ static int nlx_dev_ioctl_tm_start(struct nlx_kcore_domain *kd,
 	down_read(&current->mm->mmap_sem);
 	rc = WRITABLE_USER_PAGE_GET(utmp, pg);
 	up_read(&current->mm->mmap_sem);
-	if (rc < 0)
+	if (rc < 0) {
+		M0_LOG(M0_ERROR, "WRITABLE_USER_PAGE_GET() failed: rc=%d", rc);
 		goto fail_page;
+	}
 	nlx_core_kmem_loc_set(&ktm->ktm_ctm_loc, pg, off);
 	ctm = nlx_kcore_core_tm_map(ktm);
 	if (ctm->ctm_magic != 0 || ctm->ctm_mb_counter != 0 ||
 	    ctm->ctm_kpvt != NULL) {
-		rc = -EBADR;
+		rc = M0_ERR(-EBADR);
 		goto fail_ctm;
 	}
 	rc = kd->kd_drv_ops->ko_tm_start(kd, ctm, ktm);
@@ -1220,7 +1222,7 @@ static int nlx_dev_ioctl_tm_start(struct nlx_kcore_domain *kd,
 	m0_mutex_lock(&kd->kd_drv_mutex);
 	drv_tms_tlist_add(&kd->kd_drv_tms, ktm);
 	m0_mutex_unlock(&kd->kd_drv_mutex);
-	return 0;
+	return M0_RC(0);
 
 fail_ctm:
 	nlx_kcore_core_tm_unmap(ktm);
@@ -1229,7 +1231,7 @@ fail_page:
 	ktm->ktm_magic = 0;
 	m0_free(ktm);
 	M0_ASSERT(rc != 0);
-	return M0_RC(rc);
+	return M0_ERR(rc);
 }
 
 /**
@@ -1464,7 +1466,7 @@ static long nlx_dev_ioctl(struct file *file,
 done:
 	if (rc < 0 && ergo(cmd == M0_LNET_BUF_EVENT_WAIT,
 	                   !M0_IN(rc, (-ETIMEDOUT, -ERESTARTSYS))))
-		M0_LOG(M0_ERROR, "cmd=%x rc=%d", cmd, rc);
+		M0_LOG(M0_ERROR, "cmd=0x%x rc=%d", cmd, rc);
 	if (rc == -ERESTARTSYS)
 		rc = -EINTR;
 	return M0_RC(rc);

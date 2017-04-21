@@ -967,7 +967,7 @@ static int nlx_kcore_max_tmid_find(struct nlx_core_ep_addr *cepa)
 				break;
 		}
 	} m0_tl_endfor;
-	return tmid >= 0 ? tmid : -EADDRNOTAVAIL;
+	return tmid >= 0 ? tmid : M0_ERR(-EADDRNOTAVAIL);
 }
 
 /**
@@ -1852,6 +1852,7 @@ static int nlx_kcore_tm_start(struct nlx_kcore_domain      *kd,
 	int rc;
 	int i;
 
+	M0_ENTRY();
 	M0_PRE(kd != NULL && ctm != NULL && ktm != NULL);
 	cepa = &ctm->ctm_addr;
 
@@ -1861,6 +1862,10 @@ static int nlx_kcore_tm_start(struct nlx_kcore_domain      *kd,
 	 */
 	if (cepa->cepa_portal == LNET_RESERVED_PORTAL ||
 	    cepa->cepa_portal >= M0_NET_LNET_MAX_PORTALS) {
+		M0_LOG(M0_ERROR, "cepa_portal=%"PRIu32" "
+		       "LNET_RESERVED_PORTAL=%d M0_NET_LNET_MAX_PORTALS=%d",
+		       cepa->cepa_portal, LNET_RESERVED_PORTAL,
+		       M0_NET_LNET_MAX_PORTALS);
 		rc = -EINVAL;
 		goto fail;
 	}
@@ -1871,13 +1876,15 @@ static int nlx_kcore_tm_start(struct nlx_kcore_domain      *kd,
 			break;
 	}
 	if (i == nlx_kcore_lni_nr) {
-		rc = -ENOENT;
+		rc = M0_ERR(-ENOENT);
 		goto fail;
 	}
 
 	rc = LNetEQAlloc(M0_NET_LNET_EQ_SIZE, nlx_kcore_eq_cb, &ktm->ktm_eqh);
-	if (rc < 0)
+	if (rc < 0) {
+		M0_LOG(M0_ERROR, "LNetEQAlloc() failed: rc=%d", rc);
 		goto fail;
+	}
 
 	m0_mutex_lock(&nlx_kcore_mutex);
 	if (cepa->cepa_tmid == M0_NET_LNET_TMID_INVALID) {
@@ -1889,11 +1896,11 @@ static int nlx_kcore_tm_start(struct nlx_kcore_domain      *kd,
 		cepa->cepa_tmid = rc;
 	} else if (cepa->cepa_tmid > M0_NET_LNET_TMID_MAX) {
 		m0_mutex_unlock(&nlx_kcore_mutex);
-		rc = -EINVAL;
+		rc = M0_ERR(-EINVAL);
 		goto fail_with_eq;
 	} else if (nlx_kcore_addr_in_use(cepa)) {
 		m0_mutex_unlock(&nlx_kcore_mutex);
-		rc = -EADDRINUSE;
+		rc = M0_ERR(-EADDRINUSE);
 		goto fail_with_eq;
 	}
 	ktm->ktm_addr = *cepa;
@@ -1917,7 +1924,7 @@ fail_with_eq:
 	M0_ASSERT(i == 0);
 fail:
 	M0_ASSERT(rc != 0);
-	return M0_RC(rc);
+	return M0_ERR(rc);
 }
 
 M0_INTERNAL int nlx_core_tm_start(struct nlx_core_domain *cd,
