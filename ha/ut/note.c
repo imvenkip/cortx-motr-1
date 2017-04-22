@@ -509,11 +509,11 @@ static void test_poolversion_get(void)
 	 *     # helper function
 	 *     cg() { utils/m0confgen "$@"; }
 	 *
-	 *     cg ut/conf.cg | cg -x | # reformat to one line per object
+	 *     cg -t confgen ut/conf.cg | # reformat to one line per object
 	 *         # exclude unwanted objects
 	 *         grep -vE '^.(node|process|service|sdev)' |
 	 *         # generate DOT output
-	 *         cg --dot=full >/tmp/conf.dot
+	 *         cg -t dot >/tmp/conf.dot
 	 *     # convert to PNG
 	 *     dot -Tpng -o /tmp/conf.png /tmp/conf.dot
 	 *

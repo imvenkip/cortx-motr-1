@@ -156,9 +156,12 @@ enum {
 /**
  * Type of Mero service.
  *
- * @note If the value for an existing service type is changed (e.g., by
- * inserting a new service type in the middle), hard-coded values in existing
- * configuration files (including ut/conf.cg) should be updated.
+ * @note After modifying this enum you should update `conf_service_types'
+ * tuple in utils/m0confgen.
+ *
+ * @note Append new values to the end and do not reorder existing values.
+ * This is to avoid changing service type values that are hard-coded
+ * in Mero conf strings.
  */
 #define M0_CONF_SERVICE_TYPES                                    \
 	X_CST(M0_CST__UNUSED)                                    \

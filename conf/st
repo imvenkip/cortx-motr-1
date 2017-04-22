@@ -239,8 +239,8 @@ finally:
 EOF
     echo # Python interpreter needs an empty line at the very end.
 } | spiel run >conf_ask.xc || stop $?
-cmp <($M0CONFGEN -x conf.xc | sort) \
-    <($M0CONFGEN -x conf_ask.xc | sort) ||
+cmp <($M0CONFGEN -f xcode -t confgen conf.xc | sort) \
+    <($M0CONFGEN -f xcode -t confgen conf_ask.xc | sort) ||
     error 'Configuration data is corrupted'
 spiel fini
 

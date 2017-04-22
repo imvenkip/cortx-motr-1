@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-set -eu -o pipefail
+set -eu
 
-cd "$M0_SRC_DIR"
-utils/m0confgen --self-check
-utils/m0confgen ut/conf.cg | utils/m0confgen -x >/dev/null || {
-    rc=$?
-    echo "m0confgen ST error: $rc" >&2
-    exit $rc
-}
+exec $M0_SRC_DIR/st/m0confgen >/dev/null
