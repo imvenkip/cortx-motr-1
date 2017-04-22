@@ -22,6 +22,7 @@
 #include "lib/assert.h"
 #include "lib/errno.h"
 #include "lib/types.h"      /* INT_MAX */
+#include "lib/arith.h"      /* min_check */
 
 /**
    @addtogroup semaphore
@@ -116,8 +117,7 @@ M0_INTERNAL bool m0_semaphore_timeddown(struct m0_semaphore *semaphore,
 	 *
 	 *  It should be reverted when glibc is fixed in future RedHat releases.
 	 */
-	if (ts.tv_sec > INT_MAX - 1)
-		ts.tv_sec = INT_MAX - 1;
+	ts.tv_sec = min_check(ts.tv_sec, (time_t)(INT_MAX - 1));
 	/* ----- end of workaround ----- */
 
 	do
