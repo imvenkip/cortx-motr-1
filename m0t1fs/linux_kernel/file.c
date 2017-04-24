@@ -388,9 +388,11 @@ static const struct m0_bob_type tioreq_bobtype = {
 #define SEG_NR(ivec)   ((ivec)->iv_vec.v_nr)
 
 #define V_INDEX(ivec, i) (*(m0_bindex_t*)(m0_varr_ele_get(&(ivec)->iv_index, (i))))
+#define V_ADDR(bv,    i) (*(void**)      (m0_varr_ele_get(&(bv  )->iv_index, (i))))
 #define V_COUNT(ivec, i) (*(m0_bcount_t*)(m0_varr_ele_get(&(ivec)->iv_count, (i))))
 #define V_SEG_NR(ivec)   ((ivec)->iv_nr)
 
+#define PA(pa, i)        (*(enum page_attr*)(m0_varr_ele_get((pa), (i))))
 
 #define indexvec_dump(ivec)                                                    \
 do {                                                                           \
@@ -1184,7 +1186,6 @@ static bool target_ioreq_invariant(struct target_ioreq *ti)
 		_0C(target_ioreq_bob_check(ti)) &&
 		_0C(ti->ti_session       != NULL) &&
 		_0C(ti->ti_nwxfer        != NULL) &&
-		_0C(ti->ti_bufvec.ov_buf != NULL) &&
 		_0C(m0_fid_is_valid(&ti->ti_fid)) &&
 		m0_tl_forall(iofops, iofop, &ti->ti_iofops,
 			     io_req_fop_invariant(iofop));
@@ -3305,27 +3306,18 @@ static int dgmode_rwvec_alloc_init(struct target_ioreq *ti)
 
 	dg->dr_tioreq = ti;
 
-	rc  = m0_indexvec_varr_alloc(&dg->dr_ivec_varr, cnt);
+	rc = m0_indexvec_varr_alloc(&dg->dr_ivec_varr, cnt);
 	if (rc != 0)
 		goto failed_free_dg;
 
-	M0_ALLOC_ARR(dg->dr_bufvec.ov_buf, cnt);
-	if (dg->dr_bufvec.ov_buf == NULL) {
-		rc = M0_ERR(-ENOMEM);
+	rc = m0_indexvec_varr_alloc(&dg->dr_bufvec, cnt);
+	if (rc != 0)
 		goto failed_free_iv;
-	}
 
-	M0_ALLOC_ARR(dg->dr_bufvec.ov_vec.v_count, cnt);
-	if (dg->dr_bufvec.ov_vec.v_count == NULL) {
-		rc = M0_ERR(-ENOMEM);
-		goto failed_free_iv;
-	}
-
-	M0_ALLOC_ARR(dg->dr_pageattrs, cnt);
-	if (dg->dr_pageattrs == NULL) {
-		rc = M0_ERR(-ENOMEM);
-		goto failed_free_iv;
-	}
+	rc = m0_varr_init(&dg->dr_pageattrs, cnt, sizeof(enum page_attr),
+			  (size_t)m0_pagesize_get());
+	if (rc != 0)
+		goto failed_free_bv;
 
 	/*
 	 * This value is incremented every time a new segment is added
@@ -3336,12 +3328,9 @@ static int dgmode_rwvec_alloc_init(struct target_ioreq *ti)
 	ti->ti_dgvec = dg;
 	return M0_RC(0);
 
+failed_free_bv:
+	m0_indexvec_varr_free(&dg->dr_bufvec);
 failed_free_iv:
-	if (dg->dr_bufvec.ov_buf != NULL)
-		m0_free(dg->dr_bufvec.ov_buf);
-	if (dg->dr_bufvec.ov_vec.v_count != NULL)
-		m0_free(dg->dr_bufvec.ov_vec.v_count);
-
 	m0_indexvec_varr_free(&dg->dr_ivec_varr);
 failed_free_dg:
 	m0_free(dg);
@@ -3358,9 +3347,8 @@ static void dgmode_rwvec_dealloc_fini(struct dgmode_rwvec *dg)
 
 	dg->dr_tioreq = NULL;
 	m0_indexvec_varr_free(&dg->dr_ivec_varr);
-	m0_free(dg->dr_bufvec.ov_buf);
-	m0_free(dg->dr_bufvec.ov_vec.v_count);
-	m0_free(dg->dr_pageattrs);
+	m0_indexvec_varr_free(&dg->dr_bufvec);
+	m0_varr_fini(&dg->dr_pageattrs);
 }
 
 /*
@@ -4147,8 +4135,8 @@ static int ioreq_iosm_handle(struct io_request *req)
 
 		rmw = true;
 		m0_htable_for(tioreqht, ti, &xfer->nxr_tioreqs_hash) {
-			for (seg = 0; seg < ti->ti_bufvec.ov_vec.v_nr; ++seg)
-				if (ti->ti_pageattrs[seg] & PA_READ)
+			for (seg = 0; seg < V_SEG_NR(&ti->ti_bufvec); ++seg)
+				if (PA(&ti->ti_pageattrs, seg) & PA_READ)
 					++read_pages;
 		} m0_htable_endfor;
 
@@ -4645,6 +4633,7 @@ static int target_ioreq_init(struct target_ioreq    *ti,
 {
 	int                rc;
 	struct io_request *req;
+	uint64_t           cnt;
 
 	M0_PRE(ti      != NULL);
 	M0_PRE(xfer    != NULL);
@@ -4678,23 +4667,20 @@ static int target_ioreq_init(struct target_ioreq    *ti,
 	iofops_tlist_init(&ti->ti_iofops);
 	tioreqht_tlink_init(ti);
 	target_ioreq_bob_init(ti);
+	cnt = page_nr(size);
 
-	rc = m0_indexvec_varr_alloc(&ti->ti_ivv, page_nr(size));
+	rc = m0_indexvec_varr_alloc(&ti->ti_ivv, cnt);
 	if (rc != 0)
-		goto out;
-
-	ti->ti_bufvec.ov_vec.v_nr = page_nr(size);
-	M0_ALLOC_ARR(ti->ti_bufvec.ov_vec.v_count, ti->ti_bufvec.ov_vec.v_nr);
-	if (ti->ti_bufvec.ov_vec.v_count == NULL)
 		goto fail;
 
-	M0_ALLOC_ARR(ti->ti_bufvec.ov_buf, ti->ti_bufvec.ov_vec.v_nr);
-	if (ti->ti_bufvec.ov_buf == NULL)
-		goto fail;
+	rc = m0_indexvec_varr_alloc(&ti->ti_bufvec, cnt);
+	if (rc != 0)
+		goto fail_free_iv;
 
-	M0_ALLOC_ARR(ti->ti_pageattrs, ti->ti_bufvec.ov_vec.v_nr);
-	if (ti->ti_pageattrs == NULL)
-		goto fail;
+	rc = m0_varr_init(&ti->ti_pageattrs, cnt, sizeof(enum page_attr),
+			  (size_t)m0_pagesize_get());
+	if (rc != 0)
+		goto fail_free_bv;
 
 	/*
 	 * This value is incremented when new segments are added to the
@@ -4704,11 +4690,12 @@ static int target_ioreq_init(struct target_ioreq    *ti,
 
 	M0_POST_EX(target_ioreq_invariant(ti));
 	return M0_RC(0);
-fail:
+
+fail_free_bv:
+	m0_indexvec_varr_free(&ti->ti_bufvec);
+fail_free_iv:
 	m0_indexvec_varr_free(&ti->ti_ivv);
-	m0_free(ti->ti_bufvec.ov_vec.v_count);
-	m0_free(ti->ti_bufvec.ov_buf);
-out:
+fail:
 	return M0_ERR_INFO(-ENOMEM, "[%p] Failed to allocate memory in "
 			   "target_ioreq_init", req);
 }
@@ -4725,14 +4712,9 @@ static void target_ioreq_fini(struct target_ioreq *ti)
 	ti->ti_session = NULL;
 	ti->ti_nwxfer  = NULL;
 
-	/* Resets the number of segments in vector. */
-	if (V_SEG_NR(&ti->ti_ivv) == 0)
-		V_SEG_NR(&ti->ti_ivv) = ti->ti_bufvec.ov_vec.v_nr;
-
 	m0_indexvec_varr_free(&ti->ti_ivv);
-	m0_free0(&ti->ti_bufvec.ov_buf);
-	m0_free0(&ti->ti_bufvec.ov_vec.v_count);
-	m0_free0(&ti->ti_pageattrs);
+	m0_indexvec_varr_free(&ti->ti_bufvec);
+	m0_varr_fini(&ti->ti_pageattrs);
 	if (ti->ti_dgvec != NULL)
 		dgmode_rwvec_dealloc_fini(ti->ti_dgvec);
 	M0_LEAVE();
@@ -4875,9 +4857,9 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 	uint64_t                   frame = tgt->ta_frame;
 	uint64_t                   unit  = src->sa_unit;
 	struct m0_indexvec_varr   *ivv;
-	struct m0_bufvec          *bvec;
+	struct m0_indexvec_varr   *bvec;
 	enum m0_pdclust_unit_type  unit_type;
-	enum page_attr            *pattr;
+	struct m0_varr            *pattr;
 	uint64_t                   cnt;
 
 	M0_ENTRY("tio req %p, gob_offset %llu, count %llu frame %llu unit %llu",
@@ -4909,7 +4891,7 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 		M0_ASSERT(ti->ti_dgvec != NULL);
 		ivv   = &ti->ti_dgvec->dr_ivec_varr;
 		bvec  = &ti->ti_dgvec->dr_bufvec;
-		pattr = ti->ti_dgvec->dr_pageattrs;
+		pattr = &ti->ti_dgvec->dr_pageattrs;
 		cnt = page_nr(req->ir_iomap_nr * layout_unit_size(play) *
 		      (layout_n(play) + layout_k(play)));
 		M0_LOG(M0_DEBUG, "[%p] map_nr=%llu req state=%u cnt=%llu",
@@ -4917,7 +4899,7 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 	} else {
 		ivv   = &ti->ti_ivv;
 		bvec  = &ti->ti_bufvec;
-		pattr = ti->ti_pageattrs;
+		pattr = &ti->ti_pageattrs;
 		cnt = page_nr(req->ir_iomap_nr * layout_unit_size(play) *
 		      layout_n(play));
 		M0_LOG(M0_DEBUG, "[%p] map_nr=%llu req state=%u cnt=%llu",
@@ -4938,27 +4920,27 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 			page_pos_get(map, goff, &row, &col);
 			buf = map->pi_databufs[row][col];
 
-			pattr[seg] |= PA_DATA;
+			PA(pattr,seg) |= PA_DATA;
 			M0_LOG(M0_DEBUG, "[%p] ti %p, Data seg %u added",
 			       req, ti, seg);
 		} else {
 			buf = map->pi_paritybufs[page_id(goff)]
 						[unit % data_col_nr(play)];
-			pattr[seg] |= PA_PARITY;
+			PA(pattr,seg) |= PA_PARITY;
 			M0_LOG(M0_DEBUG, "[%p] ti %p, Parity seg %u added",
 			       req, ti, seg);
 		}
 		buf->db_tioreq = ti;
-		bvec->ov_buf[seg]         = buf->db_buf.b_addr;
-		bvec->ov_vec.v_count[seg] = V_COUNT(ivv, seg);
-		pattr[seg] |= buf->db_flags;
+		V_ADDR (bvec, seg) = buf->db_buf.b_addr;
+		V_COUNT(bvec, seg) = V_COUNT(ivv, seg);
+		PA(pattr, seg) |= buf->db_flags;
 		M0_LOG(M0_DEBUG, "[%p] ti %p, Seg id %d pageaddr=%p "
 		       "[%llu, %llu] added to target_ioreq with "FID_F
-		       " with flags 0x%x", req, ti, seg, bvec->ov_buf[seg],
+		       " with flags 0x%x", req, ti, seg, V_ADDR(bvec, seg),
 		       V_INDEX(ivv, seg),
 		       V_COUNT(ivv, seg),
 		       FID_P(&ti->ti_fid),
-		       pattr[seg]);
+		       PA(pattr, seg));
 
 		goff += V_COUNT(ivv, seg);
 		pgstart = pgend;
@@ -6396,8 +6378,8 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 	uint32_t                 maxsize;
 	uint32_t                 delta;
 	enum page_attr           rw;
-	enum page_attr          *pattr;
-	struct m0_bufvec        *bvec;
+	struct m0_varr          *pattr;
+	struct m0_indexvec_varr *bvec;
 	struct io_request       *req;
 	struct m0_indexvec_varr *ivv = NULL;
 	struct io_req_fop       *irfop;
@@ -6427,14 +6409,14 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 	if (M0_IN(ioreq_sm_state(req), (IRS_READING, IRS_WRITING))) {
 		ivv   = &ti->ti_ivv;
 		bvec  = &ti->ti_bufvec;
-		pattr = ti->ti_pageattrs;
+		pattr = &ti->ti_pageattrs;
 	} else {
 		if (ti->ti_dgvec == NULL) {
 			return M0_RC(0);
 		}
 		ivv   = &ti->ti_dgvec->dr_ivec_varr;
 		bvec  = &ti->ti_dgvec->dr_bufvec;
-		pattr = ti->ti_dgvec->dr_pageattrs;
+		pattr = &ti->ti_dgvec->dr_pageattrs;
 	}
 
 	ndom = ti->ti_session->s_conn->c_rpc_machine->rm_tm.ntm_dom;
@@ -6452,12 +6434,12 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		M0_LOG(M0_DEBUG, "[%p] seg=%u@%u pageattr=0x%x, filter=0x%x, "
 		       "rw=0x%x",
 		       req, seg, V_SEG_NR(ivv),
-		       pattr[seg], filter, rw);
+		       PA(pattr, seg), filter, rw);
 
-		if (!(pattr[seg] & filter) || !(pattr[seg] & rw)) {
+		if (!(PA(pattr, seg) & filter) || !(PA(pattr, seg) & rw)) {
 			M0_LOG(M0_DEBUG, "[%p] skipping, pageattr = 0x%x, "
 			       "filter = 0x%x, rw = 0x%x",
-			       req, pattr[seg], filter, rw);
+			       req, PA(pattr, seg), filter, rw);
 			++seg;
 			continue;
 		}
@@ -6494,17 +6476,17 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 			M0_LOG(M0_DEBUG, "[%p] adding: seg=%u@%u pa=0x%x, "
 			       "filter=0x%x, rw=0x%x", req, seg,
 			       V_SEG_NR(ivv),
-			       pattr[seg], filter, rw);
+			       PA(pattr, seg), filter, rw);
 
 			/*
 			 * Adds a page to rpc bulk buffer only if it passes
 			 * through the filter.
 			 */
-			if ((pattr[seg] & rw) && (pattr[seg] & filter)) {
+			if ((PA(pattr, seg) & rw) && (PA(pattr, seg) & filter)) {
 				delta += io_seg_size() + io_di_size(req);
 
 				rc = m0_rpc_bulk_buf_databuf_add(rbuf,
-						bvec->ov_buf[seg],
+						V_ADDR (bvec, seg),
 						V_COUNT(ivv, seg),
 						V_INDEX(ivv, seg),
 						ndom);

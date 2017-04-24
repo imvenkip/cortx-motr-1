@@ -1735,10 +1735,10 @@ struct dgmode_rwvec {
 	 * Buffer vector to hold page addresses during degraded mode
 	 * read/write IO.
 	 */
-	struct m0_bufvec          dr_bufvec;
+	struct m0_indexvec_varr   dr_bufvec;
 
 	/** Represents attributes for pages from ::ti_dgvec. */
-	enum page_attr           *dr_pageattrs;
+	struct m0_varr            dr_pageattrs;
 
 	/** Backlink to parent target_ioreq structure. */
 	struct target_ioreq      *dr_tioreq;
@@ -1816,7 +1816,7 @@ struct target_ioreq {
 	 * Buffer vector corresponding to index vector above.
 	 * This buffer is in sync with ::ti_ivec.
 	 */
-	struct m0_bufvec               ti_bufvec;
+	struct m0_indexvec_varr        ti_bufvec;
 
 	/**
 	 * Degraded mode read/write IO vector.
@@ -1829,7 +1829,7 @@ struct target_ioreq {
 	 * Array of page attributes.
 	 * Represents attributes for pages from ::ti_ivec and ::ti_bufvec.
 	 */
-	enum page_attr                *ti_pageattrs;
+	struct m0_varr                 ti_pageattrs;
 
 	/** target_ioreq operation vector. */
 	const struct target_ioreq_ops *ti_ops;

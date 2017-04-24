@@ -472,7 +472,6 @@ static void ds_test(void)
 	M0_UT_ASSERT(ti->ti_session == &session);
 	M0_UT_ASSERT(ti->ti_magic   == M0_T1FS_TIOREQ_MAGIC);
 	M0_UT_ASSERT(iofops_tlist_is_empty(&ti->ti_iofops));
-	M0_UT_ASSERT(ti->ti_pageattrs != NULL);
 	M0_UT_ASSERT(ti->ti_ops       != NULL);
 
 	/* io_req_fop attributes test. */
@@ -512,9 +511,6 @@ static void ds_test(void)
 	M0_UT_ASSERT(ti->ti_ops       == NULL);
 	M0_UT_ASSERT(ti->ti_session   == NULL);
 	M0_UT_ASSERT(ti->ti_nwxfer    == NULL);
-	M0_UT_ASSERT(ti->ti_pageattrs == NULL);
-	M0_UT_ASSERT(ti->ti_bufvec.ov_buf         == NULL);
-	M0_UT_ASSERT(ti->ti_bufvec.ov_vec.v_count == NULL);
 
 	pargrp_iomap_fini(map);
 	M0_UT_ASSERT(map->pi_ops   == NULL);
@@ -820,9 +816,6 @@ static void nw_xfer_ops_test(void)
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(!tioreqht_htable_is_empty(&req.ir_nwxfer.
 				nxr_tioreqs_hash));
-	M0_UT_ASSERT(ti->ti_bufvec.ov_vec.v_count != NULL);
-	M0_UT_ASSERT(ti->ti_bufvec.ov_buf != NULL);
-	M0_UT_ASSERT(ti->ti_pageattrs != NULL);
 
 	/* Test for nw_xfer_io_distribute. */
 	rc = nw_xfer_io_distribute(&req.ir_nwxfer);
@@ -903,10 +896,10 @@ static void target_ioreq_test(void)
 	for (cnt = 0; cnt < IOVEC_NR; ++cnt) {
 		iovec_arr[cnt].iov_base  = aligned_buf;
 		iovec_arr[cnt].iov_len   = PAGE_CACHE_SIZE;
-		ti->ti_bufvec.ov_buf[cnt] = aligned_buf;
+		V_ADDR (&ti->ti_bufvec, cnt) = aligned_buf;
 		V_COUNT(&ti->ti_ivv, cnt)  = PAGE_CACHE_SIZE;
 		V_INDEX(&ti->ti_ivv, cnt)  = cnt * PAGE_CACHE_SIZE;
-		ti->ti_pageattrs[cnt]     = PA_READ | PA_DATA;
+		PA(&ti->ti_pageattrs, cnt) = PA_READ | PA_DATA;
 	}
 	V_SEG_NR(&ti->ti_ivv)  = IOVEC_NR;
 
@@ -972,7 +965,7 @@ static void target_ioreq_test(void)
 	V_SEG_NR(&ti->ti_ivv) = 0;
 
 	for (cnt = 0; cnt < IOVEC_NR; ++cnt)
-		ti->ti_pageattrs[cnt] &= ~(PA_DATA | PA_PARITY);
+		PA(&ti->ti_pageattrs, cnt) &= ~(PA_DATA | PA_PARITY);
 
 	src.sa_group = 0;
 	src.sa_unit  = 0;
@@ -981,8 +974,8 @@ static void target_ioreq_test(void)
 
 	target_ioreq_seg_add(ti, &src, &tgt, 0, PAGE_CACHE_SIZE, map);
 	M0_UT_ASSERT(1 == V_SEG_NR(&ti->ti_ivv));
-	M0_UT_ASSERT(ti->ti_bufvec.ov_buf[0] == buf->db_buf.b_addr);
-	M0_UT_ASSERT(ti->ti_pageattrs[0] & PA_DATA);
+	M0_UT_ASSERT(V_ADDR(&ti->ti_bufvec, 0) == buf->db_buf.b_addr);
+	M0_UT_ASSERT(PA(&ti->ti_pageattrs, 0) & PA_DATA);
 
 	/* Set gob_offset to COUNT(&ti->ti_ivec, 0) */
 	page_pos_get(map, V_COUNT(&ti->ti_ivv, 0), &row, &col);
@@ -991,8 +984,8 @@ static void target_ioreq_test(void)
 	target_ioreq_seg_add(ti, &src, &tgt, V_COUNT(&ti->ti_ivv, 0),
 			     PAGE_CACHE_SIZE, map);
 	M0_UT_ASSERT(2 == V_SEG_NR(&ti->ti_ivv));
-	M0_UT_ASSERT(ti->ti_bufvec.ov_buf[1] == buf->db_buf.b_addr);
-	M0_UT_ASSERT(ti->ti_pageattrs[1] & PA_DATA);
+	M0_UT_ASSERT(V_ADDR(&ti->ti_bufvec, 1) == buf->db_buf.b_addr);
+	M0_UT_ASSERT(PA(&ti->ti_pageattrs, 1) & PA_DATA);
 
 	/* Addition of parity buffer */
 	buf = map->pi_paritybufs[page_id(0)]
@@ -1001,8 +994,8 @@ static void target_ioreq_test(void)
 	src.sa_unit  = LAY_N;
 	target_ioreq_seg_add(ti, &src, &tgt, 0, PAGE_CACHE_SIZE, map);
 	M0_UT_ASSERT(3 == V_SEG_NR(&ti->ti_ivv));
-	M0_UT_ASSERT(ti->ti_bufvec.ov_buf[2] == buf->db_buf.b_addr);
-	M0_UT_ASSERT(ti->ti_pageattrs[2] & PA_PARITY);
+	M0_UT_ASSERT(V_ADDR(&ti->ti_bufvec, 2) == buf->db_buf.b_addr);
+	M0_UT_ASSERT(PA(&ti->ti_pageattrs, 2) & PA_PARITY);
 
 	target_ioreq_fini(ti);
 	pargrp_iomap_fini(map);
@@ -1217,9 +1210,6 @@ static void dgmode_readio_test(void)
 	rc = dgmode_rwvec_alloc_init(ti);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(ti->ti_dgvec->dr_tioreq == ti);
-	M0_UT_ASSERT(ti->ti_dgvec->dr_bufvec.ov_buf != NULL);
-	M0_UT_ASSERT(ti->ti_dgvec->dr_bufvec.ov_vec.v_count != NULL);
-	M0_UT_ASSERT(ti->ti_dgvec->dr_pageattrs != NULL);
 
 	V_SEG_NR(&ti->ti_dgvec->dr_ivec_varr) = page_nr(layout_unit_size(play) *
 					    layout_k(play));
