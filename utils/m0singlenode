@@ -17,6 +17,7 @@ readonly singlenonde_services='
     mero-server-confd
     mero-server@mds
     mero-server@ios1
+    mero-server@cas1
     mero
     mero-client
     mero-singlenode
@@ -204,8 +205,8 @@ stop_singlenode()
 
     local status_col=57
 
-    for s in mero-singlenode mero-client mero-server@ios1 mero-server@mds \
-             mero-server-confd mero-server-ha mero mero-kernel
+    for s in mero-singlenode mero-client mero-server@cas1 mero-server@ios1 \
+        mero-server@mds mero-server-confd mero-server-ha mero mero-kernel
     do
         logn "  waiting for $s  "
 
@@ -290,7 +291,7 @@ singlenode_status()
     echo
     echo '### Servers -------------------------------------'
 
-    for stype in '-ha   ' '-confd' '@mds  ' @ios{1..9}' ' ; do
+    for stype in '-ha   ' '-confd' '@mds  ' @ios{1..9}' ' @cas{1..9}' ' ; do
         atiem=
         color=$NC
         local pid=
@@ -306,7 +307,7 @@ singlenode_status()
             inactive) padding='  ' ;;
         esac
 
-        if [[ ! $stype =~ @ios[2-9] || $state =~ ^(active|failed)$ ]] ; then
+        if [[ (! $stype =~ @ios[2-9] && ! $stype =~ @cas[2-9]) || $state =~ ^(active|failed)$ ]] ; then
             echo " mero-server$stype       $color$state$NC$padding$atime    ${pid:+PID:$pid}"
         fi
     done
@@ -314,7 +315,7 @@ singlenode_status()
     echo
     echo '### Trace ---------------------------------------'
 
-    for stype in kernel 'ha    ' 'confd ' 'mds   ' ios{1..9}'  ' ; do
+    for stype in kernel 'ha    ' 'confd ' 'mds   ' ios{1..9}'  ' cas{1..9}'  ' ; do
         atiem=
         color=$NC
         local state=$(get_param_of mero-trace@$stype ActiveState)

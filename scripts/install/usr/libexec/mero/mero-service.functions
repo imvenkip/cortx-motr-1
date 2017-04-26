@@ -117,6 +117,16 @@ m0_has_genders()
     fi
 }
 
+# Checks whether CAS service is enabled
+m0_cas_enabled()
+{
+    if [[ $(m0_get_services | grep cas | wc -l) -ne 0 ]] ; then
+        return 0
+    else
+        return 1
+    fi
+}
+
 # Checks if particular variable exists in genders "database"
 #   @param  $1  name of a variable
 #   @param  $2  optional name of a node, for which the query is performed, if
@@ -343,6 +353,7 @@ _portal_id()
         rms*)   portal_id=43;;
         confd)  portal_id=44;;
         ha)     portal_id=45;;
+        cas*)   portal_id=46;;
     esac
     echo $portal_id
 }
@@ -392,6 +403,7 @@ m0_get_ep_of()
     local rms_tid=301
     local ha_tid=1
     local ios_tid=401
+    local cas_tid=501
     local portal=$(_portal_id $1)
     local ep
     local s
@@ -403,6 +415,8 @@ m0_get_ep_of()
             mds*) ep=${MERO_MDS_EP:-$lnid:$lpid:$portal:$((mds_tid++))}
                 ;;
             ios*) ep=$lnid:$lpid:$portal:$((ios_tid++))
+                ;;
+            cas*) ep=$lnid:$lpid:$portal:$((cas_tid++))
                 ;;
             rms*) ep=$lnid:$lpid:$portal:$((rms_tid++))
                 ;;
@@ -646,15 +660,18 @@ m0_build_service_fid()
     sidx=${sidx:-$sidx_param}
 
     case $stype in
-        mds)       cid=1 ;;
-        ios)       cid=2 ;;
-        confd)     cid=3 ;;
-        rms)       cid=4 ;;
-        ha)        cid=5 ;;
-        repair)    cid=6 ;;
-        rebalance) cid=7 ;;
-        addb)      cid=8 ;;
-        sss)       cid=9 ;;
+        mds)           cid=1 ;;
+        ios)           cid=2 ;;
+        confd)         cid=3 ;;
+        rms)           cid=4 ;;
+        ha)            cid=5 ;;
+        sns-repair)    cid=6 ;;
+        sns-rebalance) cid=7 ;;
+        addb)          cid=8 ;;
+        sss)           cid=9 ;;
+        cas)           cid=10 ;;
+        dix-repair)    cid=11 ;;
+        dix-rebalance) cid=12 ;;
     esac
 
     printf %s:%d "^s|$(( $cid + $node_idx * 16 ))" $sidx
@@ -662,14 +679,14 @@ m0_build_service_fid()
 
 _build_disk_ids_str()
 {
-    local start_id=$1
-    local count=$2
-    local pverid=$3
+    local id_major=$1
+    local start_id=$2
+    local count=$3
 
     local dev_ids
     local id
     for id in $(seq $start_id $(($start_id + $count - 1))) ; do
-        local dev_id="^d|1:$id"
+        local dev_id="^d|$id_major:$id"
         dev_ids="$dev_ids${dev_ids:+, }$dev_id"
     done
 
@@ -678,56 +695,90 @@ _build_disk_ids_str()
 
 _build_disk_fids_str()
 {
-    local count=$1
+    local id_major=$1
+    local imeta_id_major=$2
+    local pool_width=$3
+    local ipool_width=$4
 
     local disk_fids
     local id
-    for id in $(seq 1 $count) ; do
-        local ddisk_id="^k|1:$id"
+    for id in $(seq 1 $pool_width) ; do
+        local ddisk_id="^k|$id_major:$id"
         disk_fids="$disk_fids${disk_fids:+, }$ddisk_id"
     done
 
-    echo "[$count: $disk_fids]"
+    if m0_cas_enabled ; then
+        for id in $(seq 1 $ipool_width) ; do
+            local ddisk_id="^k|$imeta_id_major:$id"
+            disk_fids="$disk_fids${disk_fids:+, }$ddisk_id"
+        done
+    else
+        ipool_width=0
+    fi
+
+    echo "[$(($pool_width + $ipool_width)): $disk_fids]"
 }
 
 _build_diskv_fids_str()
 {
     local count=$1
+    local id_major=$2
 
     local disk_fids
     local id
     for id in $(seq 1 $count) ; do
-        local ddiskv_id="^j|1:$id"
+        local ddiskv_id="^j|$id_major:$id"
         disk_fids="$disk_fids${disk_fids:+, }$ddiskv_id"
     done
 
     echo "[$count: $disk_fids]"
 }
 
-_build_ios_devs()
+_build_devs()
 {
     local count=$1
-    local pverid=$2
+    local id_major=$2
+    local dev_idx_seed=$3
+    local pverid=$4
 
     local disk_size_in_bytes=$((64 * 1024**3))
     if m0_genders_has_variable m0_disk_size_in_bytes ; then
         disk_size_in_bytes=$(m0_genders_value_of m0_disk_size_in_bytes)
     fi
 
+    local dev_idx=$dev_idx_seed
     local devs
     local id
     for id in $(seq 1 $count) ; do
-        local ddev_id="^d|1:$id"
-        local ddisk_id="^k|1:$id"
-        local ddiskv_id="^j|1:$id"
-        local ddev_obj="{0x64| (($ddev_id), $(($id - 1)), 4, 1, 4096, $disk_size_in_bytes, 3, 4, \"/dev/loop$id\")}"
+        local ddev_id="^d|$id_major:$id"
+        local ddisk_id="^k|$id_major:$id"
+        local ddiskv_id="^j|$id_major:$id"
+        local ddev_obj="{0x64| (($ddev_id), $dev_idx, 4, 1, 4096, $disk_size_in_bytes, 3, 4, \"/dev/loop$(($dev_idx + 1))\")}"
         local ddisk_obj="{0x6b| (($ddisk_id), $ddev_id, [1: $pverid])}"
         local ddiskv_obj="{0x6a| (($ddiskv_id), $ddisk_id, [0])}"
         local dev="$ddev_obj,\n  $ddisk_obj,\n  $ddiskv_obj"
         devs="$devs${devs:+,\n  }$dev"
+        ((++dev_idx)) || true
     done
 
     echo -e "$devs"
+}
+
+_build_ios_devs()
+{
+    local pool_width=$1
+    local pverid=$2
+
+    _build_devs $pool_width 1 0 $pverid
+}
+
+_build_cas_devs()
+{
+    local ipool_width=$1
+    local pool_width=$2
+    local pverid=$3
+
+    _build_devs $ipool_width 20 $pool_width $pverid
 }
 
 _build_process_names()
@@ -766,9 +817,22 @@ _build_process_objects()
 
             proc_name="$proc_fid_con:$idx"
 
-            if [[ $s == ios* ]] ; then
-                local repair="$(m0_build_service_fid ${s/ios/repair} $node_idx)"
-                local rebalance="$(m0_build_service_fid ${s/ios/rebalance} $node_idx)"
+            if [[ $s == ios* || $s == cas* ]] ; then
+                local repair
+                local rebalance
+                local svc_name
+                local prefix
+
+                if [[ $s == ios* ]] ; then
+                    svc_name="ios"
+                    prefix="sns"
+                else
+                    svc_name="cas"
+                    prefix="dix"
+                fi
+
+                repair="$(m0_build_service_fid ${s/$svc_name/${prefix}-repair} $node_idx)"
+                rebalance="$(m0_build_service_fid ${s/$svc_name/${prefix}-rebalance} $node_idx)"
 
                 obj="{0x72| (($proc_name), [1:3], 0, 0, 0, 0, "\"$ep\"", [5: $sname, $repair, $rebalance, $rms, $addb])}"
             else
@@ -790,15 +854,22 @@ _type_id()
     local type_id;
 
     case $s in
-        mds*)      type_id=@M0_CST_MDS ;;
-        ios*)      type_id=@M0_CST_IOS ;;
-        confd)     type_id=@M0_CST_MGS ;;
-        rms*)      type_id=@M0_CST_RMS ;;
-        ha)        type_id=@M0_CST_HA ;;
-        sss)       type_id=@M0_CST_SSS ;;
-        repair)    type_id=@M0_CST_SNS_REP ;;
-        rebalance) type_id=@M0_CST_SNS_REB ;;
-        addb*)     type_id=@M0_CST_ADDB2 ;;
+        mds*)          type_id=@M0_CST_MDS ;;
+        ios*)          type_id=@M0_CST_IOS ;;
+        confd)         type_id=@M0_CST_MGS ;;
+        rms*)          type_id=@M0_CST_RMS ;;
+        ha)            type_id=@M0_CST_HA ;;
+        sss)           type_id=@M0_CST_SSS ;;
+        sns-repair)    type_id=@M0_CST_SNS_REP ;;
+        sns-rebalance) type_id=@M0_CST_SNS_REB ;;
+        addb*)         type_id=@M0_CST_ADDB2 ;;
+        cas*)          type_id=@M0_CST_CAS ;;
+        dix-repair)    type_id=@M0_CST_DIX_REP ;;
+        dix-rebalance) type_id=@M0_CST_DIX_REB ;;
+
+#        cas*)          type_id=11 ;;
+#        dix-repair)    type_id=12 ;;
+#        dix-rebalance) type_id=13 ;;
     esac
     echo $type_id
 }
@@ -810,6 +881,7 @@ _build_service_objects()
     local node
     local objs
     local ios_nr=0
+    local cas_nr=0
     local rms_nr=$(m0_get_global_services rms | wc -w)
 
     for node in $(m0_get_nodes) ; do
@@ -823,8 +895,16 @@ _build_service_objects()
                 local count=$(m0_get_global_services ios | wc -w)
                 local disks_per_service=$(( $pool_width / $count ))
 
-                disk_ids=$(_build_disk_ids_str $(($ios_nr * $disks_per_service + 1)) $disks_per_service $pverid)
+                disk_ids=$(_build_disk_ids_str 1 $(($ios_nr * $disks_per_service + 1)) $disks_per_service)
                 ((ios_nr++)) || true
+            fi
+
+            if [[ $s == cas* ]] ; then
+                local count=$(m0_get_global_services cas | wc -w)
+                local disks_per_service=$(( $ipool_width / $count ))
+
+                disk_ids=$(_build_disk_ids_str 20 $(($cas_nr * $disks_per_service + 1)) $disks_per_service)
+                ((cas_nr++)) || true
             fi
 
             objs="$objs${objs:+,\n  }{0x73| (($name), $type_id, [1: "\"$ep\""], $disk_ids)}"
@@ -837,17 +917,28 @@ _build_service_objects()
             type_id=$(_type_id "rms")
             objs="$objs${objs:+,\n  }{0x73| (($rms), $type_id, [1: "\"$ep\""], [0])}"
 
-            if [[ $s == ios* ]] ; then
-                local repair="$(m0_build_service_fid ${s/ios/repair} $node_idx)"
-                local rebalance="$(m0_build_service_fid ${s/ios/rebalance} $node_idx)"
-                local rms="$(m0_build_service_fid ${s/ios/rms} $node_idx)"
+            if [[ $s == ios* || $s == cas* ]] ; then
+                local repair
+                local rebalance
+                local svc_name
+                local prefix
 
-                type_id=$(_type_id "repair")
+                if [[ $s == ios* ]] ; then
+                    svc_name="ios"
+                    prefix="sns"
+                else
+                    svc_name="cas"
+                    prefix="dix"
+                fi
+
+                repair="$(m0_build_service_fid ${s/$svc_name/${prefix}-repair} $node_idx)"
+                rebalance="$(m0_build_service_fid ${s/$svc_name/${prefix}-rebalance} $node_idx)"
+
+                type_id=$(_type_id "${prefix}-repair")
                 objs="$objs${objs:+,\n  }{0x73| (($repair), $type_id, [1: "\"$ep\""], [0])}"
 
-                type_id=$(_type_id "rebalance")
+                type_id=$(_type_id "${prefix}-rebalance")
                 objs="$objs${objs:+,\n  }{0x73| (($rebalance), $type_id, [1: "\"$ep\""], [0])}"
-
             fi
             ((idx++)) || true
         done
@@ -857,12 +948,30 @@ _build_service_objects()
     echo -e "$objs"
 }
 
+_build_pool_ids_str()
+{
+    local pool_ids
+    local poolid=$1
+    local mdpoolid=$2
+    local imetapoolid=$3
+
+    if m0_cas_enabled ; then
+        pool_ids="[3: $poolid, $mdpoolid, $imetapoolid]"
+    else
+        pool_ids="[2: $poolid, $mdpoolid]"
+    fi
+
+    echo -e "$pool_ids"
+}
+
 # Construct local_conf mount option from genders file
 m0_build_local_conf()
 {
     local pool_width=$(m0_genders_value_of m0_pool_width)
+    local ipool_width=$(m0_genders_value_of m0_imeta_pool_width)
     local data_units=$(m0_genders_value_of m0_data_units)
     local parity_units=$(m0_genders_value_of m0_parity_units)
+    local iparity_units=$(m0_genders_value_of m0_imeta_parity_units)
 
     local  root='^t|1:0'
     local  prof='^p|1:0'
@@ -876,8 +985,11 @@ m0_build_local_conf()
     local ctrlid='^c|1:8'
     local poolid='^o|1:9'
     local mdpoolid='^o|2:9'
+    local imetapoolid='^o|20:1'
     local pverid='^v|1:10'
     local mdpverid='^v|2:10'
+    local imetapverid
+    m0_cas_enabled && imetapverid='^v|1:20' || imetapverid="(0, 0)"
 
     local rackvid="^j|1:$(($pool_width + 1))"
     local enclvid="^j|1:$(($pool_width + 2))"
@@ -886,36 +998,50 @@ m0_build_local_conf()
     local mdenclvid="^j|2:$(($pool_width + 2))"
     local mdctrlvid="^j|2:$(($pool_width + 3))"
     local mddiskvid="^j|2:$(($pool_width + 4))"
+    local imetarackvid="^j|20:$(($ipool_width + 1))"
+    local imetaenclvid="^j|20:$(($ipool_width + 2))"
+    local imetactrlvid="^j|20:$(($ipool_width + 3))"
 
     local rack="{0x61| (($rackid), [1: $enclid], [1: $pverid])}"
     local encl="{0x65| (($enclid), [1: $ctrlid], [1: $pverid])}"
-    local ctrl="{0x63| (($ctrlid), $node, $(_build_disk_fids_str $pool_width), [1: $pverid])}"
+    local ctrl_pver_fids_str
+    m0_cas_enabled && ctrl_pver_fids_str="[2: $pverid, $imetapverid]" || ctrl_pver_fids_str="[1: $pverid]"
+    local ctrl="{0x63| (($ctrlid), $node, $(_build_disk_fids_str 1 20 $pool_width $ipool_width), $ctrl_pver_fids_str)}"
     local pool="{0x6f| (($poolid), 0, [1: $pverid])}"
     local pver="{0x76| (($pverid), {0| ($data_units, $parity_units, $pool_width, [5: 0, 0, 0, 0, $parity_units], [1: $rackvid])})}"
     local rackv="{0x6a| (($rackvid), $rackid, [1: $enclvid])}"
     local enclv="{0x6a| (($enclvid), $enclid, [1: $ctrlvid])}"
-    local ctrlv="{0x6a| (($ctrlvid), $ctrlid, $(_build_diskv_fids_str $pool_width))}"
+    local ctrlv="{0x6a| (($ctrlvid), $ctrlid, $(_build_diskv_fids_str $pool_width 1))}"
     local mdpool="{0x6f| (($mdpoolid), 0, [1: $mdpverid])}"
     local mdpver="{0x76| (($mdpverid), {0| (1, 0, 1, [5: 0, 0, 0, 0, 1], [1: $mdrackvid])})}"
     local mdrackv="{0x6a| (($mdrackvid), $rackid, [1: $mdenclvid])}"
     local mdenclv="{0x6a| (($mdenclvid), $enclid, [1: $mdctrlvid])}"
     local mdctrlv="{0x6a| (($mdctrlvid), $ctrlid, [1: $mddiskvid])}"
     local mddiskv="{0x6a| (($mddiskvid), $diskid, [0])}"
+    local imetapool="{0x6f| (($imetapoolid), 0, [1: $imetapverid])}"
+    local imetapver="{0x76| (($imetapverid), {0| (1, $iparity_units, $ipool_width, [5: 1, 0, 0, 0, 1], [1: $imetarackvid])})}"
+    local imetarackv="{0x6a| (($imetarackvid), $rackid, [1: $imetaenclvid])}"
+    local imetaenclv="{0x6a| (($imetaenclvid), $enclid, [1: $imetactrlvid])}"
+    local imetactrlv="{0x6a| (($imetactrlvid), $ctrlid, $(_build_diskv_fids_str $ipool_width 20))}"
+
     local proc_fid_con='^r|1'
     local proc_names=$(_build_process_names $proc_fid_con)
     local proc_objs=$(_build_process_objects $proc_fid_con)
     local procs=$(m0_get_global_services | wc -w)
     local service_objs=$(_build_service_objects)
     local services=$(echo "$service_objs" | wc -l)
+    local cas_objs_nr
+    m0_cas_enabled && cas_objs_nr=$(( $ipool_width * 3 + 5)) || cas_objs_nr=0
     local local_conf=$(cat <<CONF_END
-[$(( $procs + $services + $pool_width * 3 + 12 + 6)):
+[$(( $procs + $services + $pool_width * 3 + 12 + 6 + $cas_objs_nr)):
   {0x74| (($root), 1, [1: $prof])},
   {0x70| (($prof), $fs)},
   {0x66| (($fs), (11, 22), 1,
           [1: "$pool_width $data_units $parity_units"],
-          $mdpoolid, (0, 0),
+          $mdpoolid,
+          $imetapverid,
           [1: $node],
-          [2: $poolid, $mdpoolid],
+          $(_build_pool_ids_str $poolid $mdpoolid $imetapoolid),
           [1: $rackid])},
   {0x6e| (($node), 16000, 2, 3, 2, $poolid, [$procs: $proc_names])},
   $proc_objs,
@@ -934,9 +1060,23 @@ m0_build_local_conf()
   $mdrackv,
   $mdenclv,
   $mdctrlv,
-  $mddiskv]
+  $mddiskv
 CONF_END
 )
+    if m0_cas_enabled ; then
+        local_conf=$local_conf$(cat <<CONF_END
+,
+  $(_build_cas_devs $ipool_width $pool_width $imetapverid),
+  $imetapool,
+  $imetapver,
+  $imetarackv,
+  $imetaenclv,
+  $imetactrlv
+CONF_END
+)
+    fi
+
+    local_conf=$local_conf"]"
 
     echo "$local_conf"
 }

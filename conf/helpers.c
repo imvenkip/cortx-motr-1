@@ -637,7 +637,7 @@ M0_INTERNAL int m0_conf_process2service_get(struct m0_confc *confc,
 	struct m0_conf_diter  it;
 	int                   rc;
 
-	M0_ENTRY();
+	M0_ENTRY("Process fid: "FID_F", service type: %d", FID_P(process_fid), stype);
 
 	rc = confc_obj_get(confc, process_fid, &pobj);
 	if (rc != 0)

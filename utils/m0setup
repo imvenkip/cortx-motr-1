@@ -15,6 +15,7 @@ readonly etc_mero_dir='/etc/mero'
 readonly etc_halon_dir='/etc/halon'
 readonly linuxstob_min_ios_num=3
 readonly DEFAULT_POOL_WIDTH=8
+readonly DEFAULT_IMETA_POOL_WIDTH=4
 
 # variables
 verbose=false
@@ -24,12 +25,15 @@ use_existing_loop_imgs=false
 do_gendisk=true
 do_genfacts=false
 do_mkfs=false
+cas_enabled=true
 directio=true
 activate_singlenode=false
 only_list_disks=false
 pool_width=$DEFAULT_POOL_WIDTH
 data_units=2
 parity_units=1
+ipool_width=$DEFAULT_IMETA_POOL_WIDTH
+iparity_units=1
 ios_num=1
 ios_num_is_set=false
 loop_img_dir='/var/mero'
@@ -56,6 +60,7 @@ Usage: $PROG_NAME [-h|--help] [-v|--verbose] [-c]
                [-P|--pool-width num] [-N|--data-units num]      [-K|--parity-units num]
                [-i|--ios-number num] [-d|--loop-img-dir path]   [-m|--mero-dir path]
                [-s|--disk-size GiBs] [-z|--linuxstob-path path] [-Z|--linuxstob-mode[=path]]
+               [--ipool-width num]   [--iparity-units num]      [--no-cas]
 
    -P|--pool-width num     Total number of disks in the pool. So many loop
                            devices will be provisioned. Default is ${pool_width}.
@@ -66,6 +71,12 @@ Usage: $PROG_NAME [-h|--help] [-v|--verbose] [-c]
 
    -K|--parity-units num   Number of parity units in parity group.
                            Default is ${parity_units}.
+
+   --ipool-width num       Total number of disks in the imeta pool. So many loop
+                           devices will be provisioned. Default is ${ipool_width}.
+
+   --iparity-units num     Number of parity units in parity group for imeta pool.
+                           Default is ${iparity_units}.
 
    -i|--ios-number num     Number of ioservices to start. Default is ${ios_num}.
                            In 'linuxstob' mode (-z|-Z) it defaults to ${linuxstob_min_ios_num}
@@ -131,6 +142,8 @@ Usage: $PROG_NAME [-h|--help] [-v|--verbose] [-c]
                            meta-data will be created under that path.
                            Implies --no-directio.
 
+   --no-cas                Disable CAS service.
+
    -v|--verbose            Enable verbose output.
 
    -h|--help               Print this help screen.
@@ -147,7 +160,7 @@ parse_cli_options()
     # separate word. The quotes around `$@' are essential!
     # We need TEMP as the `eval set --' would nuke the return value of getopt.
     TEMP=$( getopt --options hvclICEGHAMP:N:K:i:d:m:s:p:z:Z:: \
-                   --longoptions help,verbose,cleanup,use-existing-loop-imgs,no-directio,no-gendisk,halon-facts,activate-singlenode-services,mkfs,list-disks,pool-width:,data-units:,parity-units:,ios-number:,loop-img-dir:,mero-dir:,disk-size:,disk-pattern:,linuxstob-path:,linuxstob-mode:: \
+                   --longoptions help,verbose,cleanup,use-existing-loop-imgs,no-directio,no-gendisk,halon-facts,activate-singlenode-services,mkfs,list-disks,no-cas,pool-width:,data-units:,parity-units:,ipool-width:,iparity-units:,ios-number:,loop-img-dir:,mero-dir:,disk-size:,disk-pattern:,linuxstob-path:,linuxstob-mode:: \
                    --name "$PROG_NAME" -- "$@" )
 
     [[ $? -ne 0 ]] && help
@@ -185,6 +198,9 @@ parse_cli_options()
             -P|--pool-width)    pool_width=$2;        shift 2 ;;
             -N|--data-units)    data_units=$2;        shift 2 ;;
             -K|--parity-units)  parity_units=$2;      shift 2 ;;
+            --pool-width)       ipool_width=$2;       shift 2 ;;
+            --parity-units)     iparity_units=$2;     shift 2 ;;
+            --no-cas)           cas_enabled=false;    shift   ;;
             -i|--ios-number)    ios_num=$2; ios_num_is_set=true; shift 2 ;;
             -d|--loop-img-dir)  loop_img_dir=$2;      shift 2 ;;
             -m|--mero-dir)      mero_data_dir=$2;     shift 2 ;;
@@ -247,8 +263,14 @@ init_loop_devices()
 
 create_loop_images()
 {
-    log "Creating $pool_width file images, ${loop_img_size_gb}GiB each, in '$loop_img_dir'"
-    for i in $(seq $pool_width) ; do
+    local imgs_cnt=$pool_width
+
+    if $cas_enabled ; then
+        imgs_cnt=$((pool_width + ipool_width))
+    fi
+
+    log "Creating $imgs_cnt file images, ${loop_img_size_gb}GiB each, in '$loop_img_dir'"
+    for i in $(seq $imgs_cnt) ; do
         local img_file="$loop_img_dir/disk$i.img"
         debug "$img_file"
         dd if=/dev/zero of="$img_file" \
@@ -258,8 +280,14 @@ create_loop_images()
 
 setup_loop_devices()
 {
+    local imgs_cnt=$pool_width
+
+    if $cas_enabled ; then
+        imgs_cnt=$((pool_width + ipool_width))
+    fi
+
     log "Setting up loop devices"
-    for i in $(seq $pool_width) ; do
+    for i in $(seq $imgs_cnt) ; do
         local img_file="$loop_img_dir/disk$i.img"
         debug "/dev/loop$i => $img_file"
         [[ -e $img_file ]] ||
@@ -276,8 +304,14 @@ cleanup_loop_devices()
 
 cleanup_loop_images()
 {
+    local imgs_cnt=$pool_width
+
+    if $cas_enabled ; then
+        imgs_cnt=$((pool_width + ipool_width))
+    fi
+
     log "Removing file images"
-    for i in $(seq $pool_width) ; do
+    for i in $(seq $imgs_cnt) ; do
         local img_file="$loop_img_dir/disk$i.img"
         debug "$img_file"
         rm -f "$img_file"
@@ -307,6 +341,7 @@ cleanup_mero_configs()
 
 generate_genders_config()
 {
+    local services
     local genders_file=$etc_mero_dir/genders
     log "Generating genders file '$genders_file'"
 
@@ -315,14 +350,22 @@ generate_genders_config()
         ios="$ios${ios:+;}ios$i"
     done
 
+    services="ha;confd;mds;$ios"
+
+    if $cas_enabled ; then
+        services=$services";cas1"
+    fi
+
     local hostname=$(hostname -s)
     cat <<GENDERS_END > $genders_file
 $hostname  m0_uuid=$(uuidgen)
 $hostname  m0_lnet_nid=auto
-$hostname  m0_services=ha;confd;mds;$ios
+$hostname  m0_services=$services
 $hostname  m0_pool_width=$pool_width
 $hostname  m0_data_units=$data_units
 $hostname  m0_parity_units=$parity_units
+$hostname  m0_imeta_pool_width=$ipool_width
+$hostname  m0_imeta_parity_units=$iparity_units
 $hostname  m0_disk_size_in_bytes=$((loop_img_size_gb * 1024**3))
 $hostname  m0_directio=$directio
 $hostname  m0_datadir=$mero_data_dir
@@ -477,6 +520,10 @@ elif $linuxstob_mode ; then
     info_msg="${loop_img_size_gb}GiB linuxstobs in '${linuxstob_stobs_dir:-$mero_data_dir}'"
 else
     info_msg="${loop_img_size_gb}GiB disks in '$loop_img_dir'"
+fi
+
+if $cas_enabled ; then
+    info_msg="[P=$ipool_width N=1 K=$iparity_units] with 1 CAS service, "$info_msg
 fi
 
 $only_list_disks ||
