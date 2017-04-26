@@ -524,7 +524,6 @@ M0_INTERNAL void m0_be_io_configure(struct m0_be_io        *bio,
 	for (i = 0; i < bio->bio_stob_nr; ++i) {
 		sio = &bio->bio_part[i].bip_sio;
 		sio->si_opcode   = opcode;
-		sio->si_fol_frag = (void *)1; /* XXX */
 	}
 }
 

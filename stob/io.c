@@ -90,7 +90,6 @@ M0_INTERNAL int m0_stob_io_launch(struct m0_stob_io *io, struct m0_stob *obj,
 	M0_PRE(m0_vec_count(&bv->ov_vec) == m0_vec_count(&iv->iv_vec));
 	M0_PRE(m0_stob_io_user_is_valid(bv));
 	M0_PRE(m0_stob_io_stob_is_valid(iv));
-	M0_PRE(ergo(io->si_opcode == SIO_WRITE, io->si_fol_frag != NULL));
 
 	M0_ENTRY("stob=%p so_id="STOB_ID_F" si_opcode=%d io=%p tx=%p",
 		 obj, STOB_ID_P(m0_stob_id_get(obj)), io->si_opcode, io, tx);
@@ -154,7 +153,6 @@ M0_INTERNAL int m0_stob_io_bufvec_launch(struct m0_stob   *stob,
 {
 	int                 rc;
 	struct m0_stob_io   io;
-	struct m0_fol_frag *fol_frag;
 	struct m0_clink     clink;
 	m0_bcount_t         count;
 	m0_bindex_t         offset_idx = offset;
@@ -164,16 +162,10 @@ M0_INTERNAL int m0_stob_io_bufvec_launch(struct m0_stob   *stob,
 	M0_PRE(M0_IN(op_code, (SIO_READ, SIO_WRITE)));
 
 	count = m0_vec_count(&bufvec->ov_vec);
-
-	M0_ALLOC_PTR(fol_frag);
-	if (fol_frag == NULL)
-		return M0_ERR(-ENOMEM);
-
 	m0_stob_io_init(&io);
 
 	io.si_opcode = op_code;
 	io.si_flags  = 0;
-	io.si_fol_frag = fol_frag;
 	io.si_user.ov_vec.v_nr = bufvec->ov_vec.v_nr;
 	io.si_user.ov_vec.v_count = bufvec->ov_vec.v_count;
 	io.si_user.ov_buf = bufvec->ov_buf;

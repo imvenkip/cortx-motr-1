@@ -208,7 +208,6 @@ static void stobio_write_prepare(struct stobio_test *test,
 				 struct m0_stob_io *io)
 {
 	io->si_opcode = SIO_WRITE;
-	io->si_fol_frag = (void *)1;
 	io->si_user.ov_buf = (void **) test->st_wrbuf_packed;
 	stobio_io_prepare(test, io);
 }
@@ -550,7 +549,6 @@ void test_single_ivec()
 	/* Write */
 	m0_stob_io_init(&io);
 	io.si_opcode              = SIO_WRITE;
-	io.si_fol_frag            = (void *)1;
 	io.si_flags               = 0;
 	io.si_user.ov_vec.v_nr    = VEC_NR;
 	io.si_user.ov_vec.v_count = size;
@@ -574,7 +572,6 @@ void test_single_ivec()
 	/* Read */
 	m0_stob_io_init(&io);
 	io.si_opcode              = SIO_READ;
-	io.si_fol_frag            = (void *)1;
 	io.si_flags               = 0;
 	io.si_user.ov_vec.v_nr    = VEC_NR;
 	io.si_user.ov_vec.v_count = size;

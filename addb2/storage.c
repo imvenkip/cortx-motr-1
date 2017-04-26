@@ -510,7 +510,6 @@ static int frame_init(struct frame *frame, struct m0_addb2_storage *stor)
 			},
 			.iv_index = frame->f_index
 		};
-		io->si_fol_frag = (void *)1;
 		m0_clink_init(&frame->f_clink, &frame_endio);
 		m0_clink_add_lock(&io->si_wait, &frame->f_clink);
 		frame_tlink_init_at_tail(frame, &stor->as_idle);
