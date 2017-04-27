@@ -75,12 +75,12 @@ conf_obj_types = {
 
 # NOTE: Should be in sync with m0_conf_service_type in conf/schema.h.
 conf_service_types = (
-    'MDS',  # = 1
-    'IOS', 'MGS', 'RMS', 'STS', 'HA', 'SSS', 'SNS_REP', 'SNS_REB', 'ADDB2',
-    'CAS', 'DIX_REP', 'DIX_REB',
-    '_DS1', '_DS2',  # UT-specific
+    '_UNUSED', 'MDS', 'IOS', 'MGS', 'RMS', 'STS', 'HA', 'SSS',
+    'SNS_REP', 'SNS_REB', 'ADDB2', 'CAS', 'DIX_REP', 'DIX_REB',
+    'DS1', 'DS2',  # UT-specific
     'FIS'
 )
+conf_service_types = tuple('M0_CST_' + s for s in conf_service_types)
 
 
 # --------------------------------------------------------------------
@@ -296,13 +296,15 @@ class BaseEncoder(object):
                                    for obj in objs])
 
     @staticmethod
-    def hex_big(n):
+    def dec_or_hex(n):
         return str(n) if n < 100 else hex(n)
 
     @classmethod
     def encode_NUMBER(cls, n):
-        assert type(n) is int
-        return cls.hex_big(n)
+        if type(n) is int:
+            return cls.dec_or_hex(n)
+        assert type(n) is str and n[0] == '@'
+        return n
 
     @staticmethod
     def encode_STRING(s):
@@ -312,7 +314,7 @@ class BaseEncoder(object):
     @classmethod
     def encode_Fid(cls, fid):
         if ConfObjType.from_fid(fid) is None:
-            return '({}, {})'.format(*map(cls.hex_big,
+            return '({}, {})'.format(*map(cls.dec_or_hex,
                                           [fid.container(), fid.key]))
         return cls.encode_Fid__conf(fid)
 
@@ -344,7 +346,7 @@ class Encoder_xc(BaseEncoder):
         assert otype is not None
         assert ord(otype.ft_id) == fid.typebyte()
         return '^{}|{}:{}'.format(
-            otype.ft_id, *map(cls.hex_big, [fid.tcontainer[1], fid.key]))
+            otype.ft_id, *map(cls.dec_or_hex, [fid.tcontainer[1], fid.key]))
 
     @classmethod
     def encode_ConfObj(cls, obj):
@@ -386,8 +388,9 @@ class Encoder_cg(BaseEncoder):
             container &= 0x003fffffffffffff  # clear union_tag bits
         return '{type}-{container}{key}'.format(
             type=otype.name,
-            container=('' if container == 1 else cls.hex_big(container) + ':'),
-            key=cls.hex_big(fid.key))
+            container=('' if container == 1 else
+                       cls.dec_or_hex(container) + ':'),
+            key=cls.dec_or_hex(fid.key))
 
     @classmethod
     def encode_ConfObj(cls, obj):
@@ -417,7 +420,10 @@ class Encoder_json(Encoder_cg):
 
     @staticmethod
     def encode_NUMBER(n):
-        assert type(n) is int
+        if type(n) is str:
+            assert n[0] == '@'
+        else:
+            assert type(n) is int
         return n
 
     @staticmethod
@@ -679,8 +685,9 @@ confgen_doc = """"confgen" format:
     csv(t)  = t | csv(t) "," t
     obj     = "(" objid *( attr ) ")"
     objid   = objtype "-" [ NUMBER ":" ] NUMBER
-    attr    = ID "=" ( NUMBER | STRING | fid | objid | list )
+    attr    = ID "=" ( NUMBER | STRING | enum | fid | objid | list )
     fid     = "(" NUMBER "," NUMBER ")"
+    enum    = "@" ID
     list    = "[" [ csv(NUMBER) | csv(STRING) | csv(objid) ] "]"
     objtype = { %(objtypes)s }
 
@@ -718,10 +725,11 @@ Configuration object types and attributes:
 
 class Lexer(object):
 
-    tokens = ('HEXNUM', 'OCTNUM', 'DECNUM', 'STRING', 'ID')
+    tokens = ('HEXNUM', 'OCTNUM', 'DECNUM', 'STRING', 'ID', 'ENUM')
     literals = '()[]-=,:'
     t_ignore = ' \t\r\v'
     t_ID = r'\b[a-zA-Z]\w*\b'
+    t_ENUM = r'@[a-zA-Z]\w*'
 
     def __init__(self, **kwargs):
         self.lexer = lex.lex(module=self, **kwargs)
@@ -893,6 +901,7 @@ class Parser_cg(BaseParser):
 
     def p_attr(self, p):
         """attr : ID '=' number
+                | ID '=' ENUM
                 | ID '=' STRING
                 | ID '=' objid
                 | ID '=' fid
@@ -1007,6 +1016,7 @@ Length ({}) != number of elements ({})""".format(position, expected, actual))
 
     def p_xattr(self, p):
         """xattr : number
+                 | ENUM
                  | STRING
                  | xfid
                  | xlist
@@ -1174,6 +1184,7 @@ class TestEncoding(unittest.TestCase):
 
         test('NUMBER', 99, '99', '99')
         test('NUMBER', 100, '0x64', '0x64')
+        test('NUMBER', '@ENUM', '@ENUM', '@ENUM')
         test('STRING', 'abc', '"abc"', '"abc"')
         test('STRING', '', '""', '""')
         test('fid', Fid(1, 2), '(1, 2)', '(1, 2)'),
@@ -1235,6 +1246,13 @@ class TestEncoding(unittest.TestCase):
              """[1:
  {0x76| ((^v|0x40000000000001:9), {1| (0, ^v|1:8, [5: 0, 0, 0, 0, 1])})}]""",
              '(pver_f-9 id=0 base=pver-8 allowance=[0, 0, 0, 0, 1])')
+        test([ConfObj(Fid(('s', 1), 9), [
+            ('type', '@M0_CST_RMS'), ('endpoints', ['0@lo:12345:34:1']),
+            ('sdevs', [])])],
+             """[1:
+ {0x73| ((^s|1:9), @M0_CST_RMS, [1: "0@lo:12345:34:1"], [0])}]""",
+             '(service-9 type=@M0_CST_RMS endpoints=["0@lo:12345:34:1"]\
+ sdevs=[])')
 
     def test_json(self):
         self.assertEqual(Encoder_json.encode([
@@ -1248,14 +1266,19 @@ class TestEncoding(unittest.TestCase):
                      ('mdpool', Fid(('o', 1), 5)),
                      ('imeta_pver', Fid(0, 0)),
                      ('nodes', [Fid(('n', 1), 2), Fid(('n', 1), 48)]),
-                     ('pools', []), ('racks', [])])]),
+                     ('pools', []), ('racks', [])]),
+            ConfObj(Fid(('s', 1), 9),
+                    [('type', '@M0_CST_RMS'),
+                     ('endpoints', ['0@lo:12345:34:1']), ('sdevs', [])])]),
                          """[
  {"objid": "root-0", "verno": 1, "profiles": ["profile-0"]},
  {"objid": "profile-0", "filesystem": "filesystem-0x64"},
  {"objid": "filesystem-0x64", "rootfid": [11, 22], "redundancy": 0,\
  "params": ["param-0", "param-1", "param-2"], "mdpool": "pool-5",\
  "imeta_pver": [0, 0], "nodes": ["node-2", "node-48"], "pools": [],\
- "racks": []}
+ "racks": []},
+ {"objid": "service-9", "type": "@M0_CST_RMS",\
+ "endpoints": ["0@lo:12345:34:1"], "sdevs": []}
 ]""")
 
     def test_html(self):
@@ -1329,11 +1352,21 @@ class TestDecoding(unittest.TestCase):
                          [ConfObj(Fid(('v', 0x40000000000001), 66), [
                              ('id', 0), ('base', Fid(('v', 1), 8)),
                              ('allowance', [0, 0, 0, 0, 1])])])
+        self.assertEqual(decode(
+            '(service-9 type=@M0_CST_RMS endpoints=["0@lo:12345:34:1"]\
+ sdevs=[])'),
+                         [ConfObj(Fid(('s', 1), 9), [
+                             ('type', '@M0_CST_RMS'),
+                             ('endpoints', ['0@lo:12345:34:1']),
+                             ('sdevs', [])])])
         self.assertRaisesRegex(
-            Error, "Unknown conf object type 'woot' at byte \d+",
+            Error, "Unknown conf object type 'woot' at byte 2",
             decode, '(woot-0 verno=1 profiles=[])')
-        self.assertRaisesRegex(Error, 'Attribute reassignment at byte \d+',
+        self.assertRaisesRegex(Error, 'Attribute reassignment at byte 9',
                                decode, '(root-0 verno=1 verno=2 profiles=[])')
+        self.assertRaisesRegex(
+            Error, 'Syntax error at byte 10',
+            decode, '(service-@ENUM type=4 endpoints=[] sdevs=[])')
         # The order of attributes does not matter.
         self.assertEqual(decode('(root-0 verno=2 profiles=[profile-0])'),
                          decode('(root-0 profiles=[profile-0] verno=2)'))
@@ -1349,10 +1382,10 @@ class TestDecoding(unittest.TestCase):
                                   [('verno', 1),
                                    ('profiles', [Fid(('p', 2), 3)])])])
         self.assertRaisesRegex(
-            Error, "Invalid conf fid Fid\(\('X', 1\), 0\) at byte \d+",
+            Error, "Invalid conf fid Fid\(\('X', 1\), 0\) at byte 14",
             decode, '[1: {0x58| (((0x5800000000000001, 0)), 1, [0])}]')
         self.assertRaisesRegex(
-            Error, 'Wrong number of attributes at byte \d+',
+            Error, 'Wrong number of attributes at byte 5',
             decode, '[1: {0x74| (((0x7400000000000001, 0)), 1)}]')
 
     def test_fid_scan(self):
@@ -1417,7 +1450,8 @@ def main(argv=None):
             print('{} {:#x} {}'.format(v.ft_id, ord(v.ft_id), k))
         return
     if args.svc_types:
-        for i, s in enumerate(conf_service_types):
+        assert conf_service_types[0] == 'M0_CST__UNUSED'
+        for i, s in enumerate(conf_service_types[1:]):
             print('{} {}'.format(i+1, s))
         return
     if args.fids:
