@@ -300,11 +300,23 @@ M0_INTERNAL void m0_sns_cm_cp_complete(struct m0_cm_cp *cp)
 		scm->sc_total_write_size[loc_id] += unit_size;
 }
 
+M0_INTERNAL void m0_sns_cm_cp_buf_release(struct m0_cm_cp *cp)
+{
+	struct m0_sns_cm_cp *scp = cp2snscp(cp);
+	struct m0_sns_cm    *scm;
+
+	if (!scp->sc_is_local && cp->c_ag != NULL) {
+		scm = cm2sns(cp->c_ag->cag_cm);
+		m0_sns_cm_cancel_reservation(scm, cp->c_buf_nr);
+	}
+	m0_cm_cp_buf_release(cp);
+}
+
 M0_INTERNAL void m0_sns_cm_cp_free(struct m0_cm_cp *cp)
 {
 	M0_PRE(cp != NULL);
 
-	m0_cm_cp_buf_release(cp);
+	m0_sns_cm_cp_buf_release(cp);
 	if (cp->c_ag != NULL)
 		m0_cm_ag_cp_del(cp->c_ag, cp);
 	m0_free(cp2snscp(cp));

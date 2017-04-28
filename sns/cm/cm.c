@@ -730,8 +730,6 @@ M0_INTERNAL int m0_sns_cm_buf_attach(struct m0_net_buffer_pool *bp,
 				     struct m0_cm_cp *cp)
 {
 	struct m0_net_buffer *buf;
-	struct m0_sns_cm     *scm = cm2sns(cp->c_ag->cag_cm);
-	struct m0_sns_cm_cp  *scp = cp2snscp(cp);
 	size_t                colour;
 	uint32_t              seg_nr = 0;
 	uint32_t              rem_bufs;
@@ -755,12 +753,6 @@ M0_INTERNAL int m0_sns_cm_buf_attach(struct m0_net_buffer_pool *bp,
 				 ((cp->c_buf_nr - 1) * bp->nbp_seg_nr);
 		buf->nb_buffer.ov_vec.v_nr = seg_nr;
 		M0_CNT_DEC(rem_bufs);
-
-		if (!scp->sc_is_local) {
-			if (scm->sc_ibp_reserved_nr > 0)
-				M0_CNT_DEC(scm->sc_ibp_reserved_nr);
-		}
-
 	}
 	if (bp->nbp_free > 0)
 		bp->nbp_ops->nbpo_not_empty(bp);
@@ -842,20 +834,22 @@ M0_INTERNAL int m0_sns_cm_has_space_for(struct m0_sns_cm *scm,
 
 M0_INTERNAL void m0_sns_cm_reserve_space(struct m0_sns_cm *scm, size_t nr_bufs)
 {
-	M0_PRE(m0_cm_is_locked(&scm->sc_base));
+	struct m0_net_buffer_pool *ibp;
 
+	ibp = &scm->sc_ibp.sb_bp;
+	m0_net_buffer_pool_lock(ibp);
 	scm->sc_ibp_reserved_nr += nr_bufs;
+	m0_net_buffer_pool_unlock(ibp);
 }
 
 M0_INTERNAL void m0_sns_cm_cancel_reservation(struct m0_sns_cm *scm, size_t nr_bufs)
 {
 	struct m0_net_buffer_pool *ibp;
 
-	M0_PRE(m0_cm_is_locked(&scm->sc_base));
-
-	scm->sc_ibp_reserved_nr -= min32u(scm->sc_ibp_reserved_nr, nr_bufs);
 	ibp = &scm->sc_ibp.sb_bp;
 	m0_net_buffer_pool_lock(ibp);
+	scm->sc_ibp_reserved_nr -= min32u(scm->sc_ibp_reserved_nr, nr_bufs);
+	M0_LOG(M0_DEBUG, "reserved: %u nr_bufs: %u", (unsigned)scm->sc_ibp_reserved_nr, (unsigned)nr_bufs);
 	ibp->nbp_ops->nbpo_not_empty(ibp);
 	m0_net_buffer_pool_unlock(ibp);
 }

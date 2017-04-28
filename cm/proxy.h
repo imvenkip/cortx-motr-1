@@ -83,6 +83,10 @@ struct m0_cm_proxy {
 
 	struct m0_sm_ast        px_sw_onwire_ast;
 
+	struct m0_sm_ast        px_fail_ast;
+
+	struct m0_sm_ast        px_online_ast;
+
 	enum m0_proxy_state     px_status;
 
 	bool                    px_is_done;

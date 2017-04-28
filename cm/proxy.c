@@ -592,31 +592,55 @@ M0_INTERNAL void m0_cm_proxy_pending_cps_wakeup(struct m0_cm *cm)
 	} m0_tl_endfor;
 }
 
+static void px_fail_ast_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
+{
+	struct m0_cm_proxy *pxy = container_of(ast, struct m0_cm_proxy,
+					     px_fail_ast);
+
+	M0_LOG(M0_DEBUG, "proxy %s is failed", pxy->px_endpoint);
+	m0_cm_proxy_lock(pxy);
+	pxy->px_status = M0_PX_FAILED;
+	pxy->px_is_done = true;
+	if (!proxy_fail_tlink_is_in(pxy))
+		proxy_fail_tlist_add_tail(&pxy->px_cm->cm_failed_proxies, pxy);
+	__wake_up_pending_cps(pxy);
+	m0_cm_proxy_unlock(pxy);
+	m0_cm_abort(pxy->px_cm, 0);
+	m0_cm_frozen_ag_cleanup(pxy->px_cm, pxy);
+	m0_cm_complete_notify(pxy->px_cm);
+}
+
+static void px_online_ast_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
+{
+	struct m0_cm_proxy *pxy = container_of(ast, struct m0_cm_proxy,
+					       px_online_ast);
+
+	/*
+	 * Do nothing for now, ongoing sns operation must cleanup and complete
+	 * and sns repair/rebalance must be restarted.
+	 */
+	M0_LOG(M0_DEBUG, "proxy %s is online", pxy->px_endpoint);
+}
+
 static bool proxy_clink_cb(struct m0_clink *clink)
 {
 	struct m0_cm_proxy *pxy = M0_AMB(pxy, clink, px_ha_link);
 	struct m0_conf_obj *svc_obj = container_of(clink->cl_chan,
 						   struct m0_conf_obj,
 						   co_ha_chan);
+	struct m0_sm_ast   *ast = NULL;
 
 	M0_PRE(m0_conf_obj_type(svc_obj) == &M0_CONF_SERVICE_TYPE);
 
-	m0_cm_proxy_lock(pxy);
 	if (M0_IN(svc_obj->co_ha_state, (M0_NC_FAILED, M0_NC_TRANSIENT))) {
-		M0_LOG(M0_INFO, "proxy %s is failed", pxy->px_endpoint);
-		pxy->px_status = M0_PX_FAILED;
-		pxy->px_is_done = true;
-		if (!proxy_fail_tlink_is_in(pxy))
-			proxy_fail_tlist_add_tail(&pxy->px_cm->cm_failed_proxies, pxy);
+		pxy->px_fail_ast.sa_cb = px_fail_ast_cb;
+		ast = &pxy->px_fail_ast;
 	} else if (svc_obj->co_ha_state == M0_NC_ONLINE &&
 		   pxy->px_status == M0_PX_FAILED) {
-		/*
-		 * Do nothing for now, ongoing sns operation must cleanup and complete
-		 * and sns repair/rebalance must be restarted.
-		 */
-		M0_LOG(M0_INFO, "proxy %s is online", pxy->px_endpoint);
+		pxy->px_online_ast.sa_cb = px_online_ast_cb;
+		ast = &pxy->px_online_ast;
 	}
-	m0_cm_proxy_unlock(pxy);
+	m0_sm_ast_post(&pxy->px_cm->cm_sm_group, ast);
 
 	return true;
 }

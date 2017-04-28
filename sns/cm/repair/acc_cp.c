@@ -59,7 +59,7 @@ static void acc_cp_free(struct m0_cm_cp *cp)
 
 	M0_PRE(cp != NULL);
 
-	m0_cm_cp_buf_release(cp);
+	m0_sns_cm_cp_buf_release(cp);
 	fc = container_of(cp2snscp(cp), struct m0_sns_cm_repair_ag_failure_ctx,
 			  fc_tgt_acc_cp);
 	if (fc->fc_is_inuse && fc->fc_is_active) {

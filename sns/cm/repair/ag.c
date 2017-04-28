@@ -191,6 +191,7 @@ static void acc_check_fini(struct m0_sns_cm_repair_ag *rag)
 	uint32_t                   nr_cp_bufs;
 	uint32_t                   unused_cps = 0;
 	uint32_t                   nr_bufs;
+	uint32_t                   nr_rem_bufs;
 	int                        i;
 
 	M0_PRE(rag != NULL);
@@ -213,7 +214,8 @@ static void acc_check_fini(struct m0_sns_cm_repair_ag *rag)
 	 * the reservation if any of the accumulators is not in use.
 	 */
 	if (ag->cag_has_incoming) {
-		nr_bufs = unused_cps * nr_cp_bufs + ag_in_remaining_bufs(rag);
+		nr_rem_bufs = ag_in_remaining_bufs(rag);
+		nr_bufs = unused_cps * nr_cp_bufs + nr_rem_bufs;;
 		m0_sns_cm_cancel_reservation(scm, nr_bufs);
 	}
 }
@@ -498,7 +500,7 @@ cleanup_acc:
 	for (i = 0; i < sag->sag_fnr; ++i) {
 		rag_fc = &rag->rag_fc[i];
 		if (rag_fc->fc_is_inuse)
-			m0_cm_cp_buf_release(&rag_fc->fc_tgt_acc_cp.sc_base);
+			m0_sns_cm_cp_buf_release(&rag_fc->fc_tgt_acc_cp.sc_base);
 	}
 cleanup_ag:
 	M0_LOG(M0_ERROR, "cleaning up group rc: %d", rc);

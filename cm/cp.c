@@ -799,6 +799,7 @@ M0_INTERNAL void m0_cm_cp_buf_move(struct m0_cm_cp *src, struct m0_cm_cp *dest)
 
 	m0_tl_for(cp_data_buf, &src->c_buffers, nbuf) {
 		cp_data_buf_tlink_del_fini(nbuf);
+		M0_CNT_DEC(src->c_buf_nr);
 		m0_cm_cp_buf_add(dest, nbuf);
 	} m0_tl_endfor;
 }
