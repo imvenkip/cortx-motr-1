@@ -8,11 +8,11 @@
 (process-0 cores=[1048575] mem_limit_as=536870912 mem_limit_rss=65772544
     mem_limit_stack=65772544 mem_limit_memlock=65772544
     endpoint="172.18.1.1@tcp:12345:40:401" services=[service-0])
-(service-0 type=2 endpoints=["172.16.64.2@tcp:12345:41:201"] sdevs=[])
+(service-0 type=@M0_CST_IOS endpoints=["172.16.64.2@tcp:12345:41:201"] sdevs=[])
 (process-1 cores=[1048575] mem_limit_as=536870912 mem_limit_rss=65772544
     mem_limit_stack=65772544 mem_limit_memlock=65772544
     endpoint="172.18.1.1@o2ib:12345:41:101" services=[service-1])
-(service-1 type=4
+(service-1 type=@M0_CST_RMS
     endpoints=["172.16.64.1:12345:45:41"] # `@<network>' is missing
     sdevs=[])
 (pool-0 order=0 pvers=[])

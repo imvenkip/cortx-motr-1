@@ -8,7 +8,7 @@
     processes=[process-14])
 (process-14 cores=[2] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
     mem_limit_memlock=0 endpoint="0@lo:12345:34:1" services=[service-15])
-(service-15 type=4 endpoints=["0@lo:12345:34:1"]
+(service-15 type=@M0_CST_RMS endpoints=["0@lo:12345:34:1"]
     sdevs=[sdev-16, sdev-17, sdev-18, sdev-19, sdev-20, sdev-21, sdev-22,
            sdev-23, sdev-24, sdev-25])
 (sdev-16 dev_idx=16 iface=4 media=1 bsize=4096 size=596000000000 last_state=3
@@ -35,7 +35,7 @@
     processes=[process-26])
 (process-26 cores=[2] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
     mem_limit_memlock=0 endpoint="0@lo:12345:34:1" services=[service-27])
-(service-27 type=4 endpoints=["0@lo:12345:34:1"]
+(service-27 type=@M0_CST_RMS endpoints=["0@lo:12345:34:1"]
     sdevs=[sdev-28, sdev-29, sdev-30, sdev-31, sdev-32, sdev-33, sdev-34,
            sdev-35, sdev-36, sdev-37])
 (sdev-28 dev_idx=28 iface=4 media=1 bsize=4096 size=596000000000 last_state=3
@@ -62,7 +62,7 @@
     processes=[process-38])
 (process-38 cores=[2] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
     mem_limit_memlock=0 endpoint="0@lo:12345:34:1" services=[service-39])
-(service-38 type=4 endpoints=["0@lo:12345:34:1"]
+(service-38 type=@M0_CST_RMS endpoints=["0@lo:12345:34:1"]
     sdevs=[sdev-40, sdev-41, sdev-42, sdev-43, sdev-44, sdev-45, sdev-46,
            sdev-47, sdev-48, sdev-49])
 (sdev-40 dev_idx=40 iface=4 media=1 bsize=4096 size=596000000000 last_state=3
@@ -89,7 +89,7 @@
     processes=[process-50])
 (process-50 cores=[2] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
     mem_limit_memlock=0 endpoint="0@lo:12345:34:1" services=[service-51])
-(service-51 type=4 endpoints=["0@lo:12345:34:1"]
+(service-51 type=@M0_CST_RMS endpoints=["0@lo:12345:34:1"]
     sdevs=[sdev-52, sdev-53, sdev-54, sdev-55, sdev-56, sdev-57, sdev-58,
            sdev-59, sdev-60, sdev-61])
 (sdev-52 dev_idx=52 iface=4 media=1 bsize=4096 size=596000000000 last_state=3
@@ -116,7 +116,7 @@
     processes=[process-62])
 (process-62 cores=[2] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
     mem_limit_memlock=0 endpoint="0@lo:12345:34:1" services=[service-63])
-(service-63 type=4 endpoints=["0@lo:12345:34:1"]
+(service-63 type=@M0_CST_RMS endpoints=["0@lo:12345:34:1"]
     sdevs=[sdev-64, sdev-65, sdev-66, sdev-67, sdev-68, sdev-69, sdev-70,
            sdev-71, sdev-72, sdev-73])
 (sdev-64 dev_idx=64 iface=4 media=1 bsize=4096 size=596000000000 last_state=3
@@ -143,7 +143,7 @@
     processes=[process-74])
 (process-74 cores=[2] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
     mem_limit_memlock=0 endpoint="0@lo:12345:34:1" services=[service-75])
-(service-75 type=4 endpoints=["0@lo:12345:34:1"]
+(service-75 type=@M0_CST_RMS endpoints=["0@lo:12345:34:1"]
     sdevs=[sdev-76, sdev-77, sdev-78, sdev-79, sdev-80, sdev-81, sdev-82,
            sdev-83, sdev-84, sdev-85])
 (sdev-76 dev_idx=76 iface=4 media=1 bsize=4096 size=596000000000 last_state=3
@@ -170,7 +170,7 @@
     processes=[process-86])
 (process-86 cores=[2] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
     mem_limit_memlock=0 endpoint="0@lo:12345:34:1" services=[service-87])
-(service-87 type=4 endpoints=["0@lo:12345:34:1"]
+(service-87 type=@M0_CST_RMS endpoints=["0@lo:12345:34:1"]
     sdevs=[sdev-88, sdev-89, sdev-90, sdev-91, sdev-92, sdev-93, sdev-94,
            sdev-95, sdev-96, sdev-97])
 (sdev-98 dev_idx=98 iface=4 media=1 bsize=4096 size=596000000000 last_state=3
@@ -197,7 +197,7 @@
     processes=[process-108])
 (process-108 cores=[2] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
     mem_limit_memlock=0 endpoint="0@lo:12345:34:1" services=[service-109])
-(service-109 type=4 endpoints=["0@lo:12345:34:1"]
+(service-109 type=@M0_CST_RMS endpoints=["0@lo:12345:34:1"]
     sdevs=[sdev-110, sdev-111, sdev-112, sdev-113, sdev-114, sdev-115,
            sdev-116, sdev-117, sdev-118, sdev-119])
 (sdev-110 dev_idx=110 iface=4 media=1 bsize=4096 size=596000000000 last_state=3

@@ -9,15 +9,15 @@
     mem_limit_memlock=1 endpoint="0@lo:12345:34:1"
     services=[service-0, service-1, service-2, service-3, service-4, service-5,
               service-6, service-7])
-(service-0 type=2 endpoints=["0@lo:12345:34:1"]
+(service-0 type=@M0_CST_IOS endpoints=["0@lo:12345:34:1"]
     sdevs=[sdev-10, sdev-11, sdev-12, sdev-13, sdev-14])
-(service-1 type=1 endpoints=["0@lo:12345:34:1"] sdevs=[])
-(service-2 type=4 endpoints=["0@lo:12345:34:1"] sdevs=[])
-(service-3 type=8 endpoints=["0@lo:12345:34:1"] sdevs=[])
-(service-4 type=9 endpoints=["0@lo:12345:34:1"] sdevs=[])
-(service-5 type=10 endpoints=["0@lo:12345:34:1"] sdevs=[])
-(service-6 type=3 endpoints=["0@lo:12345:34:1"] sdevs=[])
-(service-7 type=6 endpoints=["0@lo:12345:34:1"] sdevs=[])
+(service-1 type=@M0_CST_MDS endpoints=["0@lo:12345:34:1"] sdevs=[])
+(service-2 type=@M0_CST_RMS endpoints=["0@lo:12345:34:1"] sdevs=[])
+(service-3 type=@M0_CST_SNS_REP endpoints=["0@lo:12345:34:1"] sdevs=[])
+(service-4 type=@M0_CST_SNS_REB endpoints=["0@lo:12345:34:1"] sdevs=[])
+(service-5 type=@M0_CST_ADDB2 endpoints=["0@lo:12345:34:1"] sdevs=[])
+(service-6 type=@M0_CST_MGS endpoints=["0@lo:12345:34:1"] sdevs=[])
+(service-7 type=@M0_CST_HA endpoints=["0@lo:12345:34:1"] sdevs=[])
 (sdev-10 dev_idx=1 iface=4 media=1 bsize=4096 size=596000000000 last_state=3
     flags=4 filename="/dev/sdev0")
 (sdev-11 dev_idx=2 iface=4 media=1 bsize=4096 size=596000000000 last_state=3

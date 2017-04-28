@@ -118,14 +118,14 @@ stub_confdb() {
 (process-1 cores=[3] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
     mem_limit_memlock=0 endpoint="$M0T1FS_ENDPOINT:1"
     services=[service-6])
-(service-0 type=4 endpoints=["$M0D1_ENDPOINT"] sdevs=[])
-(service-1 type=6 endpoints=["$M0D1_ENDPOINT"] sdevs=[])
-(service-2 type=2 endpoints=["$M0D1_ENDPOINT"] sdevs=[sdev-1, sdev-2, sdev-3,
-    sdev-4])
-(service-3 type=1 endpoints=["$M0D1_ENDPOINT"] sdevs=[sdev-0])
-(service-4 type=3 endpoints=["$M0D1_ENDPOINT"] sdevs=[])
-(service-5 type=7 endpoints=["$M0D1_ENDPOINT"] sdevs=[])
-(service-6 type=4 endpoints=["$M0T1FS_ENDPOINT:1"] sdevs=[])
+(service-0 type=@M0_CST_RMS endpoints=["$M0D1_ENDPOINT"] sdevs=[])
+(service-1 type=@M0_CST_HA endpoints=["$M0D1_ENDPOINT"] sdevs=[])
+(service-2 type=@M0_CST_IOS endpoints=["$M0D1_ENDPOINT"]
+    sdevs=[sdev-1, sdev-2, sdev-3, sdev-4])
+(service-3 type=@M0_CST_MDS endpoints=["$M0D1_ENDPOINT"] sdevs=[sdev-0])
+(service-4 type=@M0_CST_MGS endpoints=["$M0D1_ENDPOINT"] sdevs=[])
+(service-5 type=@M0_CST_SSS endpoints=["$M0D1_ENDPOINT"] sdevs=[])
+(service-6 type=@M0_CST_RMS endpoints=["$M0T1FS_ENDPOINT:1"] sdevs=[])
 (pool-0 order=0 pvers=[pver-0, pver_f-11])
 (pver-0 N=2 K=1 P=4 tolerance=[0, 0, 0, 0, 1] rackvs=[objv-0])
 (pver_f-11 id=0 base=pver-0 allowance=[0, 0, 0, 0, 1])

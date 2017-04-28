@@ -12,18 +12,20 @@
               service-23, service-24, service-25, service-26, service-11])
 (process-6 cores=[3] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
     mem_limit_memlock=0 endpoint="0@lo:12345:34:1" services=[])
-(service-9 type=2 endpoints=["0@lo:12345:34:1"]
+(service-9 type=@M0_CST_IOS endpoints=["0@lo:12345:34:1"]
     sdevs=[sdev-15, sdev-71, sdev-72, sdev-73, sdev-74])
-(service-10 type=1 endpoints=["0@lo:12345:34:1"] sdevs=[sdev-13, sdev-14])
-(service-20 type=3 endpoints=["0@lo:12345:34:1"] sdevs=[])
-(service-21 type=10 endpoints=["0@lo:12345:34:1"] sdevs=[])
-(service-22 type=4 endpoints=["0@lo:12345:34:1"] sdevs=[])
-(service-23 type=6 endpoints=["0@lo:12345:34:1"] sdevs=[])
-(service-24 type=8 endpoints=["0@lo:12345:34:1"] sdevs=[])
-(service-25 type=9 endpoints=["0@lo:12345:34:1"] sdevs=[])
-(service-26 type=12 endpoints=["0@lo:12345:34:1"] sdevs=[sdev-96, sdev-97])
-(service-11 type=11 endpoints=["0@lo:12345:34:1"] sdevs=[sdev-100, sdev-101,
-    sdev-102])
+(service-10 type=@M0_CST_MDS endpoints=["0@lo:12345:34:1"]
+    sdevs=[sdev-13, sdev-14])
+(service-20 type=@M0_CST_MGS endpoints=["0@lo:12345:34:1"] sdevs=[])
+(service-21 type=@M0_CST_ADDB2 endpoints=["0@lo:12345:34:1"] sdevs=[])
+(service-22 type=@M0_CST_RMS endpoints=["0@lo:12345:34:1"] sdevs=[])
+(service-23 type=@M0_CST_HA endpoints=["0@lo:12345:34:1"] sdevs=[])
+(service-24 type=@M0_CST_SNS_REP endpoints=["0@lo:12345:34:1"] sdevs=[])
+(service-25 type=@M0_CST_SNS_REB endpoints=["0@lo:12345:34:1"] sdevs=[])
+(service-26 type=@M0_CST_DIX_REP endpoints=["0@lo:12345:34:1"]
+    sdevs=[sdev-96, sdev-97])
+(service-11 type=@M0_CST_CAS endpoints=["0@lo:12345:34:1"]
+    sdevs=[sdev-100, sdev-101, sdev-102])
 (sdev-96 dev_idx=1 iface=4 media=1 bsize=4096 size=0 last_state=3 flags=4
     filename="/var/mero/m0ut/ut-sandbox/d1")
 (sdev-97 dev_idx=2 iface=4 media=1 bsize=4096 size=0 last_state=3 flags=4
@@ -76,9 +78,9 @@
 (process-49 cores=[3] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
     mem_limit_memlock=0 endpoint="0@lo:12345:34:1"
     services=[service-27, service-28])
-(service-27 type=2 endpoints=["0@lo:12345:34:1"]
+(service-27 type=@M0_CST_IOS endpoints=["0@lo:12345:34:1"]
     sdevs=[sdev-51, sdev-83, sdev-84, sdev-85, sdev-86])
-(service-28 type=12 endpoints=["0@lo:12345:34:1"] sdevs=[])
+(service-28 type=@M0_CST_DIX_REP endpoints=["0@lo:12345:34:1"] sdevs=[])
 (sdev-51 dev_idx=6 iface=4 media=1 bsize=4096 size=1073741824 last_state=3
     flags=4 filename="/dev/sdev0")
 (sdev-83 dev_idx=7 iface=4 media=1 bsize=4096 size=1073741824 last_state=3

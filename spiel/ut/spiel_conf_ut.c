@@ -1489,10 +1489,10 @@ static void spiel_conf_delete(void)
 # process "p1": ('r', 1,  6)
    {0x72| ((^r|1:6), [1:3], 0, 0, 0, 0, [0])},
 # service "s0": ('s', 1,  9)
-   {0x73| ((^s|1:9), 3, [3: "addr-0", "addr-1", "addr-2"],
+   {0x73| ((^s|1:9), @M0_CST_MGS, [3: "addr-0", "addr-1", "addr-2"],
 	   [2: ^d|1:13, ^d|1:14])},
 # service "s1": ('s', 1, 10)
-   {0x73| ((^s|1:10), 1, [1: "addr-3"],
+   {0x73| ((^s|1:10), @M0_CST_MDS, [1: "addr-3"],
 	   [1: ^d|1:15])},
 # sdev "d0":    ('d', 1, 13)
    {0x64| ((^d|1:13), 4, 1, 4096, 596000000000, 3, 4, "/dev/sdev0")},
@@ -1842,8 +1842,8 @@ static void spiel_conf_big_db(void)
 	m0_bcount_t        seg_size;
 	char              *cache_str;
 	uint32_t           svc_str_size =
-		sizeof("{0x73|(((0x7300000000000001,0)),1,"
-		       "[1: " SVC_EP "], [0])},") - 1;
+		sizeof("{0x73|((^s|1:0), @M0_CST_MDS, [1: "SVC_EP"],"
+		       " [0])},") - 1;
 
 	spiel_conf_ut_init();
 	spiel_conf_create_configuration(&spiel, &tx);

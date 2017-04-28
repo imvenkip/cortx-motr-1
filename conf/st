@@ -74,6 +74,14 @@ confdb() {
     services=[service-0, service-1, service-2, service-3, service-4, service-6])
 (process-4 cores=[1] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
     mem_limit_memlock=0 endpoint="$M0T1FS_ENDPOINT:1" services=[service-5])
+##
+## *CAUTION*  Do not use symbolic form of service types here.
+##            I.e., use 'type=4' format, not 'type=@M0_CST_RMS'.
+##
+## Rationale: spiel.confstr() returns numeric service types.
+## cmp(1) command at the end of this ST will fail, unless service types
+## are specified numerically in this conf string.
+##
 (service-0 type=3 endpoints=["$M0D1_ENDPOINT"] sdevs=[])
 (service-1 type=4 endpoints=["$M0D1_ENDPOINT"] sdevs=[])
 (service-2 type=1 endpoints=["$M0D1_ENDPOINT"] sdevs=[sdev-0])

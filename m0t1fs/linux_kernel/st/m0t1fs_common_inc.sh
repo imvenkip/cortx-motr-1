@@ -360,7 +360,7 @@ function build_conf()
 	local PROC_NAMES
 	local PROC_OBJS
 	local M0D=0
-	local M0T1FS_RM="{0x73| (($M0T1FS_RMID), 4, [1: \"${m0t1fs_ep}\"], [0])}"
+	local M0T1FS_RM="{0x73| (($M0T1FS_RMID), @M0_CST_RMS, [1: \"${m0t1fs_ep}\"], [0])}"
 	local M0T1FS_PROC="{0x72| (($M0T1FS_PROCID), [1:3], 0, 0, 0, 0, \"${m0t1fs_ep}\", [1: $M0T1FS_RMID])}"
 	PROC_OBJS="$PROC_OBJS${PROC_OBJS:+, }\n  $M0T1FS_PROC"
 	PROC_NAMES="$PROC_NAMES${PROC_NAMES:+, }$M0T1FS_PROCID"
@@ -372,20 +372,20 @@ function build_conf()
 	    local SNS_REP_NAME="$SNSR_FID_CON:$i"
 	    local SNS_REB_NAME="$SNSB_FID_CON:$i"
 	    local iosep="\"${ioservices[$i]}\""
-	    local IOS_OBJ="{0x73| (($IOS_NAME), 2, [1: $iosep], ${IOS_DEV_IDS[$i]})}"
-	    local ADDB_OBJ="{0x73| (($ADDB_NAME), 10, [1: $iosep], [0])}"
-	    local SNS_REP_OBJ="{0x73| (($SNS_REP_NAME), 8, [1: $iosep], [0])}"
-	    local SNS_REB_OBJ="{0x73| (($SNS_REB_NAME), 9, [1: $iosep], [0])}"
+	    local IOS_OBJ="{0x73| (($IOS_NAME), @M0_CST_IOS, [1: $iosep], ${IOS_DEV_IDS[$i]})}"
+	    local ADDB_OBJ="{0x73| (($ADDB_NAME), @M0_CST_ADDB2, [1: $iosep], [0])}"
+	    local SNS_REP_OBJ="{0x73| (($SNS_REP_NAME), @M0_CST_SNS_REP, [1: $iosep], [0])}"
+	    local SNS_REB_OBJ="{0x73| (($SNS_REB_NAME), @M0_CST_SNS_REB, [1: $iosep], [0])}"
 	    local RM_NAME="$RMS_FID_CON:$M0D"
-	    local RM_OBJ="{0x73| (($RM_NAME), 4, [1: $iosep], [0])}"
+	    local RM_OBJ="{0x73| (($RM_NAME), @M0_CST_RMS, [1: $iosep], [0])}"
 	    local NAMES_NR=5
 	    if [ $ENABLE_CAS -eq 1 ] ; then
 	        local DIX_REP_NAME="$DIXR_FID_CON:$i"
 	        local DIX_REB_NAME="$DIXB_FID_CON:$i"
 	        local CAS_NAME="$CAS_FID_CON:$i"
-	        local CAS_OBJ="{0x73| (($CAS_NAME), 11, [1: $iosep], [1: ^d|$DIX_FID_CON:$i])}"
-	        local DIX_REP_OBJ="{0x73| (($DIX_REP_NAME), 12, [1: $iosep], [0])}"
-	        local DIX_REB_OBJ="{0x73| (($DIX_REB_NAME), 13, [1: $iosep], [0])}"
+	        local CAS_OBJ="{0x73| (($CAS_NAME), @M0_CST_CAS, [1: $iosep], [1: ^d|$DIX_FID_CON:$i])}"
+	        local DIX_REP_OBJ="{0x73| (($DIX_REP_NAME), @M0_CST_DIX_REP, [1: $iosep], [0])}"
+	        local DIX_REB_OBJ="{0x73| (($DIX_REB_NAME), @M0_CST_DIX_REB, [1: $iosep], [0])}"
                 local CAS_OBJS="$CAS_OBJ, \n  $DIX_REP_OBJ, \n  $DIX_REB_OBJ"
 	        NAMES_NR=8
 	    fi
@@ -406,10 +406,10 @@ function build_conf()
 	    local MDS_NAME="$MDS_FID_CON:$i"
 	    local ADDB_NAME="$ADDB_MD_FID_CON:$i"
 	    local mdsep="\"${mdservices[$i]}\""
-	    local MDS_OBJ="{0x73| (($MDS_NAME), 1, [1: $mdsep], [0])}"
-	    local ADDB_OBJ="{0x73| (($ADDB_NAME), 10, [1: $mdsep], [0])}"
+	    local MDS_OBJ="{0x73| (($MDS_NAME), @M0_CST_MDS, [1: $mdsep], [0])}"
+	    local ADDB_OBJ="{0x73| (($ADDB_NAME), @M0_CST_ADDB2, [1: $mdsep], [0])}"
 	    local RM_NAME="$RMS_FID_CON:$M0D"
-	    local RM_OBJ="{0x73| (($RM_NAME), 4, [1: $mdsep], [0])}"
+	    local RM_OBJ="{0x73| (($RM_NAME), @M0_CST_RMS, [1: $mdsep], [0])}"
 
 	    PROC_NAME="$PROC_FID_CONT:$M0D"
 	    MDS_NAMES[$i]="$MDS_NAME, $ADDB_NAME, $RM_NAME"
@@ -461,14 +461,14 @@ function build_conf()
 
 	PROC_NAME="$PROC_FID_CONT:$((M0D++))"
 	RM_NAME="$RMS_FID_CON:$M0D"
-	RM_OBJ="{0x73| (($RM_NAME), 4, [1: $HA_ENDPOINT], [0])}"
+	RM_OBJ="{0x73| (($RM_NAME), @M0_CST_RMS, [1: $HA_ENDPOINT], [0])}"
 	RM_OBJS="$RM_OBJS${RM_OBJS:+,} \n $RM_OBJ"
 	PROC_OBJ="{0x72| (($PROC_NAME), [1:3], 0, 0, 0, 0, "${HA_ENDPOINT}", [3: $HA_SVC_ID, $FIS_SVC_ID, $RM_NAME])}"
 	PROC_OBJS="$PROC_OBJS, \n $PROC_OBJ"
 	PROC_NAMES="$PROC_NAMES, $PROC_NAME"
 	PROC_NAME="$PROC_FID_CONT:$((M0D++))"
 	RM_NAME="$RMS_FID_CON:$M0D"
-	RM_OBJ="{0x73| (($RM_NAME), 4, [1: $CONFD_ENDPOINT], [0])}"
+	RM_OBJ="{0x73| (($RM_NAME), @M0_CST_RMS, [1: $CONFD_ENDPOINT], [0])}"
 	RM_OBJS="$RM_OBJS${RM_OBJS:+,} \n $RM_OBJ"
 	PROC_OBJ="{0x72| (($PROC_NAME), [1:3], 0, 0, 0, 0, "${CONFD_ENDPOINT}", [2: $CONFD, $RM_NAME])}"
 	PROC_OBJS="$PROC_OBJS, \n $PROC_OBJ"
@@ -515,10 +515,10 @@ function build_conf()
 		# of pools to new objects.
 		local NODE1="{0x6e| (($NODEID1), 16000, 2, 3, 2, $POOLID1, [1: $PROCID1])}"
 		local PROC1="{0x72| (($PROCID1), [1:3], 0, 0, 0, 0, $IOS_EP, [4: $IO_SVCID1, $ADDB_SVCID1, $REP_SVCID1, $REB_SVCID1])}"
-		local IO_SVC1="{0x73| (($IO_SVCID1), 2, [1: $IOS_EP], [3: $SDEVID1, $SDEVID2, $SDEVID3])}"
-		local ADDB_SVC1="{0x73| (($ADDB_SVCID1), 10, [1: $IOS_EP], [0])}"
-		local REP_SVC1="{0x73| (($REP_SVCID1), 8, [1: $IOS_EP], [0])}"
-		local REB_SVC1="{0x73| (($REB_SVCID1), 9, [1: $IOS_EP], [0])}"
+		local IO_SVC1="{0x73| (($IO_SVCID1), @M0_CST_IOS, [1: $IOS_EP], [3: $SDEVID1, $SDEVID2, $SDEVID3])}"
+		local ADDB_SVC1="{0x73| (($ADDB_SVCID1), @M0_CST_ADDB2, [1: $IOS_EP], [0])}"
+		local REP_SVC1="{0x73| (($REP_SVCID1), @M0_CST_SNS_REP, [1: $IOS_EP], [0])}"
+		local REB_SVC1="{0x73| (($REB_SVCID1), @M0_CST_SNS_REB, [1: $IOS_EP], [0])}"
 		local SDEV1="{0x64| (($SDEVID1), $((NR_SDEVS++)), 4, 1, 4096, 596000000000, 3, 4, \"/dev/loop7\")}"
 		local SDEV2="{0x64| (($SDEVID2), $((NR_SDEVS++)), 4, 1, 4096, 596000000000, 3, 4, \"/dev/loop8\")}"
 		local SDEV3="{0x64| (($SDEVID3), $((NR_SDEVS++)), 4, 1, 4096, 596000000000, 3, 4, \"/dev/loop9\")}"
@@ -565,9 +565,9 @@ function build_conf()
   {0x6e| (($NODE), 16000, 2, 3, 2, $POOLID,
 	[$(($M0D + 1)): ${PROC_NAMES[@]}])},
   $PROC_OBJS,
-  {0x73| (($CONFD), 3, [1: $CONFD_ENDPOINT], [0])},
-  {0x73| (($HA_SVC_ID), 6, [1: $HA_ENDPOINT], [0])},
-  {0x73| (($FIS_SVC_ID), 16, [1: $HA_ENDPOINT], [0])},
+  {0x73| (($CONFD), @M0_CST_MGS, [1: $CONFD_ENDPOINT], [0])},
+  {0x73| (($HA_SVC_ID), @M0_CST_HA, [1: $HA_ENDPOINT], [0])},
+  {0x73| (($FIS_SVC_ID), @M0_CST_FIS, [1: $HA_ENDPOINT], [0])},
   $M0T1FS_RM,
   $MDS_OBJS,
   $IOS_OBJS,

@@ -790,16 +790,15 @@ _type_id()
     local type_id;
 
     case $s in
-        mds*)      type_id=1 ;;
-        ios*)      type_id=2 ;;
-        rms*)      type_id=4 ;;
-        ha)        type_id=6 ;;
-        confd)     type_id=3 ;;
-        sss)       type_id=7 ;;
-        repair)    type_id=8 ;;
-        rebalance) type_id=9 ;;
-        sss)       type_id=7 ;;
-        addb*)     type_id=10 ;;
+        mds*)      type_id=@M0_CST_MDS ;;
+        ios*)      type_id=@M0_CST_IOS ;;
+        confd)     type_id=@M0_CST_MGS ;;
+        rms*)      type_id=@M0_CST_RMS ;;
+        ha)        type_id=@M0_CST_HA ;;
+        sss)       type_id=@M0_CST_SSS ;;
+        repair)    type_id=@M0_CST_SNS_REP ;;
+        rebalance) type_id=@M0_CST_SNS_REB ;;
+        addb*)     type_id=@M0_CST_ADDB2 ;;
     esac
     echo $type_id
 }
