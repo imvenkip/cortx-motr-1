@@ -12,7 +12,6 @@ set -eu
 ###     open !$
 
 GERRIT_SERVER=es-gerrit.xyus.xyratex.com
-VIS_DIST=https://raw.githubusercontent.com/almende/vis/master/dist
 
 if [ -z "${GID:-}" ]; then
 	GID=$(git remote -v 2>/dev/null | grep -m1 -Eo '[0-9]+@' | tr -d @)
@@ -36,13 +35,12 @@ abrar.habib@seagate.com
 alexander.vershilov@tweag.io
 alp.mestanogullari@seagate.com
 anatoliy.bilenko@seagate.com	anatoliy
-andy.nimmo@seagate.com
 andriy.tkachuk@seagate.com	andriy
+andy.nimmo@seagate.com
 arjun.hariharan@seagate.com
 arnaud.spiwack@seagate.com
 benjamin.clifford@seagate.com
 bikrant.singh@seagate.com
-bobby.korah@seagate.com
 brian.oki@seagate.com
 david.adair@seagate.com
 dmitriy.chumak@seagate.com	dima.c
@@ -75,13 +73,16 @@ nicholas.clarke@seagate.com	nclarke
 nikita.danilov@seagate.com	nikita
 pratik.shinde@seagate.com
 pritam.bhavsar@seagate.com
+rahul.joshi@seagate.com
 rajanikant.chirmade@seagate.com	rajanikant
 rajesh.nambiar@seagate.com
 sergey.shilov@seagate.com
 sergey.vasilyev@seagate.com
 sining.wu@seagate.com
+stephen.d.salbato@seagate.com
 subhash.arya@seagate.com	subhash.a
 sushant.mane@seagate.com
+swapnil.belapurkar@seagate.com
 tim.pasek@seagate.com
 trupti.patil@seagate.com	trupti
 valery.vorotyntsev@seagate.com	vvv
@@ -97,8 +98,10 @@ gen_header() {
 <html>
 <head><title>Mero Gerrit reviews graph</title>
 
-  <script type="text/javascript" src="vis.js"></script>
-  <link href="vis.css" rel="stylesheet" type="text/css" />
+  <script type="text/javascript"
+   src="https://cdnjs.cloudflare.com/ajax/libs/vis/4.19.1/vis.min.js"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/vis/4.19.1/vis.min.css"
+   rel="stylesheet" type="text/css" />
 
   <style type="text/css">
     #mynetwork {
@@ -120,7 +123,8 @@ gen_header() {
         shape: 'box',
         color: { background: 'orange' }
       }
-    }
+    },
+    edges: { arrows: 'to' }
   };
 EOF
 }
@@ -206,10 +210,6 @@ DUPLICATES=$(ls_users | awk '{print $1}' | sort | uniq -d)
     echo "$DUPLICATES" | sed 's/^/  /' >&2
     exit 1
 }
-
-for x in css js; do
-	[ -f vis.$x ] || curl -o vis.$x ${VIS_DIST}/vis.$x
-done
 
 if [ ! -f _owner-reviewer.out ]; then
     for email in $(ls_users | awk '{print $1}'); do
