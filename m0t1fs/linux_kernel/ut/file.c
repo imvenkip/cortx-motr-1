@@ -904,9 +904,14 @@ static void target_ioreq_test(void)
 	V_SEG_NR(&ti->ti_ivv)  = IOVEC_NR;
 
 	rc = target_ioreq_iofops_prepare(ti, PA_DATA);
-	M0_UT_ASSERT(rc == 0);
+	/*
+	 * Even in normal case, we may experience m0_alloc() failure.
+	 * So, we should handle the -ENOMEM too.
+	 */
+	M0_UT_ASSERT(rc == 0 || rc == -ENOMEM);
+	if (rc != 0)
+		goto skip;
 	M0_UT_ASSERT(m0_atomic64_get(&ti->ti_nwxfer->nxr_iofop_nr) == 1);
-
 	m0_tl_for(iofops, &ti->ti_iofops, irfop) {
 		struct m0_rpc_bulk *rbulk = &irfop->irf_iofop.if_rbulk;
 		M0_UT_ASSERT(!m0_rpc_bulk_is_empty(rbulk));
@@ -924,8 +929,8 @@ static void target_ioreq_test(void)
 		m0_atomic64_dec(&req.ir_nwxfer.nxr_iofop_nr);
 	}
 
+skip:
 	/* Checks allocation failure. */
-
 	m0_fi_enable_off_n_on_m("m0_alloc", "fail_allocation", 1, 1);
 	rc = target_ioreq_iofops_prepare(ti, PA_DATA);
 	M0_UT_ASSERT(rc == -ENOMEM);
