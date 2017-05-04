@@ -28,7 +28,7 @@ THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
 http://www.xyratex.com/contact
 """
 __author__ = 'Valery V. Vorotyntsev <valery.vorotyntsev@seagate.com>'
-__version__ = '2.0'
+__version__ = '2.1'
 __doc__ = """Configuration string converter.
 
 Converts configuration string from one format into another.
@@ -630,6 +630,8 @@ class Encoder_dot(Encoder_cg):
 
 def fid_translate(fid):
     assert type(fid) is Fid
+    if ConfObjType.from_fid(fid) is not None:
+        return Encoder_cg.encode_Fid(fid)
     if chr(fid.typebyte()) == 'D':
         # Byte 7 of fid.container() = type of dir's parent.
         # Byte 6 of fid.container() = type of dir's children.
@@ -641,8 +643,28 @@ def fid_translate(fid):
         if all([ConfObjType.from_fid(x) is not None for x in (parent, child)]):
             return 'dir_{}_{}'.format(Encoder_cg.encode_Fid(parent),
                                       ConfObjType.from_fid(child).name)
-    if ConfObjType.from_fid(fid) is not None:
-        return Encoder_cg.encode_Fid(fid)
+    if chr(fid.typebyte()) == '/' and fid.tcontainer[1] == 0:
+        # see M0_CONF_REL_FIDS in conf/obj.h
+        rel_fids = {0xffffffffffffffff: 'M0_CONF_ANY_FID'}
+        rel_fids.update((i+1, 'M0_CONF_' + s + '_FID') for i, s in
+                        enumerate(['ROOT_PROFILES',
+                                   'PROFILE_FILESYSTEM',
+                                   'FILESYSTEM_NODES',
+                                   'FILESYSTEM_POOLS',
+                                   'FILESYSTEM_RACKS',
+                                   'POOL_PVERS',
+                                   'PVER_RACKVS',
+                                   'RACKV_ENCLVS',
+                                   'ENCLV_CTRLVS',
+                                   'CTRLV_DISKVS',
+                                   'NODE_PROCESSES',
+                                   'PROCESS_SERVICES',
+                                   'SERVICE_SDEVS',
+                                   'RACK_ENCLS',
+                                   'ENCLOSURE_CTRLS',
+                                   'CONTROLLER_DISKS',
+                                   'DISK_SDEV']))
+        return rel_fids.get(fid.key)
 
 
 def fids_translate():
@@ -1330,6 +1352,11 @@ class TestEncoding(unittest.TestCase):
                          'dir_pver-8_objv')
         self.assertEqual(fid_translate(Fid(('s', 0x73650000000001), 7)),
                          'service-0x73650000000001:7')
+        self.assertEqual(fid_translate(
+            Fid(0x2f00000000000000, 0xffffffffffffffff)), 'M0_CONF_ANY_FID')
+        self.assertEqual(fid_translate(
+            Fid(0x2f00000000000000, 6)), 'M0_CONF_POOL_PVERS_FID')
+        self.assertIsNone(fid_translate(Fid(0x2f00000000000000, 0)))
 
 
 class TestDecoding(unittest.TestCase):
