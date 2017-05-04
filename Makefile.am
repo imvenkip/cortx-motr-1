@@ -678,6 +678,17 @@ clovis_m0clovis_m0clovis_LDADD    = $(top_builddir)/mero/libmero.la
 include $(top_srcdir)/clovis/m0clovis/Makefile.sub
 
 #
+# clovis/crate ----------------------------------------- {{{2
+#
+sbin_PROGRAMS                    += clovis/m0crate/m0crate
+
+clovis_m0crate_m0crate_CPPFLAGS = -DM0_TARGET='m0crate' $(AM_CPPFLAGS)
+clovis_m0crate_m0crate_LDADD    = $(top_builddir)/mero/libmero.la \
+				-lm -laio -lyaml
+
+include $(top_srcdir)/clovis/m0crate/Makefile.sub
+
+#
 # dix/m0dixinit --------------------------------------- {{{2
 #
 sbin_PROGRAMS                    += dix/utils/m0dixinit

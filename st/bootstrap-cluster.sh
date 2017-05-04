@@ -46,6 +46,14 @@ configure_hvt() {
 	CLUSTER_TYPE="kvm"
 }
 
+configure_hvt_clovis() {
+	CMU_HOST="172.16.0.41"
+	HOSTS_LIST="$CMU_HOST,172.16.1.[1-6]"
+	CLIENTS_LIST="172.16.1.1"
+	MERO_ROLE_MAPPINGS="/etc/halon/role_maps/clovis.ede"
+	CLUSTER_TYPE="kvm"
+}
+
 configure_s3single() {
 	CMU_HOST="192.168.0.2"
 	HOSTS_LIST="$CMU_HOST,192.168.0.1"
@@ -200,6 +208,7 @@ setup() {
 		dev2_2) configure_dev2_2;;
 		fre7n1) configure_fre7n1;;
 		hvt) configure_hvt;;
+		hvt_clovis) configure_hvt_clovis;;
 		s3single) configure_s3single;;
 		kvm2dm) configure_kvm2dm;;
 		*) die "Unsupported cluster: $cluster";;

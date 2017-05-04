@@ -33,6 +33,9 @@ HALON_FACTS_YAML=${HALON_FACTS_YAML:-halon_facts.yaml}
 # Set to non-emptry value if you want this.
 USE_SYSTEM_MERO=
 
+# "m0t1fs" for normal storage and "c0cat" for DIX
+MROLE=${MROLE:-"m0t1fs"}
+
 die() { echo "$@" >&2; exit 1; }
 
 show_help() {
@@ -239,7 +242,7 @@ id_m0_servers:
   - name: ha
   - name: mds
   - name: storage
-  - name: m0t1fs
+  - name: $MROLE
   host_mem_stack: 1
 id_m0_globals:
   m0_parity_units: 2
