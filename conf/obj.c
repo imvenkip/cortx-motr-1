@@ -277,15 +277,6 @@
  *           cache_add(), object_enrich(), cache_grow(), and
  *           cache_preload().
  *
- * @subsection confd-ut confd Test Suite
- *
- * XXX
- *
- * <hr> <!------------------------------------------------------------>
- * @section conf-O Analysis
- *
- * @todo XXX
- *
  * <hr> <!------------------------------------------------------------>
  * @section conf-scalability Scalability
  *

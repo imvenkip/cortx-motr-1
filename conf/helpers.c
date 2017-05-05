@@ -641,7 +641,7 @@ M0_INTERNAL int m0_conf_process2service_get(struct m0_confc *confc,
 
 	rc = confc_obj_get(confc, process_fid, &pobj);
 	if (rc != 0)
-		return M0_ERR(rc);
+		return M0_ERR_INFO(rc, "process="FID_F, FID_P(process_fid));
 	rc = M0_FI_ENABLED("diter_fail") ? -ENOMEM :
 		m0_conf_diter_init(&it, confc, pobj,
 				   M0_CONF_PROCESS_SERVICES_FID);

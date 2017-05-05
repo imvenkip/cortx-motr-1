@@ -93,6 +93,7 @@ M0_INTERNAL int m0_conf_glob(struct m0_conf_glob *glob, uint32_t nr,
 	uint32_t filled = 0;
 	int      rc;
 
+	M0_ENTRY();
 	M0_PRE(m0_conf_cache_is_locked(glob->cg_cache));
 	while (filled < nr) {
 		rc = conf_glob_step(glob, &objv[filled]);
@@ -140,6 +141,8 @@ conf_glob_down(struct m0_conf_glob *glob, const struct m0_conf_obj **target)
 	struct m0_conf_obj       *x;
 	int                       rc;
 
+	M0_ENTRY("depth=%"PRIu32" obj="FID_F" elem="FID_F,
+		 *depth, FID_P(&obj->co_id), FID_P(elem));
 	M0_PRE(glob->cg_down_p);
 	M0_PRE(obj->co_status == M0_CS_READY);
 
@@ -190,15 +193,34 @@ conf_glob_down(struct m0_conf_glob *glob, const struct m0_conf_obj **target)
 static int conf_glob_up(struct m0_conf_glob *glob)
 {
 	uint32_t                 *depth = &glob->cg_depth;
-	const struct m0_fid      *elem = &glob->cg_path[*depth - 1];
+	const struct m0_fid      *elem;
 	const struct m0_conf_dir *dir;
 	const struct m0_conf_obj *obj;
 
+	M0_ENTRY("depth=%"PRIu32, *depth);
 	M0_PRE(!glob->cg_down_p);
 
 	if (*depth == 0)
 		return M0_RC(CONF_GLOB_END); /* end of traversal */
 
+	elem = &glob->cg_path[*depth - 1];
+	if (elem->f_container != M0_CONF_ANY_FID.f_container)
+		/*
+		 * All fids in M0_CONF_REL_FIDS has the same .f_container
+		 * part (0x2f00000000000000); see the use of
+		 * M0_CONF_REL_FIDS in conf/objs/common.c.
+		 *
+		 * `elem' is not in M0_CONF_REL_FIDS ==>
+		 * `elem' is a fid of a conf object.
+		 *
+		 * Since conf cache cannot have two conf
+		 * objects with the same fid, it would be
+		 * pointless for conf_glob_up() to raise
+		 * above this object --- no other path
+		 * withinin the conf graph would lead
+		 * to `elem' conf object.
+		 */
+		return M0_RC(CONF_GLOB_END); /* end of traversal */
 	if (!m0_fid_eq(elem, &M0_CONF_ANY_FID)) {
 		glob->cg_trace[*depth] = NULL;
 		M0_CNT_DEC(*depth);

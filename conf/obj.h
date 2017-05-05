@@ -521,6 +521,7 @@ struct m0_conf_process {
 	uint64_t            pc_memlimit_rss;
 	uint64_t            pc_memlimit_stack;
 	uint64_t            pc_memlimit_memlock;
+	/** @todo Use an array to support several network interfaces. */
 	const char         *pc_endpoint;
 };
 
@@ -532,6 +533,8 @@ struct m0_conf_service {
 	/**
 	 * End-points from which this service is reachable.
 	 * NULL-terminated array of C strings.
+	 *
+	 * Several network interfaces ==> several entpoints.
 	 */
 	const char              **cs_endpoints;
 };

@@ -180,14 +180,5 @@ M0_INTERNAL int m0_conf_glob(struct m0_conf_glob *glob,
 M0_INTERNAL char *m0_conf_glob_error(const struct m0_conf_glob *glob,
 				     char *buf, size_t buflen);
 
-/**
- * M0_LOG()s description of conf DAG traversal error.
- *
- * @returns `errcode'
- * @pre  M0_IN(errcode, (-ENOENT, -EPERM))
- */
-M0_INTERNAL int m0_conf_glob_err(int errcode, const struct m0_conf_obj *obj,
-				 const struct m0_fid *path);
-
 /** @} conf_glob */
 #endif /* __MERO_CONF_GLOB_H__ */

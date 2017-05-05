@@ -91,6 +91,34 @@ static void test_conf_glob(void)
 	/* check the types of returned objects */
 	m0_forall(i, rc, M0_CONF_CAST(objv[i], m0_conf_objv));
 
+	/*
+	 * specific objects in the middle of the path, case #1
+	 */
+	m0_conf_glob_init(&glob, M0_CONF_GLOB_ERR, NULL, cache, NULL,
+			  M0_CONF_ROOT_PROFILES_FID, M0_FID_TINIT('p', 1, 0),
+			  M0_CONF_PROFILE_FILESYSTEM_FID,
+			  M0_CONF_FILESYSTEM_POOLS_FID,
+			  M0_FID_TINIT('o', 1, 4), /* pool-4 */
+			  M0_CONF_POOL_PVERS_FID, M0_CONF_ANY_FID);
+	rc = m0_conf_glob(&glob, ARRAY_SIZE(objv), objv);
+	M0_UT_ASSERT(rc == 3);
+	/* check the types of returned objects */
+	m0_forall(i, rc, M0_CONF_CAST(objv[i], m0_conf_pver));
+
+	/*
+	 * specific objects in the middle of the path, case #2
+	 */
+	m0_conf_glob_init(&glob, M0_CONF_GLOB_ERR, NULL, cache, NULL,
+			  M0_CONF_ROOT_PROFILES_FID, M0_FID_TINIT('p', 1, 0),
+			  M0_CONF_PROFILE_FILESYSTEM_FID,
+			  M0_CONF_FILESYSTEM_NODES_FID, M0_CONF_ANY_FID,
+			  M0_CONF_NODE_PROCESSES_FID, M0_FID_TINIT('r', 1, 5),
+			  M0_CONF_PROCESS_SERVICES_FID, M0_CONF_ANY_FID);
+	rc = m0_conf_glob(&glob, ARRAY_SIZE(objv), objv);
+	M0_UT_ASSERT(rc == 10);
+	/* check the types of returned objects */
+	m0_forall(i, rc, M0_CONF_CAST(objv[i], m0_conf_service));
+
 	m0_conf_cache_unlock(cache);
 }
 
