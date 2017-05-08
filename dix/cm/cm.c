@@ -425,6 +425,7 @@ M0_INTERNAL void m0_dix_cm_stop(struct m0_cm *cm)
 	struct m0_dix_cm        *dcm = cm2dix(cm);
 	struct m0_cm_aggr_group *end_mark;
 	struct m0_dix_cm_stats   total_stats = {};
+	M0_PRE(m0_cm_is_locked(cm));
 
 	if (!cm->cm_done && !proxy_tlist_is_empty(&cm->cm_proxies)) {
 		end_mark = m0_cm_aggr_group_locate(cm, &GRP_END_MARK_ID, true);
@@ -433,7 +434,10 @@ M0_INTERNAL void m0_dix_cm_stop(struct m0_cm *cm)
 		m0_clink_del_lock(&dcm->dcm_proxies_completed);
 		m0_clink_fini(&dcm->dcm_proxies_completed);
 	}
+	/* release the cm lock, because m0_dix_cm_iter_stop() may block. */
+	m0_cm_unlock(cm);
 	m0_dix_cm_iter_stop(&dcm->dcm_it);
+	m0_cm_lock(cm);
 	M0_SET0(&dcm->dcm_it);
 	dcm->dcm_stop_time = m0_time_now();
 

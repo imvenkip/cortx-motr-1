@@ -226,7 +226,9 @@ M0_INTERNAL int m0_dix_cm_iter_get(struct m0_dix_cm_iter *iter,
 
 /**
  * Tells DIX CM iterator to stop and waits for the final state of its FOM.
- *
+ * Please note that no external lock should be held before calling this
+ * function, because it may wait and block. Otherwise, deadlock may appear
+ * on that external lock.
  * @param iter DIX CM iterator.
  *
  * @see m0_dix_cm_iter_start()

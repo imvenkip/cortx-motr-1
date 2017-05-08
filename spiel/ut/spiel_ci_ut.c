@@ -567,7 +567,7 @@ static void test_spiel_pool_repair(enum m0_repreb_type type)
 				M0_CONF_POOL_TYPE.cot_ftype.ft_id, 1, 3);
 	struct m0_fid               invalid_fid = M0_FID_TINIT(
 				M0_CONF_SERVICE_TYPE.cot_ftype.ft_id, 1, 4);
-	struct m0_spiel_repreb_status *status;
+	struct m0_spiel_repreb_status *status = NULL;
 	enum m0_cm_status           state;
 	int                         rc;
 
@@ -604,12 +604,11 @@ static void test_spiel_pool_repair(enum m0_repreb_type type)
 	rc = (type == M0_REPREB_TYPE_SNS) ?
 		m0_spiel_sns_repair_status(&spiel, &pool_fid, &status) :
 		m0_spiel_dix_repair_status(&spiel, &pool_fid, &status);
-	M0_LOG(M0_DEBUG, "rc = %d", rc);
 	M0_UT_ASSERT(rc == 1);
 	M0_UT_ASSERT(m0_fid_eq(&status[0].srs_fid, &svc_fid));
 	M0_UT_ASSERT(status[0].srs_state == CM_STATUS_IDLE);
 	M0_UT_ASSERT(status[0].srs_progress >= 0);
-	m0_free(status);
+	m0_free0(&status);
 
 	spiel_repair_start(&pool_fid, &svc_fid, type);
 
@@ -622,6 +621,7 @@ static void test_spiel_pool_repair(enum m0_repreb_type type)
 	M0_UT_ASSERT(m0_fid_eq(&status[0].srs_fid, &svc_fid));
 	M0_UT_ASSERT(state == CM_STATUS_IDLE);
 	M0_UT_ASSERT(status[0].srs_progress > 0);
+	m0_free0(&status);
 
 	spiel_repair_start(&pool_fid, &svc_fid, type);
 
@@ -634,14 +634,14 @@ static void test_spiel_pool_repair(enum m0_repreb_type type)
 	M0_UT_ASSERT(m0_fid_eq(&status[0].srs_fid, &svc_fid));
 	M0_UT_ASSERT(status[0].srs_state == CM_STATUS_PAUSED);
 	M0_UT_ASSERT(status[0].srs_progress >= 0);
-	m0_free(status);
+	m0_free0(&status);
 
 	rc = (type == M0_REPREB_TYPE_SNS) ?
 		m0_spiel_sns_repair_continue(&spiel, &pool_fid) :
 		m0_spiel_dix_repair_continue(&spiel, &pool_fid);
 	M0_UT_ASSERT(rc == 0);
 	wait_for_repair_rebalance(type, CM_OP_REPAIR, &status, &pool_fid, &svc_fid);
-	m0_free(status);
+	m0_free0(&status);
 	m0_fi_disable("ready", "no_wait");
 	m0_fi_disable("m0_ha_local_state_set", "no_ha");
 	spiel_ci_ut_fini();
