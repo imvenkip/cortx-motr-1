@@ -539,9 +539,9 @@ function build_conf()
 		local  DISKV3="{0x6a| (($DISKVID3), $DISKID3, [0])}"
 		PVER1_OBJS=", \n$NODE1, \n$PROC1, \n$IO_SVC1, \n$ADDB_SVC1, \n$REP_SVC1, \n$REB_SVC1, \n$SDEV1, \n$SDEV2, \n$SDEV3, \n$RACK1, \n$ENCL1, \n$CTRL1, \n$DISK1, \n$DISK2, \n$DISK3, \n$POOL1, \n$PVER1, \n$RACKV1, \n$ENCLV1, \n$CTRLV1, \n$DISKV1, \n$DISKV2, \n$DISKV3"
 		PVER1_OBJ_COUNT=23
-		$((node_count++))
-		$((rack_count++))
-		$((pool_count++))
+		((++node_count))
+		((++rack_count))
+		((++pool_count))
 
 		NODES="$NODES, $NODEID1"
 		POOLS="$POOLS, $POOLID1"
