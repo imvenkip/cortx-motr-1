@@ -23,10 +23,11 @@
 #include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/syscall.h>  /* syscall, SYS_getcpu */
 #include <dirent.h>
 #include <unistd.h>
 #include <linux/limits.h>
-#include <sched.h> /* sched_getcpu() */
+#include <sched.h>        /* sched_getcpu() */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_OTHER
 #include "lib/trace.h"
@@ -34,6 +35,8 @@
 #include "lib/memory.h"
 #include "lib/processor.h"
 #include "lib/list.h"
+#include "lib/thread.h"
+#include "module/instance.h"
 
 /**
    @addtogroup processor
@@ -146,6 +149,28 @@ struct processor_node {
 
 	/** Processor descriptor structure */
 	struct m0_processor_descr pn_info;
+};
+
+/**
+   Global data for M0_MODULE_PROCESSOR.
+ */
+struct processor_global {
+	bool pg_getcpu_inited;
+	/**
+	 * True when sched_getcpu() is not functional on current platform.
+	 * @see m0_processor_id_get()
+	 */
+	bool pg_getcpu_workaround;
+};
+
+struct getcpu_thr_data {
+	/** Processor id */
+	m0_processor_nr_t  ptd_idx;
+	struct m0_thread   ptd_thread;
+	/** Bitmap for thread affinity */
+	struct m0_bitmap   ptd_cpu_map;
+	/** Result of a single cpu check */
+	bool               ptd_success;
 };
 
 /* Global Variables. */
@@ -904,22 +929,146 @@ static void processors_m0bitmap_copy(struct m0_bitmap *dst,
 	m0_bitmap_copy(dst, src);
 }
 
+static int getcpu_thr_init(struct getcpu_thr_data *data)
+{
+	return m0_thread_confine(&data->ptd_thread, &data->ptd_cpu_map);
+}
+
+static void getcpu_thr_func(struct getcpu_thr_data *data)
+{
+	m0_processor_nr_t idx = m0_processor_id_get();
+
+	data->ptd_success = idx == data->ptd_idx;
+}
+
+/**
+   Checks source of processor id. It runs threads on every online processor
+   and compares processors index with value returned by m0_processor_id_get().
+   On some systems sched_getcpu() may be broken and return zero on any
+   processor. If it happens the syscall getcpu() is used as workaround.
+
+   @param[out] success -> Result of the check.
+
+   @see https://jts.seagate.com/browse/MERO-2500.
+ */
+static int processor_getcpu_check(bool *success)
+{
+	struct getcpu_thr_data  *tdata;
+	struct m0_bitmap         map_online = {};
+	size_t                   cpu_max;
+	size_t                   cpu_nr;
+	size_t                   i;
+	size_t                   j;
+	bool                     result = true;
+	int                      rc;
+	int                      rc2;
+
+	cpu_max = m0_processor_nr_max();
+	rc = m0_bitmap_init(&map_online, cpu_max);
+	if (rc != 0)
+		return M0_RC(rc);
+	m0_processors_online(&map_online);
+	cpu_nr = m0_bitmap_set_nr(&map_online);
+
+	M0_ALLOC_ARR(tdata, cpu_nr);
+	if (tdata == NULL) {
+		m0_bitmap_fini(&map_online);
+		return M0_ERR(-ENOMEM);
+	}
+
+	for (i = 0, j = 0; i < map_online.b_nr; ++i) {
+		if (!m0_bitmap_get(&map_online, i))
+			continue;
+
+		tdata[j].ptd_idx = (m0_processor_nr_t)i;
+		rc = m0_bitmap_init(&tdata[j].ptd_cpu_map, cpu_max);
+		if (rc != 0)
+			break;
+		m0_bitmap_set(&tdata[j].ptd_cpu_map, i, true);
+
+		rc = M0_THREAD_INIT(&tdata[j].ptd_thread,
+				    struct getcpu_thr_data *,
+				    getcpu_thr_init, &getcpu_thr_func,
+				    &tdata[j], "m0_getcpu_check");
+		if (rc != 0) {
+			m0_bitmap_fini(&tdata[i].ptd_cpu_map);
+			break;
+		}
+		++j;
+	}
+	M0_ASSERT(ergo(rc == 0, j == cpu_nr));
+
+	for (i = 0; i < j; ++i) {
+		rc2 = m0_thread_join(&tdata[i].ptd_thread);
+		rc  = rc ?: rc2;
+		result = rc2 == 0 && result && tdata[i].ptd_success;
+		m0_thread_fini(&tdata[i].ptd_thread);
+		m0_bitmap_fini(&tdata[i].ptd_cpu_map);
+	}
+
+	m0_free(tdata);
+	m0_bitmap_fini(&map_online);
+
+	if (rc == 0)
+		*success = result;
+	return M0_RC(rc);
+}
+
+static int processor_getcpu_init(void)
+{
+	struct processor_global *pg = m0_get()->i_moddata[M0_MODULE_PROCESSOR];
+	bool                     success;
+	int                      rc;
+
+	pg->pg_getcpu_inited = true;
+	pg->pg_getcpu_workaround = false;
+	rc = processor_getcpu_check(&success);
+	if (rc == 0 && !success) {
+		pg->pg_getcpu_workaround = true;
+		rc = processor_getcpu_check(&success);
+		if (rc == 0 && !success)
+			rc = M0_ERR(-ENODEV);
+	}
+	if (rc != 0)
+		pg->pg_getcpu_inited = false;
+
+	return M0_RC(rc);
+}
+
+static void processor_getcpu_fini(void)
+{
+}
+
 /* ---- Processor Interface Implementation ---- */
 
 M0_INTERNAL int m0_processors_init()
 {
-	int rc;
+	struct processor_global *pg;
+	int                      rc;
 
 	M0_PRE(!processor_init);
-	rc = processors_summary_get();
+	M0_ALLOC_PTR(pg);
+	m0_get()->i_moddata[M0_MODULE_PROCESSOR] = pg;
+	rc = pg == NULL ? M0_ERR(-ENOMEM) : 0;
+	rc = rc ?: processors_summary_get();
+	/* Required by processor_getcpu_init(). */
 	processor_init = (rc == 0);
+	rc = rc ?: processor_getcpu_init();
+
+	if (rc != 0) {
+		m0_free(pg);
+		m0_get()->i_moddata[M0_MODULE_PROCESSOR] = NULL;
+		processor_init = false;
+	}
 	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_processors_fini()
 {
 	M0_PRE(processor_init);
+	processor_getcpu_fini();
 	processor_cache_destroy();
+	m0_free0(&m0_get()->i_moddata[M0_MODULE_PROCESSOR]);
 	processor_init = false;
 }
 
@@ -971,7 +1120,25 @@ M0_INTERNAL int m0_processor_describe(m0_processor_nr_t id,
 
 M0_INTERNAL m0_processor_nr_t m0_processor_id_get(void)
 {
-	return sched_getcpu();
+	struct processor_global *pg = m0_get()->i_moddata[M0_MODULE_PROCESSOR];
+	unsigned                 cpu;
+	int                      rc;
+
+	M0_PRE(pg->pg_getcpu_inited);
+
+	if (pg->pg_getcpu_workaround) {
+		rc = syscall(SYS_getcpu, &cpu, NULL, NULL);
+		if (rc < 0)
+			cpu = M0_PROCESSORS_INVALID_ID;
+	} else {
+		rc = sched_getcpu();
+		cpu = rc < 0 ? M0_PROCESSORS_INVALID_ID : (unsigned)rc;
+	}
+	if (rc < 0)
+		M0_LOG(M0_ERROR, "%s(): rc=%d errno=%d",
+		       pg->pg_getcpu_workaround ? "syscall" : "sched_getcpu",
+		       rc, errno);
+	return cpu;
 }
 
 #undef M0_TRACE_SUBSYSTEM

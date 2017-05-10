@@ -43,6 +43,7 @@ enum m0_module_id {
 	M0_MODULE_ADDB2,
 	M0_MODULE_LOCALITY,
 	M0_MODULE_HA,
+	M0_MODULE_PROCESSOR,
 	/* XXX ... more to come ... */
 	M0_MODULE_NR
 };

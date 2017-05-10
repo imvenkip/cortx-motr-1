@@ -23,19 +23,16 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <linux/limits.h>
+
 #include "ut/ut.h"
 #include "lib/ub.h"
 #include "lib/assert.h"
+#include "lib/memory.h"
 #include "lib/processor.h"
+#include "lib/string.h"
 
 #define	SYSFS_PATH		"/sys/devices/system"
-#define	TEST1_SYSFS_PATH	"./test1"
-#define	TEST2_SYSFS_PATH	"./test2"
-#define	TEST3_SYSFS_PATH	"./test3"
-#define	TEST4_SYSFS_PATH	"./test4"
-#define	TEST5_SYSFS_PATH	"./test5"
-#define	TEST6_SYSFS_PATH	"./test6"
-#define	TEST7_SYSFS_PATH	"./test7"
+#define	TEST_SYSFS_PATH		"./cpu_test"
 
 #define MAX_PROCESSOR_FILE	"cpu/kernel_max"
 #define POSS_PROCESSOR_FILE	"cpu/possible"
@@ -61,8 +58,6 @@
 #define M0_SHMAP_FILE		"cpu/cpu%u/cache/index2/shared_cpu_map"
 
 #define	BUF_SZ	512
-#define	SMALL_STR_SZ	32
-#define	LARGE_STR_SZ	128
 
 struct psummary {
 	char *kmaxstr;
@@ -86,163 +81,6 @@ struct pinfo {
 	const char *m0sharedmapstr;
 };
 
-struct psummary test1_cpus_summary = {
-	.kmaxstr = "32\n",
-	.possstr = "0-1,7-8\n",
-	.presentstr = "0-1,7\n",
-	.onlnstr = "0-1\n"
-};
-
-struct pinfo test1_cpus[] = {
-	{
-		.numaid = 1,
-		.physid = 0,
-		.coreid = 0,
-		.c0lvl = 1,
-		.c1lvl = 1,
-		.m0lvl = 2,
-		.c0szstr = "64K\n",
-		.c1szstr = "64K\n",
-		.m0szstr = "540K\n",
-		.c0sharedmapstr = "00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000001\n",
-		.c1sharedmapstr = "00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000001\n",
-		.m0sharedmapstr = "00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000003\n"
-	},
-	{
-	 .numaid = 1,
-	 .physid = 0,
-	 .coreid = 1,
-	 .c0lvl = 1,
-	 .c1lvl = 1,
-	 .m0lvl = 2,
-	 .c0szstr = "64K\n",
-	 .c1szstr = "64K\n",
-	 .m0szstr = "540K\n",
-	 .c0sharedmapstr =
-	 "00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000001\n",
-	 .c1sharedmapstr =
-	 "00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000001\n",
-	 .m0sharedmapstr =
-	 "00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000003\n"},
-	{.numaid = M0_PROCESSORS_INVALID_ID},
-	{.numaid = M0_PROCESSORS_INVALID_ID},
-	{.numaid = M0_PROCESSORS_INVALID_ID},
-	{.numaid = M0_PROCESSORS_INVALID_ID},
-	{.numaid = M0_PROCESSORS_INVALID_ID},
-	{
-	 .numaid = 1,
-	 .physid = 3,
-	 .coreid = 0,
-	 .c0lvl = 1,
-	 .c1lvl = 1,
-	 .m0lvl = 2,
-	 .c0szstr = "64K\n",
-	 .c1szstr = "64K\n",
-	 .m0szstr = "540K\n",
-	 .c0sharedmapstr =
-	 "00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000001\n",
-	 .c1sharedmapstr =
-	 "00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000001\n",
-	 .m0sharedmapstr =
-	 "00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000001\n"}
-
-};
-
-struct psummary test3_cpus_summary = {
-	.kmaxstr = "32\n",
-};
-
-struct psummary test4_cpus_summary = {
-	.kmaxstr = "32\n",
-	.possstr = "0-1,7-8\n",
-};
-
-struct psummary test5_cpus_summary = {
-	.kmaxstr = "32\n",
-	.possstr = "0-1,7-8\n",
-	.presentstr = "0-1,7\n",
-};
-
-struct psummary test6_cpus_summary = {
-	.kmaxstr = "32\n",
-	.possstr = "0-1,7-8\n",
-	.presentstr = "0-1,7\n",
-	.onlnstr = "0-1\n"
-};
-
-struct psummary test7_cpus_summary = {
-	.kmaxstr = "32\n",
-	.possstr = "0-2,7-8\n",
-	.presentstr = "0-2,7\n",
-	.onlnstr = "0-2\n"
-};
-
-struct pinfo test7_cpus[] = {
-	{
-	 .numaid = 1,
-	 .physid = 0,
-	 .coreid = 0,
-	 .c0lvl = 1,
-	 .c1lvl = 1,
-	 .m0lvl = 2,
-	 .c0szstr = "64K\n",
-	 .c1szstr = "64K\n",
-	 .m0szstr = "540K\n",
-	 .c0sharedmapstr =
-	 "00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000001\n",
-	 .c1sharedmapstr =
-	 "00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000001\n",
-	 .m0sharedmapstr =
-	 "00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000003\n"},
-	{
-	 .numaid = 1,
-	 .physid = 0,
-	 .coreid = 1,
-	 .c0lvl = 1,
-	 .c1lvl = 1,
-	 .m0lvl = 2,
-	 .c0szstr = "64K\n",
-	 .c1szstr = "64K\n",
-	 .m0szstr = "540K\n",
-	 .c0sharedmapstr =
-	 "00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000001\n",
-	 .c1sharedmapstr =
-	 "00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000001\n",
-	 .m0sharedmapstr =
-	 "00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000003\n"},
-	{
-	 .numaid = 1,
-	 .physid = 0,
-	 .coreid = 0,
-	 .c0lvl = 1,
-	 .c1lvl = 1,
-	 .m0lvl = 2,
-	 .c0szstr = "",
-	 },
-	{.numaid = M0_PROCESSORS_INVALID_ID},
-	{.numaid = M0_PROCESSORS_INVALID_ID},
-	{.numaid = M0_PROCESSORS_INVALID_ID},
-	{.numaid = M0_PROCESSORS_INVALID_ID},
-	{.numaid = M0_PROCESSORS_INVALID_ID},
-	{
-	 .numaid = 1,
-	 .physid = 3,
-	 .coreid = 0,
-	 .c0lvl = 1,
-	 .c1lvl = 1,
-	 .m0lvl = 2,
-	 .c0szstr = "64K\n",
-	 .c1szstr = "64K\n",
-	 .m0szstr = "540K\n",
-	 .c0sharedmapstr =
-	 "00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000001\n",
-	 .c1sharedmapstr =
-	 "00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000001\n",
-	 .m0sharedmapstr =
-	 "00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000001\n"}
-
-};
-
 enum {
 	UB_ITER = 100000
 };
@@ -254,6 +92,8 @@ enum {
 };
 
 char *processor_info_dirp;
+
+uint64_t cpu_masks[] = { 1, 3, 5, 13, 21, 43, 107, 219 };
 
 static int ub_init(const char *opts M0_UNUSED)
 {
@@ -302,22 +142,30 @@ static uint32_t get_num_from_file(const char *file)
 	return num;
 }
 
-static void maptostr(struct m0_bitmap *map, char **buf)
+static void maptostr(struct m0_bitmap *map, char *str, size_t sz)
 {
 	uint32_t  i;
 	uint32_t  from_idx;
 	uint32_t  to_idx;
+	char     *pstr;
 	bool      val;
-	char     *str = *buf;
+	int       ret;
 
 	M0_UT_ASSERT(map != NULL && str != NULL);
+	M0_UT_ASSERT(sz > 0);
 	*str = '\0';
+	pstr = str;
 
 	for (i = 0; i < map->b_nr; i++) {
 		val = m0_bitmap_get(map, i);
 		if (val == true) {
-			if (*str != '\0')
+			if (*str != '\0') {
+				M0_UT_ASSERT(sz > 1);
 				strcat(str, ",");
+				++pstr;
+				--sz;
+				M0_UT_ASSERT(*pstr == '\0');
+			}
 			from_idx = to_idx = i;
 			while (val == true && i < map->b_nr) {
 				i++;
@@ -325,9 +173,14 @@ static void maptostr(struct m0_bitmap *map, char **buf)
 			}
 			to_idx = i - 1;
 			if (from_idx == to_idx)
-				sprintf(str, "%s%u", str, from_idx);
+				ret = snprintf(pstr, sz, "%u", from_idx);
 			else
-				sprintf(str, "%s%u-%u", str, from_idx, to_idx);
+				ret = snprintf(pstr, sz, "%u-%u",
+					       from_idx, to_idx);
+			M0_UT_ASSERT(ret >= 0);
+			M0_UT_ASSERT((size_t)ret < sz);
+			pstr += ret;
+			sz   -= ret;
 		}
 	}
 }
@@ -393,7 +246,7 @@ static void verify_map(int mapid)
 	};
 
 	expect = &buf[0];
-	maptostr(&map, &expect);
+	maptostr(&map, expect, BUF_SZ);
 
 	sprintf(filename, "%s/%s", processor_info_dirp, map_file);
 	fp = fopen(filename, "r");
@@ -425,7 +278,6 @@ static void verify_max_processors()
 	M0_UT_ASSERT(num == result);
 
 	m0_processors_fini();
-
 }
 
 static void verify_a_processor(m0_processor_nr_t id,
@@ -657,19 +509,6 @@ static void populate_cpus(struct pinfo cpus[], uint32_t sz)
 	}			/* for - populate test data for all CPUs */
 }
 
-static void populate_test_dataset1(void)
-{
-
-	unsigned int     cpu;
-	struct psummary *sum = &test1_cpus_summary;
-
-	populate_cpu_summary(sum);
-
-	cpu = sizeof(test1_cpus) / sizeof(struct pinfo);
-	populate_cpus(test1_cpus, cpu);
-
-}
-
 static void clean_test_dataset(void)
 {
 	char cmd[PATH_MAX];
@@ -678,60 +517,6 @@ static void clean_test_dataset(void)
 	sprintf(cmd, "rm -rf %s", processor_info_dirp);
 	rc = system(cmd);
 	M0_UT_ASSERT(rc != -1);
-}
-
-static void populate_test_dataset2(void)
-{
-	char cmd[PATH_MAX];
-	int  rc;
-
-	sprintf(cmd, "mkdir -p %s/cpu", processor_info_dirp);
-	rc = system(cmd);
-	M0_UT_ASSERT(rc != -1);
-}
-
-static void populate_test_dataset3(void)
-{
-	struct psummary *sum = &test3_cpus_summary;
-	populate_cpu_summary(sum);
-}
-
-static void populate_test_dataset4(void)
-{
-	struct psummary *sum = &test4_cpus_summary;
-	populate_cpu_summary(sum);
-}
-
-static void populate_test_dataset5(void)
-{
-	struct psummary *sum = &test5_cpus_summary;
-	populate_cpu_summary(sum);
-}
-
-static void populate_test_dataset6(void)
-{
-	struct psummary *sum = &test6_cpus_summary;
-	populate_cpu_summary(sum);
-}
-
-static void populate_test_dataset7(void)
-{
-
-	unsigned int cpu;
-	struct psummary *sum = &test7_cpus_summary;
-
-	populate_cpu_summary(sum);
-
-	cpu = sizeof(test7_cpus) / sizeof(struct pinfo);
-	populate_cpus(test7_cpus, cpu);
-}
-
-static void verify_init(void)
-{
-	int rc;
-
-	rc = m0_processors_init();
-	M0_UT_ASSERT(rc != 0);
 }
 
 static void verify_all_params()
@@ -745,61 +530,196 @@ static void verify_all_params()
 		verify_id_get();
 }
 
+static struct psummary *psummary_new(m0_processor_nr_t cpu_max,
+				     struct m0_bitmap *map_poss,
+				     struct m0_bitmap *map_avail,
+				     struct m0_bitmap *map_onln)
+{
+	struct psummary *ps;
+	char             buf[BUF_SZ];
+	char            *str = &buf[0];
+
+	M0_ALLOC_PTR(ps);
+	M0_UT_ASSERT(ps != NULL);
+	snprintf(str, BUF_SZ, "%u", (unsigned)cpu_max);
+	ps->kmaxstr = m0_strdup(str);
+	M0_UT_ASSERT(ps->kmaxstr != NULL);
+	maptostr(map_poss, str, BUF_SZ);
+	ps->possstr = m0_strdup(str);
+	M0_UT_ASSERT(ps->possstr != NULL);
+	maptostr(map_avail, str, BUF_SZ);
+	ps->presentstr = m0_strdup(str);
+	M0_UT_ASSERT(ps->presentstr != NULL);
+	maptostr(map_onln, str, BUF_SZ);
+	ps->onlnstr = m0_strdup(str);
+	M0_UT_ASSERT(ps->onlnstr != NULL);
+
+	return ps;
+}
+
+static void psummary_destroy(struct psummary *ps)
+{
+	m0_free(ps->kmaxstr);
+	m0_free(ps->possstr);
+	m0_free(ps->presentstr);
+	m0_free(ps->onlnstr);
+	m0_free(ps);
+}
+
+static struct pinfo *pinfo_new(m0_processor_nr_t cpu_max,
+			       struct m0_bitmap *map_poss,
+			       struct m0_bitmap *map_avail,
+			       struct m0_bitmap *map_onln,
+			       size_t           *nr_out)
+{
+	struct pinfo *pi;
+	size_t        nr = 0;
+	size_t        i;
+
+	for (i = 0; i < map_avail->b_nr; ++i)
+		if (m0_bitmap_get(map_avail, i))
+			nr = i + 1;
+	M0_UT_ASSERT(nr > 0);
+	M0_ALLOC_ARR(pi, nr);
+	M0_UT_ASSERT(pi != NULL);
+
+	for (i = 0; i < nr; ++i) {
+		if (m0_bitmap_get(map_onln, i)) {
+			/* online */
+			pi[i].numaid = 1;
+			pi[i].physid = 0;
+			pi[i].coreid = 0;
+			pi[i].c0lvl = 1;
+			pi[i].c1lvl = 1;
+			pi[i].m0lvl = 2;
+			pi[i].c0szstr = "64K\n";
+			pi[i].c1szstr = "64K\n";
+			pi[i].m0szstr = "540K\n";
+			pi[i].c0sharedmapstr = "00000000,00000000,00000000,"
+			       "00000000,00000000,00000000,00000000,00000001\n";
+			pi[i].c1sharedmapstr = "00000000,00000000,00000000,"
+			       "00000000,00000000,00000000,00000000,00000001\n";
+			pi[i].m0sharedmapstr = "00000000,00000000,00000000,"
+			       "00000000,00000000,00000000,00000000,00000003\n";
+		} else if (m0_bitmap_get(map_avail, i)) {
+			/* present */
+			pi[i].numaid = 1;
+			pi[i].physid = 0;
+			pi[i].coreid = 0;
+			pi[i].c0lvl = 1;
+			pi[i].c1lvl = 1;
+			pi[i].m0lvl = 2;
+			pi[i].c0szstr = "64K\n";
+			pi[i].c1szstr = "64K\n";
+			pi[i].m0szstr = "540K\n";
+			pi[i].c0sharedmapstr = "00000000,00000000,00000000,"
+			       "00000000,00000000,00000000,00000000,00000001\n";
+			pi[i].c1sharedmapstr = "00000000,00000000,00000000,"
+			       "00000000,00000000,00000000,00000000,00000001\n";
+			pi[i].m0sharedmapstr = "00000000,00000000,00000000,"
+			       "00000000,00000000,00000000,00000000,00000003\n";
+		} else {
+			/* not present */
+			pi[i].numaid = M0_PROCESSORS_INVALID_ID;
+		}
+	}
+
+	*nr_out = nr;
+	return pi;
+}
+
+void pinfo_destroy(struct pinfo *pi)
+{
+	m0_free(pi);
+}
+
 void test_processor(void)
 {
-	ub_init1(0);
-	ub_init2(0);
-	ub_init3(0);
-	m0_processors_fini();	/* clean normal data so we can load test data */
+	struct m0_bitmap   map_poss  = {};
+	struct m0_bitmap   map_avail = {};
+	struct m0_bitmap   map_onln  = {};
+	struct m0_bitmap   map       = {};
+	struct m0_bitmap  *map_avail2;
+	struct psummary   *ps;
+	struct pinfo      *pi;
+	m0_processor_nr_t  cpu_max   = m0_processor_nr_max();
+	m0_processor_nr_t  cpu_poss;
+	m0_processor_nr_t  cpu_avail;
+	m0_processor_nr_t  cpu_onln;
+	m0_processor_nr_t  i;
+	uint64_t           rmask;
+	size_t             nr;
+	size_t             j;
+	int                rc;
+
+	rc = m0_bitmap_init(&map_poss, cpu_max);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_bitmap_init(&map_avail, cpu_max);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_bitmap_init(&map_onln, cpu_max);
+	M0_UT_ASSERT(rc == 0);
+	rc = m0_bitmap_init(&map, cpu_max);
+	M0_UT_ASSERT(rc == 0);
+	m0_processors_possible(&map_poss);
+	cpu_poss = m0_bitmap_set_nr(&map_poss);
+	m0_processors_available(&map_avail);
+	cpu_avail = m0_bitmap_set_nr(&map_avail);
+	m0_processors_online(&map_onln);
+	cpu_onln = m0_bitmap_set_nr(&map_onln);
+
+	M0_UT_ASSERT(cpu_poss <= cpu_max);
+	M0_UT_ASSERT(cpu_avail <= cpu_poss);
+	M0_UT_ASSERT(cpu_onln <= cpu_avail);
+	for (i = 0; i < cpu_max; ++i) {
+		M0_UT_ASSERT(ergo(m0_bitmap_get(&map_onln, i),
+				  m0_bitmap_get(&map_avail, i)));
+		M0_UT_ASSERT(ergo(m0_bitmap_get(&map_avail, i),
+				  m0_bitmap_get(&map_poss, i)));
+	}
+
+	m0_processors_fini(); /* clean normal data so we can load test data */
 
 	processor_info_dirp = SYSFS_PATH;
 	verify_all_params();
 
-	processor_info_dirp = TEST1_SYSFS_PATH;
-	setenv("M0_PROCESSORS_INFO_DIR", TEST1_SYSFS_PATH, 1);
-	populate_test_dataset1();
-	verify_all_params();
-	clean_test_dataset();
+	processor_info_dirp = TEST_SYSFS_PATH;
+	setenv("M0_PROCESSORS_INFO_DIR", TEST_SYSFS_PATH, 1);
 
-	processor_info_dirp = TEST2_SYSFS_PATH;
-	setenv("M0_PROCESSORS_INFO_DIR", TEST2_SYSFS_PATH, 1);
-	populate_test_dataset2();
-	verify_init();
-	clean_test_dataset();
+	for (i = 0; i < cpu_onln && i < ARRAY_SIZE(cpu_masks); ++i) {
+		/*
+		 * apply a mask to real online cpu map in order to create
+		 * test data.
+		 */
+		rmask = cpu_masks[i];
+		for (j = 0; j < map_onln.b_nr; ++j) {
+			if (m0_bitmap_get(&map_onln, j)) {
+				m0_bitmap_set(&map, j, rmask % 2 == 1);
+				rmask /= 2;
+			} else
+				m0_bitmap_set(&map, j, false);
+		}
+		/* map of present CPUs equals to online's every 2nd step */
+		map_avail2 = i % 2 == 0 ? &map_avail : &map;
 
-	processor_info_dirp = TEST3_SYSFS_PATH;
-	setenv("M0_PROCESSORS_INFO_DIR", TEST3_SYSFS_PATH, 1);
-	populate_test_dataset3();
-	verify_init();
-	clean_test_dataset();
+		ps = psummary_new(cpu_max, &map_poss, map_avail2, &map);
+		pi = pinfo_new(cpu_max, &map_poss, map_avail2, &map, &nr);
+		populate_cpu_summary(ps);
+		populate_cpus(pi, nr);
+		verify_all_params();
+		clean_test_dataset();
+		pinfo_destroy(pi);
+		psummary_destroy(ps);
+	}
 
-	processor_info_dirp = TEST4_SYSFS_PATH;
-	setenv("M0_PROCESSORS_INFO_DIR", TEST4_SYSFS_PATH, 1);
-	populate_test_dataset4();
-	verify_init();
-	clean_test_dataset();
-
-	processor_info_dirp = TEST5_SYSFS_PATH;
-	setenv("M0_PROCESSORS_INFO_DIR", TEST5_SYSFS_PATH, 1);
-	populate_test_dataset5();
-	verify_init();
-	clean_test_dataset();
-
-	processor_info_dirp = TEST6_SYSFS_PATH;
-	setenv("M0_PROCESSORS_INFO_DIR", TEST6_SYSFS_PATH, 1);
-	populate_test_dataset6();
-	verify_init();
-	clean_test_dataset();
-
-	processor_info_dirp = TEST7_SYSFS_PATH;
-	setenv("M0_PROCESSORS_INFO_DIR", TEST7_SYSFS_PATH, 1);
-	populate_test_dataset7();
-	verify_all_params();
-	clean_test_dataset();
+	m0_bitmap_fini(&map_poss);
+	m0_bitmap_fini(&map_avail);
+	m0_bitmap_fini(&map_onln);
+	m0_bitmap_fini(&map);
 
 	unsetenv("M0_PROCESSORS_INFO_DIR");
 	/* restore normal data */
-	M0_UT_ASSERT(m0_processors_init() == 0);
+	rc = m0_processors_init();
+	M0_UT_ASSERT(rc == 0);
 }
 
 struct m0_ub_set m0_processor_ub = {
