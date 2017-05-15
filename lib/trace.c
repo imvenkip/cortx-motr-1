@@ -180,10 +180,10 @@ static uint32_t calc_string_data_size(const struct m0_trace_descr *td,
 	return total_size;
 }
 
-static void copy_string_data(char *body, const struct m0_trace_descr *td)
+static void copy_string_data(char *dst_str, const char *body,
+			     const struct m0_trace_descr *td)
 {
 	int   i;
-	char *dst_str = body + m0_align(td->td_size, M0_TRACE_REC_ALIGN);
 
 	for (i = 0; i < td->td_nr; ++i)
 		if (td->td_isstr[i]) {
@@ -207,6 +207,7 @@ M0_INTERNAL void m0_trace_allot(const struct m0_trace_descr *td,
 	uint64_t  endpos;
 	uint32_t  str_data_size;
 	void     *body_in_buf;
+	char     *dst_str;
 
 	struct m0_trace_rec_header *header;
 	struct m0_trace_buf_header *tbh = m0_logbuf_header;
@@ -274,8 +275,10 @@ M0_INTERNAL void m0_trace_allot(const struct m0_trace_descr *td,
 
 	memcpy(body_in_buf, body, td->td_size);
 
-	if (str_data_size > 0)
-		copy_string_data(body_in_buf, td);
+	if (str_data_size > 0) {
+		dst_str = body_in_buf + m0_align(td->td_size, M0_TRACE_REC_ALIGN);
+		copy_string_data(dst_str, body, td);
+	}
 
 	/** @todo put memory barrier here before writing the magic */
 	header->trh_magic = M0_TRACE_MAGIC;

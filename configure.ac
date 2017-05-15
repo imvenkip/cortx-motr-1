@@ -328,9 +328,9 @@ AC_DEFINE_UNQUOTED([M0_TRACE_KBUF_SIZE], [($TRACE_KBUF_SIZE * 1024 * 1024UL)])
 # trace-ubuf-size {{{3
 AC_ARG_WITH([trace-ubuf-size],
         [AS_HELP_STRING([--with-trace-ubuf-size=number],
-                        [set user space trace buffer size in MiB, default is 4MiB])],
+                        [set user space trace buffer size in MiB, default is 16MiB])],
         [TRACE_UBUF_SIZE=$with_trace_ubuf_size],
-        [TRACE_UBUF_SIZE=4]
+        [TRACE_UBUF_SIZE=16]
 )
 AS_IF([test -z "$TRACE_UBUF_SIZE" || test "x$TRACE_UBUF_SIZE" = xyes ||
        test "x$TRACE_UBUF_SIZE" = xno],

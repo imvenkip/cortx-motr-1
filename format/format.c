@@ -80,9 +80,10 @@ static int get_footer_from_buf(const void                     *buffer,
 				   header->hd_magic);
 
 	m0_format_header_unpack(&tag, header);
-	M0_LOG(M0_DEBUG, "format header of %p buffer: version %hu, type %hu"
-			 ", footer_offset %u", buffer, tag.ot_version,
-			 tag.ot_version, tag.ot_footer_offset);
+	/* M0_LOG(M0_DEBUG, "format header of %p buffer: version %hu, type %hu" */
+	/* 		 ", footer_offset %u", buffer, tag.ot_version, */
+	/* 		 tag.ot_version, tag.ot_footer_offset); */
+
 	*footer = buffer + tag.ot_footer_offset;
 	*footer_offset = tag.ot_footer_offset;
 
