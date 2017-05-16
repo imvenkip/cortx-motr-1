@@ -1040,7 +1040,32 @@ static int cas_fom_tick(struct m0_fom *fom0)
 			cas_fom_failure(fom, rc, false);
 		break;
 	case CAS_CTG_CROW_DONE:
-		if (fom->cf_thrall_rc == 0)
+		/*
+		 * EEXIST is treated as success as desired index may be created
+		 * by some other fom after the index lookup resulted ENOENT and
+		 * before the index creation attempt initiated by current fom
+		 * when CROW is used.
+		 *
+		 * Example: simultaneous put of keys key1 and key2 into the same
+		 * index index1, index1 is empty on this node and not yet
+		 * phisically created as CROW is used for distributed indices,
+		 * keys are sent in a separate fops fop1 and fop2:
+		 *
+		 * 1.1. put fop1 recevied -> fom1
+		 * 1.2. put fop2 recevied -> fom2
+		 * 2.1. fom1 -> lookup index1 -> ENOENT
+		 * 2.2. fom2 -> lookup index1 -> ENOENT
+		 * 3.1. fom1 -> run fom1.1 to create index1
+		 * 3.2. fom2 -> run fom2.1 to create index1
+		 * 4.1. fom1.1 -> create index1 -> SUCCESS
+		 * 4.2. fom2.1 -> create index1 -> EEXIST
+		 * 5.1. fom1.1 -> SUCCESS -> fom1
+		 * 5.2. fom2.1 -> EEXIST -> fom2
+		 * 6.1. fom1 -> lookup index1 -> SUCCESS
+		 * 6.2. fom2 -> send EEXIST
+		 * 7.   fom1 -> insert key1 into index1 -> send SUCCESS
+		 */
+		if (fom->cf_thrall_rc == 0 || fom->cf_thrall_rc == -EEXIST)
 			m0_fom_phase_set(fom0, CAS_START);
 		else
 			cas_fom_failure(fom, fom->cf_thrall_rc, false);
