@@ -91,7 +91,6 @@ int clovis_init(struct workload *w)
 	clovis_conf.cc_is_read_verify        = conf->is_read_verify;
 	clovis_conf.cc_local_addr            = conf->clovis_local_addr;
 	clovis_conf.cc_ha_addr               = conf->clovis_ha_addr;
-	clovis_conf.cc_confd                 = conf->clovis_confd_addr;
 	clovis_conf.cc_profile               = conf->clovis_prof;
 	clovis_conf.cc_process_fid           = conf->clovis_process_fid;
 	clovis_conf.cc_tm_recv_queue_min_len = M0_NET_TM_RECV_QUEUE_DEF_LEN;
@@ -147,7 +146,6 @@ void free_clovis_conf()
 {
 	m0_free(conf->clovis_local_addr);
 	m0_free(conf->clovis_ha_addr);
-	m0_free(conf->clovis_confd_addr);
 	m0_free(conf->clovis_prof);
 	m0_free(conf->clovis_process_fid);
 	m0_free(conf->cass_cluster_ep);
@@ -159,7 +157,7 @@ int clovis_fini(struct workload *w)
 {
 	num_clovis_workloads--;
 	if(num_clovis_workloads == 0) {
-		m0_clovis_fini(&clovis_instance, true);
+		m0_clovis_fini(clovis_instance, true);
 		free_clovis_conf();
 	}
 	return 0;

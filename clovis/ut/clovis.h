@@ -29,9 +29,8 @@
 #include "layout/layout.h"      /* m0_layout */
 
 extern struct m0_clovis_config clovis_default_config;
-#define CLOVIS_DEFAULT_EP          "0@lo:12345:45:"
-#define CLOVIS_DEFAULT_HA_ADDR     "0@lo:12345:66:"
-#define CLOVIS_DEFAULT_CONFD_ADDR  "0@lo:12345:41:100"
+#define CLOVIS_DEFAULT_EP          "0@lo:12345:45:101"
+#define CLOVIS_DEFAULT_HA_ADDR     "0@lo:12345:66:1"
 #define CLOVIS_DEFAULT_PROFILE     "<0x7000000000000001:0>"
 #define CLOVIS_DEFAULT_PROC_FID    "<0x7200000000000000:0>"
 #define CLOVIS_SET_DEFAULT_CONFIG() \
@@ -43,7 +42,6 @@ extern struct m0_clovis_config clovis_default_config;
 		confp->cc_layout_id             = 1; \
 		confp->cc_local_addr            = CLOVIS_DEFAULT_EP;\
 		confp->cc_ha_addr               = CLOVIS_DEFAULT_HA_ADDR;\
-		confp->cc_confd                 = CLOVIS_DEFAULT_CONFD_ADDR;\
 		confp->cc_profile               = CLOVIS_DEFAULT_PROFILE; \
 		confp->cc_process_fid           = CLOVIS_DEFAULT_PROC_FID; \
 		confp->cc_tm_recv_queue_min_len = M0_NET_TM_RECV_QUEUE_DEF_LEN;\

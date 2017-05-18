@@ -100,7 +100,6 @@ static void idx_dix_ut_clovis_init()
 	ut_m0c_config.cc_is_read_verify        = false;
 	ut_m0c_config.cc_local_addr            = local_ep_addr;
 	ut_m0c_config.cc_ha_addr               = srv_ep_addr;
-	ut_m0c_config.cc_confd                 = srv_ep_addr;
 	ut_m0c_config.cc_profile               = M0_UT_CONF_PROFILE;
 	/* Use fake fid, see clovis_initlift_resource_manager(). */
 	ut_m0c_config.cc_process_fid           = process_fid;
@@ -139,7 +138,7 @@ static void idx_dix_ut_fini()
 	m0_fi_enable_once("clovis_ha_fini", "skip-ha-fini");
 	m0_fi_enable_once("clovis_initlift_addb2", "no-addb2");
 	m0_fi_enable("clovis_ha_process_event", "no-link");
-	m0_clovis_fini(&ut_m0c, false);
+	m0_clovis_fini(ut_m0c, false);
 	m0_fi_disable("clovis_ha_process_event", "no-link");
 	m0_rpc_server_stop(&dix_ut_sctx);
 }

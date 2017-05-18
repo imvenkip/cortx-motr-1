@@ -29,7 +29,7 @@ function m0clovis_cmd_start()
 		return 1
 	fi
 
-	local args="-l $CLOVIS_LOCAL_EP -h $CLOVIS_HA_EP -c $CLOVIS_CONFD_EP \
+	local args="-l $CLOVIS_LOCAL_EP -h $CLOVIS_HA_EP \
 		    -p '$CLOVIS_PROF_OPT' -f '$CLOVIS_PROC_FID'"
 	local cmdline="$exec $args $all"
 	if [ $verbose == 1 ]; then

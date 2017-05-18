@@ -26,7 +26,6 @@ stops mero services.
 -i: Select Index service:
     CASS : Cassandra
     KVS  : Mero KVS
-    MOCK : Mock index service
 
 -k: run Clovis system tests in kernel mode
 

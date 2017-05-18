@@ -22,16 +22,11 @@ function clovis_st_start_k ()
 		"CASS")
 			idx_service=2
 			;;
-		"MOCK")
-			idx_service=3
-			;;
-
 	esac
 
 	local st_kmod=$st_util_dir/../linux_kernel/clovis_st_kmod.ko
 	local st_kmod_args="clovis_local_addr=$LOCAL_EP \
 			    clovis_ha_addr=$HA_EP \
-			    clovis_confd_addr=$CONFD_EP \
 			    clovis_prof=$PROF_OPT \
 			    clovis_proc_fid=$PROC_FID"
 
@@ -81,13 +76,9 @@ function clovis_st_start_u()
 		"CASS")
 			idx_service=2
 			;;
-		"MOCK")
-			idx_service=3
-			;;
-
 	esac
 
-	local st_args="-m $CLOVIS_LOCAL_EP -h $CLOVIS_HA_EP -c $CLOVIS_CONFD_EP \
+	local st_args="-m $CLOVIS_LOCAL_EP -h $CLOVIS_HA_EP \
 		       -p '$CLOVIS_PROF_OPT' -f '$CLOVIS_PROC_FID' \
 		       -I $idx_service"
 	if [ $random_mode -eq 1 ]; then

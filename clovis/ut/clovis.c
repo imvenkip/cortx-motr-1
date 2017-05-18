@@ -224,7 +224,6 @@ static void ut_clovis_test_m0_clovis_init(void)
 	/* Check NULL or 0 for each argument */
 	clovis_default_config.cc_local_addr = CLOVIS_DEFAULT_EP;
 	clovis_default_config.cc_ha_addr = CLOVIS_DEFAULT_HA_ADDR;
-	clovis_default_config.cc_confd = CLOVIS_DEFAULT_CONFD_ADDR;
 	clovis_default_config.cc_profile = CLOVIS_DEFAULT_PROFILE;
 	clovis_default_config.cc_tm_recv_queue_min_len = 0;
 	clovis_default_config.cc_tm_recv_queue_min_len =
@@ -256,7 +255,7 @@ static void ut_clovis_test_m0_clovis_init(void)
 		rc = CLOVIS_INIT(&instance);
 		M0_UT_ASSERT(rc == 0);
 		ut_clovis_test_m0_clovis_init_floors(instance, i, true);
-		m0_clovis_fini(&instance, false);
+		m0_clovis_fini(instance, false);
 	}
 
 	m0_fi_disable("clovis_initlift_get_next_floor", "clovis_ut");
@@ -345,8 +344,7 @@ M0_INTERNAL void ut_clovis_test_m0_clovis_fini(void)
 		rc = CLOVIS_INIT(&instance);
 		M0_UT_ASSERT(rc == 0);
 		ut_clovis_test_m0_clovis_init_floors(instance, i, false);
-		m0_clovis_fini(&instance, false);
-		M0_UT_ASSERT(instance == NULL);
+		m0_clovis_fini(instance, false);
 	}
 	m0_fi_disable("clovis_initlift_get_next_floor", "clovis_ut");
 	m0_fi_disable("clovis_initlift_move_next_floor", "immediate_ret");
@@ -380,7 +378,7 @@ M0_INTERNAL void ut_m0_clovis_fini(struct m0_clovis **instance)
 	}
 	m0_fi_disable("clovis_initlift_get_next_floor", "clovis_ut");
 
-	m0_clovis_fini(instance, false);
+	m0_clovis_fini(*instance, false);
 }
 
 /* Don't use CLOVIS_INIT after this point */

@@ -26,6 +26,8 @@
 #include <signal.h>                 /* struct stack */
 #include <assert.h>                 /* assert */
 
+#include "lib/getopts.h"
+#include "lib/thread.h"
 #include "clovis/clovis.h"
 #include "clovis/clovis_idx.h"
 #include "clovis/st/clovis_st.h"
@@ -35,13 +37,11 @@
 enum clovis_idx_service {
 	IDX_MERO = 1,
 	IDX_CASS,
-	IDX_MOCK
 };
 
 /* Clovis parameters */
 static char                    *clovis_local_addr;
 static char                    *clovis_ha_addr;
-static char                    *clovis_confd_addr;
 static char                    *clovis_prof;
 static char                    *clovis_proc_fid;
 static char                    *clovis_tests;
@@ -54,35 +54,6 @@ static struct m0_clovis_config  clovis_conf;
 static struct m0_idx_dix_config  dix_conf;
 static struct m0_idx_cass_config cass_conf;
 
-int clovis_st_is_stackptr(void *ptr)
-{
-	ucontext_t d;
-	int        rc;
-
-	rc = getcontext(&d);
-	assert(rc == 0);
-
-	if ((char *)d.uc_stack.ss_sp > (char *)ptr &&
-		(char *)ptr > ((char *)d.uc_stack.ss_sp  + d.uc_stack.ss_size))
-		return 1;
-	else
-		return 0;
-}
-
-void clovis_st_alloc_aligned(void **ptr, size_t size, size_t alignment)
-{
-	int rc;
-
-	rc = posix_memalign(ptr, size, alignment);
-	assert(rc == 0);
-	memset(*ptr, 0, size);
-}
-
-void clovis_st_free_aligned(void *ptr, size_t size, size_t alignment)
-{
-	free(ptr);
-}
-
 static int clovis_st_init_instance(void)
 {
 	int               rc;
@@ -92,7 +63,6 @@ static int clovis_st_init_instance(void)
 	clovis_conf.cc_is_read_verify        = false;
 	clovis_conf.cc_local_addr            = clovis_local_addr;
 	clovis_conf.cc_ha_addr               = clovis_ha_addr;
-	clovis_conf.cc_confd                 = clovis_confd_addr;
 	clovis_conf.cc_profile               = clovis_prof;
 	clovis_conf.cc_process_fid           = clovis_proc_fid;
 	clovis_conf.cc_tm_recv_queue_min_len = M0_NET_TM_RECV_QUEUE_DEF_LEN;
@@ -103,10 +73,6 @@ static int clovis_st_init_instance(void)
 		/* DIX- Metadata is created by m0dixinit() in ST script. */
 		dix_conf.kc_create_meta = false;
 		clovis_conf.cc_idx_service_conf = &dix_conf;
-	} else if (clovis_index_service == IDX_MOCK) {
-		/* mocked index driver */
-		clovis_conf.cc_idx_service_id   = M0_CLOVIS_IDX_MOCK;
-		clovis_conf.cc_idx_service_conf = "/home/sining/devel/tmp/indices";
 	} else if (clovis_index_service == IDX_CASS) {
 		/* Cassandra index driver */
 		cass_conf.cc_cluster_ep              = "127.0.0.1";
@@ -132,10 +98,7 @@ exit:
 
 static void clovis_st_fini_instance(void)
 {
-	struct m0_clovis *instance;
-
-	instance = clovis_st_get_instance();
-	m0_clovis_fini(&instance, true);
+	m0_clovis_fini(clovis_st_get_instance(), true);
 }
 
 static int clovis_st_wait_workers(void)
@@ -148,14 +111,13 @@ void clovis_st_usage()
 	console_printf(
 		"Clovis System Test Framework: c0st\n"
 		"    -- Note: if -l|-u is used, no Clovis details are needed\n"
-		"       otherwise, -m, -h, -c and -p have to be provided\n"
+		"       otherwise, -m, -h and -p have to be provided\n"
 		"Usage: c0st "
-		"[-l|-u|-r] [-m local] [-h ha] [-c confd] [-p prof_opt] "
+		"[-l|-u|-r] [-m local] [-h ha] [-p prof_opt] "
 		"[-t tests]\n"
 		"    -l                List all tests\n"
 		"    -m local          Local(my) end point address\n"
 		"    -h ha             HA address \n"
-		"    -c confd          Confd address \n"
 		"    -p prof_opt       Profile options for Clovis\n"
 		"    -f proc_fid       Process FID for rmservice@Clovis\n"
 		"    -t tests          Only run the specified tests\n"
@@ -167,7 +129,7 @@ void clovis_st_usage()
 
 void clovis_st_get_opts(int argc, char **argv)
 {
-	int opt;
+	int rc;
 
 	if (argc < 2) {
 		clovis_st_usage();
@@ -176,59 +138,54 @@ void clovis_st_get_opts(int argc, char **argv)
 
 	clovis_local_addr = NULL;
 	clovis_ha_addr    = NULL;
-	clovis_confd_addr = NULL;
 	clovis_prof       = NULL;
 	clovis_proc_fid   = NULL;
 	clovis_tests      = NULL;
 
-	/* Set configurations according to options*/
-	while ((opt = getopt(argc, argv, "lm:h:c:p:f:t:I:ru?")) != -1) {
-		switch (opt) {
-		case 'l':
-			clovis_st_list(true);
-			exit(0);
-			break;
-		case 'm':
-			clovis_local_addr = optarg;
-			break;
-		case 'h':
-			clovis_ha_addr = optarg;
-			break;
-		case 'c':
-			clovis_confd_addr = optarg;
-			break;
-		case 'p':
-			clovis_prof = optarg;
-			break;
-		case 'f':
-			clovis_proc_fid = optarg;
-			break;
-		case 't':
-			clovis_tests = optarg;
-			break;
-		case 'I':
-			clovis_index_service = atoi(optarg);
-			break;
-		case 'r':
-			clovis_st_set_test_mode(CLOVIS_ST_RAND_MODE);
-			break;
-		case 'u':
-		case '?':
-		default:
-			/*
-			 * We won't carry on if user only want to see
-			 * how to use the ST framework.
-			 */
-			clovis_st_usage();
-			exit(0);
-			break;
-		}
-	}
-
+	rc = M0_GETOPTS("clovis_st", argc, argv,
+			M0_HELPARG('?'),
+			M0_VOIDARG('i', "more verbose help",
+					LAMBDA(void, (void) {
+						clovis_st_usage();
+						exit(0);
+					})),
+			M0_VOIDARG('l', "Lists all clovis tests",
+					LAMBDA(void, (void) {
+						clovis_st_list(true);
+						exit(0);
+					})),
+			M0_STRINGARG('m', "Local endpoint address",
+					  LAMBDA(void, (const char *string) {
+					       clovis_local_addr = (char*)string;
+					  })),
+			M0_STRINGARG('h', "HA address",
+					  LAMBDA(void, (const char *str) {
+					       clovis_ha_addr = (char*)str;
+					  })),
+			M0_STRINGARG('f', "Process FID",
+					  LAMBDA(void, (const char *str) {
+					       clovis_proc_fid = (char*)str;
+					  })),
+			M0_STRINGARG('p', "Profile options for Clovis",
+					  LAMBDA(void, (const char *str) {
+					       clovis_prof = (char*)str;
+					  })),
+			M0_NUMBERARG('I', "Index service id",
+					  LAMBDA(void, (int64_t service_idx) {
+					       clovis_index_service = service_idx;
+				          })),
+			M0_VOIDARG('r', "Ramdom test mode",
+				        LAMBDA(void, (void) {
+					       clovis_st_set_test_mode(
+							CLOVIS_ST_RAND_MODE);
+				        })),
+			M0_STRINGARG('t', "Lists clovis tests",
+					LAMBDA(void, (const char *str) {
+					       clovis_tests = (char*)str;
+					})));
 	/* some checks */
-	if (clovis_local_addr == NULL || clovis_ha_addr == NULL ||
-	    clovis_confd_addr == NULL || clovis_prof == NULL ||
-	    clovis_proc_fid == NULL)
+	if (rc != 0 || clovis_local_addr == NULL || clovis_ha_addr == NULL ||
+	    clovis_prof == NULL || clovis_proc_fid == NULL)
 	{
 		clovis_st_usage();
 		exit(0);
@@ -244,7 +201,15 @@ void clovis_st_get_opts(int argc, char **argv)
 
 int main(int argc, char **argv)
 {
-	int rc;
+	int           rc;
+	static struct m0 instance;
+
+	m0_instance_setup(&instance);
+	rc = m0_module_init(&instance.i_self, M0_LEVEL_INST_ONCE);
+	if (rc != 0) {
+		fprintf(stderr, "Cannot init module %i\n", rc);
+		return rc;
+	}
 
 	/* initilise Clovis ST*/
 	clovis_st_init();

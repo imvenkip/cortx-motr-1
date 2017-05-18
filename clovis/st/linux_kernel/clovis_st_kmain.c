@@ -1,6 +1,6 @@
 /* -*- C -*- */
 /*
- * COPYRIGHT 2016 SEAGATE LLC
+ * COPYRIGHT 2017 SEAGATE LLC
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF SEAGATE LLC,
@@ -33,23 +33,23 @@
 
 //MODULE_AUTHOR("Seagate");
 MODULE_AUTHOR("Xyratex International");
-MODULE_DESCRIPTION("Clovis helloworld demo");
+MODULE_DESCRIPTION("Clovis System Tests");
 MODULE_LICENSE("proprietary");
 
 enum clovis_idx_service {
 	IDX_MERO = 1,
 	IDX_CASS,
-	IDX_MOCK
 };
 
 /* Module parameters */
 static char                    *clovis_local_addr;
 static char                    *clovis_ha_addr;
-static char                    *clovis_confd_addr;
 static char                    *clovis_prof;
 static char                    *clovis_proc_fid;
 static char                    *clovis_tests;
+static int                      clovis_index_service;
 static struct m0_clovis_config  clovis_conf;
+static struct m0_idx_dix_config dix_conf;
 
 module_param(clovis_local_addr, charp, S_IRUGO);
 MODULE_PARM_DESC(clovis_local_addr, "Clovis Local Address");
@@ -57,33 +57,17 @@ MODULE_PARM_DESC(clovis_local_addr, "Clovis Local Address");
 module_param(clovis_ha_addr, charp, S_IRUGO);
 MODULE_PARM_DESC(clovis_ha_addr, "Clovis HA Address");
 
-module_param(clovis_confd_addr, charp, S_IRUGO);
-MODULE_PARM_DESC(clovis_confd_addr, "Clovis Confd Address");
-
 module_param(clovis_prof, charp, S_IRUGO);
 MODULE_PARM_DESC(clovis_prof, "Clovis Profile Opt");
 
 module_param(clovis_proc_fid, charp, S_IRUGO);
 MODULE_PARM_DESC(clovis_proc_fid, "Clovis Process FID for rmservice");
 
+module_param(clovis_index_service, int, S_IRUGO);
+MODULE_PARM_DESC(clovis_index_service, "Clovis index service");
+
 module_param(clovis_tests, charp, S_IRUGO);
 MODULE_PARM_DESC(clovis_tests, "Clovis ST tests");
-
-void clovis_st_alloc_aligned(void **ptr, size_t size, size_t alignment)
-{
-	if(alignment != PAGE_SIZE || size == 0) {
-		*ptr = NULL;
-		return ;
-	}
-
-	*ptr = alloc_pages_exact(size, GFP_NOFS | __GFP_ZERO);
-}
-
-void clovis_st_free_aligned(void *ptr, size_t size, size_t alignment)
-{
-	if(alignment == PAGE_SIZE)
-		free_pages_exact(ptr, size);
-}
 
 static int clovis_st_init_instance(void)
 {
@@ -94,7 +78,6 @@ static int clovis_st_init_instance(void)
 	clovis_conf.cc_is_read_verify        = false;
 	clovis_conf.cc_local_addr            = clovis_local_addr;
 	clovis_conf.cc_ha_addr               = clovis_ha_addr;
-	clovis_conf.cc_confd                 = clovis_confd_addr;
 	clovis_conf.cc_profile               = clovis_prof;
 	clovis_conf.cc_process_fid           = clovis_proc_fid;
 	clovis_conf.cc_tm_recv_queue_min_len = M0_NET_TM_RECV_QUEUE_DEF_LEN;
@@ -105,8 +88,9 @@ static int clovis_st_init_instance(void)
 	 * System tests for Index will be enabled again after that feature
 	 * is implemented in KVS backend.
 	 */
-	clovis_conf.cc_idx_service_id   = M0_CLOVIS_IDX_MOCK;
-	clovis_conf.cc_idx_service_conf = "/home/sining/devel/tmp/indices";
+	clovis_conf.cc_idx_service_id = M0_CLOVIS_IDX_DIX;
+	dix_conf.kc_create_meta = false;
+	clovis_conf.cc_idx_service_conf = &dix_conf;
 
 	rc = m0_clovis_init(&instance, &clovis_conf, true);
 	if (rc != 0)
@@ -123,7 +107,7 @@ static void clovis_st_fini_instance(void)
 	struct m0_clovis *instance;
 
 	instance = clovis_st_get_instance();
-	m0_clovis_fini(&instance, true);
+	m0_clovis_fini(instance, true);
 }
 
 static int __init clovis_st_module_init(void)
@@ -131,7 +115,8 @@ static int __init clovis_st_module_init(void)
 	int rc;
 
 	M0_CLOVIS_THREAD_ENTER;
-	/* initilise Clovis ST*/
+
+	/* Initilises Clovis ST. */
 	clovis_st_init();
 	clovis_st_add_suites();
 
@@ -141,7 +126,7 @@ static int __init clovis_st_module_init(void)
 	 */
 	clovis_st_set_tests(clovis_tests);
 
-	/* currently, all threads share the same instance*/
+	/* Currently, all threads share the same instance. */
 	rc = clovis_st_init_instance();
 	if (rc < 0) {
 		printk(KERN_INFO"clovis_init failed!\n");
@@ -149,7 +134,7 @@ static int __init clovis_st_module_init(void)
 	}
 
 	/*
-	 * start worker threads
+	 * Start worker threads.
 	 */
 	clovis_st_set_nr_workers(1);
 	clovis_st_cleaner_init();

@@ -414,10 +414,10 @@ static void read_multiple_blocks_into_aligned_buffers(void)
 	 * aligned buffers.
 	 */
 	stashed_buffers[0] = data.ov_buf[0];
-	clovis_st_alloc_aligned(&data.ov_buf[0], unit_size, unit_size);
+	data.ov_buf[0] = m0_alloc_aligned(4096, 12);
 	CLOVIS_ST_ASSERT_FATAL(data.ov_buf[0] != NULL);
 	stashed_buffers[1] = data.ov_buf[1];
-	clovis_st_alloc_aligned(&data.ov_buf[1], unit_size, unit_size);
+	data.ov_buf[1] = m0_alloc_aligned(4096, 12);
 	CLOVIS_ST_ASSERT_FATAL(data.ov_buf[1] != NULL);
 
 	/* we don't want any attributes */
@@ -456,9 +456,9 @@ static void read_multiple_blocks_into_aligned_buffers(void)
 	clovis_st_entity_fini(&obj.ob_entity);
 
 	/* Swap the buffers back */
-	clovis_st_free_aligned(data.ov_buf[0], unit_size, unit_size);
+	m0_free_aligned(data.ov_buf[0], 4096, 12);
 	data.ov_buf[0] = stashed_buffers[0];
-	clovis_st_free_aligned(data.ov_buf[1], unit_size, unit_size);
+	m0_free_aligned(data.ov_buf[1], 4096, 12);
 	data.ov_buf[1] = stashed_buffers[1];
 
 	m0_indexvec_free(&ext);

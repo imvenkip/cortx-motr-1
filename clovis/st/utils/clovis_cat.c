@@ -22,7 +22,6 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <sys/time.h>
-#include <assert.h>
 
 #include "clovis/clovis.h"
 #include "clovis/clovis_idx.h"
@@ -30,7 +29,6 @@
 /* Clovis parameters */
 static char *clovis_local_addr;
 static char *clovis_ha_addr;
-static char *clovis_confd_addr;
 static char *clovis_prof;
 static char *clovis_proc_fid;
 static char *clovis_id;
@@ -53,7 +51,6 @@ static int init_clovis(void)
 	clovis_conf.cc_is_read_verify        = false;
 	clovis_conf.cc_local_addr            = clovis_local_addr;
 	clovis_conf.cc_ha_addr               = clovis_ha_addr;
-	clovis_conf.cc_confd                 = clovis_confd_addr;
 	clovis_conf.cc_profile               = clovis_prof;
 	clovis_conf.cc_process_fid           = clovis_proc_fid;
 	clovis_conf.cc_tm_recv_queue_min_len = M0_NET_TM_RECV_QUEUE_DEF_LEN;
@@ -89,7 +86,7 @@ err_exit:
 
 static void fini_clovis(void)
 {
-	m0_clovis_fini(&clovis_instance, true);
+	m0_clovis_fini(clovis_instance, true);
 }
 
 static int cat()
@@ -141,9 +138,9 @@ static int cat()
 			   m0_clovis_default_layout_id(clovis_instance));
 	/* Create the read request */
 	m0_clovis_obj_op(&obj, M0_CLOVIS_OC_READ, &ext, &data, &attr, 0, &ops[0]);
-	assert(rc == 0);
-	assert(ops[0] != NULL);
-	assert(ops[0]->op_sm.sm_rc == 0);
+	M0_ASSERT(rc == 0);
+	M0_ASSERT(ops[0] != NULL);
+	M0_ASSERT(ops[0]->op_sm.sm_rc == 0);
 
 	m0_clovis_op_launch(ops, 1);
 
@@ -152,9 +149,9 @@ static int cat()
 			    M0_BITS(M0_CLOVIS_OS_FAILED,
 				    M0_CLOVIS_OS_STABLE),
 		     M0_TIME_NEVER);
-	assert(rc == 0);
-	assert(ops[0]->op_sm.sm_state == M0_CLOVIS_OS_STABLE);
-	assert(ops[0]->op_sm.sm_rc == 0);
+	M0_ASSERT(rc == 0);
+	M0_ASSERT(ops[0]->op_sm.sm_state == M0_CLOVIS_OS_STABLE);
+	M0_ASSERT(ops[0]->op_sm.sm_rc == 0);
 
 	/* putchar the output */
 	for (i = 0; i < atoi(clovis_block_count); i++) {
@@ -180,21 +177,20 @@ int main(int argc, char **argv)
 	int rc;
 
 	/* Get input parameters */
-	if (argc < 10) {
-		printf("Usage: c0cat laddr ha_addr confd_addr prof_opt proc_fid "
+	if (argc < 9) {
+		printf("Usage: c0cat laddr ha_addr prof_opt proc_fid "
 		       "index_dir object_id block_size block_count\n");
 		return -1;
 	}
 
 	clovis_local_addr = argv[1];;
 	clovis_ha_addr = argv[2];
-	clovis_confd_addr = argv[3];
-	clovis_prof = argv[4];
-	clovis_proc_fid = argv[5];
-	clovis_index_dir = argv[6];
-	clovis_id = argv[7];
-	clovis_block_size = argv[8];
-	clovis_block_count = argv[9];
+	clovis_prof = argv[3];
+	clovis_proc_fid = argv[4];
+	clovis_index_dir = argv[5];
+	clovis_id = argv[6];
+	clovis_block_size = argv[7];
+	clovis_block_count = argv[8];
 
 	/* Initilise mero and Clovis */
 	rc = init_clovis();

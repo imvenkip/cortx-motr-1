@@ -76,7 +76,7 @@ static struct m0_bufvec* idx_bufvec_alloc(int nr)
 		return NULL;
 
 	bv->ov_vec.v_nr = nr;
-	MEM_ALLOC_ARR(bv->ov_vec.v_count, nr);
+	M0_ALLOC_ARR(bv->ov_vec.v_count, nr);
 	if (bv->ov_vec.v_count == NULL)
 		goto FAIL;
 

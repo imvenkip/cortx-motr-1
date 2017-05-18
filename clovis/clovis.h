@@ -785,8 +785,6 @@ struct m0_clovis_config {
 	const char *cc_local_addr;
 	/** HA service's endpoint.*/
 	const char *cc_ha_addr;
-	/** Confd service's endpoint.*/
-	const char *cc_confd;
 	/** Process fid for rmservice@clovis. */
 	const char *cc_process_fid;
 	const char *cc_profile;
@@ -1203,9 +1201,9 @@ int m0_clovis_init(struct m0_clovis **m0c,
 /**
  * Finalises clovis, finalise state machine group et al.
  *
- * @pre *m0c may not be NULL, it will be changed to NULL by this call.
+ * @pre (m0c != NULL).
  */
-void m0_clovis_fini(struct m0_clovis **m0c, bool fini_m0);
+void m0_clovis_fini(struct m0_clovis *m0c, bool fini_m0);
 
 /**
  * Allocates and initialises an SYNC operation.

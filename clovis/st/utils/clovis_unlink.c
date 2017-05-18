@@ -29,7 +29,6 @@
 /* Clovis parameters */
 static char *clovis_local_addr;
 static char *clovis_ha_addr;
-static char *clovis_confd_addr;
 static char *clovis_prof;
 static char *clovis_proc_fid;
 static char *clovis_id;
@@ -48,7 +47,6 @@ static int init_clovis(void)
 	clovis_conf.cc_is_read_verify        = false;
 	clovis_conf.cc_local_addr            = clovis_local_addr;
 	clovis_conf.cc_ha_addr               = clovis_ha_addr;
-	clovis_conf.cc_confd                 = clovis_confd_addr;
 	clovis_conf.cc_profile               = clovis_prof;
 	clovis_conf.cc_process_fid           = clovis_proc_fid;
 	clovis_conf.cc_tm_recv_queue_min_len = M0_NET_TM_RECV_QUEUE_DEF_LEN;
@@ -83,7 +81,7 @@ err_exit:
 
 static void fini_clovis(void)
 {
-	m0_clovis_fini(&clovis_instance, true);
+	m0_clovis_fini(clovis_instance, true);
 }
 
 static int unlink()
@@ -121,19 +119,18 @@ int main(int argc, char **argv)
 	int rc;
 
 	/* Get input parameters */
-	if (argc < 8) {
-		printf("Usage: c0unlink laddr ha_addr confd_addr prof_opt"
+	if (argc < 7) {
+		printf("Usage: c0unlink laddr ha_addr prof_opt"
 		       " proc_fid index_dir object_id\n");
 		return -1;
 	}
 
 	clovis_local_addr = argv[1];;
 	clovis_ha_addr = argv[2];
-	clovis_confd_addr = argv[3];
-	clovis_prof = argv[4];
-	clovis_proc_fid = argv[5];
-	clovis_index_dir = argv[6];
-	clovis_id = argv[7];
+	clovis_prof = argv[3];
+	clovis_proc_fid = argv[4];
+	clovis_index_dir = argv[5];
+	clovis_id = argv[6];
 
 	/* Initilise mero and Clovis */
 	rc = init_clovis();

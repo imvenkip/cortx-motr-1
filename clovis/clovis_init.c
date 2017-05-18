@@ -457,12 +457,6 @@ static int clovis_net_init(struct m0_clovis *m0c)
 	if (laddr == NULL)
 		return M0_RC(-ENOMEM);
 
-	m0_mutex_lock(&clovis_mutex);
-	m0c->m0c_tmid = m0_bitmap_ffz(&clovis_client_ep_tmid);
-
-	m0_bitmap_set(&clovis_client_ep_tmid, m0c->m0c_tmid, true);
-	m0_mutex_unlock(&clovis_mutex);
-
 	snprintf(laddr, M0_NET_LNET_NIDSTR_SIZE * 2, "%s%d",
 		 m0c->m0c_config->cc_local_addr, (int)m0c->m0c_tmid);
 	M0_LOG(M0_DEBUG, "local ep is %s", laddr);
@@ -1437,7 +1431,6 @@ int m0_clovis_init(struct m0_clovis **m0c_p,
 	M0_PRE(conf != NULL);
 	M0_PRE(NOT_EMPTY(conf->cc_local_addr));
 	M0_PRE(NOT_EMPTY(conf->cc_ha_addr));
-	M0_PRE(NOT_EMPTY(conf->cc_confd));
 	M0_PRE(NOT_EMPTY(conf->cc_profile));
 	M0_PRE(NOT_EMPTY(conf->cc_process_fid));
 	M0_PRE(conf->cc_tm_recv_queue_min_len != 0);
@@ -1544,18 +1537,13 @@ err_exit:
 }
 M0_EXPORTED(m0_clovis_init);
 
-void m0_clovis_fini(struct m0_clovis **m0c_p, bool fini_m0)
+void m0_clovis_fini(struct m0_clovis *m0c, bool fini_m0)
 {
-	struct m0_clovis *m0c;
-
 	M0_ENTRY();
 
 	M0_PRE(m0_sm_conf_is_initialized(&clovis_op_conf));
 	M0_PRE(m0_sm_conf_is_initialized(&clovis_entity_conf));
-	M0_PRE(m0c_p != NULL);
-	M0_PRE(*m0c_p != NULL);
-
-	m0c = *m0c_p;
+	M0_PRE(m0c != NULL);
 
 	/* shut down this clovis instance */
 	m0_sm_group_lock(&m0c->m0c_sm_group);
@@ -1585,7 +1573,6 @@ void m0_clovis_fini(struct m0_clovis **m0c_p, bool fini_m0)
 #endif
 
 	m0_free(m0c);
-	*m0c_p = NULL;
 
 	M0_LEAVE();
 }

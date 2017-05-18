@@ -80,7 +80,6 @@ static int instance_init(struct clovis_params *params)
 			.cc_is_read_verify = false,
 			.cc_local_addr     = params->cp_local_addr,
 			.cc_ha_addr        = params->cp_ha_addr,
-			.cc_confd          = params->cp_confd_addr,
 			.cc_profile        = params->cp_prof,
 			.cc_process_fid    = params->cp_proc_fid,
 
@@ -102,7 +101,7 @@ static void instance_fini(void)
 	struct m0_clovis *instance;
 
 	instance = clovis_instance();
-	m0_clovis_fini(&instance, true);
+	m0_clovis_fini(instance, true);
 }
 
 static int genf(char *filename, int cnt)

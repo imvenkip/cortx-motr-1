@@ -78,13 +78,13 @@ static void usage(void)
 	m0_console_printf(
 		"Clovis Command Line tool: m0clovis\n"
 		"Usage: ./m0clovis "
-		"-l local_addr -h ha_addr -c confd_addr -p profile -f proc_fid "
+		"-l local_addr -h ha_addr -p profile -f proc_fid "
 		"[subsystem] [subsystem commands]\n"
 		"\n"
 		"Use -? for more verbose help on common arguments.\n"
 		"Usage example for common arguments: \n"
 		"./m0clovis -l 10.0.2.15@tcp:12345:33:100 "
-		"-h 10.0.2.15@tcp:12345:34:1 -c 10.0.2.15@tcp:12345:33:100 "
+		"-h 10.0.2.15@tcp:12345:34:1 "
 		"-p '<0x7000000000000001:0>' -f '<0x7200000000000000:0>'"
 		"[subsystem] [subsystem commands]\n"
 		"\n"
@@ -101,7 +101,6 @@ static int opts_get(struct clovis_params *par, int *argc, char ***argv)
 
 	par->cp_local_addr = NULL;
 	par->cp_ha_addr    = NULL;
-	par->cp_confd_addr = NULL;
 	par->cp_prof       = NULL;
 	par->cp_proc_fid   = NULL;
 
@@ -120,10 +119,6 @@ static int opts_get(struct clovis_params *par, int *argc, char ***argv)
 					LAMBDA(void, (const char *str) {
 						par->cp_ha_addr = (char*)str;
 					})),
-			M0_STRINGARG('c', "Confd address",
-					LAMBDA(void, (const char *str) {
-						par->cp_confd_addr = (char*)str;
-					})),
 			M0_STRINGARG('f', "Process FID",
 					LAMBDA(void, (const char *str) {
 						par->cp_proc_fid = (char*)str;
@@ -137,13 +132,12 @@ static int opts_get(struct clovis_params *par, int *argc, char ***argv)
 	/* All mandatory params must be defined. */
 	if (rc == 0 &&
 	    (par->cp_local_addr == NULL || par->cp_ha_addr == NULL ||
-	     par->cp_confd_addr == NULL || par->cp_prof == NULL ||
-	     par->cp_proc_fid == NULL)) {
+	     par->cp_prof == NULL || par->cp_proc_fid == NULL)) {
 		usage();
 		rc = M0_ERR(-EINVAL);
 	}
-	*argc -= 11;
-	*(argv) = arg + 11;
+	*argc -= 9;
+	*(argv) = arg + 9;
 	return rc;
 }
 
