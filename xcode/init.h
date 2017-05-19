@@ -34,14 +34,14 @@
  *
  * @see m0_xcode_fini()
  */
-M0_INTERNAL int m0_xcode_init(void);
+int m0_xcode_init(void);
 
 /**
  * Finalises all xcode types processed by gccxml2xcode during build.
  *
  * @see m0_xcode_init()
  */
-M0_INTERNAL void m0_xcode_fini(void);
+void m0_xcode_fini(void);
 
 /** @} end of xcode group */
 #endif /* __MERO_XCODE_INIT_H__ */

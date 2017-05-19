@@ -38,7 +38,7 @@
 #undef _FI
 #undef _FF
 
-M0_INTERNAL int m0_xcode_init(void)
+int m0_xcode_init(void)
 {
 #define _XT(x)
 #define _TI(x)
@@ -55,7 +55,7 @@ M0_INTERNAL int m0_xcode_init(void)
 	return 0;
 }
 
-M0_INTERNAL void m0_xcode_fini(void)
+void m0_xcode_fini(void)
 {
 #define _XT(x)
 #define _TI(x)

@@ -43,6 +43,7 @@
 #include "sm/sm.h"                    /* m0_sm_conf_print */
 #include "lib/user_space/trace.h"     /* m0_trace_set_mmapped_buffer */
 #include "xcode/xcode.h"
+#include "xcode/init.h"               /* m0_xcode_init */
 
 #undef __MERO_XCODE_XLIST_H__
 
@@ -175,14 +176,21 @@ int main(int argc, char **argv)
 		}
 	}
 
-	if (!only_protocol)
+	if (only_protocol) {
+		result = m0_xcode_init();
+	} else {
 		m0_sm__conf_init = &m0_sm_conf_print;
+		result = m0_init(&instance);
+	}
 
-	result = m0_init(&instance);
 	if (result != 0)
 		err(EX_CONFIG, "Cannot initialise mero: %d", result);
 	protocol_print();
-	m0_fini();
+
+	if (only_protocol)
+		m0_xcode_fini();
+	else
+		m0_fini();
 	return EX_OK;
 }
 

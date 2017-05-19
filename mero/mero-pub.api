@@ -385,6 +385,8 @@ m0_xcode_bitmask_read
 m0_xcode_enum_is_valid
 m0_xcode_enum_print
 m0_xcode_enum_read
+m0_xcode_fini
+m0_xcode_init
 m0_xcode_type_invariant
 m0_be_0type_add
 m0_be_0type_del
