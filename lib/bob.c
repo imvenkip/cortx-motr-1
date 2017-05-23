@@ -49,7 +49,7 @@ M0_INTERNAL void m0_bob_type_tlist_init(struct m0_bob_type *bt,
 }
 
 /**
- * Returns the value of magic field.
+ * Returns the address of the magic field.
  *
  * Macro is used instead of inline function so that constness of the result
  * depends on the constness of "bob" argument.

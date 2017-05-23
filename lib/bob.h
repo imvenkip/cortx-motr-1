@@ -135,15 +135,21 @@ scope bool type ## _bob_check(const struct type *bob)
  * Given a pointer (ptr) returns an ambient object of given type of which ptr is
  * a field. Ambient object has bob type "bt".
  */
-#define bob_of(ptr, type, field, bt)			\
-({							\
-	void *__ptr = (void *)(ptr);			\
-	type *__amb;					\
-							\
-	M0_ASSERT(__ptr != NULL);			\
-	__amb = container_of(__ptr, type, field);	\
-	M0_ASSERT(m0_bob_check(bt, __amb));		\
-	__amb;						\
+#define bob_of(ptr, type, field, bt)					\
+({									\
+	void *__ptr = (void *)(ptr);					\
+	type *__amb;							\
+									\
+	M0_ASSERT(__ptr != NULL);					\
+	__amb = container_of(__ptr, type, field);			\
+									\
+	M0_ASSERT_INFO(m0_bob_check(bt, __amb),			\
+		"%s.%s [%p->%p (%s)] got: %"PRIx64" want: %"PRIx64	\
+		" check: %i.", (bt)->bt_name, #field, __ptr, __amb, #type, \
+		*((uint64_t *)(((void *)__amb) + (bt)->bt_magix_offset)), \
+		(bt)->bt_magix,					\
+		(bt)->bt_check != NULL ? (bt)->bt_check(__amb) : -1);	\
+	__amb;								\
 })
 
 /** @} end of bob group */
