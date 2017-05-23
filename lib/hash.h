@@ -119,6 +119,14 @@
  *   OR
  *   foohash_htable_init(&bar->b_foohash, bucket_nr);
  *
+ *   Note that this initializes a struct that you must have previously
+ *   defined yourself.
+ *
+ *   For a freestanding m0_htable of type `foohash` do:
+ *
+ *   struct m0_htable my_foohash;
+ *   foohash_htable_init(&my_foohash, bucket_nr);
+ *
  * Now, foo objects can be added/removed to/from bar::b_foohash using
  * APIs like m0_htable_add() and m0_htable_del().
  *
