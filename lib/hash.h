@@ -92,7 +92,7 @@
  *           return *k % htable->h_bucket_nr;
  *   }
  *
- *   void *hash_key_eq(const void *key1, const void *key2)
+ *   bool hash_key_eq(const void *key1, const void *key2)
  *   {
  *           const uint64_t *k1 = key1;
  *           const uint64_t *k2 = key2;
