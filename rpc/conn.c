@@ -199,74 +199,71 @@ M0_INTERNAL bool m0_rpc_conn_invariant(const struct m0_rpc_conn *conn)
 	s0nr       = 0;
 
 	/* conditions that should be true irrespective of conn state */
-	ok = sender_end != recv_end &&
-	     rpc_conn_tlist_contains(conn_list, conn) &&
-	     M0_CHECK_EX(m0_tlist_invariant(&rpc_session_tl,
-					    &conn->c_sessions)) &&
-	     rpc_session_tlist_length(&conn->c_sessions) ==
-		conn->c_nr_sessions &&
-	     conn_state(conn) <= M0_RPC_CONN_TERMINATED &&
+	ok = _0C(sender_end != recv_end) &&
+		_0C(rpc_conn_tlist_contains(conn_list, conn)) &&
+		_0C(M0_CHECK_EX(m0_tlist_invariant(&rpc_session_tl,
+						   &conn->c_sessions))) &&
+		_0C(rpc_session_tlist_length(&conn->c_sessions) ==
+		    conn->c_nr_sessions) &&
+		_0C(conn_state(conn) <= M0_RPC_CONN_TERMINATED) &&
 	     /*
 	      * Each connection has exactly one session with id SESSION_ID_0.
 	      * From m0_rpc_conn_init() to m0_rpc_conn_fini(), this session0 is
 	      * either in IDLE state or BUSY state.
 	      */
 	     m0_tl_forall(rpc_session, s, &conn->c_sessions,
-			  ergo(s->s_session_id == SESSION_ID_0,
-			       ++s0nr &&
-			       (session0 = s) && /*'=' is intentional */
-			       M0_IN(session_state(s), (M0_RPC_SESSION_IDLE,
-							M0_RPC_SESSION_BUSY)))) &&
-	     session0 != NULL &&
-	     s0nr == 1;
-
+		  _0C(ergo(s->s_session_id == SESSION_ID_0,
+		       ++s0nr &&
+		       (session0 = s) && /*'=' is intentional */
+		       M0_IN(session_state(s), (M0_RPC_SESSION_IDLE,
+						M0_RPC_SESSION_BUSY))))) &&
+		_0C(session0 != NULL) &&
+		_0C(s0nr == 1);
 	if (!ok)
 		return false;
-
 	/*
 	 * A connection not in ACTIVE or FAILED state has sessoins with only
 	 * specific states except of session0.
 	 */
-	ok = M0_IN(conn_state(conn), (M0_RPC_CONN_ACTIVE,
-				      M0_RPC_CONN_FAILED)) ||
+	ok = M0_IN(conn_state(conn), (M0_RPC_CONN_ACTIVE,M0_RPC_CONN_FAILED)) ||
 	     m0_tl_forall(rpc_session, s, &conn->c_sessions,
 		ergo(s->s_session_id != SESSION_ID_0,
-			ergo(M0_IN(conn_state(conn), (M0_RPC_CONN_INITIALISED,
-						      M0_RPC_CONN_CONNECTING)),
-			     session_state(s) == M0_RPC_SESSION_INITIALISED) &&
-			ergo(M0_IN(conn_state(conn), (M0_RPC_CONN_TERMINATING,
-						      M0_RPC_CONN_TERMINATED)),
-			     M0_IN(session_state(s),(M0_RPC_SESSION_INITIALISED,
-						     M0_RPC_SESSION_TERMINATED,
-						     M0_RPC_SESSION_FAILED)))));
-	if (!ok)
+		     ergo(M0_IN(conn_state(conn), (M0_RPC_CONN_INITIALISED,
+						   M0_RPC_CONN_CONNECTING)),
+			  session_state(s) == M0_RPC_SESSION_INITIALISED) &&
+		     ergo(M0_IN(conn_state(conn), (M0_RPC_CONN_TERMINATING,
+						   M0_RPC_CONN_TERMINATED)),
+			  M0_IN(session_state(s),(M0_RPC_SESSION_INITIALISED,
+						  M0_RPC_SESSION_TERMINATED,
+						  M0_RPC_SESSION_FAILED)))));
+	if (!_0C(ok))
 		return false;
 
 	switch (conn_state(conn)) {
 	case M0_RPC_CONN_INITIALISED:
-		return  conn->c_sender_id == SENDER_ID_INVALID &&
-			conn->c_nr_sessions >= 1 &&
-			session_state(session0) == M0_RPC_SESSION_IDLE;
+		return  _0C(conn->c_sender_id == SENDER_ID_INVALID) &&
+			_0C(conn->c_nr_sessions >= 1) &&
+			_0C(session_state(session0) == M0_RPC_SESSION_IDLE);
 
 	case M0_RPC_CONN_CONNECTING:
-		return  conn->c_sender_id == SENDER_ID_INVALID &&
-			conn->c_nr_sessions >= 1;
+		return  _0C(conn->c_sender_id == SENDER_ID_INVALID) &&
+			_0C(conn->c_nr_sessions >= 1);
 
 	case M0_RPC_CONN_ACTIVE:
-		return  conn->c_sender_id != SENDER_ID_INVALID &&
-			conn->c_nr_sessions >= 1;
+		return  _0C(conn->c_sender_id != SENDER_ID_INVALID) &&
+			_0C(conn->c_nr_sessions >= 1);
 
 	case M0_RPC_CONN_TERMINATING:
-		return  conn->c_nr_sessions >= 1 &&
-			conn->c_sender_id != SENDER_ID_INVALID;
+		return  _0C(conn->c_nr_sessions >= 1) &&
+			_0C(conn->c_sender_id != SENDER_ID_INVALID);
 
 	case M0_RPC_CONN_TERMINATED:
-		return	conn->c_nr_sessions >= 1 &&
-			conn->c_sender_id != SENDER_ID_INVALID &&
-			conn->c_sm.sm_rc == 0;
+		return	_0C(conn->c_nr_sessions >= 1) &&
+			_0C(conn->c_sender_id != SENDER_ID_INVALID) &&
+			_0C(conn->c_sm.sm_rc == 0);
 
 	case M0_RPC_CONN_FAILED:
-		return conn->c_sm.sm_rc != 0;
+		return _0C(conn->c_sm.sm_rc != 0);
 
 	default:
 		return false;
