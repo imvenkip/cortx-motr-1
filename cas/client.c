@@ -1114,6 +1114,7 @@ static void cas_req_replied_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 					       ccr_replied_ast);
 	struct m0_fop_type *req_fop_type = req->ccr_fop->f_type;
 	bool                assembly_wait = false;
+	bool                suppress_err_msg;
 	bool                fragm_continue;
 	int                 rc;
 
@@ -1133,8 +1134,19 @@ static void cas_req_replied_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 				cas_req_state_set(req, CASREQ_FINAL);
 		}
 	}
-	if (rc != 0)
-		cas_req_failure(req, M0_ERR(rc));
+	if (rc != 0) {
+		/*
+		 * For now CROW flag is commonly used for PUT operations. In
+		 * this case indices are physically created only on the nodes
+		 * where keys are presented. But NEXT queries are sent to all
+		 * the nodes, so some of them may return -ENOENT (index does
+		 * not exist). It is not critical, suppress these errors not
+		 * to irritate the user.
+		 */
+		suppress_err_msg = !req->ccr_is_meta &&
+			req_fop_type == &cas_cur_fopt && rc == -ENOENT;
+		cas_req_failure(req, suppress_err_msg ? rc : M0_ERR(rc));
+	}
 }
 
 static void cas_req_replied_cb(struct m0_rpc_item *item)
