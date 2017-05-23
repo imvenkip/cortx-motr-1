@@ -114,7 +114,14 @@ __attribute__ ((format (printf, 1, 2))) static inline void
 printf_check(const char *fmt, ...)
 {}
 
-/* internal macro */
+/**
+ * Initialises a context containing information about a panic.
+ *
+ * Since our headers are processed by gccxml, which is essentially a C++
+ * compiler, we can't use C99 compound literals and designated initializers to
+ * construct m0_panic_ctx, so we use positional initializers and their order
+ * should match the fields declaration order in m0_panic_ctx structure.
+ */
 #define M0_ASSERT__INIT(msg, fmt, ...)                 \
 	static const struct m0_panic_ctx __pctx = {    \
 		msg, __func__, __FILE__, __LINE__, fmt \
@@ -127,11 +134,6 @@ printf_check(const char *fmt, ...)
  * informational message with printf(3) like formatting, which will be displayed
  * after the failed condition and can be used as an explanation of why condition
  * has failed.
- *
- * Since our headers are processed by gccxml, which is essentially a C++
- * compiler, we can't use C99 compound literals and designated initializers to
- * construct m0_panic_ctx, so we use positional initializers and their order
- * should match the fields declaration order in m0_panic_ctx structure.
  */
 #define M0_ASSERT_INFO(cond, fmt, ...)                       \
 ({                                                           \
