@@ -314,6 +314,14 @@ Tests:
     polltime : 30
     timeout  : 900
 
+  - id       : 34sns-repair-1n-1f
+    script   : m0t1fs_sns_repair_1n_1f.sh
+    dir      : src/m0t1fs/linux_kernel/st/
+    executor : Xperior::Executor::MeroTest
+    sandbox  : /var/mero/sandbox.34sns-repair-1n-1f
+    polltime : 30
+    timeout  : 1800
+
 # 25 min
 dangerous: 'yes'
 description: Set of Mero  tests

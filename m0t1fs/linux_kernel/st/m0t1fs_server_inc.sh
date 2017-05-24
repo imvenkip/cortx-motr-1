@@ -226,7 +226,12 @@ mero_service()
 		mkdir -p $DIR
 		ulimit -c unlimited
 
+		local nr_mds=${#MDSEP[*]}
 		local nr_ios=${#IOSEP[*]}
+		if [ $SINGLE_NODE -eq 1 ] ; then
+			nr_ios=1
+			nr_mds=1
+		fi
 		local nr_dev_per_ios=$(($P / $nr_ios))
 		local remainder=$(($P % $nr_ios))
 
@@ -248,7 +253,7 @@ mero_service()
 			mkiosloopdevs $ios $nr_dev $DIR || return 1
 		done
 
-		mkiosmddevs ${#IOSEP[*]} $P || return 1
+		mkiosmddevs $nr_ios $P || return 1
                 #create devs for backup pool
 		if ((multiple_pools == 1)); then
 			DIR=$MERO_M0T1FS_TEST_DIR/ios5
@@ -293,7 +298,7 @@ EOF
 		(eval "$cmd")
 
 		# spawn confd
-		local ha_key=$(( ${#MDSEP[*]} + ${#IOSEP[*]} ))
+		local ha_key=$(( $nr_mds + $nr_ios ))
 		local confd_key=$(( $ha_key + 1 ))
 		local proc_fid="'<"$PROC_FID_CNTR:$confd_key">'"
 		opts="$common_opts -f $proc_fid -T linux -e $XPT:$CONFD_EP \
@@ -313,7 +318,7 @@ EOF
 		(eval "$cmd")
 
 		#mds mkfs
-		for ((i=0; i < ${#MDSEP[*]}; i++)) ; do
+		for ((i=0; i < $nr_mds; i++)) ; do
 			local mds=$(( $i + 1 ))
 			DIR=$MERO_M0T1FS_TEST_DIR/mds$mds
 			rm -rf $DIR
@@ -330,7 +335,7 @@ EOF
 		done
 
 		#ios mkfs
-		for ((i=0; i < ${#IOSEP[*]}; i++)) ; do
+		for ((i=0; i < $nr_ios; i++)) ; do
 			local ios=$(( $i + 1 ))
 			DIR=$MERO_M0T1FS_TEST_DIR/ios$ios
 
@@ -375,9 +380,9 @@ EOF
 		echo "Mero HA agent started."
 
 		# spawn mds
-		for ((i=0; i < ${#MDSEP[*]}; i++)) ; do
+		for ((i=0; i < $nr_mds; i++)) ; do
 			local mds=$(( $i + 1 ))
-			local mds_key=$(( $i + ${#IOSEP[*]} ))
+			local mds_key=$(( $i + $nr_ios ))
 			local proc_fid="'<"$PROC_FID_CNTR:$mds_key">'"
 			DIR=$MERO_M0T1FS_TEST_DIR/mds$mds
 
@@ -409,7 +414,7 @@ EOF
 		done
 
 		# spawn ios
-		for ((i=0; i < ${#IOSEP[*]}; i++)) ; do
+		for ((i=0; i < $nr_ios; i++)) ; do
 			local ios=$(( $i + 1 ))
 			proc_fid="'<"$PROC_FID_CNTR:$i">'"
 
@@ -456,7 +461,7 @@ EOF
 
 
 		# Wait for mds to start
-		for ((i=0; i < ${#MDSEP[*]}; i++)) ; do
+		for ((i=0; i < $nr_mds; i++)) ; do
 			local mds=$(( $i + 1 ))
 			DIR=$MERO_M0T1FS_TEST_DIR/mds$mds
 			local m0d_log=$DIR/m0d.log
@@ -467,7 +472,7 @@ EOF
 		echo "Mero mdservices started."
 
 		# Wait for ios to start
-		for ((i=0; i < ${#IOSEP[*]}; i++)) ; do
+		for ((i=0; i < $nr_ios; i++)) ; do
 			local ios=$(( $i + 1 ))
 			DIR=$MERO_M0T1FS_TEST_DIR/ios$ios
 			local m0d_log=$DIR/m0d.log

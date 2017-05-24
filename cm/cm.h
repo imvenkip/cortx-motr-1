@@ -518,6 +518,19 @@ M0_INTERNAL void m0_cm_wait_cancel(struct m0_cm *cm, struct m0_fom *fom);
 M0_INTERNAL int m0_cm_complete(struct m0_cm *cm);
 M0_INTERNAL void m0_cm_complete_notify(struct m0_cm *cm);
 M0_INTERNAL void m0_cm_proxies_init_wait(struct m0_cm *cm, struct m0_fom *fom);
+/**
+ * Finds and destroys aggregation groups that are unable to progress further.
+ * SNS operation (repair/rebalance) specific implementation of struct
+ * m0_cm_aggr_group_ops::cago_is_frozen_on() helps check relevant parameters
+ * and identify if an aggregation group is frozen or not.
+ *
+ * @param cm    Copy machine with frozen aggregation groups.
+ * @param proxy Remote copy machine on which an aggregation group could be
+ *              frozen on (in case expected incoming copy packets will not
+ *              be arriving). Proxy can be NULL in case cleanup is invoked
+ *              for local copy machine, this may be the case of single node
+ *              setup, with no remote copy machines.
+ */
 M0_INTERNAL void m0_cm_frozen_ag_cleanup(struct m0_cm *cm, struct m0_cm_proxy *proxy);
 M0_INTERNAL void m0_cm_proxy_failed_cleanup(struct m0_cm *cm);
 M0_INTERNAL void m0_cm_abort(struct m0_cm *cm, int rc);

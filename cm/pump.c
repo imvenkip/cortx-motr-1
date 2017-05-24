@@ -190,6 +190,8 @@ static int cpp_complete(struct m0_cm_cp_pump *cp_pump)
 	m0_cm_lock(cm);
 	if (!m0_cm_aggr_group_tlists_are_empty(cm) ||
 	    !cm->cm_sw_update.swu_is_complete) {
+		if (cm->cm_proxy_nr == 0)
+			m0_cm_frozen_ag_cleanup(cm, NULL);
 		m0_cm_sw_remote_update(cm);
 		m0_cm_unlock(cm);
 		return M0_FSO_WAIT;

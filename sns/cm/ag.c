@@ -511,10 +511,13 @@ M0_INTERNAL bool m0_sns_cm_ag_is_frozen_on(struct m0_cm_aggr_group *ag, struct m
 	M0_PRE(m0_cm_ag_is_locked(ag));
 
 	/*
-	 * Find out if there are any incoming copy packets from the given proxy that
-	 * is already completed and the copy packets will no longer be arriving.
+	 * Proxy can be NULL if cleanup is invoked for local node, this can happen
+	 * in case of a single node setup.
+	 * If proxy is not NULL then find out if there are any incoming copy packets
+	 * from the given proxy that is already completed and the copy packets will
+	 * no longer be arriving.
 	 */
-	if (ag->cag_ops->cago_has_incoming_from(ag, pxy)) {
+	if (pxy != NULL && ag->cag_ops->cago_has_incoming_from(ag, pxy)) {
 		if ((M0_IN(pxy->px_status, (M0_PX_COMPLETE)) &&
 		     !ag_id_is_in(&ag->cag_id, &pxy->px_out_interval)) ||
 		     M0_IN(pxy->px_status, (M0_PX_STOP, M0_PX_FAILED)) ||

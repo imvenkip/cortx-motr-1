@@ -143,6 +143,12 @@ struct m0_cm_aggr_group_ops {
 	bool (*cago_has_incoming_from)(struct m0_cm_aggr_group *ag,
 				       struct m0_cm_proxy *proxy);
 
+	/**
+	 * Identifies if given aggregation group @ag is frozen on given @proxy,
+	 * i.e there won't be any further incoming copy packets from the @proxy.
+	 * A @proxy can be NULL in case of an environment with just one copy
+	 * machine but we need to check for locally frozen aggregation groups.
+	 */
 	bool (*cago_is_frozen_on)(struct m0_cm_aggr_group *ag, struct m0_cm_proxy *proxy);
 };
 

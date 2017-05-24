@@ -100,6 +100,9 @@ PVERID='^v|1:10'
 MDPVERID='^v|2:10'
 M0T1FS_PROC_ID='<0x7200000000000001:64>'
 
+# Single node configuration.
+SINGLE_NODE=0
+
 unload_kernel_module()
 {
 	mero_module=$MERO_MODULE
@@ -306,16 +309,30 @@ function build_conf()
 	local PROC_FID_CONT='^r|1'
 	local MD_REDUNDANCY=1
 	local m0t1fs_ep="$lnet_nid:12345:33:1"
+	local nr_ios=${#IOSEP[*]}
+
+	if [ $SINGLE_NODE -eq 1 ] ; then
+		nr_ios=1
+	fi
 
 	if [ -z "$ioservices" ]; then
-		ioservices=("${IOSEP[@]}")
-		for ((i = 0; i < ${#ioservices[*]}; i++)); do
+		if [ $SINGLE_NODE -eq 1 ]; then
+			ioservices=("${IOSEP[0]}")
+		else
+			ioservices=("${IOSEP[@]}")
+		fi
+		#for ((i = 0; i < ${#ioservices[*]}; i++)); do
+		for ((i = 0; i < $nr_ios; i++)); do
 			ioservices[$i]=${server_nid}:${ioservices[$i]}
 		done
 	fi
 
 	if [ -z "$mdservices" ]; then
-		mdservices=("${MDSEP[@]}")
+		if [ $SINGLE_NODE -eq 1 ]; then
+			mdservices=("${MDSEP[0]}")
+		else
+			mdservices=("${MDSEP[@]}")
+		fi
 		for ((i = 0; i < ${#mdservices[*]}; i++)); do
 			mdservices[$i]=${server_nid}:${mdservices[$i]}
 		done
@@ -588,14 +605,24 @@ function build_conf()
 service_eps_with_m0t1fs_get()
 {
 	local lnet_nid=`sudo lctl list_nids | head -1`
-	local service_eps=(
-		"$lnet_nid:${IOSEP[0]}"
-		"$lnet_nid:${IOSEP[1]}"
-		"$lnet_nid:${IOSEP[2]}"
-		"$lnet_nid:${IOSEP[3]}"
-		"$lnet_nid:${HA_EP}"
-		"$lnet_nid:12345:33:1"
-	)
+	local service_eps
+
+	if [ $SINGLE_NODE -eq 1 ] ; then
+		service_eps=(
+			"$lnet_nid:${IOSEP[0]}"
+			"$lnet_nid:${HA_EP}"
+			"$lnet_nid:12345:33:1"
+		)
+	else
+		service_eps=(
+			"$lnet_nid:${IOSEP[0]}"
+			"$lnet_nid:${IOSEP[1]}"
+			"$lnet_nid:${IOSEP[2]}"
+			"$lnet_nid:${IOSEP[3]}"
+			"$lnet_nid:${HA_EP}"
+			"$lnet_nid:12345:33:1"
+		)
+	fi
 
 	# Return list of endpoints
 	echo "${service_eps[*]}"
