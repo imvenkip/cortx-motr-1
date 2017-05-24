@@ -95,6 +95,10 @@ static int sc_rep_get(struct m0_dix_next_sort_ctx  *ctx,
 	return 0;
 }
 
+/**
+ * Sets sorting context current position to the first record retrieved for
+ * 'key_idx' starting key.
+ */
 static int sc_key_pos_set(struct m0_dix_next_sort_ctx *ctx,
 			  uint32_t                     key_idx,
 			  const uint32_t              *recs_nr)
@@ -112,6 +116,7 @@ static int sc_key_pos_set(struct m0_dix_next_sort_ctx *ctx,
 	for (i = 0; i < key_idx && pos < ctx->sc_reps_nr; i++) {
 		rep = &ctx->sc_reps[pos];
 		start_pos += recs_nr[i];
+		/** @todo: Why it is so? */
 		if (rep->cnp_rc == NOENT) {
 			pos++;
 			continue;
@@ -123,11 +128,19 @@ static int sc_key_pos_set(struct m0_dix_next_sort_ctx *ctx,
 	return ctx->sc_pos;
 }
 
-/*
- * Function returns:
- * m0_cas_next_rep *rep - minimal value for all sort context
+/**
+ * Searches for the minimal value in all sort contexts.
+ *
+ * After minimal value is found, all sort contexts current positions are moved
+ * to the first value that is bigger than found minimal value.
+ *
+ * Function out values:
+ * m0_cas_next_reply *rep - minimal value for all sort contexts
  * m0_dix_next_sort_ctx *ret_ctx - sort context which contains "rep"
  * ret_idx - number of rep in cas_next_rep array
+ *
+ * Returns true if for current starting key there are no more records in all
+ * sorting contexts.
  */
 static bool sc_min_val_get(struct m0_dix_next_sort_ctx_arr  *ctxarr,
 			   struct m0_cas_next_reply        **rep,
@@ -194,6 +207,13 @@ static int dix_rs_vals_alloc(struct m0_dix_next_resultset *rs,
 	return 0;
 }
 
+/**
+ * Loads all CAS replies for NEXT request in sorting contexts.
+ *
+ * There is exactly one sorting context for one CAS reply. One CAS reply carries
+ * retrieved records for all starting keys in a linear array from one component
+ * catalogue.
+ */
 static int dix_data_load(struct m0_dix_req            *req,
 			 struct m0_dix_next_resultset *rs)
 {
@@ -201,7 +221,6 @@ static int dix_data_load(struct m0_dix_req            *req,
 	struct m0_cas_req           *creq;
 	struct m0_dix_rop_ctx       *rop = req->dr_rop;
 	struct m0_dix_next_sort_ctx *ctx;
-	uint32_t                     key_id;
 	uint32_t                     ctx_id = 0;
 	struct m0_dix_next_sort_ctx *ctxs;
 	uint32_t                     i;
@@ -221,8 +240,8 @@ static int dix_data_load(struct m0_dix_req            *req,
 				m0_free(ctxs[i].sc_reps);
 			return M0_ERR(-ENOMEM);
 		}
-		for (key_id = 0; key_id < ctx->sc_reps_nr; key_id++)
-			m0_cas_next_rep(creq, key_id, &ctx->sc_reps[key_id]);
+		for (i = 0; i < ctx->sc_reps_nr; i++)
+			m0_cas_next_rep(creq, i, &ctx->sc_reps[i]);
 	} m0_tl_endfor;
 	M0_ASSERT(ctx_id == rs->nrs_sctx_arr.sca_nr);
 	return M0_RC(0);
@@ -250,8 +269,7 @@ M0_INTERNAL int m0_dix_next_result_prepare(struct m0_dix_req *req)
 	if (!M0_FI_ENABLED("mock_data_load")) {
 		ctxs_nr = req->dr_rop->dg_cas_reqs_nr;
 		rc = m0_dix_rs_init(rs, start_keys_nr, ctxs_nr);
-	}
-	else
+	} else
 		ctxs_nr = rs->nrs_sctx_arr.sca_nr;
 	if (rc != 0)
 		goto end;
@@ -362,8 +380,8 @@ M0_INTERNAL void m0_dix_rs_fini(struct m0_dix_next_resultset *rs)
 }
 
 /*
- * Key_ctx and cidx (cas index key) are required to hold record in memory.
- * Key/value pair is deallocated in m0_dix_fini()->m0_dix_rs_fini().
+ * Key_ctx and cidx (cas key index) are required to hold record in memory.
+ * Key/value pair is deallocated in m0_dix_req_fini()->m0_dix_rs_fini().
  */
 static void sc_result_add(struct m0_dix_next_sort_ctx  *key_ctx,
 			  uint32_t                      cidx,

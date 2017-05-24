@@ -41,17 +41,19 @@
  *   where distributed index is stored.
  * - Mero layout functionality to determine destination CAS services for CAS
  *   requests.
+ * - Pool machine state for correct operation in degraded mode.
  *
  * Index meta-data
  * ---------------
  * There are three meta-indices that are used by client internally and can be
  * manipulated through appropriate interfaces externally:
  * - Root index. Top-level index to find all other indices. Its pool version
- *   normally is stored in cluster configuration as one of filesystem
- *   parameters. Other layout parameters are hard-coded. Contains exactly two
- *   records for now with layouts of 'layout' and 'layout-descr' meta-indices.
- *   Please note, that pool version for root index should contain only storage
- *   devices controlled by CAS services, no IOS storage devices are allowed.
+ *   is stored in cluster configuration as one of file system parameters (@ref
+ *   m0_conf_filesystem::cf_imeta_pver). Other layout parameters are
+ *   hard-coded. Root index contains exactly two records for now with layouts of
+ *   'layout' and 'layout-descr' meta-indices. Please note, that pool version
+ *   for root index should contain only storage devices controlled by CAS
+ *   services, no IOS storage devices are allowed.
  *
  * - Layout index. Holds layouts of "normal" indices. Layouts are stored in the
  *   form of index layout descriptor or index layout identifier.
@@ -75,12 +77,12 @@
  * version fid of the root index. All subsequent operations use this fid to
  * locate indices in the cluster.
  *
- * In order to make DIX requests through the client user should start the
+ * User should start the client in order to make DIX requests through the
  * client. Client start procedure is executed through m0_dix_cli_start() or
  * m0_dix_cli_start_sync(). The start procedure involves reading root index to
  * retrieve layouts of 'layout' and 'layout-descr' meta-indeces.
  *
- * There is a special client mode called "bootstap" mode. In that mode the only
+ * There is a special client mode called "bootstrap" mode. In that mode the only
  * request allowed is creating meta-indices in cluster (m0_dix_meta_create()).
  * A client can be moved to this mode just after initialisation using
  * m0_dix_cli_bootstrap() call. It's useful at cluster provisioning state,
@@ -149,6 +151,8 @@
  * https://docs.google.com/document/d/1WpENdsq5YXCCoDcBbNe6juVY85163-HUpvIzXrmKwdM/edit
  */
 
+#include "lib/chan.h"   /* m0_clink */
+#include "sm/sm.h"      /* m0_sm */
 #include "dix/layout.h" /* m0_dix_ldesc */
 #include "dix/meta.h"   /* m0_dix_meta_req */
 
@@ -158,6 +162,18 @@ struct m0_layout_domain;
 struct m0_rpc_session;
 struct m0_be_tx_remid;
 struct m0_dix_req;
+struct m0_pool_version;
+struct m0_fid;
+
+enum m0_dix_cli_state {
+        DIXCLI_INVALID,
+        DIXCLI_INIT,
+        DIXCLI_BOOTSTRAP,
+        DIXCLI_STARTING,
+        DIXCLI_READY,
+        DIXCLI_FINAL,
+        DIXCLI_FAILURE,
+};
 
 struct m0_dix_cli {
 	struct m0_sm             dx_sm;
@@ -183,32 +199,98 @@ struct m0_dix_cli {
 				    struct m0_be_tx_remid *);
 };
 
+/**
+ * Initialises DIX client.
+ *
+ * @param cli      DIX client.
+ * @param sm_group SM group for DIX client state machine. Asynchronous
+ *                 operations like m0_dix_cli_start() are executed in this SM
+ *                 group. Also, this SM group is locked/unlocked in
+ *                 m0_dix_lock()/m0_dix_unlock().
+ * @param pc       Pools common structure where pool versions of index layouts
+ *                 are looked up. Also destination CAS services structures are
+ *                 looked up at pc->pc_dev2svc.
+ * @param ldom     Layout domain where layout structures for parity math are
+ *                 created.
+ * @param pver     Pool version of the root index (usually
+ *                 m0_conf_filesystem::cf_imeta_pver).
+ */
 M0_INTERNAL int m0_dix_cli_init(struct m0_dix_cli       *cli,
 				struct m0_sm_group      *sm_group,
 				struct m0_pools_common  *pc,
 			        struct m0_layout_domain *ldom,
 				const struct m0_fid     *pver);
 
+/** Locks DIX client SM group. */
 M0_INTERNAL void m0_dix_cli_lock(struct m0_dix_cli *cli);
 
+/** Checks whether DIX client SM group is locked. */
 M0_INTERNAL bool m0_dix_cli_is_locked(const struct m0_dix_cli *cli);
 
+/** Unlocks DIX client SM group. */
 M0_INTERNAL void m0_dix_cli_unlock(struct m0_dix_cli *cli);
 
+/**
+ * Starts DIX client asynchronously.
+ *
+ * DIX client moves its SM (cli->dx_sm) to DIXCLI_READY or DIXCLI_FAILURE state
+ * on start procedure finish. If result state is DIXCLI_READY, then DIX client
+ * is ready to send DIX requests (see dix/meta.h and dix/req.h).
+ *
+ * @pre DIX client is initialised or in a "bootstrap" mode.
+ */
 M0_INTERNAL void m0_dix_cli_start(struct m0_dix_cli *cli);
 
+/**
+ * Starts DIX client synchronously.
+ *
+ * @note Locks DIX SM group internally.
+ */
 M0_INTERNAL int  m0_dix_cli_start_sync(struct m0_dix_cli *cli);
 
+/**
+ * Moves DIX client to special "bootstrap" mode.
+ *
+ * In that mode the only request allowed is creating meta-indices in cluster
+ * (m0_dix_meta_create()). It's the only way to create meta-indices in the
+ * cluster, because in normal mode DIX client returns error if meta-indices are
+ * not found in the cluster.
+ *
+ * @pre DIX client is initialised, but not started.
+ * @pre m0_dix_cli_is_locked(cli)
+ */
 M0_INTERNAL void m0_dix_cli_bootstrap(struct m0_dix_cli *cli);
 
+/**
+ * The same as m0_dix_cli_bootstrap(), but locks DIX client internally.
+ *
+ * @pre DIX client is initialised, but not started.
+ * @pre !m0_dix_cli_is_locked(cli)
+ */
 M0_INTERNAL void m0_dix_cli_bootstrap_lock(struct m0_dix_cli *cli);
 
+/**
+ * Stops DIX client synchronously.
+ *
+ * @pre m0_dix_cli_is_locked(cli)
+ */
 M0_INTERNAL void m0_dix_cli_stop(struct m0_dix_cli *cli);
 
+/**
+ * The same as m0_dix_cli_stop(), but locks DIX client internally.
+ */
 M0_INTERNAL void m0_dix_cli_stop_lock(struct m0_dix_cli *cli);
 
+/**
+ * Finalises DIX client.
+ *
+ * @pre m0_dix_cli_is_locked(cli)
+ */
 M0_INTERNAL void m0_dix_cli_fini(struct m0_dix_cli *cli);
 
+/**
+ * The same as m0_dix_cli_fini(), but locks DIX client internally.
+ */
 M0_INTERNAL void m0_dix_cli_fini_lock(struct m0_dix_cli *cli);
 
 /** @} end of dix group */

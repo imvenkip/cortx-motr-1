@@ -38,6 +38,17 @@
  *
  * Distributed index layout is based on parity de-clustering layout and
  * determines targets (pool disks) for index records.
+ *
+ * Layouts of indices are stored centralised in 'layout' meta-index. Layout can
+ * be stored there in two forms: layout id and layout descriptor. Layout
+ * descriptor shall be known in order to instantiate layout instance
+ * (m0_dix_linst) usable for target disks calculation. Therefore, if layout id
+ * is stored in 'layout' meta-index then it shall be resolved to full-fledged
+ * layout descriptor. The mapping between layout id and corresponding layout
+ * descriptor is stored in 'layout-descr' meta-index.
+ *
+ * For more information about targets calculation for index records please refer
+ * to distributed indexing HLD.
  */
 
 /* Import */
@@ -109,15 +120,31 @@ struct m0_dix_layout_iter {
 	struct m0_buf       dit_key;
 };
 
+/**
+ * Calculates target for specified 'unit' in parity group of the record with
+ * specified 'key'. Calculated target is stored in 'out_id'.
+ */
 M0_INTERNAL void m0_dix_target(struct m0_dix_linst *inst,
 			       uint64_t             unit,
 			       struct m0_buf       *key,
 			       uint64_t            *out_id);
 
+/**
+ * Returns total number of devices (targets) accounted by layout instance.
+ */
 M0_INTERNAL uint32_t m0_dix_devices_nr(struct m0_dix_linst *linst);
+
+/**
+ * Returns pool device structure by target (e.g. calculated by m0_dix_target()).
+ */
 M0_INTERNAL struct m0_pooldev *m0_dix_tgt2sdev(struct m0_dix_linst *linst,
 					       uint64_t             tgt);
 
+/**
+ * Builds DIX layout instance.
+ *
+ * Internal function, user should use m0_dix_layout_iter_init() instead.
+ */
 M0_INTERNAL int m0_dix_layout_init(struct m0_dix_linst     *dli,
 				   struct m0_layout_domain *domain,
 				   const struct m0_fid     *fid,
@@ -125,19 +152,45 @@ M0_INTERNAL int m0_dix_layout_init(struct m0_dix_linst     *dli,
 				   struct m0_pool_version  *pver,
 				   struct m0_dix_ldesc     *dld);
 
+/**
+ * Finalises DIX layout instance.
+ */
 M0_INTERNAL void m0_dix_layout_fini(struct m0_dix_linst *dli);
 
+/**
+ * Initialises layout descriptor.
+ */
 M0_INTERNAL int m0_dix_ldesc_init(struct m0_dix_ldesc       *ld,
 				  struct m0_ext             *range,
-				  m0_bcount_t                nr,
+				  m0_bcount_t                range_nr,
 				  enum m0_dix_hash_fnc_type  htype,
 				  struct m0_fid             *pver);
 
+/**
+ * Copies layout descriptor.
+ *
+ * Copied layout descriptor 'dst' shall be finalised by user afterwards.
+ */
 M0_INTERNAL int m0_dix_ldesc_copy(struct m0_dix_ldesc       *dst,
 				  const struct m0_dix_ldesc *src);
 
+/**
+ * Finalises layout descriptor.
+ */
 M0_INTERNAL void m0_dix_ldesc_fini(struct m0_dix_ldesc *ld);
 
+/**
+ * Initialises DIX layout iterator.
+ *
+ * After initialisation iterator stay on first unit (data unit) in parity group.
+ *
+ * @param iter   Layout iterator.
+ * @param index  Fid of distributed index having layout 'ldesc'.
+ * @param ldom   Layout domain where layout instance is created.
+ * @param pver   Pool version where distributed index is stored.
+ * @param ldesc  Distributed index layout descriptor.
+ * @param key    Key of the record for which targets are calculated.
+ */
 M0_INTERNAL
 int m0_dix_layout_iter_init(struct m0_dix_layout_iter *iter,
 			    const struct m0_fid       *index,
@@ -146,29 +199,83 @@ int m0_dix_layout_iter_init(struct m0_dix_layout_iter *iter,
 			    struct m0_dix_ldesc       *ldesc,
 			    struct m0_buf             *key);
 
+/**
+ * Calculates target for the next unit in record parity group.
+ *
+ * User is responsible to not overcome parity group boundary. Number of units in
+ * parity group can be obtained via m0_dix_liter_W().
+ */
 M0_INTERNAL void m0_dix_layout_iter_next(struct m0_dix_layout_iter *iter,
 					 uint64_t                  *tgt);
 
+/**
+ * Moves iterator current position to unit with number 'unit_nr'.
+ *
+ * Next m0_dix_layout_iter_next() invocation will return target for 'unit_nr'
+ * unit.
+ */
 M0_INTERNAL void m0_dix_layout_iter_goto(struct m0_dix_layout_iter *iter,
 					 uint64_t                   unit_nr);
+/**
+ * Resets iterator current position to the beginning.
+ */
 M0_INTERNAL void m0_dix_layout_iter_reset(struct m0_dix_layout_iter *iter);
 
+/**
+ * Calculates target for specified 'unit' in a parity group.
+ *
+ * It doesn't affect iterator current position.
+ */
 M0_INTERNAL void m0_dix_layout_iter_get_at(struct m0_dix_layout_iter *iter,
 					   uint64_t                   unit,
 					   uint64_t                  *tgt);
 
+/**
+ * Returns number of data units in a parity group.
+ *
+ * Shall be always 1 in current implementation.
+ */
 M0_INTERNAL uint32_t m0_dix_liter_N(struct m0_dix_layout_iter *iter);
+
+/**
+ * Returns total number of targets.
+ */
 M0_INTERNAL uint32_t m0_dix_liter_P(struct m0_dix_layout_iter *iter);
+
+/**
+ * Returns number of parity units in a parity group.
+ *
+ * Number of parity units always equal to number of spare units in current
+ * implementation.
+ */
 M0_INTERNAL uint32_t m0_dix_liter_K(struct m0_dix_layout_iter *iter);
+
+/**
+ * Returns total number of units (datai + parity + spare) in a parity group.
+ */
 M0_INTERNAL uint32_t m0_dix_liter_W(struct m0_dix_layout_iter *iter);
+
+/**
+ * Returns number of first spare unit in a parity group.
+ */
 M0_INTERNAL uint32_t m0_dix_liter_spare_offset(struct m0_dix_layout_iter *iter);
 
+/**
+ * Classify specified 'unit' to one of the classes listed in
+ * m0_pdclust_unit_type.
+ */
 M0_INTERNAL
 uint32_t m0_dix_liter_unit_classify(struct m0_dix_layout_iter *iter,
 				    uint64_t                   unit);
 
+/**
+ * Finalises DIX layout iterator.
+ */
 M0_INTERNAL void m0_dix_layout_iter_fini(struct m0_dix_layout_iter *iter);
 
+/**
+ * Checks whether two distributed index layouts are equal.
+ */
 M0_INTERNAL bool m0_dix_layout_eq(const struct m0_dix_layout *layout1,
 				  const struct m0_dix_layout *layout2);
 

@@ -967,6 +967,7 @@ M0_INTERNAL int m0_dix_create(struct m0_dix_req   *req,
 	M0_PRE(m0_forall(i, indices_nr,
 	       indices[i].dd_layout.dl_type != DIX_LTYPE_UNKNOWN));
 	M0_PRE(ergo(req->dr_is_meta, dix_id_layouts_nr(req) == 0));
+	M0_PRE(M0_IN(flags, (0, COF_CROW)));
 	req->dr_dtx = dtx;
 	/*
 	 * Save indices identifiers in two arrays. Indices identifiers in
@@ -2140,6 +2141,7 @@ M0_INTERNAL int m0_dix_get(struct m0_dix_req      *req,
 	uint32_t keys_nr = keys->ov_vec.v_nr;
 	int      rc;
 
+	M0_PRE(keys_nr != 0);
 	rc = dix_req_indices_copy(req, index, 1);
 	if (rc != 0)
 		return M0_ERR(rc);
@@ -2150,13 +2152,15 @@ M0_INTERNAL int m0_dix_get(struct m0_dix_req      *req,
 	req->dr_keys = keys;
 	req->dr_type = DIX_GET;
 	dix_discovery(req);
-	return 0;
+	return M0_RC(0);
 }
 
 M0_INTERNAL void m0_dix_get_rep(const struct m0_dix_req *req,
 				uint64_t                 idx,
 				struct m0_dix_get_reply *rep)
 {
+	M0_PRE(m0_dix_generic_rc(req) == 0);
+	M0_PRE(idx < req->dr_items_nr);
 	rep->dgr_rc  = req->dr_items[idx].dxi_rc;
 	rep->dgr_val = req->dr_items[idx].dxi_val;
 }
@@ -2169,6 +2173,7 @@ M0_INTERNAL int m0_dix_del(struct m0_dix_req      *req,
 	uint32_t keys_nr = keys->ov_vec.v_nr;
 	int      rc;
 
+	M0_PRE(keys_nr != 0);
 	rc = dix_req_indices_copy(req, index, 1);
 	if (rc != 0)
 		return M0_ERR(rc);
@@ -2195,6 +2200,7 @@ M0_INTERNAL int m0_dix_next(struct m0_dix_req      *req,
 
 	/* Only slant and exclude start key flags are allowed. */
 	M0_PRE((flags & ~(COF_SLANT | COF_EXCLUDE_START_KEY)) == 0);
+	M0_PRE(keys_nr != 0);
 
 	rc = dix_req_indices_copy(req, index, 1);
 	if (rc != 0)
@@ -2221,10 +2227,9 @@ M0_INTERNAL void m0_dix_next_rep(const struct m0_dix_req  *req,
 				 uint64_t                  val_idx,
 				 struct m0_dix_next_reply *rep)
 {
-	struct m0_dix_next_resultset  *rs =
-		(struct m0_dix_next_resultset *)&req->dr_rs;
-	struct m0_dix_next_results    *res;
-	struct m0_cas_next_reply     **reps;
+	const struct m0_dix_next_resultset  *rs = &req->dr_rs;
+	struct m0_dix_next_results          *res;
+	struct m0_cas_next_reply           **reps;
 
 	M0_ASSERT(rs != NULL);
 	M0_ASSERT(key_idx < rs->nrs_res_nr);
@@ -2276,8 +2281,7 @@ M0_INTERNAL void m0_dix_next_rep_mlock(struct m0_dix_req *req,
 				       uint32_t           key_idx,
 				       uint32_t           val_idx)
 {
-	struct m0_dix_next_resultset  *rs =
-		(struct m0_dix_next_resultset *)&req->dr_rs;
+	struct m0_dix_next_resultset  *rs = &req->dr_rs;
 	struct m0_dix_next_results    *res;
 	struct m0_cas_next_reply     **reps;
 
@@ -2315,9 +2319,8 @@ M0_INTERNAL void m0_dix_req_fini(struct m0_dix_req *req)
 	for (i = 0; i < req->dr_indices_nr; i++)
 		m0_dix_fini(&req->dr_indices[i]);
 	m0_free(req->dr_indices);
-	/* Ignore error in case mock is used in UT. */
-	M0_ASSERT(M0_FI_ENABLED("mock_data_load") ||
-		(req->dr_orig_indices != NULL) == (req->dr_type == DIX_CREATE));
+	M0_ASSERT((req->dr_orig_indices != NULL) ==
+		  (req->dr_type == DIX_CREATE));
 	if (req->dr_orig_indices != NULL) {
 		for (i = 0; i < req->dr_indices_nr; i++)
 			m0_dix_fini(&req->dr_orig_indices[i]);

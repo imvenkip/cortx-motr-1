@@ -33,25 +33,33 @@
 struct m0_dix_cli;
 struct m0_dix;
 
-enum m0_dix_cli_state {
-        DIXCLI_INVALID,
-        DIXCLI_INIT,
-        DIXCLI_BOOTSTRAP,
-        DIXCLI_STARTING,
-        DIXCLI_READY,
-        DIXCLI_FINAL,
-        DIXCLI_FAILURE,
-};
-
+/**
+ * Fills 'out' structure with root index fid and layout descriptor.
+ * User is responsible to finalise 'out' after usage.
+ */
 M0_INTERNAL int m0_dix__root_set(const struct m0_dix_cli *cli,
 				 struct m0_dix           *out);
 
+/**
+ * Fills 'out' structure with "layout" index fid and layout descriptor.
+ * User is responsible to finalise 'out' after usage.
+ */
 M0_INTERNAL int m0_dix__layout_set(const struct m0_dix_cli *cli,
 				   struct m0_dix           *out);
 
+/**
+ * Fills 'out' structure with "layout-descr" index fid and layout descriptor.
+ * User is responsible to finalise 'out' after usage.
+ */
 M0_INTERNAL int m0_dix__ldescr_set(const struct m0_dix_cli *cli,
 				   struct m0_dix           *out);
 
+/**
+ * Finds pool version structure by pool version fid specified in index layout
+ * descriptor.
+ *
+ * @pre dix->dd_layout.dl_type == DIX_LTYPE_DESCR
+ */
 M0_INTERNAL struct m0_pool_version *m0_dix_pver(const struct m0_dix_cli *cli,
 						const struct m0_dix     *dix);
 

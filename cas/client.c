@@ -1120,7 +1120,7 @@ static void cas_req_replied_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 
 	req->ccr_reply.cgr_rc = cas_rep(req->ccr_reply_item)->cgr_rc;
 	rc = cas_rep_validate(req);
- 	if (rc == 0) {
+	if (rc == 0) {
 		if (M0_IN(req_fop_type, (&cas_cur_fopt, &cas_get_fopt)) &&
 		    !req->ccr_is_meta) {
 			assembly_wait = (req_fop_type == &cas_get_fopt) ?

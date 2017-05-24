@@ -490,9 +490,13 @@ M0_INTERNAL void m0_cas_get_rep(const struct m0_cas_req *req,
  *
  * Requested record ranges may overlap. Duplicates in a result are not filtered.
  *
- * Records with 'start_keys' keys are also accounted and included in the result.
- * There is no way to start iteration from the first record without knowledge of
- * key, at least one start key should always be set.
+ * Records with 'start_keys' keys are also accounted and included in the result
+ * unless COF_EXCLUDE_START_KEY flag is specified.
+ *
+ * In order to start iteration from the first record user may specify 1-byte
+ * zero start key and specify COF_SLANT flag. COF_SLANT flag is also useful if
+ * start key may be not found in the index. In this case iteration starts with
+ * the smallest key following the start key.
  *
  * 'Flags' argument is a bitmask of m0_cas_op_flags values.
  *

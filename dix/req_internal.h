@@ -171,11 +171,31 @@ struct m0_dix_rop_ctx {
 M0_TL_DESCR_DECLARE(cas_rop, M0_EXTERN);
 M0_TL_DECLARE(cas_rop, M0_INTERNAL, struct m0_dix_cas_rop);
 
+/**
+ * Performs merge sorting of records retrieved for NEXT operation.
+ *
+ * Since NEXT operation queries all component catalogues for subsequent records,
+ * then on completion received records shall be sorted, duplicates shall be
+ * filtered and excessive records shall be thrown away from result.
+ */
 M0_INTERNAL int m0_dix_next_result_prepare(struct m0_dix_req *req);
 
+/**
+ * Initialise result set for NEXT operation.
+ *
+ * Result set is a context for merge-sorting records retrieved from all
+ * component catalogues.
+ *
+ * This function is actually internal and exported only for UT purposes.
+ * Normally it is called inside m0_dix_next_result_prepare().
+ */
 M0_INTERNAL int m0_dix_rs_init(struct m0_dix_next_resultset  *rs,
 			       uint32_t                       start_keys_nr,
 			       uint32_t                       sctx_nr);
+
+/**
+ * Finalises result set for NEXT operation.
+ */
 M0_INTERNAL void m0_dix_rs_fini(struct m0_dix_next_resultset *rs);
 
 /** @} end of dix group */

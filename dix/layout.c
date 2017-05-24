@@ -165,7 +165,7 @@ M0_INTERNAL void m0_dix_target(struct m0_dix_linst *inst,
 
 M0_INTERNAL int m0_dix_ldesc_init(struct m0_dix_ldesc       *ld,
 				  struct m0_ext             *range,
-				  m0_bcount_t                nr,
+				  m0_bcount_t                range_nr,
 				  enum m0_dix_hash_fnc_type  htype,
 				  struct m0_fid             *pver)
 {
@@ -173,7 +173,7 @@ M0_INTERNAL int m0_dix_ldesc_init(struct m0_dix_ldesc       *ld,
 
 	M0_PRE(ld != NULL);
 	M0_SET0(ld);
-	rc = m0_dix_imask_init(&ld->ld_imask, range, nr);
+	rc = m0_dix_imask_init(&ld->ld_imask, range, range_nr);
 	if (rc == 0) {
 		ld->ld_hash_fnc = htype;
 		ld->ld_pver     = *pver;
@@ -318,6 +318,13 @@ M0_INTERNAL bool m0_dix_layout_eq(const struct m0_dix_layout *layout1,
 	M0_PRE(layout1 != NULL);
 	M0_PRE(layout2 != NULL);
 
+	if (layout1->dl_type != layout2->dl_type)
+		return false;
+
+	if (layout1->dl_type == DIX_LTYPE_ID)
+		return layout1->u.dl_id == layout2->u.dl_id;
+
+	/* Compare layout descriptors. */
 	ldesc1 = &layout1->u.dl_desc;
 	ldesc2 = &layout2->u.dl_desc;
 

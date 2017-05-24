@@ -3070,7 +3070,6 @@ void next_merge(void)
 
 	m0_fi_enable("m0_dix_next_result_prepare", "mock_data_load");
 	m0_fi_enable("sc_result_add", "mock_data_load");
-	m0_fi_enable("m0_dix_req_fini", "mock_data_load");
 	m0_fi_enable("m0_dix_rs_fini", "mock_data_load");
 	for (it = 0; it < ARRAY_SIZE(cases); it++) {
 		/* Create test data. */
@@ -3085,7 +3084,7 @@ void next_merge(void)
 			struct m0_cas_next_reply *crep;
 			struct m0_bufvec         *creps;
 
-			ctx   = &rs->nrs_sctx_arr.sca_ctx[ctx_id];
+			ctx = &rs->nrs_sctx_arr.sca_ctx[ctx_id];
 			/* Array with cas reps for ctx_id. */
 			creps = cas_reps.ov_buf[ctx_id];
 			ctx->sc_reps_nr = creps->ov_vec.v_nr;
@@ -3105,7 +3104,6 @@ void next_merge(void)
 	}
 	m0_fi_disable("m0_dix_next_result_prepare", "mock_data_load");
 	m0_fi_disable("sc_result_add", "mock_data_load");
-	m0_fi_disable("m0_dix_req_fini", "mock_data_load");
 	m0_fi_disable("m0_dix_rs_fini", "mock_data_load");
 }
 

@@ -208,7 +208,7 @@ struct m0_cas_recv {
 enum m0_cas_op_flags {
 	/**
 	 * For NEXT operation, allows iteration to start with the smallest key
-	 * following the start key.
+	 * following the start key if the start key is not found.
 	 */
 	COF_SLANT     = 1 << 0,
 	/**

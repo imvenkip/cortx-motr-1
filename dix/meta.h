@@ -34,7 +34,8 @@
  * There are three groups of functions to work with 'root', 'layout' and
  * 'layout-descr' indices respectively. Operations for 'root' index are
  * synchronous, since they intended to be executed during provisioning.
- * Operations for 'layout', 'layout-descr' indices are asynchronous.
+ * Operations for 'layout', 'layout-descr' indices are asynchronous. User shall
+ * wait on m0_dix_meta_req::dmr_chan for asynchronous operation completion.
  *
  * Format of record in 'layout' index:
  * key: index fid
@@ -96,14 +97,33 @@ struct m0_dix_meta_req {
 	struct m0_clink   dmr_clink;
 };
 
+/**
+ * Initialises DIX meta request.
+ *
+ * It shall be called before passing request to other functions like
+ * m0_dix_root_read(), m0_dix_ldescr_put(), etc.
+ */
 M0_INTERNAL void m0_dix_meta_req_init(struct m0_dix_meta_req *req,
 				      struct m0_dix_cli      *cli,
 				      struct m0_sm_group     *grp);
 
+/**
+ * Finalises DIX meta request.
+ */
 M0_INTERNAL void m0_dix_meta_req_fini(struct m0_dix_meta_req *req);
 
+/**
+ * Acquires lock for DIX meta request state machine group.
+ *
+ * All asynchronous meta operations require DIX meta request state machine group
+ * being locked before invocation. DIX meta request state machine group is the
+ * one passed to m0_dix_meta_req_init() function.
+ */
 M0_INTERNAL void m0_dix_meta_lock(struct m0_dix_meta_req *req);
 
+/**
+ * Releases lock for DIX meta request state machine group.
+ */
 M0_INTERNAL void m0_dix_meta_unlock(struct m0_dix_meta_req *req);
 
 /**
@@ -204,7 +224,7 @@ M0_INTERNAL int m0_dix_ldescr_get(struct m0_dix_meta_req *req,
 
 /**
  * Returns result of m0_dix_ldescr_get() request.
- * 
+ *
  * @pre m0_dix_meta_generic_rc(req) == 0
  */
 M0_INTERNAL int m0_dix_ldescr_rep_get(struct m0_dix_meta_req *req,
@@ -259,29 +279,63 @@ M0_INTERNAL int m0_dix_layout_rep_get(struct m0_dix_meta_req *req,
 				      uint64_t                idx,
 				      struct m0_dix_layout   *dlay);
 
+/**
+ * Returns identifiers of the next 'indices_nr' indices starting with index
+ * having 'start_fid' identifier.
+ *
+ * Retrieved indices identifiers can be acessed using m0_dix_index_list_rep_nr()
+ * and m0_dix_index_list_rep().
+ *
+ * @pre start_fid != NULL
+ * @pre indices_nr != 0
+ */
 M0_INTERNAL int m0_dix_index_list(struct m0_dix_meta_req *req,
 				  const struct m0_fid    *start_fid,
 				  uint32_t                indices_nr);
 
+/**
+ * Returns number of indices retrieved by m0_dix_index_list().
+ *
+ * If returned value is less than number of indices requested, then there are no
+ * more distributed indices.
+ */
 M0_INTERNAL int m0_dix_index_list_rep_nr(struct m0_dix_meta_req *req);
 
+/**
+ * Gets 'idx'-th index identifier retrieved by m0_dix_index_list() request.
+ */
 M0_INTERNAL int m0_dix_index_list_rep(struct m0_dix_meta_req *req,
 				      uint32_t                idx,
 				      struct m0_fid          *fid);
 
+/**
+ * Encodes arrays of FID+layout pairs into values that can be stored as record
+ * values in 'root' meta-index. Encoded values are stored in 'vals' buffer
+ * vector.
+ *
+ * 'vals' buffer vector shall be not allocated prior to invocation and user is
+ * responsible to free this buffer vector afterwards.
+ */
 M0_INTERNAL int m0_dix__meta_val_enc(const struct m0_fid       *fid,
 				     const struct m0_dix_ldesc *dld,
 				     uint32_t                   nr,
 				     struct m0_bufvec          *vals);
-
+/**
+ * Decodes 'vals' buffer vector of record values from 'root' index and returns
+ * FID+layout descriptor pairs. User must call m0_dix_ldesc_fini() for returned
+ * 'out_dld' objects when they are not necessary.
+ */
 M0_INTERNAL int m0_dix__meta_val_dec(const struct m0_bufvec *vals,
 				     struct m0_fid          *out_fid,
 				     struct m0_dix_ldesc    *out_dld,
 				     uint32_t                nr);
 
 /**
- * Encoded data saves to key and val.
- * User must call m0_bufvec_free for bufvecs when those are not necessary.
+ * Encodes input arrays of layout identifiers and layout descriptors into record
+ * keys and values that can be stored in 'layout-descr' meta-index.
+ *
+ * 'keys' and 'vals' buffer vectors shall be not allocated prior to invocation
+ * and user is responsible to free these buffer vectors afterwards.
  */
 M0_INTERNAL int m0_dix__ldesc_vals_enc(const uint64_t            *lid,
 				       const struct m0_dix_ldesc *ldesc,
@@ -290,9 +344,10 @@ M0_INTERNAL int m0_dix__ldesc_vals_enc(const uint64_t            *lid,
 				       struct m0_bufvec          *vals);
 
 /**
- * Decodes key and val bufvecs and returns lid and dix_ldesc objects.
- * User must call m0_dix_ldesc_fini() for returned object out_ldesc
- * when it is not necessary.
+ * Decodes 'keys' and 'vals' buffer vectors of keys/values from 'layout-descr'
+ * index and returns decoded layout identifiers and layout descriptors. User
+ * must call m0_dix_ldesc_fini() for returned 'out_ldesc' objects when they are
+ * not necessary.
  */
 M0_INTERNAL int m0_dix__ldesc_vals_dec(const struct m0_bufvec *keys,
 				       const struct m0_bufvec *vals,
@@ -301,10 +356,12 @@ M0_INTERNAL int m0_dix__ldesc_vals_dec(const struct m0_bufvec *keys,
 				       uint32_t                nr);
 
 /**
- *  Encoded data saves to key and val.
- *  User must call m0_bufvec_free() for bufvecs when those are not necessary.
+ * Encodes input arrays of index identifiers and layouts into record keys and
+ * values that can be stored in 'layout' meta-index.
+ *
+ * 'keys' and 'vals' buffer vectors shall be not allocated prior to invocation
+ * and user is responsible to free these buffer vectors afterwards.
  */
-
 M0_INTERNAL int m0_dix__layout_vals_enc(const struct m0_fid        *fid,
 					const struct m0_dix_layout *dlay,
 					uint32_t                    nr,
@@ -312,9 +369,10 @@ M0_INTERNAL int m0_dix__layout_vals_enc(const struct m0_fid        *fid,
 					struct m0_bufvec           *vals);
 
 /**
- * Decodes key and val bufvecs and returns fid and dix_layout object.
- * Returned value out_dlay after decoding will contains dix_ldesc object.
- * User must destroy the object when it is not necessary.
+ * Decodes 'keys' and 'vals' buffer vectors of keys/values from 'layout' index
+ * and returns decoded index identifiers and layouts. User must call
+ * m0_dix_ldesc_fini() for every 'out_dlay[i].u.dl_desc' when they are not
+ * necessary.
  */
 M0_INTERNAL int m0_dix__layout_vals_dec(const struct m0_bufvec *keys,
 				        const struct m0_bufvec *vals,
