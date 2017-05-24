@@ -112,11 +112,12 @@ int clovis_st_idx_op(struct m0_clovis_idx       *idx,
 		     struct m0_bufvec           *keys,
 		     struct m0_bufvec           *vals,
 		     int                        *rcs,
+		     int                         flag,
 		     struct m0_clovis_op       **op)
 {
 	int rc;
 
-	rc = m0_clovis_idx_op(idx, opcode, keys, vals, rcs, 0, op);
+	rc = m0_clovis_idx_op(idx, opcode, keys, vals, rcs, flag, op);
 	if (*op != NULL) clovis_st_mark_op(*op);
 
 	return rc;

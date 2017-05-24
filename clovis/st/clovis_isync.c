@@ -179,9 +179,11 @@ static int idx_add_or_del_kv_pairs(int opcode, struct m0_uint128 id,
 
 	clovis_st_idx_init(idx, &clovis_st_isync_container.co_realm, &id);
 	if (opcode == IDX_KV_ADD)
-		clovis_st_idx_op(idx, M0_CLOVIS_IC_PUT, keys, vals, rcs, &ops[0]);
+		clovis_st_idx_op(idx, M0_CLOVIS_IC_PUT, keys, vals, rcs,
+				 0, &ops[0]);
 	else
-		clovis_st_idx_op(idx, M0_CLOVIS_IC_DEL, keys, NULL, rcs, &ops[0]);
+		clovis_st_idx_op(idx, M0_CLOVIS_IC_DEL, keys, NULL, rcs, 0,
+				 &ops[0]);
 
 	clovis_st_op_launch(ops, 1);
 	rc = clovis_st_op_wait(ops[0],

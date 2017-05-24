@@ -259,7 +259,7 @@ static int idx_do_insert_kv_pairs(struct m0_uint128 id,
 	ops[0] = NULL;
 
 	clovis_st_idx_init(&idx, &clovis_st_idx_container.co_realm, &id);
-	clovis_st_idx_op(&idx, M0_CLOVIS_IC_PUT, keys, vals, rcs, &ops[0]);
+	clovis_st_idx_op(&idx, M0_CLOVIS_IC_PUT, keys, vals, rcs, 0, &ops[0]);
 
 	clovis_st_op_launch(ops, 1);
 	rc = clovis_st_op_wait(ops[0],
@@ -434,7 +434,7 @@ static int idx_test_prepare(void)
 	return rc;
 }
 
-#define idx_query_exec(idx_id, opcode, keys, vals, rcs, exp)   \
+#define idx_query_exec(idx_id, opcode, keys, vals, rcs, flag, exp)   \
 	do {                        \
 		int                   rc;    \
 		struct m0_clovis_idx  idx;    \
@@ -446,7 +446,7 @@ static int idx_test_prepare(void)
                                               \
 		clovis_st_idx_init(&idx,      \
 			&clovis_st_idx_container.co_realm, &idx_id); \
-		clovis_st_idx_op(&idx, opcode, keys, vals, rcs, &ops[0]); \
+		clovis_st_idx_op(&idx, opcode, keys, vals, rcs, flag, &ops[0]); \
 								     \
 		clovis_st_op_launch(ops, 1);                         \
 		rc = clovis_st_op_wait(ops[0],                       \
@@ -464,11 +464,11 @@ static int idx_test_prepare(void)
 		clovis_st_entity_fini(&idx.in_entity);                 \
 	} while(0)
 
-#define idx_query_exp_success(idx_id, opcode, keys, vals, rcs)  \
-	idx_query_exec(idx_id, opcode, keys, vals, rcs, ==)
+#define idx_query_exp_success(idx_id, opcode, keys, vals, rcs, flag)  \
+	idx_query_exec(idx_id, opcode, keys, vals, rcs, flag, ==)
 
-#define idx_query_exp_fail(idx_id, opcode, keys, vals, rcs) \
-	idx_query_exec(idx_id, opcode, keys, vals, rcs, !=)
+#define idx_query_exp_fail(idx_id, opcode, keys, vals, rcs, flag) \
+	idx_query_exec(idx_id, opcode, keys, vals, rcs, flag, !=)
 
 static void idx_query_get(void)
 {
@@ -509,7 +509,8 @@ static void idx_query_get(void)
 		ops[0] = NULL;
 
 		clovis_st_idx_init(&idx, &clovis_st_idx_container.co_realm, &id);
-		clovis_st_idx_op(&idx, M0_CLOVIS_IC_GET, keys, vals, rcs, &ops[0]);
+		clovis_st_idx_op(&idx, M0_CLOVIS_IC_GET, keys, vals, rcs,
+				 0, &ops[0]);
 
 		clovis_st_op_launch(ops, 1);
 		rc = clovis_st_op_wait(ops[0],
@@ -632,7 +633,7 @@ static void idx_query_get_nonexist(void)
 	ops[0] = NULL;
 
 	clovis_st_idx_init(&idx, &clovis_st_idx_container.co_realm, &id);
-	clovis_st_idx_op(&idx, M0_CLOVIS_IC_GET, keys, vals, rcs, &ops[0]);
+	clovis_st_idx_op(&idx, M0_CLOVIS_IC_GET, keys, vals, rcs, 0, &ops[0]);
 
 	clovis_st_op_launch(ops, 1);
 	rc = clovis_st_op_wait(ops[0],
@@ -702,7 +703,7 @@ static void idx_query_get_non_existing_index(void)
 	ops[0] = NULL;
 
 	clovis_st_idx_init(&idx, &clovis_st_idx_container.co_realm, &id);
-	clovis_st_idx_op(&idx, M0_CLOVIS_IC_GET, keys, vals, rcs, &ops[0]);
+	clovis_st_idx_op(&idx, M0_CLOVIS_IC_GET, keys, vals, rcs, 0, &ops[0]);
 
 	clovis_st_op_launch(ops, 1);
 	rc = clovis_st_op_wait(ops[0],
@@ -762,7 +763,7 @@ static void idx_query_del(void)
 			goto BUFVEC_FREE;
 
 		/* Launch DEL query. */
-		idx_query_exp_success(id, M0_CLOVIS_IC_DEL, keys, NULL, rcs);
+		idx_query_exp_success(id, M0_CLOVIS_IC_DEL, keys, NULL, rcs, 0);
 
 		for (j = 0; j < nr_kvp; j++) {
 			key_no = idx_door_no * ST_LARGE_KV_PAIR_NUM +
@@ -805,7 +806,7 @@ static void idx_query_next(void)
 		id = test_index_ids[idx_door_no];
 		keys->ov_buf[0] = last_key;
 		keys->ov_vec.v_count[0] = last_key_len;
-		idx_query_exp_success(id, M0_CLOVIS_IC_NEXT, keys, vals, rcs);
+		idx_query_exp_success(id, M0_CLOVIS_IC_NEXT, keys, vals, rcs, 0);
 
 		/* Extract the last key for next round. */
 		if (i == nr_rounds - 1)
@@ -825,6 +826,86 @@ FREE_BUFVEC:
 		idx_bufvec_free(vals);
 		m0_free0(&rcs);
 	}
+}
+
+static void idx_query_next_exclude_start(void)
+{
+	int                idx_door_no;
+	int                nr_kvp;
+	int                last_key_len = 0;
+	int                stored_key_len = 0;
+	void              *last_key = NULL;
+	void              *stored_key = NULL;
+	struct m0_bufvec  *keys;
+	struct m0_bufvec  *vals;
+	struct m0_uint128  id;
+	int               *rcs;
+
+	M0_CLOVIS_THREAD_ENTER;
+
+	/** PHASE 1: Fetch nr_kvp KV. */
+	nr_kvp = 2;
+	keys = idx_bufvec_alloc(nr_kvp);
+	CLOVIS_ST_ASSERT_FATAL(keys != NULL);
+
+	vals = idx_bufvec_alloc(nr_kvp);
+	CLOVIS_ST_ASSERT_FATAL(vals != NULL);
+
+	M0_ALLOC_ARR(rcs, nr_kvp);
+	/* Launch NEXT query. */
+	idx_door_no = generate_random(ST_MAX_INDEX_NUM);
+	id = test_index_ids[idx_door_no];
+	keys->ov_buf[0] = last_key;
+	keys->ov_vec.v_count[0] = last_key_len;
+	idx_query_exp_success(id, M0_CLOVIS_IC_NEXT, keys, vals, rcs,
+			      M0_OIF_EXCLUDE_START_KEY);
+
+	CLOVIS_ST_ASSERT_FATAL(keys->ov_buf[nr_kvp - 1] != NULL)
+
+	/** Use last key as the starting point of NEXT Op. */
+	last_key_len = keys->ov_vec.v_count[nr_kvp - 1];
+	last_key = m0_alloc(last_key_len);
+
+	/** Store the last key for compariosn. */
+	stored_key_len = last_key_len;
+	stored_key = m0_alloc(last_key_len);
+	memcpy(last_key, keys->ov_buf[nr_kvp - 1], last_key_len);
+	memcpy(stored_key, keys->ov_buf[nr_kvp - 1], last_key_len);
+
+	idx_bufvec_free(keys);
+	idx_bufvec_free(vals);
+	m0_free0(&rcs);
+
+	/** PHASE 2: Fetch next nr_kvp KV. */
+	nr_kvp = 2;
+	keys = idx_bufvec_alloc(nr_kvp);
+	CLOVIS_ST_ASSERT_FATAL(keys != NULL);
+
+	vals = idx_bufvec_alloc(nr_kvp);
+	CLOVIS_ST_ASSERT_FATAL(vals != NULL);
+
+	M0_ALLOC_ARR(rcs, nr_kvp);
+	/* Launch NEXT query. */
+	idx_door_no = generate_random(ST_MAX_INDEX_NUM);
+	id = test_index_ids[idx_door_no];
+	keys->ov_buf[0] = last_key;
+	keys->ov_vec.v_count[0] = last_key_len;
+	idx_query_exp_success(id, M0_CLOVIS_IC_NEXT, keys, vals, rcs,
+			      M0_OIF_EXCLUDE_START_KEY);
+
+	CLOVIS_ST_ASSERT_FATAL(keys->ov_buf[nr_kvp - 1] != NULL)
+
+	/** Result should not contain a stored key. */
+	if(keys->ov_vec.v_count[0] == stored_key_len) {
+		CLOVIS_ST_ASSERT_FATAL(memcmp(stored_key,
+				       keys->ov_buf[0], stored_key_len) != 0);
+	}
+
+	m0_free(stored_key);
+	idx_bufvec_free(keys);
+	idx_bufvec_free(vals);
+	m0_free0(&rcs);
+
 }
 
 static void mock_op_cb_stable(struct m0_clovis_op *op)
@@ -934,7 +1015,7 @@ static void idx_query_empty_next(void)
 	keys->ov_vec.v_count[0] = 0;
 
 	M0_ALLOC_ARR(rcs, nr_kvp);
-	idx_query_exp_success(id, M0_CLOVIS_IC_NEXT, keys, vals, rcs);
+	idx_query_exp_success(id, M0_CLOVIS_IC_NEXT, keys, vals, rcs, 0);
 	CLOVIS_ST_ASSERT_FATAL(keys->ov_vec.v_nr == nr_kvp && keys->ov_buf[0] == NULL);
 
 	rc = idx_delete_one(id);
@@ -973,7 +1054,7 @@ static void idx_query_next_not_exist_index(void)
 	keys->ov_buf[0] = NULL;
 	keys->ov_vec.v_count[0] = 0;
 
-	idx_query_exp_fail(id, M0_CLOVIS_IC_NEXT, keys, vals, rcs);
+	idx_query_exp_fail(id, M0_CLOVIS_IC_NEXT, keys, vals, rcs, 0);
 	CLOVIS_ST_ASSERT_FATAL(keys->ov_vec.v_nr == nr_kvp && keys->ov_buf[0] == NULL);
 
 	/* fini and release */
@@ -1023,7 +1104,7 @@ static void idx_query_drop_index(void)
 	keys->ov_buf[0] = NULL;
 	keys->ov_vec.v_count[0] = 0;
 
-	idx_query_exp_fail(id, M0_CLOVIS_IC_NEXT, keys, vals, rcs);
+	idx_query_exp_fail(id, M0_CLOVIS_IC_NEXT, keys, vals, rcs, 0);
 	CLOVIS_ST_ASSERT_FATAL(keys->ov_vec.v_nr == nr_kvp && keys->ov_buf[0] == NULL);
 
 	/* fini and release */
@@ -1177,6 +1258,8 @@ struct clovis_st_suite st_suite_clovis_idx = {
 		  &idx_query_del },
 		{ "idx_query_next",
 		  &idx_query_next },
+		{ "idx_query_next_exclude_start",
+		  &idx_query_next_exclude_start },
 		{ "idx_query_empty_next",
 		  &idx_query_empty_next },
 		{ "idx_query_next_not_exist_index",
