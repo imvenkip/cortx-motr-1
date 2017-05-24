@@ -43,7 +43,7 @@ struct m0_ha_state_fop {
 	int32_t           hs_rc;
 	/** Objects and (optionally) their states. */
 	struct m0_ha_nvec hs_note;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 M0_INTERNAL int m0_ha_state_fop_init(void);
 M0_INTERNAL void m0_ha_state_fop_fini(void);

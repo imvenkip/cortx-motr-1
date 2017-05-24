@@ -55,12 +55,12 @@ struct m0_cpx {
 	 * which this copy packet belongs to.
 	 */
 	m0_time_t                 cpx_epoch;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /** Onwire copy packet reply. */
 struct m0_cpx_reply {
 	int32_t           cr_rc;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 #endif /*  __MERO_CM_CP_ONWIRE_H__ */
 /*

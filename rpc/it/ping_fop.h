@@ -46,15 +46,15 @@ extern const struct m0_rpc_item_type m0_rpc_item_type_ping_rep;
 struct m0_fop_ping_arr {
 	uint32_t  f_count;
 	uint64_t *f_data;
-} M0_XCA_SEQUENCE;
+} M0_XCA_SEQUENCE M0_XCA_DOMAIN(rpc);
 
 struct m0_fop_ping {
 	struct m0_fop_ping_arr fp_arr;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 struct m0_fop_ping_rep {
 	int32_t fpr_rc;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /* __MERO_RPC_IT_PING_FOP_H__ */
 #endif

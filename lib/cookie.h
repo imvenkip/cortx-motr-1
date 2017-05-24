@@ -55,7 +55,7 @@
 struct m0_cookie {
 	uint64_t co_addr;
 	uint64_t co_generation;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /**
  * Initializes the gencount. Gets called during mero initialization.

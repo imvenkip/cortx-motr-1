@@ -37,7 +37,7 @@
  */
 struct m0_protocol_id {
 	uint8_t p_id[64];
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /** @} end of protocol group */
 #endif /* __MERO_LIB_PROTOCOL_H__ */

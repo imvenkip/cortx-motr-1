@@ -40,19 +40,19 @@
 struct m0_cons_fop_fid {
 	uint64_t cons_seq;
 	uint64_t cons_oid;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 struct m0_cons_fop_buf {
 	uint32_t  cons_size;
 	uint8_t  *cons_buf;
-} M0_XCA_SEQUENCE;
+} M0_XCA_SEQUENCE M0_XCA_DOMAIN(rpc);
 
 struct m0_cons_fop_test {
 	uint8_t                cons_test_type;
 	uint64_t               cons_test_id;
 	struct m0_cons_fop_fid cons_id;
 	struct m0_cons_fop_buf cons_test_buf;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /**
  *  Device failure notification fop
@@ -66,7 +66,7 @@ struct m0_cons_fop_device {
 	uint32_t               cons_notify_type;
 	uint64_t               cons_dev_id;
 	struct m0_cons_fop_buf cons_dev_name;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /**
  *  Reply fop to the notification fop
@@ -76,7 +76,7 @@ struct m0_cons_fop_device {
 struct m0_cons_fop_reply {
 	int32_t  cons_return;
 	uint32_t cons_notify_type;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /**
  * Init console FOP

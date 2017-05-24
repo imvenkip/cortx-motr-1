@@ -39,7 +39,7 @@
 
 struct m0_cm_repreb_sw {
 	struct m0_cm_sw_onwire swo_base;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /** Initialises sliding window FOP type. */
 M0_INTERNAL

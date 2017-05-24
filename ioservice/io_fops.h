@@ -308,7 +308,7 @@ M0_INTERNAL m0_bcount_t m0_io_fop_byte_count(struct m0_io_fop *iofop);
 struct m0_io_descs {
 	uint32_t                     id_nr;
 	struct m0_net_buf_desc_data *id_descs;
-} M0_XCA_SEQUENCE;
+} M0_XCA_SEQUENCE M0_XCA_DOMAIN(rpc);
 
 /**
  * A common sub structure to be referred by read and write reply fops.
@@ -331,7 +331,7 @@ struct m0_fop_cob_rw_reply {
 
 	/** Returned values for an UPDATE operation */
 	struct m0_fop_mod_rep   rwr_mod_rep;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /**
  * Reply FOP for a readv request.
@@ -340,7 +340,7 @@ struct m0_fop_cob_readv_rep {
 	int32_t                    c_rc;
 	/** Common read/write reply. */
 	struct m0_fop_cob_rw_reply c_rep;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /**
  * Reply FOP for writev FOPs.
@@ -352,7 +352,7 @@ struct m0_fop_cob_writev_rep {
 	int32_t                    c_rc;
 	/** Common read/write reply structure. */
 	struct m0_fop_cob_rw_reply c_rep;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 enum m0_io_flags {
 	M0_IO_FLAG_CROW = (1 << 0), /* CReate cob On Write if not present */
@@ -398,7 +398,7 @@ struct m0_fop_cob_rw {
 	uint64_t                  crw_flags;
 	/** Checksum and tag values for the input data blocks. */
 	struct m0_buf		  crw_di_data;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /**
  * This fop is representation of a read component object request.
@@ -412,7 +412,7 @@ struct m0_fop_cob_rw {
 struct m0_fop_cob_readv {
 	/** Common definition of read/write fops. */
 	struct m0_fop_cob_rw c_rwv;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /**
  * The m0_fop_cob_writev FOP is used to send write requests by a
@@ -426,12 +426,12 @@ struct m0_fop_cob_readv {
 struct m0_fop_cob_writev {
 	/** Common definition of read/write fops. */
 	struct m0_fop_cob_rw c_rwv;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 struct m0_test_ios_fop {
 	uint64_t               if_st;
 	struct m0_net_buf_desc if_nbd;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 struct m0_fop_cob_common {
 	/** attributes of this cob */
@@ -457,7 +457,7 @@ struct m0_fop_cob_common {
 
 	/** Miscellaneous flags. */
 	uint64_t             c_flags;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /**
  * On-wire representation of "cob create" request.
@@ -466,7 +466,7 @@ struct m0_fop_cob_common {
  */
 struct m0_fop_cob_create {
 	struct m0_fop_cob_common cc_common;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /**
  * On-wire representation of "cob delete" request.
@@ -477,7 +477,7 @@ struct m0_fop_cob_create {
  */
 struct m0_fop_cob_delete {
 	struct m0_fop_cob_common cd_common;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /**
  * On-wire representation of "cob-truncate" request.
@@ -487,7 +487,7 @@ struct m0_fop_cob_truncate {
 
 	/* Size to which a file is truncated. */
 	uint64_t                 ct_size;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /**
  * Common On-wire body of reply for "cob create", "cob delete", "cob truncate",
@@ -496,7 +496,7 @@ struct m0_fop_cob_truncate {
 struct m0_fop_cob_op_rep_common {
 	/** Returned values for an UPDATE operation */
 	struct m0_fop_mod_rep   cor_mod_rep;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /**
  * reply for "create"/"delete".
@@ -504,14 +504,14 @@ struct m0_fop_cob_op_rep_common {
 struct m0_fop_cob_op_reply {
 	int32_t                         cor_rc;
 	struct m0_fop_cob_op_rep_common cor_common;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /**
  * On-wire representation of "cob getattr" request.
  */
 struct m0_fop_cob_getattr {
 	struct m0_fop_cob_common cg_common;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /**
  * On-wire representation of reply for "cob getattr" requests.
@@ -522,14 +522,14 @@ struct m0_fop_cob_getattr_reply {
 	struct m0_fop_cob_op_rep_common cgr_common;
 	/** attributes of this cob */
 	struct m0_fop_cob               cgr_body;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /**
  * On-wire representation of "cob setattr" request.
  */
 struct m0_fop_cob_setattr {
 	struct m0_fop_cob_common cs_common;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /**
  * On-wire representation of reply for "cob setattr" requests.
@@ -538,7 +538,7 @@ struct m0_fop_cob_setattr_reply {
 	int32_t                         csr_rc;
 	/** common part of a cob reply */
 	struct m0_fop_cob_op_rep_common csr_common;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /* __MERO_IOSERVICE_IO_FOPS_H__ */
 #endif

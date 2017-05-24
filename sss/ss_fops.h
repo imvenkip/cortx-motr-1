@@ -69,7 +69,7 @@ struct m0_sss_req {
 	struct m0_fid ss_id;
 	/** Opaque parameter. */
 	struct m0_buf ss_param;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /** Response to m0_sss_req. */
 struct m0_sss_rep {
@@ -82,7 +82,7 @@ struct m0_sss_rep {
 	 * @see enum m0_reqh_service_state
 	 */
 	uint32_t ssr_state;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 M0_INTERNAL int m0_ss_fops_init(void);
 M0_INTERNAL void m0_ss_fops_fini(void);

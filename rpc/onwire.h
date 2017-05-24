@@ -72,11 +72,11 @@ struct m0_rpc_packet_onwire_header {
 	/** Number of RPC items in packet */
 	uint32_t                poh_nr_items;
 	uint64_t                poh_magic;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 struct m0_rpc_packet_onwire_footer {
 	struct m0_format_footer pof_footer;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 struct m0_rpc_item_header1 {
 	struct m0_format_header ioh_header;
@@ -87,7 +87,7 @@ struct m0_rpc_item_header1 {
 	/** HA epoch transferred by the item. */
 	uint64_t                ioh_ha_epoch;
 	uint64_t                ioh_magic;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 struct m0_rpc_item_header2 {
 	struct m0_uint128 osr_uuid;
@@ -95,11 +95,11 @@ struct m0_rpc_item_header2 {
 	uint64_t          osr_session_id;
 	uint64_t          osr_xid;
 	struct m0_cookie  osr_cookie;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 struct m0_rpc_item_footer {
 	struct m0_format_footer iof_footer;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 M0_INTERNAL int m0_rpc_item_header1_encdec(struct m0_rpc_item_header1 *ioh,
 					   struct m0_bufvec_cursor *cur,

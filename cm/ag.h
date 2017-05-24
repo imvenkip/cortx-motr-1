@@ -48,7 +48,7 @@ struct m0_cm_sw;
 struct m0_cm_ag_id {
 	struct m0_uint128 ai_hi;
 	struct m0_uint128 ai_lo;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 #define M0_AG_F U128X_F "::" U128D_F
 #define M0_AG_P(ag) U128_P(&((ag)->ai_hi)), U128_P(&((ag)->ai_lo))

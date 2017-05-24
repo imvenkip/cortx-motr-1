@@ -88,7 +88,7 @@ struct m0_rpc_fop_conn_establish {
 	 * establinshing procedure
 	 */
 	struct m0_protocol_id rce_protocol;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /**
    FOP sent by receiver back to sender as a reply to m0_rpc_fop_conn_establish
@@ -105,7 +105,7 @@ struct m0_rpc_fop_conn_establish_rep {
 	   Has value SENDER_ID_INVALID if CONN_ESTABLISH operation fails.
 	 */
 	uint64_t rcer_sender_id;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /**
    Request FOP to terminate rpc-connection. Sent from sender to receiver.
@@ -115,7 +115,7 @@ struct m0_rpc_fop_conn_terminate {
 	   sender_id of rpc-connection being terminated.
 	 */
 	uint64_t ct_sender_id;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /**
    Reply FOP to m0_rpc_conn_terminate. Sent from receiver to sender.
@@ -130,7 +130,7 @@ struct  m0_rpc_fop_conn_terminate_rep {
 	   sender_id of rpc-connection being terminated.
 	 */
 	uint64_t ctr_sender_id;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 
 /**
@@ -141,7 +141,7 @@ struct m0_rpc_fop_session_establish {
 	   sender_id of rpc-connection in which a new session is to be created.
 	 */
 	uint64_t rse_sender_id;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /**
    Reply of m0_rpc_fop_session_establish. Sent from receiver to
@@ -162,7 +162,7 @@ struct m0_rpc_fop_session_establish_rep {
 	   sender_id copied from m0_rpc_fop_session_establish.
 	 */
 	uint64_t rser_sender_id;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /**
    Request FOP to terminate a session. Sent from sender to receiver.
@@ -177,7 +177,7 @@ struct m0_rpc_fop_session_terminate {
 	   session_id of session being terminated.
 	 */
 	uint64_t rst_session_id;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /**
    Reply FOP to m0_rpc_fop_session_terminate. Sent from receiver to sender.
@@ -197,7 +197,7 @@ struct m0_rpc_fop_session_terminate_rep {
 	   belongs.
 	 */
 	uint64_t rstr_sender_id;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /* __MERO_RPC_SESSION_FOPS_H__ */
 

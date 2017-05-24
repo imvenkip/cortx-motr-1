@@ -43,13 +43,13 @@ struct m0_cm_type;
 struct m0_cm_sw {
 	struct m0_cm_ag_id     sw_lo;
 	struct m0_cm_ag_id     sw_hi;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /** Copy machine replica's local endpoint. */
 struct m0_cm_local_ep {
 	uint32_t  ep_size;
 	char     *ep;
-} M0_XCA_SEQUENCE;
+} M0_XCA_SEQUENCE M0_XCA_DOMAIN(rpc);
 
 /**
  * Copy machine's sliding window update to be sent to a
@@ -71,11 +71,11 @@ struct m0_cm_sw_onwire {
 	struct m0_cm_sw       swo_out_interval;
 
 	uint32_t              swo_cm_status;
-}M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 struct m0_cm_sw_onwire_rep {
 	int swr_rc;
-}M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 struct m0_cm_sw_update {
 	struct m0_fom    swu_fom;

@@ -49,7 +49,7 @@ struct m0_fop_fsync {
 
 	/** Store one of enum m0_fsync_mode */
 	uint32_t                ff_fsync_mode;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 enum m0_fsync_mode {
 	M0_FSYNC_MODE_PASSIVE,
@@ -68,7 +68,7 @@ struct m0_fop_fsync_rep {
 	 * May be later than requested.
 	 */
 	struct m0_be_tx_remid   ffr_be_remid;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 
 extern struct m0_fop_type m0_fop_fsync_mds_fopt;

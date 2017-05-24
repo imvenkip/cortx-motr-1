@@ -72,7 +72,7 @@ struct m0_ss_process_req {
 	 * library.
 	 */
 	struct m0_buf ssp_param;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /** Response to m0_ss_process_req. */
 struct m0_ss_process_rep {
@@ -116,7 +116,7 @@ struct m0_ss_process_rep {
 	 * total disk space by df command.
 	 */
 	m0_bcount_t sspr_total_disk;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 struct m0_ss_process_svc_item {
 	struct m0_fid ssps_fid;
@@ -131,7 +131,7 @@ struct m0_ss_process_svc_list_rep {
 	 */
 	int32_t        sspr_rc;
 	struct m0_bufs sspr_services;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 M0_INTERNAL struct m0_fop *m0_ss_process_fop_create(struct m0_rpc_machine *mach,
 						    uint32_t               cmd,

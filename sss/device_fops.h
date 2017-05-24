@@ -164,7 +164,7 @@ struct m0_sss_device_fop {
 	 * Disk fid.
 	 */
 	struct m0_fid ssd_fid;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /** Response to m0_sss_device_fop. */
 struct m0_sss_device_fop_rep {
@@ -179,7 +179,7 @@ struct m0_sss_device_fop_rep {
 	 * case of M0_DEVICE_ATTACH command only.
 	 */
 	uint32_t ssdp_ha_state;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 
 M0_INTERNAL struct m0_fop *m0_sss_device_fop_create(struct m0_rpc_machine *mach,

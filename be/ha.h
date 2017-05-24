@@ -44,7 +44,7 @@ struct m0_be_io_err {
 	uint32_t ber_errcode; /* `int' is not xcodeable */
 	uint8_t  ber_location;   /**< @see m0_be_location for values */
 	uint8_t  ber_io_opcode;  /**< @see m0_stob_io_opcode for values */
-} M0_XCA_RECORD M0_XCA_DOMAIN(be);
+} M0_XCA_RECORD M0_XCA_DOMAIN(be|rpc);
 
 /**
  * Sends HA notification about BE I/O error.

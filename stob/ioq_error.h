@@ -54,7 +54,7 @@ struct m0_stob_ioq_error {
 	m0_bindex_t            sie_offset;
 	m0_bcount_t            sie_size;
 	uint32_t               sie_bshift;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /** @} end of stob group */
 #endif /* __MERO_STOB_IOQ_ERROR_H__ */

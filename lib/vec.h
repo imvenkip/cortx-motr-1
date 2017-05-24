@@ -48,7 +48,7 @@ struct m0_vec {
 	uint32_t     v_nr;
 	/** array of segment counts */
 	m0_bcount_t *v_count;
-} M0_XCA_SEQUENCE;
+} M0_XCA_SEQUENCE M0_XCA_DOMAIN(rpc);
 
 /** Returns total count of vector */
 M0_INTERNAL m0_bcount_t m0_vec_count(const struct m0_vec *vec);
@@ -549,7 +549,7 @@ M0_INTERNAL int m0_bufvec_to_data_copy(struct m0_bufvec_cursor *cur, void *data,
 struct m0_ioseg {
 	uint64_t ci_index;
 	uint64_t ci_count;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /**
  * Represents an index vector with {index, count}  tuples for a target
@@ -558,7 +558,7 @@ struct m0_ioseg {
 struct m0_io_indexvec {
 	uint32_t         ci_nr;
 	struct m0_ioseg *ci_iosegs;
-} M0_XCA_SEQUENCE;
+} M0_XCA_SEQUENCE M0_XCA_DOMAIN(rpc);
 
 /**
  * Represents sequence of index vector, one per network buffer.
@@ -569,7 +569,7 @@ struct m0_io_indexvec {
 struct m0_io_indexvec_seq {
 	uint32_t               cis_nr;
 	struct m0_io_indexvec *cis_ivecs;
-} M0_XCA_SEQUENCE;
+} M0_XCA_SEQUENCE M0_XCA_DOMAIN(rpc);
 
 M0_INTERNAL m0_bcount_t m0_io_count(const struct m0_io_indexvec *io_info);
 

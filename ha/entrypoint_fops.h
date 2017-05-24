@@ -107,7 +107,7 @@ struct m0_ha_entrypoint_rep_fop {
 	/* link parameters */
 	struct m0_ha_link_params hbp_link_params;
 	uint64_t                 hbp_link_do_reconnect;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 struct m0_ha_entrypoint_req_fop {
 	int32_t                  erf_first_request;
@@ -117,7 +117,7 @@ struct m0_ha_entrypoint_req_fop {
 	struct m0_ha_link_params erf_link_params;
 	struct m0_buf            erf_git_rev_id;
 	uint64_t                 erf_pid;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 struct m0_ha_entrypoint_req {
 	/**

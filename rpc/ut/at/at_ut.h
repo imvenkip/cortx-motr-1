@@ -53,12 +53,12 @@ enum {
 struct atut__req {
 	uint32_t             arq_test_id;
 	struct m0_rpc_at_buf arq_buf;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 struct atut__rep {
 	uint32_t             arp_rc;
 	struct m0_rpc_at_buf arp_buf;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 #endif /* __MERO_RPC_UT_AT_AT_UT_H__ */
 

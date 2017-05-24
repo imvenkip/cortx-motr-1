@@ -220,7 +220,7 @@ extern const struct m0_sm_conf m0_generic_conf;
 struct m0_fop_generic_reply {
 	int32_t           gr_rc;
 	struct m0_fop_str gr_msg;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 extern struct m0_fop_type m0_fop_generic_reply_fopt;
 
@@ -232,7 +232,7 @@ bool m0_rpc_item_is_generic_reply_fop(const struct m0_rpc_item *item);
 struct m0_fop_mod_rep {
 	/** Remote ID assigned to this UPDATE operation */
 	struct m0_be_tx_remid fmr_remid;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 M0_INTERNAL void m0_fom_mod_rep_fill(struct m0_fop_mod_rep *rep,
 				     struct m0_fom *fom);

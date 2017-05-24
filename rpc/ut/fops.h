@@ -30,7 +30,7 @@
 
 struct arrow {
 	uint64_t n;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 M0_INTERNAL void m0_rpc_test_fops_init(void);
 M0_INTERNAL void m0_rpc_test_fops_fini(void);

@@ -42,7 +42,7 @@ struct m0_ha_link_tags {
 	uint64_t hlt_delivered;
 	uint64_t hlt_next;
 	uint64_t hlt_assign;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 struct m0_ha_link_msg_fop {
 	uint64_t               lmf_msg_nr;
@@ -52,13 +52,13 @@ struct m0_ha_link_msg_fop {
 	struct m0_uint128      lmf_id_connection;
 	uint64_t               lmf_out_next;
 	uint64_t               lmf_in_delivered;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 struct m0_ha_link_msg_rep_fop {
 	int32_t                lmr_rc;
 	uint64_t               lmr_out_next;
 	uint64_t               lmr_in_delivered;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 struct m0_ha_link_params {
 	struct m0_uint128      hlp_id_local;
@@ -66,7 +66,7 @@ struct m0_ha_link_params {
 	struct m0_uint128      hlp_id_connection;
 	struct m0_ha_link_tags hlp_tags_local;
 	struct m0_ha_link_tags hlp_tags_remote;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 #define HLTAGS_F "(confirmed=%"PRIu64" delivered=%"PRIu64" next=%"PRIu64" "   \
 		 "assign=%"PRIu64")"

@@ -38,12 +38,12 @@
 
 struct m0_ha_msg_keepalive_req {
 	struct m0_uint128 kaq_id;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 struct m0_ha_msg_keepalive_rep {
 	struct m0_uint128 kap_id;
 	uint64_t          kap_counter;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 struct m0_ha_keepalive_handler {
 	struct m0_ha_dispatcher *kah_dispatcher;

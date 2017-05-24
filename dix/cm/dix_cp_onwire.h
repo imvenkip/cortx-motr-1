@@ -52,7 +52,7 @@ struct m0_dix_cpx {
 
 	struct m0_rpc_at_buf dcx_ab_key;
 	struct m0_rpc_at_buf dcx_ab_val;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 
 /** Initialises copy packet FOP type. */

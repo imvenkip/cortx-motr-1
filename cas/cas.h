@@ -94,7 +94,7 @@ struct m0_cas_hint {
 	struct m0_cookie ch_cookie;
 	/** Position of the record within the node. */
 	uint64_t         ch_index;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /**
  * Identifier of a CAS index.
@@ -113,7 +113,7 @@ struct m0_cas_id {
 	 * catalogue.
 	 */
 	struct m0_dix_layout   ci_layout;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /**
  * Key/value pair of RPC AT buffers.
@@ -121,7 +121,7 @@ struct m0_cas_id {
 struct m0_cas_kv {
 	struct m0_rpc_at_buf ck_key;
 	struct m0_rpc_at_buf ck_val;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /**
  * Vector of key/value RPC AT buffers.
@@ -129,7 +129,7 @@ struct m0_cas_kv {
 struct m0_cas_kv_vec {
 	uint64_t          cv_nr;
 	struct m0_cas_kv *cv_rec;
-} M0_XCA_SEQUENCE;
+} M0_XCA_SEQUENCE M0_XCA_DOMAIN(rpc);
 
 /**
  * CAS index record.
@@ -192,7 +192,7 @@ struct m0_cas_rec {
 	 * records.
 	 */
 	uint64_t             cr_rc;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /**
  * Vector of records.
@@ -200,7 +200,7 @@ struct m0_cas_rec {
 struct m0_cas_recv {
 	uint64_t           cr_nr;
 	struct m0_cas_rec *cr_rec;
-} M0_XCA_SEQUENCE;
+} M0_XCA_SEQUENCE M0_XCA_DOMAIN(rpc);
 
 /**
  * CAS operation flags.
@@ -294,7 +294,7 @@ struct m0_cas_op {
 	 * It's a bitmask of flags from m0_cas_op_flags enumeration.
 	 */
 	uint32_t           cg_flags;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /**
  * CAS-GET, CAS-PUT, CAS-DEL and CAS-CUR reply fops.
@@ -328,7 +328,7 @@ struct m0_cas_rep {
 
 	/** Returned values for an UPDATE operation, such as CAS-PUT. */
 	struct m0_fop_mod_rep   cgr_mod_rep;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 M0_EXTERN struct m0_reqh_service_type m0_cas_service_type;
 M0_EXTERN struct m0_fid               m0_cas_meta_fid;

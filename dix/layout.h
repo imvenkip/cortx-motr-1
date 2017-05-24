@@ -73,7 +73,7 @@ struct m0_dix_ldesc {
 	uint32_t            ld_hash_fnc;
 	struct m0_fid       ld_pver;
 	struct m0_dix_imask ld_imask;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 struct m0_dix_layout {
 	uint32_t dl_type;
@@ -81,7 +81,7 @@ struct m0_dix_layout {
 		uint64_t            dl_id   M0_XCA_TAG("DIX_LTYPE_ID");
 		struct m0_dix_ldesc dl_desc M0_XCA_TAG("DIX_LTYPE_DESCR");
 	} u;
-} M0_XCA_UNION;
+} M0_XCA_UNION M0_XCA_DOMAIN(rpc);
 
 struct m0_dix_linst {
 	struct m0_dix_ldesc        *li_ldescr;

@@ -35,7 +35,7 @@
 struct m0_net_buf_desc {
 	uint32_t  nbd_len;
 	uint8_t  *nbd_data;
-} M0_XCA_SEQUENCE;
+} M0_XCA_SEQUENCE M0_XCA_DOMAIN(rpc);
 
 /**
  * In order to provide support for partially filled network buffers this
@@ -45,7 +45,7 @@ struct m0_net_buf_desc {
 struct m0_net_buf_desc_data {
 	struct m0_net_buf_desc bdd_desc;
 	uint64_t               bdd_used;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 #endif /* __MERO_NET_NET_OTW_TYPES_H__ */
 

@@ -74,19 +74,19 @@ void m0_ut_fom_phase_set(struct m0_fom *fom, int phase);
  */
 struct cs_ds1_req_fop {
 	uint64_t csr_value;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 struct cs_ds1_rep_fop {
 	int32_t csr_rc;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 struct cs_ds2_req_fop {
 	uint64_t csr_value;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 struct cs_ds2_rep_fop {
 	int32_t csr_rc;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /* __MERO_MERO_UT_CS_UT_FOP_FOMS_H__ */
 #endif

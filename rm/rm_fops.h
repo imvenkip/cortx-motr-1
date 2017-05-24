@@ -74,15 +74,15 @@
 struct m0_rm_fop_owner {
 	struct m0_cookie ow_cookie;
 	struct m0_buf    ow_resource;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 struct m0_rm_fop_loan {
 	struct m0_cookie lo_cookie;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 struct m0_rm_fop_credit {
 	struct m0_buf cr_opaque;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 struct m0_rm_fop_req {
 	/* Could either be debtor or creditor */
@@ -96,13 +96,13 @@ struct m0_rm_fop_req {
 	struct m0_fid           rrq_orig_owner;
 	m0_time_t               rrq_orig_time;
 	uint64_t                rrq_orig_seq;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 struct m0_rm_fop_borrow {
 	struct m0_rm_fop_req   bo_base;
 	struct m0_rm_fop_owner bo_creditor;
 	struct m0_uint128      bo_group_id;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 struct m0_rm_fop_borrow_rep {
 	int32_t                     br_rc;
@@ -116,12 +116,12 @@ struct m0_rm_fop_borrow_rep {
 	 * request for resource, this cookie will be used.
 	 */
 	struct m0_cookie            br_creditor_cookie;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 struct m0_rm_fop_revoke {
 	struct m0_rm_fop_req  fr_base;
 	struct m0_rm_fop_loan fr_loan;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 struct m0_rm_fop_revoke_rep {
 	int32_t                     rr_rc;
@@ -132,12 +132,12 @@ struct m0_rm_fop_revoke_rep {
 	 * given to many debtors belonging to the same group.
 	 */
 	struct m0_cookie            rr_debtor_cookie;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 struct m0_rm_fop_cancel {
 	struct m0_rm_fop_loan fc_loan;
 	struct m0_cookie      fc_creditor_cookie;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /**
  * Externs

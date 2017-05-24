@@ -160,7 +160,7 @@ struct m0_ha_note {
 	struct m0_fid no_id;
 	/** State, from enum m0_ha_obj_state. */
 	uint32_t      no_state;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /**
  * "Note vector" describes changes in system state.
@@ -175,7 +175,7 @@ struct m0_ha_nvec {
 	 */
 	int32_t            nv_nr;
 	struct m0_ha_note *nv_note;
-} M0_XCA_SEQUENCE;
+} M0_XCA_SEQUENCE M0_XCA_DOMAIN(rpc);
 
 /**
  * Single "note vector" package.
@@ -199,7 +199,7 @@ enum {
 
 struct m0_ha_msg_nvec_array {
 	struct m0_ha_note hmna_arr[M0_HA_STATE_UPDATE_LIMIT];
-} M0_XCA_ARRAY;
+} M0_XCA_ARRAY M0_XCA_DOMAIN(rpc);
 
 struct m0_ha_msg_nvec {
 	/** M0_HA_NVEC_SET for note_set, M0_HA_NVEC_GET for note_get */
@@ -207,7 +207,7 @@ struct m0_ha_msg_nvec {
 	uint64_t                    hmnv_id_of_get;
 	uint64_t                    hmnv_nr;
 	struct m0_ha_msg_nvec_array hmnv_arr;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 #define M0_NVEC_PRINT(nvec_, label, level) ({			  \
 	int i;                                                    \

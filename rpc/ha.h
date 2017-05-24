@@ -36,6 +36,6 @@ struct m0_ha_msg_rpc {
 	uint64_t hmr_attempts;
 	/** @see m0_ha_obj_state for values */
 	uint64_t hmr_state;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 #endif /* __MERO_RPC_HA_H__ */

@@ -57,7 +57,7 @@ struct m0_fdmi_flt_id_arr {
 
 	/** Array of filter ids */
 	struct m0_fid  *fmf_flt_id;
-} M0_XCA_SEQUENCE;
+} M0_XCA_SEQUENCE M0_XCA_DOMAIN(rpc);
 
 /**
  * FDMI record body record notification FOP is sent with
@@ -74,7 +74,7 @@ struct m0_fop_fdmi_record {
 
 	/** List of matched filter IDs */
 	struct m0_fdmi_flt_id_arr  fr_matched_flts;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /**
  * FDMI record notification reply body
@@ -82,7 +82,7 @@ struct m0_fop_fdmi_record {
 /** @todo Q: Make it generic reply? */
 struct m0_fop_fdmi_record_reply {
 	m0_fdmi_rec_type_id_t frn_frt;   /**< FDMI record type */
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /**
  * FDMI record release request body
@@ -91,14 +91,14 @@ struct m0_fop_fdmi_record_reply {
 struct m0_fop_fdmi_rec_release {
 	struct m0_uint128     frr_frid;  /**< FDMI record id to release */
 	m0_fdmi_rec_type_id_t frr_frt;   /**< FDMI record type */
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /**
  * FDMI record release reply
  */
 struct m0_fop_fdmi_rec_release_reply {
 	int frrr_rc;                  /**< release request result */
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 
 M0_INTERNAL int m0_fdms_fop_init(void);

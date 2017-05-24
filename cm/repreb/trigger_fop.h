@@ -40,7 +40,7 @@ struct m0_xcode_type;
 struct failure_data {
 	uint32_t  fd_nr;
 	uint64_t *fd_index;
-} M0_XCA_SEQUENCE;
+} M0_XCA_SEQUENCE M0_XCA_DOMAIN(rpc);
 
 /**
  * Simplistic implementation of repair trigger fop for testing purposes
@@ -48,17 +48,17 @@ struct failure_data {
  */
 struct trigger_fop {
 	uint32_t op;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 struct trigger_rep_fop {
 	int32_t rc;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 struct m0_status_rep_fop {
 	int32_t  ssr_rc;
 	uint32_t ssr_state;
 	uint64_t ssr_progress;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 
 /** Initialises copy machine trigger FOP type. */

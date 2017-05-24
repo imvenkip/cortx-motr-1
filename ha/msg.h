@@ -104,7 +104,7 @@ struct m0_ha_msg_data {
 		struct m0_be_io_err              hed_be_io_err
 					M0_XCA_TAG("M0_HA_MSG_BE_IO_ERR");
 	} u;
-} M0_XCA_UNION;
+} M0_XCA_UNION M0_XCA_DOMAIN(rpc);
 
 struct m0_ha_msg {
 /* public fields */
@@ -116,7 +116,7 @@ struct m0_ha_msg {
 /* private fields */
 	/** unique across a pair of m0_ha_link tag */
 	uint64_t               hm_tag;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /** Returns m0_ha_msg tag. */
 M0_INTERNAL uint64_t m0_ha_msg_tag(const struct m0_ha_msg *msg);

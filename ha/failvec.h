@@ -45,14 +45,14 @@ struct m0_ha_dispatcher;
 struct m0_ha_msg_failure_vec_req {
 	struct m0_fid    mfq_pool;
 	struct m0_cookie mfq_cookie;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 struct m0_ha_msg_failure_vec_rep {
 	struct m0_fid               mfp_pool;
 	struct m0_cookie            mfp_cookie;
 	uint32_t                    mfp_nr;
 	struct m0_ha_msg_nvec_array mfp_vec;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 struct m0_ha_fvec_handler {
 	struct m0_tl             hfh_fvreq;

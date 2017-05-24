@@ -30,14 +30,14 @@
 struct ub_req {
 	uint64_t      uq_seqn; /**< Sequential number. */
 	struct m0_buf uq_data; /**< Data buffer. */
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /** RPC UB response. */
 struct ub_resp {
 	int32_t       ur_rc;
 	uint64_t      ur_seqn; /**< Sequential number. */
 	struct m0_buf ur_data; /**< Data buffer. */
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 extern struct m0_fop_type m0_rpc_ub_req_fopt;
 extern struct m0_fop_type m0_rpc_ub_resp_fopt;
