@@ -1242,8 +1242,9 @@ static int balloc_alloc_db_update(struct m0_balloc *mero,
 
 	balloc_debug_dump_extent("current=", cur);
 
-	if (m0_ext_length(cur) == grp->bgi_maxchunk) {
+	if (m0_ext_length(cur) == maxchunk) {
 		/* find chunk previous by size */
+		maxchunk = 0;
 		m0_list_for_each_entry(&grp->bgi_ext_list, le,
 				       struct m0_lext, le_link) {
 			if (&le->le_ext == cur)
