@@ -42,14 +42,18 @@ verbose=0
 
 NODE_UUID=`uuidgen`
 
+EEXIST=17
+
 interrupt() { echo "Interrupted by user" >&2; stop 2; }
 error() { echo "$@" >&2; stop 1; }
 
-start() {
+m0clovis_st_pre()
+{
 	sandbox_init
 }
 
-stop() {
+m0clovis_st_post()
+{
 	local rc=${1:-$?}
 
 	trap - SIGINT SIGTERM
@@ -266,13 +270,18 @@ putsN_exist()
 	rc=$?
 	[ $rc != 0 ] && return $rc
 	${CLOVISTOOL} ${create} >/dev/null
+	rc=$?
 	[ $rc != 0 ] && return $rc
 	${CLOVISTOOL} ${put_fid_key} >/dev/null
+	rc=$?
 	[ $rc != 0 ] && return $rc
 	${CLOVISTOOL} ${put_fid_keys} >${out_file}
-	[ $rc != 0 ] && return $rc
-	grep "operation rc:" ${out_file} >${rc_file}
-	# TODO: Check that -17 is returned
+	rc=$?
+	if [ $rc == $EEXIST ] ; then
+		rc=0
+	elif [ $rc == 0 ] ; then
+		rc=1
+	fi
 	rm_logs
 	return $rc
 }
@@ -284,10 +293,14 @@ bputsN_exist()
 	emsg="FAILED to put existing @keys:${keys_file} @vals:${vals_file} into ${fid}"
 	${CLOVISTOOL} ${dropf} ${create} ${put_fid_key} ${put_fid_keys} >${out_file}
 	rc=$?
-	[ $rc != 0 ] && return $rc
-	grep -B 1 "put done:" ${out_file} >${rc_file}
-	grep -v ": 0" ${rc_file} >${erc_file}
-	# TODO: Check that -17 is returned
+	if [ $rc == $EEXIST ] ; then
+		rc=`cat ${out_file} | grep "put done:" | awk '
+		BEGIN { rc = 0; }
+		{ if ((FNR == 1 && $3 != 0) || (FNR == 2 && $3 != -17)) rc = 1;}
+		END { exit rc; }'`
+	elif [ $rc == 0 ] ; then
+		rc=1
+	fi
 	rm_logs
 	return $rc
 }
@@ -668,7 +681,7 @@ stop_mero()
 	return $rc
 }
 
-start_tests()
+m0clovis_st_start_tests()
 {
 	local rc
 	local vflag=''
@@ -714,7 +727,7 @@ dixinit_exec()
 
 main()
 {
-	start
+	m0clovis_st_pre
 	if [ ${do_mero_start} == 1 ]; then
 		start_mero || error "Failed to start Mero service"
 		do_dixinit=1
@@ -723,8 +736,8 @@ main()
 	if [ ${do_dixinit} == 1 ]; then
 		dixinit_exec || error "m0dixinit failed ($?)!"
 	fi
-	start_tests
-	stop
+	m0clovis_st_start_tests
+	m0clovis_st_post
 }
 
 arg_list=("$@")
