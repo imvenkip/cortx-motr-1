@@ -71,9 +71,6 @@ const char *cr_workload_name[CWT_NR] = {
 	[CWT_CLOVIS_INDEX] = "clovis_index",
 };
 
-
-
-
 static int hpcs_init  (struct workload *w);
 static int hpcs_fini  (struct workload *w);
 static void hpcs_run   (struct workload *w, struct workload_task *task);
@@ -374,7 +371,6 @@ static void workload_run(struct workload *w)
 	M0_ALLOC_ARR(tasks, w->cw_nr_thread);
 	if (tasks == NULL)
 		return ;
-
         if (w->cw_block != 0 && w->cw_directio)
                 w->cw_block += getpagesize();
 
@@ -1226,6 +1222,7 @@ static void usage(void)
 "                      (with -D option) [0].\n"
 "-q                    Generate sequential offsets in workload.\n"
 "-T                    Parse trace log produced by crashed stob workload.\n"
+"-S <filename>         Read workload options from a yaml file.\n"
 "\n"
 "Numerical values can be in decimal, octal and hexadecimal as understood\n"
 "by strtoull(3), optionally followed by a suffix \'b\', \'k\', \'m\', \'g\',\n"
@@ -1258,8 +1255,8 @@ void print_workload_detail(struct workload *w, int idx)
 	cr_log(CLL_INFO, "Workload:%d:%p\n", idx, &w[0]);
 	for(i = 0; i <= idx; i++) {
 		cr_log(CLL_INFO, "File name:%s\n",
-		       ((struct clovis_workload_io *)
-			(w[i].u.cw_clovis_io))->src_filename);
+		 ((struct clovis_workload_io *)(
+		   w[i].u.cw_clovis_io))->cwi_filename);
 	}
 }
 
@@ -1321,8 +1318,9 @@ int main(int argc, char **argv)
                         w->cw_name = cr_workload_name[i];
                         continue;
 		case 'S':
-			rc = parse_yaml_file(load, CR_WORKLOAD_MAX, &idx,
-					     optarg);
+			/* All workloads are specified in a yaml file. */
+			M0_ASSERT(idx == -1);
+			rc = parse_yaml_file(load, CR_WORKLOAD_MAX, &idx, optarg);
 			if (rc != 0) {
 				printf("Unable to parse workload:%d\n", rc);
 				m0_free(load);

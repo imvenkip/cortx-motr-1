@@ -57,24 +57,6 @@ enum clovis_operation_type {
 	IO
 };
 
-enum clovis_operation_status {
-	OP_FINISHED = 1,
-	OP_FAILED
-};
-
-
-struct clovis_workload_io {
-	char                  *src_filename;
-	unsigned               layout_id;
-	unsigned               pool_id;
-	unsigned               iosize;
-	int		       mode;
-	int		       opcode;
-	int                    integrity;
-	int                    num_objs;
-	struct m0_uint128     *ids;
-};
-
 enum cr_opcode {
 	CRATE_OP_PUT,
 	CRATE_OP_GET,
@@ -131,6 +113,80 @@ struct clovis_workload_task {
 	struct m0_clovis_op  **ops;
 	struct timeval        *op_list_time;
 	struct m0_thread       mthread;
+};
+
+enum clovis_operations {
+	CR_CREATE,
+	CR_DELETE,
+	CR_READ,
+	CR_WRITE
+};
+
+enum clovis_operation_status {
+	CR_OP_NEW,
+	CR_OP_EXECUTING,
+	CR_OP_COMPLETE
+};
+
+enum clovis_thread_operation {
+	CR_WRITE_TO_SAME = 0,
+	CR_WRITE_TO_DIFF
+};
+
+struct cwi_global {
+	struct m0_uint128 cg_oid;
+	bool              cg_created;
+	int               cg_nr_tasks;
+	m0_time_t         cg_cwi_create_acc_time;
+	m0_time_t         cg_cwi_delete_acc_time;
+	m0_time_t         cg_cwi_write_acc_time;
+	struct m0_mutex   cg_mutex;
+};
+
+struct clovis_workload_io {
+	/** Clovis Workload global context. */
+	struct cwi_global cwi_g;
+	uint32_t          cwi_layout_id;
+	uint64_t          cwi_unit_size;
+	uint32_t          cwi_nr_units_per_op;
+	uint32_t          cwi_pool_id;
+	uint64_t          cwi_io_size;
+	uint32_t          cwi_max_nr_ops;
+	int32_t           cwi_mode;
+	int32_t           cwi_nr_objs;
+	uint32_t          cwi_rounds;
+	bool              cwi_random_io;
+	bool              cwi_share_object;
+	int32_t	          cwi_opcode;
+	uint64_t          cwi_start_time;
+	uint64_t          cwi_finish_time;
+	uint64_t          cwi_execution_time;
+	char             *cwi_filename;
+};
+
+struct cti_global {
+	struct m0_clovis_obj obj;
+};
+
+struct clovis_task_io {
+	struct clovis_workload_io *cti_cwi;
+	int                        cti_task_idx;
+	uint32_t		  *cti_op_status;
+	int32_t                    cti_progress;
+	uint64_t                   cti_start_offset;
+	struct m0_clovis_obj      *cti_objs;
+	struct m0_clovis_op      **cti_ops;
+	uint64_t                   cti_nr_ops;
+	struct timeval            *cti_op_list_time;
+	struct m0_thread          *cti_mthread;
+	char                      *cti_buffer;
+	struct m0_uint128         *cti_ids;
+	m0_time_t                  cti_create_acc_time;
+	m0_time_t                  cti_delete_acc_time;
+	m0_time_t                  cti_write_acc_time;
+	struct cti_global          cti_g;
+	/** Limit op_launch to max_nr_ops */
+	struct m0_semaphore        cti_max_ops_sem;
 };
 
 int parse_crate(int argc, char **argv, struct workload *w);

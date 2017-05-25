@@ -96,25 +96,25 @@ int clovis_init(struct workload *w)
 	clovis_conf.cc_process_fid           = conf->clovis_process_fid;
 	clovis_conf.cc_tm_recv_queue_min_len = M0_NET_TM_RECV_QUEUE_DEF_LEN;
 	clovis_conf.cc_max_rpc_msg_size      = M0_RPC_DEF_MAX_RPC_MSG_SIZE;
-	clovis_conf.cc_layout_id	     = conf->layout_id;
-	cass_conf.cc_cluster_ep              = conf->cass_cluster_ep;
-	cass_conf.cc_keyspace                = conf->cass_keyspace;
-	cass_conf.cc_max_column_family_num   = conf->col_family;
+	clovis_conf.cc_layout_id             = conf->layout_id;
 	clovis_conf.cc_idx_service_id        = conf->index_service_id;
 	clovis_block_size                    = conf->clovis_block_size;
 
 	if (clovis_conf.cc_idx_service_id == M0_CLOVIS_IDX_CASS) {
-		M0_IMPOSSIBLE("Unsupported");
+		cass_conf.cc_cluster_ep              = conf->cass_cluster_ep;
+		cass_conf.cc_keyspace                = conf->cass_keyspace;
+		cass_conf.cc_max_column_family_num   = conf->col_family;
 		clovis_conf.cc_idx_service_conf = &cass_conf;
-        }
-	else if (clovis_conf.cc_idx_service_id == M0_CLOVIS_IDX_DIX ||
-		 clovis_conf.cc_idx_service_id == M0_CLOVIS_IDX_MOCK) {
+        } else if (clovis_conf.cc_idx_service_id == M0_CLOVIS_IDX_DIX ||
+		   clovis_conf.cc_idx_service_id == M0_CLOVIS_IDX_MOCK) {
                 dix_config_init(&dix_conf);
                 clovis_conf.cc_idx_service_conf = &dix_conf;
-        }
-	else
-		M0_IMPOSSIBLE("Unknown index service id %d!",
-			      clovis_conf.cc_idx_service_id);
+        } else {
+		rc = -EINVAL;
+		cr_log(CLL_ERROR, "Unknown index service id:%d!",
+		       clovis_conf.cc_idx_service_id);
+		goto do_exit;
+	}
 
 	/* Clovis instance */
 	rc = m0_clovis_init(&clovis_instance, &clovis_conf, true);
@@ -168,7 +168,6 @@ int clovis_fini(struct workload *w)
 void clovis_check(struct workload *w)
 {
 }
-
 
 /** @} end of crate_clovis_utils group */
 
