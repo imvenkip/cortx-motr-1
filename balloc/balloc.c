@@ -1104,7 +1104,7 @@ static int balloc_find_extent_buddy(struct m0_balloc_allocation_context *bac,
 	start = grp->bgi_groupno << sb->bsb_gsbits;
 	end   = (grp->bgi_groupno + 1) << sb->bsb_gsbits;
 
-	M0_LOG(M0_DEBUG, "start=%lu len=%lu", start, len);
+	M0_LOG(M0_DEBUG, "gr_start=0x%"PRIx64" len=%lu", start, len);
 
 	m0_list_for_each_entry(&grp->bgi_ext_list, le, struct m0_lext,le_link) {
 		frag = &le->le_ext;
@@ -1152,8 +1152,6 @@ static int balloc_use_best_found(struct m0_balloc_allocation_context *bac)
 	m0_bindex_t grp = balloc_bn2gn(bac->bac_best.e_start, bac->bac_ctxt);
 	m0_bindex_t start = grp << bac->bac_ctxt->cb_sb.bsb_gsbits;
 	m0_bcount_t len = m0_ext_length(&bac->bac_goal);
-
-	M0_LOG(M0_DEBUG, "start=0x%"PRIx64, start);
 
 	while (start < bac->bac_best.e_start)
 		start += len;
@@ -1253,6 +1251,9 @@ static int balloc_alloc_db_update(struct m0_balloc *mero,
 					     m0_ext_length(&le->le_ext));
 		}
 	}
+
+	M0_LOG(M0_DEBUG, "bgi_maxchunk=0x%"PRIx64" maxchunk=0x%"PRIx64,
+	       grp->bgi_maxchunk, maxchunk);
 
 	if (cur->e_end == tgt->e_end) {
 		key = (struct m0_buf)M0_BUF_INIT_PTR(&cur->e_end);
@@ -2119,8 +2120,8 @@ static int balloc_free_internal(struct m0_balloc *ctx,
 	start = req->bfr_physical;
 	len = req->bfr_len;
 
-	M0_LOG(M0_DEBUG, "start=0x%llx len=0x%llx start_group=%llu "
-		"end_group=%llu group_count=%llu",
+	M0_LOG(M0_DEBUG, "bal=%p start=0x%llx len=0x%llx start_group=%llu "
+		"end_group=%llu group_count=%llu", ctx,
 		(unsigned long long)start,
 		(unsigned long long)len,
 		(unsigned long long)balloc_bn2gn(start, ctx),
@@ -2222,7 +2223,7 @@ static int balloc_alloc(struct m0_ad_balloc *ballroom, struct m0_dtx *tx,
 	int				 rc;
 	m0_bcount_t	                 freeblocks;
 
-	M0_ENTRY("goal=0x%lx count=%lu",
+	M0_ENTRY("bal=%p goal=0x%lx count=%lu", mero,
 			(unsigned long)out->e_start,
 			(unsigned long)count);
 	M0_PRE(count > 0);
