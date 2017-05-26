@@ -282,7 +282,7 @@ M0_BOB_DECLARE(M0_INTERNAL, m0_rm_loan);
 static inline enum m0_rm_incoming_state
 incoming_state(const struct m0_rm_incoming *in)
 {
-	return in->rin_sm.sm_state;
+	return (enum m0_rm_incoming_state)in->rin_sm.sm_state;
 }
 
 static inline struct m0_rm_resource *
@@ -294,7 +294,7 @@ incoming_to_resource(struct m0_rm_incoming *in)
 static inline enum m0_rm_owner_state
 owner_state(const struct m0_rm_owner *owner)
 {
-	return owner->ro_sm.sm_state;
+	return (enum m0_rm_owner_state)owner->ro_sm.sm_state;
 }
 
 static inline struct m0_sm_group *
