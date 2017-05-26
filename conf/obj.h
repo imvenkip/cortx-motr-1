@@ -24,6 +24,7 @@
 #include "conf/schema.h"    /* m0_conf_service_type */
 #include "ha/note.h"        /* m0_ha_obj_state */
 #include "layout/pdclust.h" /* m0_pdclust_attr */
+#include "lib/protocol.h"   /* m0_protocol_id */
 #include "lib/bob.h"
 
 struct m0_conf_obj_ops;
@@ -324,8 +325,8 @@ struct m0_conf_root {
 	 * ->rt_obj.co_parent == NULL: m0_conf_root is the topmost
 	 * object in a DAG of configuration objects.
 	 */
-	struct m0_conf_obj  rt_obj;
-	struct m0_conf_dir *rt_profiles;
+	struct m0_conf_obj    rt_obj;
+	struct m0_conf_dir   *rt_profiles;
 /* configuration data (for the application) */
 	/**
 	 * Version of the configuration database.
@@ -333,7 +334,8 @@ struct m0_conf_root {
 	 *
 	 * @note Value 0 is reserved and must not be used.
 	 */
-	uint64_t            rt_verno;
+	uint64_t              rt_verno;
+	struct m0_protocol_id rt_protocol;
 };
 
 struct m0_conf_profile {
