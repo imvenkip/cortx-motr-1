@@ -24,6 +24,7 @@ nobase_mero_include_HEADERS += lib/arith.h \
                                lib/misc.h \
                                lib/mutex.h \
                                lib/processor.h \
+                               lib/protocol.h \
                                lib/queue.h \
                                lib/refs.h \
                                lib/rwlock.h \
@@ -114,17 +115,19 @@ nodist_mero_libmero_la_SOURCES  += \
                            lib/buf_xc.c \
                            lib/cookie_xc.c \
                            lib/ext_xc.c \
+                           lib/protocol_xc.c \
                            lib/string_xc.c \
                            lib/types_xc.c \
                            lib/vec_xc.c
 
-XC_FILES += lib/buf_xc.h \
+XC_FILES += lib/bitmap_xc.h \
+            lib/buf_xc.h \
             lib/cookie_xc.h \
-            lib/vec_xc.h \
-	    lib/bitmap_xc.h \
-	    lib/types_xc.h \
-	    lib/ext_xc.h \
-	    lib/string_xc.h
+            lib/ext_xc.h \
+            lib/protocol_xc.h \
+            lib/string_xc.h \
+            lib/types_xc.h \
+            lib/vec_xc.h
 
 EXTRA_DIST += lib/linux_kernel/atomic64.h \
               lib/linux_kernel/finject_init.c \

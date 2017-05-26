@@ -27,6 +27,8 @@
 #include "fop/fop.h"
 #include "rpc/rpc_opcodes.h"
 #include "lib/types.h"
+#include "lib/protocol.h"
+#include "lib/protocol_xc.h"
 #include "xcode/xcode_attr.h"
 
 /**
@@ -81,7 +83,11 @@ struct m0_rpc_fop_conn_establish_ctx {
 };
 
 struct m0_rpc_fop_conn_establish {
-	uint64_t rce_unused;
+	/**
+	 * Protocol version string checked during rpc connection
+	 * establinshing procedure
+	 */
+	struct m0_protocol_id rce_protocol;
 } M0_XCA_RECORD;
 
 /**
