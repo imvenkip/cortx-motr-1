@@ -3,7 +3,7 @@ set -eu
 # set -x
 export PS4='+ [${FUNCNAME[0]:+${FUNCNAME[0]}:}${LINENO}] '
 
-VERSION=0.22
+VERSION=0.22.1
 
 IN_DIR=/var/mero # default value; overruled by CLI argument
 OUT_DATA_DIR=m0reportbug-data
@@ -20,6 +20,7 @@ STAGE_TIME_LIMIT=10 # seconds; if a stage runs longer, show its duration
 readonly START_DIR=$PWD
 
 umask 0002
+export LC_ALL=C
 
 main() {
     local g t
@@ -612,6 +613,8 @@ exit
 ###
 ### Date       Version Description
 ### ---------- ------- ----------------------------------------------------
+### 2017-05-26 0.22.1  Set LC_ALL=C.
+###
 ### 2017-03-30 0.22    * program_from_core(): If there is no executable name
 ###                      in `file' output, fall back to `gdb -batch'.
 ###                    * misc_files(): Do not complain if /etc/mero directory
