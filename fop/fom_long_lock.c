@@ -24,6 +24,8 @@
  * @{
  */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_FOP
+#include "lib/trace.h"
 #include "fop/fom_long_lock.h"
 #include "lib/arith.h"
 #include "lib/misc.h"
@@ -176,6 +178,8 @@ static bool can_lock(const struct m0_long_lock *lock,
 
 static void grant(struct m0_long_lock *lock, struct m0_long_lock_link *link)
 {
+	M0_ENTRY("lock=%p link=%p fom=%p", lock, link, link->lll_fom);
+
 	lock->l_state = link->lll_lock_type == M0_LONG_LOCK_READER ?
 		M0_LONG_LOCK_RD_LOCKED : M0_LONG_LOCK_WR_LOCKED;
 
@@ -236,14 +240,22 @@ M0_INTERNAL bool m0_long_lock(struct m0_long_lock *lock, bool write,
 		m0_long_read_lock(lock, link, next_phase);
 }
 
-static void unlock(struct m0_long_lock *lock, struct m0_long_lock_link *link)
+static void unlock(struct m0_long_lock *lock,
+		   struct m0_long_lock_link *link,
+		   bool check_ownership)
 {
-	struct m0_fom            *fom;
+	struct m0_fom            *fom = link->lll_fom;
 	struct m0_long_lock_link *next;
 
-	fom = link->lll_fom;
+	M0_ENTRY("lock=%p link=%p fom=%p check_ownership=%d",
+		 lock, link, link->lll_fom, !!check_ownership);
 
 	m0_mutex_lock(&lock->l_lock);
+	if (check_ownership && !m0_lll_tlist_contains(&lock->l_owners, link)) {
+		m0_mutex_unlock(&lock->l_lock);
+		return;
+	}
+
 	M0_PRE(lock_invariant(lock));
 	M0_PRE(m0_lll_tlist_contains(&lock->l_owners, link));
 	M0_PRE(m0_fom_group_is_locked(fom));
@@ -270,20 +282,19 @@ static void unlock(struct m0_long_lock *lock, struct m0_long_lock_link *link)
 M0_INTERNAL void m0_long_write_unlock(struct m0_long_lock *lock,
 				      struct m0_long_lock_link *link)
 {
-	unlock(lock, link);
+	unlock(lock, link, false);
 }
 
 M0_INTERNAL void m0_long_read_unlock(struct m0_long_lock *lock,
 				     struct m0_long_lock_link *link)
 {
-	unlock(lock, link);
+	unlock(lock, link, false);
 }
 
 M0_INTERNAL void m0_long_unlock(struct m0_long_lock *lock,
 				struct m0_long_lock_link *link)
 {
-	if (m0_lll_tlist_contains(&lock->l_owners, link))
-		unlock(lock, link);
+	unlock(lock, link, true);
 }
 
 M0_INTERNAL bool m0_long_is_read_locked(struct m0_long_lock *lock,
