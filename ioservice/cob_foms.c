@@ -1123,10 +1123,12 @@ static int ce_stob_edit(struct m0_fom *fom, struct m0_fom_cob_op *cd,
 	M0_ENTRY("fom %p, fom_type %d, cot %d, stob %p, "FID_F,
 		 fom, cd->fco_fop_type, cot, stob, FID_P(&stob->so_id.si_fid));
 
-	rc = cot == M0_COB_OP_DELETE ?
-			m0_storage_dev_stob_destroy(devs, stob, &fom->fo_tx) :
-			m0_indexvec_universal_set(&range) ?:
-			m0_stob_punch(stob, &range, &fom->fo_tx);
+	if (cot == M0_COB_OP_DELETE)
+		rc = m0_storage_dev_stob_destroy(devs, stob, &fom->fo_tx);
+	else
+		rc = m0_indexvec_universal_set(&range) ?:
+		     m0_stob_punch(stob, &range, &fom->fo_tx);
+
 	return M0_RC(rc);
 }
 
