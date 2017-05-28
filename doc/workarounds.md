@@ -19,3 +19,16 @@ List of workarounds for third-party libraries and external dependencies
   **References**:
     - [CASTOR-1990: Different sem_timedwait() behaviour on real cluster node and EC2 node](https://jts.seagate.com/browse/CASTOR-1990)
     - [Bug 1412082 - futex_abstimed_wait() always converts abstime to relative time](https://bugzilla.redhat.com/show_bug.cgi?id=1412082)
+
+* `sched_getcpu(3)` on KVM guest
+
+  **Problem**: `sched_getcpu(3)` can return 0 on a KVM guest system regardless of cpu number.
+
+  **Solution**: add run-time check and fall back to syscall `getcpu(2)` on problem system.
+
+  **Impact**: syscall leads to context switches.
+
+  **Source**: `lib/user_space/processor.c processor_getcpu_init()`
+
+  **References**:
+    - [MERO-2500: Mero panic: (locality == m0_locality_here()) at m0_locality_chores_run()](https://jts.seagate.com/browse/MERO-2500)

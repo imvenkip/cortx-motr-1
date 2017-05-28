@@ -1024,6 +1024,8 @@ static int processor_getcpu_init(void)
 	pg->pg_getcpu_workaround = false;
 	rc = processor_getcpu_check(&success);
 	if (rc == 0 && !success) {
+		M0_LOG(M0_WARN, "sched_getcpu(3) doesn't return expected"
+				"values, fall back to syscall getcpu(2).");
 		pg->pg_getcpu_workaround = true;
 		rc = processor_getcpu_check(&success);
 		if (rc == 0 && !success)
