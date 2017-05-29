@@ -29,6 +29,8 @@
 #include "lib/time.h"         /* m0_time_now */
 #include "lib/atomic.h"       /* m0_atomic64 */
 
+#include "mero/version.h"     /* m0_build_info_get */
+
 #include "stob/stob.h"        /* m0_stob */
 #include "stob/linux.h"       /* m0_stob_linux_container */
 
@@ -104,6 +106,9 @@ static int be_seg_hdr_create(struct m0_stob *stob, struct m0_be_seg_hdr *hdr)
 		M0_PRE(m0_is_aligned(g->sg_size, M0_BE_SEG_PAGE_SIZE));
 
 		hdr->bh_id = g->sg_id;
+		strncpy(hdr->bh_be_version,
+			m0_build_info_get()->bi_xcode_protocol_be_checksum,
+			M0_BE_SEG_HDR_VERSION_MAX);
 		m0_format_footer_update(hdr);
 		rc = m0_be_io_single(stob, SIO_WRITE, hdr, g->sg_offset,
 				     be_seg_hdr_size());
@@ -313,6 +318,7 @@ M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg)
 	struct m0_be_seg_hdr  hdr1;
 	struct m0_be_seg_hdr *hdr2;
 	const struct m0_be_seg_geom *g;
+	const char           *runtime_be_version;
 	void                 *p;
 	int                   rc;
 	int                   fd;
@@ -323,11 +329,19 @@ M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg)
 	rc = m0_be_io_single(seg->bs_stob, SIO_READ,
 			     &hdr1, M0_BE_SEG_HEADER_OFFSET, sizeof hdr1);
 	if (rc != 0)
-		return M0_RC(rc);
+		return M0_ERR(rc);
+
+	runtime_be_version = m0_build_info_get()->
+				bi_xcode_protocol_be_checksum;
+	if (strncmp(hdr1.bh_be_version, runtime_be_version,
+		    M0_BE_SEG_HDR_VERSION_MAX) != 0)
+		return M0_ERR_INFO(-EPROTO, "BE protocol checksum mismatch:"
+				   " expected '%s', stored on disk '%s'",
+				   runtime_be_version, (char*)hdr1.bh_be_version);
 
 	hdr2 = m0_alloc(be_seg_hdr_size());
 	if (hdr2 == NULL)
-		return M0_RC(-ENOMEM);
+		return M0_ERR(-ENOMEM);
 
 	rc = m0_be_io_single(seg->bs_stob, SIO_READ,
 			     hdr2, M0_BE_SEG_HEADER_OFFSET,
@@ -339,7 +353,7 @@ M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg)
 	g = be_seg_geom_find_by_id(hdr2, seg->bs_id);
 	if (g == NULL) {
 		m0_free(hdr2);
-		return M0_RC(-ENOENT);
+		return M0_ERR(-ENOENT);
 	}
 
 	/* XXX check for magic */
