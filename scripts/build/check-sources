@@ -141,7 +141,7 @@ sub check_include_guards
     my $include_files = File::Find::Rule->file()
                                         ->not( File::Find::Rule->symlink() )
                                         ->name('*.h')
-					->not( File::Find::Rule->name('debug.h') )
+                                        ->not( File::Find::Rule->name('debug.h') )
                                         ->not( File::Find::Rule->name('config.h') );
 
     my @files = File::Find::Rule->or( $exclude_dirs, $include_files )
@@ -160,7 +160,7 @@ sub check_include_guards
 
         warn $missing_pragma_msg
             if $content !~ / ^ \s* \# \s* pragma \s+ once \s* $ /xms
-	       and $file ne 'xcode/xlist.h';
+           and $file ne 'xcode/xlist.h';
 
         my ($include_guard_name)
             = $content =~ /
