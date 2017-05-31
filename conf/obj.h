@@ -361,6 +361,7 @@ struct m0_conf_filesystem {
 	 * @see "Index meta-data" section in dix/client.h for more information.
 	 */
 	struct m0_fid       cf_imeta_pver;
+	/** Metadata redundancy count. */
 	uint32_t            cf_redundancy;
 	/**
 	 * Filesystem parameters.

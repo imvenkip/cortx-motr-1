@@ -206,7 +206,7 @@ static char *_conf_filesystem_error(const struct m0_conf_filesystem *fs,
 				    FID_P(&fs->cf_obj.co_id));
 	if (fs->cf_redundancy > stats.cs_nr_ioservices)
 		return m0_vsnprintf(
-			buf, buflen, FID_F": `redundancy' (%u) exceeds"
+			buf, buflen, FID_F": metadata redundancy (%u) exceeds"
 			" the number of IO services (%u)",
 			FID_P(&fs->cf_obj.co_id), fs->cf_redundancy,
 			stats.cs_nr_ioservices);
