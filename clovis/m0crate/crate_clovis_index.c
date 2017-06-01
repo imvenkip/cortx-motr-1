@@ -1396,6 +1396,7 @@ void clovis_op_run_index(struct workload *w, struct workload_task *task,
 {
 	struct clovis_workload_task *clovis_task;
 	int                          rc;
+	bool			     is_m0_thread;
 
 	M0_PRE(crate_clovis_uber_realm() != NULL);
 	M0_PRE(crate_clovis_uber_realm()->re_instance != NULL);
@@ -1403,23 +1404,29 @@ void clovis_op_run_index(struct workload *w, struct workload_task *task,
 	if (NULL == M0_ALLOC_PTR(clovis_task)) {
 		crlog(CLL_ERROR, "Out of memory.");
 		exit(EXIT_FAILURE);
-		return;
 	}
 
-	rc = adopt_mero_thread(clovis_task);
-	if (rc != 0) {
-		crlog(CLL_ERROR, "Unable to adopt thread (%s)", strerror(-rc));
-		goto exit_free;
+	is_m0_thread = m0_thread_tls() != NULL;
+
+	if (!is_m0_thread) {
+		rc = adopt_mero_thread(clovis_task);
+		if (rc != 0) {
+			crlog(CLL_ERROR, "Unable to adopt thread (%s)",
+			      strerror(-rc));
+			goto exit_free;
+		}
 	}
 
 	rc = index_operation(w, clovis_task);
 	if (rc != 0) {
 		crlog(CLL_ERROR,
-		      "Failed to perform index operation (%s)", strerror(-rc));
-		goto exit_free;
+		      "Failed to perform index operation (%s)",
+		      strerror(-rc));
 	}
 
-	release_mero_thread(clovis_task);
+	if (!is_m0_thread) {
+		release_mero_thread(clovis_task);
+	}
 
 exit_free:
 	m0_free(clovis_task);
