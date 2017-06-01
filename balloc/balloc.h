@@ -67,7 +67,7 @@ struct m0_balloc_group_desc {
 	/** max contiguous free spare space. */
 	m0_bcount_t             bgd_spare_maxchunk;
 	struct m0_format_footer bgd_footer;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 enum m0_balloc_group_desc_format_version {
 	M0_BALLOC_GROUP_DESC_FORMAT_VERSION_1 = 1,
@@ -211,7 +211,7 @@ struct m0_balloc_super_block {
 	uint64_t	bsb_max_mnt_count;
 
         m0_bcount_t	bsb_stripe_size;      /**< stripe size in blocks */
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 enum m0_balloc_super_block_state {
 	M0_BALLOC_SB_DIRTY =  1 << 0,
@@ -260,7 +260,7 @@ struct m0_balloc {
 	/** super block lock */
 	struct m0_be_mutex           cb_sb_mutex;
 	struct m0_be_seg            *cb_be_seg;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 enum m0_balloc_format_version {
 	M0_BALLOC_FORMAT_VERSION_1 = 1,

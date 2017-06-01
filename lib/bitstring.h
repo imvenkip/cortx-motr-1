@@ -33,7 +33,7 @@
 struct m0_bitstring {
 	uint32_t b_len;
 	char     b_data[0];
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 /**
   Get a pointer to the data in the bitstring.

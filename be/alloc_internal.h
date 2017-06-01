@@ -62,7 +62,7 @@ struct be_alloc_chunk {
 	/** is chunk free? */
 	bool                       bac_free;
 	/** Allocator zone where chunk resides. */
-	enum m0_be_alloc_zone_type bac_zone;
+	uint32_t                   bac_zone M0_XCA_FENUM(m0_be_alloc_zone_type);
 	/**
 	 * M0_BE_ALLOC_MAGIC1
 	 * Used to find invalid memory access before allocated chunk.
@@ -74,7 +74,7 @@ struct be_alloc_chunk {
 	 * of bac_mem for allocated chunk.
 	 */
 	char                       bac_mem[0];
-};
+} M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 /**
  * @brief Allocator memory zone.
@@ -86,7 +86,7 @@ struct m0_be_alloc_zone {
 	m0_bcount_t baz_size;
 	/** Number of free bytes in zone. */
 	m0_bcount_t baz_free;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 /**
  * @brief Allocator header.
@@ -104,7 +104,7 @@ struct m0_be_allocator_header {
 	m0_bcount_t		      bah_size;		/**< memory size */
 	struct m0_be_alloc_zone       bah_zone[M0_BAP_NR]; /**< zones */
 	void			     *bah_addr;		/**< memory address */
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 /** @} end of be group */
 

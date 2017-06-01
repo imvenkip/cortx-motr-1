@@ -189,7 +189,7 @@ struct m0_be_emap_seg {
 	struct m0_ext     ee_ext;
 	/** Value associated with the extent. */
 	uint64_t          ee_val;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 /**
    Cursor iterating through the extent map.

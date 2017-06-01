@@ -103,7 +103,7 @@ enum {
  */
 struct m0_poolmach_versions {
 	uint64_t pvn_version[PVE_NR];
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 /**
  * Persistent pool machine state.
@@ -169,7 +169,7 @@ struct m0_poolmach_state {
 
 	struct m0_be_clink          pst_conf_exp;
 	struct m0_be_clink          pst_conf_ready;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 /**
  * pool machine. Data structure representing replicated pool state machine.
@@ -216,7 +216,7 @@ struct m0_poolmach_event {
 
         /** New state for this node or device. */
         uint32_t pe_state;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 /**
  * This link is used by pool machine to record all state change history.
@@ -241,7 +241,7 @@ struct m0_poolmach_event_link {
         struct m0_tlink             pel_linkage;
 
         uint64_t                    pel_magic;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 M0_INTERNAL uint32_t m0_poolmach_equeue_length(struct m0_poolmach *pm);
 

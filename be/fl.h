@@ -59,7 +59,7 @@ enum m0_be_fl_op {
  */
 struct m0_be_fl_size {
 	struct m0_be_list bfs_list;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 /** m0_be free list */
 struct m0_be_fl {
@@ -72,7 +72,7 @@ struct m0_be_fl {
 	 * @see m0_be_fl_add(), m0_be_fl_pick().
 	 */
 	struct m0_be_fl_size bfl_free[M0_BE_FL_NR + 1];
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 M0_INTERNAL void m0_be_fl_init(struct m0_be_fl *fl, struct m0_be_seg *seg);
 M0_INTERNAL void m0_be_fl_fini(struct m0_be_fl *fl);

@@ -73,7 +73,7 @@ struct m0_be_emap_key {
 	 */
 	m0_bindex_t             ek_offset;
 	struct m0_format_footer ek_footer;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 enum m0_be_emap_rec_format_version {
 	M0_BE_EMAP_REC_FORMAT_VERSION_1 = 1,
@@ -107,7 +107,7 @@ struct m0_be_emap_rec {
 	 */
 	uint64_t                er_value;
 	struct m0_format_footer er_footer;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 enum m0_be_emap_format_version {
 	M0_BE_EMAP_FORMAT_VERSION_1 = 1,
@@ -145,7 +145,7 @@ struct m0_be_emap {
 	struct m0_buf           em_val_buf;
 	struct m0_be_emap_key   em_key;
 	struct m0_be_emap_rec   em_rec;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 /** @} end group extmap */
 

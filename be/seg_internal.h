@@ -56,7 +56,7 @@ struct m0_be_seg_hdr {
 	 * before the m0_format_footer, where only persistent fields allowed
 	 */
 	struct m0_be_btree            bs_dict;  /**< Segment dictionary */
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 enum m0_be_seg_hdr_format_version {
 	M0_BE_SEG_HDR_FORMAT_VERSION_1 = 1,

@@ -49,13 +49,13 @@ struct m0_format_header {
 	 * @see  m0_format_header_pack(), m0_format_header_unpack()
 	 */
 	uint64_t hd_bits;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(be|rpc);
 
 /** Standard footer of a persistent object. */
 struct m0_format_footer {
 	uint64_t ft_magic;
 	uint64_t ft_checksum;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(be|rpc);
 
 struct m0_format_tag {
 	uint16_t ot_version;
@@ -174,7 +174,7 @@ struct m0_be_mutex {
 		struct m0_mutex mutex;
 		char            pad[M0_BE_MUTEX_PAD];
 	} bm_u;
-} M0_XCA_BLOB;
+} M0_XCA_BLOB M0_XCA_DOMAIN(be);
 M0_BASSERT(sizeof(struct m0_mutex) <=
 	   sizeof(M0_FIELD_VALUE(struct m0_be_mutex, bm_u.pad)));
 
@@ -183,7 +183,7 @@ struct m0_be_rwlock {
 		struct m0_rwlock rwlock;
 		char             pad[M0_BE_RWLOCK_PAD];
 	} bl_u;
-} M0_XCA_BLOB;
+} M0_XCA_BLOB M0_XCA_DOMAIN(be);
 M0_BASSERT(sizeof(struct m0_rwlock) <=
 	   sizeof(M0_FIELD_VALUE(struct m0_be_rwlock, bl_u.pad)));
 
@@ -192,7 +192,7 @@ struct m0_be_clink {
 		struct m0_clink clink;
 		char            pad[M0_BE_CLINK_PAD];
 	} bc_u;
-} M0_XCA_BLOB;
+} M0_XCA_BLOB M0_XCA_DOMAIN(be);
 M0_BASSERT(sizeof(struct m0_clink) <=
 	   sizeof(M0_FIELD_VALUE(struct m0_be_clink, bc_u.pad)));
 

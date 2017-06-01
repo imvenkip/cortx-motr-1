@@ -87,7 +87,7 @@ struct m0_be_seg_geom {
 	void                  *sg_addr;
 	m0_bcount_t            sg_offset;
 	uint64_t               sg_id;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 /* this is passed as the last element inside @geom of
  * m0_be_seg_create_multiple() */

@@ -48,13 +48,13 @@ enum {
 struct m0_be_allocator_call_stat {
 	unsigned long bcs_nr;
 	m0_bcount_t   bcs_size;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 struct m0_be_allocator_call_stats {
 	struct m0_be_allocator_call_stat bacs_alloc_success;
 	struct m0_be_allocator_call_stat bacs_alloc_failure;
 	struct m0_be_allocator_call_stat bacs_free;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 enum {
 	M0_BE_ALLOCATOR_STATS_BOUNDARY       = 1024,
@@ -102,7 +102,7 @@ struct m0_be_alloc_zone_stats {
 	uint32_t                           bzs_type M0_XCA_FENUM(
 							m0_be_alloc_zone_type);
 	struct m0_be_allocator_call_stats  bzs_stats;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 /**
  * @brief Allocator statistics
@@ -117,7 +117,7 @@ struct m0_be_allocator_stats {
 	struct m0_be_allocator_call_stats bas_stat1;
 	unsigned long                     bas_print_interval;
 	unsigned long                     bas_print_index;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 struct m0_be_allocator_header;
 

@@ -107,7 +107,7 @@ struct m0_cas_ctg {
 	 * meta.
 	 */
 	bool                    cc_inited;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 enum m0_cas_ctg_format_version {
 	M0_CAS_CTG_FORMAT_VERSION_1 = 1,
@@ -146,7 +146,7 @@ struct m0_cas_state {
 	 * Mutex to protect m0_cas_ctg init after load.
 	 */
 	struct m0_be_mutex      cs_ctg_init_mutex;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 /** Structure that describes catalogue operation. */
 struct m0_ctg_op {

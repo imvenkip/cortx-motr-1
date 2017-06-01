@@ -61,7 +61,7 @@ struct m0_be_seg;
  */
 struct m0_ad_balloc {
 	const struct m0_ad_balloc_ops *ab_ops;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 struct m0_ad_balloc_ops {
 	/** Initialises this balloc instance, creating its persistent state, if
@@ -118,7 +118,7 @@ struct m0_stob_ad_domain {
 	 */
 	struct m0_be_seg       *sad_be_seg;
 	uint64_t                sad_magix;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(be);
 M0_BASSERT(sizeof(M0_FIELD_VALUE(struct m0_stob_ad_domain, sad_path)) % 8 == 0);
 M0_BASSERT(sizeof(bool) == 1);
 

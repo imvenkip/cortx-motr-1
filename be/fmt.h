@@ -127,7 +127,7 @@ struct m0_be_fmt_log_record_header;
 struct m0_be_fmt_group_info {
 	/* there is nothing we can do with unknown field. */
 	uint64_t gi_unknown;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 struct m0_be_fmt_group_header {
 	struct m0_be_fmt_group_info fgh_info;
@@ -136,47 +136,47 @@ struct m0_be_fmt_group_header {
 	uint64_t                    fgh_tx_nr;
 	uint64_t                    fgh_reg_nr;
 	uint64_t                    fgh_magic;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 struct m0_be_fmt_content_header_tx {
 	uint64_t    chx_tx_id;
 	m0_bcount_t chx_payload_size;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 struct m0_be_fmt_content_header_txs {
 	uint32_t                            cht_nr;
 	struct m0_be_fmt_content_header_tx *cht_tx;
-} M0_XCA_SEQUENCE;
+} M0_XCA_SEQUENCE M0_XCA_DOMAIN(be);
 
 struct m0_be_fmt_content_header_reg {
 	m0_bcount_t  chg_size;
 	uint64_t     chg_addr; /* has to be (void *) */
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 struct m0_be_fmt_content_header_reg_area {
 	uint32_t                             chr_nr;
 	struct m0_be_fmt_content_header_reg *chr_reg;
-} M0_XCA_SEQUENCE;
+} M0_XCA_SEQUENCE M0_XCA_DOMAIN(be);
 
 struct m0_be_fmt_content_header {
 	struct m0_be_fmt_content_header_txs      fch_txs;
 	struct m0_be_fmt_content_header_reg_area fch_reg_area;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 struct m0_be_fmt_content_payloads {
 	uint32_t       fcp_nr;
 	struct m0_buf *fcp_payload;
-} M0_XCA_SEQUENCE;
+} M0_XCA_SEQUENCE M0_XCA_DOMAIN(be);
 
 struct m0_be_fmt_content_reg_area {
 	uint32_t       cra_nr;
 	struct m0_buf *cra_reg;
-} M0_XCA_SEQUENCE;
+} M0_XCA_SEQUENCE M0_XCA_DOMAIN(be);
 
 struct m0_be_fmt_content {
 	struct m0_be_fmt_content_payloads fmc_payloads;
 	struct m0_be_fmt_content_reg_area fmc_reg_area;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 /* -------------------------------------------------------------------------- */
 
@@ -195,7 +195,7 @@ struct m0_be_fmt_log_store_header {
 	/* circular buffer configuration */
 	m0_bindex_t fsh_cbuf_offset;
 	m0_bcount_t fsh_cbuf_size;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 struct m0_be_fmt_group_cfg;
 
@@ -204,7 +204,7 @@ struct m0_be_fmt_log_header {
 	m0_bindex_t flh_discarded;
 	m0_bindex_t flh_group_lsn;
 	m0_bcount_t flh_group_size;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 struct m0_be_fmt_group {
 	struct m0_be_fmt_group_header      fg_header;
@@ -217,7 +217,7 @@ struct m0_be_fmt_group {
 	 * m0_be_fmt_group_init().
 	 */
 	uint64_t                           fg_cfg;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 M0_BASSERT(sizeof(((struct m0_be_fmt_group *)NULL)->fg_cfg) ==
 	   sizeof(struct m0_be_fmt_group_cfg *));
@@ -227,7 +227,7 @@ struct m0_be_fmt_cblock {
 	uint64_t gcb_size;
 	uint64_t gcb_tx_nr;
 	uint64_t gcb_magic;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 struct m0_be_fmt_group_cfg {
 	uint64_t fgc_tx_nr_max;
@@ -239,7 +239,7 @@ struct m0_be_fmt_group_cfg {
 
 struct m0_be_fmt_log_record_footer {
 	m0_bindex_t lrf_pos;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 struct m0_be_fmt_log_record_header_cfg {
 	uint64_t lrhc_io_nr_max;
@@ -248,7 +248,7 @@ struct m0_be_fmt_log_record_header_cfg {
 struct m0_be_fmt_log_record_header_io_size {
 	uint32_t     lrhs_nr;
 	m0_bcount_t *lrhs_size;
-} M0_XCA_SEQUENCE;
+} M0_XCA_SEQUENCE M0_XCA_DOMAIN(be);
 
 struct m0_be_fmt_log_record_header {
 	m0_bindex_t                            lrh_pos;
@@ -258,7 +258,7 @@ struct m0_be_fmt_log_record_header {
 	m0_bindex_t                            lrh_prev_size;
 	uint64_t                               lrh_io_nr_max;
 	struct m0_be_fmt_log_record_header_io_size lrh_io_size;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 #define BFLRH_F "(pos=%"PRIu64" size=%"PRIu64" discarded=%"PRIu64" " \
 		"prev_pos=%"PRIu64" prev_size=%"PRIu64" io_nr_max=%"PRIu64")"

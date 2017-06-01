@@ -61,7 +61,7 @@ struct m0_be_btree {
 	struct m0_be_seg                *bb_seg;
 	/** operation vector, treating keys and values, given by the user */
 	const struct m0_be_btree_kv_ops *bb_ops;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 enum m0_be_btree_format_version {
 	M0_BE_BTREE_FORMAT_VERSION_1 = 1,

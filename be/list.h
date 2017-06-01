@@ -62,7 +62,7 @@ struct m0_be_list {
 	 * volatile-only fields
 	 */
 	struct m0_be_seg        *bl_seg;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 /** List operations that modify memory. */
 enum m0_be_list_op {

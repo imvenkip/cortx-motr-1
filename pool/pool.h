@@ -375,7 +375,7 @@ struct m0_poolnode {
 	/** Pool node identity. */
 	struct m0_fid           pn_id;
 	struct m0_format_footer pn_footer;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(be);
 M0_BASSERT(sizeof(enum m0_pool_nd_state) == 4);
 
 enum m0_poolnode_format_version {
@@ -426,7 +426,7 @@ struct m0_pooldev {
 	uint64_t                pd_magic;
 
 	struct m0_format_footer pd_footer;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 enum m0_pooldev_format_version {
 	M0_POOLDEV_FORMAT_VERSION_1 = 1,
@@ -454,7 +454,7 @@ struct m0_pool_spare_usage {
 	/** state of the device to use this spare slot */
 	uint32_t                psu_device_state M0_XCA_FENUM(m0_pool_nd_state);
 	struct m0_format_footer psu_footer;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 enum m0_pool_spare_usage_format_version {
 	M0_POOL_SPARE_USAGE_FORMAT_VERSION_1 = 1,

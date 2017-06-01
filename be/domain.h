@@ -68,7 +68,7 @@ struct m0_be_log;
 
 struct m0_be_0type_log_cfg {
 	struct m0_stob_id blc_stob_id;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 struct m0_be_0type_seg_cfg {
 	uint64_t     bsc_stob_key;
@@ -76,7 +76,7 @@ struct m0_be_0type_seg_cfg {
 	m0_bcount_t  bsc_size;
 	void	    *bsc_addr;
 	const char  *bsc_stob_create_cfg;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 struct m0_be_domain_cfg {
 	/** BE engine configuration. */
