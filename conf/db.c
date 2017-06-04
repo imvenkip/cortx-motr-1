@@ -40,7 +40,11 @@ static void confdb_table_fini(struct m0_be_seg *seg);
 struct __pack {
 	struct m0_xcode_type  _p_xt;
 	struct m0_xcode_field _p_field[M0_CONF_OBJ_TYPE_MAX];
-} conx_obj;
+} conx_obj = {
+	._p_xt = {
+		.xct_name = "m0_confx_obj",
+	},
+};
 
 M0_BASSERT(&conx_obj._p_xt.xct_child[0] == &conx_obj._p_field[0]);
 
