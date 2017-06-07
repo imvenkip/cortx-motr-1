@@ -185,8 +185,7 @@ static void storage_dev_test(void)
 	M0_UT_ASSERT(space.sds_block_size  == block_size);
 	/* Free blocks don't include blocks for reserved groups and we have
 	 * only one non-reserved group */
-	M0_UT_ASSERT(space.sds_free_blocks == BALLOC_DEF_BLOCKS_PER_GROUP -
-		     m0_stob_ad_spares_calc(BALLOC_DEF_BLOCKS_PER_GROUP));
+	M0_UT_ASSERT(space.sds_free_blocks == BALLOC_DEF_BLOCKS_PER_GROUP);
 	M0_UT_ASSERT(space.sds_total_size  == total_size);
 
 

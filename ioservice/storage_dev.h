@@ -268,6 +268,7 @@ M0_INTERNAL void m0_storage_devs_detach_all(struct m0_storage_devs *devs);
 struct m0_storage_space {
 	m0_bcount_t sds_free_blocks;
 	m0_bcount_t sds_block_size;
+	m0_bcount_t sds_avail_blocks;
 	m0_bcount_t sds_total_size;
 };
 

@@ -1753,6 +1753,7 @@ static void spiel_process_health_replied_ast(struct m0_sm_group *grp,
 			ctx->fx_free_seg    += rep->sspr_free_seg;
 			ctx->fx_total_seg   += rep->sspr_total_seg;
 			ctx->fx_free_disk   += rep->sspr_free_disk;
+			ctx->fx_avail_disk  += rep->sspr_avail_disk;
 			ctx->fx_total_disk  += rep->sspr_total_disk;
 			ctx->fx_svc_replied += proc->spi_svc_count;
 		}
@@ -2042,6 +2043,7 @@ M0_INTERNAL int m0_spiel__fs_stats_fetch(struct m0_spiel_core *spc,
 		.fs_free_seg = fsx.fx_free_seg,
 		.fs_total_seg = fsx.fx_total_seg,
 		.fs_free_disk = fsx.fx_free_disk,
+		.fs_avail_disk = fsx.fx_avail_disk,
 		.fs_total_disk = fsx.fx_total_disk,
 		.fs_svc_total = fsx.fx_svc_total,
 		.fs_svc_replied = fsx.fx_svc_replied,

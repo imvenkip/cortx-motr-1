@@ -102,10 +102,15 @@ struct m0_ss_process_rep {
 	 */
 	m0_bcount_t sspr_total_seg;
 	/**
-	 * Filesystem stats - free space on disks. This will be reported as
-	 * free disk space by df command.
+	 * Filesystem stats - free space on disks. This will be the difference
+	 * between total space in cluster and space consumed by user data.
 	 */
 	m0_bcount_t sspr_free_disk;
+	/**
+	 * Filesystem stats - space available for user data on disks. This will
+	 * be reported as available disk space by  df command.
+	 */
+	m0_bcount_t sspr_avail_disk;
 	/**
 	 * Filesystem stats - total space on disks. This will be reported as
 	 * total disk space by df command.

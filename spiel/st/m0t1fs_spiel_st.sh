@@ -478,6 +478,7 @@ if rc != 0:
 
 spiel.rconfc_stop()
 print("  free space       {0:>20}".format(fs_stats.fs_free_disk))
+print("  available space  {0:>20}".format(fs_stats.fs_avail_disk))
 print("  total space      {0:>20}".format(fs_stats.fs_total_disk))
 print("  services total   {0:>20}".format(fs_stats.fs_svc_total))
 print("  services replied {0:>20}".format(fs_stats.fs_svc_replied))

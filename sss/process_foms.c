@@ -333,6 +333,11 @@ consider_DS_in_ut:
 		if (m0_addu64_will_overflow(rep->sspr_free_disk, free_space))
 			return M0_ERR(-EOVERFLOW);
 		rep->sspr_free_disk += free_space;
+		m0_bcount_t avail_space = sp.sds_avail_blocks *
+						sp.sds_block_size;
+		if (m0_addu64_will_overflow(rep->sspr_avail_disk, avail_space))
+			return M0_ERR(-EOVERFLOW);
+		rep->sspr_avail_disk += avail_space;
 	} m0_tl_endfor;
 
 	return M0_RC(0);

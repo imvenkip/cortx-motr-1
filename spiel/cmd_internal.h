@@ -73,6 +73,7 @@ struct _fs_stats_ctx {
 	m0_bcount_t           fx_free_seg;    /**< free space in BE segments */
 	m0_bcount_t           fx_total_seg;   /**< total space in BE segments */
 	m0_bcount_t           fx_free_disk;   /**< free space on disks */
+	m0_bcount_t           fx_avail_disk;  /**< space available for user data */
 	m0_bcount_t           fx_total_disk;  /**< total space on disks */
 	struct m0_tl          fx_items;       /**< m0_fid_item list    */
 	struct m0_fid         fx_fid;         /**< filesystem fid      */

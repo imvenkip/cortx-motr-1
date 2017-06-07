@@ -1266,6 +1266,7 @@ struct m0_fs_stats {
 	m0_bcount_t fs_free_seg;    /**< free bytes in BE segments */
 	m0_bcount_t fs_total_seg;   /**< total bytes in BE segments */
 	m0_bcount_t fs_free_disk;   /**< fs free bytes on disks */
+	m0_bcount_t fs_avail_disk;  /**< fs available bytes on disks. */
 	m0_bcount_t fs_total_disk;  /**< fs total bytes on disks */
 	uint32_t    fs_svc_total;   /**< fs total IOS and MDS count  */
 	uint32_t    fs_svc_replied; /**< fs services replied to call */

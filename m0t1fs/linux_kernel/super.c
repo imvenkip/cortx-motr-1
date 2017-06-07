@@ -246,7 +246,7 @@ static int m0t1fs_statfs(struct dentry *dentry, struct kstatfs *buf)
 		buf->f_files   = stats.fs_total_seg / 512;
 		buf->f_ffree   = stats.fs_free_seg / 512;
 
-		buf->f_bavail  = buf->f_bfree;
+		buf->f_bavail  = stats.fs_avail_disk / buf->f_bsize;
 		buf->f_namelen = M0T1FS_NAME_LEN;
 		buf->f_type    = M0_T1FS_SUPER_MAGIC;
 	}

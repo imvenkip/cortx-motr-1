@@ -621,9 +621,11 @@ M0_INTERNAL void m0_storage_dev_space(struct m0_storage_dev   *dev,
 		M0_ASSERT(balloc != NULL);
 
 		*space = (struct m0_storage_space) {
-			.sds_free_blocks = balloc->cb_sb.bsb_freeblocks,
+			.sds_free_blocks = balloc->cb_sb.bsb_freeblocks +
+						balloc->cb_sb.bsb_freespare,
 			.sds_block_size  = balloc->cb_sb.bsb_blocksize,
-			.sds_total_size  = balloc->cb_sb.bsb_totalsize
+			.sds_avail_blocks = balloc->cb_sb.bsb_freeblocks,
+			.sds_total_size  = balloc->cb_sb.bsb_totalsize,
 		};
 		break;
 	case M0_STORAGE_DEV_TYPE_LINUX:
@@ -640,6 +642,7 @@ M0_INTERNAL void m0_storage_dev_space(struct m0_storage_dev   *dev,
 			*space = (struct m0_storage_space) {
 				.sds_free_blocks = st.f_bfree,
 				.sds_block_size  = st.f_bsize,
+				.sds_avail_blocks = st.f_bfree,
 				.sds_total_size  = st.f_blocks * st.f_bsize
 			};
 		if (rc != 0)
