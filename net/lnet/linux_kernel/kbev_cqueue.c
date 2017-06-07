@@ -42,7 +42,7 @@ static struct nlx_core_bev_link *bev_cqueue_pnext(
 
 	M0_PRE(bev_cqueue_invariant(q));
 	loc = &q->cbcq_producer_loc;
-	M0_PRE(nlx_core_kmem_loc_invariant(loc) && loc->kl_page != NULL);
+	M0_PRE(nlx_core_kmem_loc_invariant(loc) && _0C(loc->kl_page != NULL));
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,0)
 	ptr = kmap_atomic(loc->kl_page);
 #else

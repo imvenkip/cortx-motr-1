@@ -80,8 +80,8 @@ static uint32_t nlx_core_kmem_loc_checksum(const struct nlx_core_kmem_loc *loc);
 static inline bool nlx_core_kmem_loc_invariant(
 					   const struct nlx_core_kmem_loc *loc)
 {
-	return loc != NULL && loc->kl_page != NULL &&
-		loc->kl_checksum == nlx_core_kmem_loc_checksum(loc);
+	return _0C(loc != NULL) && _0C(loc->kl_page != NULL) &&
+		_0C(loc->kl_checksum == nlx_core_kmem_loc_checksum(loc));
 }
 
 /**
