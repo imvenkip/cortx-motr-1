@@ -341,6 +341,11 @@ M0_INTERNAL bool m0_stob_domain__dom_key_is_valid(uint64_t dom_key)
 	return (dom_key & 0xFFULL << 56) == 0;
 }
 
+M0_INTERNAL bool m0_stob_domain_is_of_type(const struct m0_stob_domain *dom,
+					   const struct m0_stob_type *dt)
+{
+	return m0_stob_type_id_get(dom->sd_type) == m0_stob_type_id_get(dt);
+}
 /** @} end of stob group */
 
 /*

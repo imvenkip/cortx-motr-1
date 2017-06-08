@@ -130,7 +130,7 @@ M0_INTERNAL struct m0_stob_type *m0_stob_type_by_name(const char *name);
 M0_INTERNAL uint8_t m0_stob_type_id_by_name(const char *name);
 
 /** Gets stob type id for the given stob type. */
-M0_INTERNAL uint8_t m0_stob_type_id_get(struct m0_stob_type *type);
+M0_INTERNAL uint8_t m0_stob_type_id_get(const struct m0_stob_type *type);
 /** Gets stob type name for the given stob type. */
 M0_INTERNAL const char *m0_stob_type_name_get(struct m0_stob_type *type);
 

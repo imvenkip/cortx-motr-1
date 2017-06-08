@@ -223,6 +223,9 @@ M0_INTERNAL const struct m0_fid *
 m0_stob_domain_id_get(struct m0_stob_domain *dom);
 /** Returns stob domain location. */
 M0_INTERNAL const char *m0_stob_domain_location_get(struct m0_stob_domain *dom);
+/** Determines if stob domain hosts the stobs of given type. */
+M0_INTERNAL bool m0_stob_domain_is_of_type(const struct m0_stob_domain *dom,
+					   const struct m0_stob_type *dt);
 /**
  * Sets stob domain id.
  *

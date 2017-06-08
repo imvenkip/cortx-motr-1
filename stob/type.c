@@ -157,7 +157,7 @@ M0_INTERNAL void m0_stob_type_deregister(struct m0_stob_type *type)
 	m0_mutex_fini(&type->st_domains_lock);
 }
 
-M0_INTERNAL uint8_t m0_stob_type_id_get(struct m0_stob_type *type)
+M0_INTERNAL uint8_t m0_stob_type_id_get(const struct m0_stob_type *type)
 {
 	return type->st_fidt.ft_id;
 }

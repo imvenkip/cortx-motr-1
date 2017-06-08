@@ -103,6 +103,7 @@ M0_INTERNAL struct m0_stob_linux *m0_stob_linux_container(struct m0_stob *stob)
 M0_INTERNAL struct m0_stob_linux_domain *
 m0_stob_linux_domain_container(struct m0_stob_domain *dom)
 {
+	M0_PRE(m0_stob_domain_is_of_type(dom, &m0_stob_linux_type));
 	return container_of(dom, struct m0_stob_linux_domain, sld_dom);
 }
 
@@ -523,6 +524,8 @@ M0_INTERNAL int m0_stob_linux_reopen(struct m0_stob_id *stob_id,
 	int                 rc;
 
 	rc = m0_stob_find(stob_id, &bstore);
+	M0_ASSERT(m0_stob_domain_is_of_type(bstore->so_domain,
+					    &m0_stob_linux_type));
 	st = m0_stob_state_get(bstore);
 	M0_ASSERT(st == CSS_EXISTS);
 	/*
@@ -557,6 +560,8 @@ m0_stob_linux_conf_sdev_associate(struct m0_stob      *stob,
 {
 	struct m0_stob_linux *lstob = m0_stob_linux_container(stob);
 
+	M0_PRE(m0_stob_domain_is_of_type(stob->so_domain, &m0_stob_linux_type));
+
 	lstob->sl_conf_sdev = *conf_sdev;
 }
 
@@ -565,6 +570,7 @@ M0_INTERNAL int m0_stob_linux_domain_fd_get(struct m0_stob_domain *dom, int *fd)
 	char *path;
 	int   rc;
 
+	M0_PRE(m0_stob_domain_is_of_type(dom, &m0_stob_linux_type));
 	path = stob_linux_file_domain_id(dom->sd_location_data);
 	if (path == NULL)
 		return M0_ERR(-EOVERFLOW);
@@ -584,6 +590,8 @@ M0_INTERNAL int m0_stob_linux_domain_fd_put(struct m0_stob_domain *dom, int fd)
 M0_INTERNAL bool m0_stob_linux_domain_directio(struct m0_stob_domain *dom)
 {
 	struct m0_stob_linux_domain *ldom = m0_stob_linux_domain_container(dom);
+
+	M0_PRE(m0_stob_domain_is_of_type(dom, &m0_stob_linux_type));
 
 	return ldom->sld_cfg.sldc_use_directio;
 }

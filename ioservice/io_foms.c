@@ -1762,7 +1762,9 @@ static int io_launch(struct m0_fom *fom)
 		 * write goes
 		 * (spare or non-spare unit of a parity group).
 		 */
-		if (m0_is_write_fop(fop))
+		if (m0_is_write_fop(fop) &&
+		    m0_stob_domain_is_of_type(stob->so_domain,
+					      &m0_stob_ad_type))
 			m0_stob_ad_balloc_set(stio, M0_BALLOC_NORMAL_ZONE);
 		rc = m0_stob_io_launch(stio, fom_obj->fcrw_stob,
 				       &fom->fo_tx, NULL);
@@ -1854,8 +1856,9 @@ static int io_finish(struct m0_fom *fom)
 		struct m0_stob_io *stio;
 
 		stio = &stio_desc->siod_stob_io;
-		m0_stob_ad_balloc_clear(stio);
-
+		if (m0_stob_domain_is_of_type(stio->si_obj->so_domain,
+					      &m0_stob_ad_type))
+			m0_stob_ad_balloc_clear(stio);
 		if (stio->si_rc != 0) {
 			rc = stio->si_rc;
 		} else {

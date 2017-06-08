@@ -31,6 +31,7 @@
 #include "sns/cm/file.h"
 
 #include "stob/domain.h"           /* m0_stob_domain_find_by_stob_id */
+#include "stob/ad.h"               /* m0_stob_ad_type */
 #include "ioservice/storage_dev.h" /* m0_storage_dev_stob_find */
 #include "ioservice/io_foms.h"     /* m0_io_cob_stob_create */
 #include "ioservice/fid_convert.h" /* m0_fid_convert_stob2cob */
@@ -257,7 +258,9 @@ static int cp_io(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
 			if (sns_op == SNS_REPAIR)
 				balloc_flags = M0_BALLOC_NORMAL_ZONE |
 					M0_BALLOC_SPARE_ZONE;
-			m0_stob_ad_balloc_set(stio, balloc_flags);
+			if (m0_stob_domain_is_of_type(stob->so_domain,
+						      &m0_stob_ad_type))
+				m0_stob_ad_balloc_set(stio, balloc_flags);
 			rc = m0_stob_io_launch(stio, stob, &cp_fom->fo_tx,
 					       NULL);
 		} else {

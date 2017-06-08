@@ -2010,6 +2010,10 @@ M0_INTERNAL void m0_stob_ad_balloc_clear(struct m0_stob_io *io)
 {
 	struct m0_stob_ad_io *aio = io->si_stob_private;
 
+	M0_PRE(aio != NULL);
+	M0_PRE(m0_stob_domain_is_of_type(io->si_obj->so_domain,
+					 &m0_stob_ad_type));
+
 	aio->ai_balloc_flags = 0;
 }
 
