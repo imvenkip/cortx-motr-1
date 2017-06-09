@@ -35,13 +35,13 @@
 struct m0_buf {
 	m0_bcount_t b_nob;
 	void       *b_addr;
-} M0_XCA_SEQUENCE;
+} M0_XCA_SEQUENCE M0_XCA_DOMAIN(rpc|conf);
 
 /** Sequence of memory buffers. */
 struct m0_bufs {
 	uint32_t       ab_count;
 	struct m0_buf *ab_elems;
-} M0_XCA_SEQUENCE;
+} M0_XCA_SEQUENCE M0_XCA_DOMAIN(rpc|conf);
 
 /**
  * Initialisers for struct m0_buf.

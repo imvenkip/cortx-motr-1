@@ -93,7 +93,7 @@ struct m0_conf_ha_process {
 	 * @see m0_conf_ha_service:chs_pid, m0_process().
 	 */
 	uint64_t chp_pid;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /**
  * Service event.
@@ -141,7 +141,7 @@ struct m0_conf_ha_service {
 	 * @see m0_conf_ha_process:chp_pid, m0_process().
 	 */
 	uint64_t chs_pid;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /** Sends notification about process state to HA */
 M0_INTERNAL void

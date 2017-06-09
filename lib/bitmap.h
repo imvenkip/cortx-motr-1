@@ -49,7 +49,7 @@ struct m0_bitmap_onwire {
 	size_t    bo_size;
 	/** Words with bits. */
 	uint64_t *bo_words;
-} M0_XCA_SEQUENCE;
+} M0_XCA_SEQUENCE M0_XCA_DOMAIN(rpc|conf);
 
 /**
    Initialise a bitmap to hold nr bits. The array to store bits is

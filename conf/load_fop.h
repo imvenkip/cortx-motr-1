@@ -82,7 +82,7 @@ struct m0_fop_conf_load_rep {
 	int32_t  clfr_rc;
 	/** Current version number */
 	uint32_t clfr_version;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /**
  * FOP request.
@@ -97,7 +97,7 @@ struct m0_fop_conf_load {
 	 * the data buffer.
 	 */
 	struct m0_net_buf_desc_data clf_desc;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 #endif /* __MERO_CONF_LOAD_FOP_H__ */
 

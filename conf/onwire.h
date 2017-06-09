@@ -42,7 +42,7 @@ struct m0_conf_update_resp;
 struct arr_u32 {
 	uint32_t  au_count;
 	uint32_t *au_elems;
-} M0_XCA_SEQUENCE;
+} M0_XCA_SEQUENCE M0_XCA_DOMAIN(conf);
 
 /* ------------------------------------------------------------------
  * Configuration objects
@@ -53,7 +53,7 @@ struct arr_u32 {
 /** Common header of all confx objects. */
 struct m0_confx_header {
 	struct m0_fid ch_id;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(conf);
 
 struct m0_confx_root {
 	struct m0_confx_header xt_header;
@@ -61,13 +61,13 @@ struct m0_confx_root {
 	uint64_t               xt_verno;
 	/* Profiles in configuration database. */
 	struct m0_fid_arr      xt_profiles;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(conf);
 
 struct m0_confx_profile {
 	struct m0_confx_header xp_header;
 	/* Name of profile's filesystem. */
 	struct m0_fid          xp_filesystem;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(conf);
 
 struct m0_confx_filesystem {
 	struct m0_confx_header xf_header;
@@ -92,7 +92,7 @@ struct m0_confx_filesystem {
 	 * support for it. Ticket HALON-730.
 	 */
 	struct m0_fid_arr      xf_fdmi_flt_grps;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(conf);
 
 struct m0_confx_pool {
 	struct m0_confx_header xp_header;
@@ -100,7 +100,7 @@ struct m0_confx_pool {
 	uint32_t               xp_order;
 	/* Pool versions for this pool. */
 	struct m0_fid_arr      xp_pvers;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(conf);
 
 struct m0_confx_pver_actual {
 	/* Number of data units in a parity group. */
@@ -120,7 +120,7 @@ struct m0_confx_pver_actual {
 	 * Note that "recd" attribute exists in local conf cache
 	 * only and is never transferred over the wire.
 	 */
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(conf);
 
 struct m0_confx_pver_formulaic {
 	/* Cluster-unique identifier of this formulaic pver. */
@@ -132,7 +132,7 @@ struct m0_confx_pver_formulaic {
 	 * NOTE: The number of elements must be equal to M0_CONF_PVER_HEIGHT.
 	 */
 	struct arr_u32 xvf_allowance;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(conf);
 
 enum { M0_CONFX_PVER_ACTUAL, M0_CONFX_PVER_FORMULAIC };
 
@@ -144,12 +144,12 @@ struct m0_confx_pver_u {
 		struct m0_confx_pver_formulaic xpv_formulaic
 			M0_XCA_TAG("M0_CONFX_PVER_FORMULAIC");
 	} u;
-} M0_XCA_UNION;
+} M0_XCA_UNION M0_XCA_DOMAIN(conf);
 
 struct m0_confx_pver {
 	struct m0_confx_header xv_header;
 	struct m0_confx_pver_u xv_u;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(conf);
 
 struct m0_confx_objv {
 	struct m0_confx_header xj_header;
@@ -160,7 +160,7 @@ struct m0_confx_objv {
 	 * Note that "ix" attribute exists in local conf cache only
 	 * and is never transferred over the wire.
 	 */
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(conf);
 
 struct m0_confx_fdmi_flt_grp {
 	struct m0_confx_header xfg_header;
@@ -168,7 +168,7 @@ struct m0_confx_fdmi_flt_grp {
 	int                    xfg_rec_type;
 	/* Filters included to the group. */
 	struct m0_fid_arr      xfg_filters;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(conf);
 
 struct m0_confx_fdmi_filter {
 	struct m0_confx_header xf_header;
@@ -179,7 +179,7 @@ struct m0_confx_fdmi_filter {
 	struct m0_bufs         xf_endpoints;
 	/* Hosting node. */
 	struct m0_fid          xf_node;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(conf);
 
 struct m0_confx_node {
 	struct m0_confx_header xn_header;
@@ -193,7 +193,7 @@ struct m0_confx_node {
 	uint64_t               xn_flags;
 	struct m0_fid          xn_pool_id;
 	struct m0_fid_arr      xn_processes;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(conf);
 
 struct m0_confx_process {
 	struct m0_confx_header  xr_header;
@@ -205,7 +205,7 @@ struct m0_confx_process {
 	struct m0_buf           xr_endpoint;
 	/* Services being run by this process. */
 	struct m0_fid_arr       xr_services;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(conf);
 
 struct m0_confx_service {
 	struct m0_confx_header xs_header;
@@ -215,7 +215,7 @@ struct m0_confx_service {
 	struct m0_bufs         xs_endpoints;
 	/* Devices associated with service. */
 	struct m0_fid_arr      xs_sdevs;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(conf);
 
 struct m0_confx_sdev {
 	struct m0_confx_header xd_header;
@@ -235,7 +235,7 @@ struct m0_confx_sdev {
 	uint64_t               xd_flags;
 	/* Filename in host OS. */
 	struct m0_buf          xd_filename;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(conf);
 
 struct m0_confx_rack {
 	struct m0_confx_header xr_header;
@@ -243,7 +243,7 @@ struct m0_confx_rack {
 	struct m0_fid_arr      xr_encls;
 	/* Pool versions this rack is part of. */
 	struct m0_fid_arr      xr_pvers;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(conf);
 
 struct m0_confx_enclosure {
 	struct m0_confx_header xe_header;
@@ -251,7 +251,7 @@ struct m0_confx_enclosure {
 	struct m0_fid_arr      xe_ctrls;
 	/* Pool versions this enclosure is part of. */
 	struct m0_fid_arr      xe_pvers;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(conf);
 
 struct m0_confx_controller {
 	struct m0_confx_header xc_header;
@@ -261,7 +261,7 @@ struct m0_confx_controller {
 	struct m0_fid_arr      xc_disks;
 	/* Pool versions this controller is part of. */
 	struct m0_fid_arr      xc_pvers;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(conf);
 
 struct m0_confx_disk {
 	struct m0_confx_header xk_header;
@@ -269,7 +269,7 @@ struct m0_confx_disk {
 	struct m0_fid          xk_dev;
 	/* Pool versions this disk is part of. */
 	struct m0_fid_arr      xk_pvers;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(conf);
 
 struct m0_confx_obj {
 	uint64_t xo_type; /* see m0_fid_type::ft_id for values */
@@ -302,7 +302,7 @@ struct m0_confx {
 	 * M0_CONFX_AT() instead.
 	 */
 	struct m0_confx_obj *cx__objs;
-} M0_XCA_SEQUENCE;
+} M0_XCA_SEQUENCE M0_XCA_DOMAIN(conf);
 
 /** Returns specific element of m0_confx::cx__objs. */
 #define M0_CONFX_AT(cx, idx)                                    \
@@ -326,7 +326,7 @@ struct m0_conf_fetch {
 	struct m0_fid     f_origin;
 	/** Path components. */
 	struct m0_fid_arr f_path;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /** Confd's response to m0_conf_fetch. */
 struct m0_conf_fetch_resp {
@@ -336,7 +336,7 @@ struct m0_conf_fetch_resp {
 	uint64_t        fr_ver;
 	/** A sequence of configuration object descriptors. */
 	struct m0_confx fr_data;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /** XXX FUTURE: Configuration update request. */
 struct m0_conf_update {
@@ -344,12 +344,12 @@ struct m0_conf_update {
 	struct m0_fid   u_origin;
 	/** A sequence of configuration object descriptors. */
 	struct m0_confx u_data;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /** XXX FUTURE: Confd's response to m0_conf_update. */
 struct m0_conf_update_resp {
 	/** Result of update request (-Exxx = failure, 0 = success). */
 	int32_t ur_rc;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 #endif /* __MERO_CONF_ONWIRE_H__ */

@@ -61,7 +61,7 @@
  *                spaces, e.g. 'be|rpc|conf'.
  *
  * @example  M0_XCA_DOMAIN(be)
- *           M0_XCA_DOMAIN(be|conf)
+ *           M0_XCA_DOMAIN(rpc|conf)
  */
 #define M0_XCA_DOMAIN(value)   M0_XC_ATTR("domain", #value)
 

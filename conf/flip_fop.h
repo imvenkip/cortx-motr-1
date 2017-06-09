@@ -71,7 +71,7 @@ M0_INTERNAL struct m0_fop_conf_flip_rep *m0_conf_fop_to_flip_fop_rep(
 struct m0_fop_conf_flip_rep {
 	/** Status code of operation. */
 	int32_t cffr_rc;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /**
  * FOP request.
@@ -83,7 +83,7 @@ struct m0_fop_conf_flip {
 	uint32_t cff_next_version;
 	/** Transaction ID */
 	uint64_t cff_tx_id;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /* __MERO_CONF_FLIP_FOP_H__ */
 #endif
