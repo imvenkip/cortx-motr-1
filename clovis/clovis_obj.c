@@ -161,8 +161,10 @@ static void clovis_obj_namei_cb_launch(struct m0_clovis_op_common *oc)
 	M0_PRE(m0_uint128_cmp(&M0_CLOVIS_ID_APP,
 			      &op->op_entity->en_id) < 0);
 	M0_PRE(M0_IN(op->op_code, (M0_CLOVIS_EO_CREATE,
-				   M0_CLOVIS_EO_DELETE)));
-	M0_PRE(op->op_entity->en_sm.sm_state == M0_CLOVIS_ES_INIT);
+				   M0_CLOVIS_EO_DELETE,
+				   M0_CLOVIS_EO_OPEN)));
+	M0_PRE(M0_IN(op->op_entity->en_sm.sm_state, (M0_CLOVIS_ES_INIT,
+						     M0_CLOVIS_ES_OPEN)));
 	M0_PRE(m0_sm_group_is_locked(&op->op_sm_group));
 	M0_ASSERT(clovis_entity_invariant_full(op->op_entity));
 
@@ -180,17 +182,19 @@ static void clovis_obj_namei_cb_launch(struct m0_clovis_op_common *oc)
 			m0_sm_move(&op->op_entity->en_sm, 0,
 				   M0_CLOVIS_ES_DELETING);
 			break;
+		case M0_CLOVIS_EO_OPEN:
+			/* We need to perform getattr for pool version. */
+			op->op_code = M0_CLOVIS_EO_GETATTR;
+			break;
 		default:
 			M0_IMPOSSIBLE("Management operation not implemented");
 	}
 	m0_sm_group_unlock(&op->op_entity->en_sm_group);
 
 	rc = m0_clovis_cob_send(oo);
-	if (rc != 0)
-		goto out;
+	if (rc == 0)
+		m0_sm_move(&op->op_sm, 0, M0_CLOVIS_OS_LAUNCHED);
 
-	m0_sm_move(&op->op_sm, 0, M0_CLOVIS_OS_LAUNCHED);
-out:
 	M0_LEAVE();
 }
 
@@ -447,8 +451,9 @@ static int clovis_obj_op_obj_init(struct m0_clovis_op_obj *oo)
 
 	M0_ENTRY();
 	M0_PRE(oo != NULL);
-	M0_IN(oo->oo_oc.oc_op.op_code, (M0_CLOVIS_EO_CREATE,
-					M0_CLOVIS_EO_DELETE));
+	M0_PRE(M0_IN(oo->oo_oc.oc_op.op_code, (M0_CLOVIS_EO_CREATE,
+					       M0_CLOVIS_EO_DELETE,
+					       M0_CLOVIS_EO_OPEN)));
 
 	cinst = m0_clovis__oo_instance(oo);
 	M0_ASSERT(cinst != NULL);
@@ -464,7 +469,7 @@ static int clovis_obj_op_obj_init(struct m0_clovis_op_obj *oo)
 			return M0_ERR(-ENOENT);
 
 		oo->oo_pver = pv->pv_id;
-		/** Cache the valid pool version in object structure. */
+		/* Cache the valid pool version in object structure. */
 		obj->ob_attr.oa_pver = oo->oo_pver;
 	}
 
@@ -514,7 +519,8 @@ static int clovis_obj_op_prepare(struct m0_clovis_entity *entity,
 
 	M0_PRE(entity != NULL);
 	M0_ASSERT(clovis_entity_invariant_full(entity));
-	M0_PRE(entity->en_sm.sm_state == M0_CLOVIS_ES_INIT);
+	M0_PRE(M0_IN(entity->en_sm.sm_state, (M0_CLOVIS_ES_INIT,
+					      M0_CLOVIS_ES_OPEN)));
 	M0_PRE(op != NULL);
 	/* We may want to gain this lock, check we don't already hold it. */
 	M0_PRE(*op == NULL ||
@@ -586,9 +592,12 @@ static int clovis_entity_namei_op(struct m0_clovis_entity *entity,
 
 	M0_PRE(entity != NULL);
 	M0_ASSERT(clovis_entity_invariant_full(entity));
-	M0_PRE(entity->en_sm.sm_state == M0_CLOVIS_ES_INIT);
+	M0_PRE(M0_IN(entity->en_sm.sm_state, (M0_CLOVIS_ES_INIT,
+					      M0_CLOVIS_ES_OPEN)));
 	M0_PRE(op != NULL);
-	M0_PRE(M0_IN(opcode, (M0_CLOVIS_EO_CREATE, M0_CLOVIS_EO_DELETE)));
+	M0_PRE(M0_IN(opcode, (M0_CLOVIS_EO_CREATE,
+			      M0_CLOVIS_EO_DELETE,
+			      M0_CLOVIS_EO_OPEN)));
 
 	switch (entity->en_type) {
 	case M0_CLOVIS_ET_OBJ:
@@ -708,6 +717,28 @@ EXIT:
 	return M0_DEFAULT_LAYOUT_ID;
 }
 M0_EXPORTED(m0_clovis_default_layout_id);
+
+int m0_clovis_entity_open(struct m0_clovis_entity *entity,
+			  struct m0_clovis_op **op)
+{
+	M0_ENTRY();
+
+	M0_PRE(entity != NULL);
+	M0_PRE(op != NULL);
+
+	if (entity->en_type == M0_CLOVIS_ET_IDX) {
+		/* Since pool version for index entity is got by index query,
+		 * move the entity state into OPEN and return success. */
+		m0_sm_group_lock(&entity->en_sm_group);
+		m0_sm_move(&entity->en_sm, 0, M0_CLOVIS_ES_OPENING);
+		m0_sm_move(&entity->en_sm, 0, M0_CLOVIS_ES_OPEN);
+		m0_sm_group_unlock(&entity->en_sm_group);
+		return M0_RC(0);
+	} else
+		return M0_RC(clovis_entity_namei_op(entity, op,
+						    M0_CLOVIS_EO_OPEN));
+}
+M0_EXPORTED(m0_clovis_entity_open);
 
 #undef M0_TRACE_SUBSYSTEM
 

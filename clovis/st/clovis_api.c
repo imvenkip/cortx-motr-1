@@ -146,6 +146,27 @@ void clovis_st_op_free(struct m0_clovis_op *op)
 	m0_clovis_op_free(op);
 	clovis_st_unmark_op(op);
 }
+
+void clovis_st_entity_open(struct m0_clovis_entity *entity)
+{
+	struct m0_clovis_op *ops[1] = {NULL};
+
+	m0_clovis_entity_open(entity, &ops[0]);
+	if (ops[0] != NULL) clovis_st_mark_op(ops[0]);
+	clovis_st_op_launch(ops, 1);
+	clovis_st_op_wait(ops[0], M0_BITS(M0_CLOVIS_OS_FAILED,
+					  M0_CLOVIS_OS_STABLE),
+			  m0_time_from_now(3,0));
+	clovis_st_op_fini(ops[0]);
+	clovis_st_op_free(ops[0]);
+}
+
+void clovis_st_idx_open(struct m0_clovis_entity *entity)
+{
+	struct m0_clovis_op *ops[1] = {NULL};
+
+	m0_clovis_entity_open(entity, &ops[0]);
+}
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

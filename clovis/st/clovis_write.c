@@ -63,6 +63,8 @@ static int create_obj(struct m0_uint128 *oid, int unit_size)
 	lid = m0_clovis_obj_unit_size_to_layout_id(unit_size);
 	clovis_st_obj_init(&obj, &clovis_st_write_container.co_realm, &id, lid);
 
+	clovis_st_entity_open(&obj.ob_entity);
+
 	clovis_st_entity_create(&obj.ob_entity, &ops[0]);
 	if (ops[0] == NULL)
 		return -ENOENT;
@@ -148,6 +150,8 @@ static int write_verify(struct m0_bufvec *data_w, struct m0_uint128 oid,
 		clovis_st_obj_init(&obj, &clovis_st_write_container.co_realm,
 				   &oid, lid);
 
+		clovis_st_entity_open(&obj.ob_entity);
+
 		if (m0_indexvec_alloc(&ext_r, 1) ||
 		    m0_bufvec_alloc(&data_r, 1, unit_size * stride) ||
 		    m0_bufvec_alloc(&attr_r, 1, 1))
@@ -224,6 +228,8 @@ static int write_obj(struct m0_uint128 oid, int start,
 	/* Init obj */
 	lid = m0_clovis_obj_unit_size_to_layout_id(unit_size);
 	clovis_st_obj_init(&obj, &clovis_st_write_container.co_realm, &oid, lid);
+
+	clovis_st_entity_open(&obj.ob_entity);
 
 	/* Setup bufvec, indexvec and ops for WRITEs */
 	MEM_ALLOC_ARR(ops_w, nr_ops);

@@ -63,6 +63,9 @@ static int create_obj(struct m0_uint128 *oid)
 	clovis_oid_get(&id);
 	clovis_st_obj_init(&obj, &clovis_st_osync_container.co_realm,
 			   &id, default_layout_id);
+
+	clovis_st_entity_open(&obj.ob_entity);
+
 	clovis_st_entity_create(&obj.ob_entity, &ops[0]);
 	if (ops[0] == NULL)
 		return -ENOENT;
@@ -188,6 +191,8 @@ static void osync_after_each_write(void)
 			   &clovis_st_osync_container.co_realm,
 			   &oid, default_layout_id);
 
+	clovis_st_entity_open(&obj_to_sync->ob_entity);
+
 	/* Write multiple times and sync after each write*/
 	start  = 0;
 	stride = PARGRP_DATA_UNIT_NUM;
@@ -230,6 +235,8 @@ static void osync_after_writes(void)
 			   &clovis_st_osync_container.co_realm,
 			   &oid, default_layout_id);
 
+	clovis_st_entity_open(&obj_to_sync->ob_entity);
+
 	/* Write multiple times and sync after all writes*/
 	start  = 0;
 	stride = PARGRP_DATA_UNIT_NUM;
@@ -269,6 +276,8 @@ static void osync_by_sync_op(void)
 	clovis_st_obj_init(obj_to_sync,
 			   &clovis_st_osync_container.co_realm,
 			   &oid, default_layout_id);
+
+	clovis_st_entity_open(&obj_to_sync->ob_entity);
 
 	/* Write multiple times and sync after all writes using sync op.*/
 	start  = 0;
@@ -358,6 +367,8 @@ static void osync_on_op(void)
 		clovis_st_obj_init(objs_to_sync + i,
 				   &clovis_st_osync_container.co_realm,
 			   	   &oid, default_layout_id);
+
+		clovis_st_entity_open(&(objs_to_sync + i)->ob_entity);
 
 		/* Create and launch write requests */
 		ops_w[i] = NULL;

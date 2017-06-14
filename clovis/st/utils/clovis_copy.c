@@ -55,7 +55,7 @@ static int init_clovis(void)
 {
 	int rc;
 
-	clovis_conf.cc_is_oostore            = true;
+	clovis_conf.cc_is_oostore            = false;
 	clovis_conf.cc_is_read_verify        = false;
 	clovis_conf.cc_local_addr            = clovis_local_addr;
 	clovis_conf.cc_ha_addr               = clovis_ha_addr;
@@ -97,9 +97,23 @@ static void fini_clovis(void)
 	m0_clovis_fini(clovis_instance, true);
 }
 
+void open_entity(struct m0_clovis_entity *entity)
+{
+	struct m0_clovis_op *ops[1] = {NULL};
+
+	m0_clovis_entity_open(entity, &ops[0]);
+	m0_clovis_op_launch(ops, 1);
+	m0_clovis_op_wait(ops[0], M0_BITS(M0_CLOVIS_OS_FAILED,
+					  M0_CLOVIS_OS_STABLE),
+			  m0_time_from_now(3,0));
+	m0_clovis_op_fini(ops[0]);
+	m0_clovis_op_free(ops[0]);
+	ops[0] = NULL;
+}
+
 static int create_object(struct m0_uint128 id)
 {
-	int                  rc;
+	int                  rc = 0;
 	struct m0_clovis_obj obj;
 	struct m0_clovis_op *ops[1] = {NULL};
 
@@ -107,6 +121,8 @@ static int create_object(struct m0_uint128 id)
 
 	m0_clovis_obj_init(&obj, &clovis_uber_realm, &id,
 			   m0_clovis_default_layout_id(clovis_instance));
+
+	open_entity(&obj.ob_entity);
 
 	m0_clovis_entity_create(&obj.ob_entity, &ops[0]);
 
@@ -159,6 +175,8 @@ again:
 	/* Set the object entity we want to write */
 	m0_clovis_obj_init(&obj, &clovis_uber_realm, &id,
 			   m0_clovis_default_layout_id(clovis_instance));
+
+	open_entity(&obj.ob_entity);
 
 	/* Create the write request */
 	m0_clovis_obj_op(&obj, M0_CLOVIS_OC_WRITE,

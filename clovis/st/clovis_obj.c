@@ -87,6 +87,47 @@ static void obj_create_simple(void)
 }
 
 /**
+ * Tries to open an object that does not exist.
+ */
+static void obj_open_non_existent(void)
+{
+	int                     rc;
+	struct m0_clovis_op    *ops[1] = {NULL};
+	struct m0_clovis_obj   *obj;
+	struct m0_uint128       id;
+
+	MEM_ALLOC_PTR(obj);
+
+	/* Initialise the id. */
+	clovis_oid_get(&id);
+
+	clovis_st_obj_init(obj, &clovis_st_obj_container.co_realm,
+			   &id, default_layout_id);
+
+	/* Try opening a non-existent object. */
+	rc = m0_clovis_entity_open(&obj->ob_entity, &ops[0]);
+	CLOVIS_ST_ASSERT_FATAL(rc == 0);
+	CLOVIS_ST_ASSERT_FATAL(ops[0] != NULL);
+	CLOVIS_ST_ASSERT_FATAL(ops[0]->op_sm.sm_rc == 0);
+
+	clovis_st_op_launch(ops, ARRAY_SIZE(ops));
+	rc = clovis_st_op_wait(ops[0],
+			       M0_BITS(M0_CLOVIS_OS_FAILED,
+				       M0_CLOVIS_OS_STABLE),
+			       m0_time_from_now(5,0));
+	CLOVIS_ST_ASSERT_FATAL(rc == 0);
+	CLOVIS_ST_ASSERT_FATAL(ops[0]->op_sm.sm_state == M0_CLOVIS_OS_STABLE);
+	CLOVIS_ST_ASSERT_FATAL(ops[0]->op_sm.sm_rc == 0);
+	CLOVIS_ST_ASSERT_FATAL(obj->ob_entity.en_sm.sm_state ==
+			       M0_CLOVIS_ES_INIT);
+
+	clovis_st_op_fini(ops[0]);
+	clovis_st_op_free(ops[0]);
+	clovis_st_entity_fini(&obj->ob_entity);
+	mem_free(obj);
+}
+
+/**
  * Tests a double object creation. Creating the same object twice must result
  * in the following scenario: one succeeds; the other one fails;
  * the object gets created.
@@ -219,45 +260,6 @@ static void obj_create_multiple_objects(void)
 }
 
 /**
- * Tries to delete an object that does not exist.
- */
-static void obj_delete_non_existent(void)
-{
-	int                     rc;
-	struct m0_clovis_op    *ops[1] = {NULL};
-	struct m0_clovis_obj   *obj;
-	struct m0_uint128       id;
-
-	MEM_ALLOC_PTR(obj);
-
-	/* initialise the id */
-	clovis_oid_get(&id);
-
-	clovis_st_obj_init(obj, &clovis_st_obj_container.co_realm,
-			   &id, default_layout_id);
-
-	/* Delete the entity. but it does not exist! I know! :'( */
-	rc = clovis_st_entity_delete(&obj->ob_entity, &ops[0]);
-	CLOVIS_ST_ASSERT_FATAL(rc == 0);
-	CLOVIS_ST_ASSERT_FATAL(ops[0] != NULL);
-	CLOVIS_ST_ASSERT_FATAL(ops[0]->op_sm.sm_rc == 0);
-
-	clovis_st_op_launch(ops, ARRAY_SIZE(ops));
-	rc = clovis_st_op_wait(ops[0],
-			       M0_BITS(M0_CLOVIS_OS_FAILED,
-				       M0_CLOVIS_OS_STABLE),
-			       m0_time_from_now(5,0));
-	CLOVIS_ST_ASSERT_FATAL(rc == 0);
-	CLOVIS_ST_ASSERT_FATAL(ops[0]->op_sm.sm_state == M0_CLOVIS_OS_FAILED);
-	CLOVIS_ST_ASSERT_FATAL(ops[0]->op_sm.sm_rc == -ENOENT);
-
-	clovis_st_op_fini(ops[0]);
-	clovis_st_op_free(ops[0]);
-	clovis_st_entity_fini(&obj->ob_entity);
-	mem_free(obj);
-}
-
-/**
  * Creates an object and then issues a new op. to delete it straightaway.
  */
 static void obj_create_then_delete(void)
@@ -292,6 +294,7 @@ static void obj_create_then_delete(void)
 		CLOVIS_ST_ASSERT_FATAL(rc == 0);
 		CLOVIS_ST_ASSERT_FATAL(ops_c[0]->op_sm.sm_state == M0_CLOVIS_OS_STABLE);
 
+		clovis_st_entity_open(&obj->ob_entity);
 		/* Delete the entity */
 		clovis_st_entity_delete(&obj->ob_entity, &ops_d[0]);
 		CLOVIS_ST_ASSERT_FATAL(ops_d[0] != NULL);
@@ -377,6 +380,7 @@ static void obj_delete_multiple(void)
 				&clovis_st_obj_container.co_realm,
 				&ids[idx], default_layout_id);
 			if (obj_exists[idx]) {
+				clovis_st_entity_open(&objs[idx].ob_entity);
 				rc = clovis_st_entity_delete(
 					&objs[idx].ob_entity, &ops[j]);
 				obj_exists[idx] = false;
@@ -614,9 +618,13 @@ static void obj_op_setup(void)
 	}
 
 	clovis_st_op_fini(ops[0]);
+	clovis_st_op_free(ops[0]);
 	clovis_st_entity_fini(&obj->ob_entity);
 
 	/* Test callback function for OS_FAILED*/
+	/* @TODO: The following procedure is invalid since EO_DELETE cannot be
+	 * done from ES_INIT state anymore. Need to revisit this later. */
+#if 0
 	memset(obj, 0, sizeof *obj);
 	clovis_oid_get(&id);
 
@@ -640,6 +648,7 @@ static void obj_op_setup(void)
 	clovis_st_op_fini(ops[0]);
 	clovis_st_op_free(ops[0]);
 	clovis_st_entity_fini(&obj->ob_entity);
+#endif
 
 	/* End of the test */
 	mem_free(obj);
@@ -687,12 +696,12 @@ struct clovis_st_suite st_suite_clovis_obj = {
 	.ss_tests = {
 		{ "obj_create_simple",
 		  &obj_create_simple},
+		{ "obj_open_non_existent",
+		  &obj_open_non_existent},
 		{ "obj_create_double_same_id",
 		  &obj_create_double_same_id},
 		{ "obj_create_multiple_objects",
 		  &obj_create_multiple_objects},
-		{ "obj_delete_non_existent",
-		  &obj_delete_non_existent},
 		{ "obj_create_then_delete",
 		  &obj_create_then_delete},
 		{ "obj_delete_multiple",

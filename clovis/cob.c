@@ -57,6 +57,7 @@ enum clovis_cob_request_flags {
  * Clovis cob request
  */
 struct clovis_cob_req {
+	struct m0_clovis_obj     *cr_obj;
 	struct m0_clovis_op_obj  *cr_oo;
 	struct m0_clovis         *cr_cinst;
 	uint32_t                  cr_opcode;
@@ -275,9 +276,10 @@ static void clovis_cob_req_free(struct clovis_cob_req *cr)
  */
 static void clovis_cob_complete_oo(struct m0_clovis_op_obj *oo)
 {
-	struct m0_clovis_op *op;
-	struct m0_sm_group  *op_grp;
-	struct m0_sm_group  *en_grp;
+	struct m0_clovis_op     *op;
+	struct m0_sm_group      *op_grp;
+	struct m0_sm_group      *en_grp;
+	struct m0_clovis_entity *op_entity;
 
 	M0_ENTRY();
 
@@ -286,13 +288,16 @@ static void clovis_cob_complete_oo(struct m0_clovis_op_obj *oo)
 	op = &oo->oo_oc.oc_op;
 	op_grp = &op->op_sm_group;
 	en_grp = &op->op_entity->en_sm_group;
+	op_entity = oo->oo_oc.oc_op.op_entity;
 
-	m0_sm_group_lock(en_grp);
-	M0_LOG(M0_DEBUG, "entity sm state: %p, %d\n",
-	       &oo->oo_oc.oc_op.op_entity->en_sm,
-	       oo->oo_oc.oc_op.op_entity->en_sm.sm_state);
-	m0_sm_move(&oo->oo_oc.oc_op.op_entity->en_sm, 0, M0_CLOVIS_ES_INIT);
-	m0_sm_group_unlock(en_grp);
+	if (M0_IN(op_entity->en_sm.sm_state, (M0_CLOVIS_ES_CREATING,
+					      M0_CLOVIS_ES_DELETING))) {
+		m0_sm_group_lock(en_grp);
+		M0_LOG(M0_DEBUG, "entity sm state: %p, %d\n",
+				&op_entity->en_sm, op_entity->en_sm.sm_state);
+		m0_sm_move(&op_entity->en_sm, 0, M0_CLOVIS_ES_INIT);
+		m0_sm_group_unlock(en_grp);
+	}
 
 	m0_sm_group_lock(op_grp);
 	m0_sm_move(&op->op_sm, 0, M0_CLOVIS_OS_EXECUTED);
@@ -389,6 +394,94 @@ rpc_item_to_cob_req(struct m0_rpc_item *item)
 	return icr;
 }
 
+M0_INTERNAL int clovis_cob_rep_fop_attr(struct clovis_cob_req *cr,
+					struct m0_fop_cob     *cob_attr)
+{
+	int                              rc = 0;
+	int                              i;
+	struct m0_rpc_item 		*item;
+	struct m0_fop_getattr_rep       *getattr_rep;
+	struct m0_fop_cob_getattr_reply *getattr_ios_rep;
+	struct m0_clovis                *cinst;
+
+	M0_PRE(cr != NULL);
+	cinst = cr->cr_cinst;
+
+	if (!cinst->m0c_config->cc_is_oostore) {
+		item = &cr->cr_mds_fop->f_item;
+		getattr_rep = m0_fop_data(m0_rpc_item_to_fop(item->ri_reply));
+		rc = getattr_rep->g_rc;
+		if (rc == 0)
+			*cob_attr = getattr_rep->g_body;
+	} else {
+		for (i = 0; i < cinst->m0c_pools_common.pc_md_redundancy; i++) {
+			item = &cr->cr_ios_fop[i]->f_item;
+			getattr_ios_rep = m0_fop_data(m0_rpc_item_to_fop(
+						item->ri_reply));
+
+			rc = getattr_ios_rep->cgr_rc;
+			if (rc == 0) {
+				*cob_attr = getattr_ios_rep->cgr_body;
+				break;
+			}
+		}
+	}
+
+	return M0_RC(rc);
+}
+
+static int clovis_cob_getattr_consume(struct clovis_cob_req *cr)
+{
+	int                      rc;
+	struct m0_clovis_entity *entity;
+	struct m0_clovis        *cinst;
+	struct m0_clovis_obj    *obj;
+	struct m0_fop_cob       *cob_attr;
+
+	M0_ENTRY();
+
+	M0_ASSERT(cr != NULL);
+	entity = cr->cr_oo->oo_oc.oc_op.op_entity;
+	M0_ASSERT(entity != NULL);
+	cinst = cr->cr_cinst;
+	M0_ASSERT(cinst != NULL);
+	obj = M0_AMB(obj, entity, ob_entity);
+
+	M0_ALLOC_PTR(cob_attr);
+	if (cob_attr == NULL)
+		return M0_ERR(-ENOMEM);
+
+	rc = clovis_cob_rep_fop_attr(cr, cob_attr);
+	if (rc != 0) {
+		/* Initially ENOENT is expected. */
+		m0_free(cob_attr);
+		return M0_RC(rc == -ENOENT ? 0 : rc);
+	}
+
+	/* Move object's entity state to OPENING. */
+	m0_sm_group_lock(&obj->ob_entity.en_sm_group);
+	m0_sm_move(&obj->ob_entity.en_sm, 0, M0_CLOVIS_ES_OPENING);
+	m0_sm_group_unlock(&obj->ob_entity.en_sm_group);
+
+	if (m0_pool_version_find(&cinst->m0c_pools_common,
+				&cob_attr->b_pver) == NULL) {
+		m0_free(cob_attr);
+		M0_LOG(M0_ERROR, "Unable to find a suitable pool version");
+		return M0_ERR(-EINVAL);
+	}
+
+	/* Cache the valid pool version in object structure. */
+	obj->ob_attr.oa_pver = cob_attr->b_pver;
+
+	m0_free(cob_attr);
+	m0_sm_group_lock(&entity->en_sm_group);
+	m0_sm_move(&entity->en_sm, 0, M0_CLOVIS_ES_OPEN);
+	m0_sm_group_unlock(&entity->en_sm_group);
+
+	M0_LEAVE();
+	return rc;
+}
+
 /**
  * AST callback that marks a m0_clovis_op_obj to reflect a COB fop has been
  * fully completed by an ioservice.
@@ -455,10 +548,17 @@ static void clovis_icr_ast_complete(struct m0_sm_group *grp,
 		 * Just finish creating metadata in selsected io services,
 		 * start the 2nd phase now (to prepare COB in all io services).
 		 */
-		for (i = 0; i < icr_nr; i++)
-			cr->cr_ios_completed[i] = false;
-		cr->cr_ar.ar_ast.sa_cb = &clovis_cob_ast_ios_io_send;
-		m0_sm_ast_post(cr->cr_oo->oo_sm_grp, &cr->cr_ar.ar_ast);
+		if (cr->cr_oo->oo_oc.oc_op.op_code == M0_CLOVIS_EO_GETATTR) {
+			clovis_cob_getattr_consume(cr);
+			clovis_cob_complete_oo(cr->cr_oo);
+			/* Free CR. */
+			clovis_cob_req_free(cr);
+		} else {
+			for (i = 0; i < icr_nr; i++)
+				cr->cr_ios_completed[i] = false;
+			cr->cr_ar.ar_ast.sa_cb = &clovis_cob_ast_ios_io_send;
+			m0_sm_ast_post(cr->cr_oo->oo_sm_grp, &cr->cr_ar.ar_ast);
+		}
 	}
 
 out:
@@ -518,6 +618,7 @@ static void clovis_cob_ios_rio_replied(struct m0_rpc_item *item)
 	struct m0_fop              *rep_fop;
 	struct m0_fop_cob_op_reply *cob_rep;
 	struct clovis_cob_req      *cr;
+	struct m0_clovis_ast_rc    *ar;
 	int                         rc;
 
 	M0_ENTRY();
@@ -530,46 +631,34 @@ static void clovis_cob_ios_rio_replied(struct m0_rpc_item *item)
 	M0_ASSERT(icr->icr_ar.ar_rc == 0);
 
 	cr = icr->icr_cr;
+	ar = &icr->icr_ar;
 	/* Failure in rpc? */
 	rc = m0_rpc_item_error(item);
-	if (rc != 0) {
+	if (rc == 0) {
+		/*
+		 * According to m0_rpc_item_error(), it returns 0 when
+		 * item->ri_reply == NULL, this doesn't look right for replies
+		 * of cob operations.  We enforce an assert here to ensure it
+		 * isn't NULL.
+		 */
+		M0_ASSERT(item->ri_reply != NULL);
+		rep_fop = m0_rpc_item_to_fop(item->ri_reply);
+		cob_rep = m0_fop_data(rep_fop);
+		/* Failure in operation specific phase? */
+		rc = cob_rep->cor_rc;
+		if (cr->cr_oo->oo_oc.oc_op.op_code == M0_CLOVIS_EO_GETATTR &&
+				rc == -ENOENT)
+			rc = 0;
+	} else
 		M0_LOG(M0_ERROR, "rpc item error = %d", rc);
-		goto error;
-	}
-
 	/*
- 	 * According to m0_rpc_item_error(), it returns 0 when item->ri_reply
- 	 * == NULL, this doesn't look right for replies of cob operations.
- 	 * We enforce an assert here to ensure it isn't NULL.
- 	 */
-	M0_ASSERT(item->ri_reply != NULL);
-	rep_fop = m0_rpc_item_to_fop(item->ri_reply);
-	cob_rep = m0_fop_data(rep_fop);
-
-	/* Failure in operation specific phase? */
-	rc = cob_rep->cor_rc;
-	if (rc != 0)
-		goto error;
-
-	/* Complete this ios create/delete cob request. */
-	icr->icr_ar.ar_ast.sa_cb = &clovis_icr_ast_complete;
-	m0_sm_ast_post(cr->cr_oo->oo_sm_grp, &icr->icr_ar.ar_ast);
-
-	M0_LEAVE();
-	return;
-
-error:
-	/*
-	 * Note: each icr is only associated to one single
-	 * ioservice/rpc_item so only one component should be accessing
-	 * it at the same time
+	 * Note: each icr is only associated to one single ioservice/rpc_item so
+	 * only one component should be accessing it at the same time.
 	 */
-	M0_ASSERT(rc != 0);
-	icr->icr_ar.ar_rc = rc;
-	icr->icr_ar.ar_ast.sa_cb = &clovis_icr_ast_fail;
-	m0_sm_ast_post(icr->icr_cr->cr_oo->oo_sm_grp, &icr->icr_ar.ar_ast);
-
-	M0_LEAVE();
+	ar->ar_rc = rc;
+	ar->ar_ast.sa_cb = rc == 0 ?
+		&clovis_icr_ast_complete : &clovis_icr_ast_fail;
+	m0_sm_ast_post(cr->cr_oo->oo_sm_grp, &ar->ar_ast);
 }
 
 /**
@@ -1143,6 +1232,12 @@ static void clovis_cob_mds_rio_replied(struct m0_rpc_item *item)
 		remid = &unlink_rep->u_mod_rep.fmr_remid;
 		break;
 
+	case M0_MDSERVICE_GETATTR_REP_OPCODE:
+		M0_ASSERT(req_opcode == M0_MDSERVICE_GETATTR_OPCODE);
+
+		rc = clovis_cob_getattr_consume(cr);
+		break;
+
 	default:
 		M0_IMPOSSIBLE("Unsupported opcode:%d.", rep_opcode);
 		break;
@@ -1163,7 +1258,8 @@ static void clovis_cob_mds_rio_replied(struct m0_rpc_item *item)
 	 * which delays creating COBs to the first time they are
 	 * written to.
 	 */
-	if (cr->cr_opcode == M0_CLOVIS_EO_CREATE) {
+	if (M0_IN(cr->cr_opcode, (M0_CLOVIS_EO_CREATE,
+				  M0_CLOVIS_EO_GETATTR))) {
 		cr->cr_ar.ar_ast.sa_cb = &clovis_cob_ast_complete_cr;
 		m0_sm_ast_post(cr->cr_oo->oo_sm_grp, &cr->cr_ar.ar_ast);
 	} else {
@@ -1450,169 +1546,6 @@ M0_INTERNAL int m0_clovis_cob_send(struct m0_clovis_op_obj *oo)
 	}
 
 	return M0_RC(rc);
-}
-
-M0_INTERNAL int clovis_cob_rep_fop_attr(struct clovis_cob_req *cr,
-					struct m0_fop_cob     *cob_attr,
-					int                    idx)
-{
-	int                              rc;
-	struct m0_fop_getattr_rep       *getattr_rep;
-	struct m0_fop_cob_getattr_reply *getattr_ios_rep;
-	struct m0_clovis                *cinst;
-
-	M0_PRE(cr != NULL);
-	cinst = cr->cr_cinst;
-
-	if (!cinst->m0c_config->cc_is_oostore) {
-		getattr_rep = m0_fop_data(cr->cr_rep_fop);
-		rc = getattr_rep->g_rc;
-		if (rc == 0)
-			memcpy((void *)cob_attr, (void *)&getattr_rep->g_body,
-				sizeof *cob_attr);
-	} else {
-		getattr_ios_rep = m0_fop_data(m0_rpc_item_to_fop(
-					      cr->cr_ios_fop[idx]->f_item.ri_reply));
-
-		rc = getattr_ios_rep->cgr_rc;
-		if(rc == 0)
-			memcpy((void *)cob_attr, (void *)&getattr_ios_rep->cgr_body,
-			       sizeof *cob_attr);
-	}
-
-	return M0_RC(rc);
-}
-
-M0_INTERNAL int clovis_cob_getattr(struct clovis_cob_req *cr,
-				   struct m0_fop_cob     *cob_attr)
-{
-	int                              rc = 0; /* required */
-	int                              i;
-	struct m0_clovis                *cinst;
-	struct m0_pool_version          *pv;
-
-	M0_PRE(cr != NULL);
-	cinst = cr->cr_cinst;
-
-	cr->cr_opcode   = M0_CLOVIS_EO_GETATTR;
-	cr->cr_cob_type = M0_COB_MD;
-
-	rc = m0_pool_version_get(&cinst->m0c_pools_common, &pv);
-	M0_ASSERT(rc == 0);
-
-	if (!cinst->m0c_config->cc_is_oostore) {
-		/* Initiate the op by sending a fop to the mdservice. */
-		rc = clovis_cob_mds_send(cr);
-		if (rc == 0 && (cr->cr_flags & CLOVIS_COB_REQ_SYNC))
-			rc = clovis_cob_rep_fop_attr(cr, cob_attr, 0);
-	} else {
-		for(i = 0; i < cinst->m0c_pools_common.pc_md_redundancy; i++) {
-			/* Send fops to redundant IOS' */
-			rc = clovis_cob_ios_send(cr, i);
-			if (rc != 0)
-				continue;
-
-			if (cr->cr_flags & CLOVIS_COB_REQ_SYNC) {
-				rc = clovis_cob_rep_fop_attr(cr, cob_attr, i);
-				if (rc == -ENOENT)
-					continue;
-				else
-					break;
-			}
-
-		}
-	}
-
-	return M0_RC(rc);
-}
-
-M0_INTERNAL int m0_clovis__cob_poolversion_get(struct m0_clovis_obj *obj)
-{
-	int                     rc;
-	struct m0_clovis       *cinst;
-	struct clovis_cob_req  *cr;
-	struct m0_fop_cob      *cob_attr;
-	struct m0_pool_version *pv;
-#ifdef CLOVIS_FOR_M0T1FS
-	char                   *object_fid_s;
-	struct m0_fid           object_fid;
-#endif
-
-	M0_ENTRY();
-
-	M0_PRE(obj != NULL);
-	cinst = m0_clovis__obj_instance(obj);
-
-	rc = m0_pool_version_get(&cinst->m0c_pools_common, &pv);
-	M0_ASSERT(rc == 0);
-
-	cr = clovis_cob_req_alloc(pv);
-	if (cr == NULL)
-		return -ENOMEM;
-
-	m0_fid_gob_make(&cr->cr_fid,
-			obj->ob_entity.en_id.u_hi, obj->ob_entity.en_id.u_lo);
-
-	cr->cr_flags |= CLOVIS_COB_REQ_SYNC;
-	cr->cr_cinst  = cinst;
-#ifdef CLOVIS_FOR_M0T1FS
-	/* Set the object's parent's fid. */
-	if (!m0_fid_is_set(&cinst->m0c_root_fid) ||
-	    !m0_fid_is_valid(&cinst->m0c_root_fid)) {
-		clovis_cob_req_free(cr);
-		rc = -EINVAL;
-		return M0_ERR(rc);
-	}
-
-	m0_fid_gob_make(&object_fid, obj->ob_entity.en_id.u_hi,
-			obj->ob_entity.en_id.u_lo);
-
-	/* Generate a valid oo_name. */
-	object_fid_s = m0_alloc(M0_FID_STR_LEN);
-	if (object_fid_s == NULL) {
-		clovis_cob_req_free(cr);
-		return M0_ERR(-ENOMEM);
-	}
-
-	rc = m0_fid_print(object_fid_s, M0_FID_STR_LEN, &object_fid);
-	if (rc <= 0) {
-		clovis_cob_req_free(cr);
-		return M0_ERR(rc);
-	}
-
-	cr->cr_name.b_addr = object_fid_s;
-	cr->cr_name.b_nob  = strlen(object_fid_s);
-#endif
-	cob_attr = m0_alloc(sizeof *cob_attr);
-	if (cob_attr == NULL) {
-		clovis_cob_req_free(cr);
-		return M0_ERR(-ENOMEM);
-	}
-
-	memset(cob_attr, 0, sizeof *cob_attr);
-	rc = clovis_cob_getattr(cr, cob_attr);
-	if (rc != 0) {
-		m0_free(cob_attr);
-		clovis_cob_req_free(cr);
-		return rc == -ENOENT ? M0_RC(rc) : M0_ERR(rc);
-	}
-
-	if (m0_pool_version_find(&cinst->m0c_pools_common,
-					 &cob_attr->b_pver) == NULL) {
-		clovis_cob_req_free(cr);
-		m0_free(cob_attr);
-		M0_LOG(M0_ERROR, "Unable to find a suitable pool version");
-		return M0_ERR(-EINVAL);
-	}
-
-	obj->ob_attr.oa_pver = cob_attr->b_pver;
-
-#ifdef CLOVIS_FOR_M0T1FS
-	m0_free(object_fid_s);
-#endif
-	m0_free(cob_attr);
-	clovis_cob_req_free(cr);
-	return M0_RC(0);
 }
 #undef M0_TRACE_SUBSYSTEM
 

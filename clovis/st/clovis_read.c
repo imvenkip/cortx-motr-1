@@ -78,15 +78,17 @@ static int create_objs(int nr_objs)
 		clovis_st_obj_init(&obj,
 			&clovis_st_read_container.co_realm,
 			&id, default_layout_id);
+
+		clovis_st_entity_open(&obj.ob_entity);
+
 		clovis_st_entity_create(&obj.ob_entity, &ops[0]);
 
 		clovis_st_op_launch(ops, 1);
 
 		/* Wait for op to complete */
-		rc = clovis_st_op_wait(ops[0],
-			    M0_BITS(M0_CLOVIS_OS_FAILED,
-				    M0_CLOVIS_OS_STABLE),
-			    M0_TIME_NEVER);
+		rc = clovis_st_op_wait(ops[0], M0_BITS(M0_CLOVIS_OS_FAILED,
+						       M0_CLOVIS_OS_STABLE),
+				       M0_TIME_NEVER);
 		if (rc < 0)
 			return rc;
 
@@ -140,9 +142,9 @@ static int write_objs(void)
 
 	for (i = 0; i < blk_cnt; i++) {
 		/*
- 		 * The pattern written to object has to match
- 		 * to those in read tests
- 		 */
+		 * The pattern written to object has to match
+		 * to those in read tests
+		 */
 		value = pattern[i % CHAR_NUM];
 		memset(data.ov_buf[i], value, blk_size);
 	}
@@ -177,6 +179,8 @@ static int write_objs(void)
 			&obj, &clovis_st_read_container.co_realm,
 			&id, default_layout_id);
 
+		clovis_st_entity_open(&obj.ob_entity);
+
 		/* Create the write request */
 		clovis_st_obj_op(&obj, M0_CLOVIS_OC_WRITE,
 				 &ext, &data, &attr, 0, &ops[0]);
@@ -185,10 +189,9 @@ static int write_objs(void)
 		clovis_st_op_launch(ops, 1);
 
 		/* wait */
-		rc = clovis_st_op_wait(ops[0],
-				M0_BITS(M0_CLOVIS_OS_FAILED,
-					M0_CLOVIS_OS_STABLE),
-				M0_TIME_NEVER);
+		rc = clovis_st_op_wait(ops[0], M0_BITS(M0_CLOVIS_OS_FAILED,
+						       M0_CLOVIS_OS_STABLE),
+				       M0_TIME_NEVER);
 		if (rc < 0) break;
 
 		/* fini and release */
@@ -257,6 +260,8 @@ static void read_one_block(void)
 	clovis_st_obj_init(&obj, &clovis_st_read_container.co_realm,
 			   &id, default_layout_id);
 
+	clovis_st_entity_open(&obj.ob_entity);
+
 	/* Create the read request */
 	clovis_st_obj_op(&obj, M0_CLOVIS_OC_READ, &ext, &data, &attr, 0, &ops[0]);
 	CLOVIS_ST_ASSERT_FATAL(rc == 0);
@@ -266,10 +271,9 @@ static void read_one_block(void)
 	clovis_st_op_launch(ops, ARRAY_SIZE(ops));
 
 	/* wait */
-	rc = clovis_st_op_wait(ops[0],
-			    M0_BITS(M0_CLOVIS_OS_FAILED,
-				    M0_CLOVIS_OS_STABLE),
-			    M0_TIME_NEVER);
+	rc = clovis_st_op_wait(ops[0], M0_BITS(M0_CLOVIS_OS_FAILED,
+					       M0_CLOVIS_OS_STABLE),
+			       M0_TIME_NEVER);
 	CLOVIS_ST_ASSERT_FATAL(rc == 0);
 	CLOVIS_ST_ASSERT_FATAL(ops[0]->op_sm.sm_state == M0_CLOVIS_OS_STABLE);
 	CLOVIS_ST_ASSERT_FATAL(ops[0]->op_sm.sm_rc == 0);
@@ -336,6 +340,8 @@ static void read_multiple_blocks(void)
 	clovis_st_obj_init(&obj, &clovis_st_read_container.co_realm,
 			   &id, default_layout_id);
 
+	clovis_st_entity_open(&obj.ob_entity);
+
 	/* Create the read request */
 	clovis_st_obj_op(&obj, M0_CLOVIS_OC_READ, &ext, &data, &attr, 0, &ops[0]);
 	CLOVIS_ST_ASSERT_FATAL(rc == 0);
@@ -345,10 +351,9 @@ static void read_multiple_blocks(void)
 	clovis_st_op_launch(ops, ARRAY_SIZE(ops));
 
 	/* wait */
-	rc = clovis_st_op_wait(ops[0],
-			    M0_BITS(M0_CLOVIS_OS_FAILED,
-				    M0_CLOVIS_OS_STABLE),
-		     M0_TIME_NEVER);
+	rc = clovis_st_op_wait(ops[0], M0_BITS(M0_CLOVIS_OS_FAILED,
+					       M0_CLOVIS_OS_STABLE),
+			       M0_TIME_NEVER);
 	CLOVIS_ST_ASSERT_FATAL(rc == 0);
 	CLOVIS_ST_ASSERT_FATAL(ops[0]->op_sm.sm_state == M0_CLOVIS_OS_STABLE);
 	CLOVIS_ST_ASSERT_FATAL(ops[0]->op_sm.sm_rc == 0);
@@ -429,6 +434,8 @@ static void read_multiple_blocks_into_aligned_buffers(void)
 	clovis_st_obj_init(&obj, &clovis_st_read_container.co_realm,
 			   &id, default_layout_id);
 
+	clovis_st_entity_open(&obj.ob_entity);
+
 	/* Create the read request */
 	clovis_st_obj_op(&obj, M0_CLOVIS_OC_READ, &ext, &data, &attr, 0, &ops[0]);
 	CLOVIS_ST_ASSERT_FATAL(rc == 0);
@@ -438,10 +445,9 @@ static void read_multiple_blocks_into_aligned_buffers(void)
 	clovis_st_op_launch(ops, ARRAY_SIZE(ops));
 
 	/* wait */
-	rc = clovis_st_op_wait(ops[0],
-			    M0_BITS(M0_CLOVIS_OS_FAILED,
-				    M0_CLOVIS_OS_STABLE),
-		     M0_TIME_NEVER);
+	rc = clovis_st_op_wait(ops[0], M0_BITS(M0_CLOVIS_OS_FAILED,
+					       M0_CLOVIS_OS_STABLE),
+			       M0_TIME_NEVER);
 	CLOVIS_ST_ASSERT_FATAL(rc == 0);
 	CLOVIS_ST_ASSERT_FATAL(ops[0]->op_sm.sm_state == M0_CLOVIS_OS_STABLE);
 	CLOVIS_ST_ASSERT_FATAL(ops[0]->op_sm.sm_rc == 0);
@@ -519,6 +525,9 @@ static void read_objs_in_parallel(void)
 
 		clovis_st_obj_init(&objs[i], &clovis_st_read_container.co_realm,
 				   &id, default_layout_id);
+
+		clovis_st_entity_open(&objs[i].ob_entity);
+
 		clovis_st_obj_op(&objs[i], M0_CLOVIS_OC_READ,
 			      &ext[i], &data[i], &attr[i], 0, &ops[i]);
 		if (ops[i] == NULL)

@@ -104,6 +104,7 @@ static void example_abitmorecomplicated(void)
 				&clovis_st_example_container.co_realm,
 				&ids[idx], default_layout_id);
 			if (obj_exists[idx]) {
+				clovis_st_entity_open(&objs[idx].ob_entity);
 				rc = clovis_st_entity_delete(
 					&objs[idx].ob_entity, &ops[j]);
 				obj_exists[idx] = false;

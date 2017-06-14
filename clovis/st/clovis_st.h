@@ -283,6 +283,8 @@ void clovis_st_op_launch(struct m0_clovis_op **op, uint32_t nr);
 int32_t clovis_st_op_wait(struct m0_clovis_op *op, uint64_t bits, m0_time_t to);
 void clovis_st_op_fini(struct m0_clovis_op *op);
 void clovis_st_op_free(struct m0_clovis_op *op);
+void clovis_st_entity_open(struct m0_clovis_entity *entity);
+void clovis_st_idx_open(struct m0_clovis_entity *entity);
 void clovis_st_obj_op(struct m0_clovis_obj       *obj,
 		      enum m0_clovis_obj_opcode   opcode,
 		      struct m0_indexvec         *ext,

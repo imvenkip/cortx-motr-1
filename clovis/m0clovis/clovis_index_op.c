@@ -103,8 +103,9 @@ int clovis_index_drop(struct m0_clovis_realm *parent, struct m0_fid_arr *fids)
 
 		m0_clovis_idx_init(&idx, parent,
 				   (struct m0_uint128 *)&fids->af_elems[i]);
-		rc = m0_clovis_entity_delete(&idx.in_entity, &op);
-		rc = index_op_tail(&idx.in_entity, op, rc, NULL);
+		rc = m0_clovis_entity_open(&idx.in_entity, &op) ?:
+		     m0_clovis_entity_delete(&idx.in_entity, &op) ?:
+		     index_op_tail(&idx.in_entity, op, rc, NULL);
 	}
 	m0_console_printf("drop done: %i\n", rc);
 	return rc;

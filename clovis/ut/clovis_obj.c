@@ -513,6 +513,7 @@ static void ut_clovis_test_clovis_obj_op_obj_init(void)
 	oo.oo_oc.oc_op.op_entity = &ent;
 	oo.oo_oc.oc_op.op_size = sizeof oo;
 	oo.oo_pver = instance->m0c_pools_common.pc_cur_pver->pv_id;
+	oo.oo_oc.oc_op.op_code = M0_CLOVIS_EO_CREATE;
 	m0_clovis_op_common_bob_init(&oo.oo_oc);
 
 	rc = clovis_obj_op_obj_init(&oo);
@@ -1262,7 +1263,7 @@ static void ut_clovis_test_clovis_cob_mds_fop_populate(void)
 	char                      *str = "HavantFTW";
 	struct m0_fid              fid = { .f_container = 66,
 				 	.f_key = 77 };
-	struct m0_clovis          *instance;
+	struct m0_clovis          *instance = NULL; /* required */
 
 	/* initialise clovis */
 	rc = ut_m0_clovis_init(&instance);

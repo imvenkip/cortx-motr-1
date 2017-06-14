@@ -373,8 +373,8 @@ static int idx_delete_one(struct m0_uint128 id)
 
 
 	/* Set an index creation operation. */
-	clovis_st_idx_init(&idx,
-		&clovis_st_idx_container.co_realm, &id);
+	clovis_st_idx_init(&idx, &clovis_st_idx_container.co_realm, &id);
+	clovis_st_idx_open(&idx.in_entity);
 	clovis_st_entity_delete(&idx.in_entity, &ops[0]);
 
 	/* Launch and wait for op to complete */

@@ -327,14 +327,21 @@ static void ut_clovis_idx_op_cb_launch(void)
 	for (op_code = M0_CLOVIS_EO_CREATE;
 	     op_code < M0_CLOVIS_EO_NR; op_code++) {
 		/* Ignore SYNC. */
-		if (op_code == M0_CLOVIS_EO_SYNC ||
-		    op_code == M0_CLOVIS_EO_GETATTR)
+		if (M0_IN(op_code, (M0_CLOVIS_EO_SYNC, M0_CLOVIS_EO_OPEN,
+				    M0_CLOVIS_EO_GETATTR)))
 			continue;
 
 		dummy_query_rc = 1;
 		oi->oi_oc.oc_op.op_code = op_code;
 		m0_sm_init(&oi->oi_oc.oc_op.op_sm, &clovis_op_conf,
 			   M0_CLOVIS_OS_INITIALISED, op_grp);
+
+		if (op_code == M0_CLOVIS_EO_DELETE) {
+			m0_sm_group_lock(en_grp);
+			m0_sm_move(&ent.en_sm, 0, M0_CLOVIS_ES_OPENING);
+			m0_sm_move(&ent.en_sm, 0, M0_CLOVIS_ES_OPEN);
+			m0_sm_group_unlock(en_grp);
+		}
 
 		m0_sm_group_lock(op_grp);
 		clovis_idx_op_cb_launch(&oi->oi_oc);

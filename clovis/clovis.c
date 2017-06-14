@@ -154,7 +154,6 @@ struct m0_sm_state_descr clovis_entity_phases[] = {
 		.sd_flags = M0_SDF_INITIAL | M0_SDF_FINAL,
 		.sd_name = "init",
 		.sd_allowed = M0_BITS(M0_CLOVIS_ES_CREATING,
-				      M0_CLOVIS_ES_DELETING,
 				      M0_CLOVIS_ES_OPENING),
 	},
 	[M0_CLOVIS_ES_CREATING] = {
@@ -171,7 +170,9 @@ struct m0_sm_state_descr clovis_entity_phases[] = {
 	},
 	[M0_CLOVIS_ES_OPEN] = {
 		.sd_name = "open",
-		.sd_allowed = M0_BITS(M0_CLOVIS_ES_CLOSING, M0_CLOVIS_ES_FAILED),
+		.sd_allowed = M0_BITS(M0_CLOVIS_ES_DELETING,
+				      M0_CLOVIS_ES_CLOSING,
+				      M0_CLOVIS_ES_FAILED),
 	},
 	[M0_CLOVIS_ES_CLOSING] = {
 		.sd_name = "closing",
@@ -188,7 +189,7 @@ struct m0_sm_state_descr clovis_entity_phases[] = {
  */
 struct m0_sm_trans_descr clovis_entity_trans[] = {
 	{"creating", M0_CLOVIS_ES_INIT, M0_CLOVIS_ES_CREATING},
-	{"deleting", M0_CLOVIS_ES_INIT, M0_CLOVIS_ES_DELETING},
+	{"deleting", M0_CLOVIS_ES_OPEN, M0_CLOVIS_ES_DELETING},
 	{"opening", M0_CLOVIS_ES_INIT, M0_CLOVIS_ES_OPENING},
 	{"finished-creating", M0_CLOVIS_ES_CREATING, M0_CLOVIS_ES_INIT},
 	{"finished-deleting", M0_CLOVIS_ES_DELETING, M0_CLOVIS_ES_INIT},
@@ -372,7 +373,6 @@ void m0_clovis_obj_init(struct m0_clovis_obj    *obj,
 	M0_ASSERT(layout_id > 0 && layout_id < m0_lid_to_unit_map_nr);
 	obj->ob_attr.oa_layout_id = layout_id;
 
-	m0_clovis__cob_poolversion_get(obj);
 #ifdef CLOVIS_OSYNC
 	m0_mutex_init(&obj->ob_pending_tx_lock);
 	ospti_tlist_init(&obj->ob_pending_tx);
@@ -390,7 +390,8 @@ void m0_clovis_entity_fini(struct m0_clovis_entity *entity)
 
 	M0_PRE(entity != NULL);
 	M0_PRE(M0_IN(entity->en_sm.sm_state,
-			    (M0_CLOVIS_ES_INIT, M0_CLOVIS_ES_FAILED)));
+			    (M0_CLOVIS_ES_INIT, M0_CLOVIS_ES_OPEN,
+			     M0_CLOVIS_ES_FAILED)));
 	M0_ASSERT(clovis_entity_invariant_full(entity));
 
 	m0_tl_teardown(spti, &entity->en_pending_tx, iter)
@@ -398,6 +399,10 @@ void m0_clovis_entity_fini(struct m0_clovis_entity *entity)
 	spti_tlist_fini(&entity->en_pending_tx);
 	m0_mutex_fini(&entity->en_pending_tx_lock);
 	m0_sm_group_lock(&entity->en_sm_group);
+	if (entity->en_sm.sm_state == M0_CLOVIS_ES_OPEN) {
+		m0_sm_move(&entity->en_sm, 0, M0_CLOVIS_ES_CLOSING);
+		m0_sm_move(&entity->en_sm, 0, M0_CLOVIS_ES_INIT);
+	}
 	m0_sm_fini(&entity->en_sm);
 	m0_sm_group_unlock(&entity->en_sm_group);
 	m0_sm_group_fini(&entity->en_sm_group);

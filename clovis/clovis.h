@@ -528,6 +528,7 @@ enum m0_clovis_entity_opcode {
 	M0_CLOVIS_EO_CREATE,
 	M0_CLOVIS_EO_DELETE,
 	M0_CLOVIS_EO_SYNC,
+	M0_CLOVIS_EO_OPEN,
 	M0_CLOVIS_EO_GETATTR,
 	M0_CLOVIS_EO_NR
 };
@@ -1166,6 +1167,19 @@ int m0_clovis_entity_delete(struct m0_clovis_entity *entity,
 			    struct m0_clovis_op **op);
 /**@}*/
 
+/**
+ * Sets an operation to open an entity.
+ *
+ * @param entity The entity that needs to be opened.
+ * @param[out] op Pointer to the operation which can be pre-allocated by the
+ * application. Else, this entry point will allocate it.
+ * @return 0 for success, (*op)->op_sm.sm_rc otherwise
+ *
+ * @pre entity != NULL
+ * @pre op != NULL
+ */
+int m0_clovis_entity_open(struct m0_clovis_entity *entity,
+			  struct m0_clovis_op **op);
 /**
  * Finalises an entity, freeing any additional memory allocated to represent it.
  *
