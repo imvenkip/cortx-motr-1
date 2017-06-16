@@ -293,12 +293,14 @@ m0_stob_domain_find_by_stob_id(const struct m0_stob_id *stob_id)
 	return m0_stob_domain_find(&stob_id->si_domain_fid);
 }
 
-M0_INTERNAL const struct m0_fid *m0_stob_domain_id_get(struct m0_stob_domain *dom)
+M0_INTERNAL const struct m0_fid *
+m0_stob_domain_id_get(const struct m0_stob_domain *dom)
 {
 	return &dom->sd_id;
 }
 
-M0_INTERNAL const char *m0_stob_domain_location_get(struct m0_stob_domain *dom)
+M0_INTERNAL const char *
+m0_stob_domain_location_get(const struct m0_stob_domain *dom)
 {
 	return dom->sd_location;
 }

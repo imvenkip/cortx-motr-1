@@ -28,6 +28,7 @@
 
 #include "dtm/dtm.h"		/* m0_dtx */
 #include "stob/ad.h"		/* m0_stob_ad_cfg_make */
+#include "stob/ad_private.h"	/* stob_ad_domain2ad */
 #include "stob/domain.h"
 #include "stob/io.h"
 #include "stob/stob.h"

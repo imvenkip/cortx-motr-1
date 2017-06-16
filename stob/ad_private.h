@@ -30,6 +30,9 @@
 #include "stob/stob.h"     /* m0_stob_id */
 #include "stob/stob_xc.h"  /* m0_stob_id */
 
+struct m0_stob_domain;
+struct m0_stob_ad_domain;
+
 struct stob_ad_0type_rec {
 	struct m0_format_header   sa0_header;
 	/* XXX pointer won't work with be_segment migration */
@@ -47,6 +50,9 @@ struct stob_ad_rec_frag {
 	struct m0_stob_id           arp_stob_id;
 	struct stob_ad_rec_frag_seg arp_seg;
 } M0_XCA_RECORD;
+
+M0_INTERNAL struct m0_stob_ad_domain *
+stob_ad_domain2ad(const struct m0_stob_domain *dom);
 
 /* __MERO_STOB_AD_PRIVATE_H__ */
 #endif

@@ -93,6 +93,13 @@ enum m0_stob_ad_0type_rec_format_version {
 	M0_STOB_AD_0TYPE_REC_FORMAT_VERSION = M0_STOB_AD_0TYPE_REC_FORMAT_VERSION_1
 };
 
+static const struct m0_bob_type stob_ad_domain_bob_type = {
+	.bt_name         = "m0_stob_ad_domain",
+	.bt_magix_offset = M0_MAGIX_OFFSET(struct m0_stob_ad_domain, sad_magix),
+	.bt_magix        = M0_STOB_AD_DOMAIN_MAGIC,
+};
+M0_BOB_DEFINE(static, &stob_ad_domain_bob_type, m0_stob_ad_domain);
+
 static struct m0_stob_domain_ops stob_ad_domain_ops;
 static struct m0_stob_ops stob_ad_ops;
 
@@ -173,6 +180,26 @@ struct m0_be_0type m0_stob_ad_0type = {
 	.b0_init = stob_ad_0type_init,
 	.b0_fini = stob_ad_0type_fini
 };
+
+M0_INTERNAL struct m0_stob_ad_domain *
+stob_ad_domain2ad(const struct m0_stob_domain *dom)
+{
+	struct m0_stob_ad_domain *adom;
+
+	adom = (struct m0_stob_ad_domain *)dom->sd_private;
+	m0_stob_ad_domain_bob_check(adom);
+	M0_ASSERT(m0_stob_domain__dom_key(m0_stob_domain_id_get(dom)) ==
+		  adom->sad_dom_key);
+	return adom;
+}
+
+M0_INTERNAL struct m0_balloc *
+m0_stob_ad_domain2balloc(const struct m0_stob_domain *dom)
+{
+	struct m0_stob_ad_domain *adom = stob_ad_domain2ad(dom);
+
+	return b2m0(adom->sad_ballroom);
+}
 
 static struct m0_stob_ad *stob_ad_stob2ad(const struct m0_stob *stob)
 {
@@ -340,51 +367,58 @@ static int stob_ad_domain_init(struct m0_stob_type *type,
 
 	adom = stob_ad_domain_locate(location_data);
 	if (adom == NULL)
-		rc = -ENOENT;
+		return M0_RC(-ENOENT);
 	else
 		seg = m0_be_domain_seg(m0_get()->i_be_dom, adom);
 
-	if (rc == 0 && seg == NULL) {
+	if (seg == NULL) {
 		M0_LOG(M0_ERROR, "segment doesn't exist for addr=%p", adom);
-		rc = -EINVAL;
+		return M0_ERR(-EINVAL);
 	}
 
-	if (rc == 0) {
-		M0_ASSERT(m0_stob_ad_domain__invariant(adom));
+	M0_ASSERT(m0_stob_ad_domain__invariant(adom));
 
-		dom         = &adom->sad_base;
-		dom->sd_ops = &stob_ad_domain_ops;
-		m0_be_emap_init(&adom->sad_adata, seg);
+	M0_ALLOC_PTR(dom);
+	if (dom == NULL)
+		return M0_ERR(-ENOMEM);
 
-		ballroom = adom->sad_ballroom;
-		m0_balloc_init(b2m0(ballroom));
-		rc =
-		 ballroom->ab_ops->bo_init(ballroom, seg,
-					   adom->sad_bshift,
-					   adom->sad_container_size,
-					   adom->sad_blocks_per_group,
-					   adom->sad_spare_blocks_per_group);
-		balloc_inited = rc == 0;
+	dom->sd_private = adom;
+	dom->sd_ops     = &stob_ad_domain_ops;
+	m0_stob_domain__dom_id_make(&dom->sd_id,
+				    m0_stob_type_id_get(type),
+				    0, adom->sad_dom_key);
+	m0_be_emap_init(&adom->sad_adata, seg);
 
-		rc = rc ?: stob_ad_bstore(&adom->sad_bstore_id,
-					  &adom->sad_bstore);
-		if (rc != 0) {
-			if (balloc_inited)
-				ballroom->ab_ops->bo_fini(ballroom);
-			m0_be_emap_fini(&adom->sad_adata);
-		} else {
-			adom->sad_be_seg = seg;
-			adom->sad_babshift = adom->sad_bshift -
-					m0_stob_block_shift(adom->sad_bstore);
-			M0_LOG(M0_DEBUG, "sad_bshift = %lu\tstob bshift=%lu",
-			       (unsigned long)adom->sad_bshift,
-			  (unsigned long)m0_stob_block_shift(adom->sad_bstore));
-			M0_ASSERT(adom->sad_babshift >= 0);
-		}
+	ballroom = adom->sad_ballroom;
+	m0_balloc_init(b2m0(ballroom));
+	rc = ballroom->ab_ops->bo_init(ballroom, seg,
+				       adom->sad_bshift,
+				       adom->sad_container_size,
+				       adom->sad_blocks_per_group,
+				       adom->sad_spare_blocks_per_group);
+	balloc_inited = rc == 0;
+
+	rc = rc ?: stob_ad_bstore(&adom->sad_bstore_id,
+				  &adom->sad_bstore);
+	if (rc != 0) {
+		if (balloc_inited)
+			ballroom->ab_ops->bo_fini(ballroom);
+		m0_be_emap_fini(&adom->sad_adata);
+		m0_free(dom);
+	} else {
+		m0_stob_ad_domain_bob_init(adom);
+		adom->sad_be_seg   = seg;
+		adom->sad_babshift = adom->sad_bshift -
+				m0_stob_block_shift(adom->sad_bstore);
+		M0_LOG(M0_DEBUG, "sad_bshift = %lu\tstob bshift=%lu",
+		       (unsigned long)adom->sad_bshift,
+		       (unsigned long)m0_stob_block_shift(adom->sad_bstore));
+		M0_ASSERT(adom->sad_babshift >= 0);
 	}
 
-	*out = rc == 0 ? dom : NULL;
-	return M0_RC(rc);
+	if (rc == 0)
+		*out = dom;
+	return rc == 0 ? M0_RC(rc) : M0_ERR(rc);
 }
 
 static void stob_ad_domain_fini(struct m0_stob_domain *dom)
@@ -395,6 +429,8 @@ static void stob_ad_domain_fini(struct m0_stob_domain *dom)
 	ballroom->ab_ops->bo_fini(ballroom);
 	m0_be_emap_fini(&adom->sad_adata);
 	m0_stob_put(adom->sad_bstore);
+	m0_stob_ad_domain_bob_fini(adom);
+	m0_free(dom);
 }
 
 static void stob_ad_domain_create_credit(struct m0_be_seg *seg,
@@ -436,7 +472,6 @@ static int stob_ad_domain_create(struct m0_stob_type *type,
 	struct m0_be_seg         *seg = cfg->adg_seg;
 	struct m0_sm_group       *grp = stob_ad_sm_group();
 	struct m0_stob_ad_domain *adom;
-	struct m0_stob_domain    *dom;
 	struct m0_be_emap        *emap;
 	struct m0_balloc         *cb = NULL;
 	struct m0_be_tx           tx = {};
@@ -473,10 +508,7 @@ static int stob_ad_domain_create(struct m0_stob_type *type,
 			.ot_footer_offset =
 				offsetof(struct m0_stob_ad_domain, sad_footer)
 		});
-		dom = &adom->sad_base;
-		m0_stob_domain__dom_id_make(&dom->sd_id,
-					    m0_stob_type_id_get(type),
-					    0, dom_key);
+		adom->sad_dom_key          = dom_key;
 		adom->sad_container_size   = cfg->adg_container_size;
 		adom->sad_bshift           = cfg->adg_bshift;
 		adom->sad_blocks_per_group = cfg->adg_blocks_per_group;
@@ -1689,7 +1721,7 @@ static int stob_ad_write_map(struct m0_stob_io *io,
 		return M0_RC(rc);
 	arp = frag->rp_data;
 	arp->arp_stob_id = *m0_stob_id_get(io->si_obj);
-	arp->arp_dom_id  = *m0_stob_domain_id_get(&adom->sad_base);
+	arp->arp_dom_id  = *m0_stob_domain_id_get(m0_stob_dom_get(io->si_obj));
 
 	do {
 		off = m0_ivec_cursor_index(dst);

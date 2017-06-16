@@ -27,7 +27,6 @@
 #include "fid/fid.h"		/* m0_fid */
 #include "lib/types.h"		/* m0_bcount_t */
 #include "stob/domain.h"	/* m0_stob_domain */
-#include "stob/domain_xc.h"
 #include "stob/io.h"		/* m0_stob_io */
 #include "stob/stob.h"		/* m0_stob */
 #include "stob/stob_xc.h"
@@ -96,7 +95,7 @@ struct m0_ad_balloc_ops {
 
 struct m0_stob_ad_domain {
 	struct m0_format_header sad_header;
-	struct m0_stob_domain   sad_base;
+	uint64_t                sad_dom_key;
 	struct m0_stob         *sad_bstore;
 	struct m0_stob_id       sad_bstore_id;
 	struct m0_ad_balloc    *sad_ballroom;
@@ -118,6 +117,7 @@ struct m0_stob_ad_domain {
 	 * volatile-only fields
 	 */
 	struct m0_be_seg       *sad_be_seg;
+	uint64_t                sad_magix;
 } M0_XCA_RECORD;
 M0_BASSERT(sizeof(M0_FIELD_VALUE(struct m0_stob_ad_domain, sad_path)) % 8 == 0);
 M0_BASSERT(sizeof(bool) == 1);
@@ -180,11 +180,8 @@ struct m0_stob_ad_io {
 
 extern const struct m0_stob_type m0_stob_ad_type;
 
-static inline struct m0_stob_ad_domain *
-stob_ad_domain2ad(const struct m0_stob_domain *dom)
-{
-	return container_of(dom, struct m0_stob_ad_domain, sad_base);
-}
+M0_INTERNAL struct m0_balloc *
+m0_stob_ad_domain2balloc(const struct m0_stob_domain *dom);
 
 M0_INTERNAL bool m0_stob_ad_domain__invariant(struct m0_stob_ad_domain *adom);
 

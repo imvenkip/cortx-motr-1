@@ -44,12 +44,8 @@ typedef void (*m0_stob_cache_eviction_cb_t)(struct m0_stob_cache *cache,
 /**
  * @todo document
  */
-#include "lib/tlist_xc.h"
-#include "format/format.h"
-#include "format/format_xc.h"
-
 struct m0_stob_cache {
-	struct m0_be_mutex	    sc_lock;
+	struct m0_mutex             sc_lock;
 	struct m0_tl		    sc_busy;
 	struct m0_tl		    sc_idle;
 	uint64_t		    sc_idle_size;
@@ -60,7 +56,7 @@ struct m0_stob_cache {
 	uint64_t		    sc_idle_hits;
 	uint64_t		    sc_misses;
 	uint64_t		    sc_evictions;
-} M0_XCA_RECORD; /* TODO Remove xcode tag */
+};
 
 /**
  * Initialises stob cache.

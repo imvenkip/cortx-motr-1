@@ -25,12 +25,9 @@
 
 #include "lib/types.h"		/* uint64_t */
 #include "lib/tlist.h"		/* m0_tlink */
-#include "lib/tlist_xc.h"
 #include "fid/fid.h"            /* m0_fid */
-#include "fid/fid_xc.h"
 
 #include "stob/cache.h"		/* m0_stob_cache */
-#include "stob/cache_xc.h"
 
 /**
  * @defgroup stob Storage object
@@ -102,7 +99,9 @@ struct m0_stob_domain {
 	/** Magic for sd_domain_linkage */
 	uint64_t			 sd_magic;
 	struct m0_stob_cache		 sd_cache;
-} M0_XCA_RECORD; /* TODO Remove xcode tag */
+	/** Private data of stob domain implementation */
+	void                            *sd_private;
+};
 
 /** Stob domain operations vector. */
 struct m0_stob_domain_ops {
@@ -224,9 +223,10 @@ m0_stob_domain_find_by_stob_id(const struct m0_stob_id *stob_id);
 
 /** Returns stob domain id. */
 M0_INTERNAL const struct m0_fid *
-m0_stob_domain_id_get(struct m0_stob_domain *dom);
+m0_stob_domain_id_get(const struct m0_stob_domain *dom);
 /** Returns stob domain location. */
-M0_INTERNAL const char *m0_stob_domain_location_get(struct m0_stob_domain *dom);
+M0_INTERNAL const char *
+m0_stob_domain_location_get(const struct m0_stob_domain *dom);
 /** Determines if stob domain hosts the stobs of given type. */
 M0_INTERNAL bool m0_stob_domain_is_of_type(const struct m0_stob_domain *dom,
 					   const struct m0_stob_type *dt);

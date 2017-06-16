@@ -877,6 +877,9 @@ enum m0_magic_satchel {
 	/* stob/null.c:null_domains_tl::td_head_magic (discoid head) */
 	M0_STOB_DOM_NULL_HEAD_MAGIC = 0x33d15c01d4ead77,
 
+	/* stob/ad.h:m0_stob_ad_domain::sad_magix (bob ad disc bob) */
+	M0_STOB_AD_DOMAIN_MAGIC     = 0x33b0badd15cb0b77,
+
 /* Storage device */
 	/* m0_storage_dev::isd_magic (defaced code) */
 	M0_STORAGE_DEV_MAGIC = 0x33defacedc0de77,

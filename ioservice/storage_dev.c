@@ -30,7 +30,7 @@
 #include "conf/helpers.h"           /* m0_conf_disk_get */
 #include "conf/diter.h"             /* m9_conf_diter */
 #include "conf/obj_ops.h"           /* M0_CONF_DIRNEXT */
-#include "stob/ad.h"                /* m0_stob_ad_type */
+#include "stob/ad.h"                /* m0_stob_ad_domain2balloc */
 #include "stob/linux.h"             /* m0_stob_linux */
 #include "stob/stob.h"              /* m0_stob_id_get */
 #include "ioservice/fid_convert.h"  /* m0_fid_validate_linuxstob */
@@ -604,22 +604,19 @@ M0_INTERNAL void m0_storage_dev_detach(struct m0_storage_dev *dev)
 M0_INTERNAL void m0_storage_dev_space(struct m0_storage_dev   *dev,
 				      struct m0_storage_space *space)
 {
-	struct m0_stob_ad_domain *ad_domain;
-	struct m0_balloc         *balloc;
-	struct statfs             st;
-	int                       fd = -1;
-	int                       rc;
-	int                       rc1;
+	struct m0_balloc *balloc;
+	struct statfs     st;
+	int               fd = -1;
+	int               rc;
+	int               rc1;
 
 	M0_ENTRY();
 	M0_ASSERT(dev != NULL);
 
 	switch (dev->isd_type) {
 	case M0_STORAGE_DEV_TYPE_AD:
-		ad_domain = stob_ad_domain2ad(dev->isd_domain);
-		balloc = b2m0(ad_domain->sad_ballroom);
+		balloc = m0_stob_ad_domain2balloc(dev->isd_domain);
 		M0_ASSERT(balloc != NULL);
-
 		*space = (struct m0_storage_space) {
 			.sds_free_blocks = balloc->cb_sb.bsb_freeblocks +
 						balloc->cb_sb.bsb_freespare,

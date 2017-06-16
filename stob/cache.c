@@ -50,7 +50,7 @@ M0_INTERNAL int m0_stob_cache_init(struct m0_stob_cache *cache,
 		.sc_misses	= 0,
 		.sc_evictions	= 0,
 	};
-	m0_mutex_init(&cache->sc_lock.bm_u.mutex);
+	m0_mutex_init(&cache->sc_lock);
 	stob_cache_tlist_init(&cache->sc_busy);
 	stob_cache_tlist_init(&cache->sc_idle);
 	return 0;
@@ -72,7 +72,7 @@ M0_INTERNAL void m0_stob_cache_fini(struct m0_stob_cache *cache)
 	} m0_tl_endfor;
 	stob_cache_tlist_fini(&cache->sc_idle);
 	stob_cache_tlist_fini(&cache->sc_busy);
-	m0_mutex_init(&cache->sc_lock.bm_u.mutex);
+	m0_mutex_init(&cache->sc_lock);
 }
 
 
@@ -182,22 +182,22 @@ M0_INTERNAL void m0_stob_cache_purge(struct m0_stob_cache *cache, int nr)
 
 M0_INTERNAL void m0_stob_cache_lock(struct m0_stob_cache *cache)
 {
-	m0_mutex_lock(&cache->sc_lock.bm_u.mutex);
+	m0_mutex_lock(&cache->sc_lock);
 }
 
 M0_INTERNAL void m0_stob_cache_unlock(struct m0_stob_cache *cache)
 {
-	m0_mutex_unlock(&cache->sc_lock.bm_u.mutex);
+	m0_mutex_unlock(&cache->sc_lock);
 }
 
 M0_INTERNAL bool m0_stob_cache_is_locked(const struct m0_stob_cache *cache)
 {
-	return m0_mutex_is_locked(&cache->sc_lock.bm_u.mutex);
+	return m0_mutex_is_locked(&cache->sc_lock);
 }
 
 M0_INTERNAL bool m0_stob_cache_is_not_locked(const struct m0_stob_cache *cache)
 {
-	return m0_mutex_is_not_locked(&cache->sc_lock.bm_u.mutex);
+	return m0_mutex_is_not_locked(&cache->sc_lock);
 }
 
 M0_INTERNAL void m0_stob_cache__print(struct m0_stob_cache *cache)
