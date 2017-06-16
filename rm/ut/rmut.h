@@ -141,10 +141,8 @@ extern struct rm_ut_data     rm_test_data;
 M0_EXTERN struct rm_ctx      rm_ctxs[];
 M0_EXTERN const char        *serv_addr[];
 M0_EXTERN const int          cob_ids[];
-M0_EXTERN const char        *db_name[];
 M0_EXTERN struct m0_chan     rm_ut_tests_chan;
 M0_EXTERN struct m0_mutex    rm_ut_tests_chan_mutex;
-M0_EXTERN const char        *db_name[];
 
 void rm_utdata_init(struct rm_ut_data *data, enum obj_type type);
 void rm_utdata_fini(struct rm_ut_data *data, enum obj_type type);

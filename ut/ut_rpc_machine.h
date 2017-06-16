@@ -35,7 +35,6 @@
 
 struct m0_ut_rpc_mach_ctx {
 	const char                *rmc_ep_addr;
-	const char                *rmc_dbname;
 	struct m0_rpc_machine      rmc_rpc;
 	struct m0_be_ut_backend    rmc_ut_be;
 	struct m0_be_ut_seg        rmc_ut_seg;

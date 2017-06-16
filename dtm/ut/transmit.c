@@ -404,7 +404,6 @@ static void rpc_fop_fom_init(void)
 	m0_mutex_init(&lock);
 	m0_semaphore_init(&seq, 0);
 	test_ctx = (struct m0_ut_rpc_mach_ctx) {
-		.rmc_dbname  = "dtm_ut_db",
 		.rmc_cob_id  = { 20 },
 		.rmc_ep_addr = "0@lo:12345:34:10"
 	};

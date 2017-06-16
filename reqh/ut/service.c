@@ -82,7 +82,6 @@ static void test_service(void)
 	/* Hack */
 	M0_SET0(&rmach_ctx);
 	rmach_ctx.rmc_cob_id.id = DUMMY_COB_ID;
-	rmach_ctx.rmc_dbname    = DUMMY_DBNAME;
 	rmach_ctx.rmc_ep_addr   = DUMMY_SERVER_ADDR;
 	m0_ut_rpc_mach_init_and_add(&rmach_ctx);
 

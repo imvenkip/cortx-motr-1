@@ -34,10 +34,6 @@ enum {
 #include "fop/ut/long_lock/rdwr_fom.c"
 #include "fop/ut/long_lock/rdwr_test_bench.c"
 
-static const char *ll_db_name[] = {"ut-cob_1",
-				   "ut-cob_2"
-};
-
 static const char *ll_serv_addr[] = { "0@lo:12345:34:1",
 				      "0@lo:12345:34:2"
 };
@@ -132,7 +128,6 @@ static int test_long_lock_init(void)
 	for (i = 0; i < REQH_IN_UT_MAX; ++i) {
 		M0_SET0(&rmach_ctx[i]);
 		rmach_ctx[i].rmc_cob_id.id = ll_cob_ids[i];
-		rmach_ctx[i].rmc_dbname    = ll_db_name[i];
 		rmach_ctx[i].rmc_ep_addr   = ll_serv_addr[i];
 		m0_ut_rpc_mach_init_and_add(&rmach_ctx[i]);
 	}

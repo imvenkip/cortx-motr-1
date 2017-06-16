@@ -272,7 +272,6 @@ static int cm_cp_init(void)
 
 	M0_SET0(&cmut_rmach_ctx);
 	cmut_rmach_ctx.rmc_cob_id.id = DUMMY_COB_ID;
-	cmut_rmach_ctx.rmc_dbname    = DUMMY_DBNAME;
 	cmut_rmach_ctx.rmc_ep_addr   = DUMMY_SERVER_ADDR;
 	m0_ut_rpc_mach_init_and_add(&cmut_rmach_ctx);
 	rc = m0_cm_type_register(&cm_ut_cmt);

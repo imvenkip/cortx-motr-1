@@ -29,7 +29,6 @@
 #include "cob/cob.h"
 #include "lib/locality.h"
 
-static const char db_name[]    = "ut-cob";
 static const char test_name[]  = "hello_world";
 static const char add_name[]   = "add_name";
 static const char wrong_name[] = "wrong_name";

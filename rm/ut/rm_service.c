@@ -234,7 +234,6 @@ void rmsvc(void)
 		M0_SET0(&rm_ctxs[rc]);
 		rm_ctxs[rc].rc_id = rc;
 		rm_ctxs[rc].rc_rmach_ctx.rmc_cob_id.id = cob_ids[rc];
-		rm_ctxs[rc].rc_rmach_ctx.rmc_dbname = db_name[rc];
 		rm_ctxs[rc].rc_rmach_ctx.rmc_ep_addr = serv_addr[rc];
 		m0_clink_init(&tests_clink[rc], NULL);
 		m0_clink_add_lock(&rm_ut_tests_chan, &tests_clink[rc]);

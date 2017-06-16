@@ -44,7 +44,6 @@
 #include "layout/linear_enum.h"
 #include "ioservice/fid_convert.h"       /* m0_fid_convert_gob2cob */
 
-static const char              db_name[] = "ut-layout";
 static struct m0_layout_domain domain;
 static struct m0_pool          pool;
 static int                     rc;

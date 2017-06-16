@@ -38,11 +38,6 @@
 
 extern const struct m0_tl_descr m0_remotes_tl;
 
-const char *db_name[] = {"ut-rm-cob_1",
-			 "ut-rm-cob_2",
-			 "ut-rm-cob_3"
-};
-
 const char *serv_addr[] = { "0@lo:12345:34:1",
 			    "0@lo:12345:34:2",
 			    "0@lo:12345:34:3"
@@ -177,7 +172,6 @@ void rm_ctx_init(struct rm_ctx *rmctx)
 		.rc_id        = id,
 		.rc_rmach_ctx = {
 			.rmc_cob_id.id = cob_ids[id],
-			.rmc_dbname    = db_name[id],
 			.rmc_ep_addr   = serv_addr[id]
 		}
 	};
