@@ -530,6 +530,7 @@ int cr_op_namei(struct clovis_workload_io  *cwi, struct clovis_task_io *cti,
 		op_ctx->coc_task = cti;
 		op_ctx->coc_op_code = op_code;
 
+		M0_SET0(&cti->cti_objs[idx]);
 		m0_clovis_obj_init(&cti->cti_objs[idx],
 				   crate_clovis_uber_realm(),
 				   &cti->cti_ids[i], cwi->cwi_layout_id);

@@ -100,6 +100,7 @@ static void example_abitmorecomplicated(void)
 			} while(already_chosen[idx]);
 			already_chosen[idx] = true;
 
+			M0_SET0(&objs[idx]);
 			clovis_st_obj_init(&objs[idx],
 				&clovis_st_example_container.co_realm,
 				&ids[idx], default_layout_id);

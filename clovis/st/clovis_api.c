@@ -167,6 +167,19 @@ void clovis_st_idx_open(struct m0_clovis_entity *entity)
 
 	m0_clovis_entity_open(entity, &ops[0]);
 }
+
+int clovis_st_layout_op(struct m0_clovis_obj *obj,
+			enum m0_clovis_entity_opcode opcode,
+			struct m0_clovis_layout *layout,
+			struct m0_clovis_op **op)
+{
+	int rc;
+
+	rc = m0_clovis_layout_op(obj, opcode, layout, op);
+	if (*op != NULL) clovis_st_mark_op(*op);
+
+	return rc;
+}
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"

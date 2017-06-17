@@ -23,13 +23,13 @@
 #ifndef __MERO_DIX_LAYOUT_H__
 #define __MERO_DIX_LAYOUT_H__
 
-
 #include "lib/types.h"
 #include "fid/fid.h"
 #include "fid/fid_xc.h"
 #include "dix/imask.h"
 #include "dix/imask_xc.h"
 #include "lib/buf.h"
+#include "lib/types_xc.h"
 
 /**
  * @addtogroup dix
@@ -61,6 +61,8 @@ enum dix_layout_type {
 	DIX_LTYPE_UNKNOWN,
 	DIX_LTYPE_ID,
 	DIX_LTYPE_DESCR,
+	DIX_LTYPE_COMPOSITE_DESCR,
+	DIX_LTYPE_CAPTURE_DESCR,
 };
 
 enum m0_dix_hash_fnc_type {
@@ -75,11 +77,34 @@ struct m0_dix_ldesc {
 	struct m0_dix_imask ld_imask;
 } M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
+struct m0_dix_capture_ldesc {
+	struct m0_uint128 ca_orig_id;
+	struct m0_fid     ca_pver;
+	uint64_t          ca_lid;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
+
+struct m0_dix_composite_layer {
+	struct m0_uint128 cr_subobj;
+	uint64_t          cr_lid;
+	int               cr_priority;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
+
+struct m0_dix_composite_ldesc {
+	int                            cld_nr_layers;
+	struct m0_dix_composite_layer *cld_layers;
+} M0_XCA_SEQUENCE M0_XCA_DOMAIN(rpc);
+
 struct m0_dix_layout {
 	uint32_t dl_type;
 	union {
-		uint64_t            dl_id   M0_XCA_TAG("DIX_LTYPE_ID");
-		struct m0_dix_ldesc dl_desc M0_XCA_TAG("DIX_LTYPE_DESCR");
+		uint64_t                      dl_id
+					M0_XCA_TAG("DIX_LTYPE_ID");
+		struct m0_dix_ldesc           dl_desc
+					M0_XCA_TAG("DIX_LTYPE_DESCR");
+		struct m0_dix_capture_ldesc   dl_cap_desc
+					M0_XCA_TAG("DIX_LTYPE_CAPTURE_DESCR");
+		struct m0_dix_composite_ldesc dl_comp_desc
+					M0_XCA_TAG("DIX_LTYPE_COMPOSITE_DESCR");
 	} u;
 } M0_XCA_UNION M0_XCA_DOMAIN(rpc);
 

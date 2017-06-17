@@ -1402,7 +1402,7 @@ static bool should_spare_be_mapped(struct m0_clovis_op_io *ioo,
 }
 
 /**
- * Determines which targets (spare  or not) of the io map the network transfer
+ * Determines which targets (spare or not) of the io map the network transfer
  * requests should be mapped to.
  * This is heavily based on m0t1fs/linux_kernel/file.c::nw_xfer_tioreq_map
  *

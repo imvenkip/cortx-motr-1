@@ -32,6 +32,7 @@
 #include "clovis/clovis_addb.h"
 #include "clovis/clovis.h"
 #include "clovis/clovis_internal.h"
+#include "clovis/clovis_layout.h"
 #include "clovis/sync.h"
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CLOVIS
@@ -364,6 +365,7 @@ void m0_clovis_obj_init(struct m0_clovis_obj    *obj,
 	M0_PRE(parent != NULL);
 	M0_PRE(id != NULL);
 	M0_PRE(clovis_entity_id_is_valid(id));
+	M0_PRE(M0_IS0(obj));
 
 	/* Initalise the entity */
 	m0_clovis_entity_init(&obj->ob_entity, parent, id, M0_CLOVIS_ET_OBJ);
@@ -390,8 +392,8 @@ void m0_clovis_entity_fini(struct m0_clovis_entity *entity)
 
 	M0_PRE(entity != NULL);
 	M0_PRE(M0_IN(entity->en_sm.sm_state,
-			    (M0_CLOVIS_ES_INIT, M0_CLOVIS_ES_OPEN,
-			     M0_CLOVIS_ES_FAILED)));
+		     (M0_CLOVIS_ES_INIT, M0_CLOVIS_ES_OPEN,
+		      M0_CLOVIS_ES_FAILED)));
 	M0_ASSERT(clovis_entity_invariant_full(entity));
 
 	m0_tl_teardown(spti, &entity->en_pending_tx, iter)
@@ -419,6 +421,13 @@ void m0_clovis_obj_fini(struct m0_clovis_obj *obj)
 	M0_ENTRY();
 	M0_PRE(obj != NULL);
 
+	/* Cleanup layout. */
+	if (obj->ob_layout != NULL) {
+		m0_clovis__layout_put(obj->ob_layout);
+		m0_clovis_layout_free(obj->ob_layout);
+		obj->ob_layout = NULL;
+	}
+	m0_free(obj->ob_layout);
 	m0_clovis_entity_fini(&obj->ob_entity);
 	M0_SET0(obj);
 
@@ -490,6 +499,38 @@ M0_INTERNAL int m0_clovis_op_failed(struct m0_clovis_op *op)
 		op->op_cbs->oop_failed(op);
 
 	return M0_RC(-1);
+}
+
+M0_INTERNAL int m0_clovis_op_get(struct m0_clovis_op **op, size_t size)
+{
+	int rc = 0;
+
+	M0_ENTRY();
+	M0_PRE(op != NULL);
+
+	/* Allocate the op if necessary. */
+	if (*op == NULL) {
+		rc = m0_clovis_op_alloc(op, size);
+		if (rc != 0)
+			return M0_ERR(rc);
+	} else {
+		size_t cached_size = (*op)->op_size;
+
+		if ((*op)->op_size < size)
+			/* XXX juan: we cannot assume (*op)->op_sm is init'ed */
+			/* XXX morse: then we can't trust the value, and can't
+			 *            ever return EMSGSIZE ... so operations
+			 *            can never be re-used.... a compromise is
+			 *            required */
+			return M0_ERR(-EMSGSIZE);
+
+		/* 0 the pre-allocated operation. */
+		memset(*op, 0, cached_size);
+		(*op)->op_size = size;
+	}
+	m0_mutex_init(&(*op)->op_pending_tx_lock);
+	spti_tlist_init(&(*op)->op_pending_tx);
+	return M0_RC(0);
 }
 
 /**
@@ -591,7 +632,6 @@ M0_INTERNAL int m0_clovis_op_alloc(struct m0_clovis_op **op, size_t op_size)
 	*op = m0_alloc(op_size);
 	if (*op == NULL)
 		return M0_ERR(-ENOMEM);
-
 	(*op)->op_size = op_size;
 
 	return M0_RC(0);

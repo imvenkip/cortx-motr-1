@@ -60,6 +60,15 @@
 
 struct m0_clovis_idx_service_ctx;
 
+#ifdef CLOVIS_FOR_M0T1FS
+/**
+ * Maximum length for an object's name.
+ */
+enum {
+	M0_OBJ_NAME_MAX_LEN = 64
+};
+#endif
+
 enum m0_clovis_entity_states {
 	M0_CLOVIS_ES_INIT = 1,
 	M0_CLOVIS_ES_CREATING,
@@ -69,7 +78,6 @@ enum m0_clovis_entity_states {
 	M0_CLOVIS_ES_CLOSING,
 	M0_CLOVIS_ES_FAILED
 };
-
 
 M0_INTERNAL bool clovis_entity_invariant_full(struct m0_clovis_entity *ent);
 M0_INTERNAL bool clovis_entity_invariant_locked(const struct
@@ -288,7 +296,14 @@ struct m0_clovis_op_io {
 	struct m0_chan                   ioo_completion;
 };
 
-M0_INTERNAL bool m0_clovis_op_io_invariant(const struct m0_clovis_op_io *iop);
+struct m0_clovis_io_args {
+	struct m0_clovis_obj      *ia_obj;
+	enum m0_clovis_obj_opcode  ia_opcode;
+	struct m0_indexvec        *ia_ext;
+	struct m0_bufvec          *ia_data;
+	struct m0_bufvec          *ia_attr;
+	uint64_t                   ia_mask;
+};
 
 struct m0_clovis_op_md {
 	struct m0_clovis_op_common mdo_oc;
@@ -335,6 +350,14 @@ struct m0_clovis_ios_cob_req {
 	uint32_t                 icr_index;
 	struct m0_clovis_ast_rc  icr_ar;
 	uint64_t                 icr_magic;
+};
+
+struct m0_clovis_layout_ops {
+	int  (*lo_alloc) (struct m0_clovis_layout **);
+	int  (*lo_get) (struct m0_clovis_layout *);
+	void (*lo_put) (struct m0_clovis_layout *);
+	/** Function to construct IO for an object. */
+	int  (*lo_io_build)(struct m0_clovis_io_args *io_args, struct m0_clovis_op **op);
 };
 
 /** miscallaneous constants */
@@ -502,6 +525,7 @@ M0_INTERNAL struct m0_confc* m0_clovis_confc(struct m0_clovis *m0c);
 M0_INTERNAL int m0_clovis_op_executed(struct m0_clovis_op *op);
 M0_INTERNAL int m0_clovis_op_stable(struct m0_clovis_op *op);
 M0_INTERNAL int m0_clovis_op_failed(struct m0_clovis_op *op);
+M0_INTERNAL int m0_clovis_op_get(struct m0_clovis_op **op, size_t size);
 
 /**
  * Returns the m0_clovis clovis instance, found from the provided operation.
@@ -573,6 +597,15 @@ M0_INTERNAL bool m0_clovis_op_obj_ast_rc_invariant(struct m0_clovis_ast_rc *ar);
 M0_INTERNAL bool m0_clovis_op_obj_invariant(struct m0_clovis_op_obj *oo);
 
 /**
+ * Checks an object's IO operation is not malformed or corrupted.
+ *
+ * @param iop object's IO operation to be checked.
+ * @return true if the operation is not malformed or false if some error
+ * was detected.
+ */
+M0_INTERNAL bool m0_clovis_op_io_invariant(const struct m0_clovis_op_io *iop);
+
+/**
  * Retrieves the ios session corresponding to a container_id. The ioservice
  * for an object is calculated from the container id.
  *
@@ -602,7 +635,15 @@ m0_clovis_locality_pick(struct m0_clovis *cinst);
  * @param oo object operation being processed.
  * @return 0 if success or an error code otherwise.
  */
-M0_INTERNAL int m0_clovis_cob_send(struct m0_clovis_op_obj *oo);
+M0_INTERNAL int m0_clovis__obj_namei_send(struct m0_clovis_op_obj *oo);
+
+/**
+ * Get object's attributes from services synchronously.
+ *
+ * @param obj object to be queried for.
+ * @return 0 if success or an error code otherwise.
+ */
+M0_INTERNAL int m0_clovis__obj_attr_get_sync(struct m0_clovis_obj *obj);
 
 /**
  * Finalises one of the fops used to contact an ioservice.
@@ -683,14 +724,24 @@ m0_clovis__obj_layout_instance_build(struct m0_clovis *cinst,
  */
 M0_INTERNAL int m0_clovis__cob_poolversion_get(struct m0_clovis_obj *obj);
 
-#ifdef CLOVIS_MOCK
-/* these functions are how the mock stores state */
-void mock_init(struct m0_clovis *instance);
-void mock_fini(struct m0_clovis *instance);
-int mock_entity_create(struct m0_clovis *instance, struct m0_uint128 id);
-int mock_entity_delete(struct m0_clovis *instance, struct m0_uint128 id);
-bool mock_entity_exists(struct m0_clovis *instance, struct m0_uint128 id);
-#endif
+M0_INTERNAL int clovis_obj_fid_make_name(char *name, size_t name_len,
+					 const struct m0_fid *fid);
+/**
+ * TODO: doxygen
+ */
+M0_INTERNAL struct m0_clovis_obj*
+m0_clovis__obj_entity(struct m0_clovis_entity *entity);
+M0_INTERNAL uint64_t m0_clovis__obj_lid(struct m0_clovis_obj *obj);
+M0_INTERNAL enum m0_clovis_layout_type
+m0_clovis__obj_layout_type(struct m0_clovis_obj *obj);
+M0_INTERNAL struct m0_fid m0_clovis__obj_pver(struct m0_clovis_obj *obj);
+M0_INTERNAL void m0_clovis__obj_attr_set(struct m0_clovis_obj *obj,
+					 struct m0_fid         pver,
+					 uint64_t              lid);
+
+M0_INTERNAL int m0_clovis__obj_io_build(struct m0_clovis_io_args *args,
+					struct m0_clovis_op **op);
+M0_INTERNAL void m0_clovis__obj_op_done(struct m0_clovis_op *op);
 
 /** @} end of clovis group */
 

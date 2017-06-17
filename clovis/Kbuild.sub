@@ -12,5 +12,7 @@ m0mero_objects += clovis/clovis.o \
 		  clovis/io_nw_xfer.o \
 		  clovis/clovis_io.o \
 		  clovis/clovis_sync.o \
+		  clovis/clovis_layout.o \
+		  clovis/composite_layout.o \
 		  clovis/clovis_realm.o \
 		  clovis/utils.o

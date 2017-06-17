@@ -577,20 +577,23 @@ static void ioreq_iosm_handle_executed(struct m0_sm_group *grp,
 	 * it receive all replies from ioservies at this moment (although it
 	 * is not true) and moves the state of this 'op' to STABLE.
 	 *
-	 * TODO: (Experimental) to introduce m0_clovis_op_sync to allow an
-	 * application explictly to flush data to disks.
+	 * Clovis introduced SYNC APIs to allow an application explictly to
+	 * flush data to disks.
 	 */
 
 	m0_sm_group_lock(&op->op_sm_group);
 	m0_sm_move(&op->op_sm, ioo->ioo_rc, M0_CLOVIS_OS_EXECUTED);
 	m0_clovis_op_executed(op);
-
 	if (op->op_code == M0_CLOVIS_OC_READ
 	    || op->op_code == M0_CLOVIS_OC_WRITE) {
 		m0_sm_move(&op->op_sm, ioo->ioo_rc, M0_CLOVIS_OS_STABLE);
 		m0_clovis_op_stable(op);
 	}
 	m0_sm_group_unlock(&op->op_sm_group);
+
+	/* Post-processing for object op. */
+	m0_clovis__obj_op_done(op);
+
 out:
 	M0_LEAVE();
 	return;

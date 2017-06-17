@@ -194,6 +194,10 @@ struct m0_idx_dix_config {
 
 };
 
+/* BOB types */
+extern const struct m0_bob_type oi_bobtype;
+M0_BOB_DECLARE(M0_INTERNAL, m0_clovis_op_idx);
+
 M0_INTERNAL bool m0_clovis__idx_op_invariant(struct m0_clovis_op_idx *oi);
 M0_INTERNAL void clovis_idx_op_ast_complete(struct m0_sm_group *grp,
 				       struct m0_sm_ast *ast);

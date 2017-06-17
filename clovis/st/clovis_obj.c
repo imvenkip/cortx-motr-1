@@ -281,6 +281,7 @@ static void obj_create_then_delete(void)
 	clovis_oid_get(&id);
 
 	for (i = 0; i < rounds; i++) {
+		M0_SET0(obj);
 		clovis_st_obj_init(obj, &clovis_st_obj_container.co_realm,
 				   &id, default_layout_id);
 
@@ -379,6 +380,7 @@ static void obj_delete_multiple(void)
 			already_chosen[idx] = true;
 			obj_used[idx] = true;
 
+			M0_SET0(&objs[idx]);
 			clovis_st_obj_init(&objs[idx],
 				&clovis_st_obj_container.co_realm,
 				&ids[idx], default_layout_id);

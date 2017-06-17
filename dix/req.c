@@ -2262,6 +2262,21 @@ M0_INTERNAL int m0_dix_generic_rc(const struct m0_dix_req *req)
 	return M0_RC(req->dr_sm.sm_rc);
 }
 
+M0_INTERNAL int m0_dix_req_rc(const struct m0_dix_req *req)
+{
+	int rc;
+	int i;
+
+	rc = m0_dix_generic_rc(req);
+	if (rc == 0)
+		for (i = 0; i < m0_dix_req_nr(req); i++) {
+			rc = m0_dix_item_rc(req, i);
+			if (rc != 0)
+				break;
+		}
+	return M0_RC(rc);
+}
+
 M0_INTERNAL uint64_t m0_dix_req_nr(const struct m0_dix_req *req)
 {
 	return req->dr_items_nr;

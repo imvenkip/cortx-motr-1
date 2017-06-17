@@ -514,6 +514,12 @@ M0_INTERNAL int m0_dix_generic_rc(const struct m0_dix_req *req);
  */
 M0_INTERNAL int m0_dix_item_rc(const struct m0_dix_req *req,
 			       uint64_t                 idx);
+
+/**
+ * Returns the return value of results.
+ */
+M0_INTERNAL int m0_dix_req_rc(const struct m0_dix_req *req);
+
 /**
  * Returns the number of results.
  *

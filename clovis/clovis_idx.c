@@ -39,9 +39,9 @@ static void clovis_idx_op_cb_launch(struct m0_clovis_op_common *oc);
 static void clovis_idx_op_cb_fini(struct m0_clovis_op_common *oc);
 static void clovis_idx_op_cb_free(struct m0_clovis_op_common *oc);
 
-static const struct m0_bob_type oi_bobtype;
-M0_BOB_DEFINE(static, &oi_bobtype,  m0_clovis_op_idx);
-static const struct m0_bob_type oi_bobtype = {
+const struct m0_bob_type oi_bobtype;
+M0_BOB_DEFINE(M0_INTERNAL, &oi_bobtype,  m0_clovis_op_idx);
+const struct m0_bob_type oi_bobtype = {
 	.bt_name         = "oi_bobtype",
 	.bt_magix_offset = offsetof(struct m0_clovis_op_idx, oi_magic),
 	.bt_magix        = M0_CLOVIS_OI_MAGIC,
@@ -76,35 +76,6 @@ M0_INTERNAL bool m0_clovis__idx_op_invariant(struct m0_clovis_op_idx *oi)
 		     oi->oi_oc.oc_op.op_size >= sizeof *oi &&
 		     m0_clovis_ast_rc_bob_check(&oi->oi_ar) &&
 		     m0_clovis_op_common_bob_check(&oi->oi_oc));
-}
-
-static int clovis_idx_op_get(struct m0_clovis_op **op)
-{
-	int rc = 0;
-
-	M0_ENTRY();
-
-	M0_PRE(op != NULL);
-
-	/* Allocate the op if necessary. */
-	if (*op == NULL) {
-		rc = m0_clovis_op_alloc(op, sizeof(struct m0_clovis_op_idx));
-		if (rc != 0)
-			return M0_ERR(rc);
-	} else {
-		size_t cached_size = (*op)->op_size;
-
-		if ((*op)->op_size < sizeof(struct m0_clovis_op_idx))
-			return M0_ERR(-EMSGSIZE);
-
-		/* 0 the pre-allocated operation. */
-		memset(*op, 0, cached_size);
-		(*op)->op_size = sizeof(struct m0_clovis_op_idx);
-	}
-	m0_mutex_init(&(*op)->op_pending_tx_lock);
-	spti_tlist_init(&(*op)->op_pending_tx);
-
-	return M0_RC(rc);
 }
 
 /**
@@ -450,7 +421,7 @@ int m0_clovis_idx_op(struct m0_clovis_idx       *idx,
 			      sizeof(struct m0_uint128))));
 	M0_PRE(op != NULL);
 
-	rc = clovis_idx_op_get(op);
+	rc = m0_clovis_op_get(op, sizeof(struct m0_clovis_op_idx));
 	if (rc == 0) {
 		M0_ASSERT(*op != NULL);
 		rc = clovis_idx_op_init(idx, opcode, keys, vals, rcs, flags,
@@ -481,7 +452,7 @@ M0_INTERNAL int m0_clovis_idx_op_namei(struct m0_clovis_entity *entity,
 	M0_PRE(entity != NULL);
 	M0_PRE(op != NULL);
 
-	rc = clovis_idx_op_get(op);
+	rc = m0_clovis_op_get(op, sizeof(struct m0_clovis_op_idx));
 	if (rc == 0) {
 		M0_ASSERT(*op != NULL);
 		idx = M0_AMB(idx, entity, in_entity);

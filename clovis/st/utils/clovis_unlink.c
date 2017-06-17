@@ -96,6 +96,7 @@ static int unlink()
 	id.u_lo = atoi(clovis_id);
 
 	/* Create an entity */
+	M0_SET0(&obj);
 	m0_clovis_obj_init(&obj, &clovis_uber_realm, &id,
 			   m0_clovis_default_layout_id(clovis_instance));
 	m0_clovis_entity_delete(&obj.ob_entity, &ops[0]);

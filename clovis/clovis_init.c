@@ -39,6 +39,7 @@
 #include "clovis/clovis.h"
 #include "clovis/clovis_addb.h"
 #include "clovis/clovis_internal.h"
+#include "clovis/clovis_layout.h"
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CLOVIS
 #include "lib/trace.h"                /* M0_LOG */
@@ -1520,6 +1521,9 @@ int m0_clovis_init(struct m0_clovis **m0c_p,
 	/* This is a sanity test, not a side-effect of m0_clovis_init */
 	M0_POST(m0_uint128_cmp(&M0_CLOVIS_UBER_REALM,
 			       &M0_CLOVIS_ID_APP) < 0);
+
+	/* Extra initialisation work for composite layout. */
+	m0_clovis__composite_container_init(m0c);
 
 	/* publish the allocated clovis instance */
 	*m0c_p = m0c;

@@ -772,7 +772,7 @@ static void ut_clovis_test_m0_clovis_obj_op(void)
 
 	/* initialise clovis */
 	instance = dummy_instance;
-
+	M0_SET0(&obj);
 	ut_clovis_realm_entity_setup(&realm, &obj.ob_entity, instance);
 	obj.ob_attr.oa_bshift = CLOVIS_MIN_BUF_SHIFT;
 	obj.ob_attr.oa_pver   = instance->m0c_pools_common.pc_cur_pver->pv_id;

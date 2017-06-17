@@ -79,8 +79,6 @@ static int create_objs(int nr_objs)
 			&clovis_st_read_container.co_realm,
 			&id, default_layout_id);
 
-		clovis_st_entity_open(&obj.ob_entity);
-
 		clovis_st_entity_create(&obj.ob_entity, &ops[0]);
 
 		clovis_st_op_launch(ops, 1);
@@ -257,6 +255,7 @@ static void read_one_block(void)
 
 	/* Get the id of an existing object (written via m0t1fs). */
 	id = read_oid_get(0);
+	M0_SET0(&obj);
 	clovis_st_obj_init(&obj, &clovis_st_read_container.co_realm,
 			   &id, default_layout_id);
 
@@ -336,6 +335,7 @@ static void read_multiple_blocks(void)
 	attr.ov_vec.v_count[2] = 0;
 
 	/* Get the id of an existing object. */
+	M0_SET0(&obj);
 	id = read_oid_get(0);
 	clovis_st_obj_init(&obj, &clovis_st_read_container.co_realm,
 			   &id, default_layout_id);
@@ -430,6 +430,7 @@ static void read_multiple_blocks_into_aligned_buffers(void)
 	attr.ov_vec.v_count[1] = 0;
 
 	/* Get the id of an existing object. */
+	M0_SET0(&obj);
 	id = read_oid_get(0);
 	clovis_st_obj_init(&obj, &clovis_st_read_container.co_realm,
 			   &id, default_layout_id);
@@ -521,6 +522,7 @@ static void read_objs_in_parallel(void)
 
 	/* Create and launch write requests */
 	for (i = 0; i < nr_objs; i++) {
+		M0_SET0(&objs[i]);
 		id = read_oid_get(i);
 
 		clovis_st_obj_init(&objs[i], &clovis_st_read_container.co_realm,

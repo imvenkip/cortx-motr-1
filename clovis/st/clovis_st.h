@@ -305,6 +305,11 @@ int clovis_st_idx_op(struct m0_clovis_idx       *idx,
 		     int                         flag,
 		     struct m0_clovis_op       **op);
 
+int clovis_st_layout_op(struct m0_clovis_obj *obj,
+			enum m0_clovis_entity_opcode opcode,
+			struct m0_clovis_layout *layout,
+			struct m0_clovis_op **op);
+
 /* Allocate aligned memory - user/kernel specific */
 void clovis_st_alloc_aligned(void **ptr, size_t size, size_t alignment);
 void clovis_st_free_aligned(void *ptr, size_t size, size_t alignment);

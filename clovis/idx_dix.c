@@ -27,6 +27,7 @@
 #include "fid/fid.h"           /* m0_fid */
 #include "pool/pool.h"         /* pools_common_svc_ctx */
 #include "clovis/clovis_internal.h"
+#include "clovis/clovis_layout.h"
 #include "clovis/clovis_idx.h"
 #include "clovis/sync.h"
 #include "dix/fid_convert.h"
@@ -96,16 +97,32 @@ static bool idx_is_distributed(const struct m0_clovis_op_idx *oi)
 	return ifid_type == m0_dix_fid_type.ft_id;
 }
 
-static void  idx_sync_record_update(struct m0_clovis_op_idx *oi,
-				    struct m0_rpc_session   *rpc_session,
-				    struct m0_be_tx_remid   *remid)
+static void  idx_sync_record_update(struct m0_clovis_op   *op,
+				    struct m0_rpc_session *rpc_session,
+				    struct m0_be_tx_remid *remid)
 {
-	/* Check and ensure oi is valid here. */
-	M0_ASSERT(m0_clovis__idx_op_invariant(oi));
+	struct m0_clovis_entity    *ent;
+	struct m0_clovis_op_common *oc;
+	struct m0_clovis_op_idx    *oi;
+	struct m0_clovis_op_layout *ol;
+
+	oc = bob_of(op, struct m0_clovis_op_common, oc_op, &oc_bobtype);
+
+	if (M0_IN(op->op_code,
+		  (M0_CLOVIS_IC_PUT, M0_CLOVIS_IC_DEL,
+		   M0_CLOVIS_EO_CREATE, M0_CLOVIS_EO_DELETE))) {
+		/* Check and ensure oi is valid here. */
+		oi = bob_of(oc, struct m0_clovis_op_idx, oi_oc, &oi_bobtype);
+		M0_ASSERT(m0_clovis__idx_op_invariant(oi));
+		ent = &oi->oi_idx->in_entity;
+	} else if (op->op_code == M0_CLOVIS_EO_LAYOUT_SET) {
+		ol = bob_of(oc, struct m0_clovis_op_layout, ol_oc, &ol_bobtype);
+		ent = ol->ol_entity;
+	} else
+		M0_IMPOSSIBLE("Wrong opcode for index sync record update.");
 
 	clovis_sync_record_update(m0_reqh_service_ctx_from_session(rpc_session),
-				  &oi->oi_idx->in_entity,
-				  &oi->oi_oc.oc_op, remid);
+				  ent, op, remid);
 }
 
 static void cas_sync_record_update(struct m0_cas_req *creq,
@@ -118,27 +135,28 @@ static void cas_sync_record_update(struct m0_cas_req *creq,
 	if (M0_IN(dix_req->idr_oi->oi_oc.oc_op.op_code,
 		  (M0_CLOVIS_EO_CREATE, M0_CLOVIS_EO_DELETE,
 		   M0_CLOVIS_IC_PUT, M0_CLOVIS_IC_DEL)))
-		idx_sync_record_update(dix_req->idr_oi, rpc_session, remid);
+		idx_sync_record_update(&dix_req->idr_oi->oi_oc.oc_op,
+				        rpc_session, remid);
 }
 
 static void  dix_sync_record_update(struct m0_dix_req *dreq,
 				    struct m0_rpc_session *rpc_session,
 				    struct m0_be_tx_remid *remid)
 {
-	struct m0_clovis_op_idx *oi;
+	struct m0_clovis_op *op;
 
 	/* Ignores non-update dix requests. */
 	if (M0_IN(dreq->dr_type, (DIX_CCTGS_LOOKUP, DIX_NEXT, DIX_GET)))
 		return;
 
 	/*
- 	 * `oi` is needed to recover info on clovis op and entity, so SYNC
- 	 * records can be updated. `oi` is stored in each dreq issued from
+ 	 * `op` is needed to recover info on clovis op and entity, so SYNC
+ 	 * records can be updated. `op` is stored in each dreq issued from
  	 * Clovis (and is passed further down to lower dreq if meta dreq is
  	 * required for some index ops, for example dix_index_create).
  	 */
-	oi = (struct m0_clovis_op_idx *)dreq->dr_sync_datum;
-	idx_sync_record_update(oi, rpc_session, remid);
+	op = (struct m0_clovis_op *)dreq->dr_sync_datum;
+	idx_sync_record_update(op, rpc_session, remid);
 }
 
 
@@ -153,6 +171,24 @@ static struct dix_inst *dix_inst(const struct m0_clovis_op_idx *oi)
 static struct m0_dix_cli *op_dixc(const struct m0_clovis_op_idx *oi)
 {
 	return &dix_inst(oi)->di_dixc;
+}
+
+M0_INTERNAL struct dix_inst *ent_dix_inst(const struct m0_clovis_entity *ent)
+{
+	struct m0_clovis *m0c;
+
+	m0c = m0_clovis__entity_instance(ent);
+	return (struct dix_inst *)m0c->m0c_idx_svc_ctx.isc_svc_inst;
+}
+
+M0_INTERNAL struct m0_dix_cli *ent_dixc(const struct m0_clovis_entity *ent)
+{
+	return &ent_dix_inst(ent)->di_dixc;
+}
+
+M0_INTERNAL struct m0_dix_cli *ol_dixc(const struct m0_clovis_op_layout *ol)
+{
+	return &ent_dix_inst(ol->ol_oc.oc_op.op_entity)->di_dixc;
 }
 
 /*--------------------------------------------------------------------------*
@@ -549,7 +585,8 @@ static int dix_req_create(struct m0_clovis_op_idx  *oi,
 			if (M0_IN(oi->oi_oc.oc_op.op_code,
 				  (M0_CLOVIS_EO_CREATE, M0_CLOVIS_EO_DELETE,
 				   M0_CLOVIS_IC_PUT, M0_CLOVIS_IC_DEL)))
-				req->idr_dreq.dr_sync_datum = (void *)oi;
+				req->idr_dreq.dr_sync_datum =
+						(void *)&oi->oi_oc.oc_op;
 		} else {
 			cas_req_init(req, oi);
 		}

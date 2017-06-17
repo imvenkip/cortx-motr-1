@@ -63,8 +63,6 @@ static int create_obj(struct m0_uint128 *oid, int unit_size)
 	lid = m0_clovis_obj_unit_size_to_layout_id(unit_size);
 	clovis_st_obj_init(&obj, &clovis_st_write_container.co_realm, &id, lid);
 
-	clovis_st_entity_open(&obj.ob_entity);
-
 	clovis_st_entity_create(&obj.ob_entity, &ops[0]);
 	if (ops[0] == NULL)
 		return -ENOENT;
@@ -226,6 +224,7 @@ static int write_obj(struct m0_uint128 oid, int start,
 		return -EINVAL;
 
 	/* Init obj */
+	M0_SET0(&obj);
 	lid = m0_clovis_obj_unit_size_to_layout_id(unit_size);
 	clovis_st_obj_init(&obj, &clovis_st_write_container.co_realm, &oid, lid);
 
@@ -450,8 +449,10 @@ static int clovis_st_write_init(void)
 {
 	int rc = 0;
 
-	//clovis_st_obj_prev_trace_level = m0_trace_level;
-	//m0_trace_level = M0_DEBUG;
+#if 0
+	clovis_st_obj_prev_trace_level = m0_trace_level;
+	m0_trace_level = M0_DEBUG;
+#endif
 
 	/*
 	 * Retrieve the uber realm. We don't need to open this,

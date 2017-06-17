@@ -971,7 +971,18 @@ enum m0_magic_satchel {
 	M0_CLOVIS_SYNC_TGT_TL_MAGIC  = 0x3320816123512277,
 	/* clovis_sync_fop_wrapper::sfw_magic */
 	M0_CLOVIS_INSTANCE_PTI_MAGIC = 0x3321816123512277,
-	M0_CLOVIS_CR_MAGIC           = 0x3322816123512277,
+	/* ol_bobtype::bt_magix */
+	M0_CLOVIS_OL_MAGIC           = 0x3322816123512277,
+	/* cr_bobtype::bt_magix */
+	M0_CLOVIS_CR_MAGIC           = 0x3323816123512277,
+	/* oci_bobtype::bt_magix */
+	M0_CLOVIS_OCI_MAGIC          = 0x3324816123512277,
+	/* m0_clovis_composite_layer::ccr_tlink_magic */
+	M0_CLOVIS_CLAYER_TL_MAGIC    = 0x3325816123512277,
+	/* m0_clovis_composite_extent:ce_tlink_magic */
+	M0_CLOVIS_CEXT_TL_MAGIC      = 0x3326816123512277,
+	/* composite_sub_io_ext:ce_tlink_magic */
+	M0_CLOVIS_CIO_EXT_MAGIC      = 0x3327816123512277,
 
 /* module/param */
 	/* m0_param_source::ps_magic (boozed billie) */

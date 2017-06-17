@@ -6,14 +6,17 @@
 # enable core dumps
 ulimit -c unlimited
 
+# Debugger to use
+debugger=
+
 # Print out usage
 usage()
 {
 	cat <<.
 Usage:
 
-$ sudo clovis_sys_test [start|stop|list|run] [local|remote] [-i Index-service]\
-[-t tests] [-k] [-u]
+$ sudo clovis_sys_test [start|stop|list|run] [local|remote] [-d debugger] \
+[-i Index-service] [-t tests] [-k] [-u]
 
 Where:
 
@@ -22,6 +25,8 @@ stop : stops clovis system tests.
 list : Lists all the available clovis system tests.
 run  : Starts Mero services, executes clovis system tests and then\
 stops mero services.
+
+-d: Invoke a debugger if set, only gdb is supported currently
 
 -i: Select Index service:
     CASS : Cassandra
@@ -36,7 +41,7 @@ stops mero services.
 -r: run tests in a suite in random order
 .
 }
-OPTIONS_STRING="ikurt:"
+OPTIONS_STRING="d:i:kurt:"
 
 # Get options
 cmd=$1
@@ -47,9 +52,11 @@ umod=1
 random_mode=0
 while getopts "$OPTIONS_STRING" OPTION; do
 	case "$OPTION" in
+		d)
+			debugger="$OPTARG"
+			;;
 		i)
-			index=$2
-			shift 1
+			index="$OPTARG"
 			;;
 		k)
 			umod=0
@@ -87,7 +94,7 @@ esac
 case "$cmd" in
 	start)
 		if [ $umod -eq 1 ]; then
-			clovis_st_start_u $index
+			clovis_st_start_u $index $debugger
 		else
 			clovis_st_start_k $index
 		fi
@@ -98,7 +105,7 @@ case "$cmd" in
 	run)
 		( exec `dirname $0`/mero_services.sh start )
 		if [ $umod -eq 1 ]; then
-			clovis_st_start_u $index
+			clovis_st_start_u $index $debugger
 		else
 			clovis_st_start_k $index
 		fi

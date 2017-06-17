@@ -80,34 +80,6 @@ static void ut_clovis__idx_op_invariant(void)
 }
 
 /**
- * Tests base case and preconditions of m0_clovis_idx_op_get().
- */
-static void ut_clovis_idx_op_get(void)
-{
-	int                  rc = 0; /* required */
-	struct m0_clovis_op *op = NULL;
-
-	/* Base case 1: *op == NULL */
-	rc = clovis_idx_op_get(&op);
-	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(op != NULL);
-	m0_free(op);
-
-	/* Alloc failed */
-	op = NULL;
-        m0_fi_enable_once("m0_alloc", "fail_allocation");
-        rc = clovis_idx_op_get(&op);
-        M0_UT_ASSERT(rc != 0);
-
-	/* Base case 2: *op != NULL. */
-	op = m0_alloc(sizeof(struct m0_clovis_op_idx));
-	op->op_size = sizeof(struct m0_clovis_op_idx);
-	rc = clovis_idx_op_get(&op);
-	M0_UT_ASSERT(rc == 0);
-	m0_free(op);
-}
-
-/**
  * Tests base case and preconditions of m0_clovis_idx_op_init().
  */
 static void ut_clovis_idx_op_init(void)
@@ -326,7 +298,7 @@ static void ut_clovis_idx_op_cb_launch(void)
 
 	/* Base case 1: asynchronous queries */
 	for (op_code = M0_CLOVIS_EO_CREATE;
-	     op_code < M0_CLOVIS_EO_NR; op_code++) {
+	     op_code <= M0_CLOVIS_EO_DELETE; op_code++) {
 		/* Ignore SYNC. */
 		if (M0_IN(op_code, (M0_CLOVIS_EO_SYNC, M0_CLOVIS_EO_OPEN,
 				    M0_CLOVIS_EO_GETATTR)))
@@ -721,8 +693,6 @@ struct m0_ut_suite ut_suite_clovis_idx = {
 			&ut_clovis__idx_op_invariant},
 		{ "clovis_idx_op_init",
 			&ut_clovis_idx_op_init},
-		{ "clovis_idx_op_get",
-			&ut_clovis_idx_op_get},
 		{ "clovis_idx_op_complete",
 			&ut_clovis_idx_op_complete},
 		{ "clovis_idx_op_fail",

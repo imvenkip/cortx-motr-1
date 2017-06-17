@@ -148,10 +148,8 @@ static void fini_clovis(void)
 static int create_object(struct m0_uint128 id)
 {
 	int                  rc;
-
 	/* Clovis object */
 	struct m0_clovis_obj obj;
-
 	/* Clovis operation */
 	struct m0_clovis_op *ops[1] = {NULL};
 

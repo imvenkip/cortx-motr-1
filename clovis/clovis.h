@@ -530,6 +530,9 @@ enum m0_clovis_entity_opcode {
 	M0_CLOVIS_EO_SYNC,
 	M0_CLOVIS_EO_OPEN,
 	M0_CLOVIS_EO_GETATTR,
+	M0_CLOVIS_EO_SETATTR,
+	M0_CLOVIS_EO_LAYOUT_GET,
+	M0_CLOVIS_EO_LAYOUT_SET,
 	M0_CLOVIS_EO_NR
 };
 
@@ -601,6 +604,14 @@ struct m0_clovis_op {
 	size_t                         op_size;
 	/** Part of a cookie (m0_cookie) used to identify this operation. */
 	uint64_t                       op_gen;
+	/**
+	 * Back pointer to parent op and it is used to form an execution plan
+	 * for a group of ops. An example: an composite layout IO op is divided
+	 * into a few IO ops to sub-objects. Each sub-object IO op has an
+	 * pointer to the composite IO op.
+	 */
+	struct m0_clovis_op           *op_parent;
+	struct m0_sm_ast               op_parent_ast;
 	/** list of pending transactions. */
 	struct m0_tl                   op_pending_tx;
 	struct m0_mutex                op_pending_tx_lock;
@@ -678,12 +689,33 @@ struct m0_clovis_obj_attr {
 };
 
 /**
+ * Layout is of an entity containing information to locate data
+ * (node, service, device). TODO: rewrite the definition.
+ */
+enum m0_clovis_layout_type {
+	M0_CLOVIS_LT_PDCLUST = 0,
+	M0_CLOVIS_LT_COMPOSITE,
+	M0_CLOVIS_LT_CAPTURE,
+	M0_CLOVIS_LT_NR
+};
+
+/**
  * Object is an array of blocks. Each block has 64-bit index and a block
  * attributes.
  */
+struct m0_clovis_layout;
 struct m0_clovis_obj {
 	struct m0_clovis_entity   ob_entity;
 	struct m0_clovis_obj_attr ob_attr;
+	struct m0_clovis_layout   *ob_layout;
+};
+
+struct m0_clovis_layout {
+	struct m0_clovis_entity            cl_entity;
+	enum m0_clovis_layout_type         cl_type;
+	/* Back pointer to the object it belongs to. */
+	struct m0_clovis_obj              *cl_obj;
+	const struct m0_clovis_layout_ops *cl_ops;
 };
 
 /**
@@ -705,6 +737,16 @@ struct m0_clovis_obj {
  */
 struct m0_clovis_idx {
 	struct m0_clovis_entity in_entity;
+};
+
+#define	M0_CLOVIS_COMPOSITE_EXTENT_INF (0xffffffffffffffff)
+struct m0_clovis_composite_layer_idx_key {
+	struct m0_uint128 cek_layer_id;
+	m0_bindex_t       cek_off;
+};
+
+struct m0_clovis_composite_layer_idx_val {
+	m0_bcount_t cev_len;
 };
 
 enum m0_clovis_realm_type {
@@ -1318,7 +1360,96 @@ int m0_clovis_obj_layout_id_to_unit_size(uint64_t layout_id);
  */
 uint64_t m0_clovis_default_layout_id(struct m0_clovis *instance);
 
-/** @} end of clovis group */
+/**
+ * Gets the layout type of an object.
+ *
+ * @param obj The object to query.
+ * @return The layout type of object in question.
+ */
+enum m0_clovis_layout_type m0_clovis_obj_layout_type(struct m0_clovis_obj *obj);
+
+/**
+ * Add an layer to an composite layout.
+ *
+ * @param layout   The layout to add to.
+ * @param sub_obj  The sub object corresponds to the new layer. The API requires
+ *                 object argument instead of its identifier as Clovis
+ *                 internally requires some object attributes to construct
+ *                 composite layout.
+ * @param priority The layer's priority which is used to select which layer an
+ *                 IO request goes to.
+ * @return 0 for success, anything else for an error.
+ */
+int m0_clovis_composite_layer_add(struct m0_clovis_layout *layout,
+				  struct m0_clovis_obj *sub_obj, int priority);
+/**
+ * Delete an layer to an composite layout.
+ *
+ * @param layout    The layout to add to.
+ * @param subobj_id The identifier of the layer to delete.
+ */
+void m0_clovis_composite_layer_del(struct m0_clovis_layout *layout,
+				   struct m0_uint128 subobj_id);
+
+/**
+ * Returns an in-memory index representation for extents in a composite layer.
+ *
+ * @param layer_id The composite layer in question.
+ * @param write    True for extents for WRITE, false for extents for READ.
+ * @param idx      The returned index.
+ * @return 0 for success, anything else for an error.
+ */
+int m0_clovis_composite_layer_idx(struct m0_uint128 layer_id,
+				  bool write, struct m0_clovis_idx *idx);
+/**
+ * Helper APIs to copy and transform a layer key/value to/from buffer.
+ * m0_clovis_composite_layer_idx_key_to_buf() transforms original key
+ * to a representation in lexicographical order.
+ */
+int m0_clovis_composite_layer_idx_key_to_buf(
+			struct m0_clovis_composite_layer_idx_key *key,
+			void **out_kbuf, m0_bcount_t *out_klen);
+void m0_clovis_composite_layer_idx_key_from_buf(
+			struct m0_clovis_composite_layer_idx_key *key,
+			void *kbuf);
+int m0_clovis_composite_layer_idx_val_to_buf(
+			struct m0_clovis_composite_layer_idx_val *val,
+			void **out_vbuf, m0_bcount_t *out_vlen);
+void m0_clovis_composite_layer_idx_val_from_buf(
+			struct m0_clovis_composite_layer_idx_val *val,
+			void *vbuf);
+
+/**
+ * Initialises layout operation.
+ *
+ * @param obj    The object which the layout is belong to.
+ * @param layout Layout the operation is targeted to.
+ * @param opcode Operation code for the operation.
+ * @param[out] op Pointer to the operation pointer. If the operation pointer is
+ *	       NULL, clovis will allocate one. Otherwise, clovis will check
+ *	       the operation and make sure it is reusable for this operation.
+ */
+int m0_clovis_layout_op(struct m0_clovis_obj          *obj,
+			enum m0_clovis_entity_opcode   opcode,
+			struct m0_clovis_layout       *layout,
+			struct m0_clovis_op          **op);
+
+/**
+ * Note: current version only support capturing pdclust layout for an object.
+ *
+ * To capture the layout for an object, an application has to issue LAYOUT_GET
+ * op first to retrieve the object's layout.
+ */
+int m0_clovis_layout_capture(struct m0_clovis_layout *layout,
+			     struct m0_clovis_obj *obj,
+			     struct m0_clovis_layout **out);
+
+/* Allocate/free in-memory layout data struct for an object. */
+struct m0_clovis_layout*
+m0_clovis_layout_alloc(enum m0_clovis_layout_type type);
+void m0_clovis_layout_free(struct m0_clovis_layout *layout);
+
+//** @} end of clovis group */
 
 #endif /* __MERO_CLOVIS_CLOVIS_H__ */
 

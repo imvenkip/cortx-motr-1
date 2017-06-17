@@ -57,17 +57,7 @@ static struct m0_dix_cli *meta_req_cli(const struct m0_dix_meta_req *req)
 
 static int dix_mreq_rc(const struct m0_dix_req *req)
 {
-	int rc;
-	int i;
-
-	rc = m0_dix_generic_rc(req);
-	if (rc == 0)
-		for (i = 0; i < m0_dix_req_nr(req); i++) {
-			rc = m0_dix_item_rc(req, i);
-			if (rc != 0)
-				break;
-		}
-	return M0_RC(rc);
+	return M0_RC(m0_dix_req_rc(req));
 }
 
 /**

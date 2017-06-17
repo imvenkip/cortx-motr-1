@@ -175,6 +175,7 @@ M0_INTERNAL int m0_bufvec_empty_alloc(struct m0_bufvec *bufvec,
 {
 	return m0__bufvec_alloc(bufvec, num_segs, 0, 0);
 }
+M0_EXPORTED(m0_bufvec_empty_alloc);
 
 M0_INTERNAL int m0_bufvec_alloc(struct m0_bufvec *bufvec,
 				uint32_t num_segs, m0_bcount_t seg_size)

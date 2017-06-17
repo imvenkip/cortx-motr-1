@@ -23,6 +23,7 @@
 
 #include "clovis/clovis.h"
 #include "clovis/clovis_internal.h"
+#include "clovis/clovis_layout.h"
 #include "clovis/clovis_idx.h"
 #include "clovis/sync.h"
 
@@ -110,6 +111,60 @@ static bool clovis_obj_op_obj_invariant(struct m0_clovis_op_obj *oo)
 	return M0_RC(rc);
 }
 
+static bool clovis_obj_layout_id_invariant(uint64_t layout_id)
+{
+
+	int      ltype = M0_CLOVIS_OBJ_LAYOUT_TYPE(layout_id);
+	uint64_t lid = M0_CLOVIS_OBJ_LAYOUT_ID(layout_id);
+
+	return M0_RC(M0_IN(ltype, (M0_CLOVIS_LT_PDCLUST,
+				   M0_CLOVIS_LT_COMPOSITE,
+				   M0_CLOVIS_LT_CAPTURE)) &&
+		     lid > 0 && lid < m0_lid_to_unit_map_nr);
+}
+
+M0_INTERNAL uint64_t m0_clovis__obj_lid(struct m0_clovis_obj *obj)
+{
+	uint64_t lid;
+
+	M0_ENTRY();
+	M0_PRE(obj != NULL);
+	M0_PRE(clovis_obj_layout_id_invariant(obj->ob_attr.oa_layout_id));
+	lid = M0_CLOVIS_OBJ_LAYOUT_ID(obj->ob_attr.oa_layout_id);
+	M0_LEAVE();
+	return lid;
+}
+
+M0_INTERNAL enum m0_clovis_layout_type
+m0_clovis__obj_layout_type(struct m0_clovis_obj *obj)
+{
+	int type;
+
+	M0_ENTRY();
+	M0_PRE(obj != NULL);
+	M0_PRE(clovis_obj_layout_id_invariant(obj->ob_attr.oa_layout_id));
+	type = M0_CLOVIS_OBJ_LAYOUT_TYPE(obj->ob_attr.oa_layout_id);
+	M0_LEAVE();
+	return type;
+}
+
+M0_INTERNAL void m0_clovis__obj_attr_set(struct m0_clovis_obj *obj,
+					 struct m0_fid pver,
+					 uint64_t layout_id)
+{
+	M0_ENTRY();
+	M0_PRE(obj != NULL);
+	M0_PRE(clovis_obj_layout_id_invariant(layout_id));
+	obj->ob_attr.oa_layout_id = layout_id;
+	obj->ob_attr.oa_pver = pver;
+	M0_LEAVE();
+}
+
+M0_INTERNAL struct m0_fid m0_clovis__obj_pver(struct m0_clovis_obj *obj)
+{
+	return obj->ob_attr.oa_pver;
+}
+
 /*
  * Pick a locality: Mero and the new locality interface(chore) now uses TLS to
  * store data and these data are set when a "mero" thread is created.
@@ -183,15 +238,15 @@ static void clovis_obj_namei_cb_launch(struct m0_clovis_op_common *oc)
 				   M0_CLOVIS_ES_DELETING);
 			break;
 		case M0_CLOVIS_EO_OPEN:
-			/* We need to perform getattr for pool version. */
-			op->op_code = M0_CLOVIS_EO_GETATTR;
+			m0_sm_move(&op->op_entity->en_sm, 0,
+				   M0_CLOVIS_ES_OPENING);
 			break;
 		default:
 			M0_IMPOSSIBLE("Management operation not implemented");
 	}
 	m0_sm_group_unlock(&op->op_entity->en_sm_group);
 
-	rc = m0_clovis_cob_send(oo);
+	rc = m0_clovis__obj_namei_send(oo);
 	if (rc == 0)
 		m0_sm_move(&op->op_sm, 0, M0_CLOVIS_OS_LAUNCHED);
 
@@ -297,8 +352,8 @@ m0_clovis__obj_layout_id_get(struct m0_clovis_op_obj *oo)
 		return 1;
 
 	obj = M0_AMB(obj, oo->oo_oc.oc_op.op_entity, ob_entity);
-	lid = obj->ob_attr.oa_layout_id;
-	M0_ASSERT(lid > 0 && lid < m0_lid_to_unit_map_nr);
+	M0_ASSERT(clovis_obj_layout_id_invariant(obj->ob_attr.oa_layout_id));
+	lid = M0_CLOVIS_OBJ_LAYOUT_ID(obj->ob_attr.oa_layout_id);
 
 	M0_LEAVE();
 	return lid;
@@ -336,6 +391,30 @@ out:
 	return M0_RC(rc);
 }
 
+#ifdef CLOVIS_FOR_M0T1FS
+/**
+ * Generates a name for an object from its fid.
+ *
+ * @param name buffer where the name is stored.
+ * @param name_len length of the name buffer.
+ * @param fid fid of the object.
+ * @return 0 if the name was correctly generated or -EINVAL otherwise.
+ */
+int clovis_obj_fid_make_name(char *name, size_t name_len,
+			     const struct m0_fid *fid)
+{
+	int rc;
+
+	M0_PRE(name != NULL);
+	M0_PRE(name_len > 0);
+	M0_PRE(fid != NULL);
+
+	rc = snprintf(name, name_len, "%"PRIx64":%"PRIx64, FID_P(fid));
+	M0_ASSERT(rc >= 0 && rc < name_len);
+	return M0_RC(0);
+}
+#endif
+
 /**
  * Initialises a m0_clovis_obj namespace operation. The operation is intended
  * to manage in the backend the object the provided entity is associated to.
@@ -349,8 +428,7 @@ static int clovis_obj_namei_op_init(struct m0_clovis_entity *entity,
 				    struct m0_clovis_op *op)
 {
 	int                         rc;
-	int                         nr_bytes;
-	char                       *obj_fid;
+	char                       *obj_name;
 	uint64_t                    obj_key;
 	uint64_t                    obj_container;
 	uint64_t                    lid;
@@ -424,13 +502,15 @@ static int clovis_obj_namei_op_init(struct m0_clovis_entity *entity,
 	oo->oo_pfid = cinst->m0c_root_fid;
 
 	/* Generate a valid oo_name. */
-	obj_fid = m0_alloc(M0_FID_STR_LEN);
-	nr_bytes = m0_fid_print(obj_fid, M0_FID_STR_LEN, &oo->oo_fid);
-	if (nr_bytes <= 0)
+	obj_name = m0_alloc(M0_OBJ_NAME_MAX_LEN);
+	rc = clovis_obj_fid_make_name(obj_name, M0_OBJ_NAME_MAX_LEN, &oo->oo_fid);
+	if (rc != 0)
 		goto error;
-	m0_buf_init(&oo->oo_name, obj_fid, strlen(obj_fid));
+	m0_buf_init(&oo->oo_name, obj_name, strlen(obj_name));
 #endif
+	M0_ASSERT(rc == 0);
 	return M0_RC(rc);
+
 error:
 	M0_ASSERT(rc != 0);
 	return M0_ERR(rc);
@@ -461,9 +541,9 @@ static int clovis_obj_op_obj_init(struct m0_clovis_op_obj *oo)
 	obj = m0_clovis__obj_entity(oo->oo_oc.oc_op.op_entity);
 
 	/** Validate the cached pool version. */
-	if (clovis__poolversion_is_valid(obj)) {
-		oo->oo_pver = obj->ob_attr.oa_pver;
-	} else {
+	if (clovis__poolversion_is_valid(obj))
+		oo->oo_pver = m0_clovis__obj_pver(obj);
+	else {
 		/** Get the latest pool version. */
 		if (m0_clovis__pool_version_get(cinst, &pv) != 0)
 			return M0_ERR(-ENOENT);
@@ -717,6 +797,12 @@ EXIT:
 	return M0_DEFAULT_LAYOUT_ID;
 }
 M0_EXPORTED(m0_clovis_default_layout_id);
+
+enum m0_clovis_layout_type m0_clovis_obj_layout_type(struct m0_clovis_obj *obj)
+{
+	return M0_CLOVIS_OBJ_LAYOUT_TYPE(obj->ob_attr.oa_layout_id);
+}
+M0_EXPORTED(m0_clovis_obj_layout_type);
 
 int m0_clovis_entity_open(struct m0_clovis_entity *entity,
 			  struct m0_clovis_op **op)

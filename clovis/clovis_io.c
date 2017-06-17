@@ -25,6 +25,7 @@
 
 #include "clovis/clovis.h"
 #include "clovis/clovis_internal.h"
+#include "clovis/clovis_layout.h"
 #include "clovis/clovis_addb.h"
 #include "clovis/pg.h"
 #include "clovis/io.h"
@@ -36,6 +37,7 @@
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CLOVIS
 #include "lib/trace.h"             /* M0_LOG */
+#include "lib/finject.h"
 
 #define DGMODE_IO
 
@@ -57,15 +59,15 @@ const struct m0_uint128 m0_rm_clovis_group = M0_UINT128(0, 1);
  * This is heavily based on m0t1fs/linux_kernel/inode.c::m0t1fs_rm_domain_get
  */
 M0_INTERNAL struct m0_rm_domain *
-clovis_rm_domain_get(struct m0_clovis *instance)
+clovis_rm_domain_get(struct m0_clovis *cinst)
 {
 	struct m0_reqh_service *svc;
 
 	M0_ENTRY();
 
-	M0_PRE(instance != NULL);
+	M0_PRE(cinst!= NULL);
 
-	svc = m0_reqh_service_find(&m0_rms_type, &instance->m0c_reqh);
+	svc = m0_reqh_service_find(&m0_rms_type, &cinst->m0c_reqh);
 	M0_ASSERT(svc != NULL);
 
 	M0_LEAVE();
@@ -76,10 +78,10 @@ M0_INTERNAL struct m0_poolmach*
 clovis_ioo_to_poolmach(struct m0_clovis_op_io *ioo)
 {
 	struct m0_pool_version *pv;
-	struct m0_clovis       *instance;
+	struct m0_clovis       *cinst;
 
-	instance = m0_clovis__op_instance(&ioo->ioo_oo.oo_oc.oc_op);
-	pv = m0_pool_version_find(&instance->m0c_pools_common,
+	cinst = m0_clovis__op_instance(&ioo->ioo_oo.oo_oc.oc_op);
+	pv = m0_pool_version_find(&cinst->m0c_pools_common,
 				  &ioo->ioo_pver);
 	return &pv->pv_mach;
 }
@@ -209,7 +211,7 @@ M0_INTERNAL bool m0_clovis_op_io_invariant(const struct m0_clovis_op_io *ioo)
 static void clovis_obj_io_cb_launch(struct m0_clovis_op_common *oc)
 {
 	int                      rc;
-	struct m0_clovis        *instance;
+	struct m0_clovis        *cinst;
 	struct m0_clovis_op     *op;
 	struct m0_clovis_op_obj *oo;
 	struct m0_clovis_op_io  *ioo;
@@ -228,8 +230,8 @@ static void clovis_obj_io_cb_launch(struct m0_clovis_op_common *oc)
 	oo = bob_of(oc, struct m0_clovis_op_obj, oo_oc, &oo_bobtype);
 	ioo = bob_of(oo, struct m0_clovis_op_io, ioo_oo, &ioo_bobtype);
 	M0_PRE_EX(m0_clovis_op_io_invariant(ioo));
-	instance = m0_clovis__op_instance(op);
-	M0_PRE(instance != NULL);
+	cinst = m0_clovis__op_instance(op);
+	M0_PRE(cinst!= NULL);
 
 	rc = ioo->ioo_ops->iro_iomaps_prepare(ioo);
 	if (rc != 0) {
@@ -387,113 +389,111 @@ static void clovis_obj_io_cb_free(struct m0_clovis_op_common *oc)
 	M0_LEAVE();
 }
 
-void m0_clovis_obj_op(struct m0_clovis_obj       *obj,
-		      enum m0_clovis_obj_opcode   opcode,
-		      struct m0_indexvec         *ext,
-		      struct m0_bufvec           *data,
-		      struct m0_bufvec           *attr,
-		      uint64_t                    mask,
-		      struct m0_clovis_op       **op)
+static int clovis_obj_io_init(struct m0_clovis_obj      *obj,
+			      enum m0_clovis_obj_opcode  opcode,
+			      struct m0_indexvec        *ext,
+			      struct m0_bufvec          *data,
+			      struct m0_bufvec          *attr,
+			      uint64_t                   mask,
+			      struct m0_clovis_op       *op)
+ {
+ 	int                         rc;
+ 	int                         i;
+ 	uint64_t                    max_failures;
+ 	struct m0_clovis_op_io     *ioo;
+ 	struct m0_clovis_op_obj    *oo;
+ 	struct m0_clovis_op_common *oc;
+ 	struct m0_locality         *locality;
+	struct m0_clovis           *cinst;
+
+ 	M0_PRE(obj != NULL);
+	cinst = m0_clovis__entity_instance(&obj->ob_entity);
+
+	M0_ASSERT(op->op_size >= sizeof *ioo);
+	oc = bob_of(op, struct m0_clovis_op_common, oc_op, &oc_bobtype);
+	oo = bob_of(oc, struct m0_clovis_op_obj, oo_oc, &oo_bobtype);
+	ioo = container_of(oo, struct m0_clovis_op_io, ioo_oo);
+	m0_clovis_op_io_bob_init(ioo);
+	ioo->ioo_obj = obj;
+	ioo->ioo_ops = &ioo_ops;
+	ioo->ioo_pver = oo->oo_pver;
+
+	/* Initialise this operation as a network transfer */
+	nw_xfer_request_init(&ioo->ioo_nwxfer);
+	if (ioo->ioo_nwxfer.nxr_rc != 0) {
+		rc = ioo->ioo_nwxfer.nxr_rc;;
+		return M0_ERR(rc);
+	}
+
+	/* Allocate and initialise failed sessions. */
+	max_failures = tolerance_of_level(ioo, M0_CONF_PVER_LVL_CTRLS);
+	M0_ALLOC_ARR(ioo->ioo_failed_session, max_failures + 1);
+	if (ioo->ioo_failed_session == NULL)
+		return M0_ERR(-ENOMEM);
+	for (i = 0; i < max_failures; ++i)
+		ioo->ioo_failed_session[i] = ~(uint64_t)0;
+
+	/* Initialise the state machine */
+	locality = m0_clovis_locality_pick(cinst);
+	M0_ASSERT(locality != NULL);
+	ioo->ioo_oo.oo_sm_grp = locality->lo_grp;
+	m0_sm_init(&ioo->ioo_sm, &io_sm_conf, IRS_INITIALIZED,
+		   locality->lo_grp);
+
+	/* This is used to wait for the ioo to be finalised */
+	m0_chan_init(&ioo->ioo_completion, &cinst->m0c_sm_group.s_lock);
+
+	/* Store the remaining parameters */
+	ioo->ioo_iomap_nr = 0;
+	ioo->ioo_sns_state = SRS_UNINITIALIZED;
+	ioo->ioo_ext = *ext;
+	if (M0_IN(opcode, (M0_CLOVIS_OC_READ, M0_CLOVIS_OC_WRITE))) {
+		ioo->ioo_data = *data;
+		ioo->ioo_attr = *attr;
+		ioo->ioo_attr_mask = mask;
+ 	}
+
+	M0_POST_EX(m0_clovis_op_io_invariant(ioo));
+	return M0_RC(0);
+}
+
+static int clovis_obj_op_init(struct m0_clovis_obj      *obj,
+			      enum m0_clovis_obj_opcode  opcode,
+			      struct m0_clovis_op       *op)
 {
 	int                         rc;
-	int                         i;
-	uint64_t                    max_failures;
 	uint64_t                    layout_id;
-	struct m0_clovis_op_io     *ioo;
 	struct m0_clovis_op_obj    *oo;
 	struct m0_clovis_op_common *oc;
 	struct m0_clovis_entity    *entity;
-	struct m0_locality         *locality;
-	struct m0_clovis           *instance;
+	struct m0_clovis           *cinst;
 
 	M0_ENTRY();
-
 	M0_PRE(obj != NULL);
-	M0_PRE(M0_IN(opcode, (M0_CLOVIS_OC_READ, M0_CLOVIS_OC_WRITE)));
-	M0_PRE(ext != NULL);
-	M0_PRE(obj->ob_attr.oa_bshift >=  CLOVIS_MIN_BUF_SHIFT);
-	M0_PRE(m0_vec_count(&ext->iv_vec) %
-		      (1ULL << obj->ob_attr.oa_bshift) == 0);
 	M0_PRE(op != NULL);
-	M0_PRE(ergo(M0_IN(opcode, (M0_CLOVIS_OC_READ, M0_CLOVIS_OC_WRITE)),
-		    data != NULL && attr != NULL &&
-		    m0_vec_count(&ext->iv_vec) == m0_vec_count(&data->ov_vec)));
-#ifdef BLOCK_ATTR_SUPPORTED /* Block metadata is not yet supported */
-	M0_PRE(m0_vec_count(&attr->ov_vec) ==
-	       (8 * m0_no_of_bits_set(mask) *
-		(m0_vec_count(&ext->iv_vec) >> obj->ob_attr.oa_bshift)));
-#endif
-	M0_PRE(ergo(M0_IN(opcode, (M0_CLOVIS_OC_ALLOC, M0_CLOVIS_OC_FREE)),
-		    data == NULL && attr == NULL && mask == 0));
-
-	/* Block metadata is not yet supported */
-	M0_PRE(mask == 0);
 
 	entity = &obj->ob_entity;
-	instance = m0_clovis__entity_instance(entity);
+	cinst = m0_clovis__entity_instance(entity);
 
-	/* Allocate the operation */
-	if (*op == NULL) {
-		rc = m0_clovis_op_alloc(op, sizeof *ioo);
-		if (rc != 0) {
-			M0_LOG(M0_ERROR,
-			       "Unable to initialise the operation: %d.",
-			       rc);
+ 	/*
+ 	 * Sanity test before proceeding.
+ 	 * Note: Can't use bob_of at this point as oc/oo/ioo haven't been
+ 	 * initilised yet.
+ 	 */
+	oc = container_of(op, struct m0_clovis_op_common, oc_op);
+ 	oo = container_of(oc, struct m0_clovis_op_obj, oo_oc);
 
-			/*
-			 * in this case the user is expected to interpret
-			 * op==NULL as ENOMEM
-			 */
-			return;
-		}
-	} else {
-		size_t cached_size = (*op)->op_size;
-		if ((*op)->op_size < sizeof *ioo) {
-			M0_LOG(M0_ERROR, "Provided buffer too small.");
-			rc = -EMSGSIZE;
-			/* XXX juan: we cannot assume (*op)->op_sm is init'ed */
-			/* XXX morse: then we can't trust the value, and can't
-			 *            ever return EMSGSIZE ... so operations
-			 *            can never be re-used.... a compromise is
-			 *            required */
+ 	/* Initialise the operation */
+	rc = m0_clovis_op_init(op, &clovis_op_conf, entity);
+	if (rc != 0)
+		return M0_ERR(rc);
 
-			goto fail;
-		}
-
-		/* 0 the pre-allocated operation */
-		memset(*op, 0, cached_size);
-		(*op)->op_size = cached_size;
-	}
-	m0_mutex_init(&(*op)->op_pending_tx_lock);
-	spti_tlist_init(&(*op)->op_pending_tx);
-
-	/*
-	 * Sanity test before proceeding.
-	 * Note: Can't use bob_of at this point as oc/oo/ioo haven't been
-	 * initilised yet.
-	 */
-	M0_ASSERT((*op)->op_size >= sizeof *ioo);
-	oc = M0_AMB(oc, *op, oc_op);
-	oo = M0_AMB(oo, oc, oo_oc);
-	ioo = M0_AMB(ioo, oo, ioo_oo);
-
-	/* Initialise the operation */
-	rc = m0_clovis_op_init(*op, &clovis_op_conf, entity);
-	if (rc != 0) {
-		M0_LOG(M0_ERROR, "Unable to initialise the operation.");
-		/* XXX juan: if this fails we cannot try to move the state */
-		goto fail;
-	} else
-		(*op)->op_code = opcode;
-
-	ioo->ioo_obj = obj;
-	ioo->ioo_ops = &ioo_ops;
-
-	/** TODO: hash the fid to chose a locality */
-	locality = m0_clovis_locality_pick(instance);
-	M0_ASSERT(locality != NULL);
+	/* Initialise this object as a 'bob' */
+ 	m0_clovis_op_common_bob_init(oc);
+ 	m0_clovis_op_obj_bob_init(oo);
 
 	/* Initalise the vtable */
+	op->op_code = opcode;
 	switch (opcode) {
 	case M0_CLOVIS_OC_READ:
 	case M0_CLOVIS_OC_WRITE:
@@ -508,89 +508,160 @@ void m0_clovis_obj_op(struct m0_clovis_obj       *obj,
 		break;
 	}
 
-	/* Initialise this object as a 'bob' */
-	m0_clovis_op_common_bob_init(oc);
-	m0_clovis_op_obj_bob_init(oo);
-	m0_clovis_op_io_bob_init(ioo);
-
 	/* Convert the clovis:object-id to a mero:fid */
-	m0_fid_gob_make(&ioo->ioo_oo.oo_fid,
+	m0_fid_gob_make(&oo->oo_fid,
 			obj->ob_entity.en_id.u_hi, obj->ob_entity.en_id.u_lo);
-
-	M0_ASSERT(m0_pool_version_find(&instance->m0c_pools_common,
-				 &obj->ob_attr.oa_pver) != NULL);
-
-	ioo->ioo_pver = obj->ob_attr.oa_pver;
-
-	/*
-	 * TODO: Build layout instance: current implementation of Clovis
-	 * doesn't retrieve latest latest layout id of an object (and it
-	 * doesn't even have an API to change layout id).
-	 */
-	layout_id = m0_pool_version2layout_id(&ioo->ioo_pver,
+	M0_ASSERT(m0_pool_version_find(&cinst->m0c_pools_common,
+				       &obj->ob_attr.oa_pver) != NULL);
+	oo->oo_pver = m0_clovis__obj_pver(obj);
+	layout_id = m0_pool_version2layout_id(&oo->oo_pver,
 			m0_clovis__obj_layout_id_get(oo));
-	rc = m0_clovis__obj_layout_instance_build(instance, layout_id,
+	rc = m0_clovis__obj_layout_instance_build(cinst, layout_id,
 						  &oo->oo_fid,
 						  &oo->oo_layout_instance);
-	if (rc != 0)
-		goto fail;
 
-	/* Initialise this operation as a network transfer */
-	nw_xfer_request_init(&ioo->ioo_nwxfer);
-	if (ioo->ioo_nwxfer.nxr_rc != 0) {
-		rc = ioo->ioo_nwxfer.nxr_rc;;
-		M0_LOG(M0_ERROR, "nw_xfer_req_init() failed: %d", rc);
-		goto fail;
+ 	if (rc != 0)
+		return M0_ERR(rc);
+	else
+		return M0_RC(0);
+}
+
+static void clovis_obj_io_args_check(struct m0_clovis_obj      *obj,
+				     enum m0_clovis_obj_opcode  opcode,
+				     struct m0_indexvec        *ext,
+				     struct m0_bufvec          *data,
+				     struct m0_bufvec          *attr,
+				     uint64_t                   mask)
+{
+	M0_ASSERT(M0_IN(opcode, (M0_CLOVIS_OC_READ, M0_CLOVIS_OC_WRITE)));
+	M0_ASSERT(ext != NULL);
+	M0_ASSERT(obj->ob_attr.oa_bshift >=  CLOVIS_MIN_BUF_SHIFT);
+	M0_ASSERT(m0_vec_count(&ext->iv_vec) %
+			       (1ULL << obj->ob_attr.oa_bshift) == 0);
+	M0_ASSERT(ergo(M0_IN(opcode, (M0_CLOVIS_OC_READ, M0_CLOVIS_OC_WRITE)),
+		       data != NULL && attr != NULL &&
+		       m0_vec_count(&ext->iv_vec) ==
+				m0_vec_count(&data->ov_vec)));
+#ifdef BLOCK_ATTR_SUPPORTED /* Block metadata is not yet supported */
+	M0_ASSERT(m0_vec_count(&attr->ov_vec) ==
+		  (8 * m0_no_of_bits_set(mask) *
+		   (m0_vec_count(&ext->iv_vec) >> obj->ob_attr.oa_bshift)));
+#endif
+	M0_ASSERT(ergo(M0_IN(opcode, (M0_CLOVIS_OC_ALLOC, M0_CLOVIS_OC_FREE)),
+		       data == NULL && attr == NULL && mask == 0));
+	/* Block metadata is not yet supported */
+	M0_ASSERT(mask == 0);
+}
+
+M0_INTERNAL int m0_clovis__obj_io_build(struct m0_clovis_io_args *args,
+					struct m0_clovis_op **op)
+{
+	int rc = 0;
+
+	M0_ENTRY();
+	rc = m0_clovis_op_get(op, sizeof(struct m0_clovis_op_io))?:
+	     clovis_obj_op_init(args->ia_obj, args->ia_opcode, *op)?:
+	     clovis_obj_io_init(args->ia_obj, args->ia_opcode,
+				args->ia_ext, args->ia_data, args->ia_attr,
+				args->ia_mask, *op);
+	return M0_RC(rc);
+};
+
+M0_INTERNAL void m0_clovis__obj_op_done(struct m0_clovis_op *op)
+{
+	struct m0_clovis_op        *parent;
+	struct m0_clovis_op_common *parent_oc;
+	struct m0_clovis_op_obj    *parent_oo;
+
+	M0_ENTRY();
+	M0_PRE(op != NULL);
+
+	parent = op->op_parent;
+	if (parent == NULL) {
+		M0_LEAVE();
+		return;
 	}
+	parent_oc = bob_of(parent, struct m0_clovis_op_common,
+			   oc_op, &oc_bobtype);
+	parent_oo = bob_of(parent_oc, struct m0_clovis_op_obj,
+			   oo_oc, &oo_bobtype);
 
-	/* Allocate and initialise failed sessions. */
-	max_failures = tolerance_of_level(ioo, M0_CONF_PVER_LVL_CTRLS);
-	M0_ALLOC_ARR(ioo->ioo_failed_session, max_failures + 1);
-	if (ioo->ioo_failed_session == NULL) {
-		M0_LOG(M0_ERROR, "Allocation of an array of failed sessions.");
-		goto fail;
-	}
-	for (i = 0; i < max_failures; ++i) {
-		ioo->ioo_failed_session[i] = ~(uint64_t)0;
-	}
+	/* Inform its parent. */
+	M0_ASSERT(op->op_parent_ast.sa_cb != NULL);
+	m0_sm_ast_post(parent_oo->oo_sm_grp, &op->op_parent_ast);
 
-	/* Initialise the state machine */
-	ioo->ioo_oo.oo_sm_grp = locality->lo_grp;
-	m0_sm_init(&ioo->ioo_sm, &io_sm_conf, IRS_INITIALIZED,
-		   locality->lo_grp);
+	M0_LEAVE();
+}
 
-	/* This is used to wait for the ioo to be finalised */
-	m0_chan_init(&ioo->ioo_completion, &instance->m0c_sm_group.s_lock);
+void m0_clovis_obj_op(struct m0_clovis_obj       *obj,
+		      enum m0_clovis_obj_opcode   opcode,
+		      struct m0_indexvec         *ext,
+		      struct m0_bufvec           *data,
+		      struct m0_bufvec           *attr,
+		      uint64_t                    mask,
+		      struct m0_clovis_op       **op)
+{
+	int                      rc;
+	struct m0_clovis_io_args io_args;
+	enum m0_clovis_layout_type type;
 
-	/* Sorts the index vector in increasing order of file offset. */
+	M0_ENTRY();
+	M0_PRE(obj != NULL);
+	M0_PRE(op != NULL);
+
+	if (M0_FI_ENABLED("fail_op"))
+		return;
+
+	/*
+	 * Lazy retrieve of layout.
+	 * TODO: this is a blocking implementation for composite layout.
+	 * Making it asynchronous requires to construct a execution plan
+	 * for ops, will consider this later.
+	 */
+	if (obj->ob_layout == NULL) {
+		/* Allocate and initial layout according its type. */
+		type = M0_CLOVIS_OBJ_LAYOUT_TYPE(obj->ob_attr.oa_layout_id);
+		obj->ob_layout = m0_clovis_layout_alloc(type);
+		if (obj->ob_layout == NULL)
+			goto exit;
+		obj->ob_layout->cl_obj = obj;
+		rc = m0_clovis__layout_get(obj->ob_layout);
+		if (rc != 0) {
+			m0_clovis_layout_free(obj->ob_layout);
+			goto exit;
+		}
+ 	}
+
+	/* Build object's IO requests using its layout. */
+	clovis_obj_io_args_check(obj, opcode, ext, data, attr, mask);
 	indexvec_sort(ext);
+	io_args = (struct m0_clovis_io_args) {
+		.ia_obj    = obj,
+		.ia_opcode = opcode,
+		.ia_ext    = ext,
+		.ia_data   = data,
+		.ia_attr   = attr,
+		.ia_mask   = mask
+	};
 
-	/* Store the remaining parameters */
-	ioo->ioo_iomap_nr = 0;
-	ioo->ioo_sns_state = SRS_UNINITIALIZED;
-	ioo->ioo_ext = *ext;
-	if (M0_IN(opcode, (M0_CLOVIS_OC_READ, M0_CLOVIS_OC_WRITE))) {
-		ioo->ioo_data = *data;
-		ioo->ioo_attr = *attr;
-		ioo->ioo_attr_mask = mask;
+	M0_ASSERT(obj->ob_layout->cl_ops->lo_io_build != NULL);
+	rc = obj->ob_layout->cl_ops->lo_io_build(&io_args, op);
+	if (rc != 0) {
+		/* Move the op's state to FAILED. */
+		m0_sm_group_lock(&(*op)->op_sm_group);
+		m0_sm_fail(&(*op)->op_sm, M0_CLOVIS_OS_FAILED, rc);
+		m0_clovis_op_failed(*op);
+		m0_sm_group_unlock(&(*op)->op_sm_group);
+		goto exit;
 	}
+ 	M0_POST(*op != NULL &&
+ 		(*op)->op_code == opcode &&
+ 		(*op)->op_sm.sm_state == M0_CLOVIS_OS_INITIALISED);
 
-	M0_POST_EX(m0_clovis_op_io_invariant(ioo));
-	M0_POST(*op != NULL &&
-		(*op)->op_code == opcode &&
-		(*op)->op_sm.sm_state == M0_CLOVIS_OS_INITIALISED);
 
-	M0_LEAVE();
-	return;
-
-fail:
-	m0_sm_group_lock(&(*op)->op_sm_group);
-	m0_sm_fail(&(*op)->op_sm, M0_CLOVIS_OS_FAILED, rc);
-	m0_clovis_op_failed(*op);
-	m0_sm_group_unlock(&(*op)->op_sm_group);
-
-	M0_LEAVE();
-	return;
+exit:
+ 	M0_LEAVE();
+ 	return;
 }
 M0_EXPORTED(m0_clovis_obj_op);
 

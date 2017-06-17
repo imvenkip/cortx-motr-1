@@ -1,6 +1,7 @@
 nobase_mero_include_HEADERS += clovis/clovis.h \
 			       clovis/clovis_addb.h \
 			       clovis/clovis_internal.h \
+			       clovis/clovis_layout.h \
 			       clovis/clovis_idx.h \
 			       clovis/io.h \
 			       clovis/sync.h \
@@ -19,6 +20,8 @@ mero_libmero_la_SOURCES  += clovis/clovis.c \
 			    clovis/idx_dix.c \
 			    clovis/clovis_idx.c \
 			    clovis/clovis_sync.c \
+			    clovis/clovis_layout.c \
+			    clovis/composite_layout.c \
 			    clovis/clovis_realm.c \
 			    clovis/utils.c
 
