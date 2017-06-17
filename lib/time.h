@@ -40,9 +40,8 @@ enum {
 	M0_TIME_ONE_MSEC    = M0_TIME_ONE_SECOND / 1000,
 };
 
-#define TIME_F "[%llu:%llu]"
-#define TIME_P(t) ((unsigned long long)m0_time_seconds(t)), \
-		  ((unsigned long long) m0_time_nanoseconds(t))
+#define TIME_F "[%"PRIu64":%09"PRIu64"]"
+#define TIME_P(t) m0_time_seconds(t), m0_time_nanoseconds(t)
 
 /**
    Special value of abs_timeout indicates that action should be performed
