@@ -59,7 +59,8 @@ m0_time_t m0_time_sub(const m0_time_t t1, const m0_time_t t2)
 	m0_time_t res;
 	M0_PRE(M0_TIME_NEVER >= t1);
 	M0_PRE(t2 < M0_TIME_NEVER);
-	M0_PRE(t1 >= t2);
+	M0_ASSERT_INFO(t1 >= t2,
+		       "t1="TIME_F" t2="TIME_F, TIME_P(t1), TIME_P(t2));
 
 	if (t1 == M0_TIME_NEVER)
 		res = M0_TIME_NEVER;
