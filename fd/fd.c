@@ -878,7 +878,7 @@ static struct m0_fd_perm_cache *cache_get(struct m0_pdclust_instance *pi,
 	for (i = 0; i < pi->pi_cache_nr; ++i)
 		if (pi->pi_perm_cache[i].fpc_len == cache_len)
 			return &pi->pi_perm_cache[i];
-		return NULL;
+	return NULL;
 }
 
 static void fd_permute(struct m0_fd_perm_cache *cache,

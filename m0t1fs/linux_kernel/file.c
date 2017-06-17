@@ -3443,7 +3443,7 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 				for (row = row_start; row <= row_end; ++row) {
 					dbuf = iomap->pi_databufs[row][col];
 					M0_ASSERT(dbuf != NULL);
-					if (dbuf->db_flags & PA_WRITE);
+					if (dbuf->db_flags & PA_WRITE)
 						dbuf->db_flags |=
 							PA_DGMODE_WRITE;
 				}

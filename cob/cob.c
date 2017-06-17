@@ -1782,7 +1782,7 @@ M0_INTERNAL int m0_cob_setattr(struct m0_cob *cob, struct m0_cob_attr *attr,
 	/*
 	 * @todo: update fabrec.
 	 */
-	if (cob->co_flags & M0_CA_FABREC);
+	if (cob->co_flags & M0_CA_FABREC)
 		fabrec = cob->co_fabrec;
 
 	rc = m0_cob_update(cob, nsrec, fabrec, omgrec, tx);
