@@ -97,12 +97,13 @@ struct m0_fdmi_src_dock {
 
 	/**
 	   FDMI record context data list, stores records
-	   posted by source until they are handled by FDMI Src Dock.
-	   Links using link m0_fdmi_src_rec.fsr_linkage
+	   posted by source until they are handled by FDMI source dock.
+	   Links using link m0_fdmi_src_rec.fsr_linkage. Protected with
+	   ->fsdc_list_mutex.
 	 */
 	struct m0_tl          fsdc_posted_rec_list;
 
-	/** Mutex to protect list operations */
+	/** Mutex to protect ->fsdc_posted_rec_list list operations. */
 	struct m0_mutex       fsdc_list_mutex;
 
 	/** Cluster-wide unique source-dock instance ID.  Used as u_hi part of
@@ -160,7 +161,7 @@ M0_INTERNAL void m0_fdmi__fs_end(struct m0_fdmi_src_rec *src_rec);
 /** Initialize FDMI source record */
 M0_INTERNAL void m0_fdmi__record_init(struct m0_fdmi_src_rec *src_rec);
 
-/** Denitialize and release FDMI record context */
+/** Deinitialize and release FDMI record context */
 M0_INTERNAL void m0_fdmi__record_deinit(struct m0_fdmi_src_rec *src_rec);
 
 /** Helper function, returns FDMI record type enumeration */

@@ -71,6 +71,7 @@ M0_INTERNAL void m0_fdmi_source_dock_init(struct m0_fdmi_src_dock *src_dock)
 	M0_SET0(src_dock);
 	fdmi_src_dock_src_list_tlist_init(&src_dock->fsdc_src_list);
 	fdmi_record_list_tlist_init(&src_dock->fsdc_posted_rec_list);
+	m0_mutex_init(&src_dock->fsdc_list_mutex);
 	src_dock->fsdc_instance_id = 0;
 	M0_LEAVE();
 }
@@ -112,12 +113,19 @@ static void src_rec_free(struct m0_ref *ref)
 
 	M0_ENTRY("ref %p", ref);
 	M0_PRE(m0_fdmi__record_is_valid(src_rec));
+	M0_PRE(!fdmi_record_list_tlink_is_in(src_rec));
 
-	/* inform source that fdmi record is sent to all peers,
-	 * call fs_end() */
-	m0_fdmi__fs_end(src_rec);
-	fdmi_record_list_tlist_remove(src_rec);
+	/* Finalize list and link. @src_rec is still alive. */
 	m0_fdmi__record_deinit(src_rec);
+
+	/**
+	 * Inform source that fdmi record is sent to all peers,
+	 * call fs_end(). Note, that this will release src_rec
+	 * itself (it lives in fol_record).
+	 *
+	 * Nothing about @src_rec should be done below this point.
+	 */
+	m0_fdmi__fs_end(src_rec);
 
 	M0_LEAVE();
 }
@@ -146,8 +154,6 @@ M0_INTERNAL void m0_fdmi__record_deinit(struct m0_fdmi_src_rec *src_rec)
 
 	fdmi_matched_filter_list_tlist_fini(&src_rec->fsr_filter_list);
 	fdmi_record_list_tlink_fini(src_rec);
-	src_rec->fsr_src_ctx = NULL;
-	src_rec->fsr_magic = 0;
 
 	M0_LEAVE();
 }
