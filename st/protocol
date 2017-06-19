@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+
+#
+# This script compares two xcode protocol files specified by ARGS
+#
+
+set -e
+
+M0_SRC_DIR=`readlink -f $0`
+M0_SRC_DIR=${M0_SRC_DIR%/*/*}
+
+. $M0_SRC_DIR/utils/functions # report_and_exit
+
+cd $M0_SRC_DIR
+
+diff_cmd='diff -u'
+if which wdiff 2>/dev/null ; then
+    diff_cmd='wdiff'
+fi
+
+echo "Comparing '$1' and '$2' files"
+$diff_cmd $1 $2
+
+report_and_exit initscripts $?

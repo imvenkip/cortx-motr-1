@@ -25,6 +25,7 @@
 
 #include "lib/vec.h"                /* m0_bufvec_cursor */
 #include "lib/types.h"              /* m0_bcount_t */
+#include "lib/assert.h"             /* M0_BASSERT */
 #include "xcode/xcode_attr.h"       /* M0_XC_ATTR */
 #include "xcode/enum.h"
 

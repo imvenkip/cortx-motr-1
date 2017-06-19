@@ -1229,6 +1229,7 @@ generate-files: generate-xc-files generate-ff-files generate-confxc-files \
 all-local: build-kernel-modules $(LTLIBRARIES) $(PROGRAMS)
 	@$(top_srcdir)/scripts/build/check-sources $(top_srcdir)
 	@$(top_srcdir)/scripts/build/check-public-api
+	@$(top_srcdir)/scripts/build/check-protocol
 	@$(top_srcdir)/scripts/build/print-elf-sizes
 	@$(LN_S) -f $(PROGRAMS:%=../%) $(filter /trace/, $(bin_SCRIPTS:%=../%)) utils/
 
@@ -1241,6 +1242,10 @@ check-sources-postbuild:
 .PHONY: check-public-api
 check-public-api:
 	@$(top_srcdir)/scripts/build/check-public-api
+
+.PHONY: check-protocol
+check-protocol:
+	@$(top_srcdir)/scripts/build/check-protocol
 
 .PHONY: print-elf-sizes
 print-elf-sizes:

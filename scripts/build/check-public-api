@@ -32,7 +32,7 @@ Usage: $PROG_NAME [-h|--help] [-a|--api mero-pub.api] [-l|--libmero libmero.so]
     -a|--api            A text file with the list of names of public mero
                         functions. By default it's "$pub_api".
 
-    -l|--libmero     libmero.so library binary, by default it's
+    -l|--libmero        libmero.so library binary, by default it's
                         "$libmero".
 
     -h|--help           Print this help screen.

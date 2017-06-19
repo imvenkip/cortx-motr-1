@@ -100,19 +100,21 @@ static void protocol_print(int dom)
 
 	qsort(xt, ARRAY_SIZE(xt), sizeof xt[0], &cmp);
 	if (dom != 0)
-		for (i = 0, xtype = *(xt[0]), total_structs = 0;
-		     i < ARRAY_SIZE(xt);
-		     xtype = *(xt[++i]))
+		for (i = 0, total_structs = 0; i < ARRAY_SIZE(xt); ++i) {
+			xtype = *(xt[i]);
 			if (xtype->xct_flags & dom)
 				total_structs++;
+		}
 
 	printf("Mero binary protocol\n");
 	printf("Domains: %s\n", xcode_domain_name);
 	printf("Total structures: %zu\n", total_structs);
 
-	for (i = 0, xtype = *(xt[0]); i < ARRAY_SIZE(xt); xtype = *(xt[++i]))
+	for (i = 0; i < ARRAY_SIZE(xt); ++i) {
+		xtype = *(xt[i]);
 		if (dom == 0 /* any domain */ || xtype->xct_flags & dom)
 			type_print(xtype);
+	}
 	printf("\n");
 }
 
