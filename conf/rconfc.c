@@ -2030,10 +2030,10 @@ static bool rconfc_unpinned_cb(struct m0_clink *link)
  * Called during m0_confc_ctx_init(). Confc context initialisation appears
  * blocked until rconfc allows read operations.
  *
- * @note Caller is blocked until rconfc reelection is finished. In order to
- * ensure rconfc reelection progress, caller should be in other sm group than
- * rconfc->rc_sm.sm_grp. It is responsibility of user to provide such a group
- * in m0_rconfc_init().
+ * @note Caller is blocked until rconfc reelection is finished. Caller
+ * (e.g. ios start sm) might be in the same sm group with rconfc sm group.
+ * So, m0_rconfc_lock() and m0_rconfc_unlock() will use the recursive version
+ * of sm group lock/unlock respectively.
  *
  * @see m0_confc_gate_ops::go_check
  */
@@ -2536,7 +2536,7 @@ static void rconfc_read_lock_complete(struct m0_rm_incoming *in, int32_t rc)
 
 static int rconfc_local_load(struct m0_rconfc *rconfc)
 {
-	struct m0_conf_root *root;
+	struct m0_conf_root *root = NULL;
 	int                  rc;
 
 	M0_ENTRY("rconfc %p, local_conf = '%s'", rconfc, rconfc->rc_local_conf);
@@ -2570,14 +2570,17 @@ M0_INTERNAL void m0_rconfc_lock(struct m0_rconfc *rconfc)
 	 * Don't use m0_sm_group_lock() to ensure that ASTs posted via
 	 * rconfc_ast_post() are executed in well-known context.
 	 * m0_sm_group_lock() has side effect of running ASTs in current context
-	 * after releasing the mutex.
+	 * after acquiring the mutex.
+	 *
+	 * We use the recursive version of sm group lock, because it might
+	 * be called from ios start sm group AST, which uses the same sm group.
 	 */
-	m0_mutex_lock(&rconfc->rc_sm.sm_grp->s_lock);
+	m0_sm_group_lock_rec(rconfc->rc_sm.sm_grp, false);
 }
 
 M0_INTERNAL void m0_rconfc_unlock(struct m0_rconfc *rconfc)
 {
-	m0_mutex_unlock(&rconfc->rc_sm.sm_grp->s_lock);
+	m0_sm_group_unlock_rec(rconfc->rc_sm.sm_grp, false);
 }
 
 M0_INTERNAL int m0_rconfc_init(struct m0_rconfc      *rconfc,

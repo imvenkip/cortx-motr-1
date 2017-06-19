@@ -34,7 +34,7 @@ struct m0_confc_args {
 	const char            *ca_profile;
 	/** Cofiguration string. */
 	char                  *ca_confstr;
-	/** Configuration retrieval state machine. */
+	/** Configuration retrieval state machine group. */
 	struct m0_sm_group    *ca_group;
 	/** Configuration retrieval rpc machine. */
 	struct m0_rpc_machine *ca_rmach;

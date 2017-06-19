@@ -177,7 +177,7 @@ M0_INTERNAL void m0_dix_req_unlock(struct m0_dix_req *req)
 
 M0_INTERNAL bool m0_dix_req_is_locked(const struct m0_dix_req *req)
 {
-	return m0_mutex_is_locked(&dix_req_smgrp(req)->s_lock);
+	return m0_sm_group_is_locked(dix_req_smgrp(req));
 }
 
 M0_INTERNAL int m0_dix_req_wait(struct m0_dix_req *req, uint64_t states,

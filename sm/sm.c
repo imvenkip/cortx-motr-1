@@ -24,6 +24,7 @@
 #include "lib/errno.h"              /* ESRCH */
 #include "lib/misc.h"               /* M0_SET0, M0_IS0 */
 #include "lib/mutex.h"
+#include "lib/thread.h"             /* m0_thread_self */
 #include "lib/arith.h"              /* m0_is_po2 */
 #include "lib/memory.h"
 #include "lib/finject.h"
@@ -69,16 +70,30 @@ M0_INTERNAL void m0_sm_group_fini(struct m0_sm_group *grp)
 	m0_mutex_fini(&grp->s_lock);
 }
 
-M0_INTERNAL void m0_sm_group_lock(struct m0_sm_group *grp)
+static void _sm_group_lock(struct m0_sm_group *grp)
 {
 	m0_mutex_lock(&grp->s_lock);
+	M0_PRE(grp->s_nesting == 0);
+	grp->s_nesting = 1;
+}
+
+M0_INTERNAL void m0_sm_group_lock(struct m0_sm_group *grp)
+{
+	_sm_group_lock(grp);
 	m0_sm_asts_run(grp);
+}
+
+static void _sm_group_unlock(struct m0_sm_group *grp)
+{
+	M0_PRE(grp->s_nesting == 1);
+	grp->s_nesting = 0;
+	m0_mutex_unlock(&grp->s_lock);
 }
 
 M0_INTERNAL void m0_sm_group_unlock(struct m0_sm_group *grp)
 {
 	m0_sm_asts_run(grp);
-	m0_mutex_unlock(&grp->s_lock);
+	_sm_group_unlock(grp);
 }
 
 static bool grp_is_locked(const struct m0_sm_group *grp)
@@ -89,6 +104,29 @@ static bool grp_is_locked(const struct m0_sm_group *grp)
 M0_INTERNAL bool m0_sm_group_is_locked(const struct m0_sm_group *grp)
 {
 	return grp_is_locked(grp);
+}
+
+M0_INTERNAL void m0_sm_group_lock_rec(struct m0_sm_group *grp, bool runast)
+{
+	if (grp->s_lock.m_owner == m0_thread_self())
+		++grp->s_nesting;
+	else {
+		_sm_group_lock(grp);
+		if (runast)
+			m0_sm_asts_run(grp);
+	}
+}
+
+M0_INTERNAL void m0_sm_group_unlock_rec(struct m0_sm_group *grp, bool runast)
+{
+	M0_PRE(grp->s_lock.m_owner == m0_thread_self());
+	if (grp->s_nesting > 1)
+		--grp->s_nesting;
+	else {
+		_sm_group_unlock(grp);
+		if (runast)
+			m0_sm_asts_run(grp);
+	}
 }
 
 M0_INTERNAL void m0_sm_ast_post(struct m0_sm_group *grp, struct m0_sm_ast *ast)

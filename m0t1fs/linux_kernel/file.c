@@ -3555,10 +3555,10 @@ static inline int ioreq_sm_timedwait(struct io_request *req,
 		 m0_atomic64_get(&req->ir_nwxfer.nxr_iofop_nr),
 		 m0_atomic64_get(&req->ir_nwxfer.nxr_rdbulk_nr));
 
-	m0_mutex_lock(&req->ir_sm.sm_grp->s_lock);
+	m0_sm_group_lock(req->ir_sm.sm_grp);
 	rc = m0_sm_timedwait(&req->ir_sm, M0_BITS(state, IRS_FAILED),
 			     M0_TIME_NEVER);
-	m0_mutex_unlock(&req->ir_sm.sm_grp->s_lock);
+	m0_sm_group_unlock(req->ir_sm.sm_grp);
 
 	if (rc != 0)
 		M0_LOG(M0_DEBUG, "[%p] rc %d", req, rc);

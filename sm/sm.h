@@ -502,6 +502,7 @@ struct m0_sm_ast {
 
 struct m0_sm_group {
 	struct m0_mutex           s_lock;
+	unsigned int              s_nesting;
 	struct m0_clink           s_clink;
 	struct m0_sm_ast         *s_forkq;
 	struct m0_chan            s_chan;
@@ -528,7 +529,8 @@ M0_INTERNAL void m0_sm_group_fini(struct m0_sm_group *grp);
 M0_INTERNAL void m0_sm_group_lock(struct m0_sm_group *grp);
 M0_INTERNAL void m0_sm_group_unlock(struct m0_sm_group *grp);
 M0_INTERNAL bool m0_sm_group_is_locked(const struct m0_sm_group *grp);
-
+M0_INTERNAL void m0_sm_group_lock_rec(struct m0_sm_group *grp, bool runast);
+M0_INTERNAL void m0_sm_group_unlock_rec(struct m0_sm_group *grp, bool runast);
 /**
    Waits until a given state machine enters any of states enumerated by a given
    bit-mask.
