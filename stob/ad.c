@@ -626,7 +626,7 @@ static int stob_ad_init(struct m0_stob *stob,
 	int                       rc;
 
 	prefix = M0_UINT128(stob_fid->f_container, stob_fid->f_key);
-	M0_LOG(M0_DEBUG, U128D_F, U128_P(&prefix));
+	M0_LOG(M0_DEBUG, U128X_F, U128_P(&prefix));
 	stob->so_ops = &stob_ad_ops;
 	rc = M0_BE_OP_SYNC_RET_WITH(
 		&it.ec_op,
