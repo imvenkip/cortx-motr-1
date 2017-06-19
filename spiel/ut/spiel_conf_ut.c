@@ -1480,7 +1480,7 @@ static void spiel_conf_delete(void)
 
   Create conf file equvalent to ut/conf.xc
 
-[23:
+[22:
 # profile:      ('p', 1,  0)
    {0x70| ((^p|1:0), ^f|1:1)},
 # filesystem:   ('f', 1,  1)
@@ -1499,8 +1499,7 @@ static void spiel_conf_delete(void)
 	   [2: ^r|1:5, ^r|1:6])},
 # process "p0": ('r', 1,  5)
    {0x72| ((^r|1:5), [1:3], 0, 0, 0, 0, [3: ^s|1:9,
-					    ^s|1:10],
-					    ^s|1:11])},
+					    ^s|1:10])},
 # process "p1": ('r', 1,  6)
    {0x72| ((^r|1:6), [1:3], 0, 0, 0, 0, [0])},
 # service "s0": ('s', 1,  9)
@@ -1509,9 +1508,6 @@ static void spiel_conf_delete(void)
 # service "s1": ('s', 1, 10)
    {0x73| ((^s|1:10), @M0_CST_MDS, [1: "addr-3"],
 	   [1: ^d|1:15])},
-# service "s2": ('s', 1, 11)
-   {0x73| ((^s|1:11), @M0_CST_FDMI, [1: "addr-3"],
-	   [0])},
 # sdev "d0":    ('d', 1, 13)
    {0x64| ((^d|1:13), 4, 1, 4096, 596000000000, 3, 4, "/dev/sdev0")},
 # sdev "d1":    ('d', 1, 14)

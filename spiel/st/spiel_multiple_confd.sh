@@ -88,7 +88,7 @@ stub_confdb() {
     processes=[process-0, process-1, process-2])
 (process-0 cores=[3] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
     mem_limit_memlock=0 endpoint="$M0D1_ENDPOINT"
-    services=[service-0, service-3, service-4, service-10])
+    services=[service-0, service-3, service-4])
 (process-1 cores=[3] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
     mem_limit_memlock=0 endpoint="$M0D2_ENDPOINT"
     services=[service-6, service-7])
@@ -102,7 +102,6 @@ stub_confdb() {
 (service-7 type=@M0_CST_MGS endpoints=["$M0D2_ENDPOINT"] sdevs=[])
 (service-8 type=@M0_CST_RMS endpoints=["$M0D3_ENDPOINT"] sdevs=[])
 (service-9 type=@M0_CST_MGS endpoints=["$M0D3_ENDPOINT"] sdevs=[])
-(service-10 type=@M0_CST_FDMI endpoints=["$M0D1_ENDPOINT"] sdevs=[])
 (pool-0 order=0 pvers=[pver-0, pver_f-11])
 (pver-0 N=2 K=1 P=4 tolerance=[0, 0, 0, 0, 1] rackvs=[objv-0])
 (pver_f-11 id=0 base=pver-0 allowance=[0, 0, 0, 0, 1])

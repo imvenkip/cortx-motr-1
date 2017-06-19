@@ -72,7 +72,7 @@ confdb() {
 (process-1 cores=[2] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
     mem_limit_memlock=0 endpoint="$M0D1_ENDPOINT"
     services=[service-0, service-1, service-2, service-3, service-4,
-    service-6, service-8])
+    service-6])
 (process-4 cores=[1] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
     mem_limit_memlock=0 endpoint="$M0T1FS_ENDPOINT:1" services=[service-5])
 ##
@@ -91,7 +91,6 @@ confdb() {
 (service-4 type=6 endpoints=["$M0D1_ENDPOINT"] sdevs=[])
 (service-5 type=4 endpoints=["$M0T1FS_ENDPOINT:1"] sdevs=[])
 (service-6 type=10 endpoints=["$M0D1_ENDPOINT"] sdevs=[sdev-5])
-(service-8 type=17 endpoints=["$M0D1_ENDPOINT"] sdevs=[])
 (sdev-0 dev_idx=0 iface=4 media=1 bsize=4096 size=596000000000 last_state=3
     flags=4 filename="/dev/sdev0")
 (sdev-1 dev_idx=1 iface=4 media=1 bsize=4096 size=596000000000 last_state=3

@@ -623,11 +623,6 @@ static char *_conf_service_type_error(const struct m0_conf_filesystem *fs,
 	enum m0_conf_service_type svc_type;
 	bool                      confd_p = false;
 	bool                      mds_p = false;
-	/**
-	 * @todo Disable check for fdmi service for now. Halon does
-	 * not know it. Ticket HALON-730.
-	 */
-	bool                      fdmi_p = true;
 	int                       i;
 	int                       rc;
 
@@ -648,16 +643,14 @@ static char *_conf_service_type_error(const struct m0_conf_filesystem *fs,
 				confd_p = true;
 			else if (svc_type == M0_CST_MDS)
 				mds_p = true;
-			else if (svc_type == M0_CST_FDMI)
-				fdmi_p = true;
 		}
 	}
 	if (rc < 0)
 		return m0_conf_glob_error(&glob, buf, buflen);
-	if (fdmi_p && confd_p && (conf_oostore_mode(fs) || mds_p))
+	if (confd_p && (conf_oostore_mode(fs) || mds_p))
 		return NULL;
 	return m0_vsnprintf(buf, buflen, "No %s service defined for filesystem "
-			    FID_F, fdmi_p ? (confd_p ? "meta-data" : "confd") : "fdmi",
+			    FID_F, confd_p ? "meta-data" : "confd",
 			    FID_P(&fs->cf_obj.co_id));
 }
 
