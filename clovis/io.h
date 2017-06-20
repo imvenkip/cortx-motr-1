@@ -523,9 +523,9 @@ M0_INTERNAL bool data_buf_invariant(const struct data_buf *db);
  * @param ir_fop The io fop serving the data 'index'.
  * @return true or false.
  */
-M0_INTERNAL inline uint64_t pargrp_id_find(m0_bindex_t              index,
-				      const struct m0_clovis_op_io *ioo,
-				      const struct ioreq_fop       *ir_fop);
+M0_INTERNAL uint64_t pargrp_id_find(m0_bindex_t                   index,
+				    const struct m0_clovis_op_io *ioo,
+				    const struct ioreq_fop       *ir_fop);
 
 /**
  * Checks a pargrp_iomap struct is correct.

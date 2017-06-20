@@ -97,7 +97,7 @@ void bv_compare(struct m0_bufvec *b1, struct m0_bufvec *b2, uint32_t seg_nr,
         }
 }
 
-inline void bv_free(struct m0_bufvec *b)
+void bv_free(struct m0_bufvec *b)
 {
         m0_bufvec_free(b);
 }

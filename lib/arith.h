@@ -230,7 +230,7 @@ static inline bool m0_is_aligned(uint64_t val, uint64_t alignment)
 /** Check to determine if the sum of two 64 bit unsigned numbers
  *  will overflow
  */
-static bool inline m0_addu64_will_overflow(uint64_t a, uint64_t b)
+static inline bool m0_addu64_will_overflow(uint64_t a, uint64_t b)
 {
 	return a + b < a;
 }

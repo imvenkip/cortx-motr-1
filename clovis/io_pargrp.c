@@ -105,9 +105,9 @@ static void pargrp_src_addr(m0_bindex_t                   index,
 /**
  * This is heavily based on m0t1fs/linux_kernel/file.c::pargrp_id_find
  */
-inline uint64_t pargrp_id_find(m0_bindex_t	             index,
-			       const struct m0_clovis_op_io *ioo,
-			       const struct ioreq_fop       *ir_fop)
+M0_INTERNAL uint64_t pargrp_id_find(m0_bindex_t	                  index,
+				    const struct m0_clovis_op_io *ioo,
+				    const struct ioreq_fop       *ir_fop)
 {
 	struct m0_pdclust_src_addr src;
 
