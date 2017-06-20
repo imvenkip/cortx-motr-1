@@ -147,14 +147,15 @@ static inline bool m0_atomic64_dec_and_test(struct m0_atomic64 *a)
 	return __sync_sub_and_fetch(&a->a_value, 1) == 0;
 }
 
-static inline bool m0_atomic64_cas(int64_t * loc, int64_t old, int64_t new)
+static inline bool
+m0_atomic64_cas(int64_t * loc, int64_t oldval, int64_t newval)
 {
-	return __sync_bool_compare_and_swap(loc, old, new);
+	return __sync_bool_compare_and_swap(loc, oldval, newval);
 }
 
-PREFIX void m0_mb(void)
+static inline void m0_mb(void)
 {
-	__synchronize_sync();
+	__sync_synchronize();
 }
 
 /** @} end of atomic group */
