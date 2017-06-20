@@ -166,7 +166,7 @@ static void test_pver_find(void)
 	M0_UT_ASSERT(rc == -EINVAL);
 }
 
-const struct m0_ut_suite conf_pvers_ut = {
+struct m0_ut_suite conf_pvers_ut = {
 	.ts_name  = "conf-pvers-ut",
 	.ts_init  = conf_ut_cache_init,
 	.ts_fini  = conf_ut_cache_fini,

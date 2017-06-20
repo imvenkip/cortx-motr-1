@@ -31,7 +31,7 @@
  */
 #include "clovis/clovis_idx.c"
 
-const struct m0_ut_suite ut_suite_clovis_idx;
+struct m0_ut_suite ut_suite_clovis_idx;
 
 static struct m0_clovis *dummy_instance;
 
@@ -710,7 +710,7 @@ M0_INTERNAL int ut_clovis_idx_fini(void)
 
 	return 0;
 }
-const struct m0_ut_suite ut_suite_clovis_idx = {
+struct m0_ut_suite ut_suite_clovis_idx = {
 	.ts_name = "clovis-idx-ut",
 	.ts_init = ut_clovis_idx_init,
 	.ts_fini = ut_clovis_idx_fini,

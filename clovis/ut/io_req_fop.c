@@ -41,7 +41,7 @@
 #endif
 #include "clovis/io_req_fop.c"
 
-const struct m0_ut_suite  ut_suite_clovis_io_req_fop;
+struct m0_ut_suite        ut_suite_clovis_io_req_fop;
 static struct m0_clovis  *dummy_instance;
 
 /**
@@ -283,7 +283,7 @@ M0_INTERNAL int ut_clovis_io_req_fop_fini(void)
 	return 0;
 }
 
-const struct m0_ut_suite ut_suite_clovis_io_req_fop = {
+struct m0_ut_suite ut_suite_clovis_io_req_fop = {
 	.ts_name = "clovis-io-req-fop-ut",
 	.ts_init = ut_clovis_io_req_fop_init,
 	.ts_fini = ut_clovis_io_req_fop_fini,

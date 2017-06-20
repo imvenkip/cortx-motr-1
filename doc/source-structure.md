@@ -258,7 +258,7 @@ alphabetic order (search where other ut makefiles are included).
 
 In ut/m0ut.c add
 
-    extern const struct m0_ut_suite foo_ut;
+    extern struct m0_ut_suite foo_ut;
 
 declaration and
 

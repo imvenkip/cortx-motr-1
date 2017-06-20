@@ -319,7 +319,7 @@ static int conf_load_ut_fini()
 	return 0;
 }
 
-const struct m0_ut_suite conf_load_ut = {
+struct m0_ut_suite conf_load_ut = {
 	.ts_name = "conf-load-ut",
 	.ts_init = conf_load_ut_init,
 	.ts_fini = conf_load_ut_fini,

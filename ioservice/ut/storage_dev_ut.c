@@ -326,7 +326,7 @@ static void storage_dev_linux(void)
 	free(cwd);
 }
 
-const struct m0_ut_suite storage_dev_ut = {
+struct m0_ut_suite storage_dev_ut = {
 	.ts_name = "storage-dev-ut",
 	.ts_init = NULL,
 	.ts_fini = NULL,

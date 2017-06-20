@@ -296,7 +296,7 @@ static void filterc_connect_to_confd(void)
 	M0_LEAVE();
 }
 
-const struct m0_ut_suite fdmi_filterc_ut = {
+struct m0_ut_suite fdmi_filterc_ut = {
 	.ts_name = "fdmi-filterc-ut",
 	.ts_tests = {
 		{ "filterc-connect-to-confd", filterc_connect_to_confd},

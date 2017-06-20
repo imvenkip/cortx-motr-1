@@ -44,7 +44,7 @@
 #include "clovis/sync.h"                 /* clovis_sync_interactions */
 #include "clovis/clovis_sync.c"
 
-const struct m0_ut_suite                ut_suite_clovis_sync;
+struct m0_ut_suite                       ut_suite_clovis_sync;
 
 /* counters to indicate how many times each sub is/was called */
 static int                               ut_post_rpc_count = 0;
@@ -659,7 +659,7 @@ M0_INTERNAL int ut_clovis_sync_fini(void)
 	return 0;
 }
 
-const struct m0_ut_suite ut_suite_clovis_sync = {
+struct m0_ut_suite ut_suite_clovis_sync = {
 	.ts_name = "clovis-sync-ut",
 	.ts_init = ut_clovis_sync_init,
 	.ts_fini = ut_clovis_sync_fini,

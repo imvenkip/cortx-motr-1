@@ -390,7 +390,7 @@ static void flt_str_ops(void)
  * Test Sute definition
  * ------------------------------------------------------------------ */
 
-const struct m0_ut_suite fdmi_filter_eval_ut = {
+struct m0_ut_suite fdmi_filter_eval_ut = {
 	.ts_name = "fdmi-filter-eval-ut",
 	.ts_tests = {
 		{ "simple-or",        flt_eval_simple_or },

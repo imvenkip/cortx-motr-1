@@ -374,7 +374,7 @@ static void fdmi_fol_test_sudden_fini(void)
  * Test Suite definition
  * ------------------------------------------------------------------ */
 
-const struct m0_ut_suite fdmi_fol_ut = {
+struct m0_ut_suite fdmi_fol_ut = {
 	.ts_name = "fdmi-fol-ut",
 	.ts_tests = {
 		{ "fdmi-fol-register",  fdmi_fol_check_registered},
@@ -383,7 +383,7 @@ const struct m0_ut_suite fdmi_fol_ut = {
 	},
 };
 
-const struct m0_ut_suite fdmi_fol_fini_ut = {
+struct m0_ut_suite fdmi_fol_fini_ut = {
 	.ts_name = "fdmi-fol-fini-ut",
 	.ts_tests = {
 		{ "fdmi-fol-fini",      fdmi_fol_test_sudden_fini},

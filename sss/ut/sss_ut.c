@@ -470,7 +470,7 @@ static void sss_device_fom_create_fail(void)
 	m0_free(reqh);
 }
 
-const struct m0_ut_suite sss_ut = {
+struct m0_ut_suite sss_ut = {
 	.ts_name = "sss-ut",
 	.ts_init = sss_ut_init,
 	.ts_fini = sss_ut_fini,

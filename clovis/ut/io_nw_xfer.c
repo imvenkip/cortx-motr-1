@@ -43,7 +43,7 @@
 
 #include "layout/layout_internal.h" /* REMOVE ME */
 
-const struct m0_ut_suite  ut_suite_clovis_io_nw_xfer;
+struct m0_ut_suite        ut_suite_clovis_io_nw_xfer;
 static struct m0_clovis  *dummy_instance;
 
 #define DUMMY_PTR 0xdeafdead
@@ -600,7 +600,7 @@ M0_INTERNAL int m0_clovis_io_nw_xfer_ut_fini(void)
 	return 0;
 }
 
-const struct m0_ut_suite ut_suite_clovis_io_nw_xfer = {
+struct m0_ut_suite ut_suite_clovis_io_nw_xfer = {
 	.ts_name = "clovis-io-nw-xfer-ut",
 	.ts_init = m0_clovis_io_nw_xfer_ut_init,
 	.ts_fini = m0_clovis_io_nw_xfer_ut_fini,

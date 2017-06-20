@@ -45,7 +45,7 @@
 
 #include "layout/layout_internal.h" /* REMOVE ME */
 
-const struct m0_ut_suite  ut_suite_clovis_io_req;
+struct m0_ut_suite        ut_suite_clovis_io_req;
 static struct m0_clovis  *dummy_instance;
 
 /**
@@ -1204,7 +1204,7 @@ M0_INTERNAL int ut_clovis_io_req_fini(void)
 	return 0;
 }
 
-const struct m0_ut_suite ut_suite_clovis_io_req = {
+struct m0_ut_suite ut_suite_clovis_io_req = {
 	.ts_name = "clovis-io-req-ut",
 	.ts_init = ut_clovis_io_req_init,
 	.ts_fini = ut_clovis_io_req_fini,

@@ -48,7 +48,7 @@
 
 static struct m0_clovis         *dummy_instance;
 static struct m0_pdclust_layout *dummy_pdclust_layout;
-const struct  m0_ut_suite        ut_suite_clovis_io;
+struct m0_ut_suite               ut_suite_clovis_io;
 
 #define DUMMY_PTR 0xdeafdead
 
@@ -848,7 +848,7 @@ M0_INTERNAL int m0_clovis_io_ut_fini(void)
 	return 0;
 }
 
-const struct m0_ut_suite ut_suite_clovis_io = {
+struct m0_ut_suite ut_suite_clovis_io = {
 	.ts_name = "clovis-io-ut",
 	.ts_init = m0_clovis_io_ut_init,
 	.ts_fini = m0_clovis_io_ut_fini,

@@ -32,7 +32,7 @@ void fdmi_sd_apply_filter(void);
 void fdmi_sd_release_fom(void);
 void fdmi_sd_send_notif(void);
 
-const struct m0_ut_suite fdmi_sd_ut = {
+struct m0_ut_suite fdmi_sd_ut = {
 	.ts_name = "fdmi-sd-ut",
 	.ts_tests = {
 		{ "fdmi-sd-post-record", fdmi_sd_post_record},

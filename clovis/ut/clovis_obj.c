@@ -1408,7 +1408,7 @@ static void ut_clovis_test_clovis_obj_namei_cb_fini(void)
 	ut_m0_clovis_fini(&instance);
 }
 
-const struct m0_ut_suite ut_suite_clovis_obj;
+struct m0_ut_suite ut_suite_clovis_obj;
 
 M0_INTERNAL int ut_clovis_object_init(void)
 {
@@ -1423,7 +1423,8 @@ M0_INTERNAL int ut_clovis_object_fini(void)
 {
 	return 0;
 }
-const struct m0_ut_suite ut_suite_clovis_obj = {
+
+struct m0_ut_suite ut_suite_clovis_obj = {
 	.ts_name = "clovis-obj-ut",
 	.ts_init = ut_clovis_object_init,
 	.ts_fini = ut_clovis_object_fini,

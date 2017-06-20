@@ -44,7 +44,7 @@
 #include "layout/layout_internal.h" /* REMOVE ME */
 
 static struct m0_clovis   *dummy_instance;
-const struct m0_ut_suite   ut_suite_clovis_io_pargrp;
+struct m0_ut_suite         ut_suite_clovis_io_pargrp;
 
 #define DUMMY_PTR 0xdeafdead
 
@@ -1258,7 +1258,7 @@ M0_INTERNAL int ut_clovis_io_pargrp_fini(void)
 	return 0;
 }
 
-const struct m0_ut_suite ut_suite_clovis_io_pargrp = {
+struct m0_ut_suite ut_suite_clovis_io_pargrp = {
 	.ts_name = "clovis-io-pargrp-ut",
 	.ts_init = ut_clovis_io_pargrp_init,
 	.ts_fini = ut_clovis_io_pargrp_fini,

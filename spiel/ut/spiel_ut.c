@@ -77,7 +77,7 @@ static int spiel_ut_fini()
 	return 0;
 }
 
-const struct m0_ut_suite spiel_ut = {
+struct m0_ut_suite spiel_ut = {
 	.ts_name = "spiel-ut",
 	.ts_init = spiel_ut_init,
 	.ts_fini = spiel_ut_fini,

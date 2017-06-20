@@ -106,7 +106,7 @@ M0_INTERNAL void ut_m0_clovis_fini(struct m0_clovis **instance);
  * A trick to force the UTs to run in random order every time. This allows the
  * tester to discover hidden dependencies among tests (bonus score!).
  */
-M0_INTERNAL void ut_clovis_shuffle_test_order(const struct m0_ut_suite *suite);
+M0_INTERNAL void ut_clovis_shuffle_test_order(struct m0_ut_suite *suite);
 
 
 /**

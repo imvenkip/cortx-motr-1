@@ -662,7 +662,7 @@ void fdmi_pd_fake_release_nomem()
 	fdmi_serv_stop_ut();
 }
 
-const struct m0_ut_suite fdmi_pd_ut = {
+struct m0_ut_suite fdmi_pd_ut = {
 	.ts_name = "fdmi-pd-ut",
 	.ts_tests = {
 		{ "fdmi-pd-register-filter",    fdmi_pd_register_filter    },

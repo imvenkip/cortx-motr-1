@@ -2071,7 +2071,7 @@ static void spiel_conf_wlock_get_fail(void)
 	spiel_conf_ut_fini();
 }
 
-const struct m0_ut_suite spiel_conf_ut = {
+struct m0_ut_suite spiel_conf_ut = {
 	.ts_name = "spiel-conf-ut",
 	.ts_tests = {
 		{ "create-ok",      spiel_conf_create_ok      },

@@ -177,7 +177,7 @@ static void rpc_conn_pool_async(void) {
 	stop_rpc_client_and_server();
 }
 
-const struct m0_ut_suite rpc_conn_pool_ut = {
+struct m0_ut_suite rpc_conn_pool_ut = {
 	.ts_name = "rpc-conn-pool-ut",
 	.ts_tests = {
 		{ "rpc-conn-pool", rpc_conn_pool},

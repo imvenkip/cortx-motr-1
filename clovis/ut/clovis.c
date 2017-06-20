@@ -1199,11 +1199,11 @@ static void ut_clovis_test_m0_clovis_op_transaction_failed(void)
 
 #ifndef __KERNEL__
 int rand(void);
-const struct m0_ut_suite ut_suite_clovis;
+struct m0_ut_suite ut_suite_clovis;
 
 
 M0_INTERNAL void
-ut_clovis_shuffle_test_order(const struct m0_ut_suite *suite)
+ut_clovis_shuffle_test_order(struct m0_ut_suite *suite)
 {
 #ifdef CLVIS_UT_ENABLE_SHUFFLE
 
@@ -1258,7 +1258,7 @@ M0_INTERNAL int ut_clovis_fini(void)
 	return 0;
 }
 
-const struct m0_ut_suite ut_suite_clovis = {
+struct m0_ut_suite ut_suite_clovis = {
 	.ts_name = "clovis-ut",
 	.ts_init = ut_clovis_init,
 	.ts_fini = ut_clovis_fini,
