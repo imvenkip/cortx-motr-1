@@ -1133,6 +1133,7 @@ M0_INTERNAL int m0_balloc_load_extents(struct m0_balloc *cb,
 	struct m0_lext            *ex;
 	struct m0_ext              spare_range;
 	struct m0_ext              normal_range;
+	m0_bindex_t                next_key;
 	m0_bcount_t                i;
 	int			   rc = 0;
 
@@ -1168,12 +1169,11 @@ M0_INTERNAL int m0_balloc_load_extents(struct m0_balloc *cb,
 
 	ex = grp->bgi_extents;
 	ex->le_ext.e_end = (grp->bgi_groupno << cb->cb_sb.bsb_gsbits) + 1;
-	key = (struct m0_buf)M0_BUF_INIT_PTR(&ex->le_ext.e_end);
-
+	next_key = ex->le_ext.e_end;
 	for (i = 0; i < group_fragments_get(grp) +
 	     group_spare_fragments_get(grp); i++, ex++) {
-		rc = i == 0 ? m0_be_btree_cursor_get_sync(&cursor, &key, true) :
-			      m0_be_btree_cursor_next_sync(&cursor);
+		key = (struct m0_buf)M0_BUF_INIT_PTR(&next_key);
+		rc = m0_be_btree_cursor_get_sync(&cursor, &key, true);
 		if (rc != 0)
 			break;
 		m0_be_btree_cursor_kv_get(&cursor, &key, &val);
@@ -1190,7 +1190,7 @@ M0_INTERNAL int m0_balloc_load_extents(struct m0_balloc *cb,
 			M0_LOG(M0_ERROR, "Invalid extent");
 			M0_ASSERT(false);
 		}
-
+		next_key = ex->le_ext.e_end + 1;
 		/* balloc_debug_dump_extent("loading...", ex); */
 	}
 	m0_be_btree_cursor_fini(&cursor);

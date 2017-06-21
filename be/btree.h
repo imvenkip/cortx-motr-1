@@ -575,8 +575,10 @@ M0_INTERNAL int m0_be_btree_cursor_get_sync(struct m0_be_btree_cursor *it,
 					    bool slant);
 
 /**
- * Fills cursor internal buffers with next key and value obtained from the
- * tree. Operation may cause IO depending on cursor::bc_op state
+ * Fills cursor internal buffers with key and value obtained from the
+ * next position in tree. The operation is unprotected from concurrent btree
+ * updates and user should protect it with external lock.
+ * Operation may cause IO depending on cursor::bc_op state.
  *
  * Note: @see m0_be_btree_cursor_get note.
  */

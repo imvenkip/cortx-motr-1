@@ -330,6 +330,14 @@ Tests:
     polltime : 30
     timeout  : 600
 
+  - id       : 36spare-reservation
+    script   : m0t1fs_spare_space_reserve.sh
+    dir      : src/m0t1fs/linux_kernel/st/
+    executor : Xperior::Executor::MeroTest
+    sandbox  : /var/mero/sandbox.35spare-reservation
+    polltime : 30
+    timeout  : 1800
+
 # 25 min
 dangerous: 'yes'
 description: Set of Mero  tests
