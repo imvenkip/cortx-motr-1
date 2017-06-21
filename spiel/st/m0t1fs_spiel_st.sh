@@ -126,7 +126,7 @@ stub_confdb() {
 (service-4 type=@M0_CST_MGS endpoints=["$M0D1_ENDPOINT"] sdevs=[])
 (service-5 type=@M0_CST_SSS endpoints=["$M0D1_ENDPOINT"] sdevs=[])
 (service-6 type=@M0_CST_RMS endpoints=["$M0T1FS_ENDPOINT:1"] sdevs=[])
-(pool-0 order=0 pvers=[pver-0, pver_f-11])
+(pool-0 pver_policy=0 pvers=[pver-0, pver_f-11])
 (pver-0 N=2 K=1 P=4 tolerance=[0, 0, 0, 0, 1] rackvs=[objv-0])
 (pver_f-11 id=0 base=pver-0 allowance=[0, 0, 0, 0, 1])
 (objv-0 real=rack-0 children=[objv-1])
@@ -153,7 +153,7 @@ stub_confdb() {
     flags=4 filename="/dev/sdev3")
 (sdev-4 dev_idx=3 iface=7 media=2 bsize=8192 size=320000000000 last_state=2
     flags=4 filename="/dev/sdev4")
-(pool-1 order=0 pvers=[pver-10])
+(pool-1 pver_policy=0 pvers=[pver-10])
 (pver-10 N=1 K=0 P=1 tolerance=[0, 0, 0, 0, 1] rackvs=[objv-10])
 (objv-10 real=rack-0 children=[objv-11])
 (objv-11 real=enclosure-0 children=[objv-12])

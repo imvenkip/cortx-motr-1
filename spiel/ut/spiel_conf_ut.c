@@ -262,7 +262,7 @@ static void spiel_conf_create_conf_with_opt(struct m0_spiel    *spiel,
 	rc = m0_spiel_pool_add(tx,
 			       &spiel_obj_fid[SPIEL_UT_OBJ_POOL],
 			       &spiel_obj_fid[SPIEL_UT_OBJ_FILESYSTEM],
-			       2);
+			       0);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_spiel_rack_add(tx,
@@ -645,7 +645,7 @@ static void spiel_conf_create_invalid_configuration(struct m0_spiel    *spiel,
 	rc = m0_spiel_pool_add(tx,
 			       FID_MOVE(spiel_obj_fid[SPIEL_UT_OBJ_POOL], 3),
 			       &spiel_obj_fid[SPIEL_UT_OBJ_FILESYSTEM],
-			       2);
+			       0);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_spiel_rack_add(tx,
@@ -1109,19 +1109,19 @@ static void spiel_conf_create_fail(void)
 	rc = m0_spiel_pool_add(&tx,
 			       &fake_fid,
 			       &spiel_obj_fid[SPIEL_UT_OBJ_FILESYSTEM],
-			       2);
+			       0);
 	M0_UT_ASSERT(rc == -EINVAL);
 
 	rc = m0_spiel_pool_add(&tx,
 			       &spiel_obj_fid[SPIEL_UT_OBJ_POOL],
 			       &fake_fid,
-			       2);
+			       0);
 	M0_UT_ASSERT(rc == -EINVAL);
 
 	rc = m0_spiel_pool_add(&tx,
 			       &spiel_obj_fid[SPIEL_UT_OBJ_POOL],
 			       &spiel_obj_fid[SPIEL_UT_OBJ_FILESYSTEM],
-			       2);
+			       0);
 	M0_UT_ASSERT(rc == 0);
 
 	/* Rack */

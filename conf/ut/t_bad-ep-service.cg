@@ -15,4 +15,4 @@
 (service-1 type=@M0_CST_RMS
     endpoints=["172.16.64.1:12345:45:41"] # `@<network>' is missing
     sdevs=[])
-(pool-0 order=0 pvers=[])
+(pool-0 pver_policy=0 pvers=[])

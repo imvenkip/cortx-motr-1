@@ -96,8 +96,8 @@ struct m0_confx_filesystem {
 
 struct m0_confx_pool {
 	struct m0_confx_header xp_header;
-	/* Order in set of pool. */
-	uint32_t               xp_order;
+	/* Policy to be used for pool version selection. */
+	uint32_t               xp_pver_policy;
 	/* Pool versions for this pool. */
 	struct m0_fid_arr      xp_pvers;
 } M0_XCA_RECORD M0_XCA_DOMAIN(conf|rpc);

@@ -1304,7 +1304,7 @@ M0_EXPORTED(m0_spiel_device_add);
 int m0_spiel_pool_add(struct m0_spiel_tx  *tx,
 		      const struct m0_fid *fid,
 		      const struct m0_fid *parent,
-		      uint32_t order)
+		      uint32_t pver_policy)
 {
 	int                        rc;
 	struct m0_conf_obj        *obj = NULL;
@@ -1322,7 +1322,7 @@ int m0_spiel_pool_add(struct m0_spiel_tx  *tx,
 		goto fail;
 
 	pool = M0_CONF_CAST(obj, m0_conf_pool);
-	pool->pl_order = order;
+	pool->pl_pver_policy = pver_policy;
 	rc = spiel_pool_dirs_create(&tx->spt_cache, pool);
 	if (rc != 0)
 		goto fail;

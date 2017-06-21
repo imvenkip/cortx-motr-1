@@ -541,12 +541,12 @@ int m0_spiel_device_add(struct m0_spiel_tx                        *tx,
  * @param tx           spiel transaction
  * @param fid          fid of the pool
  * @param parent       fid of the parent filesystem
- * @param order        pool order
+ * @param pver_policy  pool version policy
  */
 int m0_spiel_pool_add(struct m0_spiel_tx  *tx,
 		      const struct m0_fid *fid,
 		      const struct m0_fid *parent,
-		      uint32_t             order);
+		      uint32_t             pver_policy);
 
 /**
  * Adds rack to the configuration tree of the transaction

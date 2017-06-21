@@ -177,7 +177,7 @@ static int pool_decode(struct m0_conf_obj        *dest,
 	struct m0_conf_pool        *d = M0_CONF_CAST(dest, m0_conf_pool);
 	const struct m0_confx_pool *s = XCAST(src);
 
-	d->pl_order = s->xp_order;
+	d->pl_pver_policy = s->xp_pver_policy;
 	return M0_RC(m0_conf_dir_new(cache, dest, &M0_CONF_POOL_PVERS_FID,
 				     &M0_CONF_PVER_TYPE, &s->xp_pvers,
 				     &d->pl_pvers));
@@ -190,7 +190,7 @@ pool_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 	struct m0_confx_pool *d = XCAST(dest);
 
 	confx_encode(dest, src);
-	d->xp_order = s->pl_order;
+	d->xp_pver_policy = s->pl_pver_policy;
 	return M0_RC(arrfid_from_dir(&d->xp_pvers, s->pl_pvers));
 }
 
@@ -200,7 +200,7 @@ pool_match(const struct m0_conf_obj *cached, const struct m0_confx_obj *flat)
 	const struct m0_confx_pool *xobj = XCAST(flat);
 	const struct m0_conf_pool  *obj = M0_CONF_CAST(cached, m0_conf_pool);
 
-	return obj->pl_order == xobj->xp_order &&
+	return obj->pl_pver_policy == xobj->xp_pver_policy &&
 		m0_conf_dir_elems_match(obj->pl_pvers, &xobj->xp_pvers);
 }
 

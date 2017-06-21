@@ -12,4 +12,4 @@
     mem_limit_memlock=0 endpoint="0@lo:12345:34:1" services=[])
 (process-6 cores=[3] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
     mem_limit_memlock=0 endpoint="0@lo:12345:34:2" services=[])
-(pool-4 order=0 pvers=[])
+(pool-4 pver_policy=0 pvers=[])

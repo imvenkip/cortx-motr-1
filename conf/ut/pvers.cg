@@ -7,7 +7,7 @@
     imeta_pver=pver-0 nodes=[] pools=[pool-0] racks=[rack-0]
     fdmi_flt_grps=[])
 
-(pool-0 order=0 pvers=[pver-0, pver_f-0])
+(pool-0 pver_policy=0 pvers=[pver-0, pver_f-0])
 (pver-0 N=2 K=2 P=10 tolerance=[0, 0, 0, 1, 2] rackvs=[objv-0])
 (pver_f-0 id=0xfeed base=pver-0 allowance=[0, 0, 0, 1, 2])
 ## rackvs ------------------------------------------------------------

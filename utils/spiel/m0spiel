@@ -302,10 +302,10 @@ class SpielWrapper:
                                              dev_idx, iface, media, bsize,
                                              size, last_state, flags, filename)
 
-    @require(spiel_tx=SpielTx, fid=Fid, parent=Fid, order=int)
-    def pool_add(self, spiel_tx, fid, parent, order):
+    @require(spiel_tx=SpielTx, fid=Fid, parent=Fid, pver_policy=int)
+    def pool_add(self, spiel_tx, fid, parent, pver_policy):
         return self.mero.m0_spiel_pool_add(spiel_tx.data, byref(fid),
-                                           byref(parent), order)
+                                           byref(parent), pver_policy)
 
     @require(spiel_tx=SpielTx, fid=Fid, parent=Fid)
     def rack_add(self, spiel_tx, fid, parent):

@@ -102,7 +102,7 @@ stub_confdb() {
 (service-7 type=@M0_CST_MGS endpoints=["$M0D2_ENDPOINT"] sdevs=[])
 (service-8 type=@M0_CST_RMS endpoints=["$M0D3_ENDPOINT"] sdevs=[])
 (service-9 type=@M0_CST_MGS endpoints=["$M0D3_ENDPOINT"] sdevs=[])
-(pool-0 order=0 pvers=[pver-0, pver_f-11])
+(pool-0 pver_policy=0 pvers=[pver-0, pver_f-11])
 (pver-0 N=2 K=1 P=4 tolerance=[0, 0, 0, 0, 1] rackvs=[objv-0])
 (pver_f-11 id=0 base=pver-0 allowance=[0, 0, 0, 0, 1])
 (objv-0 real=rack-0 children=[objv-1])

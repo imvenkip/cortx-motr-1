@@ -11,4 +11,4 @@
     services=[service-10, service-11])
 (service-10 type=@M0_CST_MDS endpoints=["0@lo:12345:34:10"] sdevs=[])
 (service-11 type=@M0_CST_IOS endpoints=["0@lo:12345:34:11"] sdevs=[])
-(pool-4 order=0 pvers=[])
+(pool-4 pver_policy=0 pvers=[])

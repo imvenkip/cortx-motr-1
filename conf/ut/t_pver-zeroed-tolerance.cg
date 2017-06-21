@@ -26,7 +26,7 @@
 (sdev-2 dev_idx=2 iface=7 media=2 bsize=8192 size=1073741824 last_state=2
     flags=4 filename="/dev/sdev3")
 
-(pool-0 order=0 pvers=[pver-0])
+(pool-0 pver_policy=0 pvers=[pver-0])
 (pver-0 N=3 K=1 P=5 tolerance=[0, 0, 0, 0, 0] # zeroed tolerance
     rackvs=[objv-10])
 ## racks -------------------------------------------------------------

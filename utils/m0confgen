@@ -28,7 +28,7 @@ THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
 http://www.xyratex.com/contact
 """
 __author__ = 'Valery V. Vorotyntsev <valery.vorotyntsev@seagate.com>'
-__version__ = '2.1'
+__version__ = '2.2'
 __doc__ = """Configuration string converter.
 
 Converts configuration string from one format into another.
@@ -53,7 +53,7 @@ conf_obj_types = {
                    ' mdpool=objid imeta_pver=fid'
                    ' *nodes=[objid] *pools=[objid] *racks=[objid]'
                    ' *fdmi_flt_grps=[objid]'),
-    'pool': ('o', 'order=NUMBER *pvers=[objid]'),
+    'pool': ('o', 'pver_policy=NUMBER *pvers=[objid]'),
     'pver': ('v:0',  # actual pver
              'N=NUMBER K=NUMBER P=NUMBER tolerance=[NUMBER]'
              ' *rackvs=[objid]'),
