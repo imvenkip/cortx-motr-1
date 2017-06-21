@@ -294,14 +294,14 @@ M0_INTERNAL int ut_m0_clovis_init(struct m0_clovis **instance)
 		M0_ALLOC_PTR(pool);
 		M0_UT_ASSERT(pool != NULL);
 		M0_SET0(&id);
-		m0_pool_init(pool, &id);
+		m0_pool_init(pool, &id, 0);
 		pools_tlist_init(&(*instance)->m0c_pools_common.pc_pools);
 		pools_tlink_init_at_tail(pool, &((*instance)->m0c_pools_common.pc_pools));
 
 		M0_ALLOC_PTR(mdpool);
 		M0_UT_ASSERT(mdpool != NULL);
 		id.f_key=1;
-		m0_pool_init(mdpool, &id);
+		m0_pool_init(mdpool, &id, 0);
 		pools_tlink_init_at_tail(mdpool, &((*instance)->m0c_pools_common.pc_pools));
 
 		M0_ALLOC_PTR(pv);
@@ -484,6 +484,7 @@ static void ut_clovis_test_m0_clovis_obj_init(void)
 	id = M0_CLOVIS_ID_APP;
 	id.u_lo++;
 
+	m0_fi_enable_once("m0_clovis__pool_version_get", "fake_pool_version");
 	/* base case: no error */
 	m0_clovis_obj_init(&obj, &uber_realm.co_realm, &id,
 			   m0_clovis_default_layout_id(instance));
@@ -954,6 +955,7 @@ static void ut_clovis_test_m0_clovis_entity_fini(void)
 	/* Create an entity we can use */
 	id = M0_CLOVIS_ID_APP;
 	id.u_lo++;
+	m0_fi_enable_once("m0_clovis__pool_version_get", "fake_pool_version");
 	m0_clovis_obj_init(&obj, &uber_realm.co_realm, &id,
 			   m0_clovis_default_layout_id(instance));
 	ent = &obj.ob_entity;
@@ -962,6 +964,7 @@ static void ut_clovis_test_m0_clovis_entity_fini(void)
 	m0_clovis_entity_fini(ent);
 
 	/* Re-initialise */
+	m0_fi_enable_once("m0_clovis__pool_version_get", "fake_pool_version");
 	m0_clovis_obj_init(&obj, &uber_realm.co_realm, &id,
 			   m0_clovis_default_layout_id(instance));
 
@@ -988,6 +991,7 @@ static void ut_clovis_test_m0_clovis_obj_fini(void)
 	/* Create an entity we can use */
 	id = M0_CLOVIS_ID_APP;
 	id.u_lo++;
+	m0_fi_enable_once("m0_clovis__pool_version_get", "fake_pool_version");
 	m0_clovis_obj_init(&obj, &uber_realm.co_realm, &id,
 			   m0_clovis_default_layout_id(instance));
 
@@ -995,6 +999,7 @@ static void ut_clovis_test_m0_clovis_obj_fini(void)
 	m0_clovis_obj_fini(&obj);
 
 	/* Re-initialise */
+	m0_fi_enable_once("m0_clovis__pool_version_get", "fake_pool_version");
 	m0_clovis_obj_init(&obj, &uber_realm.co_realm, &id,
 			   m0_clovis_default_layout_id(instance));
 

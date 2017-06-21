@@ -89,11 +89,12 @@ M0_INTERNAL bool m0_conf_obj_is_pool(const struct m0_conf_obj *obj)
 
 M0_INTERNAL int m0_conf_pver_get(const struct m0_fid  *profile,
 				 struct m0_confc      *confc,
+				 const struct m0_fid  *pfid,
 				 struct m0_conf_pver **out)
 {
 	struct m0_conf_filesystem *fs;
-	struct m0_conf_diter       it;
-	struct m0_conf_pool       *pool;
+	struct m0_conf_obj        *pobj;
+	struct m0_conf_pool       *pool_obj;
 	struct m0_conf_pver       *pver;
 	struct m0_conf_obj        *pvobj;
 	int                        rc;
@@ -102,28 +103,23 @@ M0_INTERNAL int m0_conf_pver_get(const struct m0_fid  *profile,
 	if (rc != 0)
 		return M0_ERR(rc);
 
-	rc = M0_FI_ENABLED("diter_fail") ? -ENOMEM :
-		m0_conf_diter_init(&it, confc, &fs->cf_obj,
-				   M0_CONF_FILESYSTEM_POOLS_FID);
+	rc = m0_confc_open_sync(&pobj, &fs->cf_obj,
+				M0_CONF_FILESYSTEM_POOLS_FID, *pfid);
 	if (rc != 0)
 		goto fs_close;
+	pool_obj = M0_CONF_CAST(pobj, m0_conf_pool);
 
 	*out = NULL;
-	while ((rc = m0_conf_diter_next_sync(&it, m0_conf_obj_is_pool)) ==
-		M0_CONF_DIRNEXT) {
-		pool = M0_CONF_CAST(m0_conf_diter_result(&it), m0_conf_pool);
-		rc = m0_conf_pver_find(pool, &fs->cf_imeta_pver, &pver);
-		if (rc != 0)
-			/* No suitable pver in this pool. Try next one. */
-			continue;
-		if (m0_fid_eq(&pool->pl_obj.co_id, &fs->cf_mdpool))
-			continue;
-		pvobj = &pver->pv_obj;
-		m0_conf_obj_get_lock(pvobj);
-		*out = pver;
-		break;
-	}
-	m0_conf_diter_fini(&it);
+	rc = m0_conf_pver_find(pool_obj, &fs->cf_imeta_pver, &pver);
+	if (rc != 0)
+		goto pool_close;
+
+	pvobj = &pver->pv_obj;
+	m0_conf_obj_get_lock(pvobj);
+	*out = pver;
+
+pool_close:
+	m0_confc_close(pobj);
 fs_close:
 	m0_confc_close(&fs->cf_obj);
 	if (rc != 0)

@@ -41,6 +41,7 @@
 #include "module/instance.h"    /* m0 */
 #include "pool/pool.h"
 #include "pool/pool_fops.h"
+#include "pool/pool_policy.h"  /* m0_pver_policy */
 #include "fd/fd.h"             /* m0_fd_tile_build m0_fd_tree_build */
 #ifndef __KERNEL__
 #  include "mero/setup.h"
@@ -300,14 +301,23 @@ M0_INTERNAL const char *m0_pool_dev_state_to_str(enum m0_pool_nd_state state)
 	return names[state];
 }
 
-M0_INTERNAL int m0_pool_init(struct m0_pool *pool, struct m0_fid *id)
+M0_INTERNAL int m0_pool_init(struct m0_pool *pool, struct m0_fid *id,
+			     uint32_t pver_policy)
 {
+	struct m0_pver_policy_type *pver_policy_type;
+	int                         rc;
 	M0_ENTRY();
 
 	pool->po_id = *id;
 	pools_tlink_init(pool);
 	pool_version_tlist_init(&pool->po_vers);
 	pool_failed_devs_tlist_init(&pool->po_failed_devices);
+
+	pver_policy_type = m0_pver_policy_type_find(pver_policy);
+	M0_ASSERT(pver_policy_type != NULL);
+	rc = pver_policy_type->ppt_ops->ppto_create(&pool->po_pver_policy);
+	if (rc != 0)
+		return M0_ERR(rc);
 
 	M0_LEAVE();
 	return 0;
@@ -321,6 +331,7 @@ M0_INTERNAL void m0_pool_fini(struct m0_pool *pool)
 	pools_tlink_fini(pool);
 	pool_version_tlist_fini(&pool->po_vers);
 	pool_failed_devs_tlist_fini(&pool->po_failed_devices);
+	pool->po_pver_policy->pp_ops->ppo_fini(pool->po_pver_policy);
 }
 
 static bool pools_common_invariant(const struct m0_pools_common *pc)
@@ -552,16 +563,14 @@ M0_INTERNAL int m0_pool_version_init(struct m0_pool_version *pv,
 	return M0_RC(rc);
 }
 
-static struct m0_pool_version *
-pool_clean_pver_find(struct m0_pool *pool)
+M0_INTERNAL
+struct m0_pool_version *m0_pool_clean_pver_find(struct m0_pool *pool)
 {
 	struct m0_pool_version *pver;
 
 	m0_tl_for (pool_version, &pool->po_vers, pver) {
-		if (!pver->pv_is_dirty) {
-			M0_LOG(M0_DEBUG, "pver="FID_F, FID_P(&pver->pv_id));
+		if (!pver->pv_is_dirty)
 			return pver;
-		}
 	} m0_tl_endfor;
 	return NULL;
 }
@@ -577,10 +586,8 @@ m0_pool_version_lookup(struct m0_pools_common *pc, const struct m0_fid *id)
 	m0_tl_for (pools, &pc->pc_pools, pool) {
 		pver = m0_tl_find(pool_version, pv, &pool->po_vers,
 				  m0_fid_eq(&pv->pv_id, id));
-		if (pver != NULL) {
-			M0_LOG(M0_DEBUG, "pver="FID_F, FID_P(&pver->pv_id));
+		if (pver != NULL)
 			return pver;
-		}
 	} m0_tl_endfor;
 	return NULL;
 }
@@ -615,38 +622,43 @@ end:
 	return rc == 0 ? pv : NULL;
 }
 
+static bool is_md_pool(struct m0_pools_common *pc, struct m0_pool *pool)
+{
+	return (pc->pc_md_pool != NULL &&
+		m0_fid_eq(&pool->po_id, &pc->pc_md_pool->po_id));
+}
+
+static bool is_dix_pool(struct m0_pools_common *pc, struct m0_pool *pool)
+{
+	return (pc->pc_dix_pool != NULL &&
+		m0_fid_eq(&pool->po_id, &pc->pc_dix_pool->po_id));
+}
+
 static int pool_version_get_locked(struct m0_pools_common  *pc,
 				   struct m0_pool_version **pv)
 {
-	struct m0_reqh      *reqh = m0_confc2reqh(pc->pc_confc);
-	struct m0_conf_pver *pver;
-	int                  rc;
+	struct m0_pool *pool;
 
 	M0_ENTRY();
 	M0_PRE(m0_mutex_is_locked(&pc->pc_mutex));
 
-	if (pc->pc_cur_pver != NULL) {
-		*pv = pool_clean_pver_find(pc->pc_cur_pver->pv_pool);
-		if (*pv != NULL) {
+	*pv = NULL;
+	m0_tl_for(pools, &pc->pc_pools, pool) {
+		int rc;
+
+		if (is_md_pool(pc, pool) || is_dix_pool(pc, pool))
+			continue;
+
+		rc = pool->po_pver_policy->pp_ops->ppo_get(pc, pool, pv);
+		if (rc == 0) {
 			pc->pc_cur_pver = *pv;
-			return M0_RC(0);
+			break;
 		}
-	}
+	} m0_tl_endfor;
 
-	rc = m0_conf_pver_get(m0_reqh2profile(reqh), pc->pc_confc, &pver);
-	if (rc != 0)
-		return M0_ERR(rc);
-
-	*pv = m0_pool_version_lookup(pc, &pver->pv_obj.co_id);
-	if (*pv == NULL) {
-		rc = m0_pool_version_append(pc, pver, NULL, NULL, NULL, pv);
-		if (rc != 0)
-			rc = -ENOENT;
-	}
-	if (rc == 0)
-		pc->pc_cur_pver = *pv;
-	m0_confc_close(&pver->pv_obj);
-	return M0_RC(rc);
+	/** @todo m0_pools_common::pc_cur_pver not required. */
+	pc->pc_cur_pver = *pv;
+	return M0_RC(*pv != NULL ? 0 : -ENOENT);
 }
 
 M0_INTERNAL int
@@ -660,6 +672,7 @@ m0_pool_version_get(struct m0_pools_common *pc, struct m0_pool_version **pv)
 	m0_mutex_unlock(&pc->pc_mutex);
 	return M0_RC(rc);
 }
+
 static int _nodes_count(struct m0_conf_pver *pver, uint32_t *nodes)
 {
 	struct m0_conf_diter  it;
@@ -1350,6 +1363,7 @@ M0_INTERNAL int m0_pools_common_init(struct m0_pools_common *pc,
 		.pc_md_pool       = NULL,
 		.pc_dix_pool      = NULL
 	};
+
 	rc = pools_common__dev2ios_build(pc, fs);
 	if (rc != 0) {
 		/* We want pools_common_invariant(pc) to fail. */
@@ -1718,7 +1732,8 @@ M0_INTERNAL int m0_pools_setup(struct m0_pools_common    *pc,
 			rc = M0_ERR(-ENOMEM);
 			break;
 		}
-		rc = m0_pool_init(pool, &pool_obj->co_id);
+		rc = m0_pool_init(pool, &pool_obj->co_id,
+				  (M0_CONF_CAST(pool_obj, m0_conf_pool)->pl_pver_policy));
 		if (rc != 0) {
 			m0_free(pool);
 			break;

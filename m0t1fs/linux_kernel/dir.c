@@ -635,10 +635,9 @@ static int m0t1fs_create(struct inode     *dir,
 	if (rc != 0)
 		return M0_ERR(rc);
 	rc = m0_pool_version_get(&csb->csb_pools_common, &pv);
-	if (rc != 0) {
-		rc = M0_ERR(-ENOENT);
+	if (rc != 0)
 		goto out;
-	}
+
 	inode = new_inode(sb);
 	if (inode == NULL) {
 		rc = M0_ERR(-ENOMEM);

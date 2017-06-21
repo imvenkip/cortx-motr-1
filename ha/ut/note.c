@@ -405,7 +405,7 @@ static void test_failvec_fetch(void)
         M0_SET0(&pool_mach);
 
         m0_fid_set(&pool_fid, 0, 999);
-        rc = m0_pool_init(&pool, &pool_fid);
+        rc = m0_pool_init(&pool, &pool_fid, 0);
         M0_UT_ASSERT(rc == 0);
         pool_ver.pv_pool = &pool;
         rc = m0_poolmach_init(&pool_mach, &pool_ver, NR_NODES, NR_DISKS,
@@ -486,6 +486,8 @@ static void test_poolversion_get(void)
 	static const struct m0_fid disk_76 = M0_FID_TINIT('k', 1, 76);
 	static const struct m0_fid disk_77 = M0_FID_TINIT('k', 1, 77);
 	static const struct m0_fid disk_78 = M0_FID_TINIT('k', 1, 78);
+	static const struct m0_fid pool4_fid = M0_FID_TINIT('o', 1, 4);
+	static const struct m0_fid pool56_fid = M0_FID_TINIT('o', 1, 56);
 	struct m0_ha_note notes[] = {
 		{ M0_FID_TINIT('a', 1, 3),  M0_NC_ONLINE }, // rack-3
 		{ M0_FID_TINIT('e', 1, 7),  M0_NC_ONLINE }, // enclosure-7
@@ -522,7 +524,7 @@ static void test_poolversion_get(void)
 	m0_reqh_init(&reqh, &reqh_args);
 	ha_ut_conf_init(&reqh);
 
-	rc = m0_conf_pver_get(m0_reqh2profile(&reqh), confc, &pver0);
+	rc = m0_conf_pver_get(m0_reqh2profile(&reqh), confc, &pool4_fid, &pver0);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(pver0 != NULL);
 	ha_ut_pver_kind_check(&pver0->pv_obj.co_id, M0_CONF_PVER_ACTUAL);
@@ -531,7 +533,7 @@ static void test_poolversion_get(void)
 	M0_UT_ASSERT(recd_disks(pver0) == 0);
 
 	ha_state_accept_1(&disk_77, M0_NC_TRANSIENT);
-	rc = m0_conf_pver_get(m0_reqh2profile(&reqh), confc, &pver1);
+	rc = m0_conf_pver_get(m0_reqh2profile(&reqh), confc, &pool4_fid, &pver1);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(pver1 != NULL);
 	M0_UT_ASSERT(pver1 != pver0);
@@ -540,7 +542,7 @@ static void test_poolversion_get(void)
 	M0_UT_ASSERT(recd_disks(pver0) == 1);
 
 	ha_state_accept_1(&disk_78, M0_NC_FAILED);
-	rc = m0_conf_pver_get(m0_reqh2profile(&reqh), confc, &pver2);
+	rc = m0_conf_pver_get(m0_reqh2profile(&reqh), confc, &pool4_fid, &pver2);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(pver2 != NULL);
 	M0_UT_ASSERT(pver2 != pver1 && pver2 != pver0);
@@ -549,7 +551,12 @@ static void test_poolversion_get(void)
 	M0_UT_ASSERT(recd_disks(pver0) == 2);
 
 	ha_state_accept_1(&disk_76, M0_NC_TRANSIENT);
-	rc = m0_conf_pver_get(m0_reqh2profile(&reqh), confc, &pver3);
+	rc = m0_conf_pver_get(m0_reqh2profile(&reqh), confc, &pool4_fid, &pver3);
+	M0_UT_ASSERT(rc == -ENOENT);
+	M0_UT_ASSERT(pver3 == NULL);
+
+
+	rc = m0_conf_pver_get(m0_reqh2profile(&reqh), confc, &pool56_fid, &pver3);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(pver3 != NULL);
 	M0_UT_ASSERT(pver3 != pver2 && pver3 != pver1 && pver3 != pver0);
@@ -566,7 +573,7 @@ static void test_poolversion_get(void)
 
 	/* Put all disks back online. */
 	m0_ha_state_accept(&nvec);
-	rc = m0_conf_pver_get(m0_reqh2profile(&reqh), confc, &pver4);
+	rc = m0_conf_pver_get(m0_reqh2profile(&reqh), confc, &pool4_fid, &pver4);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(pver4 == pver0);
 	M0_UT_ASSERT(recd_disks(pver0) == 0);

@@ -657,8 +657,11 @@ enum m0_magic_satchel {
 	/* pool_failed_device_tl::td_head_magic (soiled seabed) */
 	M0_POOL_DEVICE_HEAD_MAGIC = 0x335011ed5eabed77,
 
-	/* m0_flset_tl::td_head_magic (doss dose doze) */
-	M0_FLSET_MAGIC = 0x33d055d05ed02e77,
+	/* pver_policy_types_tl::td_head_magic (doss dose doze) */
+	M0_PVER_POLICY_HEAD_MAGIC = 0x33d055d05ed02e77,
+
+	/* m0_pver_policy_type::ppt_magic (pool polisee) */
+	M0_PVER_POLICY_MAGIC      = 0x33b001b0115ee77,
 
 /* Request handler */
 	/* m0_reqh_service::rs_magix (bacilli babel) */

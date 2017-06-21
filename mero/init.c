@@ -52,6 +52,7 @@
 #include "lib/cookie.h"
 #include "conf/fop.h"           /* m0_conf_fops_init, m0_confx_types_init */
 #include "conf/obj.h"           /* m0_conf_obj_init */
+#include "pool/pool_policy.h"   /* m0_pver_policy_init */
 #ifdef __KERNEL__
 #  include "m0t1fs/linux_kernel/m0t1fs.h"
 #  include "mero/linux_kernel/dummy_init_fini.h"
@@ -217,6 +218,7 @@ struct init_fini_call subsystem[] = {
 	{ &m0_ha_mod_init,      &m0_ha_mod_fini,      "ha" },
 	{ &m0_clovis_global_init, &m0_clovis_global_fini, "clovis" },
 	{ &m0_rconfc_mod_init,  &m0_rconfc_mod_fini,  "rconfc" },
+	{ &m0_pver_policies_init, &m0_pver_policies_fini, "pver-policy" },
 	{ &m0_fis_register,     &m0_fis_unregister,   FI_SERVICE_NAME },
 #ifndef __KERNEL__
 	{ &m0_fdmi_init,         &m0_fdmi_fini,         "fdmi" },

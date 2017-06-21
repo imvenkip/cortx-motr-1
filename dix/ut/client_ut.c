@@ -362,7 +362,7 @@ void pdclust_map(void)
 	struct m0_ext              range[] = {{.e_start = 0, .e_end = 100}};
 
 	fid = DFID(0,1);
-	rc = m0_pool_init(&pool, &M0_FID_TINIT('o', 0, 1));
+	rc = m0_pool_init(&pool, &M0_FID_TINIT('o', 0, 1), 0);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_layout_domain_init(&domain);
 	M0_UT_ASSERT(rc == 0);

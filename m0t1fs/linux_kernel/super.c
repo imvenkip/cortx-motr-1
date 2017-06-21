@@ -175,7 +175,6 @@ m0t1fs_container_id_to_session(const struct m0_pool_version *pver,
 
 	ctx = pver->pv_pc->pc_dev2svc[container_id].pds_ctx;
 	M0_ASSERT(ctx != NULL);
-	M0_ASSERT(ctx->sc_type == M0_CST_IOS);
 
 	M0_LOG(M0_DEBUG, "id %llu -> ctx=%p session=%p", container_id, ctx,
 			 &ctx->sc_rlink.rlk_sess);

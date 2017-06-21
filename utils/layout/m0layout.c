@@ -273,7 +273,7 @@ int main(int argc, char **argv)
 	if (rc != 0)
 		return rc;
 
-	rc = m0_pool_init(&pool, &M0_FID_INIT(0, id));
+	rc = m0_pool_init(&pool, &M0_FID_INIT(0, id), 0);
 	if (rc == 0) {
 		attr.pa_N = N;
 		attr.pa_K = K;

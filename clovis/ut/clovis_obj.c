@@ -516,6 +516,7 @@ static void ut_clovis_test_clovis_obj_op_obj_init(void)
 	oo.oo_oc.oc_op.op_code = M0_CLOVIS_EO_CREATE;
 	m0_clovis_op_common_bob_init(&oo.oo_oc);
 
+	m0_fi_enable_once("m0_clovis__pool_version_get", "fake_pool_version");
 	rc = clovis_obj_op_obj_init(&oo);
 	M0_UT_ASSERT(rc == 0);
 
@@ -558,11 +559,13 @@ static void ut_clovis_test_clovis_obj_op_prepare(void)
 	/* base case */
 	op = NULL;
 	instance->m0c_pools_common.pc_cur_pver->pv_attr.pa_P = 7;
+	m0_fi_enable_once("m0_clovis__pool_version_get", "fake_pool_version");
 	m0_clovis_obj_init(&obj, &uber_realm.co_realm, &id,
 			   m0_clovis_default_layout_id(instance));
 
 	/* OP Allocation fails */
 	m0_fi_enable_once("m0_alloc", "fail_allocation");
+	m0_fi_enable_once("m0_clovis__pool_version_get", "fake_pool_version");
 	rc = clovis_obj_op_prepare(&obj.ob_entity, &op, M0_CLOVIS_EO_CREATE);
 	M0_UT_ASSERT(rc != 0);
 

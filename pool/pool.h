@@ -76,21 +76,23 @@ struct m0_pool_device_to_service {
 };
 
 struct m0_pool {
-	struct m0_fid   po_id;
+	struct m0_fid          po_id;
 
 	/** List of pool versions in this pool. */
-	struct m0_tl    po_vers;
+	struct m0_tl           po_vers;
 
 	/** Linkage into list of pools. */
-	struct m0_tlink po_linkage;
+	struct m0_tlink        po_linkage;
 
 	/**
 	 * List of failed devices in the pool.
 	 * @see m0_pool::pd_fail_linkage
 	 */
-	struct m0_tl    po_failed_devices;
+	struct m0_tl           po_failed_devices;
 
-	uint64_t        po_magic;
+	/** Pool version selection policy */
+	struct m0_pver_policy *po_pver_policy;
+	uint64_t               po_magic;
 };
 
 /**
@@ -253,7 +255,8 @@ M0_INTERNAL int m0_pools_service_ctx_create(struct m0_pools_common *pc,
 					    struct m0_conf_filesystem *fs);
 M0_INTERNAL void m0_pools_service_ctx_destroy(struct m0_pools_common *pc);
 
-M0_INTERNAL int m0_pool_init(struct m0_pool *pool, struct m0_fid *id);
+M0_INTERNAL int m0_pool_init(struct m0_pool *pool, struct m0_fid *id,
+			     uint32_t pver_policy);
 M0_INTERNAL void m0_pool_fini(struct m0_pool *pool);
 
 /**
@@ -284,6 +287,10 @@ M0_INTERNAL int m0_pool_version_init(struct m0_pool_version *pv,
  * @see m0_conf_pver_get(), m0_conf_pver_find()
  */
 M0_INTERNAL int m0_pool_version_get(struct m0_pools_common *pc,
+				    struct m0_pool_version **pv);
+
+M0_INTERNAL int
+m0_pool_version_first_available_get(struct m0_pools_common *pc,
 				    struct m0_pool_version **pv);
 
 M0_INTERNAL struct m0_pool_version *
@@ -336,6 +343,9 @@ M0_INTERNAL void m0_pool_versions_destroy(struct m0_pools_common *pc);
 
 M0_INTERNAL struct m0_pool *m0_pool_find(struct m0_pools_common *pc,
 					 const struct m0_fid *id);
+
+M0_INTERNAL
+struct m0_pool_version *m0_pool_clean_pver_find(struct m0_pool *pool);
 
 /** Generates layout id from pool version fid */
 M0_INTERNAL uint64_t

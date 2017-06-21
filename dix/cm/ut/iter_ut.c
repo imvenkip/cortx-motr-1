@@ -573,7 +573,7 @@ static void iter_ut_pool_init()
 	int result;
 	struct m0_fid p_fid  = { .f_key = 1 };
 
-	result = m0_pool_init(&pool, &p_fid);
+	result = m0_pool_init(&pool, &p_fid, 0);
 	M0_UT_ASSERT(result == 0);
 	result = m0_pool_version_init(&pv,
 				      &pv_fid,

@@ -65,6 +65,7 @@ M0_INTERNAL int m0_conf_fs_get(const struct m0_fid        *profile,
  */
 M0_INTERNAL int m0_conf_pver_get(const struct m0_fid  *profile,
 				 struct m0_confc      *confc,
+				 const struct m0_fid  *pfid,
 				 struct m0_conf_pver **out);
 
 /*
