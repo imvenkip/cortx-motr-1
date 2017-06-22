@@ -56,7 +56,7 @@
  *
  * When a message arrives the msg_received_cb() is executed. The user should
  * call m0_halon_interface_delivered() for each received message. The call means
- * that the message shoulnd't be sent again if the current process restarts.
+ * that the message shouldn't be sent again if the current process restarts.
  *
  * To send a message user calls m0_halon_interface_send(). For each message sent
  * in this way either msg_is_delivered_cb() or msg_is_not_delivered_cb() is
