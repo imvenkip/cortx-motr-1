@@ -3,7 +3,7 @@ set -eu
 # set -x
 export PS4='+ [${FUNCNAME[0]:+${FUNCNAME[0]}:}${LINENO}] '
 
-VERSION=0.22.1
+VERSION=0.22.2
 
 IN_DIR=/var/mero # default value; overruled by CLI argument
 OUT_DATA_DIR=m0reportbug-data
@@ -107,7 +107,10 @@ probes() {
         ##   Skip m0t1fs until this issue is resolved.
         ## - Querying other network filesystems may also hang. Exclude `nfs'
         ##   to be on the safe side.
-        'df -h -x m0t1fs -x nfs'
+        ## - Disable it entirely because even with -x m0t1fs it calls a syscall
+        ##   which calls m0t1fs code. Will be re-enabled when m0t1fs locking
+        ##   is fixed.
+        # 'df -h -x m0t1fs -x nfs'
         'lspci'
         'gcc --version'
         'ip addr'
@@ -613,6 +616,8 @@ exit
 ###
 ### Date       Version Description
 ### ---------- ------- ----------------------------------------------------
+### 2017-06-23 0.22.2  Disable `df -h' entirely.
+###
 ### 2017-05-26 0.22.1  Set LC_ALL=C.
 ###
 ### 2017-03-30 0.22    * program_from_core(): If there is no executable name
