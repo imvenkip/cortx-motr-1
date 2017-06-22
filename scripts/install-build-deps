@@ -250,7 +250,8 @@ check_epel_repository()
         echo '   [PRESENT]'
         local epel_repo=$(yum repolist |& grep -vP '^\s' |
                                           grep -oP '(\S+)?epel(\S+)?' |
-                                          sed 's/[!:]//g' | head -n1)
+                                          sed -e 's/[!:]//g' -e 's#/x86_64$##' |
+                                          head -n1)
         yum_opts+=" --enablerepo=$epel_repo "
         if yum repolist all |& grep -qi '\<fedora-epel\>'; then
             yum_opts+=' --enablerepo=fedora-epel '
