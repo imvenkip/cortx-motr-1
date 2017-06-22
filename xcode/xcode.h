@@ -627,6 +627,19 @@ M0_INTERNAL int m0_xcode_encode(struct m0_xcode_ctx *ctx);
 
 /** Calculates the length of serialized representation. */
 M0_INTERNAL int m0_xcode_length(struct m0_xcode_ctx *ctx);
+/**
+ * Iterates (recurses) over fields of the given type and their types.
+ *
+ * "t" is invoked for each type embedded in "xt" (including "xt" itself).
+ *
+ * "f" is invoked for each field embedded in "xt".
+ */
+M0_INTERNAL void m0_xcode_type_iterate(struct m0_xcode_type *xt,
+				       void (*t)(struct m0_xcode_type *,
+						 void *),
+				       void (*f)(struct m0_xcode_type *,
+						 struct m0_xcode_field *,
+						 void *), void *datum);
 
 enum m0_xcode_what {
 	M0_XCODE_ENCODE = 0,
@@ -754,6 +767,13 @@ M0_INTERNAL int m0_xcode_cmp(const struct m0_xcode_obj *o0,
 			     const struct m0_xcode_obj *o1);
 M0_INTERNAL int m0_xcode_dup(struct m0_xcode_ctx *dest,
 			     struct m0_xcode_ctx *src);
+/**
+ * Returns true iff the type has all "on" and none of "off" bits in
+ * m0_xcode_type::xct_flags and the same holds recursively for types of all its
+ * fields.
+ */
+M0_INTERNAL bool m0_xcode_type_flags(struct m0_xcode_type *xt,
+				     uint32_t on, uint32_t off);
 
 /**
    Returns the address of a sub-object within an object.

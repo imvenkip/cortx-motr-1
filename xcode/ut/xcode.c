@@ -1157,6 +1157,106 @@ static void xcode_enum_field(void)
 	M0_UT_ASSERT(memcmp(&buf, &ef, sizeof ef) == 0);
 }
 
+static int ecount;
+static void t_count(struct m0_xcode_type *xt, void *data)
+{
+	++ecount;
+}
+
+static void f_count(struct m0_xcode_type *xt,
+		    struct m0_xcode_field *field, void *data)
+{
+	++ecount;
+}
+
+static void xcode_iterate(void)
+{
+	ecount = 0;
+	m0_xcode_type_iterate(&xut_top.xt, &t_count, NULL, NULL);
+	/* top + foo + uint32_t + v + tdef + un + opaq + ar +
+	   foo:uint64_t + foo:uint64_t + v_nr + v_data + tdef:uint32_t +
+	   un:u_tag + un:u_x + un:u_y + ar:e_al + foo:uint64_t +
+	   foo:uint64_t */
+	M0_UT_ASSERT(ecount == 19);
+	ecount = 0;
+	m0_xcode_type_iterate(&xut_top.xt, NULL, &f_count, NULL);
+	/* Same as above sans top. */
+	M0_UT_ASSERT(ecount == 18);
+}
+
+static void flagset(struct m0_xcode_type *xt, uint32_t flags)
+{
+	xt->xct_flags = flags;
+}
+
+struct pair {
+	const struct m0_xcode_type *p_src;
+	      struct m0_xcode_type  p_dst;
+} builtins[] = {
+	{ &M0_XT_U8,     {} },
+	{ &M0_XT_U32,    {} },
+	{ &M0_XT_U64,    {} },
+	{ &M0_XT_OPAQUE, {} }
+};
+
+static void fieldset(struct m0_xcode_type *xt,
+		     struct m0_xcode_field *field,
+		     void *unused)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(builtins); ++i) {
+		if (field->xf_type == builtins[i].p_src) {
+			builtins[i].p_dst = *builtins[i].p_src;
+			field->xf_type = &builtins[i].p_dst;
+			break;
+		}
+	}
+}
+
+static void fieldclear(struct m0_xcode_type *xt,
+		       struct m0_xcode_field *field,
+		       void *unused)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(builtins); ++i) {
+		if (field->xf_type == &builtins[i].p_dst) {
+			field->xf_type = builtins[i].p_src;
+			break;
+		}
+	}
+}
+
+static void xcode_flags(void)
+{
+	/*
+	 * First, go through type tree and replace all built-in types (which
+	 * are const objects) with local replicas.
+	 */
+	m0_xcode_type_iterate(&xut_top.xt, NULL, &fieldset, (void *)0);
+
+	M0_UT_ASSERT(!m0_xcode_type_flags(&xut_top.xt, 1, 0));
+	M0_UT_ASSERT( m0_xcode_type_flags(&xut_top.xt, 0, 0));
+	M0_UT_ASSERT( m0_xcode_type_flags(&xut_top.xt, 0, 0xffffffff));
+	xut_top.xt.xct_flags = 1;
+	M0_UT_ASSERT(!m0_xcode_type_flags(&xut_top.xt, 0, 0xffffffff));
+	M0_UT_ASSERT(!m0_xcode_type_flags(&xut_top.xt, 0, 1));
+	M0_UT_ASSERT( m0_xcode_type_flags(&xut_top.xt, 0, 0));
+	xut_top.xt.xct_flags = 0;
+	xut_foo.xt.xct_flags = 1;
+	M0_UT_ASSERT(!m0_xcode_type_flags(&xut_top.xt, 0, 0xffffffff));
+	M0_UT_ASSERT(!m0_xcode_type_flags(&xut_top.xt, 0, 1));
+	M0_UT_ASSERT( m0_xcode_type_flags(&xut_top.xt, 0, 0));
+	xut_foo.xt.xct_flags = 0;
+	m0_xcode_type_iterate(&xut_top.xt, (void *)&flagset, NULL, (void *)5);
+	M0_UT_ASSERT( m0_xcode_type_flags(&xut_top.xt, 1, 0));
+	M0_UT_ASSERT( m0_xcode_type_flags(&xut_top.xt, 1, 2));
+	M0_UT_ASSERT( m0_xcode_type_flags(&xut_top.xt, 4, 2));
+	m0_xcode_type_iterate(&xut_top.xt, (void *)&flagset, NULL, (void *)0);
+	m0_xcode_type_iterate(&xut_top.xt, NULL, &fieldclear, (void *)0);
+}
+
 /*
  * Stub function, it's not meant to be used anywhere, it's defined to calm down
  * linker, which throws an "undefined reference to `m0_package_cred_get'"
@@ -1193,6 +1293,8 @@ struct m0_ut_suite xcode_ut = {
 		{ "xcode-bitmask-read",   xcode_bitmask_read,      "Nikita" },
 		{ "xcode-enum-loop",      xcode_enum_loop,         "Nikita" },
 		{ "xcode-enum-field",     xcode_enum_field,        "Nikita" },
+		{ "xcode-iterate",        xcode_iterate,           "Nikita" },
+		{ "xcode-flags",          xcode_flags,             "Nikita" },
 		{ NULL, NULL }
 	}
 };

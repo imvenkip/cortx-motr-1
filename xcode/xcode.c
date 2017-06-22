@@ -390,6 +390,27 @@ M0_INTERNAL int m0_xcode_length(struct m0_xcode_ctx *ctx)
 	return ctx_walk(ctx, XO_LEN);
 }
 
+M0_INTERNAL void m0_xcode_type_iterate(struct m0_xcode_type *xt,
+				       void (*t)(struct m0_xcode_type *,
+						 void *),
+				       void (*f)(struct m0_xcode_type *,
+						 struct m0_xcode_field *,
+						 void *), void *datum)
+{
+	int i;
+
+	if (t != NULL)
+		(*t)(xt, datum);
+	for (i = 0; i < xt->xct_nr; ++i) {
+		struct m0_xcode_field *field = &xt->xct_child[i];
+
+		if (f != NULL)
+			(*f)(xt, field, datum);
+		/* Discard const. Not good. */
+		m0_xcode_type_iterate((void *)field->xf_type, t, f, datum);
+	}
+}
+
 M0_INTERNAL int m0_xcode_encdec(struct m0_xcode_obj *obj,
 				struct m0_bufvec_cursor *cur,
 				enum m0_xcode_what what)
@@ -835,6 +856,30 @@ M0_INTERNAL int m0_xcode_obj_dec_from_buf(struct m0_xcode_obj  *obj,
 	val = M0_BUFVEC_INIT_BUF(&buf, &len);
 	m0_bufvec_cursor_init(&cur, &val);
 	return m0_xcode_encdec(obj, &cur, M0_XCODE_DECODE);
+}
+
+struct flags_data {
+	uint32_t fd_on;
+	uint32_t fd_off;
+	bool     fd_ok;
+};
+
+static void xcode_flags_check(struct m0_xcode_type *xt, struct flags_data *fd)
+{
+	fd->fd_ok &= (xt->xct_flags & fd->fd_on)  == fd->fd_on;
+	fd->fd_ok &= (xt->xct_flags & fd->fd_off) == 0;
+}
+
+M0_INTERNAL bool m0_xcode_type_flags(struct m0_xcode_type *xt,
+				     uint32_t on, uint32_t off)
+{
+	struct flags_data fd = {
+		.fd_on  = on,
+		.fd_off = off,
+		.fd_ok  = true
+	};
+	m0_xcode_type_iterate(xt, (void *)&xcode_flags_check, NULL, &fd);
+	return fd.fd_ok;
 }
 
 void m0_xc_u8_init(void)
