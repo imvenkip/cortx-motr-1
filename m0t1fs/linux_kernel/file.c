@@ -1038,9 +1038,9 @@ static const struct m0_sm_conf io_sm_conf = {
 static void ioreq_sm_failed(struct io_request *req, int rc)
 {
 	M0_LOG(M0_DEBUG, "[%p] rc %d", req, rc);
-	m0_mutex_lock(&req->ir_sm.sm_grp->s_lock);
+	m0_sm_group_lock(req->ir_sm.sm_grp);
 	m0_sm_fail(&req->ir_sm, IRS_FAILED, rc);
-	m0_mutex_unlock(&req->ir_sm.sm_grp->s_lock);
+	m0_sm_group_unlock(req->ir_sm.sm_grp);
 }
 
 static void ioreq_sm_state_set(struct io_request *req, int state)
