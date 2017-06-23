@@ -672,10 +672,12 @@ static int cob_table_update(struct m0_be_btree *tree, struct m0_be_tx *tx,
 	                         bo_u.u_btree.t_rc);
 }
 
-static void cob_table_insert(struct m0_be_btree *tree, struct m0_be_tx *tx,
+static int cob_table_insert(struct m0_be_btree *tree, struct m0_be_tx *tx,
 			     struct m0_buf *key, struct m0_buf *val)
 {
-	M0_BE_OP_SYNC(op, m0_be_btree_insert(tree, tx, &op, key, val));
+	return M0_BE_OP_SYNC_RET(op,
+				 m0_be_btree_insert(tree, tx, &op, key, val),
+				 bo_u.u_btree.t_rc);
 }
 
 static int cob_table_lookup(struct m0_be_btree *tree, struct m0_buf *key,
@@ -1586,32 +1588,29 @@ M0_INTERNAL int m0_cob_name_add(struct m0_cob *cob,
 	M0_PRE(m0_fid_is_set(&nskey->cnk_pfid));
 	M0_PRE(m0_cob_is_valid(cob));
 
-	m0_buf_init(&key, nskey, m0_cob_nskey_size(nskey));
-	m0_buf_init(&val, nsrec, sizeof *nsrec);
-	rc = cob_table_lookup(&cob->co_dom->cd_namespace, &key, &val);
-	if (rc == 0) {
-		/**
-		 * Since CROW is used in conjunction with pre-creation of cobs
-		 * for spares, -EEXIST is a valid possible case.
-		 */
-		return M0_RC(-EEXIST);
-	}
-
-	/**
-	 * Add new name to object index table. Table insert should fail
-	 * if name already exists.
-	 */
 	m0_cob_oikey_make(&oikey, &nsrec->cnr_fid, cob->co_nsrec.cnr_cntr);
 
 	m0_buf_init(&key, &oikey, sizeof oikey);
 	m0_buf_init(&val, nskey, m0_cob_nskey_size(nskey));
-	cob_table_insert(&cob->co_dom->cd_object_index, tx, &key, &val);
+	rc = cob_table_insert(&cob->co_dom->cd_object_index, tx, &key, &val);
+	if (rc != 0)
+		return M0_RCW_INFO(rc, "fid="FID_F" cntr=%u",
+				   FID_P(&nsrec->cnr_fid),
+				   (unsigned)cob->co_nsrec.cnr_cntr);
 
 	m0_buf_init(&key, nskey, m0_cob_nskey_size(nskey));
 	m0_buf_init(&val, nsrec, sizeof *nsrec);
-	cob_table_insert(&cob->co_dom->cd_namespace, tx, &key, &val);
+	rc = cob_table_insert(&cob->co_dom->cd_namespace, tx, &key, &val);
+	if (rc != 0) {
+		m0_buf_init(&key, &oikey, sizeof oikey);
+		cob_table_delete(&cob->co_dom->cd_object_index, tx, &key);
+		return M0_RCW_INFO(rc, "parent="FID_F" name='%*s'",
+				   FID_P(&nskey->cnk_pfid),
+				   nskey->cnk_name.b_len,
+				   (char*)nskey->cnk_name.b_data);
+	}
 
-	return 0;
+	return rc;
 }
 
 M0_INTERNAL int m0_cob_name_del(struct m0_cob *cob,
@@ -1959,6 +1958,7 @@ M0_INTERNAL void m0_cob_tx_credit(struct m0_cob_domain *dom,
 		break;
 	case M0_COB_OP_NAME_ADD:
 		TCREDIT(&dom->cd_object_index, INSERT, OI, accum);
+		TCREDIT(&dom->cd_object_index, DELETE, OI, accum);
 		TCREDIT(&dom->cd_namespace, INSERT, NS, accum);
 		break;
 	case M0_COB_OP_NAME_DEL:

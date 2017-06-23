@@ -171,6 +171,7 @@ static void test_create(void)
 	/* Set pool version. */
 	fabrec->cfb_pver = M0_FID_TINIT('v', 1, 24);
 	m0_cob_tx_credit(cob->co_dom, M0_COB_OP_CREATE, &accum);
+	m0_cob_tx_credit(cob->co_dom, M0_COB_OP_CREATE, &accum);
 	m0_cob_tx_credit(cob->co_dom, M0_COB_OP_UPDATE, &accum);
 	ut_tx_open(tx, &accum);
 	rc = m0_cob_create(cob, key, &nsrec, fabrec, &omgrec, tx);
