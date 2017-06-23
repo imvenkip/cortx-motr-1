@@ -312,7 +312,11 @@ static uint32_t number_read(const char *filename)
  */
 static void processor_maxsz_get()
 {
-	sys_cpus.pss_max = number_read(PROCESSORS_MAX_FILE);
+	/*
+	 * cpu/kernel_max contains maximum index which starts from 0. Therefore,
+	 * we need to convert it to maximum number of CPUs.
+	 */
+	sys_cpus.pss_max = number_read(PROCESSORS_MAX_FILE) + 1;
 }
 
 /**

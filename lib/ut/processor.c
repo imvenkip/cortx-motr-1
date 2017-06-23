@@ -166,11 +166,9 @@ static void maptostr(struct m0_bitmap *map, char *str, size_t sz)
 				--sz;
 				M0_UT_ASSERT(*pstr == '\0');
 			}
-			from_idx = to_idx = i;
-			while (val == true && i < map->b_nr) {
-				i++;
-				val = m0_bitmap_get(map, i);
-			}
+			from_idx = i;
+			for (; i < map->b_nr && m0_bitmap_get(map, i); ++i)
+				;
 			to_idx = i - 1;
 			if (from_idx == to_idx)
 				ret = snprintf(pstr, sz, "%u", from_idx);
@@ -273,6 +271,8 @@ static void verify_max_processors()
 
 	sprintf(filename, "%s/%s", processor_info_dirp, MAX_PROCESSOR_FILE);
 	result = (m0_processor_nr_t) get_num_from_file(filename);
+	/* Convert "maximum index" to "maximum number". */
+	++result;
 
 	num = m0_processor_nr_max();
 	M0_UT_ASSERT(num == result);
@@ -541,7 +541,8 @@ static struct psummary *psummary_new(m0_processor_nr_t cpu_max,
 
 	M0_ALLOC_PTR(ps);
 	M0_UT_ASSERT(ps != NULL);
-	snprintf(str, BUF_SZ, "%u", (unsigned)cpu_max);
+	/* kmaxstr contains maximum index which starts from 0. */
+	snprintf(str, BUF_SZ, "%u", (unsigned)cpu_max - 1);
 	ps->kmaxstr = m0_strdup(str);
 	M0_UT_ASSERT(ps->kmaxstr != NULL);
 	maptostr(map_poss, str, BUF_SZ);
