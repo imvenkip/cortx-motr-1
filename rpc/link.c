@@ -449,7 +449,6 @@ static int rpc_link_disc_fom_tick(struct m0_fom *fom)
 	return M0_RC(rc);
 }
 
-
 static void rpc_link_fom_fini_common(struct m0_fom *fom, bool connected)
 {
 	struct m0_rpc_link *rlink;

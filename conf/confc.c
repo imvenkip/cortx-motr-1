@@ -1581,7 +1581,7 @@ cache_grow(struct m0_confc *confc, const struct m0_conf_fetch_resp *resp)
  * Networking
  * ------------------------------------------------------------------ */
 
-static inline m0_time_t confc_deadline(struct m0_confc *confc)
+static inline m0_time_t confc_deadline(const struct m0_confc *confc)
 {
 	return confc->cc_rpc_timeout == M0_TIME_NEVER ? M0_TIME_NEVER :
 		m0_time_from_now(0, confc->cc_rpc_timeout);
@@ -1591,7 +1591,6 @@ static int connect_to_confd(struct m0_confc *confc, const char *confd_addr,
 			    struct m0_rpc_machine *rpc_mach)
 {
 	enum { MAX_RPCS_IN_FLIGHT = 2 };
-
 	int rc;
 
 	M0_ENTRY();
@@ -1599,25 +1598,27 @@ static int connect_to_confd(struct m0_confc *confc, const char *confd_addr,
 
 	rc = m0_rpc_link_init(&confc->cc_rlink, rpc_mach, NULL, confd_addr,
 			      MAX_RPCS_IN_FLIGHT);
+	if (rc != 0)
+		return M0_ERR(rc);
+
 	rc = m0_rpc_link_connect_sync(&confc->cc_rlink, confc_deadline(confc));
-	M0_POST((rc == 0) == confc->cc_rlink.rlk_connected);
-	M0_POST(rc != 0 || m0_confc_is_online(confc));
 	if (rc != 0)
 		m0_rpc_link_fini(&confc->cc_rlink);
+
+	M0_POST((rc == 0) == confc->cc_rlink.rlk_connected);
+	M0_POST(rc != 0 || m0_confc_is_online(confc));
 	return M0_RC(rc);
 }
 
 static void disconnect_from_confd(struct m0_confc *confc)
 {
 	M0_ENTRY();
-
 	M0_PRE(m0_confc_is_online(confc));
 	M0_PRE(m0_confc2sess(confc)->s_conn == m0_confc2conn(confc));
 
 	(void)m0_rpc_link_disconnect_sync(&confc->cc_rlink,
 					  confc_deadline(confc));
 	m0_rpc_link_fini(&confc->cc_rlink);
-
 	M0_LEAVE();
 }
 
