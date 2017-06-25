@@ -622,6 +622,10 @@ int main(int argc, char **argv)
 	rc = ham_fread_str(buf, sizeof buf, stdin);
 	if (rc > 0) {
 		g_msg = xcode_read_as(m0_ha_msg_xc, buf, &rc);
+		if (g_msg == NULL) {
+			M0_ASSERT(rc < 0);
+			goto m0_fini;
+		}
 		g_msg->hm_tag = 0; /* Let `ha' layer set this value. */
 	}
 	if (rc < 0)

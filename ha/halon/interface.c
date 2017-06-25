@@ -289,8 +289,8 @@ static void halon_interface_msg_received_cb(struct m0_ha      *ha,
 {
 	struct m0_halon_interface_internal *hii = halon_interface_ha2hii(ha);
 
-	M0_ENTRY("hii=%p ha=%p hl=%p msg=%p tag=%"PRIu64,
-		 hii, ha, hl, msg, tag);
+	M0_ENTRY("hi=%p ha=%p hl=%p msg=%p epoch=%"PRIu64" tag=%"PRIu64,
+		 hii->hii_hi, &hii->hii_ha, hl, msg, msg->hm_epoch, tag);
 	m0_ha_msg_debug_print(msg, __func__);
 	if (hl != hii->hii_outgoing_link) {
 		hii->hii_cfg.hic_msg_received_cb(hii->hii_hi, hl, msg, tag);
@@ -299,7 +299,8 @@ static void halon_interface_msg_received_cb(struct m0_ha      *ha,
 		halon_interface_process_failure_check(hii, msg);
 		m0_ha_delivered(ha, hl, msg);
 	}
-	M0_LEAVE();
+	M0_LEAVE("hi=%p ha=%p hl=%p msg=%p epoch=%"PRIu64" tag=%"PRIu64,
+		 hii->hii_hi, &hii->hii_ha, hl, msg, msg->hm_epoch, tag);
 }
 
 static void halon_interface_msg_is_delivered_cb(struct m0_ha      *ha,
@@ -311,7 +312,7 @@ static void halon_interface_msg_is_delivered_cb(struct m0_ha      *ha,
 	M0_ENTRY("hii=%p ha=%p hl=%p tag=%"PRIu64, hii, ha, hl, tag);
 	if (hl != hii->hii_outgoing_link)
 		hii->hii_cfg.hic_msg_is_delivered_cb(hii->hii_hi, hl, tag);
-	M0_LEAVE();
+	M0_LEAVE("hii=%p ha=%p hl=%p tag=%"PRIu64, hii, ha, hl, tag);
 }
 
 static void halon_interface_msg_is_not_delivered_cb(struct m0_ha      *ha,
@@ -323,7 +324,7 @@ static void halon_interface_msg_is_not_delivered_cb(struct m0_ha      *ha,
 	M0_ENTRY("hii=%p ha=%p hl=%p tag=%"PRIu64, hii, ha, hl, tag);
 	if (hl != hii->hii_outgoing_link)
 		hii->hii_cfg.hic_msg_is_not_delivered_cb(hii->hii_hi, hl, tag);
-	M0_LEAVE();
+	M0_LEAVE("hii=%p ha=%p hl=%p tag=%"PRIu64, hii, ha, hl, tag);
 }
 
 static void halon_interface_link_connected_cb(struct m0_ha            *ha,
@@ -920,12 +921,12 @@ void m0_halon_interface_send(struct m0_halon_interface *hi,
 	M0_PRE(m0_halon_interface_internal_bob_check(hii));
 	M0_PRE(m0_get() == &hii->hii_instance);
 
-	M0_ENTRY("hi=%p ha=%p hl=%p msg=%p tag=%p", hi, &hii->hii_ha, hl, msg,
-		 tag);
+	M0_ENTRY("hi=%p ha=%p hl=%p msg=%p epoch=%"PRIu64" tag=%p",
+		 hi, &hii->hii_ha, hl, msg, msg->hm_epoch, tag);
 	m0_ha_msg_debug_print(msg, __func__);
 	m0_ha_send(&hii->hii_ha, hl, msg, tag);
-	M0_LEAVE("hi=%p ha=%p hl=%p msg=%p tag=%"PRIu64,
-		 hi, &hii->hii_ha, hl, msg, *tag);
+	M0_LEAVE("hi=%p ha=%p hl=%p msg=%p epoch=%"PRIu64" tag=%"PRIu64,
+		 hi, &hii->hii_ha, hl, msg, msg->hm_epoch, *tag);
 }
 
 void m0_halon_interface_delivered(struct m0_halon_interface *hi,
@@ -937,7 +938,8 @@ void m0_halon_interface_delivered(struct m0_halon_interface *hi,
 	M0_PRE(m0_halon_interface_internal_bob_check(hii));
 	M0_PRE(m0_get() == &hii->hii_instance);
 
-	M0_ENTRY("hi=%p ha=%p hl=%p msg=%p", hi, &hii->hii_ha, hl, msg);
+	M0_ENTRY("hi=%p ha=%p hl=%p msg=%p epoch=%"PRIu64" tag=%"PRIu64,
+		 hi, &hii->hii_ha, hl, msg, msg->hm_epoch, m0_ha_msg_tag(msg));
 	/*
 	 * Remove 'const' here.
 	 *
@@ -947,7 +949,8 @@ void m0_halon_interface_delivered(struct m0_halon_interface *hi,
 	 * harm should be done.
 	 */
 	m0_ha_delivered(&hii->hii_ha, hl, (struct m0_ha_msg *)msg);
-	M0_LEAVE("hi=%p ha=%p hl=%p msg=%p", hi, &hii->hii_ha, hl, msg);
+	M0_LEAVE("hi=%p ha=%p hl=%p msg=%p epoch=%"PRIu64" tag=%"PRIu64,
+		 hi, &hii->hii_ha, hl, msg, msg->hm_epoch, m0_ha_msg_tag(msg));
 }
 
 void m0_halon_interface_disconnect(struct m0_halon_interface *hi,

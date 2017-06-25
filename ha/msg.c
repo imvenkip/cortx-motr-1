@@ -66,10 +66,12 @@ M0_INTERNAL void m0_ha_msg_debug_print(const struct m0_ha_msg *msg,
 	uint32_t                     ha_state;
 	int                          i;
 
-	M0_LOG(M0_DEBUG, "%s: hm_fid="FID_F" hm_source_process="FID_F" "
-	       "hm_source_service="FID_F" hm_time=%"PRIu64" hm_tag=%"PRIu64,
-	       prefix, FID_P(&msg->hm_fid), FID_P(&msg->hm_source_process),
-	       FID_P(&msg->hm_source_service), msg->hm_time, msg->hm_tag);
+	M0_LOG(M0_DEBUG, "%s: msg=%p hm_fid="FID_F" hm_source_process="FID_F" "
+	       "hm_source_service="FID_F" hm_time=%"PRIu64,
+	       prefix, msg, FID_P(&msg->hm_fid), FID_P(&msg->hm_source_process),
+	       FID_P(&msg->hm_source_service), msg->hm_time);
+	M0_LOG(M0_DEBUG, "%s: msg=%p hm_tag=%"PRIu64" hm_epoch=%"PRIu64,
+	       prefix, msg, msg->hm_tag, msg->hm_epoch);
 
 	switch ((enum m0_ha_msg_type)data->hed_type) {
 	case M0_HA_MSG_INVALID:

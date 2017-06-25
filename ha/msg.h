@@ -112,6 +112,7 @@ struct m0_ha_msg {
 	struct m0_fid          hm_source_process; /**< source process fid */
 	struct m0_fid          hm_source_service; /**< source service fid */
 	m0_time_t              hm_time;           /**< event timestamp */
+	uint64_t               hm_epoch;          /**< message epoch */
 	struct m0_ha_msg_data  hm_data;           /**< user data */
 /* private fields */
 	/** unique across a pair of m0_ha_link tag */
