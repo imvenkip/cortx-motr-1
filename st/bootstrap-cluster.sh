@@ -123,7 +123,7 @@ run_command() {
 		$PDSH yum -y install $REMOTE_RPM_PATH/$HALON_RPM
 		;;
 	"start_halon")
-		$PDSH status sspl-ll
+		$PDSH systemctl status sspl-ll
 		if [ "$CLUSTER_TYPE" == "kvm" ]; then
 			$PDSH systemctl disable sspl-ll
 		fi
