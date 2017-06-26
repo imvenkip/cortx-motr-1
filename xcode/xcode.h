@@ -772,9 +772,11 @@ M0_INTERNAL int m0_xcode_dup(struct m0_xcode_ctx *dest,
  * Returns true iff the type has all "on" and none of "off" bits in
  * m0_xcode_type::xct_flags and the same holds recursively for types of all its
  * fields.
+ * Doesn't check xcode types with aggregation type specified by aggr_umask.
  */
 M0_INTERNAL bool m0_xcode_type_flags(struct m0_xcode_type *xt,
-				     uint32_t on, uint32_t off);
+				     uint32_t on, uint32_t off,
+				     uint64_t aggr_umask);
 
 /**
    Returns the address of a sub-object within an object.

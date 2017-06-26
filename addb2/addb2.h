@@ -439,7 +439,7 @@ void m0_addb2_module_fini(void);
 struct m0_addb2_trace {
 	uint64_t  tr_nr;
 	uint64_t *tr_body;
-} M0_XCA_SEQUENCE;
+} M0_XCA_SEQUENCE M0_XCA_DOMAIN(rpc);
 
 /**
  * A wrapper object used to pass traces to network and storage components.

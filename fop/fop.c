@@ -253,6 +253,10 @@ void m0_fop_type_init(struct m0_fop_type *ft,
 	M0_PRE(ft->ft_magix == 0);
 	M0_PRE(ergo(args->rpc_flags & M0_RPC_ITEM_TYPE_REPLY,
 		    xt->xct_nr > 0 && xt->xct_child[0].xf_type == &M0_XT_U32));
+	M0_PRE_EX(xt == NULL ||
+		  m0_xcode_type_flags((struct m0_xcode_type*)xt,
+				      M0_XCODE_TYPE_FLAG_DOM_RPC, 0,
+				      M0_BITS(M0_XA_ATOM)));
 
 	rpc_type = &ft->ft_rpc_item_type;
 

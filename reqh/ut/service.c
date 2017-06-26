@@ -49,6 +49,7 @@ enum {
 static int m0_reqhut_fop_init(void)
 {
 	m0_xc_reqh_ut_service_init();
+	m0_reqhut_dummy_xc->xct_flags = M0_XCODE_TYPE_FLAG_DOM_RPC;
 	M0_FOP_TYPE_INIT(&m0_reqhut_dummy_fopt,
 			 .name      = "Reqh unit test",
 			 .opcode    = M0_REQH_UT_DUMMY_OPCODE,
@@ -57,7 +58,6 @@ static int m0_reqhut_fop_init(void)
 			 .sm        = &m0_generic_conf,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
 			 .svc_type  = &ds1_service_type);
-	m0_reqhut_dummy_xc->xct_flags = M0_XCODE_TYPE_FLAG_DOM_RPC;
 	return 0;
 }
 

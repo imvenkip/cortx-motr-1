@@ -187,6 +187,13 @@ static void test_fop_encdec(void)
 	size_t                   act_fop_size = 6876;
 	struct m0_rpc_machine    machine;
 
+	m0_test_buf_xc->xct_flags     = M0_XCODE_TYPE_FLAG_DOM_RPC;
+	m0_test_key_xc->xct_flags     = M0_XCODE_TYPE_FLAG_DOM_RPC;
+	m0_pair_xc->xct_flags         = M0_XCODE_TYPE_FLAG_DOM_RPC;
+	m0_desc_arr_xc->xct_flags     = M0_XCODE_TYPE_FLAG_DOM_RPC;
+	m0_fop_test_arr_xc->xct_flags = M0_XCODE_TYPE_FLAG_DOM_RPC;
+	m0_fop_test_xc->xct_flags     = M0_XCODE_TYPE_FLAG_DOM_RPC;
+
 	M0_FOP_TYPE_INIT(&m0_fop_test_fopt,
 			 .name      = "xcode fop test",
 			 .opcode    = M0_XCODE_UT_OPCODE,

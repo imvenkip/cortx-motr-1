@@ -96,7 +96,7 @@ struct m0_dtm_notice {
 	struct m0_dtm_history_id dno_id;
 	uint64_t                 dno_ver;
 	uint8_t                  dno_opcode;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 struct m0_dtm_local_remote {
 	struct m0_dtm_remote  lre_rem;

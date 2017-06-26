@@ -332,6 +332,9 @@ void m0_conf_obj_type_register(const struct m0_conf_obj_type *otype)
 
 	if (otype->cot_xt != NULL) {
 		otype->cot_xc_init();
+		M0_PRE_EX(m0_xcode_type_flags(*otype->cot_xt,
+					      M0_XCODE_TYPE_FLAG_DOM_CONF, 0,
+					      M0_BITS(M0_XA_ATOM)));
 		/* Onwire representation must start with the header. */
 		M0_PRE((*otype->cot_xt)->xct_child[0].xf_type ==
 		       m0_confx_header_xc);

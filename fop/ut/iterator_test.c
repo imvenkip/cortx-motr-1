@@ -45,6 +45,14 @@ static void fop_fini(void)
 static int fop_init(void)
 {
 	m0_xc_fop_ut_iterator_test_init();
+
+	m0_fop_seg_xc->xct_flags           = M0_XCODE_TYPE_FLAG_DOM_RPC;
+	m0_fop_vec_xc->xct_flags           = M0_XCODE_TYPE_FLAG_DOM_RPC;
+	m0_fop_optfid_xc->xct_flags        = M0_XCODE_TYPE_FLAG_DOM_RPC;
+	m0_fop_recursive1_xc->xct_flags    = M0_XCODE_TYPE_FLAG_DOM_RPC;
+	m0_fop_recursive2_xc->xct_flags    = M0_XCODE_TYPE_FLAG_DOM_RPC;
+	m0_fop_iterator_test_xc->xct_flags = M0_XCODE_TYPE_FLAG_DOM_RPC;
+
 	M0_FOP_TYPE_INIT(&m0_fop_iterator_test_fopt,
 			 .name   = "FOP Iterator Test",
 			 .opcode = M0_FOP_ITERATOR_TEST_OPCODE,

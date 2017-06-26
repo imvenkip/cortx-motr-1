@@ -58,11 +58,11 @@ enum m0_dtm_oper_flags {
 struct m0_dtm_oper_updates {
 	uint32_t                    ou_nr;
 	struct m0_dtm_update_descr *ou_update;
-} M0_XCA_SEQUENCE;
+} M0_XCA_SEQUENCE M0_XCA_DOMAIN(rpc);
 
 struct m0_dtm_oper_descr {
 	struct m0_dtm_oper_updates od_updates;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 M0_INTERNAL void m0_dtm_oper_init(struct m0_dtm_oper *oper, struct m0_dtm *dtm,
 				  struct m0_tl *uu);

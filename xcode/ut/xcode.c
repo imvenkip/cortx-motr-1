@@ -1236,23 +1236,23 @@ static void xcode_flags(void)
 	 */
 	m0_xcode_type_iterate(&xut_top.xt, NULL, &fieldset, (void *)0);
 
-	M0_UT_ASSERT(!m0_xcode_type_flags(&xut_top.xt, 1, 0));
-	M0_UT_ASSERT( m0_xcode_type_flags(&xut_top.xt, 0, 0));
-	M0_UT_ASSERT( m0_xcode_type_flags(&xut_top.xt, 0, 0xffffffff));
+	M0_UT_ASSERT(!m0_xcode_type_flags(&xut_top.xt, 1, 0, 0));
+	M0_UT_ASSERT( m0_xcode_type_flags(&xut_top.xt, 0, 0, 0));
+	M0_UT_ASSERT( m0_xcode_type_flags(&xut_top.xt, 0, 0xffffffff, 0));
 	xut_top.xt.xct_flags = 1;
-	M0_UT_ASSERT(!m0_xcode_type_flags(&xut_top.xt, 0, 0xffffffff));
-	M0_UT_ASSERT(!m0_xcode_type_flags(&xut_top.xt, 0, 1));
-	M0_UT_ASSERT( m0_xcode_type_flags(&xut_top.xt, 0, 0));
+	M0_UT_ASSERT(!m0_xcode_type_flags(&xut_top.xt, 0, 0xffffffff, 0));
+	M0_UT_ASSERT(!m0_xcode_type_flags(&xut_top.xt, 0, 1, 0));
+	M0_UT_ASSERT( m0_xcode_type_flags(&xut_top.xt, 0, 0, 0));
 	xut_top.xt.xct_flags = 0;
 	xut_foo.xt.xct_flags = 1;
-	M0_UT_ASSERT(!m0_xcode_type_flags(&xut_top.xt, 0, 0xffffffff));
-	M0_UT_ASSERT(!m0_xcode_type_flags(&xut_top.xt, 0, 1));
-	M0_UT_ASSERT( m0_xcode_type_flags(&xut_top.xt, 0, 0));
+	M0_UT_ASSERT(!m0_xcode_type_flags(&xut_top.xt, 0, 0xffffffff, 0));
+	M0_UT_ASSERT(!m0_xcode_type_flags(&xut_top.xt, 0, 1, 0));
+	M0_UT_ASSERT( m0_xcode_type_flags(&xut_top.xt, 0, 0, 0));
 	xut_foo.xt.xct_flags = 0;
 	m0_xcode_type_iterate(&xut_top.xt, (void *)&flagset, NULL, (void *)5);
-	M0_UT_ASSERT( m0_xcode_type_flags(&xut_top.xt, 1, 0));
-	M0_UT_ASSERT( m0_xcode_type_flags(&xut_top.xt, 1, 2));
-	M0_UT_ASSERT( m0_xcode_type_flags(&xut_top.xt, 4, 2));
+	M0_UT_ASSERT( m0_xcode_type_flags(&xut_top.xt, 1, 0, 0));
+	M0_UT_ASSERT( m0_xcode_type_flags(&xut_top.xt, 1, 2, 0));
+	M0_UT_ASSERT( m0_xcode_type_flags(&xut_top.xt, 4, 2, 0));
 	m0_xcode_type_iterate(&xut_top.xt, (void *)&flagset, NULL, (void *)0);
 	m0_xcode_type_iterate(&xut_top.xt, NULL, &fieldclear, (void *)0);
 }

@@ -95,7 +95,7 @@ struct m0_dtm_update_data {
 	uint64_t da_orig_ver;
 	uint32_t da_label;
 	uint8_t  da_rule;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 #define M0_DTM_UPDATE_DATA(label, rule, ver, orig_ver)	\
 (struct m0_dtm_update_data) {				\
@@ -110,13 +110,13 @@ struct m0_dtm_history_id {
 	struct m0_cookie  hid_sender;
 	struct m0_cookie  hid_receiver;
 	uint8_t           hid_htype;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 struct m0_dtm_update_descr {
 	struct m0_dtm_update_data udd_data;
 	struct m0_dtm_history_id  udd_id;
 	uint8_t                   udd_utype;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 M0_INTERNAL void m0_dtm_update_init(struct m0_dtm_update *update,
 				    struct m0_dtm_history *history,

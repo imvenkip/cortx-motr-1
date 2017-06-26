@@ -47,7 +47,7 @@ struct m0_uint64_seq {
 	uint32_t  se_nr;
 	/** Stats summary data */
 	uint64_t *se_data;
-} M0_XCA_SEQUENCE;
+} M0_XCA_SEQUENCE M0_XCA_DOMAIN(rpc);
 
 /**
  * Mero nodes send sequence of m0_stats_sum.
@@ -56,31 +56,31 @@ struct m0_stats_sum {
 	uint32_t             ss_id;
 	/** Stats summary data */
 	struct m0_uint64_seq ss_data;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 struct m0_stats_recs {
 	/** Stats sequence length */
 	uint64_t	      sf_nr;
 	/** Stats sequence data */
 	struct m0_stats_sum  *sf_stats;
-} M0_XCA_SEQUENCE;
+} M0_XCA_SEQUENCE M0_XCA_DOMAIN(rpc);
 
 /** stats update fop */
 struct m0_stats_update_fop {
 	struct m0_stats_recs suf_stats;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /** stats query fop */
 struct m0_stats_query_fop {
 	/** Stats ids */
 	struct m0_uint64_seq sqf_ids;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /** stats query reply fop */
 struct m0_stats_query_rep_fop {
 	int32_t              sqrf_rc;
 	struct m0_stats_recs sqrf_stats;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /**
  * Get stats update fop

@@ -861,22 +861,27 @@ M0_INTERNAL int m0_xcode_obj_dec_from_buf(struct m0_xcode_obj  *obj,
 struct flags_data {
 	uint32_t fd_on;
 	uint32_t fd_off;
+	uint64_t fd_aggr_umask;
 	bool     fd_ok;
 };
 
 static void xcode_flags_check(struct m0_xcode_type *xt, struct flags_data *fd)
 {
-	fd->fd_ok &= (xt->xct_flags & fd->fd_on)  == fd->fd_on;
-	fd->fd_ok &= (xt->xct_flags & fd->fd_off) == 0;
+	if ((M0_BITS(xt->xct_aggr) & fd->fd_aggr_umask) == 0) {
+		fd->fd_ok &= (xt->xct_flags & fd->fd_on)  == fd->fd_on;
+		fd->fd_ok &= (xt->xct_flags & fd->fd_off) == 0;
+	}
 }
 
 M0_INTERNAL bool m0_xcode_type_flags(struct m0_xcode_type *xt,
-				     uint32_t on, uint32_t off)
+				     uint32_t on, uint32_t off,
+				     uint64_t aggr_umask)
 {
 	struct flags_data fd = {
-		.fd_on  = on,
-		.fd_off = off,
-		.fd_ok  = true
+		.fd_on         = on,
+		.fd_off        = off,
+		.fd_aggr_umask = aggr_umask,
+		.fd_ok         = true
 	};
 	m0_xcode_type_iterate(xt, (void *)&xcode_flags_check, NULL, &fd);
 	return fd.fd_ok;
