@@ -128,6 +128,11 @@ static bool deflatten = false;
 static m0_bindex_t offset = 0;
 static int delay = 0;
 
+extern void m0_dix_cm_repair_cpx_init(void);
+extern void m0_dix_cm_repair_cpx_fini(void);
+extern void m0_dix_cm_rebalance_cpx_init(void);
+extern void m0_dix_cm_rebalance_cpx_fini(void);
+
 int main(int argc, char **argv)
 {
 	struct m0_stob_domain  *dom;
@@ -435,7 +440,7 @@ static void sm_trans(const struct m0_sm_conf *conf, const char *name,
 	const struct m0_sm_trans_descr *trans = &conf->scf_trans[idx];
 
 	M0_PRE(conf->scf_addb2_key > 0);
-	M0_PRE(0 <= idx && idx < 100);
+	M0_PRE(0 <= idx && idx < 200);
 
 	nob = sprintf(buf, "%s/%s: %s -[%s]-> %s ", name,
 		      conf->scf_name, conf->scf_state[trans->td_src].sd_name,
@@ -454,24 +459,26 @@ static void fop_counter(struct context *ctx, char *buf)
 	struct m0_fop_type *fopt = m0_fop_type_find(mask >> 12);
 	const struct m0_sm_conf *conf;
 
-	M0_ASSERT_INFO(fopt != NULL, "mask: %"PRIx64, mask);
-	switch ((mask >> 8) & 0xf) {
-	case M0_AFC_PHASE:
-		conf = &fopt->ft_fom_type.ft_conf;
-		break;
-	case M0_AFC_STATE:
+	if (fopt != NULL) {
+		switch ((mask >> 8) & 0xf) {
+		case M0_AFC_PHASE:
+			conf = &fopt->ft_fom_type.ft_conf;
+			break;
+		case M0_AFC_STATE:
 		conf = &fopt->ft_fom_type.ft_state_conf;
 		break;
-	case M0_AFC_RPC_OUT:
-		conf = &fopt->ft_rpc_item_type.rit_outgoing_conf;
-		break;
-	case M0_AFC_RPC_IN:
-		conf = &fopt->ft_rpc_item_type.rit_incoming_conf;
-		break;
-	default:
-		M0_IMPOSSIBLE("Wrong mask.");
-	}
-	sm_trans(conf, fopt->ft_name, ctx, buf);
+		case M0_AFC_RPC_OUT:
+			conf = &fopt->ft_rpc_item_type.rit_outgoing_conf;
+			break;
+		case M0_AFC_RPC_IN:
+			conf = &fopt->ft_rpc_item_type.rit_incoming_conf;
+			break;
+		default:
+			M0_IMPOSSIBLE("Wrong mask.");
+		}
+		sm_trans(conf, fopt->ft_name, ctx, buf);
+	} else
+		sprintf(buf + strlen(buf), " unknown-fop-mask: %"PRIx64, mask);
 }
 
 static void rpc_in(struct context *ctx, const uint64_t *v, char *buf)
@@ -851,10 +858,14 @@ static void misc_init(void)
 	m0_sns_cm_rebalance_trigger_fop_init();
 	m0_sns_cm_repair_sw_onwire_fop_init();
 	m0_sns_cm_rebalance_sw_onwire_fop_init();
+	m0_dix_cm_repair_cpx_init();
+	m0_dix_cm_rebalance_cpx_init();
 }
 
 static void misc_fini(void)
 {
+	m0_dix_cm_rebalance_cpx_fini();
+	m0_dix_cm_repair_cpx_fini();
 	m0_sns_cm_repair_trigger_fop_fini();
 	m0_sns_cm_rebalance_trigger_fop_fini();
 	m0_sns_cm_repair_sw_onwire_fop_fini();
