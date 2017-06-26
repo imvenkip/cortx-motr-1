@@ -37,7 +37,7 @@ struct m0_ext {
 	m0_bindex_t             e_start;
 	m0_bindex_t             e_end;
 	struct m0_format_footer e_footer;
-} M0_XCA_RECORD M0_XCA_DOMAIN(rpc|be);
+} M0_XCA_RECORD M0_XCA_DOMAIN(be|rpc);
 
 enum m0_ext_format_version {
 	M0_EXT_FORMAT_VERSION_1 = 1,

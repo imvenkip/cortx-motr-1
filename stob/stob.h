@@ -100,7 +100,7 @@ struct m0_stob_id {
 	struct m0_fid si_domain_fid;
 	/* Stob fid. @see m0_stob */
 	struct m0_fid si_fid;
-} M0_XCA_RECORD M0_XCA_DOMAIN(rpc|be);
+} M0_XCA_RECORD M0_XCA_DOMAIN(be|rpc);
 
 #define STOB_ID_F  "{" FID_F "," FID_F "}"
 #define STOB_ID_P(si)  FID_P(&(si)->si_domain_fid), FID_P(&(si)->si_fid)

@@ -658,6 +658,15 @@ void m0_stob_io_fop_init(void)
 			 .xt        = m0_stob_io_write_rep_xc,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY,
 			 .svc_type  = &m0_rpc_service_type);
+
+	m0_stob_io_create_xc->xct_flags     = M0_XCODE_TYPE_FLAG_DOM_RPC;
+	m0_stob_io_read_xc->xct_flags       = M0_XCODE_TYPE_FLAG_DOM_RPC;
+	m0_stob_io_write_xc->xct_flags      = M0_XCODE_TYPE_FLAG_DOM_RPC;
+	m0_stob_io_create_rep_xc->xct_flags = M0_XCODE_TYPE_FLAG_DOM_RPC;
+	m0_stob_io_read_rep_xc->xct_flags   = M0_XCODE_TYPE_FLAG_DOM_RPC;
+	m0_stob_io_write_rep_xc->xct_flags  = M0_XCODE_TYPE_FLAG_DOM_RPC;
+	stob_io_fop_fid_xc->xct_flags       = M0_XCODE_TYPE_FLAG_DOM_RPC;
+	m0_fi_value_xc->xct_flags           = M0_XCODE_TYPE_FLAG_DOM_RPC;
 }
 
 /**

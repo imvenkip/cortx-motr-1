@@ -62,7 +62,7 @@ struct m0_dix_imask {
 	uint64_t       im_nr;
 	/** Array of ranges. */
 	struct m0_ext *im_range;
-} M0_XCA_SEQUENCE;
+} M0_XCA_SEQUENCE M0_XCA_DOMAIN(rpc);
 
 /**
  * Initialises identity mask. Array of ranges for the mask is allocated

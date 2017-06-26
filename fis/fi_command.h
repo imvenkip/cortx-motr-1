@@ -69,12 +69,12 @@ struct m0_fi_command_req {
 	uint8_t       fcr_disp;     /**< fault disposition, @ref m0_fi_disp */
 	uint32_t      fcr_num1;     /**< 1st numeric, optional */
 	uint32_t      fcr_num2;     /**< 2nd numeric, optional */
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /** FI command reply. */
 struct m0_fi_command_rep {
 	int32_t fcp_rc;
-} M0_XCA_RECORD;
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 /**
  * Posts fault injection command over already existing rpc session. Remote side

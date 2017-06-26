@@ -385,12 +385,6 @@ static int rpc_at_bulk_ssend(struct m0_rpc_at_buf *in,
 	return M0_RC(rc);
 }
 
-M0_INTERNAL int m0_rpc_at_blk_xt(const struct m0_xcode_obj   *par,
-				 const struct m0_xcode_type **out)
-{
-	return 0;
-}
-
 M0_INTERNAL int m0_rpc_at_get(const struct m0_rpc_at_buf *ab,
 			      struct m0_buf              *buf)
 {

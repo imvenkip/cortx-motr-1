@@ -239,7 +239,7 @@ struct m0_rpc_at_bulk_rep {
 struct m0_rpc_at_extra {
 	/* This field is not used, it's neccessary for proper alignment only. */
 	struct m0_net_buf_desc_data  abr_desc;
-	struct rpc_at_bulk          *abr_bulk M0_XCA_OPAQUE("m0_rpc_at_blk_xt");
+	struct rpc_at_bulk          *abr_bulk;
 	struct m0_buf                abr_user_buf;
 } M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 

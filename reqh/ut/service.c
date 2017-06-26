@@ -57,6 +57,7 @@ static int m0_reqhut_fop_init(void)
 			 .sm        = &m0_generic_conf,
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REQUEST,
 			 .svc_type  = &ds1_service_type);
+	m0_reqhut_dummy_xc->xct_flags = M0_XCODE_TYPE_FLAG_DOM_RPC;
 	return 0;
 }
 

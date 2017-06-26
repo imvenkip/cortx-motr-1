@@ -58,10 +58,10 @@
  *
  * @param  value  a domain name, valid values are 'be', 'rpc', 'conf' or any
  *                combination of those separated by a '|' (pipe symbol) without
- *                spaces, e.g. 'be|rpc|conf'.
+ *                spaces, e.g. 'be|conf|rpc'.
  *
  * @example  M0_XCA_DOMAIN(be)
- *           M0_XCA_DOMAIN(rpc|conf)
+ *           M0_XCA_DOMAIN(conf|rpc)
  */
 #define M0_XCA_DOMAIN(value)   M0_XC_ATTR("domain", #value)
 

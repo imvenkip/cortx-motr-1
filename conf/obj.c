@@ -405,6 +405,8 @@ M0_INTERNAL int m0_conf_obj_init(void)
 {
 	m0_xcode_union_init(m0_confx_obj_xc, "m0_confx_obj",
 			    "xo_type", M0_CONF_OBJ_TYPE_MAX);
+	m0_confx_obj_xc->xct_flags = M0_XCODE_TYPE_FLAG_DOM_CONF |
+				     M0_XCODE_TYPE_FLAG_DOM_RPC;
 #define X_CONF(_, name) \
 	m0_conf_obj_type_register(&M0_CONF_ ## name ## _TYPE)
 
