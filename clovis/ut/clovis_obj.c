@@ -846,9 +846,9 @@ static void ut_clovis_test_clovis_cob_fail_oo(void)
 	m0_sm_group_unlock(&oo_grp);
 
 	M0_UT_ASSERT(oo.oo_oc.oc_op.op_entity == &ent);
-	M0_UT_ASSERT(ent.en_sm.sm_state == M0_CLOVIS_ES_FAILED);
-	M0_UT_ASSERT(ent.en_sm.sm_rc == 777);
-	M0_UT_ASSERT(oo.oo_oc.oc_op.op_sm.sm_state == M0_CLOVIS_OS_FAILED);
+	M0_UT_ASSERT(ent.en_sm.sm_state == M0_CLOVIS_ES_INIT);
+	M0_UT_ASSERT(oo.oo_oc.oc_op.op_rc == 777);
+	M0_UT_ASSERT(oo.oo_oc.oc_op.op_sm.sm_state == M0_CLOVIS_OS_STABLE);
 
 	/* finalise */
 	m0_sm_group_fini(&oo_grp);
@@ -1028,7 +1028,7 @@ static void ut_clovis_test_clovis_icr_ast_fail(void)
 	m0_sm_group_lock(&oo_grp);
 	clovis_icr_ast_fail(&oo_grp, &icr.icr_ar.ar_ast);
 	m0_sm_group_unlock(&oo_grp);
-	M0_UT_ASSERT(oo.oo_oc.oc_op.op_sm.sm_rc == 111);
+	M0_UT_ASSERT(oo.oo_oc.oc_op.op_rc == 111);
 
 	/* finalise clovis */
 	m0_clovis_ast_rc_bob_fini(&icr.icr_ar);

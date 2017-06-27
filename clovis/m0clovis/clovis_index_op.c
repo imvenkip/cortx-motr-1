@@ -58,10 +58,10 @@ static int index_op_tail(struct m0_clovis_entity *ce,
 				    M0_BITS(M0_CLOVIS_OS_FAILED,
 					    M0_CLOVIS_OS_STABLE),
 				    M0_TIME_NEVER);
-		m0_console_printf("operation rc: %i\n", op->op_sm.sm_rc);
+		m0_console_printf("operation rc: %i\n", op->op_rc);
 		if (sm_rc != NULL)
 			/* Save retcodes. */
-			*sm_rc = op->op_sm.sm_rc;
+			*sm_rc = op->op_rc;
 	} else
 		m0_console_printf("operation rc: %i\n", rc);
 	m0_clovis_op_fini(op);

@@ -585,6 +585,8 @@ struct m0_clovis_op {
 	 * @see m0_clovis_obj_opcode, m0_clovis_idx_opcode,
 	 */
 	unsigned int                   op_code;
+	/** Operation result code */
+	int32_t                        op_rc;
 	/** Each op has its own sm group. */
 	struct m0_sm_group             op_sm_group;
 	/** Operation state machine. */
@@ -903,6 +905,18 @@ int32_t m0_clovis_op_wait(struct m0_clovis_op *op, uint64_t bits, m0_time_t to);
  * @pre op->op_sm.sm_state >= M0_CLOVIS_OS_INITIALISED
  */
 void m0_clovis_op_kick(struct m0_clovis_op *op);
+
+/**
+ * An API to return the return code from an op.
+ *
+ * This is basically a function that abstracts the return code member access
+ * for applications using clovis.
+ *
+ * @param op Operation whose return code is to be accessed.
+ *
+ * @pre op != NULL
+ */
+int32_t m0_clovis_rc(const struct m0_clovis_op *op);
 
 /**
  * Finalises a complete operation. The state machine will be moved to

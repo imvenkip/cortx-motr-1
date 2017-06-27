@@ -255,8 +255,9 @@ static void ut_clovis_idx_op_fail(void)
 	clovis_idx_op_fail(oi, -1);
 	m0_sm_group_unlock(&oi_grp);
 
-	M0_UT_ASSERT(ent.en_sm.sm_state == M0_CLOVIS_ES_FAILED);
-	M0_UT_ASSERT(oi->oi_oc.oc_op.op_sm.sm_state == M0_CLOVIS_OS_FAILED);
+	M0_UT_ASSERT(ent.en_sm.sm_state == M0_CLOVIS_ES_INIT);
+	M0_UT_ASSERT(oi->oi_oc.oc_op.op_rc == -1);
+	M0_UT_ASSERT(oi->oi_oc.oc_op.op_sm.sm_state == M0_CLOVIS_OS_STABLE);
 
 	/* finalise */
 	m0_sm_group_fini(&oi_grp);
@@ -549,8 +550,9 @@ static void ut_clovis_idx_op_ast_fail(void)
 	m0_sm_group_unlock(&locality_grp);
 
 	M0_UT_ASSERT(oi.oi_oc.oc_op.op_entity == &ent);
-	M0_UT_ASSERT(ent.en_sm.sm_state == M0_CLOVIS_ES_FAILED);
-	M0_UT_ASSERT(oi.oi_oc.oc_op.op_sm.sm_state == M0_CLOVIS_OS_FAILED);
+	M0_UT_ASSERT(ent.en_sm.sm_state == M0_CLOVIS_ES_INIT);
+	M0_UT_ASSERT(oi.oi_oc.oc_op.op_rc == -1);
+	M0_UT_ASSERT(oi.oi_oc.oc_op.op_sm.sm_state == M0_CLOVIS_OS_STABLE);
 
 	/* finalise */
 	m0_clovis_op_bob_fini(&oi.oi_oc.oc_op);

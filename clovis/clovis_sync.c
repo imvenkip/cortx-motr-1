@@ -174,13 +174,11 @@ static void clovis_sync_request_done(struct clovis_sync_request *sreq)
 	 * N services returnning successfully should be considered success for
 	 * an SYNC request.
 	 */
-	if (sreq->sr_rc == 0) {
-		m0_sm_move(&op->op_sm, 0, M0_CLOVIS_OS_STABLE);
-		m0_clovis_op_stable(op);
-	} else {
-		m0_sm_move(&op->op_sm, sreq->sr_rc, M0_CLOVIS_OS_FAILED);
-		m0_clovis_op_failed(op);
-	}
+	/* A server reply will cause the op to complete stably,
+	 * with return code being reported in op->op_rc */
+	op->op_rc = sreq->sr_rc;
+	m0_sm_move(&op->op_sm, 0, M0_CLOVIS_OS_STABLE);
+	m0_clovis_op_stable(op);
 
 	m0_sm_group_unlock(op_grp);
 }

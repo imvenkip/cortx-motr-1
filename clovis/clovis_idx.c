@@ -251,15 +251,17 @@ static void clovis_idx_op_fail(struct m0_clovis_op_idx *oi, int rc)
 
 	m0_sm_group_lock(en_grp);
 
-	if (op->op_code == M0_CLOVIS_EO_CREATE ||
-	    op->op_code == M0_CLOVIS_EO_DELETE)
-		m0_sm_fail(&op->op_entity->en_sm, M0_CLOVIS_ES_FAILED, rc);
+	if (M0_IN(op->op_code, (M0_CLOVIS_EO_CREATE, M0_CLOVIS_EO_DELETE)))
+		m0_sm_move(&op->op_entity->en_sm, 0, M0_CLOVIS_ES_INIT);
 
 	m0_sm_group_unlock(en_grp);
 
 	m0_sm_group_lock(op_grp);
-	m0_sm_fail(&op->op_sm, M0_CLOVIS_OS_FAILED, rc);
-	m0_clovis_op_failed(op);
+	op->op_rc = rc;
+	m0_sm_move(&op->op_sm, 0, M0_CLOVIS_OS_EXECUTED);
+	m0_clovis_op_executed(op);
+	m0_sm_move(&op->op_sm, 0, M0_CLOVIS_OS_STABLE);
+	m0_clovis_op_stable(op);
 	m0_sm_group_unlock(op_grp);
 
 	M0_LEAVE();

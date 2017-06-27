@@ -728,6 +728,14 @@ void m0_clovis_op_kick(struct m0_clovis_op *op)
 }
 M0_EXPORTED(m0_clovis_op_kick);
 
+int32_t m0_clovis_rc(const struct m0_clovis_op *op)
+{
+	M0_ENTRY();
+	M0_PRE(op != NULL);
+	return M0_RC(op->op_rc);
+}
+M0_EXPORTED(m0_clovis_rc);
+
 #undef M0_TRACE_SUBSYSTEM
 
 /*

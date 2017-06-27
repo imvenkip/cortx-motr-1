@@ -489,8 +489,9 @@ static void ut_clovis_test_ioreq_iosm_handle_executed(void)
 	ioreq_iosm_handle_executed(&grp, &ioo->ioo_ast);
 	m0_sm_group_unlock(&grp);
 
+	M0_UT_ASSERT(ioo->ioo_oo.oo_oc.oc_op.op_rc == -1);
 	M0_UT_ASSERT(ioo->ioo_oo.oo_oc.oc_op.op_sm.sm_state ==
-		     M0_CLOVIS_OS_FAILED);
+		     M0_CLOVIS_OS_STABLE);
 	M0_UT_ASSERT(ioo->ioo_sm.sm_state == IRS_REQ_COMPLETE);
 
 	ioo->ioo_rc = 0;
@@ -515,8 +516,9 @@ static void ut_clovis_test_ioreq_iosm_handle_executed(void)
 	m0_fi_enable_once("ut_clovis_mock_ioreq_dgmode_read", "ut_mock_dgmode_read_fails");
 	ioreq_iosm_handle_executed(&grp, &ioo->ioo_ast);
 	m0_sm_group_unlock(&grp);
+	M0_UT_ASSERT(ioo->ioo_oo.oo_oc.oc_op.op_rc == -EAGAIN);
 	M0_UT_ASSERT(ioo->ioo_oo.oo_oc.oc_op.op_sm.sm_state ==
-		     M0_CLOVIS_OS_FAILED);
+		     M0_CLOVIS_OS_STABLE);
 	M0_UT_ASSERT(ioo->ioo_sm.sm_state == IRS_REQ_COMPLETE);
 
 	/* Parity Verification failed */
@@ -538,8 +540,9 @@ static void ut_clovis_test_ioreq_iosm_handle_executed(void)
 	m0_fi_enable_once("ut_clovis_mock_ioreq_parity_verify", "ut_mock_parity_verify_fail");
 	ioreq_iosm_handle_executed(&grp, &ioo->ioo_ast);
 	m0_sm_group_unlock(&grp);
+	M0_UT_ASSERT(ioo->ioo_rc == -EINVAL);
 	M0_UT_ASSERT(ioo->ioo_oo.oo_oc.oc_op.op_sm.sm_state ==
-		     M0_CLOVIS_OS_FAILED);
+		     M0_CLOVIS_OS_STABLE);
 	M0_UT_ASSERT(ioo->ioo_sm.sm_state == IRS_REQ_COMPLETE);
 
 	/* Application Data copy fails */
@@ -563,8 +566,9 @@ static void ut_clovis_test_ioreq_iosm_handle_executed(void)
 					"ut_mock_handle_executed_adc_fails");
 	ioreq_iosm_handle_executed(&grp, &ioo->ioo_ast);
 	m0_sm_group_unlock(&grp);
+	M0_UT_ASSERT(ioo->ioo_rc == -EINVAL);
 	M0_UT_ASSERT(ioo->ioo_oo.oo_oc.oc_op.op_sm.sm_state ==
-		     M0_CLOVIS_OS_FAILED);
+		     M0_CLOVIS_OS_STABLE);
 	M0_UT_ASSERT(ioo->ioo_sm.sm_state == IRS_REQ_COMPLETE);
 
 	/* Set ioo for writing */
@@ -613,8 +617,9 @@ static void ut_clovis_test_ioreq_iosm_handle_executed(void)
 					"ut_mock_dgmode_write_fails");
 	ioreq_iosm_handle_executed(&grp, &ioo->ioo_ast);
 	m0_sm_group_unlock(&grp);
+	M0_UT_ASSERT(ioo->ioo_rc == -EAGAIN);
 	M0_UT_ASSERT(ioo->ioo_oo.oo_oc.oc_op.op_sm.sm_state ==
-		     M0_CLOVIS_OS_FAILED);
+		     M0_CLOVIS_OS_STABLE);
 	M0_UT_ASSERT(ioo->ioo_sm.sm_state == IRS_REQ_COMPLETE);
 
 	m0_free(nxr_ops);

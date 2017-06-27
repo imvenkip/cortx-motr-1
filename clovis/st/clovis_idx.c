@@ -268,7 +268,7 @@ static int idx_do_insert_kv_pairs(struct m0_uint128 id,
 		    M0_TIME_NEVER);
 	if (rc < 0) return rc;
 
-	rc = ops[0]->op_sm.sm_rc;
+	rc = ops[0]->op_rc;
 	/* fini and release */
 	clovis_st_op_fini(ops[0]);
 	clovis_st_op_free(ops[0]);
@@ -455,8 +455,8 @@ static int idx_test_prepare(void)
 			    M0_TIME_NEVER);			     \
 		CLOVIS_ST_ASSERT_FATAL(rc == 0);                     \
 		CLOVIS_ST_ASSERT_FATAL(                              \
-			ops[0]->op_sm.sm_state exp M0_CLOVIS_OS_STABLE);\
-		CLOVIS_ST_ASSERT_FATAL(ops[0]->op_sm.sm_rc exp 0);      \
+			ops[0]->op_sm.sm_state == M0_CLOVIS_OS_STABLE);\
+		CLOVIS_ST_ASSERT_FATAL(ops[0]->op_rc exp 0);      \
 								       \
 		/* fini and release */                                 \
 		clovis_st_op_fini(ops[0]);                             \
@@ -711,8 +711,8 @@ static void idx_query_get_non_existing_index(void)
 			    M0_CLOVIS_OS_STABLE),
 		    M0_TIME_NEVER);
 	CLOVIS_ST_ASSERT_FATAL(rc == 0);
-	CLOVIS_ST_ASSERT_FATAL(ops[0]->op_sm.sm_state == M0_CLOVIS_OS_FAILED);
-	CLOVIS_ST_ASSERT_FATAL(ops[0]->op_sm.sm_rc != 0);
+	CLOVIS_ST_ASSERT_FATAL(ops[0]->op_sm.sm_state == M0_CLOVIS_OS_STABLE);
+	CLOVIS_ST_ASSERT_FATAL(ops[0]->op_rc != 0);
 
 	/* fini and release */
 	clovis_st_op_fini(ops[0]);

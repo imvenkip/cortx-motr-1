@@ -341,23 +341,30 @@ static void clovis_cob_fail_oo(struct m0_clovis_op_obj *oo, int rc)
 	/*
 	 * Move the state machines: op and entity.
 	 *
-	 * XXX(Sining): entity state is set to FAILED here, what will happen if
-	 * this entity is re-used for a new op? The entity has to be reset
-	 * before re-use in this case otherwise clovis_entity_namei_op and
-	 * m0_clovis_obj_op_prepare will have trouble as they assume the state
-	 * of entity has to be INIT. Or does it make sense to ignore the state
-	 * checking in these 2 functions?
-	 *
-	 * What is the point of having states for an entity? Does it make sense
-	 * to remove them totally?
+	 * This function getting called signals that a reply to a request has
+	 * arrived from the server, resulting in the op being completed
+	 * stably. The return code for the failure of the operation is captured
+	 * in op->op_rc.
 	 */
 	m0_sm_group_lock(en_grp);
-	m0_sm_fail(&op->op_entity->en_sm, M0_CLOVIS_ES_FAILED, rc);
+	switch(op->op_entity->en_sm.sm_state) {
+	case M0_CLOVIS_ES_INIT:
+		break;
+	case M0_CLOVIS_ES_OPENING:
+		m0_sm_move(&op->op_entity->en_sm, 0, M0_CLOVIS_ES_OPEN);
+	case M0_CLOVIS_ES_OPEN:
+		m0_sm_move(&op->op_entity->en_sm, 0, M0_CLOVIS_ES_CLOSING);
+	default:
+		m0_sm_move(&op->op_entity->en_sm, 0, M0_CLOVIS_ES_INIT);
+	}
 	m0_sm_group_unlock(en_grp);
 
+	op->op_rc = rc;
 	m0_sm_group_lock(op_grp);
-	m0_sm_fail(&op->op_sm, M0_CLOVIS_OS_FAILED, rc);
-	m0_clovis_op_failed(op);
+	m0_sm_move(&op->op_sm, 0, M0_CLOVIS_OS_EXECUTED);
+	m0_clovis_op_executed(op);
+	m0_sm_move(&op->op_sm, 0, M0_CLOVIS_OS_STABLE);
+	m0_clovis_op_stable(op);
 	m0_sm_group_unlock(op_grp);
 
 out:
@@ -453,9 +460,8 @@ static int clovis_cob_getattr_consume(struct clovis_cob_req *cr)
 
 	rc = clovis_cob_rep_fop_attr(cr, cob_attr);
 	if (rc != 0) {
-		/* Initially ENOENT is expected. */
 		m0_free(cob_attr);
-		return M0_RC(rc == -ENOENT ? 0 : rc);
+		return rc;
 	}
 
 	/* Move object's entity state to OPENING. */
@@ -494,6 +500,7 @@ static int clovis_cob_getattr_consume(struct clovis_cob_req *cr)
 static void clovis_icr_ast_complete(struct m0_sm_group *grp,
 				    struct m0_sm_ast *ast)
 {
+	int                        rc;
 	uint32_t                   i;
 	uint32_t                   icr_nr;
 	uint32_t                   cob_type;
@@ -549,8 +556,11 @@ static void clovis_icr_ast_complete(struct m0_sm_group *grp,
 		 * start the 2nd phase now (to prepare COB in all io services).
 		 */
 		if (cr->cr_oo->oo_oc.oc_op.op_code == M0_CLOVIS_EO_GETATTR) {
-			clovis_cob_getattr_consume(cr);
-			clovis_cob_complete_oo(cr->cr_oo);
+			rc = clovis_cob_getattr_consume(cr);
+			if (rc == 0)
+				clovis_cob_complete_oo(cr->cr_oo);
+			else
+				clovis_cob_fail_oo(cr->cr_oo, rc);
 			/* Free CR. */
 			clovis_cob_req_free(cr);
 		} else {

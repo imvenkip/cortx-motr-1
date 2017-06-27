@@ -156,7 +156,7 @@ void clovis_st_entity_open(struct m0_clovis_entity *entity)
 	clovis_st_op_launch(ops, 1);
 	clovis_st_op_wait(ops[0], M0_BITS(M0_CLOVIS_OS_FAILED,
 					  M0_CLOVIS_OS_STABLE),
-			  m0_time_from_now(3,0));
+			  m0_time_from_now(5, 0));
 	clovis_st_op_fini(ops[0]);
 	clovis_st_op_free(ops[0]);
 }

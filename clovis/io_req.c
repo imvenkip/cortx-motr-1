@@ -607,10 +607,15 @@ fail_locked:
 	ioo->ioo_nwxfer.nxr_state = NXS_COMPLETE;
 #endif
 
+	/* As per bug MERO-2575, rc will be reported in op->op_rc and the
+	 * op will be completed with status M0_CLOVIS_OS_STABLE */
+	op->op_rc = ioo->ioo_rc;
 	/* Move the operation state machine along */
 	m0_sm_group_lock(&op->op_sm_group);
-	m0_sm_fail(&op->op_sm, M0_CLOVIS_OS_FAILED, ioo->ioo_rc);
-	m0_clovis_op_failed(op);
+	m0_sm_move(&op->op_sm, 0, M0_CLOVIS_OS_EXECUTED);
+	m0_clovis_op_executed(op);
+	m0_sm_move(&op->op_sm, 0, M0_CLOVIS_OS_STABLE);
+	m0_clovis_op_stable(op);
 	m0_sm_group_unlock(&op->op_sm_group);
 
 	M0_LOG(M0_DEBUG, "ioreq_iosm_handle_executed failed, rc=%d", rc);

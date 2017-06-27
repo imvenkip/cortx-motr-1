@@ -118,6 +118,7 @@ static void obj_open_non_existent(void)
 	CLOVIS_ST_ASSERT_FATAL(rc == 0);
 	CLOVIS_ST_ASSERT_FATAL(ops[0]->op_sm.sm_state == M0_CLOVIS_OS_STABLE);
 	CLOVIS_ST_ASSERT_FATAL(ops[0]->op_sm.sm_rc == 0);
+	CLOVIS_ST_ASSERT_FATAL(ops[0]->op_rc == -ENOENT);
 	CLOVIS_ST_ASSERT_FATAL(obj->ob_entity.en_sm.sm_state ==
 			       M0_CLOVIS_ES_INIT);
 
@@ -173,10 +174,12 @@ static void obj_create_double_same_id(void)
 	CLOVIS_ST_ASSERT_FATAL(rc == 0);
 
 	/* One succeeds, the other fails. */
-	CLOVIS_ST_ASSERT_FATAL((ops[0]->op_sm.sm_state == M0_CLOVIS_OS_STABLE &&
-				ops[1]->op_sm.sm_state == M0_CLOVIS_OS_FAILED) ||
-			       (ops[0]->op_sm.sm_state == M0_CLOVIS_OS_FAILED &&
-				ops[1]->op_sm.sm_state == M0_CLOVIS_OS_STABLE));
+	CLOVIS_ST_ASSERT_FATAL(ops[0]->op_sm.sm_state == M0_CLOVIS_OS_STABLE &&
+			       ops[1]->op_sm.sm_state == M0_CLOVIS_OS_STABLE);
+	CLOVIS_ST_ASSERT_FATAL((ops[0]->op_rc == 0 &&
+				ops[1]->op_rc == -EEXIST) ||
+			       (ops[0]->op_rc == -EEXIST &&
+				ops[1]->op_rc == 0));
 	clovis_st_op_fini(ops[0]);
 	clovis_st_op_fini(ops[1]);
 	clovis_st_op_free(ops[0]);
