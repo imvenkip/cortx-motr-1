@@ -340,6 +340,47 @@ M0_INTERNAL int m0_rpc_fom_session_establish_tick(struct m0_fom *fom)
 	M0_ASSERT(conn != NULL);
 	machine = conn->c_rpc_machine;
 
+	/*
+	   Drop this session establish FOP.
+
+	   Assume the following case:
+	   1) time t1 < t2 < t3
+
+	   2) t1: RPC item which corresponds to session establish FOP is
+	      received.
+
+	      t2: RPC item which corresponds to connection terminate FOP is
+	      received. Connection terminate FOP is processed inside request
+	      handler: m0_rpc_fom_conn_terminate_tick() is called.
+
+	      t3: Session establish FOP is processed inside request hander,
+	      m0_rpc_fom_session_establish_tick() is called.
+
+	   3) NOTE: Listed above FOPs correspond to RPC items, which were
+	   delivered onto RPC session0 of current RPC connection.
+
+	   Analysis:
+
+	   After sending connection termination FOP, sender side is no longer
+	   waiting for connection establish FOP reply, so it's easy just to drop
+	   this reply in this tick.
+
+	   In other case, we can think to process (1-3) inside
+	   m0_rpc_fom_conn_terminate_tick() so that we wait session to
+	   establish, and only then terminate current connection. From the first
+	   sight, this wait stage can be done by waiting session0 to become
+	   IDLE, but there're two RPC items, pending on this session (terminate
+	   connection item, establish session item), so session0 never becomes
+	   IDLE here.
+	 */
+	m0_rpc_machine_lock(machine);
+	if (M0_IN(conn_state(conn), (M0_RPC_CONN_TERMINATED,
+				     M0_RPC_CONN_TERMINATING))) {
+		m0_rpc_machine_unlock(machine);
+		goto out2;
+	}
+	m0_rpc_machine_unlock(machine);
+
 	M0_ALLOC_PTR(session);
 	if (M0_FI_ENABLED("session-alloc-failed"))
 		m0_free0(&session);
@@ -369,6 +410,7 @@ out:
 	}
 
 	m0_rpc_reply_post(&fop->f_item, &fop_rep->f_item);
+out2:
 	m0_fom_phase_set(fom, M0_FOPH_FINISH);
 	M0_LEAVE();
 	return M0_FSO_WAIT;
