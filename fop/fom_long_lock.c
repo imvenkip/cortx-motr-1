@@ -270,8 +270,24 @@ static void unlock(struct m0_long_lock *lock,
 	       can_lock(lock, next)) {
 		grant(lock, next);
 
-		M0_ASSERT(next->lll_fom->fo_transitions_saved + 1
-			  == next->lll_fom->fo_transitions);
+		/**
+		 * Initially, here the following assertion was checked:
+		 * M0_ASSERT(next->lll_fom->fo_transitions_saved + 1
+		 *	     == next->lll_fom->fo_transitions);
+		 *
+		 * For the reason fom->fo_transitions counter is
+		 * updated after control returns from fom_tick()
+		 * without any locks taken, it can be so, that long
+		 * lock is queued to be taken by one fom (thread) and
+		 * the contorol is still inside fom_tick(), and other
+		 * fom (thread) has already unlocked() -> granted()
+		 * the long lock. In this case fom->fo_transitions is
+		 * still not updated, so fom->fo_transitions_saved can
+		 * be equal to fom->fo_transitions in this case. In other
+		 * cases it has to be greater by 1.
+		 */
+		M0_ASSERT(M0_IN(next->lll_fom->fo_transitions -
+				next->lll_fom->fo_transitions_saved, (1, 0)));
 		m0_fom_wakeup(next->lll_fom);
 	}
 
