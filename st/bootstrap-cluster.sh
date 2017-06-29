@@ -39,6 +39,13 @@ configure_dev3() {
 	CLUSTER_TYPE="real"
 }
 
+configure_beta5() {
+	CMU_HOST="172.16.0.41"
+	HOSTS_LIST="$CMU_HOST,172.16.1.[1-7,18,20]"
+	CLIENTS_LIST="172.16.1.[18,20]"
+	CLUSTER_TYPE="real"
+}
+
 configure_fre7n1() {
 	CMU_HOST="172.16.0.41"
 	HOSTS_LIST="172.16.1.[1-5]"
@@ -201,6 +208,7 @@ setup() {
 			castor-dev2-1-cc1.xy01.xyratex.com) cluster=dev2_1;;
 			castor-dev2-2-cc1.xy01.xyratex.com) cluster=dev2_2;;
 			castor-dev3-cc1.dco.colo.seagate.com) cluster=dev3;;
+			castor-beta5-cc1.dco.colo.seagate.com) cluster=beta5;;
 			vmc-rekvm-cc1.xy01.xyratex.com) cluster=fre7n1;;
 			vmc-rekvm-hvt-cc1.xy01.xyratex.com) cluster=hvt;;
 			vmc-rekvm-2dm-cc1.xy01.xyratex.com) cluster=kvm2dm;;
@@ -215,6 +223,7 @@ setup() {
 		dev2_1) configure_dev2_1;;
 		dev2_2) configure_dev2_2;;
 		dev3) configure_dev3;;
+		beta5) configure_beta5;;
 		fre7n1) configure_fre7n1;;
 		hvt) configure_hvt;;
 		hvt_clovis) configure_hvt_clovis;;
@@ -232,8 +241,8 @@ Usage: ${0##*/} [OPTION]... [--] COMMAND...
 Options:
     -h, --help      Show this help and exit.
     --cluster NAME  Use specific cluster configuration. Supported clusters:
-                    beta1, dev1_1, dev2_1, dev2_2, dev3, fre7n1, hvt, s3single. If this option
-                    is missing, the script will try to guess by hostname.
+                    beta1, dev1_1, dev2_1, dev2_2, dev3, beta5, fre7n1, hvt, s3single.
+		    If this option is missing, the script will try to guess by hostname.
 
 Commands:
     prepare_build_node  Install tools necessary to build Mero and Halon.
