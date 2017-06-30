@@ -124,12 +124,15 @@ fdmi_file_creation_test()
 
 fdmi_test_unprepare()
 {
-	unmount_and_stop
-	unprepare
+	local rc=0
+	unmount_and_stop || rc=$?
+	unprepare || rc=$?
+	return $rc
 }
 
 main()
 {
+	local rc=0
 	fdmi_test_prepare
 	echo "Run plugin..."
 	#read
@@ -137,7 +140,8 @@ main()
 		fdmi_file_creation_test 10 $MERO_M0T1FS_MOUNT_DIR-$i
 	done
 	sleep 10
-	fdmi_test_unprepare
+	fdmi_test_unprepare || rc=$?
+	return $rc
 }
 
 trap unprepare EXIT

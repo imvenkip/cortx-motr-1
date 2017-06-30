@@ -492,7 +492,7 @@ EOF
 
 	stop() {
 		servers_stop $prog_exec || rc=$?
-		unprepare
+		unprepare || rc=$?
 		return $rc
 	}
 

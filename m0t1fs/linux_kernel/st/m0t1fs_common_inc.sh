@@ -199,18 +199,21 @@ prepare()
 
 unprepare()
 {
+	local rc=0
+
 	sleep 5 # allow pending IO to complete
 	if mount | grep m0t1fs > /dev/null; then
-		umount $MERO_M0T1FS_MOUNT_DIR
+		umount $MERO_M0T1FS_MOUNT_DIR || rc=$?
 		sleep 2
 		rm -rf $MERO_M0T1FS_MOUNT_DIR
 	fi
 
 	if lsmod | grep m0mero; then
-		unload_kernel_module
+		unload_kernel_module || rc=$?
 	fi
-	modunload_m0gf
+	modunload_m0gf || rc=$?
 	## The absence of `sandbox_fini' is intentional.
+	return $rc
 }
 
 PROF_OPT='<0x7000000000000001:0>'

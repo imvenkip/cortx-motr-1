@@ -18,10 +18,15 @@ modload()
 
 modunload()
 {
+    local rc=0
     for m in $MODLIST ;do
 	echo $m
     done | tac | while read ;do
-	rmmod $REPLY                || echo "Error unloading $m."
+	rmmod $REPLY                || {
+		rc=$?
+		echo "Error unloading $m."
+	}
     done
+    return $rc
 }
 

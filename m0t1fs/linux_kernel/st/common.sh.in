@@ -69,9 +69,14 @@ modload()
 modunload()
 {
 	local m
+	local rc=0
 	for m in $MODLIST; do
 		echo $m
 	done | tac | while read; do
-		rmmod $REPLY &> /dev/null || echo "Error unloading $REPLY." >&2
+		rmmod $REPLY &> /dev/null || {
+			rc=$?
+			echo "Error unloading $REPLY." >&2
+		}
 	done
+	return $rc
 }
