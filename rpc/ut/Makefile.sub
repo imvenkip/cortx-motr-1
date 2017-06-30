@@ -21,7 +21,6 @@ XC_FILES += rpc/ut/fops_xc.h \
             rpc/ut/at/at_ut_xc.h
 
 EXTRA_DIST += rpc/ut/clnt_srv_ctx.c \
-              rpc/ut/fops.h \
-              rpc/ut/fops_xc.h
+              rpc/ut/fops.h
 
 ut_libmero_ut_la_CPPFLAGS += -DM0_RPC_UT_DIR=$(abs_top_builddir)/rpc/ut/

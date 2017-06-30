@@ -1097,6 +1097,14 @@ check-make-prebuild:
 			echo "Please, move them into nodist_mero_libmero_la_SOURCES var instead."; \
 			exit 1; \
 		fi
+	@XC=`echo "$(EXTRA_DIST)" | grep -Po '\S+_xc\.[ch]'` ; \
+		if [[ -n $$XC ]] ; then \
+			echo FAIL; \
+			echo "ERROR: xcode files found in EXTRA_DIST makefile variable:"; \
+			echo "$$XC"; \
+			echo "Please, remove them from EXTRA_DIST."; \
+			exit 1; \
+		fi
 	@echo 'OK'
 
 .PHONY: check-sources-prebuild
