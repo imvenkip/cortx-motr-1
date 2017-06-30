@@ -177,12 +177,17 @@ start_singlenode()
             sleep 1 ; echo -n .
         done
 
-        local cursor_pos=( $(get_cursor) )
+        local cursor_pos=(0 0)
+        if [[ -t 1 ]] ; then
+            cursor_pos=( $(get_cursor) )
+        fi
         if [[ ${cursor_pos[1]} -gt $status_col ]] ; then
             status_col=${cursor_pos[1]}
         fi
         # move cursor to status column position
-        tput cup ${cursor_pos[0]} $status_col
+        if [[ ${cursor_pos[0]} -ne 0 && -t 1 ]] ; then
+            tput cup ${cursor_pos[0]} $status_col
+        fi
 
         if systemctl is-failed -q $s ; then
             echo "  [${RED}FAILED${NC}]"
@@ -216,12 +221,17 @@ stop_singlenode()
             sleep 1 ; echo -n .
         done
 
-        local cursor_pos=( $(get_cursor) )
+        local cursor_pos=(0 0)
+        if [[ -t 1 ]] ; then
+            cursor_pos=( $(get_cursor) )
+        fi
         if [[ ${cursor_pos[1]} -gt $status_col ]] ; then
             status_col=${cursor_pos[1]}
         fi
         # move cursor to status column position
-        tput cup ${cursor_pos[0]} $status_col
+        if [[ -t 1 ]] ; then
+            tput cup ${cursor_pos[0]} $status_col
+        fi
 
         if systemctl is-failed -q $s ; then
             echo "  [${RED}FAILED${NC}]"

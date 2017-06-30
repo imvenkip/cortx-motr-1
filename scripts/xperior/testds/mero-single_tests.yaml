@@ -322,6 +322,14 @@ Tests:
     polltime : 30
     timeout  : 1800
 
+  - id       : 35m0singlenode
+    script   : m0singlenode
+    dir      : src/st/
+    executor : Xperior::Executor::MeroTest
+    sandbox  : /var/mero/sandbox.35m0singlenode
+    polltime : 30
+    timeout  : 600
+
 # 25 min
 dangerous: 'yes'
 description: Set of Mero  tests
