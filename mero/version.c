@@ -78,13 +78,13 @@ void m0_build_info_print(void)
 
 	m0_console_printf(BI_PREFIX "\n");
 
-	m0_console_printf(BI_PREFIX "xcode protocol checksum: %s\n",
+	m0_console_printf(BI_PREFIX "xcode      protocol checksum: %s\n",
 			  bi->bi_xcode_protocol_checksum);
-	m0_console_printf(BI_PREFIX "xcode BE protocol checksum: %s\n",
+	m0_console_printf(BI_PREFIX "xcode BE   protocol checksum: %s\n",
 			  bi->bi_xcode_protocol_be_checksum);
 	m0_console_printf(BI_PREFIX "xcode CONF protocol checksum: %s\n",
 			  bi->bi_xcode_protocol_conf_checksum);
-	m0_console_printf(BI_PREFIX "xcode RPC protocol checksum: %s\n",
+	m0_console_printf(BI_PREFIX "xcode RPC  protocol checksum: %s\n",
 			  bi->bi_xcode_protocol_rpc_checksum);
 
 	m0_console_printf(BI_PREFIX "\n");
