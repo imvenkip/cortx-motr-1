@@ -405,7 +405,6 @@ static void sc_result_add(struct m0_dix_next_sort_ctx  *key_ctx,
 		m0_cas_rep_mlock(key_ctx->sc_creq, cidx);
 	res  = &rs->nrs_res[key_id];
 	reps = res->drs_reps;
-	M0_LOG(M0_DEBUG,"val %"PRIu64, *(uint64_t*)rep->cnp_key.b_addr);
 	reps[res->drs_pos++] = rep;
 }
 
