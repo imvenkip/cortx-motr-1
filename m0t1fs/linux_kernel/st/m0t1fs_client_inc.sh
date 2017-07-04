@@ -341,7 +341,6 @@ file_creation_test()
 			}
 		done
 	done
-	unmount_and_clean
 	echo -n "Test: file creation: "
 	if (( $i == $nr_files && $j == $nr_files )); then
 		echo "success."
@@ -350,14 +349,12 @@ file_creation_test()
 		return 1
 	fi
 
-	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $mode || return 1
 	echo "Test: removing half of the files on m0t1fs..."
 	for ((i=$START_FID; i<$nr_files; i+=2)); do
 		for ((j=$START_FID; j<$nr_files; j+=2)); do
 			run "rm -vf $MERO_M0T1FS_MOUNT_DIR/$j:$i" || break
 		done
 	done
-	unmount_and_clean
 	echo -n "Test: file removal: "
 	if (( $i >= $nr_files && $j >= $nr_files )); then
 		echo "success."
@@ -366,7 +363,6 @@ file_creation_test()
 		return 1
 	fi
 
-	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $mode || return 1
 	echo "Test: Creating new $NR_FILES files on m0t1fs..."
 	for ((i=$START_FID; i<$nr_files; ++i)); do
 		for ((j=$START_FID; j<$nr_files; ++j)); do
@@ -379,7 +375,6 @@ file_creation_test()
 			}
 		done
 	done
-	unmount_and_clean
 	echo -n "Test: file creation: "
 	if (( $i == $nr_files && $j == $nr_files )); then
 		echo "success."
@@ -388,7 +383,6 @@ file_creation_test()
 		return 1
 	fi
 
-	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $mode || return 1
 	echo "Test: removing all the files on m0t1fs..."
 	for ((i=$START_FID; i<$nr_files; ++i)); do
 		for ((j=$START_FID; j<$nr_files; ++j)); do

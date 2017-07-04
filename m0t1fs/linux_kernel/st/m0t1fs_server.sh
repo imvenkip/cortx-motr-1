@@ -26,7 +26,9 @@ fi
 
 main()
 {
-	mero_service $1
+	local multiple_pools=0
+
+	mero_service $1 $multiple_pools
 	if [ $? -ne "0" ]
 	then
 		echo "Failed to trigger Mero Service."
