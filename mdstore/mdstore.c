@@ -280,10 +280,8 @@ M0_INTERNAL int m0_mdstore_link(struct m0_mdstore       *md,
 	M0_ASSERT(cob != NULL);
 
         /* We don't allow link in .mero and .mero/fid directory. */
-        if (m0_fid_cmp(pfid, &M0_MDSERVICE_SLASH_FID) < 0) {
-                rc = -EOPNOTSUPP;
-                goto out;
-        }
+        if (m0_fid_cmp(pfid, &M0_MDSERVICE_SLASH_FID) < 0)
+		return M0_RC(-EOPNOTSUPP);
 
 	time(&now);
 	M0_SET0(&nsrec);
@@ -304,17 +302,11 @@ M0_INTERNAL int m0_mdstore_link(struct m0_mdstore       *md,
 	rc = m0_cob_name_add(cob, nskey, &nsrec, tx);
 	m0_free(nskey);
 	if (rc != 0)
-		goto out;
+		return M0_RC(rc);
 
-	/*
-	 * Update nlink and links allocation counter in statdata and
-	 * save it to storage.
-	 */
 	cob->co_nsrec.cnr_cntr++;
 	rc = m0_cob_update(cob, &cob->co_nsrec, NULL, NULL, tx);
 
-out:
-	M0_LEAVE("rc: %d", rc);
 	return M0_RC(rc);
 }
 
