@@ -56,16 +56,18 @@ struct m0_balloc_group_desc {
 	m0_bcount_t             bgd_freeblocks;
 	/** nr of freespace fragments */
 	m0_bcount_t             bgd_fragments;
+	/** max bytes of freespace chunk */
+	m0_bcount_t             bgd_maxchunk;
+#ifdef __SPARE_SPACE__
 	/** number of free spare space fragments */
 	m0_bcount_t             bgd_spare_frags;
 	/** total free spare blocks */
 	m0_bcount_t             bgd_spare_freeblocks;
 	/** starting block for a spare. */
 	m0_bcount_t             bgd_sparestart;
-	/** max bytes of freespace chunk */
-	m0_bcount_t             bgd_maxchunk;
 	/** max contiguous free spare space. */
 	m0_bcount_t             bgd_spare_maxchunk;
+#endif
 	struct m0_format_footer bgd_footer;
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
@@ -193,10 +195,12 @@ struct m0_balloc_super_block {
 
         m0_bcount_t	bsb_totalsize;        /**< total size in bytes */
         m0_bcount_t	bsb_freeblocks;       /**< nr of free blocks */
+#ifdef __SPARE_SPACE__
 	m0_bcount_t     bsb_freespare;        /**< nr free spare blocks */
+	m0_bcount_t     bsb_sparesize;        /**< spare blocks per group */
+#endif
         m0_bcount_t	bsb_blocksize;        /**< block size in bytes */
         m0_bcount_t	bsb_groupsize;        /**< group size in blocks */
-	m0_bcount_t     bsb_sparesize;        /**< spare blocks per group */
 	uint32_t	bsb_bsbits;           /**< block size bits: power of 2*/
 	uint32_t	bsb_gsbits;           /**< group size bits: power of 2*/
         m0_bcount_t	bsb_groupcount;       /**< # of group */
@@ -288,7 +292,7 @@ struct m0_balloc_format_req {
 	m0_bcount_t	bfr_blocksize;
 	/** Group size in blocks. */
 	m0_bcount_t	bfr_groupsize;
-	/** Spare blocks per group. Should be a power of two. */
+	/** XXX Spare blocks per group. Should be a power of two. */
 	m0_bcount_t     bfr_spare_reserved_blocks;
 };
 

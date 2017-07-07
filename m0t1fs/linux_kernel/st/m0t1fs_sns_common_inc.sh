@@ -339,6 +339,10 @@ wait_for_sns_repair_or_rebalance()
 		echo $status | grep status=2 && continue #sns repair is active, continue waiting
 		break;
 	done
+
+	op=`echo $status | grep status=3`
+	[[ !  -z  $op  ]] && return 1
+
 	return 0
 }
 

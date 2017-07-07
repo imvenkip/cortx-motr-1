@@ -107,7 +107,9 @@ struct m0_stob_ad_domain {
 	uint32_t                sad_bshift;
 	int32_t                 sad_babshift;
 	m0_bcount_t             sad_blocks_per_group;
+#ifdef __SPARE_SPACE__
 	m0_bcount_t             sad_spare_blocks_per_group;
+#endif
 	char                    sad_path[MAXPATHLEN];
 	bool                    sad_overwrite;
 	char                    sad_pad[7];

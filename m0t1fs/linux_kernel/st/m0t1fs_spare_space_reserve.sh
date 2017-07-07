@@ -82,7 +82,9 @@ main()
 		return 1
 	}
 
-	if [[ $rc -eq 0 ]] && ! spare_space_reserve_test ; then
+	# Change this when spare-space reservation is enabled.
+	if [[ $rc -eq 0 ]] && spare_space_reserve_test ; then
+#	if [[ $rc -eq 0 ]] && ! spare_space_reserve_test ; then
 		echo "Failed: spare-space-reservation test failed.."
 		rc=1
 	fi

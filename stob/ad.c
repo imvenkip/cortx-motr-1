@@ -413,7 +413,11 @@ static int stob_ad_domain_init(struct m0_stob_type *type,
 				       adom->sad_bshift,
 				       adom->sad_container_size,
 				       adom->sad_blocks_per_group,
+#ifdef __SPARE_SPACE__
 				       adom->sad_spare_blocks_per_group);
+#else
+					0);
+#endif
 	balloc_inited = rc == 0;
 
 	rc = rc ?: stob_ad_bstore(&adom->sad_bstore_id,
@@ -542,8 +546,10 @@ static int stob_ad_domain_create(struct m0_stob_type *type,
 		adom->sad_container_size   = cfg->adg_container_size;
 		adom->sad_bshift           = cfg->adg_bshift;
 		adom->sad_blocks_per_group = cfg->adg_blocks_per_group;
+#ifdef __SPARE_SPACE__
 		adom->sad_spare_blocks_per_group =
 			cfg->adg_spare_blocks_per_group;
+#endif
 		adom->sad_bstore_id        = cfg->adg_id;
 		adom->sad_overwrite        = false;
 		strcpy(adom->sad_path, location_data);

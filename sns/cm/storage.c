@@ -213,7 +213,10 @@ static int cp_io(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
 	struct m0_stob      *stob;
 	struct m0_stob_io   *stio;
 	enum m0_stob_state   stob_state;
+#ifdef __SPARE_SPACE__
+	struct m0_sns_cm    *sns_cm;
 	enum m0_sns_cm_op    sns_op;
+#endif
 	uint64_t             balloc_flags = M0_BALLOC_NORMAL_ZONE;
 	int                  rc;
 
@@ -248,16 +251,21 @@ static int cp_io(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
 	m0_mutex_lock(&stio->si_mutex);
 	m0_fom_wait_on(cp_fom, &stio->si_wait, &cp_fom->fo_cb);
 	m0_mutex_unlock(&stio->si_mutex);
-	sns_op =
-	  (enum m0_sns_cm_op)((struct m0_sns_cm *)cp->c_ag->cag_cm)->sc_op;
 	if (M0_FI_ENABLED("io-fail"))
 		rc = M0_ERR(-EIO);
 	else {
 		rc = m0_stob_io_private_setup(stio, stob);
 		if (rc == 0) {
+#ifdef __SPARE_SPACE__
+			sns_cm = M0_AMB(sns_cm, cp->c_ag->cag_cm, sc_base);
+			/*
+			 * @todo: Handle in better way as these enums for SNS
+			 * ops are on the way to get deprecated.
+			 */
+			sns_op = (enum m0_sns_cm_op) sns_cm->sc_op;
 			if (sns_op == SNS_REPAIR)
-				balloc_flags = M0_BALLOC_NORMAL_ZONE |
-					M0_BALLOC_SPARE_ZONE;
+				balloc_flags |= M0_BALLOC_SPARE_ZONE;
+#endif
 			if (m0_stob_domain_is_of_type(stob->so_domain,
 						      &m0_stob_ad_type))
 				m0_stob_ad_balloc_set(stio, balloc_flags);

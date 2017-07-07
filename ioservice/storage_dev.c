@@ -631,8 +631,12 @@ M0_INTERNAL void m0_storage_dev_space(struct m0_storage_dev   *dev,
 		balloc = m0_stob_ad_domain2balloc(dev->isd_domain);
 		M0_ASSERT(balloc != NULL);
 		*space = (struct m0_storage_space) {
+#ifdef __SPARE_SPACE__
 			.sds_free_blocks = balloc->cb_sb.bsb_freeblocks +
 						balloc->cb_sb.bsb_freespare,
+#else
+			.sds_free_blocks = balloc->cb_sb.bsb_freeblocks,
+#endif
 			.sds_block_size  = balloc->cb_sb.bsb_blocksize,
 			.sds_avail_blocks = balloc->cb_sb.bsb_freeblocks,
 			.sds_total_size  = balloc->cb_sb.bsb_totalsize,

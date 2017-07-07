@@ -97,6 +97,7 @@ int test_balloc_ut_ops(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg)
 	struct m0_ext           ext[MAX];
 	struct m0_ext           tmp   = {};
 	m0_bcount_t             count = 539;
+	m0_bcount_t             spare_size;
 	int                     i     = 0;
 	int                     result;
 	time_t                  now;
@@ -159,6 +160,8 @@ int test_balloc_ut_ops(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg)
 			m0_ut_be_tx_end(tx);
 		}
 
+		spare_size =
+		  m0_stob_ad_spares_calc(mero_balloc->cb_sb.bsb_groupsize);
 		for (i = 0;
 		     i < mero_balloc->cb_sb.bsb_groupcount && result == 0;
 		     ++i) {
@@ -236,7 +239,7 @@ int test_balloc_ut_ops(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg)
 						    "balloc ut", grp);
 				M0_UT_ASSERT(grp->bgi_normal.bzp_freeblocks ==
 					     mero_balloc->cb_sb.bsb_groupsize -
-					     mero_balloc->cb_sb.bsb_sparesize);
+					     spare_size);
 				m0_balloc_release_extents(grp);
 				m0_balloc_unlock_group(grp);
 			}
