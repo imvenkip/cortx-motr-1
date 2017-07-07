@@ -49,7 +49,9 @@ struct m0_be_seg_hdr {
 	struct m0_be_allocator_header bh_alloc;
 	uint32_t                      bh_items_nr;
 	struct m0_be_seg_geom         bh_items[M0_BE_SEG_HDR_GEOM_ITMES_MAX];
+#ifdef M0_BE_SEG_HDR_VERSION
 	char                          bh_be_version[M0_BE_SEG_HDR_VERSION_MAX];
+#endif
 	struct m0_format_footer       bh_footer;
 	/*
 	 * m0_be_btree has it's own volatile-only fields, so it can't be placed

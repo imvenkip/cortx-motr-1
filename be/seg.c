@@ -106,9 +106,11 @@ static int be_seg_hdr_create(struct m0_stob *stob, struct m0_be_seg_hdr *hdr)
 		M0_PRE(m0_is_aligned(g->sg_size, M0_BE_SEG_PAGE_SIZE));
 
 		hdr->bh_id = g->sg_id;
+#ifdef M0_BE_SEG_HDR_VERSION
 		strncpy(hdr->bh_be_version,
 			m0_build_info_get()->bi_xcode_protocol_be_checksum,
 			M0_BE_SEG_HDR_VERSION_MAX);
+#endif
 		m0_format_footer_update(hdr);
 		rc = m0_be_io_single(stob, SIO_WRITE, hdr, g->sg_offset,
 				     be_seg_hdr_size());
@@ -315,10 +317,12 @@ static void be_seg_madvise(struct m0_be_seg *seg, m0_bcount_t dump_limit,
 
 M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg)
 {
+#ifdef M0_BE_SEG_HDR_VERSION
 	struct m0_be_seg_hdr  hdr1;
+	const char           *runtime_be_version;
+#endif
 	struct m0_be_seg_hdr *hdr2;
 	const struct m0_be_seg_geom *g;
-	const char           *runtime_be_version;
 	void                 *p;
 	int                   rc;
 	int                   fd;
@@ -326,6 +330,8 @@ M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg)
 	M0_ENTRY("seg=%p", seg);
 	M0_PRE(M0_IN(seg->bs_state, (M0_BSS_INIT, M0_BSS_CLOSED)));
 
+#ifdef M0_BE_SEG_HDR_VERSION
+	/* TODO use single m0_be_seg_hdr and read it once. */
 	rc = m0_be_io_single(seg->bs_stob, SIO_READ,
 			     &hdr1, M0_BE_SEG_HEADER_OFFSET, sizeof hdr1);
 	if (rc != 0)
@@ -338,6 +344,7 @@ M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg)
 		return M0_ERR_INFO(-EPROTO, "BE protocol checksum mismatch:"
 				   " expected '%s', stored on disk '%s'",
 				   runtime_be_version, (char*)hdr1.bh_be_version);
+#endif
 
 	hdr2 = m0_alloc(be_seg_hdr_size());
 	if (hdr2 == NULL)
