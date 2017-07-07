@@ -99,8 +99,10 @@ struct m0_stob_domain {
 	/** Magic for sd_domain_linkage */
 	uint64_t			 sd_magic;
 	struct m0_stob_cache		 sd_cache;
+#ifdef M0_STOB_AD_DOMAIN_INMEMORY
 	/** Private data of stob domain implementation */
 	void                            *sd_private;
+#endif
 };
 
 /** Stob domain operations vector. */
