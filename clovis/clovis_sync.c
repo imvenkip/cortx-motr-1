@@ -1162,7 +1162,7 @@ int m0_clovis_sync(struct m0_clovis *m0c, bool wait)
 	}
 
 	M0_LEAVE();
-	return M0_ERR(saved_error);
+	return (saved_error == 0) ? M0_RC(saved_error): M0_ERR(saved_error);
 }
 M0_EXPORTED(m0_clovis_sync);
 
