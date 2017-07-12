@@ -57,6 +57,27 @@ extern const m0_time_t M0_TIME_NEVER;
 #  include "lib/user_space/time.h"
 #endif
 
+
+/** Clock source for m0_time_now() */
+extern const enum CLOCK_SOURCES M0_CLOCK_SOURCE;
+
+/**
+ * Offset for M0_CLOCK_SOURCE_REALTIME_MONOTONIC clock source.
+ *  @see m0_utime_init()
+ */
+extern m0_time_t                m0_time_monotonic_offset;
+
+/**
+ * Useful for mutex/semaphore implementation. This function will translate
+ * time from value obtained from m0_time_now() to value that can be used
+ * with CLOCK_REALTIME-only functions such as sem_timedwait() and
+ * pthread_mutex_timedlock().
+ * @param time Time obtained from m0_time_now() and adjusted somehow if needed.
+ * @return Converted time value.
+ * @note In some cases this function will have 2 calls to clock_gettime().
+ */
+M0_INTERNAL m0_time_t m0_time_to_realtime(m0_time_t abs_time);
+
 /** Create and return a m0_time_t from seconds and nanoseconds. */
 m0_time_t m0_time(uint64_t secs, long ns);
 

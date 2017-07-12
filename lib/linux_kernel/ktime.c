@@ -35,14 +35,35 @@
    @{
 */
 
-m0_time_t m0_time_now(void)
+m0_time_t m0_clock_gettime_wrapper(enum CLOCK_SOURCES clock_id)
+{
+	struct timespec ts;
+	m0_time_t       ret;
+
+	switch (clock_id) {
+	case M0_CLOCK_SOURCE_MONOTONIC:
+		getrawmonotonic(&ts);
+		ret = M0_MKTIME(ts.tv_sec, ts.tv_nsec);
+		break;
+	case M0_CLOCK_SOURCE_REALTIME:
+		/* ts = current_kernel_time(); */
+		getnstimeofday(&ts);
+		ret = M0_MKTIME(ts.tv_sec, ts.tv_nsec);
+		break;
+	default:
+		M0_IMPOSSIBLE("Unknown clock source");
+		ret = M0_MKTIME(0, 0);
+	}
+	return ret;
+}
+
+m0_time_t m0_clock_gettimeofday_wrapper(void)
 {
 	struct timespec ts;
 
 	getnstimeofday(&ts);
 	return M0_MKTIME(ts.tv_sec, ts.tv_nsec);
 }
-M0_EXPORTED(m0_time_now);
 
 /**
    Sleep for requested time

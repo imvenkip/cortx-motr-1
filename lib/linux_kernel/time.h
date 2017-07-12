@@ -23,6 +23,26 @@
 
 #include <linux/time.h>
 
+/**
+ * Clock sources for m0_time_now(). @see m0_time_now()
+ * @note Be sure to change m0_semaphore and m0_timer implementations
+ * after changing CLOCK_SOURCES list.
+ * @see man 3p clock_gettime
+ * @see timer_posix_set(), m0_semaphore_timeddown(), m0_time_now(),
+ *	m0_time_to_realtime().
+ */
+enum CLOCK_SOURCES {
+	M0_CLOCK_SOURCE_REALTIME,
+	M0_CLOCK_SOURCE_MONOTONIC,
+	/** @note POSIX timers on Linux don't support this clock source */
+	M0_CLOCK_SOURCE_MONOTONIC_RAW,
+	/** gettimeofday(). All others clock sources use clock_gettime() */
+	M0_CLOCK_SOURCE_GTOD,
+	/** CLOCK_REALTIME + CLOCK_MONOTONIC combination.
+	 *  @see m0_utime_init() */
+	M0_CLOCK_SOURCE_REALTIME_MONOTONIC,
+};
+
 #endif /* __MERO_LIB_LINUX_KERNEL_TIME_H__ */
 
 /*

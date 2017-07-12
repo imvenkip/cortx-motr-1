@@ -85,8 +85,8 @@
 #include "fdmi/service.h"
 #include "fdmi/fol_fdmi_src.h"
 
-M0_INTERNAL int m0_utime_init(void);
-M0_INTERNAL void m0_utime_fini(void);
+M0_INTERNAL int m0_time_init(void);
+M0_INTERNAL void m0_time_fini(void);
 
 M0_INTERNAL int m0_memory_init(void);
 M0_INTERNAL void m0_memory_fini(void);
@@ -124,9 +124,7 @@ struct init_fini_call {
 };
 
 struct init_fini_call quiesce[] = {
-#ifndef __KERNEL__
-	{ &m0_utime_init,       &m0_utime_fini,       "time" },
-#endif
+	{ &m0_time_init,        &m0_time_fini,        "time" },
 	{ &m0_xcode_init,       &m0_xcode_fini,       "xcode" },
 	{ &m0_trace_init,       &m0_trace_fini,       "trace" },
 	{ &m0_fi_init,          &m0_fi_fini,          "finject" },

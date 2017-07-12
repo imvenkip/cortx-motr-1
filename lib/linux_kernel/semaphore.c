@@ -73,20 +73,20 @@ M0_INTERNAL unsigned m0_semaphore_value(struct m0_semaphore *semaphore)
 M0_INTERNAL bool m0_semaphore_timeddown(struct m0_semaphore *semaphore,
 					const m0_time_t abs_timeout)
 {
-	m0_time_t nowtime = m0_time_now();
-	m0_time_t reltime;
-	unsigned long reljiffies;
+	m0_time_t       nowtime = m0_time_now();
+	m0_time_t       abs_timeout_realtime = m0_time_to_realtime(abs_timeout);
+	m0_time_t       reltime;
+	unsigned long   reljiffies;
 	struct timespec ts;
 
 	/* same semantics as user_space semaphore: allow abs_time < now */
-	if (abs_timeout > nowtime)
-		reltime = m0_time_sub(abs_timeout, nowtime);
+	if (abs_timeout_realtime > nowtime)
+		reltime = m0_time_sub(abs_timeout_realtime, nowtime);
 	else
 		reltime = 0;
 	ts.tv_sec  = m0_time_seconds(reltime);
 	ts.tv_nsec = m0_time_nanoseconds(reltime);
 	reljiffies = timespec_to_jiffies(&ts);
-
 	return down_timeout(&semaphore->s_sem, reljiffies) == 0;
 }
 
