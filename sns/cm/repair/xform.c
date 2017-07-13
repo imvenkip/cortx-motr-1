@@ -194,12 +194,11 @@ static int repair_ag_fc_acc_post(struct m0_sns_cm_repair_ag *rag,
 	     m0_sns_cm_ag_acc_is_full_with(acc, incoming_nr)) ||
 	    (!is_local_cob &&
 	     m0_sns_cm_ag_acc_is_full_with(acc, ag->cag_cp_local_nr))) {
+		fc->fc_is_active = true;
 		rc = res_cp_enqueue(acc);
 		if (rc != 0)
-			return M0_RC(rc);
-		fc->fc_is_active = true;
+			fc->fc_is_active = false;
 	}
-
 	return M0_RC(rc);
 }
 

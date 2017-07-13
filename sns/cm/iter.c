@@ -466,7 +466,6 @@ static int __group_next(struct m0_sns_cm_iter *it)
 	struct m0_pdclust_src_addr     *sa;
 	struct m0_fid                  *gfid;
 	struct m0_pdclust_layout       *pl;
-	struct m0_sns_cm_ag            *sag;
 	uint64_t                        group;
 	uint64_t                        nrlu = 0;
 	bool                            has_incoming = false;
@@ -481,11 +480,8 @@ static int __group_next(struct m0_sns_cm_iter *it)
 	ifc->ifc_groups_nr = m0_sns_cm_nr_groups(pl, fctx->sf_attr.ca_size);
 	sa = &ifc->ifc_sa;
 	gfid = &ifc->ifc_gfid;
-	if (it->si_ag != NULL) {
-		sag = ag2snsag(it->si_ag);
-		M0_ASSERT(sag->sag_base.cag_cp_local_nr == sag->sag_cp_created_nr);
+	if (it->si_ag != NULL)
 		m0_cm_ag_put(it->si_ag);
-	}
 	it->si_ag = NULL;
 	pm = fctx->sf_pm;
 	if (m0_sns_cm_pver_is_dirty(pm->pm_pver))
