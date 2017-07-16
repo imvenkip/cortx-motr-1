@@ -20,8 +20,8 @@ configure_dev1_1() {
 
 configure_dev2_1() {
 	CMU_HOST="172.16.0.41"
-	HOSTS_LIST="172.16.1.[1-7],10.22.192.[51,52,59-63]"
-	CLIENTS_LIST="10.22.192.[51,52,59-63]"
+	CLIENTS_LIST="172.18.3.19[1-4]"
+	HOSTS_LIST="$CMU_HOST,172.16.1.[1,3,4,6,7],$CLIENTS_LIST"
 	CLUSTER_TYPE="real"
 }
 
@@ -205,7 +205,7 @@ setup() {
 		case `hostname` in
 			castor-beta1-cc1.xy01.xyratex.com) cluster=beta1;;
 			castor-dev1-1-cc1.xy01.xyratex.com) cluster=dev1_1;;
-			castor-dev2-1-cc1.xy01.xyratex.com) cluster=dev2_1;;
+			castor-dev2-1-cc1.dco.colo.seagate.com) cluster=dev2_1;;
 			castor-dev2-2-cc1.xy01.xyratex.com) cluster=dev2_2;;
 			castor-dev3-cc1.dco.colo.seagate.com) cluster=dev3;;
 			castor-beta5-cc1.dco.colo.seagate.com) cluster=beta5;;
