@@ -46,6 +46,8 @@ struct m0_build_info {
 	const char  *bi_ldflags;
 	const char  *bi_configure_opts;
 	const char  *bi_build_dir;
+	const char  *bi_lustre_src;
+	const char  *bi_lustre_version;
 };
 
 const struct m0_build_info *m0_build_info_get(void);

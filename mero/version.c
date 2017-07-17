@@ -47,6 +47,8 @@ static const struct m0_build_info build_info = {
 	.bi_ldflags        = M0_VERSION_BUILD_LDFLAGS,
 	.bi_configure_opts = M0_VERSION_BUILD_CONFIGURE_OPTS,
 	.bi_build_dir      = M0_VERSION_BUILD_DIR,
+	.bi_lustre_src     = M0_VERSION_LUSTRE_SRC,
+	.bi_lustre_version = M0_VERSION_LUSTRE_VER,
 
 	.bi_xcode_protocol_checksum      = M0_XCODE_PROTOCOL_CHECKSUM_MD5,
 	.bi_xcode_protocol_be_checksum   = M0_XCODE_PROTOCOL_BE_CHECKSUM_MD5,
@@ -102,6 +104,11 @@ void m0_build_info_print(void)
 	m0_console_printf(BI_PREFIX "CFLAGS: %s\n", bi->bi_cflags);
 	m0_console_printf(BI_PREFIX "LDFLAGS: %s\n", bi->bi_ldflags);
 #endif
+
+	m0_console_printf(BI_PREFIX "\n");
+
+	m0_console_printf(BI_PREFIX "Lustre: %s\n", bi->bi_lustre_src);
+	m0_console_printf(BI_PREFIX "Lustre version: %s\n", bi->bi_lustre_version);
 }
 
 /*
