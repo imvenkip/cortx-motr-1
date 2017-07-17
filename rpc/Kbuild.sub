@@ -16,6 +16,7 @@ m0mero_objects += \
                  rpc/rev_conn.o \
                  rpc/rpc.o \
                  rpc/rpc_machine.o \
+                 rpc/rpc_opcodes_xc.o \
                  rpc/rpclib.o \
                  rpc/service.o \
                  rpc/session.o \

@@ -34,6 +34,8 @@
 #ifndef __MERO_RPC_CORE_OPCODES_H__
 #define __MERO_RPC_CORE_OPCODES_H__
 
+#include "xcode/xcode.h"          /* M0_XCA_ENUM */
+
 enum M0_RPC_OPCODES {
 	/** Mero setup rpc */
 	M0_CS_DS1_REQ_OPCODE                = 3,
@@ -347,7 +349,7 @@ enum M0_RPC_OPCODES {
 	M0_FDMI_SOURCE_DOCK_OPCODE          = 1071,
 
 	M0_OPCODES_NR                       = 2048
-};
+} M0_XCA_ENUM;
 
 /** @} endgroup rpc_layer_core */
 #endif /* __MERO_RPC_CORE_OPCODES_H__ */

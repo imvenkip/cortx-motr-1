@@ -45,6 +45,7 @@
 #include "lib/uuid.h"                  /* m0_node_uuid_string_set */
 
 #include "rpc/item.h"                  /* m0_rpc_item_type_lookup */
+#include "rpc/rpc_opcodes_xc.h"        /* m0_xc_M0_RPC_OPCODES_enum */
 #include "fop/fop.h"
 #include "stob/domain.h"
 #include "stob/stob.h"
@@ -371,11 +372,13 @@ static void rpcop(struct context *ctx, const uint64_t *v, char *buf)
 	struct m0_rpc_item_type *it = m0_rpc_item_type_lookup(v[0]);
 
 	if (it != NULL) {
-		struct m0_fop_type *ft = M0_AMB(ft, it, ft_rpc_item_type);
-		sprintf(buf, "%s", ft->ft_name);
-	} else if (v[0] == 0)
+		char area[64];
+		sprintf(buf, "%s",
+			m0_xcode_enum_print(&m0_xc_M0_RPC_OPCODES_enum,
+					    it->rit_opcode, area));
+	} else if (v[0] == 0) {
 		sprintf(buf, "none");
-	else
+	} else
 		sprintf(buf, "?rpc: %"PRId64, v[0]);
 }
 

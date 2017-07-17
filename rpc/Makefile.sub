@@ -52,9 +52,11 @@ nodist_mero_libmero_la_SOURCES  += \
                                   rpc/at_xc.c \
                                   rpc/ha_xc.c \
                                   rpc/onwire_xc.c \
+                                  rpc/rpc_opcodes_xc.c \
                                   rpc/session_fops_xc.c
 
 XC_FILES   += rpc/at_xc.h \
               rpc/ha_xc.h \
               rpc/onwire_xc.h \
+	      rpc/rpc_opcodes_xc.h \
               rpc/session_fops_xc.h

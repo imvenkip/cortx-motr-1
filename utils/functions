@@ -53,7 +53,7 @@ opcode() {
     local NAME="$1"
 
     [ -n "${M0_SRC_DIR:-}" ] || die 'M0_SRC_DIR: unbound variable'
-    grep -v '#pragma once' $M0_SRC_DIR/rpc/rpc_opcodes.h | cpp |
+    grep -v '#pragma once' $M0_SRC_DIR/rpc/rpc_opcodes.h | cpp -I$M0_SRC_DIR |
         awk "/$NAME/ {print \$3}" | tr -d ,
 }
 
