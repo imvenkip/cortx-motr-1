@@ -175,23 +175,17 @@
 	__rc;                               \
 })
 
-#define M0_RCW(rc) ({                       \
-	typeof(rc) __rc = (rc);             \
-	M0_LOG(M0_WARN, "< rc=%d", __rc);   \
-	__rc;                               \
-})
-
-#define M0_RCW_INFO(rc, fmt, ...) ({                             \
-	typeof(rc) __rc = (rc);                                  \
-	M0_LOG(M0_WARN, "< rc=%d " fmt, __rc, ## __VA_ARGS__ );  \
-	__rc;                                                    \
-})
-
 #define M0_ERR(rc) ({                        \
 	typeof(rc) __rc = (rc);              \
 	M0_ASSERT(__rc != 0);                \
 	M0_LOG(M0_ERROR, "<! rc=%d", __rc);  \
 	__rc;                                \
+})
+
+#define M0_RC_INFO(rc, fmt, ...) ({                                \
+	typeof(rc) __rc = (rc);                                    \
+	M0_LOG(M0_CALL, "< rc=%d " fmt, __rc, ## __VA_ARGS__ );    \
+	__rc;                                                      \
 })
 
 #define M0_ERR_INFO(rc, fmt, ...) ({                               \

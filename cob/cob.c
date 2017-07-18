@@ -1594,9 +1594,9 @@ M0_INTERNAL int m0_cob_name_add(struct m0_cob *cob,
 	m0_buf_init(&val, nskey, m0_cob_nskey_size(nskey));
 	rc = cob_table_insert(&cob->co_dom->cd_object_index, tx, &key, &val);
 	if (rc != 0)
-		return M0_RCW_INFO(rc, "fid="FID_F" cntr=%u",
-				   FID_P(&nsrec->cnr_fid),
-				   (unsigned)cob->co_nsrec.cnr_cntr);
+		return M0_RC_INFO(rc, "fid="FID_F" cntr=%u",
+				  FID_P(&nsrec->cnr_fid),
+				  (unsigned)cob->co_nsrec.cnr_cntr);
 
 	m0_buf_init(&key, nskey, m0_cob_nskey_size(nskey));
 	m0_buf_init(&val, nsrec, sizeof *nsrec);
@@ -1604,10 +1604,10 @@ M0_INTERNAL int m0_cob_name_add(struct m0_cob *cob,
 	if (rc != 0) {
 		m0_buf_init(&key, &oikey, sizeof oikey);
 		cob_table_delete(&cob->co_dom->cd_object_index, tx, &key);
-		return M0_RCW_INFO(rc, "parent="FID_F" name='%*s'",
-				   FID_P(&nskey->cnk_pfid),
-				   nskey->cnk_name.b_len,
-				   (char*)nskey->cnk_name.b_data);
+		return M0_RC_INFO(rc, "parent="FID_F" name='%*s'",
+				  FID_P(&nskey->cnk_pfid),
+				  nskey->cnk_name.b_len,
+				  (char*)nskey->cnk_name.b_data);
 	}
 
 	return rc;
