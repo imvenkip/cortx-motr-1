@@ -161,7 +161,7 @@ static void test_write(int i)
 	m0_clink_init(&clink, NULL);
 	m0_clink_add_lock(&io.si_wait, &clink);
 
-	rc = m0_stob_io_launch(&io, obj, NULL, NULL);
+	rc = m0_stob_io_prepare_and_launch(&io, obj, NULL, NULL);
 	M0_ASSERT(rc == 0);
 
 	m0_chan_wait(&clink);
@@ -194,7 +194,7 @@ static void test_read(int i)
 	m0_clink_init(&clink, NULL);
 	m0_clink_add_lock(&io.si_wait, &clink);
 
-	rc = m0_stob_io_launch(&io, obj, NULL, NULL);
+	rc = m0_stob_io_prepare_and_launch(&io, obj, NULL, NULL);
 	M0_ASSERT(rc == 0);
 
 	m0_chan_wait(&clink);

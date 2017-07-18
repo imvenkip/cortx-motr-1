@@ -297,7 +297,7 @@ static void test_write(int nr, struct m0_dtx *tx)
 	rc = m0_dtx_open_sync(tx);
 	M0_ASSERT(rc == 0);
 
-	rc = m0_stob_io_launch(&io, obj_fore, tx, NULL);
+	rc = m0_stob_io_prepare_and_launch(&io, obj_fore, tx, NULL);
 	M0_ASSERT(rc == 0);
 
 	if (is_local_tx) {
@@ -336,7 +336,7 @@ static void test_read(int nr)
 	m0_clink_init(&clink, NULL);
 	m0_clink_add_lock(&io.si_wait, &clink);
 
-	rc = m0_stob_io_launch(&io, obj_fore, &g_tx, NULL);
+	rc = m0_stob_io_prepare_and_launch(&io, obj_fore, &g_tx, NULL);
 	M0_ASSERT(rc == 0);
 
 	m0_chan_wait(&clink);

@@ -2003,31 +2003,25 @@ static int stob_ad_write_prepare(struct m0_stob_io        *io,
 	return M0_RC(rc);
 }
 
-/**
- * Launch asynchronous IO.
- *
- * Call ad_write_prepare() or ad_read_prepare() to do the bulk of work, then
- * launch back IO just constructed.
- */
-static int stob_ad_io_launch(struct m0_stob_io *io)
+static int stob_ad_io_launch_prepare(struct m0_stob_io *io)
 {
-	struct m0_stob_ad_domain *adom;
-	struct m0_stob_ad_io     *aio     = io->si_stob_private;
 	struct m0_be_emap_cursor  it;
 	struct m0_vec_cursor      src;
 	struct m0_vec_cursor      dst;
 	struct m0_be_emap_caret   map;
-	struct m0_stob_io        *back    = &aio->ai_back;
+	struct m0_stob_ad_domain *adom;
+	struct m0_stob_ad_io     *aio  = io->si_stob_private;
+	struct m0_stob_io        *back = &aio->ai_back;
 	int                       rc;
-	bool                      wentout = false;
 
 	M0_PRE(io->si_stob.iv_vec.v_nr > 0);
 	M0_PRE(!m0_vec_is_empty(&io->si_user.ov_vec));
+	M0_PRE(io->si_state == SIS_PREPARED);
 
 	/* prefix fragments execution mode is not yet supported */
-	M0_ASSERT((io->si_flags & SIF_PREFIX) == 0);
+	M0_PRE((io->si_flags & SIF_PREFIX) == 0);
 	/* only read-write at the moment */
-	M0_ASSERT(io->si_opcode == SIO_READ || io->si_opcode == SIO_WRITE);
+	M0_PRE(io->si_opcode == SIO_READ || io->si_opcode == SIO_WRITE);
 
 	M0_ENTRY("op=%d, stob %p, stob_id="STOB_ID_F,
 		 io->si_opcode, io->si_obj, STOB_ID_P(&io->si_obj->so_id));
@@ -2052,27 +2046,58 @@ static int stob_ad_io_launch(struct m0_stob_io *io)
 		M0_IMPOSSIBLE("Invalid io type.");
 	}
 	stob_ad_cursors_fini(&it, &src, &dst, &map);
-	if (rc == 0) {
-		if (back->si_stob.iv_vec.v_nr > 0) {
-			/**
-			 * Sorts index vecs in incremental order.
-			 * @todo : Needs to check performance impact
-			 *        of sorting each stobio on ad stob.
-			 */
-			m0_stob_iovec_sort(back);
-			rc = m0_stob_io_launch(back, adom->sad_bstore,
-					       io->si_tx, io->si_scope);
-			wentout = rc == 0;
-		} else {
-			/*
-			 * Back IO request was constructed OK, but is empty (all
-			 * IO was satisfied from holes). Notify caller about
-			 * completion.
-			 */
-			M0_ASSERT(io->si_opcode == SIO_READ);
-			stob_ad_endio(&aio->ai_clink);
-		}
+
+	return rc;
+}
+
+/**
+ * Launch asynchronous IO.
+ *
+ * Call ad_write_prepare() or ad_read_prepare() to do the bulk of work, then
+ * launch back IO just constructed.
+ */
+static int stob_ad_io_launch(struct m0_stob_io *io)
+{
+	struct m0_stob_ad_domain *adom;
+	struct m0_stob_ad_io     *aio     = io->si_stob_private;
+	struct m0_stob_io        *back    = &aio->ai_back;
+	int                       rc      = 0;
+	bool                      wentout = false;
+
+	M0_PRE(io->si_stob.iv_vec.v_nr > 0);
+	M0_PRE(!m0_vec_is_empty(&io->si_user.ov_vec));
+	M0_PRE(io->si_state == SIS_BUSY);
+
+	/* prefix fragments execution mode is not yet supported */
+	M0_PRE((io->si_flags & SIF_PREFIX) == 0);
+	/* only read-write at the moment */
+	M0_PRE(io->si_opcode == SIO_READ || io->si_opcode == SIO_WRITE);
+
+	M0_ENTRY("op=%d stob_id="STOB_ID_F,
+		 io->si_opcode, STOB_ID_P(&io->si_obj->so_id));
+
+	adom = stob_ad_domain2ad(m0_stob_dom_get(io->si_obj));
+
+	if (back->si_stob.iv_vec.v_nr > 0) {
+		/**
+		 * Sorts index vecs in incremental order.
+		 * @todo : Needs to check performance impact
+		 *        of sorting each stobio on ad stob.
+		 */
+		m0_stob_iovec_sort(back);
+		rc = m0_stob_io_prepare_and_launch(back, adom->sad_bstore,
+						   io->si_tx, io->si_scope);
+		wentout = rc == 0;
+	} else {
+		/*
+		 * Back IO request was constructed OK, but is empty (all
+		 * IO was satisfied from holes). Notify caller about
+		 * completion.
+		 */
+		M0_ASSERT(io->si_opcode == SIO_READ);
+		stob_ad_endio(&aio->ai_clink);
 	}
+
 	if (!wentout)
 		stob_ad_io_release(aio);
 	return M0_RC(rc);
@@ -2214,6 +2239,7 @@ M0_INTERNAL void m0_stob_ad_oc_seg_last_set(struct m0_stob *stob,
 
 static const struct m0_stob_io_op stob_ad_io_op = {
 	.sio_launch  = stob_ad_io_launch,
+	.sio_prepare = stob_ad_io_launch_prepare,
 	.sio_fini    = stob_ad_io_fini,
 };
 

@@ -627,7 +627,8 @@ do {							\
 	}
 	frame_io_pack(frame);
 	frame->f_io.si_obj = NULL;
-	result = m0_stob_io_launch(&frame->f_io, stor->as_stob, NULL, NULL);
+	result = m0_stob_io_prepare_and_launch(&frame->f_io, stor->as_stob,
+					       NULL, NULL);
 	if (result != 0) {
 		frame_io_open(frame);
 		M0_LOG(M0_ERROR, "Failed to launch: %i.", M0_ERR(result));

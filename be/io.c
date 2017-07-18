@@ -111,7 +111,7 @@ static int be_io_part_launch(struct m0_be_io_part *bip)
 		 (1ULL << bip->bip_bshift) *
 		 (unsigned long long)m0_vec_count(&sio->si_stob.iv_vec));
 
-	rc = m0_stob_io_launch(sio, bip->bip_stob, NULL, NULL);
+	rc = m0_stob_io_prepare_and_launch(sio, bip->bip_stob, NULL, NULL);
 	if (rc != 0)
 		m0_clink_del_lock(&bip->bip_clink);
 	return M0_RC(rc);

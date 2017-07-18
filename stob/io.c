@@ -61,6 +61,39 @@ M0_INTERNAL int m0_stob_io_private_setup(struct m0_stob_io *io,
 	return result;
 }
 
+static void stob_io_addb2_add_and_push(uint64_t           id,
+				       struct m0_stob_io *io,
+				       struct m0_stob    *obj)
+{
+	const struct m0_fid *fid = m0_stob_fid_get(obj);
+	struct m0_indexvec  *iv  = &io->si_stob;
+	struct m0_bufvec    *bv  = &io->si_user;
+
+	M0_ADDB2_ADD(id, FID_P(fid),
+		     m0_vec_count(&bv->ov_vec),
+		     bv->ov_vec.v_nr, iv->iv_vec.v_nr, iv->iv_index[0]);
+	M0_ADDB2_PUSH(id, FID_P(fid),
+		      m0_vec_count(&bv->ov_vec),
+		      bv->ov_vec.v_nr, iv->iv_vec.v_nr, iv->iv_index[0]);
+}
+
+static bool stob_io_invariant(struct m0_stob_io *io, struct m0_stob *obj,
+			      enum m0_stob_io_state state)
+{
+	struct m0_indexvec  *iv  = &io->si_stob;
+	struct m0_bufvec    *bv  = &io->si_user;
+
+	return  m0_stob_state_get(obj) == CSS_EXISTS &&
+		m0_chan_has_waiters(&io->si_wait) &&
+		(io->si_obj == NULL || ergo(state == SIS_PREPARED,
+					    io->si_obj == obj)) &&
+		io->si_state == state &&
+		io->si_opcode != SIO_INVALID &&
+		m0_vec_count(&bv->ov_vec) == m0_vec_count(&iv->iv_vec) &&
+		m0_stob_io_user_is_valid(bv) &&
+		m0_stob_io_stob_is_valid(iv);
+}
+
 M0_INTERNAL void m0_stob_io_init(struct m0_stob_io *io)
 {
 	M0_SET0(io);
@@ -90,44 +123,78 @@ M0_INTERNAL void m0_stob_io_credit(const struct m0_stob_io *io,
 	dom->sd_ops->sdo_stob_write_credit(dom, io, accum);
 }
 
+static void stob_io_fill(struct m0_stob_io    *io,
+			 struct m0_stob       *obj,
+			 struct m0_dtx        *tx,
+			 struct m0_io_scope   *scope,
+			 enum m0_stob_io_state state,
+			 bool                  count_update)
+{
+	io->si_obj   = obj;
+	io->si_tx    = tx;
+	io->si_scope = scope;
+	io->si_state = state;
+	io->si_rc    = 0;
+	if (count_update)
+		io->si_count = 0;
+	io->si_start = m0_time_now();
+}
+
+M0_INTERNAL int m0_stob_io_prepare(struct m0_stob_io *io, struct m0_stob *obj,
+				   struct m0_dtx *tx, struct m0_io_scope *scope)
+{
+	const struct m0_fid *fid = m0_stob_fid_get(obj);
+	uint8_t              type_id;
+	int                  result;
+
+	M0_PRE(stob_io_invariant(io, obj, SIS_IDLE));
+	M0_ENTRY("stob=%p so_id="STOB_ID_F" si_opcode=%d io=%p tx=%p",
+		 obj, STOB_ID_P(m0_stob_id_get(obj)), io->si_opcode, io, tx);
+	stob_io_addb2_add_and_push(M0_AVI_STOB_IO_PREPARE, io, obj);
+	type_id = m0_stob_domain__type_id(
+			m0_stob_domain_id_get(m0_stob_dom_get(obj)));
+	if (io->si_stob_magic != type_id) {
+		m0_stob_io_private_fini(io);
+		result = obj->so_ops->sop_io_init(obj, io);
+		io->si_stob_magic = type_id;
+	} else
+		result = 0;
+
+	if (result == 0) {
+		stob_io_fill(io, obj, tx, scope, SIS_PREPARED, true);
+
+		result = io->si_op->sio_prepare == NULL ? 0 :
+			io->si_op->sio_prepare(io);
+
+		if (result != 0) {
+			M0_LOG(M0_ERROR, "io=%p "FID_F" FAILED rc=%d",
+					 io, FID_P(fid), result);
+			io->si_state = SIS_IDLE;
+		}
+	}
+	m0_addb2_pop(M0_AVI_STOB_IO_PREPARE);
+	M0_POST(ergo(result != 0, io->si_state == SIS_IDLE));
+	return result;
+}
+
 M0_INTERNAL int m0_stob_io_launch(struct m0_stob_io *io, struct m0_stob *obj,
 				  struct m0_dtx *tx, struct m0_io_scope *scope)
 {
 	const struct m0_fid *fid = m0_stob_fid_get(obj);
-	struct m0_indexvec  *iv  = &io->si_stob;
-	struct m0_bufvec    *bv  = &io->si_user;
 	int                  result;
 
-	M0_PRE(m0_stob_state_get(obj) == CSS_EXISTS);
-	M0_PRE(m0_chan_has_waiters(&io->si_wait));
-	M0_PRE(io->si_obj == NULL);
-	M0_PRE(io->si_state == SIS_IDLE);
-	M0_PRE(io->si_opcode != SIO_INVALID);
-	M0_PRE(m0_vec_count(&bv->ov_vec) == m0_vec_count(&iv->iv_vec));
-	M0_PRE(m0_stob_io_user_is_valid(bv));
-	M0_PRE(m0_stob_io_stob_is_valid(iv));
-
+	M0_PRE(stob_io_invariant(io, obj, SIS_PREPARED));
 	M0_ENTRY("stob=%p so_id="STOB_ID_F" si_opcode=%d io=%p tx=%p",
 		 obj, STOB_ID_P(m0_stob_id_get(obj)), io->si_opcode, io, tx);
-	M0_ADDB2_ADD(M0_AVI_STOB_IO_LAUNCH, FID_P(fid),
-		     m0_vec_count(&bv->ov_vec),
-		     bv->ov_vec.v_nr, iv->iv_vec.v_nr, iv->iv_index[0]);
-	M0_ADDB2_PUSH(M0_AVI_STOB_IO_LAUNCH, FID_P(fid),
-		      m0_vec_count(&bv->ov_vec),
-		      bv->ov_vec.v_nr, iv->iv_vec.v_nr, iv->iv_index[0]);
+	stob_io_addb2_add_and_push(M0_AVI_STOB_IO_LAUNCH, io, obj);
 	result = m0_stob_io_private_setup(io, obj);
 
 	if (result == 0) {
-		io->si_obj   = obj;
-		io->si_tx    = tx;
-		io->si_scope = scope;
-		io->si_state = SIS_BUSY;
-		io->si_rc    = 0;
-		io->si_count = 0;
-		io->si_start = m0_time_now();
+		stob_io_fill(io, obj, tx, scope, SIS_BUSY, false);
+
 		result = io->si_op->sio_launch(io);
 		if (result != 0) {
-			M0_LOG(M0_ERROR, "launch io=%p "FID_F" FAILED rc=%d",
+			M0_LOG(M0_ERROR, "io=%p "FID_F" FAILED rc=%d",
 					 io, FID_P(fid), result);
 			io->si_state = SIS_IDLE;
 		}
@@ -135,6 +202,15 @@ M0_INTERNAL int m0_stob_io_launch(struct m0_stob_io *io, struct m0_stob *obj,
 	m0_addb2_pop(M0_AVI_STOB_IO_LAUNCH);
 	M0_POST(ergo(result != 0, io->si_state == SIS_IDLE));
 	return result;
+}
+
+M0_INTERNAL int m0_stob_io_prepare_and_launch(struct m0_stob_io *io,
+					      struct m0_stob *obj,
+					      struct m0_dtx *tx,
+					      struct m0_io_scope *scope)
+{
+	return m0_stob_io_prepare(io, obj, tx, scope) ?:
+		m0_stob_io_launch(io, obj, tx, scope);
 }
 
 M0_INTERNAL bool m0_stob_io_user_is_valid(const struct m0_bufvec *user)
@@ -186,7 +262,7 @@ M0_INTERNAL int m0_stob_io_bufvec_launch(struct m0_stob   *stob,
 	m0_clink_init(&clink, NULL);
 	m0_clink_add_lock(&io.si_wait, &clink);
 
-	rc = m0_stob_io_launch(&io, stob, NULL, NULL);
+	rc = m0_stob_io_prepare_and_launch(&io, stob, NULL, NULL);
 	if (rc == 0) {
 		m0_chan_wait(&clink);
 		rc = io.si_rc;

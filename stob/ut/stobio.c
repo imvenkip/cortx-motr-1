@@ -233,7 +233,7 @@ static void stobio_write(struct stobio_test *test)
 	m0_clink_init(&clink, NULL);
 	m0_clink_add_lock(&io.si_wait, &clink);
 
-	result = m0_stob_io_launch(&io, test->st_obj, NULL, NULL);
+	result = m0_stob_io_prepare_and_launch(&io, test->st_obj, NULL, NULL);
 	M0_UT_ASSERT(result == 0);
 
 	m0_chan_wait(&clink);
@@ -260,7 +260,7 @@ static void stobio_read(struct stobio_test *test)
 	m0_clink_init(&clink, NULL);
 	m0_clink_add_lock(&io.si_wait, &clink);
 
-	result = m0_stob_io_launch(&io, test->st_obj, NULL, NULL);
+	result = m0_stob_io_prepare_and_launch(&io, test->st_obj, NULL, NULL);
 	M0_UT_ASSERT(result == 0);
 
 	m0_chan_wait(&clink);
@@ -559,7 +559,7 @@ void test_single_ivec()
 
 	m0_clink_init(&clink, NULL);
 	m0_clink_add_lock(&io.si_wait, &clink);
-	result = m0_stob_io_launch(&io, test->st_obj, NULL, NULL);
+	result = m0_stob_io_prepare_and_launch(&io, test->st_obj, NULL, NULL);
 	M0_UT_ASSERT(result == 0);
 
 	m0_chan_wait(&clink);
@@ -582,7 +582,7 @@ void test_single_ivec()
 
 	m0_clink_init(&clink, NULL);
 	m0_clink_add_lock(&io.si_wait, &clink);
-	result = m0_stob_io_launch(&io, test->st_obj, NULL, NULL);
+	result = m0_stob_io_prepare_and_launch(&io, test->st_obj, NULL, NULL);
 	M0_UT_ASSERT(result == 0);
 
 	m0_chan_wait(&clink);

@@ -241,10 +241,15 @@ enum m0_stob_io_state {
 	SIS_IDLE,
 	/**
 	   Operation has been queued for execution by a call to
+	   m0_stob_io_prepare().
+	 */
+	SIS_PREPARED,
+	/**
+	   Operation has been queued for execution by a call to
 	   m0_stob_io_launch(), but hasn't yet been completed. adieu owns
 	   m0_stob_io and data pages.
 	 */
-	SIS_BUSY
+	SIS_BUSY,
 };
 
 /**
@@ -411,6 +416,14 @@ struct m0_stob_io_op {
 	   @post ergo(result != 0, io->si_state == SIS_IDLE)
 	 */
 	int  (*sio_launch)(struct m0_stob_io *io);
+	/**
+	   Called by m0_stob_io_prepare() to capture metadata accroding to
+	   internal logic.
+
+	   @pre io->si_state == SIS_PREPARED
+	   @post ergo(result != 0, io->si_state == SIS_BUSY)
+	 */
+	int  (*sio_prepare)(struct m0_stob_io *io);
 };
 
 /**
@@ -438,7 +451,7 @@ M0_INTERNAL void m0_stob_io_credit(const struct m0_stob_io *io,
 /**
    @pre obj->so_state == CSS_EXISTS
    @pre m0_chan_has_waiters(&io->si_wait)
-   @pre io->si_state == SIS_IDLE
+   @pre io->si_state == SIS_PREPARED
    @pre io->si_opcode != SIO_INVALID
    @pre m0_vec_count(&io->si_user.ov_vec) == m0_vec_count(&io->si_stob.ov_vec)
    @pre m0_stob_io_user_is_valid(&io->si_user)
@@ -452,6 +465,30 @@ M0_INTERNAL void m0_stob_io_credit(const struct m0_stob_io *io,
  */
 M0_INTERNAL int m0_stob_io_launch(struct m0_stob_io *io, struct m0_stob *obj,
 				  struct m0_dtx *tx, struct m0_io_scope *scope);
+
+/**
+   @pre obj->so_state == CSS_EXISTS
+   @pre m0_chan_has_waiters(&io->si_wait)
+   @pre io->si_state == SIS_IDLE
+   @pre io->si_opcode != SIO_INVALID
+   @pre m0_vec_count(&io->si_user.ov_vec) == m0_vec_count(&io->si_stob.ov_vec)
+   @pre m0_stob_io_user_is_valid(&io->si_user)
+   @pre m0_stob_io_stob_is_valid(&io->si_stob)
+
+   @post ergo(result != 0, io->si_state == SIS_IDLE)
+ */
+M0_INTERNAL int m0_stob_io_prepare(struct m0_stob_io *io,
+				   struct m0_stob *obj,
+				   struct m0_dtx *tx,
+				   struct m0_io_scope *scope);
+
+/**
+   @see m0_stob_io_prepare() and m0_stob_io_launch().
+ */
+M0_INTERNAL int m0_stob_io_prepare_and_launch(struct m0_stob_io *io,
+					      struct m0_stob *obj,
+					      struct m0_dtx *tx,
+					      struct m0_io_scope *scope);
 
 /**
    Returns true if user is a valid vector of user IO buffers.

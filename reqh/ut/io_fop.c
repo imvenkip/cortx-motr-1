@@ -416,8 +416,9 @@ static int stob_read_fom_tick(struct m0_fom *fom)
 			m0_mutex_lock(&stio->si_mutex);
 			m0_fom_wait_on(fom, &stio->si_wait, &fom->fo_cb);
 			m0_mutex_unlock(&stio->si_mutex);
-			result = m0_stob_io_launch(stio, stobj,
-						   &fom->fo_tx, NULL);
+			result = m0_stob_io_prepare_and_launch(stio, stobj,
+							       &fom->fo_tx,
+							       NULL);
 
 			if (result != 0) {
 				m0_mutex_lock(&stio->si_mutex);
@@ -547,8 +548,9 @@ static int stob_write_fom_tick(struct m0_fom *fom)
 			m0_mutex_lock(&stio->si_mutex);
 			m0_fom_wait_on(fom, &stio->si_wait, &fom->fo_cb);
 			m0_mutex_unlock(&stio->si_mutex);
-			result = m0_stob_io_launch(stio,
-						   stobj, &fom->fo_tx, NULL);
+			result = m0_stob_io_prepare_and_launch(stio, stobj,
+							       &fom->fo_tx,
+							       NULL);
 
 			if (result != 0) {
 				m0_mutex_lock(&stio->si_mutex);

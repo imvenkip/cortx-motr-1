@@ -289,8 +289,9 @@ static int cp_io(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
 						  &sns_cp->sc_ad_seg_last);
 			}
 			if (rc == 0) {
-				rc = m0_stob_io_launch(stio, stob,
-						       &cp_fom->fo_tx, NULL);
+				rc = m0_stob_io_prepare_and_launch(stio, stob,
+							   &cp_fom->fo_tx,
+							   NULL);
 			}
 		} else {
 			M0_LOG(M0_ERROR, "Launching IO against the stob with"
