@@ -40,6 +40,7 @@ else
 [[ -d $HOME/rpmbuild ]] && rm -rf $HOME/rpmbuild/*
 ./configure --enable-detailed-backtrace |& tee -a $ARTIFACTS/configure.log
 make -j |& tee $ARTIFACTS/make.log
+cp -v xcode/protocol*.txt $ARTIFACTS/
 make -j rpms |& tee $ARTIFACTS/rpm.log
 cp -av $HOME/rpmbuild/RPMS/x86_64/mero*.rpm $ARTIFACTS/
 cp -av $HOME/rpmbuild/SRPMS/mero*.rpm $ARTIFACTS/
