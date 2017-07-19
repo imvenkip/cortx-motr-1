@@ -1,0 +1,26 @@
+#
+# Mero runtime
+#
+---
+- name: dynamically load variables depending on the OS type
+  include_vars: '{{ item  }}'
+  with_first_found: '{{ ansible_os_family }}.yml'
+
+- name: install Mero run-time dependencies
+  package:
+    state: present
+    name:  '{{ mero_runtime_deps_pkgs }}'
+  tags: breaks-dry-run
+
+- name: get current kernel version
+  command:  uname -r
+  register: kernel_version
+  changed_when: false
+
+- name: install kernel-debuginfo package
+  package:
+    state: present
+    name:  kernel-debuginfo-{{ kernel_version.stdout }}
+  tags:
+    - debug
+    - breaks-dry-run

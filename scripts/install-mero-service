@@ -12,10 +12,14 @@
 # constants
 readonly PROG_NAME=$(basename $0)
 
+M0_SRC_DIR="$(readlink -f $0)"
+M0_SRC_DIR="${M0_SRC_DIR%/*/*}"
+
 # variables
 dry_run=false
 link_files=false
 action='install'
+with_lnet_service=false
 
 
 #
@@ -42,6 +46,9 @@ Usage: $PROG_NAME [-h|--help] [-n|--dry-run]
     -u|--uninstall      Remove files and directories which were installed by
                         this script.
 
+    -L|--with-lnet      Install lnet.service (needed with non Intel Lustre
+                        version).
+
     -h|--help           Print this help screen.
 USAGE_END
 }
@@ -56,7 +63,7 @@ parse_cli_options()
     # Note that we use `"$@"' to let each command-line parameter expand to a
     # separate word. The quotes around `$@' are essential!
     # We need TEMP as the `eval set --' would nuke the return value of getopt.
-    TEMP=$( getopt -o hnlu --long help,dry-run,link,uninstall -n "$PROG_NAME" -- "$@" )
+    TEMP=$( getopt -o hnluL --long help,dry-run,link,uninstall,with-lnet -n "$PROG_NAME" -- "$@" )
 
     [[ $? != 0 ]] && help
 
@@ -69,6 +76,7 @@ parse_cli_options()
             -n|--dry-run)       dry_run=true; shift ;;
             -l|--link)          link_files=true; shift ;;
             -u|--uninstall)     action=uninstall; shift ;;
+            -L|--with-lnet)     with_lnet_service=true; shift ;;
             --)                 shift; break ;;
             *)                  echo 'getopt: internal error...'; exit 1 ;;
         esac
@@ -102,17 +110,23 @@ install_files()
 
     local dir='/etc/sysconfig'
     local file='scripts/install/etc/sysconfig/mero'
+    # don't install LNet service by default, assume that we use Intel's Lustre
+    # which provides it's own one
+    local lnet_service=''
 
-    run "$cmd $(pwd)/$file $dir"
+    run "$cmd $M0_SRC_DIR/$file $dir"
 
     if ! $dry_run ; then
-        /bin/sed -i -e "s%#MERO_DEVEL_WORKDIR_PATH=.*$%MERO_DEVEL_WORKDIR_PATH=$(pwd)%" /etc/sysconfig/mero
+        /bin/sed -i -e "s%#MERO_DEVEL_WORKDIR_PATH=.*$%MERO_DEVEL_WORKDIR_PATH=$M0_SRC_DIR%" /etc/sysconfig/mero
+    fi
+
+    if $with_lnet_service ; then
+        lnet_service='scripts/install/usr/lib/systemd/system/lnet.service'
     fi
 
     dir='/usr/lib/systemd/system'
     if [[ -d $dir ]] ; then
-        for file in 'scripts/install/usr/lib/systemd/system/lnet.service' \
-                    'scripts/install/usr/lib/systemd/system/mero-trace@.service' \
+        for file in 'scripts/install/usr/lib/systemd/system/mero-trace@.service' \
                     'scripts/install/usr/lib/systemd/system/mero-kernel.service' \
                     'scripts/install/usr/lib/systemd/system/mero-cleanup.service' \
                     'scripts/install/usr/lib/systemd/system/mero-mkfs.service' \
@@ -125,9 +139,9 @@ install_files()
                     'scripts/install/usr/lib/systemd/system/mero.service' \
                     'scripts/install/usr/lib/systemd/system/mero-client.service' \
                     'scripts/install/usr/lib/systemd/system/mero-singlenode.service' \
-                    ;
+                    $lnet_service ;
         do
-            run "$cmd $(pwd)/$file $dir"
+            run "$cmd $M0_SRC_DIR/$file $dir"
         done
     fi
 
@@ -136,7 +150,7 @@ install_files()
     for file in 'scripts/install/etc/mero/disks-ios.conf' \
                 'scripts/install/etc/mero/genders' ;
     do
-        run "$cmd $(pwd)/$file $dir"
+        run "$cmd $M0_SRC_DIR/$file $dir"
     done
 
     if ! $dry_run ; then
@@ -156,7 +170,7 @@ install_files()
                 'scripts/install/usr/libexec/mero/mero-client' \
                 ;
     do
-        run "$cmd $(pwd)/$file $dir"
+        run "$cmd $M0_SRC_DIR/$file $dir"
     done
 
     $dry_run || {
@@ -179,8 +193,7 @@ uninstall_files()
                /usr/libexec/mero/mero-client '
 
     if [[ -d /usr/lib/systemd/system ]] ; then
-        file_list+='/usr/lib/systemd/system/lnet.service
-                    /usr/lib/systemd/system/mero-trace@.service
+        file_list+='/usr/lib/systemd/system/mero-trace@.service
                     /usr/lib/systemd/system/mero-kernel.service
                     /usr/lib/systemd/system/mero-cleanup.service
                     /usr/lib/systemd/system/mero-mkfs.service
@@ -193,6 +206,10 @@ uninstall_files()
                     /usr/lib/systemd/system/mero.service
                     /usr/lib/systemd/system/mero-client.service
                     /usr/lib/systemd/system/mero-singlenode.service '
+    fi
+
+    if $with_lnet_service ; then
+        file_list+='/usr/lib/systemd/system/lnet.service'
     fi
 
     for file in $file_list

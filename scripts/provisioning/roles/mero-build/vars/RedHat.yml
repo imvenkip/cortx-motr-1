@@ -1,0 +1,30 @@
+---
+mero_build_deps_pkgs:
+  - asciidoc
+  - autoconf
+  - automake
+  - binutils
+  - binutils-devel
+  - gcc
+  - gcc-c++
+  - gccxml
+  - glibc-headers
+  - kernel-devel
+  - libaio
+  - libaio-devel
+  - libtool
+  - libuuid-devel
+  - libyaml
+  - libyaml-devel
+  - make
+  - perl
+  - perl-File-Find-Rule
+  - perl-File-Slurp
+  - perl-IO-All
+  - perl-List-MoreUtils
+  - perl-XML-LibXML
+  - perl-autodie
+  - python-devel
+  - python-ply
+  - rpm-build
+  - systemd-devel

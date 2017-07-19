@@ -1,0 +1,31 @@
+#
+# Mero build
+#
+---
+- name: dynamically load variables depending on the OS type
+  include_vars: '{{ item  }}'
+  with_first_found: '{{ ansible_os_family }}.yml'
+
+- name: install Mero build-time dependencies
+  package:
+    state: present
+    name:  '{{ mero_build_deps_pkgs }}'
+  tags: breaks-dry-run
+
+- name: check Lustre src dir
+  shell: ls -1rd /usr/src/lustre-* | head -n 1
+  register: lustre_src_dir
+  changed_when: false
+  tags: lustre
+
+- name: build Lustre sources
+  command: '{{ item }}'
+  args:
+    chdir: '{{ lustre_src_dir.stdout }}'
+    creates: Module.symvers
+  with_items:
+    - ./configure
+    - make -j4
+  tags:
+    - lustre
+    - breaks-dry-run

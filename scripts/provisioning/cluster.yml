@@ -1,0 +1,5 @@
+---
+# TODO: use 'import_playbook' instead of 'include' after switching to Ansible 2.4
+- include: cmu.yml
+- include: ssu.yml
+- include: client.yml

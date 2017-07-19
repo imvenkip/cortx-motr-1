@@ -1,0 +1,39 @@
+#
+# Halon build
+#
+---
+- name: dynamically load variables depending on the OS type
+  include_vars: '{{ item  }}'
+  with_first_found: '{{ ansible_os_family }}.yml'
+  tags: halon
+
+- name: configure 'Haskell Stack' repository
+  yum_repository:
+    name:        petersen-stack
+    file:        petersen-stack-epel-7
+    description: Copr repo for stack owned by petersen
+    baseurl:     https://copr-be.cloud.fedoraproject.org/results/petersen/stack/epel-7-$basearch/
+    gpgcheck:    no
+  when: ansible_os_family == 'RedHat'
+  tags: halon
+
+- name: download get-stack.sh
+  get_url:
+    url:  https://get.haskellstack.org
+    dest: /tmp/get-stack.sh
+    mode: 0755
+  tags: halon
+
+- name: install 'Haskell Stack'
+  command: /tmp/get-stack.sh
+  args:
+    creates: /usr/local/bin/stack
+  tags: halon
+
+- name: install Halon build-time dependencies
+  package:
+    state: present
+    name:  '{{ halon_build_deps_pkgs }}'
+  tags:
+    - halon
+    - breaks-dry-run

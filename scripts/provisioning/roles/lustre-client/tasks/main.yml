@@ -1,0 +1,57 @@
+#
+# Lustre client
+#
+---
+- name: dynamically load variables depending on the OS type
+  include_vars: '{{ item  }}'
+  with_first_found: '{{ ansible_os_family }}.yml'
+  tags: lustre
+
+- name: get redhat version
+  # matching version string like '7.4.1708'
+  shell: grep -oP '\d+\.\d+' /etc/redhat-release
+  register: redhat_release
+  changed_when: false
+  tags: lustre
+
+- name: configure 'Lustre' repository
+  yum_repository:
+    name:        lustre-intel-{{ item.version }}
+    file:        lustre-intel
+    description: Intel - Lustre {{ item.version }}
+    baseurl:     https://downloads.hpdd.intel.com/public/lustre/lustre-{{ item.version }}/el7/client/
+    enabled:     '{{ item.enabled }}'
+    # disable signature verification
+    gpgcheck: no
+  with_items:
+    - { version: 2.7.0,  enabled: '{{ (redhat_release.stdout == "7.0") | ternary("yes", "no") }}' }
+    - { version: 2.8.0,  enabled: '{{ (redhat_release.stdout == "7.2") | ternary("yes", "no") }}' }
+    - { version: 2.9.0,  enabled: '{{ (redhat_release.stdout == "7.3") | ternary("yes", "no") }}' }
+    - { version: 2.10.1, enabled: '{{ (redhat_release.stdout == "7.4") | ternary("yes", "no") }}' }
+  when: ansible_os_family == 'RedHat'
+  tags:
+    - lustre
+    - breaks-dry-run
+
+- name: install Lustre
+  package: name={{ lustre_client_pkg }}  state=present
+  tags:
+    - lustre
+    - breaks-dry-run
+
+- name: write modprobe config for LNet module
+  lineinfile:
+    path:   /etc/modprobe.d/lnet.conf
+    create: yes
+    # we want eth1 interface to be used by default by Mero, so specify it first
+    line:   'options lnet networks=tcp(eth1),tcp1(eth0) config_on_load=1'
+  tags: lustre
+
+- name: fix empty /etc/lnet.conf
+  lineinfile:
+    path:   /etc/lnet.conf
+    create: yes
+    # a valid YAML should contain at least document separator,
+    # otherwise `lnetctl import /etc/lnet.conf` would fail inside YAML parser
+    line:   '---'
+  tags: lustre

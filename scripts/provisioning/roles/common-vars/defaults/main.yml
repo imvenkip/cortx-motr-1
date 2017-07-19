@@ -1,0 +1,2 @@
+---
+ssh_master_pub_key_file: master_rsa.pub

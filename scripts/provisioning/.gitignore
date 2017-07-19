@@ -1,0 +1,6 @@
+/.vagrant*
+/*.retry
+/master_rsa.pub
+/console*.log
+/disk*.vdi
+/disk*.vmdk*

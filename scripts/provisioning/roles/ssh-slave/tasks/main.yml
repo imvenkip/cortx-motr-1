@@ -1,0 +1,27 @@
+#
+# SSH slave tasks
+#
+---
+- name: copy SSH master pub key to {{ inventory_hostname }} host
+  authorized_key:
+    user:  '{{ item }}'
+    state: present
+    key:   '{{ lookup("file", ssh_master_pub_key_file) }}'
+  with_items:
+    - '{{ ansible_user }}'
+    # Mero cluster tools require a direct root access to nodes, so adding master
+    # pub key for root as well
+    - root
+  # don't panic if pub key doesn't exist, ignore it
+  ignore_errors: yes
+
+- name: allow root user to login over SSH
+  replace:
+    path:    /etc/ssh/sshd_config
+    regexp:  '^#[ \t]*PermitRootLogin.*$'
+    replace: 'PermitRootLogin yes'
+  register: sshd_config
+
+- name: restart sshd
+  service: name=sshd state=restarted
+  when: sshd_config.changed

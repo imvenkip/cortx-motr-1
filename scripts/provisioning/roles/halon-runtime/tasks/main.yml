@@ -1,0 +1,27 @@
+#
+# Halon runtime
+#
+---
+- name: dynamically load variables depending on the OS type
+  include_vars: '{{ item  }}'
+  with_first_found: '{{ ansible_os_family }}.yml'
+  tags: halon
+
+- name: install Halon run-time dependencies
+  package:
+    state: present
+    name:  '{{ halon_runtime_deps_pkgs }}'
+  tags:
+    - halon
+    - breaks-dry-run
+
+# this is required for `stack` util, that is installed in '/usr/local/bin', to
+# be accessible with `sudo`, which uses secure path instead of the usual PATH
+# environment variable; it's enabled only in development environment though
+# (i.e. under Vagrant)
+- name: add /usr/local/s?bin/ into secure path
+  lineinfile:
+    path: /etc/security/pam_env.conf
+    line: PATH  DEFAULT=/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin
+  when: ansible_user == 'vagrant'
+  tags: halon

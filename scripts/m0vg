@@ -1,0 +1,208 @@
+#!/usr/bin/env bash
+
+### wrapper to run Vagrant commands with mero configs
+
+#
+# Global vars
+#
+
+# constants
+readonly PROG_NAME="$(basename $0)"
+readonly SELF="$(readlink -f $0)"
+readonly TOP_SRCDIR="${SELF%/*/*}"
+readonly VAGRANT_DIR="$TOP_SRCDIR/scripts/provisioning"
+readonly VAGRANT_DEFAULT_DOTFILE_DIR="$VAGRANT_DIR/.vagrant"
+readonly VAGRANT_DEFAULT_ENV_FILE="$VAGRANT_DIR/.env"
+readonly VAGRANT_MERO_DOTFILE_DIR="$(dirname $TOP_SRCDIR)/.vagrant-mero" # one level up from top srcdir
+readonly VAGRANT_MERO_ENV_FILE="$(dirname $TOP_SRCDIR)/.vagrant-mero-env"
+readonly VAGRANT_ANSIBLE_INVENTORY_FILE="$VAGRANT_DEFAULT_DOTFILE_DIR/provisioners/ansible/inventory/vagrant_ansible_inventory"
+
+# variables
+verbose=false
+cli_args=
+cmd=vagrant
+
+#
+# Usage
+#
+
+help()
+{
+    [[ $1 == stdout ]] && usage || usage >&2
+    exit 1
+}
+
+usage()
+{
+    cat <<USAGE_END
+Usage: $PROG_NAME [options] vagrant-cmd [vagrant-cmd-options]
+       $PROG_NAME [options] ansible ansible-args
+       $PROG_NAME list-params
+
+  Helper tool to run 'vagrant' or 'ansible-playbook' commands with mero
+  provisioning configs (see scripts/provisioning/README.md).
+
+  'list-params' sub-command shows environment variables recognized by mero
+  Vagrantfile config which can be specified either in command-line or in '.env'
+  file to control default vagrant behaviour.
+
+  Options:
+
+    -v|--verbose        Print what's going on.
+
+    -h|--help           Print this help screen.
+USAGE_END
+}
+
+#
+# Parse CLI options
+#
+
+parse_cli_options()
+{
+    while true ; do
+        case "$1" in
+            -v|--verbose)       verbose=true; shift ;;
+            -h|--help)          help stdout ;;
+            ansible)            cmd=ansible-playbook; shift ; break ;;
+
+            list-params)        grep -oE '\bM0_\w+\b' "$VAGRANT_DIR/Vagrantfile" | sort -u
+                                exit 0
+                                ;;
+
+            *)                  break ;;
+        esac
+    done
+
+    # remaining command line arguments
+    cli_args="$@"
+}
+
+#
+# Utility functions
+#
+
+die()
+{
+    echo -e "$PROG_NAME: ERROR: $@" >&2
+    exit 1
+}
+
+log()
+{
+    ! $verbose || echo -e "$PROG_NAME: $@"
+}
+
+check_dependencies()
+{
+    local ok=true
+    local msg=''
+
+    if ! which vagrant &> /dev/null ; then
+        ok=false
+        msg+="\n* 'vagrant' is not found, it can be installed with either of:\n"
+        msg+="  - direct download from https://www.vagrantup.com/downloads.html\n"
+        if [[ $(uname) == Darwin ]] ; then
+            msg+="  - using homebrew: brew cask install vagrant\n"
+        fi
+    fi
+
+    if ! which ansible &> /dev/null ; then
+        ok=false
+        msg+="\n* 'ansible' is not found, it can be installed with either of:\n"
+        msg+="  - python packet manager: pip install --user ansible\n"
+        msg+="    make sure that '\$HOME/.local/bin' is in your PATH\n"
+        if [[ $(uname) == Darwin ]] ; then
+            msg+="  - using homebrew: brew install ansible\n"
+            msg+="  - using macports: port install ansible\n"
+        fi
+    fi
+
+    $ok || die "Mero provisioning tools depend on Vagrant and Ansible," \
+               "please install the missing ones:\n$msg"
+}
+
+check_vagrant_dotdir()
+{
+    if [[ -e $VAGRANT_DEFAULT_DOTFILE_DIR ]] ; then
+        if [[ ! -L $VAGRANT_DEFAULT_DOTFILE_DIR ]] ; then
+            if [[ -e $VAGRANT_MERO_DOTFILE_DIR ]] ; then
+                die "both $VAGRANT_DEFAULT_DOTFILE_DIR and $VAGRANT_MERO_DOTFILE_DIR exist," \
+                    "please check and leave only one of them"
+            else
+                log "moving existing vagrant dotfiles dir to $VAGRANT_MERO_DOTFILE_DIR"
+                if $verbose ; then
+                    local v=-v
+                fi
+                mv $v $VAGRANT_DEFAULT_DOTFILE_DIR $VAGRANT_MERO_DOTFILE_DIR
+                ln -s $v $VAGRANT_MERO_DOTFILE_DIR $VAGRANT_DEFAULT_DOTFILE_DIR
+            fi
+        else
+            : # leaving existing link intact
+        fi
+    else
+        log "setting up vagrant dotfiles dir in $VAGRANT_MERO_DOTFILE_DIR"
+        if $verbose ; then
+            local v=-v
+        fi
+        [[ -d $VAGRANT_MERO_DOTFILE_DIR ]] || mkdir $v $VAGRANT_MERO_DOTFILE_DIR
+        ln -s $v $VAGRANT_MERO_DOTFILE_DIR $VAGRANT_DEFAULT_DOTFILE_DIR
+    fi
+}
+
+check_vagrant_envfile()
+{
+    if [[ -e $VAGRANT_DEFAULT_ENV_FILE ]] ; then
+        if [[ ! -L $VAGRANT_DEFAULT_ENV_FILE ]] ; then
+            if [[ -e $VAGRANT_MERO_ENV_FILE ]] ; then
+                die "both $VAGRANT_DEFAULT_ENV_FILE and $VAGRANT_MERO_ENV_FILE exist," \
+                    "please check and leave only one of them"
+            else
+                log "moving existing vagrant env file to $VAGRANT_MERO_ENV_FILE"
+                if $verbose ; then
+                    local v=-v
+                fi
+                mv $v $VAGRANT_DEFAULT_ENV_FILE $VAGRANT_MERO_ENV_FILE
+                ln -s $v $VAGRANT_MERO_ENV_FILE $VAGRANT_DEFAULT_ENV_FILE
+            fi
+        else
+            : # leaving existing link intact
+        fi
+    else
+        log "setting up vagrant env file in $VAGRANT_MERO_ENV_FILE"
+        if $verbose ; then
+            local v=-v
+        fi
+        [[ -f $VAGRANT_MERO_ENV_FILE ]] || touch $VAGRANT_MERO_ENV_FILE
+        ln -s $v $VAGRANT_MERO_ENV_FILE $VAGRANT_DEFAULT_ENV_FILE
+    fi
+}
+
+#
+# Main
+#
+
+# exit immediately if one the commands exits with a non-zero status
+set -e
+
+parse_cli_options "$@"
+eval set -- "$cli_args"
+
+check_dependencies
+cd $VAGRANT_DIR
+
+case $cmd in
+    vagrant)
+        check_vagrant_dotdir
+        check_vagrant_envfile
+        $cmd "$@"
+        ;;
+
+    ansible*)
+        check_vagrant_dotdir
+        check_vagrant_envfile
+        $cmd --inventory-file="$VAGRANT_ANSIBLE_INVENTORY_FILE" "$@"
+        ;;
+
+    *) die "Unknown mode: '$cmd'" ;;
+esac

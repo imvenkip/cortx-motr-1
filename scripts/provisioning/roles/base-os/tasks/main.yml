@@ -1,0 +1,128 @@
+#
+# Base OS tasks
+#
+---
+- name: dynamically load variables depending on the OS type
+  include_vars: '{{ item  }}'
+  with_first_found: '{{ ansible_os_family }}.yml'
+
+- name: switch to CentOS-Vault release repositories
+  when: ansible_os_family == 'RedHat'
+  tags: vault-release
+  block:
+    - name: get redhat version
+      # matching version string like '7.4.1708'
+      shell: grep -oP '\d+\.\d+' /etc/redhat-release
+      register: redhat_release
+      changed_when: false
+
+    - name: get rolling rehdhat version
+      # matching version string like '7.4.1708'
+      shell: grep -oP '(?<=7\.\d\.)\d+' /etc/redhat-release
+      register: redhat_rolling_release
+      changed_when: false
+
+    - name: get closest release repo
+      # find first vault release that is less or equal to the current redhat release version
+      shell: |
+        for version in {{ redhat_vault_repo_versions|reverse|join(' ') }} ; do
+          if [[ $version =~ {{ redhat_release.stdout }} &&
+                # get the last part of a version string, e.g. for '7.4.1611' it is '1611'
+                $(echo $version | grep -oP '\d+$') -le {{ redhat_rolling_release.stdout }} ]]
+          then
+            echo $version
+            break
+          fi
+        done
+      register: redhat_vault_repo
+      changed_when: false
+
+    - name: disable latest release repositories
+      ini_file:
+        path:    /etc/yum.repos.d/CentOS-Base.repo
+        section: '{{ item }}'
+        option:  enabled
+        value:   0
+      with_items:
+        - base
+        - updates
+        - extras
+      when: redhat_vault_repo.stdout != ""
+
+    - name: enable {{ redhat_vault_repo.stdout }} vault repositories
+      yum_repository:
+        file:        CentOS-Vault
+        name:        '{{ redhat_vault_repo.stdout }}-{{ item }}'
+        description: CentOS-{{ redhat_vault_repo.stdout | regex_replace('^C(.*)$', '\1') }} - {{ item | capitalize }}
+        baseurl:     http://vault.centos.org/{{ redhat_vault_repo.stdout | regex_replace('^C(.*)$', '\1') }}/{{ (item == 'base') | ternary('os', item) }}/$basearch/
+        gpgkey:      file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7
+        gpgcheck:    yes
+      with_items:
+        - base
+        - updates
+        - extras
+      when: redhat_vault_repo.stdout != ""
+
+- name: configure 'EPEL' repository
+  package: name=epel-release  state=present
+  when:    ansible_os_family == 'RedHat'
+
+- name: configure 'Debuginfo' repository
+  yum_repository:
+    name:        debuginfo
+    description: CentOS - Debuginfo
+    baseurl:     http://debuginfo.centos.org/$releasever/$basearch/
+    # debuginfo packages are not signed, need to disable signature verification
+    gpgcheck: no
+  when: ansible_os_family == 'RedHat'
+
+- name: upgrade all packages to latest versions
+  package:  name=*  state=latest  update_cache=yes
+  tags: upgrade
+
+- name: check if reboot is needed
+  # `yum upgrade` might have installed a new kernel which we want to boot to.
+  shell: |
+    [[ $(rpm -q --last kernel | awk 'NR==1{sub(/kernel-/,""); print $1}') == $(uname -r) ]]
+  register: reboot_required
+  ignore_errors: yes
+  changed_when: false
+  # TODO: add suport for debian-based distros
+  when: ansible_os_family == 'RedHat'
+
+- name: install basic tools
+  package:
+    state: present
+    name:  '{{ basic_tools_pkgs }}'
+  tags: breaks-dry-run
+
+- name: start avahi
+  service: name={{ avahi_service }} state=started enabled=yes
+
+- name: enable kernel debug messages on console
+  sysctl:
+    name:  kernel.printk
+    value: 8
+    state: present
+  tags: debug
+
+- name: set sensible defaults for shell environment
+  lineinfile:
+    path:   /etc/profile.d/editor.sh
+    create: yes
+    line:   'export EDITOR=vi'
+
+- name: restart machine
+  when: reboot_required.rc == 1
+  block:
+    - name: reboot machine (in {{ reboot_delay_sec }} seconds)
+      command: systemd-run --on-active={{ reboot_delay_sec }} systemctl reboot
+
+    - name: wait for reboot to start and hopefully finish
+      pause: minutes={{ reboot_wait_min }}
+
+    - name: re-connect to rebooted machine before continuing
+      command:  /bin/true
+      register: online
+      until:    online|success
+  tags: reboot
