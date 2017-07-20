@@ -447,6 +447,13 @@ static int stob_linux_destroy_credit(struct m0_stob *stob,
 	return 0;
 }
 
+static int stob_linux_punch_credit(struct m0_stob *stob,
+				   const struct m0_indexvec *range,
+				   struct m0_be_tx_credit *accum)
+{
+	return stob_linux_destroy_credit(stob, accum);
+}
+
 static int stob_linux_destroy(struct m0_stob *stob, struct m0_dtx *dtx)
 {
 	struct m0_stob_linux *lstob = m0_stob_linux_container(stob);
@@ -624,7 +631,7 @@ static struct m0_stob_ops stob_linux_ops = {
 	.sop_fini           = &stob_linux_fini,
 	.sop_destroy_credit = &stob_linux_destroy_credit,
 	.sop_destroy        = &stob_linux_destroy,
-	.sop_punch_credit   = &stob_linux_destroy_credit,
+	.sop_punch_credit   = &stob_linux_punch_credit,
 	.sop_punch          = &stob_linux_punch,
 	.sop_io_init        = &m0_stob_linux_io_init,
 	.sop_block_shift    = &stob_linux_block_shift,

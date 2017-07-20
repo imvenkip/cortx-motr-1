@@ -24,6 +24,7 @@
 #include "lib/trace.h"
 #include "lib/memory.h" /* m0_free() */
 #include "lib/misc.h"
+#include "lib/finject.h" /* M0_FI_ENABLED */
 
 #include "cob/cob.h"
 #include "fop/fom.h"
@@ -39,6 +40,8 @@
 #include "sns/cm/sns_cp_onwire.h"
 #include "cm/proxy.h"                   /* m0_cm_proxy_locate */
 #include "rpc/rpc_machine_internal.h"
+#include "be/extmap.h"                  /* m0_be_emap_seg */
+#include "stob/ad.h"                    /* m0_stob_ad_oc_seg_last_get */
 
 /**
   @addtogroup SNSCMCP
@@ -125,6 +128,22 @@ M0_INTERNAL int m0_sns_cm_cp_init(struct m0_cm_cp *cp)
 	return cp->c_ops->co_phase_next(cp);
 }
 
+static void sns_cm_cp_stob_punch_credit(struct m0_sns_cm_cp    *sns_cp,
+					struct m0_be_tx_credit *accum)
+{
+	int rc;
+
+	rc = m0_stob_punch_credit(sns_cp->sc_stob,
+				  &sns_cp->sc_stio.si_stob, accum);
+	if (rc == 0) {
+		sns_cp->sc_ad_seg_last =
+			m0_stob_ad_oc_seg_last_get(sns_cp->sc_stob);
+		sns_cp->sc_spare_punch = true;
+	} else {
+		sns_cp->sc_spare_punch = false;
+	}
+}
+
 M0_INTERNAL int m0_sns_cm_cp_tx_open(struct m0_cm_cp *cp)
 {
 	struct m0_fom          *fom = &cp->c_fom;
@@ -148,6 +167,7 @@ M0_INTERNAL int m0_sns_cm_cp_tx_open(struct m0_cm_cp *cp)
 		m0_cob_tx_credit(m0_sns_cm_cp2cdom(cp), M0_COB_OP_CREATE, cred);
 		m0_cob_tx_credit(m0_sns_cm_cp2cdom(cp), M0_COB_OP_DELETE, cred);
 		m0_stob_io_credit(&sns_cp->sc_stio, dom, cred);
+		sns_cm_cp_stob_punch_credit(sns_cp, cred);
 		m0_dtx_open(dtx);
 	}
 

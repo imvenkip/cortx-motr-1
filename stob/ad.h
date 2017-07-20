@@ -217,6 +217,29 @@ M0_INTERNAL void m0_stob_ad_balloc_clear(struct m0_stob_io *io);
  */
 M0_INTERNAL m0_bcount_t m0_stob_ad_spares_calc(m0_bcount_t grp);
 
+/**
+ * @todo Get rid of this function to keep the ad stob type abstraction intact.
+ *
+ * For the scope of MERO-2064 this function is added to solve the concurrency
+ * issue. This returns the ad stob's last accessed segment - oc_seg_last, i.e
+ * the segment up to which the credits for punch operation are granted.
+ * The concurrency issue will be solved via MERO-2601 and this function will be
+ * removed as part of it.
+ */
+M0_INTERNAL struct m0_be_emap_seg
+m0_stob_ad_oc_seg_last_get(struct m0_stob *stob);
+
+/**
+ * @todo Get rid of this function to keep the ad stob type abstraction intact.
+ *
+ * For the scope of MERO-2064 this function is added to solve the concurrency
+ * issue. This sets the input segment to the ad stob's oc_seg_last, i.e. the
+ * segment up to which the credits for punch operation are granted.
+ * The concurrency issue will be solved via MERO-2601 and this function will be
+ * removed as part of it.
+ */
+M0_INTERNAL void m0_stob_ad_oc_seg_last_set(struct m0_stob *stob,
+					    struct m0_be_emap_seg *seg);
 
 /** @} end group stobad */
 

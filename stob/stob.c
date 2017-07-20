@@ -219,9 +219,13 @@ M0_INTERNAL int m0_stob_destroy(struct m0_stob *stob, struct m0_dtx *dtx)
 }
 
 M0_INTERNAL int m0_stob_punch_credit(struct m0_stob *stob,
+				     const struct m0_indexvec *range,
 				     struct m0_be_tx_credit *accum)
 {
-	return stob->so_ops->sop_punch_credit(stob, accum);
+	M0_PRE(m0_stob_state_get(stob) != CSS_UNKNOWN);
+	return range != NULL ?
+		stob->so_ops->sop_punch_credit(stob, range, accum) :
+		stob->so_ops->sop_destroy_credit(stob, accum);
 }
 
 M0_INTERNAL int m0_stob_punch(struct m0_stob *stob,

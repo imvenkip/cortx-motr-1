@@ -33,6 +33,7 @@
 #include "sm/sm.h"
 #include "stob/cache.h"		/* m0_stob_cache */
 #include "fid/fid_xc.h"
+#include "be/extmap.h"          /* m0_be_emap_seg */
 
 #ifndef MAXPATHLEN
 #define MAXPATHLEN 1024
@@ -188,7 +189,8 @@ struct m0_stob_ops {
 	/** @see m0_stob_destroy() */
 	int (*sop_destroy)(struct m0_stob *stob, struct m0_dtx *dtx);
 	/** @see m0_stob_punch_credit() */
-	int (*sop_punch_credit) (struct m0_stob *stob,
+	int (*sop_punch_credit)(struct m0_stob *stob,
+				 const struct m0_indexvec *range,
 				 struct m0_be_tx_credit *accum);
 	/** @see m0_stob_punch() */
 	int (*sop_punch)(struct m0_stob *stob, const struct m0_indexvec *range,
@@ -281,8 +283,14 @@ M0_INTERNAL void m0_stob_delete_mark(struct m0_stob *stob);
  */
 M0_INTERNAL int m0_stob_destroy(struct m0_stob *stob, struct m0_dtx *dtx);
 
-/** Calculates BE tx credit for m0_stob_punch(). */
+/**
+ * Calculates BE tx credit for m0_stob_punch operation.
+ * The method of credits calculation is similar to m0_stob_destroy_credit
+ * operation, except for punch_credit, the credits are calculated only for the
+ * range of segments provided by user.
+ */
 M0_INTERNAL int m0_stob_punch_credit(struct m0_stob *stob,
+				     const struct m0_indexvec *range,
 				     struct m0_be_tx_credit *accum);
 
 /** Punches a hole within a  stob at specified 'range'  */

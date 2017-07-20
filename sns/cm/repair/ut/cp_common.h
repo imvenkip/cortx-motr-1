@@ -52,6 +52,7 @@ void layout_gen(struct m0_pdclust_layout **pdlay, struct m0_reqh *reqh);
 void layout_destroy(struct m0_pdclust_layout *pdlay);
 
 int cs_init(struct m0_mero *sctx);
+int cs_init_with_ad_stob(struct m0_mero *sctx);
 void cs_fini(struct m0_mero *sctx);
 
 #endif /* __MERO_SNS_CM_UT_CP_COMMON_H__ */

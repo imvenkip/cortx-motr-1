@@ -37,6 +37,7 @@
 #include "ioservice/fid_convert.h" /* m0_fid_convert_stob2cob */
 #include "cob/cob.h"               /* m0_cob_tx_credit */
 #include "balloc/balloc.h"         /* M0_BALLOC_SPARE_ZONE */
+#include "stob/ad.h"               /* m0_stob_ad_oc_seg_last_set */
 
 /**
  * @addtogroup SNSCMCP
@@ -201,6 +202,19 @@ static int cob_stob_check(struct m0_cm_cp *cp)
 				     pver, true, &cob);
 }
 
+static int cp_stob_release_exts(struct m0_stob *stob,
+				 struct m0_indexvec *range,
+				 struct m0_dtx *dtx,
+				 struct m0_be_emap_seg *seg)
+{
+	if (M0_FI_ENABLED("no-stob-punch"))
+		return 0;
+	M0_PRE(m0_stob_state_get(stob) != CSS_UNKNOWN);
+
+	m0_stob_ad_oc_seg_last_set(stob, seg);
+	return stob->so_ops->sop_punch(stob, range, dtx);
+}
+
 static bool cp_stob_io_is_initialised(struct m0_stob_io *io)
 {
 	return M0_IN(io->si_state, (SIS_IDLE, SIS_BUSY));
@@ -269,8 +283,15 @@ static int cp_io(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
 			if (m0_stob_domain_is_of_type(stob->so_domain,
 						      &m0_stob_ad_type))
 				m0_stob_ad_balloc_set(stio, balloc_flags);
-			rc = m0_stob_io_launch(stio, stob, &cp_fom->fo_tx,
-					       NULL);
+			if (op == SIO_WRITE && sns_cp->sc_spare_punch) {
+				rc = cp_stob_release_exts(stob, &stio->si_stob,
+						  &cp_fom->fo_tx,
+						  &sns_cp->sc_ad_seg_last);
+			}
+			if (rc == 0) {
+				rc = m0_stob_io_launch(stio, stob,
+						       &cp_fom->fo_tx, NULL);
+			}
 		} else {
 			M0_LOG(M0_ERROR, "Launching IO against the stob with"
 					 "id "FID_F"is not feasible",

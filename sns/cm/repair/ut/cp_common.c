@@ -30,16 +30,27 @@
 
 /* Global structures for setting up mero service. */
 const char log_file_name[] = "sr_ut.errlog";
-char      *sns_cm_ut_svc[] = { "m0d", "-T", "LINUX",
-                               "-D", "sr_db", "-S", "sr_stob",
-                               "-A", "linuxstob:sr_addb_stob",
-			       "-f", M0_UT_CONF_PROCESS,
-			       "-w", "10",
-			       "-G", "lnet:0@lo:12345:34:1",
-                               "-e", "lnet:0@lo:12345:34:1",
-                               "-H", "0@lo:12345:34:1",
-			       "-P", M0_UT_CONF_PROFILE,
-			       "-c", M0_UT_PATH("conf.xc")};
+char      *sns_cm_ut_svc_ad[] = { "m0d", "-T", "AD",
+                                  "-D", "sr_db", "-S", "sr_stob",
+                                  "-A", "linuxstob:sr_addb_stob",
+			          "-f", M0_UT_CONF_PROCESS,
+			          "-w", "10",
+			          "-G", "lnet:0@lo:12345:34:1",
+                                  "-e", "lnet:0@lo:12345:34:1",
+                                  "-H", "0@lo:12345:34:1",
+			          "-P", M0_UT_CONF_PROFILE,
+			          "-c", M0_UT_PATH("conf.xc")};
+
+char      *sns_cm_ut_svc_linux[] = { "m0d", "-T", "LINUX",
+                                     "-D", "sr_db", "-S", "sr_stob",
+				     "-A", "linuxstob:sr_addb_stob",
+				     "-f", M0_UT_CONF_PROCESS,
+				     "-w", "10",
+				     "-G", "lnet:0@lo:12345:34:1",
+				     "-e", "lnet:0@lo:12345:34:1",
+				     "-H", "0@lo:12345:34:1",
+				     "-P", M0_UT_CONF_PROFILE,
+				     "-c", M0_UT_PATH("conf.xc")};
 
 struct m0_net_xprt *sr_xprts[] = {
         &m0_net_lnet_xprt,
@@ -52,6 +63,10 @@ enum {
 	PDCLUST_K = 2,
 	PDCLUST_P = 24,
 	PDCLUST_UNIT_SIZE = 4096,
+};
+enum {
+	LINUX_STOB = 1,
+	AD_STOB = 2,
 };
 void bv_populate(struct m0_bufvec *b, char data, uint32_t seg_nr,
 		 uint32_t seg_size)
@@ -155,11 +170,7 @@ struct m0_sns_cm *reqh2snscm(struct m0_reqh *reqh)
 	return cm2sns(cm);
 }
 
-/*
- * Starts mero service, which internally creates and sets up stob domain.
- * This stob domain is used in read and write phases of the copy packet.
- */
-int cs_init(struct m0_mero *sctx)
+static int cs_init_setup_env(struct m0_mero *sctx, int stob_type)
 {
 	int rc;
 
@@ -172,14 +183,37 @@ int cs_init(struct m0_mero *sctx)
 	if (rc != 0)
 		return rc;
 
-	rc = m0_cs_setup_env(sctx, ARRAY_SIZE(sns_cm_ut_svc),
-			     sns_cm_ut_svc);
+	if (stob_type == LINUX_STOB) {
+		rc = m0_cs_setup_env(sctx, ARRAY_SIZE(sns_cm_ut_svc_linux),
+				     sns_cm_ut_svc_linux);
+	} else {
+		rc = m0_cs_setup_env(sctx, ARRAY_SIZE(sns_cm_ut_svc_ad),
+				     sns_cm_ut_svc_ad);
+	}
 	if (rc == 0)
 		rc = m0_cs_start(sctx);
 	if (rc != 0)
 		cs_fini(sctx);
 
 	return rc;
+}
+
+/*
+ * Starts mero service, which internally creates and sets up linux stob domain.
+ * This stob domain is used in read and write phases of the copy packet.
+ */
+int cs_init(struct m0_mero *sctx)
+{
+	return cs_init_setup_env(sctx, LINUX_STOB);
+}
+
+/*
+ * Starts mero service, which internally creates and sets up ad stob domain.
+ * This stob domain is used in read and write phases of the copy packet.
+ */
+int cs_init_with_ad_stob(struct m0_mero *sctx)
+{
+	return cs_init_setup_env(sctx, AD_STOB);
 }
 
 /* Finalises the mero service. */

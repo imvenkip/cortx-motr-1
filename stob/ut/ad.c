@@ -358,7 +358,7 @@ start_again:
 	tx = &g_tx;
 	M0_SET0(tx);
 	m0_dtx_init(tx, &ut_be.but_dom, grp);
-	rc = obj_fore->so_ops->sop_punch_credit(obj_fore, &tx->tx_betx_cred);
+	rc = m0_stob_punch_credit(obj_fore, NULL, &tx->tx_betx_cred);
 	M0_ASSERT(rc == 0 || rc == -EAGAIN);
 	if (rc == -EAGAIN)
 		credit_is_enough = false;

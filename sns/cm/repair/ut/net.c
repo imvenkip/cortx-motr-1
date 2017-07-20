@@ -987,6 +987,7 @@ static void test_cp_send_recv_verify()
 	m0_fi_enable("m0_sns_cm_tgt_ep", "local-ep");
 	m0_fi_enable("cpp_data_next", "enodata");
 	m0_fi_enable("m0_ha_local_state_set", "no_ha");
+	m0_fi_enable("cp_stob_release_exts", "no-stob-punch");
 
 	test_init(true);
 	M0_UT_ASSERT(recv_scm->sc_obp.sb_bp.nbp_buf_nr != 4);
@@ -1059,6 +1060,7 @@ static void test_cp_send_recv_verify()
 	layout_destroy(pdlay);
 	test_fini();
 
+	m0_fi_disable("cp_stob_release_exts", "no-stob-punch");
 	m0_fi_disable("m0_sns_cm_tgt_ep", "local-ep");
 	m0_fi_disable("cpp_data_next", "enodata");
 	m0_fi_disable("m0_ha_local_state_set", "no_ha");

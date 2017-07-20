@@ -1087,8 +1087,7 @@ static int ce_stob_edit_credit(struct m0_fom *fom, struct m0_fom_cob_op *cc,
 	M0_ASSERT(stob != NULL);
 	M0_ASSERT(M0_IN(m0_stob_state_get(stob), (CSS_EXISTS, CSS_DELETE)));
 
-	rc = cot == M0_COB_OP_TRUNCATE ? m0_stob_punch_credit(stob, accum) :
-					 m0_stob_destroy_credit(stob, accum);
+	rc = m0_stob_punch_credit(stob, NULL, accum);
 	return M0_RC(rc);
 }
 

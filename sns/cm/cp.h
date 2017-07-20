@@ -26,6 +26,7 @@
 
 #include "cm/cp.h"
 #include "be/engine.h" /* struct m0_stob_io */
+#include "be/extmap.h" /* struct m0_be_emap */
 
 /**
    @defgroup SNSCMCP SNS copy machine Copy packet
@@ -62,6 +63,33 @@ struct m0_sns_cm_cp {
 
 	/** Stob context. */
 	struct m0_stob        *sc_stob;
+
+	/**
+	 * This is a copy of oc_seg_last - the last accessed segment for ad
+	 * stob during punch credit operation. This is the segment up to which
+	 * the credits for delete/punch operation are granted, the delete/punch
+	 * operation will prevent deletion of segments beyond this segment to
+	 * avoid overrunning of alloted credits.
+	 *
+	 * The purpose of keeping one copy here is to avoid reusing the same
+	 * oc_seg_last (stored in ad stob) for two differnent punch operations
+	 * (through two different copy packets) on the same stob. Before the
+	 * punch operation is invoked this copy will be put back in ad stob as
+	 * oc_seg_last.
+	 */
+	struct m0_be_emap_seg  sc_ad_seg_last;
+
+	/**
+	 * Flag to decide if punch operation on spare extent should be called.
+	 * The value of the flag is decided by the return value from
+	 * m0_stob_punch_credit(), if it returns 0 then flag will be set to
+	 * true and stob will be punched for the extents allocated for spare
+	 * space in previous sns operation. If it reurns -ENOENT which means
+	 * there are no extents allocated for the spare (very first write
+	 * on spare space) the flag will be set to false, so punch operaion
+	 * will not be called in this case.
+	 */
+	bool                   sc_spare_punch;
 
 	/** FOL record frag for storage objects. */
 	struct m0_fol_frag     sc_fol_frag;

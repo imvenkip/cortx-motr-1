@@ -278,11 +278,10 @@ static void test_cp_write_read(void)
 	struct m0_pdclust_layout *pdlay;
 	int                       rc;
 
-	rc = cs_init(&sctx);
+	rc = cs_init_with_ad_stob(&sctx);
 	M0_ASSERT(rc == 0);
 
 	m0_fi_enable("m0_sns_cm_tgt_ep", "local-ep");
-
 	m0_fid_gob_make(&gob_fid, 1, M0_MDSERVICE_START_FID.f_key);
 	m0_fid_convert_gob2cob(&gob_fid, &cob_fid, 1);
 	reqh = m0_cs_reqh_get(&sctx);
@@ -302,6 +301,20 @@ static void test_cp_write_read(void)
 	 * This verifies the correctness of both write and read operation.
 	 */
 	bv_compare(&r_buf.nb_buffer, &w_buf.nb_buffer, SEG_NR, SEG_SIZE);
+
+	/*
+	 * Ensure the subsequent write on the same offsets frees the previously
+	 * used extent before allocating the new extent.
+	 */
+	m0_fi_enable("ext_punch", "test-ext-release");
+	M0_SET0(&w_sns_cp);
+	M0_SET0(&r_sns_cp);
+	layout_gen(&pdlay, reqh);
+	write_post(pdlay);
+
+	read_post(pdlay);
+	layout_destroy(pdlay);
+	m0_fi_disable("ext_punch", "test-ext-release");
 
 	/* IO failure due to cp_stob_io_init() failure in sns/cm/storage.c */
 	m0_fi_enable("cp_stob_io_init", "no-stob");

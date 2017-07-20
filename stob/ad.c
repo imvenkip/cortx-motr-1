@@ -27,6 +27,7 @@
 
 #include "fid/fid.h"		/* m0_fid */
 
+#include "lib/finject.h"
 #include "lib/errno.h"
 #include "lib/locality.h"	/* m0_locality0_get */
 #include "lib/memory.h"
@@ -704,6 +705,75 @@ static int stob_ad_create(struct m0_stob *stob,
 				 bo_u.u_emap.e_rc);
 }
 
+/**
+ * Function to calculate credit required for punch operation.
+ * The method of credits calculation is similar to m0_stob_destroy_credit
+ * operation, except for punch_credit, the credits are calculated only for the
+ * range of segments provided by user.
+ */
+static int stob_ad_punch_credit(struct m0_stob *stob,
+				const struct m0_indexvec *range,
+				struct m0_be_tx_credit *accum)
+{
+	m0_bcount_t	          count;
+	m0_bcount_t	          offset;
+	struct m0_ivec_cursor     cur;
+	int                       rc = 0;
+	struct m0_be_tx_credit    cred;
+	struct m0_be_emap_cursor  it;
+	struct m0_be_emap_seg    *seg = NULL;
+	struct m0_be_engine      *eng;
+	struct m0_stob_ad_domain *adom;
+	struct m0_ad_balloc      *ballroom;
+	struct m0_stob_ad        *astob = stob_ad_stob2ad(stob);
+	struct m0_ext             todo = {
+					.e_start = 0,
+					.e_end   = M0_BCOUNT_MAX
+				  };
+
+	M0_ENTRY("stob:%p, range:%p", stob, range);
+	adom = stob_ad_domain2ad(m0_stob_dom_get(stob));
+	ballroom = adom->sad_ballroom;
+	m0_ivec_cursor_init(&cur, range);
+	rc = stob_ad_cursor(adom, stob, 0, &it);
+	if (rc != 0) {
+		return M0_ERR(rc);
+	}
+	eng = m0_be_domain_engine(m0_be_emap_seg_domain(it.ec_map));
+	count = 0;
+	while (!m0_ivec_cursor_move(&cur, count)) {
+		offset = m0_ivec_cursor_index(&cur);
+		count  = m0_ivec_cursor_step(&cur);
+		todo.e_start = offset;
+		todo.e_end   = offset + count;
+		rc = stob_ad_cursor(adom, stob, offset, &it);
+		if (rc != 0)
+			return M0_ERR(rc);
+		seg = &it.ec_seg;
+		M0_ASSERT(m0_ext_is_valid(&seg->ee_ext) &&
+			  !m0_ext_is_empty(&seg->ee_ext));
+		M0_LOG(M0_DEBUG, "stob:%p todo:"EXT_F ", existing ext:"
+		       EXT_F ", range vec count:%"PRIu64, stob, EXT_P(&todo),
+		       EXT_P(&seg->ee_ext), m0_vec_count(&range->iv_vec));
+		M0_SET0(&cred);
+		m0_be_emap_credit(&adom->sad_adata, M0_BEO_PASTE, 1, &cred);
+		ballroom->ab_ops->bo_free_credit(ballroom, 3, &cred);
+		if (m0_be_should_break(eng, accum, &cred)) {
+			break;
+		}
+		m0_be_tx_credit_add(accum, &cred);
+	}
+	astob->ad_op_it.oc_seg_last = *seg;
+	astob->ad_op_it.oc_seg_last.ee_ext.e_end = todo.e_end;
+	M0_ASSERT(m0_ext_is_valid(&astob->ad_op_it.oc_seg_last.ee_ext) &&
+		  !m0_ext_is_empty(&astob->ad_op_it.oc_seg_last.ee_ext));
+	M0_LOG(M0_DEBUG, "stob:%p, vec:%p, oc_seg_last ext:"EXT_F, stob,
+	       range, EXT_P(&astob->ad_op_it.oc_seg_last.ee_ext));
+	M0_ASSERT(m0_ext_is_valid(&seg->ee_ext) &&
+		  !m0_ext_is_empty(&seg->ee_ext));
+	return M0_RC(0);
+}
+
 static int stob_ad_destroy_credit(struct m0_stob *stob,
 				  struct m0_be_tx_credit *accum)
 {
@@ -850,6 +920,15 @@ static int ext_punch(struct m0_stob *stob, struct m0_dtx *tx,
 	if (rc != 0)
 		return M0_ERR(rc);
 	ext = &it.ec_seg.ee_ext;
+	if (M0_FI_ENABLED("test-ext-release")) {
+		/*
+		 * Assert the target and existing extents are same, this
+		 * ensures that existing extent at this offset is released
+		 * (punched) before new extent is allocated and data is written
+		 * at the same offset.
+		 */
+		M0_ASSERT(m0_ext_equal(todo, ext));
+	}
 	astob = stob_ad_stob2ad(stob);
 	seg = &astob->ad_op_it.oc_seg_last;
 	M0_LOG(M0_DEBUG, "stob %p target ext="EXT_F" existing ext="EXT_F
@@ -949,7 +1028,7 @@ static int stob_ad_punch(struct m0_stob *stob, const struct m0_indexvec *range,
 		count  = m0_ivec_cursor_step(&cur);
 		todo.e_start = offset;
 		todo.e_end   = offset + count;
-		M0_LOG(M0_DEBUG, "stob %p, punching "EXT_F, stob, EXT_P(&todo));
+		M0_LOG(M0_DEBUG, "stob %p, punching"EXT_F, stob, EXT_P(&todo));
 		rc = ext_punch(stob, tx, &todo);
 		if (rc != 0)
 			return M0_ERR(rc);
@@ -993,7 +1072,7 @@ static struct m0_stob_ops stob_ad_ops = {
 	.sop_fini	     = &stob_ad_fini,
 	.sop_destroy_credit  = &stob_ad_destroy_credit,
 	.sop_destroy	     = &stob_ad_destroy,
-	.sop_punch_credit    = &stob_ad_destroy_credit,
+	.sop_punch_credit    = &stob_ad_punch_credit,
 	.sop_punch           = &stob_ad_punch,
 	.sop_io_init	     = &stob_ad_io_init,
 	.sop_block_shift     = &stob_ad_block_shift,
@@ -2070,6 +2149,39 @@ M0_INTERNAL void m0_stob_ad_balloc_clear(struct m0_stob_io *io)
 					 &m0_stob_ad_type));
 
 	aio->ai_balloc_flags = 0;
+}
+
+/**
+ * @todo Get rid of this function to keep the ad stob type abstraction intact.
+ *
+ * For the scope of MERO-2064 this function is added to solve the concurrency
+ * issue. This returns the stob's oc_seg_last.
+ * The concurrency issue will be solved via MERO-2601 and this function will be
+ * removed as part of it.
+ */
+M0_INTERNAL struct m0_be_emap_seg
+m0_stob_ad_oc_seg_last_get(struct m0_stob *stob)
+{
+	struct m0_stob_ad *astob = stob_ad_stob2ad(stob);
+
+	return astob->ad_op_it.oc_seg_last;
+}
+
+/**
+ * @todo Get rid of this function to keep the ad stob type abstraction intact.
+ *
+ * For the scope of MERO-2064 this function is added to solve the concurrency
+ * issue. This sets the input segment to the ad stob's oc_seg_last.
+ * The concurrency issue will be solved via MERO-2601 and this function will be
+ * removed as part of it.
+ */
+M0_INTERNAL void m0_stob_ad_oc_seg_last_set(struct m0_stob *stob,
+					    struct m0_be_emap_seg *seg)
+{
+	struct m0_stob_ad *astob = stob_ad_stob2ad(stob);
+
+	M0_ENTRY("stob=%p seg=%p", stob, seg);
+	astob->ad_op_it.oc_seg_last = *seg;
 }
 
 static const struct m0_stob_io_op stob_ad_io_op = {
