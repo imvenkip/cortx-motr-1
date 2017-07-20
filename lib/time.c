@@ -23,7 +23,8 @@
 #include "lib/trace.h"
 
 #include "lib/time.h"
-#include "lib/misc.h"  /* M0_EXPORTED */
+#include "lib/time_internal.h" /* m0_clock_gettime_wrapper */
+#include "lib/misc.h"          /* M0_EXPORTED */
 
 /**
    @addtogroup time
@@ -106,9 +107,6 @@ const m0_time_t M0_TIME_IMMEDIATELY = 0;
 const m0_time_t M0_TIME_NEVER       = ~0ULL;
 M0_EXPORTED(M0_TIME_IMMEDIATELY);
 M0_EXPORTED(M0_TIME_NEVER);
-
-extern m0_time_t m0_clock_gettime_wrapper(enum CLOCK_SOURCES clock_id);
-extern m0_time_t m0_clock_gettimeofday_wrapper(void);
 
 const enum CLOCK_SOURCES M0_CLOCK_SOURCE = M0_CLOCK_SOURCE_REALTIME_MONOTONIC;
 m0_time_t		 m0_time_monotonic_offset;

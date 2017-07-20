@@ -33,6 +33,7 @@ nobase_mero_include_HEADERS += lib/arith.h \
                                lib/thread.h \
                                lib/thread_pool.h \
                                lib/time.h \
+                               lib/time_internal.h \
                                lib/timer.h \
                                lib/tlist.h \
                                lib/trace.h \

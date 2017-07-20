@@ -20,19 +20,20 @@
  * Original creation date: 01/27/2011
  */
 
-#include "lib/time.h"	/* m0_time_t */
+#include "lib/time.h"            /* m0_time_t */
+#include "lib/time_internal.h"   /* m0_clock_gettime_wrapper */
 
-#include "lib/assert.h" /* M0_ASSERT */
-#include "lib/misc.h"	/* M0_IN */
-#include "lib/errno.h"	/* ENOSYS */
+#include "lib/assert.h"          /* M0_ASSERT */
+#include "lib/misc.h"            /* M0_IN */
+#include "lib/errno.h"           /* ENOSYS */
 
-#include <sys/time.h>	/* gettimeofday */
-#include <time.h>	/* clock_gettime */
+#include <sys/time.h>            /* gettimeofday */
+#include <time.h>                /* clock_gettime */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_LIB
 #include "lib/trace.h"
 
-m0_time_t m0_clock_gettime_wrapper(enum CLOCK_SOURCES clock_id)
+M0_INTERNAL m0_time_t m0_clock_gettime_wrapper(enum CLOCK_SOURCES clock_id)
 {
 	struct timespec tp;
 	int             rc;
@@ -43,7 +44,7 @@ m0_time_t m0_clock_gettime_wrapper(enum CLOCK_SOURCES clock_id)
 	return M0_MKTIME(tp.tv_sec, tp.tv_nsec);
 }
 
-m0_time_t m0_clock_gettimeofday_wrapper(void)
+M0_INTERNAL m0_time_t m0_clock_gettimeofday_wrapper(void)
 {
 	struct timeval tv;
 	int            rc;

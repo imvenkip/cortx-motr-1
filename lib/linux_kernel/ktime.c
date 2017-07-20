@@ -19,8 +19,9 @@
  * Original creation date: 12/06/2010
  */
 
-#include "lib/time.h"  /* m0_time_t */
-#include "lib/misc.h"  /* M0_EXPORTED */
+#include "lib/time.h"           /* m0_time_t */
+#include "lib/time_internal.h"  /* m0_clock_gettime_wrapper */
+#include "lib/misc.h"           /* M0_EXPORTED */
 
 #include <linux/module.h>
 #include <linux/time.h>
@@ -35,7 +36,7 @@
    @{
 */
 
-m0_time_t m0_clock_gettime_wrapper(enum CLOCK_SOURCES clock_id)
+M0_INTERNAL m0_time_t m0_clock_gettime_wrapper(enum CLOCK_SOURCES clock_id)
 {
 	struct timespec ts;
 	m0_time_t       ret;
@@ -57,7 +58,7 @@ m0_time_t m0_clock_gettime_wrapper(enum CLOCK_SOURCES clock_id)
 	return ret;
 }
 
-m0_time_t m0_clock_gettimeofday_wrapper(void)
+M0_INTERNAL m0_time_t m0_clock_gettimeofday_wrapper(void)
 {
 	struct timespec ts;
 
