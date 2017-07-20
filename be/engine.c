@@ -339,9 +339,9 @@ static void be_engine_group_timer_cb(struct m0_sm_timer *timer)
 	struct m0_sm_group    *sm_grp = timer->tr_grp;
 
 	M0_ENTRY("en=%p gr=%p sm_grp=%p", en, gr, sm_grp);
-	m0_sm_ast_cancel(sm_grp, &gr->tg_close_timer_disarm);
 
 	be_engine_lock(en);
+	m0_sm_ast_cancel(sm_grp, &gr->tg_close_timer_disarm);
 	be_engine_group_freeze(en, gr);
 	be_engine_group_tryclose(en, gr);
 	be_engine_unlock(en);
