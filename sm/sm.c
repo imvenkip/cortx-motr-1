@@ -186,9 +186,10 @@ M0_INTERNAL void m0_sm_ast_cancel(struct m0_sm_group *grp,
 	 * queue is scanned normally.
 	 */
 	if (ast->sa_next == NULL)
-		; /* not in the queue. */
-	else if (grp->s_forkq == ast &&
-		 M0_ATOMIC64_CAS(&grp->s_forkq, ast, ast->sa_next))
+		return ; /* not in the queue. */
+
+	if (ast == grp->s_forkq /* cheap check first */ &&
+	    M0_ATOMIC64_CAS(&grp->s_forkq, ast, ast->sa_next))
 		; /* deleted the head. */
 	else {
 		struct m0_sm_ast *prev;
