@@ -102,9 +102,16 @@ fi
 
 [[ -n ${ids_unexpected}${ids_missing} ]] && echo FAIL || echo OK
 
-[[ -z $ids_unexpected ]] ||
-	echo "*WARNING* Not found in \`$pub_api':" $ids_unexpected
-[[ -z $ids_missing ]] ||
-	echo "*WARNING* Present in \`$pub_api' but not defined:" $ids_missing
+rc=0
+[[ -z $ids_unexpected ]] || {
+	echo "*ERROR* Not found in \`$pub_api':" $ids_unexpected
+    rc=1
+}
+[[ -z $ids_missing ]] || {
+	echo "*ERROR* Present in \`$pub_api' but not defined:" $ids_missing
+    rc=1
+}
 
 rm $func_list $pub_api_sorted ${tolerated:-}
+
+exit $rc
