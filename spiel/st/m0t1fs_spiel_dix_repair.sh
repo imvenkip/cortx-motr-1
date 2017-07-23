@@ -17,7 +17,7 @@ spiel_dix_repair_test()
 
 	verify || return $?
 	#######################################################################
-	#  Now starting SPIEL dix repair/rebalance abort/continue testing     #
+	#  Now starting SPIEL DIX repair/rebalance abort/continue testing     #
 	#######################################################################
 
 	echo "Set Failure device: $fail_device1"
@@ -36,11 +36,11 @@ spiel_dix_repair_test()
 	echo "Abort DIX repair (1)."
 	spiel_dix_repair_abort
 
-	echo "wait for dix repair (1)."
+	echo "Wait for DIX repair (1)."
 	spiel_wait_for_dix_repair || return $?
 	verify || return $?
 
-	echo "start DIX repair again (2).."
+	echo "Start DIX repair again (2).."
 	spiel_dix_repair_start
 	sleep 3
 

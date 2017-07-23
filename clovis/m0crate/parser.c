@@ -554,7 +554,7 @@ int parse_yaml_file(struct workload *load, int max_workload, int *index,
 	do {
 		rc = 0;
 		yaml_parser_scan(&parser, &token);
-		switch(token.type) {
+		switch (token.type) {
 			case YAML_KEY_TOKEN:
 				is_key = 1;
 				break;
@@ -579,7 +579,7 @@ int parse_yaml_file(struct workload *load, int max_workload, int *index,
 			return rc;
 		}
 
-		if(token.type != YAML_STREAM_END_TOKEN)
+		if (token.type != YAML_STREAM_END_TOKEN)
 			yaml_token_delete(&token);
 
 	} while(token.type != YAML_STREAM_END_TOKEN);

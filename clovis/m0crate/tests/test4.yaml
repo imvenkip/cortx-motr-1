@@ -41,4 +41,4 @@ WORKLOAD_SPEC:
   DEL: 0 # int
   GET: 100 # int
   NEXT: 0 # int
-  LOG_LEVEL: 3 # err(0), warn(1), info(2), trace(3), debug(4)
+  LOG_LEVEL: 4 # err(0), warn(1), info(2), trace(3), debug(4)
