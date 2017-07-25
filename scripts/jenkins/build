@@ -44,4 +44,5 @@ cp -v xcode/protocol*.txt $ARTIFACTS/
 make -j rpms |& tee $ARTIFACTS/rpm.log
 cp -av $HOME/rpmbuild/RPMS/x86_64/mero*.rpm $ARTIFACTS/
 cp -av $HOME/rpmbuild/SRPMS/mero*.rpm $ARTIFACTS/
+(cd $ARTIFACTS/ ; ln -vs mero-[[:digit:]]*.x86_64.rpm mero-latest.rpm)
 fi
