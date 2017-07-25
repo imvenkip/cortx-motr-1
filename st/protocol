@@ -18,7 +18,14 @@ if which wdiff 2>/dev/null ; then
     diff_cmd='wdiff'
 fi
 
-echo "Comparing '$1' and '$2' files"
-$diff_cmd $1 $2
+proto_current="$M0_SRC_DIR/xcode/protocol.txt"
+proto_master="/tmp/protocol-master.txt"
+
+echo "Downloading latest protocol file from master"
+wget -O "$proto_master" \
+     'http://jenkins-fre.xyus.xyratex.com:8080/job/mero-test-master/lastSuccessfulBuild/artifact/artifacts/protocol.txt'
+
+echo "Comparing '$proto_master' and '$proto_current' files"
+$diff_cmd $proto_master $proto_current
 
 report_and_exit initscripts $?

@@ -338,6 +338,14 @@ Tests:
     polltime : 30
     timeout  : 1800
 
+  - id       : 37protocol
+    script   : protocol
+    dir      : src/st/
+    executor : Xperior::Executor::MeroTest
+    sandbox  : /var/mero/sandbox.37protocol
+    polltime : 30
+    timeout  : 180
+
 # 25 min
 dangerous: 'yes'
 description: Set of Mero  tests
