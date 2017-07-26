@@ -158,8 +158,15 @@ M0_INTERNAL int m0_format_footer_verify_generic(
  */
 M0_INTERNAL int m0_format_footer_verify(const void *buffer);
 
-//#ifdef __KERNEL__
-#if 1 /* XXX */
+#ifdef FORMAT_BE_STRUCT_CONVERTED
+
+/*
+ * Kernel doesn't store BE structure to a persistent storage. Therefore,
+ * padding doesn't have to be the same for kernelspace and ondisk format.
+ * Formula is the next: actual size of original structure plus ~20%.
+ * Numbers are calculated for debug kernel.
+ */
+#ifdef __KERNEL__
 #define M0_BE_MUTEX_PAD (184 + 56)
 #define M0_BE_RWLOCK_PAD (144 + 48)
 #define M0_BE_CLINK_PAD (152 + 48)
@@ -167,7 +174,16 @@ M0_INTERNAL int m0_format_footer_verify(const void *buffer);
 #define M0_BE_MUTEX_PAD (56 + 16)
 #define M0_BE_RWLOCK_PAD (56 + 16)
 #define M0_BE_CLINK_PAD (88 + 24)
-#endif
+#endif /* __KERNEL__ */
+
+#else /* !FORMAT_BE_STRUCT_CONVERTED */
+
+/* These values are for "teacake" compatibility. */
+#define M0_BE_MUTEX_PAD 168
+#define M0_BE_RWLOCK_PAD 144
+#define M0_BE_CLINK_PAD sizeof(struct m0_clink)
+
+#endif /* FORMAT_BE_STRUCT_CONVERTED */
 
 struct m0_be_mutex {
 	union {
