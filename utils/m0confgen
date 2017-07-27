@@ -28,7 +28,7 @@ THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
 http://www.xyratex.com/contact
 """
 __author__ = 'Valery V. Vorotyntsev <valery.vorotyntsev@seagate.com>'
-__version__ = '2.2'
+__version__ = '2.3'
 __doc__ = """Configuration string converter.
 
 Converts configuration string from one format into another.
@@ -116,20 +116,23 @@ def delete_chars(s, deletechars):
 class Fid(object):
 
     def __init__(self, container, key):
-        # see M0_FID_TCONTAINER() in fid/fid.h
-        if type(container) is tuple:
-            car, cdr = container
-            if type(car) is str:
-                car = ord(car)
-            assert car >= 0 and car.bit_length() <= 8
-            assert cdr >= 0 and cdr.bit_length() <= 56
-            self.tcontainer = car, cdr
-        else:
-            assert container >= 0
-            self.tcontainer = (container >> 56,
-                               container & 0x00ffffffffffffff)
-        assert key >= 0
-        self.key = key
+        try:
+            # see M0_FID_TCONTAINER() in fid/fid.h
+            if type(container) is tuple:
+                car, cdr = container
+                if type(car) is str:
+                    car = ord(car)
+                assert car >= 0 and car.bit_length() <= 8
+                assert cdr >= 0 and cdr.bit_length() <= 56
+                self.tcontainer = car, cdr
+            else:
+                assert container >= 0 and container.bit_length() <= 64
+                self.tcontainer = (container >> 56,
+                                   container & 0x00ffffffffffffff)
+            assert key >= 0 and key.bit_length() <= 64
+            self.key = key
+        except AssertionError:
+            raise ValueError
 
     def __repr__(self):
         if self.typebyte() == 0:
@@ -1092,9 +1095,9 @@ def fid_scan(s):
     assert type(s) is str
     try:
         container, key = [int(x, base=16) for x in s.strip('<>').split(':', 1)]
+        return Fid(container, key)
     except ValueError:
         raise Error('Invalid fid: ' + s)
-    return Fid(container, key)
 
 
 def conf_objs_from_str(s, from_fmt):
@@ -1144,6 +1147,7 @@ class TestInternalRepr(unittest.TestCase):
         self.assertNotEqual(y, x)
         self.assertEqual(Fid(('v', 0x40000000000002), 3),
                          Fid(0x7640000000000002, 3))
+        self.assertRaises(ValueError, Fid, 0x6300000000000000001, 0x181)
 
     def test_ConfObjType(self):
         self.assertEqual(repr(conf_obj_types['root']),
@@ -1253,12 +1257,14 @@ class TestEncoding(unittest.TestCase):
  {0x74| ((^t|1:0), 1, [1: ^p|1:0])},
  {0x70| ((^p|1:0), ^f|1:1)},
  {0x66| ((^f|1:1), (11, 22), 0, [3: "param-0", "param-1", "param-2"],\
- ^o|1:5, (0, 0), [2: ^n|1:2, ^n|1:48], [2: ^o|1:4, ^o|1:5], [1: ^a|1:3], [0])}]""",
+ ^o|1:5, (0, 0), [2: ^n|1:2, ^n|1:48], [2: ^o|1:4, ^o|1:5], [1: ^a|1:3],\
+ [0])}]""",
              """(root-0 verno=1 profiles=[profile-0])
 (profile-0 filesystem=filesystem-1)
 (filesystem-1 rootfid=(11, 22) redundancy=0\
  params=["param-0", "param-1", "param-2"] mdpool=pool-5 imeta_pver=(0, 0)\
- nodes=[node-2, node-48] pools=[pool-4, pool-5] racks=[rack-3] fdmi_flt_grps=[])""")
+ nodes=[node-2, node-48] pools=[pool-4, pool-5] racks=[rack-3]\
+ fdmi_flt_grps=[])""")
         test([ConfObj(Fid(('v', 1), 8), [
             ('N', 1), ('K', 1), ('P', 5), ('tolerance', [0, 0, 0, 0, 1]),
             ('rackvs', [Fid(('j', 1), 12)])])],
@@ -1428,6 +1434,7 @@ class TestDecoding(unittest.TestCase):
         self.assertRaisesRegex(Error, 'Invalid fid: garbage',
                                fid_scan, 'garbage')
         self.assertRaises(Error, fid_scan, '<446a6a00000000')
+        self.assertRaises(Error, fid_scan, '6300000000000000001:181')
 
 
 # --------------------------------------------------------------------
