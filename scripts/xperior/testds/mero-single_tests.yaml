@@ -346,6 +346,13 @@ Tests:
     polltime : 30
     timeout  : 180
 
+  - id       : 38sns-abort-quiesce-test
+    script   : m0t1fs_sns_repair_abort_quiesce.sh
+    dir      : src/m0t1fs/linux_kernel/st/
+    executor : Xperior::Executor::MeroTest
+    sandbox  : /var/mero/sandbox.38sns-abort-quiesce-test
+    polltime : 30
+    timeout  : 1800
 # 25 min
 dangerous: 'yes'
 description: Set of Mero  tests
