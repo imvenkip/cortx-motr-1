@@ -89,42 +89,32 @@ M0_INTERNAL bool m0_conf_obj_is_pool(const struct m0_conf_obj *obj)
 
 M0_INTERNAL int m0_conf_pver_get(const struct m0_fid  *profile,
 				 struct m0_confc      *confc,
-				 const struct m0_fid  *pfid,
+				 const struct m0_fid  *pool,
 				 struct m0_conf_pver **out)
 {
 	struct m0_conf_filesystem *fs;
-	struct m0_conf_obj        *pobj;
-	struct m0_conf_pool       *pool_obj;
-	struct m0_conf_pver       *pver;
-	struct m0_conf_obj        *pvobj;
+	struct m0_conf_obj        *pool_obj;
 	int                        rc;
 
 	rc = m0_conf_fs_get(profile, confc, &fs);
 	if (rc != 0)
 		return M0_ERR(rc);
 
-	rc = m0_confc_open_sync(&pobj, &fs->cf_obj,
-				M0_CONF_FILESYSTEM_POOLS_FID, *pfid);
+	rc = m0_confc_open_sync(&pool_obj, &fs->cf_obj,
+				M0_CONF_FILESYSTEM_POOLS_FID, *pool);
 	if (rc != 0)
 		goto fs_close;
-	pool_obj = M0_CONF_CAST(pobj, m0_conf_pool);
 
-	*out = NULL;
-	rc = m0_conf_pver_find(pool_obj, &fs->cf_imeta_pver, &pver);
-	if (rc != 0)
-		goto pool_close;
-
-	pvobj = &pver->pv_obj;
-	m0_conf_obj_get_lock(pvobj);
-	*out = pver;
-
-pool_close:
-	m0_confc_close(pobj);
+	rc = m0_conf_pver_find(M0_CONF_CAST(pool_obj, m0_conf_pool),
+			       &fs->cf_imeta_pver, out);
+	if (rc == 0) {
+		M0_ASSERT(*out != NULL);
+		m0_conf_obj_get_lock(&(*out)->pv_obj);
+	}
+	m0_confc_close(pool_obj);
 fs_close:
 	m0_confc_close(&fs->cf_obj);
-	if (rc != 0)
-		return M0_ERR(rc);
-	return *out == NULL ? M0_ERR(-ENOENT) : M0_RC(0);
+	return M0_RC(rc);
 }
 
 static bool obj_is_sdev(const struct m0_conf_obj *obj)
