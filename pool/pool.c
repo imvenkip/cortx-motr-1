@@ -41,8 +41,7 @@
 #include "module/instance.h"    /* m0 */
 #include "pool/pool.h"
 #include "pool/pool_fops.h"
-#include "pool/pool_policy.h"  /* m0_pver_policy */
-#include "fd/fd.h"             /* m0_fd_tile_build m0_fd_tree_build */
+#include "fd/fd.h"              /* m0_fd_tile_build, m0_fd_tree_build */
 #ifndef __KERNEL__
 #  include "mero/setup.h"
 #else
@@ -302,7 +301,7 @@ M0_INTERNAL const char *m0_pool_dev_state_to_str(enum m0_pool_nd_state state)
 }
 
 M0_INTERNAL int m0_pool_init(struct m0_pool *pool, struct m0_fid *id,
-			     uint32_t pver_policy)
+			     enum m0_pver_policy_code pver_policy)
 {
 	struct m0_pver_policy_type *pver_policy_type;
 	int                         rc;

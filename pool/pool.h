@@ -34,7 +34,7 @@
 #include "layout/pdclust.h"    /* m0_pdclust_attr */
 #include "pool/pool_machine.h"
 #include "pool/pool_machine_xc.h"
-
+#include "pool/policy.h"       /* m0_pver_policy_code */
 
 /**
    @defgroup pool Storage pools.
@@ -256,7 +256,7 @@ M0_INTERNAL int m0_pools_service_ctx_create(struct m0_pools_common *pc,
 M0_INTERNAL void m0_pools_service_ctx_destroy(struct m0_pools_common *pc);
 
 M0_INTERNAL int m0_pool_init(struct m0_pool *pool, struct m0_fid *id,
-			     uint32_t pver_policy);
+			     enum m0_pver_policy_code pver_policy);
 M0_INTERNAL void m0_pool_fini(struct m0_pool *pool);
 
 /**

@@ -97,7 +97,7 @@ M0_INTERNAL int m0_pver_policy_type_register(struct m0_pver_policy_type *type);
 M0_INTERNAL
 void m0_pver_policy_type_deregister(struct m0_pver_policy_type *type);
 
-/** @} end group pool_policy */
+/** @} pool_policy */
 #endif /* __MERO_POOL_POLICY_H__ */
 
 /*

@@ -29,7 +29,7 @@
 #include "reqh/reqh.h"            /* m0_reqh2profile */
 #include "conf/confc.h"           /* m0_confc_fini */
 #include "pool/pool.h"
-#include "pool/pool_policy.h"
+#include "pool/policy.h"
 
 /**
  * @addtogroup pool_policy
