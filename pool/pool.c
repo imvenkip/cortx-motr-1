@@ -300,26 +300,19 @@ M0_INTERNAL const char *m0_pool_dev_state_to_str(enum m0_pool_nd_state state)
 	return names[state];
 }
 
-M0_INTERNAL int m0_pool_init(struct m0_pool *pool, struct m0_fid *id,
+M0_INTERNAL int m0_pool_init(struct m0_pool *pool, const struct m0_fid *id,
 			     enum m0_pver_policy_code pver_policy)
 {
-	struct m0_pver_policy_type *pver_policy_type;
-	int                         rc;
-	M0_ENTRY();
+	struct m0_pver_policy_type *ppt;
 
+	M0_ENTRY();
 	pool->po_id = *id;
 	pools_tlink_init(pool);
 	pool_version_tlist_init(&pool->po_vers);
 	pool_failed_devs_tlist_init(&pool->po_failed_devices);
-
-	pver_policy_type = m0_pver_policy_type_find(pver_policy);
-	M0_ASSERT(pver_policy_type != NULL);
-	rc = pver_policy_type->ppt_ops->ppto_create(&pool->po_pver_policy);
-	if (rc != 0)
-		return M0_ERR(rc);
-
-	M0_LEAVE();
-	return 0;
+	ppt = m0_pver_policy_type_find(pver_policy);
+	M0_ASSERT(ppt != NULL);
+	return M0_RC(ppt->ppt_ops->ppto_create(&pool->po_pver_policy));
 }
 
 M0_INTERNAL void m0_pool_fini(struct m0_pool *pool)
@@ -1690,26 +1683,57 @@ M0_INTERNAL int m0_pool_version_append(struct m0_pools_common  *pc,
 	return M0_RC(0);
 }
 
+static int
+_pool_create(struct m0_pool **out, const struct m0_conf_pool *conf_pool)
+{
+	int rc;
+
+	M0_ALLOC_PTR(*out);
+	if (*out == NULL)
+		return M0_ERR(-ENOMEM);
+	rc = m0_pool_init(*out, &conf_pool->pl_obj.co_id,
+			  conf_pool->pl_pver_policy);
+	if (rc != 0)
+		m0_free0(out);
+	return M0_RC(rc);
+}
+
+static void
+dix_pool_setup(struct m0_pools_common *pc, const struct m0_fid *imeta_pver)
+{
+	if (m0_fid_is_set(imeta_pver)) {
+		struct m0_conf_obj  *pver;
+		struct m0_conf_pool *pool;
+		int                  rc;
+
+		rc = m0_conf_obj_find_lock(&pc->pc_confc->cc_cache, imeta_pver,
+					   &pver);
+		M0_ASSERT(rc == 0);
+		pool = M0_CONF_CAST(m0_conf_obj_grandparent(pver),
+				    m0_conf_pool);
+		pc->pc_dix_pool = m0_pool_find(pc, &pool->pl_obj.co_id);
+		M0_ASSERT(pc->pc_dix_pool != NULL);
+		M0_LOG(M0_DEBUG, "imeta_pver="FID_F" -> dix_pool="FID_F,
+		       FID_P(imeta_pver), FID_P(&pc->pc_dix_pool->po_id));
+	}
+}
+
 M0_INTERNAL int m0_pools_setup(struct m0_pools_common    *pc,
 			       struct m0_conf_filesystem *fs,
 			       struct m0_be_seg          *be_seg,
 			       struct m0_sm_group        *sm_grp,
 			       struct m0_dtm             *dtm)
 {
-	struct m0_confc      *confc;
 	struct m0_conf_diter  it;
 	struct m0_pool       *pool;
 	struct m0_conf_obj   *pool_obj;
 	int                   rc;
 
-	M0_ENTRY();
+	M0_ENTRY("filesystem="FID_F, FID_P(&fs->cf_obj.co_id));
+	M0_PRE(pc->pc_confc == m0_confc_from_obj(&fs->cf_obj));
 
-	confc = m0_confc_from_obj(&fs->cf_obj);
-	M0_LOG(M0_DEBUG, "file system:"FID_F"profile"FID_F,
-			FID_P(&fs->cf_obj.co_id),
-			FID_P(&fs->cf_obj.co_parent->co_id));
 	rc = M0_FI_ENABLED("diter_fail") ? -ENOMEM :
-		m0_conf_diter_init(&it, confc, &fs->cf_obj,
+		m0_conf_diter_init(&it, pc->pc_confc, &fs->cf_obj,
 				   M0_CONF_FILESYSTEM_POOLS_FID);
 	if (rc != 0)
 		return M0_ERR(rc);
@@ -1718,7 +1742,7 @@ M0_INTERNAL int m0_pools_setup(struct m0_pools_common    *pc,
 		M0_CONF_DIRNEXT) {
 		pool_obj = m0_conf_diter_result(&it);
 		pool = m0_pool_find(pc, &pool_obj->co_id);
-		M0_LOG(M0_DEBUG, "%spool:"FID_F, pool != NULL ? "! " : "",
+		M0_LOG(M0_DEBUG, "%spool:"FID_F, pool == NULL ? "" : "! ",
 		       FID_P(&pool_obj->co_id));
 		if (pool != NULL)
 			/*
@@ -1726,42 +1750,23 @@ M0_INTERNAL int m0_pools_setup(struct m0_pools_common    *pc,
 			 * pools refreshing cycle.
 			 */
 			continue;
-		M0_ALLOC_PTR(pool);
-		if (pool == NULL) {
-			rc = M0_ERR(-ENOMEM);
+		rc = _pool_create(&pool, M0_CONF_CAST(pool_obj, m0_conf_pool));
+		if (rc != 0)
 			break;
-		}
-		rc = m0_pool_init(pool, &pool_obj->co_id,
-				  (M0_CONF_CAST(pool_obj, m0_conf_pool)->pl_pver_policy));
-		if (rc != 0) {
-			m0_free(pool);
-			break;
-		}
 		pools_tlink_init_at_tail(pool, &pc->pc_pools);
 	}
-
 	m0_conf_diter_fini(&it);
-	if (rc != 0)
+	if (rc != 0) {
 		m0_pools_destroy(pc);
+		return M0_ERR(rc);
+	}
+	/* MD pool setup. */
 	pc->pc_md_pool = m0_pool_find(pc, &fs->cf_mdpool);
 	M0_ASSERT(pc->pc_md_pool != NULL);
-	M0_LOG(M0_DEBUG, "md pool "FID_F, FID_P(&fs->cf_mdpool));
+	M0_LOG(M0_DEBUG, "md_pool="FID_F, FID_P(&fs->cf_mdpool));
 
-	if (m0_fid_is_set(&fs->cf_imeta_pver)) {
-		struct m0_conf_obj  *dix_pver_obj;
-		struct m0_conf_pool *dix_pool;
-
-		m0_conf_obj_find_lock(&pc->pc_confc->cc_cache,
-				      &fs->cf_imeta_pver, &dix_pver_obj);
-		dix_pool = M0_CONF_CAST(
-				m0_conf_obj_grandparent(dix_pver_obj),
-				m0_conf_pool);
-		pc->pc_dix_pool = m0_pool_find(pc, &dix_pool->pl_obj.co_id);
-		M0_ASSERT(pc->pc_dix_pool != NULL);
-		M0_LOG(M0_DEBUG, "dix pool "FID_F,
-				FID_P(&pc->pc_dix_pool->po_id));
-	}
-	return M0_RC(rc);
+	dix_pool_setup(pc, &fs->cf_imeta_pver);
+	return M0_RC(0);
 }
 
 M0_INTERNAL void m0_pool_versions_destroy(struct m0_pools_common *pc)

@@ -255,7 +255,7 @@ M0_INTERNAL int m0_pools_service_ctx_create(struct m0_pools_common *pc,
 					    struct m0_conf_filesystem *fs);
 M0_INTERNAL void m0_pools_service_ctx_destroy(struct m0_pools_common *pc);
 
-M0_INTERNAL int m0_pool_init(struct m0_pool *pool, struct m0_fid *id,
+M0_INTERNAL int m0_pool_init(struct m0_pool *pool, const struct m0_fid *id,
 			     enum m0_pver_policy_code pver_policy);
 M0_INTERNAL void m0_pool_fini(struct m0_pool *pool);
 
