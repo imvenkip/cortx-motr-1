@@ -563,8 +563,8 @@ M0_INTERNAL int m0_pool_version_init(struct m0_pool_version *pv,
 	return M0_RC(rc);
 }
 
-M0_INTERNAL
-struct m0_pool_version *m0_pool_clean_pver_find(struct m0_pool *pool)
+M0_INTERNAL struct m0_pool_version *
+m0_pool_clean_pver_find(const struct m0_pool *pool)
 {
 	struct m0_pool_version *pver;
 
@@ -638,22 +638,22 @@ static int pool_version_get_locked(struct m0_pools_common  *pc,
 				   struct m0_pool_version **pv)
 {
 	struct m0_pool *pool;
+	int             rc;
 
 	M0_ENTRY();
 	M0_PRE(m0_mutex_is_locked(&pc->pc_mutex));
 
 	*pv = NULL;
 	m0_tl_for(pools, &pc->pc_pools, pool) {
-		int rc;
-
 		if (is_md_pool(pc, pool) || is_dix_pool(pc, pool))
 			continue;
-
 		rc = pool->po_pver_policy->pp_ops->ppo_get(pc, pool, pv);
-		if (rc == 0) {
-			pc->pc_cur_pver = *pv;
+		if (rc == 0)
 			break;
-		}
+		/*
+		 * Couldn't find pver in this pool.
+		 * No worries, let's try another one.
+		 */
 	} m0_tl_endfor;
 
 	/** @todo m0_pools_common::pc_cur_pver not required. */
@@ -1321,7 +1321,7 @@ M0_INTERNAL bool m0_pools_common_conf_ready_async_cb(struct m0_clink *clink)
 	 */
 	M0_POST(rc == 0);
 	M0_POST(pools_common_invariant(pc));
-	pool_version_get_locked(pc, &pv);
+	(void)pool_version_get_locked(pc, &pv);
 	m0_mutex_unlock(&pc->pc_mutex);
 	M0_LEAVE();
 	return true;

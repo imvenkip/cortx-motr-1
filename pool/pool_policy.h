@@ -23,48 +23,38 @@
 #ifndef __MERO_POOL_POLICY_H__
 #define __MERO_POOL_POLICY_H__
 
-
 /**
   * @defgroup pool_policy Pool Versions Selection Policy.
   *
   * @{
   */
 
-/** Pool version policy codes */
+/** Pool version policy codes. */
 enum m0_pver_policy_code {
 	M0_PVER_POLICY_FIRST_AVAILABLE,
 	M0_PVER_POLICY_NR
 };
 
-/** Pool version policy object */
+/** Pool version policy. */
 struct m0_pver_policy {
-	/** Pool version policy type */
-	struct m0_pver_policy_type       *pp_type;
-	/** Pool version policy operations */
+	const struct m0_pver_policy_type *pp_type;
 	const struct m0_pver_policy_ops  *pp_ops;
 };
 
-/** Pool version policy type opetations */
 struct m0_pver_policy_type_ops {
-	/**
-	 * It create policy instance.
-	 * Policy type needs to implement it.
-	 */
-	 int (*ppto_create) (struct m0_pver_policy **pver_policy);
+	/** Creates concrete pver policy instance. */
+	int (*ppto_create)(struct m0_pver_policy **out);
 };
 
-/** Pool version policy type */
 struct m0_pver_policy_type {
 	uint64_t                              ppt_magic;
-	/** Pool version policy name */
 	const char                           *ppt_name;
-	/** Pool version policy code */
 	const enum m0_pver_policy_code        ppt_code;
 	const struct m0_pver_policy_type_ops *ppt_ops;
 	struct m0_tlink                       ppt_link;
 };
 
-/** Pool version policy operations */
+/** Pool version policy operations. */
 struct m0_pver_policy_ops {
 	/** Initialise pool version policy. */
 	int (*ppo_init)(struct m0_pver_policy *pver_policy);
@@ -74,38 +64,34 @@ struct m0_pver_policy_ops {
 
 	/**
 	 * It finds pool version depending on pool version
-         * policy. Policy need to implement this function
+	 * policy. Policy need to implement this function
 	 * to find out pool versions for new object.
 	 */
 	int (*ppo_get)(struct m0_pools_common  *pc,
-		       struct m0_pool          *pool,
+		       const struct m0_pool    *pool,
 		       struct m0_pool_version **pver);
 };
 
- /** Pool version policies global. */
+ /** Global registry of pool version policies. */
 struct m0_pver_policies {
-	/** List of pool version policy */
+	/** List of known types of pool version policies. */
 	struct m0_tl          pp_types;
-	/** Current pool version policy. */
+	/** "Current" pool version policy. */
 	struct m0_pver_policy pp_cur_policy;
 };
 
-/** Pool version policies global initialisation. */
 M0_INTERNAL int m0_pver_policies_init(void);
-
-/** Pool version policies global finalisation. */
 M0_INTERNAL void m0_pver_policies_fini(void);
 
 /** Get pool version policy type. */
-M0_INTERNAL
-struct m0_pver_policy_type *m0_pver_policy_type_find(uint32_t code);
+M0_INTERNAL struct m0_pver_policy_type *
+m0_pver_policy_type_find(enum m0_pver_policy_code code);
 
 /** Number of policies registered */
 M0_INTERNAL int m0_pver_policy_types_nr(void);
 
  /** Register pool version policy type. */
-M0_INTERNAL
-int m0_pver_policy_type_register(struct m0_pver_policy_type *type);
+M0_INTERNAL int m0_pver_policy_type_register(struct m0_pver_policy_type *type);
 
 /** Unregister pool version policy type. */
 M0_INTERNAL

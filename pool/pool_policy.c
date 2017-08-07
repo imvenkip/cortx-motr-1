@@ -39,33 +39,32 @@
 
 M0_TL_DESCR_DEFINE(pver_policy_types, "pver policy type list", static,
 		   struct m0_pver_policy_type, ppt_link, ppt_magic,
-                   M0_PVER_POLICY_MAGIC, M0_PVER_POLICY_HEAD_MAGIC);
+		   M0_PVER_POLICY_MAGIC, M0_PVER_POLICY_HEAD_MAGIC);
 M0_TL_DEFINE(pver_policy_types, static, struct m0_pver_policy_type);
 
 /*
  * Pool version selection policies.
  */
-static int pver_first_available_create(struct m0_pver_policy **pver_policy);
-static int pver_first_available_init(struct m0_pver_policy *pver_policy);
-static int pver_first_available_get(struct m0_pools_common  *pc,
-				    struct m0_pool          *pool,
-				    struct m0_pool_version **pver);
-static void pver_first_available_fini(struct m0_pver_policy *pver_policy);
 
-static const struct m0_pver_policy_type_ops first_vailable_pver_policy_type_ops = {
+static int pver_first_available_create(struct m0_pver_policy **out);
+static int pver_first_available_init(struct m0_pver_policy *policy);
+static int pver_first_available_get(struct m0_pools_common  *pc,
+				    const struct m0_pool    *pool,
+				    struct m0_pool_version **pver);
+static void pver_first_available_fini(struct m0_pver_policy *policy);
+
+static const struct m0_pver_policy_type_ops
+first_vailable_pver_policy_type_ops = {
 	.ppto_create = pver_first_available_create
 };
 
-/**
- * Default pool version selection policy.
- * This policy select first clean pool version.
- */
+/** Default pver selection policy --- select first clean pver. */
 struct m0_pver_policy_first_available {
 	struct m0_pver_policy fcp_policy;
 };
 
 static struct m0_pver_policy_type first_available_pver_policy_type = {
-	.ppt_name = "pver_first_available",
+	.ppt_name = "pver_policy_first_available",
 	.ppt_code = M0_PVER_POLICY_FIRST_AVAILABLE,
 	.ppt_ops  = &first_vailable_pver_policy_type_ops
 };
@@ -76,93 +75,84 @@ static const struct m0_pver_policy_ops first_available_pver_policy_ops = {
 	.ppo_get  = pver_first_available_get
 };
 
-static int pver_first_available_create(struct m0_pver_policy **pver_policy)
+static int pver_first_available_create(struct m0_pver_policy **out)
 {
-	struct m0_pver_policy_first_available *first_available_pver;
+	struct m0_pver_policy_first_available *fa;
 
-	M0_ALLOC_PTR(first_available_pver);
-	if (first_available_pver == NULL)
+	M0_ALLOC_PTR(fa);
+	if (fa == NULL)
 		return M0_ERR(-ENOMEM);
 
-	*pver_policy = &first_available_pver->fcp_policy;
-	(*pver_policy)->pp_ops = &first_available_pver_policy_ops;
-
+	*out = &fa->fcp_policy;
+	(*out)->pp_ops = &first_available_pver_policy_ops;
 	return M0_RC(0);
 }
 
-static int pver_first_available_init(struct m0_pver_policy *pver_policy)
+static int pver_first_available_init(struct m0_pver_policy *policy)
 {
+	M0_ENTRY();
 	return M0_RC(0);
+}
+
+static void pver_first_available_fini(struct m0_pver_policy *policy)
+{
+	M0_ENTRY();
+	m0_free(container_of(policy, struct m0_pver_policy_first_available,
+			     fcp_policy));
+	M0_LEAVE();
 }
 
 static int pver_first_available_get(struct m0_pools_common  *pc,
-				    struct m0_pool          *pool,
+				    const struct m0_pool    *pool,
 				    struct m0_pool_version **pv)
 {
 	struct m0_reqh      *reqh = m0_confc2reqh(pc->pc_confc);
 	struct m0_conf_pver *pver;
 	int                  rc;
 
-	/* check pool version cache */
+	M0_ENTRY("pool="FID_F, FID_P(&pool->po_id));
+
+	/* Check pool version cache */
 	*pv = m0_pool_clean_pver_find(pool);
 	if (*pv != NULL)
 		return M0_RC(0);
 
-	/* Derived new one using formulae */
-	rc = m0_conf_pver_get(m0_reqh2profile(reqh), pc->pc_confc, &pool->po_id, &pver);
+	/* Derive new pver using formulae */
+	rc = m0_conf_pver_get(m0_reqh2profile(reqh), pc->pc_confc,
+			      &pool->po_id, &pver);
 	if (rc != 0)
 		return M0_ERR(rc);
 
 	/* Cache derived if not present */
 	*pv = m0_pool_version_lookup(pc, &pver->pv_obj.co_id);
-	if (*pv == NULL) {
+	if (*pv == NULL)
 		rc = m0_pool_version_append(pc, pver, NULL, NULL, NULL, pv);
-		if (rc != 0) {
-			m0_confc_close(&pver->pv_obj);
-			return M0_ERR(rc);
-		}
-	}
 
 	m0_confc_close(&pver->pv_obj);
-	return M0_RC(0);
+	return M0_RC(rc);
 }
 
-static void pver_first_available_fini(struct m0_pver_policy *pver_policy)
+static struct m0_pver_policies *pver_policies(void)
 {
-	struct m0_pver_policy_first_available *first_available_pver;
-
-	first_available_pver = M0_AMB(first_available_pver,
-				      pver_policy, fcp_policy);
-
-	m0_free(first_available_pver);
+	return m0_get()->i_moddata[M0_MODULE_POOL];
 }
 
-M0_INTERNAL
-struct m0_pver_policy_type *m0_pver_policy_type_find(uint32_t code)
+M0_INTERNAL struct m0_pver_policy_type *
+m0_pver_policy_type_find(enum m0_pver_policy_code code)
 {
-	struct m0_pver_policies *pver_policies =
-		m0_get()->i_moddata[M0_MODULE_POOL];
-
-	return m0_tl_find(pver_policy_types, pvpt, &pver_policies->pp_types,
+	return m0_tl_find(pver_policy_types, pvpt, &pver_policies()->pp_types,
 			  pvpt->ppt_code == code);
 }
 
 M0_INTERNAL int m0_pver_policy_types_nr(void)
 {
-	struct m0_pver_policies *pver_policies =
-		m0_get()->i_moddata[M0_MODULE_POOL];
-
-	return pver_policy_types_tlist_length(&pver_policies->pp_types);
+	return pver_policy_types_tlist_length(&pver_policies()->pp_types);
 }
 
 M0_INTERNAL
 int m0_pver_policy_type_register(struct m0_pver_policy_type *type)
 {
-	struct m0_pver_policies *pver_policies =
-		m0_get()->i_moddata[M0_MODULE_POOL];
-
-	pver_policy_types_tlink_init_at_tail(type, &pver_policies->pp_types);
-
+	pver_policy_types_tlink_init_at_tail(type, &pver_policies()->pp_types);
 	return M0_RC(0);
 }
 
@@ -174,30 +164,28 @@ void m0_pver_policy_type_deregister(struct m0_pver_policy_type *type)
 
 M0_INTERNAL int m0_pver_policies_init(void)
 {
-	struct m0_pver_policies *pver_policies;
+	struct m0_pver_policies *policies;
 
-	M0_ALLOC_PTR(pver_policies);
-	if (pver_policies == NULL)
+	M0_ALLOC_PTR(policies);
+	if (policies == NULL)
 		return M0_ERR(-ENOMEM);
 
-	m0_get()->i_moddata[M0_MODULE_POOL] = pver_policies;
-	pver_policy_types_tlist_init(&pver_policies->pp_types);
+	m0_get()->i_moddata[M0_MODULE_POOL] = policies;
+	pver_policy_types_tlist_init(&policies->pp_types);
 
 	return M0_RC(m0_pver_policy_type_register(
-			&first_available_pver_policy_type));
+			     &first_available_pver_policy_type));
 }
 
 M0_INTERNAL void m0_pver_policies_fini(void)
 {
-	struct m0_pver_policies *pver_policies =
-		m0_get()->i_moddata[M0_MODULE_POOL];
-
 	m0_pver_policy_type_deregister(&first_available_pver_policy_type);
-	pver_policy_types_tlist_fini(&pver_policies->pp_types);
-	m0_free(pver_policies);
+	pver_policy_types_tlist_fini(&pver_policies()->pp_types);
+	m0_free(pver_policies());
+	m0_get()->i_moddata[M0_MODULE_POOL] = NULL;
 }
 
-/** @} end group pool_policy */
+/** @} pool_policy */
 #undef M0_TRACE_SUBSYSTEM
 
 /*

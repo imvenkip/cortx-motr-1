@@ -90,7 +90,7 @@ struct m0_pool {
 	 */
 	struct m0_tl           po_failed_devices;
 
-	/** Pool version selection policy */
+	/** Pool version selection policy. */
 	struct m0_pver_policy *po_pver_policy;
 	uint64_t               po_magic;
 };
@@ -289,10 +289,6 @@ M0_INTERNAL int m0_pool_version_init(struct m0_pool_version *pv,
 M0_INTERNAL int m0_pool_version_get(struct m0_pools_common *pc,
 				    struct m0_pool_version **pv);
 
-M0_INTERNAL int
-m0_pool_version_first_available_get(struct m0_pools_common *pc,
-				    struct m0_pool_version **pv);
-
 M0_INTERNAL struct m0_pool_version *
 m0_pool_version_lookup(struct m0_pools_common *pc, const struct m0_fid *id);
 
@@ -344,8 +340,8 @@ M0_INTERNAL void m0_pool_versions_destroy(struct m0_pools_common *pc);
 M0_INTERNAL struct m0_pool *m0_pool_find(struct m0_pools_common *pc,
 					 const struct m0_fid *id);
 
-M0_INTERNAL
-struct m0_pool_version *m0_pool_clean_pver_find(struct m0_pool *pool);
+M0_INTERNAL struct m0_pool_version *
+m0_pool_clean_pver_find(const struct m0_pool *pool);
 
 /** Generates layout id from pool version fid */
 M0_INTERNAL uint64_t
@@ -355,7 +351,6 @@ m0_pool_version2layout_id(const struct m0_fid *pv_fid, uint64_t lid);
  * Creates service contexts from given struct m0_conf_service.
  * Creates service context for each endpoint in m0_conf_service::cs_endpoints.
  */
-
 M0_INTERNAL struct m0_rpc_session *
 m0_pools_common_active_rm_session(struct m0_pools_common *pc);
 
