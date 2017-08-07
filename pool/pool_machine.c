@@ -333,9 +333,9 @@ static void poolmach_init(struct m0_poolmach       *pm,
 			  struct m0_poolmach_state *pm_state,
 			  struct m0_be_seg         *seg)
 {
+	M0_ENTRY();
 	M0_PRE(!pm->pm_is_initialised);
 
-	M0_ENTRY();
 	M0_SET0(pm);
 	m0_rwlock_init(&pm->pm_lock);
 	pm->pm_state = pm_state;
@@ -352,43 +352,39 @@ M0_INTERNAL int m0_poolmach_init(struct m0_poolmach *pm,
 				 uint32_t            max_node_failures,
 				 uint32_t            max_device_failures)
 {
-	struct m0_poolmach_state   *state             = NULL;
-	struct m0_poolnode         *nodes_array       = NULL;
-	struct m0_pooldev          *devices_array     = NULL;
-	struct m0_pool_spare_usage *spare_usage_array = NULL;
+	struct m0_poolmach_state   *state;
+	struct m0_poolnode         *nodes_array;
+	struct m0_pooldev          *devices_array;
+	struct m0_pool_spare_usage *spare_usage_array;
 
 	M0_ALLOC_PTR(state);
 	M0_ALLOC_ARR(nodes_array, nr_nodes);
 	M0_ALLOC_ARR(devices_array, nr_devices);
 	M0_ALLOC_ARR(spare_usage_array, max_device_failures);
-	if (state == NULL ||
-	    nodes_array == NULL ||
-	    devices_array == NULL ||
-	    spare_usage_array == NULL) {
+	if (M0_IN(NULL,
+		  (state, nodes_array, devices_array, spare_usage_array))) {
+		m0_free(state);
 		m0_free(nodes_array);
 		m0_free(devices_array);
 		m0_free(spare_usage_array);
-		m0_free(state);
 		return M0_ERR(-ENOMEM);
 	}
-
 	m0_poolmach__state_init(state, nodes_array, nr_nodes, devices_array,
 				nr_devices, spare_usage_array,
 				max_node_failures, max_device_failures, pm);
 	poolmach_init(pm, pver, state, NULL);
-
 	return M0_RC(0);
 }
 
 M0_INTERNAL
-int m0_poolmach_backed_init2(struct m0_poolmach *pm,
+int m0_poolmach_backed_init2(struct m0_poolmach     *pm,
 			     struct m0_pool_version *pver,
-			     struct m0_be_seg   *be_seg,
-			     struct m0_sm_group *sm_grp,
-			     uint32_t            nr_nodes,
-			     uint32_t            nr_devices,
-			     uint32_t            max_node_failures,
-			     uint32_t            max_device_failures)
+			     struct m0_be_seg       *be_seg,
+			     struct m0_sm_group     *sm_grp,
+			     uint32_t                nr_nodes,
+			     uint32_t                nr_devices,
+			     uint32_t                max_node_failures,
+			     uint32_t                max_device_failures)
 {
 #ifndef __KERNEL__
 	struct m0_be_tx         tx = {};
@@ -415,14 +411,14 @@ int m0_poolmach_backed_init2(struct m0_poolmach *pm,
 }
 
 M0_INTERNAL
-int m0_poolmach_backed_init(struct m0_poolmach *pm,
+int m0_poolmach_backed_init(struct m0_poolmach     *pm,
 			    struct m0_pool_version *pver,
-			    struct m0_be_seg   *be_seg,
-			    struct m0_be_tx    *be_tx,
-			    uint32_t            nr_nodes,
-			    uint32_t            nr_devices,
-			    uint32_t            max_node_failures,
-			    uint32_t            max_device_failures)
+			    struct m0_be_seg       *be_seg,
+			    struct m0_be_tx        *be_tx,
+			    uint32_t                nr_nodes,
+			    uint32_t                nr_devices,
+			    uint32_t                max_node_failures,
+			    uint32_t                max_device_failures)
 {
 	int                       rc;
 	struct m0_poolmach_state *state;
@@ -433,7 +429,7 @@ int m0_poolmach_backed_init(struct m0_poolmach *pm,
 
 	rc = m0_poolmach__store_init(be_seg, be_tx, nr_nodes,
 				     nr_devices, max_node_failures,
-			             max_device_failures,
+				     max_device_failures,
 				     &state, pm);
 	if (rc == 0)
 		poolmach_init(pm, pver, state, be_seg);

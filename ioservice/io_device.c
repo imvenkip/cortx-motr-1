@@ -262,56 +262,70 @@ static int ios_poolmach_objs_fill(struct m0_confc           *confc,
 	return M0_RC(0);
 }
 
+/* XXX Shouldn't we use pver_policy-aware m0_pool_version_get() instead? */
+static struct m0_pool_version *
+pool_version_first_available(const struct m0_pools_common *pc)
+{
+	struct m0_pool *pool;
+
+	m0_tl_for (pools, &pc->pc_pools, pool) {
+		if (m0_fid_eq(&pool->po_id, &pc->pc_md_pool->po_id))
+			continue;
+		if (pc->pc_dix_pool != NULL &&
+		    m0_fid_eq(&pool->po_id, &pc->pc_dix_pool->po_id))
+			continue;
+		return pool_version_tlist_head(&pool->po_vers);
+	} m0_tl_endfor;
+
+	M0_LOG(M0_ERROR, "No suitable pool version found");
+	return NULL;
+}
+
 M0_INTERNAL int m0_ios_poolmach_init(struct m0_reqh_service *service)
 {
-	struct m0_poolmach            *poolmach;
-	struct m0_reqh                *reqh = service->rs_reqh;
-        struct m0_pools_common        *pc = reqh->rh_pools;
-        struct m0_pool                *pool = pools_tlist_head(&pc->pc_pools);
-        struct m0_pool_version        *pver = pool_version_tlist_head(&pool->po_vers);
-	struct m0_confc               *confc = m0_reqh2confc(reqh);
-	struct m0_sm_group            *grp = m0_locality0_get()->lo_grp;
-	struct m0_ios_poolmach_args    ios_poolmach_args;
-	struct m0_conf_filesystem     *fs;
-	int                            rc;
+	struct m0_poolmach          *poolmach;
+	struct m0_reqh              *reqh = service->rs_reqh;
+	struct m0_pools_common      *pc = reqh->rh_pools;
+	struct m0_confc             *confc = m0_reqh2confc(reqh);
+	struct m0_sm_group          *grp = m0_locality0_get()->lo_grp;
+	struct m0_pool_version      *pver;
+	struct m0_ios_poolmach_args  ios_poolmach_args;
+	struct m0_conf_filesystem   *fs;
+	int                          rc;
 
+	M0_ENTRY();
 	M0_PRE(service != NULL);
 	M0_PRE(service->rs_reqh_ctx != NULL);
 	M0_PRE(service->rs_reqh_ctx->rc_mero != NULL);
 	M0_PRE(reqh != NULL);
 	M0_PRE(m0_reqh_lockers_is_empty(reqh, poolmach_key));
 
-	/* We maintain two types of pool-machines on server-side.
+	/*
+	 * We maintain two types of pool-machines on server-side.
 	 * The first one is the global pool machine that includes all the
-	 * available devices in a pool. Apart from this, each pool-version
+	 * available devices in a pool. Apart from this, each pool version
 	 * includes its own pool machine that includes devices present in the
-	 * pool version. When state of a device changes, the poolmachine utility
-	 * updates the global pool machine as well as the other pool machines
-	 * associated with the failed device.
+	 * pool version. When state of a device changes, the poolmachine
+	 * utility updates the global pool machine as well as the other pool
+	 * machines associated with the failed device.
 	 */
-	poolmach = m0_alloc(sizeof *poolmach);
-	if (poolmach == NULL) {
-		rc = M0_ERR(-ENOMEM);
-		goto exit;
-	}
+	M0_ALLOC_PTR(poolmach);
+	if (poolmach == NULL)
+		return M0_ERR(-ENOMEM);
+
 	rc = m0_conf_fs_get(m0_reqh2profile(reqh), confc, &fs);
 	if (rc != 0)
 		goto poolmach_free;
 
-	m0_tl_for (pools, &pc->pc_pools, pool) {
-		if (m0_fid_eq(&pc->pc_md_pool->po_id, &pool->po_id) ||
-		    (pc->pc_dix_pool != NULL &&
-		     m0_fid_eq(&pc->pc_dix_pool->po_id, &pool->po_id))) {
-			continue;
-		} else {
-			pver = pool_version_tlist_head(&pool->po_vers);
-			break;
-		}
-	} m0_tl_endfor;
-
+	pver = pool_version_first_available(pc);
+	if (pver == NULL) {
+		rc = M0_ERR(-ENOENT);
+		goto fs_close;
+	}
 	rc = ios_poolmach_args_init(confc, fs, &ios_poolmach_args);
 	if (rc != 0)
 		goto fs_close;
+
 	/* We are not using reqh->rh_sm_grp here, otherwise deadlock */
 	m0_sm_group_lock(grp);
 	rc = m0_poolmach_backed_init2(poolmach, pver, reqh->rh_beseg, grp,
@@ -322,7 +336,9 @@ M0_INTERNAL int m0_ios_poolmach_init(struct m0_reqh_service *service)
 	m0_sm_group_unlock(grp);
 	if (rc != 0)
 		goto fs_close;
+
 	rc = ios_poolmach_objs_fill(confc, fs, poolmach);
+
 	m0_confc_close(&fs->cf_obj);
 	m0_rwlock_write_lock(&reqh->rh_rwlock);
 	m0_reqh_lockers_set(reqh, poolmach_key, poolmach);
@@ -333,28 +349,20 @@ fs_close:
 	m0_confc_close(&fs->cf_obj);
 poolmach_free:
 	m0_free(poolmach);
-exit:
 	return M0_ERR(rc);
 }
 
-M0_INTERNAL struct m0_poolmach *m0_ios_poolmach_get(struct m0_reqh *reqh)
+M0_INTERNAL struct m0_poolmach *m0_ios_poolmach_get(const struct m0_reqh *reqh)
 {
-        struct m0_pools_common *pc = reqh->rh_pools;
-        struct m0_pool         *pool = pools_tlist_head(&pc->pc_pools);
-        struct m0_pool_version *pver = pool_version_tlist_head(&pool->po_vers);
+	struct m0_pool_version *pver;
 	struct m0_poolmach     *pm;
 
-	/* XXX: it floods the log:
-	M0_LOG(M0_DEBUG, "key get for reqh=%p, key=%d", reqh, poolmach_key);*/
 	M0_PRE(reqh != NULL);
 	M0_PRE(!m0_reqh_lockers_is_empty(reqh, poolmach_key));
 
-/*
-	XXX Cleanup as part of ios pool machine removal.
-	m0_rwlock_read_lock(&reqh->rh_rwlock);
-	pm = m0_reqh_lockers_get(reqh, poolmach_key);
-	m0_rwlock_read_unlock(&reqh->rh_rwlock);
-*/
+	pver = pool_version_first_available(reqh->rh_pools);
+	M0_ASSERT(pver != NULL);
+
 	pm = &pver->pv_mach;
 	M0_POST(pm != NULL);
 	return pm;

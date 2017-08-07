@@ -65,7 +65,7 @@ M0_INTERNAL int m0_ios_poolmach_init(struct m0_reqh_service *service);
 /**
  * Gets the shared pool machine.
  */
-M0_INTERNAL struct m0_poolmach *m0_ios_poolmach_get(struct m0_reqh *reqh);
+M0_INTERNAL struct m0_poolmach *m0_ios_poolmach_get(const struct m0_reqh *reqh);
 
 /**
  * Finializes the pool machine when it is no longer used.
