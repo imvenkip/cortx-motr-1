@@ -42,16 +42,12 @@ struct m0_cm_sw;
 extern const struct m0_sns_cm_helpers rebalance_helpers;
 extern const struct m0_cm_cp_ops m0_sns_cm_rebalance_cp_ops;
 
-
 M0_INTERNAL int
 m0_sns_cm_rebalance_sw_onwire_fop_setup(struct m0_cm *cm, struct m0_fop *fop,
 					void (*fop_release)(struct m0_ref *),
 					uint64_t proxy_id, const char *local_ep,
 					const struct m0_cm_sw *sw,
 					const struct m0_cm_sw *out_interval);
-
-
-M0_INTERNAL int m0_sns_reopen_stob_devices(struct m0_cm *cm);
 
 static struct m0_cm_cp *rebalance_cm_cp_alloc(struct m0_cm *cm)
 {
@@ -61,20 +57,15 @@ static struct m0_cm_cp *rebalance_cm_cp_alloc(struct m0_cm *cm)
 	if (scp == NULL)
 		return NULL;
 	scp->sc_base.c_ops = &m0_sns_cm_rebalance_cp_ops;
-
 	return &scp->sc_base;
 }
 
 static int rebalance_cm_prepare(struct m0_cm *cm)
 {
 	struct m0_sns_cm *scm = cm2sns(cm);
-	int    rc;
 
 	M0_ENTRY("cm: %p", cm);
 	M0_PRE(scm->sc_op == CM_OP_REBALANCE);
-	rc = m0_sns_reopen_stob_devices(cm);
-	if (rc != 0)
-		return rc;
 
 	scm->sc_helpers = &rebalance_helpers;
 	return m0_sns_cm_prepare(cm);

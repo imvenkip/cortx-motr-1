@@ -335,35 +335,6 @@ static bool rebalance_ag_is_relevant(struct m0_sns_cm *scm,
 	return false;
 }
 
-/**
- * Reopen the REPAIRED stob devices.
- * When the disk is powered OFF and ON the disk device file (under /dev) gets
- * changed. Destroy & create the stob to reopen the underlying devices.
- */
-M0_INTERNAL int m0_sns_reopen_stob_devices(struct m0_cm *cm)
-{
-	struct m0_sns_cm      *scm = cm2sns(cm);
-	enum m0_pool_nd_state  state;
-	int                    rc = 0;
-
-	state = scm->sc_op == CM_OP_REPAIR ? M0_PNDS_SNS_REPAIRING :
-		M0_PNDS_SNS_REBALANCING;
-	M0_PRE(state == M0_PNDS_SNS_REBALANCING);
-#if 0
-	/*
-	 * This piece of code need to be moved into HA callback.
-	 * Please see MERO-1484 for references.
-	 */
-	struct m0_poolmach    *pm;
-	pm = m0_ios_poolmach_get(scm->sc_base.cm_service.rs_reqh);
-	rc = m0_pool_device_reopen(pm, scm->sc_base.cm_service.rs_reqh);
-	if (rc != 0) {
-		return M0_ERR(rc);
-	}
-#endif
-	return M0_RC(rc);
-}
-
 static int
 rebalance_cob_locate(struct m0_sns_cm *scm, struct m0_cob_domain *cdom,
                      struct m0_poolmach *pm, const struct m0_fid *cob_fid)
