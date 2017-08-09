@@ -60,6 +60,28 @@ sns_repair_test()
 	disk_state_set "repair" $fail_device || return $?
 	sns_repair || return $?
 
+	echo "**** Test spurious rebalance request during repair *****"
+	disk_state_set "rebalance" $fail_device || return $?
+	disk_state_get $fail_device || return $?
+
+	sns_rebalance || return $?
+
+	wait_for_sns_repair_or_rebalance "rebalance" || return $?
+	disk_state_set "online" $fail_device || return $?
+
+	disk_state_get $fail_device
+	echo "**** Spurious rebalance event test completed *****"
+
+	disk_state_set "failed" $fail_device || return $?
+
+	disk_state_get $fail_device || return $?
+
+	echo "Device $fail_device failed. Do dgmode read"
+	md5sum_check || return $?
+
+	disk_state_set "repair" $fail_device || return $?
+	sns_repair || return $?
+
 	echo "wait for sns repair"
 	wait_for_sns_repair_or_rebalance "repair" || return $?
 
@@ -78,7 +100,22 @@ sns_repair_test()
 	echo "Starting SNS Re-balance.."
 	sns_rebalance || return $?
 
+	echo "**** Test spurious repair event during rebalance *****"
+	disk_state_set "failed" $fail_device || return $?
+	disk_state_get $fail_device || return $?
+
+	disk_state_set "repair" $fail_device || return $?
+	sns_repair || return $?
+
+	wait_for_sns_repair_or_rebalance "repair" || return $?
+	disk_state_set "repaired" $fail_device || return $?
+
 	disk_state_get $fail_device
+	echo "**** Spurious repair event test completed *****"
+
+	disk_state_set "rebalance" $fail_device || return $?
+	echo "Starting SNS Re-balance.."
+	sns_rebalance || return $?
 
 	echo "wait for sns rebalance"
 	wait_for_sns_repair_or_rebalance "rebalance" || return $?

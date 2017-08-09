@@ -105,8 +105,9 @@ static int rebalance_ag_in_cp_units(const struct m0_sns_cm *scm,
 		M0_SET0(&cobfid);
 		M0_ASSERT(pm != NULL);
 		m0_sns_cm_unit2cobfid(fctx, &sa, &ta, &cobfid);
-		if (!m0_sns_cm_is_cob_failed(pm, ta.ta_obj) ||
-		    m0_sns_cm_file_unit_is_EOF(pl, nr_max_du, sa.sa_group, sa.sa_unit))
+		if (!scm->sc_helpers->sch_is_cob_failed(pm, ta.ta_obj) ||
+		    m0_sns_cm_file_unit_is_EOF(pl, nr_max_du, sa.sa_group,
+					       sa.sa_unit))
 			continue;
                 if (!m0_sns_cm_is_local_cob(cm, pm->pm_pver, &cobfid))
                         continue;
@@ -342,13 +343,25 @@ rebalance_cob_locate(struct m0_sns_cm *scm, struct m0_cob_domain *cdom,
 	return m0_sns_cm_cob_locate(cdom, cob_fid);
 }
 
+static bool rebalance_is_cob_failed(struct m0_poolmach *pm,
+				    uint32_t cob_index)
+{
+	enum m0_pool_nd_state state_out = 0;
+	M0_PRE(pm != NULL);
+
+	m0_poolmach_device_state(pm, cob_index, &state_out);
+	return !M0_IN(state_out, (M0_PNDS_ONLINE, M0_PNDS_OFFLINE,
+		      M0_PNDS_SNS_REPAIRING));
+}
+
 const struct m0_sns_cm_helpers rebalance_helpers = {
 	.sch_ag_in_cp_units  = rebalance_ag_in_cp_units,
 	.sch_ag_unit_start   = rebalance_ag_unit_start,
 	.sch_ag_unit_end     = rebalance_ag_unit_end,
 	.sch_ag_is_relevant  = rebalance_ag_is_relevant,
 	.sch_ag_setup        = m0_sns_cm_rebalance_ag_setup,
-	.sch_cob_locate      = rebalance_cob_locate
+	.sch_cob_locate      = rebalance_cob_locate,
+	.sch_is_cob_failed   = rebalance_is_cob_failed
 };
 
 #undef M0_TRACE_SUBSYSTEM

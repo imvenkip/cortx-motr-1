@@ -369,6 +369,7 @@ static bool __group_skip(struct m0_sns_cm_iter *it, uint64_t group)
 	int                             i;
 	struct m0_poolmach             *pm = fctx->sf_pm;
 	struct m0_pdclust_layout       *pl;
+ 	struct m0_sns_cm               *scm = it2sns(it);
 
 	M0_ENTRY("it: %p group: %lu", it, (unsigned long)group);
 
@@ -380,7 +381,7 @@ static bool __group_skip(struct m0_sns_cm_iter *it, uint64_t group)
 		sa.sa_unit = i;
 		sa.sa_group = group;
 		m0_sns_cm_unit2cobfid(fctx, &sa, &ta, &cobfid);
-		if (m0_sns_cm_is_cob_failed(pm, ta.ta_obj) &&
+		if (scm->sc_helpers->sch_is_cob_failed(pm, ta.ta_obj) &&
 		    !m0_sns_cm_is_cob_repaired(pm, ta.ta_obj) &&
 		    !m0_sns_cm_unit_is_spare(fctx, group, sa.sa_unit) &&
 		    !m0_sns_cm_file_unit_is_EOF(pl, nr_max_du, sa.sa_group, sa.sa_unit))
@@ -713,8 +714,8 @@ static int iter_cob_next(struct m0_sns_cm_iter *it)
 		rc = m0_sns_cm_cob_locate(scm->sc_cob_dom, cob_fid);
 		++sa->sa_unit;
 	} while (rc == -ENOENT ||
-		 m0_sns_cm_is_cob_failed(ifc->ifc_fctx->sf_pm,
-				         ifc->ifc_ta.ta_obj));
+		 scm->sc_helpers->sch_is_cob_failed(ifc->ifc_fctx->sf_pm,
+				                    ifc->ifc_ta.ta_obj));
 
 	if (rc == 0)
 		iter_phase_set(it, ITPH_CP_SETUP);

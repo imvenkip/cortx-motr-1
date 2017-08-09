@@ -81,7 +81,7 @@ static int repair_ag_in_cp_units(const struct m0_sns_cm *scm,
 					       unit))
 			continue;
 
-		is_failed = m0_sns_cm_is_cob_failed(pm, ta.ta_obj);
+		is_failed = scm->sc_helpers->sch_is_cob_failed(pm, ta.ta_obj);
 		/* Count number of spares corresponding to the failures
 		 * on a node. This is required to calculate exact number of
 		 * incoming copy packets.
@@ -180,7 +180,7 @@ static bool repair_ag_is_relevant(struct m0_sns_cm *scm,
 	for (j = N + K; j < N + 2 * K; ++j) {
 		sa.sa_unit = j;
 		m0_sns_cm_unit2cobfid(fctx, &sa, &ta, &cobfid);
-		if (m0_sns_cm_is_cob_failed(pm, ta.ta_obj))
+		if (scm->sc_helpers->sch_is_cob_failed(pm, ta.ta_obj))
 			continue;
 		if (!m0_sns_cm_is_local_cob(&scm->sc_base, pm->pm_pver, &cobfid))
 			continue;
@@ -221,13 +221,29 @@ repair_cob_locate(struct m0_sns_cm *scm, struct m0_cob_domain *cdom,
 	return rc;
 }
 
+static bool repair_is_cob_failed(struct m0_poolmach *pm,
+			         uint32_t cob_index)
+{
+	enum m0_pool_nd_state state_out = 0;
+	M0_PRE(pm != NULL);
+
+	m0_poolmach_device_state(pm, cob_index, &state_out);
+	/* Checking for M0_PNDS_SNS_REBALANCING for the case where the
+ 	   repaired device fails during rebalance, and a new repair is
+	   triggered. The cob is not marked as failed, since it was already
+	   repaired */
+	return !M0_IN(state_out, (M0_PNDS_ONLINE, M0_PNDS_OFFLINE,
+		      M0_PNDS_SNS_REBALANCING));
+}
+
 const struct m0_sns_cm_helpers repair_helpers = {
 	.sch_ag_in_cp_units  = repair_ag_in_cp_units,
 	.sch_ag_unit_start   = repair_ag_unit_start,
 	.sch_ag_unit_end     = repair_ag_unit_end,
 	.sch_ag_is_relevant  = repair_ag_is_relevant,
 	.sch_ag_setup        = m0_sns_cm_repair_ag_setup,
-	.sch_cob_locate      = repair_cob_locate
+	.sch_cob_locate      = repair_cob_locate,
+	.sch_is_cob_failed   = repair_is_cob_failed
 };
 
 #undef M0_TRACE_SUBSYSTEM

@@ -177,6 +177,8 @@ struct m0_sns_cm_helpers {
 				   struct m0_poolmach *pm,
 				   const struct m0_fid *cob_fid);
 
+       bool      (*sch_is_cob_failed)(struct m0_poolmach *pm,
+				      uint32_t cob_index);
 };
 
 /** Resource manager context for a sns copy machine. */

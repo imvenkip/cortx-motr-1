@@ -200,7 +200,7 @@ M0_INTERNAL uint64_t m0_sns_cm_ag_nr_local_units(struct m0_sns_cm *scm,
 		sa.sa_unit = i;
 		m0_sns_cm_unit2cobfid(fctx, &sa, &ta, &cobfid);
 		if (m0_sns_cm_cob_locate(scm->sc_cob_dom, &cobfid) == 0 &&
-		    !m0_sns_cm_is_cob_failed(pm, ta.ta_obj) &&
+		    !scm->sc_helpers->sch_is_cob_failed(pm, ta.ta_obj) &&
 		    !m0_sns_cm_unit_is_spare(fctx, group, i) &&
 		    !m0_sns_cm_file_unit_is_EOF(pl, nr_max_du, group, sa.sa_unit))
 			M0_CNT_INC(nrlu);
@@ -235,16 +235,6 @@ M0_INTERNAL uint64_t m0_sns_cm_ag_nr_spare_units(const struct m0_pdclust_layout 
 M0_INTERNAL uint64_t m0_sns_cm_ag_size(const struct m0_pdclust_layout *pl)
 {
 	return m0_sns_cm_ag_nr_data_units(pl) + 2 * m0_sns_cm_ag_nr_parity_units(pl);
-}
-
-M0_INTERNAL bool m0_sns_cm_is_cob_failed(struct m0_poolmach *pm,
-					 uint32_t cob_index)
-{
-	enum m0_pool_nd_state state_out = 0;
-	M0_PRE(pm != NULL);
-
-	m0_poolmach_device_state(pm, cob_index, &state_out);
-	return !M0_IN(state_out, (M0_PNDS_ONLINE, M0_PNDS_OFFLINE));
 }
 
 M0_INTERNAL bool m0_sns_cm_is_cob_repaired(struct m0_poolmach *pm,
@@ -497,9 +487,10 @@ M0_INTERNAL size_t m0_sns_cm_ag_unrepaired_units(const struct m0_sns_cm *scm,
 			continue;
 		sa.sa_unit = unit;
 		m0_sns_cm_unit2cobfid(fctx, &sa, &ta, &cobfid);
-		if (m0_sns_cm_is_cob_failed(pm, ta.ta_obj) &&
+		if (scm->sc_helpers->sch_is_cob_failed(pm, ta.ta_obj) &&
 		    !m0_sns_cm_is_cob_repaired(pm, ta.ta_obj) &&
-		    !m0_sns_cm_file_unit_is_EOF(pl, nr_max_du, sa.sa_group, sa.sa_unit)) {
+		    !m0_sns_cm_file_unit_is_EOF(pl, nr_max_du, sa.sa_group,
+						sa.sa_unit)) {
 			M0_CNT_INC(group_failures);
 			if (fmap_out != NULL) {
 				M0_ASSERT(fmap_out->b_nr == upg);
