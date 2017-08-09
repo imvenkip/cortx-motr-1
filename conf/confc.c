@@ -1429,7 +1429,7 @@ path_walk_complete(struct m0_confc_ctx *ctx, struct m0_conf_obj *obj, size_t ri)
 			m0_chan_broadcast(&obj->co_chan);
 			break;
 		}
-		m0_clink_add_lock(&obj->co_chan, &ctx->fc_clink);
+		m0_clink_add(&obj->co_chan, &ctx->fc_clink);
 		M0_LEAVE("retval=M0_CS_LOADING");
 		return M0_CS_LOADING;
 
