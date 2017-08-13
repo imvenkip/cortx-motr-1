@@ -337,9 +337,6 @@ M0_INTERNAL int m0_pool_version_append(struct m0_pools_common *pc,
 
 M0_INTERNAL void m0_pool_versions_destroy(struct m0_pools_common *pc);
 
-M0_INTERNAL struct m0_pool *m0_pool_find(struct m0_pools_common *pc,
-					 const struct m0_fid *id);
-
 M0_INTERNAL struct m0_pool_version *
 m0_pool_clean_pver_find(const struct m0_pool *pool);
 

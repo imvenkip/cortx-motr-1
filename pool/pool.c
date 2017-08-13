@@ -168,11 +168,11 @@
    <hr>
    @section pool_mach_store_replica-conformance Conformance
    - @b I.DLD.P All pool machine states are stored on persistent storage, using
-		BE interfaces. This states data can be loaded when
-		system re-starts.
+                BE interfaces. This states data can be loaded when
+                system re-starts.
    - @b I.DLD.T Updates to the persistent storage will be protected by
-		distributed transaction manager. This will insure the updates
-		can survive system failures.
+                distributed transaction manager. This will insure the updates
+                can survive system failures.
 
    <hr>
    @section pool_mach_store_replica-ut Unit Tests
@@ -246,11 +246,10 @@ M0_TL_DESCR_DEFINE(pool_failed_devs, "pool failed devices", M0_INTERNAL,
 M0_TL_DEFINE(pool_failed_devs, M0_INTERNAL, struct m0_pooldev);
 
 static const struct m0_bob_type pver_bob = {
-        .bt_name         = "m0_pool_version",
-        .bt_magix_offset = M0_MAGIX_OFFSET(struct m0_pool_version,
-                                           pv_magic),
-        .bt_magix        = M0_POOL_VERSION_MAGIC,
-        .bt_check        = NULL
+	.bt_name         = "m0_pool_version",
+	.bt_magix_offset = M0_MAGIX_OFFSET(struct m0_pool_version, pv_magic),
+	.bt_magix        = M0_POOL_VERSION_MAGIC,
+	.bt_check        = NULL
 };
 M0_BOB_DEFINE(static, &pver_bob, m0_pool_version);
 
@@ -262,6 +261,17 @@ static int pool_version_get_locked(struct m0_pools_common  *pc,
 				   struct m0_pool_version **pv);
 static void pool_version__layouts_evict(struct m0_pool_version *pv,
 					struct m0_layout_domain *ldom);
+
+static struct m0_pool *pool_find(const struct m0_pools_common *pc,
+				 const struct m0_fid *pool)
+{
+	struct m0_pool *ret;
+
+	M0_ENTRY("pool="FID_F, FID_P(pool));
+	ret = m0_tl_find(pools, p, &pc->pc_pools, m0_fid_eq(&p->po_id, pool));
+	M0_LEAVE("%sfound", ret == NULL ? "not " : "");
+	return ret;
+}
 
 static void pool__layouts_evict(struct m0_pool *pool,
 				struct m0_layout_domain *ldom);
@@ -361,7 +371,9 @@ static int mds_map_fill(struct m0_pools_common *pc,
 	uint64_t                    idx = 0;
 	int                         rc;
 
-	M0_ENTRY();
+	M0_ENTRY("ctrl="FID_F" node="FID_F, FID_P(&ctrl->cc_obj.co_id),
+		 FID_P(&ctrl->cc_node->cn_obj.co_id));
+
 	rc = m0_conf_diter_init(&it, pc->pc_confc, &ctrl->cc_node->cn_obj,
 				M0_CONF_NODE_PROCESSES_FID,
 				M0_CONF_PROCESS_SERVICES_FID);
@@ -436,7 +448,7 @@ static bool obj_is_ios_cas_diskv(const struct m0_conf_obj *obj)
 {
 	return m0_conf_obj_type(obj) == &M0_CONF_OBJV_TYPE &&
 	       m0_disk_is_of_type(M0_CONF_CAST(obj, m0_conf_objv)->cv_real,
-			          M0_BITS(M0_CST_IOS, M0_CST_CAS));
+				  M0_BITS(M0_CST_IOS, M0_CST_CAS));
 }
 
 M0_INTERNAL int m0_pool_version_device_map_init(struct m0_pool_version *pv,
@@ -1099,7 +1111,7 @@ static void reqh_service_ctx_abandon(struct m0_reqh_service_ctx *ctx)
 	 *
 	 * read lock conflict
 	 *  \_ pools_common_conf_expired_cb()
-	        \_ m0_reqh_service_ctx_unsubscribe() <-- context clinks cleanup
+	 *      \_ m0_reqh_service_ctx_unsubscribe() <-- context clinks cleanup
 	 *
 	 * ... new conf version distribution ...
 	 *
@@ -1658,7 +1670,7 @@ M0_INTERNAL int m0_pool_version_append(struct m0_pools_common  *pc,
 				  m0_conf_pool);
 	}
 
-	p = m0_pool_find(pc, &cp->pl_obj.co_id);
+	p = pool_find(pc, &cp->pl_obj.co_id);
 	M0_ASSERT(p != NULL);
 
 	M0_ALLOC_PTR(*pv);
@@ -1709,7 +1721,7 @@ dix_pool_setup(struct m0_pools_common *pc, const struct m0_fid *imeta_pver)
 		M0_ASSERT(rc == 0);
 		pool = M0_CONF_CAST(m0_conf_obj_grandparent(pver),
 				    m0_conf_pool);
-		pc->pc_dix_pool = m0_pool_find(pc, &pool->pl_obj.co_id);
+		pc->pc_dix_pool = pool_find(pc, &pool->pl_obj.co_id);
 		M0_ASSERT(pc->pc_dix_pool != NULL);
 		M0_LOG(M0_DEBUG, "imeta_pver="FID_F" -> dix_pool="FID_F,
 		       FID_P(imeta_pver), FID_P(&pc->pc_dix_pool->po_id));
@@ -1739,9 +1751,7 @@ M0_INTERNAL int m0_pools_setup(struct m0_pools_common    *pc,
 	while ((rc = m0_conf_diter_next_sync(&it, m0_conf_obj_is_pool)) ==
 		M0_CONF_DIRNEXT) {
 		pool_obj = m0_conf_diter_result(&it);
-		pool = m0_pool_find(pc, &pool_obj->co_id);
-		M0_LOG(M0_DEBUG, "%spool:"FID_F, pool == NULL ? "" : "! ",
-		       FID_P(&pool_obj->co_id));
+		pool = pool_find(pc, &pool_obj->co_id);
 		if (pool != NULL)
 			/*
 			 * Pool is already in pools common, so we must be in
@@ -1759,7 +1769,7 @@ M0_INTERNAL int m0_pools_setup(struct m0_pools_common    *pc,
 		return M0_ERR(rc);
 	}
 	/* MD pool setup. */
-	pc->pc_md_pool = m0_pool_find(pc, &fs->cf_mdpool);
+	pc->pc_md_pool = pool_find(pc, &fs->cf_mdpool);
 	M0_ASSERT(pc->pc_md_pool != NULL);
 	M0_LOG(M0_DEBUG, "md_pool="FID_F, FID_P(&fs->cf_mdpool));
 
@@ -1769,32 +1779,25 @@ M0_INTERNAL int m0_pools_setup(struct m0_pools_common    *pc,
 
 M0_INTERNAL void m0_pool_versions_destroy(struct m0_pools_common *pc)
 {
-        struct m0_pool *p;
+	struct m0_pool *p;
 
 	M0_ENTRY();
-        m0_tl_for(pools, &pc->pc_pools, p) {
-                m0_pool_versions_fini(p);
-        } m0_tl_endfor;
+	m0_tl_for(pools, &pc->pc_pools, p) {
+		m0_pool_versions_fini(p);
+	} m0_tl_endfor;
 	M0_LEAVE();
 }
 
 M0_INTERNAL void m0_pools_destroy(struct m0_pools_common *pc)
 {
-        struct m0_pool *p;
+	struct m0_pool *p;
 
 	M0_ENTRY();
-        m0_tl_teardown(pools, &pc->pc_pools, p) {
-                m0_pool_fini(p);
-                m0_free(p);
-        }
+	m0_tl_teardown(pools, &pc->pc_pools, p) {
+		m0_pool_fini(p);
+		m0_free(p);
+	}
 	M0_LEAVE();
-}
-
-M0_INTERNAL struct m0_pool *m0_pool_find(struct m0_pools_common *pc,
-					 const struct m0_fid *id)
-{
-	return m0_tl_find(pools, pool, &pc->pc_pools,
-			  m0_fid_eq(&pool->po_id, id));
 }
 
 M0_INTERNAL uint64_t
