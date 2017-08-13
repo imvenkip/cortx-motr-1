@@ -96,7 +96,10 @@ struct m0_confx_filesystem {
 
 struct m0_confx_pool {
 	struct m0_confx_header xp_header;
-	/* Policy to be used for pool version selection. */
+	/*
+	 * Policy to be used for pool version selection.
+	 * See m0_pver_policy_code.
+	 */
 	uint32_t               xp_pver_policy;
 	/* Pool versions for this pool. */
 	struct m0_fid_arr      xp_pvers;

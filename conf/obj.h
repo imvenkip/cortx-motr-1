@@ -387,7 +387,11 @@ struct m0_conf_pool {
 	/** Directory of actual and formulaic pool versions. */
 	struct m0_conf_dir *pl_pvers;
 /* configuration data (for the application) */
-	/** Policy to be used for pool version selection.*/
+	/**
+	 * Policy to be used for pool version selection.
+	 *
+	 * @see m0_pver_policy_code
+	 */
 	uint32_t            pl_pver_policy;
 };
 
