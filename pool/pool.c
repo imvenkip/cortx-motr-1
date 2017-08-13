@@ -348,37 +348,36 @@ static bool is_mds(const struct m0_conf_obj *obj)
 	       M0_CONF_CAST(obj, m0_conf_service)->cs_type == M0_CST_MDS;
 }
 
-static int __mds_map(struct m0_conf_controller *c, struct m0_pools_common *pc)
+/**
+ * Fills pc->pc_mds_map[] with service contexts (m0_reqh_service_ctx) of
+ * the meta-data services run on the node associated with `ctrl`.
+ */
+static int mds_map_fill(struct m0_pools_common *pc,
+			const struct m0_conf_controller *ctrl)
 {
 	struct m0_conf_diter        it;
 	struct m0_reqh_service_ctx *ctx;
-	struct m0_conf_service     *s;
-	struct m0_conf_obj         *obj;
+	struct m0_conf_service     *svc;
 	uint64_t                    idx = 0;
 	int                         rc;
 
 	M0_ENTRY();
-	rc = m0_conf_diter_init(&it, pc->pc_confc, &c->cc_node->cn_obj,
+	rc = m0_conf_diter_init(&it, pc->pc_confc, &ctrl->cc_node->cn_obj,
 				M0_CONF_NODE_PROCESSES_FID,
 				M0_CONF_PROCESS_SERVICES_FID);
 	if (rc != 0)
 		return M0_ERR(rc);
 
 	while ((rc = m0_conf_diter_next_sync(&it, is_mds)) == M0_CONF_DIRNEXT) {
-		obj = m0_conf_diter_result(&it);
-		s = M0_CONF_CAST(obj, m0_conf_service);
-		ctx = m0_tl_find(pools_common_svc_ctx, ctx,
-				 &pc->pc_svc_ctxs,
-				 m0_fid_eq(&s->cs_obj.co_id,
-					   &ctx->sc_fid));
+		svc = M0_CONF_CAST(m0_conf_diter_result(&it), m0_conf_service);
+		ctx = m0_tl_find(pools_common_svc_ctx, ctx, &pc->pc_svc_ctxs,
+				 m0_fid_eq(&svc->cs_obj.co_id, &ctx->sc_fid));
 		pc->pc_mds_map[idx++] = ctx;
-		M0_LOG(M0_DEBUG, "mds index:%d, no. of mds:%d", (int)idx,
-			(int)pc->pc_nr_svcs[M0_CST_MDS]);
+		M0_LOG(M0_DEBUG, "mds index:%"PRIu64", no. of mds:%"PRIu64,
+		       idx, pc->pc_nr_svcs[M0_CST_MDS]);
 		M0_ASSERT(idx <= pc->pc_nr_svcs[M0_CST_MDS]);
 	}
-
 	m0_conf_diter_fini(&it);
-
 	return M0_RC(rc);
 }
 
@@ -389,15 +388,13 @@ static bool obj_is_controllerv(const struct m0_conf_obj *obj)
 	       &M0_CONF_CONTROLLER_TYPE;
 }
 
-M0_INTERNAL int m0_pool_mds_map_init(struct m0_conf_filesystem *fs,
-				     struct m0_pools_common *pc)
+static int pool_mds_map_init(struct m0_pools_common *pc,
+			     struct m0_conf_filesystem *fs)
 {
-	struct m0_conf_obj        *mdpool;
-	struct m0_conf_diter       it;
-	struct m0_conf_objv       *ov;
-	struct m0_conf_controller *c;
-	struct m0_conf_obj        *obj;
-	int                        rc;
+	struct m0_conf_obj   *mdpool;
+	struct m0_conf_diter  it;
+	struct m0_conf_objv  *objv;
+	int                   rc;
 
 	M0_ENTRY();
 	M0_PRE(!pools_common_svc_ctx_tlist_is_empty(&pc->pc_svc_ctxs));
@@ -417,13 +414,15 @@ M0_INTERNAL int m0_pool_mds_map_init(struct m0_conf_filesystem *fs,
 
 	while ((rc = m0_conf_diter_next_sync(&it, obj_is_controllerv)) ==
 		M0_CONF_DIRNEXT) {
-		obj = m0_conf_diter_result(&it);
-		M0_ASSERT(m0_conf_obj_type(obj) == &M0_CONF_OBJV_TYPE);
-		ov = M0_CONF_CAST(obj, m0_conf_objv);
-		M0_ASSERT(m0_conf_obj_type(ov->cv_real) ==
-						&M0_CONF_CONTROLLER_TYPE);
-		c = M0_CONF_CAST(ov->cv_real, m0_conf_controller);
-		rc = __mds_map(c, pc);
+		objv = M0_CONF_CAST(m0_conf_diter_result(&it), m0_conf_objv);
+		/*
+		 * XXX BUG: mds_map_fill() overwrites pc->pc_mds_map[].
+		 *
+		 * The bug will bite on cluster configurations that have
+		 * several controller-v objects in the MD pool subtree.
+		 */
+		rc = mds_map_fill(pc, M0_CONF_CAST(objv->cv_real,
+						   m0_conf_controller));
 		if (rc != 0)
 			break;
 	}
@@ -550,8 +549,6 @@ M0_INTERNAL int m0_pool_version_init(struct m0_pool_version *pv,
 	pv->pv_is_stale = false;
 
 	M0_POST(pool_version_invariant(pv));
-	M0_LEAVE();
-
 	return M0_RC(rc);
 }
 
@@ -1406,7 +1403,8 @@ static int pools_common_refresh_locked(struct m0_pools_common    *pc,
 
 	M0_ALLOC_ARR(pc->pc_mds_map,
 		     pools_common_svc_ctx_tlist_length(&pc->pc_svc_ctxs));
-	rc = pc->pc_mds_map == NULL ? -ENOMEM : m0_pool_mds_map_init(fs, pc);
+	rc = pc->pc_mds_map == NULL ? M0_ERR(-ENOMEM) :
+		pool_mds_map_init(pc, fs);
 	if (rc != 0)
 		goto err;
 	pc->pc_rm_ctx = service_ctx_find_by_type(pc, M0_CST_RMS);
