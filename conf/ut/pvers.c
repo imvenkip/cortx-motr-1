@@ -142,6 +142,17 @@ static void test_pver_find(void)
 	rc = m0_conf_pver_find_by_fid(&pver_virt->pv_obj.co_id, root, &pver);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(pver == pver_virt);
+	{
+		const struct m0_conf_pver *fpver;
+
+		rc = m0_conf_pver_formulaic_from_virtual(pver_virt, root,
+							 &fpver);
+		M0_UT_ASSERT(rc == 0);
+		M0_UT_ASSERT(fpver->pv_kind == M0_CONF_PVER_FORMULAIC);
+		M0_UT_ASSERT(m0_fid_eq(&fpver->pv_obj.co_id,
+				       /* pver_f-0 */
+				       &M0_FID_INIT(0x7640000000000001, 0)));
+	}
 	/*
 	 * Now let us request a slightly different fid.
 	 *

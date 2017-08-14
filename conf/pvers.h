@@ -133,6 +133,12 @@ M0_INTERNAL int m0_conf_pver_formulaic_find(uint32_t fpver_id,
 					    const struct m0_conf_root *root,
 					    const struct m0_conf_pver **out);
 
+/** Finds formulaic pool version which `virtual' was "formulated" from. */
+M0_INTERNAL int
+m0_conf_pver_formulaic_from_virtual(const struct m0_conf_pver *virtual,
+				    const struct m0_conf_root *root,
+				    const struct m0_conf_pver **out);
+
 /**
  * Returns true iff pver consists of online elements only or can be
  * used to generate such a pver.

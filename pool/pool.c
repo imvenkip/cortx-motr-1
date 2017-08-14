@@ -1617,31 +1617,26 @@ M0_INTERNAL int m0_pool_versions_setup(struct m0_pools_common    *pc,
 	return M0_RC(rc);
 }
 
-static const struct m0_conf_pver *
-formulaic_pool_version(struct m0_confc *confc, struct m0_conf_pver *vpver)
+static int pool_from_virtual_pver(const struct m0_conf_pver *virtual,
+				  struct m0_confc           *confc,
+				  struct m0_conf_pool      **out)
 {
-	uint32_t                   fpver_id;
-	uint64_t                   cid;
-	const struct m0_conf_pver *fpver;
 	struct m0_conf_root       *root;
+	const struct m0_conf_pver *fpver;
 	int                        rc;
 
-	M0_PRE(vpver->pv_kind == M0_CONF_PVER_VIRTUAL);
+	M0_ENTRY("virtual="FID_F, FID_P(&virtual->pv_obj.co_id));
+	M0_PRE(virtual->pv_kind == M0_CONF_PVER_VIRTUAL);
 
 	rc = m0_conf_root_open(confc, &root);
-	if (rc != 0) {
-		M0_LOG(M0_ERROR, "Cannot open root object");
-		return NULL;
-	}
-	m0_conf_pver_fid_read(&vpver->pv_obj.co_id, NULL, (uint64_t *)&fpver_id,
-			      &cid);
-	rc = m0_conf_pver_formulaic_find(fpver_id, root, &fpver);
-	if (rc != 0) {
-		M0_LOG(M0_ERROR, "formulaic pver is not present:%d", rc);
-		return NULL;
-	}
+	if (rc != 0)
+		return M0_ERR_INFO(rc, "Cannot open root object");
+	rc = m0_conf_pver_formulaic_from_virtual(virtual, root, &fpver);
+	if (rc == 0)
+		*out = M0_CONF_CAST(m0_conf_obj_grandparent(&fpver->pv_obj),
+				    m0_conf_pool);
 	m0_confc_close(&root->rt_obj);
-	return fpver;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_pool_version_append(struct m0_pools_common  *pc,
@@ -1661,15 +1656,10 @@ M0_INTERNAL int m0_pool_version_append(struct m0_pools_common  *pc,
 		cp = M0_CONF_CAST(m0_conf_obj_grandparent(&pver->pv_obj),
 				  m0_conf_pool);
 	} else {
-		const struct m0_conf_pver *fpver;
-
-		fpver = formulaic_pool_version(pc->pc_confc, pver);
-		if (fpver == NULL)
-			return M0_ERR(-EINVAL);
-		cp = M0_CONF_CAST(m0_conf_obj_grandparent(&fpver->pv_obj),
-				  m0_conf_pool);
+		rc = pool_from_virtual_pver(pver, pc->pc_confc, &cp);
+		if (rc != 0)
+			return M0_ERR(rc);
 	}
-
 	p = pool_find(pc, &cp->pl_obj.co_id);
 	M0_ASSERT(p != NULL);
 
@@ -1681,14 +1671,14 @@ M0_INTERNAL int m0_pool_version_append(struct m0_pools_common  *pc,
 					  dtm);
 	if (rc != 0) {
 		m0_free(*pv);
-		return M0_RC(rc);
+		return M0_ERR(rc);
 	}
 	rc = m0_layout_init_by_pver(&m0_confc2reqh(pc->pc_confc)->rh_ldom, *pv,
 				    NULL);
 	if (rc != 0) {
 		m0_pool_version_fini(*pv);
 		m0_free(*pv);
-		return M0_RC(rc);
+		return M0_ERR(rc);
 	}
 	return M0_RC(0);
 }

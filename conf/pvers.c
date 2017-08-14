@@ -234,6 +234,24 @@ M0_INTERNAL int m0_conf_pver_formulaic_find(uint32_t fpver_id,
 	return rc;
 }
 
+M0_INTERNAL int
+m0_conf_pver_formulaic_from_virtual(const struct m0_conf_pver *virtual,
+				    const struct m0_conf_root *root,
+				    const struct m0_conf_pver **out)
+{
+	uint64_t cont;
+
+	M0_ENTRY("virtual="FID_F, FID_P(&virtual->pv_obj.co_id));
+	M0_PRE(virtual->pv_kind == M0_CONF_PVER_VIRTUAL);
+
+	return M0_RC(m0_conf_pver_fid_read(&virtual->pv_obj.co_id, NULL, &cont,
+					   NULL) ?:
+		     m0_conf_pver_formulaic_find(
+			     /* formulaic pver id; see m0_conf_pver_fid() */
+			     cont & 0xffffffff,
+			     root, out));
+}
+
 /** Tries to find base pver of given formulaic pver in the conf cache. */
 static int conf_pver_formulaic_base(const struct m0_conf_pver *fpver,
 				    struct m0_conf_pver **out)
