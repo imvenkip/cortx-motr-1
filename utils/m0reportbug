@@ -3,7 +3,7 @@ set -eu
 # set -x
 export PS4='+ [${FUNCNAME[0]:+${FUNCNAME[0]}:}${LINENO}] '
 
-VERSION=0.23
+VERSION=0.24
 
 IN_DIR=/var/mero # default value; overruled by CLI argument
 OUT_DATA_DIR=m0reportbug-data
@@ -127,10 +127,10 @@ probes() {
         'systemctl status -l halond'
         'systemctl status -l mero-kernel'
         'lctl dk'
-        'hctl cluster status'
         'hctl mero status'
-        'hctl debug eq'
-        'hctl debug cep'
+        'hctl halon info eq'
+        'hctl halon info rc'
+        'hctl halon info cep'
         'find /var/mero'
     )
     for p in "${probes[@]}"; do
@@ -619,6 +619,9 @@ exit
 ###
 ### Date       Version Description
 ### ---------- ------- ----------------------------------------------------
+### 2017-08-15 0.24    * Use contemporary ("master") hctl commands.
+###                    * Add `hctl halon info rc' probe.
+###
 ### 2017-08-13 0.23    * Bump MERO_PACKAGE_VERSION to 1.1.0.
 ###                    * gdb_bt(): Don't use `-batch' option of gdb ---
 ###                      it suppresses gdb commands output.
