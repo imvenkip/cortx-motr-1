@@ -3,7 +3,7 @@ set -eu
 # set -x
 export PS4='+ [${FUNCNAME[0]:+${FUNCNAME[0]}:}${LINENO}] '
 
-VERSION=0.24
+VERSION=0.25
 
 IN_DIR=/var/mero # default value; overruled by CLI argument
 OUT_DATA_DIR=m0reportbug-data
@@ -33,6 +33,7 @@ main() {
         m0traces
         addb # Should go after `m0traces' stage (m0addb2dump creates new
              # m0traces, which we don't want to collect).
+        systemd-journal
     )
 
     check_package_version
@@ -122,7 +123,6 @@ probes() {
         'ps auxH'
         'ls /dev/disk/by-*'
         'dmesg'
-        'journalctl -b -0'
         'systemctl status -l'
         'systemctl status -l halond'
         'systemctl status -l mero-kernel'
@@ -172,11 +172,10 @@ misc_files() {
                 echo $f
                 grep '^MERO_CONF_XC=' $f | cut -d\' -f2 # may produce duplicates
             done | sort -u
-        for f in /etc/halon/halon_facts.yaml \
-                 /var/log/halon.decision.log \
-                 /tmp/halond.log; do
+        for f in /etc/halon/halon_facts.yaml /tmp/halond.log; do
             if [ -f $f ]; then echo $f; fi
         done
+        find /var/log -type f -name halon.decision.log\*
         _kdump_files
     } | while read path; do
         [ "$path" != "${path#/}" ] || {
@@ -552,6 +551,11 @@ addb() {
      done)
 }
 
+systemd-journal() {
+    local outdir=$(readlink -f .)
+    journalctl -b -0 | xz >$outdir/systemd-journal.xz
+}
+
 usage() {
     cat <<EOF
 Usage: ${0##*/} [OPTION] [INPUT_DIR]
@@ -619,6 +623,10 @@ exit
 ###
 ### Date       Version Description
 ### ---------- ------- ----------------------------------------------------
+### 2017-08-23 0.25    * Collect logrotated Halon decision logs
+###                      (/var/log/halon.decision.log-*.gz).
+###                    * Put journalctl output into a separate file.
+###
 ### 2017-08-15 0.24    * Use contemporary ("master") hctl commands.
 ###                    * Add `hctl halon info rc' probe.
 ###
