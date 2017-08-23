@@ -366,6 +366,13 @@ static void cs_ut_test_helper_failure(char *cs_argv[], int cs_argc)
 		m0_rpc_server_stop(&sctx);
 }
 
+static void test_cs_ut_cs_start_err(void)
+{
+	m0_fi_enable_once("m0_cs_start", "pools_cleanup");
+	cs_ut_test_helper_failure(cs_ut_service_one_cmd,
+				  ARRAY_SIZE(cs_ut_service_one_cmd));
+}
+
 static void test_cs_ut_service_one(void)
 {
 	struct cl_ctx cctx[1] = {};
@@ -715,6 +722,7 @@ struct m0_ut_suite m0d_ut = {
 		{ "cs-setup-fail", test_cs_ut_setup_fail},
 		{ "cs-rconfc-fail", test_cs_ut_rconfc_fail},
 		{ "cs-rconfc-fatal", test_cs_ut_rconfc_fatal},
+		{ "cs-start-err", test_cs_ut_cs_start_err},
                 { NULL, NULL },
         }
 };

@@ -66,9 +66,14 @@ int m0_rpc_server_start(struct m0_rpc_server_ctx *sctx)
 	rc = m0_cs_setup_env(&sctx->rsx_mero_ctx, sctx->rsx_argc,
 			     sctx->rsx_argv);
 	M0_LOG(M0_DEBUG, "cs_setup_env: rc=%d", rc);
-	if (rc == 0)
-		return M0_RC(m0_cs_start(&sctx->rsx_mero_ctx));
+	if (rc != 0)
+		goto error;
 
+	rc = m0_cs_start(&sctx->rsx_mero_ctx);
+	if (rc == 0)
+		return M0_RC(0);
+
+error:
 	m0_cs_fini(&sctx->rsx_mero_ctx);
 fclose:
 	fclose(sctx->rsx_log_file);

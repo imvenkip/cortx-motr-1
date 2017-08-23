@@ -2511,7 +2511,7 @@ rconfc_stop:
 
 static void cs_conf_destroy(struct m0_mero *cctx)
 {
-	if (m0_mero2confc(cctx)->cc_group != NULL) {
+	if (cctx->cc_pools_common.pc_confc != NULL) {
 		m0_pool_versions_destroy(&cctx->cc_pools_common);
 		m0_pools_service_ctx_destroy(&cctx->cc_pools_common);
 		m0_pools_destroy(&cctx->cc_pools_common);
@@ -2520,8 +2520,10 @@ static void cs_conf_destroy(struct m0_mero *cctx)
 
 static void cs_conf_fini(struct m0_mero *cctx)
 {
-	if (m0_mero2confc(cctx)->cc_group != NULL) {
+	if (cctx->cc_pools_common.pc_confc != NULL)
 		m0_pools_common_fini(&cctx->cc_pools_common);
+
+	if (m0_mero2confc(cctx)->cc_group != NULL) {
 		m0_rconfc_stop_sync(mero2rconfc(cctx));
 		m0_rconfc_fini(mero2rconfc(cctx));
 	}
@@ -2661,6 +2663,11 @@ int m0_cs_start(struct m0_mero *cctx)
 	if (rc != 0)
 		goto error;
 
+	if (M0_FI_ENABLED("pools_cleanup")) {
+		rc = -EINVAL;
+		goto error;
+	}
+
 	rc = gotsignal ? -EINTR : cs_reqh_mdpool_layouts_setup(cctx);
 	if (rc != 0)
 		goto error;
@@ -2672,14 +2679,6 @@ error:
 		rc = -EINTR;
 	m0_confc_close(&fs->cf_obj);
 out:
-	if (rc != 0) {
-		/*
-		 * pools have been set up to the moment of start, so need to be
-		 * dismantled here
-		 */
-		m0_pools_destroy(&cctx->cc_pools_common);
-		m0_pools_common_fini(&cctx->cc_pools_common);
-	}
 	cs_ha_process_event(cctx, M0_CONF_HA_PROCESS_STARTED);
 	return rc == 0 ? M0_RC(0) : M0_ERR(rc);
 }
