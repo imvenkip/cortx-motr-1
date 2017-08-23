@@ -3,7 +3,7 @@ set -eu
 # set -x
 export PS4='+ [${FUNCNAME[0]:+${FUNCNAME[0]}:}${LINENO}] '
 
-VERSION=0.25
+VERSION=0.26
 
 IN_DIR=/var/mero # default value; overruled by CLI argument
 OUT_DATA_DIR=m0reportbug-data
@@ -63,13 +63,13 @@ main() {
     done >>$REPORT
     cd ..
 
-    rm -f {$OUT_DATA_DIR,$OUT_CORES_DIR,$OUT_TRACES_DIR}.tar.gz
-    tar --remove-files -czf $OUT_DATA_DIR.tar.gz $OUT_DATA_DIR
-    local files=$OUT_DATA_DIR.tar.gz
+    rm -f {$OUT_DATA_DIR,$OUT_CORES_DIR,$OUT_TRACES_DIR}.tar.xz
+    tar --remove-files -cJf $OUT_DATA_DIR{.tar.xz,}
+    local files=$OUT_DATA_DIR.tar.xz
     for t in $OUT_CORES_DIR $OUT_TRACES_DIR; do
         if [ -d $t ]; then
-            tar --remove-files -czf $t.tar.gz $t
-            files+=":$t.tar.gz"
+            tar --remove-files -cJf $t{.tar.xz,}
+            files+=":$t.tar.xz"
         fi
     done
     if echo $files | grep -q :; then
@@ -408,19 +408,19 @@ backtraces_cores() {
      find . -type f -name core.\* | cut -c3- | while read core; do
          mkdir -p $outdir/$(dirname $core)
          ls -sh $core # print size
-         gzip -c $core | {
+         xz -c $core | {
              local err
              ## Write no more than 64 MB.
-             if ! err=$(dd ibs=8k count=8k of=$outdir/$core.gz 2>&1); then
+             if ! err=$(dd ibs=8k count=8k of=$outdir/$core.xz 2>&1); then
                  echo $err
                  continue
              fi
              ## Is there anything left in the input stream?
              if [ $(dd bs=1 count=1 2>/dev/null | wc -c) -gt 0 ]; then
                  echo "Skipping $core: the compressed file is too large"
-                 rm $outdir/$core.gz
+                 rm $outdir/$core.xz
              else
-                 touch -r $core $outdir/$core.gz
+                 touch -r $core $outdir/$core.xz
              fi
          }
      done)
@@ -488,9 +488,9 @@ _tracedump() {
     ##
     ## > lt-m0tracedump: Warning: skipping non-existing trace
     ## > descriptor 0x7f977d0bdb00 (orig 0x7ff6ad5c9b00)
-    $m0tracedump -s -i $path 2>/dev/null | gzip >$outdir/$path.yaml.gz
-    touch -r $path $outdir/$path.yaml.gz
-    echo $path.yaml.gz
+    $m0tracedump -s -i $path 2>/dev/null | xz >$outdir/$path.yaml.xz
+    touch -r $path $outdir/$path.yaml.xz
+    echo $path.yaml.xz
 }
 
 m0traces() {
@@ -502,8 +502,8 @@ m0traces() {
     ## Kernel buffer.
     if [ -x "$m0trace" ] && lsmod | grep -q '^m0ctl\b'; then
         mkdir $outdir
-        $m0trace kernel-buf -Y | gzip >$outdir/kernel-buf.yaml.gz
-        echo $outdir/kernel-buf.yaml.gz
+        $m0trace kernel-buf -Y | xz >$outdir/kernel-buf.yaml.xz
+        echo $outdir/kernel-buf.yaml.xz
     fi
 
     [ -x "$m0tracedump" ] || return 0 # don't fail
@@ -543,10 +543,9 @@ addb() {
              ##
              ## > lt-m0addb2dump: Cannot create stob: -2: No such file
              ## > or directory
-             $m0addb2dump $PWD/$path | tail -$ADDB_TAIL |
-                 gzip >$outdir/$path.gz
-             touch -r $path $outdir/$path.gz
-             echo $path.gz
+             $m0addb2dump $PWD/$path | tail -$ADDB_TAIL | xz >$outdir/$path.xz
+             touch -r $path $outdir/$path.xz
+             echo $path.xz
          done
      done)
 }
@@ -623,6 +622,8 @@ exit
 ###
 ### Date       Version Description
 ### ---------- ------- ----------------------------------------------------
+### 2017-08-23 0.26    Switch to xz compression.
+###
 ### 2017-08-23 0.25    * Collect logrotated Halon decision logs
 ###                      (/var/log/halon.decision.log-*.gz).
 ###                    * Put journalctl output into a separate file.
