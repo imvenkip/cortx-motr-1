@@ -396,7 +396,7 @@ generate_halon_facts()
     local vopt=$( $verbose && echo '-v' )
     local halon_facts="$etc_halon_dir/halon_facts.yaml"
     local pattern="${disk_pattern:-/dev/loop{1..$pool_width}}"
-    local disks=$(m0gendisks -l -d $pool_width -p "$pattern")
+    local disks=$($m0gendisks -l -d $pool_width -p "$pattern")
 
     [[ -n $disks ]] ||
         die "failed to find disks matching '$pattern' pattern"
