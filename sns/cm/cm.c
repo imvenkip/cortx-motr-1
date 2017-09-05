@@ -600,11 +600,47 @@ M0_INTERNAL int m0_sns_cm_prepare(struct m0_cm *cm)
 	return M0_RC(rc);
 }
 
+M0_INTERNAL int m0_sns_cm_fail_dev_log(struct m0_cm *cm,
+					enum m0_pool_nd_state state)
+{
+	struct m0_pools_common *pc = cm->cm_service.rs_reqh->rh_pools;
+	struct m0_pool         *pool;
+	struct m0_pooldev      *pd;
+	uint32_t                nr_devs = 0;
+	char                   *pd_state[M0_PNDS_NR] = {
+					[M0_PNDS_SNS_REPAIRING] = "Repairing",
+					[M0_PNDS_SNS_REBALANCING] = "Rebalancing"
+				};
+
+	M0_PRE(cm != NULL);
+	M0_PRE(M0_IN(state, (M0_PNDS_SNS_REPAIRING, M0_PNDS_SNS_REBALANCING)));
+
+	m0_tl_for(pools, &pc->pc_pools, pool) {
+		m0_tl_for(pool_failed_devs, &pool->po_failed_devices, pd) {
+			if (pd->pd_state == state) {
+				M0_LOG(M0_WARN, " %s disk "FID_F
+						" from pool "FID_F,
+						pd_state[pd->pd_state],
+						FID_P(&pd->pd_id),
+						FID_P(&pool->po_id));
+				M0_CNT_INC(nr_devs);
+			}
+		} m0_tl_endfor;
+	} m0_tl_endfor;
+
+	if (nr_devs == 0) {
+		M0_LOG(M0_ERROR, "No disk found for  %s", pd_state[state]);
+		return -ENOENT;
+	}
+
+	return 0;
+}
+
 M0_INTERNAL int m0_sns_cm_start(struct m0_cm *cm)
 {
 	struct m0_sns_cm *scm = cm2sns(cm);
 	size_t            loc_nr = m0_fom_dom()->fd_localities_nr;
-	int               rc;
+        int               rc;
 
 	M0_ENTRY("cm: %p", cm);
 	M0_PRE(M0_IN(scm->sc_op, (CM_OP_REPAIR, CM_OP_REBALANCE)));
@@ -674,7 +710,7 @@ M0_INTERNAL void m0_sns_cm_stop(struct m0_cm *cm)
 			tread += scm->sc_total_read_size[i];
 			twrite += scm->sc_total_write_size[i];
 		}
-		M0_LOG(M0_DEBUG, "Time: %llu Read Size: %llu Write size: %llu",
+		M0_LOG(M0_WARN, "Time: %llu Read Size: %llu Write size: %llu",
 		       (unsigned long long)m0_time_sub(scm->sc_stop_time,
 						       scm->sc_start_time),
 		       (unsigned long long)tread, (unsigned long long)twrite);

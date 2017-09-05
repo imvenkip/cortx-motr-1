@@ -318,6 +318,16 @@ sns_repair_cc_delete_test()
 
 	sns_repair_or_rebalance_status "repair" || return $?
 
+	echo "**** Rebalance the failed devices before starting next test ****"
+	disk_state_set "rebalance" $fail_device1 $fail_device2 || return $?
+	sns_rebalance || return $?
+
+	echo "wait for sns repair"
+	wait_for_sns_repair_or_rebalance "rebalance" || return $?
+
+	disk_state_set "online" $fail_device1 $fail_device2 || return $?
+	echo "SNS Rebalance done."
+
 	echo "fsync before verifying that all the files are deleted"
 	$M0_SRC_DIR/m0t1fs/linux_kernel/st/m0t1fs_fsync_test_helper $MERO_M0T1FS_MOUNT_DIR
 	rc=$?

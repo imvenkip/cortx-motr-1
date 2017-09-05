@@ -698,6 +698,7 @@ M0_INTERNAL int m0_cm_prepare(struct m0_cm *cm)
 	M0_PRE(M0_IN(m0_cm_state_get(cm), (M0_CMS_IDLE, M0_CMS_STOP,
 					   M0_CMS_FAIL)));
 
+	m0_cm_state_set(cm, M0_CMS_PREPARE);
 	cm->cm_done = false;
 	cm->cm_nr_proxy_updated = 0;
 	cm->cm_quiesce = false;
@@ -710,19 +711,20 @@ M0_INTERNAL int m0_cm_prepare(struct m0_cm *cm)
 		rc = 0;
 	if (rc == 0) {
 		if (M0_FI_ENABLED("prepare_failure")) {
-			m0_cm_unlock(cm);
-			return -EINVAL;
+			//m0_cm_unlock(cm);
+			rc = -EINVAL;
 		} else
 			rc = cm->cm_ops->cmo_prepare(cm);
 	}
 	if (rc == 0) {
-		m0_cm_state_set(cm, M0_CMS_PREPARE);
 		m0_cm_ag_store_fom_start(cm);
 		m0_cm_cp_pump_prepare(cm);
 	}
 	if (rc != 0) {
 		m0_cm_fail(cm, rc);
 		cm_replicas_destroy(cm);
+		m0_cm_sw_update_complete(cm);
+		cm->cm_done = true;
 	}
 	m0_cm_unlock(cm);
 

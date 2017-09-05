@@ -60,21 +60,25 @@ sns_repair_test()
 	disk_state_set "repair" $fail_device || return $?
 	sns_repair || return $?
 
-	echo "**** Test spurious rebalance request during repair *****"
+	echo "**** Test spurious rebalance request during repair, this should fail *****"
 	disk_state_set "rebalance" $fail_device || return $?
 	disk_state_get $fail_device || return $?
 
-	sns_rebalance || return $?
+	sns_rebalance
 
-	wait_for_sns_repair_or_rebalance "rebalance" || return $?
-	disk_state_set "online" $fail_device || return $?
+	# Wait for rebalance request to complete.
+	wait_for_sns_repair_or_rebalance "rebalance"
+	disk_state_set "online" $fail_device
 
 	disk_state_get $fail_device
 	echo "**** Spurious rebalance event test completed *****"
 
-	disk_state_set "failed" $fail_device || return $?
+	# Make sure that repair is complete.
+	wait_for_sns_repair_or_rebalance "repair"
 
-	disk_state_get $fail_device || return $?
+	disk_state_set "failed" $fail_device
+
+	disk_state_get $fail_device
 
 	echo "Device $fail_device failed. Do dgmode read"
 	md5sum_check || return $?
@@ -100,20 +104,24 @@ sns_repair_test()
 	echo "Starting SNS Re-balance.."
 	sns_rebalance || return $?
 
-	echo "**** Test spurious repair event during rebalance *****"
+	echo "**** Test spurious repair event during rebalance, this should fail  *****"
 	disk_state_set "failed" $fail_device || return $?
 	disk_state_get $fail_device || return $?
 
 	disk_state_set "repair" $fail_device || return $?
-	sns_repair || return $?
+	sns_repair
 
-	wait_for_sns_repair_or_rebalance "repair" || return $?
-	disk_state_set "repaired" $fail_device || return $?
+	# Wait for repair to complete.
+	wait_for_sns_repair_or_rebalance "repair"
+	disk_state_set "repaired" $fail_device
 
 	disk_state_get $fail_device
 	echo "**** Spurious repair event test completed *****"
 
-	disk_state_set "rebalance" $fail_device || return $?
+	# Make sure rebalance is complete.
+	wait_for_sns_repair_or_rebalance "rebalance" || return $?
+
+	disk_state_set "rebalance" $fail_device
 	echo "Starting SNS Re-balance.."
 	sns_rebalance || return $?
 

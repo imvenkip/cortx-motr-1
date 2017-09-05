@@ -55,6 +55,9 @@ int cs_init(struct m0_mero *sctx);
 int cs_init_with_ad_stob(struct m0_mero *sctx);
 void cs_fini(struct m0_mero *sctx);
 
+void pool_mach_transit(struct m0_reqh *reqh, struct m0_poolmach *pm,
+			uint64_t fd, enum m0_pool_nd_state state);
+
 #endif /* __MERO_SNS_CM_UT_CP_COMMON_H__ */
 
 /*

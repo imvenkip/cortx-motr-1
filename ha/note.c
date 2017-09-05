@@ -238,10 +238,10 @@ M0_INTERNAL void m0_ha_msg_accept(const struct m0_ha_msg *msg,
 	m0_free(nvec.nv_note);
 }
 
-M0_INTERNAL void m0_ha_msg_nvec_send(const struct m0_ha_nvec *nvec,
-                                     uint64_t                 id_of_get,
-                                     int                      direction,
-                                     struct m0_ha_link       *hl)
+M0_INTERNAL uint64_t m0_ha_msg_nvec_send(const struct m0_ha_nvec *nvec,
+					 uint64_t                 id_of_get,
+					 int                      direction,
+					 struct m0_ha_link       *hl)
 {
 	struct m0_ha_msg *msg;
 	uint64_t          tag;
@@ -250,7 +250,7 @@ M0_INTERNAL void m0_ha_msg_nvec_send(const struct m0_ha_nvec *nvec,
 		hl = m0_get()->i_ha_link;
 	if (hl == NULL) {
 		M0_LOG(M0_WARN, "hl == NULL");
-		return;
+		return 0;
 	}
 	M0_ALLOC_PTR(msg);
 	M0_ASSERT(msg != NULL);
@@ -271,6 +271,8 @@ M0_INTERNAL void m0_ha_msg_nvec_send(const struct m0_ha_nvec *nvec,
 	       nvec->nv_nr * sizeof(nvec->nv_note[0]));
 	m0_ha_link_send(hl, msg, &tag);
 	m0_free(msg);
+
+	return tag;
 }
 
 struct ha_note_handler_request {

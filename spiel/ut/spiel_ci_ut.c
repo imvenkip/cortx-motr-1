@@ -36,6 +36,7 @@
 #include "ut/misc.h"          /* M0_UT_PATH */
 #include "ut/ut.h"
 #include "mero/version.h"     /* m0_build_info_get */
+#include "ha/link.h"          /* m0_ha_link_chan */
 
 
 static struct m0_spiel spiel;
@@ -58,8 +59,12 @@ static void spiel_ci_ut_ha_state_set(const struct m0_fid *fid, uint32_t state)
 {
 	struct m0_ha_note note = { .no_id = *fid, .no_state = state };
 	struct m0_ha_nvec nvec = { .nv_nr = 1, .nv_note = &note };
+	struct m0_ha_link *hl;
+	uint64_t           tag;
 
-	m0_ha_state_set(&nvec);
+	hl = m0_get()->i_ha_link;
+	tag = m0_ha_msg_nvec_send(&nvec, 0, M0_HA_NVEC_SET, hl);
+	m0_ha_link_wait_delivery(hl, tag);
 }
 
 static void test_spiel_service_cmds(void)
@@ -582,6 +587,8 @@ static void test_spiel_pool_repair(enum m0_repreb_type type)
 				M0_CONF_POOL_TYPE.cot_ftype.ft_id, 1, 3);
 	struct m0_fid               invalid_fid = M0_FID_TINIT(
 				M0_CONF_SERVICE_TYPE.cot_ftype.ft_id, 1, 4);
+	const struct m0_fid         io_disk = M0_FID_TINIT(
+				M0_CONF_DISK_TYPE.cot_ftype.ft_id, 1, 78);
 	struct m0_spiel_repreb_status *status = NULL;
 	enum m0_cm_status           state;
 	int                         rc;
@@ -625,6 +632,8 @@ static void test_spiel_pool_repair(enum m0_repreb_type type)
 	M0_UT_ASSERT(status[0].srs_progress >= 0);
 	m0_free0(&status);
 
+	spiel_ci_ut_ha_state_set(&io_disk, M0_NC_FAILED);
+	spiel_ci_ut_ha_state_set(&io_disk, M0_NC_REPAIR);
 	spiel_repair_start(&pool_fid, &svc_fid, type);
 
 	rc = (type == M0_REPREB_TYPE_SNS) ?
@@ -656,6 +665,7 @@ static void test_spiel_pool_repair(enum m0_repreb_type type)
 		m0_spiel_dix_repair_continue(&spiel, &pool_fid);
 	M0_UT_ASSERT(rc == 0);
 	wait_for_repair_rebalance(type, CM_OP_REPAIR, &status, &pool_fid, &svc_fid);
+	spiel_ci_ut_ha_state_set(&io_disk, M0_NC_REPAIRED);
 	m0_free0(&status);
 	m0_fi_disable("ready", "no_wait");
 	m0_fi_disable("m0_ha_local_state_set", "no_ha");
@@ -684,6 +694,8 @@ static void test_spiel_pool_rebalance(enum m0_repreb_type type)
 				M0_CONF_POOL_TYPE.cot_ftype.ft_id, 1, 3);
 	struct m0_fid                  invalid_fid = M0_FID_TINIT(
 				M0_CONF_SERVICE_TYPE.cot_ftype.ft_id, 1, 4);
+	const struct m0_fid            io_disk = M0_FID_TINIT(
+				M0_CONF_DISK_TYPE.cot_ftype.ft_id, 1, 78);
 	struct m0_spiel_repreb_status *status;
 	enum m0_cm_status              state;
 	int                            rc;
@@ -692,6 +704,10 @@ static void test_spiel_pool_rebalance(enum m0_repreb_type type)
 	spiel_ci_ut_init();
 	m0_fi_enable("ready", "no_wait");
 	m0_fi_enable("m0_ha_local_state_set", "no_ha");
+	spiel_ci_ut_ha_state_set(&io_disk, M0_NC_FAILED);
+	spiel_ci_ut_ha_state_set(&io_disk, M0_NC_REPAIR);
+	spiel_ci_ut_ha_state_set(&io_disk, M0_NC_REPAIRED);
+	spiel_ci_ut_ha_state_set(&io_disk, M0_NC_REBALANCE);
 	rc = (type == M0_REPREB_TYPE_SNS) ?
 		m0_spiel_sns_rebalance_start(&spiel, &invalid_fid) :
 		m0_spiel_dix_rebalance_start(&spiel, &invalid_fid);
@@ -759,6 +775,7 @@ static void test_spiel_pool_rebalance(enum m0_repreb_type type)
 	M0_UT_ASSERT(rc == 0);
 
 	wait_for_repair_rebalance(type, CM_OP_REBALANCE, &status, &pool_fid, &svc_fid);
+	spiel_ci_ut_ha_state_set(&io_disk, M0_NC_ONLINE);
 	m0_free(status);
 
 done:

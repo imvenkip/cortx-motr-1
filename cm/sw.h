@@ -121,6 +121,7 @@ M0_INTERNAL void m0_cm_sw_update_init(struct m0_cm_type *cmtype);
  * request handler.
  */
 M0_INTERNAL void m0_cm_sw_update_start(struct m0_cm *cm);
+M0_INTERNAL void m0_cm_sw_update_complete(struct m0_cm *cm);
 
 M0_INTERNAL void m0_cm_sw_update_fom_wakeup(struct m0_cm_sw_update *swu);
 

@@ -127,40 +127,11 @@ static void service_start_failure(void)
 	M0_ASSERT(rc != 0);
 }
 
-static void pool_mach_transit(struct m0_poolmach *pm, uint64_t fd,
-			      enum m0_pool_nd_state state)
-{
-	struct m0_poolmach_event pme;
-	int                      rc;
-	struct m0_be_tx_credit   cred = {};
-	struct m0_be_tx          tx;
-	struct m0_sm_group      *grp  = m0_locality0_get()->lo_grp;
-
-	M0_SET0(&pme);
-	M0_SET0(&tx);
-	pme.pe_type  = M0_POOL_DEVICE;
-	pme.pe_index = fd;
-	pme.pe_state = state;
-
-	m0_sm_group_lock(grp);
-	m0_be_tx_init(&tx, 0, reqh->rh_beseg->bs_domain, grp,
-			      NULL, NULL, NULL, NULL);
-	m0_poolmach_store_credit(pm, &cred);
-
-	m0_be_tx_prep(&tx, &cred);
-	rc = m0_be_tx_open_sync(&tx);
-	M0_ASSERT(rc == 0);
-
-	rc = m0_poolmach_state_transit(pm, &pme, &tx);
-	m0_be_tx_close_sync(&tx);
-	m0_be_tx_fini(&tx);
-	M0_UT_ASSERT(rc == 0);
-	m0_sm_group_unlock(grp);
-}
-
 static void iter_setup(enum m0_cm_op op, uint64_t fd)
 {
-	int rc;
+	struct m0_mero         *mero;
+	struct m0_pool_version *pver;
+	int                     rc;
 
 	rc = cs_init(&sctx);
 	M0_ASSERT(rc == 0);
@@ -173,6 +144,11 @@ static void iter_setup(enum m0_cm_op op, uint64_t fd)
 	cm = container_of(service, struct m0_cm, cm_service);
 	scm = cm2sns(cm);
 	scm->sc_op = op;
+	mero = m0_cs_ctx_get(reqh);
+	pver = m0_pool_version_find(&mero->cc_pools_common, &M0_SNS_CM_REPAIR_UT_PVER);
+	M0_UT_ASSERT(pver != NULL);
+	pool_mach_transit(reqh, &pver->pv_mach, fd, M0_PNDS_FAILED);
+	pool_mach_transit(reqh, &pver->pv_mach, fd, M0_PNDS_SNS_REPAIRING);
 	rc = cm->cm_ops->cmo_prepare(cm);
 	M0_UT_ASSERT(rc == 0);
 	m0_cm_lock(cm);
@@ -412,14 +388,14 @@ static void iter_run(uint64_t pool_width, uint64_t nr_files, uint64_t fd)
 	mero = m0_cs_ctx_get(reqh);
 	pver = m0_pool_version_find(&mero->cc_pools_common, &M0_SNS_CM_REPAIR_UT_PVER);
 	M0_UT_ASSERT(pver != NULL);
-	pool_mach_transit(&pver->pv_mach, fd, M0_PNDS_FAILED);
-	pool_mach_transit(&pver->pv_mach, fd, M0_PNDS_SNS_REPAIRING);
+	//pool_mach_transit(&pver->pv_mach, fd, M0_PNDS_FAILED);
+	//pool_mach_transit(&pver->pv_mach, fd, M0_PNDS_SNS_REPAIRING);
 	M0_FOM_SIMPLE_POST(&iter_fom, reqh, &iter_ut_conf,
 			   &iter_ut_fom_tick, NULL, NULL, 2);
 	m0_semaphore_down(&iter_sem);
 	m0_semaphore_fini(&iter_sem);
 	m0_fom_timeout_fini(&iter_fom_timeout);
-	pool_mach_transit(&pver->pv_mach, fd, M0_PNDS_SNS_REPAIRED);
+	pool_mach_transit(reqh, &pver->pv_mach, fd, M0_PNDS_SNS_REPAIRED);
 
 	m0_fi_disable("m0_sns_cm_file_attr_and_layout", "ut_attr_layout");
 	m0_fi_disable("iter_fid_attr_fetch", "ut_attr_fetch");
@@ -470,8 +446,8 @@ static void iter_stop(uint64_t pool_width, uint64_t nr_files, uint64_t fd)
 	 * for subsequent failure tests so that pool machine doesn't interpret
 	 * it as a multiple failure after reading from the persistence store.
 	 */
-	pool_mach_transit(&pver->pv_mach, fd, M0_PNDS_SNS_REBALANCING);
-	pool_mach_transit(&pver->pv_mach, fd, M0_PNDS_ONLINE);
+	pool_mach_transit(reqh, &pver->pv_mach, fd, M0_PNDS_SNS_REBALANCING);
+	pool_mach_transit(reqh, &pver->pv_mach, fd, M0_PNDS_ONLINE);
 	cs_fini(&sctx);
 }
 

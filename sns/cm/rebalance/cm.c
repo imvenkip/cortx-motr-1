@@ -63,12 +63,17 @@ static struct m0_cm_cp *rebalance_cm_cp_alloc(struct m0_cm *cm)
 static int rebalance_cm_prepare(struct m0_cm *cm)
 {
 	struct m0_sns_cm *scm = cm2sns(cm);
+	int               rc;
 
 	M0_ENTRY("cm: %p", cm);
 	M0_PRE(scm->sc_op == CM_OP_REBALANCE);
 
 	scm->sc_helpers = &rebalance_helpers;
-	return m0_sns_cm_prepare(cm);
+	rc = m0_sns_cm_fail_dev_log(cm, M0_PNDS_SNS_REBALANCING);
+	if (rc == 0)
+		rc = m0_sns_cm_prepare(cm);
+
+	return M0_RC(rc);
 
 }
 

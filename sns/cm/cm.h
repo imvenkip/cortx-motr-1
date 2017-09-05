@@ -296,6 +296,9 @@ M0_INTERNAL int m0_sns_cm_setup(struct m0_cm *cm);
 M0_INTERNAL bool m0_sns_is_peer(struct m0_cm               *cm,
 				struct m0_reqh_service_ctx *ctx);
 
+M0_INTERNAL int m0_sns_cm_fail_dev_log(struct m0_cm *cm,
+					enum m0_pool_nd_state pd_state);
+
 M0_INTERNAL int m0_sns_cm_start(struct m0_cm *cm);
 
 M0_INTERNAL int m0_sns_cm_ag_next(struct m0_cm *cm,

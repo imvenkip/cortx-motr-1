@@ -120,7 +120,7 @@ static int cm_swu_fom_tick(struct m0_fom *fom)
 		if (rc != -ENOBUFS) {
 			M0_LOG(M0_DEBUG, "Sliding window update"
 			      " fom complete with rc: %d", rc);
-			swu->swu_is_complete = true;
+			m0_cm_sw_update_complete(cm);
 			m0_cm_complete_notify(cm);
 			if (!M0_IN(rc, (-ENOBUFS, -ENODATA)))
 				m0_cm_abort(cm, rc);
@@ -165,6 +165,13 @@ M0_INTERNAL void m0_cm_sw_update_start(struct m0_cm *cm)
 	m0_fom_queue(fom);
 
 	M0_LEAVE();
+}
+
+M0_INTERNAL void m0_cm_sw_update_complete(struct m0_cm *cm)
+{
+	struct m0_cm_sw_update *swu = &cm->cm_sw_update;
+
+	swu->swu_is_complete = true;
 }
 
 #undef M0_TRACE_SUBSYSTEM

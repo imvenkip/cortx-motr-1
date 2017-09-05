@@ -127,6 +127,8 @@ static struct m0_cm_ag_id ag_id = {
 	}
 };
 
+static const struct m0_fid      M0_SNS_CM_NET_UT_PVER = M0_FID_TINIT('v', 1, 8);
+
 M0_INTERNAL void cob_create(struct m0_cob_domain *cdom,
 			    uint64_t cont, struct m0_fid *gfid,
 			    uint32_t cob_idx);
@@ -134,6 +136,20 @@ M0_INTERNAL void cob_delete(struct m0_cob_domain *cdom,
 			    uint64_t cont, const struct m0_fid *gfid);
 
 M0_INTERNAL int m0_sns_cm_repair_cp_send(struct m0_cm_cp *cp);
+
+static void fail_device(struct m0_cm *cm)
+{
+	struct m0_mero         *mero;
+	struct m0_pool_version *pver;
+	struct m0_reqh         *reqh;
+
+	reqh = cm->cm_service.rs_reqh;
+	mero = m0_cs_ctx_get(reqh);
+	pver = m0_pool_version_find(&mero->cc_pools_common, &M0_SNS_CM_NET_UT_PVER);
+	M0_UT_ASSERT(pver != NULL);
+	pool_mach_transit(reqh, &pver->pv_mach, DEV_ID, M0_PNDS_FAILED);
+	pool_mach_transit(reqh, &pver->pv_mach, DEV_ID, M0_PNDS_SNS_REPAIRING);
+}
 
 static uint64_t cp_single_get(const struct m0_cm_aggr_group *ag)
 {
@@ -547,6 +563,7 @@ static void receiver_init(bool ag_create)
 
 	m0_cm_lock(recv_cm);
 	recv_cm->cm_epoch = m0_time_now();
+	fail_device(recv_cm);
 	M0_UT_ASSERT(recv_cm->cm_ops->cmo_prepare(recv_cm) == 0);
 	m0_cm_state_set(recv_cm, M0_CMS_PREPARE);
 

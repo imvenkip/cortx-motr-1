@@ -321,10 +321,10 @@ struct m0_ha_link;
 
 M0_INTERNAL void m0_ha_msg_accept(const struct m0_ha_msg *msg,
                                   struct m0_ha_link      *hl);
-M0_INTERNAL void m0_ha_msg_nvec_send(const struct m0_ha_nvec *nvec,
-                                     uint64_t                 id_of_get,
-                                     int                      direction,
-                                     struct m0_ha_link       *hl);
+M0_INTERNAL uint64_t m0_ha_msg_nvec_send(const struct m0_ha_nvec *nvec,
+					 uint64_t                 id_of_get,
+					 int                      direction,
+					 struct m0_ha_link       *hl);
 
 struct m0_ha_note_handler {
 	struct m0_tl             hnh_gets;
