@@ -361,7 +361,10 @@ int m0t1fs_setxattr(struct dentry *dentry, const char *name,
 		if (rc != 0)
 			goto out;
 	} else if (m0_streq(name, "writesize")) {
-		size_t buffsize = 0, writesize = 0;
+		/* parse `single_write_size[;total_file_size]' value(s) */
+		/* TODO: total_file_size is not used yet */
+		size_t buffsize = 0;
+		size_t filesize = 0;
 		char *bsptr, *wsptr, *endp;
 		char  buf[40], *ptr;
 
@@ -376,12 +379,12 @@ int m0t1fs_setxattr(struct dentry *dentry, const char *name,
 		bsptr = strsep(&ptr, ";");
 		if (bsptr != NULL)
 			buffsize = simple_strtoul(bsptr, &endp, 0);
-		M0_LOG(M0_DEBUG, "Seting new IO buffsize %d.", (int)buffsize);
+		M0_LOG(M0_DEBUG, "New IO buffsize: %d.", (int)buffsize);
 
 		wsptr = strsep(&ptr, ";");
 		if (wsptr != NULL) {
-			writesize = simple_strtoul(wsptr, &endp, 0);
-			M0_LOG(M0_DEBUG, "Setting new IO writesize %d.", (int)writesize);
+			filesize = simple_strtoul(wsptr, &endp, 0);
+			M0_LOG(M0_DEBUG, "Total IO size: %d.", (int)filesize);
 		}
 
 		/* Find optimal lid and set it to the inode.*/
