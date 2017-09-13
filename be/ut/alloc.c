@@ -320,7 +320,6 @@ M0_INTERNAL void m0_be_ut_alloc_oom(void)
 	M0_SET0(&be_ut_alloc_backend);
 }
 
-#ifdef ENABLE_BE_ALLOC_ZONES
 M0_INTERNAL void m0_be_ut_alloc_spare(void)
 {
 	struct {
@@ -345,8 +344,6 @@ M0_INTERNAL void m0_be_ut_alloc_spare(void)
 	void                          *ptrs[ARRAY_SIZE(scenario)] = {};
 	struct m0_be_allocator_stats   stats_before = {};
 	struct m0_be_allocator_stats   stats_after = {};
-	struct m0_be_alloc_zone_stats *nz_before;
-	struct m0_be_alloc_zone_stats *nz_after;
 	int                            i;
 
 	M0_ENTRY();
@@ -360,7 +357,12 @@ M0_INTERNAL void m0_be_ut_alloc_spare(void)
 	a = m0_be_seg_allocator(ut_seg.bus_seg);
 	M0_UT_ASSERT(a != NULL);
 
-	size = BE_UT_ALLOC_SEG_SIZE / 3;
+	/*
+	 * XXX (seg_size - reserved)/3 is acceptable, but internal logic can't
+	 * allocate 2 chunks of this size, because it tries to find a chunk with
+	 * size compared to (size*2+allignment)
+	 */
+	size = (BE_UT_ALLOC_SEG_SIZE - m0_be_seg_reserved(a->ba_seg)) / 6;
 
 	for (i = 0 ; i < ARRAY_SIZE(scenario) ; ++i) {
 		m0_be_alloc_stats(a, &stats_before);
@@ -391,11 +393,9 @@ M0_INTERNAL void m0_be_ut_alloc_spare(void)
 		}
 		m0_be_alloc_stats(a, &stats_after);
 
-		nz_before = &stats_before.bas_zones[M0_BAP_NORMAL];
-		nz_after  = &stats_after.bas_zones[M0_BAP_NORMAL];
 		M0_UT_ASSERT(ergo(scenario[i].zonemask & M0_BITS(M0_BAP_REPAIR),
-				  (nz_before->bzs_used == nz_after->bzs_used) &&
-				  (nz_before->bzs_free == nz_after->bzs_free)));
+			(stats_before.bas_space_used == stats_after.bas_space_used) &&
+			(stats_before.bas_space_free == stats_after.bas_space_free)));
 	}
 
 	m0_be_ut_backend_fini(&ut_be);
@@ -404,7 +404,6 @@ M0_INTERNAL void m0_be_ut_alloc_spare(void)
 
 	M0_LEAVE();
 }
-#endif
 
 
 #undef M0_TRACE_SUBSYSTEM

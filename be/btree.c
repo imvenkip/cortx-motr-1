@@ -135,8 +135,7 @@ static void btree_mem_alloc_credit(const struct m0_be_btree *btree,
 				   m0_bcount_t size,
 				   struct m0_be_tx_credit *accum)
 {
-	m0_be_allocator_credit(tree_allocator(btree),
-			       M0_BAO_ALLOC_ALIGNED, size,
+	m0_be_allocator_credit(NULL, M0_BAO_ALLOC_ALIGNED, size,
 			       BTREE_ALLOC_SHIFT, accum);
 }
 

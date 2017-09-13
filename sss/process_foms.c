@@ -272,27 +272,14 @@ M0_TL_DESCR_DECLARE(seg, M0_EXTERN);
 static int ss_be_segs_stats_ingest(struct m0_be_domain      *dom,
 				   struct m0_ss_process_rep *rep)
 {
-	struct m0_tl                  *segs = &dom->bd_segs;
-#ifdef ENABLE_BE_ALLOC_ZONES
-	struct m0_be_alloc_zone_stats *zs;
-#endif
-	struct m0_be_seg              *bs;
+	struct m0_tl     *segs = &dom->bd_segs;
+	struct m0_be_seg *bs;
 
 	/* collect be segments stats */
 	m0_tl_for(seg, segs, bs) {
 		struct m0_be_allocator_stats stats = {0};
 
 		m0_be_alloc_stats(&bs->bs_allocator, &stats);
-#ifdef ENABLE_BE_ALLOC_ZONES
-		/* Account only statistics for normal zone. */
-		zs = &stats.bas_zones[M0_BAP_NORMAL];
-		if (m0_addu64_will_overflow(rep->sspr_total_seg, zs->bzs_total))
-			return M0_ERR(-EOVERFLOW);
-		rep->sspr_total_seg += zs->bzs_total;
-		if (m0_addu64_will_overflow(rep->sspr_free_seg, zs->bzs_free))
-			return M0_ERR(-EOVERFLOW);
-		rep->sspr_free_seg  += zs->bzs_free;
-#else
 		if (m0_addu64_will_overflow(rep->sspr_total_seg,
 					    stats.bas_space_total))
 			return M0_ERR(-EOVERFLOW);
@@ -301,7 +288,6 @@ static int ss_be_segs_stats_ingest(struct m0_be_domain      *dom,
 					    stats.bas_space_free))
 			return M0_ERR(-EOVERFLOW);
 		rep->sspr_free_seg  += stats.bas_space_free;
-#endif
 	} m0_tl_endfor;
 
 	return M0_RC(0);

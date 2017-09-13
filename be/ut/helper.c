@@ -708,7 +708,7 @@ static void be_ut_seg_allocator_initfini(struct m0_be_seg *seg,
 	struct m0_be_tx_credit	credit = {};
 	struct m0_be_allocator *a;
 	struct m0_be_tx         tx;
-	uint32_t                pcnt[M0_BAP_NR] = { [M0_BAP_NORMAL] = 100 };
+	uint32_t                percent[M0_BAP_NR] = { [M0_BAP_NORMAL] = 100 };
 	int                     rc;
 
 	a = m0_be_seg_allocator(seg);
@@ -727,11 +727,11 @@ static void be_ut_seg_allocator_initfini(struct m0_be_seg *seg,
 		rc = m0_be_allocator_init(a, seg);
 		M0_ASSERT(rc == 0);
 		if (M0_FI_ENABLED("repair_zone_50")) {
-			pcnt[M0_BAP_REPAIR] = 50;
-			pcnt[M0_BAP_NORMAL] = 50;
+			percent[M0_BAP_REPAIR] = 50;
+			percent[M0_BAP_NORMAL] = 50;
 		}
 		rc = m0_be_allocator_create(a, ut_be == NULL ? NULL : &tx,
-					    pcnt, ARRAY_SIZE(pcnt));
+					    percent, ARRAY_SIZE(percent));
 		M0_ASSERT(rc == 0);
 	} else {
 		m0_be_allocator_destroy(a, ut_be == NULL ? NULL : &tx);

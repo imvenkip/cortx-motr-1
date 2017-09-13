@@ -229,9 +229,7 @@ struct m0_ut_suite be_ut = {
 		{ "alloc-concurrent",        m0_be_ut_alloc_concurrent        },
 		{ "alloc-oom",               m0_be_ut_alloc_oom               },
 		{ "alloc-info",              m0_be_ut_alloc_info              },
-#ifdef ENABLE_BE_ALLOC_ZONES
 		{ "alloc-spare",             m0_be_ut_alloc_spare             },
-#endif
 		{ "obj",                     m0_be_ut_obj_test                },
 		{ "actrec",                  m0_be_ut_actrec_test             },
 #endif

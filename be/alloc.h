@@ -111,19 +111,13 @@ struct m0_be_alloc_zone_stats {
  */
 struct m0_be_allocator_stats {
 	m0_bcount_t                       bas_chunk_overhead;
-#ifndef ENABLE_BE_ALLOC_ZONES
 	m0_bcount_t                       bas_space_total;
 	m0_bcount_t                       bas_space_used;
 	m0_bcount_t                       bas_space_free;
-#endif
 	m0_bcount_t                       bas_stat0_boundary;
 	m0_bcount_t                       bas_chunks_nr;
 	m0_bcount_t                       bas_free_chunks_nr;
-#ifdef ENABLE_BE_ALLOC_ZONES
-	struct m0_be_alloc_zone_stats     bas_zones[M0_BAP_NR];
-#else
 	struct m0_be_allocator_call_stats bas_total;
-#endif
 	struct m0_be_allocator_call_stats bas_stat0;
 	struct m0_be_allocator_call_stats bas_stat1;
 	unsigned long                     bas_print_interval;
@@ -134,10 +128,6 @@ struct m0_be_allocator_header;
 
 /** @brief Allocator */
 struct m0_be_allocator {
-	/**
-	 * The flag which enables the trymerge mechanism.
-	 */
-	bool                           ba_trymerge;
 	/**
 	 * Memory is allocated from the segment using first-fit algorithm.
 	 * Entire segment except m0_be_seg_hdr is used as a memory
@@ -150,7 +140,7 @@ struct m0_be_allocator {
 	 */
 	struct m0_mutex		       ba_lock;
 	/** Internal allocator data. It is stored inside the segment. */
-	struct m0_be_allocator_header *ba_h;
+	struct m0_be_allocator_header *ba_h[M0_BAP_NR];
 };
 
 /**
@@ -184,7 +174,7 @@ M0_INTERNAL bool m0_be_allocator__invariant(struct m0_be_allocator *a);
  */
 M0_INTERNAL int m0_be_allocator_create(struct m0_be_allocator *a,
 				       struct m0_be_tx        *tx,
-				       uint32_t               *zone_pcnt,
+				       uint32_t               *zone_percent,
 				       uint32_t                zones_nr);
 
 /**

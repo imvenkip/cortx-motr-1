@@ -147,7 +147,6 @@ AH_TEMPLATE([ENABLE_IMMEDIATE_TRACE], [Enable immediate tracing.])
 AH_TEMPLATE([ENABLE_EXPENSIVE_CHECKS],[Enable expensive checks.])
 AH_TEMPLATE([ENABLE_SYNC_ATOMIC],     [Enable gcc built-in atomic functions])
 AH_TEMPLATE([ENABLE_DATA_INTEGRITY],  [Enable data integrity.])
-AH_TEMPLATE([ENABLE_BE_ALLOC_ZONES],  [Enable BE Allocator zones.])
 AH_TEMPLATE([ENABLE_FREE_POISON],     [Poison freed memory for debugging.])
 AH_TEMPLATE([ENABLE_DETAILED_BACKTRACE],[Enable detailed backtraces on crash using gdb.])
 AH_TEMPLATE([M0_NDEBUG],              [Disable M0_ASSERT.])
@@ -225,8 +224,6 @@ AC_ARG_ENABLE([be_alloc_zones],
                        [enable BE Allocator zones])],
         [], [enable_be_alloc_zones=no]
 )
-AS_IF([test x$enable_be_alloc_zones = xyes],
-      AC_DEFINE([ENABLE_BE_ALLOC_ZONES]))
 
 # free-poison {{{3
 AC_ARG_ENABLE([free_poison],

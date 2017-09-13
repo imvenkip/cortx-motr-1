@@ -46,7 +46,7 @@ enum {
 struct m0_be_seg_hdr {
 	struct m0_format_header       bh_header;
 	uint64_t                      bh_id;
-	struct m0_be_allocator_header bh_alloc;
+	struct m0_be_allocator_header bh_alloc[M0_BAP_NR];
 	uint32_t                      bh_items_nr;
 	struct m0_be_seg_geom         bh_items[M0_BE_SEG_HDR_GEOM_ITMES_MAX];
 #ifdef M0_BE_SEG_HDR_VERSION

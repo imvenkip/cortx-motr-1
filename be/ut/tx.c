@@ -462,7 +462,7 @@ void m0_be_ut_tx_force(void)
 
 /** constants for backend UT for transaction persistence */
 enum {
-	BE_UT_TX_P_SEG_SIZE     = 0x4000,
+	BE_UT_TX_P_SEG_SIZE     = 0x10000,
 	BE_UT_TX_P_TX_NR        = 0x100,
 	BE_UT_TX_P_REG_NR       = 0x10,
 	BE_UT_TX_P_REG_SIZE_MAX = 0x100,

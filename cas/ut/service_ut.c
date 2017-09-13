@@ -127,7 +127,7 @@ static void reqh_init(bool mkfs, bool use_small_credits)
 	m0_be_ut_backend_cfg_default(&cfg);
 	if (use_small_credits || m0_ut_small_credits())
 		cfg.bc_engine.bec_tx_size_max =
-			M0_BE_TX_CREDIT(6 << 10, 1 << 21);
+			M0_BE_TX_CREDIT(6 << 10, 5 << 18);
 	result = m0_be_ut_backend_init_cfg(&be, &cfg, mkfs);
 	M0_ASSERT(result == 0);
 }
