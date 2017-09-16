@@ -317,6 +317,8 @@ static int rotate_original_log(struct rotator_ctx *rctx)
 		return rc;
 
 	m0_mutex_lock(&write_data_mutex);
+	if (rctx->log_fd > 0)
+		close(rctx->log_fd);
 	rctx->log_fd = ofd;
 	m0_mutex_unlock(&write_data_mutex);
 
@@ -540,7 +542,7 @@ int main(int argc, char *argv[])
 	const struct m0_trace_buf_header *logheader;
 	void                             *logbuf;
 	struct m0_thread                  rotator_tid = { 0 };
-	struct rotator_ctx                rotator_data;
+	struct rotator_ctx                rotator_data = { 0 };
 	int32_t                           monitor_cycles = 0;
 
 	struct sigaction old_sa;
