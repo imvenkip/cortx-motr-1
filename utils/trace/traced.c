@@ -173,51 +173,49 @@ static const struct m0_trace_buf_header *read_trace_buf_header(int ifd)
 }
 
 static int write_trace_header(const struct m0_trace_buf_header *header,
-			      int ofd, const char *ofname)
+			      int *ofd, const char *ofname)
 {
+	int     fd;
 	ssize_t n;
 	int     rc = 0;
 
-	n = write(ofd, header, header->tbh_header_size);
+	m0_mutex_lock(&write_data_mutex);
+	fd = *ofd;
+	n = write(fd, header, header->tbh_header_size);
 	if (n != header->tbh_header_size) {
 		log_err("failed to write trace header to output file '%s': %s\n",
 			ofname, strerror(errno));
-		return EX_IOERR;
+		rc = EX_IOERR;
+		goto out;
 	}
 
 	if (!pipe_mode) {
-		rc = fsync(ofd);
+		rc = fsync(fd);
 		if (rc != 0)
 			log_err("fsync(2) failed on output file '%s': %s",
 				ofname, strerror(errno));
 	}
-
+out:
+	m0_mutex_unlock(&write_data_mutex);
 	return rc;
 }
 
-static inline int get_output_fd(int *fd_ptr)
-{
-	int fd;
-
-	m0_mutex_lock(&write_data_mutex);
-	fd = *fd_ptr;
-	m0_mutex_unlock(&write_data_mutex);
-
-	return fd;
-}
 
 static int write_trace_data(int *fd_ptr, const void *buf, size_t size)
 {
 	ssize_t n;
-	int     fd = get_output_fd(fd_ptr);
+	int     fd;
 	int     rc = 0;
 
+	m0_mutex_lock(&write_data_mutex);
+	fd = *fd_ptr;
 	n = write(fd, buf, size);
 	if (n != size) {
 		log_err("failed to write trace data to output file"
 			" '%s': %s\n", output_file_name,
 			strerror(errno));
-		return EX_IOERR;
+		rc = EX_IOERR;
+		goto out;
 	}
 
 	if (!pipe_mode) {
@@ -226,7 +224,8 @@ static int write_trace_data(int *fd_ptr, const void *buf, size_t size)
 			log_err("fsync(2) failed on output file '%s': %s",
 				output_file_name, strerror(errno));
 	}
-
+out:
+	m0_mutex_unlock(&write_data_mutex);
 	return rc;
 }
 
@@ -244,7 +243,7 @@ static const char *get_cur_pos(const struct m0_trace_buf_header *logheader,
 	return curpos;
 }
 
-static bool is_log_rotation_needed(int fd)
+static bool is_log_rotation_needed(int *fd_ptr)
 {
 	static m0_time_t  time_of_last_check;
 	m0_time_t         time_diff;
@@ -262,7 +261,9 @@ static bool is_log_rotation_needed(int fd)
 	if (m0_time_seconds(time_diff) > log_rotation_dealy) {
 		time_of_last_check = m0_time_now();
 
-		rc = fstat(fd, &log_stat);
+		m0_mutex_lock(&write_data_mutex);
+		rc = fstat(*fd_ptr, &log_stat);
+		m0_mutex_unlock(&write_data_mutex);
 		if (rc != 0) {
 			log_err("failed to get stat info for '%s' file: %s\n",
 					output_file_name, strerror(errno));
@@ -312,7 +313,7 @@ static int rotate_original_log(struct rotator_ctx *rctx)
 
 	log_debug("new output log fd %d\n", ofd);
 
-	rc = write_trace_header(rctx->log_header, ofd, output_file_name);
+	rc = write_trace_header(rctx->log_header, &ofd, output_file_name);
 	if (rc != 0)
 		return rc;
 
@@ -395,7 +396,7 @@ static int process_trace_buffer(int *ofd_ptr,
 	const m0_time_t  idle_timeo = 100 * M0_TIME_ONE_MSEC;
 	m0_time_t        timeo = idle_timeo;
 
-	rc = write_trace_header(logheader, get_output_fd(ofd_ptr), output_file_name);
+	rc = write_trace_header(logheader, ofd_ptr, output_file_name);
 	if (rc != 0)
 		return rc;
 
@@ -427,7 +428,7 @@ static int process_trace_buffer(int *ofd_ptr,
 				timeo = idle_timeo;
 
 			/* utilize idle period to rotate logs if needed */
-			if (is_log_rotation_needed( get_output_fd(ofd_ptr) )) {
+			if (is_log_rotation_needed(ofd_ptr)) {
 				wake_up_rotator_thread(LR_ROTATE);
 				continue;
 			}
