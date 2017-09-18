@@ -427,12 +427,6 @@ static int process_trace_buffer(int *ofd_ptr,
 			if (timeo > idle_timeo)
 				timeo = idle_timeo;
 
-			/* utilize idle period to rotate logs if needed */
-			if (is_log_rotation_needed(ofd_ptr)) {
-				wake_up_rotator_thread(LR_ROTATE);
-				continue;
-			}
-
 			rc = m0_nanosleep(timeo, NULL);
 			if (rc != 0) {
 				log_warn("trace data processing interrupted by"
@@ -458,6 +452,9 @@ static int process_trace_buffer(int *ofd_ptr,
 
 		oldpos = curpos;
 		timeo /= 2;
+
+		if (is_log_rotation_needed(ofd_ptr))
+			wake_up_rotator_thread(LR_ROTATE);
 	}
 
 	return 0;
