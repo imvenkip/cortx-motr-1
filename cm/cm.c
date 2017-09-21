@@ -254,7 +254,7 @@
    @ref m0_cm_proxy_sw_update_ast_post() @ref m0_cm_proxy_remote_update()
 
    Updating the local sliding window and saving it to persistent store is
-   implemented through sliding window update FOM. This helps in perfoming
+   implemented through sliding window update FOM. This helps in performing
    various tasks asynchronously, viz:- updating the local sliding window
    and saving it to persistent store.
    See @ref CMSWFOM "Sliding window update fom".
