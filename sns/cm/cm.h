@@ -246,6 +246,8 @@ struct m0_sns_cm {
 	 */
 	m0_time_t                       sc_stop_time;
 
+	m0_time_t                       sc_last_status_print_time;
+
 	size_t                          *sc_total_read_size;
 	size_t                          *sc_total_write_size;
 
@@ -355,6 +357,8 @@ M0_INTERNAL void m0_sns_cm_repair_sw_onwire_fop_fini(void);
 
 M0_INTERNAL void m0_sns_cm_rebalance_sw_onwire_fop_init(void);
 M0_INTERNAL void m0_sns_cm_rebalance_sw_onwire_fop_fini(void);
+
+M0_INTERNAL void m0_sns_cm_print_status(struct m0_sns_cm *scm);
 
 /** @} SNSCM */
 #endif /* __MERO_SNS_CM_CM_H__ */
