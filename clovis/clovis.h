@@ -56,7 +56,7 @@
  *
  * Clovis is divided into the following sub-interfaces:
  *
- *     - access sub-interface, which provides basic absraction to build storage
+ *     - access sub-interface, which provides basic abstraction to build storage
  *       application;
  *
  *     - management sub-interface, which provides methods for Mero cluster
