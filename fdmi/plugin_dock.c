@@ -103,10 +103,12 @@ static void test_print_fdmi_rec_list(void)
 	struct m0_fdmi_module     *m = m0_fdmi_module__get();
 	struct m0_fdmi_record_reg *rreg;
 
+	m0_mutex_lock(&m->fdm_p.fdmp_fdmi_recs_lock);
 	m0_tl_for(fdmi_recs, &m->fdm_p.fdmp_fdmi_recs, rreg) {
 		M0_ENTRY("DBG: rreg: %p,  rid: " U128X_F,
 			 rreg, U128_P(&rreg->frr_rec->fr_rec_id));
 	} m0_tl_endfor;
+	m0_mutex_unlock(&m->fdm_p.fdmp_fdmi_recs_lock);
 }
 
 
@@ -118,8 +120,10 @@ m0_fdmi_filter_reg *m0_fdmi__pdock_filter_reg_find(const struct m0_fid *fid)
 
 	M0_ENTRY();
 
+	m0_mutex_lock(&m->fdm_p.fdmp_fdmi_filters_lock);
 	reg = m0_tl_find(fdmi_filters, freg, &m->fdm_p.fdmp_fdmi_filters,
 			 m0_fid_eq(fid, &freg->ffr_ffid));
+	m0_mutex_unlock(&m->fdm_p.fdmp_fdmi_filters_lock);
 
 	M0_LEAVE();
 	return reg;
@@ -136,8 +140,10 @@ m0_fdmi_record_reg *m0_fdmi__pdock_record_reg_find(const struct m0_uint128 *rid)
 	if (M0_FI_ENABLED("fail_find"))
 		return NULL;
 
+	m0_mutex_lock(&m->fdm_p.fdmp_fdmi_recs_lock);
 	reg = m0_tl_find(fdmi_recs, rreg, &m->fdm_p.fdmp_fdmi_recs,
 			 m0_uint128_eq( rid, &rreg->frr_rec->fr_rec_id ));
+	m0_mutex_unlock(&m->fdm_p.fdmp_fdmi_recs_lock);
 
 	M0_LEAVE("<< reg %p", reg);
 	return reg;
@@ -200,7 +206,9 @@ static int register_filter(const struct m0_fid              *fid,
 
 	}
 
+	m0_mutex_lock(&m->fdm_p.fdmp_fdmi_filters_lock);
 	fdmi_filters_tlink_init_at_tail(filter, &m->fdm_p.fdmp_fdmi_filters);
+	m0_mutex_unlock(&m->fdm_p.fdmp_fdmi_filters_lock);
 
 	return M0_RC(0);
 
@@ -277,7 +285,9 @@ static void pdock_record_reg_cleanup(struct m0_rpc_item *item,
 	if (rreg != NULL) {
 		M0_LOG(M0_DEBUG, "remove and free rreg %p, rid " U128X_F,
 		       rreg, U128_P(&rreg->frr_rec->fr_rec_id));
+		m0_mutex_lock(&m->fdm_p.fdmp_fdmi_recs_lock);
 		fdmi_recs_tlist_remove(rreg);
+		m0_mutex_unlock(&m->fdm_p.fdmp_fdmi_recs_lock);
 
 		if (rreg->frr_sess != NULL)
 			m0_rpc_conn_pool_put(&m->fdm_p.fdmp_conn_pool,
@@ -345,6 +355,7 @@ m0_fdmi_record_reg *m0_fdmi__pdock_fdmi_record_register(struct m0_fop *fop)
 	struct m0_fdmi_record_reg *rreg;
 
 	M0_ENTRY();
+	M0_ASSERT(m->fdm_p.fdmp_dock_inited);
 
 	if (M0_FI_ENABLED("fail_fdmi_rec_reg"))
 		return NULL;
@@ -380,7 +391,9 @@ m0_fdmi_record_reg *m0_fdmi__pdock_fdmi_record_register(struct m0_fop *fop)
 	m0_ref_init(&rreg->frr_ref, 1, pdock_record_release);
 
 	/* keep registration entry */
+	m0_mutex_lock(&m->fdm_p.fdmp_fdmi_recs_lock);
 	fdmi_recs_tlink_init_at_tail(rreg, &m->fdm_p.fdmp_fdmi_recs);
+	m0_mutex_unlock(&m->fdm_p.fdmp_fdmi_recs_lock);
 
 	test_print_fdmi_rec_list();
 
@@ -489,6 +502,7 @@ leave:
 static void deregister_plugin(struct m0_fid *filter_ids,
 			      uint64_t       filter_count)
 {
+	struct m0_fdmi_module     *m = m0_fdmi_module__get();
 	struct m0_fdmi_filter_reg *freg;
 	int                        idx;
 
@@ -508,7 +522,9 @@ static void deregister_plugin(struct m0_fid *filter_ids,
 			continue;
 		}
 
+		m0_mutex_lock(&m->fdm_p.fdmp_fdmi_filters_lock);
 		fdmi_filters_tlist_remove(freg);
+		m0_mutex_unlock(&m->fdm_p.fdmp_fdmi_filters_lock);
 		m0_free(freg->ffr_desc);
 		m0_free(freg->ffr_pcb);
 #if 0
@@ -536,8 +552,10 @@ M0_INTERNAL int m0_fdmi__plugin_dock_init(void)
 	struct m0_fdmi_module *m = m0_fdmi_module__get();
 	M0_ENTRY();
 
-	if (m->fdm_p.fdmp_dock_inited)
+	if (m->fdm_p.fdmp_dock_inited) {
+		M0_LOG(M0_WARN, "Plugin dock is already initialized.");
 		return M0_RC(0);
+	}
 
 	/* Disabled until future development */
 #if 0
@@ -546,7 +564,9 @@ M0_INTERNAL int m0_fdmi__plugin_dock_init(void)
 #endif
 	/* Initialise communication context. */
 	fdmi_filters_tlist_init(&m->fdm_p.fdmp_fdmi_filters);
+	m0_mutex_init(&m->fdm_p.fdmp_fdmi_filters_lock);
 	fdmi_recs_tlist_init(&m->fdm_p.fdmp_fdmi_recs);
+	m0_mutex_init(&m->fdm_p.fdmp_fdmi_recs_lock);
 	m->fdm_p.fdmp_dock_inited = true;
 	return M0_RC(0);
 }
@@ -559,6 +579,7 @@ M0_INTERNAL int m0_fdmi__plugin_dock_start(struct m0_reqh *reqh)
 
 	M0_ENTRY();
 
+	M0_ASSERT(m->fdm_p.fdmp_dock_inited);
 	rpc_machine = m0_reqh_rpc_mach_tlist_head(&reqh->rh_rpc_machines);
 
 	M0_SET0(&m->fdm_p.fdmp_conn_pool);
@@ -585,6 +606,7 @@ M0_INTERNAL void m0_fdmi__plugin_dock_fini(void)
 
 	M0_ENTRY();
 
+	m0_mutex_lock(&m->fdm_p.fdmp_fdmi_recs_lock);
 	m0_tl_teardown(fdmi_recs, &m->fdm_p.fdmp_fdmi_recs, rreg) {
 		/* @todo Find out what to do with frr_rec (phase 2). */
 		M0_LOG(M0_DEBUG, "teardown: remove and free rreg %p, rid "
@@ -593,7 +615,9 @@ M0_INTERNAL void m0_fdmi__plugin_dock_fini(void)
 			m0_free(rreg->frr_ep_addr);
 		m0_free(rreg);
 	}
+	m0_mutex_unlock(&m->fdm_p.fdmp_fdmi_recs_lock);
 
+	m0_mutex_lock(&m->fdm_p.fdmp_fdmi_filters_lock);
 	m0_tl_teardown(fdmi_filters, &m->fdm_p.fdmp_fdmi_filters, freg) {
 		m0_free(freg->ffr_desc);
 		m0_free(freg->ffr_pcb);
@@ -601,10 +625,17 @@ M0_INTERNAL void m0_fdmi__plugin_dock_fini(void)
 		m0_free(freg->ffr_ep);
 #endif
 	}
+	m0_mutex_unlock(&m->fdm_p.fdmp_fdmi_filters_lock);
 
 	m0_fop_type_fini(&m0_pdock_fdmi_filters_enable_fopt);
 	m0_fop_type_fini(&m0_pdock_fdmi_filters_enable_rep_fopt);
 	m->fdm_p.fdmp_dock_inited = false;
+
+	fdmi_filters_tlist_fini(&m->fdm_p.fdmp_fdmi_filters);
+	m0_mutex_fini(&m->fdm_p.fdmp_fdmi_filters_lock);
+
+	fdmi_recs_tlist_fini(&m->fdm_p.fdmp_fdmi_recs);
+	m0_mutex_fini(&m->fdm_p.fdmp_fdmi_recs_lock);
 
 	M0_LEAVE();
 }

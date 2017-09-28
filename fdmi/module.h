@@ -44,7 +44,11 @@ struct m0_fdmi_module_source {
 
 struct m0_fdmi_module_plugin {
 	struct m0_tl                 fdmp_fdmi_filters;
+	struct m0_mutex              fdmp_fdmi_filters_lock;
+
 	struct m0_tl                 fdmp_fdmi_recs;
+	struct m0_mutex              fdmp_fdmi_recs_lock;
+
 	bool                         fdmp_dock_inited;
 	/**
 	 * Connection pool stores connects for

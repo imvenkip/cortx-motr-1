@@ -23,6 +23,7 @@
 #include "lib/trace.h"
 
 #include "ut/ut.h"
+#include "fdmi/module.h"
 #include "fdmi/fdmi.h"
 #include "fdmi/fops.h"
 #include "fdmi/service.h"
@@ -376,6 +377,9 @@ void fdmi_pd_rec_inject_fini(void) {
 	m0_fdmi__plugin_dock_fini();
 	m0_free(rec);
 	m0_free(fop);
+
+	/* Init pd back, its used in other tests. */
+	m0_fdmi__plugin_dock_init();
 }
 
 /*----------------------------------------
@@ -588,6 +592,7 @@ void fdmi_pd_fake_release_nomem()
 	rec->fr_rec_id       = M0_UINT128(0x1111, 0x2222);
 	rec->fr_rec_type     = M0_FDMI_REC_TYPE_FOL;
 	rec->fr_matched_flts = farr;
+
 
 	fdmi_serv_start_ut(&filterc_send_notif_ops);
 
