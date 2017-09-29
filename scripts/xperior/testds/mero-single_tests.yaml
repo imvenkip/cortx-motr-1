@@ -242,7 +242,7 @@ Tests:
     #executor : Xperior::Executor::Skip
     sandbox  : /var/mero/sandbox.25spiel-sns-repair-test
     polltime : 30
-    timeout  : 900
+    timeout  : 1800
 
   - id       : 26spiel-sns-repair-quiesce-test
     script   : m0t1fs_spiel_sns_repair_quiesce.sh
