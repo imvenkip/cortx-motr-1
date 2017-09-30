@@ -134,7 +134,7 @@ static int flock_ut_fom_tick(struct m0_fom *fom, void *data, int *phase)
 		rc = M0_FSO_AGAIN;
 		break;
 	case FILE_LOCK:
-		rc = m0_sns_cm_file_lock(scm, fid, &fom->fo_loc->fl_group, &fctx);
+		rc = m0_sns_cm_file_lock(scm, fid, &fctx);
 		M0_UT_ASSERT(rc == 0 || rc == -EAGAIN);
 		if (rc == -EAGAIN)
 			rc = m0_sns_cm_file_lock_wait(fctx, fom);
@@ -238,7 +238,7 @@ static int fids_set(void)
 
 static int test_setup(void)
 {
-	int                  rc;
+	int rc;
 
         rc = cs_init(&sctx);
         M0_ASSERT(rc == 0);
@@ -251,6 +251,8 @@ static int test_setup(void)
 	M0_ASSERT(cm != NULL);
 	scm = cm2sns(cm);
 	M0_ASSERT(scm != NULL);
+	rc = m0_cm_ast_run_thread_init(cm);
+	M0_ASSERT(rc == 0);
 	rc = m0_sns_cm_rm_init(scm);
 	M0_ASSERT(rc == 0);
 	service = m0_reqh_service_find(&m0_rms_type, reqh),
@@ -262,6 +264,7 @@ static int test_setup(void)
 static int test_fini(void)
 {
 	m0_sns_cm_rm_fini(scm);
+	m0_cm_ast_run_thread_fini(cm);
 	cs_fini(&sctx);
 	return 0;
 }
@@ -306,7 +309,6 @@ static void sns_file_lock_unlock(void)
 {
 	struct m0_sns_cm_file_ctx *fctx[NR_FIDS];
 	struct m0_clink		   tc_clink[NR_FIDS];
-	struct m0_sm_group        *grp = m0_locality0_get()->lo_grp;
 	struct m0_fid              fid;
 	uint64_t		   cont = 0;
 	uint64_t		   key = KEY_START;
@@ -320,7 +322,7 @@ static void sns_file_lock_unlock(void)
 		m0_cm_lock(&scm->sc_base);
 		M0_SET0(&fid);
 		m0_fid_set(&fid, cont, key);
-		rc = m0_sns_cm_file_lock(scm, &fid, grp, &fctx[i]);
+		rc = m0_sns_cm_file_lock(scm, &fid, &fctx[i]);
 		M0_UT_ASSERT(rc == -EAGAIN);
 		m0_cm_unlock(&scm->sc_base);
 		file_lock_wait(fctx[i], &tc_clink[i]);

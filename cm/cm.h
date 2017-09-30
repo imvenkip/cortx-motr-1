@@ -511,7 +511,8 @@ M0_INTERNAL int m0_cm_proxies_fini(struct m0_cm *cm);
 
 M0_INTERNAL struct m0_rpc_machine *m0_cm_rpc_machine_find(struct m0_reqh *reqh);
 
-M0_INTERNAL void m0_cm_ast_run_fom_wakeup(struct m0_cm *cm);
+M0_INTERNAL int m0_cm_ast_run_thread_init(struct m0_cm *cm);
+M0_INTERNAL void m0_cm_ast_run_thread_fini(struct m0_cm *cm);
 M0_INTERNAL void m0_cm_notify(struct m0_cm *cm);
 M0_INTERNAL void m0_cm_wait(struct m0_cm *cm, struct m0_fom *fom);
 M0_INTERNAL void m0_cm_wait_cancel(struct m0_cm *cm, struct m0_fom *fom);

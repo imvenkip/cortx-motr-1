@@ -219,7 +219,7 @@ static int __file_lock(struct m0_sns_cm *scm, const struct m0_fid *fid,
 	int            rc;
 
 	fom = &scm->sc_base.cm_sw_update.swu_fom;
-	rc = m0_sns_cm_file_lock(scm, fid, &fom->fo_loc->fl_group, fctx);
+	rc = m0_sns_cm_file_lock(scm, fid, fctx);
 	if (rc == -EAGAIN) {
 		M0_ASSERT(*fctx != NULL);
 		rc = m0_sns_cm_file_lock_wait(*fctx, fom);

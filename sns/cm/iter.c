@@ -272,8 +272,7 @@ static int iter_fid_lock(struct m0_sns_cm_iter *it)
 	scm = it2sns(it);
 	fid = &it->si_fc.ifc_gfid;
 	m0_mutex_lock(&scm->sc_file_ctx_mutex);
-	rc = m0_sns_cm_file_lock(scm, fid, &it->si_fom->fo_loc->fl_group,
-				 &it->si_fc.ifc_fctx);
+	rc = m0_sns_cm_file_lock(scm, fid, &it->si_fc.ifc_fctx);
 	if (rc == 0)
 		iter_phase_set(it, ITPH_FID_ATTR_LAYOUT);
 	if (rc == -EAGAIN) {

@@ -443,9 +443,6 @@ M0_TL_DEFINE(cmtypes, static, struct m0_cm_type);
 static struct m0_bob_type cmtypes_bob;
 M0_BOB_DEFINE(static, &cmtypes_bob, m0_cm_type);
 
-static int cm_ast_run_thread_init(struct m0_cm *cm);
-static void cm_ast_run_thread_fini(struct m0_cm *cm);
-
 static struct m0_sm_state_descr cm_state_descr[M0_CMS_NR] = {
 	[M0_CMS_INIT] = {
 		.sd_flags	= M0_SDF_INITIAL,
@@ -749,7 +746,7 @@ M0_INTERNAL int m0_cm_ready(struct m0_cm *cm)
 		rc = -EINVAL;
 
 	if (rc == 0)
-		cm_ast_run_thread_init(cm);
+		m0_cm_ast_run_thread_init(cm);
 
 	if (rc == 0) {
 		m0_cm_state_set(cm, M0_CMS_READY);
@@ -854,7 +851,7 @@ M0_INTERNAL int m0_cm_stop(struct m0_cm *cm)
 	m0_cm_unlock(cm);
 
 	if (cm->cm_asts_run.car_run)
-		cm_ast_run_thread_fini(cm);
+		m0_cm_ast_run_thread_fini(cm);
 
 	M0_LEAVE("rc: %d", rc);
 	return M0_RC(rc);
@@ -1176,7 +1173,7 @@ static void cm_ast_run_thread(struct m0_cm *cm)
 	}
 }
 
-static int cm_ast_run_thread_init(struct m0_cm *cm)
+M0_INTERNAL int m0_cm_ast_run_thread_init(struct m0_cm *cm)
 {
 	M0_SET0(&cm->cm_asts_run);
 	cm->cm_asts_run.car_run = true;
@@ -1184,7 +1181,7 @@ static int cm_ast_run_thread_init(struct m0_cm *cm)
 			      NULL, &cm_ast_run_thread, cm, "cm_ast_run_thr");
 }
 
-static void cm_ast_run_thread_fini(struct m0_cm *cm)
+M0_INTERNAL void m0_cm_ast_run_thread_fini(struct m0_cm *cm)
 {
 	cm->cm_asts_run.car_run = false;
 	m0_clink_signal(&cm->cm_sm_group.s_clink);

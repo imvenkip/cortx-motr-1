@@ -122,7 +122,6 @@ struct m0_sns_cm_file_ctx {
 /** Allocates and initialises new m0_sns_cm_file_ctx object. */
 M0_INTERNAL int m0_sns_cm_fctx_init(struct m0_sns_cm *scm,
 				    const struct m0_fid *fid,
-				    struct m0_sm_group *grp,
 				    struct m0_sns_cm_file_ctx **sc_fctx);
 
 M0_INTERNAL void m0_sns_cm_fctx_fini(struct m0_sns_cm_file_ctx *fctx);
@@ -137,7 +136,6 @@ M0_INTERNAL void m0_sns_cm_fctx_fini(struct m0_sns_cm_file_ctx *fctx);
  */
 M0_INTERNAL int m0_sns_cm_file_lock(struct m0_sns_cm *scm,
 				    const struct m0_fid *fid,
-				    struct m0_sm_group *grp,
 				    struct m0_sns_cm_file_ctx **out);
 /**
  * Returns -EAGAIN until the rm file lock is acquired. The given

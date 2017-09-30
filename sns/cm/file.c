@@ -149,16 +149,16 @@ static void _fctx_fini(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
 	struct m0_sns_cm_file_ctx *fctx = _AST2FCTX(ast, sf_fini_ast);
 
-	m0_clink_del_lock(&fctx->sf_fini_clink);
+	if (!m0_sns_cm2reqh(fctx->sf_scm)->rh_oostore) {
+		m0_clink_del_lock(&fctx->sf_fini_clink);
+		m0_file_owner_fini(&fctx->sf_owner);
+		m0_rm_remote_fini(&fctx->sf_creditor);
+		m0_file_fini(&fctx->sf_file);
+	}
 	m0_clink_fini(&fctx->sf_fini_clink);
 	m0_mutex_fini(&fctx->sf_lock);
-	m0_file_owner_fini(&fctx->sf_owner);
-	m0_rm_remote_fini(&fctx->sf_creditor);
-	m0_file_fini(&fctx->sf_file);
-	m0_cm_lock(&fctx->sf_scm->sc_base);
 	_fctx_status_set(fctx, M0_SCFS_FINI);
 	m0_sm_fini(&fctx->sf_sm);
-	m0_cm_unlock(&fctx->sf_scm->sc_base);
 	m0_free(fctx);
 }
 
@@ -240,7 +240,6 @@ static bool fctx_fini_clink_cb(struct m0_clink *link)
 
 M0_INTERNAL int m0_sns_cm_fctx_init(struct m0_sns_cm *scm,
 				    const struct m0_fid *fid,
-				    struct m0_sm_group *grp,
 				    struct m0_sns_cm_file_ctx **sc_fctx)
 {
 	struct m0_sns_cm_file_ctx *fctx;
@@ -266,7 +265,7 @@ M0_INTERNAL int m0_sns_cm_fctx_init(struct m0_sns_cm *scm,
 	m0_sm_init(&fctx->sf_sm, &fctx_sm_conf, M0_SCFS_INIT, &scm->sc_base.cm_sm_group);
 	m0_clink_init(&fctx->sf_fini_clink, fctx_fini_clink_cb);
 	m0_mutex_init(&fctx->sf_lock);
-	fctx->sf_group = grp;
+	fctx->sf_group = &scm->sc_base.cm_sm_group;
 	fctx->sf_scm = scm;
 	if (!m0_sns_cm2reqh(scm)->rh_oostore)
 		sns_cm_fctx_rm_init(fctx);
@@ -279,10 +278,18 @@ M0_INTERNAL void m0_sns_cm_fctx_fini(struct m0_sns_cm_file_ctx *fctx)
 {
 	M0_PRE(fctx != NULL);
 
+	m0_scmfctx_tlink_fini(fctx);
+
 	fctx->sf_fini_ast.sa_cb = _fctx_fini;
+	/* In non-oostore mode we use resource manager to acquire file lock
+	 * across the nodes. We wait until file lock resource is finalised
+	 * before finalising fctx.
+	 * In oostore mode we do not use file lock resource.
+	 */
 	if (!m0_sns_cm2reqh(fctx->sf_scm)->rh_oostore)
 		sns_cm_fctx_rm_fini(fctx);
-	m0_scmfctx_tlink_fini(fctx);
+	else
+		__fctx_ast_post(fctx, &fctx->sf_fini_ast);
 }
 
 extern const struct m0_rm_incoming_ops file_lock_incoming_ops;
@@ -388,7 +395,6 @@ m0_sns_cm_file_lock_wait(struct m0_sns_cm_file_ctx *fctx, struct m0_fom *fom)
 
 M0_INTERNAL int m0_sns_cm_file_lock(struct m0_sns_cm *scm,
 				    const struct m0_fid *fid,
-				    struct m0_sm_group *grp,
 				    struct m0_sns_cm_file_ctx **out)
 {
 	struct m0_sns_cm_file_ctx *fctx;
@@ -413,7 +419,7 @@ M0_INTERNAL int m0_sns_cm_file_lock(struct m0_sns_cm *scm,
 		if (m0_sns_cm_fctx_state_get(fctx) == M0_SCFS_LOCK_WAIT)
 			return M0_RC(-EAGAIN);
 	}
-	rc = m0_sns_cm_fctx_init(scm, fid, grp, &fctx);
+	rc = m0_sns_cm_fctx_init(scm, fid, &fctx);
 	if (rc == 0) {
 		rc = !m0_sns_cm2reqh(scm)->rh_oostore ?
 			__sns_cm_file_lock(fctx) :
@@ -524,9 +530,7 @@ static void _attr_ast_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 			(int)fctx->sf_nr_ios_visited, FID_P(&fctx->sf_fid));
 		fctx->sf_rc = _attr_fetch(fctx);
 	} else if (m0_sns_cm_fctx_state_get(fctx) == M0_SCFS_ATTR_FETCH) {
-		m0_cm_lock(&fctx->sf_scm->sc_base);
 		_fctx_status_set(fctx, M0_SCFS_ATTR_FETCHED);
-		m0_cm_unlock(&fctx->sf_scm->sc_base);
 	}
 	m0_ref_put(&fctx->sf_ref);
 }
