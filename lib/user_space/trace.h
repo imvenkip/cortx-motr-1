@@ -42,6 +42,8 @@ M0_INTERNAL int m0_trace_parse(FILE *trace_file, FILE *output_file,
 
 M0_INTERNAL void m0_trace_set_mmapped_buffer(bool val);
 
+int m0_trace_set_buffer_size(size_t size);
+
 /** @} end of trace group */
 #endif /* __MERO_LIB_USERSP_TRACE_H__ */
 

@@ -20,6 +20,7 @@
 
 #include <stdio.h>            /* printf */
 #include <unistd.h>           /* pause */
+#include <stdlib.h>           /* atoi */
 #include <err.h>              /* warnx */
 #include <signal.h>           /* sigaction */
 #include <sys/time.h>
@@ -31,7 +32,8 @@
 
 #include "lib/errno.h"
 #include "lib/memory.h"
-#include "lib/misc.h"         /* M0_SET0 */
+#include "lib/misc.h"              /* M0_SET0 */
+#include "lib/user_space/trace.h"  /* m0_trace_set_buffer_size */
 
 #include "mero/setup.h"
 #include "mero/init.h"
@@ -120,6 +122,7 @@ static int cs_wait_signal(void)
 M0_INTERNAL int main(int argc, char **argv)
 {
 	static struct m0       instance;
+	int                    trace_buf_size;
 	int                    result;
 	int                    rc;
 	struct m0_mero         mero_ctx;
@@ -129,6 +132,24 @@ M0_INTERNAL int main(int argc, char **argv)
 	    (strcmp(argv[1], "-v") == 0 || strcmp(argv[1], "--version") == 0)) {
 		m0_build_info_print();
 		exit(EXIT_SUCCESS);
+	}
+
+	if (argc > 2 && strcmp(argv[1], "--trace-buf-size-mb") == 0) {
+		trace_buf_size = atoi(argv[2]); /* in MiB */
+		if (trace_buf_size > 0 &&
+		    m0_trace_set_buffer_size((size_t)trace_buf_size *
+					     1024 * 1024) == 0)
+		{
+			argv[2] = argv[0];
+			argv += 2;
+			argc -= 2;
+		} else {
+			if (trace_buf_size <= 0)
+				fprintf(stderr, "mero: trace buffer size should"
+					" be greater than zero (was %i)\n",
+					trace_buf_size);
+			exit(EXIT_FAILURE);
+		}
 	}
 
 	rc = setrlimit(RLIMIT_NOFILE, &rlim);

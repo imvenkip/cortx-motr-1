@@ -59,8 +59,8 @@ MODULE_PARM_DESC(trace_print_context,
 		 " info, like subsystem, file, func, etc.; values:"
 		 " none, func, short, full");
 
-static unsigned int trace_buf_size = M0_TRACE_KBUF_SIZE;
-module_param(trace_buf_size, uint, S_IRUGO);
+static unsigned long trace_buf_size = M0_TRACE_KBUF_SIZE;
+module_param(trace_buf_size, ulong, S_IRUGO);
 MODULE_PARM_DESC(trace_buf_size, "size of trace buffer in bytes");
 
 static struct m0_trace_stats stats;
@@ -198,7 +198,7 @@ M0_INTERNAL int m0_arch_trace_init()
 
 	trace_area = vzalloc(sizeof (trace_area->ta_header) + trace_buf_size);
 	if (trace_area == NULL) {
-		pr_err("mero: failed to allocate %u bytes for trace buffer\n",
+		pr_err("mero: failed to allocate %lu bytes for trace buffer\n",
 		       trace_buf_size);
 		return -ENOMEM;
 	}

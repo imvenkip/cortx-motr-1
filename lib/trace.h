@@ -345,7 +345,7 @@ struct m0_trace_buf_header {
 			/** Trace buffer address */
 			const void             *tbh_buf_addr;
 			/** Trace buffer size */
-			uint32_t                tbh_buf_size;
+			uint64_t                tbh_buf_size;
 			/** enum m0_trace_buf_type */
 			uint16_t                tbh_buf_type;
 			/** enum m0_trace_buf_flags */

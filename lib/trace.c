@@ -78,9 +78,9 @@ static struct {
 M0_BASSERT(bootlog.bl_buf == bootlog.bl_area.ta_buf);
 
 struct m0_trace_buf_header *m0_logbuf_header = &bootlog.bl_area.ta_header;
-void            *m0_logbuf     = bootlog.bl_area.ta_buf;
-uint32_t         m0_logbufsize = sizeof bootlog.bl_buf;
-static uint32_t  bufmask       = sizeof bootlog.bl_buf - 1;
+void          *m0_logbuf     = bootlog.bl_area.ta_buf;
+size_t         m0_logbufsize = sizeof bootlog.bl_buf;
+static size_t  bufmask       = sizeof bootlog.bl_buf - 1;
 M0_BASSERT(((sizeof bootlog.bl_buf) & ((sizeof bootlog.bl_buf) - 1)) == 0);
 
 unsigned long m0_trace_immediate_mask = 0;
@@ -586,7 +586,7 @@ M0_INTERNAL uint32_t m0_trace_logbuf_size_get(void)
 }
 M0_EXPORTED(m0_trace_logbuf_size_get);
 
-M0_INTERNAL void m0_trace_logbuf_size_set(uint32_t size)
+M0_INTERNAL void m0_trace_logbuf_size_set(size_t size)
 {
 	M0_PRE(m0_is_po2(size) && size % m0_pagesize_get() == 0);
 	m0_logbufsize = size;
@@ -882,7 +882,7 @@ M0_INTERNAL const struct m0_trace_rec_header *m0_trace_last_record_get(void)
 M0_EXPORTED(m0_trace_last_record_get);
 
 
-M0_INTERNAL void m0_trace_buf_header_init(struct m0_trace_buf_header *tbh, uint32_t buf_size)
+M0_INTERNAL void m0_trace_buf_header_init(struct m0_trace_buf_header *tbh, size_t buf_size)
 {
 	const struct m0_build_info  *bi = m0_build_info_get();
 

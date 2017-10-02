@@ -52,19 +52,18 @@
 
 pid_t m0_pid_cached;
 
-static int logfd;
-
 static const char sys_kern_randvspace_fname[] =
 	"/proc/sys/kernel/randomize_va_space";
 
+static int  logfd;
 static bool use_mmaped_buffer = true;
-
 static char trace_file_path[PATH_MAX];
+static size_t trace_buf_size = M0_TRACE_UBUF_SIZE;
 
 static int logbuf_map()
 {
-	char     buf[80];
-	uint32_t trace_area_size = M0_TRACE_BUF_HEADER_SIZE + M0_TRACE_UBUF_SIZE;
+	char   buf[80];
+	size_t trace_area_size = M0_TRACE_BUF_HEADER_SIZE + trace_buf_size;
 
 	struct m0_trace_area *trace_area;
 
@@ -75,7 +74,7 @@ static int logbuf_map()
 	if ((logfd = open(buf, O_RDWR|O_CREAT|O_TRUNC|O_CLOEXEC, 0700)) == -1) {
 		warn("open(\"%s\")", buf);
 	} else if ((errno = posix_fallocate(logfd, 0, trace_area_size)) != 0) {
-		warn("fallocate(\"%s\", %u)", buf, trace_area_size);
+		warn("fallocate(\"%s\", %zu)", buf, trace_area_size);
 	} else if ((trace_area = mmap(NULL, trace_area_size, PROT_WRITE,
 				      MAP_SHARED, logfd, 0)) == MAP_FAILED)
 	{
@@ -84,9 +83,8 @@ static int logbuf_map()
 		m0_logbuf_header = &trace_area->ta_header;
 		m0_logbuf = trace_area->ta_buf;
 		memset(trace_area, 0, trace_area_size);
-		m0_trace_buf_header_init(&trace_area->ta_header,
-					 M0_TRACE_UBUF_SIZE);
-		m0_trace_logbuf_size_set(M0_TRACE_UBUF_SIZE);
+		m0_trace_buf_header_init(&trace_area->ta_header, trace_buf_size);
+		m0_trace_logbuf_size_set(trace_buf_size);
 
 		if (getcwd(trace_file_path, sizeof trace_file_path) != NULL ) {
 			strncat(trace_file_path, "/",
@@ -149,6 +147,26 @@ M0_INTERNAL void m0_trace_set_mmapped_buffer(bool val)
 M0_INTERNAL bool m0_trace_use_mmapped_buffer(void)
 {
 	return use_mmaped_buffer;
+}
+
+int m0_trace_set_buffer_size(size_t size)
+{
+	if (m0_pid_cached) {
+		m0_error_printf("mero: can't set trace buffer size after it's"
+				" been initialized\n");
+		return -EBUSY;
+	}
+
+	if (size == 0 || !m0_is_po2(size) || size % m0_pagesize_get() != 0) {
+		m0_error_printf("mero: incorrect value for trace buffer size"
+		       " parameter (%zu), it can't be zero, should be a power of"
+		       " 2 and a multiple of PAGE_SIZE(%u)\n",
+		       size, m0_pagesize_get());
+		return -EINVAL;
+	}
+
+	trace_buf_size = size;
+	return 0;
 }
 
 M0_INTERNAL int m0_arch_trace_init()
@@ -323,7 +341,7 @@ static void print_trace_buf_header(FILE *ofile,
 	fprintf(ofile, "  header_addr:        %p\n", tbh->tbh_header_addr);
 	fprintf(ofile, "  header_size:        %u\t\t# bytes\n", tbh->tbh_header_size);
 	fprintf(ofile, "  buffer_addr:        %p\n", tbh->tbh_buf_addr);
-	fprintf(ofile, "  buffer_size:        %u\t\t# bytes\n", tbh->tbh_buf_size);
+	fprintf(ofile, "  buffer_size:        %lu\t\t# bytes\n", tbh->tbh_buf_size);
 
 	if (tbh->tbh_buf_type == M0_TRACE_BUF_KERNEL) {
 		fprintf(ofile, "  mod_struct_addr:    %p\n",
