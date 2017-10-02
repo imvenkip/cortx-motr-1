@@ -262,8 +262,9 @@ static int header_read(struct m0_addb2_sit *it, struct m0_addb2_frame_header *h,
 		M0_SET0(h);
 		m0_bufvec_cursor_init(&cur, &buf);
 		result = m0_xcode_encdec(HEADER_XO(h), &cur, M0_XCODE_DECODE) ?:
-			header_is_valid(it, h) &&
-			(offset == 0 || h->he_offset == offset) ? 0 : -EPROTO;
+			 header_is_valid(it, h) &&
+			           (offset == 0 || h->he_offset == offset) ?
+                           0 : -EPROTO;
 	}
 	return M0_RC(result);
 }
