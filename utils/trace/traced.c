@@ -68,6 +68,7 @@ static const char *output_kore_file_name = M0MERO_KO_CORE_OUT_FILE_NAME;
 
 static bool      daemon_mode        = false;
 static bool      pipe_mode          = false;
+static bool      fsync_enabled      = false;
 static bool      use_syslog         = false;
 static bool      save_kore          = true;
 static int       log_level          = LOG_INFO;
@@ -189,7 +190,7 @@ static int write_trace_header(const struct m0_trace_buf_header *header,
 		goto out;
 	}
 
-	if (!pipe_mode) {
+	if (fsync_enabled) {
 		rc = fsync(fd);
 		if (rc != 0)
 			log_err("fsync(2) failed on output file '%s': %s",
@@ -218,7 +219,7 @@ static int write_trace_data(int *fd_ptr, const void *buf, size_t size)
 		goto out;
 	}
 
-	if (!pipe_mode) {
+	if (fsync_enabled) {
 		rc = fsync(fd);
 		if (rc != 0)
 			log_err("fsync(2) failed on output file '%s': %s",
@@ -395,6 +396,8 @@ static int process_trace_buffer(int *ofd_ptr,
 	const char      *logbuf_end = logbuf + logheader->tbh_buf_size;
 	const m0_time_t  idle_timeo = 100 * M0_TIME_ONE_MSEC;
 	m0_time_t        timeo = idle_timeo;
+
+	log_info("Fsync enabled: %s\n", fsync_enabled ? "yes" : "no");
 
 	rc = write_trace_header(logheader, ofd_ptr, output_file_name);
 	if (rc != 0)
@@ -644,11 +647,15 @@ int main(int argc, char *argv[])
 		" log rotation",
 		LAMBDA(void, (void) {
 			pipe_mode        = true;
+			fsync_enabled    = false;
 			rotation_enabled = false;
 			daemon_mode      = false;
 			save_kore        = false;
 			output_file_name = "-";
 		})
+	  ),
+	  M0_FLAGARG('f', "do fsync after writing each chunk of trace data",
+		&fsync_enabled
 	  ),
 	);
 
