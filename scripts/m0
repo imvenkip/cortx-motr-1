@@ -56,6 +56,14 @@ _exec() {
     $@
 }
 
+_time() {
+    if [ -x /usr/bin/time ]; then
+        /usr/bin/time "$@"
+    else
+        time "$@"
+    fi
+}
+
 rundir_init() {
     $SUDO rm -rf "$RUNDIR"  # Ouch!
     $SUDO mkdir -m 0777 -p "$RUNDIR"
@@ -121,7 +129,7 @@ cmd_run_st() {
                 else
                     echo "<< ${f##*/} >>" >&2
                     export SANDBOX_DIR=$RUNDIR/sandbox.st-${f##*/}
-                    $f || return $?
+                    _time $f || return $?
                 fi
             done
     done
