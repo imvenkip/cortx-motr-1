@@ -275,4 +275,4 @@ main()
 
 trap unprepare EXIT
 main
-report_and_exit sns-repair-abort $?
+report_and_exit sns-repair-ios-fail $?
