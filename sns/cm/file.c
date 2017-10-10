@@ -518,6 +518,7 @@ static void _attr_ast_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
 	struct m0_sns_cm_file_ctx *fctx = _AST2FCTX(ast, sf_attr_ast);
 
+	fctx->sf_rc = (long)ast->sa_datum;
 	_attr_fetch(fctx);
 }
 
@@ -528,7 +529,14 @@ static inline void _attr_cb(void *arg, int rc)
 	fctx->sf_attr_ast.sa_cb = _attr_ast_cb;
 	M0_LOG(M0_DEBUG, "rc:%d %"PRIx64" %d", rc, fctx->sf_attr.ca_size,
 					       (int)fctx->sf_nr_ios_visited);
-	fctx->sf_rc = rc;
+
+	/*
+	 * We save file attribute fetch result temporarily and update
+	 * m0_sns_cm_file_ctx::sf_rc in ast callback under copy machine lock
+	 * in-order to avoid the race between update and reading of
+	 * m0_sns_cm_file_ctx::sf_rc.
+	 */
+	fctx->sf_attr_ast.sa_datum = (void *)(long)rc;
 	__fctx_ast_post(fctx, &fctx->sf_attr_ast);
 }
 
