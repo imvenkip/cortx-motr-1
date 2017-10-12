@@ -132,6 +132,8 @@ struct m0 {
 	unsigned                   i_ios_cdom_key;
 	/** Key for mdservice cob domain */
 	unsigned                   i_mds_cdom_key;
+	/** Key for active rec domain */
+	unsigned                   i_actrec_dom_key;
 	/** Process attributes - memory limits and core mask */
 	struct m0_proc_attr        i_proc_attr;
 };

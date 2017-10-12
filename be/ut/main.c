@@ -134,6 +134,8 @@ extern void m0_be_ut_seg0_test(void);
 extern void m0_be_ut_obj_test(void);
 extern void m0_be_ut_fmt(void);
 
+extern void m0_be_ut_actrec_test(void);
+
 struct m0_ut_suite be_ut = {
 	.ts_name = "be-ut",
 	.ts_yaml_config_string = "{ valgrind: { timeout: 1200 },"
@@ -231,6 +233,7 @@ struct m0_ut_suite be_ut = {
 		{ "alloc-spare",             m0_be_ut_alloc_spare             },
 #endif
 		{ "obj",                     m0_be_ut_obj_test                },
+		{ "actrec",                  m0_be_ut_actrec_test             },
 #endif
 		{ "list",                    m0_be_ut_list                    },
 		{ "btree",                   m0_be_ut_btree_simple            },

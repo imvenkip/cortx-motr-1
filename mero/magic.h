@@ -153,6 +153,11 @@ enum m0_magic_satchel {
 	/* m0_be_pd::bpd_io_pool (be dead cache) */
 	M0_BE_PD_IO_MAGIC = 0x33bedeadcac4e77,
 
+	/* m0_be_active_record_domain::ard_list (be blood flood) */
+	M0_BE_ACT_REC_DOM_MAGIC = 0x33beb100df100d7,
+
+	/* m0_be_active_record_domain_subsystem::rds_list (be glad blood) */
+	M0_BE_ACT_REC_DOM_SUB_MAGIC = 0x33be91adb100d77,
 
 /* m0t1fs */
 	/* m0t1fs_sb::s_magic (cozie filesis) */

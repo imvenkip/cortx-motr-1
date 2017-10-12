@@ -2,6 +2,7 @@ nobase_mero_include_HEADERS += \
                                be/addb2.h           \
                                be/alloc.h           \
                                be/alloc_internal.h  \
+                               be/active_record.h   \
                                be/be.h              \
                                be/btree.h           \
                                be/btree_internal.h  \
@@ -10,7 +11,7 @@ nobase_mero_include_HEADERS += \
                                be/extmap_internal.h \
                                be/extmap.h          \
                                be/fl.h              \
-			       be/fmt.h		    \
+                               be/fmt.h             \
                                be/ha.h              \
                                be/io.h              \
                                be/io_sched.h        \
@@ -40,13 +41,14 @@ nobase_mero_include_HEADERS += \
 			       be/ut/helper.h
 
 mero_libmero_la_SOURCES += be/alloc.c           \
+                           be/active_record.c   \
 			   be/be.c              \
 			   be/btree.c           \
 			   be/domain.c          \
 			   be/engine.c          \
 			   be/extmap.c          \
                            be/fl.c              \
-			   be/fmt.c		\
+                           be/fmt.c             \
                            be/ha.c              \
 			   be/io.c              \
 			   be/io_sched.c        \
