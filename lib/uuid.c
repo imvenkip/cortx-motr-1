@@ -27,6 +27,7 @@
 
 #ifdef __KERNEL__
 #  include <linux/random.h>  /* get_random_uuid */
+#  include <linux/uuid.h>    /* generate_random_uuid */
 #else
 #  include <uuid/uuid.h>     /* generate_uuid */
 #endif
