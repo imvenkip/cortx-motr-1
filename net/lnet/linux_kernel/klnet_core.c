@@ -1033,7 +1033,7 @@ static void nlx_kcore_eq_cb(lnet_event_t *event)
 	NLXDBG(ktm, 3, nlx_kprint_kcore_tm("eq_cb", ktm));
 
 	if (event->unlinked != 0) {
-		LNetInvalidateHandle(&kbp->kb_mdh); /* Invalid use, but safe */
+		LNetInvalidateMDHandle(&kbp->kb_mdh); /* Invalid use, but safe */
 		/* kbp->kb_ktm = NULL set below */
 		is_unlinked = true;
 	}
@@ -1258,7 +1258,7 @@ static int nlx_kcore_buf_register(struct nlx_kcore_domain *kd,
 	kb->kb_kiov          = NULL;
 	kb->kb_kiov_len      = 0;
 	kb->kb_kiov_orig_len = 0;
-	LNetInvalidateHandle(&kb->kb_mdh);
+	LNetInvalidateMDHandle(&kb->kb_mdh);
 	kb->kb_ooo_reply     = false;
 	kb->kb_ooo_mlength   = 0;
 	kb->kb_ooo_status    = 0;
@@ -1281,7 +1281,7 @@ static void nlx_kcore_buf_deregister(struct nlx_core_buffer *cb,
 				     struct nlx_kcore_buffer *kb)
 {
 	M0_PRE(nlx_kcore_buffer_invariant(kb));
-	M0_PRE(LNetHandleIsInvalid(kb->kb_mdh));
+	M0_PRE(LNetMDHandleIsInvalid(kb->kb_mdh));
 	drv_bufs_tlink_fini(kb);
 	kb->kb_magic = 0;
 	m0_free(kb->kb_kiov);

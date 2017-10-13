@@ -29,13 +29,18 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_LNET
 #include "lib/trace.h"        /* M0_LOG and M0_ENTRY */
 
-static void nlx_kprint_lnet_handle(const char *pre, lnet_handle_any_t h)
+#include "net/lnet/linux_kernel/klnet_core.h"
+
+static void __nlx_kprint_lnet_handle(const char *pre, uint64_t cookie)
 {
 	char buf[32];
-	LNetSnprintHandle(buf, sizeof buf, h);
+	snprintf(buf, sizeof buf, "%#llx", cookie);
 	M0_LOG(M0_DEBUG, "%s: %s (lnet_handle_any_t)\n", (char *)pre,
 	       (char *)buf);
 }
+#define nlx_kprint_lnet_handle(pre, h) \
+		__nlx_kprint_lnet_handle(pre, (h).cookie)
+
 
 static void nlx_kprint_lnet_process_id(const char *pre, lnet_process_id_t p)
 {
@@ -400,13 +405,13 @@ static int nlx_kcore_LNetMDAttach(struct nlx_kcore_transfer_mc *kctm,
 		NLXDBGP(kctm, 1, "LNetMDAttach: %d\n", rc);
 		NLXDBGP(kctm, 1, "LNetMEUnlink: %d\n", trc);
 		M0_ASSERT(trc == 0);
-		LNetInvalidateHandle(&kcb->kb_mdh);
+		LNetInvalidateMDHandle(&kcb->kb_mdh);
 		kcb->kb_ktm = NULL;
 	}
 
 	/* Cannot make these assertions here as delivery is asynchronous, and
 	   could have completed before we got here.
-	   M0_POST(ergo(rc == 0, !LNetHandleIsInvalid(kcb->kb_mdh)));
+	   M0_POST(ergo(rc == 0, !LNetMDHandleIsInvalid(kcb->kb_mdh)));
 	   M0_POST(ergo(rc == 0, kcb->kb_ktm == kctm));
 	*/
 	return M0_RC(rc);
@@ -482,13 +487,13 @@ static int nlx_kcore_LNetPut(struct nlx_kcore_transfer_mc *kctm,
 		NLXDBGP(kctm, 1, "LNetPut: %d\n", rc);
 		NLXDBGP(kctm, 1, "LNetMDUnlink: %d\n", trc);
 		M0_ASSERT(trc == 0);
-		LNetInvalidateHandle(&kcb->kb_mdh);
+		LNetInvalidateMDHandle(&kcb->kb_mdh);
 		kcb->kb_ktm = NULL;
 	}
 
 	/* Cannot make these assertions here, because loopback can deliver
 	   before we get here.  Leaving the assertions in the comment.
-	   M0_POST(ergo(rc == 0, !LNetHandleIsInvalid(kcb->kb_mdh)));
+	   M0_POST(ergo(rc == 0, !LNetMDHandleIsInvalid(kcb->kb_mdh)));
 	   M0_POST(ergo(rc == 0, kcb->kb_ktm == kctm));
 	*/
 	return M0_RC(rc);
@@ -545,13 +550,13 @@ static int nlx_kcore_LNetGet(struct nlx_kcore_transfer_mc *kctm,
 		NLXDBGP(kctm, 1, "LNetGet: %d\n", rc);
 		NLXDBGP(kctm, 1, "LNetMDUnlink: %d\n", trc);
 		M0_ASSERT(trc == 0);
-		LNetInvalidateHandle(&kcb->kb_mdh);
+		LNetInvalidateMDHandle(&kcb->kb_mdh);
 		kcb->kb_ktm = NULL;
 	}
 
 	/* Cannot make these assertions here, because loopback can deliver
 	   before we get here.  Leaving the assertions in the comment.
-	   M0_POST(ergo(rc == 0, !LNetHandleIsInvalid(kcb->kb_mdh)));
+	   M0_POST(ergo(rc == 0, !LNetMDHandleIsInvalid(kcb->kb_mdh)));
 	   M0_POST(ergo(rc == 0, kcb->kb_ktm == kctm));
 	*/
 	return M0_RC(rc);

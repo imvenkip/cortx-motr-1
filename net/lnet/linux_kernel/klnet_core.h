@@ -218,6 +218,14 @@ struct nlx_kcore_buffer_event {
 	struct m0_tlink               kbe_drv_linkage;
 };
 
+#if LUSTRE_VERSION_CODE < OBD_OCD_VERSION(2, 10, 0, 0)
+#define LNetInvalidateMDHandle(h)  LNetInvalidateHandle(h)
+#define LNetMDHandleIsInvalid(h)   LNetHandleIsInvalid(h)
+#else
+#define LNetHandleIsEqual(h1, h2)  ((h1).cookie == (h2).cookie)
+#define LNetHandleIsInvalid(h)     ((h).cookie == LNET_WIRE_HANDLE_COOKIE_NONE)
+#endif
+
 /**
    Performs a kernel core tranfer machine buffer queue send or receive
    operation (message, active, or passive).

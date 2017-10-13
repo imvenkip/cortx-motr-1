@@ -29,6 +29,7 @@
 #include <linux/module.h>         /* THIS_MODULE */
 
 #include "net/lnet/ut/lnet_drv_ut.h"
+#include "net/lnet/linux_kernel/klnet_core.h"
 
 enum {
 	UT_PROC_WRITE_SIZE = 8,   /**< max size of data to write to proc file */
@@ -319,7 +320,7 @@ static void ktest_buf_reg(void)
 	M0_UT_ASSERT(cb->cb_magic == M0_NET_LNET_CORE_BUF_MAGIC);
 	kcb1 = cb->cb_kpvt;
 	M0_UT_ASSERT(kcb1->kb_magic == M0_NET_LNET_KCORE_BUF_MAGIC);
-	M0_UT_ASSERT(LNetHandleIsInvalid(kcb1->kb_mdh));
+	M0_UT_ASSERT(LNetMDHandleIsInvalid(kcb1->kb_mdh));
 	M0_UT_ASSERT(kcb1->kb_kiov != NULL);
 	M0_UT_ASSERT(kcb1->kb_kiov_len == bsegs);
 	for (i = 0; i < kcb1->kb_kiov_len; ++i) {
