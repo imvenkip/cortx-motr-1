@@ -354,21 +354,29 @@ M0_INTERNAL int m0_cm_proxy_update(struct m0_cm_proxy *pxy,
 	return M0_RC(rc);
 }
 
+M0_INTERNAL bool m0_cm_proxy_is_updated(struct m0_cm_proxy *proxy,
+					struct m0_cm_sw *in_interval)
+{
+	return m0_cm_ag_id_cmp(&in_interval->sw_hi,
+			       &proxy->px_last_sw_onwire_sent.sw_hi) <= 0;
+}
+
 static void proxy_sw_onwire_ast_cb(struct m0_sm_group *grp,
 				   struct m0_sm_ast *ast)
 {
-	struct m0_cm_proxy      *proxy = container_of(ast, struct m0_cm_proxy,
+	struct m0_cm_proxy *proxy = container_of(ast, struct m0_cm_proxy,
 						      px_sw_onwire_ast);
-	struct m0_cm            *cm    = proxy->px_cm;
-	struct m0_cm_sw          in_interval;
-	struct m0_cm_sw          out_interval;
+	struct m0_cm       *cm = proxy->px_cm;
+	struct m0_cm_sw     in_interval;
+	struct m0_cm_sw     out_interval;
 
 	M0_ASSERT(cm_proxy_invariant(proxy));
 
 	m0_cm_ag_in_interval(cm, &in_interval);
 	m0_cm_ag_out_interval(cm, &out_interval);
-	M0_LOG(M0_DEBUG, "proxy ep: %s, cm->cm_aggr_grps_in_nr %lu",
-			 proxy->px_endpoint, cm->cm_aggr_grps_in_nr);
+	M0_LOG(M0_DEBUG, "proxy ep: %s, cm->cm_aggr_grps_in_nr %lu"
+			 " pending updates: %u", proxy->px_endpoint,
+			 cm->cm_aggr_grps_in_nr, proxy->px_updates_pending);
 	ID_LOG("proxy last updated hi", &proxy->px_last_sw_onwire_sent.sw_hi);
 
 	/*
@@ -378,15 +386,16 @@ static void proxy_sw_onwire_ast_cb(struct m0_sm_group *grp,
 	 */
 	if (proxy->px_nr_updates_posted > 0)
 		M0_CNT_DEC(proxy->px_nr_updates_posted);
-	/* TODO Try to simply the condition. */
-	if (((m0_cm_sw_cmp(&in_interval, &proxy->px_last_sw_onwire_sent) > 0 ||
-	      m0_cm_sw_cmp(&out_interval, &proxy->px_out_interval) > 0 ||
-	    m0_cm_state_get(cm) == M0_CMS_READY || proxy->px_status <= M0_PX_READY ||
-	    proxy->px_update_rc != 0) && proxy->px_update_rc != -ECANCELED &&
-	    !M0_IN(proxy->px_status, (M0_PX_STOP, M0_PX_FAILED))) ||
-	    proxy->px_update_is_pending) {
-		proxy->px_update_is_pending = proxy->px_nr_updates_posted != 0;
-		m0_cm_proxy_remote_update(proxy, &in_interval, &out_interval);
+
+        if (proxy->px_update_rc != 0 || proxy->px_send_final_update ||
+	    (proxy->px_updates_pending > 0 &&
+	     !m0_cm_proxy_is_updated(proxy, &in_interval))) {
+		if (proxy->px_update_rc == -ECANCELED ||
+		     (M0_IN(proxy->px_status, (M0_PX_FAILED, M0_PX_STOP)) &&
+		      !proxy->px_send_final_update))
+			proxy->px_updates_pending = 0;
+		else
+			m0_cm_proxy_remote_update(proxy, &in_interval, &out_interval);
 	}
 
 	if (m0_cm_state_get(cm) == M0_CMS_READY &&
@@ -512,9 +521,11 @@ M0_INTERNAL int m0_cm_proxy_remote_update(struct m0_cm_proxy *proxy,
 	M0_PRE(m0_cm_is_locked(cm));
 
 	if (proxy->px_nr_updates_posted > 0) {
-		proxy->px_update_is_pending = true;
+		M0_CNT_INC(proxy->px_updates_pending);
 		return 0;
 	}
+	if (proxy->px_send_final_update)
+		proxy->px_send_final_update = false;
 	M0_ALLOC_PTR(sw_fop);
 	if (sw_fop == NULL)
 		return M0_ERR(-ENOMEM);
@@ -536,6 +547,7 @@ M0_INTERNAL int m0_cm_proxy_remote_update(struct m0_cm_proxy *proxy,
 
 	cm_proxy_sw_onwire_post(proxy, fop, conn);
 	m0_cm_sw_copy(&proxy->px_last_sw_onwire_sent, in_interval);
+
 	M0_LOG(M0_DEBUG, "Sending to %s hi: ["M0_AG_F"]",
 	       proxy->px_endpoint, M0_AG_P(&in_interval->sw_hi));
 	return M0_RC(0);

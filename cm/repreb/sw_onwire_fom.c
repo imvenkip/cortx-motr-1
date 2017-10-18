@@ -100,7 +100,8 @@ static int repreb_sw_fom_tick(struct m0_fom *fom)
 						&swo_fop->swo_out_interval,
 						swo_fop->swo_cm_status,
 						swo_fop->swo_cm_epoch);
-		}
+		} else
+			rc = -ENOENT;
 		m0_cm_unlock(cm);
 
 		rfop = fom->fo_rep_fop;

@@ -125,6 +125,7 @@ M0_INTERNAL int m0_cm_sw_remote_update(struct m0_cm *cm)
 	struct m0_cm_proxy *pxy;
 	struct m0_cm_sw     in_interval;
 	struct m0_cm_sw     out_interval;
+	bool                start = false;
 	int                 rc = 0;
 	M0_ENTRY();
 
@@ -137,17 +138,23 @@ M0_INTERNAL int m0_cm_sw_remote_update(struct m0_cm *cm)
 	 * store, saved from previous sns operation which could have
 	 * been quiesced and in-order to resume from the same.
 	 */
-	if (m0_cm_state_get(cm) == M0_CMS_READY)
+	if (m0_cm_state_get(cm) == M0_CMS_READY) {
 		m0_cm_ag_id_copy(&in_interval.sw_hi,
 				 &cm->cm_sw_last_updated_hi);
+		start = true;
+	}
 	m0_cm_ag_out_interval(cm, &out_interval);
 	m0_tl_for(proxy, &cm->cm_proxies, pxy) {
+		pxy->px_send_final_update = cm->cm_done;
 		ID_LOG("proxy last updated",
 				&pxy->px_last_sw_onwire_sent.sw_hi);
-		rc = m0_cm_proxy_remote_update(pxy, &in_interval,
-					       &out_interval);
-		if (rc != 0)
-			break;
+		if (start || pxy->px_send_final_update ||
+		    !m0_cm_proxy_is_updated(pxy, &in_interval)) {
+			rc = m0_cm_proxy_remote_update(pxy, &in_interval,
+						       &out_interval);
+			if (rc != 0)
+				break;
+		}
 	} m0_tl_endfor;
 
 	return M0_RC(rc);

@@ -146,6 +146,8 @@ static int cpp_data_next(struct m0_cm_cp_pump *cp_pump)
 		goto enodata;
 	}
 	rc = m0_cm_data_next(cm, cp);
+	if (rc != 0)
+		m0_cm_sw_remote_update(cm);
 enodata:
 	m0_cm_unlock(cm);
 	if (rc == M0_FSO_WAIT)

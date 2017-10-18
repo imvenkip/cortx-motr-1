@@ -96,7 +96,7 @@ struct m0_cm_proxy {
 	/** 0 if sw update was successfull. */
 	int                     px_update_rc;
 
-	bool                    px_update_is_pending;
+	uint32_t                px_updates_pending;
 
 	/** Back reference to local copy machine. */
 	struct m0_cm           *px_cm;
@@ -131,6 +131,14 @@ struct m0_cm_proxy {
 	 * notification.
 	 */
 	struct m0_clink        px_ha_link;
+
+	/**
+	 * If true, post a one final update to remote copy machine corresponding
+	 * to this proxy.
+	 * True when copy machine has completed processing all its aggregation
+	 * groups.
+	 */
+	bool                   px_send_final_update;
 
 	uint64_t               px_magic;
 };
@@ -204,6 +212,9 @@ M0_INTERNAL bool m0_cm_proxies_ready(const struct m0_cm *cm);
 M0_INTERNAL int m0_cm_proxy_in_count_alloc(struct m0_cm_proxy_in_count *pcount,
 					   uint32_t nr_proxies);
 M0_INTERNAL void m0_cm_proxy_in_count_free(struct m0_cm_proxy_in_count *pcount);
+
+M0_INTERNAL bool m0_cm_proxy_is_updated(struct m0_cm_proxy *proxy,
+					struct m0_cm_sw *in_interval);
 
 M0_TL_DESCR_DECLARE(proxy, M0_EXTERN);
 M0_TL_DECLARE(proxy, M0_INTERNAL, struct m0_cm_proxy);
