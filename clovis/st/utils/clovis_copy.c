@@ -105,7 +105,7 @@ void open_entity(struct m0_clovis_entity *entity)
 	m0_clovis_op_launch(ops, 1);
 	m0_clovis_op_wait(ops[0], M0_BITS(M0_CLOVIS_OS_FAILED,
 					  M0_CLOVIS_OS_STABLE),
-			  m0_time_from_now(3,0));
+			  M0_TIME_NEVER);
 	m0_clovis_op_fini(ops[0]);
 	m0_clovis_op_free(ops[0]);
 	ops[0] = NULL;
@@ -320,7 +320,6 @@ int main(int argc, char **argv)
 	}
 
 	memset(&fid, 0, sizeof fid);
-	fprintf(stderr, "FID is"FID_F" is_Valid:%d", FID_P(&fid), m0_conf_fid_is_valid(&fid));
 	/* Read from the object */
 	copy();
 

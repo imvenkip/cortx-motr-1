@@ -455,26 +455,6 @@ out:
 	M0_LEAVE();
 }
 
-M0_INTERNAL int clovis_cob_rep_rc(struct clovis_cob_req *cr)
-{
-	int                              rc;
-	struct m0_fop_getattr_rep       *getattr_rep;
-	struct m0_fop_cob_getattr_reply *getattr_ios_rep;
-
-	M0_PRE(cr != NULL);
-	M0_PRE(cr->cr_cinst != NULL);
-
-	if (!cr->cr_cinst->m0c_config->cc_is_oostore) {
-		getattr_rep = m0_fop_data(cr->cr_rep_fop);
-		rc = getattr_rep->g_rc;
-	} else {
-		getattr_ios_rep = m0_fop_data(cr->cr_rep_fop);
-		rc = getattr_ios_rep->cgr_rc;
-	}
-
-	return M0_RC(rc);
-}
-
 M0_INTERNAL void clovis_cob_rep_attr_copy(struct clovis_cob_req *cr)
 {
 	struct m0_fop_getattr_rep       *getattr_rep;
@@ -1267,13 +1247,14 @@ static struct clovis_cob_req* rpc_item_to_cr(struct m0_rpc_item *item)
  */
 static void clovis_cob_mds_rio_replied(struct m0_rpc_item *item)
 {
-	int                         rc = 0; /* Required. */
+	int                         rc;
 	uint32_t                    rep_opcode;
 	uint32_t                    req_opcode;
 	struct m0_fop              *rep_fop;
 	struct m0_fop              *req_fop;
 	struct m0_fop_create_rep   *create_rep;
 	struct m0_fop_unlink_rep   *unlink_rep;
+	struct m0_fop_getattr_rep  *getattr_rep;
 	struct m0_fop_setattr_rep  *setattr_rep;
 	struct m0_clovis           *cinst;
 	struct clovis_cob_req      *cr;
@@ -1300,6 +1281,7 @@ static void clovis_cob_mds_rio_replied(struct m0_rpc_item *item)
 
 	M0_ASSERT(item->ri_reply != NULL);
 	rep_fop = m0_rpc_item_to_fop(item->ri_reply);
+	cr->cr_rep_fop = rep_fop;
 	req_opcode = m0_fop_opcode(req_fop);
 	rep_opcode = m0_fop_opcode(rep_fop);
 
@@ -1320,6 +1302,8 @@ static void clovis_cob_mds_rio_replied(struct m0_rpc_item *item)
 		break;
 
 	case M0_MDSERVICE_GETATTR_REP_OPCODE:
+		getattr_rep = m0_fop_data(rep_fop);
+		rc = getattr_rep->g_body.b_rc;
 		M0_ASSERT(req_opcode == M0_MDSERVICE_GETATTR_OPCODE);
 		break;
 
@@ -1651,6 +1635,26 @@ M0_INTERNAL int m0_clovis__obj_namei_send(struct m0_clovis_op_obj *oo)
 	return M0_RC(rc);
 }
 
+static int clovis_cob_getattr_rep_rc(struct clovis_cob_req *cr)
+{
+	int                              rc;
+	struct m0_fop_getattr_rep       *getattr_rep;
+	struct m0_fop_cob_getattr_reply *getattr_ios_rep;
+
+	M0_PRE(cr != NULL);
+	M0_PRE(cr->cr_cinst != NULL);
+
+	if (!cr->cr_cinst->m0c_config->cc_is_oostore) {
+		getattr_rep = m0_fop_data(cr->cr_rep_fop);
+		rc = getattr_rep->g_body.b_rc;
+	} else {
+		getattr_ios_rep = m0_fop_data(cr->cr_rep_fop);
+		rc = getattr_ios_rep->cgr_body.b_rc;
+	}
+
+	return M0_RC(rc);
+}
+
 M0_INTERNAL int m0_clovis__obj_attr_get_sync(struct m0_clovis_obj *obj)
 {
  	int                     rc;
@@ -1691,7 +1695,7 @@ M0_INTERNAL int m0_clovis__obj_attr_get_sync(struct m0_clovis_obj *obj)
 	/* Send GETATTR cob request and wait for the reply. */
 	cr->cr_opcode = M0_CLOVIS_EO_GETATTR;
 	rc = clovis_cob_req_send(cr)?:
-	     clovis_cob_rep_rc(cr);
+	     clovis_cob_getattr_rep_rc(cr);
  	if (rc != 0) {
 		rc = (rc == -ENOENT)? M0_RC(rc) : M0_ERR(rc);
 		goto free_attr;
