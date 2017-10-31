@@ -11,7 +11,7 @@ set -eu
 ###     scripts/gerrit-graph > reviews.html
 ###     open !$
 
-GERRIT_SERVER=es-gerrit.xyus.xyratex.com
+GERRIT_SERVER=10.48.80.38
 
 if [ -z "${GID:-}" ]; then
 	GID=$(git remote -v 2>/dev/null | grep -m1 -Eo '[0-9]+@' | tr -d @)
@@ -211,7 +211,7 @@ DUPLICATES=$(ls_users | awk '{print $1}' | sort | uniq -d)
     exit 1
 }
 
-if [ ! -f _owner-reviewer.out ]; then
+if [ ! -s _owner-reviewer.out ]; then
     for email in $(ls_users | awk '{print $1}'); do
 	    for role in owner reviewer; do
 		    echo -n "${role}:${email} "
