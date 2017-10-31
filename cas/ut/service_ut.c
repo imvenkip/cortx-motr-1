@@ -109,7 +109,7 @@ static int at_inline_fill(struct m0_rpc_at_buf *dst, struct m0_rpc_at_buf *src)
 	return m0_buf_copy(&dst->u.ab_buf, &src->u.ab_buf);
 }
 
-static void reqh_init(bool mkfs)
+static void reqh_init(bool mkfs, bool use_small_credits)
 {
 	struct m0_be_domain_cfg cfg = {};
 	int                     result;
@@ -125,20 +125,20 @@ static void reqh_init(bool mkfs)
 	M0_UT_ASSERT(result == 0);
 	be.but_dom_cfg.bc_engine.bec_reqh = &reqh;
 	m0_be_ut_backend_cfg_default(&cfg);
-	if (m0_ut_small_credits())
+	if (use_small_credits || m0_ut_small_credits())
 		cfg.bc_engine.bec_tx_size_max =
-			M0_BE_TX_CREDIT(1 << 17, 40UL << 17);
+			M0_BE_TX_CREDIT(6 << 10, 1 << 21);
 	result = m0_be_ut_backend_init_cfg(&be, &cfg, mkfs);
 	M0_ASSERT(result == 0);
 }
 
-static void _init(bool mkfs)
+static void _init(bool mkfs, bool use_small_credits)
 {
 	int result;
 
 	/* Check validity of IFID definition. */
 	M0_UT_ASSERT(m0_cas_index_fid_type.ft_id == 'i');
-	reqh_init(mkfs);
+	reqh_init(mkfs, use_small_credits);
 
 	m0_reqh_rpc_mach_tlink_init_at_tail(&rpc_machine,
 					    &reqh.rh_rpc_machines);
@@ -161,7 +161,7 @@ static void _init(bool mkfs)
 
 static void init(void)
 {
-	_init(true);
+	_init(true, false);
 }
 
 static void service_stop(void)
@@ -191,7 +191,7 @@ static void fini(void)
 static void reinit_nomkfs(void)
 {
 	fini();
-	_init(false);
+	_init(false, false);
 }
 
 /**
@@ -210,7 +210,7 @@ static void init_fail(void)
 {
 	int rc;
 
-	reqh_init(true);
+	reqh_init(true, false);
 
 	/* Failure to add meta-index to segment dictionary. */
 	rc = m0_reqh_service_allocate(&cas, &m0_cas_service_type, NULL);
@@ -1865,7 +1865,12 @@ static void create_insert_drop(void)
 	struct m0_cas_id nonce1 = { .ci_fid = IFID(2, 4) };
 	int              i;
 
-	init();
+	/*
+	 * Use small credits in order to split big transaction into smaller
+	 * ones. BE performs quadratic number of checks inside invariants
+	 * comparing to number of capture operations.
+	 */
+	_init(true, true);
 	/*
 	 * Create 2 catalogs.
 	 */
