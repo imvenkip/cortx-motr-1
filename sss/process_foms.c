@@ -269,9 +269,10 @@ static struct m0_reqh_service *ss_ioservice_find(struct m0_reqh *reqh)
 
 M0_TL_DESCR_DECLARE(seg, M0_EXTERN);
 
-static int ss_be_segs_stats_ingest(struct m0_ss_process_rep *rep)
+static int ss_be_segs_stats_ingest(struct m0_be_domain      *dom,
+				   struct m0_ss_process_rep *rep)
 {
-	struct m0_tl                  *segs = &m0_get()->i_be_dom->bd_segs;
+	struct m0_tl                  *segs = &dom->bd_segs;
 #ifdef ENABLE_BE_ALLOC_ZONES
 	struct m0_be_alloc_zone_stats *zs;
 #endif
@@ -356,13 +357,13 @@ consider_DS_in_ut:
 	return M0_RC(0);
 }
 
-static int ss_process_stats(struct m0_reqh *reqh,
-			     struct m0_ss_process_rep *rep)
+static int ss_process_stats(struct m0_reqh           *reqh,
+			    struct m0_ss_process_rep *rep)
 {
 	int rc;
 
 	M0_ENTRY();
-	rc = ss_be_segs_stats_ingest(rep);
+	rc = ss_be_segs_stats_ingest(reqh->rh_beseg->bs_domain, rep);
 	/* see if ioservice is up and running */
 	if (rc == 0 && ss_ioservice_find(reqh) != NULL)
 		rc = ss_ios_stats_ingest(rep);

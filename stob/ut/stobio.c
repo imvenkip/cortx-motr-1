@@ -353,7 +353,7 @@ static int stobio_init(struct stobio_test *test)
 
 	result = m0_stob_locate(test->st_obj);
 	M0_UT_ASSERT(result == 0);
-	result = m0_ut_stob_create(test->st_obj, test->st_dev_path);
+	result = m0_ut_stob_create(test->st_obj, test->st_dev_path, NULL);
 	M0_UT_ASSERT(result == 0);
 
 	test->st_block_shift = m0_stob_block_shift(test->st_obj);

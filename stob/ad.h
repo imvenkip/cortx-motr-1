@@ -193,6 +193,7 @@ m0_stob_ad_domain2balloc(const struct m0_stob_domain *dom);
 
 M0_INTERNAL bool m0_stob_ad_domain__invariant(struct m0_stob_ad_domain *adom);
 
+M0_INTERNAL void m0_stob_ad_init_cfg_make(char **str, struct m0_be_domain *dom);
 M0_INTERNAL void m0_stob_ad_cfg_make(char **str,
 				     const struct m0_be_seg *seg,
 				     const struct m0_stob_id *bstore_id,

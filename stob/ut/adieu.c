@@ -91,7 +91,7 @@ static int test_adieu_init(const char *location,
 	M0_ASSERT(rc == 0);
 	rc = m0_stob_locate(obj);
 	M0_ASSERT(rc == 0);
-	rc = m0_ut_stob_create(obj, stob_cfg);
+	rc = m0_ut_stob_create(obj, stob_cfg, NULL);
 	M0_ASSERT(rc == 0);
 
 	block_shift = m0_stob_block_shift(obj);

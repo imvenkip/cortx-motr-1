@@ -226,7 +226,7 @@ struct m0_ctg_op {
  *
  * @ret 0 on success or negative error code.
  */
-M0_INTERNAL int  m0_ctg_store_init(void);
+M0_INTERNAL int  m0_ctg_store_init(struct m0_be_domain *dom);
 
 /**
  * Releases one reference to catalogue store context. If the last reference is

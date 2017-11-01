@@ -348,7 +348,7 @@ static int stob_domain_create_or_init(struct m0_storage_dev  *dev,
 	enum m0_storage_dev_type  type     = dev->isd_type;
 	unsigned long long        cid      = (unsigned long long)dev->isd_cid;
 	char                     *cfg      = NULL;
-	const char               *cfg_init = NULL;
+	char                     *cfg_init = NULL;
 	char                     *location;
 	int                       len;
 	int                       rc;
@@ -379,8 +379,12 @@ static int stob_domain_create_or_init(struct m0_storage_dev  *dev,
 		M0_ASSERT_INFO(rc == len, "rc=%d", rc);
 		m0_stob_ad_cfg_make(&cfg, devs->sds_be_seg,
 				    m0_stob_id_get(dev->isd_stob), size);
-		if (cfg == NULL) {
+		m0_stob_ad_init_cfg_make(&cfg_init,
+					 devs->sds_be_seg->bs_domain);
+		if (cfg == NULL || cfg_init == NULL) {
 			m0_free(location);
+			m0_free(cfg_init);
+			m0_free(cfg);
 			return M0_ERR(-ENOMEM);
 		}
 		break;
@@ -398,8 +402,10 @@ static int stob_domain_create_or_init(struct m0_storage_dev  *dev,
 		rc = m0_stob_domain_create(location, cfg_init, cid, cfg,
 					   &dev->isd_domain);
 out_free:
-	m0_free(cfg);
 	m0_free(location);
+	if (type == M0_STORAGE_DEV_TYPE_AD)
+		m0_free(cfg_init);
+	m0_free(cfg);
 
 	return M0_RC(rc);
 }

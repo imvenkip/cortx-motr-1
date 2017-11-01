@@ -67,6 +67,10 @@ enum {
 	BALLOC_FRAGS_MAX = 2,
 };
 
+struct ad_domain_init_cfg {
+	struct m0_be_domain *dic_dom;
+};
+
 struct ad_domain_cfg {
 	struct m0_stob_id adg_id;
 	struct m0_be_seg *adg_seg;
@@ -242,6 +246,14 @@ static void stob_ad_type_deregister(struct m0_stob_type *type)
 	m0_fol_frag_type_deregister(&stob_ad_rec_frag_type);
 }
 
+M0_INTERNAL void m0_stob_ad_init_cfg_make(char **str, struct m0_be_domain *dom)
+{
+	char buf[0x40];
+
+	snprintf(buf, ARRAY_SIZE(buf), "%p", dom);
+	*str = m0_strdup(buf);
+}
+
 M0_INTERNAL void m0_stob_ad_cfg_make(char **str,
 				     const struct m0_be_seg *seg,
 				     const struct m0_stob_id *bstore_id,
@@ -259,11 +271,26 @@ M0_INTERNAL void m0_stob_ad_cfg_make(char **str,
 static int stob_ad_domain_cfg_init_parse(const char *str_cfg_init,
 					 void **cfg_init)
 {
-	return 0;
+	struct ad_domain_init_cfg *cfg;
+	int                        rc;
+
+	M0_ASSERT(str_cfg_init != NULL); /* TODO: remove this assert */
+	if (str_cfg_init == NULL)
+		return M0_ERR(-EINVAL);
+
+	M0_ALLOC_PTR(cfg);
+	if (cfg == NULL)
+		return M0_ERR(-ENOMEM);
+
+	rc = sscanf(str_cfg_init, "%p", (void **)&cfg->dic_dom);
+	*cfg_init = cfg;
+	M0_ASSERT(rc == 1); /* TODO: remove this assert */
+	return rc == 1 ? 0 : -EINVAL;
 }
 
 static void stob_ad_domain_cfg_init_free(void *cfg_init)
 {
+	m0_free(cfg_init);
 }
 
 static int stob_ad_domain_cfg_create_parse(const char *str_cfg_create,
@@ -373,18 +400,19 @@ static int stob_ad_domain_init(struct m0_stob_type *type,
 			       void *cfg_init,
 			       struct m0_stob_domain **out)
 {
-	struct m0_stob_ad_domain *adom;
-	struct m0_stob_domain    *dom;
-	struct m0_be_seg         *seg;
-	struct m0_ad_balloc      *ballroom;
-	bool                      balloc_inited;
-	int                       rc = 0;
+	struct ad_domain_init_cfg *cfg = cfg_init;
+	struct m0_stob_ad_domain  *adom;
+	struct m0_stob_domain     *dom;
+	struct m0_be_seg          *seg;
+	struct m0_ad_balloc       *ballroom;
+	bool                       balloc_inited;
+	int                        rc = 0;
 
 	adom = stob_ad_domain_locate(location_data);
 	if (adom == NULL)
 		return M0_RC(-ENOENT);
 	else
-		seg = m0_be_domain_seg(m0_get()->i_be_dom, adom);
+		seg = m0_be_domain_seg(cfg->dic_dom, adom);
 
 	if (seg == NULL) {
 		M0_LOG(M0_ERROR, "segment doesn't exist for addr=%p", adom);

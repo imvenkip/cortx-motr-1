@@ -37,6 +37,7 @@ struct m0_stob_domain;
 struct m0_be_tx_credit;
 struct ut_stob_module;
 struct m0_stob_id;
+struct m0_be_domain;
 
 enum {
 	M0_LEVEL_UT_STOB,
@@ -55,8 +56,10 @@ M0_INTERNAL struct m0_stob *m0_ut_stob_linux_create(char *stob_create_cfg);
 M0_INTERNAL struct m0_stob *m0_ut_stob_linux_get_by_key(uint64_t stob_key);
 M0_INTERNAL void m0_ut_stob_put(struct m0_stob *stob, bool destroy);
 
-M0_INTERNAL int m0_ut_stob_create(struct m0_stob *stob, const char *str_cfg);
-M0_INTERNAL int m0_ut_stob_destroy(struct m0_stob *stob);
+M0_INTERNAL int m0_ut_stob_create(struct m0_stob *stob, const char *str_cfg,
+				  struct m0_be_domain *be_dom);
+M0_INTERNAL int m0_ut_stob_destroy(struct m0_stob *stob,
+				   struct m0_be_domain *be_dom);
 M0_INTERNAL struct m0_stob *m0_ut_stob_open(struct m0_stob_domain *dom,
 					    uint64_t stob_key,
 					    const char *str_cfg);
@@ -67,7 +70,8 @@ M0_INTERNAL int m0_ut_stob_create_by_stob_id(struct m0_stob_id *stob_id,
 M0_INTERNAL int m0_ut_stob_destroy_by_stob_id(struct m0_stob_id *stob_id);
 
 /* XXX move somewhere else */
-M0_INTERNAL struct m0_dtx *m0_ut_dtx_open(struct m0_be_tx_credit *cred);
+M0_INTERNAL struct m0_dtx *m0_ut_dtx_open(struct m0_be_tx_credit *cred,
+					  struct m0_be_domain    *be_dom);
 M0_INTERNAL void m0_ut_dtx_close(struct m0_dtx *dtx);
 
 M0_INTERNAL int m0_ut_stob_init(void);

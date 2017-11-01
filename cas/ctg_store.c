@@ -86,7 +86,7 @@ enum cursor_phase {
 	CPH_NEXT
 };
 
-static struct m0_be_seg *cas_seg(void);
+static struct m0_be_seg *cas_seg(struct m0_be_domain *dom);
 
 static int  ctg_berc         (struct m0_ctg_op *ctg_op);
 static int  ctg_buf          (const struct m0_buf *val, struct m0_buf *buf);
@@ -143,14 +143,17 @@ static int         ctg_cmp   (const void *key0, const void *key1);
  */
 static struct m0_mutex cs_init_guard = M0_MUTEX_SINIT(&cs_init_guard);
 
+/**
+ * XXX: The following static structures should be either moved to m0 instance to
+ * show them to everyone or be a part of high-level context structure.
+ */
 static const struct m0_be_btree_kv_ops cas_btree_ops;
 static       struct m0_ctg_store       ctg_store       = {};
 static const        char               cas_state_key[] = "cas-state-nr";
 
-static struct m0_be_seg *cas_seg(void)
+static struct m0_be_seg *cas_seg(struct m0_be_domain *dom)
 {
-	struct m0_be_domain *dom = m0_get()->i_be_dom;
-	struct m0_be_seg    *seg = m0_be_domain_seg_first(dom);
+	struct m0_be_seg *seg = m0_be_domain_seg_first(dom);
 
 	if (seg == NULL && cas_in_ut())
 		seg = m0_be_domain_seg0_get(dom);
@@ -302,7 +305,7 @@ static void ctg_destroy(struct m0_cas_ctg *ctg, struct m0_be_tx *tx)
 	M0_ENTRY();
 	M0_BE_OP_SYNC(op, m0_be_btree_destroy(&ctg->cc_tree, tx, &op));
 	ctg_fini(ctg);
-	M0_BE_FREE_PTR_SYNC(ctg, cas_seg(), tx);
+	M0_BE_FREE_PTR_SYNC(ctg, cas_seg(tx->t_engine->eng_domain), tx);
 }
 
 M0_INTERNAL int m0_ctg_fini(struct m0_ctg_op  *ctg_op,
@@ -316,7 +319,7 @@ M0_INTERNAL int m0_ctg_fini(struct m0_ctg_op  *ctg_op,
 	 * TODO: implement asynchronous free after memory free API added into
 	 * ctg_exec in the scope of asynchronus ctidx operations task.
 	 */
-	M0_BE_FREE_PTR_SYNC(ctg, cas_seg(), tx);
+	M0_BE_FREE_PTR_SYNC(ctg, cas_seg(tx->t_engine->eng_domain), tx);
 	m0_fom_phase_set(ctg_op->co_fom, next_phase);
 	return M0_FSO_AGAIN;
 }
@@ -584,7 +587,7 @@ static int ctg_store_create(struct m0_be_seg *seg)
 
 	M0_ENTRY();
 	m0_sm_group_lock(grp);
-	m0_be_tx_init(&tx, 0, m0_get()->i_be_dom, grp, NULL, NULL, NULL, NULL);
+	m0_be_tx_init(&tx, 0, seg->bs_domain, grp, NULL, NULL, NULL, NULL);
 
 	ctg_store_init_creds_calc(seg, state, ctidx, &cred);
 
@@ -656,9 +659,9 @@ end:
 	return M0_RC(rc);
 }
 
-M0_INTERNAL int m0_ctg_store_init(void)
+M0_INTERNAL int m0_ctg_store_init(struct m0_be_domain *dom)
 {
-	struct m0_be_seg    *seg   = cas_seg();
+	struct m0_be_seg    *seg   = cas_seg(dom);
 	struct m0_cas_state *state = NULL;
 	int                  result;
 
@@ -744,7 +747,7 @@ static uint64_t ctg_state_update(struct m0_be_tx *tx, uint64_t size,
 {
 	uint64_t         *recs_nr  = &ctg_store.cs_state->cs_rec_nr;
 	uint64_t         *rec_size = &ctg_store.cs_state->cs_rec_size;
-	struct m0_be_seg *seg      = cas_seg();
+	struct m0_be_seg *seg      = cas_seg(tx->t_engine->eng_domain);
 
 	if (M0_FI_ENABLED("test_overflow"))
 		size = ~0ULL - 1;
@@ -802,7 +805,7 @@ static void ctg_try_init(struct m0_cas_ctg *ctg)
 	 */
 	if (ctg != NULL && !ctg->cc_inited) {
 		M0_LOG(M0_DEBUG, "ctg_init %p", ctg);
-		ctg_init(ctg, cas_seg());
+		ctg_init(ctg, cas_seg(ctg->cc_tree.bb_seg->bs_domain));
 	} else
 		M0_LOG(M0_DEBUG, "ctg %p zero or inited", ctg);
 	m0_mutex_unlock(&ctg_store.cs_state->cs_ctg_init_mutex.bm_u.mutex);
@@ -896,8 +899,8 @@ static bool ctg_op_cb(struct m0_clink *clink)
 			 * length & pointer to cas_ctg. ctg_create() creates
 			 * cas_ctg, including memory alloc.
 			 */
-			rc = ctg_create(cas_seg(),
-					&ctg_op->co_fom->fo_tx.tx_betx,
+			rc = ctg_create(cas_seg(tx->t_engine->eng_domain),
+					tx,
 					(struct m0_cas_ctg **)
 					(arena + KV_HDR_SIZE));
 			if (rc == 0)
@@ -914,7 +917,8 @@ static bool ctg_op_cb(struct m0_clink *clink)
 			memcpy(dst->b_addr, src->b_addr, src->b_nob);
 			m0_be_tx_capture(
 				&ctg_op->co_fom->fo_tx.tx_betx,
-				&M0_BE_REG(cas_seg(), dst->b_nob, dst->b_addr));
+				&M0_BE_REG(cas_seg(tx->t_engine->eng_domain),
+					   dst->b_nob, dst->b_addr));
 			break;
 		case CTG_OP_COMBINE(CO_MEM_FREE, CT_MEM):
 			/* Nothing to do. */
@@ -1056,10 +1060,12 @@ static int ctg_mem_op_exec(struct m0_ctg_op *ctg_op, int next_phase)
 
 	switch (CTG_OP_COMBINE(opc, ct)) {
 	case CTG_OP_COMBINE(CO_MEM_PLACE, CT_MEM):
-		M0_BE_ALLOC_BUF(&ctg_op->co_mem_buf, cas_seg(), tx, beop);
+		M0_BE_ALLOC_BUF(&ctg_op->co_mem_buf,
+				cas_seg(tx->t_engine->eng_domain), tx, beop);
 		break;
 	case CTG_OP_COMBINE(CO_MEM_FREE, CT_MEM):
-		M0_BE_FREE_PTR(ctg_op->co_mem_buf.b_addr, cas_seg(), tx, beop);
+		M0_BE_FREE_PTR(ctg_op->co_mem_buf.b_addr,
+			       cas_seg(tx->t_engine->eng_domain), tx, beop);
 		break;
 	}
 
@@ -1514,7 +1520,7 @@ M0_INTERNAL void m0_ctg_create_credit(struct m0_be_tx_credit *accum)
 	/*
 	 * That are credits for cas_ctg body.
 	 */
-	M0_BE_ALLOC_CREDIT_PTR(ctg, cas_seg(), accum);
+	M0_BE_ALLOC_CREDIT_PTR(ctg, cas_seg(btree->bb_seg->bs_domain), accum);
 }
 
 M0_INTERNAL void m0_ctg_drop_credit(struct m0_fom          *fom,
@@ -1540,21 +1546,20 @@ M0_INTERNAL void m0_ctg_drop_credit(struct m0_fom          *fom,
 
 M0_INTERNAL void m0_ctg_dead_clean_credit(struct m0_be_tx_credit *accum)
 {
-	struct m0_cas_ctg *ctg;
-	m0_bcount_t        knob;
-	m0_bcount_t        vnob;
-
+	struct m0_cas_ctg  *ctg;
+	m0_bcount_t         knob;
+	m0_bcount_t         vnob;
+	struct m0_be_btree *btree = &m0_ctg_dead_index()->cc_tree;
 	/*
 	 * Define credits for delete from dead index.
 	 */
 	knob = KV_HDR_SIZE + sizeof(ctg);
 	vnob = KV_HDR_SIZE;
-	m0_be_btree_delete_credit(&m0_ctg_dead_index()->cc_tree,
-				  1, knob, vnob, accum);
+	m0_be_btree_delete_credit(btree, 1, knob, vnob, accum);
 	/*
 	 * Credits for ctg free.
 	 */
-	M0_BE_FREE_CREDIT_PTR(ctg, cas_seg(), accum);
+	M0_BE_FREE_CREDIT_PTR(ctg, cas_seg(btree->bb_seg->bs_domain), accum);
 }
 
 M0_INTERNAL void m0_ctg_insert_credit(struct m0_cas_ctg      *ctg,
@@ -1578,8 +1583,8 @@ static void ctg_ctidx_op_credits(struct m0_cas_id       *cid,
 				 struct m0_be_tx_credit *accum)
 {
 	const struct m0_dix_imask *imask;
-	struct m0_be_seg          *seg   = cas_seg();
 	struct m0_be_btree        *btree = &ctg_store.cs_ctidx->cc_tree;
+	struct m0_be_seg          *seg   = cas_seg(btree->bb_seg->bs_domain);
 	m0_bcount_t                knob;
 	m0_bcount_t                vnob;
 
@@ -1699,11 +1704,13 @@ M0_INTERNAL int m0_ctg_ctidx_insert_sync(const struct m0_cas_id *cid,
 			 */
 			/** @todo Make it asynchronous. */
 			M0_BE_ALLOC_ARR_SYNC(im_range, imask->im_nr,
-					     cas_seg(), tx);
+					     cas_seg(tx->t_engine->eng_domain),
+					     tx);
 			size = imask->im_nr * sizeof(struct m0_ext);
 			memcpy(im_range, imask->im_range, size);
-			m0_be_tx_capture(tx, &M0_BE_REG(cas_seg(),
-							size, im_range));
+			m0_be_tx_capture(tx, &M0_BE_REG(
+					 cas_seg(tx->t_engine->eng_domain),
+					 size, im_range));
 			/* Assign newly allocated imask ranges. */
 			layout = (struct m0_dix_layout *)
 				(anchor.ba_value.b_addr + KV_HDR_SIZE);
@@ -1731,7 +1738,8 @@ M0_INTERNAL int m0_ctg_ctidx_delete_sync(const struct m0_cas_id *cid,
 		return rc;
 	imask = &layout->u.dl_desc.ld_imask;
 	/** @todo Make it asynchronous. */
-	M0_BE_FREE_PTR_SYNC(imask->im_range, cas_seg(), tx);
+	M0_BE_FREE_PTR_SYNC(imask->im_range, cas_seg(tx->t_engine->eng_domain),
+			    tx);
 	imask->im_range = NULL;
 	imask->im_nr = 0;
 

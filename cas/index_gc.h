@@ -46,7 +46,7 @@ M0_INTERNAL void m0_cas_gc_fini(void);
  * collector will not stop after destroying catalogues and will recheck "dead
  * index" contents for new records.
  */
-M0_INTERNAL void m0_cas_gc_start(struct m0_reqh *reqh);
+M0_INTERNAL void m0_cas_gc_start(struct m0_reqh_service *service);
 
 /**
  * Asynchronously waits until garbage collector stops.

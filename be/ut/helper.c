@@ -44,6 +44,15 @@
 #include "be/tx_internal.h"	/* m0_be_tx__reg_area */
 #include "be/seg0.h"            /* m0_be_0type_register */
 
+const struct m0_bob_type m0_ut_be_backend_bobtype;
+M0_BOB_DEFINE(M0_INTERNAL, &m0_ut_be_backend_bobtype, m0_be_ut_backend);
+const struct m0_bob_type m0_ut_be_backend_bobtype = {
+	.bt_name         = "m0_ut_be_backend_bobtype",
+	.bt_magix_offset = offsetof(struct m0_be_ut_backend, but_magix),
+	.bt_magix        = M0_BE_TX_ENGINE_MAGIC,
+	.bt_check        = NULL,
+};
+
 struct m0_be_ut_sm_group_thread {
 	struct m0_thread    sgt_thread;
 	pid_t		    sgt_tid;
@@ -340,6 +349,7 @@ M0_INTERNAL int m0_be_ut_backend_init_cfg(struct m0_be_ut_backend *ut_be,
 	struct m0_be_domain_cfg *c;
 	int                      rc;
 
+	m0_bob_init(&m0_ut_be_backend_bobtype, ut_be);
 	if (!mkfs_executed && cfg == NULL &&
 	    ut_be->but_stob_domain_location == NULL)
 		mkfs = mkfs_executed = true;
@@ -379,7 +389,7 @@ check_mkfs:
 	}
 	if (rc != 0)
 		m0_mutex_fini(&ut_be->but_sgt_lock);
-	m0_get()->i_be_ut_backend = ut_be;
+
 	return rc;
 }
 
@@ -391,14 +401,13 @@ void m0_be_ut_backend_init(struct m0_be_ut_backend *ut_be)
 
 void m0_be_ut_backend_fini(struct m0_be_ut_backend *ut_be)
 {
-	if (m0_get()->i_be_ut_backend == ut_be)
-		m0_get()->i_be_ut_backend = NULL;
 	m0_forall(i, ut_be->but_sgt_size,
 		  m0_be_ut_sm_group_thread_fini(ut_be->but_sgt[i]), true);
 	m0_free(ut_be->but_sgt);
 	m0_module_fini(&ut_be->but_dom.bd_module, M0_MODLEV_NONE);
 	m0_mutex_fini(&ut_be->but_sgt_lock);
 	m0_be_ut_reqh_destroy();
+	m0_bob_fini(&m0_ut_be_backend_bobtype, ut_be);
 }
 
 M0_INTERNAL void

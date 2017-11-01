@@ -192,6 +192,7 @@ M0_INTERNAL int m0_stob_domain_init(const char *location,
 				    const char *str_cfg_init,
 				    struct m0_stob_domain **out)
 {
+	M0_LOG(M0_DEBUG, "location=%s str_cfg_init=%s", location, str_cfg_init);
 	return stob_domain_init_create(location, str_cfg_init, 0,
 				       NULL, out, true);
 }

@@ -152,6 +152,7 @@ static void _init(bool mkfs)
 	result = m0_reqh_service_allocate(&cas, &m0_cas_service_type, NULL);
 	M0_UT_ASSERT(result == 0);
 	m0_reqh_service_init(cas, &reqh, NULL);
+	m0_cas__ut_svc_be_set(cas, &be.but_dom);
 	m0_reqh_service_start(cas);
 	m0_reqh_start(&reqh);
 	cas__ut_cb_done = &cb_done;
@@ -216,6 +217,7 @@ static void init_fail(void)
 	M0_UT_ASSERT(rc == 0);
 	m0_reqh_service_init(cas, &reqh, NULL);
 	m0_fi_enable_once("m0_be_seg_dict_insert", "dict_insert_fail");
+	m0_cas__ut_svc_be_set(cas, &be.but_dom);
 	rc = m0_reqh_service_start(cas);
 	M0_UT_ASSERT(rc == -ENOENT);
 	m0_reqh_service_fini(cas);
@@ -225,6 +227,7 @@ static void init_fail(void)
 	M0_UT_ASSERT(rc == 0);
 	m0_reqh_service_init(cas, &reqh, NULL);
 	m0_fi_enable_once("ctg_create", "ctg_create_failure");
+	m0_cas__ut_svc_be_set(cas, &be.but_dom);
 	rc = m0_reqh_service_start(cas);
 	M0_UT_ASSERT(rc == -EFAULT);
 	m0_reqh_service_fini(cas);
@@ -234,6 +237,7 @@ static void init_fail(void)
 	M0_UT_ASSERT(rc == 0);
 	m0_reqh_service_init(cas, &reqh, NULL);
 	m0_fi_enable_once("btree_save", "already_exists");
+	m0_cas__ut_svc_be_set(cas, &be.but_dom);
 	rc = m0_reqh_service_start(cas);
 	M0_UT_ASSERT(rc == -EEXIST);
 	m0_reqh_service_fini(cas);
@@ -244,6 +248,7 @@ static void init_fail(void)
 	m0_reqh_service_init(cas, &reqh, NULL);
 	m0_fi_enable_off_n_on_m("ctg_create", "ctg_create_failure",
 				1, 1);
+	m0_cas__ut_svc_be_set(cas, &be.but_dom);
 	rc = m0_reqh_service_start(cas);
 	m0_fi_disable("ctg_create", "ctg_create_failure");
 	M0_UT_ASSERT(rc == -EFAULT);
@@ -255,6 +260,7 @@ static void init_fail(void)
 	m0_reqh_service_init(cas, &reqh, NULL);
 	m0_fi_enable_off_n_on_m("btree_save", "already_exists",
 				1, 1);
+	m0_cas__ut_svc_be_set(cas, &be.but_dom);
 	rc = m0_reqh_service_start(cas);
 	m0_fi_disable("btree_save", "already_exists");
 	M0_UT_ASSERT(rc == -EEXIST);
@@ -273,6 +279,7 @@ static void init_fail(void)
 	rc = m0_reqh_service_allocate(&cas, &m0_cas_service_type, NULL);
 	M0_UT_ASSERT(rc == 0);
 	m0_reqh_service_init(cas, &reqh, NULL);
+	m0_cas__ut_svc_be_set(cas, &be.but_dom);
 	rc = m0_reqh_service_start(cas);
 	M0_UT_ASSERT(rc == 0);
 	m0_reqh_start(&reqh);
@@ -319,6 +326,7 @@ static void restart(void)
 	result = m0_reqh_service_allocate(&cas, &m0_cas_service_type, NULL);
 	M0_UT_ASSERT(result == 0);
 	m0_reqh_service_init(cas, &reqh, NULL);
+	m0_cas__ut_svc_be_set(cas, &be.but_dom);
 	m0_reqh_service_start(cas);
 	fini();
 }
@@ -1156,6 +1164,7 @@ static void lookup_restart(void)
 	result = m0_reqh_service_allocate(&cas, &m0_cas_service_type, NULL);
 	M0_UT_ASSERT(result == 0);
 	m0_reqh_service_init(cas, &reqh, NULL);
+	m0_cas__ut_svc_be_set(cas, &be.but_dom);
 	m0_reqh_service_start(cas);
 	lookup_all(&ifid);
 	fini();
@@ -1186,6 +1195,7 @@ static void cur_N(void)
 	result = m0_reqh_service_allocate(&cas, &m0_cas_service_type, NULL);
 	M0_UT_ASSERT(result == 0);
 	m0_reqh_service_init(cas, &reqh, NULL);
+	m0_cas__ut_svc_be_set(cas, &be.but_dom);
 	m0_reqh_service_start(cas);
 
 	for (i = 1; i < INSERTS; ++i) {

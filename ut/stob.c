@@ -197,7 +197,8 @@ static bool ut_stob_use_dtx(struct m0_stob_domain *dom)
 				m0_stob_type_id_by_name("linuxstob")));
 }
 
-M0_INTERNAL int m0_ut_stob_create(struct m0_stob *stob, const char *str_cfg)
+M0_INTERNAL int m0_ut_stob_create(struct m0_stob *stob, const char *str_cfg,
+				  struct m0_be_domain *be_dom)
 {
 	struct m0_be_tx_credit  cred = {};
 	struct m0_stob_domain  *dom = m0_stob_dom_get(stob);
@@ -208,7 +209,7 @@ M0_INTERNAL int m0_ut_stob_create(struct m0_stob *stob, const char *str_cfg)
 	use_dtx = ut_stob_use_dtx(dom);
 	if (use_dtx) {
 		m0_stob_create_credit(dom, &cred);
-		dtx = m0_ut_dtx_open(&cred);
+		dtx = m0_ut_dtx_open(&cred, be_dom);
 	}
 	rc = m0_stob_create(stob, dtx, str_cfg);
 	if (use_dtx)
@@ -216,7 +217,8 @@ M0_INTERNAL int m0_ut_stob_create(struct m0_stob *stob, const char *str_cfg)
 	return rc;
 }
 
-M0_INTERNAL int m0_ut_stob_destroy(struct m0_stob *stob)
+M0_INTERNAL int m0_ut_stob_destroy(struct m0_stob      *stob,
+				   struct m0_be_domain *be_dom)
 {
 	struct m0_be_tx_credit  cred = {};
 	struct m0_dtx	       *dtx = NULL;
@@ -226,7 +228,7 @@ M0_INTERNAL int m0_ut_stob_destroy(struct m0_stob *stob)
 	use_dtx = ut_stob_use_dtx(m0_stob_dom_get(stob));
 	if (use_dtx) {
 		m0_stob_destroy_credit(stob, &cred);
-		dtx = m0_ut_dtx_open(&cred);
+		dtx = m0_ut_dtx_open(&cred, be_dom);
 	}
 	rc = m0_stob_destroy(stob, dtx);
 	if (use_dtx)
@@ -248,14 +250,14 @@ M0_INTERNAL struct m0_stob *m0_ut_stob_open(struct m0_stob_domain *dom,
 	rc = m0_stob_state_get(stob) == CSS_UNKNOWN ? m0_stob_locate(stob) : 0;
 	M0_ASSERT_INFO(rc == 0, "rc = %d", rc);
 	if (m0_stob_state_get(stob) == CSS_NOENT)
-		m0_ut_stob_create(stob, str_cfg);
+		m0_ut_stob_create(stob, str_cfg, NULL);
 	return stob;
 }
 
 M0_INTERNAL void m0_ut_stob_close(struct m0_stob *stob, bool destroy)
 {
 	if (destroy) {
-		m0_ut_stob_destroy(stob);
+		m0_ut_stob_destroy(stob, NULL);
 	} else {
 		m0_stob_put(stob);
 	}
@@ -271,7 +273,7 @@ M0_INTERNAL int m0_ut_stob_create_by_stob_id(struct m0_stob_id *stob_id,
 	if (rc == 0) {
 		rc = m0_stob_state_get(stob) == CSS_UNKNOWN ?
 		     m0_stob_locate(stob) : 0;
-		rc = rc ?: m0_ut_stob_create(stob, str_cfg);
+		rc = rc ?: m0_ut_stob_create(stob, str_cfg, NULL);
 		m0_stob_put(stob);
 	}
 	return rc;
@@ -286,26 +288,29 @@ M0_INTERNAL int m0_ut_stob_destroy_by_stob_id(struct m0_stob_id *stob_id)
 	if (rc == 0) {
 		rc = m0_stob_state_get(stob) == CSS_UNKNOWN ?
 		     m0_stob_locate(stob) : 0;
-		rc = rc ?: m0_ut_stob_destroy(stob);
+		rc = rc ?: m0_ut_stob_destroy(stob, NULL);
 		if (rc != 0)
 			m0_stob_put(stob);
 	}
 	return rc;
 }
 
-M0_INTERNAL struct m0_dtx *m0_ut_dtx_open(struct m0_be_tx_credit *cred)
+M0_INTERNAL struct m0_dtx *m0_ut_dtx_open(struct m0_be_tx_credit *cred,
+					  struct m0_be_domain    *be_dom)
 {
 #ifndef __KERNEL__
 	struct m0_sm_group *grp;
 	struct m0_dtx	   *dtx = NULL;
 	int		    rc;
 
-	if (m0_get()->i_be_ut_backend != NULL) {
+	if (be_dom != NULL) {
+		struct m0_be_ut_backend *ut_be =
+			bob_of(be_dom, struct m0_be_ut_backend, but_dom,
+			       &m0_ut_be_backend_bobtype);
 		M0_ALLOC_PTR(dtx);
 		M0_ASSERT(dtx != NULL);
-		grp = m0_be_ut_backend_sm_group_lookup(
-					m0_get()->i_be_ut_backend);
-		m0_dtx_init(dtx, m0_get()->i_be_dom, grp);
+		grp = m0_be_ut_backend_sm_group_lookup(ut_be);
+		m0_dtx_init(dtx, be_dom, grp);
 		m0_dtx_prep(dtx, cred);
 		rc = m0_dtx_open_sync(dtx);
 		M0_ASSERT_INFO(rc == 0, "rc = %d", rc);

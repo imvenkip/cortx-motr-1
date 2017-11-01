@@ -166,6 +166,7 @@ static void init_vecs()
 static int test_ad_init(void)
 {
 	char             *dom_cfg;
+	char             *dom_init_cfg;
 	int               i;
 	int               rc;
 	struct m0_stob_id stob_id;
@@ -179,7 +180,7 @@ static int test_ad_init(void)
 	M0_ASSERT(rc == 0);
 	rc = m0_stob_locate(obj_back);
 	M0_ASSERT(rc == 0);
-	rc = m0_ut_stob_create(obj_back, NULL);
+	rc = m0_ut_stob_create(obj_back, NULL, NULL);
 	M0_ASSERT(rc == 0);
 
 	m0_stob_ut_ad_init(&ut_be, &ut_seg);
@@ -187,17 +188,21 @@ static int test_ad_init(void)
 	m0_stob_ad_cfg_make(&dom_cfg, ut_seg.bus_seg,
 			    m0_stob_id_get(obj_back), 0);
 	M0_UT_ASSERT(dom_cfg != NULL);
+	m0_stob_ad_init_cfg_make(&dom_init_cfg, &ut_be.but_dom);
+	M0_UT_ASSERT(dom_init_cfg != NULL);
 
-	rc = m0_stob_domain_create("adstob:ad", NULL, 0xad, dom_cfg, &dom_fore);
+	rc = m0_stob_domain_create("adstob:ad", dom_init_cfg, 0xad,
+				   dom_cfg, &dom_fore);
 	M0_ASSERT(rc == 0);
 	m0_free(dom_cfg);
+	m0_free(dom_init_cfg);
 
 	m0_stob_id_make(0, 0xd15c, &dom_fore->sd_id, &stob_id);
 	rc = m0_stob_find(&stob_id, &obj_fore);
 	M0_ASSERT(rc == 0);
 	rc = m0_stob_locate(obj_fore);
 	M0_ASSERT(rc == 0);
-	rc = m0_ut_stob_create(obj_fore, NULL);
+	rc = m0_ut_stob_create(obj_fore, NULL, &ut_be.but_dom);
 	M0_ASSERT(rc == 0);
 
 	block_shift = m0_stob_block_shift(obj_fore);

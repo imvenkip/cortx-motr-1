@@ -1852,14 +1852,14 @@ char *m0_cs_profile_get(struct m0_mero *cctx)
 	return cctx->cc_profile;
 }
 
-static struct m0_reqh_context *cs_reqh_context(struct m0_reqh *reqh)
+M0_INTERNAL struct m0_reqh_context *m0_cs_reqh_context(struct m0_reqh *reqh)
 {
 	return bob_of(reqh, struct m0_reqh_context, rc_reqh, &rhctx_bob);
 }
 
 M0_INTERNAL struct m0_mero *m0_cs_ctx_get(struct m0_reqh *reqh)
 {
-	return cs_reqh_context(reqh)->rc_mero;
+	return m0_cs_reqh_context(reqh)->rc_mero;
 }
 
 M0_INTERNAL struct m0_storage_devs *m0_cs_storage_devs_get(void)
@@ -2775,7 +2775,7 @@ M0_INTERNAL int m0_mero_stob_reopen(struct m0_reqh *reqh,
 	int                     rc = 0;
 	int                     result;
 
-	rctx = cs_reqh_context(reqh);
+	rctx = m0_cs_reqh_context(reqh);
 	stob = &rctx->rc_stob;
 	doc = &stob->s_sfile.sf_document;
 	if (rctx->rc_stob.s_ad_disks_init)

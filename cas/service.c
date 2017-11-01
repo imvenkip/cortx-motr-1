@@ -48,6 +48,7 @@
 #include "cas/cas.h"
 #include "cas/cas_xc.h"
 #include "cas/index_gc.h"
+#include "mero/setup.h"              /* m0_reqh_context */
 
 /**
  * @page cas-dld The catalogue service (CAS)
@@ -276,6 +277,7 @@
 
 struct cas_service {
 	struct m0_reqh_service  c_service;
+	struct m0_be_domain    *c_ut_be_domain;
 };
 
 struct cas_kv {
@@ -500,20 +502,39 @@ M0_INTERNAL void m0_cas_svc_fop_args(struct m0_sm_conf            **sm_conf,
 	*svctype = &m0_cas_service_type;
 }
 
+M0_INTERNAL void m0_cas__ut_svc_be_set(struct m0_reqh_service *svc,
+				       struct m0_be_domain *dom)
+{
+	struct cas_service *service = M0_AMB(service, svc, c_service);
+	service->c_ut_be_domain = dom;
+}
+
+M0_INTERNAL struct m0_be_domain *
+m0_cas__ut_svc_be_get(struct m0_reqh_service *svc)
+{
+	struct cas_service *service = M0_AMB(service, svc, c_service);
+	return service->c_ut_be_domain;
+}
+
+
 static int cas_service_start(struct m0_reqh_service *svc)
 {
-	int                 rc;
-	struct cas_service *service = M0_AMB(service, svc, c_service);
+	int                  rc;
+	struct cas_service  *service = M0_AMB(service, svc, c_service);
+	struct m0_be_domain *ut_dom;
+	struct m0_be_domain *dom;
 
 	M0_PRE(m0_reqh_service_state_get(svc) == M0_RST_STARTING);
-	rc = m0_ctg_store_init();
+	ut_dom = m0_cas__ut_svc_be_get(svc);
+	dom = ut_dom != NULL ? ut_dom : svc->rs_reqh_ctx->rc_beseg->bs_domain;
+	rc = m0_ctg_store_init(dom);
 	if (rc == 0) {
 		/*
 		 * Start deleted index garbage collector at boot to continue
 		 * index drop possibly interrupted by system restart.
 		 * If no pending index drop, it finishes soon.
 		 */
-		m0_cas_gc_start(svc->rs_reqh);
+		m0_cas_gc_start(svc);
 	}
 	return rc;
 }
@@ -1332,7 +1353,7 @@ static int cas_fom_tick(struct m0_fom *fom0)
 		break;
 	case CAS_IDROP_START_GC:
 		/* Start garbage collector, if it is not already running. */
-		m0_cas_gc_start(service->c_service.rs_reqh);
+		m0_cas_gc_start(&service->c_service);
 		cas_fom_success(fom, opc);
 		break;
 		/*

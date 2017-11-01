@@ -177,6 +177,7 @@ static int server_init(const char             *stob_path,
 	uint32_t		     bufs_nr;
 	uint32_t		     tms_nr;
 	char			    *sdom_cfg;
+	char			    *sdom_init_cfg;
 	char			    *sdom_location;
 	struct m0_stob_id            stob_id;
 
@@ -220,7 +221,9 @@ static int server_init(const char             *stob_path,
 	m0_stob_ad_cfg_make(&sdom_cfg, seg, m0_stob_id_get(bstore), 0);
 	sdom_location = m0_alloc(0x1000);
 	snprintf(sdom_location, 0x1000, "adstob:seg=%p,1234", seg);
-	rc = m0_stob_domain_create(sdom_location, NULL, 2, sdom_cfg, &sdom);
+	m0_stob_ad_init_cfg_make(&sdom_init_cfg, &ut_be.but_dom);
+	rc = m0_stob_domain_create(sdom_location, sdom_init_cfg, 2,
+				   sdom_cfg, &sdom);
 	M0_UT_ASSERT(rc == 0);
 
 	m0_free(sdom_cfg);

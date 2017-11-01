@@ -30,6 +30,7 @@
 #include "be/domain.h"  /* m0_be_domain */
 #include "be/seg.h"     /* m0_be_seg */
 #include "be/seg0.h"    /* m0_be_0type */
+#include "lib/bob.h"    /* M0_BOB_DEFINE */
 
 enum {
 	BE_UT_SEG_START_ADDR = 0x400000000000ULL,
@@ -52,7 +53,11 @@ struct m0_be_ut_backend {
 	struct m0_mutex			  but_sgt_lock;
 	bool				  but_sm_groups_unlocked;
 	char				 *but_stob_domain_location;
+	uint64_t                          but_magix;
 };
+
+extern const struct m0_bob_type m0_ut_be_backend_bobtype;
+M0_BOB_DECLARE(M0_INTERNAL, m0_be_ut_backend);
 
 /*
  * Fill cfg with default configuration.

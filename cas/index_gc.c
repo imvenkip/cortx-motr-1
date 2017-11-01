@@ -30,6 +30,7 @@
 #include "rpc/rpc_opcodes.h"
 #include "rpc/item.h"          /* M0_RPC_ITEM_TYPE_REQUEST */
 #include "cas/ctg_store.h"
+#include "mero/setup.h"
 
 /**
  * @page cas-gc Deleted index garbage collection
@@ -498,19 +499,30 @@ static void cgc_fom_fini(struct m0_fom *fom0)
 	M0_LEAVE();
 }
 
-M0_INTERNAL void m0_cas_gc_start(struct m0_reqh *reqh)
+M0_INTERNAL void m0_cas_gc_start(struct m0_reqh_service *service)
 {
-	struct cgc_fom *fom;
-	int             rc;
+	struct cgc_fom         *fom;
+	int                     rc;
+	struct m0_reqh         *reqh = service->rs_reqh;
+	struct m0_reqh_context *rctx;
+	struct m0_be_domain    *dom;
 
 	M0_ENTRY();
+
+	/* Check if UT domain is preset */
+	dom = m0_cas__ut_svc_be_get(service);
+	if (dom == NULL) {
+		rctx = m0_cs_reqh_context(reqh);
+		dom = rctx->rc_beseg->bs_domain;
+	}
+
 	m0_mutex_lock(&gc.cgc_mutex);
 	if (gc.cgc_running == 0) {
 		/*
 		 * GC fom was not running, start it now.
 		 */
 		M0_ALLOC_PTR(fom);
-		rc = m0_ctg_store_init();
+		rc = m0_ctg_store_init(dom);
 		if (rc != 0 || fom == NULL) {
 			M0_LOG(M0_WARN, "CGC start error fom=%p, rc=%d",
 					fom, rc);

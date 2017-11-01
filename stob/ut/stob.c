@@ -39,24 +39,27 @@ enum {
 };
 
 struct stob_ut_ctx {
-	struct m0_mutex       *su_lock;
-	struct m0_semaphore   *su_destroy_sem;
-	struct m0_stob_domain *su_domain;
-	uint64_t               su_stob_key;
-	int                    su_users_nr;
-	const char            *su_cfg;
+	struct m0_mutex         *su_lock;
+	struct m0_semaphore     *su_destroy_sem;
+	struct m0_stob_domain   *su_domain;
+	uint64_t                 su_stob_key;
+	int                      su_users_nr;
+	const char              *su_cfg;
+	struct m0_be_ut_backend *su_ut_be;
 };
 
 static void stob_ut_stob_thread(void *param)
 {
-	struct m0_be_ut_backend *ut_be;
 	struct stob_ut_ctx      *ctx = (struct stob_ut_ctx *)param;
+	struct m0_be_ut_backend *ut_be = ctx->su_ut_be;
+	struct m0_be_domain     *be_dom;
 	struct m0_stob          *stob;
 	bool                     stob_creator = false;
 	int                      rc;
 	int                      i;
 	struct m0_stob_id        stob_id;
 
+	be_dom = ut_be == NULL ? NULL : &ut_be->but_dom;
 	m0_stob_id_make(0, ctx->su_stob_key, &ctx->su_domain->sd_id, &stob_id);
 	rc = m0_stob_find(&stob_id, &stob);
 	M0_UT_ASSERT(rc == 0);
@@ -70,7 +73,7 @@ static void stob_ut_stob_thread(void *param)
 		M0_UT_ASSERT(rc == 0);
 	}
 	if (m0_stob_state_get(stob) == CSS_NOENT) {
-		rc = m0_ut_stob_create(stob, ctx->su_cfg);
+		rc = m0_ut_stob_create(stob, ctx->su_cfg, be_dom);
 		M0_UT_ASSERT(rc == 0);
 		stob_creator = true;
 	}
@@ -87,7 +90,7 @@ static void stob_ut_stob_thread(void *param)
 	} else {
 		for (i = 0; i < ctx->su_users_nr - 1; ++i)
 			m0_semaphore_down(ctx->su_destroy_sem);
-		rc = m0_ut_stob_destroy(stob);
+		rc = m0_ut_stob_destroy(stob, be_dom);
 		M0_UT_ASSERT(rc == 0);
 	}
 
@@ -98,7 +101,6 @@ static void stob_ut_stob_thread(void *param)
 	 * fails because of unlocked thread's sm group.
 	 * Simplify this task and call the exit function for all threads.
 	 */
-	ut_be = m0_get()->i_be_ut_backend;
 	if (ut_be != NULL) {
 		(void)m0_be_ut_backend_sm_group_lookup(ut_be);
 		m0_be_ut_backend_thread_exit(ut_be);
@@ -107,8 +109,10 @@ static void stob_ut_stob_thread(void *param)
 
 M0_UT_THREADS_DEFINE(stob_ut_stob, stob_ut_stob_thread);
 
-static void stob_ut_stob_multi(const char *location,
+static void stob_ut_stob_multi(struct m0_be_ut_backend *ut_be,
+			       const char *location,
 			       const char *dom_cfg,
+			       const char *dom_init_cfg,
 			       const char *stob_cfg,
 			       int thread_nr,
 			       int stob_nr)
@@ -132,7 +136,8 @@ static void stob_ut_stob_multi(const char *location,
 	M0_ALLOC_ARR(destroy_sems, stob_nr);
 	M0_UT_ASSERT(destroy_sems != NULL);
 
-	rc = m0_stob_domain_create(location, NULL, dom_key, dom_cfg, &dom);
+	rc = m0_stob_domain_create(location, dom_init_cfg, dom_key,
+				   dom_cfg, &dom);
 	M0_UT_ASSERT(rc == 0);
 
 	for (i = 0; i < stob_nr; ++i) {
@@ -146,7 +151,8 @@ static void stob_ut_stob_multi(const char *location,
 			.su_users_nr    = thread_nr / stob_nr,
 			.su_stob_key    = i % stob_nr + 1,
 			.su_domain      = dom,
-			.su_cfg  = stob_cfg,
+			.su_cfg         = stob_cfg,
+			.su_ut_be       = ut_be,
 		};
 	}
 
@@ -161,10 +167,13 @@ static void stob_ut_stob_multi(const char *location,
 	m0_stob_domain_destroy(dom);
 }
 
-static void stob_ut_stob_single(const char *location,
-				const char *dom_cfg,
-				const char *stob_cfg)
+static void stob_ut_stob_single(struct m0_be_ut_backend *ut_be,
+				const char              *location,
+				const char              *dom_cfg,
+				const char              *dom_init_cfg,
+				const char              *stob_cfg)
 {
+	struct m0_be_domain   *be_dom = ut_be == NULL ? NULL : &ut_be->but_dom;
 	struct m0_stob_domain *dom;
 	struct m0_stob        *stob;
 	struct m0_stob        *stob2;
@@ -173,7 +182,8 @@ static void stob_ut_stob_single(const char *location,
 	uint64_t               stob_key = 0xc0deba5e;
 	int                    rc;
 
-	rc = m0_stob_domain_create(location, NULL, dom_key, dom_cfg, &dom);
+	rc = m0_stob_domain_create(location, dom_init_cfg,
+				   dom_key, dom_cfg, &dom);
 	M0_UT_ASSERT(rc == 0);
 
 	m0_stob_id_make(0, stob_key, &dom->sd_id, &stob_id);
@@ -186,11 +196,11 @@ static void stob_ut_stob_single(const char *location,
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(m0_stob_state_get(stob) == CSS_NOENT);
 
-	rc = m0_ut_stob_create(stob, stob_cfg);
+	rc = m0_ut_stob_create(stob, stob_cfg, be_dom);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(m0_stob_state_get(stob) == CSS_EXISTS);
 	M0_UT_ASSERT(m0_fid_cmp(m0_stob_fid_get(stob), &stob_id.si_fid) == 0);
-	rc = m0_ut_stob_create(stob, stob_cfg);
+	rc = m0_ut_stob_create(stob, stob_cfg, be_dom);
 	M0_UT_ASSERT(rc == -EEXIST);
 
 	rc = m0_stob_lookup(&stob_id, &stob2);
@@ -206,7 +216,7 @@ static void stob_ut_stob_single(const char *location,
 	m0_stob_put(stob);
 	m0_stob_domain_fini(dom);
 
-	rc = m0_stob_domain_init(location, NULL, &dom);
+	rc = m0_stob_domain_init(location, dom_init_cfg, &dom);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_stob_find(&stob_id, &stob);
 	M0_UT_ASSERT(rc == 0);
@@ -222,7 +232,7 @@ static void stob_ut_stob_single(const char *location,
 	M0_UT_ASSERT(stob2 == stob);
 	m0_stob_put(stob2);
 
-	rc = m0_ut_stob_destroy(stob);
+	rc = m0_ut_stob_destroy(stob, be_dom);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_stob_domain_destroy(dom);
 	M0_UT_ASSERT(rc == 0);
@@ -231,17 +241,17 @@ static void stob_ut_stob_single(const char *location,
 void m0_stob_ut_stob_null(void)
 {
 	M0_CASSERT(M0_STOB_UT_THREAD_NR % M0_STOB_UT_STOB_NR == 0);
-	stob_ut_stob_single("nullstob:path", NULL, NULL);
-	stob_ut_stob_multi("nullstob:path", NULL, NULL, M0_STOB_UT_THREAD_NR,
-			   M0_STOB_UT_STOB_NR);
+	stob_ut_stob_single(NULL, "nullstob:path", NULL, NULL, NULL);
+	stob_ut_stob_multi(NULL,"nullstob:path", NULL, NULL, NULL,
+			   M0_STOB_UT_THREAD_NR, M0_STOB_UT_STOB_NR);
 }
 
 #ifndef __KERNEL__
 void m0_stob_ut_stob_linux(void)
 {
-	stob_ut_stob_single("linuxstob:./__s", NULL, NULL);
-	stob_ut_stob_multi("linuxstob:./__s", NULL, NULL, M0_STOB_UT_THREAD_NR,
-			   M0_STOB_UT_STOB_NR);
+	stob_ut_stob_single(NULL, "linuxstob:./__s", NULL, NULL, NULL);
+	stob_ut_stob_multi(NULL, "linuxstob:./__s", NULL, NULL, NULL,
+			   M0_STOB_UT_THREAD_NR, M0_STOB_UT_STOB_NR);
 }
 
 extern void m0_stob_ut_ad_init(struct m0_be_ut_backend *ut_be,
@@ -255,6 +265,7 @@ void m0_stob_ut_stob_ad(void)
 	struct m0_be_ut_seg      ut_seg;
 	struct m0_stob          *stob;
 	char                    *dom_cfg;
+	char                    *dom_init_cfg;
 
 	m0_stob_ut_ad_init(&ut_be, &ut_seg);
 	stob = m0_ut_stob_linux_get();
@@ -262,12 +273,16 @@ void m0_stob_ut_stob_ad(void)
 
 	m0_stob_ad_cfg_make(&dom_cfg, ut_seg.bus_seg, m0_stob_id_get(stob), 0);
 	M0_UT_ASSERT(dom_cfg != NULL);
+	m0_stob_ad_init_cfg_make(&dom_init_cfg, &ut_be.but_dom);
+	M0_UT_ASSERT(dom_init_cfg != NULL);
 
-	stob_ut_stob_single("adstob:some_suffix", dom_cfg, NULL);
-	stob_ut_stob_multi("adstob:some_suffix", dom_cfg, NULL,
-			   M0_STOB_UT_THREAD_NR, M0_STOB_UT_STOB_NR);
+	stob_ut_stob_single(&ut_be, "adstob:some_suffix",
+			    dom_cfg, dom_init_cfg, NULL);
+	stob_ut_stob_multi(&ut_be, "adstob:some_suffix", dom_cfg, dom_init_cfg,
+			   NULL, M0_STOB_UT_THREAD_NR, M0_STOB_UT_STOB_NR);
 
 	m0_free(dom_cfg);
+	m0_free(dom_init_cfg);
 	m0_ut_stob_put(stob, true);
 	m0_stob_ut_ad_fini(&ut_be, &ut_seg);
 }

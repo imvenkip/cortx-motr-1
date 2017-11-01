@@ -537,6 +537,13 @@ char *m0_cs_profile_get(struct m0_mero *cctx);
 M0_INTERNAL struct m0_mero *m0_cs_ctx_get(struct m0_reqh *reqh);
 
 /**
+ * Returns instance of struct m0_reqh_context given a
+ * request handler instance.
+ * @pre reqh != NULL.
+ */
+M0_INTERNAL struct m0_reqh_context *m0_cs_reqh_context(struct m0_reqh *reqh);
+
+/**
  * Returns m0_storage_devs object from m0 instance. Returns NULL if
  * the object is not initialised.
  */

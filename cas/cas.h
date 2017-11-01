@@ -357,6 +357,10 @@ M0_INTERNAL void m0_cas_svc_fini(void);
 M0_INTERNAL void m0_cas_svc_fop_args(struct m0_sm_conf            **sm_conf,
 				     const struct m0_fom_type_ops **fom_ops,
 				     struct m0_reqh_service_type  **svctype);
+M0_INTERNAL void m0_cas__ut_svc_be_set(struct m0_reqh_service *svc,
+				       struct m0_be_domain *dom);
+M0_INTERNAL struct m0_be_domain *
+m0_cas__ut_svc_be_get(struct m0_reqh_service *svc);
 #else
 #define m0_cas_svc_init()
 #define m0_cas_svc_fini()

@@ -633,7 +633,7 @@ static void iter_ut_init(struct m0_reqh_service      **svc,
 	m0_reqh_service_init(*svc, &reqh, NULL);
 	m0_reqh_service_start(*svc);
 	m0_reqh_start(&reqh);
-	m0_ctg_store_init();
+	m0_ctg_store_init(&be.but_dom);
 	m0_fom_type_init(&ut_fom_type,
 			 stype == &dix_repair_cmt.ct_stype ?
 				M0_CM_DIX_REP_ITER_UT_OPCODE :

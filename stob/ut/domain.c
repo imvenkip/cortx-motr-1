@@ -31,26 +31,27 @@
 #include "stob/stob.h"
 #include "stob/stob_internal.h"
 
-static void stob_ut_stob_domain(const char *location, const char *cfg)
+static void stob_ut_stob_domain(const char *location, const char *cfg,
+				const char *init_cfg)
 {
 	struct m0_stob_domain *dom;
 	uint64_t               dom_key = 0xec0de;
 	struct m0_fid          dom_id;
 	int		       rc;
 
-	rc = m0_stob_domain_init(location, NULL, &dom);
+	rc = m0_stob_domain_init(location, init_cfg, &dom);
 	M0_UT_ASSERT(rc == -ENOENT);
 	rc = m0_stob_domain_destroy_location(location);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_stob_domain_create(location, NULL, dom_key, cfg, &dom);
+	rc = m0_stob_domain_create(location, init_cfg, dom_key, cfg, &dom);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(dom != NULL);
 	m0_stob_domain_fini(dom);
 
-	rc = m0_stob_domain_create(location, NULL, dom_key, cfg, &dom);
+	rc = m0_stob_domain_create(location, init_cfg, dom_key, cfg, &dom);
 	M0_UT_ASSERT(rc == -EEXIST);
 
-	rc = m0_stob_domain_init(location, NULL, &dom);
+	rc = m0_stob_domain_init(location, init_cfg, &dom);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(dom != NULL);
 	M0_UT_ASSERT(m0_stob_domain__dom_key(m0_stob_domain_id_get(dom)) ==
@@ -67,7 +68,7 @@ static void stob_ut_stob_domain(const char *location, const char *cfg)
 	rc = m0_stob_domain_destroy(dom);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_stob_domain_create(location, NULL, dom_key, cfg, &dom);
+	rc = m0_stob_domain_create(location, init_cfg, dom_key, cfg, &dom);
 	M0_UT_ASSERT(rc == 0);
 	m0_stob_domain_fini(dom);
 	rc = m0_stob_domain_destroy_location(location);
@@ -76,13 +77,13 @@ static void stob_ut_stob_domain(const char *location, const char *cfg)
 
 void m0_stob_ut_stob_domain_null(void)
 {
-	stob_ut_stob_domain("nullstob:./__s", NULL);
+	stob_ut_stob_domain("nullstob:./__s", NULL, NULL);
 }
 
 #ifndef __KERNEL__
 void m0_stob_ut_stob_domain_linux(void)
 {
-	stob_ut_stob_domain("linuxstob:./__s", NULL);
+	stob_ut_stob_domain("linuxstob:./__s", NULL, NULL);
 }
 
 extern void m0_stob_ut_ad_init(struct m0_be_ut_backend *ut_be,
@@ -96,14 +97,17 @@ void m0_stob_ut_stob_domain_ad(void)
 	struct m0_be_ut_seg      ut_seg;
 	struct m0_stob          *stob;
 	char                    *cfg;
+	char                    *init_cfg;
 
 	m0_stob_ut_ad_init(&ut_be, &ut_seg);
 	stob = m0_ut_stob_linux_get();
 	M0_UT_ASSERT(stob != NULL);
 	m0_stob_ad_cfg_make(&cfg, ut_seg.bus_seg, m0_stob_id_get(stob), 0);
 	M0_UT_ASSERT(cfg != NULL);
+	m0_stob_ad_init_cfg_make(&init_cfg, &ut_be.but_dom);
+	M0_UT_ASSERT(init_cfg != NULL);
 
-	stob_ut_stob_domain("adstob:some_suffix", cfg);
+	stob_ut_stob_domain("adstob:some_suffix", cfg, init_cfg);
 
 	m0_free(cfg);
 	m0_ut_stob_put(stob, true);
