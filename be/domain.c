@@ -663,35 +663,41 @@ static void be_domain_ldsc_sync(struct m0_be_log_discard      *ld,
 	m0_be_pd_sync(&dom->bd_pd, 0, stobs, seg == NULL ? 1 : 2, op);
 }
 
-/* XXX REFACTORME: Split into be_domain_start() and be_domain_stop(). */
-static int be_domain_start_stop(struct m0_be_domain     *dom,
-				struct m0_be_domain_cfg *cfg)
+static int be_domain_segments_init(struct m0_be_domain *dom)
 {
-	struct m0_be_engine *en = &dom->bd_engine;
-	bool                 mkfs_mode;
-	int                  rc;
+	struct m0_be_domain_cfg *cfg = &dom->bd_cfg;
 
-	/* mkfs is always in the normal mode */
-	mkfs_mode = cfg == NULL ? false : cfg->bc_mkfs_mode;
-	if (cfg == NULL)
-		goto stop;
-
-	dom->bd_cfg = *cfg;
+	M0_PRE(cfg != NULL);
 	M0_ASSERT(equi(cfg->bc_seg_cfg == NULL, cfg->bc_seg_nr == 0));
 	M0_ASSERT_INFO(cfg->bc_pd_cfg.bpdc_seg_io_nr >=
 		       cfg->bc_engine.bec_group_nr,
 		       "seg_io_nr must be at least number of tx_groups");
 
-	if (mkfs_mode) {
-		rc = be_domain_start_mkfs_pre(dom, cfg);
-	} else {
-		rc = be_domain_start_normal_pre(dom, cfg);
-	}
-	if (rc != 0)
-		goto out;
+	return M0_RC(cfg->bc_mkfs_mode ?
+		     be_domain_start_mkfs_pre(dom, cfg) :
+		     be_domain_start_normal_pre(dom, cfg));
+}
+
+static void be_domain_segments_fini(struct m0_be_domain *dom)
+{
+	/**
+	 * Check dom->bd_mkfs_stage to understand if mkfs process in total was
+	 * succesful or not
+	 */
+	if (dom->bd_mkfs_stage != dom->bd_mkfs_stage_nr &&
+	    dom->bd_cfg.bc_mkfs_mode)
+		be_domain_stop_mkfs_pre(dom);
+	else
+		be_domain_stop_normal_pre(dom);
+}
+
+static int be_domain_engine_init(struct m0_be_domain *dom)
+{
+	int                  rc;
+	struct m0_be_engine *en = &dom->bd_engine;
 
 	dom->bd_cfg.bc_pd_cfg.bpdc_sched.bisc_pos_start =
-			m0_be_log_recovery_discarded(m0_be_domain_log(dom));
+		m0_be_log_recovery_discarded(m0_be_domain_log(dom));
 	m0_be_tx_group_seg_io_credit(&dom->bd_cfg.bc_engine.bec_group_cfg,
 	                             &dom->bd_cfg.bc_pd_cfg.bpdc_io_credit);
 	rc = m0_be_pd_init(&dom->bd_pd, &dom->bd_cfg.bc_pd_cfg);
@@ -706,49 +712,18 @@ static int be_domain_start_stop(struct m0_be_domain     *dom,
 	dom->bd_cfg.bc_engine.bec_domain   = dom;
 	dom->bd_cfg.bc_engine.bec_log_discard = &dom->bd_log_discard;
 	dom->bd_cfg.bc_engine.bec_pd = &dom->bd_pd;
-	rc = m0_be_engine_init(en, dom, &dom->bd_cfg.bc_engine);
-	if (rc != 0)
-		goto stop_pre;
-	rc = m0_be_engine_start(en);
-	if (rc != 0)
-		goto engine_fini;
 
-	if (mkfs_mode)
-		rc = be_domain_start_mkfs_post(dom, cfg);
-	if (rc != 0)
-		goto engine_stop;
+	return M0_RC(m0_be_engine_init(en, dom, &dom->bd_cfg.bc_engine));
+}
 
-	if (rc == 0) {
-		if (m0_get()->i_be_dom != NULL) {
-			m0_get()->i_be_dom_save = m0_get()->i_be_dom;
-			m0_get()->i_be_dom = NULL;
-		} else if (m0_get()->i_be_dom_save == NULL) {
-			   m0_get()->i_be_dom = dom;
-		}
-	}
-	goto out;
+static void be_domain_engine_fini(struct m0_be_domain *dom)
+{
+	struct m0_be_engine *en = &dom->bd_engine;
 
-stop:
-	rc = 0;
-	if (m0_get()->i_be_dom == dom || m0_get()->i_be_dom_save == dom) {
-		m0_get()->i_be_dom = NULL;
-		m0_get()->i_be_dom_save = NULL;
-	}
-engine_stop:
-	m0_be_engine_stop(&dom->bd_engine);
-engine_fini:
 	M0_BE_OP_SYNC(op, m0_be_log_discard_flush(&dom->bd_log_discard, &op));
 	m0_be_log_discard_fini(&dom->bd_log_discard);
 	m0_be_engine_fini(en);
-stop_pre:
 	m0_be_pd_fini(&dom->bd_pd);
-	if (mkfs_mode) {
-		be_domain_stop_mkfs_pre(dom);
-	} else {
-		be_domain_stop_normal_pre(dom);
-	}
-out:
-	return M0_RC(rc);
 }
 
 M0_INTERNAL void
@@ -995,8 +970,21 @@ static int be_domain_level_enter(struct m0_module *module)
 		}
 		return 0;
 
+	case M0_BE_DOMAIN_LEVEL_SEGMENTS:
+		return be_domain_segments_init(dom);
+
+	case M0_BE_DOMAIN_LEVEL_ENGINE_INIT:
+		return be_domain_engine_init(dom);
+
+	case M0_BE_DOMAIN_LEVEL_ENGINE_START:
+		return M0_RC(m0_be_engine_start(&dom->bd_engine));
+
+	case M0_BE_DOMAIN_LEVEL_MKFS_POST:
+		return M0_RC(dom->bd_cfg.bc_mkfs_mode ?
+			     be_domain_start_mkfs_post(dom, &dom->bd_cfg) : 0);
+
 	case M0_BE_DOMAIN_LEVEL_READY:
-		return be_domain_start_stop(dom, cfg);
+		return M0_RC(0);
 	}
 	M0_IMPOSSIBLE("Unexpected level: %d", module->m_cur + 1);
 }
@@ -1009,7 +997,20 @@ static void be_domain_level_leave(struct m0_module *module)
 
 	switch (module->m_cur) {
 	case M0_BE_DOMAIN_LEVEL_READY:
-		(void)be_domain_start_stop(dom, NULL);
+		return;
+
+	case M0_BE_DOMAIN_LEVEL_MKFS_POST:
+		return;
+
+	case M0_BE_DOMAIN_LEVEL_ENGINE_START:
+		return m0_be_engine_stop(&dom->bd_engine);
+
+	case M0_BE_DOMAIN_LEVEL_ENGINE_INIT:
+		be_domain_engine_fini(dom);
+		return;
+
+	case M0_BE_DOMAIN_LEVEL_SEGMENTS:
+		be_domain_segments_fini(dom);
 		return;
 
 	case M0_BE_DOMAIN_LEVEL_0TYPES:
@@ -1045,6 +1046,26 @@ static const struct m0_modlev levels_be_domain[] = {
 	},
 	[M0_BE_DOMAIN_LEVEL_0TYPES] = {
 		.ml_name  = "M0_BE_DOMAIN_LEVEL_0TYPES",
+		.ml_enter = be_domain_level_enter,
+		.ml_leave = be_domain_level_leave
+	},
+	[M0_BE_DOMAIN_LEVEL_SEGMENTS] = {
+		.ml_name  = "M0_BE_DOMAIN_LEVEL_SEGMENTS",
+		.ml_enter = be_domain_level_enter,
+		.ml_leave = be_domain_level_leave
+	},
+	[M0_BE_DOMAIN_LEVEL_ENGINE_INIT] = {
+		.ml_name  = "M0_BE_DOMAIN_LEVEL_ENGINE_INIT",
+		.ml_enter = be_domain_level_enter,
+		.ml_leave = be_domain_level_leave
+	},
+	[M0_BE_DOMAIN_LEVEL_ENGINE_START] = {
+		.ml_name  = "M0_BE_DOMAIN_LEVEL_ENGINE_START",
+		.ml_enter = be_domain_level_enter,
+		.ml_leave = be_domain_level_leave
+	},
+	[M0_BE_DOMAIN_LEVEL_MKFS_POST] = {
+		.ml_name  = "M0_BE_DOMAIN_LEVEL_MKFS_POST",
 		.ml_enter = be_domain_level_enter,
 		.ml_leave = be_domain_level_leave
 	},

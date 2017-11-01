@@ -173,18 +173,30 @@ struct m0_be_domain {
 enum {
 	M0_BE_DOMAIN_LEVEL_INIT,
 	M0_BE_DOMAIN_LEVEL_0TYPES,
-	M0_BE_DOMAIN_LEVEL_READY
+	M0_BE_DOMAIN_LEVEL_SEGMENTS,
+	M0_BE_DOMAIN_LEVEL_ENGINE_INIT,
+	M0_BE_DOMAIN_LEVEL_ENGINE_START,
+	M0_BE_DOMAIN_LEVEL_MKFS_POST,
+	M0_BE_DOMAIN_LEVEL_READY,
 };
 
 /*
- *  m0_be_domain                       m0_be_engine
- * +---------------------------+      +--------------------------+
- * | M0_BE_DOMAIN_LEVEL_READY  |----->| M0_BE_ENGINE_LEVEL_READY |
- * +---------------------------+      +--------------------------+
- * | M0_BE_DOMAIN_LEVEL_0TYPES |
- * +---------------------------+
- * | M0_BE_DOMAIN_LEVEL_INIT   |
- * +---------------------------+
+ *  m0_be_domain                             m0_be_engine
+ * +---------------------------------+      +--------------------------+
+ * | M0_BE_DOMAIN_LEVEL_READY        |----->| M0_BE_ENGINE_LEVEL_READY |
+ * +---------------------------------+      +--------------------------+
+ * | M0_BE_DOMAIN_LEVEL_MKFS_POST    |
+ * +---------------------------------+
+ * | M0_BE_DOMAIN_LEVEL_ENGINE_START |
+ * +---------------------------------+
+ * | M0_BE_DOMAIN_LEVEL_ENGINE_INIT  |
+ * +---------------------------------+
+ * | M0_BE_DOMAIN_LEVEL_SEGMENTS     |
+ * +---------------------------------+
+ * | M0_BE_DOMAIN_LEVEL_0TYPES       |
+ * +---------------------------------+
+ * | M0_BE_DOMAIN_LEVEL_INIT         |
+ * +---------------------------------+
  */
 M0_INTERNAL void m0_be_domain_module_setup(struct m0_be_domain *dom,
 					   const struct m0_be_domain_cfg *cfg);

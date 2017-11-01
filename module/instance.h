@@ -116,9 +116,6 @@ struct m0 {
 	struct m0_stob_module      i_stob_module;
 	struct m0_stob_ad_module   i_stob_ad_module;
 	struct m0_ut_stob_module   i_ut_stob_module;
-	struct m0_be_domain       *i_be_dom;
-	struct m0_be_domain       *i_be_dom_save;
-	struct m0_be_ut_backend   *i_be_ut_backend;
 	struct m0_poolmach_state  *i_pool_module;
 	struct m0_storage_devs     i_storage_devs;
 	/**
