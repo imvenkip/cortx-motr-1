@@ -23,7 +23,7 @@ proto_master="/tmp/protocol-master.txt"
 
 echo "Downloading latest protocol file from master"
 wget -O "$proto_master" \
-     '10.21.81.197:8080/job/mero-test-master/lastSuccessfulBuild/artifact/artifacts/protocol.txt'
+     '10.230.45.149:8080/job/mero-test-master/lastSuccessfulBuild/artifact/artifacts/protocol.txt'
 
 echo "Comparing '$proto_master' and '$proto_current' files"
 $diff_cmd $proto_master $proto_current
