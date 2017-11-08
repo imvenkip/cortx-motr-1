@@ -39,7 +39,6 @@
 #include "conf/obj.h"           /* M0_CONF_PROCESS_TYPE */
 #include "stob/domain.h"	/* m0_stob_domain_create */
 
-#include "ut/ast_thread.h"
 #include "ut/stob.h"		/* m0_ut_stob_linux_get */
 #include "be/ut/helper.h"	/* m0_be_ut_backend */
 #include "be/tx_internal.h"	/* m0_be_tx__reg_area */

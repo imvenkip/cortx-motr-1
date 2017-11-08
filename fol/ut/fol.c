@@ -23,7 +23,6 @@
 #include "fol/fol_private.h"
 #include "fol/fol_xc.h"
 #include "ut/be.h"
-#include "ut/ast_thread.h"
 /* XXX FIXME: Do not use ut/ directory of other subsystem. */
 #include "be/ut/helper.h"   /* m0_be_ut_backend */
 
@@ -127,23 +126,10 @@ static void test_fol_frag_encdec(void)
 	m0_fol_rec_fini(&dec_rec);
 }
 
-extern struct m0_sm_group ut__txs_sm_group;
-
-static int _init(void)
-{
-	return m0_ut_ast_thread_start(&ut__txs_sm_group);
-}
-
-static int _fini(void)
-{
-	m0_ut_ast_thread_stop();
-	return 0;
-}
-
 struct m0_ut_suite fol_ut = {
 	.ts_name = "fol-ut",
-	.ts_init = _init,
-	.ts_fini = _fini,
+	.ts_init = NULL,
+	.ts_fini = NULL,
 	.ts_tests = {
 		/*
 		 * Note, that there are dependencies between these tests.

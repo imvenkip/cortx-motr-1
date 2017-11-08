@@ -24,7 +24,6 @@
 #include "lib/assert.h"
 #include "ut/stob.h"		/* m0_ut_stob_create */
 #include "ut/ut.h"
-#include "ut/ast_thread.h"
 
 #include "dtm/dtm.h"		/* m0_dtx */
 #include "stob/ad.h"		/* m0_stob_ad_cfg_make */

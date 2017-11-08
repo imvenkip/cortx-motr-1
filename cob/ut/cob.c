@@ -38,8 +38,6 @@ static struct m0_sm_group     *grp;
 static struct m0_cob_domain   *dom;
 static struct m0_cob          *cob;
 
-extern struct m0_sm_group      ut__txs_sm_group;
-
 static int ut_init(void)
 {
 	return 0;

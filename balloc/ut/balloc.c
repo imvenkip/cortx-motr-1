@@ -35,7 +35,6 @@
 #include "mero/magic.h"
 #include "ut/ut.h"
 #include "ut/be.h"
-#include "ut/ast_thread.h"
 #include "balloc/balloc.h"
 #include "be/ut/helper.h"
 #include "stob/ad.h"      /* m0_stob_ad_spares_calc */
