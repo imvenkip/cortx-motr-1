@@ -188,7 +188,7 @@ static void spiel_conf_ut_init(void)
 	      &ut_reqh.sur_confd_srv.rsx_mero_ctx.cc_reqh_ctx.rc_reqh.rh_rconfc;
 	int                 rc;
 
-	rc = conf_ut_ast_thread_init();
+	rc = m0_conf_ut_ast_thread_init();
 	M0_ASSERT(rc == 0);
 	spiel_copy_file(M0_UT_PATH("conf.xc"), "tmp-conf.xc");
 
@@ -213,7 +213,8 @@ static void spiel_conf_ut_fini(void)
 	M0_UT_ASSERT(rc != -1);
 	rc = unlink("tmp-conf.xc");
 	M0_UT_ASSERT(rc == 0);
-	conf_ut_ast_thread_fini();
+	rc = m0_conf_ut_ast_thread_fini();
+	M0_UT_ASSERT(rc == 0);
 }
 
 enum spiel_conf_opts {

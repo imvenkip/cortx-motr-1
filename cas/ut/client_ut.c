@@ -27,8 +27,6 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CAS
 #include "lib/trace.h"
 
-#include "conf/ut/common.h"            /* ENDPOINT*/
-#include "conf/ut/rpc_helpers.h"       /* m0_ut_rpc_machine_start */
 #include "rpc/rpclib.h"                /* m0_rpc_server_ctx */
 #include "lib/finject.h"
 #include "lib/memory.h"

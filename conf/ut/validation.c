@@ -19,7 +19,8 @@
 
 #include <glob.h>
 #include "conf/validation.h"
-#include "conf/ut/common.h"  /* conf_ut_cache_from_file */
+#include "conf/ut/common.h"  /* m0_conf_ut_cache_from_file */
+#include "lib/fs.h"          /* m0_file_read */
 #include "lib/string.h"      /* m0_streq */
 #include "lib/memory.h"      /* m0_free */
 #include "ut/ut.h"
@@ -137,7 +138,7 @@ cache_load(struct m0_conf_cache *cache, const char *path, char **sharp_out)
 
 	M0_PRE(path != NULL && *path != '\0');
 
-	conf_ut_cache_from_file(cache, path);
+	m0_conf_ut_cache_from_file(cache, path);
 	rc = m0_file_read(path, &confstr);
 	M0_UT_ASSERT(rc == 0);
 	if (sharp_out != NULL)
@@ -147,8 +148,8 @@ cache_load(struct m0_conf_cache *cache, const char *path, char **sharp_out)
 
 struct m0_ut_suite conf_validation_ut = {
 	.ts_name  = "conf-validation-ut",
-	.ts_init  = conf_ut_cache_init,
-	.ts_fini  = conf_ut_cache_fini,
+	.ts_init  = m0_conf_ut_cache_init,
+	.ts_fini  = m0_conf_ut_cache_fini,
 	.ts_tests = {
 		{ "sharp-comment", test_sharp_comment },
 		{ "validation",    test_validation },

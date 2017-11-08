@@ -22,6 +22,7 @@
 #include "lib/trace.h"
 
 #include "conf/ut/common.h"
+#include "lib/fs.h"         /* m0_file_read */
 #include "rpc/rpclib.h"     /* m0_rpc_server_ctx */
 #include "net/lnet/lnet.h"  /* m0_net_lnet_xprt */
 #include "ut/ut.h"
@@ -33,28 +34,27 @@ struct m0_net_xprt  *m0_conf_ut_xprt = &m0_net_lnet_xprt;
 /* Filters out intermediate state transitions of m0_confc_ctx::fc_mach. */
 static bool _filter(struct m0_clink *link)
 {
-	return !m0_confc_ctx_is_completed(&container_of(link,
-							struct conf_ut_waiter,
-							w_clink)->w_ctx);
+	struct m0_conf_ut_waiter *waiter = M0_AMB(waiter, link, w_clink);
+	return !m0_confc_ctx_is_completed(&waiter->w_ctx);
 }
 
-M0_INTERNAL void conf_ut_waiter_init(struct conf_ut_waiter *w,
-				     struct m0_confc *confc)
+M0_INTERNAL void m0_conf_ut_waiter_init(struct m0_conf_ut_waiter *w,
+					struct m0_confc *confc)
 {
 	m0_confc_ctx_init(&w->w_ctx, confc);
 	m0_clink_init(&w->w_clink, _filter);
 	m0_clink_add_lock(&w->w_ctx.fc_mach.sm_chan, &w->w_clink);
 }
 
-M0_INTERNAL void conf_ut_waiter_fini(struct conf_ut_waiter *w)
+M0_INTERNAL void m0_conf_ut_waiter_fini(struct m0_conf_ut_waiter *w)
 {
 	m0_clink_del_lock(&w->w_clink);
 	m0_clink_fini(&w->w_clink);
 	m0_confc_ctx_fini(&w->w_ctx);
 }
 
-M0_INTERNAL int conf_ut_waiter_wait(struct conf_ut_waiter *w,
-				    struct m0_conf_obj **result)
+M0_INTERNAL int m0_conf_ut_waiter_wait(struct m0_conf_ut_waiter *w,
+				       struct m0_conf_obj **result)
 {
 	int rc;
 
@@ -83,7 +83,7 @@ static void conf_ut_ast_thread(int _ M0_UNUSED)
 	}
 }
 
-M0_INTERNAL int conf_ut_ast_thread_init(void)
+M0_INTERNAL int m0_conf_ut_ast_thread_init(void)
 {
 	M0_SET0(&m0_conf_ut_grp);
 	M0_SET0(&g_ast);
@@ -93,7 +93,7 @@ M0_INTERNAL int conf_ut_ast_thread_init(void)
 			      "ast_thread");
 }
 
-M0_INTERNAL int conf_ut_ast_thread_fini(void)
+M0_INTERNAL int m0_conf_ut_ast_thread_fini(void)
 {
 	g_ast.run = false;
 	m0_clink_signal(&m0_conf_ut_grp.s_clink);
@@ -104,14 +104,14 @@ M0_INTERNAL int conf_ut_ast_thread_fini(void)
 
 static struct m0_mutex conf_ut_lock;
 
-M0_INTERNAL int conf_ut_cache_init(void)
+M0_INTERNAL int m0_conf_ut_cache_init(void)
 {
 	m0_mutex_init(&conf_ut_lock);
 	m0_conf_cache_init(&m0_conf_ut_cache, &conf_ut_lock);
 	return 0;
 }
 
-M0_INTERNAL int conf_ut_cache_fini(void)
+M0_INTERNAL int m0_conf_ut_cache_fini(void)
 {
 	m0_conf_cache_fini(&m0_conf_ut_cache);
 	m0_mutex_fini(&conf_ut_lock);
@@ -120,7 +120,7 @@ M0_INTERNAL int conf_ut_cache_fini(void)
 
 #ifndef __KERNEL__
 M0_INTERNAL void
-conf_ut_cache_from_file(struct m0_conf_cache *cache, const char *path)
+m0_conf_ut_cache_from_file(struct m0_conf_cache *cache, const char *path)
 {
 	char *confstr = NULL;
 	int   rc;

@@ -26,7 +26,9 @@
 #include "conf/ut/common.h"       /* m0_conf_ut_grp */
 #include "conf/ut/rpc_helpers.h"  /* m0_ut_rpc_machine_start */
 #include "rpc/rpclib.h"           /* m0_rpc_server_ctx */
+#include "lib/fs.h"               /* m0_file_read */
 #include "lib/memory.h"           /* m0_free */
+#include "ut/misc.h"              /* M0_UT_PATH, M0_UT_CONF_PROCESS */
 #include "ut/ut.h"
 
 enum {
@@ -389,8 +391,8 @@ static void test_diter_invalid_input(void)
 /* ------------------------------------------------------------------ */
 struct m0_ut_suite conf_diter_ut = {
 	.ts_name  = "conf-diter-ut",
-	.ts_init  = conf_ut_ast_thread_init,
-	.ts_fini  = conf_ut_ast_thread_fini,
+	.ts_init  = m0_conf_ut_ast_thread_init,
+	.ts_fini  = m0_conf_ut_ast_thread_fini,
 	.ts_tests = {
 		{ "local",         test_diter_local },
 		{ "net",           test_diter_net },

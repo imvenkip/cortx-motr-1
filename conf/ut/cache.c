@@ -26,7 +26,9 @@
 #include "conf/ut/common.h"
 #include "lib/buf.h"       /* m0_buf, M0_BUF_INITS */
 #include "lib/errno.h"     /* ENOENT */
+#include "lib/fs.h"        /* m0_file_read */
 #include "lib/memory.h"    /* m0_free0 */
+#include "ut/misc.h"       /* M0_UT_PATH */
 #include "ut/ut.h"
 
 static void test_obj_xtors(void)
@@ -182,8 +184,8 @@ static void test_obj_fill(void)
 
 struct m0_ut_suite conf_ut = {
 	.ts_name  = "conf-ut",
-	.ts_init  = conf_ut_cache_init,
-	.ts_fini  = conf_ut_cache_fini,
+	.ts_init  = m0_conf_ut_cache_init,
+	.ts_fini  = m0_conf_ut_cache_fini,
 	.ts_tests = {
 		{ "obj-xtors",   test_obj_xtors },
 		{ "cache",       test_cache     },

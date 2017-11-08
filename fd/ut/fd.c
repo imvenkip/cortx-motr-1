@@ -28,7 +28,7 @@
 #include "lib/memory.h"     /* m0_alloc */
 #include "lib/fs.h"         /* m0_file_read */
 #include "lib/errno.h"      /* EINVAL */
-#include "conf/ut/common.h" /* conf_ut_ast_thread_init */
+#include "conf/ut/common.h" /* m0_conf_ut_ast_thread_init */
 #include "ut/ut.h"          /* M0_UT_ASSERT */
 
 /* Conf parameters. */
@@ -613,9 +613,9 @@ void test_fd_mapping(void)
 }
 
 struct m0_ut_suite failure_domains_ut = {
-	.ts_name = "failure_domains-ut",
-	.ts_init  = conf_ut_ast_thread_init,
-	.ts_fini  = conf_ut_ast_thread_fini,
+	.ts_name  = "failure_domains-ut",
+	.ts_init  = m0_conf_ut_ast_thread_init,
+	.ts_fini  = m0_conf_ut_ast_thread_fini,
 	.ts_tests = {
 		{"test_ft_mapping", test_ft_mapping},
 		{"test_pv2fd_conv", test_pv2fd_conv},

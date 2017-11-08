@@ -92,7 +92,7 @@ static void test_pver_find(void)
 	const uint32_t        tolvec[M0_CONF_PVER_HEIGHT] = {0, 0, 0, 1, 2};
 	int                   rc;
 
-	conf_ut_cache_from_file(cache, M0_SRC_PATH("conf/ut/pvers.xc"));
+	m0_conf_ut_cache_from_file(cache, M0_SRC_PATH("conf/ut/pvers.xc"));
 	/*
 	 * m0_conf_pver_find() tests.
 	 */
@@ -179,8 +179,8 @@ static void test_pver_find(void)
 
 struct m0_ut_suite conf_pvers_ut = {
 	.ts_name  = "conf-pvers-ut",
-	.ts_init  = conf_ut_cache_init,
-	.ts_fini  = conf_ut_cache_fini,
+	.ts_init  = m0_conf_ut_cache_init,
+	.ts_fini  = m0_conf_ut_cache_fini,
 	.ts_tests = {
 		{ "fid",         test_pver_fid },
 		{ "pver-find",   test_pver_find },

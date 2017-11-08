@@ -25,12 +25,14 @@
 #include "conf/obj_ops.h"         /* M0_CONF_DIREND */
 #include "conf/helpers.h"         /* m0_conf_root_open */
 #include "conf/ut/confc.h"        /* m0_ut_conf_fids */
-#include "conf/ut/common.h"       /* conf_ut_waiter */
+#include "conf/ut/common.h"       /* m0_conf_ut_waiter */
 #include "conf/ut/rpc_helpers.h"  /* m0_ut_rpc_machine_start */
 #include "rpc/rpclib.h"           /* m0_rpc_server_ctx */
 #include "lib/finject.h"          /* m0_fi_enable_once */
 #include "lib/errno.h"            /* ENOENT */
+#include "lib/fs.h"               /* m0_file_read */
 #include "lib/memory.h"           /* m0_free */
+#include "ut/misc.h"              /* M0_UT_PATH, M0_UT_CONF_PROFILE */
 #include "ut/ut.h"
 
 static uint8_t  g_num;
@@ -156,18 +158,18 @@ static void sdev_disk_check(struct m0_confc *confc)
 static void nodes_open(struct m0_conf_obj **result,
 		       struct m0_confc     *confc)
 {
-	struct conf_ut_waiter w;
-	int                   rc;
+	struct m0_conf_ut_waiter w;
+	int                      rc;
 
-	conf_ut_waiter_init(&w, confc);
+	m0_conf_ut_waiter_init(&w, confc);
 	m0_confc_open(&w.w_ctx, NULL,
 			M0_CONF_ROOT_PROFILES_FID,
 			m0_ut_conf_fids[M0_UT_CONF_PROF],
 			M0_CONF_PROFILE_FILESYSTEM_FID,
 			M0_CONF_FILESYSTEM_NODES_FID);
-	rc = conf_ut_waiter_wait(&w, result);
+	rc = m0_conf_ut_waiter_wait(&w, result);
 	M0_UT_ASSERT(rc == 0);
-	conf_ut_waiter_fini(&w);
+	m0_conf_ut_waiter_fini(&w);
 
 	M0_UT_ASSERT((*result)->co_status == M0_CS_READY);
 	M0_UT_ASSERT((*result)->co_cache == &confc->cc_cache);
@@ -191,11 +193,11 @@ static int dir_entries_use(struct m0_conf_obj *dir,
 			   void (*use)(const struct m0_conf_obj *),
 			   bool (*stop_at)(const struct m0_conf_obj *))
 {
-	struct conf_ut_waiter  w;
-	struct m0_conf_obj    *entry = NULL;
-	int                    rc;
+	struct m0_conf_ut_waiter  w;
+	struct m0_conf_obj       *entry = NULL;
+	int                       rc;
 
-	conf_ut_waiter_init(&w, m0_confc_from_obj(dir));
+	m0_conf_ut_waiter_init(&w, m0_confc_from_obj(dir));
 
 	while ((rc = m0_confc_readdir(&w.w_ctx, dir, &entry)) > 0) {
 		if (rc == M0_CONF_DIRNEXT) {
@@ -213,7 +215,7 @@ static int dir_entries_use(struct m0_conf_obj *dir,
 
 		/* Cache miss. */
 		M0_ASSERT(rc == M0_CONF_DIRMISS);
-		rc = conf_ut_waiter_wait(&w, &entry);
+		rc = m0_conf_ut_waiter_wait(&w, &entry);
 		if (rc != 0 /* error */ || entry == NULL /* end of directory */)
 			break;
 
@@ -222,12 +224,12 @@ static int dir_entries_use(struct m0_conf_obj *dir,
 			break;
 
 		/* Re-initialise m0_confc_ctx. */
-		conf_ut_waiter_fini(&w);
-		conf_ut_waiter_init(&w, m0_confc_from_obj(dir));
+		m0_conf_ut_waiter_fini(&w);
+		m0_conf_ut_waiter_init(&w, m0_confc_from_obj(dir));
 	}
 
 	m0_confc_close(entry);
-	conf_ut_waiter_fini(&w);
+	m0_conf_ut_waiter_fini(&w);
 	return rc;
 }
 
@@ -283,12 +285,12 @@ static void _retrieval_initiate(struct m0_confc_ctx *ctx)
 
 static void misc_test(struct m0_confc *confc)
 {
-	struct m0_conf_obj    *obj;
-	struct conf_ut_waiter  w;
-	struct m0_fid          fids[M0_CONF_PATH_MAX + 2];
-	int                    i;
-	int                    rc;
-	struct m0_conf_obj    *result;
+	struct m0_conf_obj       *obj;
+	struct m0_conf_ut_waiter  w;
+	struct m0_fid             fids[M0_CONF_PATH_MAX + 2];
+	int                       i;
+	int                       rc;
+	struct m0_conf_obj       *result;
 
 	/*
 	 * We should be able to call m0_confc_ctx_fini() right after
@@ -310,11 +312,11 @@ static void misc_test(struct m0_confc *confc)
 	 * outlive the array of path components, constructed by
 	 * m0_confc_open().
 	 */
-	conf_ut_waiter_init(&w, confc);
+	m0_conf_ut_waiter_init(&w, confc);
 	_retrieval_initiate(&w.w_ctx);
-	(void)conf_ut_waiter_wait(&w, &obj);
+	(void)m0_conf_ut_waiter_wait(&w, &obj);
 	m0_confc_close(obj);
-	conf_ut_waiter_fini(&w);
+	m0_conf_ut_waiter_fini(&w);
 
 	/*
 	 * Check for too long path requested by user.
@@ -325,29 +327,29 @@ static void misc_test(struct m0_confc *confc)
 	/* Terminate array with M0_FID0 */
 	fids[ARRAY_SIZE(fids) - 1] = M0_FID_INIT(0, 0);
 
-	conf_ut_waiter_init(&w, confc);
+	m0_conf_ut_waiter_init(&w, confc);
 	m0_confc__open(&w.w_ctx, NULL, fids);
-	rc = conf_ut_waiter_wait(&w, &result);
+	rc = m0_conf_ut_waiter_wait(&w, &result);
 	M0_UT_ASSERT(rc == -E2BIG);
-	conf_ut_waiter_fini(&w);
+	m0_conf_ut_waiter_fini(&w);
 }
 
 static void open_by_fid_test(struct m0_confc *confc)
 {
-	struct conf_ut_waiter w;
-	struct m0_conf_obj   *obj;
-	struct m0_conf_node  *node;
-	int                   rc;
+	struct m0_conf_ut_waiter w;
+	struct m0_conf_obj      *obj;
+	struct m0_conf_node     *node;
+	int                      rc;
 
-	conf_ut_waiter_init(&w, confc);
+	m0_conf_ut_waiter_init(&w, confc);
 	m0_confc_open_by_fid(&w.w_ctx, &m0_ut_conf_fids[M0_UT_CONF_NODE]);
-	rc = conf_ut_waiter_wait(&w, &obj);
+	rc = m0_conf_ut_waiter_wait(&w, &obj);
 	M0_UT_ASSERT(rc == 0);
 	node = M0_CONF_CAST(obj, m0_conf_node);
 	M0_UT_ASSERT(node->cn_memsize == 16000);
 	M0_UT_ASSERT(node->cn_nr_cpu == 2);
 	m0_confc_close(obj);
-	conf_ut_waiter_fini(&w);
+	m0_conf_ut_waiter_fini(&w);
 
 	obj = NULL;
 	rc = m0_confc_open_by_fid_sync(confc, &m0_ut_conf_fids[M0_UT_CONF_NODE],
@@ -491,8 +493,8 @@ static void test_confc_invalid_input(void)
 
 struct m0_ut_suite confc_ut = {
 	.ts_name  = "confc-ut",
-	.ts_init  = conf_ut_ast_thread_init,
-	.ts_fini  = conf_ut_ast_thread_fini,
+	.ts_init  = m0_conf_ut_ast_thread_init,
+	.ts_fini  = m0_conf_ut_ast_thread_fini,
 	.ts_tests = {
 		{ "local",        test_confc_local },
 		{ "mw-core-mask", test_confc_multiword_core_mask },

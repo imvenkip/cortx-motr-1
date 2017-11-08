@@ -25,6 +25,7 @@
 #include "conf/ut/common.h"   /* m0_conf_ut_xprt */
 #include "fis/fi_command.h"
 #include "rpc/rpclib.h"       /* m0_rpc_server_ctx, m0_rpc_client_ctx */
+#include "ut/misc.h"          /* M0_UT_CONF_PROCESS, M0_UT_CONF_PROFILE */
 #include "ut/ut.h"
 
 enum {

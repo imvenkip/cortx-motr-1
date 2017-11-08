@@ -32,7 +32,9 @@
 #include "conf/ut/rpc_helpers.h"       /* m0_ut_rpc_machine_start */
 #include "rpc/rpclib.h"                /* m0_rpc_server_ctx */
 #include "lib/finject.h"
+#include "lib/fs.h"                    /* m0_file_read */
 #include "module/instance.h"           /* m0_get */
+#include "ut/misc.h"                   /* M0_UT_PATH, M0_UT_CONF_PROCESS */
 #include "ut/ut.h"
 
 static struct m0_semaphore   g_expired_sem;
@@ -1401,12 +1403,12 @@ static void test_drain(void)
 
 static int rconfc_ut_init(void)
 {
-	return conf_ut_ast_thread_init();
+	return m0_conf_ut_ast_thread_init();
 }
 
 static int rconfc_ut_fini(void)
 {
-	return conf_ut_ast_thread_fini();
+	return m0_conf_ut_ast_thread_fini();
 }
 
 struct m0_ut_suite rconfc_ut = {

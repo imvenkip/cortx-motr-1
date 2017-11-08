@@ -24,6 +24,7 @@
 #include "lib/memory.h"    /* m0_free */
 #include "lib/errno.h"     /* ENOENT */
 #include "lib/string.h"    /* m0_streq */
+#include "ut/misc.h"       /* M0_UT_PATH */
 #include "ut/ut.h"
 
 static struct err_entry {
@@ -223,15 +224,24 @@ errfunc(int errcode, const struct m0_conf_obj *obj, const struct m0_fid *path)
 
 static int conf_glob_ut_init(void)
 {
-	(void)conf_ut_cache_init();
-	conf_ut_cache_from_file(&m0_conf_ut_cache, M0_UT_PATH("conf.xc"));
-	return 0;
+	int rc;
+
+	rc = m0_conf_ut_cache_init();
+	if (rc == 0)
+		m0_conf_ut_cache_from_file(&m0_conf_ut_cache,
+					   M0_UT_PATH("conf.xc"));
+	return rc;
+}
+
+static int conf_glob_ut_fini(void)
+{
+	return m0_conf_ut_cache_fini();
 }
 
 struct m0_ut_suite conf_glob_ut = {
 	.ts_name  = "conf-glob-ut",
 	.ts_init  = conf_glob_ut_init,
-	.ts_fini  = conf_ut_cache_fini,
+	.ts_fini  = conf_glob_ut_fini,
 	.ts_tests = {
 		{ "glob",        test_conf_glob },
 		{ "glob-errors", test_conf_glob_errors },

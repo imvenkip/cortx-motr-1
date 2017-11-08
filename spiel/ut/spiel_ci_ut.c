@@ -32,7 +32,7 @@
 #include "rm/rm_service.h"    /* m0_rms_type */
 #include "lib/finject.h"
 #include "lib/fs.h"           /* m0_file_read */
-#include "conf/ut/common.h"   /* conf_ut_ast_thread_fini */
+#include "conf/ut/common.h"   /* m0_conf_ut_ast_thread_fini */
 #include "ut/misc.h"          /* M0_UT_PATH */
 #include "ut/ut.h"
 #include "mero/version.h"     /* m0_build_info_get */
@@ -777,14 +777,19 @@ static void test_spiel_dix_rebalance(void)
 	test_spiel_pool_rebalance(M0_REPREB_TYPE_DIX);
 }
 
+static int spiel_ci_tests_init()
+{
+	return m0_conf_ut_ast_thread_init();
+}
+
 static int spiel_ci_tests_fini()
 {
-	return conf_ut_ast_thread_fini() ?: system("rm -rf ut_spiel.db/");
+	return m0_conf_ut_ast_thread_fini() ?: system("rm -rf ut_spiel.db/");
 }
 
 struct m0_ut_suite spiel_ci_ut = {
 	.ts_name  = "spiel-ci-ut",
-	.ts_init  = conf_ut_ast_thread_init,
+	.ts_init  = spiel_ci_tests_init,
 	.ts_fini  = spiel_ci_tests_fini,
 	.ts_tests = {
 		{ "service-cmds", test_spiel_service_cmds },

@@ -25,7 +25,9 @@
 #include "conf/ut/confc.h"  /* m0_ut_conf_fids */
 #include "conf/ut/common.h"
 #include "lib/finject.h"    /* m0_fi_enable */
+#include "lib/fs.h"         /* m0_file_read */
 #include "be/ut/helper.h"   /* m0_be_ut_backend_init */
+#include "ut/misc.h"        /* M0_UT_PATH */
 #include "ut/ut.h"
 
 static struct m0_be_ut_backend ut_be;
