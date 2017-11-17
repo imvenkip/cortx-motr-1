@@ -356,7 +356,7 @@ M0_INTERNAL void m0_rm_resource_del(struct m0_rm_resource *res)
 	M0_ENTRY("resource : %p", res);
 	m0_mutex_lock(&rtype->rt_lock);
 	M0_PRE(res->r_ref == 0);
-	M0_PRE(res_tlist_contains(&rtype->rt_resources, res));
+	M0_PRE_EX(res_tlist_contains(&rtype->rt_resources, res));
 	M0_PRE(m0_remotes_tlist_is_empty(&res->r_remote));
 	M0_PRE(m0_owners_tlist_is_empty(&res->r_local));
 	M0_PRE_EX(resource_type_invariant(rtype));
@@ -365,7 +365,7 @@ M0_INTERNAL void m0_rm_resource_del(struct m0_rm_resource *res)
 	M0_CNT_DEC(rtype->rt_nr_resources);
 
 	M0_POST_EX(resource_type_invariant(rtype));
-	M0_POST(!res_tlist_contains(&rtype->rt_resources, res));
+	M0_POST_EX(!res_tlist_contains(&rtype->rt_resources, res));
 	m0_remotes_tlist_fini(&res->r_remote);
 	m0_owners_tlist_fini(&res->r_local);
 	m0_rm_resource_bob_fini(res);
