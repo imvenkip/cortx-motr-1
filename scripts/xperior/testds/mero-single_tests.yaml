@@ -353,6 +353,14 @@ Tests:
     sandbox  : /var/mero/sandbox.38sns-abort-quiesce-test
     polltime : 30
     timeout  : 1800
+
+  - id       : 39mount-fail
+    script   : m0mount-fail
+    dir      : src/st
+    executor : Xperior::Executor::MeroTest
+    sandbox  : /var/mero/sandbox.m0mount-fail-test
+    polltime : 30
+    timeout  : 120
 # 25 min
 dangerous: 'yes'
 description: Set of Mero  tests
@@ -363,4 +371,3 @@ roles: StoreSyslog StacktraceGenerator StoreConsole MeroStoreStat MeroReportBug
 schema: data/schemas/testds.yaml
 tags: mero
 timeout: 300
-

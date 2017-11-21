@@ -4,7 +4,7 @@
 set -eu
 
 ## CAUTION: This path will be removed by superuser.
-SANDBOX_DIR=${SANDBOX_DIR:-/var/mero/sandbox.m0mount-fail-st}
+SANDBOX_DIR=${SANDBOX_DIR:-/var/mero/sandbox.m0mount-fail-test}
 
 M0_TRACE_IMMEDIATE_MASK=${M0_TRACE_IMMEDIATE_MASK:-all}
 M0_TRACE_LEVEL=${M0_TRACE_LEVEL:-warn+}
@@ -140,7 +140,7 @@ conf_normal() {
 (service-4 type=@M0_CST_MGS endpoints=["$M0D1_ENDPOINT"] sdevs=[])
 (service-5 type=@M0_CST_SSS endpoints=["$M0D1_ENDPOINT"] sdevs=[])
 (service-6 type=@M0_CST_RMS endpoints=["$M0D1_ENDPOINT"] sdevs=[])
-(pool-0 order=0 pvers=[pver-0])
+(pool-0 pver_policy=0 pvers=[pver-0])
 (pver-0 N=2 K=1 P=4 tolerance=[0, 0, 0, 0, 1] rackvs=[objv-0])
 (objv-0 real=rack-0 children=[objv-1])
 (objv-1 real=enclosure-0 children=[objv-2])
