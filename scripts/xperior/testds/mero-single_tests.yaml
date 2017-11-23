@@ -341,7 +341,7 @@ Tests:
   - id       : 37protocol
     script   : protocol
     dir      : src/st/
-    executor : Xperior::Executor::MeroTest
+    executor : Xperior::Executor::Skip
     sandbox  : /var/mero/sandbox.37protocol
     polltime : 30
     timeout  : 180
