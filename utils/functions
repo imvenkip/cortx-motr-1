@@ -62,7 +62,7 @@ m0_modules_insert() {
         die 'Inserting m0gf.ko failed'
 
     insmod $M0_SRC_DIR/mero/m0mero.ko \
-    local_addr=$M0T1FS_ENDPOINT \
+    local_addr=${M0T1FS_ENDPOINT%:*}: \
     max_rpc_msg_size=$MAX_RPC_MSG_SIZE \
     tm_recv_queue_min_len=$TM_MIN_RECV_QUEUE_LEN \
     ${M0_TRACE_IMMEDIATE_MASK:+trace_immediate_mask=$M0_TRACE_IMMEDIATE_MASK} \
@@ -95,7 +95,7 @@ lnet_up() {
     ##
     ## The PID value of 12345 is used by Lustre in the kernel and is
     ## the only value currently supported.
-    export M0T1FS_ENDPOINT="$LNET_NID:12345:34:"
+    export M0T1FS_ENDPOINT="$LNET_NID:12345:34:1"
     export M0D1_ENDPOINT="$LNET_NID:12345:34:1001"
     export M0D2_ENDPOINT="$LNET_NID:12345:34:1002"
     export M0D3_ENDPOINT="$LNET_NID:12345:34:1003"
