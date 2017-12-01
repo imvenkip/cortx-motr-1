@@ -94,7 +94,16 @@ BuildRequires:  perl-IO-All
 BuildRequires:  perl-File-Slurp
 BuildRequires:  perl-YAML-LibYAML
 BuildRequires:  kernel-devel = %{kernel_ver_requires}
+# A self-contained lustre-devel package was provided only by Xyratex/Seagate
+# Lustre version but at some point they dropped it. The Intel Lustre provides
+# dkms package that can be used as a replacement for lustre-devel, but first it
+# must be built manually after installation. When build node is provisioned by
+# Ansible scripts it's done automatically. In other cases it doesn't make much
+# sense to require the devel package and it's assumed that Lustre headers are
+# already provided in one way or another.
+%if %{intel_lustre}
 BuildRequires:  %{lustre_devel}
+%endif
 BuildRequires:  libuuid-devel
 BuildRequires:  binutils-devel
 BuildRequires:  python-ply
