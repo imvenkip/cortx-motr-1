@@ -1,0 +1,11 @@
+@startuml
+[*] --> INIT
+INIT --> IDLE
+IDLE --> READ      : PD.request_queue.push()
+READ --> READ_DONE : stob io signalled
+READ_DONE --> IDLE
+IDLE --> WRITE     : PD.request_queue.push()
+WRITE --> WRITE_DONE : stob io signalled
+WRITE_DONE --> IDLE
+IDLE --> FINI        : PD.fini() called
+@enduml

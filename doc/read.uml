@@ -1,0 +1,42 @@
+@startuml
+participant ReqH
+control User_FOM
+participant PageD
+control PageD_FOM
+
+ReqH -> User_FOM : tick()
+User_FOM -> PageD : reg_get(reg, op)
+PageD --> User_FOM : // page is in
+PageD -> PageD : pages[] = reg_to_pages(reg)
+PageD -> PageD : PD.address_space.page_is_in(pages)?
+PageD -> PageD : PD.request_queue.push(request(READ, pages[], op)
+PageD -> PageD : m0_fom_wait_on(fom, op)
+PageD -> PageD : M0_CO_YIELD()
+PageD --> User_FOM : return control
+User_FOM --> ReqH : return to ReqH, process next FOM
+
+note over ReqH, PageD_FOM
+Wait until PageD_FOM to wakeup and process pushed request
+end note
+
+ref over PageD_FOM : IDLE
+PageD_FOM -> PageD_FOM : request = PD.request_queue.pop()
+ref over PageD_FOM : READ
+PageD_FOM -> PageD_FOM : mmap(request.pages[i].addr, request.pages[i].size)
+PageD_FOM -> PageD_FOM : mlock(request.pages[i].addr, request.pages[i].size)
+PageD_FOM -> PageD_FOM : stob_io_fill(io, request.pages[i].offset, request.pages[i].size)
+PageD_FOM -> PageD_FOM : m0_fom_wait_on(fom, io->chan)
+PageD_FOM -> PageD_FOM : stob_io_launch(io)
+ref over PageD_FOM : READ_DONE
+PageD_FOM -> PageD_FOM : m0_be_op_done(request.op)
+ref over PageD_FOM : IDLE
+
+note over ReqH, PageD_FOM
+PageD_FOM processed given request, wait untill notification to arrive inside corresponding User_FOM
+end note
+
+ReqH -> ReqH : wakeup FOM waiting on request.op
+ReqH -> User_FOM : tick()
+User_FOM -> User_FOM : M0_CO_REENTER()
+User_FOM -> User_FOM : restore control over line after M0_CO_YIELD()
+@enduml

@@ -1,0 +1,8 @@
+@startuml
+Setup -> BE_Domain : be_domain_start_stop()
+BE_Domain -> BE_Domain : be_domain_seg_open()
+activate BE_Domain
+BE_Domain -> BE_Seg : m0_be_seg_open()
+BE_Seg -> PageD : paged_address_space_attach(addr, size)
+deactivate BE_Domain
+@enduml

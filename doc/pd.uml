@@ -1,0 +1,38 @@
+@startuml
+class PageD {
+-address_space[]
+-request_queue
+-paged_fom[]
++reg_get()
++reg_put()
++address_space_attach()
++address_space_detach()
+}
+
+class address_space {
+-flags
+-page[]
+-cellar[]
+}
+
+class page {
+}
+
+class request_queue {
++push()
++pop()
+}
+
+class request {
+}
+
+class PageD_FOM {
+}
+
+class PageD "1" --* "*" class address_space
+class PageD "1" --* "*" class request_queue
+class PageD "1" --* "*" class PageD_FOM
+
+class request_queue "1" --* "*" class request
+class address_space "1" --* "*" class page
+@enduml

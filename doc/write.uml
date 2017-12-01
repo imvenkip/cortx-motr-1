@@ -1,0 +1,36 @@
+@startuml
+participant ReqH
+control TxGrp_FOM
+participant PageD
+control PageD_FOM
+
+ReqH -> TxGrp_FOM : tx_group_fom_tick()
+ref over TxGrp_FOM : TGS_PLACING
+TxGrp_FOM -> TxGrp_FOM : copy gr.tg_reg_area.regs data into corresponding cellar pages
+TxGrp_FOM -> TxGrp_FOM : pages[] = dirty_cellar_pages()
+TxGrp_FOM -> TxGrp_FOM : PD.request_queue.push(request(WRITE, pages[], op))
+TxGrp_FOM -> TxGrp_FOM : m0_be_op_tick_ret(op, fom, TGS_PLACED)
+
+note over ReqH, PageD_FOM
+Wait until PageD_FOM to wakeup and process pushed request
+end note
+
+ref over PageD_FOM : IDLE
+PageD_FOM -> PageD_FOM : request = PD.request_queue.pop()
+ref over PageD_FOM : WRITE
+PageD_FOM -> PageD_FOM : stob_io_fill(io, request.pages[i].offset, request.pages[i].size)
+PageD_FOM -> PageD_FOM : m0_fom_wait_on(fom, io->chan)
+PageD_FOM -> PageD_FOM : stob_io_launch(io)
+ref over PageD_FOM : WRITE_DONE
+PageD_FOM -> PageD_FOM : m0_be_op_done(request.op)
+ref over PageD_FOM : IDLE
+
+note over ReqH, PageD_FOM
+PageD_FOM processed given request, wait until notification to arrive inside corresponding TxGrp_FOM
+end note
+
+ReqH -> ReqH : wakeup FOM waiting on request.op in the next (TGS_PLACED) state
+ref over TxGrp_FOM : TGS_PLACED
+ReqH -> TxGrp_FOM : tx_group_fom_tick()
+
+@enduml
