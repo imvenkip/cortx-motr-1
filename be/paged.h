@@ -46,12 +46,24 @@ struct m0_be_pd {
 	struct                        *bp_fom;
 };
 
+enum m0_be_pd_page_state {
+	M0_PPS_INIT,
+	M0_PPS_FINI,
+	M0_PPS_UNMAPPED,
+	M0_PPS_MAPPED,
+	M0_PPS_READING,
+	M0_PPS_READY,
+	M0_PPS_WRITING,
+};
+
 struct m0_be_pd_page {
 	void        *pp_page;
 	void        *pp_cellar;
 	m0_bcount_t  pp_size;
 	m0_bcount_t  pp_ref;
 	bool         pp_dirty;
+	enum m0_be_pd_page_state pp_state;
+	m0_mutex     pp_lock;
 };
 
 struct m0_be_pd_mapping {
@@ -62,6 +74,8 @@ struct m0_be_pd_mapping {
 
 M0_INTERNAL bool m0_be_pd_pages_are_in(struct m0_be_pd               *paged,
 				       struct m0_be_pd_request_pages *pages);
+M0_INTERNAL bool m0_be_pd_page_is_in(struct m0_be_pd *paged,
+				     struct m0_be_pd_page *page);
 
 /**
  * (struct m0_be_pd, struct m0_be_pd_pages)
@@ -133,10 +147,8 @@ M0_INTERNAL int m0_be_pd_request_queue_init(struct m0_be_pd_request_queue *rq);
 M0_INTERNAL void m0_be_pd_request_queue_fini(struct m0_be_pd_request_queue *rq);
 
 
-M0_INTERNAL int m0_be_pd_request_queue_pop(
-	struct m0_be_pd_request_queue   *request,
-	struct m0_fom                   *fom,
-	struct m0_co_context            *context);
+M0_INTERNAL struct m0_be_pd_request *
+m0_be_pd_request_queue_pop(struct m0_be_pd_request_queue *queue);
 
 M0_INTERNAL void
 m0_be_pd_request_queue_push(struct m0_be_pd_request_queue *rqueue,
@@ -162,9 +174,10 @@ M0_INTERNAL void m0_be_pd_reg_put(struct m0_be_pd        *paged,
 /* ------------------------------------------------------------------------- */
 
 struct m0_be_pd_fom {
-	struct m0_fom          bpf_gen;
-	struct m0_reqh        *bpf_reqh;
-	struct m0_be_pd       *bpf_pd;
+	struct m0_fom            bpf_gen;
+	struct m0_reqh          *bpf_reqh;
+	struct m0_be_pd         *bpf_pd;
+	struct m0_be_pd_request *bpf_cur_request;
 };
 
 M0_INTERNAL void m0_be_pd_fom_init(struct m0_be_pd_fom    *fom,
@@ -189,6 +202,26 @@ enum m0_be_pd_fom_state {
 
 	PFS_NR,
 }
+
+/* --- */
+
+enum m0_be_pd_io_type {
+	M0_PIT_READ,
+	M0_PIT_WRITE,
+};
+
+struct m0_be_pd_io {
+};
+
+M0_INTERNAL int m0_be_pd_io_init(struct m0_be_pd_io *pio, struct m0_be_pd *paged,
+			     enum m0_be_pd_io_type type);
+M0_INTERNAL void m0_be_pd_io_fini(struct m0_be_pd_io *pio);
+M0_INTERNAL struct m0_be_pd_io *m0_be_pd_io_get(struct m0_be_pd *paged);
+M0_ITNERNAL void m0_be_pd_io_put(struct m0_be_pd_io *pio);
+M0_INTERNAL int m0_be_pd_io_launch(struct m0_be_pd_io *pio);
+M0_INTENRAL void m0_be_pd_io_read_add(struct m0_be_pd_io *pio,
+				 struct m0_be_pd_page *page);
+M0_INTENRAL void m0_be_pd_io_write_add(struct m0_be_pd_io *pio); /* XXX add parameters */
 
 /* ------------------------------------------------------------------------- */
 
