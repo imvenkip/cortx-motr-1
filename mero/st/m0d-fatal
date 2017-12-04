@@ -119,7 +119,7 @@ stub_confdb() {
     services=[service-4, service-5, service-6])
 (service-0 type=@M0_CST_RMS endpoints=["$M0D1_ENDPOINT"] sdevs=[])
 (service-1 type=@M0_CST_HA endpoints=["$M0D1_ENDPOINT"] sdevs=[])
-(service-2 type=@M0_CST_MGS endpoints=["$M0D1_ENDPOINT"] sdevs=[])
+(service-2 type=@M0_CST_CONFD endpoints=["$M0D1_ENDPOINT"] sdevs=[])
 (service-3 type=@M0_CST_FIS endpoints=["$M0D1_ENDPOINT"] sdevs=[])
 (service-4 type=@M0_CST_IOS endpoints=["$M0D2_ENDPOINT"] sdevs=[sdev-1, sdev-2, sdev-3,
     sdev-4])

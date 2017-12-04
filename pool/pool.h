@@ -156,9 +156,6 @@ struct m0_pools_common {
 
 	struct m0_rpc_machine            *pc_rmach;
 
-	/** service context of MGS.*/
-	struct m0_reqh_service_ctx        pc_mgs;
-
 	/**
 	  List of m0_reqh_service_ctx objects hanging using sc_link.
 	  tlist descriptor: svc_ctx_tl

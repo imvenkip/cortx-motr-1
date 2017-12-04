@@ -584,7 +584,7 @@ function build_conf()
   {0x6e| (($NODE), 16000, 2, 3, 2, $POOLID,
 	[$(($M0D + 1)): ${PROC_NAMES[@]}])},
   $PROC_OBJS,
-  {0x73| (($CONFD), @M0_CST_MGS, [1: $CONFD_ENDPOINT], [0])},
+  {0x73| (($CONFD), @M0_CST_CONFD, [1: $CONFD_ENDPOINT], [0])},
   {0x73| (($HA_SVC_ID), @M0_CST_HA, [1: $HA_ENDPOINT], [0])},
   {0x73| (($FIS_SVC_ID), @M0_CST_FIS, [1: $HA_ENDPOINT], [0])},
   $M0T1FS_RM,

@@ -434,7 +434,7 @@ static void spiel_conf_create_conf_with_opt(struct m0_spiel    *spiel,
 				  &service_info);
 	M0_UT_ASSERT(rc == 0);
 
-	service_info.svi_type = M0_CST_MGS;
+	service_info.svi_type = M0_CST_CONFD;
 			rc = m0_spiel_service_add(tx,
 				  &spiel_obj_fid[SPIEL_UT_OBJ_SERVICE3],
 				  &spiel_obj_fid[SPIEL_UT_OBJ_PROCESS],
@@ -1284,7 +1284,7 @@ static void spiel_conf_create_fail(void)
 
 	/* Service */
 	service_info.svi_endpoints = ep;
-	service_info.svi_type = M0_CST_MGS;
+	service_info.svi_type = M0_CST_CONFD;
 	rc = m0_spiel_service_add(&tx,
 				  &fake_fid,
 				  &spiel_obj_fid[SPIEL_UT_OBJ_PROCESS],
@@ -1329,7 +1329,7 @@ static void spiel_conf_create_fail(void)
 				  &service_info);
 	M0_UT_ASSERT(rc == 0);
 
-	service_info.svi_type = M0_CST_MGS;
+	service_info.svi_type = M0_CST_CONFD;
 	spiel_obj_fid[SPIEL_UT_OBJ_SERVICE].f_container += 0x0100;
 	spiel_obj_fid[SPIEL_UT_OBJ_SERVICE].f_key += 0x0100;
 	rc = m0_spiel_service_add(&tx,
@@ -1375,7 +1375,7 @@ static void spiel_conf_create_fail(void)
 	M0_UT_ASSERT(rc == -EINVAL);
 
 	/* Normal */
-	service_info.svi_type = M0_CST_MGS;
+	service_info.svi_type = M0_CST_CONFD;
 	spiel_obj_fid[SPIEL_UT_OBJ_SERVICE].f_container += 0x0100;
 	spiel_obj_fid[SPIEL_UT_OBJ_SERVICE].f_key += 0x0100;
 	rc = m0_spiel_service_add(&tx,
@@ -1504,7 +1504,7 @@ static void spiel_conf_delete(void)
 # process "p1": ('r', 1,  6)
    {0x72| ((^r|1:6), [1:3], 0, 0, 0, 0, [0])},
 # service "s0": ('s', 1,  9)
-   {0x73| ((^s|1:9), @M0_CST_MGS, [3: "addr-0", "addr-1", "addr-2"],
+   {0x73| ((^s|1:9), @M0_CST_CONFD, [3: "addr-0", "addr-1", "addr-2"],
 	   [2: ^d|1:13, ^d|1:14])},
 # service "s1": ('s', 1, 10)
    {0x73| ((^s|1:10), @M0_CST_MDS, [1: "addr-3"],
@@ -1716,7 +1716,7 @@ static void spiel_conf_file_create_tree(struct m0_spiel_tx *tx)
 				  &bitmap, 4000, 1, 2, 3, ep[0]);
 	M0_UT_ASSERT(rc == 0);
 
-	service_info1.svi_type = M0_CST_MGS;
+	service_info1.svi_type = M0_CST_CONFD;
 	rc = m0_spiel_service_add(tx, &fid_service1, &fid_process1,
 				  &service_info1);
 	M0_UT_ASSERT(rc == 0);

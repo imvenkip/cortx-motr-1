@@ -397,18 +397,19 @@ M0_INTERNAL bool m0_conf_service_is_top_rms(const struct m0_conf_service *svc)
 
 	/* look up for confd on the same endpoint */
 	m0_conf_service_open(confc, m0_reqh2profile(reqh), svc->cs_endpoints[0],
-			     M0_CST_MGS, &confd);
+			     M0_CST_CONFD, &confd);
 	m0_confc_close(&confd->cs_obj);
 	return confd != NULL;
 }
 
 static const char *service_name[] = {
-	[0]              = NULL,             /* unused, enum declarations start
-					      *  from 1
+	[0]              = NULL,             /*
+					      * Unused, enum declarations start
+					      * from 1.
 					      */
 	[M0_CST_MDS]     = "mdservice",      /* Meta-data service. */
 	[M0_CST_IOS]     = "ioservice",      /* IO/data service. */
-	[M0_CST_MGS]     = "confd",          /* Management service (confd). */
+	[M0_CST_CONFD]   = "confd",          /* Confd service. */
 	[M0_CST_RMS]     = "rmservice",      /* RM service. */
 	[M0_CST_STS]     = "stats",          /* Stats service. */
 	[M0_CST_HA]      = "haservice",      /* HA service. */

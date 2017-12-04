@@ -11,6 +11,6 @@
     services=[service-0, service-1, service-2])
 (pool-0 pver_policy=0 pvers=[])
 (service-0 type=@M0_CST_MDS endpoints=["172.18.1.3@tcp:12345:41:201"] sdevs=[])
-(service-1 type=@M0_CST_MGS endpoints=["172.18.1.3@tcp:12345:44:101"] sdevs=[])
+(service-1 type=@M0_CST_CONFD endpoints=["172.18.1.3@tcp:12345:44:101"] sdevs=[])
 (service-2 type=@M0_CST_IOS endpoints=["172.18.1.3@tcp:12345:41:401"]
     sdevs=[]) # no IO devices

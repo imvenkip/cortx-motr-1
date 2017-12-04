@@ -135,11 +135,11 @@ static bool reqh_ctx_services_are_valid(const struct m0_reqh_context *rctx)
 {
 	struct m0_mero *cctx = container_of(rctx, struct m0_mero, cc_reqh_ctx);
 
-	return _0C(ergo(rctx->rc_services[M0_CST_MGS] != NULL &&
-			m0_streq(rctx->rc_services[M0_CST_MGS], "confd"),
+	return _0C(ergo(rctx->rc_services[M0_CST_CONFD] != NULL &&
+			m0_streq(rctx->rc_services[M0_CST_CONFD], "confd"),
 			rctx->rc_confdb != NULL && *rctx->rc_confdb != '\0')) &&
 	       _0C(cctx->cc_no_conf ||
-		   ergo(rctx->rc_services[M0_CST_MGS] == NULL,
+		   ergo(rctx->rc_services[M0_CST_CONFD] == NULL,
 			cctx->cc_ha_addr != NULL &&
 			*cctx->cc_ha_addr != '\0')) &&
 	       _0C(ergo(rctx->rc_nr_services != 0, rctx->rc_services != NULL &&

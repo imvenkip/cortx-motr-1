@@ -131,7 +131,7 @@ static char local_conf[] = "[42:\
            [0])},\
    {0x73| ((^s|1:5), @M0_CST_IOS, [3: \""LOCAL_EP"\", \"addr-1\", \"addr-2\"],\
            [5: ^d|1:10, ^d|1:11, ^d|1:12, ^d|1:13, ^d|1:14])},\
-   {0x73| ((^s|1:6), @M0_CST_MGS, [3: \""LOCAL_EP"\", \"addr-1\", \"addr-2\"],\
+   {0x73| ((^s|1:6), @M0_CST_CONFD, [3: \""LOCAL_EP"\", \"addr-1\", \"addr-2\"],\
            [0])},\
    {0x73| ((^s|1:7), @M0_CST_RMS, [3: \""LOCAL_EP"\", \"addr-1\", \"addr-2\"],\
            [0])},\

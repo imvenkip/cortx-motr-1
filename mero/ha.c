@@ -43,7 +43,7 @@
 #include "lib/finject.h"        /* M0_FI_ENABLED */
 
 #include "conf/helpers.h"       /* m0_conf_service_open */
-#include "conf/schema.h"        /* M0_CST_MGS */
+#include "conf/schema.h"        /* M0_CST_CONFD */
 #include "conf/cache.h"         /* m0_conf_cache_lock */
 #include "conf/obj_ops.h"       /* m0_conf_obj_put */
 #include "conf/obj.h"           /* m0_conf_obj_type */
@@ -142,7 +142,7 @@ static int mero_ha_confd_iter(const struct m0_fid         *profile,
 					     mero_ha_service_filter)) > 0) {
 		obj = m0_conf_diter_result(&it);
 		s = M0_CONF_CAST(obj, m0_conf_service);
-		if (s->cs_type == M0_CST_MGS) {
+		if (s->cs_type == M0_CST_CONFD) {
 			rc = confd_iter(s, rep, index++);
 			if (rc != 0)
 				goto leave;

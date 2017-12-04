@@ -453,7 +453,7 @@ struct m0_reqh_service_type m0_confd_stype = {
 	.rst_name     = "confd",
 	.rst_ops      = &confd_stype_ops,
 	.rst_level    = M0_RS_LEVEL_NORMAL,
-	.rst_typecode = M0_CST_MGS,
+	.rst_typecode = M0_CST_CONFD,
 };
 
 M0_INTERNAL int m0_confd_register(void)

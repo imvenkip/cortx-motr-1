@@ -20,7 +20,7 @@
 (service-3 type=@M0_CST_SNS_REP endpoints=["0@lo:12345:34:1"] sdevs=[])
 (service-4 type=@M0_CST_SNS_REB endpoints=["0@lo:12345:34:1"] sdevs=[])
 (service-5 type=@M0_CST_ADDB2 endpoints=["0@lo:12345:34:1"] sdevs=[])
-(service-6 type=@M0_CST_MGS endpoints=["0@lo:12345:34:1"] sdevs=[])
+(service-6 type=@M0_CST_CONFD endpoints=["0@lo:12345:34:1"] sdevs=[])
 (service-7 type=@M0_CST_HA endpoints=["0@lo:12345:34:1"] sdevs=[])
 (sdev-10 dev_idx=1 iface=4 media=1 bsize=4096 size=596000000000 last_state=3
     flags=4 filename="/dev/sdev0")

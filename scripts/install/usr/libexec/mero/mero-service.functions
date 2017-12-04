@@ -863,7 +863,7 @@ _type_id()
         mds*)          type_id=@M0_CST_MDS ;;
         ios*)          type_id=@M0_CST_IOS ;;
         fdmi*)         type_id=@M0_CST_FDMI ;;
-        confd)         type_id=@M0_CST_MGS ;;
+        confd)         type_id=@M0_CST_CONFD ;;
         rms*)          type_id=@M0_CST_RMS ;;
         ha)            type_id=@M0_CST_HA ;;
         sss)           type_id=@M0_CST_SSS ;;

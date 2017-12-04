@@ -639,7 +639,7 @@ static char *_conf_service_type_error(const struct m0_conf_filesystem *fs,
 					buf, buflen,
 					FID_F": Invalid service type: %d",
 					FID_P(&objv[i]->co_id), svc_type);
-			if (svc_type == M0_CST_MGS)
+			if (svc_type == M0_CST_CONFD)
 				confd_p = true;
 			else if (svc_type == M0_CST_MDS)
 				mds_p = true;

@@ -78,7 +78,7 @@ conf_obj_types = {
 
 # NOTE: Should be in sync with m0_conf_service_type in conf/schema.h.
 conf_service_types = (
-    '_UNUSED', 'MDS', 'IOS', 'MGS', 'RMS', 'STS', 'HA', 'SSS',
+    '_UNUSED', 'MDS', 'IOS', 'CONFD', 'RMS', 'STS', 'HA', 'SSS',
     'SNS_REP', 'SNS_REB', 'ADDB2', 'CAS', 'DIX_REP', 'DIX_REB',
     'DS1', 'DS2',  # UT-specific
     'FIS', 'FDMI'

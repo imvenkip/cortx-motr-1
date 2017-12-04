@@ -123,7 +123,7 @@ stub_confdb() {
 (service-2 type=@M0_CST_IOS endpoints=["$M0D1_ENDPOINT"]
     sdevs=[sdev-1, sdev-2, sdev-3, sdev-4])
 (service-3 type=@M0_CST_MDS endpoints=["$M0D1_ENDPOINT"] sdevs=[sdev-0])
-(service-4 type=@M0_CST_MGS endpoints=["$M0D1_ENDPOINT"] sdevs=[])
+(service-4 type=@M0_CST_CONFD endpoints=["$M0D1_ENDPOINT"] sdevs=[])
 (service-5 type=@M0_CST_SSS endpoints=["$M0D1_ENDPOINT"] sdevs=[])
 (service-6 type=@M0_CST_RMS endpoints=["$M0T1FS_ENDPOINT"] sdevs=[])
 (pool-0 pver_policy=0 pvers=[pver-0, pver_f-11])
@@ -330,9 +330,9 @@ commands = [
      '$M0T1FS_ENDPOINT'),
     ('process_add', tx, fids['process2'], fids['node'], cores, 0L, 0L, 0L, 0L,
      '$M0D2_ENDPOINT'),
-    ('service_add', tx, fids['confd'], fids['process'], M0_CST_MGS,
+    ('service_add', tx, fids['confd'], fids['process'], M0_CST_CONFD,
      ['$M0D1_ENDPOINT'], ServiceInfoParameters(confdb_path='$M0D1_ENDPOINT')),
-    ('service_add', tx, fids['confd2'], fids['process2'], M0_CST_MGS,
+    ('service_add', tx, fids['confd2'], fids['process2'], M0_CST_CONFD,
      ['$M0D2_ENDPOINT'], ServiceInfoParameters(confdb_path='$M0D2_ENDPOINT')),
     ('service_add', tx, fids['rms'], fids['process'], M0_CST_RMS,
      ['$M0D1_ENDPOINT'], ServiceInfoParameters()),

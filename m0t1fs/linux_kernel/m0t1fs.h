@@ -80,7 +80,7 @@
   Currently supported list of options is:
 
   - confd [value type: end-point address, e.g. 192.168.50.40@tcp:12345:34:1]
-      end-point address of confd (a.k.a. management service, mgs).
+      end-point address of confd service.
 
   - profile [value type: string]
       configuration profile used while fetching configuration data from confd.
