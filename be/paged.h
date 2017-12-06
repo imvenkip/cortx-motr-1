@@ -42,6 +42,12 @@ struct m0_fom;
 
 struct m0_be_pd {
 	struct m0_tl                   bp_mappings;
+
+	/**
+	 * NOTE: This queue may contain several subqueues, for example, for read
+	 * and write requests. It can slightly improve performance for cases
+	 * with blocked WRITE requests living in parallel with READ requests.
+	 */
 	struct m0_be_pd_request_queue  bp_reqq;
 	struct                        *bp_fom;
 };
@@ -57,20 +63,27 @@ enum m0_be_pd_page_state {
 };
 
 struct m0_be_pd_page {
-	void        *pp_page;
-	void        *pp_cellar;
-	m0_bcount_t  pp_size;
-	m0_bcount_t  pp_ref;
-	bool         pp_dirty;
+	void                    *pp_page;
+	void                    *pp_cellar;
+	m0_bcount_t              pp_size;
+	m0_bcount_t              pp_ref;
+	bool                     pp_dirty;
 	enum m0_be_pd_page_state pp_state;
-	m0_mutex     pp_lock;
+	m0_mutex                 pp_lock;
+	struct m0_tlink          pp_pio_tlink;
 };
 
 struct m0_be_pd_mapping {
 	struct m0_be_pd_page *pas_pages;
 	m0_bcount_t           pas_pcount;
 	struct m0_be_pd      *pas_pd;
+	struct m0_mutex       pas_lock;
 };
+
+M0_INTERNAL void m0_be_pd_mappings_lock(struct m0_be_pd *paged,
+					struct m0_be_pd_request *request);
+M0_INTERNAL void m0_be_pd_mappings_unlock(struct m0_be_pd *paged,
+					  struct m0_be_pd_request *request);
 
 M0_INTERNAL bool m0_be_pd_pages_are_in(struct m0_be_pd               *paged,
 				       struct m0_be_pd_request_pages *pages);
@@ -117,19 +130,26 @@ M0_INTERNAL void m0_be_pd_request_pages_init(struct m0_be_pd_request_pages *rqp,
 					     struct m0_be_reg_area     *rarea,
 					     struct m0_be_reg          *reg);
 
-/**
- * (struct m0_be_pd, struct m0_be_pd_request_pages)
- * M0_BE_PD_REQUEST_PAGES_FORALL(paged, page) {
- * }
- */
-#define M0_BE_PD_REQUEST_PAGES_FORALL(paged, page)
-
-
 struct m0_be_pd_request {
 	struct m0_be_op                prt_op;
 	struct m0_be_pd_request_pages  prt_pages;
 	struct m0_tlink                ptr_rq_link;
 };
+
+/**
+ * (struct m0_be_pd, struct m0_be_pd_request_pages)
+ * M0_BE_PD_REQUEST_PAGES_FORALL(paged, page) {
+ * }
+ */
+#define M0_BE_PD_REQUEST_PAGES_FORALL(paged, request, page)
+
+
+/**
+ * Copies data encapsulated inside request into cellar pages for write
+ */
+M0_INTERNAL void
+m0_be_pd_request__copy_to_cellars(struct m0_be_pd         *paged,
+				  struct m0_be_pd_request *request);
 
 M0_INTERNAL void m0_be_pd_request_init(struct m0_be_pd_request       *request,
 				       struct m0_be_pd_request_pages *pages);
@@ -219,9 +239,8 @@ M0_INTERNAL void m0_be_pd_io_fini(struct m0_be_pd_io *pio);
 M0_INTERNAL struct m0_be_pd_io *m0_be_pd_io_get(struct m0_be_pd *paged);
 M0_ITNERNAL void m0_be_pd_io_put(struct m0_be_pd_io *pio);
 M0_INTERNAL int m0_be_pd_io_launch(struct m0_be_pd_io *pio);
-M0_INTENRAL void m0_be_pd_io_read_add(struct m0_be_pd_io *pio,
+M0_INTENRAL void m0_be_pd_io_add(struct m0_be_pd_io *pio,
 				 struct m0_be_pd_page *page);
-M0_INTENRAL void m0_be_pd_io_write_add(struct m0_be_pd_io *pio); /* XXX add parameters */
 
 /* ------------------------------------------------------------------------- */
 
