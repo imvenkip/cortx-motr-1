@@ -28,6 +28,9 @@
 #include "rpc/at.h"
 #include "rpc/at_xc.h"
 
+/* import */
+struct m0_rpc_machine;
+
 enum {
 	DATA_PATTERN     = 0x0a,
 	INLINE_LEN       = 70,
@@ -49,6 +52,9 @@ enum {
 	AT_TEST_INBULK_RECV_UNK,
 	AT_TEST_INBULK_RECV,
 };
+
+M0_INTERNAL void atut__bufdata_alloc(struct m0_buf *buf, size_t size,
+				     struct m0_rpc_machine *rmach);
 
 struct atut__req {
 	uint32_t             arq_test_id;

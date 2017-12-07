@@ -92,6 +92,7 @@ include $(src)/format/Kbuild.sub
 include $(src)/graph/Kbuild.sub
 include $(src)/ha/Kbuild.sub
 include $(src)/ioservice/Kbuild.sub
+include $(src)/iscservice/Kbuild.sub
 include $(src)/layout/Kbuild.sub
 include $(src)/lib/Kbuild.sub
 include $(src)/mdservice/Kbuild.sub
@@ -143,6 +144,7 @@ include $(src)/file/ut/Kbuild.sub
 include $(src)/fd/ut/Kbuild.sub
 include $(src)/dtm/ut/Kbuild.sub
 include $(src)/ioservice/ut/Kbuild.sub
+include $(src)/iscservice/ut/Kbuild.sub
 include $(src)/layout/ut/Kbuild.sub
 include $(src)/lib/ut/Kbuild.sub
 include $(src)/m0t1fs/linux_kernel/ut/Kbuild.sub

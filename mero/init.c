@@ -66,6 +66,7 @@
 #include "cob/cob.h"
 #include "ioservice/io_fops.h"
 #include "ioservice/io_service.h"
+#include "iscservice/isc_service.h"
 #include "mdservice/md_fops.h"
 #include "mdservice/md_service.h"
 #include "rm/rm_service.h"
@@ -203,6 +204,8 @@ struct init_fini_call subsystem[] = {
 	 */
 	{ &m0_mds_register,     &m0_mds_unregister,   "mdservice"},
 	{ &m0_ios_register,     &m0_ios_unregister,   "ioservice" },
+	{ &m0_isc_mod_init,     &m0_isc_mod_fini,     "in-storage-compute"},
+	{ &m0_iscs_register,    &m0_iscs_unregister,  "iscervice" },
 	{ &m0_pools_init,       &m0_pools_fini,       "pool" },
 	{ &m0_cm_module_init,   &m0_cm_module_fini,   "copy machine" },
 	{ &m0_sns_init,         &m0_sns_fini,         "sns" },

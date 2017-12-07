@@ -46,6 +46,7 @@ enum m0_module_id {
 	M0_MODULE_HA,
 	M0_MODULE_PROCESSOR,
 	M0_MODULE_POOL,
+	M0_MODULE_ISC,
 	/* XXX ... more to come ... */
 	M0_MODULE_NR
 };
@@ -205,6 +206,7 @@ enum {
  * +------------------------------+
  */
 M0_INTERNAL void m0_instance_setup(struct m0 *instance);
+
 
 /** @} module */
 #endif /* __MERO_MODULE_INSTANCE_H__ */
