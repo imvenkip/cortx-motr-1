@@ -33,15 +33,24 @@
 #include "lib/mutex.h"
 #include "lib/tlist.h"
 
+#include "fop/fom.h"      /* m0_fom */
+
+#include "be/tx_regmap.h" /* m0_be_reg_area */
+#include "be/seg.h"       /* m0_be_reg */
+#include "be/op.h"        /* m0_be_op */
+
+struct m0_be_pd_request_queue;
 struct m0_be_pd_request_pages;
+struct m0_be_pd_request;
 struct m0_be_reg_area;
 struct m0_co_context;
+struct m0_be_pd_fom;
 struct m0_be_reg;
 struct m0_be_op;
 struct m0_fom;
 
 
-struct m0_be_pd {
+struct m0_be_pD {
 	struct m0_tl                   bp_mappings;
 
 	/**
@@ -49,8 +58,8 @@ struct m0_be_pd {
 	 * and write requests. It can slightly improve performance for cases
 	 * with blocked WRITE requests living in parallel with READ requests.
 	 */
-	struct m0_be_pd_request_queue  bp_reqq;
-	struct                        *bp_fom;
+	struct m0_be_pd_request_queue *bp_reqq;
+	struct m0_be_pd_fom           *bp_fom;
 };
 
 enum m0_be_pd_page_state {
@@ -70,41 +79,41 @@ struct m0_be_pd_page {
 	m0_bcount_t              pp_ref;
 	bool                     pp_dirty;
 	enum m0_be_pd_page_state pp_state;
-	m0_mutex                 pp_lock;
+	struct m0_mutex          pp_lock;
 	struct m0_tlink          pp_pio_tlink;
 };
 
 struct m0_be_pd_mapping {
 	struct m0_be_pd_page    *pas_pages;
 	m0_bcount_t              pas_pcount;
-	struct m0_be_pd         *pas_pd;
+	struct m0_be_pD         *pas_pd;
 	struct m0_mutex          pas_lock;
 };
 
-M0_INTERNAL void m0_be_pd_mappings_lock(struct m0_be_pd              *paged,
+M0_INTERNAL void m0_be_pd_mappings_lock(struct m0_be_pD              *paged,
 					struct m0_be_pd_request      *request);
 
-M0_INTERNAL void m0_be_pd_mappings_unlock(struct m0_be_pd            *paged,
+M0_INTERNAL void m0_be_pd_mappings_unlock(struct m0_be_pD            *paged,
 					  struct m0_be_pd_request    *request);
 
-M0_INTERNAL bool m0_be_pd_page_is_in(struct m0_be_pd                 *paged,
+M0_INTERNAL bool m0_be_pd_page_is_in(struct m0_be_pD                 *paged,
 				     struct m0_be_pd_page            *page);
 
 /**
- * (struct m0_be_pd, struct m0_be_pd_pages)
+ * (struct m0_be_pD, struct m0_be_pd_pages)
  * M0_BE_PD_REQUEST_PAGES_FORALL(paged, page) {
  * }
  */
 #define M0_BE_PD_PAGES_FORALL(paged, page)
 
-M0_INTERNAL int m0_be_pd_mapping_init(struct m0_be_pd         *paged,
+M0_INTERNAL int m0_be_pd_mapping_init(struct m0_be_pD         *paged,
 				      const void              *addr,
 				      m0_bcount_t              size,
 				      m0_bcount_t              page_size);
 
-M0_INTERNAL int m0_be_pd_mapping_fini(struct m0_be_pd         *paged,
+M0_INTERNAL int m0_be_pd_mapping_fini(struct m0_be_pD         *paged,
 				      const void              *addr,
-				      m0_bcount_t              size)
+				      m0_bcount_t              size);
 
 M0_INTERNAL int m0_be_pd_mapping_page_attach(struct m0_be_pd_mapping *mapping,
 					struct m0_be_pd_page          *page);
@@ -115,8 +124,8 @@ M0_INTERNAL int m0_be_pd_mapping_page_detach(struct m0_be_pd_mapping *mapping,
 /* ------------------------------------------------------------------------- */
 
 enum m0_be_pd_request_type {
-	M0_PRT_READ,
-	M0_PRT_WRITE,
+	PRT_READ,
+	PRT_WRITE,
 };
 
 // struct pages_iterator* to_pages(struct adapter*) {
@@ -168,7 +177,7 @@ struct m0_be_pd_request {
 };
 
 /**
- * (struct m0_be_pd, struct m0_be_pd_request_pages)
+ * (struct m0_be_pD, struct m0_be_pd_request_pages)
  * M0_BE_PD_REQUEST_PAGES_FORALL(paged, page) {
  * }
  */
@@ -179,10 +188,10 @@ struct m0_be_pd_request {
  * Copies data encapsulated inside request into cellar pages for write
  */
 M0_INTERNAL void
-m0_be_pd_request__copy_to_cellars(struct m0_be_pd         *paged,
+m0_be_pd_request__copy_to_cellars(struct m0_be_pD         *paged,
 				  struct m0_be_pd_request *request);
 
-M0_INTERNAL bool m0_be_pd_pages_are_in(struct m0_be_pd               *paged,
+M0_INTERNAL bool m0_be_pd_pages_are_in(struct m0_be_pD               *paged,
 				       struct m0_be_pd_request_pages *pages);
 
 M0_INTERNAL void m0_be_pd_request_init(struct m0_be_pd_request       *request,
@@ -205,18 +214,19 @@ M0_INTERNAL struct m0_be_pd_request *
 m0_be_pd_request_queue_pop(struct m0_be_pd_request_queue *queue);
 
 M0_INTERNAL void
-m0_be_pd_request_queue_push(struct m0_be_pd_request_queue *rqueue,
-			    struct m0_be_pd_request       *request);
-M0_INTERNAL void m0_be_pd_request_push(struct m0_be_pd         *paged,
+m0_be_pd_request_queue_push(struct m0_be_pd_request_queue      *rqueue,
+			    struct m0_be_pd_request            *request);
+
+M0_INTERNAL void m0_be_pd_request_push(struct m0_be_pD         *paged,
 				       struct m0_be_pd_request *request);
 
 /* ------------------------------------------------------------------------- */
 
-M0_INTERNAL void m0_be_pd_reg_get(struct m0_be_pd  *paged,
+M0_INTERNAL void m0_be_pd_reg_get(struct m0_be_pD  *paged,
 				  struct m0_be_reg *reg,
 				  struct m0_be_op  *op);
 
-M0_INTERNAL void m0_be_pd_reg_put(struct m0_be_pd        *paged,
+M0_INTERNAL void m0_be_pd_reg_put(struct m0_be_pD        *paged,
 				  const struct m0_be_reg *reg);
 
 /* ------------------------------------------------------------------------- */
@@ -224,13 +234,13 @@ M0_INTERNAL void m0_be_pd_reg_put(struct m0_be_pd        *paged,
 struct m0_be_pd_fom {
 	struct m0_fom            bpf_gen;
 	struct m0_reqh          *bpf_reqh;
-	struct m0_be_pd         *bpf_pd;
+	struct m0_be_pD         *bpf_pd;
 	struct m0_be_pd_request *bpf_cur_request;
 };
 
 M0_INTERNAL void m0_be_pd_fom_init(struct m0_be_pd_fom    *fom,
-					 struct m0_be_pd  *pd,
-					 struct m0_reqh   *reqh);
+				   struct m0_be_pD        *pd,
+				   struct m0_reqh         *reqh);
 
 M0_INTERNAL void m0_be_pd_fom_fini(struct m0_be_pd_fom    *fom);
 
@@ -249,9 +259,9 @@ enum m0_be_pd_fom_state {
 	PFS_WRITE_DONE,
 
 	PFS_NR,
-}
+};
 
-/* --- */
+/* ------------------------------------------------------------------------- */
 
 enum m0_be_pd_io_type {
 	M0_PIT_READ,
@@ -259,15 +269,18 @@ enum m0_be_pd_io_type {
 };
 
 struct m0_be_pd_io {
+	int xxx;
 };
 
-M0_INTERNAL int m0_be_pd_io_init(struct m0_be_pd_io *pio, struct m0_be_pd *paged,
-			     enum m0_be_pd_io_type type);
+M0_INTERNAL int m0_be_pd_io_init(struct m0_be_pd_io *pio,
+				 struct m0_be_pD *paged,
+				 enum m0_be_pd_io_type type);
+
 M0_INTERNAL void m0_be_pd_io_fini(struct m0_be_pd_io *pio);
-M0_INTERNAL struct m0_be_pd_io *m0_be_pd_io_get(struct m0_be_pd *paged);
+M0_INTERNAL struct m0_be_pd_io *m0_be_pd_io_get(struct m0_be_pD *paged);
 M0_INTERNAL void m0_be_pd_io_put(struct m0_be_pd_io *pio);
 M0_INTERNAL int m0_be_pd_io_launch(struct m0_be_pd_io *pio);
-M0_INTENRAL void m0_be_pd_io_add(struct m0_be_pd_io *pio,
+M0_INTERNAL void m0_be_pd_io_add(struct m0_be_pd_io *pio,
 				 struct m0_be_pd_page *page);
 
 /* ------------------------------------------------------------------------- */
