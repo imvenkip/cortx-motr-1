@@ -88,6 +88,8 @@ struct m0_be_pd_mapping {
 	m0_bcount_t              pas_pcount;
 	struct m0_be_pD         *pas_pd;
 	struct m0_mutex          pas_lock;
+	struct m0_tlink          pas_tlink;
+	uint64_t                 pas_magic;
 };
 
 
@@ -122,12 +124,8 @@ M0_INTERNAL int m0_be_pd_mapping_page_attach(struct m0_be_pd_mapping *mapping,
 M0_INTERNAL int m0_be_pd_mapping_page_detach(struct m0_be_pd_mapping *mapping,
 					struct m0_be_pd_page          *page);
 
-/**
- *  @return NULL if @addr is out of the @mapping
- *  @return @page containing given @addr from the mapping
- */
 M0_INTERNAL struct m0_be_pd_page *
-m0_be_pd_mapping__addr_is_in_page(struct m0_be_pd_mapping *mapping,
+m0_be_pd_mapping__addr_to_page(struct m0_be_pd_mapping *mapping,
 				  const void *addr);
 
 /* ------------------------------------------------------------------------- */
@@ -191,8 +189,13 @@ struct m0_be_pd_request {
  * M0_BE_PD_REQUEST_PAGES_FORALL(paged, page) {
  * }
  */
-#define M0_BE_PD_REQUEST_PAGES_FORALL(paged, request, page)
+M0_INTERNAL void
+m0_be_pd_request_pages_forall(struct m0_be_pD                   *paged,
+			      struct m0_be_pd_request           *request,
+			      bool (*iter)(struct m0_be_pd_page *page,
+					   const void *param));
 
+#define M0_BE_PD_REQUEST_PAGES_FORALL(paged, request, page)
 
 /**
  * Copies data encapsulated inside request into cellar pages for write

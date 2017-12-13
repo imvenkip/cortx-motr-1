@@ -30,6 +30,10 @@
 #include "be/paged.h"
 
 /* -------------------------------------------------------------------------- */
+/* Prototypes								      */
+/* -------------------------------------------------------------------------- */
+
+/* -------------------------------------------------------------------------- */
 /* Request queue							      */
 /* -------------------------------------------------------------------------- */
 
@@ -102,6 +106,11 @@ M0_INTERNAL void m0_be_pd_request_push(struct m0_be_pD         *paged,
 /* Requests							              */
 /* -------------------------------------------------------------------------- */
 
+bool request_invariant(struct m0_be_pd_request *request)
+{
+	return true;
+}
+
 M0_INTERNAL void m0_be_pd_request_init(struct m0_be_pd_request       *request,
 				       struct m0_be_pd_request_pages *pages)
 {
@@ -127,21 +136,156 @@ M0_INTERNAL void m0_be_pd_request_pages_init(struct m0_be_pd_request_pages *rqp,
 		.prp_reg = *reg,
 	};
 }
+#if 0
+M0_INTERNAL void
+m0_be_pd_request_pages_forall(struct m0_be_pD                   *paged,
+			      struct m0_be_pd_request           *request,
+			      bool (*iter)(struct m0_be_pd_page *page,
+					   const void *param))
+{
+	M0_PRE(request_invariant(request));
+
+	if (request->prt_pages.prp_type == PRT_READ)
+		mapping_iterate_reg_by_pages(paged,
+				     &request->prt_pages.prp_reg,
+				     iter);
+	else
+		mapping_iterate_reg_area_by_pages(paged,
+					  request->prt_pages.prp_reg_area,
+					  iter);
+}
+
+static bool copy_one_reg_to_cellar(struct m0_be_pd_page *page,
+				   const void *param)
+{
+
+	return false;
+}
+#endif
+
+M0_INTERNAL void
+m0_be_pd_request__copy_to_cellars(struct m0_be_pD         *paged,
+				  struct m0_be_pd_request *request)
+{
+#if 0
+	struct m0_be_reg_d  *rd;
+
+	M0_BE_REG_AREA_FORALL(request->prt_pages.prp_reg_area, rd) {
+		mapping_iterate_reg_by_pages(paged, &rd->rd_reg,
+					     copy_one_reg_to_cellar);
+	}
+#endif
+}
+
+M0_INTERNAL bool m0_be_pd_pages_are_in(struct m0_be_pD               *paged,
+				       struct m0_be_pd_request_pages *pages)
+{
+	return false;
+}
 
 /* -------------------------------------------------------------------------- */
 /* Mappings							              */
 /* -------------------------------------------------------------------------- */
 
-M0_INTERNAL struct m0_be_pd_page *
-m0_be_pd_mapping__addr_is_in_page(struct m0_be_pd_mapping *mapping,
-				  const void *addr)
+M0_TL_DESCR_DEFINE(mappings,
+		   "list of m0_be_pd_request-s inside m0_be_pd_request_queue",
+		   static, struct m0_be_pd_mapping, pas_tlink, pas_magic,
+		   M0_BE_PD_REQQ_LINK_MAGIC, M0_BE_PD_REQQ_MAGIC); /*XXX*/
+M0_TL_DEFINE(mappings, static, struct m0_be_pd_mapping);
+
+M0_UNUSED static bool mapping_is_addr_in_page(struct m0_be_pd_page *page,
+				    const void *addr)
 {
+	return page->pp_page <= addr && addr < page->pp_page + page->pp_size;
+}
+
+/**
+ *  @return NULL if @addr is out of the @mapping
+ *  @return @page containing given @addr from the mapping
+ */
+M0_UNUSED static struct m0_be_pd_page *
+mapping_addr_to_page(struct m0_be_pd_mapping *mapping, const void *addr)
+{
+	/* WARNING: Very dumb implementation.
+	 *          Just to see the picture of underlying process.
+	 */
+	m0_bcount_t nr;
+
+	for (nr = 0; nr < mapping->pas_pcount; ++nr) {
+		if (mapping_is_addr_in_page(&mapping->pas_pages[nr], addr))
+			return &mapping->pas_pages[nr];
+	}
 	return NULL;
 }
 
+#if 0 // remove it
+static void mapping_iterate_by_pages(struct m0_be_pD *paged,
+				     const void *addr, m0_bcount_t size,
+				     bool (*iter)(struct m0_be_pd_page *page,
+						  const void *param))
+{
+	struct m0_be_pd_mapping *mapping;
+	struct m0_be_pd_page    *start = NULL;
+	struct m0_be_pd_page    *end;
+	struct m0_be_pd_page    *page;
+	const void              *start_addr = addr;
+	const void              *end_addr   = addr + size - 1;
+	bool                     look_at_next_mapping = false;
+
+	m0_tl_for(mappings, &paged->bp_mappings, mapping) {
+		if (look_at_next_mapping)
+			start = &mapping->pas_pages[0];
+		else
+			start = mapping_addr_to_page(mapping, start_addr);
+
+
+		if (start != NULL) {
+			end = mapping_addr_to_page(mapping, end_addr);
+			if (end != NULL) {
+				for (page = start; page <= end; ++page) {
+					if (!iter(page))
+						return;
+				}
+				return;
+			} else {
+				end = &mapping->pas_pages[mapping->pas_pcount - 1];
+				for (page = start; page <= end; ++page) {
+					if (!iter(page))
+						return;
+				}
+				look_at_next_mapping = true;
+			}
+		}
+
+	} m0_tl_endfor;
+
+	M0_POST(start != NULL);
+	M0_POST(mapping_addr_to_page(mapping, end_addr));
+}
+
+static void mapping_iterate_reg_by_pages(struct m0_be_pD  *paged,
+				 struct m0_be_reg         *reg,
+				 bool (*iter)(struct m0_be_pd_page *page,
+					      const void *param))
+{
+	mapping_iterate_by_pages(paged, reg->br_addr, reg->br_size, iter);
+}
+
+static void mapping_iterate_reg_area_by_pages(struct m0_be_pD *paged,
+				      struct m0_be_reg_area   *rarea,
+				      bool (*iter)(struct m0_be_pd_page *page,
+						   const void *param))
+{
+	struct m0_be_reg_d  *rd;
+	M0_BE_REG_AREA_FORALL(rarea, rd) {
+		mapping_iterate_reg_by_pages(paged, &rd->rd_reg, iter);
+	}
+}
+#endif
+
 #undef M0_TRACE_SUBSYSTEM
 
-/** @} end of PageD group */
+/** @} end_addr of PageD group */
 
 /*
  *  Local variables:
