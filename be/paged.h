@@ -134,7 +134,7 @@ enum m0_be_pd_request_type {
 // }
 
 struct m0_be_pd_request_pages {
-	enum m0_be_pd_request_type prt_type;
+	enum m0_be_pd_request_type prp_type;
 	struct m0_be_reg_area     *prp_reg_area; /* for M0_PRT_WRITE requests */
 	struct m0_be_reg           prp_reg;      /* for  M0_PRT_READ requests */
 };
@@ -174,6 +174,7 @@ struct m0_be_pd_request {
 	struct m0_be_op                prt_op;
 	struct m0_be_pd_request_pages  prt_pages;
 	struct m0_tlink                ptr_rq_link;
+	uint64_t                       ptr_magic;
 };
 
 /**
@@ -215,7 +216,8 @@ m0_be_pd_request_queue_pop(struct m0_be_pd_request_queue *queue);
 
 M0_INTERNAL void
 m0_be_pd_request_queue_push(struct m0_be_pd_request_queue      *rqueue,
-			    struct m0_be_pd_request            *request);
+			    struct m0_be_pd_request            *request,
+			    struct m0_fom                      *fom);
 
 M0_INTERNAL void m0_be_pd_request_push(struct m0_be_pD         *paged,
 				       struct m0_be_pd_request *request);

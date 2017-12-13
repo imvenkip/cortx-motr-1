@@ -154,10 +154,16 @@ enum m0_magic_satchel {
 	M0_BE_PD_IO_MAGIC = 0x33bedeadcac4e77,
 
 	/* m0_be_active_record_domain::ard_list (be blood flood) */
-	M0_BE_ACT_REC_DOM_MAGIC = 0x33beb100df100d7,
+	M0_BE_ACT_REC_DOM_MAGIC = 0x33beb100df100d77,
 
 	/* m0_be_active_record_domain_subsystem::rds_list (be glad blood) */
-	M0_BE_ACT_REC_DOM_SUB_MAGIC = 0x33be91adb100d77,
+	M0_BE_ACT_REC_DOM_SUB_MAGIC = 0x333be91adb100d77,
+
+	/* m0_be_pd_request_queue::prq_queue (be head shoot) */
+	M0_BE_PD_REQQ_MAGIC = 0x333be4ead5400277,
+
+	/* m0_be_pd_request::ptr_magic (be bad boot) */
+	M0_BE_PD_REQQ_LINK_MAGIC = 0x333bebadb0027777,
 
 /* m0t1fs */
 	/* m0t1fs_sb::s_magic (cozie filesis) */
