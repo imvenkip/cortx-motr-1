@@ -184,16 +184,34 @@ struct m0_be_pd_request {
 	uint64_t                       ptr_magic;
 };
 
+/* internal */
+/* pd_request_pages iterator */
+struct m0_be_prp_cursor {
+	struct m0_be_pd_request_pages *rpi_pages;
+	struct m0_be_pD               *rpi_paged;
+	struct m0_be_pd_mapping       *rpi_mapping;
+	struct m0_be_pd_page          *rpi_page;
+	const void                    *rpi_addr;
+	m0_bcount_t                    rpi_size;
+};
+
+M0_INTERNAL void m0_be_prp_cursor_init(struct m0_be_prp_cursor       *cursor,
+				       struct m0_be_pD               *paged,
+				       struct m0_be_pd_request_pages *pages,
+				       const void                    *addr,
+				       m0_bcount_t                   size);
+
+M0_INTERNAL void m0_be_prp_cursor_fini(struct m0_be_prp_cursor *cursor);
+M0_INTERNAL bool m0_be_prp_cursor_next(struct m0_be_prp_cursor *cursor);
+M0_INTERNAL struct m0_be_pd_page *
+m0_be_prp_cursor_page_get(struct m0_be_prp_cursor *cursor);
+
 /**
  * (struct m0_be_pD, struct m0_be_pd_request_pages)
  * M0_BE_PD_REQUEST_PAGES_FORALL(paged, page) {
  * }
  */
-M0_INTERNAL void
-m0_be_pd_request_pages_forall(struct m0_be_pD                   *paged,
-			      struct m0_be_pd_request           *request,
-			      bool (*iter)(struct m0_be_pd_page *page,
-					   const void *param));
+#define M0_BE_PD_REQUEST_PAGES_ENDFOR  } while (0)
 
 #define M0_BE_PD_REQUEST_PAGES_FORALL(paged, request, page)
 
