@@ -15,6 +15,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Anatoliy Bilenko <Anatoliy.Bilenko@seagate.com>
+ * Original author: Dmitriy Podgorniy <Dmitriy.Podgorniy@seagate.com>
  * Original creation date: 29-Nov-2017
  */
 
@@ -53,13 +54,13 @@ struct m0_be_pd {
 };
 
 enum m0_be_pd_page_state {
-	M0_PPS_INIT,
-	M0_PPS_FINI,
-	M0_PPS_UNMAPPED,
-	M0_PPS_MAPPED,
-	M0_PPS_READING,
-	M0_PPS_READY,
-	M0_PPS_WRITING,
+	PPS_INIT,
+	PPS_FINI,
+	PPS_UNMAPPED,
+	PPS_MAPPED,
+	PPS_READING,
+	PPS_READY,
+	PPS_WRITING,
 };
 
 struct m0_be_pd_page {
@@ -74,21 +75,20 @@ struct m0_be_pd_page {
 };
 
 struct m0_be_pd_mapping {
-	struct m0_be_pd_page *pas_pages;
-	m0_bcount_t           pas_pcount;
-	struct m0_be_pd      *pas_pd;
-	struct m0_mutex       pas_lock;
+	struct m0_be_pd_page    *pas_pages;
+	m0_bcount_t              pas_pcount;
+	struct m0_be_pd         *pas_pd;
+	struct m0_mutex          pas_lock;
 };
 
-M0_INTERNAL void m0_be_pd_mappings_lock(struct m0_be_pd *paged,
-					struct m0_be_pd_request *request);
-M0_INTERNAL void m0_be_pd_mappings_unlock(struct m0_be_pd *paged,
-					  struct m0_be_pd_request *request);
+M0_INTERNAL void m0_be_pd_mappings_lock(struct m0_be_pd              *paged,
+					struct m0_be_pd_request      *request);
 
-M0_INTERNAL bool m0_be_pd_pages_are_in(struct m0_be_pd               *paged,
-				       struct m0_be_pd_request_pages *pages);
-M0_INTERNAL bool m0_be_pd_page_is_in(struct m0_be_pd *paged,
-				     struct m0_be_pd_page *page);
+M0_INTERNAL void m0_be_pd_mappings_unlock(struct m0_be_pd            *paged,
+					  struct m0_be_pd_request    *request);
+
+M0_INTERNAL bool m0_be_pd_page_is_in(struct m0_be_pd                 *paged,
+				     struct m0_be_pd_page            *page);
 
 /**
  * (struct m0_be_pd, struct m0_be_pd_pages)
@@ -101,6 +101,7 @@ M0_INTERNAL int m0_be_pd_mapping_init(struct m0_be_pd         *paged,
 				      const void              *addr,
 				      m0_bcount_t              size,
 				      m0_bcount_t              page_size);
+
 M0_INTERNAL int m0_be_pd_mapping_fini(struct m0_be_pd         *paged,
 				      const void              *addr,
 				      m0_bcount_t              size)
@@ -118,6 +119,11 @@ enum m0_be_pd_request_type {
 	M0_PRT_WRITE,
 };
 
+// struct pages_iterator* to_pages(struct adapter*) {
+// }
+// struct adapter* to_adapter(struct pages_iterator*) {
+// }
+
 struct m0_be_pd_request_pages {
 	enum m0_be_pd_request_type prt_type;
 	struct m0_be_reg_area     *prp_reg_area; /* for M0_PRT_WRITE requests */
@@ -130,6 +136,31 @@ M0_INTERNAL void m0_be_pd_request_pages_init(struct m0_be_pd_request_pages *rqp,
 					     struct m0_be_reg_area     *rarea,
 					     struct m0_be_reg          *reg);
 
+/**
+ * Request encapsulates user-defined structures and decouple an abstraction from
+ * its implementation so that the two can vary independently. Request implements
+ * the bridge pattern which joins PD and BE-related structures. PD sees BE
+ * requests through prism of its own structures, called (opaque) request and
+ * (transparent) pages.
+ *
+ * Therefore, user sees and has to use only m0_be_pd_request_pages_init()
+ * interface and internals of PD use M0_BE_PD_REQUEST_PAGES_FORALL() and
+ * m0_be_pd_request__copy_to_cellars(), so that user and PD has not to bother
+ * regarding how user structrues are converted into PD structures and how they
+ * can be changed.
+ *
+ * @see https://en.wikipedia.org/wiki/Bridge_pattern
+ *
+ *   User FOM
+ *   TX Grp FOM                                                 PD FOM
+ *                       +-----------------------------------+
+ * [reg | [reg]]     --> |            REQUEST                | --> [pages]
+ *                       +-----------------------------------+
+ * init(req,[reg|[reg]]) | +(PD)copy(paged, req)             | copy(req,...)
+ *                       | +(PD)iterator(paged, req) : page* | iterator(req,...)
+ *                       | +(U) init(req, [reg | [reg]])     |
+ *                       +-----------------------------------+
+ */
 struct m0_be_pd_request {
 	struct m0_be_op                prt_op;
 	struct m0_be_pd_request_pages  prt_pages;
@@ -150,6 +181,9 @@ struct m0_be_pd_request {
 M0_INTERNAL void
 m0_be_pd_request__copy_to_cellars(struct m0_be_pd         *paged,
 				  struct m0_be_pd_request *request);
+
+M0_INTERNAL bool m0_be_pd_pages_are_in(struct m0_be_pd               *paged,
+				       struct m0_be_pd_request_pages *pages);
 
 M0_INTERNAL void m0_be_pd_request_init(struct m0_be_pd_request       *request,
 				       struct m0_be_pd_request_pages *pages);
@@ -175,12 +209,6 @@ m0_be_pd_request_queue_push(struct m0_be_pd_request_queue *rqueue,
 			    struct m0_be_pd_request       *request);
 M0_INTERNAL void m0_be_pd_request_push(struct m0_be_pd         *paged,
 				       struct m0_be_pd_request *request);
-
-
-M0_INTERNAL void m0_be_pd_request_queue_wait(
-	struct m0_be_pd_request_queue *request,
-	struct m0_fom                 *fom,
-	struct m0_co_context          *context);
 
 /* ------------------------------------------------------------------------- */
 
@@ -237,7 +265,7 @@ M0_INTERNAL int m0_be_pd_io_init(struct m0_be_pd_io *pio, struct m0_be_pd *paged
 			     enum m0_be_pd_io_type type);
 M0_INTERNAL void m0_be_pd_io_fini(struct m0_be_pd_io *pio);
 M0_INTERNAL struct m0_be_pd_io *m0_be_pd_io_get(struct m0_be_pd *paged);
-M0_ITNERNAL void m0_be_pd_io_put(struct m0_be_pd_io *pio);
+M0_INTERNAL void m0_be_pd_io_put(struct m0_be_pd_io *pio);
 M0_INTERNAL int m0_be_pd_io_launch(struct m0_be_pd_io *pio);
 M0_INTENRAL void m0_be_pd_io_add(struct m0_be_pd_io *pio,
 				 struct m0_be_pd_page *page);

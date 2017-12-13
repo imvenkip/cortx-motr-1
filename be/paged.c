@@ -58,6 +58,8 @@ M0_INTERNAL void m0_be_seg_close(struct m0_be_seg *seg)
 }
 
 //usecase 2: READ request
+//TODO: wrap request_pages interfaces inside, remove knowledge regarding "pages"
+// requested_regions_can_be_{used/obtained/given_to_user}()
 M0_INTERNAL void m0_be_pd_reg_get(struct m0_be_pd      *paged,
 				  struct m0_be_reg     *reg,
 				  struct m0_co_context *context,
@@ -79,7 +81,7 @@ M0_INTERNAL void m0_be_pd_reg_get(struct m0_be_pd      *paged,
 	M0_ASSERT(request != NULL);
 	m0_be_pd_request_init(F(request), &F(rpages));
 
-	M0_ASSERT(op->bo_sm.sm_state == M0_BOS_ACTIVE);
+	M0_ASSERT(F(request)->pr_op->bo_sm.sm_state == M0_BOS_ACTIVE);
 	/* XXX: potential race near this point: current fom may go
 	        to sleep here */
 	m0_fom_wait_on(fom, F(request)->pr_op.bo_sm.sm_chan, &fom->fo_cb);
@@ -91,7 +93,7 @@ M0_INTERNAL void m0_be_pd_reg_get(struct m0_be_pd      *paged,
 	m0_free(F(request));
 }
 
-M0_INTERNAL void m0_be_pd_reg_get(struct m0_be_pd      *paged,
+M0_INTERNAL void m0_be_pd_reg_put(struct m0_be_pd      *paged,
 				  struct m0_be_reg     *reg,
 				  struct m0_co_context *context,
 				  struct m0_fom        *fom)
