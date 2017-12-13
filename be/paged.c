@@ -15,9 +15,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Anatoliy Bilenko <Anatoliy.Bilenko@seagate.com>
- * Original author: Dmitriy Podgorniy <Dmitriy.Podgorniy@seagate.com>
- *
- * Original creation date: 1-Dec-2017
+ * Original creation date: 13-Dec-2017
  */
 
 /**
@@ -28,256 +26,119 @@
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
 #include "lib/trace.h"
+#include "mero/magic.h"
 #include "be/paged.h"
 
+/* -------------------------------------------------------------------------- */
+/* Request queue							      */
+/* -------------------------------------------------------------------------- */
 
-// usecase 1: be segments initialization
-M0_INTERNAL int _m0_be_seg_open(struct m0_be_seg *seg)
+M0_TL_DESCR_DEFINE(reqq,
+		   "list of m0_be_pd_request-s inside m0_be_pd_request_queue",
+		   static, struct m0_be_pd_request, ptr_rq_link, ptr_magic,
+		   M0_BE_PD_REQQ_LINK_MAGIC, M0_BE_PD_REQQ_MAGIC);
+M0_TL_DEFINE(reqq, static, struct m0_be_pd_request);
+
+
+M0_INTERNAL int m0_be_pd_request_queue_init(struct m0_be_pd_request_queue *rq)
 {
-	//...
+	reqq_tlist_init(&rq->prq_queue);
+	m0_mutex_init(&rq->prq_lock);
 
-	//--- REMOVE p = mmap(g->sg_addr, g->sg_size, PROT_READ | PROT_WRITE,
-	//--- REMOVE  MAP_FIXED | MAP_PRIVATE | MAP_NORESERVE, fd, g->sg_offset);
-	int rc;
-	struct m0_be_pd *pd = seg->bs_domain->bd_paged;
-
-	rc = m0_be_pd_mapping_init(pd, g->sg_addr, g->sg_size, 1 << 20);
-	//...
+	return 0;
 }
 
-M0_INTERNAL void m0_be_seg_close(struct m0_be_seg *seg)
+M0_INTERNAL void m0_be_pd_request_queue_fini(struct m0_be_pd_request_queue *rq)
 {
-	//...
-	//--- REMOVE  munmap(seg->bs_addr, seg->bs_size);
-	int rc;
-	struct m0_be_pd *pd = seg->bs_domain->bd_paged;
-
-	rc = m0_be_pd_mapping_fini(pd, seg->bs_addr, seg->bs_size);
-	M0_ASSERT(rc == 0);
-	//...
+	m0_mutex_fini(&rq->prq_lock);
+	reqq_tlist_fini(&rq->prq_queue);
 }
 
-//usecase 2: READ request
-//TODO: wrap request_pages interfaces inside, remove knowledge regarding "pages"
-// requested_regions_can_be_{used/obtained/given_to_user}()
-M0_INTERNAL void m0_be_pd_reg_get(struct m0_be_pd      *paged,
-				  struct m0_be_reg     *reg,
-				  struct m0_co_context *context,
-				  struct m0_fom        *fom)
+M0_INTERNAL struct m0_be_pd_request *
+m0_be_pd_request_queue_pop(struct m0_be_pd_request_queue *rq)
 {
-	M0_CO_REENTER(
-		struct m0_be_pd_request_pages  rpages;
-		struct m0_be_pd_request       *request;
-		);
-
-	m0_be_pd_request_pages_init(&F(rpages), M0_PRT_READ, NULL, reg);
-	if (m0_be_pd_pages_are_in(paged, &F(rpages))) {
-
-		return;
-	}
-
-	/* XXX: remove M0_ALLOC_PTR() with pool-like allocator */
-	M0_ALLOC_PTR(F(request));
-	M0_ASSERT(request != NULL);
-	m0_be_pd_request_init(F(request), &F(rpages));
-
-	M0_ASSERT(F(request)->pr_op->bo_sm.sm_state == M0_BOS_ACTIVE);
-	/* XXX: potential race near this point: current fom may go
-	        to sleep here */
-	m0_fom_wait_on(fom, F(request)->pr_op.bo_sm.sm_chan, &fom->fo_cb);
-	/* XXX: ref counting */
-	m0_be_pd_request_push(F(paged), F(request));
-	M0_CO_YIELD();
-
-	m0_be_pd_request_fini(F(request));
-	m0_free(F(request));
-}
-
-M0_INTERNAL void m0_be_pd_reg_put(struct m0_be_pd      *paged,
-				  struct m0_be_reg     *reg,
-				  struct m0_co_context *context,
-				  struct m0_fom        *fom)
-{
-	/* XXX: decrement ref counting */
-}
-
-// usecase 3: PageD FOM: read, write requests
-static struct m0_be_pd_fom *fom2be_pd_fom(struct m0_fom *fom);
-M0_INTERNAL int m0_be_pd_tick(struct m0_fom *fom)
-{
-	enum tx_group_fom_state phase = m0_fom_phase(fom);
-	struct m0_be_pd_fom *pd_fom   = fom2be_pd_fom(fom);
-	struct m0_be_pd *paged = pd_fom->bpf_pd;
-	struct m0_be_pd_request_queue *queue;
 	struct m0_be_pd_request *request;
-	struct m0_be_pd_page *page;
-	int rc;
-	int rc1;
 
-	switch(phase) {
-	case PFS_INIT:
-	case PFS_FINISH:
-	case PFS_IDLE:
-		queue = pd_fom->bpf_pd->pd_reqq;
-		request = m0_be_pd_request_queue_pop(queue);
-		if (request == NULL) {
-			rc = M0_FSO_WAIT;
-			break;
-		}
-		// M0_ASSERT(type in READ/WRITE);
-		pd_fom->bpf_cur_request = request;
-		m0_fom_phase_moveif(fom, request->prt_pages.prp_type == M0_PRT_READ,
-				   PFS_READ, PFS_WRITE);
-		rc = M0_FSO_AGAIN;
-		break;
-	case PFS_READ:
-		request = pd_fom->bpf_cur_request;
-		pio = m0_be_pd_io_get(paged);
-		m0_be_pd_io_init(pio, paged, M0_PIT_READ);
-		pd_fom->bpf_cur_pio = pio;
-		M0_ASSERT(request != NULL);
-		M0_BE_PD_REQUEST_PAGES_FORALL(paged, request, page) {
-			m0_be_pd_page_lock(page);
-			if (!m0_be_pd_page_is_in(paged, page))
-				m0_be_pd_mapping_page_attach(paged, page);
-			if (page->pp_state == M0_PPS_MAPPED) {
-				page_pp_state = M0_PPS_READING;
-				m0_be_pd_io_add(pio, page);
-			}
-			m0_be_pd_page_unlock(page);
-		}
-		/* XXX conditionally */
-		rc = m0_be_op_tick_ret(pio->pio_op, fom, PFS_READ_DONE);
-		rc1 = m0_be_pd_io_launch(pio);
-		M0_ASSERT(rc1 == 0);
-		break;
-	case PFS_READ_DONE:
-		pio = pd_fom->bpf_pio;
-		request = pd_fom->bpf_request;
-		M0_BE_PD_REQUEST_PAGES_FORALL(paged, request, page) {
-			m0_be_pd_page_lock(page);
+	M0_ENTRY();
 
-			if (m0_tlist_contains(pio, page))
-				page->pp_state = M0_PPS_READY;
-			/* XXX: just for one PD FOM */
-			M0_ASSERT(page->pp_state == M0_PPS_READY);
+	m0_mutex_lock(&rq->prq_lock);
+	request = reqq_tlist_pop(&rq->prq_queue);
+	m0_mutex_unlock(&rq->prq_lock);
 
-			/* XXX move page to ready state IF it is in pio */
-			m0_be_pd_page_unlock(page);
-		}
-		m0_be_pd_io_fini(pio);
-		m0_be_pd_io_put(pio);
-		m0_be_op_done(&request->prt_op);
+	M0_LEAVE("request=%p", request);
 
-		m0_fom_phase_set(fom, PFS_IDLE);
-		break;
-	case PFS_WRITE:
-		request = pd_fom->bpf_request;
-		/**
-		 *  NOTE: Looks like parallel READ requests do not coexist
-		 *  with parallel WRITEs. Threrefore READs may not take lock on
-		 *  the whole mapping.
-		 */
-		m0_be_pd_mappings_lock(paged, request);
-		/* XXX: just for one PD FOM */
-		M0_BE_PD_REQUEST_PAGES_FORALL(paged, request, page) {
-			m0_be_pd_page_lock(page);
-
-			M0_ASSERT(page->pp_state == M0_PPS_READY);
-			page->pp_state = M0_PPS_WRITING;
-
-			m0_be_pd_page_unlock(page);
-		}
-		m0_be_pd_mappings_unlock(paged, request);
-
-		/* XXX: Assume that a page realted to the request isn't in
-		 * M0_PPS_READY! */
-		m0_be_pd_request__copy_to_cellars(paged, request);
-
-		pio = m0_be_pd_io_get(paged);
-		pd_fom->bpf_cur_pio = pio;
-		m0_be_pd_io_init(pio, paged, M0_PIT_WRITE);
-
-		M0_BE_PD_REQUEST_PAGES_FORALL(paged, request, page) {
-			m0_be_pd_io_add(pio, page);
-		}
-
-		rc = m0_be_op_tick_ret(pio->pio_op, fom, PFS_WRITE_DONE);
-		rc1 = m0_be_pd_io_launch(pio);
-		M0_ASSERT(rc1 == 0);
-		break;
-
-	case PFS_WRITE_DONE:
-		pio = pd_fom->bpf_pio;
-		request = pd_fom->bpf_request;
-
-		M0_BE_PD_REQUEST_PAGES_FORALL(paged, request, page) {
-			m0_be_pd_page_lock(page);
-
-			M0_ASSERT(page->pp_state == M0_PPS_WRITING);
-			page->pp_state = M0_PPS_READY;
-
-			m0_be_pd_page_unlock(page);
-		}
-
-		m0_be_pd_io_fini(pio);
-		m0_be_pd_io_put(pio);
-		m0_be_op_done(&request->prt_op);
-
-		m0_fom_phase_set(fom, PFS_IDLE);
-		break;
-		/* Possible state for page management
-		  case PFS_MANAGE:
-		  for (mapping in mappings) {
-		    for (page in mapping->pages) {
-		      if (page->cnt == 0)
-		      m0_be_pd_mapping_page_detach(mapping, page);
-		    }
-		  }
-		*/
-	default:
-		M0_IMPOSSIBLE("XXX");
-	}
-
-	return rc;
+	return request;
 }
 
-//usecase 5: user calls write request
-static int tx_group_fom_tick(struct m0_fom *fom)
+M0_INTERNAL void
+m0_be_pd_request_queue_push(struct m0_be_pd_request_queue      *rq,
+			    struct m0_be_pd_request            *request,
+			    struct m0_fom                      *fom)
 {
-	switch() {
-	//...
-	case TGS_PLACING:
-		struct m0_be_pd_request       *request;
-		struct m0_be_pd_request_pages  rpages;
-		struct m0_be_pd               *paged = m->tgf_paged;
+	M0_ENTRY("request=%p", request);
 
-		m0_be_tx_group__tx_state_post(gr, M0_BTS_LOGGED, false);
+	m0_mutex_lock(&rq->prq_lock);
 
-		//m0_be_tx_group_seg_place_prepare(gr);
-		//m0_be_tx_group_seg_place(gr, op);
+	/* no special lock is needed here */
+	if (reqq_tlist_length(&rq->prq_queue) == 0 &&
+	    m0_fom_phase(fom) == PFS_IDLE)
+		m0_fom_wakeup(fom);
 
-		/* XXX: remove M0_ALLOC_PTR() with pool-like allocator */
-		m0_be_pd_request_pages_init(&rpages, M0_PRT_WRITE,
-					    &gr->tg_reg_area, NULL);
-		M0_ALLOC_PTR(request);
-		M0_ASSERT(request != NULL);
-		m0_be_pd_request_init(request, &rpages);
-		m0_be_pd_request_push(paged, request);
+	reqq_tlist_add(&rq->prq_queue, request);
+	m0_mutex_unlock(&rq->prq_lock);
 
-		return m0_be_op_tick_ret(&request->prt_op, fom, TGS_PLACED);
-	//...
-	case TGS_PLACED:
-		//...
-		/* get corresponding request from somewhere */
-		struct m0_be_pd_request       *request;
-
-		m0_be_pd_request_fini(request);
-		m0_free(request);
-		//...
-	}
-	;
+	M0_LEAVE();
 }
+
+M0_INTERNAL void m0_be_pd_request_push(struct m0_be_pD         *paged,
+				       struct m0_be_pd_request *request)
+{
+	m0_be_op_active(&request->prt_op);
+	m0_be_pd_request_queue_push(paged->bp_reqq, request,
+				    &paged->bp_fom->bpf_gen);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Requests							              */
+/* -------------------------------------------------------------------------- */
+
+M0_INTERNAL void m0_be_pd_request_init(struct m0_be_pd_request       *request,
+				       struct m0_be_pd_request_pages *pages)
+{
+	m0_be_op_init(&request->prt_op);
+	reqq_tlink_init(request);
+	request->prt_pages = *pages;
+}
+
+M0_INTERNAL void m0_be_pd_request_fini(struct m0_be_pd_request *request)
+{
+	reqq_tlink_fini(request);
+	m0_be_op_fini(&request->prt_op);
+}
+
+M0_INTERNAL void m0_be_pd_request_pages_init(struct m0_be_pd_request_pages *rqp,
+					     enum m0_be_pd_request_type type,
+					     struct m0_be_reg_area     *rarea,
+					     struct m0_be_reg          *reg)
+{
+	*rqp = (struct m0_be_pd_request_pages) {
+		.prp_type = type,
+		.prp_reg_area = rarea,
+		.prp_reg = *reg,
+	};
+}
+
+/* -------------------------------------------------------------------------- */
+/* Mappings							              */
+/* -------------------------------------------------------------------------- */
+
+M0_INTERNAL struct m0_be_pd_page *
+m0_be_pd_mapping__addr_is_in_page(struct m0_be_pd_mapping *mapping,
+				  const void *addr)
+{
+	return NULL;
+}
+
 #undef M0_TRACE_SUBSYSTEM
 
 /** @} end of PageD group */

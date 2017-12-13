@@ -90,6 +90,7 @@ struct m0_be_pd_mapping {
 	struct m0_mutex          pas_lock;
 };
 
+
 M0_INTERNAL void m0_be_pd_mappings_lock(struct m0_be_pD              *paged,
 					struct m0_be_pd_request      *request);
 
@@ -120,6 +121,14 @@ M0_INTERNAL int m0_be_pd_mapping_page_attach(struct m0_be_pd_mapping *mapping,
 
 M0_INTERNAL int m0_be_pd_mapping_page_detach(struct m0_be_pd_mapping *mapping,
 					struct m0_be_pd_page          *page);
+
+/**
+ *  @return NULL if @addr is out of the @mapping
+ *  @return @page containing given @addr from the mapping
+ */
+M0_INTERNAL struct m0_be_pd_page *
+m0_be_pd_mapping__addr_is_in_page(struct m0_be_pd_mapping *mapping,
+				  const void *addr);
 
 /* ------------------------------------------------------------------------- */
 

@@ -61,7 +61,7 @@ mero_libmero_la_SOURCES += be/alloc.c           \
 			   be/op.c              \
                            be/pool.c            \
                            be/pd.c              \
-			   be/paged_request.c   \
+			   be/paged.c           \
 			   be/recovery.c        \
 			   be/seg.c             \
 			   be/seg0.c            \
