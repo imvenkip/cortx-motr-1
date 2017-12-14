@@ -149,33 +149,49 @@ M0_INTERNAL void m0_be_pd_request_pages_init(struct m0_be_pd_request_pages *rqp,
 	};
 }
 
+static void copy_reg_to_page(struct m0_be_pd_page       *page,
+			     const struct m0_be_reg_d   *rd)
+{
+/**
+ *      +---REG---+
+ *    +--P1--+--P2--+
+ *
+ */
+	void *addr = rd->rd_reg.br_addr + (page->pp_page - page->pp_cellar);
+	m0_bcount_t size = min_check((uint64_t)(page->pp_cellar +
+						page->pp_size -	addr),
+				     (uint64_t)(addr + rd->rd_reg.br_size));
+
+	memcpy(addr, rd->rd_buf, size);
+}
+
 M0_INTERNAL void
 m0_be_pd_request__copy_to_cellars(struct m0_be_pD         *paged,
 				  struct m0_be_pd_request *request)
 {
+	struct m0_be_pd_page *page;
+	struct m0_be_reg_d   *rd;
+
+	M0_BE_PD_REQUEST_PAGES_FORALL(paged, request, page, rd) {
+		copy_reg_to_page(page, rd);
+	} M0_BE_PD_REQUEST_PAGES_ENDFOR;
 }
 
-M0_INTERNAL bool m0_be_pd_pages_are_in(struct m0_be_pD               *paged,
-				       struct m0_be_pd_request_pages *pages)
+M0_INTERNAL bool m0_be_pd_pages_are_in(struct m0_be_pD         *paged,
+				       struct m0_be_pd_request *request)
 {
-	return false;
-}
+	struct m0_be_pd_page *page;
+	struct m0_be_reg_d   *rd;
+	bool                  pages_are_in = true;
 
-#if 0
-static void _M0_BE_PD_REQUEST_PAGES_FORALL(struct m0_be_pD         *paged,
-					   struct m0_be_pd_request *request,
-					   struct m0_be_pd_page    *page)
-{
-	struct m0_be_prp_cursor        cursor;
-	struct m0_be_pd_request_pages *rpages = &request->prt_pages;
+	M0_BE_PD_REQUEST_PAGES_FORALL(paged, request, page, rd) {
+		pages_are_in &= M0_IN(page->pp_state, (PPS_READY, PPS_WRITING));
+	} M0_BE_PD_REQUEST_PAGES_ENDFOR;
 
-	if (rpages->prp_type == PRT_READ) {
-		m0_be_prp_cursor_init(&cursor, paged, rpages,
-				      rpages->prp_reg.br_addr,
-				      rpages->prp_reg.br_size);
-	}
+	(void)rd;
+
+	return pages_are_in;
 }
-#endif
 
 M0_INTERNAL void m0_be_prp_cursor_init(struct m0_be_prp_cursor       *cursor,
 				       struct m0_be_pD               *paged,
@@ -246,7 +262,7 @@ m0_be_prp_cursor_page_get(struct m0_be_prp_cursor *cursor)
 /* -------------------------------------------------------------------------- */
 
 static bool mapping_is_addr_in_page(struct m0_be_pd_page *page,
-				    const void *addr)
+					 const void *addr)
 {
 	return page->pp_page <= addr && addr < page->pp_page + page->pp_size;
 }

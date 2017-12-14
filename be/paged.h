@@ -207,13 +207,41 @@ M0_INTERNAL struct m0_be_pd_page *
 m0_be_prp_cursor_page_get(struct m0_be_prp_cursor *cursor);
 
 /**
- * (struct m0_be_pD, struct m0_be_pd_request_pages)
- * M0_BE_PD_REQUEST_PAGES_FORALL(paged, page) {
- * }
+ * (struct m0_be_pD*, struct m0_be_pd_request*, struct m0_be_pd_page*,
+ *					const struct m0_be_reg_d   *rd)
+ * M0_BE_PD_REQUEST_PAGES_FORALL(paged, request, page) {
+ *	;
+ * } M0_BE_PD_REQUEST_PAGES_ENDFOR;
  */
-#define M0_BE_PD_REQUEST_PAGES_ENDFOR  } while (0)
+#define M0_BE_PD_REQUEST_PAGES_FORALL(paged, request, page, rd)		\
+{									\
+	struct m0_be_prp_cursor        cursor;				\
+	struct m0_be_pd_request_pages *rpages = &(request)->prt_pages;	\
+	struct m0_be_reg_d             rd_read;				\
+									\
+	if (rpages->prp_type == PRT_READ) {				\
+		rd = &rd_read;						\
+		rd->rd_reg.br_addr = rpages->prp_reg.br_addr;		\
+		rd->rd_reg.br_size = rpages->prp_reg.br_size;		\
+		goto read;						\
+	}								\
+									\
+	M0_BE_REG_AREA_FORALL(rpages->prp_reg_area, rd) {		\
+	read:								\
+		m0_be_prp_cursor_init(&cursor, (paged), rpages,		\
+				      rd->rd_reg.br_addr,		\
+				      rd->rd_reg.br_size);		\
+		while (m0_be_prp_cursor_next(&cursor)) {		\
+			(page) = m0_be_prp_cursor_page_get(&cursor);
 
-#define M0_BE_PD_REQUEST_PAGES_FORALL(paged, request, page)
+#define M0_BE_PD_REQUEST_PAGES_ENDFOR					\
+		}							\
+		if (rpages->prp_type == PRT_READ)			\
+			break;						\
+	}								\
+} while (0)
+
+
 
 /**
  * Copies data encapsulated inside request into cellar pages for write
@@ -222,8 +250,8 @@ M0_INTERNAL void
 m0_be_pd_request__copy_to_cellars(struct m0_be_pD         *paged,
 				  struct m0_be_pd_request *request);
 
-M0_INTERNAL bool m0_be_pd_pages_are_in(struct m0_be_pD               *paged,
-				       struct m0_be_pd_request_pages *pages);
+M0_INTERNAL bool m0_be_pd_pages_are_in(struct m0_be_pD         *paged,
+				       struct m0_be_pd_request *request);
 
 M0_INTERNAL void m0_be_pd_request_init(struct m0_be_pd_request       *request,
 				       struct m0_be_pd_request_pages *pages);
