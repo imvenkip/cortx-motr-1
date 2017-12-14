@@ -104,7 +104,7 @@ M0_INTERNAL bool m0_be_pd_page_is_in(struct m0_be_pD                 *paged,
 
 /**
  * (struct m0_be_pD, struct m0_be_pd_pages)
- * M0_BE_PD_REQUEST_PAGES_FORALL(paged, page) {
+ * M0_BE_PD_PAGES_FORALL(paged, page) {
  * }
  */
 #define M0_BE_PD_PAGES_FORALL(paged, page)
@@ -123,10 +123,6 @@ M0_INTERNAL int m0_be_pd_mapping_page_attach(struct m0_be_pd_mapping *mapping,
 
 M0_INTERNAL int m0_be_pd_mapping_page_detach(struct m0_be_pd_mapping *mapping,
 					struct m0_be_pd_page          *page);
-
-M0_INTERNAL struct m0_be_pd_page *
-m0_be_pd_mapping__addr_to_page(struct m0_be_pd_mapping *mapping,
-				  const void *addr);
 
 /* ------------------------------------------------------------------------- */
 
@@ -199,7 +195,7 @@ M0_INTERNAL void m0_be_prp_cursor_init(struct m0_be_prp_cursor       *cursor,
 				       struct m0_be_pD               *paged,
 				       struct m0_be_pd_request_pages *pages,
 				       const void                    *addr,
-				       m0_bcount_t                   size);
+				       m0_bcount_t                    size);
 
 M0_INTERNAL void m0_be_prp_cursor_fini(struct m0_be_prp_cursor *cursor);
 M0_INTERNAL bool m0_be_prp_cursor_next(struct m0_be_prp_cursor *cursor);
@@ -207,12 +203,28 @@ M0_INTERNAL struct m0_be_pd_page *
 m0_be_prp_cursor_page_get(struct m0_be_prp_cursor *cursor);
 
 /**
- * (struct m0_be_pD*, struct m0_be_pd_request*, struct m0_be_pd_page*,
- *					const struct m0_be_reg_d   *rd)
- * M0_BE_PD_REQUEST_PAGES_FORALL(paged, request, page) {
+ * (struct m0_be_pD*,
+ *  struct m0_be_pd_request*,
+ *  struct m0_be_pd_page*,
+ *  const struct m0_be_reg_d*)
+ * M0_BE_PD_REQUEST_PAGES_FORALL(paged, request, page, rd) {
  *	;
  * } M0_BE_PD_REQUEST_PAGES_ENDFOR;
+ *
+ * struct m0_be_pd_page *page;
+ * struct m0_be_reg_d   *rd;
+ *
+ * M0_BE_PD_REQUEST_PAGES_FORALL(paged, request, page, rd) {
+ *	copy_reg_to_page(page, rd);
+ * } M0_BE_PD_REQUEST_PAGES_ENDFOR;
+ *
  */
+M0_INTERNAL void
+m0_be_pd_request_pages_forall(struct m0_be_pD         *paged,
+			      struct m0_be_pd_request *request,
+			      bool (*iterate)(struct m0_be_pd_page *page,
+					      struct m0_be_reg_d   *rd));
+
 #define M0_BE_PD_REQUEST_PAGES_FORALL(paged, request, page, rd)		\
 {									\
 	struct m0_be_prp_cursor        cursor;				\
@@ -236,6 +248,7 @@ m0_be_prp_cursor_page_get(struct m0_be_prp_cursor *cursor);
 
 #define M0_BE_PD_REQUEST_PAGES_ENDFOR					\
 		}							\
+		m0_be_prp_cursor_fini(&cursor);				\
 		if (rpages->prp_type == PRT_READ)			\
 			break;						\
 	}								\
@@ -306,20 +319,6 @@ M0_INTERNAL void m0_be_pd_fom_fini(struct m0_be_pd_fom    *fom);
 
 M0_INTERNAL void m0_be_pd_fom_mod_init(void);
 M0_INTERNAL void m0_be_pd_fom_mod_fini(void);
-
-enum m0_be_pd_fom_state {
-	PFS_INIT   = M0_FOM_PHASE_INIT,
-	PFS_FINISH = M0_FOM_PHASE_FINISH,
-
-	PFS_IDLE   = M0_FOM_PHASE_NR,
-
-	PFS_READ,
-	PFS_READ_DONE,
-	PFS_WRITE,
-	PFS_WRITE_DONE,
-
-	PFS_NR,
-};
 
 /* ------------------------------------------------------------------------- */
 

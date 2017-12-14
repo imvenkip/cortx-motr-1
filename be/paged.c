@@ -28,6 +28,8 @@
 #include "lib/trace.h"
 #include "mero/magic.h"
 #include "be/paged.h"
+#include "be/tx_service.h"   /* m0_be_txs_stype */
+#include "rpc/rpc_opcodes.h" /* M0_BE_PD_FOM_OPCODE */
 
 /* -------------------------------------------------------------------------- */
 /* Prototypes								      */
@@ -51,6 +53,109 @@ static bool mapping_is_addr_in_page(struct m0_be_pd_page *page,
 
 static struct m0_be_pd_page *
 mapping_addr_to_page(struct m0_be_pd_mapping *mapping, const void *addr);
+
+/* -------------------------------------------------------------------------- */
+/* PD FOM							              */
+/* -------------------------------------------------------------------------- */
+
+enum m0_be_pd_fom_state {
+	PFS_INIT   = M0_FOM_PHASE_INIT,
+	PFS_FINISH = M0_FOM_PHASE_FINISH,
+
+	PFS_IDLE   = M0_FOM_PHASE_NR,
+	PFS_READ,
+	PFS_READ_DONE,
+	PFS_WRITE,
+	PFS_WRITE_DONE,
+	PFS_MANAGE,
+	PFS_FAILED,
+	PFS_NR,
+};
+
+static struct m0_sm_state_descr pd_fom_states[PFS_NR] = {
+#define _S(name, flags, allowed)      \
+	[name] = {                    \
+		.sd_flags   = flags,  \
+		.sd_name    = #name,  \
+		.sd_allowed = allowed \
+	}
+
+	_S(PFS_INIT,   M0_SDF_INITIAL, M0_BITS(PFS_IDLE, PFS_FAILED)),
+	_S(PFS_FINISH, M0_SDF_TERMINAL, 0),
+	_S(PFS_FAILED, M0_SDF_FAILURE, M0_BITS(PFS_FINISH)),
+
+	_S(PFS_IDLE,       0, M0_BITS(PFS_MANAGE)),
+	_S(PFS_MANAGE,     0, M0_BITS(PFS_IDLE, PFS_WRITE, PFS_READ)),
+	_S(PFS_WRITE,      0, M0_BITS(PFS_WRITE_DONE)),
+	_S(PFS_READ,       0, M0_BITS(PFS_READ_DONE)),
+	_S(PFS_WRITE_DONE, 0, M0_BITS(PFS_MANAGE)),
+	_S(PFS_READ_DONE,  0, M0_BITS(PFS_MANAGE)),
+	_S(PFS_MANAGE,     0, M0_BITS(PFS_IDLE)),
+
+#undef _S
+};
+
+const static struct m0_sm_conf pd_fom_conf = {
+	.scf_name      = "pd_fom",
+	.scf_nr_states = ARRAY_SIZE(pd_fom_states),
+	.scf_state     = pd_fom_states,
+};
+
+static int pd_fom_tick(struct m0_fom *fom)
+{
+	return M0_FSO_AGAIN;
+}
+
+M0_UNUSED static struct m0_be_pd_fom *fom_to_pd_fom(const struct m0_fom *fom)
+{
+	return container_of(fom, struct m0_be_pd_fom, bpf_gen);
+}
+
+static void pd_fom_fini(struct m0_fom *fom)
+{
+	m0_fom_fini(fom);
+}
+
+static size_t pd_fom_locality(const struct m0_fom *fom)
+{
+	return 0;
+}
+
+static const struct m0_fom_ops pd_fom_ops = {
+	.fo_fini          = pd_fom_fini,
+	.fo_tick          = pd_fom_tick,
+	.fo_home_locality = pd_fom_locality
+};
+
+static struct m0_fom_type pd_fom_type;
+
+static const struct m0_fom_type_ops pd_fom_type_ops = {
+	.fto_create = NULL
+};
+
+
+M0_INTERNAL void m0_be_pd_fom_init(struct m0_be_pd_fom    *fom,
+				   struct m0_be_pD        *pd,
+				   struct m0_reqh         *reqh)
+{
+	m0_fom_init(&fom->bpf_gen, &pd_fom_type, &pd_fom_ops, NULL, NULL, reqh);
+}
+
+
+M0_INTERNAL void m0_be_pd_fom_fini(struct m0_be_pd_fom *fom)
+{
+}
+
+
+M0_INTERNAL void m0_be_pd_fom_mod_init(void)
+{
+	m0_fom_type_init(&pd_fom_type, M0_BE_PD_FOM_OPCODE, &pd_fom_type_ops,
+			 &m0_be_txs_stype, &pd_fom_conf);
+}
+
+M0_INTERNAL void m0_be_pd_fom_mod_fini(void)
+{
+}
 
 /* -------------------------------------------------------------------------- */
 /* Request queue							      */
@@ -169,29 +274,81 @@ M0_INTERNAL void
 m0_be_pd_request__copy_to_cellars(struct m0_be_pD         *paged,
 				  struct m0_be_pd_request *request)
 {
-	struct m0_be_pd_page *page;
-	struct m0_be_reg_d   *rd;
-
-	M0_BE_PD_REQUEST_PAGES_FORALL(paged, request, page, rd) {
-		copy_reg_to_page(page, rd);
-	} M0_BE_PD_REQUEST_PAGES_ENDFOR;
+	m0_be_pd_request_pages_forall(paged, request,
+	      LAMBDA(bool, (struct m0_be_pd_page *page,
+			    struct m0_be_reg_d *rd) {
+			     copy_reg_to_page(page, rd);
+			     return true;
+		     }));
 }
 
 M0_INTERNAL bool m0_be_pd_pages_are_in(struct m0_be_pD         *paged,
 				       struct m0_be_pd_request *request)
 {
-	struct m0_be_pd_page *page;
-	struct m0_be_reg_d   *rd;
-	bool                  pages_are_in = true;
+	bool pages_are_in = true;
 
-	M0_BE_PD_REQUEST_PAGES_FORALL(paged, request, page, rd) {
-		pages_are_in &= M0_IN(page->pp_state, (PPS_READY, PPS_WRITING));
-	} M0_BE_PD_REQUEST_PAGES_ENDFOR;
-
-	(void)rd;
+	m0_be_pd_request_pages_forall(paged, request,
+	      LAMBDA(bool, (struct m0_be_pd_page *page,
+			    struct m0_be_reg_d *rd) {
+			     pages_are_in &= M0_IN(page->pp_state,
+						   (PPS_READY, PPS_WRITING));
+			     return true;
+		     }));
 
 	return pages_are_in;
 }
+
+static bool
+request_pages_forall_helper(struct m0_be_pD         *paged,
+			    struct m0_be_pd_request *request,
+			    struct m0_be_reg_d      *rd,
+			    bool (*iterate)(struct m0_be_pd_page *page,
+					    struct m0_be_reg_d   *rd))
+{
+	struct m0_be_pd_request_pages *rpages = &request->prt_pages;
+	struct m0_be_prp_cursor        cursor;
+	struct m0_be_pd_page          *page;
+
+	m0_be_prp_cursor_init(&cursor, (paged), rpages,
+			      rd->rd_reg.br_addr,
+			      rd->rd_reg.br_size);
+	while (m0_be_prp_cursor_next(&cursor)) {
+		(page) = m0_be_prp_cursor_page_get(&cursor);
+		if (!iterate(page, rd))
+			return false;
+	}
+	m0_be_prp_cursor_fini(&cursor);
+
+	return true;
+}
+
+M0_INTERNAL void
+m0_be_pd_request_pages_forall(struct m0_be_pD         *paged,
+			      struct m0_be_pd_request *request,
+			      bool (*iterate)(struct m0_be_pd_page *page,
+					      struct m0_be_reg_d   *rd))
+{
+	struct m0_be_pd_request_pages *rpages = &request->prt_pages;
+	struct m0_be_reg_d            *rd;
+	struct m0_be_reg_d             rd_read;
+
+	if (rpages->prp_type == PRT_READ) {
+		rd = &rd_read;
+		rd->rd_reg.br_addr = rpages->prp_reg.br_addr;
+		rd->rd_reg.br_size = rpages->prp_reg.br_size;
+		request_pages_forall_helper(paged, request, rd, iterate);
+		return;
+	}
+
+	M0_BE_REG_AREA_FORALL(rpages->prp_reg_area, rd) {
+		if (!request_pages_forall_helper(paged, request, rd, iterate))
+			return;
+	}
+}
+
+/* -------------------------------------------------------------------------- */
+/* Request cursors						              */
+/* -------------------------------------------------------------------------- */
 
 M0_INTERNAL void m0_be_prp_cursor_init(struct m0_be_prp_cursor       *cursor,
 				       struct m0_be_pD               *paged,

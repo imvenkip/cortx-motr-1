@@ -347,6 +347,7 @@ enum M0_RPC_OPCODES {
 	M0_CM_DIX_REP_ITER_UT_OPCODE        = 1066,
 	M0_FDMI_PLUGIN_DOCK_OPCODE          = 1070,
 	M0_FDMI_SOURCE_DOCK_OPCODE          = 1071,
+	M0_BE_PD_FOM_OPCODE                 = 1080,
 
 	M0_OPCODES_NR                       = 2048
 } M0_XCA_ENUM;
