@@ -67,9 +67,10 @@ mapping_addr_to_page(struct m0_be_pd_mapping *mapping, const void *addr);
 
 static int be_pd_level_enter(struct m0_module *module)
 {
-	struct m0_be_pd *pd = M0_AMB(pd, module, bp_module);
+	struct m0_be_pd            *pd = M0_AMB(pd, module, bp_module);
+	enum m0_be_pd_module_level  level = module->m_cur + 1;
 
-	switch (module->m_cur + 1) {
+	switch (level) {
 	case M0_BE_PD_LEVEL_INIT:
 		return M0_RC(0);
 	case M0_BE_PD_LEVEL_IO_SCHED:
@@ -83,9 +84,10 @@ static int be_pd_level_enter(struct m0_module *module)
 
 static void be_pd_level_leave(struct m0_module *module)
 {
-	struct m0_be_pd *pd = M0_AMB(pd, module, bp_module);
+	struct m0_be_pd            *pd = M0_AMB(pd, module, bp_module);
+	enum m0_be_pd_module_level  level = module->m_cur;
 
-	switch (module->m_cur) {
+	switch (level) {
 	case M0_BE_PD_LEVEL_INIT:
 		return;
 	case M0_BE_PD_LEVEL_IO_SCHED:

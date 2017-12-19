@@ -53,7 +53,7 @@ struct m0_be_op;
 struct m0_fom;
 
 
-enum {
+enum m0_be_pd_module_level {
 	M0_BE_PD_LEVEL_INIT,
 	M0_BE_PD_LEVEL_IO_SCHED,
 	M0_BE_PD_LEVEL_READY,
