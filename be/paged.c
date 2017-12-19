@@ -30,10 +30,13 @@
 #include "lib/trace.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
+#include "lib/misc.h"        /* M0_AMB */
+#include "lib/assert.h"
 #include "mero/magic.h"
 #include "be/paged.h"
 #include "be/tx_service.h"   /* m0_be_txs_stype */
 #include "rpc/rpc_opcodes.h" /* M0_BE_PD_FOM_OPCODE */
+#include "module/instance.h" /* m0_get */
 
 /* -------------------------------------------------------------------------- */
 /* Prototypes								      */
@@ -57,6 +60,69 @@ static bool mapping_is_addr_in_page(struct m0_be_pd_page *page,
 
 static struct m0_be_pd_page *
 mapping_addr_to_page(struct m0_be_pd_mapping *mapping, const void *addr);
+
+/* -------------------------------------------------------------------------- */
+/* m0_be_pd							              */
+/* -------------------------------------------------------------------------- */
+
+static int be_pd_level_enter(struct m0_module *module)
+{
+	struct m0_be_pd     *pd = M0_AMB(pd, module, bp_module);
+	struct m0_be_pd_cfg *pd_cfg = &pd->bp_cfg;
+
+	(void)pd_cfg;
+	switch (module->m_cur + 1) {
+	case M0_BE_PD_LEVEL_INIT:
+		return M0_RC(0);
+	case M0_BE_PD_LEVEL_READY:
+		return M0_RC(0);
+	}
+	return M0_ERR(-ENOSYS);
+}
+
+static void be_pd_level_leave(struct m0_module *module)
+{
+	struct m0_be_pd *pd = M0_AMB(pd, module, bp_module);
+
+	switch (module->m_cur) {
+	case M0_BE_PD_LEVEL_INIT:
+		return;
+	case M0_BE_PD_LEVEL_READY:
+		return;
+	}
+}
+
+static const struct m0_modlev be_pd_levels[] = {
+	[M0_BE_PD_LEVEL_INIT] = {
+		.ml_name  = "M0_BE_PD_LEVEL_INIT",
+		.ml_enter = be_pd_level_enter,
+		.ml_leave = be_pd_level_leave,
+	},
+	[M0_BE_PD_LEVEL_READY] = {
+		.ml_name  = "M0_BE_PD_LEVEL_READY",
+		.ml_enter = be_pd_level_enter,
+		.ml_leave = be_pd_level_leave,
+	},
+};
+
+M0_INTERNAL int m0_be_pd_init(struct m0_be_pd           *pd,
+                              const struct m0_be_pd_cfg *pd_cfg)
+{
+	int rc;
+
+	M0_PRE(M0_IS0(pd));
+	m0_module_setup(&pd->bp_module, "m0_be_pd",
+			be_pd_levels, ARRAY_SIZE(be_pd_levels), m0_get());
+	rc = m0_module_init(&pd->bp_module, M0_BE_PD_LEVEL_READY);
+	if (rc != 0)
+		m0_module_fini(&pd->bp_module, M0_MODLEV_NONE);
+	return rc;
+}
+
+M0_INTERNAL void m0_be_pd_fini(struct m0_be_pd *pd)
+{
+	m0_module_fini(&pd->bp_module, M0_MODLEV_NONE);
+}
 
 /* -------------------------------------------------------------------------- */
 /* PD FOM							              */

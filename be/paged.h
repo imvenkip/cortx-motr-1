@@ -35,9 +35,11 @@
 
 #include "fop/fom.h"      /* m0_fom */
 
-#include "be/tx_regmap.h" /* m0_be_reg_area */
-#include "be/seg.h"       /* m0_be_reg */
-#include "be/op.h"        /* m0_be_op */
+#include "be/tx_regmap.h"  /* m0_be_reg_area */
+#include "be/seg.h"        /* m0_be_reg */
+#include "be/op.h"         /* m0_be_op */
+
+#include "module/module.h" /* m0_module */
 
 struct m0_be_pd_request_queue;
 struct m0_be_pd_request_pages;
@@ -50,7 +52,18 @@ struct m0_be_op;
 struct m0_fom;
 
 
+enum {
+	M0_BE_PD_LEVEL_INIT,
+	M0_BE_PD_LEVEL_READY,
+};
+
+struct m0_be_pd_cfg {
+	int unused;
+};
+
 struct m0_be_pd {
+	struct m0_be_pd_cfg            bp_cfg;
+	struct m0_module               bp_module;
 	struct m0_tl                   bp_mappings;
 
 	/**
@@ -61,6 +74,10 @@ struct m0_be_pd {
 	struct m0_be_pd_request_queue *bp_reqq;
 	struct m0_be_pd_fom           *bp_fom;
 };
+
+M0_INTERNAL int m0_be_pd_init(struct m0_be_pd           *pd,
+                              const struct m0_be_pd_cfg *pd_cfg);
+M0_INTERNAL void m0_be_pd_fini(struct m0_be_pd *pd);
 
 enum m0_be_pd_page_state {
 	PPS_INIT, /* XXX remove? */
