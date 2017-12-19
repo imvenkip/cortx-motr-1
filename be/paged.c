@@ -67,13 +67,14 @@ mapping_addr_to_page(struct m0_be_pd_mapping *mapping, const void *addr);
 
 static int be_pd_level_enter(struct m0_module *module)
 {
-	struct m0_be_pd     *pd = M0_AMB(pd, module, bp_module);
-	struct m0_be_pd_cfg *pd_cfg = &pd->bp_cfg;
+	struct m0_be_pd *pd = M0_AMB(pd, module, bp_module);
 
-	(void)pd_cfg;
 	switch (module->m_cur + 1) {
 	case M0_BE_PD_LEVEL_INIT:
 		return M0_RC(0);
+	case M0_BE_PD_LEVEL_IO_SCHED:
+		return M0_RC(m0_be_pd_io_sched_init(&pd->bp_io_sched,
+					    &pd->bp_cfg.bpc_io_sched_cfg));
 	case M0_BE_PD_LEVEL_READY:
 		return M0_RC(0);
 	}
@@ -87,6 +88,9 @@ static void be_pd_level_leave(struct m0_module *module)
 	switch (module->m_cur) {
 	case M0_BE_PD_LEVEL_INIT:
 		return;
+	case M0_BE_PD_LEVEL_IO_SCHED:
+		m0_be_pd_io_sched_fini(&pd->bp_io_sched);
+		return;
 	case M0_BE_PD_LEVEL_READY:
 		return;
 	}
@@ -95,6 +99,11 @@ static void be_pd_level_leave(struct m0_module *module)
 static const struct m0_modlev be_pd_levels[] = {
 	[M0_BE_PD_LEVEL_INIT] = {
 		.ml_name  = "M0_BE_PD_LEVEL_INIT",
+		.ml_enter = be_pd_level_enter,
+		.ml_leave = be_pd_level_leave,
+	},
+	[M0_BE_PD_LEVEL_IO_SCHED] = {
+		.ml_name  = "M0_BE_PD_LEVEL_IO_SCHED",
 		.ml_enter = be_pd_level_enter,
 		.ml_leave = be_pd_level_leave,
 	},

@@ -38,6 +38,7 @@
 #include "be/tx_regmap.h"  /* m0_be_reg_area */
 #include "be/seg.h"        /* m0_be_reg */
 #include "be/op.h"         /* m0_be_op */
+#include "be/pd.h"         /* m0_be_pd_io_sched */
 
 #include "module/module.h" /* m0_module */
 
@@ -54,16 +55,18 @@ struct m0_fom;
 
 enum {
 	M0_BE_PD_LEVEL_INIT,
+	M0_BE_PD_LEVEL_IO_SCHED,
 	M0_BE_PD_LEVEL_READY,
 };
 
 struct m0_be_pd_cfg {
-	int unused;
+	struct m0_be_pd_io_sched_cfg bpc_io_sched_cfg;
 };
 
 struct m0_be_pd {
 	struct m0_be_pd_cfg            bp_cfg;
 	struct m0_module               bp_module;
+	struct m0_be_pd_io_sched       bp_io_sched;
 	struct m0_tl                   bp_mappings;
 
 	/**
