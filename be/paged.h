@@ -327,19 +327,19 @@ enum m0_be_pd_io_type {
 	M0_PIT_WRITE,
 };
 
-struct m0_be_pd_io {
+struct m0_be_NEW_pd_io {
 	int xxx;
 };
 
-M0_INTERNAL int m0_be_pd_io_init(struct m0_be_pd_io *pio,
+M0_INTERNAL int m0_be_pd_io_init(struct m0_be_NEW_pd_io *pio,
 				 struct m0_be_pD *paged,
 				 enum m0_be_pd_io_type type);
 
-M0_INTERNAL void m0_be_pd_io_fini(struct m0_be_pd_io *pio);
-M0_INTERNAL struct m0_be_pd_io *m0_be_pd_io_get(struct m0_be_pD *paged);
-M0_INTERNAL void m0_be_pd_io_put(struct m0_be_pd_io *pio);
-M0_INTERNAL int m0_be_pd_io_launch(struct m0_be_pd_io *pio);
-M0_INTERNAL void m0_be_pd_io_add(struct m0_be_pd_io *pio,
+M0_INTERNAL void m0_be_pd_io_fini(struct m0_be_NEW_pd_io *pio);
+M0_INTERNAL struct m0_be_NEW_pd_io *m0_be_NEW_pd_io_get(struct m0_be_pD *paged);
+M0_INTERNAL void m0_be_NEW_pd_io_put(struct m0_be_NEW_pd_io *pio);
+M0_INTERNAL int m0_be_pd_io_launch(struct m0_be_NEW_pd_io *pio);
+M0_INTERNAL void m0_be_NEW_pd_io_add(struct m0_be_NEW_pd_io *pio,
 				 struct m0_be_pd_page *page);
 
 /* ------------------------------------------------------------------------- */

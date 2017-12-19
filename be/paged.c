@@ -223,7 +223,7 @@ M0_INTERNAL void m0_be_pd_request_push(struct m0_be_pD         *paged,
 /* Requests							              */
 /* -------------------------------------------------------------------------- */
 
-bool request_invariant(struct m0_be_pd_request *request)
+M0_INTERNAL bool request_invariant(struct m0_be_pd_request *request)
 {
 	return true;
 }
