@@ -26,7 +26,7 @@
 #include "be/engine.h"          /* m0_be_engine */
 #include "be/seg0.h"            /* m0_be_0type */
 #include "be/log.h"             /* m0_be_log_cfg */
-#include "be/pd.h"              /* m0_be_pd_io_sched */
+#include "be/paged.h"           /* m0_be_pd */
 #include "be/log_discard.h"     /* m0_be_log_discard */
 #include "stob/stob.h"          /* m0_stob_id */
 #include "stob/stob_xc.h"
@@ -124,7 +124,7 @@ struct m0_be_domain_cfg {
 	struct m0_be_0type_seg_cfg  *bc_seg_cfg;
 	/** Size of m0_be_domain_cfg::bc_seg_cfg array. */
 	unsigned                     bc_seg_nr;
-	struct m0_be_pd_io_sched_cfg bc_pd_cfg;
+	struct m0_be_pd_cfg          bc_pd_cfg;
 	struct m0_be_log_discard_cfg bc_log_discard_cfg;
 };
 
@@ -144,7 +144,7 @@ struct m0_be_domain {
 	struct m0_stob           *bd_seg0_stob;
 	struct m0_stob_domain    *bd_stob_domain;
 	struct m0_be_0type        bd_0type_seg;
-	struct m0_be_pd_io_sched  bd_pd;
+	struct m0_be_pd           bd_pd;
 	struct m0_be_log_discard  bd_log_discard;
 };
 

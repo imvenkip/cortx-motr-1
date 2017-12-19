@@ -77,7 +77,7 @@
 
 struct m0_be_tx_group;
 struct m0_be_log;
-struct m0_be_pd_io_sched;
+struct m0_be_pd;
 
 typedef void (*m0_be_group_format_reg_area_rebuild_t)
 	(struct m0_be_reg_area *ra,
@@ -102,7 +102,7 @@ struct m0_be_group_format_cfg {
 	struct m0_be_fmt_group_cfg  gfc_fmt_cfg;
 	struct m0_be_log           *gfc_log;
 	struct m0_be_log_discard   *gfc_log_discard;
-	struct m0_be_pd_io_sched   *gfc_pd;
+	struct m0_be_pd            *gfc_pd;
 };
 
 struct m0_be_group_format {

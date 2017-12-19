@@ -331,7 +331,9 @@ void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg)
 		.bc_seg_cfg		   = NULL,
 		.bc_seg_nr		   = 0,
 		.bc_pd_cfg = {
-			.bpdc_seg_io_nr = 0x2,
+			.bpc_io_sched_cfg = {
+				.bpdc_seg_io_nr = 0x2,
+			},
 		},
 		.bc_log_discard_cfg = {
 			.ldsc_items_max         = 0x100,

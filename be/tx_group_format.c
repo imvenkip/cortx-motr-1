@@ -151,7 +151,8 @@ static void be_group_format_level_leave(struct m0_module *module)
 						gft->gft_fmt_cblock_decoded);
 		}
 		if (gft->gft_pd_io != NULL)
-			m0_be_pd_io_put(gft->gft_cfg.gfc_pd, gft->gft_pd_io);
+			m0_be_pd_io_put(&gft->gft_cfg.gfc_pd->bp_io_sched,
+					gft->gft_pd_io);
 		break;
 	default:
 		M0_IMPOSSIBLE("Unexpected m0_module level");
@@ -164,7 +165,8 @@ M0_INTERNAL void m0_be_group_format_reset(struct m0_be_group_format *gft)
 	m0_be_fmt_cblock_reset(&gft->gft_fmt_cblock);
 	m0_be_log_record_reset(&gft->gft_log_record);
 	if (gft->gft_pd_io != NULL) {
-		m0_be_pd_io_put(gft->gft_cfg.gfc_pd, gft->gft_pd_io);
+		m0_be_pd_io_put(&gft->gft_cfg.gfc_pd->bp_io_sched,
+				gft->gft_pd_io);
 		gft->gft_pd_io = NULL;
 	}
 	m0_be_op_reset(&gft->gft_pd_io_get);
@@ -317,7 +319,7 @@ M0_INTERNAL void m0_be_group_format_prepare(struct m0_be_group_format *gft,
 	m0_be_log_discard_item_get(gft->gft_cfg.gfc_log_discard,
 	                           &gft->gft_log_discard_get,
 	                           &gft->gft_log_discard_item);
-	m0_be_pd_io_get(gft->gft_cfg.gfc_pd, &gft->gft_pd_io,
+	m0_be_pd_io_get(&gft->gft_cfg.gfc_pd->bp_io_sched, &gft->gft_pd_io,
 	                &gft->gft_pd_io_get);
 	m0_be_op_done(&gft->gft_all_get);
 }
@@ -568,8 +570,8 @@ M0_INTERNAL void m0_be_group_format_seg_place(struct m0_be_group_format *gft,
 	m0_be_op_callback_set(gft_op, &be_tx_group_format_seg_io_op_gc,
 	                      gft, M0_BOS_GC);
 	M0_LOG(M0_DEBUG, "seg_place ldi=%p", gft->gft_log_discard_item);
-	m0_be_pd_io_add(gft->gft_cfg.gfc_pd, gft->gft_pd_io, &gft->gft_ext,
-			gft_op);
+	m0_be_pd_io_add(&gft->gft_cfg.gfc_pd->bp_io_sched,
+			gft->gft_pd_io, &gft->gft_ext, gft_op);
 }
 
 M0_INTERNAL void

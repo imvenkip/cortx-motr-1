@@ -433,7 +433,8 @@ static void be_domain_ldsc_sync(struct m0_be_log_discard      *ld,
 	stobs[0] = m0_be_domain_seg0_get(dom)->bs_stob;
 	seg = m0_be_domain_seg_first(dom);
 	stobs[1] = seg != NULL ? seg->bs_stob : NULL;
-	m0_be_pd_io_sched_sync(&dom->bd_pd, 0, stobs, seg == NULL ? 1 : 2, op);
+	m0_be_pd_io_sched_sync(&dom->bd_pd.bp_io_sched, 0, stobs,
+			       seg == NULL ? 1 : 2, op);
 }
 
 M0_INTERNAL void
@@ -747,14 +748,14 @@ static int be_domain_level_enter(struct m0_module *module)
 		                            &cfg->bc_log));
 	case M0_BE_DOMAIN_LEVEL_PD_INIT:
 		M0_ASSERT(equi(cfg->bc_seg_cfg == NULL, cfg->bc_seg_nr == 0));
-		M0_ASSERT_INFO(cfg->bc_pd_cfg.bpdc_seg_io_nr >=
+		M0_ASSERT_INFO(cfg->bc_pd_cfg.bpc_io_sched_cfg.bpdc_seg_io_nr >=
 			       cfg->bc_engine.bec_group_nr,
 			      "seg_io_nr must be at least number of tx_groups");
 		cfg->bc_pd_cfg.bpdc_sched.bisc_pos_start =
 			m0_be_log_recovery_discarded(m0_be_domain_log(dom));
 		m0_be_tx_group_seg_io_credit(
-					&cfg->bc_engine.bec_group_cfg,
-					&cfg->bc_pd_cfg.bpdc_io_credit);
+			      &cfg->bc_engine.bec_group_cfg,
+			      &cfg->bc_pd_cfg.bpc_io_sched_cfg.bpdc_io_credit);
 		return M0_RC(m0_be_pd_init(&dom->bd_pd, &cfg->bc_pd_cfg));
 	case M0_BE_DOMAIN_LEVEL_NORMAL_SEG0_OPEN:
 		if (cfg->bc_mkfs_mode)

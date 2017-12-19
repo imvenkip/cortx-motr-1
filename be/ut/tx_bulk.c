@@ -76,8 +76,8 @@ static void be_ut_tx_bulk_test_run(struct m0_be_tx_bulk_cfg    *tb_cfg,
 	m0_be_ut_backend_cfg_default(&cfg);
 	if (be_cfg != NULL && be_cfg->tbbc_tx_group_nr != 0) {
 		cfg.bc_engine.bec_group_nr = be_cfg->tbbc_tx_group_nr;
-		cfg.bc_pd_cfg.bpdc_seg_io_nr =
-			max64u(cfg.bc_pd_cfg.bpdc_seg_io_nr,
+		cfg.bc_pd_cfg.bpc_io_sched_cfg.bpdc_seg_io_nr =
+			max64u(cfg.bc_pd_cfg.bpc_io_sched_cfg.bpdc_seg_io_nr,
 			       be_cfg->tbbc_tx_group_nr);
 	}
 	m0_be_tx_credit_mul_bp(&cfg.bc_engine.bec_tx_size_max,
