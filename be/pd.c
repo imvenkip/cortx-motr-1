@@ -81,7 +81,7 @@ static void be_pd_io_op_done(struct m0_be_op *op, void *param)
 	be_pd_io_move(pios, pdio, M0_BPD_IO_DONE);
 }
 
-M0_INTERNAL int m0_be_pd_init(struct m0_be_pd_io_sched     *pios,
+M0_INTERNAL int m0_be_pd_io_sched_init(struct m0_be_pd_io_sched     *pios,
                               struct m0_be_pd_io_sched_cfg *pd_cfg)
 {
 	struct m0_be_pd_io *pdio;
@@ -122,7 +122,7 @@ M0_INTERNAL int m0_be_pd_init(struct m0_be_pd_io_sched     *pios,
 	return 0;
 }
 
-M0_INTERNAL void m0_be_pd_fini(struct m0_be_pd_io_sched *pios)
+M0_INTERNAL void m0_be_pd_io_sched_fini(struct m0_be_pd_io_sched *pios)
 {
 	struct m0_be_pd_io *pdio;
 	uint32_t            nr = 0;
@@ -210,11 +210,11 @@ static void be_pd_sync_run(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	m0_be_op_done(pios->bpd_sync_op);
 }
 
-M0_INTERNAL void m0_be_pd_sync(struct m0_be_pd_io_sched  *pios,
-                               m0_bindex_t       pos,
-                               struct m0_stob  **stobs,
-                               int               nr,
-                               struct m0_be_op  *op)
+M0_INTERNAL void m0_be_pd_io_sched_sync(struct m0_be_pd_io_sched  *pios,
+                                        m0_bindex_t                pos,
+                                        struct m0_stob           **stobs,
+                                        int                        nr,
+                                        struct m0_be_op           *op)
 {
 	struct m0_be_io *bio;
 	int i;

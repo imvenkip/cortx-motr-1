@@ -152,7 +152,7 @@ void m0_be_ut_pd_usecase(void)
 			.bput_stob      = stob,
 		};
 	}
-	rc = m0_be_pd_init(pd, &pd_cfg);
+	rc = m0_be_pd_io_sched_init(pd, &pd_cfg);
 	M0_UT_ASSERT(rc == 0);
 	m0_atomic64_set(&pos, BE_UT_PD_USECASE_POS_START);
 
@@ -160,7 +160,7 @@ void m0_be_ut_pd_usecase(void)
 			    tests);
 	M0_UT_THREADS_STOP(be_ut_pd_usecase);
 
-	m0_be_pd_fini(pd);
+	m0_be_pd_io_sched_fini(pd);
 	m0_free(tests);
 	m0_free(pd);
 	m0_ut_stob_put(stob, true);

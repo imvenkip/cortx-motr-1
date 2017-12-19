@@ -433,7 +433,7 @@ static void be_domain_ldsc_sync(struct m0_be_log_discard      *ld,
 	stobs[0] = m0_be_domain_seg0_get(dom)->bs_stob;
 	seg = m0_be_domain_seg_first(dom);
 	stobs[1] = seg != NULL ? seg->bs_stob : NULL;
-	m0_be_pd_sync(&dom->bd_pd, 0, stobs, seg == NULL ? 1 : 2, op);
+	m0_be_pd_io_sched_sync(&dom->bd_pd, 0, stobs, seg == NULL ? 1 : 2, op);
 }
 
 M0_INTERNAL void

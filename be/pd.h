@@ -75,9 +75,9 @@ struct m0_be_pd_io_sched {
 	struct m0_sm_ast       bpd_sync_ast;
 };
 
-M0_INTERNAL int m0_be_pd_init(struct m0_be_pd_io_sched *pios,
-			      struct m0_be_pd_io_sched_cfg *pd_cfg);
-M0_INTERNAL void m0_be_pd_fini(struct m0_be_pd_io_sched *pios);
+M0_INTERNAL int m0_be_pd_io_sched_init(struct m0_be_pd_io_sched *pios,
+                                       struct m0_be_pd_io_sched_cfg *pd_cfg);
+M0_INTERNAL void m0_be_pd_io_sched_fini(struct m0_be_pd_io_sched *pios);
 
 M0_INTERNAL void m0_be_pd_io_add(struct m0_be_pd_io_sched    *pios,
                                  struct m0_be_pd_io *pdio,
@@ -97,11 +97,11 @@ M0_INTERNAL struct m0_be_io *m0_be_pd_io_be_io(struct m0_be_pd_io *pdio);
  *
  * @note pos parameter is ignored for now.
  */
-M0_INTERNAL void m0_be_pd_sync(struct m0_be_pd_io_sched  *pios,
-                               m0_bindex_t       pos,
-                               struct m0_stob  **stobs,
-                               int               nr,
-                               struct m0_be_op  *op);
+M0_INTERNAL void m0_be_pd_io_sched_sync(struct m0_be_pd_io_sched  *pios,
+                                        m0_bindex_t                pos,
+                                        struct m0_stob           **stobs,
+                                        int                        nr,
+                                        struct m0_be_op           *op);
 
 /** @} end of be group */
 #endif /* __MERO_BE_PD_H__ */
