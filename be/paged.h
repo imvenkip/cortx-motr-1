@@ -63,7 +63,7 @@ struct m0_be_pD {
 };
 
 enum m0_be_pd_page_state {
-	PPS_INIT,
+	PPS_INIT, /* XXX remove? */
 	PPS_FINI,
 	PPS_UNMAPPED,
 	PPS_MAPPED,
@@ -109,10 +109,10 @@ M0_INTERNAL bool m0_be_pd_page_is_in(struct m0_be_pD                 *paged,
  */
 #define M0_BE_PD_PAGES_FORALL(paged, page)
 
-M0_INTERNAL int m0_be_pd_mapping_init(struct m0_be_pD         *paged,
-				      const void              *addr,
-				      m0_bcount_t              size,
-				      m0_bcount_t              page_size);
+M0_INTERNAL int m0_be_pd_mapping_init(struct m0_be_pD *paged,
+				      void            *addr,
+				      m0_bcount_t      size,
+				      m0_bcount_t      page_size);
 
 M0_INTERNAL int m0_be_pd_mapping_fini(struct m0_be_pD         *paged,
 				      const void              *addr,

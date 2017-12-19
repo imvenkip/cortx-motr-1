@@ -24,8 +24,12 @@
  * @{
  */
 
+#include <sys/mman.h>        /* mmap, madvise */
+
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
 #include "lib/trace.h"
+#include "lib/errno.h"
+#include "lib/memory.h"
 #include "mero/magic.h"
 #include "be/paged.h"
 #include "be/tx_service.h"   /* m0_be_txs_stype */
@@ -418,8 +422,210 @@ m0_be_prp_cursor_page_get(struct m0_be_prp_cursor *cursor)
 /* Mappings							              */
 /* -------------------------------------------------------------------------- */
 
+M0_INTERNAL void m0_be_pd_mappings_lock(struct m0_be_pD              *paged,
+					struct m0_be_pd_request      *request)
+{
+}
+
+M0_INTERNAL void m0_be_pd_mappings_unlock(struct m0_be_pD            *paged,
+					  struct m0_be_pd_request    *request)
+{
+}
+
+M0_INTERNAL int m0_be_pd_page_init(struct m0_be_pd_page *page,
+				   void                 *addr,
+				   m0_bcount_t           size)
+{
+	page->pp_page   = addr;
+	page->pp_size   = size;
+	page->pp_cellar = NULL;
+	m0_mutex_init(&page->pp_lock);
+	/* TODO pp_pio_tlink */
+	page->pp_state = PPS_UNMAPPED;
+
+	return 0;
+}
+
+M0_INTERNAL void m0_be_pd_page_fini(struct m0_be_pd_page *page)
+{
+	/* TODO pp_pio_tlink */
+	m0_mutex_fini(&page->pp_lock);
+	page->pp_state = PPS_FINI;
+}
+
+M0_INTERNAL void m0_be_pd_page_lock(struct m0_be_pd_page *page)
+{
+	m0_mutex_lock(&page->pp_lock);
+}
+
+M0_INTERNAL void m0_be_pd_page_unlock(struct m0_be_pd_page *page)
+{
+	m0_mutex_unlock(&page->pp_lock);
+}
+
+M0_INTERNAL bool m0_be_pd_page_is_locked(struct m0_be_pd_page *page)
+{
+	return m0_mutex_is_locked(&page->pp_lock);
+}
+
+M0_INTERNAL bool m0_be_pd_page_is_in(struct m0_be_pD                 *paged,
+				     struct m0_be_pd_page            *page)
+{
+	M0_PRE(m0_be_pd_page_is_locked(page));
+
+	return !M0_IN(page->pp_state, (PPS_FINI, PPS_UNMAPPED));
+}
+
+static void *be_pd_mapping_addr(struct m0_be_pd_mapping *mapping)
+{
+	return mapping->pas_pages[0].pp_page;
+}
+
+static m0_bcount_t be_pd_mapping_page_size(struct m0_be_pd_mapping *mapping)
+{
+	return mapping->pas_pages[0].pp_size;
+}
+
+static m0_bcount_t be_pd_mapping_size(struct m0_be_pd_mapping *mapping)
+{
+	return be_pd_mapping_page_size(mapping) * mapping->pas_pcount;
+}
+
+static struct m0_be_pd_mapping *be_pd_mapping_find(struct m0_be_pD *paged,
+						   const void      *addr,
+						   m0_bcount_t      size)
+{
+	struct m0_be_pd_mapping *mapping;
+
+	m0_tl_for(mappings, &paged->bp_mappings, mapping) {
+		if (be_pd_mapping_addr(mapping) == addr &&
+		    be_pd_mapping_size(mapping) == size)
+			return mapping;
+	} m0_tl_endfor;
+
+	return NULL;
+}
+
+static int be_pd_mapping_map(struct m0_be_pd_mapping *mapping)
+{
+	void   *addr;
+	void   *p;
+	size_t  size;
+
+	addr = be_pd_mapping_addr(mapping);
+	size = be_pd_mapping_size(mapping);
+
+	p = mmap(addr, size, PROT_READ | PROT_WRITE,
+		 MAP_ANONYMOUS | MAP_FIXED | MAP_NORESERVE | MAP_PRIVATE, -1, 0);
+
+	return p == MAP_FAILED ? M0_ERR(-errno) : 0;
+}
+
+static void be_pd_mapping_unmap(struct m0_be_pd_mapping *mapping)
+{
+	int rc;
+
+	rc = munmap(be_pd_mapping_addr(mapping), be_pd_mapping_size(mapping));
+	M0_ASSERT(rc == 0); /* XXX */
+}
+
+M0_INTERNAL int m0_be_pd_mapping_init(struct m0_be_pD *paged,
+				      void            *addr,
+				      m0_bcount_t      size,
+				      m0_bcount_t      page_size)
+{
+	struct m0_be_pd_mapping *mapping;
+	m0_bcount_t              i;
+	int                      rc;
+
+	/* XXX paged must be locked here to protect mappings list */
+
+	M0_PRE(size % page_size == 0);
+	M0_PRE(be_pd_mapping_find(paged, addr, size) == NULL);
+
+	M0_ALLOC_PTR(mapping);
+	M0_ASSERT(mapping != NULL); /* XXX */
+
+	mapping->pas_pcount = size / page_size;
+	M0_ALLOC_ARR(mapping->pas_pages, mapping->pas_pcount);
+	M0_ASSERT(mapping->pas_pages != NULL); /* XXX */
+	for (i = 0; i < mapping->pas_pcount; ++i)
+		m0_be_pd_page_init(&mapping->pas_pages[i],
+				   (char *)addr + i * page_size, page_size);
+	m0_mutex_init(&mapping->pas_lock);
+	mappings_tlink_init(mapping);
+
+	rc = be_pd_mapping_map(mapping);
+	M0_ASSERT(rc == 0); /* XXX */
+	mappings_tlist_add(&paged->bp_mappings, mapping);
+
+	return 0;
+}
+
+M0_INTERNAL int m0_be_pd_mapping_fini(struct m0_be_pD         *paged,
+				      const void              *addr,
+				      m0_bcount_t              size)
+{
+	struct m0_be_pd_mapping *mapping;
+	m0_bcount_t              i;
+
+	/* XXX paged must be locked here to protect mappings list */
+
+	mapping = be_pd_mapping_find(paged, addr, size);
+	M0_ASSERT(mapping != NULL);
+
+	mappings_tlist_del(mapping);
+	be_pd_mapping_unmap(mapping);
+	mappings_tlink_fini(mapping);
+	m0_mutex_fini(&mapping->pas_lock);
+	for (i = 0; i < mapping->pas_pcount; ++i)
+		m0_be_pd_page_fini(&mapping->pas_pages[i]);
+	m0_free(mapping->pas_pages);
+	m0_mutex_fini(&mapping->pas_lock);
+	m0_free(mapping);
+
+	return 0;
+}
+
+M0_INTERNAL int m0_be_pd_mapping_page_attach(struct m0_be_pd_mapping *mapping,
+					     struct m0_be_pd_page    *page)
+{
+	int rc;
+
+	M0_PRE(m0_be_pd_page_is_locked(page));
+
+	rc = mlock(page->pp_page, page->pp_size);
+	if (rc == 0)
+		page->pp_state = PPS_MAPPED;
+	else
+		rc = M0_ERR(-errno);
+
+	return rc;
+}
+
+M0_INTERNAL int m0_be_pd_mapping_page_detach(struct m0_be_pd_mapping *mapping,
+					     struct m0_be_pd_page    *page)
+{
+	int rc;
+
+	M0_PRE(m0_be_pd_page_is_locked(page));
+
+	/* TODO make proper poisoning */
+	memset(page->pp_page, 0xCC, page->pp_size);
+
+	rc = munlock(page->pp_page, page->pp_size);
+	if (rc != 0)
+		rc = M0_ERR(-errno);
+	else {
+		rc = madvise(page->pp_page, page->pp_size, /* XXX MADV_FREE */ MADV_DONTNEED);
+		M0_ASSERT(rc == 0); /* XXX */
+		page->pp_state = PPS_UNMAPPED;
+	}
+	return rc;
+}
+
 static bool mapping_is_addr_in_page(struct m0_be_pd_page *page,
-					 const void *addr)
+				    const void           *addr)
 {
 	return page->pp_page <= addr && addr < page->pp_page + page->pp_size;
 }
@@ -431,18 +637,22 @@ static bool mapping_is_addr_in_page(struct m0_be_pd_page *page,
 static struct m0_be_pd_page *
 mapping_addr_to_page(struct m0_be_pd_mapping *mapping, const void *addr)
 {
-	/* WARNING: Very dumb implementation.
-	 *          Just to see the picture of underlying process.
-	 */
-	m0_bcount_t nr;
+	struct m0_be_pd_page *page = NULL;
+	m0_bcount_t           n;
+	m0_bcount_t           page_size;
+	void                 *mapping_start;
+	void                 *mapping_end;
 
-	for (nr = 0; nr < mapping->pas_pcount; ++nr) {
-		if (mapping_is_addr_in_page(&mapping->pas_pages[nr], addr))
-			return &mapping->pas_pages[nr];
+	mapping_start = be_pd_mapping_addr(mapping);
+	mapping_end   = be_pd_mapping_size(mapping) + (char *)mapping_start;
+	page_size     = be_pd_mapping_page_size(mapping);
+	if (addr >= mapping_start && addr < mapping_end) {
+		n = (addr - be_pd_mapping_addr(mapping)) / page_size;
+		page = &mapping->pas_pages[n];
+		M0_ASSERT(mapping_is_addr_in_page(page, addr));
 	}
-	return NULL;
+	return page;
 }
-
 
 #undef M0_TRACE_SUBSYSTEM
 
