@@ -111,6 +111,7 @@ M0_INTERNAL int m0_be_pd_init(struct m0_be_pd           *pd,
 	int rc;
 
 	M0_PRE(M0_IS0(pd));
+	pd->bp_cfg = *pd_cfg;
 	m0_module_setup(&pd->bp_module, "m0_be_pd",
 			be_pd_levels, ARRAY_SIZE(be_pd_levels), m0_get());
 	rc = m0_module_init(&pd->bp_module, M0_BE_PD_LEVEL_READY);
