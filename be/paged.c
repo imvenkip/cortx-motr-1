@@ -139,7 +139,7 @@ static const struct m0_fom_type_ops pd_fom_type_ops = {
 
 
 M0_INTERNAL void m0_be_pd_fom_init(struct m0_be_pd_fom    *fom,
-				   struct m0_be_pD        *pd,
+				   struct m0_be_pd        *pd,
 				   struct m0_reqh         *reqh)
 {
 	m0_fom_init(&fom->bpf_gen, &pd_fom_type, &pd_fom_ops, NULL, NULL, reqh);
@@ -215,7 +215,7 @@ m0_be_pd_request_queue_push(struct m0_be_pd_request_queue      *rq,
 	M0_LEAVE();
 }
 
-M0_INTERNAL void m0_be_pd_request_push(struct m0_be_pD         *paged,
+M0_INTERNAL void m0_be_pd_request_push(struct m0_be_pd         *paged,
 				       struct m0_be_pd_request *request)
 {
 	m0_be_op_active(&request->prt_op);
@@ -275,7 +275,7 @@ static void copy_reg_to_page(struct m0_be_pd_page       *page,
 }
 
 M0_INTERNAL void
-m0_be_pd_request__copy_to_cellars(struct m0_be_pD         *paged,
+m0_be_pd_request__copy_to_cellars(struct m0_be_pd         *paged,
 				  struct m0_be_pd_request *request)
 {
 	m0_be_pd_request_pages_forall(paged, request,
@@ -286,7 +286,7 @@ m0_be_pd_request__copy_to_cellars(struct m0_be_pD         *paged,
 		     }));
 }
 
-M0_INTERNAL bool m0_be_pd_pages_are_in(struct m0_be_pD         *paged,
+M0_INTERNAL bool m0_be_pd_pages_are_in(struct m0_be_pd         *paged,
 				       struct m0_be_pd_request *request)
 {
 	bool pages_are_in = true;
@@ -303,7 +303,7 @@ M0_INTERNAL bool m0_be_pd_pages_are_in(struct m0_be_pD         *paged,
 }
 
 static bool
-request_pages_forall_helper(struct m0_be_pD         *paged,
+request_pages_forall_helper(struct m0_be_pd         *paged,
 			    struct m0_be_pd_request *request,
 			    struct m0_be_reg_d      *rd,
 			    bool (*iterate)(struct m0_be_pd_page *page,
@@ -327,7 +327,7 @@ request_pages_forall_helper(struct m0_be_pD         *paged,
 }
 
 M0_INTERNAL void
-m0_be_pd_request_pages_forall(struct m0_be_pD         *paged,
+m0_be_pd_request_pages_forall(struct m0_be_pd         *paged,
 			      struct m0_be_pd_request *request,
 			      bool (*iterate)(struct m0_be_pd_page *page,
 					      struct m0_be_reg_d   *rd))
@@ -355,7 +355,7 @@ m0_be_pd_request_pages_forall(struct m0_be_pD         *paged,
 /* -------------------------------------------------------------------------- */
 
 M0_INTERNAL void m0_be_prp_cursor_init(struct m0_be_prp_cursor       *cursor,
-				       struct m0_be_pD               *paged,
+				       struct m0_be_pd               *paged,
 				       struct m0_be_pd_request_pages *pages,
 				       const void                    *addr,
 				       m0_bcount_t                    size)
@@ -376,7 +376,7 @@ M0_INTERNAL bool m0_be_prp_cursor_next(struct m0_be_prp_cursor *cursor)
 {
 	struct m0_be_pd_mapping *mapping;
 	struct m0_be_pd_page    *last_page;
-	struct m0_be_pD         *paged      = cursor->rpi_paged;
+	struct m0_be_pd         *paged      = cursor->rpi_paged;
 	const void       *start_addr = cursor->rpi_addr;
 	const void       *end_addr   = cursor->rpi_addr + cursor->rpi_size - 1;
 
@@ -422,12 +422,12 @@ m0_be_prp_cursor_page_get(struct m0_be_prp_cursor *cursor)
 /* Mappings							              */
 /* -------------------------------------------------------------------------- */
 
-M0_INTERNAL void m0_be_pd_mappings_lock(struct m0_be_pD              *paged,
+M0_INTERNAL void m0_be_pd_mappings_lock(struct m0_be_pd              *paged,
 					struct m0_be_pd_request      *request)
 {
 }
 
-M0_INTERNAL void m0_be_pd_mappings_unlock(struct m0_be_pD            *paged,
+M0_INTERNAL void m0_be_pd_mappings_unlock(struct m0_be_pd            *paged,
 					  struct m0_be_pd_request    *request)
 {
 }
@@ -468,7 +468,7 @@ M0_INTERNAL bool m0_be_pd_page_is_locked(struct m0_be_pd_page *page)
 	return m0_mutex_is_locked(&page->pp_lock);
 }
 
-M0_INTERNAL bool m0_be_pd_page_is_in(struct m0_be_pD                 *paged,
+M0_INTERNAL bool m0_be_pd_page_is_in(struct m0_be_pd                 *paged,
 				     struct m0_be_pd_page            *page)
 {
 	M0_PRE(m0_be_pd_page_is_locked(page));
@@ -491,7 +491,7 @@ static m0_bcount_t be_pd_mapping_size(struct m0_be_pd_mapping *mapping)
 	return be_pd_mapping_page_size(mapping) * mapping->pas_pcount;
 }
 
-static struct m0_be_pd_mapping *be_pd_mapping_find(struct m0_be_pD *paged,
+static struct m0_be_pd_mapping *be_pd_mapping_find(struct m0_be_pd *paged,
 						   const void      *addr,
 						   m0_bcount_t      size)
 {
@@ -529,7 +529,7 @@ static void be_pd_mapping_unmap(struct m0_be_pd_mapping *mapping)
 	M0_ASSERT(rc == 0); /* XXX */
 }
 
-M0_INTERNAL int m0_be_pd_mapping_init(struct m0_be_pD *paged,
+M0_INTERNAL int m0_be_pd_mapping_init(struct m0_be_pd *paged,
 				      void            *addr,
 				      m0_bcount_t      size,
 				      m0_bcount_t      page_size)
@@ -562,7 +562,7 @@ M0_INTERNAL int m0_be_pd_mapping_init(struct m0_be_pD *paged,
 	return 0;
 }
 
-M0_INTERNAL int m0_be_pd_mapping_fini(struct m0_be_pD         *paged,
+M0_INTERNAL int m0_be_pd_mapping_fini(struct m0_be_pd         *paged,
 				      const void              *addr,
 				      m0_bcount_t              size)
 {
