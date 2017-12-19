@@ -150,7 +150,7 @@ enum m0_magic_satchel {
 	/* m0_be_io_sched::bis_ios (bad be io head) */
 	M0_BE_IO_SCHED_HEAD_MAGIC = 0x33badbe104ead77,
 
-	/* m0_be_pd::bpd_io_pool (be dead cache) */
+	/* m0_be_pd_io_sched::bpd_io_pool (be dead cache) */
 	M0_BE_PD_IO_MAGIC = 0x33bedeadcac4e77,
 
 	/* m0_be_active_record_domain::ard_list (be blood flood) */

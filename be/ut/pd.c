@@ -50,21 +50,21 @@ enum {
 };
 
 struct be_ut_pd_usecase_test {
-	bool                bput_read;
-	int                 bput_iter_nr;
-	int                 bput_pd_io_nr;
-	int                 bput_pd_reg_nr;
-	struct m0_be_pd    *bput_pd;
-	struct m0_atomic64 *bput_pos;
-	struct m0_stob     *bput_stob;
+	bool                      bput_read;
+	int                       bput_iter_nr;
+	int                       bput_pd_io_nr;
+	int                       bput_pd_reg_nr;
+	struct m0_be_pd_io_sched *bput_pd;
+	struct m0_atomic64       *bput_pos;
+	struct m0_stob           *bput_stob;
 };
 
 static void be_ut_pd_usecase_thread(void *param)
 {
 	struct be_ut_pd_usecase_test  *test = param;
+	struct m0_be_pd_io_sched      *pd = test->bput_pd;
 	struct m0_be_pd_io           **pdio;
 	struct m0_be_op               *op;
-	struct m0_be_pd               *pd = test->bput_pd;
 	struct m0_be_io               *bio;
 	m0_bindex_t                    offset;
 	m0_bindex_t                    pos;
@@ -116,7 +116,7 @@ M0_UT_THREADS_DEFINE(be_ut_pd_usecase, &be_ut_pd_usecase_thread);
 
 void m0_be_ut_pd_usecase(void)
 {
-	struct m0_be_pd_cfg           pd_cfg = {
+	struct m0_be_pd_io_sched_cfg  pd_cfg = {
 		.bpdc_sched = {
 			.bisc_pos_start = BE_UT_PD_USECASE_POS_START,
 		},
@@ -131,7 +131,7 @@ void m0_be_ut_pd_usecase(void)
 	};
 	struct be_ut_pd_usecase_test *tests;
 	struct m0_atomic64            pos;
-	struct m0_be_pd              *pd;
+	struct m0_be_pd_io_sched     *pd;
 	struct m0_stob               *stob;
 	uint32_t                      i;
 	int                           rc;

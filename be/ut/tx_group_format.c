@@ -28,7 +28,7 @@
 #include "be/seg.h"
 #include "be/op.h"              /* M0_BE_OP_SYNC */
 #include "be/log_discard.h"     /* m0_be_log_discard */
-#include "be/pd.h"              /* m0_be_pd */
+#include "be/pd.h"              /* m0_be_pd_io_sched */
 #include "lib/arith.h"
 #include "lib/memory.h"
 #include "stob/stob.h"
@@ -56,18 +56,18 @@ struct be_ut_tgf_group {
 };
 
 struct be_ut_tgf_ctx {
-	struct m0_be_log         tgfc_log;
-	struct m0_mutex          tgfc_lock;
-	struct m0_be_log_discard tgfc_log_discard;
-	struct m0_be_log_discard_cfg tgfc_log_discard_cfg;
-	struct m0_be_pd          tgfc_pd;
-	struct m0_be_pd_cfg      tgfc_pd_cfg;
-	struct m0_stob_domain   *tgfc_sdom;
-	struct m0_stob          *tgfc_seg_stob;
-	struct m0_be_seg         tgfc_seg;
-	void                    *tgfc_seg_addr;
-	int                      tgfc_group_nr;
-	struct be_ut_tgf_group  *tgfc_groups;
+	struct m0_be_log              tgfc_log;
+	struct m0_mutex               tgfc_lock;
+	struct m0_be_log_discard      tgfc_log_discard;
+	struct m0_be_log_discard_cfg  tgfc_log_discard_cfg;
+	struct m0_be_pd_io_sched      tgfc_pd;
+	struct m0_be_pd_io_sched_cfg  tgfc_pd_cfg;
+	struct m0_stob_domain        *tgfc_sdom;
+	struct m0_stob               *tgfc_seg_stob;
+	struct m0_be_seg              tgfc_seg;
+	void                         *tgfc_seg_addr;
+	int                           tgfc_group_nr;
+	struct be_ut_tgf_group       *tgfc_groups;
 };
 
 /* TODO move initialisation of log to be ut helper */

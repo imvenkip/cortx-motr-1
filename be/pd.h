@@ -45,22 +45,22 @@ struct m0_be_pd_io;
 enum m0_be_pd_io_state {
 	/* io is ready to be taken using m0_be_pd_io_get() */
 	M0_BPD_IO_IDLE,
-	/* io is owned by m0_be_pd::bpd_sched */
+	/* io is owned by m0_be_pd_io_sched::bpd_sched */
 	M0_BPD_IO_IN_PROGRESS,
-	/* m0_be_pd::bpd_sched had reported about io completion. */
+	/* m0_be_pd_io_sched::bpd_sched had reported about io completion. */
 	M0_BPD_IO_DONE,
 	M0_BPD_IO_STATE_NR,
 };
 
-struct m0_be_pd_cfg {
+struct m0_be_pd_io_sched_cfg {
 	struct m0_be_io_sched_cfg bpdc_sched;
 	uint32_t                  bpdc_seg_io_nr;
 	uint32_t                  bpdc_seg_io_pending_max;
 	struct m0_be_io_credit    bpdc_io_credit;
 };
 
-struct m0_be_pd {
-	struct m0_be_pd_cfg    bpd_cfg;
+struct m0_be_pd_io_sched {
+	struct m0_be_pd_io_sched_cfg    bpd_cfg;
 	struct m0_be_io_sched  bpd_sched;
 	struct m0_be_pd_io    *bpd_io;
 	struct m0_be_pool      bpd_io_pool;
@@ -75,18 +75,19 @@ struct m0_be_pd {
 	struct m0_sm_ast       bpd_sync_ast;
 };
 
-M0_INTERNAL int m0_be_pd_init(struct m0_be_pd *pd, struct m0_be_pd_cfg *pd_cfg);
-M0_INTERNAL void m0_be_pd_fini(struct m0_be_pd *pd);
+M0_INTERNAL int m0_be_pd_init(struct m0_be_pd_io_sched *pios,
+			      struct m0_be_pd_io_sched_cfg *pd_cfg);
+M0_INTERNAL void m0_be_pd_fini(struct m0_be_pd_io_sched *pios);
 
-M0_INTERNAL void m0_be_pd_io_add(struct m0_be_pd    *pd,
+M0_INTERNAL void m0_be_pd_io_add(struct m0_be_pd_io_sched    *pios,
                                  struct m0_be_pd_io *pdio,
                                  struct m0_ext      *ext,
                                  struct m0_be_op    *op);
 
-M0_INTERNAL void m0_be_pd_io_get(struct m0_be_pd     *pd,
+M0_INTERNAL void m0_be_pd_io_get(struct m0_be_pd_io_sched     *pios,
 				 struct m0_be_pd_io **pdio,
 				 struct m0_be_op     *op);
-M0_INTERNAL void m0_be_pd_io_put(struct m0_be_pd    *pd,
+M0_INTERNAL void m0_be_pd_io_put(struct m0_be_pd_io_sched    *pios,
 				 struct m0_be_pd_io *pdio);
 
 M0_INTERNAL struct m0_be_io *m0_be_pd_io_be_io(struct m0_be_pd_io *pdio);
@@ -96,7 +97,7 @@ M0_INTERNAL struct m0_be_io *m0_be_pd_io_be_io(struct m0_be_pd_io *pdio);
  *
  * @note pos parameter is ignored for now.
  */
-M0_INTERNAL void m0_be_pd_sync(struct m0_be_pd  *pd,
+M0_INTERNAL void m0_be_pd_sync(struct m0_be_pd_io_sched  *pios,
                                m0_bindex_t       pos,
                                struct m0_stob  **stobs,
                                int               nr,

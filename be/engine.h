@@ -41,7 +41,7 @@ struct m0_be_engine;
 struct m0_reqh;
 struct m0_stob;
 struct m0_be_log_discard;
-struct m0_be_pd;
+struct m0_be_pd_io_sched;
 
 /**
  * @defgroup be Meta-data back-end
@@ -79,7 +79,7 @@ struct m0_be_engine_cfg {
 	/** BE domain the engine belongs to. */
 	struct m0_be_domain	  *bec_domain;
 	struct m0_be_log_discard  *bec_log_discard;
-	struct m0_be_pd           *bec_pd;
+	struct m0_be_pd_io_sched  *bec_pd;
 	/** Configuration for each group. It is set by the engine. */
 	struct m0_be_tx_group_cfg *bec_groups_cfg;
 	/** The engine lock. Protects all fields of m0_be_engine. */

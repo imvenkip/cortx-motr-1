@@ -35,6 +35,7 @@ struct m0_be_engine;
 struct m0_be_domain;
 struct m0_be_tx;
 struct be_recovering_tx;
+struct m0_be_pd_io_sched;
 
 /**
  * @defgroup be Meta-data back-end
@@ -69,7 +70,7 @@ struct m0_be_tx_group_cfg {
 	/** log to write to for the group_format. */
 	struct m0_be_log	      *tgc_log;
 	struct m0_be_log_discard      *tgc_log_discard;
-	struct m0_be_pd               *tgc_pd;
+	struct m0_be_pd_io_sched      *tgc_pd;
 	/** reqh for the group fom. */
 	struct m0_reqh		      *tgc_reqh;
 	/** Group format configuration. Is set by the group. */
