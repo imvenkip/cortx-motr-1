@@ -343,12 +343,15 @@ static bool hung_fom_notify(const struct m0_fom *fom)
 	    return true;
 
 	diff = m0_time_sub(m0_time_now(), fom->fo_sm_state.sm_state_epoch);
-	if (m0_time_seconds(diff) > HUNG_FOP_TIME_SEC_MAX)
+	if (m0_time_seconds(diff) > HUNG_FOP_TIME_SEC_MAX) {
 		M0_LOG(M0_WARN, "FOP HUNG[" TIME_F " seconds in processing]: "
 		       "fom=%p, fop %p[%u] phase: %s", TIME_P(diff), fom,
 		       &fom->fo_fop,
 		       fom->fo_fop == NULL ? 0 : m0_fop_opcode(fom->fo_fop),
 		       m0_fom_phase_name(fom, m0_fom_phase(fom)));
+		if (fom->fo_ops->fo_hung_notify != NULL)
+			fom->fo_ops->fo_hung_notify(fom);
+	}
 
 	return true; /* by convention of m0_tl_forall */
 }

@@ -671,6 +671,12 @@ struct m0_fom_ops {
 	 * Optional method to post additional fom description to addb2.
 	 */
 	void (*fo_addb2_descr)(struct m0_fom *fom);
+
+	/**
+	 * Optional method to try and recover from a blocked situation.
+	 * Invoked from fom.c::hung_fom_notify().
+	 */
+	void (*fo_hung_notify)(const struct m0_fom *fom);
 };
 
 /**
