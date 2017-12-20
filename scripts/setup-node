@@ -1,0 +1,178 @@
+#!/usr/bin/env bash
+
+### wrapper around Vagrant's ansible-playbook configs, it hides boilerplate
+### commands which allow using those configs to provision stand-alone nodes.
+
+#
+# Global vars
+#
+
+# constants
+readonly PROG_NAME="${0##*/}"
+readonly SELF="$(readlink -f $0)"
+readonly TOP_SRCDIR="${SELF%/*/*}"
+readonly VAGRANT_DIR="$TOP_SRCDIR/scripts/provisioning"
+
+# variables
+verbose=false
+ansible_verbose=
+dry_run=
+remote_user=root
+remote_passwd=
+ssh_key=
+cli_args=
+
+#
+# Usage
+#
+
+help()
+{
+    [[ $1 == stdout ]] && usage || usage >&2
+    exit 1
+}
+
+usage()
+{
+    cat <<USAGE_END
+Usage: $PROG_NAME [options] host1[,host2]
+
+  Helper tool to run 'ansible-playbook' commands with Mero provisioning configs
+  (see scripts/provisioning/) against stand-alone nodes.
+
+  Options:
+
+    -n|--dry-run        Instruct Ansible to run in 'check' mode, i.e. only
+                        printing what would be changed on a host but not
+                        actually doing anything. NOTE: not all playbook tasks
+                        can work in this mode, some may be skipped or fail.
+
+    -U|--user NAME      A user account used to logon to a remote host. Default
+                        is 'root'.
+
+    -P|--pass PASSWD    A user password used to logon to a remote host. By
+                        default it's prompted interactively on console. This can
+                        be useful when operating on multiple hosts to avoid
+                        entering the passowrd for each of them. NOTE: in order
+                        to work it requires \`sshpass\` utility to be installed.
+
+    -k|--ssh-key PATH   An absolute path to a private ssh key that is used to
+                        logon to a remote host. This is a better alternative to
+                        passowrd authentication. Default is to use whatever is
+                        provided by ssh-agent or local user's default key.
+
+    -v|--verbose        Print Ansible commands that are executed. If specified
+                        more than once it encreases verbosity of Ansible output
+                        as well.
+
+    -h|--help           Print this help screen.
+USAGE_END
+}
+
+#
+# Parse CLI options
+#
+
+parse_cli_options()
+{
+    # Note that we use `"$@"' to let each command-line parameter expand to a
+    # separate word. The quotes around `$@' are essential!
+    # We need TEMP as the `eval set --' would nuke the return value of getopt.
+    local TEMP=$( getopt -o hvnU:P:k: \
+                         --long help,verbose,dry-run,user:,pass:,ssh-key: \
+                         -n "$PROG_NAME" -- "$@" )
+
+    [[ $? != 0 ]] && help
+
+    # Note the quotes around `$TEMP': they are essential!
+    eval set -- "$TEMP"
+
+    while true ; do
+        case "$1" in
+            -n|--dry-run)       dry_run=--check; shift ;;
+            -U|--user)          remote_user=$2; shift 2 ;;
+            -P|--pass)          remote_passwd=$2; shift 2 ;;
+            -k|--ssh-key)       ssh_key=$2; shift 2 ;;
+            -v|--verbose)       if $verbose ; then
+                                    ansible_verbose+=v
+                                fi
+                                verbose=true
+                                shift
+                                ;;
+            -h|--help)          help stdout ;;
+            --)                 shift; break ;;
+            *)                  echo 'getopt: internal error...' >&2; exit 1 ;;
+        esac
+    done
+
+    # remaining command line arguments
+    cli_args="$@"
+}
+
+#
+# Utility functions
+#
+
+die()
+{
+    echo -e "$PROG_NAME: ERROR: $@" >&2
+    exit 1
+}
+
+log()
+{
+    ! $verbose || echo -e "$PROG_NAME: $@"
+}
+
+check_dependencies()
+{
+    local ok=true
+    local msg=''
+
+    if ! which ansible &> /dev/null ; then
+        ok=false
+        msg+="\n* 'ansible' is not found, it can be installed with either of:\n"
+        msg+="  - python packet manager: pip install --user ansible\n"
+        msg+="    make sure that '\$HOME/.local/bin' is in your PATH\n"
+        if [[ $(uname) == Darwin ]] ; then
+            msg+="  - using homebrew: brew install ansible\n"
+            msg+="  - using macports: port install ansible\n"
+        fi
+    fi
+
+    $ok || die "Looks like some dependency is missing:\n$msg"
+}
+
+#
+# Main
+#
+
+# exit immediately if one the commands exits with a non-zero status
+set -eE -o pipefail
+
+parse_cli_options "$@"
+eval set -- "$cli_args"
+
+check_dependencies
+cd $VAGRANT_DIR
+
+[[ -n $1 ]] || die 'A host argument is required, please check' \
+                   "\`$PROG_NAME --help\` for details."
+
+remote_hosts=$1
+auth="${ssh_key:+--extra-vars ansible_private_key_file='$ssh_key'}"
+auth+="${remote_passwd:+\n    --extra-vars ansible_ssh_pass='$remote_passwd'}"
+
+cmd=$(cat <<COMMAND_END
+ansible-playbook ${ansible_verbose:+-$ansible_verbose} cmu.yml
+    --skip-tags vault-release,xperior,ssh${dry_run:+,breaks-dry-run}
+    --user $remote_user
+    ${auth:---ask-pass}
+    --extra-vars override_hosts=$remote_hosts
+    --inventory $remote_hosts,
+    $dry_run
+COMMAND_END
+)
+
+log "running command: $cmd"
+$cmd

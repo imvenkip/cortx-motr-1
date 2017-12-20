@@ -125,4 +125,6 @@
       command:  /bin/true
       register: online
       until:    online|success
-  tags: reboot
+  tags:
+    - reboot
+    - breaks-dry-run
