@@ -140,6 +140,34 @@ M0_INTERNAL void m0_be_pd_fini(struct m0_be_pd *pd)
 /* PD FOM							              */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * Phases of PD fom.
+ * @verbatim
+ *                                INIT
+ *                                 |
+ *                 m0_be_pd_init() |
+ *                                 v    m0_be_pd_fini()
+ *                                IDLE ----------------> FINI
+ *                                 | ^
+ *                 m0_be_reg_get() | |
+ *         m0_be_pd_request_push() | |
+ *                                 | |
+ *                                 | |
+ *                                 v |
+ *                       +------ MANAGE -------+
+ *  request is PRT_WRITE |         ^           | request is PRT_WRITE
+ *                       |         |           |
+ *                       v         |           v
+ *                     READ        |          WRITE
+ *    request.op.channel |         |           | request.op.channel
+ *             signalled |         |           | signalled
+ *                       v         |           v
+ *                     READ        |          WRITE
+ *                     DONE        |          DONE
+ *                       |         |           |
+ *                       +-------->+<----------+
+ * @endverbatim
+ */
 enum m0_be_pd_fom_state {
 	PFS_INIT   = M0_FOM_PHASE_INIT,
 	PFS_FINISH = M0_FOM_PHASE_FINISH,

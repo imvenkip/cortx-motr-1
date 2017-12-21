@@ -151,19 +151,29 @@ enum m0_be_pd_request_type {
 	PRT_WRITE,
 };
 
-// struct pages_iterator* to_pages(struct adapter*) {
-// }
-// struct adapter* to_adapter(struct pages_iterator*) {
-// }
-
+/**
+ * Keeps track of structures that user provides during WRITE and READ requests
+ * which are converted somehow into paged m0_be_pd_page-s. For paged the content
+ * of m0_be_pd_request_pages has to remain opaque(!).
+ * @note Absence of any aggregated structure having "*page*" expression inside
+ * may be missleading therefore this note is here. PageD treats this structure
+ * as opaque structure without any knowledge of its contents.
+ * @see m0_be_pd_request and explanation for more details.
+ */
 struct m0_be_pd_request_pages {
 	enum m0_be_pd_request_type prp_type;
 	struct m0_be_reg_area     *prp_reg_area; /* for M0_PRT_WRITE requests */
 	struct m0_be_reg           prp_reg;      /* for  M0_PRT_READ requests */
 };
 
-/** XXX: rename to avoid init/and missing fini notation */
-M0_INTERNAL void m0_be_pd_request_pages_init(struct m0_be_pd_request_pages *rqp,
+/**
+ * Fills request pages with data, related to READ and WRITE requests.
+ *
+ * @param type  PRT_READ or PRT_WRITE request
+ * @param rarea reg area, provided by the user for WRITE request
+ * @param reg   reg,      provided by the user for READ  request
+ */
+M0_INTERNAL void m0_be_pd_request_pages_fill(struct m0_be_pd_request_pages *rqp,
 					     enum m0_be_pd_request_type type,
 					     struct m0_be_reg_area     *rarea,
 					     struct m0_be_reg          *reg);
@@ -202,15 +212,36 @@ struct m0_be_pd_request {
 
 /* internal */
 /* pd_request_pages iterator */
+
+/**
+ * Provide means to iterate over m0_be_pd_request_pages structure by page,
+ * containg an arbitary region or its part, defined by @addr and @size
+ * parameters. Used internally to implement paged logic.
+ */
 struct m0_be_prp_cursor {
+	/** Iterable structure */
 	struct m0_be_pd_request_pages *rpi_pages;
+	/** Paged */
 	struct m0_be_pd               *rpi_paged;
+
+	/** Last seen by the iterator mapping, where last iterated page lives */
 	struct m0_be_pd_mapping       *rpi_mapping;
+	/** Last seen page, where the region (addr, size) lives */
 	struct m0_be_pd_page          *rpi_page;
+
+	/** Iterated region start address */
 	const void                    *rpi_addr;
+	/** Iterated region size */
 	m0_bcount_t                    rpi_size;
 };
 
+/**
+ * Initializes m0_be_prp_cursor
+ *
+ * @param pages a part of request iteration over which pages is beeing performed
+ * @param addr iterated region start address
+ * @param size iterated region size
+ */
 M0_INTERNAL void m0_be_prp_cursor_init(struct m0_be_prp_cursor       *cursor,
 				       struct m0_be_pd               *paged,
 				       struct m0_be_pd_request_pages *pages,
@@ -218,26 +249,29 @@ M0_INTERNAL void m0_be_prp_cursor_init(struct m0_be_prp_cursor       *cursor,
 				       m0_bcount_t                    size);
 
 M0_INTERNAL void m0_be_prp_cursor_fini(struct m0_be_prp_cursor *cursor);
+
+/**
+ * Moves @cursor over it's next position w.r.t. retreive next page.
+ * @return false if all pages're iterated, else true
+ */
 M0_INTERNAL bool m0_be_prp_cursor_next(struct m0_be_prp_cursor *cursor);
+
+/**
+ * Retrieves page pointer from given @cursor
+ * @return NULL if there's no valid pages inside, else a pointer to the page
+ * inside paged mappings.
+ */
 M0_INTERNAL struct m0_be_pd_page *
 m0_be_prp_cursor_page_get(struct m0_be_prp_cursor *cursor);
 
 /**
- * (struct m0_be_pd*,
- *  struct m0_be_pd_request*,
- *  struct m0_be_pd_page*,
- *  const struct m0_be_reg_d*)
- * M0_BE_PD_REQUEST_PAGES_FORALL(paged, request, page, rd) {
- *	;
- * } M0_BE_PD_REQUEST_PAGES_ENDFOR;
+ * Iterates over region of m0_be_pd_request and corresponding to this region
+ * pages inside paged mappings.
  *
- * struct m0_be_pd_page *page;
- * struct m0_be_reg_d   *rd;
- *
- * M0_BE_PD_REQUEST_PAGES_FORALL(paged, request, page, rd) {
- *	copy_reg_to_page(page, rd);
- * } M0_BE_PD_REQUEST_PAGES_ENDFOR;
- *
+ * @param paged   given paged.
+ * @param request READ or WRITE request obtained by paged.
+ * @param iterate function callback into which current page and current iterated
+ *                region is being passed.
  */
 M0_INTERNAL void
 m0_be_pd_request_pages_forall(struct m0_be_pd         *paged,
@@ -245,6 +279,23 @@ m0_be_pd_request_pages_forall(struct m0_be_pd         *paged,
 			      bool (*iterate)(struct m0_be_pd_page *page,
 					      struct m0_be_reg_d   *rd));
 
+/**
+ * Iterates over region of m0_be_pd_request and corresponding to this region
+ * pages inside paged mappings.
+ *
+ * @param paged   given paged.
+ * @param request READ or WRITE request obtained by paged.
+ * @param page    iterated page
+ * @param rd      iterated region
+ * @code
+ * struct m0_be_pd_page *page;
+ * struct m0_be_reg_d   *rd;
+ *
+ * M0_BE_PD_REQUEST_PAGES_FORALL(paged, request, page, rd) {
+ *	copy_reg_to_page(page, rd);
+ * } M0_BE_PD_REQUEST_PAGES_ENDFOR;
+ * @endcode
+ */
 #define M0_BE_PD_REQUEST_PAGES_FORALL(paged, request, page, rd)		\
 {									\
 	struct m0_be_prp_cursor        cursor;				\
@@ -277,12 +328,19 @@ m0_be_pd_request_pages_forall(struct m0_be_pd         *paged,
 
 
 /**
- * Copies data encapsulated inside request into cellar pages for write
+ * Copies data encapsulated inside request into cellar pages for WRITE.
+ *
+ * @param paged   given paged.
+ * @param request READ or WRITE request obtained by paged.
  */
 M0_INTERNAL void
 m0_be_pd_request__copy_to_cellars(struct m0_be_pd         *paged,
 				  struct m0_be_pd_request *request);
 
+/**
+ * @return true if all requested by @request pages are "resident" inside @paged
+ * mappings and ready to be used by READ requests.
+ */
 M0_INTERNAL bool m0_be_pd_pages_are_in(struct m0_be_pd         *paged,
 				       struct m0_be_pd_request *request);
 
@@ -293,6 +351,13 @@ M0_INTERNAL void m0_be_pd_request_fini(struct m0_be_pd_request       *request);
 
 /* ------------------------------------------------------------------------- */
 
+/**
+ * Request queue is a structure which stores all incoming paged requests for
+ * processing. Current implementation provides just generic features but in the
+ * future, it's implementation is going to be replaced by something which knows
+ * conceptions like "dispatch priority" or "requests that can be processed in
+ * parallel".
+ */
 struct m0_be_pd_request_queue {
 	struct m0_mutex prq_lock;
 	struct m0_tl    prq_queue;
@@ -301,15 +366,27 @@ struct m0_be_pd_request_queue {
 M0_INTERNAL int m0_be_pd_request_queue_init(struct m0_be_pd_request_queue *rq);
 M0_INTERNAL void m0_be_pd_request_queue_fini(struct m0_be_pd_request_queue *rq);
 
-
+/**
+ * Internal interface. Pops the first available request from request queue.
+ * @return NULL if request queue is empty, otherwise a valid request.
+ */
 M0_INTERNAL struct m0_be_pd_request *
-m0_be_pd_request_queue_pop(struct m0_be_pd_request_queue *queue);
+m0_be_pd_request_queue_pop(struct m0_be_pd_request_queue *rqueue);
 
+/**
+ * Internal interface. Pushes given @request into processing request queue
+ * @rqueue. If needed, wakes up processing PD FOM which consumes requests from
+ * request queue.
+ */
 M0_INTERNAL void
 m0_be_pd_request_queue_push(struct m0_be_pd_request_queue      *rqueue,
 			    struct m0_be_pd_request            *request,
 			    struct m0_fom                      *fom);
 
+/**
+ * External interface which is used outside paged machinery. Puts a @request
+ * into processing of given @paged.
+ */
 M0_INTERNAL void m0_be_pd_request_push(struct m0_be_pd         *paged,
 				       struct m0_be_pd_request *request);
 
