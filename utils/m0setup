@@ -9,11 +9,11 @@
 
 # constants
 readonly PROG_NAME=$(basename $0)
-readonly self=$(readlink -f $0)
-readonly base_dir=$(dirname $self)
-readonly etc_mero_dir='/etc/mero'
-readonly etc_halon_dir='/etc/halon'
-readonly linuxstob_min_ios_num=3
+readonly SELF=$(readlink -f $0)
+readonly BASE_DIR=$(dirname $SELF)
+readonly ETC_MERO_DIR='/etc/mero'
+readonly ETC_HALON_DIR='/etc/halon'
+readonly LINUXSTOB_MIN_IOS_NUM=3
 readonly DEFAULT_POOL_WIDTH=8
 readonly DEFAULT_IMETA_POOL_WIDTH=4
 
@@ -64,7 +64,7 @@ Usage: $PROG_NAME [-h|--help] [-v|--verbose] [-c]
 
    -P|--pool-width num     Total number of disks in the pool. So many loop
                            devices will be provisioned. Default is ${pool_width}.
-                           In 'linuxstob' mode (-z|-Z) it defaults to ${linuxstob_min_ios_num}
+                           In 'linuxstob' mode (-z|-Z) it defaults to ${LINUXSTOB_MIN_IOS_NUM}
 
    -N|--data-units num     Number of data units in parity group.
                            Default is ${data_units}.
@@ -79,7 +79,7 @@ Usage: $PROG_NAME [-h|--help] [-v|--verbose] [-c]
                            Default is ${iparity_units}.
 
    -i|--ios-number num     Number of ioservices to start. Default is ${ios_num}.
-                           In 'linuxstob' mode (-z|-Z) it defaults to ${linuxstob_min_ios_num}
+                           In 'linuxstob' mode (-z|-Z) it defaults to ${LINUXSTOB_MIN_IOS_NUM}
 
    -d|--loop-img-dir path  Directory, where to create image files for loop
                            devices. Default is '$loop_img_dir'.
@@ -240,7 +240,7 @@ die()
 
 path_of()
 {
-    echo "$base_dir/$1"
+    echo "$BASE_DIR/$1"
 }
 
 init_loop_devices()
@@ -322,7 +322,7 @@ cleanup_ios_configs()
 {
     log "Removing disks-*.conf files"
     for i in $(seq $ios_num) ; do
-        rm -f "$etc_mero_dir/disks-ios${i}.conf"
+        rm -f "$ETC_MERO_DIR/disks-ios${i}.conf"
     done
 }
 
@@ -334,15 +334,15 @@ cleanup_mero_configs()
         local v_flag='-v'
     fi
 
-    rm -f $v_flag "$etc_mero_dir/genders"
-    rm -f $v_flag "$etc_mero_dir/conf.xc"
-    rm -f $v_flag "$etc_halon_dir/halon_facts.yaml"
+    rm -f $v_flag "$ETC_MERO_DIR/genders"
+    rm -f $v_flag "$ETC_MERO_DIR/conf.xc"
+    rm -f $v_flag "$ETC_HALON_DIR/halon_facts.yaml"
 }
 
 generate_genders_config()
 {
     local services
-    local genders_file=$etc_mero_dir/genders
+    local genders_file=$ETC_MERO_DIR/genders
     log "Generating genders file '$genders_file'"
 
     local ios
@@ -394,7 +394,7 @@ generate_halon_facts()
     log "Generating halon_facts.yaml"
 
     local vopt=$( $verbose && echo '-v' )
-    local halon_facts="$etc_halon_dir/halon_facts.yaml"
+    local halon_facts="$ETC_HALON_DIR/halon_facts.yaml"
     local pattern="${disk_pattern:-/dev/loop{1..$pool_width}}"
     local disks=$($m0gendisks -l -d $pool_width -p "$pattern")
 
@@ -419,7 +419,7 @@ generate_disk_configs()
 
     log "Generating disks-*.conf files"
     for i in $(seq $ios_num) ; do
-        local disks_conf="$etc_mero_dir/disks-ios${i}.conf"
+        local disks_conf="$ETC_MERO_DIR/disks-ios${i}.conf"
 
         if [[ -v disks ]] ; then
             debug "$disks_conf ${disks[@]:$((start_id - 1)):$disks_per_ios}"
@@ -498,11 +498,11 @@ fi
     die "Path '$linuxstob_stobs_dir' doesn't exist"
 
 if $linuxstob_mode ; then
-    if $ios_num_is_set && [[ $ios_num -lt $linuxstob_min_ios_num ]] ; then
+    if $ios_num_is_set && [[ $ios_num -lt $LINUXSTOB_MIN_IOS_NUM ]] ; then
         die "In linuxtob mode number of ios services can't be less than" \
-            "$linuxstob_min_ios_num, requested ios-number was $ios_num"
+            "$LINUXSTOB_MIN_IOS_NUM, requested ios-number was $ios_num"
     elif ! $ios_num_is_set ; then
-        ios_num=$linuxstob_min_ios_num
+        ios_num=$LINUXSTOB_MIN_IOS_NUM
     fi
 
     if [[ $pool_width -eq $DEFAULT_POOL_WIDTH ]] ; then
@@ -532,14 +532,14 @@ $only_list_disks ||
     log "Requested configuration: [P=$pool_width N=$data_units K=$parity_units]" \
         "with $ios_num ioservice(s), $info_msg"
 
-[[ -d $etc_mero_dir ]] || {
-    warn "'$etc_mero_dir' doesn't exist, creating.." ;
-    mkdir -p "$etc_mero_dir" ;
+[[ -d $ETC_MERO_DIR ]] || {
+    warn "'$ETC_MERO_DIR' doesn't exist, creating.." ;
+    mkdir -p "$ETC_MERO_DIR" ;
 }
 
-[[ -d $etc_halon_dir ]] || {
-    warn "'$etc_halon_dir' doesn't exist, creating.." ;
-    mkdir -p "$etc_halon_dir" ;
+[[ -d $ETC_HALON_DIR ]] || {
+    warn "'$ETC_HALON_DIR' doesn't exist, creating.." ;
+    mkdir -p "$ETC_HALON_DIR" ;
 }
 
 if [[ -n $disk_pattern ]] ; then
