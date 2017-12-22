@@ -489,8 +489,10 @@ if $only_list_disks && [[ -z $disk_pattern ]] ; then
     die "-l|--list-disks option requires the -p|--disk-pattern option"
 fi
 
-[[ -d $mero_data_dir ]] ||
-    die "Path '$mero_data_dir' doesn't exist"
+[[ -d $mero_data_dir ]] || {
+    warn "'$mero_data_dir' doesn't exist, creating.."
+    mkdir -p "$mero_data_dir" ;
+}
 
 [[ -z $linuxstob_stobs_dir || -d $linuxstob_stobs_dir ]] ||
     die "Path '$linuxstob_stobs_dir' doesn't exist"
