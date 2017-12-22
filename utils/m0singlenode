@@ -11,7 +11,6 @@ readonly PROG_NAME=$(basename $0)
 readonly self=$(readlink -f $0)
 readonly base_dir=$(dirname $self)
 readonly singlenonde_services='
-    lnet
     mero-kernel
     mero-server-ha
     mero-server-confd
@@ -165,6 +164,13 @@ get_param_of()
 
 start_singlenode()
 {
+    log 'Starting LNet'
+    # in some situations 'lnet' service can be started but lnet modules may be
+    # unloaded so systemd won't know it needs to load them them back, in such
+    # condition other services that depend on lnet will fail on start; the
+    # workaround is to re-load lnet modules, which is done by 'restart'
+    systemctl restart lnet
+
     log 'Starting mero-singlenode services'
     systemctl start mero-singlenode &
 
@@ -283,7 +289,7 @@ singlenode_status()
         *)        color=$NC  ; atime= ;;
     esac
     echo " LNet:                   $color$lnet$NC    $atime"
-    echo " LNet Network ID:        $lnet_nid"
+    echo ' LNet Network ID:       ' $lnet_nid
 
     echo
     echo '### Kernel --------------------------------------'
