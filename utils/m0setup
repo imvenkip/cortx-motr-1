@@ -56,11 +56,9 @@ help()
 usage()
 {
     cat <<USAGE_END
-Usage: $PROG_NAME [-h|--help] [-v|--verbose] [-c]
-               [-P|--pool-width num] [-N|--data-units num]      [-K|--parity-units num]
-               [-i|--ios-number num] [-d|--loop-img-dir path]   [-m|--mero-dir path]
-               [-s|--disk-size GiBs] [-z|--linuxstob-path path] [-Z|--linuxstob-mode[=path]]
-               [--ipool-width num]   [--iparity-units num]      [--no-cas]
+Usage: $PROG_NAME [-h|--help] [-v|--verbose] [options]
+
+ Options:
 
    -P|--pool-width num     Total number of disks in the pool. So many loop
                            devices will be provisioned. Default is ${pool_width}.
@@ -72,22 +70,17 @@ Usage: $PROG_NAME [-h|--help] [-v|--verbose] [-c]
    -K|--parity-units num   Number of parity units in parity group.
                            Default is ${parity_units}.
 
-   --ipool-width num       Total number of disks in the imeta pool. So many loop
+      --ipool-width num    Total number of disks in the imeta pool. So many loop
                            devices will be provisioned. Default is ${ipool_width}.
 
-   --iparity-units num     Number of parity units in parity group for imeta pool.
+      --iparity-units num  Number of parity units in parity group for imeta pool.
                            Default is ${iparity_units}.
 
    -i|--ios-number num     Number of ioservices to start. Default is ${ios_num}.
                            In 'linuxstob' mode (-z|-Z) it defaults to ${LINUXSTOB_MIN_IOS_NUM}
 
-   -d|--loop-img-dir path  Directory, where to create image files for loop
-                           devices. Default is '$loop_img_dir'.
-
    -s|--disk-size GiBs     Size of image files for loop devices in GiB.
                            Default is ${loop_img_size_gb}.
-
-   -m|--mero-dir path      Mero metadata directory. Default is '$mero_data_dir'.
 
    -p|--disk-pattern pat   A shell pathname expansion pattern, which specifies a
                            set of existing block devices to be used for mero
@@ -95,18 +88,8 @@ Usage: $PROG_NAME [-h|--help] [-v|--verbose] [-c]
                            plain file disk images will be generated and attached
                            to loop devices.
 
-   -l|--list-disks         List disks matched by pattern (requires --disk-pattern
-                           option).
-
-   -c|--cleanup            Clean generated config files, detach connected loop
-                           devices and remove image files. Number of loop devices
-                           is taken from '-P|--pool-width' and image files
-                           location from '-d|--loop-img-dir' options.
-
-   -I|--no-directio        Disable direct-IO for mero storage.
-
-   -C                      Clean generated config files only, doesn't affect loop
-                           devices.
+   -d|--loop-img-dir path  Directory, where to create image files for loop
+                           devices. Default is '$loop_img_dir'.
 
    -E|--use-existing-loop-imgs
 
@@ -114,12 +97,29 @@ Usage: $PROG_NAME [-h|--help] [-v|--verbose] [-c]
                            Attach them if they exist. Otherwise report an error
                            if any image file is missing.
 
+   -m|--mero-dir path      Mero metadata directory. Default is '$mero_data_dir'.
+
+   -z|--linuxstob-path path
+
+                           Use linuxstobs instead of adstobs for data storage.
+                           Linuxstobs will be created under provided 'path'
+                           argument. Implies '--no-directio'.
+
+   -Z|--linuxstob-mode [path]
+
+                           Use linuxstobs instead of adstobs for data storage.
+                           If 'path' argument provided, all mero data and
+                           meta-data will be created under that path.
+                           Implies '--no-directio'.
+
+   -I|--no-directio        Disable direct-IO for mero storage.
+
+      --no-cas             Disable CAS service.
+
    -G|--no-gendisk         Don't generate YAML file with disk information.
 
    -H|--halon-facts        Produce Halon facts YAML configuration instead of
-                           a genders-based config. Implies '-G'.
-
-   -M|--mkfs               Perform 'mero-mkfs' after generating configuration.
+                           a genders-based config. Implies '--no-gendisk'.
 
    -A|--activate-singlenode-services
 
@@ -129,20 +129,18 @@ Usage: $PROG_NAME [-h|--help] [-v|--verbose] [-c]
                            after mero.rpm installation to prevent interference
                            with Halon controlled services.
 
-   -z|--linuxstob-path path
+   -M|--mkfs               Perform 'mero-mkfs' after generating configuration.
 
-                           Use linuxstobs instead of adstobs for data storage.
-                           Linuxstobs will be created under provided 'path'
-                           argument. Implies --no-directio.
+   -l|--list-disks         List disks matched by pattern (requires --disk-pattern
+                           option).
 
-   -Z|--linuxstob-mode=[path]
+   -c|--cleanup            Clean generated config files, detach connected loop
+                           devices and remove image files. Number of loop devices
+                           is taken from '-P|--pool-width' and image files
+                           location from '-d|--loop-img-dir' options.
 
-                           Use linuxstobs instead of adstobs for data storage.
-                           If 'path' argument provided, all mero data and
-                           meta-data will be created under that path.
-                           Implies --no-directio.
-
-   --no-cas                Disable CAS service.
+   -C                      Clean generated config files only, doesn't affect loop
+                           devices.
 
    -v|--verbose            Enable verbose output.
 
