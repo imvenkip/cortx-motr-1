@@ -82,6 +82,20 @@ M0_INTERNAL int m0_be_pd_init(struct m0_be_pd           *pd,
                               const struct m0_be_pd_cfg *pd_cfg);
 M0_INTERNAL void m0_be_pd_fini(struct m0_be_pd *pd);
 
+/**
+ * XXX TODO Write correct scheme
+ *
+ *    +-> PPS_UNMAPPED --------+
+ *    |         |      \       |
+ *    +--- PPS_MAPPED   |      |
+ *              |       |      |
+ *         PPS_READING  |   PPS_FINI
+ *              |       |
+ *    +-->  PPS_READY --+
+ *    |         |
+ *    +--- PPS_WRITING
+ *
+ */
 enum m0_be_pd_page_state {
 	PPS_INIT, /* XXX remove? */
 	PPS_FINI,
@@ -92,6 +106,60 @@ enum m0_be_pd_page_state {
 	PPS_WRITING,
 };
 
+/**
+ * BE page is continuous memory region of a fixed size starting from
+ * a fixed address. BE pages meet requirements: size is multiple of PAGE_SIZE,
+ * starting address is multiple of the size.
+ *
+ * BE pages must not intersect.
+ *
+ * BE page can be in different states such as UNMAPPED, MAPPED, READY, READING,
+ * WRITING. These states and their logic are controlled by other abstractions.
+ * For example, mapping controls UMAPPED and MAPPED states; paged FOM controls
+ * READY, READING and WRITING states.
+ *
+ * Cellar pages
+ *
+ * BE pages represent regions in some backing store. This knowledge and
+ * semantic appears on higher level, but BE page contains reference to
+ * respective cellar page as simplification. Cellar page is a partial copy
+ * of BE page that equals to respective backing store region or value that
+ * in synchronisation process with the region.
+ *
+ * Cellar pages are allocated on demand by user (paged FOM) and are either
+ * memory buffers that can be written to the backing store via the ston
+ * interface or pointers to mapped storage with memory-like access interface.
+ *
+ * Locking
+ *
+ * Users lock BE page in order to serialise state transitions.
+ *
+ * Semantics of states
+ *
+ * UNMAPPED state means that respective memory region must not be accessed
+ * by users otherwise it can lead to an error or reading undefined value.
+ *
+ * In MAPPED state system pages are mapped for the memory region and it is
+ * accesible. However, payload is not loaded from the backing store. Reading
+ * memory region of the page in this state will produce zeros or poisoning
+ * pattern.
+ *
+ * User grabs ownership to a page with transiting it to READING state. This
+ * state indicates that the page is progress of reading payload from the backing
+ * store. Reading the memory region will not cause errors, but result will be
+ * undefined. The ownership is put with transition to the next state.
+ *
+ * In READY state the memory region is readable-writable by users.
+ *
+ * WRITING state indicates that page is in synchronisation with the backing
+ * store. User performing synchronisation holds ownership to the page and other
+ * users may not transit the page in other states. However, all users may read
+ * and write to the memory region. This is because synchronisation is done using
+ * cellar page. The user releases ownership by transiting the page to READY
+ * state.
+ *
+ * FINI is the final state and object must not be accessed in this state.
+ */
 struct m0_be_pd_page {
 	void                    *pp_page;
 	void                    *pp_cellar;
@@ -103,6 +171,30 @@ struct m0_be_pd_page {
 	struct m0_tlink          pp_pio_tlink;
 };
 
+/**
+ * TODO Name mapping with a proper term
+ *
+ * Mapping is an abstration which represents continuous memory region as set of
+ * BE pages and implements mapping/unmapping logic for the page states
+ * PPS_UNMAPPED and PPS_MAPPED.
+ *
+ * Mapping and unmapping
+ *
+ * Mapping creates a single private anonymous mapping for the whole memory
+ * region. System pages remain not resident and mapping provides interface to
+ * populate system pages for a single BE page withing the mapping.
+ *
+ * Unmapping BE page is done via advising system that the system pages are not
+ * needed anymore.
+ *
+ * Caveats: with the above approach user can access memory region of a BE page
+ * bypassing mapping interface. It will cause allocation of system pages and
+ * such a user will not be caught.
+ *
+ * Locking
+ *
+ * TODO
+ */
 struct m0_be_pd_mapping {
 	struct m0_be_pd_page    *pas_pages;
 	m0_bcount_t              pas_pcount;
