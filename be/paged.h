@@ -83,18 +83,29 @@ M0_INTERNAL int m0_be_pd_init(struct m0_be_pd           *pd,
 M0_INTERNAL void m0_be_pd_fini(struct m0_be_pd *pd);
 
 /**
- * XXX TODO Write correct scheme
+ * @verbatim
  *
- *    +-> PPS_UNMAPPED --------+
- *    |         |      \       |
- *    +--- PPS_MAPPED   |      |
- *              |       |      |
- *         PPS_READING  |   PPS_FINI
+ *    +-> PPS_UNMAPPED -----------+
+ *    |         |   ^             |
+ *    |         |   +---+         |
+ *    |         V       |         V
+ *    +--- PPS_MAPPED   |      PPS_FINI
  *              |       |
+ *              V       |
+ *         PPS_READING  |
+ *              |       |
+ *              V       |
  *    +-->  PPS_READY --+
  *    |         |
+ *    |         V
  *    +--- PPS_WRITING
  *
+ * @endverbatim
+ *
+ * Future optimisation: make PPS_WRITING be allowed to transit to PPS_UNMAPPED
+ * state. Synchronisation should be implemented via cellar pages and system
+ * pages can be unmapped during writing if respective cellar pages remain
+ * allocated.
  */
 enum m0_be_pd_page_state {
 	PPS_INIT, /* XXX remove? */
@@ -115,8 +126,9 @@ enum m0_be_pd_page_state {
  *
  * BE page can be in different states such as UNMAPPED, MAPPED, READY, READING,
  * WRITING. These states and their logic are controlled by other abstractions.
- * For example, mapping controls UMAPPED and MAPPED states; paged FOM controls
- * READY, READING and WRITING states.
+ * For example, mapping is responsible for transitions to UMMAPPED and MAPPED
+ * states; paged FOM implements transition between READY, READING and WRITING
+ * states.
  *
  * Cellar pages
  *
@@ -127,7 +139,7 @@ enum m0_be_pd_page_state {
  * in synchronisation process with the region.
  *
  * Cellar pages are allocated on demand by user (paged FOM) and are either
- * memory buffers that can be written to the backing store via the ston
+ * memory buffers that can be written to the backing store via the stob
  * interface or pointers to mapped storage with memory-like access interface.
  *
  * Locking
@@ -140,7 +152,7 @@ enum m0_be_pd_page_state {
  * by users otherwise it can lead to an error or reading undefined value.
  *
  * In MAPPED state system pages are mapped for the memory region and it is
- * accesible. However, payload is not loaded from the backing store. Reading
+ * accessible. However, payload is not loaded from the backing store. Reading
  * memory region of the page in this state will produce zeros or poisoning
  * pattern.
  *
@@ -174,18 +186,21 @@ struct m0_be_pd_page {
 /**
  * TODO Name mapping with a proper term
  *
- * Mapping is an abstration which represents continuous memory region as set of
- * BE pages and implements mapping/unmapping logic for the page states
+ * BE mapping is an abstraction which represents continuous memory region as
+ * set of BE pages and implements mapping/unmapping logic for the page states
  * PPS_UNMAPPED and PPS_MAPPED.
  *
  * Mapping and unmapping
  *
- * Mapping creates a single private anonymous mapping for the whole memory
- * region. System pages remain not resident and mapping provides interface to
- * populate system pages for a single BE page withing the mapping.
+ * BE mapping creates a single private anonymous mapping for the whole memory
+ * region. System pages remain not resident and BE mapping provides interface
+ * to populate system pages for a single BE page withing the BE mapping.
  *
  * Unmapping BE page is done via advising system that the system pages are not
  * needed anymore.
+ *
+ * BE mapping guarantees absence of page faults and segfaults during access to
+ * memory region of a populated (attached) BE page.
  *
  * Caveats: with the above approach user can access memory region of a BE page
  * bypassing mapping interface. It will cause allocation of system pages and
