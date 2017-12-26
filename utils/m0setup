@@ -42,6 +42,7 @@ linuxstob_stobs_dir=
 loop_img_size_gb=64
 disk_pattern=
 linuxstob_mode=false
+clovis_mode=false
 
 #
 # Usage
@@ -121,6 +122,9 @@ Usage: $PROG_NAME [-h|--help] [-v|--verbose] [options]
    -H|--halon-facts        Produce Halon facts YAML configuration instead of
                            a genders-based config. Implies '--no-gendisk'.
 
+   -V|--clovis-mode        Enable Clovis applications in Halon facts config,
+                           and at the same time disable m0t1fs.
+
    -A|--activate-singlenode-services
 
                            Unmask singlenode services, such as 'mero-mkfs',
@@ -157,8 +161,8 @@ parse_cli_options()
     # Note that we use `"$@"' to let each command-line parameter expand to a
     # separate word. The quotes around `$@' are essential!
     # We need TEMP as the `eval set --' would nuke the return value of getopt.
-    TEMP=$( getopt --options hvclICEGHAMP:N:K:i:d:m:s:p:z:Z:: \
-                   --longoptions help,verbose,cleanup,use-existing-loop-imgs,no-directio,no-gendisk,halon-facts,activate-singlenode-services,mkfs,list-disks,no-cas,pool-width:,data-units:,parity-units:,ipool-width:,iparity-units:,ios-number:,loop-img-dir:,mero-dir:,disk-size:,disk-pattern:,linuxstob-path:,linuxstob-mode:: \
+    TEMP=$( getopt --options hvclICEGHVAMP:N:K:i:d:m:s:p:z:Z:: \
+                   --longoptions help,verbose,cleanup,use-existing-loop-imgs,no-directio,no-gendisk,halon-facts,clovis-mode,activate-singlenode-services,mkfs,list-disks,no-cas,pool-width:,data-units:,parity-units:,ipool-width:,iparity-units:,ios-number:,loop-img-dir:,mero-dir:,disk-size:,disk-pattern:,linuxstob-path:,linuxstob-mode:: \
                    --name "$PROG_NAME" -- "$@" )
 
     [[ $? -ne 0 ]] && help
@@ -178,6 +182,7 @@ parse_cli_options()
             -M|--mkfs)          do_mkfs=true;         shift   ;;
             -G|--no-gendisk)    do_gendisk=false;     shift   ;;
             -H|--halon-facts)   do_genfacts=true; do_gendisk=false; shift ;;
+            -V|--clovis-mode)   clovis_mode=true; shift ;;
             -A|--activate-singlenode-services)
                                 activate_singlenode=true
                                 shift ;;
@@ -217,7 +222,7 @@ parse_cli_options()
 
 log()
 {
-    echo "--->  $*"
+    echo -e "--->  $*"
 }
 
 debug()
@@ -227,12 +232,12 @@ debug()
 
 warn()
 {
-    echo "$PROG_NAME: WARNING: $*"
+    echo -e "$PROG_NAME: WARNING: $*"
 }
 
 die()
 {
-    echo "$PROG_NAME:  ERROR:  $*" >&2
+    echo -e "$PROG_NAME:  ERROR:  $*" >&2
     exit 1
 }
 
@@ -326,7 +331,7 @@ cleanup_ios_configs()
 
 cleanup_mero_configs()
 {
-    log "Removing /etc/mero/* files"
+    log "Removing $ETC_MERO_DIR/* files"
 
     if $verbose ; then
         local v_flag='-v'
@@ -334,6 +339,17 @@ cleanup_mero_configs()
 
     rm -f $v_flag "$ETC_MERO_DIR/genders"
     rm -f $v_flag "$ETC_MERO_DIR/conf.xc"
+    rm -f $v_flag "$ETC_HALON_DIR/halon_facts.yaml"
+}
+
+cleanup_halon_configs()
+{
+    log "Removing $ETC_HALON_DIR/halon_facts.yaml"
+
+    if $verbose ; then
+        local v_flag='-v'
+    fi
+
     rm -f $v_flag "$ETC_HALON_DIR/halon_facts.yaml"
 }
 
@@ -392,16 +408,59 @@ generate_halon_facts()
     log "Generating halon_facts.yaml"
 
     local vopt=$( $verbose && echo '-v' )
+    local clovis_opt=$( $clovis_mode && echo '--clovis-mode' )
     local halon_facts="$ETC_HALON_DIR/halon_facts.yaml"
     local pattern="${disk_pattern:-/dev/loop{1..$pool_width}}"
     local disks=$($m0gendisks -l -d $pool_width -p "$pattern")
+    # example output of `ip address` command that is parsed below
+    #   3: eth1    inet 172.28.128.94/24 brd 172.28.128.255 scope global dynamic eth1...
+    local ip_addr=$(ip -oneline -4 address show scope global | tail -n 1 |
+                    awk '{print $4}' | cut -d/ -f1)
+    local net_if=$(ip -oneline -4 address show scope global | tail -n 1 | awk '{print $2}')
 
     [[ -n $disks ]] ||
         die "failed to find disks matching '$pattern' pattern"
 
     debug $disks
 
-    $m0genfacts -o "$halon_facts" -N $data_units -K $parity_units $vopt $disks
+    $m0genfacts -o "$halon_facts" $clovis_opt \
+                -e $net_if -N $data_units -K $parity_units $vopt $disks
+
+    local clovis_role_file=/etc/halon/role_maps/clovis.ede
+    local mero_role_file=/etc/halon/mero_role_mappings
+
+    if $clovis_mode &&
+       [[ $(readlink $mero_role_file) != $clovis_role_file &&
+          -e $clovis_role_file ]]
+    then
+        log "Switching Halon to clovis role maps"
+        ln $vopt -sf $clovis_role_file $mero_role_file
+
+        local prov_role_file=/etc/halon/role_maps/prov.ede
+        if [[ -e $prov_role_file ]] ; then
+            mv $prov_role_file $prov_role_file.orig
+            ln $vopt -sf $clovis_role_file $prov_role_file
+        fi
+    fi
+
+    local halond_conf=/etc/sysconfig/halond
+
+    if [[ ! -e $halond_conf ]] ; then
+        log "Generating $halond_conf"
+        echo "HALOND_LISTEN=$ip_addr:9070" > $halond_conf
+    fi
+
+    if ! grep -q lnet /etc/modprobe.d/* ; then
+        log 'Generating LNet config /etc/modprobe.d/lnet.conf'
+        echo "options lnet networks=tcp($net_if) config_on_load=1" \
+             > /etc/modprobe.d/lnet.conf
+    elif ! grep -q "lnet.*$net_if" /etc/modprobe.d/* ; then
+        warn "looks like LNet isn't configured on $net_if interface:\n" \
+             "  $(grep lnet /etc/modprobe.d/*)\n" \
+             "consider specifying the following config line, otherwise Mero" \
+             "networking may not work properly:\n" \
+             "  options lnet networks=tcp($net_if) config_on_load=1"
+    fi
 }
 
 generate_disk_configs()
@@ -475,6 +534,9 @@ if $do_cleanup ; then
     fi
     cleanup_ios_configs
     cleanup_mero_configs
+    if $do_genfacts ; then
+        cleanup_halon_configs
+    fi
     exit 0
 fi
 
@@ -513,6 +575,11 @@ fi
     die "Requested configuration with pool-width=$pool_width and" \
         "ios-number=$ios_num is not supported, pool-width should be a multiple" \
         "of ios-number"
+
+if $do_genfacts && ($do_mkfs || [[ $ios_num -gt 1 ]]) ; then
+    die "The '-H|--halon-facts' option is incompatible with '-M|--mkfs' and" \
+        "'-i|--ios-number' options"
+fi
 
 if [[ -n $disk_pattern ]] ; then
     info_msg="disk pattern $disk_pattern"
@@ -553,6 +620,10 @@ if $do_genfacts ; then
     generate_halon_facts
 else
     generate_genders_config
+    if $clovis_mode ; then
+        warn "ignoring '-V|--clovis-mode', it only makes sense when used" \
+             "together with '-H|--halon-facts'"
+    fi
 fi
 
 if $do_gendisk ; then
