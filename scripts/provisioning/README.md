@@ -27,8 +27,8 @@ This should provide a short-enough "hack/build/test" cycle for efficient
 development workflow.
 
 Depending on the host OS, different virtualization providers are supported. On
-_Linux_ those are _Libvirt/KVM_ and _VirtualBox_. On _Mac OS_ only _VirtualBox_
-is currently supported, but there are plans to add _VMware Fusion_ in future.
+_Linux_ those are _Libvirt/KVM_ and _VirtualBox_. On _Mac OS_ - _VirtualBox_
+and _VMware Fusion_.
 
 > The average provisioning time depends on the hardware speed, virtualization
 > provider and VM role. For example, _libvirt_ provider supports parallel
@@ -66,12 +66,13 @@ command:
 
     sudo apt install qemu-kvm libvirt-bin vagrant ansible
 
-Though it's actually better to get a more up-to-day versions of _Vagrant_ and
+Though, it's actually better to get a more up-to-day versions of _Vagrant_ and
 _Ansible_ than those provided by a distribution. The procedure is same as
 described below for _Mac OS_.
 
-On _Mac OS_ the easiest way to install those tools is to download _VirtualBox_
-and _Vagrant_ packages from their official web-sites (refer to the links above).
+On _Mac OS_ the easiest way to install those tools is to download
+_VirtualBox_/_VMware Fusion_  and _Vagrant_ packages from their official
+web-sites (refer to the links above).
 
 And install _Ansible_ using _Python_ package manager `pip`, which is
 available on _Mac OS_ "out of the box":
@@ -85,13 +86,17 @@ available on _Mac OS_ "out of the box":
 
 After _Vagrant_ is installed, a couple of plugins need to be installed also. On
 _Linux_ it is `vagrant-libvirt` (for _kvm_ support), and on _Mac OS_ it's
-`vagrant-vbguest` (for automatic _NFS_ shared dir configuration):
+`vagrant-vbguest`, when using _VirtualBox_ and `vagrant-vmware-fusion`, when
+using _VMware Fusion_:
 
-    # linux
+    # linux with Qemu/KVM
     vagrant plugin install vagrant-libvirt
 
-    # mac os
+    # macos with VirtualBox
     vagrant plugin install vagrant-vbguest
+
+    # macos with VMware Fusion
+    vagrant plugin install vagrant-vmware-fusion
 
 It's highly recommend to install a few more _Vagrant_ plugins for a better user
 experience:
@@ -118,7 +123,7 @@ It will spawn a VM and configure it using _Ansible_ "playbook"
 should be installed in order to build and run _Mero_. It will install _Lustre_
 2.9 from the [official Intel's
 repository](https://downloads.hpdd.intel.com/public/lustre/lustre-2.9.0/el7/client/).
-During provisioning _Vagrant_ might pause and ask for user password, this is
+During provisioning, _Vagrant_ might pause and ask for user password, this is
 needed for _NFS_ auto-configuration (it will add a new entry in `/etc/exports`
 and restart `nfsd` service).
 
@@ -173,8 +178,8 @@ on each VM under `/data`.
 Building and running Mero
 -------------------------
 
-If necessary _Vagrant_ plugins are installed (see _Requirements_ section above)
-mero sources should be shared over _NFS_ on each VM. If, for some reason,
+If all necessary _Vagrant_ plugins are installed (see _Requirements_ section
+above) mero sources should be shared over _NFS_ on each VM. If, for some reason,
 _Vagrant_ hasn't been able to configure the _NFS_ share it is still possible to
 copy mero sources to VM with the help of `vagrant-scp` plugin:
 
@@ -243,15 +248,15 @@ Streamlining VMs creation and provisioning with snapshots
 It might be useful to save VM state just after provisioning for instant access
 to a clean VM without re-doing a complete provisioning from scratch:
 
-    m0vg snapshot save cmu clean
-    m0vg snapshot save ssu1 clean
-    m0vg snapshot save ssu2 clean
-    m0vg snapshot save client1 clean
+    m0vg snapshot save cmu clean-vm
+    m0vg snapshot save ssu1 clean-vm
+    m0vg snapshot save ssu2 clean-vm
+    m0vg snapshot save client1 clean-vm
 
 Then later, in order to discard the current state and restore a clean VM one may
 do:
 
-    m0vg snapshot restore --no-provision cmu clean
+    m0vg snapshot restore --no-provision cmu clean-vm
 
 If `--no-provision` option is omitted, the _Ansible_ provisioning will be
 repeated after the restore phase. It may come in handy for getting latest
