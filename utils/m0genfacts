@@ -297,7 +297,7 @@ def collect_facts_for(node)
         # con return a different result if there is a 'search domainname'
         # present in /etc/resolv.conf, but Halon expects it to identical to
         # what's returned by `hostname`
-        fqdn            = `hostname --fqdn`
+        fqdn            = `hostname --fqdn`.chomp
         iface           = $options[:iface] || Facter.value(:interfaces).split(',')[0]
         mac_addr        = Facter.value("macaddress_#{iface}")
         ip_addr         = Facter.value("ipaddress_#{iface}")
@@ -387,9 +387,9 @@ def collect_disks_for(node)
     disks_info = []
 
     disks.each do |disk_path|
-        $disk_index += 1
         disks_info.push(
             build_disk_info(node['address'], disk_path, $disk_index))
+        $disk_index += 1
     end
 
     return disks_info
