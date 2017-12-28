@@ -91,6 +91,9 @@ id_m0_servers:
   <%- if dbfact['role'].include? 'storage' -%>
       - name: storage
   <%- end -%>
+  <%- if dbfact['role'].include? 'clovis-app' -%>
+      - name: clovis-app
+  <%- end -%>
   <%- if dbfact['role'].include? 'datamover' or m0t1fs_nodes.include? dbfact['vlan_data_ip'] -%>
       - name: m0t1fs
   <%- end -%>

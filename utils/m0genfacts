@@ -50,6 +50,7 @@ $options = {
     config:                 STDIN,
     output:                 STDOUT,
     template:               TEMPLATE_FILE_PATH,
+    clovis_mode:            false,
     dataunits:              DATA_UNITS,
     parityunits:            PARITY_UNITS,
     blocksize:              BLOCK_SIZE,
@@ -87,9 +88,13 @@ usage: #{PROG_NAME} [$options] disk1 disk2 ...
     In a cluster mode, a simplified cluster configuration should be passed via
     -c|--config option or it will be read from STDIN:
 
-        clients: [ hostA1, ... ]
-        confds:  [ hostB1, ... ]
-        ssus:    [ { host: 'hostC1', disks: 'sh-glob-pattern' }, ... ]
+        clients:     [ hostA1, ... ]
+        clovis-apps: [ hostB1, ... ]
+        confds:      [ hostC1, ... ]
+        ssus:        [ { host: 'hostD1', disks: 'sh-glob-pattern' }, ... ]
+
+    The 'clients' and 'clovis-apps' sections can be omitted, but not both at the
+    same time.
 
   Options:
 
@@ -113,6 +118,12 @@ END_USAGE
     opts.on('-e', '--netif IFNAME',
             'LNet interface. By default, a first network interface is used') do |val|
         $options[:iface] = val
+    end
+
+    opts.on('-C', '--clovis-mode',
+            'Enable clovis mode. m0t1fs is not mounted, clovis apps are needed' \
+            ' to access Mero') do
+        $options[:clovis_mode] = true
     end
 
     opts.on('-N', '--data-units NUM',
@@ -224,9 +235,10 @@ end
 #
 
 Role_of = {
-    'clients' => 'datamover',
-    'confds'  => 'confd',
-    'ssus'    => 'storage',
+    'clients'     => 'datamover',
+    'clovis-apps' => 'clovis-app',
+    'confds'      => 'confd',
+    'ssus'        => 'storage',
 }.freeze
 
 def build_nodes_from(config)
@@ -455,13 +467,18 @@ else
     log 'Reading disks configuration from CLI arguments'
 
     cluster_config = {
-        'clients'  => [ Facter.value(:hostname) ],
         'confds'   => [ Facter.value(:hostname) ],
         'ssus'     => [{
            'host'  => Facter.value(:hostname),
            'disks' => ARGV,
         }],
     }
+
+    if $options[:clovis_mode]
+        cluster_config['clovis-apps'] = [ Facter.value(:hostname) ]
+    else
+        cluster_config['clients']     = [ Facter.value(:hostname) ]
+    end
 end
 
 #
