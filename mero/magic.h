@@ -329,6 +329,9 @@ enum m0_magic_satchel {
 	/* ndom_tl::td_head_magic (baffled basis) */
 	M0_CS_NET_DOMAIN_HEAD_MAGIC = 0x33baff1edba51577,
 
+	/* m0_mero::cc_magic (sealless dacs) */
+	M0_CS_MERO_MAGIC = 0x335ea11e55dac577,
+
 /* Copy machine */
 	/* cmtypes_tl::td_head_magic (dacefacebace) */
 	CM_TYPE_HEAD_MAGIX = 0x33DACEFACEBACE77,

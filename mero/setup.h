@@ -40,6 +40,7 @@
 #include "pool/pool.h"        /* m0_pools_common */
 #include "ha/ha.h"            /* m0_ha */
 #include "mero/ha.h"          /* m0_mero_ha */
+#include "module/module.h"    /* m0_module */
 
 /**
    @defgroup m0d Mero Setup
@@ -456,6 +457,35 @@ struct m0_mero {
 
 	/** Number of buffers in incoming/outgoing copy machine pools. */
 	m0_bcount_t                 cc_sns_buf_nr;
+
+	/**
+	 * Used for step-by-step initialisation and finalisation in
+	 * m0_cs_init(), m0_cs_setup_env(), m0_cs_start(), m0_cs_fini().
+	 */
+	struct m0_module            cc_module;
+
+	/**
+	 * argc/argv, passed to m0_cs_setup_env().
+	 * Not the same as ca_argc/ca_argv in cc_args.
+	 */
+	int                         cc_setup_env_argc;
+	/** @see cc_setup_env_argc */
+	char                      **cc_setup_env_argv;
+
+	/** Magic for m0_bob_type */
+	uint64_t                    cc_magic;
+
+	/** Is used only during m0_cs_start(). */
+	struct m0_conf_filesystem  *cc_conf_filesystem;
+
+	/**
+	 * XXX Some strange mode.
+	 * TODO eliminate it if (and when) possible.
+	 */
+	bool                        cc_skip_pools_and_ha_update;
+
+	/** XXX A kludge for finalisation purposes. */
+	bool                        cc_ha_was_started;
 };
 
 enum {

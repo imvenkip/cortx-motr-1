@@ -169,7 +169,6 @@ M0_INTERNAL void m0_reqh_layouts_cleanup(struct m0_reqh *reqh)
 	if (reqh->rh_pools->pc_md_pool_linst != NULL)
 		m0_layout_instance_fini(reqh->rh_pools->pc_md_pool_linst);
 	m0_layout_domain_cleanup(&reqh->rh_ldom);
-	reqh->rh_pools = NULL;
 }
 
 M0_INTERNAL struct m0_rpc_session *

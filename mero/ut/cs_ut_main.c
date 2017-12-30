@@ -368,7 +368,7 @@ static void cs_ut_test_helper_failure(char *cs_argv[], int cs_argc)
 
 static void test_cs_ut_cs_start_err(void)
 {
-	m0_fi_enable_once("m0_cs_start", "pools_cleanup");
+	m0_fi_enable_once("cs_level_enter", "pools_cleanup");
 	cs_ut_test_helper_failure(cs_ut_service_one_cmd,
 				  ARRAY_SIZE(cs_ut_service_one_cmd));
 }

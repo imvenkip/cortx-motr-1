@@ -131,6 +131,14 @@ M0_TL_DEFINE(ndom, static, struct m0_net_domain);
 static struct m0_bob_type ndom_bob;
 M0_BOB_DEFINE(static, &ndom_bob, m0_net_domain);
 
+static const struct m0_bob_type cs_bob_type = {
+	.bt_name         = "m0_mero",
+	.bt_magix_offset = M0_MAGIX_OFFSET(struct m0_mero, cc_magic),
+	.bt_magix        = M0_CS_MERO_MAGIC,
+};
+/* "inline" to silence the warning about unused m0_mero_bob_check() */
+M0_BOB_DEFINE(static inline, &cs_bob_type, m0_mero);
+
 static bool reqh_ctx_services_are_valid(const struct m0_reqh_context *rctx)
 {
 	struct m0_mero *cctx = container_of(rctx, struct m0_mero, cc_reqh_ctx);
@@ -1162,19 +1170,6 @@ static int reqh_context_services_init(struct m0_reqh_context *rctx,
 		M0_LOG(M0_DEBUG, "service: %s" FID_F " cs_service_init: %d",
 		       rctx->rc_services[i], FID_P(&rctx->rc_service_fids[i]),
 		       rc);
-	}
-	if (rc != 0) {
-		/* XXX rpc service is stoppped here. m0_ha needs the rpc */
-		if (cctx->cc_ha_is_started) {
-			cs_ha_stop(cctx);
-
-			m0_rconfc_stop_sync(mero2rconfc(cctx));
-			m0_rconfc_fini(mero2rconfc(cctx));
-
-			cs_ha_fini(cctx);
-		}
-
-		m0_reqh_pre_storage_fini_svcs_stop(&rctx->rc_reqh);
 	}
 	return M0_RC(rc);
 }
@@ -2424,23 +2419,15 @@ static void cs_ha_connect(struct m0_mero *cctx)
 
 static int cs_conf_setup(struct m0_mero *cctx)
 {
-	struct cs_args      *args = &cctx->cc_args;
 	struct m0_reqh      *reqh = mero2reqh(cctx);
 	struct m0_confc_args conf_args = {
 		.ca_profile = cctx->cc_profile,
 		.ca_rmach   = m0_mero_to_rmach(cctx),
 		.ca_group   = m0_locality0_get()->lo_grp
 	};
-	struct m0_conf_filesystem *fs;
-	int                        rc;
+	int                  rc;
 
-	if (cctx->cc_no_conf) {
-		M0_LOG(M0_WARN, "No conf");
-		return M0_RC(0);
-	}
-	if (cctx->cc_reqh_ctx.rc_confdb == NULL) {
-		cs_ha_connect(cctx);
-	} else {
+	if (cctx->cc_reqh_ctx.rc_confdb != NULL) {
 		rc = m0_file_read(cctx->cc_reqh_ctx.rc_confdb,
 				  &conf_args.ca_confstr);
 		if (rc != 0)
@@ -2453,69 +2440,12 @@ static int cs_conf_setup(struct m0_mero *cctx)
 	if (rc != 0)
 		return M0_ERR(rc);
 
-	rc = m0_rconfc_start_sync(mero2rconfc(cctx)) ?:
-		m0_ha_client_add(m0_mero2confc(cctx));
-	if (rc != 0)
-		goto rconfc_stop;
-
-	rc = m0_conf_fs_get(m0_reqh2profile(reqh), m0_reqh2confc(reqh), &fs);
-	if (rc != 0)
-		goto ha_client_del;
-
-	rc = m0_conf_full_load(fs) ?:
-		cs_conf_services_init(cctx) ?:
-		cs_conf_to_args(args, fs) ?:
-		_args_parse(cctx, args->ca_argc, args->ca_argv);
-	if (rc != 0)
-		goto conf_fs_close;
-
-	if (cctx->cc_reqh_ctx.rc_confdb != NULL)
-		cs_ha_connect(cctx);
-
-	rc = m0_pools_common_init(&cctx->cc_pools_common,
-				  m0_mero_to_rmach(cctx), fs);
-	if (rc != 0)
-		goto conf_fs_close;
-
-	M0_LOG(M0_DEBUG, "file system:"FID_F"profile"FID_F,
-			FID_P(&fs->cf_obj.co_id),
-			FID_P(&fs->cf_obj.co_parent->co_id));
-	rc = m0_pools_setup(&cctx->cc_pools_common, fs, NULL, NULL, NULL);
-	if (rc != 0)
-		goto pools_common_fini;
-	if (cctx->cc_pools_common.pc_md_redundancy > 0)
-		mero2reqh(cctx)->rh_oostore = true;
-
-	if (!cctx->cc_mkfs) {
-		rc = cs_reqh_ctx_services_validate(cctx);
-		if (rc != 0)
-			goto pools_destroy;
+	rc = m0_rconfc_start_sync(mero2rconfc(cctx));
+	if (rc != 0) {
+		m0_rconfc_stop_sync(mero2rconfc(cctx));
+		m0_rconfc_fini(mero2rconfc(cctx));
 	}
-	M0_ASSERT(rc == 0);
-	m0_confc_close(&fs->cf_obj);
-	return M0_RC(0);
-
-pools_destroy:
-	m0_pools_destroy(&cctx->cc_pools_common);
-pools_common_fini:
-	m0_pools_common_fini(&cctx->cc_pools_common);
-conf_fs_close:
-	m0_confc_close(&fs->cf_obj);
-ha_client_del:
-	m0_ha_client_del(m0_mero2confc(cctx));
-rconfc_stop:
-	m0_rconfc_stop_sync(mero2rconfc(cctx));
-	m0_rconfc_fini(mero2rconfc(cctx));
-	return M0_ERR(rc);
-}
-
-static void cs_conf_destroy(struct m0_mero *cctx)
-{
-	if (cctx->cc_pools_common.pc_confc != NULL) {
-		m0_pool_versions_destroy(&cctx->cc_pools_common);
-		m0_pools_service_ctx_destroy(&cctx->cc_pools_common);
-		m0_pools_destroy(&cctx->cc_pools_common);
-	}
+	return M0_RC(rc);
 }
 
 static void cs_conf_fini(struct m0_mero *cctx)
@@ -2563,6 +2493,507 @@ M0_INTERNAL void m0_cs_gotsignal_reset(void)
 	gotsignal = 0;
 }
 
+/**
+ * mero/setup initialisation levels.
+ *
+ * Future improvements:
+ * - fix CS_LEVEL_BUFFER_POOL_AND_NET_DOMAINS_FINI_HACK;
+ * - define m0_rconfc and m0_ha init order and call cs_ha_connect() only once;
+ * - m0_ha_client_del() returns int and the return code is not checked. If it is
+ *   checked rpcping ST fails;
+ * - finalise subsystems at the same level they were initialised. It would
+ *   ensure the right finalisation order for the subsystems that depend on
+ *   each other;
+ * - make m0_cs_init()/m0_cs_setup_env()/m0_cs_start() a single function;
+ * - group the relevant subsystem initialisers and finalisers into separate
+ *   m0_modules. It's not possible to do this before the init/fini are not
+ *   matched in the existing "single module for entire mero/setup" scheme;
+ * - fix double m0_conf_fs_get()/m0_confc_close() for the filesystem conf obj;
+ * - fix "if (cctx->cc_no_conf) return M0_RC(0)" copy-paste one way or another;
+ * - pass parameters to m0_cs_init()/m0_cs_setup_env()/m0_cs_start() using
+ *   m0_conf wherever possible;
+ * - make some steps (like storage) optional through configuration;
+ * - make platform-dependent code to a new abstraction or hide it under
+ *   #ifdef __KERNEL__:
+ *   - signal handling and kernel module load/unload handling;
+ *   - setrlimit (take from m0d code);
+ *   - process restart (currently implemented in mero/m0d.c and it's not used);
+ * - move m0t1fs, clovis and m0_halon_interface init/fini code to the new
+ *   mero/setup;
+ * - reconsider m0_reqh/m0_rpc_machine/m0_net/m0_net_buffer_pool init/fini
+ *   sequence.
+ */
+enum cs_level {
+	CS_LEVEL_MERO_INIT,
+	/*
+	 * XXX Added as a hack to match original implementation.
+	 * I don't know why it works now.
+	 *
+	 * The proper way would be to wait in m0_net_buffer_pool_fini()
+	 * until all buffers are not in use, then run the finalisation code.
+	 */
+	CS_LEVEL_BUFFER_POOL_AND_NET_DOMAINS_FINI_HACK,
+	CS_LEVEL_REQH_CTX_INIT,
+	CS_LEVEL_CS_INIT,
+	CS_LEVEL_RWLOCK_LOCK,
+	CS_LEVEL_ARGS_PARSE,
+	CS_LEVEL_REQH_CTX_VALIDATE,
+	CS_LEVEL_DAEMONIZE,
+	CS_LEVEL_NET_DOMAINS_INIT,
+	CS_LEVEL_BUFFER_POOL_SETUP,
+	CS_LEVEL_REQH_START,
+	CS_LEVEL_RPC_MACHINES_INIT,
+	CS_LEVEL_HA_INIT,
+	CS_LEVEL_HA_CONNECT_ATTEMPT1,
+	CS_LEVEL_REQH_STOP_HACK,
+	CS_LEVEL_RCONFC_INIT_START,
+	CS_LEVEL_HA_CLIENT_ADD,
+	CS_LEVEL_CONF_FS_GET,
+	CS_LEVEL_CONF_FULL_LOAD,
+	CS_LEVEL_CONF_SERVICES_INIT,
+	CS_LEVEL_CONF_TO_ARGS,
+	CS_LEVEL_CONF_ARGS_PARSE,
+	CS_LEVEL_HA_CONNECT_ATTEMPT2,
+	CS_LEVEL_POOLS_COMMON_INIT,
+	CS_LEVEL_POOLS_SETUP,
+	CS_LEVEL_SET_OOSTORE,
+	CS_LEVEL_REQH_CTX_SERVICES_VALIDATE,
+	CS_LEVEL_CONF_FS_CONFC_CLOSE,
+	CS_LEVEL_STORAGE_SETUP,
+	CS_LEVEL_RWLOCK_UNLOCK,
+	CS_LEVEL_STARTED_EVENT_FOR_MKFS,
+	CS_LEVEL_RCONFC_FATAL_CALLBACK,
+	CS_LEVEL_SETUP_ENV,
+	CS_LEVEL_CHECK_CONFIG,
+	CS_LEVEL_CONF_FS_GET2,
+	CS_LEVEL_POOLS_SERVICE_CTX_CREATE,
+	CS_LEVEL_POOL_VERSIONS_SETUP,
+	CS_LEVEL_REQH_SERVICES_START,
+	CS_LEVEL_REQH_MDPOOL_LAYOUTS_SETUP,
+	CS_LEVEL_CONF_CONFC_HA_UPDATE,
+	CS_LEVEL_CONF_FS_CONFC_CLOSE2,
+	CS_LEVEL_STARTED_EVENT_FOR_M0D,
+	CS_LEVEL_START,
+};
+
+static const struct m0_modlev cs_module_levels[];
+
+static struct m0_mero *cs_module2mero(struct m0_module *module)
+{
+	return bob_of(module, struct m0_mero, cc_module, &cs_bob_type);
+}
+
+static int cs_level_enter(struct m0_module *module)
+{
+	struct m0_mero         *cctx = cs_module2mero(module);
+	struct m0_reqh_context *rctx = &cctx->cc_reqh_ctx;
+	struct m0_reqh         *reqh = mero2reqh(cctx);
+	int                     level = module->m_cur + 1;
+	const char             *level_name = cs_module_levels[level].ml_name;
+	int                     rc;
+
+	M0_ENTRY("cctx=%p level=%d level_name=%s", cctx, level, level_name);
+	if (gotsignal)
+		return M0_ERR(-EINTR);
+	switch (level) {
+	case CS_LEVEL_MERO_INIT:
+		cs_mero_init(cctx);
+		return M0_RC(0);
+	case CS_LEVEL_BUFFER_POOL_AND_NET_DOMAINS_FINI_HACK:
+		return M0_RC(0);
+	case CS_LEVEL_REQH_CTX_INIT:
+		return M0_RC(cs_reqh_ctx_init(cctx));
+	case CS_LEVEL_CS_INIT:
+		return M0_RC(0);
+	case CS_LEVEL_RWLOCK_LOCK:
+		m0_rwlock_write_lock(&cctx->cc_rwlock);
+		return M0_RC(0);
+	case CS_LEVEL_ARGS_PARSE:
+		return M0_RC(cs_args_parse(cctx,
+					   cctx->cc_setup_env_argc,
+					   cctx->cc_setup_env_argv));
+	case CS_LEVEL_REQH_CTX_VALIDATE:
+		return M0_RC(cs_reqh_ctx_validate(cctx));
+	case CS_LEVEL_DAEMONIZE:
+		return M0_RC(cs_daemonize(cctx));
+	case CS_LEVEL_NET_DOMAINS_INIT:
+		return M0_RC(cs_net_domains_init(cctx));
+	case CS_LEVEL_BUFFER_POOL_SETUP:
+		return M0_RC(cs_buffer_pool_setup(cctx));
+	case CS_LEVEL_REQH_START:
+		return M0_RC(cs_reqh_start(&cctx->cc_reqh_ctx));
+	case CS_LEVEL_RPC_MACHINES_INIT:
+		return M0_RC(cs_rpc_machines_init(cctx));
+	case CS_LEVEL_HA_INIT:
+		return M0_RC(cs_ha_init(cctx));
+	case CS_LEVEL_HA_CONNECT_ATTEMPT1:
+		if (cctx->cc_no_conf)
+			return M0_RC(0);
+		if (cctx->cc_reqh_ctx.rc_confdb == NULL)
+			cs_ha_connect(cctx);
+		return M0_RC(0);
+	case CS_LEVEL_REQH_STOP_HACK:
+		return M0_RC(0);
+	case CS_LEVEL_RCONFC_INIT_START:
+		if (cctx->cc_no_conf)
+			return M0_RC(0);
+		return M0_RC(cs_conf_setup(cctx));
+	case CS_LEVEL_HA_CLIENT_ADD:
+		if (cctx->cc_no_conf)
+			return M0_RC(0);
+		return M0_RC(m0_ha_client_add(m0_mero2confc(cctx)));
+	case CS_LEVEL_CONF_FS_GET:
+		if (cctx->cc_no_conf)
+			return M0_RC(0);
+		rc = m0_conf_fs_get(m0_reqh2profile(reqh), m0_reqh2confc(reqh),
+		                    &cctx->cc_conf_filesystem);
+		if (rc != 0)
+			cctx->cc_conf_filesystem = NULL;
+		return M0_RC(rc);
+	case CS_LEVEL_CONF_FULL_LOAD:
+		if (cctx->cc_no_conf)
+			return M0_RC(0);
+		return M0_RC(m0_conf_full_load(cctx->cc_conf_filesystem));
+	case CS_LEVEL_CONF_SERVICES_INIT:
+		if (cctx->cc_no_conf)
+			return M0_RC(0);
+		return M0_RC(cs_conf_services_init(cctx));
+	case CS_LEVEL_CONF_TO_ARGS:
+		if (cctx->cc_no_conf)
+			return M0_RC(0);
+		return M0_RC(cs_conf_to_args(&cctx->cc_args,
+					     cctx->cc_conf_filesystem));
+	case CS_LEVEL_CONF_ARGS_PARSE:
+		if (cctx->cc_no_conf)
+			return M0_RC(0);
+		return M0_RC(_args_parse(cctx, cctx->cc_args.ca_argc,
+		                         cctx->cc_args.ca_argv));
+	case CS_LEVEL_HA_CONNECT_ATTEMPT2:
+		if (cctx->cc_no_conf)
+			return M0_RC(0);
+		if (cctx->cc_reqh_ctx.rc_confdb != NULL)
+			cs_ha_connect(cctx);
+		return M0_RC(0);
+	case CS_LEVEL_POOLS_COMMON_INIT:
+		if (cctx->cc_no_conf)
+			return M0_RC(0);
+		return M0_RC(m0_pools_common_init(&cctx->cc_pools_common,
+		                                  m0_mero_to_rmach(cctx),
+						  cctx->cc_conf_filesystem));
+	case CS_LEVEL_POOLS_SETUP:
+		if (cctx->cc_no_conf)
+			return M0_RC(0);
+		return M0_RC(m0_pools_setup(&cctx->cc_pools_common,
+					    cctx->cc_conf_filesystem,
+					    NULL, NULL, NULL));
+	case CS_LEVEL_SET_OOSTORE:
+		if (cctx->cc_no_conf)
+			return M0_RC(0);
+		if (cctx->cc_pools_common.pc_md_redundancy > 0)
+			mero2reqh(cctx)->rh_oostore = true;
+		return M0_RC(0);
+	case CS_LEVEL_REQH_CTX_SERVICES_VALIDATE:
+		if (cctx->cc_no_conf)
+			return M0_RC(0);
+		if (!cctx->cc_mkfs)
+			return M0_RC(cs_reqh_ctx_services_validate(cctx));
+		return M0_RC(0);
+	case CS_LEVEL_CONF_FS_CONFC_CLOSE:
+		if (cctx->cc_no_conf)
+			return M0_RC(0);
+		m0_confc_close(&cctx->cc_conf_filesystem->cf_obj);
+		cctx->cc_conf_filesystem = NULL;
+		return M0_RC(0);
+	case CS_LEVEL_STORAGE_SETUP:
+		return M0_RC(cs_storage_setup(cctx));
+	case CS_LEVEL_RWLOCK_UNLOCK:
+		m0_rwlock_write_unlock(&cctx->cc_rwlock);
+		return M0_RC(0);
+	case CS_LEVEL_STARTED_EVENT_FOR_MKFS:
+		/*
+		 * m0_cs_start() is not called in mkfs mode.
+		 *
+		 * Halon expects STARTED to be able to continue the bootstrap,
+		 * even in mkfs case.
+		 *
+		 * XXX STARTED expected even in the error case.
+		 * It should be fixed either here or in Halon.
+		 */
+		if (cctx->cc_mkfs)
+			cs_ha_process_event(cctx, M0_CONF_HA_PROCESS_STARTED);
+		return M0_RC(0);
+	case CS_LEVEL_RCONFC_FATAL_CALLBACK:
+		if (!cctx->cc_no_conf) { /* otherwise rconfc did not start */
+			/*
+			 * So far rconfc has no fatal callback installed
+			 * to distinguish rconfc failure occurred during
+			 * m0_rconfc_start_wait() from failure state reached
+			 * after successful rconfc start. To catch the
+			 * after-start failure, fatal callback is installed
+			 * here.
+			 */
+			m0_rconfc_lock(mero2rconfc(cctx));
+			m0_rconfc_fatal_cb_set(mero2rconfc(cctx),
+					       cs_rconfc_fatal_cb);
+			m0_rconfc_unlock(mero2rconfc(cctx));
+		}
+		return M0_RC(0);
+	case CS_LEVEL_SETUP_ENV:
+		return M0_RC(0);
+	case CS_LEVEL_CHECK_CONFIG:
+		cctx->cc_skip_pools_and_ha_update = cctx->cc_no_conf ||
+					     bad_address(cctx->cc_ha_addr) ||
+					     cctx->cc_no_all2all_connections;
+		return M0_RC(0);
+	case CS_LEVEL_CONF_FS_GET2:
+		if (cctx->cc_skip_pools_and_ha_update)
+			return M0_RC(0);
+		rc = m0_conf_fs_get(m0_reqh2profile(reqh), m0_reqh2confc(reqh),
+		                    &cctx->cc_conf_filesystem);
+		if (rc != 0)
+			cctx->cc_conf_filesystem = NULL;
+		return M0_RC(rc);
+	case CS_LEVEL_POOLS_SERVICE_CTX_CREATE:
+		if (cctx->cc_skip_pools_and_ha_update)
+			return M0_RC(0);
+		return M0_RC(m0_pools_service_ctx_create(&cctx->cc_pools_common,
+						     cctx->cc_conf_filesystem));
+	case CS_LEVEL_POOL_VERSIONS_SETUP:
+		if (cctx->cc_skip_pools_and_ha_update)
+			return M0_RC(0);
+		return M0_RC(m0_pool_versions_setup(&cctx->cc_pools_common,
+		                                    cctx->cc_conf_filesystem,
+						    NULL, NULL, NULL));
+	case CS_LEVEL_REQH_SERVICES_START:
+		return M0_RC(reqh_services_start(rctx, cctx));
+	case CS_LEVEL_REQH_MDPOOL_LAYOUTS_SETUP:
+		if (cctx->cc_skip_pools_and_ha_update)
+			return M0_RC(0);
+		if (M0_FI_ENABLED("pools_cleanup"))
+			return M0_RC(-EINVAL);
+		return M0_RC(cs_reqh_mdpool_layouts_setup(cctx));
+	case CS_LEVEL_CONF_CONFC_HA_UPDATE:
+		if (cctx->cc_skip_pools_and_ha_update)
+			return M0_RC(0);
+		return M0_RC(m0_conf_confc_ha_update(m0_reqh2confc(reqh)));
+	case CS_LEVEL_CONF_FS_CONFC_CLOSE2:
+		m0_confc_close(&cctx->cc_conf_filesystem->cf_obj);
+		cctx->cc_conf_filesystem = NULL;
+		return M0_RC(0);
+	case CS_LEVEL_STARTED_EVENT_FOR_M0D:
+		cs_ha_process_event(cctx, M0_CONF_HA_PROCESS_STARTED);
+		return M0_RC(0);
+	case CS_LEVEL_START:
+		return M0_RC(0);
+	default:
+		return M0_ERR_INFO(-ENOSYS, "cctx=%p level=%d", cctx, level);
+	}
+}
+
+static void cs_level_leave(struct m0_module *module)
+{
+	struct m0_mero         *cctx = cs_module2mero(module);
+	struct m0_reqh_context *rctx = &cctx->cc_reqh_ctx;
+	int                     level = module->m_cur;
+	const char             *level_name = cs_module_levels[level].ml_name;
+
+	M0_ENTRY("cctx=%p level=%d level_name=%s", cctx, level, level_name);
+	switch (level) {
+	case CS_LEVEL_MERO_INIT:
+		cs_mero_fini(cctx);
+		break;
+	case CS_LEVEL_BUFFER_POOL_AND_NET_DOMAINS_FINI_HACK:
+		cs_buffer_pool_fini(cctx);
+		cs_net_domains_fini(cctx);
+		break;
+	case CS_LEVEL_REQH_CTX_INIT:
+		cs_reqh_ctx_fini(rctx);
+		break;
+	case CS_LEVEL_CS_INIT:
+	case CS_LEVEL_RWLOCK_LOCK:
+	case CS_LEVEL_ARGS_PARSE:
+	case CS_LEVEL_REQH_CTX_VALIDATE:
+	case CS_LEVEL_DAEMONIZE:
+	case CS_LEVEL_NET_DOMAINS_INIT:
+		/* see CS_LEVEL_BUFFER_FINI_HACK */
+	case CS_LEVEL_BUFFER_POOL_SETUP:
+		/* see CS_LEVEL_BUFFER_FINI_HACK */
+		break;
+	case CS_LEVEL_REQH_START:
+		if (rctx->rc_state == RC_INITIALISED)
+			cs_reqh_storage_fini(rctx);
+		break;
+	case CS_LEVEL_RPC_MACHINES_INIT:
+		cs_rpc_machines_fini(&rctx->rc_reqh);
+		break;
+	case CS_LEVEL_HA_INIT:
+	case CS_LEVEL_HA_CONNECT_ATTEMPT1:
+		break;
+	case CS_LEVEL_REQH_STOP_HACK:
+		if (cctx->cc_ha_is_started)
+			cctx->cc_ha_was_started = true;
+		if (cctx->cc_ha_was_started &&
+		    rctx->rc_state >= RC_REQH_INITIALISED)
+			cs_ha_fini(cctx);
+		if (rctx->rc_state >= RC_REQH_INITIALISED)
+			cs_reqh_stop(rctx);
+		break;
+	case CS_LEVEL_RCONFC_INIT_START:
+		if (cctx->cc_conf_filesystem != NULL) {
+			m0_confc_close(&cctx->cc_conf_filesystem->cf_obj);
+			cctx->cc_conf_filesystem = NULL;
+		}
+		/*
+		 * Need to shut rconfc down prior to stopping REQH
+		 * services, as rconfc needs RPC be up and running
+		 * to safely stop and fini.
+		 */
+		cs_conf_fini(cctx);
+		break;
+	case CS_LEVEL_HA_CLIENT_ADD:
+		m0_ha_client_del(m0_mero2confc(cctx));
+		break;
+	case CS_LEVEL_CONF_FS_GET:
+		break;
+	case CS_LEVEL_CONF_FULL_LOAD:
+		break;
+	case CS_LEVEL_CONF_SERVICES_INIT:
+		reqh_context_services_fini(&cctx->cc_reqh_ctx, cctx);
+		break;
+	case CS_LEVEL_CONF_TO_ARGS:
+		break;
+	case CS_LEVEL_CONF_ARGS_PARSE:
+		break;
+	case CS_LEVEL_HA_CONNECT_ATTEMPT2:
+		if (cctx->cc_ha_was_started)
+			cs_ha_stop(cctx);
+		break;
+	case CS_LEVEL_POOLS_COMMON_INIT:
+		if (cctx->cc_pools_common.pc_confc != NULL)
+			m0_pools_common_fini(&cctx->cc_pools_common);
+		break;
+	case CS_LEVEL_POOLS_SETUP:
+		if (cctx->cc_pools_common.pc_confc != NULL)
+			m0_pools_destroy(&cctx->cc_pools_common);
+		break;
+	case CS_LEVEL_SET_OOSTORE:
+		break;
+	case CS_LEVEL_REQH_CTX_SERVICES_VALIDATE:
+		break;
+	case CS_LEVEL_CONF_FS_CONFC_CLOSE:
+		break;
+	case CS_LEVEL_STORAGE_SETUP:
+		if (rctx->rc_state == RC_INITIALISED) {
+			cs_storage_fini(&rctx->rc_stob);
+			rctx->rc_reqh.rh_pools = NULL;
+		}
+		break;
+	case CS_LEVEL_RWLOCK_UNLOCK:
+		break;
+	case CS_LEVEL_STARTED_EVENT_FOR_MKFS:
+		break;
+	case CS_LEVEL_RCONFC_FATAL_CALLBACK:
+		break;
+	case CS_LEVEL_SETUP_ENV:
+		break;
+	case CS_LEVEL_CHECK_CONFIG:
+		break;
+	case CS_LEVEL_CONF_FS_GET2:
+		if (cctx->cc_conf_filesystem != NULL) {
+			m0_confc_close(&cctx->cc_conf_filesystem->cf_obj);
+			cctx->cc_conf_filesystem = NULL;
+		}
+		break;
+	case CS_LEVEL_POOLS_SERVICE_CTX_CREATE:
+		if (cctx->cc_pools_common.pc_confc != NULL)
+			m0_pools_service_ctx_destroy(&cctx->cc_pools_common);
+		break;
+	case CS_LEVEL_POOL_VERSIONS_SETUP:
+		if (rctx->rc_state == RC_INITIALISED)
+			m0_reqh_layouts_cleanup(&rctx->rc_reqh);
+		if (cctx->cc_pools_common.pc_confc != NULL)
+			m0_pool_versions_destroy(&cctx->cc_pools_common);
+		break;
+	case CS_LEVEL_REQH_SERVICES_START:
+		if (rctx->rc_state >= RC_REQH_INITIALISED) {
+			cs_reqh_shutdown(rctx);
+			/*
+			 * cctx->cc_ha_is_started is being changed,
+			 * we need the old one
+			 */
+			cctx->cc_ha_was_started = cctx->cc_ha_is_started;
+		}
+		break;
+	case CS_LEVEL_REQH_MDPOOL_LAYOUTS_SETUP:
+		break;
+	case CS_LEVEL_CONF_CONFC_HA_UPDATE:
+		break;
+	case CS_LEVEL_CONF_FS_CONFC_CLOSE2:
+		break;
+	case CS_LEVEL_STARTED_EVENT_FOR_M0D:
+		cs_ha_process_event(cctx, M0_CONF_HA_PROCESS_STOPPING);
+		break;
+	case CS_LEVEL_START:
+		break;
+	default:
+		M0_IMPOSSIBLE("Can't be here: level=%d", level);
+	}
+	M0_LEAVE();
+}
+
+#define CS_MODULE_LEVEL(level) [level] = {      \
+		.ml_name  = #level,             \
+		.ml_enter = cs_level_enter,     \
+		.ml_leave = cs_level_leave,     \
+	}
+
+static const struct m0_modlev cs_module_levels[] = {
+	CS_MODULE_LEVEL(CS_LEVEL_MERO_INIT),
+	CS_MODULE_LEVEL(CS_LEVEL_BUFFER_POOL_AND_NET_DOMAINS_FINI_HACK),
+	CS_MODULE_LEVEL(CS_LEVEL_REQH_CTX_INIT),
+	CS_MODULE_LEVEL(CS_LEVEL_CS_INIT),
+	CS_MODULE_LEVEL(CS_LEVEL_RWLOCK_LOCK),
+	CS_MODULE_LEVEL(CS_LEVEL_ARGS_PARSE),
+	CS_MODULE_LEVEL(CS_LEVEL_REQH_CTX_VALIDATE),
+	CS_MODULE_LEVEL(CS_LEVEL_DAEMONIZE),
+	CS_MODULE_LEVEL(CS_LEVEL_NET_DOMAINS_INIT),
+	CS_MODULE_LEVEL(CS_LEVEL_BUFFER_POOL_SETUP),
+	CS_MODULE_LEVEL(CS_LEVEL_REQH_START),
+	CS_MODULE_LEVEL(CS_LEVEL_RPC_MACHINES_INIT),
+	CS_MODULE_LEVEL(CS_LEVEL_HA_INIT),
+	CS_MODULE_LEVEL(CS_LEVEL_HA_CONNECT_ATTEMPT1),
+	CS_MODULE_LEVEL(CS_LEVEL_REQH_STOP_HACK),
+	CS_MODULE_LEVEL(CS_LEVEL_RCONFC_INIT_START),
+	CS_MODULE_LEVEL(CS_LEVEL_HA_CLIENT_ADD),
+	CS_MODULE_LEVEL(CS_LEVEL_CONF_FS_GET),
+	CS_MODULE_LEVEL(CS_LEVEL_CONF_FULL_LOAD),
+	CS_MODULE_LEVEL(CS_LEVEL_CONF_SERVICES_INIT),
+	CS_MODULE_LEVEL(CS_LEVEL_CONF_TO_ARGS),
+	CS_MODULE_LEVEL(CS_LEVEL_CONF_ARGS_PARSE),
+	CS_MODULE_LEVEL(CS_LEVEL_HA_CONNECT_ATTEMPT2),
+	CS_MODULE_LEVEL(CS_LEVEL_POOLS_COMMON_INIT),
+	CS_MODULE_LEVEL(CS_LEVEL_POOLS_SETUP),
+	CS_MODULE_LEVEL(CS_LEVEL_SET_OOSTORE),
+	CS_MODULE_LEVEL(CS_LEVEL_REQH_CTX_SERVICES_VALIDATE),
+	CS_MODULE_LEVEL(CS_LEVEL_CONF_FS_CONFC_CLOSE),
+	CS_MODULE_LEVEL(CS_LEVEL_STORAGE_SETUP),
+	CS_MODULE_LEVEL(CS_LEVEL_RWLOCK_UNLOCK),
+	CS_MODULE_LEVEL(CS_LEVEL_STARTED_EVENT_FOR_MKFS),
+	CS_MODULE_LEVEL(CS_LEVEL_RCONFC_FATAL_CALLBACK),
+	CS_MODULE_LEVEL(CS_LEVEL_SETUP_ENV),
+	CS_MODULE_LEVEL(CS_LEVEL_CHECK_CONFIG),
+	CS_MODULE_LEVEL(CS_LEVEL_CONF_FS_GET2),
+	CS_MODULE_LEVEL(CS_LEVEL_POOLS_SERVICE_CTX_CREATE),
+	CS_MODULE_LEVEL(CS_LEVEL_POOL_VERSIONS_SETUP),
+	CS_MODULE_LEVEL(CS_LEVEL_REQH_SERVICES_START),
+	CS_MODULE_LEVEL(CS_LEVEL_REQH_MDPOOL_LAYOUTS_SETUP),
+	CS_MODULE_LEVEL(CS_LEVEL_CONF_CONFC_HA_UPDATE),
+	CS_MODULE_LEVEL(CS_LEVEL_CONF_FS_CONFC_CLOSE2),
+	CS_MODULE_LEVEL(CS_LEVEL_STARTED_EVENT_FOR_M0D),
+	CS_MODULE_LEVEL(CS_LEVEL_START),
+};
+#undef CS_MODULE_LEVEL
+
 int m0_cs_setup_env(struct m0_mero *cctx, int argc, char **argv)
 {
 	int rc;
@@ -2570,122 +3001,32 @@ int m0_cs_setup_env(struct m0_mero *cctx, int argc, char **argv)
 	if (M0_FI_ENABLED("fake_error"))
 		return M0_ERR(-EINVAL);
 
-	m0_rwlock_write_lock(&cctx->cc_rwlock);
-	rc = gotsignal ? -EINTR : cs_args_parse(cctx, argc, argv);
+	cctx->cc_setup_env_argc = argc;
+	cctx->cc_setup_env_argv = argv;
+	rc = m0_module_init(&cctx->cc_module, CS_LEVEL_SETUP_ENV);
 	if (rc != 0)
-		goto out;
-	rc = gotsignal ? -EINTR : cs_reqh_ctx_validate(cctx);
-	if (rc != 0)
-		goto out;
-	rc = gotsignal ? -EINTR : cs_daemonize(cctx);
-	if (rc != 0)
-		goto out;
-	rc = gotsignal ? -EINTR : cs_net_domains_init(cctx);
-	if (rc != 0)
-		goto out;
-	rc = gotsignal ? -EINTR : cs_buffer_pool_setup(cctx);
-	if (rc != 0)
-		goto out;
-	rc = gotsignal ? -EINTR : cs_reqh_start(&cctx->cc_reqh_ctx);
-	if (rc != 0)
-		goto out;
-	rc = gotsignal ? -EINTR : cs_rpc_machines_init(cctx);
-	if (rc != 0)
-		goto out;
-	rc = gotsignal ? -EINTR : cs_ha_init(cctx);
-	if (rc != 0)
-		goto out;
-	rc = gotsignal ? -EINTR : cs_conf_setup(cctx);
-	if (rc != 0)
-		goto out;
-	rc = gotsignal ? -EINTR : cs_storage_setup(cctx);
-out:
-	m0_rwlock_write_unlock(&cctx->cc_rwlock);
-	if (gotsignal)
-		rc = -EINTR;
-	/*
-	 * m0_cs_start() is not called in mkfs mode
-	 *
-	 * Halon expects STARTED to be able to continue the bootstrap, even in
-	 * error case.
-	 */
-	if (cctx->cc_mkfs)
-		cs_ha_process_event(cctx, M0_CONF_HA_PROCESS_STARTED);
-	if (!cctx->cc_no_conf && /* otherwise rconfc did not start */
-	    rc == 0) {
-		/*
-		 * So far rconfc has no fatal callback installed to distinguish
-		 * rconfc failure occurred during m0_rconfc_start_wait() from
-		 * failure state reached after successful rconfc start. To catch
-		 * the after-start failure, fatal callback is installed here.
-		 */
-		m0_rconfc_lock(mero2rconfc(cctx));
-		m0_rconfc_fatal_cb_set(mero2rconfc(cctx), cs_rconfc_fatal_cb);
-		m0_rconfc_unlock(mero2rconfc(cctx));
-	}
+		m0_module_fini(&cctx->cc_module, CS_LEVEL_CS_INIT);
 	return M0_RC(rc);
 }
 
 int m0_cs_start(struct m0_mero *cctx)
 {
-	struct m0_reqh_context    *rctx = &cctx->cc_reqh_ctx;
-	struct m0_reqh            *reqh = mero2reqh(cctx);
-	int                        rc;
-	struct m0_conf_filesystem *fs;
+	int rc;
 
 	M0_ENTRY();
-	M0_PRE(reqh_context_invariant(rctx));
 
-	rc = gotsignal ? -EINTR : reqh_services_start(rctx, cctx);
-	if (rc != 0) {
-		M0_LOG(M0_ERROR, "rc=%d", rc);
-		goto out;
-	}
-
-	if (cctx->cc_no_conf || bad_address(cctx->cc_ha_addr) ||
-	    cctx->cc_no_all2all_connections)
-		goto out;
-
-	rc = gotsignal ? -EINTR : m0_conf_fs_get(m0_reqh2profile(reqh),
-						 m0_reqh2confc(reqh), &fs);
-	if (rc != 0) {
-		M0_LOG(M0_ERROR, "rc=%d", rc);
-		goto out;
-	}
-
-	rc = gotsignal ?
-		-EINTR : m0_pools_service_ctx_create(&cctx->cc_pools_common, fs);
+	rc = m0_module_init(&cctx->cc_module, CS_LEVEL_START);
 	if (rc != 0)
-		goto error;
-
-	rc = gotsignal ? -EINTR : m0_pool_versions_setup(&cctx->cc_pools_common,
-							 fs, NULL, NULL, NULL);
-	if (rc != 0)
-		goto error;
-
-	if (M0_FI_ENABLED("pools_cleanup")) {
-		rc = -EINVAL;
-		goto error;
-	}
-
-	rc = gotsignal ? -EINTR : cs_reqh_mdpool_layouts_setup(cctx);
-	if (rc != 0)
-		goto error;
-
-	rc = gotsignal ? -EINTR : m0_conf_confc_ha_update(m0_reqh2confc(reqh));
-
-error:
-	if (gotsignal)
-		rc = -EINTR;
-	m0_confc_close(&fs->cf_obj);
-out:
-	cs_ha_process_event(cctx, M0_CONF_HA_PROCESS_STARTED);
+		m0_module_fini(&cctx->cc_module, CS_LEVEL_SETUP_ENV);
 	return rc == 0 ? M0_RC(0) : M0_ERR(rc);
 }
 
 int m0_cs_init(struct m0_mero *cctx, struct m0_net_xprt **xprts,
 	       size_t xprts_nr, FILE *out, bool mkfs)
 {
+	int rc;
+
+	M0_ENTRY();
 	M0_PRE(xprts != NULL && xprts_nr > 0 && out != NULL);
 
 	if (M0_FI_ENABLED("fake_error"))
@@ -2699,58 +3040,23 @@ int m0_cs_init(struct m0_mero *cctx, struct m0_net_xprt **xprts,
 	cctx->cc_no_all2all_connections = false;
 	cctx->cc_sns_buf_nr = 1 << 6;
 
-	cs_mero_init(cctx);
-
-	return cs_reqh_ctx_init(cctx);
+	m0_module_setup(&cctx->cc_module, "mero/setup", cs_module_levels,
+	                ARRAY_SIZE(cs_module_levels), m0_get());
+	m0_mero_bob_init(cctx);
+	rc = m0_module_init(&cctx->cc_module, CS_LEVEL_REQH_CTX_INIT);
+	if (rc != 0) {
+		m0_module_fini(&cctx->cc_module, M0_MODLEV_NONE);
+		m0_mero_bob_fini(cctx);
+	}
+	return M0_RC(rc);
 }
 
 void m0_cs_fini(struct m0_mero *cctx)
 {
-	struct m0_reqh_context *rctx = &cctx->cc_reqh_ctx;
-	struct m0_reqh         *reqh = &rctx->rc_reqh;
-
 	M0_ENTRY();
 
-	cs_ha_process_event(cctx, M0_CONF_HA_PROCESS_STOPPING);
-
-	m0_ha_client_del(m0_mero2confc(cctx));
-
-	if (rctx->rc_state >= RC_REQH_INITIALISED) {
-		cs_reqh_shutdown(rctx);
-                /* cctx->cc_ha_is_started is being changed, we need old one */
-                bool ha_was_started = cctx->cc_ha_is_started;
-
-		if (rctx->rc_state == RC_INITIALISED) {
-			cs_storage_fini(&rctx->rc_stob);
-			m0_reqh_layouts_cleanup(reqh);
-		}
-
-                cs_conf_destroy(cctx);
-
-		reqh_context_services_fini(&cctx->cc_reqh_ctx, cctx);
-                if (ha_was_started)
-                        cs_ha_stop(cctx);
-
-		/*
-		 * Need to shut rconfc down prior to stopping REQH services, as
-		 * rconfc needs RPC be up and running to safely stop and fini.
-		 */
-                cs_conf_fini(cctx);
-                cs_reqh_stop(rctx);
-
-                if (ha_was_started)
-                        cs_ha_fini(cctx);
-
-                cs_rpc_machines_fini(reqh);
-	}
-
-	if (rctx->rc_state == RC_INITIALISED)
-		cs_reqh_storage_fini(rctx);
-	cs_reqh_ctx_fini(rctx);
-
-	cs_buffer_pool_fini(cctx);
-	cs_net_domains_fini(cctx);
-	cs_mero_fini(cctx);
+	m0_module_fini(&cctx->cc_module, M0_MODLEV_NONE);
+	m0_mero_bob_fini(cctx);
 
 	M0_LEAVE();
 }

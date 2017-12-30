@@ -103,7 +103,7 @@ struct m0_module;
 
 enum {
 	M0_MODLEV_NONE = -1,
-	M0_MODLEV_MAX  = 32,
+	M0_MODLEV_MAX  = 64,
 	M0_MODDEP_MAX  = 128
 };
 
