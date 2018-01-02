@@ -55,12 +55,6 @@ M0_TL_DESCR_DEFINE(mappings,
 		   M0_BE_PD_REQQ_LINK_MAGIC, M0_BE_PD_REQQ_MAGIC); /*XXX*/
 M0_TL_DEFINE(mappings, static, struct m0_be_pd_mapping);
 
-static bool mapping_is_addr_in_page(struct m0_be_pd_page *page,
-				    const void *addr);
-
-static struct m0_be_pd_page *
-mapping_addr_to_page(struct m0_be_pd_mapping *mapping, const void *addr);
-
 /* -------------------------------------------------------------------------- */
 /* m0_be_pd							              */
 /* -------------------------------------------------------------------------- */
@@ -72,6 +66,7 @@ static int be_pd_level_enter(struct m0_module *module)
 
 	switch (level) {
 	case M0_BE_PD_LEVEL_INIT:
+		mappings_tlist_init(&pd->bp_mappings);
 		return M0_RC(0);
 	case M0_BE_PD_LEVEL_IO_SCHED:
 		return M0_RC(m0_be_pd_io_sched_init(&pd->bp_io_sched,
@@ -89,6 +84,7 @@ static void be_pd_level_leave(struct m0_module *module)
 
 	switch (level) {
 	case M0_BE_PD_LEVEL_INIT:
+		mappings_tlist_fini(&pd->bp_mappings);
 		return;
 	case M0_BE_PD_LEVEL_IO_SCHED:
 		m0_be_pd_io_sched_fini(&pd->bp_io_sched);
@@ -488,15 +484,17 @@ M0_INTERNAL bool m0_be_prp_cursor_next(struct m0_be_prp_cursor *cursor)
 
 	if (cursor->rpi_mapping == NULL) {
 		m0_tl_for(mappings, &paged->bp_mappings, mapping) {
-			cursor->rpi_page = mapping_addr_to_page(mapping,
-								start_addr);
+			cursor->rpi_page =
+				m0_be_pd_mapping__addr_to_page(mapping,
+							       start_addr);
 			if (cursor->rpi_page == NULL)
 				continue;
 			cursor->rpi_mapping = mapping;
 			return true;
 		} m0_tl_endfor;
 	} else {
-		if (mapping_is_addr_in_page(cursor->rpi_page, end_addr))
+		if (m0_be_pd_mapping__is_addr_in_page(cursor->rpi_page,
+						      end_addr))
 			return false;
 
 		mapping = cursor->rpi_mapping;
@@ -582,19 +580,20 @@ M0_INTERNAL bool m0_be_pd_page_is_in(struct m0_be_pd                 *paged,
 	return !M0_IN(page->pp_state, (PPS_FINI, PPS_UNMAPPED));
 }
 
-static void *be_pd_mapping_addr(struct m0_be_pd_mapping *mapping)
+M0_INTERNAL void *m0_be_pd_mapping__addr(struct m0_be_pd_mapping *mapping)
 {
 	return mapping->pas_pages[0].pp_page;
 }
 
-static m0_bcount_t be_pd_mapping_page_size(struct m0_be_pd_mapping *mapping)
+M0_INTERNAL m0_bcount_t
+m0_be_pd_mapping__page_size(struct m0_be_pd_mapping *mapping)
 {
 	return mapping->pas_pages[0].pp_size;
 }
 
-static m0_bcount_t be_pd_mapping_size(struct m0_be_pd_mapping *mapping)
+M0_INTERNAL m0_bcount_t m0_be_pd_mapping__size(struct m0_be_pd_mapping *mapping)
 {
-	return be_pd_mapping_page_size(mapping) * mapping->pas_pcount;
+	return m0_be_pd_mapping__page_size(mapping) * mapping->pas_pcount;
 }
 
 static struct m0_be_pd_mapping *be_pd_mapping_find(struct m0_be_pd *paged,
@@ -604,8 +603,8 @@ static struct m0_be_pd_mapping *be_pd_mapping_find(struct m0_be_pd *paged,
 	struct m0_be_pd_mapping *mapping;
 
 	m0_tl_for(mappings, &paged->bp_mappings, mapping) {
-		if (be_pd_mapping_addr(mapping) == addr &&
-		    be_pd_mapping_size(mapping) == size)
+		if (m0_be_pd_mapping__addr(mapping) == addr &&
+		    m0_be_pd_mapping__size(mapping) == size)
 			return mapping;
 	} m0_tl_endfor;
 
@@ -618,8 +617,8 @@ static int be_pd_mapping_map(struct m0_be_pd_mapping *mapping)
 	void   *p;
 	size_t  size;
 
-	addr = be_pd_mapping_addr(mapping);
-	size = be_pd_mapping_size(mapping);
+	addr = m0_be_pd_mapping__addr(mapping);
+	size = m0_be_pd_mapping__size(mapping);
 
 	p = mmap(addr, size, PROT_READ | PROT_WRITE,
 		 MAP_ANONYMOUS | MAP_FIXED | MAP_NORESERVE | MAP_PRIVATE, -1, 0);
@@ -631,7 +630,8 @@ static void be_pd_mapping_unmap(struct m0_be_pd_mapping *mapping)
 {
 	int rc;
 
-	rc = munmap(be_pd_mapping_addr(mapping), be_pd_mapping_size(mapping));
+	rc = munmap(m0_be_pd_mapping__addr(mapping),
+		    m0_be_pd_mapping__size(mapping));
 	M0_ASSERT(rc == 0); /* XXX */
 }
 
@@ -730,8 +730,8 @@ M0_INTERNAL int m0_be_pd_mapping_page_detach(struct m0_be_pd_mapping *mapping,
 	return rc;
 }
 
-static bool mapping_is_addr_in_page(struct m0_be_pd_page *page,
-				    const void           *addr)
+M0_INTERNAL bool m0_be_pd_mapping__is_addr_in_page(struct m0_be_pd_page *page,
+						   const void           *addr)
 {
 	return page->pp_page <= addr && addr < page->pp_page + page->pp_size;
 }
@@ -740,8 +740,9 @@ static bool mapping_is_addr_in_page(struct m0_be_pd_page *page,
  *  @return NULL if @addr is out of the @mapping
  *  @return @page containing given @addr from the mapping
  */
-static struct m0_be_pd_page *
-mapping_addr_to_page(struct m0_be_pd_mapping *mapping, const void *addr)
+M0_INTERNAL struct m0_be_pd_page *
+m0_be_pd_mapping__addr_to_page(struct m0_be_pd_mapping *mapping,
+			       const void *addr)
 {
 	struct m0_be_pd_page *page = NULL;
 	m0_bcount_t           n;
@@ -749,15 +750,30 @@ mapping_addr_to_page(struct m0_be_pd_mapping *mapping, const void *addr)
 	void                 *mapping_start;
 	void                 *mapping_end;
 
-	mapping_start = be_pd_mapping_addr(mapping);
-	mapping_end   = be_pd_mapping_size(mapping) + (char *)mapping_start;
-	page_size     = be_pd_mapping_page_size(mapping);
+	mapping_start = m0_be_pd_mapping__addr(mapping);
+	mapping_end   = m0_be_pd_mapping__size(mapping) + (char *)mapping_start;
+	page_size     = m0_be_pd_mapping__page_size(mapping);
 	if (addr >= mapping_start && addr < mapping_end) {
-		n = (addr - be_pd_mapping_addr(mapping)) / page_size;
+		n = (addr - mapping_start) / page_size;
 		page = &mapping->pas_pages[n];
-		M0_ASSERT(mapping_is_addr_in_page(page, addr));
+		M0_ASSERT(m0_be_pd_mapping__is_addr_in_page(page, addr));
 	}
 	return page;
+}
+
+M0_INTERNAL struct m0_be_pd_mapping *
+m0_be_pd__mapping_by_addr(struct m0_be_pd *paged, const void *addr)
+{
+	struct m0_be_pd_mapping *mapping;
+
+	m0_tl_for(mappings, &paged->bp_mappings, mapping) {
+		if (addr >= m0_be_pd_mapping__addr(mapping) &&
+		    addr <  m0_be_pd_mapping__addr(mapping) +
+			    m0_be_pd_mapping__size(mapping))
+			return mapping;
+	} m0_tl_endfor;
+
+	return NULL;
 }
 
 #undef M0_TRACE_SUBSYSTEM

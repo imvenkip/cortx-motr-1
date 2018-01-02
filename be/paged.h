@@ -183,6 +183,16 @@ struct m0_be_pd_page {
 	struct m0_tlink          pp_pio_tlink;
 };
 
+M0_INTERNAL int m0_be_pd_page_init(struct m0_be_pd_page *page,
+				   void                 *addr,
+				   m0_bcount_t           size);
+M0_INTERNAL void m0_be_pd_page_fini(struct m0_be_pd_page *page);
+M0_INTERNAL void m0_be_pd_page_lock(struct m0_be_pd_page *page);
+M0_INTERNAL void m0_be_pd_page_unlock(struct m0_be_pd_page *page);
+M0_INTERNAL bool m0_be_pd_page_is_locked(struct m0_be_pd_page *page);
+M0_INTERNAL bool m0_be_pd_page_is_in(struct m0_be_pd                 *paged,
+				     struct m0_be_pd_page            *page);
+
 /**
  * TODO Name mapping with a proper term
  *
@@ -226,9 +236,6 @@ M0_INTERNAL void m0_be_pd_mappings_lock(struct m0_be_pd              *paged,
 M0_INTERNAL void m0_be_pd_mappings_unlock(struct m0_be_pd            *paged,
 					  struct m0_be_pd_request    *request);
 
-M0_INTERNAL bool m0_be_pd_page_is_in(struct m0_be_pd                 *paged,
-				     struct m0_be_pd_page            *page);
-
 /**
  * (struct m0_be_pd, struct m0_be_pd_pages)
  * M0_BE_PD_PAGES_FORALL(paged, page) {
@@ -250,6 +257,20 @@ M0_INTERNAL int m0_be_pd_mapping_page_attach(struct m0_be_pd_mapping *mapping,
 
 M0_INTERNAL int m0_be_pd_mapping_page_detach(struct m0_be_pd_mapping *mapping,
 					struct m0_be_pd_page          *page);
+
+M0_INTERNAL void *m0_be_pd_mapping__addr(struct m0_be_pd_mapping *mapping);
+M0_INTERNAL m0_bcount_t
+m0_be_pd_mapping__page_size(struct m0_be_pd_mapping *mapping);
+M0_INTERNAL m0_bcount_t
+m0_be_pd_mapping__size(struct m0_be_pd_mapping *mapping);
+
+M0_INTERNAL struct m0_be_pd_page *
+m0_be_pd_mapping__addr_to_page(struct m0_be_pd_mapping *mapping,
+			       const void *addr);
+M0_INTERNAL bool m0_be_pd_mapping__is_addr_in_page(struct m0_be_pd_page *page,
+						   const void           *addr);
+M0_INTERNAL struct m0_be_pd_mapping *
+m0_be_pd__mapping_by_addr(struct m0_be_pd *paged, const void *addr);
 
 /* ------------------------------------------------------------------------- */
 
