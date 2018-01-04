@@ -1627,22 +1627,21 @@ static int balloc_alloc_db_update(struct m0_balloc *mero,
 			maxchunk = max_check(maxchunk, m0_ext_length(&next));
 		}
 	}
+	zp->bzp_maxchunk = maxchunk;
+	zp->bzp_freeblocks -= m0_ext_length(tgt);
+
+	grp->bgi_state |= M0_BALLOC_GROUP_INFO_DIRTY;
+
+	m0_mutex_lock(&mero->cb_sb_mutex.bm_u.mutex);
 #ifdef __SPARE_SPACE__
 	if (is_spare(alloc_type))
 		mero->cb_sb.bsb_freespare -= m0_ext_length(tgt);
 	else
 #endif
 		mero->cb_sb.bsb_freeblocks -= m0_ext_length(tgt);
-
-	zp->bzp_maxchunk = maxchunk;
-	zp->bzp_freeblocks -= m0_ext_length(tgt);
-
-	grp->bgi_state |= M0_BALLOC_GROUP_INFO_DIRTY;
-
-	/* m0_mutex_lock(&mero->cb_sb_mutex.bm_u.mutex); */
 	mero->cb_sb.bsb_state |= M0_BALLOC_SB_DIRTY;
 	balloc_sb_sync(mero, tx);
-	/* m0_mutex_unlock(&mero->cb_sb_mutex.bm_u.mutex); */
+	m0_mutex_unlock(&mero->cb_sb_mutex.bm_u.mutex);
 
 	rc = balloc_gi_sync(mero, tx, grp);
 
@@ -1842,6 +1841,12 @@ static int balloc_free_db_update(struct m0_balloc *mero,
 			maxchunk = max_check(maxchunk, m0_ext_length(tgt));
 		}
 	}
+	zp->bzp_maxchunk = maxchunk;
+	zp->bzp_freeblocks += m0_ext_length(tgt);
+
+	grp->bgi_state |= M0_BALLOC_GROUP_INFO_DIRTY;
+
+	m0_mutex_lock(&mero->cb_sb_mutex.bm_u.mutex);
 	if (is_spare(alloc_flag))
 #ifdef __SPARE_SPACE__
 		mero->cb_sb.bsb_freespare += m0_ext_length(tgt);
@@ -1850,12 +1855,6 @@ static int balloc_free_db_update(struct m0_balloc *mero,
 #endif
 	else
 		mero->cb_sb.bsb_freeblocks += m0_ext_length(tgt);
-	zp->bzp_maxchunk = maxchunk;
-	zp->bzp_freeblocks += m0_ext_length(tgt);
-
-	grp->bgi_state |= M0_BALLOC_GROUP_INFO_DIRTY;
-
-	m0_mutex_lock(&mero->cb_sb_mutex.bm_u.mutex);
 	mero->cb_sb.bsb_state |= M0_BALLOC_SB_DIRTY;
 	balloc_sb_sync(mero, tx);
 	m0_mutex_unlock(&mero->cb_sb_mutex.bm_u.mutex);
@@ -2704,7 +2703,6 @@ static int balloc_alloc(struct m0_ad_balloc *ballroom, struct m0_dtx *tx,
 
 	M0_SET0(out);
 
-	m0_mutex_lock(&mero->cb_sb_mutex.bm_u.mutex);
 	freeblocks = mero->cb_sb.bsb_freeblocks;
 	rc = balloc_allocate_internal(mero, &tx->tx_betx, &req);
 	if (rc == 0) {
@@ -2714,7 +2712,9 @@ static int balloc_alloc(struct m0_ad_balloc *ballroom, struct m0_dtx *tx,
 			out->e_start = req.bar_result.e_start;
 			out->e_end   = req.bar_result.e_end;
 			m0_ext_init(out);
+			m0_mutex_lock(&mero->cb_sb_mutex.bm_u.mutex);
 			mero->cb_last = out->e_end;
+			m0_mutex_unlock(&mero->cb_sb_mutex.bm_u.mutex);
 		}
 	}
 	M0_LOG(M0_DEBUG, "BAlloc=%p rc=%d freeblocks %llu -> %llu",
@@ -2722,7 +2722,6 @@ static int balloc_alloc(struct m0_ad_balloc *ballroom, struct m0_dtx *tx,
 			 (unsigned long long)freeblocks,
 			 (unsigned long long)mero->cb_sb.bsb_freeblocks);
 
-	m0_mutex_unlock(&mero->cb_sb_mutex.bm_u.mutex);
 
 	return M0_RC(rc);
 }
