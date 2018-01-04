@@ -572,8 +572,8 @@ M0_INTERNAL bool m0_be_pd_page_is_locked(struct m0_be_pd_page *page)
 	return m0_mutex_is_locked(&page->pp_lock);
 }
 
-M0_INTERNAL bool m0_be_pd_page_is_in(struct m0_be_pd                 *paged,
-				     struct m0_be_pd_page            *page)
+M0_INTERNAL bool m0_be_pd_page_is_in(struct m0_be_pd      *paged,
+				     struct m0_be_pd_page *page)
 {
 	M0_PRE(m0_be_pd_page_is_locked(page));
 
@@ -620,25 +620,55 @@ static int be_pd_mapping_map(struct m0_be_pd_mapping *mapping)
 	addr = m0_be_pd_mapping__addr(mapping);
 	size = m0_be_pd_mapping__size(mapping);
 
-	p = mmap(addr, size, PROT_READ | PROT_WRITE,
-		 MAP_ANONYMOUS | MAP_FIXED | MAP_NORESERVE | MAP_PRIVATE, -1, 0);
+	switch (mapping->pas_type) {
+	case M0_BE_PD_MAPPING_SINGLE:
+		p = mmap(addr, size, PROT_READ | PROT_WRITE,
+			 MAP_ANONYMOUS | MAP_FIXED | MAP_NORESERVE |
+			 MAP_PRIVATE, -1, 0);
+		break;
+	case M0_BE_PD_MAPPING_PER_PAGE:
+		M0_CASSERT(MAP_FAILED != NULL);
+		p = NULL;
+		break;
+	case M0_BE_PD_MAPPING_COMPAT:
+		p = mmap(addr, size, PROT_READ | PROT_WRITE,
+			 MAP_FIXED | MAP_NORESERVE | MAP_PRIVATE,
+			 mapping->pas_fd, 0);
+		break;
+	default:
+		M0_IMPOSSIBLE("Mapping type doesn't exist.");
+	}
 
-	return p == MAP_FAILED ? M0_ERR(-errno) : 0;
+	return p == MAP_FAILED ? M0_ERR(-errno) : M0_RC(0);
 }
 
-static void be_pd_mapping_unmap(struct m0_be_pd_mapping *mapping)
+static int be_pd_mapping_unmap(struct m0_be_pd_mapping *mapping)
 {
 	int rc;
 
-	rc = munmap(m0_be_pd_mapping__addr(mapping),
-		    m0_be_pd_mapping__size(mapping));
-	M0_ASSERT(rc == 0); /* XXX */
+	switch (mapping->pas_type) {
+	case M0_BE_PD_MAPPING_COMPAT:
+		/* fall through */
+	case M0_BE_PD_MAPPING_SINGLE:
+		rc = munmap(m0_be_pd_mapping__addr(mapping),
+			    m0_be_pd_mapping__size(mapping));
+		if (rc != 0)
+			rc = M0_ERR(-errno);
+		break;
+	case M0_BE_PD_MAPPING_PER_PAGE:
+		rc = 0;
+		break;
+	default:
+		M0_IMPOSSIBLE("Mapping type doesn't exist.");
+	}
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_be_pd_mapping_init(struct m0_be_pd *paged,
 				      void            *addr,
 				      m0_bcount_t      size,
-				      m0_bcount_t      page_size)
+				      m0_bcount_t      page_size,
+				      int              fd)
 {
 	struct m0_be_pd_mapping *mapping;
 	m0_bcount_t              i;
@@ -652,6 +682,7 @@ M0_INTERNAL int m0_be_pd_mapping_init(struct m0_be_pd *paged,
 	M0_ALLOC_PTR(mapping);
 	M0_ASSERT(mapping != NULL); /* XXX */
 
+	mapping->pas_type   = M0_BE_PD_MAPPING_PER_PAGE;
 	mapping->pas_pcount = size / page_size;
 	M0_ALLOC_ARR(mapping->pas_pages, mapping->pas_pcount);
 	M0_ASSERT(mapping->pas_pages != NULL); /* XXX */
@@ -661,19 +692,26 @@ M0_INTERNAL int m0_be_pd_mapping_init(struct m0_be_pd *paged,
 	m0_mutex_init(&mapping->pas_lock);
 	mappings_tlink_init(mapping);
 
+	/* TODO Remove when BE conversion is finished. */
+	if (fd > 0) {
+		mapping->pas_type = M0_BE_PD_MAPPING_COMPAT;
+		mapping->pas_fd   = fd;
+	}
+
 	rc = be_pd_mapping_map(mapping);
 	M0_ASSERT(rc == 0); /* XXX */
 	mappings_tlist_add(&paged->bp_mappings, mapping);
 
-	return 0;
+	return M0_RC(0);
 }
 
-M0_INTERNAL int m0_be_pd_mapping_fini(struct m0_be_pd         *paged,
-				      const void              *addr,
-				      m0_bcount_t              size)
+M0_INTERNAL int m0_be_pd_mapping_fini(struct m0_be_pd *paged,
+				      const void      *addr,
+				      m0_bcount_t      size)
 {
 	struct m0_be_pd_mapping *mapping;
 	m0_bcount_t              i;
+	int                      rc;
 
 	/* XXX paged must be locked here to protect mappings list */
 
@@ -681,7 +719,9 @@ M0_INTERNAL int m0_be_pd_mapping_fini(struct m0_be_pd         *paged,
 	M0_ASSERT(mapping != NULL);
 
 	mappings_tlist_del(mapping);
-	be_pd_mapping_unmap(mapping);
+	rc = be_pd_mapping_unmap(mapping);
+	if (rc != 0)
+		return M0_RC(rc);
 	mappings_tlink_fini(mapping);
 	m0_mutex_fini(&mapping->pas_lock);
 	for (i = 0; i < mapping->pas_pcount; ++i)
@@ -690,23 +730,55 @@ M0_INTERNAL int m0_be_pd_mapping_fini(struct m0_be_pd         *paged,
 	m0_mutex_fini(&mapping->pas_lock);
 	m0_free(mapping);
 
-	return 0;
+	return M0_RC(0);
 }
 
 M0_INTERNAL int m0_be_pd_mapping_page_attach(struct m0_be_pd_mapping *mapping,
 					     struct m0_be_pd_page    *page)
 {
-	int rc;
+	void *p;
+	int   rc;
+	int   rc2;
 
 	M0_PRE(m0_be_pd_page_is_locked(page));
 
-	rc = mlock(page->pp_page, page->pp_size);
+	switch (mapping->pas_type) {
+	case M0_BE_PD_MAPPING_SINGLE:
+		rc = mlock(page->pp_page, page->pp_size);
+		if (rc != 0)
+			rc = M0_ERR(-errno);
+		break;
+	case M0_BE_PD_MAPPING_PER_PAGE:
+		p = mmap(page->pp_page, page->pp_size, PROT_READ | PROT_WRITE,
+			 MAP_ANONYMOUS | MAP_FIXED | MAP_NORESERVE |
+			 MAP_POPULATE | MAP_PRIVATE, -1, 0);
+		if (p == MAP_FAILED)
+			rc = M0_ERR(-errno);
+		else {
+			rc = mlock(page->pp_page, page->pp_size);
+			if (rc != 0) {
+				rc = M0_ERR(-errno);
+				rc2 = munmap(page->pp_page, page->pp_size);
+				if (rc2 != 0)
+					M0_LOG(M0_ERROR,
+					       "Cannot unmap region addr=%p "
+					       "size=%lu", page->pp_page,
+					       (unsigned long)page->pp_size);
+			}
+		}
+		break;
+	case M0_BE_PD_MAPPING_COMPAT:
+		M0_LOG(M0_DEBUG, "Appempt to attach page %p in compat mode",
+				 page->pp_page);
+		break;
+	default:
+		M0_IMPOSSIBLE("Mapping type doesn't exist.");
+	}
+
 	if (rc == 0)
 		page->pp_state = PPS_MAPPED;
-	else
-		rc = M0_ERR(-errno);
 
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int m0_be_pd_mapping_page_detach(struct m0_be_pd_mapping *mapping,
@@ -719,19 +791,56 @@ M0_INTERNAL int m0_be_pd_mapping_page_detach(struct m0_be_pd_mapping *mapping,
 	/* TODO make proper poisoning */
 	memset(page->pp_page, 0xCC, page->pp_size);
 
-	rc = munlock(page->pp_page, page->pp_size);
-	if (rc != 0)
-		rc = M0_ERR(-errno);
-	else {
-		rc = madvise(page->pp_page, page->pp_size, /* XXX MADV_FREE */ MADV_DONTNEED);
-		M0_ASSERT(rc == 0); /* XXX */
-		page->pp_state = PPS_UNMAPPED;
+	/* Unlock memory region */
+	switch (mapping->pas_type) {
+	case M0_BE_PD_MAPPING_SINGLE:
+		/* fall through */
+	case M0_BE_PD_MAPPING_PER_PAGE:
+		rc = munlock(page->pp_page, page->pp_size);
+		if (rc != 0)
+			rc = M0_ERR(-errno);
+		break;
+	case M0_BE_PD_MAPPING_COMPAT:
+		/* do nothing */
+		rc = 0;
+		break;
+	default:
+		M0_IMPOSSIBLE("Mapping type doesn't exist.");
 	}
-	return rc;
+	if (rc != 0)
+		return M0_RC(rc);
+
+	/* Release system pages */
+	switch (mapping->pas_type) {
+	case M0_BE_PD_MAPPING_SINGLE:
+		/* Use MADV_FREE on Linux 4.5 and higher. */
+		rc = madvise(page->pp_page, page->pp_size,
+			     /* XXX MADV_FREE */ MADV_DONTNEED);
+		if (rc != 0)
+			rc = M0_ERR(-errno);
+		break;
+	case M0_BE_PD_MAPPING_PER_PAGE:
+		rc = munmap(page->pp_page, page->pp_size);
+		if (rc != 0)
+			rc = M0_ERR(-errno);
+		break;
+	case M0_BE_PD_MAPPING_COMPAT:
+		/* do nothing */
+		rc = 0;
+		break;
+	default:
+		M0_IMPOSSIBLE("Mapping type doesn't exist.");
+	}
+
+	if (rc == 0)
+		page->pp_state = PPS_UNMAPPED;
+
+	return M0_RC(rc);
 }
 
-M0_INTERNAL bool m0_be_pd_mapping__is_addr_in_page(struct m0_be_pd_page *page,
-						   const void           *addr)
+M0_INTERNAL bool
+m0_be_pd_mapping__is_addr_in_page(const struct m0_be_pd_page *page,
+				  const void                 *addr)
 {
 	return page->pp_page <= addr && addr < page->pp_page + page->pp_size;
 }
@@ -742,7 +851,7 @@ M0_INTERNAL bool m0_be_pd_mapping__is_addr_in_page(struct m0_be_pd_page *page,
  */
 M0_INTERNAL struct m0_be_pd_page *
 m0_be_pd_mapping__addr_to_page(struct m0_be_pd_mapping *mapping,
-			       const void *addr)
+			       const void              *addr)
 {
 	struct m0_be_pd_page *page = NULL;
 	m0_bcount_t           n;

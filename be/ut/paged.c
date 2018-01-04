@@ -29,6 +29,7 @@
 
 #include "be/paged.h"
 #include "be/ut/helper.h"
+#include "lib/errno.h"
 #include "lib/memory.h"
 #include "ut/ut.h"
 
@@ -40,22 +41,57 @@ enum {
 	BE_UT_PD_PAGE_SIZE = 0x2000,
 };
 
+static bool be_ut_pd_page_is_resident(const struct m0_be_pd_page *page)
+{
+	unsigned char  status;
+	unsigned char  status_last;
+	void          *addr;
+	bool           result;
+	int            sys_page_size;
+	int            rc;
+	int            rc_last;
+	int            i;
+
+	sys_page_size = m0_pagesize_get();
+
+	M0_UT_ASSERT(page->pp_size / sys_page_size * sys_page_size ==
+		     page->pp_size);
+
+	addr = page->pp_page;
+	for (i = 0; i < page->pp_size / sys_page_size; ++i) {
+		M0_UT_ASSERT(m0_be_pd_mapping__is_addr_in_page(page, addr));
+		rc = mincore(addr, sys_page_size, &status);
+		/* ENOMEM means that the page is not mapped. */
+		M0_UT_ASSERT(rc == 0 || errno == ENOMEM);
+		result = rc == 0 && (status & 1) == 1;
+		addr = (char *)addr + sys_page_size;
+
+		/* All system pages must be in the same state within BE page */
+		if (i > 0) {
+			M0_UT_ASSERT(rc == rc_last);
+			M0_UT_ASSERT(ergo(rc == 0,
+					  (status & 1) == (status_last & 1)));
+		}
+		rc_last = rc;
+		status_last = status;
+	}
+	return result;
+}
+
 void m0_be_ut_pd_mapping_resident(void)
 {
 	struct m0_be_pd_mapping *mapping;
 	struct m0_be_pd_page    *page;
 	struct m0_be_pd_cfg      paged_cfg;
 	struct m0_be_pd          paged = {};
-	unsigned char           *vec;
-	long                     vec_len;
 	m0_bcount_t              seg_size;
 	void                    *seg_addr;
-	long                     sys_page_size;
+	bool                     resident;
 	long                     i;
+	int                      sys_page_size;
 	int                      rc;
 
-	sys_page_size = sysconf(_SC_PAGESIZE);
-	M0_UT_ASSERT(sys_page_size > 0);
+	sys_page_size = m0_pagesize_get();
 
 	paged_cfg = (struct m0_be_pd_cfg){
 		.bpc_io_sched_cfg = {
@@ -71,22 +107,23 @@ void m0_be_ut_pd_mapping_resident(void)
 	seg_addr = m0_be_ut_seg_allocate_addr(seg_size);
 	M0_UT_ASSERT((seg_size & (sys_page_size - 1)) == 0);
 	M0_UT_ASSERT((seg_size & (BE_UT_PD_PAGE_SIZE - 1)) == 0);
+	M0_UT_ASSERT(((unsigned long)seg_addr & (BE_UT_PD_PAGE_SIZE - 1)) == 0);
 	rc = m0_be_pd_mapping_init(&paged, seg_addr, seg_size,
-				   BE_UT_PD_PAGE_SIZE);
+				   BE_UT_PD_PAGE_SIZE, -1);
 	M0_UT_ASSERT(rc == 0);
-
-	vec_len = seg_size / sys_page_size;
-	M0_ALLOC_ARR(vec, vec_len);
-	M0_UT_ASSERT(vec != NULL);
-
-	/* All system pages must be not resident right after initialisation. */
-	rc = mincore(seg_addr, seg_size, vec);
-	M0_UT_ASSERT(rc == 0);
-	for (i = 0; i < vec_len; ++i)
-		M0_UT_ASSERT((vec[i] & 1) == 0);
 
 	mapping = m0_be_pd__mapping_by_addr(&paged, seg_addr);
 	M0_UT_ASSERT(mapping != NULL);
+
+	M0_UT_ASSERT(mapping->pas_pcount == seg_size / BE_UT_PD_PAGE_SIZE);
+
+	/* All system pages must be not resident right after initialisation. */
+	for (i = 0; i < mapping->pas_pcount; ++i) {
+		resident = be_ut_pd_page_is_resident(&mapping->pas_pages[i]);
+		M0_UT_ASSERT(!resident);
+	}
+
+	/* Attach the second BE page. */
 	page = m0_be_pd_mapping__addr_to_page(mapping,
 					(char *)seg_addr + BE_UT_PD_PAGE_SIZE);
 	M0_UT_ASSERT(page != NULL);
@@ -96,26 +133,22 @@ void m0_be_ut_pd_mapping_resident(void)
 	M0_UT_ASSERT(rc == 0);
 
 	/* Only system pages that represent the page must be resident. */
-	rc = mincore(seg_addr, seg_size, vec);
-	M0_UT_ASSERT(rc == 0);
-	for (i = 0; i < vec_len; ++i)
-		M0_UT_ASSERT(m0_be_pd_mapping__is_addr_in_page(page,
-				(char *)seg_addr + i * sys_page_size) ?
-							(vec[i] & 1) == 1 :
-							(vec[i] & 1) == 0);
+	for (i = 0; i < mapping->pas_pcount; ++i) {
+		resident = be_ut_pd_page_is_resident(&mapping->pas_pages[i]);
+		M0_UT_ASSERT(equi(page == &mapping->pas_pages[i], resident));
+	}
 
+	/* Detach the page */
 	m0_be_pd_page_lock(page);
 	rc = m0_be_pd_mapping_page_detach(mapping, page);
 	m0_be_pd_page_unlock(page);
 	M0_UT_ASSERT(rc == 0);
 
 	/* All system pages must be not resident at this point. */
-	rc = mincore(seg_addr, seg_size, vec);
-	M0_UT_ASSERT(rc == 0);
-	for (i = 0; i < vec_len; ++i)
-		M0_UT_ASSERT((vec[i] & 1) == 0);
-
-	m0_free(vec);
+	for (i = 0; i < mapping->pas_pcount; ++i) {
+		resident = be_ut_pd_page_is_resident(&mapping->pas_pages[i]);
+		M0_UT_ASSERT(!resident);
+	}
 
 	rc = m0_be_pd_mapping_fini(&paged, seg_addr, seg_size);
 	M0_UT_ASSERT(rc == 0);

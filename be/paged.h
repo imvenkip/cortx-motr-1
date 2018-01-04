@@ -102,10 +102,15 @@ M0_INTERNAL void m0_be_pd_fini(struct m0_be_pd *pd);
  *
  * @endverbatim
  *
- * Future optimisation: make PPS_WRITING be allowed to transit to PPS_UNMAPPED
+ * Future optimisation.
+ *
+ * It is good idea to make PPS_WRITING be allowed to transit to PPS_UNMAPPED
  * state. Synchronisation should be implemented via cellar pages and system
  * pages can be unmapped during writing if respective cellar pages remain
  * allocated.
+ *
+ * There is no FAIL state in the diagram and it may cause troubles with proper
+ * finalisation after a fail in paged.
  */
 enum m0_be_pd_page_state {
 	PPS_INIT, /* XXX remove? */
@@ -115,6 +120,11 @@ enum m0_be_pd_page_state {
 	PPS_READING,
 	PPS_READY,
 	PPS_WRITING,
+};
+
+enum {
+	/** Default size for BE page. Must be multiple of system page size. */
+	M0_BE_PD_PAGE_SIZE = 16 * 1024,
 };
 
 /**
@@ -190,49 +200,63 @@ M0_INTERNAL void m0_be_pd_page_fini(struct m0_be_pd_page *page);
 M0_INTERNAL void m0_be_pd_page_lock(struct m0_be_pd_page *page);
 M0_INTERNAL void m0_be_pd_page_unlock(struct m0_be_pd_page *page);
 M0_INTERNAL bool m0_be_pd_page_is_locked(struct m0_be_pd_page *page);
-M0_INTERNAL bool m0_be_pd_page_is_in(struct m0_be_pd                 *paged,
-				     struct m0_be_pd_page            *page);
+M0_INTERNAL bool m0_be_pd_page_is_in(struct m0_be_pd      *paged,
+				     struct m0_be_pd_page *page);
+
+enum m0_be_pd_mapping_type {
+	/**
+	 * One system mapping for whole BE mapping. Attach() locks system pages
+	 * what avoids pagefaults. Detach() releases system pages with
+	 * madvise(). User can bypass paged interface and access memory regions
+	 * directly what hides errors. */
+	M0_BE_PD_MAPPING_SINGLE = 1,
+	/**
+	 * Separated system mapping for every BE page. Attach()/detach() use
+	 * mmap()/munmap() interface. Accessing not attached BE page generates
+	 * invalid memory reference, This approach increases chance to catch
+	 * code which bypasses paged interface. However, "bypassing" code can
+	 * access a page attached by other user and signal won't be generated.
+	 */
+	M0_BE_PD_MAPPING_PER_PAGE,
+	/**
+	 * Compatibility for code which hasn't been converted. This mode maps a
+	 * single system mapping with backing store provided by BE segment.
+	 * Users are supposed to access this mapping without paged interface.
+	 */
+	M0_BE_PD_MAPPING_COMPAT,
+};
 
 /**
- * TODO Name mapping with a proper term
- *
  * BE mapping is an abstraction which represents continuous memory region as
  * set of BE pages and implements mapping/unmapping logic for the page states
  * PPS_UNMAPPED and PPS_MAPPED.
  *
- * Mapping and unmapping
- *
- * BE mapping creates a single private anonymous mapping for the whole memory
- * region. System pages remain not resident and BE mapping provides interface
- * to populate system pages for a single BE page withing the BE mapping.
- *
- * Unmapping BE page is done via advising system that the system pages are not
- * needed anymore.
- *
  * BE mapping guarantees absence of page faults and segfaults during access to
  * memory region of a populated (attached) BE page.
  *
- * Caveats: with the above approach user can access memory region of a BE page
- * bypassing mapping interface. It will cause allocation of system pages and
- * such a user will not be caught.
+ * BE mapping supports different internal behaviour which is retermined by its
+ * type. See m0_be_pd_mapping_type for details.
  *
- * Locking
+ * Locking.
  *
  * TODO
  */
 struct m0_be_pd_mapping {
-	struct m0_be_pd_page    *pas_pages;
-	m0_bcount_t              pas_pcount;
-	struct m0_be_pd         *pas_pd;
-	struct m0_mutex          pas_lock;
-	struct m0_tlink          pas_tlink;
-	uint64_t                 pas_magic;
+	enum m0_be_pd_mapping_type  pas_type;
+	struct m0_be_pd_page       *pas_pages;
+	m0_bcount_t                 pas_pcount;
+	struct m0_be_pd            *pas_pd;
+	struct m0_mutex             pas_lock;
+	struct m0_tlink             pas_tlink;
+	uint64_t                    pas_magic;
+
+	/* TODO Remove when BE conversion is finished. */
+	int                         pas_fd;
 };
 
 
 M0_INTERNAL void m0_be_pd_mappings_lock(struct m0_be_pd              *paged,
 					struct m0_be_pd_request      *request);
-
 M0_INTERNAL void m0_be_pd_mappings_unlock(struct m0_be_pd            *paged,
 					  struct m0_be_pd_request    *request);
 
@@ -243,20 +267,32 @@ M0_INTERNAL void m0_be_pd_mappings_unlock(struct m0_be_pd            *paged,
  */
 #define M0_BE_PD_PAGES_FORALL(paged, page)
 
+/**
+ * Creates and Initialises BE mapping and initialises all respective BE pages.
+ *
+ * Argument fd must be either -1 or file descriptor greater than 0. Positive
+ * value turns compatibility layer on. It should be used for not converted code
+ * which doesn't use get-put like interface for objects stored in BE segments.
+ * When specified, this file descriptor simply passed to mmap() syscall and thus
+ * users see content of the BE segment without paged.
+ *
+ * TODO Remove fd from the interface.
+ */
 M0_INTERNAL int m0_be_pd_mapping_init(struct m0_be_pd *paged,
 				      void            *addr,
 				      m0_bcount_t      size,
-				      m0_bcount_t      page_size);
-
-M0_INTERNAL int m0_be_pd_mapping_fini(struct m0_be_pd         *paged,
-				      const void              *addr,
-				      m0_bcount_t              size);
+				      m0_bcount_t      page_size,
+				      int              fd);
+M0_INTERNAL int m0_be_pd_mapping_fini(struct m0_be_pd *paged,
+				      const void      *addr,
+				      m0_bcount_t      size);
 
 M0_INTERNAL int m0_be_pd_mapping_page_attach(struct m0_be_pd_mapping *mapping,
-					struct m0_be_pd_page          *page);
-
+					     struct m0_be_pd_page    *page);
 M0_INTERNAL int m0_be_pd_mapping_page_detach(struct m0_be_pd_mapping *mapping,
-					struct m0_be_pd_page          *page);
+					     struct m0_be_pd_page    *page);
+
+/* Mapping internal interface */
 
 M0_INTERNAL void *m0_be_pd_mapping__addr(struct m0_be_pd_mapping *mapping);
 M0_INTERNAL m0_bcount_t
@@ -267,8 +303,9 @@ m0_be_pd_mapping__size(struct m0_be_pd_mapping *mapping);
 M0_INTERNAL struct m0_be_pd_page *
 m0_be_pd_mapping__addr_to_page(struct m0_be_pd_mapping *mapping,
 			       const void *addr);
-M0_INTERNAL bool m0_be_pd_mapping__is_addr_in_page(struct m0_be_pd_page *page,
-						   const void           *addr);
+M0_INTERNAL bool
+m0_be_pd_mapping__is_addr_in_page(const struct m0_be_pd_page *page,
+				  const void                 *addr);
 M0_INTERNAL struct m0_be_pd_mapping *
 m0_be_pd__mapping_by_addr(struct m0_be_pd *paged, const void *addr);
 
