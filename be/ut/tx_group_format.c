@@ -161,31 +161,38 @@ static void be_ut_tgf_log_close(struct be_ut_tgf_ctx *ctx)
 	m0_be_log_close(&ctx->tgfc_log);
 }
 
-static void be_ut_tgf_seg_init(struct be_ut_tgf_ctx *ctx)
+static void be_ut_tgf_seg_init(struct be_ut_tgf_ctx *ctx, bool use_existing)
 {
 	struct m0_be_seg *seg = &ctx->tgfc_seg;
 	int               rc;
 
-	ctx->tgfc_seg_stob = m0_ut_stob_linux_get();
+	if (!use_existing)
+		ctx->tgfc_seg_stob = m0_ut_stob_linux_get();
 	M0_UT_ASSERT(ctx->tgfc_seg_stob != NULL);
-	m0_be_seg_init(seg, ctx->tgfc_seg_stob, NULL, NULL, M0_BE_SEG_FAKE_ID);
-	rc = m0_be_seg_create(seg, BE_UT_TGF_SEG_SIZE,
-			      (void *)BE_UT_TGF_SEG_ADDR);
+	m0_be_seg_init(seg, ctx->tgfc_seg_stob, NULL, &ctx->tgfc_pd,
+		       M0_BE_SEG_FAKE_ID);
+	if (!use_existing) {
+		rc = m0_be_seg_create(seg, BE_UT_TGF_SEG_SIZE,
+		                      (void *)BE_UT_TGF_SEG_ADDR);
+	}
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_be_seg_open(seg);
 	M0_UT_ASSERT(rc == 0);
 	ctx->tgfc_seg_addr = (char*)seg->bs_addr + seg->bs_reserved;
 }
 
-static void be_ut_tgf_seg_fini(struct be_ut_tgf_ctx *ctx)
+static void be_ut_tgf_seg_fini(struct be_ut_tgf_ctx *ctx, bool use_existing)
 {
 	int rc;
 
 	m0_be_seg_close(&ctx->tgfc_seg);
-	rc = m0_be_seg_destroy(&ctx->tgfc_seg);
-	M0_UT_ASSERT(rc == 0);
+	if (!use_existing) {
+		rc = m0_be_seg_destroy(&ctx->tgfc_seg);
+		M0_UT_ASSERT(rc == 0);
+	}
 	m0_be_seg_fini(&ctx->tgfc_seg);
-	m0_ut_stob_put(ctx->tgfc_seg_stob, true);
+	if (!use_existing)
+		m0_ut_stob_put(ctx->tgfc_seg_stob, true);
 }
 
 static void be_ut_tgf_rnd_fill(void *buf, size_t size)
@@ -203,8 +210,6 @@ static void be_ut_tgf_buf_init(struct be_ut_tgf_ctx   *ctx,
 {
 	struct be_ut_tgf_reg *reg;
 	struct be_ut_tgf_tx  *tx;
-	struct m0_be_seg     *seg         = &ctx->tgfc_seg;
-	void                 *addr        = ctx->tgfc_seg_addr;
 	m0_bcount_t           payload_max = 0;
 	m0_bcount_t           ra_size_max = 0;
 	int                   rc;
@@ -222,14 +227,9 @@ static void be_ut_tgf_buf_init(struct be_ut_tgf_ctx   *ctx,
 		reg = &group->tgfg_regs[i];
 		reg->tgfr_buf = m0_alloc(reg->tgfr_size);
 		M0_UT_ASSERT(reg->tgfr_buf != NULL);
-		reg->tgfr_seg_addr = addr;
-		addr               = (char *)addr + reg->tgfr_size;
 		ra_size_max       += reg->tgfr_size;
 		be_ut_tgf_rnd_fill(reg->tgfr_buf, reg->tgfr_size);
 	}
-	M0_UT_ASSERT((char*)addr - (char*)seg->bs_addr <= seg->bs_size);
-	ctx->tgfc_seg_addr = addr;
-
 	group->tgfg_cfg = (struct m0_be_group_format_cfg) {
 		.gfc_fmt_cfg = {
 			.fgc_tx_nr_max         = group->tgfg_tx_nr,
@@ -242,6 +242,23 @@ static void be_ut_tgf_buf_init(struct be_ut_tgf_ctx   *ctx,
 		.gfc_log_discard = &ctx->tgfc_log_discard,
 		.gfc_pd          = &ctx->tgfc_pd,
 	};
+}
+
+static void be_ut_tgf_buf_init_seg(struct be_ut_tgf_ctx   *ctx,
+                                   struct be_ut_tgf_group *group)
+{
+	struct be_ut_tgf_reg *reg;
+	struct m0_be_seg     *seg  = &ctx->tgfc_seg;
+	void                 *addr = ctx->tgfc_seg_addr;
+	int                  i;
+
+	for (i = 0; i < group->tgfg_reg_nr; ++i) {
+		reg = &group->tgfg_regs[i];
+		reg->tgfr_seg_addr = addr;
+		addr               = (char *)addr + reg->tgfr_size;
+	}
+	M0_UT_ASSERT((char*)addr - (char*)seg->bs_addr <= seg->bs_size);
+	ctx->tgfc_seg_addr = addr;
 }
 
 static void be_ut_tgf_buf_fini(struct be_ut_tgf_ctx   *ctx,
@@ -405,8 +422,8 @@ static void be_ut_tgf_group_read_check(struct be_ut_tgf_ctx   *ctx,
 		m0_be_seg_close(&ctx->tgfc_seg);
 		m0_be_seg_fini(&ctx->tgfc_seg);
 		M0_SET0(&ctx->tgfc_seg);
-		m0_be_seg_init(&ctx->tgfc_seg, ctx->tgfc_seg_stob, NULL, NULL,
-			       M0_BE_SEG_FAKE_ID);
+		m0_be_seg_init(&ctx->tgfc_seg, ctx->tgfc_seg_stob, NULL,
+			       &ctx->tgfc_pd, M0_BE_SEG_FAKE_ID);
 		rc = m0_be_seg_open(&ctx->tgfc_seg);
 		M0_UT_ASSERT(rc == 0);
 		nr = m0_be_group_format_reg_nr(gft);
@@ -440,10 +457,11 @@ static void be_ut_tgf_ldsc_discard(struct m0_be_log_discard      *ld,
 
 static void be_ut_tgf_test(int group_nr, struct be_ut_tgf_group *groups)
 {
-	struct m0_be_group_format_cfg gfc_cfg;
-	struct be_ut_tgf_ctx          ctx;
-	int                           rc;
-	int                           i;
+	struct m0_be_domain_cfg       *bd_cfg;
+	struct m0_be_group_format_cfg  gfc_cfg;
+	struct be_ut_tgf_ctx           ctx;
+	int                            rc;
+	int                            i;
 
 	ctx = (struct be_ut_tgf_ctx) {
 		.tgfc_group_nr = group_nr,
@@ -457,18 +475,7 @@ static void be_ut_tgf_test(int group_nr, struct be_ut_tgf_group *groups)
 			.ldsc_sync              = &be_ut_tgf_ldsc_sync,
 			.ldsc_discard           = &be_ut_tgf_ldsc_discard,
 		},
-		.tgfc_pd_cfg = {
-			.bpc_io_sched_cfg = {
-				.bpdc_seg_io_nr = group_nr,
-				.bpdc_sched = {
-					.bisc_pos_start = 0,
-				},
-			},
-		},
 	};
-
-	be_ut_tgf_log_init(&ctx);
-	be_ut_tgf_seg_init(&ctx);
 
 	for (i = 0; i < group_nr; ++i)
 		be_ut_tgf_buf_init(&ctx, &groups[i]);
@@ -485,13 +492,25 @@ static void be_ut_tgf_test(int group_nr, struct be_ut_tgf_group *groups)
 		     max_check(gfc_cfg.gfc_fmt_cfg.fgc_seg_nr_max,
 		               groups[i].tgfg_cfg.gfc_fmt_cfg.fgc_seg_nr_max);
 	}
-
+	M0_ALLOC_PTR(bd_cfg);
+	M0_UT_ASSERT(bd_cfg != NULL);
+	m0_be_ut_backend_cfg_default(bd_cfg);
+	ctx.tgfc_pd_cfg = bd_cfg->bc_pd_cfg;
+	m0_free(bd_cfg);
+	ctx.tgfc_pd_cfg.bpc_io_sched_cfg.bpdc_seg_io_nr = group_nr;
 	m0_be_group_format_seg_io_credit(&gfc_cfg,
 			 &ctx.tgfc_pd_cfg.bpc_io_sched_cfg.bpdc_io_credit);
+	rc = m0_be_pd_init(&ctx.tgfc_pd, &ctx.tgfc_pd_cfg);
+	M0_UT_ASSERT(rc == 0);
+
+	be_ut_tgf_log_init(&ctx);
+	be_ut_tgf_seg_init(&ctx, false);
+
+	for (i = 0; i < group_nr; ++i)
+		be_ut_tgf_buf_init_seg(&ctx, &groups[i]);
+
 	rc = m0_be_log_discard_init(&ctx.tgfc_log_discard,
 	                            &ctx.tgfc_log_discard_cfg);
-	M0_UT_ASSERT(rc == 0);
-	rc = m0_be_pd_init(&ctx.tgfc_pd, &ctx.tgfc_pd_cfg);
 	M0_UT_ASSERT(rc == 0);
 
 	be_ut_tgf_do_discard = false;
@@ -502,20 +521,21 @@ static void be_ut_tgf_test(int group_nr, struct be_ut_tgf_group *groups)
 		be_ut_tgf_group_fini(&ctx, &groups[i]);
 		m0_mutex_unlock(&ctx.tgfc_lock);
 	}
-	be_ut_tgf_log_close(&ctx);
-
 	M0_BE_OP_SYNC(op, m0_be_log_discard_flush(&ctx.tgfc_log_discard, &op));
-	m0_be_pd_fini(&ctx.tgfc_pd);
 	m0_be_log_discard_fini(&ctx.tgfc_log_discard);
-	M0_SET0(&ctx.tgfc_log_discard);
-	rc = m0_be_log_discard_init(&ctx.tgfc_log_discard,
-	                            &ctx.tgfc_log_discard_cfg);
+	be_ut_tgf_seg_fini(&ctx, true);
+	be_ut_tgf_log_close(&ctx);
+	m0_be_pd_fini(&ctx.tgfc_pd);
 	M0_UT_ASSERT(rc == 0);
+
 	M0_SET0(&ctx.tgfc_pd);
 	rc = m0_be_pd_init(&ctx.tgfc_pd, &ctx.tgfc_pd_cfg);
 	M0_UT_ASSERT(rc == 0);
-
 	be_ut_tgf_log_open(&ctx);
+	be_ut_tgf_seg_init(&ctx, true);
+	M0_SET0(&ctx.tgfc_log_discard);
+	rc = m0_be_log_discard_init(&ctx.tgfc_log_discard,
+	                            &ctx.tgfc_log_discard_cfg);
 	for (i = 0; i < group_nr; ++i) {
 		be_ut_tgf_group_init(&ctx, &groups[i]);
 	}
@@ -528,10 +548,10 @@ static void be_ut_tgf_test(int group_nr, struct be_ut_tgf_group *groups)
 	for (i = 0; i < group_nr; ++i)
 		be_ut_tgf_buf_fini(&ctx, &groups[i]);
 	M0_BE_OP_SYNC(op, m0_be_log_discard_flush(&ctx.tgfc_log_discard, &op));
-	m0_be_pd_fini(&ctx.tgfc_pd);
 	m0_be_log_discard_fini(&ctx.tgfc_log_discard);
+	be_ut_tgf_seg_fini(&ctx, false);
 	be_ut_tgf_log_fini(&ctx);
-	be_ut_tgf_seg_fini(&ctx);
+	m0_be_pd_fini(&ctx.tgfc_pd);
 }
 
 static struct be_ut_tgf_tx be_ut_tgf_txs0[] = {
