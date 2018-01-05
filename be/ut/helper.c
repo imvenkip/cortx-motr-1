@@ -43,6 +43,7 @@
 #include "be/ut/helper.h"	/* m0_be_ut_backend */
 #include "be/tx_internal.h"	/* m0_be_tx__reg_area */
 #include "be/seg0.h"            /* m0_be_0type_register */
+#include "be/pd.h"              /* m0_be_pd */
 
 const struct m0_bob_type m0_ut_be_backend_bobtype;
 M0_BOB_DEFINE(M0_INTERNAL, &m0_ut_be_backend_bobtype, m0_be_ut_backend);
@@ -600,8 +601,12 @@ void m0_be_ut_seg_init(struct m0_be_ut_seg *ut_seg,
 	if (ut_be == NULL) {
 		M0_ALLOC_PTR(ut_seg->bus_seg);
 		M0_ASSERT(ut_seg->bus_seg != NULL);
+		M0_ALLOC_PTR(ut_seg->bus_pd);
+		M0_ASSERT(ut_seg->bus_pd != NULL);
+		m0_be_ut_pd_init(ut_seg->bus_pd);
 		m0_be_seg_init(ut_seg->bus_seg, m0_ut_stob_linux_get(),
-			       &ut_be->but_dom, NULL, M0_BE_SEG_FAKE_ID);
+			       &ut_be->but_dom, ut_seg->bus_pd,
+			       M0_BE_SEG_FAKE_ID);
 		rc = m0_be_seg_create(ut_seg->bus_seg, size,
 				      m0_be_ut_seg_allocate_addr(size));
 		M0_ASSERT(rc == 0);
@@ -635,6 +640,9 @@ void m0_be_ut_seg_fini(struct m0_be_ut_seg *ut_seg)
 		M0_ASSERT(rc == 0);
 		m0_be_seg_fini(ut_seg->bus_seg);
 		m0_free(ut_seg->bus_seg);
+
+		m0_be_ut_pd_fini(ut_seg->bus_pd);
+		m0_free(ut_seg->bus_pd);
 
 		m0_ut_stob_put(stob, false);
 	} else {
@@ -850,6 +858,21 @@ M0_INTERNAL void m0_be_ut_txc_check(struct m0_be_ut_txc *tc,
 M0_INTERNAL void m0_be_ut_txc_fini(struct m0_be_ut_txc *tc)
 {
 	m0_buf_free(&tc->butc_seg_copy);
+}
+
+M0_INTERNAL void m0_be_ut_pd_init(struct m0_be_pd *pd)
+{
+	struct m0_be_domain_cfg bd_cfg;
+	int                     rc;
+
+	m0_be_ut_backend_cfg_default(&bd_cfg);
+	rc = m0_be_pd_init(pd, &bd_cfg.bc_pd_cfg);
+	M0_ASSERT(rc == 0);
+}
+
+M0_INTERNAL void m0_be_ut_pd_fini(struct m0_be_pd *pd)
+{
+	m0_be_pd_fini(pd);
 }
 
 #undef M0_TRACE_SUBSYSTEM
