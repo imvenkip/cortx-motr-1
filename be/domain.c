@@ -233,7 +233,7 @@ static int be_domain_seg_open(struct m0_be_domain *dom,
 
 	rc = be_domain_stob_open(dom, stob_key, NULL, &stob, false);
 	if (rc == 0) {
-		m0_be_seg_init(seg, stob, dom, M0_BE_SEG_FAKE_ID);
+		m0_be_seg_init(seg, stob, dom, &dom->bd_pd, M0_BE_SEG_FAKE_ID);
 		m0_stob_put(stob);
 		rc = m0_be_seg_open(seg);
 		if (rc == 0) {
@@ -273,7 +273,7 @@ static int be_domain_seg_create(struct m0_be_domain              *dom,
 				 seg_cfg->bsc_stob_create_cfg, &stob, true);
 	if (rc != 0)
 		goto out;
-	m0_be_seg_init(seg, stob, dom, M0_BE_SEG_FAKE_ID);
+	m0_be_seg_init(seg, stob, dom, &dom->bd_pd, M0_BE_SEG_FAKE_ID);
 	m0_stob_put(stob);
 	rc = m0_be_seg_create(seg, seg_cfg->bsc_size, seg_cfg->bsc_addr);
 	m0_be_seg_fini(seg);

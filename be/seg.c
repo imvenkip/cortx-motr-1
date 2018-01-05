@@ -249,6 +249,7 @@ M0_INTERNAL int m0_be_seg_destroy(struct m0_be_seg *seg)
 M0_INTERNAL void m0_be_seg_init(struct m0_be_seg    *seg,
 				struct m0_stob      *stob,
 				struct m0_be_domain *dom,
+				struct m0_be_pd     *pd,
 				uint64_t             seg_id)
 {
 	M0_ENTRY("seg=%p", seg);
@@ -263,6 +264,7 @@ M0_INTERNAL void m0_be_seg_init(struct m0_be_seg    *seg,
 		.bs_stob     = stob,
 		.bs_state    = M0_BSS_INIT,
 		.bs_id       = seg_id,
+		.bs_pd       = pd,
 	};
 	m0_stob_get(seg->bs_stob);
 	M0_LEAVE();
@@ -365,7 +367,7 @@ M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg)
 	fd = m0_stob_linux_container(seg->bs_stob)->sl_fd;
 	/* XXX BE mapping doesn't support offsets. */
 	M0_ASSERT(g->sg_offset == 0);
-	rc = m0_be_pd_mapping_init(&seg->bs_domain->bd_pd, g->sg_addr,
+	rc = m0_be_pd_mapping_init(seg->bs_pd, g->sg_addr,
 				   g->sg_size, M0_BE_PD_PAGE_SIZE, fd);
 	if (rc == 0) {
 		seg->bs_reserved = be_seg_hdr_size();
@@ -388,8 +390,7 @@ M0_INTERNAL void m0_be_seg_close(struct m0_be_seg *seg)
 	M0_ENTRY("seg=%p", seg);
 	M0_PRE(seg->bs_state == M0_BSS_OPENED);
 
-	rc = m0_be_pd_mapping_fini(&seg->bs_domain->bd_pd,
-				   seg->bs_addr, seg->bs_size);
+	rc = m0_be_pd_mapping_fini(seg->bs_pd, seg->bs_addr, seg->bs_size);
 	M0_ASSERT(rc == 0); /* XXX */
 	seg->bs_state = M0_BSS_CLOSED;
 	M0_LEAVE();

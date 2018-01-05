@@ -601,7 +601,7 @@ void m0_be_ut_seg_init(struct m0_be_ut_seg *ut_seg,
 		M0_ALLOC_PTR(ut_seg->bus_seg);
 		M0_ASSERT(ut_seg->bus_seg != NULL);
 		m0_be_seg_init(ut_seg->bus_seg, m0_ut_stob_linux_get(),
-			       &ut_be->but_dom, M0_BE_SEG_FAKE_ID);
+			       &ut_be->but_dom, NULL, M0_BE_SEG_FAKE_ID);
 		rc = m0_be_seg_create(ut_seg->bus_seg, size,
 				      m0_be_ut_seg_allocate_addr(size));
 		M0_ASSERT(rc == 0);

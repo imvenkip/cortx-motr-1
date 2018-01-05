@@ -119,6 +119,7 @@ M0_INTERNAL struct m0_be_allocator *m0_be_seg_allocator(struct m0_be_seg *seg)
 M0_INTERNAL void m0_be_seg_init(struct m0_be_seg *seg,
 				struct m0_stob *stob,
 				struct m0_be_domain *dom,
+				struct m0_be_pd *pd,
 				uint64_t seg_id)
 {
 	seg->bs_stob   = stob;
@@ -276,7 +277,7 @@ void m0_be_ut_seg_init(struct m0_be_ut_seg *ut_seg,
 	M0_ALLOC_PTR(ut_seg->bus_seg);
 	M0_ASSERT(ut_seg->bus_seg != NULL);
 	m0_be_seg_init(ut_seg->bus_seg, NULL, &ut_be->but_dom,
-		       M0_BE_SEG_FAKE_ID);
+		       NULL, M0_BE_SEG_FAKE_ID);
 	m0_be_seg_open(ut_seg->bus_seg);
 }
 

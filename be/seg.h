@@ -30,6 +30,7 @@
 
 struct m0_be_op;
 struct m0_be_reg_d;
+struct m0_be_pd;
 struct m0_stob;
 struct m0_stob_id;
 
@@ -79,6 +80,7 @@ struct m0_be_seg {
 	int                    bs_state;
 	uint64_t               bs_magic;
 	struct m0_tlink        bs_linkage;
+	struct m0_be_pd       *bs_pd;
 };
 
 /* helper for m0_be_seg__create_multiple() */
@@ -108,6 +110,7 @@ M0_INTERNAL int m0_be_seg_create_multiple(struct m0_stob *stob,
 M0_INTERNAL void m0_be_seg_init(struct m0_be_seg *seg,
 				struct m0_stob *stob,
 				struct m0_be_domain *dom,
+				struct m0_be_pd *pd,
 				uint64_t seg_id);
 M0_INTERNAL void m0_be_seg_fini(struct m0_be_seg *seg);
 M0_INTERNAL bool m0_be_seg__invariant(const struct m0_be_seg *seg);

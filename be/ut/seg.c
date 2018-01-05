@@ -288,7 +288,7 @@ void m0_be_ut_seg_large(void)
 	size = BE_UT_SEG_LARGE_SIZE;
 	addr = m0_be_ut_seg_allocate_addr(size);
 
-	m0_be_seg_init(seg, stob, NULL, M0_BE_SEG_FAKE_ID);
+	m0_be_seg_init(seg, stob, NULL, NULL, M0_BE_SEG_FAKE_ID);
 	rc = m0_be_seg_create(seg, size, addr);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_be_seg_open(seg);
@@ -377,7 +377,7 @@ void m0_be_ut_seg_large_multiple(void)
 	for (i = 0; i < ARRAY_SIZE(geom) - 1; ++i) {
 		M0_ALLOC_PTR(seg[i]);
 		M0_UT_ASSERT(seg[i] != NULL);
-		m0_be_seg_init(seg[i], stob, NULL, geom[i].sg_id);
+		m0_be_seg_init(seg[i], stob, NULL, NULL, geom[i].sg_id);
 		M0_UT_ASSERT(rc == 0);
 		rc = m0_be_seg_open(seg[i]);
 		M0_UT_ASSERT(rc == 0);
