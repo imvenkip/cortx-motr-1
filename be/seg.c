@@ -383,10 +383,14 @@ M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg)
 
 M0_INTERNAL void m0_be_seg_close(struct m0_be_seg *seg)
 {
+	int rc;
+
 	M0_ENTRY("seg=%p", seg);
 	M0_PRE(seg->bs_state == M0_BSS_OPENED);
 
-	munmap(seg->bs_addr, seg->bs_size);
+	rc = m0_be_pd_mapping_fini(&seg->bs_domain->bd_pd,
+				   seg->bs_addr, seg->bs_size);
+	M0_ASSERT(rc == 0); /* XXX */
 	seg->bs_state = M0_BSS_CLOSED;
 	M0_LEAVE();
 }
