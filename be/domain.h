@@ -44,8 +44,6 @@
  * - Create BE seg0 and a log on storage (configuration is taken from dom_cfg).
  * - Create segs_nr segments (configuration for each segment is taken from
  *   segs_cfg).
- * - Execute progress callback (m0_be_domain_cfg::bc_mkfs_progress_cb)
- *   to notify user about stages executed.
  *
  * Normal (non-mkfs) mode:
  *
@@ -130,21 +128,6 @@ struct m0_be_domain_cfg {
 	struct m0_be_0type_seg_cfg  *bc_seg_cfg;
 	/** Size of m0_be_domain_cfg::bc_seg_cfg array. */
 	unsigned                     bc_seg_nr;
-	/**
-	 * mkfs progress callback. Can be NULL.
-	 * @param stage_index Current stage index. It's value is in range
-	 *                    [0, stage_nr).
-	 * @param stage_nr    Total number of stages. It is constant across
-	 *                    It is constant for each callback call.
-	 * @param msg         Text message with stage description. Can be NULL.
-	 *
-	 * This callback is called exactly stage_nr times in case of mkfs
-	 * success and <= stage_nr times in case of failure.
-	 */
-	void                       (*bc_mkfs_progress_cb)
-				     (unsigned    stage_index,
-				      unsigned    stage_nr,
-				      const char *msg);
 	struct m0_be_pd_cfg          bc_pd_cfg;
 	struct m0_be_log_discard_cfg bc_log_discard_cfg;
 };
@@ -163,8 +146,6 @@ struct m0_be_domain {
 	struct m0_stob_domain    *bd_stob_domain;
 	struct m0_be_0type        bd_0type_log;
 	struct m0_be_0type        bd_0type_seg;
-	unsigned                  bd_mkfs_stage;
-	unsigned                  bd_mkfs_stage_nr;
 	struct m0_be_pd           bd_pd;
 	struct m0_be_log_discard  bd_log_discard;
 };
@@ -172,32 +153,24 @@ struct m0_be_domain {
 /** Levels of m0_be_domain module. */
 enum {
 	M0_BE_DOMAIN_LEVEL_INIT,
-	M0_BE_DOMAIN_LEVEL_0TYPES,
-	M0_BE_DOMAIN_LEVEL_SEGMENTS,
+	M0_BE_DOMAIN_LEVEL_0TYPES_REGISTER,
+	M0_BE_DOMAIN_LEVEL_MKFS_STOB_DOMAIN_DESTROY,
+	M0_BE_DOMAIN_LEVEL_MKFS_STOB_DOMAIN_CREATE,
+	M0_BE_DOMAIN_LEVEL_NORMAL_STOB_DOMAIN_INIT,
+	M0_BE_DOMAIN_LEVEL_MKFS_LOG_INIT,
+	M0_BE_DOMAIN_LEVEL_NORMAL_SEG0_OPEN,
+	M0_BE_DOMAIN_LEVEL_NORMAL_0TYPES_VISIT,
+	M0_BE_DOMAIN_LEVEL_PD_INIT,
+	M0_BE_DOMAIN_LEVEL_LOG_DISCARD_INIT,
 	M0_BE_DOMAIN_LEVEL_ENGINE_INIT,
 	M0_BE_DOMAIN_LEVEL_ENGINE_START,
-	M0_BE_DOMAIN_LEVEL_MKFS_POST,
+	M0_BE_DOMAIN_LEVEL_MKFS_SEG0_CREATE,
+	M0_BE_DOMAIN_LEVEL_MKFS_SEG0_STRUCTS_CREATE,
+	M0_BE_DOMAIN_LEVEL_MKFS_SEG0_LOG_0TYPES,
+	M0_BE_DOMAIN_LEVEL_MKFS_SEGMENTS_CREATE,
 	M0_BE_DOMAIN_LEVEL_READY,
 };
 
-/*
- *  m0_be_domain                             m0_be_engine
- * +---------------------------------+      +--------------------------+
- * | M0_BE_DOMAIN_LEVEL_READY        |----->| M0_BE_ENGINE_LEVEL_READY |
- * +---------------------------------+      +--------------------------+
- * | M0_BE_DOMAIN_LEVEL_MKFS_POST    |
- * +---------------------------------+
- * | M0_BE_DOMAIN_LEVEL_ENGINE_START |
- * +---------------------------------+
- * | M0_BE_DOMAIN_LEVEL_ENGINE_INIT  |
- * +---------------------------------+
- * | M0_BE_DOMAIN_LEVEL_SEGMENTS     |
- * +---------------------------------+
- * | M0_BE_DOMAIN_LEVEL_0TYPES       |
- * +---------------------------------+
- * | M0_BE_DOMAIN_LEVEL_INIT         |
- * +---------------------------------+
- */
 M0_INTERNAL void m0_be_domain_module_setup(struct m0_be_domain *dom,
 					   const struct m0_be_domain_cfg *cfg);
 

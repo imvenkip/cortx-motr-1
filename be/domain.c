@@ -383,7 +383,9 @@ static void be_domain_log_cleanup(const char           *stob_domain_location,
 	if (create) {
 		rc = m0_stob_domain_destroy_location(
 			log_cfg->lc_store_cfg.lsc_stob_domain_location);
-		/* copy-paste from be_domain_start_mkfs_pre() */
+		/*
+		 * copy-paste from M0_BE_DOMAIN_LEVEL_MKFS_STOB_DOMAIN_DESTROY.
+		 */
 		if (M0_IN(rc, (-ENOENT, 0))) {
 			M0_LOG(M0_DEBUG, "rc = %d", rc);
 		} else {
@@ -457,30 +459,6 @@ static const struct m0_be_0type m0_be_0type_log = {
 	.b0_fini = be_0type_log_fini,
 };
 
-static void be_domain_mkfs_progress(struct m0_be_domain *dom,
-				    const char          *fmt,
-				    ...)
-{
-	unsigned stage_nr = dom->bd_mkfs_stage_nr;
-	unsigned stage    = dom->bd_mkfs_stage;
-	va_list  ap;
-	char     msg[256];
-	int      len;
-
-	va_start(ap, fmt);
-	len = vsnprintf(msg, ARRAY_SIZE(msg), fmt, ap);
-	va_end(ap);
-
-	if (len < 0 || len >= ARRAY_SIZE(msg))
-		msg[0] = '\0';
-
-	M0_LOG(M0_DEBUG, "mkfs: stages_nr = %u, stage index = %u: %s",
-	       stage_nr, stage, (const char *)msg);
-	if (dom->bd_cfg.bc_mkfs_progress_cb != NULL)
-		dom->bd_cfg.bc_mkfs_progress_cb(stage, stage_nr, msg);
-	++dom->bd_mkfs_stage;
-}
-
 static int be_domain_mkfs_seg0_log(struct m0_be_domain              *dom,
 				   const struct m0_be_0type_seg_cfg *seg0_cfg,
 				   const struct m0_be_0type_log_cfg *log_cfg)
@@ -516,138 +494,6 @@ static int be_domain_mkfs_seg0_log(struct m0_be_domain              *dom,
 	return M0_RC(rc);
 }
 
-static int be_domain_start_normal_pre(struct m0_be_domain     *dom,
-				      struct m0_be_domain_cfg *cfg)
-{
-	struct m0_be_seg *seg0 = m0_be_domain_seg0_get(dom);
-	int               rc;
-
-	rc = m0_stob_domain_init(cfg->bc_stob_domain_location,
-				 cfg->bc_stob_domain_cfg_init,
-				 &dom->bd_stob_domain);
-	if (rc == 0) {
-		rc = be_domain_seg_open(dom, seg0,
-					dom->bd_cfg.bc_seg0_stob_key);
-		if (rc == 0) {
-			rc = _0types_visit(dom, true);
-			if (rc != 0)
-				be_domain_seg_close(dom, seg0, false);
-		}
-	}
-	return M0_RC(rc);
-}
-
-static void be_domain_stop_normal_pre(struct m0_be_domain *dom)
-{
-	(void)_0types_visit(dom, false);
-	be_domain_seg_close(dom, m0_be_domain_seg0_get(dom), false);
-}
-
-static int be_domain_start_mkfs_pre(struct m0_be_domain     *dom,
-				    struct m0_be_domain_cfg *cfg)
-{
-	int rc;
-	int rc1;
-
-	dom->bd_mkfs_stage    = 0;
-	dom->bd_mkfs_stage_nr = 4 /* in be_domain_start_mkfs_pre() */ +
-				4 /* in be_domain_start_mkfs_post() */ +
-				cfg->bc_seg_nr /* 1 per segment created */;
-	be_domain_mkfs_progress(dom, "destroying stob domain: location = %s",
-				cfg->bc_stob_domain_location);
-	rc = m0_stob_domain_destroy_location(cfg->bc_stob_domain_location);
-	/* can't use ?: here because first M0_LOG argument should be constant */
-	if (M0_IN(rc, (-ENOENT, 0))) {
-		M0_LOG(M0_DEBUG, "rc = %d", rc);
-	} else {
-		M0_LOG(M0_WARN, "rc = %d", rc);
-	}
-	be_domain_mkfs_progress(dom, "creating stob domain: location = %s",
-				cfg->bc_stob_domain_location);
-	rc = m0_stob_domain_create(cfg->bc_stob_domain_location,
-				   cfg->bc_stob_domain_cfg_init,
-				   cfg->bc_stob_domain_key,
-				   cfg->bc_stob_domain_cfg_create,
-				   &dom->bd_stob_domain);
-	/*
-	 * Log is initalized here. m0_be_0type::b0_init() handler for log
-	 * will not initialize log again in mkfs mode.
-	 */
-	if (rc == 0) {
-		be_domain_mkfs_progress(dom, "initializing BE log");
-		rc = be_domain_log_init(dom, &cfg->bc_log, true);
-		if (rc != 0) {
-			rc1 = m0_stob_domain_destroy(dom->bd_stob_domain);
-			if (rc1 == 0) {
-				M0_LOG(M0_DEBUG, "rc = %d", rc);
-			} else {
-				M0_LOG(M0_WARN, "rc = %d", rc);
-			}
-		}
-	}
-	if (rc == 0)
-		be_domain_mkfs_progress(dom, "starting BE engine");
-	return M0_RC(rc);
-}
-
-static void be_domain_stop_mkfs_pre(struct m0_be_domain *dom)
-{
-	be_domain_log_fini(dom);
-	m0_stob_domain_fini(dom->bd_stob_domain);
-}
-
-static int be_domain_start_mkfs_post(struct m0_be_domain     *dom,
-				     struct m0_be_domain_cfg *cfg)
-{
-	struct m0_be_0type_log_cfg  log_0cfg;
-	struct m0_be_seg           *seg;
-	int                         rc;
-	unsigned                    i;
-
-	/*
-	 * seg0 can only be created after BE engine started because
-	 * m0_be_allocator_create() and m0_be_seg_dict_create() need
-	 * engine to process a transaction.
-	 */
-	be_domain_mkfs_progress(dom, "creating seg0 segment");
-	rc = be_domain_seg_create(dom, NULL, m0_be_domain_seg0_get(dom),
-				  &cfg->bc_seg0_cfg);
-	if (rc == 0) {
-		be_domain_mkfs_progress(dom, "creating seg0 allocator "
-					"and dictionary");
-		rc = be_domain_seg_structs_create(dom, NULL,
-						  m0_be_domain_seg0_get(dom));
-	}
-	if (rc == 0) {
-		be_domain_mkfs_progress(dom, "saving seg0 and log "
-					"0type records in seg0");
-		log_0cfg.blc_stob_id = cfg->bc_log.lc_store_cfg.lsc_stob_id;
-		rc = be_domain_mkfs_seg0_log(dom, &cfg->bc_seg0_cfg, &log_0cfg);
-	}
-	if (rc == 0) {
-		be_domain_mkfs_progress(dom, "creating %u segments",
-					dom->bd_cfg.bc_seg_nr);
-		for (i = 0; i < dom->bd_cfg.bc_seg_nr; ++i) {
-			be_domain_mkfs_progress(dom, "creating segment %u", i);
-			/*
-			 * Currently there is one transaction per segment
-			 * created. It may be changed in the future.
-			 */
-			rc = m0_be_domain_seg_create(dom, NULL,
-						     &dom->bd_cfg.bc_seg_cfg[i],
-						     &seg);
-			if (rc != 0)
-				break;
-		}
-	}
-	/*
-	 * Segments and log are not destroyed in case of failure.
-	 * It should help to determine cause of failure.
-	 */
-	M0_ASSERT(ergo(rc == 0, dom->bd_mkfs_stage == dom->bd_mkfs_stage_nr));
-	return M0_RC(rc);
-}
-
 static void be_domain_ldsc_sync(struct m0_be_log_discard      *ld,
                                 struct m0_be_op               *op,
                                 struct m0_be_log_discard_item *ldi)
@@ -661,69 +507,6 @@ static void be_domain_ldsc_sync(struct m0_be_log_discard      *ld,
 	seg = m0_be_domain_seg_first(dom);
 	stobs[1] = seg != NULL ? seg->bs_stob : NULL;
 	m0_be_pd_sync(&dom->bd_pd, 0, stobs, seg == NULL ? 1 : 2, op);
-}
-
-static int be_domain_segments_init(struct m0_be_domain *dom)
-{
-	struct m0_be_domain_cfg *cfg = &dom->bd_cfg;
-
-	M0_PRE(cfg != NULL);
-	M0_ASSERT(equi(cfg->bc_seg_cfg == NULL, cfg->bc_seg_nr == 0));
-	M0_ASSERT_INFO(cfg->bc_pd_cfg.bpdc_seg_io_nr >=
-		       cfg->bc_engine.bec_group_nr,
-		       "seg_io_nr must be at least number of tx_groups");
-
-	return M0_RC(cfg->bc_mkfs_mode ?
-		     be_domain_start_mkfs_pre(dom, cfg) :
-		     be_domain_start_normal_pre(dom, cfg));
-}
-
-static void be_domain_segments_fini(struct m0_be_domain *dom)
-{
-	/**
-	 * Check dom->bd_mkfs_stage to understand if mkfs process in total was
-	 * succesful or not
-	 */
-	if (dom->bd_mkfs_stage != dom->bd_mkfs_stage_nr &&
-	    dom->bd_cfg.bc_mkfs_mode)
-		be_domain_stop_mkfs_pre(dom);
-	else
-		be_domain_stop_normal_pre(dom);
-}
-
-static int be_domain_engine_init(struct m0_be_domain *dom)
-{
-	int                  rc;
-	struct m0_be_engine *en = &dom->bd_engine;
-
-	dom->bd_cfg.bc_pd_cfg.bpdc_sched.bisc_pos_start =
-		m0_be_log_recovery_discarded(m0_be_domain_log(dom));
-	m0_be_tx_group_seg_io_credit(&dom->bd_cfg.bc_engine.bec_group_cfg,
-	                             &dom->bd_cfg.bc_pd_cfg.bpdc_io_credit);
-	rc = m0_be_pd_init(&dom->bd_pd, &dom->bd_cfg.bc_pd_cfg);
-	M0_ASSERT(rc == 0);
-	dom->bd_cfg.bc_log_discard_cfg.ldsc_sync    = &be_domain_ldsc_sync;
-	dom->bd_cfg.bc_log_discard_cfg.ldsc_discard = &m0_be_tx_group_discard;
-	dom->bd_cfg.bc_log_discard_cfg.ldsc_items_pending_max =
-		dom->bd_cfg.bc_engine.bec_group_nr;
-	rc = m0_be_log_discard_init(&dom->bd_log_discard,
-				    &dom->bd_cfg.bc_log_discard_cfg);
-	M0_ASSERT(rc == 0);
-	dom->bd_cfg.bc_engine.bec_domain   = dom;
-	dom->bd_cfg.bc_engine.bec_log_discard = &dom->bd_log_discard;
-	dom->bd_cfg.bc_engine.bec_pd = &dom->bd_pd;
-
-	return M0_RC(m0_be_engine_init(en, dom, &dom->bd_cfg.bc_engine));
-}
-
-static void be_domain_engine_fini(struct m0_be_domain *dom)
-{
-	struct m0_be_engine *en = &dom->bd_engine;
-
-	M0_BE_OP_SYNC(op, m0_be_log_discard_flush(&dom->bd_log_discard, &op));
-	m0_be_log_discard_fini(&dom->bd_log_discard);
-	m0_be_engine_fini(en);
-	m0_be_pd_fini(&dom->bd_pd);
 }
 
 M0_INTERNAL void
@@ -893,7 +676,10 @@ m0_be_domain_seg_create(struct m0_be_domain               *dom,
 		m0_be_tx_fini(tx);
 		m0_sm_group_unlock(grp);
 	}
-	*out = rc != 0 ? NULL : m0_be_domain_seg(dom, seg_cfg->bsc_addr);
+	if (out != NULL) {
+		*out = rc != 0 ? NULL :
+				 m0_be_domain_seg(dom, seg_cfg->bsc_addr);
+	}
 	return M0_RC(rc);
 }
 
@@ -939,25 +725,31 @@ M0_INTERNAL void m0_be_domain__0type_unregister(struct m0_be_domain *dom,
 	be_domain_unlock(dom);
 }
 
+static const struct m0_modlev levels_be_domain[];
+
 static int be_domain_level_enter(struct m0_module *module)
 {
-	struct m0_be_domain     *dom = M0_AMB(dom, module, bd_module);
-	struct m0_be_domain_cfg *cfg = &dom->bd_cfg;
-	unsigned                 i;
+	struct m0_be_domain        *dom = M0_AMB(dom, module, bd_module);
+	struct m0_be_domain_cfg    *cfg = &dom->bd_cfg;
+	struct m0_be_0type_log_cfg  log_0cfg = {};
+	int                         level = module->m_cur + 1;
+	const char                 *level_name;
+	int                         rc;
+	unsigned                    i;
 
-	switch (module->m_cur + 1) {
+	level_name = levels_be_domain[level].ml_name;
+	M0_ENTRY("dom=%p level=%d level_name=%s", dom, level, level_name);
+	switch (level) {
 	case M0_BE_DOMAIN_LEVEL_INIT:
 		zt_tlist_init(&dom->bd_0types);
 		seg_tlist_init(&dom->bd_segs);
 		m0_mutex_init(&dom->bd_lock);
-		return 0;
-
-
-	case M0_BE_DOMAIN_LEVEL_0TYPES:
+		return M0_RC(0);
+	case M0_BE_DOMAIN_LEVEL_0TYPES_REGISTER:
 		M0_ASSERT(cfg->bc_0types_nr > 0 && cfg->bc_0types != NULL);
 		M0_ALLOC_ARR(dom->bd_0types_allocated, cfg->bc_0types_nr);
 		if (dom->bd_0types_allocated == NULL)
-			return -ENOMEM;
+			return M0_ERR(-ENOMEM);
 
 		dom->bd_0type_log = m0_be_0type_log;
 		dom->bd_0type_seg = m0_be_0type_seg;
@@ -968,113 +760,235 @@ static int be_domain_level_enter(struct m0_module *module)
 			dom->bd_0types_allocated[i] = *cfg->bc_0types[i];
 			m0_be_0type_register(dom, &dom->bd_0types_allocated[i]);
 		}
-		return 0;
+		return M0_RC(0);
+	case M0_BE_DOMAIN_LEVEL_MKFS_STOB_DOMAIN_DESTROY:
+		if (!cfg->bc_mkfs_mode)
+			return M0_RC(0);
+		rc = m0_stob_domain_destroy_location(
+		                                cfg->bc_stob_domain_location);
+		/*
+		 * Silence -ENOENT error - it's a perfectly valid case for the
+		 * first run if the stob domain hasn't been created yet.
+		 */
+		return M0_IN(rc, (-ENOENT, 0)) ? M0_RC(0) : M0_ERR(rc);
+	case M0_BE_DOMAIN_LEVEL_MKFS_STOB_DOMAIN_CREATE:
+		if (!cfg->bc_mkfs_mode)
+			return M0_RC(0);
+		/*
+		 * The stob domain is never destroyed in case of failure, even
+		 * in mkfs mode: it helps with the debugging.
+		 */
+		return M0_RC(m0_stob_domain_create(cfg->bc_stob_domain_location,
+						   cfg->bc_stob_domain_cfg_init,
+						   cfg->bc_stob_domain_key,
+						 cfg->bc_stob_domain_cfg_create,
+						   &dom->bd_stob_domain));
 
-	case M0_BE_DOMAIN_LEVEL_SEGMENTS:
-		return be_domain_segments_init(dom);
-
+	case M0_BE_DOMAIN_LEVEL_NORMAL_STOB_DOMAIN_INIT:
+		if (cfg->bc_mkfs_mode)
+			return M0_RC(0);
+		return M0_RC(m0_stob_domain_init(cfg->bc_stob_domain_location,
+						 cfg->bc_stob_domain_cfg_init,
+						 &dom->bd_stob_domain));
+	case M0_BE_DOMAIN_LEVEL_MKFS_LOG_INIT:
+		if (!cfg->bc_mkfs_mode)
+			return M0_RC(0);
+		/*
+		 * Log is initalized here. m0_be_0type::b0_init() handler for
+		 * log will not initialize log again in mkfs mode.
+		 */
+		return M0_RC(be_domain_log_init(dom, &cfg->bc_log, true));
+	case M0_BE_DOMAIN_LEVEL_NORMAL_SEG0_OPEN:
+		if (cfg->bc_mkfs_mode)
+			return M0_RC(0);
+		return M0_RC(be_domain_seg_open(dom, m0_be_domain_seg0_get(dom),
+						cfg->bc_seg0_stob_key));
+	case M0_BE_DOMAIN_LEVEL_NORMAL_0TYPES_VISIT:
+		if (cfg->bc_mkfs_mode)
+			return M0_RC(0);
+		return M0_RC(_0types_visit(dom, true));
+	case M0_BE_DOMAIN_LEVEL_PD_INIT:
+		M0_ASSERT(equi(cfg->bc_seg_cfg == NULL, cfg->bc_seg_nr == 0));
+		M0_ASSERT_INFO(cfg->bc_pd_cfg.bpdc_seg_io_nr >=
+			       cfg->bc_engine.bec_group_nr,
+			      "seg_io_nr must be at least number of tx_groups");
+		cfg->bc_pd_cfg.bpdc_sched.bisc_pos_start =
+			m0_be_log_recovery_discarded(m0_be_domain_log(dom));
+		m0_be_tx_group_seg_io_credit(
+					&cfg->bc_engine.bec_group_cfg,
+					&cfg->bc_pd_cfg.bpdc_io_credit);
+		return M0_RC(m0_be_pd_init(&dom->bd_pd, &cfg->bc_pd_cfg));
+	case M0_BE_DOMAIN_LEVEL_LOG_DISCARD_INIT:
+		cfg->bc_log_discard_cfg.ldsc_sync = &be_domain_ldsc_sync;
+		cfg->bc_log_discard_cfg.ldsc_discard =
+					&m0_be_tx_group_discard;
+		cfg->bc_log_discard_cfg.ldsc_items_pending_max =
+					cfg->bc_engine.bec_group_nr;
+		return M0_RC(m0_be_log_discard_init(&dom->bd_log_discard,
+						    &cfg->bc_log_discard_cfg));
 	case M0_BE_DOMAIN_LEVEL_ENGINE_INIT:
-		return be_domain_engine_init(dom);
-
+		cfg->bc_engine.bec_domain = dom;
+		cfg->bc_engine.bec_log_discard = &dom->bd_log_discard;
+		cfg->bc_engine.bec_pd = &dom->bd_pd;
+		return M0_RC(m0_be_engine_init(&dom->bd_engine, dom,
+					       &cfg->bc_engine));
 	case M0_BE_DOMAIN_LEVEL_ENGINE_START:
 		return M0_RC(m0_be_engine_start(&dom->bd_engine));
-
-	case M0_BE_DOMAIN_LEVEL_MKFS_POST:
-		return M0_RC(dom->bd_cfg.bc_mkfs_mode ?
-			     be_domain_start_mkfs_post(dom, &dom->bd_cfg) : 0);
-
+	case M0_BE_DOMAIN_LEVEL_MKFS_SEG0_CREATE:
+		if (!cfg->bc_mkfs_mode)
+			return M0_RC(0);
+		/*
+		 * seg0 can only be created after BE engine started because
+		 * m0_be_allocator_create() and m0_be_seg_dict_create() need
+		 * engine to process a transaction.
+		 */
+		return M0_RC(be_domain_seg_create(dom, NULL,
+						  m0_be_domain_seg0_get(dom),
+						  &cfg->bc_seg0_cfg));
+	case M0_BE_DOMAIN_LEVEL_MKFS_SEG0_STRUCTS_CREATE:
+		if (!cfg->bc_mkfs_mode)
+			return M0_RC(0);
+		return M0_RC(be_domain_seg_structs_create(dom, NULL,
+						  m0_be_domain_seg0_get(dom)));
+	case M0_BE_DOMAIN_LEVEL_MKFS_SEG0_LOG_0TYPES:
+		if (!cfg->bc_mkfs_mode)
+			return M0_RC(0);
+		log_0cfg.blc_stob_id = cfg->bc_log.lc_store_cfg.lsc_stob_id;
+		return M0_RC(be_domain_mkfs_seg0_log(dom, &cfg->bc_seg0_cfg,
+						     &log_0cfg));
+	case M0_BE_DOMAIN_LEVEL_MKFS_SEGMENTS_CREATE:
+		if (!cfg->bc_mkfs_mode)
+			return M0_RC(0);
+		rc = 0;
+		for (i = 0; i < cfg->bc_seg_nr; ++i) {
+			/*
+			 * Currently there is one transaction per segment
+			 * created. It may be changed in the future.
+			 */
+			rc = m0_be_domain_seg_create(dom, NULL,
+						     &cfg->bc_seg_cfg[i],
+						     NULL);
+			if (rc != 0)
+				break;
+		}
+		return M0_RC(rc);
 	case M0_BE_DOMAIN_LEVEL_READY:
 		return M0_RC(0);
+	default:
+		M0_IMPOSSIBLE("Unexpected level: %d %s", level, level_name);
 	}
-	M0_IMPOSSIBLE("Unexpected level: %d", module->m_cur + 1);
 }
 
 static void be_domain_level_leave(struct m0_module *module)
 {
 	struct m0_be_domain *dom = M0_AMB(dom, module, bd_module);
 	struct m0_be_0type  *zt;
+	int                  level = module->m_cur;
+	const char          *level_name = levels_be_domain[level].ml_name;
 	unsigned             i;
 
-	switch (module->m_cur) {
-	case M0_BE_DOMAIN_LEVEL_READY:
-		return;
-
-	case M0_BE_DOMAIN_LEVEL_MKFS_POST:
-		return;
-
-	case M0_BE_DOMAIN_LEVEL_ENGINE_START:
-		return m0_be_engine_stop(&dom->bd_engine);
-
-	case M0_BE_DOMAIN_LEVEL_ENGINE_INIT:
-		be_domain_engine_fini(dom);
-		return;
-
-	case M0_BE_DOMAIN_LEVEL_SEGMENTS:
-		be_domain_segments_fini(dom);
-		return;
-
-	case M0_BE_DOMAIN_LEVEL_0TYPES:
-		for (i = 0; i < dom->bd_cfg.bc_0types_nr; ++i)
-			m0_be_0type_unregister(dom,
-					       &dom->bd_0types_allocated[i]);
-
-		m0_be_0type_unregister(dom, &dom->bd_0type_seg);
-		m0_be_0type_unregister(dom, &dom->bd_0type_log);
-
-		m0_free0(&dom->bd_0types_allocated);
-		return;
-
+	M0_ENTRY("dom=%p level=%d level_name=%s", dom, level, level_name);
+	switch (level) {
 	case M0_BE_DOMAIN_LEVEL_INIT:
-		/* XXX be_domain_level_enter() did not call
-		 * m0_stob_domain_init(). */
-		if (dom->bd_stob_domain != NULL)
-			m0_stob_domain_fini(dom->bd_stob_domain);
 		m0_tl_teardown(zt, &dom->bd_0types, zt);
 		m0_mutex_fini(&dom->bd_lock);
 		seg_tlist_fini(&dom->bd_segs);
 		zt_tlist_fini(&dom->bd_0types);
-		return;
+		break;
+	case M0_BE_DOMAIN_LEVEL_0TYPES_REGISTER:
+		for (i = 0; i < dom->bd_cfg.bc_0types_nr; ++i) {
+			m0_be_0type_unregister(dom,
+					       &dom->bd_0types_allocated[i]);
+		}
+		m0_be_0type_unregister(dom, &dom->bd_0type_seg);
+		m0_be_0type_unregister(dom, &dom->bd_0type_log);
+
+		m0_free0(&dom->bd_0types_allocated);
+		break;
+	case M0_BE_DOMAIN_LEVEL_MKFS_STOB_DOMAIN_DESTROY:
+		break;
+	case M0_BE_DOMAIN_LEVEL_MKFS_STOB_DOMAIN_CREATE:
+		break;
+	case M0_BE_DOMAIN_LEVEL_NORMAL_STOB_DOMAIN_INIT:
+		m0_stob_domain_fini(dom->bd_stob_domain);
+		break;
+	case M0_BE_DOMAIN_LEVEL_MKFS_LOG_INIT:
+		/*
+		 * Log should be finalised here.
+		 * TODO move log out from 0types.
+		 */
+		break;
+	case M0_BE_DOMAIN_LEVEL_NORMAL_SEG0_OPEN:
+		/*
+		 * XXX A bug in failure handling is here.
+		 * If m0_be_domain_cfg::bc_mkfs_mode is set and a failure happens
+		 * after M0_BE_DOMAIN_LEVEL_NORMAL_SEG0_OPEN but before
+		 * M0_BE_DOMAIN_LEVEL_MKFS_SEG0_CREATE succeeds this
+		 * finalisation code will be incorrect.
+		 * Some time ago seg0 was required for log. Now it's not the
+		 * case. The proper solution would be to init+start engine and
+		 * only then init seg0 and visit 0types. TODO implement this.
+		 */
+		be_domain_seg_close(dom, m0_be_domain_seg0_get(dom), false);
+		break;
+	case M0_BE_DOMAIN_LEVEL_NORMAL_0TYPES_VISIT:
+		(void)_0types_visit(dom, false);
+		break;
+	case M0_BE_DOMAIN_LEVEL_PD_INIT:
+		m0_be_pd_fini(&dom->bd_pd);
+		break;
+	case M0_BE_DOMAIN_LEVEL_LOG_DISCARD_INIT:
+		break;
+	case M0_BE_DOMAIN_LEVEL_ENGINE_INIT:
+		M0_BE_OP_SYNC(op, m0_be_log_discard_flush(&dom->bd_log_discard,
+							  &op));
+		/*
+		 * XXX m0_be_log_discard initialised before and finalised before
+		 * BE engine. It's a bug and it should be fixed.
+		 */
+		m0_be_log_discard_fini(&dom->bd_log_discard);
+		m0_be_engine_fini(&dom->bd_engine);
+		break;
+	case M0_BE_DOMAIN_LEVEL_ENGINE_START:
+		m0_be_engine_stop(&dom->bd_engine);
+		break;
+	case M0_BE_DOMAIN_LEVEL_MKFS_SEG0_CREATE:
+	case M0_BE_DOMAIN_LEVEL_MKFS_SEG0_STRUCTS_CREATE:
+	case M0_BE_DOMAIN_LEVEL_MKFS_SEG0_LOG_0TYPES:
+	case M0_BE_DOMAIN_LEVEL_MKFS_SEGMENTS_CREATE:
+	case M0_BE_DOMAIN_LEVEL_READY:
+		break;
+	default:
+		M0_IMPOSSIBLE("Unexpected level: %d %s", level, level_name);
 	}
-	M0_IMPOSSIBLE("Unexpected level: %d", module->m_cur);
+	M0_LEAVE();
 }
 
-static const struct m0_modlev levels_be_domain[] = {
-	[M0_BE_DOMAIN_LEVEL_INIT] = {
-		.ml_name  = "M0_BE_DOMAIN_LEVEL_INIT",
-		.ml_enter = be_domain_level_enter,
-		.ml_leave = be_domain_level_leave
-	},
-	[M0_BE_DOMAIN_LEVEL_0TYPES] = {
-		.ml_name  = "M0_BE_DOMAIN_LEVEL_0TYPES",
-		.ml_enter = be_domain_level_enter,
-		.ml_leave = be_domain_level_leave
-	},
-	[M0_BE_DOMAIN_LEVEL_SEGMENTS] = {
-		.ml_name  = "M0_BE_DOMAIN_LEVEL_SEGMENTS",
-		.ml_enter = be_domain_level_enter,
-		.ml_leave = be_domain_level_leave
-	},
-	[M0_BE_DOMAIN_LEVEL_ENGINE_INIT] = {
-		.ml_name  = "M0_BE_DOMAIN_LEVEL_ENGINE_INIT",
-		.ml_enter = be_domain_level_enter,
-		.ml_leave = be_domain_level_leave
-	},
-	[M0_BE_DOMAIN_LEVEL_ENGINE_START] = {
-		.ml_name  = "M0_BE_DOMAIN_LEVEL_ENGINE_START",
-		.ml_enter = be_domain_level_enter,
-		.ml_leave = be_domain_level_leave
-	},
-	[M0_BE_DOMAIN_LEVEL_MKFS_POST] = {
-		.ml_name  = "M0_BE_DOMAIN_LEVEL_MKFS_POST",
-		.ml_enter = be_domain_level_enter,
-		.ml_leave = be_domain_level_leave
-	},
-	[M0_BE_DOMAIN_LEVEL_READY] = {
-		.ml_name  = "M0_BE_DOMAIN_LEVEL_READY",
-		.ml_enter = be_domain_level_enter,
-		.ml_leave = be_domain_level_leave
+#define BE_DOMAIN_LEVEL(level) [level] = {              \
+		.ml_name  = #level,                     \
+		.ml_enter = be_domain_level_enter,      \
+		.ml_leave = be_domain_level_leave,      \
 	}
+static const struct m0_modlev levels_be_domain[] = {
+	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_INIT),
+	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_0TYPES_REGISTER),
+	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_MKFS_STOB_DOMAIN_DESTROY),
+	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_MKFS_STOB_DOMAIN_CREATE),
+	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_NORMAL_STOB_DOMAIN_INIT),
+	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_MKFS_LOG_INIT),
+	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_NORMAL_SEG0_OPEN),
+	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_NORMAL_0TYPES_VISIT),
+	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_PD_INIT),
+	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_LOG_DISCARD_INIT),
+	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_ENGINE_INIT),
+	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_ENGINE_START),
+	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_MKFS_SEG0_CREATE),
+	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_MKFS_SEG0_STRUCTS_CREATE),
+	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_MKFS_SEG0_LOG_0TYPES),
+	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_MKFS_SEGMENTS_CREATE),
+	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_READY),
 };
+#undef BE_DOMAIN_LEVEL
 
 M0_INTERNAL void m0_be_domain_module_setup(struct m0_be_domain           *dom,
 					   const struct m0_be_domain_cfg *cfg)

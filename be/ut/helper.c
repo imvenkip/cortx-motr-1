@@ -329,7 +329,6 @@ void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg)
 		},
 		.bc_seg_cfg		   = NULL,
 		.bc_seg_nr		   = 0,
-		.bc_mkfs_progress_cb	   = NULL,
 		.bc_pd_cfg = {
 			.bpdc_seg_io_nr = 0x2,
 		},
