@@ -274,6 +274,7 @@ static void be_ut_seg_large_stob(struct m0_be_seg *seg,
 void m0_be_ut_seg_large(void)
 {
 	struct m0_be_seg *seg;
+	struct m0_be_pd  *pd;
 	struct m0_stob   *stob;
 	m0_bcount_t       size;
 	void             *addr;
@@ -281,6 +282,8 @@ void m0_be_ut_seg_large(void)
 
 	M0_ALLOC_PTR(seg);
 	M0_UT_ASSERT(seg != NULL);
+	M0_ALLOC_PTR(pd);
+	M0_UT_ASSERT(pd != NULL);
 	stob = m0_ut_stob_linux_get();
 	/* stob = m0_ut_stob_linux_create("/dev/sdc1"); */
 	M0_UT_ASSERT(stob != NULL);
@@ -288,7 +291,8 @@ void m0_be_ut_seg_large(void)
 	size = BE_UT_SEG_LARGE_SIZE;
 	addr = m0_be_ut_seg_allocate_addr(size);
 
-	m0_be_seg_init(seg, stob, NULL, NULL, M0_BE_SEG_FAKE_ID);
+	m0_be_ut_pd_init(pd);
+	m0_be_seg_init(seg, stob, NULL, pd, M0_BE_SEG_FAKE_ID);
 	rc = m0_be_seg_create(seg, size, addr);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_be_seg_open(seg);
@@ -321,8 +325,10 @@ void m0_be_ut_seg_large(void)
 	rc = m0_be_seg_destroy(seg);
 	M0_UT_ASSERT(rc == 0);
 	m0_be_seg_fini(seg);
+	m0_be_ut_pd_fini(pd);
 
 	m0_ut_stob_put(stob, true);
+	m0_free(pd);
 	m0_free(seg);
 }
 
@@ -355,7 +361,12 @@ void m0_be_ut_seg_large_multiple(void)
 	void             *addr;
 	int               rc;
 	struct m0_be_seg *seg[ARRAY_SIZE(geom) - 1];
+	struct m0_be_pd  *pd;
 	struct m0_stob   *stob;
+
+	M0_ALLOC_PTR(pd);
+	M0_UT_ASSERT(pd != NULL);
+	m0_be_ut_pd_init(pd);
 
 	for (i = 0; !m0_be_seg_geom_eq(&geom[i], &M0_BE_SEG_GEOM0); ++i) {
 		size = BE_UT_SEG_LARGE_SIZE;
@@ -377,7 +388,7 @@ void m0_be_ut_seg_large_multiple(void)
 	for (i = 0; i < ARRAY_SIZE(geom) - 1; ++i) {
 		M0_ALLOC_PTR(seg[i]);
 		M0_UT_ASSERT(seg[i] != NULL);
-		m0_be_seg_init(seg[i], stob, NULL, NULL, geom[i].sg_id);
+		m0_be_seg_init(seg[i], stob, NULL, pd, geom[i].sg_id);
 		M0_UT_ASSERT(rc == 0);
 		rc = m0_be_seg_open(seg[i]);
 		M0_UT_ASSERT(rc == 0);
@@ -418,6 +429,8 @@ void m0_be_ut_seg_large_multiple(void)
 	}
 
 	m0_ut_stob_put(stob, true);
+	m0_be_ut_pd_fini(pd);
+	m0_free(pd);
 }
 
 #undef M0_TRACE_SUBSYSTEM
