@@ -394,78 +394,11 @@ static void be_domain_log_cleanup(const char           *stob_domain_location,
 	}
 }
 
-static int be_domain_log_init(struct m0_be_domain  *dom,
-			      struct m0_be_log_cfg *log_cfg,
-			      bool                  create)
-{
-	struct m0_be_log *log = m0_be_domain_log(dom);
-	int               rc;
-
-	log_cfg->lc_got_space_cb = m0_be_engine_got_log_space_cb;
-	log_cfg->lc_full_cb      = m0_be_engine_full_log_cb;
-	log_cfg->lc_lock         = &dom->bd_engine_lock;
-	/* temporary solution BEGIN */
-	be_domain_log_cleanup(dom->bd_cfg.bc_stob_domain_location,
-			      log_cfg, create);
-	/* temporary solution END */
-	if (create) {
-		rc = m0_be_log_create(log, log_cfg);
-	} else {
-		rc = m0_be_log_open(log, log_cfg);
-	}
-	return M0_RC(rc);
-}
-
-static void be_domain_log_fini(struct m0_be_domain *dom)
-{
-	struct m0_be_engine *en = m0_be_domain_engine(dom);
-
-	m0_be_log_close(&en->eng_log);
-	m0_free(dom->bd_cfg.bc_log.lc_store_cfg.lsc_stob_domain_location);
-}
-
-static int be_0type_log_init(struct m0_be_domain *dom,
-			     const char          *suffix,
-			     const struct m0_buf *data)
-{
-	const struct m0_be_0type_log_cfg *log_0cfg;
-
-	M0_ASSERT_INFO(data->b_nob == sizeof(*log_0cfg),
-		       "data->b_nob = %lu, sizeof(*log_0cfg) = %zu",
-		       data->b_nob, sizeof(*log_0cfg));
-
-	/* Log is already initalized in mkfs mode */
-	if (dom->bd_cfg.bc_mkfs_mode)
-		return 0;
-
-	log_0cfg = (const struct m0_be_0type_log_cfg *)data->b_addr;
-	dom->bd_cfg.bc_log.lc_store_cfg.lsc_stob_id = log_0cfg->blc_stob_id;
-
-	return M0_RC(be_domain_log_init(dom, &dom->bd_cfg.bc_log, false));
-}
-
-static void be_0type_log_fini(struct m0_be_domain *dom,
-			      const char          *suffix,
-			      const struct m0_buf *data)
-{
-	M0_ENTRY();
-	be_domain_log_fini(dom);
-	M0_LEAVE();
-}
-
-static const struct m0_be_0type m0_be_0type_log = {
-	.b0_name = "M0_BE:LOG",
-	.b0_init = be_0type_log_init,
-	.b0_fini = be_0type_log_fini,
-};
-
-static int be_domain_mkfs_seg0_log(struct m0_be_domain              *dom,
-				   const struct m0_be_0type_seg_cfg *seg0_cfg,
-				   const struct m0_be_0type_log_cfg *log_cfg)
+static int be_domain_mkfs_seg0(struct m0_be_domain              *dom,
+                               const struct m0_be_0type_seg_cfg *seg0_cfg)
 {
 	struct m0_be_tx_credit  cred         = {};
 	const struct m0_buf     seg0_cfg_buf = M0_BUF_INIT_PTR_CONST(seg0_cfg);
-	const struct m0_buf     log_cfg_buf  = M0_BUF_INIT_PTR_CONST(log_cfg);
 	struct m0_sm_group     *grp          = m0_locality0_get()->lo_grp;
 	struct m0_be_tx         tx           = {};
 	int                     rc;
@@ -474,19 +407,13 @@ static int be_domain_mkfs_seg0_log(struct m0_be_domain              *dom,
 
 	m0_sm_group_lock(grp);
 	m0_be_tx_init(&tx, 0, dom, grp, NULL, NULL, NULL, NULL);
-	m0_be_0type_add_credit(dom, &dom->bd_0type_log, "0",
-			       &log_cfg_buf, &cred);
 	m0_be_0type_add_credit(dom, &dom->bd_0type_seg, "0",
 			       &seg0_cfg_buf, &cred);
 	m0_be_tx_prep(&tx, &cred);
 	rc = m0_be_tx_exclusive_open_sync(&tx);
 	if (rc == 0) {
-		rc = m0_be_0type_add(&dom->bd_0type_log, dom, &tx, "0",
-				     &log_cfg_buf);
-		if (rc == 0) {
-			rc = m0_be_0type_add(&dom->bd_0type_seg, dom, &tx, "0",
-					     &seg0_cfg_buf);
-		}
+		rc = m0_be_0type_add(&dom->bd_0type_seg, dom, &tx, "0",
+		                     &seg0_cfg_buf);
 		m0_be_tx_close_sync(&tx);
 	}
 	m0_be_tx_fini(&tx);
@@ -729,13 +656,12 @@ static const struct m0_modlev levels_be_domain[];
 
 static int be_domain_level_enter(struct m0_module *module)
 {
-	struct m0_be_domain        *dom = M0_AMB(dom, module, bd_module);
-	struct m0_be_domain_cfg    *cfg = &dom->bd_cfg;
-	struct m0_be_0type_log_cfg  log_0cfg = {};
-	int                         level = module->m_cur + 1;
-	const char                 *level_name;
-	int                         rc;
-	unsigned                    i;
+	struct m0_be_domain     *dom = M0_AMB(dom, module, bd_module);
+	struct m0_be_domain_cfg *cfg = &dom->bd_cfg;
+	int                      level = module->m_cur + 1;
+	const char              *level_name;
+	int                      rc;
+	unsigned                 i;
 
 	level_name = levels_be_domain[level].ml_name;
 	M0_ENTRY("dom=%p level=%d level_name=%s", dom, level, level_name);
@@ -752,9 +678,7 @@ static int be_domain_level_enter(struct m0_module *module)
 		if (dom->bd_0types_allocated == NULL)
 			return M0_ERR(-ENOMEM);
 
-		dom->bd_0type_log = m0_be_0type_log;
 		dom->bd_0type_seg = m0_be_0type_seg;
-		m0_be_0type_register(dom, &dom->bd_0type_log);
 		m0_be_0type_register(dom, &dom->bd_0type_seg);
 
 		for (i = 0; i < cfg->bc_0types_nr; ++i) {
@@ -791,14 +715,36 @@ static int be_domain_level_enter(struct m0_module *module)
 		return M0_RC(m0_stob_domain_init(cfg->bc_stob_domain_location,
 						 cfg->bc_stob_domain_cfg_init,
 						 &dom->bd_stob_domain));
-	case M0_BE_DOMAIN_LEVEL_MKFS_LOG_INIT:
+	case M0_BE_DOMAIN_LEVEL_LOG_CONFIGURE:
+		cfg->bc_log.lc_got_space_cb = m0_be_engine_got_log_space_cb;
+		cfg->bc_log.lc_full_cb      = m0_be_engine_full_log_cb;
+		cfg->bc_log.lc_lock         = &dom->bd_engine_lock;
+		/*
+		 * The next temporary solution is needed as long as BE log uses
+		 * direct I/O and BE segments can't work with direct I/O.
+		 * The direct I/O configuration is per stob domain, not
+		 * individual stobs. So BE uses 2 stob domains: one with direct
+		 * I/O enabled for the log, and another one without direct I/O
+		 * for segments.
+		 *
+		 * TODO use a single stob domain for BE after paged is
+		 * implemented.
+		 */
+		/* temporary solution BEGIN */
+		be_domain_log_cleanup(cfg->bc_stob_domain_location,
+		                      &cfg->bc_log, cfg->bc_mkfs_mode);
+		/* temporary solution END */
+		return M0_RC(0);
+	case M0_BE_DOMAIN_LEVEL_MKFS_LOG_CREATE:
 		if (!cfg->bc_mkfs_mode)
 			return M0_RC(0);
-		/*
-		 * Log is initalized here. m0_be_0type::b0_init() handler for
-		 * log will not initialize log again in mkfs mode.
-		 */
-		return M0_RC(be_domain_log_init(dom, &cfg->bc_log, true));
+		return M0_RC(m0_be_log_create(m0_be_domain_log(dom),
+					      &cfg->bc_log));
+	case M0_BE_DOMAIN_LEVEL_NORMAL_LOG_OPEN:
+		if (cfg->bc_mkfs_mode)
+			return M0_RC(0);
+		return M0_RC(m0_be_log_open(m0_be_domain_log(dom),
+		                            &cfg->bc_log));
 	case M0_BE_DOMAIN_LEVEL_NORMAL_SEG0_OPEN:
 		if (cfg->bc_mkfs_mode)
 			return M0_RC(0);
@@ -852,12 +798,10 @@ static int be_domain_level_enter(struct m0_module *module)
 			return M0_RC(0);
 		return M0_RC(be_domain_seg_structs_create(dom, NULL,
 						  m0_be_domain_seg0_get(dom)));
-	case M0_BE_DOMAIN_LEVEL_MKFS_SEG0_LOG_0TYPES:
+	case M0_BE_DOMAIN_LEVEL_MKFS_SEG0_0TYPE:
 		if (!cfg->bc_mkfs_mode)
 			return M0_RC(0);
-		log_0cfg.blc_stob_id = cfg->bc_log.lc_store_cfg.lsc_stob_id;
-		return M0_RC(be_domain_mkfs_seg0_log(dom, &cfg->bc_seg0_cfg,
-						     &log_0cfg));
+		return M0_RC(be_domain_mkfs_seg0(dom, &cfg->bc_seg0_cfg));
 	case M0_BE_DOMAIN_LEVEL_MKFS_SEGMENTS_CREATE:
 		if (!cfg->bc_mkfs_mode)
 			return M0_RC(0);
@@ -904,7 +848,6 @@ static void be_domain_level_leave(struct m0_module *module)
 					       &dom->bd_0types_allocated[i]);
 		}
 		m0_be_0type_unregister(dom, &dom->bd_0type_seg);
-		m0_be_0type_unregister(dom, &dom->bd_0type_log);
 
 		m0_free0(&dom->bd_0types_allocated);
 		break;
@@ -915,11 +858,14 @@ static void be_domain_level_leave(struct m0_module *module)
 	case M0_BE_DOMAIN_LEVEL_NORMAL_STOB_DOMAIN_INIT:
 		m0_stob_domain_fini(dom->bd_stob_domain);
 		break;
-	case M0_BE_DOMAIN_LEVEL_MKFS_LOG_INIT:
-		/*
-		 * Log should be finalised here.
-		 * TODO move log out from 0types.
-		 */
+	case M0_BE_DOMAIN_LEVEL_LOG_CONFIGURE:
+		m0_free(dom->bd_cfg.bc_log.lc_store_cfg.
+					lsc_stob_domain_location);
+		break;
+	case M0_BE_DOMAIN_LEVEL_MKFS_LOG_CREATE:
+		break;
+	case M0_BE_DOMAIN_LEVEL_NORMAL_LOG_OPEN:
+		m0_be_log_close(&dom->bd_engine.eng_log);
 		break;
 	case M0_BE_DOMAIN_LEVEL_NORMAL_SEG0_OPEN:
 		/*
@@ -957,7 +903,7 @@ static void be_domain_level_leave(struct m0_module *module)
 		break;
 	case M0_BE_DOMAIN_LEVEL_MKFS_SEG0_CREATE:
 	case M0_BE_DOMAIN_LEVEL_MKFS_SEG0_STRUCTS_CREATE:
-	case M0_BE_DOMAIN_LEVEL_MKFS_SEG0_LOG_0TYPES:
+	case M0_BE_DOMAIN_LEVEL_MKFS_SEG0_0TYPE:
 	case M0_BE_DOMAIN_LEVEL_MKFS_SEGMENTS_CREATE:
 	case M0_BE_DOMAIN_LEVEL_READY:
 		break;
@@ -978,7 +924,9 @@ static const struct m0_modlev levels_be_domain[] = {
 	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_MKFS_STOB_DOMAIN_DESTROY),
 	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_MKFS_STOB_DOMAIN_CREATE),
 	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_NORMAL_STOB_DOMAIN_INIT),
-	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_MKFS_LOG_INIT),
+	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_LOG_CONFIGURE),
+	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_MKFS_LOG_CREATE),
+	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_NORMAL_LOG_OPEN),
 	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_NORMAL_SEG0_OPEN),
 	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_NORMAL_0TYPES_VISIT),
 	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_PD_INIT),
@@ -987,7 +935,7 @@ static const struct m0_modlev levels_be_domain[] = {
 	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_ENGINE_START),
 	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_MKFS_SEG0_CREATE),
 	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_MKFS_SEG0_STRUCTS_CREATE),
-	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_MKFS_SEG0_LOG_0TYPES),
+	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_MKFS_SEG0_0TYPE),
 	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_MKFS_SEGMENTS_CREATE),
 	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_READY),
 };

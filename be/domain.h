@@ -64,10 +64,6 @@ struct m0_be_tx;
 struct m0_be_0type;
 struct m0_be_log;
 
-struct m0_be_0type_log_cfg {
-	struct m0_stob_id blc_stob_id;
-} M0_XCA_RECORD M0_XCA_DOMAIN(be);
-
 struct m0_be_0type_seg_cfg {
 	uint64_t     bsc_stob_key;
 	bool	     bsc_preallocate;
@@ -147,7 +143,6 @@ struct m0_be_domain {
 	struct m0_be_seg          bd_seg0;
 	struct m0_stob           *bd_seg0_stob;
 	struct m0_stob_domain    *bd_stob_domain;
-	struct m0_be_0type        bd_0type_log;
 	struct m0_be_0type        bd_0type_seg;
 	struct m0_be_pd           bd_pd;
 	struct m0_be_log_discard  bd_log_discard;
@@ -160,7 +155,9 @@ enum {
 	M0_BE_DOMAIN_LEVEL_MKFS_STOB_DOMAIN_DESTROY,
 	M0_BE_DOMAIN_LEVEL_MKFS_STOB_DOMAIN_CREATE,
 	M0_BE_DOMAIN_LEVEL_NORMAL_STOB_DOMAIN_INIT,
-	M0_BE_DOMAIN_LEVEL_MKFS_LOG_INIT,
+	M0_BE_DOMAIN_LEVEL_LOG_CONFIGURE,
+	M0_BE_DOMAIN_LEVEL_MKFS_LOG_CREATE,
+	M0_BE_DOMAIN_LEVEL_NORMAL_LOG_OPEN,
 	M0_BE_DOMAIN_LEVEL_NORMAL_SEG0_OPEN,
 	M0_BE_DOMAIN_LEVEL_NORMAL_0TYPES_VISIT,
 	M0_BE_DOMAIN_LEVEL_PD_INIT,
@@ -169,7 +166,7 @@ enum {
 	M0_BE_DOMAIN_LEVEL_ENGINE_START,
 	M0_BE_DOMAIN_LEVEL_MKFS_SEG0_CREATE,
 	M0_BE_DOMAIN_LEVEL_MKFS_SEG0_STRUCTS_CREATE,
-	M0_BE_DOMAIN_LEVEL_MKFS_SEG0_LOG_0TYPES,
+	M0_BE_DOMAIN_LEVEL_MKFS_SEG0_0TYPE,
 	M0_BE_DOMAIN_LEVEL_MKFS_SEGMENTS_CREATE,
 	M0_BE_DOMAIN_LEVEL_READY,
 };
@@ -189,6 +186,7 @@ M0_INTERNAL struct m0_be_tx *m0_be_domain_tx_find(struct m0_be_domain *dom,
 M0_INTERNAL struct m0_be_engine *m0_be_domain_engine(struct m0_be_domain *dom);
 M0_INTERNAL
 struct m0_be_seg *m0_be_domain_seg0_get(struct m0_be_domain *dom);
+/* TODO remove the function after BE log becomes a part of BE domain */
 M0_INTERNAL struct m0_be_log *m0_be_domain_log(struct m0_be_domain *dom);
 M0_INTERNAL bool m0_be_domain_is_locked(const struct m0_be_domain *dom);
 

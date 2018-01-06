@@ -270,6 +270,22 @@ static int be_log_store_level_enter(struct m0_module *module)
 					   ls->ls_cfg.lsc_stob_domain_init_cfg,
 					   &ls->ls_stob_domain);
 	case M0_BE_LOG_STORE_LEVEL_STOB_FIND:
+		/*
+		 * As BE log is no longer in 0types, it's configuration
+		 * contains only stob domain location and the stob fid.
+		 * si_domain_fid is set here after the stob domain is
+		 * initialised.
+		 *
+		 * m0_be_log_store may not need a separate domain after paged
+		 * is implemented, see the explanation in
+		 * be_domain_level_enter()::M0_BE_DOMAIN_LEVEL_LOG_CONFIGURE.
+		 *
+		 * XXX TODO remote this after paged is implemented.
+		 */
+		/* temporary solution BEGIN */
+		stob_id->si_domain_fid =
+			*m0_stob_domain_id_get(ls->ls_stob_domain);
+		/* temporary solution END */
 		return m0_stob_find(stob_id, &ls->ls_stob);
 	case M0_BE_LOG_STORE_LEVEL_STOB_LOCATE:
 		if (m0_stob_state_get(ls->ls_stob) == CSS_UNKNOWN)

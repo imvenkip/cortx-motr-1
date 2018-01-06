@@ -291,10 +291,13 @@ void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg)
 		.bc_log = {
 			.lc_store_cfg = {
 				.lsc_stob_id = {
-					/* .si_domain_fid is set by domain */
+					/*
+					 * .si_domain_fid is set by the log
+					 * store
+					 */
 					.si_fid = {
 					    .f_container = 0,
-					    .f_key = m0_be_ut_seg_allocate_id(),
+					    .f_key       = BE_UT_LOG_ID,
 					}
 				},
 				.lsc_stob_domain_key =
