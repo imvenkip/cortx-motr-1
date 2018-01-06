@@ -136,6 +136,9 @@ struct m0_be_domain {
 	struct m0_module          bd_module;
 	struct m0_be_domain_cfg   bd_cfg;
 	struct m0_be_engine       bd_engine;
+	/** The main lock in m0_be_engine. Also it's used in m0_be_log */
+	struct m0_mutex           bd_engine_lock;
+	/** Protects m0_be_domain::bd_0types and m0_be_domain::bd_segs */
 	struct m0_mutex           bd_lock;
 	struct m0_tl              bd_0types;
 	struct m0_be_0type       *bd_0types_allocated;

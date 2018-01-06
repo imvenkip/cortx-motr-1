@@ -152,7 +152,6 @@ M0_INTERNAL int m0_be_engine_init(struct m0_be_engine     *en,
 
 	m0_forall(i, ARRAY_SIZE(en->eng_txs),
 		  (etx_tlist_init(&en->eng_txs[i]), true));
-	m0_mutex_init(&en->eng_lock);
 
 	m0_semaphore_init(&en->eng_recovery_wait_sem, 0);
 	en->eng_recovery_finished = false;
@@ -186,7 +185,6 @@ M0_INTERNAL void m0_be_engine_fini(struct m0_be_engine *en)
 
 	m0_semaphore_fini(&en->eng_recovery_wait_sem);
 
-	m0_mutex_fini(&en->eng_lock);
 	m0_forall(i, ARRAY_SIZE(en->eng_txs),
 		  (etx_tlist_fini(&en->eng_txs[i]), true));
 	for (i = 0; i < en->eng_group_nr; ++i) {
@@ -205,17 +203,17 @@ M0_INTERNAL void m0_be_engine_fini(struct m0_be_engine *en)
 
 static void be_engine_lock(struct m0_be_engine *en)
 {
-	m0_mutex_lock(&en->eng_lock);
+	m0_mutex_lock(en->eng_cfg->bec_lock);
 }
 
 static void be_engine_unlock(struct m0_be_engine *en)
 {
-	m0_mutex_unlock(&en->eng_lock);
+	m0_mutex_unlock(en->eng_cfg->bec_lock);
 }
 
 static bool be_engine_is_locked(const struct m0_be_engine *en)
 {
-	return m0_mutex_is_locked(&en->eng_lock);
+	return m0_mutex_is_locked(en->eng_cfg->bec_lock);
 }
 
 static bool be_engine_invariant(struct m0_be_engine *en)

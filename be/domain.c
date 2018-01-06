@@ -403,7 +403,7 @@ static int be_domain_log_init(struct m0_be_domain  *dom,
 
 	log_cfg->lc_got_space_cb = m0_be_engine_got_log_space_cb;
 	log_cfg->lc_full_cb      = m0_be_engine_full_log_cb;
-	log_cfg->lc_lock         = &m0_be_domain_engine(dom)->eng_lock;
+	log_cfg->lc_lock         = &dom->bd_engine_lock;
 	/* temporary solution BEGIN */
 	be_domain_log_cleanup(dom->bd_cfg.bc_stob_domain_location,
 			      log_cfg, create);
@@ -743,6 +743,7 @@ static int be_domain_level_enter(struct m0_module *module)
 	case M0_BE_DOMAIN_LEVEL_INIT:
 		zt_tlist_init(&dom->bd_0types);
 		seg_tlist_init(&dom->bd_segs);
+		m0_mutex_init(&dom->bd_engine_lock);
 		m0_mutex_init(&dom->bd_lock);
 		return M0_RC(0);
 	case M0_BE_DOMAIN_LEVEL_0TYPES_REGISTER:
@@ -830,6 +831,7 @@ static int be_domain_level_enter(struct m0_module *module)
 		cfg->bc_engine.bec_domain = dom;
 		cfg->bc_engine.bec_log_discard = &dom->bd_log_discard;
 		cfg->bc_engine.bec_pd = &dom->bd_pd;
+		cfg->bc_engine.bec_lock = &dom->bd_engine_lock;
 		return M0_RC(m0_be_engine_init(&dom->bd_engine, dom,
 					       &cfg->bc_engine));
 	case M0_BE_DOMAIN_LEVEL_ENGINE_START:
@@ -892,6 +894,7 @@ static void be_domain_level_leave(struct m0_module *module)
 	case M0_BE_DOMAIN_LEVEL_INIT:
 		m0_tl_teardown(zt, &dom->bd_0types, zt);
 		m0_mutex_fini(&dom->bd_lock);
+		m0_mutex_fini(&dom->bd_engine_lock);
 		seg_tlist_fini(&dom->bd_segs);
 		zt_tlist_fini(&dom->bd_0types);
 		break;

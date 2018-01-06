@@ -84,12 +84,12 @@ struct m0_be_engine_cfg {
 	struct m0_be_tx_group_cfg *bec_groups_cfg;
 	/** ALMOST DEAD FIELDS */
 	struct m0_be_tx_credit	   bec_reg_area_size_max;
+	/** The engine lock. Protects all fields of m0_be_engine. */
+	struct m0_mutex           *bec_lock;
 };
 
 struct m0_be_engine {
 	struct m0_be_engine_cfg   *eng_cfg;
-	/** Protects all fields of this struct. */
-	struct m0_mutex            eng_lock;
 	/**
 	 * Per-state lists of transaction. Each non-failed transaction is in one
 	 * of these lists.
