@@ -745,15 +745,6 @@ static int be_domain_level_enter(struct m0_module *module)
 			return M0_RC(0);
 		return M0_RC(m0_be_log_open(m0_be_domain_log(dom),
 		                            &cfg->bc_log));
-	case M0_BE_DOMAIN_LEVEL_NORMAL_SEG0_OPEN:
-		if (cfg->bc_mkfs_mode)
-			return M0_RC(0);
-		return M0_RC(be_domain_seg_open(dom, m0_be_domain_seg0_get(dom),
-						cfg->bc_seg0_stob_key));
-	case M0_BE_DOMAIN_LEVEL_NORMAL_0TYPES_VISIT:
-		if (cfg->bc_mkfs_mode)
-			return M0_RC(0);
-		return M0_RC(_0types_visit(dom, true));
 	case M0_BE_DOMAIN_LEVEL_PD_INIT:
 		M0_ASSERT(equi(cfg->bc_seg_cfg == NULL, cfg->bc_seg_nr == 0));
 		M0_ASSERT_INFO(cfg->bc_pd_cfg.bpdc_seg_io_nr >=
@@ -765,6 +756,15 @@ static int be_domain_level_enter(struct m0_module *module)
 					&cfg->bc_engine.bec_group_cfg,
 					&cfg->bc_pd_cfg.bpdc_io_credit);
 		return M0_RC(m0_be_pd_init(&dom->bd_pd, &cfg->bc_pd_cfg));
+	case M0_BE_DOMAIN_LEVEL_NORMAL_SEG0_OPEN:
+		if (cfg->bc_mkfs_mode)
+			return M0_RC(0);
+		return M0_RC(be_domain_seg_open(dom, m0_be_domain_seg0_get(dom),
+						cfg->bc_seg0_stob_key));
+	case M0_BE_DOMAIN_LEVEL_NORMAL_0TYPES_VISIT:
+		if (cfg->bc_mkfs_mode)
+			return M0_RC(0);
+		return M0_RC(_0types_visit(dom, true));
 	case M0_BE_DOMAIN_LEVEL_LOG_DISCARD_INIT:
 		cfg->bc_log_discard_cfg.ldsc_sync = &be_domain_ldsc_sync;
 		cfg->bc_log_discard_cfg.ldsc_discard =
@@ -867,6 +867,9 @@ static void be_domain_level_leave(struct m0_module *module)
 	case M0_BE_DOMAIN_LEVEL_NORMAL_LOG_OPEN:
 		m0_be_log_close(&dom->bd_engine.eng_log);
 		break;
+	case M0_BE_DOMAIN_LEVEL_PD_INIT:
+		m0_be_pd_fini(&dom->bd_pd);
+		break;
 	case M0_BE_DOMAIN_LEVEL_NORMAL_SEG0_OPEN:
 		/*
 		 * XXX A bug in failure handling is here.
@@ -882,9 +885,6 @@ static void be_domain_level_leave(struct m0_module *module)
 		break;
 	case M0_BE_DOMAIN_LEVEL_NORMAL_0TYPES_VISIT:
 		(void)_0types_visit(dom, false);
-		break;
-	case M0_BE_DOMAIN_LEVEL_PD_INIT:
-		m0_be_pd_fini(&dom->bd_pd);
 		break;
 	case M0_BE_DOMAIN_LEVEL_LOG_DISCARD_INIT:
 		break;
@@ -927,9 +927,9 @@ static const struct m0_modlev levels_be_domain[] = {
 	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_LOG_CONFIGURE),
 	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_MKFS_LOG_CREATE),
 	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_NORMAL_LOG_OPEN),
+	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_PD_INIT),
 	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_NORMAL_SEG0_OPEN),
 	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_NORMAL_0TYPES_VISIT),
-	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_PD_INIT),
 	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_LOG_DISCARD_INIT),
 	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_ENGINE_INIT),
 	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_ENGINE_START),
