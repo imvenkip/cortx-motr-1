@@ -456,9 +456,19 @@ static void ioq_io_error(struct m0_stob_ioq *ioq, struct ioq_qev *qev)
 	M0_LOG(M0_WARN, "IO error: stob_id=" STOB_ID_F " conf_sdev=" FID_F,
 	       STOB_ID_P(&lstob->sl_stob.so_id), FID_P(&lstob->sl_conf_sdev));
 
+	if (m0_get()->i_ha == NULL || m0_get()->i_ha_link == NULL) {
+		/*
+		 * HA is not initialised. It may happen when I/O error occurs
+		 * in UT or some subsystem performs I/O after HA finalisation.
+		 */
+		M0_LOG(M0_DEBUG, "IO error rc=%d is not sent to HA", io->si_rc);
+		M0_LEAVE();
+		return;
+	}
+
 	M0_ALLOC_PTR(msg);
 	if (msg == NULL) {
-		M0_LOG(M0_ERROR, "can't allocate memory for msg");
+		M0_LOG(M0_ERROR, "Can't allocate memory for msg");
 		M0_LEAVE();
 		return;
 	}
@@ -511,23 +521,6 @@ static void ioq_complete(struct m0_stob_ioq *ioq, struct ioq_qev *qev,
 	M0_ASSERT(!m0_queue_link_is_in(&qev->iq_linkage));
 	M0_ASSERT(io->si_state == SIS_BUSY);
 	M0_ASSERT(m0_atomic64_get(&lio->si_done) < lio->si_nr);
-
-	/* Fault injection point for HA signaling. */
-	if (M0_FI_ENABLED("ioq_timeout")) {
-		struct m0_fid *conf_sdev =
-			&m0_stob_linux_container(io->si_obj)->sl_conf_sdev;
-		/*
-		 * 1. This FI is used by HA ST.
-		 * 2. HA ST does not call m0_storage_dev_new_by_conf().
-		 * 3. m0_stob_linux::sl_conf_sdev is only set by
-		 *    m0_storage_dev_new_by_conf().
-		 *
-		 * That is why we have to set dummy fid here.
-		 */
-		M0_ASSERT(!m0_fid_is_set(conf_sdev));
-		m0_fid_set(conf_sdev, 0x6400000000000001, 2);
-		ioq_io_error(ioq, qev);
-	}
 
 	/* short read. */
 	if (io->si_opcode == SIO_READ && res >= 0 && res < qev->iq_nbytes) {

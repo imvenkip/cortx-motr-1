@@ -2832,6 +2832,12 @@ static void cs_level_leave(struct m0_module *module)
 	case CS_LEVEL_REQH_STOP_HACK:
 		if (cctx->cc_ha_is_started)
 			cctx->cc_ha_was_started = true;
+		/*
+		 * XXX There is a race during HA finalisation. Addb2 is still
+		 * up at this point and may cause I/O to storage. If the I/O
+		 * fails ioq_io_error() uses i_ha and i_ha_link to send an HA
+		 * message. This can be done along with the HA finalisation.
+		 */
 		if (cctx->cc_ha_was_started &&
 		    rctx->rc_state >= RC_REQH_INITIALISED)
 			cs_ha_fini(cctx);
