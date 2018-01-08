@@ -17,27 +17,19 @@
  * Original creation date: 05/21/2010
  */
 
-#include <fcntl.h>		/* fcntl */
-#include <stdlib.h>		/* system */
-#include <stdio.h>		/* fopen, fgetc, ... */
-#include <sys/stat.h>		/* mkdir */
-#include <sys/types.h>		/* mkdir */
-#include <linux/limits.h>
+#include <stdlib.h>             /* system */
 
-#include "lib/misc.h"		/* M0_SET0 */
+#include "lib/arith.h"          /* max_check */
 #include "lib/memory.h"
-#include "lib/errno.h"
-#include "lib/assert.h"
-#include "lib/string.h"		/* m0_strdup */
+#include "lib/misc.h"           /* ARRAY_SIZE */
+#include "lib/mutex.h"
+#include "lib/string.h"         /* m0_strdup */
 #include "ut/stob.h"
 #include "ut/ut.h"
-#include "lib/mutex.h"
-#include "lib/arith.h"
 
+#include "stob/domain.h"
+#include "stob/io.h"
 #include "stob/stob.h"
-#include "balloc/balloc.h"
-#include "mero/init.h"
-#include "fol/fol.h"
 
 #define WITH_LOCK(lock, action, args...) ({		\
 			struct m0_mutex *lk = lock;	\
@@ -100,7 +92,7 @@ static struct m0_mutex lock;
 static struct m0_thread thread[TEST_NR];
 
 #define ST_ID(id) .st_stob_key = id
-struct stobio_test tests[TEST_NR] = {
+static struct stobio_test tests[TEST_NR] = {
 	/* buffered IO tests */
 	[0] = { ST_ID(0x01), .st_directio = false },
 	[1] = { ST_ID(0x02), .st_directio = false },
@@ -128,8 +120,8 @@ static char *stob_backingfile_get(const struct stobio_test *test)
 	rc = sprintf(backingfile, "%s/%"PRIx64":%"PRIx64"",
 				   test->st_dom->sd_location_data,
 				   fid.f_container, fid.f_key);
-	M0_ASSERT(rc < sizeof(backingfile));
-	M0_ASSERT(backingfile[0] != '/');
+	M0_UT_ASSERT(rc < sizeof(backingfile));
+	M0_UT_ASSERT(backingfile[0] != '/');
 	return m0_strdup(backingfile);
 }
 
@@ -179,14 +171,12 @@ static void stob_dev_fini(const struct stobio_test *test)
 	    !m0_streq(test->st_dev_path, test_blkdev))
 		return;
 
-	result = system("sleep 5");
-	M0_UT_ASSERT(result == 0);
 	sprintf(sysbuf, "losetup -d %s", test->st_dev_path);
 	result = system(sysbuf);
 	M0_UT_ASSERT(result == 0);
 	backingfile = stob_backingfile_get(test);
 	result = sprintf(sysbuf, "rm -f %s", backingfile);
-	M0_ASSERT(result < sizeof(sysbuf));
+	M0_UT_ASSERT(result < sizeof(sysbuf));
 	result = system(sysbuf);
 	M0_UT_ASSERT(result == 0);
 	m0_free(backingfile);
@@ -239,7 +229,8 @@ static void stobio_write(struct stobio_test *test)
 	m0_chan_wait(&clink);
 
 	M0_UT_ASSERT(io.si_rc == 0);
-	M0_UT_ASSERT(io.si_count == test->st_rw_buf_size_in_blocks * RW_BUFF_NR);
+	M0_UT_ASSERT(io.si_count ==
+		     test->st_rw_buf_size_in_blocks * RW_BUFF_NR);
 
 	m0_clink_del_lock(&clink);
 	m0_clink_fini(&clink);
@@ -333,9 +324,9 @@ static void stobio_storage_fini(void)
 	int result;
 
 	result = m0_stob_domain_destroy(test_dom);
-	M0_ASSERT(result == 0);
+	M0_UT_ASSERT(result == 0);
 	result = m0_stob_domain_destroy(test_dom_dio);
-	M0_ASSERT(result == 0);
+	M0_UT_ASSERT(result == 0);
 }
 
 static int stobio_init(struct stobio_test *test)
@@ -344,7 +335,8 @@ static int stobio_init(struct stobio_test *test)
 	struct m0_stob_id stob_id;
 
 	test->st_dom = test->st_directio ? test_dom_dio : test_dom;
-	m0_stob_id_make(0, test->st_stob_key, &test->st_dom->sd_id, &stob_id);
+	m0_stob_id_make(0, test->st_stob_key,
+			m0_stob_domain_id_get(test->st_dom), &stob_id);
 	result = m0_stob_find(&stob_id, &test->st_obj);
 	M0_UT_ASSERT(result == 0);
 
@@ -390,7 +382,8 @@ static void stobio_rwsegs_prepare(struct stobio_test *test, int starts_from)
 	}
 }
 
-static void stobio_rwsegs_overlapped_prepare(struct stobio_test *test, int starts_from)
+static void stobio_rwsegs_overlapped_prepare(struct stobio_test *test,
+					     int starts_from)
 {
 	int i;
 	for (i = 0; i < RW_BUFF_NR; ++i) {
@@ -401,7 +394,7 @@ static void stobio_rwsegs_overlapped_prepare(struct stobio_test *test, int start
 	}
 }
 
-void overlapped_rw_test(struct stobio_test *test, int starts_from)
+static void overlapped_rw_test(struct stobio_test *test, int starts_from)
 {
 	int i;
 	int j;
@@ -433,7 +426,7 @@ void overlapped_rw_test(struct stobio_test *test, int starts_from)
 	WITH_LOCK(&lock, stobio_fini, test);
 }
 
-void test_stobio(void)
+static void test_stobio(void)
 {
 	int i;
 	int result;
@@ -462,7 +455,7 @@ void test_stobio(void)
 	m0_mutex_fini(&lock);
 }
 
-void test_short_read(void)
+static void test_short_read(void)
 {
 	int                 i;
 	int                 j;
@@ -504,7 +497,7 @@ void test_short_read(void)
  * This test tries to write 1M at offset 1M with a single indexvec. Data
  * is available in 256 4K buffers.
  */
-void test_single_ivec()
+static void test_single_ivec()
 {
 	int                i;
 	int                result;
@@ -532,6 +525,8 @@ void test_single_ivec()
 	result = stobio_storage_init();
 	M0_UT_ASSERT(result == 0);
 	WITH_LOCK(&lock, stobio_init, test);
+
+	M0_UT_ASSERT(test->st_block_shift == SHIFT);
 
 	for (i = 0; i < VEC_NR; ++i) {
 		st_rdbuf[i] = m0_alloc_aligned(BLOCK_SIZE, SHIFT);
@@ -563,7 +558,7 @@ void test_single_ivec()
 	M0_UT_ASSERT(result == 0);
 
 	m0_chan_wait(&clink);
-	M0_ASSERT(io.si_rc == 0);
+	M0_UT_ASSERT(io.si_rc == 0);
 
 	m0_clink_del_lock(&clink);
 	m0_clink_fini(&clink);
