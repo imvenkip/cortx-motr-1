@@ -435,12 +435,6 @@ generate_halon_facts()
     then
         log "Switching Halon to clovis role maps"
         ln $vopt -sf $clovis_role_file $mero_role_file
-
-        local prov_role_file=/etc/halon/role_maps/prov.ede
-        if [[ -e $prov_role_file ]] ; then
-            mv $prov_role_file $prov_role_file.orig
-            ln $vopt -sf $clovis_role_file $prov_role_file
-        fi
     fi
 
     local halond_conf=/etc/sysconfig/halond
