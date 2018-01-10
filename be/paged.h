@@ -59,7 +59,32 @@ enum m0_be_pd_module_level {
 	M0_BE_PD_LEVEL_READY,
 };
 
+enum m0_be_pd_mapping_type {
+	/**
+	 * One system mapping for whole BE mapping. Attach() locks system pages
+	 * what avoids pagefaults. Detach() releases system pages with
+	 * madvise(). User can bypass paged interface and access memory regions
+	 * directly what hides errors. */
+	M0_BE_PD_MAPPING_SINGLE = 1,
+	/**
+	 * Separated system mapping for every BE page. Attach()/detach() use
+	 * mmap()/munmap() interface. Accessing not attached BE page generates
+	 * invalid memory reference, This approach increases chance to catch
+	 * code which bypasses paged interface. However, "bypassing" code can
+	 * access a page attached by other user and signal won't be generated.
+	 */
+	M0_BE_PD_MAPPING_PER_PAGE,
+	/**
+	 * Compatibility for code which hasn't been converted. This mode maps a
+	 * single system mapping with backing store provided by BE segment.
+	 * Users are supposed to access this mapping without paged interface.
+	 */
+	M0_BE_PD_MAPPING_COMPAT,
+};
+
 struct m0_be_pd_cfg {
+	/* XXX temporary solution, need to make proper per-mapping type */
+	enum m0_be_pd_mapping_type   bpc_mapping_type;
 	struct m0_be_pd_io_sched_cfg bpc_io_sched_cfg;
 };
 
@@ -203,29 +228,6 @@ M0_INTERNAL bool m0_be_pd_page_is_locked(struct m0_be_pd_page *page);
 M0_INTERNAL bool m0_be_pd_page_is_in(struct m0_be_pd      *paged,
 				     struct m0_be_pd_page *page);
 
-enum m0_be_pd_mapping_type {
-	/**
-	 * One system mapping for whole BE mapping. Attach() locks system pages
-	 * what avoids pagefaults. Detach() releases system pages with
-	 * madvise(). User can bypass paged interface and access memory regions
-	 * directly what hides errors. */
-	M0_BE_PD_MAPPING_SINGLE = 1,
-	/**
-	 * Separated system mapping for every BE page. Attach()/detach() use
-	 * mmap()/munmap() interface. Accessing not attached BE page generates
-	 * invalid memory reference, This approach increases chance to catch
-	 * code which bypasses paged interface. However, "bypassing" code can
-	 * access a page attached by other user and signal won't be generated.
-	 */
-	M0_BE_PD_MAPPING_PER_PAGE,
-	/**
-	 * Compatibility for code which hasn't been converted. This mode maps a
-	 * single system mapping with backing store provided by BE segment.
-	 * Users are supposed to access this mapping without paged interface.
-	 */
-	M0_BE_PD_MAPPING_COMPAT,
-};
-
 /**
  * BE mapping is an abstraction which represents continuous memory region as
  * set of BE pages and implements mapping/unmapping logic for the page states
@@ -234,7 +236,7 @@ enum m0_be_pd_mapping_type {
  * BE mapping guarantees absence of page faults and segfaults during access to
  * memory region of a populated (attached) BE page.
  *
- * BE mapping supports different internal behaviour which is retermined by its
+ * BE mapping supports different internal behaviour what is determined by its
  * type. See m0_be_pd_mapping_type for details.
  *
  * Locking.

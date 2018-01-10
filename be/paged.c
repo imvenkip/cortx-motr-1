@@ -113,7 +113,7 @@ static const struct m0_modlev be_pd_levels[] = {
 };
 
 M0_INTERNAL int m0_be_pd_init(struct m0_be_pd           *pd,
-                              const struct m0_be_pd_cfg *pd_cfg)
+			      const struct m0_be_pd_cfg *pd_cfg)
 {
 	int rc;
 
@@ -611,6 +611,35 @@ static struct m0_be_pd_mapping *be_pd_mapping_find(struct m0_be_pd *paged,
 	return NULL;
 }
 
+/* Uses madvise(2) on memory range which may be subrange of the mapping. */
+static void be_pd_mapping_advise(struct m0_be_pd_mapping *mapping,
+				 void                    *addr,
+				 size_t                   len)
+{
+	void *reserved;
+	void *addr_end;
+	int   rc;
+
+	rc = madvise(addr, len, MADV_DONTFORK);
+	if (rc != 0)
+		M0_LOG(M0_DEBUG, "MADV_DONTFORK: errno=%d", errno);
+
+	/*
+	 * XXX Dump first 64MB of mapping for debug. TODO Configure instead of
+	 * hardcoding.
+	 */
+	reserved = (char *)m0_be_pd_mapping__addr(mapping) + (64ULL << 20);
+	addr_end = (char *)addr + len;
+	if ((unsigned long)addr_end > (unsigned long)reserved) {
+		if ((unsigned long)addr < (unsigned long)reserved) {
+			addr = reserved;
+			len -= reserved - addr;
+		}
+		/* Rely on m0_dont_dump() reporting errors. */
+		(void)m0_dont_dump(addr, len);
+	}
+}
+
 static int be_pd_mapping_map(struct m0_be_pd_mapping *mapping)
 {
 	void   *addr;
@@ -638,6 +667,9 @@ static int be_pd_mapping_map(struct m0_be_pd_mapping *mapping)
 	default:
 		M0_IMPOSSIBLE("Mapping type doesn't exist.");
 	}
+
+	if (p != MAP_FAILED && p != NULL)
+		be_pd_mapping_advise(mapping, addr, size);
 
 	return p == MAP_FAILED ? M0_ERR(-errno) : M0_RC(0);
 }
@@ -682,7 +714,8 @@ M0_INTERNAL int m0_be_pd_mapping_init(struct m0_be_pd *paged,
 	M0_ALLOC_PTR(mapping);
 	M0_ASSERT(mapping != NULL); /* XXX */
 
-	mapping->pas_type   = M0_BE_PD_MAPPING_PER_PAGE;
+	mapping->pas_type   = paged->bp_cfg.bpc_mapping_type;
+	mapping->pas_pd     = paged;
 	mapping->pas_pcount = size / page_size;
 	M0_ALLOC_ARR(mapping->pas_pages, mapping->pas_pcount);
 	M0_ASSERT(mapping->pas_pages != NULL); /* XXX */
@@ -755,6 +788,8 @@ M0_INTERNAL int m0_be_pd_mapping_page_attach(struct m0_be_pd_mapping *mapping,
 		if (p == MAP_FAILED)
 			rc = M0_ERR(-errno);
 		else {
+			be_pd_mapping_advise(mapping,
+					     page->pp_page, page->pp_size);
 			rc = mlock(page->pp_page, page->pp_size);
 			if (rc != 0) {
 				rc = M0_ERR(-errno);

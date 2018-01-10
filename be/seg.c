@@ -24,7 +24,7 @@
 #include "be/seg.h"
 
 #include "lib/misc.h"         /* M0_IN */
-#include "lib/memory.h"       /* m0_alloc_aligned */
+#include "lib/memory.h"       /* m0_alloc */
 #include "lib/errno.h"        /* ENOMEM */
 #include "lib/time.h"         /* m0_time_now */
 #include "lib/atomic.h"       /* m0_atomic64 */
@@ -36,11 +36,8 @@
 
 #include "be/domain.h"        /* m0_be_domain */
 #include "be/io.h"            /* m0_be_io */
-#include "be/paged.h"         /* m0_be_pd_mapping_init, M0_BE_PD_PAGE_SIZE */
+#include "be/paged.h"         /* m0_be_pd_mapping_init */
 #include "be/seg_internal.h"  /* m0_be_seg_hdr */
-
-#include <sys/mman.h>         /* mmap */
-#include <search.h>           /* twalk */
 
 /**
  * @addtogroup be
@@ -294,31 +291,6 @@ bool m0_be_reg__invariant(const struct m0_be_reg *reg)
 				      reg->br_addr + reg->br_size - 1));
 }
 
-static void be_seg_madvise(struct m0_be_seg *seg, m0_bcount_t dump_limit,
-			   int flag)
-{
-	int rc;
-
-	if (dump_limit >= seg->bs_size)
-		return;
-
-	if (flag == MADV_DONTDUMP)
-		rc = m0_dont_dump(seg->bs_addr + dump_limit,
-				  seg->bs_size - dump_limit);
-	else
-		rc = madvise(seg->bs_addr + dump_limit,
-			     seg->bs_size - dump_limit,
-			     flag);
-
-	if (rc == 0)
-		M0_LOG(M0_INFO, "madvise(%p, %"PRIu64", %d) = %d",
-		       seg->bs_addr, seg->bs_size, flag, rc);
-	else
-		M0_LOG(M0_ERROR, "madvise(%p, %"PRIu64", %d) = %d",
-		       seg->bs_addr, seg->bs_size, flag, rc);
-
-}
-
 M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg)
 {
 #ifdef M0_BE_SEG_HDR_VERSION
@@ -375,8 +347,6 @@ M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg)
 		seg->bs_addr     = g->sg_addr;
 		seg->bs_offset   = g->sg_offset;
 		seg->bs_state    = M0_BSS_OPENED;
-		be_seg_madvise(seg, M0_BE_SEG_CORE_DUMP_LIMIT, MADV_DONTDUMP);
-		be_seg_madvise(seg,                      0ULL, MADV_DONTFORK);
 	}
 
 	m0_free(hdr);

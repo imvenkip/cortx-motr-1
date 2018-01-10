@@ -78,11 +78,10 @@ static bool be_ut_pd_page_is_resident(const struct m0_be_pd_page *page)
 	return result;
 }
 
-void m0_be_ut_pd_mapping_resident(void)
+static void m0_be_ut_pd_mapping_resident_with_cfg(struct m0_be_pd_cfg *pd_cfg)
 {
 	struct m0_be_pd_mapping *mapping;
 	struct m0_be_pd_page    *page;
-	struct m0_be_pd_cfg      paged_cfg;
 	struct m0_be_pd          paged = {};
 	m0_bcount_t              seg_size;
 	void                    *seg_addr;
@@ -93,14 +92,7 @@ void m0_be_ut_pd_mapping_resident(void)
 
 	sys_page_size = m0_pagesize_get();
 
-	paged_cfg = (struct m0_be_pd_cfg){
-		.bpc_io_sched_cfg = {
-			.bpdc_seg_io_nr          = 1,
-			.bpdc_seg_io_pending_max = 1,
-			.bpdc_io_credit          = M0_BE_IO_CREDIT(1, 1, 1),
-		},
-	};
-	rc = m0_be_pd_init(&paged, &paged_cfg);
+	rc = m0_be_pd_init(&paged, pd_cfg);
 	M0_UT_ASSERT(rc == 0);
 
 	seg_size = BE_UT_PD_SEG_SIZE;
@@ -153,6 +145,21 @@ void m0_be_ut_pd_mapping_resident(void)
 	rc = m0_be_pd_mapping_fini(&paged, seg_addr, seg_size);
 	M0_UT_ASSERT(rc == 0);
 	m0_be_pd_fini(&paged);
+}
+
+void m0_be_ut_pd_mapping_resident(void)
+{
+	struct m0_be_domain_cfg  cfg = {};
+	struct m0_be_pd_cfg     *pd_cfg;
+
+	m0_be_ut_backend_cfg_default(&cfg);
+	pd_cfg = &cfg.bc_pd_cfg;
+
+	pd_cfg->bpc_mapping_type = M0_BE_PD_MAPPING_PER_PAGE;
+	m0_be_ut_pd_mapping_resident_with_cfg(pd_cfg);
+
+	pd_cfg->bpc_mapping_type = M0_BE_PD_MAPPING_SINGLE;
+	m0_be_ut_pd_mapping_resident_with_cfg(pd_cfg);
 }
 
 #undef M0_TRACE_SUBSYSTEM
