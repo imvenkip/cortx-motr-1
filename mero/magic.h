@@ -159,11 +159,17 @@ enum m0_magic_satchel {
 	/* m0_be_active_record_domain_subsystem::rds_list (be glad blood) */
 	M0_BE_ACT_REC_DOM_SUB_MAGIC = 0x333be91adb100d77,
 
-	/* m0_be_pd_request_queue::prq_queue (be head shoot) */
-	M0_BE_PD_REQQ_MAGIC = 0x333be4ead5400277,
-
 	/* m0_be_pd_request::ptr_magic (be bad boot) */
-	M0_BE_PD_REQQ_LINK_MAGIC = 0x333bebadb0027777,
+	M0_BE_PD_REQUEST_MAGIC = 0x333bebadb0027777,
+
+	/* m0_be_pd_request_queue::prq_queue (be head shoot) */
+	M0_BE_PD_REQUEST_HEAD_MAGIC = 0x333be4ead5400277,
+
+	/* m0_be_pd_mapping::pas_magic (be faded disc) */
+	M0_BE_PD_MAPPING_MAGIC = 0x33befadedd15c077,
+
+	/* m0_be_pd::bp_mappings (be faced disc) */
+	M0_BE_PD_MAPPING_HEAD_MAGIC = 0x33befacedd15c077,
 
 /* m0t1fs */
 	/* m0t1fs_sb::s_magic (cozie filesis) */

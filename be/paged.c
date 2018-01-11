@@ -43,16 +43,16 @@
 /* -------------------------------------------------------------------------- */
 
 M0_TL_DESCR_DEFINE(reqq,
-		   "list of m0_be_pd_request-s inside m0_be_pd_request_queue",
+		   "List of m0_be_pd_request-s inside m0_be_pd_request_queue",
 		   static, struct m0_be_pd_request, ptr_rq_link, ptr_magic,
-		   M0_BE_PD_REQQ_LINK_MAGIC, M0_BE_PD_REQQ_MAGIC);
+		   M0_BE_PD_REQUEST_MAGIC, M0_BE_PD_REQUEST_HEAD_MAGIC);
 M0_TL_DEFINE(reqq, static, struct m0_be_pd_request);
 
 
 M0_TL_DESCR_DEFINE(mappings,
-		   "list of MAPPINGSZZZZZ XXXXXXXXXXXXx ",
+		   "List of BE mappings",
 		   static, struct m0_be_pd_mapping, pas_tlink, pas_magic,
-		   M0_BE_PD_REQQ_LINK_MAGIC, M0_BE_PD_REQQ_MAGIC); /*XXX*/
+		   M0_BE_PD_MAPPING_MAGIC, M0_BE_PD_MAPPING_HEAD_MAGIC);
 M0_TL_DEFINE(mappings, static, struct m0_be_pd_mapping);
 
 /* -------------------------------------------------------------------------- */
