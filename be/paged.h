@@ -53,12 +53,6 @@ struct m0_be_op;
 struct m0_fom;
 
 
-enum m0_be_pd_module_level {
-	M0_BE_PD_LEVEL_INIT,
-	M0_BE_PD_LEVEL_IO_SCHED,
-	M0_BE_PD_LEVEL_READY,
-};
-
 enum m0_be_pd_mapping_type {
 	/**
 	 * One system mapping for whole BE mapping. Attach() locks system pages
@@ -84,23 +78,9 @@ enum m0_be_pd_mapping_type {
 
 struct m0_be_pd_cfg {
 	/* XXX temporary solution, need to make proper per-mapping type */
-	enum m0_be_pd_mapping_type   bpc_mapping_type;
-	struct m0_be_pd_io_sched_cfg bpc_io_sched_cfg;
-};
-
-struct m0_be_pd {
-	struct m0_be_pd_cfg            bp_cfg;
-	struct m0_module               bp_module;
-	struct m0_be_pd_io_sched       bp_io_sched;
-	struct m0_tl                   bp_mappings;
-
-	/**
-	 * NOTE: This queue may contain several subqueues, for example, for read
-	 * and write requests. It can slightly improve performance for cases
-	 * with blocked WRITE requests living in parallel with READ requests.
-	 */
-	struct m0_be_pd_request_queue *bp_reqq;
-	struct m0_be_pd_fom           *bp_fom;
+	enum m0_be_pd_mapping_type    bpc_mapping_type;
+	struct m0_reqh               *bpc_reqh;
+	struct m0_be_pd_io_sched_cfg  bpc_io_sched_cfg;
 };
 
 M0_INTERNAL int m0_be_pd_init(struct m0_be_pd           *pd,
@@ -314,8 +294,8 @@ m0_be_pd__mapping_by_addr(struct m0_be_pd *paged, const void *addr);
 /* ------------------------------------------------------------------------- */
 
 enum m0_be_pd_request_type {
-	PRT_READ,
-	PRT_WRITE,
+	M0_PRT_READ,
+	M0_PRT_WRITE,
 };
 
 /**
@@ -373,8 +353,12 @@ M0_INTERNAL void m0_be_pd_request_pages_fill(struct m0_be_pd_request_pages *rqp,
 struct m0_be_pd_request {
 	struct m0_be_op                prt_op;
 	struct m0_be_pd_request_pages  prt_pages;
-	struct m0_tlink                ptr_rq_link;
-	uint64_t                       ptr_magic;
+	struct m0_tlink                prt_rq_link;
+	uint64_t                       prt_magic;
+
+	/** Defines order for WRITE requests. TODO Link to be-io or problem
+	    description */
+	struct m0_ext                  prt_ext;
 };
 
 /* internal */
@@ -528,9 +512,15 @@ M0_INTERNAL void m0_be_pd_request_fini(struct m0_be_pd_request       *request);
 struct m0_be_pd_request_queue {
 	struct m0_mutex prq_lock;
 	struct m0_tl    prq_queue;
+
+	/* TODO describe these */
+	struct m0_tl    prq_deferred;
+	m0_bcount_t     prq_current_pos;
 };
 
-M0_INTERNAL int m0_be_pd_request_queue_init(struct m0_be_pd_request_queue *rq);
+/* TODO describe what pos_start is. */
+M0_INTERNAL int m0_be_pd_request_queue_init(struct m0_be_pd_request_queue *rq,
+					    m0_bcount_t pos_start);
 M0_INTERNAL void m0_be_pd_request_queue_fini(struct m0_be_pd_request_queue *rq);
 
 /**
@@ -581,11 +571,32 @@ M0_INTERNAL void m0_be_pd_fom_init(struct m0_be_pd_fom    *fom,
 
 M0_INTERNAL void m0_be_pd_fom_fini(struct m0_be_pd_fom    *fom);
 
+M0_INTERNAL int m0_be_pd_fom_start(struct m0_be_pd_fom *fom);
+M0_INTERNAL void m0_be_pd_fom_stop(struct m0_be_pd_fom *fom);
+
 M0_INTERNAL void m0_be_pd_fom_mod_init(void);
 M0_INTERNAL void m0_be_pd_fom_mod_fini(void);
 
 /* ------------------------------------------------------------------------- */
+/* XXX move this structure to proper place */
 
+struct m0_be_pd {
+	struct m0_be_pd_cfg            bp_cfg;
+	struct m0_module               bp_module;
+	struct m0_be_pd_io_sched       bp_io_sched;
+	struct m0_tl                   bp_mappings;
+
+	/**
+	 * NOTE: This queue may contain several subqueues, for example, for read
+	 * and write requests. It can slightly improve performance for cases
+	 * with blocked WRITE requests living in parallel with READ requests.
+	 */
+	struct m0_be_pd_request_queue  bp_reqq;
+	struct m0_be_pd_fom            bp_fom;
+};
+
+/* ------------------------------------------------------------------------- */
+/*
 enum m0_be_pd_io_type {
 	M0_PIT_READ,
 	M0_PIT_WRITE,
@@ -605,7 +616,7 @@ M0_INTERNAL void m0_be_NEW_pd_io_put(struct m0_be_NEW_pd_io *pio);
 M0_INTERNAL int m0_be_pd_io_launch(struct m0_be_NEW_pd_io *pio);
 M0_INTERNAL void m0_be_NEW_pd_io_add(struct m0_be_NEW_pd_io *pio,
 				 struct m0_be_pd_page *page);
-
+*/
 /* ------------------------------------------------------------------------- */
 
 

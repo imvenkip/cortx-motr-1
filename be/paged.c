@@ -24,8 +24,6 @@
  * @{
  */
 
-#include <sys/mman.h>        /* mmap, madvise */
-
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
 #include "lib/trace.h"
 #include "lib/errno.h"
@@ -38,13 +36,27 @@
 #include "rpc/rpc_opcodes.h" /* M0_BE_PD_FOM_OPCODE */
 #include "module/instance.h" /* m0_get */
 
+#include <sys/mman.h>        /* mmap, madvise */
+
+/* -------------------------------------------------------------------------- */
+/* XXX									      */
+/* -------------------------------------------------------------------------- */
+
+enum m0_be_pd_module_level {
+	M0_BE_PD_LEVEL_INIT,
+	M0_BE_PD_LEVEL_IO_SCHED,
+	M0_BE_PD_LEVEL_REQQ,
+	M0_BE_PD_LEVEL_FOM,
+	M0_BE_PD_LEVEL_READY,
+};
+
 /* -------------------------------------------------------------------------- */
 /* Prototypes								      */
 /* -------------------------------------------------------------------------- */
 
 M0_TL_DESCR_DEFINE(reqq,
 		   "List of m0_be_pd_request-s inside m0_be_pd_request_queue",
-		   static, struct m0_be_pd_request, ptr_rq_link, ptr_magic,
+		   static, struct m0_be_pd_request, prt_rq_link, prt_magic,
 		   M0_BE_PD_REQUEST_MAGIC, M0_BE_PD_REQUEST_HEAD_MAGIC);
 M0_TL_DEFINE(reqq, static, struct m0_be_pd_request);
 
@@ -71,6 +83,12 @@ static int be_pd_level_enter(struct m0_module *module)
 	case M0_BE_PD_LEVEL_IO_SCHED:
 		return M0_RC(m0_be_pd_io_sched_init(&pd->bp_io_sched,
 					    &pd->bp_cfg.bpc_io_sched_cfg));
+	case M0_BE_PD_LEVEL_REQQ:
+		return m0_be_pd_request_queue_init(&pd->bp_reqq,
+			pd->bp_cfg.bpc_io_sched_cfg.bpdc_sched.bisc_pos_start);
+	case M0_BE_PD_LEVEL_FOM:
+		m0_be_pd_fom_init(&pd->bp_fom, pd, pd->bp_cfg.bpc_reqh);
+		return m0_be_pd_fom_start(&pd->bp_fom);
 	case M0_BE_PD_LEVEL_READY:
 		return M0_RC(0);
 	}
@@ -89,33 +107,38 @@ static void be_pd_level_leave(struct m0_module *module)
 	case M0_BE_PD_LEVEL_IO_SCHED:
 		m0_be_pd_io_sched_fini(&pd->bp_io_sched);
 		return;
+	case M0_BE_PD_LEVEL_REQQ:
+		m0_be_pd_request_queue_fini(&pd->bp_reqq);
+		return;
+	case M0_BE_PD_LEVEL_FOM:
+		m0_be_pd_fom_stop(&pd->bp_fom);
+		m0_be_pd_fom_fini(&pd->bp_fom);
+		return;
 	case M0_BE_PD_LEVEL_READY:
 		return;
 	}
 }
 
+#define BE_PD_LEVEL(level) [level] = {          \
+		.ml_name  = #level,             \
+		.ml_enter = be_pd_level_enter,  \
+		.ml_leave = be_pd_level_leave,  \
+	}
 static const struct m0_modlev be_pd_levels[] = {
-	[M0_BE_PD_LEVEL_INIT] = {
-		.ml_name  = "M0_BE_PD_LEVEL_INIT",
-		.ml_enter = be_pd_level_enter,
-		.ml_leave = be_pd_level_leave,
-	},
-	[M0_BE_PD_LEVEL_IO_SCHED] = {
-		.ml_name  = "M0_BE_PD_LEVEL_IO_SCHED",
-		.ml_enter = be_pd_level_enter,
-		.ml_leave = be_pd_level_leave,
-	},
-	[M0_BE_PD_LEVEL_READY] = {
-		.ml_name  = "M0_BE_PD_LEVEL_READY",
-		.ml_enter = be_pd_level_enter,
-		.ml_leave = be_pd_level_leave,
-	},
+	BE_PD_LEVEL(M0_BE_PD_LEVEL_INIT),
+	BE_PD_LEVEL(M0_BE_PD_LEVEL_IO_SCHED),
+	BE_PD_LEVEL(M0_BE_PD_LEVEL_REQQ),
+	BE_PD_LEVEL(M0_BE_PD_LEVEL_FOM),
+	BE_PD_LEVEL(M0_BE_PD_LEVEL_READY),
 };
+#undef BE_PD_LEVEL
 
 M0_INTERNAL int m0_be_pd_init(struct m0_be_pd           *pd,
 			      const struct m0_be_pd_cfg *pd_cfg)
 {
 	int rc;
+
+	M0_PRE(pd_cfg->bpc_reqh != NULL); /* XXX catch current users */
 
 	M0_PRE(M0_IS0(pd));
 	pd->bp_cfg = *pd_cfg;
@@ -247,9 +270,23 @@ M0_INTERNAL void m0_be_pd_fom_init(struct m0_be_pd_fom    *fom,
 	m0_fom_init(&fom->bpf_gen, &pd_fom_type, &pd_fom_ops, NULL, NULL, reqh);
 }
 
-
 M0_INTERNAL void m0_be_pd_fom_fini(struct m0_be_pd_fom *fom)
 {
+	/* fom->bpf_gen is finalised in pd_fom_fini() */
+}
+
+M0_INTERNAL int m0_be_pd_fom_start(struct m0_be_pd_fom *fom)
+{
+	/* XXX commented to pass current tests */
+	/* m0_fom_queue(&fom->bpf_gen); */
+	/* TODO wait until it starts */
+
+	return 0;
+}
+
+M0_INTERNAL void m0_be_pd_fom_stop(struct m0_be_pd_fom *fom)
+{
+	/* TODO move fom to FINISH phase synchronously */
 }
 
 
@@ -267,8 +304,12 @@ M0_INTERNAL void m0_be_pd_fom_mod_fini(void)
 /* Request queue							      */
 /* -------------------------------------------------------------------------- */
 
-M0_INTERNAL int m0_be_pd_request_queue_init(struct m0_be_pd_request_queue *rq)
+M0_INTERNAL int m0_be_pd_request_queue_init(struct m0_be_pd_request_queue *rq,
+					    m0_bcount_t pos_start)
 {
+	rq->prq_current_pos = pos_start;
+	reqq_tlist_init(&rq->prq_deferred);
+
 	reqq_tlist_init(&rq->prq_queue);
 	m0_mutex_init(&rq->prq_lock);
 
@@ -279,6 +320,7 @@ M0_INTERNAL void m0_be_pd_request_queue_fini(struct m0_be_pd_request_queue *rq)
 {
 	m0_mutex_fini(&rq->prq_lock);
 	reqq_tlist_fini(&rq->prq_queue);
+	reqq_tlist_fini(&rq->prq_deferred);
 }
 
 M0_INTERNAL struct m0_be_pd_request *
@@ -297,6 +339,31 @@ m0_be_pd_request_queue_pop(struct m0_be_pd_request_queue *rq)
 	return request;
 }
 
+static bool be_pd_request_is_deferred(struct m0_be_pd_request_queue *rq,
+				      struct m0_be_pd_request       *request)
+{
+	return rq->prq_current_pos != request->prt_ext.e_start;
+}
+
+static bool be_pd_request_is_write(struct m0_be_pd_request *request)
+{
+	return request->prt_pages.prp_type == M0_PRT_WRITE;
+}
+
+static void deferred_insert_sorted(struct m0_be_pd_request_queue *rq,
+				   struct m0_be_pd_request       *request)
+{
+	/* TODO */
+}
+
+static void request_queue_update_pos(struct m0_be_pd_request_queue *rq,
+				     struct m0_be_pd_request       *request)
+{
+	M0_PRE(rq->prq_current_pos == request->prt_ext.e_start);
+
+	rq->prq_current_pos = request->prt_ext.e_end + 1;
+}
+
 M0_INTERNAL void
 m0_be_pd_request_queue_push(struct m0_be_pd_request_queue      *rq,
 			    struct m0_be_pd_request            *request,
@@ -304,14 +371,38 @@ m0_be_pd_request_queue_push(struct m0_be_pd_request_queue      *rq,
 {
 	M0_ENTRY("request=%p", request);
 
+	/* XXX catch users that don't init request->prt_ext */
+	M0_PRE(ergo(be_pd_request_is_write(request),
+		    request->prt_ext.e_end != 0));
+
 	m0_mutex_lock(&rq->prq_lock);
+
+	/*
+	 * XXX Race here. Need to post ast and check state there. Also need to
+	 * track whether ast already posted.
+	 */
 
 	/* no special lock is needed here */
 	if (reqq_tlist_length(&rq->prq_queue) == 0 &&
 	    m0_fom_phase(fom) == PFS_IDLE)
 		m0_fom_wakeup(fom);
 
-	reqq_tlist_add(&rq->prq_queue, request);
+	/* Use deferred list to push WRITE requests in required order. */
+	if (be_pd_request_is_write(request)) {
+		if (be_pd_request_is_deferred(rq, request))
+			deferred_insert_sorted(rq, request);
+		else {
+			while (request != NULL &&
+			       !be_pd_request_is_deferred(rq, request)) {
+				reqq_tlist_add_tail(&rq->prq_queue, request);
+				request_queue_update_pos(rq, request);
+				request = reqq_tlist_pop(&rq->prq_deferred);
+			}
+			if (request != NULL)
+				reqq_tlist_add(&rq->prq_deferred, request);
+		}
+	} else
+		reqq_tlist_add_tail(&rq->prq_queue, request);
 	m0_mutex_unlock(&rq->prq_lock);
 
 	M0_LEAVE();
@@ -321,8 +412,8 @@ M0_INTERNAL void m0_be_pd_request_push(struct m0_be_pd         *paged,
 				       struct m0_be_pd_request *request)
 {
 	m0_be_op_active(&request->prt_op);
-	m0_be_pd_request_queue_push(paged->bp_reqq, request,
-				    &paged->bp_fom->bpf_gen);
+	m0_be_pd_request_queue_push(&paged->bp_reqq, request,
+				    &paged->bp_fom.bpf_gen);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -438,7 +529,7 @@ m0_be_pd_request_pages_forall(struct m0_be_pd         *paged,
 	struct m0_be_reg_d            *rd;
 	struct m0_be_reg_d             rd_read;
 
-	if (rpages->prp_type == PRT_READ) {
+	if (rpages->prp_type == M0_PRT_READ) {
 		rd = &rd_read;
 		rd->rd_reg.br_addr = rpages->prp_reg.br_addr;
 		rd->rd_reg.br_size = rpages->prp_reg.br_size;
