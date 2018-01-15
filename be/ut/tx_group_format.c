@@ -352,7 +352,7 @@ static void be_ut_tgf_group_write(struct be_ut_tgf_ctx   *ctx,
 	m0_mutex_unlock(&ctx->tgfc_lock);
 
 	if (seg_write) {
-		m0_be_group_format_seg_place_prepare(gft);
+		m0_be_group_format_seg_place_prepare(gft, NULL);
 		rc = M0_BE_OP_SYNC_RET(op,
 				       m0_be_group_format_seg_place(gft, &op),
 				       bo_sm.sm_rc);
@@ -433,7 +433,7 @@ static void be_ut_tgf_group_read_check(struct be_ut_tgf_ctx   *ctx,
 					    reg->tgfr_size) == 0);
 		}
 	}
-	m0_be_group_format_seg_place_prepare(gft);
+	m0_be_group_format_seg_place_prepare(gft, NULL);
 	rc = M0_BE_OP_SYNC_RET(op,
 	                       m0_be_group_format_seg_place(gft, &op),
 	                       bo_sm.sm_rc);

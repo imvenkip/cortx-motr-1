@@ -354,7 +354,6 @@ static void deferred_insert_sorted(struct m0_be_pd_request_queue *rq,
 				   struct m0_be_pd_request       *request)
 {
 	struct m0_be_pd_request *rq_prev;
-	struct m0_be_pd_request *rq_next;
 
 	M0_PRE(m0_mutex_is_locked(&rq->prq_lock));
 
@@ -424,9 +423,11 @@ m0_be_pd_request_queue_push(struct m0_be_pd_request_queue      *rq,
 }
 
 M0_INTERNAL void m0_be_pd_request_push(struct m0_be_pd         *paged,
-				       struct m0_be_pd_request *request)
+				       struct m0_be_pd_request *request,
+				       struct m0_be_op         *op)
 {
-	m0_be_op_active(&request->prt_op);
+	request->prt_op = op;
+	m0_be_op_active(request->prt_op);
 	m0_be_pd_request_queue_push(&paged->bp_reqq, request,
 				    &paged->bp_fom.bpf_gen);
 }
@@ -443,7 +444,6 @@ M0_INTERNAL bool request_invariant(struct m0_be_pd_request *request)
 M0_INTERNAL void m0_be_pd_request_init(struct m0_be_pd_request       *request,
 				       struct m0_be_pd_request_pages *pages)
 {
-	m0_be_op_init(&request->prt_op);
 	reqq_tlink_init(request);
 	request->prt_pages = *pages;
 }
@@ -451,17 +451,18 @@ M0_INTERNAL void m0_be_pd_request_init(struct m0_be_pd_request       *request,
 M0_INTERNAL void m0_be_pd_request_fini(struct m0_be_pd_request *request)
 {
 	reqq_tlink_fini(request);
-	m0_be_op_fini(&request->prt_op);
 }
 
 M0_INTERNAL void m0_be_pd_request_pages_init(struct m0_be_pd_request_pages *rqp,
 					     enum m0_be_pd_request_type type,
 					     struct m0_be_reg_area     *rarea,
+					     struct m0_ext             *ext,
 					     struct m0_be_reg          *reg)
 {
 	*rqp = (struct m0_be_pd_request_pages) {
 		.prp_type = type,
 		.prp_reg_area = rarea,
+		.prp_ext = *ext,
 		.prp_reg = *reg,
 	};
 }

@@ -29,6 +29,7 @@
 #include "be/fmt.h"             /* m0_be_fmt_group */
 #include "be/log.h"             /* m0_be_log_io */
 #include "be/tx_credit.h"       /* m0_be_tx_credit */
+#include "be/paged.h"           /* m0_be_pd_request */
 
 /**
  * @defgroup be Meta-data back-end
@@ -129,6 +130,8 @@ struct m0_be_group_format {
 	struct m0_be_op                gft_log_discard_get;
 	/** hack because m0_be_op_tick_ret() needs M0_BOS_ACTIVE state */
 	struct m0_be_op                gft_all_get;
+	/** PageD request */
+	struct m0_be_pd_request        gft_request;
 };
 
 M0_INTERNAL int m0_be_group_format_init(struct m0_be_group_format     *gft,
@@ -193,7 +196,8 @@ M0_INTERNAL void m0_be_group_format_log_read(struct m0_be_group_format *gft,
 					     struct m0_be_op           *op);
 
 M0_INTERNAL void
-m0_be_group_format_seg_place_prepare(struct m0_be_group_format *gft);
+m0_be_group_format_seg_place_prepare(struct m0_be_group_format *gft,
+				     struct m0_be_reg_area *reg_area);
 M0_INTERNAL void m0_be_group_format_seg_place(struct m0_be_group_format *gft,
 					      struct m0_be_op           *op);
 

@@ -385,7 +385,7 @@ M0_INTERNAL void m0_be_tx_group_seg_place_prepare(struct m0_be_tx_group *gr)
 		M0_BE_REG_AREA_FORALL(&gr->tg_reg_area, rd)
 			m0_be_group_format_reg_seg_add(&gr->tg_od, rd);
 	}
-	m0_be_group_format_seg_place_prepare(&gr->tg_od);
+	m0_be_group_format_seg_place_prepare(&gr->tg_od, &gr->tg_reg_area);
 }
 
 M0_INTERNAL void m0_be_tx_group_seg_place(struct m0_be_tx_group *gr,

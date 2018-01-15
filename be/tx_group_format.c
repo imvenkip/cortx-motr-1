@@ -495,8 +495,14 @@ M0_INTERNAL void m0_be_group_format_log_read(struct m0_be_group_format *gft,
 }
 
 M0_INTERNAL void
-m0_be_group_format_seg_place_prepare(struct m0_be_group_format *gft)
+m0_be_group_format_seg_place_prepare(struct m0_be_group_format *gft,
+				     struct m0_be_reg_area *reg_area)
 {
+	struct m0_be_pd_request       *request = &gft->gft_request;
+	struct m0_be_pd_request_pages  rpages;
+
+	M0_ASSERT(reg_area != NULL); /* XXX: remove after UTs converted */
+
 	/*
 	 * Regions are added to m0_be_io for seg I/O in
 	 * m0_be_group_format_reg_seg_add().
@@ -507,6 +513,10 @@ m0_be_group_format_seg_place_prepare(struct m0_be_group_format *gft)
 				       &gft->gft_ext);
 	m0_be_log_discard_item_user_data_set(gft->gft_log_discard_item,
 					     gft->gft_cfg.gfc_log);
+
+	m0_be_pd_request_pages_init(&rpages, M0_PRT_WRITE, reg_area,
+				    &gft->gft_ext, NULL);
+	m0_be_pd_request_init(request, &rpages);
 }
 
 static void be_tx_group_format_seg_io_starting(struct m0_be_op *op, void *param)
@@ -553,7 +563,9 @@ M0_INTERNAL void m0_be_group_format_discard(struct m0_be_log_discard      *ld,
 M0_INTERNAL void m0_be_group_format_seg_place(struct m0_be_group_format *gft,
 					      struct m0_be_op           *op)
 {
-	struct m0_be_op *gft_op;
+	struct m0_be_op               *gft_op;
+	struct m0_be_pd_request       *request = &gft->gft_request;
+	struct m0_be_pd               *paged = gft->gft_cfg.gfc_pd;
 
 	gft_op = &gft->gft_pd_io_op;
 	M0_SET0(gft_op);
@@ -570,8 +582,10 @@ M0_INTERNAL void m0_be_group_format_seg_place(struct m0_be_group_format *gft,
 	m0_be_op_callback_set(gft_op, &be_tx_group_format_seg_io_op_gc,
 	                      gft, M0_BOS_GC);
 	M0_LOG(M0_DEBUG, "seg_place ldi=%p", gft->gft_log_discard_item);
-	m0_be_pd_io_add(&gft->gft_cfg.gfc_pd->bp_io_sched,
-			gft->gft_pd_io, &gft->gft_ext, gft_op);
+	/* m0_be_pd_io_add(&gft->gft_cfg.gfc_pd->bp_io_sched, */
+	/* 		gft->gft_pd_io, &gft->gft_ext, gft_op); */
+
+	m0_be_pd_request_push(paged, request, gft_op);
 }
 
 M0_INTERNAL void

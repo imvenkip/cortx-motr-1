@@ -310,6 +310,7 @@ enum m0_be_pd_request_type {
 struct m0_be_pd_request_pages {
 	enum m0_be_pd_request_type prp_type;
 	struct m0_be_reg_area     *prp_reg_area; /* for M0_PRT_WRITE requests */
+	struct m0_ext              prp_ext;      /* for M0_PRT_WRITE requests */
 	struct m0_be_reg           prp_reg;      /* for  M0_PRT_READ requests */
 };
 
@@ -351,7 +352,7 @@ M0_INTERNAL void m0_be_pd_request_pages_fill(struct m0_be_pd_request_pages *rqp,
  *                       +-----------------------------------+
  */
 struct m0_be_pd_request {
-	struct m0_be_op                prt_op;
+	struct m0_be_op               *prt_op;
 	struct m0_be_pd_request_pages  prt_pages;
 	struct m0_tlink                prt_rq_link;
 	uint64_t                       prt_magic;
@@ -500,6 +501,13 @@ M0_INTERNAL void m0_be_pd_request_init(struct m0_be_pd_request       *request,
 
 M0_INTERNAL void m0_be_pd_request_fini(struct m0_be_pd_request       *request);
 
+M0_INTERNAL void m0_be_pd_request_pages_init(struct m0_be_pd_request_pages *rqp,
+					     enum m0_be_pd_request_type type,
+					     struct m0_be_reg_area     *rarea,
+					     struct m0_ext             *ext,
+					     struct m0_be_reg          *reg);
+
+
 /* ------------------------------------------------------------------------- */
 
 /**
@@ -545,7 +553,8 @@ m0_be_pd_request_queue_push(struct m0_be_pd_request_queue      *rqueue,
  * into processing of given @paged.
  */
 M0_INTERNAL void m0_be_pd_request_push(struct m0_be_pd         *paged,
-				       struct m0_be_pd_request *request);
+				       struct m0_be_pd_request *request,
+				       struct m0_be_op         *op);
 
 /* ------------------------------------------------------------------------- */
 
