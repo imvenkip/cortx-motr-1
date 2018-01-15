@@ -353,7 +353,22 @@ static bool be_pd_request_is_write(struct m0_be_pd_request *request)
 static void deferred_insert_sorted(struct m0_be_pd_request_queue *rq,
 				   struct m0_be_pd_request       *request)
 {
-	/* TODO */
+	struct m0_be_pd_request *rq_prev;
+	struct m0_be_pd_request *rq_next;
+
+	M0_PRE(m0_mutex_is_locked(&rq->prq_lock));
+
+	for (rq_prev = reqq_tlist_tail(&rq->prq_deferred);
+	     rq_prev != NULL;
+	     rq_prev = reqq_tlist_prev(&rq->prq_deferred, rq_prev)) {
+		if (rq_prev->prt_ext.e_end <= request->prt_ext.e_start)
+			break;
+	}
+
+	if (rq_prev == NULL)
+		reqq_tlist_add(&rq->prq_deferred, request);
+	else
+		reqq_tlist_add_after(rq_prev, request);
 }
 
 static void request_queue_update_pos(struct m0_be_pd_request_queue *rq,
