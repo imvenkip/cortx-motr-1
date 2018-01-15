@@ -454,7 +454,7 @@ m0_be_pd_request_pages_forall(struct m0_be_pd         *paged,
 	struct m0_be_pd_request_pages *rpages = &(request)->prt_pages;	\
 	struct m0_be_reg_d             rd_read;				\
 									\
-	if (rpages->prp_type == PRT_READ) {				\
+	if (rpages->prp_type == M0_PRT_READ) {				\
 		rd = &rd_read;						\
 		rd->rd_reg.br_addr = rpages->prp_reg.br_addr;		\
 		rd->rd_reg.br_size = rpages->prp_reg.br_size;		\
@@ -472,7 +472,7 @@ m0_be_pd_request_pages_forall(struct m0_be_pd         *paged,
 #define M0_BE_PD_REQUEST_PAGES_ENDFOR					\
 		}							\
 		m0_be_prp_cursor_fini(&cursor);				\
-		if (rpages->prp_type == PRT_READ)			\
+		if (rpages->prp_type == M0_PRT_READ)			\
 			break;						\
 	}								\
 } while (0)
@@ -572,6 +572,8 @@ struct m0_be_pd_fom {
 	struct m0_reqh          *bpf_reqh;
 	struct m0_be_pd         *bpf_pd;
 	struct m0_be_pd_request *bpf_cur_request;
+	struct m0_be_pd_io      *bpf_cur_pio;
+	struct m0_be_op          bpf_op;
 };
 
 M0_INTERNAL void m0_be_pd_fom_init(struct m0_be_pd_fom    *fom,

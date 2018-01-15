@@ -45,7 +45,7 @@ M0_INTERNAL int _m0_be_seg_open(struct m0_be_seg *seg)
 	//...
 }
 
-M0_INTERNAL void m0_be_seg_close(struct m0_be_seg *seg)
+M0_INTERNAL void _m0_be_seg_close(struct m0_be_seg *seg)
 {
 	//...
 	//--- REMOVE  munmap(seg->bs_addr, seg->bs_size);
@@ -71,6 +71,7 @@ M0_INTERNAL void m0_be_pd_reg_get(struct m0_be_pd      *paged,
 		);
 
 	m0_be_pd_request_pages_init(&F(rpages), M0_PRT_READ, NULL, reg);
+	/* lock is needed for m0_be_pd_pages_are_in() */
 	if (m0_be_pd_pages_are_in(paged, &F(rpages))) {
 
 		return;
