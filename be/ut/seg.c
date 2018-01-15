@@ -30,6 +30,7 @@
 #include "lib/semaphore.h"      /* m0_semaphore */
 #include "lib/misc.h"           /* m0_forall */
 #include "lib/memory.h"         /* M0_ALLOC_PTR */
+#include "reqh/reqh.h"          /* m0_reqh */
 
 #include "ut/ut.h"              /* M0_UT_ASSERT */
 #include "ut/stob.h"            /* m0_ut_stob_linux_get */
@@ -275,6 +276,7 @@ void m0_be_ut_seg_large(void)
 {
 	struct m0_be_seg *seg;
 	struct m0_be_pd  *pd;
+	struct m0_reqh   *reqh;
 	struct m0_stob   *stob;
 	m0_bcount_t       size;
 	void             *addr;
@@ -282,6 +284,8 @@ void m0_be_ut_seg_large(void)
 
 	M0_ALLOC_PTR(seg);
 	M0_UT_ASSERT(seg != NULL);
+	M0_ALLOC_PTR(reqh);
+	M0_UT_ASSERT(reqh != NULL);
 	M0_ALLOC_PTR(pd);
 	M0_UT_ASSERT(pd != NULL);
 	stob = m0_ut_stob_linux_get();
@@ -291,7 +295,8 @@ void m0_be_ut_seg_large(void)
 	size = BE_UT_SEG_LARGE_SIZE;
 	addr = m0_be_ut_seg_allocate_addr(size);
 
-	m0_be_ut_pd_init(pd);
+	m0_be_ut_reqh_create(&reqh);
+	m0_be_ut_pd_init(pd, reqh);
 	m0_be_seg_init(seg, stob, NULL, pd, M0_BE_SEG_FAKE_ID);
 	rc = m0_be_seg_create(seg, size, addr);
 	M0_UT_ASSERT(rc == 0);
@@ -326,9 +331,11 @@ void m0_be_ut_seg_large(void)
 	M0_UT_ASSERT(rc == 0);
 	m0_be_seg_fini(seg);
 	m0_be_ut_pd_fini(pd);
+	m0_be_ut_reqh_destroy();
 
 	m0_ut_stob_put(stob, true);
 	m0_free(pd);
+	m0_free(reqh);
 	m0_free(seg);
 }
 
@@ -362,11 +369,15 @@ void m0_be_ut_seg_large_multiple(void)
 	int               rc;
 	struct m0_be_seg *seg[ARRAY_SIZE(geom) - 1];
 	struct m0_be_pd  *pd;
+	struct m0_reqh   *reqh;
 	struct m0_stob   *stob;
 
+	M0_ALLOC_PTR(reqh);
+	M0_UT_ASSERT(reqh != NULL);
+	m0_be_ut_reqh_create(&reqh);
 	M0_ALLOC_PTR(pd);
 	M0_UT_ASSERT(pd != NULL);
-	m0_be_ut_pd_init(pd);
+	m0_be_ut_pd_init(pd, reqh);
 
 	for (i = 0; !m0_be_seg_geom_eq(&geom[i], &M0_BE_SEG_GEOM0); ++i) {
 		size = BE_UT_SEG_LARGE_SIZE;
@@ -431,6 +442,8 @@ void m0_be_ut_seg_large_multiple(void)
 	m0_ut_stob_put(stob, true);
 	m0_be_ut_pd_fini(pd);
 	m0_free(pd);
+	m0_be_ut_reqh_destroy();
+	m0_free(reqh);
 }
 
 #undef M0_TRACE_SUBSYSTEM

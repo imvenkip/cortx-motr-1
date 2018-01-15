@@ -115,6 +115,7 @@ struct m0_be_ut_seg {
 	void			*bus_copy;
 	struct m0_be_ut_backend *bus_backend;
 	struct m0_be_pd         *bus_pd;
+	struct m0_reqh          *bus_reqh;
 };
 
 void m0_be_ut_seg_init(struct m0_be_ut_seg *ut_seg,
@@ -127,7 +128,7 @@ void m0_be_ut_seg_reload(struct m0_be_ut_seg *ut_seg);
 M0_INTERNAL void *m0_be_ut_seg_allocate_addr(m0_bcount_t size);
 M0_INTERNAL uint64_t m0_be_ut_seg_allocate_id(void);
 
-M0_INTERNAL void m0_be_ut_pd_init(struct m0_be_pd *pd);
+M0_INTERNAL void m0_be_ut_pd_init(struct m0_be_pd *pd, struct m0_reqh *reqh);
 M0_INTERNAL void m0_be_ut_pd_fini(struct m0_be_pd *pd);
 
 /*

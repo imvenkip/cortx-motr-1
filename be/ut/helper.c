@@ -604,7 +604,9 @@ void m0_be_ut_seg_init(struct m0_be_ut_seg *ut_seg,
 		M0_ASSERT(ut_seg->bus_seg != NULL);
 		M0_ALLOC_PTR(ut_seg->bus_pd);
 		M0_ASSERT(ut_seg->bus_pd != NULL);
-		m0_be_ut_pd_init(ut_seg->bus_pd);
+		ut_seg->bus_reqh = NULL;
+		m0_be_ut_reqh_create(&ut_seg->bus_reqh);
+		m0_be_ut_pd_init(ut_seg->bus_pd, ut_seg->bus_reqh);
 		m0_be_seg_init(ut_seg->bus_seg, m0_ut_stob_linux_get(),
 			       &ut_be->but_dom, ut_seg->bus_pd,
 			       M0_BE_SEG_FAKE_ID);
@@ -643,6 +645,7 @@ void m0_be_ut_seg_fini(struct m0_be_ut_seg *ut_seg)
 		m0_free(ut_seg->bus_seg);
 
 		m0_be_ut_pd_fini(ut_seg->bus_pd);
+		m0_be_ut_reqh_destroy();
 		m0_free(ut_seg->bus_pd);
 
 		m0_ut_stob_put(stob, false);
@@ -861,12 +864,13 @@ M0_INTERNAL void m0_be_ut_txc_fini(struct m0_be_ut_txc *tc)
 	m0_buf_free(&tc->butc_seg_copy);
 }
 
-M0_INTERNAL void m0_be_ut_pd_init(struct m0_be_pd *pd)
+M0_INTERNAL void m0_be_ut_pd_init(struct m0_be_pd *pd, struct m0_reqh *reqh)
 {
 	struct m0_be_domain_cfg bd_cfg;
 	int                     rc;
 
 	m0_be_ut_backend_cfg_default(&bd_cfg);
+	bd_cfg.bc_pd_cfg.bpc_reqh = reqh;
 	rc = m0_be_pd_init(pd, &bd_cfg.bc_pd_cfg);
 	M0_ASSERT(rc == 0);
 }
