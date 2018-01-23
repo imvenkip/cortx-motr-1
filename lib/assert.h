@@ -232,7 +232,6 @@ static inline void m0_assert_intercept(void) {;}
  */
 #define M0_CASSERT(cond) do { switch (1) {case 0: case !!(cond): ;} } while (0)
 
-#if defined(GCC_VERSION) && GCC_VERSION >= 4006
 /**
    A macro to assert that compile-time condition is true. Condition must be a
    constant expression. M0_BASSERT() can be used anywhere where a declaration
@@ -242,7 +241,12 @@ static inline void m0_assert_intercept(void) {;}
 
    @note GCC 4.6 introduces _Static_assert keyword for compile/build time
    assertions.
+
+   @note static_assert keyword has been introduced in C++11 standard
  */
+#if defined (__cplusplus) && __cplusplus >= 201103L
+# define M0_BASSERT(cond) static_assert((cond), #cond)
+#elif defined (GCC_VERSION) && GCC_VERSION >= 4006
 # define M0_BASSERT(cond) _Static_assert((cond), #cond)
 #else
 # define M0_BASSERT(cond) extern char __static_assertion[(cond) ? 1 : -1]
