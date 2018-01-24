@@ -42,7 +42,6 @@
 #include "ioservice/io_fops.h"  /* m0_io_fop_{init,fini,release} */
 #include "conf/schema.h"        /* m0_conf_service_type */
 #include "conf/confc.h"         /* m0_confc */
-#include "conf/helpers.h"       /* m0_conf_fs_get */
 #include "layout/pdclust.h"     /* struct m0_pdclust_attr */
 #include "pool/pool.h"          /* struct m0_pool */
 #include "reqh/reqh.h"          /* struct m0_reqh */

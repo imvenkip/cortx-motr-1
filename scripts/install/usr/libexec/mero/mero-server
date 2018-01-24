@@ -53,10 +53,6 @@ m0_server()
         [[ -z $MERO_HA_EP ]] ||
             m0_log "MERO_HA_EP: $MERO_HA_EP"
 
-        [[ -n $MERO_PROFILE_FID ]] &&
-            m0_log "MERO_PROFILE_FID: $MERO_PROFILE_FID" ||
-                m0_exit "MERO_PROFILE_FID isn't set for $service service"
-
         if [[ -n $MERO_CONF_XC ]] ; then
             m0_log "MERO_CONF_XC: $MERO_CONF_XC"
         fi

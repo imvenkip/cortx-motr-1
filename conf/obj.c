@@ -304,11 +304,8 @@
  * - <a href="https://docs.google.com/a/seagate.com/document/d/1GkQJC82z7DqHBQR4
  Aeq-EfvEBjS9alZaR9-XU2QujEE/view">
  *   Configuration one-pager</a>
- *
- * (@b Hint: To open a document in read/write mode replace 'view' with
- * 'edit' in its URL.)
  */
-
+
 M0_INTERNAL bool m0_conf_obj_is_stub(const struct m0_conf_obj *obj)
 {
 	M0_PRE(M0_IN(obj->co_status,
@@ -410,8 +407,8 @@ M0_INTERNAL int m0_conf_obj_init(void)
 			    "xo_type", M0_CONF_OBJ_TYPE_MAX);
 	m0_confx_obj_xc->xct_flags = M0_XCODE_TYPE_FLAG_DOM_CONF |
 				     M0_XCODE_TYPE_FLAG_DOM_RPC;
-#define X_CONF(_, name) \
-	m0_conf_obj_type_register(&M0_CONF_ ## name ## _TYPE);
+#define X_CONF(_, NAME, ...) \
+	m0_conf_obj_type_register(&M0_CONF_ ## NAME ## _TYPE);
 
 	M0_CONF_OBJ_TYPES
 #undef X_CONF
@@ -422,8 +419,8 @@ M0_INTERNAL int m0_conf_obj_init(void)
 
 M0_INTERNAL void m0_conf_obj_fini(void)
 {
-#define X_CONF(_, name) \
-	m0_conf_obj_type_unregister(&M0_CONF_ ## name ## _TYPE);
+#define X_CONF(_, NAME, ...) \
+	m0_conf_obj_type_unregister(&M0_CONF_ ## NAME ## _TYPE);
 
 	M0_CONF_OBJ_TYPES
 #undef X_CONF

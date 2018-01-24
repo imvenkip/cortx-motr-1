@@ -25,6 +25,7 @@
 #include "lib/trace.h"
 #include "lib/chan.h"
 
+#include "conf/helpers.h"     /* m0_conf_service_get */
 #include "fop/fom.h"
 #include "reqh/reqh.h"
 #include "rpc/rpc_machine.h"

@@ -425,8 +425,6 @@ struct m0_mero {
 
 	uint32_t                    cc_pool_width;
 
-	char                       *cc_profile;
-
 	struct m0_mero_ha           cc_mero_ha;
 	bool                        cc_ha_is_started;
 	char                       *cc_ha_addr; /**< HA endpoint address     */
@@ -476,7 +474,7 @@ struct m0_mero {
 	uint64_t                    cc_magic;
 
 	/** Is used only during m0_cs_start(). */
-	struct m0_conf_filesystem  *cc_conf_filesystem;
+	struct m0_conf_root        *cc_conf_root;
 
 	/**
 	 * XXX Some strange mode.
@@ -550,14 +548,6 @@ M0_INTERNAL struct m0_confc *m0_mero2confc(struct m0_mero *mero);
  * @note Returned pointer is never NULL.
  */
 struct m0_reqh *m0_cs_reqh_get(struct m0_mero *cctx);
-
-/**
- * Accesses configuration profile.
- *
- * Returned pointer is valid between @ref m0_cs_setup_env() and
- * @ref m0_cs_fini() calls.
- */
-char *m0_cs_profile_get(struct m0_mero *cctx);
 
 /**
  * Returns instance of struct m0_mero given a

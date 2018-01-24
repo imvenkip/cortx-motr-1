@@ -4,18 +4,35 @@ from __future__ import print_function
 
 from ply import lex, yacc
 import argparse
-import textwrap
-import os
-import sys
-import json
 import contextlib
+import json
+import os
+import re
+import sys
+import textwrap
 from collections import OrderedDict
 from curses import ascii
 from errno import EPIPE
 from functools import reduce  # there is no `reduce' in python3
 import unittest
 
+# ----------------------------------------------------------------------
+# XXX Any change of Mero conf schema (e.g., addition of new field to a
+# conf object type) requires modification of .cg files and xcode
+# strings.  Manual editing of all those files is error-prone and
+# boring as hell.
+#
+# TODO:
+#
+# - Add "QuickCheck" mode: m0confgen generates random conf data that
+#   satisfies certain properties (e.g., number and types of services,
+#   number of drives and pools) specified in optional input file,
+#   prepared by user.  This might be implemented using Hypothesis
+#   library [https://github.com/HypothesisWorks/hypothesis-python/].
+# ----------------------------------------------------------------------
 
+__version__ = '3.0'
+__author__ = 'Valery V. Vorotyntsev <valery.vorotyntsev@seagate.com>'
 __copyright__ = """COPYRIGHT 2018 XYRATEX TECHNOLOGY LIMITED
 
 THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
@@ -30,8 +47,6 @@ YOU SHOULD HAVE RECEIVED A COPY OF XYRATEX'S LICENSE ALONG WITH
 THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
 http://www.xyratex.com/contact
 """
-__author__ = 'Valery V. Vorotyntsev <valery.vorotyntsev@seagate.com>'
-__version__ = '2.4'
 __doc__ = """Configuration string converter.
 
 Converts configuration string from one format into another.
@@ -50,33 +65,39 @@ __all__ = ['Fid', 'ConfObj', 'conf_objs_from_str', 'conf_objs_to_str',
 #
 # XXX TODO: s/objid/fid/g ?
 conf_obj_types = {
-    'root': ('t', 'verno=NUMBER *profiles=[objid]'),
-    'profile': ('p', '*filesystem=objid'),
-    'filesystem': ('f', 'rootfid=fid redundancy=NUMBER params=[STRING]'
-                   ' mdpool=objid imeta_pver=fid'
-                   ' *nodes=[objid] *pools=[objid] *racks=[objid]'
-                   ' *fdmi_flt_grps=[objid]'),
-    'pool': ('o', 'pver_policy=NUMBER *pvers=[objid]'),
-    'pver': ('v:0',  # actual pver
-             'N=NUMBER K=NUMBER P=NUMBER tolerance=[NUMBER]'
-             ' *rackvs=[objid]'),
-    'pver_f': ('v:1',  # formulaic pver
-               'id=NUMBER !base=objid allowance=[NUMBER]'),
-    'objv': ('j', '!real=objid *children=[objid]'),
+    'root': ('t', 'verno=NUMBER rootfid=fid mdpool=objid imeta_pver=fid'
+             ' mdredundancy=NUMBER params=[STRING] *nodes=[objid]'
+             ' *sites=[objid] *pools=[objid] *profiles=[objid]'
+             ' *fdmi_flt_grps=[objid]'),
+    'fdmi_flt_grp': ('g', 'rec_type=NUMBER *filters=[objid]'),
+    'fdmi_filter': ('l', 'id=fid root=STRING node=objid endpoints=[STRING]'),
+
+    # Software:
     'node': ('n', 'memsize=NUMBER nr_cpu=NUMBER last_state=NUMBER flags=NUMBER'
-             ' pool_id=objid *processes=[objid]'),
+             ' *processes=[objid]'),
     'process': ('r', 'cores=[NUMBER] mem_limit_as=NUMBER mem_limit_rss=NUMBER'
                 ' mem_limit_stack=NUMBER mem_limit_memlock=NUMBER'
                 ' endpoint=STRING *services=[objid]'),
-    'service': ('s', 'type=NUMBER endpoints=[STRING] *sdevs=[objid]'),
+    'service': ('s', 'type=NUMBER endpoints=[STRING] params=[STRING]'
+                ' *sdevs=[objid]'),
     'sdev': ('d', 'dev_idx=NUMBER iface=NUMBER media=NUMBER bsize=NUMBER'
              ' size=NUMBER last_state=NUMBER flags=NUMBER filename=STRING'),
+
+    # Hardware:
+    'site': ('S', '*racks=[objid] pvers=[objid]'),
     'rack': ('a', '*encls=[objid] pvers=[objid]'),
     'enclosure': ('e', '*ctrls=[objid] pvers=[objid]'),
-    'controller': ('c', '!node=objid *disks=[objid] pvers=[objid]'),
-    'disk': ('k', '!dev=objid pvers=[objid]'),
-    'fdmi_flt_grp': ('g', 'rec_type=NUMBER *filters=[objid]'),
-    'fdmi_filter': ('l', 'id=fid root=STRING endpoints=[STRING] node=objid')
+    'controller': ('c', '!node=objid *drives=[objid] pvers=[objid]'),
+    'drive': ('k', '!dev=objid pvers=[objid]'),
+
+    # Pools:
+    'pool': ('o', 'pver_policy=NUMBER *pvers=[objid]'),
+    'pver': ('v:0',  # actual pver
+             'N=NUMBER K=NUMBER P=NUMBER tolerance=[NUMBER] *sitevs=[objid]'),
+    'pver_f': ('v:1',  # formulaic pver
+               'id=NUMBER !base=objid allowance=[NUMBER]'),
+    'objv': ('j', '!real=objid *children=[objid]'),
+    'profile': ('p', '!pools=[objid]')
 }
 
 # NOTE: Should be in sync with m0_conf_service_type in conf/schema.h.
@@ -111,6 +132,10 @@ def delete_chars(s, deletechars):
     if sys.version_info.major < 3:
         return s.translate(None, deletechars)  # Python 2 version
     return s.translate({ord(c): None for c in deletechars})
+
+
+def quote(s):
+    return '"{}"'.format(s)
 
 
 # --------------------------------------------------------------------
@@ -318,7 +343,7 @@ class BaseEncoder(object):
     @staticmethod
     def encode_STRING(s):
         assert type(s) is str
-        return '"{}"'.format(s)
+        return quote(s)
 
     @classmethod
     def encode_Fid(cls, fid):
@@ -603,9 +628,8 @@ class Encoder_dot(Encoder_cg):
 
     @staticmethod
     def head(objs):
-        return """digraph conf {
-    edge [arrowhead=open, fontsize=11];
-"""
+        return 'digraph conf {\n'
+
     indentation = ''
     separator = '\n'
     tail = '\n}'
@@ -616,25 +640,26 @@ class Encoder_dot(Encoder_cg):
         otype = ConfObjType.from_fid(obj.objid)
         assert len(otype.attrs) == len(obj.attrs)
         objid = cls.encode_Fid__conf(obj.objid)
-        rows = ['"{}";'.format(objid)]
+        lines = [quote(objid) + ';']
         for ta, a in zip(otype.attrs, obj.attrs):
             if ta.relation != '*':
                 continue
             if type(a) is not list:
-                rows.append('"{}" -> "{}" [label="{}"];'.format(
-                    objid, cls.encode_Fid__conf(a), ta.name))
+                lines.append('{} -> {} [label={}];'.format(
+                    quote(objid), quote(cls.encode_Fid__conf(a)),
+                    quote(ta.name)))
                 continue
             if not a:
                 continue  # don't show empty directories
             dirid = 'dir_{}_{}'.format(objid, ta.name)
-            rows.append('"{}" [height=0.15, width=0.15, label=""];'.format(
-                dirid))
-            rows.append('"{}" -> "{}" [label="{}"];'.format(
-                objid, dirid, ta.name))
+            lines.append('{} [height=0.15, width=0.15, label=""];'.format(
+                quote(dirid)))
+            lines.append('{} -> {} [label={}];'.format(
+                quote(objid), quote(dirid), quote(ta.name)))
             for child in a:
-                rows.append('"{}" -> "{}";'.format(
-                    dirid, cls.encode_Fid__conf(child)))
-        return cls.separator.join([''] + [' '*4 + r for r in rows])
+                lines.append('{} -> {};'.format(
+                    quote(dirid), quote(cls.encode_Fid__conf(child))))
+        return cls.separator.join(' '*4 + r for r in lines)
 
 
 def fid_translate(fid):
@@ -656,23 +681,25 @@ def fid_translate(fid):
         # see M0_CONF_REL_FIDS in conf/obj.h
         rel_fids = {0xffffffffffffffff: 'M0_CONF_ANY_FID'}
         rel_fids.update((i+1, 'M0_CONF_' + s + '_FID') for i, s in
-                        enumerate(['ROOT_PROFILES',
-                                   'PROFILE_FILESYSTEM',
-                                   'FILESYSTEM_NODES',
-                                   'FILESYSTEM_POOLS',
-                                   'FILESYSTEM_RACKS',
+                        enumerate(['ROOT_NODES',
+                                   'ROOT_SITES',
+                                   'ROOT_POOLS',
+                                   'ROOT_PROFILES',
+                                   'ROOT_FDMI_FLT_GRPS',
+                                   'FDMI_FGRP_FILTERS',
                                    'POOL_PVERS',
-                                   'PVER_RACKVS',
+                                   'PVER_SITEVS',
+                                   'SITEV_RACKVS',
                                    'RACKV_ENCLVS',
                                    'ENCLV_CTRLVS',
-                                   'CTRLV_DISKVS',
+                                   'CTRLV_DRIVEVS',
                                    'NODE_PROCESSES',
                                    'PROCESS_SERVICES',
                                    'SERVICE_SDEVS',
+                                   'SITE_RACKS',
                                    'RACK_ENCLS',
                                    'ENCLOSURE_CTRLS',
-                                   'CONTROLLER_DISKS',
-                                   'DISK_SDEV']))
+                                   'CONTROLLER_DRIVES']))
         return rel_fids.get(fid.key)
 
 
@@ -738,18 +765,18 @@ Notes on objid specification:
 
 Examples:
 
-    (root-0 verno=1 profiles=[profile-2:3])
-    (profile-2:3 filesystem=filesystem-1)
-    (filesystem-1 rootfid=(11, 12) redundancy=41212
-        params=["param-0", "param-1", "param-2"]
-        mdpool=pool-4 imeta_pver=(0, 0)
-        nodes=[node-2] pools=[pool-4, pool-5] racks=[] fdmi_flt_grps=[])
+    (root-0 verno=1 rootfid=(11, 12) mdpool=pool-5 imeta_pver=(0, 0)
+        mdredundancy=4 params=["param-0", "param-1", "param-2"]
+        nodes=[node-1, node-2] sites=[site-3] pools=[pool-4, pool-5]
+        profiles=[profile-2:3, profile-2:7] fdmi_flt_grps=[])
+    (profile-2:3 pools=[pool-4, pool-5])
+    (profile-2:7 pools=[pool-5])
 
 Configuration object types and attributes:
 
     %(attrs)s""" % {
         'objtypes': textwrap.fill(
-            ' | '.join(map('"{}"'.format, sorted(conf_obj_types.keys()))),
+            ' | '.join(map(quote, sorted(conf_obj_types.keys()))),
             width=63, subsequent_indent=' '*16),
         'attrs': '\n    '.join('{:14}{}'.format(
             k + ':',
@@ -1102,6 +1129,16 @@ def fid_scan(s):
     Parses a string in FID_F format.
     """
     assert type(s) is str
+
+    m = re.match(r'\^(.)\|({0}):({0})\s*$'.format(r'\d+|0[xX][0-9a-fA-F]+'),
+                 s)  # e.g. '^s|1:0'
+    if m:
+        c = [t.ft_id for t in conf_obj_types.values() if t.ft_id == m.group(1)]
+        if not c:
+            raise Error('Invalid fid (unknown fid type): ' + s)
+        assert len(c) == 1
+        container, key = [int(x, base=0) for x in (m.group(2), m.group(3))]
+        return Fid((c[0], container), key)
     try:
         container, key = [int(x, base=16) for x in s.strip('<>').split(':', 1)]
         return Fid(container, key)
@@ -1159,9 +1196,8 @@ class TestInternalRepr(unittest.TestCase):
         self.assertRaises(ValueError, Fid, 0x6300000000000000001, 0x181)
 
     def test_ConfObjType(self):
-        self.assertEqual(repr(conf_obj_types['root']),
-                         "ConfObjType('root', 't', 'verno=NUMBER"
-                         " *profiles=[objid]')")
+        self.assertEqual(repr(conf_obj_types['profile']),
+                         "ConfObjType('profile', 'p', '!pools=[objid]')")
         self.assertEqual(repr(conf_obj_types['pver_f']),
                          "ConfObjType('pver_f', 'v:1', 'id=NUMBER"
                          " !base=objid allowance=[NUMBER]')")
@@ -1192,25 +1228,32 @@ class TestInternalRepr(unittest.TestCase):
             ConfObjType.from_fid, Fid(0x7680000000000001, 5))
 
     def test_ConfObjAttrType(self):
-        self.assertEqual(repr(conf_obj_types['filesystem'].attrs[5]),
+        self.assertEqual(repr(conf_obj_types['root'].attrs[6]),
                          "ConfObjAttrType('*nodes', '[objid]')")
 
     def test_ConfObj(self):
-        root_0 = Fid(('t', 1), 0)
-        x = ConfObj(root_0, [('verno', 1), ('profiles', [])])
-        self.assertEqual(repr(x), "ConfObj(Fid(('t', 1), 0),"
-                         " [('verno', 1), ('profiles', [])])")
+        objv_0 = Fid(('j', 1), 0)
+        site_0 = Fid(('S', 1), 0)
+        x = ConfObj(objv_0, [('real', site_0), ('children', [])])
+        self.assertEqual(
+            repr(x),
+            "ConfObj({!r}, [('real', {!r}), ('children', [])])".format(objv_0,
+                                                                       site_0))
+        self.assertEqual(x.attrs, [site_0, []])
         self.assertRaisesRegex(Error, """\
-Fid\(\('t', 1\), 0\): Invalid attributes
-  missing: profiles, verno
-  unknown: abc""", ConfObj, root_0, [('abc', 0)])
-        self.assertEqual(x.attrs, [1, []])
+Fid\(\('j', 1\), 0\): Invalid attributes
+  missing: children, real
+  unknown: abc""", ConfObj, objv_0, [('abc', 0)])
+
         # Test __eq__() method.
-        self.assertEqual(x, ConfObj(root_0, [('verno', 1), ('profiles', [])]))
+        self.assertEqual(x,
+                         ConfObj(objv_0, [('real', site_0), ('children', [])]))
         # The order of attributes does not matter.
-        self.assertEqual(x, ConfObj(root_0, [('profiles', []), ('verno', 1)]))
-        self.assertNotEqual(x, ConfObj(
-            root_0, [('verno', 1), ('profiles', [Fid(('p', 1), 1)])]))
+        self.assertEqual(x,
+                         ConfObj(objv_0, [('children', []), ('real', site_0)]))
+        self.assertNotEqual(x,
+                            ConfObj(objv_0, [('real', objv_0),
+                                             ('children', [])]))
 
 
 class DummyFile(object):
@@ -1283,112 +1326,112 @@ class TestEncoding(unittest.TestCase):
              '[2: (1, 2), ^p|1:1]', '[(1, 2), profile-1]')
 
     def test_encode(self):
-        def test(objs, xcode, confgen):
+        def test(objs, xcode, confgen, json):
             self.assertEqual(Encoder_xc.encode(objs), xcode)
             self.assertEqual(Encoder_cg.encode(objs), confgen)
+            self.assertEqual(Encoder_json.encode(objs), json)
 
-        test([], '', '')
-        test([ConfObj(Fid(('t', 1), 0),
-                      [('verno', 1), ('profiles', [Fid(('p', 1), 0)])]),
-              ConfObj(Fid(('p', 1), 0), [('filesystem', Fid(('f', 1), 1))]),
-              ConfObj(Fid(('f', 1), 1), [
-                  ('rootfid', Fid(11, 22)), ('redundancy', 0),
-                  ('params', ['param-0', 'param-1', 'param-2']),
-                  ('mdpool', Fid(('o', 1), 5)), ('imeta_pver', Fid(0, 0)),
-                  ('nodes', [Fid(('n', 1), 2), Fid(('n', 1), 48)]),
-                  ('pools', [Fid(('o', 1), 4), Fid(('o', 1), 5)]),
-                  ('racks', [Fid(('a', 1), 3)]), ('fdmi_flt_grps', [])])],
-             """[3:
- {0x74| ((^t|1:0), 1, [1: ^p|1:0])},
- {0x70| ((^p|1:0), ^f|1:1)},
- {0x66| ((^f|1:1), (11, 22), 0, [3: "param-0", "param-1", "param-2"],\
- ^o|1:5, (0, 0), [2: ^n|1:2, ^n|1:48], [2: ^o|1:4, ^o|1:5], [1: ^a|1:3],\
- [0])}]""",
-             """(root-0 verno=1 profiles=[profile-0])
-(profile-0 filesystem=filesystem-1)
-(filesystem-1 rootfid=(11, 22) redundancy=0\
- params=["param-0", "param-1", "param-2"] mdpool=pool-5 imeta_pver=(0, 0)\
- nodes=[node-2, node-48] pools=[pool-4, pool-5] racks=[rack-3]\
- fdmi_flt_grps=[])""")
+        test([], '', '', '')
+        test([ConfObj(Fid(('p', 1), 0), [('pools', [Fid(('o', 1), 4)])])],
+             '[1:\n {0x70| ((^p|1:0), [1: ^o|1:4])}]',
+             '(profile-0 pools=[pool-4])',
+             '[\n {"objid": "profile-0", "pools": ["pool-4"]}\n]')
+        test([ConfObj(Fid(('p', 1), 0),
+                      [('pools', [Fid(('o', 1), 0), Fid(('o', 1), 1)])]),
+              ConfObj(Fid(('o', 1), 0),
+                      [('pver_policy', 0), ('pvers', [Fid(('v', 1), 0)])]),
+              ConfObj(Fid(('o', 1), 1),
+                      [('pver_policy', 0), ('pvers', [])])],
+             """\
+[3:
+ {0x70| ((^p|1:0), [2: ^o|1:0, ^o|1:1])},
+ {0x6f| ((^o|1:0), 0, [1: ^v|1:0])},
+ {0x6f| ((^o|1:1), 0, [0])}]""",
+             """\
+(profile-0 pools=[pool-0, pool-1])
+(pool-0 pver_policy=0 pvers=[pver-0])
+(pool-1 pver_policy=0 pvers=[])""",
+             """[
+ {"objid": "profile-0", "pools": ["pool-0", "pool-1"]},
+ {"objid": "pool-0", "pver_policy": 0, "pvers": ["pver-0"]},
+ {"objid": "pool-1", "pver_policy": 0, "pvers": []}
+]""")
         test([ConfObj(Fid(('v', 1), 8), [
             ('N', 1), ('K', 1), ('P', 5), ('tolerance', [0, 0, 0, 0, 1]),
-            ('rackvs', [Fid(('j', 1), 12)])])],
+            ('sitevs', [Fid(('j', 1), 12)])])],
              """[1:
  {0x76| ((^v|1:8), {0| (1, 1, 5, [5: 0, 0, 0, 0, 1], [1: ^j|1:12])})}]""",
-             '(pver-8 N=1 K=1 P=5 tolerance=[0, 0, 0, 0, 1] rackvs=[objv-12])')
-        test([ConfObj(Fid(0x7640000000000001, 9), [
-            ('id', 0), ('base', Fid(('v', 1), 8)),
-            ('allowance', [0, 0, 0, 0, 1])])],
+             '(pver-8 N=1 K=1 P=5 tolerance=[0, 0, 0, 0, 1] sitevs=[objv-12])',
+             """[
+ {"objid": "pver-8", "N": 1, "K": 1, "P": 5, "tolerance": [0, 0, 0, 0, 1],\
+ "sitevs": ["objv-12"]}
+]""")
+        test([ConfObj(Fid(0x7640000000000001, 9),
+                      [('id', 0),
+                       ('base', Fid(('v', 1), 8)),
+                       ('allowance', [0, 0, 0, 0, 1])])],
              """[1:
  {0x76| ((^v|0x40000000000001:9), {1| (0, ^v|1:8, [5: 0, 0, 0, 0, 1])})}]""",
-             '(pver_f-9 id=0 base=pver-8 allowance=[0, 0, 0, 0, 1])')
-        test([ConfObj(Fid(('s', 1), 9), [
-            ('type', '@M0_CST_RMS'), ('endpoints', ['0@lo:12345:34:1']),
-            ('sdevs', [])])],
+             '(pver_f-9 id=0 base=pver-8 allowance=[0, 0, 0, 0, 1])',
+             """[
+ {"objid": "pver_f-9", "id": 0, "base": "pver-8", "allowance": [0, 0, 0, 0, 1]}
+]""")
+        test([ConfObj(Fid(('s', 1), 9),
+                      [('type', '@M0_CST_RMS'),
+                       ('endpoints', ['0@lo:12345:34:1']),
+                       ('params', ['abc', '123']),
+                       ('sdevs', [])])],
              """[1:
- {0x73| ((^s|1:9), @M0_CST_RMS, [1: "0@lo:12345:34:1"], [0])}]""",
-             '(service-9 type=@M0_CST_RMS endpoints=["0@lo:12345:34:1"]\
- sdevs=[])')
-
-    def test_json(self):
-        self.assertEqual(Encoder_json.encode([
-            ConfObj(Fid(('t', 1), 0),
-                    [('verno', 1), ('profiles', [Fid(('p', 1), 0)])]),
-            ConfObj(Fid(('p', 1), 0), [('filesystem', Fid(('f', 1), 100))]),
-            ConfObj(Fid(('f', 1), 100),
-                    [('rootfid', Fid(11, 22)),
-                     ('redundancy', 0),
-                     ('params', ['param-0', 'param-1', 'param-2']),
-                     ('mdpool', Fid(('o', 1), 5)),
-                     ('imeta_pver', Fid(0, 0)),
-                     ('nodes', [Fid(('n', 1), 2), Fid(('n', 1), 48)]),
-                     ('pools', []), ('racks', []), ('fdmi_flt_grps', [])]),
-            ConfObj(Fid(('s', 1), 9),
-                    [('type', '@M0_CST_RMS'),
-                     ('endpoints', ['0@lo:12345:34:1']), ('sdevs', [])])]),
-                         """[
- {"objid": "root-0", "verno": 1, "profiles": ["profile-0"]},
- {"objid": "profile-0", "filesystem": "filesystem-0x64"},
- {"objid": "filesystem-0x64", "rootfid": [11, 22], "redundancy": 0,\
- "params": ["param-0", "param-1", "param-2"], "mdpool": "pool-5",\
- "imeta_pver": [0, 0], "nodes": ["node-2", "node-48"], "pools": [],\
- "racks": [], "fdmi_flt_grps": []},
+ {0x73| ((^s|1:9), @M0_CST_RMS, [1: "0@lo:12345:34:1"], [2: "abc", "123"],\
+ [0])}]""",
+             '(service-9 type=@M0_CST_RMS endpoints=["0@lo:12345:34:1"]'
+             ' params=["abc", "123"] sdevs=[])',
+             """[
  {"objid": "service-9", "type": "@M0_CST_RMS",\
- "endpoints": ["0@lo:12345:34:1"], "sdevs": []}
+ "endpoints": ["0@lo:12345:34:1"], "params": ["abc", "123"], "sdevs": []}
 ]""")
 
     def test_html(self):
         self.assertEqual(Encoder_html.array_entries(
-            ConfObj(Fid(('p', 1), 0), [('filesystem', Fid(('f', 1), 1))])),
-                         ('{"id": "profile-0", "label": "profile-0",\
- "group": "profile", "_attrs": {"filesystem": "filesystem-1"}}',
-                          ['{"from": "profile-0", "to": "filesystem-1"}']))
+            ConfObj(Fid(('c', 1), 0),
+                    [('node', Fid(('n', 1), 0)),
+                     ('drives', [Fid(('k', 1), 0), Fid(('k', 1), 1)]),
+                     ('pvers', [Fid(('v', 1), 13)])])),
+                         ("""\
+{"id": "controller-0", "label": "controller-0", "group": "controller",\
+ "_attrs": {"node": "node-0", "drives": "[drive-0, drive-1]",\
+ "pvers": "[pver-13]"}}""",
+                          ['{"from": "controller-0", "to": "node-0",'
+                           ' "dashes": true}',
+                           '{"from": "controller-0", "to": "drive-0"}',
+                           '{"from": "controller-0", "to": "drive-1"}']))
 
     def test_dot(self):
         self.assertEqual(Encoder_dot.encode_ConfObj(
-            ConfObj(Fid(('t', 1), 0),
-                    [('verno', 1), ('profiles', [Fid(('p', 1), 0)])])),
-                         """
-    "root-0";
-    "dir_root-0_profiles" [height=0.15, width=0.15, label=""];
-    "root-0" -> "dir_root-0_profiles" [label="profiles"];
-    "dir_root-0_profiles" -> "profile-0";""")
-        self.assertEqual(Encoder_dot.encode_ConfObj(
-            ConfObj(Fid(('p', 1), 0), [('filesystem', Fid(('f', 1), 1))])),
-                         """
-    "profile-0";
-    "profile-0" -> "filesystem-1" [label="filesystem"];""")
+            ConfObj(Fid(('a', 1), 0), [('encls', [Fid(('e', 1), 0)]),
+                                       ('pvers', [])])),
+                         """\
+    "rack-0";
+    "dir_rack-0_encls" [height=0.15, width=0.15, label=""];
+    "rack-0" -> "dir_rack-0_encls" [label="encls"];
+    "dir_rack-0_encls" -> "enclosure-0";""")
         self.assertEqual(Encoder_dot.encode([
-            ConfObj(Fid(('p', 2), 3), [('filesystem', Fid(('f', 1), 1))]),
-            ConfObj(Fid(('j', 1), 19),
-                    [('real', Fid(('k', 1), 16)), ('children', [])])]),
-                         """digraph conf {
-    edge [arrowhead=open, fontsize=11];
-
-    "profile-2:3";
-    "profile-2:3" -> "filesystem-1" [label="filesystem"];
-
-    "objv-19";
+            ConfObj(Fid(('S', 1), 128), [
+                ('racks', [Fid(('a', 1), 0)]), ('pvers', [Fid(('j', 1), 0)])]),
+            ConfObj(Fid(('j', 1), 0), [
+                ('real', Fid(('S', 1), 128)),
+                ('children', [Fid(('j', 1), 1), Fid(('j', 1), 2)])])]),
+                         """\
+digraph conf {
+    "site-0x80";
+    "dir_site-0x80_racks" [height=0.15, width=0.15, label=""];
+    "site-0x80" -> "dir_site-0x80_racks" [label="racks"];
+    "dir_site-0x80_racks" -> "rack-0";
+    "objv-0";
+    "dir_objv-0_children" [height=0.15, width=0.15, label=""];
+    "objv-0" -> "dir_objv-0_children" [label="children"];
+    "dir_objv-0_children" -> "objv-1";
+    "dir_objv-0_children" -> "objv-2";
 }""")
 
     def test_fid_translate(self):
@@ -1409,7 +1452,7 @@ class TestEncoding(unittest.TestCase):
         self.assertEqual(fid_translate(
             Fid(0x2f00000000000000, 0xffffffffffffffff)), 'M0_CONF_ANY_FID')
         self.assertEqual(fid_translate(
-            Fid(0x2f00000000000000, 6)), 'M0_CONF_POOL_PVERS_FID')
+            Fid(0x2f00000000000000, 19)), 'M0_CONF_CONTROLLER_DRIVES_FID')
         self.assertIsNone(fid_translate(Fid(0x2f00000000000000, 0)))
 
 
@@ -1419,15 +1462,15 @@ class TestDecoding(unittest.TestCase):
         decode = Parser_cg().parse
         self.assertEqual(decode(''), [])
         self.assertEqual(decode('# comment'), [])
-        self.assertEqual(decode('(root-0 verno=2 profiles=[profile-0])'),
-                         [ConfObj(Fid(('t', 1), 0), [
-                             ('verno', 2), ('profiles', [Fid(('p', 1), 0)])])])
+        self.assertEqual(decode('(site-128 racks=[rack-0] pvers=[])'),
+                         [ConfObj(Fid(('S', 1), 128), [
+                             ('racks', [Fid(('a', 1), 0)]), ('pvers', [])])])
         self.assertEqual(decode(
-            '(pver-10 N=2 K=1 P=4 tolerance=[0, 0, 0, 0, 1] rackvs=[objv-2])'),
+            '(pver-10 N=2 K=1 P=4 tolerance=[0, 0, 0, 0, 1] sitevs=[objv-2])'),
                          [ConfObj(Fid(('v', 1), 10), [
                              ('N', 2), ('K', 1), ('P', 4),
                              ('tolerance', [0, 0, 0, 0, 1]),
-                             ('rackvs', [Fid(('j', 1), 2)])])])
+                             ('sitevs', [Fid(('j', 1), 2)])])])
         self.assertEqual(decode(
             '(pver_f-66 id=0 base=pver-8 allowance=[0, 0, 0, 0, 1])'),
                          [ConfObj(Fid(('v', 0x40000000000001), 66), [
@@ -1435,10 +1478,11 @@ class TestDecoding(unittest.TestCase):
                              ('allowance', [0, 0, 0, 0, 1])])])
         self.assertEqual(decode(
             '(service-9 type=@M0_CST_RMS endpoints=["0@lo:12345:34:1"]\
- sdevs=[])'),
+ params=["abc", "123"] sdevs=[])'),
                          [ConfObj(Fid(('s', 1), 9), [
                              ('type', '@M0_CST_RMS'),
                              ('endpoints', ['0@lo:12345:34:1']),
+                             ('params', ['abc', '123']),
                              ('sdevs', [])])])
         self.assertRaisesRegex(
             Error, "Unknown conf object type 'woot' at byte 2",
@@ -1447,10 +1491,10 @@ class TestDecoding(unittest.TestCase):
                                decode, '(root-0 verno=1 verno=2 profiles=[])')
         self.assertRaisesRegex(
             Error, 'Syntax error at byte 10',
-            decode, '(service-@ENUM type=4 endpoints=[] sdevs=[])')
+            decode, '(service-@ENUM type=4 endpoints=[] params=[] sdevs=[])')
         # The order of attributes does not matter.
-        self.assertEqual(decode('(root-0 verno=2 profiles=[profile-0])'),
-                         decode('(root-0 profiles=[profile-0] verno=2)'))
+        self.assertEqual(decode('(objv-61 real=drive-55 children=[])'),
+                         decode('(objv-61 children=[] real=drive-55)'))
 
     def test_Parser_xc(self):
         decode = Parser_xc().parse
@@ -1458,10 +1502,10 @@ class TestDecoding(unittest.TestCase):
         self.assertEqual(decode('# comment'), [])
         self.assertEqual(decode('[0]'), [])
         self.assertEqual(decode("""[1:
- {0x74| (((0x7400000000000001, 0)), 1, [1: (0x7000000000000002, 3)])}]"""),
-                         [ConfObj(Fid(('t', 1), 0),
-                                  [('verno', 1),
-                                   ('profiles', [Fid(('p', 2), 3)])])])
+ {0x53| ((^S|1:0x80), [1: ^a|1:0], [0])}]"""),
+                         [ConfObj(Fid(('S', 1), 128),
+                                  [('racks', [Fid(('a', 1), 0)]),
+                                   ('pvers', [])])])
         self.assertRaisesRegex(
             Error, "Invalid conf fid Fid\(\('X', 1\), 0\) at byte 14",
             decode, '[1: {0x58| (((0x5800000000000001, 0)), 1, [0])}]')
@@ -1475,11 +1519,26 @@ class TestDecoding(unittest.TestCase):
                          Fid(('D', 0x6a6a0000000001), 59))
         self.assertEqual(fid_scan('<7640000000000001:41>'),
                          Fid(('v', 0x40000000000001), 65))
+
+        self.assertEqual(fid_scan('0:0'), Fid(0, 0))
+        self.assertEqual(fid_scan('<0:0>'), Fid(0, 0))
+        self.assertEqual(fid_scan('10:10'), Fid(16, 16))
+        self.assertEqual(fid_scan('<10:10>'), Fid(16, 16))
+        self.assertEqual(fid_scan('0x10:0x10'), Fid(16, 16))
+        self.assertEqual(fid_scan('<0x10:0x10>'), Fid(16, 16))
+
+        self.assertEqual(fid_scan('^n|1:2'), Fid(('n', 1), 2))
+        self.assertEqual(fid_scan('^n|10:10'), Fid(('n', 10), 10))
+        self.assertEqual(fid_scan('^n|0x10:0x10'), Fid(('n', 16), 16))
+
         self.assertRaises(Error, fid_scan, '')
         self.assertRaisesRegex(Error, 'Invalid fid: garbage',
                                fid_scan, 'garbage')
         self.assertRaises(Error, fid_scan, '<446a6a00000000')
         self.assertRaises(Error, fid_scan, '6300000000000000001:181')
+        self.assertRaisesRegex(Error, 'Invalid  fid (unknown fid type): ?|1:0',
+                               fid_scan, '?|1:0')
+        self.assertRaisesRegex(Error, 'Invalid  fid: n|1:2', fid_scan, 'n|1:2')
 
 
 # --------------------------------------------------------------------

@@ -714,20 +714,20 @@ static void rconfc_conf_load_fini(struct m0_sm_group *grp,
 static void rconfc_conf_full_load(struct m0_sm_group *grp,
 				  struct m0_sm_ast   *ast)
 {
-	struct m0_conf_filesystem *fs = NULL;
-	struct m0_rconfc          *rconfc = ast->sa_datum;
-	struct m0_confc           *confc = &rconfc->rc_confc;
-	struct m0_conf_cache      *cache = &confc->cc_cache;
-	int                        rc;
+	int rc;
+	struct m0_conf_root   *root = NULL;
+	struct m0_rconfc      *rconfc = ast->sa_datum;
+	struct m0_confc       *confc = &rconfc->rc_confc;
+	struct m0_conf_cache  *cache = &confc->cc_cache;
 
 	M0_ENTRY("rconfc = %p", rconfc);
 	rc = m0_conf_obj_find_lock(cache, &M0_CONF_ROOT_FID, &confc->cc_root) ?:
-		m0_conf_fs_get(&rconfc->rc_profile, confc, &fs) ?:
-		m0_conf_full_load(fs);
-	if (fs != NULL)
-		m0_confc_close(&fs->cf_obj);
+	     m0_confc_root_open(confc, &root) ?:
+	     m0_conf_full_load(root);
+	if (root != NULL)
+		m0_confc_close(&root->rt_obj);
 	/*
-	 * The configuration is loaded. Now we need to invoke
+	 * The configuration might be loaded. Now we need to invoke
 	 * rconfc_ha_restore() to re-associate the kept clinks with their
 	 * objects in cache.
 	 */
@@ -1123,20 +1123,6 @@ static bool rconfc_confd_addr_are_all_unique(const char **confd_addr)
 					     confd_addr[j])));
 }
 
-/**
- * Reports confd fids uniqueness. Tested along with addresses uniqueness during
- * rconfc_herd_update().
- */
-static bool rconfc_confd_fids_are_all_unique(const struct m0_fid_arr *fids)
-{
-	uint32_t count = fids->af_count;
-	return m0_forall(i, count,
-			 m0_forall(j, i,
-				   i == j ? true :
-				   !m0_fid_eq(&fids->af_elems[i],
-					      &fids->af_elems[j])));
-}
-
 /***************************************
  * Rconfc private part
  ***************************************/
@@ -1519,7 +1505,7 @@ static int rconfc_herd_update(struct m0_rconfc   *rconfc,
 	M0_PRE(count > 0);
 	M0_PRE(count == confd_fids->af_count);
 	M0_PRE(rconfc_confd_addr_are_all_unique(confd_addr));
-	M0_PRE(rconfc_confd_fids_are_all_unique(confd_fids));
+	M0_PRE(m0_fid_arr_all_unique(confd_fids));
 
 	for (idx = 0; *confd_addr != NULL; confd_addr++, idx++) {
 		lnk = rconfc_herd_find(rconfc, *confd_addr);
@@ -2048,6 +2034,7 @@ static bool rconfc_unpinned_cb(struct m0_clink *link)
 static bool rconfc_gate_check(struct m0_confc *confc)
 {
 	struct m0_rconfc *rconfc;
+	bool              result;
 
 	M0_ENTRY("confc = %p", confc);
 	M0_PRE(confc != NULL);
@@ -2063,7 +2050,9 @@ static bool rconfc_gate_check(struct m0_confc *confc)
 		m0_rconfc_unlock(rconfc);
 		m0_mutex_lock(&confc->cc_lock);
 	}
-	return M0_RC(m0_rconfc_reading_is_allowed(rconfc));
+	result = m0_rconfc_reading_is_allowed(rconfc);
+	M0_LEAVE("result=%s", result ? "true" : "false");
+	return result;
 }
 
 /**
@@ -2107,7 +2096,8 @@ static bool rconfc_gate_drain(struct m0_clink *clink)
 	 */
 	rconfc_state_set(rconfc, M0_RCS_CONDUCTOR_DRAIN);
 	rconfc_ast_post(rconfc, rconfc_conductor_drain);
-	return M0_RC(false);
+	M0_LEAVE();
+	return false; /* leave this event "unconsumed" */
 }
 
 static void rlock_conflict_handle(struct m0_sm_group *grp,
@@ -2316,7 +2306,7 @@ static bool rconfc_quorum_test(struct m0_rconfc *rconfc,
 			break;
 		}
 	}
-	M0_LEAVE("result = %d", quorum_reached);
+	M0_LEAVE("quorum %sreached", quorum_reached ? "" : "not ");
 	return quorum_reached;
 }
 
@@ -2559,7 +2549,7 @@ static int rconfc_local_load(struct m0_rconfc *rconfc)
 	M0_PRE(!rconfc_is_locked(rconfc));
 	rc = m0_confc_init(&rconfc->rc_confc, rconfc->rc_sm.sm_grp,
 			   NULL, rconfc->rc_rmach, rconfc->rc_local_conf) ?:
-		m0_conf_root_open(&rconfc->rc_confc, &root);
+		m0_confc_root_open(&rconfc->rc_confc, &root);
 	m0_rconfc_lock(rconfc);
 	if (rc != 0) {
 		rconfc->rc_sm_state_on_abort = rconfc_state(rconfc);
@@ -2667,7 +2657,6 @@ M0_INTERNAL int m0_rconfc_start(struct m0_rconfc *rconfc)
 {
 	M0_ENTRY("rconfc = %p, profile = "FID_F, rconfc,
 		 FID_P(&rconfc->rc_profile));
-	M0_PRE(m0_fid_is_set(&rconfc->rc_profile));
 	M0_PRE(rconfc->rc_fatal_cb == NULL);
 	if (rconfc->rc_local_conf != NULL)
 		return M0_RC(rconfc_local_load(rconfc));

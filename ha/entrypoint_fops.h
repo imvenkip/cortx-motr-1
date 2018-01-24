@@ -113,7 +113,6 @@ struct m0_ha_entrypoint_req_fop {
 	int32_t                  erf_first_request;
 	uint64_t                 erf_generation;
 	struct m0_fid            erf_process_fid;
-	struct m0_fid            erf_profile_fid;
 	struct m0_ha_link_params erf_link_params;
 	struct m0_buf            erf_git_rev_id;
 	uint64_t                 erf_pid;
@@ -128,7 +127,6 @@ struct m0_ha_entrypoint_req {
 	uint64_t                  heq_generation;
 	char                     *heq_rpc_endpoint;
 	struct m0_fid             heq_process_fid;
-	struct m0_fid             heq_profile_fid;
 	struct m0_ha_link_params  heq_link_params;
 	/* m0_build_info::bi_git_rev_id */
 	const char               *heq_git_rev_id;

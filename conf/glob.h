@@ -32,21 +32,21 @@
  * Example:
  * @code
  * static int
- * foreach_service(const struct m0_conf_filesystem *fs,
+ * foreach_service(const struct m0_conf_root *root,
  *                 void (*process)(const struct m0_conf_service *svc))
  * {
  *         struct m0_conf_glob       glob;
  *         const struct m0_conf_obj *objv[BATCH];
  *         int                       rc;
  *
- *         M0_PRE(m0_conf_cache_is_locked(fs->cf_obj.co_cache));
+ *         M0_PRE(m0_conf_cache_is_locked(root->rt_obj.co_cache));
  *
- *         m0_conf_glob_init(&glob, M0_CONF_GLOB_ERR, NULL, NULL, &fs->cf_obj,
+ *         m0_conf_glob_init(&glob, M0_CONF_GLOB_ERR, NULL, NULL, &root->rt_obj,
  *                           //
  *                           // "nodes/@/processes/@/services/@"
  *                           // (mentally substitute '@' with '*')
  *                           //
- *                           M0_CONF_FILESYSTEM_NODES_FID, M0_CONF_ANY_FID,
+ *                           M0_CONF_ROOT_NODES_FID, M0_CONF_ANY_FID,
  *                           M0_CONF_NODE_PROCESSES_FID, M0_CONF_ANY_FID,
  *                           M0_CONF_PROCESS_SERVICES_FID, M0_CONF_ANY_FID);
  *         while ((rc = m0_conf_glob(&glob, ARRAY_SIZE(objv), objv)) > 0) {

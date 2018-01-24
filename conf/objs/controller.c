@@ -55,13 +55,13 @@ controller_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src)
 		return M0_ERR(rc);
 
 	d->cc_node = M0_CONF_CAST(obj, m0_conf_node);
-	return M0_RC(dir_create_and_populate(
-			     &d->cc_disks,
-			     &CONF_DIR_ENTRIES(&M0_CONF_CONTROLLER_DISKS_FID,
-					       &M0_CONF_DISK_TYPE,
-					       &s->xc_disks), dest) ?:
-		     conf_pvers_decode(&d->cc_pvers, &s->xc_pvers,
-				       dest->co_cache));
+	rc = dir_create_and_populate(&d->cc_drives,
+		     &CONF_DIR_ENTRIES(&M0_CONF_CONTROLLER_DRIVES_FID,
+				       &M0_CONF_DRIVE_TYPE, &s->xc_drives),
+		                     dest) ?:
+	     conf_pvers_decode(&d->cc_pvers, &s->xc_pvers, dest->co_cache);
+
+	return M0_RC(rc);
 }
 
 static int
@@ -70,7 +70,7 @@ controller_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 	struct m0_conf_controller  *s = M0_CONF_CAST(src, m0_conf_controller);
 	struct m0_confx_controller *d = XCAST(dest);
 	const struct conf_dir_encoding_pair dirs[] = {
-		{ s->cc_disks, &d->xc_disks }
+		{ s->cc_drives, &d->xc_drives }
 	};
 
 	confx_encode(dest, src);
@@ -90,7 +90,7 @@ static bool controller_match(const struct m0_conf_obj *cached,
 		M0_CONF_CAST(cached, m0_conf_controller);
 
 	return m0_fid_eq(&obj->cc_node->cn_obj.co_id, &xobj->xc_node) &&
-	       m0_conf_dir_elems_match(obj->cc_disks, &xobj->xc_disks);
+	       m0_conf_dir_elems_match(obj->cc_drives, &xobj->xc_drives);
 }
 
 static int controller_lookup(const struct m0_conf_obj *parent,
@@ -99,7 +99,7 @@ static int controller_lookup(const struct m0_conf_obj *parent,
 {
 	struct m0_conf_controller *c = M0_CONF_CAST(parent, m0_conf_controller);
 	const struct conf_dir_relation dirs[] = {
-		{ c->cc_disks, &M0_CONF_CONTROLLER_DISKS_FID }
+		{ c->cc_drives, &M0_CONF_CONTROLLER_DRIVES_FID }
 	};
 
 	M0_PRE(parent->co_status == M0_CS_READY);
@@ -108,7 +108,7 @@ static int controller_lookup(const struct m0_conf_obj *parent,
 
 static const struct m0_fid **controller_downlinks(const struct m0_conf_obj *obj)
 {
-	static const struct m0_fid *rels[] = { &M0_CONF_CONTROLLER_DISKS_FID,
+	static const struct m0_fid *rels[] = { &M0_CONF_CONTROLLER_DRIVES_FID,
 					       NULL };
 	M0_PRE(m0_conf_obj_type(obj) == &M0_CONF_CONTROLLER_TYPE);
 	return rels;
@@ -137,7 +137,7 @@ M0_CONF__CTOR_DEFINE(controller_create, m0_conf_controller, &controller_ops);
 
 const struct m0_conf_obj_type M0_CONF_CONTROLLER_TYPE = {
 	.cot_ftype = {
-		.ft_id   = 'c',
+		.ft_id   = M0_CONF__CONTROLLER_FT_ID,
 		.ft_name = "conf_controller"
 	},
 	.cot_create  = &controller_create,

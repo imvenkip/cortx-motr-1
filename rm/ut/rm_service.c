@@ -37,7 +37,7 @@ static char *server_argv[] = {
 	"-S", SERVER_STOB, "-A", SERVER_ADDB_STOB,
 	"-w", "10", "-e", SERVER_ENDPOINT, "-H", SERVER_ENDPOINT_ADDR,
 	"-f", M0_UT_CONF_PROCESS,
-	"-c", M0_UT_PATH("conf.xc"), "-P", M0_UT_CONF_PROFILE
+	"-c", M0_UT_PATH("conf.xc")
 };
 
 extern struct m0_reqh_service_type m0_rms_type;

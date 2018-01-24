@@ -137,7 +137,7 @@ M0_INTERNAL int m0_conf_obj_find(struct m0_conf_cache *cache,
 {
 	int rc = 0;
 
-	M0_ENTRY();
+	M0_ENTRY(FID_F, FID_P(id));
 	M0_PRE(m0_conf_cache_is_locked(cache));
 
 	*out = m0_conf_cache_lookup(cache, id);
@@ -245,7 +245,7 @@ m0_conf_obj_fill(struct m0_conf_obj *dest, const struct m0_confx_obj *src)
 
 	M0_POST(m0_conf_cache_is_locked(cache));
 	M0_POST(ergo(rc == 0, m0_conf_obj_invariant(dest)));
-	M0_LEAVE("retval=%d", rc);
+
 	return M0_RC(rc);
 }
 

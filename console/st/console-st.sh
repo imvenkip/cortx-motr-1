@@ -49,7 +49,7 @@ start_server()
 	    -S console_st_srv.stob -A linuxstob:console_st_srv-addb.stob \
 	    -w 10 -e lnet:$SERVER_EP_ADDR -H $SERVER_EP_ADDR \
 	    -q 2 -m $((1 << 17)) \
-	    -c  $CONF_FILE_PATH -P $CONF_PROFILE \
+	    -c $CONF_FILE_PATH  \
 	    &>$SANDBOX_DIR/mkfs.log || die 'm0mkfs failed'
 	echo 'OK' >&2
 

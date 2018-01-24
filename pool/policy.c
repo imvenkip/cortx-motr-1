@@ -26,8 +26,8 @@
 #include "module/instance.h"
 #include "module/module.h"
 #include "mero/magic.h"
-#include "reqh/reqh.h"            /* m0_reqh2profile */
 #include "conf/confc.h"           /* m0_confc_fini */
+#include "conf/helpers.h"         /* m0_conf_pver_get */
 #include "pool/pool.h"
 #include "pool/policy.h"
 
@@ -106,7 +106,6 @@ static int pver_first_available_get(struct m0_pools_common  *pc,
 				    const struct m0_pool    *pool,
 				    struct m0_pool_version **pv)
 {
-	struct m0_reqh      *reqh = m0_confc2reqh(pc->pc_confc);
 	struct m0_conf_pver *pver;
 	int                  rc;
 
@@ -118,8 +117,7 @@ static int pver_first_available_get(struct m0_pools_common  *pc,
 		return M0_RC(0);
 
 	/* Derive new pver using formulae */
-	rc = m0_conf_pver_get(m0_reqh2profile(reqh), pc->pc_confc,
-			      &pool->po_id, &pver);
+	rc = m0_conf_pver_get(pc->pc_confc, &pool->po_id, &pver);
 	if (rc != 0)
 		return M0_ERR(rc);
 

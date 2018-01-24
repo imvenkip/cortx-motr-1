@@ -180,7 +180,6 @@ ha_ut_entrypoint_client_start(struct ha_ut_entrypoint_usecase_ctx *uctx,
 		.hecc_reqh        = &ctx->hurc_reqh,
 		.hecc_rpc_machine = &ctx->hurc_rpc_machine,
 		.hecc_process_fid = M0_FID_INIT(0, 0),
-		.hecc_profile_fid = M0_FID_INIT(0, 0),
 	};
 	rc = m0_ha_entrypoint_client_init(ecl,
 			ctx->hurc_rpc_machine.rm_tm.ntm_ep->nep_addr, &ecl_cfg);

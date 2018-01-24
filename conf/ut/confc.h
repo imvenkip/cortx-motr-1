@@ -25,8 +25,8 @@
 
 enum {
 	M0_UT_CONF_ROOT,
+	M0_UT_CONF_SITE,
 	M0_UT_CONF_PROF,
-	M0_UT_CONF_FS,
 	M0_UT_CONF_NODE,
 	M0_UT_CONF_PROCESS0,
 	M0_UT_CONF_PROCESS1,
@@ -51,8 +51,8 @@ enum {
 /* See ut/conf.xc */
 static const struct m0_fid m0_ut_conf_fids[] = {
 	[M0_UT_CONF_ROOT]         = M0_FID_TINIT('t', 1, 0),
+	[M0_UT_CONF_SITE]         = M0_FID_TINIT('S', 1, 1),
 	[M0_UT_CONF_PROF]         = M0_FID_TINIT('p', 1, 0),
-	[M0_UT_CONF_FS]           = M0_FID_TINIT('f', 1, 1),
 	[M0_UT_CONF_NODE]         = M0_FID_TINIT('n', 1, 2),
 	[M0_UT_CONF_PROCESS0]     = M0_FID_TINIT('r', 1, 5),
 	[M0_UT_CONF_PROCESS1]     = M0_FID_TINIT('r', 1, 6),

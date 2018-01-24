@@ -64,8 +64,8 @@ static int sdev_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src)
 
 static int sdev_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 {
-	const struct m0_conf_sdev  *s = M0_CONF_CAST(src, m0_conf_sdev);
-	struct m0_confx_sdev *d = XCAST(dest);
+	const struct m0_conf_sdev *s = M0_CONF_CAST(src, m0_conf_sdev);
+	struct m0_confx_sdev      *d = XCAST(dest);
 
 	confx_encode(dest, src);
 	d->xd_dev_idx    = s->sd_dev_idx;
@@ -95,20 +95,6 @@ sdev_match(const struct m0_conf_obj *cached, const struct m0_confx_obj *flat)
 		m0_buf_streq(&xobj->xd_filename, obj->sd_filename);
 }
 
-static int sdev_lookup(const struct m0_conf_obj *parent,
-		       const struct m0_fid *name, struct m0_conf_obj **out)
-{
-	M0_IMPOSSIBLE("No directory present");
-	return M0_ERR(-ENOSYS);
-}
-
-static const struct m0_fid **sdev_downlinks(const struct m0_conf_obj *obj)
-{
-	static const struct m0_fid *rels[] = { NULL }; /* no downlinks */
-	M0_PRE(m0_conf_obj_type(obj) == &M0_CONF_SDEV_TYPE);
-	return rels;
-}
-
 static void sdev_delete(struct m0_conf_obj *obj)
 {
 	struct m0_conf_sdev *x = M0_CONF_CAST(obj, m0_conf_sdev);
@@ -123,9 +109,9 @@ static const struct m0_conf_obj_ops sdev_ops = {
 	.coo_decode    = sdev_decode,
 	.coo_encode    = sdev_encode,
 	.coo_match     = sdev_match,
-	.coo_lookup    = sdev_lookup,
+	.coo_lookup    = conf_obj_lookup_denied,
 	.coo_readdir   = NULL,
-	.coo_downlinks = sdev_downlinks,
+	.coo_downlinks = conf_obj_downlinks_none,
 	.coo_delete    = sdev_delete
 };
 
@@ -133,7 +119,7 @@ M0_CONF__CTOR_DEFINE(sdev_create, m0_conf_sdev, &sdev_ops);
 
 const struct m0_conf_obj_type M0_CONF_SDEV_TYPE = {
 	.cot_ftype = {
-		.ft_id   = 'd',
+		.ft_id   = M0_CONF__SDEV_FT_ID,
 		.ft_name = "conf_sdev"
 	},
 	.cot_create  = &sdev_create,

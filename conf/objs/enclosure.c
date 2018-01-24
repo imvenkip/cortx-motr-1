@@ -124,7 +124,7 @@ M0_CONF__CTOR_DEFINE(enclosure_create, m0_conf_enclosure, &enclosure_ops);
 
 const struct m0_conf_obj_type M0_CONF_ENCLOSURE_TYPE = {
 	.cot_ftype = {
-		.ft_id   = 'e',
+		.ft_id   = M0_CONF__ENCLOSURE_FT_ID,
 		.ft_name = "conf_enclosure"
 	},
 	.cot_create  = &enclosure_create,

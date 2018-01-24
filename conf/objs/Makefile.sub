@@ -7,15 +7,15 @@ mero_libmero_la_SOURCES += \
                            conf/objs/fdmi_flt_grp.c \
                            conf/objs/root.c \
                            conf/objs/profile.c \
-                           conf/objs/filesystem.c \
                            conf/objs/service.c \
                            conf/objs/node.c \
                            conf/objs/process.c \
                            conf/objs/sdev.c \
                            conf/objs/pool.c \
                            conf/objs/pver.c \
-                           conf/objs/rack.c \
                            conf/objs/objv.c \
+                           conf/objs/site.c \
+                           conf/objs/rack.c \
                            conf/objs/enclosure.c \
                            conf/objs/controller.c \
-                           conf/objs/disk.c
+                           conf/objs/drive.c

@@ -32,136 +32,56 @@
 #include "ut/ut.h"          /* M0_UT_ASSERT */
 
 /* Conf parameters. */
-enum {
-	PROF,
-	FS,
-	NODE,
-	PROCESS0,
-	SERVICE0,
-	SERVICE1,
-	SERVICE2,
-	SERVICE3,
-	SERVICE4,
-	SERVICE5,
-	SDEV0,
-	SDEV1,
-	SDEV2,
-	SDEV3,
-	SDEV4,
-	RACK,
-	ENCLOSURE,
-	CONTROLLER,
-	DISK0,
-	DISK1,
-	DISK2,
-	DISK3,
-	DISK4,
-	POOL,
-	PVER,
-	RACKV,
-	ENCLOSUREV,
-	CONTROLLERV,
-	DISKV0,
-	DISKV1,
-	DISKV2,
-	DISKV3,
-	DISKV4,
-	UNKNOWN_SVC
-};
 
-static const struct m0_fid fids[] = {
-	[PROF]        = M0_FID_TINIT('p', 1, 0),
-	[FS]          = M0_FID_TINIT('f', 1, 1),
-	[NODE]        = M0_FID_TINIT('n', 1, 2),
-	[PROCESS0]    = M0_FID_TINIT('r', 1, 3),
-	[SERVICE0]    = M0_FID_TINIT('s', 1, 4),
-	[SERVICE1]    = M0_FID_TINIT('s', 1, 5),
-	[SERVICE2]    = M0_FID_TINIT('s', 1, 6),
-	[SERVICE3]    = M0_FID_TINIT('s', 1, 7),
-	[SERVICE4]    = M0_FID_TINIT('s', 1, 8),
-	[SERVICE5]    = M0_FID_TINIT('s', 1, 9),
-	[SDEV0]       = M0_FID_TINIT('d', 1, 10),
-	[SDEV1]       = M0_FID_TINIT('d', 1, 11),
-	[SDEV2]       = M0_FID_TINIT('d', 1, 12),
-	[SDEV3]       = M0_FID_TINIT('d', 1, 13),
-	[SDEV4]       = M0_FID_TINIT('d', 1, 14),
-	[RACK]        = M0_FID_TINIT('a', 1, 15),
-	[ENCLOSURE]   = M0_FID_TINIT('e', 1, 16),
-	[CONTROLLER]  = M0_FID_TINIT('c', 1, 17),
-	[DISK0]       = M0_FID_TINIT('k', 1, 18),
-	[DISK1]       = M0_FID_TINIT('k', 1, 19),
-	[DISK2]       = M0_FID_TINIT('k', 1, 20),
-	[DISK3]       = M0_FID_TINIT('k', 1, 21),
-	[DISK4]       = M0_FID_TINIT('k', 1, 22),
-	[POOL]        = M0_FID_TINIT('o', 1, 23),
-	[PVER]        = M0_FID_TINIT('v', 1, 24),
-	[RACKV]       = M0_FID_TINIT('j', 1, 25),
-	[ENCLOSUREV]  = M0_FID_TINIT('j', 1, 26),
-	[CONTROLLERV] = M0_FID_TINIT('j', 1, 27),
-	[DISKV0]      = M0_FID_TINIT('j', 1, 28),
-	[DISKV1]      = M0_FID_TINIT('j', 1, 29),
-	[DISKV2]      = M0_FID_TINIT('j', 1, 30),
-	[DISKV3]      = M0_FID_TINIT('j', 1, 31),
-	[DISKV4]      = M0_FID_TINIT('j', 1, 32),
-	[UNKNOWN_SVC] = M0_FID_TINIT('s', 5, 33),
-};
-
-static const char local_conf_str[] = "[34:\
-   {0x74| ((^t|1:0), 1, [1 : ^p|1:0])},\
-   {0x70| ((^p|1:0), ^f|1:1)},\
-   {0x66| ((^f|1:1),\
-        (11, 22), 41212, [3: \"param-0\", \"param-1\", \"param-2\"],\
-        ^o|1:23, ^v|1:24,\
+static const char local_conf_str[] = "[35:\
+   {0x74| ((^t|1:0), 1, (11, 22), ^o|1:23, ^v|1:24, 41212,\
+           [3: \"param-0\", \"param-1\", \"param-2\"],\
            [1: ^n|1:2],\
+           [1: ^S|2:15],\
            [1: ^o|1:23],\
-           [1: ^a|1:15], [0])},\
-   {0x6e| ((^n|1:2), 16000, 2, 3, 2, ^o|1:23,\
-           [1: ^r|1:3])},\
+           [1: ^p|1:0],\
+           [0])},\
+   {0x70| ((^p|1:0), [1: ^o|1:23])},\
+   {0x6e| ((^n|1:2), 16000, 2, 3, 2, [1: ^r|1:3])},\
    {0x72| ((^r|1:3), [1:3], 0, 0, 0, 0, \"addr-0\", [6: ^s|1:4,\
                                                    ^s|1:5,\
                                                    ^s|1:6,\
                                                    ^s|1:7,\
                                                    ^s|1:8,\
                                                    ^s|1:9])},\
-   {0x73| ((^s|1:4), @M0_CST_MDS, [3: \"addr-0\", \"addr-1\", \"addr-2\"],\
+   {0x73| ((^s|1:4), @M0_CST_MDS, [3: \"addr-0\", \"addr-1\", \"addr-2\"], [0],\
            [0])},\
-   {0x73| ((^s|1:5), @M0_CST_IOS, [3: \"addr-0\", \"addr-1\", \"addr-2\"],\
+   {0x73| ((^s|1:5), @M0_CST_IOS, [3: \"addr-0\", \"addr-1\", \"addr-2\"], [0],\
            [5: ^d|1:10, ^d|1:11, ^d|1:12, ^d|1:13, ^d|1:14])},\
    {0x73| ((^s|1:6), @M0_CST_CONFD, [3: \"addr-0\", \"addr-1\", \"addr-2\"],\
+           [0], [0])},\
+   {0x73| ((^s|1:7), @M0_CST_RMS, [3: \"addr-0\", \"addr-1\", \"addr-2\"], [0],\
            [0])},\
-   {0x73| ((^s|1:7), @M0_CST_RMS, [3: \"addr-0\", \"addr-1\", \"addr-2\"],\
+   {0x73| ((^s|1:8), @M0_CST_HA, [3: \"addr-0\", \"addr-1\", \"addr-2\"], [0],\
            [0])},\
-   {0x73| ((^s|1:8), @M0_CST_HA, [3: \"addr-0\", \"addr-1\", \"addr-2\"],\
-           [0])},\
-   {0x73| ((^s|1:9), @M0_CST_IOS, [1: \"addr-3\"], [0])},\
+   {0x73| ((^s|1:9), @M0_CST_IOS, [1: \"addr-3\"], [0], [0])},\
    {0x64| ((^d|1:10), 1, 4, 1, 4096, 596000000000, 3, 4, \"/dev/sdev0\")},\
    {0x64| ((^d|1:11), 2, 4, 1, 4096, 596000000000, 3, 4, \"/dev/sdev1\")},\
    {0x64| ((^d|1:12), 3, 7, 2, 8192, 320000000000, 2, 4, \"/dev/sdev2\")},\
    {0x64| ((^d|1:13), 4, 7, 2, 8192, 320000000000, 2, 4, \"/dev/sdev3\")},\
    {0x64| ((^d|1:14), 5, 7, 2, 8192, 320000000000, 2, 4, \"/dev/sdev4\")},\
-   {0x61| ((^a|1:15),\
-           [1: ^e|1:16], [1: ^v|1:24])},\
-   {0x65| ((^e|1:16),\
-           [1: ^c|1:17], [1: ^v|1:24])},\
-   {0x63| ((^c|1:17), ^n|1:2,\
-           [5: ^k|1:18, ^k|1:19, ^k|1:20,\
-               ^k|1:21, ^k|1:22], [1: ^v|1:24])},\
+   {0x53| ((^S|2:15), [1: ^a|1:15], [1: ^v|1:24])},\
+   {0x61| ((^a|1:15), [1: ^e|1:16], [1: ^v|1:24])},\
+   {0x65| ((^e|1:16), [1: ^c|1:17], [1: ^v|1:24])},\
+   {0x63| ((^c|1:17), ^n|1:2, [5: ^k|1:18, ^k|1:19, ^k|1:20,\
+                                  ^k|1:21, ^k|1:22], [1: ^v|1:24])},\
    {0x6b| ((^k|1:18), ^d|1:10, [1: ^v|1:24])},\
    {0x6b| ((^k|1:19), ^d|1:11, [1: ^v|1:24])},\
    {0x6b| ((^k|1:20), ^d|1:12, [1: ^v|1:24])},\
    {0x6b| ((^k|1:21), ^d|1:13, [1: ^v|1:24])},\
    {0x6b| ((^k|1:22), ^d|1:14, [1: ^v|1:24])},\
    {0x6f| ((^o|1:23), 0, [1: ^v|1:24])},\
-   {0x76| ((^v|1:24), {0| (3, 1, 5, [5: 0,0,0,0,1],\
-           [1: ^j|1:25])})},\
-   {0x6a| ((^j|1:25), ^a|1:15,\
-           [1: ^j|1:26])},\
-   {0x6a| ((^j|1:26), ^e|1:16,\
-           [1: ^j|1:27])},\
-   {0x6a| ((^j|1:27), ^c|1:17,\
-           [5: ^j|1:28, ^j|1:29,\
-               ^j|1:30, ^j|1:31,\
-               ^j|1:32])},\
+   {0x76| ((^v|1:24), {0| (3, 1, 5, [5: 0,0,0,0,1], [1: ^j|3:25])})},\
+   {0x6a| ((^j|3:25), ^S|2:15, [1: ^j|1:25])},\
+   {0x6a| ((^j|1:25), ^a|1:15, [1: ^j|1:26])},\
+   {0x6a| ((^j|1:26), ^e|1:16, [1: ^j|1:27])},\
+   {0x6a| ((^j|1:27), ^c|1:17, [5: ^j|1:28, ^j|1:29,\
+                                   ^j|1:30, ^j|1:31, ^j|1:32])},\
    {0x6a| ((^j|1:28), ^k|1:18, [0])},\
    {0x6a| ((^j|1:29), ^k|1:19, [0])},\
    {0x6a| ((^j|1:30), ^k|1:20, [0])},\
@@ -406,7 +326,7 @@ static uint32_t pool_width_count(uint64_t *children, uint32_t depth)
 static void test_pv2fd_conv(void)
 {
 	struct m0_confc     *confc;
-	struct m0_conf_obj  *fs_obj = NULL;
+	struct m0_conf_obj  *root_obj = NULL;
 	struct m0_conf_diter it;
 	struct m0_conf_obj  *pv_obj;
 	struct m0_conf_pver *pv;
@@ -431,14 +351,11 @@ static void test_pv2fd_conv(void)
 	rc = m0_confc_init(confc, &m0_conf_ut_grp, NULL, NULL, local_conf_str);
 	M0_UT_ASSERT(rc == 0);
 #endif
-	rc = m0_confc_open_sync(&fs_obj, confc->cc_root,
-			M0_CONF_ROOT_PROFILES_FID,
-			M0_FID_TINIT('p', 1, 0),
-			M0_CONF_PROFILE_FILESYSTEM_FID);
+	rc = m0_confc_open_sync(&root_obj, confc->cc_root, M0_FID0);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_conf_diter_init(&it, confc, fs_obj,
-			M0_CONF_FILESYSTEM_POOLS_FID,
-			M0_CONF_POOL_PVERS_FID);
+	rc = m0_conf_diter_init(&it, confc, root_obj,
+				M0_CONF_ROOT_POOLS_FID,
+				M0_CONF_POOL_PVERS_FID);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_conf_diter_next_sync(&it, __filter_pv);
 	M0_UT_ASSERT(rc == M0_CONF_DIRNEXT);
@@ -457,7 +374,7 @@ static void test_pv2fd_conv(void)
 	 * than or equal to teh actual failures.
 	 */
 #ifndef __KERNEL__
-	M0_UT_ASSERT(i < M0_CONF_PVER_LVL_DISKS);
+	M0_UT_ASSERT(i < M0_CONF_PVER_LVL_DRIVES);
 	pv->pv_u.subtree.pvs_tolerance[failure_level] = 0;
 #else
 	max_failures = 1;
@@ -492,7 +409,7 @@ static void test_pv2fd_conv(void)
 	m0_fd_tile_destroy(&pool_ver.pv_fd_tile);
 
 	m0_conf_diter_fini(&it);
-	m0_confc_close(fs_obj);
+	m0_confc_close(root_obj);
 	m0_confc_fini(confc);
 	m0_free(confc);
 }
@@ -521,7 +438,7 @@ static void fd_tolerance_check(struct m0_pool_version *pv)
 	uint32_t                    tol;
 	uint64_t                   *failed_domains;
 
-	for (i = M0_CONF_PVER_LVL_RACKS; i < M0_CONF_PVER_HEIGHT; ++i) {
+	for (i = M0_CONF_PVER_LVL_SITES; i < M0_CONF_PVER_HEIGHT; ++i) {
 		tol = pv->pv_fd_tol_vec[i];
 		if (tol == 0)
 			continue;
@@ -544,7 +461,7 @@ static void fd_tolerance_check(struct m0_pool_version *pv)
 				if (is_tgt_failed(pv, &tgt, failed_domains))
 					++fail_cnt;
 				M0_UT_ASSERT(fail_cnt <=
-					     pv->pv_fd_tol_vec[M0_CONF_PVER_LVL_DISKS]);
+					     pv->pv_fd_tol_vec[M0_CONF_PVER_LVL_DRIVES]);
 			}
 			fail_cnt = 0;
 		}

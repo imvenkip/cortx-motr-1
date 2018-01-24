@@ -42,20 +42,13 @@ M0_CONF__INVARIANT_DEFINE(node_invariant, m0_conf_node);
 
 static int node_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src)
 {
-	int                         rc;
 	struct m0_conf_node        *d = M0_CONF_CAST(dest, m0_conf_node);
 	const struct m0_confx_node *s = XCAST(src);
-	struct m0_conf_obj         *obj;
 
 	d->cn_memsize    = s->xn_memsize;
 	d->cn_nr_cpu     = s->xn_nr_cpu;
 	d->cn_last_state = s->xn_last_state;
 	d->cn_flags      = s->xn_flags;
-
-	rc = m0_conf_obj_find(dest->co_cache, &s->xn_pool_id, &obj);
-	if (rc != 0)
-		return M0_ERR(rc);
-	d->cn_pool = M0_CONF_CAST(obj, m0_conf_pool);
 
 	return M0_RC(m0_conf_dir_new(dest, &M0_CONF_NODE_PROCESSES_FID,
 				     &M0_CONF_PROCESS_TYPE, &s->xn_processes,
@@ -72,8 +65,6 @@ static int node_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 	d->xn_nr_cpu     = s->cn_nr_cpu;
 	d->xn_last_state = s->cn_last_state;
 	d->xn_flags      = s->cn_flags;
-	if (s->cn_pool != NULL)
-		d->xn_pool_id = s->cn_pool->pl_obj.co_id;
 
 	return arrfid_from_dir(&d->xn_processes, s->cn_processes);
 }
@@ -88,7 +79,6 @@ node_match(const struct m0_conf_obj *cached, const struct m0_confx_obj *flat)
 		obj->cn_nr_cpu     == xobj->xn_nr_cpu     &&
 		obj->cn_last_state == xobj->xn_last_state &&
 		obj->cn_flags      == xobj->xn_flags      &&
-		m0_fid_eq(&obj->cn_pool->pl_obj.co_id, &xobj->xn_pool_id) &&
 		m0_conf_dir_elems_match(obj->cn_processes, &xobj->xn_processes);
 }
 
@@ -135,7 +125,7 @@ M0_CONF__CTOR_DEFINE(node_create, m0_conf_node, &node_ops);
 
 const struct m0_conf_obj_type M0_CONF_NODE_TYPE = {
 	.cot_ftype = {
-		.ft_id   = 'n',
+		.ft_id   = M0_CONF__NODE_FT_ID,
 		.ft_name = "conf_node"
 	},
 	.cot_create  = &node_create,

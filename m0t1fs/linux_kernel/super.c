@@ -34,7 +34,7 @@
 #include "lib/misc.h"      /* M0_SET0 */
 #include "lib/memory.h"    /* M0_ALLOC_PTR, m0_free */
 #include "conf/confc.h"    /* m0_confc */
-#include "conf/helpers.h"  /* m0_conf_fs_get */
+#include "conf/helpers.h"  /* m0_confc_root_open */
 #include "conf/cache.h"    /* m0_conf_cache_contains */
 #include "rpc/rpclib.h"    /* m0_rcp_client_connect */
 #include "lib/uuid.h"      /* m0_uuid_generate */
@@ -182,25 +182,8 @@ m0t1fs_container_id_to_session(const struct m0_pool_version *pver,
 	return &ctx->sc_rlink.rlk_sess;
 }
 
-static int spiel_filesystem_fid_get(struct m0_spiel_core *spc,
-				    struct m0_fid        *result)
-{
-	struct m0_conf_filesystem *fs;
-	int                        rc;
-
-	M0_ENTRY();
-	rc = m0_conf_fs_get(&spc->spc_profile, spc->spc_confc, &fs);
-	if (rc == 0) {
-		*result = fs->cf_obj.co_id;
-		m0_confc_close(&fs->cf_obj);
-	}
-	return M0_RC(rc);
-}
-
 static int _fs_stats_fetch(struct m0t1fs_sb *csb, struct m0_fs_stats *stats)
 {
-	int                  rc;
-	static struct m0_fid fs_fid;
 	struct m0_spiel_core spc = {
 		.spc_profile   = *m0_reqh2profile(&csb->csb_reqh),
 		.spc_rmachine  = &csb->csb_rpc_machine,
@@ -209,9 +192,7 @@ static int _fs_stats_fetch(struct m0t1fs_sb *csb, struct m0_fs_stats *stats)
 
 	M0_ENTRY();
 	M0_ASSERT(spc.spc_rmachine != NULL);
-	rc = spiel_filesystem_fid_get(&spc, &fs_fid);
-	M0_ASSERT(rc == 0); /* since m0t1fs_setup() has succeeded */
-	return M0_RC(m0_spiel__fs_stats_fetch(&spc, &fs_fid, stats));
+	return M0_RC(m0_spiel__fs_stats_fetch(&spc, stats));
 }
 
 static int m0t1fs_statfs(struct dentry *dentry, struct kstatfs *buf)
@@ -510,7 +491,6 @@ int m0t1fs_ha_init(struct m0t1fs_sb *csb, const char *ha_addr)
 		.mhc_rpc_machine    = &csb->csb_rpc_machine,
 		.mhc_reqh           = &csb->csb_reqh,
 		.mhc_process_fid    = csb->csb_process_fid,
-		.mhc_profile_fid    = csb->csb_profile_fid,
 	};
 	rc = m0_mero_ha_init(&csb->csb_mero_ha, &mero_ha_cfg);
 	M0_ASSERT(rc == 0);
@@ -948,7 +928,7 @@ int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	struct m0_pools_common    *pc = &csb->csb_pools_common;
 	struct m0_confc_args      *confc_args;
 	struct m0_reqh            *reqh = &csb->csb_reqh;
-	struct m0_conf_filesystem *fs;
+	struct m0_conf_root       *root;
 	struct m0_pool_version    *pv = NULL;
 	int                        rc;
 
@@ -1006,37 +986,37 @@ int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	rc = m0_ha_client_add(m0_reqh2confc(reqh));
 	if (rc != 0)
 		goto err_rconfc_stop;
-	rc = m0_conf_fs_get(m0_reqh2profile(reqh), m0_reqh2confc(reqh), &fs);
+	rc = m0_confc_root_open(m0_reqh2confc(reqh), &root);
 	if (rc != 0)
 		goto err_ha_client_del;
 
-	rc = m0_conf_full_load(fs);
+	rc = m0_conf_full_load(root);
 	if (rc != 0)
 		goto err_conf_fs_close;
 	rc = m0_conf_confc_ha_update(m0_reqh2confc(reqh));
 	if (rc != 0)
 		goto err_conf_fs_close;
 
-	rc = m0_pools_common_init(pc, &csb->csb_rpc_machine, fs);
+	rc = m0_pools_common_init(pc, &csb->csb_rpc_machine);
 	if (rc != 0)
 		goto err_conf_fs_close;
 	M0_ASSERT(ergo(csb->csb_oostore, pc->pc_md_redundancy > 0));
 
-	rc = m0_pools_setup(pc, fs, NULL, NULL, NULL);
+	rc = m0_pools_setup(pc, &csb->csb_profile_fid, NULL, NULL, NULL);
 	if (rc != 0)
 		goto err_pools_common_fini;
 
-	rc = m0_pools_service_ctx_create(pc, fs);
+	rc = m0_pools_service_ctx_create(pc);
 	if (rc != 0)
 		goto err_pools_destroy;
 	m0_pools_common_service_ctx_connect_sync(pc);
 
-	rc = m0_pool_versions_setup(pc, fs, NULL, NULL, NULL);
+	rc = m0_pool_versions_setup(pc, NULL, NULL, NULL);
 	if (rc != 0)
 		goto err_pools_service_ctx_destroy;
 
 	/* Find pool and pool version to use. */
-	rc = m0_pool_version_get(&csb->csb_pools_common, &pv);
+	rc = m0_pool_version_get(&csb->csb_pools_common, NULL, &pv);
 	if (!M0_IN(rc, (0, -ENOENT)))
 		goto err_pool_versions_destroy;
 
@@ -1050,7 +1030,7 @@ int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 
 	rc = m0_addb2_sys_net_start_with(sys, &pc->pc_svc_ctxs);
 	if (rc == 0) {
-		m0_confc_close(&fs->cf_obj);
+		m0_confc_close(&root->rt_obj);
 		m0_rconfc_lock(m0_csb2rconfc(csb));
 		m0_rconfc_fatal_cb_set(m0_csb2rconfc(csb),
 				       m0t1fs_rconfc_fatal_cb);
@@ -1070,7 +1050,7 @@ err_pools_destroy:
 err_pools_common_fini:
 	m0_pools_common_fini(&csb->csb_pools_common);
 err_conf_fs_close:
-	m0_confc_close(&fs->cf_obj);
+	m0_confc_close(&root->rt_obj);
 err_ha_client_del:
 	m0_ha_client_del(m0_reqh2confc(reqh));
 err_rconfc_stop:
@@ -1094,6 +1074,7 @@ err_rpc_fini:
 	m0t1fs_rpc_fini(csb);
 err_net_fini:
 	m0t1fs_net_fini(csb);
+
 	return M0_ERR(rc);
 }
 

@@ -145,11 +145,6 @@ struct m0_storage_devs {
 	struct m0_clink          sds_conf_exp;
 	/** Link to subscribe to conf ready event m0_rconfc::rc_ready_cb. */
 	struct m0_clink          sds_conf_ready_async;
-	/**
-	 * Reqh provides profile fid and confc instance to be used in the course
-	 * of operating with sdev HA subscriptions.
-	 */
-	struct m0_reqh          *sds_reqh;
 };
 
 /**

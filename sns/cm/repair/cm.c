@@ -84,7 +84,7 @@ static void repair_cm_stop(struct m0_cm *cm)
 	struct m0_pool         *pool;
 	struct m0_pooldev      *pd;
 	struct m0_conf_obj     *disk_obj;
-	struct m0_conf_disk    *disk;
+	struct m0_conf_drive   *disk;
 	struct m0_conf_cache   *cc;
 	struct m0_ha_nvec       nvec;
 	enum m0_ha_obj_state    dstate;
@@ -120,7 +120,7 @@ static void repair_cm_stop(struct m0_cm *cm)
 				rc = m0_conf_obj_find_lock(cc, &pd->pd_id,
 							   &disk_obj);
 				M0_ASSERT(rc == 0);
-				disk = M0_CONF_CAST(disk_obj, m0_conf_disk);
+				disk = M0_CONF_CAST(disk_obj, m0_conf_drive);
 				M0_ASSERT(disk != NULL);
 				M0_LOG(M0_DEBUG, FID_F, FID_P(&pool->po_id));
 				if (m0_sns_cm_disk_has_dirty_pver(cm, disk) ||

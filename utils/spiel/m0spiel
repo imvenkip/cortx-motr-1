@@ -85,7 +85,7 @@ M0_CFG_DEVICE_MEDIA_DISK, M0_CFG_DEVICE_MEDIA_SSD, M0_CFG_DEVICE_MEDIA_TAPE, \
     M0_CFG_DEVICE_MEDIA_ROM = storage_device_media_type
 
 
-#enum m0_cm_status
+# enum m0_cm_status
 cm_status = range(5)
 CM_STATUS_INVALID, CM_STATUS_IDLE, CM_STATUS_STARTED, \
     CM_STATUS_FAILED, CM_STATUS_PAUSED = cm_status
@@ -112,7 +112,7 @@ class NetXprt(Structure):
     _fields_ = [('nx_name', c_char_p), ('nx_ops', c_void_p)]
 
 
-#struct m0_reqh_init_args
+# struct m0_reqh_init_args
 class ReqhInitArgs(Structure):
     _fields_ = [('rhia_dtm', c_void_p), ('rhia_db', c_void_p),
                 ('rhia_mdstore', c_void_p), ('rhia_pc', c_void_p),
@@ -121,22 +121,14 @@ class ReqhInitArgs(Structure):
 
 # struct m0_pdclust_attr
 class PdclustAttr(Structure):
-    _fields_ = [('pa_Na', c_uint32), ('pa_K', c_uint32), ('pa_P', c_uint32),
+    _fields_ = [('pa_N', c_uint32), ('pa_K', c_uint32), ('pa_P', c_uint32),
                 ('pa_unit_size', c_uint64), ('pa_seed', Fid)]
-
-
-# Different service-specific parameters
-# m0_spiel_service_info::svi_u
-class ServiceInfoParameters(Union):
-    _fields_ = [('repair_limits', c_uint32), ('addb_stobid', Fid),
-                ('confdb_path', c_char_p)]
 
 
 # struct m0_spiel_service_info
 class ServiceInfo(Structure):
     _fields_ = [('svi_type', c_uint),
-                ('svi_endpoints', POINTER(POINTER(c_char))),
-                ('svi_u', ServiceInfoParameters)]
+                ('svi_endpoints', POINTER(POINTER(c_char)))]
 
 
 # struct m0_spiel_tx
@@ -200,7 +192,7 @@ class SpielWrapper:
         self.__free(self.mha)
         self.mero.m0_rpc_machine_fini(self.rpc_machine)
         self.__free(self.rpc_machine)
-        self.mero.m0_reqh_services_terminate(self.reqh);
+        self.mero.m0_reqh_services_terminate(self.reqh)
         self.mero.m0_reqh_fini(self.reqh)
         self.__free(self.reqh)
         self.mero.m0_rpc_net_buffer_pool_cleanup(self.buffer_pool)
@@ -224,39 +216,32 @@ class SpielWrapper:
         self.mero.m0_spiel_tx_close(spiel_tx.data)
         self.__free(spiel_tx.data)
 
-    @require(spiel_tx=SpielTx, fid=Fid)
-    def profile_add(self, spiel_tx, fid):
-        return self.mero.m0_spiel_profile_add(spiel_tx.data, byref(fid))
-
-    @require(spiel_tx=SpielTx, fid=Fid, parent=Fid, redundancy=int,
-             rootfid=Fid, mdpool=Fid, imeta_pver=Fid, fs_params=list)
-    def filesystem_add(self, spiel_tx, fid, parent, redundancy, rootfid,
-                       mdpool, imeta_pver, fs_params):
-        # fs_params must be list of strings. Unfortunately ctypes can't
+    @require(spiel_tx=SpielTx, rootfid=Fid, mdpool=Fid, imeta_pver=Fid,
+             mdredundancy=int, params=list)
+    def root_add(self, spiel_tx, rootfid, mdpool, imeta_pver, mdredundancy,
+                 params):
+        # `params` must be list of strings. Unfortunately ctypes can't
         # automatically convert list (or array) of strings to something
         # compatible with char**. The code below do this.
 
         # The line below is similar to:
-        # char *fs_params[N], where N equals to len(fs_params)
-        fs_params_p = (c_char_p * len(fs_params))()
+        # char *params[N], where N equals to len(params)
+        params_p = (c_char_p * len(params))()
         # The following line is similar to:
-        # fs_params_p[0] = fs_params[0]
+        # params_p[0] = params[0]
         # ...
-        # fs_params_p[N] = fs_params[N]
-        fs_params_p[:] = fs_params
-        # Now ctypes can convert fs_params_p to char **
-        return self.mero.m0_spiel_filesystem_add(spiel_tx.data, byref(fid),
-                                                 byref(parent), redundancy,
-                                                 byref(rootfid), byref(mdpool),
-                                                 byref(imeta_pver), fs_params_p)
+        # params_p[N] = params[N]
+        params_p[:] = params
+        # Now ctypes can convert params_p to char **
+        return self.mero.m0_spiel_root_add(spiel_tx.data, byref(rootfid),
+                                           byref(mdpool), byref(imeta_pver),
+                                           mdredundancy, params_p)
 
-    @require(spiel_tx=SpielTx, fid=Fid, parent=Fid, memsize=long, nr_cpu=int,
-             last_state=long, flags=long, pool_fid=Fid)
-    def node_add(self, spiel_tx, fid, parent, memsize, nr_cpu, last_state,
-                 flags, pool_fid):
-        return self.mero.m0_spiel_node_add(spiel_tx.data, byref(fid),
-                                           byref(parent), memsize, nr_cpu,
-                                           last_state, flags, byref(pool_fid))
+    @require(spiel_tx=SpielTx, fid=Fid, memsize=int, nr_cpu=int,
+             last_state=long, flags=long)
+    def node_add(self, spiel_tx, fid, memsize, nr_cpu, last_state, flags):
+        return self.mero.m0_spiel_node_add(spiel_tx.data, byref(fid), memsize,
+                                           nr_cpu, last_state, flags)
 
     @require(spiel_tx=SpielTx, fid=Fid, parent=Fid, cores=Bitmap,
              memory_limit_as=long, memory_limit_rss=long,
@@ -273,23 +258,22 @@ class SpielWrapper:
                                               endpoint)
 
     @require(spiel_tx=SpielTx, fid=Fid, parent=Fid, svc_type=int,
-             svc_endpoints=list, svc_params=ServiceInfoParameters)
-    def service_add(self, spiel_tx, fid, parent, svc_type, svc_endpoints,
-                    svc_params):
+             svc_endpoints=list)
+    def service_add(self, spiel_tx, fid, parent, svc_type, svc_endpoints):
         if svc_type not in service_types:
-            print("Invalid service type" + str(svc_type), file=sys.stderr)
+            print("Invalid service type " + str(svc_type), file=sys.stderr)
             sys.exit(1)
         endpoints_p = (c_char_p * len(svc_endpoints))()
         endpoints_p[:] = svc_endpoints
-        svc_info = ServiceInfo(svc_type, cast(endpoints_p,
-                               POINTER(POINTER(c_char))), svc_params)
+        svc_info = ServiceInfo(svc_type,
+                               cast(endpoints_p, POINTER(POINTER(c_char))))
         return self.mero.m0_spiel_service_add(spiel_tx.data, byref(fid),
                                               byref(parent), byref(svc_info))
 
-    @require(spiel_tx=SpielTx, fid=Fid, parent=Fid, dev_idx=int, iface=int,
-	     media=int, bsize=int, size=long, last_state=long, flags=long,
-	     filename=str)
-    def device_add(self, spiel_tx, fid, parent, disk, dev_idx, iface, media,
+    @require(spiel_tx=SpielTx, fid=Fid, parent=Fid, drive=Fid, dev_idx=int,
+             iface=int, media=int, bsize=int, size=long, last_state=long,
+             flags=long, filename=str)
+    def device_add(self, spiel_tx, fid, parent, drive, dev_idx, iface, media,
                    bsize, size, last_state, flags, filename):
         if iface not in storage_device_interface:
             print("Invalid storage device interface " + str(iface))
@@ -298,14 +282,13 @@ class SpielWrapper:
             print("Invalid storage device media type " + str(media))
             sys.exit(1)
         return self.mero.m0_spiel_device_add(spiel_tx.data, byref(fid),
-                                             byref(parent), byref(disk),
+                                             byref(parent), byref(drive),
                                              dev_idx, iface, media, bsize,
                                              size, last_state, flags, filename)
 
-    @require(spiel_tx=SpielTx, fid=Fid, parent=Fid, pver_policy=int)
-    def pool_add(self, spiel_tx, fid, parent, pver_policy):
-        return self.mero.m0_spiel_pool_add(spiel_tx.data, byref(fid),
-                                           byref(parent), pver_policy)
+    @require(spiel_tx=SpielTx, fid=Fid)
+    def site_add(self, spiel_tx, fid):
+        return self.mero.m0_spiel_site_add(spiel_tx.data, byref(fid))
 
     @require(spiel_tx=SpielTx, fid=Fid, parent=Fid)
     def rack_add(self, spiel_tx, fid, parent):
@@ -323,32 +306,42 @@ class SpielWrapper:
                                                  byref(parent), byref(node))
 
     @require(spiel_tx=SpielTx, fid=Fid, parent=Fid)
-    def disk_add(self, spiel_tx, fid, parent):
-        return self.mero.m0_spiel_disk_add(spiel_tx.data, byref(fid),
-                                           byref(parent))
+    def drive_add(self, spiel_tx, fid, parent):
+        return self.mero.m0_spiel_drive_add(spiel_tx.data, byref(fid),
+                                            byref(parent))
 
-    @require(spiel_tx=SpielTx, fid=Fid, parent=Fid, tolerance=list,
-             attrs=PdclustAttr)
-    def pver_actual_add(self, spiel_tx, fid, parent, tolerance, attrs):
+    @require(spiel_tx=SpielTx, fid=Fid, pver_policy=int)
+    def pool_add(self, spiel_tx, fid, pver_policy):
+        return self.mero.m0_spiel_pool_add(spiel_tx.data, byref(fid),
+                                           pver_policy)
+
+    @require(spiel_tx=SpielTx, fid=Fid, parent=Fid, attrs=PdclustAttr,
+             tolerance=list)
+    def pver_actual_add(self, spiel_tx, fid, parent, attrs, tolerance):
         tolerance_p = (c_uint32 * len(tolerance))()
         tolerance_p[:] = tolerance
         return self.mero.m0_spiel_pver_actual_add(spiel_tx.data, byref(fid),
                                                   byref(parent),
                                                   byref(attrs),
                                                   tolerance_p,
-						  c_uint32(len(tolerance)))
+                                                  c_uint32(len(tolerance)))
 
     @require(spiel_tx=SpielTx, fid=Fid, parent=Fid, index=int, base_pver=Fid,
-	     allowance=list)
+             allowance=list)
     def pver_formulaic_add(self, spiel_tx, fid, parent, index, base_pver,
-			   allowance):
+                           allowance):
         allowance_p = (c_uint32 * len(allowance))()
         allowance_p[:] = allowance
         return self.mero.m0_spiel_pver_formulaic_add(spiel_tx.data, byref(fid),
                                                      byref(parent), index,
-						     byref(base_pver),
+                                                     byref(base_pver),
                                                      allowance_p,
-						     c_uint32(len(allowance)))
+                                                     c_uint32(len(allowance)))
+
+    @require(spiel_tx=SpielTx, fid=Fid, parent=Fid, real=Fid)
+    def site_v_add(self, spiel_tx, fid, parent, real):
+        return self.mero.m0_spiel_site_v_add(spiel_tx.data, byref(fid),
+                                             byref(parent), byref(real))
 
     @require(spiel_tx=SpielTx, fid=Fid, parent=Fid, real=Fid)
     def rack_v_add(self, spiel_tx, fid, parent, real):
@@ -366,17 +359,27 @@ class SpielWrapper:
                                                    byref(parent), byref(real))
 
     @require(spiel_tx=SpielTx, fid=Fid, parent=Fid, real=Fid)
-    def disk_v_add(self, spiel_tx, fid, parent, real):
-        return self.mero.m0_spiel_disk_v_add(spiel_tx.data, byref(fid),
-                                             byref(parent), byref(real))
+    def drive_v_add(self, spiel_tx, fid, parent, real):
+        return self.mero.m0_spiel_drive_v_add(spiel_tx.data, byref(fid),
+                                              byref(parent), byref(real))
 
     @require(spiel_tx=SpielTx, fid=Fid)
     def pool_version_done(self, spiel_tx, fid):
         return self.mero.m0_spiel_pool_version_done(spiel_tx.data, byref(fid))
 
     @require(spiel_tx=SpielTx, fid=Fid)
+    def profile_add(self, spiel_tx, fid):
+        return self.mero.m0_spiel_profile_add(spiel_tx.data, byref(fid))
+
+    @require(spiel_tx=SpielTx, profile=Fid, pool=Fid)
+    def profile_pool_add(self, spiel_tx, profile, pool):
+        return self.mero.m0_spiel_profile_pool_add(spiel_tx.data,
+                                                   byref(profile), byref(pool))
+
+    @require(spiel_tx=SpielTx, fid=Fid)
     def element_del(self, spiel_tx, fid):
         return self.mero.m0_spiel_element_del(spiel_tx.data, byref(fid))
+
 #############################################################################
 #                                                                           #
 #                              Command Interface                            #
@@ -460,7 +463,6 @@ class SpielWrapper:
     def sns_repair_abort(self, fid):
         return self.mero.m0_spiel_sns_repair_abort(self.spiel, byref(fid))
 
-
     @require(fid=Fid)
     def sns_repair_quiesce(self, fid):
         return self.mero.m0_spiel_sns_repair_quiesce(self.spiel, byref(fid))
@@ -493,7 +495,7 @@ class SpielWrapper:
     @require(fid=Fid, ppstatus=POINTER(SpielSnsStatus))
     def dix_repair_status(self, fid, ppstatus):
         return self.mero.m0_spiel_dix_repair_status(self.spiel, byref(fid),
-                                                         byref(ppstatus))
+                                                    byref(ppstatus))
 
     @require(fid=Fid)
     def sns_rebalance_start(self, fid):
@@ -505,12 +507,13 @@ class SpielWrapper:
 
     @require(fid=Fid)
     def sns_rebalance_continue(self, fid):
-        return self.mero.m0_spiel_sns_rebalance_continue(self.spiel, byref(fid))
+        return self.mero.m0_spiel_sns_rebalance_continue(self.spiel,
+                                                         byref(fid))
 
     @require(fid=Fid, ppstatus=POINTER(SpielSnsStatus))
     def sns_rebalance_status(self, fid, ppstatus):
         return self.mero.m0_spiel_sns_rebalance_status(self.spiel, byref(fid),
-                                                            byref(ppstatus))
+                                                       byref(ppstatus))
 
     @require(fid=Fid)
     def dix_rebalance_start(self, fid):
@@ -522,16 +525,17 @@ class SpielWrapper:
 
     @require(fid=Fid)
     def dix_rebalance_continue(self, fid):
-        return self.mero.m0_spiel_dix_rebalance_continue(self.spiel, byref(fid))
+        return self.mero.m0_spiel_dix_rebalance_continue(self.spiel,
+                                                         byref(fid))
 
     @require(fid=Fid, ppstatus=POINTER(SpielSnsStatus))
     def dix_rebalance_status(self, fid, ppstatus):
         return self.mero.m0_spiel_dix_rebalance_status(self.spiel, byref(fid),
                                                        byref(ppstatus))
 
-    @require(fid=Fid, stats=FsStats)
-    def filesystem_stats_fetch(self, fid, stats):
-        return self.mero.m0_spiel_filesystem_stats_fetch(self.spiel, byref(fid),
+    @require(stats=FsStats)
+    def filesystem_stats_fetch(self, stats):
+        return self.mero.m0_spiel_filesystem_stats_fetch(self.spiel,
                                                          byref(stats))
 
     @require(fid=Fid)
@@ -556,15 +560,15 @@ class SpielWrapper:
     def __net_buffer_pool_setup(self):
         buffer_pool = self.__malloc(m0_net_buffer_pool__size())
         call(self.mero.m0_rpc_net_buffer_pool_setup, self.domain, buffer_pool,
-             c_uint32(2), # nr bufs
-             c_uint32(1)) # nr TMs
+             c_uint32(2),  # nr bufs
+             c_uint32(1))  # nr TMs
         self.buffer_pool = buffer_pool
 
     def __reqh_setup(self):
         reqh = self.__malloc(m0_reqh__size())
         reqh_args = ReqhInitArgs()
-        reqh_args.rhia_fid = pointer(Fid(0x7200000000000001, 5)) # process-5
-        reqh_args.rhia_mdstore = 1 # dummy value
+        reqh_args.rhia_fid = pointer(Fid(0x7200000000000001, 5))  # process-5
+        reqh_args.rhia_mdstore = 1  # dummy value
         call(self.mero.m0_reqh_init, reqh, byref(reqh_args))
         self.__free(reqh_args)
         self.mero.m0_reqh_start(reqh)
@@ -578,8 +582,8 @@ class SpielWrapper:
         rpc_machine = self.__malloc(m0_rpc_machine__size())
         call(self.mero.m0_rpc_machine_init, rpc_machine, self.domain,
              self.client_ep, self.reqh, self.buffer_pool,
-             c_uint(~0),      # M0_BUFFER_ANY_COLOUR
-             c_uint(1 << 17), # M0_RPC_DEF_MAX_RPC_MSG_SIZE (128 KB)
+             c_uint(~0),       # M0_BUFFER_ANY_COLOUR
+             c_uint(1 << 17),  # M0_RPC_DEF_MAX_RPC_MSG_SIZE (128 KB)
              c_uint(2))       # M0_NET_TM_RECV_QUEUE_DEF_LEN
         self.rpc_machine = rpc_machine
 
@@ -603,7 +607,7 @@ class SpielWrapper:
         self.spiel = spiel
 
     def __malloc(self, size):
-        ptr = self.mero.malloc(size) # XXX Why don't we use m0_alloc()?
+        ptr = self.mero.malloc(size)  # XXX Why don't we use m0_alloc()?
         memset(ptr, 0, size)
         return ptr
 

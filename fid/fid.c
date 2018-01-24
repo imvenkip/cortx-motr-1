@@ -298,19 +298,40 @@ M0_INTERNAL uint64_t m0_fid_hash(const struct m0_fid *fid)
 
 }
 
-M0_INTERNAL int m0_fid_arr_copy(struct m0_fid_arr *to, struct m0_fid_arr *from)
+M0_INTERNAL int m0_fid_arr_copy(struct m0_fid_arr *to,
+				const struct m0_fid_arr *from)
 {
 	int i;
 
 	M0_ALLOC_ARR(to->af_elems, from->af_count);
 	if (to->af_elems == NULL)
-		M0_RC(-ENOMEM);
+		return M0_ERR(-ENOMEM);
 
 	to->af_count = from->af_count;
 	for (i = 0; i < to->af_count; ++i)
 		to->af_elems[i] = from->af_elems[i];
 
 	return M0_RC(0);
+}
+
+M0_INTERNAL bool m0_fid_arr_eq(const struct m0_fid_arr *a,
+			       const struct m0_fid_arr *b)
+{
+	return b->af_count == a->af_count
+	    && m0_forall(i, a->af_count, m0_fid_eq(&a->af_elems[i],
+						   &b->af_elems[i]));
+}
+
+M0_INTERNAL bool m0_fid_arr_all_unique(const struct m0_fid_arr *a)
+{
+	int i, j;
+
+	for (i = 0; i < a->af_count; ++i) {
+		for (j = i + 1; j < a->af_count; ++j)
+			if (m0_fid_eq(&a->af_elems[i], &a->af_elems[j]))
+				return false;
+	}
+	return true;
 }
 
 #undef M0_TRACE_SUBSYSTEM

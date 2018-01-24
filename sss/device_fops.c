@@ -21,7 +21,7 @@
 #include "lib/memory.h"
 #include "lib/misc.h"
 #include "lib/types.h"
-#include "conf/obj.h"           /* M0_CONF_DISK_TYPE */
+#include "conf/obj.h"           /* M0_CONF_DRIVE_TYPE */
 #include "sm/sm.h"
 #include "fop/fop.h"
 #include "fop/fom.h"
@@ -90,7 +90,7 @@ M0_INTERNAL struct m0_fop *m0_sss_device_fop_create(struct m0_rpc_machine *mach,
 
 	M0_PRE(mach != NULL);
 	M0_PRE(cmd < M0_DEVICE_CMDS_NR);
-	M0_PRE(m0_conf_fid_type(fid) == &M0_CONF_DISK_TYPE);
+	M0_PRE(m0_conf_fid_type(fid) == &M0_CONF_DRIVE_TYPE);
 
 	fop = m0_fop_alloc(&m0_sss_fop_device_fopt, NULL, mach);
 	if (fop == NULL)

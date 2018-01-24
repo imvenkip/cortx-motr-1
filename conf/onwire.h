@@ -1,6 +1,7 @@
 /* -*- c -*- */
 /*
- * COPYRIGHT 2015 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2014-2018 SEAGATE LLC
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -15,7 +16,9 @@
  * http://www.xyratex.com/contact
  *
  * Original authors: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>,
- *		     Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>
+ *                   Anatoliy Bilenko <anatoliy_bilenko@xyratex.com>.
+ * Authors:          Andriy Tkachuk <andriy.tkachuk@seagate.com>
+ *
  * Original creation date: 20-Aug-2012
  */
 #pragma once
@@ -32,6 +35,7 @@
 #include "conf/schema_xc.h"  /* m0_xc_m0_conf_service_type_enum */
 #include "fdmi/filter.h"     /* m0_fdmi_flt_node */
 #include "fdmi/filter_xc.h"  /* m0_fdmi_flt_node_xc */
+#include "pool/policy_xc.h"     /* m0_pver_policy_code */
 
 /* export */
 struct m0_conf_fetch;
@@ -57,51 +61,27 @@ struct m0_confx_header {
 
 struct m0_confx_root {
 	struct m0_confx_header xt_header;
-	/* Configuration database version. */
 	uint64_t               xt_verno;
-	/* Profiles in configuration database. */
+	struct m0_fid          xt_rootfid;
+	struct m0_fid          xt_mdpool;
+	struct m0_fid          xt_imeta_pver;
+	uint32_t               xt_mdredundancy;
+	struct m0_bufs         xt_params;
+	struct m0_fid_arr      xt_nodes;
+	struct m0_fid_arr      xt_sites;
+	struct m0_fid_arr      xt_pools;
 	struct m0_fid_arr      xt_profiles;
+	struct m0_fid_arr      xt_fdmi_flt_grps;
 } M0_XCA_RECORD M0_XCA_DOMAIN(conf|rpc);
 
 struct m0_confx_profile {
 	struct m0_confx_header xp_header;
-	/* Name of profile's filesystem. */
-	struct m0_fid          xp_filesystem;
-} M0_XCA_RECORD M0_XCA_DOMAIN(conf|rpc);
-
-struct m0_confx_filesystem {
-	struct m0_confx_header xf_header;
-	/* Rood fid. */
-	struct m0_fid          xf_rootfid;
-	/* Redundancy for this filesystem. */
-	uint32_t               xf_redundancy;
-	/* Filesystem parameters. */
-	struct m0_bufs         xf_params;
-	/* Pool to locate mata-data. */
-	struct m0_fid          xf_mdpool;
-	/* Distributed index meta-data pool version. */
-	struct m0_fid          xf_imeta_pver;
-	/* Nodes of this filesystem. */
-	struct m0_fid_arr      xf_nodes;
-	/* Pools this filesystem resides on. */
-	struct m0_fid_arr      xf_pools;
-	/* Racks this filesystem resides on. */
-	struct m0_fid_arr      xf_racks;
-	/**
-	 * @todo FDMI filter groups. Halon needs to add
-	 * support for it. Ticket HALON-730.
-	 */
-	struct m0_fid_arr      xf_fdmi_flt_grps;
+	struct m0_fid_arr      xp_pools;
 } M0_XCA_RECORD M0_XCA_DOMAIN(conf|rpc);
 
 struct m0_confx_pool {
 	struct m0_confx_header xp_header;
-	/*
-	 * Policy to be used for pool version selection.
-	 * See m0_pver_policy_code.
-	 */
-	uint32_t               xp_pver_policy;
-	/* Pool versions for this pool. */
+	uint32_t               xp_pver_policy M0_XCA_FENUM(m0_pver_policy_code);
 	struct m0_fid_arr      xp_pvers;
 } M0_XCA_RECORD M0_XCA_DOMAIN(conf|rpc);
 
@@ -113,25 +93,20 @@ struct m0_confx_pver_actual {
 	/* Pool width. */
 	uint32_t          xva_P;
 	/*
-	 * Tolerance constraint.
 	 * NOTE: The number of elements must be equal to M0_CONF_PVER_HEIGHT.
 	 */
 	struct arr_u32    xva_tolerance;
-	/* Rack versions. */
-	struct m0_fid_arr xva_rackvs;
+	struct m0_fid_arr xva_sitevs;
 	/*
-	 * Note that "recd" attribute exists in local conf cache
-	 * only and is never transferred over the wire.
+	 * NOTE: "recd" attribute is not transferred over the wire,
+	 * it exists in local conf cache only.
 	 */
 } M0_XCA_RECORD M0_XCA_DOMAIN(conf|rpc);
 
 struct m0_confx_pver_formulaic {
-	/* Cluster-unique identifier of this formulaic pver. */
 	uint32_t       xvf_id;
-	/* Fid of the base pool version. */
 	struct m0_fid  xvf_base;
 	/*
-	 * Allowance vector.
 	 * NOTE: The number of elements must be equal to M0_CONF_PVER_HEIGHT.
 	 */
 	struct arr_u32 xvf_allowance;
@@ -156,45 +131,20 @@ struct m0_confx_pver {
 
 struct m0_confx_objv {
 	struct m0_confx_header xj_header;
-	/* Identifier of real device associated with this version. */
 	struct m0_fid          xj_real;
 	struct m0_fid_arr      xj_children;
 	/*
-	 * Note that "ix" attribute exists in local conf cache only
-	 * and is never transferred over the wire.
+	 * NOTE: "ix" attribute is not transferred over the wire,
+	 * it exists in local conf cache only.
 	 */
-} M0_XCA_RECORD M0_XCA_DOMAIN(conf|rpc);
-
-struct m0_confx_fdmi_flt_grp {
-	struct m0_confx_header xfg_header;
-	/* FDMI record type. */
-	int                    xfg_rec_type;
-	/* Filters included to the group. */
-	struct m0_fid_arr      xfg_filters;
-} M0_XCA_RECORD M0_XCA_DOMAIN(conf|rpc);
-
-struct m0_confx_fdmi_filter {
-	struct m0_confx_header xf_header;
-	struct m0_fid          xf_filter_id;
-	/* String representation of FDMI filter root. */
-	struct m0_buf          xf_filter_root;
-	/* Endpoints of plugin. */
-	struct m0_bufs         xf_endpoints;
-	/* Hosting node. */
-	struct m0_fid          xf_node;
 } M0_XCA_RECORD M0_XCA_DOMAIN(conf|rpc);
 
 struct m0_confx_node {
 	struct m0_confx_header xn_header;
-	/* Memory size in MB. */
 	uint32_t               xn_memsize;
-	/* Number of processors. */
 	uint32_t               xn_nr_cpu;
-	/* Last known state.  See m0_cfg_state_bit. */
 	uint64_t               xn_last_state;
-	/* Property flags.  See m0_cfg_flag_bit. */
 	uint64_t               xn_flags;
-	struct m0_fid          xn_pool_id;
 	struct m0_fid_arr      xn_processes;
 } M0_XCA_RECORD M0_XCA_DOMAIN(conf|rpc);
 
@@ -206,72 +156,79 @@ struct m0_confx_process {
 	uint64_t                xr_mem_limit_stack;
 	uint64_t                xr_mem_limit_memlock;
 	struct m0_buf           xr_endpoint;
-	/* Services being run by this process. */
 	struct m0_fid_arr       xr_services;
 } M0_XCA_RECORD M0_XCA_DOMAIN(conf|rpc);
 
 struct m0_confx_service {
 	struct m0_confx_header xs_header;
-	/* Service type.  See m0_conf_service_type. */
 	uint32_t               xs_type M0_XCA_FENUM(m0_conf_service_type);
-	/* End-points from which this service is reachable. */
 	struct m0_bufs         xs_endpoints;
-	/* Devices associated with service. */
+	struct m0_bufs         xs_params;
 	struct m0_fid_arr      xs_sdevs;
 } M0_XCA_RECORD M0_XCA_DOMAIN(conf|rpc);
 
 struct m0_confx_sdev {
 	struct m0_confx_header xd_header;
-	/** Device index between 1 to poolwidth. */
 	uint32_t               xd_dev_idx;
-	/* Interface type.  See m0_cfg_storage_device_interface_type. */
-	uint32_t               xd_iface;
-	/* Media type.  See m0_cfg_storage_device_media_type. */
-	uint32_t               xd_media;
-	/* Block size in bytes. */
+	uint32_t               xd_iface M0_XCA_FENUM(
+		m0_cfg_storage_device_interface_type);
+	uint32_t               xd_media M0_XCA_FENUM(
+		m0_cfg_storage_device_media_type);
 	uint32_t               xd_bsize;
-	/* Size in bytes. */
 	uint64_t               xd_size;
-	/* Last known state.  See m0_cfg_state_bit. */
 	uint64_t               xd_last_state;
-	/* Property flags.  See m0_cfg_flag_bit. */
 	uint64_t               xd_flags;
-	/* Filename in host OS. */
 	struct m0_buf          xd_filename;
+	/*
+	 * NOTE: "drive" attribute is not transferred over the wire,
+	 * it exists in local conf cache only.
+	 */
+} M0_XCA_RECORD M0_XCA_DOMAIN(conf|rpc);
+
+struct m0_confx_site {
+	struct m0_confx_header xi_header;
+	struct m0_fid_arr      xi_racks;
+	struct m0_fid_arr      xi_pvers;
 } M0_XCA_RECORD M0_XCA_DOMAIN(conf|rpc);
 
 struct m0_confx_rack {
 	struct m0_confx_header xr_header;
-	/* Enclosures on this rack. */
 	struct m0_fid_arr      xr_encls;
-	/* Pool versions this rack is part of. */
 	struct m0_fid_arr      xr_pvers;
 } M0_XCA_RECORD M0_XCA_DOMAIN(conf|rpc);
 
 struct m0_confx_enclosure {
 	struct m0_confx_header xe_header;
-	/* Controllers in this enclosure. */
 	struct m0_fid_arr      xe_ctrls;
-	/* Pool versions this enclosure is part of. */
 	struct m0_fid_arr      xe_pvers;
 } M0_XCA_RECORD M0_XCA_DOMAIN(conf|rpc);
 
 struct m0_confx_controller {
 	struct m0_confx_header xc_header;
-	/* The node this controller is associated with. */
 	struct m0_fid          xc_node;
-	/* Storage disks attached to this controller. */
-	struct m0_fid_arr      xc_disks;
-	/* Pool versions this controller is part of. */
+	struct m0_fid_arr      xc_drives;
 	struct m0_fid_arr      xc_pvers;
 } M0_XCA_RECORD M0_XCA_DOMAIN(conf|rpc);
 
-struct m0_confx_disk {
+struct m0_confx_drive {
 	struct m0_confx_header xk_header;
-	/* Storage device associated with this disk. */
-	struct m0_fid          xk_dev;
-	/* Pool versions this disk is part of. */
+	struct m0_fid          xk_sdev;
 	struct m0_fid_arr      xk_pvers;
+} M0_XCA_RECORD M0_XCA_DOMAIN(conf|rpc);
+
+struct m0_confx_fdmi_flt_grp {
+	struct m0_confx_header xfg_header;
+	uint32_t               xfg_rec_type;
+	struct m0_fid_arr      xfg_filters;
+} M0_XCA_RECORD M0_XCA_DOMAIN(conf|rpc);
+
+struct m0_confx_fdmi_filter {
+	struct m0_confx_header xf_header;
+	struct m0_fid          xf_filter_id;
+	/* String representation of FDMI filter root. */
+	struct m0_buf          xf_filter_root;
+	struct m0_fid          xf_node;
+	struct m0_bufs         xf_endpoints;
 } M0_XCA_RECORD M0_XCA_DOMAIN(conf|rpc);
 
 struct m0_confx_obj {

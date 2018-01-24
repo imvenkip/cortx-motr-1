@@ -1,5 +1,5 @@
 /*
- * COPYRIGHT 2016 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2016-2018 SEAGATE LLC
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -14,6 +14,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Valery V. Vorotyntsev <valery.vorotyntsev@seagate.com>
+ * Authors:         Andriy Tkachuk <andriy.tkachuk@seagate.com>
  * Original creation date: 6-Jan-2016
  */
 
@@ -116,37 +117,16 @@ static char *conf_orphans_error(const struct m0_conf_cache *cache,
 			return m0_vsnprintf(buf, buflen, "Dangling object: "
 					    FID_F, FID_P(&obj->co_id));
 	} m0_tl_endfor;
+
 	return NULL;
 }
 
-/**
- * Applies `func' to each m0_conf_filesystem object in the `cache'.
- *
- * Returns error message in case of error, NULL otherwise.
+/*
+ * XXX FIXME: conf_io_stats_get() counts _all_ IO services and sdevs.
+ * This information is not very useful. The function should be modified
+ * to count IO services and sdevs associated with a particular pool.
  */
-static char *conf_fs_apply(char *(*func)(const struct m0_conf_filesystem *fs,
-					 char *buf, size_t buflen),
-			   const struct m0_conf_cache *cache,
-			   char *buf, size_t buflen)
-{
-	struct m0_conf_glob       glob;
-	const struct m0_conf_obj *obj;
-	char                     *err;
-	int                       rc;
-
-	m0_conf_glob_init(&glob, M0_CONF_GLOB_ERR, NULL, cache, NULL,
-			  M0_CONF_ROOT_PROFILES_FID, M0_CONF_ANY_FID,
-			  M0_CONF_PROFILE_FILESYSTEM_FID);
-
-	while ((rc = m0_conf_glob(&glob, 1, &obj)) > 0) {
-		err = func(M0_CONF_CAST(obj, m0_conf_filesystem), buf, buflen);
-		if (err != NULL)
-			return err;
-	}
-	return rc < 0 ? m0_conf_glob_error(&glob, buf, buflen) : NULL;
-}
-
-static char *conf_io_stats_get(const struct m0_conf_filesystem *fs,
+static char *conf_io_stats_get(const struct m0_conf_cache *cache,
 			       struct conf_io_stats *stats,
 			       char *buf, size_t buflen)
 {
@@ -157,10 +137,11 @@ static char *conf_io_stats_get(const struct m0_conf_filesystem *fs,
 	int                           rc;
 
 	M0_SET0(stats);
-	m0_conf_glob_init(&glob, M0_CONF_GLOB_ERR, NULL, NULL, &fs->cf_obj,
-			  M0_CONF_FILESYSTEM_NODES_FID, M0_CONF_ANY_FID,
-			  M0_CONF_NODE_PROCESSES_FID, M0_CONF_ANY_FID,
-			  M0_CONF_PROCESS_SERVICES_FID, M0_CONF_ANY_FID);
+
+	m0_conf_glob_init(&glob, M0_CONF_GLOB_ERR, NULL, cache, NULL,
+			  M0_CONF_ROOT_NODES_FID, M0_CONF_ANY_FID,
+	                  M0_CONF_NODE_PROCESSES_FID, M0_CONF_ANY_FID,
+	                  M0_CONF_PROCESS_SERVICES_FID, M0_CONF_ANY_FID);
 
 	while ((rc = m0_conf_glob(&glob, ARRAY_SIZE(objv), objv)) > 0) {
 		for (i = 0; i < rc; ++i) {
@@ -175,58 +156,74 @@ static char *conf_io_stats_get(const struct m0_conf_filesystem *fs,
 	return rc < 0 ? m0_conf_glob_error(&glob, buf, buflen) : NULL;
 }
 
-static bool conf_oostore_mode(const struct m0_conf_filesystem *fs)
+static bool conf_oostore_mode(const struct m0_conf_root *r)
 {
-	bool result = fs->cf_redundancy > 0;
-	M0_LOG(M0_INFO, FID_F": redundancy=%"PRIu32" ==> oostore_mode=%s",
-	       FID_P(&fs->cf_obj.co_id), fs->cf_redundancy,
+	bool result = r->rt_mdredundancy > 0;
+	M0_LOG(M0_INFO, FID_F": mdredundancy=%"PRIu32" ==> oostore_mode=%s",
+	       FID_P(&r->rt_obj.co_id), r->rt_mdredundancy,
 	       result ? "true" : "false");
 	return result;
 }
 
-static char *_conf_filesystem_error(const struct m0_conf_filesystem *fs,
-				    char *buf, size_t buflen)
+static char *_conf_root_error(const struct m0_conf_root *root,
+			      char *buf, size_t buflen,
+			      struct conf_io_stats *stats)
 {
-	struct conf_io_stats      stats;
 	const struct m0_conf_obj *obj;
-	char                     *err;
 
-	if (!conf_oostore_mode(fs))
+	if (!conf_oostore_mode(root))
 		/*
 		 * Meta-data is stored at MD services, not IO services.
 		 * No special MD pool is required.
 		 */
 		return NULL;
 
-	err = conf_io_stats_get(fs, &stats, buf, buflen);
-	if (err != NULL)
-		return err;
-	if (stats.cs_nr_ioservices == 0)
-		return m0_vsnprintf(buf, buflen, FID_F": No IO services",
-				    FID_P(&fs->cf_obj.co_id));
-	if (fs->cf_redundancy > stats.cs_nr_ioservices)
-		return m0_vsnprintf(
-			buf, buflen, FID_F": metadata redundancy (%u) exceeds"
-			" the number of IO services (%u)",
-			FID_P(&fs->cf_obj.co_id), fs->cf_redundancy,
-			stats.cs_nr_ioservices);
-	obj = m0_conf_cache_lookup(fs->cf_obj.co_cache, &fs->cf_mdpool);
+	if (root->rt_mdredundancy > stats->cs_nr_ioservices)
+		return m0_vsnprintf(buf, buflen,
+				    FID_F": metadata redundancy (%u) exceeds"
+				    " the number of IO services (%u)",
+				    FID_P(&root->rt_obj.co_id),
+				    root->rt_mdredundancy,
+				    stats->cs_nr_ioservices);
+	obj = m0_conf_cache_lookup(root->rt_obj.co_cache, &root->rt_mdpool);
 	if (obj == NULL)
-		return m0_vsnprintf(
-			buf, buflen, FID_F": `mdpool' "FID_F" is missing",
-			FID_P(&fs->cf_obj.co_id), FID_P(&fs->cf_mdpool));
-	if (m0_conf_obj_grandparent(obj) != &fs->cf_obj)
-		return m0_vsnprintf(
-			buf, buflen, FID_F": `mdpool' "FID_F" belongs another"
-			" filesystem", FID_P(&fs->cf_obj.co_id),
-			FID_P(&fs->cf_mdpool));
+		return m0_vsnprintf(buf, buflen,
+				    FID_F": `mdpool' "FID_F" is missing",
+				    FID_P(&root->rt_obj.co_id),
+				    FID_P(&root->rt_mdpool));
+	if (m0_conf_obj_grandparent(obj) != &root->rt_obj)
+		return m0_vsnprintf(buf, buflen,
+				    FID_F": `mdpool' "FID_F" belongs another"
+				    " profile", FID_P(&root->rt_obj.co_id),
+				    FID_P(&root->rt_mdpool));
 	return NULL;
 }
 
-static char *conf_filesystem_error(const struct m0_conf_cache *cache,
-				   char *buf, size_t buflen)
+static char *conf_root_error(const struct m0_conf_cache *cache,
+			     char *buf, size_t buflen)
 {
-	return conf_fs_apply(_conf_filesystem_error, cache, buf, buflen);
+	struct conf_io_stats      stats;
+	struct m0_conf_glob       glob;
+	const struct m0_conf_obj *obj;
+	char                     *err;
+	int                       rc;
+
+	err = conf_io_stats_get(cache, &stats, buf, buflen);
+	if (err != NULL)
+		return err;
+
+	if (stats.cs_nr_ioservices == 0)
+		return m0_vsnprintf(buf, buflen, "No IO services");
+
+	m0_conf_glob_init(&glob, M0_CONF_GLOB_ERR, NULL, cache, NULL, M0_FID0);
+
+	while ((rc = m0_conf_glob(&glob, 1, &obj)) > 0) {
+		err = _conf_root_error(M0_CONF_CAST(obj, m0_conf_root),
+				       buf, buflen, &stats);
+		if (err != NULL)
+			return err;
+	}
+	return rc < 0 ? m0_conf_glob_error(&glob, buf, buflen) : NULL;
 }
 
 static const struct m0_conf_node *
@@ -305,7 +302,7 @@ static int conf_pver_width_measure__dir(const struct m0_conf_obj *obj,
 			       m0_conf_obj_type(x) == &M0_CONF_OBJV_TYPE));
 	children_level =
 		m0_conf_obj_type(obj->co_parent) == &M0_CONF_PVER_TYPE ?
-		M0_CONF_PVER_LVL_RACKS :
+		M0_CONF_PVER_LVL_SITES :
 		m0_conf_pver_level(obj->co_parent) + 1;
 	if (m0_tl_exists(m0_conf_dir, x, dir, child = x,
 			 m0_conf_pver_level(x) != children_level)) {
@@ -331,7 +328,7 @@ static int conf_pver_width_measure_w(struct m0_conf_obj *obj, void *args)
 
 	objv = M0_CONF_CAST(obj, m0_conf_objv);
 	level = m0_conf_pver_level(obj);
-	if ((level == M0_CONF_PVER_LVL_DISKS) != (objv->cv_children == NULL)) {
+	if ((level == M0_CONF_PVER_LVL_DRIVES) != (objv->cv_children == NULL)) {
 		st->ws_err = m0_vsnprintf(st->ws_buf, st->ws_buflen,
 					  FID_F": %s children",
 					  FID_P(&obj->co_id),
@@ -363,16 +360,11 @@ static char *conf_pver_width_error(const struct m0_conf_pver *pver,
 	M0_PRE(pver->pv_kind == M0_CONF_PVER_ACTUAL);
 
 	rc = m0_conf_walk(conf_pver_width_measure_w,
-			  &pver->pv_u.subtree.pvs_rackvs->cd_obj, &st);
+			  &pver->pv_u.subtree.pvs_sitevs->cd_obj, &st);
 	M0_ASSERT(rc == 0); /* conf_pver_width_measure_w() cannot fail */
 	M0_POST(ergo(st.ws_err == NULL,
 		     m0_forall(i, ARRAY_SIZE(pver_width),
-			       /*
-				* XXX TODO: Replace with `pver_width[i] > 0'
-				* after M0_CONF_PVER_LVL_0 is deleted.
-				*/
-			       (pver_width[i] == 0) ==
-			       (i == M0_CONF_PVER_LVL_0))));
+			       (pver_width[i] > 0))));
 	return st.ws_err;
 }
 
@@ -416,9 +408,8 @@ static char *conf_pver_formulaic_error(const struct m0_conf_pver *fpver,
 	int                           i;
 
 	pool = m0_conf_obj_grandparent(&fpver->pv_obj);
-	if (m0_fid_eq(&pool->co_id,
-		      &M0_CONF_CAST(m0_conf_obj_grandparent(pool),
-				    m0_conf_filesystem)->cf_mdpool))
+	if (m0_fid_eq(&pool->co_id, &M0_CONF_CAST(m0_conf_obj_grandparent(pool),
+						  m0_conf_root)->rt_mdpool))
 		return m0_vsnprintf(buf, buflen, FID_F": MD pool may not have"
 				    " formulaic pvers", FID_P(&pool->co_id));
 	err = conf_pver_formulaic_base_error(fpver, &base, buf, buflen) ?:
@@ -438,13 +429,13 @@ static char *conf_pver_formulaic_error(const struct m0_conf_pver *fpver,
 	base_attr = &base->pv_u.subtree.pvs_attr;
 	/* Guaranteed by pver_check(). */
 	M0_ASSERT(m0_pdclust_attr_check(base_attr));
-	if (form->pvf_allowance[M0_CONF_PVER_LVL_DISKS] > base_attr->pa_P -
+	if (form->pvf_allowance[M0_CONF_PVER_LVL_DRIVES] > base_attr->pa_P -
 	    base_attr->pa_N - 2*base_attr->pa_K)
 		return m0_vsnprintf(buf, buflen, FID_F": Number of allowed disk"
 				    " failures (%u) > P - N - 2K of base pver",
 				    FID_P(&fpver->pv_obj.co_id),
 				    form->pvf_allowance[
-					    M0_CONF_PVER_LVL_DISKS]);
+					    M0_CONF_PVER_LVL_DRIVES]);
 	/*
 	 * XXX TODO: Check if form->pvf_id is unique per cluster.
 	 */
@@ -492,17 +483,18 @@ static char *conf_pver_actual_error(const struct m0_conf_pver *pver,
 				    sub->pvs_attr.pa_P, nr_iodevs);
 
 	m0_conf_glob_init(&glob, M0_CONF_GLOB_ERR, NULL, NULL, &pver->pv_obj,
-			  M0_CONF_PVER_RACKVS_FID, M0_CONF_ANY_FID,
+			  M0_CONF_PVER_SITEVS_FID, M0_CONF_ANY_FID,
+			  M0_CONF_SITEV_RACKVS_FID, M0_CONF_ANY_FID,
 			  M0_CONF_RACKV_ENCLVS_FID, M0_CONF_ANY_FID,
 			  M0_CONF_ENCLV_CTRLVS_FID, M0_CONF_ANY_FID,
-			  M0_CONF_CTRLV_DISKVS_FID, M0_CONF_ANY_FID);
+			  M0_CONF_CTRLV_DRIVEVS_FID, M0_CONF_ANY_FID);
 
 	while ((rc = m0_conf_glob(&glob, ARRAY_SIZE(objs), objs)) > 0) {
 		for (i = 0; i < rc; ++i) {
 			diskv = M0_CONF_CAST(objs[i], m0_conf_objv);
 			err = conf_iodev_error(
 				M0_CONF_CAST(diskv->cv_real,
-					     m0_conf_disk)->ck_dev,
+					     m0_conf_drive)->ck_sdev,
 				iodevs, nr_iodevs, buf, buflen);
 			if (err != NULL)
 				return err;
@@ -512,7 +504,7 @@ static char *conf_pver_actual_error(const struct m0_conf_pver *pver,
 }
 
 static char *
-_conf_pvers_error(const struct m0_conf_filesystem *fs, char *buf, size_t buflen)
+conf_pvers_error(const struct m0_conf_cache *cache, char *buf, size_t buflen)
 {
 	struct conf_io_stats        stats;
 	const struct m0_conf_sdev **iodevs;
@@ -523,19 +515,22 @@ _conf_pvers_error(const struct m0_conf_filesystem *fs, char *buf, size_t buflen)
 	int                         i;
 	int                         rc;
 
-	err = conf_io_stats_get(fs, &stats, buf, buflen);
+	err = conf_io_stats_get(cache, &stats, buf, buflen);
 	if (err != NULL)
 		return err;
+	/*
+	 * XXX FIXME: Check the number of IO devices associated with a
+	 * particular pool, not the total number of IO devices in cluster.
+	 */
 	if (stats.cs_nr_iodevices == 0)
-		return m0_vsnprintf(buf, buflen, FID_F": No IO devices",
-				    FID_P(&fs->cf_obj.co_id));
+		return m0_vsnprintf(buf, buflen, "No IO devices");
 
 	M0_ALLOC_ARR(iodevs, stats.cs_nr_iodevices);
 	if (iodevs == NULL)
 		return m0_vsnprintf(buf, buflen, "Insufficient memory");
 
-	m0_conf_glob_init(&glob, M0_CONF_GLOB_ERR, NULL, NULL, &fs->cf_obj,
-			  M0_CONF_FILESYSTEM_POOLS_FID, M0_CONF_ANY_FID,
+	m0_conf_glob_init(&glob, M0_CONF_GLOB_ERR, NULL, cache, NULL,
+			  M0_CONF_ROOT_POOLS_FID, M0_CONF_ANY_FID,
 			  M0_CONF_POOL_PVERS_FID, M0_CONF_ANY_FID);
 
 	while ((rc = m0_conf_glob(&glob, ARRAY_SIZE(objv), objv)) > 0) {
@@ -553,13 +548,8 @@ _conf_pvers_error(const struct m0_conf_filesystem *fs, char *buf, size_t buflen)
 	m0_free(iodevs);
 	if (err != NULL)
 		return err;
-	return rc < 0 ? m0_conf_glob_error(&glob, buf, buflen) : NULL;
-}
 
-static char *
-conf_pvers_error(const struct m0_conf_cache *cache, char *buf, size_t buflen)
-{
-	return conf_fs_apply(_conf_pvers_error, cache, buf, buflen);
+	return rc < 0 ? m0_conf_glob_error(&glob, buf, buflen) : NULL;
 }
 
 static char *conf_process_endpoint_error(const struct m0_conf_process *proc,
@@ -605,9 +595,7 @@ conf_endpoint_error(const struct m0_conf_cache *cache, char *buf, size_t buflen)
 	int                       rc;
 
 	m0_conf_glob_init(&glob, M0_CONF_GLOB_ERR, NULL, cache, NULL,
-			  M0_CONF_ROOT_PROFILES_FID, M0_CONF_ANY_FID,
-			  M0_CONF_PROFILE_FILESYSTEM_FID,
-			  M0_CONF_FILESYSTEM_NODES_FID, M0_CONF_ANY_FID,
+			  M0_CONF_ROOT_NODES_FID, M0_CONF_ANY_FID,
 			  M0_CONF_NODE_PROCESSES_FID, M0_CONF_ANY_FID);
 
 	while ((rc = m0_conf_glob(&glob, ARRAY_SIZE(objv), objv)) > 0) {
@@ -622,19 +610,18 @@ conf_endpoint_error(const struct m0_conf_cache *cache, char *buf, size_t buflen)
 	return rc < 0 ? m0_conf_glob_error(&glob, buf, buflen) : NULL;
 }
 
-static char *_conf_service_type_error(const struct m0_conf_filesystem *fs,
-				      char *buf, size_t buflen)
+static char *conf_service_type_error(const struct m0_conf_cache *cache,
+				     char *buf, size_t buflen)
 {
 	struct m0_conf_glob       glob;
 	const struct m0_conf_obj *objv[CONF_GLOB_BATCH];
 	enum m0_conf_service_type svc_type;
 	bool                      confd_p = false;
-	bool                      mds_p = false;
 	int                       i;
 	int                       rc;
 
-	m0_conf_glob_init(&glob, M0_CONF_GLOB_ERR, NULL, NULL, &fs->cf_obj,
-			  M0_CONF_FILESYSTEM_NODES_FID, M0_CONF_ANY_FID,
+	m0_conf_glob_init(&glob, M0_CONF_GLOB_ERR, NULL, cache, NULL,
+			  M0_CONF_ROOT_NODES_FID, M0_CONF_ANY_FID,
 			  M0_CONF_NODE_PROCESSES_FID, M0_CONF_ANY_FID,
 			  M0_CONF_PROCESS_SERVICES_FID, M0_CONF_ANY_FID);
 
@@ -649,23 +636,13 @@ static char *_conf_service_type_error(const struct m0_conf_filesystem *fs,
 					FID_P(&objv[i]->co_id), svc_type);
 			if (svc_type == M0_CST_CONFD)
 				confd_p = true;
-			else if (svc_type == M0_CST_MDS)
-				mds_p = true;
 		}
 	}
 	if (rc < 0)
 		return m0_conf_glob_error(&glob, buf, buflen);
-	if (confd_p && (conf_oostore_mode(fs) || mds_p))
+	if (confd_p)
 		return NULL;
-	return m0_vsnprintf(buf, buflen, "No %s service defined for filesystem "
-			    FID_F, confd_p ? "meta-data" : "confd",
-			    FID_P(&fs->cf_obj.co_id));
-}
-
-static char *conf_service_type_error(const struct m0_conf_cache *cache,
-				     char *buf, size_t buflen)
-{
-	return conf_fs_apply(_conf_service_type_error, cache, buf, buflen);
+	return m0_vsnprintf(buf, buflen, "No confd service defined");
 }
 
 static char *_conf_service_sdevs_error(const struct m0_conf_service *svc,
@@ -695,9 +672,7 @@ static char *conf_service_sdevs_error(const struct m0_conf_cache *cache,
 	int                       rc;
 
 	m0_conf_glob_init(&glob, M0_CONF_GLOB_ERR, NULL, cache, NULL,
-			  M0_CONF_ROOT_PROFILES_FID, M0_CONF_ANY_FID,
-			  M0_CONF_PROFILE_FILESYSTEM_FID,
-			  M0_CONF_FILESYSTEM_NODES_FID, M0_CONF_ANY_FID,
+			  M0_CONF_ROOT_NODES_FID, M0_CONF_ANY_FID,
 			  M0_CONF_NODE_PROCESSES_FID, M0_CONF_ANY_FID,
 			  M0_CONF_PROCESS_SERVICES_FID, M0_CONF_ANY_FID);
 
@@ -718,7 +693,7 @@ static const struct m0_conf_ruleset conf_rules = {
 	.cv_rules = {
 #define _ENTRY(name) { #name, name }
 		_ENTRY(conf_orphans_error),
-		_ENTRY(conf_filesystem_error),
+		_ENTRY(conf_root_error),
 		_ENTRY(conf_endpoint_error),
 		_ENTRY(conf_service_type_error),
 		_ENTRY(conf_service_sdevs_error),

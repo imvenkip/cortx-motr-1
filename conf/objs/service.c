@@ -136,7 +136,7 @@ M0_CONF__CTOR_DEFINE(service_create, m0_conf_service, &service_ops);
 
 const struct m0_conf_obj_type M0_CONF_SERVICE_TYPE = {
 	.cot_ftype = {
-		.ft_id   = 's',
+		.ft_id   = M0_CONF__SERVICE_FT_ID,
 		.ft_name = "conf_service"
 	},
 	.cot_create  = &service_create,

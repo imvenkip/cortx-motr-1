@@ -26,6 +26,7 @@
 #include "lib/memory.h"
 #include "fid/fid.h"           /* m0_fid */
 #include "pool/pool.h"         /* pools_common_svc_ctx */
+#include "conf/helpers.h"      /* m0_confc_root_open */
 #include "clovis/clovis_internal.h"
 #include "clovis/clovis_layout.h"
 #include "clovis/clovis_idx.h"
@@ -1128,16 +1129,20 @@ static struct m0_clovis_idx_query_ops dix_query_ops = {
 
 static int dix_root_idx_pver(struct m0_clovis *m0c, struct m0_fid *out)
 {
-	struct m0_reqh            *reqh = &m0c->m0c_reqh;
-	struct m0_conf_filesystem *fs;
-	int                        rc;
+	struct m0_reqh      *reqh = &m0c->m0c_reqh;
+	struct m0_conf_root *root;
+	int                  rc;
 
-	/* Clovis will release the lock on confc before calling idx_dix_init() */
-	rc = m0_conf_fs_get(m0_reqh2profile(reqh), m0_reqh2confc(reqh), &fs);
+	/*
+	 * Clovis will release the lock on confc
+	 * before calling idx_dix_init().
+	 */
+	rc = m0_confc_root_open(m0_reqh2confc(reqh), &root);
 	if (rc != 0)
-		return M0_ERR(rc);
-	*out = fs->cf_imeta_pver;
-	m0_confc_close(&fs->cf_obj);
+		return M0_RC(rc);
+
+	*out = root->rt_imeta_pver;
+	m0_confc_close(&root->rt_obj);
 
 	return 0;
 }

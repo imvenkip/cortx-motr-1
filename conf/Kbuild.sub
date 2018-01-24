@@ -18,11 +18,10 @@ m0mero_objects += \
                   conf/objs/common.o \
                   conf/objs/controller.o \
                   conf/objs/dir.o \
-                  conf/objs/disk.o \
+                  conf/objs/drive.o \
                   conf/objs/enclosure.o \
                   conf/objs/fdmi_filter.o \
                   conf/objs/fdmi_flt_grp.o \
-                  conf/objs/filesystem.o \
                   conf/objs/node.o \
                   conf/objs/objv.o \
                   conf/objs/pool.o \
@@ -33,6 +32,7 @@ m0mero_objects += \
                   conf/objs/root.o \
                   conf/objs/sdev.o \
                   conf/objs/service.o \
+                  conf/objs/site.o \
                   conf/onwire_xc.o \
                   conf/preload.o \
                   conf/pvers.o \

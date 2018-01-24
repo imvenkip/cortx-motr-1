@@ -41,7 +41,6 @@ int main(int argc, char *argv[])
 	M0_ASSERT(rc == 0);
 	rc = m0_halon_interface_start(hi, "0@lo:12345:42:100",
 	                              &M0_FID_TINIT('r', 1, 1),
-	                              &M0_FID_TINIT('p', 1, 1),
 	                              &M0_FID_TINIT('s', 1, 1),
 	                              &M0_FID_TINIT('s', 1, 2),
 				      NULL, NULL, NULL, NULL,

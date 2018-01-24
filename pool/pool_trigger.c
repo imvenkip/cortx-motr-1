@@ -94,7 +94,7 @@ static int poolmach_rpc_ctx_init(struct rpc_ctx *ctx, const char *sep)
 	ctx->ctx_sep = sep;
 	return m0_rpc_client_find_connect(&ctx->ctx_conn, &ctx->ctx_session,
 					  &cl_ctx.rcx_rpc_machine,
-					  ctx->ctx_sep, NULL, M0_CST_IOS,
+					  ctx->ctx_sep, M0_CST_IOS,
 					  MAX_RPCS_IN_FLIGHT,
 			  m0_time_from_now(M0_RPCLIB_UTIL_CONN_TIMEOUT, 0));
 }

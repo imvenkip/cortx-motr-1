@@ -52,11 +52,11 @@ fdmi_flt_grp_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src)
 
 	M0_ENTRY();
 	d->ffg_rec_type = s->xfg_rec_type;
-	rc = m0_conf_dir_new(dest, &M0_CONF_FDMI_FILTERS_FID,
+	rc = m0_conf_dir_new(dest, &M0_CONF_FDMI_FGRP_FILTERS_FID,
 			     &M0_CONF_FDMI_FILTER_TYPE, &s->xfg_filters,
-			     &d->ffg_flts);
+			     &d->ffg_filters);
 	if (rc == 0)
-		m0_conf_child_adopt(dest, &d->ffg_flts->cd_obj);
+		m0_conf_child_adopt(dest, &d->ffg_filters->cd_obj);
 	return M0_RC(rc);
 }
 
@@ -70,7 +70,7 @@ fdmi_flt_grp_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 
 	M0_ENTRY();
 	confx_encode(dest, src);
-	rc = arrfid_from_dir(&d->xfg_filters, s->ffg_flts);
+	rc = arrfid_from_dir(&d->xfg_filters, s->ffg_filters);
 	if (rc == 0)
 		d->xfg_rec_type = s->ffg_rec_type;
 	return M0_RC(rc);
@@ -86,7 +86,7 @@ static bool fdmi_flt_grp_match(const struct m0_conf_obj *cached,
 	M0_ENTRY();
 	M0_PRE(xobj->xfg_filters.af_count != 0);
 
-	/* XXX TODO: Compare ffg_flts dir */
+	/* XXX TODO: Compare ffg_filters dir */
 	return M0_RC(xobj->xfg_rec_type == obj->ffg_rec_type);
 }
 
@@ -97,10 +97,10 @@ static int fdmi_flt_grp_lookup(const struct m0_conf_obj *parent,
 	M0_ENTRY();
 	M0_PRE(parent->co_status == M0_CS_READY);
 
-	if (!m0_fid_eq(name, &M0_CONF_FDMI_FILTERS_FID))
+	if (!m0_fid_eq(name, &M0_CONF_FDMI_FGRP_FILTERS_FID))
 		return M0_ERR(-ENOENT);
 
-	*out = &M0_CONF_CAST(parent, m0_conf_fdmi_flt_grp)->ffg_flts->cd_obj;
+	*out = &M0_CONF_CAST(parent, m0_conf_fdmi_flt_grp)->ffg_filters->cd_obj;
 	M0_POST(m0_conf_obj_invariant(*out));
 	return M0_RC(0);
 }
@@ -115,7 +115,7 @@ static void fdmi_flt_grp_delete(struct m0_conf_obj *obj)
 
 static const struct m0_fid **fdmi_flt_grp_downlinks(const struct m0_conf_obj *obj)
 {
-	static const struct m0_fid *rels[] = { &M0_CONF_FDMI_FILTERS_FID,
+	static const struct m0_fid *rels[] = { &M0_CONF_FDMI_FGRP_FILTERS_FID,
 					       NULL };
 	M0_PRE(m0_conf_obj_type(obj) == &M0_CONF_FDMI_FLT_GRP_TYPE);
 	return rels;
@@ -148,14 +148,14 @@ static struct m0_conf_obj *fdmi_flt_grp_create(void)
 
 const struct m0_conf_obj_type M0_CONF_FDMI_FLT_GRP_TYPE = {
 	.cot_ftype = {
-		.ft_id   = 'g',
+		.ft_id   = M0_CONF__FDMI_FLT_GRP_FT_ID,
 		.ft_name = "conf_fdmi_flt_grp"
 	},
-	.cot_create     = &fdmi_flt_grp_create,
-	.cot_xt         = &m0_confx_fdmi_flt_grp_xc,
-	.cot_branch     = "u_fdmi_flt_grp",
-	.cot_xc_init    = &m0_xc_m0_confx_fdmi_flt_grp_struct_init,
-	.cot_magic      = M0_CONF_FDMI_FLT_GRP_MAGIC
+	.cot_create  = &fdmi_flt_grp_create,
+	.cot_xt      = &m0_confx_fdmi_flt_grp_xc,
+	.cot_branch  = "u_fdmi_flt_grp",
+	.cot_xc_init = &m0_xc_m0_confx_fdmi_flt_grp_struct_init,
+	.cot_magic   = M0_CONF_FDMI_FLT_GRP_MAGIC
 };
 
 #undef XCAST

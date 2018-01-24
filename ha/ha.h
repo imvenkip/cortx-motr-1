@@ -29,7 +29,7 @@
  * - TODO 2 cases TRANSIENT -> ONLINE: if m0d reconnected or it's restarted
  * - TODO can m0d receive TRANSIENT or FAILED about itself
  * - TODO race between FAILED about process and systemd restart
- * - TODO check types of process fid and profile fid
+ * - TODO check types of process fid
  *
  * State transition rules
  *
@@ -272,7 +272,6 @@ struct m0_ha_cfg {
 	const char                         *hcf_addr;
 	/** Fid of local process. */
 	struct m0_fid                       hcf_process_fid;
-	struct m0_fid                       hcf_profile_fid;
 
 	/* m0_ha is resposible for the next fields */
 

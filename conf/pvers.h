@@ -42,7 +42,7 @@
  * The attributes of an actual pver:
  *   - pvs_recd[]: number of failed (i.e., non-M0_NC_ONLINE) devices
  *     at each level of this pver's subtree;
- *   - pvs_rackvs;
+ *   - pvs_sitevs;
  *   - pvs_attr;
  *   - pvs_tolerance[]: this attribute is used by failure domains code
  *     (fd/fd.c) and is opaque for conf code.
@@ -64,7 +64,7 @@
  *
  * A formulaic pver is clean iff the number of failed devices at level L
  * of the base pver's subtree is equal to L-th element of the allowance
- * vector, where L = 0..M0_CONF_PVER_LVL_DISKS.
+ * vector, where L = 0..M0_CONF_PVER_LVL_DRIVES.
  *
  * Clean actual pver is returned (by m0_conf_pver_find()) to user as is.
  * Clean formulaic pver is used to find or create virtual pver;

@@ -132,6 +132,11 @@ static bool is_objv(const struct m0_conf_obj *obj,
 					       type);
 }
 
+static bool is_objv_site(const struct m0_conf_obj *obj)
+{
+	return is_objv(obj, &M0_CONF_SITE_TYPE);
+}
+
 static bool is_objv_rack(const struct m0_conf_obj *obj)
 {
 	return is_objv(obj, &M0_CONF_RACK_TYPE);
@@ -149,12 +154,12 @@ static bool is_objv_ctrl(const struct m0_conf_obj *obj)
 
 static bool is_objv_disk(const struct m0_conf_obj *obj)
 {
-	return is_objv(obj, &M0_CONF_DISK_TYPE);
+	return is_objv(obj, &M0_CONF_DRIVE_TYPE);
 }
 
 static bool
 (*is_obj_at_level[M0_CONF_PVER_HEIGHT])(const struct m0_conf_obj *obj) = {
-	NULL,
+	is_objv_site,
 	is_objv_rack,
 	is_objv_encl,
 	is_objv_ctrl,
@@ -168,19 +173,20 @@ static bool
 	uint64_t              __level = (level);                           \
 	struct m0_conf_diter  __it;                                        \
 	struct m0_fid conf_path[M0_CONF_PVER_HEIGHT][M0_CONF_PVER_HEIGHT] = { \
-		{ M0_FID0, M0_FID0 },                                      \
-		{ M0_CONF_PVER_RACKVS_FID },                               \
-		{ M0_CONF_PVER_RACKVS_FID, M0_CONF_RACKV_ENCLVS_FID },     \
-		{ M0_CONF_PVER_RACKVS_FID,                                 \
-		  M0_CONF_RACKV_ENCLVS_FID,                                \
-		  M0_CONF_ENCLV_CTRLVS_FID },                              \
-		{ M0_CONF_PVER_RACKVS_FID, M0_CONF_RACKV_ENCLVS_FID,       \
-		  M0_CONF_ENCLV_CTRLVS_FID, M0_CONF_CTRLV_DISKVS_FID },    \
+		{ M0_CONF_PVER_SITEVS_FID },                               \
+		{ M0_CONF_PVER_SITEVS_FID, M0_CONF_SITEV_RACKVS_FID },     \
+		{ M0_CONF_PVER_SITEVS_FID, M0_CONF_SITEV_RACKVS_FID,       \
+		  M0_CONF_RACKV_ENCLVS_FID },                              \
+		{ M0_CONF_PVER_SITEVS_FID, M0_CONF_SITEV_RACKVS_FID,       \
+		  M0_CONF_RACKV_ENCLVS_FID, M0_CONF_ENCLV_CTRLVS_FID },    \
+		{ M0_CONF_PVER_SITEVS_FID, M0_CONF_SITEV_RACKVS_FID,       \
+		  M0_CONF_RACKV_ENCLVS_FID, M0_CONF_ENCLV_CTRLVS_FID,      \
+		  M0_CONF_CTRLV_DRIVEVS_FID },                             \
 	 };                                                                \
 	__confc = (struct m0_confc *)m0_confc_from_obj(&__pv->pv_obj);     \
 	M0_ASSERT(__confc != NULL);                                        \
 	rc = m0_conf__diter_init(&__it, __confc, &__pv->pv_obj,            \
-				 __level, conf_path[__level]);             \
+				 __level + 1, conf_path[__level]);         \
 	while (rc >= 0  &&                                                 \
 	       (rc = m0_conf_diter_next_sync(&__it,                        \
 					     is_obj_at_level[__level])) != \
@@ -228,7 +234,7 @@ static int min_children_get(struct m0_conf_obj *obj, void *arg)
 	struct pv_subtree_info *level_info = (struct pv_subtree_info *)arg;
 	struct m0_conf_objv    *objv;
 
-	if (level_info->psi_level == M0_CONF_PVER_LVL_DISKS)
+	if (level_info->psi_level == M0_CONF_PVER_LVL_DRIVES)
 		level_info->psi_nr_objs = 0;
 	else if (is_obj_at_level[level_info->psi_level](obj)) {
 		objv = M0_CONF_CAST(obj, m0_conf_objv);
@@ -262,7 +268,7 @@ M0_INTERNAL int m0_fd_tile_build(const struct m0_conf_pver *pv,
 	 * Override the disk level tolerance in pool-version
 	 * with layout parameter K.
 	 */
-	pool_ver->pv_fd_tol_vec[M0_CONF_PVER_LVL_DISKS] =
+	pool_ver->pv_fd_tol_vec[M0_CONF_PVER_LVL_DRIVES] =
 		pool_ver->pv_attr.pa_K;
 
 	m0_conf_cache_lock(pv->pv_obj.co_cache);
@@ -281,10 +287,10 @@ M0_INTERNAL int m0_fd_tile_build(const struct m0_conf_pver *pv,
 	return M0_RC(rc);
 }
 
-static  uint64_t tree2pv_level_conv(uint64_t level, uint64_t tree_depth)
+static uint64_t tree2pv_level_conv(uint64_t level, uint64_t tree_depth)
 {
 	M0_PRE(tree_depth < M0_CONF_PVER_HEIGHT);
-	return level + ((M0_CONF_PVER_HEIGHT - 1)  - tree_depth);
+	return level + (M0_CONF_PVER_HEIGHT - tree_depth);
 }
 
 static int symm_tree_attr_get(const struct m0_conf_pver *pv, uint32_t *depth,
@@ -301,20 +307,22 @@ static int symm_tree_attr_get(const struct m0_conf_pver *pv, uint32_t *depth,
 	M0_PRE(pv != NULL && depth != NULL);
 	M0_PRE(m0_conf_cache_is_locked(pv->pv_obj.co_cache));
 
-	pver_level = M0_CONF_PVER_LVL_RACKS;
+	pver_level = M0_CONF_PVER_LVL_SITES;
 	/* Get the first level having a non-zero tolerance. */
 	while (pver_level < M0_CONF_PVER_HEIGHT &&
 	       pv->pv_u.subtree.pvs_tolerance[pver_level] == 0)
 		++pver_level;
 
 	if (pver_level == M0_CONF_PVER_HEIGHT)
-		pver_level = M0_CONF_PVER_LVL_DISKS;
+		pver_level = M0_CONF_PVER_LVL_DRIVES;
 	level_info.psi_level = pver_level;
 	rc = m0_conf_walk(objs_of_level_count, pver, &level_info);
 	if (rc < 0)
 		return M0_RC(rc);
 	*depth = M0_CONF_PVER_HEIGHT - pver_level;
 	children_nr[0] = level_info.psi_nr_objs;
+	M0_LOG(M0_DEBUG, FID_F": pver_level=%u psi_nr_objs=%u",
+	       FID_P(&pver->co_id), pver_level, level_info.psi_nr_objs);
 	/*
 	 * Extract the attributes of the symmetric tree associated with
 	 * the pool version.
@@ -341,11 +349,36 @@ static int symm_tree_attr_get(const struct m0_conf_pver *pv, uint32_t *depth,
 	 * Check if the skeleton tree (a.k.a. symmetric tree) meets the
 	 * required tolerance at all the levels.
 	 */
-	if (pv->pv_u.subtree.pvs_tolerance[M0_CONF_PVER_LVL_DISKS] > 0)
+	if (pv->pv_u.subtree.pvs_tolerance[M0_CONF_PVER_LVL_DRIVES] > 0)
 		rc = tolerance_check(pv, children_nr, pver_level, depth);
 	return M0_RC(rc);
 }
 
+/*
+ * We are distributing units of a parity group across tree,
+ * one level at a time. The root receives all `G = N + 2K` units.
+ * uniform_distribute() calculates how many units each node
+ * (conf-tree node, not a cluster node) from subsequent level
+ * will get, when units of each node are distributed _uniformly_
+ * among its children. In uniform distribution if a parent has
+ * `p` units and has `c` children, each child gets at least `p/c`
+ * units, and `r = p % c` children get one extra unit.
+ *
+ * Suppose level L, has tolerance of K_L, then units_calc() calculates
+ * the sum of units held by first K_L nodes of that level, when arranged
+ * in descending order of units they hold. And if this sum is more than
+ * `K` it means K_L failures at that level are not feasible to support.
+ * (Note: tree slightly differs from actual conf tree. It's a subtree of
+ * conf tree. Here two nodes at same level have same number of children.)
+ *
+ * Idea is that we can support K disk failures, when each unit of
+ * a parity group goes to different disk. So at any level we distribute
+ * units uniformly, and check: maximum how many units of a parity group
+ * are lost when K_L nodes of that level are taken down. This shall not
+ * be more than K as then data is not recoverable.
+ *
+ *                                                 (Nachiket)
+ */
 static int tolerance_check(const struct m0_conf_pver *pv, uint64_t *children_nr,
 			   uint32_t first_level, uint32_t *failure_level)
 {
@@ -353,17 +386,17 @@ static int tolerance_check(const struct m0_conf_pver *pv, uint64_t *children_nr,
 	int       i;
 	uint64_t  G;
 	uint64_t  K;
-	uint64_t  nodes;
+	uint64_t  nodes = 1;
 	uint64_t  sum;
 	uint64_t *units[M0_CONF_PVER_HEIGHT];
-	uint32_t  depth;
+	uint32_t  depth = *failure_level;
+
+	M0_ENTRY("pv="FID_F" depth=%u", FID_P(&pv->pv_obj.co_id), depth);
 
 	G = parity_group_size(&pv->pv_u.subtree.pvs_attr);
 	K = pv->pv_u.subtree.pvs_attr.pa_K;
 
 	/* total nodes at given level. */
-	nodes = 1;
-	depth = *failure_level;
 	for (i = 0; i <= depth; ++i) {
 		M0_ALLOC_ARR(units[i], nodes);
 		if (units[i] == NULL) {
@@ -382,6 +415,8 @@ static int tolerance_check(const struct m0_conf_pver *pv, uint64_t *children_nr,
 		sum = units_calc(units, i, nodes, children_nr[i - 1],
 				 pv->pv_u.subtree.pvs_tolerance[first_level +
 								i - 1]);
+		M0_LOG(M0_DEBUG, "%d: sum=%d K=%d children_nr=%d",
+		       i, (int)sum, (int)K, (int)children_nr[i - 1]);
 		if (sum > K) {
 			*failure_level = first_level + i - 1;
 			rc = -EINVAL;
@@ -581,7 +616,7 @@ M0_INTERNAL int m0_fd_tree_build(const struct m0_conf_pver *pv,
 	rc = m0_fd__tree_root_create(tree, children_nr[0]);
 	if (rc != 0)
 		return M0_RC(rc);
-	for (level = 1; level < tree->ft_depth + 1; ++level) {
+	for (level = 0; level < tree->ft_depth; ++level) {
 		rc = m0_fd__tree_level_populate(pv, tree, level);
 		if (rc != 0)
 			return M0_RC(rc);
@@ -604,17 +639,20 @@ M0_INTERNAL int m0_fd__tree_level_populate(const struct m0_conf_pver *pv,
 
 	M0_PRE(pv != NULL && tree != NULL);
 	M0_PRE(tree->ft_root != NULL);
-	M0_PRE(level > 0 && level <= tree->ft_depth);
+	M0_PRE(level >= 0 && level < tree->ft_depth);
 
 	/* Initialize the cursor for failure-domain tree. */
-	rc = m0_fd__tree_cursor_init(&cursor, tree, level);
+	rc = m0_fd__tree_cursor_init(&cursor, tree, level + 1);
 	if (rc != 0)
 		return M0_RC(rc);
 	pv_level = tree2pv_level_conv(level, tree->ft_depth);
+	M0_LOG(M0_DEBUG, "depth=%u level=%u pv_level=%u",
+	       (unsigned)tree->ft_depth, level, (unsigned)pv_level);
 	pv_for (pv, pv_level, obj, rc) {
-		M0_ASSERT(m0_conf_obj_type(obj) ==  &M0_CONF_OBJV_TYPE);
+		M0_ASSERT(m0_conf_obj_type(obj) == &M0_CONF_OBJV_TYPE);
+		M0_LOG(M0_DEBUG, FID_F, FID_P(&obj->co_id));
 		objv = M0_CONF_CAST(obj, m0_conf_objv);
-		children_nr = level < tree->ft_depth ?
+		children_nr = level < tree->ft_depth - 1 ?
 			m0_conf_dir_len(objv->cv_children) : 0;
 		node = m0_fd__tree_cursor_get(&cursor);
 		*node = m0_alloc(sizeof node[0][0]);

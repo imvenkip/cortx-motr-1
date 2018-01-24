@@ -158,7 +158,7 @@ M0_CONF__CTOR_DEFINE(process_create, m0_conf_process, &process_ops);
 
 const struct m0_conf_obj_type M0_CONF_PROCESS_TYPE = {
 	.cot_ftype = {
-		.ft_id   = 'r',
+		.ft_id   = M0_CONF__PROCESS_FT_ID,
 		.ft_name = "conf_process",
 	},
 	.cot_create  = &process_create,

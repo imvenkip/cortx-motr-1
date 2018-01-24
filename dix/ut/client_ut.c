@@ -26,6 +26,7 @@
 #include "layout/linear_enum.h"
 #include "pool/pool.h"
 #include "rpc/rpclib.h"            /* m0_rpc_server_ctx */
+#include "conf/helpers.h"          /* m0_confc_args */
 #include "cas/client.h"
 #include "dix/imask.h"
 #include "dix/layout.h"
@@ -113,7 +114,6 @@ static char *dix_startup_cmd[] = { "m0d", "-T", "linux",
 				"-H", "0@lo:12345:34:1",
 				"-w", "10", "-F",
 				"-f", M0_UT_CONF_PROCESS,
-				"-P", M0_UT_CONF_PROFILE,
 				"-c", M0_SRC_PATH("dix/ut/conf.xc")};
 static const char *cdbnames[]         = { "dix1" };
 static const char *cl_ep_addrs[]      = { "0@lo:12345:34:2" };
@@ -1015,7 +1015,7 @@ static int dix_client_init(struct cl_ctx *cctx, const char *cl_ep_addr,
 {
 	int                        rc;
 	struct m0_rpc_client_ctx  *cl_rpc_ctx;
-	struct m0_conf_filesystem *fs;
+	struct m0_conf_root       *root;
 	struct m0_confc_args      *confc_args;
 	struct m0_pools_common    *pc = &cctx->cl_pools_common;
 
@@ -1064,14 +1064,14 @@ static int dix_client_init(struct cl_ctx *cctx, const char *cl_ep_addr,
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_rconfc_start_sync(&cl_rpc_ctx->rcx_reqh.rh_rconfc);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_conf_fs_get(m0_reqh2profile(&cl_rpc_ctx->rcx_reqh),
-			    m0_reqh2confc(&cl_rpc_ctx->rcx_reqh), &fs);
+	rc = m0_confc_root_open(m0_reqh2confc(&cl_rpc_ctx->rcx_reqh), &root);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_pools_common_init(pc, &cl_rpc_ctx->rcx_rpc_machine, fs);
+	rc = m0_pools_common_init(pc, &cl_rpc_ctx->rcx_rpc_machine);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_pools_setup(pc, fs, NULL, NULL, NULL);
+	rc = m0_pools_setup(pc, m0_reqh2profile(&cl_rpc_ctx->rcx_reqh),
+			    NULL, NULL, NULL);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_pools_service_ctx_create(pc, fs);
+	rc = m0_pools_service_ctx_create(pc);
 	M0_UT_ASSERT(rc == 0);
 	/* Wait until all services are connected. */
 	m0_pools_common_service_ctx_connect_sync(pc);
@@ -1085,9 +1085,9 @@ static int dix_client_init(struct cl_ctx *cctx, const char *cl_ep_addr,
 	rc = m0_layout_standard_types_register(&cl_rpc_ctx->rcx_reqh.rh_ldom);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_pool_versions_setup(pc, fs, NULL, NULL, NULL);
+	rc = m0_pool_versions_setup(pc, NULL, NULL, NULL);
 	M0_UT_ASSERT(rc == 0);
-	m0_confc_close(&fs->cf_obj);
+	m0_confc_close(&root->rt_obj);
 	cctx->cl_sdev_ids = NULL;
 	return rc;
 }
@@ -1142,14 +1142,14 @@ static void dixc_ut_fini(struct m0_rpc_server_ctx *sctx,
 
 static int ut_pver_find(struct m0_reqh *reqh, struct m0_fid *out)
 {
-	struct m0_conf_filesystem *fs;
-	int                        rc;
+	struct m0_conf_root *root;
+	int                  rc;
 
-	rc = m0_conf_fs_get(m0_reqh2profile(reqh), m0_reqh2confc(reqh), &fs);
+	rc = m0_confc_root_open(m0_reqh2confc(reqh), &root);
 	if (rc != 0)
 		return M0_ERR(rc);
-	*out = fs->cf_imeta_pver;
-	m0_confc_close(&fs->cf_obj);
+	*out = root->rt_imeta_pver;
+	m0_confc_close(&root->rt_obj);
 	return 0;
 }
 

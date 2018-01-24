@@ -64,7 +64,7 @@ static char *server_argv[] = {
 	"fdmi_filterc_ut", "-T", "AD", "-D", SERVER_DB_NAME,
 	"-S", SERVER_STOB_NAME, "-A", SERVER_ADDB_STOB_NAME,
 	"-e", SERVER_ENDPOINT, "-H", SERVER_ENDPOINT_ADDR, "-w", "10",
-	"-c", M0_SRC_PATH("fdmi/ut/conf.xc"), "-P", M0_UT_CONF_PROFILE
+	"-c", M0_SRC_PATH("fdmi/ut/conf.xc")
 };
 
 enum {

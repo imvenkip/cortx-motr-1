@@ -39,7 +39,7 @@ static char *sargs[] = {"m0d", "-T", "linux",
 			"-A", "linuxstob:cs_addb_stob",
 			"-e", "lnet:0@lo:12345:34:1",
 			"-H", "0@lo:12345:34:1",
-			"-w", "10", "-P", M0_UT_CONF_PROFILE,
+			"-w", "10",
 			"-c", M0_SRC_PATH("reqh/ut/service_ctx.xc")
 };
 

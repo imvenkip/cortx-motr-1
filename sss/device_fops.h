@@ -36,7 +36,7 @@
  * - @ref DLD-sss_device-usecases
  * - @ref DLDGRP_sss_device "Device command internal" <!-- Note link -->
  *
- * Device commands derived disk (see m0_conf_disk) on Mero. Each device
+ * Device commands derived disk (see m0_conf_drive) on Mero. Each device
  * must preregister on Pool machine, and has record in confc subsystem. All
  * additional information about disk and its storage device must present in
  * confc on server side.

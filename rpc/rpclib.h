@@ -200,7 +200,6 @@ m0_rpc_client_find_connect(struct m0_rpc_conn       *conn,
 			   struct m0_rpc_session    *session,
 			   struct m0_rpc_machine    *rpc_mach,
 			   const char               *remote_addr,
-			   const struct m0_fid      *sfid,
 			   enum m0_conf_service_type stype,
 			   uint64_t                  max_rpcs_in_flight,
 			   m0_time_t                 abs_timeout);

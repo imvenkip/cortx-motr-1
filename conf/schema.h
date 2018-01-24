@@ -176,8 +176,8 @@ enum {
 	X_CST(M0_CST_SNS_REB) /**< SNS rebalance */              \
 	X_CST(M0_CST_ADDB2)   /**< ADDB service */               \
 	X_CST(M0_CST_CAS)     /**< Catalogue service */          \
-	X_CST(M0_CST_DIX_REP) /**< Dix repair. */                \
-	X_CST(M0_CST_DIX_REB) /**< Dix rebalance. */             \
+	X_CST(M0_CST_DIX_REP) /**< Dix repair */                 \
+	X_CST(M0_CST_DIX_REB) /**< Dix rebalance */              \
 	X_CST(M0_CST_DS1)     /**< Dummy service 1 */            \
 	X_CST(M0_CST_DS2)     /**< Dummy service 2 */            \
 	X_CST(M0_CST_FIS)     /**< Fault injection service */    \

@@ -1,5 +1,5 @@
 /*
- * COPYRIGHT 2016 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2016-2018 SEAGATE LLC
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -15,6 +15,7 @@
  *
  * Original author: Rajanikant Chirmade <rajanikant.chirmade@seagate.com>
  *                  Valery V. Vorotyntsev <valery.vorotyntsev@seagate.com>
+ * Authors:         Andriy Tkachuk <andriy.tkachuk@seagate.com>
  * Original creation date: 16-Jun-2016
  */
 
@@ -38,11 +39,12 @@
 #include "lib/memory.h"        /* M0_ALLOC_ARR */
 
 #define CONF_PVER_VECTOR_LOG(owner, fid, vector)                       \
-	M0_LOG(M0_DEBUG, owner"="FID_F" "#vector"=[%u %u %u %u]", fid, \
+	M0_LOG(M0_DEBUG, owner"="FID_F" "#vector"=[%u %u %u %u %u]", fid, \
+	       vector[M0_CONF_PVER_LVL_SITES],                         \
 	       vector[M0_CONF_PVER_LVL_RACKS],                         \
 	       vector[M0_CONF_PVER_LVL_ENCLS],                         \
 	       vector[M0_CONF_PVER_LVL_CTRLS],                         \
-	       vector[M0_CONF_PVER_LVL_DISKS])
+	       vector[M0_CONF_PVER_LVL_DRIVES])
 
 /** Array of int values. */
 struct arr_int {
@@ -81,9 +83,7 @@ static int conf_pver_formulaic_find_locked(uint32_t fpver_id,
 	int                        rc;
 
 	m0_conf_glob_init(&glob, M0_CONF_GLOB_ERR, NULL, NULL, &root->rt_obj,
-			  M0_CONF_ROOT_PROFILES_FID, M0_CONF_ANY_FID,
-			  M0_CONF_PROFILE_FILESYSTEM_FID,
-			  M0_CONF_FILESYSTEM_POOLS_FID, M0_CONF_ANY_FID,
+			  M0_CONF_ROOT_POOLS_FID, M0_CONF_ANY_FID,
 			  M0_CONF_POOL_PVERS_FID, M0_CONF_ANY_FID);
 	while ((rc = m0_conf_glob(&glob, ARRAY_SIZE(objs), objs)) > 0) {
 		for (i = 0; i < rc; ++i) {
@@ -394,14 +394,16 @@ M0_INTERNAL unsigned m0_conf_pver_level(const struct m0_conf_obj *obj)
 		M0_ASSERT(obj->co_status == M0_CS_READY);
 		t = m0_conf_obj_type(M0_CONF_CAST(obj, m0_conf_objv)->cv_real);
 	}
+	if (t == &M0_CONF_SITE_TYPE)
+		return M0_CONF_PVER_LVL_SITES;
 	if (t == &M0_CONF_RACK_TYPE)
 		return M0_CONF_PVER_LVL_RACKS;
 	if (t == &M0_CONF_ENCLOSURE_TYPE)
 		return M0_CONF_PVER_LVL_ENCLS;
 	if (t == &M0_CONF_CONTROLLER_TYPE)
 		return M0_CONF_PVER_LVL_CTRLS;
-	if (t == &M0_CONF_DISK_TYPE)
-		return M0_CONF_PVER_LVL_DISKS;
+	if (t == &M0_CONF_DRIVE_TYPE)
+		return M0_CONF_PVER_LVL_DRIVES;
 	M0_IMPOSSIBLE("Bad argument: "FID_F, FID_P(&obj->co_id));
 }
  /* page break */
@@ -485,10 +487,10 @@ static int conf_pver_objvs_count(struct m0_conf_pver *base, uint32_t *out)
 {
 	const struct m0_conf_obj  *obj;
 	const struct m0_conf_objv *objv;
-	uint32_t                   level = M0_CONF_PVER_LVL_RACKS;
+	uint32_t                   level = 0;
 
 	conf_pver_enumerate(base);
-	obj = m0_conf_dir_tlist_tail(&base->pv_u.subtree.pvs_rackvs->cd_items);
+	obj = m0_conf_dir_tlist_tail(&base->pv_u.subtree.pvs_sitevs->cd_items);
 	/* rack-v, encl-v, ctrl-v, disk-v */
 	while (1) {
 		if (obj == NULL || m0_conf_obj_is_stub(obj))
@@ -666,7 +668,7 @@ static int conf_pver_base_w(struct m0_conf_obj *obj, void *args)
 
 	downlink = new_obj->co_ops->coo_downlinks(new_obj)[0];
 	if (downlink == NULL) {
-		M0_ASSERT(level == M0_CONF_PVER_LVL_DISKS);
+		M0_ASSERT(level == M0_CONF_PVER_LVL_DRIVES);
 		M0_CNT_INC(st->bws_disk_nr);
 		goto out;
 	}
@@ -757,8 +759,8 @@ static int conf_pver_virtual_create(const struct m0_fid *fid,
 	/* m0_conf_cache_add() cannot fail: conf_pver_virtual_create()
 	 * would not be called if the object existed in the cache. */
 	M0_ASSERT(rc == 0);
-	rc = m0_conf_dir_new(pvobj, &M0_CONF_PVER_RACKVS_FID,
-			     &M0_CONF_OBJV_TYPE, NULL, &pvsub->pvs_rackvs);
+	rc = m0_conf_dir_new(pvobj, &M0_CONF_PVER_SITEVS_FID,
+			     &M0_CONF_OBJV_TYPE, NULL, &pvsub->pvs_sitevs);
 	if (rc != 0) {
 		rc = M0_ERR(rc);
 		goto err;
@@ -770,7 +772,7 @@ static int conf_pver_virtual_create(const struct m0_fid *fid,
 	st.bws_failed = failed;
 	st.bws_failed_next = 0;
 	st.bws_disk_nr = 0;
-	st.bws_dirs[M0_CONF_PVER_LVL_RACKS] = pvsub->pvs_rackvs;
+	st.bws_dirs[M0_CONF_PVER_LVL_SITES] = pvsub->pvs_sitevs;
 	/* Build virtual pver subtree. */
 	rc = m0_conf_walk(conf_pver_base_w, &base->pv_obj, &st);
 	if (rc != 0) {
@@ -783,7 +785,7 @@ static int conf_pver_virtual_create(const struct m0_fid *fid,
 		rc = M0_ERR(-EINVAL);
 		goto err;
 	}
-	M0_ASSERT(pvsub->pvs_attr.pa_P > allowance[M0_CONF_PVER_LVL_DISKS]);
+	M0_ASSERT(pvsub->pvs_attr.pa_P > allowance[M0_CONF_PVER_LVL_DRIVES]);
 	rc = conf_pver_tolerance_adjust(pver);
 	if (rc != 0) {
 		rc = M0_ERR(rc);

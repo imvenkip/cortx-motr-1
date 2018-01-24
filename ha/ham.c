@@ -598,11 +598,6 @@ int main(int argc, char **argv)
 		.hcf_reqh        = &rpc_ctx.mrc_reqh,
 		.hcf_addr        = NULL,
 		.hcf_process_fid = M0_FID_TINIT('r', HAM_ID, HAM_ID),
-		/*
-		 * XXX Should it be the actual profile, i.e. the one from
-		 * cluster conf?
-		 */
-		.hcf_profile_fid = M0_FID_TINIT('p', HAM_ID, HAM_ID)
 	};
 	int rc;
 

@@ -41,7 +41,6 @@ char  *cm_ut_server_args[] = { "m0d", "-T", "LINUX",
 				"-F",
 				"-G", "lnet:0@lo:12345:34:1",
 				"-e", "lnet:0@lo:12345:34:1",
-				"-P", M0_UT_CONF_PROFILE,
 				"-c", M0_UT_PATH("conf.xc")};
 
 static void cm_ut_server_start(void)

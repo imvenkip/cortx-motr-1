@@ -1711,7 +1711,7 @@ M0_INTERNAL int m0_clovis__obj_attr_get_sync(struct m0_clovis_obj *obj)
 
  	M0_PRE(obj != NULL);
  	cinst = m0_clovis__obj_instance(obj);
- 	rc = m0_pool_version_get(&cinst->m0c_pools_common, &pv);
+ 	rc = m0_pool_version_get(&cinst->m0c_pools_common, NULL, &pv);
  	M0_ASSERT(rc == 0);
  	cr = clovis_cob_req_alloc(pv);
  	if (cr == NULL)

@@ -28,13 +28,13 @@
 #include "mero/setup.h"           /* cs_args */
 #include "mero/setup_internal.h"  /* cs_ad_stob_create */
 #include "rpc/rpclib.h"           /* m0_rpc_client_ctx */
-#include "conf/obj.h"             /* m0_conf_filesystem */
+#include "conf/obj.h"
 #include "conf/obj_ops.h"         /* M0_CONF_DIRNEXT */
 #include "conf/confc.h"           /* m0_confc */
 #include "conf/schema.h"          /* m0_conf_service_type */
 #include "conf/dir.h"             /* m0_conf_dir_len */
 #include "conf/diter.h"           /* m0_conf_diter_init */
-#include "conf/helpers.h"         /* m0_conf_fs_get */
+#include "conf/helpers.h"         /* m0_confc_root_open */
 #include "reqh/reqh_service.h"    /* m0_reqh_service_ctx */
 #include "stob/linux.h"           /* m0_stob_linux_reopen */
 #include "ioservice/storage_dev.h" /* m0_storage_dev_attach */
@@ -150,7 +150,7 @@ static bool service_and_node(const struct m0_conf_obj *obj)
 }
 
 M0_INTERNAL int
-cs_conf_to_args(struct cs_args *dest, struct m0_conf_filesystem *fs)
+cs_conf_to_args(struct cs_args *dest, struct m0_conf_root *root)
 {
 	struct m0_confc      *confc;
 	struct m0_conf_diter  it;
@@ -158,11 +158,11 @@ cs_conf_to_args(struct cs_args *dest, struct m0_conf_filesystem *fs)
 
 	M0_ENTRY();
 
-	confc = m0_confc_from_obj(&fs->cf_obj);
+	confc = m0_confc_from_obj(&root->rt_obj);
 	M0_ASSERT(confc != NULL);
 
-	rc = m0_conf_diter_init(&it, confc, &fs->cf_obj,
-				M0_CONF_FILESYSTEM_NODES_FID,
+	rc = m0_conf_diter_init(&it, confc, &root->rt_obj,
+				M0_CONF_ROOT_NODES_FID,
 				M0_CONF_NODE_PROCESSES_FID,
 				M0_CONF_PROCESS_SERVICES_FID);
 	if (rc != 0)
@@ -394,7 +394,7 @@ M0_INTERNAL int cs_conf_services_init(struct m0_mero *cctx)
 {
 	int                        rc;
 	struct m0_conf_diter       it;
-	struct m0_conf_filesystem *fs;
+	struct m0_conf_root       *root;
 	struct m0_reqh_context    *rctx;
 	struct m0_confc           *confc;
 
@@ -403,12 +403,12 @@ M0_INTERNAL int cs_conf_services_init(struct m0_mero *cctx)
 	rctx = &cctx->cc_reqh_ctx;
 	rctx->rc_nr_services = 0;
 	confc = m0_mero2confc(cctx);
-	rc = m0_conf_fs_get(m0_reqh2profile(&rctx->rc_reqh), confc, &fs);
+	rc = m0_confc_root_open(confc, &root);
 	if (rc != 0)
-		return M0_ERR_INFO(rc, "conf fs fail");;
+		return M0_ERR_INFO(rc, "conf root open fail");
 	rc = M0_FI_ENABLED("diter_fail") ? -ENOMEM :
-		m0_conf_diter_init(&it, confc, &fs->cf_obj,
-				   M0_CONF_FILESYSTEM_NODES_FID,
+		m0_conf_diter_init(&it, confc, &root->rt_obj,
+				   M0_CONF_ROOT_NODES_FID,
 				   M0_CONF_NODE_PROCESSES_FID,
 				   M0_CONF_PROCESS_SERVICES_FID);
 	if (rc != 0)
@@ -444,7 +444,7 @@ M0_INTERNAL int cs_conf_services_init(struct m0_mero *cctx)
 	}
 	m0_conf_diter_fini(&it);
 fs_close:
-	m0_confc_close(&fs->cf_obj);
+	m0_confc_close(&root->rt_obj);
 	return M0_RC(rc);
 }
 

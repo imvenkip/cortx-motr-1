@@ -42,34 +42,23 @@ struct m0_confc_args {
 
 /** Finds a device object using device index as a key. */
 M0_INTERNAL int m0_conf_device_cid_to_fid(struct m0_confc *confc, uint64_t cid,
-					  const struct m0_fid *conf_profile,
 					  struct m0_fid *out);
 
 /**
- * Obtains filesystem object associated with given profile.
- *
- * @note The resulting conf object must be m0_confc_close()d eventually.
- *
- * @pre  m0_conf_fid_type(profile) == &M0_CONF_PROFILE_TYPE
- */
-M0_INTERNAL int m0_conf_fs_get(const struct m0_fid        *profile,
-			       struct m0_confc            *confc,
-			       struct m0_conf_filesystem **result);
-
-/**
  * Obtains a pool version that consists of online elements only.
+ *
+ * @pre m0_conf_fid_type(pool) == &M0_CONF_POOL_TYPE
  *
  * @note The resulting conf object should be m0_confc_close()d eventually.
  *
  * @see m0_conf_pver_find()
  */
-M0_INTERNAL int m0_conf_pver_get(const struct m0_fid  *profile,
-				 struct m0_confc      *confc,
+M0_INTERNAL int m0_conf_pver_get(struct m0_confc      *confc,
 				 const struct m0_fid  *pool,
 				 struct m0_conf_pver **out);
 
 /*
- * m0_conf_service_get() / m0_conf_sdev_get() / m0_conf_disk_get()
+ * m0_conf_service_get() / m0_conf_sdev_get() / m0_conf_drive_get()
  * finds conf object by its fid and returns this object opened.
  *
  * Caller is responsible for m0_confc_close()ing the returned object.
@@ -77,7 +66,7 @@ M0_INTERNAL int m0_conf_pver_get(const struct m0_fid  *profile,
 #define M0_CONF_OBJ_GETTERS \
 	X(m0_conf_service); \
 	X(m0_conf_sdev);    \
-	X(m0_conf_disk)
+	X(m0_conf_drive)
 
 #define X(type)                                          \
 M0_INTERNAL int type ## _get(struct m0_confc     *confc, \
@@ -87,33 +76,7 @@ M0_CONF_OBJ_GETTERS;
 #undef X
 
 /** Loads full configuration tree. */
-M0_INTERNAL int m0_conf_full_load(struct m0_conf_filesystem *fs);
-
-/**
- * Locates conf service object identified by fid (optional), service type and
- * endpoint address. In case fid is NULL, service type and endpoint address are
- * used to locate the object in configuration.
- *
- * The object is looked up in confc belonging to REQH instance.
- *
- * In case service object not found in cache immediately by fid, a service
- * object of the given type and endpoint is looked up in configuration under
- * current profile.
- *
- * The found service object is ultimately tested for having the provided
- * endpoint address.
- */
-M0_INTERNAL int m0_conf_service_find(struct m0_reqh            *reqh,
-				     const struct m0_fid       *fid,
-				     enum m0_conf_service_type  type,
-				     const char                *ep_addr,
-				     struct m0_conf_obj       **svc_obj);
-
-M0_INTERNAL int m0_conf_service_open(struct m0_confc            *confc,
-				     const struct m0_fid        *profile,
-				     const char                 *ep,
-				     enum m0_conf_service_type   svc_type,
-				     struct m0_conf_service    **svc);
+M0_INTERNAL int m0_conf_full_load(struct m0_conf_root *r);
 
 /**
  * Opens root configuration object.
@@ -121,8 +84,32 @@ M0_INTERNAL int m0_conf_service_open(struct m0_confc            *confc,
  * @param confc  Initialised confc instance.
  * @param root   Output parameter. Should be m0_confc_close()d by user.
  */
-M0_INTERNAL int m0_conf_root_open(struct m0_confc      *confc,
-				  struct m0_conf_root **root);
+M0_INTERNAL int m0_confc_root_open(struct m0_confc      *confc,
+				   struct m0_conf_root **root);
+
+/**
+ * Opens profile configuration object.
+ *
+ * @param confc   Initialised confc instance.
+ * @param fid     Fid of the profile to open.
+ * @param out     Output parameter. Should be m0_confc_close()d by user.
+ */
+M0_INTERNAL int m0_confc_profile_open(struct m0_confc         *confc,
+				      const struct m0_fid     *fid,
+				      struct m0_conf_profile **out);
+
+/**
+ * Tries to find m0_conf_service object by service type and endpoint
+ * address.
+ *
+ * @post  ergo(rc == 0,
+ *             *result == NULL ||
+ *             m0_conf_obj_type(*result) == &M0_CONF_SERVICE_TYPE)
+ */
+M0_INTERNAL int m0_confc_service_find(struct m0_confc           *confc,
+				      enum m0_conf_service_type  stype,
+				      const char                *ep,
+				      struct m0_conf_obj       **result);
 
 /** Get service name by service configuration object */
 M0_INTERNAL char *m0_conf_service_name_dup(const struct m0_conf_service *svc);
@@ -140,7 +127,7 @@ M0_INTERNAL struct m0_conf_pver **m0_conf_pvers(const struct m0_conf_obj *obj);
 M0_INTERNAL bool m0_conf_service_is_top_rms(const struct m0_conf_service *svc);
 
 /**
- * Checks that 'obj' is of type M0_CONF_DISK_TYPE and this disk is attached to
+ * Checks that 'obj' is of type M0_CONF_DRIVE_TYPE and this disk is attached to
  * a service of one of types specified in 'svc_types' bitmask.
  *
  * Example:
@@ -159,11 +146,10 @@ M0_INTERNAL bool m0_is_ios_disk(const struct m0_conf_obj *obj);
  *
  * Example:
  * @code
- * rc = m0_conf_devices_count(profile, confc, M0_BITS(M0_CST_IOS), &nr);
+ * rc = m0_conf_devices_count(confc, M0_BITS(M0_CST_IOS), &nr);
  * @endcode
  */
-M0_INTERNAL int m0_conf_devices_count(struct m0_fid   *profile,
-				      struct m0_confc *confc,
+M0_INTERNAL int m0_conf_devices_count(struct m0_confc *confc,
 				      uint64_t         svc_types,
 				      uint32_t        *nr_devices);
 

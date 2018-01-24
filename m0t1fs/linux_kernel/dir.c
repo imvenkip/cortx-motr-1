@@ -33,6 +33,7 @@
 #include "fop/fop.h"       /* m0_fop_alloc */
 #include "rpc/rpclib.h"    /* m0_rpc_post_sync */
 #include "rpc/rpc_opcodes.h"
+#include "conf/helpers.h"  /* m0_confc_root_open */
 #include "mero/magic.h"
 #include "layout/layout.h"
 #include "layout/layout_internal.h" /* LID_NONE */
@@ -557,38 +558,40 @@ static int m0t1fs_fid_create(struct inode     *dir,
 
 static uint64_t default_layout_id_get(struct m0t1fs_sb *csb)
 {
-	int                        rc;
-	int                        i;
-	uint64_t                   lid;
-	const uint64_t             FS_LID_INDEX = 1;
-	struct m0_reqh            *reqh = &csb->csb_reqh;
-	struct m0_conf_filesystem *fs;
+	int                   rc;
+	int                   i;
+	uint64_t              lid = M0_DEFAULT_LAYOUT_ID;
+	const uint64_t        FS_LID_INDEX = 1;
+	struct m0_reqh       *reqh = &csb->csb_reqh;
+	struct m0_conf_root  *r;
 
 	M0_ENTRY();
 
-	rc = m0_conf_fs_get(m0_reqh2profile(reqh), m0_reqh2confc(reqh), &fs);
-	if (rc == 0) {
-		/* TODO move the warning to the mount time */
-		if (fs->cf_params == NULL)
-			M0_LOG(M0_WARN, "fs->cf_params == NULL");
-		for (i = 0;
-		     fs->cf_params != NULL && fs->cf_params[i] != NULL; ++i) {
-			M0_LOG(M0_DEBUG, "param(%d): %s", i, fs->cf_params[i]);
-			if (i == FS_LID_INDEX) {
-				lid = simple_strtoul(fs->cf_params[i], NULL, 0);
-				M0_LOG(M0_DEBUG, "fetched layout id: %s, %llu",
-				       fs->cf_params[i], lid);
+	rc = m0_confc_root_open(m0_reqh2confc(reqh), &r);
+	if (rc != 0)
+		goto err;
 
-				M0_LEAVE();
-				m0_confc_close(&fs->cf_obj);
-				return lid;
-			}
-		}
+	/* TODO move the warning to the mount time */
+	if (r->rt_params == NULL) {
+		M0_LOG(M0_WARN, "r->rt_params == NULL");
+		goto out;
 	}
-	m0_confc_close(&fs->cf_obj);
+
+	for (i=0; r->rt_params[i] != NULL; ++i) {
+		M0_LOG(M0_DEBUG, "param(%d): %s", i, r->rt_params[i]);
+		if (i != FS_LID_INDEX)
+			continue;
+		lid = simple_strtoul(r->rt_params[i], NULL, 0);
+		M0_LOG(M0_DEBUG, "fetched layout id: %s, %llu",
+		       r->rt_params[i], lid);
+		break;
+	}
+out:
+	m0_confc_close(&r->rt_obj);
+err:
 	M0_LEAVE();
 
-	return M0_DEFAULT_LAYOUT_ID;
+	return lid;
 }
 
 static int m0t1fs_fid_check(struct m0_fid *fid)
@@ -636,7 +639,7 @@ static int m0t1fs_create(struct inode     *dir,
 	rc = m0t1fs_fs_conf_lock(csb);
 	if (rc != 0)
 		return M0_ERR(rc);
-	rc = m0_pool_version_get(&csb->csb_pools_common, &pv);
+	rc = m0_pool_version_get(&csb->csb_pools_common, NULL, &pv);
 	if (rc != 0)
 		goto out;
 
@@ -845,7 +848,7 @@ static struct dentry *m0t1fs_lookup(struct inode     *dir,
 		body.b_valid = (M0_COB_MODE | M0_COB_LID);
 		body.b_lid = M0_DEFAULT_LAYOUT_ID;
 		body.b_mode = S_IFREG;
-		rc = m0_pool_version_get(&csb->csb_pools_common, &pv);
+		rc = m0_pool_version_get(&csb->csb_pools_common, NULL, &pv);
 		if (rc != 0) {
 			M0_LEAVE("ERROR: rc:%d", rc);
 			err_ptr = ERR_PTR(rc);

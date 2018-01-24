@@ -1,5 +1,6 @@
 /*
  * COPYRIGHT 2014 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2015-2018 SEAGATE LLC
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -62,95 +63,68 @@ struct __ ## type ## _semicolon_catcher
 M0_CONF_OBJ_GETTERS;
 #undef X
 
-M0_INTERNAL int m0_conf_fs_get(const struct m0_fid        *profile,
-			       struct m0_confc            *confc,
-			       struct m0_conf_filesystem **result)
-{
-	struct m0_conf_obj *obj;
-	int                 rc;
-
-	M0_ENTRY();
-	M0_PRE(m0_fid_is_set(profile));
-	M0_PRE(m0_conf_fid_is_valid(profile));
-	M0_PRE(m0_conf_fid_type(profile) == &M0_CONF_PROFILE_TYPE);
-
-	rc = m0_confc_open_sync(&obj, confc->cc_root,
-				M0_CONF_ROOT_PROFILES_FID, *profile,
-				M0_CONF_PROFILE_FILESYSTEM_FID);
-	if (rc == 0)
-		*result = M0_CONF_CAST(obj, m0_conf_filesystem);
-	return M0_RC(rc);
-}
-
 M0_INTERNAL bool m0_conf_obj_is_pool(const struct m0_conf_obj *obj)
 {
 	return m0_conf_obj_type(obj) == &M0_CONF_POOL_TYPE;
 }
 
-M0_INTERNAL int m0_conf_pver_get(const struct m0_fid  *profile,
-				 struct m0_confc      *confc,
+M0_INTERNAL int m0_conf_pver_get(struct m0_confc      *confc,
 				 const struct m0_fid  *pool,
 				 struct m0_conf_pver **out)
 {
-	struct m0_conf_filesystem *fs;
-	struct m0_conf_obj        *pool_obj;
-	int                        rc;
+	int rc;
+	struct m0_conf_root *root = NULL;
+	struct m0_conf_obj  *pool_obj = NULL;
 
-	rc = m0_conf_fs_get(profile, confc, &fs);
-	if (rc != 0)
-		return M0_ERR(rc);
+	M0_PRE(m0_conf_fid_type(pool) == &M0_CONF_POOL_TYPE);
 
-	rc = m0_confc_open_sync(&pool_obj, &fs->cf_obj,
-				M0_CONF_FILESYSTEM_POOLS_FID, *pool);
-	if (rc != 0)
-		goto fs_close;
-
-	rc = m0_conf_pver_find(M0_CONF_CAST(pool_obj, m0_conf_pool),
-			       &fs->cf_imeta_pver, out);
+	rc = m0_confc_root_open(confc, &root) ?:
+	     m0_confc_open_sync(&pool_obj, confc->cc_root,
+				M0_CONF_ROOT_POOLS_FID, *pool) ?:
+	     m0_conf_pver_find(M0_CONF_CAST(pool_obj, m0_conf_pool),
+			       &root->rt_imeta_pver, out);
 	if (rc == 0) {
 		M0_ASSERT(*out != NULL);
 		m0_conf_obj_get_lock(&(*out)->pv_obj);
 	}
 	m0_confc_close(pool_obj);
-fs_close:
-	m0_confc_close(&fs->cf_obj);
+	m0_confc_close(root ? &root->rt_obj : NULL);
 	return M0_RC(rc);
 }
 
-static bool obj_is_sdev(const struct m0_conf_obj *obj)
+static bool conf_obj_is_sdev(const struct m0_conf_obj *obj)
 {
 	return m0_conf_obj_type(obj) == &M0_CONF_SDEV_TYPE;
 }
 
 M0_INTERNAL int m0_conf_device_cid_to_fid(struct m0_confc *confc, uint64_t cid,
-					  const struct m0_fid *conf_profile,
 					  struct m0_fid *fid)
 {
-	struct m0_conf_diter       it;
-	struct m0_conf_filesystem *fs;
-	struct m0_conf_sdev       *sdev;
-	struct m0_conf_obj        *obj;
-	int                        rc;
+	int                    rc;
+	struct m0_conf_root   *root;
+	struct m0_conf_sdev   *sdev;
+	struct m0_conf_obj    *obj;
+	struct m0_conf_diter   it;
 
-	rc = m0_conf_fs_get(conf_profile, confc, &fs);
+	rc = m0_confc_root_open(confc, &root);
 	if (rc != 0)
 		return M0_ERR(rc);
 
 	rc = m0_conf_diter_init(&it, confc,
-				&fs->cf_obj,
-				M0_CONF_FILESYSTEM_NODES_FID,
+				&root->rt_obj,
+				M0_CONF_ROOT_NODES_FID,
 				M0_CONF_NODE_PROCESSES_FID,
 				M0_CONF_PROCESS_SERVICES_FID,
 				M0_CONF_SERVICE_SDEVS_FID);
 	if (rc != 0) {
-		m0_confc_close(&fs->cf_obj);
+		m0_confc_close(&root->rt_obj);
 		return M0_ERR(rc);
 	}
-	while ((rc = m0_conf_diter_next_sync(&it, obj_is_sdev)) !=
+	while ((rc = m0_conf_diter_next_sync(&it, conf_obj_is_sdev)) !=
 		M0_CONF_DIRNEXT)
 		; /* Skip over non-sdev objects. */
 	for (obj = m0_conf_diter_result(&it); rc == M0_CONF_DIRNEXT;
-	     rc = m0_conf_diter_next_sync(&it, obj_is_sdev)) {
+	     rc = m0_conf_diter_next_sync(&it, conf_obj_is_sdev)) {
 		obj = m0_conf_diter_result(&it);
 		sdev = M0_CONF_CAST(obj, m0_conf_sdev);
 		if (sdev->sd_dev_idx == cid) {
@@ -159,22 +133,22 @@ M0_INTERNAL int m0_conf_device_cid_to_fid(struct m0_confc *confc, uint64_t cid,
 		}
 	}
 	m0_conf_diter_fini(&it);
-	m0_confc_close(&fs->cf_obj);
+	m0_confc_close(&root->rt_obj);
+
 	return rc == M0_CONF_DIREND ? -ENOENT : 0;
 }
 
-static int _conf_load(struct m0_conf_filesystem *fs,
-		      const struct m0_fid       *path,
-		      uint32_t                   nr_levels)
+static int _conf_load(struct m0_conf_root *root,
+		      const struct m0_fid *path,
+		      uint32_t             nr_levels)
 {
 	struct m0_conf_diter  it;
-	struct m0_conf_obj   *fs_obj = &fs->cf_obj;
 	int                   rc;
 
 	M0_PRE(path != NULL);
 
-	rc = m0_conf__diter_init(&it, m0_confc_from_obj(fs_obj), fs_obj,
-				 nr_levels, path);
+	rc = m0_conf__diter_init(&it, m0_confc_from_obj(&root->rt_obj),
+			         &root->rt_obj, nr_levels, path);
 	if (rc != 0)
 		return M0_ERR(rc);
 
@@ -184,29 +158,40 @@ static int _conf_load(struct m0_conf_filesystem *fs,
 		 */
 		;
 	m0_conf_diter_fini(&it);
+
 	return M0_RC(rc);
 }
 
-M0_INTERNAL int m0_conf_full_load(struct m0_conf_filesystem *fs)
+M0_INTERNAL int m0_conf_full_load(struct m0_conf_root *r)
 {
-	const struct m0_fid fs_to_disks[]  = {M0_CONF_FILESYSTEM_RACKS_FID,
-					      M0_CONF_RACK_ENCLS_FID,
-					      M0_CONF_ENCLOSURE_CTRLS_FID,
-					      M0_CONF_CONTROLLER_DISKS_FID};
-	const struct m0_fid fs_to_sdevs[]  = {M0_CONF_FILESYSTEM_NODES_FID,
-					      M0_CONF_NODE_PROCESSES_FID,
-					      M0_CONF_PROCESS_SERVICES_FID,
-					      M0_CONF_SERVICE_SDEVS_FID};
-	const struct m0_fid fs_to_diskvs[] = {M0_CONF_FILESYSTEM_POOLS_FID,
-					      M0_CONF_POOL_PVERS_FID,
-					      M0_CONF_PVER_RACKVS_FID,
-					      M0_CONF_RACKV_ENCLVS_FID,
-					      M0_CONF_ENCLV_CTRLVS_FID,
-					      M0_CONF_CTRLV_DISKVS_FID};
+	int rc;
+	const struct m0_fid to_sdevs[]  = {M0_CONF_ROOT_NODES_FID,
+	                                   M0_CONF_NODE_PROCESSES_FID,
+	                                   M0_CONF_PROCESS_SERVICES_FID,
+	                                   M0_CONF_SERVICE_SDEVS_FID};
+	const struct m0_fid to_drives[] = {M0_CONF_ROOT_SITES_FID,
+	                                   M0_CONF_SITE_RACKS_FID,
+	                                   M0_CONF_RACK_ENCLS_FID,
+	                                   M0_CONF_ENCLOSURE_CTRLS_FID,
+					   M0_CONF_CONTROLLER_DRIVES_FID};
+	const struct m0_fid to_drvsvs[] = {M0_CONF_ROOT_POOLS_FID,
+                                           M0_CONF_POOL_PVERS_FID,
+	                                   M0_CONF_PVER_SITEVS_FID,
+	                                   M0_CONF_SITEV_RACKVS_FID,
+	                                   M0_CONF_RACKV_ENCLVS_FID,
+	                                   M0_CONF_ENCLV_CTRLVS_FID,
+	                                   M0_CONF_CTRLV_DRIVEVS_FID};
+	const struct m0_fid to_profs[]  = {M0_CONF_ROOT_PROFILES_FID};
+	const struct m0_fid to_fdmifs[] = {M0_CONF_ROOT_FDMI_FLT_GRPS_FID,
+	                                   M0_CONF_FDMI_FGRP_FILTERS_FID};
 
-	return M0_RC(_conf_load(fs, fs_to_sdevs, ARRAY_SIZE(fs_to_sdevs)) ?:
-		     _conf_load(fs, fs_to_disks, ARRAY_SIZE(fs_to_disks)) ?:
-		     _conf_load(fs, fs_to_diskvs, ARRAY_SIZE(fs_to_diskvs)));
+	rc = _conf_load(r, to_sdevs,  ARRAY_SIZE(to_sdevs)) ?:
+	     _conf_load(r, to_drives, ARRAY_SIZE(to_drives)) ?:
+	     _conf_load(r, to_drvsvs, ARRAY_SIZE(to_drvsvs)) ?:
+	     _conf_load(r, to_profs,  ARRAY_SIZE(to_profs)) ?:
+	     _conf_load(r, to_fdmifs, ARRAY_SIZE(to_fdmifs));
+
+	return M0_RC(rc);
 }
 
 M0_INTERNAL bool m0_conf_service_ep_is_known(const struct m0_conf_obj *svc_obj,
@@ -231,95 +216,8 @@ M0_INTERNAL bool m0_conf_service_ep_is_known(const struct m0_conf_obj *svc_obj,
 	return rv;
 }
 
-static bool conf_obj_is_svc(const struct m0_conf_obj *obj)
-{
-	return m0_conf_obj_type(obj) == &M0_CONF_SERVICE_TYPE;
-}
-
-static int reqh_conf_service_find(struct m0_reqh           *reqh,
-				  enum m0_conf_service_type stype,
-				  const char               *ep_addr,
-				  struct m0_conf_obj      **svc_obj)
-{
-	struct m0_conf_diter       it;
-	struct m0_conf_obj        *obj;
-	struct m0_conf_service    *svc;
-	struct m0_conf_filesystem *fs = NULL;
-	struct m0_confc           *confc = m0_reqh2confc(reqh);
-	int                        rc;
-	const struct m0_fid        path[] = {M0_CONF_FILESYSTEM_NODES_FID,
-					     M0_CONF_NODE_PROCESSES_FID,
-					     M0_CONF_PROCESS_SERVICES_FID};
-	M0_ENTRY();
-	if (confc->cc_group == NULL) {
-		/*
-		 * it looks like a dummy rpc client is calling this, as the
-		 * provided confc instance is still not initialised to the
-		 * moment, so reading configuration is impossible
-		 */
-		M0_LOG(M0_DEBUG,
-		       "Unable to read configuration, reqh confc not inited");
-		if (svc_obj != NULL)
-			*svc_obj = NULL;
-		return M0_RC(0);
-	}
-	rc = m0_conf_fs_get(m0_reqh2profile(reqh), confc, &fs) ?:
-		m0_conf__diter_init(&it, confc, &fs->cf_obj, ARRAY_SIZE(path),
-				    path);
-	if (rc != 0)
-		goto end;
-
-	while ((rc = m0_conf_diter_next_sync(&it, conf_obj_is_svc)) > 0) {
-		obj = m0_conf_diter_result(&it);
-		svc = M0_CONF_CAST(obj, m0_conf_service);
-		if (svc->cs_type == stype &&
-		    m0_conf_service_ep_is_known(obj, ep_addr)) {
-			if (svc_obj != NULL)
-				*svc_obj = obj;
-			rc = 0;
-			break;
-		}
-	}
-	m0_conf_diter_fini(&it);
-end:
-	if (fs != NULL)
-		m0_confc_close(&fs->cf_obj);
-	return M0_RC(rc);
-}
-
-M0_INTERNAL int m0_conf_service_find(struct m0_reqh            *reqh,
-				     const struct m0_fid       *fid,
-				     enum m0_conf_service_type  type,
-				     const char                *ep_addr,
-				     struct m0_conf_obj       **svc_obj)
-{
-	struct m0_conf_obj     *obj = NULL;
-	struct m0_conf_service *svc;
-	int                     rc = 0;
-
-	M0_ENTRY();
-	M0_PRE(reqh != NULL);
-	M0_PRE(m0_conf_service_type_is_valid(type));
-	M0_PRE(ep_addr != NULL && *ep_addr != '\0'); /* not empty */
-
-	if (fid != NULL)
-		obj = m0_conf_cache_lookup(&m0_reqh2confc(reqh)->cc_cache, fid);
-	if (obj == NULL)
-		rc = reqh_conf_service_find(reqh, type, ep_addr, &obj);
-	if (obj != NULL) {
-		M0_ASSERT(rc == 0);
-		svc = M0_CONF_CAST(obj, m0_conf_service);
-		M0_ASSERT(svc->cs_type == type);
-		M0_ASSERT(fid == NULL || m0_fid_eq(fid, &obj->co_id));
-		M0_ASSERT(m0_conf_service_ep_is_known(obj, ep_addr));
-		if (svc_obj != NULL)
-			*svc_obj = obj;
-	}
-	return M0_RC(rc);
-}
-
-M0_INTERNAL int m0_conf_root_open(struct m0_confc      *confc,
-				  struct m0_conf_root **root)
+M0_INTERNAL int m0_confc_root_open(struct m0_confc      *confc,
+				   struct m0_conf_root **root)
 {
 	struct m0_conf_obj *root_obj;
 	int                 rc;
@@ -328,78 +226,111 @@ M0_INTERNAL int m0_conf_root_open(struct m0_confc      *confc,
 	M0_PRE(confc->cc_root != NULL);
 
 	rc = m0_confc_open_sync(&root_obj, confc->cc_root, M0_FID0);
-	if (rc == 0)
+	if (rc == 0 && root != NULL)
 		*root = M0_CONF_CAST(root_obj, m0_conf_root);
 	return M0_RC(rc);
 }
 
-static bool _obj_is_service(const struct m0_conf_obj *obj)
+M0_INTERNAL int m0_confc_profile_open(struct m0_confc         *confc,
+				      const struct m0_fid     *fid,
+				      struct m0_conf_profile **out)
+{
+	struct m0_conf_obj *obj;
+	int                 rc;
+
+	M0_ENTRY();
+	rc = m0_confc_open_sync(&obj, confc->cc_root,
+				M0_CONF_ROOT_PROFILES_FID, *fid);
+	if (rc == 0)
+		*out = M0_CONF_CAST(obj, m0_conf_profile);
+	return M0_RC(rc);
+}
+
+static bool conf_obj_is_service(const struct m0_conf_obj *obj)
 {
 	return m0_conf_obj_type(obj) == &M0_CONF_SERVICE_TYPE;
 }
 
-M0_INTERNAL int m0_conf_service_open(struct m0_confc            *confc,
-				     const struct m0_fid        *profile,
-				     const char                 *ep,
-				     enum m0_conf_service_type   svc_type,
-				     struct m0_conf_service    **result)
+/** Tries to locate service object by its type and endpoint address. */
+static int confc_service_find(struct m0_confc          *confc,
+			      enum m0_conf_service_type stype,
+			      const char               *ep,
+			      struct m0_conf_obj      **result)
 {
-	struct m0_conf_filesystem *fs;
-	struct m0_conf_obj        *obj;
-	struct m0_conf_service    *s;
-	struct m0_conf_diter       it;
-	int                        rc;
-	bool                       found = false;
+	struct m0_conf_diter    it;
+	struct m0_conf_obj     *obj;
+	struct m0_conf_service *svc;
+	struct m0_conf_root    *root = NULL;
+	int                     rc;
 
-	M0_PRE(result != NULL);
-	rc = m0_conf_fs_get(profile, confc, &fs);
-	if (rc != 0)
-		return M0_ERR(rc);
+	M0_ENTRY("stype=%s ep=%s", m0_conf_service_type2str(stype), ep);
+	M0_PRE(m0_confc_is_inited(confc));
+	M0_PRE(m0_conf_service_type_is_valid(stype));
+	M0_PRE(ep != NULL && *ep != '\0'); /* not empty */
+	M0_PRE(result != NULL && *result == NULL);
 
-	rc = m0_conf_diter_init(&it, confc, &fs->cf_obj,
-				M0_CONF_FILESYSTEM_NODES_FID,
+	rc = m0_confc_root_open(confc, &root) ?:
+	     m0_conf_diter_init(&it, confc, &root->rt_obj,
+				M0_CONF_ROOT_NODES_FID,
 				M0_CONF_NODE_PROCESSES_FID,
 				M0_CONF_PROCESS_SERVICES_FID);
-	if (rc != 0) {
-		m0_confc_close(&fs->cf_obj);
-		return M0_ERR(rc);
-	}
+	if (rc != 0)
+		goto end;
 
-	while ((rc = m0_conf_diter_next_sync(&it, _obj_is_service)) ==
-		M0_CONF_DIRNEXT) {
+	while ((rc = m0_conf_diter_next_sync(&it, conf_obj_is_service)) > 0) {
 		obj = m0_conf_diter_result(&it);
-		s = M0_CONF_CAST(obj, m0_conf_service);
-		if ((ep == NULL || m0_streq(s->cs_endpoints[0], ep)) &&
-		    s->cs_type == svc_type) {
-			*result = s;
-			m0_conf_obj_get_lock(obj);
+		svc = M0_CONF_CAST(obj, m0_conf_service);
+		if (svc->cs_type == stype &&
+		    m0_conf_service_ep_is_known(obj, ep)) {
+			*result = obj;
 			rc = 0;
-			found = true;
 			break;
 		}
 	}
 	m0_conf_diter_fini(&it);
-	m0_confc_close(&fs->cf_obj);
 
-	if (rc == 0 && !found)
-		rc = -ENOENT;
+	if (rc == 0 && *result == NULL)
+		M0_LOG(M0_NOTICE, "No such service: stype=%s ep=%s",
+		       m0_conf_service_type2str(stype), ep);
+end:
+	if (root != NULL)
+		m0_confc_close(&root->rt_obj);
+	M0_POST(ergo(rc == 0,
+		     *result == NULL ||
+		     m0_conf_obj_type(*result) == &M0_CONF_SERVICE_TYPE));
 	return M0_RC(rc);
+}
+
+M0_INTERNAL int m0_confc_service_find(struct m0_confc           *confc,
+				      enum m0_conf_service_type  stype,
+				      const char                *ep,
+				      struct m0_conf_obj       **result)
+{
+	M0_ENTRY("stype=%s ep=%s", m0_conf_service_type2str(stype), ep);
+	M0_PRE(result != NULL);
+
+	*result = NULL;
+	if (likely(m0_confc_is_inited(confc)))
+		return M0_RC(confc_service_find(confc, stype, ep, result));
+	return M0_RC_INFO(0,
+			  "Confc is not ready. Called by a dummy rpc client?");
 }
 
 M0_INTERNAL bool m0_conf_service_is_top_rms(const struct m0_conf_service *svc)
 {
-	struct m0_conf_service *confd = NULL;
-	struct m0_confc        *confc = m0_confc_from_obj(&svc->cs_obj);
-	struct m0_reqh         *reqh = m0_confc2reqh(confc);
+	int                 rc;
+	bool                ret;
+	struct m0_conf_obj *obj = NULL;
 
-	M0_PRE(svc != NULL);
+	M0_ENTRY("svc="FID_F, FID_P(&svc->cs_obj.co_id));
 	M0_PRE(svc->cs_type == M0_CST_RMS);
 
 	/* look up for confd on the same endpoint */
-	m0_conf_service_open(confc, m0_reqh2profile(reqh), svc->cs_endpoints[0],
-			     M0_CST_CONFD, &confd);
-	m0_confc_close(&confd->cs_obj);
-	return confd != NULL;
+	rc = m0_confc_service_find(m0_confc_from_obj(&svc->cs_obj),
+				   M0_CST_CONFD, svc->cs_endpoints[0], &obj);
+	ret = rc == 0 && obj != NULL;
+	M0_LEAVE("retval=%s", m0_bool_to_str(ret));
+	return ret;
 }
 
 static const char *service_name[] = {
@@ -453,8 +384,7 @@ M0_INTERNAL struct m0_reqh *m0_conf_obj2reqh(const struct m0_conf_obj *obj)
 	return m0_confc2reqh(conf_obj2confc(obj));
 }
 
-static int conf__objs_count(const struct m0_fid *profile,
-			    struct m0_confc     *confc,
+static int conf__objs_count(struct m0_confc     *confc,
 			    bool (*filter)(const struct m0_conf_obj *obj,
 					   void *arg),
 			    void                *arg,
@@ -462,17 +392,15 @@ static int conf__objs_count(const struct m0_fid *profile,
 			    int                  level,
 			    const struct m0_fid *path)
 {
-	struct m0_conf_diter       it;
-	struct m0_conf_filesystem *fs;
-	int                        rc;
+	int rc;
+	struct m0_conf_root  *root;
+	struct m0_conf_diter  it;
 
-	M0_ENTRY("profile"FID_F, FID_P(profile));
-
-	rc = m0_conf_fs_get(profile, confc, &fs);
+	rc = m0_confc_root_open(confc, &root);
 	if (rc != 0)
 		return M0_ERR(rc);
 
-	rc = m0_conf__diter_init(&it, confc, &fs->cf_obj, level, path);
+	rc = m0_conf__diter_init(&it, confc, &root->rt_obj, level, path);
 	if (rc != 0)
 		goto end;
 
@@ -482,21 +410,21 @@ static int conf__objs_count(const struct m0_fid *profile,
 	}
 	m0_conf_diter_fini(&it);
 end:
-	m0_confc_close(&fs->cf_obj);
+	m0_confc_close(&root->rt_obj);
+
 	return M0_RC(rc);
 }
 
 /**
  * Returns the number of conf objects located along the path.
  *
- * @param profile     Configuration profile.
  * @param confc       Initialised confc.
  * @param filter      Returns true for objects of interest.
  * @param[out] count  Output parameter.
  * @param ...         Configuration path.
  */
-#define conf_objs_count(profile, confc, filter, arg, count, ...) \
-	conf__objs_count(profile, confc, filter, arg, count,     \
+#define conf_objs_count(confc, filter, arg, count, ...) \
+	conf__objs_count(confc, filter, arg, count,     \
 			 M0_COUNT_PARAMS(__VA_ARGS__) + 1,  \
 			 (const struct m0_fid []){ __VA_ARGS__, M0_FID0 })
 
@@ -504,14 +432,16 @@ M0_INTERNAL struct m0_conf_pver **m0_conf_pvers(const struct m0_conf_obj *obj)
 {
 	const struct m0_conf_obj_type *t = m0_conf_obj_type(obj);
 
-	if (t == &M0_CONF_RACK_TYPE)
+	if (t == &M0_CONF_SITE_TYPE)
+		return M0_CONF_CAST(obj, m0_conf_site)->ct_pvers;
+	else if (t == &M0_CONF_RACK_TYPE)
 		return M0_CONF_CAST(obj, m0_conf_rack)->cr_pvers;
 	else if (t == &M0_CONF_ENCLOSURE_TYPE)
 		return M0_CONF_CAST(obj, m0_conf_enclosure)->ce_pvers;
 	else if (t == &M0_CONF_CONTROLLER_TYPE)
 		return M0_CONF_CAST(obj, m0_conf_controller)->cc_pvers;
-	else if (t == &M0_CONF_DISK_TYPE)
-		return M0_CONF_CAST(obj, m0_conf_disk)->ck_pvers;
+	else if (t == &M0_CONF_DRIVE_TYPE)
+		return M0_CONF_CAST(obj, m0_conf_drive)->ck_pvers;
 	else
 		M0_IMPOSSIBLE("");
 }
@@ -520,14 +450,14 @@ M0_INTERNAL bool m0_disk_is_of_type(const struct m0_conf_obj *obj,
 				    uint64_t                  svc_types)
 {
 	M0_CASSERT(M0_CST_NR <= sizeof svc_types * 8);
-	return m0_conf_obj_type(obj) == &M0_CONF_DISK_TYPE &&
+	return m0_conf_obj_type(obj) == &M0_CONF_DRIVE_TYPE &&
 		({
-			const struct m0_conf_disk *disk =
-				M0_CONF_CAST(obj, m0_conf_disk);
+			const struct m0_conf_drive *disk =
+				M0_CONF_CAST(obj, m0_conf_drive);
 			enum m0_conf_service_type  type;
 
 			type = M0_CONF_CAST(
-				m0_conf_obj_grandparent(&disk->ck_dev->sd_obj),
+				m0_conf_obj_grandparent(&disk->ck_sdev->sd_obj),
 				m0_conf_service)->cs_type;
 			M0_BITS(type) & svc_types;
 		});
@@ -548,19 +478,19 @@ static bool dev_has_type(const struct m0_conf_obj *obj, void *arg)
 	return m0_disk_is_of_type(obj, (uint64_t)arg);
 }
 
-M0_INTERNAL int m0_conf_devices_count(struct m0_fid   *profile,
-				      struct m0_confc *confc,
+M0_INTERNAL int m0_conf_devices_count(struct m0_confc *confc,
 				      uint64_t         svc_types,
 				      uint32_t        *nr_devices)
 {
 	M0_CASSERT(sizeof(void *) >= sizeof svc_types);
 	return M0_FI_ENABLED("diter_fail") ? -ENOMEM :
-		conf_objs_count(profile, confc, dev_has_type,
+		conf_objs_count(confc, dev_has_type,
 				(void *)svc_types, nr_devices,
-				M0_CONF_FILESYSTEM_RACKS_FID,
+				M0_CONF_ROOT_SITES_FID,
+				M0_CONF_SITE_RACKS_FID,
 				M0_CONF_RACK_ENCLS_FID,
 				M0_CONF_ENCLOSURE_CTRLS_FID,
-				M0_CONF_CONTROLLER_DISKS_FID);
+				M0_CONF_CONTROLLER_DRIVES_FID);
 }
 
 M0_INTERNAL void m0_confc_expired_cb(struct m0_rconfc *rconfc)

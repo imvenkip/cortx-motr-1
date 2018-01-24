@@ -42,9 +42,6 @@ static void profile_check(const struct m0_confx_obj *xobj)
 		     &M0_CONF_PROFILE_TYPE);
 	M0_UT_ASSERT(m0_fid_eq(m0_conf_objx_fid(xobj),
 			       &m0_ut_conf_fids[M0_UT_CONF_PROF]));
-
-	M0_UT_ASSERT(m0_fid_eq(&XCAST(xobj, m0_confx_profile)->xp_filesystem,
-			       &m0_ut_conf_fids[M0_UT_CONF_FS]));
 }
 
 static void node_check(const struct m0_confx_obj *xobj)
@@ -60,9 +57,6 @@ static void node_check(const struct m0_confx_obj *xobj)
 	M0_UT_ASSERT(x->xn_nr_cpu == 2);
 	M0_UT_ASSERT(x->xn_last_state == 3);
 	M0_UT_ASSERT(x->xn_flags == 2);
-
-	M0_UT_ASSERT(m0_fid_eq(&x->xn_pool_id,
-			       &m0_ut_conf_fids[M0_UT_CONF_POOL]));
 
 	M0_UT_ASSERT(x->xn_processes.af_count == 2);
 	M0_UT_ASSERT(m0_fid_eq(&x->xn_processes.af_elems[0],

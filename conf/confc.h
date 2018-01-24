@@ -45,8 +45,6 @@ struct m0_conf_obj;
  * - @ref confc-fspec-recipes
  *   - @ref confc-fspec-recipe1
  *   - @ref confc-fspec-recipe2
- *   - @ref confc-fspec-recipe3
- *   - @ref confc-fspec-recipe4
  * - @ref confc_dfspec "Detailed Functional Specification"
  *
  * <hr> <!------------------------------------------------------------>
@@ -176,7 +174,7 @@ struct m0_conf_obj;
  * or synchronously (m0_confc_open_sync()). Many of the examples below
  * use synchronous calls for the sake of brevity.
  *
- * @subsection confc-fspec-recipe1 Getting configuration data of the filesystem
+ * @subsection confc-fspec-recipe1 Get profile configuration
  *
  * @code
  * #include "conf/confc.h"
@@ -193,8 +191,9 @@ struct m0_conf_obj;
  * static int  sm_waiter_init(struct sm_waiter *w, struct m0_confc *confc);
  * static void sm_waiter_fini(struct sm_waiter *w);
  *
- * // Uses asynchronous m0_confc_open() to get filesystem configuration.
- * static int filesystem_open1(struct m0_conf_filesystem **fs)
+ * // Uses asynchronous m0_confc_open().
+ * static int profile_open1(struct m0_conf_profile **prof,
+ *                          const struct m0_fid *id)
  * {
  *         struct sm_waiter w;
  *         int              rc;
@@ -203,33 +202,29 @@ struct m0_conf_obj;
  *         if (rc != 0)
  *                 return M0_ERR(rc);
  *
- *         m0_confc_open(&w.w_ctx, NULL,
- *                       M0_CONF_ROOT_PROFILES_FID,
- *                       profile_fid,
- *                       M0_CONF_PROFILE_FILESYSTEM_FID);
+ *         m0_confc_open(&w.w_ctx, NULL, M0_CONF_ROOT_PROFILES_FID, id);
  *         while (!m0_confc_ctx_is_completed(&w.w_ctx))
  *                 m0_chan_wait(&w.w_clink);
  *
  *         rc = m0_confc_ctx_error(&w.w_ctx);
  *         if (rc == 0)
- *                 *fs = M0_CONF_CAST(m0_confc_ctx_result(&w.w_ctx),
- *                                    m0_conf_filesystem);
+ *                 *prof = M0_CONF_CAST(m0_confc_ctx_result(&w.w_ctx),
+ *                                      m0_conf_profile);
  *         sm_waiter_fini(&w);
  *         return rc;
  * }
  *
- * // Uses synchronous m0_confc_open_sync() to get filesystem configuration.
- * static int filesystem_open2(struct m0_conf_filesystem **fs)
+ * // Uses m0_confc_open_sync().
+ * static int profile_open2(struct m0_conf_profile **prof,
+ *                          const struct m0_fid *id)
  * {
  *         struct m0_conf_obj *obj;
  *         int                 rc;
  *
  *         rc = m0_confc_open_sync(&obj, g_confc->cc_root,
- *                                 M0_CONF_ROOT_PROFILES_FID,
- *                                 profile_fid,
- *                                 M0_CONF_PROFILE_FILESYSTEM_FID);
+ *                                 M0_CONF_ROOT_PROFILES_FID, *id);
  *         if (rc == 0)
- *                 *fs = M0_CONF_CAST(obj, m0_conf_filesystem);
+ *                 *prof = M0_CONF_CAST(obj, m0_conf_profile);
  *         return rc;
  * }
  *
@@ -260,150 +255,7 @@ struct m0_conf_obj;
  * @endcode
  *
  * <!---------------------------------------------------------------->
- * @subsection confc-fspec-recipe2 Service configuration
- * Getting configuration of a service of specific type.
- *
- * @code
- * #include "conf/confc.h"
- * #include "conf/obj.h"
- *
- * struct m0_confc *g_confc = ...;
- *
- * static int specific_service_process(enum m0_cfg_service_type tos)
- * {
- *         struct m0_conf_obj *dir;
- *         struct m0_conf_obj *entry;
- *         int                 rc;
- *
- *         rc = m0_confc_open_sync(&dir, g_confc->cc_root,
- *                                 M0_CONF_ROOT_PROFILES_FID,
- *                                 profile_fid,
- *                                 M0_CONF_PROFILE_FILESYSTEM_FID,
- *                                 M0_CONF_FILESYSTEM_SERVICES_FID);
- *         if (rc != 0)
- *                 return rc;
- *
- *         for (entry = NULL; (rc = m0_confc_readdir_sync(dir, &entry)) > 0; ) {
- *                 const struct m0_conf_service *svc =
- *                         M0_CONF_CAST(entry, m0_conf_service);
- *
- *                 if (svc->cs_type == tos) {
- *                         // ... Use `svc' ...
- *                 }
- *         }
- *
- *         m0_confc_close(entry);
- *         m0_confc_close(dir);
- *         return rc;
- * }
- * @endcode
- *
- * <!---------------------------------------------------------------->
- * @subsection confc-fspec-recipe3 List devices
- * List devices used by specific service on specific node.
- *
- * @code
- * #include "conf/confc.h"
- * #include "conf/obj.h"
- *
- * struct m0_confc *g_confc = ...;
- *
- * static int node_devices_process(struct m0_conf_obj *node);
- *
- * // Accesses configuration data of devices that are being used by
- * // specific service on specific node.
- * static int specific_devices_process(const struct m0_fid *svc_id,
- *                                     const struct m0_fid *node_id)
- * {
- *         struct m0_conf_obj *dir;
- *         struct m0_conf_obj *svc;
- *         int                 rc;
- *
- *         rc = m0_confc_open_sync(&dir, g_confc->cc_root,
- *                                 M0_CONF_ROOT_PROFILES_FID,
- *                                 profile_fid,
- *                                 M0_CONF_PROFILE_FILESYSTEM_FID,
- *                                 M0_CONF_FILESYSTEM_SERVICES_FID);
- *         if (rc != 0)
- *                 return rc;
- *
- *         for (svc = NULL; (rc = m0_confc_readdir_sync(dir, &svc)) > 0; ) {
- *                 struct m0_conf_obj *node;
- *
- *                 if (!m0_fid_eq(svc->co_id, svc_id))
- *                         // This is not the service we are looking for.
- *                         continue;
- *
- *                 rc = m0_confc_open_sync(&node, svc,
- *                                         M0_CONF_SERVICE_NODE_FID);
- *                 if (rc == 0) {
- *                         if (m0_fid_eq(node->co_id, node_id))
- *                                 rc = node_devices_process(node);
- *                         m0_confc_close(node);
- *                 }
- *
- *                 if (rc != 0)
- *                         break;
- *         }
- *
- *         m0_confc_close(svc);
- *         m0_confc_close(dir);
- *         return rc;
- * }
- *
- * static int node_nics_process(struct m0_conf_obj *node);
- * static int node_sdevs_process(struct m0_conf_obj *node);
- *
- * static int node_devices_process(struct m0_conf_obj *node)
- * {
- *         return node_nics_process(node) ?: node_sdevs_process(node);
- * }
- *
- * static int node_nics_process(struct m0_conf_obj *node)
- * {
- *         struct m0_conf_obj *dir;
- *         struct m0_conf_obj *entry;
- *         int                 rc;
- *
- *         rc = m0_confc_open_sync(&dir, node, &M0_CONF_NODE_NICS_FID);
- *         if (rc != 0)
- *                 return rc;
- *
- *         for (entry = NULL; (rc = m0_confc_readdir_sync(dir, &entry)) > 0; ) {
- *                 const struct m0_conf_nic *nic =
- *                         M0_CONF_CAST(entry, m0_conf_nic);
- *                 // ... Use `nic' ...
- *         }
- *
- *         m0_confc_close(entry);
- *         m0_confc_close(dir);
- *         return rc;
- * }
- *
- * static int node_sdevs_process(struct m0_conf_obj *node)
- * {
- *         struct m0_conf_obj *dir;
- *         struct m0_conf_obj *entry;
- *         int                 rc;
- *
- *         rc = m0_confc_open_sync(&dir, node, &M0_CONF_NODE_SDEVS_FID);
- *         if (rc != 0)
- *                 return rc;
- *
- *         for (entry = NULL; (rc = m0_confc_readdir_sync(dir, &entry)) > 0; ) {
- *                 const struct m0_conf_sdev *sdev =
- *                         M0_CONF_CAST(entry, m0_conf_sdev);
- *                 // ... Use `sdev' ...
- *         }
- *
- *         m0_confc_close(entry);
- *         m0_confc_close(dir);
- *         return rc;
- * }
- * @endcode
- *
- * <!---------------------------------------------------------------->
- * @subsection confc-fspec-recipe4 Iterate directory object asynchronously
+ * @subsection confc-fspec-recipe2 Iterate directory object asynchronously
  *
  * @code
  * #include "conf/confc.h"
@@ -519,7 +371,7 @@ struct m0_confc {
 	/**
 	 * Root of the DAG of configuration objects.
 	 *
-	 * The object may be opened explicitly with m0_conf_root_open(),
+	 * The object may be opened explicitly with m0_confc_root_open(),
 	 * e.g. for reading conf version number m0_conf_root::rt_verno, and this
 	 * way appears pinned as any other object. Under the circumstances the
 	 * root object requires for being closed same explicit way.
@@ -816,11 +668,12 @@ M0_INTERNAL void m0_confc__open(struct m0_confc_ctx *ctx,
  *
  * Example:
  * @code
- * struct m0_conf_obj *fs_obj;
+ * struct m0_conf_obj *profile_obj;
+ * struct m0_fid       profile_fid;
  * int rc;
  *
- * rc = m0_confc_open_sync(&fs_obj, confc->cc_root,
- *                         M0_CONF_PROFILE_FILESYSTEM_FID);
+ * rc = m0_confc_open_sync(&profile_obj, confc->cc_root,
+ *                         M0_CONF_ROOT_PROFILES_FID, profile_fid);
  * @endcode
  */
 #define m0_confc_open_sync(result, origin, ...)                           \
@@ -890,7 +743,7 @@ M0_INTERNAL int m0_confc_open_by_fid_sync(struct m0_confc      *confc,
  * value is M0_CONF_DIRNEXT or M0_CONF_DIREND. `ctx' can be re-used
  * in this case.
  *
- * @see confc-fspec-recipe4
+ * @see confc-fspec-recipe2
  *
  * @pre   ctx->fc_mach.sm_state == S_INITIAL
  * @pre   m0_conf_obj_type(dir) == &M0_CONF_DIR_TYPE &&

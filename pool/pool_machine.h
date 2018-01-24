@@ -28,7 +28,7 @@
 #include "lib/tlist.h"
 #include "lib/tlist_xc.h"
 #include "lib/rwlock.h"    /* m0_rwlock */
-#include "conf/helpers.h"  /* m0_conf_fs_get() */
+#include "conf/obj.h"      /* m0_conf_pver_kind */
 
 /**
    @defgroup poolmach Pool machine
@@ -36,6 +36,7 @@
 */
 
 /* import */
+struct m0_sm_group;
 struct m0_dtm;
 struct m0_dtx;
 struct m0_be_tx_credit;
@@ -45,6 +46,7 @@ struct m0_pool_spare_usage;
 struct m0_pools_common;
 struct m0_poolmach_event;
 struct m0_poolmach_event_link;
+struct m0_confc;
 struct m0_conf_pver;
 struct m0_mero;
 
@@ -466,10 +468,6 @@ M0_INTERNAL int m0_poolmach_fid_to_idx(struct m0_poolmach *pm,
 
 M0_TL_DESCR_DECLARE(poolmach_events, M0_EXTERN);
 M0_TL_DECLARE(poolmach_events, M0_INTERNAL, struct m0_poolmach_event_link);
-
-struct m0_pool_version *m0_dev_pver_get(struct m0_fid dev_fid,
-					struct m0_confc confc, char *profile,
-                                        struct m0_pools_common *pools_common);
 
 /**
  * Returns the idx-th component object of a global object according to the pool
