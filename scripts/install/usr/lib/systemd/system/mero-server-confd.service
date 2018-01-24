@@ -11,4 +11,5 @@ Type=notify
 TimeoutStopSec=20
 Restart=no
 EnvironmentFile=-/var/mero/env.sh
+Group=mero
 ExecStart=/usr/libexec/mero/mero-server confd

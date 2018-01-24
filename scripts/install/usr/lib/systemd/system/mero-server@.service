@@ -10,4 +10,5 @@ PartOf=mero.service
 Type=notify
 TimeoutStopSec=20
 Restart=no
+Group=mero
 ExecStart=/usr/libexec/mero/mero-server %i

@@ -1487,9 +1487,6 @@ static int nlx_dev_open(struct inode *inode, struct file *file)
 	int rc;
 	M0_THREAD_ENTER;
 
-	if (!capable(CAP_SYS_ADMIN))
-		return M0_ERR(-EPERM);
-
 	if (!(file->f_flags & O_RDWR))
 		return M0_ERR(-EACCES);
 

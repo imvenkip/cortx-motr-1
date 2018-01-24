@@ -11,4 +11,5 @@ TimeoutStopSec=5min
 Restart=no
 Environment=SHELL=/bin/bash
 EnvironmentFile=/etc/sysconfig/m0d-%i
+Group=mero
 ExecStart=/usr/libexec/mero/mero-server m0d-%i

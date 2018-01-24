@@ -7,4 +7,5 @@ Before=mero-server@%i.service
 [Service]
 Type=oneshot
 EnvironmentFile=-/var/mero/env.sh
+Group=mero
 ExecStart=/usr/libexec/mero/mero-mkfs %i

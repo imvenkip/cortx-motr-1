@@ -816,6 +816,10 @@ usr_lib_systemd_DATA  = scripts/install/usr/lib/systemd/system/lnet.service \
 EXTRA_DIST           += $(usr_lib_systemd_DATA)
 endif
 
+usr_lib_udevrulesdir    = $(prefix)/lib/udev/rules.d
+usr_lib_udevrules_DATA  = scripts/install/usr/lib/udev/rules.d/99-mero.rules
+EXTRA_DIST             += $(usr_lib_udevrules_DATA)
+
 etc_sysconfigdir    = $(sysconfdir)/sysconfig
 etc_sysconfig_DATA  = scripts/install/etc/sysconfig/mero
 EXTRA_DIST         += $(etc_sysconfig_DATA)

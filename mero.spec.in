@@ -135,6 +135,8 @@ Requires:       perl-MCE
 Requires:       ruby
 Requires:       facter
 Requires:       rubygem-net-ssh
+Requires(pre):  shadow-utils
+Requires(post): findutils
 
 %description
 Mero filesystem runtime environment and servers.
@@ -230,9 +232,12 @@ fi
 %endif
 %{_datadir}/*
 %{_mandir}/*
-%{_localstatedir}/mero
+%attr(0770, mero, mero) %{_localstatedir}/mero
+#%attr(0775, mero, mero) %{_sysconfdir}/mero
+#%config %attr(0664, mero, mero) %{_sysconfdir}/mero/*
+%config %attr(0664, mero, mero) %{_sysconfdir}/sysconfig/*
+%{_sysconfdir}/systemd/system/*
 /lib/modules/*/kernel/fs/mero/*
-%config  %{_sysconfdir}/*
 %exclude %{_bindir}/m0kut*
 %exclude %{_bindir}/m0ut*
 %exclude %{_bindir}/m0ub
@@ -260,11 +265,20 @@ fi
 %files devel -f devel.files
 %endif
 
-%if 0%{?el6}
-%post
-%else
+# See 'post' section comment about '-e' argument.
+%pre -e
+
+# Guidelings for user/group creation in Fedora:
+#   https://fedoraproject.org/wiki/Packaging:UsersAndGroups?rd=Packaging/UsersAndGroups
+getent group  mero >/dev/null || groupadd --system mero
+getent passwd mero >/dev/null || useradd --system --shell /sbin/nologin \
+    --no-user-group --gid mero --home-dir / --comment 'Mero daemon' mero
+
+# The '-e' argument enables runtime macro expansion for this particular script.
+# Also note that macros have to be escaped using %% and not %, otherwise it
+# would be expanded at build-time.
+# See http://rpm.org/user_doc/scriptlet_expansion.html for more info.
 %post -e
-%endif
 
 /sbin/depmod -a
 
@@ -275,6 +289,12 @@ systemctl daemon-reload
 if [ x%%{?no_trace_logs} != x ] ; then
     /bin/sed -i -r -e "s/(MERO_TRACED_KMOD=)yes/\1no/" /etc/sysconfig/mero
     /bin/sed -i -r -e "s/(MERO_TRACED_M0D=)yes/\1no/" /etc/sysconfig/mero
+fi
+
+# when doing an upgrade
+if [ $1 -eq 2 ] ; then
+   echo "Upgrading %{_localstatedir}/mero group and permissions"
+   find %{_localstatedir}/mero ! -group mero -exec chown :mero '{}' \; -exec chmod g+w,o-rwx '{}' \;
 fi
 
 %postun

@@ -7,6 +7,7 @@ PartOf=mero-singlenode.service
 
 [Service]
 Type=oneshot
+Group=mero
 ExecStart=/usr/libexec/mero/mero start
 ExecStop=/usr/libexec/mero/mero stop
 RemainAfterExit=yes
