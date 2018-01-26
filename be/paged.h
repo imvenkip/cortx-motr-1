@@ -505,7 +505,7 @@ M0_INTERNAL void m0_be_pd_request_pages_init(struct m0_be_pd_request_pages *rqp,
 					     enum m0_be_pd_request_type type,
 					     struct m0_be_reg_area     *rarea,
 					     struct m0_ext             *ext,
-					     struct m0_be_reg          *reg);
+					     const struct m0_be_reg    *reg);
 
 
 /* ------------------------------------------------------------------------- */
@@ -559,7 +559,7 @@ M0_INTERNAL void m0_be_pd_request_push(struct m0_be_pd         *paged,
 /* ------------------------------------------------------------------------- */
 
 M0_INTERNAL void m0_be_pd_reg_get(struct m0_be_pd  *paged,
-				  struct m0_be_reg *reg,
+				  const struct m0_be_reg *reg,
 				  struct m0_be_op  *op);
 
 M0_INTERNAL void m0_be_pd_reg_put(struct m0_be_pd        *paged,

@@ -33,6 +33,7 @@
 #include "mero/magic.h"
 #include "be/paged.h"
 #include "be/pd.h"           /* m0_be_pd_io_sched_init */
+#include "be/op.h"           /* m0_be_op_wait */
 #include "be/pd_service.h"   /* m0_be_pds_stype */
 #include "rpc/rpc_opcodes.h" /* M0_BE_PD_FOM_OPCODE */
 #include "module/instance.h" /* m0_get */
@@ -164,6 +165,48 @@ M0_INTERNAL void m0_be_pd_fini(struct m0_be_pd *pd)
 	m0_module_fini(&pd->bp_module, M0_MODLEV_NONE);
 }
 
+//usecase 2: READ request
+//TODO: wrap request_pages interfaces inside, remove knowledge regarding "pages"
+// requested_regions_can_be_{used/obtained/given_to_user}()
+M0_INTERNAL void m0_be_pd_reg_get(struct m0_be_pd      *paged,
+				  const struct m0_be_reg     *reg,
+				  struct m0_be_op *op)
+	/*
+				  struct m0_co_context *context,
+				  struct m0_fom        *fom)
+				  */
+{
+	struct m0_be_pd_request_pages  rpages;
+	struct m0_be_pd_request       *request;
+
+	m0_be_pd_request_pages_init(&rpages, M0_PRT_READ, NULL,
+				    &M0_EXT(0, 0), reg);
+	/* XXX: remove M0_ALLOC_PTR() with pool-like allocator */
+	M0_ALLOC_PTR(request);
+	M0_ASSERT(request != NULL);
+	m0_be_pd_request_init(request, &rpages);
+
+	/* lock is needed for m0_be_pd_pages_are_in() */
+	if (false && m0_be_pd_pages_are_in(paged, request)) {
+
+		return;
+	}
+	/* XXX: potential race near this point: current fom may go
+	        to sleep here */
+	/* XXX: ref counting */
+	m0_be_pd_request_push(paged, request, op);
+	m0_be_op_wait(op);
+
+	m0_be_pd_request_fini(request);
+	m0_free(request);
+}
+
+M0_INTERNAL void m0_be_pd_reg_put(struct m0_be_pd        *paged,
+				  const struct m0_be_reg *reg)
+{
+	/* XXX: decrement ref counting */
+}
+
 /* -------------------------------------------------------------------------- */
 /* PD FOM							              */
 /* -------------------------------------------------------------------------- */
@@ -266,19 +309,22 @@ static int pd_fom_tick(struct m0_fom *fom)
 	switch(phase) {
 	case PFS_INIT:
 		m0_be_op_init(&pd_fom->bpf_op);
+		rc = M0_FSO_AGAIN;
+		m0_fom_phase_move(fom, 0, PFS_IDLE);
 		break;
 	case PFS_FINISH:
 		m0_be_op_fini(&pd_fom->bpf_op);
+		rc = M0_FSO_WAIT;
 		break;
 	case PFS_IDLE:
 		request = m0_be_pd_request_queue_pop(queue);
-		M0_ASSERT(M0_IN(request->prt_pages.prp_type, (M0_PRT_READ,
-		                                              M0_PRT_WRITE)));
-		pd_fom->bpf_cur_request = request;
 		if (request == NULL) {
 			rc = M0_FSO_WAIT;
 			break;
 		} else {
+			M0_ASSERT(M0_IN(request->prt_pages.prp_type,
+			                (M0_PRT_READ, M0_PRT_WRITE)));
+			pd_fom->bpf_cur_request = request;
 			m0_fom_phase_move(fom, 0, PFS_MANAGE_PRE);
 			rc = M0_FSO_AGAIN;
 		}
@@ -286,9 +332,9 @@ static int pd_fom_tick(struct m0_fom *fom)
 	case PFS_MANAGE_PRE:
 		request = pd_fom->bpf_cur_request;
 		/* XXX use .._is_read()/...is_write() */
-		m0_fom_phase_moveif(fom,
-				    request->prt_pages.prp_type == M0_PRT_READ,
-				    PFS_READ, PFS_WRITE);
+		m0_fom_phase_move(fom, 0,
+		                  request->prt_pages.prp_type == M0_PRT_READ ?
+		                  PFS_READ : PFS_WRITE);
 		rc = M0_FSO_AGAIN;
 		break;
 	case PFS_MANAGE_POST:
@@ -451,6 +497,7 @@ static int pd_fom_tick(struct m0_fom *fom)
 		m0_be_pd_io_put(pios, pio);
 		m0_be_op_done(request->prt_op);
 
+		rc = M0_FSO_AGAIN;
 		m0_fom_phase_set(fom, PFS_MANAGE_POST);
 		break;
 		/* Possible state for page management
@@ -502,6 +549,7 @@ M0_INTERNAL void m0_be_pd_fom_init(struct m0_be_pd_fom    *fom,
 				   struct m0_reqh         *reqh)
 {
 	m0_fom_init(&fom->bpf_gen, &pd_fom_type, &pd_fom_ops, NULL, NULL, reqh);
+	fom->bpf_pd = pd;
 }
 
 M0_INTERNAL void m0_be_pd_fom_fini(struct m0_be_pd_fom *fom)
@@ -511,9 +559,7 @@ M0_INTERNAL void m0_be_pd_fom_fini(struct m0_be_pd_fom *fom)
 
 M0_INTERNAL int m0_be_pd_fom_start(struct m0_be_pd_fom *fom)
 {
-	/* XXX commented to pass current tests */
-	/* m0_fom_queue(&fom->bpf_gen); */
-	/* TODO wait until it starts */
+	m0_fom_queue(&fom->bpf_gen);
 
 	return 0;
 }
@@ -691,7 +737,7 @@ M0_INTERNAL void m0_be_pd_request_pages_init(struct m0_be_pd_request_pages *rqp,
 					     enum m0_be_pd_request_type type,
 					     struct m0_be_reg_area     *rarea,
 					     struct m0_ext             *ext,
-					     struct m0_be_reg          *reg)
+					     const struct m0_be_reg    *reg)
 {
 	*rqp = (struct m0_be_pd_request_pages) {
 		.prp_type = type,

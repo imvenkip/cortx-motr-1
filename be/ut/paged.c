@@ -29,9 +29,11 @@
 
 #include "be/paged.h"
 #include "be/ut/helper.h"
+#include "be/op.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "ut/ut.h"
+#include "ut/stob.h"
 
 #include <sys/mman.h>
 #include <unistd.h>
@@ -166,11 +168,18 @@ void m0_be_ut_pd_mapping_resident(void)
  * The real PAGED test.
  * -------------------------------------------------------------------------- */
 
+enum {
+	BE_UT_PD_FOM_SEG_SIZE = 0x100000,
+};
+
 void m0_be_ut_pd_fom(void)
 {
 	struct m0_be_domain_cfg  cfg = {};
 	struct m0_be_pd_cfg     *pd_cfg;
 	struct m0_be_pd          paged = {};
+	struct m0_be_seg         seg = {};
+	struct m0_stob          *stob;
+	void                    *addr;
 	int                      rc;
 
 	m0_be_pd_fom_mod_init();
@@ -181,6 +190,26 @@ void m0_be_ut_pd_fom(void)
 
 	rc = m0_be_pd_init(&paged, pd_cfg);
 	M0_UT_ASSERT(rc == 0);
+
+	stob = m0_ut_stob_linux_get();
+	m0_be_seg_init(&seg, stob, NULL, &paged, 42);
+	addr = m0_be_ut_seg_allocate_addr(BE_UT_PD_FOM_SEG_SIZE);
+	rc = m0_be_seg_create(&seg, BE_UT_PD_FOM_SEG_SIZE, addr);
+	M0_UT_ASSERT(rc == 0);
+	m0_be_seg_close(&seg);
+	rc = m0_be_seg_open(&seg);
+	M0_UT_ASSERT(rc == 0);
+
+	M0_BE_OP_SYNC(op, m0_be_pd_reg_get(&paged,
+					   &M0_BE_REG(&seg, 1, addr), &op));
+	m0_be_pd_reg_put(&paged, &M0_BE_REG(&seg, 1, addr));
+
+	rc = m0_be_seg_destroy(&seg);
+	M0_UT_ASSERT(rc == 0);
+
+	m0_be_seg_fini(&seg);
+
+	m0_ut_stob_put(stob, true);
 
 	m0_be_pd_fini(&paged);
 	m0_be_ut_reqh_destroy();
