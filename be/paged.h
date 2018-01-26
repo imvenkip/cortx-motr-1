@@ -596,6 +596,7 @@ struct m0_be_pd {
 	struct m0_module               bp_module;
 	struct m0_be_pd_io_sched       bp_io_sched;
 	struct m0_tl                   bp_mappings;
+	struct m0_reqh_service        *bp_fom_service;
 
 	/**
 	 * NOTE: This queue may contain several subqueues, for example, for read

@@ -59,6 +59,7 @@
 #  include "net/test/initfini.h" /* m0_net_test_init */
 #else
 #  include "be/tx_service.h"    /* m0_be_txs_register */
+#  include "be/pd_service.h"    /* m0_be_pds_register */
 #  include "be/be.h"            /* m0_backend_init */
 #  include "conf/confd.h"       /* m0_confd_register */
 #  include "mdstore/mdstore.h"  /* m0_mdstore_mod_init */
@@ -196,6 +197,7 @@ struct init_fini_call subsystem[] = {
 #else
 	{ &m0_backend_init,     &m0_backend_fini,     "be" },
 	{ &m0_be_txs_register,  &m0_be_txs_unregister, "be-tx-service" },
+	{ &m0_be_pds_register,  &m0_be_pds_unregister, "be-pd-service" },
 	{ &m0_confd_register,   &m0_confd_unregister, "confd" },
 	/*
 	 * mds should go before ios because the latter uses

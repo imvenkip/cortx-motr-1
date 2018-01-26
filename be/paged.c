@@ -33,7 +33,7 @@
 #include "mero/magic.h"
 #include "be/paged.h"
 #include "be/pd.h"           /* m0_be_pd_io_sched_init */
-#include "be/tx_service.h"   /* m0_be_txs_stype */
+#include "be/pd_service.h"   /* m0_be_pds_stype */
 #include "rpc/rpc_opcodes.h" /* M0_BE_PD_FOM_OPCODE */
 #include "module/instance.h" /* m0_get */
 
@@ -47,6 +47,7 @@ enum m0_be_pd_module_level {
 	M0_BE_PD_LEVEL_INIT,
 	M0_BE_PD_LEVEL_IO_SCHED,
 	M0_BE_PD_LEVEL_REQQ,
+	M0_BE_PD_LEVEL_FOM_SERVICE,
 	M0_BE_PD_LEVEL_FOM,
 	M0_BE_PD_LEVEL_READY,
 };
@@ -87,6 +88,9 @@ static int be_pd_level_enter(struct m0_module *module)
 	case M0_BE_PD_LEVEL_REQQ:
 		return m0_be_pd_request_queue_init(&pd->bp_reqq,
 			pd->bp_cfg.bpc_io_sched_cfg.bpdc_sched.bisc_pos_start);
+	case M0_BE_PD_LEVEL_FOM_SERVICE:
+		return m0_be_pd_service_init(&pd->bp_fom_service,
+					     pd->bp_cfg.bpc_reqh);
 	case M0_BE_PD_LEVEL_FOM:
 		m0_be_pd_fom_init(&pd->bp_fom, pd, pd->bp_cfg.bpc_reqh);
 		return m0_be_pd_fom_start(&pd->bp_fom);
@@ -111,6 +115,9 @@ static void be_pd_level_leave(struct m0_module *module)
 	case M0_BE_PD_LEVEL_REQQ:
 		m0_be_pd_request_queue_fini(&pd->bp_reqq);
 		return;
+	case M0_BE_PD_LEVEL_FOM_SERVICE:
+		m0_be_pd_service_fini(pd->bp_fom_service);
+		return;
 	case M0_BE_PD_LEVEL_FOM:
 		m0_be_pd_fom_stop(&pd->bp_fom);
 		m0_be_pd_fom_fini(&pd->bp_fom);
@@ -129,6 +136,7 @@ static const struct m0_modlev be_pd_levels[] = {
 	BE_PD_LEVEL(M0_BE_PD_LEVEL_INIT),
 	BE_PD_LEVEL(M0_BE_PD_LEVEL_IO_SCHED),
 	BE_PD_LEVEL(M0_BE_PD_LEVEL_REQQ),
+	BE_PD_LEVEL(M0_BE_PD_LEVEL_FOM_SERVICE),
 	BE_PD_LEVEL(M0_BE_PD_LEVEL_FOM),
 	BE_PD_LEVEL(M0_BE_PD_LEVEL_READY),
 };
@@ -217,8 +225,8 @@ static struct m0_sm_state_descr pd_fom_states[PFS_NR] = {
 
 	_S(PFS_IDLE,        0, M0_BITS(PFS_MANAGE_PRE)),
 	_S(PFS_MANAGE_PRE,  0, M0_BITS(PFS_WRITE, PFS_READ)),
-	_S(PFS_WRITE,       0, M0_BITS(PFS_WRITE_DONE)),
-	_S(PFS_READ,        0, M0_BITS(PFS_READ_DONE)),
+	_S(PFS_WRITE,       0, M0_BITS(PFS_WRITE_DONE, PFS_MANAGE_POST)),
+	_S(PFS_READ,        0, M0_BITS(PFS_READ_DONE, PFS_MANAGE_POST)),
 	_S(PFS_WRITE_DONE,  0, M0_BITS(PFS_MANAGE_POST)),
 	_S(PFS_READ_DONE,   0, M0_BITS(PFS_MANAGE_POST)),
 	_S(PFS_MANAGE_POST, 0, M0_BITS(PFS_IDLE)),
@@ -271,7 +279,7 @@ static int pd_fom_tick(struct m0_fom *fom)
 			rc = M0_FSO_WAIT;
 			break;
 		} else {
-			m0_fom_phase_move(fom, 0, PFS_MANAGE);
+			m0_fom_phase_move(fom, 0, PFS_MANAGE_PRE);
 			rc = M0_FSO_AGAIN;
 		}
 		break;
@@ -280,11 +288,11 @@ static int pd_fom_tick(struct m0_fom *fom)
 		/* XXX use .._is_read()/...is_write() */
 		m0_fom_phase_moveif(fom,
 				    request->prt_pages.prp_type == M0_PRT_READ,
-				    M0_PFS_READ, M0_PFS_WRITE);
+				    PFS_READ, PFS_WRITE);
 		rc = M0_FSO_AGAIN;
 		break;
 	case PFS_MANAGE_POST:
-		m0_fom_phase_move(fom, M0_PFS_IDLE);
+		m0_fom_phase_move(fom, 0, PFS_IDLE);
 		rc = M0_FSO_AGAIN;
 		break;
 	case PFS_READ:
@@ -326,7 +334,7 @@ static int pd_fom_tick(struct m0_fom *fom)
 			     }));
 
 		if (pages_nr == 0) {
-			m0_fom_phase_move(fom, 0, PFS_MANAGE);
+			m0_fom_phase_move(fom, 0, PFS_MANAGE_POST);
 			rc = M0_FSO_AGAIN;
 		} else {
 			m0_be_op_reset(&pd_fom->bpf_op);
@@ -365,7 +373,7 @@ static int pd_fom_tick(struct m0_fom *fom)
 		m0_be_pd_io_put(pios, pio);
 		m0_be_op_done(request->prt_op);
 
-		m0_fom_phase_set(fom, PFS_MANAGE);
+		m0_fom_phase_set(fom, PFS_MANAGE_POST);
 		rc = M0_FSO_AGAIN;
 		break;
 
@@ -443,7 +451,7 @@ static int pd_fom_tick(struct m0_fom *fom)
 		m0_be_pd_io_put(pios, pio);
 		m0_be_op_done(request->prt_op);
 
-		m0_fom_phase_set(fom, PFS_MANAGE);
+		m0_fom_phase_set(fom, PFS_MANAGE_POST);
 		break;
 		/* Possible state for page management
 		  case PFS_MANAGE:
@@ -519,7 +527,7 @@ M0_INTERNAL void m0_be_pd_fom_stop(struct m0_be_pd_fom *fom)
 M0_INTERNAL void m0_be_pd_fom_mod_init(void)
 {
 	m0_fom_type_init(&pd_fom_type, M0_BE_PD_FOM_OPCODE, &pd_fom_type_ops,
-			 &m0_be_txs_stype, &pd_fom_conf);
+			 &m0_be_pds_stype, &pd_fom_conf);
 }
 
 M0_INTERNAL void m0_be_pd_fom_mod_fini(void)

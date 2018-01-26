@@ -162,6 +162,31 @@ void m0_be_ut_pd_mapping_resident(void)
 	m0_be_ut_pd_mapping_resident_with_cfg(pd_cfg);
 }
 
+/* ----------------------------------------------------------------------------
+ * The real PAGED test.
+ * -------------------------------------------------------------------------- */
+
+void m0_be_ut_pd_fom(void)
+{
+	struct m0_be_domain_cfg  cfg = {};
+	struct m0_be_pd_cfg     *pd_cfg;
+	struct m0_be_pd          paged = {};
+	int                      rc;
+
+	m0_be_pd_fom_mod_init();
+
+	m0_be_ut_backend_cfg_default(&cfg);
+	pd_cfg = &cfg.bc_pd_cfg;
+	m0_be_ut_reqh_create(&pd_cfg->bpc_reqh);
+
+	rc = m0_be_pd_init(&paged, pd_cfg);
+	M0_UT_ASSERT(rc == 0);
+
+	m0_be_pd_fini(&paged);
+	m0_be_ut_reqh_destroy();
+
+	m0_be_pd_fom_mod_fini();
+}
 #undef M0_TRACE_SUBSYSTEM
 
 /** @} end of be group */

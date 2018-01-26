@@ -1,14 +1,14 @@
 @startuml
 [*] --> INIT
 INIT --> IDLE
-IDLE --> MANAGE
-MANAGE --> READ      : PD.request_queue.push()
+IDLE --> MANAGE_PRE
+MANAGE_PRE --> READ      : PD.request_queue.push()
 READ --> READ_DONE : stob io signalled
-READ_DONE --> MANAGE
-MANAGE --> WRITE     : PD.request_queue.push()
+READ_DONE --> MANAGE_POST
+MANAGE_PRE --> WRITE     : PD.request_queue.push()
 WRITE --> WRITE_DONE : stob io signalled
-WRITE_DONE --> MANAGE
-MANAGE --> IDLE
+WRITE_DONE --> MANAGE_POST
+MANAGE_POST --> IDLE
 IDLE --> FINI        : PD.fini() called
 FINI --> [*]
 @enduml

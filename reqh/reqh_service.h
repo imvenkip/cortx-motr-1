@@ -626,6 +626,8 @@ enum m0_reqh_service_level {
 
 	/* Special levels */
 	M0_BE_TX_SVC_LEVEL = M0_RS_LEVEL_EARLY,
+	M0_BE_PD_SVC_LEVEL = M0_RS_LEVEL_EARLY,
+
 	/**
 	 * M0_SS_SVC_LEVEL must be >= M0_RS_LEVEL_BEFORE_NORMAL. This prevents
 	 * finalisation of reqh resources before using the resources by ss_fom.
