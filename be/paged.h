@@ -118,13 +118,13 @@ M0_INTERNAL void m0_be_pd_fini(struct m0_be_pd *pd);
  * finalisation after a fail in paged.
  */
 enum m0_be_pd_page_state {
-	PPS_INIT, /* XXX remove? */
-	PPS_FINI,
-	PPS_UNMAPPED,
-	PPS_MAPPED,
-	PPS_READING,
-	PPS_READY,
-	PPS_WRITING,
+	M0_PPS_INIT, /* XXX remove? */
+	M0_PPS_FINI,
+	M0_PPS_UNMAPPED,
+	M0_PPS_MAPPED,
+	M0_PPS_READING,
+	M0_PPS_READY,
+	M0_PPS_WRITING,
 };
 
 enum {
@@ -188,7 +188,7 @@ enum {
  * FINI is the final state and object must not be accessed in this state.
  */
 struct m0_be_pd_page {
-	void                    *pp_page;
+	void                    *pp_page;    /* XXX: rename it? like pp_addr? */
 	void                    *pp_cellar;
 	m0_bcount_t              pp_size;
 	m0_bcount_t              pp_ref;
