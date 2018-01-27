@@ -38,8 +38,8 @@
 
 enum { CONF_GLOB_BATCH = 16 }; /* the value is arbitrary */
 
-/** @see conf_filesystem_stats_get() */
-struct conf_filesystem_stats {
+/** @see conf_io_stats_get() */
+struct conf_io_stats {
 	uint32_t cs_nr_ioservices;
 	uint32_t cs_nr_iodevices;  /* pool width */
 };
@@ -137,6 +137,7 @@ static char *conf_fs_apply(char *(*func)(const struct m0_conf_filesystem *fs,
 	m0_conf_glob_init(&glob, M0_CONF_GLOB_ERR, NULL, cache, NULL,
 			  M0_CONF_ROOT_PROFILES_FID, M0_CONF_ANY_FID,
 			  M0_CONF_PROFILE_FILESYSTEM_FID);
+
 	while ((rc = m0_conf_glob(&glob, 1, &obj)) > 0) {
 		err = func(M0_CONF_CAST(obj, m0_conf_filesystem), buf, buflen);
 		if (err != NULL)
@@ -145,9 +146,9 @@ static char *conf_fs_apply(char *(*func)(const struct m0_conf_filesystem *fs,
 	return rc < 0 ? m0_conf_glob_error(&glob, buf, buflen) : NULL;
 }
 
-static char *conf_filesystem_stats_get(const struct m0_conf_filesystem *fs,
-				       struct conf_filesystem_stats *stats,
-				       char *buf, size_t buflen)
+static char *conf_io_stats_get(const struct m0_conf_filesystem *fs,
+			       struct conf_io_stats *stats,
+			       char *buf, size_t buflen)
 {
 	struct m0_conf_glob           glob;
 	const struct m0_conf_obj     *objv[CONF_GLOB_BATCH];
@@ -156,11 +157,11 @@ static char *conf_filesystem_stats_get(const struct m0_conf_filesystem *fs,
 	int                           rc;
 
 	M0_SET0(stats);
-	m0_conf_glob_init(&glob, M0_CONF_GLOB_ERR, NULL, fs->cf_obj.co_cache,
-			  &fs->cf_obj, M0_CONF_FILESYSTEM_NODES_FID,
-			  M0_CONF_ANY_FID, M0_CONF_NODE_PROCESSES_FID,
-			  M0_CONF_ANY_FID, M0_CONF_PROCESS_SERVICES_FID,
-			  M0_CONF_ANY_FID);
+	m0_conf_glob_init(&glob, M0_CONF_GLOB_ERR, NULL, NULL, &fs->cf_obj,
+			  M0_CONF_FILESYSTEM_NODES_FID, M0_CONF_ANY_FID,
+			  M0_CONF_NODE_PROCESSES_FID, M0_CONF_ANY_FID,
+			  M0_CONF_PROCESS_SERVICES_FID, M0_CONF_ANY_FID);
+
 	while ((rc = m0_conf_glob(&glob, ARRAY_SIZE(objv), objv)) > 0) {
 		for (i = 0; i < rc; ++i) {
 			svc = M0_CONF_CAST(objv[i], m0_conf_service);
@@ -181,15 +182,14 @@ static bool conf_oostore_mode(const struct m0_conf_filesystem *fs)
 	       FID_P(&fs->cf_obj.co_id), fs->cf_redundancy,
 	       result ? "true" : "false");
 	return result;
-
 }
 
 static char *_conf_filesystem_error(const struct m0_conf_filesystem *fs,
 				    char *buf, size_t buflen)
 {
-	struct conf_filesystem_stats stats;
-	const struct m0_conf_obj    *obj;
-	char                        *err;
+	struct conf_io_stats      stats;
+	const struct m0_conf_obj *obj;
+	char                     *err;
 
 	if (!conf_oostore_mode(fs))
 		/*
@@ -198,7 +198,7 @@ static char *_conf_filesystem_error(const struct m0_conf_filesystem *fs,
 		 */
 		return NULL;
 
-	err = conf_filesystem_stats_get(fs, &stats, buf, buflen);
+	err = conf_io_stats_get(fs, &stats, buf, buflen);
 	if (err != NULL)
 		return err;
 	if (stats.cs_nr_ioservices == 0)
@@ -260,6 +260,9 @@ static char *conf_iodev_error(const struct m0_conf_sdev *sdev,
 				" duplicates that of "FID_F,
 				FID_P(&sdev->sd_obj.co_id),
 				FID_P(&iodevs[sdev->sd_dev_idx]->sd_obj.co_id));
+		/*
+		 * XXX TODO: Check that sdev->sd_filename is not empty.
+		 */
 		if (m0_exists(i, nr_iodevs, iodevs[j = i] != NULL &&
 			      m0_streq(iodevs[i]->sd_filename,
 				       sdev->sd_filename) &&
@@ -359,7 +362,6 @@ static char *conf_pver_width_error(const struct m0_conf_pver *pver,
 
 	M0_PRE(pver->pv_kind == M0_CONF_PVER_ACTUAL);
 
-	memset(pver_width, 0, M0_CONF_PVER_HEIGHT * sizeof(*pver_width));
 	rc = m0_conf_walk(conf_pver_width_measure_w,
 			  &pver->pv_u.subtree.pvs_rackvs->cd_obj, &st);
 	M0_ASSERT(rc == 0); /* conf_pver_width_measure_w() cannot fail */
@@ -406,12 +408,12 @@ static char *conf_pver_formulaic_error(const struct m0_conf_pver *fpver,
 				       char *buf, size_t buflen)
 {
 	const struct m0_conf_pver_formulaic *form = &fpver->pv_u.formulaic;
-	const struct m0_conf_obj            *pool;
-	const struct m0_conf_pver           *base = NULL;
-	const struct m0_pdclust_attr        *base_attr;
-	uint32_t                             pver_width[M0_CONF_PVER_HEIGHT];
-	char                                *err;
-	int                                  i;
+	const struct m0_conf_obj     *pool;
+	const struct m0_conf_pver    *base = NULL;
+	const struct m0_pdclust_attr *base_attr;
+	uint32_t                      pver_width[M0_CONF_PVER_HEIGHT] = {};
+	char                         *err;
+	int                           i;
 
 	pool = m0_conf_obj_grandparent(&fpver->pv_obj);
 	if (m0_fid_eq(&pool->co_id,
@@ -455,13 +457,13 @@ static char *conf_pver_actual_error(const struct m0_conf_pver *pver,
 				    char *buf, size_t buflen)
 {
 	const struct m0_conf_pver_subtree *sub = &pver->pv_u.subtree;
-	uint32_t                           pver_width[M0_CONF_PVER_HEIGHT];
-	struct m0_conf_glob                glob;
-	const struct m0_conf_obj          *objs[CONF_GLOB_BATCH];
-	const struct m0_conf_objv         *diskv;
-	char                              *err;
-	int                                i;
-	int                                rc;
+	uint32_t                   pver_width[M0_CONF_PVER_HEIGHT] = {};
+	struct m0_conf_glob        glob;
+	const struct m0_conf_obj  *objs[CONF_GLOB_BATCH];
+	const struct m0_conf_objv *diskv;
+	char                      *err;
+	int                        i;
+	int                        rc;
 
 	err = conf_pver_width_error(pver, pver_width, buf, buflen);
 	if (err != NULL)
@@ -488,11 +490,13 @@ static char *conf_pver_actual_error(const struct m0_conf_pver *pver,
 				    " number of IO devices (%u)",
 				    FID_P(&pver->pv_obj.co_id),
 				    sub->pvs_attr.pa_P, nr_iodevs);
+
 	m0_conf_glob_init(&glob, M0_CONF_GLOB_ERR, NULL, NULL, &pver->pv_obj,
 			  M0_CONF_PVER_RACKVS_FID, M0_CONF_ANY_FID,
 			  M0_CONF_RACKV_ENCLVS_FID, M0_CONF_ANY_FID,
 			  M0_CONF_ENCLV_CTRLVS_FID, M0_CONF_ANY_FID,
 			  M0_CONF_CTRLV_DISKVS_FID, M0_CONF_ANY_FID);
+
 	while ((rc = m0_conf_glob(&glob, ARRAY_SIZE(objs), objs)) > 0) {
 		for (i = 0; i < rc; ++i) {
 			diskv = M0_CONF_CAST(objs[i], m0_conf_objv);
@@ -510,16 +514,16 @@ static char *conf_pver_actual_error(const struct m0_conf_pver *pver,
 static char *
 _conf_pvers_error(const struct m0_conf_filesystem *fs, char *buf, size_t buflen)
 {
-	struct conf_filesystem_stats stats;
-	const struct m0_conf_sdev  **iodevs;
-	struct m0_conf_glob          glob;
-	const struct m0_conf_obj    *objv[CONF_GLOB_BATCH];
-	const struct m0_conf_pver   *pver;
-	char                        *err = NULL;
-	int                          i;
-	int                          rc;
+	struct conf_io_stats        stats;
+	const struct m0_conf_sdev **iodevs;
+	struct m0_conf_glob         glob;
+	const struct m0_conf_obj   *objv[CONF_GLOB_BATCH];
+	const struct m0_conf_pver  *pver;
+	char                       *err = NULL;
+	int                         i;
+	int                         rc;
 
-	err = conf_filesystem_stats_get(fs, &stats, buf, buflen);
+	err = conf_io_stats_get(fs, &stats, buf, buflen);
 	if (err != NULL)
 		return err;
 	if (stats.cs_nr_iodevices == 0)
@@ -533,6 +537,7 @@ _conf_pvers_error(const struct m0_conf_filesystem *fs, char *buf, size_t buflen)
 	m0_conf_glob_init(&glob, M0_CONF_GLOB_ERR, NULL, NULL, &fs->cf_obj,
 			  M0_CONF_FILESYSTEM_POOLS_FID, M0_CONF_ANY_FID,
 			  M0_CONF_POOL_PVERS_FID, M0_CONF_ANY_FID);
+
 	while ((rc = m0_conf_glob(&glob, ARRAY_SIZE(objv), objv)) > 0) {
 		for (i = 0; i < rc; ++i) {
 			pver = M0_CONF_CAST(objv[i], m0_conf_pver);
@@ -573,6 +578,7 @@ static char *conf_process_endpoint_error(const struct m0_conf_process *proc,
 
 	m0_conf_glob_init(&glob, M0_CONF_GLOB_ERR, NULL, NULL, &proc->pc_obj,
 			  M0_CONF_PROCESS_SERVICES_FID, M0_CONF_ANY_FID);
+
 	while ((rc = m0_conf_glob(&glob, ARRAY_SIZE(objv), objv)) > 0) {
 		for (i = 0; i < rc; ++i) {
 			for (epp = M0_CONF_CAST(objv[i],
@@ -603,6 +609,7 @@ conf_endpoint_error(const struct m0_conf_cache *cache, char *buf, size_t buflen)
 			  M0_CONF_PROFILE_FILESYSTEM_FID,
 			  M0_CONF_FILESYSTEM_NODES_FID, M0_CONF_ANY_FID,
 			  M0_CONF_NODE_PROCESSES_FID, M0_CONF_ANY_FID);
+
 	while ((rc = m0_conf_glob(&glob, ARRAY_SIZE(objv), objv)) > 0) {
 		for (i = 0; i < rc; ++i) {
 			err = conf_process_endpoint_error(
@@ -630,6 +637,7 @@ static char *_conf_service_type_error(const struct m0_conf_filesystem *fs,
 			  M0_CONF_FILESYSTEM_NODES_FID, M0_CONF_ANY_FID,
 			  M0_CONF_NODE_PROCESSES_FID, M0_CONF_ANY_FID,
 			  M0_CONF_PROCESS_SERVICES_FID, M0_CONF_ANY_FID);
+
 	while ((rc = m0_conf_glob(&glob, ARRAY_SIZE(objv), objv)) > 0) {
 		for (i = 0; i < rc; ++i) {
 			svc_type = M0_CONF_CAST(objv[i],
@@ -692,6 +700,7 @@ static char *conf_service_sdevs_error(const struct m0_conf_cache *cache,
 			  M0_CONF_FILESYSTEM_NODES_FID, M0_CONF_ANY_FID,
 			  M0_CONF_NODE_PROCESSES_FID, M0_CONF_ANY_FID,
 			  M0_CONF_PROCESS_SERVICES_FID, M0_CONF_ANY_FID);
+
 	while ((rc = m0_conf_glob(&glob, ARRAY_SIZE(objv), objv)) > 0) {
 		for (i = 0; i < rc; ++i) {
 			err = _conf_service_sdevs_error(
