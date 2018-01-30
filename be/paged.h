@@ -296,6 +296,8 @@ m0_be_pd__mapping_by_addr(struct m0_be_pd *paged, const void *addr);
 enum m0_be_pd_request_type {
 	M0_PRT_READ,
 	M0_PRT_WRITE,
+	M0_PRT_MANAGE,
+	M0_PRT_STOP,
 };
 
 /**

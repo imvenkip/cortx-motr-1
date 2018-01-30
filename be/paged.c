@@ -266,7 +266,7 @@ static struct m0_sm_state_descr pd_fom_states[PFS_NR] = {
 	_S(PFS_FINISH, M0_SDF_TERMINAL, 0),
 	_S(PFS_FAILED, M0_SDF_FAILURE, M0_BITS(PFS_FINISH)),
 
-	_S(PFS_IDLE,        0, M0_BITS(PFS_MANAGE_PRE)),
+	_S(PFS_IDLE,        0, M0_BITS(PFS_MANAGE_PRE, PFS_FINISH)),
 	_S(PFS_MANAGE_PRE,  0, M0_BITS(PFS_WRITE, PFS_READ)),
 	_S(PFS_WRITE,       0, M0_BITS(PFS_WRITE_DONE, PFS_MANAGE_POST)),
 	_S(PFS_READ,        0, M0_BITS(PFS_READ_DONE, PFS_MANAGE_POST)),
@@ -322,11 +322,17 @@ static int pd_fom_tick(struct m0_fom *fom)
 			rc = M0_FSO_WAIT;
 			break;
 		} else {
-			M0_ASSERT(M0_IN(request->prt_pages.prp_type,
-			                (M0_PRT_READ, M0_PRT_WRITE)));
-			pd_fom->bpf_cur_request = request;
-			m0_fom_phase_move(fom, 0, PFS_MANAGE_PRE);
-			rc = M0_FSO_AGAIN;
+			if (request->prt_pages.prp_type == M0_PRT_STOP) {
+				m0_fom_phase_move(fom, 0, PFS_FINISH);
+				m0_be_op_done(request->prt_op);
+				rc = M0_FSO_WAIT;
+			} else {
+				M0_ASSERT(M0_IN(request->prt_pages.prp_type,
+						(M0_PRT_READ, M0_PRT_WRITE)));
+				pd_fom->bpf_cur_request = request;
+				m0_fom_phase_move(fom, 0, PFS_MANAGE_PRE);
+				rc = M0_FSO_AGAIN;
+			}
 		}
 		break;
 	case PFS_MANAGE_PRE:
@@ -367,7 +373,10 @@ static int pd_fom_tick(struct m0_fom *fom)
 			if (page->pp_state == M0_PPS_MAPPED) {
 				m0_be_io_add(m0_be_pd_io_be_io(pio),
 					     rd->rd_reg.br_seg->bs_stob,
-					     page->pp_cellar,
+			     /* XXX: here should be cellar page, still for the
+			      * sake of debugging I've chaneged this place */
+					     /* page->pp_cellar, */
+					     page->pp_page,
 					     m0_be_seg_offset(rd->rd_reg.br_seg,
 							      page->pp_page),
 					     page->pp_size);
@@ -390,7 +399,11 @@ static int pd_fom_tick(struct m0_fom *fom)
 			 *  - active &pd_fom->bpf_op or not?
 			 */
 			m0_be_io_configure(m0_be_pd_io_be_io(pio), SIO_READ);
-			m0_be_pd_io_add(pios, pio, &request->prt_pages.prp_ext,
+			m0_be_pd_io_add(pios, pio,
+			/* XXX: ext is expected to be passed.  for now it's OK
+			   to skip.  But you know, this is just for NOW! */
+					/* &request->prt_pages.prp_ext, */
+					NULL,
 					&pd_fom->bpf_op);
 
 			rc = m0_be_op_tick_ret(&pd_fom->bpf_op, fom,
@@ -566,9 +579,16 @@ M0_INTERNAL int m0_be_pd_fom_start(struct m0_be_pd_fom *fom)
 
 M0_INTERNAL void m0_be_pd_fom_stop(struct m0_be_pd_fom *fom)
 {
-	/* TODO move fom to FINISH phase synchronously */
-}
+	struct m0_be_pd_request_pages  rpages;
+	struct m0_be_pd_request        request;
+	struct m0_be_pd               *paged = fom->bpf_pd;
 
+	m0_be_pd_request_pages_init(&rpages, M0_PRT_STOP, NULL,
+				    &M0_EXT(0, 0), &M0_BE_REG(NULL, 0, NULL));
+	m0_be_pd_request_init(&request, &rpages);
+	M0_BE_OP_SYNC(op, m0_be_pd_request_push(paged, &request, &op));
+	m0_be_pd_request_fini(&request);
+}
 
 M0_INTERNAL void m0_be_pd_fom_mod_init(void)
 {
@@ -827,8 +847,7 @@ m0_be_pd_request_pages_forall(struct m0_be_pd         *paged,
 
 	if (rpages->prp_type == M0_PRT_READ) {
 		rd = &rd_read;
-		rd->rd_reg.br_addr = rpages->prp_reg.br_addr;
-		rd->rd_reg.br_size = rpages->prp_reg.br_size;
+		rd->rd_reg = rpages->prp_reg;
 		request_pages_forall_helper(paged, request, rd, iterate);
 		return;
 	}
@@ -1192,6 +1211,7 @@ M0_INTERNAL int m0_be_pd_mapping_page_attach(struct m0_be_pd_mapping *mapping,
 	case M0_BE_PD_MAPPING_COMPAT:
 		M0_LOG(M0_DEBUG, "Appempt to attach page %p in compat mode",
 				 page->pp_page);
+		rc = 0; /* XXX: WRONG or right??? */
 		break;
 	default:
 		M0_IMPOSSIBLE("Mapping type doesn't exist.");

@@ -185,6 +185,12 @@ void m0_be_ut_pd_fom(void)
 	m0_be_pd_fom_mod_init();
 
 	m0_be_ut_backend_cfg_default(&cfg);
+
+	/* XXX: weird cfgs */
+	m0_be_tx_group_seg_io_credit(&cfg.bc_engine.bec_group_cfg,
+		     &cfg.bc_pd_cfg.bpc_io_sched_cfg.bpdc_io_credit);
+
+
 	pd_cfg = &cfg.bc_pd_cfg;
 	m0_be_ut_reqh_create(&pd_cfg->bpc_reqh);
 
@@ -196,7 +202,7 @@ void m0_be_ut_pd_fom(void)
 	addr = m0_be_ut_seg_allocate_addr(BE_UT_PD_FOM_SEG_SIZE);
 	rc = m0_be_seg_create(&seg, BE_UT_PD_FOM_SEG_SIZE, addr);
 	M0_UT_ASSERT(rc == 0);
-	m0_be_seg_close(&seg);
+	//m0_be_seg_close(&seg); // XXX: why this thing is here????
 	rc = m0_be_seg_open(&seg);
 	M0_UT_ASSERT(rc == 0);
 
@@ -204,6 +210,7 @@ void m0_be_ut_pd_fom(void)
 					   &M0_BE_REG(&seg, 1, addr), &op));
 	m0_be_pd_reg_put(&paged, &M0_BE_REG(&seg, 1, addr));
 
+	m0_be_seg_close(&seg);
 	rc = m0_be_seg_destroy(&seg);
 	M0_UT_ASSERT(rc == 0);
 
