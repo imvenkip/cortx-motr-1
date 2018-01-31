@@ -298,6 +298,7 @@ static int pd_fom_tick(struct m0_fom *fom)
 	struct m0_be_pd_request_queue *queue = &paged->bp_reqq;
 	struct m0_be_pd_request       *request;
 	struct m0_be_pd_io            *pio;
+	struct m0_be_pd_page          *current_iterated_in_write_case; /* XXX */
 	// struct m0_be_pd_page          *page;
 	// struct m0_be_reg_d            *rd;
 	unsigned                       pages_nr;
@@ -446,10 +447,16 @@ static int pd_fom_tick(struct m0_fom *fom)
 		/* XXX: why this lock is here??? */
 		m0_be_pd_mappings_lock(paged, request);
 		/* XXX: just for one PD FOM */
-
+		current_iterated_in_write_case = NULL;
 		m0_be_pd_request_pages_forall(paged, request,
 		      LAMBDA(bool, (struct m0_be_pd_page *page,
 				    struct m0_be_reg_d *rd) {
+
+		        if (current_iterated_in_write_case == page)
+			        return true;
+
+			current_iterated_in_write_case = page;
+
 			m0_be_pd_page_lock(page);
 
 			M0_ASSERT(page->pp_state == M0_PPS_READY);
@@ -746,6 +753,7 @@ M0_INTERNAL void m0_be_pd_request_init(struct m0_be_pd_request       *request,
 {
 	reqq_tlink_init(request);
 	request->prt_pages = *pages;
+	request->prt_ext = pages->prp_ext; /* XXX: remove prt_ext use prp_ext? */
 }
 
 M0_INTERNAL void m0_be_pd_request_fini(struct m0_be_pd_request *request)
@@ -759,11 +767,12 @@ M0_INTERNAL void m0_be_pd_request_pages_init(struct m0_be_pd_request_pages *rqp,
 					     struct m0_ext             *ext,
 					     const struct m0_be_reg    *reg)
 {
+
 	*rqp = (struct m0_be_pd_request_pages) {
 		.prp_type = type,
 		.prp_reg_area = rarea,
 		.prp_ext = *ext,
-		.prp_reg = *reg,
+		.prp_reg = reg == NULL ? M0_BE_REG(NULL, 0, NULL) : *reg,
 	};
 }
 
@@ -775,11 +784,17 @@ static void copy_reg_to_page(struct m0_be_pd_page       *page,
  *    +--P1--+--P2--+
  *
  */
+#if 0
 	void *addr = rd->rd_reg.br_addr + (page->pp_page - page->pp_cellar);
 	m0_bcount_t size = min_check((uint64_t)(page->pp_cellar +
 						page->pp_size -	addr),
 				     (uint64_t)(addr + rd->rd_reg.br_size));
+#endif
+	void *addr_0off = rd->rd_reg.br_addr - page->pp_page;
+	void *addr = page->pp_cellar + addr_0off;
 
+
+	M0_PRE(page->pp_cellar != NULL);
 	memcpy(addr, rd->rd_buf, size);
 }
 
@@ -1217,8 +1232,12 @@ M0_INTERNAL int m0_be_pd_mapping_page_attach(struct m0_be_pd_mapping *mapping,
 		M0_IMPOSSIBLE("Mapping type doesn't exist.");
 	}
 
-	if (rc == 0)
+	if (rc == 0) {
+		/* XXX: 4k */
+		page->pp_cellar = m0_alloc_aligned(page->pp_size, 12);
+		M0_ASSERT(page->pp_cellar != NULL);
 		page->pp_state = M0_PPS_MAPPED;
+	}
 
 	return M0_RC(rc);
 }
@@ -1274,8 +1293,11 @@ M0_INTERNAL int m0_be_pd_mapping_page_detach(struct m0_be_pd_mapping *mapping,
 		M0_IMPOSSIBLE("Mapping type doesn't exist.");
 	}
 
-	if (rc == 0)
+	if (rc == 0) {
+		/* XXX: 4k */
+		m0_free_aligned(page->pp_cellar, page->pp_size, 12);
 		page->pp_state = M0_PPS_UNMAPPED;
+	}
 
 	return M0_RC(rc);
 }

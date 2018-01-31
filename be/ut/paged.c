@@ -179,17 +179,28 @@ void m0_be_ut_pd_fom(void)
 	struct m0_be_pd          paged = {};
 	struct m0_be_seg         seg = {};
 	struct m0_stob          *stob;
+	struct m0_be_reg_area    reg_area;
+	int			 reg_area_nr = 2;		 /* XXX */
+	struct m0_ext            write_ext = { .e_end = 12288 }; /* XXX */
+	struct m0_be_reg         reg;
 	void                    *addr;
 	int                      rc;
+	int			 dummy = 0x12345678;
 
 	m0_be_pd_fom_mod_init();
 
 	m0_be_ut_backend_cfg_default(&cfg);
 
-	/* XXX: weird cfgs */
+	/* >>>>> XXX: weird cfgs stated !!!! <<<<< */
 	m0_be_tx_group_seg_io_credit(&cfg.bc_engine.bec_group_cfg,
 		     &cfg.bc_pd_cfg.bpc_io_sched_cfg.bpdc_io_credit);
 
+	rc = m0_be_reg_area_init(&reg_area,
+				 &M0_BE_TX_CREDIT(reg_area_nr * 2,
+						  reg_area_nr * 0x10),
+				 M0_BE_REG_AREA_DATA_NOCOPY);
+	M0_UT_ASSERT(rc == 0);
+	/* >>>>> XXX: weird cfgs ended !!!! <<<<<  */
 
 	pd_cfg = &cfg.bc_pd_cfg;
 	m0_be_ut_reqh_create(&pd_cfg->bpc_reqh);
@@ -202,13 +213,34 @@ void m0_be_ut_pd_fom(void)
 	addr = m0_be_ut_seg_allocate_addr(BE_UT_PD_FOM_SEG_SIZE);
 	rc = m0_be_seg_create(&seg, BE_UT_PD_FOM_SEG_SIZE, addr);
 	M0_UT_ASSERT(rc == 0);
-	//m0_be_seg_close(&seg); // XXX: why this thing is here????
+
+
 	rc = m0_be_seg_open(&seg);
 	M0_UT_ASSERT(rc == 0);
 
-	M0_BE_OP_SYNC(op, m0_be_pd_reg_get(&paged,
-					   &M0_BE_REG(&seg, 1, addr), &op));
-	m0_be_pd_reg_put(&paged, &M0_BE_REG(&seg, 1, addr));
+	reg = M0_BE_REG(&seg, 1, addr);
+	M0_BE_OP_SYNC(op, m0_be_pd_reg_get(&paged, &reg, &op));
+	m0_be_pd_reg_put(&paged, &reg);
+
+
+
+	{
+		struct m0_be_pd_request       request;
+		struct m0_be_pd_request_pages rpages;
+
+		m0_be_reg_area_capture(&reg_area, &M0_BE_REG_D(reg, &dummy));
+		reg = M0_BE_REG(&seg, 1, addr+0x10);
+		m0_be_reg_area_capture(&reg_area, &M0_BE_REG_D(reg, &dummy));
+
+
+		m0_be_pd_request_pages_init(&rpages, M0_PRT_WRITE, &reg_area,
+					    &write_ext, NULL);
+		m0_be_pd_request_init(&request, &rpages);
+
+		M0_BE_OP_SYNC(op, m0_be_pd_request_push(&paged, &request, &op));
+	}
+
+
 
 	m0_be_seg_close(&seg);
 	rc = m0_be_seg_destroy(&seg);
@@ -221,8 +253,61 @@ void m0_be_ut_pd_fom(void)
 	m0_be_pd_fini(&paged);
 	m0_be_ut_reqh_destroy();
 
+	m0_be_reg_area_fini(&reg_area);
+
 	m0_be_pd_fom_mod_fini();
 }
+
+void m0_be_ut_pd_fom_write(void)
+{
+#if 0
+	struct m0_be_ut_backend ut_be;
+	struct m0_be_ut_seg     ut_seg;
+	struct m0_be_seg       *seg;
+	struct m0_be_tx_credit  credit = M0_BE_TX_CREDIT_TYPE(uint64_t);
+	struct m0_be_tx         tx;
+	struct m0_be_pd        *paged = &ut_be.but_dom.bd_pd;
+	uint64_t               *data;
+	int                     rc;
+
+	m0_be_pd_fom_mod_init();
+
+	M0_SET0(&ut_be);
+	m0_be_ut_backend_init(&ut_be);
+	m0_be_ut_seg_init(&ut_seg, NULL, 1 << 20);
+	seg = ut_seg.bus_seg;
+
+	m0_be_ut_tx_init(&tx, &ut_be);
+
+	m0_be_tx_prep(&tx, &credit);
+
+	/* m0_be_tx_open_sync() can be used in UT */
+	m0_be_tx_open(&tx);
+	rc = m0_be_tx_timedwait(&tx, M0_BITS(M0_BTS_ACTIVE, M0_BTS_FAILED),
+				M0_TIME_NEVER);
+	M0_UT_ASSERT(rc == 0);
+
+	M0_BE_OP_SYNC(op, m0_be_pd_reg_get(paged,
+					   &M0_BE_REG(seg, 1, seg->bs_addr), &op));
+	data = (uint64_t *) seg->bs_addr;
+	*data = 0x101;
+	m0_be_tx_capture(&tx, &M0_BE_REG_PTR(seg, data));
+	m0_be_pd_reg_put(paged, &M0_BE_REG(seg, 1, seg->bs_addr));
+
+	/* m0_be_tx_close_sync() can be used in UT */
+	m0_be_tx_close(&tx);
+	rc = m0_be_tx_timedwait(&tx, M0_BITS(M0_BTS_DONE), M0_TIME_NEVER);
+	M0_UT_ASSERT(rc == 0);
+	m0_be_tx_fini(&tx);
+
+	m0_be_ut_seg_check_persistence(&ut_seg);
+	m0_be_ut_seg_fini(&ut_seg);
+	m0_be_ut_backend_fini(&ut_be);
+
+	m0_be_pd_fom_mod_init();
+#endif
+}
+
 #undef M0_TRACE_SUBSYSTEM
 
 /** @} end of be group */
