@@ -1088,8 +1088,7 @@ M0_INTERNAL int m0_poolmach_fid_to_idx(struct m0_poolmach *pm,
 
 	M0_LOG(M0_DEBUG, "note:"FID_F, FID_P(fid));
 	for (i = 0; i < pm->pm_state->pst_nr_devices; ++i) {
-		if (m0_fid_eq(&pm->pm_state->pst_devices_array[i].pd_id,
-			      fid)) {
+		if (m0_fid_eq(&pm->pm_state->pst_devices_array[i].pd_id, fid)) {
 			*idx = pm->pm_state->pst_devices_array[i].pd_index;
 			break;
 		}

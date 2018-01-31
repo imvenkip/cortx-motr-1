@@ -21,7 +21,6 @@
 #include "lib/locality.h"
 #include "lib/finject.h"
 #include "ioservice/io_service.h"
-#include "ioservice/io_device.h"
 #include "mero/setup.h"
 #include "sns/cm/repair/xform.c"
 #include "sns/cm/repair/ut/cp_common.h"

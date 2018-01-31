@@ -37,7 +37,6 @@
 #include "fop/fom_simple.h"
 #include "ioservice/io_service.h"
 #include "ioservice/fid_convert.h"      /* m0_fid_convert_gob2cob */
-#include "ioservice/io_device.h"
 #include "pool/pool.h"
 #include "mdservice/md_fid.h"
 #include "rm/rm_service.h"                 /* m0_rms_type */

@@ -24,6 +24,8 @@
 #define __MERO_POOL_POOL_FOPS_H__
 
 #include "lib/types.h"
+#include "fid/fid.h"
+#include "fid/fid_xc.h"
 #include "xcode/xcode_attr.h"
 
 extern struct m0_fop_type m0_fop_poolmach_query_fopt;
@@ -44,8 +46,8 @@ struct m0_fop_poolmach_dev_info {
 } M0_XCA_SEQUENCE M0_XCA_DOMAIN(rpc);
 
 struct m0_fop_poolmach_dev {
-	uint32_t  fpd_index;
-	uint32_t  fpd_state;
+	uint32_t      fpd_state;
+	struct m0_fid fpd_fid;
 } M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 struct m0_fop_poolmach_set {
@@ -59,8 +61,8 @@ struct m0_fop_poolmach_query_rep {
 } M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 struct m0_fop_poolmach_dev_idx {
-	uint32_t   fpx_nr;
-	uint32_t  *fpx_idx;
+	uint32_t       fpx_nr;
+	struct m0_fid *fpx_fid;
 } M0_XCA_SEQUENCE M0_XCA_DOMAIN(rpc);
 
 struct m0_fop_poolmach_query {

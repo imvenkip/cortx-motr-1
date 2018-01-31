@@ -38,7 +38,6 @@
 #include "reqh/reqh.h"
 #include "ioservice/io_fops.h"
 #include "ioservice/io_service.h"
-#include "ioservice/io_device.h"
 #include "ioservice/ios_start_sm.h"
 #include "pool/pool.h"
 #include "net/lnet/lnet.h"
@@ -63,12 +62,6 @@ M0_TL_DEFINE(bufferpools, M0_INTERNAL, struct m0_rios_buffer_pool);
  * @see m0_ios_net_buffer_pool_size_set()
  */
 static uint32_t ios_net_buffer_pool_size = 32;
-
-/**
- * Key for pool machine
- * For usage please see ioservice/io_device.c:m0_ios_poolmach_*()
- */
-M0_INTERNAL unsigned poolmach_key;
 
 /**
  * Key for ios mds connection.
@@ -169,7 +162,6 @@ M0_INTERNAL int m0_ios_register(void)
 		return M0_ERR_INFO(rc, "Unable to initialize fops");
 	m0_reqh_service_type_register(&m0_ios_type);
 	m0_get()->i_ios_cdom_key = m0_reqh_lockers_allot();
-	poolmach_key = m0_reqh_lockers_allot();
 	ios_mds_conn_key = m0_reqh_lockers_allot();
 	return M0_RC(rc);
 }
@@ -180,7 +172,6 @@ M0_INTERNAL int m0_ios_register(void)
 M0_INTERNAL void m0_ios_unregister(void)
 {
 	m0_reqh_lockers_free(ios_mds_conn_key);
-	m0_reqh_lockers_free(poolmach_key);
 	m0_reqh_lockers_free(m0_get()->i_ios_cdom_key);
 
 	m0_reqh_service_type_unregister(&m0_ios_type);
@@ -454,7 +445,6 @@ static void ios_stop(struct m0_reqh_service *service)
 {
 	M0_PRE(service != NULL);
 
-	m0_ios_poolmach_fini(service);
 	m0_ios_delete_buffer_pool(service);
 	m0_ios_cdom_fini(service->rs_reqh);
 	m0_reqh_lockers_clear(service->rs_reqh, m0_get()->i_ios_cdom_key);

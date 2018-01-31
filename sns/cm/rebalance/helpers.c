@@ -32,7 +32,6 @@
 #include "sns/cm/ag.h"
 #include "sns/cm/file.h"
 #include "pool/pool.h"
-#include "ioservice/io_device.h"
 
 M0_INTERNAL int m0_sns_cm_rebalance_ag_setup(struct m0_sns_cm_ag *sag,
 					     struct m0_pdclust_layout *pl);

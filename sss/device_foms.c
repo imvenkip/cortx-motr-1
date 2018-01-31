@@ -37,7 +37,6 @@
 #include "sss/device_foms.h"
 #ifndef __KERNEL__
  #include "mero/setup.h"          /* m0_cs_storage_devs_get */
- #include "ioservice/io_device.h" /* m0_ios_poolmach_get */
  #include "ioservice/storage_dev.h"
 #endif
 
@@ -748,9 +747,6 @@ static int sss_device_format(struct m0_fom *fom)
  *
  * If M0_FOPH_TXN_INIT phase expected and current stage is
  * SSS_DEVICE_FOM_STAGE_STOB then switch fom to first custom phase.
- *
- * If M0_FOPH_TXN_OPEN phase expected then store poolmach credit for create
- * and run Pool event.
  */
 static int sss_device_fom_tick(struct m0_fom *fom)
 {
@@ -770,16 +766,6 @@ static int sss_device_fom_tick(struct m0_fom *fom)
 						  SSS_DFOM_DISK_OPENING);
 				return M0_FSO_AGAIN;
 			}
-		}
-		/* Add credit for this fom  for use Pool event mechanism */
-		if (m0_fom_phase(fom) == M0_FOPH_TXN_OPEN) {
-			struct m0_poolmach *poolmach;
-			struct m0_reqh     *reqh;
-
-			reqh = m0_fom_reqh(fom);
-			poolmach = m0_ios_poolmach_get(reqh);
-			m0_poolmach_store_credit(poolmach,
-						 m0_fom_tx_credit(fom));
 		}
 		return m0_fom_tick_generic(fom);
 	}

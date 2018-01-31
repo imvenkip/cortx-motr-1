@@ -32,7 +32,6 @@
 #include "fid/fid.h"             /* m0_fid */
 #include "fop/fom_generic.h"     /* m0_rpc_item_is_generic_reply_fop */
 #include "ioservice/fid_convert.h" /* m0_fid_convert_ */
-#include "ioservice/io_device.h" /* M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH */
 #include "mdservice/md_fops.h"
 #include "rpc/rpclib.h"
 #include "rpc/rpc_opcodes.h"     /* M0_MDSERVICE_CREATE_OPCODE */

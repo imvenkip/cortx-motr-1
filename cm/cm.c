@@ -31,7 +31,6 @@
 
 #include "mero/magic.h"
 #include "mero/setup.h"
-#include "ioservice/io_device.h"
 #include "net/buffer_pool.h"
 #include "rpc/rpclib.h"
 #include "rpc/rpc_machine.h"

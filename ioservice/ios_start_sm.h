@@ -42,7 +42,6 @@
 #include "conf/confc.h"
 #include "conf/diter.h"
 #include "dtm/dtm.h"
-#include "ioservice/io_device.h"
 #include "sm/sm.h"
 
 struct m0_fom;
@@ -73,24 +72,6 @@ struct m0_ios_start_sm
 	struct m0_reqh             *ism_reqh;
 	/** BE TX instance, used three times, @see m0_ios_start_state */
 	struct m0_be_tx             ism_tx;
-	/*
-	 * Pool machine associated with IO service.
-	 * XXX ios global pool machine is no longer needed and
-	 * needs to be removed.
-	 */
-	struct m0_poolmach         *ism_poolmach;
-	/** Confc context to open ism_fs_obj configuration object */
-	struct m0_confc_ctx         ism_confc_ctx;
-	/** Filesystem conf object, used to search for ism_poolmach disks */
-	struct m0_conf_obj         *ism_fs_obj;
-	/** Directory iterator over filesystem m0_conf_disk objects */
-	struct m0_conf_diter        ism_it;
-	/** List of sdevs fid */
-	struct m0_tl                ism_sdevs_fid;
-	/** Current index in poolmachine->pm_state->pst_devices_array */
-	int                         ism_pool_index;
-	/** Numbers of devices and dicks */
-	struct m0_ios_poolmach_args ism_poolmach_args;
 	/** Clink to wait on be_tx and conf_obj channels */
 	struct m0_clink             ism_clink;
 	/** AST scheduler current states */
@@ -133,32 +114,6 @@ enum m0_ios_start_state {
 	 * Create buffer pool and get filesystem conf object
 	 */
 	M0_IOS_START_BUFFER_POOL_CREATE,
-	/**
-	 * Initialise iter for count devices and disks by filesystem
-	 */
-	M0_IOS_START_CONF_COUNTER_INIT,
-	/**
-	 * Count  disks by filesystem
-	 */
-	M0_IOS_START_CONF_COUNTER_NODES,
-	/**
-	 * Count devices by filesystem and
-	 * start BE TX for fill poolmachine
-	 */
-	M0_IOS_START_CONF_COUNTER_SDEVS,
-	/**
-	 * Initialize poolmachine
-	 */
-	M0_IOS_START_PM_INIT,
-	/**
-	 * Get m0_conf_filesystem from confc
-	 */
-	M0_IOS_START_CONF_FILL_INIT,
-	/**
-	 * Add m0_conf_disk ID to poolmachine,
-	 * Save poolmachine to lockers
-	 */
-	M0_IOS_START_CONF_FILL,
 	/**
 	 * Handle errors from other states
 	 */

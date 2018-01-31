@@ -34,7 +34,6 @@
 #include "fid/fid.h"             /* m0_fid */
 #include "rpc/rpclib.h"          /* m0_rpc_client_connect */
 #include "lib/ext.h"             /* struct m0_ext */
-#include "ioservice/io_device.h" /* M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CLOVIS
 #include "lib/trace.h"           /* M0_LOG */

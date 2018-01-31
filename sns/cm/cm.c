@@ -34,7 +34,6 @@
 
 #include "mero/setup.h"
 #include "net/net.h"
-#include "ioservice/io_device.h"
 #include "ioservice/io_service.h"
 #include "reqh/reqh.h"
 #include "rpc/rpc.h"

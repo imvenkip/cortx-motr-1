@@ -39,7 +39,6 @@
 #include "reqh/reqh_service.h"
 #include "ioservice/io_foms.h"
 #include "ioservice/io_service.h"
-#include "ioservice/io_device.h"
 #include "ioservice/cob_foms.h"    /* m0_cc_stob_create */
 #include "ioservice/storage_dev.h" /* m0_storage_dev_stob_find */
 #include "cob/cob.h"               /* m0_cob_create */

@@ -18,7 +18,6 @@ Detailed designs, ordered alphabetically by title:
 - @subpage m0_long_lock-dld "FOM Long lock DLD" <!-- fop/fom_long_lock.h -->
 - <i>I/O Related</i>
   - @subpage DLD-bulk-server "DLD of Bulk Server" <!-- ioservice/io_foms.c -->
-  - @subpage io_calls_params_dld "DLD of I/O calls Parameters Server-side" <!-- ioservice/io_device.c -->
   - @subpage rmw_io_dld "DLD for read-modify-write IO requests" <!-- m0t1fs/linux_kernel/file_internal.h -->
   - @subpage io_bulk_client "IO bulk transfer Detailed Level Design" <!-- ioservice/io_fops.c -->
   - @subpage IOFOLDLD "IO FOL DLD" <!-- ioservice/io_fops.c -->

@@ -35,7 +35,6 @@
 #include "fid/fid.h"             /* m0_fid */
 #include "rpc/rpclib.h"          /* m0_rpc_ */
 #include "lib/ext.h"             /* struct m0_ext */
-#include "ioservice/io_device.h" /* M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH */
 #include "fop/fom_generic.h"     /* m0_rpc_item_generic_reply_rc */
 #include "sns/parity_repair.h"   /* m0_sns_repair_spare_map*/
 #include "fd/fd.h"               /* m0_fd_fwd_map m0_fd_bwd_map */

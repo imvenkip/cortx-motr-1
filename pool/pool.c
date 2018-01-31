@@ -32,7 +32,6 @@
 #include "conf/obj_ops.h"  /* M0_CONF_DIRNEXT */
 #include "conf/pvers.h"    /* m0_conf_pver_find_by_fid */
 #include "conf/cache.h"    /* m0_conf_cache_contains */
-#include "ioservice/io_device.h"  /* m0_ios_poolmach_get */
 #include "reqh/reqh_service.h" /* m0_reqh_service_ctx */
 #include "reqh/reqh.h"
 #include "rpc/rpc_machine.h"    /* m0_rpc_machine_ep */
@@ -1947,24 +1946,6 @@ M0_INTERNAL int m0_pool_device_state_update(struct m0_reqh        *reqh,
 		} m0_tl_endfor;
 	} m0_tl_endfor;
 
-	/* update ios poolmachine */
-	if (rc == 0) {
-		pm = m0_ios_poolmach_get(reqh);
-		dev_idx = pool_device_index(pm, dev_fid);
-		if (dev_idx != POOL_DEVICE_INDEX_INVALID) {
-			pme.pe_type  = M0_POOL_DEVICE;
-			pme.pe_index = dev_idx;
-			pme.pe_state = new_state;
-			rc = m0_poolmach_state_transit(pm, &pme, tx);
-			if (rc != 0) {
-				/* Revert all changes in pc */
-				pool_device_state_last_revert(pc,
-							      dev_fid,
-							      NULL);
-				return M0_ERR(rc);
-			}
-		}
-	}
 	return M0_RC(0);
 }
 

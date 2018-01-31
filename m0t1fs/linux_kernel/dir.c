@@ -33,7 +33,6 @@
 #include "fop/fop.h"       /* m0_fop_alloc */
 #include "rpc/rpclib.h"    /* m0_rpc_post_sync */
 #include "rpc/rpc_opcodes.h"
-#include "ioservice/io_device.h"
 #include "mero/magic.h"
 #include "layout/layout.h"
 #include "layout/layout_internal.h" /* LID_NONE */

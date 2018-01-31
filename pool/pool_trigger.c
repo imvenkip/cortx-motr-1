@@ -46,7 +46,7 @@ enum {
 
 static const char *cl_ep_addr;
 static const char *srv_ep_addr[MAX_SERVERS];
-static int64_t     device_index_arr[MAX_DEV_NR];
+static struct m0_fid device_fid_arr[MAX_DEV_NR];
 static int64_t     device_state_arr[MAX_DEV_NR];
 static int         di = 0;
 static int         ds = 0;
@@ -123,8 +123,7 @@ static void print_help(void)
 {
 	fprintf(stdout,
 "-O Q(uery) or S(et): Query device state or Set device state\n"
-"-T (D)evice or (N)ode\n"
-"-I device_index or node_index\n"
+"-I device_fid\n"
 "[-s device_state]: if Set, the device state. The states supported are:\n"
 "    0:    M0_PNDS_ONLINE\n"
 "    1:    M0_PNDS_FAILED\n"
@@ -139,7 +138,6 @@ int main(int argc, char *argv[])
 
 	struct rpc_ctx *ctxs;
 	const char     *op = NULL;
-	const char     *type = NULL;
 	m0_time_t       start;
 	m0_time_t       delta;
 	int             rc;
@@ -160,20 +158,12 @@ int main(int argc, char *argv[])
 								   'S', 's')))
 							rc = -EINVAL;
 					})),
-			M0_STRINGARG('T',
-				     "D(evice) or N(ode)",
-				     LAMBDA(void, (const char *str) {
-						type = str;
-						if (!M0_IN(type[0], ('D', 'd',
-								     'N', 'n')))
-							rc = -EINVAL;
-					})),
 			M0_FORMATARG('N', "Number of devices", "%u", &dev_nr),
-			M0_NUMBERARG('I', "device index",
-				     LAMBDA(void, (int64_t device_index)
+			M0_STRINGARG('I', "device fid",
+				     LAMBDA(void, (const char *str)
 					    {
-						device_index_arr[di] =
-								device_index;
+						m0_fid_sscanf(str,
+							   &device_fid_arr[di]);
 						M0_CNT_INC(di);
 						M0_ASSERT(di <= MAX_DEV_NR);
 					    })),
@@ -201,14 +191,14 @@ int main(int argc, char *argv[])
 		return M0_ERR(rc);
 	}
 
-	if (op == NULL          || type == NULL        || dev_nr == 0  ||
+	if (op == NULL          || dev_nr == 0  ||
 	    dev_nr > MAX_DEV_NR || cl_ep_addr == NULL  || srv_cnt == 0 ||
 	    di != dev_nr        || ((op[0] == 'S'||op[0] == 's') && ds!=dev_nr)
 	   ) {
 		print_help();
-		fprintf(stderr, "Insane arguments: op=%s type=%s cl_ep=%s "
+		fprintf(stderr, "Insane arguments: op=%s cl_ep=%s "
 				"dev_nr=%d di=%d ds=%d srv_cnt=%d\n",
-				op, type, cl_ep_addr, dev_nr, di, ds, srv_cnt);
+				op, cl_ep_addr, dev_nr, di, ds, srv_cnt);
 		return M0_ERR(-EINVAL);
 	}
 
@@ -266,15 +256,12 @@ int main(int argc, char *argv[])
 			}
 
 			query_fop = m0_fop_data(req);
-			if (type[0] == 'N' || type[0] == 'n')
-				query_fop->fpq_type  = M0_POOL_NODE;
-			else
-				query_fop->fpq_type  = M0_POOL_DEVICE;
-			M0_ALLOC_ARR(query_fop->fpq_dev_idx.fpx_idx, dev_nr);
+			query_fop->fpq_type  = M0_POOL_DEVICE;
+			M0_ALLOC_ARR(query_fop->fpq_dev_idx.fpx_fid, dev_nr);
 			query_fop->fpq_dev_idx.fpx_nr = dev_nr;
 			for (j = 0; j < dev_nr; ++j)
-				query_fop->fpq_dev_idx.fpx_idx[j] =
-					device_index_arr[j];
+				query_fop->fpq_dev_idx.fpx_fid[j] =
+					device_fid_arr[j];
 		} else {
 			struct m0_fop_poolmach_set   *set_fop;
 
@@ -286,15 +273,12 @@ int main(int argc, char *argv[])
 			}
 
 			set_fop = m0_fop_data(req);
-			if (type[0] == 'N' || type[0] == 'n')
-				set_fop->fps_type  = M0_POOL_NODE;
-			else
-				set_fop->fps_type  = M0_POOL_DEVICE;
+			set_fop->fps_type  = M0_POOL_DEVICE;
 			M0_ALLOC_ARR(set_fop->fps_dev_info.fpi_dev, dev_nr);
 			set_fop->fps_dev_info.fpi_nr = dev_nr;
 			for (j = 0; j < dev_nr; ++j) {
-				set_fop->fps_dev_info.fpi_dev[j].fpd_index =
-					device_index_arr[j];
+				set_fop->fps_dev_info.fpi_dev[j].fpd_fid =
+					device_fid_arr[j];
 				set_fop->fps_dev_info.fpi_dev[j].fpd_state =
 					device_state_arr[j];
 			}
@@ -315,9 +299,9 @@ int main(int argc, char *argv[])
 			query_fop_rep = m0_fop_data(rep);
 			for (i = 0; i < dev_nr; ++i) {
 				fprintf(stderr,
-					"Query: index = %d state= %d rc = %d\n",
-					(int)query_fop_rep->fqr_dev_info.
-					fpi_dev[i].fpd_index,
+					"Query: fid = "FID_F" state= %d rc = %d\n",
+					FID_P(&query_fop_rep->fqr_dev_info.
+					      fpi_dev[i].fpd_fid),
 					(int)query_fop_rep->fqr_dev_info.
 					fpi_dev[i].fpd_state,
 					(int)query_fop_rep->fqr_rc);

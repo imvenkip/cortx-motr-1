@@ -23,7 +23,6 @@
 
 #include "ioservice/cob_foms.h"    /* m0_fom_cob_create */
 #include "ioservice/fid_convert.h" /* m0_fid_convert_cob2stob */
-#include "ioservice/io_device.h"
 #include "ioservice/io_service.h"  /* m0_reqh_io_service */
 #include "ioservice/storage_dev.h" /* m0_storage_dev_stob_find */
 #include "mero/setup.h"            /* m0_cs_ctx_get */

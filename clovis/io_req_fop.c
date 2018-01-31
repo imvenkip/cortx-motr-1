@@ -34,7 +34,6 @@
 #include "lib/errno.h"           /* ENOMEM */
 #include "lib/atomic.h"          /* m0_atomic_{inc,dec,get} */
 #include "rpc/rpc_machine_internal.h"	/* m0_rpc_machine_lock */
-#include "ioservice/io_device.h" /* M0_IOP_ERROR_FAILURE_VECTOR_VER_MISMATCH */
 #include "fop/fom_generic.h"     /* m0_rpc_item_generic_reply_rc */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CLOVIS

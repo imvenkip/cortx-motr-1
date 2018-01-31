@@ -44,7 +44,6 @@
 #include "lib/tlist.h"
 #include "rpc/rpc_machine.h"      /* m0_rpc_machine, m0_rpc_machine_lock */
 #include "ioservice/io_fops.h"    /* m0_io_fop */
-#include "ioservice/io_device.h"
 #include "mero/magic.h"  /* M0_T1FS_IOREQ_MAGIC */
 #include "m0t1fs/linux_kernel/m0t1fs.h" /* m0t1fs_sb */
 #include "file/file.h"
