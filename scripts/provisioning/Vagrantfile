@@ -428,7 +428,7 @@ def setup_shared_nfs_dir(config, src_path)
                             type: 'nfs',
                             nfs_udp: false,
                             nfs_version: nfs_version,
-                            mount_options: ['soft,actimeo=1,async']
+                            mount_options: ['soft', 'actimeo=1', 'async']
   end
 end
 
