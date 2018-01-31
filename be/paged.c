@@ -477,9 +477,16 @@ static int pd_fom_tick(struct m0_fom *fom)
 			      m0_be_pd_io_get(pios, &pd_fom->bpf_cur_pio, &op));
 		pio = pd_fom->bpf_cur_pio;
 
+		current_iterated_in_write_case = NULL;
 		m0_be_pd_request_pages_forall(paged, request,
 		      LAMBDA(bool, (struct m0_be_pd_page *page,
 				    struct m0_be_reg_d *rd) {
+
+		        if (current_iterated_in_write_case == page)
+			        return true;
+
+			current_iterated_in_write_case = page;
+
 			m0_be_io_add(m0_be_pd_io_be_io(pio),
 				     rd->rd_reg.br_seg->bs_stob,
 				     page->pp_cellar,
@@ -490,6 +497,7 @@ static int pd_fom_tick(struct m0_fom *fom)
 			return true;
 		     }));
 
+		m0_be_op_reset(&pd_fom->bpf_op);
 		m0_be_io_configure(m0_be_pd_io_be_io(pio), SIO_WRITE);
 		m0_be_pd_io_add(pios, pio, &request->prt_pages.prp_ext,
 				&pd_fom->bpf_op);
@@ -501,9 +509,17 @@ static int pd_fom_tick(struct m0_fom *fom)
 		pio = pd_fom->bpf_cur_pio;
 		request = pd_fom->bpf_cur_request;
 
+		current_iterated_in_write_case = NULL;
 		m0_be_pd_request_pages_forall(paged, request,
 		      LAMBDA(bool, (struct m0_be_pd_page *page,
 				    struct m0_be_reg_d *rd) {
+
+		        if (current_iterated_in_write_case == page)
+			        return true;
+
+			current_iterated_in_write_case = page;
+
+
 			m0_be_pd_page_lock(page);
 
 			M0_ASSERT(page->pp_state == M0_PPS_WRITING);
@@ -776,25 +792,41 @@ M0_INTERNAL void m0_be_pd_request_pages_init(struct m0_be_pd_request_pages *rqp,
 	};
 }
 
-static void copy_reg_to_page(struct m0_be_pd_page       *page,
-			     const struct m0_be_reg_d   *rd)
+static void copy_reg_to_cellar(struct m0_be_pd_page       *page,
+			       const struct m0_be_reg_d   *rd)
 {
 /**
- *      +---REG---+
- *    +--P1--+--P2--+
+ * This function translates regions pointing into segment's address space
+ * into cellar pages addresses. XXX: CAN BE TRICKY OR/AND BUGGY. ENJOY.
  *
+ *      +---------------REG_v3----------------+
+ *      +---------REG_v2-----------+          |
+ *      +---REG_v1---+             |          |
+ *      |            |             |          |
+ *   |  V            V |           V     |    V            |
+ *   o--.----P1------.-o-------P2--.-----o----.--P3--------o
+ *   |                 |                 |                 |
  */
-#if 0
-	void *addr = rd->rd_reg.br_addr + (page->pp_page - page->pp_cellar);
-	m0_bcount_t size = min_check((uint64_t)(page->pp_cellar +
-						page->pp_size -	addr),
-				     (uint64_t)(addr + rd->rd_reg.br_size));
-#endif
-	void *addr_0off = rd->rd_reg.br_addr - page->pp_page;
-	void *addr = page->pp_cellar + addr_0off;
-
+	void        *addr;
+	m0_bcount_t  size;
+	m0_bcount_t  rest;
+	ptrdiff_t    addr_0off;
 
 	M0_PRE(page->pp_cellar != NULL);
+
+	addr_0off = rd->rd_reg.br_addr - page->pp_page;
+	if (addr_0off < 0) {
+		addr = page->pp_cellar;
+		M0_ASSERT(rd->rd_reg.br_size - addr_0off > 0);
+		size = min_check(page->pp_size,
+				 rd->rd_reg.br_size - addr_0off);
+	} else {
+		addr = page->pp_cellar + addr_0off;
+		M0_ASSERT(page->pp_size > addr_0off);
+		rest = page->pp_size - addr_0off;
+		size = min_check(rest, rd->rd_reg.br_size);
+	}
+
 	memcpy(addr, rd->rd_buf, size);
 }
 
@@ -805,7 +837,7 @@ m0_be_pd_request__copy_to_cellars(struct m0_be_pd         *paged,
 	m0_be_pd_request_pages_forall(paged, request,
 	      LAMBDA(bool, (struct m0_be_pd_page *page,
 			    struct m0_be_reg_d *rd) {
-			     copy_reg_to_page(page, rd);
+			     copy_reg_to_cellar(page, rd);
 			     return true;
 		     }));
 }
@@ -897,7 +929,7 @@ M0_INTERNAL void m0_be_prp_cursor_fini(struct m0_be_prp_cursor *cursor)
 
 M0_INTERNAL bool m0_be_prp_cursor_next(struct m0_be_prp_cursor *cursor)
 {
-	struct m0_be_pd_mapping *mapping;
+	struct m0_be_pd_mapping *mapping = NULL;
 	struct m0_be_pd_page    *last_page;
 	struct m0_be_pd         *paged      = cursor->rpi_paged;
 	const void       *start_addr = cursor->rpi_addr;
