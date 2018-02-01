@@ -69,6 +69,15 @@ m0_exit()
     exit 1
 }
 
+# Run a command constructed from a concatenation of all positional parameters.
+# Resulting command string is logged with m0_log().
+#   @param  $*  command and it's arguments
+m0_run()
+{
+    m0_log "$*"
+    "$@"
+}
+
 _trap_munge()
 {
     local cmd=$1
@@ -91,6 +100,7 @@ declare -rA _path_inside_workdir=(
     [m0d]='mero/m0d'
     [m0mkfs]='utils/mkfs/m0mkfs'
     [m0traced]='utils/trace/m0traced'
+    [m0dixinit]='utils/m0dixinit'
 )
 
 # Return a path to Mero executables.
@@ -120,11 +130,7 @@ m0_has_genders()
 # Checks whether CAS service is enabled
 m0_cas_enabled()
 {
-    if [[ $(m0_get_services | grep cas | wc -l) -ne 0 ]] ; then
-        return 0
-    else
-        return 1
-    fi
+    m0_get_services | grep -q cas
 }
 
 # Checks if particular variable exists in genders "database"
@@ -1075,7 +1081,7 @@ m0_build_local_conf()
 CONF_END
 )
     if m0_cas_enabled ; then
-        local_conf=$local_conf$(cat <<CONF_END
+        local_conf+=$(cat <<CONF_END
 ,
   $(_build_cas_devs $ipool_width $pool_width $imetapverid),
   $imetapool,
@@ -1087,7 +1093,7 @@ CONF_END
 )
     fi
 
-    local_conf=$local_conf"]"
+    local_conf+=']'
 
     echo "$local_conf"
 }

@@ -849,6 +849,7 @@ dist_pkglibexec_SCRIPTS  = scripts/install/usr/libexec/mero/mero-service.functio
                            scripts/install/usr/libexec/mero/mero-kernel \
                            scripts/install/usr/libexec/mero/mero-mkfs \
                            scripts/install/usr/libexec/mero/mero-server \
+                           scripts/install/usr/libexec/mero/mero-dixinit \
                            scripts/install/usr/libexec/mero/mero-trace
 
 ################################################################################

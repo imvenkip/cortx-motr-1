@@ -166,6 +166,7 @@ install_files()
                 'scripts/install/usr/libexec/mero/mero-kernel' \
                 'scripts/install/usr/libexec/mero/mero-mkfs' \
                 'scripts/install/usr/libexec/mero/mero-server' \
+                'scripts/install/usr/libexec/mero/mero-dixinit' \
                 'scripts/install/usr/libexec/mero/mero' \
                 'scripts/install/usr/libexec/mero/mero-client' \
                 ;
@@ -189,6 +190,7 @@ uninstall_files()
                /usr/libexec/mero/mero-cleanup
                /usr/libexec/mero/mero-mkfs
                /usr/libexec/mero/mero-server
+               /usr/libexec/mero/mero-dixinit
                /usr/libexec/mero/mero
                /usr/libexec/mero/mero-client '
 
