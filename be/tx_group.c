@@ -381,6 +381,7 @@ M0_INTERNAL void m0_be_tx_group_seg_place_prepare(struct m0_be_tx_group *gr)
 {
 	struct m0_be_reg_d *rd;
 
+	/* XXX: TOMOROW remove io arming from here! */
 	if (!gr->tg_recovering) {
 		M0_BE_REG_AREA_FORALL(&gr->tg_reg_area, rd)
 			m0_be_group_format_reg_seg_add(&gr->tg_od, rd);

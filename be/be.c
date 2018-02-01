@@ -25,6 +25,7 @@
 
 #include "be/tx_group_fom.h"    /* m0_be_tx_group_fom_mod_init */
 #include "be/tx_internal.h"     /* m0_be_tx_mod_init */
+#include "be/paged.h"		/* m0_be_pd_fom_mod_init */
 
 /**
  * @addtogroup be
@@ -118,11 +119,16 @@
 
 M0_INTERNAL int m0_backend_init(void)
 {
-	return m0_be_tx_mod_init() ?: (m0_be_tx_group_fom_mod_init(), 0);
+	int rc = m0_be_tx_mod_init();
+	m0_be_tx_group_fom_mod_init();
+	m0_be_pd_fom_mod_init();
+
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_backend_fini(void)
 {
+	m0_be_pd_fom_mod_fini();
 	m0_be_tx_group_fom_mod_fini();
 	m0_be_tx_mod_fini();
 }

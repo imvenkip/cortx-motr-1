@@ -52,7 +52,8 @@ void m0_be_ut_tx_usecase_success(void)
 
 	M0_SET0(&ut_be);
 	m0_be_ut_backend_init(&ut_be);
-	m0_be_ut_seg_init(&ut_seg, NULL, 1 << 20);
+	/* m0_be_ut_seg_init(&ut_seg, NULL, 1 << 20); */ /* XXX */
+	m0_be_ut_seg_init(&ut_seg, &ut_be, 1 << 20);
 	seg = ut_seg.bus_seg;
 
 	m0_be_ut_tx_init(&tx, &ut_be);

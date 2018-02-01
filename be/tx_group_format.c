@@ -508,6 +508,7 @@ m0_be_group_format_seg_place_prepare(struct m0_be_group_format *gft,
 	 * m0_be_group_format_reg_seg_add().
 	 */
 	m0_be_log_record_ext(&gft->gft_log_record, &gft->gft_ext);
+	/* XXX: TOMOROW remove io arming from here! */
 	m0_be_io_configure(m0_be_pd_io_be_io(gft->gft_pd_io), SIO_WRITE);
 	m0_be_log_discard_item_ext_set(gft->gft_log_discard_item,
 				       &gft->gft_ext);

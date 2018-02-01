@@ -665,11 +665,17 @@ m0_be_pd_request_queue_pop(struct m0_be_pd_request_queue *rq)
 static bool be_pd_request_is_deferred(struct m0_be_pd_request_queue *rq,
 				      struct m0_be_pd_request       *request)
 {
+	M0_ENTRY("is_deferred=%d cur=%" PRIu64 " start=%" PRIu64,
+		 !!rq->prq_current_pos != request->prt_ext.e_start,
+		 rq->prq_current_pos, request->prt_ext.e_start);
+
 	return rq->prq_current_pos != request->prt_ext.e_start;
 }
 
 static bool be_pd_request_is_write(struct m0_be_pd_request *request)
 {
+	M0_ENTRY("is_write=%d", !!request->prt_pages.prp_type == M0_PRT_WRITE);
+
 	return request->prt_pages.prp_type == M0_PRT_WRITE;
 }
 
@@ -677,6 +683,8 @@ static void deferred_insert_sorted(struct m0_be_pd_request_queue *rq,
 				   struct m0_be_pd_request       *request)
 {
 	struct m0_be_pd_request *rq_prev;
+
+	M0_ENTRY("request=%p", request);
 
 	M0_PRE(m0_mutex_is_locked(&rq->prq_lock));
 
@@ -698,7 +706,15 @@ static void request_queue_update_pos(struct m0_be_pd_request_queue *rq,
 {
 	M0_PRE(rq->prq_current_pos == request->prt_ext.e_start);
 
-	rq->prq_current_pos = request->prt_ext.e_end + 1;
+	M0_ENTRY("request=%p", request);
+
+	/* XXX: should we increment count compared in another place with e_start ??? */
+	/* rq->prq_current_pos = request->prt_ext.e_end + 1; */
+
+	rq->prq_current_pos = request->prt_ext.e_end;
+
+	M0_LEAVE("request=%p current_pos=%" PRIu64, request,
+		 rq->prq_current_pos);
 }
 
 M0_INTERNAL void
@@ -725,6 +741,10 @@ m0_be_pd_request_queue_push(struct m0_be_pd_request_queue      *rq,
 		m0_fom_wakeup(fom);
 
 	/* Use deferred list to push WRITE requests in required order. */
+
+	M0_LOG(M0_DEBUG, "request=%p start=%" PRIu64 " end=%" PRIu64, request,
+	       request->prt_ext.e_start, request->prt_ext.e_end);
+
 	if (be_pd_request_is_write(request)) {
 		if (be_pd_request_is_deferred(rq, request))
 			deferred_insert_sorted(rq, request);
@@ -1188,6 +1208,18 @@ M0_INTERNAL int m0_be_pd_mapping_init(struct m0_be_pd *paged,
 	M0_ASSERT(rc == 0); /* XXX */
 	mappings_tlist_add(&paged->bp_mappings, mapping);
 
+
+	/* XXX: delete this after page_get/put ready in code */
+	M0_ASSERT(mapping->pas_type == M0_BE_PD_MAPPING_COMPAT);
+	for (i = 0; i < mapping->pas_pcount; ++i) {
+		m0_be_pd_page_lock(&mapping->pas_pages[i]);
+		int rc = m0_be_pd_mapping_page_attach(mapping,
+						      &mapping->pas_pages[i]);
+		M0_ASSERT(rc == 0);
+		m0_be_pd_page_unlock(&mapping->pas_pages[i]);
+	}
+
+
 	return M0_RC(0);
 }
 
@@ -1203,6 +1235,16 @@ M0_INTERNAL int m0_be_pd_mapping_fini(struct m0_be_pd *paged,
 
 	mapping = be_pd_mapping_find(paged, addr, size);
 	M0_ASSERT(mapping != NULL);
+
+	/* XXX: delete this after page_get/put ready in code */
+	M0_ASSERT(mapping->pas_type == M0_BE_PD_MAPPING_COMPAT);
+	for (i = 0; i < mapping->pas_pcount; ++i) {
+		m0_be_pd_page_lock(&mapping->pas_pages[i]);
+		int rc = m0_be_pd_mapping_page_detach(mapping,
+						      &mapping->pas_pages[i]);
+		M0_ASSERT(rc == 0);
+		m0_be_pd_page_unlock(&mapping->pas_pages[i]);
+	}
 
 	mappings_tlist_del(mapping);
 	rc = be_pd_mapping_unmap(mapping);
@@ -1268,7 +1310,10 @@ M0_INTERNAL int m0_be_pd_mapping_page_attach(struct m0_be_pd_mapping *mapping,
 		/* XXX: 4k */
 		page->pp_cellar = m0_alloc_aligned(page->pp_size, 12);
 		M0_ASSERT(page->pp_cellar != NULL);
-		page->pp_state = M0_PPS_MAPPED;
+		memcpy(page->pp_cellar, page->pp_page, page->pp_size);
+		/* XXX */
+		page->pp_state = mapping->pas_type == M0_BE_PD_MAPPING_COMPAT ?
+			M0_PPS_READY : M0_PPS_MAPPED;
 	}
 
 	return M0_RC(rc);
