@@ -50,6 +50,7 @@ $options = {
     config:                 STDIN,
     output:                 STDOUT,
     template:               TEMPLATE_FILE_PATH,
+    remote_user:            Facter.value(:id),
     clovis_mode:            false,
     dataunits:              DATA_UNITS,
     parityunits:            PARITY_UNITS,
@@ -113,6 +114,11 @@ END_USAGE
     opts.on('-t', '--template FILE',
             "Input template file. Default is '#{TEMPLATE_FILE_PATH}'") do |val|
         $options[:template] = val
+    end
+
+    opts.on('-u', '--user NAME',
+            "Remote user name. Default is same as the current user") do |val|
+        $options[:remote_user] = val
     end
 
     opts.on('-e', '--netif IFNAME',
@@ -291,7 +297,7 @@ def run(cmd, host: Facter.value(:hostname))
             if !$options[:devsize] && $CHILD_STATUS.exitstatus.nonzero?
     else
         # remote command
-        Net::SSH.start(target_host, Facter.value(:id)) do |ssh|
+        Net::SSH.start(target_host, $options[:remote_user]) do |ssh|
             output = ssh.exec!(cmd)
             output.chomp! unless output.nil?
         end
@@ -316,7 +322,7 @@ def collect_facts_for(node)
         processorcount  = Facter.value(:processors)['count']
         memorysize_mb   = Facter.value(:memorysize_mb).to_i
     else # get remote facts
-        Net::SSH.start(target_host, Facter.value(:id)) do |ssh|
+        Net::SSH.start(target_host, $options[:remote_user]) do |ssh|
             facter = ssh.exec!('which facter 2>/dev/null')
 
             die "`facter` is not found on host '#{target_host}', try to install" \
@@ -457,10 +463,15 @@ if ARGV.empty?
     die "invalid cluster config - it can't be empty" \
         unless cluster_config
 
-    ['clients', 'confds', 'ssus'].each do |key|
+    ['confds', 'ssus'].each do |key|
         unless cluster_config.has_key?(key)
             die "invalid cluster config: '#{key}' list is missing or empty"
         end
+    end
+
+    if !cluster_config.has_key?('clients') && !cluster_config.has_key?('clovis-apps')
+        die 'invalid cluster config: at least one of the "clients" or "clovis-apps"' \
+            + ' lists must be specified'
     end
 else
     log 'Generating Halon facts for singlenode'
