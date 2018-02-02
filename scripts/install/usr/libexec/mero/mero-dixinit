@@ -24,6 +24,11 @@ m0_dixinit()
 
     [[ -n $MERO_M0D_DEBUGGER ]] && export M0_DEBUGGER=$MERO_M0D_DEBUGGER
 
+    m0_cas_enabled || {
+        m0_log 'CAS service is not enabled, skipping m0dixinit'
+        return 0
+    }
+
     local service_dir=$(m0_get_m0d_data_dir_for dixinit)
     [[ ! -d $service_dir ]] && mkdir -p "$service_dir"
     cd "$service_dir"

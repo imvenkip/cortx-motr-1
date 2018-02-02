@@ -16,8 +16,8 @@ cd $M0_SRC_DIR
 
 scripts/install-mero-service -u
 scripts/install-mero-service -l
-utils/m0setup --no-cas -v -P 12 -N 2 -K 1 -i 1 -d /var/mero/img -s 1 -c
-utils/m0setup --no-cas -v -P 12 -N 2 -K 1 -i 1 -d /var/mero/img -s 1
+utils/m0setup --no-cas -v -c
+utils/m0setup --no-cas -v
 
 # update Mero configuration: set specific dir for test artifacts
 sed -i "s@.*MERO_LOG_DIR.*@MERO_LOG_DIR=${SANDBOX_DIR}/log@" \
