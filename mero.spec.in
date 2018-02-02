@@ -237,6 +237,7 @@ fi
 #%config %attr(0664, mero, mero) %{_sysconfdir}/mero/*
 %config %attr(0664, mero, mero) %{_sysconfdir}/sysconfig/*
 %{_sysconfdir}/systemd/system/*
+%{_sysconfdir}/security/limits.d/90-mero.conf
 /lib/modules/*/kernel/fs/mero/*
 %exclude %{_bindir}/m0kut*
 %exclude %{_bindir}/m0ut*

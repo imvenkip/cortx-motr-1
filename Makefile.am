@@ -823,6 +823,10 @@ etc_sysconfigdir    = $(sysconfdir)/sysconfig
 etc_sysconfig_DATA  = scripts/install/etc/sysconfig/mero
 EXTRA_DIST         += $(etc_sysconfig_DATA)
 
+etc_limitsdir    = $(sysconfdir)/security/limits.d
+etc_limits_DATA  = scripts/install/etc/security/limits.d/90-mero.conf
+EXTRA_DIST      += $(etc_limits_DATA)
+
 # After genders => Halon transition, Mero doesn't have any configuration files
 # under /etc/mero/ directory. But there might be some in future.
 #etc_merodir    = $(sysconfdir)/mero
