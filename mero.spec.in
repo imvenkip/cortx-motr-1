@@ -247,12 +247,6 @@ fi
 %exclude %{_libdir}/libtestlib*
 %exclude %{_libdir}/libmero-xcode-ff2c*
 %exclude %{_libdir}/pkgconfig/mero.pc
-%if %{with systemd}
-%if %{intel_lustre}
-# Intel's lustre package provides it's own lnet.service
-%exclude %{_exec_prefix}/lib/systemd/system/lnet.service
-%endif # intel_lustre
-%endif # with systemd
 %exclude /lib/modules/*/kernel/fs/net/*
 %exclude /lib/modules/*/kernel/fs/rpc/*
 %exclude /lib/modules/*/kernel/fs/ut/*

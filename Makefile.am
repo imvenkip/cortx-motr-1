@@ -799,8 +799,7 @@ be_tool_m0betool_LDADD     = $(top_builddir)/mero/libmero.la
 
 if HAVE_SYSTEMD
 usr_lib_systemddir    = $(prefix)/lib/systemd/system
-usr_lib_systemd_DATA  = scripts/install/usr/lib/systemd/system/lnet.service \
-                        scripts/install/usr/lib/systemd/system/mero-client.service \
+usr_lib_systemd_DATA  = scripts/install/usr/lib/systemd/system/mero-client.service \
                         scripts/install/usr/lib/systemd/system/mero-cleanup.service \
                         scripts/install/usr/lib/systemd/system/mero-kernel.service \
                         scripts/install/usr/lib/systemd/system/mero-mkfs.service \
