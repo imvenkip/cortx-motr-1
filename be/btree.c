@@ -1222,6 +1222,10 @@ fi_exist:
 
 	if (anchor == NULL)
 		m0_rwlock_write_unlock(btree_rwlock(tree));
+
+	/* XXX: LOCK_CAPTURE, remove unneeded! */
+	mem_update(tree, tx, &tree->bb_lock, sizeof(struct m0_be_rwlock));
+
 	m0_be_op_done(op);
 	M0_LEAVE("tree=%p", tree);
 }
@@ -1273,6 +1277,10 @@ M0_INTERNAL void m0_be_btree_create(struct m0_be_btree *tree,
 	btree_create(tree, tx);
 
 	m0_rwlock_write_unlock(btree_rwlock(tree));
+
+	/* XXX: LOCK_CAPTURE, remove unneeded! */
+	mem_update(tree, tx, &tree->bb_lock, sizeof(struct m0_be_rwlock));
+
 	op_tree(op)->t_rc = 0;
 	m0_be_op_done(op);
 	M0_LEAVE();

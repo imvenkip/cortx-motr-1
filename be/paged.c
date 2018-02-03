@@ -826,8 +826,21 @@ static void copy_reg_to_cellar(struct m0_be_pd_page       *page,
  *   |  V            V |           V     |    V            |
  *   o--.----P1------.-o-------P2--.-----o----.--P3--------o
  *   |                 |                 |                 |
+ *                   |------------------------|
+ *   1)
+ *   |---------------|     - 0off
+ *                   |-|   - rest
+ *
+ *   2)
+ *                   |-|   - 0off (negative)
+ *                     |-----------------|    - size (page-size)
+ *
+ *   3)
+ *                   |-------------------|    - 0off (negative)
+ *
  */
 	void        *addr;
+	void        *start;
 	m0_bcount_t  size;
 	m0_bcount_t  rest;
 	ptrdiff_t    addr_0off;
@@ -837,17 +850,19 @@ static void copy_reg_to_cellar(struct m0_be_pd_page       *page,
 	addr_0off = rd->rd_reg.br_addr - page->pp_page;
 	if (addr_0off < 0) {
 		addr = page->pp_cellar;
-		M0_ASSERT(rd->rd_reg.br_size - addr_0off > 0);
+		M0_ASSERT(rd->rd_reg.br_size + addr_0off > 0);
 		size = min_check(page->pp_size,
-				 rd->rd_reg.br_size - addr_0off);
+				 rd->rd_reg.br_size + addr_0off);
+		start = rd->rd_buf - addr_0off;
 	} else {
 		addr = page->pp_cellar + addr_0off;
 		M0_ASSERT(page->pp_size > addr_0off);
 		rest = page->pp_size - addr_0off;
 		size = min_check(rest, rd->rd_reg.br_size);
+		start = rd->rd_buf;
 	}
 
-	memcpy(addr, rd->rd_buf, size);
+	memcpy(addr, start, size);
 }
 
 M0_INTERNAL void
