@@ -423,7 +423,8 @@ static const char *service_name[] = {
 	[M0_CST_DS1]     = "ds1",            /* Dummy service 1. */
 	[M0_CST_DS2]     = "ds2",            /* Dummy service 2. */
 	[M0_CST_FIS]     = FI_SERVICE_NAME,  /* FI service. */
-	[M0_CST_FDMI]    = "fdmi"            /* FDMI service. */
+	[M0_CST_FDMI]    = "fdmi",           /* FDMI service. */
+	[M0_CST_BE]      = "be",             /* BE service. */
 };
 
 M0_INTERNAL char *m0_conf_service_name_dup(const struct m0_conf_service *svc)
