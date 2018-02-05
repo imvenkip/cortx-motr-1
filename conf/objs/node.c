@@ -40,8 +40,7 @@ static bool node_check(const void *bob)
 M0_CONF__BOB_DEFINE(m0_conf_node, M0_CONF_NODE_MAGIC, node_check);
 M0_CONF__INVARIANT_DEFINE(node_invariant, m0_conf_node);
 
-static int node_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src,
-		       struct m0_conf_cache *cache)
+static int node_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src)
 {
 	int                         rc;
 	struct m0_conf_node        *d = M0_CONF_CAST(dest, m0_conf_node);
@@ -53,12 +52,12 @@ static int node_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src,
 	d->cn_last_state = s->xn_last_state;
 	d->cn_flags      = s->xn_flags;
 
-	rc = m0_conf_obj_find(cache, &s->xn_pool_id, &obj);
+	rc = m0_conf_obj_find(dest->co_cache, &s->xn_pool_id, &obj);
 	if (rc != 0)
 		return M0_ERR(rc);
 	d->cn_pool = M0_CONF_CAST(obj, m0_conf_pool);
 
-	return M0_RC(m0_conf_dir_new(cache, dest, &M0_CONF_NODE_PROCESSES_FID,
+	return M0_RC(m0_conf_dir_new(dest, &M0_CONF_NODE_PROCESSES_FID,
 				     &M0_CONF_PROCESS_TYPE, &s->xn_processes,
 				     &d->cn_processes));
 }

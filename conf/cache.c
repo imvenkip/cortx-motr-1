@@ -291,7 +291,7 @@ m0_conf_cache_from_string(struct m0_conf_cache *cache, const char *str)
 		const struct m0_confx_obj *xobj = M0_CONFX_AT(enc, i);
 
 		rc = m0_conf_obj_find(cache, m0_conf_objx_fid(xobj), &obj) ?:
-			m0_conf_obj_fill(obj, xobj, cache);
+			m0_conf_obj_fill(obj, xobj);
 	}
 	m0_confx_free(enc);
 	return M0_RC(rc);

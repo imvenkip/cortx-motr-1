@@ -38,8 +38,7 @@ M0_CONF__BOB_DEFINE(m0_conf_dir, M0_CONF_DIR_MAGIC, dir_check);
 M0_CONF__INVARIANT_DEFINE(dir_invariant, m0_conf_dir);
 
 static int dir_decode(struct m0_conf_obj        *dest M0_UNUSED,
-		      const struct m0_confx_obj *src M0_UNUSED,
-		      struct m0_conf_cache      *cache M0_UNUSED)
+		      const struct m0_confx_obj *src M0_UNUSED)
 {
 	M0_IMPOSSIBLE("m0_conf_dir is not supposed to be decoded");
 	return -1;

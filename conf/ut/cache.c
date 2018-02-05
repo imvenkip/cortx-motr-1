@@ -174,7 +174,7 @@ static void test_obj_fill(void)
 
 		rc = m0_conf_obj_find(&m0_conf_ut_cache, m0_conf_objx_fid(xobj),
 				      &obj) ?:
-			m0_conf_obj_fill(obj, xobj, &m0_conf_ut_cache);
+			m0_conf_obj_fill(obj, xobj);
 		M0_UT_ASSERT(rc == 0);
 	}
 	m0_conf_cache_unlock(&m0_conf_ut_cache);

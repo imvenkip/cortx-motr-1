@@ -83,8 +83,7 @@ struct m0_conf_obj_ops {
 	 * Creates stubs of object's neighbours, if necessary.
 	 */
 	int (*coo_decode)(struct m0_conf_obj *dest,
-			  const struct m0_confx_obj *src,
-			  struct m0_conf_cache *cache);
+			  const struct m0_confx_obj *src);
 
 	/**
 	 * Serialises concrete configuration object into its network
@@ -223,24 +222,22 @@ M0_INTERNAL void m0_conf_obj_put(struct m0_conf_obj *obj);
  *
  * @param dest   A stub to be filled with configuration data.
  * @param src    On-wire object, providing the configuration data.
- * @param cache  Configuration cache.
  *
  * Note, that the caller is responsible for passing valid m0_confx_obj
  * via `src' parameter.
  *
  * @pre   `src' is valid
- * @pre   m0_mutex_is_locked(cache->ca_lock)
+ * @pre   m0_mutex_is_locked(dest->co_cache->ca_lock)
  * @pre   m0_conf_obj_is_stub(dest) && dest->co_nrefs == 0
  * @pre   m0_conf_obj_type(dest) == m0_conf_objx_type(src)
  * @pre   m0_fid_eq(&dest->co_id, &src->o_id)
  *
  * @post  m0_conf_obj_invariant(dest)
- * @post  m0_mutex_is_locked(cache->ca_lock)
+ * @post  m0_mutex_is_locked(dest->co_cache->ca_lock)
  * @post  dest->co_status == (retval == 0 ? M0_CS_READY : M0_CS_MISSING)
  */
 M0_INTERNAL int m0_conf_obj_fill(struct m0_conf_obj *dest,
-				 const struct m0_confx_obj *src,
-				 struct m0_conf_cache *cache);
+				 const struct m0_confx_obj *src);
 
 /**
  * Returns false iff cached configuration object and on-wire object

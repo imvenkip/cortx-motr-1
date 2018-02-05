@@ -42,9 +42,8 @@ M0_CONF__INVARIANT_DEFINE(fdmi_flt_grp_invariant, m0_conf_fdmi_flt_grp);
 #define XCAST(xobj) ((struct m0_confx_fdmi_flt_grp *)(&(xobj)->xo_u))
 M0_BASSERT(offsetof(struct m0_confx_fdmi_flt_grp, xfg_header) == 0);
 
-static int fdmi_flt_grp_decode(struct m0_conf_obj *dest,
-			       const struct m0_confx_obj *src,
-			       struct m0_conf_cache *cache)
+static int
+fdmi_flt_grp_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src)
 {
 	int                                 rc;
 	const struct m0_confx_fdmi_flt_grp *s = XCAST(src);
@@ -53,7 +52,7 @@ static int fdmi_flt_grp_decode(struct m0_conf_obj *dest,
 
 	M0_ENTRY();
 	d->ffg_rec_type = s->xfg_rec_type;
-	rc = m0_conf_dir_new(cache, dest, &M0_CONF_FDMI_FILTERS_FID,
+	rc = m0_conf_dir_new(dest, &M0_CONF_FDMI_FILTERS_FID,
 			     &M0_CONF_FDMI_FILTER_TYPE, &s->xfg_filters,
 			     &d->ffg_flts);
 	if (rc == 0)

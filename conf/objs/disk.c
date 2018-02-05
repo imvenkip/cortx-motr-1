@@ -39,21 +39,21 @@ static bool disk_check(const void *bob)
 M0_CONF__BOB_DEFINE(m0_conf_disk, M0_CONF_DISK_MAGIC, disk_check);
 M0_CONF__INVARIANT_DEFINE(disk_invariant, m0_conf_disk);
 
-static int disk_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src,
-		       struct m0_conf_cache *cache)
+static int disk_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src)
 {
 	int                   rc;
 	struct m0_conf_obj   *child;
 	struct m0_conf_disk  *d = M0_CONF_CAST(dest, m0_conf_disk);
 	struct m0_confx_disk *s = XCAST(src);
 
-	rc = m0_conf_obj_find(cache, &XCAST(src)->xk_dev, &child);
+	rc = m0_conf_obj_find(dest->co_cache, &XCAST(src)->xk_dev, &child);
 	if (rc == 0) {
 		d->ck_dev = M0_CONF_CAST(child, m0_conf_sdev);
 		/* back pointer to disk objects */
 		d->ck_dev->sd_disk = &dest->co_id;
 	}
-	return M0_RC(conf_pvers_decode(&d->ck_pvers, &s->xk_pvers, cache));
+	return M0_RC(conf_pvers_decode(&d->ck_pvers, &s->xk_pvers,
+				       dest->co_cache));
 
 }
 

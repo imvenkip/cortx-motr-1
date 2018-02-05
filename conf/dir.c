@@ -154,8 +154,7 @@ err:
 	return M0_ERR(rc);
 }
 
-M0_INTERNAL int m0_conf_dir_new(struct m0_conf_cache *cache,
-				struct m0_conf_obj *parent,
+M0_INTERNAL int m0_conf_dir_new(struct m0_conf_obj *parent,
 				const struct m0_fid *relfid,
 				const struct m0_conf_obj_type *children_type,
 				const struct m0_fid_arr *children_ids,
@@ -163,8 +162,8 @@ M0_INTERNAL int m0_conf_dir_new(struct m0_conf_cache *cache,
 {
 	int rc;
 
-	rc = conf_dir_new(cache, &parent->co_id, relfid, children_type,
-			  children_ids, out);
+	rc = conf_dir_new(parent->co_cache, &parent->co_id, relfid,
+			  children_type, children_ids, out);
 	if (rc == 0)
 		m0_conf_child_adopt(parent, &(*out)->cd_obj);
 	return M0_RC(rc);

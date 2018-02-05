@@ -16,9 +16,7 @@
  * Original author: Valery V. Vorotyntsev <valery.vorotyntsev@seagate.com>
  * Original creation date: 5-Jul-2016
  */
-
 #pragma once
-
 #ifndef __MERO_CONF_DIR_H__
 #define __MERO_CONF_DIR_H__
 
@@ -64,7 +62,6 @@ static inline uint32_t m0_conf_dir_len(const struct m0_conf_dir *dir)
 /**
  * Creates new m0_conf_dir, populates it with stub objects, and links to parent.
  *
- * @param cache          Configuration cache.
  * @param parent         Parent of this directory.
  * @param children_type  Type of entries.
  * @param children_ids   [optional] Identifiers of the entries.
@@ -75,8 +72,7 @@ static inline uint32_t m0_conf_dir_len(const struct m0_conf_dir *dir)
  *
  * XXX @todo UT transactional property of m0_conf_dir_new().
  */
-M0_INTERNAL int m0_conf_dir_new(struct m0_conf_cache *cache,
-				struct m0_conf_obj *parent,
+M0_INTERNAL int m0_conf_dir_new(struct m0_conf_obj *parent,
 				const struct m0_fid *relfid,
 				const struct m0_conf_obj_type *children_type,
 				const struct m0_fid_arr *children_ids,

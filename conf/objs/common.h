@@ -80,8 +80,7 @@ struct conf_dir_entries {
 
 M0_INTERNAL int dir_create_and_populate(struct m0_conf_dir **result,
 					const struct conf_dir_entries *de,
-					struct m0_conf_obj *dir_parent,
-					struct m0_conf_cache *cache);
+					struct m0_conf_obj *dir_parent);
 
 struct conf_dir_encoding_pair {
 	const struct m0_conf_dir *dep_src;

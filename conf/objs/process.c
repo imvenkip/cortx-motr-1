@@ -45,9 +45,8 @@ static size_t _bitmap_width(const struct m0_bitmap_onwire *bow)
 	return bow->bo_size * CHAR_BIT * sizeof bow->bo_words[0];
 }
 
-static int process_decode(struct m0_conf_obj        *dest,
-			  const struct m0_confx_obj *src,
-			  struct m0_conf_cache      *cache M0_UNUSED)
+static int
+process_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src)
 {
 	int                            rc;
 	struct m0_conf_process        *d = M0_CONF_CAST(dest, m0_conf_process);
@@ -68,7 +67,7 @@ static int process_decode(struct m0_conf_obj        *dest,
 		m0_bitmap_fini(&d->pc_cores);
 		return M0_ERR(-ENOMEM);
 	}
-	return M0_RC(m0_conf_dir_new(cache, dest, &M0_CONF_PROCESS_SERVICES_FID,
+	return M0_RC(m0_conf_dir_new(dest, &M0_CONF_PROCESS_SERVICES_FID,
 				     &M0_CONF_SERVICE_TYPE, &s->xr_services,
 				     &d->pc_services));
 }

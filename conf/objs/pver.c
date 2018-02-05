@@ -53,9 +53,8 @@ static bool pver_check(const void *bob)
 M0_CONF__BOB_DEFINE(m0_conf_pver, M0_CONF_PVER_MAGIC, pver_check);
 M0_CONF__INVARIANT_DEFINE(pver_invariant, m0_conf_pver);
 
-static int pver_decode(struct m0_conf_obj        *dest,
-		       const struct m0_confx_obj *src,
-		       struct m0_conf_cache      *cache)
+static int
+pver_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src)
 {
 	struct m0_conf_pver          *da = M0_CONF_CAST(dest, m0_conf_pver);
 	const struct m0_confx_pver_u *sa = &XCAST(src)->xv_u;
@@ -84,8 +83,7 @@ static int pver_decode(struct m0_conf_obj        *dest,
 			return M0_ERR(-EINVAL);
 		memcpy(d->pvs_tolerance, s->xva_tolerance.au_elems,
 		       sizeof(d->pvs_tolerance));
-		return M0_RC(m0_conf_dir_new(cache, dest,
-					     &M0_CONF_PVER_RACKVS_FID,
+		return M0_RC(m0_conf_dir_new(dest, &M0_CONF_PVER_RACKVS_FID,
 					     &M0_CONF_OBJV_TYPE, &s->xva_rackvs,
 					     &d->pvs_rackvs));
 	}

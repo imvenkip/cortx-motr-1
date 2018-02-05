@@ -39,9 +39,8 @@ static bool rack_check(const void *bob)
 M0_CONF__BOB_DEFINE(m0_conf_rack, M0_CONF_RACK_MAGIC, rack_check);
 M0_CONF__INVARIANT_DEFINE(rack_invariant, m0_conf_rack);
 
-static int rack_decode(struct m0_conf_obj        *dest,
-		       const struct m0_confx_obj *src,
-		       struct m0_conf_cache      *cache)
+static int
+rack_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src)
 {
 	struct m0_conf_rack        *d = M0_CONF_CAST(dest, m0_conf_rack);
 	const struct m0_confx_rack *s = XCAST(src);
@@ -50,8 +49,9 @@ static int rack_decode(struct m0_conf_obj        *dest,
 			     &d->cr_encls,
 			     &CONF_DIR_ENTRIES(&M0_CONF_RACK_ENCLS_FID,
 					       &M0_CONF_ENCLOSURE_TYPE,
-					       &s->xr_encls), dest, cache) ?:
-		     conf_pvers_decode(&d->cr_pvers, &s->xr_pvers, cache));
+					       &s->xr_encls), dest) ?:
+		     conf_pvers_decode(&d->cr_pvers, &s->xr_pvers,
+				       dest->co_cache));
 }
 
 static int

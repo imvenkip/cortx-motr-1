@@ -42,9 +42,8 @@ static bool root_check(const void *bob)
 M0_CONF__BOB_DEFINE(m0_conf_root, M0_CONF_ROOT_MAGIC, root_check);
 M0_CONF__INVARIANT_DEFINE(root_invariant, m0_conf_root);
 
-static int root_decode(struct m0_conf_obj        *dest,
-		       const struct m0_confx_obj *src,
-		       struct m0_conf_cache      *cache)
+static int
+root_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src)
 {
 	struct m0_conf_root        *d = M0_CONF_CAST(dest, m0_conf_root);
 	const struct m0_confx_root *s = XCAST(src);
@@ -56,7 +55,7 @@ static int root_decode(struct m0_conf_obj        *dest,
 			     &d->rt_profiles,
 			     &CONF_DIR_ENTRIES(&M0_CONF_ROOT_PROFILES_FID,
 					       &M0_CONF_PROFILE_TYPE,
-					       &s->xt_profiles), dest, cache));
+					       &s->xt_profiles), dest));
 }
 
 static int root_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)

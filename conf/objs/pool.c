@@ -170,15 +170,13 @@ static bool pool_check(const void *bob)
 M0_CONF__BOB_DEFINE(m0_conf_pool, M0_CONF_POOL_MAGIC, pool_check);
 M0_CONF__INVARIANT_DEFINE(pool_invariant, m0_conf_pool);
 
-static int pool_decode(struct m0_conf_obj        *dest,
-		       const struct m0_confx_obj *src,
-		       struct m0_conf_cache      *cache M0_UNUSED)
+static int pool_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src)
 {
 	struct m0_conf_pool        *d = M0_CONF_CAST(dest, m0_conf_pool);
 	const struct m0_confx_pool *s = XCAST(src);
 
 	d->pl_pver_policy = s->xp_pver_policy;
-	return M0_RC(m0_conf_dir_new(cache, dest, &M0_CONF_POOL_PVERS_FID,
+	return M0_RC(m0_conf_dir_new(dest, &M0_CONF_POOL_PVERS_FID,
 				     &M0_CONF_PVER_TYPE, &s->xp_pvers,
 				     &d->pl_pvers));
 }

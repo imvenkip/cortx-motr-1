@@ -42,9 +42,8 @@ M0_CONF__INVARIANT_DEFINE(service_invariant, m0_conf_service);
 #define XCAST(xobj) ((struct m0_confx_service *)(&(xobj)->xo_u))
 M0_BASSERT(offsetof(struct m0_confx_service, xs_header) == 0);
 
-static int service_decode(struct m0_conf_obj *dest,
-			  const struct m0_confx_obj *src,
-			  struct m0_conf_cache *cache)
+static int
+service_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src)
 {
 	int                            rc;
 	struct m0_conf_service        *d = M0_CONF_CAST(dest, m0_conf_service);
@@ -54,7 +53,7 @@ static int service_decode(struct m0_conf_obj *dest,
 	rc = m0_bufs_to_strings(&d->cs_endpoints, &s->xs_endpoints);
 	if (rc != 0)
 		return M0_ERR(rc);
-	rc = m0_conf_dir_new(cache, dest, &M0_CONF_SERVICE_SDEVS_FID,
+	rc = m0_conf_dir_new(dest, &M0_CONF_SERVICE_SDEVS_FID,
 			     &M0_CONF_SDEV_TYPE, &s->xs_sdevs, &d->cs_sdevs);
 	if (rc != 0)
 		m0_strings_free(d->cs_endpoints);

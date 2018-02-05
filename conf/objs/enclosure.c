@@ -40,9 +40,8 @@ M0_CONF__BOB_DEFINE(m0_conf_enclosure, M0_CONF_ENCLOSURE_MAGIC,
 		    enclosure_check);
 M0_CONF__INVARIANT_DEFINE(enclosure_invariant, m0_conf_enclosure);
 
-static int enclosure_decode(struct m0_conf_obj        *dest,
-			    const struct m0_confx_obj *src,
-			    struct m0_conf_cache      *cache)
+static int
+enclosure_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src)
 {
 	struct m0_conf_enclosure *d = M0_CONF_CAST(dest, m0_conf_enclosure);
 	const struct m0_confx_enclosure *s = XCAST(src);
@@ -51,8 +50,9 @@ static int enclosure_decode(struct m0_conf_obj        *dest,
 			     &d->ce_ctrls,
 			     &CONF_DIR_ENTRIES(&M0_CONF_ENCLOSURE_CTRLS_FID,
 					       &M0_CONF_CONTROLLER_TYPE,
-					       &s->xe_ctrls), dest, cache) ?:
-                     conf_pvers_decode(&d->ce_pvers, &s->xe_pvers, cache));
+					       &s->xe_ctrls), dest) ?:
+                     conf_pvers_decode(&d->ce_pvers, &s->xe_pvers,
+				       dest->co_cache));
 }
 
 static int

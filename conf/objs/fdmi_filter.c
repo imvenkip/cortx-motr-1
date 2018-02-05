@@ -47,9 +47,8 @@ M0_CONF__INVARIANT_DEFINE(fdmi_filter_invariant, m0_conf_fdmi_filter);
 #define XCAST(xobj) ((struct m0_confx_fdmi_filter *)(&(xobj)->xo_u))
 M0_BASSERT(offsetof(struct m0_confx_fdmi_filter, xf_header) == 0);
 
-static int fdmi_filter_decode(struct m0_conf_obj *dest,
-			      const struct m0_confx_obj *src,
-			      struct m0_conf_cache *cache)
+static int
+fdmi_filter_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src)
 {
 	char                              *flt_root_str;
 	struct m0_fdmi_flt_node           *flt_root;
@@ -63,7 +62,7 @@ static int fdmi_filter_decode(struct m0_conf_obj *dest,
 	d = M0_CONF_CAST(dest, m0_conf_fdmi_filter);
 	s = XCAST(src);
 
-	rc = m0_conf_obj_find(cache, &s->xf_node, &node);
+	rc = m0_conf_obj_find(dest->co_cache, &s->xf_node, &node);
 	if (rc != 0)
 		return M0_ERR(rc);
 	flt_root_str = m0_buf_strdup(&s->xf_filter_root);

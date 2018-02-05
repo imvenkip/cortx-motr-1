@@ -41,9 +41,8 @@ M0_CONF__BOB_DEFINE(m0_conf_controller, M0_CONF_CONTROLLER_MAGIC,
 		    controller_check);
 M0_CONF__INVARIANT_DEFINE(controller_invariant, m0_conf_controller);
 
-static int controller_decode(struct m0_conf_obj        *dest,
-			     const struct m0_confx_obj *src,
-			     struct m0_conf_cache      *cache)
+static int
+controller_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src)
 {
 	int                               rc;
 	struct m0_conf_obj               *obj;
@@ -51,7 +50,7 @@ static int controller_decode(struct m0_conf_obj        *dest,
 	struct m0_conf_controller        *d =
 		M0_CONF_CAST(dest, m0_conf_controller);
 
-	rc = m0_conf_obj_find(cache, &s->xc_node, &obj);
+	rc = m0_conf_obj_find(dest->co_cache, &s->xc_node, &obj);
 	if (rc != 0)
 		return M0_ERR(rc);
 
@@ -60,8 +59,9 @@ static int controller_decode(struct m0_conf_obj        *dest,
 			     &d->cc_disks,
 			     &CONF_DIR_ENTRIES(&M0_CONF_CONTROLLER_DISKS_FID,
 					       &M0_CONF_DISK_TYPE,
-					       &s->xc_disks), dest, cache) ?:
-		     conf_pvers_decode(&d->cc_pvers, &s->xc_pvers, cache));
+					       &s->xc_disks), dest) ?:
+		     conf_pvers_decode(&d->cc_pvers, &s->xc_pvers,
+				       dest->co_cache));
 }
 
 static int

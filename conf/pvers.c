@@ -671,7 +671,7 @@ static int conf_pver_base_w(struct m0_conf_obj *obj, void *args)
 		goto out;
 	}
 	/* Create new_objv->cv_children directory. */
-	rc = m0_conf_dir_new(cache, new_obj, downlink, &M0_CONF_OBJV_TYPE, NULL,
+	rc = m0_conf_dir_new(new_obj, downlink, &M0_CONF_OBJV_TYPE, NULL,
 			     &new_objv->cv_children);
 	M0_ASSERT_INFO(rc == 0, "XXX BUG: error handling is not implemented");
 	st->bws_dirs[level + 1] = new_objv->cv_children;
@@ -757,7 +757,7 @@ static int conf_pver_virtual_create(const struct m0_fid *fid,
 	/* m0_conf_cache_add() cannot fail: conf_pver_virtual_create()
 	 * would not be called if the object existed in the cache. */
 	M0_ASSERT(rc == 0);
-	rc = m0_conf_dir_new(cache, pvobj, &M0_CONF_PVER_RACKVS_FID,
+	rc = m0_conf_dir_new(pvobj, &M0_CONF_PVER_RACKVS_FID,
 			     &M0_CONF_OBJV_TYPE, NULL, &pvsub->pvs_rackvs);
 	if (rc != 0) {
 		rc = M0_ERR(rc);

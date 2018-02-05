@@ -30,10 +30,9 @@ M0_CONF_REL_FIDS;
 
 M0_INTERNAL int dir_create_and_populate(struct m0_conf_dir **result,
 					const struct conf_dir_entries *de,
-					struct m0_conf_obj *dir_parent,
-					struct m0_conf_cache *cache)
+					struct m0_conf_obj *dir_parent)
 {
-	return M0_RC(m0_conf_dir_new(cache, dir_parent, de->de_relfid,
+	return M0_RC(m0_conf_dir_new(dir_parent, de->de_relfid,
 				     de->de_entry_type, de->de_entries,
 				     result));
 }

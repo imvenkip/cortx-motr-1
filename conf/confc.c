@@ -1489,7 +1489,8 @@ static void ast_fail(struct m0_sm_ast *ast, int rc)
  * ------------------------------------------------------------------ */
 
 static int object_enrich(struct m0_conf_obj *dest,
-			 const struct m0_confx_obj *src, struct m0_confc *confc)
+			 const struct m0_confx_obj *src,
+			 struct m0_confc *confc)
 {
 	int rc;
 
@@ -1506,7 +1507,7 @@ static int object_enrich(struct m0_conf_obj *dest,
 	if (dest->co_status == M0_CS_READY)
 		return M0_RC(0); /* do nothing */
 
-	rc = m0_conf_obj_fill(dest, src, &confc->cc_cache);
+	rc = m0_conf_obj_fill(dest, src);
 	M0_ASSERT(dest->co_status == (rc == 0 ? M0_CS_READY : M0_CS_MISSING));
 	m0_chan_broadcast(&dest->co_chan);
 

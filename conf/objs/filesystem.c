@@ -45,9 +45,8 @@ M0_CONF__BOB_DEFINE(m0_conf_filesystem, M0_CONF_FILESYSTEM_MAGIC,
 		    filesystem_check);
 M0_CONF__INVARIANT_DEFINE(filesystem_invariant, m0_conf_filesystem);
 
-static int filesystem_decode(struct m0_conf_obj        *dest,
-			     const struct m0_confx_obj *src,
-			     struct m0_conf_cache      *cache)
+static int
+filesystem_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src)
 {
 	struct m0_conf_filesystem        *d =
 		M0_CONF_CAST(dest, m0_conf_filesystem);
@@ -74,22 +73,22 @@ static int filesystem_decode(struct m0_conf_obj        *dest,
 			&d->cf_nodes,
 			&CONF_DIR_ENTRIES(&M0_CONF_FILESYSTEM_NODES_FID,
 					  &M0_CONF_NODE_TYPE,
-					  &s->xf_nodes), dest, cache) ?:
+					  &s->xf_nodes), dest) ?:
 		dir_create_and_populate(
 			&d->cf_pools,
 			&CONF_DIR_ENTRIES(&M0_CONF_FILESYSTEM_POOLS_FID,
 					  &M0_CONF_POOL_TYPE,
-					  &s->xf_pools), dest, cache) ?:
+					  &s->xf_pools), dest) ?:
 		dir_create_and_populate(
 			&d->cf_racks,
 			&CONF_DIR_ENTRIES(&M0_CONF_FILESYSTEM_RACKS_FID,
 					  &M0_CONF_RACK_TYPE,
-					  &s->xf_racks), dest, cache) ?:
+					  &s->xf_racks), dest) ?:
 		dir_create_and_populate(
 			&d->cf_fdmi_flt_grps,
 			&CONF_DIR_ENTRIES(&M0_CONF_FILESYSTEM_FDMI_FLT_GRPS_FID,
 					  &M0_CONF_FDMI_FLT_GRP_TYPE,
-					  &s->xf_fdmi_flt_grps), dest, cache);
+					  &s->xf_fdmi_flt_grps), dest);
 
 	if (rc != 0) {
 		m0_strings_free(d->cf_params);

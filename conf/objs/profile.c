@@ -39,15 +39,15 @@ static bool profile_check(const void *bob)
 M0_CONF__BOB_DEFINE(m0_conf_profile, M0_CONF_PROFILE_MAGIC, profile_check);
 M0_CONF__INVARIANT_DEFINE(profile_invariant, m0_conf_profile);
 
-static int profile_decode(struct m0_conf_obj *dest,
-			  const struct m0_confx_obj *src,
-			  struct m0_conf_cache *cache)
+static int
+profile_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src)
 {
 	int                     rc;
 	struct m0_conf_obj     *child;
 	struct m0_conf_profile *d = M0_CONF_CAST(dest, m0_conf_profile);
 
-	rc = m0_conf_obj_find(cache, &XCAST(src)->xp_filesystem, &child);
+	rc = m0_conf_obj_find(dest->co_cache, &XCAST(src)->xp_filesystem,
+			      &child);
 	if (rc == 0) {
 		d->cp_filesystem = M0_CONF_CAST(child, m0_conf_filesystem);
 		m0_conf_child_adopt(dest, child);

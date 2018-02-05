@@ -42,9 +42,7 @@ static bool objv_check(const void *bob)
 M0_CONF__BOB_DEFINE(m0_conf_objv, M0_CONF_OBJV_MAGIC, objv_check);
 M0_CONF__INVARIANT_DEFINE(objv_invariant, m0_conf_objv);
 
-static int objv_decode(struct m0_conf_obj        *dest,
-		       const struct m0_confx_obj *src,
-		       struct m0_conf_cache      *cache)
+static int objv_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src)
 {
 	struct m0_conf_objv        *d = M0_CONF_CAST(dest, m0_conf_objv);
 	const struct m0_confx_objv *s = XCAST(src);
@@ -52,7 +50,7 @@ static int objv_decode(struct m0_conf_obj        *dest,
 	int                         rc;
 
 	d->cv_ix = -1;
-	rc = m0_conf_obj_find(cache, &s->xj_real, &d->cv_real);
+	rc = m0_conf_obj_find(dest->co_cache, &s->xj_real, &d->cv_real);
 	if (rc != 0)
 		return M0_ERR(rc);
 	relfid = objv_downlinks(dest)[0];
@@ -61,7 +59,7 @@ static int objv_decode(struct m0_conf_obj        *dest,
 			M0_RC(0) /* no children */ :
 			M0_ERR_INFO(-EINVAL, FID_F": No children expected",
 				    FID_P(&dest->co_id));
-	return M0_RC(m0_conf_dir_new(cache, dest, relfid, &M0_CONF_OBJV_TYPE,
+	return M0_RC(m0_conf_dir_new(dest, relfid, &M0_CONF_OBJV_TYPE,
 				     &s->xj_children, &d->cv_children));
 }
 

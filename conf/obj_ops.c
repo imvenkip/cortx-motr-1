@@ -226,11 +226,11 @@ static bool confx_obj_is_valid(const struct m0_confx_obj *flat)
 	return true;
 }
 
-M0_INTERNAL int m0_conf_obj_fill(struct m0_conf_obj *dest,
-				 const struct m0_confx_obj *src,
-				 struct m0_conf_cache *cache)
+M0_INTERNAL int
+m0_conf_obj_fill(struct m0_conf_obj *dest, const struct m0_confx_obj *src)
 {
-	int rc;
+	int                   rc;
+	struct m0_conf_cache *cache = dest->co_cache;
 
 	M0_ENTRY("dest="FID_F, FID_P(&dest->co_id));
 	M0_PRE(m0_conf_obj_invariant(dest));
@@ -240,7 +240,7 @@ M0_INTERNAL int m0_conf_obj_fill(struct m0_conf_obj *dest,
 	M0_PRE(m0_fid_eq(&dest->co_id, m0_conf_objx_fid(src)));
 	M0_PRE(confx_obj_is_valid(src));
 
-	rc = dest->co_ops->coo_decode(dest, src, cache);
+	rc = dest->co_ops->coo_decode(dest, src);
 	dest->co_status = rc == 0 ? M0_CS_READY : M0_CS_MISSING;
 
 	M0_POST(m0_conf_cache_is_locked(cache));

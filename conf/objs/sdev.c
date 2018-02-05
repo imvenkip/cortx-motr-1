@@ -43,8 +43,7 @@ static bool sdev_check(const void *bob)
 M0_CONF__BOB_DEFINE(m0_conf_sdev, M0_CONF_SDEV_MAGIC, sdev_check);
 M0_CONF__INVARIANT_DEFINE(sdev_invariant, m0_conf_sdev);
 
-static int sdev_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src,
-		       struct m0_conf_cache *cache)
+static int sdev_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src)
 {
 	struct m0_conf_sdev        *d = M0_CONF_CAST(dest, m0_conf_sdev);
 	const struct m0_confx_sdev *s = XCAST(src);
