@@ -55,7 +55,7 @@ void m0_be_ut_tx_usecase_success(void)
 
 	M0_SET0(&ut_be);
 	m0_be_ut_backend_init(&ut_be);
-	/* m0_be_ut_seg_init(&ut_seg, NULL, 1 << 20); */ /* XXX */
+	/* m0_be_ut_seg_init(&ut_seg, NULL, 1 << 20); */ /* XXX PD */
 	m0_be_ut_seg_init(&ut_seg, &ut_be, 1 << 20);
 	seg = ut_seg.bus_seg;
 
@@ -143,7 +143,8 @@ void m0_be_ut_tx_states(void)
 
 	M0_SET0(&ut_be);
 	m0_be_ut_backend_init(&ut_be);
-	m0_be_ut_seg_init(&ut_seg, NULL, 1 << 20);
+	/* m0_be_ut_seg_init(&ut_seg, NULL, 1 << 20); */ /* XXX PD */
+	m0_be_ut_seg_init(&ut_seg, &ut_be, 1 << 20);
 	seg = ut_seg.bus_seg;
 
 	/* test success path */
@@ -310,7 +311,8 @@ static void be_ut_tx_test(size_t nr)
 
 	M0_SET0(&ut_be);
 	m0_be_ut_backend_init(&ut_be);
-	m0_be_ut_seg_init(&ut_seg, NULL, 1 << 20);
+	/* m0_be_ut_seg_init(&ut_seg, NULL, 1 << 20); */ /* XXX PD */
+	m0_be_ut_seg_init(&ut_seg, &ut_be, 1 << 20);
 	be_ut_tx_alloc_init(&alloc, ut_seg.bus_seg);
 
 	for (x = xs; x->size != 0; ++x) {
@@ -512,7 +514,8 @@ void m0_be_ut_tx_persistence(void)
 
 	M0_SET0(&ut_be);
 	m0_be_ut_backend_init(&ut_be);
-	m0_be_ut_seg_init(&ut_seg, NULL, BE_UT_TX_P_SEG_SIZE);
+	/* m0_be_ut_seg_init(&ut_seg, NULL, BE_UT_TX_P_SEG_SIZE); */ /* XXX */
+	m0_be_ut_seg_init(&ut_seg, &ut_be, BE_UT_TX_P_SEG_SIZE);
 	seg = ut_seg.bus_seg;
 
 	for (j = 0; j < BE_UT_TX_P_TX_NR; ++j) {
@@ -613,7 +616,8 @@ void m0_be_ut_tx_fast(void)
 
 	M0_SET0(&ut_be);
 	m0_be_ut_backend_init(&ut_be);
-	m0_be_ut_seg_init(&ut_seg, NULL, BE_UT_TX_F_SEG_SIZE);
+	/* m0_be_ut_seg_init(&ut_seg, NULL, BE_UT_TX_F_SEG_SIZE); */ /* XXX PD */
+	m0_be_ut_seg_init(&ut_seg, &ut_be, BE_UT_TX_F_SEG_SIZE);
 	seg = ut_seg.bus_seg;
 	M0_ALLOC_ARR(txf, BE_UT_TX_F_TX_CONCUR);
 	m0_semaphore_init(&global_sem, BE_UT_TX_F_TX_CONCUR);
@@ -778,7 +782,8 @@ void m0_be_ut_tx_capturing(void)
 
 	M0_SET0(&ut_be);
 	m0_be_ut_backend_init(&ut_be);
-	m0_be_ut_seg_init(&ut_seg, NULL, BE_UT_TX_CAPTURING_SEG_SIZE);
+	/* m0_be_ut_seg_init(&ut_seg, NULL, BE_UT_TX_CAPTURING_SEG_SIZE); */ /* XXX PD */
+	m0_be_ut_seg_init(&ut_seg, &ut_be, BE_UT_TX_CAPTURING_SEG_SIZE);
 	seg = ut_seg.bus_seg;
 	m0_be_ut_txc_init(&tc);
 
@@ -892,7 +897,8 @@ void m0_be_ut_tx_gc(void)
 
 	M0_SET0(&ut_be);
 	m0_be_ut_backend_init(&ut_be);
-	m0_be_ut_seg_init(&ut_seg, NULL, BE_UT_TX_CAPTURING_SEG_SIZE);
+	/* m0_be_ut_seg_init(&ut_seg, NULL, BE_UT_TX_CAPTURING_SEG_SIZE); */ /* XXX PD */
+	m0_be_ut_seg_init(&ut_seg, &ut_be, BE_UT_TX_CAPTURING_SEG_SIZE);
 	seg = ut_seg.bus_seg;
 	array = seg->bs_addr + m0_be_seg_reserved(seg);
 	M0_ALLOC_ARR(ringbuf, BE_UT_TX_GC_TX_NR);
@@ -1101,7 +1107,8 @@ void m0_be_ut_tx_payload(void)
 	be_ut_tx_payload_seed = 42;     /* always works like magic */
 
 	m0_be_ut_backend_init(&ut_be);
-	m0_be_ut_seg_init(&ut_seg, NULL, BE_UT_TX_CAPTURING_SEG_SIZE);
+	/* m0_be_ut_seg_init(&ut_seg, NULL, BE_UT_TX_CAPTURING_SEG_SIZE); */ /* XXX PD */
+	m0_be_ut_seg_init(&ut_seg, &ut_be, BE_UT_TX_CAPTURING_SEG_SIZE);
 	seg = ut_seg.bus_seg;
 
 	for (i = 0; i < ARRAY_SIZE(special_cases); ++i)

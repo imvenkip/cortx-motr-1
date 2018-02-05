@@ -390,7 +390,7 @@ static int pd_fom_tick(struct m0_fom *fom)
 			     }));
 
 		if (pages_nr == 0) {
-			m0_fom_phase_move(fom, 0, PFS_MANAGE_POST);
+			m0_fom_phase_move(fom, 0, PFS_READ_DONE);
 			rc = M0_FSO_AGAIN;
 		} else {
 			m0_be_op_reset(&pd_fom->bpf_op);
@@ -737,8 +737,10 @@ m0_be_pd_request_queue_push(struct m0_be_pd_request_queue      *rq,
 
 	/* no special lock is needed here */
 	if (reqq_tlist_length(&rq->prq_queue) == 0 &&
-	    m0_fom_phase(fom) == PFS_IDLE)
+	    m0_fom_phase(fom) == PFS_IDLE) {
+		M0_LOG(M0_DEBUG, "request=%p waking_up_fom", request);
 		m0_fom_wakeup(fom);
+	}
 
 	/* Use deferred list to push WRITE requests in required order. */
 

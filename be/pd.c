@@ -168,12 +168,14 @@ M0_INTERNAL void m0_be_pd_io_get(struct m0_be_pd_io_sched     *pios,
 				 struct m0_be_pd_io **pdio,
 				 struct m0_be_op     *op)
 {
+	M0_ENTRY("pios=%p", pios);
 	pdio_be_pool_get(&pios->bpd_io_pool, pdio, op);
 }
 
 M0_INTERNAL void m0_be_pd_io_put(struct m0_be_pd_io_sched    *pios,
 				 struct m0_be_pd_io *pdio)
 {
+	M0_ENTRY("pios=%p", pios);
 	be_pd_io_move(pios, pdio, M0_BPD_IO_IDLE);
 	m0_be_io_reset(m0_be_pd_io_be_io(pdio));
 	m0_be_op_reset(&pdio->bpi_op);

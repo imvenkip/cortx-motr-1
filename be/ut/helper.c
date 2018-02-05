@@ -334,7 +334,7 @@ void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg)
 		.bc_pd_cfg = {
 			.bpc_mapping_type = M0_BE_PD_MAPPING_PER_PAGE,
 			.bpc_io_sched_cfg = {
-				.bpdc_seg_io_nr = 0x2,
+				.bpdc_seg_io_nr = 0x4,
 			},
 		},
 		.bc_log_discard_cfg = {
