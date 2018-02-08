@@ -285,8 +285,6 @@ void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg)
 		.bec_group_freeze_timeout_max = 50 * M0_TIME_ONE_MSEC,
 		.bec_reqh		  = reqh,
 		.bec_wait_for_recovery	  = true,
-		/** ALMOST DEAD FIELDS */
-		.bec_reg_area_size_max = M0_BE_TX_CREDIT(1 << 18, 1 << 25),
 	    },
 		.bc_log = {
 			.lc_store_cfg = {

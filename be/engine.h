@@ -82,8 +82,6 @@ struct m0_be_engine_cfg {
 	struct m0_be_pd           *bec_pd;
 	/** Configuration for each group. It is set by the engine. */
 	struct m0_be_tx_group_cfg *bec_groups_cfg;
-	/** ALMOST DEAD FIELDS */
-	struct m0_be_tx_credit	   bec_reg_area_size_max;
 	/** The engine lock. Protects all fields of m0_be_engine. */
 	struct m0_mutex           *bec_lock;
 };
