@@ -94,6 +94,11 @@ die()
     exit 1
 }
 
+log()
+{
+    echo "$*" >&2
+}
+
 run()
 {
     local cmd="$*"
@@ -230,6 +235,14 @@ uninstall_files()
     }
 }
 
+create_mero_group()
+{
+    getent group mero >/dev/null || {
+        log 'creating "mero" system group'
+        groupadd --system mero
+    }
+}
+
 #
 # Main
 #
@@ -245,7 +258,10 @@ if ! $dry_run && [[ $UID -ne 0 ]]; then
 fi
 
 case $action in
-    install)    install_files ;;
-    uninstall)  uninstall_files ;;
+    install)    install_files
+                create_mero_group
+        ;;
+    uninstall)  uninstall_files
+        ;;
     *)          die "Error: unknown action '$action'." ;;
 esac
