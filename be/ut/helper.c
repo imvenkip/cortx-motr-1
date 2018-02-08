@@ -276,7 +276,6 @@ void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg)
 		.bec_group_nr		  = 2,
 		.bec_group_cfg = {
 			.tgc_tx_nr_max	  = 128,
-			.tgc_seg_nr_max	  = 256,
 			.tgc_size_max	 = M0_BE_TX_CREDIT(1 << 18, 44UL << 20),
 			.tgc_payload_max  = 1 << 24,
 		},
@@ -331,10 +330,13 @@ void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg)
 		},
 		.bc_seg_cfg		   = NULL,
 		.bc_seg_nr		   = 0,
+		.bc_seg_nr_max             = 0x100,
 		.bc_pd_cfg = {
 			.bpc_mapping_type = M0_BE_PD_MAPPING_PER_PAGE,
+			.bpc_pages_per_io       = 0x1000,
 			.bpc_io_sched_cfg = {
 				.bpdc_seg_io_nr = 0x4,
+				/* .bpdc_io_credit is usually set by m0_be_pd */
 			},
 		},
 		.bc_log_discard_cfg = {
@@ -345,6 +347,10 @@ void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg)
 		},
 		.bc_zone_pcnt = { [M0_BAP_NORMAL] = 100 }
 	};
+	/* copy values for different subsystems */
+	cfg->bc_engine.bec_group_cfg.tgc_seg_nr_max = cfg->bc_seg_nr_max;
+	cfg->bc_pd_cfg.bpc_reqh = cfg->bc_engine.bec_reqh;
+	cfg->bc_pd_cfg.bpc_seg_nr_max = cfg->bc_seg_nr_max;
 }
 
 M0_INTERNAL int m0_be_ut_backend_init_cfg(struct m0_be_ut_backend *ut_be,
@@ -374,8 +380,10 @@ M0_INTERNAL int m0_be_ut_backend_init_cfg(struct m0_be_ut_backend *ut_be,
 	c = &ut_be->but_dom_cfg;
 
 	/* Create reqh, if necessary. */
-	if (c->bc_engine.bec_reqh == NULL)
+	if (c->bc_engine.bec_reqh == NULL) {
 		m0_be_ut_reqh_create(&c->bc_engine.bec_reqh);
+		c->bc_pd_cfg.bpc_reqh = c->bc_engine.bec_reqh;
+	}
 
 	/* Use m0_be_ut_backend's stob domain location, if possible. */
 	if (ut_be->but_stob_domain_location != NULL)

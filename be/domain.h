@@ -124,6 +124,8 @@ struct m0_be_domain_cfg {
 	struct m0_be_0type_seg_cfg  *bc_seg_cfg;
 	/** Size of m0_be_domain_cfg::bc_seg_cfg array. */
 	unsigned                     bc_seg_nr;
+	/** Maximum number of segments per domain */
+	unsigned long                bc_seg_nr_max;
 	struct m0_be_pd_cfg          bc_pd_cfg;
 	struct m0_be_log_discard_cfg bc_log_discard_cfg;
 };

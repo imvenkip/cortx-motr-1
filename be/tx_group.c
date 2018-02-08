@@ -606,20 +606,6 @@ M0_INTERNAL void m0_be_tx_group_discard(struct m0_be_log_discard      *ld,
 	m0_be_group_format_discard(ld, ldi);
 }
 
-M0_INTERNAL void
-m0_be_tx_group_seg_io_credit(struct m0_be_tx_group_cfg *gr_cfg,
-                             struct m0_be_io_credit    *io_cred)
-{
-	struct m0_be_group_format_cfg gft_cfg = {
-		.gfc_fmt_cfg = {
-			.fgc_reg_nr_max	  = gr_cfg->tgc_size_max.tc_reg_nr,
-			.fgc_reg_size_max = gr_cfg->tgc_size_max.tc_reg_size,
-			.fgc_seg_nr_max	  = gr_cfg->tgc_seg_nr_max,
-		}
-	};
-	m0_be_group_format_seg_io_credit(&gft_cfg, io_cred);
-}
-
 /** @} end of be group */
 #undef M0_TRACE_SUBSYSTEM
 

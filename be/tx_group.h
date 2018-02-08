@@ -240,10 +240,6 @@ M0_INTERNAL int m0_be_tx_group_reapply(struct m0_be_tx_group *gr,
 M0_INTERNAL void m0_be_tx_group_discard(struct m0_be_log_discard      *ld,
                                         struct m0_be_log_discard_item *ldi);
 
-M0_INTERNAL void
-m0_be_tx_group_seg_io_credit(struct m0_be_tx_group_cfg *gr_cfg,
-                             struct m0_be_io_credit    *io_cred);
-
 /* XXX see comment in be/tx_group.c */
 #if 0
 M0_INTERNAL void tx_group_init(struct m0_be_tx_group *gr,

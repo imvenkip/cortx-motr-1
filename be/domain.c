@@ -751,12 +751,8 @@ static int be_domain_level_enter(struct m0_module *module)
 		M0_ASSERT_INFO(cfg->bc_pd_cfg.bpc_io_sched_cfg.bpdc_seg_io_nr >=
 			       cfg->bc_engine.bec_group_nr,
 			      "seg_io_nr must be at least number of tx_groups");
-		cfg->bc_pd_cfg.bpc_reqh = cfg->bc_engine.bec_reqh;
 		cfg->bc_pd_cfg.bpc_io_sched_cfg.bpdc_sched.bisc_pos_start =
 			m0_be_log_recovery_discarded(m0_be_domain_log(dom));
-		m0_be_tx_group_seg_io_credit(
-			      &cfg->bc_engine.bec_group_cfg,
-			      &cfg->bc_pd_cfg.bpc_io_sched_cfg.bpdc_io_credit);
 		return M0_RC(m0_be_pd_init(&dom->bd_pd, &cfg->bc_pd_cfg));
 	case M0_BE_DOMAIN_LEVEL_NORMAL_SEG0_OPEN:
 		if (cfg->bc_mkfs_mode)

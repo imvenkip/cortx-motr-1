@@ -91,6 +91,11 @@ static int be_pd_level_enter(struct m0_module *module)
 		mappings_tlist_init(&pd->bp_mappings);
 		return M0_RC(0);
 	case M0_BE_PD_LEVEL_IO_SCHED:
+		pd->bp_cfg.bpc_io_sched_cfg.bpdc_io_credit =
+			M0_BE_IO_CREDIT(pd->bp_cfg.bpc_pages_per_io,
+					M0_BE_PD_PAGE_SIZE *
+					pd->bp_cfg.bpc_pages_per_io,
+					pd->bp_cfg.bpc_seg_nr_max);
 		return M0_RC(m0_be_pd_io_sched_init(&pd->bp_io_sched,
 					    &pd->bp_cfg.bpc_io_sched_cfg));
 	case M0_BE_PD_LEVEL_REQQ:

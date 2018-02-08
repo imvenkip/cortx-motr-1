@@ -80,6 +80,9 @@ struct m0_be_pd_cfg {
 	/* XXX temporary solution, need to make proper per-mapping type */
 	enum m0_be_pd_mapping_type    bpc_mapping_type;
 	struct m0_reqh               *bpc_reqh;
+	/** Number of pages submitted in a single I/O request. */
+	unsigned long                 bpc_pages_per_io;
+	unsigned long                 bpc_seg_nr_max;
 	struct m0_be_pd_io_sched_cfg  bpc_io_sched_cfg;
 };
 

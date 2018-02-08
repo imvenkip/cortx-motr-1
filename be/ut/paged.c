@@ -191,9 +191,6 @@ void m0_be_ut_pd_fom(void)
 	m0_be_ut_backend_cfg_default(&cfg);
 
 	/* >>>>> XXX: weird cfgs stated !!!! <<<<< */
-	m0_be_tx_group_seg_io_credit(&cfg.bc_engine.bec_group_cfg,
-		     &cfg.bc_pd_cfg.bpc_io_sched_cfg.bpdc_io_credit);
-
 	rc = m0_be_reg_area_init(&reg_area,
 				 &M0_BE_TX_CREDIT(reg_area_nr * 2,
 						  reg_area_nr * 0x10),
