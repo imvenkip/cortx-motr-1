@@ -324,7 +324,9 @@ static int pd_fom_tick(struct m0_fom *fom)
 		m0_be_op_init(&pd_fom->bpf_op);
 		pages_tlist_init(pio_armed);
 		pages_tlist_init(pio_done);
-		pd_fom->bpf_pio_ext = 0ULL;
+		/* pd_fom->bpf_pio_ext = 0ULL; */
+		/* XXX: MAX, look here */
+		pd_fom->bpf_pio_ext = pios->bpd_sched.bis_pos;
 		rc = M0_FSO_AGAIN;
 		m0_fom_phase_move(fom, 0, PFS_IDLE);
 		break;

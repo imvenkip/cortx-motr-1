@@ -284,8 +284,9 @@ void m0_be_ut_seg_large(void)
 
 	M0_ALLOC_PTR(seg);
 	M0_UT_ASSERT(seg != NULL);
-	M0_ALLOC_PTR(reqh);
-	M0_UT_ASSERT(reqh != NULL);
+	reqh = NULL;
+	/* M0_ALLOC_PTR(reqh); */
+	/* M0_UT_ASSERT(reqh != NULL); */
 	M0_ALLOC_PTR(pd);
 	M0_UT_ASSERT(pd != NULL);
 	stob = m0_ut_stob_linux_get();
