@@ -1,5 +1,4 @@
 ---
 lustre_client_pkg:
-  - lustre-client-dkms
-  # TODO: install binary lustre packages as well?
-  #- kmod-lustre-client
+  - kmod-lustre-client
+  - lustre-client

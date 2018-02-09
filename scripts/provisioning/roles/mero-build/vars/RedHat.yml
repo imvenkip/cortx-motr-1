@@ -16,6 +16,7 @@ mero_build_deps_pkgs:
   - libuuid-devel
   - libyaml
   - libyaml-devel
+  - lustre-client-dkms
   - make
   - perl
   - perl-File-Find-Rule
