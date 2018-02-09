@@ -200,7 +200,9 @@ struct m0_be_pd_page {
 	struct m0_mutex          pp_lock;
 	struct m0_tlink          pp_pio_tlink;
 
-	/* XXX: remove this from here when mappings are intergrated into segs */
+	/* XXX: remove this from here when mappings are intergrated into segs
+	   and m0_be_pd__page_to_seg() is fully functional
+	 */
 	struct m0_be_seg        *pp_seg;
 
 	uint64_t                 pp_magic;
@@ -298,6 +300,10 @@ m0_be_pd_mapping__is_addr_in_page(const struct m0_be_pd_page *page,
 				  const void                 *addr);
 M0_INTERNAL struct m0_be_pd_mapping *
 m0_be_pd__mapping_by_addr(struct m0_be_pd *paged, const void *addr);
+
+M0_INTERNAL struct m0_be_seg *
+m0_be_pd__page_to_seg(const struct m0_be_pd *paged,
+		      const struct m0_be_pd_page *page);
 
 /* ------------------------------------------------------------------------- */
 

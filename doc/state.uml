@@ -5,8 +5,10 @@ IDLE --> MANAGE_PRE
 MANAGE_PRE --> READ      : PD.request_queue.push()
 READ --> READ_DONE : stob io signalled
 READ_DONE --> MANAGE_POST
-MANAGE_PRE --> WRITE     : PD.request_queue.push()
-WRITE --> WRITE_DONE : stob io signalled
+MANAGE_PRE --> WRITE_PRE     : PD.request_queue.push()
+WRITE_PRE --> WRITE_POST
+WRITE_POST --> WRITE_DONE : stob io signalled
+WRITE_DONE --> WRITE_POST : have more pages to process
 WRITE_DONE --> MANAGE_POST
 MANAGE_POST --> IDLE
 IDLE --> FINI        : PD.fini() called
