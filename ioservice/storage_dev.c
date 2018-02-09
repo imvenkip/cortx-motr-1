@@ -527,7 +527,11 @@ end:
 		m0_free(M0_MEMBER(device, isd_filename));
 		m0_free(device);
 	}
-	return M0_RC(rc);
+	return rc == 0 ? M0_RC(0) :
+	       M0_ERR_INFO(rc, "path_orig=%s cid=%"PRIu64" conf_sdev="FID_F,
+			   path_orig, cid,
+			   FID_P(conf_sdev == NULL ? &M0_FID0 :
+				 &conf_sdev->sd_obj.co_id));
 }
 
 M0_INTERNAL int m0_storage_dev_new(struct m0_storage_devs *devs,
