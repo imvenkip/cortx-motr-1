@@ -6,7 +6,7 @@ import json
 __metaclass__ = type
 
 RECORDS = (
-    'failed',
+    #'failed',
     'msg',
     'reason',
     'results',
@@ -43,15 +43,19 @@ class CallbackModule(CallbackBase):
         if type(output) is list and type(output[0]) is dict:
             formatted_output = []
             for i, elem in enumerate(output):
-                copy = elem.copy()
                 if type(elem) is dict:
                     for rec in set(RECORDS) & set(elem):
-                        copy[rec] = self._format(elem[rec])
-                formatted_output.append(copy)
-            return json.dumps(formatted_output, indent=2, sort_keys=True)
+                        formatted_output.append( self._format(elem[rec]) )
+            if len(formatted_output) == 1:
+                return formatted_output[0]
+            else:
+                return '\n  ' + '\n  '.join(formatted_output)
 
         if type(output) is list and type(output[0]) is not dict:
-            return '\n  '.join(output)
+            if len(output) == 1:
+                return output[0]
+            else:
+                return '\n  ' + '\n  '.join(output)
 
         return str(output)
 
