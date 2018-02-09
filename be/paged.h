@@ -196,6 +196,11 @@ struct m0_be_pd_page {
 	enum m0_be_pd_page_state pp_state;
 	struct m0_mutex          pp_lock;
 	struct m0_tlink          pp_pio_tlink;
+
+	/* XXX: remove this from here when mappings are intergrated into segs */
+	struct m0_be_seg        *pp_seg;
+
+	uint64_t                 pp_magic;
 };
 
 M0_INTERNAL int m0_be_pd_page_init(struct m0_be_pd_page *page,
@@ -575,6 +580,11 @@ struct m0_be_pd_fom {
 	struct m0_be_pd         *bpf_pd;
 	struct m0_be_pd_request *bpf_cur_request;
 	struct m0_be_pd_io      *bpf_cur_pio;
+
+	struct m0_tl             bpf_cur_pio_armed;
+	struct m0_tl             bpf_cur_pio_done;
+	m0_bcount_t              bpf_pio_ext;
+
 	struct m0_be_op          bpf_op;
 };
 

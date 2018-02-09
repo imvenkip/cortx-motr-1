@@ -171,6 +171,12 @@ enum m0_magic_satchel {
 	/* m0_be_pd::bp_mappings (be faced disc) */
 	M0_BE_PD_MAPPING_HEAD_MAGIC = 0x33befacedd15c077,
 
+	/* m0_be_pd_page::pp_pio_tlink (damaged brain) */
+	M0_BE_PD_PAGE_MAGIC = 0x33da3a9edb4a1777,
+
+	/* m0_be_pd_page::pp_magic (damaged mind) */
+	M0_BE_PD_PAGE_HEAD_MAGIC = 0x33da3a9ed317d077,
+
 /* m0t1fs */
 	/* m0t1fs_sb::s_magic (cozie filesis) */
 	M0_T1FS_SUPER_MAGIC = 0x33c021ef11e51577,
