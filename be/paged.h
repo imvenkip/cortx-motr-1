@@ -595,6 +595,8 @@ struct m0_be_pd_fom {
 	m0_bcount_t              bpf_pio_ext;
 
 	struct m0_be_op          bpf_op;
+
+	struct m0_sm_ast         bpf_ast_reqq_push;
 };
 
 M0_INTERNAL void m0_be_pd_fom_init(struct m0_be_pd_fom    *fom,

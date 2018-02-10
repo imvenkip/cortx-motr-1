@@ -312,15 +312,15 @@ M0_INTERNAL void m0_be_group_format_deallocate(struct m0_be_group_format *gft)
 M0_INTERNAL void m0_be_group_format_prepare(struct m0_be_group_format *gft,
                                             struct m0_be_op           *op)
 {
-	m0_be_op_set_add(op, &gft->gft_pd_io_get);
+	//XXX PD m0_be_op_set_add(op, &gft->gft_pd_io_get);
 	m0_be_op_set_add(op, &gft->gft_log_discard_get);
 	m0_be_op_set_add(op, &gft->gft_all_get);
 	m0_be_op_active(&gft->gft_all_get);
 	m0_be_log_discard_item_get(gft->gft_cfg.gfc_log_discard,
 	                           &gft->gft_log_discard_get,
 	                           &gft->gft_log_discard_item);
-	m0_be_pd_io_get(&gft->gft_cfg.gfc_pd->bp_io_sched, &gft->gft_pd_io,
-	                &gft->gft_pd_io_get);
+	//XXX PD m0_be_pd_io_get(&gft->gft_cfg.gfc_pd->bp_io_sched,
+	//XXX PD                &gft->gft_pd_io, &gft->gft_pd_io_get);
 	m0_be_op_done(&gft->gft_all_get);
 }
 

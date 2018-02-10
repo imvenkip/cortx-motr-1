@@ -599,12 +599,31 @@ static const struct m0_fom_type_ops pd_fom_type_ops = {
 };
 
 
+static void pd_reqq_push(struct m0_sm_group *_, struct m0_sm_ast *ast)
+{
+	struct m0_be_pd_fom *m   = M0_AMB(m, ast, bpf_ast_reqq_push);
+	struct m0_fom       *fom = &m->bpf_gen;
+	M0_ENTRY();
+	if (m0_fom_is_waiting(fom) && m0_fom_phase(fom) == PFS_IDLE) {
+		M0_LOG(M0_DEBUG, "waking up");
+		m0_fom_ready(fom);
+	}
+	M0_LEAVE();
+}
+
+static void pd_fom_on_reqq_push_wakeup(struct m0_be_pd_fom *pd_fom)
+{
+	m0_sm_ast_post(&pd_fom->bpf_gen.fo_loc->fl_group,
+		       &pd_fom->bpf_ast_reqq_push);
+}
+
 M0_INTERNAL void m0_be_pd_fom_init(struct m0_be_pd_fom    *fom,
 				   struct m0_be_pd        *pd,
 				   struct m0_reqh         *reqh)
 {
 	m0_fom_init(&fom->bpf_gen, &pd_fom_type, &pd_fom_ops, NULL, NULL, reqh);
 	fom->bpf_pd = pd;
+	fom->bpf_ast_reqq_push = (struct m0_sm_ast){ .sa_cb = pd_reqq_push };
 }
 
 M0_INTERNAL void m0_be_pd_fom_fini(struct m0_be_pd_fom *fom)
@@ -755,11 +774,11 @@ m0_be_pd_request_queue_push(struct m0_be_pd_request_queue      *rq,
 	 */
 
 	/* no special lock is needed here */
-	if (reqq_tlist_length(&rq->prq_queue) == 0 &&
-	    m0_fom_phase(fom) == PFS_IDLE) {
-		M0_LOG(M0_DEBUG, "request=%p waking_up_fom", request);
-		m0_fom_wakeup(fom);
-	}
+	//if (reqq_tlist_length(&rq->prq_queue) == 0 &&
+	//    m0_fom_phase(fom) == PFS_IDLE) {
+	//	M0_LOG(M0_DEBUG, "request=%p waking_up_fom", request);
+	//	m0_fom_wakeup(fom);
+	//}
 
 	/* Use deferred list to push WRITE requests in required order. */
 
@@ -794,6 +813,7 @@ M0_INTERNAL void m0_be_pd_request_push(struct m0_be_pd         *paged,
 	m0_be_op_active(request->prt_op);
 	m0_be_pd_request_queue_push(&paged->bp_reqq, request,
 				    &paged->bp_fom.bpf_gen);
+	pd_fom_on_reqq_push_wakeup(&paged->bp_fom);
 }
 
 /* -------------------------------------------------------------------------- */
