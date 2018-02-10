@@ -396,6 +396,7 @@ m0_be_ut_seg_allocator_init
 m0_be_ut_seg_check_persistence
 m0_be_ut_seg_fini
 m0_be_ut_seg_init
+m0_be_ut_seg_init_with_pd
 m0_be_ut_seg_reload
 m0_be_ut_tx_init
 m0_xc_opaque_init

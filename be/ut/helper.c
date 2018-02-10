@@ -600,23 +600,29 @@ void m0_be_ut_tx_init(struct m0_be_tx *tx, struct m0_be_ut_backend *ut_be)
 	be_ut_tx_unlock_if(grp, ut_be);
 }
 
-void m0_be_ut_seg_init(struct m0_be_ut_seg *ut_seg,
-		       struct m0_be_ut_backend *ut_be,
-		       m0_bcount_t size)
+static void be_ut_seg_init(struct m0_be_ut_seg *ut_seg,
+                           struct m0_be_ut_backend *ut_be,
+                           struct m0_be_pd *pd,
+                           m0_bcount_t size)
 {
 	struct m0_be_0type_seg_cfg seg_cfg;
 	int			   rc;
 
 	if (ut_be == NULL) {
+		ut_seg->bus_reqh = NULL;
+		if (pd == NULL) {
+			M0_ALLOC_PTR(ut_seg->bus_pd);
+			M0_ASSERT(ut_seg->bus_pd != NULL);
+			m0_be_ut_reqh_create(&ut_seg->bus_reqh);
+			m0_be_ut_pd_init(ut_seg->bus_pd, ut_seg->bus_reqh);
+		} else {
+			ut_seg->bus_pd = NULL;
+		}
 		M0_ALLOC_PTR(ut_seg->bus_seg);
 		M0_ASSERT(ut_seg->bus_seg != NULL);
-		M0_ALLOC_PTR(ut_seg->bus_pd);
-		M0_ASSERT(ut_seg->bus_pd != NULL);
-		ut_seg->bus_reqh = NULL;
-		m0_be_ut_reqh_create(&ut_seg->bus_reqh);
-		m0_be_ut_pd_init(ut_seg->bus_pd, ut_seg->bus_reqh);
 		m0_be_seg_init(ut_seg->bus_seg, m0_ut_stob_linux_get(),
-			       &ut_be->but_dom, ut_seg->bus_pd,
+			       &ut_be->but_dom,
+			       ut_seg->bus_pd == NULL ? pd : ut_seg->bus_pd,
 			       M0_BE_SEG_FAKE_ID);
 		rc = m0_be_seg_create(ut_seg->bus_seg, size,
 				      m0_be_ut_seg_allocate_addr(size));
@@ -638,6 +644,20 @@ void m0_be_ut_seg_init(struct m0_be_ut_seg *ut_seg,
 	ut_seg->bus_backend = ut_be;
 }
 
+void m0_be_ut_seg_init_with_pd(struct m0_be_ut_seg *ut_seg,
+                               struct m0_be_pd *pd,
+                               m0_bcount_t size)
+{
+	be_ut_seg_init(ut_seg, NULL, pd, size);
+}
+
+void m0_be_ut_seg_init(struct m0_be_ut_seg *ut_seg,
+		       struct m0_be_ut_backend *ut_be,
+		       m0_bcount_t size)
+{
+	be_ut_seg_init(ut_seg, ut_be, NULL, size);
+}
+
 void m0_be_ut_seg_fini(struct m0_be_ut_seg *ut_seg)
 {
 	struct m0_stob *stob = ut_seg->bus_seg->bs_stob;
@@ -652,8 +672,10 @@ void m0_be_ut_seg_fini(struct m0_be_ut_seg *ut_seg)
 		m0_be_seg_fini(ut_seg->bus_seg);
 		m0_free(ut_seg->bus_seg);
 
-		m0_be_ut_pd_fini(ut_seg->bus_pd);
-		m0_be_ut_reqh_destroy();
+		if (ut_seg->bus_pd != NULL)
+			m0_be_ut_pd_fini(ut_seg->bus_pd);
+		if (ut_seg->bus_reqh != NULL)
+			m0_be_ut_reqh_destroy();
 		m0_free(ut_seg->bus_pd);
 
 		m0_ut_stob_put(stob, false);

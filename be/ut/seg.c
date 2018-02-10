@@ -128,29 +128,49 @@ enum {
 	BE_UT_SEG_MULTIPLE_SIZE = 0x10000,
 };
 
-static void be_ut_seg_thread_func(struct m0_semaphore *barrier)
+struct be_ut_seg_thread_ctx {
+	struct m0_semaphore *bustc_barrier;
+	struct m0_be_pd     *bustc_pd;
+};
+
+static void be_ut_seg_thread_func(struct be_ut_seg_thread_ctx *tctx)
 {
 	struct m0_be_ut_seg ut_seg;
 	int                 i;
 
-	m0_semaphore_down(barrier);
+	m0_semaphore_down(tctx->bustc_barrier);
 	for (i = 0; i < BE_UT_SEG_PER_THREAD; ++i) {
-		m0_be_ut_seg_init(&ut_seg, NULL, BE_UT_SEG_MULTIPLE_SIZE);
+		m0_be_ut_seg_init_with_pd(&ut_seg, tctx->bustc_pd,
+					  BE_UT_SEG_MULTIPLE_SIZE);
 		m0_be_ut_seg_fini(&ut_seg);
 	}
 }
 
 void m0_be_ut_seg_multiple(void)
 {
-	static struct m0_thread threads[BE_UT_SEG_THREAD_NR];
-	struct m0_semaphore     barrier;
-	bool                    rc_bool;
+	struct be_ut_seg_thread_ctx  thread_ctx;
+	static struct m0_thread      threads[BE_UT_SEG_THREAD_NR];
+	struct m0_semaphore          barrier;
+	bool                         rc_bool;
+	struct m0_reqh              *reqh;
+	struct m0_be_pd             *pd;
+
+	m0_be_ut_reqh_create(&reqh);
+	M0_ALLOC_PTR(pd);
+	M0_UT_ASSERT(pd != NULL);
+	m0_be_ut_pd_init(pd, reqh);
+	thread_ctx = (struct be_ut_seg_thread_ctx){
+		.bustc_barrier = &barrier,
+		.bustc_pd      = pd,
+	};
 
 	m0_semaphore_init(&barrier, 0);
 	rc_bool = m0_forall(i, ARRAY_SIZE(threads),
-			    M0_THREAD_INIT(&threads[i], struct m0_semaphore *,
+			    M0_THREAD_INIT(&threads[i],
+					   struct be_ut_seg_thread_ctx *,
 					   NULL, &be_ut_seg_thread_func,
-					   &barrier, "#%dbe-seg-ut", i) == 0);
+					   &thread_ctx,
+					   "#%dbe-seg-ut", i) == 0);
 	M0_UT_ASSERT(rc_bool);
 	m0_forall(i, ARRAY_SIZE(threads), m0_semaphore_up(&barrier), true);
 	rc_bool = m0_forall(i, ARRAY_SIZE(threads),
@@ -158,6 +178,10 @@ void m0_be_ut_seg_multiple(void)
 	M0_UT_ASSERT(rc_bool);
 	m0_forall(i, ARRAY_SIZE(threads), m0_thread_fini(&threads[i]), true);
 	m0_semaphore_fini(&barrier);
+
+	m0_be_ut_pd_fini(pd);
+	m0_free(pd);
+	m0_be_ut_reqh_destroy();
 }
 
 /*
