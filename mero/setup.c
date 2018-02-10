@@ -2871,6 +2871,8 @@ static void cs_level_leave(struct m0_module *module)
 	case CS_LEVEL_CONF_ARGS_PARSE:
 		break;
 	case CS_LEVEL_HA_CONNECT_ATTEMPT2:
+		if (cctx->cc_mkfs)
+			cs_ha_process_event(cctx, M0_CONF_HA_PROCESS_STOPPED);
 		if (cctx->cc_ha_was_started)
 			cs_ha_stop(cctx);
 		break;
@@ -2897,6 +2899,8 @@ static void cs_level_leave(struct m0_module *module)
 	case CS_LEVEL_RWLOCK_UNLOCK:
 		break;
 	case CS_LEVEL_STARTED_EVENT_FOR_MKFS:
+		if (cctx->cc_mkfs)
+			cs_ha_process_event(cctx, M0_CONF_HA_PROCESS_STOPPING);
 		break;
 	case CS_LEVEL_RCONFC_FATAL_CALLBACK:
 		break;
