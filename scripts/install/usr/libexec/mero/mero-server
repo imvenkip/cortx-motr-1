@@ -147,9 +147,6 @@ m0_server()
     fi
 
     local binary=$(m0_path_to $cmd)
-    if [[ $cmd == m0mkfs ]]; then
-        service_ep="lnet:$(m0_get_mkfs_ep_of $service)"
-    fi
 
     # enable core dumps
     ulimit -c unlimited

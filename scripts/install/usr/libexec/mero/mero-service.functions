@@ -353,7 +353,6 @@ _portal_id()
     local portal_id;
 
     case $s in
-        mkfs)   portal_id=35;;
         mds*)   portal_id=41;;
         ios*)   portal_id=42;;
         rms*)   portal_id=43;;
@@ -363,25 +362,6 @@ _portal_id()
         fdmi)   portal_id=47;;
     esac
     echo $portal_id
-}
-
-m0_ep_to_mkfs_ep()
-{
-    local service_ep=$1
-
-    local svc_tmid=$(echo $service_ep | cut -d: -f4)
-    local portal_id=$(_portal_id mkfs)
-
-    echo "${service_ep%:*:*}:$portal_id:$svc_tmid"
-}
-
-m0_get_mkfs_ep_of()
-{
-    local service=$1
-
-    local service_ep=$(m0_get_ep_of $service)
-
-    echo $(m0_ep_to_mkfs_ep $service_ep)
 }
 
 # Return endpoint of a particular service
