@@ -197,7 +197,7 @@ struct m0_ut_suite be_ut = {
 		// { "seg-large-multiple",      m0_be_ut_seg_large_multiple      },
 // XXX PD	{ "group_format",            m0_be_ut_group_format            },
 		{ "mkfs",                    m0_be_ut_mkfs                    },
-		{ "mkfs-multiseg",           m0_be_ut_mkfs_multiseg           },
+// XXX SEGS		{ "mkfs-multiseg",           m0_be_ut_mkfs_multiseg           },
 		{ "domain",                  m0_be_ut_domain                  },
 		{ "domain-is_stob",          m0_be_ut_domain_is_stob          },
 		{ "tx-states",               m0_be_ut_tx_states               },

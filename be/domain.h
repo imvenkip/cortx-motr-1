@@ -72,22 +72,16 @@ struct m0_be_0type_seg_cfg {
 	const char  *bsc_stob_create_cfg;
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
+/*
+ * XXX TODO remove stob domain configuration after implementing stob domain in
+ * log_store
+ */
 struct m0_be_domain_cfg {
 	/** BE engine configuration. */
 	struct m0_be_engine_cfg      bc_engine;
 	/** 0types supported by this domain. */
 	const struct m0_be_0type   **bc_0types;
 	unsigned                     bc_0types_nr;
-	/**
-	 * Stob domain location.
-	 * Stobs for log and segments are in this domain.
-	 */
-	const char                  *bc_stob_domain_location;
-	/**
-	 * str_cfg_init parameter for m0_stob_domain_init() (in normal mode)
-	 * and m0_stob_domain_create() (in mkfs mode).
-	 */
-	const char                  *bc_stob_domain_cfg_init;
 	/**
 	 * seg0 stob key.
 	 * This field is ignored in mkfs mode.
@@ -105,13 +99,6 @@ struct m0_be_domain_cfg {
 	 * They are completely ignored in normal mode.
 	 */
 
-	/** str_cfg_create parameter for m0_stob_domain_create(). */
-	const char                  *bc_stob_domain_cfg_create;
-	/**
-	 * Stob domain key for BE stobs. Stob domain with this key is
-	 * created at m0_be_domain_cfg::bc_stob_domain_location.
-	 */
-	uint64_t                     bc_stob_domain_key;
 	/** BE log configuration. */
 	struct m0_be_log_cfg         bc_log;
 	/** BE seg0 configuration. */
@@ -136,15 +123,11 @@ struct m0_be_domain {
 	struct m0_be_engine       bd_engine;
 	/** The main lock in m0_be_engine. Also it's used in m0_be_log */
 	struct m0_mutex           bd_engine_lock;
-	/** Protects m0_be_domain::bd_0types and m0_be_domain::bd_segs */
+	/** Protects m0_be_domain::bd_0types */
 	struct m0_mutex           bd_lock;
 	struct m0_tl              bd_0types;
 	struct m0_be_0type       *bd_0types_allocated;
-	/** List of segments in this domain. First segment in which is seg0. */
-	struct m0_tl              bd_segs;
 	struct m0_be_seg          bd_seg0;
-	struct m0_stob           *bd_seg0_stob;
-	struct m0_stob_domain    *bd_stob_domain;
 	struct m0_be_0type        bd_0type_seg;
 	struct m0_be_pd           bd_pd;
 	struct m0_be_log_discard  bd_log_discard;
@@ -154,9 +137,6 @@ struct m0_be_domain {
 enum {
 	M0_BE_DOMAIN_LEVEL_INIT,
 	M0_BE_DOMAIN_LEVEL_0TYPES_REGISTER,
-	M0_BE_DOMAIN_LEVEL_MKFS_STOB_DOMAIN_DESTROY,
-	M0_BE_DOMAIN_LEVEL_MKFS_STOB_DOMAIN_CREATE,
-	M0_BE_DOMAIN_LEVEL_NORMAL_STOB_DOMAIN_INIT,
 	M0_BE_DOMAIN_LEVEL_LOG_CONFIGURE,
 	M0_BE_DOMAIN_LEVEL_MKFS_LOG_CREATE,
 	M0_BE_DOMAIN_LEVEL_NORMAL_LOG_OPEN,
@@ -178,9 +158,9 @@ M0_INTERNAL void m0_be_domain_module_setup(struct m0_be_domain *dom,
 
 /*
  * Temporary solution until segment I/O is implemented using direct I/O.
+ * Destroys BE log's stob domain.
  */
-M0_INTERNAL void
-m0_be_domain_cleanup_by_location(const char *stob_domain_location);
+M0_INTERNAL void m0_be_domain_log_cleanup(struct m0_be_domain *dom);
 
 M0_INTERNAL struct m0_be_tx *m0_be_domain_tx_find(struct m0_be_domain *dom,
 						  uint64_t id);
@@ -198,16 +178,25 @@ M0_INTERNAL bool m0_be_domain_is_locked(const struct m0_be_domain *dom);
 M0_INTERNAL struct m0_be_seg *m0_be_domain_seg(const struct m0_be_domain *dom,
 					       const void                *addr);
 /**
- * Returns existing be-segment by its @id. If no segments found return NULL.
+ * Returns existing BE segment by its @id. If no segments found returns NULL.
  */
 M0_INTERNAL struct m0_be_seg *
 m0_be_domain_seg_by_id(const struct m0_be_domain *dom, uint64_t id);
 
 /**
- * Returns be-segment first after seg0 or NULL if not existing.
+ * Returns first BE segment ignoring seg0. Returns NULL if no segments exist
+ * other than seg0.
  */
 M0_INTERNAL struct m0_be_seg *
 m0_be_domain_seg_first(const struct m0_be_domain *dom);
+
+/**
+ * Returns next BE segment ignoring seg0 or NULL if such a segment doesn't
+ * exist.
+ */
+M0_INTERNAL struct m0_be_seg *
+m0_be_domain_seg_next(const struct m0_be_domain *dom,
+		      const struct m0_be_seg    *seg);
 
 M0_INTERNAL void
 m0_be_domain_seg_create_credit(struct m0_be_domain              *dom,

@@ -31,11 +31,14 @@
 #include "lib/misc.h"        /* M0_AMB */
 #include "lib/assert.h"
 #include "mero/magic.h"
+#include "be/domain.h"       /* m0_be_0type_seg_cfg */
 #include "be/paged.h"
 #include "be/pd.h"           /* m0_be_pd_io_sched_init */
 #include "be/op.h"           /* m0_be_op_wait */
 #include "be/pd_service.h"   /* m0_be_pds_stype */
 #include "rpc/rpc_opcodes.h" /* M0_BE_PD_FOM_OPCODE */
+#include "stob/domain.h"     /* m0_stob_domain_create_or_init */
+#include "stob/stob.h"       /* m0_stob */
 #include "module/instance.h" /* m0_get */
 
 #include <sys/mman.h>        /* mmap, madvise */
@@ -46,6 +49,7 @@
 
 enum m0_be_pd_module_level {
 	M0_BE_PD_LEVEL_INIT,
+	M0_BE_PD_LEVEL_SDOM,
 	M0_BE_PD_LEVEL_IO_SCHED,
 	M0_BE_PD_LEVEL_REQQ,
 	M0_BE_PD_LEVEL_FOM_SERVICE,
@@ -77,6 +81,12 @@ M0_TL_DESCR_DEFINE(pages,
 		   M0_BE_PD_PAGE_MAGIC, M0_BE_PD_PAGE_HEAD_MAGIC);
 M0_TL_DEFINE(pages, static, struct m0_be_pd_page);
 
+/* XXX M0_INTERNAL, because it is used by sss/process_foms.c */
+M0_TL_DESCR_DEFINE(seg, "m0_be_pd::bp_segs",
+		   M0_INTERNAL, struct m0_be_seg, bs_linkage, bs_magic,
+		   M0_BE_PD_SEGS_MAGIC, M0_BE_PD_SEGS_HEAD_MAGIC);
+M0_TL_DEFINE(seg, static, struct m0_be_seg);
+
 /* -------------------------------------------------------------------------- */
 /* m0_be_pd							              */
 /* -------------------------------------------------------------------------- */
@@ -88,8 +98,16 @@ static int be_pd_level_enter(struct m0_module *module)
 
 	switch (level) {
 	case M0_BE_PD_LEVEL_INIT:
+		seg_tlist_init(&pd->bp_segs);
 		mappings_tlist_init(&pd->bp_mappings);
 		return M0_RC(0);
+	case M0_BE_PD_LEVEL_SDOM:
+		return m0_stob_domain_create_or_init(
+					pd->bp_cfg.bpc_stob_domain_location,
+					pd->bp_cfg.bpc_stob_domain_cfg_init,
+					pd->bp_cfg.bpc_stob_domain_key,
+					pd->bp_cfg.bpc_stob_domain_cfg_create,
+					&pd->bp_segs_sdom);
 	case M0_BE_PD_LEVEL_IO_SCHED:
 		pd->bp_cfg.bpc_io_sched_cfg.bpdc_io_credit =
 			M0_BE_IO_CREDIT(pd->bp_cfg.bpc_pages_per_io,
@@ -121,6 +139,10 @@ static void be_pd_level_leave(struct m0_module *module)
 	switch (level) {
 	case M0_BE_PD_LEVEL_INIT:
 		mappings_tlist_fini(&pd->bp_mappings);
+		seg_tlist_fini(&pd->bp_segs);
+		return;
+	case M0_BE_PD_LEVEL_SDOM:
+		m0_stob_domain_fini(pd->bp_segs_sdom);
 		return;
 	case M0_BE_PD_LEVEL_IO_SCHED:
 		m0_be_pd_io_sched_fini(&pd->bp_io_sched);
@@ -147,6 +169,7 @@ static void be_pd_level_leave(struct m0_module *module)
 	}
 static const struct m0_modlev be_pd_levels[] = {
 	BE_PD_LEVEL(M0_BE_PD_LEVEL_INIT),
+	BE_PD_LEVEL(M0_BE_PD_LEVEL_SDOM),
 	BE_PD_LEVEL(M0_BE_PD_LEVEL_IO_SCHED),
 	BE_PD_LEVEL(M0_BE_PD_LEVEL_REQQ),
 	BE_PD_LEVEL(M0_BE_PD_LEVEL_FOM_SERVICE),
@@ -214,6 +237,172 @@ M0_INTERNAL void m0_be_pd_reg_put(struct m0_be_pd        *paged,
 				  const struct m0_be_reg *reg)
 {
 	/* XXX: decrement ref counting */
+}
+
+/* -------------------------------------------------------------------------- */
+/* Segments							              */
+/* -------------------------------------------------------------------------- */
+
+static void be_pd_seg_stob_id(struct m0_be_pd   *pd,
+			      uint64_t           stob_key,
+			      struct m0_stob_id *out)
+{
+	m0_stob_id_make(0, stob_key,
+			m0_stob_domain_id_get(pd->bp_segs_sdom), out);
+}
+
+static int be_pd_seg_stob_open(struct m0_be_pd  *pd,
+			       uint64_t          stob_key,
+			       const char       *stob_create_cfg,
+			       struct m0_stob  **out,
+			       bool              create)
+{
+	int               rc;
+	struct m0_stob_id stob_id;
+
+	be_pd_seg_stob_id(pd, stob_key, &stob_id);
+	rc = m0_stob_find(&stob_id, out);
+	if (rc == 0) {
+		rc = m0_stob_state_get(*out) == CSS_UNKNOWN ?
+		     m0_stob_locate(*out) : 0;
+		/* TODO need to fail when stob exists */
+		rc = rc ?: create && m0_stob_state_get(*out) == CSS_NOENT ?
+		     m0_stob_create(*out, NULL, stob_create_cfg) : 0;
+		rc = rc ?: m0_stob_state_get(*out) == CSS_EXISTS ? 0 : -ENOENT;
+		if (rc != 0)
+			m0_stob_put(*out);
+	}
+	M0_POST(ergo(rc == 0, m0_stob_state_get(*out) == CSS_EXISTS));
+	return M0_RC(rc);
+}
+
+M0_INTERNAL int m0_be_pd_seg_create(struct m0_be_pd                  *pd,
+				    /* m0_be_seg_init() requires be domain */
+				    struct m0_be_domain              *dom,
+				    const struct m0_be_0type_seg_cfg *seg_cfg)
+{
+	struct m0_be_seg *seg;
+	struct m0_stob   *stob;
+	int               rc;
+
+	/* seg_cfg->bsc_preallocate is ignored here. See be/domain.c. */
+
+	M0_ALLOC_PTR(seg);
+	if (seg == NULL)
+		return M0_ERR(-ENOMEM);
+
+	rc = be_pd_seg_stob_open(pd, seg_cfg->bsc_stob_key,
+				 seg_cfg->bsc_stob_create_cfg, &stob, true);
+	if (rc == 0) {
+		m0_be_seg_init(seg, stob, dom, pd, M0_BE_SEG_FAKE_ID);
+		m0_stob_put(stob);
+		rc = m0_be_seg_create(seg, seg_cfg->bsc_size,
+				      seg_cfg->bsc_addr);
+		m0_be_seg_fini(seg);
+		/* TODO destroy stob on fail */
+	}
+	m0_free(seg);
+
+	return M0_RC(rc);
+}
+
+/* XXX TODO protect pd->bp_segs with a lock in the next functions */
+
+M0_INTERNAL int m0_be_pd_seg_open(struct m0_be_pd     *pd,
+				  struct m0_be_seg    *seg,
+				  /* m0_be_seg_init() requires be domain */
+				  struct m0_be_domain *dom,
+				  uint64_t             stob_key)
+{
+	struct m0_stob *stob;
+	int             rc;
+
+	rc = be_pd_seg_stob_open(pd, stob_key, NULL, &stob, false);
+	if (rc == 0) {
+		m0_be_seg_init(seg, stob, dom, pd, M0_BE_SEG_FAKE_ID);
+		m0_stob_put(stob);
+		rc = m0_be_seg_open(seg);
+		if (rc == 0) {
+			seg_tlink_init_at_tail(seg, &pd->bp_segs);
+		} else {
+			m0_be_seg_fini(seg);
+		}
+	}
+	return M0_RC(rc);
+}
+
+static int be_pd_seg_close(struct m0_be_pd  *pd,
+			   struct m0_be_seg *seg,
+			   bool              destroy)
+{
+	int rc;
+
+	seg_tlink_del_fini(seg);
+	m0_be_seg_close(seg);
+	rc = destroy ? m0_be_seg_destroy(seg) : 0;
+	m0_be_seg_fini(seg);
+
+	return rc;
+}
+
+M0_INTERNAL void m0_be_pd_seg_close(struct m0_be_pd  *pd,
+				    struct m0_be_seg *seg)
+{
+	int rc;
+
+	rc = be_pd_seg_close(pd, seg, false);
+	M0_ASSERT(rc == 0);
+}
+
+M0_INTERNAL int m0_be_pd_seg_destroy(struct m0_be_pd     *pd,
+				     struct m0_be_domain *dom,
+				     uint64_t             seg_id)
+{
+	struct m0_be_seg *seg;
+	int               rc;
+
+	M0_ALLOC_PTR(seg);
+	if (seg == NULL)
+		return M0_ERR(-ENOMEM);
+
+	rc = m0_be_pd_seg_open(pd, seg, dom, seg_id);
+	rc = rc ?: be_pd_seg_close(pd, seg, true);
+	m0_free(seg);
+
+	return M0_RC(rc);
+}
+
+M0_INTERNAL struct m0_be_seg *m0_be_pd_seg_by_addr(const struct m0_be_pd *pd,
+						   const void            *addr)
+{
+	return m0_tl_find(seg, seg, &pd->bp_segs,
+			  m0_be_seg_contains(seg, addr));
+}
+
+M0_INTERNAL struct m0_be_seg *m0_be_pd_seg_by_id(const struct m0_be_pd *pd,
+						 uint64_t               id)
+{
+	return m0_tl_find(seg, seg, &pd->bp_segs, seg->bs_id == id);
+}
+
+M0_INTERNAL struct m0_be_seg *m0_be_pd_seg_first(const struct m0_be_pd *pd)
+{
+	/* XXX Why should we treat id == 0 in this way? */
+	return m0_tl_find(seg, seg, &pd->bp_segs, seg->bs_id != 0);
+}
+
+M0_INTERNAL struct m0_be_seg *m0_be_pd_seg_next(const struct m0_be_pd  *pd,
+						const struct m0_be_seg *seg)
+{
+	return seg_tlist_next(&pd->bp_segs, seg);
+}
+
+/* XXX What purpose of this interface? */
+M0_INTERNAL bool m0_be_pd_is_stob_seg(const struct m0_be_pd   *pd,
+                                      const struct m0_stob_id *stob_id)
+{
+	return m0_tl_exists(seg, seg, &pd->bp_segs,
+			    m0_be_seg_contains_stob(seg, stob_id));
 }
 
 /* -------------------------------------------------------------------------- */

@@ -298,8 +298,12 @@ void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg)
 					    .f_key       = BE_UT_LOG_ID,
 					}
 				},
+				.lsc_stob_domain_location =
+					"linuxstob:./be_log_store",
 				.lsc_stob_domain_key =
 					m0_atomic64_add_return(&dom_key, 1),
+				.lsc_stob_domain_init_cfg = "directio=true",
+				.lsc_stob_domain_create_cfg = NULL,
 				.lsc_size = 1 << 27,
 				.lsc_stob_create_cfg = NULL,
 				.lsc_stob_dont_zero = true,
@@ -315,12 +319,8 @@ void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg)
 		},
 		.bc_0types                 = zts,
 		.bc_0types_nr              = ARRAY_SIZE(zts),
-		.bc_stob_domain_location   = "linuxstob:./be_segments",
-		.bc_stob_domain_cfg_init   = NULL,
 		.bc_seg0_stob_key	   = BE_UT_SEG_START_ID - 1,
 		.bc_mkfs_mode		   = false,
-		.bc_stob_domain_cfg_create = NULL,
-		.bc_stob_domain_key	= m0_atomic64_add_return(&dom_key, 1),
 		.bc_seg0_cfg = {
 			.bsc_stob_key	     = BE_UT_SEG_START_ID - 1,
 			.bsc_size	     = 1 << 20,
@@ -338,6 +338,11 @@ void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg)
 				.bpdc_seg_io_nr = 0x4,
 				/* .bpdc_io_credit is usually set by m0_be_pd */
 			},
+			.bpc_stob_domain_location   = "linuxstob:./be_segments",
+			.bpc_stob_domain_cfg_init   = NULL,
+			.bpc_stob_domain_cfg_create = NULL,
+			.bpc_stob_domain_key        =
+					m0_atomic64_add_return(&dom_key, 1),
 		},
 		.bc_log_discard_cfg = {
 			.ldsc_items_max         = 0x100,
@@ -387,7 +392,7 @@ M0_INTERNAL int m0_be_ut_backend_init_cfg(struct m0_be_ut_backend *ut_be,
 
 	/* Use m0_be_ut_backend's stob domain location, if possible. */
 	if (ut_be->but_stob_domain_location != NULL)
-		c->bc_stob_domain_location = ut_be->but_stob_domain_location;
+		c->bc_pd_cfg.bpc_stob_domain_location = ut_be->but_stob_domain_location;
 
 	c->bc_mkfs_mode = mkfs;
 
@@ -896,7 +901,7 @@ M0_INTERNAL void m0_be_ut_txc_fini(struct m0_be_ut_txc *tc)
 
 M0_INTERNAL void m0_be_ut_pd_init(struct m0_be_pd *pd, struct m0_reqh *reqh)
 {
-	struct m0_be_domain_cfg bd_cfg;
+	struct m0_be_domain_cfg bd_cfg = {};
 	int                     rc;
 
 	m0_be_ut_backend_cfg_default(&bd_cfg);

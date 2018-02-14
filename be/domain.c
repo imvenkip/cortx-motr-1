@@ -37,11 +37,6 @@ M0_TL_DESCR_DEFINE(zt, "m0_be_domain::bd_0types", M0_INTERNAL,
 			   M0_BE_0TYPE_MAGIC, M0_BE_0TYPE_MAGIC);
 M0_TL_DEFINE(zt, static, struct m0_be_0type);
 
-M0_TL_DESCR_DEFINE(seg, "m0_be_domain::bd_segs", M0_INTERNAL,
-			   struct m0_be_seg, bs_linkage, bs_magic,
-			   M0_BE_SEG_MAGIC, M0_BE_SEG_MAGIC);
-M0_TL_DEFINE(seg, static, struct m0_be_seg);
-
 /**
  * @addtogroup be
  *
@@ -140,30 +135,6 @@ static int _0types_visit(struct m0_be_domain *dom, bool init)
 	return M0_RC(rc);
 }
 
-static int be_domain_stob_open(struct m0_be_domain  *dom,
-			       uint64_t              stob_key,
-			       const char           *stob_create_cfg,
-			       struct m0_stob      **out,
-			       bool                  create)
-{
-	int               rc;
-	struct m0_stob_id stob_id;
-
-	m0_stob_id_make(0, stob_key, &dom->bd_stob_domain->sd_id, &stob_id);
-	rc = m0_stob_find(&stob_id, out);
-	if (rc == 0) {
-		rc = m0_stob_state_get(*out) == CSS_UNKNOWN ?
-		     m0_stob_locate(*out) : 0;
-		rc = rc ?: create && m0_stob_state_get(*out) == CSS_NOENT ?
-		     m0_stob_create(*out, NULL, stob_create_cfg) : 0;
-		rc = rc ?: m0_stob_state_get(*out) == CSS_EXISTS ? 0 : -ENOENT;
-		if (rc != 0)
-			m0_stob_put(*out);
-	}
-	M0_POST(ergo(rc == 0, m0_stob_state_get(*out) == CSS_EXISTS));
-	return M0_RC(rc);
-}
-
 static int be_domain_seg_structs_create(struct m0_be_domain *dom,
 					struct m0_be_tx     *tx,
 					struct m0_be_seg    *seg)
@@ -203,50 +174,26 @@ static int be_domain_seg_structs_create(struct m0_be_domain *dom,
 	return M0_RC(rc);
 }
 
-/**
- * @post ergo(!destroy, rc == 0)
- */
-static int be_domain_seg_close(struct m0_be_domain *dom,
-			       struct m0_be_seg    *seg,
-			       bool                 destroy)
+static void be_domain_seg_close(struct m0_be_domain *dom,
+				struct m0_be_seg    *seg)
 {
-	int rc;
-
-	be_domain_lock(dom);
-	seg_tlink_del_fini(seg);
-	be_domain_unlock(dom);
-
+	/* XXX dict/allocator finied before seg is removed from pd's list */
 	m0_be_seg_dict_fini(seg);
 	m0_be_allocator_fini(m0_be_seg_allocator(seg));
-	m0_be_seg_close(seg);
-	rc = destroy ? m0_be_seg_destroy(seg) : 0;
-	m0_be_seg_fini(seg);
-	return M0_RC(rc);
+	m0_be_pd_seg_close(&dom->bd_pd, seg);
 }
 
 static int be_domain_seg_open(struct m0_be_domain *dom,
 			      struct m0_be_seg    *seg,
 			      uint64_t             stob_key)
 {
-	struct m0_stob *stob;
-	int             rc;
+	int rc;
 
-	rc = be_domain_stob_open(dom, stob_key, NULL, &stob, false);
+	/* XXX seg is added to pd's list before allocator/dict init */
+	rc = m0_be_pd_seg_open(&dom->bd_pd, seg, dom, stob_key);
 	if (rc == 0) {
-		m0_be_seg_init(seg, stob, dom, &dom->bd_pd, M0_BE_SEG_FAKE_ID);
-		m0_stob_put(stob);
-		rc = m0_be_seg_open(seg);
-		if (rc == 0) {
-			(void)m0_be_allocator_init(m0_be_seg_allocator(seg),
-						   seg);
-			m0_be_seg_dict_init(seg);
-
-			be_domain_lock(dom);
-			seg_tlink_init_at_tail(seg, &dom->bd_segs);
-			be_domain_unlock(dom);
-		} else {
-			m0_be_seg_fini(seg);
-		}
+		(void)m0_be_allocator_init(m0_be_seg_allocator(seg), seg);
+		m0_be_seg_dict_init(seg);
 	}
 	return M0_RC(rc);
 }
@@ -254,10 +201,7 @@ static int be_domain_seg_open(struct m0_be_domain *dom,
 static int be_domain_seg_destroy(struct m0_be_domain *dom,
 				 uint64_t             seg_id)
 {
-	struct m0_be_seg seg;
-
-	return be_domain_seg_open(dom, &seg, seg_id) ?:
-	       be_domain_seg_close(dom, &seg, true);
+	return m0_be_pd_seg_destroy(&dom->bd_pd, dom, seg_id);
 }
 
 static int be_domain_seg_create(struct m0_be_domain              *dom,
@@ -265,20 +209,14 @@ static int be_domain_seg_create(struct m0_be_domain              *dom,
 				struct m0_be_seg                 *seg,
 				const struct m0_be_0type_seg_cfg *seg_cfg)
 {
-	struct m0_stob *stob;
-	int             rc;
-	int             rc1;
 
-	rc = be_domain_stob_open(dom, seg_cfg->bsc_stob_key,
-				 seg_cfg->bsc_stob_create_cfg, &stob, true);
+	int rc;
+	int rc1;
+
+	rc = m0_be_pd_seg_create(&dom->bd_pd, dom, seg_cfg);
 	if (rc != 0)
 		goto out;
-	m0_be_seg_init(seg, stob, dom, &dom->bd_pd, M0_BE_SEG_FAKE_ID);
-	m0_stob_put(stob);
-	rc = m0_be_seg_create(seg, seg_cfg->bsc_size, seg_cfg->bsc_addr);
-	m0_be_seg_fini(seg);
-	if (rc != 0)
-		goto out;
+
 	rc = be_domain_seg_open(dom, seg, seg_cfg->bsc_stob_key);
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "can't open segment after successful "
@@ -286,7 +224,7 @@ static int be_domain_seg_create(struct m0_be_domain              *dom,
 		       seg_cfg->bsc_stob_key, rc);
 		goto seg_destroy;
 	}
-	if (rc == 0 && seg_cfg->bsc_preallocate)
+	if (seg_cfg->bsc_preallocate)
 		rc = m0_be_reg__write(&M0_BE_REG_SEG(seg));
 	if (rc == 0)
 		goto out;
@@ -342,7 +280,7 @@ static void be_0type_seg_fini(struct m0_be_domain *dom,
 	M0_ASSERT(seg != NULL);
 	M0_LOG(M0_DEBUG, "seg: %p, suffix: %s", seg, suffix);
 
-	be_domain_seg_close(dom, seg, false);
+	be_domain_seg_close(dom, seg);
 	m0_free(seg);
 	M0_LEAVE();
 }
@@ -357,40 +295,20 @@ static const struct m0_be_0type m0_be_0type_seg = {
 	.b0_fini = be_0type_seg_fini,
 };
 
-static void be_domain_log_cleanup(const char           *stob_domain_location,
-				  struct m0_be_log_cfg *log_cfg,
-				  bool                  create)
+static void be_domain_log_configure(struct m0_be_domain  *dom,
+				    struct m0_be_log_cfg *log_cfg,
+				    bool                  create)
 {
-	const char *location_add = "-log";
-	char       *location;
-	size_t      size;
-	int         rc;
+	log_cfg->lc_got_space_cb = m0_be_engine_got_log_space_cb;
+	log_cfg->lc_full_cb      = m0_be_engine_full_log_cb;
+	log_cfg->lc_lock         = &dom->bd_engine_lock;
 
-	size  = strlen(stob_domain_location);
-	size += strlen(location_add) + 1;
-	location = m0_alloc(size);
-	strncpy(location, stob_domain_location, size);
-	strncat(location, location_add, size);
-	M0_ASSERT(location[size - 1] == '\0');
+	/* XXX describe me */
 	if (create) {
 		m0_stob_domain__dom_id_make(
 			&log_cfg->lc_store_cfg.lsc_stob_id.si_domain_fid,
 			m0_stob_type_id_by_name("linuxstob"),
 			0, log_cfg->lc_store_cfg.lsc_stob_domain_key);
-	}
-	log_cfg->lc_store_cfg.lsc_stob_domain_location = location;
-	log_cfg->lc_store_cfg.lsc_stob_domain_init_cfg = "directio=true";
-	if (create) {
-		rc = m0_stob_domain_destroy_location(
-			log_cfg->lc_store_cfg.lsc_stob_domain_location);
-		/*
-		 * copy-paste from M0_BE_DOMAIN_LEVEL_MKFS_STOB_DOMAIN_DESTROY.
-		 */
-		if (M0_IN(rc, (-ENOENT, 0))) {
-			M0_LOG(M0_DEBUG, "rc = %d", rc);
-		} else {
-			M0_LOG(M0_WARN, "rc = %d", rc);
-		}
 	}
 }
 
@@ -431,18 +349,23 @@ static void be_domain_ldsc_sync(struct m0_be_log_discard      *ld,
 
 	dom = container_of(ld, struct m0_be_domain, bd_log_discard);
 	stobs[0] = m0_be_domain_seg0_get(dom)->bs_stob;
+	/* XXX Assume we have maximum 1 normal segment. */
 	seg = m0_be_domain_seg_first(dom);
+	M0_ASSERT(ergo(seg != NULL, m0_be_domain_seg_next(dom, seg) == NULL));
 	stobs[1] = seg != NULL ? seg->bs_stob : NULL;
 	m0_be_pd_io_sched_sync(&dom->bd_pd.bp_io_sched, 0, stobs,
 			       seg == NULL ? 1 : 2, op);
 }
 
-M0_INTERNAL void
-m0_be_domain_cleanup_by_location(const char *stob_domain_location)
+M0_INTERNAL void m0_be_domain_log_cleanup(struct m0_be_domain *dom)
 {
-	struct m0_be_log_cfg log_cfg;
+	struct m0_be_log *log = m0_be_domain_log(dom);
+	int               rc;
 
-	be_domain_log_cleanup(stob_domain_location, &log_cfg, true);
+	rc = m0_stob_domain_destroy_location(
+			log->lg_cfg.lc_store_cfg.lsc_stob_domain_location);
+	if (!M0_IN(rc, (-ENOENT, -0)))
+		M0_LOG(M0_WARN, "rc = %d", rc);
 }
 
 M0_INTERNAL struct m0_be_tx *m0_be_domain_tx_find(struct m0_be_domain *dom,
@@ -469,24 +392,36 @@ M0_INTERNAL struct m0_be_log *m0_be_domain_log(struct m0_be_domain *dom)
 M0_INTERNAL struct m0_be_seg *m0_be_domain_seg(const struct m0_be_domain *dom,
 					       const void                *addr)
 {
-	return m0_be_seg_contains(&dom->bd_seg0, addr) ?
-		(struct m0_be_seg *) &dom->bd_seg0 :
-		m0_tl_find(seg, seg, &dom->bd_segs,
-			   m0_be_seg_contains(seg, addr));
+	return m0_be_pd_seg_by_addr(&dom->bd_pd, addr);
 }
 
 M0_INTERNAL struct m0_be_seg *
 m0_be_domain_seg_first(const struct m0_be_domain *dom)
 {
-	return m0_tl_find(seg, seg, &dom->bd_segs,
-			  dom->bd_seg0.bs_id != seg->bs_id && seg->bs_id != 0);
+	struct m0_be_seg *seg = m0_be_pd_seg_first(&dom->bd_pd);
+
+	if (seg != NULL && seg->bs_id == dom->bd_seg0.bs_id)
+		seg = m0_be_pd_seg_next(&dom->bd_pd, seg);
+
+	return seg;
+}
+
+M0_INTERNAL struct m0_be_seg *
+m0_be_domain_seg_next(const struct m0_be_domain *dom,
+		      const struct m0_be_seg    *seg)
+{
+	struct m0_be_seg *next = m0_be_pd_seg_next(&dom->bd_pd, seg);
+
+	if (next != NULL && next->bs_id == dom->bd_seg0.bs_id)
+		next = m0_be_pd_seg_next(&dom->bd_pd, next);
+
+	return next;
 }
 
 M0_INTERNAL struct m0_be_seg *
 m0_be_domain_seg_by_id(const struct m0_be_domain *dom, uint64_t id)
 {
-	return dom->bd_seg0.bs_id == id ? (struct m0_be_seg *) &dom->bd_seg0 :
-		m0_tl_find(seg, seg, &dom->bd_segs, seg->bs_id == id);
+	return m0_be_pd_seg_by_id(&dom->bd_pd, id);
 }
 
 static void be_domain_seg_suffix_make(const struct m0_be_domain *dom,
@@ -557,8 +492,6 @@ m0_be_domain_seg_create(struct m0_be_domain               *dom,
 	int                     rc1;
 
 	M0_PRE(ergo(tx != NULL, m0_be_tx__is_exclusive(tx)));
-	M0_ASSERT_INFO(!seg_tlist_is_empty(&dom->bd_segs),
-		       "seg0 should be added first");
 
 	be_domain_seg_suffix_make(dom, seg_cfg->bsc_stob_key,
 				  suffix, ARRAY_SIZE(suffix));
@@ -577,7 +510,11 @@ m0_be_domain_seg_create(struct m0_be_domain               *dom,
 	}
 	rc = rc ?: be_domain_seg_create(dom, tx, &seg1, seg_cfg);
 	if (rc == 0) {
-		be_domain_seg_close(dom, &seg1, false);
+		/*
+		 * Close segment here, because it will be open by
+		 * m0_be_0type_add().
+		 */
+		be_domain_seg_close(dom, &seg1);
 		rc = m0_be_0type_add(&dom->bd_0type_seg, dom, tx, suffix,
 				     &M0_BUF_INIT_PTR_CONST(seg_cfg));
 		if (rc == 0) {
@@ -669,7 +606,6 @@ static int be_domain_level_enter(struct m0_module *module)
 	switch (level) {
 	case M0_BE_DOMAIN_LEVEL_INIT:
 		zt_tlist_init(&dom->bd_0types);
-		seg_tlist_init(&dom->bd_segs);
 		m0_mutex_init(&dom->bd_engine_lock);
 		m0_mutex_init(&dom->bd_lock);
 		return M0_RC(0);
@@ -687,54 +623,20 @@ static int be_domain_level_enter(struct m0_module *module)
 			m0_be_0type_register(dom, &dom->bd_0types_allocated[i]);
 		}
 		return M0_RC(0);
-	case M0_BE_DOMAIN_LEVEL_MKFS_STOB_DOMAIN_DESTROY:
-		if (!cfg->bc_mkfs_mode)
-			return M0_RC(0);
-		rc = m0_stob_domain_destroy_location(
-		                                cfg->bc_stob_domain_location);
-		/*
-		 * Silence -ENOENT error - it's a perfectly valid case for the
-		 * first run if the stob domain hasn't been created yet.
-		 */
-		return M0_IN(rc, (-ENOENT, 0)) ? M0_RC(0) : M0_ERR(rc);
-	case M0_BE_DOMAIN_LEVEL_MKFS_STOB_DOMAIN_CREATE:
-		if (!cfg->bc_mkfs_mode)
-			return M0_RC(0);
-		/*
-		 * The stob domain is never destroyed in case of failure, even
-		 * in mkfs mode: it helps with the debugging.
-		 */
-		return M0_RC(m0_stob_domain_create(cfg->bc_stob_domain_location,
-						   cfg->bc_stob_domain_cfg_init,
-						   cfg->bc_stob_domain_key,
-						 cfg->bc_stob_domain_cfg_create,
-						   &dom->bd_stob_domain));
-
-	case M0_BE_DOMAIN_LEVEL_NORMAL_STOB_DOMAIN_INIT:
-		if (cfg->bc_mkfs_mode)
-			return M0_RC(0);
-		return M0_RC(m0_stob_domain_init(cfg->bc_stob_domain_location,
-						 cfg->bc_stob_domain_cfg_init,
-						 &dom->bd_stob_domain));
 	case M0_BE_DOMAIN_LEVEL_LOG_CONFIGURE:
-		cfg->bc_log.lc_got_space_cb = m0_be_engine_got_log_space_cb;
-		cfg->bc_log.lc_full_cb      = m0_be_engine_full_log_cb;
-		cfg->bc_log.lc_lock         = &dom->bd_engine_lock;
 		/*
-		 * The next temporary solution is needed as long as BE log uses
-		 * direct I/O and BE segments can't work with direct I/O.
+		 * BE log uses direct I/O and BE segments can't work with
+		 * direct I/O.
 		 * The direct I/O configuration is per stob domain, not
 		 * individual stobs. So BE uses 2 stob domains: one with direct
 		 * I/O enabled for the log, and another one without direct I/O
 		 * for segments.
+		 * See m0_be_log_store_cfg for log's stob domain configuration.
 		 *
 		 * TODO use a single stob domain for BE after paged is
 		 * implemented.
 		 */
-		/* temporary solution BEGIN */
-		be_domain_log_cleanup(cfg->bc_stob_domain_location,
-		                      &cfg->bc_log, cfg->bc_mkfs_mode);
-		/* temporary solution END */
+		be_domain_log_configure(dom, &cfg->bc_log, cfg->bc_mkfs_mode);
 		return M0_RC(0);
 	case M0_BE_DOMAIN_LEVEL_MKFS_LOG_CREATE:
 		if (!cfg->bc_mkfs_mode)
@@ -837,7 +739,6 @@ static void be_domain_level_leave(struct m0_module *module)
 		m0_tl_teardown(zt, &dom->bd_0types, zt);
 		m0_mutex_fini(&dom->bd_lock);
 		m0_mutex_fini(&dom->bd_engine_lock);
-		seg_tlist_fini(&dom->bd_segs);
 		zt_tlist_fini(&dom->bd_0types);
 		break;
 	case M0_BE_DOMAIN_LEVEL_0TYPES_REGISTER:
@@ -849,16 +750,7 @@ static void be_domain_level_leave(struct m0_module *module)
 
 		m0_free0(&dom->bd_0types_allocated);
 		break;
-	case M0_BE_DOMAIN_LEVEL_MKFS_STOB_DOMAIN_DESTROY:
-		break;
-	case M0_BE_DOMAIN_LEVEL_MKFS_STOB_DOMAIN_CREATE:
-		break;
-	case M0_BE_DOMAIN_LEVEL_NORMAL_STOB_DOMAIN_INIT:
-		m0_stob_domain_fini(dom->bd_stob_domain);
-		break;
 	case M0_BE_DOMAIN_LEVEL_LOG_CONFIGURE:
-		m0_free(dom->bd_cfg.bc_log.lc_store_cfg.
-					lsc_stob_domain_location);
 		break;
 	case M0_BE_DOMAIN_LEVEL_MKFS_LOG_CREATE:
 		break;
@@ -879,7 +771,7 @@ static void be_domain_level_leave(struct m0_module *module)
 		 * case. The proper solution would be to init+start engine and
 		 * only then init seg0 and visit 0types. TODO implement this.
 		 */
-		be_domain_seg_close(dom, m0_be_domain_seg0_get(dom), false);
+		be_domain_seg_close(dom, m0_be_domain_seg0_get(dom));
 		break;
 	case M0_BE_DOMAIN_LEVEL_NORMAL_0TYPES_VISIT:
 		(void)_0types_visit(dom, false);
@@ -919,9 +811,6 @@ static void be_domain_level_leave(struct m0_module *module)
 static const struct m0_modlev levels_be_domain[] = {
 	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_INIT),
 	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_0TYPES_REGISTER),
-	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_MKFS_STOB_DOMAIN_DESTROY),
-	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_MKFS_STOB_DOMAIN_CREATE),
-	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_NORMAL_STOB_DOMAIN_INIT),
 	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_LOG_CONFIGURE),
 	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_MKFS_LOG_CREATE),
 	BE_DOMAIN_LEVEL(M0_BE_DOMAIN_LEVEL_NORMAL_LOG_OPEN),
@@ -976,13 +865,7 @@ M0_INTERNAL bool m0_be_domain_is_stob_log(struct m0_be_domain     *dom,
 M0_INTERNAL bool m0_be_domain_is_stob_seg(struct m0_be_domain     *dom,
                                           const struct m0_stob_id *stob_id)
 {
-	bool it_is = false;
-
-	be_domain_lock(dom);
-	it_is = m0_tl_exists(seg, seg, &dom->bd_segs,
-	                     m0_be_seg_contains_stob(seg, stob_id));
-	be_domain_unlock(dom);
-	return it_is;
+	return m0_be_pd_is_stob_seg(&dom->bd_pd, stob_id);
 }
 
 #undef M0_TRACE_SUBSYSTEM

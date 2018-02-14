@@ -272,7 +272,7 @@ M0_TL_DESCR_DECLARE(seg, M0_EXTERN);
 static int ss_be_segs_stats_ingest(struct m0_be_domain      *dom,
 				   struct m0_ss_process_rep *rep)
 {
-	struct m0_tl     *segs = &dom->bd_segs;
+	struct m0_tl     *segs = &dom->bd_pd.bp_segs;
 	struct m0_be_seg *bs;
 
 	/* collect be segments stats */

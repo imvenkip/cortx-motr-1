@@ -139,7 +139,7 @@ struct m0_be_log_store_cfg {
 	 * configuration. m0_be_log_store can (and should) use stobs with
 	 * direct I/O enabled, but m0_be_seg can't use such stobs.
 	 */
-	char             *lsc_stob_domain_location;
+	const char       *lsc_stob_domain_location;
 	/**
 	 * 2nd parameter for m0_stob_domain_init() and m0_stob_domain_create().
 	 */

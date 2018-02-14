@@ -84,11 +84,64 @@ struct m0_be_pd_cfg {
 	unsigned long                 bpc_pages_per_io;
 	unsigned long                 bpc_seg_nr_max;
 	struct m0_be_pd_io_sched_cfg  bpc_io_sched_cfg;
+
+	/** Stob domain location. Stobs for segments are in this domain. */
+	const char                   *bpc_stob_domain_location;
+	/**
+	 * str_cfg_init parameter for m0_stob_domain_init() (in normal mode)
+	 * and m0_stob_domain_create() (in mkfs mode).
+	 */
+	const char                   *bpc_stob_domain_cfg_init;
+
+	/*
+	 * Next fields are for mkfs mode only.
+	 * They are completely ignored in normal mode.
+	 */
+
+	/** str_cfg_create parameter for m0_stob_domain_create(). */
+	const char                  *bpc_stob_domain_cfg_create;
+	/**
+	 * Stob domain key for BE stobs. Stob domain with this key is
+	 * created at m0_be_domain_cfg::bc_stob_domain_location.
+	 */
+	uint64_t                     bpc_stob_domain_key;
 };
 
 M0_INTERNAL int m0_be_pd_init(struct m0_be_pd           *pd,
                               const struct m0_be_pd_cfg *pd_cfg);
 M0_INTERNAL void m0_be_pd_fini(struct m0_be_pd *pd);
+
+
+/* Segments */
+
+struct m0_be_domain;
+struct m0_be_seg;
+struct m0_be_0type_seg_cfg;
+
+M0_INTERNAL int m0_be_pd_seg_create(struct m0_be_pd                  *pd,
+				    /* m0_be_seg_init() requires be domain */
+				    struct m0_be_domain              *dom,
+				    const struct m0_be_0type_seg_cfg *seg_cfg);
+M0_INTERNAL int m0_be_pd_seg_open(struct m0_be_pd     *pd,
+				  struct m0_be_seg    *seg,
+				  /* m0_be_seg_init() requires be domain */
+				  struct m0_be_domain *dom,
+				  uint64_t             stob_key);
+M0_INTERNAL void m0_be_pd_seg_close(struct m0_be_pd  *pd,
+				    struct m0_be_seg *seg);
+M0_INTERNAL int m0_be_pd_seg_destroy(struct m0_be_pd     *pd,
+				     struct m0_be_domain *dom,
+				     uint64_t             seg_id);
+M0_INTERNAL struct m0_be_seg *m0_be_pd_seg_by_addr(const struct m0_be_pd *pd,
+						   const void            *addr);
+M0_INTERNAL struct m0_be_seg *m0_be_pd_seg_by_id(const struct m0_be_pd *pd,
+						 uint64_t               id);
+M0_INTERNAL struct m0_be_seg *m0_be_pd_seg_first(const struct m0_be_pd *pd);
+M0_INTERNAL struct m0_be_seg *m0_be_pd_seg_next(const struct m0_be_pd  *pd,
+						const struct m0_be_seg *seg);
+M0_INTERNAL bool m0_be_pd_is_stob_seg(const struct m0_be_pd   *pd,
+                                      const struct m0_stob_id *stob_id);
+
 
 /**
  * @verbatim
@@ -620,6 +673,9 @@ struct m0_be_pd {
 	struct m0_be_pd_io_sched       bp_io_sched;
 	struct m0_tl                   bp_mappings;
 	struct m0_reqh_service        *bp_fom_service;
+
+	struct m0_tl                   bp_segs;
+	struct m0_stob_domain         *bp_segs_sdom;
 
 	/**
 	 * NOTE: This queue may contain several subqueues, for example, for read

@@ -132,8 +132,7 @@ M0_INTERNAL void m0_ut_rpc_mach_fini(struct m0_ut_rpc_mach_ctx *ctx)
 
 	m0_be_ut_seg_fini(&ctx->rmc_ut_seg);
 	m0_be_ut_backend_fini(&ctx->rmc_ut_be);
-	m0_be_domain_cleanup_by_location(
-		 ctx->rmc_ut_be.but_stob_domain_location);
+	m0_be_domain_log_cleanup(&ctx->rmc_ut_be.but_dom);
 	m0_free(ctx->rmc_ut_be.but_stob_domain_location);
 	m0_reqh_post_storage_fini_svcs_stop(&ctx->rmc_reqh);
 	m0_rpc_machine_fini(&ctx->rmc_rpc);

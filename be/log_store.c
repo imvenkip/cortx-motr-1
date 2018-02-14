@@ -280,7 +280,7 @@ static int be_log_store_level_enter(struct m0_module *module)
 		 * is implemented, see the explanation in
 		 * be_domain_level_enter()::M0_BE_DOMAIN_LEVEL_LOG_CONFIGURE.
 		 *
-		 * XXX TODO remote this after paged is implemented.
+		 * XXX TODO remove this after paged is implemented.
 		 */
 		/* temporary solution BEGIN */
 		stob_id->si_domain_fid =

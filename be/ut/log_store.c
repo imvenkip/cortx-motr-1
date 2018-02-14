@@ -401,7 +401,7 @@ void m0_be_ut_log_store_create_random(void)
 
 	/* temporary solution BEGIN */
 	for (i = 0; i < ARRAY_SIZE(ls_cfg); ++i)
-		m0_free(ls_cfg[i].lsc_stob_domain_location);
+		m0_free((char *)ls_cfg[i].lsc_stob_domain_location);
 	/* temporary solution END */
 
 	be_ut_log_store_stob_domain_fini(sdom);
