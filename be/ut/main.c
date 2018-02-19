@@ -195,7 +195,7 @@ struct m0_ut_suite be_ut = {
 // XXX PD	{ "seg-multiple",            m0_be_ut_seg_multiple            },
 		{ "seg-large",               m0_be_ut_seg_large               },
 		// { "seg-large-multiple",      m0_be_ut_seg_large_multiple      },
-// XXX PD	{ "group_format",            m0_be_ut_group_format            },
+		// { "group_format",            m0_be_ut_group_format            },
 		{ "mkfs",                    m0_be_ut_mkfs                    },
 // XXX SEGS		{ "mkfs-multiseg",           m0_be_ut_mkfs_multiseg           },
 		{ "domain",                  m0_be_ut_domain                  },

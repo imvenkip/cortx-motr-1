@@ -53,6 +53,7 @@ struct be_ut_tgf_group {
 	struct be_ut_tgf_tx          *tgfg_txs;
 	int                           tgfg_reg_nr;
 	struct be_ut_tgf_reg         *tgfg_regs;
+	struct m0_be_reg_area         tgfg_area;
 };
 
 struct be_ut_tgf_ctx {
@@ -232,6 +233,11 @@ static void be_ut_tgf_buf_init(struct be_ut_tgf_ctx   *ctx,
 		ra_size_max       += reg->tgfr_size;
 		be_ut_tgf_rnd_fill(reg->tgfr_buf, reg->tgfr_size);
 	}
+	rc = m0_be_reg_area_init(&group->tgfg_area,
+				 &M0_BE_TX_CREDIT(group->tgfg_reg_nr,
+				                  ra_size_max),
+				 M0_BE_REG_AREA_DATA_NOCOPY);
+	M0_UT_ASSERT(rc == 0);
 	group->tgfg_cfg = (struct m0_be_group_format_cfg) {
 		.gfc_fmt_cfg = {
 			.fgc_tx_nr_max         = group->tgfg_tx_nr,
@@ -268,6 +274,7 @@ static void be_ut_tgf_buf_fini(struct be_ut_tgf_ctx   *ctx,
 {
 	int i;
 
+	m0_be_reg_area_fini(&group->tgfg_area);
 	for (i = 0; i < group->tgfg_tx_nr; ++i) {
 		m0_buf_free(&group->tgfg_txs[i].tgft_payload);
 	}
@@ -323,6 +330,7 @@ static void be_ut_tgf_group_write(struct be_ut_tgf_ctx   *ctx,
 	m0_mutex_unlock(&ctx->tgfc_lock);
 
 	m0_be_group_format_reset(gft);
+	m0_be_reg_area_reset(&group->tgfg_area);
 	M0_BE_OP_SYNC(op, m0_be_group_format_prepare(gft, &op));
 	for (i = 0; i < group->tgfg_tx_nr; ++i) {
 		tx  = &group->tgfg_txs[i];
@@ -335,7 +343,8 @@ static void be_ut_tgf_group_write(struct be_ut_tgf_ctx   *ctx,
 					     reg->tgfr_seg_addr),
 				   reg->tgfr_buf);
 		m0_be_group_format_reg_log_add(gft, &regd);
-		m0_be_group_format_reg_seg_add(gft, &regd);
+		m0_be_reg_area_capture(&group->tgfg_area, &regd);
+		// XXX PD m0_be_group_format_reg_seg_add(gft, &regd);
 	}
 	info = m0_be_group_format_group_info(gft);
 	info->gi_unknown = BE_UT_TGF_MAGIC;
@@ -354,7 +363,7 @@ static void be_ut_tgf_group_write(struct be_ut_tgf_ctx   *ctx,
 	m0_mutex_unlock(&ctx->tgfc_lock);
 
 	if (seg_write) {
-		m0_be_group_format_seg_place_prepare(gft, NULL);
+		m0_be_group_format_seg_place_prepare(gft, &group->tgfg_area);
 		rc = M0_BE_OP_SYNC_RET(op,
 				       m0_be_group_format_seg_place(gft, &op),
 				       bo_sm.sm_rc);
@@ -404,6 +413,7 @@ static void be_ut_tgf_group_read_check(struct be_ut_tgf_ctx   *ctx,
 				    tx->tgft_payload.b_addr,
 				    tx->tgft_payload_size) == 0);
 	}
+	m0_be_reg_area_reset(&group->tgfg_area);
 	nr = m0_be_group_format_reg_nr(gft);
 	M0_UT_ASSERT(nr == group->tgfg_reg_nr);
 	for (i = 0; i < nr; ++i) {
@@ -414,6 +424,7 @@ static void be_ut_tgf_group_read_check(struct be_ut_tgf_ctx   *ctx,
 		M0_UT_ASSERT(regd.rd_reg.br_addr == reg->tgfr_seg_addr);
 		M0_UT_ASSERT(memcmp(regd.rd_buf, reg->tgfr_buf,
 				    reg->tgfr_size) == 0);
+		m0_be_reg_area_capture(&group->tgfg_area, &regd);
 	}
 
 	m0_mutex_lock(&ctx->tgfc_lock);
@@ -435,7 +446,7 @@ static void be_ut_tgf_group_read_check(struct be_ut_tgf_ctx   *ctx,
 					    reg->tgfr_size) == 0);
 		}
 	}
-	m0_be_group_format_seg_place_prepare(gft, NULL);
+	m0_be_group_format_seg_place_prepare(gft, &group->tgfg_area);
 	rc = M0_BE_OP_SYNC_RET(op,
 	                       m0_be_group_format_seg_place(gft, &op),
 	                       bo_sm.sm_rc);
@@ -462,6 +473,7 @@ static void be_ut_tgf_test(int group_nr, struct be_ut_tgf_group *groups)
 	struct m0_be_domain_cfg       *bd_cfg;
 	struct m0_be_group_format_cfg  gfc_cfg;
 	struct be_ut_tgf_ctx           ctx;
+	struct m0_reqh                *reqh;
 	int                            rc;
 	int                            i;
 
@@ -499,9 +511,11 @@ static void be_ut_tgf_test(int group_nr, struct be_ut_tgf_group *groups)
 	m0_be_ut_backend_cfg_default(bd_cfg);
 	ctx.tgfc_pd_cfg = bd_cfg->bc_pd_cfg;
 	m0_free(bd_cfg);
+	m0_be_ut_reqh_create(&reqh);
 	ctx.tgfc_pd_cfg.bpc_io_sched_cfg.bpdc_seg_io_nr = group_nr;
 	ctx.tgfc_pd_cfg.bpc_pages_per_io = BE_UT_TGF_PAGES_PER_IO;
 	ctx.tgfc_pd_cfg.bpc_seg_nr_max   = gfc_cfg.gfc_fmt_cfg.fgc_seg_nr_max;
+	ctx.tgfc_pd_cfg.bpc_reqh         = reqh;
 	rc = m0_be_pd_init(&ctx.tgfc_pd, &ctx.tgfc_pd_cfg);
 	M0_UT_ASSERT(rc == 0);
 
@@ -554,6 +568,7 @@ static void be_ut_tgf_test(int group_nr, struct be_ut_tgf_group *groups)
 	be_ut_tgf_seg_fini(&ctx, false);
 	be_ut_tgf_log_fini(&ctx);
 	m0_be_pd_fini(&ctx.tgfc_pd);
+	m0_be_ut_reqh_destroy();
 }
 
 static struct be_ut_tgf_tx be_ut_tgf_txs0[] = {

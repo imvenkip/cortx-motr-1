@@ -508,6 +508,7 @@ static int pd_fom_tick(struct m0_fom *fom)
 	unsigned                       pio_nr;
 	unsigned                       pio_nr_max = cfg->bpc_pages_per_io;
 	struct m0_be_pd_page          *current_iterated_in_write_case; /* XXX */
+	struct m0_be_seg              *seg;
 	unsigned                       pages_nr;
 	int rc;
 	int rc1;
@@ -584,6 +585,10 @@ static int pd_fom_tick(struct m0_fom *fom)
 				M0_ASSERT(rc1 == 0);
 			}
 			if (page->pp_state == M0_PPS_MAPPED) {
+				seg = rd->rd_reg.br_seg;
+				/* recovery case */
+				if (seg == NULL)
+					seg = NULL; /* XXX get the segment */
 				m0_be_io_add(m0_be_pd_io_be_io(pio),
 					     rd->rd_reg.br_seg->bs_stob,
 			     /* XXX: here should be cellar page, still for the
