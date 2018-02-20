@@ -253,6 +253,8 @@ id_m0_globals:
     contents:
       - [0,0,0,0,1]
       - [0,0,0,0,2]
+id_pools: []
+id_profiles: []
 EOF
 }
 
