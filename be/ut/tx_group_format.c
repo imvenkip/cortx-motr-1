@@ -18,6 +18,9 @@
  * Original creation date: 4-Jul-2013
  */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_UT
+#include "lib/trace.h"
+
 #include <string.h>
 
 #include "be/tx_group_format.h"
@@ -64,11 +67,11 @@ struct be_ut_tgf_ctx {
 	struct m0_be_pd               tgfc_pd;
 	struct m0_be_pd_cfg           tgfc_pd_cfg;
 	struct m0_stob_domain        *tgfc_sdom;
-	struct m0_stob               *tgfc_seg_stob;
 	struct m0_be_seg              tgfc_seg;
 	void                         *tgfc_seg_addr;
 	int                           tgfc_group_nr;
 	struct be_ut_tgf_group       *tgfc_groups;
+	uint64_t                      tgfc_stob_key;
 };
 
 /* TODO move initialisation of log to be ut helper */
@@ -82,6 +85,7 @@ enum {
 	BE_UT_TGF_LOG_RBUF_NR         = 8,
 
 	BE_UT_TGF_SEG_NR_MAX          = 256,
+	BE_UT_TGF_SEG_STOB_KEY        = 0x42,
 
 	BE_UT_TGF_PAGES_PER_IO        = 0x20,
 
@@ -169,17 +173,18 @@ static void be_ut_tgf_seg_init(struct be_ut_tgf_ctx *ctx, bool use_existing)
 	struct m0_be_seg *seg = &ctx->tgfc_seg;
 	int               rc;
 
-	if (!use_existing)
-		ctx->tgfc_seg_stob = m0_ut_stob_linux_get();
-	M0_UT_ASSERT(ctx->tgfc_seg_stob != NULL);
-	m0_be_seg_init(seg, ctx->tgfc_seg_stob, NULL, &ctx->tgfc_pd,
-		       M0_BE_SEG_FAKE_ID);
 	if (!use_existing) {
-		rc = m0_be_seg_create(seg, BE_UT_TGF_SEG_SIZE,
-		                      (void *)BE_UT_TGF_SEG_ADDR);
+		rc = m0_be_pd_seg_create(&ctx->tgfc_pd, NULL,
+		                         &(struct m0_be_0type_seg_cfg){
+		                         .bsc_stob_key = ctx->tgfc_stob_key,
+		                         .bsc_preallocate = true,
+		                         .bsc_size = BE_UT_TGF_SEG_SIZE,
+		                         .bsc_addr = (void *)BE_UT_TGF_SEG_ADDR,
+		                         .bsc_stob_create_cfg = NULL,
+					 });
+		M0_UT_ASSERT(rc == 0);
 	}
-	M0_UT_ASSERT(rc == 0);
-	rc = m0_be_seg_open(seg);
+	rc = m0_be_pd_seg_open(&ctx->tgfc_pd, seg, NULL, ctx->tgfc_stob_key);
 	M0_UT_ASSERT(rc == 0);
 	ctx->tgfc_seg_addr = (char*)seg->bs_addr + seg->bs_reserved;
 }
@@ -188,14 +193,12 @@ static void be_ut_tgf_seg_fini(struct be_ut_tgf_ctx *ctx, bool use_existing)
 {
 	int rc;
 
-	m0_be_seg_close(&ctx->tgfc_seg);
+	m0_be_pd_seg_close(&ctx->tgfc_pd, &ctx->tgfc_seg);
 	if (!use_existing) {
-		rc = m0_be_seg_destroy(&ctx->tgfc_seg);
+		rc = m0_be_pd_seg_destroy(&ctx->tgfc_pd, NULL,
+					  ctx->tgfc_stob_key);
 		M0_UT_ASSERT(rc == 0);
 	}
-	m0_be_seg_fini(&ctx->tgfc_seg);
-	if (!use_existing)
-		m0_ut_stob_put(ctx->tgfc_seg_stob, true);
 }
 
 static void be_ut_tgf_rnd_fill(void *buf, size_t size)
@@ -344,7 +347,6 @@ static void be_ut_tgf_group_write(struct be_ut_tgf_ctx   *ctx,
 				   reg->tgfr_buf);
 		m0_be_group_format_reg_log_add(gft, &regd);
 		m0_be_reg_area_capture(&group->tgfg_area, &regd);
-		// XXX PD m0_be_group_format_reg_seg_add(gft, &regd);
 	}
 	info = m0_be_group_format_group_info(gft);
 	info->gi_unknown = BE_UT_TGF_MAGIC;
@@ -432,13 +434,10 @@ static void be_ut_tgf_group_read_check(struct be_ut_tgf_ctx   *ctx,
 	m0_mutex_unlock(&ctx->tgfc_lock);
 
 	if (seg_check) {
-		m0_be_seg_close(&ctx->tgfc_seg);
-		m0_be_seg_fini(&ctx->tgfc_seg);
+		m0_be_pd_seg_close(&ctx->tgfc_pd, &ctx->tgfc_seg);
 		M0_SET0(&ctx->tgfc_seg);
-		m0_be_seg_init(&ctx->tgfc_seg, ctx->tgfc_seg_stob, NULL,
-			       &ctx->tgfc_pd, M0_BE_SEG_FAKE_ID);
-		rc = m0_be_seg_open(&ctx->tgfc_seg);
-		M0_UT_ASSERT(rc == 0);
+		m0_be_pd_seg_open(&ctx->tgfc_pd, &ctx->tgfc_seg, NULL,
+		                  ctx->tgfc_stob_key);
 		nr = m0_be_group_format_reg_nr(gft);
 		for (i = 0; i < nr; ++i) {
 			reg = &group->tgfg_regs[i];
@@ -473,7 +472,7 @@ static void be_ut_tgf_test(int group_nr, struct be_ut_tgf_group *groups)
 	struct m0_be_domain_cfg       *bd_cfg;
 	struct m0_be_group_format_cfg  gfc_cfg;
 	struct be_ut_tgf_ctx           ctx;
-	struct m0_reqh                *reqh;
+	struct m0_reqh                *reqh = NULL;
 	int                            rc;
 	int                            i;
 
@@ -518,6 +517,7 @@ static void be_ut_tgf_test(int group_nr, struct be_ut_tgf_group *groups)
 	ctx.tgfc_pd_cfg.bpc_reqh         = reqh;
 	rc = m0_be_pd_init(&ctx.tgfc_pd, &ctx.tgfc_pd_cfg);
 	M0_UT_ASSERT(rc == 0);
+	ctx.tgfc_stob_key = BE_UT_TGF_SEG_STOB_KEY;
 
 	be_ut_tgf_log_init(&ctx);
 	be_ut_tgf_seg_init(&ctx, false);
@@ -623,6 +623,8 @@ void m0_be_ut_group_format(void)
 {
 	be_ut_tgf_test(ARRAY_SIZE(be_ut_tgf_groups), be_ut_tgf_groups);
 }
+
+#undef M0_TRACE_SUBSYSTEM
 
 /*
  *  Local variables:
