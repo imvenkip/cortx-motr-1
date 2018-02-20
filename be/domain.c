@@ -389,6 +389,9 @@ M0_INTERNAL struct m0_be_log *m0_be_domain_log(struct m0_be_domain *dom)
 	return &m0_be_domain_engine(dom)->eng_log;
 }
 
+/* XXX TODO make filter for functions returning segments, return only segments
+ * that were inited by domain (alloc, seg_dict) */
+
 M0_INTERNAL struct m0_be_seg *m0_be_domain_seg(const struct m0_be_domain *dom,
 					       const void                *addr)
 {

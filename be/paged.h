@@ -140,7 +140,12 @@ M0_INTERNAL struct m0_be_seg *m0_be_pd_seg_by_id(const struct m0_be_pd *pd,
 
 /* XXX Make a precondition that pd is locked? Or lock it inside the functions
  * and rely on fact, that new segments are added to the tail and first/next
- * will work properly? */
+ * will work properly?
+ * ---
+ * For example, lock inside the fucntions and make interface, when something
+ * lile -EAGAIN is returned and user has to start iteration from the start.
+ * A segment may be removed during iteration process.
+ */
 M0_INTERNAL struct m0_be_seg *m0_be_pd_seg_first(const struct m0_be_pd *pd);
 M0_INTERNAL struct m0_be_seg *m0_be_pd_seg_next(const struct m0_be_pd  *pd,
 						const struct m0_be_seg *seg);

@@ -250,6 +250,8 @@ static int be_log_store_level_enter(struct m0_module *module)
 		return 0;
 	case M0_BE_LOG_STORE_LEVEL_STOB_DOMAIN:
 		if (ls->ls_create_mode) {
+			/* XXX TODO use destroy_by_location() because init()
+			 * may fail when domain created partially */
 			/* Destroy stob domain if exists. */
 			rc = m0_stob_domain_init(
 					ls->ls_cfg.lsc_stob_domain_location,
