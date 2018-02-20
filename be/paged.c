@@ -306,7 +306,7 @@ M0_INTERNAL int m0_be_pd_seg_create(struct m0_be_pd                  *pd,
 	return M0_RC(rc);
 }
 
-/* XXX TODO protect pd->bp_segs with a lock in the next functions */
+/* XXX TODO protect pd->bp_segs with a lock in the following functions */
 
 M0_INTERNAL int m0_be_pd_seg_open(struct m0_be_pd     *pd,
 				  struct m0_be_seg    *seg,
@@ -387,8 +387,7 @@ M0_INTERNAL struct m0_be_seg *m0_be_pd_seg_by_id(const struct m0_be_pd *pd,
 
 M0_INTERNAL struct m0_be_seg *m0_be_pd_seg_first(const struct m0_be_pd *pd)
 {
-	/* XXX Why should we treat id == 0 in this way? */
-	return m0_tl_find(seg, seg, &pd->bp_segs, seg->bs_id != 0);
+	return seg_tlist_head(&pd->bp_segs);
 }
 
 M0_INTERNAL struct m0_be_seg *m0_be_pd_seg_next(const struct m0_be_pd  *pd,
@@ -397,7 +396,6 @@ M0_INTERNAL struct m0_be_seg *m0_be_pd_seg_next(const struct m0_be_pd  *pd,
 	return seg_tlist_next(&pd->bp_segs, seg);
 }
 
-/* XXX What purpose of this interface? */
 M0_INTERNAL bool m0_be_pd_is_stob_seg(const struct m0_be_pd   *pd,
                                       const struct m0_stob_id *stob_id)
 {

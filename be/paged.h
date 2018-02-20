@@ -119,12 +119,12 @@ struct m0_be_seg;
 struct m0_be_0type_seg_cfg;
 
 M0_INTERNAL int m0_be_pd_seg_create(struct m0_be_pd                  *pd,
-				    /* m0_be_seg_init() requires be domain */
+				    /* m0_be_seg_init() requires BE domain */
 				    struct m0_be_domain              *dom,
 				    const struct m0_be_0type_seg_cfg *seg_cfg);
 M0_INTERNAL int m0_be_pd_seg_open(struct m0_be_pd     *pd,
 				  struct m0_be_seg    *seg,
-				  /* m0_be_seg_init() requires be domain */
+				  /* m0_be_seg_init() requires BE domain */
 				  struct m0_be_domain *dom,
 				  uint64_t             stob_key);
 M0_INTERNAL void m0_be_pd_seg_close(struct m0_be_pd  *pd,
@@ -132,13 +132,24 @@ M0_INTERNAL void m0_be_pd_seg_close(struct m0_be_pd  *pd,
 M0_INTERNAL int m0_be_pd_seg_destroy(struct m0_be_pd     *pd,
 				     struct m0_be_domain *dom,
 				     uint64_t             seg_id);
+
 M0_INTERNAL struct m0_be_seg *m0_be_pd_seg_by_addr(const struct m0_be_pd *pd,
 						   const void            *addr);
 M0_INTERNAL struct m0_be_seg *m0_be_pd_seg_by_id(const struct m0_be_pd *pd,
 						 uint64_t               id);
+
+/* XXX Make a precondition that pd is locked? Or lock it inside the functions
+ * and rely on fact, that new segments are added to the tail and first/next
+ * will work properly? */
 M0_INTERNAL struct m0_be_seg *m0_be_pd_seg_first(const struct m0_be_pd *pd);
 M0_INTERNAL struct m0_be_seg *m0_be_pd_seg_next(const struct m0_be_pd  *pd,
 						const struct m0_be_seg *seg);
+
+/**
+ * Returns true if stob with given stob_id is underlying stob of a BE segment.
+ *
+ * @see MERO-1402
+ */
 M0_INTERNAL bool m0_be_pd_is_stob_seg(const struct m0_be_pd   *pd,
                                       const struct m0_stob_id *stob_id);
 
