@@ -587,15 +587,17 @@ static int pd_fom_tick(struct m0_fom *fom)
 			if (page->pp_state == M0_PPS_MAPPED) {
 				seg = rd->rd_reg.br_seg;
 				/* recovery case */
-				if (seg == NULL)
-					seg = NULL; /* XXX get the segment */
+				if (seg == NULL) {
+					seg = m0_be_pd_seg_by_addr(paged,
+						   rd->rd_reg.br_addr);
+				}
 				m0_be_io_add(m0_be_pd_io_be_io(pio),
-					     rd->rd_reg.br_seg->bs_stob,
+					     seg->bs_stob,
 			     /* XXX: here should be cellar page, still for the
 			      * sake of debugging I've chaneged this place */
 					     /* page->pp_cellar, */
 					     page->pp_page,
-					     m0_be_seg_offset(rd->rd_reg.br_seg,
+					     m0_be_seg_offset(seg,
 							      page->pp_page),
 					     page->pp_size);
 				page->pp_state = M0_PPS_READING;
@@ -675,8 +677,11 @@ static int pd_fom_tick(struct m0_fom *fom)
 
 			M0_ASSERT(page->pp_state == M0_PPS_READY);
 			page->pp_state = M0_PPS_WRITING;
+			seg = m0_be_pd_seg_by_addr(paged, rd->rd_reg.br_addr);
+			/* XXX recovery case */
 			/* XXX: see m0_be_pd_page::pp_seg comment */
-			page->pp_seg = rd->rd_reg.br_seg;
+			page->pp_seg = rd->rd_reg.br_seg == NULL ?
+				       seg : rd->rd_reg.br_seg;
 
 			m0_be_pd_page_unlock(page);
 
