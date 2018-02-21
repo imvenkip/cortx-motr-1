@@ -175,28 +175,27 @@ M0_INTERNAL bool m0_be_domain_is_locked(const struct m0_be_domain *dom);
 /**
  * Returns existing BE segment if @addr is inside it. Returns NULL otherwise.
  */
-M0_INTERNAL struct m0_be_seg *m0_be_domain_seg(const struct m0_be_domain *dom,
-					       const void                *addr);
+M0_INTERNAL struct m0_be_seg *m0_be_domain_seg(struct m0_be_domain *dom,
+					       const void          *addr);
 /**
  * Returns existing BE segment by its @id. If no segments found returns NULL.
  */
-M0_INTERNAL struct m0_be_seg *
-m0_be_domain_seg_by_id(const struct m0_be_domain *dom, uint64_t id);
+M0_INTERNAL struct m0_be_seg *m0_be_domain_seg_by_id(struct m0_be_domain *dom,
+						     uint64_t             id);
 
 /**
  * Returns first BE segment ignoring seg0. Returns NULL if no segments exist
  * other than seg0.
  */
-M0_INTERNAL struct m0_be_seg *
-m0_be_domain_seg_first(const struct m0_be_domain *dom);
+M0_INTERNAL struct m0_be_seg *m0_be_domain_seg_first(struct m0_be_domain *dom);
 
 /**
  * Returns next BE segment ignoring seg0 or NULL if such a segment doesn't
  * exist.
  */
 M0_INTERNAL struct m0_be_seg *
-m0_be_domain_seg_next(const struct m0_be_domain *dom,
-		      const struct m0_be_seg    *seg);
+m0_be_domain_seg_next(struct m0_be_domain    *dom,
+		      const struct m0_be_seg *seg);
 
 M0_INTERNAL void
 m0_be_domain_seg_create_credit(struct m0_be_domain              *dom,

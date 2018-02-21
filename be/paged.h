@@ -133,10 +133,10 @@ M0_INTERNAL int m0_be_pd_seg_destroy(struct m0_be_pd     *pd,
 				     struct m0_be_domain *dom,
 				     uint64_t             seg_id);
 
-M0_INTERNAL struct m0_be_seg *m0_be_pd_seg_by_addr(const struct m0_be_pd *pd,
-						   const void            *addr);
-M0_INTERNAL struct m0_be_seg *m0_be_pd_seg_by_id(const struct m0_be_pd *pd,
-						 uint64_t               id);
+M0_INTERNAL struct m0_be_seg *m0_be_pd_seg_by_addr(struct m0_be_pd *pd,
+						   const void      *addr);
+M0_INTERNAL struct m0_be_seg *m0_be_pd_seg_by_id(struct m0_be_pd *pd,
+						 uint64_t         id);
 
 /* XXX Make a precondition that pd is locked? Or lock it inside the functions
  * and rely on fact, that new segments are added to the tail and first/next
@@ -146,8 +146,8 @@ M0_INTERNAL struct m0_be_seg *m0_be_pd_seg_by_id(const struct m0_be_pd *pd,
  * lile -EAGAIN is returned and user has to start iteration from the start.
  * A segment may be removed during iteration process.
  */
-M0_INTERNAL struct m0_be_seg *m0_be_pd_seg_first(const struct m0_be_pd *pd);
-M0_INTERNAL struct m0_be_seg *m0_be_pd_seg_next(const struct m0_be_pd  *pd,
+M0_INTERNAL struct m0_be_seg *m0_be_pd_seg_first(struct m0_be_pd *pd);
+M0_INTERNAL struct m0_be_seg *m0_be_pd_seg_next(struct m0_be_pd        *pd,
 						const struct m0_be_seg *seg);
 
 /**
@@ -155,7 +155,7 @@ M0_INTERNAL struct m0_be_seg *m0_be_pd_seg_next(const struct m0_be_pd  *pd,
  *
  * @see MERO-1402
  */
-M0_INTERNAL bool m0_be_pd_is_stob_seg(const struct m0_be_pd   *pd,
+M0_INTERNAL bool m0_be_pd_is_stob_seg(struct m0_be_pd         *pd,
                                       const struct m0_stob_id *stob_id);
 
 
@@ -365,7 +365,7 @@ M0_INTERNAL struct m0_be_pd_mapping *
 m0_be_pd__mapping_by_addr(struct m0_be_pd *paged, const void *addr);
 
 M0_INTERNAL struct m0_be_seg *
-m0_be_pd__page_to_seg(const struct m0_be_pd *paged,
+m0_be_pd__page_to_seg(struct m0_be_pd            *paged,
 		      const struct m0_be_pd_page *page);
 
 /* ------------------------------------------------------------------------- */
@@ -681,9 +681,11 @@ struct m0_be_pd {
 	struct m0_be_pd_cfg            bp_cfg;
 	struct m0_module               bp_module;
 	struct m0_be_pd_io_sched       bp_io_sched;
-	struct m0_tl                   bp_mappings;
 	struct m0_reqh_service        *bp_fom_service;
-
+	struct m0_mutex                bp_lock;
+	/** Protected by bp_lock. */
+	struct m0_tl                   bp_mappings;
+	/** Protected by bp_lock. */
 	struct m0_tl                   bp_segs;
 	struct m0_stob_domain         *bp_segs_sdom;
 

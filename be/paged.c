@@ -98,6 +98,7 @@ static int be_pd_level_enter(struct m0_module *module)
 
 	switch (level) {
 	case M0_BE_PD_LEVEL_INIT:
+		m0_mutex_init(&pd->bp_lock);
 		seg_tlist_init(&pd->bp_segs);
 		mappings_tlist_init(&pd->bp_mappings);
 		return M0_RC(0);
@@ -140,6 +141,7 @@ static void be_pd_level_leave(struct m0_module *module)
 	case M0_BE_PD_LEVEL_INIT:
 		mappings_tlist_fini(&pd->bp_mappings);
 		seg_tlist_fini(&pd->bp_segs);
+		m0_mutex_fini(&pd->bp_lock);
 		return;
 	case M0_BE_PD_LEVEL_SDOM:
 		m0_stob_domain_fini(pd->bp_segs_sdom);
@@ -239,6 +241,21 @@ M0_INTERNAL void m0_be_pd_reg_put(struct m0_be_pd        *paged,
 	/* XXX: decrement ref counting */
 }
 
+static void be_pd_lock(struct m0_be_pd *paged)
+{
+	m0_mutex_lock(&paged->bp_lock);
+}
+
+static void be_pd_unlock(struct m0_be_pd *paged)
+{
+	m0_mutex_unlock(&paged->bp_lock);
+}
+
+static bool be_pd_is_locked(struct m0_be_pd *paged)
+{
+	return m0_mutex_is_locked(&paged->bp_lock);
+}
+
 /* -------------------------------------------------------------------------- */
 /* Segments							              */
 /* -------------------------------------------------------------------------- */
@@ -323,7 +340,9 @@ M0_INTERNAL int m0_be_pd_seg_open(struct m0_be_pd     *pd,
 		m0_stob_put(stob);
 		rc = m0_be_seg_open(seg);
 		if (rc == 0) {
+			be_pd_lock(pd);
 			seg_tlink_init_at_tail(seg, &pd->bp_segs);
+			be_pd_unlock(pd);
 		} else {
 			m0_be_seg_fini(seg);
 		}
@@ -337,7 +356,9 @@ static int be_pd_seg_close(struct m0_be_pd  *pd,
 {
 	int rc;
 
+	be_pd_lock(pd);
 	seg_tlink_del_fini(seg);
+	be_pd_unlock(pd);
 	m0_be_seg_close(seg);
 	rc = destroy ? m0_be_seg_destroy(seg) : 0;
 	m0_be_seg_fini(seg);
@@ -365,6 +386,7 @@ M0_INTERNAL int m0_be_pd_seg_destroy(struct m0_be_pd     *pd,
 	if (seg == NULL)
 		return M0_ERR(-ENOMEM);
 
+	/* TODO Implement without adding seg to the bp_segs list */
 	rc = m0_be_pd_seg_open(pd, seg, dom, seg_id);
 	rc = rc ?: be_pd_seg_close(pd, seg, true);
 	m0_free(seg);
@@ -372,35 +394,64 @@ M0_INTERNAL int m0_be_pd_seg_destroy(struct m0_be_pd     *pd,
 	return M0_RC(rc);
 }
 
-M0_INTERNAL struct m0_be_seg *m0_be_pd_seg_by_addr(const struct m0_be_pd *pd,
-						   const void            *addr)
+M0_INTERNAL struct m0_be_seg *m0_be_pd_seg_by_addr(struct m0_be_pd *pd,
+						   const void      *addr)
 {
-	return m0_tl_find(seg, seg, &pd->bp_segs,
-			  m0_be_seg_contains(seg, addr));
+	struct m0_be_seg *seg;
+
+	be_pd_lock(pd);
+	seg = m0_tl_find(seg, seg, &pd->bp_segs, m0_be_seg_contains(seg, addr));
+	be_pd_unlock(pd);
+
+	return seg;
 }
 
-M0_INTERNAL struct m0_be_seg *m0_be_pd_seg_by_id(const struct m0_be_pd *pd,
-						 uint64_t               id)
+M0_INTERNAL struct m0_be_seg *m0_be_pd_seg_by_id(struct m0_be_pd *pd,
+						 uint64_t         id)
 {
-	return m0_tl_find(seg, seg, &pd->bp_segs, seg->bs_id == id);
+	struct m0_be_seg *seg;
+
+	be_pd_lock(pd);
+	seg = m0_tl_find(seg, seg, &pd->bp_segs, seg->bs_id == id);
+	be_pd_unlock(pd);
+
+	return seg;
 }
 
-M0_INTERNAL struct m0_be_seg *m0_be_pd_seg_first(const struct m0_be_pd *pd)
+M0_INTERNAL struct m0_be_seg *m0_be_pd_seg_first(struct m0_be_pd *pd)
 {
-	return seg_tlist_head(&pd->bp_segs);
+	struct m0_be_seg *seg;
+
+	be_pd_lock(pd);
+	seg = seg_tlist_head(&pd->bp_segs);
+	be_pd_unlock(pd);
+
+	return seg;
 }
 
-M0_INTERNAL struct m0_be_seg *m0_be_pd_seg_next(const struct m0_be_pd  *pd,
+M0_INTERNAL struct m0_be_seg *m0_be_pd_seg_next(struct m0_be_pd        *pd,
 						const struct m0_be_seg *seg)
 {
-	return seg_tlist_next(&pd->bp_segs, seg);
+	struct m0_be_seg *next;
+
+	be_pd_lock(pd);
+	next = seg_tlist_next(&pd->bp_segs, seg);
+	be_pd_unlock(pd);
+
+	return next;
 }
 
-M0_INTERNAL bool m0_be_pd_is_stob_seg(const struct m0_be_pd   *pd,
+M0_INTERNAL bool m0_be_pd_is_stob_seg(struct m0_be_pd         *pd,
                                       const struct m0_stob_id *stob_id)
 {
-	return m0_tl_exists(seg, seg, &pd->bp_segs,
-			    m0_be_seg_contains_stob(seg, stob_id));
+	bool result;
+
+	be_pd_lock(pd);
+	result = m0_tl_exists(seg, seg, &pd->bp_segs,
+			      m0_be_seg_contains_stob(seg, stob_id));
+	be_pd_unlock(pd);
+
+	return result;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -1203,6 +1254,7 @@ M0_INTERNAL bool m0_be_prp_cursor_next(struct m0_be_prp_cursor *cursor)
 	const void       *start_addr = cursor->rpi_addr;
 	const void       *end_addr   = cursor->rpi_addr + cursor->rpi_size - 1;
 
+	/* XXX TODO protect bp_mappings with bp_lock */
 	if (cursor->rpi_mapping == NULL) {
 		m0_tl_for(mappings, &paged->bp_mappings, mapping) {
 			cursor->rpi_page =
@@ -1323,6 +1375,8 @@ static struct m0_be_pd_mapping *be_pd_mapping_find(struct m0_be_pd *paged,
 {
 	struct m0_be_pd_mapping *mapping;
 
+	M0_PRE(be_pd_is_locked(paged));
+
 	m0_tl_for(mappings, &paged->bp_mappings, mapping) {
 		if (m0_be_pd_mapping__addr(mapping) == addr &&
 		    m0_be_pd_mapping__size(mapping) == size)
@@ -1427,7 +1481,8 @@ M0_INTERNAL int m0_be_pd_mapping_init(struct m0_be_pd *paged,
 	m0_bcount_t              i;
 	int                      rc;
 
-	/* XXX paged must be locked here to protect mappings list */
+	/* XXX We can reduce critical section */
+	be_pd_lock(paged);
 
 	M0_PRE(size % page_size == 0);
 	M0_PRE(be_pd_mapping_find(paged, addr, size) == NULL);
@@ -1467,6 +1522,7 @@ M0_INTERNAL int m0_be_pd_mapping_init(struct m0_be_pd *paged,
 		m0_be_pd_page_unlock(&mapping->pas_pages[i]);
 	}
 
+	be_pd_unlock(paged);
 
 	return M0_RC(0);
 }
@@ -1479,10 +1535,13 @@ M0_INTERNAL int m0_be_pd_mapping_fini(struct m0_be_pd *paged,
 	m0_bcount_t              i;
 	int                      rc;
 
-	/* XXX paged must be locked here to protect mappings list */
+	be_pd_lock(paged);
 
 	mapping = be_pd_mapping_find(paged, addr, size);
 	M0_ASSERT(mapping != NULL);
+	mappings_tlist_del(mapping);
+
+	be_pd_unlock(paged);
 
 	/* XXX: delete this after page_get/put ready in code */
 	M0_ASSERT(mapping->pas_type == M0_BE_PD_MAPPING_COMPAT);
@@ -1494,7 +1553,6 @@ M0_INTERNAL int m0_be_pd_mapping_fini(struct m0_be_pd *paged,
 		m0_be_pd_page_unlock(&mapping->pas_pages[i]);
 	}
 
-	mappings_tlist_del(mapping);
 	rc = be_pd_mapping_unmap(mapping);
 	if (rc != 0)
 		return M0_RC(rc);
@@ -1664,6 +1722,8 @@ m0_be_pd__mapping_by_addr(struct m0_be_pd *paged, const void *addr)
 {
 	struct m0_be_pd_mapping *mapping;
 
+	be_pd_lock(paged);
+
 	m0_tl_for(mappings, &paged->bp_mappings, mapping) {
 		if (addr >= m0_be_pd_mapping__addr(mapping) &&
 		    addr <  m0_be_pd_mapping__addr(mapping) +
@@ -1671,11 +1731,13 @@ m0_be_pd__mapping_by_addr(struct m0_be_pd *paged, const void *addr)
 			return mapping;
 	} m0_tl_endfor;
 
+	be_pd_unlock(paged);
+
 	return NULL;
 }
 
 M0_INTERNAL struct m0_be_seg *
-m0_be_pd__page_to_seg(const struct m0_be_pd *paged,
+m0_be_pd__page_to_seg(struct m0_be_pd            *paged,
 		      const struct m0_be_pd_page *page)
 {
 	return m0_be_pd_seg_by_addr(paged, page->pp_page);

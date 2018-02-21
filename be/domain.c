@@ -392,14 +392,13 @@ M0_INTERNAL struct m0_be_log *m0_be_domain_log(struct m0_be_domain *dom)
 /* XXX TODO make filter for functions returning segments, return only segments
  * that were inited by domain (alloc, seg_dict) */
 
-M0_INTERNAL struct m0_be_seg *m0_be_domain_seg(const struct m0_be_domain *dom,
-					       const void                *addr)
+M0_INTERNAL struct m0_be_seg *m0_be_domain_seg(struct m0_be_domain *dom,
+					       const void          *addr)
 {
 	return m0_be_pd_seg_by_addr(&dom->bd_pd, addr);
 }
 
-M0_INTERNAL struct m0_be_seg *
-m0_be_domain_seg_first(const struct m0_be_domain *dom)
+M0_INTERNAL struct m0_be_seg *m0_be_domain_seg_first(struct m0_be_domain *dom)
 {
 	struct m0_be_seg *seg = m0_be_pd_seg_first(&dom->bd_pd);
 
@@ -410,8 +409,8 @@ m0_be_domain_seg_first(const struct m0_be_domain *dom)
 }
 
 M0_INTERNAL struct m0_be_seg *
-m0_be_domain_seg_next(const struct m0_be_domain *dom,
-		      const struct m0_be_seg    *seg)
+m0_be_domain_seg_next(struct m0_be_domain    *dom,
+		      const struct m0_be_seg *seg)
 {
 	struct m0_be_seg *next = m0_be_pd_seg_next(&dom->bd_pd, seg);
 
@@ -421,8 +420,8 @@ m0_be_domain_seg_next(const struct m0_be_domain *dom,
 	return next;
 }
 
-M0_INTERNAL struct m0_be_seg *
-m0_be_domain_seg_by_id(const struct m0_be_domain *dom, uint64_t id)
+M0_INTERNAL struct m0_be_seg *m0_be_domain_seg_by_id(struct m0_be_domain *dom,
+						     uint64_t             id)
 {
 	return m0_be_pd_seg_by_id(&dom->bd_pd, id);
 }
