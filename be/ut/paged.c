@@ -170,6 +170,7 @@ void m0_be_ut_pd_mapping_resident(void)
 
 enum {
 	BE_UT_PD_FOM_SEG_SIZE = 0x100000,
+	BE_UT_PD_FOM_STOB_KEY = 0xf0f11e,
 };
 
 void m0_be_ut_pd_fom(void)
@@ -178,7 +179,6 @@ void m0_be_ut_pd_fom(void)
 	struct m0_be_pd_cfg     *pd_cfg;
 	struct m0_be_pd          paged = {};
 	struct m0_be_seg         seg = {};
-	struct m0_stob          *stob;
 	struct m0_be_reg_area    reg_area;
 	int			 reg_area_nr = 2;		 /* XXX */
 	struct m0_ext            write_ext = { .e_end = 12288 }; /* XXX */
@@ -187,6 +187,7 @@ void m0_be_ut_pd_fom(void)
 	int                      rc;
 	int			 dummy = 0x12345678;
 
+	struct m0_be_0type_seg_cfg seg_cfg;
 
 	m0_be_ut_backend_cfg_default(&cfg);
 
@@ -204,14 +205,16 @@ void m0_be_ut_pd_fom(void)
 	rc = m0_be_pd_init(&paged, pd_cfg);
 	M0_UT_ASSERT(rc == 0);
 
-	stob = m0_ut_stob_linux_get();
-	m0_be_seg_init(&seg, stob, NULL, &paged, 42);
-	addr = m0_be_ut_seg_allocate_addr(BE_UT_PD_FOM_SEG_SIZE);
-	rc = m0_be_seg_create(&seg, BE_UT_PD_FOM_SEG_SIZE, addr);
+	addr    = m0_be_ut_seg_allocate_addr(BE_UT_PD_FOM_SEG_SIZE);
+	seg_cfg = (struct m0_be_0type_seg_cfg){
+		.bsc_stob_key        = BE_UT_PD_FOM_STOB_KEY,
+		.bsc_size            = BE_UT_PD_FOM_SEG_SIZE,
+		.bsc_addr            = addr,
+		.bsc_stob_create_cfg = NULL,
+	};
+	rc = m0_be_pd_seg_create(&paged, NULL, &seg_cfg);
 	M0_UT_ASSERT(rc == 0);
-
-
-	rc = m0_be_seg_open(&seg);
+	rc = m0_be_pd_seg_open(&paged, &seg, NULL, seg_cfg.bsc_stob_key);
 	M0_UT_ASSERT(rc == 0);
 
 	reg = M0_BE_REG(&seg, 1, addr);
@@ -238,13 +241,9 @@ void m0_be_ut_pd_fom(void)
 
 
 
-	m0_be_seg_close(&seg);
-	rc = m0_be_seg_destroy(&seg);
+	m0_be_pd_seg_close(&paged, &seg);
+	rc = m0_be_pd_seg_destroy(&paged, NULL, seg_cfg.bsc_stob_key);
 	M0_UT_ASSERT(rc == 0);
-
-	m0_be_seg_fini(&seg);
-
-	m0_ut_stob_put(stob, true);
 
 	m0_be_pd_fini(&paged);
 	m0_be_ut_reqh_destroy();

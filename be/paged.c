@@ -674,15 +674,8 @@ static int pd_fom_tick(struct m0_fom *fom)
 			current_iterated_in_write_case = page;
 
 			m0_be_pd_page_lock(page);
-
 			M0_ASSERT(page->pp_state == M0_PPS_READY);
 			page->pp_state = M0_PPS_WRITING;
-			seg = m0_be_pd_seg_by_addr(paged, rd->rd_reg.br_addr);
-			/* XXX recovery case */
-			/* XXX: see m0_be_pd_page::pp_seg comment */
-			page->pp_seg = rd->rd_reg.br_seg == NULL ?
-				       seg : rd->rd_reg.br_seg;
-
 			m0_be_pd_page_unlock(page);
 
 			pages_tlist_add_tail(pio_armed, page);
@@ -705,8 +698,6 @@ static int pd_fom_tick(struct m0_fom *fom)
 		pio = pd_fom->bpf_cur_pio;
 
 		for (pio_nr = 0; pio_nr < pio_nr_max; ++pio_nr) {
-			struct m0_be_seg *seg;
-
 			pio_page = pages_tlist_head(pio_armed);
 			if (pio_page == NULL)
 				break;
@@ -1687,8 +1678,7 @@ M0_INTERNAL struct m0_be_seg *
 m0_be_pd__page_to_seg(const struct m0_be_pd *paged,
 		      const struct m0_be_pd_page *page)
 {
-	/* XXX: see m0_be_pd_page::pp_seg comment */
-	return page->pp_seg;
+	return m0_be_pd_seg_by_addr(paged, page->pp_page);
 }
 
 #undef M0_TRACE_SUBSYSTEM

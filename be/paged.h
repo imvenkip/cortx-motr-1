@@ -268,12 +268,6 @@ struct m0_be_pd_page {
 	enum m0_be_pd_page_state pp_state;
 	struct m0_mutex          pp_lock;
 	struct m0_tlink          pp_pio_tlink;
-
-	/* XXX: remove this from here when mappings are intergrated into segs
-	   and m0_be_pd__page_to_seg() is fully functional
-	 */
-	struct m0_be_seg        *pp_seg;
-
 	uint64_t                 pp_magic;
 };
 
