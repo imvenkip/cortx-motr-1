@@ -1557,7 +1557,7 @@ M0_INTERNAL int m0_be_pd_mapping_page_attach(struct m0_be_pd_mapping *mapping,
 	case M0_BE_PD_MAPPING_COMPAT:
 		M0_LOG(M0_DEBUG, "Appempt to attach page %p in compat mode",
 				 page->pp_page);
-		rc = 0; /* XXX: WRONG or right??? */
+		rc = 0;
 		break;
 	default:
 		M0_IMPOSSIBLE("Mapping type doesn't exist.");
