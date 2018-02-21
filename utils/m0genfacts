@@ -360,6 +360,10 @@ end
 def build_disk_info(host, disk_path, index)
     debug "processing disk '#{disk_path}'"
 
+    # block devices that don't represent a real drive (e.g. file-backed loop
+    # devices) will have this field set to 'true'
+    is_fake = false
+
     size = $options[:devsize] ||
            run("blockdev --getsize64 #{disk_path} 2>/dev/null", host: host)
 
@@ -368,19 +372,21 @@ def build_disk_info(host, disk_path, index)
 
     serial = run("lsblk -ndo SERIAL #{disk_path} 2>/dev/null", host: host)
     if serial.to_s.strip.empty?
-        stob   = size.to_i.zero? ? 'STOBLNX' : 'STOBAD'
-        serial = stob + format('%03d', index)
+        is_fake = true
+        stob    = size.to_i.zero? ? 'STOBLNX' : 'STOBAD'
+        serial  = stob + format('%03d', index)
     end
 
     wwn = run("lsblk -ndo WWN #{disk_path} 2>/dev/null", host: host)
     wwn = '0x0000000' + format('%04d', index) if wwn.to_s.strip.empty?
 
     return {
-        'bay'    => index,
-        'path'   => disk_path,
-        'size'   => size,
-        'serial' => serial,
-        'wwn'    => wwn,
+        'bay'     => index,
+        'path'    => disk_path,
+        'size'    => size,
+        'serial'  => serial,
+        'wwn'     => wwn,
+        'is_fake' => is_fake,
     }
 end
 

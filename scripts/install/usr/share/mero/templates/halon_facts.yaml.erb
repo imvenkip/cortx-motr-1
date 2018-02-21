@@ -142,3 +142,19 @@ id_m0_globals:
       - [0,0,0,0,2]
       - [0,0,0,1,0]
       - [0,0,0,1,1]
+id_pools:
+  - pool_id: default
+    pool_device_refs:
+      <%- q_dbfacts.keys.each do |host| -%>
+        <%- ios_hash[host].each do |disk| -%>
+          <%- if disk['is_fake'] -%>
+      - dr_path: "<%= disk['path'] %>"
+          <%- else -%>
+      - dr_wwn: "<%= disk['wwn'] %>"
+      - dr_serial: "<%= disk['serial'] %>"
+          <%- end -%>
+        <%- end -%>
+      <%- end -%>
+id_profiles:
+  - prof_id: prof-0
+    prof_pools: [default]
