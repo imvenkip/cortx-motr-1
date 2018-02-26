@@ -650,7 +650,7 @@ static int pd_fom_tick(struct m0_fom *fom)
 				/* XXX The actual allocation is here */
 				rc1 = m0_be_pd_mapping_page_attach(
 				    m0_be_pd__mapping_by_addr(paged,
-				                        page->pp_page), page);
+				                        page->pp_addr), page);
 				M0_ASSERT(rc1 == 0);
 			}
 			if (page->pp_state == M0_PPS_MAPPED) {
@@ -665,9 +665,9 @@ static int pd_fom_tick(struct m0_fom *fom)
 			     /* XXX: here should be cellar page, still for the
 			      * sake of debugging I've chaneged this place */
 					     /* page->pp_cellar, */
-					     page->pp_page,
+					     page->pp_addr,
 					     m0_be_seg_offset(seg,
-							      page->pp_page),
+							      page->pp_addr),
 					     page->pp_size);
 				page->pp_state = M0_PPS_READING;
 				++pages_nr;
@@ -779,7 +779,7 @@ static int pd_fom_tick(struct m0_fom *fom)
 			seg = m0_be_pd__page_to_seg(paged, pio_page);
 			m0_be_io_add(m0_be_pd_io_be_io(pio),
 				     seg->bs_stob, pio_page->pp_cellar,
-				     m0_be_seg_offset(seg, pio_page->pp_page),
+				     m0_be_seg_offset(seg, pio_page->pp_addr),
 				     pio_page->pp_size);
 		}
 
@@ -1147,7 +1147,7 @@ static void copy_reg_to_cellar(struct m0_be_pd_page       *page,
 	       page->pp_state == M0_PPS_WRITING &&
 	       m0_be_pd_page_is_locked(page));
 
-	addr_0off = rd->rd_reg.br_addr - page->pp_page;
+	addr_0off = rd->rd_reg.br_addr - page->pp_addr;
 	if (addr_0off < 0) {
 		addr = page->pp_cellar;
 		M0_ASSERT(rd->rd_reg.br_size + addr_0off > 0);
@@ -1331,7 +1331,7 @@ M0_INTERNAL int m0_be_pd_page_init(struct m0_be_pd_page *page,
 				   void                 *addr,
 				   m0_bcount_t           size)
 {
-	page->pp_page   = addr;
+	page->pp_addr   = addr;
 	page->pp_size   = size;
 	page->pp_cellar = NULL;
 	m0_mutex_init(&page->pp_lock);
@@ -1373,7 +1373,7 @@ M0_INTERNAL bool m0_be_pd_page_is_in(struct m0_be_pd      *paged,
 
 M0_INTERNAL void *m0_be_pd_mapping__addr(struct m0_be_pd_mapping *mapping)
 {
-	return mapping->pas_pages[0].pp_page;
+	return mapping->pas_pages[0].pp_addr;
 }
 
 M0_INTERNAL m0_bcount_t
@@ -1596,34 +1596,34 @@ M0_INTERNAL int m0_be_pd_mapping_page_attach(struct m0_be_pd_mapping *mapping,
 
 	switch (mapping->pas_type) {
 	case M0_BE_PD_MAPPING_SINGLE:
-		rc = mlock(page->pp_page, page->pp_size);
+		rc = mlock(page->pp_addr, page->pp_size);
 		if (rc != 0)
 			rc = M0_ERR(-errno);
 		break;
 	case M0_BE_PD_MAPPING_PER_PAGE:
-		p = mmap(page->pp_page, page->pp_size, PROT_READ | PROT_WRITE,
+		p = mmap(page->pp_addr, page->pp_size, PROT_READ | PROT_WRITE,
 			 MAP_ANONYMOUS | MAP_FIXED | MAP_NORESERVE |
 			 MAP_POPULATE | MAP_PRIVATE, -1, 0);
 		if (p == MAP_FAILED)
 			rc = M0_ERR(-errno);
 		else {
 			be_pd_mapping_advise(mapping,
-					     page->pp_page, page->pp_size);
-			rc = mlock(page->pp_page, page->pp_size);
+					     page->pp_addr, page->pp_size);
+			rc = mlock(page->pp_addr, page->pp_size);
 			if (rc != 0) {
 				rc = M0_ERR(-errno);
-				rc2 = munmap(page->pp_page, page->pp_size);
+				rc2 = munmap(page->pp_addr, page->pp_size);
 				if (rc2 != 0)
 					M0_LOG(M0_ERROR,
 					       "Cannot unmap region addr=%p "
-					       "size=%lu", page->pp_page,
+					       "size=%lu", page->pp_addr,
 					       (unsigned long)page->pp_size);
 			}
 		}
 		break;
 	case M0_BE_PD_MAPPING_COMPAT:
 		M0_LOG(M0_DEBUG, "Appempt to attach page %p in compat mode",
-				 page->pp_page);
+				 page->pp_addr);
 		rc = 0;
 		break;
 	default:
@@ -1634,7 +1634,7 @@ M0_INTERNAL int m0_be_pd_mapping_page_attach(struct m0_be_pd_mapping *mapping,
 		/* XXX: 4k */
 		page->pp_cellar = m0_alloc_aligned(page->pp_size, 12);
 		M0_ASSERT(page->pp_cellar != NULL);
-		memcpy(page->pp_cellar, page->pp_page, page->pp_size);
+		memcpy(page->pp_cellar, page->pp_addr, page->pp_size);
 		/* XXX */
 		page->pp_state = mapping->pas_type == M0_BE_PD_MAPPING_COMPAT ?
 			M0_PPS_READY : M0_PPS_MAPPED;
@@ -1651,14 +1651,14 @@ M0_INTERNAL int m0_be_pd_mapping_page_detach(struct m0_be_pd_mapping *mapping,
 	M0_PRE(m0_be_pd_page_is_locked(page));
 
 	/* TODO make proper poisoning */
-	memset(page->pp_page, 0xCC, page->pp_size);
+	memset(page->pp_addr, 0xCC, page->pp_size);
 
 	/* Unlock memory region */
 	switch (mapping->pas_type) {
 	case M0_BE_PD_MAPPING_SINGLE:
 		/* fall through */
 	case M0_BE_PD_MAPPING_PER_PAGE:
-		rc = munlock(page->pp_page, page->pp_size);
+		rc = munlock(page->pp_addr, page->pp_size);
 		if (rc != 0)
 			rc = M0_ERR(-errno);
 		break;
@@ -1676,13 +1676,13 @@ M0_INTERNAL int m0_be_pd_mapping_page_detach(struct m0_be_pd_mapping *mapping,
 	switch (mapping->pas_type) {
 	case M0_BE_PD_MAPPING_SINGLE:
 		/* Use MADV_FREE on Linux 4.5 and higher. */
-		rc = madvise(page->pp_page, page->pp_size,
+		rc = madvise(page->pp_addr, page->pp_size,
 			     /* XXX MADV_FREE */ MADV_DONTNEED);
 		if (rc != 0)
 			rc = M0_ERR(-errno);
 		break;
 	case M0_BE_PD_MAPPING_PER_PAGE:
-		rc = munmap(page->pp_page, page->pp_size);
+		rc = munmap(page->pp_addr, page->pp_size);
 		if (rc != 0)
 			rc = M0_ERR(-errno);
 		break;
@@ -1707,7 +1707,7 @@ M0_INTERNAL bool
 m0_be_pd_mapping__is_addr_in_page(const struct m0_be_pd_page *page,
 				  const void                 *addr)
 {
-	return page->pp_page <= addr && addr < page->pp_page + page->pp_size;
+	return page->pp_addr <= addr && addr < page->pp_addr + page->pp_size;
 }
 
 /**
@@ -1758,7 +1758,7 @@ M0_INTERNAL struct m0_be_seg *
 m0_be_pd__page_to_seg(struct m0_be_pd            *paged,
 		      const struct m0_be_pd_page *page)
 {
-	return m0_be_pd_seg_by_addr(paged, page->pp_page);
+	return m0_be_pd_seg_by_addr(paged, page->pp_addr);
 }
 
 #undef M0_TRACE_SUBSYSTEM

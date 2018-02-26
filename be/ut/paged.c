@@ -59,7 +59,7 @@ static bool be_ut_pd_page_is_resident(const struct m0_be_pd_page *page)
 	M0_UT_ASSERT(page->pp_size / sys_page_size * sys_page_size ==
 		     page->pp_size);
 
-	addr = page->pp_page;
+	addr = page->pp_addr;
 	for (i = 0; i < page->pp_size / sys_page_size; ++i) {
 		M0_UT_ASSERT(m0_be_pd_mapping__is_addr_in_page(page, addr));
 		rc = mincore(addr, sys_page_size, &status);

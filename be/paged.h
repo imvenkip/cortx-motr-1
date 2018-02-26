@@ -260,7 +260,7 @@ enum {
  * FINI is the final state and object must not be accessed in this state.
  */
 struct m0_be_pd_page {
-	void                    *pp_page;    /* XXX: rename it? like pp_addr? */
+	void                    *pp_addr;
 	void                    *pp_cellar;
 	m0_bcount_t              pp_size;
 	m0_bcount_t              pp_ref;
