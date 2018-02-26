@@ -301,6 +301,7 @@ M0_INTERNAL int m0_be_pd_seg_create(struct m0_be_pd                  *pd,
 	struct m0_be_seg *seg;
 	struct m0_stob   *stob;
 	int               rc;
+	int               rc1;
 
 	/* seg_cfg->bsc_preallocate is ignored here. See be/domain.c. */
 
@@ -312,24 +313,28 @@ M0_INTERNAL int m0_be_pd_seg_create(struct m0_be_pd                  *pd,
 				 seg_cfg->bsc_stob_create_cfg, &stob, true);
 	if (rc == 0) {
 		m0_be_seg_init(seg, stob, dom, pd, M0_BE_SEG_FAKE_ID);
-		m0_stob_put(stob);
 		rc = m0_be_seg_create(seg, seg_cfg->bsc_size,
 				      seg_cfg->bsc_addr);
 		m0_be_seg_fini(seg);
-		/* TODO destroy stob on fail */
+		if (rc == 0)
+			m0_stob_put(stob);
+		else {
+			rc1 = m0_stob_destroy(stob, NULL);
+			if (rc1 != 0)
+				M0_LOG(M0_ERROR, "Cannot destroy stob after "
+						 "creation, rc1=%d", rc1);
+		}
 	}
 	m0_free(seg);
 
 	return M0_RC(rc);
 }
 
-/* XXX TODO protect pd->bp_segs with a lock in the following functions */
-
-M0_INTERNAL int m0_be_pd_seg_open(struct m0_be_pd     *pd,
-				  struct m0_be_seg    *seg,
-				  /* m0_be_seg_init() requires be domain */
-				  struct m0_be_domain *dom,
-				  uint64_t             stob_key)
+/* Opens segment without adding to bp_segs list. */
+static int be_pd_seg_open(struct m0_be_pd     *pd,
+			  struct m0_be_seg    *seg,
+			  struct m0_be_domain *dom,
+			  uint64_t             stob_key)
 {
 	struct m0_stob *stob;
 	int             rc;
@@ -339,31 +344,41 @@ M0_INTERNAL int m0_be_pd_seg_open(struct m0_be_pd     *pd,
 		m0_be_seg_init(seg, stob, dom, pd, M0_BE_SEG_FAKE_ID);
 		m0_stob_put(stob);
 		rc = m0_be_seg_open(seg);
-		if (rc == 0) {
-			be_pd_lock(pd);
-			seg_tlink_init_at_tail(seg, &pd->bp_segs);
-			be_pd_unlock(pd);
-		} else {
+		if (rc != 0)
 			m0_be_seg_fini(seg);
-		}
 	}
 	return M0_RC(rc);
 }
 
+M0_INTERNAL int m0_be_pd_seg_open(struct m0_be_pd     *pd,
+				  struct m0_be_seg    *seg,
+				  /* m0_be_seg_init() requires be domain */
+				  struct m0_be_domain *dom,
+				  uint64_t             stob_key)
+{
+	int rc;
+
+	rc = be_pd_seg_open(pd, seg, dom, stob_key);
+	if (rc == 0) {
+		be_pd_lock(pd);
+		seg_tlink_init_at_tail(seg, &pd->bp_segs);
+		be_pd_unlock(pd);
+	}
+	return M0_RC(rc);
+}
+
+/* Closes (or destroys) segment without removing from bp_segs list. */
 static int be_pd_seg_close(struct m0_be_pd  *pd,
 			   struct m0_be_seg *seg,
 			   bool              destroy)
 {
 	int rc;
 
-	be_pd_lock(pd);
-	seg_tlink_del_fini(seg);
-	be_pd_unlock(pd);
 	m0_be_seg_close(seg);
 	rc = destroy ? m0_be_seg_destroy(seg) : 0;
 	m0_be_seg_fini(seg);
 
-	return rc;
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_be_pd_seg_close(struct m0_be_pd  *pd,
@@ -371,6 +386,9 @@ M0_INTERNAL void m0_be_pd_seg_close(struct m0_be_pd  *pd,
 {
 	int rc;
 
+	be_pd_lock(pd);
+	seg_tlink_del_fini(seg);
+	be_pd_unlock(pd);
 	rc = be_pd_seg_close(pd, seg, false);
 	M0_ASSERT(rc == 0);
 }
@@ -386,8 +404,8 @@ M0_INTERNAL int m0_be_pd_seg_destroy(struct m0_be_pd     *pd,
 	if (seg == NULL)
 		return M0_ERR(-ENOMEM);
 
-	/* TODO Implement without adding seg to the bp_segs list */
-	rc = m0_be_pd_seg_open(pd, seg, dom, seg_id);
+	/* Open and destroy segment bypassing the bp_segs list. */
+	rc = be_pd_seg_open(pd, seg, dom, seg_id);
 	rc = rc ?: be_pd_seg_close(pd, seg, true);
 	m0_free(seg);
 
@@ -1400,7 +1418,7 @@ static void be_pd_mapping_advise(struct m0_be_pd_mapping *mapping,
 		M0_LOG(M0_DEBUG, "MADV_DONTFORK: errno=%d", errno);
 
 	/*
-	 * XXX Dump first 64MB of mapping for debug. TODO Configure instead of
+	 * Dump first 64MB of mapping for debug. TODO Configure instead of
 	 * hardcoding.
 	 */
 	reserved = (char *)m0_be_pd_mapping__addr(mapping) + (64ULL << 20);
