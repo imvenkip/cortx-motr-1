@@ -17,6 +17,7 @@ readonly VAGRANT_DIR="$TOP_SRCDIR/scripts/provisioning"
 verbose=false
 ansible_verbose=
 dry_run=
+node_type=cmu
 remote_user=root
 remote_passwd=
 ssh_key=
@@ -61,12 +62,31 @@ Usage: $PROG_NAME [options] host1[,host2]
                         passowrd authentication. Default is to use whatever is
                         provided by ssh-agent or local user's default key.
 
+    -t|--node-type cmu|ssu|client
+
+                        A type of node to provision. By default it's '$node_type'.
+
     -v|--verbose        Print Ansible commands that are executed. If specified
                         more than once it encreases verbosity of Ansible output
                         as well.
 
     -h|--help           Print this help screen.
 USAGE_END
+}
+
+#
+# Logging
+#
+
+die()
+{
+    echo -e "$PROG_NAME: ERROR: $@" >&2
+    exit 1
+}
+
+log()
+{
+    ! $verbose || echo -e "$PROG_NAME: $@"
 }
 
 #
@@ -78,8 +98,8 @@ parse_cli_options()
     # Note that we use `"$@"' to let each command-line parameter expand to a
     # separate word. The quotes around `$@' are essential!
     # We need TEMP as the `eval set --' would nuke the return value of getopt.
-    local TEMP=$( getopt -o hvnU:P:k: \
-                         --long help,verbose,dry-run,user:,pass:,ssh-key: \
+    local TEMP=$( getopt -o hvnU:P:k:t: \
+                         --long help,verbose,dry-run,user:,pass:,ssh-key:,node-type: \
                          -n "$PROG_NAME" -- "$@" )
 
     [[ $? != 0 ]] && help
@@ -92,7 +112,18 @@ parse_cli_options()
             -n|--dry-run)       dry_run=--check; shift ;;
             -U|--user)          remote_user=$2; shift 2 ;;
             -P|--pass)          remote_passwd=$2; shift 2 ;;
-            -k|--ssh-key)       ssh_key=$2; shift 2 ;;
+            -k|--ssh-key)       ssh_key=$2; shift 2
+                                # make path absolute if it isn't
+                                [[ $ssh_key =~ ^/ ]] || ssh_key="$PWD/$ssh_key"
+                                ;;
+            -t|--node-type)     node_type=$2; shift 2
+                                case $node_type in
+                                    cmu|ssu|client) ;;
+                                    *) die "invalid parameter '$node_type' for" \
+                                           '-t|--node-type option, supported' \
+                                           'values are: cmu, ssu, client'
+                                esac
+                                ;;
             -v|--verbose)       if $verbose ; then
                                     ansible_verbose+=v
                                 fi
@@ -112,17 +143,6 @@ parse_cli_options()
 #
 # Utility functions
 #
-
-die()
-{
-    echo -e "$PROG_NAME: ERROR: $@" >&2
-    exit 1
-}
-
-log()
-{
-    ! $verbose || echo -e "$PROG_NAME: $@"
-}
 
 check_dependencies()
 {
@@ -164,7 +184,7 @@ auth="${ssh_key:+--extra-vars ansible_private_key_file='$ssh_key'}"
 auth+="${remote_passwd:+\n    --extra-vars ansible_ssh_pass='$remote_passwd'}"
 
 cmd=$(cat <<COMMAND_END
-ansible-playbook ${ansible_verbose:+-$ansible_verbose} cmu.yml
+ansible-playbook ${ansible_verbose:+-$ansible_verbose} ${node_type}.yml
     --skip-tags vault-release,xperior,ssh${dry_run:+,breaks-dry-run}
     --user $remote_user
     ${auth:---ask-pass}
