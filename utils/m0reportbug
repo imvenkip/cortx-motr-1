@@ -3,14 +3,14 @@ set -eu
 # set -x
 export PS4='+ [${FUNCNAME[0]:+${FUNCNAME[0]}:}${LINENO}] '
 
-VERSION=0.26
+VERSION=0.27
 
 IN_DIR=/var/mero # default value; overruled by CLI argument
 OUT_DATA_DIR=m0reportbug-data
 OUT_CORES_DIR=m0reportbug-cores
 OUT_TRACES_DIR=m0reportbug-traces
 REPORT=m0reportbug.txt # the file is created in $OUT_DATA_DIR/
-MERO_PACKAGE_VERSION=1.1.0 # must correspond to `M0_VERSION' in configure.ac
+MERO_PACKAGE_VERSION=1.2.0 # must correspond to `M0_VERSION' in configure.ac
 M0TRACES_MAX=20 # how many most recently modified m0trace files to collect
 M0TRACES_M0D_MAX=2 # additionally, collect that many m0trace files from each
                    # $IN_DIR/m0d-* directory
@@ -622,6 +622,8 @@ exit
 ###
 ### Date       Version Description
 ### ---------- ------- ----------------------------------------------------
+### 2018-03-02 0.27    Bump MERO_PACKAGE_VERSION to 1.2.0.
+###
 ### 2017-08-23 0.26    Switch to xz compression.
 ###
 ### 2017-08-23 0.25    * Collect logrotated Halon decision logs
