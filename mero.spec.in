@@ -1,5 +1,6 @@
 # optional configure options
-%define with_linux %( test -n "$kernel_src" && echo "--with-linux=$kernel_src" )
+%define with_linux  %( test -n "$kernel_src" && echo "--with-linux=$kernel_src" )
+%define with_lustre %( test -n "$lustre_src" && echo "--with-lustre=$lustre_src" )
 
 # raw kernel version.
 %define raw_kernel_ver %(
@@ -173,7 +174,7 @@ This package contains Mero unit tests (for kernel and user space).
 %setup -q
 
 %build
-%configure %{with_linux} %{configure_opts}
+%configure %{with_linux} %{with_lustre} %{configure_opts}
 make %{?_smp_mflags}
 
 %install
