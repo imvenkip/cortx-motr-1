@@ -24,6 +24,8 @@ remote_passwd=
 ssh_key=
 proxy_host=
 proxy_user=
+tags=
+skip_tags=
 cli_args=
 
 #
@@ -86,6 +88,16 @@ Usage: $PROG_NAME [options] host1[,host2]
 
                         A type of node to provision. Default is '$node_type'.
 
+    -T|--tags TAG1[,TAG2]
+
+                        A comman-separated list of tags to enable in Ansible
+                        playbook execution.
+
+    -S|--skip-tags TAG1[,TAG2]
+
+                        A comman-separated list of tags to skip in Ansible
+                        playbook execution.
+
     -v|--verbose        Print Ansible commands that are executed. If specified
                         more than once it encreases verbosity of Ansible output
                         as well.
@@ -121,8 +133,8 @@ parse_cli_options()
     # We need to separate TEMP declaration and assignment because 'local TEMP='
     # would nuke the return value of getopt.
     local TEMP
-    TEMP=$( getopt -o hvnlU:P:k:t: \
-                   --long help,verbose,dry-run,local,user:,pass:,ssh-key:,node-type:,proxy-host:,proxy-user: \
+    TEMP=$( getopt -o hvnlU:P:k:t:T:S: \
+                   --long help,verbose,dry-run,local,user:,pass:,ssh-key:,proxy-host:,proxy-user:,node-type:,tags:,skip-tags: \
                    -n "$PROG_NAME" -- "$@" )
 
     [[ $? != 0 ]] && help
@@ -148,6 +160,8 @@ parse_cli_options()
                                            'values are: cmu, ssu, client'
                                 esac
                                 ;;
+            -T|--tags)          tags=$2; shift 2 ;;
+            -S|--skip-tags)     skip_tags=$2; shift 2 ;;
                --proxy-host)    proxy_host=$2; shift 2 ;;
                --proxy-user)    proxy_user=$2; shift 2 ;;
             -v|--verbose)       if $verbose ; then
@@ -213,7 +227,8 @@ ssh_proxy="--ssh-common-args='-o ProxyCommand=\"$ssh_proxy_cmd\"'"
 
 cmd=$(cat <<COMMAND_END
 ansible-playbook ${ansible_verbose:+-$ansible_verbose} ${node_type}.yml
-    --skip-tags vault-release,xperior,ssh${dry_run:+,breaks-dry-run}
+    ${tags:+--tags $tags}
+    --skip-tags vault-release,xperior,ssh${dry_run:+,breaks-dry-run}${skip_tags:+,$skip_tags}
     --user $remote_user
     ${local_run:-${auth:---ask-pass}}
     --extra-vars override_hosts=$remote_hosts
