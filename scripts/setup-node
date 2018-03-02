@@ -17,6 +17,7 @@ readonly VAGRANT_DIR="$TOP_SRCDIR/scripts/provisioning"
 verbose=false
 ansible_verbose=
 dry_run=
+local_run=
 node_type=cmu
 remote_user=root
 remote_passwd=
@@ -49,6 +50,9 @@ Usage: $PROG_NAME [options] host1[,host2]
                         printing what would be changed on a host but not
                         actually doing anything. NOTE: not all playbook tasks
                         can work in this mode, some may be skipped or fail.
+
+    -l|--local          Instruct Ansible to run playbook on the localhost. It
+                        can be used to set up current host.
 
     -U|--user NAME      A user account used to logon to a remote host. Default
                         is '$remote_user'.
@@ -117,8 +121,8 @@ parse_cli_options()
     # We need to separate TEMP declaration and assignment because 'local TEMP='
     # would nuke the return value of getopt.
     local TEMP
-    TEMP=$( getopt -o hvnU:P:k:t: \
-                   --long help,verbose,dry-run,user:,pass:,ssh-key:,node-type:,proxy-host:,proxy-user: \
+    TEMP=$( getopt -o hvnlU:P:k:t: \
+                   --long help,verbose,dry-run,local,user:,pass:,ssh-key:,node-type:,proxy-host:,proxy-user: \
                    -n "$PROG_NAME" -- "$@" )
 
     [[ $? != 0 ]] && help
@@ -129,6 +133,7 @@ parse_cli_options()
     while true ; do
         case "$1" in
             -n|--dry-run)       dry_run=--check; shift ;;
+            -l|--local)         local_run='--connection local'; shift ;;
             -U|--user)          remote_user=$2; shift 2 ;;
             -P|--pass)          remote_passwd=$2; shift 2 ;;
             -k|--ssh-key)       ssh_key=$2; shift 2
@@ -210,7 +215,7 @@ cmd=$(cat <<COMMAND_END
 ansible-playbook ${ansible_verbose:+-$ansible_verbose} ${node_type}.yml
     --skip-tags vault-release,xperior,ssh${dry_run:+,breaks-dry-run}
     --user $remote_user
-    ${auth:---ask-pass}
+    ${local_run:-${auth:---ask-pass}}
     --extra-vars override_hosts=$remote_hosts
     --inventory $remote_hosts,
     $dry_run
