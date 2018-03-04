@@ -28,7 +28,7 @@ THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
 http://www.xyratex.com/contact
 """
 __author__ = 'Valery V. Vorotyntsev <valery.vorotyntsev@seagate.com>'
-__version__ = '2.3'
+__version__ = '2.3.1'
 __doc__ = """Configuration string converter.
 
 Converts configuration string from one format into another.
@@ -673,10 +673,16 @@ def fid_translate(fid):
         return rel_fids.get(fid.key)
 
 
+if sys.version_info.major < 3:
+    # raw_input() has been renamed to input() in Python 3.0
+    # https://docs.python.org/3/whatsnew/3.0.html#index-32
+    input = raw_input
+
+
 def fids_translate():
     while True:
         try:
-            s = raw_input('> ' if sys.stdin.isatty() else '').rstrip('\r')
+            s = input('> ' if sys.stdin.isatty() else '').rstrip('\r')
             for s in s.split():  # allow several fids per line
                 print(' '.join(filter(None, [s, fid_translate(fid_scan(s))])))
         except Error as e:
