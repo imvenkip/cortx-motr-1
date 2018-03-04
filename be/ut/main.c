@@ -192,7 +192,7 @@ struct m0_ut_suite be_ut = {
 		{ "pd-fom",                  m0_be_ut_pd_fom                  },
 		{ "seg-open",                m0_be_ut_seg_open_close          },
 		{ "seg-io",                  m0_be_ut_seg_io                  },
-// XXX PD	{ "seg-multiple",            m0_be_ut_seg_multiple            },
+		{ "seg-multiple",            m0_be_ut_seg_multiple            },
 		{ "seg-large",               m0_be_ut_seg_large               },
 		// { "seg-large-multiple",      m0_be_ut_seg_large_multiple      },
 		{ "group_format",            m0_be_ut_group_format            },
