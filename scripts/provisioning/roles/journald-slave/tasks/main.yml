@@ -17,3 +17,4 @@
 
 - name: start systemd-journal-upload service
   service: name=systemd-journal-upload state=started enabled=yes
+  tags: start-services

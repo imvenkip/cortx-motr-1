@@ -98,6 +98,7 @@
 
 - name: start avahi
   service: name={{ avahi_service }} state=started enabled=yes
+  tags: start-services
 
 - name: enable kernel debug messages on console
   sysctl:

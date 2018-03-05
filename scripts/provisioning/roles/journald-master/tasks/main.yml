@@ -55,6 +55,8 @@
 
 - name: start systemd-journal-remote service
   service: name=systemd-journal-remote state=started enabled=yes
+  tags: start-services
 
 - name: enable systemd-journal-remote socket
   service: name=systemd-journal-remote.socket state=started enabled=yes
+  tags: start-services
