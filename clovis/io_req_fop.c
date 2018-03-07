@@ -336,12 +336,14 @@ static void client_passive_recv(const struct m0_net_buffer_event *evt)
 			m0_atomic64_dec(&ioo->ioo_nwxfer.nxr_rdbulk_nr);
 		if (m0_atomic64_get(&ioo->ioo_nwxfer.nxr_iofop_nr) == 0 &&
 		    m0_atomic64_get(&ioo->ioo_nwxfer.nxr_rdbulk_nr) == 0) {
+			m0_sm_group_lock(ioo->ioo_sm.sm_grp);
 			m0_sm_state_set(&ioo->ioo_sm,
 				        (M0_IN(ioreq_sm_state(ioo),
 					       (IRS_READING,
 						IRS_DEGRADED_READING)) ?
 				        IRS_READ_COMPLETE :
 				        IRS_WRITE_COMPLETE));
+			m0_sm_group_unlock(ioo->ioo_sm.sm_grp);
 
 			/* post an ast to run iosm_handle_executed */
 			ioo->ioo_ast.sa_cb =
