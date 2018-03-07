@@ -343,18 +343,9 @@ static void be_domain_ldsc_sync(struct m0_be_log_discard      *ld,
                                 struct m0_be_op               *op,
                                 struct m0_be_log_discard_item *ldi)
 {
-	struct m0_be_domain *dom;
-	struct m0_be_seg    *seg;
-	struct m0_stob      *stobs[2];
-
-	dom = container_of(ld, struct m0_be_domain, bd_log_discard);
-	stobs[0] = m0_be_domain_seg0_get(dom)->bs_stob;
-	/* XXX Assume we have maximum 1 normal segment. */
-	seg = m0_be_domain_seg_first(dom);
-	M0_ASSERT(ergo(seg != NULL, m0_be_domain_seg_next(dom, seg) == NULL));
-	stobs[1] = seg != NULL ? seg->bs_stob : NULL;
-	m0_be_pd_io_sched_sync(&dom->bd_pd.bp_io_sched, 0, stobs,
-			       seg == NULL ? 1 : 2, op);
+	/* This function is no-op, because be-log uses direct I/O. */
+	m0_be_op_active(op);
+	m0_be_op_done(op);
 }
 
 M0_INTERNAL void m0_be_domain_log_cleanup(struct m0_be_domain *dom)
