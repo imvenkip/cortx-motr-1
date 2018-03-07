@@ -54,7 +54,8 @@ struct m0_be_ut_backend {
 	size_t				  but_sgt_size;
 	struct m0_mutex			  but_sgt_lock;
 	bool				  but_sm_groups_unlocked;
-	char				 *but_stob_domain_location;
+	char				 *but_log_sdom_location;
+	char				 *but_seg_sdom_location;
 	uint64_t                          but_magix;
 };
 

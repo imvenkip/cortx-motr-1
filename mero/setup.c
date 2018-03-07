@@ -1537,13 +1537,23 @@ static int cs_be_init(struct m0_reqh_context *rctx,
 		      struct m0_be_seg       **out)
 {
 	enum { len = 1024 };
-	char **loc = &be->but_stob_domain_location;
+	char **loc_seg = &be->but_seg_sdom_location;
+	char **loc_log = &be->but_log_sdom_location;
 	int    rc;
 
-	*loc = m0_alloc(len);
-	if (*loc == NULL)
+	*loc_seg = m0_alloc(len);
+	if (*loc_seg == NULL)
 		return M0_ERR(-ENOMEM);
-	snprintf(*loc, len, "linuxstob:%s%s", name[0] == '/' ? "" : "./", name);
+	*loc_log = m0_alloc(len);
+	if (*loc_log == NULL) {
+		m0_free(loc_seg);
+		return M0_ERR(-ENOMEM);
+	}
+
+	snprintf(*loc_seg, len, "linuxstob:%s%s",
+		 name[0] == '/' ? "" : "./", name);
+	snprintf(*loc_log, len, "linuxstob:%s%s-log",
+		 name[0] == '/' ? "" : "./", name);
 
 	m0_be_ut_backend_cfg_default(&be->but_dom_cfg);
 	be->but_dom_cfg.bc_log.lc_store_cfg.lsc_stob_dont_zero = false;
@@ -1608,14 +1618,16 @@ static int cs_be_init(struct m0_reqh_context *rctx,
 	M0_LOG(M0_ERROR, "cs_be_init: failed to init segment");
 	rc = M0_ERR(-ENOMEM);
 err:
-	m0_free0(loc);
+	m0_free0(loc_log);
+	m0_free0(loc_seg);
 	return M0_ERR(rc);
 }
 
 M0_INTERNAL void cs_be_fini(struct m0_be_ut_backend *be)
 {
 	m0_be_ut_backend_fini(be);
-	m0_free(be->but_stob_domain_location);
+	m0_free(be->but_seg_sdom_location);
+	m0_free(be->but_log_sdom_location);
 }
 
 /**

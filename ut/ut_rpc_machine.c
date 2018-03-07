@@ -60,14 +60,36 @@ M0_INTERNAL void m0_ut_rpc_mach_init_and_add(struct m0_ut_rpc_mach_ctx *ctx)
 
 #ifndef __KERNEL__
 
-static char *ut_reqh_location_get(void)
+static int ut_reqh_location_snprintf(char       *str,
+				     size_t      len,
+				     uint64_t    gen,
+				     const char *sfx)
 {
-	static const size_t  str_len = 100;
-	char		    *str = m0_alloc(str_len);
-	static uint64_t	     start = 10000;
+	int rc;
 
+	rc = snprintf(str, len, "linuxstob:./ut_reqh%"PRIu64"%s", gen,
+		      sfx == NULL ? "" : sfx);
+	M0_ASSERT(rc > 0);
+
+	return rc;
+}
+
+static char *ut_reqh_location_get(const char *sfx)
+{
+	size_t  len;
+	char   *str;
+	int     rc;
+
+	static uint64_t	gen = 10000;
+
+	++gen;
+	rc  = ut_reqh_location_snprintf(NULL, 0, gen, sfx);
+	len = (size_t)rc + 1;
+	str = m0_alloc(len);
 	M0_ASSERT(str != NULL);
-	snprintf(str, str_len, "linuxstob:./ut_reqh%"PRIu64, start++);
+	rc  = ut_reqh_location_snprintf(str, len, gen, sfx);
+	M0_ASSERT(rc == len - 1);
+
 	return str;
 }
 
@@ -77,7 +99,6 @@ static void ut_reqh_and_stuff_init(struct m0_ut_rpc_mach_ctx *ctx)
 	struct m0_be_seg       *seg;
 	struct m0_be_tx		tx;
 	struct m0_be_tx_credit	cred = {};
-	char		       *location;
 	int			rc;
 	/*
 	 * Instead of using m0d and dealing with network, database and
@@ -92,8 +113,8 @@ static void ut_reqh_and_stuff_init(struct m0_ut_rpc_mach_ctx *ctx)
 	M0_ASSERT(rc == 0);
 
 	ctx->rmc_ut_be.but_dom_cfg.bc_engine.bec_reqh = &ctx->rmc_reqh;
-	location = ut_reqh_location_get();
-	ctx->rmc_ut_be.but_stob_domain_location = location;
+	ctx->rmc_ut_be.but_seg_sdom_location = ut_reqh_location_get("-seg");
+	ctx->rmc_ut_be.but_log_sdom_location = ut_reqh_location_get("-log");
 	rc = m0_be_ut_backend_init_cfg(&ctx->rmc_ut_be, NULL, true);
 	M0_ASSERT(rc == 0);
 	m0_be_ut_seg_init(&ctx->rmc_ut_seg, &ctx->rmc_ut_be, 1 << 20);
@@ -132,8 +153,10 @@ M0_INTERNAL void m0_ut_rpc_mach_fini(struct m0_ut_rpc_mach_ctx *ctx)
 
 	m0_be_ut_seg_fini(&ctx->rmc_ut_seg);
 	m0_be_ut_backend_fini(&ctx->rmc_ut_be);
+	/* XXX FIXME Domain used after finalisation. */
 	m0_be_domain_log_cleanup(&ctx->rmc_ut_be.but_dom);
-	m0_free(ctx->rmc_ut_be.but_stob_domain_location);
+	m0_free(ctx->rmc_ut_be.but_seg_sdom_location);
+	m0_free(ctx->rmc_ut_be.but_log_sdom_location);
 	m0_reqh_post_storage_fini_svcs_stop(&ctx->rmc_reqh);
 	m0_rpc_machine_fini(&ctx->rmc_rpc);
 	m0_reqh_fini(&ctx->rmc_reqh);

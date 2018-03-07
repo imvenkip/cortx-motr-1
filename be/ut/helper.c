@@ -368,7 +368,7 @@ M0_INTERNAL int m0_be_ut_backend_init_cfg(struct m0_be_ut_backend *ut_be,
 
 	m0_bob_init(&m0_ut_be_backend_bobtype, ut_be);
 	if (!mkfs_executed && cfg == NULL &&
-	    ut_be->but_stob_domain_location == NULL)
+	    ut_be->but_seg_sdom_location == NULL)
 		mkfs = mkfs_executed = true;
 
 	ut_be->but_sm_groups_unlocked = false;
@@ -391,8 +391,12 @@ M0_INTERNAL int m0_be_ut_backend_init_cfg(struct m0_be_ut_backend *ut_be,
 	}
 
 	/* Use m0_be_ut_backend's stob domain location, if possible. */
-	if (ut_be->but_stob_domain_location != NULL)
-		c->bc_pd_cfg.bpc_stob_domain_location = ut_be->but_stob_domain_location;
+	if (ut_be->but_seg_sdom_location != NULL)
+		c->bc_pd_cfg.bpc_stob_domain_location =
+						ut_be->but_seg_sdom_location;
+	if (ut_be->but_log_sdom_location != NULL)
+		c->bc_log.lc_store_cfg.lsc_stob_domain_location =
+						ut_be->but_log_sdom_location;
 
 	c->bc_mkfs_mode = mkfs;
 
