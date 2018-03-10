@@ -239,7 +239,6 @@ static void compare_ha_state(struct m0_confc *confc,
 }
 
 
-static void pool_machine_fini(struct m0_poolmach *pool_mach);
 static void pool_machine_fid_populate(struct m0_poolmach *pool_mach);
 static int pm_event_construct_and_apply(struct m0_poolmach *pm,
 					uint32_t dev_idx, uint32_t state);
@@ -432,8 +431,9 @@ static void test_failvec_fetch(void)
         failed_nr = m0_poolmach_nr_dev_failures(&pool_mach);
         M0_UT_ASSERT(failed_nr == MAX_FAILURES);
         M0_UT_ASSERT(m0_poolmach_equeue_length(&pool_mach) == 0);
+	m0_fi_enable_once("m0_poolmach_fini", "poolmach_init_by_conf_skipped");
+	m0_poolmach_fini(&pool_mach);
         m0_pool_fini(&pool);
-        pool_machine_fini(&pool_mach);
 }
 
 static void pool_machine_fid_populate(struct m0_poolmach *pool_mach)
@@ -453,15 +453,7 @@ static int pm_event_construct_and_apply(struct m0_poolmach *pm,
 		.pe_index = dev_idx,
 		.pe_state = state
 	};
-	return m0_poolmach_state_transit(pm, &event, NULL);
-}
-
-static void pool_machine_fini(struct m0_poolmach *pool_mach)
-{
-	m0_free(pool_mach->pm_state->pst_devices_array);
-	m0_free(pool_mach->pm_state->pst_nodes_array);
-	m0_free(pool_mach->pm_state->pst_spare_usage_array);
-	m0_free(pool_mach->pm_state);
+	return m0_poolmach_state_transit(pm, &event);
 }
 
 /* XXX Move to ha/note.h? */

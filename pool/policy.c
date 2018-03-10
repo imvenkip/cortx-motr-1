@@ -124,7 +124,7 @@ static int pver_first_available_get(struct m0_pools_common  *pc,
 	/* Cache derived if not present */
 	*pv = m0_pool_version_lookup(pc, &pver->pv_obj.co_id);
 	if (*pv == NULL)
-		rc = m0_pool_version_append(pc, pver, NULL, NULL, NULL, pv);
+		rc = m0_pool_version_append(pc, pver, pv);
 
 	m0_confc_close(&pver->pv_obj);
 	return M0_RC(rc);

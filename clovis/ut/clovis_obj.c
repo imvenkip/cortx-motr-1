@@ -1115,8 +1115,6 @@ static void ut_clovis_test_clovis_cob_ios_fop_populate(void)
 	oo->oo_oc.oc_op.op_entity = &ent;
 	m0_fid_set(&cob_fid, 0xBAD, 0xBEE);
 
-	state.pst_version.pvn_version[0] = 99;
-	state.pst_version.pvn_version[1] = 88;
 	mach = &instance->m0c_pools_common.pc_cur_pver->pv_mach;
 	mach->pm_state = &state;
 

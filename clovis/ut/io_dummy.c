@@ -567,8 +567,6 @@ M0_INTERNAL int ut_clovis_dummy_poolmach_create(struct m0_pool_version *pv)
 	if (state == NULL)
 		return -ENOMEM;
 
-	state->pst_version.pvn_version[PVE_READ]  = 0;
-	state->pst_version.pvn_version[PVE_WRITE] = 0;
 	state->pst_nr_nodes            = 5; //nr_nodes;
 	/* nr_devices io devices and 1 md device. md uses container 0 */
 	state->pst_nr_devices          = 5; //nr_devices + 1;

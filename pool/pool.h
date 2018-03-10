@@ -44,7 +44,6 @@
 
 /* import */
 struct m0_io_req;
-struct m0_be_seg;
 
 /* export */
 struct m0_pool;
@@ -265,10 +264,7 @@ M0_INTERNAL void m0_pool_fini(struct m0_pool *pool);
 M0_INTERNAL int m0_pool_version_init_by_conf(struct m0_pool_version *pv,
 					     struct m0_conf_pver *pver,
 					     struct m0_pool *pool,
-					     struct m0_pools_common *pc,
-					     struct m0_be_seg *be_seg,
-					     struct m0_sm_group *sm_grp,
-					     struct m0_dtm *dtm);
+					     struct m0_pools_common *pc);
 
 M0_INTERNAL int m0_pool_version_init(struct m0_pool_version *pv,
 				     const struct m0_fid *id,
@@ -276,10 +272,7 @@ M0_INTERNAL int m0_pool_version_init(struct m0_pool_version *pv,
 				     uint32_t pool_width,
 				     uint32_t nodes,
 				     uint32_t nr_data,
-				     uint32_t nr_failures,
-				     struct m0_be_seg *be_seg,
-				     struct m0_sm_group *sm_grp,
-				     struct m0_dtm *dtm);
+				     uint32_t nr_failures);
 
 /**
  * Gets pool version from in-memory list of pools (pc->pc_pools).
@@ -305,7 +298,6 @@ M0_INTERNAL void m0_pool_version_fini(struct m0_pool_version *pv);
 M0_INTERNAL int m0_pool_versions_init_by_conf(struct m0_pool *pool,
 					      struct m0_pools_common *pc,
 					      const struct m0_conf_pool *cp,
-					      struct m0_be_seg *be_seg,
 					      struct m0_sm_group *sm_grp,
 					      struct m0_dtm *dtm);
 
@@ -322,16 +314,12 @@ M0_INTERNAL void m0_pools_fini(void);
  */
 M0_INTERNAL int m0_pools_setup(struct m0_pools_common *pc,
 			       const struct m0_fid    *profile,
-			       struct m0_be_seg       *be_seg,
 			       struct m0_sm_group     *sm_grp,
 			       struct m0_dtm          *dtm);
 
 M0_INTERNAL void m0_pools_destroy(struct m0_pools_common *pc);
 
-M0_INTERNAL int m0_pool_versions_setup(struct m0_pools_common *pc,
-				       struct m0_be_seg *be_seg,
-				       struct m0_sm_group *sm_grp,
-				       struct m0_dtm *dtm);
+M0_INTERNAL int m0_pool_versions_setup(struct m0_pools_common *pc);
 
 /**
  * Appends in-memory pool version to pool versions list.
@@ -340,9 +328,6 @@ M0_INTERNAL int m0_pool_versions_setup(struct m0_pools_common *pc,
  */
 M0_INTERNAL int m0_pool_version_append(struct m0_pools_common *pc,
 				       struct m0_conf_pver *pver,
-				       struct m0_be_seg *be_seg,
-				       struct m0_sm_group *sm_grp,
-				       struct m0_dtm *dtm,
 				       struct m0_pool_version **pv);
 
 M0_INTERNAL void m0_pool_versions_destroy(struct m0_pools_common *pc);
@@ -387,7 +372,7 @@ struct m0_poolnode {
 	/** Pool node identity. */
 	struct m0_fid           pn_id;
 	struct m0_format_footer pn_footer;
-} M0_XCA_RECORD M0_XCA_DOMAIN(be);
+};
 M0_BASSERT(sizeof(enum m0_pool_nd_state) == 4);
 
 enum m0_poolnode_format_version {
@@ -438,7 +423,7 @@ struct m0_pooldev {
 	uint64_t                pd_magic;
 
 	struct m0_format_footer pd_footer;
-} M0_XCA_RECORD M0_XCA_DOMAIN(be);
+};
 
 enum m0_pooldev_format_version {
 	M0_POOLDEV_FORMAT_VERSION_1 = 1,
@@ -571,14 +556,6 @@ enum sns_repair_state {
 
 	SRS_NR,
 };
-
-M0_INTERNAL
-void m0_poolmach_store_init_creds_add(struct m0_be_seg       *be_seg,
-				      uint32_t                nr_nodes,
-				      uint32_t                nr_devices,
-				      uint32_t                max_dev_fails,
-				      struct m0_be_tx_credit *cred);
-
 
 /**
  * Register clink of pooldev to disk conf object's wait channel

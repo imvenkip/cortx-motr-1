@@ -581,10 +581,7 @@ static void iter_ut_pool_init()
 				      POOL_WIDTH,
 				      NODES,
 				      DATA_NR,
-				      FAILURES_NR,
-				      NULL,
-				      NULL,
-				      NULL);
+				      FAILURES_NR);
 	M0_UT_ASSERT(result == 0);
 	iter_ut_devs_setup();
 	/** @todo Ugly workaround to do finalisation successfully. */

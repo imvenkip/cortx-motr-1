@@ -631,9 +631,7 @@ static int dix_idxop_pver_analyse(struct m0_dix_idxop_req *idxop_req,
 	if (rc == 0 && *creqs_nr == 0)
 		rc = M0_ERR(-EIO);
 
-	if (rc == 0)
-		dreq->dr_pmach_ver = pm->pm_state->pst_version;
-	else
+	if (rc != 0)
 		*creqs_nr = 0;
 	M0_POST(rc == 0 ? *creqs_nr > 0 : *creqs_nr == 0);
 	return rc;
@@ -1958,8 +1956,6 @@ static void dix_rop_units_set(struct m0_dix_req *req)
 	    !pool_failed_devs_tlist_is_empty(&pool->po_failed_devices))
 		dix_rop_failures_analyse(req);
 
-	/** @todo Send pm version in CAS requests. */
-	req->dr_pmach_ver = pm->pm_state->pst_version;
 	m0_rwlock_read_unlock(&pm->pm_lock);
 
 	/*

@@ -705,7 +705,7 @@ static void dix_pm_disk_state_set(struct m0_poolmach *pm, uint32_t sdev_idx,
 	event.pe_type = M0_POOL_DEVICE;
 	event.pe_index = pd->pd_index;
 	event.pe_state = state;
-	rc = m0_poolmach_state_transit(pm, &event, NULL);
+	rc = m0_poolmach_state_transit(pm, &event);
 	M0_ASSERT(rc == 0);
 }
 
@@ -1069,7 +1069,7 @@ static int dix_client_init(struct cl_ctx *cctx, const char *cl_ep_addr,
 	rc = m0_pools_common_init(pc, &cl_rpc_ctx->rcx_rpc_machine);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_pools_setup(pc, m0_reqh2profile(&cl_rpc_ctx->rcx_reqh),
-			    NULL, NULL, NULL);
+			    NULL, NULL);
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_pools_service_ctx_create(pc);
 	M0_UT_ASSERT(rc == 0);
@@ -1085,7 +1085,7 @@ static int dix_client_init(struct cl_ctx *cctx, const char *cl_ep_addr,
 	rc = m0_layout_standard_types_register(&cl_rpc_ctx->rcx_reqh.rh_ldom);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_pool_versions_setup(pc, NULL, NULL, NULL);
+	rc = m0_pool_versions_setup(pc);
 	M0_UT_ASSERT(rc == 0);
 	m0_confc_close(&root->rt_obj);
 	cctx->cl_sdev_ids = NULL;
