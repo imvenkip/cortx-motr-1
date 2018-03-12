@@ -171,6 +171,7 @@ Vagrant.configure('2') do |config|
     cmu.vm.hostname = 'cmu'
     setup(cmu, cmu_cpus, cmu_mem)
     setup_shared_mero_src_dir(cmu)
+    cmu.vm.provision :docker
   end
 
   # SSUs -----------------------------------
