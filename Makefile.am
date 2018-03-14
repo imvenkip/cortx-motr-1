@@ -584,6 +584,9 @@ include $(top_srcdir)/sns/cm/st/Makefile.sub
 #
 # clovis/st ------------------------------------------- {{{2
 #
+
+bin_PROGRAMS  += clovis/st/utils/c0composite
+
 if ENABLE_UNIT_TESTS
 noinst_PROGRAMS                   += clovis/st/user_space/c0st
 noinst_PROGRAMS                   += clovis/st/utils/c0touch
@@ -591,7 +594,6 @@ noinst_PROGRAMS                   += clovis/st/utils/c0unlink
 noinst_PROGRAMS                   += clovis/st/utils/c0cat
 noinst_PROGRAMS                   += clovis/st/utils/c0cp
 noinst_PROGRAMS                   += clovis/st/utils/c0cp_mt
-noinst_PROGRAMS                   += clovis/st/utils/c0composite
 endif
 
 clovis_st_user_space_c0st_CPPFLAGS = -DM0_TARGET='c0st' $(AM_CPPFLAGS)
@@ -619,8 +621,7 @@ clovis_st_utils_c0cp_mt_LDADD    = $(top_builddir)/mero/libmero.la \
                                  $(top_builddir)/ut/libmero-ut.la
 
 clovis_st_utils_c0composite_CPPFLAGS =  -DM0_TARGET='c0comp' $(AM_CPPFLAGS)
-clovis_st_utils_c0composite_LDADD    = $(top_builddir)/mero/libmero.la \
-				       $(top_builddir)/ut/libmero-ut.la
+clovis_st_utils_c0composite_LDADD    = $(top_builddir)/mero/libmero.la
 
 include $(top_srcdir)/clovis/st/Makefile.sub
 
