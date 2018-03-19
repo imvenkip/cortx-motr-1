@@ -156,39 +156,6 @@ M0_INTERNAL bool m0_be_reg_eq(const struct m0_be_reg *r1,
 /** XXX @todo make m0_be_reg_copy_to(reg, dst_addr) and
  * m0_be_reg_copy_from(reg, src_addr) */
 
-/*
- * `reg' parameter is not const, because stob IO will update
- * m0_be_reg::br_addr when a region is loaded/stored.
- */
-M0_INTERNAL void m0_be_reg_get(struct m0_be_reg *reg, struct m0_be_op *op);
-
-/**
- * XXX DOCUMENTME
- *
- * @pre m0_be_reg__is_pinned(reg)
- */
-M0_INTERNAL void m0_be_reg_get_fast(const struct m0_be_reg *reg);
-
-/**
- * @pre m0_be_reg__is_pinned(reg)
- */
-M0_INTERNAL void m0_be_reg_put(const struct m0_be_reg *reg);
-
-#define M0_BE_PTR_GET(seg, op, ptr) \
-	m0_be_reg_get(M0_BE_REG_PTR((seg), (ptr)), (op))
-
-#define M0_BE_ARR_GET(seg, op, arr, nr) \
-	m0_be_reg_get(M0_BE_REG((seg), (sizeof arr[0]) * (nr), (arr)), (op))
-
-#define M0_BE_PTR_GET_FAST(seg, ptr) \
-	m0_be_reg_get_fast(M0_BE_REG_PTR((seg), (ptr)))
-
-#define M0_BE_PTR_PUT(seg, ptr) \
-	m0_be_reg_put(M0_BE_REG((seg), (sizeof *ptr), (ptr)))
-
-/* Returns true iff all region's pages are pinned. */
-M0_INTERNAL bool m0_be_reg__is_pinned(const struct m0_be_reg *reg);
-
 M0_INTERNAL bool m0_be_reg__invariant(const struct m0_be_reg *reg);
 
 /*
