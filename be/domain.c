@@ -31,6 +31,7 @@
 #include "be/seg_internal.h"    /* m0_be_seg_hdr */
 #include "stob/stob.h"          /* m0_stob_find_by_key */
 #include "stob/domain.h"        /* m0_stob_domain_init */
+#include "be/op.h"              /* M0_BE_OP_SYNC */
 
 M0_TL_DESCR_DEFINE(zt, "m0_be_domain::bd_0types", M0_INTERNAL,
 			   struct m0_be_0type, b0_linkage, b0_magic,
@@ -53,6 +54,7 @@ static void be_domain_unlock(struct m0_be_domain *dom)
 	m0_mutex_unlock(&dom->bd_lock);
 }
 
+/* XXX TODO refactor 0types absraction out of BE domain */
 static int segobj_opt_iterate(struct m0_be_seg         *dict,
 			      const struct m0_be_0type *objtype,
 			      struct m0_buf            *opt,
@@ -859,6 +861,18 @@ M0_INTERNAL bool m0_be_domain_is_stob_seg(struct m0_be_domain     *dom,
                                           const struct m0_stob_id *stob_id)
 {
 	return m0_be_pd_is_stob_seg(&dom->bd_pd, stob_id);
+}
+
+M0_INTERNAL void m0_be_get(struct m0_be_domain    *dom,
+			   const struct m0_be_reg *reg)
+{
+	M0_BE_OP_SYNC(op, m0_be_pd_reg_get(&dom->bd_pd, reg, &op));
+}
+
+M0_INTERNAL void m0_be_put(struct m0_be_domain    *dom,
+			   const struct m0_be_reg *reg)
+{
+	m0_be_pd_reg_put(&dom->bd_pd, reg);
 }
 
 #undef M0_TRACE_SUBSYSTEM

@@ -254,6 +254,11 @@ M0_INTERNAL bool m0_be_domain_is_stob_log(struct m0_be_domain     *dom,
 M0_INTERNAL bool m0_be_domain_is_stob_seg(struct m0_be_domain     *dom,
                                           const struct m0_stob_id *stob_id);
 
+M0_INTERNAL void m0_be_get(struct m0_be_domain    *dom,
+			   const struct m0_be_reg *reg);
+M0_INTERNAL void m0_be_put(struct m0_be_domain    *dom,
+			   const struct m0_be_reg *reg);
+
 /** @} end of be group */
 #endif /* __MERO_BE_DOMAIN_H__ */
 
