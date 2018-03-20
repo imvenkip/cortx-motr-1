@@ -227,7 +227,6 @@ M0_INTERNAL void m0_be_pd_reg_get(struct m0_be_pd      *paged,
 	}
 	/* XXX: potential race near this point: current fom may go
 	        to sleep here */
-	/* XXX: ref counting */
 	m0_be_pd_request_push(paged, request, op);
 	m0_be_op_wait(op);
 
@@ -235,10 +234,31 @@ M0_INTERNAL void m0_be_pd_reg_get(struct m0_be_pd      *paged,
 	m0_free(request);
 }
 
+/* XXX copy-paste from m0_be_pd_reg_get() */
 M0_INTERNAL void m0_be_pd_reg_put(struct m0_be_pd        *paged,
 				  const struct m0_be_reg *reg)
 {
-	/* XXX: decrement ref counting */
+	struct m0_be_pd_request_pages  rpages;
+	struct m0_be_pd_request       *request;
+
+	m0_be_pd_request_pages_init(&rpages, M0_PRT_READ, NULL,
+				    &M0_EXT(0, 0), reg);
+	M0_ALLOC_PTR(request);
+	M0_ASSERT(request != NULL);
+	/* XXX init request just to iterate over all pages */
+	m0_be_pd_request_init(request, &rpages);
+
+	m0_be_pd_request_pages_forall(paged, request,
+	      LAMBDA(bool, (struct m0_be_pd_page *page,
+	                    struct m0_be_reg_d *rd) {
+	             m0_be_pd_page_lock(page);
+	             M0_CNT_DEC(page->pp_ref);
+	             m0_be_pd_page_unlock(page);
+	             return true;
+	}));
+
+	m0_be_pd_request_fini(request);
+	m0_free(request);
 }
 
 static void be_pd_lock(struct m0_be_pd *paged)
@@ -642,6 +662,7 @@ static int pd_fom_tick(struct m0_fom *fom)
 		      LAMBDA(bool, (struct m0_be_pd_page *page,
 				    struct m0_be_reg_d *rd) {
 			m0_be_pd_page_lock(page);
+			M0_CNT_INC(page->pp_ref);
 			if (!m0_be_pd_page_is_in(paged, page)) {
 				/*
 				 * XXX we need access to the mapping
@@ -1334,6 +1355,7 @@ M0_INTERNAL int m0_be_pd_page_init(struct m0_be_pd_page *page,
 	page->pp_addr   = addr;
 	page->pp_size   = size;
 	page->pp_cellar = NULL;
+	page->pp_ref    = 0;
 	m0_mutex_init(&page->pp_lock);
 	page->pp_state = M0_PPS_UNMAPPED;
 	pages_tlink_init(page);
@@ -1345,6 +1367,10 @@ M0_INTERNAL void m0_be_pd_page_fini(struct m0_be_pd_page *page)
 {
 	pages_tlink_fini(page);
 	m0_mutex_fini(&page->pp_lock);
+	M0_ASSERT_INFO(page->pp_ref == 0,
+		       "page=%p pp_addr=%p pp_cellar=%p pp_ref=%"PRIu64,
+		       page, page->pp_addr, page->pp_cellar, page->pp_ref);
+	/* TODO check the current state */
 	page->pp_state = M0_PPS_FINI;
 }
 

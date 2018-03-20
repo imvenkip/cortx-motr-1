@@ -263,7 +263,8 @@ struct m0_be_pd_page {
 	void                    *pp_addr;
 	void                    *pp_cellar;
 	m0_bcount_t              pp_size;
-	m0_bcount_t              pp_ref;
+	/** protected by pp_lock */
+	uint64_t                 pp_ref;
 	bool                     pp_dirty;
 	enum m0_be_pd_page_state pp_state;
 	struct m0_mutex          pp_lock;
