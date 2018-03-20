@@ -188,7 +188,7 @@ struct m0_ut_suite be_ut = {
 */
 		{ "recovery",                m0_be_ut_recovery                },
 		{ "pd-usecase",              m0_be_ut_pd_usecase              },
-// XXX PD	{ "pd-mapping-resident",     m0_be_ut_pd_mapping_resident     },
+		{ "pd-mapping-resident",     m0_be_ut_pd_mapping_resident     },
 		{ "pd-fom",                  m0_be_ut_pd_fom                  },
 		{ "seg-open",                m0_be_ut_seg_open_close          },
 		{ "seg-io",                  m0_be_ut_seg_io                  },

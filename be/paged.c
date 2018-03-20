@@ -1583,13 +1583,14 @@ M0_INTERNAL int m0_be_pd_mapping_init(struct m0_be_pd *paged,
 	be_pd_unlock(paged);
 
 	/* XXX: delete this after page_get/put ready in code */
-	M0_ASSERT(mapping->pas_type == M0_BE_PD_MAPPING_COMPAT);
-	for (i = 0; i < mapping->pas_pcount; ++i) {
-		m0_be_pd_page_lock(&mapping->pas_pages[i]);
-		int rc = m0_be_pd_mapping_page_attach(mapping,
+	if (mapping->pas_type == M0_BE_PD_MAPPING_COMPAT) {
+		for (i = 0; i < mapping->pas_pcount; ++i) {
+			m0_be_pd_page_lock(&mapping->pas_pages[i]);
+			rc = m0_be_pd_mapping_page_attach(mapping,
 						      &mapping->pas_pages[i]);
-		M0_ASSERT(rc == 0);
-		m0_be_pd_page_unlock(&mapping->pas_pages[i]);
+			M0_ASSERT(rc == 0);
+			m0_be_pd_page_unlock(&mapping->pas_pages[i]);
+		}
 	}
 
 
@@ -1613,13 +1614,14 @@ M0_INTERNAL int m0_be_pd_mapping_fini(struct m0_be_pd *paged,
 	be_pd_unlock(paged);
 
 	/* XXX: delete this after page_get/put ready in code */
-	M0_ASSERT(mapping->pas_type == M0_BE_PD_MAPPING_COMPAT);
-	for (i = 0; i < mapping->pas_pcount; ++i) {
-		m0_be_pd_page_lock(&mapping->pas_pages[i]);
-		int rc = m0_be_pd_mapping_page_detach(mapping,
-						      &mapping->pas_pages[i]);
-		M0_ASSERT(rc == 0);
-		m0_be_pd_page_unlock(&mapping->pas_pages[i]);
+	if (mapping->pas_type == M0_BE_PD_MAPPING_COMPAT) {
+		for (i = 0; i < mapping->pas_pcount; ++i) {
+			m0_be_pd_page_lock(&mapping->pas_pages[i]);
+			int rc = m0_be_pd_mapping_page_detach(mapping,
+							&mapping->pas_pages[i]);
+			M0_ASSERT(rc == 0);
+			m0_be_pd_page_unlock(&mapping->pas_pages[i]);
+		}
 	}
 
 	rc = be_pd_mapping_unmap(mapping);

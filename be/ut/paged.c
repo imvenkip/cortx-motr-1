@@ -158,12 +158,15 @@ void m0_be_ut_pd_mapping_resident(void)
 
 	m0_be_ut_backend_cfg_default(&cfg);
 	pd_cfg = &cfg.bc_pd_cfg;
+	m0_be_ut_reqh_create(&pd_cfg->bpc_reqh);
 
 	pd_cfg->bpc_mapping_type = M0_BE_PD_MAPPING_PER_PAGE;
 	m0_be_ut_pd_mapping_resident_with_cfg(pd_cfg);
 
 	pd_cfg->bpc_mapping_type = M0_BE_PD_MAPPING_SINGLE;
 	m0_be_ut_pd_mapping_resident_with_cfg(pd_cfg);
+
+	m0_be_ut_reqh_destroy();
 }
 
 /* ----------------------------------------------------------------------------
