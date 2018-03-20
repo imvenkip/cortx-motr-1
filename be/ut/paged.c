@@ -106,6 +106,8 @@ static void m0_be_ut_pd_mapping_resident_with_cfg(struct m0_be_pd_cfg *pd_cfg)
 				   BE_UT_PD_PAGE_SIZE, -1);
 	M0_UT_ASSERT(rc == 0);
 
+	/* Check that function handles not existent mappings */
+	M0_UT_ASSERT(m0_be_pd__mapping_by_addr(&paged, NULL) == NULL);
 	mapping = m0_be_pd__mapping_by_addr(&paged, seg_addr);
 	M0_UT_ASSERT(mapping != NULL);
 

@@ -1803,12 +1803,12 @@ m0_be_pd__mapping_by_addr(struct m0_be_pd *paged, const void *addr)
 		if (addr >= m0_be_pd_mapping__addr(mapping) &&
 		    addr <  m0_be_pd_mapping__addr(mapping) +
 			    m0_be_pd_mapping__size(mapping))
-			return mapping;
+			break;
 	} m0_tl_endfor;
 
 	be_pd_unlock(paged);
 
-	return NULL;
+	return mapping;
 }
 
 M0_INTERNAL struct m0_be_seg *
