@@ -40,7 +40,7 @@ Tests:
     executor : Xperior::Executor::MeroTest
     #executor : Xperior::Executor::Skip
     polltime : 30
-    timeout  : 720
+    timeout  : 1800
     roles: StoreSyslog  CustomLogCollector
     #NetconsoleCollector
     #collect_logs :
