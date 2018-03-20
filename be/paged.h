@@ -232,6 +232,7 @@ enum {
  * Locking
  *
  * Users lock BE page in order to serialise state transitions.
+ * Reference counter is protected by BE page lock.
  *
  * Semantics of states
  *
@@ -258,6 +259,14 @@ enum {
  * state.
  *
  * FINI is the final state and object must not be accessed in this state.
+ *
+ * Reference counting
+ * - there is 1 reference counter per page - pp_ref;
+ * - it's protected by pp_lock;
+ * - it ensures that the page memory (pp_addr and pp_cellar) wouldn't be freed
+ *   during stob I/O in progress;
+ * - it's incremented before I/O operation is started;
+ * - it's decremented after I/O operation is finished.
  */
 struct m0_be_pd_page {
 	void                    *pp_addr;
