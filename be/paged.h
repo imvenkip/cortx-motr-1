@@ -105,6 +105,12 @@ struct m0_be_pd_cfg {
 	 * created at m0_be_domain_cfg::bc_stob_domain_location.
 	 */
 	uint64_t                     bpc_stob_domain_key;
+	/**
+	 * Maximum allowed memory consumption for pages and cellar pages,
+	 * in bytes. A warning would be logged if the memory limit is reached.
+	 * TODO move to mappings cfg when it becomes a separate structure.
+	 */
+	m0_bcount_t                  bpc_memory_size_max;
 };
 
 M0_INTERNAL int m0_be_pd_init(struct m0_be_pd           *pd,
@@ -706,6 +712,7 @@ struct m0_be_pd {
 	 */
 	struct m0_be_pd_request_queue  bp_reqq;
 	struct m0_be_pd_fom            bp_fom;
+	m0_bcount_t                    bp_memory_size;
 };
 
 /* ------------------------------------------------------------------------- */

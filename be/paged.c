@@ -101,6 +101,7 @@ static int be_pd_level_enter(struct m0_module *module)
 		m0_mutex_init(&pd->bp_lock);
 		seg_tlist_init(&pd->bp_segs);
 		mappings_tlist_init(&pd->bp_mappings);
+		pd->bp_memory_size = 0;
 		return M0_RC(0);
 	case M0_BE_PD_LEVEL_SDOM:
 		return m0_stob_domain_create_or_init(
@@ -139,6 +140,8 @@ static void be_pd_level_leave(struct m0_module *module)
 
 	switch (level) {
 	case M0_BE_PD_LEVEL_INIT:
+		M0_ASSERT_INFO(pd->bp_memory_size == 0,
+		               "bp_memory_size=%"PRIu64, pd->bp_memory_size);
 		mappings_tlist_fini(&pd->bp_mappings);
 		seg_tlist_fini(&pd->bp_segs);
 		m0_mutex_fini(&pd->bp_lock);
@@ -274,6 +277,32 @@ static void be_pd_unlock(struct m0_be_pd *paged)
 static bool be_pd_is_locked(struct m0_be_pd *paged)
 {
 	return m0_mutex_is_locked(&paged->bp_lock);
+}
+
+static void be_pd_mem_usage_increase(struct m0_be_pd *pd,
+                                     m0_bcount_t      size)
+{
+	be_pd_lock(pd);
+	pd->bp_memory_size += size;
+	if (pd->bp_memory_size > pd->bp_cfg.bpc_memory_size_max) {
+		M0_LOG(M0_WARN, "memory limit exceeded: "
+		       "bpc_memory_size_max=%"PRIu64" bp_memory_size=%"PRIu64,
+		       pd->bp_cfg.bpc_memory_size_max,
+		       pd->bp_memory_size);
+	}
+	be_pd_unlock(pd);
+}
+
+static void be_pd_mem_usage_decrease(struct m0_be_pd *pd,
+                                     m0_bcount_t      size)
+{
+	m0_bcount_t size_before;
+
+	be_pd_lock(pd);
+	size_before = pd->bp_memory_size;
+	pd->bp_memory_size -= size;
+	M0_ASSERT(pd->bp_memory_size < size_before);
+	be_pd_unlock(pd);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -1525,12 +1554,7 @@ M0_INTERNAL int m0_be_pd_mapping_init(struct m0_be_pd *paged,
 	m0_bcount_t              i;
 	int                      rc;
 
-	/* XXX We can reduce critical section */
-	be_pd_lock(paged);
-
 	M0_PRE(size % page_size == 0);
-	M0_PRE(be_pd_mapping_find(paged, addr, size) == NULL);
-
 	M0_ALLOC_PTR(mapping);
 	M0_ASSERT(mapping != NULL); /* XXX */
 
@@ -1553,8 +1577,10 @@ M0_INTERNAL int m0_be_pd_mapping_init(struct m0_be_pd *paged,
 
 	rc = be_pd_mapping_map(mapping);
 	M0_ASSERT(rc == 0); /* XXX */
+	be_pd_lock(paged);
+	M0_ASSERT(be_pd_mapping_find(paged, addr, size) == NULL);
 	mappings_tlist_add(&paged->bp_mappings, mapping);
-
+	be_pd_unlock(paged);
 
 	/* XXX: delete this after page_get/put ready in code */
 	M0_ASSERT(mapping->pas_type == M0_BE_PD_MAPPING_COMPAT);
@@ -1566,7 +1592,6 @@ M0_INTERNAL int m0_be_pd_mapping_init(struct m0_be_pd *paged,
 		m0_be_pd_page_unlock(&mapping->pas_pages[i]);
 	}
 
-	be_pd_unlock(paged);
 
 	return M0_RC(0);
 }
@@ -1643,6 +1668,9 @@ M0_INTERNAL int m0_be_pd_mapping_page_attach(struct m0_be_pd_mapping *mapping,
 					       "Cannot unmap region addr=%p "
 					       "size=%lu", page->pp_addr,
 					       (unsigned long)page->pp_size);
+			} else {
+				be_pd_mem_usage_increase(mapping->pas_pd,
+				                         page->pp_size);
 			}
 		}
 		break;
@@ -1658,6 +1686,7 @@ M0_INTERNAL int m0_be_pd_mapping_page_attach(struct m0_be_pd_mapping *mapping,
 	if (rc == 0) {
 		/* XXX: 4k */
 		page->pp_cellar = m0_alloc_aligned(page->pp_size, 12);
+		be_pd_mem_usage_increase(mapping->pas_pd, page->pp_size);
 		M0_ASSERT(page->pp_cellar != NULL);
 		memcpy(page->pp_cellar, page->pp_addr, page->pp_size);
 		/* XXX */
@@ -1708,8 +1737,10 @@ M0_INTERNAL int m0_be_pd_mapping_page_detach(struct m0_be_pd_mapping *mapping,
 		break;
 	case M0_BE_PD_MAPPING_PER_PAGE:
 		rc = munmap(page->pp_addr, page->pp_size);
+		/* XXX handle detach error */
 		if (rc != 0)
 			rc = M0_ERR(-errno);
+		be_pd_mem_usage_decrease(mapping->pas_pd, page->pp_size);
 		break;
 	case M0_BE_PD_MAPPING_COMPAT:
 		/* do nothing */
@@ -1722,6 +1753,7 @@ M0_INTERNAL int m0_be_pd_mapping_page_detach(struct m0_be_pd_mapping *mapping,
 	if (rc == 0) {
 		/* XXX: 4k */
 		m0_free_aligned(page->pp_cellar, page->pp_size, 12);
+		be_pd_mem_usage_decrease(mapping->pas_pd, page->pp_size);
 		page->pp_state = M0_PPS_UNMAPPED;
 	}
 
