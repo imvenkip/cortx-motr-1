@@ -207,7 +207,6 @@ static int be_domain_seg_destroy(struct m0_be_domain *dom,
 }
 
 static int be_domain_seg_create(struct m0_be_domain              *dom,
-				struct m0_be_tx                  *tx,
 				struct m0_be_seg                 *seg,
 				const struct m0_be_0type_seg_cfg *seg_cfg)
 {
@@ -503,11 +502,21 @@ m0_be_domain_seg_create(struct m0_be_domain               *dom,
 		rc = 0;
 		tx_is_open = false;
 	}
-	rc = rc ?: be_domain_seg_create(dom, tx, &seg1, seg_cfg);
+	rc = rc ?: be_domain_seg_create(dom, &seg1, seg_cfg);
 	if (rc == 0) {
 		/*
 		 * Close segment here, because it will be open by
 		 * m0_be_0type_add().
+		 *
+		 * XXX FIXME BE domain initialises seg_dict and allocator two
+		 * times before they are created. First time in
+		 * be_domain_seg_create() and second time in m0_be_0type_add().
+		 * Also be_domain_seg_structs_create() is called after the
+		 * segment is accessible by users. As result users may get a
+		 * segment with incorrect seg_dict/allocator state.
+		 * The reason of such a design is that the tx may be an external
+		 * transaction and it would need to be closed before closing the
+		 * segment and calling m0_be_0type_add().
 		 */
 		be_domain_seg_close(dom, &seg1);
 		rc = m0_be_0type_add(&dom->bd_0type_seg, dom, tx, suffix,
@@ -685,7 +694,7 @@ static int be_domain_level_enter(struct m0_module *module)
 		 * m0_be_allocator_create() and m0_be_seg_dict_create() need
 		 * engine to process a transaction.
 		 */
-		return M0_RC(be_domain_seg_create(dom, NULL,
+		return M0_RC(be_domain_seg_create(dom,
 						  m0_be_domain_seg0_get(dom),
 						  &cfg->bc_seg0_cfg));
 	case M0_BE_DOMAIN_LEVEL_MKFS_SEG0_STRUCTS_CREATE:
