@@ -1605,7 +1605,6 @@ M0_INTERNAL int m0_be_pd_mapping_fini(struct m0_be_pd *paged,
 	for (i = 0; i < mapping->pas_pcount; ++i)
 		m0_be_pd_page_fini(&mapping->pas_pages[i]);
 	m0_free(mapping->pas_pages);
-	m0_mutex_fini(&mapping->pas_lock);
 	m0_free(mapping);
 
 	return M0_RC(0);
