@@ -256,6 +256,63 @@ void m0_be_ut_pd_fom(void)
 	m0_be_reg_area_fini(&reg_area);
 }
 
+enum {
+	BE_UT_PD_GET_PUT_SEG_NR         = 0x4,
+	BE_UT_PD_GET_PUT_SEG_SIZE       = 64UL << 10,
+	BE_UT_PD_GET_PUT_STOB_KEY_START = 0x1,
+};
+
+void m0_be_ut_pd_get_put(void)
+{
+	struct m0_be_0type_seg_cfg   seg_cfg;
+	struct m0_be_domain_cfg     *bd_cfg;
+	struct m0_be_pd             *pd;
+	struct m0_be_pd_cfg         *pd_cfg;
+	struct m0_reqh              *reqh = NULL;
+	int                          rc;
+	int                          i;
+
+	M0_ALLOC_PTR(pd);
+	M0_ALLOC_PTR(pd_cfg);
+	m0_be_ut_reqh_create(&reqh);
+
+	M0_ALLOC_PTR(bd_cfg);
+	m0_be_ut_backend_cfg_default(bd_cfg);
+	*pd_cfg = bd_cfg->bc_pd_cfg;
+	m0_free(bd_cfg);
+
+	pd_cfg->bpc_reqh = reqh;
+	rc = m0_be_pd_init(pd, pd_cfg);
+	M0_UT_ASSERT(rc == 0);
+
+	for (i = 0; i < BE_UT_PD_GET_PUT_SEG_NR; ++i) {
+		seg_cfg = (struct m0_be_0type_seg_cfg){
+			.bsc_stob_key = BE_UT_PD_GET_PUT_STOB_KEY_START + i,
+			.bsc_preallocate = false,
+			.bsc_size = BE_UT_PD_GET_PUT_SEG_SIZE,
+			.bsc_addr = m0_be_ut_seg_allocate_addr(
+			                        BE_UT_PD_GET_PUT_SEG_SIZE),
+			.bsc_stob_create_cfg = NULL,
+		};
+		rc = m0_be_pd_seg_create(pd, NULL, &seg_cfg);
+		M0_UT_ASSERT(rc == 0);
+	}
+	for (i = 0; i < BE_UT_PD_GET_PUT_SEG_NR; ++i) {
+		/*
+		 * XXX FIXME stob_key is used as seg_id by default, see
+		 * `if' statement in m0_be_seg_init() with M0_BE_SEG_FAKE_ID.
+		 */
+		rc = m0_be_pd_seg_destroy(pd, NULL,
+					  BE_UT_PD_GET_PUT_STOB_KEY_START + i);
+		M0_UT_ASSERT(rc == 0);
+	}
+	m0_be_pd_fini(pd);
+
+	m0_be_ut_reqh_destroy();
+	m0_free(pd_cfg);
+	m0_free(pd);
+}
+
 
 #undef M0_TRACE_SUBSYSTEM
 

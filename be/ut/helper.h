@@ -33,6 +33,7 @@
 #include "lib/bob.h"    /* M0_BOB_DEFINE */
 
 enum {
+	BE_UT_RNG_SEED_START = 0x42,
 	BE_UT_SEG_START_ADDR = 0x400000000000ULL,
 	BE_UT_SEG_START_ID   = 42,
 	BE_UT_LOG_ID         = BE_UT_SEG_START_ID - 2,
