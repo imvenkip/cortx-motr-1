@@ -343,6 +343,7 @@ void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg)
 			.bpc_stob_domain_cfg_create = NULL,
 			.bpc_stob_domain_key        =
 					m0_atomic64_add_return(&dom_key, 1),
+			.bpc_memory_size_max        = 16 * 0x100000ULL,
 		},
 		.bc_log_discard_cfg = {
 			.ldsc_items_max         = 0x100,
