@@ -550,7 +550,7 @@ M0_INTERNAL bool m0_be_pd_is_stob_seg(struct m0_be_pd         *pd,
  *         m0_be_pd_request_push() |					 |
  *                                 v					 |
  *                       +----MANAGE_PRE -------+			 |
- *  request is PRT_WRITE |                      | request is PRT_WRITE	 |
+ *  request is PRT_READ  |                      | request is PRT_WRITE	 |
  *                       |                      |			 |
  *                       v                      v			 |
  *                     READ                  WRITE_PRE			 |
@@ -1084,25 +1084,11 @@ m0_be_pd_request_queue_push(struct m0_be_pd_request_queue      *rq,
 	M0_PRE(ergo(be_pd_request_is_write(request),
 		    request->prt_ext.e_end != 0));
 
-	m0_mutex_lock(&rq->prq_lock);
-
-	/*
-	 * XXX Race here. Need to post ast and check state there. Also need to
-	 * track whether ast already posted.
-	 */
-
-	/* no special lock is needed here */
-	//if (reqq_tlist_length(&rq->prq_queue) == 0 &&
-	//    m0_fom_phase(fom) == PFS_IDLE) {
-	//	M0_LOG(M0_DEBUG, "request=%p waking_up_fom", request);
-	//	m0_fom_wakeup(fom);
-	//}
-
-	/* Use deferred list to push WRITE requests in required order. */
-
 	M0_LOG(M0_DEBUG, "request=%p start=%" PRIu64 " end=%" PRIu64, request,
 	       request->prt_ext.e_start, request->prt_ext.e_end);
 
+	m0_mutex_lock(&rq->prq_lock);
+	/* Use deferred list to push WRITE requests in required order. */
 	if (be_pd_request_is_write(request)) {
 		if (be_pd_request_is_deferred(rq, request))
 			deferred_insert_sorted(rq, request);
@@ -1267,11 +1253,11 @@ request_pages_forall_helper(struct m0_be_pd         *paged,
 	struct m0_be_prp_cursor        cursor;
 	struct m0_be_pd_page          *page;
 
-	m0_be_prp_cursor_init(&cursor, (paged), rpages,
+	m0_be_prp_cursor_init(&cursor, paged, rpages,
 			      rd->rd_reg.br_addr,
 			      rd->rd_reg.br_size);
 	while (m0_be_prp_cursor_next(&cursor)) {
-		(page) = m0_be_prp_cursor_page_get(&cursor);
+		page = m0_be_prp_cursor_page_get(&cursor);
 		if (!iterate(page, rd))
 			return false;
 	}

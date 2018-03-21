@@ -332,13 +332,6 @@ M0_INTERNAL void m0_be_pd_mappings_unlock(struct m0_be_pd            *paged,
 					  struct m0_be_pd_request    *request);
 
 /**
- * (struct m0_be_pd, struct m0_be_pd_pages)
- * M0_BE_PD_PAGES_FORALL(paged, page) {
- * }
- */
-#define M0_BE_PD_PAGES_FORALL(paged, page)
-
-/**
  * Creates and Initialises BE mapping and initialises all respective BE pages.
  *
  * Argument fd must be either -1 or file descriptor greater than 0. Positive
@@ -429,7 +422,7 @@ M0_INTERNAL void m0_be_pd_request_pages_fill(struct m0_be_pd_request_pages *rqp,
  * (transparent) pages.
  *
  * Therefore, user sees and has to use only m0_be_pd_request_pages_init()
- * interface and internals of PD use M0_BE_PD_REQUEST_PAGES_FORALL() and
+ * interface and internals of PD use m0_be_pd_request_pages_forall() and
  * m0_be_pd_request__copy_to_cellars(), so that user and PD has not to bother
  * regarding how user structrues are converted into PD structures and how they
  * can be changed.
@@ -458,7 +451,6 @@ struct m0_be_pd_request {
 };
 
 /* internal */
-/* pd_request_pages iterator */
 
 /**
  * Provide means to iterate over m0_be_pd_request_pages structure by page,
@@ -525,54 +517,6 @@ m0_be_pd_request_pages_forall(struct m0_be_pd         *paged,
 			      struct m0_be_pd_request *request,
 			      bool (*iterate)(struct m0_be_pd_page *page,
 					      struct m0_be_reg_d   *rd));
-
-/**
- * Iterates over region of m0_be_pd_request and corresponding to this region
- * pages inside paged mappings.
- *
- * @param paged   given paged.
- * @param request READ or WRITE request obtained by paged.
- * @param page    iterated page
- * @param rd      iterated region
- * @code
- * struct m0_be_pd_page *page;
- * struct m0_be_reg_d   *rd;
- *
- * M0_BE_PD_REQUEST_PAGES_FORALL(paged, request, page, rd) {
- *	copy_reg_to_page(page, rd);
- * } M0_BE_PD_REQUEST_PAGES_ENDFOR;
- * @endcode
- */
-#define M0_BE_PD_REQUEST_PAGES_FORALL(paged, request, page, rd)		\
-{									\
-	struct m0_be_prp_cursor        cursor;				\
-	struct m0_be_pd_request_pages *rpages = &(request)->prt_pages;	\
-	struct m0_be_reg_d             rd_read;				\
-									\
-	if (rpages->prp_type == M0_PRT_READ) {				\
-		rd = &rd_read;						\
-		rd->rd_reg.br_addr = rpages->prp_reg.br_addr;		\
-		rd->rd_reg.br_size = rpages->prp_reg.br_size;		\
-		goto read;						\
-	}								\
-									\
-	M0_BE_REG_AREA_FORALL(rpages->prp_reg_area, rd) {		\
-	read:								\
-		m0_be_prp_cursor_init(&cursor, (paged), rpages,		\
-				      rd->rd_reg.br_addr,		\
-				      rd->rd_reg.br_size);		\
-		while (m0_be_prp_cursor_next(&cursor)) {		\
-			(page) = m0_be_prp_cursor_page_get(&cursor);
-
-#define M0_BE_PD_REQUEST_PAGES_ENDFOR					\
-		}							\
-		m0_be_prp_cursor_fini(&cursor);				\
-		if (rpages->prp_type == M0_PRT_READ)			\
-			break;						\
-	}								\
-} while (0)
-
-
 
 /**
  * Copies data encapsulated inside request into cellar pages for WRITE.
