@@ -213,6 +213,7 @@ M0_INTERNAL void m0_arch_trace_fini(void)
 M0_INTERNAL void m0_arch_trace_buf_header_init(struct m0_trace_buf_header *tbh)
 {
 	int     i;
+	int     rc;
 	int     cmdline_fd;
 	ssize_t read_bytes;
 
@@ -240,6 +241,10 @@ M0_INTERNAL void m0_arch_trace_buf_header_init(struct m0_trace_buf_header *tbh)
                         if (tbh->tbh_cli_args[i] == '\0')
                                 tbh->tbh_cli_args[i] = ' ';
 	}
+
+	rc = close(cmdline_fd);
+	if (rc == -1)
+		warn("mero: failed to close " CMDLINE ": errno=%d", errno);
 #undef CMDLINE
 
 	if (strstr(tbh->tbh_cli_args, "m0mkfs") != NULL)
