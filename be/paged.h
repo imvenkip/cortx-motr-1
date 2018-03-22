@@ -111,6 +111,11 @@ struct m0_be_pd_cfg {
 	 * TODO move to mappings cfg when it becomes a separate structure.
 	 */
 	m0_bcount_t                  bpc_memory_size_max;
+	/**
+	 * Page size for the page daemon's pages.
+	 * Must be a multiple of PAGE_SIZE.
+	 */
+	m0_bcount_t                  bpc_page_size;
 };
 
 M0_INTERNAL int m0_be_pd_init(struct m0_be_pd           *pd,
@@ -203,11 +208,6 @@ enum m0_be_pd_page_state {
 	M0_PPS_READING,
 	M0_PPS_READY,
 	M0_PPS_WRITING,
-};
-
-enum {
-	/** Default size for BE page. Must be multiple of system page size. */
-	M0_BE_PD_PAGE_SIZE = 16 * 1024,
 };
 
 /**
@@ -345,7 +345,6 @@ M0_INTERNAL void m0_be_pd_mappings_unlock(struct m0_be_pd            *paged,
 M0_INTERNAL int m0_be_pd_mapping_init(struct m0_be_pd *paged,
 				      void            *addr,
 				      m0_bcount_t      size,
-				      m0_bcount_t      page_size,
 				      int              fd);
 M0_INTERNAL int m0_be_pd_mapping_fini(struct m0_be_pd *paged,
 				      const void      *addr,

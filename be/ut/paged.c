@@ -100,10 +100,10 @@ static void m0_be_ut_pd_mapping_resident_with_cfg(struct m0_be_pd_cfg *pd_cfg)
 	seg_size = BE_UT_PD_SEG_SIZE;
 	seg_addr = m0_be_ut_seg_allocate_addr(seg_size);
 	M0_UT_ASSERT((seg_size & (sys_page_size - 1)) == 0);
-	M0_UT_ASSERT((seg_size & (BE_UT_PD_PAGE_SIZE - 1)) == 0);
-	M0_UT_ASSERT(((unsigned long)seg_addr & (BE_UT_PD_PAGE_SIZE - 1)) == 0);
-	rc = m0_be_pd_mapping_init(&paged, seg_addr, seg_size,
-				   BE_UT_PD_PAGE_SIZE, -1);
+	M0_UT_ASSERT((seg_size & (pd_cfg->bpc_page_size - 1)) == 0);
+	M0_UT_ASSERT(((unsigned long)seg_addr & (pd_cfg->bpc_page_size - 1))
+		     == 0);
+	rc = m0_be_pd_mapping_init(&paged, seg_addr, seg_size, -1);
 	M0_UT_ASSERT(rc == 0);
 
 	/* Check that function handles not existent mappings */
@@ -111,7 +111,7 @@ static void m0_be_ut_pd_mapping_resident_with_cfg(struct m0_be_pd_cfg *pd_cfg)
 	mapping = m0_be_pd__mapping_by_addr(&paged, seg_addr);
 	M0_UT_ASSERT(mapping != NULL);
 
-	M0_UT_ASSERT(mapping->pas_pcount == seg_size / BE_UT_PD_PAGE_SIZE);
+	M0_UT_ASSERT(mapping->pas_pcount == seg_size / pd_cfg->bpc_page_size);
 
 	/* All system pages must be not resident right after initialisation. */
 	for (i = 0; i < mapping->pas_pcount; ++i) {
@@ -121,7 +121,7 @@ static void m0_be_ut_pd_mapping_resident_with_cfg(struct m0_be_pd_cfg *pd_cfg)
 
 	/* Attach the second BE page. */
 	page = m0_be_pd_mapping__addr_to_page(mapping,
-					(char *)seg_addr + BE_UT_PD_PAGE_SIZE);
+				  (char *)seg_addr + pd_cfg->bpc_page_size);
 	M0_UT_ASSERT(page != NULL);
 	m0_be_pd_page_lock(page);
 	rc = m0_be_pd_mapping_page_attach(mapping, page);
@@ -159,6 +159,7 @@ void m0_be_ut_pd_mapping_resident(void)
 	m0_be_ut_backend_cfg_default(&cfg);
 	pd_cfg = &cfg.bc_pd_cfg;
 	m0_be_ut_reqh_create(&pd_cfg->bpc_reqh);
+	pd_cfg->bpc_page_size = BE_UT_PD_PAGE_SIZE;
 
 	pd_cfg->bpc_mapping_type = M0_BE_PD_MAPPING_PER_PAGE;
 	m0_be_ut_pd_mapping_resident_with_cfg(pd_cfg);

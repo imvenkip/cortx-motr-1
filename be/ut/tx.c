@@ -70,7 +70,10 @@ void m0_be_ut_tx_usecase_success(void)
 	M0_UT_ASSERT(rc == 0);
 
 	//data = (uint64_t *) (seg->bs_addr + seg->bs_reserved);
+	// XXX restore the original test
+#define M0_BE_PD_PAGE_SIZE (16 * 1024)
 	data = (char *) (seg->bs_addr + M0_BE_PD_PAGE_SIZE - sz/4);
+#undef M0_BE_PD_PAGE_SIZE
 	//memset(data, 0xce, sz);
 	for (i = 0; i < sz; ++i)
 		data[i] = i+0x30;

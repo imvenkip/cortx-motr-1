@@ -113,7 +113,7 @@ static int be_pd_level_enter(struct m0_module *module)
 	case M0_BE_PD_LEVEL_IO_SCHED:
 		pd->bp_cfg.bpc_io_sched_cfg.bpdc_io_credit =
 			M0_BE_IO_CREDIT(pd->bp_cfg.bpc_pages_per_io,
-					M0_BE_PD_PAGE_SIZE *
+					pd->bp_cfg.bpc_page_size *
 					pd->bp_cfg.bpc_pages_per_io,
 					pd->bp_cfg.bpc_seg_nr_max);
 		return M0_RC(m0_be_pd_io_sched_init(&pd->bp_io_sched,
@@ -1544,10 +1544,10 @@ static int be_pd_mapping_unmap(struct m0_be_pd_mapping *mapping)
 M0_INTERNAL int m0_be_pd_mapping_init(struct m0_be_pd *paged,
 				      void            *addr,
 				      m0_bcount_t      size,
-				      m0_bcount_t      page_size,
 				      int              fd)
 {
 	struct m0_be_pd_mapping *mapping;
+	m0_bcount_t              page_size = paged->bp_cfg.bpc_page_size;
 	m0_bcount_t              i;
 	int                      rc;
 
