@@ -179,7 +179,7 @@ static int be_domain_seg_structs_create(struct m0_be_domain *dom,
 static void be_domain_seg_close(struct m0_be_domain *dom,
 				struct m0_be_seg    *seg)
 {
-	/* XXX dict/allocator finied before seg is removed from pd's list */
+	/* XXX dict/allocator finied before seg is removed from pd's list. */
 	m0_be_seg_dict_fini(seg);
 	m0_be_allocator_fini(m0_be_seg_allocator(seg));
 	m0_be_pd_seg_close(&dom->bd_pd, seg);
@@ -191,7 +191,10 @@ static int be_domain_seg_open(struct m0_be_domain *dom,
 {
 	int rc;
 
-	/* XXX seg is added to pd's list before allocator/dict init */
+	/*
+	 * XXX seg is added to pd's list before allocator/dict init. TODO make
+	 * flag and handle it during filtering m0_be_domain_seg-like interfaces.
+	 */
 	rc = m0_be_pd_seg_open(&dom->bd_pd, seg, dom, stob_key);
 	if (rc == 0) {
 		(void)m0_be_allocator_init(m0_be_seg_allocator(seg), seg);
@@ -218,6 +221,10 @@ static int be_domain_seg_create(struct m0_be_domain              *dom,
 	if (rc != 0)
 		goto out;
 
+	/*
+	 * XXX FIXME be_domain_seg_open() initialises dict/allocator, but we
+	 * haven't created them yet.
+	 */
 	rc = be_domain_seg_open(dom, seg, seg_cfg->bsc_stob_key);
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "can't open segment after successful "
@@ -381,8 +388,15 @@ M0_INTERNAL struct m0_be_log *m0_be_domain_log(struct m0_be_domain *dom)
 	return &m0_be_domain_engine(dom)->eng_log;
 }
 
-/* XXX TODO make filter for functions returning segments, return only segments
- * that were inited by domain (alloc, seg_dict) */
+/*
+ * XXX TODO make filter for functions returning segments, return only segments
+ * that were inited by domain (alloc, seg_dict)
+ *
+ * Think about situations:
+ * 1. User iterates segments and a segment is added/removed in paged;
+ * 2. User iterates segments and a condition changes that makes the filter
+ *    return different number of segments.
+ */
 
 M0_INTERNAL struct m0_be_seg *m0_be_domain_seg(struct m0_be_domain *dom,
 					       const void          *addr)
@@ -517,6 +531,11 @@ m0_be_domain_seg_create(struct m0_be_domain               *dom,
 		 * The reason of such a design is that the tx may be an external
 		 * transaction and it would need to be closed before closing the
 		 * segment and calling m0_be_0type_add().
+		 *
+		 * As a solution we can make 0type_create() interface which does
+		 * not initialises segment in opposite to 0type_add(). In this
+		 * case we don't need to close segment and can "add" 0type,
+		 * create dict/alloc within the same tx.
 		 */
 		be_domain_seg_close(dom, &seg1);
 		rc = m0_be_0type_add(&dom->bd_0type_seg, dom, tx, suffix,
@@ -563,6 +582,10 @@ M0_INTERNAL int m0_be_domain_seg_destroy(struct m0_be_domain *dom,
 	M0_PRE(m0_be_tx__is_exclusive(tx));
 
 	be_domain_seg_suffix_make(dom, seg->bs_id, suffix, ARRAY_SIZE(suffix));
+	/*
+	 * m0_be_0type_del() finalises object. Therefore, segment is closed
+	 * before be_domain_seg_destroy().
+	 */
 	rc = m0_be_0type_del(&dom->bd_0type_seg, dom, tx, suffix);
 	rc = rc ?: be_domain_seg_destroy(dom, seg_id);
 	/*
