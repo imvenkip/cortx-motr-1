@@ -93,6 +93,7 @@ struct m0_be_domain_cfg {
 	 * The sum of all array elements should be 100.
 	 */
 	uint32_t                     bc_zone_pcnt[M0_BAP_NR];
+	bool                         bc_destroy_on_fini;
 
 	/*
 	 * Next fields are for mkfs mode only.

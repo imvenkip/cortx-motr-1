@@ -756,9 +756,12 @@ static void be_domain_level_leave(struct m0_module *module)
 {
 	struct m0_be_domain *dom = M0_AMB(dom, module, bd_module);
 	struct m0_be_0type  *zt;
+	struct m0_be_seg    *seg;
+	uint64_t             seg_id;
 	int                  level = module->m_cur;
 	const char          *level_name = levels_be_domain[level].ml_name;
 	unsigned             i;
+	int                  rc;
 
 	M0_ENTRY("dom=%p level=%d level_name=%s", dom, level, level_name);
 	switch (level) {
@@ -782,7 +785,10 @@ static void be_domain_level_leave(struct m0_module *module)
 	case M0_BE_DOMAIN_LEVEL_MKFS_LOG_CREATE:
 		break;
 	case M0_BE_DOMAIN_LEVEL_NORMAL_LOG_OPEN:
-		m0_be_log_close(&dom->bd_engine.eng_log);
+		if (dom->bd_cfg.bc_destroy_on_fini)
+			m0_be_log_destroy(&dom->bd_engine.eng_log);
+		else
+			m0_be_log_close(&dom->bd_engine.eng_log);
 		break;
 	case M0_BE_DOMAIN_LEVEL_PD_INIT:
 		m0_be_pd_fini(&dom->bd_pd);
@@ -798,7 +804,15 @@ static void be_domain_level_leave(struct m0_module *module)
 		 * case. The proper solution would be to init+start engine and
 		 * only then init seg0 and visit 0types. TODO implement this.
 		 */
-		be_domain_seg_close(dom, m0_be_domain_seg0_get(dom));
+		seg = m0_be_domain_seg0_get(dom);
+		seg_id = seg->bs_id;
+		be_domain_seg_close(dom, seg);
+		if (dom->bd_cfg.bc_destroy_on_fini) {
+			rc = be_domain_seg_destroy(dom, seg_id);
+			if (rc != 0)
+				M0_LOG(M0_ERROR,
+				       "seg0 destroying failed rc=%d", rc);
+		}
 		break;
 	case M0_BE_DOMAIN_LEVEL_NORMAL_0TYPES_VISIT:
 		(void)_0types_visit(dom, false);
@@ -822,6 +836,37 @@ static void be_domain_level_leave(struct m0_module *module)
 	case M0_BE_DOMAIN_LEVEL_MKFS_SEG0_STRUCTS_CREATE:
 	case M0_BE_DOMAIN_LEVEL_MKFS_SEG0_0TYPE:
 	case M0_BE_DOMAIN_LEVEL_MKFS_SEGMENTS_CREATE:
+		if (dom->bd_cfg.bc_destroy_on_fini) {
+			struct m0_be_tx_credit cred = {};
+			struct m0_be_tx        tx = {};
+			struct m0_sm_group    *grp = m0_locality0_get()->lo_grp;
+			struct m0_be_seg      *seg2;
+
+			for (seg = m0_be_domain_seg_first(dom); seg != NULL;
+			     seg = m0_be_domain_seg_next(dom, seg))
+				m0_be_domain_seg_destroy_credit(dom, seg, &cred);
+			m0_sm_group_lock(grp);
+			m0_be_tx_init(&tx, 0, dom, grp, NULL, NULL, NULL, NULL);
+			m0_be_tx_prep(&tx, &cred);
+			rc = m0_be_tx_exclusive_open_sync(&tx);
+			M0_ASSERT_INFO(rc == 0, "rc=%d", rc);
+
+			seg = m0_be_domain_seg_first(dom);
+			while (seg != NULL) {
+				seg2 = m0_be_domain_seg_next(dom, seg);
+				seg_id = seg->bs_id;
+				rc = m0_be_domain_seg_destroy(dom, &tx, seg);
+				if (rc != 0)
+					M0_LOG(M0_ERROR, "seg destroying failed"
+							 " seg_id=%"PRIu64
+							 " rc=%d", seg_id, rc);
+				seg = seg2;
+			}
+
+			m0_be_tx_close_sync(&tx);
+			m0_be_tx_fini(&tx);
+			m0_sm_group_unlock(grp);
+		}
 	case M0_BE_DOMAIN_LEVEL_READY:
 		break;
 	default:
