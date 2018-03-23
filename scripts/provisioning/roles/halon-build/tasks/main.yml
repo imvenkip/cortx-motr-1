@@ -37,3 +37,18 @@
   tags:
     - halon
     - breaks-dry-run
+
+# RabbitMQ is needed for some of the Halon tests
+- name: install RabbitMQ
+  package: state=present name=rabbitmq-server
+  tags:
+    - halon
+    - rabbitmq
+    - breaks-dry-run
+
+- name: start RabbitMQ
+  service: name=rabbitmq-server state=started enabled=yes
+  tags:
+    - halon
+    - rabbitmq
+    - start-services
