@@ -32,8 +32,12 @@
 #include "be/op.h"
 #include "lib/errno.h"
 #include "lib/memory.h"
+#include "lib/semaphore.h"      /* m0_semaphore */
 #include "ut/ut.h"
 #include "ut/stob.h"
+#include "fop/fom_simple.h"     /* m0_fom_simple */
+#include "reqh/reqh.h"          /* m0_reqh_nr_localities */
+#include "reqh/reqh_service.h"  /* m0_reqh_service_init */
 
 #include <sys/mman.h>
 #include <unistd.h>
@@ -261,21 +265,156 @@ enum {
 	BE_UT_PD_GET_PUT_SEG_NR         = 0x4,
 	BE_UT_PD_GET_PUT_SEG_SIZE       = 64UL << 10,
 	BE_UT_PD_GET_PUT_STOB_KEY_START = 0x1,
+	BE_UT_PD_GET_PUT_FOMS_PER_LOC   = 0x4,
+	BE_UT_PD_GET_PUT_SEQ_REG_SIZE   = 1UL << 10,
 };
+M0_BASSERT(BE_UT_PD_GET_PUT_SEG_SIZE % BE_UT_PD_GET_PUT_SEQ_REG_SIZE == 0);
+
+enum be_ut_pd_get_put_fom_work {
+	BE_UT_PD_GET_PUT_FOM_WORK_CHECK_ALL,
+};
+
+struct be_ut_pd_get_put_ctx {
+	struct m0_reqh                 *bugp_reqh;
+	struct m0_be_pd                *bugp_pd;
+	struct m0_be_seg               *bugp_seg[BE_UT_PD_GET_PUT_SEG_NR];
+	struct m0_fom_simple           *bugp_foms;
+	uint64_t                        bugp_foms_nr;
+	uint64_t                        bugp_loc_nr;
+	struct m0_semaphore            *bugp_done;
+	enum be_ut_pd_get_put_fom_work  bugp_work;
+	void                           *bugp_seg_data[BE_UT_PD_GET_PUT_SEG_NR];
+};
+
+/* XXX copy-paste from lib/ut/locality.c */
+static void fom_simple_svc_start(struct m0_reqh *reqh)
+{
+	struct m0_reqh_service_type *stype;
+	struct m0_reqh_service      *service;
+	int                          rc;
+
+	stype = m0_reqh_service_type_find("simple-fom-service");
+	M0_ASSERT(stype != NULL);
+	rc = m0_reqh_service_allocate(&service, stype, NULL);
+	M0_ASSERT(rc == 0);
+	m0_reqh_service_init(service, reqh,
+			     &M0_FID_INIT(0xdeadbeef, 0xbeefdead));
+	rc = m0_reqh_service_start(service);
+	M0_ASSERT(rc == 0);
+	M0_POST(m0_reqh_service_invariant(service));
+}
+
+static void be_ut_pd_get_put_reg_check(struct m0_be_seg *seg,
+                                       struct m0_be_reg *reg,
+                                       void             *seg_data)
+{
+	m0_bindex_t  reg_offset   = m0_be_seg_offset(seg, reg->br_addr);
+	char        *seg_actual   = seg->bs_addr;
+	char        *seg_expected = seg_data;
+	int          i;
+
+	for (i = 0; i < reg->br_size; ++i)
+		M0_ASSERT_INFO(seg_expected[reg_offset + i] ==
+		               seg_actual[reg_offset + i],
+		               "seg_actual=%p seg_expected=%p "
+		               "reg_offset=%td i=%d",
+		               seg_actual, seg_expected, reg_offset, i);
+}
+
+static int be_ut_pd_get_put_fom_tick(struct m0_fom *fom, void *data, int *phase)
+{
+	struct be_ut_pd_get_put_ctx *ctx = data;
+	struct m0_fom_simple        *simpleton;
+	struct m0_be_pd             *pd = ctx->bugp_pd;
+	struct m0_be_reg             reg;
+	struct m0_be_seg            *seg;
+	void                        *seg_addr;
+	m0_bcount_t                  reg_size;
+	int                          reg_nr;
+	int                          index;
+	int                          seg_index;
+	int                          i;
+
+	simpleton = container_of(fom, struct m0_fom_simple, si_fom);
+	for (index = 0; index < ctx->bugp_foms_nr; ++index)
+		if (&ctx->bugp_foms[index] == simpleton)
+			break;
+	M0_ASSERT(index < ctx->bugp_foms_nr);
+	seg_index = index % BE_UT_PD_GET_PUT_SEG_NR;
+	seg = ctx->bugp_seg[seg_index];
+	seg_addr = seg->bs_addr;
+
+	switch (ctx->bugp_work) {
+	case BE_UT_PD_GET_PUT_FOM_WORK_CHECK_ALL:
+		reg_size = BE_UT_PD_GET_PUT_SEQ_REG_SIZE;
+		reg_nr   = BE_UT_PD_GET_PUT_SEG_SIZE / reg_size;
+		for (i = 0; i < reg_nr; ++i) {
+			reg = M0_BE_REG(seg, reg_size, seg_addr + i * reg_size);
+			if (m0_be_seg_offset(seg, reg.br_addr) <
+			    m0_be_seg_reserved(seg))
+				continue;
+			M0_BE_OP_SYNC(op, m0_be_pd_reg_get(pd, &reg, &op));
+			be_ut_pd_get_put_reg_check(seg, &reg,
+					   ctx->bugp_seg_data[seg_index]);
+			m0_be_pd_reg_put(pd, &reg);
+		}
+		break;
+	default:
+		M0_IMPOSSIBLE("unknown work to do");
+	};
+	(void)ctx;
+	m0_semaphore_up(&ctx->bugp_done[index]);
+	return -1;
+}
+
+static void be_ut_pd_get_put_foms_run(struct be_ut_pd_get_put_ctx    *ctx,
+                                      enum be_ut_pd_get_put_fom_work  work)
+{
+	int i;
+
+	ctx->bugp_work = work;
+	memset(ctx->bugp_foms, 0,
+	       sizeof(ctx->bugp_foms[0]) * ctx->bugp_foms_nr);
+	m0_fom_simple_hoard(ctx->bugp_foms, ctx->bugp_foms_nr, ctx->bugp_reqh,
+			    NULL, &be_ut_pd_get_put_fom_tick, NULL, ctx);
+	for (i = 0; i < ctx->bugp_foms_nr; ++i)
+		m0_semaphore_down(&ctx->bugp_done[i]);
+}
 
 void m0_be_ut_pd_get_put(void)
 {
+	struct be_ut_pd_get_put_ctx *ctx;
 	struct m0_be_0type_seg_cfg   seg_cfg;
 	struct m0_be_domain_cfg     *bd_cfg;
 	struct m0_be_pd             *pd;
 	struct m0_be_pd_cfg         *pd_cfg;
 	struct m0_reqh              *reqh = NULL;
+	uint64_t                     loc_nr;
+	uint64_t                     foms_nr;
 	int                          rc;
 	int                          i;
 
+	m0_be_ut_reqh_create(&reqh);
+	fom_simple_svc_start(reqh);
+	loc_nr = m0_reqh_nr_localities(reqh);
+	foms_nr = loc_nr * BE_UT_PD_GET_PUT_FOMS_PER_LOC;
+
 	M0_ALLOC_PTR(pd);
 	M0_ALLOC_PTR(pd_cfg);
-	m0_be_ut_reqh_create(&reqh);
+	M0_ALLOC_PTR(ctx);
+	M0_ALLOC_ARR(ctx->bugp_foms, foms_nr);
+	M0_ALLOC_ARR(ctx->bugp_done, foms_nr);
+	ctx->bugp_foms_nr = foms_nr;
+	ctx->bugp_loc_nr  = loc_nr;
+	ctx->bugp_pd      = pd;
+	ctx->bugp_reqh    = reqh;
+
+	for (i = 0; i < foms_nr; ++i)
+		m0_semaphore_init(&ctx->bugp_done[i], 0);
+	for (i = 0; i < ARRAY_SIZE(ctx->bugp_seg); ++i)
+		M0_ALLOC_PTR(ctx->bugp_seg[i]);
+	for (i = 0; i < ARRAY_SIZE(ctx->bugp_seg_data); ++i)
+		ctx->bugp_seg_data[i] = m0_alloc(BE_UT_PD_GET_PUT_SEG_SIZE);
 
 	M0_ALLOC_PTR(bd_cfg);
 	m0_be_ut_backend_cfg_default(bd_cfg);
@@ -297,21 +436,35 @@ void m0_be_ut_pd_get_put(void)
 		};
 		rc = m0_be_pd_seg_create(pd, NULL, &seg_cfg);
 		M0_UT_ASSERT(rc == 0);
+		rc = m0_be_pd_seg_open(pd, ctx->bugp_seg[i], NULL,
+		                       seg_cfg.bsc_stob_key);
+		M0_UT_ASSERT(ctx->bugp_seg[i] != NULL);
 	}
+	be_ut_pd_get_put_foms_run(ctx, BE_UT_PD_GET_PUT_FOM_WORK_CHECK_ALL);
 	for (i = 0; i < BE_UT_PD_GET_PUT_SEG_NR; ++i) {
 		/*
 		 * XXX FIXME stob_key is used as seg_id by default, see
 		 * `if' statement in m0_be_seg_init() with M0_BE_SEG_FAKE_ID.
 		 */
+		m0_be_pd_seg_close(pd, ctx->bugp_seg[i]);
 		rc = m0_be_pd_seg_destroy(pd, NULL,
 					  BE_UT_PD_GET_PUT_STOB_KEY_START + i);
 		M0_UT_ASSERT(rc == 0);
 	}
 	m0_be_pd_fini(pd);
 
-	m0_be_ut_reqh_destroy();
+	for (i = 0; i < ARRAY_SIZE(ctx->bugp_seg_data); ++i)
+		m0_free(ctx->bugp_seg_data[i]);
+	for (i = 0; i < ARRAY_SIZE(ctx->bugp_seg); ++i)
+		m0_free(ctx->bugp_seg[i]);
+	for (i = 0; i < foms_nr; ++i)
+		m0_semaphore_fini(&ctx->bugp_done[i]);
+	m0_free(ctx->bugp_done);
+	m0_free(ctx->bugp_foms);
+	m0_free(ctx);
 	m0_free(pd_cfg);
 	m0_free(pd);
+	m0_be_ut_reqh_destroy();
 }
 
 

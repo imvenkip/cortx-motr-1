@@ -156,7 +156,10 @@ M0_INTERNAL void m0_be_ut_reqh_create(struct m0_reqh **pptr)
 	 * is a kludge and should be removed.
 	 */
 	M0_ASSERT(*pptr != NULL);
-	rc = M0_REQH_INIT(*pptr, .rhia_fid = &fid);
+	rc = M0_REQH_INIT(*pptr,
+	                  /* just for the sake of the reqh invariants */
+	                  .rhia_mdstore = (void *)1,
+			  .rhia_fid = &fid);
 	M0_ASSERT(rc == 0);
 	/*
 	 * Remember the address of allocated pointer, so that it can be
@@ -170,6 +173,7 @@ M0_INTERNAL void m0_be_ut_reqh_destroy(void)
 	struct be_ut_helper_struct *h = &be_ut_helper;
 
 	if (h->buh_reqh != NULL) {
+		m0_reqh_services_terminate(*h->buh_reqh);
 		m0_reqh_fini(*h->buh_reqh);
 		m0_free0(h->buh_reqh);
 		h->buh_reqh = NULL;

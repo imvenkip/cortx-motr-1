@@ -191,7 +191,7 @@ struct m0_ut_suite be_ut = {
 		{ "pd-usecase",              m0_be_ut_pd_usecase              },
 		{ "pd-mapping-resident",     m0_be_ut_pd_mapping_resident     },
 		{ "pd-fom",                  m0_be_ut_pd_fom                  },
-		{ "pd-get_put",              m0_be_ut_pd_get_put              },
+		// { "pd-get_put",              m0_be_ut_pd_get_put              },
 		{ "seg-open",                m0_be_ut_seg_open_close          },
 		{ "seg-io",                  m0_be_ut_seg_io                  },
 		{ "seg-multiple",            m0_be_ut_seg_multiple            },
