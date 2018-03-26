@@ -917,35 +917,50 @@ static const struct m0_fom_type_ops pd_fom_type_ops = {
 };
 
 
+/* TODO fix the function name (namespaces are missing) */
 static void pd_reqq_push(struct m0_sm_group *_, struct m0_sm_ast *ast)
 {
+	/* TODO fix m0_be_pd_fom name here */
 	struct m0_be_pd_fom *m   = M0_AMB(m, ast, bpf_ast_reqq_push);
 	struct m0_fom       *fom = &m->bpf_gen;
+
 	M0_ENTRY();
+	m0_mutex_lock(&m->bpf_ast_post_lock);
 	if (m0_fom_is_waiting(fom) && m0_fom_phase(fom) == PFS_IDLE) {
 		M0_LOG(M0_DEBUG, "waking up");
 		m0_fom_ready(fom);
 	}
+	m->bpf_ast_posted = false;
+	m0_mutex_unlock(&m->bpf_ast_post_lock);
 	M0_LEAVE();
 }
 
 static void pd_fom_on_reqq_push_wakeup(struct m0_be_pd_fom *pd_fom)
 {
-	m0_sm_ast_post(&pd_fom->bpf_gen.fo_loc->fl_group,
-		       &pd_fom->bpf_ast_reqq_push);
+	m0_mutex_lock(&pd_fom->bpf_ast_post_lock);
+	if (!pd_fom->bpf_ast_posted) {
+		m0_sm_ast_post(&pd_fom->bpf_gen.fo_loc->fl_group,
+		               &pd_fom->bpf_ast_reqq_push);
+		pd_fom->bpf_ast_posted = true;
+	}
+	m0_mutex_unlock(&pd_fom->bpf_ast_post_lock);
 }
 
+/* TODO make a good name for struct m0_be_pd_fom *, not just fom */
 M0_INTERNAL void m0_be_pd_fom_init(struct m0_be_pd_fom    *fom,
 				   struct m0_be_pd        *pd,
 				   struct m0_reqh         *reqh)
 {
 	m0_fom_init(&fom->bpf_gen, &pd_fom_type, &pd_fom_ops, NULL, NULL, reqh);
 	fom->bpf_pd = pd;
+	m0_mutex_init(&fom->bpf_ast_post_lock);
+	fom->bpf_ast_posted = false;
 	fom->bpf_ast_reqq_push = (struct m0_sm_ast){ .sa_cb = pd_reqq_push };
 }
 
 M0_INTERNAL void m0_be_pd_fom_fini(struct m0_be_pd_fom *fom)
 {
+	m0_mutex_fini(&fom->bpf_ast_post_lock);
 	/* fom->bpf_gen is finalised in pd_fom_fini() */
 }
 

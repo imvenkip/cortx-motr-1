@@ -618,6 +618,12 @@ struct m0_be_pd_fom {
 
 	struct m0_be_op          bpf_op;
 
+	/**
+	 * See pd_fom_on_reqq_push_wakeup() and pd_reqq_push() if you want to
+	 * know how the following 3 fields ensure proper MPSC fom wakeup.
+	 */
+	struct m0_mutex          bpf_ast_post_lock;
+	bool                     bpf_ast_posted;
 	struct m0_sm_ast         bpf_ast_reqq_push;
 };
 
