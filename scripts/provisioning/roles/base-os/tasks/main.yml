@@ -76,6 +76,14 @@
     gpgcheck: no
   when: ansible_os_family == 'RedHat'
 
+- name: disable SELinux
+  selinux:
+    state: disabled
+  tags:
+    - breaks-dry-run
+    - never       # only run this task if 'no-selinux' tag explicitely requested
+    - no-selinux
+
 - name: upgrade all packages to latest versions
   package:  name=*  state=latest  update_cache=yes
   tags: upgrade
