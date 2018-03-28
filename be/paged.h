@@ -32,6 +32,7 @@
 
 #include "lib/mutex.h"
 #include "lib/tlist.h"
+#include "lib/semaphore.h"      /* m0_semaphore */
 
 #include "fop/fom.h"      /* m0_fom */
 
@@ -625,6 +626,8 @@ struct m0_be_pd_fom {
 	struct m0_mutex          bpf_ast_post_lock;
 	bool                     bpf_ast_posted;
 	struct m0_sm_ast         bpf_ast_reqq_push;
+
+	struct m0_semaphore      bpf_start_sem;
 };
 
 M0_INTERNAL void m0_be_pd_fom_init(struct m0_be_pd_fom    *fom,

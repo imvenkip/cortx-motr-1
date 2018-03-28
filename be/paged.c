@@ -663,6 +663,7 @@ static int pd_fom_tick(struct m0_fom *fom)
 		pd_fom->bpf_pio_ext = pios->bpd_sched.bis_pos;
 		rc = M0_FSO_AGAIN;
 		m0_fom_phase_move(fom, 0, PFS_IDLE);
+		m0_semaphore_up(&pd_fom->bpf_start_sem);
 		break;
 	case PFS_FINISH:
 		pages_tlist_fini(pio_done);
@@ -965,19 +966,23 @@ M0_INTERNAL void m0_be_pd_fom_init(struct m0_be_pd_fom    *fom,
 	m0_mutex_init(&fom->bpf_ast_post_lock);
 	fom->bpf_ast_posted = false;
 	fom->bpf_ast_reqq_push = (struct m0_sm_ast){ .sa_cb = pd_reqq_push };
+	m0_semaphore_init(&fom->bpf_start_sem, 0);
 }
 
 M0_INTERNAL void m0_be_pd_fom_fini(struct m0_be_pd_fom *fom)
 {
+	m0_semaphore_fini(&fom->bpf_start_sem);
 	m0_mutex_fini(&fom->bpf_ast_post_lock);
 	/* fom->bpf_gen is finalised in pd_fom_fini() */
+	/* XXX pd_fom_fini() is not synchronized with this function */
 }
 
 M0_INTERNAL int m0_be_pd_fom_start(struct m0_be_pd_fom *fom)
 {
 	m0_fom_queue(&fom->bpf_gen);
+	m0_semaphore_down(&fom->bpf_start_sem);
 
-	return 0;
+	return M0_RC(0);
 }
 
 M0_INTERNAL void m0_be_pd_fom_stop(struct m0_be_pd_fom *fom)
