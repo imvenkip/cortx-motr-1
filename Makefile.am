@@ -1438,33 +1438,18 @@ __rpm_tests:
 		 --with ut \
 		 $(RPMBUILD_FLAGS)
 
-.PHONY: __rpm_mock_pre
-__rpm_mock_pre:
-	@if ! rpm -qi mock > /dev/null 2>&1 ; then \
-		echo 'Package "mock" is not installed, please install it before proceeding.' 2>&1 ; \
-		exit 1 ; \
-	 fi
-	@if ! rpm -qi mock-devvm-config > /dev/null 2>&1 ; then \
-		echo 'Package "mock-devvm-config" is not installed, please install it before proceeding.' 2>&1 ; \
-		exit 1 ; \
-	 fi
-	@rm -rf $(RPM_MOCK_DIR)
-	if ! grep -q reposerver /etc/hosts ; then \
-		echo '10.76.49.14  reposerver' | sudo tee /etc/hosts ; \
-	fi
-
 .PHONY: __rpm_mock
 __rpm_mock:
-	sudo mock -r mock_osaint --resultdir $(RPM_MOCK_DIR) --init
-	sudo mock -r mock_osaint --resultdir $(RPM_MOCK_DIR) --install \
-		kernel-devel lustre-client-devel perl-autodie genders binutils-devel systemd-devel
-	sudo mock -r mock_osaint --resultdir $(RPM_MOCK_DIR) --buildsrpm \
+	mock -r mero-mock.cfg --resultdir $(RPM_MOCK_DIR) --init
+	mock -r mero-mock.cfg --resultdir $(RPM_MOCK_DIR) --buildsrpm \
 		--spec $(RPM_SPEC_DIR)/mero.spec \
 		--sources $(RPM_SRC_DIR) \
+		--rpmbuild-opts='--with intel_lustre' \
 		--no-clean --no-cleanup-after
-	sudo mock -r mock_osaint --resultdir $(RPM_MOCK_DIR) --rebuild \
+	mock -r mero-mock.cfg --resultdir $(RPM_MOCK_DIR) --rebuild \
 		$(RPM_MOCK_DIR)/mero-*.src.rpm \
-		--no-clean
+		--rpmbuild-opts='--with intel_lustre' \
+		--no-clean --no-cleanup-after
 
 # __rpm_tests should be built before __rpm, because __rpm_tests creates a dummy
 # mero.rpm package, which would otherwise overwrite normal mero.rpm, created by
@@ -1491,7 +1476,6 @@ rpms-tests:
 
 .PHONY: rpms-mock
 rpms-mock:
-	$(MAKE) __rpm_mock_pre
 	$(MAKE) __rpm_pre
 	$(MAKE) __rpm_mock
 	$(MAKE) __rpm_post
