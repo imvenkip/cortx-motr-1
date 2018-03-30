@@ -623,7 +623,7 @@ AS_IF([test x$enable_systemd = xyes],
          AC_CHECK_DECL([sd_notify], [], [AC_MSG_ERROR([sd_notify() not found])],
                                     [[#include <systemd/sd-daemon.h>]])
 
-         MERO_SEARCH_LIBS([sd_notify], [systemd-daemon], [SYSTEMD_LIBS],
+         MERO_SEARCH_LIBS([sd_notify], [systemd systemd-daemon], [SYSTEMD_LIBS],
                  [sd_notify() cannot be found! Try to install systemd-devel.]
          )
          AC_SUBST([SYSTEMD_LIBS])
