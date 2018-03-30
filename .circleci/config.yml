@@ -1,0 +1,53 @@
+version: 2
+
+jobs:
+  build:
+    working_directory: ~/mero
+    docker:
+      - image: centos:centos7
+    steps:
+      - run:
+          name: Environment info
+          command: printenv
+
+      - run:
+          name: Installing git
+          command: yum --assumeyes install git
+
+      - checkout
+
+      - run:
+          name: Checking-out git submodules
+          command: |
+              git submodule sync --recursive
+              git submodule update --init --recursive
+
+      - run:
+          name: Mero revision
+          command: |
+              git describe
+              git --no-pager log -1
+
+      - run:
+          name: Installing ansible
+          command: yum --assumeyes install ansible which
+
+      - run:
+          name: Setting up build environment
+          command: |
+              ./scripts/setup-node localhost \
+                        --verbose \
+                        --local \
+                        --skip-tags reboot,upgrade,start-services,debug,never
+
+      - run:
+          name: Building Mero
+          command: |
+              ./autogen.sh
+              ./configure --with-linux=/lib/modules/$(yum list installed kernel | tail -n1 | awk '{ print $2 }').x86_64/build
+              make -j8
+
+      - run:
+          name: Building Mero rpms
+          command: |
+              make rpms kernel_src=/lib/modules/$(yum list installed kernel | tail -n1 | awk '{ print $2 }').x86_64/build
