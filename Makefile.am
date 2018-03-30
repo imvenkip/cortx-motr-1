@@ -132,12 +132,6 @@ CONFXC_CLEAN_FILE := .confxc.clean
 # path to a directory with built linux kernel sources/headers
 KDIR = @LINUX_OBJ@
 
-if HAVE_SYSTEMD
-# override is needed to allow user to provide some additional options in
-# RPMBUILD_FLAGS variable in command line
-override RPMBUILD_FLAGS += --with systemd
-endif
-
 if CLOVIS_IDX_STORE_CASS
 # override is needed to allow user to provide some additional options in
 # RPMBUILD_FLAGS variable in command line
@@ -798,7 +792,6 @@ be_tool_m0betool_LDADD     = $(top_builddir)/mero/libmero.la
 #                        Init scripts and config files                      {{{1
 ################################################################################
 
-if HAVE_SYSTEMD
 usr_lib_systemddir    = $(prefix)/lib/systemd/system
 usr_lib_systemd_DATA  = scripts/install/usr/lib/systemd/system/mero-client.service \
                         scripts/install/usr/lib/systemd/system/mero-cleanup.service \
@@ -814,7 +807,6 @@ usr_lib_systemd_DATA  = scripts/install/usr/lib/systemd/system/mero-client.servi
                         scripts/install/usr/lib/systemd/system/mero-singlenode.service \
                         scripts/install/usr/lib/systemd/system/mero-trace@.service
 EXTRA_DIST           += $(usr_lib_systemd_DATA)
-endif
 
 usr_lib_udevrulesdir    = $(prefix)/lib/udev/rules.d
 usr_lib_udevrules_DATA  = scripts/install/usr/lib/udev/rules.d/99-mero.rules
@@ -1472,7 +1464,7 @@ __rpm_mock:
 		--no-clean --no-cleanup-after
 	sudo mock -r mock_osaint --resultdir $(RPM_MOCK_DIR) --rebuild \
 		$(RPM_MOCK_DIR)/mero-*.src.rpm \
-		--no-clean --rpmbuild-opts='--with systemd'
+		--no-clean
 
 # __rpm_tests should be built before __rpm, because __rpm_tests creates a dummy
 # mero.rpm package, which would otherwise overwrite normal mero.rpm, created by

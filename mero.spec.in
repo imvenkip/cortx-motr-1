@@ -39,7 +39,6 @@
 %endif # el6
 
 %bcond_with ut
-%bcond_with systemd
 %bcond_with debuginfo
 %bcond_with debuginfo_sources
 %bcond_with cassandra
@@ -108,10 +107,8 @@ BuildRequires:  %{lustre_devel}
 BuildRequires:  libuuid-devel
 BuildRequires:  binutils-devel
 BuildRequires:  python-ply
-%if %{with systemd}
 BuildRequires:  perl-autodie
 BuildRequires:  systemd-devel
-%endif
 %if %{with cassandra}
 BuildRequires:  libcassandra
 BuildRequires:  libuv
@@ -228,9 +225,7 @@ fi
 %{_sbindir}/*
 %{_libdir}/*
 %{_libexecdir}/mero/*
-%if %{with systemd}
 %{_exec_prefix}/lib/*
-%endif
 %{_datadir}/*
 %{_mandir}/*
 %attr(0770, mero, mero) %{_localstatedir}/mero
@@ -275,12 +270,8 @@ getent passwd mero >/dev/null || useradd --system --shell /sbin/nologin \
 # would be expanded at build-time.
 # See http://rpm.org/user_doc/scriptlet_expansion.html for more info.
 %post -e
-
 /sbin/depmod -a
-
-%if %{with systemd}
 systemctl daemon-reload
-%endif
 
 if [ x%%{?no_trace_logs} != x ] ; then
     /bin/sed -i -r -e "s/(MERO_TRACED_KMOD=)yes/\1no/" /etc/sysconfig/mero
@@ -295,9 +286,7 @@ fi
 
 %postun
 /sbin/depmod -a
-%if %{with systemd}
 systemctl daemon-reload
-%endif
 
 %if %{with ut}
 
