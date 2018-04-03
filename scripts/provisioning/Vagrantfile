@@ -16,15 +16,20 @@ def guess_provider()
   when /darwin/
     vmware     = '/Applications/VMware Fusion.app'
     virtualbox = '/Applications/VirtualBox.app'
-    return Dir.exists?(vmware)       ? :vmware_fusion
-           : Dir.exists?(virtualbox) ? :virtualbox
-           :                           nil
+    return Dir.exists?(vmware) &&
+           Vagrant.has_plugin?('vagrant-vmware-fusion')    ? :vmware_fusion
+           : Dir.exists?(vmware) &&
+             Vagrant.has_plugin?('vagrant-vmware-desktop') ? :vmware_desktop
+
+           : Dir.exists?(virtualbox)                       ? :virtualbox
+           :                                                 nil
   when /linux/
     kvm        = '/usr/bin/kvm'
     virtualbox = '/usr/bin/virtualbox'
-    return File.exists?(kvm)          ? :libvirt
-           : File.exists?(virtualbox) ? :virtualbox
-           :                            nil
+    return File.exists?(kvm) &&
+           Vagrant.has_plugin?('vagrant-libvirt')   ? :libvirt
+           : File.exists?(virtualbox)               ? :virtualbox
+           :                                          nil
   end
 
   return :virtualbox
