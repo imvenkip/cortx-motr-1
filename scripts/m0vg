@@ -1,13 +1,28 @@
 #!/usr/bin/env bash
+set -e -o pipefail
+shopt -s expand_aliases
 
 ### wrapper to run Vagrant commands with mero configs
+
+# a hack for `readlink -f` on BSD systems
+if [[ $(uname) == Darwin ]] && ! readlink -f / &> /dev/null ; then
+    if which greadlink &> /dev/null ; then
+        alias readlink=greadlink
+    else
+        echo "${0##*/}: \`readlink -f\` doesn't work" >&2
+        echo 'Try installing GNU readlink (greadlink) with either of:' >&2
+        echo '  brew install coreutils' >&2
+        echo '  port install coreutils' >&2
+        exit 2
+    fi
+fi
 
 #
 # Global vars
 #
 
 # constants
-readonly PROG_NAME="$(basename $0)"
+readonly PROG_NAME="${0##*/}"
 readonly SELF="$(readlink -f $0)"
 readonly TOP_SRCDIR="${SELF%/*/*}"
 readonly VAGRANT_DIR="$TOP_SRCDIR/scripts/provisioning"
@@ -270,9 +285,6 @@ switch_to_workspace()
 #
 # Main
 #
-
-# exit immediately if one the commands exits with a non-zero status
-set -e
 
 parse_cli_options "$@"
 eval set -- "$cli_args"
