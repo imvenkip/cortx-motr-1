@@ -233,9 +233,13 @@ Vagrant.configure('2') do |config|
     ansible.compatibility_mode = '2.0'
     ansible.playbook = 'cluster.yml'
     ansible.groups = {
-      'clients' => ["client[1:#{client_nr}]"],
-      'ssus'    => ["ssu[1:#{ssu_nr}]"]
+      'clients'  => ["client[1:#{client_nr}]"],
+      'ssus'     => ["ssu[1:#{ssu_nr}]"],
+      'all:vars' => { },
     }
+    if !ENV['M0_VM_EXTRA_PKGS'].nil?
+      ansible.groups['all:vars']['extra_tools_pkgs'] = ENV['M0_VM_EXTRA_PKGS']
+    end
     ansible.skip_tags = ansible_skip_tags
     # enable verbose status for each provisioning task
     ansible.verbose  = verbose_provision
