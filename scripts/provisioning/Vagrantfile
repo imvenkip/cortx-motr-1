@@ -441,8 +441,10 @@ end
 # share a top-level project dir (one level up from mero src dir)
 def setup_shared_mero_src_dir(config)
   if ARGV[0] and ARGV[0].match(/^(?:up|provision|reload)$/)
-    # one leve up from MERO_TOP_SRC_DIR
-    path = File.expand_path(MERO_TOP_SRC_DIR + '/..')
+    # by default, shared directory is one leve up from MERO_TOP_SRC_DIR,
+    # it can be customized via M0_VM_SHARED_DIR environment variable
+    path = !ENV['M0_VM_SHARED_DIR'].nil? ? File.expand_path(ENV['M0_VM_SHARED_DIR'])
+         :                                 File.expand_path(MERO_TOP_SRC_DIR + '/..')
     type = ENV['M0_VM_SHARE_TYPE'] || 'nfs'
 
     case type
