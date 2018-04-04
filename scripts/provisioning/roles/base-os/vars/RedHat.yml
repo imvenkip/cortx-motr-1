@@ -2,6 +2,7 @@
 basic_tools_pkgs:
   - tmux
   - vim
+  - emacs
   - pdsh
   # machine autodicovery by hostname
   - avahi
