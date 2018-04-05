@@ -101,7 +101,9 @@ Vagrant.configure('2') do |config|
   # Basic options ---------------------------------------------------------
   #
 
-  ansible_skip_tags = [ 'debug', 'vault-release', 'xperior' ]
+  # TODO: remove 'never' tag from skip list once Ansible is updated to
+  #       version 2.5 on all platforms
+  ansible_skip_tags = [ 'never', 'debug', 'vault-release', 'xperior' ]
 
   # A box is a minimal clean VM image. You can search for boxes at
   # https://vagrantcloud.com, or even create your own with https://www.packer.io
