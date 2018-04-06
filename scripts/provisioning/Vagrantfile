@@ -180,7 +180,7 @@ Vagrant.configure('2') do |config|
     setup_shared_mero_src_dir(cmu)
     cmu.vm.provision :docker
     if !ENV['M0_VM_PROVISION_SCRIPT'].nil?
-      if File.exists?(ENV['M0_VM_PROVISION_SCRIPT'])
+      if File.exists?(File.expand_path(ENV['M0_VM_PROVISION_SCRIPT']))
         cmu.vm.provision :shell, path: ENV['M0_VM_PROVISION_SCRIPT'], privileged: false
       else
         warn '*** WARNING ***: skipping non-existing custom provisioning script' \
