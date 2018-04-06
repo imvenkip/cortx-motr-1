@@ -108,6 +108,14 @@
     name:  '{{ basic_tools_pkgs }}'
   tags: breaks-dry-run
 
+- name: install development tools
+  package:
+    state: present
+    name:  '{{ devel_tools_pkgs }}'
+  tags:
+    - breaks-dry-run
+    - devel
+
 - name: install extra tools
   package:
     state: present

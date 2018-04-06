@@ -12,6 +12,19 @@ basic_tools_pkgs:
   # remote syslog
   - systemd-journal-gateway
 
+devel_tools_pkgs:
+  - crash
+  - expect
+  - gdb
+  - ltrace
+  - perf
+  - psmisc
+  - strace
+  - systemtap
+  - time
+  - trace-cmd
+  - valgrind
+
 avahi_service: avahi-daemon
 
 redhat_vault_repo_versions:
