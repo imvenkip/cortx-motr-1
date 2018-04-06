@@ -142,6 +142,7 @@ Requires: binutils-devel
 Requires: libyaml-devel
 Requires: libaio-devel
 Requires: libuuid-devel
+Requires: pkgconfig
 Requires: systemd-devel
 Requires: glibc-headers
 Requires: kernel-devel = %{kernel_ver_requires}
