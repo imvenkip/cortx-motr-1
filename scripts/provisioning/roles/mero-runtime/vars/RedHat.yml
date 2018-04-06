@@ -17,6 +17,7 @@ mero_runtime_deps_pkgs:
   - perl-Try-Tiny
   - perl-YAML-LibYAML
   - perl-autodie
+  - pkgconfig
   - psmisc
   - ruby
   - rubygem-net-ssh
