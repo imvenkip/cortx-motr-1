@@ -8,7 +8,7 @@
 # Vagrant doesn't expose information about current virtualisation provider
 # through it's public API, so we use our own preferred providers order as a hint
 # and try to pick the first available when it's not possible to detect a
-# provider from env or cli arg
+# provider from env or CLI arg
 def guess_provider()
   host = RbConfig::CONFIG['host_os']
 
@@ -150,7 +150,7 @@ Vagrant.configure('2') do |config|
   # argument is a set of non-required options.
   #config.vm.synced_folder "../data", "/vagrant_data"
 
-  # Disable the default shareing of current folder
+  # Disable the default sharing of current folder
   config.vm.synced_folder '.', '/vagrant', disabled: true
 
   # Providers ------------------------------
@@ -455,7 +455,7 @@ end
 # share a top-level project dir (one level up from mero src dir)
 def setup_shared_mero_src_dir(config)
   if ARGV[0] and ARGV[0].match(/^(?:up|provision|reload)$/)
-    # by default, shared directory is one leve up from MERO_TOP_SRC_DIR,
+    # by default, shared directory is one level up from MERO_TOP_SRC_DIR,
     # it can be customized via M0_VM_SHARED_DIR environment variable
     path = !ENV['M0_VM_SHARED_DIR'].nil? ? File.expand_path(ENV['M0_VM_SHARED_DIR'])
          :                                 File.expand_path(MERO_TOP_SRC_DIR + '/..')
