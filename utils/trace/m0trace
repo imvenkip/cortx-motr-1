@@ -736,8 +736,8 @@ sub prepare_input_file
     {
         $input_file = "<$cli_option{input_file}";
     }
-    elsif ( $cli_option{input_file} # compressed log files files like *.yml.gz
-                =~ m/ \. (?: yml | yaml | log ) \. (?<ztype> gz | bz2 ) $ /xms )
+    elsif ( $cli_option{input_file} # compressed log files like *.yml.gz
+                =~ m/ \. (?: yml|yaml|log) \. (?<ztype> gz|bz2|xz) $ /xms )
     {
         given ( $+{ztype} ) {
             when ('gz') {
@@ -745,6 +745,9 @@ sub prepare_input_file
             }
             when ('bz2') {
                 $input_file = "bunzip2 -c $cli_option{input_file} |";
+            }
+            when ('xz') {
+                $input_file = "xz -d -c $cli_option{input_file} |";
             }
         }
     }
@@ -1158,9 +1161,9 @@ C<m0trace.PID> file).
 Input file name, if omitted then STDIN is used by default. If input comes from
 STDIN or input file has C<*.yml>, C<*.yaml> or C<*.log> extension, then it's
 assumed to be a text file in YAML format (C<m0trace> recognizes compressed YAML
-logs if file has C<*.gz> or C<*.bz2> extension). Otherwise it's assumed to be a
-raw binary trace data and in that case it is converted into YAML format by
-piping through B<m0tracedump> utility.
+logs if file has C<*.gz>, C<*.bz2> or C<*.xz> extension). Otherwise it is
+assumed to be a raw binary trace data and in that case it is converted into
+YAML format by piping through B<m0tracedump> utility.
 
 =item B<-o|--output=I<ofile>>
 
