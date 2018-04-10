@@ -238,6 +238,11 @@ Vagrant.configure('2') do |config|
     ansible_skip_tags.delete('xperior')
   end
 
+  if !ENV['M0_VM_FIX_MANPAGES'].nil? &&
+      ENV['M0_VM_FIX_MANPAGES'].match(/no|false|0/i)
+    ansible_skip_tags.push('recover-man-pages')
+  end
+
   # delegate OS configuration to Ansible
   config.vm.provision :ansible do |ansible|
     ansible.compatibility_mode = '2.0'
