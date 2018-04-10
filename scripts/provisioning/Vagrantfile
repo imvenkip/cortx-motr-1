@@ -156,8 +156,8 @@ Vagrant.configure('2') do |config|
   # Providers ------------------------------
 
   # providers priority order (from top to bottom)
-  config.vm.provider :libvirt
   config.vm.provider :vmware_fusion
+  config.vm.provider :libvirt
   config.vm.provider :virtualbox
 
   # Machines ==============================================================
