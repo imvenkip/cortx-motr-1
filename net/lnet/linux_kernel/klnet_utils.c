@@ -23,8 +23,13 @@
 
 #ifdef NLX_DEBUG
 
-#include <lustre_ver.h>         /* LUSTRE_VERSION_CODE */
-#include <lustre/lustre_idl.h>  /* OBD_OCD_VERSION */
+/* LINUX_VERSION_CODE, OBD_OCD_VERSION */
+#if M0_LUSTRE_VERSION < 2110
+#include <lustre_ver.h>
+#else
+#include <lustre/lustre_ver.h>
+#include <lustre/lustre_idl.h>
+#endif
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_LNET
 #include "lib/trace.h"        /* M0_LOG and M0_ENTRY */

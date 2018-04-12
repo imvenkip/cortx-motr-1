@@ -27,6 +27,7 @@
 
 #include <linux/version.h>        /* LINUX_VERSION_CODE */
 #include <linux/module.h>         /* THIS_MODULE */
+#include <linux/proc_fs.h>
 
 #include "net/lnet/ut/lnet_drv_ut.h"
 #include "net/lnet/linux_kernel/klnet_core.h"

@@ -775,7 +775,21 @@ sx4T_aGjFvsyjjvN1ygOtfoXcFg/view">RPC Bulk Transfer Task Plan</a>
 #undef VERSION
 #include "lustre_config.h" /* required by lnet/types.h */
 #include "libcfs/libcfs.h" /* lnet/types.h fails if this is not included */
+
+/* LUSTRE_VERSION_CODE, OBD_OCD_VERSION */
+#if M0_LUSTRE_VERSION < 2110
+#include <lustre_ver.h>
+#else
+#include <lustre/lustre_ver.h>
+#include <lustre/lustre_idl.h>
+#endif
+
+#include <lustre/lustre_idl.h>  /* OBD_OCD_VERSION */
+#if LUSTRE_VERSION_CODE > OBD_OCD_VERSION(2, 10, 51, 0)
+#include "lnet/lib-types.h"
+#else
 #include "lnet/types.h"
+#endif
 
 #undef PACKAGE             /* suppress lustre specific values */
 #undef PACKAGE_BUGREPORT
