@@ -157,12 +157,6 @@ enum {
 M0_INTERNAL void m0_be_domain_module_setup(struct m0_be_domain *dom,
 					   const struct m0_be_domain_cfg *cfg);
 
-/*
- * Temporary solution until segment I/O is implemented using direct I/O.
- * Destroys BE log's stob domain.
- */
-M0_INTERNAL void m0_be_domain_log_cleanup(struct m0_be_domain *dom);
-
 M0_INTERNAL struct m0_be_tx *m0_be_domain_tx_find(struct m0_be_domain *dom,
 						  uint64_t id);
 

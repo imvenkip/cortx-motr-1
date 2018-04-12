@@ -427,7 +427,10 @@ M0_INTERNAL int m0_be_pd_seg_open(struct m0_be_pd     *pd,
 	return M0_RC(rc);
 }
 
-/* Closes (or destroys) segment without removing from bp_segs list. */
+/*
+ * Closes (or destroys) BE segment without removing it from bp_segs list.
+ * In case of destruction does not destroy respective stob.
+ */
 static int be_pd_seg_close(struct m0_be_pd  *pd,
 			   struct m0_be_seg *seg,
 			   bool              destroy)
@@ -458,6 +461,7 @@ M0_INTERNAL int m0_be_pd_seg_destroy(struct m0_be_pd     *pd,
 				     uint64_t             seg_id)
 {
 	struct m0_be_seg *seg;
+	struct m0_stob   *stob;
 	int               rc;
 
 	M0_ALLOC_PTR(seg);
@@ -466,7 +470,12 @@ M0_INTERNAL int m0_be_pd_seg_destroy(struct m0_be_pd     *pd,
 
 	/* Open and destroy segment bypassing the bp_segs list. */
 	rc = be_pd_seg_open(pd, seg, dom, seg_id);
-	rc = rc ?: be_pd_seg_close(pd, seg, true);
+	if (rc == 0) {
+		stob = seg->bs_stob;
+		m0_stob_get(stob);
+		rc = be_pd_seg_close(pd, seg, true);
+		rc = rc ?: m0_stob_destroy(stob, NULL);
+	}
 	m0_free(seg);
 
 	return M0_RC(rc);

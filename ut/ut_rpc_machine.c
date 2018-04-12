@@ -95,11 +95,12 @@ static char *ut_reqh_location_get(const char *sfx)
 
 static void ut_reqh_and_stuff_init(struct m0_ut_rpc_mach_ctx *ctx)
 {
-	struct m0_sm_group     *grp;
-	struct m0_be_seg       *seg;
-	struct m0_be_tx		tx;
-	struct m0_be_tx_credit	cred = {};
-	int			rc;
+	struct m0_sm_group      *grp;
+	struct m0_be_seg        *seg;
+	struct m0_be_tx          tx;
+	struct m0_be_tx_credit   cred = {};
+	struct m0_be_domain_cfg  be_cfg = {};
+	int                      rc;
 	/*
 	 * Instead of using m0d and dealing with network, database and
 	 * other subsystems, request handler is initialised in a 'special way'.
@@ -112,10 +113,16 @@ static void ut_reqh_and_stuff_init(struct m0_ut_rpc_mach_ctx *ctx)
 		);
 	M0_ASSERT(rc == 0);
 
-	ctx->rmc_ut_be.but_dom_cfg.bc_engine.bec_reqh = &ctx->rmc_reqh;
+	/*
+	 * Notice: m0_be_ut_backend_cfg_default() handles bc_engine.bec_reqh
+	 * in a special way.
+	 */
+	be_cfg.bc_engine.bec_reqh = &ctx->rmc_reqh;
+	m0_be_ut_backend_cfg_default(&be_cfg);
+	be_cfg.bc_destroy_on_fini = true;
 	ctx->rmc_ut_be.but_seg_sdom_location = ut_reqh_location_get("-seg");
 	ctx->rmc_ut_be.but_log_sdom_location = ut_reqh_location_get("-log");
-	rc = m0_be_ut_backend_init_cfg(&ctx->rmc_ut_be, NULL, true);
+	rc = m0_be_ut_backend_init_cfg(&ctx->rmc_ut_be, &be_cfg, true);
 	M0_ASSERT(rc == 0);
 	m0_be_ut_seg_init(&ctx->rmc_ut_seg, &ctx->rmc_ut_be, 1 << 20);
 	seg = ctx->rmc_ut_seg.bus_seg;
@@ -153,8 +160,6 @@ M0_INTERNAL void m0_ut_rpc_mach_fini(struct m0_ut_rpc_mach_ctx *ctx)
 
 	m0_be_ut_seg_fini(&ctx->rmc_ut_seg);
 	m0_be_ut_backend_fini(&ctx->rmc_ut_be);
-	/* XXX FIXME Domain used after finalisation. */
-	m0_be_domain_log_cleanup(&ctx->rmc_ut_be.but_dom);
 	m0_free(ctx->rmc_ut_be.but_seg_sdom_location);
 	m0_free(ctx->rmc_ut_be.but_log_sdom_location);
 	m0_reqh_post_storage_fini_svcs_stop(&ctx->rmc_reqh);

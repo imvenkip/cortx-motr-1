@@ -356,17 +356,6 @@ static void be_domain_ldsc_sync(struct m0_be_log_discard      *ld,
 	m0_be_op_done(op);
 }
 
-M0_INTERNAL void m0_be_domain_log_cleanup(struct m0_be_domain *dom)
-{
-	struct m0_be_log *log = m0_be_domain_log(dom);
-	int               rc;
-
-	rc = m0_stob_domain_destroy_location(
-			log->lg_cfg.lc_store_cfg.lsc_stob_domain_location);
-	if (!M0_IN(rc, (-ENOENT, -0)))
-		M0_LOG(M0_WARN, "rc = %d", rc);
-}
-
 M0_INTERNAL struct m0_be_tx *m0_be_domain_tx_find(struct m0_be_domain *dom,
 						  uint64_t id)
 {
@@ -793,6 +782,14 @@ static void be_domain_level_leave(struct m0_module *module)
 		break;
 	case M0_BE_DOMAIN_LEVEL_PD_INIT:
 		m0_be_pd_fini(&dom->bd_pd);
+		if (dom->bd_cfg.bc_destroy_on_fini) {
+			/* XXX This logic should be moved to be/pd.c */
+			rc = m0_stob_domain_destroy_location(
+				dom->bd_cfg.bc_pd_cfg.bpc_stob_domain_location);
+			if (rc != 0)
+				M0_LOG(M0_ERROR, "segments stob domain "
+						 "destroying failed rc=%d", rc);
+		}
 		break;
 	case M0_BE_DOMAIN_LEVEL_NORMAL_SEG0_OPEN:
 		/*
