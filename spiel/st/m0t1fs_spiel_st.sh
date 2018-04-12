@@ -178,8 +178,6 @@ m0d_with_rms_start() {
     echo "--- `date` ---" >>$path/m0d.log
     cd $path
 
-    ## m0mkfs should be executed only once. It is usually executed
-    ## during cluster initial setup.
     echo $M0_SRC_DIR/utils/mkfs/m0mkfs $OPTS
     $M0_SRC_DIR/utils/mkfs/m0mkfs $OPTS >>$path/mkfs.log ||
     error 'm0mkfs failed'
@@ -192,7 +190,7 @@ m0d_with_rms_start() {
     error "Failed to start m0d. See $path/m0d.log for details."
 }
 
-test_m0d_start() {
+test_m0mkfs() {
     local path=$SANDBOX_DIR/systest-$$
     local OPTS="-D $path/db -T AD -S $path/stobs\
     -A linuxstob:$path/addb-stobs -e lnet:$M0D2_ENDPOINT -c $CONF_FILE\
@@ -204,6 +202,17 @@ test_m0d_start() {
     echo $M0_SRC_DIR/utils/mkfs/m0mkfs $OPTS
     $M0_SRC_DIR/utils/mkfs/m0mkfs $OPTS >>$path/mkfs.log ||
     error 'm0mkfs failed'
+}
+
+test_m0d_start() {
+    local path=$SANDBOX_DIR/systest-$$
+    local OPTS="-D $path/db -T AD -S $path/stobs\
+    -A linuxstob:$path/addb-stobs -e lnet:$M0D2_ENDPOINT -c $CONF_FILE\
+    -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN -w 3 -P $PROF_OPT\
+    -f $PROC_FID2 -d $CONF_DISKS -H $M0D2_ENDPOINT"
+
+    cd $path
+
     echo $M0_SRC_DIR/mero/m0d $OPTS
     $M0_SRC_DIR/mero/m0d $OPTS >>$path/m0d.log 2>&1 &
     local PID=$!
@@ -255,7 +264,7 @@ fids = {'profile'       : Fid(0x7000000000000001, 0),
         'addb2'         : Fid(0x7300000000000002, 5),
         'sns_repair'    : Fid(0x7300000000000002, 6),
         'sns_rebalance' : Fid(0x7300000000000002, 7),
-        'confd'         : Fid(0x7300000000000002, 8),
+        'confd'         : Fid(0x7300000000000001, 4),
         'confd2'        : Fid(0x7300000000000002, 9),
         'fdmi'          : Fid(0x7300000000000002, 10),
         'fdmi2'         : Fid(0x7300000000000002, 11),
@@ -264,10 +273,10 @@ fids = {'profile'       : Fid(0x7000000000000001, 0),
         'sdev2'         : Fid(0x6400000000000009, 2),
         'sdev3'         : Fid(0x6400000000000009, 3),
         'sdev4'         : Fid(0x6400000000000009, 4),
-        'rms'           : Fid(0x7300000000000004, 0),
+        'rms'           : Fid(0x7300000000000001, 0),
         'rms2'          : Fid(0x7300000000000004, 1),
         'rms3'          : Fid(0x7300000000000004, 2),
-        'ha'            : Fid(0x7300000000000004, 4)
+        'ha'            : Fid(0x7300000000000001, 1)
 }
 "
     export SERVICES="
@@ -553,11 +562,21 @@ echo 8 >/proc/sys/kernel/printk  # Print kernel messages to the console.
 
 export_vars
 
+say "Test m0mkfs"
+test_m0mkfs || stop
+
+# Entry Point reply may return two confd services already
+# (in case when configuration is updated already).
+# In this case we should allow the second confd process
+# (test_m0d_start) to be started in parallel.
 say "Construct confc db"
-construct_db || stop
+{ construct_db || stop; } &
+SPIEL_PID=$!
+sleep 5 # allow the configuration to be updated
 
 say "Test m0d start"
 test_m0d_start || stop
+wait $SPIEL_PID
 validate_health || stop
 
 say "Fetch filesystem stats"
