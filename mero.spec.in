@@ -17,11 +17,11 @@
                           fi
                         )
 
-%define kernel_ver %( echo %{raw_kernel_ver} | tr - _ )
+%define kernel_ver %( echo %{raw_kernel_ver} | tr - _ | sed -e 's/\.debug$//' -e 's/\.%{_arch}$//' -e 's/\.%{dist}$//' -e 's/\.el7$//'  )
 %define kernel_ver_requires %( echo %{raw_kernel_ver} | sed -e 's/\.debug$//' -e 's/\.x86_64$//' )
 
 # build number
-%define build_num  %( test -n "$build_number && echo "$build_number || echo 1 )
+%define build_num  %( test -n "$build_number" && echo "$build_number" || echo 1 )
 
 # lustre vendor
 %define is_intel_lustre %(
@@ -63,7 +63,7 @@
 
 Name:           @PACKAGE@
 Version:        @PACKAGE_VERSION@
-Release:        %{build_num}_%{kernel_ver}@GIT_REV_ID_RPM@%{?dist}
+Release:        %{build_num}_@GIT_REV_ID_RPM@_%{kernel_ver}%{?dist}
 Summary:        Mero filesystem and development libraries
 Group:          System Environment/Base
 License:        Xyratex
