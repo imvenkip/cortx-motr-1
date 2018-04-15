@@ -1053,8 +1053,8 @@ m0_be_pd_request_queue_pop(struct m0_be_pd_request_queue *rq)
 	request = reqq_tlist_pop(&rq->prq_queue);
 	m0_mutex_unlock(&rq->prq_lock);
 
-	M0_LEAVE("request=%p", request);
-
+	M0_LEAVE("request=%p prp_type=%d", request,
+		 request == NULL ? -1 : request->prt_pages.prp_type);
 	return request;
 }
 
@@ -1118,7 +1118,8 @@ m0_be_pd_request_queue_push(struct m0_be_pd_request_queue      *rq,
 			    struct m0_be_pd_request            *request,
 			    struct m0_fom                      *fom)
 {
-	M0_ENTRY("request=%p", request);
+	M0_ENTRY("request=%p prp_type=%d", request,
+		 request == NULL ? -1 : request->prt_pages.prp_type);
 
 	/* XXX catch users that don't init request->prt_ext */
 	M0_PRE(ergo(be_pd_request_is_write(request),
