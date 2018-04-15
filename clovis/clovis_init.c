@@ -857,6 +857,10 @@ static int clovis_confc_init(struct m0_clovis *m0c)
 	if (rc != 0)
 		goto err_conf_fs_close;
 
+	rc = m0_conf_confc_ha_update(m0_reqh2confc(reqh));
+	if (rc != 0)
+		goto err_conf_fs_close;
+
 	/* re-acquire the lock */
 	m0_sm_group_lock(&m0c->m0c_sm_group);
 	return M0_RC(0);
