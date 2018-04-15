@@ -933,18 +933,14 @@ static void pd_reqq_push(struct m0_sm_group *_, struct m0_sm_ast *ast)
 {
 	/* TODO fix m0_be_pd_fom name here */
 	struct m0_be_pd_fom *m   = M0_AMB(m, ast, bpf_ast_reqq_push);
-	/* struct m0_fom       *fom = &m->bpf_gen; */
+	struct m0_fom       *fom = &m->bpf_gen;
 
 	M0_ENTRY();
 	m0_mutex_lock(&m->bpf_ast_post_lock);
-	/* XXX FOM_THREAD */
-	m0_be_fom_thread_wakeup(&m->bpf_ft);
-	/*
 	if (m0_fom_is_waiting(fom) && m0_fom_phase(fom) == PFS_IDLE) {
 		M0_LOG(M0_DEBUG, "waking up");
 		m0_fom_ready(fom);
 	}
-	*/
 	m->bpf_ast_posted = false;
 	m0_mutex_unlock(&m->bpf_ast_post_lock);
 	M0_LEAVE();
@@ -1009,6 +1005,7 @@ M0_INTERNAL void m0_be_pd_fom_stop(struct m0_be_pd_fom *fom)
 	m0_be_pd_request_init(&request, &rpages);
 	M0_BE_OP_SYNC(op, m0_be_pd_request_push(paged, &request, &op));
 	m0_be_pd_request_fini(&request);
+	/* XXX FOM_THREAD */
 	m0_be_fom_thread_fini(&fom->bpf_ft);
 }
 

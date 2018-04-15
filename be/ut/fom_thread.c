@@ -33,6 +33,7 @@
 #include "fop/fom_generic.h"    /* M0_FOPH_FINISH */
 #include "fop/fom.h"            /* m0_fom_type */
 #include "rpc/rpc_opcodes.h"    /* M0_BE_UT_FOM_THREAD_OPCODE */
+#include "reqh/reqh_service.h"  /* m0_reqh_service */
 
 static int be_ut_fom_thread_tick(struct m0_fom *fom)
 {
@@ -62,7 +63,7 @@ static struct m0_sm_state_descr be_ut_fom_thread_states[M0_FOPH_FINISH + 1] = {
 	},
 };
 
-const static struct m0_sm_conf be_ut_fom_thread_conf = {
+static const struct m0_sm_conf be_ut_fom_thread_conf = {
 	.scf_name      = "be_ut_fom_thread",
 	.scf_nr_states = ARRAY_SIZE(be_ut_fom_thread_states),
 	.scf_state     = be_ut_fom_thread_states,
@@ -81,12 +82,15 @@ static const struct m0_fom_type_ops be_ut_fom_thread_type_ops = {
 void m0_be_ut_fom_thread(void)
 {
 	struct m0_be_fom_thread *fth;
+	struct m0_reqh_service  *service;
 	struct m0_fom_type      *ftype;
 	struct m0_fom           *fom;
 	int                      rc;
 
 	M0_ALLOC_PTR(fth);
 	M0_ASSERT(fth != NULL);
+	M0_ALLOC_PTR(service);
+	M0_ASSERT(service != NULL);
 	M0_ALLOC_PTR(ftype);
 	M0_ASSERT(ftype != NULL);
 	M0_ALLOC_PTR(fom);
@@ -94,14 +98,18 @@ void m0_be_ut_fom_thread(void)
 	m0_fom_type_init(ftype, M0_BE_UT_FOM_THREAD_OPCODE,
 			 &be_ut_fom_thread_type_ops, NULL,
 			 &be_ut_fom_thread_conf);
+	service->rs_type = NULL;
 	fom->fo_type = ftype;
 	fom->fo_ops = &be_ut_fom_thread_ops;
+	fom->fo_service = service;
 	rc = m0_be_fom_thread_init(fth, fom);
 	M0_ASSERT(rc == 0);
 	m0_be_fom_thread_wakeup(fth);
 	m0_be_fom_thread_fini(fth);
+	m0_fom_type_fini(ftype);
 	m0_free(fom);
 	m0_free(ftype);
+	m0_free(service);
 	m0_free(fth);
 }
 

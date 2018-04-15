@@ -41,6 +41,7 @@ struct m0_be_fom_thread {
 	struct m0_semaphore     fth_start_sem;
 	struct m0_semaphore     fth_wakeup_sem;
 	struct m0_fom_locality  fth_loc;
+	struct m0_clink         fth_clink;
 	struct m0_fom          *fth_fom;
 };
 
