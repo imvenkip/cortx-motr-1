@@ -501,7 +501,7 @@ static void be_ut_pd_get_put_foms_run(struct be_ut_pd_get_put_ctx    *ctx,
 		                   &be_ut_pd_get_put_fom_tick,
 		                   &be_ut_pd_get_put_fom_free, ctx, i);
 	}
-	for (i = 0; i < ctx->bugp_foms_nr; ++i)
+	for (i = 0; i < foms_to_run; ++i)
 		m0_semaphore_down(&ctx->bugp_fctx[i].bugf_done);
 }
 
