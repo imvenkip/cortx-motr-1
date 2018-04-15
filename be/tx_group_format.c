@@ -518,6 +518,7 @@ m0_be_group_format_seg_place_prepare(struct m0_be_group_format *gft,
 	m0_be_pd_request_pages_init(&rpages, M0_PRT_WRITE, reg_area,
 				    &gft->gft_ext, NULL);
 	m0_be_pd_request_init(request, &rpages);
+	/* XXX m0_be_pd_request_fini() is missing */
 }
 
 static void be_tx_group_format_seg_io_starting(struct m0_be_op *op, void *param)
