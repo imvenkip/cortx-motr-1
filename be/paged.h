@@ -40,6 +40,7 @@
 #include "be/seg.h"        /* m0_be_reg */
 #include "be/op.h"         /* m0_be_op */
 #include "be/pd.h"         /* m0_be_pd_io_sched */
+#include "be/fom_thread.h" /* m0_be_fom_thread_init */
 
 #include "module/module.h" /* m0_module */
 
@@ -628,6 +629,7 @@ struct m0_be_pd_fom {
 	struct m0_sm_ast         bpf_ast_reqq_push;
 
 	struct m0_semaphore      bpf_start_sem;
+	struct m0_be_fom_thread  bpf_ft;
 };
 
 M0_INTERNAL void m0_be_pd_fom_init(struct m0_be_pd_fom    *fom,

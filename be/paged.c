@@ -906,7 +906,8 @@ M0_UNUSED static struct m0_be_pd_fom *fom_to_pd_fom(const struct m0_fom *fom)
 
 static void pd_fom_fini(struct m0_fom *fom)
 {
-	m0_fom_fini(fom);
+	/* XXX FOM_THREAD */
+	/* m0_fom_fini(fom); */
 }
 
 static size_t pd_fom_locality(const struct m0_fom *fom)
@@ -932,14 +933,18 @@ static void pd_reqq_push(struct m0_sm_group *_, struct m0_sm_ast *ast)
 {
 	/* TODO fix m0_be_pd_fom name here */
 	struct m0_be_pd_fom *m   = M0_AMB(m, ast, bpf_ast_reqq_push);
-	struct m0_fom       *fom = &m->bpf_gen;
+	/* struct m0_fom       *fom = &m->bpf_gen; */
 
 	M0_ENTRY();
 	m0_mutex_lock(&m->bpf_ast_post_lock);
+	/* XXX FOM_THREAD */
+	m0_be_fom_thread_wakeup(&m->bpf_ft);
+	/*
 	if (m0_fom_is_waiting(fom) && m0_fom_phase(fom) == PFS_IDLE) {
 		M0_LOG(M0_DEBUG, "waking up");
 		m0_fom_ready(fom);
 	}
+	*/
 	m->bpf_ast_posted = false;
 	m0_mutex_unlock(&m->bpf_ast_post_lock);
 	M0_LEAVE();
@@ -979,12 +984,20 @@ M0_INTERNAL void m0_be_pd_fom_fini(struct m0_be_pd_fom *fom)
 
 M0_INTERNAL int m0_be_pd_fom_start(struct m0_be_pd_fom *fom)
 {
-	m0_fom_queue(&fom->bpf_gen);
+	int rc;
+
+	rc = m0_be_fom_thread_init(&fom->bpf_ft, &fom->bpf_gen);
+	M0_ASSERT(rc == 0);
+	/* TODO restore the m0_fom_queue() path when bpf_ft is removed */
+	/* XXX FOM_THREAD */
+	m0_be_fom_thread_wakeup(&fom->bpf_ft);
+	/* m0_fom_queue(&fom->bpf_gen); */
 	m0_semaphore_down(&fom->bpf_start_sem);
 
 	return M0_RC(0);
 }
 
+/* XXX this function should wait until the fom is actually done */
 M0_INTERNAL void m0_be_pd_fom_stop(struct m0_be_pd_fom *fom)
 {
 	struct m0_be_pd_request_pages  rpages;
@@ -996,6 +1009,7 @@ M0_INTERNAL void m0_be_pd_fom_stop(struct m0_be_pd_fom *fom)
 	m0_be_pd_request_init(&request, &rpages);
 	M0_BE_OP_SYNC(op, m0_be_pd_request_push(paged, &request, &op));
 	m0_be_pd_request_fini(&request);
+	m0_be_fom_thread_fini(&fom->bpf_ft);
 }
 
 M0_INTERNAL void m0_be_pd_fom_mod_init(void)

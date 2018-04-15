@@ -34,17 +34,26 @@ static void be_fom_thread_func(struct m0_be_fom_thread *fth)
 	struct m0_sm_group *grp = &fth->fth_loc.fl_group;
 	struct m0_fom      *fom = fth->fth_fom;
 	bool                done = false;
+	int                 phase;
 	int                 rc;
 
-	/* This thread is not supposed to exit before the fom finishes */
+	M0_ENTRY("fth=%p grp=%p fom=%p", fth, grp, fom);
+	/* This thread is not supposed to exit before the fom is finished */
 	while (!done) {
 		m0_chan_wait(&grp->s_clink);
+		M0_LOG(M0_DEBUG, "signal caught");
 		m0_sm_group_lock(grp);
 		if (m0_semaphore_trydown(&fth->fth_wakeup_sem)) {
+			M0_LOG(M0_DEBUG, "waking up");
 			do {
-				M0_ASSERT(m0_fom_phase(fom) !=
-					  M0_FOM_PHASE_FINISH);
+				phase = m0_fom_phase(fom);
+				M0_ASSERT(phase != M0_FOM_PHASE_FINISH);
 				rc = fom->fo_ops->fo_tick(fom);
+				M0_ASSERT(M0_IN(rc,
+						(M0_FSO_WAIT, M0_FSO_AGAIN)));
+				M0_LOG(M0_DEBUG, "phase=%d rc=%s",
+				       phase, rc == M0_FSO_WAIT ?
+				       "M0_FSO_WAIT" : "M0_FSO_AGAIN");
 			} while (rc == M0_FSO_AGAIN);
 			M0_ASSERT(rc == M0_FSO_WAIT);
 			if (m0_fom_phase(fom) == M0_FOM_PHASE_FINISH) {
@@ -54,6 +63,7 @@ static void be_fom_thread_func(struct m0_be_fom_thread *fth)
 		}
 		m0_sm_group_unlock(grp);
 	}
+	M0_LEAVE("fth=%p grp=%p fom=%p", fth, grp, fom);
 }
 
 M0_INTERNAL int m0_be_fom_thread_init(struct m0_be_fom_thread *fth,
