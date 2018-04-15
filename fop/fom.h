@@ -862,6 +862,7 @@ M0_INTERNAL void m0_fom_type_init(struct m0_fom_type *type, uint64_t id,
 				  const struct m0_fom_type_ops *ops,
 				  const struct m0_reqh_service_type *svc_type,
 				  const struct m0_sm_conf *sm);
+M0_INTERNAL void m0_fom_type_fini(struct m0_fom_type *type);
 
 M0_INTERNAL int m0_fom_addb2_init(struct m0_fom_type *type, uint64_t id);
 

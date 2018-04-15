@@ -1528,6 +1528,17 @@ M0_INTERNAL void m0_fom_type_init(struct m0_fom_type *type, uint64_t id,
 	}
 }
 
+M0_INTERNAL void m0_fom_type_fini(struct m0_fom_type *type)
+{
+	uint64_t id = type->ft_id;
+
+	M0_PRE(IS_IN_ARRAY(id, m0_fom__types));
+	M0_PRE(id > 0);
+	M0_PRE(m0_fom__types[id] == type);
+
+	m0_fom__types[id] = NULL;
+}
+
 static struct m0_sm_state_descr fom_states[] = {
 	[M0_FOS_INIT] = {
 		.sd_flags     = M0_SDF_INITIAL,
