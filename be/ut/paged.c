@@ -579,6 +579,7 @@ void m0_be_ut_pd_get_put(void)
 	}
 	be_ut_pd_get_put_foms_run(ctx, BE_UT_PD_GET_PUT_FOM_WORK_CHECK_ALL);
 	be_ut_pd_get_put_foms_run(ctx, BE_UT_PD_GET_PUT_FOM_WORK_RANDOM_FILL);
+	be_ut_pd_get_put_foms_run(ctx, BE_UT_PD_GET_PUT_FOM_WORK_CHECK_ALL);
 	for (i = 0; i < BE_UT_PD_GET_PUT_SEG_NR; ++i) {
 		/*
 		 * XXX FIXME stob_key is used as seg_id by default, see
