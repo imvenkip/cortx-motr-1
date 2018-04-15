@@ -917,13 +917,13 @@ static size_t pd_fom_locality(const struct m0_fom *fom)
 static const struct m0_fom_ops pd_fom_ops = {
 	.fo_fini          = pd_fom_fini,
 	.fo_tick          = pd_fom_tick,
-	.fo_home_locality = pd_fom_locality
+	.fo_home_locality = pd_fom_locality,
 };
 
 static struct m0_fom_type pd_fom_type;
 
 static const struct m0_fom_type_ops pd_fom_type_ops = {
-	.fto_create = NULL
+	.fto_create = NULL,
 };
 
 
