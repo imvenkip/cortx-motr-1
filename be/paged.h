@@ -392,7 +392,7 @@ enum m0_be_pd_request_type {
  * which are converted somehow into paged m0_be_pd_page-s. For paged the content
  * of m0_be_pd_request_pages has to remain opaque(!).
  * @note Absence of any aggregated structure having "*page*" expression inside
- * may be missleading therefore this note is here. PageD treats this structure
+ * may be misleading therefore this note is here. PageD treats this structure
  * as opaque structure without any knowledge of its contents.
  * @see m0_be_pd_request and explanation for more details.
  */
