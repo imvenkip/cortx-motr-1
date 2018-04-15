@@ -12,6 +12,7 @@ nobase_mero_include_HEADERS += \
                                be/extmap.h          \
                                be/fl.h              \
                                be/fmt.h             \
+                               be/fom_thread.h      \
                                be/ha.h              \
                                be/io.h              \
                                be/io_sched.h        \
@@ -51,6 +52,7 @@ mero_libmero_la_SOURCES += be/alloc.c           \
 			   be/extmap.c          \
                            be/fl.c              \
                            be/fmt.c             \
+                           be/fom_thread.c      \
                            be/ha.c              \
 			   be/io.c              \
 			   be/io_sched.c        \

@@ -29,6 +29,8 @@
  * - random  - test that uses RNG to test as much use cases as possible.
  */
 
+extern void m0_be_ut_fom_thread(void);
+
 extern void m0_be_ut_op_usecase(void);
 extern void m0_be_ut_op_mt(void);
 extern void m0_be_ut_op_set_usecase(void);
@@ -153,6 +155,7 @@ struct m0_ut_suite be_ut = {
 	.ts_fini = NULL,
 	.ts_tests = {
 #ifndef __KERNEL__
+		{ "fom_thread",              m0_be_ut_fom_thread              },
 		{ "op-usecase",              m0_be_ut_op_usecase              },
 		{ "op-mt",                   m0_be_ut_op_mt                   },
 		{ "op_set-usecase",          m0_be_ut_op_set_usecase          },
@@ -191,7 +194,7 @@ struct m0_ut_suite be_ut = {
 		{ "pd-usecase",              m0_be_ut_pd_usecase              },
 		{ "pd-mapping-resident",     m0_be_ut_pd_mapping_resident     },
 		{ "pd-fom",                  m0_be_ut_pd_fom                  },
-		// { "pd-get_put",              m0_be_ut_pd_get_put              },
+		{ "pd-get_put",              m0_be_ut_pd_get_put              },
 		{ "seg-open",                m0_be_ut_seg_open_close          },
 		{ "seg-io",                  m0_be_ut_seg_io                  },
 		{ "seg-multiple",            m0_be_ut_seg_multiple            },

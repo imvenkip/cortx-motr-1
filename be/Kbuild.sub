@@ -10,6 +10,7 @@ m0mero_objects += \
                   be/extmap_internal_xc.o \
                   be/fl_xc.o \
                   be/fmt_xc.o \
+                  be/fom_thread.o \
                   be/ha_xc.o \
                   be/list.o \
                   be/list_xc.o \
