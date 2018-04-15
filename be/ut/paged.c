@@ -403,6 +403,7 @@ static int be_ut_pd_get_put_fom_tick(struct m0_fom *fom, void *data, int *phase)
 	struct m0_be_reg                 reg;
 	struct m0_be_seg                *seg;
 	struct m0_ext                    ext;
+	m0_bindex_t                      ext_start;
 	void                            *seg_addr;
 	m0_bcount_t                      reg_size;
 	int                              reg_nr;
@@ -442,6 +443,8 @@ static int be_ut_pd_get_put_fom_tick(struct m0_fom *fom, void *data, int *phase)
 	/* send the write request in the write case */
 	switch (ctx->bugp_work) {
 	case BE_UT_PD_GET_PUT_FOM_WORK_RANDOM_FILL:
+		ext_start = m0_atomic64_add_return(&ctx->bugp_ext_counter, 1);
+		ext = M0_EXT(ext_start, ext_start + 1);
 		m0_be_pd_request_pages_init(&fctx->bugf_request_pages,
 		                            M0_PRT_WRITE, &fctx->bugf_reg_area,
 		                            &ext, NULL);
