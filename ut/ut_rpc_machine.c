@@ -114,7 +114,7 @@ static void ut_reqh_and_stuff_init(struct m0_ut_rpc_mach_ctx *ctx)
 	M0_ASSERT(rc == 0);
 
 	/*
-	 * Notice: m0_be_ut_backend_cfg_default() handles bc_engine.bec_reqh
+	 * Note: m0_be_ut_backend_cfg_default() handles bc_engine.bec_reqh
 	 * in a special way.
 	 */
 	be_cfg.bc_engine.bec_reqh = &ctx->rmc_reqh;
