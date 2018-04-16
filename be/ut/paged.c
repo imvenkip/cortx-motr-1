@@ -394,6 +394,25 @@ static int be_ut_pd_get_put_index_of(struct be_ut_pd_get_put_ctx *ctx,
 	return i;
 }
 
+static void be_ut_pd_get_put_segs_reopen(struct be_ut_pd_get_put_ctx *ctx)
+{
+	struct m0_be_pd *pd = ctx->bugp_pd;
+	int              rc;
+	int              i;
+
+	for (i = 0; i < BE_UT_PD_GET_PUT_SEG_NR; ++i)
+		m0_be_pd_seg_close(pd, ctx->bugp_seg[i]);
+	for (i = 0; i < BE_UT_PD_GET_PUT_SEG_NR; ++i) {
+		/*
+		 * XXX another bad blace.
+		 * See similar XXX in the m0_be_ut_pd_get_put().
+		 */
+		rc = m0_be_pd_seg_open(pd, ctx->bugp_seg[i], NULL,
+		                       BE_UT_PD_GET_PUT_STOB_KEY_START + i);
+		M0_UT_ASSERT(rc == 0);
+	}
+}
+
 static int be_ut_pd_get_put_fom_tick(struct m0_fom *fom, void *data, int *phase)
 {
 	struct be_ut_pd_get_put_fom_ctx *fctx;
@@ -579,6 +598,8 @@ void m0_be_ut_pd_get_put(void)
 	}
 	be_ut_pd_get_put_foms_run(ctx, BE_UT_PD_GET_PUT_FOM_WORK_CHECK_ALL);
 	be_ut_pd_get_put_foms_run(ctx, BE_UT_PD_GET_PUT_FOM_WORK_RANDOM_FILL);
+	be_ut_pd_get_put_foms_run(ctx, BE_UT_PD_GET_PUT_FOM_WORK_CHECK_ALL);
+	be_ut_pd_get_put_segs_reopen(ctx);
 	be_ut_pd_get_put_foms_run(ctx, BE_UT_PD_GET_PUT_FOM_WORK_CHECK_ALL);
 	for (i = 0; i < BE_UT_PD_GET_PUT_SEG_NR; ++i) {
 		/*
