@@ -206,7 +206,7 @@ static int conf_glob_up(struct m0_conf_glob *glob)
 	elem = &glob->cg_path[*depth - 1];
 	if (elem->f_container != M0_CONF_ANY_FID.f_container)
 		/*
-		 * All fids in M0_CONF_REL_FIDS has the same .f_container
+		 * All fids in M0_CONF_REL_FIDS have the same .f_container
 		 * part (0x2f00000000000000); see the use of
 		 * M0_CONF_REL_FIDS in conf/objs/common.c.
 		 *

@@ -411,9 +411,9 @@ M0_INTERNAL int m0_conf_obj_init(void)
 	m0_confx_obj_xc->xct_flags = M0_XCODE_TYPE_FLAG_DOM_CONF |
 				     M0_XCODE_TYPE_FLAG_DOM_RPC;
 #define X_CONF(_, name) \
-	m0_conf_obj_type_register(&M0_CONF_ ## name ## _TYPE)
+	m0_conf_obj_type_register(&M0_CONF_ ## name ## _TYPE);
 
-	M0_CONF_OBJ_TYPES;
+	M0_CONF_OBJ_TYPES
 #undef X_CONF
 	m0_xcode_union_close(m0_confx_obj_xc);
 	m0_fid_type_register(&M0_CONF_RELFID_TYPE);
@@ -423,9 +423,9 @@ M0_INTERNAL int m0_conf_obj_init(void)
 M0_INTERNAL void m0_conf_obj_fini(void)
 {
 #define X_CONF(_, name) \
-	m0_conf_obj_type_unregister(&M0_CONF_ ## name ## _TYPE)
+	m0_conf_obj_type_unregister(&M0_CONF_ ## name ## _TYPE);
 
-	M0_CONF_OBJ_TYPES;
+	M0_CONF_OBJ_TYPES
 #undef X_CONF
 	m0_fid_type_unregister(&M0_CONF_RELFID_TYPE);
 	m0_xcode_union_fini(m0_confx_obj_xc);

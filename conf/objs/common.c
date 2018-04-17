@@ -22,10 +22,10 @@
 
 #include "conf/objs/common.h"
 
-#define X_CONF(name, key)                              \
-	const struct m0_fid M0_CONF_ ## name ## _FID = \
-		M0_FID_TINIT('/', 0, (key))
-M0_CONF_REL_FIDS;
+#define X_CONF(name, key) \
+const struct m0_fid M0_CONF_ ## name ## _FID = M0_FID_TINIT('/', 0, (key));
+
+M0_CONF_REL_FIDS
 #undef X_CONF
 
 M0_INTERNAL int dir_create_and_populate(struct m0_conf_dir **result,
