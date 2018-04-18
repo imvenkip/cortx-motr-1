@@ -1478,11 +1478,18 @@ static void rconfc_herd_prune(struct m0_rconfc *rconfc)
 	M0_LEAVE();
 }
 
-static void rconfc_herd_destroy(struct m0_rconfc *rconfc)
+static int rconfc_herd_destroy(struct m0_rconfc *rconfc)
 {
+	int rc;
+
+	M0_ENTRY();
+
 	rconfc_active_all_unlink(rconfc);
-	rconfc_herd_fini(rconfc);
-	rconfc_herd_prune(rconfc);
+	rc = rconfc_herd_fini(rconfc);
+	if (rc == 0)
+		rconfc_herd_prune(rconfc);
+
+	return M0_RC(rc);
 }
 
 M0_INTERNAL struct rconfc_link *rconfc_herd_find(struct m0_rconfc *rconfc,
@@ -1782,6 +1789,7 @@ static int rconfc_entrypoint_consume(struct m0_rconfc *rconfc,
 		return M0_ERR(-ENOKEY);
 	rconfc->rc_quorum = hep->hae_quorum;
 	rlx->rlc_rm_fid = hep->hae_active_rm_fid;
+	M0_LOG(M0_DEBUG, "rm_fid="FID_F, FID_P(&rlx->rlc_rm_fid));
 	*rm_addr = hep->hae_active_rm_ep;
 	if (hep->hae_active_rm_ep == NULL || hep->hae_active_rm_ep[0] == '\0')
 		return M0_ERR(-ENOENT);
@@ -2156,6 +2164,8 @@ static void rconfc_stop_internal(struct m0_rconfc *rconfc)
 	int               rc;
 
 	M0_ENTRY("rconfc = %p", rconfc);
+	if (rconfc->rc_sm.sm_state == M0_RCS_FINAL)
+		goto exit;
 	/*
 	 * This function may be called several times from rconfc_herd_fini_cb().
 	 * It is possible that rconfc already in M0_RCS_STOPPING state.
@@ -2365,7 +2375,11 @@ static void rconfc_version_elected(struct m0_sm_group *grp,
 		rconfc_conductor_engage(rconfc) : -EPROTO;
 	if (rc != 0) {
 		M0_ERR_INFO(rc, "re-election started");
-		rconfc_herd_destroy(rconfc);
+		rc = rconfc_herd_destroy(rconfc);
+		if (rc != 0) {
+			M0_ERR_INFO(rc, "herd_destroy() failed");
+			goto out;
+		}
 		/*
 		 * Start re-election. As version was not elected, the conductor
 		 * never was engaged, and therefore needs no draining...
@@ -2398,6 +2412,7 @@ static void rconfc_version_elected(struct m0_sm_group *grp,
 		rconfc_load_ast_thread_init(&rconfc->rc_rx);
 		m0_sm_ast_post(&rconfc->rc_rx.rx_grp, &rconfc->rc_load_ast);
 	}
+out:
 	M0_LEAVE();
 }
 
