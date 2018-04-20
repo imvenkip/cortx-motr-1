@@ -699,7 +699,8 @@ static void clovis_ha_process_event(struct m0_clovis              *m0c,
 
 	m0_conf_ha_process_event_post(&m0c->m0c_mero_ha.mh_ha,
 	                              m0c->m0c_mero_ha.mh_link,
-	                              &m0c->m0c_process_fid, 0, event,
+	                              &m0c->m0c_process_fid,
+				      m0_process(), event,
 #ifdef __KERNEL__
 				      M0_CONF_HA_PROCESS_KERNEL);
 #else
