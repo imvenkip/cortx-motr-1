@@ -169,7 +169,7 @@ enum {
 	X_CST(M0_CST_IOS)     /**< IO service */                 \
 	X_CST(M0_CST_CONFD)   /**< Confd service */              \
 	X_CST(M0_CST_RMS)     /**< Resource management */        \
-	X_CST(M0_CST_STS)     /**< Stats service */              \
+	X_CST(M0_CST_STATS)   /**< Stats service */              \
 	X_CST(M0_CST_HA)      /**< HA service */                 \
 	X_CST(M0_CST_SSS)     /**< Start/stop service */         \
 	X_CST(M0_CST_SNS_REP) /**< SNS repair */                 \

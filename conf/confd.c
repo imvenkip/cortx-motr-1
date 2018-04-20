@@ -450,7 +450,7 @@ static const struct m0_reqh_service_type_ops confd_stype_ops = {
 };
 
 struct m0_reqh_service_type m0_confd_stype = {
-	.rst_name     = "confd",
+	.rst_name     = "M0_CST_CONFD",
 	.rst_ops      = &confd_stype_ops,
 	.rst_level    = M0_RS_LEVEL_NORMAL,
 	.rst_typecode = M0_CST_CONFD,

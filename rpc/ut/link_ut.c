@@ -367,7 +367,7 @@ void rlut_connect_async()
 	rc = m0_rpc_session_timedwait(&rlink->rlk_sess, M0_BITS(M0_RPC_SESSION_IDLE),
 				      M0_TIME_NEVER);
 	M0_UT_ASSERT(rc == 0);
-	ut_req(&rlink->rlk_sess, "ioservice", M0_SERVICE_STATUS);
+	ut_req(&rlink->rlk_sess, "M0_CST_IOS", M0_SERVICE_STATUS);
 
 	m0_chan_wait(&clink);
 	M0_UT_ASSERT(rc == 0 && m0_rpc_link_is_connected(rlink));

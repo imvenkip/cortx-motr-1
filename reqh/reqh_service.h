@@ -102,7 +102,7 @@ struct m0_rpc_session;
    - define service type,
    @code
    struct m0_reqh_service_type m0_ios_type = {
-	.rst_name     = "ioservice",
+	.rst_name     = "M0_CST_IOS",
 	.rst_ops      = &ios_type_ops,
 	.rst_level    = M0_RS_LEVEL_NORMAL,
 	.rst_typecode = M0_CST_IOS,

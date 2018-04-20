@@ -332,37 +332,6 @@ M0_INTERNAL bool m0_conf_service_is_top_rms(const struct m0_conf_service *svc)
 	return ret;
 }
 
-static const char *service_name[] = {
-	[0]              = NULL,             /*
-					      * Unused, enum declarations start
-					      * from 1.
-					      */
-	[M0_CST_MDS]     = "mdservice",      /* Meta-data service. */
-	[M0_CST_IOS]     = "ioservice",      /* IO/data service. */
-	[M0_CST_CONFD]   = "confd",          /* Confd service. */
-	[M0_CST_RMS]     = "rmservice",      /* RM service. */
-	[M0_CST_STS]     = "stats",          /* Stats service. */
-	[M0_CST_HA]      = "haservice",      /* HA service. */
-	[M0_CST_SSS]     = "sss",            /* Start/stop service. */
-	[M0_CST_SNS_REP] = "sns_repair",     /* SNS repair. */
-	[M0_CST_SNS_REB] = "sns_rebalance",  /* SNS re-balance. */
-	[M0_CST_ADDB2]   = "addb2",          /* Addb. */
-	[M0_CST_CAS]     = "cas",            /* Catalogue service. */
-	[M0_CST_DIX_REP] = "dix_repair",     /* Dix repair service. */
-	[M0_CST_DIX_REB] = "dix_rebalance",  /* Dix rebalance service. */
-	[M0_CST_DS1]     = "ds1",            /* Dummy service 1. */
-	[M0_CST_DS2]     = "ds2",            /* Dummy service 2. */
-	[M0_CST_FIS]     = FI_SERVICE_NAME,  /* FI service. */
-	[M0_CST_FDMI]    = "fdmi",           /* FDMI service. */
-	[M0_CST_BE]      = "be",             /* BE service. */
-};
-
-M0_INTERNAL char *m0_conf_service_name_dup(const struct m0_conf_service *svc)
-{
-	M0_PRE(IS_IN_ARRAY(svc->cs_type, service_name));
-	return m0_strdup(service_name[svc->cs_type]);
-}
-
 static struct m0_confc *conf_obj2confc(const struct m0_conf_obj *obj)
 {
 	M0_PRE(obj != NULL && obj->co_cache != NULL);

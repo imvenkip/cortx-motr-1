@@ -48,7 +48,8 @@ static const struct m0_reqh_service_type_ops dix_repair_svc_type_ops = {
 };
 
 M0_DIX_CM_TYPE_DECLARE(dix_repair, M0_CM_DIX_REP_OPCODE,
-		       &dix_repair_svc_type_ops, "dix_repair", M0_CST_DIX_REP);
+		       &dix_repair_svc_type_ops, "M0_CST_DIX_REP",
+		       M0_CST_DIX_REP);
 
 /** Copy machine service operations.*/
 static int dix_repair_svc_start(struct m0_reqh_service *service);

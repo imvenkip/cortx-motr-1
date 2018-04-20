@@ -155,7 +155,7 @@ static const struct m0_reqh_service_type_ops ss_svc_type_ops = {
 };
 
 struct m0_reqh_service_type m0_ss_svc_type = {
-	.rst_name       = "sss",
+	.rst_name       = "M0_CST_SSS",
 	.rst_ops        = &ss_svc_type_ops,
 	.rst_level      = M0_SS_SVC_LEVEL,
 	.rst_typecode   = M0_CST_SSS,

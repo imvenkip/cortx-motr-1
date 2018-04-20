@@ -392,13 +392,13 @@ static int spiel_svc_fop_fill(struct m0_fop          *fop,
 			      struct m0_conf_service *svc,
 			      uint32_t                cmd)
 {
-	struct m0_sss_req      *ss_fop = m0_fop_data(fop);
-	char                   *name;
+	struct m0_sss_req *ss_fop = m0_fop_data(fop);
+	char              *name;
 
 	ss_fop->ss_cmd = cmd;
 	ss_fop->ss_id  = svc->cs_obj.co_id;
 
-	name = m0_conf_service_name_dup(svc);
+	name = m0_strdup(m0_conf_service_type2str(svc->cs_type));
 	if (name == NULL)
 		return M0_ERR(-ENOMEM);
 	m0_buf_init(&ss_fop->ss_name, name, strlen(name));

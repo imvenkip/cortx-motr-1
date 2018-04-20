@@ -64,7 +64,7 @@
  *
  * @{
  */
-#define FI_SERVICE_NAME "fiservice"
+#define FI_SERVICE_NAME "M0_CST_FIS"
 
 /** Service structure to be registered with REQH. */
 struct m0_reqh_fi_service {

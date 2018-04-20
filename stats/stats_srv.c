@@ -109,10 +109,10 @@
    Stats service type definition :
 
    struct m0_reqh_service_type m0_stats_svc_type = {
-	.rst_name     = M0_STATS_SVC_NAME,
+	.rst_name     = "M0_CST_STATS",
 	.rst_ops      = &stats_service_type_ops,
 	.rst_level    = M0_RS_LEVEL_NORMAL,
-	.rst_typecode = M0_CST_STS,
+	.rst_typecode = M0_CST_STATS,
    };
 
    Stats service type initialization/finalization :
@@ -292,10 +292,10 @@ static const struct m0_reqh_service_type_ops stats_service_type_ops = {
 };
 
 struct m0_reqh_service_type m0_stats_svc_type = {
-	.rst_name     = M0_STATS_SVC_NAME,
+	.rst_name     = "M0_CST_STATS",
 	.rst_ops      = &stats_service_type_ops,
 	.rst_level    = M0_RS_LEVEL_NORMAL,
-	.rst_typecode = M0_CST_STS,
+	.rst_typecode = M0_CST_STATS,
 };
 
 /*

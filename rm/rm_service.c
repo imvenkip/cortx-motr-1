@@ -65,7 +65,7 @@ static const struct m0_reqh_service_ops rms_ops = {
 };
 
 struct m0_reqh_service_type m0_rms_type = {
-	.rst_name     = "rmservice",
+	.rst_name     = "M0_CST_RMS",
 	.rst_ops      = &rms_type_ops,
 	.rst_level    = M0_RM_SVC_LEVEL,
 	.rst_typecode = M0_CST_RMS,

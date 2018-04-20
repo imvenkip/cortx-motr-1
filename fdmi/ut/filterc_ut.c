@@ -103,7 +103,7 @@ static int ut_filterc_start()
 	bool start_service = false;
 	int rc = 0;
 
-	stype = m0_reqh_service_type_find("fdmi");
+	stype = m0_reqh_service_type_find("M0_CST_FDMI");
 	if (stype == NULL) {
 		M0_LOG(M0_ERROR, "FDMI service type is not found.");
 		return M0_ERR_INFO(-EINVAL, "Unknown reqh service type: fdmi");

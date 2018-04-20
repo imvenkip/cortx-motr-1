@@ -84,10 +84,15 @@ static const struct m0_reqh_service_type_ops ut_stats_service_type_ops = {
 };
 
 struct m0_reqh_service_type ut_stats_service_type = {
-	.rst_name     = "ut-stats-service",
+	/*
+	 * "M0_CST_STATS" name is used by m0_stats_svc_type.
+	 * m0_reqh_service_type_register() will fail on precondition
+	 * if we reuse a name which is already registered.
+	 */
+	.rst_name     = "M0_CST_STATS__UT",
 	.rst_ops      = &ut_stats_service_type_ops,
 	.rst_level    = M0_RS_LEVEL_NORMAL,
-	.rst_typecode = M0_CST_STS,
+	.rst_typecode = M0_CST_STATS,
 };
 
 static int test_stats_init(void)

@@ -86,7 +86,7 @@ service_options_add(struct cs_args *args, const struct m0_conf_service *svc)
 		[M0_CST_IOS]     = "-i",
 		[M0_CST_CONFD]   = "",
 		[M0_CST_RMS]     = "",
-		[M0_CST_STS]     = "-R",
+		[M0_CST_STATS]   = "-R",
 		[M0_CST_HA]      = "",
 		[M0_CST_SSS]     = "",
 		[M0_CST_SNS_REP] = "",
@@ -418,14 +418,15 @@ M0_INTERNAL int cs_conf_services_init(struct m0_mero *cctx)
 	while ((rc = m0_conf_diter_next_sync(&it, is_local_service)) ==
 		M0_CONF_DIRNEXT) {
 		struct m0_conf_obj     *obj = m0_conf_diter_result(&it);
-		struct m0_conf_service *svc = M0_CONF_CAST(obj,
-							   m0_conf_service);
-		char                   *sname = m0_conf_service_name_dup(svc);
-		M0_LOG(M0_DEBUG, "service:%s fid:" FID_F, sname,
+		struct m0_conf_service *svc =
+			M0_CONF_CAST(obj, m0_conf_service);
+		char                   *svc_type_name =
+			m0_strdup(m0_conf_service_type2str(svc->cs_type));
+
+		M0_LOG(M0_DEBUG, "service:%s fid:" FID_F, svc_type_name,
 		       FID_P(&svc->cs_obj.co_id));
 		M0_ASSERT(rctx->rc_nr_services < M0_CST_NR);
-		M0_ASSERT(svc->cs_type < M0_CST_NR);
-		if (sname == NULL) {
+		if (svc_type_name == NULL) {
 			int i;
 			rc = M0_ERR(-ENOMEM);
 			for (i = 0; i < rctx->rc_nr_services; ++i)
@@ -437,11 +438,8 @@ M0_INTERNAL int cs_conf_services_init(struct m0_mero *cctx)
 			       FID_F " for the type is already registered",
 			       FID_P(&svc->cs_obj.co_id), svc->cs_type,
 			       FID_P(&rctx->rc_service_fids[svc->cs_type]));
-		rctx->rc_services[svc->cs_type] = sname;
+		rctx->rc_services[svc->cs_type] = svc_type_name;
 		rctx->rc_service_fids[svc->cs_type] = svc->cs_obj.co_id;
-		M0_LOG(M0_DEBUG, "service:%s fid:" FID_F,
-		       rctx->rc_services[svc->cs_type],
-		       FID_P(&rctx->rc_service_fids[svc->cs_type]));
 		M0_CNT_INC(rctx->rc_nr_services);
 	}
 	m0_conf_diter_fini(&it);
