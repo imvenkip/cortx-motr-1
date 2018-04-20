@@ -59,7 +59,7 @@ GTAGS
 /autom4te.cache/
 /mero.spec
 /mero.pc
-/mero-0.1.0.tar.gz
+/mero-*.tar.gz
 /compile
 /config.*
 /config/
