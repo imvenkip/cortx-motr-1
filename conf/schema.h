@@ -182,7 +182,9 @@ enum {
 	X_CST(M0_CST_DS2)     /**< Dummy service 2 */            \
 	X_CST(M0_CST_FIS)     /**< Fault injection service */    \
 	X_CST(M0_CST_FDMI)    /**< FDMI service */               \
-	X_CST(M0_CST_BE)      /**< BE service */
+	X_CST(M0_CST_BE)      /**< BE service */                 \
+	X_CST(M0_CST_M0T1FS)  /**< m0t1fs service */             \
+	X_CST(M0_CST_CLOVIS)  /**< Clovis service */
 
 enum m0_conf_service_type {
 #define X_CST(name) name,

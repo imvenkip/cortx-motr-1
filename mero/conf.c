@@ -100,6 +100,8 @@ service_options_add(struct cs_args *args, const struct m0_conf_service *svc)
 		[M0_CST_FIS]     = "",
 		[M0_CST_FDMI]    = "",
 		[M0_CST_BE]      = "",
+		[M0_CST_M0T1FS]  = "",
+		[M0_CST_CLOVIS]  = "",
 	};
 	int         i;
 	const char *opt;

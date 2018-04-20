@@ -105,7 +105,7 @@ conf_service_types = (
     '_UNUSED', 'MDS', 'IOS', 'CONFD', 'RMS', 'STS', 'HA', 'SSS',
     'SNS_REP', 'SNS_REB', 'ADDB2', 'CAS', 'DIX_REP', 'DIX_REB',
     'DS1', 'DS2',  # UT-specific
-    'FIS', 'FDMI', 'BE'
+    'FIS', 'FDMI', 'BE', 'M0T1FS', 'CLOVIS'
 )
 conf_service_types = tuple('M0_CST_' + s for s in conf_service_types)
 
