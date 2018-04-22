@@ -294,6 +294,7 @@ struct be_ut_pd_get_put_fom_ctx {
 struct be_ut_pd_get_put_ctx {
 	struct m0_reqh                  *bugp_reqh;
 	struct m0_be_pd                 *bugp_pd;
+	struct m0_be_pd_cfg             *bugp_pd_cfg;
 	struct m0_be_seg                *bugp_seg[BE_UT_PDGP_SEG_NR];
 	struct be_ut_pd_get_put_fom_ctx *bugp_fctx;
 	uint64_t                         bugp_foms_nr;
@@ -400,23 +401,45 @@ static int be_ut_pd_get_put_index_of(struct be_ut_pd_get_put_ctx *ctx,
 	return i;
 }
 
-static void be_ut_pd_get_put_segs_reopen(struct be_ut_pd_get_put_ctx *ctx)
+static void be_ut_pd_get_put_segs_close(struct be_ut_pd_get_put_ctx *ctx)
 {
-	struct m0_be_pd *pd = ctx->bugp_pd;
-	int              rc;
-	int              i;
+	int i;
 
 	for (i = 0; i < BE_UT_PDGP_SEG_NR; ++i)
-		m0_be_pd_seg_close(pd, ctx->bugp_seg[i]);
+		m0_be_pd_seg_close(ctx->bugp_pd, ctx->bugp_seg[i]);
+}
+
+static void be_ut_pd_get_put_segs_open(struct be_ut_pd_get_put_ctx *ctx)
+{
+	int rc;
+	int i;
+
 	for (i = 0; i < BE_UT_PDGP_SEG_NR; ++i) {
 		/*
-		 * XXX another bad place.
-		 * See similar XXX in the m0_be_ut_pd_get_put().
+		 * XXX FIXME stob_key is used as seg_id by default, see
+		 * `if' statement in m0_be_seg_init() with M0_BE_SEG_FAKE_ID.
 		 */
-		rc = m0_be_pd_seg_open(pd, ctx->bugp_seg[i], NULL,
+		rc = m0_be_pd_seg_open(ctx->bugp_pd, ctx->bugp_seg[i], NULL,
 		                       BE_UT_PDGP_STOB_KEY_START + i);
 		M0_UT_ASSERT(rc == 0);
+		M0_UT_ASSERT(ctx->bugp_seg[i] != NULL);
 	}
+}
+
+static void be_ut_pd_get_put_segs_reopen(struct be_ut_pd_get_put_ctx *ctx,
+                                         bool                         reinit_pd)
+{
+	int rc;
+
+	be_ut_pd_get_put_segs_close(ctx);
+	if (reinit_pd) {
+		m0_be_pd_fini(ctx->bugp_pd);
+		m0_free(ctx->bugp_pd);
+		M0_ALLOC_PTR(ctx->bugp_pd);
+		rc = m0_be_pd_init(ctx->bugp_pd, ctx->bugp_pd_cfg);
+		M0_UT_ASSERT(rc == 0);
+	}
+	be_ut_pd_get_put_segs_open(ctx);
 }
 
 static void be_ut_pd_get_put_reg_random(struct m0_be_seg *seg,
@@ -569,8 +592,6 @@ void m0_be_ut_pd_get_put(void)
 	struct m0_be_0type_seg_cfg       seg_cfg;
 	struct m0_be_domain_cfg         *bd_cfg;
 	struct m0_be_tx_credit           tx_credit;
-	struct m0_be_pd                 *pd;
-	struct m0_be_pd_cfg             *pd_cfg;
 	struct m0_reqh                  *reqh = NULL;
 	uint64_t                         loc_nr;
 	uint64_t                         foms_nr;
@@ -582,13 +603,12 @@ void m0_be_ut_pd_get_put(void)
 	loc_nr = m0_reqh_nr_localities(reqh);
 	foms_nr = loc_nr * BE_UT_PDGP_FOMS_PER_LOC;
 
-	M0_ALLOC_PTR(pd);
-	M0_ALLOC_PTR(pd_cfg);
 	M0_ALLOC_PTR(ctx);
 	M0_ALLOC_ARR(ctx->bugp_fctx, foms_nr);
+	M0_ALLOC_PTR(ctx->bugp_pd);
+	M0_ALLOC_PTR(ctx->bugp_pd_cfg);
 	ctx->bugp_foms_nr = foms_nr;
 	ctx->bugp_loc_nr  = loc_nr;
-	ctx->bugp_pd      = pd;
 	ctx->bugp_reqh    = reqh;
 	m0_atomic64_set(&ctx->bugp_ext_counter, 0x3377);
 
@@ -614,13 +634,13 @@ void m0_be_ut_pd_get_put(void)
 
 	M0_ALLOC_PTR(bd_cfg);
 	m0_be_ut_backend_cfg_default(bd_cfg);
-	*pd_cfg = bd_cfg->bc_pd_cfg;
+	*ctx->bugp_pd_cfg = bd_cfg->bc_pd_cfg;
 	m0_free(bd_cfg);
 
-	pd_cfg->bpc_reqh = reqh;
-	pd_cfg->bpc_io_sched_cfg.bpdc_sched.bisc_pos_start =
+	ctx->bugp_pd_cfg->bpc_reqh = reqh;
+	ctx->bugp_pd_cfg->bpc_io_sched_cfg.bpdc_sched.bisc_pos_start =
 		m0_atomic64_get(&ctx->bugp_ext_counter);
-	rc = m0_be_pd_init(pd, pd_cfg);
+	rc = m0_be_pd_init(ctx->bugp_pd, ctx->bugp_pd_cfg);
 	M0_UT_ASSERT(rc == 0);
 
 	for (i = 0; i < BE_UT_PDGP_SEG_NR; ++i) {
@@ -632,35 +652,29 @@ void m0_be_ut_pd_get_put(void)
 			                        BE_UT_PDGP_SEG_SIZE),
 			.bsc_stob_create_cfg = NULL,
 		};
-		rc = m0_be_pd_seg_create(pd, NULL, &seg_cfg);
+		rc = m0_be_pd_seg_create(ctx->bugp_pd, NULL, &seg_cfg);
 		M0_UT_ASSERT(rc == 0);
-		rc = m0_be_pd_seg_open(pd, ctx->bugp_seg[i], NULL,
-		                       seg_cfg.bsc_stob_key);
-		M0_UT_ASSERT(ctx->bugp_seg[i] != NULL);
 	}
+	be_ut_pd_get_put_segs_open(ctx);
 	be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_SEQ_CHECK);
 	be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_SEQ_FILL);
 	be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_SEQ_CHECK);
 	be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_RND_CHECK);
-	be_ut_pd_get_put_segs_reopen(ctx);
+	be_ut_pd_get_put_segs_reopen(ctx, false);
 	be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_SEQ_CHECK);
 	be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_RND_FILL);
 	be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_SEQ_CHECK);
 	be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_RND_CHECK);
-	be_ut_pd_get_put_segs_reopen(ctx);
+	be_ut_pd_get_put_segs_reopen(ctx, true);
 	be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_SEQ_CHECK);
 	be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_RND_CHECK);
+	be_ut_pd_get_put_segs_close(ctx);
 	for (i = 0; i < BE_UT_PDGP_SEG_NR; ++i) {
-		/*
-		 * XXX FIXME stob_key is used as seg_id by default, see
-		 * `if' statement in m0_be_seg_init() with M0_BE_SEG_FAKE_ID.
-		 */
-		m0_be_pd_seg_close(pd, ctx->bugp_seg[i]);
-		rc = m0_be_pd_seg_destroy(pd, NULL,
+		rc = m0_be_pd_seg_destroy(ctx->bugp_pd, NULL,
 					  BE_UT_PDGP_STOB_KEY_START + i);
 		M0_UT_ASSERT(rc == 0);
 	}
-	m0_be_pd_fini(pd);
+	m0_be_pd_fini(ctx->bugp_pd);
 
 	for (i = 0; i < ARRAY_SIZE(ctx->bugp_seg_data); ++i)
 		m0_free(ctx->bugp_seg_data[i]);
@@ -671,10 +685,10 @@ void m0_be_ut_pd_get_put(void)
 		m0_be_reg_area_fini(&fctx->bugf_reg_area);
 		m0_semaphore_fini(&fctx->bugf_done);
 	}
+	m0_free(ctx->bugp_pd_cfg);
+	m0_free(ctx->bugp_pd);
 	m0_free(ctx->bugp_fctx);
 	m0_free(ctx);
-	m0_free(pd_cfg);
-	m0_free(pd);
 	m0_be_ut_reqh_destroy();
 }
 
