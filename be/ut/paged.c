@@ -453,6 +453,26 @@ static void be_ut_pd_get_put_reg_random(struct m0_be_seg *seg,
 	M0_UT_ASSERT(m0_be_reg__invariant(reg));
 }
 
+static void
+be_ut_pd_get_put_reg_area_write(struct be_ut_pd_get_put_ctx     *ctx,
+                                struct be_ut_pd_get_put_fom_ctx *fctx)
+{
+	struct m0_ext ext;
+	m0_bindex_t   ext_end;
+
+	ext_end = m0_atomic64_add_return(&ctx->bugp_ext_counter, 1);
+	ext = M0_EXT(ext_end - 1, ext_end);
+	m0_be_pd_request_pages_init(&fctx->bugf_request_pages,
+	                            M0_PRT_WRITE, &fctx->bugf_reg_area,
+	                            &ext, NULL);
+	m0_be_pd_request_init(&fctx->bugf_request,
+	                      &fctx->bugf_request_pages);
+	M0_BE_OP_SYNC(op, m0_be_pd_request_push(ctx->bugp_pd,
+	                                        &fctx->bugf_request,
+	                                        &op));
+	m0_be_pd_request_fini(&fctx->bugf_request);
+}
+
 static int be_ut_pd_get_put_fom_tick(struct m0_fom *fom, void *data, int *phase)
 {
 	struct be_ut_pd_get_put_fom_ctx *fctx;
@@ -461,8 +481,6 @@ static int be_ut_pd_get_put_fom_tick(struct m0_fom *fom, void *data, int *phase)
 	struct m0_be_pd                 *pd = ctx->bugp_pd;
 	struct m0_be_reg                 reg;
 	struct m0_be_seg                *seg;
-	struct m0_ext                    ext;
-	m0_bindex_t                      ext_end;
 	void                            *seg_addr;
 	m0_bcount_t                      reg_size;
 	int                              reg_nr;
@@ -518,25 +536,8 @@ static int be_ut_pd_get_put_fom_tick(struct m0_fom *fom, void *data, int *phase)
 	default:
 		M0_IMPOSSIBLE("unknown work to do");
 	};
-	/* send the write request in the write case */
-	switch (ctx->bugp_work) {
-	case BE_UT_PDGP_SEQ_FILL:
-	case BE_UT_PDGP_RND_FILL:
-		ext_end = m0_atomic64_add_return(&ctx->bugp_ext_counter, 1);
-		ext = M0_EXT(ext_end - 1, ext_end);
-		m0_be_pd_request_pages_init(&fctx->bugf_request_pages,
-		                            M0_PRT_WRITE, &fctx->bugf_reg_area,
-		                            &ext, NULL);
-		m0_be_pd_request_init(&fctx->bugf_request,
-				      &fctx->bugf_request_pages);
-		M0_BE_OP_SYNC(op, m0_be_pd_request_push(ctx->bugp_pd,
-		                                        &fctx->bugf_request,
-		                                        &op));
-		m0_be_pd_request_fini(&fctx->bugf_request);
-		break;
-	default:
-		break;
-	}
+	if (M0_IN(ctx->bugp_work, (BE_UT_PDGP_SEQ_FILL, BE_UT_PDGP_RND_FILL)))
+		be_ut_pd_get_put_reg_area_write(ctx, fctx);
 	return -1;
 }
 
