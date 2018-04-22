@@ -275,11 +275,21 @@ enum {
 };
 M0_BASSERT(BE_UT_PDGP_SEG_SIZE % BE_UT_PDGP_SEQ_REG_SIZE == 0);
 
+/*
+ * Work description:
+ * - CHECK tests are checking what's in segment memory (seg->bs_addr) against
+ *   what should be there (be_ut_pd_get_put_ctx::bugp_seg_data);
+ * - FILL tests are filling segment with random bytes;
+ * - SEQ tests handle each segment sequentially;
+ * - RND tests generate random regions and work on them;
+ * - RW test interleaves reads with writes for the same segment;
+ */
 enum be_ut_pd_get_put_fom_work {
 	BE_UT_PDGP_SEQ_CHECK,
 	BE_UT_PDGP_SEQ_FILL,
 	BE_UT_PDGP_RND_CHECK,
 	BE_UT_PDGP_RND_FILL,
+	BE_UT_PDGP_RND_RW,
 };
 
 struct be_ut_pd_get_put_fom_ctx {
@@ -377,6 +387,7 @@ static void be_ut_pd_get_put_work(struct be_ut_pd_get_put_ctx     *ctx,
 		break;
 	case BE_UT_PDGP_SEQ_FILL:
 	case BE_UT_PDGP_RND_FILL:
+	case BE_UT_PDGP_RND_RW:
 		be_ut_pd_get_put_reg_random_fill(seg, reg,
 						 &fctx->bugf_rng_seed);
 		be_ut_pd_get_put_reg_copy_to_data(seg, reg, seg_data);
@@ -471,6 +482,7 @@ be_ut_pd_get_put_reg_area_write(struct be_ut_pd_get_put_ctx     *ctx,
 	                                        &fctx->bugf_request,
 	                                        &op));
 	m0_be_pd_request_fini(&fctx->bugf_request);
+	m0_be_reg_area_reset(&fctx->bugf_reg_area);
 }
 
 static int be_ut_pd_get_put_fom_tick(struct m0_fom *fom, void *data, int *phase)
@@ -516,6 +528,7 @@ static int be_ut_pd_get_put_fom_tick(struct m0_fom *fom, void *data, int *phase)
 		break;
 	case BE_UT_PDGP_RND_CHECK:
 	case BE_UT_PDGP_RND_FILL:
+	case BE_UT_PDGP_RND_RW:
 		/* XXX almost copy-paste */
 		reg_size = BE_UT_PDGP_RND_REG_SIZE;
 		reg_nr   = BE_UT_PDGP_RND_REG_NR;
@@ -529,6 +542,8 @@ static int be_ut_pd_get_put_fom_tick(struct m0_fom *fom, void *data, int *phase)
 			M0_BE_OP_SYNC(op, m0_be_pd_reg_get(pd, &reg, &op));
 			be_ut_pd_get_put_work(ctx, fctx, &reg, seg_index);
 			m0_be_pd_reg_put(pd, &reg);
+			if (i % 2 == 0 && ctx->bugp_work == BE_UT_PDGP_RND_RW)
+				be_ut_pd_get_put_reg_area_write(ctx, fctx);
 			++iter_nr;
 		}
 		M0_UT_ASSERT(iter_nr > 0);
@@ -536,7 +551,9 @@ static int be_ut_pd_get_put_fom_tick(struct m0_fom *fom, void *data, int *phase)
 	default:
 		M0_IMPOSSIBLE("unknown work to do");
 	};
-	if (M0_IN(ctx->bugp_work, (BE_UT_PDGP_SEQ_FILL, BE_UT_PDGP_RND_FILL)))
+	if (M0_IN(ctx->bugp_work, (BE_UT_PDGP_SEQ_FILL,
+				   BE_UT_PDGP_RND_FILL,
+				   BE_UT_PDGP_RND_RW)))
 		be_ut_pd_get_put_reg_area_write(ctx, fctx);
 	return -1;
 }
@@ -565,6 +582,7 @@ static void be_ut_pd_get_put_foms_run(struct be_ut_pd_get_put_ctx    *ctx,
 		break;
 	case BE_UT_PDGP_SEQ_FILL:
 	case BE_UT_PDGP_RND_FILL:
+	case BE_UT_PDGP_RND_RW:
 		foms_to_run = ARRAY_SIZE(ctx->bugp_seg);
 		break;
 	default:
@@ -573,7 +591,6 @@ static void be_ut_pd_get_put_foms_run(struct be_ut_pd_get_put_ctx    *ctx,
 	M0_ASSERT(foms_to_run <= ctx->bugp_foms_nr);
 	for (i = 0; i < foms_to_run; ++i) {
 		fctx = &ctx->bugp_fctx[i];
-		m0_be_reg_area_reset(&fctx->bugf_reg_area);
 		M0_SET0(&fctx->bugf_request);
 		M0_SET0(&fctx->bugf_request_pages);
 		fom_s = &fctx->bugf_fom_s;
@@ -664,6 +681,9 @@ void m0_be_ut_pd_get_put(void)
 	be_ut_pd_get_put_segs_reopen(ctx, false);
 	be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_SEQ_CHECK);
 	be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_RND_FILL);
+	be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_SEQ_CHECK);
+	be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_RND_CHECK);
+	be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_RND_RW);
 	be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_SEQ_CHECK);
 	be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_RND_CHECK);
 	be_ut_pd_get_put_segs_reopen(ctx, true);
