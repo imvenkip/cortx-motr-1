@@ -532,8 +532,8 @@ static int be_ut_pd_get_put_fom_tick(struct m0_fom *fom, void *data, int *phase)
 		/* XXX almost copy-paste */
 		reg_size = BE_UT_PDGP_RND_REG_SIZE;
 		reg_nr   = BE_UT_PDGP_RND_REG_NR;
-		iter_nr  = 0;
-		for (i = 0; i < reg_nr; ++i) {
+		i = 0;
+		while (i < reg_nr) {
 			be_ut_pd_get_put_reg_random(seg, &reg, reg_size,
 			                            &fctx->bugf_rng_seed);
 			if (m0_be_seg_offset(seg, reg.br_addr) <
@@ -544,9 +544,8 @@ static int be_ut_pd_get_put_fom_tick(struct m0_fom *fom, void *data, int *phase)
 			m0_be_pd_reg_put(pd, &reg);
 			if (i % 2 == 0 && ctx->bugp_work == BE_UT_PDGP_RND_RW)
 				be_ut_pd_get_put_reg_area_write(ctx, fctx);
-			++iter_nr;
+			++i;
 		}
-		M0_UT_ASSERT(iter_nr > 0);
 		break;
 	default:
 		M0_IMPOSSIBLE("unknown work to do");
