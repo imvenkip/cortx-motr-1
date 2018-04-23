@@ -34,6 +34,8 @@
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/semaphore.h"      /* m0_semaphore */
+#include "lib/mutex.h"          /* m0_mutex */
+#include "lib/ext.h"            /* m0_ext */
 #include "ut/ut.h"
 #include "ut/stob.h"
 #include "fop/fom_simple.h"     /* m0_fom_simple */
@@ -264,15 +266,18 @@ void m0_be_ut_pd_fom(void)
 }
 
 enum {
-	BE_UT_PDGP_SEG_NR         = 0x4,
-	BE_UT_PDGP_SEG_SIZE       = 64UL << 10,
-	BE_UT_PDGP_STOB_KEY_START = 0x1,
-	BE_UT_PDGP_FOMS_PER_LOC   = 0x4,
-	BE_UT_PDGP_SEQ_REG_SIZE   = 1UL << 10,
-	BE_UT_PDGP_SEQ_REG_NR     = BE_UT_PDGP_SEG_SIZE /
-				    BE_UT_PDGP_SEQ_REG_SIZE,
-	BE_UT_PDGP_RND_REG_SIZE   = 4UL << 10,
-	BE_UT_PDGP_RND_REG_NR     = 0x100,
+	BE_UT_PDGP_SEG_NR           = 0x4,
+	BE_UT_PDGP_SEG_SIZE         = 64UL << 10,
+	BE_UT_PDGP_STOB_KEY_START   = 0x1,
+	BE_UT_PDGP_FOMS_PER_LOC     = 0x4,
+	BE_UT_PDGP_SEQ_REG_SIZE     = 1UL << 10,
+	BE_UT_PDGP_SEQ_REG_NR       = BE_UT_PDGP_SEG_SIZE /
+				      BE_UT_PDGP_SEQ_REG_SIZE,
+	BE_UT_PDGP_RND_REG_SIZE     = 4UL << 10,
+	BE_UT_PDGP_RND_REG_NR       = 0x100,
+	BE_UT_PDGP_RND_ALL_REG_SIZE = 32UL << 10,
+	BE_UT_PDGP_RND_ALL_REG_NR   = 0x100,
+	BE_UT_PDGP_RND_ALL_WRITE_P  = 30,
 };
 M0_BASSERT(BE_UT_PDGP_SEG_SIZE % BE_UT_PDGP_SEQ_REG_SIZE == 0);
 
@@ -284,6 +289,7 @@ M0_BASSERT(BE_UT_PDGP_SEG_SIZE % BE_UT_PDGP_SEQ_REG_SIZE == 0);
  * - SEQ tests handle each segment sequentially;
  * - RND tests generate random regions and work on them;
  * - RW test interleaves reads with writes for the same segment;
+ * - ALL test interleaves reads with writes for all segments.
  */
 enum be_ut_pd_get_put_fom_work {
 	BE_UT_PDGP_SEQ_CHECK,
@@ -291,28 +297,38 @@ enum be_ut_pd_get_put_fom_work {
 	BE_UT_PDGP_RND_CHECK,
 	BE_UT_PDGP_RND_FILL,
 	BE_UT_PDGP_RND_RW,
+	BE_UT_PDGP_RND_ALL,
+};
+
+struct be_ut_pd_get_put_lock_ctx {
+	struct m0_be_reg bugl_reg;
+	bool             bugl_write;
+	bool             bugl_locked;
 };
 
 struct be_ut_pd_get_put_fom_ctx {
-	struct m0_fom_simple          bugf_fom_s;
-	struct m0_semaphore           bugf_done;
-	uint64_t                      bugf_rng_seed;
-	struct m0_be_reg_area         bugf_reg_area;
-	struct m0_be_pd_request       bugf_request;
-	struct m0_be_pd_request_pages bugf_request_pages;
+	struct m0_fom_simple             bugf_fom_s;
+	struct m0_semaphore              bugf_done;
+	uint64_t                         bugf_rng_seed;
+	struct m0_be_reg_area            bugf_reg_area;
+	struct m0_be_pd_request          bugf_request;
+	struct m0_be_pd_request_pages    bugf_request_pages;
+	struct be_ut_pd_get_put_lock_ctx bugf_rwlock;
 };
 
 struct be_ut_pd_get_put_ctx {
-	struct m0_reqh                  *bugp_reqh;
-	struct m0_be_pd                 *bugp_pd;
-	struct m0_be_pd_cfg             *bugp_pd_cfg;
-	struct m0_be_seg                *bugp_seg[BE_UT_PDGP_SEG_NR];
-	struct be_ut_pd_get_put_fom_ctx *bugp_fctx;
-	uint64_t                         bugp_foms_nr;
-	uint64_t                         bugp_loc_nr;
-	enum be_ut_pd_get_put_fom_work   bugp_work;
-	void                            *bugp_seg_data[BE_UT_PDGP_SEG_NR];
-	struct m0_atomic64               bugp_ext_counter;
+	struct m0_reqh                   *bugp_reqh;
+	struct m0_be_pd                  *bugp_pd;
+	struct m0_be_pd_cfg              *bugp_pd_cfg;
+	struct m0_be_seg                 *bugp_seg[BE_UT_PDGP_SEG_NR];
+	struct be_ut_pd_get_put_fom_ctx  *bugp_fctx;
+	uint64_t                          bugp_foms_nr;
+	uint64_t                          bugp_loc_nr;
+	enum be_ut_pd_get_put_fom_work    bugp_work;
+	void                             *bugp_seg_data[BE_UT_PDGP_SEG_NR];
+	struct m0_atomic64                bugp_ext_counter;
+	/* to protect be_ut_pd_get_put_fom_ctx::bugf_rwlock for all bugp_fctx */
+	struct m0_mutex                   bugp_lock;
 };
 
 /* XXX copy-paste from lib/ut/locality.c */
@@ -373,6 +389,18 @@ static void be_ut_pd_get_put_reg_copy_to_data(struct m0_be_seg *seg,
 		seg_data[reg_offset + i] = reg_data[i];
 }
 
+static void be_ut_pd_get_put_reg_fill(struct be_ut_pd_get_put_fom_ctx *fctx,
+                                      struct m0_be_seg                *seg,
+                                      struct m0_be_reg                *reg,
+                                      void                            *seg_data)
+{
+	be_ut_pd_get_put_reg_random_fill(seg, reg,
+	                                 &fctx->bugf_rng_seed);
+	be_ut_pd_get_put_reg_copy_to_data(seg, reg, seg_data);
+	m0_be_reg_area_capture(&fctx->bugf_reg_area,
+	                       &M0_BE_REG_D(*reg, NULL));
+}
+
 static void be_ut_pd_get_put_work(struct be_ut_pd_get_put_ctx     *ctx,
                                   struct be_ut_pd_get_put_fom_ctx *fctx,
                                   struct m0_be_reg                *reg,
@@ -389,11 +417,7 @@ static void be_ut_pd_get_put_work(struct be_ut_pd_get_put_ctx     *ctx,
 	case BE_UT_PDGP_SEQ_FILL:
 	case BE_UT_PDGP_RND_FILL:
 	case BE_UT_PDGP_RND_RW:
-		be_ut_pd_get_put_reg_random_fill(seg, reg,
-						 &fctx->bugf_rng_seed);
-		be_ut_pd_get_put_reg_copy_to_data(seg, reg, seg_data);
-		m0_be_reg_area_capture(&fctx->bugf_reg_area,
-				       &M0_BE_REG_D(*reg, NULL));
+		be_ut_pd_get_put_reg_fill(fctx, seg, reg, seg_data);
 		break;
 	default:
 		M0_IMPOSSIBLE("unknown work to do");
@@ -448,6 +472,8 @@ static void be_ut_pd_get_put_segs_reopen(struct be_ut_pd_get_put_ctx *ctx,
 		m0_be_pd_fini(ctx->bugp_pd);
 		m0_free(ctx->bugp_pd);
 		M0_ALLOC_PTR(ctx->bugp_pd);
+		ctx->bugp_pd_cfg->bpc_io_sched_cfg.bpdc_sched.bisc_pos_start =
+			m0_atomic64_get(&ctx->bugp_ext_counter);
 		rc = m0_be_pd_init(ctx->bugp_pd, ctx->bugp_pd_cfg);
 		M0_UT_ASSERT(rc == 0);
 	}
@@ -463,6 +489,14 @@ static void be_ut_pd_get_put_reg_random(struct m0_be_seg *seg,
 	*reg = M0_BE_REG(seg, reg_size,
 	                 seg->bs_addr + m0_rnd(seg->bs_size - reg_size, seed));
 	M0_UT_ASSERT(m0_be_reg__invariant(reg));
+}
+
+static int be_ut_pd_get_put_seg_random(struct be_ut_pd_get_put_ctx     *ctx,
+                                       struct be_ut_pd_get_put_fom_ctx *fctx)
+{
+	int seg_index = m0_rnd(ARRAY_SIZE(ctx->bugp_seg), &fctx->bugf_rng_seed);
+	M0_ASSERT(seg_index < ARRAY_SIZE(ctx->bugp_seg));
+	return seg_index;
 }
 
 static void
@@ -486,6 +520,60 @@ be_ut_pd_get_put_reg_area_write(struct be_ut_pd_get_put_ctx     *ctx,
 	m0_be_reg_area_reset(&fctx->bugf_reg_area);
 }
 
+static void be_ut_pd_get_put_reg2ext(const struct m0_be_reg *reg,
+                                     struct m0_ext          *ext)
+{
+	m0_bindex_t start = (m0_bindex_t)reg->br_addr;
+	M0_BASSERT(sizeof(reg->br_addr) == sizeof(start));
+	*ext = M0_EXT(start, start + reg->br_size);
+}
+
+static bool be_ut_pd_get_put_lock(struct be_ut_pd_get_put_ctx     *ctx,
+                                  struct be_ut_pd_get_put_fom_ctx *fctx,
+                                  struct m0_be_reg                *reg,
+                                  bool                             write)
+{
+	struct be_ut_pd_get_put_fom_ctx *c;
+	struct m0_ext                    re;
+	struct m0_ext                    e;
+	bool                             can_lock = true;
+	int                              i;
+
+	be_ut_pd_get_put_reg2ext(reg, &re);
+	m0_mutex_lock(&ctx->bugp_lock);
+	M0_ASSERT(!fctx->bugf_rwlock.bugl_locked);
+	for (i = 0; i < ctx->bugp_foms_nr; ++i) {
+		c = &ctx->bugp_fctx[i];
+		if (c == fctx || !c->bugf_rwlock.bugl_locked)
+			continue;
+		be_ut_pd_get_put_reg2ext(&c->bugf_rwlock.bugl_reg, &e);
+		if (m0_ext_are_overlapping(&re, &e) &&
+		    (write || c->bugf_rwlock.bugl_write)) {
+			can_lock = false;
+			break;
+		}
+	}
+	if (can_lock) {
+		fctx->bugf_rwlock = (struct be_ut_pd_get_put_lock_ctx){
+			.bugl_reg    = *reg,
+			.bugl_write  = write,
+			.bugl_locked = true,
+		};
+	}
+	m0_mutex_unlock(&ctx->bugp_lock);
+	return can_lock;
+}
+
+static void be_ut_pd_get_put_unlock(struct be_ut_pd_get_put_ctx     *ctx,
+                                    struct be_ut_pd_get_put_fom_ctx *fctx,
+                                    struct m0_be_reg                *reg)
+{
+	m0_mutex_lock(&ctx->bugp_lock);
+	M0_ASSERT(fctx->bugf_rwlock.bugl_locked);
+	fctx->bugf_rwlock.bugl_locked = false;
+	m0_mutex_unlock(&ctx->bugp_lock);
+}
+
 static int be_ut_pd_get_put_fom_tick(struct m0_fom *fom, void *data, int *phase)
 {
 	struct be_ut_pd_get_put_fom_ctx *fctx;
@@ -495,6 +583,8 @@ static int be_ut_pd_get_put_fom_tick(struct m0_fom *fom, void *data, int *phase)
 	struct m0_be_reg                 reg;
 	struct m0_be_seg                *seg;
 	void                            *seg_addr;
+	void                            *seg_data;
+	bool                             write;
 	m0_bcount_t                      reg_size;
 	int                              reg_nr;
 	int                              index;
@@ -548,6 +638,45 @@ static int be_ut_pd_get_put_fom_tick(struct m0_fom *fom, void *data, int *phase)
 			++i;
 		}
 		break;
+	case BE_UT_PDGP_RND_ALL:
+		/* XXX almost copy-paste #2 */
+		reg_size = BE_UT_PDGP_RND_ALL_REG_SIZE;
+		reg_nr   = BE_UT_PDGP_RND_ALL_REG_NR;
+		i = 0;
+		while (i < reg_nr) {
+			/* random seg */
+			seg_index = be_ut_pd_get_put_seg_random(ctx, fctx);
+			seg       = ctx->bugp_seg[seg_index];
+			seg_data  = ctx->bugp_seg_data[seg_index];
+			/* random reg */
+			be_ut_pd_get_put_reg_random(seg, &reg, reg_size,
+			                            &fctx->bugf_rng_seed);
+			if (m0_be_seg_offset(seg, reg.br_addr) <
+			    m0_be_seg_reserved(seg))
+				continue;
+			/* random op (read or write) */
+			write = m0_rnd(100, &fctx->bugf_rng_seed) <=
+				BE_UT_PDGP_RND_ALL_WRITE_P;
+			/* XXX
+			M0_LOG(M0_ALWAYS, "seg=%p br_addr=%p br_size=%"PRIu64" write=%d",
+			       seg, reg.br_addr, reg.br_size, !!write);
+		       */
+			/* TODO acquire real lock after coroutines are landed */
+			if (!be_ut_pd_get_put_lock(ctx, fctx, &reg, write))
+				continue;
+			M0_BE_OP_SYNC(op, m0_be_pd_reg_get(pd, &reg, &op));
+			be_ut_pd_get_put_reg_check(seg, &reg, seg_data);
+			if (write) {
+				be_ut_pd_get_put_reg_fill(fctx, seg, &reg,
+				                          seg_data);
+			}
+			m0_be_pd_reg_put(pd, &reg);
+			be_ut_pd_get_put_unlock(ctx, fctx, &reg);
+			if (write)
+				be_ut_pd_get_put_reg_area_write(ctx, fctx);
+			++i;
+		}
+		break;
 	default:
 		M0_IMPOSSIBLE("unknown work to do");
 	};
@@ -578,6 +707,7 @@ static void be_ut_pd_get_put_foms_run(struct be_ut_pd_get_put_ctx    *ctx,
 	switch (ctx->bugp_work) {
 	case BE_UT_PDGP_SEQ_CHECK:
 	case BE_UT_PDGP_RND_CHECK:
+	case BE_UT_PDGP_RND_ALL:
 		foms_to_run = ctx->bugp_foms_nr;
 		break;
 	case BE_UT_PDGP_SEQ_FILL:
@@ -629,6 +759,7 @@ void m0_be_ut_pd_get_put(void)
 	ctx->bugp_loc_nr  = loc_nr;
 	ctx->bugp_reqh    = reqh;
 	m0_atomic64_set(&ctx->bugp_ext_counter, 0x3377);
+	m0_mutex_init(&ctx->bugp_lock);
 
 	tx_credit = M0_BE_TX_CREDIT(max_check(BE_UT_PDGP_SEQ_REG_NR,
 					      BE_UT_PDGP_RND_REG_NR),
@@ -644,6 +775,7 @@ void m0_be_ut_pd_get_put(void)
 		rc = m0_be_reg_area_init(&fctx->bugf_reg_area, &tx_credit,
 		                         M0_BE_REG_AREA_DATA_COPY);
 		M0_UT_ASSERT(rc == 0);
+		fctx->bugf_rwlock.bugl_locked = false;
 	}
 	for (i = 0; i < ARRAY_SIZE(ctx->bugp_seg); ++i)
 		M0_ALLOC_PTR(ctx->bugp_seg[i]);
@@ -688,6 +820,11 @@ void m0_be_ut_pd_get_put(void)
 	be_ut_pd_get_put_segs_reopen(ctx, true);
 	be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_SEQ_CHECK);
 	be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_RND_CHECK);
+	be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_RND_ALL);
+	be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_SEQ_CHECK);
+	be_ut_pd_get_put_segs_reopen(ctx, true);
+	be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_SEQ_CHECK);
+	be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_RND_CHECK);
 	be_ut_pd_get_put_segs_close(ctx);
 	for (i = 0; i < BE_UT_PDGP_SEG_NR; ++i) {
 		rc = m0_be_pd_seg_destroy(ctx->bugp_pd, NULL,
@@ -702,9 +839,11 @@ void m0_be_ut_pd_get_put(void)
 		m0_free(ctx->bugp_seg[i]);
 	for (i = 0; i < foms_nr; ++i) {
 		fctx = &ctx->bugp_fctx[i];
+		M0_ASSERT(!fctx->bugf_rwlock.bugl_locked);
 		m0_be_reg_area_fini(&fctx->bugf_reg_area);
 		m0_semaphore_fini(&fctx->bugf_done);
 	}
+	m0_mutex_fini(&ctx->bugp_lock);
 	m0_free(ctx->bugp_pd_cfg);
 	m0_free(ctx->bugp_pd);
 	m0_free(ctx->bugp_fctx);
