@@ -129,7 +129,8 @@ M0_INTERNAL int main(int argc, char **argv)
 		goto out;
 	}
 
-	rc = m0_cs_init(&mero_ctx, cs_xprts, ARRAY_SIZE(cs_xprts), stderr, true);
+	rc = m0_cs_init(&mero_ctx, cs_xprts, ARRAY_SIZE(cs_xprts), stderr,
+			true, false);
 	if (rc != 0) {
 		fprintf(stderr, "\n Failed to initialise Mero \n");
 		goto cleanup;

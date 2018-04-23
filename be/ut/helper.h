@@ -63,13 +63,22 @@ struct m0_be_ut_backend {
 extern const struct m0_bob_type m0_ut_be_backend_bobtype;
 M0_BOB_DECLARE(M0_INTERNAL, m0_be_ut_backend);
 
-/*
- * Fill cfg with default configuration.
- * @note bec_reqh is not set here
+/**
+ * Fills cfg with default configuration.
+ *
+ * @param cleanup Destroy BE during finalisation.
  */
-void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg);
+void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg,
+				  struct m0_reqh           *reqh,
+				  bool                      cleanup);
 
-void m0_be_ut_backend_init(struct m0_be_ut_backend *ut_be);
+/**
+ * Wrapper around m0_be_ut_backend_init_cfg() for common needs. Performs mkfs
+ * and uses default configuration.
+ *
+ * @param cleanup Destroy BE during finalisation.
+ */
+void m0_be_ut_backend_init(struct m0_be_ut_backend *ut_be, bool cleanup);
 void m0_be_ut_backend_fini(struct m0_be_ut_backend *ut_be);
 
 M0_INTERNAL int m0_be_ut_backend_init_cfg(struct m0_be_ut_backend *ut_be,

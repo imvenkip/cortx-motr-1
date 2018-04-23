@@ -191,7 +191,7 @@ static int server_init(const char             *stob_path,
 		);
 	M0_UT_ASSERT(rc == 0);
 
-	m0_be_ut_backend_init(&ut_be);
+	m0_be_ut_backend_init(&ut_be, true);
 	m0_be_ut_seg_init(&ut_seg, &ut_be, 1 << 20 /* 1 MB */);
 
 	seg = ut_seg.bus_seg;
@@ -220,6 +220,7 @@ static int server_init(const char             *stob_path,
 	 */
 	m0_stob_ad_cfg_make(&sdom_cfg, seg, m0_stob_id_get(bstore), 0);
 	sdom_location = m0_alloc(0x1000);
+	M0_UT_ASSERT(sdom_location != NULL);
 	snprintf(sdom_location, 0x1000, "adstob:seg=%p,1234", seg);
 	m0_stob_ad_init_cfg_make(&sdom_init_cfg, &ut_be.but_dom);
 	rc = m0_stob_domain_create(sdom_location, sdom_init_cfg, 2,

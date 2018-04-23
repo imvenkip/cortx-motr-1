@@ -76,9 +76,9 @@ M0_INTERNAL void m0_be_ut_alloc_init_fini(void)
 
 M0_INTERNAL void m0_be_ut_alloc_create_destroy(void)
 {
-	struct m0_be_ut_seg ut_seg;
+	struct m0_be_ut_seg  ut_seg;
 
-	m0_be_ut_backend_init(&be_ut_alloc_backend);
+	m0_be_ut_backend_init(&be_ut_alloc_backend, true);
 	m0_be_ut_seg_init(&ut_seg, &be_ut_alloc_backend, BE_UT_ALLOC_SEG_SIZE);
 	/* m0_be_ut_seg_check_persistence(&ut_seg); */
 
@@ -171,7 +171,7 @@ static void be_ut_alloc_mt(int nr)
 		be_ut_ts[i].ats_capturing_check = nr == 1;
 	}
 
-	m0_be_ut_backend_init(ut_be);
+	m0_be_ut_backend_init(ut_be, true);
 	m0_be_ut_seg_init(ut_seg, ut_be, BE_UT_ALLOC_SEG_SIZE);
 	m0_be_ut_seg_allocator_init(ut_seg, ut_be);
 	for (i = 0; i < nr; ++i) {
@@ -222,7 +222,7 @@ M0_INTERNAL void m0_be_ut_alloc_info(void)
 	m0_bcount_t             size;
 	unsigned                shift;
 
-	m0_be_ut_backend_init(&be_ut_alloc_backend);
+	m0_be_ut_backend_init(&be_ut_alloc_backend, true);
 	m0_be_ut_seg_init(&ut_seg, &be_ut_alloc_backend, BE_UT_ALLOC_SEG_SIZE);
 	m0_be_ut_seg_allocator_init(&ut_seg, &be_ut_alloc_backend);
 	a = m0_be_seg_allocator(ut_seg.bus_seg);
@@ -293,8 +293,7 @@ M0_INTERNAL void m0_be_ut_alloc_oom(void)
 	int                     seg_step;
 	int                     alloc_step;
 
-	m0_be_ut_backend_init(&be_ut_alloc_backend);
-
+	m0_be_ut_backend_init(&be_ut_alloc_backend, true);
 	m0_be_ut_seg_init(&ut_seg, &be_ut_alloc_backend, 0x10000);
 	seg_size_start = m0_be_seg_reserved(ut_seg.bus_seg) +
 			 BE_UT_OOM_SEG_START;
@@ -348,7 +347,7 @@ M0_INTERNAL void m0_be_ut_alloc_spare(void)
 
 	M0_ENTRY();
 
-	m0_be_ut_backend_init(&ut_be);
+	m0_be_ut_backend_init(&ut_be, true);
 
 	/* Reserve 50% for M0_BAP_REPAIR zone. */
 	m0_fi_enable_once("be_ut_seg_allocator_initfini", "repair_zone_50");

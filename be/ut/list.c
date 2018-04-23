@@ -63,7 +63,7 @@ M0_INTERNAL void m0_be_ut_list(void)
 	static struct m0_be_tx_credit   cred_add = {};
 	static struct m0_be_list       *list;
 	static struct m0_be_ut_backend  ut_be;
-	static struct m0_be_ut_seg       ut_seg;
+	static struct m0_be_ut_seg      ut_seg;
 	static struct m0_be_seg        *seg;
 	static struct m0_be_op          op;
 	static struct test             *elem[10];
@@ -73,7 +73,7 @@ M0_INTERNAL void m0_be_ut_list(void)
 
 	M0_SET0(&ut_be);
 	/* Init BE. */
-	m0_be_ut_backend_init(&ut_be);
+	m0_be_ut_backend_init(&ut_be, true);
 	/* m0_be_ut_seg_init(&ut_seg, NULL, 1ULL << 16); */ /* XXX PD */
 	m0_be_ut_seg_init(&ut_seg, &ut_be, 1ULL << 16);
 	m0_be_ut_seg_allocator_init(&ut_seg, &ut_be);

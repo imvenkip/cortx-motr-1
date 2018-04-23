@@ -90,6 +90,7 @@ static int fom_create(struct m0_fop *fop, struct m0_fom **m,
 
 static void test_mkfs(void)
 {
+	struct m0_be_domain_cfg  be_cfg = {};
 	struct m0_md_lustre_fid	 testroot;
 	struct m0_fid		 rootfid;
 	struct m0_be_tx		 tx;
@@ -105,8 +106,9 @@ static void test_mkfs(void)
 			  .rhia_fid     = &g_process_fid,
 		);
 	M0_UT_ASSERT(rc == 0);
-	ut_be.but_dom_cfg.bc_engine.bec_reqh = &reqh;
-	m0_be_ut_backend_init(&ut_be);
+	m0_be_ut_backend_cfg_default(&be_cfg, &reqh, true);
+	rc = m0_be_ut_backend_init_cfg(&ut_be, &be_cfg, true);
+	M0_UT_ASSERT(rc == 0);
 
 	grp = m0_be_ut_backend_sm_group_lookup(&ut_be);
 

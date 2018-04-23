@@ -107,7 +107,7 @@ static void test_obj_fini(struct m0_be_tx *tx)
 
 static void test_init(void)
 {
-	struct m0_be_domain_cfg cfg;
+	struct m0_be_domain_cfg cfg  = {};
 	struct m0_be_tx_credit	cred = {};
 	int			rc;
 
@@ -115,8 +115,7 @@ static void test_init(void)
 
 	/* Init BE */
 	/** XXX @todo break UT into small transactions */
-	M0_SET0(&cfg);
-	m0_be_ut_backend_cfg_default(&cfg);
+	m0_be_ut_backend_cfg_default(&cfg, NULL, true);
 	cfg.bc_engine.bec_tx_size_max = M0_BE_TX_CREDIT(1 << 21, 1 << 26);
 	cfg.bc_engine.bec_group_cfg.tgc_size_max =
 		M0_BE_TX_CREDIT(1 << 22, 1 << 27);

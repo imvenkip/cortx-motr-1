@@ -179,7 +179,8 @@ static int cs_init_setup_env(struct m0_mero *sctx, int stob_type)
 	lfile = fopen(log_file_name, "w+");
 	M0_ASSERT(lfile != NULL);
 
-	rc = m0_cs_init(sctx, sr_xprts, ARRAY_SIZE(sr_xprts), lfile, true);
+	rc = m0_cs_init(sctx, sr_xprts, ARRAY_SIZE(sr_xprts), lfile,
+			true, true);
 	if (rc != 0)
 		return rc;
 

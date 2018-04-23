@@ -54,7 +54,7 @@ void m0_be_ut_tx_usecase_success(void)
 	int                     i;
 
 	M0_SET0(&ut_be);
-	m0_be_ut_backend_init(&ut_be);
+	m0_be_ut_backend_init(&ut_be, true);
 	/* m0_be_ut_seg_init(&ut_seg, NULL, 1 << 20); */ /* XXX PD */
 	m0_be_ut_seg_init(&ut_seg, &ut_be, 1 << 20);
 	seg = ut_seg.bus_seg;
@@ -98,7 +98,7 @@ void m0_be_ut_tx_usecase_failure(void)
 	int                     rc;
 
 	M0_SET0(&ut_be);
-	m0_be_ut_backend_init(&ut_be);
+	m0_be_ut_backend_init(&ut_be, true);
 
 	m0_be_ut_tx_init(&tx, &ut_be);
 
@@ -145,7 +145,7 @@ void m0_be_ut_tx_states(void)
 	int                     rc;
 
 	M0_SET0(&ut_be);
-	m0_be_ut_backend_init(&ut_be);
+	m0_be_ut_backend_init(&ut_be, true);
 	/* m0_be_ut_seg_init(&ut_seg, NULL, 1 << 20); */ /* XXX PD */
 	m0_be_ut_seg_init(&ut_seg, &ut_be, 1 << 20);
 	seg = ut_seg.bus_seg;
@@ -217,7 +217,7 @@ void m0_be_ut_tx_empty(void)
 	};
 
 	M0_SET0(&ut_be);
-	m0_be_ut_backend_init(&ut_be);
+	m0_be_ut_backend_init(&ut_be, true);
 
 	for (i = 0; i < ARRAY_SIZE(credit); ++i) {
 		m0_be_ut_tx_init(&tx, &ut_be);
@@ -313,7 +313,7 @@ static void be_ut_tx_test(size_t nr)
 	xs[nr].size = 0;
 
 	M0_SET0(&ut_be);
-	m0_be_ut_backend_init(&ut_be);
+	m0_be_ut_backend_init(&ut_be, true);
 	/* m0_be_ut_seg_init(&ut_seg, NULL, 1 << 20); */ /* XXX PD */
 	m0_be_ut_seg_init(&ut_seg, &ut_be, 1 << 20);
 	be_ut_tx_alloc_init(&alloc, ut_seg.bus_seg);
@@ -419,7 +419,7 @@ static void be_ut_tx_force(size_t nr)
 	xs[nr].size = 0;
 
 	M0_SET0(&ut_be);
-	m0_be_ut_backend_init(&ut_be);
+	m0_be_ut_backend_init(&ut_be, true);
 	m0_be_ut_seg_init(&ut_seg, NULL, 1 << 20);
 	be_ut_tx_alloc_init(&alloc, ut_seg.bus_seg);
 
@@ -516,7 +516,7 @@ void m0_be_ut_tx_persistence(void)
 	int                     rc;
 
 	M0_SET0(&ut_be);
-	m0_be_ut_backend_init(&ut_be);
+	m0_be_ut_backend_init(&ut_be, true);
 	/* m0_be_ut_seg_init(&ut_seg, NULL, BE_UT_TX_P_SEG_SIZE); */ /* XXX */
 	m0_be_ut_seg_init(&ut_seg, &ut_be, BE_UT_TX_P_SEG_SIZE);
 	seg = ut_seg.bus_seg;
@@ -618,7 +618,7 @@ void m0_be_ut_tx_fast(void)
 	int                      i;
 
 	M0_SET0(&ut_be);
-	m0_be_ut_backend_init(&ut_be);
+	m0_be_ut_backend_init(&ut_be, true);
 	/* m0_be_ut_seg_init(&ut_seg, NULL, BE_UT_TX_F_SEG_SIZE); */ /* XXX PD */
 	m0_be_ut_seg_init(&ut_seg, &ut_be, BE_UT_TX_F_SEG_SIZE);
 	seg = ut_seg.bus_seg;
@@ -727,7 +727,7 @@ void m0_be_ut_tx_concurrent_helper(bool exclusive)
 	int                                 rc;
 
 	M0_SET0(&ut_be);
-	m0_be_ut_backend_init(&ut_be);
+	m0_be_ut_backend_init(&ut_be, true);
 
 	for (i = 0; i < ARRAY_SIZE(threads); ++i) {
 		threads[i].tts_ut_be     = &ut_be;
@@ -784,7 +784,7 @@ void m0_be_ut_tx_capturing(void)
 	int                      rc;
 
 	M0_SET0(&ut_be);
-	m0_be_ut_backend_init(&ut_be);
+	m0_be_ut_backend_init(&ut_be, true);
 	/* m0_be_ut_seg_init(&ut_seg, NULL, BE_UT_TX_CAPTURING_SEG_SIZE); */ /* XXX PD */
 	m0_be_ut_seg_init(&ut_seg, &ut_be, BE_UT_TX_CAPTURING_SEG_SIZE);
 	seg = ut_seg.bus_seg;
@@ -899,7 +899,7 @@ void m0_be_ut_tx_gc(void)
 	int                      rc;
 
 	M0_SET0(&ut_be);
-	m0_be_ut_backend_init(&ut_be);
+	m0_be_ut_backend_init(&ut_be, true);
 	/* m0_be_ut_seg_init(&ut_seg, NULL, BE_UT_TX_CAPTURING_SEG_SIZE); */ /* XXX PD */
 	m0_be_ut_seg_init(&ut_seg, &ut_be, BE_UT_TX_CAPTURING_SEG_SIZE);
 	seg = ut_seg.bus_seg;
@@ -1109,7 +1109,7 @@ void m0_be_ut_tx_payload(void)
 
 	be_ut_tx_payload_seed = 42;     /* always works like magic */
 
-	m0_be_ut_backend_init(&ut_be);
+	m0_be_ut_backend_init(&ut_be, true);
 	/* m0_be_ut_seg_init(&ut_seg, NULL, BE_UT_TX_CAPTURING_SEG_SIZE); */ /* XXX PD */
 	m0_be_ut_seg_init(&ut_seg, &ut_be, BE_UT_TX_CAPTURING_SEG_SIZE);
 	seg = ut_seg.bus_seg;

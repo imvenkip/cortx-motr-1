@@ -333,16 +333,8 @@ static int be_pd_seg_stob_open(struct m0_be_pd  *pd,
 	if (rc == 0) {
 		rc = m0_stob_state_get(*out) == CSS_UNKNOWN ?
 		     m0_stob_locate(*out) : 0;
-		/*
-		 * XXX Comment below lines, because be-ut don't clean segments
-		 * and following tests fail with EEXIST.
-		 * TODO Make destroy mechanism for be_domain and uncomment these
-		 * lines.
-		 */
-		/*
 		rc = rc ?: create && m0_stob_state_get(*out) == CSS_EXISTS ?
 		     M0_ERR(-EEXIST) : 0;
-		*/
 		rc = rc ?: create && m0_stob_state_get(*out) == CSS_NOENT ?
 		     m0_stob_create(*out, NULL, stob_create_cfg) : 0;
 		rc = rc ?: m0_stob_state_get(*out) == CSS_EXISTS ? 0 : -ENOENT;

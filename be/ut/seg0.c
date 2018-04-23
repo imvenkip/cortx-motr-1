@@ -100,7 +100,7 @@ void m0_be_ut_seg0_test(void)
 {
 	struct m0_be_ut_backend  ut_be = {};
 
-	m0_be_ut_backend_init(&ut_be);
+	m0_be_ut_backend_init(&ut_be, true);
 	be_ut_0type_op_test(&ut_be, &be_ut_0type_test, be_ut_0type_suffix,
 			    &be_ut_0type_data_buf, true);
 	be_ut_0type_op_test(&ut_be, &be_ut_0type_test, be_ut_0type_suffix,

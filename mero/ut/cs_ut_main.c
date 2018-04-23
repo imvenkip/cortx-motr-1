@@ -471,7 +471,8 @@ static void test_cs_ut_lnet_multiple_if(void)
 	struct m0_mero mero_ctx = {};
 	int            rc;
 
-	rc = m0_cs_init(&mero_ctx, cs_xprts, ARRAY_SIZE(cs_xprts), stderr, true);
+	rc = m0_cs_init(&mero_ctx, cs_xprts, ARRAY_SIZE(cs_xprts), stderr,
+			true, true);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = cs_args_parse(&mero_ctx, ARRAY_SIZE(cs_ut_lnet_mult_if_cmd),
@@ -492,7 +493,8 @@ static void test_cs_ut_lnet_ep_mixed_dup(void)
 
 	out = fopen("temp", "w");
 
-	rc = m0_cs_init(&mero_ctx, cs_xprts, ARRAY_SIZE(cs_xprts), out, true);
+	rc = m0_cs_init(&mero_ctx, cs_xprts, ARRAY_SIZE(cs_xprts), out,
+			true, true);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = cs_args_parse(&mero_ctx, ARRAY_SIZE(cs_ut_ep_mixed_dup_cmd),

@@ -79,7 +79,7 @@ void m0_stob_ut_ad_init(struct m0_be_ut_backend *ut_be,
 	M0_SET0(ut_be);
 	M0_SET0(ut_seg);
 
-	m0_be_ut_backend_init(ut_be);
+	m0_be_ut_backend_init(ut_be, true);
 	m0_be_ut_seg_init(ut_seg, ut_be, SEG_SIZE);
 }
 

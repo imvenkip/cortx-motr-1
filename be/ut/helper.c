@@ -259,7 +259,9 @@ static void m0_be_ut_sm_group_thread_fini(struct m0_be_ut_sm_group_thread *sgt)
 #define M0_BE_SEG0_NAME "M0_BE:SEG0"
 #define M0_BE_SEG_NAME  "M0_BE:SEG%08lu"
 
-void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg)
+void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg,
+				  struct m0_reqh           *reqh,
+				  bool                      cleanup)
 {
 	extern struct m0_be_0type m0_stob_ad_0type;
 	extern struct m0_be_0type m0_be_pool0;
@@ -273,7 +275,6 @@ void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg)
 		&m0_be_cob0,
 		&m0_be_active_record0,
 	};
-	struct m0_reqh *reqh = cfg->bc_engine.bec_reqh;
 
 	*cfg = (struct m0_be_domain_cfg) {
 	    .bc_engine = {
@@ -323,17 +324,18 @@ void m0_be_ut_backend_cfg_default(struct m0_be_domain_cfg *cfg)
 		},
 		.bc_0types                 = zts,
 		.bc_0types_nr              = ARRAY_SIZE(zts),
-		.bc_seg0_stob_key	   = BE_UT_SEG_START_ID - 1,
-		.bc_mkfs_mode		   = false,
+		.bc_seg0_stob_key          = BE_UT_SEG_START_ID - 1,
+		.bc_mkfs_mode              = false,
+		.bc_destroy_on_fini        = cleanup,
 		.bc_seg0_cfg = {
 			.bsc_stob_key	     = BE_UT_SEG_START_ID - 1,
 			.bsc_size	     = 1 << 20,
 			.bsc_preallocate     = false,
-			.bsc_addr	  = m0_be_ut_seg_allocate_addr(1 << 20),
+			.bsc_addr         = m0_be_ut_seg_allocate_addr(1 << 20),
 			.bsc_stob_create_cfg = NULL,
 		},
-		.bc_seg_cfg		   = NULL,
-		.bc_seg_nr		   = 0,
+		.bc_seg_cfg                = NULL,
+		.bc_seg_nr                 = 0,
 		.bc_seg_nr_max             = 0x100,
 		.bc_pd_cfg = {
 			.bpc_mapping_type = M0_BE_PD_MAPPING_PER_PAGE,
@@ -381,7 +383,7 @@ M0_INTERNAL int m0_be_ut_backend_init_cfg(struct m0_be_ut_backend *ut_be,
 	m0_mutex_init(&ut_be->but_sgt_lock);
 
 	if (cfg == NULL)
-		m0_be_ut_backend_cfg_default(&ut_be->but_dom_cfg);
+		m0_be_ut_backend_cfg_default(&ut_be->but_dom_cfg, NULL, false);
 	else
 		/*
 		 * Make a copy of `cfg': it can be an automatic variable,
@@ -422,9 +424,12 @@ check_mkfs:
 	return rc;
 }
 
-void m0_be_ut_backend_init(struct m0_be_ut_backend *ut_be)
+void m0_be_ut_backend_init(struct m0_be_ut_backend *ut_be, bool cleanup)
 {
-	int rc = m0_be_ut_backend_init_cfg(ut_be, NULL, true);
+	int rc;
+
+	m0_be_ut_backend_cfg_default(&ut_be->but_dom_cfg, NULL, cleanup);
+	rc = m0_be_ut_backend_init_cfg(ut_be, &ut_be->but_dom_cfg, true);
 	M0_ASSERT(rc == 0);
 }
 
@@ -914,8 +919,7 @@ M0_INTERNAL void m0_be_ut_pd_init(struct m0_be_pd *pd, struct m0_reqh *reqh)
 	struct m0_be_domain_cfg bd_cfg = {};
 	int                     rc;
 
-	m0_be_ut_backend_cfg_default(&bd_cfg);
-	bd_cfg.bc_pd_cfg.bpc_reqh = reqh;
+	m0_be_ut_backend_cfg_default(&bd_cfg, reqh, false);
 	rc = m0_be_pd_init(pd, &bd_cfg.bc_pd_cfg);
 	M0_ASSERT(rc == 0);
 }

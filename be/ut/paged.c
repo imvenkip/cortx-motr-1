@@ -158,12 +158,13 @@ static void m0_be_ut_pd_mapping_resident_with_cfg(struct m0_be_pd_cfg *pd_cfg)
 
 void m0_be_ut_pd_mapping_resident(void)
 {
+	struct m0_reqh          *reqh = NULL;
 	struct m0_be_domain_cfg  cfg = {};
 	struct m0_be_pd_cfg     *pd_cfg;
 
-	m0_be_ut_backend_cfg_default(&cfg);
+	m0_be_ut_reqh_create(&reqh);
+	m0_be_ut_backend_cfg_default(&cfg, reqh, false);
 	pd_cfg = &cfg.bc_pd_cfg;
-	m0_be_ut_reqh_create(&pd_cfg->bpc_reqh);
 	pd_cfg->bpc_page_size = BE_UT_PD_PAGE_SIZE;
 
 	pd_cfg->bpc_mapping_type = M0_BE_PD_MAPPING_PER_PAGE;
@@ -186,6 +187,7 @@ enum {
 
 void m0_be_ut_pd_fom(void)
 {
+	struct m0_reqh          *reqh = NULL;
 	struct m0_be_domain_cfg  cfg = {};
 	struct m0_be_pd_cfg     *pd_cfg;
 	struct m0_be_pd          paged = {};
@@ -200,7 +202,9 @@ void m0_be_ut_pd_fom(void)
 
 	struct m0_be_0type_seg_cfg seg_cfg;
 
-	m0_be_ut_backend_cfg_default(&cfg);
+	m0_be_ut_reqh_create(&reqh);
+	m0_be_ut_backend_cfg_default(&cfg, reqh, false);
+	pd_cfg = &cfg.bc_pd_cfg;
 
 	/* >>>>> XXX: weird cfgs stated !!!! <<<<< */
 	rc = m0_be_reg_area_init(&reg_area,
@@ -209,9 +213,6 @@ void m0_be_ut_pd_fom(void)
 				 M0_BE_REG_AREA_DATA_NOCOPY);
 	M0_UT_ASSERT(rc == 0);
 	/* >>>>> XXX: weird cfgs ended !!!! <<<<<  */
-
-	pd_cfg = &cfg.bc_pd_cfg;
-	m0_be_ut_reqh_create(&pd_cfg->bpc_reqh);
 
 	rc = m0_be_pd_init(&paged, pd_cfg);
 	M0_UT_ASSERT(rc == 0);
@@ -650,11 +651,10 @@ void m0_be_ut_pd_get_put(void)
 		ctx->bugp_seg_data[i] = m0_alloc(BE_UT_PDGP_SEG_SIZE);
 
 	M0_ALLOC_PTR(bd_cfg);
-	m0_be_ut_backend_cfg_default(bd_cfg);
+	m0_be_ut_backend_cfg_default(bd_cfg, reqh, false);
 	*ctx->bugp_pd_cfg = bd_cfg->bc_pd_cfg;
 	m0_free(bd_cfg);
 
-	ctx->bugp_pd_cfg->bpc_reqh = reqh;
 	ctx->bugp_pd_cfg->bpc_io_sched_cfg.bpdc_sched.bisc_pos_start =
 		m0_atomic64_get(&ctx->bugp_ext_counter);
 	rc = m0_be_pd_init(ctx->bugp_pd, ctx->bugp_pd_cfg);

@@ -80,7 +80,7 @@ void fdmi_serv_start_ut(const struct m0_filterc_ops *filterc_ops)
 	M0_UT_ASSERT(sd_ut_lfile != NULL);
 
 	rc = m0_cs_init(&g_sd_ut.mero, sd_ut_xprts, ARRAY_SIZE(sd_ut_xprts),
-			sd_ut_lfile, false);
+			sd_ut_lfile, false, true);
 	M0_UT_ASSERT(rc == 0);
 
 	g_sd_ut.mero.cc_profile = m0_strdup("<0x7000000000000001:0>");

@@ -1534,6 +1534,7 @@ static int cs_be_init(struct m0_reqh_context *rctx,
 		      const char              *name,
 		      bool                     preallocate,
 		      bool                     format,
+		      bool                     cleanup,
 		      struct m0_be_seg       **out)
 {
 	enum { len = 1024 };
@@ -1555,7 +1556,7 @@ static int cs_be_init(struct m0_reqh_context *rctx,
 	snprintf(*loc_log, len, "linuxstob:%s%s-log",
 		 name[0] == '/' ? "" : "./", name);
 
-	m0_be_ut_backend_cfg_default(&be->but_dom_cfg);
+	m0_be_ut_backend_cfg_default(&be->but_dom_cfg, &rctx->rc_reqh, cleanup);
 	be->but_dom_cfg.bc_log.lc_store_cfg.lsc_stob_dont_zero = false;
 	be->but_dom_cfg.bc_log.lc_store_cfg.lsc_stob_create_cfg =
 		rctx->rc_be_log_path;
@@ -1673,11 +1674,9 @@ static int cs_storage_setup(struct m0_mero *cctx)
 	if (cctx->cc_no_storage)
 		return M0_RC(0);
 
-	rctx->rc_be.but_dom_cfg.bc_engine.bec_reqh = &rctx->rc_reqh;
-
 	rc = cs_be_init(rctx, &rctx->rc_be, rctx->rc_bepath,
 			rctx->rc_be_seg_preallocate,
-			(mkfs && force), &rctx->rc_beseg);
+			(mkfs && force), cctx->cc_cleanup, &rctx->rc_beseg);
 	if (rc != 0)
 		return M0_ERR_INFO(rc, "cs_be_init");
 
@@ -3044,7 +3043,7 @@ int m0_cs_start(struct m0_mero *cctx)
 }
 
 int m0_cs_init(struct m0_mero *cctx, struct m0_net_xprt **xprts,
-	       size_t xprts_nr, FILE *out, bool mkfs)
+	       size_t xprts_nr, FILE *out, bool mkfs, bool cleanup)
 {
 	int rc;
 
@@ -3058,6 +3057,7 @@ int m0_cs_init(struct m0_mero *cctx, struct m0_net_xprt **xprts,
 	cctx->cc_xprts_nr = xprts_nr;
 	cctx->cc_outfile  = out;
 	cctx->cc_mkfs     = mkfs;
+	cctx->cc_cleanup  = cleanup;
 	cctx->cc_force    = false;
 	cctx->cc_no_all2all_connections = false;
 	cctx->cc_sns_buf_nr = 1 << 6;

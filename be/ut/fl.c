@@ -64,7 +64,7 @@ void m0_be_ut_fl(void)
 	int                             rc;
 	uint64_t                        index;
 
-	m0_be_ut_backend_init(ut_be);
+	m0_be_ut_backend_init(ut_be, true);
 	m0_be_ut_seg_init(&ut_seg, ut_be, BE_UT_FL_SEG_SIZE);
 	seg = ut_seg.bus_seg;
 

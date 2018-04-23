@@ -177,7 +177,8 @@ init_m0d:
 
 start_m0d:
 	M0_SET0(&mero_ctx);
-	rc = m0_cs_init(&mero_ctx, cs_xprts, ARRAY_SIZE(cs_xprts), stderr, false);
+	rc = m0_cs_init(&mero_ctx, cs_xprts, ARRAY_SIZE(cs_xprts), stderr,
+			false, false);
 	if (rc != 0) {
 		warnx("\n Failed to initialise Mero \n");
 		goto cleanup2;

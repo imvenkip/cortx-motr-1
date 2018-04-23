@@ -84,7 +84,7 @@ static void test_mkfs(void)
 	struct m0_be_seg       *seg0;
 
 	M0_SET0(&ut_be);
-	m0_be_ut_backend_init_cfg(&ut_be, NULL, true);
+	m0_be_ut_backend_init(&ut_be, false);
 	seg0 = m0_be_domain_seg0_get(&ut_be.but_dom);
 
 	grp = m0_be_ut_backend_sm_group_lookup(&ut_be);
@@ -117,11 +117,14 @@ static void test_mkfs(void)
 
 static void test_init(void)
 {
-	struct m0_be_seg *seg0;
-	int rc;
+	struct m0_be_domain_cfg  be_cfg = {};
+	struct m0_be_seg        *seg0;
+	int                      rc;
 
 	M0_SET0(&ut_be);
-	m0_be_ut_backend_init_cfg(&ut_be, NULL, false);
+	m0_be_ut_backend_cfg_default(&be_cfg, NULL, true);
+	rc = m0_be_ut_backend_init_cfg(&ut_be, &be_cfg, false);
+	M0_UT_ASSERT(rc == 0);
 
 	seg0 = m0_be_domain_seg0_get(&ut_be.but_dom);
 

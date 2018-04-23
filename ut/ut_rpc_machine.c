@@ -113,13 +113,7 @@ static void ut_reqh_and_stuff_init(struct m0_ut_rpc_mach_ctx *ctx)
 		);
 	M0_ASSERT(rc == 0);
 
-	/*
-	 * Note: m0_be_ut_backend_cfg_default() handles bc_engine.bec_reqh
-	 * in a special way.
-	 */
-	be_cfg.bc_engine.bec_reqh = &ctx->rmc_reqh;
-	m0_be_ut_backend_cfg_default(&be_cfg);
-	be_cfg.bc_destroy_on_fini = true;
+	m0_be_ut_backend_cfg_default(&be_cfg, &ctx->rmc_reqh, true);
 	ctx->rmc_ut_be.but_seg_sdom_location = ut_reqh_location_get("-seg");
 	ctx->rmc_ut_be.but_log_sdom_location = ut_reqh_location_get("-log");
 	rc = m0_be_ut_backend_init_cfg(&ctx->rmc_ut_be, &be_cfg, true);

@@ -85,7 +85,7 @@ static void diskv_check(const struct m0_confx_obj *xobj)
 
 static void conf_ut_db_init()
 {
-	m0_be_ut_backend_init(&ut_be);
+	m0_be_ut_backend_init(&ut_be, true);
 	m0_be_ut_seg_init(&ut_seg, &ut_be, 1ULL << 24);
 	seg = ut_seg.bus_seg;
 }

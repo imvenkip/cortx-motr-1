@@ -58,7 +58,7 @@ int m0_betool_st_mkfs(void)
 	struct m0_be_seg        *seg;
 
 	m0_betool_m0_init();
-	m0_be_ut_backend_init(&ut_be);
+	m0_be_ut_backend_init(&ut_be, false);
 	m0_be_ut_backend_seg_add2(&ut_be, BETOOL_ST_SEG_SIZE, false, NULL,
 				  &seg);
 	m0_be_ut_backend_fini(&ut_be);
@@ -257,11 +257,16 @@ int m0_betool_st_run(void)
 	struct m0_be_domain_cfg cfg = {};
 	struct m0_be_seg        *seg;
 	uint64_t                 fill_start;
+	int                      rc;
 
 	m0_betool_m0_init();
-	m0_be_ut_backend_cfg_default(&cfg);
+	m0_be_ut_backend_cfg_default(&cfg, NULL, false);
 	M0_LOG(M0_ALWAYS, "recovering...");
-	m0_be_ut_backend_init_cfg(&ut_be, &cfg, false);
+	rc = m0_be_ut_backend_init_cfg(&ut_be, &cfg, false);
+	if (rc != 0) {
+		m0_betool_m0_fini();
+		return rc;
+	}
 	M0_LOG(M0_ALWAYS, "recovered.");
 	seg = m0_be_domain_seg_first(&ut_be.but_dom);
 	M0_LOG(M0_ALWAYS, "segment with addr=%p and size=%lu found",

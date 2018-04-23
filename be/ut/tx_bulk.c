@@ -34,7 +34,7 @@
 #include "lib/memory.h"         /* M0_ALLOC_PTR */
 #include "lib/errno.h"          /* ENOENT */
 
-#include "be/ut/helper.h"       /* m0_be_ut_backend_init */
+#include "be/ut/helper.h"       /* m0_be_ut_backend_init_cfg */
 
 #include "ut/ut.h"              /* M0_UT_ASSERT */
 
@@ -73,7 +73,7 @@ static void be_ut_tx_bulk_test_run(struct m0_be_tx_bulk_cfg    *tb_cfg,
 	 * Decrease max group and tx size to reduce seg and log I/O size needed
 	 * for tx_bulk UTs.
 	 */
-	m0_be_ut_backend_cfg_default(&cfg);
+	m0_be_ut_backend_cfg_default(&cfg, NULL, true);
 	if (be_cfg != NULL && be_cfg->tbbc_tx_group_nr != 0) {
 		cfg.bc_engine.bec_group_nr = be_cfg->tbbc_tx_group_nr;
 		cfg.bc_pd_cfg.bpc_io_sched_cfg.bpdc_seg_io_nr =

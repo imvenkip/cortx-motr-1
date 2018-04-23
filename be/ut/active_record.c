@@ -56,8 +56,8 @@ static void actrec_mkfs(void)
 	int			rc;
 
 	M0_SET0(&ut_be);
-	m0_be_ut_backend_init_cfg(&ut_be, NULL, true);
-	seg0  = m0_be_domain_seg0_get(&ut_be.but_dom);
+	m0_be_ut_backend_init(&ut_be, false);
+	seg0 = m0_be_domain_seg0_get(&ut_be.but_dom);
 	dummy.ard_seg = seg0;
 
 	m0_be_active_record_domain_credit(&dummy, ARO_CREATE, 3, &accum);
@@ -82,11 +82,15 @@ static void actrec_mkfs(void)
 
 static void actrec_init(void)
 {
-	struct m0_reqh   *reqh;
-	struct m0_be_seg *seg0;
+	struct m0_be_domain_cfg  be_cfg = {};
+	struct m0_reqh          *reqh;
+	struct m0_be_seg        *seg0;
+	int                      rc;
 
 	M0_SET0(&ut_be);
-	m0_be_ut_backend_init_cfg(&ut_be, NULL, false);
+	m0_be_ut_backend_cfg_default(&be_cfg, NULL, true);
+	rc = m0_be_ut_backend_init_cfg(&ut_be, &be_cfg, false);
+	M0_UT_ASSERT(rc == 0);
 
 	reqh = ut_be.but_dom_cfg.bc_engine.bec_reqh;
 	dom  = m0_reqh_lockers_get(reqh, m0_get()->i_actrec_dom_key);

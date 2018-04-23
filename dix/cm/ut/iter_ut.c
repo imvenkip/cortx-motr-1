@@ -597,7 +597,8 @@ static void iter_ut_pool_init()
 
 static void iter_ut_reqh_init(void)
 {
-	int result;
+	struct m0_be_domain_cfg be_cfg = {};
+	int                     result;
 
 	M0_SET0(&reqh);
 	M0_SET0(&be);
@@ -612,8 +613,9 @@ static void iter_ut_reqh_init(void)
 	M0_UT_ASSERT(result == 0);
 	result = m0_layout_init_by_pver(&reqh.rh_ldom, &pv, NULL);
 	M0_UT_ASSERT(result == 0);
-	be.but_dom_cfg.bc_engine.bec_reqh = &reqh;
-	m0_be_ut_backend_init(&be);
+	m0_be_ut_backend_cfg_default(&be_cfg, &reqh, true);
+	result = m0_be_ut_backend_init_cfg(&be, &be_cfg, true);
+	M0_UT_ASSERT(result == 0);
 }
 
 

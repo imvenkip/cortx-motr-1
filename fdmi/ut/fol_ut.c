@@ -195,7 +195,7 @@ static void fdmi_fol_test_ops(enum ffs_ut_test_op test_op)
 	src_reg = &src_ctx->fsc_src;
 
 	/* create system structures */
-	m0_be_ut_backend_init(&ut_be);
+	m0_be_ut_backend_init(&ut_be, true);
 	grp = m0_be_ut_backend_sm_group_lookup(&ut_be);
 
 	/* TXN ini */

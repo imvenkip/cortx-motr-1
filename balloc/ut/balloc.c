@@ -256,13 +256,12 @@ int test_balloc_ut_ops(struct m0_be_ut_backend *ut_be, struct m0_be_seg *seg)
 
 void test_balloc()
 {
-	struct m0_be_ut_backend	 ut_be;
+	struct m0_be_ut_backend	 ut_be = {};
 	struct m0_be_ut_seg	 ut_seg;
 	int			 rc;
 
-	M0_SET0(&ut_be);
 	/* Init BE */
-	m0_be_ut_backend_init(&ut_be);
+	m0_be_ut_backend_init(&ut_be, true);
 	m0_be_ut_seg_init(&ut_seg, &ut_be, 1ULL << 24);
 	rc = test_balloc_ut_ops(&ut_be, ut_seg.bus_seg);
 	M0_UT_ASSERT(rc == 0);

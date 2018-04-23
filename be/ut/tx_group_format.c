@@ -507,14 +507,13 @@ static void be_ut_tgf_test(int group_nr, struct be_ut_tgf_group *groups)
 	}
 	M0_ALLOC_PTR(bd_cfg);
 	M0_UT_ASSERT(bd_cfg != NULL);
-	m0_be_ut_backend_cfg_default(bd_cfg);
+	m0_be_ut_reqh_create(&reqh);
+	m0_be_ut_backend_cfg_default(bd_cfg, reqh, false);
 	ctx.tgfc_pd_cfg = bd_cfg->bc_pd_cfg;
 	m0_free(bd_cfg);
-	m0_be_ut_reqh_create(&reqh);
 	ctx.tgfc_pd_cfg.bpc_io_sched_cfg.bpdc_seg_io_nr = group_nr;
 	ctx.tgfc_pd_cfg.bpc_pages_per_io = BE_UT_TGF_PAGES_PER_IO;
 	ctx.tgfc_pd_cfg.bpc_seg_nr_max   = gfc_cfg.gfc_fmt_cfg.fgc_seg_nr_max;
-	ctx.tgfc_pd_cfg.bpc_reqh         = reqh;
 	rc = m0_be_pd_init(&ctx.tgfc_pd, &ctx.tgfc_pd_cfg);
 	M0_UT_ASSERT(rc == 0);
 	ctx.tgfc_stob_key = BE_UT_TGF_SEG_STOB_KEY;

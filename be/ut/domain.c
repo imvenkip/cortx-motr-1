@@ -35,7 +35,7 @@ void m0_be_ut_mkfs(void)
 	void                    *addr2;
 	int                      rc;
 
-	m0_be_ut_backend_cfg_default(&cfg);
+	m0_be_ut_backend_cfg_default(&cfg, NULL, false);
 	/* mkfs mode start */
 	rc = m0_be_ut_backend_init_cfg(&ut_be, &cfg, true);
 	M0_UT_ASSERT(rc == 0);
@@ -54,7 +54,9 @@ void m0_be_ut_mkfs(void)
 	m0_be_ut_backend_fini(&ut_be);
 
 	M0_SET0(&ut_be);
-	/* normal mode start */
+	M0_SET0(&cfg);
+	/* normal mode start and clean during finalisation */
+	m0_be_ut_backend_cfg_default(&cfg, NULL, true);
 	rc = m0_be_ut_backend_init_cfg(&ut_be, &cfg, false);
 	M0_UT_ASSERT(rc == 0);
 	seg = m0_be_domain_seg(dom, addr);
@@ -88,13 +90,14 @@ M0_INTERNAL void m0_be_ut_mkfs_multiseg(void)
 			.bsc_stob_create_cfg = NULL,
 		};
 	}
-	m0_be_ut_backend_cfg_default(&dom_cfg);
+	m0_be_ut_backend_cfg_default(&dom_cfg, NULL, true);
+
 	dom_cfg.bc_mkfs_mode = true;
 	dom_cfg.bc_seg_cfg   = segs_cfg;
 	dom_cfg.bc_seg_nr    = ARRAY_SIZE(segs_cfg);
 
 	rc = m0_be_ut_backend_init_cfg(&ut_be, &dom_cfg, true);
-	M0_ASSERT(rc == 0);
+	M0_UT_ASSERT(rc == 0);
 	m0_be_ut_backend_fini(&ut_be);
 }
 
@@ -102,7 +105,7 @@ void m0_be_ut_domain(void)
 {
 	struct m0_be_ut_backend ut_be = {};
 
-	m0_be_ut_backend_init(&ut_be);
+	m0_be_ut_backend_init(&ut_be, true);
 	m0_be_ut_backend_fini(&ut_be);
 }
 
@@ -113,7 +116,7 @@ void m0_be_ut_domain_is_stob(void)
 	struct m0_stob_id        stob_id = {};
 	bool                     is_stob;
 
-	m0_be_ut_backend_init(&ut_be);
+	m0_be_ut_backend_init(&ut_be, true);
 	dom = &ut_be.but_dom;
 	is_stob = m0_be_domain_is_stob_log(dom, &stob_id);
 	M0_UT_ASSERT(!is_stob);

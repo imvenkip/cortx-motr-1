@@ -437,6 +437,9 @@ struct m0_mero {
 	/** Run from mkfs? */
 	bool                        cc_mkfs;
 
+	/** Destroy BE during finalisation */
+	bool                        cc_cleanup;
+
         /** Force to override found filesystem during mkfs. */
 	bool                        cc_force;
 
@@ -512,7 +515,8 @@ struct cs_ad_stob {
    @param should the storage be prepared just like mkfs does?
  */
 int m0_cs_init(struct m0_mero *cs_mero,
-	       struct m0_net_xprt **xprts, size_t xprts_nr, FILE *out, bool mkfs);
+	       struct m0_net_xprt **xprts, size_t xprts_nr, FILE *out,
+	       bool mkfs, bool cleanup);
 /**
    Finalises mero context.
  */

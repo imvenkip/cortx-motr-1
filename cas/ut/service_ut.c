@@ -123,8 +123,7 @@ static void reqh_init(bool mkfs, bool use_small_credits)
 			      .rhia_mdstore = (void *)1,
 			      .rhia_fid     = &g_process_fid);
 	M0_UT_ASSERT(result == 0);
-	be.but_dom_cfg.bc_engine.bec_reqh = &reqh;
-	m0_be_ut_backend_cfg_default(&cfg);
+	m0_be_ut_backend_cfg_default(&cfg, &reqh, false);
 	if (use_small_credits || m0_ut_small_credits())
 		cfg.bc_engine.bec_tx_size_max =
 			M0_BE_TX_CREDIT(6 << 10, 5 << 18);
@@ -178,9 +177,15 @@ static void service_stop(void)
 	m0_reqh_service_fini(cas);
 }
 
-static void fini(void)
+static void _fini(bool destroy)
 {
 	service_stop();
+	/*
+	 * XXX We want to clear BE after each test, but few tests re-init BE
+	 * and this option can't be simply put to _init(). Make dirty solution
+	 * for now.
+	 */
+	be.but_dom.bd_cfg.bc_destroy_on_fini = destroy;
 	m0_be_ut_backend_fini(&be);
 	m0_fi_disable("cas_in_ut", "ut");
 	rep_clear();
@@ -188,9 +193,14 @@ static void fini(void)
 	cas__ut_cb_fini = NULL;
 }
 
+static void fini(void)
+{
+	_fini(true);
+}
+
 static void reinit_nomkfs(void)
 {
-	fini();
+	_fini(false);
 	_init(false, false);
 }
 
