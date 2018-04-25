@@ -304,6 +304,12 @@ def setup(node, cpu_nr, mem_mb, disk_nr = 0, disk_size = 1)
   # Virtualbox -----------------------------
   #
 
+  # directory where to keep serial console logs
+  console_log_dir = ENV['M0_VM_CONSOLE_LOG_DIR'].nil? ? '.' : ENV['M0_VM_CONSOLE_LOG_DIR']
+
+  # directory where to keep additional storage disk images for SSU machines
+  disks_dir = ENV['M0_VM_SSU_DISKS_DIR'].nil? ? '.' : ENV['M0_VM_SSU_DISKS_DIR']
+
   node.vm.provider :virtualbox do |v|
     # visible machine name
     v.name = vm_prefix + '_' + node.vm.hostname
@@ -320,7 +326,7 @@ def setup(node, cpu_nr, mem_mb, disk_nr = 0, disk_size = 1)
       v.customize ['storagectl', :id, '--name', 'sata-controller', '--add', 'sata']
       # serial console file
       v.customize ['modifyvm', :id, '--uart1', '0x3F8', 4, '--uartmode1', 'file',
-                   File.expand_path('.').to_s + "/console_#{node.vm.hostname}.log"]
+                   File.expand_path(console_log_dir).to_s + "/console_#{node.vm.hostname}.log"]
       # delay guest-additions installation until VM is fully provisioned if a
       # specific box version requested, otherwise incorrect kernel headers
       # would be installed and guest-additions fail to build
@@ -331,7 +337,7 @@ def setup(node, cpu_nr, mem_mb, disk_nr = 0, disk_size = 1)
 
     # disks
     (1..disk_nr).each do |i|
-      disk_file = File.expand_path('.').to_s + "/disk_#{node.vm.hostname}_#{i}.vdi"
+      disk_file = File.expand_path(disks_dir).to_s + "/disk_#{node.vm.hostname}_#{i}.vdi"
 
       if !File.exist?(disk_file)
         v.customize ['createmedium', 'disk', '--filename', disk_file,
@@ -361,7 +367,8 @@ def setup(node, cpu_nr, mem_mb, disk_nr = 0, disk_size = 1)
 
     # serial console file
     v.vmx['serial0.fileType'] = 'file'
-    v.vmx['serial0.fileName'] = File.expand_path('.').to_s + "/console_#{node.vm.hostname}.log"
+    v.vmx['serial0.fileName'] = File.expand_path(console_log_dir).to_s +
+                                "/console_#{node.vm.hostname}.log"
     v.vmx['serial0.present']  = 'TRUE'
 
     # network
@@ -378,7 +385,7 @@ def setup(node, cpu_nr, mem_mb, disk_nr = 0, disk_size = 1)
     vdiskmanager = '/Applications/VMware Fusion.app/Contents/Library/vmware-vdiskmanager'
     if PROVIDER == :vmware_fusion and File.exist?(vdiskmanager)
       (1..disk_nr).each do |i|
-        disk_file = File.expand_path('.').to_s + "/disk_#{node.vm.hostname}_#{i}.vmdk"
+        disk_file = File.expand_path(disks_dir).to_s + "/disk_#{node.vm.hostname}_#{i}.vmdk"
         if !File.exists?(disk_file)
           `"#{vdiskmanager}" -c -s #{disk_size}GB -a lsilogic -t 0 #{disk_file}`
         end
