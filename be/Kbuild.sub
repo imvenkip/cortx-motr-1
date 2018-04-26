@@ -14,6 +14,7 @@ m0mero_objects += \
                   be/ha_xc.o \
                   be/list.o \
                   be/list_xc.o \
+                  be/reg.o \
                   be/seg_xc.o \
                   be/seg_internal_xc.o \
                   be/seg_dict.o \

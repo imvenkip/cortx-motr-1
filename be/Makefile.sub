@@ -27,6 +27,7 @@ nobase_mero_include_HEADERS += \
                                be/pd_service.h	    \
 			       be/paged.h           \
 			       be/recovery.h        \
+			       be/reg.h             \
                                be/seg.h             \
                                be/seg0.h            \
                                be/seg_dict.h        \
@@ -67,6 +68,7 @@ mero_libmero_la_SOURCES += be/alloc.c           \
 			   be/pd_service.c      \
 			   be/paged.c           \
 			   be/recovery.c        \
+			   be/reg.c             \
 			   be/seg.c             \
 			   be/seg0.c            \
 			   be/seg_dict.c        \

@@ -354,4 +354,15 @@ M0_INTERNAL void m0_be_ut_txc_fini(struct m0_be_ut_txc *tc)
 {
 }
 
+M0_INTERNAL void m0_be_pd_reg_get(struct m0_be_pd        *paged,
+				  const struct m0_be_reg *reg,
+				  struct m0_be_op        *op)
+{
+}
+
+M0_INTERNAL void m0_be_pd_reg_put(struct m0_be_pd        *paged,
+				  const struct m0_be_reg *reg)
+{
+}
+
 #undef M0_TRACE_SUBSYSTEM
