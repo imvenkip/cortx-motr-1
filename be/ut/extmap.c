@@ -151,6 +151,7 @@ static void test_init(void)
 
 static void test_fini(void)
 {
+	m0_be_emap_fini(emap);
 	M0_BE_OP_SYNC(op, m0_be_emap_destroy(emap, &tx2, &op));
 
 	m0_be_tx_close_sync(&tx2);

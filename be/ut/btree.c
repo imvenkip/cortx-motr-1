@@ -551,7 +551,7 @@ static struct m0_be_btree *create_tree(void)
 	m0_free(tx);
 
 	btree_dbg_print(tree);
-
+	m0_be_btree_fini(tree);
 	M0_LEAVE();
 	return tree;
 }

@@ -277,7 +277,6 @@ M0_INTERNAL void m0_be_seg_dict_create(struct m0_be_seg *seg,
 	M0_ENTRY("seg=%p", seg);
 	M0_PRE(m0_be_seg__invariant(seg));
 
-	m0_be_btree_init(tree, seg, &dict_ops);
 	M0_BE_OP_SYNC(op, m0_be_btree_create(tree, tx, &op));
 	M0_LEAVE();
 }

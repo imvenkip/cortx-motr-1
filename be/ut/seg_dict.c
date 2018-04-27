@@ -68,6 +68,7 @@ void m0_be_ut_seg_dict(void)
 	m0_be_tx_prep(&tx, &credit);
 	rc = m0_be_tx_open_sync(&tx);
 	M0_UT_ASSERT(rc == 0);
+	m0_be_seg_dict_init(seg);
 	m0_be_seg_dict_create(seg, &tx);
 	m0_be_tx_close_sync(&tx);
 	m0_be_tx_fini(&tx);
