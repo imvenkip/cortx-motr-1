@@ -277,7 +277,7 @@
 
 struct cas_service {
 	struct m0_reqh_service  c_service;
-	struct m0_be_domain    *c_ut_be_domain;
+	struct m0_be_domain    *c_be_domain;
 };
 
 struct cas_kv {
@@ -506,14 +506,14 @@ M0_INTERNAL void m0_cas__ut_svc_be_set(struct m0_reqh_service *svc,
 				       struct m0_be_domain *dom)
 {
 	struct cas_service *service = M0_AMB(service, svc, c_service);
-	service->c_ut_be_domain = dom;
+	service->c_be_domain = dom;
 }
 
 M0_INTERNAL struct m0_be_domain *
 m0_cas__ut_svc_be_get(struct m0_reqh_service *svc)
 {
 	struct cas_service *service = M0_AMB(service, svc, c_service);
-	return service->c_ut_be_domain;
+	return service->c_be_domain;
 }
 
 
@@ -522,12 +522,13 @@ static int cas_service_start(struct m0_reqh_service *svc)
 	int                  rc;
 	struct cas_service  *service = M0_AMB(service, svc, c_service);
 	struct m0_be_domain *ut_dom;
-	struct m0_be_domain *dom;
 
 	M0_PRE(m0_reqh_service_state_get(svc) == M0_RST_STARTING);
 	ut_dom = m0_cas__ut_svc_be_get(svc);
-	dom = ut_dom != NULL ? ut_dom : svc->rs_reqh_ctx->rc_beseg->bs_domain;
-	rc = m0_ctg_store_init(dom);
+	/* XXX It's a hack. It's needed until we have a better way. */
+	service->c_be_domain = ut_dom != NULL ?
+			       ut_dom : svc->rs_reqh_ctx->rc_beseg->bs_domain;
+	rc = m0_ctg_store_init(service->c_be_domain);
 	if (rc == 0) {
 		/*
 		 * Start deleted index garbage collector at boot to continue
