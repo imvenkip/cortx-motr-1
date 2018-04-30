@@ -74,6 +74,11 @@ struct m0_ctg_store {
 	struct m0_ref        cs_ref;
 
 	/**
+	 * BE domain the catalogue store is working with.
+	 */
+	struct m0_be_domain *cs_be_domain;
+
+	/**
 	 * Flag indicating whether catalogue store is initialised or not.
 	 */
 	bool                 cs_initialised;
@@ -695,6 +700,7 @@ M0_INTERNAL int m0_ctg_store_init(struct m0_be_domain *dom)
 		m0_mutex_init(&ctg_store.cs_state_mutex);
 		m0_long_lock_init(&ctg_store.cs_del_lock);
 		m0_ref_init(&ctg_store.cs_ref, 1, ctg_store_release);
+		ctg_store.cs_be_domain = dom;
 		ctg_store.cs_initialised = true;
 	}
 end:
@@ -805,7 +811,7 @@ static void ctg_try_init(struct m0_cas_ctg *ctg)
 	 */
 	if (ctg != NULL && !ctg->cc_inited) {
 		M0_LOG(M0_DEBUG, "ctg_init %p", ctg);
-		ctg_init(ctg, cas_seg(ctg->cc_tree.bb_seg->bs_domain));
+		ctg_init(ctg, cas_seg(ctg_store.cs_be_domain));
 	} else
 		M0_LOG(M0_DEBUG, "ctg %p zero or inited", ctg);
 	m0_mutex_unlock(&ctg_store.cs_state->cs_ctg_init_mutex.bm_u.mutex);
