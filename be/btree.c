@@ -35,6 +35,7 @@
 #include "be/btree_internal.h" /* m0_be_bnode */
 #include "be/seg.h"
 #include "be/tx.h"             /* m0_be_tx_capture */
+#include "be/reg.h"            /* M0_BE_REG_GET_PTR */
 
 /* btree constants */
 enum {
@@ -71,8 +72,10 @@ static void btree_root_set(struct m0_be_btree *btree,
 {
 	M0_PRE(btree != NULL);
 
+	M0_BE_REG_GET_PTR(btree, btree->bb_seg, NULL);
 	btree->bb_root = new_root;
 	m0_format_footer_update(btree);
+	M0_BE_REG_PUT_PTR(btree, btree->bb_seg, NULL);
 }
 
 /* XXX Shouldn't we set other fields of m0_be_op__btree? */
@@ -305,6 +308,7 @@ static void btree_node_update(struct m0_be_bnode       *node,
  */
 static void btree_create(struct m0_be_btree *btree, struct m0_be_tx *tx)
 {
+	M0_BE_REG_GET_PTR(btree, btree->bb_seg, tx);
 	m0_format_header_pack(&btree->bb_header, &(struct m0_format_tag){
 		.ot_version = M0_BE_BTREE_FORMAT_VERSION,
 		.ot_type    = M0_FORMAT_TYPE_BE_BTREE,
@@ -315,6 +319,7 @@ static void btree_create(struct m0_be_btree *btree, struct m0_be_tx *tx)
 
 	/* memory for the node has to be reserved by m0_be_tx_open() */
 	M0_ASSERT(btree->bb_root != NULL);
+	M0_BE_REG_PUT_PTR(btree, btree->bb_seg, tx);
 }
 
 /**
@@ -1266,6 +1271,7 @@ M0_INTERNAL void m0_be_btree_create(struct m0_be_btree *tree,
 				    struct m0_be_op *op)
 {
 	M0_ENTRY("tree=%p", tree);
+	M0_BE_REG_GET_PTR(tree, tree->bb_seg, tx);
 	M0_PRE(tree->bb_root == NULL && tree->bb_ops != NULL);
 	/* M0_PRE(m0_rwlock_is_locked(tx->t_be.b_tx.te_lock)); */
 
@@ -1283,6 +1289,7 @@ M0_INTERNAL void m0_be_btree_create(struct m0_be_btree *tree,
 
 	op_tree(op)->t_rc = 0;
 	m0_be_op_done(op);
+	M0_BE_REG_PUT_PTR(tree, tree->bb_seg, tx);
 	M0_LEAVE();
 }
 
