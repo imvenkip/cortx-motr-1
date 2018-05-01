@@ -80,14 +80,6 @@ M0_INTERNAL void m0_be_ut_alloc_create_destroy(void)
 
 	m0_be_ut_backend_init(&be_ut_alloc_backend, true);
 	m0_be_ut_seg_init(&ut_seg, &be_ut_alloc_backend, BE_UT_ALLOC_SEG_SIZE);
-	/* m0_be_ut_seg_check_persistence(&ut_seg); */
-
-	m0_be_ut_seg_allocator_init(&ut_seg, &be_ut_alloc_backend);
-	/* m0_be_ut_seg_check_persistence(&ut_seg); */
-
-	m0_be_ut_seg_allocator_fini(&ut_seg, &be_ut_alloc_backend);
-	/* m0_be_ut_seg_check_persistence(&ut_seg); */
-
 	m0_be_ut_seg_fini(&ut_seg);
 	m0_be_ut_backend_fini(&be_ut_alloc_backend);
 	M0_SET0(&be_ut_alloc_backend);
