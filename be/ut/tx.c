@@ -45,17 +45,13 @@ void m0_be_ut_tx_usecase_success(void)
 	struct m0_be_ut_backend ut_be;
 	struct m0_be_ut_seg     ut_seg;
 	struct m0_be_seg       *seg;
-	//struct m0_be_tx_credit  credit = M0_BE_TX_CREDIT_TYPE(uint64_t);
-	const int sz = 128;
-	struct m0_be_tx_credit  credit = M0_BE_TX_CREDIT(1, sz);
+	struct m0_be_tx_credit  credit = M0_BE_TX_CREDIT_TYPE(uint64_t);
 	struct m0_be_tx         tx;
-	char                   *data;
+	uint64_t               *data;
 	int                     rc;
-	int                     i;
 
 	M0_SET0(&ut_be);
 	m0_be_ut_backend_init(&ut_be, true);
-	/* m0_be_ut_seg_init(&ut_seg, NULL, 1 << 20); */ /* XXX PD */
 	m0_be_ut_seg_init(&ut_seg, &ut_be, 1 << 20);
 	seg = ut_seg.bus_seg;
 
@@ -69,16 +65,9 @@ void m0_be_ut_tx_usecase_success(void)
 				M0_TIME_NEVER);
 	M0_UT_ASSERT(rc == 0);
 
-	//data = (uint64_t *) (seg->bs_addr + seg->bs_reserved);
-	// XXX restore the original test
-#define M0_BE_PD_PAGE_SIZE (16 * 1024)
-	data = (char *) (seg->bs_addr + M0_BE_PD_PAGE_SIZE - sz/4);
-#undef M0_BE_PD_PAGE_SIZE
-	//memset(data, 0xce, sz);
-	for (i = 0; i < sz; ++i)
-		data[i] = i+0x30;
-
-	m0_be_tx_capture(&tx, &M0_BE_REG(seg, sz, data));
+	data = (uint64_t *) (seg->bs_addr + seg->bs_reserved);
+	*data = 0x101;
+	m0_be_tx_capture(&tx, &M0_BE_REG_PTR(seg, data));
 
 	/* m0_be_tx_close_sync() can be used in UT */
 	m0_be_tx_close(&tx);
