@@ -1247,6 +1247,7 @@ M0_INTERNAL void m0_be_btree_init(struct m0_be_btree *tree,
 	M0_ENTRY("tree=%p seg=%p", tree, seg);
 	M0_PRE(ops != NULL);
 
+	// XXX @anatoliy: do something :) M0_BE_REG_GET_PTR(tree, seg, NULL);
 	m0_rwlock_init(btree_rwlock(tree));
 	tree->bb_ops = ops;
 	tree->bb_seg = seg;
@@ -1263,6 +1264,7 @@ M0_INTERNAL void m0_be_btree_fini(struct m0_be_btree *tree)
 	m0_rwlock_fini(btree_rwlock(tree));
 	M0_ASSERT(ergo(tree->bb_header.hd_magic,
 			m0_format_footer_verify(tree) == 0));
+	// XXX @anatoliy: do something :) M0_BE_REG_PUT_PTR(tree, tree->bb_seg, NULL);
 	M0_LEAVE();
 }
 
