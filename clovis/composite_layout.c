@@ -58,8 +58,9 @@ M0_TL_DEFINE(cext, static, struct m0_clovis_composite_extent);
 
 static int composite_layout_io_build(struct m0_clovis_io_args *args,
 				     struct m0_clovis_op **op);
-static int composite_extents_scan_sync(struct m0_clovis_obj *obj,
-				       struct m0_clovis_composite_layout *clayout);
+static int
+composite_extents_scan_sync(struct m0_clovis_obj *obj,
+			    struct m0_clovis_composite_layout *clayout);
 
 static struct layout_dix_req*
 clovis_layout_dix_req_alloc(struct m0_sm_group *grp, struct m0_dix_cli *cli,
@@ -92,38 +93,30 @@ static void clovis_layout_dix_req_free(struct layout_dix_req *req)
 static void clovis_layout_op_completed(struct m0_clovis_op *op)
 {
 	struct m0_sm_group *op_grp;
-	struct m0_sm_group *en_grp;
 
-	/* Move states of layout entity and op. */
+	M0_ENTRY();
+	M0_PRE(op != NULL);
+
 	op_grp = &op->op_sm_group;
-	en_grp = &op->op_entity->en_sm_group;
-	m0_sm_group_lock(en_grp);
-	m0_sm_move(&op->op_entity->en_sm, 0, M0_CLOVIS_ES_INIT);
-	m0_sm_group_unlock(en_grp);
-
 	m0_sm_group_lock(op_grp);
 	m0_sm_move(&op->op_sm, 0, M0_CLOVIS_OS_EXECUTED);
 	m0_clovis_op_executed(op);
 	m0_sm_move(&op->op_sm, 0, M0_CLOVIS_OS_STABLE);
 	m0_clovis_op_stable(op);
 	m0_sm_group_unlock(op_grp);
+
+	M0_LEAVE();
 }
 
 static void clovis_layout_op_failed(struct m0_clovis_op *op, int rc)
 {
 	struct m0_sm_group *op_grp;
-	struct m0_sm_group *en_grp;
 
 	M0_ENTRY();
-
 	M0_PRE(rc != 0);
+	M0_PRE(op != NULL);
+
 	op_grp = &op->op_sm_group;
-	en_grp = &op->op_entity->en_sm_group;
-
-	m0_sm_group_lock(en_grp);
-	m0_sm_fail(&op->op_entity->en_sm, M0_CLOVIS_ES_FAILED, rc);
-	m0_sm_group_unlock(en_grp);
-
 	m0_sm_group_lock(op_grp);
 	m0_sm_fail(&op->op_sm, M0_CLOVIS_OS_FAILED, rc);
 	m0_clovis_op_failed(op);
@@ -132,7 +125,8 @@ static void clovis_layout_op_failed(struct m0_clovis_op *op, int rc)
 	M0_LEAVE();
 }
 
-static void clovis_layout_dix_req_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
+static void clovis_layout_dix_req_ast(struct m0_sm_group *grp,
+				      struct m0_sm_ast *ast)
 {
 	int                         ltype;
 	uint64_t                    lid;
@@ -170,7 +164,8 @@ static void clovis_layout_dix_req_ast(struct m0_sm_group *grp, struct m0_sm_ast 
 			if (rc != 0)
 				/* How to undo the changes in layout index? */
 				clovis_layout_op_failed(op, rc);
-		}
+		} else
+			clovis_layout_op_completed(op);
 	} else
 		clovis_layout_op_completed(op);
 
@@ -369,9 +364,9 @@ exit:
 	return M0_RC(rc);
 }
 
-/**----------------------------------------------------------------------------*
- *                 Clovis COMPOSITE LAYOUT OP APIS and routines                *
- *-----------------------------------------------------------------------------*/
+/**---------------------------------------------------------------------------*
+ *                Clovis COMPOSITE LAYOUT OP APIS and routines                *
+ *----------------------------------------------------------------------------*/
 
 static int composite_layout_copy_to_app(struct m0_clovis_layout *to, void *from)
 {
@@ -618,9 +613,9 @@ void m0_clovis_composite_layer_del(struct m0_clovis_layout *layout,
 }
 M0_EXPORTED(m0_clovis_composite_layer_del);
 
-/**----------------------------------------------------------------------------*
- *                    Clovis COMPOSITE LAYOUT IO routines                      *
- *-----------------------------------------------------------------------------*/
+/**---------------------------------------------------------------------------*
+ *                   Clovis COMPOSITE LAYOUT IO routines                      *
+ *----------------------------------------------------------------------------*/
 
 struct composite_sub_io_ext {
 	m0_bindex_t      sie_off;
@@ -866,7 +861,8 @@ static void composite_io_op_ast(struct m0_sm_group *grp,
 	op = child_op->op_parent;
 	oc = bob_of(op, struct m0_clovis_op_common, oc_op, &oc_bobtype);
 	oo  = bob_of(oc, struct m0_clovis_op_obj, oo_oc, &oo_bobtype);
-	oci = bob_of(oo, struct m0_clovis_op_composite_io, oci_oo, &oci_bobtype);
+	oci = bob_of(oo, struct m0_clovis_op_composite_io,
+		     oci_oo, &oci_bobtype);
 	clovis_op_composite_io_invariant(oci);
 	oci->oci_nr_replied++;
 	if (oci->oci_nr_replied == oci->oci_nr_sub_ops)
@@ -1003,7 +999,8 @@ static void composite_io_op_cb_fini(struct m0_clovis_op_common *oc)
 
 	/* Finialise each sub IO op. */
 	oo  = bob_of(oc, struct m0_clovis_op_obj, oo_oc, &oo_bobtype);
-	oci = bob_of(oo, struct m0_clovis_op_composite_io, oci_oo, &oci_bobtype);
+	oci = bob_of(oo, struct m0_clovis_op_composite_io,
+		     oci_oo, &oci_bobtype);
 	clovis_op_composite_io_invariant(oci);
 	for (i = 0; i < oci->oci_nr_sub_ops; i++) {
 		sop = oci->oci_sub_ops[i];
@@ -1075,7 +1072,8 @@ static void composite_io_op_cb_launch(struct m0_clovis_op_common *oc)
 	M0_PRE(oc->oc_op.op_size >= sizeof *oci);
 
 	oo = bob_of(oc, struct m0_clovis_op_obj, oo_oc, &oo_bobtype);
-	oci = bob_of(oo, struct m0_clovis_op_composite_io, oci_oo, &oci_bobtype);
+	oci = bob_of(oo, struct m0_clovis_op_composite_io,
+		     oci_oo, &oci_bobtype);
 	clovis_op_composite_io_invariant(oci);
 	for (i = 0; i < oci->oci_nr_sub_ops; i++) {
 		sop = oci->oci_sub_ops[i];
@@ -1151,14 +1149,15 @@ static int composite_layout_io_build(struct m0_clovis_io_args *args,
 {
 	int                                rc;
 	int                                nr_sios = 0;
-	struct m0_clovis_obj              *obj = args->ia_obj;
+	struct m0_clovis_obj              *obj;
 	struct m0_clovis_composite_layout *clayout;
 	struct composite_sub_io           *sio_arr = NULL;
 
 	M0_ENTRY();
-	M0_PRE(obj != NULL);
 	M0_PRE(args != NULL);
+	M0_PRE(args->ia_obj != NULL);
 
+	obj = args->ia_obj;
 	rc = m0_clovis_op_get(op, sizeof(struct m0_clovis_op_composite_io))?:
 		composite_io_op_init(obj, args->ia_opcode, *op);
 	if (rc != 0)
@@ -1174,9 +1173,9 @@ static int composite_layout_io_build(struct m0_clovis_io_args *args,
 	return (rc == 0)?M0_RC(0):M0_ERR(rc);
 }
 
-/**----------------------------------------------------------------------------*
- *           Clovis Composite Layout Extent Index API and routines             *
- *-----------------------------------------------------------------------------*/
+/**---------------------------------------------------------------------------*
+ *           Clovis Composite Layout Extent Index API and routines            *
+ *----------------------------------------------------------------------------*/
 
 /**
  * 2 global extent indices are created for composite objects' extents:
@@ -1427,12 +1426,12 @@ static int composite_layer_idx_scan(struct m0_clovis_composite_layer *layer,
 	start_key.cek_layer_id = layer->ccr_subobj;
 	start_key.cek_off = 0;
 	while(true) {
+		/* Set key and then launch NEXT query. */
 		rc = m0_clovis_composite_layer_idx_key_to_buf(
-			&start_key, &keys->ov_buf[0], &keys->ov_vec.v_count[0]);
-
-		/* Launch NEXT query. */
-		rc = composite_layer_idx_next_query(
-				&idx, keys, vals, rcs, flags);
+			&start_key, &keys->ov_buf[0],
+			&keys->ov_vec.v_count[0])?:
+		     composite_layer_idx_next_query(
+			&idx, keys, vals, rcs, flags);
 		if (rc != 0) {
 			M0_ERR(rc);
 			goto exit;
@@ -1486,8 +1485,9 @@ exit:
 	return M0_RC(rc);
 }
 
-static int composite_extents_scan_sync(struct m0_clovis_obj *obj,
-				       struct m0_clovis_composite_layout *clayout)
+static int
+composite_extents_scan_sync(struct m0_clovis_obj *obj,
+			    struct m0_clovis_composite_layout *clayout)
 {
 	int                               rc = 0;
 	struct m0_clovis_composite_layer *layer;
