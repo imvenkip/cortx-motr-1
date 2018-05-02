@@ -987,6 +987,34 @@ M0_INTERNAL bool m0_be_domain_is_stob_seg(struct m0_be_domain     *dom,
 	return it_is;
 }
 
+M0_INTERNAL struct m0_be_seg *
+m0_be_domain_seg_by_addr(struct m0_be_domain *dom,
+                         void                *addr)
+{
+	struct m0_be_seg *seg;
+
+	be_domain_lock(dom);
+	seg = m0_tl_find(seg, seg, &dom->bd_segs,
+	                 m0_be_seg_contains(seg, addr));
+	be_domain_unlock(dom);
+	return seg;
+}
+
+/*
+ * Note: the implementation is not as efficient as it can be for now.
+ * We'll make it more efficient after page daemon is introduced.
+ */
+M0_INTERNAL bool m0_be_domain_seg_is_valid(struct m0_be_domain *dom,
+                                           struct m0_be_seg    *seg)
+{
+	struct m0_be_seg *result;
+
+	be_domain_lock(dom);
+	result = m0_tl_find(seg, s, &dom->bd_segs, seg == s);
+	be_domain_unlock(dom);
+	return result;
+}
+
 #undef M0_TRACE_SUBSYSTEM
 /** @} end of be group */
 
