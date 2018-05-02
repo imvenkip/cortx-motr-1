@@ -111,7 +111,6 @@ void m0_be_ut_tx_init(struct m0_be_tx *tx, struct m0_be_ut_backend *ut_be);
 
 struct m0_be_ut_seg {
 	struct m0_be_seg	*bus_seg;
-	void			*bus_copy;
 	struct m0_be_ut_backend *bus_backend;
 };
 
@@ -119,74 +118,10 @@ void m0_be_ut_seg_init(struct m0_be_ut_seg *ut_seg,
 		       struct m0_be_ut_backend *ut_be,
 		       m0_bcount_t size);
 void m0_be_ut_seg_fini(struct m0_be_ut_seg *ut_seg);
-void m0_be_ut_seg_check_persistence(struct m0_be_ut_seg *ut_seg);
 void m0_be_ut_seg_reload(struct m0_be_ut_seg *ut_seg);
 
 M0_INTERNAL void *m0_be_ut_seg_allocate_addr(m0_bcount_t size);
 M0_INTERNAL uint64_t m0_be_ut_seg_allocate_id(void);
-
-/*
- * tx capturing checker for UT.
- *
- * Use case example:
- *
- * @code
- * struct m0_be_ut_txc tc;
- * struct m0_be_tx     tx;
- * struct m0_be_seg   *seg;
- * ...
- * // it can be initialized at any time before using
- * m0_be_ut_txc_init(&tc);
- * ...
- * // tx is successfully open
- * // seg is open
- * // note: m0_be_tx_capture() may be called before m0_be_ut_txc_start() - in
- * // this case m0_be_ut_txc_start() will check if captured regions weren't
- * // changed after capturing
- * m0_be_ut_txc_start(&tc, &tx, seg);
- * ...
- * // call m0_be_tx_capture(&tx, ...)
- * ...
- * // perform capturing checks
- * m0_be_ut_txc_check(&tc, &tx);
- * ...
- * // be sure to finalize m0_be_ut_txc
- * m0_be_ut_txc_fini(&tc);
- * @endcode
- */
-struct m0_be_ut_txc {
-	struct m0_buf butc_seg_copy;
-};
-
-M0_INTERNAL void m0_be_ut_txc_init(struct m0_be_ut_txc *tc);
-M0_INTERNAL void m0_be_ut_txc_fini(struct m0_be_ut_txc *tc);
-
-/*
- * Start capturing checking.
- *
- * @param tc capturing checker object
- * @param tx transaction to check
- * @param seg tx should capture only this segment data
- *
- * - can be called at any time between m0_be_tx_open() and m0_be_tx_close();
- * - will create copy of the segment;
- * - will perform all m0_be_ut_txc_check() checks.
- */
-M0_INTERNAL void m0_be_ut_txc_start(struct m0_be_ut_txc *tc,
-				    struct m0_be_tx *tx,
-				    const struct m0_be_seg *seg);
-/*
- * Check capturing correctness.
- *
- * This function will check if
- * - transaction reg_area have the same data for capturing regions as segment;
- * - all segment modifications from previous call to m0_be_ut_txc_start() were
- *   captured.
- *
- * @note This function may have problems with volatile-only regions.
- */
-M0_INTERNAL void m0_be_ut_txc_check(struct m0_be_ut_txc *tc,
-				    struct m0_be_tx *tx);
 
 /* m0_be_allocator_{init,create,open} */
 void m0_be_ut_seg_allocator_init(struct m0_be_ut_seg *ut_seg,
@@ -214,16 +149,10 @@ M0_INTERNAL void m0_be_ut_free(struct m0_be_ut_backend *ut_be,
  * Executes __action_func in a single transaction.
  * Uses __credit_func to get transaction credit.
  * @see m0_be_ut_alloc()/m0_be_ut_free() source code for examples.
- *
- * @note If __ut_seg set to non-NULL value then
- * m0_be_ut_txc is used to check capturing.
  */
-#define M0_BE_UT_TRANSACT(__ut_be, __ut_seg_,                           \
-			  __tx, __cred, __credit_func, __action_func)   \
+#define M0_BE_UT_TRANSACT(__ut_be, __tx, __cred, __credit_func, __action_func) \
 	do {                                                            \
 		struct m0_be_tx_credit  __cred   = {};                  \
-		struct m0_be_ut_seg    *__ut_seg = (__ut_seg_);         \
-		struct m0_be_ut_txc     __tc     = {};                  \
 		struct m0_be_tx        *__tx;                           \
 		int                     __rc;                           \
 									\
@@ -235,16 +164,7 @@ M0_INTERNAL void m0_be_ut_free(struct m0_be_ut_backend *ut_be,
 		__rc = m0_be_tx_open_sync(__tx);                        \
 		M0_ASSERT_INFO(__rc == 0, "__rc = %d", __rc);           \
 		if (__rc == 0) {                                        \
-			if (__ut_seg != NULL) {                         \
-				m0_be_ut_txc_init(&__tc);               \
-				m0_be_ut_txc_start(&__tc, __tx,         \
-						   __ut_seg->bus_seg);  \
-			}                                               \
 			__action_func;                                  \
-			if (__ut_seg != NULL) {                         \
-				m0_be_ut_txc_check(&__tc, __tx);        \
-				m0_be_ut_txc_fini(&__tc);               \
-			}                                               \
 			m0_be_tx_close_sync(__tx);                      \
 		}                                                       \
 		m0_be_tx_fini(__tx);                                    \

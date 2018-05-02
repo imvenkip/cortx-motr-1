@@ -83,7 +83,7 @@ M0_INTERNAL void m0_be_ut_list(void)
 		M0_BE_UT_ALLOC_PTR(&ut_be, &ut_seg, elem[i]);
 
 	m0_be_list_init(list, seg);
-	M0_BE_UT_TRANSACT(&ut_be, &ut_seg, tx, cred,
+	M0_BE_UT_TRANSACT(&ut_be, tx, cred,
 		  m0_be_list_credit(list, M0_BLO_CREATE, 1, &cred),
 		  M0_BE_OP_SYNC_WITH(&op, m0_be_list_create(list, tx, &op,
 						      seg, &test_tl)));
@@ -93,7 +93,7 @@ M0_INTERNAL void m0_be_ut_list(void)
 	for (i = 0; i < ARRAY_SIZE(elem); ++i) {
 		m0_be_tlink_init(elem[i], list);
 		M0_SET0(&op);
-		M0_BE_UT_TRANSACT(&ut_be, &ut_seg, tx, cred,
+		M0_BE_UT_TRANSACT(&ut_be, tx, cred,
 		  m0_be_list_credit(list, M0_BLO_TLINK_CREATE, 1, &cred),
 		  M0_BE_OP_SYNC_WITH(&op, m0_be_tlink_create(elem[i], tx, &op,
 						       list)));
@@ -101,7 +101,7 @@ M0_INTERNAL void m0_be_ut_list(void)
 	/* add */
 	m0_be_list_credit(list, M0_BLO_ADD, 1, &cred_add);
 	for (i = 0; i < ARRAY_SIZE(elem); ++i) {
-		M0_BE_UT_TRANSACT(&ut_be, &ut_seg, tx, cred,
+		M0_BE_UT_TRANSACT(&ut_be, tx, cred,
 				  cred = M0_BE_TX_CREDIT_PTR(elem[i]),
 				  (elem[i]->t_payload = i,
 				   M0_BE_TX_CAPTURE_PTR(seg, tx, elem[i])));
@@ -109,25 +109,25 @@ M0_INTERNAL void m0_be_ut_list(void)
 		M0_SET0(&op);
 		if (i < ARRAY_SIZE(elem) / 2) {
 			if (i % 2 == 0) {
-				M0_BE_UT_TRANSACT(&ut_be, &ut_seg, tx, cred,
+				M0_BE_UT_TRANSACT(&ut_be, tx, cred,
 						  cred = cred_add,
 						  M0_BE_OP_SYNC_WITH(&op,
 				 m0_be_list_add(list, &op, tx, elem[i])));
 			} else {
-				M0_BE_UT_TRANSACT(&ut_be, &ut_seg, tx, cred,
+				M0_BE_UT_TRANSACT(&ut_be, tx, cred,
 						  cred = cred_add,
 						  M0_BE_OP_SYNC_WITH(&op,
 				 m0_be_list_add_tail(list, &op, tx, elem[i])));
 			}
 		} else {
 			if (i % 2 == 0) {
-				M0_BE_UT_TRANSACT(&ut_be, &ut_seg, tx, cred,
+				M0_BE_UT_TRANSACT(&ut_be, tx, cred,
 						  cred = cred_add,
 						  M0_BE_OP_SYNC_WITH(&op,
 				 m0_be_list_add_after(list, &op, tx,
 						      elem[i - 1], elem[i])));
 			} else {
-				M0_BE_UT_TRANSACT(&ut_be, &ut_seg, tx, cred,
+				M0_BE_UT_TRANSACT(&ut_be, tx, cred,
 						  cred = cred_add,
 						  M0_BE_OP_SYNC_WITH(&op,
 				 m0_be_list_add_before(list, &op, tx,
@@ -142,7 +142,7 @@ M0_INTERNAL void m0_be_ut_list(void)
 			continue;
 
 		M0_SET0(&op);
-		M0_BE_UT_TRANSACT(&ut_be, &ut_seg, tx, cred,
+		M0_BE_UT_TRANSACT(&ut_be, tx, cred,
 		  m0_be_list_credit(list, M0_BLO_DEL, 1, &cred),
 		  M0_BE_OP_SYNC_WITH(&op, m0_be_list_del(list, &op,
 							 tx, elem[i])));
@@ -164,7 +164,7 @@ M0_INTERNAL void m0_be_ut_list(void)
 			continue;
 
 		M0_SET0(&op);
-		M0_BE_UT_TRANSACT(&ut_be, &ut_seg, tx, cred,
+		M0_BE_UT_TRANSACT(&ut_be, tx, cred,
 		  m0_be_list_credit(list, M0_BLO_DEL, 1, &cred),
 		  M0_BE_OP_SYNC_WITH(&op, m0_be_list_del(list, &op,
 							 tx, elem[i])));
@@ -172,14 +172,14 @@ M0_INTERNAL void m0_be_ut_list(void)
 
 	for (i = 0; i < ARRAY_SIZE(elem); ++i) {
 		M0_SET0(&op);
-		M0_BE_UT_TRANSACT(&ut_be, &ut_seg, tx, cred,
+		M0_BE_UT_TRANSACT(&ut_be, tx, cred,
 		  m0_be_list_credit(list, M0_BLO_TLINK_DESTROY, 1, &cred),
 		  M0_BE_OP_SYNC_WITH(&op, m0_be_tlink_destroy(elem[i], tx, &op,
 							      list)));
 		m0_be_tlink_fini(elem[i], list);
 	}
 	M0_SET0(&op);
-	M0_BE_UT_TRANSACT(&ut_be, &ut_seg, tx, cred,
+	M0_BE_UT_TRANSACT(&ut_be, tx, cred,
 		  m0_be_list_credit(list, M0_BLO_DESTROY, 1, &cred),
 		  M0_BE_OP_SYNC_WITH(&op, m0_be_list_destroy(list, tx, &op)));
 	m0_be_list_fini(list);

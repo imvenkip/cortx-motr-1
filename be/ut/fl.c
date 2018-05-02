@@ -75,7 +75,7 @@ void m0_be_ut_fl(void)
 
 	m0_be_fl_init(fl, seg);
 
-	M0_BE_UT_TRANSACT(ut_be, NULL, tx, cred,
+	M0_BE_UT_TRANSACT(ut_be, tx, cred,
 			  m0_be_fl_credit(NULL, M0_BFL_CREATE, &cred),
 			  m0_be_fl_create(fl, tx, seg));
 
@@ -114,7 +114,7 @@ void m0_be_ut_fl(void)
 
 	for (i = 0; i < BE_UT_FL_CHUNK_NR; ++i) {
 		if (chunks_used[i]) {
-			M0_BE_UT_TRANSACT(ut_be, NULL, tx, cred,
+			M0_BE_UT_TRANSACT(ut_be, tx, cred,
 				  m0_be_fl_credit(NULL, M0_BFL_DEL, &cred),
 				  m0_be_fl_del(fl, tx, &chunks[i]));
 		}
@@ -122,7 +122,7 @@ void m0_be_ut_fl(void)
 
 	m0_free(chunks_used);
 
-	M0_BE_UT_TRANSACT(ut_be, NULL, tx, cred,
+	M0_BE_UT_TRANSACT(ut_be, tx, cred,
 			  m0_be_fl_credit(NULL, M0_BFL_DESTROY, &cred),
 			  m0_be_fl_destroy(fl, tx));
 

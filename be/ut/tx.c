@@ -75,7 +75,6 @@ void m0_be_ut_tx_usecase_success(void)
 	M0_UT_ASSERT(rc == 0);
 	m0_be_tx_fini(&tx);
 
-	m0_be_ut_seg_check_persistence(&ut_seg);
 	m0_be_ut_seg_fini(&ut_seg);
 	m0_be_ut_backend_fini(&ut_be);
 }
@@ -321,9 +320,6 @@ static void be_ut_tx_test(size_t nr)
 		M0_UT_ASSERT(rc == 0);
 		m0_be_tx_put(&x->tx);
 	}
-
-	m0_be_ut_seg_check_persistence(&ut_seg);
-
 	for (x = xs; x->size != 0; ++x) {
 		int rc = m0_be_tx_timedwait(&x->tx, M0_BITS(M0_BTS_DONE),
 					    M0_TIME_NEVER);
@@ -439,8 +435,6 @@ static void be_ut_tx_force(size_t nr)
 		m0_be_tx_put(&x->tx);
 	}
 
-	m0_be_ut_seg_check_persistence(&ut_seg);
-
 	for (x = xs; x->size != 0; ++x) {
 		int rc = m0_be_tx_timedwait(&x->tx, M0_BITS(M0_BTS_DONE),
 					    M0_TIME_NEVER);
@@ -535,8 +529,6 @@ void m0_be_ut_tx_persistence(void)
 		rc = m0_be_tx_timedwait(&tx, M0_BITS(M0_BTS_PLACED),
 					M0_TIME_NEVER);
 		M0_UT_ASSERT(rc == 0);
-
-		m0_be_ut_seg_check_persistence(&ut_seg);
 
 		m0_be_tx_put(&tx);
 		rc = m0_be_tx_timedwait(&tx, M0_BITS(M0_BTS_DONE),
@@ -758,7 +750,6 @@ void m0_be_ut_tx_capturing(void)
 {
 	struct m0_be_ut_backend  ut_be;
 	struct m0_be_tx_credit   cred = M0_BE_TX_CREDIT_TYPE(uint64_t);
-	struct m0_be_ut_txc      tc = {};
 	struct m0_be_ut_seg      ut_seg;
 	struct m0_be_seg        *seg;
 	struct m0_be_tx          tx;
@@ -772,7 +763,6 @@ void m0_be_ut_tx_capturing(void)
 	m0_be_ut_backend_init(&ut_be);
 	m0_be_ut_seg_init(&ut_seg, NULL, BE_UT_TX_CAPTURING_SEG_SIZE);
 	seg = ut_seg.bus_seg;
-	m0_be_ut_txc_init(&tc);
 
 	m0_be_tx_credit_mul(&cred, BE_UT_TX_CAPTURING_NR);
 	for (i = 0; i < BE_UT_TX_CAPTURING_TX_NR; ++i) {
@@ -781,22 +771,17 @@ void m0_be_ut_tx_capturing(void)
 		rc = m0_be_tx_open_sync(&tx);
 		M0_UT_ASSERT(rc == 0);
 
-		m0_be_ut_txc_start(&tc, &tx, seg);
 		for (j = 0; j < BE_UT_TX_CAPTURING_NR; ++j) {
 			ptr = seg->bs_addr + m0_be_seg_reserved(seg) +
 			      m0_rnd64(&seed) %
 			      (BE_UT_TX_CAPTURING_RANGE - sizeof *ptr);
 			*ptr = m0_rnd64(&seed);
 			m0_be_tx_capture(&tx, &M0_BE_REG_PTR(seg, ptr));
-
-			m0_be_ut_txc_check(&tc, &tx);
 		}
 
 		m0_be_tx_close_sync(&tx);
 		m0_be_tx_fini(&tx);
 	}
-
-	m0_be_ut_txc_fini(&tc);
 	m0_be_ut_seg_fini(&ut_seg);
 	m0_be_ut_backend_fini(&ut_be);
 }

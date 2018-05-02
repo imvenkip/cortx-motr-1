@@ -82,18 +82,11 @@ void m0_be_ut_btree_simple(void)
 	/* create btrees */
 	tree0 = create_tree();
 
-	/* Reload segment and check data */
-	/* XXX: this needs investigation, some parts of btree may stay
-	 * uncaptured and this is a valid scenario */
-	/* m0_be_ut_seg_check_persistence(&ut_seg); */
 	m0_be_ut_seg_reload(&ut_seg);
 
 	check(tree0);
 	destroy_tree(tree0);
 
-	/* XXX: this needs investigation, some parts of btree may stay
-	 * uncaptured and this is a valid scenario */
-	/* m0_be_ut_seg_check_persistence(&ut_seg); */
 	m0_be_ut_seg_reload(&ut_seg);
 
 	/* XXX FIXME something wasn't freed */

@@ -616,7 +616,6 @@ void m0_be_ut_seg_init(struct m0_be_ut_seg *ut_seg,
 		m0_be_ut_backend_seg_add(ut_be, &seg_cfg, &ut_seg->bus_seg);
 	}
 
-	ut_seg->bus_copy    = NULL;
 	ut_seg->bus_backend = ut_be;
 }
 
@@ -624,8 +623,6 @@ void m0_be_ut_seg_fini(struct m0_be_ut_seg *ut_seg)
 {
 	struct m0_stob *stob = ut_seg->bus_seg->bs_stob;
 	int		rc;
-
-	m0_free(ut_seg->bus_copy);
 
 	if (ut_seg->bus_backend == NULL) {
 		m0_be_seg_close(ut_seg->bus_seg);
@@ -647,8 +644,7 @@ M0_INTERNAL void m0_be_ut_alloc(struct m0_be_ut_backend *ut_be,
 {
 	struct m0_be_allocator *a = m0_be_seg_allocator(ut_seg->bus_seg);
 
-	/* don't use capturing checkers here */
-	M0_BE_UT_TRANSACT(ut_be, NULL, tx, cred,
+	M0_BE_UT_TRANSACT(ut_be, tx, cred,
 		  m0_be_allocator_credit(a, M0_BAO_ALLOC, size, 0, &cred),
 		  M0_BE_OP_SYNC(op, m0_be_alloc(a, tx, &op, ptr, size)));
 	M0_ASSERT(*ptr != NULL);
@@ -660,39 +656,9 @@ M0_INTERNAL void m0_be_ut_free(struct m0_be_ut_backend *ut_be,
 {
 	struct m0_be_allocator *a = m0_be_seg_allocator(ut_seg->bus_seg);
 
-	/* don't use capturing checkers here */
-	M0_BE_UT_TRANSACT(ut_be, NULL, tx, cred,
+	M0_BE_UT_TRANSACT(ut_be, tx, cred,
 			  m0_be_allocator_credit(a, M0_BAO_FREE, 0, 0, &cred),
 			  M0_BE_OP_SYNC(op, m0_be_free(a, tx, &op, ptr)));
-}
-
-static void be_ut_data_save(const char *filename, m0_bcount_t size, void *addr)
-{
-	size_t	written;
-	FILE   *f;
-
-	f = fopen(filename, "w");
-	written = fwrite(addr, size, 1, f);
-	M0_ASSERT(written == 1);
-	fclose(f);
-}
-
-void m0_be_ut_seg_check_persistence(struct m0_be_ut_seg *ut_seg)
-{
-	struct m0_be_seg *seg = ut_seg->bus_seg;
-
-	if (ut_seg->bus_copy == NULL) {
-		ut_seg->bus_copy = m0_alloc(seg->bs_size);
-		M0_ASSERT(ut_seg->bus_copy != NULL);
-	}
-
-	m0_be_seg__read(&M0_BE_REG_SEG(seg), ut_seg->bus_copy);
-
-	if (memcmp(seg->bs_addr, ut_seg->bus_copy, seg->bs_size) != 0) {
-		be_ut_data_save("stob.dat", seg->bs_size, ut_seg->bus_copy);
-		be_ut_data_save("memory.dat", seg->bs_size, seg->bs_addr);
-		M0_IMPOSSIBLE("Segment data differs from stob data");
-	}
 }
 
 void m0_be_ut_seg_reload(struct m0_be_ut_seg *ut_seg)
@@ -755,99 +721,6 @@ void m0_be_ut_seg_allocator_fini(struct m0_be_ut_seg *ut_seg,
 				 struct m0_be_ut_backend *ut_be)
 {
 	be_ut_seg_allocator_initfini(ut_seg->bus_seg, ut_be, false);
-}
-
-M0_INTERNAL void m0_be_ut_txc_init(struct m0_be_ut_txc *tc)
-{
-	M0_PRE(tc->butc_seg_copy.b_addr == NULL);
-	M0_PRE(tc->butc_seg_copy.b_nob  == 0);
-}
-
-static void be_ut_txc_reg_d_apply(struct m0_be_ut_txc *tc,
-				  const struct m0_be_reg_d *rd)
-{
-	const struct m0_be_reg *reg = &rd->rd_reg;
-
-	M0_PRE(rd->rd_reg.br_seg != NULL);
-	M0_PRE(m0_be_reg__invariant(reg));
-	M0_PRE(m0_be_reg_offset(reg) + reg->br_size <= tc->butc_seg_copy.b_nob);
-
-	memcpy(tc->butc_seg_copy.b_addr + m0_be_reg_offset(reg),
-	       reg->br_addr, reg->br_size);
-}
-
-static void be_ut_txc_check_seg(struct m0_be_ut_txc *tc,
-				const struct m0_be_seg *seg,
-				struct m0_be_tx *tx)
-{
-	const char	      *seg_copy_filename = "seg_copy.dat";
-	const char	      *seg_filename	 = "seg.dat";
-	struct m0_be_reg_area *ra = m0_be_tx__reg_area(tx);
-	struct m0_be_reg_d    *rd;
-	bool		       res = true;
-
-	M0_BE_REG_AREA_FORALL(ra, rd) {
-		/*  one segment capturing is supported atm */
-		if (seg == NULL)
-			seg = rd->rd_reg.br_seg;
-		if (rd->rd_reg.br_seg != seg) {
-			res = false;
-			M0_LOG(M0_FATAL, "tx = %p, seg = %p, reg_d seg = %p",
-			       tx, seg, rd->rd_reg.br_seg);
-		/* captured regions shouldn't be modified after capturing */
-		} else if (memcmp(rd->rd_buf, rd->rd_reg.br_addr,
-				  rd->rd_reg.br_size) != 0) {
-			res = false;
-			M0_LOG(M0_FATAL,
-			       "segment modification wasn't captured: "
-			       "seg %p: addr = %p, size = %lu; "
-			       "reg_d %p: reg addr = %p, size = %lu; ",
-			       seg, seg->bs_addr, seg->bs_size,
-			       rd, rd->rd_reg.br_addr, rd->rd_reg.br_size);
-		}
-	}
-	M0_ASSERT(seg->bs_size == tc->butc_seg_copy.b_nob);
-	/* apply captured regions to saved copy of the segment */
-	M0_BE_REG_AREA_FORALL(ra, rd) {
-		be_ut_txc_reg_d_apply(tc, rd);
-	}
-	if (memcmp(seg->bs_addr, tc->butc_seg_copy.b_addr, seg->bs_size) != 0) {
-		res = false;
-		be_ut_data_save(seg_copy_filename, seg->bs_size,
-				tc->butc_seg_copy.b_addr);
-		be_ut_data_save(seg_filename, seg->bs_size, seg->bs_addr);
-		M0_LOG(M0_FATAL, "in-memory segment data differs from captured "
-		       "seg copy saved to %s, in-memory seg saved to %s",
-		       seg_copy_filename, seg_filename);
-	}
-	M0_ASSERT_INFO(res,
-		       "tx capturing check failed. "
-		       "See M0_LOG(M0_FATAL, ...) for ut subsystem");
-}
-
-M0_INTERNAL void m0_be_ut_txc_start(struct m0_be_ut_txc *tc,
-				    struct m0_be_tx *tx,
-				    const struct m0_be_seg *seg)
-{
-	if (seg->bs_size != tc->butc_seg_copy.b_nob) {
-		m0_buf_free(&tc->butc_seg_copy);
-		m0_buf_init(&tc->butc_seg_copy,
-			    m0_alloc(seg->bs_size), seg->bs_size);
-		M0_ASSERT(tc->butc_seg_copy.b_addr != NULL);
-	}
-	memcpy(tc->butc_seg_copy.b_addr, seg->bs_addr, seg->bs_size);
-	be_ut_txc_check_seg(tc, seg, tx);
-}
-
-M0_INTERNAL void m0_be_ut_txc_check(struct m0_be_ut_txc *tc,
-				    struct m0_be_tx *tx)
-{
-	be_ut_txc_check_seg(tc, NULL, tx);
-}
-
-M0_INTERNAL void m0_be_ut_txc_fini(struct m0_be_ut_txc *tc)
-{
-	m0_buf_free(&tc->butc_seg_copy);
 }
 
 #undef M0_TRACE_SUBSYSTEM

@@ -110,21 +110,14 @@ M0_INTERNAL void m0_be_fl_init(struct m0_be_fl *fl, struct m0_be_seg *seg)
 
 	for (i = 0; i < ARRAY_SIZE(fl->bfl_free); ++i)
 		m0_be_list_init(be_fl_list(fl, i), seg);
-
-	/* XXX temporary solution to make capturing checkers pass */
-	m0_be_reg__write(&M0_BE_REG_PTR(seg, fl));      /* XXX */
 }
 
 M0_INTERNAL void m0_be_fl_fini(struct m0_be_fl *fl)
 {
-	struct m0_be_seg *seg = be_fl_list(fl, 0)->bl_seg;
-	int               i;
+	int i;
 
 	for (i = 0; i < ARRAY_SIZE(fl->bfl_free); ++i)
 		m0_be_list_fini(be_fl_list(fl, i));
-
-	/* XXX temporary solution to make capturing checkers pass */
-	m0_be_reg__write(&M0_BE_REG_PTR(seg, fl));      /* XXX */
 }
 
 M0_INTERNAL void m0_be_fl_create(struct m0_be_fl  *fl,
