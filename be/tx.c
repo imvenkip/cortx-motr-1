@@ -200,6 +200,7 @@ M0_INTERNAL void m0_be_tx_init(struct m0_be_tx     *tx,
 	*tx = (struct m0_be_tx){
 		.t_id               = tid,
 		.t_engine           = m0_be_domain_engine(dom),
+		.t_dom              = dom,
 		.t_persistent       = persistent,
 		.t_discarded        = discarded,
 		.t_filler           = filler,
@@ -292,15 +293,27 @@ M0_INTERNAL void m0_be_tx_open(struct m0_be_tx *tx)
 	M0_LEAVE();
 }
 
+static void be_tx_make_reg_d(struct m0_be_tx        *tx,
+                             struct m0_be_reg_d     *rd,
+                             const struct m0_be_reg *reg)
+{
+	struct m0_be_seg *seg;
+
+	/* TODO cache seg if the performance impact is significant */
+	seg = m0_be_domain_seg_by_addr(tx->t_dom, reg->br_addr);
+	*rd = M0_BE_REG_D(M0_BE_REG(reg->br_seg == NULL ? seg : reg->br_seg,
+				    reg->br_size, reg->br_addr), NULL);
+	M0_POST(m0_be_reg__invariant(&rd->rd_reg));
+}
+
 M0_INTERNAL void m0_be_tx_capture(struct m0_be_tx        *tx,
 				  const struct m0_be_reg *reg)
 {
 	struct m0_be_reg_d rd;
 
 	M0_PRE(BE_TX_LOCKED_AT_STATE(tx, (M0_BTS_ACTIVE)));
-	M0_PRE(m0_be_reg__invariant(reg));
 
-	rd = M0_BE_REG_D(*reg, NULL);
+	be_tx_make_reg_d(tx, &rd, reg);
 	rd.rd_gen_idx = m0_be_reg_gen_idx(reg);
 	m0_be_reg_area_capture(&tx->t_reg_area, &rd);
 }
@@ -308,10 +321,12 @@ M0_INTERNAL void m0_be_tx_capture(struct m0_be_tx        *tx,
 M0_INTERNAL void
 m0_be_tx_uncapture(struct m0_be_tx *tx, const struct m0_be_reg *reg)
 {
-	M0_PRE(BE_TX_LOCKED_AT_STATE(tx, (M0_BTS_ACTIVE)));
-	M0_PRE(m0_be_reg__invariant(reg));
+	struct m0_be_reg_d rd;
 
-	m0_be_reg_area_uncapture(&tx->t_reg_area, &M0_BE_REG_D(*reg, NULL));
+	M0_PRE(BE_TX_LOCKED_AT_STATE(tx, (M0_BTS_ACTIVE)));
+
+	be_tx_make_reg_d(tx, &rd, reg);
+	m0_be_reg_area_uncapture(&tx->t_reg_area, &rd);
 }
 
 M0_INTERNAL void m0_be_tx_close(struct m0_be_tx *tx)
