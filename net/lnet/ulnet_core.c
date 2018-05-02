@@ -488,6 +488,7 @@ tFSlSlRddJHYE8Bo5Asr4ZO4DS8/edit?hl=en_US">HLD of Mero LNet Transport</a>
 #include <sys/ioctl.h>
 #include <fcntl.h>
 #include <unistd.h> /* close */
+#include "lib/errno.h"  /* EADDRINUSE */
 
 /**
    @addtogroup ULNetCore
@@ -1139,6 +1140,10 @@ M0_INTERNAL int nlx_core_tm_start(struct nlx_core_domain *cd,
 	utm->utm_magic = 0;
 	m0_free(utm);
  fail_utm:
+	if (rc == -EADDRINUSE)
+		return M0_ERR_INFO(rc, "The address %s is already in use "
+		                   "by another process.",
+		                   tm->ntm_ep->nep_addr);
 	return M0_ERR(rc);
 }
 
