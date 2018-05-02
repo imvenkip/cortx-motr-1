@@ -281,6 +281,12 @@ struct m0_be_tx {
 	/** Transaction identifier, assigned by the engine. */
 	uint64_t               t_id;
 	struct m0_be_engine   *t_engine;
+	/**
+	 * The BE domain can't be changed during the entire lifetime of
+	 * the transaction, so it's safe to read this field at any moment
+	 * between m0_be_tx_init() is called and the transaction is finalised.
+	 */
+	struct m0_be_domain   *t_dom;
 
 	/** Linkage in one of m0_be_tx_engine::eng_txs[] lists. */
 	struct m0_tlink        t_engine_linkage;
