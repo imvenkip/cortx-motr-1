@@ -255,6 +255,29 @@ M0_INTERNAL void m0_be_get(struct m0_be_domain    *dom,
 M0_INTERNAL void m0_be_put(struct m0_be_domain    *dom,
 			   const struct m0_be_reg *reg);
 
+/**
+ * Returns m0_be_seg the void * pointer is a part of.
+ * Returns NULL if there is no such segment.
+ *
+ * Note: please don't cache m0_be_seg if it doesn't significantly improve
+ * the general performance significanly.
+ * @see m0_be_domain_seg_is_valid().
+ */
+M0_INTERNAL struct m0_be_seg *
+m0_be_domain_seg_by_addr(struct m0_be_domain *dom,
+                         void                *addr);
+
+/**
+ * The primary use for this function is to use it with conjunction with
+ * m0_be_domain_seg_by_addr(). The typical use case is to cache the segment and
+ * then check on each access if it's still valid. The pointer can't be just
+ * dereferenced directly because the segment can be destroyed at any moment and
+ * current interface doesn't provide a way to track this event.
+ */
+M0_INTERNAL bool m0_be_domain_seg_is_valid(struct m0_be_domain *dom,
+                                           struct m0_be_seg    *seg);
+
+
 /** @} end of be group */
 #endif /* __MERO_BE_DOMAIN_H__ */
 

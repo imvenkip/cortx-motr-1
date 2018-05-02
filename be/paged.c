@@ -589,6 +589,18 @@ M0_INTERNAL struct m0_be_seg *m0_be_pd_seg_by_id(struct m0_be_pd *pd,
 	return seg;
 }
 
+M0_INTERNAL bool m0_be_pd_seg_is_valid(struct m0_be_pd  *pd,
+                                       struct m0_be_seg *seg)
+{
+	struct m0_be_seg *result;
+
+	be_pd_lock(pd);
+	result = m0_tl_find(seg, s, &pd->bp_segs, seg == s);
+	be_pd_unlock(pd);
+
+	return result != NULL;
+}
+
 M0_INTERNAL struct m0_be_seg *m0_be_pd_seg_first(struct m0_be_pd *pd)
 {
 	struct m0_be_seg *seg;

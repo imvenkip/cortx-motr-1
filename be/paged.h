@@ -156,6 +156,9 @@ M0_INTERNAL struct m0_be_seg *m0_be_pd_seg_by_addr(struct m0_be_pd *pd,
 M0_INTERNAL struct m0_be_seg *m0_be_pd_seg_by_id(struct m0_be_pd *pd,
 						 uint64_t         id);
 
+M0_INTERNAL bool m0_be_pd_seg_is_valid(struct m0_be_pd  *pd,
+                                       struct m0_be_seg *seg);
+
 /* XXX Make a precondition that pd is locked? Or lock it inside the functions
  * and rely on fact, that new segments are added to the tail and first/next
  * will work properly?

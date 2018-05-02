@@ -938,6 +938,23 @@ M0_INTERNAL void m0_be_put(struct m0_be_domain    *dom,
 	m0_be_pd_reg_put(&dom->bd_pd, reg);
 }
 
+M0_INTERNAL struct m0_be_seg *
+m0_be_domain_seg_by_addr(struct m0_be_domain *dom,
+                         void                *addr)
+{
+	return m0_be_pd_seg_by_addr(&dom->bd_pd, addr);
+}
+
+/*
+ * Note: the implementation is not as efficient as it can be for now.
+ * We'll make it more efficient after page daemon is introduced.
+ */
+M0_INTERNAL bool m0_be_domain_seg_is_valid(struct m0_be_domain *dom,
+                                           struct m0_be_seg    *seg)
+{
+	return m0_be_pd_seg_is_valid(&dom->bd_pd, seg);
+}
+
 #undef M0_TRACE_SUBSYSTEM
 /** @} end of be group */
 
