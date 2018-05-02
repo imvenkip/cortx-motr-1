@@ -1759,7 +1759,11 @@ M0_INTERNAL int m0_pools_setup(struct m0_pools_common    *pc,
 	}
 	/* MD pool setup. */
 	pc->pc_md_pool = pool_find(pc, &fs->cf_mdpool);
-	M0_ASSERT(pc->pc_md_pool != NULL);
+	if (pc->pc_md_pool == NULL) {
+		m0_pools_destroy(pc);
+		return M0_ERR_INFO(-ENOENT, "Cannot find metadata pool "FID_F,
+				   FID_P(&fs->cf_mdpool));
+	}
 	M0_LOG(M0_DEBUG, "md_pool="FID_F, FID_P(&fs->cf_mdpool));
 
 	dix_pool_setup(pc, &fs->cf_imeta_pver);
