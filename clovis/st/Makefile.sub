@@ -31,7 +31,6 @@ EXTRA_DIST  += clovis/st/utils/clovis_local_conf.sh \
 	       clovis/st/utils/clovis_sys_test.sh \
 	       clovis/st/utils/clovis_mero_st.sh \
 	       clovis/st/utils/clovis_device_util.sh \
-	       clovis/st/utils/clovis_dgmode_io_demo.sh \
 	       clovis/st/utils/mero_fs.sh \
 	       clovis/st/utils/mero_services.sh \
 	       clovis/st/linux_kernel/clovis_st_kmain.c

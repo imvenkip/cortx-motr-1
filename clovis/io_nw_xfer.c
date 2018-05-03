@@ -837,6 +837,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 
 		rw_fop->crw_fid = ti->ti_fid;
 		rw_fop->crw_pver = ioo->ioo_pver;
+		rw_fop->crw_index = ti->ti_obj;
 
 		/*
 		 * XXX(Sining): This is a bit tricky: m0_io_fop_prepare in
