@@ -365,19 +365,19 @@ def build_disk_info(host, disk_path, index)
     is_fake = false
 
     size = $options[:devsize] ||
-           run("blockdev --getsize64 #{disk_path} 2>/dev/null", host: host)
+           run("sudo blockdev --getsize64 #{disk_path} 2>/dev/null", host: host)
 
     die "[#{host}]: failed to obtain device size for '#{disk_path}' disk" \
         if size.nil?
 
-    serial = run("lsblk -ndo SERIAL #{disk_path} 2>/dev/null", host: host)
+    serial = run("sudo lsblk -ndo SERIAL #{disk_path} 2>/dev/null", host: host)
     if serial.to_s.strip.empty?
         is_fake = true
         stob    = size.to_i.zero? ? 'STOBLNX' : 'STOBAD'
         serial  = stob + format('%03d', index)
     end
 
-    wwn = run("lsblk -ndo WWN #{disk_path} 2>/dev/null", host: host)
+    wwn = run("sudo lsblk -ndo WWN #{disk_path} 2>/dev/null", host: host)
     wwn = '0x0000000' + format('%04d', index) if wwn.to_s.strip.empty?
 
     return {
