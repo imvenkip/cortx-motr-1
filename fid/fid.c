@@ -324,7 +324,8 @@ M0_INTERNAL bool m0_fid_arr_eq(const struct m0_fid_arr *a,
 
 M0_INTERNAL bool m0_fid_arr_all_unique(const struct m0_fid_arr *a)
 {
-	int i, j;
+	int i;
+	int j;
 
 	for (i = 0; i < a->af_count; ++i) {
 		for (j = i + 1; j < a->af_count; ++j)
