@@ -12,7 +12,7 @@
     name:  '{{ mero_build_deps_pkgs }}'
   tags: breaks-dry-run
 
-- name: Enable '{{ ansible_user }}' user to run `mock` w/o sudo
+- name: enable '{{ ansible_user }}' user to run `mock` w/o sudo
   user:
     name: '{{ ansible_user }}'
     groups: mock
@@ -20,20 +20,103 @@
   when: ansible_user != 'root'
   tags: test
 
-- name: check Lustre src dir
-  shell: ls -1rd /usr/src/lustre-* | head -n 1
-  register: lustre_src_dir
-  changed_when: false
-  tags: lustre
+- name: build Lustre using dkms sources
+  block:
+    - name: install lustre-client-dkms package
+      package:
+        state: present
+        name:  lustre-client-dkms
 
-- name: build Lustre sources
-  command: '{{ item }}'
-  args:
-    chdir: '{{ lustre_src_dir.stdout }}'
-    creates: Module.symvers
-  with_items:
-    - ./configure
-    - make -j4
+    - name: check Lustre src dir
+      shell: ls -1rd /usr/src/lustre-* | head -n 1
+      register: lustre_src_dir
+      changed_when: false
+
+    - name: build Lustre sources
+      command: '{{ item }}'
+      args:
+        chdir: '{{ lustre_src_dir.stdout }}'
+        creates: Module.symvers
+      with_items:
+        - ./configure
+        - make -j4
   tags:
-    - lustre
     - breaks-dry-run
+    - lustre-dkms
+    - never
+
+- name: build Lustre devel rpm
+  block:
+    - name: download Lustre src rpm
+      command: yumdownloader --source lustre
+      args:
+        chdir: /root
+        creates: ~/lustre-*.src.rpm
+
+    - name: install Lustre src rpm
+      command: rpm -ihv ~/lustre-*.src.rpm
+      args:
+        creates: ~/rpmbuild/SPECS/lustre.spec
+
+    - name: apply Lustre spec patch
+      patch:
+        src: ../../patches/lustre-intel/lustre-2.9.0.spec.patch
+        dest: ~/rpmbuild/SPECS/lustre.spec
+        strip: 1
+      tags: breaks-dry-run
+
+    - name: install Lustre rpm build dependencies
+      command: yum-builddep -y ~/rpmbuild/SPECS/lustre.spec
+      register: builddep_result
+      changed_when: '"No uninstalled build requires" not in builddep_result.stdout'
+
+    - name: build Lustre rpms
+      command: |
+        rpmbuild -bb --without servers \
+                 --define 'configure_args --disable-gss-keyring' \
+                 {{ '--define kver\ ' + ansible_env.lustre_kver if ansible_env.lustre_kver is defined }} \
+                 ~/rpmbuild/SPECS/lustre.spec
+      args:
+        creates: ~/rpmbuild/RPMS/x86_64/lustre-client-devel-*.rpm
+
+    - name: read Lustre devel package filename
+      shell: ls ~/rpmbuild/RPMS/x86_64/lustre-client-devel-*.rpm
+      register: lustre_devel_rpm
+      changed_when: false
+
+    - name: create local repo dir
+      file:
+        path: /var/lib/yum/localrepos/lustre-local
+        state: directory
+        mode: 0755
+
+    - name: copy Lustre devel rpm to local repo
+      copy:
+        src: '{{ lustre_devel_rpm.stdout }}'
+        dest: /var/lib/yum/localrepos/lustre-local
+        remote_src: yes
+      tags: breaks-dry-run
+
+    - name: create local repo
+      command: createrepo -p .
+      args:
+        chdir: /var/lib/yum/localrepos/lustre-local
+        creates: repodata
+
+    - name: add local repo yum config
+      yum_repository:
+        name:        lustre-local
+        file:        lustre-local
+        description: Lustre local
+        baseurl:     file:///var/lib/yum/localrepos/lustre-local
+        enabled:     yes
+        gpgcheck:    no
+
+    - name: install Lustre devel rpm
+      yum:
+        name: lustre-client-devel
+        state: present
+  when: ansible_os_family == 'RedHat'
+  tags:
+    - lustre-devel
+    - lustre
