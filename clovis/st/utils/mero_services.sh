@@ -23,16 +23,17 @@ echo "$M0T1FS_ST_DIR"
 
 
 # start | stop service
+multiple_pools_flag=1
 case "$1" in
     start)
-	mero_service start
+	mero_service start $multiple_pools_flag
 	if [ $? -ne "0" ]
 	then
 		echo "Failed to start Mero Service."
 	fi
 	;;
     stop)
-	mero_service stop
+	mero_service stop $multiple_pools_flag
 	echo "Mero services stopped."
 	;;
     *)

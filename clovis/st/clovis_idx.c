@@ -347,7 +347,7 @@ static int idx_create_one(struct m0_uint128 id)
 	/* Set an index creation operation. */
 	clovis_st_idx_init(&idx,
 		&clovis_st_idx_container.co_realm, &id);
-	clovis_st_entity_create(&idx.in_entity, &ops[0]);
+	clovis_st_entity_create(NULL, &idx.in_entity, &ops[0]);
 
 	/* Launch and wait for op to complete */
 	clovis_st_op_launch(ops, 1);
@@ -962,7 +962,7 @@ static void idx_query_callbacks(void)
 
 	clovis_st_idx_init(&idx,
 		&clovis_st_idx_container.co_realm, &id);
-	clovis_st_entity_create(&idx.in_entity, &ops[0]);
+	clovis_st_entity_create(NULL, &idx.in_entity, &ops[0]);
 
 	/* Launch and wait for op to complete */
 	ops[0]->op_datum = (void *)&val;

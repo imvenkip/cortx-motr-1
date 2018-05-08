@@ -1225,7 +1225,7 @@ static int create_index(struct m0_uint128 id)
 	/* Set an index creation operation. */
 	m0_clovis_idx_init(&idx, crate_clovis_uber_realm(), &id);
 
-	rc = m0_clovis_entity_create(&idx.in_entity, &ops[0]);
+	rc = m0_clovis_entity_create(NULL, &idx.in_entity, &ops[0]);
 	if (rc == 0) {
 		/* Launch and wait for op to complete */
 		m0_clovis_op_launch(ops, 1);

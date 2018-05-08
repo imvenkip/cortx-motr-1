@@ -166,25 +166,8 @@ M0_INTERNAL struct m0_fid m0_clovis__obj_pver(struct m0_clovis_obj *obj)
 	return obj->ob_attr.oa_pver;
 }
 
-/*
- * Pick a locality: Mero and the new locality interface(chore) now uses TLS to
- * store data and these data are set when a "mero" thread is created.
- * An application thread (not the main thread calling m0_init, considering ST
- * multi-threading framework), it doesn't have the same TLS by nature, which
- * causes a problem when it calls mero functions like m0_locality_here/get
- * directly as below.
- *
- * Ensure to use m0_thread_adopt/shun to make a thread (non-)meroism when a
- * thread starts/ends.
- *
- * TODO: more intelligent locality selection policy based on fid and workload.
- */
-M0_INTERNAL struct m0_locality *m0_clovis_locality_pick(struct m0_clovis *cinst)
-{
-	return  m0_locality_here();
-}
-
-M0_INTERNAL bool clovis__poolversion_is_valid(const struct m0_clovis_obj *obj)
+M0_INTERNAL bool
+m0_clovis__obj_pool_version_is_valid(const struct m0_clovis_obj *obj)
 {
 	struct m0_clovis *cinst;
 
@@ -324,20 +307,38 @@ static void clovis_obj_namei_cb_fini(struct m0_clovis_op_common *oc)
 }
 
 M0_INTERNAL int
-m0_clovis__pool_version_get(struct m0_clovis *instance,
-	 		    struct m0_pool_version **pv)
+m0_clovis__obj_pool_version_get(struct m0_clovis_obj *obj,
+				struct m0_pool_version **pv)
 {
-	int rc;
+	int               rc;
+	struct m0_clovis *cinst;
+	struct m0_fid    *pool;
+
+	M0_ENTRY();
+
+	cinst = m0_clovis__obj_instance(obj);
 
 	if (M0_FI_ENABLED("fake_pool_version")) {
-		*pv = instance->m0c_pools_common.pc_cur_pver;
 		if (pv == NULL)
 			return M0_ERR(-ENOENT);
+		*pv = cinst->m0c_pools_common.pc_cur_pver;
 		return 0;
 	}
 
-	/* Get pool version */
-	rc = m0_pool_version_get(&instance->m0c_pools_common, NULL, pv);
+	/** Validate the cached pool version. */
+	if (m0_clovis__obj_pool_version_is_valid(obj)) {
+		*pv = m0_pool_version_find(&cinst->m0c_pools_common,
+					   &obj->ob_attr.oa_pver);
+		rc = (*pv != NULL)? 0 : -ENOENT;
+	} else {
+		pool = m0_fid_is_set(&obj->ob_attr.oa_pool)?
+		       &obj->ob_attr.oa_pool : NULL;
+		rc = m0_pool_version_get(&cinst->m0c_pools_common, pool, pv);
+		if (rc != 0)
+			return M0_ERR(rc);
+		M0_ASSERT(*pv != NULL);
+	}
+
 	return M0_RC(rc);
 }
 
@@ -525,7 +526,7 @@ error:
  */
 static int clovis_obj_op_obj_init(struct m0_clovis_op_obj *oo)
 {
-	struct m0_clovis       *cinst;
+	int                     rc;
 	struct m0_locality     *locality;
 	struct m0_pool_version *pv;
 	struct m0_clovis_obj   *obj;
@@ -536,26 +537,15 @@ static int clovis_obj_op_obj_init(struct m0_clovis_op_obj *oo)
 					       M0_CLOVIS_EO_DELETE,
 					       M0_CLOVIS_EO_OPEN)));
 
-	cinst = m0_clovis__oo_instance(oo);
-	M0_ASSERT(cinst != NULL);
-
+	/** Get the object's pool version. */
 	obj = m0_clovis__obj_entity(oo->oo_oc.oc_op.op_entity);
-
-	/** Validate the cached pool version. */
-	if (clovis__poolversion_is_valid(obj))
-		oo->oo_pver = m0_clovis__obj_pver(obj);
-	else {
-		/** Get the latest pool version. */
-		if (m0_clovis__pool_version_get(cinst, &pv) != 0)
-			return M0_ERR(-ENOENT);
-
-		oo->oo_pver = pv->pv_id;
-		/* Cache the valid pool version in object structure. */
-		obj->ob_attr.oa_pver = oo->oo_pver;
-	}
+	rc = m0_clovis__obj_pool_version_get(obj, &pv);
+	if (rc != 0)
+		return M0_ERR(rc);
+	oo->oo_pver = pv->pv_id;
 
 	/** TODO: hash the fid to chose a locality */
-	locality = m0_clovis_locality_pick(cinst);
+	locality = m0_clovis__locality_pick(m0_clovis__oo_instance(oo));
 	M0_ASSERT(locality != NULL);
 	oo->oo_sm_grp = locality->lo_grp;
 	M0_SET0(&oo->oo_ar);
@@ -711,13 +701,22 @@ error:
 	return M0_ERR(rc);
 }
 
-int m0_clovis_entity_create(struct m0_clovis_entity *entity,
+int m0_clovis_entity_create(struct m0_fid *pool,
+			    struct m0_clovis_entity *entity,
 			    struct m0_clovis_op **op)
 {
+	struct m0_clovis_obj *obj;
+
 	M0_ENTRY();
 
 	M0_PRE(entity != NULL);
 	M0_PRE(op != NULL);
+
+	/* Currently, pool selection is only for objects. */
+	if (entity->en_type == M0_CLOVIS_ET_OBJ && pool != NULL) {
+		obj = M0_AMB(obj, entity, ob_entity);
+		obj->ob_attr.oa_pool = *pool;
+	}
 
 	return M0_RC(clovis_entity_namei_op(entity, op, M0_CLOVIS_EO_CREATE));
 }

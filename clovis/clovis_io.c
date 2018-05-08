@@ -434,7 +434,7 @@ static int clovis_obj_io_init(struct m0_clovis_obj      *obj,
 		ioo->ioo_failed_session[i] = ~(uint64_t)0;
 
 	/* Initialise the state machine */
-	locality = m0_clovis_locality_pick(cinst);
+	locality = m0_clovis__locality_pick(cinst);
 	M0_ASSERT(locality != NULL);
 	ioo->ioo_oo.oo_sm_grp = locality->lo_grp;
 	m0_sm_init(&ioo->ioo_sm, &io_sm_conf, IRS_INITIALIZED,

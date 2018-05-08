@@ -124,7 +124,7 @@ static int create_object(struct m0_uint128 id)
 
 	open_entity(&obj.ob_entity);
 
-	m0_clovis_entity_create(&obj.ob_entity, &ops[0]);
+	m0_clovis_entity_create(NULL, &obj.ob_entity, &ops[0]);
 
 	m0_clovis_op_launch(ops, ARRAY_SIZE(ops));
 

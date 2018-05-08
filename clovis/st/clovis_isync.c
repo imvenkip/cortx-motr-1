@@ -235,7 +235,7 @@ static int idx_create_or_delete(int opcode, struct m0_uint128 id,
 	clovis_st_idx_init(idx,
 		&clovis_st_isync_container.co_realm, &id);
 	if (opcode == IDX_CREATE)
-		clovis_st_entity_create(&idx->in_entity, &ops[0]);
+		clovis_st_entity_create(NULL, &idx->in_entity, &ops[0]);
 	else {
 		clovis_st_idx_open(&idx->in_entity);
 		clovis_st_entity_delete(&idx->in_entity, &ops[0]);

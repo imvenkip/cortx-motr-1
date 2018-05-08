@@ -195,7 +195,7 @@ static void ut_dix_namei_ops(bool dist)
 	general_ifid_fill(&ifid, dist);
 	/* Create the index. */
 	m0_clovis_idx_init(&idx, &realm.co_realm, (struct m0_uint128 *)&ifid);
-	rc = m0_clovis_entity_create(&idx.in_entity, &op);
+	rc = m0_clovis_entity_create(NULL, &idx.in_entity, &op);
 	M0_UT_ASSERT(rc == 0);
 	m0_clovis_op_launch(&op, 1);
 	rc = m0_clovis_op_wait(op, M0_BITS(M0_CLOVIS_OS_STABLE), WAIT_TIMEOUT);
@@ -205,7 +205,7 @@ static void ut_dix_namei_ops(bool dist)
 
 	/* Create an index with the same fid once more => -EEXIST. */
 	m0_clovis_idx_init(&idup, &realm.co_realm, (struct m0_uint128 *)&ifid);
-	rc = m0_clovis_entity_create(&idup.in_entity, &op);
+	rc = m0_clovis_entity_create(NULL, &idup.in_entity, &op);
 	M0_UT_ASSERT(rc == 0);
 	m0_clovis_op_launch(&op, 1);
 	rc = m0_clovis_op_wait(op, M0_BITS(M0_CLOVIS_OS_FAILED), WAIT_TIMEOUT);
@@ -317,7 +317,7 @@ static void ut_dix_record_ops(bool dist)
 	m0_clovis_idx_init(&idx, &realm.co_realm, (struct m0_uint128 *)&ifid);
 
 	/* Create index. */
-	rc = m0_clovis_entity_create(&idx.in_entity, &op);
+	rc = m0_clovis_entity_create(NULL, &idx.in_entity, &op);
 	M0_UT_ASSERT(rc == 0);
 	m0_clovis_op_launch(&op, 1);
 	rc = m0_clovis_op_wait(op, M0_BITS(M0_CLOVIS_OS_STABLE), WAIT_TIMEOUT);

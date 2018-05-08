@@ -107,7 +107,7 @@ static int create_index(struct m0_fid fid)
 	/* Set an index creation operation. */
 	m0_clovis_idx_init(&idx,
 		&clovis_container.co_realm, (struct m0_uint128 *)&fid);
-	m0_clovis_entity_create(&idx.in_entity, &ops[0]);
+	m0_clovis_entity_create(NULL, &idx.in_entity, &ops[0]);
 
 	/* Launch and wait for op to complete */
 	m0_clovis_op_launch(ops, 1);

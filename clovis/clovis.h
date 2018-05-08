@@ -277,7 +277,7 @@
  *
  * // initiate object creation. m0_clovis_entity_create() allocated the
  * // operation and stores the pointer to it in ops[0].
- * m0_clovis_entity_create(&o.ob_entity, &ops[0]);
+ * m0_clovis_entity_create(NULL, &o.ob_entity, &ops[0]);
  *
  * // initiate write data in the object.
  * result = m0_clovis_obj_op(&o, M0_CLOVIS_OC_WRITE, ..., &ops[1]);
@@ -684,6 +684,14 @@ struct m0_clovis_obj_attr {
 
 	/** Layout ID for an object. */
 	uint64_t      oa_layout_id;
+
+	/**
+	 * The pool this object stores data to. A pool can be selected when
+	 * creating an object by specifying this field. A pool version matching
+	 * the specified pool fid is then chosen for the object. The pool
+	 * version is then stored as one of its attributes in service's backend.
+	 */
+	struct m0_fid oa_pool;
 
 	/** Pool version fid */
 	struct m0_fid oa_pver;
@@ -1209,6 +1217,8 @@ void m0_clovis_realm_close(struct m0_clovis_realm   *realm,
 /**
  * Sets an operation to create or delete an entity.
  *
+ * @param pool Specify the pool to store the entity if it is not NULL,
+ * otherwise a pool selected by internal policy is used.
  * @param entity In-memory representation of the entity that is to be created.
  * @param[out] op Pointer to the operation. The operation can be pre-allocated
  * by the application. Otherwise, this entry point will allocate it.
@@ -1218,7 +1228,8 @@ void m0_clovis_realm_close(struct m0_clovis_realm   *realm,
  * @pre op != NULL
  */
 /**@{*/
-int m0_clovis_entity_create(struct m0_clovis_entity *entity,
+int m0_clovis_entity_create(struct m0_fid *pool,
+			    struct m0_clovis_entity *entity,
 			    struct m0_clovis_op **op);
 int m0_clovis_entity_delete(struct m0_clovis_entity *entity,
 			    struct m0_clovis_op **op);

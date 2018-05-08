@@ -1124,7 +1124,7 @@ static int composite_io_op_init(struct m0_clovis_obj *obj,
 	oc->oc_cb_free = composite_io_op_cb_free;
 
 	/* Set locality for this op. */
-	locality = m0_clovis_locality_pick(cinst);
+	locality = m0_clovis__locality_pick(cinst);
 	M0_ASSERT(locality != NULL);
 	oo->oo_sm_grp = locality->lo_grp;
 

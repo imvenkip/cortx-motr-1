@@ -66,7 +66,7 @@ static int create_obj(struct m0_uint128 *oid)
 	clovis_st_obj_init(&obj, &clovis_st_osync_container.co_realm,
 			   &id, layout_id);
 
-	clovis_st_entity_create(&obj.ob_entity, &ops[0]);
+	clovis_st_entity_create(NULL, &obj.ob_entity, &ops[0]);
 	if (ops[0] == NULL)
 		return -ENOENT;
 

@@ -381,7 +381,7 @@ int cr_namei_create(struct clovis_workload_io *cwi,
 		    int                        free_slot,
 		    int                        op_index)
 {
-	return m0_clovis_entity_create(&obj->ob_entity,
+	return m0_clovis_entity_create(NULL, &obj->ob_entity,
 				       &cti->cti_ops[free_slot]);
 }
 

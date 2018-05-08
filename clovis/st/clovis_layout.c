@@ -68,7 +68,7 @@ static int create_obj(struct m0_uint128 id)
 	clovis_st_obj_init(obj, &clovis_st_layout_container.co_realm,
 			   &id, layout_id);
 
-	rc = clovis_st_entity_create(&obj->ob_entity, &ops[0]);
+	rc = clovis_st_entity_create(NULL, &obj->ob_entity, &ops[0]);
 	rc = rc?:ops[0]->op_sm.sm_rc;
 	if (rc != 0) {
 		mem_free(obj);

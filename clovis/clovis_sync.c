@@ -953,7 +953,7 @@ static int clovis_sync_op_init(struct m0_clovis_op *op)
 	os->os_req = sreq;
 
 	/* Picks a locality thread for this op. */
-	locality = m0_clovis_locality_pick(NULL);
+	locality = m0_clovis__locality_pick(NULL);
 	M0_ASSERT(locality != NULL);
 	os->os_sm_grp = locality->lo_grp;
 	M0_SET0(&os->os_ar);

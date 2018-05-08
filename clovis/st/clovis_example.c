@@ -111,7 +111,7 @@ static void example_abitmorecomplicated(void)
 				CLOVIS_ST_ASSERT_FATAL(ops[j] != NULL);
 			} else {
 				rc = clovis_st_entity_create(
-					&objs[idx].ob_entity, &ops[j]);
+					NULL, &objs[idx].ob_entity, &ops[j]);
 				obj_exists[idx] = true;
 				CLOVIS_ST_ASSERT_FATAL(ops[j] != NULL);
 			}
@@ -186,7 +186,8 @@ static void example_simple(void)
 		clovis_st_obj_init(objs[i],
 			&clovis_st_example_container.co_realm,
 			&ids[i], layout_id);
-		rc = clovis_st_entity_create(&objs[i]->ob_entity, &ops[i]);
+		rc = clovis_st_entity_create(NULL,
+					     &objs[i]->ob_entity, &ops[i]);
 		CLOVIS_ST_ASSERT_FATAL(rc == 0);
 		CLOVIS_ST_ASSERT_FATAL(ops[i] != NULL);
 		CLOVIS_ST_ASSERT_FATAL(ops[i]->op_sm.sm_rc == 0);

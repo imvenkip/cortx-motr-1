@@ -1711,13 +1711,15 @@ M0_INTERNAL int m0_clovis__obj_attr_get_sync(struct m0_clovis_obj *obj)
 
  	M0_PRE(obj != NULL);
  	cinst = m0_clovis__obj_instance(obj);
- 	rc = m0_pool_version_get(&cinst->m0c_pools_common, NULL, &pv);
- 	M0_ASSERT(rc == 0);
+	rc = m0_clovis__obj_pool_version_get(obj, &pv);
+	if (rc != 0)
+		return M0_ERR(rc);
+
+	/* Allocate and initialise cob request. */
  	cr = clovis_cob_req_alloc(pv);
  	if (cr == NULL)
- 		return -ENOMEM;
+		return M0_ERR(-ENOMEM);
 
-	/* Initialise cob request. */
  	m0_fid_gob_make(&cr->cr_fid,
  			obj->ob_entity.en_id.u_hi, obj->ob_entity.en_id.u_lo);
  	cr->cr_flags |= CLOVIS_COB_REQ_SYNC;
