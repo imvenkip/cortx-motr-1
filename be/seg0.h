@@ -98,6 +98,14 @@ void m0_be_0type_add_credit(struct m0_be_domain *dom,
 /**
  * Adds a record about 0type instance to the seg0 dictionary.
  */
+int m0_be_0type_create(struct m0_be_0type  *zt,
+		       struct m0_be_domain *dom,
+		       struct m0_be_tx     *tx,
+		       const char          *suffix,
+		       const struct m0_buf *data);
+/**
+ * Adds a record about 0type instance to the seg0 dictionary and initialises it.
+ */
 int m0_be_0type_add(struct m0_be_0type  *zt,
 		    struct m0_be_domain *dom,
 		    struct m0_be_tx     *tx,

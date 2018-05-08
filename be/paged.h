@@ -123,6 +123,11 @@ struct m0_be_pd_cfg {
 M0_INTERNAL int m0_be_pd_init(struct m0_be_pd           *pd,
                               const struct m0_be_pd_cfg *pd_cfg);
 M0_INTERNAL void m0_be_pd_fini(struct m0_be_pd *pd);
+/**
+ * Finalises paged and destroys segments stob domain. This is asymmetric
+ * function, because "create" is done in m0_be_pd_init() implicitly.
+ */
+M0_INTERNAL int m0_be_pd_destroy(struct m0_be_pd *pd);
 
 
 /* Segments */

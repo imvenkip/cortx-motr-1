@@ -480,8 +480,7 @@ m0_be_domain_seg_create(struct m0_be_domain               *dom,
 	struct m0_be_tx_credit  cred = {};
 	struct m0_be_tx         tx_ = {};
 	struct m0_sm_group     *grp = m0_locality0_get()->lo_grp;
-	struct m0_be_seg       *seg;
-	struct m0_be_seg        seg1 = {};
+	struct m0_be_seg       *seg = NULL;
 	bool                    use_local_tx = tx == NULL;
 	bool                    tx_is_open;
 	char                    suffix[64];
@@ -505,41 +504,34 @@ m0_be_domain_seg_create(struct m0_be_domain               *dom,
 		rc = 0;
 		tx_is_open = false;
 	}
-	rc = rc ?: be_domain_seg_create(dom, &seg1, seg_cfg);
 	if (rc == 0) {
-		/*
-		 * Close segment here, because it will be open by
-		 * m0_be_0type_add().
-		 *
-		 * XXX FIXME BE domain initialises seg_dict and allocator two
-		 * times before they are created. First time in
-		 * be_domain_seg_create() and second time in m0_be_0type_add().
-		 * Also be_domain_seg_structs_create() is called after the
-		 * segment is accessible by users. As result users may get a
-		 * segment with incorrect seg_dict/allocator state.
-		 * The reason of such a design is that the tx may be an external
-		 * transaction and it would need to be closed before closing the
-		 * segment and calling m0_be_0type_add().
-		 *
-		 * As a solution we can make 0type_create() interface which does
-		 * not initialises segment in opposite to 0type_add(). In this
-		 * case we don't need to close segment and can "add" 0type,
-		 * create dict/alloc within the same tx.
-		 */
-		be_domain_seg_close(dom, &seg1);
-		rc = m0_be_0type_add(&dom->bd_0type_seg, dom, tx, suffix,
-				     &M0_BUF_INIT_PTR_CONST(seg_cfg));
+		M0_ALLOC_PTR(seg);
+		if (seg == NULL)
+			rc = M0_ERR(-ENOMEM);
+	}
+	rc = rc ?: be_domain_seg_create(dom, seg, seg_cfg);
+	if (rc == 0) {
+		rc = m0_be_0type_create(&dom->bd_0type_seg, dom, tx, suffix,
+					&M0_BUF_INIT_PTR_CONST(seg_cfg));
 		if (rc == 0) {
-			seg = m0_be_domain_seg(dom, seg_cfg->bsc_addr);
-			M0_ASSERT(seg != NULL);
+			M0_ASSERT(seg == m0_be_domain_seg(dom,
+							  seg_cfg->bsc_addr));
 			rc = be_domain_seg_structs_create(dom, tx, seg);
 			if (rc != 0) {
 				rc1 = m0_be_0type_del(&dom->bd_0type_seg, dom,
 						      tx, suffix);
 				M0_ASSERT_INFO(rc1 != 0, "rc1 = %d", rc1);
 			}
+			/*
+			 * TODO Segments search interfaces should return `seg`
+			 * only after this point.
+			 */
 		}
 		if (rc != 0) {
+			/*
+			 * XXX If be_domain_seg_structs_create() fails, the tx
+			 * may contain "undo" regions in the destroyed segment.
+			 */
 			rc1 = be_domain_seg_destroy(dom, seg_cfg->bsc_stob_key);
 			if (rc1 != 0)
 				M0_LOG(M0_ERROR, "can't destroy segment "
@@ -555,8 +547,7 @@ m0_be_domain_seg_create(struct m0_be_domain               *dom,
 		m0_sm_group_unlock(grp);
 	}
 	if (out != NULL) {
-		*out = rc != 0 ? NULL :
-				 m0_be_domain_seg(dom, seg_cfg->bsc_addr);
+		*out = rc != 0 ? NULL : seg;
 	}
 	return M0_RC(rc);
 }
@@ -781,15 +772,12 @@ static void be_domain_level_leave(struct m0_module *module)
 			m0_be_log_close(&dom->bd_engine.eng_log);
 		break;
 	case M0_BE_DOMAIN_LEVEL_PD_INIT:
-		m0_be_pd_fini(&dom->bd_pd);
 		if (dom->bd_cfg.bc_destroy_on_fini) {
-			/* XXX This logic should be moved to be/pd.c */
-			rc = m0_stob_domain_destroy_location(
-				dom->bd_cfg.bc_pd_cfg.bpc_stob_domain_location);
+			rc = m0_be_pd_destroy(&dom->bd_pd);
 			if (rc != 0)
-				M0_LOG(M0_ERROR, "segments stob domain "
-						 "destroying failed rc=%d", rc);
-		}
+				M0_LOG(M0_ERROR, "Cannot destroy pd rc=%d", rc);
+		} else
+			m0_be_pd_fini(&dom->bd_pd);
 		break;
 	case M0_BE_DOMAIN_LEVEL_NORMAL_SEG0_OPEN:
 		/*

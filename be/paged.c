@@ -29,6 +29,7 @@
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/misc.h"        /* M0_AMB */
+#include "lib/string.h"      /* m0_strdup */
 #include "lib/assert.h"
 #include "mero/magic.h"
 #include "be/domain.h"       /* m0_be_0type_seg_cfg */
@@ -203,6 +204,21 @@ M0_INTERNAL int m0_be_pd_init(struct m0_be_pd           *pd,
 M0_INTERNAL void m0_be_pd_fini(struct m0_be_pd *pd)
 {
 	m0_module_fini(&pd->bp_module, M0_MODLEV_NONE);
+}
+
+M0_INTERNAL int m0_be_pd_destroy(struct m0_be_pd *pd)
+{
+	char *sdom_location = m0_strdup(pd->bp_cfg.bpc_stob_domain_location);
+	int   rc;
+
+	m0_be_pd_fini(pd);
+
+	if (sdom_location == NULL)
+		return M0_ERR(-ENOMEM);
+	rc = m0_stob_domain_destroy_location(sdom_location);
+	m0_free(sdom_location);
+
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_be_pd_reg_get(struct m0_be_pd      *paged,

@@ -74,11 +74,11 @@ void m0_be_0type_unregister(struct m0_be_domain *dom, struct m0_be_0type *zt)
 	m0_be_domain__0type_unregister(dom, zt);
 }
 
-int m0_be_0type_add(struct m0_be_0type  *zt,
-		    struct m0_be_domain *dom,
-		    struct m0_be_tx     *tx,
-		    const char          *suffix,
-		    const struct m0_buf *data)
+int m0_be_0type_create(struct m0_be_0type  *zt,
+		       struct m0_be_domain *dom,
+		       struct m0_be_tx     *tx,
+		       const char          *suffix,
+		       const struct m0_buf *data)
 {
 	struct m0_be_seg *seg;
 	struct m0_buf    *opt;
@@ -100,11 +100,21 @@ int m0_be_0type_add(struct m0_be_0type  *zt,
 	M0_BE_TX_CAPTURE_PTR(seg, tx, opt);
 	M0_BE_TX_CAPTURE_BUF(seg, tx, opt);
 	rc = m0_be_seg_dict_insert(seg, tx, keyname, (void*)opt);
-	if (rc != 0)
-		return M0_RC(rc);
 
+	return M0_RC(rc);
+}
+
+int m0_be_0type_add(struct m0_be_0type  *zt,
+		    struct m0_be_domain *dom,
+		    struct m0_be_tx     *tx,
+		    const char          *suffix,
+		    const struct m0_buf *data)
+{
+	int rc;
+
+	rc = m0_be_0type_create(zt, dom, tx, suffix, data);
 	/* XXX error handling is missing here: what if b0_init() fails? */
-	return zt->b0_init(dom, suffix, opt);
+	return rc ?: zt->b0_init(dom, suffix, data);
 }
 
 int m0_be_0type_del(struct m0_be_0type  *zt,
