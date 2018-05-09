@@ -74,7 +74,7 @@
       command: |
         rpmbuild -bb --without servers \
                  --define 'configure_args --disable-gss-keyring' \
-                 {{ '--define kver\ ' + ansible_env.lustre_kver if ansible_env.lustre_kver is defined }} \
+                 {{ '--define kver\ ' + ansible_env.lustre_kver if ansible_env.lustre_kver is defined else '' }} \
                  ~/rpmbuild/SPECS/lustre.spec
       args:
         creates: ~/rpmbuild/RPMS/x86_64/lustre-client-devel-*.rpm
