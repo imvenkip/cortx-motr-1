@@ -32,5 +32,4 @@ redhat_vault_repo_versions:
   - C7.1.1503
   - C7.2.1511
   - C7.3.1611
-  # TODO: enable when 7.5 forks off
-  #- C7.4.1708
+  - C7.4.1708
