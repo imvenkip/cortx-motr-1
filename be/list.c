@@ -71,7 +71,6 @@ M0_INTERNAL void m0_be_list_credit(const struct m0_be_list *list,
 		m0_be_tx_credit_add(&cred, &cred_tlink);
 		m0_be_tx_credit_add(&cred, &cred_tlink_magic);
 		break;
-	case M0_BLO_MOVE:
 	default:
 		M0_IMPOSSIBLE("");
 	};
@@ -81,22 +80,12 @@ M0_INTERNAL void m0_be_list_credit(const struct m0_be_list *list,
 }
 
 
-M0_INTERNAL void m0_be_list_init(struct m0_be_list *list,
-				 struct m0_be_seg  *seg)
-{
-	list->bl_seg = seg;
-}
-
-M0_INTERNAL void m0_be_list_fini(struct m0_be_list *list)
-{
-}
-
 static void be_tlink_capture(struct m0_tlink   *tlink,
 			     struct m0_be_list *list,
 			     struct m0_be_tx   *tx)
 {
 	if (tlink != NULL)
-		M0_BE_TX_CAPTURE_PTR(list->bl_seg, tx, tlink);
+		M0_BE_TX_CAPTURE_PTR(NULL, tx, tlink);
 }
 
 static void be_tlink_capture_magic(struct m0_tlink   *tlink,
@@ -108,14 +97,14 @@ static void be_tlink_capture_magic(struct m0_tlink   *tlink,
 	if (tlink != NULL) {
 		magic = (void *) tlink - list->bl_descr.td_link_offset +
 					 list->bl_descr.td_link_magic_offset;
-		M0_BE_TX_CAPTURE_PTR(list->bl_seg, tx, magic);
+		M0_BE_TX_CAPTURE_PTR(NULL, tx, magic);
 	}
 }
 
 static void be_list_capture(struct m0_be_list *list,
 			    struct m0_be_tx   *tx)
 {
-	M0_BE_TX_CAPTURE_PTR(list->bl_seg, tx, list);
+	M0_BE_TX_CAPTURE_PTR(NULL, tx, list);
 }
 
 static void be_list_capture3(struct m0_be_list *list,
@@ -133,7 +122,6 @@ static void be_list_capture3(struct m0_be_list *list,
 M0_INTERNAL void m0_be_list_create(struct m0_be_list        *list,
 				   struct m0_be_tx          *tx,
 				   struct m0_be_op          *op,
-				   struct m0_be_seg         *seg,
 				   const struct m0_tl_descr *desc)
 {
 	M0_PRE(strlen(desc->td_name) < sizeof list->bl_td_name);
@@ -147,7 +135,6 @@ M0_INTERNAL void m0_be_list_create(struct m0_be_list        *list,
 	});
 
 	list->bl_descr = *desc;
-	list->bl_seg   = seg;
 	strncpy(list->bl_td_name, desc->td_name, sizeof list->bl_td_name);
 	list->bl_td_name[sizeof list->bl_td_name - 1] = '\0';
 	list->bl_descr.td_name = list->bl_td_name;
@@ -342,14 +329,6 @@ M0_INTERNAL void m0_be_list_del(struct m0_be_list *list,
 	be_list_capture3(list, tx, prev, curr, next);
 
 	m0_be_op_done(op);
-}
-
-M0_INTERNAL void m0_be_tlink_init(void *obj, struct m0_be_list *list)
-{
-}
-
-M0_INTERNAL void m0_be_tlink_fini(void *obj, struct m0_be_list *list)
-{
 }
 
 static void be_tlink_create_destroy(void              *obj,

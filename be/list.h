@@ -30,7 +30,6 @@
 
 /* import */
 struct m0_be_op;
-struct m0_be_seg;
 struct m0_be_tx;
 struct m0_be_tx_credit;
 
@@ -58,10 +57,6 @@ struct m0_be_list {
 	/** m0_tl_descr::td_name */
 	char                     bl_td_name[0x40];
 	struct m0_format_footer  bl_format_footer;
-	/*
-	 * volatile-only fields
-	 */
-	struct m0_be_seg        *bl_seg;
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 /** List operations that modify memory. */
@@ -73,7 +68,6 @@ enum m0_be_list_op {
 				     m0_be_list_add_before(),
 				     m0_be_list_add_tail() */
 	M0_BLO_DEL,             /**< m0_be_list_del() */
-	M0_BLO_MOVE,            /**< m0_be_list_create() */
 	M0_BLO_TLINK_CREATE,    /**< m0_be_tlink_create() */
 	M0_BLO_TLINK_DESTROY,   /**< m0_be_tlink_destroy() */
 	M0_BLO_NR
@@ -91,15 +85,9 @@ M0_INTERNAL void m0_be_list_credit(const struct m0_be_list *list,
 /* -------------------------------------------------------------------------
  * Construction/Destruction:
  * ------------------------------------------------------------------------- */
-M0_INTERNAL void m0_be_list_init(struct m0_be_list *list,
-				 struct m0_be_seg  *seg);
-
-M0_INTERNAL void m0_be_list_fini(struct m0_be_list *list);
-
 M0_INTERNAL void m0_be_list_create(struct m0_be_list        *list,
 				   struct m0_be_tx          *tx,
 				   struct m0_be_op          *op,
-				   struct m0_be_seg         *seg,
 				   const struct m0_tl_descr *desc);
 
 M0_INTERNAL void m0_be_list_destroy(struct m0_be_list *list,
@@ -115,10 +103,7 @@ M0_INTERNAL bool m0_be_list_is_empty(struct m0_be_list *list);
  *
  * - m0_be_tlink_create() calls m0_tlink_init();
  * - m0_be_tlink_destroy() calls m0_tlink_fini();
- * - m0_be_tlink_init() and m0_be_tlink_fini() are no-op now.
  */
-M0_INTERNAL void m0_be_tlink_init(void *obj, struct m0_be_list *list);
-M0_INTERNAL void m0_be_tlink_fini(void *obj, struct m0_be_list *list);
 M0_INTERNAL void m0_be_tlink_create(void              *obj,
 				    struct m0_be_tx   *tx,
 				    struct m0_be_op   *op,
