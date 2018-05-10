@@ -1,6 +1,13 @@
 Mero
 ====
 
+Obtain sources
+--------------
+
+    $ git clone --recursive http://gerrit-sage.dco.colo.seagate.com:8080/mero
+or
+    $ git clone --recursive https://github.com/seagate-ssg/mero.git
+
 Build
 -----
 
@@ -12,12 +19,10 @@ or in one command:
 
     $ ./scripts/m0 rebuild
 
-
 Test
 ----
 
     $ ./scripts/m0 run-all
-
 
 Get to know
 -----------
