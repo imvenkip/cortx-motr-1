@@ -123,6 +123,22 @@
   when: extra_tools_pkgs is defined
   tags: breaks-dry-run
 
+
+- name: apply distro-specific workarounds
+  when: ansible_os_family == 'RedHat'
+  block:
+    - name: get redhat version
+      # matching version string like '7.4.1708'
+      shell: grep -oP '\d+\.\d+' /etc/redhat-release
+      register: redhat_release
+      changed_when: false
+      tags: breaks-dry-run
+
+    - name: re-start dbus (w/a for avahi on CentOS 7.5)
+      service: name=dbus state=restarted
+      when: redhat_release.stdout is version('7.5', '==')
+      tags: start-services
+
 - name: start avahi
   service: name={{ avahi_service }} state=started enabled=yes
   tags: start-services
