@@ -170,7 +170,7 @@ Tests:
     #executor : Xperior::Executor::Skip
     sandbox  : /var/mero/sandbox.17sss-st-test
     polltime : 30
-    timeout  : 120
+    timeout  : 240
 
   - id       : 18m0mount-test
     script   : m0mount
