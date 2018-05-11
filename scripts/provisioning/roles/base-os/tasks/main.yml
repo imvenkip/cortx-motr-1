@@ -130,21 +130,28 @@
   when: extra_tools_pkgs is defined
   tags: breaks-dry-run
 
+- name: get redhat version
+  # matching version string like '7.4.1708'
+  shell: grep -oP '\d+\.\d+' /etc/redhat-release
+  register: redhat_release
+  changed_when: false
 
-- name: apply distro-specific workarounds
-  when: ansible_os_family == 'RedHat'
+- name: apply CentOS 7.5 workarounds
+  when: ansible_os_family == 'RedHat' and redhat_release.stdout is version('7.5', '==')
+  tags: breaks-dry-run
   block:
-    - name: get redhat version
-      # matching version string like '7.4.1708'
-      shell: grep -oP '\d+\.\d+' /etc/redhat-release
-      register: redhat_release
-      changed_when: false
-      tags: breaks-dry-run
-
-    - name: re-start dbus (w/a for avahi on CentOS 7.5)
+    - name: re-start dbus
       service: name=dbus state=restarted
-      when: redhat_release.stdout is version('7.5', '==')
       tags: start-services
+
+    - name: re-start systemd-logind
+      service: name=systemd-logind state=restarted
+      tags: start-services
+
+    - name: disable broken CentOS-Sources.repo yum config
+      command: mv /etc/yum.repos.d/CentOS-Sources.repo{,.disabled}
+      args:
+        creates: /etc/yum.repos.d/CentOS-Sources.repo.disabled
 
 - name: start avahi
   service: name={{ avahi_service }} state=started enabled=yes
