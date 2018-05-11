@@ -157,7 +157,7 @@ executing a vagrant command, they will be loaded from the `.env` file:
 
     vagrant up
 
-A complete list of supported variables is printed by `m0vg list-params` command.
+A complete list of supported variables is printed by `m0vg params` command.
 
 All additional nodes can be accessed from the main machine (_cmu_) by their name
 in a `.local` domain. For example, here is how to execute a command on the
