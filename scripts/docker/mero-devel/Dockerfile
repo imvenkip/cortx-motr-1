@@ -1,0 +1,10 @@
+ARG  CENTOS_RELEASE=latest
+ARG  LUSTRE_VERSION=2.11.0
+FROM seagate/lustre-client:${CENTOS_RELEASE}-${LUSTRE_VERSION}
+
+COPY mero.spec .
+
+RUN kernel_src=$(ls -1rd /lib/modules/*/build | head -n1) \
+    yum-builddep -y mero.spec
+
+RUN rm -f mero.spec

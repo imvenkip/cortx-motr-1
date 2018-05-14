@@ -1,3 +1,4 @@
+/.env*
 /.vagrant*
 /*.retry
 /master_rsa.pub

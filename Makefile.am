@@ -1487,6 +1487,18 @@ srpm:
 	$(MAKE) __rpm_post
 
 #
+# Docker ---------------------------------------------- {{{2
+#
+
+# delegate all targets to the scripts/docker/Makefile
+.PHONY: docker
+docker:
+	$(MAKE) -C scripts/docker/
+
+docker-%:
+	$(MAKE) -C scripts/docker/ $*
+
+#
 # Documentation --------------------------------------- {{{2
 #
 
@@ -1596,6 +1608,11 @@ help:
 	@echo '  rpms-notests    - build Mero rpm packages, excluding tests'
 	@echo '  rpms-tests      - build Mero tests rpm package only'
 	@echo '  rpms-mock       - build Mero rpm packages using "mock" environment (ensures clean rpm deps)'
+	@echo ''
+	@echo 'Infrastructure targets:'
+	@echo '  docker          - build docker images'
+	@echo '  docker-TARGET   - make a TARGET found in scripts/docker/Makefile'
+	@echo '  docker-help     - display docker related help'
 	@echo ''
 	@echo 'Information:'
 	@echo '  list-programs   - list all executables built in mero'
