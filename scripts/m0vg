@@ -4,6 +4,14 @@ shopt -s expand_aliases
 
 ### wrapper to run Vagrant commands with mero configs
 
+if (( ${BASH_VERSINFO[0]} < 4 )) ; then
+    echo "${0##*/}: bash version < 4 is not supported" >&2
+    echo 'Try installing a modern bash version with either of:' >&2
+    echo '  brew install bash' >&2
+    echo '  port install bash' >&2
+    exit 1
+fi
+
 # a hack for `readlink -f` on BSD systems
 if [[ $(uname) == Darwin ]] && ! readlink -f / &> /dev/null ; then
     if which greadlink &> /dev/null ; then
@@ -13,7 +21,7 @@ if [[ $(uname) == Darwin ]] && ! readlink -f / &> /dev/null ; then
         echo 'Try installing GNU readlink (greadlink) with either of:' >&2
         echo '  brew install coreutils' >&2
         echo '  port install coreutils' >&2
-        exit 2
+        exit 1
     fi
 fi
 
