@@ -95,11 +95,7 @@ struct m0_ad_balloc_ops {
 
 struct m0_stob_ad_domain {
 	struct m0_format_header sad_header;
-#ifdef M0_STOB_AD_DOMAIN_INMEMORY
 	uint64_t                sad_dom_key;
-#else
-	struct m0_stob_domain   sad_base M0_XCA_OPAQUE("m0_stob_ad_dummy_xt");
-#endif
 	struct m0_stob         *sad_bstore;
 	struct m0_stob_id       sad_bstore_id;
 	struct m0_ad_balloc    *sad_ballroom;
@@ -123,9 +119,7 @@ struct m0_stob_ad_domain {
 	 * volatile-only fields
 	 */
 	struct m0_be_seg       *sad_be_seg;
-#ifdef M0_STOB_AD_DOMAIN_INMEMORY
 	uint64_t                sad_magix;
-#endif
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
 M0_BASSERT(sizeof(M0_FIELD_VALUE(struct m0_stob_ad_domain, sad_path)) % 8 == 0);
 M0_BASSERT(sizeof(bool) == 1);
