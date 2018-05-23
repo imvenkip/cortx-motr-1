@@ -26,7 +26,6 @@
 
 #include "be/tx_credit.h"       /* m0_be_tx_credit */
 #include "be/tx.h"              /* M0_BE_TX_CAPTURE_PTR */
-#include "be/op.h"              /* m0_be_op_active */
 
 #include "lib/string.h"         /* strlen */
 
@@ -121,12 +120,9 @@ static void be_list_capture3(struct m0_be_list *list,
 
 M0_INTERNAL void m0_be_list_create(struct m0_be_list        *list,
 				   struct m0_be_tx          *tx,
-				   struct m0_be_op          *op,
 				   const struct m0_tl_descr *desc)
 {
 	M0_PRE(strlen(desc->td_name) < sizeof list->bl_td_name);
-
-	m0_be_op_active(op);
 
 	m0_format_header_pack(&list->bl_format_header, &(struct m0_format_tag){
 		.ot_version = M0_BE_LIST_FORMAT_VERSION,
@@ -141,20 +137,13 @@ M0_INTERNAL void m0_be_list_create(struct m0_be_list        *list,
 	m0_tlist_init(&list->bl_descr, &list->bl_list);
 	m0_format_footer_update(list);
 	be_list_capture(list, tx);
-
-	m0_be_op_done(op);
 }
 
 M0_INTERNAL void m0_be_list_destroy(struct m0_be_list *list,
-				    struct m0_be_tx   *tx,
-				    struct m0_be_op   *op)
+				    struct m0_be_tx   *tx)
 {
-	m0_be_op_active(op);
-
 	m0_tlist_fini(&list->bl_descr, &list->bl_list);
 	be_list_capture(list, tx);
-
-	m0_be_op_done(op);
 }
 
 M0_INTERNAL bool m0_be_list_is_empty(struct m0_be_list *list)
@@ -163,55 +152,43 @@ M0_INTERNAL bool m0_be_list_is_empty(struct m0_be_list *list)
 }
 
 static void *be_list_side(struct m0_be_list   *list,
-			  struct m0_be_op     *op,
 			  void              *(*side)
 						(const struct m0_tl_descr *d,
 						 const struct m0_tl     *list))
 {
-	m0_be_op_active(op);
-	m0_be_op_done(op);
-
 	return side(&list->bl_descr, &list->bl_list);
 }
 
 static void *be_list_iter(struct m0_be_list   *list,
-			  struct m0_be_op     *op,
 			  const void          *obj,
 			  void              *(*iter)
 						(const struct m0_tl_descr *d,
 						 const struct m0_tl      *list,
 						 const void              *obj))
 {
-	m0_be_op_active(op);
-	m0_be_op_done(op);
-
 	return iter(&list->bl_descr, &list->bl_list, obj);
 }
 
-M0_INTERNAL void *m0_be_list_head(struct m0_be_list *list,
-				  struct m0_be_op   *op)
+M0_INTERNAL void *m0_be_list_head(struct m0_be_list *list)
 {
-	return be_list_side(list, op, m0_tlist_head);
+	return be_list_side(list, m0_tlist_head);
 }
 
-M0_INTERNAL void *m0_be_list_tail(struct m0_be_list *list,
-				  struct m0_be_op   *op)
+M0_INTERNAL void *m0_be_list_tail(struct m0_be_list *list)
 {
-	return be_list_side(list, op, m0_tlist_tail);
+	return be_list_side(list, m0_tlist_tail);
 }
 
 M0_INTERNAL void *m0_be_list_next(struct m0_be_list *list,
-				  struct m0_be_op   *op,
 				  const void        *obj)
 {
-	return be_list_iter(list, op, obj, m0_tlist_next);
+	return be_list_iter(list, obj, m0_tlist_next);
 }
 
 M0_INTERNAL void *m0_be_list_prev(struct m0_be_list *list,
-				  struct m0_be_op   *op,
 				  const void        *obj)
 {
-	return be_list_iter(list, op, obj, m0_tlist_prev);
+	return be_list_iter(list, obj, m0_tlist_prev);
 }
 
 static struct m0_tlink *be_tlink_from_obj(void                    *obj,
@@ -248,37 +225,31 @@ static void be_list_affected_capture(struct m0_be_list *list,
 }
 
 static void be_list_add(struct m0_be_list *list,
-			struct m0_be_op   *op,
 			struct m0_be_tx   *tx,
 			void              *obj,
 			void             (*add)(const struct m0_tl_descr *d,
 						struct m0_tl             *list,
 						void                     *obj))
 {
-	m0_be_op_active(op);
 	add(&list->bl_descr, &list->bl_list, obj);
 	be_list_affected_capture(list, tx, obj);
-	m0_be_op_done(op);
 }
 
 M0_INTERNAL void m0_be_list_add(struct m0_be_list *list,
-				struct m0_be_op   *op,
 				struct m0_be_tx   *tx,
 				void              *obj)
 {
-	be_list_add(list, op, tx, obj, m0_tlist_add);
+	be_list_add(list, tx, obj, m0_tlist_add);
 }
 
 M0_INTERNAL void m0_be_list_add_tail(struct m0_be_list *list,
-				     struct m0_be_op   *op,
 				     struct m0_be_tx   *tx,
 				     void              *obj)
 {
-	be_list_add(list, op, tx, obj, m0_tlist_add_tail);
+	be_list_add(list, tx, obj, m0_tlist_add_tail);
 }
 
 static void be_list_add_pos(struct m0_be_list *list,
-			    struct m0_be_op   *op,
 			    struct m0_be_tx   *tx,
 			    void              *obj,
 			    void              *obj_new,
@@ -286,32 +257,27 @@ static void be_list_add_pos(struct m0_be_list *list,
 						    void                   *obj,
 						    void              *obj_new))
 {
-	m0_be_op_active(op);
 	add(&list->bl_descr, obj, obj_new);
 	be_list_affected_capture(list, tx, obj_new);
-	m0_be_op_done(op);
 }
 
 M0_INTERNAL void m0_be_list_add_after(struct m0_be_list *list,
-				      struct m0_be_op   *op,
 				      struct m0_be_tx   *tx,
 				      void              *obj,
 				      void              *obj_new)
 {
-	be_list_add_pos(list, op, tx, obj, obj_new, m0_tlist_add_after);
+	be_list_add_pos(list, tx, obj, obj_new, m0_tlist_add_after);
 }
 
 M0_INTERNAL void m0_be_list_add_before(struct m0_be_list *list,
-				       struct m0_be_op   *op,
 				       struct m0_be_tx   *tx,
 				       void              *obj,
 				       void              *obj_new)
 {
-	be_list_add_pos(list, op, tx, obj, obj_new, m0_tlist_add_before);
+	be_list_add_pos(list, tx, obj, obj_new, m0_tlist_add_before);
 }
 
 M0_INTERNAL void m0_be_list_del(struct m0_be_list *list,
-				struct m0_be_op   *op,
 				struct m0_be_tx   *tx,
 				void              *obj)
 {
@@ -319,27 +285,20 @@ M0_INTERNAL void m0_be_list_del(struct m0_be_list *list,
 	struct m0_tlink *curr;
 	struct m0_tlink *next;
 
-	m0_be_op_active(op);
-
 	/* delete() is a special case for capturing, because while deletion
 	   link is finished(), so pointer to the left and right are overwritten.
 	   Code has to save it beforehand and update these values */
 	be_list_neighbourhood(list, obj, &prev, &curr, &next);
 	m0_tlist_del(&list->bl_descr, obj);
 	be_list_capture3(list, tx, prev, curr, next);
-
-	m0_be_op_done(op);
 }
 
 static void be_tlink_create_destroy(void              *obj,
 				    struct m0_be_tx   *tx,
-				    struct m0_be_op   *op,
 				    struct m0_be_list *list,
 				    bool create)
 {
 	struct m0_tlink *tlink = be_tlink_from_obj(obj, list);
-
-	m0_be_op_active(op);
 
 	if (create)
 		m0_tlink_init(&list->bl_descr, obj);
@@ -348,24 +307,20 @@ static void be_tlink_create_destroy(void              *obj,
 
 	be_tlink_capture(tlink, list, tx);
 	be_tlink_capture_magic(tlink, list, tx);
-
-	m0_be_op_done(op);
 }
 
 M0_INTERNAL void m0_be_tlink_create(void              *obj,
 				    struct m0_be_tx   *tx,
-				    struct m0_be_op   *op,
 				    struct m0_be_list *list)
 {
-	be_tlink_create_destroy(obj, tx, op, list, true);
+	be_tlink_create_destroy(obj, tx, list, true);
 }
 
 M0_INTERNAL void m0_be_tlink_destroy(void              *obj,
 				     struct m0_be_tx   *tx,
-				     struct m0_be_op   *op,
 				     struct m0_be_list *list)
 {
-	be_tlink_create_destroy(obj, tx, op, list, false);
+	be_tlink_create_destroy(obj, tx, list, false);
 }
 
 /** @} end of be group */
