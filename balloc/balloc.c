@@ -381,7 +381,6 @@ static int balloc_group_info_init(struct m0_balloc_group_info *gi,
 				 normal_zone_size,
 				 spare_zone_size, 0, 0, 0);
 #endif
-		m0_list_init(&gi->bgi_prealloc_list);
 		m0_mutex_init(bgi_mutex(gi));
 	}
 	return rc;
@@ -392,7 +391,6 @@ static void balloc_group_info_fini(struct m0_balloc_group_info *gi)
 	m0_mutex_fini(bgi_mutex(gi));
 	m0_list_fini(&gi->bgi_normal.bzp_extents);
 	m0_list_fini(&gi->bgi_spare.bzp_extents);
-	m0_list_fini(&gi->bgi_prealloc_list);
 }
 
 static int balloc_group_info_load(struct m0_balloc *bal)

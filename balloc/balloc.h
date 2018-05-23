@@ -153,8 +153,6 @@ struct m0_balloc_group_info {
 	m0_bindex_t                  bgi_groupno;
 	struct m0_balloc_zone_param  bgi_normal;
 	struct m0_balloc_zone_param  bgi_spare;
-	/** list of pre-alloc */
-	struct m0_list               bgi_prealloc_list;
 	/** Array of group extents */
 	struct m0_lext              *bgi_extents;
 	/** per-group lock */
