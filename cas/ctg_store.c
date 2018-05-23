@@ -111,9 +111,9 @@ static int  ctg_meta_insert  (struct m0_be_btree  *meta,
 			      struct m0_be_tx     *tx);
 static int  ctg_meta_selfadd (struct m0_be_btree *meta,
 			      struct m0_be_tx    *tx);
-static void ctg_meta_delete  (struct m0_be_btree *meta,
-			      struct m0_fid      *fid,
-			      struct m0_be_tx    *tx);
+static void ctg_meta_delete  (struct m0_be_btree  *meta,
+			      const struct m0_fid *fid,
+			      struct m0_be_tx     *tx);
 static void ctg_meta_selfrm  (struct m0_be_btree *meta, struct m0_be_tx *tx);
 
 static void ctg_meta_insert_credit   (struct m0_be_btree     *bt,
@@ -417,9 +417,9 @@ static int ctg_meta_selfadd(struct m0_be_btree *meta,
 	return ctg_meta_insert(meta, &m0_cas_meta_fid, NULL, tx);
 }
 
-static void ctg_meta_delete(struct m0_be_btree *meta,
-			    struct m0_fid      *fid,
-			    struct m0_be_tx    *tx)
+static void ctg_meta_delete(struct m0_be_btree  *meta,
+			    const struct m0_fid *fid,
+			    struct m0_be_tx     *tx)
 {
 	uint8_t       key_data[KV_HDR_SIZE + sizeof(struct m0_fid)];
 	struct m0_buf key;

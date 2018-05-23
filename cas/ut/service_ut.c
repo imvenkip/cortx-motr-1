@@ -379,7 +379,7 @@ static void cb_fini(struct m0_fom *fom)
 {
 }
 
-static void fop_submit(struct m0_fop_type *ft, struct m0_fid *index,
+static void fop_submit(struct m0_fop_type *ft, const struct m0_fid *index,
 		       struct m0_cas_rec *rec)
 {
 	int              result;

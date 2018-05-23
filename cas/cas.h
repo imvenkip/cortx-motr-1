@@ -331,9 +331,9 @@ struct m0_cas_rep {
 } M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 M0_EXTERN struct m0_reqh_service_type m0_cas_service_type;
-M0_EXTERN struct m0_fid               m0_cas_meta_fid;
-M0_EXTERN struct m0_fid               m0_cas_dead_index_fid;
-M0_EXTERN struct m0_fid               m0_cas_ctidx_fid;
+M0_EXTERN const struct m0_fid         m0_cas_meta_fid;
+M0_EXTERN const struct m0_fid         m0_cas_dead_index_fid;
+M0_EXTERN const struct m0_fid         m0_cas_ctidx_fid;
 M0_EXTERN const struct m0_fid_type    m0_cas_index_fid_type;
 M0_EXTERN const struct m0_fid_type    m0_dix_fid_type;
 M0_EXTERN const struct m0_fid_type    m0_cctg_fid_type;
