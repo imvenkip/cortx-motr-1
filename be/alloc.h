@@ -239,9 +239,6 @@ M0_INTERNAL void m0_be_allocator_credit(struct m0_be_allocator *a,
  *                 The first zone from the bit mask with sufficient space will
  *                 be chosen for allocation, see m0_be_alloc_zone_type.
  *
- * This function will return pointer to memory allocated in
- * m0_be_op.bo_u.u_allocator.a_ptr (always) and in *ptr (if *ptr != NULL)
- * and error code in m0_be_op.bo_u.u_allocator.a_rc (0 means no error).
  * The memory should be freed using m0_be_free_aligned().
  *
  * @see m0_be_alloc(), m0_be_allocator_credit(), M0_BAO_ALLOC_ALIGNED,

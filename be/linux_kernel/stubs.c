@@ -42,12 +42,7 @@ M0_INTERNAL void m0_be_alloc(struct m0_be_allocator *a,
 			     void **ptr,
 			     m0_bcount_t size)
 {
-	void *p = m0_alloc(size);
-
-	if (op != NULL)
-		op->bo_u.u_allocator.a_ptr = p;
-	if (ptr != NULL)
-		*ptr = p;
+	*ptr = m0_alloc(size);
 }
 
 M0_INTERNAL void m0_be_alloc_aligned(struct m0_be_allocator *a,
