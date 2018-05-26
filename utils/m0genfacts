@@ -51,7 +51,7 @@ $options = {
     output:                 STDOUT,
     template:               TEMPLATE_FILE_PATH,
     remote_user:            Facter.value(:id),
-    clovis_mode:            false,
+    clovis_apps:            false,
     dataunits:              DATA_UNITS,
     parityunits:            PARITY_UNITS,
     blocksize:              BLOCK_SIZE,
@@ -93,9 +93,12 @@ usage: #{PROG_NAME} [$options] disk1 disk2 ...
         clovis-apps: [ hostB1, ... ]
         confds:      [ hostC1, ... ]
         ssus:        [ { host: 'hostD1', disks: 'sh-glob-pattern' }, ... ]
+        pools:       [ { name: 'pool1', hosts: ['hostD1', ...] }, ... ]
 
-    The 'clients' and 'clovis-apps' sections can be omitted, but not both at the
-    same time.
+    'clients' and 'clovis-apps' sections can be omitted, but not both at the
+    same time. 'pools' section allows to group disks of corresponding SSU hosts
+    into storage pools, it is optional, by default all disks from every SSU form
+    a single pool.
 
   Options:
 
@@ -126,10 +129,15 @@ END_USAGE
         $options[:iface] = val
     end
 
-    opts.on('-C', '--clovis-mode',
-            'Enable clovis mode. m0t1fs is not mounted, clovis apps are needed' \
-            ' to access Mero') do
-        $options[:clovis_mode] = true
+    opts.on('-E', '--management-netif IFNAME',
+            'Management interface. By default same as LNet interface') do |val|
+        $options[:iface_mgmt] = val
+    end
+
+    opts.on('-C', '--clovis-apps',
+            'Enable clovis apps. clovis-app role is enabled for client nodes in' \
+            ' halon_facts config') do
+        $options[:clovis_apps] = true
     end
 
     opts.on('-N', '--data-units NUM',
@@ -252,7 +260,7 @@ def build_nodes_from(config)
     host_idx  = 0
     uniq_host = {}
 
-    config.each_key do |host_type|
+    config.each_key.select { |key| !['pools'].include?(key) }.each do |host_type|
         config[host_type].each do |element|
             if element.is_a?(Hash)
                 host  = element['host']
@@ -317,8 +325,11 @@ def collect_facts_for(node)
         # what's returned by `hostname`
         fqdn            = Facter.value(:hostname)
         iface           = $options[:iface] || Facter.value(:interfaces).split(',')[0]
+        iface_mgmt      = $options[:iface_mgmt] || iface
         mac_addr        = Facter.value("macaddress_#{iface}")
         ip_addr         = Facter.value("ipaddress_#{iface}")
+        mac_addr_mgmt   = Facter.value("macaddress_#{iface_mgmt}")
+        ip_addr_mgmt    = Facter.value("ipaddress_#{iface_mgmt}")
         processorcount  = Facter.value(:processors)['count']
         memorysize_mb   = Facter.value(:memorysize_mb).to_i
     else # get remote facts
@@ -331,8 +342,11 @@ def collect_facts_for(node)
             fqdn            = ssh.exec!('facter hostname').chomp
             iface           = $options[:iface] ||
                               ssh.exec!('facter interfaces').split(',')[0].chomp
+            iface_mgmt      = $options[:iface_mgmt] || iface
             mac_addr        = ssh.exec!("facter macaddress_#{iface}").chomp
             ip_addr         = ssh.exec!("facter ipaddress_#{iface}").chomp
+            mac_addr_mgmt   = ssh.exec!("facter macaddress_#{iface_mgmt}").chomp
+            ip_addr_mgmt    = ssh.exec!("facter ipaddress_#{iface_mgmt}").chomp
             processors      = ssh.exec!('facter --json processors')
             processorcount  = JSON.parse(processors)['processors']['count']
             memorysize_mb   = ssh.exec!('facter memorysize_mb').to_i
@@ -348,10 +362,10 @@ def collect_facts_for(node)
         'fqdn'                   => fqdn,
         'bmc_ip'                 => '0.0.0.0',
         'bmc2_ip'                => '0.0.0.0',
-        'vlan_manage_macaddress' => '00:00:00:00:00:00',
-        'vlan_manage_ip'         => '0.0.0.0',
         'vlan_data_macaddress'   => mac_addr,
         'vlan_data_ip'           => ip_addr,
+        'vlan_manage_macaddress' => mac_addr_mgmt,
+        'vlan_manage_ip'         => ip_addr_mgmt,
         'processorcount'         => processorcount,
         'memorysize_mb'          => memorysize_mb,
     }
@@ -448,6 +462,7 @@ station_nodes   = []
 m0t1fs_nodes    = []
 confd_nodes     = []
 extra_clients   = []
+pools           = []
 
 #
 # Read configuration
@@ -479,6 +494,13 @@ if ARGV.empty?
         die 'invalid cluster config: at least one of the "clients" or "clovis-apps"' \
             + ' lists must be specified'
     end
+
+    if !cluster_config.has_key?('pools')
+        cluster_config['pools'] = [{
+            'name'  => 'default',
+            'hosts' => cluster_config['ssus'].map{ |x| x['host'] },
+        }]
+    end
 else
     log 'Generating Halon facts for singlenode'
     log 'Reading disks configuration from CLI arguments'
@@ -489,13 +511,16 @@ else
            'host'  => Facter.value(:hostname),
            'disks' => ARGV,
         }],
+        'pools'    => [{
+           'name'  => 'default',
+           'hosts' => [ Facter.value(:hostname) ],
+        }],
     }
 
-    if $options[:clovis_mode]
+    if $options[:clovis_apps]
         cluster_config['clovis-apps'] = [ Facter.value(:hostname) ]
-    else
-        cluster_config['clients']     = [ Facter.value(:hostname) ]
     end
+    cluster_config['clients'] = [ Facter.value(:hostname) ]
 end
 
 #
@@ -513,6 +538,12 @@ build_nodes_from(cluster_config).each do |node|
         else
             []
         end
+end
+
+log 'Allocating disks in pool(s)'
+cluster_config['pools'].each do |pool|
+    disks = ios_hash.select{|k, v| pool['hosts'].include?(k)}.values.flatten(1)
+    pools.push({name: pool['name'], disks: disks})
 end
 
 #

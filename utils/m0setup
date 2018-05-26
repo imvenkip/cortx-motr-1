@@ -42,7 +42,7 @@ linuxstob_stobs_dir=
 loop_img_size_gb=64
 disk_pattern=
 linuxstob_mode=false
-clovis_mode=false
+clovis_apps=false
 
 #
 # Usage
@@ -122,8 +122,7 @@ Usage: $PROG_NAME [-h|--help] [-v|--verbose] [options]
    -H|--halon-facts        Produce Halon facts YAML configuration instead of
                            a genders-based config. Implies '--no-gendisk'.
 
-   -V|--clovis-mode        Enable Clovis applications in Halon facts config,
-                           and at the same time disable m0t1fs.
+   -V|--clovis-apps        Enable Clovis applications in Halon facts config.
 
    -A|--activate-singlenode-services
 
@@ -162,7 +161,7 @@ parse_cli_options()
     # separate word. The quotes around `$@' are essential!
     # We need TEMP as the `eval set --' would nuke the return value of getopt.
     TEMP=$( getopt --options hvclICEGHVAMP:N:K:i:d:m:s:p:z:Z:: \
-                   --longoptions help,verbose,cleanup,use-existing-loop-imgs,no-directio,no-gendisk,halon-facts,clovis-mode,activate-singlenode-services,mkfs,list-disks,no-cas,pool-width:,data-units:,parity-units:,ipool-width:,iparity-units:,ios-number:,loop-img-dir:,mero-dir:,disk-size:,disk-pattern:,linuxstob-path:,linuxstob-mode:: \
+                   --longoptions help,verbose,cleanup,use-existing-loop-imgs,no-directio,no-gendisk,halon-facts,clovis-apps,activate-singlenode-services,mkfs,list-disks,no-cas,pool-width:,data-units:,parity-units:,ipool-width:,iparity-units:,ios-number:,loop-img-dir:,mero-dir:,disk-size:,disk-pattern:,linuxstob-path:,linuxstob-mode:: \
                    --name "$PROG_NAME" -- "$@" )
 
     [[ $? -ne 0 ]] && help
@@ -182,7 +181,7 @@ parse_cli_options()
             -M|--mkfs)          do_mkfs=true;         shift   ;;
             -G|--no-gendisk)    do_gendisk=false;     shift   ;;
             -H|--halon-facts)   do_genfacts=true; do_gendisk=false; shift ;;
-            -V|--clovis-mode)   clovis_mode=true; shift ;;
+            -V|--clovis-apps)   clovis_apps=true; shift ;;
             -A|--activate-singlenode-services)
                                 activate_singlenode=true
                                 shift ;;
@@ -408,7 +407,7 @@ generate_halon_facts()
     log "Generating halon_facts.yaml"
 
     local vopt=$( $verbose && echo '-v' )
-    local clovis_opt=$( $clovis_mode && echo '--clovis-mode' )
+    local clovis_opt=$( $clovis_apps && echo '--clovis-apps' )
     local halon_facts="$ETC_HALON_DIR/halon_facts.yaml"
     local pattern="${disk_pattern:-/dev/loop{1..$pool_width}}"
     local disks=$($m0gendisks -l -d $pool_width -p "$pattern")
@@ -430,7 +429,7 @@ generate_halon_facts()
     local clovis_role_file=/etc/halon/role_maps/clovis.ede
     local mero_role_file=/etc/halon/mero_role_mappings
 
-    if $clovis_mode &&
+    if $clovis_apps &&
        [[ $(readlink $mero_role_file) != $clovis_role_file &&
           -e $clovis_role_file ]]
     then
@@ -615,8 +614,8 @@ if $do_genfacts ; then
     generate_halon_facts
 else
     generate_genders_config
-    if $clovis_mode ; then
-        warn "ignoring '-V|--clovis-mode', it only makes sense when used" \
+    if $clovis_apps ; then
+        warn "ignoring '-V|--clovis-apps', it only makes sense when used" \
              "together with '-H|--halon-facts'"
     fi
 fi
