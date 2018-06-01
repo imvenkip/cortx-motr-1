@@ -539,7 +539,7 @@ int main(int argc, char *argv[])
 	int  ifd;
 	int  ofd;
 
-	static struct m0                  instance = { 0 };;
+	static struct m0                  instance = { 0 };
 	const struct m0_trace_buf_header *logheader;
 	void                             *logbuf;
 	struct m0_thread                  rotator_tid = { 0 };

@@ -2875,18 +2875,18 @@ static bool owner_invariant_state(const struct m0_rm_owner     *owner,
 	is->is_phase = OIS_SUBLET;
 	if (!m0_rm_ur_tlist_invariant_ext(&owner->ro_sublet,
 					  &credit_invariant, (void *)is))
-		return M0_ERR(false);;
+		return M0_ERR(false);
 	is->is_phase = OIS_OUTGOING;
 	if (!m0_rm_ur_tlist_invariant_ext(&owner->ro_outgoing[0],
 					  &credit_invariant, (void *)is))
-		return M0_ERR(false);;
+		return M0_ERR(false);
 
 	is->is_phase = OIS_OWNED;
 	for (i = 0; i < ARRAY_SIZE(owner->ro_owned); ++i) {
 		is->is_owned_idx = i;
 		if (!m0_rm_ur_tlist_invariant_ext(&owner->ro_owned[i],
 					   &credit_invariant, (void *)is))
-		    return M0_ERR(false);;
+		    return M0_ERR(false);
 	}
 	is->is_phase = OIS_INCOMING;
 
@@ -2894,7 +2894,7 @@ static bool owner_invariant_state(const struct m0_rm_owner     *owner,
 	if (m0_exists(i, ARRAY_SIZE(owner->ro_owned),
 			m0_tl_exists(m0_rm_ur, cr, &owner->ro_owned[i],
 				conflict_exists(cr, owner))))
-		return M0_ERR(false);;
+		return M0_ERR(false);
 
 	/* Calculate credit */
 	return M0_RC(_0C(m0_forall(i, ARRAY_SIZE(owner->ro_incoming),

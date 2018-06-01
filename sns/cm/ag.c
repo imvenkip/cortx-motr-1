@@ -388,7 +388,7 @@ M0_INTERNAL uint64_t m0_sns_cm_ag_local_cp_nr(const struct m0_cm_aggr_group *ag)
 	struct m0_cm              *cm;
 	struct m0_sns_cm          *scm;
 	struct m0_sns_cm_ag       *sag = ag2snsag(ag);
-	struct m0_sns_cm_file_ctx *fctx = sag->sag_fctx;;
+	struct m0_sns_cm_file_ctx *fctx = sag->sag_fctx;
 	uint64_t                   group;
 
 	M0_ENTRY();

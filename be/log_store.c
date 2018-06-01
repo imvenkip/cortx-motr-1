@@ -333,7 +333,7 @@ static int be_log_store_level_enter(struct m0_module *module)
 							 alignment);
 		header->fsh_cbuf_offset = header->fsh_rbuf_offset +
 					  header->fsh_rbuf_nr *
-					  header->fsh_rbuf_size_aligned;;
+					  header->fsh_rbuf_size_aligned;
 		header->fsh_cbuf_size = header->fsh_size -
 					header->fsh_cbuf_offset;
 		M0_ASSERT(be_log_store_header_validate(header, alignment));

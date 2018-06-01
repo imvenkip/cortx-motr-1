@@ -167,7 +167,7 @@ int main(int argc, char **argv)
 		printf("Usage: c0composite laddr ha_addr prof_opt proc_fid\n");
 		return -1;
 	}
-	clovis_local_addr = argv[1];;
+	clovis_local_addr = argv[1];
 	clovis_ha_addr = argv[2];
 	clovis_prof = argv[3];
 	clovis_proc_fid = argv[4];

@@ -308,7 +308,7 @@ static int stob_linux_io_launch(struct m0_stob_io *io)
 		if (result == 0) {
 			iocb->u.v.nr = i;
 			qev->iq_nbytes = chunk_size << m0_stob_ioq_bshift(ioq);
-			qev->iq_offset = off << m0_stob_ioq_bshift(ioq);;
+			qev->iq_offset = off << m0_stob_ioq_bshift(ioq);
 
 			ioq_queue_put(ioq, qev);
 

@@ -965,7 +965,7 @@ static int m0t1fs_opendir(struct inode *inode, struct file *file)
 	}
 	m0_bitstring_copy(fd->fd_dirpos, ".", 1);
 	fd->fd_direof    = 0;
-	fd->fd_mds_index = 0;;
+	fd->fd_mds_index = 0;
 	return 0;
 }
 
