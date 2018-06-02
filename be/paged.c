@@ -221,16 +221,15 @@ M0_INTERNAL int m0_be_pd_destroy(struct m0_be_pd *pd)
 	return M0_RC(rc);
 }
 
-M0_INTERNAL void m0_be_pd_reg_get(struct m0_be_pd      *paged,
+M0_INTERNAL void m0_be_pd_reg_get(struct m0_be_pd            *paged,
 				  const struct m0_be_reg     *reg,
-				  struct m0_be_op *op)
-	/*
-				  struct m0_co_context *context,
-				  struct m0_fom        *fom)
-				  */
+				  struct m0_be_op            *op)
 {
 	struct m0_be_pd_request_pages  rpages;
 	struct m0_be_pd_request       *request;
+
+	M0_ENTRY("reg=%p seg=%p addr=%p size=%"PRIu64,
+		 reg, reg->br_seg, reg->br_addr, reg->br_size);
 
 	m0_be_pd_request_pages_init(&rpages, M0_PRT_READ, NULL,
 				    &M0_EXT(0, 0), reg);
@@ -238,19 +237,21 @@ M0_INTERNAL void m0_be_pd_reg_get(struct m0_be_pd      *paged,
 	M0_ALLOC_PTR(request);
 	M0_ASSERT(request != NULL);
 	m0_be_pd_request_init(request, &rpages);
+	//YYY
+	//if (m0_be_pd_pages_are_in(paged, request)) {
+	//	m0_be_op_active(op);
+	//	m0_be_op_done(op);
+	//	goto req_fini;
+	//}
 
-	/* lock is needed for m0_be_pd_pages_are_in() */
-	if (false && m0_be_pd_pages_are_in(paged, request)) {
-
-		return;
-	}
-	/* XXX: potential race near this point: current fom may go
-	        to sleep here */
 	m0_be_pd_request_push(paged, request, op);
 	m0_be_op_wait(op);
 
+//req_fini:
 	m0_be_pd_request_fini(request);
 	m0_free(request);
+
+	M0_LEAVE();
 }
 
 /* XXX copy-paste from m0_be_pd_reg_get() */
@@ -259,6 +260,9 @@ M0_INTERNAL void m0_be_pd_reg_put(struct m0_be_pd        *paged,
 {
 	struct m0_be_pd_request_pages  rpages;
 	struct m0_be_pd_request       *request;
+
+	M0_ENTRY("reg=%p seg=%p addr=%p size=%"PRIu64,
+		 reg, reg->br_seg, reg->br_addr, reg->br_size);
 
 	m0_be_pd_request_pages_init(&rpages, M0_PRT_READ, NULL,
 				    &M0_EXT(0, 0), reg);
@@ -271,6 +275,7 @@ M0_INTERNAL void m0_be_pd_reg_put(struct m0_be_pd        *paged,
 	      LAMBDA(bool, (struct m0_be_pd_page *page,
 	                    struct m0_be_reg_d *rd) {
 	             m0_be_pd_page_lock(page);
+		     M0_LOG(M0_WARN, "page %p, has pp_ref == %"PRIu64, page, page->pp_ref);
 	             M0_CNT_DEC(page->pp_ref);
 	             m0_be_pd_page_unlock(page);
 	             return true;
@@ -278,6 +283,35 @@ M0_INTERNAL void m0_be_pd_reg_put(struct m0_be_pd        *paged,
 
 	m0_be_pd_request_fini(request);
 	m0_free(request);
+
+	M0_LEAVE();
+}
+
+M0_INTERNAL bool m0_be_pd__is_reg_in(struct m0_be_pd        *paged,
+				     const struct m0_be_reg *reg)
+{
+	struct m0_be_pd_request_pages rpages;
+	struct m0_be_pd_request       request = {};
+
+	m0_be_pd_request_pages_init(&rpages, M0_PRT_READ, NULL,
+				    &M0_EXT(0, 0), reg);
+	/* XXX init request just to iterate over all pages */
+	m0_be_pd_request_init(&request, &rpages);
+
+	m0_be_pd_request_pages_forall(paged, &request,
+	      LAMBDA(bool, (struct m0_be_pd_page *page,
+	                    struct m0_be_reg_d   *rd) {
+	             m0_be_pd_page_lock(page);
+	             if (page->pp_ref == 0) {
+			     request.prt_rc = -ESRCH;
+			     return false;
+		     }
+	             m0_be_pd_page_unlock(page);
+	             return true;
+	}));
+
+	m0_be_pd_request_fini(&request);
+	return request.prt_rc == 0;
 }
 
 static void be_pd_lock(struct m0_be_pd *paged)
@@ -298,7 +332,7 @@ static bool be_pd_is_locked(struct m0_be_pd *paged)
 static void be_pd_mem_usage_increase(struct m0_be_pd *pd,
                                      m0_bcount_t      size)
 {
-	be_pd_lock(pd);
+	M0_PRE(be_pd_is_locked(pd));
 	pd->bp_memory_size += size;
 	if (pd->bp_memory_size > pd->bp_cfg.bpc_memory_size_max) {
 		M0_LOG(M0_WARN, "memory limit exceeded: "
@@ -306,7 +340,6 @@ static void be_pd_mem_usage_increase(struct m0_be_pd *pd,
 		       pd->bp_cfg.bpc_memory_size_max,
 		       pd->bp_memory_size);
 	}
-	be_pd_unlock(pd);
 }
 
 static void be_pd_mem_usage_decrease(struct m0_be_pd *pd,
@@ -314,12 +347,12 @@ static void be_pd_mem_usage_decrease(struct m0_be_pd *pd,
 {
 	m0_bcount_t size_before;
 
-	be_pd_lock(pd);
+	M0_PRE(be_pd_is_locked(pd));
 	size_before = pd->bp_memory_size;
 	pd->bp_memory_size -= size;
 	M0_ASSERT(pd->bp_memory_size < size_before);
-	be_pd_unlock(pd);
 }
+
 
 /* -------------------------------------------------------------------------- */
 /* Segments							              */
@@ -565,23 +598,28 @@ M0_INTERNAL bool m0_be_pd_is_stob_seg(struct m0_be_pd         *pd,
  *                                 |                                     |
  *                 m0_be_reg_get() |					 |
  *         m0_be_pd_request_push() |					 |
- *                                 v					 |
- *                       +----MANAGE_PRE -------+			 |
- *  request is PRT_READ  |                      | request is PRT_WRITE	 |
- *                       |                      |			 |
- *                       v                      v			 |
- *                     READ                  WRITE_PRE			 |
- *                       |                      |			 |
- *                       |                      v			 |
- *			 |		     WRITE_POST			 |
- *    request.op.channel |           have more ^ | request.op.channel	 |
- *             signalled |         armed pages | | signalled		 |
- *                       v                     | v			 |
- *                     READ                   WRITE			 |
- *                     DONE                    DONE			 |
- *                       |                      |			 |
- *                       +-------->+<-----------+			 |
- *                                 |					 |
+ *                                 v		  request is PRT_MANAGE  |
+ *                       +----MANAGE_PRE -------+---------->-----------+ |
+ *  request is PRT_READ  |                      |                      | |
+ *                       |                      |-request is PRT_WRITE | |
+ *                       v       !!rmw          v		       | |
+ *                     READ <--------------- WRITE_PRE		       | |
+ *                     |                      ^ |                      | |
+ *                     |	 !!rmw	     /  | !rmw                 | |
+ *                     | +--------->--------/   |		       | |
+ *                     | |                      v                      | |
+ *		       | |		     WRITE_POST		       | |
+ *                     | |                     ^ |                     | |
+ *  request.op.channel | |           have more | | request.op.channel  | |
+ *           signalled | |         armed pages | | signalled	       | |
+ *                     v |                     | v		       | |
+ *                     READ                   WRITE		       | |
+ *                     DONE                    DONE		       | |
+ *                       |                      |		       | |
+ *                       +-------->+<-----------+		       | |
+ *                                 |		                       | |
+ *                                 +<----------------------------------+ |
+ *                                 |                                     |
  *                                 v					 |
  *			       MANAGE_POST ------------------------------+
  * @endverbatim
@@ -615,12 +653,12 @@ static struct m0_sm_state_descr pd_fom_states[PFS_NR] = {
 	_S(PFS_FAILED, M0_SDF_FAILURE, M0_BITS(PFS_FINISH)),
 
 	_S(PFS_IDLE,        0, M0_BITS(PFS_MANAGE_PRE, PFS_FINISH)),
-	_S(PFS_MANAGE_PRE,  0, M0_BITS(PFS_WRITE_PRE, PFS_READ)),
-	_S(PFS_WRITE_PRE,   0, M0_BITS(PFS_WRITE_POST)),
+	_S(PFS_MANAGE_PRE,  0, M0_BITS(PFS_WRITE_PRE, PFS_READ, PFS_MANAGE_POST)),
+	_S(PFS_WRITE_PRE,   0, M0_BITS(PFS_WRITE_POST, PFS_READ)),
 	_S(PFS_WRITE_POST,  0, M0_BITS(PFS_WRITE_DONE, PFS_MANAGE_POST)),
 	_S(PFS_READ,        0, M0_BITS(PFS_READ_DONE, PFS_MANAGE_POST)),
 	_S(PFS_WRITE_DONE,  0, M0_BITS(PFS_MANAGE_POST, PFS_WRITE_POST)),
-	_S(PFS_READ_DONE,   0, M0_BITS(PFS_MANAGE_POST)),
+	_S(PFS_READ_DONE,   0, M0_BITS(PFS_MANAGE_POST, PFS_WRITE_PRE)),
 	_S(PFS_MANAGE_POST, 0, M0_BITS(PFS_IDLE)),
 
 #undef _S
@@ -636,6 +674,34 @@ static struct m0_be_pd_fom *fom2be_pd_fom(struct m0_fom *fom)
 {
 	/* XXX bob_of */
 	return container_of(fom, struct m0_be_pd_fom, bpf_gen);
+}
+
+static void pd_pages_manage(struct m0_be_pd *paged)
+{
+	struct m0_be_pd_page          *page;
+	struct m0_be_pd_mapping       *mapping;
+	int rc;
+	int i;
+
+	M0_ENTRY();
+
+	be_pd_lock(paged);
+	m0_tl_for(mappings, &paged->bp_mappings, mapping) {
+		for (i = 0; i < mapping->pas_pcount; ++i) {
+			page = &mapping->pas_pages[i];
+			m0_be_pd_page_lock(page);
+			if (page->pp_ref == 0 &&
+			    page->pp_state == M0_PPS_READY) {
+				rc = m0_be_pd_mapping_page_detach(mapping,
+								  page);
+				M0_ASSERT(rc == 0);
+			}
+			m0_be_pd_page_unlock(page);
+		}
+	} m0_tl_endfor;
+	be_pd_unlock(paged);
+
+	M0_LEAVE();
 }
 
 static int pd_fom_tick(struct m0_fom *fom)
@@ -658,7 +724,8 @@ static int pd_fom_tick(struct m0_fom *fom)
 	int rc;
 	int rc1;
 
-	M0_ENTRY("pd_fom=%p paged=%p phase=%d", pd_fom, paged, phase);
+	M0_ENTRY("pd_fom=%p paged=%p rmw=%d phase=%s", pd_fom, paged,
+	       !!pd_fom->bpf_rmw, pd_fom_states[phase].sd_name);
 
 	switch(phase) {
 	case PFS_INIT:
@@ -673,6 +740,8 @@ static int pd_fom_tick(struct m0_fom *fom)
 		m0_semaphore_up(&pd_fom->bpf_start_sem);
 		break;
 	case PFS_FINISH:
+		/** cleanup all pages with ref == 0 */
+		pd_pages_manage(paged);
 		pages_tlist_fini(pio_done);
 		pages_tlist_fini(pio_armed);
 		m0_be_op_fini(&pd_fom->bpf_op);
@@ -690,7 +759,8 @@ static int pd_fom_tick(struct m0_fom *fom)
 				rc = M0_FSO_WAIT;
 			} else {
 				M0_ASSERT(M0_IN(request->prt_pages.prp_type,
-						(M0_PRT_READ, M0_PRT_WRITE)));
+						(M0_PRT_READ, M0_PRT_WRITE,
+						 M0_PRT_MANAGE)));
 				pd_fom->bpf_cur_request = request;
 				m0_fom_phase_move(fom, 0, PFS_MANAGE_PRE);
 				rc = M0_FSO_AGAIN;
@@ -698,13 +768,25 @@ static int pd_fom_tick(struct m0_fom *fom)
 		}
 		break;
 	case PFS_MANAGE_PRE:
-		/* XXX use .._is_read()/...is_write() */
-		m0_fom_phase_move(fom, 0,
-		                  request->prt_pages.prp_type == M0_PRT_READ ?
-		                  PFS_READ : PFS_WRITE_PRE);
+		/* pd_pages_manage(paged); */
+
+		if (request->prt_pages.prp_type == M0_PRT_MANAGE) {
+			m0_fom_phase_move(fom, 0, PFS_MANAGE_POST);
+		} else {
+			/* XXX use .._is_read()/...is_write() */
+			m0_fom_phase_move(fom, 0,
+				  request->prt_pages.prp_type == M0_PRT_READ ?
+				  PFS_READ : PFS_WRITE_PRE);
+		}
+
 		rc = M0_FSO_AGAIN;
 		break;
 	case PFS_MANAGE_POST:
+		pd_pages_manage(paged);
+
+		if (request->prt_pages.prp_type == M0_PRT_MANAGE)
+			m0_be_op_done(request->prt_op);
+
 		m0_fom_phase_move(fom, 0, PFS_IDLE);
 		rc = M0_FSO_AGAIN;
 		break;
@@ -719,6 +801,7 @@ static int pd_fom_tick(struct m0_fom *fom)
 		      LAMBDA(bool, (struct m0_be_pd_page *page,
 				    struct m0_be_reg_d *rd) {
 			m0_be_pd_page_lock(page);
+			M0_LOG(M0_WARN, "page %p, has pp_ref == %"PRIu64, page, page->pp_ref);
 			M0_CNT_INC(page->pp_ref);
 			if (!m0_be_pd_page_is_in(paged, page)) {
 				/*
@@ -726,9 +809,15 @@ static int pd_fom_tick(struct m0_fom *fom)
 				 * from segment
 				 */
 				/* XXX The actual allocation is here */
+				be_pd_lock(paged);
+
+				if (pd_fom->bpf_rmw)
+					M0_LOG(M0_WARN, "RMW@page=%p", page);
+
 				rc1 = m0_be_pd_mapping_page_attach(
 				    m0_be_pd__mapping_by_addr(paged,
 				                        page->pp_addr), page);
+				be_pd_unlock(paged);
 				M0_ASSERT(rc1 == 0);
 			}
 			if (page->pp_state == M0_PPS_MAPPED) {
@@ -786,17 +875,44 @@ static int pd_fom_tick(struct m0_fom *fom)
 
 			M0_ASSERT(M0_IN(page->pp_state, (M0_PPS_READING,
 							 M0_PPS_READY)));
-			page->pp_state = M0_PPS_READY;
+			/* XXX: fix cellar copy here!!! */
+			if (page->pp_state == M0_PPS_READING) {
+				memcpy(page->pp_cellar, page->pp_addr,
+				       page->pp_size);
+				#if 0
+				{
+					char buf[0x100];
+					sprintf(buf, "%p." TIME_F ".bin", page, TIME_P(m0_time_now()));
+					FILE* file = fopen(buf, "w");
+					M0_ASSERT(file != NULL);
+					fwrite(page->pp_addr, page->pp_size, 1, file);
+					fclose(file);
+				}
+				#endif
+
+			}
 			/* XXX move page to ready state IF it is in pio */
+			page->pp_state = M0_PPS_READY;
+			if (pd_fom->bpf_rmw) {
+				M0_LOG(M0_WARN, "page %p, has pp_ref == %"PRIu64, page, page->pp_ref);
+				M0_CNT_DEC(page->pp_ref);
+			}
 			m0_be_pd_page_unlock(page);
 
 			return true;
 		     }));
 
 		m0_be_pd_io_put(pios, pio);
-		m0_be_op_done(request->prt_op);
 
-		m0_fom_phase_set(fom, PFS_MANAGE_POST);
+		if (!pd_fom->bpf_rmw)
+			m0_be_op_done(request->prt_op);
+
+		m0_fom_phase_set(fom, !pd_fom->bpf_rmw ?
+				      PFS_MANAGE_POST : PFS_WRITE_PRE);
+
+		if (pd_fom->bpf_rmw)
+			pd_fom->bpf_rmw = false;
+
 		rc = M0_FSO_AGAIN;
 		break;
 
@@ -813,8 +929,27 @@ static int pd_fom_tick(struct m0_fom *fom)
 		m0_be_pd_request_pages_forall(paged, request,
 		      LAMBDA(bool, (struct m0_be_pd_page *page,
 				    struct m0_be_reg_d *rd) {
+			m0_be_pd_page_lock(page);
+			if (page->pp_state == M0_PPS_UNMAPPED)
+				pd_fom->bpf_rmw = true;
+			m0_be_pd_page_unlock(page);
+			return !pd_fom->bpf_rmw;
+		     }));
+
+		if (pd_fom->bpf_rmw)
+			goto write_pre_end;
+
+		m0_be_pd_request_pages_forall(paged, request,
+		      LAMBDA(bool, (struct m0_be_pd_page *page,
+				    struct m0_be_reg_d *rd) {
 
 			m0_be_pd_page_lock(page);
+
+			if (page->pp_ref == 0)
+				M0_LOG(M0_WARN,
+				       "page=%p state=%d will soon be evicted!",
+				       page, page->pp_state);
+
 			M0_ASSERT(page->pp_state == M0_PPS_READY);
 			page->pp_state = M0_PPS_WRITING;
 			m0_be_pd_page_unlock(page);
@@ -827,10 +962,11 @@ static int pd_fom_tick(struct m0_fom *fom)
 		//NOTE: m0_be_pd_mappings_unlock(paged, request);
 
 		m0_be_pd_request__copy_to_cellars(paged, request);
-
-		m0_fom_phase_set(fom, PFS_WRITE_POST);
+	write_pre_end:
+		m0_fom_phase_set(fom,
+				 !pd_fom->bpf_rmw ? PFS_WRITE_POST : PFS_READ);
 		rc = M0_FSO_AGAIN;
-
+		break;
 	case PFS_WRITE_POST:
 		M0_PRE(pages_tlist_length(pio_done) == 0);
 
@@ -849,6 +985,7 @@ static int pd_fom_tick(struct m0_fom *fom)
 			m0_be_pd_page_unlock(pio_page);
 
 			seg = m0_be_pd__page_to_seg(paged, pio_page);
+			M0_ASSERT(seg != NULL);
 			m0_be_io_add(m0_be_pd_io_be_io(pio),
 				     seg->bs_stob, pio_page->pp_cellar,
 				     m0_be_seg_offset(seg, pio_page->pp_addr),
@@ -884,16 +1021,6 @@ static int pd_fom_tick(struct m0_fom *fom)
 		}
 		rc = M0_FSO_AGAIN;
 		break;
-		/* Possible state for page management
-		  case PFS_MANAGE:
-		  for (mapping in mappings) {
-		    for (page in mapping->pages) {
-		      if (page->cnt == 0)
-		      m0_be_pd_mapping_page_detach(mapping, page);
-		    }
-		  }
-		*/
-
 	default:
 		M0_IMPOSSIBLE("XXX");
 	}
@@ -969,6 +1096,7 @@ M0_INTERNAL void m0_be_pd_fom_init(struct m0_be_pd_fom    *fom,
 	fom->bpf_ast_posted = false;
 	fom->bpf_ast_reqq_push = (struct m0_sm_ast){ .sa_cb = pd_reqq_push };
 	m0_semaphore_init(&fom->bpf_start_sem, 0);
+	fom->bpf_rmw = false;
 }
 
 M0_INTERNAL void m0_be_pd_fom_fini(struct m0_be_pd_fom *fom)
@@ -1001,6 +1129,8 @@ M0_INTERNAL void m0_be_pd_fom_stop(struct m0_be_pd_fom *fom)
 	struct m0_be_pd_request        request;
 	struct m0_be_pd               *paged = fom->bpf_pd;
 
+	M0_ENTRY();
+
 	m0_be_pd_request_pages_init(&rpages, M0_PRT_STOP, NULL,
 				    &M0_EXT(0, 0), &M0_BE_REG(NULL, 0, NULL));
 	m0_be_pd_request_init(&request, &rpages);
@@ -1008,6 +1138,25 @@ M0_INTERNAL void m0_be_pd_fom_stop(struct m0_be_pd_fom *fom)
 	m0_be_pd_request_fini(&request);
 	/* XXX FOM_THREAD */
 	m0_be_fom_thread_fini(&fom->bpf_ft);
+
+	M0_LEAVE();
+}
+
+M0_INTERNAL void m0_be_pd_fom_manage(struct m0_be_pd_fom *fom)
+{
+	struct m0_be_pd_request_pages  rpages;
+	struct m0_be_pd_request        request;
+	struct m0_be_pd               *paged = fom->bpf_pd;
+
+	M0_ENTRY();
+
+	m0_be_pd_request_pages_init(&rpages, M0_PRT_MANAGE, NULL,
+				    &M0_EXT(0, 0), &M0_BE_REG(NULL, 0, NULL));
+	m0_be_pd_request_init(&request, &rpages);
+	M0_BE_OP_SYNC(op, m0_be_pd_request_push(paged, &request, &op));
+	m0_be_pd_request_fini(&request);
+
+	M0_LEAVE();
 }
 
 M0_INTERNAL void m0_be_pd_fom_mod_init(void)
@@ -1273,6 +1422,8 @@ M0_INTERNAL bool m0_be_pd_pages_are_in(struct m0_be_pd         *paged,
 {
 	bool pages_are_in = true;
 
+	be_pd_lock(paged);
+
 	m0_be_pd_request_pages_forall(paged, request,
 	      LAMBDA(bool, (struct m0_be_pd_page *page,
 			    struct m0_be_reg_d *rd) {
@@ -1281,6 +1432,23 @@ M0_INTERNAL bool m0_be_pd_pages_are_in(struct m0_be_pd         *paged,
 			     return true;
 		     }));
 
+	if (!pages_are_in) {
+		M0_LOG(M0_WARN, "long way to home!");
+		goto long_way;
+	}
+
+	m0_be_pd_request_pages_forall(paged, request,
+	      LAMBDA(bool, (struct m0_be_pd_page *page,
+			    struct m0_be_reg_d *rd) {
+			     m0_be_pd_page_lock(page);
+			     M0_LOG(M0_WARN, "page %p, has pp_ref == %"PRIu64, page, page->pp_ref);
+			     M0_CNT_INC(page->pp_ref);
+			     m0_be_pd_page_unlock(page);
+			     return true;
+		     }));
+
+long_way:
+	be_pd_unlock(paged);
 	return pages_are_in;
 }
 
@@ -1450,26 +1618,37 @@ M0_INTERNAL int m0_be_pd_page_init(struct m0_be_pd_page *page,
 				   void                 *addr,
 				   m0_bcount_t           size)
 {
+
 	page->pp_addr   = addr;
 	page->pp_size   = size;
 	page->pp_cellar = NULL;
 	page->pp_ref    = 0;
+	page->pp_last_lsn = 0;
 	m0_mutex_init(&page->pp_lock);
 	page->pp_state = M0_PPS_UNMAPPED;
 	pages_tlink_init(page);
 
-	return 0;
+	M0_ENTRY("page=%p pp_addr=%p pp_cellar=%p pp_ref=%"PRIu64,
+		 page, page->pp_addr, page->pp_cellar, page->pp_ref);
+
+	return M0_RC(0);
 }
 
 M0_INTERNAL void m0_be_pd_page_fini(struct m0_be_pd_page *page)
 {
+
+	M0_ENTRY("page=%p pp_addr=%p pp_cellar=%p pp_ref=%"PRIu64,
+		 page, page->pp_addr, page->pp_cellar, page->pp_ref);
+
 	pages_tlink_fini(page);
 	m0_mutex_fini(&page->pp_lock);
-	M0_ASSERT_INFO(page->pp_ref == 0,
+	M0_ASSERT_INFO(page->pp_ref == 0 && page->pp_state == M0_PPS_UNMAPPED,
 		       "page=%p pp_addr=%p pp_cellar=%p pp_ref=%"PRIu64,
 		       page, page->pp_addr, page->pp_cellar, page->pp_ref);
 	/* TODO check the current state */
 	page->pp_state = M0_PPS_FINI;
+
+	M0_LEAVE();
 }
 
 M0_INTERNAL void m0_be_pd_page_lock(struct m0_be_pd_page *page)
@@ -1640,7 +1819,7 @@ M0_INTERNAL int m0_be_pd_mapping_init(struct m0_be_pd *paged,
 
 	/* TODO Remove when BE conversion is finished. */
 	if (fd > 0) {
-		mapping->pas_type = M0_BE_PD_MAPPING_COMPAT;
+		mapping->pas_type = M0_BE_PD_MAPPING_PER_PAGE;
 		mapping->pas_fd   = fd;
 	}
 
@@ -1652,6 +1831,7 @@ M0_INTERNAL int m0_be_pd_mapping_init(struct m0_be_pd *paged,
 	be_pd_unlock(paged);
 
 	/* XXX: delete this after page_get/put ready in code */
+#if 0
 	if (mapping->pas_type == M0_BE_PD_MAPPING_COMPAT) {
 		for (i = 0; i < mapping->pas_pcount; ++i) {
 			m0_be_pd_page_lock(&mapping->pas_pages[i]);
@@ -1661,7 +1841,7 @@ M0_INTERNAL int m0_be_pd_mapping_init(struct m0_be_pd *paged,
 			m0_be_pd_page_unlock(&mapping->pas_pages[i]);
 		}
 	}
-
+#endif
 
 	return M0_RC(0);
 }
@@ -1683,6 +1863,7 @@ M0_INTERNAL int m0_be_pd_mapping_fini(struct m0_be_pd *paged,
 	be_pd_unlock(paged);
 
 	/* XXX: delete this after page_get/put ready in code */
+#if 0
 	if (mapping->pas_type == M0_BE_PD_MAPPING_COMPAT) {
 		for (i = 0; i < mapping->pas_pcount; ++i) {
 			m0_be_pd_page_lock(&mapping->pas_pages[i]);
@@ -1692,6 +1873,7 @@ M0_INTERNAL int m0_be_pd_mapping_fini(struct m0_be_pd *paged,
 			m0_be_pd_page_unlock(&mapping->pas_pages[i]);
 		}
 	}
+#endif
 
 	rc = be_pd_mapping_unmap(mapping);
 	if (rc != 0)
@@ -1714,6 +1896,8 @@ M0_INTERNAL int m0_be_pd_mapping_page_attach(struct m0_be_pd_mapping *mapping,
 	int   rc2;
 
 	M0_PRE(m0_be_pd_page_is_locked(page));
+	M0_LOG(M0_WARN, "page=%p start=%p end=%p", page, page->pp_addr,
+	       page->pp_addr + page->pp_size);
 
 	switch (mapping->pas_type) {
 	case M0_BE_PD_MAPPING_SINGLE:
@@ -1759,7 +1943,7 @@ M0_INTERNAL int m0_be_pd_mapping_page_attach(struct m0_be_pd_mapping *mapping,
 		page->pp_cellar = m0_alloc_aligned(page->pp_size, 12);
 		be_pd_mem_usage_increase(mapping->pas_pd, page->pp_size);
 		M0_ASSERT(page->pp_cellar != NULL);
-		memcpy(page->pp_cellar, page->pp_addr, page->pp_size);
+		//XXX memcpy(page->pp_cellar, page->pp_addr, page->pp_size);
 		/* XXX */
 		page->pp_state = mapping->pas_type == M0_BE_PD_MAPPING_COMPAT ?
 			M0_PPS_READY : M0_PPS_MAPPED;
@@ -1774,6 +1958,20 @@ M0_INTERNAL int m0_be_pd_mapping_page_detach(struct m0_be_pd_mapping *mapping,
 	int rc;
 
 	M0_PRE(m0_be_pd_page_is_locked(page));
+	M0_LOG(M0_WARN, "page=%p start=%p end=%p", page, page->pp_addr,
+	       page->pp_addr + page->pp_size);
+#if 0
+	{
+		char buf[0x100];
+		sprintf(buf, "%p." TIME_F ".bin", page, TIME_P(m0_time_now()));
+		FILE* file = fopen(buf, "w");
+		M0_ASSERT(file != NULL);
+		fwrite(page->pp_addr, page->pp_size, 1, file);
+		fclose(file);
+	}
+#endif
+
+	///XXX M0_ASSERT(memcmp(page->pp_addr, page->pp_cellar, page->pp_size) == 0);
 
 	/* TODO make proper poisoning */
 	memset(page->pp_addr, 0xCC, page->pp_size);
@@ -1868,7 +2066,7 @@ m0_be_pd__mapping_by_addr(struct m0_be_pd *paged, const void *addr)
 {
 	struct m0_be_pd_mapping *mapping;
 
-	be_pd_lock(paged);
+	M0_PRE(be_pd_is_locked(paged));
 
 	m0_tl_for(mappings, &paged->bp_mappings, mapping) {
 		if (addr >= m0_be_pd_mapping__addr(mapping) &&
@@ -1876,8 +2074,6 @@ m0_be_pd__mapping_by_addr(struct m0_be_pd *paged, const void *addr)
 			    m0_be_pd_mapping__size(mapping))
 			break;
 	} m0_tl_endfor;
-
-	be_pd_unlock(paged);
 
 	return mapping;
 }

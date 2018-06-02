@@ -231,25 +231,50 @@ void m0_be_ut_pd_fom(void)
 	rc = m0_be_pd_seg_open(&paged, &seg, NULL, seg_cfg.bsc_stob_key);
 	M0_UT_ASSERT(rc == 0);
 
+	M0_LOG(M0_ALWAYS, "read 1");
 	reg = M0_BE_REG(&seg, 1, addr);
 	M0_BE_OP_SYNC(op, m0_be_pd_reg_get(&paged, &reg, &op));
 	m0_be_pd_reg_put(&paged, &reg);
 
+	/* Make PFS_MANAGE_POST state to evict pages, aquired by previous
+	   `reg'-get() */
+	M0_LOG(M0_ALWAYS, "read 2");
+	reg = M0_BE_REG(&seg, 1, addr + 2 * pd_cfg->bpc_page_size);
+	M0_BE_OP_SYNC(op, m0_be_pd_reg_get(&paged, &reg, &op));
+	m0_be_pd_reg_put(&paged, &reg);
 
 
 	{
 		struct m0_be_pd_request       request;
 		struct m0_be_pd_request_pages rpages;
 
+		M0_LOG(M0_ALWAYS, "read 3");
+		reg = M0_BE_REG(&seg, 1, addr);
+		M0_BE_OP_SYNC(op, m0_be_pd_reg_get(&paged, &reg, &op));
 		m0_be_reg_area_capture(&reg_area, &M0_BE_REG_D(reg, &dummy));
+		m0_be_pd_reg_put(&paged, &reg);
+
 		reg = M0_BE_REG(&seg, 1, addr+0x10);
+
+		M0_LOG(M0_ALWAYS, "read 4");
+		M0_BE_OP_SYNC(op, m0_be_pd_reg_get(&paged, &reg, &op));
 		m0_be_reg_area_capture(&reg_area, &M0_BE_REG_D(reg, &dummy));
+		m0_be_pd_reg_put(&paged, &reg);
+
+
+		/* Make PFS_MANAGE_POST state to evict pages, aquired by previous
+		   `reg'-get() */
+		M0_LOG(M0_ALWAYS, "read 5!");
+		reg = M0_BE_REG(&seg, 1, addr + 2 * pd_cfg->bpc_page_size);
+		M0_BE_OP_SYNC(op, m0_be_pd_reg_get(&paged, &reg, &op));
+		m0_be_pd_reg_put(&paged, &reg);
+
 
 
 		m0_be_pd_request_pages_init(&rpages, M0_PRT_WRITE, &reg_area,
 					    &write_ext, NULL);
 		m0_be_pd_request_init(&request, &rpages);
-
+		M0_LOG(M0_ALWAYS, "write 1");
 		M0_BE_OP_SYNC(op, m0_be_pd_request_push(&paged, &request, &op));
 	}
 
@@ -394,11 +419,15 @@ static void be_ut_pd_get_put_reg_fill(struct be_ut_pd_get_put_fom_ctx *fctx,
                                       struct m0_be_reg                *reg,
                                       void                            *seg_data)
 {
+	struct m0_be_reg_d rd;
+
 	be_ut_pd_get_put_reg_random_fill(seg, reg,
 	                                 &fctx->bugf_rng_seed);
 	be_ut_pd_get_put_reg_copy_to_data(seg, reg, seg_data);
-	m0_be_reg_area_capture(&fctx->bugf_reg_area,
-	                       &M0_BE_REG_D(*reg, NULL));
+
+	rd = M0_BE_REG_D(*reg, NULL);
+	rd.rd_gen_idx = m0_be_reg_gen_idx(reg);
+	m0_be_reg_area_capture(&fctx->bugf_reg_area, &rd);
 }
 
 static void be_ut_pd_get_put_work(struct be_ut_pd_get_put_ctx     *ctx,
@@ -462,11 +491,12 @@ static void be_ut_pd_get_put_segs_open(struct be_ut_pd_get_put_ctx *ctx)
 	}
 }
 
-static void be_ut_pd_get_put_segs_reopen(struct be_ut_pd_get_put_ctx *ctx,
+M0_UNUSED static void be_ut_pd_get_put_segs_reopen(struct be_ut_pd_get_put_ctx *ctx,
                                          bool                         reinit_pd)
 {
 	int rc;
 
+	m0_be_pd_fom_manage(&ctx->bugp_pd->bp_fom);
 	be_ut_pd_get_put_segs_close(ctx);
 	if (reinit_pd) {
 		m0_be_pd_fini(ctx->bugp_pd);
@@ -671,10 +701,11 @@ static int be_ut_pd_get_put_fom_tick(struct m0_fom *fom, void *data, int *phase)
 				                          seg_data);
 			}
 			m0_be_pd_reg_put(pd, &reg);
-			be_ut_pd_get_put_unlock(ctx, fctx, &reg);
+			/* be_ut_pd_get_put_unlock(ctx, fctx, &reg); */
 			if (write)
 				be_ut_pd_get_put_reg_area_write(ctx, fctx);
 			++i;
+			be_ut_pd_get_put_unlock(ctx, fctx, &reg);
 		}
 		break;
 	default:
@@ -805,26 +836,28 @@ void m0_be_ut_pd_get_put(void)
 		M0_UT_ASSERT(rc == 0);
 	}
 	be_ut_pd_get_put_segs_open(ctx);
-	be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_SEQ_CHECK);
-	be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_SEQ_FILL);
-	be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_SEQ_CHECK);
-	be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_RND_CHECK);
-	be_ut_pd_get_put_segs_reopen(ctx, false);
-	be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_SEQ_CHECK);
-	be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_RND_FILL);
-	be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_SEQ_CHECK);
-	be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_RND_CHECK);
-	be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_RND_RW);
-	be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_SEQ_CHECK);
-	be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_RND_CHECK);
-	be_ut_pd_get_put_segs_reopen(ctx, true);
-	be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_SEQ_CHECK);
-	be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_RND_CHECK);
+	/* be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_SEQ_CHECK); */
+	/* be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_SEQ_FILL); */
+	/* be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_SEQ_CHECK); */
+	/* be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_RND_CHECK); */
+	/* be_ut_pd_get_put_segs_reopen(ctx, false); */
+	/* be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_SEQ_CHECK); */
+	/* be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_RND_FILL); */
+	/* be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_SEQ_CHECK); */
+	/* be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_RND_CHECK); */
+	/* be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_RND_RW); */
+	/* be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_SEQ_CHECK); */
+	/* be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_RND_CHECK); */
+	/* be_ut_pd_get_put_segs_reopen(ctx, true); */
+	/* be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_SEQ_CHECK); */
+	/* be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_RND_CHECK); */
 	be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_RND_ALL);
-	be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_SEQ_CHECK);
-	be_ut_pd_get_put_segs_reopen(ctx, true);
-	be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_SEQ_CHECK);
-	be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_RND_CHECK);
+	/* be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_SEQ_CHECK); */
+	/* be_ut_pd_get_put_segs_reopen(ctx, true); */
+	/* be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_SEQ_CHECK); */
+	/* be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_RND_CHECK); */
+
+	m0_be_pd_fom_manage(&ctx->bugp_pd->bp_fom);
 	be_ut_pd_get_put_segs_close(ctx);
 	for (i = 0; i < BE_UT_PDGP_SEG_NR; ++i) {
 		rc = m0_be_pd_seg_destroy(ctx->bugp_pd, NULL,

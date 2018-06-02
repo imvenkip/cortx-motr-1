@@ -295,10 +295,12 @@ M0_INTERNAL void m0_be_tx_open(struct m0_be_tx *tx)
 M0_INTERNAL void m0_be_tx_capture(struct m0_be_tx        *tx,
 				  const struct m0_be_reg *reg)
 {
-	struct m0_be_reg_d rd;
+	struct m0_be_reg_d       rd;
+	struct m0_be_pd         *paged = &tx->t_engine->eng_domain->bd_pd;
 
 	M0_PRE(BE_TX_LOCKED_AT_STATE(tx, (M0_BTS_ACTIVE)));
 	M0_PRE(m0_be_reg__invariant(reg));
+	M0_PRE(m0_be_pd__is_reg_in(paged, reg));
 
 	rd = M0_BE_REG_D(*reg, NULL);
 	rd.rd_gen_idx = m0_be_reg_gen_idx(reg);

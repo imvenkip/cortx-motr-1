@@ -287,7 +287,7 @@ struct m0_be_pd_page {
 	m0_bcount_t              pp_size;
 	/** protected by pp_lock */
 	uint64_t                 pp_ref;
-	bool                     pp_dirty;
+	uint64_t                 pp_last_lsn;
 	enum m0_be_pd_page_state pp_state;
 	struct m0_mutex          pp_lock;
 	struct m0_tlink          pp_pio_tlink;
@@ -454,6 +454,9 @@ struct m0_be_pd_request {
 	/** Defines order for WRITE requests. TODO Link to be-io or problem
 	    description */
 	struct m0_ext                  prt_ext;
+
+	/** can be used to return a status to the caller of get/put() */
+	int                            prt_rc;
 };
 
 /* internal */
@@ -615,6 +618,9 @@ M0_INTERNAL void m0_be_pd_reg_get(struct m0_be_pd  *paged,
 M0_INTERNAL void m0_be_pd_reg_put(struct m0_be_pd        *paged,
 				  const struct m0_be_reg *reg);
 
+M0_INTERNAL bool m0_be_pd__is_reg_in(struct m0_be_pd        *paged,
+				     const struct m0_be_reg *reg);
+
 /* ------------------------------------------------------------------------- */
 
 struct m0_be_pd_fom {
@@ -640,6 +646,13 @@ struct m0_be_pd_fom {
 
 	struct m0_semaphore      bpf_start_sem;
 	struct m0_be_fom_thread  bpf_ft;
+
+	/**
+	 * Flag indicating special PD FOM mode occurd while concurrent gets/puts
+	 * in case when page was detached but not written inplace yet. In this
+	 * case it has to be read again and written in usual way.
+	 */
+	bool			 bpf_rmw;
 };
 
 M0_INTERNAL void m0_be_pd_fom_init(struct m0_be_pd_fom    *fom,
@@ -650,6 +663,7 @@ M0_INTERNAL void m0_be_pd_fom_fini(struct m0_be_pd_fom    *fom);
 
 M0_INTERNAL int m0_be_pd_fom_start(struct m0_be_pd_fom *fom);
 M0_INTERNAL void m0_be_pd_fom_stop(struct m0_be_pd_fom *fom);
+M0_INTERNAL void m0_be_pd_fom_manage(struct m0_be_pd_fom *fom);
 
 M0_INTERNAL void m0_be_pd_fom_mod_init(void);
 M0_INTERNAL void m0_be_pd_fom_mod_fini(void);
