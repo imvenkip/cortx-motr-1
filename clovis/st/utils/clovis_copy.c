@@ -120,7 +120,7 @@ static int create_object(struct m0_uint128 id)
 	memset(&obj, 0, sizeof(struct m0_clovis_obj));
 
 	m0_clovis_obj_init(&obj, &clovis_uber_realm, &id,
-			   m0_clovis_default_layout_id(clovis_instance));
+			   m0_clovis_layout_id(clovis_instance));
 
 	open_entity(&obj.ob_entity);
 
@@ -174,7 +174,7 @@ again:
 
 	/* Set the object entity we want to write */
 	m0_clovis_obj_init(&obj, &clovis_uber_realm, &id,
-			   m0_clovis_default_layout_id(clovis_instance));
+			   m0_clovis_layout_id(clovis_instance));
 
 	open_entity(&obj.ob_entity);
 

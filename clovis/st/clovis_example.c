@@ -20,7 +20,6 @@
  * Original creation date: 20-11-2014
  */
 
-
 #include "clovis/clovis.h"
 #include "clovis/st/clovis_st.h"
 #include "clovis/st/clovis_st_misc.h"
@@ -31,7 +30,7 @@
 
 struct m0_clovis_container clovis_st_example_container;
 static struct m0_uint128 test_id;
-static uint64_t default_layout_id;
+static uint64_t layout_id;
 
 /*
  * copy-cat of clovis_st_obj_delete_multiple just to show
@@ -103,7 +102,7 @@ static void example_abitmorecomplicated(void)
 			M0_SET0(&objs[idx]);
 			clovis_st_obj_init(&objs[idx],
 				&clovis_st_example_container.co_realm,
-				&ids[idx], default_layout_id);
+				&ids[idx], layout_id);
 			if (obj_exists[idx]) {
 				clovis_st_entity_open(&objs[idx].ob_entity);
 				rc = clovis_st_entity_delete(
@@ -186,7 +185,7 @@ static void example_simple(void)
 	for (i = 0; i < CREATE_MULTIPLE_N_OBJS; ++i) {
 		clovis_st_obj_init(objs[i],
 			&clovis_st_example_container.co_realm,
-			&ids[i], default_layout_id);
+			&ids[i], layout_id);
 		rc = clovis_st_entity_create(&objs[i]->ob_entity, &ops[i]);
 		CLOVIS_ST_ASSERT_FATAL(rc == 0);
 		CLOVIS_ST_ASSERT_FATAL(ops[i] != NULL);
@@ -232,9 +231,7 @@ static int clovis_st_example_init(void)
 		console_printf("Failed to open uber realm\n");
 
 	test_id = M0_CLOVIS_ID_APP;
-	default_layout_id =
-		m0_clovis_default_layout_id(clovis_st_get_instance());
-
+	layout_id = m0_clovis_layout_id(clovis_st_get_instance());
 	return rc;
 }
 

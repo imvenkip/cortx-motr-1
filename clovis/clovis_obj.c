@@ -758,7 +758,7 @@ int m0_clovis_obj_layout_id_to_unit_size(uint64_t layout_id)
 }
 M0_EXPORTED(m0_clovis_obj_layout_id_to_unit_size);
 
-uint64_t m0_clovis_default_layout_id(struct m0_clovis *instance)
+uint64_t m0_clovis_layout_id(struct m0_clovis *instance)
 {
 	int                  rc;
 	int                  i;
@@ -770,8 +770,6 @@ uint64_t m0_clovis_default_layout_id(struct m0_clovis *instance)
 	M0_ENTRY();
 	M0_PRE(instance != NULL);
 
-	if (M0_FI_ENABLED("return_default_layout"))
-		return M0_DEFAULT_LAYOUT_ID;
 	/*
 	 * TODO:This layout selection is a temporary solution for s3 team
 	 * requirement. In future this has to be replaced by more sophisticated
@@ -799,7 +797,7 @@ err:
 	M0_LEAVE();
 	return lid;
 }
-M0_EXPORTED(m0_clovis_default_layout_id);
+M0_EXPORTED(m0_clovis_layout_id);
 
 enum m0_clovis_layout_type m0_clovis_obj_layout_type(struct m0_clovis_obj *obj)
 {

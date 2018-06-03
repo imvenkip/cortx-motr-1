@@ -488,7 +488,7 @@ static void ut_clovis_test_m0_clovis_obj_init(void)
 	/* base case: no error */
 	M0_SET0(&obj);
 	m0_clovis_obj_init(&obj, &uber_realm.co_realm, &id,
-			   m0_clovis_default_layout_id(instance));
+			   m0_clovis_layout_id(instance));
 
 	/* check the initialisation */
 	M0_UT_ASSERT(obj.ob_entity.en_type == M0_CLOVIS_ET_OBJ);
@@ -959,7 +959,7 @@ static void ut_clovis_test_m0_clovis_entity_fini(void)
 	M0_SET0(&obj);
 	m0_fi_enable_once("m0_clovis__pool_version_get", "fake_pool_version");
 	m0_clovis_obj_init(&obj, &uber_realm.co_realm, &id,
-			   m0_clovis_default_layout_id(instance));
+			   m0_clovis_layout_id(instance));
 	ent = &obj.ob_entity;
 
 	/* Base case: m0_clovis_entity_fini works */
@@ -969,7 +969,7 @@ static void ut_clovis_test_m0_clovis_entity_fini(void)
 	M0_SET0(&obj);
 	m0_fi_enable_once("m0_clovis__pool_version_get", "fake_pool_version");
 	m0_clovis_obj_init(&obj, &uber_realm.co_realm, &id,
-			   m0_clovis_default_layout_id(instance));
+			   m0_clovis_layout_id(instance));
 
 	/* finalise clovis */
 	ut_m0_clovis_fini(&instance);
@@ -997,7 +997,7 @@ static void ut_clovis_test_m0_clovis_obj_fini(void)
 	M0_SET0(&obj);
 	m0_fi_enable_once("m0_clovis__pool_version_get", "fake_pool_version");
 	m0_clovis_obj_init(&obj, &uber_realm.co_realm, &id,
-			   m0_clovis_default_layout_id(instance));
+			   m0_clovis_layout_id(instance));
 
 	/* Base case: m0_clovis_obj_fini works */
 	m0_clovis_obj_fini(&obj);
@@ -1006,7 +1006,7 @@ static void ut_clovis_test_m0_clovis_obj_fini(void)
 	M0_SET0(&obj);
 	m0_fi_enable_once("m0_clovis__pool_version_get", "fake_pool_version");
 	m0_clovis_obj_init(&obj, &uber_realm.co_realm, &id,
-			   m0_clovis_default_layout_id(instance));
+			   m0_clovis_layout_id(instance));
 
 	/* finalise clovis */
 	ut_m0_clovis_fini(&instance);

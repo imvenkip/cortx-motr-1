@@ -556,7 +556,7 @@ static int m0t1fs_fid_create(struct inode     *dir,
 	return M0_ERR(-EOPNOTSUPP);
 }
 
-static uint64_t default_layout_id_get(struct m0t1fs_sb *csb)
+static uint64_t layout_id_get(struct m0t1fs_sb *csb)
 {
 	int                   rc;
 	int                   i;
@@ -695,7 +695,7 @@ static int m0t1fs_create(struct inode     *dir,
 	M0_LOG(M0_INFO, "Creating \"%s\" with pool version "FID_F,
 	       (char*)dentry->d_name.name, FID_P(&ci->ci_pver));
 	/* layout id for new file */
-        ci->ci_layout_id = default_layout_id_get(csb);
+        ci->ci_layout_id = layout_id_get(csb);
 
 	m0t1fs_file_lock_init(ci, csb);
 	rc = m0t1fs_inode_layout_init(ci);

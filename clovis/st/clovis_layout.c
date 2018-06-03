@@ -47,7 +47,7 @@ static char pattern[CHAR_NUM] = {'C', 'L', 'O', 'V', 'I', 'S'};
 
 static struct m0_uint128 test_id;
 struct m0_clovis_container clovis_st_layout_container;
-static uint64_t default_layout_id;
+static uint64_t layout_id;
 static uint32_t unit_size = DEFAULT_PARGRP_UNIT_SIZE;
 
 /**
@@ -64,7 +64,7 @@ static int create_obj(struct m0_uint128 id)
 		return -ENOMEM;
 
 	clovis_st_obj_init(obj, &clovis_st_layout_container.co_realm,
-			   &id, default_layout_id);
+			   &id, layout_id);
 
 	rc = clovis_st_entity_create(&obj->ob_entity, &ops[0]);
 	rc = rc?:ops[0]->op_sm.sm_rc;
@@ -141,7 +141,7 @@ static int write_obj(struct m0_uint128 id)
 
 	clovis_st_obj_init(
 		&obj, &clovis_st_layout_container.co_realm,
-		&id, default_layout_id);
+		&id, layout_id);
 	clovis_st_entity_open(&obj.ob_entity);
 	clovis_st_obj_op(&obj, M0_CLOVIS_OC_WRITE,
 			 &ext, &data, &attr, 0, &ops[0]);
@@ -182,7 +182,7 @@ static void layout_op_get_obj(void)
 
 	/* 1. Initialise in-memory object data struct. */
 	clovis_st_obj_init(obj, &clovis_st_layout_container.co_realm,
-			   &id, default_layout_id);
+			   &id, layout_id);
 
 	/* 2. Open the object to get its attributes. */
 	clovis_st_entity_open(&obj->ob_entity);
@@ -230,7 +230,7 @@ static int layout_create_capture_obj(struct m0_clovis_layout *layout,
 		return -ENOMEM;
 
 	clovis_st_obj_init(obj, &clovis_st_layout_container.co_realm,
-			   &id, default_layout_id);
+			   &id, layout_id);
 	clovis_st_entity_open(&obj->ob_entity);
 	clovis_st_layout_op(obj, M0_CLOVIS_EO_LAYOUT_SET,
 			    layout, &ops[0]);
@@ -273,7 +273,7 @@ static void layout_capture(void)
 
 	/* 1. Initialise in-memory object data struct. */
 	clovis_st_obj_init(orig_obj, &clovis_st_layout_container.co_realm,
-			   &orig_id, default_layout_id);
+			   &orig_id, layout_id);
 
 	/* 2. Open the object to get its attributes. */
 	clovis_st_entity_open(&orig_obj->ob_entity);
@@ -344,7 +344,7 @@ static void layout_capture_io(void)
 
 	/* 1. Initialise in-memory object data struct. */
 	clovis_st_obj_init(orig_obj, &clovis_st_layout_container.co_realm,
-			   &orig_id, default_layout_id);
+			   &orig_id, layout_id);
 
 	/* 2. Open the object to get its attributes. */
 	clovis_st_entity_open(&orig_obj->ob_entity);
@@ -410,7 +410,7 @@ static int layout_composite_create_obj(struct m0_clovis_layout *layout,
 		return -ENOMEM;
 
 	clovis_st_obj_init(obj, &clovis_st_layout_container.co_realm,
-			   &id, default_layout_id);
+			   &id, layout_id);
 	clovis_st_entity_open(&obj->ob_entity);
 	clovis_st_layout_op(obj, M0_CLOVIS_EO_LAYOUT_SET,
 			    layout, &ops[0]);
@@ -448,7 +448,7 @@ static int layout_composite_add_layers(struct m0_clovis_layout *layout,
 
 		M0_SET0(&obj);
 		clovis_st_obj_init(&obj, &clovis_st_layout_container.co_realm,
-				   &id, default_layout_id);
+				   &id, layout_id);
 		rc = m0_clovis_composite_layer_add(layout, &obj, i);
 		clovis_st_entity_fini(&obj.ob_entity);
 		if (rc != 0)
@@ -557,7 +557,7 @@ static int write_io_segs(struct m0_uint128 id, int nr_io_segs,
 	memset(&obj, 0, sizeof obj);
 	clovis_st_obj_init(
 		&obj, &clovis_st_layout_container.co_realm,
-		&id, default_layout_id);
+		&id, layout_id);
 	clovis_st_entity_open(&obj.ob_entity);
 	clovis_st_obj_op(&obj, M0_CLOVIS_OC_WRITE,
 			 &ext, &data, &attr, 0, &ops[0]);
@@ -886,7 +886,7 @@ static void layout_composite_io_on_capture_layer(void)
 
 	/* 1. Initialise in-memory object data struct. */
 	clovis_st_obj_init(orig_obj, &clovis_st_layout_container.co_realm,
-			   &orig_id, default_layout_id);
+			   &orig_id, layout_id);
 
 	/* 2. Open the object to get its attributes. */
 	clovis_st_entity_open(&orig_obj->ob_entity);
@@ -930,7 +930,7 @@ static void layout_composite_io_on_capture_layer(void)
 
 	M0_SET0(&obj);
 	clovis_st_obj_init(&obj, &clovis_st_layout_container.co_realm,
-			   &cap_id, default_layout_id);
+			   &cap_id, layout_id);
 	rc = m0_clovis_composite_layer_add(layout, &obj, 0);
 	CLOVIS_ST_ASSERT_FATAL(rc == 0);
 	clovis_st_entity_fini(&obj.ob_entity);
@@ -1054,8 +1054,7 @@ static int clovis_st_layout_suite_init(void)
 	test_id = M0_CLOVIS_ID_APP;
 	test_id.u_lo += generate_random(0xffff);
 
-	default_layout_id =
-		m0_clovis_default_layout_id(clovis_st_get_instance());
+	layout_id = m0_clovis_layout_id(clovis_st_get_instance());
 	return rc;
 }
 

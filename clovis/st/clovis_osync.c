@@ -35,7 +35,7 @@
 #include "lib/memory.h"
 
 struct m0_clovis_container clovis_st_osync_container;
-static uint64_t default_layout_id;
+static uint64_t layout_id;
 
 #define PARGRP_UNIT_SIZE     (4096)
 #define PARGRP_DATA_UNIT_NUM (2)
@@ -62,7 +62,7 @@ static int create_obj(struct m0_uint128 *oid)
 
 	clovis_oid_get(&id);
 	clovis_st_obj_init(&obj, &clovis_st_osync_container.co_realm,
-			   &id, default_layout_id);
+			   &id, layout_id);
 
 	clovis_st_entity_create(&obj.ob_entity, &ops[0]);
 	if (ops[0] == NULL)
@@ -187,7 +187,7 @@ static void osync_after_each_write(void)
 	/* Init obj */
 	clovis_st_obj_init(obj_to_sync,
 			   &clovis_st_osync_container.co_realm,
-			   &oid, default_layout_id);
+			   &oid, layout_id);
 
 	clovis_st_entity_open(&obj_to_sync->ob_entity);
 
@@ -231,7 +231,7 @@ static void osync_after_writes(void)
 	/* Init obj */
 	clovis_st_obj_init(obj_to_sync,
 			   &clovis_st_osync_container.co_realm,
-			   &oid, default_layout_id);
+			   &oid, layout_id);
 
 	clovis_st_entity_open(&obj_to_sync->ob_entity);
 
@@ -273,7 +273,7 @@ static void osync_by_sync_op(void)
 	/* Init obj */
 	clovis_st_obj_init(obj_to_sync,
 			   &clovis_st_osync_container.co_realm,
-			   &oid, default_layout_id);
+			   &oid, layout_id);
 
 	clovis_st_entity_open(&obj_to_sync->ob_entity);
 
@@ -364,7 +364,7 @@ static void osync_on_op(void)
 		/* Init obj */
 		clovis_st_obj_init(objs_to_sync + i,
 				   &clovis_st_osync_container.co_realm,
-			   	   &oid, default_layout_id);
+				   &oid, layout_id);
 
 		clovis_st_entity_open(&(objs_to_sync + i)->ob_entity);
 
@@ -451,8 +451,7 @@ static int clovis_st_osync_init(void)
 	if (rc != 0)
 		console_printf("Failed to open uber realm\n");
 
-	default_layout_id =
-		m0_clovis_default_layout_id(clovis_st_get_instance());
+	layout_id = m0_clovis_layout_id(clovis_st_get_instance());
 	return rc;
 }
 
