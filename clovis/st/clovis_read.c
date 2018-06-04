@@ -25,13 +25,13 @@
  * specifications.
  */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CLOVIS
+#include "lib/trace.h"
+
 #include "clovis/clovis.h"
 #include "clovis/st/clovis_st.h"
 #include "clovis/st/clovis_st_misc.h"
 #include "clovis/st/clovis_st_assert.h"
-
-/* XXX playing around to try to debug */
-#include "lib/trace.h"
 
 #include "lib/memory.h"
 

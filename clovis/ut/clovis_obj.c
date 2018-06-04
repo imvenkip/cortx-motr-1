@@ -20,11 +20,11 @@
  * Original creation date: 20-Oct-2014
  */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CLOVIS
+#include "lib/trace.h"
+
 #include "layout/layout.h"
 #include "pool/pool.h"
-
-#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CLOVIS
-#include "lib/trace.h"          /* M0_LOG */
 
 #include "ut/ut.h"              /* M0_UT_ASSERT */
 #include "clovis/ut/clovis.h"

@@ -20,13 +20,14 @@
  * Original creation date: 05-May-2017
  */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CLOVIS
+#include "lib/trace.h"
+
 #include "clovis/clovis.h"
 #include "clovis/clovis_layout.h"
 #include "clovis/st/clovis_st.h"
 #include "clovis/st/clovis_st_misc.h"
 #include "clovis/st/clovis_st_assert.h"
-
-#include "lib/trace.h" /* M0_LOG() */
 
 #include "lib/memory.h"
 #include "lib/vec.h"

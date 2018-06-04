@@ -17,12 +17,14 @@
  * Original author:  Sining Wu       <sining.wu@seagate.com>
  * Original creation date: 1-Sept-2015
  */
+
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CLOVIS
+#include "lib/trace.h"
+
 #include "clovis/clovis.h"
 #include "clovis/st/clovis_st.h"
 #include "clovis/st/clovis_st_misc.h"
 #include "clovis/st/clovis_st_assert.h"
-/* XXX playing around to try to debug */
-#include "lib/trace.h"
 
 #include "lib/memory.h"
 #define ST_MAX_INDEX_NUM (1)
