@@ -30,7 +30,8 @@
 
 #include "lib/memory.h"
 
-#define ST_MAX_KEY_LEN (64)
+enum { ST_MAX_KEY_LEN = 64 };
+
 #define ST_VAL_STRING  ("Clovis Index Test.")
 
 enum {

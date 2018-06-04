@@ -38,7 +38,7 @@
 struct m0_clovis_container clovis_st_write_container;
 extern struct m0_addb_ctx m0_clovis_addb_ctx;
 
-#define MAX_OPS (16)
+enum { MAX_OPS = 16 };
 
 /* Parity group aligned (in units)*/
 enum {

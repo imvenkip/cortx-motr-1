@@ -162,7 +162,7 @@ static void example_abitmorecomplicated(void)
 /* copy-cat of clovis_st_obj_create_multiple */
 static void example_simple(void)
 {
-#define CREATE_MULTIPLE_N_OBJS 20
+	enum { CREATE_MULTIPLE_N_OBJS = 20 };
 	uint32_t                i;
 	struct m0_clovis_op    *ops[CREATE_MULTIPLE_N_OBJS] = {NULL};
 	struct m0_clovis_obj   **objs = NULL;

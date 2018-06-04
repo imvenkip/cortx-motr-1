@@ -35,15 +35,16 @@
 #include "lib/errno.h" /* ENOENT */
 
 #ifndef __KERNEL__
-#include <stdlib.h>
-#include <unistd.h>
+#  include <stdlib.h>
+#  include <unistd.h>
 #else
-#include <linux/delay.h>
+#  include <linux/delay.h>
 #endif
-/**
+
+/*
  * Fill those pre-created objects with some value
  */
-#define CHAR_NUM (6)
+enum { CHAR_NUM = 6 };
 static char pattern[CHAR_NUM] = {'C', 'L', 'O', 'V', 'I', 'S'};
 
 static struct m0_uint128 test_id;

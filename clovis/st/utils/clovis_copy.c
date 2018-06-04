@@ -31,7 +31,7 @@
 #include "clovis/clovis.h"
 #include "clovis/clovis_idx.h"
 
-#define CLOVIS_MAX_BLOCK_COUNT (100)
+enum { CLOVIS_MAX_BLOCK_COUNT = 100 };
 
 /* Clovis parameters */
 static char *clovis_local_addr;

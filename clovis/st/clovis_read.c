@@ -40,7 +40,8 @@ extern struct m0_addb_ctx m0_clovis_addb_ctx;
 static uint32_t unit_size = DEFAULT_PARGRP_UNIT_SIZE;
 static uint64_t layout_id;
 
-#define MAX_READ_OID_NUM (256)
+enum { MAX_READ_OID_NUM = 256 };
+
 static int read_oid_num = 0;
 static struct m0_uint128 read_oids[MAX_READ_OID_NUM];
 
@@ -107,10 +108,10 @@ static int create_objs(int nr_objs)
 	return 0;
 }
 
-/**
+/*
  * Fill those pre-created objects with some value
  */
-#define CHAR_NUM (6)
+enum { CHAR_NUM = 6 };
 static char pattern[CHAR_NUM] = {'C', 'L', 'O', 'V', 'I', 'S'};
 
 static int write_objs(void)

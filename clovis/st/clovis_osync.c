@@ -25,23 +25,25 @@
  * specifications.
  */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CLOVIS
+#include "lib/trace.h"
+
 #include "clovis/clovis.h"
 #include "clovis/st/clovis_st.h"
 #include "clovis/st/clovis_st_misc.h"
 #include "clovis/st/clovis_st_assert.h"
 
-/* XXX playing around to try to debug */
-#include "lib/trace.h"
 #include "lib/memory.h"
 
 struct m0_clovis_container clovis_st_osync_container;
 static uint64_t layout_id;
 
-#define PARGRP_UNIT_SIZE     (4096)
-#define PARGRP_DATA_UNIT_NUM (2)
-#define PARGRP_DATA_SIZE     (PARGRP_DATA_UNIT_NUM * PARGRP_UNIT_SIZE)
-
-#define MAX_OPS (16)
+enum {
+	PARGRP_UNIT_SIZE     = 4096,
+	PARGRP_DATA_UNIT_NUM = 2,
+	PARGRP_DATA_SIZE     = PARGRP_DATA_UNIT_NUM * PARGRP_UNIT_SIZE,
+	MAX_OPS              = 16
+};
 
 /* Parity group aligned (in units)*/
 enum {

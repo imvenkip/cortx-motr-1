@@ -43,7 +43,7 @@
 
 /* Currently Clovis can write at max 200 blocks in
  * a single request. This will change in future. */
-#define CLOVIS_MAX_BLOCK_COUNT (200)
+enum { CLOVIS_MAX_BLOCK_COUNT = 200 };
 
 /* Clovis parameters */
 /* local_addr is the Clovis endpoint on Mero cluster */
