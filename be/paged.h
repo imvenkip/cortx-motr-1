@@ -524,6 +524,11 @@ m0_be_pd_request_pages_forall(struct m0_be_pd         *paged,
 			      bool (*iterate)(struct m0_be_pd_page *page,
 					      struct m0_be_reg_d   *rd));
 
+M0_INTERNAL void
+m0_be_pd_request_regions_forall(struct m0_be_pd         *paged,
+				struct m0_be_pd_request *request,
+				bool (*iterate)(struct m0_be_pd_page *page,
+						struct m0_be_reg_d   *rd));
 /**
  * Copies data encapsulated inside request into cellar pages for WRITE.
  *

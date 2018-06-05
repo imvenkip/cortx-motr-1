@@ -653,7 +653,6 @@ static int pd_fom_tick(struct m0_fom *fom)
 	struct m0_be_pd_page          *pio_page;
 	unsigned                       pio_nr;
 	unsigned                       pio_nr_max = cfg->bpc_pages_per_io;
-	struct m0_be_pd_page          *current_iterated_in_write_case; /* XXX */
 	struct m0_be_seg              *seg;
 	unsigned                       pages_nr;
 	int rc;
@@ -811,15 +810,9 @@ static int pd_fom_tick(struct m0_fom *fom)
 		 */
 		//NOTE: m0_be_pd_mappings_lock(paged, request);
 
-		current_iterated_in_write_case = NULL;
 		m0_be_pd_request_pages_forall(paged, request,
 		      LAMBDA(bool, (struct m0_be_pd_page *page,
 				    struct m0_be_reg_d *rd) {
-
-		        if (current_iterated_in_write_case == page)
-			        return true;
-
-			current_iterated_in_write_case = page;
 
 			m0_be_pd_page_lock(page);
 			M0_ASSERT(page->pp_state == M0_PPS_READY);
@@ -1265,7 +1258,7 @@ M0_INTERNAL void
 m0_be_pd_request__copy_to_cellars(struct m0_be_pd         *paged,
 				  struct m0_be_pd_request *request)
 {
-	m0_be_pd_request_pages_forall(paged, request,
+	m0_be_pd_request_regions_forall(paged, request,
 	      LAMBDA(bool, (struct m0_be_pd_page *page,
 			    struct m0_be_reg_d *rd) {
 			     m0_be_pd_page_lock(page);
@@ -1295,24 +1288,59 @@ static bool
 request_pages_forall_helper(struct m0_be_pd         *paged,
 			    struct m0_be_pd_request *request,
 			    struct m0_be_reg_d      *rd,
+			    struct m0_be_pd_page   **page,
+			    bool                     iterate_by_region,
 			    bool (*iterate)(struct m0_be_pd_page *page,
 					    struct m0_be_reg_d   *rd))
 {
 	struct m0_be_pd_request_pages *rpages = &request->prt_pages;
 	struct m0_be_prp_cursor        cursor;
-	struct m0_be_pd_page          *page;
+	struct m0_be_pd_page          *current_page;
 
 	m0_be_prp_cursor_init(&cursor, paged, rpages,
 			      rd->rd_reg.br_addr,
 			      rd->rd_reg.br_size);
 	while (m0_be_prp_cursor_next(&cursor)) {
-		page = m0_be_prp_cursor_page_get(&cursor);
-		if (!iterate(page, rd))
+		current_page = m0_be_prp_cursor_page_get(&cursor);
+
+		if (!iterate_by_region && *page == current_page)
+			continue;
+
+		if (!iterate(current_page, rd))
 			return false;
+
+		*page = current_page;
 	}
 	m0_be_prp_cursor_fini(&cursor);
 
 	return true;
+}
+
+void
+be_pd_request_items_forall(struct m0_be_pd         *paged,
+			   struct m0_be_pd_request *request,
+			   bool			    iterate_by_region,
+			   bool (*iterate)(struct m0_be_pd_page *page,
+					   struct m0_be_reg_d   *rd))
+{
+	struct m0_be_pd_request_pages *rpages = &request->prt_pages;
+	struct m0_be_reg_d            *rd;
+	struct m0_be_reg_d             rd_read;
+	struct m0_be_pd_page          *page = NULL;
+
+	if (rpages->prp_type == M0_PRT_READ) {
+		rd = &rd_read;
+		rd->rd_reg = rpages->prp_reg;
+		request_pages_forall_helper(paged, request, rd, &page,
+					    iterate_by_region, iterate);
+		return;
+	}
+
+	M0_BE_REG_AREA_FORALL(rpages->prp_reg_area, rd) {
+		if (!request_pages_forall_helper(paged, request, rd, &page,
+						 iterate_by_region, iterate))
+			return;
+	}
 }
 
 M0_INTERNAL void
@@ -1321,21 +1349,16 @@ m0_be_pd_request_pages_forall(struct m0_be_pd         *paged,
 			      bool (*iterate)(struct m0_be_pd_page *page,
 					      struct m0_be_reg_d   *rd))
 {
-	struct m0_be_pd_request_pages *rpages = &request->prt_pages;
-	struct m0_be_reg_d            *rd;
-	struct m0_be_reg_d             rd_read;
+	be_pd_request_items_forall(paged, request, false, iterate);
+}
 
-	if (rpages->prp_type == M0_PRT_READ) {
-		rd = &rd_read;
-		rd->rd_reg = rpages->prp_reg;
-		request_pages_forall_helper(paged, request, rd, iterate);
-		return;
-	}
-
-	M0_BE_REG_AREA_FORALL(rpages->prp_reg_area, rd) {
-		if (!request_pages_forall_helper(paged, request, rd, iterate))
-			return;
-	}
+M0_INTERNAL void
+m0_be_pd_request_regions_forall(struct m0_be_pd         *paged,
+				struct m0_be_pd_request *request,
+				bool (*iterate)(struct m0_be_pd_page *page,
+						struct m0_be_reg_d   *rd))
+{
+	be_pd_request_items_forall(paged, request, true, iterate);
 }
 
 /* -------------------------------------------------------------------------- */
