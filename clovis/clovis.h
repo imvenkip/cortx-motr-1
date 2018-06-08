@@ -1351,14 +1351,7 @@ uint64_t m0_clovis_obj_unit_size_to_layout_id(int unit_size);
  */
 int m0_clovis_obj_layout_id_to_unit_size(uint64_t layout_id);
 
-/**
- * Gets layout id.
- *
- * @param instance The Clovis instance to query.
- * @return If Clovis instance hasn't set the default layout id, retrieve
- *         it from confd.
- */
-uint64_t m0_clovis_layout_id(struct m0_clovis *instance);
+uint64_t m0_clovis_layout_id(const struct m0_clovis *instance);
 
 /**
  * Gets the layout type of an object.

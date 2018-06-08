@@ -390,7 +390,7 @@ struct m0_conf_root {
 	/** Any fid. Reserved for future use. */
 	struct m0_fid         rt_rootfid;
 	/** Meta-data pool. */
-	struct m0_fid         rt_mdpool;
+	struct m0_fid         rt_mdpool;  // XXX-MULTIPOOLS: DELETEME
 	/**
 	 * Distributed index meta-data pool version.
 	 *

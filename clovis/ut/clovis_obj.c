@@ -359,8 +359,7 @@ ut_clovis_test_m0_clovis__obj_layout_instance_build(void)
 	/* base case */
 	fid.f_key = 777;
 	lid = m0_pool_version2layout_id(&pv.pv_id, M0_DEFAULT_LAYOUT_ID);
-	rc = m0_clovis__obj_layout_instance_build(
-			instance, lid, &fid,&linst);
+	rc = m0_clovis__obj_layout_instance_build(instance, lid, &fid, &linst);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(linst == &ut_clovis_layout_instance);
 
