@@ -1288,6 +1288,17 @@ int m0_clovis_init(struct m0_clovis **m0c,
 void m0_clovis_fini(struct m0_clovis *m0c, bool fini_m0);
 
 /**
+ * Returns the process fid of the mero instance.
+ *
+ * @param m0c The clovis instance being queried.
+ * @param proc_fid The returned process fid.
+ * @return 0 for success and valid process fid is stored in proc_fid,
+ * anything else for an error.
+ */
+void m0_clovis_process_fid(const struct m0_clovis *m0c,
+			   struct m0_fid *proc_fid);
+
+/**
  * Allocates and initialises an SYNC operation.
  *
  * @param sop A new SYNC op is created, entities and ops can be added

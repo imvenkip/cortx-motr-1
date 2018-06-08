@@ -1502,7 +1502,6 @@ int m0_clovis_init(struct m0_clovis **m0c_p,
 
 	/* publish the allocated clovis instance */
 	*m0c_p = m0c;
-
 	return M0_RC(rc);
 
 err_exit:
@@ -1545,17 +1544,25 @@ void m0_clovis_fini(struct m0_clovis *m0c, bool fini_m0)
 	m0_sm_group_fini(&m0c->m0c_sm_group);
 
 	m0_clovis_bob_fini(m0c);
-
 #ifndef __KERNEL__
 	if (fini_m0)
 		m0_fini();
 #endif
-
 	m0_free(m0c);
 
 	M0_LEAVE();
 }
 M0_EXPORTED(m0_clovis_fini);
+
+void m0_clovis_process_fid(const struct m0_clovis *m0c,
+			   struct m0_fid *proc_fid)
+{
+	M0_PRE(m0c != NULL && proc_fid != NULL);
+
+	/* TODO: check if the process fid is a valid one for clovis. */
+	*proc_fid = m0c->m0c_process_fid;
+}
+M0_EXPORTED(m0_clovis_process_fid);
 
 #ifdef REALM_SUPPORTED
 /* for now, this only lets you open the uber realm for an instance */
