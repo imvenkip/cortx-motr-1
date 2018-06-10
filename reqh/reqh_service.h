@@ -762,7 +762,6 @@ struct m0_reqh_service_ctx {
 
 	struct m0_sm                sc_sm;
 	struct m0_sm_group          sc_sm_grp;
-	struct m0_semaphore         sc_state_wait;
 
 	/** Linkage into external list of service contexts. */
 	struct m0_tlink             sc_link;
