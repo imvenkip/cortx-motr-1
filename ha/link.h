@@ -217,6 +217,13 @@ struct m0_ha_link {
 	bool                        hln_confirmed_update;
 	struct m0_fop               hln_outgoing_fop;
 	struct m0_ha_link_msg_fop   hln_req_fop_data;
+	/**
+	 * The sequence number for the outgoing fops sent over the link.
+	 * It's incremented each time the fop is sent ot resent.
+	 *
+	 * It's protected by hln_lock.
+	 */
+	uint64_t                    hln_req_fop_seq;
 	bool                        hln_replied;
 	bool                        hln_released;
 	struct m0_clink             hln_rpc_wait;

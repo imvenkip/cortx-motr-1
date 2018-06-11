@@ -52,6 +52,8 @@ struct m0_ha_link_msg_fop {
 	struct m0_uint128      lmf_id_connection;
 	uint64_t               lmf_out_next;
 	uint64_t               lmf_in_delivered;
+	/** @see m0_ha_link::hln_req_fop_seq */
+	uint64_t               lmf_seq;
 } M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 struct m0_ha_link_msg_rep_fop {
