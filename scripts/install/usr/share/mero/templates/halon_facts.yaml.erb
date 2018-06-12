@@ -152,6 +152,13 @@ id_m0_globals:
 id_pools:
   <%- pools.each do |pool| -%>
   - pool_id: <%= pool[:name] %>
+    pool_pdclust_attrs:
+      data_units: 2
+      parity_units: 1
+      unit_size: 4096
+      seed: [101, 102]
+    pool_allowed_failures:
+      - {site: 0, rack: 0, encl: 0, ctrl: 0, disk: 1}
     pool_device_refs:
       <%- pool[:disks].each do |disk| -%>
         <%- if disk['is_fake'] -%>
