@@ -20,12 +20,14 @@ DOCKER          := docker
 7.4: DOCKER_OPTS += --build-arg CENTOS_RELEASE=$(CENTOS_RELEASE) \
                     --build-arg LUSTRE_VERSION=$(LUSTRE_VERSION)
 7.4: centos-vault-image lustre-client-image mero-devel-image
+	$(DOCKER) tag $(NAMESPACE)/mero-devel:$(CENTOS_RELEASE) $(NAMESPACE)/mero-devel:$(basename $(CENTOS_RELEASE))
 
 7.3: CENTOS_RELEASE := 7.3.1611
 7.3: LUSTRE_VERSION := 2.9.0
 7.3: DOCKER_OPTS += --build-arg CENTOS_RELEASE=$(CENTOS_RELEASE) \
                     --build-arg LUSTRE_VERSION=$(LUSTRE_VERSION)
 7.3: centos-vault-image lustre-client-image mero-devel-image
+	$(DOCKER) tag $(NAMESPACE)/mero-devel:$(CENTOS_RELEASE) $(NAMESPACE)/mero-devel:$(basename $(CENTOS_RELEASE))
 
 
 INAME = $(@:%-image=%)
@@ -46,8 +48,8 @@ lustre-client-image mero-devel-image:
 	&& tar -ch . \
 	   | $(DOCKER) build -t $(NAMESPACE)/$(INAME):$(TAG) $(DOCKER_OPTS) -
 
-name := [lm]*
-tag  := *
+push: name := [lm]*
+push: tag  := *
 push:
 	@for img in $$(docker images --filter=reference='$(NAMESPACE)/$(name):$(tag)' \
 				    --format '{{.Repository}}:{{.Tag}}' \
@@ -57,6 +59,8 @@ push:
 		$(DOCKER) push $$img ; \
 	done
 
+clean: name := [clm]*
+clean: tag  := *
 clean:
 	@for img in $$(docker images --filter=reference='$(NAMESPACE)/$(name):$(tag)' \
 				    --format '{{.Repository}}:{{.Tag}}') ; \

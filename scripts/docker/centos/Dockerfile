@@ -7,6 +7,7 @@ RUN yum --assumeyes install epel-release
 RUN yum --assumeyes install \
         file \
         git \
+        jq \
         rpm-build \
         which
 
