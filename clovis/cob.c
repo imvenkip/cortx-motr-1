@@ -1126,7 +1126,7 @@ error:
 static void clovis_cob_ast_ios_io_send(struct m0_sm_group *grp,
 					     struct m0_sm_ast *ast)
 {
-	int                      rc;
+	int                      rc = 0;
 	bool                     all_failed = true;
 	uint32_t                 i;
 	uint32_t                 pool_width;
