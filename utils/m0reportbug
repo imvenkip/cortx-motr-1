@@ -3,7 +3,7 @@ set -eu
 # set -x
 export PS4='+ [${FUNCNAME[0]:+${FUNCNAME[0]}:}${LINENO}] '
 
-VERSION=0.29
+VERSION=0.30
 
 IN_DIR=/var/mero # default value; overruled by CLI argument
 OUT_DATA_DIR=m0reportbug-data
@@ -146,8 +146,8 @@ _kdump_files() {
     if [ -f /etc/kdump.conf ]; then
         kdump_path=$(sed -n 's/^path \+//p' /etc/kdump.conf)
     fi
-    [ -n "$kdump_path" -a -d $kdump_path ] || kdump_path=/var/crash
-    if [ -d $kdump_path ]; then
+    [ -n "$kdump_path" -a -d "$kdump_path" ] || kdump_path=/var/crash
+    if [ -d "$kdump_path" ]; then
         find $kdump_path -type f -name vmcore-dmesg.txt -ctime -$CRASH_AGE_MAX
     fi
 }
@@ -253,6 +253,7 @@ _path_rpm() {
             echo "?/usr/lib64/$name.0.0.0";;
         libgf_complete.so) echo "/usr/lib64/$name.1.0.0";;
         python) type -p python;;
+        halond) readlink -f /usr/bin/halond;;
         *) die "${FUNCNAME[0]}: Unsupported argument: $name";;
     esac
 }
@@ -285,6 +286,7 @@ _path_src() {
             echo "$src/extra-libs/gf-complete/src/.libs/$name.1.0.0";;
         lt-m0rwlock) echo "$src/rm/st/.libs/lt-m0rwlock";;
         python) type -p python;;
+        halond) readlink -f /usr/bin/halond;;
         *) die "${FUNCNAME[0]}: Unsupported argument: $name";;
     esac
 }
@@ -372,6 +374,30 @@ backtraces_live() {
     done
 }
 
+_coredump() {
+    [ $# -eq 2 ] || die "Usage: ${FUNCNAME[0]} <inpath> <outdir>"
+    local core=$1
+    local outdir=$2
+
+    mkdir -p $outdir/$(dirname $core)
+    ls -sh $core # print size
+    xz -c $core | {
+        local err
+        ## Write no more than 64 MB.
+        if ! err=$(dd ibs=8k count=8k of=$outdir/$core.xz 2>&1); then
+            echo $err
+            return
+        fi
+        ## Is there anything left in the input stream?
+        if [ $(dd bs=1 count=1 2>/dev/null | wc -c) -gt 0 ]; then
+            echo "Skipping $outdir/$core: compressed file is too large"
+            rm $outdir/$core.xz
+        else
+            touch -r $core $outdir/$core.xz
+        fi
+    }
+}
+
 backtraces_cores() {
     local outdir=$START_DIR/$OUT_CORES_DIR
     local core
@@ -388,24 +414,15 @@ backtraces_cores() {
     section core dumps
     (cd "$IN_DIR"
      find . -type f -name core.\* | cut -c3- | while read core; do
-         mkdir -p $outdir/$(dirname $core)
-         ls -sh $core # print size
-         xz -c $core | {
-             local err
-             ## Write no more than 64 MB.
-             if ! err=$(dd ibs=8k count=8k of=$outdir/$core.xz 2>&1); then
-                 echo $err
-                 continue
-             fi
-             ## Is there anything left in the input stream?
-             if [ $(dd bs=1 count=1 2>/dev/null | wc -c) -gt 0 ]; then
-                 echo "Skipping $core: the compressed file is too large"
-                 rm $outdir/$core.xz
-             else
-                 touch -r $core $outdir/$core.xz
-             fi
-         }
+         _coredump $core $outdir
      done)
+    if [ -d /var/lib/halon ]; then
+        (cd /var/lib/halon
+         find . -type f -name core.\* | cut -c3- | while read core; do
+             _coredump $core $outdir/var/lib/halon
+         done)
+    fi
+
     if [ -d $outdir ] && ! rmdir $outdir 2>/dev/null; then
         ## Core dumps were collected. We need to collect binaries.
         COLLECT_BINARIES_P=1
@@ -424,7 +441,7 @@ binaries() {
 
     mkdir -p $outdir
     ## Note, that we intentionally skip `m0mero.ko' as it's too big (42M).
-    for f in m0mkfs m0d m0ham m0ut ${libs[@]}; do
+    for f in m0mkfs m0d m0ham m0ut ${libs[@]} halond; do
         s=$(path $f binary)
         if [ -n "$s" ]; then
             ## Strip `.0.0' suffix when copying.
@@ -502,11 +519,14 @@ m0traces() {
      done)
 
     section Halon traces
-    (cd /var/log
-     find . -maxdepth 1 -type f -name m0trace.\* |
-         last_modified "${M0TRACES_MAX:-}" | cut -c3- | while read path; do
-             _tracedump $path $outdir/var/log
-     done)
+    if [ -d /var/lib/halon ]; then
+        (cd /var/lib/halon
+         find . -maxdepth 1 -type f -name m0trace.\* |
+             last_modified "${M0TRACES_MAX:-}" | cut -c3- |
+             while read path; do
+                 _tracedump $path $outdir/var/lib/halon
+             done)
+    fi
 }
 
 addb() {
@@ -604,6 +624,14 @@ exit
 ###
 ### Date       Version Description
 ### ---------- ------- ----------------------------------------------------
+### 2018-06-14 0.30    * [bugfix] _kdump_files(): Add missing quotes to
+###                      prevent "[: argument expected" error.
+###                    * m0traces(): Get halond m0traces from /var/lib/halon/
+###                      directory (again).
+###                    * backtraces_cores(): Collect core dumps from
+###                      /var/lib/halon/ directory.
+###                    * binaries(): Collect /usr/bin/halond.
+###
 ### 2018-04-08 0.29    Clean old m0reportbug output before generating new.
 ###
 ### 2018-03-28 0.28    Don't check the version of Mero package. This check
