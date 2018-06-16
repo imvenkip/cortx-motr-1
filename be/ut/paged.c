@@ -428,6 +428,7 @@ static void be_ut_pd_get_put_reg_fill(struct be_ut_pd_get_put_fom_ctx *fctx,
 	rd = M0_BE_REG_D(*reg, NULL);
 	rd.rd_gen_idx = m0_be_reg_gen_idx(reg);
 	m0_be_reg_area_capture(&fctx->bugf_reg_area, &rd);
+	m0_be_pd__pages_lsn_set(seg->bs_pd, &rd);
 }
 
 static void be_ut_pd_get_put_work(struct be_ut_pd_get_put_ctx     *ctx,
@@ -701,11 +702,11 @@ static int be_ut_pd_get_put_fom_tick(struct m0_fom *fom, void *data, int *phase)
 				                          seg_data);
 			}
 			m0_be_pd_reg_put(pd, &reg);
-			/* be_ut_pd_get_put_unlock(ctx, fctx, &reg); */
+			be_ut_pd_get_put_unlock(ctx, fctx, &reg);
 			if (write)
 				be_ut_pd_get_put_reg_area_write(ctx, fctx);
 			++i;
-			be_ut_pd_get_put_unlock(ctx, fctx, &reg);
+			/* be_ut_pd_get_put_unlock(ctx, fctx, &reg); */
 		}
 		break;
 	default:

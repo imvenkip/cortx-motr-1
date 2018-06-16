@@ -621,6 +621,10 @@ M0_INTERNAL void m0_be_pd_reg_put(struct m0_be_pd        *paged,
 M0_INTERNAL bool m0_be_pd__is_reg_in(struct m0_be_pd        *paged,
 				     const struct m0_be_reg *reg);
 
+M0_INTERNAL void m0_be_pd__pages_lsn_set(struct m0_be_pd          *paged,
+					 const struct m0_be_reg_d *regd);
+
+
 /* ------------------------------------------------------------------------- */
 
 struct m0_be_pd_fom {

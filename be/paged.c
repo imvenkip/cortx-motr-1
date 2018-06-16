@@ -184,6 +184,21 @@ static const struct m0_modlev be_pd_levels[] = {
 };
 #undef BE_PD_LEVEL
 
+static void be_pd_lock(struct m0_be_pd *paged)
+{
+	m0_mutex_lock(&paged->bp_lock);
+}
+
+static void be_pd_unlock(struct m0_be_pd *paged)
+{
+	m0_mutex_unlock(&paged->bp_lock);
+}
+
+static bool be_pd_is_locked(struct m0_be_pd *paged)
+{
+	return m0_mutex_is_locked(&paged->bp_lock);
+}
+
 M0_INTERNAL int m0_be_pd_init(struct m0_be_pd           *pd,
 			      const struct m0_be_pd_cfg *pd_cfg)
 {
@@ -314,19 +329,35 @@ M0_INTERNAL bool m0_be_pd__is_reg_in(struct m0_be_pd        *paged,
 	return request.prt_rc == 0;
 }
 
-static void be_pd_lock(struct m0_be_pd *paged)
+M0_INTERNAL void m0_be_pd__pages_lsn_set(struct m0_be_pd          *paged,
+					 const struct m0_be_reg_d *regd)
 {
-	m0_mutex_lock(&paged->bp_lock);
-}
+	struct m0_be_pd_request_pages rpages;
+	struct m0_be_pd_request       request = {};
 
-static void be_pd_unlock(struct m0_be_pd *paged)
-{
-	m0_mutex_unlock(&paged->bp_lock);
-}
+	M0_ENTRY();
 
-static bool be_pd_is_locked(struct m0_be_pd *paged)
-{
-	return m0_mutex_is_locked(&paged->bp_lock);
+	m0_be_pd_request_pages_init(&rpages, M0_PRT_READ, NULL,
+				    &M0_EXT(0, 0), &regd->rd_reg);
+	/* XXX init request just to iterate over all pages */
+	m0_be_pd_request_init(&request, &rpages);
+
+	be_pd_lock(paged);
+	m0_be_pd_request_pages_forall(paged, &request,
+	      LAMBDA(bool, (struct m0_be_pd_page *page,
+	                    struct m0_be_reg_d   *rd) {
+	             m0_be_pd_page_lock(page);
+		     M0_ASSERT(page->pp_ref > 0);
+		     page->pp_last_lsn = regd->rd_gen_idx;
+		     M0_LOG(M0_WARN, "page=%p lsn=%" PRIu64,
+			    page, page->pp_last_lsn);
+	             m0_be_pd_page_unlock(page);
+	             return true;
+	}));
+	be_pd_unlock(paged);
+
+	m0_be_pd_request_fini(&request);
+	M0_LEAVE();
 }
 
 static void be_pd_mem_usage_increase(struct m0_be_pd *pd,
@@ -676,14 +707,30 @@ static struct m0_be_pd_fom *fom2be_pd_fom(struct m0_fom *fom)
 	return container_of(fom, struct m0_be_pd_fom, bpf_gen);
 }
 
-static void pd_pages_manage(struct m0_be_pd *paged)
+static void pd_pages_manage(struct m0_be_pd         *paged,
+			    struct m0_be_pd_request *request)
 {
 	struct m0_be_pd_page          *page;
 	struct m0_be_pd_mapping       *mapping;
+	static uint64_t                last_lsn = 0;
 	int rc;
 	int i;
 
 	M0_ENTRY();
+
+	if (request->prt_pages.prp_type == M0_PRT_WRITE) {
+		m0_be_pd_request_regions_forall(paged, request,
+		      LAMBDA(bool, (struct m0_be_pd_page *_,
+		                    struct m0_be_reg_d   *rd) {
+			     last_lsn = max_check(rd->rd_gen_idx, last_lsn);
+		             return true;
+		}));
+	}
+	/* else { */
+	/* 	last_lsn = M0_BINDEX_MAX; */
+	/* } */
+
+	M0_LOG(M0_WARN, "last_lsn=%" PRIu64, last_lsn);
 
 	be_pd_lock(paged);
 	m0_tl_for(mappings, &paged->bp_mappings, mapping) {
@@ -691,6 +738,7 @@ static void pd_pages_manage(struct m0_be_pd *paged)
 			page = &mapping->pas_pages[i];
 			m0_be_pd_page_lock(page);
 			if (page->pp_ref == 0 &&
+			    page->pp_last_lsn <= last_lsn &&
 			    page->pp_state == M0_PPS_READY) {
 				rc = m0_be_pd_mapping_page_detach(mapping,
 								  page);
@@ -741,7 +789,7 @@ static int pd_fom_tick(struct m0_fom *fom)
 		break;
 	case PFS_FINISH:
 		/** cleanup all pages with ref == 0 */
-		pd_pages_manage(paged);
+		pd_pages_manage(paged, request);
 		pages_tlist_fini(pio_done);
 		pages_tlist_fini(pio_armed);
 		m0_be_op_fini(&pd_fom->bpf_op);
@@ -782,10 +830,15 @@ static int pd_fom_tick(struct m0_fom *fom)
 		rc = M0_FSO_AGAIN;
 		break;
 	case PFS_MANAGE_POST:
-		pd_pages_manage(paged);
+		pd_pages_manage(paged, request);
 
-		if (request->prt_pages.prp_type == M0_PRT_MANAGE)
+		if (request->prt_pages.prp_type == M0_PRT_MANAGE     ||
+		    (request->prt_pages.prp_type == M0_PRT_WRITE &&
+		     pages_tlist_length(pio_armed) == 0)             ||
+		    (request->prt_pages.prp_type == M0_PRT_READ &&
+		     !pd_fom->bpf_rmw)) {
 			m0_be_op_done(request->prt_op);
+		}
 
 		m0_fom_phase_move(fom, 0, PFS_IDLE);
 		rc = M0_FSO_AGAIN;
@@ -904,8 +957,8 @@ static int pd_fom_tick(struct m0_fom *fom)
 
 		m0_be_pd_io_put(pios, pio);
 
-		if (!pd_fom->bpf_rmw)
-			m0_be_op_done(request->prt_op);
+		/* if (!pd_fom->bpf_rmw) */
+		/* 	m0_be_op_done(request->prt_op); */
 
 		m0_fom_phase_set(fom, !pd_fom->bpf_rmw ?
 				      PFS_MANAGE_POST : PFS_WRITE_PRE);
@@ -1014,7 +1067,7 @@ static int pd_fom_tick(struct m0_fom *fom)
 		m0_be_pd_io_put(pios, pio);
 
 		if (pages_tlist_length(pio_armed) == 0) {
-			m0_be_op_done(request->prt_op);
+			/* m0_be_op_done(request->prt_op); */
 			m0_fom_phase_set(fom, PFS_MANAGE_POST);
 		} else {
 			m0_fom_phase_set(fom, PFS_WRITE_POST);
@@ -1958,8 +2011,9 @@ M0_INTERNAL int m0_be_pd_mapping_page_detach(struct m0_be_pd_mapping *mapping,
 	int rc;
 
 	M0_PRE(m0_be_pd_page_is_locked(page));
-	M0_LOG(M0_WARN, "page=%p start=%p end=%p", page, page->pp_addr,
-	       page->pp_addr + page->pp_size);
+	M0_LOG(M0_WARN, "page=%p start=%p end=%p size=%"PRIu64"last_lsn=%"PRIu64,
+	       page, page->pp_addr, page->pp_addr + page->pp_size,
+	       page->pp_size, page->pp_last_lsn);
 #if 0
 	{
 		char buf[0x100];
