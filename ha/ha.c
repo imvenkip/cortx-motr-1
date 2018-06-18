@@ -984,6 +984,14 @@ M0_INTERNAL struct m0_rpc_session *m0_ha_outgoing_session(struct m0_ha *ha)
 	return m0_ha_link_rpc_session(&hlx->hlx_link);
 }
 
+M0_INTERNAL void m0_ha_rpc_endpoint(struct m0_ha      *ha,
+                                    struct m0_ha_link *hl,
+                                    char              *buf,
+                                    m0_bcount_t        buf_len)
+{
+	m0_ha_link_rpc_endpoint(hl, buf, buf_len);
+}
+
 M0_INTERNAL int m0_ha_mod_init(void)
 {
 	struct m0_ha_module *ha_module;

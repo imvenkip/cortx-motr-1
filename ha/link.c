@@ -1649,6 +1649,16 @@ M0_INTERNAL struct m0_rpc_session *m0_ha_link_rpc_session(struct m0_ha_link *hl)
 	return &hl->hln_rpc_link.rlk_sess;
 }
 
+M0_INTERNAL void m0_ha_link_rpc_endpoint(struct m0_ha_link *hl,
+                                         char              *buf,
+                                         m0_bcount_t        buf_len)
+{
+	m0_mutex_lock(&hl->hln_lock);
+	strncpy(buf, hl->hln_conn_cfg.hlcc_rpc_endpoint, buf_len);
+	buf[buf_len - 1] = 0;
+	m0_mutex_unlock(&hl->hln_lock);
+}
+
 M0_INTERNAL int m0_ha_link_mod_init(void)
 {
 	int rc;
