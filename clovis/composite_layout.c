@@ -1113,10 +1113,10 @@ static int composite_io_op_init(struct m0_clovis_obj *obj,
 	oci = M0_AMB(oci, oo, oci_oo);
 
 	/* Initialise the operation */
+	op->op_code = opcode;
 	rc = m0_clovis_op_init(op, &clovis_op_conf, entity);
 	if (rc != 0)
 		return M0_ERR(rc);
-	op->op_code = opcode;
 
 	/* Initalise the vtable */
 	oc->oc_cb_launch = composite_io_op_cb_launch;

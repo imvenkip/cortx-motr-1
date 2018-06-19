@@ -293,7 +293,7 @@ static int clovis_cob_req_send(struct clovis_cob_req *cr)
 	M0_ENTRY();
  	M0_PRE(cr != NULL);
 
-	if (cr->cr_cinst->m0c_config->cc_is_oostore == true)
+	if (cr->cr_cinst->m0c_config->cc_is_oostore)
 		/* Send fops to redundant IOS's */
 		rc = clovis_cob_ios_md_send(cr);
 	else
@@ -1201,7 +1201,7 @@ static int clovis_cob_ios_md_send(struct clovis_cob_req *cr)
 	M0_PRE(cr != NULL);
 	cinst = cr->cr_cinst;
 	M0_ASSERT(cinst != NULL);
-	M0_ASSERT(cinst->m0c_config->cc_is_oostore == true);
+	M0_ASSERT(cinst->m0c_config->cc_is_oostore);
 	M0_ASSERT(cinst->m0c_pools_common.pc_md_redundancy >= 1);
 
 	/*

@@ -390,11 +390,10 @@ static int clovis_layout_op_init(struct m0_clovis_obj *obj,
 
 	M0_ENTRY();
 
+	op->op_code = opcode;
 	rc = m0_clovis_op_init(op, &clovis_op_conf, &obj->ob_entity);
 	if (rc != 0)
 		return M0_RC(rc);
-	op->op_code = opcode;
-
 	/*
 	 * Initialise m0_clovis_op_common part.
 	 */

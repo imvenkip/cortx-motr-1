@@ -43,7 +43,7 @@ static int init_clovis(void)
 {
 	int rc;
 
-	clovis_conf.cc_is_oostore            = false;
+	clovis_conf.cc_is_oostore            = true;
 	clovis_conf.cc_is_read_verify        = false;
 	clovis_conf.cc_local_addr            = clovis_local_addr;
 	clovis_conf.cc_ha_addr               = clovis_ha_addr;

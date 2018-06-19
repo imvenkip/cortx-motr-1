@@ -106,12 +106,10 @@ static int clovis_idx_op_init(struct m0_clovis_idx *idx, int opcode,
 
 	/* Initialise the operation's generic part. */
 	entity = &idx->in_entity;
+	op->op_code = opcode;
 	rc = m0_clovis_op_init(op, &clovis_op_conf, entity);
 	if (rc != 0)
 		return M0_ERR(rc);
-	else
-		op->op_code = opcode;
-
 	/*
 	 * Init m0_clovis_op_common part.
 	 * bob_init()'s haven't been called yet: we use M0_AMB().

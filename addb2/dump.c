@@ -417,12 +417,22 @@ static void counter(struct context *ctx, const uint64_t *v, char *buf)
 	sym(ctx, &d->cod_datum, buf + strlen(buf));
 }
 
+static void hbar(char *buf, uint32_t val, uint32_t m)
+{
+	int len;
+	static const char p[] = /* 60 characters. */
+		"************************************************************";
+	len = val * strlen(p) / m;
+	sprintf(buf + strlen(buf), "%*.*s", len, len, p);
+}
+
 static void hist(struct context *ctx, const uint64_t *v, char *buf)
 {
 	struct m0_addb2_hist_data *hd = (void *)&v[M0_ADDB2_COUNTER_VALS];
 	int                        i;
 	int64_t                    start;
 	uint64_t                   step;
+	uint32_t                   m = 1; /* avoid division by 0. */
 
 	counter(ctx, v, buf);
 	start = hd->hd_min;
@@ -431,6 +441,16 @@ static void hist(struct context *ctx, const uint64_t *v, char *buf)
 	for (i = 1; i < ARRAY_SIZE(hd->hd_bucket); ++i) {
 		sprintf(buf + strlen(buf), " %"PRId64": %"PRId32,
 			start, hd->hd_bucket[i]);
+		start += step;
+		m = max32(m, hd->hd_bucket[i]);
+	}
+	sprintf(buf + strlen(buf), "\n|           : %9"PRId32" | ",
+		hd->hd_bucket[0]);
+	hbar(buf, hd->hd_bucket[0], m);
+	for (i = 1, start = hd->hd_min; i < ARRAY_SIZE(hd->hd_bucket); ++i) {
+		sprintf(buf + strlen(buf), "\n| %9"PRId64" : %9"PRId32" | ",
+			start, hd->hd_bucket[i]);
+		hbar(buf, hd->hd_bucket[i], m);
 		start += step;
 	}
 }
@@ -552,7 +572,7 @@ struct id_intrp ids[] = {
 	{ M0_AVI_IOS_IO_DESCR,    "ios-io-descr",    { FID, FID,
 						       &hex, &hex, &dec, &dec,
 						       &dec, &dec, &dec },
-	  { "file", NULL, "cob", NULL, "read-v", "write-v",
+	  { "file", NULL, "cob", NULL,
 	    "seg-nr", "count", "offset", "descr-nr", "colour" }},
 	{ M0_AVI_FS_OPEN,         "m0t1fs-open",     { FID, &oct },
 	  { NULL, NULL, "flags" }},

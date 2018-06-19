@@ -617,6 +617,7 @@ struct m0_clovis_op {
 	struct m0_mutex                op_pending_tx_lock;
 	/* Operation's private data, can be used as arguments for callbacks.*/
 	void                          *op_datum;
+	uint64_t                       op_count;
 };
 
 /**
