@@ -253,7 +253,9 @@ m0_unload_modules()
         modprobe -r m0mero
     fi
 
-    m0_stop_lnet
+    case ${MERO_KMOD_STOP_LNET_ON_UNLOAD:-no} in
+        yes|Yes|YES|1|true|True|TRUE) m0_stop_lnet ;;
+    esac
 }
 
 # Return path to a working directory of particular m0d instance

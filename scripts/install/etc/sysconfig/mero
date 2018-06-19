@@ -41,6 +41,10 @@ MERO_M0T1FS_MOUNTPOINT='/mnt/m0t1fs'
 # Additional parameters for m0mero.ko module (will be appended to the default param list).
 #MERO_KMOD_EXTRA_PARAMS=
 
+# Control whether LNet modules need to be unloaded after unloading Mero kernel
+# modules
+#MERO_KMOD_STOP_LNET_ON_UNLOAD=no
+
 # Where m0d stores it's data, by default it's /var/mero.
 #MERO_M0D_DATA_DIR=/var/mero
 
