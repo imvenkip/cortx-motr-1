@@ -252,6 +252,18 @@ M0_INTERNAL void m0_be_pd_reg_get(struct m0_be_pd            *paged,
 	M0_ALLOC_PTR(request);
 	M0_ASSERT(request != NULL);
 	m0_be_pd_request_init(request, &rpages);
+
+	if (paged->bp_cfg.bpc_mapping_type == M0_BE_PD_MAPPING_COMPAT) {
+		int pinned;
+		/* increment references */
+		pinned = m0_be_pd_pages_are_in(paged, request);
+		M0_POST(pinned);
+
+		m0_be_op_active(op);
+		m0_be_op_done(op);
+		goto req_fini;
+	}
+
 	//YYY
 	//if (m0_be_pd_pages_are_in(paged, request)) {
 	//	m0_be_op_active(op);
@@ -262,7 +274,7 @@ M0_INTERNAL void m0_be_pd_reg_get(struct m0_be_pd            *paged,
 	m0_be_pd_request_push(paged, request, op);
 	m0_be_op_wait(op);
 
-//req_fini:
+req_fini:
 	m0_be_pd_request_fini(request);
 	m0_free(request);
 
@@ -932,17 +944,6 @@ static int pd_fom_tick(struct m0_fom *fom)
 			if (page->pp_state == M0_PPS_READING) {
 				memcpy(page->pp_cellar, page->pp_addr,
 				       page->pp_size);
-				#if 0
-				{
-					char buf[0x100];
-					sprintf(buf, "%p." TIME_F ".bin", page, TIME_P(m0_time_now()));
-					FILE* file = fopen(buf, "w");
-					M0_ASSERT(file != NULL);
-					fwrite(page->pp_addr, page->pp_size, 1, file);
-					fclose(file);
-				}
-				#endif
-
 			}
 			/* XXX move page to ready state IF it is in pio */
 			page->pp_state = M0_PPS_READY;
@@ -1872,8 +1873,8 @@ M0_INTERNAL int m0_be_pd_mapping_init(struct m0_be_pd *paged,
 
 	/* TODO Remove when BE conversion is finished. */
 	if (fd > 0) {
-		mapping->pas_type = M0_BE_PD_MAPPING_PER_PAGE;
-		mapping->pas_fd   = fd;
+		/* M0_ASSERT(mapping->pas_type == M0_BE_PD_MAPPING_COMPAT); */
+		mapping->pas_fd = fd;
 	}
 
 	rc = be_pd_mapping_map(mapping);
@@ -1884,15 +1885,18 @@ M0_INTERNAL int m0_be_pd_mapping_init(struct m0_be_pd *paged,
 	be_pd_unlock(paged);
 
 	/* XXX: delete this after page_get/put ready in code */
-#if 0
+#if 1
 	if (mapping->pas_type == M0_BE_PD_MAPPING_COMPAT) {
+		be_pd_lock(mapping->pas_pd);
 		for (i = 0; i < mapping->pas_pcount; ++i) {
 			m0_be_pd_page_lock(&mapping->pas_pages[i]);
+			M0_CNT_INC(mapping->pas_pages[i].pp_ref);
 			rc = m0_be_pd_mapping_page_attach(mapping,
 						      &mapping->pas_pages[i]);
 			M0_ASSERT(rc == 0);
 			m0_be_pd_page_unlock(&mapping->pas_pages[i]);
 		}
+		be_pd_unlock(mapping->pas_pd);
 	}
 #endif
 
@@ -1916,15 +1920,18 @@ M0_INTERNAL int m0_be_pd_mapping_fini(struct m0_be_pd *paged,
 	be_pd_unlock(paged);
 
 	/* XXX: delete this after page_get/put ready in code */
-#if 0
+#if 1
 	if (mapping->pas_type == M0_BE_PD_MAPPING_COMPAT) {
+		be_pd_lock(mapping->pas_pd);
 		for (i = 0; i < mapping->pas_pcount; ++i) {
 			m0_be_pd_page_lock(&mapping->pas_pages[i]);
+			M0_CNT_DEC(mapping->pas_pages[i].pp_ref);
 			int rc = m0_be_pd_mapping_page_detach(mapping,
 							&mapping->pas_pages[i]);
 			M0_ASSERT(rc == 0);
 			m0_be_pd_page_unlock(&mapping->pas_pages[i]);
 		}
+		be_pd_unlock(mapping->pas_pd);
 	}
 #endif
 
@@ -1996,7 +2003,10 @@ M0_INTERNAL int m0_be_pd_mapping_page_attach(struct m0_be_pd_mapping *mapping,
 		page->pp_cellar = m0_alloc_aligned(page->pp_size, 12);
 		be_pd_mem_usage_increase(mapping->pas_pd, page->pp_size);
 		M0_ASSERT(page->pp_cellar != NULL);
-		//XXX memcpy(page->pp_cellar, page->pp_addr, page->pp_size);
+
+		if (mapping->pas_type == M0_BE_PD_MAPPING_COMPAT)
+			memcpy(page->pp_cellar, page->pp_addr, page->pp_size);
+
 		/* XXX */
 		page->pp_state = mapping->pas_type == M0_BE_PD_MAPPING_COMPAT ?
 			M0_PPS_READY : M0_PPS_MAPPED;
@@ -2014,16 +2024,6 @@ M0_INTERNAL int m0_be_pd_mapping_page_detach(struct m0_be_pd_mapping *mapping,
 	M0_LOG(M0_WARN, "page=%p start=%p end=%p size=%"PRIu64"last_lsn=%"PRIu64,
 	       page, page->pp_addr, page->pp_addr + page->pp_size,
 	       page->pp_size, page->pp_last_lsn);
-#if 0
-	{
-		char buf[0x100];
-		sprintf(buf, "%p." TIME_F ".bin", page, TIME_P(m0_time_now()));
-		FILE* file = fopen(buf, "w");
-		M0_ASSERT(file != NULL);
-		fwrite(page->pp_addr, page->pp_size, 1, file);
-		fclose(file);
-	}
-#endif
 
 	///XXX M0_ASSERT(memcmp(page->pp_addr, page->pp_cellar, page->pp_size) == 0);
 

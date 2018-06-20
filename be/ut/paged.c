@@ -114,9 +114,12 @@ static void m0_be_ut_pd_mapping_resident_with_cfg(struct m0_be_pd_cfg *pd_cfg)
 	M0_UT_ASSERT(rc == 0);
 
 	/* Check that function handles not existent mappings */
+
+	m0_mutex_lock(&paged.bp_lock);
 	M0_UT_ASSERT(m0_be_pd__mapping_by_addr(&paged, NULL) == NULL);
 	mapping = m0_be_pd__mapping_by_addr(&paged, seg_addr);
 	M0_UT_ASSERT(mapping != NULL);
+	m0_mutex_unlock(&paged.bp_lock);
 
 	M0_UT_ASSERT(mapping->pas_pcount == seg_size / pd_cfg->bpc_page_size);
 
@@ -130,10 +133,13 @@ static void m0_be_ut_pd_mapping_resident_with_cfg(struct m0_be_pd_cfg *pd_cfg)
 	page = m0_be_pd_mapping__addr_to_page(mapping,
 				  (char *)seg_addr + pd_cfg->bpc_page_size);
 	M0_UT_ASSERT(page != NULL);
+
+	m0_mutex_lock(&paged.bp_lock);
 	m0_be_pd_page_lock(page);
 	rc = m0_be_pd_mapping_page_attach(mapping, page);
 	m0_be_pd_page_unlock(page);
 	M0_UT_ASSERT(rc == 0);
+	m0_mutex_unlock(&paged.bp_lock);
 
 	/* Only system pages that represent the page must be resident. */
 	for (i = 0; i < mapping->pas_pcount; ++i) {
@@ -142,10 +148,12 @@ static void m0_be_ut_pd_mapping_resident_with_cfg(struct m0_be_pd_cfg *pd_cfg)
 	}
 
 	/* Detach the page */
+	m0_mutex_lock(&paged.bp_lock);
 	m0_be_pd_page_lock(page);
 	rc = m0_be_pd_mapping_page_detach(mapping, page);
 	m0_be_pd_page_unlock(page);
 	M0_UT_ASSERT(rc == 0);
+	m0_mutex_unlock(&paged.bp_lock);
 
 	/* All system pages must be not resident at this point. */
 	for (i = 0; i < mapping->pas_pcount; ++i) {
@@ -837,26 +845,26 @@ void m0_be_ut_pd_get_put(void)
 		M0_UT_ASSERT(rc == 0);
 	}
 	be_ut_pd_get_put_segs_open(ctx);
-	/* be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_SEQ_CHECK); */
-	/* be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_SEQ_FILL); */
-	/* be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_SEQ_CHECK); */
-	/* be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_RND_CHECK); */
-	/* be_ut_pd_get_put_segs_reopen(ctx, false); */
-	/* be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_SEQ_CHECK); */
-	/* be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_RND_FILL); */
-	/* be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_SEQ_CHECK); */
-	/* be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_RND_CHECK); */
-	/* be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_RND_RW); */
-	/* be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_SEQ_CHECK); */
-	/* be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_RND_CHECK); */
-	/* be_ut_pd_get_put_segs_reopen(ctx, true); */
-	/* be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_SEQ_CHECK); */
-	/* be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_RND_CHECK); */
+	be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_SEQ_CHECK);
+	be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_SEQ_FILL);
+	be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_SEQ_CHECK);
+	be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_RND_CHECK);
+	be_ut_pd_get_put_segs_reopen(ctx, false);
+	be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_SEQ_CHECK);
+	be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_RND_FILL);
+	be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_SEQ_CHECK);
+	be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_RND_CHECK);
+	be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_RND_RW);
+	be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_SEQ_CHECK);
+	be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_RND_CHECK);
+	be_ut_pd_get_put_segs_reopen(ctx, true);
+	be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_SEQ_CHECK);
+	be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_RND_CHECK);
 	be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_RND_ALL);
-	/* be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_SEQ_CHECK); */
-	/* be_ut_pd_get_put_segs_reopen(ctx, true); */
-	/* be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_SEQ_CHECK); */
-	/* be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_RND_CHECK); */
+	be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_SEQ_CHECK);
+	be_ut_pd_get_put_segs_reopen(ctx, true);
+	be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_SEQ_CHECK);
+	be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_RND_CHECK);
 
 	m0_be_pd_fom_manage(&ctx->bugp_pd->bp_fom);
 	be_ut_pd_get_put_segs_close(ctx);
