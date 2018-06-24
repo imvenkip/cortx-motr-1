@@ -547,12 +547,10 @@ static int halon_interface_level_enter(struct m0_module *module)
 		M0_SET0(&hii->hii_spiel);
 
 		hii->hii_cfg.hic_tm_nr        = 1;
-		hii->hii_cfg.hic_bufs_nr      =
-			m0_rpc_bufs_nr(M0_NET_TM_RECV_QUEUE_DEF_LEN,
-			               hii->hii_cfg.hic_tm_nr);
+		hii->hii_cfg.hic_bufs_nr      = 100;
 		hii->hii_cfg.hic_colour       = M0_BUFFER_ANY_COLOUR;
 		hii->hii_cfg.hic_max_msg_size = 1UL << 17;
-		hii->hii_cfg.hic_queue_len    = 2;
+		hii->hii_cfg.hic_queue_len    = 100;
 		hii->hii_cfg.hic_ha_cfg = (struct m0_ha_cfg){
 			.hcf_ops         = halon_interface_ha_ops,
 			.hcf_rpc_machine = &hii->hii_rpc_machine,
