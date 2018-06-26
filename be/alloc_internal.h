@@ -51,12 +51,12 @@ struct be_alloc_chunk {
 	 * Used to find invalid memory access after allocated chunk.
 	 */
 	uint64_t                   bac_magic0;
-	/** for m0_be_allocator_header.ba_chunks list */
-	struct m0_tlink            bac_linkage;
+	/** for m0_be_allocator_header.bah_chunks list */
+	struct m0_be_list_link     bac_linkage;
 	/** magic for bac_linkage */
 	uint64_t                   bac_magic;
-	/** for m0_be_allocator_header.ba_free list */
-	struct m0_tlink            bac_linkage_free;
+	/** for m0_be_allocator_header.bah_fl list */
+	struct m0_be_list_link     bac_linkage_free;
 	/** magic for bac_linkage_free */
 	uint64_t                   bac_magic_free;
 	/** size of chunk */

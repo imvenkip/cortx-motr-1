@@ -86,11 +86,10 @@
  * @{
  */
 
-M0_TL_DESCR_DEFINE(fl_chunks, "list of chunks in m0_be_fl",
-		   static, struct be_alloc_chunk,
-		   bac_linkage_free, bac_magic_free,
-		   M0_BE_ALLOC_FREE_LINK_MAGIC, M0_BE_ALLOC_FREE_MAGIC);
-M0_TL_DEFINE(fl_chunks, static, struct be_alloc_chunk);
+M0_BE_LIST_DESCR_DEFINE(fl, "m0_be_fl", static, struct be_alloc_chunk,
+			bac_linkage_free, bac_magic_free,
+			M0_BE_ALLOC_FREE_LINK_MAGIC, M0_BE_ALLOC_FREE_MAGIC);
+M0_BE_LIST_DEFINE(fl, static, struct be_alloc_chunk);
 
 static struct m0_be_list *be_fl_list(struct m0_be_fl *fl, unsigned long index)
 {
@@ -101,7 +100,7 @@ static struct m0_be_list *be_fl_list(struct m0_be_fl *fl, unsigned long index)
 
 static bool be_fl_list_is_empty(struct m0_be_fl *fl, unsigned long index)
 {
-	return m0_be_list_is_empty(be_fl_list(fl, index));
+	return fl_be_list_is_empty(be_fl_list(fl, index));
 }
 
 M0_INTERNAL void m0_be_fl_create(struct m0_be_fl  *fl,
@@ -111,7 +110,7 @@ M0_INTERNAL void m0_be_fl_create(struct m0_be_fl  *fl,
 	int i;
 
 	for (i = 0; i < ARRAY_SIZE(fl->bfl_free); ++i)
-		m0_be_list_create(be_fl_list(fl, i), tx, &fl_chunks_tl);
+		fl_be_list_create(be_fl_list(fl, i), tx);
 }
 
 M0_INTERNAL void m0_be_fl_destroy(struct m0_be_fl *fl, struct m0_be_tx *tx)
@@ -119,7 +118,7 @@ M0_INTERNAL void m0_be_fl_destroy(struct m0_be_fl *fl, struct m0_be_tx *tx)
 	int i;
 
 	for (i = 0; i < ARRAY_SIZE(fl->bfl_free); ++i)
-		m0_be_list_destroy(be_fl_list(fl, i), tx);
+		fl_be_list_destroy(be_fl_list(fl, i), tx);
 }
 
 static unsigned long be_fl_index_round_up(struct m0_be_fl *fl,
@@ -140,9 +139,9 @@ be_fl_index_round_down_chunk(struct m0_be_fl             *fl,
 M0_INTERNAL bool m0_be_fl__invariant(struct m0_be_fl *fl)
 {
 	return m0_forall(i, ARRAY_SIZE(fl->bfl_free),
-		 m0_tl_forall(fl_chunks, chunk, &be_fl_list(fl, i)->bl_list,
-			      _0C(be_fl_index_round_down_chunk(fl, chunk) ==
-				  i)));
+			m0_be_list_forall(fl, chunk, be_fl_list(fl, i),
+				_0C(be_fl_index_round_down_chunk(fl, chunk) ==
+				    i)));
 }
 
 M0_INTERNAL void m0_be_fl_add(struct m0_be_fl       *fl,
@@ -153,8 +152,8 @@ M0_INTERNAL void m0_be_fl_add(struct m0_be_fl       *fl,
 
 	M0_PRE_EX(m0_be_fl__invariant(fl));
 
-	m0_be_tlink_create(chunk, tx, be_fl_list(fl, index));
-	m0_be_list_add(be_fl_list(fl, index), tx, chunk);
+	fl_be_tlink_create(chunk, tx);
+	fl_be_list_add(be_fl_list(fl, index), tx, chunk);
 
 	M0_POST_EX(m0_be_fl__invariant(fl));
 }
@@ -167,8 +166,8 @@ M0_INTERNAL void m0_be_fl_del(struct m0_be_fl       *fl,
 
 	M0_PRE_EX(m0_be_fl__invariant(fl));
 
-	m0_be_list_del(be_fl_list(fl, index), tx, chunk);
-	m0_be_tlink_destroy(chunk, tx, be_fl_list(fl, index));
+	fl_be_list_del(be_fl_list(fl, index), tx, chunk);
+	fl_be_tlink_destroy(chunk, tx);
 	M0_POST_EX(m0_be_fl__invariant(fl));
 }
 
@@ -190,11 +189,11 @@ M0_INTERNAL struct be_alloc_chunk *m0_be_fl_pick(struct m0_be_fl *fl,
 	}
 
 	flist = index < ARRAY_SIZE(fl->bfl_free) ? be_fl_list(fl, index) : NULL;
-	chunk = flist == NULL ? NULL : fl_chunks_tlist_head(&flist->bl_list);
+	chunk = flist == NULL ? NULL : fl_be_list_head(flist);
 	if (index == M0_BE_FL_NR && chunk != NULL) {
 		chunk = NULL;
 		i = 0;
-		m0_tl_for(fl_chunks, &flist->bl_list, iter) {
+		m0_be_list_for(fl, flist, iter) {
 			if (iter->bac_size > size &&
 			    ergo(chunk != NULL,
 				 chunk->bac_size > iter->bac_size)) {
@@ -203,7 +202,7 @@ M0_INTERNAL struct be_alloc_chunk *m0_be_fl_pick(struct m0_be_fl *fl,
 			++i;
 			if (i >= M0_BE_FL_PICK_SCAN_LIMIT && chunk != NULL)
 				break;
-		} m0_tl_endfor;
+		} m0_be_list_endfor;
 	}
 	M0_POST(ergo(chunk != NULL, chunk->bac_size >= size));
 	return chunk;
@@ -213,25 +212,24 @@ M0_INTERNAL void m0_be_fl_credit(struct m0_be_fl        *fl,
 				 enum m0_be_fl_op        fl_op,
 				 struct m0_be_tx_credit *accum)
 {
-	const struct m0_be_list *list    = be_fl_list(fl, 0);
-	size_t                   list_nr = ARRAY_SIZE(fl->bfl_free);
+	size_t list_nr = ARRAY_SIZE(fl->bfl_free);
 
 	M0_ASSERT_INFO(M0_IN(fl_op, (M0_BFL_CREATE, M0_BFL_DESTROY,
 	                             M0_BFL_ADD, M0_BFL_DEL)),
 	               "fl_op=%d", fl_op);
 	switch (fl_op) {
 	case M0_BFL_CREATE:
-		m0_be_list_credit(list, M0_BLO_CREATE, list_nr, accum);
+		fl_be_list_credit(M0_BLO_CREATE, list_nr, accum);
 	case M0_BFL_DESTROY:
-		m0_be_list_credit(list, M0_BLO_DESTROY, list_nr, accum);
+		fl_be_list_credit(M0_BLO_DESTROY, list_nr, accum);
 		break;
 	case M0_BFL_ADD:
-		m0_be_list_credit(list, M0_BLO_TLINK_CREATE, 1, accum);
-		m0_be_list_credit(list, M0_BLO_ADD, 1, accum);
+		fl_be_list_credit(M0_BLO_TLINK_CREATE, 1, accum);
+		fl_be_list_credit(M0_BLO_ADD, 1, accum);
 		break;
 	case M0_BFL_DEL:
-		m0_be_list_credit(list, M0_BLO_DEL, 1, accum);
-		m0_be_list_credit(list, M0_BLO_TLINK_DESTROY, 1, accum);
+		fl_be_list_credit(M0_BLO_DEL, 1, accum);
+		fl_be_list_credit(M0_BLO_TLINK_DESTROY, 1, accum);
 		break;
 	}
 }
