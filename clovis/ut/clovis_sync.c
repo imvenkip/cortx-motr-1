@@ -226,7 +226,7 @@ static void ut_clovis_test_clovis_sync_request_fop_send(void)
 	int                             rv;
 	struct clovis_sync_fop_wrapper *sfw;
 	struct m0_reqh_service_txid     stx;
-	struct m0_fop_fsync             *ffd;
+	struct m0_fop_fsync            *ffd;
 
 	fake_clovis_setup();
 
@@ -509,6 +509,9 @@ void call_clovis_sync_request_launch_and_wait(
 {
 	int rv;
 
+	/* Reset sreq. */
+	sreq.sr_nr_fops = 0;
+	sreq.sr_rc = 0;
 	rv = clovis_sync_request_launch_and_wait(&sreq, input_flag);
 	M0_UT_ASSERT(rv == expect_return);
 	M0_UT_ASSERT(ut_post_rpc_count == expect_ut_post_rpc_count);
@@ -545,7 +548,7 @@ static void ut_clovis_test_clovis_sync_request_launch_and_wait(void)
 	ut_post_rpc_return = -EINVAL;
 	ut_post_rpc_early_return = -EINVAL;
 	call_clovis_sync_request_launch_and_wait(
-		&obj, M0_FSYNC_MODE_ACTIVE, ut_post_rpc_return, 1, 0,1);
+		&obj, M0_FSYNC_MODE_ACTIVE, ut_post_rpc_return, 1, 0, 1);
 
 	/* Cause fop sending to fail after a few have been sent - check those
 	 * that were sent correctly have their replies processed */
@@ -557,7 +560,7 @@ static void ut_clovis_test_clovis_sync_request_launch_and_wait(void)
 	ut_wait_for_reply_remote_return = 0;
 	call_clovis_sync_request_launch_and_wait(&obj, M0_FSYNC_MODE_ACTIVE,
 	                       ut_post_rpc_return, ut_post_rpc_delay,
-	                       ut_post_rpc_delay-1, ut_post_rpc_delay);
+	                       ut_post_rpc_delay - 1, ut_post_rpc_delay);
 	/* reset replies */
 	for (i = 0; i < NUM_STRECORDS; i++)
 		sreq_stx[i].stx_tri.tri_txid = 3;
@@ -593,8 +596,8 @@ static void ut_clovis_test_clovis_sync_request_launch_and_wait(void)
 	ut_post_rpc_return = 0;
 	ut_wait_for_reply_return = 0;
 	ut_wait_for_reply_remote_return = 0;
-	call_clovis_sync_request_launch_and_wait(&obj, M0_FSYNC_MODE_ACTIVE, -EINVAL, 0, 0, 0);
-
+	call_clovis_sync_request_launch_and_wait(
+		&obj, M0_FSYNC_MODE_ACTIVE, -EAGAIN, 0, 0, 0);
 	/* Restore the fsync_interactions struct */
 	si = copy;
 

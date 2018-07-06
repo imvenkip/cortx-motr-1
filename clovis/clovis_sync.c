@@ -485,7 +485,6 @@ static int clovis_sync_request_launch(struct clovis_sync_request *sreq,
 {
 	int                             rc;
 	int                             saved_error = 0;
-	int                             nr_fops_sent = 0;
 	struct m0_reqh_service_txid    *iter;
 	struct clovis_sync_fop_wrapper *sfw = NULL;
 	struct m0_tl                   *stx_tl;
@@ -496,6 +495,7 @@ static int clovis_sync_request_launch(struct clovis_sync_request *sreq,
 	 * Finds the services with pending transactions for each entry,
 	 * send an fsync fop. This is the fop sending loop.
 	 */
+	m0_mutex_lock(&sreq->sr_fops_lock);
 	stx_tl = &sreq->sr_stxs;
 	m0_tl_for(spti, stx_tl, iter) {
 		/*
@@ -514,18 +514,9 @@ static int clovis_sync_request_launch(struct clovis_sync_request *sreq,
 			saved_error = rc;
 			break;
 		} else {
-			/*
-			 * It is possible that fops have been replied when
-			 * still in this function and sr_nr_fops has been changed, so
-			 * use a local variable here.
- 			 */
-			nr_fops_sent++;
-
 			/* Add to list of pending fops  */
-			m0_mutex_lock(&sreq->sr_fops_lock);
-			sreq->sr_nr_fops++;
+			M0_CNT_INC(sreq->sr_nr_fops);
 			spf_tlink_init_at(sfw, &sreq->sr_fops);
-			m0_mutex_unlock(&sreq->sr_fops_lock);
 		}
 	} m0_tl_endfor;
 
@@ -541,16 +532,23 @@ static int clovis_sync_request_launch(struct clovis_sync_request *sreq,
 	 * Returns saved_error directly only if no fops are sent, otherwise the
 	 * error is stored in clovis_sync_request::sr_rc.
 	 */
-	if (nr_fops_sent == 0) {
+	if (sreq->sr_nr_fops == 0) {
 		if (saved_error == 0)
-			/* It may happen when there are no pending txid. */
-			return M0_ERR(-EINVAL);
+			/*
+			 * It may happen when there are no pending txid. For
+			 * example, sync op is launched even before
+			 * a write request gets replies and sets txid.
+			 */
+			rc = -EAGAIN;
 		else
-			return M0_RC(saved_error);
+			rc = M0_ERR(saved_error);
 	} else {
-		sreq->sr_rc = saved_error;
-		return M0_RC(0);
+		sreq->sr_rc = saved_error != 0 ? M0_ERR(saved_error) :
+				saved_error;
+		rc = 0;
 	}
+	m0_mutex_unlock(&sreq->sr_fops_lock);
+	return M0_RC(rc);
 }
 
 /**
@@ -743,7 +741,7 @@ static void clovis_sync_pending_stx_update(struct m0_reqh_service_ctx *service,
 					   struct m0_tl *pending_tx,
 					   struct m0_be_tx_remid *btr)
 {
-	struct m0_reqh_service_txid *stx = NULL;
+	struct m0_reqh_service_txid *stx;
 
 	/*
 	  * TODO: replace this O(N) search with something better.
