@@ -25,6 +25,7 @@
  */
 
 #include <linux/kernel.h>         /* pr_emerg */
+#include <linux/bug.h>            /* BUG */
 #include <linux/string.h>         /* strcmp */
 #include <linux/delay.h>          /* mdelay */
 #include <linux/kgdb.h>           /* kgdb_breakpoint() */
