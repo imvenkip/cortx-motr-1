@@ -166,6 +166,24 @@
     create: yes
     line:   'export EDITOR=vi'
 
+- name: enable kernel crash dumps
+  block:
+    - name: create /var/crash dir
+      file:
+        path:  /var/crash
+        state: directory
+
+    - name: set global crash dumps location
+      sysctl:
+        name:  kernel.core_pattern
+        value: /var/crash/core.%u.%e.%p
+
+    - name: install kernel dump tools
+      package:
+        state: present
+        name:  kexec-tools
+      tags: breaks-dry-run
+
 - name: restart machine
   when: reboot_required.rc == 1
   block:
