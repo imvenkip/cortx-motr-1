@@ -2,7 +2,7 @@
 latest: centos-image lustre-client-image mero-devel-image
 
 CENTOS_RELEASE  := latest
-LUSTRE_VERSION  := 2.11.0
+LUSTRE_VERSION  := 2.10.4
 NAMESPACE       := seagate
 DOCKER          := docker
 
@@ -16,7 +16,7 @@ DOCKER          := docker
         push
 
 7.4: CENTOS_RELEASE := 7.4.1708
-7.4: LUSTRE_VERSION := 2.11.0
+7.4: LUSTRE_VERSION := 2.10.3
 7.4: DOCKER_OPTS += --build-arg CENTOS_RELEASE=$(CENTOS_RELEASE) \
                     --build-arg LUSTRE_VERSION=$(LUSTRE_VERSION)
 7.4: centos-vault-image lustre-client-image mero-devel-image
@@ -75,7 +75,7 @@ help:
 	@echo '                    and latest supported Lustre version, this is the'
 	@echo '                    default, same as just `make`'
 	@echo '  7.4             - build images based on CentOS 7.4.1708 snapshot and'
-	@echo '                    Lustre 2.11.0'
+	@echo '                    Lustre 2.10.3'
 	@echo '  7.3             - build images based on CentOS 7.3.1611 snapshot and'
 	@echo '                    Lustre 2.9.0'
 	@echo ''

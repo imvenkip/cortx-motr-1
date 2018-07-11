@@ -12,7 +12,8 @@ The virtual machine is automatically created from the [official _Centos7_ base
 image](https://app.vagrantup.com/centos/boxes/7), which is downloaded from the
 [vagrantcloud](https://vagrantcloud.com/search) repository. After provisioning
 and installation of the required rpm packages, including build tools and latest
-_Lustre_ from Intel's repository, it takes about 2GB of extra disk space per VM.
+_Lustre_ from Whamcloud's repository, it takes about 2GB of extra disk space per
+VM.
 
 Besides main virtual machine, which can be used as a build node, additional
 machines can be provisioned as well to provide a cluster-like environment for
@@ -130,8 +131,8 @@ Check out `m0vg --help` for more info.
 It will spawn a VM and configure it using _Ansible_ "playbook"
 `scripts/provisioning/cmu.yml`, that specifies all _Mero_ dependencies which
 should be installed in order to build and run _Mero_. It will install _Lustre_
-2.9 from the [official Intel's
-repository](https://downloads.hpdd.intel.com/public/lustre/lustre-2.9.0/el7/client/).
+2.10.4 from the [official Whamcloud's
+repository](https://downloads.whamcloud.com/public/lustre/lustre-2.9.0/el7/client/).
 During provisioning, _Vagrant_ might pause and ask for user password, this is
 needed for _NFS_ auto-configuration (it will add a new entry in `/etc/exports`
 and restart `nfsd` service).

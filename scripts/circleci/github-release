@@ -148,8 +148,8 @@ update_release()
         *)  die "unsupported value for '-u|--update <OSver>' option: '$os_version'"
     esac
 
-    local kmod_url="https://downloads.hpdd.intel.com/public/lustre/lustre-${lustre_version}/el${os_release}/client/RPMS/x86_64/kmod-lustre-client-${lustre_version}-1.el7.x86_64.rpm"
-    local lustre_client_url="https://downloads.hpdd.intel.com/public/lustre/lustre-${lustre_version}/el${os_release}/client/RPMS/x86_64/lustre-client-${lustre_version}-1.el7.x86_64.rpm"
+    local kmod_url="https://downloads.whamcloud.com/public/lustre/lustre-${lustre_version}/el${os_release}/client/RPMS/x86_64/kmod-lustre-client-${lustre_version}-1.el7.x86_64.rpm"
+    local lustre_client_url="https://downloads.whamcloud.com/public/lustre/lustre-${lustre_version}/el${os_release}/client/RPMS/x86_64/lustre-client-${lustre_version}-1.el7.x86_64.rpm"
 
     release_info=$(
         curl -H "Authorization: token $github_token" \

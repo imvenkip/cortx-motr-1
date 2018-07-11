@@ -1444,11 +1444,9 @@ __rpm_mock:
 	mock -r mero-mock.cfg --resultdir $(RPM_MOCK_DIR) --buildsrpm \
 		--spec $(RPM_SPEC_DIR)/mero.spec \
 		--sources $(RPM_SRC_DIR) \
-		--rpmbuild-opts='--with intel_lustre' \
 		--no-clean --no-cleanup-after
 	mock -r mero-mock.cfg --resultdir $(RPM_MOCK_DIR) --rebuild \
 		$(RPM_MOCK_DIR)/mero-*.src.rpm \
-		--rpmbuild-opts='--with intel_lustre' \
 		--no-clean --no-cleanup-after
 
 # __rpm_tests should be built before __rpm, because __rpm_tests creates a dummy
