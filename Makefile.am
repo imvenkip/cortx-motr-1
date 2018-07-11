@@ -1377,7 +1377,7 @@ clean-doc:
 install-kernel-modules:
 	@test -n "$$DESTDIR"
 	@$(MAKE) INSTALL_MOD_PATH=$(DESTDIR) \
-		 INSTALL_MOD_DIR=$${INSTALL_MOD_DIR:-kernel/fs} \
+		 INSTALL_MOD_DIR=$${INSTALL_MOD_DIR:-kernel/fs/mero} \
 		 -C $(KDIR) M=$(abs_top_builddir) modules_install
 
 install-exec-local: install-kernel-modules

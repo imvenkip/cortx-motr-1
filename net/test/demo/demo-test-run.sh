@@ -19,7 +19,7 @@ DIR_SCRIPT=${0%/*}
 TOP_SCRDIR="$DIR_SCRIPT/../../.."
 # TODO hardcoded for now
 MOD_M0GF="$TOP_SCRDIR/extra-libs/gf-complete/src/linux_kernel/m0gf.ko"
-MOD_M0MERO="$TOP_SCRDIR/mero/m0mero.ko"
+MOD_M0MERO="$TOP_SCRDIR/m0mero.ko"
 PARAMS_M0MERO="node_uuid=00000000-0000-0000-0000-000000000000"
 
 main()

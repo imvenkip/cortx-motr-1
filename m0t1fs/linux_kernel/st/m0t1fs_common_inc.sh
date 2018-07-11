@@ -131,7 +131,7 @@ load_kernel_module()
 	# last component in this addr will be generated and filled in m0mero.
 	LADDR="$lnet_nid:12345:33:"
 
-	mero_module_path=$M0_SRC_DIR/mero
+	mero_module_path=$M0_SRC_DIR
 	mero_module=$MERO_MODULE
 	lsmod | grep $mero_module &> /dev/null
 	if [ $? -eq "0" ]

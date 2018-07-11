@@ -131,7 +131,7 @@ load_modules()
     if [[ -n $top_srcdir ]] ; then
         NODE_UUID=$node_uuid
         source $top_srcdir/m0t1fs/linux_kernel/st/common.sh
-        MODLIST="$top_srcdir/ut/linux_kernel/m0ut.ko"
+        MODLIST="$top_srcdir/m0ut.ko"
         modprobe_lnet
         modload_m0gf
         # currently, kernel UT runs as part of loading m0ut module

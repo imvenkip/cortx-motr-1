@@ -2,7 +2,7 @@
 
 echo 'Resulting ELF image sizes:'
 
-size mero/.libs/libmero{,-altogether}.so mero/m0mero.ko 2>/dev/null \
+size mero/.libs/libmero{,-altogether}.so m0mero.ko 2>/dev/null \
 | awk \
     '{ \
         if ($1 == "text") { \

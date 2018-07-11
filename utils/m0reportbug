@@ -277,7 +277,7 @@ _path_src() {
             [ -z "$subdir" ] || die "${FUNCNAME[0]}: Unexpected argument"
             echo "$src/addb2/$name";;
         libmero.so) readlink -f "$src/mero/.libs/libmero.so";;
-        m0mero.ko) echo "$src/mero/$name";;
+        m0mero.ko) echo "$src/$name";;
         m0ham|lt-m0ham) echo "$src/ha/.libs/$name";;
         m0ut|lt-m0ut) echo "$src/ut/.libs/$name";;
         libmero-ut.so) echo "$src/ut/.libs/$name.0.0.0";;

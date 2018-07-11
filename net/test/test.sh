@@ -15,8 +15,8 @@ fi
 
 . m0t1fs/linux_kernel/st/common.sh
 
-MODLIST="mero/m0mero.ko"
-MODMAIN="net/test/linux_kernel/m0nettestd.ko"
+MODLIST="m0mero.ko"
+MODMAIN="m0nettestd.ko"
 
 log='/var/log/kern'
 if [ ! -e "$log" ]; then

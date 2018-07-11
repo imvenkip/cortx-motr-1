@@ -5,7 +5,7 @@
 NODE_UUID="abcdef01-2345-6789-0123-456789ABCDEF"
 
 # Path to binaries
-MOD_M0NETTESTD=@abs_top_srcdir@/net/test/linux_kernel/m0nettestd.ko
+MOD_M0NETTESTD=@abs_top_srcdir@/m0nettestd.ko
 CMD_M0NETTESTD=@abs_top_srcdir@/net/test/user_space/m0nettestd
 CMD_M0NETTEST=@abs_top_srcdir@/net/test/user_space/m0nettest
 

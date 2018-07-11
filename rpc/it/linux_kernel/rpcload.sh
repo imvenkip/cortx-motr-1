@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-MODLIST="mero/m0mero.ko"
+MODLIST="m0mero.ko"
 
 abort()
 {

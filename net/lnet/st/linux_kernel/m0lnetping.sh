@@ -178,7 +178,7 @@ fi
 
 . m0t1fs/linux_kernel/st/common.sh
 
-MODLIST="mero/m0mero.ko"
+MODLIST="m0mero.ko"
 
 log='/var/log/kern'
 if [ ! -e "$log" ]; then
@@ -199,7 +199,7 @@ trap unload_all EXIT
 modload_m0gf || exit $?
 modload || exit $?
 
-insmod net/lnet/st/linux_kernel/$STMOD.ko $OPARM $SPARM $CPARM
+insmod $STMOD.ko $OPARM $SPARM $CPARM
 if [ $? -eq 0 ] ; then
     if [ -z "$Pclient_only" ] ; then
 	msg="Enter EOF to stop the server"
