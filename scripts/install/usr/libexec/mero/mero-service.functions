@@ -165,42 +165,10 @@ m0_genders_value_of()
     fi
 }
 
-# Start LNET service
-m0_start_lnet()
-{
-    if test -x /usr/bin/systemctl && systemctl list-unit-files | grep -q lnet ; then
-        # do nothing, systemd lnet service will handle it
-        true
-    elif chkconfig --list | grep -q lnet ; then
-        service lnet start
-    else
-        if ! lsmod | grep -q lnet ; then
-            modprobe lnet || m0_exit "Failed to load lnet module"
-            lctl network up
-        fi
-    fi
-}
-
-# Stop LNET service
-m0_stop_lnet()
-{
-    if test -x /usr/bin/systemctl && systemctl list-unit-files | grep -q lnet ; then
-        # do nothing, systemd lnet service will handle it
-        true
-    elif chkconfig --list | grep -q lnet ; then
-        service lnet stop
-    else
-        lctl network down
-        modprobe -r ksocklnd || m0_exit "Failed to unload lnet modules"
-    fi
-}
-
 # Load Mero modules.
 m0_load_modules()
 {
     local m0mero_params
-
-    m0_start_lnet
 
     if [ -n "$MERO_KMOD_PARAMS" ] ; then
         m0mero_params="$MERO_KMOD_PARAMS $MERO_KMOD_EXTRA_PARAMS"
@@ -253,10 +221,6 @@ m0_unload_modules()
     else
         modprobe -r m0mero
     fi
-
-    case ${MERO_KMOD_STOP_LNET_ON_UNLOAD:-no} in
-        yes|Yes|YES|1|true|True|TRUE) m0_stop_lnet ;;
-    esac
 }
 
 # Return path to a working directory of particular m0d instance
