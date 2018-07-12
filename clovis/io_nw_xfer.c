@@ -530,7 +530,7 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 		++ivec->iv_vec.v_nr;
 		pgstart = pgend;
 	}
-
+	ti->ti_req_type = TI_READ_WRITE;
 	M0_LEAVE();
 }
 
@@ -883,11 +883,19 @@ err:
 
 	return M0_ERR(rc);
 }
-
+static int target_cob_create_fop_prepare(struct target_ioreq *ti);
 static const struct target_ioreq_ops tioreq_ops = {
 	.tio_seg_add        = target_ioreq_seg_add,
 	.tio_iofops_prepare = target_ioreq_iofops_prepare,
+	.tio_cc_fops_prepare = target_cob_create_fop_prepare,
 };
+
+static int target_cob_create_fop_prepare(struct target_ioreq *ti)
+{
+	M0_PRE(ti->ti_req_type == TI_COB_CREATE);
+
+	return ioreq_cc_fop_init(ti);
+}
 
 /**
  * Initialises a target io request.
@@ -927,6 +935,8 @@ static int target_ioreq_init(struct target_ioreq    *ti,
 	ti->ti_fid       = *cobfid;
 	ti->ti_nwxfer    = xfer;
 	ti->ti_dgvec     = NULL;
+	ti->ti_req_type  = TI_NONE;
+	M0_SET0(&ti->ti_cc_fop);
 
 	/*
 	 * Target object is usually in ONLINE state unless explicitly
@@ -1068,6 +1078,13 @@ static int nw_xfer_tioreq_get(struct nw_xfer_request *xfer,
 	return M0_RC(rc);
 }
 
+static void bitmap_reset(struct m0_bitmap *bitmap)
+{
+	int i;
+
+	for (i = 0; i < bitmap->b_nr; ++i)
+		m0_bitmap_set(bitmap, i, false);
+}
 /**
  * Distributes file data into target_ioreq objects as required and populates
  * target_ioreq::ti_ivec and target_ioreq::ti_bufvec.
@@ -1099,6 +1116,7 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 	enum m0_pdclust_unit_type   unit_type;
 	struct m0_pdclust_src_addr  src;
 	struct m0_pdclust_tgt_addr  tgt;
+	struct m0_bitmap            units_spanned;
 	uint32_t                    row_start;
 	uint32_t                    row_end;
 	uint32_t                    row;
@@ -1118,6 +1136,7 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 	play      = pdlayout_get(ioo);
 	unit_size = layout_unit_size(play);
 	instance  = m0_clovis__op_instance(op);
+	rc = m0_bitmap_init(&units_spanned, m0_pdclust_size(play));
 
 	for (map = 0; map < ioo->ioo_iomap_nr; ++map) {
 		count        = 0;
@@ -1130,6 +1149,7 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 
 		/* Cursor for pargrp_iomap::pi_ivec. */
 		m0_ivec_cursor_init(&cursor, &iomap->pi_ivec);
+		bitmap_reset(&units_spanned);
 
 		while (!m0_ivec_cursor_move(&cursor, count)) {
 			unit = (m0_ivec_cursor_index(&cursor) - pgstart) /
@@ -1180,6 +1200,7 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 			ti->ti_ops->tio_seg_add(ti, &src, &tgt, r_ext.e_start,
 						m0_ext_length(&r_ext),
 						iomap);
+			m0_bitmap_set(&units_spanned, unit, true);
 		}
 
 		M0_ASSERT(ergo(M0_IN(op_code,
@@ -1222,10 +1243,46 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 				ti->ti_ops->tio_seg_add(ti, &src, &tgt, pgstart,
 							layout_unit_size(play),
 							iomap);
+				m0_bitmap_set(&units_spanned, src.sa_unit,
+					      true);
 			}
+			/*
+			 * Since CROW is not enabled in non-oostore mode cobs
+			 * are present across all nodes.
+			 */
+			if (!m0_clovis__is_oostore(instance) ||
+			    op_code != M0_CLOVIS_OC_WRITE)
+				continue;
+			/*
+			 * Create cobs for those units not spanned by IO
+			 * request.
+			 */
+			for (unit = 0; unit < m0_pdclust_size(play); ++unit) {
+				if (m0_bitmap_get(&units_spanned, unit))
+					continue;
+				rc = xfer->nxr_ops->nxo_tioreq_map(xfer, &src,
+								   &tgt, &ti);
+				if (rc != 0) {
+					M0_LOG(M0_ERROR, "[%p] map %p,"
+					       "nxo_tioreq_map() failed, rc %d"
+						,ioo, iomap, rc);
+				}
+				/*
+				 * Skip the case when some other parity group
+				 * has spanned the particular target.
+				 */
+				if (ti->ti_req_type != TI_NONE) {
+					m0_bitmap_set(&units_spanned, unit, true);
+					continue;
+				}
+				ti->ti_req_type = TI_COB_CREATE;
+				m0_bitmap_set(&units_spanned, unit, true);
+			}
+			M0_ASSERT(m0_bitmap_set_nr(&units_spanned) ==
+				  m0_pdclust_size(play));
 		}
 	}
-
+	m0_bitmap_fini(&units_spanned);
 	M0_ASSERT(ergo(M0_IN(ioo->ioo_oo.oo_oc.oc_op.op_code,
 			     (M0_CLOVIS_OC_READ, M0_CLOVIS_OC_WRITE)),
 		       m0_vec_count(&ioo->ioo_ext.iv_vec) ==
@@ -1253,6 +1310,7 @@ err:
  */
 static void nw_xfer_req_complete(struct nw_xfer_request *xfer, bool rmw)
 {
+	struct m0_clovis       *instance;
 	struct m0_clovis_op_io *ioo;
 	struct target_ioreq    *ti;
 	struct ioreq_fop       *irfop;
@@ -1266,6 +1324,8 @@ static void nw_xfer_req_complete(struct nw_xfer_request *xfer, bool rmw)
 	xfer->nxr_state = NXS_COMPLETE;
 	ioo = bob_of(xfer, struct m0_clovis_op_io, ioo_nwxfer, &ioo_bobtype);
 	M0_PRE(m0_sm_group_is_locked(ioo->ioo_sm.sm_grp));
+
+	instance = m0_clovis__op_instance(m0_clovis__ioo_to_op(ioo));
 	/*
  	 * Ignore the following invariant check as there exists cases in which
  	 * io fops are created sucessfully for some target services but fail
@@ -1285,6 +1345,13 @@ static void nw_xfer_req_complete(struct nw_xfer_request *xfer, bool rmw)
 		xfer->nxr_bytes += ti->ti_databytes;
 		ti->ti_databytes = 0;
 
+		if (m0_clovis__is_oostore(instance) &&
+		    ti->ti_req_type == TI_COB_CREATE &&
+		    ioreq_sm_state(ioo) == IRS_WRITE_COMPLETE) {
+			ti->ti_req_type = TI_NONE;
+			m0_fop_put_lock(&ti->ti_cc_fop.crf_fop);
+			continue;
+		}
 		m0_tl_teardown(iofops, &ti->ti_iofops, irfop) {
 			fop = &irfop->irf_iofop.if_fop;
 			item = m0_fop_to_rpc_item(fop);
@@ -1390,6 +1457,14 @@ static int nw_xfer_req_dispatch(struct nw_xfer_request *xfer)
 			continue;
 		}
 		ti->ti_start_time = m0_time_now();
+		if (ti->ti_req_type == TI_COB_CREATE &&
+		    ioreq_sm_state(ioo) == IRS_WRITING) {
+			rc = ti->ti_ops->tio_cc_fops_prepare(ti);
+			if (rc != 0)
+				return M0_ERR_INFO(rc, "[%p] cob create fop"
+						   "failed", ioo);
+			continue;
+		}
 		rc = ti->ti_ops->tio_iofops_prepare(ti, PA_DATA);
 		if (rc != 0)
 			return M0_ERR(rc);
@@ -1407,7 +1482,15 @@ static int nw_xfer_req_dispatch(struct nw_xfer_request *xfer)
 			       FID_P(&ti->ti_fid));
 			continue;
 		}
-
+		if (ti->ti_req_type == TI_COB_CREATE &&
+		    ioreq_sm_state(ioo) == IRS_WRITING) {
+			/*
+			 * An error returned by rpc post has been ignored.
+			 * It will be handled in the respective bottom half.
+			 */
+			rc = m0_rpc_post(&ti->ti_cc_fop.crf_fop.f_item);
+			continue;
+		}
 		m0_tl_for (iofops, &ti->ti_iofops, irfop) {
 			rc = ioreq_fop_async_submit(&irfop->irf_iofop,
 						    ti->ti_session);

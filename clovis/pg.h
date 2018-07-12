@@ -287,6 +287,12 @@ struct nw_xfer_request {
 	 * io_request::ir_sm changes
 	 */
 	struct m0_atomic64       nxr_rdbulk_nr;
+
+	/**
+	 * Number of cob create fops issued over different targets.
+	 * The number is decremented in cc_bottom_half.
+	 */
+	struct m0_atomic64        nxr_ccfop_nr;
 };
 
 /**
@@ -610,6 +616,11 @@ struct target_ioreq_ops {
 	 */
 	int  (*tio_iofops_prepare) (struct target_ioreq *ti,
 				    enum page_attr       filter);
+
+	/**
+	 * Prepares cob create fops for the given target.
+	 */
+	int (*tio_cc_fops_prepare) (struct target_ioreq *ti);
 };
 
 /**
@@ -635,6 +646,30 @@ struct dgmode_rwvec {
 
 	/** Backlink to parent target_ioreq structure. */
 	struct target_ioreq *dr_tioreq;
+};
+
+/**
+ * Cob create request fop along with the respective ast that gets posted
+ * in respective call back. The call back does not do anything other than
+ * posting the ast which then takes a lock over nw_xfer and conducts the
+ * operation further.
+ */
+struct cc_req_fop {
+	struct m0_fop        crf_fop;
+
+	struct m0_sm_ast     crf_ast;
+
+	struct target_ioreq *crf_tioreq;
+};
+
+/**
+ * A request for a target can be of two types, either for read/write IO or for
+ * cob creation for the target on remote ioservice.
+ */
+enum target_ioreq_type {
+	TI_NONE,
+	TI_READ_WRITE,
+	TI_COB_CREATE,
 };
 
 /**
@@ -668,7 +703,8 @@ struct target_ioreq {
 
 	/** List of ioreq_fop structures issued on this target object. */
 	struct m0_tl                   ti_iofops;
-
+	/** Fop when the ti_req_type == TI_COB_CREATE. */
+	struct cc_req_fop              ti_cc_fop;
 	/** Resulting IO fops are sent on this rpc session. */
 	struct m0_rpc_session         *ti_session;
 
@@ -711,6 +747,9 @@ struct target_ioreq {
 
 	/** State of target device in the storage pool. */
 	enum m0_pool_nd_state          ti_state;
+
+	/** Whether cob create request for spare or read/write request. */
+	enum target_ioreq_type         ti_req_type;
 };
 
 /**
