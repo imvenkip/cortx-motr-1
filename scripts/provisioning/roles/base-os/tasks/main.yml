@@ -149,6 +149,14 @@
       args:
         creates: /etc/yum.repos.d/CentOS-Sources.repo.disabled
 
+- name: enable persitent storage for journald
+  ini_file:
+    path:    /etc/systemd/journald.conf
+    section: Journal
+    option:  Storage
+    value:   persistent
+    no_extra_spaces: yes
+
 - name: start avahi
   service: name={{ avahi_service }} state=started enabled=yes
   tags: start-services
