@@ -145,7 +145,7 @@
       tags: start-services
 
     - name: disable broken CentOS-Sources.repo yum config
-      command: mv /etc/yum.repos.d/CentOS-Sources.repo{,.disabled}
+      shell: mv /etc/yum.repos.d/CentOS-Sources.repo{,.disabled}
       args:
         creates: /etc/yum.repos.d/CentOS-Sources.repo.disabled
 
@@ -196,7 +196,7 @@
     - name: re-connect to rebooted machine before continuing
       command:  /bin/true
       register: online
-      until:    online|success
+      until:    online is success
   tags:
     - reboot
     - breaks-dry-run
