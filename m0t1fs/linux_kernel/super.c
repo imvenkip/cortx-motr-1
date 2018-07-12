@@ -1215,11 +1215,11 @@ static int m0t1fs_obf_alloc(struct super_block *sb)
                 return M0_RC((int)PTR_ERR(fid_inode));
         }
 
-	d_add(fid_dentry, fid_inode);
-	csb->csb_fid_dentry = fid_dentry;
-
 	d_add(mero_dentry, mero_inode);
 	csb->csb_mero_dentry = mero_dentry;
+
+	d_add(fid_dentry, fid_inode);
+	csb->csb_fid_dentry = fid_dentry;
 
 	return M0_RC(0);
 }
