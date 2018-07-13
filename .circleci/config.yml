@@ -68,7 +68,7 @@ version: 2
 jobs:
 
   autogen:
-    <<: *docker-image-74
+    <<: *docker-image-latest
     working_directory: ~/mero
     steps:
       - checkout
@@ -99,7 +99,7 @@ jobs:
             - mero
 
   build:
-    <<: *docker-image-74
+    <<: *docker-image-latest
     steps:
       - attach_workspace:
           at: /root
@@ -111,7 +111,7 @@ jobs:
               make -j8
 
   build_debug:
-    <<: *docker-image-74
+    <<: *docker-image-latest
     steps:
       - attach_workspace:
           at: /root
@@ -124,7 +124,7 @@ jobs:
               make -j8
 
   build_no_asserts:
-    <<: *docker-image-74
+    <<: *docker-image-latest
     steps:
       - attach_workspace:
           at: /root
@@ -137,7 +137,7 @@ jobs:
               make -j8
 
   rpmbuild:
-    <<: *docker-image-74
+    <<: *docker-image-latest
     steps:
       - attach_workspace:
           at: /root
@@ -147,6 +147,10 @@ jobs:
           command: |
               ./configure --with-linux=/lib/modules/$(yum list installed kernel | tail -n1 | awk '{ print $2 }').x86_64/build
               make rpms kernel_src=/lib/modules/$(yum list installed kernel | tail -n1 | awk '{ print $2 }').x86_64/build
+
+  rpmbuild_notests:
+    <<: *docker-image-latest
+    steps: *rpmbuild-notests
 
   rpmbuild_notests_74:
     <<: *docker-image-74
@@ -167,7 +171,7 @@ jobs:
           destination: rpms
 
   create_github_release:
-    <<: *docker-image-74
+    <<: *docker-image-latest
     steps:
       - checkout
       - run:
@@ -176,6 +180,15 @@ jobs:
       - run:
           name: Create GitHub release
           command: ./scripts/circleci/github-release --verbose
+
+  github_release_latest:
+    <<: *docker-image-latest
+    working_directory: ~/mero
+    steps:
+      - checkout
+      - run:
+          name: Add GitHub release for the latest CentOS release
+          command: ./scripts/circleci/github-release --verbose --update latest
 
   github_release_74:
     <<: *docker-image-74
@@ -221,7 +234,7 @@ workflows:
           filters: *filter-ignore-master
           requires: [ autogen ]
 
-  master_74:
+  master_latest:
     jobs:
       - autogen:
           context: ssg-auth
@@ -230,6 +243,19 @@ workflows:
           context: ssg-auth
           filters: *filter-only-master
           requires: [ autogen ]
+      - rpmbuild_notests:
+          context: ssg-auth
+          filters: *filter-only-master
+          requires: [ autogen ]
+      - artifacts:
+          filters: *filter-only-master
+          requires: [ rpmbuild_notests ]
+
+  master_74:
+    jobs:
+      - autogen:
+          context: ssg-auth
+          filters: *filter-only-master
       - rpmbuild_notests_74:
           context: ssg-auth
           filters: *filter-only-master
@@ -256,11 +282,15 @@ workflows:
       - create_github_release:
           context: ssg-auth
           filters: *filter-release-tags
-      - github_release_74:
+      - github_release_latest:
           context: ssg-auth
           filters: *filter-release-tags
           requires: [ create_github_release ]
+      - github_release_74:
+          context: ssg-auth
+          filters: *filter-release-tags
+          requires: [ create_github_release, github_release_latest ]
       - github_release_73:
           context: ssg-auth
           filters: *filter-release-tags
-          requires: [ create_github_release, github_release_74 ]
+          requires: [ create_github_release, github_release_latest, github_release_74 ]
