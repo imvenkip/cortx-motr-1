@@ -217,10 +217,11 @@ fi
 %exclude %{_libdir}/libtestlib*
 %exclude %{_libdir}/libmero-xcode-ff2c*
 %exclude %{_libdir}/pkgconfig/mero.pc
-%exclude /lib/modules/*/kernel/fs/net/*
-%exclude /lib/modules/*/kernel/fs/rpc/*
-%exclude /lib/modules/*/kernel/fs/ut/*
-%exclude /lib/modules/*/kernel/fs/clovis/*
+%exclude /lib/modules/*/kernel/fs/mero/clovis*
+%exclude /lib/modules/*/kernel/fs/mero/m0lnet*
+%exclude /lib/modules/*/kernel/fs/mero/m0net*
+%exclude /lib/modules/*/kernel/fs/mero/m0rpc*
+%exclude /lib/modules/*/kernel/fs/mero/m0ut*
 %endif # with ut
 
 %if %{with ut}
