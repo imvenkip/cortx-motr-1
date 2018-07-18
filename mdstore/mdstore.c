@@ -73,17 +73,25 @@ M0_INTERNAL int m0_mdstore_statfs(struct m0_mdstore        *md,
 	return 0;
 }
 
-M0_INTERNAL int m0_mdstore_init(struct m0_mdstore       *md,
-				struct m0_cob_domain_id *id,
-				struct m0_be_seg        *db,
-				bool                     init_root)
+M0_INTERNAL int m0_mdstore_init(struct m0_mdstore *md,
+				struct m0_be_seg  *db,
+				bool               init_root)
 {
 	int rc;
 
-	M0_PRE(md != NULL && id != NULL && db != NULL);
+	M0_PRE(md != NULL && db != NULL);
 
-	/* M0_SET0(md); */ /* XXXXXXXXXXXXXX */
-	rc = m0_cob_domain_init(md->md_dom, db, id);
+	/*
+	 * TODO FIXME Don't allow md_dom to be NULL here. Instead, check it
+	 * by users (mero/setup, ut/ut_rpc_machine).
+	 * I will reduce posibility of mistakes.
+	 */
+	if (md->md_dom == NULL) {
+		/* See cs_storage_setup(). */
+		return M0_RC(-ENOENT);
+	}
+
+	rc = m0_cob_domain_init(md->md_dom, db);
 	if (rc != 0)
 		return M0_RC(rc);
 
@@ -104,29 +112,47 @@ M0_INTERNAL int m0_mdstore_init(struct m0_mdstore       *md,
 	return M0_RC(rc);
 }
 
-M0_INTERNAL void m0_mdstore_fini(struct m0_mdstore *md)
+static void mdstore_fini(struct m0_mdstore *md, bool pre_destroy)
 {
 	if (md->md_root != NULL)
 		m0_cob_put(md->md_root);
-	m0_cob_domain_fini(md->md_dom);
+
+	/*
+	 * During mdstore destroying we call m0_cob_domain_destroy() which
+	 * includes implicit finalisation. So, avoid double finalisation.
+	 */
+	if (!pre_destroy)
+		m0_cob_domain_fini(md->md_dom);
+}
+
+M0_INTERNAL void m0_mdstore_fini(struct m0_mdstore *md)
+{
+	mdstore_fini(md, false);
 }
 
 M0_INTERNAL int m0_mdstore_create(struct m0_mdstore       *md,
 				  struct m0_sm_group      *grp,
 				  struct m0_cob_domain_id *id,
+				  struct m0_be_domain     *bedom,
 				  struct m0_be_seg        *db)
 {
 	M0_PRE(md != NULL);
 
-	return m0_cob_domain_create(&md->md_dom, grp, id, db);
+	return m0_cob_domain_create(&md->md_dom, grp, id, bedom, db);
 }
 
-M0_INTERNAL int m0_mdstore_destroy(struct m0_mdstore  *md,
-				   struct m0_sm_group *grp)
+M0_INTERNAL int m0_mdstore_destroy(struct m0_mdstore   *md,
+				   struct m0_sm_group  *grp,
+				   struct m0_be_domain *bedom)
 {
-	M0_PRE(md != NULL);
+	/*
+	 * We have to finalise mdstore here, but can't call m0_mdstore_fini(),
+	 * because m0_cob_domain_destroy() finalises cob domain inmplicitly.
+	 * See m0_mdstore_fini().
+	 */
+	mdstore_fini(md, true);
 
-	return m0_cob_domain_destroy(md->md_dom, grp);
+	return m0_cob_domain_destroy(md->md_dom, grp, bedom);
 }
 
 M0_INTERNAL void

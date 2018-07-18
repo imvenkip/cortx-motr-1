@@ -231,9 +231,10 @@ static int server_init(const char             *stob_path,
 	m0_stob_put(bstore);
 
 	/* Init mdstore without reading root cob. */
-	rc = m0_mdstore_init(&srv_mdstore, &srv_cob_dom_id, seg, false);
+	rc = m0_mdstore_init(&srv_mdstore, seg, false);
 	M0_UT_ASSERT(rc == -ENOENT);
-	rc = m0_mdstore_create(&srv_mdstore, grp, &srv_cob_dom_id, seg);
+	rc = m0_mdstore_create(&srv_mdstore, grp, &srv_cob_dom_id,
+			       &ut_be.but_dom, seg);
 	M0_UT_ASSERT(rc == 0);
 
 	/* Create root session cob and other structures */
@@ -247,7 +248,7 @@ static int server_init(const char             *stob_path,
         m0_mdstore_fini(&srv_mdstore);
 
         /* Init new mdstore with open root flag. */
-        rc = m0_mdstore_init(&srv_mdstore, &srv_cob_dom_id, seg, true);
+        rc = m0_mdstore_init(&srv_mdstore, seg, true);
         M0_UT_ASSERT(rc == 0);
 
 	m0_reqh_start(&reqh);
@@ -300,9 +301,8 @@ static void server_fini(struct m0_stob_domain *bdom,
 	M0_UT_ASSERT(m0_reqh_state_get(&reqh) == M0_REQH_ST_STOPPED);
 
 	grp = m0_be_ut_backend_sm_group_lookup(&ut_be);
-	rc = m0_mdstore_destroy(&srv_mdstore, grp);
+	rc = m0_mdstore_destroy(&srv_mdstore, grp, &ut_be.but_dom);
 	M0_UT_ASSERT(rc == 0);
-	m0_mdstore_fini(&srv_mdstore);
 
 	/* XXX domain can't be destroyed because of credit calculations bug */
 	/* rc = m0_stob_domain_destroy(sdom); */

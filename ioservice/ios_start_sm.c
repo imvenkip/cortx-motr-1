@@ -141,6 +141,9 @@ static void ios_start_state_set(struct m0_ios_start_sm  *ios_sm,
 static void ios_start_sm_failure(struct m0_ios_start_sm *ios_sm, int rc)
 {
 	enum m0_ios_start_state state = ios_start_state_get(ios_sm);
+	struct m0_be_seg       *seg   = ios_sm->ism_reqh->rh_beseg; /* XXX */
+	struct m0_be_domain    *bedom = seg->bs_domain;
+	int                     rc2   = 0;
 
 	switch (state) {
 	case M0_IOS_START_INIT:
@@ -152,17 +155,17 @@ static void ios_start_sm_failure(struct m0_ios_start_sm *ios_sm, int rc)
 		break;
 	case M0_IOS_START_MKFS:
 		/* Possibly errors source: tx open */
-		m0_cob_domain_destroy(ios_sm->ism_dom, ios_sm->ism_sm.sm_grp);
-		m0_cob_domain_fini(ios_sm->ism_dom);
+		rc2 = m0_cob_domain_destroy(ios_sm->ism_dom,
+					   ios_sm->ism_sm.sm_grp, bedom);
 		break;
 	case M0_IOS_START_MKFS_RESULT:
 		/* Possibly errors source: tx close, m0_cob_domain_mkfs */
-		m0_cob_domain_destroy(ios_sm->ism_dom, ios_sm->ism_sm.sm_grp);
-		m0_cob_domain_fini(ios_sm->ism_dom);
+		rc2 = m0_cob_domain_destroy(ios_sm->ism_dom,
+					   ios_sm->ism_sm.sm_grp, bedom);
 		break;
 	case M0_IOS_START_BUFFER_POOL_CREATE:
-		m0_cob_domain_destroy(ios_sm->ism_dom, ios_sm->ism_sm.sm_grp);
-		m0_cob_domain_fini(ios_sm->ism_dom);
+		rc2 = m0_cob_domain_destroy(ios_sm->ism_dom,
+					   ios_sm->ism_sm.sm_grp, bedom);
 		m0_ios_delete_buffer_pool(ios_sm->ism_service);
 		break;
 	case M0_IOS_START_COMPLETE:
@@ -174,6 +177,10 @@ static void ios_start_sm_failure(struct m0_ios_start_sm *ios_sm, int rc)
 		M0_ASSERT(false);
 		break;
 	}
+
+	if (rc2 != 0)
+		M0_LOG(M0_ERROR,
+		       "Ignoring rc2=%d from m0_cob_domain_destroy()", rc2);
 
 	m0_sm_fail(&ios_sm->ism_sm, M0_IOS_START_FAILURE, rc);
 }
@@ -262,7 +269,7 @@ static void ios_start_cdom_tx_open(struct m0_ios_start_sm *ios_sm)
 	struct m0_be_seg       *seg = ios_sm->ism_reqh->rh_beseg;
 	struct m0_be_tx        *tx = &ios_sm->ism_tx;
 
-	m0_cob_domain_credit_add(ios_sm->ism_dom, tx, seg,
+	m0_cob_domain_credit_add(ios_sm->ism_dom, seg->bs_domain, seg,
 				 &ios_sm->ism_cdom_id, &cred);
 
 	M0_SET0(tx);
@@ -292,8 +299,7 @@ static void ios_start_ast_start(struct m0_sm_group *grp,
 		ios_start_cdom_tx_open(ios_sm);
 	} else {
 		rc = m0_cob_domain_init(ios_sm->ism_dom,
-					ios_sm->ism_reqh->rh_beseg,
-					NULL);
+					ios_sm->ism_reqh->rh_beseg);
 		if (rc == 0) {
 			ios_start_state_set(ios_sm,
 					    M0_IOS_START_BUFFER_POOL_CREATE);
@@ -309,7 +315,8 @@ static void ios_start_ast_cdom_create(struct m0_sm_group *grp,
 				   struct m0_sm_ast *ast)
 {
 	struct m0_ios_start_sm *ios_sm = ios_start_ast2sm(ast);
-	int                    rc;
+	struct m0_be_seg       *seg    = ios_sm->ism_reqh->rh_beseg;
+	int                     rc;
 
 	M0_ENTRY();
 	M0_ASSERT(ios_start_state_get(ios_sm) == M0_IOS_START_CDOM_CREATE);
@@ -317,7 +324,8 @@ static void ios_start_ast_cdom_create(struct m0_sm_group *grp,
 	rc = m0_cob_domain_create_prepared(&ios_sm->ism_dom,
 					   grp,
 					   &ios_sm->ism_cdom_id,
-					   ios_sm->ism_reqh->rh_beseg,
+					   seg->bs_domain,
+					   seg,
 					   &ios_sm->ism_tx);
 
 	if (rc != 0)

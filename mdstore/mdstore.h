@@ -60,7 +60,7 @@ struct m0_mdstore {
 /**
  * Flags supplied to m0_mdstore_locate() to point out where a cob
  * should be found: on store, in opened files table or orhans table.
-*/
+ */
 enum m0_mdstore_locate_flags {
         /** Find cob on store. */
         M0_MD_LOCATE_STORED  = 1 << 0,
@@ -82,22 +82,30 @@ M0_INTERNAL int m0_mdstore_statfs(struct m0_mdstore      *md,
  * Init mdstore and get it ready to work. If init_root == !0
  * then root cob is initialized.
  */
-M0_INTERNAL int m0_mdstore_init(struct m0_mdstore       *md,
-				struct m0_cob_domain_id *id,
-				struct m0_be_seg        *db,
-				bool                     init_root);
+M0_INTERNAL int m0_mdstore_init(struct m0_mdstore *md,
+				struct m0_be_seg  *db,
+				bool               init_root);
 
 /**
  * Finalize mdstore instance.
  */
 M0_INTERNAL void m0_mdstore_fini(struct m0_mdstore *md);
 
+/**
+ * Creates and initialises mdstore.
+ */
 M0_INTERNAL int m0_mdstore_create(struct m0_mdstore       *md,
 				  struct m0_sm_group      *grp,
 				  struct m0_cob_domain_id *id,
+				  struct m0_be_domain     *bedom,
 				  struct m0_be_seg        *db);
-M0_INTERNAL int m0_mdstore_destroy(struct m0_mdstore  *md,
-				   struct m0_sm_group *grp);
+
+/**
+ * Finalises and destroys mdstore.
+ */
+M0_INTERNAL int m0_mdstore_destroy(struct m0_mdstore   *md,
+				   struct m0_sm_group  *grp,
+				   struct m0_be_domain *bedom);
 
 /**
  * Handle link operation described by @pfid and @name. Input
@@ -142,7 +150,7 @@ M0_INTERNAL int m0_mdstore_rename(struct m0_mdstore     *md,
  * is returned by m0_cob_alloc().
  *
  * Error code is returned in error case or zero otherwise.
-*/
+ */
 M0_INTERNAL int m0_mdstore_fcreate(struct m0_mdstore     *md,
 				  struct m0_fid         *pfid,
 				  struct m0_cob_attr    *attr,
@@ -153,7 +161,7 @@ M0_INTERNAL int m0_mdstore_fcreate(struct m0_mdstore     *md,
  * Handle open operation described by @flags on @cob. Input @cob
  * is so called statdata cob and returned by m0_cob_locate().
  * Error code is returned in error case or zero otherwise.
-*/
+ */
 M0_INTERNAL int m0_mdstore_open(struct m0_mdstore       *md,
 				struct m0_cob           *cob,
 				m0_mdstore_locate_flags_t flags,
@@ -164,7 +172,7 @@ M0_INTERNAL int m0_mdstore_open(struct m0_mdstore       *md,
  * cob and returned by m0_cob_locate().
  *
  * Error code is returned in error case or zero otherwise.
-*/
+ */
 M0_INTERNAL int m0_mdstore_close(struct m0_mdstore      *md,
 				 struct m0_cob          *cob,
 				 struct m0_be_tx        *tx);
@@ -174,7 +182,7 @@ M0_INTERNAL int m0_mdstore_close(struct m0_mdstore      *md,
  * is so called statdata cob and returned by m0_cob_locate().
  *
  * Error code is returned in error case or zero otherwise.
-*/
+ */
 M0_INTERNAL int m0_mdstore_setattr(struct m0_mdstore    *md,
 				   struct m0_cob        *cob,
 				   struct m0_cob_attr   *attr,
@@ -185,7 +193,7 @@ M0_INTERNAL int m0_mdstore_setattr(struct m0_mdstore    *md,
  * is so called statdata cob and returned by m0_cob_locate().
  *
  * Error code is returned in error case or zero otherwise.
-*/
+ */
 M0_INTERNAL int m0_mdstore_getattr(struct m0_mdstore    *md,
 				   struct m0_cob        *cob,
 				   struct m0_cob_attr   *attr);
@@ -195,7 +203,7 @@ M0_INTERNAL int m0_mdstore_getattr(struct m0_mdstore    *md,
  * is so called statdata cob and returned by m0_cob_locate().
  *
  * Error code is returned in error case or something >= 0 otherwise.
-*/
+ */
 M0_INTERNAL int m0_mdstore_readdir(struct m0_mdstore    *md,
 				   struct m0_cob        *cob,
 				   struct m0_rdpg       *rdpg);

@@ -33,6 +33,7 @@
 #include "sns/cm/cm.h"
 
 M0_INTERNAL void cob_delete(struct m0_cob_domain *cdom,
+			    struct m0_be_domain *bedom,
 			    uint64_t cont, const struct m0_fid *gfid);
 
 static struct m0_sns_cm         *scm;
@@ -345,7 +346,7 @@ static void test_cp_write_read(void)
 	bv_free(&r_buf.nb_buffer);
 	bv_free(&w_buf.nb_buffer);
 
-	cob_delete(scm->sc_cob_dom, 1, &gob_fid);
+	cob_delete(scm->sc_cob_dom, reqh->rh_beseg->bs_domain, 1, &gob_fid);
 	m0_fi_disable("m0_sns_cm_tgt_ep", "local-ep");
 
 	cs_fini(&sctx);
