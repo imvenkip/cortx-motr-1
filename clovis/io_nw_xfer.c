@@ -169,6 +169,18 @@ static int dgmode_rwvec_alloc_init(struct target_ioreq *ti)
 		goto failed;
 	}
 
+	M0_ALLOC_ARR(dg->dr_auxbufvec.ov_buf, cnt);
+	if (dg->dr_auxbufvec.ov_buf == NULL) {
+		rc = -ENOMEM;
+		goto failed;
+	}
+
+	M0_ALLOC_ARR(dg->dr_auxbufvec.ov_vec.v_count, cnt);
+	if (dg->dr_auxbufvec.ov_vec.v_count == NULL) {
+		rc = -ENOMEM;
+		goto failed;
+	}
+
 	M0_ALLOC_ARR(dg->dr_pageattrs, cnt);
 	if (dg->dr_pageattrs == NULL) {
 		rc = -ENOMEM;
@@ -189,6 +201,10 @@ failed:
 		m0_free(dg->dr_bufvec.ov_buf);
 	if (dg->dr_bufvec.ov_vec.v_count != NULL)
 		m0_free(dg->dr_bufvec.ov_vec.v_count);
+	if (dg->dr_auxbufvec.ov_buf != NULL)
+		m0_free(dg->dr_auxbufvec.ov_buf);
+	if (dg->dr_auxbufvec.ov_vec.v_count != NULL)
+		m0_free(dg->dr_auxbufvec.ov_vec.v_count);
 	m0_free(dg);
 	return M0_ERR(rc);
 }
@@ -223,6 +239,8 @@ static void dgmode_rwvec_dealloc_fini(struct dgmode_rwvec *dg)
 	m0_indexvec_free(&dg->dr_ivec);
 	m0_free(dg->dr_bufvec.ov_buf);
 	m0_free(dg->dr_bufvec.ov_vec.v_count);
+	m0_free(dg->dr_auxbufvec.ov_buf);
+	m0_free(dg->dr_auxbufvec.ov_vec.v_count);
 	m0_free(dg->dr_pageattrs);
 	m0_free(dg);
 }
@@ -287,6 +305,7 @@ static bool target_ioreq_invariant(const struct target_ioreq *ti)
 		     _0C(ti->ti_session       != NULL) &&
 		     _0C(ti->ti_nwxfer        != NULL) &&
 		     _0C(ti->ti_bufvec.ov_buf != NULL) &&
+		     _0C(ti->ti_auxbufvec.ov_buf != NULL) &&
 		     _0C(m0_fid_is_valid(&ti->ti_fid)) &&
 		     m0_tl_forall(iofops, iofop, &ti->ti_iofops,
 			          ioreq_fop_invariant(iofop)));
@@ -337,6 +356,8 @@ void target_ioreq_fini(struct target_ioreq *ti)
 	m0_indexvec_free(&ti->ti_ivec);
 	m0_free0(&ti->ti_bufvec.ov_buf);
 	m0_free0(&ti->ti_bufvec.ov_vec.v_count);
+	m0_free0(&ti->ti_auxbufvec.ov_buf);
+	m0_free0(&ti->ti_auxbufvec.ov_vec.v_count);
 	m0_free0(&ti->ti_pageattrs);
 
 	if (ti->ti_dgvec != NULL)
@@ -399,6 +420,7 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 	uint64_t                   unit;
 	struct m0_indexvec        *ivec;
 	struct m0_bufvec          *bvec;
+	struct m0_bufvec          *auxbvec;
 	enum m0_pdclust_unit_type  unit_type;
 	enum page_attr            *pattr;
 	uint64_t                   cnt;
@@ -438,6 +460,7 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 		M0_ASSERT(ti->ti_dgvec != NULL);
 		ivec  = &ti->ti_dgvec->dr_ivec;
 		bvec  = &ti->ti_dgvec->dr_bufvec;
+		auxbvec  = &ti->ti_dgvec->dr_auxbufvec;
 		pattr = ti->ti_dgvec->dr_pageattrs;
 		cnt = page_nr(ioo->ioo_iomap_nr * layout_unit_size(play) *
 		      (layout_n(play) + layout_k(play)), ioo->ioo_obj);
@@ -446,6 +469,7 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 	} else {
 		ivec  = &ti->ti_ivec;
 		bvec  = &ti->ti_bufvec;
+		auxbvec = &ti->ti_auxbufvec;
 		pattr = ti->ti_pageattrs;
 		cnt = page_nr(ioo->ioo_iomap_nr * layout_unit_size(play) *
 			      layout_n(play), ioo->ioo_obj);
@@ -459,8 +483,6 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 
 		INDEX(ivec, seg) = pgstart;
 		COUNT(ivec, seg) = pgend - pgstart;
-
-		bvec->ov_vec.v_count[seg] = pgend - pgstart;
 
 		if (unit_type == M0_PUT_DATA) {
 			uint32_t row = map->pi_max_row;
@@ -482,13 +504,21 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 		buf->db_tioreq = ti;
 
 		M0_ASSERT(addr_is_network_aligned(buf->db_buf.b_addr));
-		bvec->ov_buf[seg]         = buf->db_buf.b_addr;
+		bvec->ov_buf[seg] = buf->db_buf.b_addr;
 		bvec->ov_vec.v_count[seg] = COUNT(ivec, seg);
+		if (map->pi_rtype == PIR_READOLD &&
+		    unit_type == M0_PUT_DATA) {
+			M0_ASSERT(buf->db_auxbuf.b_addr != NULL);
+			auxbvec->ov_buf[seg] = buf->db_auxbuf.b_addr;
+			auxbvec->ov_vec.v_count[seg] = page_size(ioo);
+		}
 		pattr[seg] |= buf->db_flags;
-		M0_LOG(M0_DEBUG, "pageaddr=%p, index=%6"PRIu64", size=%4"PRIu64
+		M0_LOG(M0_DEBUG, "pageaddr=%p, auxpage=%p,"
+				 " index=%6"PRIu64", size=%4"PRIu64
 				 " grpid=%3"PRIu64" flags=%4x for "FID_F,
-		                 bvec->ov_buf[seg], INDEX(ivec, seg),
-				 COUNT(ivec, seg), map->pi_grpid, pattr[seg],
+		                 bvec->ov_buf[seg], auxbvec->ov_buf[seg],
+				 INDEX(ivec, seg), COUNT(ivec, seg),
+				 map->pi_grpid, pattr[seg],
 				 FID_P(&ti->ti_fid));
 		M0_LOG(M0_DEBUG, "Seg id %d [%"PRIu64", %"PRIu64
 				 "] added to target_ioreq with "FID_F
@@ -641,6 +671,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 	enum page_attr               rw;
 	enum page_attr              *pattr;
 	struct m0_bufvec            *bvec;
+	struct m0_bufvec            *auxbvec;
 	struct m0_clovis_op_io      *ioo;
 	struct m0_indexvec          *ivec;
 	struct ioreq_fop            *irfop;
@@ -649,6 +680,9 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 	struct m0_io_fop            *iofop;
 	struct m0_fop_cob_rw        *rw_fop;
 	struct nw_xfer_request      *xfer;
+	/* Is it in the READ phase of WRITE request. */
+	bool                         read_in_write = false;
+	void                        *buf;
 
 	M0_ENTRY("prepare io fops for target ioreq %p filter 0x%x, tfid "FID_F,
 		 ti, filter, FID_P(&ti->ti_fid));
@@ -666,17 +700,23 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 			(IRS_READING, IRS_DEGRADED_READING,
 			 IRS_WRITING, IRS_DEGRADED_WRITING)));
 
+	if (ioo->ioo_oo.oo_oc.oc_op.op_code == M0_CLOVIS_OC_WRITE &&
+	    M0_IN(ioreq_sm_state(ioo), (IRS_READING, IRS_DEGRADED_READING)))
+		read_in_write = true;
+
 	if (M0_IN(ioreq_sm_state(ioo), (IRS_READING, IRS_WRITING))) {
-		ivec  = &ti->ti_ivec;
-		bvec  = &ti->ti_bufvec;
-		pattr = ti->ti_pageattrs;
+		ivec    = &ti->ti_ivec;
+		bvec    = &ti->ti_bufvec;
+		auxbvec = &ti->ti_auxbufvec;
+		pattr   = ti->ti_pageattrs;
 	} else {
 		if (ti->ti_dgvec == NULL) {
 			return M0_RC(0);
 		}
-		ivec  = &ti->ti_dgvec->dr_ivec;
-		bvec  = &ti->ti_dgvec->dr_bufvec;
-		pattr = ti->ti_dgvec->dr_pageattrs;
+		ivec    = &ti->ti_dgvec->dr_ivec;
+		bvec    = &ti->ti_dgvec->dr_bufvec;
+		auxbvec = &ti->ti_dgvec->dr_auxbufvec;
+		pattr   = ti->ti_dgvec->dr_pageattrs;
 	}
 
 	ndom = ti->ti_session->s_conn->c_rpc_machine->rm_tm.ntm_dom;
@@ -736,15 +776,23 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 			if (pattr[seg] & rw && pattr[seg] & filter) {
 				delta += io_seg_size() + io_di_size(ioo);
 
+				if (filter == PA_DATA &&
+				    read_in_write &&
+				    auxbvec != NULL &&
+				    auxbvec->ov_buf[seg] != NULL)
+					buf = auxbvec->ov_buf[seg];
+				else
+					buf = bvec->ov_buf[seg];
+
 				rc = m0_rpc_bulk_buf_databuf_add(rbuf,
-					bvec->ov_buf[seg], COUNT(ivec, seg),
+					buf, COUNT(ivec, seg),
 					INDEX(ivec, seg), ndom);
 
 				if (rc == -EMSGSIZE) {
 					/*
-					* Fix the number of segments in
-					* current m0_rpc_bulk_buf structure.
-					*/
+					 * Fix the number of segments in
+					 * current m0_rpc_bulk_buf structure.
+					 */
 					rbuf->bb_nbuf->nb_buffer.ov_vec.v_nr =
 						bbsegs;
 					rbuf->bb_zerovec.z_bvec.ov_vec.v_nr =
@@ -757,8 +805,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 					 * Buffer must be 4k aligned to be
 					 * used by network hw
 					 */
-					M0_ASSERT(addr_is_network_aligned(
-							bvec->ov_buf[seg]));
+					M0_ASSERT(addr_is_network_aligned(buf));
 					rc     = bulk_buffer_add(irfop, ndom,
 							&rbuf, &delta, maxsize);
 					if (rc == -ENOSPC)
@@ -767,11 +814,11 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 						goto fini_fop;
 
 					/*
-					* Since current bulk buffer is full,
-					* new bulk buffer is added and
-					* existing segment is attempted to
-					* be added to new bulk buffer.
-					*/
+					 * Since current bulk buffer is full,
+					 * new bulk buffer is added and
+					 * existing segment is attempted to
+					 * be added to new bulk buffer.
+					 */
 					continue;
 				} else if (rc == 0)
 					++bbsegs;
@@ -813,8 +860,9 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		m0_atomic64_inc(&ti->ti_nwxfer->nxr_iofop_nr);
 		iofops_tlist_add(&ti->ti_iofops, irfop);
 
-		M0_LOG(M0_DEBUG, "fop=%p bulk=%p (%s) @"FID_F" io fops = %"PRIu64
-				 " read bulks = %"PRIu64", list_len=%d",
+		M0_LOG(M0_DEBUG,
+		       "fop=%p bulk=%p (%s) @"FID_F" io fops = %"PRIu64
+		       " read bulks = %"PRIu64", list_len=%d",
 		       &iofop->if_fop, &iofop->if_rbulk,
 		       m0_is_read_fop(&iofop->if_fop) ? "r" : "w",
 		       FID_P(&ti->ti_fid),
@@ -913,6 +961,23 @@ static int target_ioreq_init(struct target_ioreq    *ti,
 	if (ti->ti_bufvec.ov_buf == NULL)
 		goto fail;
 
+	/*
+	 * For READOLD method, an extra bufvec is needed to remember
+	 * the addresses of auxillary buffers so those auxillary
+	 * buffers can be used in rpc bulk transfer to avoid polluting
+	 * real data buffers which are the application's memory for IO
+	 * in case zero copy method is in use.
+	 */
+	ti->ti_auxbufvec.ov_vec.v_nr = page_nr(size, ioo->ioo_obj);
+	M0_ALLOC_ARR(ti->ti_auxbufvec.ov_vec.v_count,
+		     ti->ti_auxbufvec.ov_vec.v_nr);
+	if (ti->ti_auxbufvec.ov_vec.v_count == NULL)
+		goto fail;
+
+	M0_ALLOC_ARR(ti->ti_auxbufvec.ov_buf, ti->ti_auxbufvec.ov_vec.v_nr);
+	if (ti->ti_auxbufvec.ov_buf == NULL)
+		goto fail;
+
 	M0_ALLOC_ARR(ti->ti_pageattrs, ti->ti_bufvec.ov_vec.v_nr);
 	if (ti->ti_pageattrs == NULL)
 		goto fail;
@@ -931,6 +996,11 @@ fail:
 		m0_free(ti->ti_bufvec.ov_vec.v_count);
 	if (ti->ti_bufvec.ov_buf != NULL)
 		m0_free(ti->ti_bufvec.ov_buf);
+	if (ti->ti_auxbufvec.ov_vec.v_count != NULL)
+		m0_free(ti->ti_auxbufvec.ov_vec.v_count);
+	if (ti->ti_auxbufvec.ov_buf != NULL)
+		m0_free(ti->ti_auxbufvec.ov_buf);
+
 out:
 	return M0_ERR(-ENOMEM);
 }

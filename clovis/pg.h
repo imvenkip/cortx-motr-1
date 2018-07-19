@@ -628,6 +628,7 @@ struct dgmode_rwvec {
 	 * read/write IO.
 	 */
 	struct m0_bufvec     dr_bufvec;
+	struct m0_bufvec     dr_auxbufvec;
 
 	/** Represents attributes for pages from ::ti_dgvec. */
 	enum page_attr      *dr_pageattrs;
@@ -687,6 +688,7 @@ struct target_ioreq {
 	 * This buffer is in sync with ::ti_ivec.
 	 */
 	struct m0_bufvec               ti_bufvec;
+	struct m0_bufvec               ti_auxbufvec;
 
 	/**
 	 * Degraded mode read/write IO vector.

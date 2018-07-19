@@ -875,7 +875,7 @@ static int clovis_application_data_copy(struct pargrp_iomap      *map,
 	m0_bindex_t      mask;
 
 	M0_ENTRY("Copy %s application, start = %8"PRIu64", end = %8"PRIu64,
-		 dir == CD_COPY_TO_APP ? (char *)"from" : (char *)" to ",
+		 dir == CD_COPY_FROM_APP ? (char *)"from" : (char *)" to ",
 		 start, end);
 
 	M0_PRE(M0_IN(dir, (CD_COPY_FROM_APP, CD_COPY_TO_APP)));
@@ -900,38 +900,33 @@ static int clovis_application_data_copy(struct pargrp_iomap      *map,
 	/* Clovis only supports whole block operations */
 	M0_ASSERT(end - start == clovis_data->db_buf.b_nob);
 
-
 	if (dir == CD_COPY_FROM_APP) {
 		if ((clovis_data->db_flags & filter) == filter) {
 			if (clovis_data->db_flags & PA_COPY_FRMUSR_DONE) {
-				m0_bufvec_cursor_move(datacur, end-start);
+				m0_bufvec_cursor_move(datacur, end - start);
 				return M0_RC(0);
 			}
 
 			/*
-			 * Copies page to auxiliary buffer before it gets
-			 * overwritten by user data. This is needed in order
-			 * to calculate delta parity in case of read-old
-			 * approach.
+			 * Note: data has been read into auxiliary buffer
+			 * directly for READOLD method.
 			 */
 			if (clovis_data->db_auxbuf.b_addr != NULL &&
-				map->pi_rtype == PIR_READOLD) {
-				if (filter == 0) {
-					memcpy(clovis_data->db_auxbuf.b_addr,
-					       clovis_data->db_buf.b_addr,
-					       page_size(map->pi_ioo));
-				} else
+			    map->pi_rtype == PIR_READOLD) {
+				if (filter != 0) {
+					m0_bufvec_cursor_move(
+						datacur, end - start);
 					return M0_RC(0);
+				}
 			}
 
 			/* Copies to appropriate offset within page. */
 			bytes = data_buf_copy(clovis_data, datacur, dir);
-
 			M0_LOG(M0_DEBUG, "%"PRIu64
 					 " bytes copied from application "
 					 "from offset %"PRIu64, bytes, start);
-
 			map->pi_ioo->ioo_copied_nr += bytes;
+
 			/*
 			 * application_data_copy() may be called to handle
 			 * only part of PA_FULLPAGE_MODIFY page.
@@ -1015,9 +1010,9 @@ static int ioreq_application_data_copy(struct m0_clovis_op_io *ioo,
 			m0_ivec_cursor_index(&extcur) < grpend) {
 
 			pgstart = m0_ivec_cursor_index(&extcur);
-			pgend   = min64u(m0_round_up(pgstart + 1,
-						     page_size(ioo)),
-			pgstart + m0_ivec_cursor_step(&extcur));
+			pgend = min64u(
+				    m0_round_up(pgstart + 1, page_size(ioo)),
+				    pgstart + m0_ivec_cursor_step(&extcur));
 			count = pgend - pgstart;
 
 			/*
@@ -1025,11 +1020,9 @@ static int ioreq_application_data_copy(struct m0_clovis_op_io *ioo,
 			* current pargrp_iomap structure from pgstart
 			* and pgend.
 			*/
-			rc = clovis_application_data_copy(ioo->ioo_iomaps[map],
-							  ioo->ioo_obj,
-							  pgstart, pgend,
-							  &appdatacur, dir,
-							  filter);
+			rc = clovis_application_data_copy(
+				ioo->ioo_iomaps[map], ioo->ioo_obj,
+				pgstart, pgend, &appdatacur, dir, filter);
 			if (rc != 0)
 				return M0_ERR_INFO(
 					rc, "[%p] Copy failed (pgstart=%" PRIu64
