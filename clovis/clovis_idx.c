@@ -378,6 +378,7 @@ static void clovis_idx_op_cb_launch(struct m0_clovis_op_common *oc)
 	 *  = 1: the driver successes in launching the query asynchronously.
 	*/
 	rc = query(oi);
+	oi->oi_ar.ar_rc = rc;
 	if (rc < 0) {
 		oi->oi_ar.ar_ast.sa_cb = &clovis_idx_op_ast_fail;
 		m0_sm_ast_post(oi->oi_sm_grp, &oi->oi_ar.ar_ast);
@@ -386,7 +387,6 @@ static void clovis_idx_op_cb_launch(struct m0_clovis_op_common *oc)
 		oi->oi_ar.ar_ast.sa_cb = &clovis_idx_op_ast_complete;
 		m0_sm_ast_post(oi->oi_sm_grp, &oi->oi_ar.ar_ast);
 	}
-	oi->oi_ar.ar_rc = rc;
 
 	M0_LEAVE();
 }
