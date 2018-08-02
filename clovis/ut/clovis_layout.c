@@ -331,14 +331,14 @@ static struct m0_clovis_op_composite_io* ut_composite_io_op_alloc()
 	struct composite_sub_io_ext      *sio_ext;
 	struct m0_clovis_obj              obj;
 	struct m0_uint128                 id;
-	struct m0_clovis                 *instance = NULL;
+	struct m0_clovis                 *instance = dummy_instance;
 	struct m0_clovis_realm            realm;
 
-	instance = dummy_instance;
 	ut_clovis_realm_entity_setup(&realm, &obj.ob_entity, instance);
 	id = M0_CLOVIS_ID_APP;
 	id.u_lo++;
 	obj.ob_entity.en_id = id;
+	obj.ob_attr.oa_pver = (struct m0_fid){.f_container = 24, .f_key = 36};
 
 	M0_ALLOC_PTR(oci);
 	M0_UT_ASSERT(oci != NULL);

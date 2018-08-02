@@ -1632,6 +1632,7 @@ M0_INTERNAL int m0_clovis__obj_namei_send(struct m0_clovis_op_obj *oo)
 
 	cinst = m0_clovis__oo_instance(oo);
 	M0_ASSERT(cinst != NULL);
+	M0_ASSERT(m0_conf_fid_is_valid(&oo->oo_pver));
 	pv = m0_pool_version_find(&cinst->m0c_pools_common,
 				  &oo->oo_pver);
 	if (pv == NULL)
@@ -1781,6 +1782,7 @@ M0_INTERNAL int m0_clovis__obj_layout_send(struct m0_clovis_obj *obj,
 
 	ent_id = obj->ob_entity.en_id;
 	cinst = m0_clovis__entity_instance(&obj->ob_entity);
+	M0_ASSERT(m0_conf_fid_is_valid(&obj->ob_attr.oa_pver));
 	pv = m0_pool_version_find(&cinst->m0c_pools_common,
 				  &obj->ob_attr.oa_pver);
 	M0_ASSERT(pv != NULL);
