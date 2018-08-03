@@ -72,7 +72,7 @@ M0_INTERNAL void m0_stob_cache_fini(struct m0_stob_cache *cache)
 	} m0_tl_endfor;
 	stob_cache_tlist_fini(&cache->sc_idle);
 	stob_cache_tlist_fini(&cache->sc_busy);
-	m0_mutex_init(&cache->sc_lock);
+	m0_mutex_fini(&cache->sc_lock);
 }
 
 
