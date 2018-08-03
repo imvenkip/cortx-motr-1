@@ -25,3 +25,8 @@
   tags:
     - debug
     - breaks-dry-run
+
+- name: create Mero system group
+  group:
+    name: mero
+    system: yes
