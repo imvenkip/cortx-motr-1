@@ -45,9 +45,6 @@
 #define SERVER_ENDPOINT_ADDR  "0@lo:12345:34:1"
 #define SERVER_ENDPOINT       "lnet:" SERVER_ENDPOINT_ADDR
 
-/* See "ut/conf.xc" */
-static const struct m0_fid conf_obj_id_fs = M0_FID_TINIT('f', 2, 1);
-
 static struct m0_net_xprt    *xprt = &m0_net_lnet_xprt;
 static struct m0_net_domain   client_net_dom;
 struct m0_conf_root          *root;

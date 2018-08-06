@@ -85,7 +85,6 @@ static struct m0_semaphore   write_cp_sem;
 
 static const char client_addr[] = "0@lo:12345:34:2";
 static const char server_addr[] = "0@lo:12345:34:1";
-static const char send_db[]     = "send-db";
 
 static struct m0_rpc_client_ctx cctx = {
 	.rcx_net_dom            = &client_net_dom,
