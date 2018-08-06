@@ -357,8 +357,9 @@ void m0_be_ut_seg_large_multiple(void)
 	struct m0_be_seg *seg[ARRAY_SIZE(geom) - 1];
 	struct m0_stob   *stob;
 
+	size = BE_UT_SEG_LARGE_SIZE;
+
 	for (i = 0; !m0_be_seg_geom_eq(&geom[i], &M0_BE_SEG_GEOM0); ++i) {
-		size = BE_UT_SEG_LARGE_SIZE;
 		addr = m0_be_ut_seg_allocate_addr(size);
 		geom[i] = (struct m0_be_seg_geom) {
 			.sg_size = size,
