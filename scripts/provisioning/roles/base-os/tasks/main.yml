@@ -145,6 +145,7 @@
       shell: mv /etc/yum.repos.d/CentOS-Sources.repo{,.disabled}
       args:
         creates: /etc/yum.repos.d/CentOS-Sources.repo.disabled
+        removes: /etc/yum.repos.d/CentOS-Sources.repo
 
 - name: enable persitent storage for journald
   ini_file:
