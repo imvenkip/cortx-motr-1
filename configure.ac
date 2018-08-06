@@ -461,7 +461,7 @@ AS_IF([test -z $CXX],
 on Red Hat based systems])
 )
 
-# the following two perl-modules are required by xcode/gccxml2xcode script
+# perl-modules for xcode/gccxml2xcode script
 AX_PROG_PERL_MODULES([XML::LibXML], ,
         AC_MSG_ERROR([No XML::LibXML Perl module found: it can be installed \
 from perl-XML-LibXML package on Red Hat based systems])
@@ -472,7 +472,13 @@ AX_PROG_PERL_MODULES([List::MoreUtils], ,
 installed from perl-List-MoreUtils package on Red Hat based systems])
 )
 
-# these two perl-modules are required for scripts/build/check-sources script
+# perl-modules for xcode/proto script
+AX_PROG_PERL_MODULES([YAML::XS], ,
+        AC_MSG_ERROR([No YAML::XS Perl module found: it can be installed \
+from perl-YAML-LibYAML package on Red Hat based systems])
+)
+
+# perl-modules for scripts/build/check-sources script
 AX_PROG_PERL_MODULES([File::Find::Rule], ,
         AC_MSG_ERROR([No File::Find::Rule Perl module found: it can be \
 installed from perl-File-Find-Rule package on Red Hat based systems])
