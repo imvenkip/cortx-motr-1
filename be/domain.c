@@ -439,7 +439,13 @@ static void be_domain_ldsc_sync(struct m0_be_log_discard      *ld,
 M0_INTERNAL void
 m0_be_domain_cleanup_by_location(const char *stob_domain_location)
 {
-	struct m0_be_log_cfg log_cfg;
+	struct m0_be_log_cfg log_cfg = {};
+
+	/*
+	 * It is safe to pass fake log_cfg into be_domain_log_cleanup().
+	 * Location string is constructed inside the function. Other
+	 * fields are accessed locally and not actually used.
+	 */
 
 	be_domain_log_cleanup(stob_domain_location, &log_cfg, true);
 }
