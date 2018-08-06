@@ -984,7 +984,7 @@ M0_INTERNAL bool m0_be_domain_is_stob_log(struct m0_be_domain     *dom,
 M0_INTERNAL bool m0_be_domain_is_stob_seg(struct m0_be_domain     *dom,
                                           const struct m0_stob_id *stob_id)
 {
-	bool it_is = false;
+	bool it_is;
 
 	be_domain_lock(dom);
 	it_is = m0_tl_exists(seg, seg, &dom->bd_segs,
