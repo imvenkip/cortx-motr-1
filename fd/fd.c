@@ -400,9 +400,10 @@ static int tolerance_check(const struct m0_conf_pver *pv, uint64_t *children_nr,
 	for (i = 0; i <= depth; ++i) {
 		M0_ALLOC_ARR(units[i], nodes);
 		if (units[i] == NULL) {
-			rc = -ENOMEM;
 			*failure_level = i;
-			goto out;
+			for (i = i - 1; i >= 0; --i)
+				m0_free(units[i]);
+			return M0_ERR(-ENOMEM);
 		}
 		nodes *= children_nr[i];
 
@@ -419,16 +420,15 @@ static int tolerance_check(const struct m0_conf_pver *pv, uint64_t *children_nr,
 		       i, (int)sum, (int)K, (int)children_nr[i - 1]);
 		if (sum > K) {
 			*failure_level = first_level + i - 1;
-			rc = -EINVAL;
-			goto out;
+			rc = M0_ERR(-EINVAL);
+			break;
 		}
 		nodes *= children_nr[i - 1];
 	}
-out:
 	for (i = 0; i <= depth; ++i) {
 		m0_free(units[i]);
 	}
-	return rc == 0 ? M0_RC(rc) : M0_ERR(rc);
+	return M0_RC(rc);
 }
 
 static void uniform_distribute(uint64_t **units, uint64_t level,
