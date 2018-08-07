@@ -340,7 +340,7 @@ static int conf_fom_conf_file_save(struct m0_conf_load_fom *conf_fom)
 {
 	int                          rc = 0;
 	char                        *location = NULL;
-	struct m0_stob              *stob;
+	struct m0_stob              *stob = NULL;
 	struct m0_net_buffer        *nb = &conf_fom->clm_net_buffer;
 	struct m0_fop_conf_load     *conf_fop;
 	struct m0_fop_conf_load_rep *conf_fop_rep;
