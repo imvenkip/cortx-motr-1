@@ -52,6 +52,7 @@ $options = {
     template:               TEMPLATE_FILE_PATH,
     remote_user:            Facter.value(:id),
     clovis_apps:            false,
+    s3servers:              false,
     dataunits:              DATA_UNITS,
     parityunits:            PARITY_UNITS,
     blocksize:              BLOCK_SIZE,
@@ -91,17 +92,18 @@ usage: #{PROG_NAME} [$options] disk1 disk2 ...
 
         clients:     [ hostA1, ... ]
         clovis-apps: [ hostB1, ... ]
+        s3servers:   [ hostS1, ... ]
         confds:      [ hostC1, ... ]
         ssus:        [ { host: 'hostD1', disks: 'sh-glob-pattern' }, ... ]
         pools:
           - name: pool1
             disks: [ { host: 'hostD1', filter: 'regex' }, ... ]
 
-    'clients' and 'clovis-apps' sections can be omitted, but not both at the
-    same time. 'pools' section allows to group disks of corresponding SSU hosts
-    into storage pools, it is optional, by default all disks from every SSU form
-    a single pool. The 'filter' is optionanl, by default all disks from a host
-    are added into the pool.
+    'clients', 'clovis-apps' and 's3servers' sections can be omitted, but not
+    all at the same time. 'pools' section allows to group disks of corresponding
+    SSU hosts into storage pools, it is optional, by default all disks from
+    every SSU form a single pool. The 'filter' is optionanl, by default all
+    disks from a host are added into the pool.
 
   Options:
 
@@ -141,6 +143,12 @@ END_USAGE
             'Enable clovis apps. clovis-app role is enabled for client nodes in' \
             ' halon_facts config') do
         $options[:clovis_apps] = true
+    end
+
+    opts.on('--s3-servers',
+            'Enable s3 servers. s3server role is enabled for client nodes in' \
+            ' halon_facts config') do
+        $options[:s3_servers] = true
     end
 
     opts.on('-N', '--data-units NUM',
@@ -254,6 +262,7 @@ end
 Role_of = {
     'clients'     => 'datamover',
     'clovis-apps' => 'clovis-app',
+    's3servers'   => 's3server',
     'confds'      => 'confd',
     'ssus'        => 'storage',
 }.freeze
@@ -493,9 +502,11 @@ if ARGV.empty?
         end
     end
 
-    if !cluster_config.has_key?('clients') && !cluster_config.has_key?('clovis-apps')
-        die 'invalid cluster config: at least one of the "clients" or "clovis-apps"' \
-            + ' lists must be specified'
+    if !cluster_config.has_key?('clients') &&
+       !cluster_config.has_key?('clovis-apps') &&
+       !cluster_config.has_key?('s3servers')
+        die 'invalid cluster config: at least one of the "clients", "clovis-apps"' \
+            + ' or "s3servers" lists must be specified'
     end
 
     if !cluster_config.has_key?('pools')
@@ -522,6 +533,9 @@ else
 
     if $options[:clovis_apps]
         cluster_config['clovis-apps'] = [ Facter.value(:hostname) ]
+    end
+    if $options[:s3_servers]
+        cluster_config['s3servers'] = [ Facter.value(:hostname) ]
     end
     cluster_config['clients'] = [ Facter.value(:hostname) ]
 end
