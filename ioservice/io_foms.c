@@ -1198,8 +1198,7 @@ static int io_prepare(struct m0_fom *fom)
 				m0_is_read_fop(fom->fo_fop) ? "Read": "Write",
 				(int)rwfop->crw_index,
 				FID_P(&rwfop->crw_fid), FID_P(&rwfop->crw_pver));
-		m0_fom_phase_move(fom, -EINVAL, M0_FOPH_FAILURE);
-		rc = M0_FSO_AGAIN;
+		rc = M0_ERR(-EINVAL);
 		goto out;
 	}
 
@@ -1220,8 +1219,7 @@ static int io_prepare(struct m0_fom *fom)
 				m0_is_read_fop(fom->fo_fop) ? "Read": "Write",
 				(int)rwfop->crw_index,
 				FID_P(&rwfop->crw_fid), FID_P(&rwfop->crw_pver));
-		m0_fom_phase_move(fom, -EINVAL, M0_FOPH_FAILURE);
-		rc = M0_FSO_AGAIN;
+		rc = M0_ERR(-EINVAL);
 		goto out;
 	}
 	poolmach = &fom_obj->fcrw_pver->pv_mach;
@@ -1234,7 +1232,6 @@ static int io_prepare(struct m0_fom *fom)
 				 poolmach, poolmach->pm_pver,
 				 rwfop->crw_index,
 				 device_state);
-		m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
 		goto out;
 	}
 	if (rc == 0 && device_state != M0_PNDS_ONLINE) {
@@ -1243,11 +1240,11 @@ static int io_prepare(struct m0_fom *fom)
 				 FID_P(&rwfop->crw_fid),
 				 rwfop->crw_index,
 				 device_state);
-		rc = -EIO;
+		rc = M0_RC(-EIO);
 	}
+out:
 	if (rc != 0)
 		m0_fom_phase_move(fom, rc, M0_FOPH_FAILURE);
-out:
 	rwrep->rwr_repair_done = m0_sns_cm_fid_repair_done(&rwfop->crw_gfid,
 							   reqh, device_state);
 	M0_LEAVE();
