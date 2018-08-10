@@ -122,7 +122,6 @@ static int io_fol_frag_undo_redo_op(struct m0_fop_fol_frag *frag,
 	wfop = frag->ffrp_rep;
 	switch(frag->ffrp_fop_code) {
 	case M0_IOSERVICE_WRITEV_OPCODE:
-		wfop = frag->ffrp_rep;
 		M0_ASSERT(wfop->c_rep.rwr_rc == 0);
 		break;
 	}
@@ -1206,7 +1205,6 @@ static int io_netbufs_prepare(struct m0_fop *coalesced_fop,
 	max_segs_nr = m0_net_domain_get_max_buffer_segments(netdom);
 	rbulk = m0_fop_to_rpcbulk(coalesced_fop);
 	curr_segs_nr = iosegset_tlist_length(&seg_set->iss_list);
-	ioseg = iosegset_tlist_head(&seg_set->iss_list);
 
 	while (curr_segs_nr != 0) {
 		curr_bufsize = 0;

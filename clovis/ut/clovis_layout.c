@@ -448,7 +448,7 @@ static void ut_composite_io_op_cb_free(void)
 	struct m0_clovis_op_composite_io *oci;
 	struct m0_clovis_realm            realm;
 	struct m0_clovis_entity           ent;
-	struct m0_clovis                 *instance = NULL;
+	struct m0_clovis                 *instance;
 
 	/* init */
 	M0_SET0(&ent);
@@ -473,7 +473,7 @@ static void ut_composite_io_op_cb_fini(void)
 	struct m0_clovis_op_composite_io *oci;
 	struct m0_clovis_realm            realm;
 	struct m0_clovis_entity           ent;
-	struct m0_clovis                 *instance = NULL;
+	struct m0_clovis                 *instance;
 
 	/* init */
 	M0_SET0(&ent);
@@ -503,7 +503,7 @@ static void ut_m0_clovis_composite_layer_add(void)
 	struct m0_clovis_composite_layer  *found;
 	struct m0_uint128                  id;
 	struct m0_clovis_realm             realm;
-	struct m0_clovis                  *instance = NULL;
+	struct m0_clovis                  *instance;
 
 	instance = dummy_instance;
 	ut_clovis_realm_entity_setup(&realm, &obj.ob_entity, instance);
@@ -542,7 +542,7 @@ static void ut_m0_clovis_composite_layer_del(void)
 	struct m0_clovis_composite_layer  *found;
 	struct m0_uint128                  id;
 	struct m0_clovis_realm             realm;
-	struct m0_clovis                  *instance = NULL;
+	struct m0_clovis                  *instance;
 
 	instance = dummy_instance;
 	ut_clovis_realm_entity_setup(&realm, &obj.ob_entity, instance);
@@ -587,7 +587,7 @@ static void ut_composite_sub_io_ops_build(void)
 	struct composite_sub_io_ext      *sio_ext;
 	struct m0_clovis_obj              obj;
 	struct m0_uint128                 id;
-	struct m0_clovis                 *instance = NULL;
+	struct m0_clovis                 *instance;
 	struct m0_clovis_realm            realm;
 	struct m0_clovis_op              *op = NULL;
 	struct m0_clovis_op_common       *oc;
@@ -654,7 +654,7 @@ static int composite_layout_add_layers(struct m0_clovis_layout *layout,
 	struct m0_clovis_obj    obj;
 	struct m0_uint128       id;
 	struct m0_clovis_realm  realm;
-	struct m0_clovis       *instance = NULL;
+	struct m0_clovis       *instance;
 
 	instance = dummy_instance;
 	ut_clovis_realm_entity_setup(&realm, &obj.ob_entity, instance);

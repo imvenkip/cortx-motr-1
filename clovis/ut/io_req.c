@@ -163,7 +163,7 @@ static void ut_clovis_test_ioreq_iosm_handle_launch(void)
 	struct m0_clovis_realm  realm;
 	struct m0_clovis_entity entity;
 	struct m0_clovis_op_io_ops *ioo_ops;
-	struct nw_xfer_request *xfer_req = NULL;
+	struct nw_xfer_request *xfer_req;
 
 	/* Init. */
 	instance = dummy_instance;
@@ -409,7 +409,7 @@ static void ut_clovis_test_ioreq_iosm_handle_executed(void)
 {
 	struct m0_sm_group          grp;
 	struct m0_sm_group         *op_grp;
-	struct m0_clovis           *instance = NULL;
+	struct m0_clovis           *instance;
 	struct m0_clovis_op_io     *ioo;
 	struct m0_clovis_realm      realm;
 	struct m0_clovis_entity     entity;
@@ -643,7 +643,7 @@ static void ut_clovis_test_ioreq_iosm_handle_executed(void)
  */
 static void ut_clovis_test_ioreq_iomaps_destroy(void)
 {
-	struct m0_clovis       *instance = NULL;
+	struct m0_clovis       *instance;
 	struct m0_clovis_op_io *ioo;
 
 	/* initialise clovis */
@@ -861,7 +861,7 @@ static void ut_clovis_test_ioreq_parity_recalc(void)
 	int                     rc;
 	struct pargrp_iomap    *map;
 	struct m0_clovis_op_io *ioo;
-	struct m0_clovis       *instance = NULL;
+	struct m0_clovis       *instance;
 	struct m0_clovis_realm  realm;
 
 	/* Create a dummy ioo */
@@ -994,7 +994,7 @@ static void ut_clovis_test_device_check(void)
 {
 	int                     rc;
 	struct m0_clovis_op_io *ioo;
-	struct m0_clovis       *instance = NULL;
+	struct m0_clovis       *instance;
 	struct m0_clovis_realm  realm;
 	struct nw_xfer_request *xfer;
 	struct target_ioreq    *ti;
@@ -1045,7 +1045,7 @@ static void ut_clovis_test_ioreq_dgmode_read(void)
 {
 	int                     rc;
 	struct m0_clovis_op_io *ioo;
-	struct m0_clovis       *instance = NULL;
+	struct m0_clovis       *instance;
 	struct nw_xfer_ops     *nxr_ops;
 	struct m0_clovis_realm  realm;
 	struct nw_xfer_request *xfer;
@@ -1098,7 +1098,7 @@ static void ut_clovis_test_ioreq_dgmode_write(void)
 {
 	int                     rc;
 	struct m0_clovis_op_io *ioo;
-	struct m0_clovis       *instance = NULL;
+	struct m0_clovis       *instance;
 	struct nw_xfer_ops     *nxr_ops;
 	struct m0_clovis_realm  realm;
 	struct nw_xfer_request *xfer;
@@ -1153,7 +1153,7 @@ static void ut_clovis_test_ioreq_dgmode_recover(void)
 	int                     i;
 	int                     rc;
 	struct m0_clovis_op_io *ioo;
-	struct m0_clovis       *instance = NULL;
+	struct m0_clovis       *instance;
 	struct m0_clovis_realm  realm;
 
 	/* Init. */

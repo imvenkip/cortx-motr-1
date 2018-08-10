@@ -1200,7 +1200,6 @@ M0_INTERNAL void m0_fom_domain_fini(struct m0_fom_domain *dom)
 
 	m0_locality_chore_fini(&dom->fd_hung_foms_chore);
 	if (dom->fd_localities != NULL) {
-		i = dom->fd_localities_nr;
 		for (i = dom->fd_localities_nr - 1; i >= 0; --i) {
 			if (dom->fd_localities[i] != NULL)
 				loc_fini(dom->fd_localities[i]);

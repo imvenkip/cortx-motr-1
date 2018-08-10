@@ -527,7 +527,6 @@ static int ha_entrypoint_client_fom_tick(struct m0_fom *fom)
 	state    = ecl->ecl_sm.sm_state;
 	stopping = ecl->ecl_stopping;
 	m0_sm_group_unlock(&ecl->ecl_sm_group);
-	next_state = state;
 	M0_LOG(M0_DEBUG, "state=%s", m0_sm_state_name(&ecl->ecl_sm, state));
 
 	switch (state) {
@@ -651,7 +650,6 @@ static int ha_entrypoint_client_fom_tick(struct m0_fom *fom)
 	       m0_sm_state_name(&ecl->ecl_sm, next_state));
 	m0_sm_group_lock(&ecl->ecl_sm_group);
 	M0_ASSERT(ecl->ecl_sm.sm_state == state);
-	M0_ASSERT(state != next_state);
 	m0_sm_state_set(&ecl->ecl_sm, next_state);
 	m0_sm_group_unlock(&ecl->ecl_sm_group);
 
@@ -898,17 +896,16 @@ static int ha_entrypoint_get_fom_tick(struct m0_fom *fom)
 		ha_entrypoint_server_register(hes, server_fom);
 		hes->hes_cfg.hesc_request_received(hes, &server_fom->esf_req,
 		                                   &server_fom->esf_req_id);
-		rc = 0;
+		M0_LEAVE();
 		return M0_FSO_WAIT;
 	} else {
 		ha_entrypoint_server_deregister(hes, server_fom);
 		m0_ha_entrypoint_req_free(&server_fom->esf_req);
-		rc = 0;
 		m0_rpc_reply_post(&fom->fo_fop->f_item,
 				  &fom->fo_rep_fop->f_item);
 		m0_fom_phase_set(fom, M0_HES_FINI);
 	}
-	M0_LEAVE("rc=%d", rc);
+	M0_LEAVE();
 	return M0_FSO_WAIT;
 }
 

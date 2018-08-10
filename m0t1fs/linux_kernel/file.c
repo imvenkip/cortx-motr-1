@@ -3278,7 +3278,7 @@ static int dgmode_rwvec_alloc_init(struct target_ioreq *ti)
 {
 	int                       rc;
 	uint64_t                  cnt;
-	struct io_request        *req = NULL;
+	struct io_request        *req;
 	struct dgmode_rwvec      *dg;
 	struct m0_pdclust_layout *play;
 

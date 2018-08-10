@@ -689,7 +689,6 @@ static int stats_query_fom_tick(struct m0_fom *fom)
 	switch (m0_fom_phase(fom)) {
 	case STATS_QUERY_FOM_READ_OBJECT:
 		rc = read_stats(fom);
-		fom->fo_sm_phase.sm_rc = rc;
 		m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
 		rc = M0_FSO_AGAIN;
 		break;
