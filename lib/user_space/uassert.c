@@ -154,6 +154,8 @@ M0_INTERNAL void m0_debugger_invoke(void)
 		} else if (rc == 0) {
 			/* child */
 			rc = execvp(m0_debugger_args[0], m0_debugger_args);
+			M0_IMPOSSIBLE("execvp() failed with rc=%d errno=%d",
+				      rc, errno);
 		}
 	}
 }
