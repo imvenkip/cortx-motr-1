@@ -35,7 +35,7 @@ static bool profile_check(const void *bob)
 
 	M0_PRE(m0_conf_obj_type(&self->cp_obj) == &M0_CONF_PROFILE_TYPE);
 
-	return m0_conf_obj_is_stub(&self->cp_obj) ?:
+	return m0_conf_obj_is_stub(&self->cp_obj) ||
 		_0C(m0_fid_arr_all_unique(&self->cp_pools));
 }
 
