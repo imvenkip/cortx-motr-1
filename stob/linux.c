@@ -531,6 +531,8 @@ M0_INTERNAL int m0_stob_linux_reopen(struct m0_stob_id *stob_id,
 	int                 rc;
 
 	rc = m0_stob_find(stob_id, &bstore);
+	if (rc != 0)
+		return M0_RC(rc);
 	M0_ASSERT(m0_stob_domain_is_of_type(bstore->so_domain,
 					    &m0_stob_linux_type));
 	st = m0_stob_state_get(bstore);
