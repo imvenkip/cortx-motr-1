@@ -123,7 +123,8 @@ static void repair_cm_stop(struct m0_cm *cm)
 				disk = M0_CONF_CAST(disk_obj, m0_conf_drive);
 				M0_ASSERT(disk != NULL);
 				M0_LOG(M0_DEBUG, FID_F, FID_P(&pool->po_id));
-				if (m0_sns_cm_disk_has_dirty_pver(cm, disk) ||
+				if (m0_sns_cm_disk_has_dirty_pver(cm, disk,
+								  true) ||
 				    m0_cm_is_dirty(cm)) {
 					dstate = M0_NC_REPAIR;
 					pstate = M0_NC_REPAIR;

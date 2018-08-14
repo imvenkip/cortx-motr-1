@@ -199,6 +199,7 @@ static int __file_context_init(struct m0_sns_cm_iter *it)
 	struct m0_sns_cm         *scm = it2sns(it);
 	struct m0_cm             *cm = &scm->sc_base;
 	struct m0_pdclust_layout *pl;
+	struct m0_cm_ag_id       *out_last;
 
 	pl = m0_layout_to_pdl(it->si_fc.ifc_fctx->sf_layout);
 	if (pl == NULL)
@@ -208,17 +209,19 @@ static int __file_context_init(struct m0_sns_cm_iter *it)
 	 * We need only the number of parity units equivalent
 	 * to the number of failures.
 	 */
-	it->si_fc.ifc_dpupg = m0_sns_cm_ag_nr_data_units(pl) + m0_sns_cm_ag_nr_parity_units(pl);
+	it->si_fc.ifc_dpupg = m0_sns_cm_ag_nr_data_units(pl) +
+				m0_sns_cm_ag_nr_parity_units(pl);
 	it->si_fc.ifc_upg = m0_sns_cm_ag_size(pl);
 	M0_CNT_INC(it->si_total_files);
-	if (m0_cm_ag_id_is_set(&cm->cm_last_processed_out))
-		it->si_fc.ifc_sa.sa_group = agid2group(&cm->cm_last_processed_out) + 1;
-	else
+	out_last = &cm->cm_last_processed_out;
+	if (m0_cm_ag_id_is_set(out_last)) {
+		it->si_fc.ifc_sa.sa_group = agid2group(out_last);
+	 } else
 		it->si_fc.ifc_sa.sa_group = 0;
 
 	it->si_fc.ifc_sa.sa_unit = 0;
 	it->si_ag = NULL;
-	M0_SET0(&cm->cm_last_processed_out);
+	M0_SET0(out_last);
 
 	return M0_RC(0);
 }

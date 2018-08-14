@@ -702,7 +702,6 @@ M0_INTERNAL int m0_cm_prepare(struct m0_cm *cm)
 	cm->cm_nr_proxy_updated = 0;
 	cm->cm_quiesce = false;
 	cm->cm_abort   = false;
-	cm->cm_reset   = true;
 	cm->cm_epoch = m0_time_now();
 	rmach = m0_cm_rpc_machine_find(reqh);
 	rc = cm_replicas_connect(cm, rmach, reqh);
@@ -788,6 +787,7 @@ M0_INTERNAL int m0_cm_start(struct m0_cm *cm)
 	M0_PRE(M0_IN(m0_cm_state_get(cm), (M0_CMS_READY, M0_CMS_FAIL)));
 	M0_PRE(m0_cm_invariant(cm));
 
+	m0_cm_proxies_sent_reset(cm);
 	if (rc == 0)
 		rc = cm->cm_ops->cmo_start(cm);
 	if (M0_FI_ENABLED("start_failure"))
@@ -853,6 +853,8 @@ M0_INTERNAL int m0_cm_stop(struct m0_cm *cm)
 
 	if (cm->cm_asts_run.car_run)
 		m0_cm_ast_run_thread_fini(cm);
+
+	cm->cm_reset = false;
 
 	M0_LEAVE("rc: %d", rc);
 	return M0_RC(rc);

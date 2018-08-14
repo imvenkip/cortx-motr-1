@@ -144,13 +144,7 @@ static int trigger_fom_tick(struct m0_fom *fom)
 	if (m0_fom_phase(fom) < M0_FOPH_NR) {
 		cm = trig2cm(fom);
 		if (m0_fom_phase(fom) == M0_FOPH_INIT &&
-			   M0_IN(treq->op, (CM_OP_REPAIR, CM_OP_REBALANCE,
-					    CM_OP_REPAIR_QUIESCE,
-					    CM_OP_REBALANCE_QUIESCE,
-					    CM_OP_REPAIR_ABORT,
-					    CM_OP_REBALANCE_ABORT,
-					    CM_OP_REPAIR_STATUS,
-					    CM_OP_REBALANCE_STATUS))) {
+						treq->op != CM_OP_INVALID) {
 			m0_cm_lock(cm);
 			cm_state = m0_cm_state_get(cm);
 			m0_cm_unlock(cm);
@@ -318,7 +312,7 @@ static int ready(struct m0_fom *fom)
 		return M0_FSO_WAIT;
 
 	m0_fom_phase_set(fom, M0_TPH_START);
-	M0_LOG(M0_DEBUG, "trigger: ready");
+	M0_LOG(M0_DEBUG, "trigger: ready rc: %d", rc);
 	return rc;
 }
 

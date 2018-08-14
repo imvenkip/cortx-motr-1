@@ -122,7 +122,8 @@ static void rebalance_cm_stop(struct m0_cm *cm)
 				M0_ASSERT(rc == 0);
 				disk = M0_CONF_CAST(disk_obj, m0_conf_drive);
 				M0_ASSERT(disk != NULL);
-				if (m0_sns_cm_disk_has_dirty_pver(cm, disk) ||
+				if (m0_sns_cm_disk_has_dirty_pver(cm, disk,
+								  true) ||
 				    m0_cm_is_dirty(cm)) {
 					dstate = M0_NC_REBALANCE;
 					pstate = M0_NC_REBALANCE;

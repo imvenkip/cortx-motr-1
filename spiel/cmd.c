@@ -1358,7 +1358,7 @@ int m0_spiel_sns_repair_continue(struct m0_spiel     *spl,
 {
 	M0_ENTRY();
 	return M0_RC(spiel_pool_generic_handler(&spl->spl_core, pool_fid,
-						CM_OP_REPAIR, NULL,
+						CM_OP_REPAIR_RESUME, NULL,
 						M0_REPREB_TYPE_SNS));
 }
 M0_EXPORTED(m0_spiel_sns_repair_continue);
@@ -1368,7 +1368,7 @@ int m0_spiel_dix_repair_continue(struct m0_spiel     *spl,
 {
 	M0_ENTRY();
 	return M0_RC(spiel_pool_generic_handler(&spl->spl_core, pool_fid,
-						CM_OP_REPAIR, NULL,
+						CM_OP_REPAIR_RESUME, NULL,
 						M0_REPREB_TYPE_DIX));
 }
 M0_EXPORTED(m0_spiel_dix_repair_continue);
@@ -1505,7 +1505,7 @@ int m0_spiel_sns_rebalance_continue(struct m0_spiel     *spl,
 {
 	M0_ENTRY();
 	return M0_RC(spiel_pool_generic_handler(&spl->spl_core, pool_fid,
-						CM_OP_REBALANCE, NULL,
+						CM_OP_REBALANCE_RESUME, NULL,
 						M0_REPREB_TYPE_SNS));
 }
 M0_EXPORTED(m0_spiel_sns_rebalance_continue);
@@ -1515,7 +1515,7 @@ int m0_spiel_dix_rebalance_continue(struct m0_spiel     *spl,
 {
 	M0_ENTRY();
 	return M0_RC(spiel_pool_generic_handler(&spl->spl_core, pool_fid,
-						CM_OP_REBALANCE, NULL,
+						CM_OP_REBALANCE_RESUME, NULL,
 						M0_REPREB_TYPE_DIX));
 }
 M0_EXPORTED(m0_spiel_dix_rebalance_continue);

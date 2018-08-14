@@ -71,7 +71,7 @@ sns_repair_rebalance_quiesce_test()
 	disk_state_get $fail_device1 $fail_device2 || return $?
 
 	echo "Continue SNS repair..."
-	sns_repair || return $?
+	sns_repair_resume || return $?
 
 	echo "wait for sns repair"
 	wait_for_sns_repair_or_rebalance "repair" || return $?
@@ -95,7 +95,7 @@ sns_repair_rebalance_quiesce_test()
 	wait_for_sns_repair_or_rebalance "rebalance" || return $?
 
 	echo "Continue SNS Re-balance..."
-	sns_rebalance || return $?
+	sns_rebalance_resume || return $?
 
 	echo "wait for sns rebalance"
 	wait_for_sns_repair_or_rebalance "rebalance" || return $?

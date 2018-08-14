@@ -262,6 +262,7 @@ static int ag_store_start(struct m0_cm_ag_store *store)
 	       M0_AG_P(&cm->cm_sw_last_updated_hi));
 	cm->cm_last_processed_out = cm->cm_sw_last_updated_hi;
 	m0_cm_sw_update_start(cm);
+	m0_chan_signal_lock(&cm->cm_proxy_init_wait);
 
 	return M0_FSO_AGAIN;
 }

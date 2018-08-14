@@ -553,7 +553,8 @@ M0_INTERNAL struct m0_reqh *m0_sns_cm2reqh(const struct m0_sns_cm *snscm)
 }
 
 M0_INTERNAL bool m0_sns_cm_disk_has_dirty_pver(struct m0_cm *cm,
-					       struct m0_conf_drive *disk)
+					       struct m0_conf_drive *disk,
+					       bool clear)
 {
 	struct m0_conf_pver   **conf_pvers;
 	struct m0_pool_version *pver;
@@ -563,8 +564,12 @@ M0_INTERNAL bool m0_sns_cm_disk_has_dirty_pver(struct m0_cm *cm,
 	conf_pvers = disk->ck_pvers;
 	for (k = 0; conf_pvers[k] != NULL; ++k) {
 		pver = m0_pool_version_find(pc, &conf_pvers[k]->pv_obj.co_id);
-		if (m0_sns_cm_pver_is_dirty(pver))
+		if (m0_sns_cm_pver_is_dirty(pver)) {
+			M0_LOG(M0_FATAL, "pver %p is dirty, clearing", pver);
+			if (clear)
+				pver->pv_sns_flags = 0;
 			return true;
+		}
 	}
 
 	return false;

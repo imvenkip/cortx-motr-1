@@ -6,6 +6,17 @@ M0_NC_REPAIR=4
 M0_NC_REPAIRED=5
 M0_NC_REBALANCE=6
 
+CM_OP_REPAIR=1
+CM_OP_REBALANCE=2
+CM_OP_REPAIR_QUIESCE=3
+CM_OP_REBALANCE_QUIESCE=4
+CM_OP_REPAIR_RESUME=5
+CM_OP_REBALANCE_RESUME=6
+CM_OP_REPAIR_STATUS=7
+CM_OP_REBALANCE_STATUS=8
+CM_OP_REPAIR_ABORT=9
+CM_OP_REBALANCE_ABORT=10
+
 declare -A ha_states=(
 	[unknown]=$M0_NC_UNKNOWN
 	[online]=$M0_NC_ONLINE
@@ -141,7 +152,7 @@ sns_repair()
 {
 	local rc=0
 
-	repair_trigger="$M0_SRC_DIR/sns/cm/st/m0repair -O 2 -t 0 -C ${lnet_nid}:${SNS_CLI_EP} $ios_eps"
+	repair_trigger="$M0_SRC_DIR/sns/cm/st/m0repair -O $CM_OP_REPAIR -t 0 -C ${lnet_nid}:${SNS_CLI_EP} $ios_eps"
 	echo $repair_trigger
 	eval $repair_trigger
 	rc=$?
@@ -156,7 +167,7 @@ sns_rebalance()
 {
 	local rc=0
 
-        rebalance_trigger="$M0_SRC_DIR/sns/cm/st/m0repair -O 4 -t 0 -C ${lnet_nid}:${SNS_CLI_EP} $ios_eps"
+        rebalance_trigger="$M0_SRC_DIR/sns/cm/st/m0repair -O $CM_OP_REBALANCE -t 0 -C ${lnet_nid}:${SNS_CLI_EP} $ios_eps"
         echo $rebalance_trigger
 	eval $rebalance_trigger
 	rc=$?
@@ -171,7 +182,7 @@ sns_repair_quiesce()
 {
 	local rc=0
 
-	repair_quiesce_trigger="$M0_SRC_DIR/sns/cm/st/m0repair -O 8 -t 0 -C ${lnet_nid}:${SNS_QUIESCE_CLI_EP} $ios_eps"
+	repair_quiesce_trigger="$M0_SRC_DIR/sns/cm/st/m0repair -O $CM_OP_REPAIR_QUIESCE -t 0 -C ${lnet_nid}:${SNS_QUIESCE_CLI_EP} $ios_eps"
 	echo $repair_quiesce_trigger
 	eval $repair_quiesce_trigger
 	rc=$?
@@ -186,7 +197,7 @@ sns_rebalance_quiesce()
 {
 	local rc=0
 
-	rebalance_quiesce_trigger="$M0_SRC_DIR/sns/cm/st/m0repair -O 16 -t 0 -C ${lnet_nid}:${SNS_QUIESCE_CLI_EP} $ios_eps"
+	rebalance_quiesce_trigger="$M0_SRC_DIR/sns/cm/st/m0repair -O $CM_OP_REBALANCE_QUIESCE -t 0 -C ${lnet_nid}:${SNS_QUIESCE_CLI_EP} $ios_eps"
 	echo $rebalance_quiesce_trigger
 	eval $rebalance_quiesce_trigger
 	rc=$?
@@ -197,11 +208,41 @@ sns_rebalance_quiesce()
 	return $rc
 }
 
+sns_repair_resume()
+{
+	local rc=0
+
+	repair_resume_trigger="$M0_SRC_DIR/sns/cm/st/m0repair -O $CM_OP_REPAIR_RESUME -t 0 -C ${lnet_nid}:${SNS_CLI_EP} $ios_eps"
+	echo $repair_resume_trigger
+	eval $repair_resume_trigger
+	rc=$?
+	if [ $rc != 0 ]; then
+		echo "SNS Repair failed"
+	fi
+
+	return $rc
+}
+
+sns_rebalance_resume()
+{
+	local rc=0
+
+	repair_resume_trigger="$M0_SRC_DIR/sns/cm/st/m0repair -O $CM_OP_REBALANCE_RESUME -t 0 -C ${lnet_nid}:${SNS_CLI_EP} $ios_eps"
+	echo $repair_resume_trigger
+	eval $repair_resume_trigger
+	rc=$?
+	if [ $rc != 0 ]; then
+		echo "SNS Repair failed"
+	fi
+
+	return $rc
+}
+
 sns_rebalance_abort()
 {
 	local rc=0
 
-	rebalance_abort_trigger="$M0_SRC_DIR/sns/cm/st/m0repair -O 256 -C ${lnet_nid}:${SNS_QUIESCE_CLI_EP} $ios_eps"
+	rebalance_abort_trigger="$M0_SRC_DIR/sns/cm/st/m0repair -O $CM_OP_REBALANCE_ABORT -C ${lnet_nid}:${SNS_QUIESCE_CLI_EP} $ios_eps"
 	echo $rebalance_abort_trigger
 	eval $rebalance_abort_trigger
 	rc=$?
@@ -216,7 +257,7 @@ sns_repair_abort()
 {
 	local rc=0
 
-	repair_abort_trigger="$M0_SRC_DIR/sns/cm/st/m0repair -O 128 -t 0 -C ${lnet_nid}:${SNS_QUIESCE_CLI_EP} $ios_eps"
+	repair_abort_trigger="$M0_SRC_DIR/sns/cm/st/m0repair -O $CM_OP_REPAIR_ABORT -t 0 -C ${lnet_nid}:${SNS_QUIESCE_CLI_EP} $ios_eps"
 	echo $repair_abort_trigger
 	eval $repair_abort_trigger
 	rc=$?
@@ -237,7 +278,7 @@ sns_repair_abort_skip_4()
 		ios_eps_not_4="$ios_eps_not_4 -S ${lnet_nid}:${IOSEP[$i]}"
 	done
 
-	repair_abort_trigger="$M0_SRC_DIR/sns/cm/st/m0repair -O 128 -C ${lnet_nid}:${SNS_QUIESCE_CLI_EP} $ios_eps_not_4"
+	repair_abort_trigger="$M0_SRC_DIR/sns/cm/st/m0repair -O $CM_OP_REPAIR_ABORT -C ${lnet_nid}:${SNS_QUIESCE_CLI_EP} $ios_eps_not_4"
 	echo $repair_abort_trigger
 	eval $repair_abort_trigger
 	rc=$?
@@ -254,8 +295,8 @@ sns_repair_or_rebalance_status_not_4()
 	local ios_eps_not_4=''
 	local rc=0
 	local op=32
-	[ "$1" == "repair" ] && op=32
-	[ "$1" == "rebalance" ] && op=64
+	[ "$1" == "repair" ] && op=$CM_OP_REPAIR_STATUS
+	[ "$1" == "rebalance" ] && op=$CM_OP_REBALANCE_STATUS
 
 	for ((i=0; i < 3; i++)) ; do
 		ios_eps_not_4="$ios_eps_not_4 -S ${lnet_nid}:${IOSEP[$i]}"
@@ -277,8 +318,8 @@ sns_repair_or_rebalance_status()
 {
 	local rc=0
 	local op=32
-	[ "$1" == "repair" ] && op=32
-	[ "$1" == "rebalance" ] && op=64
+	[ "$1" == "repair" ] && op=$CM_OP_REPAIR_STATUS
+	[ "$1" == "rebalance" ] && op=$CM_OP_REBALANCE_STATUS
 
 	repair_status="$M0_SRC_DIR/sns/cm/st/m0repair -O $op -t 0 -C ${lnet_nid}:${SNS_QUIESCE_CLI_EP} $ios_eps"
 	echo $repair_status
@@ -296,8 +337,8 @@ wait_for_sns_repair_or_rebalance_not_4()
 	local ios_eps_not_4=''
 	local rc=0
 	local op=32
-	[ "$1" == "repair" ] && op=32
-	[ "$1" == "rebalance" ] && op=64
+	[ "$1" == "repair" ] && op=$CM_OP_REPAIR_STATUS
+	[ "$1" == "rebalance" ] && op=$CM_OP_REBALANCE_STATUS
 	for ((i=0; i < 3; i++)) ; do
 		ios_eps_not_4="$ios_eps_not_4 -S ${lnet_nid}:${IOSEP[$i]}"
 	done
@@ -323,8 +364,8 @@ wait_for_sns_repair_or_rebalance()
 {
 	local rc=0
 	local op=32
-	[ "$1" == "repair" ] && op=32
-	[ "$1" == "rebalance" ] && op=64
+	[ "$1" == "repair" ] && op=$CM_OP_REPAIR_STATUS
+	[ "$1" == "rebalance" ] && op=$CM_OP_REBALANCE_STATUS
 	while true ; do
 		sleep 5
 		repair_status="$M0_SRC_DIR/sns/cm/st/m0repair -O $op -t 0 -C ${lnet_nid}:${SNS_QUIESCE_CLI_EP} $ios_eps"
