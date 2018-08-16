@@ -692,7 +692,7 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach       *pm,
 	    state->pst_nr_failures > state->pst_max_device_failures &&
 	    state->pst_max_device_failures > 0) { /* Skip mdpool */
 		M0_LOG(M0_ERROR, FID_F": nr_failures:%d max_failures:%d"
-				"event_index:%d event_state:%d",
+				" event_index:%d event_state:%d",
 				FID_P(&pm->pm_pver->pv_id),
 				state->pst_nr_failures,
 				state->pst_max_device_failures,
@@ -963,9 +963,9 @@ static int poolmach_spare_inherit(struct m0_poolmach *pm, struct m0_pool *pool)
 			}
 		}
 		if (i == pm->pm_state->pst_nr_devices) {
-			M0_LOG(M0_DEBUG, "Failed device:"FID_F"is not part of"
-					"pool version:"FID_F, FID_P(&pd->pd_id),
-					FID_P(&pm->pm_pver->pv_id));
+			M0_LOG(M0_DEBUG, "Failed device "FID_F" is not part of"
+			       " pool version "FID_F, FID_P(&pd->pd_id),
+			       FID_P(&pm->pm_pver->pv_id));
 			continue;
 		}
                 pme.pe_type = M0_POOL_DEVICE;
@@ -1077,7 +1077,7 @@ M0_INTERNAL void m0_poolmach_event_list_dump_locked(struct m0_poolmach *pm)
 		if (e->pe_type == M0_POOL_DEVICE &&
 		    pm->pm_state->pst_devices_array[i].pd_state !=
 		    M0_PNDS_UNKNOWN)
-			M0_LOG(M0_WARN, "device[%d]"FID_F"state: %d", i,
+			M0_LOG(M0_WARN, "device[%d] "FID_F" state=%d", i,
 			       FID_P(&pm->pm_state->pst_devices_array[i].pd_id),
 			       e->pe_state);
 	} m0_tl_endfor;
@@ -1088,7 +1088,7 @@ M0_INTERNAL void m0_poolmach_device_state_dump(struct m0_poolmach *pm)
 	int i;
 	M0_LOG(POOL_TRACE_LEVEL, ">>>>>");
 	for (i = 0; i < pm->pm_state->pst_nr_devices; i++) {
-		M0_LOG(POOL_TRACE_LEVEL, "%04d:device[%d]"FID_F"state: %d",
+		M0_LOG(POOL_TRACE_LEVEL, "%04d:device[%d] "FID_F" state=%d",
 		       lno, i, FID_P(&pm->pm_state->pst_devices_array[i].pd_id),
 		       pm->pm_state->pst_devices_array[i].pd_state);
 		lno++;
