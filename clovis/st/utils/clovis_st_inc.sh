@@ -197,6 +197,108 @@ function clovis_st_list_tests ()
 	return 0
 }
 
+# Read/Write an object via Clovis
+io_conduct()
+{
+	operation=$1
+	source=$2
+	dest=$3
+	verify=$4
+
+	local cmd_exec
+	if [ $operation == "READ" ]
+	then
+		cmd_args="$CLOVIS_LOCAL_EP $CLOVIS_HA_EP '$CLOVIS_PROF_OPT' '$CLOVIS_PROC_FID' $verify $source"
+		cmd_exec="${clovis_st_util_dir}/c0cat"
+		cmd_args="$cmd_args $BLOCKSIZE $BLOCKCOUNT"
+		local cmd="$cmd_exec $cmd_args > $dest &"
+	else
+		cmd_args="$CLOVIS_LOCAL_EP $CLOVIS_HA_EP '$CLOVIS_PROF_OPT' '$CLOVIS_PROC_FID' $verify $dest $source"
+		cmd_exec="${clovis_st_util_dir}/c0cp"
+		cmd_args="$cmd_args $BLOCKSIZE $BLOCKCOUNT"
+		local cmd="$cmd_exec $cmd_args &"
+	fi
+	cwd=`pwd`
+	cd $CLOVIS_TRACE_DIR
+
+	eval $cmd
+	clovis_pids[$cnt]=$!
+	wait ${clovis_pids[$cnt]}
+	if [ $? -ne 0 ]
+	then
+		echo "  Failed to run command $cmd_exec"
+		cd $cwd
+		return 1
+	fi
+	cnt=`expr $cnt + 1`
+	cd $cwd
+	return 0
+}
+
+dix_init()
+{
+	local m0dixinit="$M0_SRC_DIR/dix/utils/m0dixinit"
+	local pverid=$(echo $DIX_PVERID | tr -d ^)
+	if [ ! -f $m0dixinit ] ; then
+		echo "Can't find m0dixinit"
+		return 1
+	fi
+
+	cmd="$m0dixinit -l $CLOVIS_LOCAL_EP -H $CLOVIS_HA_EP \
+	    -p '$CLOVIS_PROF_OPT' -I '$pverid' -d '$pverid' -a create"
+	echo $cmd
+	eval "$cmd"
+	if [ $? -ne 0 ]
+	then
+		echo "Failed to initialise kvs..."
+		return 1
+	fi
+}
+
+
+
+mero_service_start()
+{
+	local n=$1
+	local k=$2
+	local p=$3
+	local stride=$4
+	local multiple_pools=0
+	echo "(N, K, P) = ($n $k $p)"
+	mero_service start $multiple_pools $stride $n $k $p
+	if [ $? -ne 0 ]
+	then
+		echo "Failed to start Mero Service..."
+		return 1
+	fi
+	echo "mero service started"
+
+	ios_eps=""
+	for ((i=0; i < ${#IOSEP[*]}; i++)) ; do
+		ios_eps="$ios_eps -S ${lnet_nid}:${IOSEP[$i]}"
+	done
+	return 0
+}
+
+mero_service_stop()
+{
+	mero_service stop
+	if [ $? -ne 0 ]
+	then
+		echo "Failed to stop Mero Service..."
+		return 1
+	fi
+}
+
+error_handling()
+{
+	unmount_and_clean &>>$MERO_TEST_LOGFILE
+	mero_service_stop
+	echo "Test log file available at $CLOVIS_TEST_LOGFILE"
+	echo "Clovis trace files are available at: $CLOVIS_TRACE_DIR"
+	exit $1
+}
+
 # Local variables:
 # sh-basic-offset: 8
 # sh-indentation: 8

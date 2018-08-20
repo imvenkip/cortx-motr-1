@@ -498,7 +498,7 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 			M0_LOG(M0_DEBUG, "Data seg %u added", seg);
 		} else {
 			buf = map->pi_paritybufs[page_id(goff, ioo->ioo_obj)]
-			[unit % data_col_nr(play)];
+			[unit - data_col_nr(play)];
 			pattr[seg] |= PA_PARITY;
 			M0_LOG(M0_DEBUG, "Parity seg %u added", seg);
 		}
@@ -888,8 +888,8 @@ err:
 }
 static int target_cob_create_fop_prepare(struct target_ioreq *ti);
 static const struct target_ioreq_ops tioreq_ops = {
-	.tio_seg_add        = target_ioreq_seg_add,
-	.tio_iofops_prepare = target_ioreq_iofops_prepare,
+	.tio_seg_add         = target_ioreq_seg_add,
+	.tio_iofops_prepare  = target_ioreq_iofops_prepare,
 	.tio_cc_fops_prepare = target_cob_create_fop_prepare,
 };
 
@@ -1213,9 +1213,8 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 			       m0_vec_count(&ioo->ioo_ext.iv_vec) ==
 			       m0_vec_count(&ioo->ioo_data.ov_vec)));
 
-		if (op_code == M0_CLOVIS_OC_WRITE ||
-		    (op_code == M0_CLOVIS_OC_READ &&
-		     instance->m0c_config->cc_is_read_verify == true) ||
+		if (M0_IN(ioo->ioo_pbuf_type, (M0_CLOVIS_PBUF_DIR,
+					       M0_CLOVIS_PBUF_IND)) ||
 		    (ioreq_sm_state(ioo) == IRS_DEGRADED_READING &&
 		     iomap->pi_state == PI_DEGRADED)) {
 
@@ -1238,7 +1237,8 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 					M0_ASSERT(dbuf != NULL);
 					M0_ASSERT(ergo(op_code ==
 						       M0_CLOVIS_OC_WRITE,
-						  dbuf->db_flags & PA_WRITE));
+						       dbuf->db_flags &
+						       PA_WRITE));
 					if (ioreq_sm_state(ioo) ==
 					    IRS_DEGRADED_WRITING &&
 					    dbuf->db_flags & PA_WRITE) {

@@ -79,6 +79,28 @@ enum m0_clovis_entity_states {
 	M0_CLOVIS_ES_FAILED
 };
 
+/**
+ * Parity buffers used for addressing an IO request.
+ */
+enum  m0_clovis_pbuf_type {
+	/**
+	 * Explicitly allocated buffers. This is done during:
+	 * i.  Read operation in parity-verify mode (independent of the layout).
+	 * ii. Write operation when the layout is not replicated.
+	 */
+	M0_CLOVIS_PBUF_DIR,
+	/**
+	 * Hold a pointer to data buffer. It's required for write IO on an
+	 * object with the replicated layout.
+	 */
+	M0_CLOVIS_PBUF_IND,
+	/**
+	 * Parity units are not required. Used for read IO without parity
+	 * verify mode.
+	 */
+	M0_CLOVIS_PBUF_NONE
+};
+
 M0_INTERNAL bool clovis_entity_invariant_full(struct m0_clovis_entity *ent);
 M0_INTERNAL bool clovis_entity_invariant_locked(const struct
 						m0_clovis_entity *ent);
@@ -234,6 +256,8 @@ struct m0_clovis_op_io {
 	/** Number of pargrp_iomap structures. */
 	uint64_t                          ioo_iomap_nr;
 
+	/** Indicates whether data buffers be replicated or not. */
+	enum m0_clovis_pbuf_type          ioo_pbuf_type;
 	/** Number of pages to read in RMW */
 	uint64_t                          ioo_rmw_read_pages;
 
@@ -294,6 +318,12 @@ struct m0_clovis_op_io {
 
 	/** Channel to wait for this operation to be finalised */
 	struct m0_chan                   ioo_completion;
+
+	/**
+	 * In case of a replicated layout indicates whether there is any
+	 * corrupted parity group that needs to be rectified.
+	 */
+	bool                             ioo_rect_needed;
 };
 
 struct m0_clovis_io_args {
@@ -750,6 +780,9 @@ m0_clovis__obj_pool_version_is_valid(const struct m0_clovis_obj *obj);
 M0_INTERNAL int m0_clovis__obj_io_build(struct m0_clovis_io_args *args,
 					struct m0_clovis_op **op);
 M0_INTERNAL void m0_clovis__obj_op_done(struct m0_clovis_op *op);
+
+M0_INTERNAL bool m0_clovis__is_read_op(struct m0_clovis_op *op);
+M0_INTERNAL bool m0_clovis__is_write_op(struct m0_clovis_op *op);
 
 enum {
 	M0_AVI_CLOVIS_OP = M0_AVI_CLOVIS_RANGE_START + 1,

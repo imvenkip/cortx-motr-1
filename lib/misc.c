@@ -20,10 +20,12 @@
 
 #include "lib/types.h"
 #include "lib/assert.h"
-#include "lib/arith.h"      /* M0_3WAY */
-#include "lib/misc.h"
-#include "lib/string.h"     /* sscanf */
-#include "lib/errno.h"      /* EINVAL */
+#include "lib/arith.h"  /* M0_3WAY */
+#include "lib/arith.h"
+#include "lib/string.h" /* sscanf */
+#include "lib/errno.h"  /* EINVAL */
+#include "lib/buf.h"    /* m0_buf */
+#include "lib/trace.h"  /* M0_RC */
 
 void __dummy_function(void)
 {
@@ -344,6 +346,73 @@ M0_INTERNAL void m0_bit_set(void *buffer, m0_bcount_t i, bool val)
 	char        *byte_val  = (char*)buffer + byte_num;
 
 	*byte_val |= (0x1 & val) << bit_shift;
+}
+
+M0_INTERNAL const struct m0_key_val M0_KEY_VAL_NULL = {
+	.kv_key = M0_BUF_INIT0,
+	.kv_val = M0_BUF_INIT0,
+};
+
+M0_INTERNAL bool m0_key_val_is_null(struct m0_key_val *kv)
+{
+	return m0_buf_eq(&M0_KEY_VAL_NULL.kv_key, &kv->kv_key) &&
+		m0_buf_eq(&M0_KEY_VAL_NULL.kv_val, &kv->kv_val);
+}
+
+M0_INTERNAL void m0_key_val_init(struct m0_key_val *kv, const struct m0_buf *key,
+				 const struct m0_buf *val)
+{
+	M0_PRE(kv != NULL);
+
+	kv->kv_key = *key;
+	kv->kv_val = *val;
+}
+
+M0_INTERNAL void m0_key_val_null_set(struct m0_key_val *kv)
+{
+	m0_key_val_init(kv, &M0_KEY_VAL_NULL.kv_key, &M0_KEY_VAL_NULL.kv_val);
+}
+
+M0_INTERNAL void *m0_vote_majority_get(struct m0_key_val *arr, uint32_t len,
+				       bool (*cmp)(const struct m0_buf *,
+					           const struct m0_buf *),
+				       uint32_t *vote_nr)
+{
+	struct m0_key_val  null_kv = M0_KEY_VAL_NULL;
+	struct m0_key_val *mjr     = &null_kv;
+	uint32_t           i;
+	uint32_t           count;
+
+	for (i = 0, count = 0; i < len; ++i) {
+		if (count == 0)
+			mjr = &arr[i];
+		/* A M0_KEY_VAL_NULL requires a special handling. */
+		if (!m0_key_val_is_null(mjr) &&
+		    !m0_key_val_is_null(&arr[i]))
+			/*
+			 * A case when neither is M0_KEY_VAL_NULL, invoke
+			 * a user provided comparison method
+			 */
+			count += cmp(&mjr->kv_val, &arr[i].kv_val) ? 1: -1;
+		else if (m0_key_val_is_null(mjr) &&
+		         m0_key_val_is_null(&arr[i]))
+			/* A case when both are M0_KEY_VAL_NULL. */
+			++count;
+		else
+			/* Exactly one of the two is M0_KEY_VAL_NULL */
+			--count;
+	}
+	if (m0_key_val_is_null(mjr))
+		return NULL;
+	/* Check if the element found is present in majority. */
+	for (i = 0, count = 0; i < len; ++i) {
+		if (m0_key_val_is_null(&arr[i]))
+			continue;
+		if (cmp(&mjr->kv_val, &arr[i].kv_val))
+			++count;
+	}
+	*vote_nr = count;
+	return count > len/2  ? mjr : NULL;
 }
 
 /*

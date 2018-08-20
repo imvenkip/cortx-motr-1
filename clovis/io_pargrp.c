@@ -29,6 +29,7 @@
 #include "clovis/pg.h"
 #include "clovis/io.h"
 
+#include "lib/buf.h"             /* M0_BUF_INIT_PTR */
 #include "lib/memory.h"          /* m0_alloc, m0_free */
 #include "lib/errno.h"           /* ENOMEM */
 #include "fid/fid.h"             /* m0_fid */
@@ -261,6 +262,7 @@ static void data_buf_init(struct data_buf *buf,
 	buf->db_flags = flags;
 	m0_buf_init(&buf->db_buf, addr, addr_size);
 	buf->db_tioreq = NULL;
+	buf->db_maj_ele = M0_KEY_VAL_NULL;
 
 	M0_LEAVE();
 }
@@ -348,6 +350,33 @@ static struct data_buf *data_buf_alloc_init(struct m0_clovis_obj *obj,
 	}
 
 	data_buf_init(buf, addr, obj_buffer_size(obj), pattr);
+
+	M0_POST(data_buf_invariant(buf));
+	M0_LEAVE();
+	return buf;
+}
+
+static struct data_buf *data_buf_replicate_init(struct pargrp_iomap *map,
+						int row, enum page_attr pattr)
+{
+	struct data_buf  *buf;
+	void             *addr;
+	size_t            size;
+
+	M0_ENTRY();
+
+	M0_ALLOC_PTR(buf);
+	if (buf == NULL) {
+		M0_LOG(M0_ERROR, "Failed to allocate data_buf");
+		return NULL;
+	}
+	/*
+	 * Column for data is always zero, as replication implies
+	 * N == 1 in pdclust layout.
+	 */
+	addr = map->pi_databufs[row][0]->db_buf.b_addr;
+	size = map->pi_databufs[row][0]->db_buf.b_nob;
+	data_buf_init(buf, addr, size, pattr);
 
 	M0_POST(data_buf_invariant(buf));
 	M0_LEAVE();
@@ -617,7 +646,13 @@ static int pargrp_iomap_populate(struct pargrp_iomap      *map,
 			iomap_page_nr(map) +
 			parity_units_page_nr(play, obj);
 
-		if (rr_page_nr < ro_page_nr) {
+		/*
+		 * In case of a replicated layout read rest policy is not
+		 * applicable. Reading entire older unit is necessary in any
+		 * case (whether read rest or read old).
+		 */
+		if (!m0_pdclust_is_replicated(play) &&
+		    rr_page_nr < ro_page_nr) {
 			M0_LOG(M0_DEBUG, "[%p] Read-rest approach selected",
 			       ioo);
 			map->pi_rtype = PIR_READREST;
@@ -634,11 +669,14 @@ static int pargrp_iomap_populate(struct pargrp_iomap      *map,
 			return M0_ERR_INFO(rc, "[%p] failed", ioo);
 	}
 
-	/* For READ in verify mode or WRITE */
-	if (op->op_code == M0_CLOVIS_OC_WRITE ||
-	    (op->op_code == M0_CLOVIS_OC_READ &&
-	     instance->m0c_config->cc_is_read_verify))
+	if (map->pi_ioo->ioo_pbuf_type == M0_CLOVIS_PBUF_DIR)
 		rc = map->pi_ops->pi_paritybufs_alloc(map);
+	/*
+	 * In case of write IO, whether it's a rmw or otherwise, parity buffers
+	 * share a pointer with data buffer.
+	 */
+	else if (map->pi_ioo->ioo_pbuf_type == M0_CLOVIS_PBUF_IND)
+		rc = map->pi_ops->pi_data_replicate(map);
 
 	M0_POST_EX(ergo(rc == 0, pargrp_iomap_invariant(map)));
 	return M0_RC(rc);
@@ -1308,6 +1346,53 @@ err:
 	return M0_ERR(-ENOMEM);
 }
 
+static int pargrp_iomap_databuf_replicate(struct pargrp_iomap *map)
+{
+	int                       row;
+	int                       col;
+	struct m0_pdclust_layout *play;
+	struct m0_clovis_obj     *obj;
+	struct m0_clovis_op      *op;
+	struct data_buf          *dbuf;
+
+	M0_ENTRY("[%p] map %p", map->pi_ioo, map);
+
+	M0_PRE_EX(pargrp_iomap_invariant(map));
+
+	obj = map->pi_ioo->ioo_obj;
+	op = &map->pi_ioo->ioo_oo.oo_oc.oc_op;
+
+	M0_PRE(m0_clovis__is_write_op(op));
+
+	play = pdlayout_get(map->pi_ioo);
+	for (row = 0; row < parity_row_nr(play, obj); ++row) {
+		for (col = 0; col < parity_col_nr(play); ++col) {
+			map->pi_paritybufs[row][col] =
+				data_buf_replicate_init(map, row, PA_NONE);
+			if (map->pi_paritybufs[row][col] == NULL) {
+				goto err;
+			}
+			dbuf = map->pi_paritybufs[row][col];
+			if (op->op_code == M0_CLOVIS_OC_WRITE)
+				dbuf->db_flags |= PA_WRITE;
+			/** For reading replication is not suggested. FIXME. */
+			if (map->pi_rtype == PIR_READOLD ||
+			    op->op_code == M0_CLOVIS_OC_READ)
+				dbuf->db_flags |= PA_READ;
+		}
+	}
+
+	return M0_RC(0);
+err:
+	for (; row > -1; --row) {
+		for (col = 0; col < parity_col_nr(play); ++col)
+			m0_free0(&map->pi_paritybufs[row][col]);
+	}
+
+	return M0_ERR(-ENOMEM);
+
+}
+
 /**
  * Marks [data | parity]units of a parity group to PA_READ_FAILED if any of
  * the units of same type 'type' is PA_READ_FAILED.
@@ -1594,7 +1679,10 @@ static int pargrp_iomap_dgmode_process(struct pargrp_iomap *map,
 	if (dev_state == M0_PNDS_SNS_REPAIRED) {
 		/*
 		 * If a device has just been repaired, a different layout
-		 * (using spare units) is used and new requests need to be sent
+		 * (using spare units) is used and new requests need to be sent.
+		 * But it's necessary to check whether the spare to which the
+		 * original unit has been mapped during repair is alive. In case
+		 * it's not online the degraded mode is invoked.
 		 */
 		rc = io_spare_map(map, &src, &spare_slot, &spare_slot_prev,
 			          &dev_state);
@@ -1708,9 +1796,9 @@ static int pargrp_iomap_dgmode_postprocess(struct pargrp_iomap *map)
 	for (col = 0; col < data_col_nr(play); ++col) {
 		for (row = 0; row < data_row_nr(play, obj); ++row) {
 
-			if (map->pi_databufs[row][col] != NULL) {
-				if (map->pi_databufs[row][col]->db_flags &
-				    PA_READ_FAILED)
+			if (map->pi_databufs[row][col] != NULL &&
+			    map->pi_databufs[row][col]->db_flags &
+			    PA_READ_FAILED) {
 					continue;
 			} else {
 				/*
@@ -1747,7 +1835,7 @@ static int pargrp_iomap_dgmode_postprocess(struct pargrp_iomap *map)
 		goto err;
 	/* If parity group is healthy, there is no need to read parity. */
 	if (map->pi_state != PI_DEGRADED &&
-	    instance->m0c_config->cc_is_read_verify == false)
+	    !instance->m0c_config->cc_is_read_verify)
 		return M0_RC(0);
 
 	/*
@@ -1943,6 +2031,151 @@ end:
 			    "in a parity group %d.", (int)map->pi_grpid);
 }
 
+static bool crc_cmp(const struct m0_buf *val1, const struct m0_buf *val2)
+{
+	return *(uint32_t *)val1->b_addr == *(uint32_t *)val2->b_addr;
+}
+
+static void db_crc_set(struct data_buf *dbuf, uint32_t key,
+		       struct m0_key_val *kv)
+{
+	m0_crc32(dbuf->db_buf.b_addr, dbuf->db_buf.b_nob,
+		 (void *)&dbuf->db_crc);
+	dbuf->db_key = key;
+	m0_key_val_init(kv, &M0_BUF_INIT_PTR(&dbuf->db_key),
+			&M0_BUF_INIT_PTR(&dbuf->db_crc));
+}
+
+static size_t offset_get(struct pargrp_iomap *map)
+{
+	struct m0_pdclust_layout *play;
+	struct m0_clovis_op_io   *ioo;
+
+	ioo  = map->pi_ioo;
+	play = pdlayout_get(ioo);
+
+	return m0_pdclust_unit_size(play) * map->pi_grpid;
+}
+
+static int pargrp_iomap_replica_elect(struct pargrp_iomap *map)
+{
+	int                       rc = 0;
+	uint32_t                  row;
+	uint32_t                  col;
+	uint32_t                  crc_idx;
+	uint32_t                  vote_nr;
+	size_t                    offset;
+	struct m0_pdclust_layout *play;
+	struct m0_clovis         *instance;
+	struct m0_clovis_op_io   *ioo;
+	struct m0_clovis_op      *op;
+	struct m0_key_val        *crc_arr;
+	struct data_buf          *dbuf;
+	struct data_buf          *pbuf;
+	struct m0_key_val        *mjr;
+	uint32_t                  unit_id;
+
+	M0_ENTRY("map = %p", map);
+	M0_PRE_EX(map != NULL && pargrp_iomap_invariant(map));
+
+	ioo = map->pi_ioo;
+	op = &ioo->ioo_oo.oo_oc.oc_op;
+	instance = m0_clovis__op_instance(op);
+
+	if (map->pi_state != PI_DEGRADED &&
+	    !(op->op_code == M0_CLOVIS_OC_READ &&
+	      instance->m0c_config->cc_is_read_verify))
+		return M0_RC(0);
+
+	play = pdlayout_get(ioo);
+	M0_ALLOC_ARR(crc_arr, layout_n(play) + layout_k(play));
+
+	if (crc_arr == NULL) {
+		rc = M0_ERR(-ENOMEM);
+		goto last;
+	}
+
+	/*
+	 * Parity comparison is done only in the case of a replicated layout.
+	 * Assume that for a 1 + K replicated layout K = 3. Then we have the
+	 * following layout of pages for a single parity group.
+	 *
+	 * \ col
+	 *row   +---+---+---+---+
+	 *      | D | P | P | P |
+	 *      +---+---+---+---+
+	 *      | D | P | P | P |
+	 *      +---+---+---+---+
+	 *      | D | P | P | P |
+	 *      +---+---+---+---+
+	 * Each block represents a page sized data. All members of a row shall
+	 * be identical in ideal case (due to replication). We calculate CRC
+	 * for each page and check if all members of a row have an identical
+	 * CRC. The page corresponding to the value that holds majority in
+	 * a row shall be returned to user.
+	 */
+	for (row = 0, crc_idx = 0; row < data_row_nr(play, ioo->ioo_obj);
+	     ++row, crc_idx = 0) {
+		dbuf = map->pi_databufs[row][0];
+		/* Degraded pages won't contend the election. */
+		if (dbuf->db_flags & PA_READ_FAILED)
+			dbuf->db_crc = 0;
+		else {
+			unit_id = 0;
+			db_crc_set(dbuf, unit_id, &crc_arr[crc_idx++]);
+		}
+		for (col = 0; col < layout_k(play); ++col) {
+			pbuf = map->pi_paritybufs[row][col];
+			if (pbuf->db_flags & PA_READ_FAILED)
+				pbuf->db_crc = 0;
+			/*
+			 * Only if a page is not degraded it contends
+			 * the election.
+			 */
+			else {
+				/* Shift by one to count for the data unit. */
+				unit_id = col + 1;
+				db_crc_set(pbuf, unit_id, &crc_arr[crc_idx++]);
+			}
+		}
+		vote_nr = 0;
+		mjr = m0_vote_majority_get(crc_arr, crc_idx, crc_cmp,
+					   &vote_nr);
+		if (mjr == NULL) {
+			M0_LOG(M0_ERROR, "[%p] parity verification "
+			       "failed for %llu [%u:%u], rc %d",
+			       map->pi_ioo, (unsigned long long)map->pi_grpid,
+			       row, col, -EIO);
+			rc = M0_ERR(-EIO);
+			goto last;
+		}
+
+		M0_ASSERT(vote_nr >= crc_idx/2 + 1);
+		if (vote_nr < crc_idx) {
+			/** TODO: initiate a write on affected page. */
+			offset = offset_get(map);
+			M0_LOG(M0_WARN, "Discrepancy observed at offset %d",
+			       (int)offset);
+			map->pi_is_corrupted = true;
+			ioo->ioo_rect_needed = true;
+		}
+		/**
+		 * Store the index of majority element with rest of the
+		 * members.
+		 */
+		map->pi_databufs[row][0]->db_maj_ele = *mjr;
+		for (col = 0; col < layout_k(play); ++col) {
+			map->pi_paritybufs[row][col]->db_maj_ele = *mjr;
+		}
+	}
+last:
+
+	m0_free(crc_arr);
+	M0_LOG(M0_DEBUG, "parity verified for %"PRIu64" rc=%d",
+			 map->pi_grpid, rc);
+	return M0_RC(rc);
+}
+
 static int pargrp_iomap_parity_verify(struct pargrp_iomap *map)
 {
 	int			  rc;
@@ -2047,19 +2280,22 @@ last:
 }
 
 static const struct pargrp_iomap_ops iomap_ops = {
-	.pi_populate             = pargrp_iomap_populate,
-	.pi_spans_seg            = pargrp_iomap_spans_seg,
-	.pi_fullpages_find       = pargrp_iomap_fullpages_count,
-	.pi_seg_process          = pargrp_iomap_seg_process,
-	.pi_databuf_alloc        = pargrp_iomap_databuf_alloc,
-	.pi_readrest             = pargrp_iomap_readrest,
-	.pi_readold_auxbuf_alloc = pargrp_iomap_readold_auxbuf_alloc,
-	.pi_parity_recalc        = pargrp_iomap_parity_recalc,
-	.pi_parity_verify        = pargrp_iomap_parity_verify,
-	.pi_paritybufs_alloc     = pargrp_iomap_paritybufs_alloc,
-	.pi_dgmode_process       = pargrp_iomap_dgmode_process,
-	.pi_dgmode_postprocess   = pargrp_iomap_dgmode_postprocess,
-	.pi_dgmode_recover       = pargrp_iomap_dgmode_recover,
+	.pi_populate               = pargrp_iomap_populate,
+	.pi_spans_seg              = pargrp_iomap_spans_seg,
+	.pi_fullpages_find         = pargrp_iomap_fullpages_count,
+	.pi_seg_process            = pargrp_iomap_seg_process,
+	.pi_databuf_alloc          = pargrp_iomap_databuf_alloc,
+	.pi_readrest               = pargrp_iomap_readrest,
+	.pi_readold_auxbuf_alloc   = pargrp_iomap_readold_auxbuf_alloc,
+	.pi_parity_recalc          = pargrp_iomap_parity_recalc,
+	.pi_parity_verify          = pargrp_iomap_parity_verify,
+	.pi_parity_replica_verify  = pargrp_iomap_replica_elect,
+	.pi_data_replicate         = pargrp_iomap_databuf_replicate,
+	.pi_paritybufs_alloc       = pargrp_iomap_paritybufs_alloc,
+	.pi_dgmode_process         = pargrp_iomap_dgmode_process,
+	.pi_dgmode_postprocess     = pargrp_iomap_dgmode_postprocess,
+	.pi_dgmode_recover         = pargrp_iomap_dgmode_recover,
+	.pi_replica_recover        = pargrp_iomap_replica_elect,
 };
 
 /**
@@ -2116,9 +2352,13 @@ M0_INTERNAL int pargrp_iomap_init(struct pargrp_iomap    *map,
 			goto fail;
 	}
 
-	if (op->op_code == M0_CLOVIS_OC_WRITE ||
-	    (op->op_code == M0_CLOVIS_OC_READ &&
-	     instance->m0c_config->cc_is_read_verify)) {
+	/*
+	 * Whether direct or indirect parity allocation, meta level buffers
+	 * are always allocated. Allocation of buffers holding actual parity
+	 * is governed by M0_CLOVIS_PBUF_DIR/IND.
+	 */
+	if (M0_IN(ioo->ioo_pbuf_type,
+		  (M0_CLOVIS_PBUF_DIR, M0_CLOVIS_PBUF_IND))) {
 		M0_ALLOC_ARR(map->pi_paritybufs,
 			     parity_row_nr(play, ioo->ioo_obj));
 		if (map->pi_paritybufs == NULL)
@@ -2152,6 +2392,11 @@ fail:
 	return M0_ERR(-ENOMEM);
 }
 
+static bool are_pbufs_allocated(struct m0_clovis_op_io *ioo)
+{
+	return ioo->ioo_pbuf_type == M0_CLOVIS_PBUF_DIR;
+}
+
 /**
  * This is heavily based on m0t1fs/linux_kernel/file.c::pargrp_iomap_fini
  */
@@ -2161,6 +2406,7 @@ M0_INTERNAL void pargrp_iomap_fini(struct pargrp_iomap *map,
 {
 	uint32_t                  row;
 	uint32_t                  col;
+	struct data_buf          *buf;
 	struct m0_pdclust_layout *play;
 
 	M0_ENTRY("map %p", map);
@@ -2190,9 +2436,14 @@ M0_INTERNAL void pargrp_iomap_fini(struct pargrp_iomap *map,
 	if (map->pi_paritybufs != NULL) {
 		for (row = 0; row < parity_row_nr(play, obj); ++row) {
 			for (col = 0; col < parity_col_nr(play); ++col) {
-				if (map->pi_paritybufs[row][col] != NULL) {
-					data_buf_dealloc_fini(map->
-						pi_paritybufs[row][col]);
+				buf = map->pi_paritybufs[row][col];
+				if (buf != NULL) {
+					if (are_pbufs_allocated(map->pi_ioo)) {
+						data_buf_dealloc_fini(buf);
+					} else {
+						data_buf_fini(buf);
+						m0_free(buf);
+					}
 					map->pi_paritybufs[row][col] = NULL;
 				}
 			}

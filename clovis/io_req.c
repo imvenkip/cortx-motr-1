@@ -34,6 +34,7 @@
 #include "fid/fid.h"             /* m0_fid */
 #include "rpc/rpclib.h"          /* m0_rpc_client_connect */
 #include "lib/ext.h"             /* struct m0_ext */
+#include "lib/misc.h"            /* M0_KEY_VAL_NULL */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CLOVIS
 #include "lib/trace.h"           /* M0_LOG */
@@ -227,9 +228,10 @@ static void ioreq_ioo_reset(struct m0_clovis_op_io *ioo)
 static void ioreq_iosm_handle_launch(struct m0_sm_group *grp,
 				      struct m0_sm_ast *ast)
 {
-	int                     rc;
-	struct m0_clovis_op    *op;
-	struct m0_clovis_op_io *ioo;
+	int                       rc;
+	struct m0_clovis_op      *op;
+	struct m0_clovis_op_io   *ioo;
+	struct m0_pdclust_layout *play;
 
 	M0_ENTRY();
 
@@ -239,6 +241,7 @@ static void ioreq_iosm_handle_launch(struct m0_sm_group *grp,
 	ioo = bob_of(ast, struct m0_clovis_op_io, ioo_ast, &ioo_bobtype);
 	M0_PRE_EX(m0_clovis_op_io_invariant(ioo));
 	op = &ioo->ioo_oo.oo_oc.oc_op;
+	play = pdlayout_get(ioo);
 
 	/* @todo Do error handling based on m0_sm::sm_rc. */
 	/*
@@ -260,12 +263,13 @@ static void ioreq_iosm_handle_launch(struct m0_sm_group *grp,
 						 "failed: rc=%d", rc);
 				goto fail_locked;
 			}
-
-			rc = ioo->ioo_ops->iro_parity_recalc(ioo);
-			if (rc != 0) {
-				M0_LOG(M0_ERROR, "iro_parity_recalc() "
-						 "failed: rc=%d", rc);
-				goto fail_locked;
+			if (!m0_pdclust_is_replicated(play)) {
+				rc = ioo->ioo_ops->iro_parity_recalc(ioo);
+				if (rc != 0) {
+					M0_LOG(M0_ERROR, "iro_parity_recalc() "
+							"failed: rc=%d", rc);
+					goto fail_locked;
+				}
 			}
 		}
 
@@ -352,11 +356,12 @@ fail_locked:
 static void ioreq_iosm_handle_executed(struct m0_sm_group *grp,
 				       struct m0_sm_ast *ast)
 {
-	int                     rc;
-	bool                    rmw;
-	struct m0_clovis       *instance;
-	struct m0_clovis_op    *op;
-	struct m0_clovis_op_io *ioo;
+	int                       rc;
+	bool                      rmw;
+	struct m0_clovis         *instance;
+	struct m0_clovis_op      *op;
+	struct m0_clovis_op_io   *ioo;
+	struct m0_pdclust_layout *play;
 
 	M0_ENTRY("op_io:ast %p", ast);
 
@@ -368,6 +373,8 @@ static void ioreq_iosm_handle_executed(struct m0_sm_group *grp,
 	op = &ioo->ioo_oo.oo_oc.oc_op;
 	instance = m0_clovis__op_instance(op);
 	M0_PRE(instance != NULL);
+
+	play = pdlayout_get(ioo);
 
 	/* @todo Do error handling based on m0_sm::sm_rc. */
 	/*
@@ -389,7 +396,6 @@ static void ioreq_iosm_handle_executed(struct m0_sm_group *grp,
 			M0_LOG(M0_DEBUG, "ioo->ioo_rc = %d", rc);
 			goto fail_locked;
 		}
-
 		if (state == IRS_READ_COMPLETE) {
 			/*
 			 * Returns immediately if all devices are
@@ -523,11 +529,13 @@ static void ioreq_iosm_handle_executed(struct m0_sm_group *grp,
 
 			/* Prepare for the Write fops*/
 			ioreq_sm_state_set_locked(ioo, IRS_WRITING);
-			rc = ioo->ioo_ops->iro_parity_recalc(ioo);
-			if (rc != 0) {
-				M0_LOG(M0_ERROR, "iro_parity_recalc() failed: "
-						 "rc=%d", rc);
-				goto fail_locked;
+			if (!m0_pdclust_is_replicated(play)) {
+				rc = ioo->ioo_ops->iro_parity_recalc(ioo);
+				if (rc != 0) {
+					M0_LOG(M0_ERROR, "iro_parity_recalc()"
+					       "failed: rc=%d", rc);
+					goto fail_locked;
+				}
 			}
 
 			rc = ioo->ioo_nwxfer.nxr_ops->nxo_dispatch(
@@ -873,11 +881,14 @@ static int clovis_application_data_copy(struct pargrp_iomap      *map,
 					enum copy_direction       dir,
 					enum page_attr            filter)
 {
-	uint64_t         bytes;
-	uint32_t         row = 0;
-	uint32_t         col = 0;
-	struct data_buf *clovis_data;
-	m0_bindex_t      mask;
+	uint64_t                  bytes;
+	uint32_t                  row = 0;
+	uint32_t                  col = 0;
+	uint32_t                  m_col;
+	struct data_buf          *clovis_data;
+	struct m0_pdclust_layout *play;
+	struct m0_key_val        *key_val;
+	m0_bindex_t               mask;
 
 	M0_ENTRY("Copy %s application, start = %8"PRIu64", end = %8"PRIu64,
 		 dir == CD_COPY_FROM_APP ? (char *)"from" : (char *)" to ",
@@ -896,9 +907,25 @@ static int clovis_application_data_copy(struct pargrp_iomap      *map,
 	       (end - 1) >> obj->ob_attr.oa_bshift);
 	M0_PRE(datacur != NULL);
 
+	play = pdlayout_get(map->pi_ioo);
 	/* Finds out the page from pargrp_iomap::pi_databufs. */
 	page_pos_get(map, start, &row, &col);
-	clovis_data = map->pi_databufs[row][col];
+	/** If majority with replica be selected or not. */
+	if (m0_key_val_is_null(&map->pi_databufs[row][col]->db_maj_ele))
+		clovis_data = map->pi_databufs[row][col];
+	else {
+		key_val = &map->pi_databufs[row][col]->db_maj_ele;
+		m_col = *(uint32_t *)(key_val->kv_key.b_addr);
+		if (m0_pdclust_unit_classify(play, m_col) == M0_PUT_DATA) {
+			M0_ASSERT(m_col == 0);
+			clovis_data = map->pi_databufs[row][m_col];
+		} else if (m0_pdclust_unit_classify(play, m_col) ==
+			   M0_PUT_PARITY)
+			clovis_data = map->pi_paritybufs[row][m_col - 1];
+		else
+			/* No way of getting spares. */
+			M0_IMPOSSIBLE();
+	}
 	M0_ASSERT(clovis_data != NULL);
 	mask = ~SHIFT2MASK(obj->ob_attr.oa_bshift);
 
@@ -950,7 +977,6 @@ static int clovis_application_data_copy(struct pargrp_iomap      *map,
 					" copy_from_user: %" PRIu64 " !="
 					" %" PRIu64 " - %" PRIu64,
 					map->pi_ioo, bytes, end, start);
-
 		}
 	} else {
 		bytes = data_buf_copy(clovis_data, datacur, dir);
@@ -1080,17 +1106,23 @@ static int ioreq_parity_recalc(struct m0_clovis_op_io *ioo)
  */
 static int ioreq_dgmode_recover(struct m0_clovis_op_io *ioo)
 {
-	int      rc = 0;
-	uint64_t cnt;
+	struct m0_pdclust_layout  *play;
+	int                        rc = 0;
+	uint64_t                   cnt;
 
 	M0_ENTRY();
 	M0_PRE_EX(m0_clovis_op_io_invariant(ioo));
 	M0_PRE(ioreq_sm_state(ioo) == IRS_READ_COMPLETE);
 
+	play = pdlayout_get(ioo);
 	for (cnt = 0; cnt < ioo->ioo_iomap_nr; ++cnt) {
 		if (ioo->ioo_iomaps[cnt]->pi_state == PI_DEGRADED) {
-			rc = ioo->ioo_iomaps[cnt]->pi_ops->
-				pi_dgmode_recover(ioo->ioo_iomaps[cnt]);
+			if (m0_pdclust_is_replicated(play)) {
+				rc = ioo->ioo_iomaps[cnt]->pi_ops->
+				      pi_replica_recover(ioo->ioo_iomaps[cnt]);
+			} else
+				rc = ioo->ioo_iomaps[cnt]->pi_ops->
+					pi_dgmode_recover(ioo->ioo_iomaps[cnt]);
 			if (rc != 0)
 				return M0_ERR(rc);
 		}
@@ -1209,7 +1241,7 @@ static int device_check(struct m0_clovis_op_io *ioo)
  */
 static int ioreq_dgmode_read(struct m0_clovis_op_io *ioo, bool rmw)
 {
-	int                     rc = 0;
+	int                     rc       = 0;
 	uint64_t                id;
 	struct nw_xfer_request *xfer;
 	struct ioreq_fop       *irfop;
@@ -1239,7 +1271,6 @@ static int ioreq_dgmode_read(struct m0_clovis_op_io *ioo, bool rmw)
 
 		return M0_RC(rc);
 	}
-
 	/*
 	 * If all devices are ONLINE, all requests return success.
 	 * In case of read before write, due to CROW, COB will not be present,
@@ -1309,7 +1340,7 @@ static int ioreq_dgmode_read(struct m0_clovis_op_io *ioo, bool rmw)
 	 * spanned by input IO-request is in degraded mode.
 	 */
 	if (ioo->ioo_dgmap_nr > 0) {
-		M0_LOG(M0_FATAL, "[%p]Process the failed parity groups", ioo);
+		M0_LOG(M0_WARN, "[%p]Process the failed parity groups", ioo);
 		if (ioreq_sm_state(ioo) == IRS_READ_COMPLETE)
 			ioreq_sm_state_set_locked(ioo, IRS_DEGRADED_READING);
 		for (id = 0; id < ioo->ioo_iomap_nr; ++id) {
@@ -1352,7 +1383,6 @@ static int ioreq_dgmode_read(struct m0_clovis_op_io *ioo, bool rmw)
 	rc = xfer->nxr_ops->nxo_dispatch(xfer);
 	if (rc != 0)
 		return M0_ERR(rc);
-
 	ioo->ioo_dgmode_io_sent = true;
 
 	return M0_RC(rc);
@@ -1468,17 +1498,19 @@ static int ioreq_dgmode_write(struct m0_clovis_op_io *ioo, bool rmw)
 
 static int ioreq_parity_verify(struct m0_clovis_op_io *ioo)
 {
-	int	             rc = 0;
-	uint64_t             grp;
-	struct pargrp_iomap *iomap = NULL;
-	struct m0_clovis     *instance;
-	struct m0_clovis_op  *op;
+	struct pargrp_iomap      *iomap = NULL;
+	struct m0_pdclust_layout *play;
+	struct m0_clovis         *instance;
+	struct m0_clovis_op      *op;
+	int                       rc = 0;
+	uint64_t                  grp;
 
 	M0_ENTRY("m0_clovis_op_io : %p", ioo);
 	M0_PRE_EX(m0_clovis_op_io_invariant(ioo));
 
 	op = &ioo->ioo_oo.oo_oc.oc_op;
 	instance = m0_clovis__op_instance(op);
+	play = pdlayout_get(ioo);
 
 	if (!(op->op_code == M0_CLOVIS_OC_READ &&
 	      instance->m0c_config->cc_is_read_verify))
@@ -1493,7 +1525,10 @@ static int ioreq_parity_verify(struct m0_clovis_op_io *ioo)
 			 * It's meaningless to do parity verification */
 			continue;
 		}
-		rc = iomap->pi_ops->pi_parity_verify(iomap);
+		if (m0_pdclust_is_replicated(play))
+			rc = iomap->pi_ops->pi_parity_replica_verify(iomap);
+		else
+			rc = iomap->pi_ops->pi_parity_verify(iomap);
 		if (rc != 0)
 			break;
 	}
@@ -1506,16 +1541,16 @@ static int ioreq_parity_verify(struct m0_clovis_op_io *ioo)
 
 /* XXX (Sining): should we rename ioreq_xxx to ioo_xxx?*/
 const struct m0_clovis_op_io_ops ioo_ops = {
-	.iro_iomaps_prepare       = ioreq_iomaps_prepare,
-	.iro_iomaps_destroy       = ioreq_iomaps_destroy,
-	.iro_application_data_copy= ioreq_application_data_copy,
-	.iro_parity_recalc        = ioreq_parity_recalc,
-	.iro_parity_verify        = ioreq_parity_verify,
-	.iro_iosm_handle_launch   = ioreq_iosm_handle_launch,
-	.iro_iosm_handle_executed = ioreq_iosm_handle_executed,
-	.iro_dgmode_read          = ioreq_dgmode_read,
-	.iro_dgmode_write         = ioreq_dgmode_write,
-	.iro_dgmode_recover       = ioreq_dgmode_recover,
+	.iro_iomaps_prepare        = ioreq_iomaps_prepare,
+	.iro_iomaps_destroy        = ioreq_iomaps_destroy,
+	.iro_application_data_copy = ioreq_application_data_copy,
+	.iro_parity_recalc         = ioreq_parity_recalc,
+	.iro_parity_verify         = ioreq_parity_verify,
+	.iro_iosm_handle_launch    = ioreq_iosm_handle_launch,
+	.iro_iosm_handle_executed  = ioreq_iosm_handle_executed,
+	.iro_dgmode_read           = ioreq_dgmode_read,
+	.iro_dgmode_write          = ioreq_dgmode_write,
+	.iro_dgmode_recover        = ioreq_dgmode_recover,
 };
 
 #undef M0_TRACE_SUBSYSTEM
