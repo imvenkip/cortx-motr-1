@@ -389,7 +389,8 @@ static void proxy_sw_onwire_ast_cb(struct m0_sm_group *grp,
 
         if (proxy->px_update_rc != 0 || proxy->px_send_final_update ||
 	    (proxy->px_updates_pending > 0 &&
-	     !m0_cm_proxy_is_updated(proxy, &in_interval))) {
+	     (!m0_cm_proxy_is_updated(proxy, &in_interval) || cm->cm_abort ||
+	     cm->cm_quiesce))) {
 		if (proxy->px_update_rc == -ECANCELED ||
 		     (M0_IN(proxy->px_status, (M0_PX_FAILED, M0_PX_STOP)) &&
 		      !proxy->px_send_final_update))
