@@ -436,6 +436,7 @@ static int pargrp_iomap_populate(struct pargrp_iomap      *map,
 	uint64_t                  seg;
 	uint64_t                  size = 0;
 	uint64_t                  grpsize;
+	uint64_t                  pagesize;
 	m0_bcount_t               count = 0;
 	m0_bindex_t               endpos = 0;
 	m0_bcount_t               segcount = 0;
@@ -468,7 +469,7 @@ static int pargrp_iomap_populate(struct pargrp_iomap      *map,
 	grpsize  = data_size(play);
 	grpstart = grpsize * map->pi_grpid;
 	grpend   = grpstart + grpsize;
-
+	pagesize = m0_clovis__page_size(ioo);
 
 	/* For a write, if size of this map is less
 	 * than parity group size, it is a read-modify-write.
@@ -527,7 +528,7 @@ static int pargrp_iomap_populate(struct pargrp_iomap      *map,
 			m0_bindex_t newindex;
 
 			newindex = m0_round_up(INDEX(&map->pi_ivec, seg) + 1,
-					       page_size(ioo));
+					       pagesize);
 			COUNT(&map->pi_ivec, seg) -=
 				(newindex - INDEX(&map->pi_ivec, seg));
 			INDEX(&map->pi_ivec, seg)  = newindex;
@@ -550,8 +551,8 @@ static int pargrp_iomap_populate(struct pargrp_iomap      *map,
 		}
 
 		INDEX(&map->pi_ivec, seg) =
-			round_down(INDEX(&map->pi_ivec, seg),page_size(ioo));
-		COUNT(&map->pi_ivec, seg) = round_up(endpos, page_size(ioo)) -
+			round_down(INDEX(&map->pi_ivec, seg), pagesize);
+		COUNT(&map->pi_ivec, seg) = round_up(endpos, pagesize) -
 				 INDEX(&map->pi_ivec, seg);
 		M0_LOG(M0_DEBUG, "post grpid = %"PRIu64" seg %"PRIu64
 				 " = [%"PRIu64", +%"PRIu64")",
@@ -737,6 +738,7 @@ static int pargrp_iomap_seg_process(struct pargrp_iomap *map,
 	uint32_t                  row;
 	uint32_t                  col;
 	uint64_t                  count = 0;
+	uint64_t                  pagesize;
 	m0_bindex_t               start;
 	m0_bindex_t               end;
 	struct m0_ivec_cursor     cur;
@@ -753,6 +755,7 @@ static int pargrp_iomap_seg_process(struct pargrp_iomap *map,
 	op = &ioo->ioo_oo.oo_oc.oc_op;
 	obj = ioo->ioo_obj;
 	play = pdlayout_get(ioo);
+	pagesize = m0_clovis__page_size(ioo);
 
 	m0_ivec_cursor_init(&cur, &map->pi_ivec);
 	ret = m0_ivec_cursor_move_to(&cur, INDEX(&map->pi_ivec, seg));
@@ -761,15 +764,15 @@ static int pargrp_iomap_seg_process(struct pargrp_iomap *map,
 	/* process a page at each iteration */
 	while (!m0_ivec_cursor_move(&cur, count)) {
 		start = m0_ivec_cursor_index(&cur);
-		end   = min64u(m0_round_up(start + 1, page_size(ioo)),
+		end   = min64u(m0_round_up(start + 1, pagesize),
 			       start + m0_ivec_cursor_step(&cur));
 		count = end - start;
 
 		flags = 0;
 		if (op->op_code == M0_CLOVIS_OC_WRITE) {
 			flags |= PA_WRITE;
-			flags |= count == page_size(ioo) ?
-				PA_FULLPAGE_MODIFY : PA_PARTPAGE_MODIFY;
+			flags |= count == pagesize ?
+				 PA_FULLPAGE_MODIFY : PA_PARTPAGE_MODIFY;
 
 			/*
 			 * Even if PA_PARTPAGE_MODIFY flag is set in
@@ -888,18 +891,20 @@ static uint64_t pargrp_iomap_auxbuf_alloc(struct pargrp_iomap *map,
 					  uint32_t	       row,
 					  uint32_t	       col)
 {
-	M0_ENTRY();
+	uint64_t pagesize;
 
+	M0_ENTRY();
 	M0_PRE_EX(pargrp_iomap_invariant(map));
 	M0_PRE(map->pi_rtype == PIR_READOLD);
 
+	pagesize = m0_clovis__page_size(map->pi_ioo);
 	map->pi_databufs[row][col]->db_auxbuf.b_addr = (void *)
-		m0_alloc_aligned(page_size(map->pi_ioo), CLOVIS_NETBUF_SHIFT);
+		m0_alloc_aligned(pagesize, CLOVIS_NETBUF_SHIFT);
 
 	if (map->pi_databufs[row][col]->db_auxbuf.b_addr == NULL)
 		return M0_ERR(-ENOMEM);
 
-	map->pi_databufs[row][col]->db_auxbuf.b_nob = page_size(map->pi_ioo);
+	map->pi_databufs[row][col]->db_auxbuf.b_nob = pagesize;
 
 	return M0_RC(0);
 }
@@ -932,7 +937,8 @@ static int pargrp_iomap_readold_auxbuf_alloc(struct pargrp_iomap *map)
 
 	while (!m0_ivec_cursor_move(&cur, count)) {
 		start = m0_ivec_cursor_index(&cur);
-		end   = min64u(m0_round_up(start + 1, page_size(map->pi_ioo)),
+		end   = min64u(m0_round_up(start + 1,
+					   m0_clovis__page_size(map->pi_ioo)),
 			       start + m0_ivec_cursor_step(&cur));
 		count = end - start;
 		page_pos_get(map, start, &row, &col);
@@ -1082,7 +1088,8 @@ static int pargrp_iomap_readrest(struct pargrp_iomap *map)
 	while (!m0_ivec_cursor_move(&cur, count)) {
 
 		start = m0_ivec_cursor_index(&cur);
-		end   = min64u(m0_round_up(start + 1, page_size(ioo)),
+		end   = min64u(m0_round_up(start + 1,
+					   m0_clovis__page_size(ioo)),
 			       start + m0_ivec_cursor_step(&cur));
 		count = end - start;
 		page_pos_get(map, start, &row, &col);
@@ -1161,7 +1168,8 @@ static int pargrp_iomap_parity_recalc(struct pargrp_iomap *map)
 					    map->pi_databufs[row][col]->db_buf;
 				} else {
 					dbufs[col].b_addr = (void *)zpage;
-					dbufs[col].b_nob  = page_size(ioo);
+					dbufs[col].b_nob  =
+						m0_clovis__page_size(ioo);
 				}
 
 			for (col = 0; col < layout_k(play); ++col)
@@ -1743,7 +1751,7 @@ static int pargrp_iomap_dgmode_postprocess(struct pargrp_iomap *map)
 	 * multiple of 4K.
 	 */
 	COUNT(&map->pi_ivec, 0) = round_up(COUNT(&map->pi_ivec, 0),
-					   page_size(ioo));
+					   m0_clovis__page_size(ioo));
 	SEG_NR(&map->pi_ivec)   = 1;
 	/*indexvec_dump(&map->pi_ivec);*/
 
@@ -1818,6 +1826,7 @@ static int pargrp_iomap_dgmode_recover(struct pargrp_iomap *map)
 	uint32_t                  row;
 	uint32_t                  col;
 	uint32_t                  K;
+	uint64_t                  pagesize;
 	void                     *zpage;
 	struct m0_buf            *data;
 	struct m0_buf            *parity;
@@ -1831,6 +1840,7 @@ static int pargrp_iomap_dgmode_recover(struct pargrp_iomap *map)
 
 	ioo = map->pi_ioo;
 	play = pdlayout_get(ioo);
+	pagesize = m0_clovis__page_size(ioo);
 
 	M0_ALLOC_ARR(data, layout_n(play));
 	if (data == NULL)
@@ -1844,7 +1854,7 @@ static int pargrp_iomap_dgmode_recover(struct pargrp_iomap *map)
 			       " for parity buf");
 	}
 
-	zpage = m0_alloc_aligned(page_size(ioo), CLOVIS_NETBUF_SHIFT);
+	zpage = m0_alloc_aligned(pagesize, CLOVIS_NETBUF_SHIFT);
 	if (zpage == 0) {
 		m0_free(data);
 		m0_free(parity);
@@ -1857,7 +1867,7 @@ static int pargrp_iomap_dgmode_recover(struct pargrp_iomap *map)
 	if (failed.b_addr == NULL) {
 		m0_free(data);
 		m0_free(parity);
-		m0_free_aligned(zpage, page_size(ioo), CLOVIS_NETBUF_SHIFT);
+		m0_free_aligned(zpage, pagesize, CLOVIS_NETBUF_SHIFT);
 		return M0_ERR_INFO(-ENOMEM, "Failed to allocate memory "
 					    "for m0_buf");
 	}
@@ -1879,7 +1889,7 @@ static int pargrp_iomap_dgmode_recover(struct pargrp_iomap *map)
 	/* Populates data and failed buffers. */
 	for (row = 0; row < data_row_nr(play, ioo->ioo_obj); ++row) {
 		for (col = 0; col < data_col_nr(play); ++col) {
-			data[col].b_nob = page_size(ioo);
+			data[col].b_nob = pagesize;
 
 			if (map->pi_databufs[row][col] == NULL) {
 				data[col].b_addr = (void *)zpage;
@@ -1893,7 +1903,7 @@ static int pargrp_iomap_dgmode_recover(struct pargrp_iomap *map)
 			M0_ASSERT(map->pi_paritybufs[row][col] != NULL);
 			parity[col].b_addr =
 			    map->pi_paritybufs[row][col]->db_buf.b_addr;
-			parity[col].b_nob  = page_size(ioo);
+			parity[col].b_nob  = pagesize;
 		}
 
 		m0_parity_math_recover(parity_math(ioo), data,
@@ -1907,12 +1917,15 @@ end:
 	m0_free(data);
 	m0_free(parity);
 	m0_free(failed.b_addr);
-	m0_free_aligned(zpage, page_size(ioo), CLOVIS_NETBUF_SHIFT);
+	m0_free_aligned(zpage, pagesize, CLOVIS_NETBUF_SHIFT);
 
-	return rc == 0 ? M0_RC(rc) : M0_ERR_INFO(-EIO, "Number of failed units"
-						 "in parity group exceeds the"
-						 "total number of parity units"
-						 "in a parity group %d.", (int)map->pi_grpid);
+	return rc == 0 ?
+		M0_RC(rc) :
+		M0_ERR_INFO(-EIO,
+			    "Number of failed units"
+			    "in parity group exceeds the"
+			    "total number of parity units"
+			    "in a parity group %d.", (int)map->pi_grpid);
 }
 
 static int pargrp_iomap_parity_verify(struct pargrp_iomap *map)
@@ -1920,6 +1933,7 @@ static int pargrp_iomap_parity_verify(struct pargrp_iomap *map)
 	int			  rc;
 	uint32_t		  row;
 	uint32_t		  col;
+	uint64_t                  pagesize;
 	struct m0_buf		 *dbufs;
 	struct m0_buf		 *pbufs;
 	struct m0_buf		 *old_pbuf;
@@ -1936,6 +1950,7 @@ static int pargrp_iomap_parity_verify(struct pargrp_iomap *map)
 	ioo = map->pi_ioo;
 	op = &ioo->ioo_oo.oo_oc.oc_op;
 	instance = m0_clovis__op_instance(op);
+	pagesize = m0_clovis__page_size(ioo);
 
 	if (!(op->op_code == M0_CLOVIS_OC_READ &&
 	      instance->m0c_config->cc_is_read_verify))
@@ -1944,7 +1959,7 @@ static int pargrp_iomap_parity_verify(struct pargrp_iomap *map)
 	play = pdlayout_get(ioo);
 	M0_ALLOC_ARR(dbufs, layout_n(play));
 	M0_ALLOC_ARR(pbufs, layout_k(play));
-	zpage = m0_alloc_aligned(page_size(ioo), CLOVIS_NETBUF_SHIFT);
+	zpage = m0_alloc_aligned(pagesize, CLOVIS_NETBUF_SHIFT);
 
 	if (dbufs == NULL || pbufs == NULL || zpage == NULL) {
 		rc = M0_ERR(-ENOMEM);
@@ -1953,14 +1968,14 @@ static int pargrp_iomap_parity_verify(struct pargrp_iomap *map)
 
 	/* temprary buf to hold parity */
 	for (col = 0; col < layout_k(play); ++col) {
-		page = m0_alloc_aligned(page_size(ioo), CLOVIS_NETBUF_SHIFT);
+		page = m0_alloc_aligned(pagesize, CLOVIS_NETBUF_SHIFT);
 		if (page == NULL) {
 			rc = M0_ERR(-ENOMEM);
 			goto last;
 		}
 
 		pbufs[col].b_addr = (void *)page;
-		pbufs[col].b_nob = page_size(ioo);
+		pbufs[col].b_nob = pagesize;
 	}
 
 	for (row = 0; row < data_row_nr(play, ioo->ioo_obj); ++row) {
@@ -1971,7 +1986,7 @@ static int pargrp_iomap_parity_verify(struct pargrp_iomap *map)
 					map->pi_databufs[row][col]->db_buf;
 			} else {
 				dbufs[col].b_addr = zpage;
-				dbufs[col].b_nob  = page_size(ioo);
+				dbufs[col].b_nob  = pagesize;
 			}
 		}
 
@@ -1983,7 +1998,7 @@ static int pargrp_iomap_parity_verify(struct pargrp_iomap *map)
 		for (col = 0; col < layout_k(play); ++col) {
 			old_pbuf = &map->pi_paritybufs[row][col]->db_buf;
 			if (memcmp(pbufs[col].b_addr, old_pbuf->b_addr,
-				   page_size(ioo))) {
+				   pagesize)) {
 				M0_LOG(M0_ERROR, "[%p] parity verification "
 				       "failed for %llu [%u:%u], rc %d",
 				       map->pi_ioo,
@@ -2005,12 +2020,12 @@ last:
 			if(pbufs[col].b_addr == NULL) continue;
 
 			m0_free_aligned(pbufs[col].b_addr,
-					page_size(ioo), CLOVIS_NETBUF_SHIFT);
+					pagesize, CLOVIS_NETBUF_SHIFT);
 		}
 	}
 	m0_free(dbufs);
 	m0_free(pbufs);
-	m0_free_aligned(zpage, page_size(ioo), CLOVIS_NETBUF_SHIFT);
+	m0_free_aligned(zpage, pagesize, CLOVIS_NETBUF_SHIFT);
 	M0_LOG(M0_DEBUG, "parity verified for %"PRIu64" rc=%d",
 			 map->pi_grpid, rc);
 	return M0_RC(rc);

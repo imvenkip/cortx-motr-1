@@ -1010,9 +1010,9 @@ static int ioreq_application_data_copy(struct m0_clovis_op_io *ioo,
 			m0_ivec_cursor_index(&extcur) < grpend) {
 
 			pgstart = m0_ivec_cursor_index(&extcur);
-			pgend = min64u(
-				    m0_round_up(pgstart + 1, page_size(ioo)),
-				    pgstart + m0_ivec_cursor_step(&extcur));
+			pgend = min64u(m0_round_up(pgstart + 1,
+						   m0_clovis__page_size(ioo)),
+				       pgstart + m0_ivec_cursor_step(&extcur));
 			count = pgend - pgstart;
 
 			/*

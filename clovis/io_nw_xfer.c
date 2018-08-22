@@ -478,7 +478,8 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 	}
 
 	while (pgstart < toff + count) {
-		pgend = min64u(pgstart + (page_size(ioo)), toff + count);
+		pgend = min64u(pgstart + (m0_clovis__page_size(ioo)),
+			       toff + count);
 		seg   = SEG_NR(ivec);
 
 		INDEX(ivec, seg) = pgstart;
@@ -510,7 +511,8 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 		    unit_type == M0_PUT_DATA) {
 			M0_ASSERT(buf->db_auxbuf.b_addr != NULL);
 			auxbvec->ov_buf[seg] = buf->db_auxbuf.b_addr;
-			auxbvec->ov_vec.v_count[seg] = page_size(ioo);
+			auxbvec->ov_vec.v_count[seg] =
+				m0_clovis__page_size(ioo);
 		}
 		pattr[seg] |= buf->db_flags;
 		M0_LOG(M0_DEBUG, "pageaddr=%p, auxpage=%p,"
