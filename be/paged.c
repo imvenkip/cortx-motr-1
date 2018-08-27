@@ -1538,7 +1538,7 @@ request_pages_forall_helper(struct m0_be_pd         *paged,
 	return true;
 }
 
-void
+static void
 be_pd_request_items_forall(struct m0_be_pd         *paged,
 			   struct m0_be_pd_request *request,
 			   bool			    iterate_by_region,
