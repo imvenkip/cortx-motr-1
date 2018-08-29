@@ -310,8 +310,8 @@ static void clovis_obj_io_ast_fini(struct m0_sm_group *grp,
 
 	nw_xfer_request_fini(&ioo->ioo_nwxfer);
 	m0_layout_instance_fini(ioo->ioo_oo.oo_layout_instance);
-	m0_chan_signal_lock(&ioo->ioo_completion);
 	m0_free(ioo->ioo_failed_session);
+	m0_chan_signal_lock(&ioo->ioo_completion);
 
 	M0_LEAVE();
 }
