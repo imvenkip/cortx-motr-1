@@ -416,9 +416,14 @@ static void ioreq_iosm_handle_executed(struct m0_sm_group *grp,
 			rc = ioo->ioo_ops->iro_parity_verify(ioo);
 			if (rc != 0) {
 				M0_LOG(M0_ERROR,
-				       "parity vierfication failed: rc=%d", rc);
+				       "parity verification failed: rc=%d", rc);
 				goto fail_locked;
 			}
+
+			if ((op->op_code == M0_CLOVIS_OC_READ &&
+			     instance->m0c_config->cc_is_read_verify) &&
+			     ioo->ioo_dgmap_nr > 0)
+				rc = ioo->ioo_ops->iro_dgmode_recover(ioo);
 
 			/* Valid data are available now, copy to application */
 			rc = ioo->ioo_ops->iro_application_data_copy(ioo,
@@ -828,12 +833,12 @@ static uint64_t data_buf_copy(struct data_buf          *clovis_data,
 		/* app_data == clovis_data->db_buf.b_addr implies zero copy */
 		if (app_data != clovis_data->db_buf.b_addr) {
 			if (dir == CD_COPY_FROM_APP)
-				memcpy((char*)clovis_data->db_buf.b_addr + copied,
-				       app_data, app_data_len);
+				memcpy((char*)clovis_data->db_buf.b_addr +
+				       copied, app_data, app_data_len);
 			else
 				memcpy(app_data,
-				       (char*)clovis_data->db_buf.b_addr + copied,
-				       app_data_len);
+				       (char*)clovis_data->db_buf.b_addr +
+				       copied, app_data_len);
 		}
 
 		bytes  -= app_data_len;
@@ -1433,7 +1438,7 @@ static int ioreq_dgmode_write(struct m0_clovis_op_io *ioo, bool rmw)
 	 * Fops meant for failed devices are dropped in
 	 * nw_xfer_req_dispatch().
 	 */
-	m0_htable_for(tioreqht, ti, &xfer->nxr_tioreqs_hash){
+	m0_htable_for(tioreqht, ti, &xfer->nxr_tioreqs_hash) {
 		ti->ti_databytes = 0;
 		ti->ti_parbytes  = 0;
 		ti->ti_rc        = 0;
@@ -1494,10 +1499,9 @@ static int ioreq_parity_verify(struct m0_clovis_op_io *ioo)
 	}
 
 	m0_semaphore_up(&clovis_cpus_sem);
-
 	return rc != 0 ? M0_ERR_INFO(rc, "Parity verification failed for "
 					 "grpid=%"PRIu64,
-				         iomap->pi_grpid) : M0_RC(rc);
+					 iomap->pi_grpid) : M0_RC(rc);
 }
 
 /* XXX (Sining): should we rename ioreq_xxx to ioo_xxx?*/

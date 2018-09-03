@@ -480,7 +480,7 @@ static void ut_clovis_test_pargrp_iomap_seg_process(void)
 	map->pi_ivec.iv_index[0] = 0;
 	map->pi_ivec.iv_vec.v_count[0] = blk_size;
 
-	rc = pargrp_iomap_seg_process(map, 0, 0, NULL);
+	rc = pargrp_iomap_seg_process(map, 0, 0, 0, NULL);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(map->pi_databufs != NULL);
 	M0_UT_ASSERT(map->pi_databufs[0][0] != NULL);
@@ -495,7 +495,7 @@ static void ut_clovis_test_pargrp_iomap_seg_process(void)
 	ioo->ioo_ext.iv_vec.v_count[0] = 2 * blk_size;
 	ioo->ioo_data.ov_vec.v_count[0] = 2 * blk_size;
 
-	rc = pargrp_iomap_seg_process(map, 0, 0, NULL);
+	rc = pargrp_iomap_seg_process(map, 0, 0, 0, NULL);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(map->pi_databufs != NULL);
 	M0_UT_ASSERT(map->pi_databufs[0][0] != NULL);
@@ -512,7 +512,7 @@ static void ut_clovis_test_pargrp_iomap_seg_process(void)
 	ioo->ioo_ext.iv_vec.v_count[0] = 1 * blk_size;
 	ioo->ioo_data.ov_vec.v_count[0] = 1 * blk_size;
 
-	rc = pargrp_iomap_seg_process(map, 0, 1, NULL);
+	rc = pargrp_iomap_seg_process(map, 0, 1, 0, NULL);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(map->pi_databufs != NULL);
 	M0_UT_ASSERT(map->pi_databufs[0][0] != NULL);
@@ -832,7 +832,7 @@ static void ut_clovis_test_pargrp_iomap_spans_seg(void)
 
 	/* 1. one unit */
 	is_spanned = pargrp_iomap_spans_seg(map, 0,
-		     			    1 << CLOVIS_MIN_BUF_SHIFT);
+					    1 << CLOVIS_MIN_BUF_SHIFT);
 	M0_UT_ASSERT(is_spanned == true);
 
 	/* 2. n- 1 units (n > 2) */
@@ -843,7 +843,7 @@ static void ut_clovis_test_pargrp_iomap_spans_seg(void)
 
 	/* 3. out of the boundary of this iomap */
 	is_spanned = pargrp_iomap_spans_seg(map, 4096,
-		     			    1 << CLOVIS_MIN_BUF_SHIFT);
+					    1 << CLOVIS_MIN_BUF_SHIFT);
 	M0_UT_ASSERT(is_spanned == false);
 
 	ut_clovis_dummy_ioo_delete(ioo, instance);

@@ -24,6 +24,7 @@ OBJ_HID1="0:100001"
 OBJ_HID2="0:100002"
 PVER_1="7600000000000001:a"
 PVER_2="7680000000000000:4"
+read_verify=true
 clovis_pids=""
 export cnt=1
 # Read/Write an object via Clovis
@@ -32,13 +33,14 @@ io_conduct()
 	operation=$1
 	source=$2
 	dest=$3
+	verify=$4
 
 	local cmd_exec
 	if [ $operation == "READ" ]
 	then
 		cmd_args="$CLOVIS_LOCAL_EP $CLOVIS_HA_EP '$CLOVIS_PROF_OPT' '$CLOVIS_PROC_FID' /tmp $source"
 		cmd_exec="${clovis_st_util_dir}/c0cat"
-		cmd_args="$cmd_args $BLOCKSIZE $BLOCKCOUNT"
+		cmd_args="$cmd_args $BLOCKSIZE $BLOCKCOUNT $verify"
 		local cmd="$cmd_exec $cmd_args > $dest &"
 	else
 		cmd_args="$CLOVIS_LOCAL_EP $CLOVIS_HA_EP '$CLOVIS_PROF_OPT' '$CLOVIS_PROC_FID' /tmp $dest $source"
@@ -118,12 +120,16 @@ main()
 	dest_file="$CLOVIS_TEST_DIR/clovis_dest"
 	rc=0
 
-	dd if=/dev/urandom bs=4K count=100 of=$src_file 2> $CLOVIS_TEST_LOGFILE || {
+	BLOCKSIZE=4096
+	BLOCKCOUNT=25
+	echo "dd if=/dev/urandom bs=$BLOCKSIZE count=$BLOCKCOUNT of=$src_file"
+	dd if=/dev/urandom bs=$BLOCKSIZE count=$BLOCKCOUNT of=$src_file 2> $CLOVIS_TEST_LOGFILE || {
 		echo "Failed to create a source file"
 		unmount_and_clean &>>$MERO_TEST_LOGFILE
 		mero_service_stop
 		return 1
 	}
+
 	mkdir $CLOVIS_TRACE_DIR
 
 	mero_service_start
@@ -140,8 +146,6 @@ main()
 	#    changes in current patch.
 	local mountopt="oostore,verify"
 	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $mountopt || return 1
-	BLOCKSIZE="4096"
-	BLOCKCOUNT="100"
 
 	# write an object
 	io_conduct "WRITE" $src_file $OBJ_ID1
@@ -166,6 +170,23 @@ main()
 		echo "Healthy mode, read file differs."
 		error_handling $rc
 	fi
+	echo "Healthy mode, read file succeeds."
+	# read the written object
+	io_conduct "READ" $OBJ_ID1  $dest_file $read_verify
+	rc=$?
+	if [ $rc -ne "0" ]
+	then
+		echo "Healthy mode, read verify failed."
+		error_handling $rc
+	fi
+	diff $src_file $dest_file
+	rc=$?
+	if [ $rc -ne "0" ]
+	then
+		echo "Healthy mode, read file differs."
+		error_handling $rc
+	fi
+	echo "Healthy mode, read file with parity verify succeeds"
 	echo "Clovis: Healthy mode IO succeeds."
 	echo "Fail a disk"
 	fail_device=1
@@ -235,6 +256,23 @@ main()
 		echo "File read from a new pool version differs."
 		error_handling $rc
 	fi
+	echo "Clovis: Dgmod mode read succeeds."
+	io_conduct "READ" $OBJ_ID2 $dest_file $read_verify
+	rc=$?
+	if [ $rc -ne "0" ]
+	then
+		echo "Reading a file from a new pool version failed."
+		error_handling $rc
+	fi
+	diff $src_file $dest_file
+	rc=$?
+	if [ $rc -ne "0" ]
+	then
+		echo "File read from a new pool version differs."
+		error_handling $rc
+	fi
+	echo "Clovis: Dgmod mode read verify succeeds."
+	echo "Clovis: Dgmod mode IO succeeds."
 	clovis_inst_cnt=`expr $cnt - 1`
 	for i in `seq 1 $clovis_inst_cnt`
 	do

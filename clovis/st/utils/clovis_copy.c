@@ -43,6 +43,7 @@ static int   clovis_oid;
 static int   clovis_block_size;
 static int   clovis_block_count;
 static char *clovis_index_dir = "/tmp/";
+static bool  clovis_read_verify = false;
 
 static struct m0_clovis          *clovis_instance = NULL;
 static struct m0_clovis_container clovis_container;
@@ -56,7 +57,7 @@ static int init_clovis(void)
 	int rc;
 
 	clovis_conf.cc_is_oostore            = true;
-	clovis_conf.cc_is_read_verify        = false;
+	clovis_conf.cc_is_read_verify        = clovis_read_verify;
 	clovis_conf.cc_local_addr            = clovis_local_addr;
 	clovis_conf.cc_ha_addr               = clovis_ha_addr;
 	clovis_conf.cc_profile               = clovis_prof;
@@ -249,7 +250,7 @@ static int copy()
 
 		/* Allocate bufvec and indexvec for write. */
 		rc = m0_bufvec_alloc(&attr, block_count, 1);
-		if(rc != 0)
+		if (rc != 0)
 			return rc;
 
 		rc = m0_indexvec_alloc(&ext, block_count);
@@ -299,7 +300,8 @@ int main(int argc, char **argv)
 	/* Get input parameters */
 	if (argc < 10) {
 		printf("Usage: c0cp laddr ha_addr prof_opt proc_fid index_dir"
-		       "object_id src_file block_size block_count\n");
+		       "object_id src_file block_size block_count"
+		       "read_verify \n");
 		return -1;
 	}
 	clovis_local_addr = argv[1];
@@ -311,6 +313,7 @@ int main(int argc, char **argv)
 	strcpy(clovis_src, argv[7]);
 	clovis_block_size = atoi(argv[8]);
 	clovis_block_count = atoi(argv[9]);
+	clovis_read_verify = argv[10];
 
 	/* Initilise mero and Clovis */
 	rc = init_clovis();

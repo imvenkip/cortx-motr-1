@@ -449,6 +449,7 @@ static int pargrp_iomap_populate(struct pargrp_iomap      *map,
 	m0_bindex_t               grpstart;
 	m0_bindex_t               grpend;
 	m0_bindex_t               currindex;
+	m0_bindex_t               startindex;
 	struct m0_pdclust_layout *play;
 	struct m0_clovis_op_io   *ioo;
 	struct m0_clovis_op      *op;
@@ -492,6 +493,7 @@ static int pargrp_iomap_populate(struct pargrp_iomap      *map,
 		if (size < grpsize)
 			rmw = true;
 	}
+	startindex = m0_ivec_cursor_index(cursor);
 	M0_LOG(M0_INFO, "Group id %"PRIu64" is %s", map->pi_grpid,
 	       rmw ? "rmw" : "aligned");
 
@@ -545,7 +547,7 @@ static int pargrp_iomap_populate(struct pargrp_iomap      *map,
 		      instance->m0c_config->cc_is_read_verify)) {
 			/* if not in 'verify mode', ... */
 			rc = map->pi_ops->pi_seg_process(map, seg, rmw,
-					                 buf_cursor);
+					                 0, buf_cursor);
 			if (rc != 0)
 				return M0_ERR_INFO(rc, "seg_process failed");
 		}
@@ -554,11 +556,6 @@ static int pargrp_iomap_populate(struct pargrp_iomap      *map,
 			round_down(INDEX(&map->pi_ivec, seg), pagesize);
 		COUNT(&map->pi_ivec, seg) = round_up(endpos, pagesize) -
 				 INDEX(&map->pi_ivec, seg);
-		M0_LOG(M0_DEBUG, "post grpid = %"PRIu64" seg %"PRIu64
-				 " = [%"PRIu64", +%"PRIu64")",
-				 map->pi_grpid, seg,
-				 INDEX(&map->pi_ivec, seg),
-				 COUNT(&map->pi_ivec, seg));
 		M0_LOG(M0_DEBUG, "post grpid = %"PRIu64" seg %"PRIu64
 				 " = [%"PRIu64", +%"PRIu64")",
 				 map->pi_grpid, seg,
@@ -586,7 +583,8 @@ static int pargrp_iomap_populate(struct pargrp_iomap      *map,
 		INDEX(&map->pi_ivec, 0) = grpstart;
 		COUNT(&map->pi_ivec, 0) = grpsize;
 
-		rc = map->pi_ops->pi_seg_process(map, 0, rmw, buf_cursor);
+		rc = map->pi_ops->pi_seg_process(map, 0, rmw, startindex,
+						 buf_cursor);
 		if (rc != 0)
 			return M0_ERR_INFO(rc, "seg_process failed");
 	}
@@ -723,14 +721,14 @@ static bool pargrp_iomap_spans_seg(struct pargrp_iomap *map,
  *
  * @param map[out] The parity group map to be processed.
  * @param seg Which segment to start processing.
- * @param rmw Whether to skimp on allocation as memory will be allocated
+ * @param rmw Whether to skip on allocation as memory will be allocated
  *            once old data has been read.
  * @return 0 for success, -errno otherwise.
  */
 static int pargrp_iomap_seg_process(struct pargrp_iomap *map,
-				    uint64_t             seg,
-				    bool                 rmw,
-				    struct m0_bufvec_cursor   *buf_cursor)
+				    uint64_t seg, bool rmw,
+				    uint64_t skip_buf_index,
+				    struct m0_bufvec_cursor *buf_cursor)
 {
 	int                       rc;
 	int                       flags;
@@ -793,7 +791,25 @@ static int pargrp_iomap_seg_process(struct pargrp_iomap *map,
 		M0_ASSERT(col <= map->pi_max_col);
 		M0_ASSERT(row <= map->pi_max_row);
 
-		rc = map->pi_ops->pi_databuf_alloc(map, row, col, buf_cursor);
+		if (start < skip_buf_index) {
+			rc = map->pi_ops->pi_databuf_alloc(map, row, col, NULL);
+		} else {
+			/*
+			 * When setting with read_verify mode, it requires to
+			 * read the whole parity group while clovis application
+			 * may only ask to read fewer units and allocate less
+			 * memory so not able to hold the whole parity group.
+			 * In this case, clovis has to allocate the buffers
+			 * internally. So set buf_cursor to NULL when the cursor
+			 * reaches the end of application's buffer.
+			 */
+			if (buf_cursor && m0_bufvec_cursor_move(buf_cursor, 0))
+				buf_cursor = NULL;
+			rc = map->pi_ops->pi_databuf_alloc(map, row, col,
+							   buf_cursor);
+			if (rc == 0 && buf_cursor)
+				m0_bufvec_cursor_move(buf_cursor, count);
+		}
 		M0_LOG(M0_DEBUG, "alloc start %8"PRIu64" count %4"PRIu64
 			" pgid %3"PRIu64" row %u col %u f 0x%x addr %p",
 			 start, count, map->pi_grpid, row, col, flags,
@@ -804,8 +820,6 @@ static int pargrp_iomap_seg_process(struct pargrp_iomap *map,
 
 		map->pi_databufs[row][col]->db_flags |= flags;
 
-		if (buf_cursor)
-			m0_bufvec_cursor_move(buf_cursor, count);
 	}
 
 	return M0_RC(0);
@@ -839,9 +853,9 @@ static int pargrp_iomap_databuf_alloc(struct pargrp_iomap *map,
 				      struct m0_bufvec_cursor *data)
 {
 	struct m0_clovis_obj *obj;
-	struct data_buf  *buf;
-	uint64_t flags;
-	void *addr = NULL; /* required */
+	struct data_buf      *buf;
+	uint64_t              flags;
+	void                 *addr = NULL; /* required */
 
 	M0_ENTRY("row %u col %u", row, col);
 
@@ -1874,7 +1888,8 @@ static int pargrp_iomap_dgmode_recover(struct pargrp_iomap *map)
 
 	K = iomap_dgmode_recov_prepare(map, (uint8_t *)failed.b_addr);
 	if (K > layout_k(play)) {
-		M0_LOG(M0_ERROR, "More failures in group %d", (int)map->pi_grpid);
+		M0_LOG(M0_ERROR, "More failures in group %d",
+				(int)map->pi_grpid);
 		rc = -EIO;
 		goto end;
 	}
