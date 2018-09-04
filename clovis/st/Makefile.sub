@@ -18,10 +18,21 @@ clovis_st_user_space_c0st_SOURCES = clovis/st/user_space/clovis_st_main.c \
 		      clovis/st/clovis_st.h \
 		      clovis/st/clovis_st_misc.h
 
-clovis_st_utils_c0touch_SOURCES = clovis/st/utils/clovis_touch.c
-clovis_st_utils_c0unlink_SOURCES = clovis/st/utils/clovis_unlink.c
-clovis_st_utils_c0cat_SOURCES = clovis/st/utils/clovis_cat.c
-clovis_st_utils_c0cp_SOURCES = clovis/st/utils/clovis_copy.c
+clovis_st_utils_c0client_SOURCES = clovis/st/utils/clovis_client.c \
+		      clovis/st/utils/clovis_helper.c \
+		      clovis/st/utils/clovis_helper.h
+clovis_st_utils_c0unlink_SOURCES = clovis/st/utils/clovis_unlink.c \
+		      clovis/st/utils/clovis_helper.c \
+		      clovis/st/utils/clovis_helper.h
+clovis_st_utils_c0cp_SOURCES = clovis/st/utils/clovis_copy.c \
+		      clovis/st/utils/clovis_helper.c \
+		      clovis/st/utils/clovis_helper.h
+clovis_st_utils_c0cat_SOURCES = clovis/st/utils/clovis_cat.c \
+		      clovis/st/utils/clovis_helper.c \
+		      clovis/st/utils/clovis_helper.h
+clovis_st_utils_c0touch_SOURCES = clovis/st/utils/clovis_touch.c \
+		      clovis/st/utils/clovis_helper.c \
+		      clovis/st/utils/clovis_helper.h
 clovis_st_utils_c0cp_mt_SOURCES = clovis/st/utils/clovis_copy_mt.c
 clovis_st_utils_c0composite_SOURCES = clovis/st/utils/clovis_composite_bootstrap.c
 

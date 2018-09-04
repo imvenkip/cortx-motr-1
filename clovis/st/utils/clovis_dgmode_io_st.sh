@@ -24,7 +24,7 @@ OBJ_HID1="0:100001"
 OBJ_HID2="0:100002"
 PVER_1="7600000000000001:a"
 PVER_2="7680000000000000:4"
-read_verify=true
+read_verify="true"
 clovis_pids=""
 export cnt=1
 # Read/Write an object via Clovis
@@ -38,12 +38,12 @@ io_conduct()
 	local cmd_exec
 	if [ $operation == "READ" ]
 	then
-		cmd_args="$CLOVIS_LOCAL_EP $CLOVIS_HA_EP '$CLOVIS_PROF_OPT' '$CLOVIS_PROC_FID' /tmp $source"
+		cmd_args="$CLOVIS_LOCAL_EP $CLOVIS_HA_EP '$CLOVIS_PROF_OPT' '$CLOVIS_PROC_FID' $verify $source"
 		cmd_exec="${clovis_st_util_dir}/c0cat"
-		cmd_args="$cmd_args $BLOCKSIZE $BLOCKCOUNT $verify"
+		cmd_args="$cmd_args $BLOCKSIZE $BLOCKCOUNT"
 		local cmd="$cmd_exec $cmd_args > $dest &"
 	else
-		cmd_args="$CLOVIS_LOCAL_EP $CLOVIS_HA_EP '$CLOVIS_PROF_OPT' '$CLOVIS_PROC_FID' /tmp $dest $source"
+		cmd_args="$CLOVIS_LOCAL_EP $CLOVIS_HA_EP '$CLOVIS_PROF_OPT' '$CLOVIS_PROC_FID' $verify $dest $source"
 		cmd_exec="${clovis_st_util_dir}/c0cp"
 		cmd_args="$cmd_args $BLOCKSIZE $BLOCKCOUNT"
 		local cmd="$cmd_exec $cmd_args &"
@@ -109,6 +109,26 @@ error_handling()
 	exit $1
 }
 
+dix_init()
+{
+	local m0dixinit="$M0_SRC_DIR/dix/utils/m0dixinit"
+	local pverid=$(echo $DIX_PVERID | tr -d ^)
+	if [ ! -f $m0dixinit ] ; then
+		echo "Can't find m0dixinit"
+		return 1
+	fi
+
+	cmd="$m0dixinit -l $CLOVIS_LOCAL_EP -H $CLOVIS_HA_EP \
+	    -p '$CLOVIS_PROF_OPT' -I '$pverid' -d '$pverid' -a create"
+	echo $cmd
+	eval "$cmd"
+	if [ $? -ne 0 ]
+	then
+		echo "Failed to initialise kvs..."
+		return 1
+	fi
+}
+
 main()
 {
 
@@ -134,6 +154,9 @@ main()
 
 	mero_service_start
 
+	#Initialise dix
+	dix_init
+
 	#mount m0t1fs as well. This helps in two ways:
 	# 1) Currently clovis does not have a utility to check attributes of an
 	#    object. Hence checking of attributes is done by fetching them via
@@ -148,7 +171,7 @@ main()
 	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $mountopt || return 1
 
 	# write an object
-	io_conduct "WRITE" $src_file $OBJ_ID1
+	io_conduct "WRITE" $src_file $OBJ_ID1 "false"
 	if [ $rc -ne "0" ]
 	then
 		echo "Healthy mode, write failed."
@@ -156,7 +179,7 @@ main()
 	fi
 
 	# read the written object
-	io_conduct "READ" $OBJ_ID1  $dest_file
+	io_conduct "READ" $OBJ_ID1  $dest_file $read_verify
 	rc=$?
 	if [ $rc -ne "0" ]
 	then
@@ -199,7 +222,7 @@ main()
 
 	# Test degraded read
 	rm -f $dest_file
-	io_conduct "READ" $OBJ_ID1 $dest_file
+	io_conduct "READ" $OBJ_ID1 $dest_file "false"
 	rc=$?
 	if [ $rc -ne "0" ]
 	then
@@ -216,7 +239,7 @@ main()
 	rm -f $dest_file
 
 	# Test write, when a disk is failed
-	io_conduct "WRITE" $src_file $OBJ_ID2
+	io_conduct "WRITE" $src_file $OBJ_ID2 "false"
 	rc=$?
 	if [ $rc -ne "0" ]
 	then
@@ -242,7 +265,7 @@ main()
 	rm -f $dest_file
 
 	# Read a file from new pool version.
-	io_conduct "READ" $OBJ_ID2 $dest_file
+	io_conduct "READ" $OBJ_ID2 $dest_file $read_verify
 	rc=$?
 	if [ $rc -ne "0" ]
 	then
