@@ -1,0 +1,1 @@
+clovis_st_mt_c0mt_SOURCES = clovis/st/mt/clovis_mt.c clovis/st/mt/clovis_mt_fom.c

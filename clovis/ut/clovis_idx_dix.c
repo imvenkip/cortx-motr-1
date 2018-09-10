@@ -34,6 +34,7 @@
 #include "dix/layout.h"
 #include "dix/client.h"
 #include "dix/meta.h"
+#include "fop/fom_simple.h"     /* m0_fom_simple */
 
 #define WAIT_TIMEOUT               M0_TIME_NEVER
 #define SERVER_LOG_FILE_NAME       "cas_server.log"
@@ -638,6 +639,38 @@ struct m0_ut_suite ut_suite_clovis_idx_dix = {
 		{ "namei-ops-non-dist",  ut_dix_namei_ops_non_dist,    "Egor" },
 		{ "record-ops-dist",     ut_dix_record_ops_dist,       "Egor" },
 		{ "record-ops-non-dist", ut_dix_record_ops_non_dist,   "Egor" },
+		{ NULL, NULL }
+	}
+};
+
+static int ut_suite_clovis_mt_idx_dix_init(void)
+{
+	idx_dix_ut_init();
+	return 0;
+}
+
+static int ut_suite_clovis_mt_idx_dix_fini(void)
+{
+	idx_dix_ut_fini();
+	return 0;
+}
+
+extern void clovis_st_mt(void);
+extern void clovis_st_lsfid(void);
+
+struct m0_clovis* clovis_st_get_instance()
+{
+	return ut_m0c;
+}
+
+struct m0_ut_suite ut_suite_clovis_mt_idx_dix = {
+	.ts_name   = "clovis-idx-dix-mt",
+	.ts_owners = "Anatoliy",
+	.ts_init   = ut_suite_clovis_mt_idx_dix_init,
+	.ts_fini   = ut_suite_clovis_mt_idx_dix_fini,
+	.ts_tests  = {
+		{ "fom", clovis_st_mt,    "Anatoliy" },
+		{ "lsf", clovis_st_lsfid, "Anatoliy" },
 		{ NULL, NULL }
 	}
 };
