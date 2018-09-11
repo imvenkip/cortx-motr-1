@@ -32,7 +32,7 @@ id_sites:
                     if_network: Data
                     if_ipAddrs: [<%= dbfact['vlan_data_ip'] -%>]
                 h_halon:
-                  address: "<%= dbfact['vlan_data_ip'] -%>:<%= halon_port %>"
+                  address: "<%= dbfact['vlan_manage_ip'] -%>:<%= halon_port %>"
                   roles:
      <%- if dbfact['role'].include? 'station' or station_nodes.include? dbfact['vlan_data_ip'] -%>
                     - name: station
