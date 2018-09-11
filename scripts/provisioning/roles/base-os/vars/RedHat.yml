@@ -1,14 +1,19 @@
 ---
 basic_tools_pkgs:
+  - dstat
+  - emacs
+  - ipmitool
+  - pdsh
+  - rsync
+  - sysstat
   - tmux
   - vim
-  - emacs
-  - pdsh
+  - wget
   # machine autodicovery by hostname
   - avahi
   - avahi-tools
-  - nss-mdns
   - bind-utils
+  - nss-mdns
   # remote syslog
   - systemd-journal-gateway
 
@@ -16,6 +21,7 @@ devel_tools_pkgs:
   - crash
   - expect
   - gdb
+  - jq
   - ltrace
   - perf
   - psmisc
