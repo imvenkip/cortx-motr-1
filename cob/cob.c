@@ -1807,6 +1807,17 @@ out:
 
 }
 
+M0_INTERNAL int m0_cob_size_update(struct m0_cob *cob, uint64_t size,
+				   struct m0_be_tx *tx)
+{
+	int rc;
+
+	cob->co_nsrec.cnr_size = size;
+	rc = m0_cob_update(cob, &cob->co_nsrec, NULL, NULL, tx);
+
+	return rc != 0 ? M0_ERR(rc) : M0_RC(rc);
+}
+
 M0_INTERNAL int m0_cob_ea_get(struct m0_cob *cob,
                               struct m0_cob_eakey *eakey,
                               struct m0_cob_earec *out,

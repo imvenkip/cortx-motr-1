@@ -191,6 +191,8 @@ struct m0_io_fom_cob_rw {
 	m0_bcount_t                      fcrw_count;
 	/** Stob block shift */
 	uint32_t                         fcrw_bshift;
+	/** New cob size in case of update */
+	uint64_t                         fcrw_cob_size;
 
 	/**
 	 * Summary index vector representing the extent information
@@ -204,6 +206,8 @@ struct m0_io_fom_cob_rw {
 	struct m0_net_buffer_pool       *fcrw_bp;
 	/** Stob object on which this FOM is acting. */
 	struct m0_stob		        *fcrw_stob;
+	/** Cob object corresponding to the stob. */
+	struct m0_cob                   *fcrw_cob;
 	/** Array of all stob IOs we are going to fire (fcrw_ndesc in size). */
 	struct m0_stob_io_desc          *fcrw_stio;
 	/** The list of fired stob IOs. */
@@ -270,6 +274,7 @@ M0_INTERNAL const char *m0_io_fom_cob_rw_service_name(struct m0_fom *fom);
 M0_INTERNAL int m0_io_cob_create(struct m0_cob_domain *cdom,
 				 struct m0_fid *fid,
 				 struct m0_fid *pver,
+				 uint64_t lid,
 				 struct m0_be_tx *tx);
 /**
  * If cob of different version exists, it will delete it and recreate the
@@ -280,8 +285,11 @@ M0_INTERNAL int m0_io_cob_stob_create(struct m0_fom *fom,
 				      struct m0_cob_domain *ios_cdom,
 				      struct m0_fid *fid,
 				      struct m0_fid *pver,
+				      uint64_t lid,
 				      bool crow,
 				      struct m0_cob **out);
+
+M0_INTERNAL uint64_t m0_io_size(struct m0_stob_io *sio, uint32_t bshift);
 
 /** @} end of io_foms */
 

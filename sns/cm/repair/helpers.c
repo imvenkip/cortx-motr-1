@@ -57,7 +57,6 @@ static int repair_ag_in_cp_units(const struct m0_sns_cm *scm,
 	uint32_t                    local_spares = 0;
 	uint32_t                    tgt_unit_prev;
 	uint64_t                    unit;
-	uint64_t                    nr_total_du;
 	int                         rc = 0;
 	int                         i;
 
@@ -69,16 +68,13 @@ static int repair_ag_in_cp_units(const struct m0_sns_cm *scm,
 	sa.sa_group = agid2group(id);
 	pm = fctx->sf_pm;
 	pl = m0_layout_to_pdl(fctx->sf_layout);
-	nr_total_du = m0_sns_cm_file_data_units(fctx);
 	rc = m0_bitmap_init(&proxy_map, scm->sc_base.cm_proxy_nr);
 	if (rc != 0)
 		return M0_ERR(rc);
 	for (unit = 0; unit < m0_sns_cm_ag_size(pl); ++unit) {
 		sa.sa_unit = unit;
 		m0_sns_cm_unit2cobfid(fctx, &sa, &ta, &cobfid);
-		if (m0_sns_cm_unit_is_spare(fctx, sa.sa_group, unit) ||
-		    m0_sns_cm_file_unit_is_EOF(pl, nr_total_du, sa.sa_group,
-					       unit))
+		if (m0_sns_cm_unit_is_spare(fctx, sa.sa_group, unit))
 			continue;
 
 		is_failed = scm->sc_helpers->sch_is_cob_failed(pm, ta.ta_obj);
@@ -113,7 +109,8 @@ static int repair_ag_in_cp_units(const struct m0_sns_cm *scm,
 					 m0_streq(ep, pxy->px_endpoint));
 			m0_confc_close(svc);
 			if (M0_IN(pxy->px_status, (M0_PX_STOP, M0_PX_FAILED))) {
-				rc = pxy->px_status == M0_PX_STOP ? -ESHUTDOWN : -EHOSTDOWN;
+				rc = pxy->px_status == M0_PX_STOP ? -ESHUTDOWN :
+								     -EHOSTDOWN;
 				m0_bitmap_fini(&proxy_map);
 				return M0_ERR_INFO(rc, " %s", pxy->px_endpoint);
 			}
@@ -163,7 +160,6 @@ static bool repair_ag_is_relevant(struct m0_sns_cm *scm,
 	uint32_t                    K;
 	uint32_t                    j;
 	uint32_t                    spare;
-	uint32_t                    nr_max_du;
 	struct m0_pdclust_layout   *pl;
 	struct m0_poolmach         *pm;
 	int                         rc;
@@ -175,7 +171,6 @@ static bool repair_ag_is_relevant(struct m0_sns_cm *scm,
 	pl = m0_layout_to_pdl(fctx->sf_layout);
 	N = m0_sns_cm_ag_nr_data_units(pl);
 	K = m0_sns_cm_ag_nr_parity_units(pl);
-	nr_max_du = m0_sns_cm_file_data_units(fctx);
 	sa.sa_group = group;
 	for (j = N + K; j < N + 2 * K; ++j) {
 		sa.sa_unit = j;
@@ -187,7 +182,8 @@ static bool repair_ag_is_relevant(struct m0_sns_cm *scm,
 		spare = j;
 		do {
 			m0_sns_cm_fctx_lock(fctx);
-			rc = m0_sns_repair_data_map(pm, pl, fctx->sf_pi, group, spare, &data_unit);
+			rc = m0_sns_repair_data_map(pm, pl, fctx->sf_pi, group,
+						    spare, &data_unit);
 			m0_sns_cm_fctx_unlock(fctx);
 			if (rc != 0)
 				break;
@@ -198,8 +194,7 @@ static bool repair_ag_is_relevant(struct m0_sns_cm *scm,
 			continue;
 		sa.sa_unit = data_unit;
 		m0_sns_cm_unit2cobfid(fctx, &sa, &ta, &cobfid);
-		if (m0_sns_cm_is_cob_repairing(pm, ta.ta_obj) &&
-		    !m0_sns_cm_file_unit_is_EOF(pl, nr_max_du, sa.sa_group, sa.sa_unit))
+		if (m0_sns_cm_is_cob_repairing(pm, ta.ta_obj))
 			return true;
 	}
 

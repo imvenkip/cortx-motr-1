@@ -55,10 +55,6 @@ M0_INTERNAL uint32_t m0_sns_cm_device_index_get(uint64_t group,
 M0_INTERNAL uint64_t m0_sns_cm_ag_unit2cobindex(struct m0_sns_cm_ag *sag,
 						uint64_t unit);
 
-M0_INTERNAL uint64_t m0_sns_cm_nr_groups(struct m0_pdclust_layout *pl,
-					 uint64_t fsize);
-
-
 /**
  * Searches for given cob_fid in the local cob domain.
  */

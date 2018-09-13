@@ -53,6 +53,8 @@ struct m0_sns_cm_iter_file_ctx {
 	/** pdclust instance for a particular GOB. */
 	struct m0_pdclust_instance   *ifc_pi;
 
+	struct m0_poolmach           *ifc_pm;
+
 	/** Total number of units (i.e. N + 2K) in a parity group. */
 	uint32_t                      ifc_upg;
 
@@ -60,7 +62,7 @@ struct m0_sns_cm_iter_file_ctx {
 	uint32_t                      ifc_dpupg;
 
 	/** Total number of parity groups in file. */
-	uint64_t                      ifc_groups_nr;
+	uint64_t                      ifc_group_last;
 
 	/**
 	 * Unit within a particular parity group corresponding to
@@ -75,21 +77,8 @@ struct m0_sns_cm_iter_file_ctx {
 	 */
 	struct m0_pdclust_tgt_addr    ifc_ta;
 
-	/**
-	 * Total number of failed units in an aggregation group represented by
-	 * m0_sns_cm_iter_file_ctx::ifc_sa.sa_group
-	 */
-	uint64_t                      ifc_group_nr_fail_units;
-
 	/** COB fid corresponding to m0_sns_cm_iter_file_ctx::ifc_ta. */
 	struct m0_fid                 ifc_cob_fid;
-
-	/**
-	 * Attributes of the current fid.
-	 * @note This should be moved to some fid cache structure, once it is
-	 * implemented.
-	 */
-	struct m0_cob_attr            ifc_cob_attr;
 
 	bool                          ifc_cob_is_spare_unit;
 };
@@ -162,6 +151,12 @@ M0_INTERNAL uint64_t
 m0_sns_cm_iter_failures_nr(const struct m0_sns_cm_iter *it);
 
 M0_INTERNAL ssize_t m0_sns_cm_iter_file_size(struct m0_fid *gfid);
+
+/**
+ * Returns struct m0_poolmach for the given file identified by @gfid.
+ */
+M0_INTERNAL int m0_sns_cm_fctx_pm(struct m0_sns_cm_file_ctx *fctx, struct m0_fid *gfid,
+				  struct m0_poolmach **mach);
 
 /** @} SNSCM */
 #endif /* __MERO_SNS_CM_ITER_H__ */

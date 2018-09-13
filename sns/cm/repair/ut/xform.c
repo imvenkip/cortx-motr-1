@@ -84,7 +84,7 @@ static struct m0_sns_cm_cp                    n_cp[MULTI_FAIL_MULTI_CP_NR];
 static struct m0_net_buffer                   n_buf[MULTI_FAIL_MULTI_CP_NR][BUF_NR];
 static struct m0_net_buffer                   n_acc_buf[MULTI_FAILURES][BUF_NR];
 
-M0_INTERNAL void cob_create(struct m0_cob_domain *cdom,
+M0_INTERNAL void cob_create(struct m0_reqh *reqh, struct m0_cob_domain *cdom,
 			    struct m0_be_domain *bedom,
                             uint64_t cont, struct m0_fid *gfid,
 			    uint32_t cob_idx);
@@ -234,7 +234,7 @@ static void tgt_fid_cob_create(struct m0_reqh *reqh)
         int		  rc;
 
 	m0_ios_cdom_get(reqh, &cdom);
-        cob_create(cdom, reqh->rh_beseg->bs_domain, 0, &gob_fid,
+        cob_create(reqh, cdom, reqh->rh_beseg->bs_domain, 0, &gob_fid,
 		   m0_fid_cob_device_id(&cob_fid));
 	m0_fid_convert_cob2stob(&cob_fid, &stob_id);
 	rc = m0_ut_stob_create_by_stob_id(&stob_id, NULL);

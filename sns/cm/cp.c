@@ -166,6 +166,7 @@ M0_INTERNAL int m0_sns_cm_cp_tx_open(struct m0_cm_cp *cp)
 		m0_cc_stob_cr_credit(&sns_cp->sc_stob_id, cred);
 		m0_cob_tx_credit(m0_sns_cm_cp2cdom(cp), M0_COB_OP_CREATE, cred);
 		m0_cob_tx_credit(m0_sns_cm_cp2cdom(cp), M0_COB_OP_DELETE, cred);
+		m0_cob_tx_credit(m0_sns_cm_cp2cdom(cp), M0_COB_OP_UPDATE, cred);
 		m0_stob_io_credit(&sns_cp->sc_stio, dom, cred);
 		sns_cm_cp_stob_punch_credit(sns_cp, cred);
 		m0_dtx_open(dtx);

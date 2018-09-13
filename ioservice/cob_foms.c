@@ -66,6 +66,7 @@ static int cob_attr_get(struct m0_cob      *cob,
 			struct m0_cob_attr *attr);
 static void cob_stob_create_credit(struct m0_fom *fom);
 static int cob_stob_delete_credit(struct m0_fom *fom);
+static struct m0_cob_domain *cdom_get(const struct m0_fom *fom);
 
 enum {
 	CC_COB_VERSION_INIT	= 0,
@@ -716,6 +717,22 @@ static int cob_ops_fom_tick(struct m0_fom *fom)
 		} else {
 			rc = ce_stob_edit(fom, cob_op, M0_COB_OP_TRUNCATE);
 			if (cob_op->fco_is_done) {
+				struct m0_cob       *cob;
+				struct m0_cob_oikey  oikey;
+
+				m0_cob_oikey_make(&oikey, &cob_op->fco_cfid, 0);
+				rc = m0_cob_locate(cdom_get(fom), &oikey, 0,
+						   &cob);
+				if (rc == 0) {
+					/*
+					 * Update cob size to 0 in case of
+					 * truncate, as we do not support
+					 * partial truncate.
+					 */
+					rc = m0_cob_size_update(cob, 0,
+								m0_fom_tx(fom));
+					m0_cob_put(cob);
+				}
 				m0_storage_dev_stob_put(m0_cs_storage_devs_get(),
 							cob_op->fco_stob);
 			}
@@ -1087,6 +1104,11 @@ static int ce_stob_edit_credit(struct m0_fom *fom, struct m0_fom_cob_op *cc,
 	M0_ASSERT(M0_IN(m0_stob_state_get(stob), (CSS_EXISTS, CSS_DELETE)));
 
 	rc = m0_stob_punch_credit(stob, NULL, accum);
+
+	/* To update the cob size post truncate. */
+	if (rc == 0 && cot == M0_COB_OP_TRUNCATE)
+		cob_op_credit(fom, M0_COB_OP_UPDATE, accum);
+
 	return M0_RC(rc);
 }
 

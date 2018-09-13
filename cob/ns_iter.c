@@ -51,12 +51,14 @@ M0_INTERNAL int m0_cob_ns_iter_init(struct m0_cob_fid_ns_iter *iter,
 	return 0;
 }
 
-M0_INTERNAL int m0_cob_ns_next_of(struct m0_be_btree *cob_namespace,
-				  const struct m0_fid *key_gfid,
-				  struct m0_fid *next_gfid)
+M0_INTERNAL int m0_cob_ns_rec_of(struct m0_be_btree *cob_namespace,
+				 const struct m0_fid *key_gfid,
+				 struct m0_fid *next_gfid,
+				 struct m0_cob_nsrec **nsrec)
 {
         struct m0_cob_nskey       *key = NULL;
         struct m0_buf              kbuf;
+        struct m0_buf              nbuf;
         struct m0_be_btree_cursor  it;
 	uint32_t                   cob_idx = 0;
         char                       nskey_bs[UINT32_STR_LEN];
@@ -82,9 +84,9 @@ M0_INTERNAL int m0_cob_ns_next_of(struct m0_be_btree *cob_namespace,
 		 */
 		struct m0_cob_nskey* k;
 
-		m0_be_btree_cursor_kv_get(&it, &kbuf, NULL);
+		m0_be_btree_cursor_kv_get(&it, &kbuf, &nbuf);
 		k = (struct m0_cob_nskey *)kbuf.b_addr;
-
+		*nsrec = (struct m0_cob_nsrec *)nbuf.b_addr;
 		*next_gfid = k->cnk_pfid;
 	}
 	m0_free(key);
@@ -94,20 +96,22 @@ M0_INTERNAL int m0_cob_ns_next_of(struct m0_be_btree *cob_namespace,
 }
 
 M0_INTERNAL int m0_cob_ns_iter_next(struct m0_cob_fid_ns_iter *iter,
-                                    struct m0_fid *gfid)
+				    struct m0_fid *gfid,
+				    struct m0_cob_nsrec **nsrec)
 {
-	int                  rc;
-	struct m0_fid        key_fid;
+	int           rc;
+	struct m0_fid key_fid;
 
 	M0_PRE(ns_iter_invariant(iter));
 	M0_PRE(gfid != NULL);
 
 	key_fid = iter->cni_last_fid;
-	rc = m0_cob_ns_next_of(&iter->cni_cdom->cd_namespace, &key_fid, gfid);
+	rc = m0_cob_ns_rec_of(&iter->cni_cdom->cd_namespace, &key_fid, gfid,
+			      nsrec);
 	if (rc == 0) {
 		/* Container (f_container) value remains same, typically 0. */
 		iter->cni_last_fid.f_container = gfid->f_container;
-		/* Increment the f_key by 1, to exploit cursor_get() property. */
+		/* Increment the f_key by 1, to exploit cursor_get() property.*/
 		iter->cni_last_fid.f_key = gfid->f_key + 1;
 	}
 

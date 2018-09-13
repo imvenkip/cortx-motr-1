@@ -901,6 +901,9 @@ M0_INTERNAL int m0_cob_fabrec_make(struct m0_cob_fabrec **rech,
 M0_INTERNAL int m0_cob_setattr(struct m0_cob *cob,
 			       struct m0_cob_attr *attr,
 			       struct m0_be_tx *tx);
+
+M0_INTERNAL int m0_cob_size_update(struct m0_cob *cob, uint64_t size,
+				   struct m0_be_tx *tx);
 /**
  * Try to allocate new omgid using omg table and terminator record. Save
  * allocated id in @omgid if not NULL.

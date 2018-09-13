@@ -63,8 +63,12 @@ struct m0_sns_cm_file_ctx {
 
 	struct m0_cob_attr          sf_attr;
 
+	uint64_t                    sf_max_group;
+
 	/** Poolmach for this file. */
 	struct m0_poolmach         *sf_pm;
+
+	struct m0_pooldev          *sf_pd;
 
 	struct m0_layout           *sf_layout;
 

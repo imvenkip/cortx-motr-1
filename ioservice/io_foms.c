@@ -876,6 +876,7 @@ enum {
 M0_INTERNAL int m0_io_cob_create(struct m0_cob_domain *cdom,
 				 struct m0_fid *fid,
 				 struct m0_fid *pver,
+				 uint64_t lid,
 				 struct m0_be_tx *tx)
 {
 	int                   rc;
@@ -900,6 +901,7 @@ M0_INTERNAL int m0_io_cob_create(struct m0_cob_domain *cdom,
 	nsrec.cnr_fid   = *fid;
 	nsrec.cnr_nlink = 1;
 	nsrec.cnr_pver  = *pver;
+	nsrec.cnr_lid   = lid;
 
 	rc = m0_cob_create(cob, nskey, &nsrec, NULL, NULL, tx);
 	if (rc != 0)
@@ -923,14 +925,15 @@ M0_INTERNAL int m0_io_cob_stob_create(struct m0_fom *fom,
 				      struct m0_cob_domain *cdom,
 				      struct m0_fid *fid,
 				      struct m0_fid *pver,
+				      uint64_t lid,
 				      bool crow,
 				      struct m0_cob **out)
 {
-	struct m0_cob_oikey  oikey;
-	struct m0_cob       *cob;
-	struct m0_stob_id    stob_id;
-	bool                 cob_recreate = false;
-	int                  rc;
+	struct m0_cob_oikey   oikey;
+	struct m0_cob        *cob;
+	struct m0_stob_id     stob_id;
+	bool                  cob_recreate = false;
+	int                   rc;
 
 	M0_ENTRY("COB:"FID_F"pver:"FID_F, FID_P(fid), FID_P(pver));
 	m0_cob_oikey_make(&oikey, fid, 0);
@@ -952,7 +955,7 @@ M0_INTERNAL int m0_io_cob_stob_create(struct m0_fom *fom,
 	if (rc == 0 && cob_recreate) {
 		if (cob != NULL)
 			m0_cob_put(cob);
-		rc = m0_io_cob_create(cdom, fid, pver, m0_fom_tx(fom)) ?:
+		rc = m0_io_cob_create(cdom, fid, pver, lid, m0_fom_tx(fom)) ?:
 		     m0_cob_locate(cdom, &oikey, 0, &cob);
 	}
 
@@ -967,19 +970,21 @@ static int io_fom_cob2file(struct m0_fom *fom, struct m0_fid *fid,
 {
 	int                      rc;
 	struct m0_io_fom_cob_rw *fom_obj;
-	struct m0_cob           *cob;
 	struct m0_fid           *pver;
+	struct m0_fop_cob_rw    *rwfop;
 	bool                     crow;
 
 	M0_PRE(fom != NULL);
 	M0_PRE(m0_fid_is_set(fid));
 
+	rwfop = io_rw_get(fom->fo_fop);
 	fom_obj = container_of(fom, struct m0_io_fom_cob_rw, fcrw_gen);
 	pver = &fom_obj->fcrw_pver->pv_id;
 	crow = fom_obj->fcrw_flags & M0_IO_FLAG_CROW;
-	rc = m0_io_cob_stob_create(fom, fom_cdom(fom), fid, pver, crow, &cob);
+	rc = m0_io_cob_stob_create(fom, fom_cdom(fom), fid, pver, rwfop->crw_lid,
+				   crow, &fom_obj->fcrw_cob);
 	if (rc == 0)
-		*out = &cob->co_file;
+		*out = &fom_obj->fcrw_cob->co_file;
 
 	return M0_RC(rc);
 }
@@ -1055,6 +1060,7 @@ static int stob_object_find(struct m0_fom *fom)
 	struct m0_io_fom_cob_rw *fom_obj;
 	struct m0_stob_id        stob_id;
 	struct m0_fop_cob_rw    *rwfop;
+	struct m0_cob_oikey      oikey;
 	int                      rc;
 
 	M0_PRE(fom != NULL);
@@ -1070,6 +1076,12 @@ static int stob_object_find(struct m0_fom *fom)
 	rc = m0_storage_dev_stob_find(devs, &stob_id, &fom_obj->fcrw_stob);
 	if (rc != 0)
 		fom_obj->fcrw_stob = NULL;
+	m0_cob_oikey_make(&oikey, &rwfop->crw_fid, 0);
+	rc = m0_cob_locate(fom_cdom(fom), &oikey, 0, &fom_obj->fcrw_cob);
+	if (rc == -ENOENT) {
+		fom_obj->fcrw_cob = NULL;
+		rc = 0;
+	}
 
 	return rc;
 }
@@ -1119,6 +1131,7 @@ static int m0_io_fom_cob_rw_create(struct m0_fop *fop, struct m0_fom **out,
 
 	fom_obj->fcrw_fom_start_time      = m0_time_now();
 	fom_obj->fcrw_stob                = NULL;
+	fom_obj->fcrw_cob                 = NULL;
 	fom_obj->fcrw_ndesc               = rwfop->crw_desc.id_nr;
 	fom_obj->fcrw_curr_desc_index     = 0;
 	fom_obj->fcrw_curr_size           = 0;
@@ -1372,7 +1385,9 @@ static int net_buffer_acquire(struct m0_fom *fom)
 static int net_buffer_release(struct m0_fom *fom)
 {
 	int                      still_required;
+	int                      rc = 0;
 	struct m0_io_fom_cob_rw *fom_obj;
+	struct m0_cob           *cob;
 
 	M0_PRE(m0_fom_phase(fom) == M0_FOPH_IO_BUFFER_RELEASE);
 
@@ -1383,8 +1398,22 @@ static int net_buffer_release(struct m0_fom *fom)
 
 	nbuf_release_done(fom, still_required);
 
-	if (still_required == 0)
-	       m0_fom_phase_set(fom, M0_FOPH_SUCCESS);
+	if (still_required == 0) {
+		if (m0_is_write_fop(fom->fo_fop)) {
+			struct m0_fop_cob_rw *rwfop;
+			struct m0_cob_oikey   oikey;
+
+			rwfop = io_rw_get(fom->fo_fop);
+			m0_cob_oikey_make(&oikey, &rwfop->crw_fid, 0);
+			rc = m0_cob_locate(fom_cdom(fom), &oikey, 0, &fom_obj->fcrw_cob);
+			if (rc == 0) {
+				cob = fom_obj->fcrw_cob;
+				rc = m0_cob_size_update(cob, fom_obj->fcrw_cob_size, m0_fom_tx(fom));
+				m0_cob_put(cob);
+			}
+		}
+		m0_fom_phase_moveif(fom, rc, M0_FOPH_SUCCESS, M0_FOPH_FAILURE);
+	}
 
 	M0_LEAVE();
 	return M0_FSO_AGAIN;
@@ -1608,6 +1637,16 @@ static void stio_desc_fini(struct m0_stob_io_desc *stio_desc)
 	m0_free(stio->si_user.ov_buf);
 }
 
+M0_INTERNAL uint64_t m0_io_size(struct m0_stob_io *sio, uint32_t bshift)
+{
+	uint64_t last_io_off;
+	uint64_t off;
+
+	last_io_off = sio->si_stob.iv_vec.v_nr - 1;
+	off = (sio->si_stob.iv_index[last_io_off] + 1) << bshift;
+	return off;
+}
+
 /**
  * Launch STOB I/O
  * Helper function to launch STOB I/O.
@@ -1633,6 +1672,7 @@ static int io_launch(struct m0_fom *fom)
 	struct m0_fop_cob_rw    *rwfop;
 	struct m0_file          *file = NULL;
 	uint32_t                 index;
+	uint32_t                 bshift;
 
 	M0_PRE(fom != NULL);
 	M0_PRE(m0_is_io_fop(fom->fo_fop));
@@ -1646,6 +1686,7 @@ static int io_launch(struct m0_fom *fom)
 	M0_ASSERT(fom_obj->fcrw_io.si_stob.iv_vec.v_nr > 0);
 
 	fom_obj->fcrw_phase_start_time = m0_time_now();
+	bshift = fom_obj->fcrw_bshift;
 
 	fop   = fom->fo_fop;
 	rwfop = io_rw_get(fop);
@@ -1653,6 +1694,8 @@ static int io_launch(struct m0_fom *fom)
 	rc = io_fom_cob2file(fom, &rwfop->crw_fid, &file);
 	if (rc != 0)
 		goto out;
+
+	fom_obj->fcrw_cob_size = fom_obj->fcrw_cob->co_nsrec.cnr_size;
 
 	/*
 	  Since the upper layer IO block size could differ with IO block size
@@ -1708,7 +1751,6 @@ static int io_launch(struct m0_fom *fom)
 			stio_desc_fini(stio_desc);
 			break;
 		}
-
 		if (m0_is_write_fop(fop)) {
 			uint32_t di_size = m0_di_size_get(file, ivec_count);
 			uint32_t curr_pos = m0_di_size_get(file,
@@ -1725,6 +1767,8 @@ static int io_launch(struct m0_fom *fom)
 					  mem_ivec, &nb->nb_buffer,
 					  &cksum_data));
 			}
+			fom_obj->fcrw_cob_size = max64u(fom_obj->fcrw_cob_size,
+						m0_io_size(stio, bshift));
 		}
 		stio->si_opcode = m0_is_write_fop(fop) ? SIO_WRITE : SIO_READ;
 
@@ -2068,13 +2112,15 @@ static int m0_io_fom_cob_rw_tick(struct m0_fom *fom)
 	}
 	if (m0_fom_phase(fom) < M0_FOPH_NR && m0_is_write_fop(fom->fo_fop)) {
 		if (m0_fom_phase(fom) == M0_FOPH_TXN_OPEN) {
+			struct m0_be_tx_credit *accum;
+
+			accum = m0_fom_tx_credit(fom);
 			stob_be_credit(fom);
+			m0_cob_tx_credit(fom_cdom(fom), M0_COB_OP_UPDATE, accum);
 			if (fom_obj->fcrw_flags & M0_IO_FLAG_CROW) {
 				struct m0_stob_id stob_id;
-				struct m0_be_tx_credit *accum;
 				m0_fid_convert_cob2stob(&rwfop->crw_fid,
 							&stob_id);
-				accum = m0_fom_tx_credit(fom);
 				m0_cc_stob_cr_credit(&stob_id, accum);
 				m0_cob_tx_credit(fom_cdom(fom),
 						 M0_COB_OP_CREATE, accum);
