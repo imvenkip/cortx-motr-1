@@ -3,9 +3,12 @@ basic_tools_pkgs:
   - dstat
   - emacs
   - ipmitool
+  - nc
+  - nmap
   - pdsh
   - rsync
   - sysstat
+  - telnet
   - tmux
   - vim
   - wget
