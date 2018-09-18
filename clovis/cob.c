@@ -463,6 +463,7 @@ M0_INTERNAL void clovis_cob_rep_attr_copy(struct clovis_cob_req *cr)
 	M0_PRE(cr != NULL);
 	M0_PRE(cr->cr_cinst != NULL);
 	M0_PRE(cr->cr_cob_attr != NULL);
+	M0_PRE(cr->cr_rep_fop != NULL);
 
 	cinst = cr->cr_cinst;
 	cob_attr = cr->cr_cob_attr;
@@ -702,6 +703,7 @@ static void clovis_icr_ast(struct m0_sm_group *grp,
 			   struct m0_sm_ast *ast)
 {
 	int                        i = 0;
+	int                        icr_idx;
 	int                        rc;
 	bool                       all_replied = true;
 	struct clovis_ios_cob_req *icr;
@@ -718,11 +720,22 @@ static void clovis_icr_ast(struct m0_sm_group *grp,
         M0_PRE(clovis_ios_cob_req_invariant(icr));
 	cr = icr->icr_cr;
 	M0_ASSERT(cr->cr_ios_replied != NULL);
-	cr->cr_ios_replied[icr->icr_index] = true;
+	icr_idx = icr->icr_index;
+	cr->cr_ios_replied[icr_idx] = true;
 
-	/* Record the latest reply fop. */
-	cr->cr_rep_fop = m0_rpc_item_to_fop(
-		cr->cr_ios_fop[icr->icr_index]->f_item.ri_reply);
+	/*
+	 * MUST check the error code before getting the latest reply
+	 * fop from reply rpc item. Note that ar_rc records any
+	 * rpc item error (see clovis_cob_ios_rio_replied()). If
+	 * there is any error in a rpc item for some reason, the item
+	 * will be freed (internally in rpc sub-system), including the
+	 * reply item associated with it.
+	 */
+	if (ar->ar_rc == 0) {
+		M0_ASSERT(cr->cr_ios_fop[icr_idx]->f_item.ri_reply != NULL);
+		cr->cr_rep_fop = m0_rpc_item_to_fop(
+			cr->cr_ios_fop[icr_idx]->f_item.ri_reply);
+	}
 
 	/* Check if all replies are received. */
 	for (i = 0; i < cr->cr_icr_nr; ++i) {
@@ -1683,6 +1696,7 @@ static int clovis_cob_getattr_rep_rc(struct clovis_cob_req *cr)
 
 	M0_PRE(cr != NULL);
 	M0_PRE(cr->cr_cinst != NULL);
+	M0_PRE(cr->cr_rep_fop != NULL);
 
 	if (!cr->cr_cinst->m0c_config->cc_is_oostore) {
 		getattr_rep = m0_fop_data(cr->cr_rep_fop);
