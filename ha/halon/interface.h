@@ -267,11 +267,19 @@ struct m0_halon_interface {
  * @param debug_options        options that affect debugging. See below.
  * @param node_uuid            node UUID string. @see lib/uuid.h.
  *
- * Debug options:
- * - disable-compatibility-check   the Mero/Halon compatibility check is disabled
- *                                 if the option is present;
+ * Debug options (double quotes here are only for clarification):
+ * - "disable-compatibility-check"  Don't verify compatibility of Mero and
+ *                                  Halon versions.
+ * - "log-entrypoint"               Log steps of entrypoint request/reply
+ *                                  processing (M0_WARN logging level).
+ * - "log-link"                     Log life cycle of m0_ha_link
+ *                                  (M0_WARN level).
+ * - "log-msg"                      Log info about sent/received messages,
+ *                                  including delivery status (M0_WARN level).
+ *
  * The options can appear anywhere in the string, the code checks if the option
- * is present with strstr().
+ * is present with strstr(). Example: "log-link, log-msg".
+ *
  */
 int m0_halon_interface_init(struct m0_halon_interface **hi_out,
                             const char                 *build_git_rev_id,
