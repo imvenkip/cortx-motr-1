@@ -442,12 +442,15 @@ static struct m0_sm_conf halon_interface_sm_conf = {
 int m0_halon_interface_init(struct m0_halon_interface **hi_out,
                             const char                 *build_git_rev_id,
                             const char                 *build_configure_opts,
-                            bool                        disable_compat_check,
+                            const char                 *debug_options,
                             const char                 *node_uuid)
 {
 	struct m0_halon_interface_internal *hii;
+	bool                                disable_compat_check;
 	int                                 rc;
 
+	disable_compat_check = debug_options != NULL &&
+		strstr(debug_options, "disable-compatibility-check") != NULL;
 	if (!halon_interface_is_compatible(NULL, build_git_rev_id,
 	                                   build_configure_opts,
 					   disable_compat_check))

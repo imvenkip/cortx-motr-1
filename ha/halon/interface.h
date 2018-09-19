@@ -264,13 +264,19 @@ struct m0_halon_interface {
  * @param hi                   this structure should be zeroed.
  * @param build_git_rev_id     @see m0_build_info::bi_git_rev_id
  * @param build_configure_opts @see m0_build_info::bi_configure_opts
- * @param disable_compat_check disables compatibility check entirely if set
+ * @param debug_options        options that affect debugging. See below.
  * @param node_uuid            node UUID string. @see lib/uuid.h.
+ *
+ * Debug options:
+ * - disable-compatibility-check   the Mero/Halon compatibility check is disabled
+ *                                 if the option is present;
+ * The options can appear anywhere in the string, the code checks if the option
+ * is present with strstr().
  */
 int m0_halon_interface_init(struct m0_halon_interface **hi_out,
                             const char                 *build_git_rev_id,
                             const char                 *build_configure_opts,
-                            bool                        disable_compat_check,
+                            const char                 *debug_options,
                             const char                 *node_uuid);
 
 /**
