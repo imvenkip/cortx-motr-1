@@ -1954,7 +1954,7 @@ static int spiel__proc_is_to_update_stats(struct spiel_proc_item *proc,
 			m0_conf_obj_ha_update(proc_fid);
 	}
 	else {
-		rc = M0_ERR(-ENOENT);
+		rc = -ENOENT; /* this case is normal, don't use M0_ERR() */
 	}
 	m0_conf_diter_fini(&it);
 obj_close:
