@@ -938,28 +938,48 @@ static void btree_destroy(struct m0_be_btree *btree, struct m0_be_tx *tx)
 	head = node;
 	tail = node;
 
+	M0_BE_REG_GET_PTR(head, btree->bb_seg, tx);
 	head->b_next = NULL;
+	M0_BE_REG_PUT_PTR(head, btree->bb_seg, tx);
+
 	while (head != NULL) {
+/* g1 */	M0_BE_REG_GET_PTR(head, btree->bb_seg, tx);
 		if (!head->b_leaf) {
 			for (i = 0; i < head->b_nr_active + 1; i++) {
 				child = head->b_children[i];
+		/* g2 */	M0_BE_REG_GET_PTR(tail, btree->bb_seg, tx);
 				tail->b_next = child;
 				m0_format_footer_update(tail);
+		/* p2 */	M0_BE_REG_PUT_PTR(tail, btree->bb_seg, tx);
 				tail = child;
+		/* g3 */	M0_BE_REG_GET_PTR(child, btree->bb_seg, tx);
 				child->b_next = NULL;
+				m0_format_footer_update(child);
+		/* p3 */	M0_BE_REG_PUT_PTR(child, btree->bb_seg, tx);
 			}
-			m0_format_footer_update(child);
 		}
+/* p1 */	M0_BE_REG_PUT_PTR(head, btree->bb_seg, tx);
+
 		del_node = head;
+		/* head == del_node */
+		M0_BE_REG_GET_PTR(del_node, btree->bb_seg, tx);
 		head = head->b_next;
+
 		for (i = 0; i < del_node->b_nr_active; i++)
 			btree_pair_release(btree, tx, &del_node->b_key_vals[i]);
 		btree_node_free(del_node, btree, tx);
+		/* old head == del_node */
+		M0_BE_REG_PUT_PTR(del_node, btree->bb_seg, tx);
 	}
+
+	M0_BE_REG_GET_PTR(head, btree->bb_seg, tx);
 	m0_format_footer_update(head);
+	M0_BE_REG_PUT_PTR(head, btree->bb_seg, tx);
+
 	btree_root_set(btree, NULL);
 	mem_update(btree, tx, btree, sizeof(struct m0_be_btree));
 }
+
 
 /**
  * Truncate btree: delete all records and keep empty root node.
@@ -1333,6 +1353,7 @@ M0_INTERNAL void m0_be_btree_truncate(struct m0_be_btree *tree,
 				      m0_bcount_t         limit)
 {
 	M0_ENTRY("tree=%p", tree);
+	M0_BE_REG_GET_PTR(tree, btree->bb_seg, tx);
 	M0_PRE(tree->bb_root != NULL && tree->bb_ops != NULL);
 
 	btree_op_fill(op, tree, tx, M0_BBO_DESTROY, NULL);
@@ -1343,6 +1364,7 @@ M0_INTERNAL void m0_be_btree_truncate(struct m0_be_btree *tree,
 	btree_truncate(tree, tx, limit);
 
 	m0_rwlock_write_unlock(btree_rwlock(tree));
+	M0_BE_REG_PUT_PTR(tree, btree->bb_seg, tx);
 	op_tree(op)->t_rc = 0;
 	m0_be_op_done(op);
 	M0_LEAVE();
