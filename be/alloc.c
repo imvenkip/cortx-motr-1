@@ -238,16 +238,24 @@ be_allocator_call_stat_init(struct m0_be_allocator_call_stat *cstat)
 	};
 }
 
-static void be_allocator_call_stats_init(struct m0_be_allocator_call_stats *cs)
+static void be_allocator_call_stats_init(struct m0_be_allocator_call_stats *cs,
+                                         struct m0_be_tx                   *tx,
+                                         struct m0_be_allocator            *a)
 {
+	M0_BE_REG_GET_PTR(cs, a->ba_seg, tx);
 	be_allocator_call_stat_init(&cs->bacs_alloc_success);
 	be_allocator_call_stat_init(&cs->bacs_alloc_failure);
 	be_allocator_call_stat_init(&cs->bacs_free);
+	M0_BE_REG_PUT_PTR(cs, a->ba_seg, tx);
 }
 
 static void be_allocator_stats_init(struct m0_be_allocator_stats  *stats,
-				    struct m0_be_allocator_header *h)
+                                    struct m0_be_tx               *tx,
+				    struct m0_be_allocator_header *h,
+				    struct m0_be_allocator        *a)
 {
+	M0_BE_REG_GET_PTR(h, a->ba_seg, tx);
+	M0_BE_REG_GET_PTR(stats, a->ba_seg, tx);
 	*stats = (struct m0_be_allocator_stats){
 		.bas_chunk_overhead = sizeof(struct be_alloc_chunk),
 		.bas_stat0_boundary = M0_BE_ALLOCATOR_STATS_BOUNDARY,
@@ -257,9 +265,11 @@ static void be_allocator_stats_init(struct m0_be_allocator_stats  *stats,
 		.bas_space_free     = h->bah_size,
 		.bas_space_used     = 0,
 	};
-	be_allocator_call_stats_init(&stats->bas_total);
-	be_allocator_call_stats_init(&stats->bas_stat0);
-	be_allocator_call_stats_init(&stats->bas_stat1);
+	be_allocator_call_stats_init(&stats->bas_total, tx, a);
+	be_allocator_call_stats_init(&stats->bas_stat0, tx, a);
+	be_allocator_call_stats_init(&stats->bas_stat1, tx, a);
+	M0_BE_REG_PUT_PTR(stats, a->ba_seg, tx);
+	M0_BE_REG_PUT_PTR(h, a->ba_seg, tx);
 }
 
 static void
@@ -905,7 +915,7 @@ static int be_allocator_header_create(struct m0_be_allocator     *a,
 	M0_BE_OP_SYNC(op, m0_be_list_create(&h->bah_chunks, tx, &op,
 					    a->ba_seg, &chunks_all_tl));
 	m0_be_fl_create(&h->bah_fl, tx, a->ba_seg);
-	be_allocator_stats_init(&h->bah_stats, h);
+	be_allocator_stats_init(&h->bah_stats, tx, h, a);
 	be_allocator_stats_capture(a, ztype, tx);
 
 	/* init main chunk */
@@ -1310,6 +1320,7 @@ M0_INTERNAL void m0_be_free(struct m0_be_allocator *a,
 M0_INTERNAL void m0_be_alloc_stats(struct m0_be_allocator *a,
 				   struct m0_be_allocator_stats *out)
 {
+	/* XXX NO_PD */
 	m0_mutex_lock(&a->ba_lock);
 	M0_PRE_EX(m0_be_allocator__invariant(a, NULL));
 	*out = a->ba_h[M0_BAP_NORMAL]->bah_stats;
@@ -1326,6 +1337,7 @@ M0_INTERNAL void m0_be_alloc_stats_credit(struct m0_be_allocator *a,
 M0_INTERNAL void m0_be_alloc_stats_capture(struct m0_be_allocator *a,
                                            struct m0_be_tx        *tx)
 {
+	/* XXX NO_PD */
 	if (tx != NULL) {
 		m0_be_tx_capture(tx, &M0_BE_REG_PTR(a->ba_seg,
 					&a->ba_h[M0_BAP_NORMAL]->bah_stats));
