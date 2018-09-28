@@ -26,11 +26,11 @@
 #include "be/seg_internal.h"    /* m0_be_seg_hdr */
 #include "be/tx.h"              /* M0_BE_TX_CAPTURE_PTR */
 #include "be/op.h"              /* m0_be_op */
+#include "be/reg.h"             /* M0_BE_REG_GET_PTR */
 #include "lib/memory.h"         /* m0_addr_is_aligned */
 #include "lib/errno.h"          /* ENOSPC */
 #include "lib/misc.h"           /* memset, M0_BITS, m0_forall */
 #include "mero/magic.h"
-#include "be/domain.h"          /* m0_be_domain */
 
 /*
  * @addtogroup be
@@ -788,6 +788,7 @@ static int be_allocator_header_create(struct m0_be_allocator     *a,
 	if (size != 0 && size < sizeof *c + 1)
 		return M0_ERR(-ENOSPC);
 
+	M0_BE_REG_GET_PTR(h, a->ba_seg, tx);
 	h->bah_addr = (void *)offset;
 	h->bah_size = size;
 	M0_BE_TX_CAPTURE_PTR(a->ba_seg, tx, &h->bah_addr);
@@ -804,6 +805,7 @@ static int be_allocator_header_create(struct m0_be_allocator     *a,
 		c = be_alloc_chunk_add_after(a, ztype, tx, NULL, 0, size, true);
 		M0_ASSERT(c != NULL);
 	}
+	M0_BE_REG_PUT_PTR(h, a->ba_seg, tx);
 	return 0;
 }
 
@@ -814,6 +816,7 @@ static void be_allocator_header_destroy(struct m0_be_allocator     *a,
 	struct m0_be_allocator_header *h = a->ba_h[ztype];
 	struct be_alloc_chunk         *c;
 
+	M0_BE_REG_GET_PTR(h, a->ba_seg, tx);
 	/*
 	 * We destroy allocator when all objects are de-allocated. Therefore,
 	 * bah_chunks contains only 1 element. The list is empty for an unused
@@ -826,6 +829,7 @@ static void be_allocator_header_destroy(struct m0_be_allocator     *a,
 
 	m0_be_fl_destroy(&h->bah_fl, tx);
 	M0_BE_OP_SYNC(op, m0_be_list_destroy(&h->bah_chunks, tx, &op));
+	M0_BE_REG_PUT_PTR(h, a->ba_seg, tx);
 }
 
 M0_INTERNAL int m0_be_allocator_create(struct m0_be_allocator *a,
