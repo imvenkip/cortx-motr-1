@@ -400,8 +400,10 @@ static void be_alloc_size_capture(const struct m0_be_allocator *a,
 				  struct m0_be_tx *tx,
 				  struct be_alloc_chunk *c)
 {
+	M0_BE_REG_GET_PTR(c, a->ba_seg, tx);
 	if (tx != NULL)
 		M0_BE_TX_CAPTURE_PTR(a->ba_seg, tx, &c->bac_size);
+	M0_BE_REG_PUT_PTR(c, a->ba_seg, tx);
 }
 
 static bool be_alloc_mem_is_in(struct m0_be_allocator *a,
@@ -697,6 +699,8 @@ static void be_alloc_chunk_resize(struct m0_be_allocator *a,
 {
 	struct m0_be_allocator_header *h = a->ba_h[ztype];
 
+	M0_BE_REG_GET_PTR(h, a->ba_seg, tx);
+	M0_BE_REG_GET_PTR(c, a->ba_seg, tx);
 	M0_PRE(c->bac_zone == ztype);
 
 	if (c->bac_free)
@@ -705,6 +709,8 @@ static void be_alloc_chunk_resize(struct m0_be_allocator *a,
 	if (c->bac_free)
 		m0_be_fl_add(&h->bah_fl, tx, c);
 	be_alloc_size_capture(a, tx, c);
+	M0_BE_REG_PUT_PTR(c, a->ba_seg, tx);
+	M0_BE_REG_PUT_PTR(h, a->ba_seg, tx);
 }
 
 static struct be_alloc_chunk *
