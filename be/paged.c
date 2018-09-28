@@ -1708,7 +1708,10 @@ M0_INTERNAL void m0_be_pd_page_fini(struct m0_be_pd_page *page)
 
 	pages_tlink_fini(page);
 	m0_mutex_fini(&page->pp_lock);
-	M0_ASSERT_INFO(page->pp_ref == 0 && page->pp_state == M0_PPS_UNMAPPED,
+	M0_ASSERT_INFO(page->pp_ref == 0,
+		       "page=%p pp_addr=%p pp_cellar=%p pp_ref=%"PRIu64,
+		       page, page->pp_addr, page->pp_cellar, page->pp_ref);
+	M0_ASSERT_INFO(page->pp_state == M0_PPS_UNMAPPED,
 		       "page=%p pp_addr=%p pp_cellar=%p pp_ref=%"PRIu64,
 		       page, page->pp_addr, page->pp_cellar, page->pp_ref);
 	/* TODO check the current state */
