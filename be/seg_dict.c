@@ -88,7 +88,8 @@ M0_INTERNAL void m0_be_seg_dict_insert_credit(const struct m0_be_seg *seg,
 					      const char             *name,
 					      struct m0_be_tx_credit *accum)
 {
-	const struct m0_be_btree *tree = dict_get_const(seg);
+	/* XXX: const qualifier discarded */
+	struct m0_be_btree *tree = dict_get(seg);
 	M0_PRE(m0_be_seg__invariant(seg));
 
 	m0_be_btree_insert_credit(tree, 1, dict_ksize(name), dict_vsize(NULL),
@@ -99,7 +100,8 @@ M0_INTERNAL void m0_be_seg_dict_delete_credit(const struct m0_be_seg *seg,
 					      const char             *name,
 					      struct m0_be_tx_credit *accum)
 {
-	const struct m0_be_btree *tree = dict_get_const(seg);
+	/* XXX: const qualifier discarded */
+	struct m0_be_btree *tree = dict_get(seg);
 
 	M0_ENTRY("seg: %p", seg);
 	M0_PRE(m0_be_seg__invariant(seg));
@@ -111,7 +113,8 @@ M0_INTERNAL void m0_be_seg_dict_delete_credit(const struct m0_be_seg *seg,
 M0_INTERNAL void m0_be_seg_dict_create_credit(const struct m0_be_seg *seg,
 					      struct m0_be_tx_credit *accum)
 {
-	const struct m0_be_btree *tree = dict_get_const(seg);
+	/* XXX: const qualifier discarded */
+	struct m0_be_btree *tree = dict_get(seg);
 
 	M0_ENTRY("seg: %p", seg);
 	M0_PRE(m0_be_seg__invariant(seg));
@@ -122,6 +125,7 @@ M0_INTERNAL void m0_be_seg_dict_create_credit(const struct m0_be_seg *seg,
 M0_INTERNAL void m0_be_seg_dict_destroy_credit(const struct m0_be_seg *seg,
 					       struct m0_be_tx_credit *accum)
 {
+	/* XXX: const qualifier discarded */
 	struct m0_be_btree *tree = dict_get(seg);
 
 	M0_PRE(m0_be_seg__invariant(seg));

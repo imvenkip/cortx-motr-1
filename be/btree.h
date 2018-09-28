@@ -186,7 +186,7 @@ M0_INTERNAL void m0_be_btree_truncate(struct m0_be_btree *tree,
  * Calculates the credit needed to create @nr nodes and adds this credit to
  * @accum.
  */
-M0_INTERNAL void m0_be_btree_create_credit(const struct m0_be_btree *tree,
+M0_INTERNAL void m0_be_btree_create_credit(struct m0_be_btree *tree,
 					   m0_bcount_t nr,
 					   struct m0_be_tx_credit *accum);
 
@@ -224,7 +224,7 @@ M0_INTERNAL void m0_be_btree_clear_credit(struct m0_be_btree     *tree,
  * @param ksize  Key data size.
  * @param vsize  Value data size.
  */
-M0_INTERNAL void m0_be_btree_insert_credit(const struct m0_be_btree *tree,
+M0_INTERNAL void m0_be_btree_insert_credit(struct m0_be_btree *tree,
 					   m0_bcount_t nr,
 					   m0_bcount_t ksize,
 					   m0_bcount_t vsize,
@@ -239,7 +239,7 @@ M0_INTERNAL void m0_be_btree_insert_credit(const struct m0_be_btree *tree,
  * is more filled up because the number of required credits exceed the
  * maximum size of possible credits in the transaction.
  */
-M0_INTERNAL void m0_be_btree_insert_credit2(const struct m0_be_btree *tree,
+M0_INTERNAL void m0_be_btree_insert_credit2(struct m0_be_btree *tree,
 					    m0_bcount_t nr,
 					    m0_bcount_t ksize,
 					    m0_bcount_t vsize,
@@ -254,7 +254,7 @@ M0_INTERNAL void m0_be_btree_insert_credit2(const struct m0_be_btree *tree,
  * @param ksize  Key data size.
  * @param vsize  Value data size.
  */
-M0_INTERNAL void m0_be_btree_delete_credit(const struct m0_be_btree *tree,
+M0_INTERNAL void m0_be_btree_delete_credit(struct m0_be_btree *tree,
 						 m0_bcount_t nr,
 						 m0_bcount_t ksize,
 						 m0_bcount_t vsize,
@@ -270,7 +270,7 @@ M0_INTERNAL void m0_be_btree_delete_credit(const struct m0_be_btree *tree,
  * @param nr     Number of @optype operations.
  * @param vsize  Value data size.
  */
-M0_INTERNAL void m0_be_btree_update_credit(const struct m0_be_btree *tree,
+M0_INTERNAL void m0_be_btree_update_credit(struct m0_be_btree *tree,
 						 m0_bcount_t nr,
 						 m0_bcount_t vsize,
 						 struct m0_be_tx_credit *accum);
@@ -283,7 +283,7 @@ M0_INTERNAL void m0_be_btree_update_credit(const struct m0_be_btree *tree,
  * @param ksize  Key data size.
  * @param vsize  Value data size.
  */
-M0_INTERNAL void m0_be_btree_update_credit2(const struct m0_be_btree *tree,
+M0_INTERNAL void m0_be_btree_update_credit2(struct m0_be_btree *tree,
 					    m0_bcount_t               nr,
 					    m0_bcount_t               ksize,
 					    m0_bcount_t               vsize,

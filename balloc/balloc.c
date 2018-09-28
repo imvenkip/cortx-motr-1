@@ -883,8 +883,8 @@ static int balloc_format(struct m0_balloc *bal,
 	return M0_RC(rc);
 }
 
-static void balloc_gi_sync_credit(const struct m0_balloc *cb,
-					struct m0_be_tx_credit *accum)
+static void balloc_gi_sync_credit(struct m0_balloc *cb,
+				  struct m0_be_tx_credit *accum)
 {
 	m0_be_btree_update_credit(&cb->cb_db_group_desc, 1,
 		sizeof(struct m0_balloc_group_desc), accum);
@@ -1500,10 +1500,10 @@ static void balloc_sb_sync_credit(const struct m0_balloc *bal,
 	m0_be_tx_credit_add(accum, &cred);
 }
 
-static void balloc_db_update_credit(const struct m0_balloc *bal, int nr,
-					  struct m0_be_tx_credit *accum)
+static void balloc_db_update_credit(struct m0_balloc *bal, int nr,
+				    struct m0_be_tx_credit *accum)
 {
-	const struct m0_be_btree *tree = &bal->cb_db_group_extents;
+	struct m0_be_btree *tree = &bal->cb_db_group_extents;
 	struct m0_be_tx_credit    cred = {};
 
 	m0_be_btree_delete_credit(tree, 1,
@@ -2264,7 +2264,7 @@ static void
 balloc_alloc_credit(const struct m0_ad_balloc *balroom, int nr,
 			  struct m0_be_tx_credit *accum)
 {
-	const struct m0_balloc	*bal = b2m0(balroom);
+	struct m0_balloc *bal = b2m0(balroom);
 
 	M0_ENTRY("cred=[%lu:%lu] nr=%d",
 		(unsigned long)accum->tc_reg_nr,
