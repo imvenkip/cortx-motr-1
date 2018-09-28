@@ -275,19 +275,26 @@ static void be_allocator_stats_init(struct m0_be_allocator_stats  *stats,
 static void
 be_allocator_call_stat_update(struct m0_be_allocator_call_stat *cstat,
                               unsigned long                     nr,
-                              m0_bcount_t                       size)
+                              m0_bcount_t                       size,
+                              struct m0_be_tx                  *tx,
+                              struct m0_be_allocator           *a)
 {
+	M0_BE_REG_GET_PTR(cstat, a->ba_seg, tx);
 	cstat->bcs_nr   += nr;
 	cstat->bcs_size += size;
+	M0_BE_REG_PUT_PTR(cstat, a->ba_seg, tx);
 }
 
 static void
 be_allocator_call_stats_update(struct m0_be_allocator_call_stats *cs,
 			       m0_bcount_t                        size,
 			       bool                               alloc,
-			       bool                               failed)
+			       bool                               failed,
+			       struct m0_be_tx                   *tx,
+			       struct m0_be_allocator            *a)
 {
 	struct m0_be_allocator_call_stat *cstat;
+
 	if (alloc && failed) {
 		cstat = &cs->bacs_alloc_failure;
 	} else if (alloc) {
@@ -295,7 +302,7 @@ be_allocator_call_stats_update(struct m0_be_allocator_call_stats *cs,
 	} else {
 		cstat = &cs->bacs_free;
 	}
-	be_allocator_call_stat_update(cstat, 1, size);
+	be_allocator_call_stat_update(cstat, 1, size, tx, a);
 }
 
 static void
@@ -310,8 +317,11 @@ be_allocator_call_stats_print(struct m0_be_allocator_call_stats *cs,
 #undef P_ACS
 }
 
-static void be_allocator_stats_print(struct m0_be_allocator_stats *stats)
+static void be_allocator_stats_print(struct m0_be_allocator_stats *stats,
+                                     struct m0_be_tx              *tx,
+                                     struct m0_be_allocator       *a)
 {
+	M0_BE_REG_GET_PTR(stats, a->ba_seg, tx);
 	M0_LOG(M0_DEBUG, "stats=%p chunk_overhead=%lu boundary=%lu "
 	       "print_interval=%lu print_index=%lu",
 	       stats, stats->bas_chunk_overhead, stats->bas_stat0_boundary,
@@ -321,12 +331,15 @@ static void be_allocator_stats_print(struct m0_be_allocator_stats *stats)
 	be_allocator_call_stats_print(&stats->bas_total, "           total");
 	be_allocator_call_stats_print(&stats->bas_stat0, "size <= boundary");
 	be_allocator_call_stats_print(&stats->bas_stat1, "size >  boundary");
+	M0_BE_REG_PUT_PTR(stats, a->ba_seg, tx);
 }
 
 static void be_allocator_stats_update(struct m0_be_allocator_stats *stats,
                                       m0_bcount_t                   size,
                                       bool                          alloc,
-				      bool                          failed)
+				      bool                          failed,
+				      struct m0_be_tx              *tx,
+				      struct m0_be_allocator       *a)
 {
 	unsigned long space_change;
 	long          multiplier;
@@ -335,16 +348,19 @@ static void be_allocator_stats_update(struct m0_be_allocator_stats *stats,
 
 	multiplier   = failed ? 0 : alloc ? 1 : -1;
 	space_change = size + stats->bas_chunk_overhead;
+	M0_BE_REG_GET_PTR(stats, a->ba_seg, tx);
 	stats->bas_space_used += multiplier * space_change;
 	stats->bas_space_free -= multiplier * space_change;
-	be_allocator_call_stats_update(&stats->bas_total, size, alloc, failed);
+	be_allocator_call_stats_update(&stats->bas_total, size, alloc, failed,
+	                               tx, a);
 	be_allocator_call_stats_update(size <= stats->bas_stat0_boundary ?
 				       &stats->bas_stat0 : &stats->bas_stat1,
-				       size, alloc, failed);
+				       size, alloc, failed, tx, a);
 	if (stats->bas_print_index++ == stats->bas_print_interval) {
-		be_allocator_stats_print(stats);
+		be_allocator_stats_print(stats, tx, a);
 		stats->bas_print_index = 0;
 	}
+	M0_BE_REG_PUT_PTR(stats, a->ba_seg, tx);
 }
 
 static void be_allocator_stats_capture(struct m0_be_allocator *a,
@@ -353,8 +369,10 @@ static void be_allocator_stats_capture(struct m0_be_allocator *a,
 {
 	struct m0_be_allocator_header *h = a->ba_h[ztype];
 
+	M0_BE_REG_GET_PTR(h, a->ba_seg, tx);
 	if (tx != NULL)
 		M0_BE_TX_CAPTURE_PTR(a->ba_seg, tx, &h->bah_stats);
+	M0_BE_REG_PUT_PTR(h, a->ba_seg, tx);
 }
 
 static void be_alloc_chunk_capture(struct m0_be_allocator *a,
@@ -870,7 +888,7 @@ M0_INTERNAL void m0_be_allocator_fini(struct m0_be_allocator *a)
 	M0_ENTRY("a=%p", a);
 
 	for (i = 0; i < M0_BAP_NR; ++i) {
-		be_allocator_stats_print(&a->ba_h[i]->bah_stats);
+		be_allocator_stats_print(&a->ba_h[i]->bah_stats, NULL, a);
 		m0_be_fl_fini(&a->ba_h[i]->bah_fl);
 		m0_be_list_fini(&a->ba_h[i]->bah_chunks);
 		/* XXX temporary solution to make capturing checkers pass */
@@ -1206,7 +1224,8 @@ M0_INTERNAL void m0_be_alloc_aligned(struct m0_be_allocator *a,
 	/* XXX also gets the stats */
 	M0_BE_REG_GET_PTR(a->ba_h[z], a->ba_seg, tx);
 	be_allocator_stats_update(&a->ba_h[ztype]->bah_stats,
-				  c == NULL ? size : c->bac_size, true, c == 0);
+				  c == NULL ? size : c->bac_size, true, c == 0,
+				  tx, a);
 	be_allocator_stats_capture(a, ztype, tx);
 	/* and ends here */
 
@@ -1215,7 +1234,7 @@ M0_INTERNAL void m0_be_alloc_aligned(struct m0_be_allocator *a,
 	       a, size, shift, op->bo_u.u_allocator.a_rc,
 	       c, c == NULL ? 0 : c->bac_size, op->bo_u.u_allocator.a_ptr);
 	if (op->bo_u.u_allocator.a_rc != 0)
-		be_allocator_stats_print(&a->ba_h[ztype]->bah_stats);
+		be_allocator_stats_print(&a->ba_h[ztype]->bah_stats, NULL, a);
 	M0_BE_REG_PUT_PTR(a->ba_h[z], a->ba_seg, tx);
 
 	if (c != NULL) {
@@ -1292,7 +1311,8 @@ M0_INTERNAL void m0_be_free_aligned(struct m0_be_allocator *a,
 		be_alloc_chunk_trymerge(a, ztype, tx, c, next);
 		M0_BE_REG_GET_PTR(a->ba_h[ztype], a->ba_seg, tx);
 		be_allocator_stats_update(&a->ba_h[ztype]->bah_stats,
-					  c->bac_size, false, false);
+					  c->bac_size, false, false,
+					  tx, a);
 		be_allocator_stats_capture(a, ztype, tx);
 		M0_BE_REG_PUT_PTR(a->ba_h[ztype], a->ba_seg, tx);
 		/* and ends here */
