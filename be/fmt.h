@@ -120,7 +120,6 @@
  */
 
 struct m0_buf;
-struct m0_be_tx_credit;
 struct m0_be_group_format;
 struct m0_be_fmt_log_record_header;
 
