@@ -834,6 +834,10 @@ static bool be_alloc_chunk_trymerge(struct m0_be_allocator *a,
 	m0_bcount_t y_size_total;
 	bool	    chunks_were_merged = false;
 
+	if (x != NULL)
+		M0_BE_REG_GET_PTR(x, a->ba_seg, tx);
+	if (y != NULL)
+		M0_BE_REG_GET_PTR(y, a->ba_seg, tx);
 	M0_PRE(ergo(x != NULL, be_alloc_chunk_invariant(a, tx, x)));
 	M0_PRE(ergo(y != NULL, be_alloc_chunk_invariant(a, tx, y)));
 	M0_PRE(ergo(x != NULL && y != NULL, (char *) x < (char *) y));
@@ -847,7 +851,9 @@ static bool be_alloc_chunk_trymerge(struct m0_be_allocator *a,
 	}
 	M0_POST(ergo(x != NULL, be_alloc_chunk_invariant(a, tx, x)));
 	M0_POST(ergo(y != NULL && !chunks_were_merged,
-		     be_alloc_chunk_invariant(a, tx, y)));
+	             be_alloc_chunk_invariant(a, tx, y)));
+	M0_BE_REG_PUT_PTR(y, a->ba_seg, tx);
+	M0_BE_REG_PUT_PTR(x, a->ba_seg, tx);
 	return chunks_were_merged;
 }
 
@@ -866,8 +872,10 @@ M0_INTERNAL int m0_be_allocator_init(struct m0_be_allocator *a,
 
 	a->ba_seg = seg;
 	seg_hdr = (struct m0_be_seg_hdr *)seg->bs_addr;
+	M0_BE_REG_GET_PTR(seg_hdr, a->ba_seg, NULL);
 	for (i = 0; i < M0_BAP_NR; ++i) {
 		a->ba_h[i] = &seg_hdr->bh_alloc[i];
+		M0_BE_REG_GET_PTR(&a->ba_h[i], a->ba_seg, NULL);
 		M0_ASSERT(m0_addr_is_aligned(a->ba_h[i],
 					     BE_ALLOC_HEADER_SHIFT));
 
@@ -882,7 +890,9 @@ M0_INTERNAL int m0_be_allocator_init(struct m0_be_allocator *a,
 
 		/* XXX temporary solution to make capturing checkers pass */
 		m0_be_reg__write(&M0_BE_REG_PTR(a->ba_seg, a->ba_h[i]));
+		M0_BE_REG_PUT_PTR(&a->ba_h[i], a->ba_seg, NULL);
 	}
+	M0_BE_REG_PUT_PTR(seg_hdr, a->ba_seg, NULL);
 
 	return 0;
 }
