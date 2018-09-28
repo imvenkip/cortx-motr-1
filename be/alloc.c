@@ -371,60 +371,109 @@ static void be_alloc_size_capture(const struct m0_be_allocator *a,
 		M0_BE_TX_CAPTURE_PTR(a->ba_seg, tx, &c->bac_size);
 }
 
-static bool be_alloc_mem_is_in(const struct m0_be_allocator *a,
+static bool be_alloc_mem_is_in(struct m0_be_allocator *a,
+                               struct m0_be_tx *tx,
 			       enum m0_be_alloc_zone_type ztype,
 			       const void *ptr, m0_bcount_t size)
 {
 	struct m0_be_allocator_header *h = a->ba_h[ztype];
+	bool result;
 
-	return ptr >= h->bah_addr &&
-	       ptr + size <= h->bah_addr + h->bah_size;
+	M0_BE_REG_GET_PTR(h, a->ba_seg, tx);
+	result = ptr >= h->bah_addr && ptr + size <= h->bah_addr + h->bah_size;
+	M0_BE_REG_PUT_PTR(h, a->ba_seg, tx);
+	return result;
 }
 
-static bool be_alloc_chunk_is_in(const struct m0_be_allocator *a,
+static bool be_alloc_chunk_is_in(struct m0_be_allocator *a,
+                                 struct m0_be_tx *tx,
 				 enum m0_be_alloc_zone_type ztype,
-				 const struct be_alloc_chunk *c)
+				 struct be_alloc_chunk *c)
 {
-	return be_alloc_mem_is_in(a, ztype, c, sizeof *c + c->bac_size);
+	bool result;
+
+	M0_BE_REG_GET_PTR(c, a->ba_seg, tx);
+	result = be_alloc_mem_is_in(a, tx, ztype, c, sizeof *c + c->bac_size);
+	M0_BE_REG_PUT_PTR(c, a->ba_seg, tx);
+	return result;
 }
 
-static bool be_alloc_chunk_is_not_overlapping(const struct be_alloc_chunk *a,
-					      const struct be_alloc_chunk *b)
+static bool be_alloc_chunk_is_not_overlapping(struct m0_be_allocator *alloc,
+                                              struct m0_be_tx        *tx,
+                                              struct be_alloc_chunk  *a,
+					      struct be_alloc_chunk  *b)
 {
 #if 0
 	return a == NULL || b == NULL ||
 	       (a < b && &a->bac_mem[a->bac_size] <= (char *) b);
 #else
-	return a == NULL || b == NULL ||
+	bool result;
+	M0_BE_REG_GET_PTR(a, alloc->ba_seg, tx);
+	M0_BE_REG_GET_PTR(b, alloc->ba_seg, tx);
+	result = a == NULL || b == NULL ||
 	       (a < b && &a->bac_mem[a->bac_size] <= (char *) b) ||
 	       (b < a && &b->bac_mem[b->bac_size] <= (char *) a);
+	M0_BE_REG_PUT_PTR(b, alloc->ba_seg, tx);
+	M0_BE_REG_PUT_PTR(a, alloc->ba_seg, tx);
+	return result;
 #endif
 }
 
-static bool be_alloc_chunk_invariant(struct m0_be_allocator *a,
-				     const struct be_alloc_chunk *c)
+static void be_alloc_chunk_mem_get(struct m0_be_allocator *a,
+                                   struct m0_be_tx *tx,
+                                   struct be_alloc_chunk *c)
 {
-	enum m0_be_alloc_zone_type     ztype = c->bac_zone;
+
+	m0_be_reg_get(&M0_BE_REG(a->ba_seg, c->bac_size, &c->bac_mem), tx);
+}
+
+static void be_alloc_chunk_mem_put(struct m0_be_allocator *a,
+                                   struct m0_be_tx *tx,
+                                   struct be_alloc_chunk *c)
+{
+
+	m0_be_reg_put(&M0_BE_REG(a->ba_seg, c->bac_size, &c->bac_mem), tx);
+}
+
+static bool be_alloc_chunk_invariant(struct m0_be_allocator *a,
+                                     struct m0_be_tx *tx,
+				     struct be_alloc_chunk *c)
+{
+	enum m0_be_alloc_zone_type     ztype;
 	struct m0_be_allocator_header *h;
 	struct be_alloc_chunk         *cprev;
 	struct be_alloc_chunk         *cnext;
+	bool                           result;
 
+	M0_BE_REG_GET_PTR(c, a->ba_seg, tx);
+	ztype = c->bac_zone;
 	M0_PRE(ztype < M0_BAP_NR);
-
 	h = a->ba_h[ztype];
+	M0_BE_REG_GET_PTR(h, a->ba_seg, tx);
+
+
 	cprev = chunks_all_tlist_prev(&h->bah_chunks.bl_list, c);
 	cnext = chunks_all_tlist_next(&h->bah_chunks.bl_list, c);
+	M0_BE_REG_GET_PTR(cprev, a->ba_seg, tx);
+	M0_BE_REG_GET_PTR(cnext, a->ba_seg, tx);
 
-	return _0C(c != NULL) &&
-	       _0C(be_alloc_chunk_is_in(a, ztype, c)) &&
+	result =  _0C(c != NULL) &&
+	       _0C(be_alloc_chunk_is_in(a, tx, ztype, c)) &&
 	       _0C(ergo(cnext != NULL,
-			be_alloc_chunk_is_in(a, ztype, cnext))) &&
+			be_alloc_chunk_is_in(a, tx, ztype, cnext))) &&
 	       _0C(ergo(cprev != NULL,
-			be_alloc_chunk_is_in(a, ztype, cprev))) &&
+			be_alloc_chunk_is_in(a, tx, ztype, cprev))) &&
 	       _0C(c->bac_magic0 == M0_BE_ALLOC_MAGIC0) &&
 	       _0C(c->bac_magic1 == M0_BE_ALLOC_MAGIC1) &&
-	       _0C(be_alloc_chunk_is_not_overlapping(cprev, c)) &&
-	       _0C(be_alloc_chunk_is_not_overlapping(c, cnext));
+	       _0C(be_alloc_chunk_is_not_overlapping(a, tx, cprev, c)) &&
+	       _0C(be_alloc_chunk_is_not_overlapping(a, tx, c, cnext));
+
+	M0_BE_REG_PUT_PTR(cnext, a->ba_seg, tx);
+	M0_BE_REG_PUT_PTR(cprev, a->ba_seg, tx);
+	M0_BE_REG_PUT_PTR(h, a->ba_seg, tx);
+	M0_BE_REG_PUT_PTR(c, a->ba_seg, tx);
+
+	return result;
 }
 
 static void be_alloc_chunk_init(struct m0_be_allocator *a,
@@ -459,7 +508,7 @@ static void be_alloc_chunk_del_fini(struct m0_be_allocator *a,
 {
 	struct m0_be_allocator_header *h = a->ba_h[ztype];
 
-	M0_PRE(be_alloc_chunk_invariant(a, c));
+	M0_PRE(be_alloc_chunk_invariant(a, tx, c));
 	M0_PRE(c->bac_zone == ztype);
 
 	m0_be_fl_del(&h->bah_fl, tx, c);
@@ -475,6 +524,7 @@ static struct be_alloc_chunk *be_alloc_chunk_addr(void *ptr)
 
 static struct be_alloc_chunk *
 be_alloc_chunk_prev(struct m0_be_allocator *a,
+                    struct m0_be_tx *tx,
 		    enum m0_be_alloc_zone_type ztype,
 		    struct be_alloc_chunk *c)
 {
@@ -484,12 +534,13 @@ be_alloc_chunk_prev(struct m0_be_allocator *a,
 	M0_PRE(c->bac_zone == ztype);
 
 	r = chunks_all_tlist_prev(&h->bah_chunks.bl_list, c);
-	M0_ASSERT(ergo(r != NULL, be_alloc_chunk_invariant(a, r)));
+	M0_ASSERT(ergo(r != NULL, be_alloc_chunk_invariant(a, tx, r)));
 	return r;
 }
 
 static struct be_alloc_chunk *
 be_alloc_chunk_next(struct m0_be_allocator *a,
+                    struct m0_be_tx *tx,
 		    enum m0_be_alloc_zone_type ztype,
 		    struct be_alloc_chunk *c)
 {
@@ -499,7 +550,7 @@ be_alloc_chunk_next(struct m0_be_allocator *a,
 	M0_PRE(c->bac_zone == ztype);
 
 	r = chunks_all_tlist_next(&h->bah_chunks.bl_list, c);
-	M0_ASSERT_EX(ergo(r != NULL, be_alloc_chunk_invariant(a, r)));
+	M0_ASSERT_EX(ergo(r != NULL, be_alloc_chunk_invariant(a, tx, r)));
 	return r;
 }
 
@@ -510,7 +561,7 @@ static void be_alloc_chunk_mark_free(struct m0_be_allocator *a,
 {
 	struct m0_be_allocator_header *h = a->ba_h[ztype];
 
-	M0_PRE(be_alloc_chunk_invariant(a, c));
+	M0_PRE(be_alloc_chunk_invariant(a, tx, c));
 	M0_PRE(!c->bac_free);
 	M0_PRE(c->bac_zone == ztype);
 
@@ -519,7 +570,7 @@ static void be_alloc_chunk_mark_free(struct m0_be_allocator *a,
 	be_alloc_free_flag_capture(a, tx, c);
 
 	M0_POST(c->bac_free);
-	M0_POST(be_alloc_chunk_invariant(a, c));
+	M0_POST(be_alloc_chunk_invariant(a, tx, c));
 }
 
 static uintptr_t be_alloc_chunk_after(struct m0_be_allocator *a,
@@ -547,7 +598,7 @@ be_alloc_chunk_add_after(struct m0_be_allocator *a,
 	struct m0_be_allocator_header *h = a->ba_h[ztype];
 	struct be_alloc_chunk         *new;
 
-	M0_PRE(ergo(c != NULL, be_alloc_chunk_invariant(a, c)));
+	M0_PRE(ergo(c != NULL, be_alloc_chunk_invariant(a, tx, c)));
 	M0_PRE(size_total > sizeof *new);
 	M0_PRE(ergo(c != NULL, c->bac_zone == ztype));
 
@@ -563,8 +614,8 @@ be_alloc_chunk_add_after(struct m0_be_allocator *a,
 	if (free)
 		m0_be_fl_add(&h->bah_fl, tx, new);
 
-	M0_POST(be_alloc_chunk_invariant(a, new));
-	M0_PRE(ergo(c != NULL, be_alloc_chunk_invariant(a, c)));
+	M0_POST(be_alloc_chunk_invariant(a, tx, new));
+	M0_PRE(ergo(c != NULL, be_alloc_chunk_invariant(a, tx, c)));
 	return new;
 }
 
@@ -623,10 +674,10 @@ be_alloc_chunk_split(struct m0_be_allocator *a,
 	m0_bcount_t	       chunk0_size;
 	m0_bcount_t	       chunk1_size;
 
-	M0_PRE(be_alloc_chunk_invariant(a, c));
+	M0_PRE(be_alloc_chunk_invariant(a, tx, c));
 	M0_PRE(c->bac_free);
 
-	prev	    = be_alloc_chunk_prev(a, ztype, c);
+	prev	    = be_alloc_chunk_prev(a, tx, ztype, c);
 
 	start0	    = be_alloc_chunk_after(a, ztype, prev);
 	start1	    = start_new + sizeof *new + size;
@@ -650,7 +701,7 @@ be_alloc_chunk_split(struct m0_be_allocator *a,
 
 	M0_POST(!new->bac_free);
 	M0_POST(new->bac_size >= size);
-	M0_POST(be_alloc_chunk_invariant(a, new));
+	M0_POST(be_alloc_chunk_invariant(a, tx, new));
 	return new;
 }
 
@@ -667,7 +718,7 @@ be_alloc_chunk_trysplit(struct m0_be_allocator *a,
 	uintptr_t	       addr_start;
 	uintptr_t	       addr_end;
 
-	M0_PRE(be_alloc_chunk_invariant(a, c));
+	M0_PRE(be_alloc_chunk_invariant(a, tx, c));
 	M0_PRE(alignment != 0);
 	if (c->bac_free) {
 		addr_start = (uintptr_t) c;
@@ -680,7 +731,7 @@ be_alloc_chunk_trysplit(struct m0_be_allocator *a,
 			 be_alloc_chunk_split(a, ztype, tx, c,
 					     addr_mem - sizeof *c, size) : NULL;
 	}
-	M0_POST(ergo(result != NULL, be_alloc_chunk_invariant(a, result)));
+	M0_POST(ergo(result != NULL, be_alloc_chunk_invariant(a, tx, result)));
 	return result;
 }
 
@@ -693,8 +744,8 @@ static bool be_alloc_chunk_trymerge(struct m0_be_allocator *a,
 	m0_bcount_t y_size_total;
 	bool	    chunks_were_merged = false;
 
-	M0_PRE(ergo(x != NULL, be_alloc_chunk_invariant(a, x)));
-	M0_PRE(ergo(y != NULL, be_alloc_chunk_invariant(a, y)));
+	M0_PRE(ergo(x != NULL, be_alloc_chunk_invariant(a, tx, x)));
+	M0_PRE(ergo(y != NULL, be_alloc_chunk_invariant(a, tx, y)));
 	M0_PRE(ergo(x != NULL && y != NULL, (char *) x < (char *) y));
 	M0_PRE(ergo(x != NULL, x->bac_free) || ergo(y != NULL, y->bac_free));
 	if (x != NULL && y != NULL && x->bac_free && y->bac_free) {
@@ -704,9 +755,9 @@ static bool be_alloc_chunk_trymerge(struct m0_be_allocator *a,
 				      x->bac_size + y_size_total);
 		chunks_were_merged = true;
 	}
-	M0_POST(ergo(x != NULL, be_alloc_chunk_invariant(a, x)));
+	M0_POST(ergo(x != NULL, be_alloc_chunk_invariant(a, tx, x)));
 	M0_POST(ergo(y != NULL && !chunks_were_merged,
-		     be_alloc_chunk_invariant(a, y)));
+		     be_alloc_chunk_invariant(a, tx, y)));
 	return chunks_were_merged;
 }
 
@@ -764,14 +815,15 @@ M0_INTERNAL void m0_be_allocator_fini(struct m0_be_allocator *a)
 	M0_LEAVE();
 }
 
-M0_INTERNAL bool m0_be_allocator__invariant(struct m0_be_allocator *a)
+M0_INTERNAL bool m0_be_allocator__invariant(struct m0_be_allocator *a,
+                                            struct m0_be_tx *tx)
 {
 	return m0_mutex_is_locked(&a->ba_lock) &&
 	       (true || /* XXX Disabled as it's too slow. */
 		m0_forall(z, M0_BAP_NR,
 			  m0_tl_forall(chunks_all, iter,
 				       &a->ba_h[z]->bah_chunks.bl_list,
-				       be_alloc_chunk_invariant(a, iter))));
+				       be_alloc_chunk_invariant(a, tx, iter))));
 }
 
 static int be_allocator_header_create(struct m0_be_allocator     *a,
@@ -883,11 +935,14 @@ M0_INTERNAL int m0_be_allocator_create(struct m0_be_allocator *a,
 	}
 
 	M0_LOG(M0_DEBUG, "free_space=%"PRIu64, free_space);
-	for (i = 0; i < zones_nr; ++i)
+	for (i = 0; i < zones_nr; ++i) {
+		M0_BE_REG_GET_PTR(a->ba_h[i], a->ba_seg, tx);
 		M0_LOG(M0_DEBUG, "%s zone size=%"PRIu64,
 		       be_alloc_zone_name(i), a->ba_h[i]->bah_size);
+		M0_BE_REG_PUT_PTR(a->ba_h[i], a->ba_seg, tx);
+	}
 
-	M0_POST(m0_be_allocator__invariant(a));
+	M0_POST(m0_be_allocator__invariant(a, tx));
 	m0_mutex_unlock(&a->ba_lock);
 
 	M0_LEAVE();
@@ -902,7 +957,7 @@ M0_INTERNAL void m0_be_allocator_destroy(struct m0_be_allocator *a,
 	M0_ENTRY("a=%p tx=%p", a, tx);
 
 	m0_mutex_lock(&a->ba_lock);
-	M0_PRE_EX(m0_be_allocator__invariant(a));
+	M0_PRE_EX(m0_be_allocator__invariant(a, tx));
 
 	for (z = 0; z < M0_BAP_NR; ++z)
 		be_allocator_header_destroy(a, z, tx);
@@ -1052,14 +1107,17 @@ M0_INTERNAL void m0_be_alloc_aligned(struct m0_be_allocator *a,
 	m0_be_op_active(op);
 
 	m0_mutex_lock(&a->ba_lock);
-	M0_PRE_EX(m0_be_allocator__invariant(a));
+	M0_PRE_EX(m0_be_allocator__invariant(a, tx));
 
 	/* algorithm starts here */
 	aligned_size = shift == M0_BE_ALLOC_SHIFT_MIN ? size :
 		       size * 2 + (1UL << shift);
 	for (z = 0; z < M0_BAP_NR; ++z) {
-		if ((zonemask & M0_BITS(z)) != 0)
+		if ((zonemask & M0_BITS(z)) != 0) {
+			M0_BE_REG_GET_PTR(a->ba_h[z], a->ba_seg, tx);
 			c = m0_be_fl_pick(&a->ba_h[z]->bah_fl, aligned_size);
+			M0_BE_REG_PUT_PTR(a->ba_h[z], a->ba_seg, tx);
+		}
 		if (c != NULL)
 			break;
 	}
@@ -1067,10 +1125,13 @@ M0_INTERNAL void m0_be_alloc_aligned(struct m0_be_allocator *a,
 	ztype = c != NULL ? z : M0_BAP_NORMAL;
 	if (c != NULL) {
 		c = be_alloc_chunk_trysplit(a, ztype, tx, c, size, shift);
+		M0_BE_REG_GET_PTR(c, a->ba_seg, tx);
+		be_alloc_chunk_mem_get(a, tx, c);
 		M0_ASSERT(c != NULL);
 		M0_ASSERT(c->bac_zone == ztype);
 		memset(&c->bac_mem, 0, size);
 		m0_be_tx_capture(tx, &M0_BE_REG(a->ba_seg, size, &c->bac_mem));
+		be_alloc_chunk_mem_put(a, tx, c);
 	}
 	op->bo_u.u_allocator.a_ptr = c == NULL ?    NULL : &c->bac_mem;
 	op->bo_u.u_allocator.a_rc  = c == NULL ? -ENOSPC : 0;
@@ -1092,13 +1153,15 @@ M0_INTERNAL void m0_be_alloc_aligned(struct m0_be_allocator *a,
 		M0_POST(!c->bac_free);
 		M0_POST(c->bac_size >= size);
 		M0_POST(m0_addr_is_aligned(&c->bac_mem, shift));
-		M0_POST(be_alloc_chunk_is_in(a, ztype, c));
+		M0_POST(be_alloc_chunk_is_in(a, tx, ztype, c));
 	}
+	if (c != NULL)
+		M0_BE_REG_PUT_PTR(c, a->ba_seg, tx);
 	/*
 	 * unlock mutex after post-conditions which are using allocator
 	 * internals
 	 */
-	M0_POST_EX(m0_be_allocator__invariant(a));
+	M0_POST_EX(m0_be_allocator__invariant(a, tx));
 	m0_mutex_unlock(&a->ba_lock);
 
 	M0_POST(equi(op->bo_u.u_allocator.a_ptr != NULL,
@@ -1131,24 +1194,24 @@ M0_INTERNAL void m0_be_free_aligned(struct m0_be_allocator *a,
 
 	M0_PRE(ergo(ptr != NULL,
 		    m0_reduce(z, M0_BAP_NR, 0,
-			      +(int)be_alloc_mem_is_in(a, z, ptr, 1)) == 1));
+			    +(int)be_alloc_mem_is_in(a, tx, z, ptr, 1)) == 1));
 
 	m0_be_op_active(op);
 
 	if (ptr != NULL) {
 		m0_mutex_lock(&a->ba_lock);
-		M0_PRE_EX(m0_be_allocator__invariant(a));
+		M0_PRE_EX(m0_be_allocator__invariant(a, tx));
 
 		c = be_alloc_chunk_addr(ptr);
-		M0_PRE(be_alloc_chunk_invariant(a, c));
+		M0_PRE(be_alloc_chunk_invariant(a, tx, c));
 		M0_PRE(!c->bac_free);
 		ztype = c->bac_zone;
 		M0_LOG(M0_DEBUG, "allocator=%p c=%p c->bac_size=%lu zone=%d "
 		       "data=%p", a, c, c->bac_size, c->bac_zone, &c->bac_mem);
 		/* algorithm starts here */
 		be_alloc_chunk_mark_free(a, ztype, tx, c);
-		prev = be_alloc_chunk_prev(a, ztype, c);
-		next = be_alloc_chunk_next(a, ztype, c);
+		prev = be_alloc_chunk_prev(a, tx, ztype, c);
+		next = be_alloc_chunk_next(a, tx, ztype, c);
 		chunks_were_merged = be_alloc_chunk_trymerge(a, ztype, tx,
 							     prev, c);
 		if (chunks_were_merged)
@@ -1160,9 +1223,9 @@ M0_INTERNAL void m0_be_free_aligned(struct m0_be_allocator *a,
 		/* and ends here */
 		M0_POST(c->bac_free);
 		M0_POST(c->bac_size > 0);
-		M0_POST(be_alloc_chunk_invariant(a, c));
+		M0_POST(be_alloc_chunk_invariant(a, tx, c));
 
-		M0_POST_EX(m0_be_allocator__invariant(a));
+		M0_POST_EX(m0_be_allocator__invariant(a, tx));
 		m0_mutex_unlock(&a->ba_lock);
 	}
 
@@ -1182,7 +1245,7 @@ M0_INTERNAL void m0_be_alloc_stats(struct m0_be_allocator *a,
 				   struct m0_be_allocator_stats *out)
 {
 	m0_mutex_lock(&a->ba_lock);
-	M0_PRE_EX(m0_be_allocator__invariant(a));
+	M0_PRE_EX(m0_be_allocator__invariant(a, NULL));
 	*out = a->ba_h[M0_BAP_NORMAL]->bah_stats;
 	m0_mutex_unlock(&a->ba_lock);
 }

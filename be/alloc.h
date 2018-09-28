@@ -164,7 +164,8 @@ M0_INTERNAL void m0_be_allocator_fini(struct m0_be_allocator *a);
  * It will perform detailed verification of allocator data structures.
  * It will ignore all user data.
  */
-M0_INTERNAL bool m0_be_allocator__invariant(struct m0_be_allocator *a);
+M0_INTERNAL bool m0_be_allocator__invariant(struct m0_be_allocator *a,
+                                            struct m0_be_tx *tx);
 
 /**
  * Create allocator on the segment.
