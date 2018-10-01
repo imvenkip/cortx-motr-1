@@ -1005,18 +1005,32 @@ static void btree_truncate(struct m0_be_btree *btree, struct m0_be_tx *tx,
 	if (limit > 1)
 		limit--;
 
+	M0_BE_REG_GET_PTR(btree, btree->bb_seg, tx);
 	node = btree->bb_root;
 
 	while (node != NULL && limit > 0) {
+		bool b_leaf;
+		int  b_nr_active;
+
 		parent = NULL;
-		if (!node->b_leaf) {
+		M0_BE_REG_GET_PTR(node, btree->bb_seg, tx);
+		b_leaf = node->b_leaf;
+		M0_BE_REG_PUT_PTR(node, btree->bb_seg, tx);
+		if (!b_leaf) {
 			parent = node;
+			M0_BE_REG_GET_PTR(parent, btree->bb_seg, tx);
 			i = node->b_nr_active;
 			node = node->b_children[i];
+			M0_BE_REG_PUT_PTR(parent, btree->bb_seg, tx);
 		}
-		if (!node->b_leaf)
+
+		M0_BE_REG_GET_PTR(node, btree->bb_seg, tx);
+		b_leaf = node->b_leaf;
+		M0_BE_REG_PUT_PTR(node, btree->bb_seg, tx);
+		if (!b_leaf)
 			continue;
 
+		M0_BE_REG_GET_PTR(node, btree->bb_seg, tx);
 		while (node->b_nr_active > 0 && limit > 0) {
 			limit--;
 			node->b_nr_active--;
@@ -1024,7 +1038,10 @@ static void btree_truncate(struct m0_be_btree *btree, struct m0_be_tx *tx,
 			btree_pair_release(btree, tx, &node->b_key_vals[i]);
 		}
 		m0_format_footer_update(node);
-		if (node->b_nr_active > 0)
+		b_nr_active = node->b_nr_active;
+		M0_BE_REG_PUT_PTR(node, btree->bb_seg, tx);
+
+		if (b_nr_active > 0)
 			continue;
 		/*
 		 * Cleared all keys in the leaf node.
@@ -1043,6 +1060,7 @@ static void btree_truncate(struct m0_be_btree *btree, struct m0_be_tx *tx,
 			 * a parent.
 			 * If parent is empty, reclassify it to a leaf.
 			 */
+			M0_BE_REG_GET_PTR(parent, btree->bb_seg, tx);
 			i = parent->b_nr_active;
 			btree_pair_release(btree, tx, &parent->b_key_vals[i]);
 			if (limit > 0)
@@ -1065,9 +1083,11 @@ static void btree_truncate(struct m0_be_btree *btree, struct m0_be_tx *tx,
 			m0_format_footer_update(parent);
 			/* Simplify our life: restart from the root. */
 			node = btree->bb_root;
+			M0_BE_REG_PUT_PTR(parent, btree->bb_seg, tx);
 		}
 	}
 	m0_format_footer_update(btree->bb_root);
+	M0_BE_REG_PUT_PTR(btree, btree->bb_seg, tx);
 }
 
 /**
