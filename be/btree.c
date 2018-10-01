@@ -408,9 +408,13 @@ static void btree_split_child(struct m0_be_btree *btree,
 	struct m0_be_bnode *child;
 	struct m0_be_bnode *new_child;
 
+	M0_BE_REG_GET_PTR(btree, btree->bb_seg, tx);
+	M0_BE_REG_GET_PTR(parent, btree->bb_seg, tx);
 	child = parent->b_children[index];
+	M0_BE_REG_GET_PTR(child, btree->bb_seg, tx);
 	new_child = btree_node_alloc(btree, tx);
 	M0_ASSERT(new_child != NULL);
+	M0_BE_REG_GET_PTR(new_child, btree->bb_seg, tx);
 
 	new_child->b_leaf = child->b_leaf;
 	new_child->b_level = child->b_level;
@@ -450,6 +454,11 @@ static void btree_split_child(struct m0_be_btree *btree,
 	btree_node_update(parent, btree, tx);
 	btree_node_update(child, btree, tx);
 	btree_node_update(new_child, btree, tx);
+
+	M0_BE_REG_PUT_PTR(new_child, btree->bb_seg, tx);
+	M0_BE_REG_PUT_PTR(child, btree->bb_seg, tx);
+	M0_BE_REG_PUT_PTR(parent, btree->bb_seg, tx);
+	M0_BE_REG_PUT_PTR(btree, btree->bb_seg, tx);
 }
 
 /**
