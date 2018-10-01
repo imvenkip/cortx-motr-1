@@ -127,12 +127,17 @@ static inline void *mem_alloc(struct m0_be_btree *btree,
 {
 	void *p;
 
+	M0_BE_REG_GET_PTR(btree, btree->bb_seg, tx);
+
 	M0_BE_OP_SYNC(op,
 		      m0_be_alloc_aligned(tree_allocator(btree),
 					  tx, &op, &p, size,
 					  BTREE_ALLOC_SHIFT,
 					  zonemask));
 	M0_ASSERT(p != NULL);
+
+	M0_BE_REG_PUT_PTR(btree, btree->bb_seg, tx);
+
 	return p;
 }
 
@@ -356,6 +361,8 @@ btree_node_alloc(struct m0_be_btree *btree, struct m0_be_tx *tx)
 					       M0_BITS(M0_BAP_NORMAL));
 	M0_ASSERT(node != NULL);	/* @todo: analyse return code */
 
+	M0_BE_REG_GET_PTR(node, btree->bb_seg, tx);
+
 	m0_format_header_pack(&node->b_header, &(struct m0_format_tag){
 		.ot_version = M0_BE_BNODE_FORMAT_VERSION,
 		.ot_type    = M0_FORMAT_TYPE_BE_BNODE,
@@ -369,6 +376,7 @@ btree_node_alloc(struct m0_be_btree *btree, struct m0_be_tx *tx)
 
 	m0_format_footer_update(node);
 	mem_update(btree, tx, node, sizeof *node);
+	M0_BE_REG_PUT_PTR(node, btree->bb_seg, tx);
 
 	return node;
 }
@@ -486,13 +494,17 @@ static void btree_insert_key(struct m0_be_btree *btree,
 	struct m0_be_bnode *rnode;
 	struct m0_be_bnode *new_root;
 
+	M0_BE_REG_GET_PTR(btree, btree->bb_seg, tx);
+
 	M0_PRE_EX(btree_invariant(btree));
 	M0_PRE_EX(btree_search(btree, kv->key) == NULL);
 
 	rnode = btree->bb_root;
+	M0_BE_REG_GET_PTR(rnode, btree->bb_seg, tx);
 	if (rnode->b_nr_active == KV_NR) {
 		new_root = btree_node_alloc(btree, tx);
 		M0_ASSERT(new_root != NULL);
+		M0_BE_REG_GET_PTR(new_root, btree->bb_seg, tx);
 
 		new_root->b_level = btree->bb_root->b_level + 1;
 		btree_root_set(btree, new_root);
@@ -502,13 +514,17 @@ static void btree_insert_key(struct m0_be_btree *btree,
 		m0_format_footer_update(new_root);
 		btree_split_child(btree, tx, new_root, 0);
 		btree_insert_nonfull(btree, tx, new_root, kv);
+		M0_BE_REG_PUT_PTR(new_root, btree->bb_seg, tx);
 
 		/* Update tree structure itself */
 		mem_update(btree, tx, btree, sizeof(struct m0_be_btree));
 	} else
 		btree_insert_nonfull(btree, tx, rnode, kv);
 
+	M0_BE_REG_PUT_PTR(rnode, btree->bb_seg, tx);
 	M0_POST_EX(btree_invariant(btree));
+
+	M0_BE_REG_PUT_PTR(btree, btree->bb_seg, tx);
 }
 
 /**
