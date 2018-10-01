@@ -171,17 +171,18 @@ static int be_btree_compare(struct m0_be_btree *btree,
 	const struct m0_be_btree_kv_ops *ops = btree->bb_ops;
 	int rc;
 
-	m0_be_reg_get(&M0_BE_REG(btree->bb_seg, ops->ko_ksize(key0),
-				 (void *)key0), NULL);
-	m0_be_reg_get(&M0_BE_REG(btree->bb_seg, ops->ko_ksize(key1),
-				 (void *)key1), NULL);
+	/* XXX: uncomment, when ready putting gets/puts */
+	/* m0_be_reg_get(&M0_BE_REG(btree->bb_seg, ops->ko_ksize(key0), */
+	/* 			 (void *)key0), NULL); */
+	/* m0_be_reg_get(&M0_BE_REG(btree->bb_seg, ops->ko_ksize(key1), */
+	/* 			 (void *)key1), NULL); */
 
 	rc = ops->ko_compare(key0, key1);
 
-	m0_be_reg_put(&M0_BE_REG(btree->bb_seg, ops->ko_ksize(key1),
-				 (void *)key1), NULL);
-	m0_be_reg_put(&M0_BE_REG(btree->bb_seg, ops->ko_ksize(key0),
-				 (void *)key0), NULL);
+	/* m0_be_reg_put(&M0_BE_REG(btree->bb_seg, ops->ko_ksize(key1), */
+	/* 			 (void *)key1), NULL); */
+	/* m0_be_reg_put(&M0_BE_REG(btree->bb_seg, ops->ko_ksize(key0), */
+	/* 			 (void *)key0), NULL); */
 
 	return rc;
 }
@@ -724,6 +725,9 @@ static int btree_delete_key(struct m0_be_btree   *btree,
 {
 	unsigned int		 i;
 	unsigned int		 index;
+	struct m0_be_bnode      *old;
+	int node_b_children_index_b_nr_active;
+	int node_b_children_index_1_b_nr_active;
 	struct m0_be_bnode	*rsibling;
 	struct m0_be_bnode	*lsibling;
 	struct m0_be_bnode	*parent = NULL;
@@ -733,14 +737,19 @@ static int btree_delete_key(struct m0_be_btree   *btree,
 
 	M0_PRE_EX(btree_invariant(btree));
 
+	M0_BE_REG_GET_PTR(btree, btree->bb_seg, tx);
+
 	M0_ENTRY("n=%p", node);
 
 del_loop:
 	for (i = 0;; i = 0) {
+		M0_BE_REG_GET_PTR(node, btree->bb_seg, tx);
 
 		/* If there are no keys simply return */
-		if (!node->b_nr_active)
+		if (!node->b_nr_active) {
+			M0_BE_REG_PUT_PTR(node, btree->bb_seg, tx);
 			goto out;
+		}
 
 		/*  Fix the index of the key greater than or equal */
 		/*  to the key that we would like to search */
@@ -753,21 +762,28 @@ del_loop:
 
 		/*  Found? */
 		if (i < node->b_nr_active &&
-		    key_eq(btree, key, node->b_key_vals[i].key))
+		    key_eq(btree, key, node->b_key_vals[i].key)) {
+			M0_BE_REG_PUT_PTR(node, btree->bb_seg, tx);
 			break;
+		}
 
-		if (node->b_leaf) /* No more to find */
+		if (node->b_leaf) { /* No more to find */
+			M0_BE_REG_PUT_PTR(node, btree->bb_seg, tx);
 			goto out;
+		}
 
 		/* Store the parent */
 		parent = node;
 
 		node = node->b_children[i];
 
+		M0_BE_REG_PUT_PTR(/* node */parent, btree->bb_seg, tx);
+
 		/* Not found */
 		if (node == NULL)
 			goto out;
 
+		M0_BE_REG_GET_PTR(parent, btree->bb_seg, tx);
 		if (i == parent->b_nr_active) {
 			lsibling = parent->b_children[i - 1];
 			rsibling = NULL;
@@ -778,6 +794,7 @@ del_loop:
 			lsibling = parent->b_children[i - 1];
 			rsibling = parent->b_children[i + 1];
 		}
+		M0_BE_REG_PUT_PTR(parent, btree->bb_seg, tx);
 
 		if (node->b_nr_active == BTREE_FAN_OUT - 1 && parent) {
 			if (rsibling &&
@@ -798,6 +815,7 @@ del_loop:
 		}
 	}
 
+	M0_BE_REG_GET_PTR(node, btree->bb_seg, tx);
 	M0_LOG(M0_DEBUG, "found node=%p lf=%d nr=%d idx=%d", node,
 			!!node->b_leaf, node->b_nr_active, index);
 	rc = 0;
@@ -817,15 +835,29 @@ del_loop:
 		node_pos.p_node = node;
 		node_pos.p_index = index;
 		delete_key_from_node(btree, tx, &node_pos);
+		M0_BE_REG_PUT_PTR(node, btree->bb_seg, tx);
 		goto out;
 	} else {
 		M0_ASSERT(!node->b_leaf);
 	}
+	M0_BE_REG_PUT_PTR(node, btree->bb_seg, tx);
 
 	/* Case 2:
 	 * The node containing the key is found and is an internal node */
 	M0_LOG(M0_DEBUG, "case2");
-	if (node->b_children[index]->b_nr_active > BTREE_FAN_OUT - 1) {
+
+	M0_BE_REG_GET_PTR(node, btree->bb_seg, tx);
+	M0_BE_REG_GET_PTR(node->b_children[index], btree->bb_seg, tx);
+	M0_BE_REG_GET_PTR(node->b_children[index + 1], btree->bb_seg, tx);
+
+	node_b_children_index_b_nr_active = node->b_children[index]->b_nr_active;
+	node_b_children_index_1_b_nr_active = node->b_children[index + 1]->b_nr_active;
+
+	M0_BE_REG_PUT_PTR(node->b_children[index + 1], btree->bb_seg, tx);
+	M0_BE_REG_PUT_PTR(node->b_children[index], btree->bb_seg, tx);
+	M0_BE_REG_PUT_PTR(node, btree->bb_seg, tx);
+
+	if (node_b_children_index_b_nr_active > BTREE_FAN_OUT - 1) {
 		get_max_key_pos(btree, node->b_children[index], &child);
 		M0_ASSERT(child.p_node->b_leaf);
 		M0_LOG(M0_DEBUG, "swapR with n=%p i=%d", child.p_node,
@@ -836,8 +868,11 @@ del_loop:
 		m0_format_footer_update(node);
 		mem_update(btree, tx, &node->b_key_vals[index],
 			   sizeof(node->b_key_vals[0]));
+		old = node;
+		M0_BE_REG_GET_PTR(old, btree->bb_seg, tx);
 		node = node->b_children[index];
-	} else if (node->b_children[index + 1]->b_nr_active >
+		M0_BE_REG_PUT_PTR(old, btree->bb_seg, tx);
+	} else if (node_b_children_index_1_b_nr_active >
 		   BTREE_FAN_OUT - 1) {
 		get_min_key_pos(btree, node->b_children[index + 1], &child);
 		M0_ASSERT(child.p_node->b_leaf);
@@ -849,7 +884,11 @@ del_loop:
 		m0_format_footer_update(node);
 		mem_update(btree, tx, &node->b_key_vals[index],
 			   sizeof(node->b_key_vals[0]));
+
+		old = node;
+		M0_BE_REG_GET_PTR(old, btree->bb_seg, tx);
 		node = node->b_children[index + 1];
+		M0_BE_REG_PUT_PTR(old, btree->bb_seg, tx);
 	} else {
 		M0_LOG(M0_DEBUG, "case2-merge");
 		node = merge_siblings(btree, tx, node, index);
@@ -859,6 +898,9 @@ del_loop:
 out:
 	M0_POST_EX(btree_invariant(btree));
 	M0_LEAVE("rc=%d", rc);
+
+	M0_BE_REG_PUT_PTR(btree, btree->bb_seg, tx);
+
 	return M0_RC(rc);
 }
 
@@ -898,7 +940,7 @@ get_btree_node(struct m0_be_btree_cursor *it, void *key, bool slant)
 	struct m0_be_btree *btree = it->bc_tree;
 	struct node_pos kp = { .p_node = NULL };
 	struct m0_be_bnode *node;
-	M0_UNUSED struct m0_be_bnode *old;
+	struct m0_be_bnode *old;
 	int i = 0;
 
 	M0_BE_REG_GET_PTR(btree, btree->bb_seg, NULL);
