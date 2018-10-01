@@ -308,6 +308,7 @@ static void btree_node_update(struct m0_be_bnode *node,
 			      struct m0_be_btree *btree,
 			      struct m0_be_tx    *tx)
 {
+	M0_BE_REG_GET_PTR(node, btree->bb_seg, tx);
 	mem_update(btree, tx, node, offsetof(struct m0_be_bnode, b_key_vals));
 
 	if (node->b_nr_active > 0) {
@@ -318,6 +319,7 @@ static void btree_node_update(struct m0_be_bnode *node,
 	}
 
 	mem_update(btree, tx, &node->b_footer, sizeof(node->b_footer));
+	M0_BE_REG_PUT_PTR(node, btree->bb_seg, tx);
 }
 
 /**
@@ -628,12 +630,16 @@ static void move_key(struct m0_be_btree	  *btree,
 	unsigned int i;
 
 	M0_ENTRY("n=%p i=%d dir=%d", parent, index, pos);
+	M0_BE_REG_GET_PTR(btree, btree->bb_seg, tx);
+	M0_BE_REG_GET_PTR(parent, btree->bb_seg, tx);
 
 	if (pos == P_RIGHT) {
 		index--;
 	}
 	lch = parent->b_children[index];
 	rch = parent->b_children[index + 1];
+	M0_BE_REG_GET_PTR(lch, btree->bb_seg, tx);
+	M0_BE_REG_GET_PTR(rch, btree->bb_seg, tx);
 
 	/*  Move the key from the parent to the left child */
 	if (pos == P_LEFT) {
@@ -678,6 +684,11 @@ static void move_key(struct m0_be_btree	  *btree,
 	btree_node_update(parent, btree, tx);
 	btree_node_update(lch, btree, tx);
 	btree_node_update(rch, btree, tx);
+
+	M0_BE_REG_PUT_PTR(btree, btree->bb_seg, tx);
+	M0_BE_REG_PUT_PTR(parent, btree->bb_seg, tx);
+	M0_BE_REG_PUT_PTR(lch, btree->bb_seg, tx);
+	M0_BE_REG_PUT_PTR(rch, btree->bb_seg, tx);
 
 	M0_LEAVE();
 }
