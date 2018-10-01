@@ -521,15 +521,24 @@ static void get_max_key_pos(struct m0_be_btree *btree,
 			    struct m0_be_bnode *node,
 			    struct node_pos    *pos)
 {
-	for (; node != NULL && !node->b_leaf;
-	     node = node->b_children[node->b_nr_active])
-		;
+	M0_BE_REG_GET_PTR(btree, btree->bb_seg, NULL);
 
+	if (node != NULL && !node->b_leaf) {
+		struct m0_be_bnode *old = node;
+		M0_BE_REG_GET_PTR(old, btree->bb_seg, NULL);
+		node = node->b_children[node->b_nr_active];
+		M0_BE_REG_PUT_PTR(old, btree->bb_seg, NULL);
+	}
+
+	M0_BE_REG_GET_PTR(node, btree->bb_seg, NULL);
 	pos->p_node  = node;
 	if (node != NULL && node->b_nr_active > 0)
 		pos->p_index = node->b_nr_active - 1;
 	else
 		pos->p_index = 0;
+	M0_BE_REG_PUT_PTR(node, btree->bb_seg, NULL);
+
+	M0_BE_REG_PUT_PTR(btree, btree->bb_seg, NULL);
 }
 
 /**
@@ -542,11 +551,17 @@ static void get_min_key_pos(struct m0_be_btree *btree,
 			    struct m0_be_bnode *node,
 			    struct node_pos    *pos)
 {
-	for (; node != NULL && !node->b_leaf; node = node->b_children[0])
-		;
+	M0_BE_REG_GET_PTR(btree, btree->bb_seg, NULL);
+	if (node != NULL && !node->b_leaf) {
+		struct m0_be_bnode *old = node;
+		M0_BE_REG_GET_PTR(old, btree->bb_seg, NULL);
+		node = node->b_children[0];
+		M0_BE_REG_PUT_PTR(old, btree->bb_seg, NULL);
+	}
 
 	pos->p_node  = node;
 	pos->p_index = 0;
+	M0_BE_REG_PUT_PTR(btree, btree->bb_seg, NULL);
 }
 
 /**
@@ -567,11 +582,17 @@ merge_siblings(struct m0_be_btree *btree,
 
 	M0_ENTRY("n=%p i=%d", parent, index);
 
+	M0_BE_REG_GET_PTR(btree, btree->bb_seg, tx);
+	M0_BE_REG_GET_PTR(parent, btree->bb_seg, tx);
+
 	if (index == parent->b_nr_active)
 		index--;
 
 	n1 = parent->b_children[index];
 	n2 = parent->b_children[index + 1];
+
+	M0_BE_REG_GET_PTR(n1, btree->bb_seg, tx);
+	M0_BE_REG_GET_PTR(n2, btree->bb_seg, tx);
 
 	n1->b_key_vals[n1->b_nr_active++] = parent->b_key_vals[index];
 
@@ -607,6 +628,11 @@ merge_siblings(struct m0_be_btree *btree,
 	}
 
 	btree_node_update(n1, btree, tx);
+
+	M0_BE_REG_PUT_PTR(n2, btree->bb_seg, tx);
+	M0_BE_REG_PUT_PTR(n1, btree->bb_seg, tx);
+	M0_BE_REG_PUT_PTR(parent, btree->bb_seg, tx);
+	M0_BE_REG_PUT_PTR(btree, btree->bb_seg, tx);
 
 	M0_LEAVE();
 	return n1;
@@ -704,6 +730,9 @@ int delete_key_from_node(struct m0_be_btree	 *btree,
 	unsigned int i = node_pos->p_index;
 	struct m0_be_bnode *node = node_pos->p_node;
 
+	M0_BE_REG_GET_PTR(btree, btree->bb_seg, tx);
+	M0_BE_REG_GET_PTR(node, btree->bb_seg, tx);
+
 	if (node->b_leaf == false)
 		return -1;
 
@@ -722,6 +751,9 @@ int delete_key_from_node(struct m0_be_btree	 *btree,
 	else
 		/* Update affected memory regions in tx: */
 		btree_node_update(node, btree, tx);
+
+	M0_BE_REG_PUT_PTR(node, btree->bb_seg, tx);
+	M0_BE_REG_PUT_PTR(btree, btree->bb_seg, tx);
 
 	return 0;
 }
