@@ -1353,7 +1353,7 @@ M0_INTERNAL void m0_be_btree_truncate(struct m0_be_btree *tree,
 				      m0_bcount_t         limit)
 {
 	M0_ENTRY("tree=%p", tree);
-	M0_BE_REG_GET_PTR(tree, btree->bb_seg, tx);
+	M0_BE_REG_GET_PTR(tree, tree->bb_seg, tx);
 	M0_PRE(tree->bb_root != NULL && tree->bb_ops != NULL);
 
 	btree_op_fill(op, tree, tx, M0_BBO_DESTROY, NULL);
@@ -1364,7 +1364,7 @@ M0_INTERNAL void m0_be_btree_truncate(struct m0_be_btree *tree,
 	btree_truncate(tree, tx, limit);
 
 	m0_rwlock_write_unlock(btree_rwlock(tree));
-	M0_BE_REG_PUT_PTR(tree, btree->bb_seg, tx);
+	M0_BE_REG_PUT_PTR(tree, tree->bb_seg, tx);
 	op_tree(op)->t_rc = 0;
 	m0_be_op_done(op);
 	M0_LEAVE();
