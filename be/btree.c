@@ -181,17 +181,17 @@ static int be_btree_compare(struct m0_be_btree *btree,
 	int rc;
 
 	/* XXX: uncomment, when ready putting gets/puts */
-	/* m0_be_reg_get(&M0_BE_REG(btree->bb_seg, ops->ko_ksize(key0), */
-	/* 			 (void *)key0), NULL); */
-	/* m0_be_reg_get(&M0_BE_REG(btree->bb_seg, ops->ko_ksize(key1), */
-	/* 			 (void *)key1), NULL); */
+	m0_be_reg_get(&M0_BE_REG(btree->bb_seg, ops->ko_ksize(key0),
+				 (void *)key0), NULL);
+	m0_be_reg_get(&M0_BE_REG(btree->bb_seg, ops->ko_ksize(key1),
+				 (void *)key1), NULL);
 
 	rc = ops->ko_compare(key0, key1);
 
-	/* m0_be_reg_put(&M0_BE_REG(btree->bb_seg, ops->ko_ksize(key1), */
-	/* 			 (void *)key1), NULL); */
-	/* m0_be_reg_put(&M0_BE_REG(btree->bb_seg, ops->ko_ksize(key0), */
-	/* 			 (void *)key0), NULL); */
+	m0_be_reg_put(&M0_BE_REG(btree->bb_seg, ops->ko_ksize(key1),
+				 (void *)key1), NULL);
+	m0_be_reg_put(&M0_BE_REG(btree->bb_seg, ops->ko_ksize(key0),
+				 (void *)key0), NULL);
 
 	return rc;
 }
@@ -1421,10 +1421,18 @@ static void btree_save(struct m0_be_btree        *tree,
 				 * old value in this case.
 				 */
 				if (val != NULL) {
+					m0_be_reg_get(&M0_BE_REG(tree->bb_seg,
+								 val->b_nob,
+								 cur_kv->val),
+						      tx);
 					memcpy(cur_kv->val, val->b_addr,
 					       val->b_nob);
 					mem_update(tree, tx, cur_kv->val,
 						   val->b_nob);
+					m0_be_reg_put(&M0_BE_REG(tree->bb_seg,
+								 val->b_nob,
+								 cur_kv->val),
+						      tx);
 				} else
 					anchor->ba_value.b_addr = cur_kv->val;
 			}
@@ -2007,7 +2015,11 @@ M0_INTERNAL void m0_be_btree_lookup(struct m0_be_btree *tree,
 		if (vsize < dest_value->b_nob)
 			dest_value->b_nob = vsize;
 		/* XXX handle vsize > dest_value->b_nob */
+		m0_be_reg_get(&M0_BE_REG(tree->bb_seg, dest_value->b_nob,
+					 kv->val), NULL);
 		memcpy(dest_value->b_addr, kv->val, dest_value->b_nob);
+		m0_be_reg_put(&M0_BE_REG(tree->bb_seg, dest_value->b_nob,
+					 kv->val), NULL);
 		op_tree(op)->t_rc = 0;
 		M0_BE_REG_PUT_PTR(kv, tree->bb_seg, NULL);
 	} else
