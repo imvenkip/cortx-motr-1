@@ -676,6 +676,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 	struct m0_bufvec            *bvec;
 	struct m0_bufvec            *auxbvec;
 	struct m0_clovis_op_io      *ioo;
+	struct m0_clovis_obj_attr   *io_attr;
 	struct m0_indexvec          *ivec;
 	struct ioreq_fop            *irfop;
 	struct m0_net_domain        *ndom;
@@ -841,6 +842,8 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		rw_fop->crw_fid = ti->ti_fid;
 		rw_fop->crw_pver = ioo->ioo_pver;
 		rw_fop->crw_index = ti->ti_obj;
+		io_attr = m0_clovis_io_attr(ioo);
+		rw_fop->crw_lid = io_attr->oa_layout_id;
 
 		/*
 		 * XXX(Sining): This is a bit tricky: m0_io_fop_prepare in
@@ -1717,9 +1720,6 @@ static int nw_xfer_tioreq_map(struct nw_xfer_request           *xfer,
 			tfid = target_fid(ioo, tgt);
 		}
 		device_state = device_state_prev;
-		M0_LOG(M0_DEBUG, "REPAIRED: [%"PRIu64":%"PRIu64"] -> \
-		       [%"PRIu64":%"PRIu64"] @ tfid " FID_F, spare.sa_group,
-		       spare.sa_unit, tgt->ta_frame, tgt->ta_obj, FID_P(&tfid));
 	}
 	session = target_session(ioo, tfid);
 

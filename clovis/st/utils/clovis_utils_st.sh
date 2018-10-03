@@ -8,6 +8,7 @@ m0t1fs_dir="$clovis_st_util_dir/../../../m0t1fs/linux_kernel/st"
 . $m0t1fs_dir/m0t1fs_client_inc.sh
 . $m0t1fs_dir/m0t1fs_server_inc.sh
 . $clovis_st_util_dir/clovis_local_conf.sh
+. $clovis_st_util_dir/clovis_st_inc.sh
 
 
 SANDBOX_DIR=/var/mero
@@ -33,26 +34,6 @@ clean()
 		local ios_index=`expr $i + 1`
 		rm -rf $CLOVIS_TEST_DIR/d$ios_index/stobs/o/*
         fi
-}
-
-dix_init()
-{
-	local m0dixinit="$M0_SRC_DIR/dix/utils/m0dixinit"
-	local pverid=$(echo $DIX_PVERID | tr -d ^)
-	if [ ! -f $m0dixinit ] ; then
-		echo "Can't find m0dixinit"
-		return 1
-	fi
-
-	cmd="$m0dixinit -l $CLOVIS_LOCAL_EP -H $CLOVIS_HA_EP \
-	    -p '$CLOVIS_PROF_OPT' -I '$pverid' -d '$pverid' -a create"
-	echo $cmd
-	eval "$cmd"
-	if [ $? -ne 0 ]
-	then
-		echo "Failed to initialise kvs..."
-		return 1
-	fi
 }
 
 mero_service_start()

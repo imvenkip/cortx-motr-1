@@ -572,6 +572,8 @@ M0_INTERNAL int pargrp_iomap_init(struct pargrp_iomap    *map,
 M0_INTERNAL void pargrp_iomap_fini(struct pargrp_iomap *map,
 				   struct m0_clovis_obj *obj);
 
+M0_INTERNAL struct m0_clovis_obj_attr *
+m0_clovis_io_attr(struct m0_clovis_op_io *ioo);
 #endif /* __MERO_CLOVIS_IO_H__ */
 
 /*

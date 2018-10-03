@@ -31,6 +31,7 @@
 #include "ha/note.h"           /* m0_ha_note_handler_msg */
 #include "pool/pool_machine.h" /* m0_poolmach_failvec_apply */
 #include "pool/pool.h"
+#include "reqh/reqh.h"
 #include "fid/fid.h"
 
 struct ha_fvec_handler_request {
@@ -246,6 +247,29 @@ static void ha_ut_fvec_reply_populate(struct m0_ha_msg *msg)
         msg->hm_data.u.hed_fvec_rep.mfp_nr = nv_nr;
 }
 
+static void ha_msg_fvec_build(struct m0_ha_msg *msg,
+			      const struct m0_fid *pool_fid,
+			      struct m0_ha_link *hl)
+{
+	struct m0_reqh    *reqh = hl->hln_cfg.hlc_reqh;
+	struct m0_pool    *pool;
+	struct m0_pooldev *pd;
+	struct m0_ha_note *note;
+	uint32_t           note_nr = 0;
+
+	pool = m0_pool_find(reqh->rh_pools, pool_fid);
+	M0_ASSERT(pool != NULL);
+	note = msg->hm_data.u.hed_fvec_rep.mfp_vec.hmna_arr;
+	m0_tl_for(pool_failed_devs, &pool->po_failed_devices, pd) {
+		M0_LOG(M0_DEBUG, "adding nvec for "FID_F" state: %d",
+			FID_P(&pd->pd_id), pd->pd_state);
+		note[note_nr].no_id = pd->pd_id;
+		note[note_nr].no_state = pd->pd_state;
+		M0_CNT_INC(note_nr);
+	} m0_tl_endfor;
+	msg->hm_data.u.hed_fvec_rep.mfp_nr = note_nr;
+}
+
 M0_INTERNAL int m0_ha_msg_fvec_send(const struct m0_fid *pool_fid,
 				    const struct m0_cookie *cookie,
 				    struct m0_ha_link *hl,
@@ -273,8 +297,17 @@ M0_INTERNAL int m0_ha_msg_fvec_send(const struct m0_fid *pool_fid,
 	if (type == M0_HA_MSG_FAILURE_VEC_REP) {
 		if (M0_FI_ENABLED("non-trivial-fvec"))
 			ha_ut_fvec_reply_populate(msg);
-		else
-			msg->hm_data.u.hed_fvec_rep.mfp_nr = 0;
+		else {
+			/*
+			 * Failur vector is returned by Mero procress only
+			 * in system tests by a m0d that mocks Halon.
+			 * In production failure vector must be fetched from
+			 * Halon only. Here we do not guard against the
+			 * concurrent device transtions and sending the failure
+			 * vector.
+			 */
+			ha_msg_fvec_build(msg, pool_fid, hl);
+		}
 	}
 	m0_ha_link_send(hl, msg, &tag);
 	m0_free(msg);

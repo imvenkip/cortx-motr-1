@@ -323,6 +323,11 @@ M0_INTERNAL bool m0_clovis__is_read_op(struct m0_clovis_op *op)
 	return op->op_code == M0_CLOVIS_OC_READ;
 }
 
+M0_INTERNAL struct m0_clovis_obj_attr *
+m0_clovis_io_attr(struct m0_clovis_op_io *ioo)
+{
+	return &ioo->ioo_obj->ob_attr;
+}
 
 /*
  *  Local variables:

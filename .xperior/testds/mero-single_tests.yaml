@@ -394,6 +394,15 @@ Tests:
     sandbox  : /var/mero/sandbox.41clovis-sync-replication
     polltime : 30
     timeout  : 1800
+
+  - id       : 44clovis-sns-repair
+    script   : clovis_sns_repair_st.sh
+    dir      : src/clovis/st/utils/
+    executor : Xperior::Executor::MeroTest
+    sandbox  : /var/mero/sandbox.44clovis-sns-repair
+    polltime : 30
+    timeout  : 1800
+
 # 25 min
 dangerous: 'yes'
 description: Set of Mero  tests

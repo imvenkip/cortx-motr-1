@@ -574,6 +574,13 @@ M0_INTERNAL uint32_t m0_ha2pm_state_map(enum m0_ha_obj_state hastate);
  * Converts numeric device state to string representation.
  */
 M0_INTERNAL const char *m0_pool_dev_state_to_str(enum m0_pool_nd_state state);
+M0_INTERNAL struct m0_pool *m0_pool_find(struct m0_pools_common *pc,
+					 const struct m0_fid *pool);
+
+M0_INTERNAL void m0_pools_lock(struct m0_pools_common *pc);
+M0_INTERNAL void m0_pools_unlock(struct m0_pools_common *pc);
+M0_INTERNAL bool m0_pools_is_locked(struct m0_pools_common *pc);
+
 /** @} end of servermachine group */
 #endif /* __MERO_POOL_POOL_H__ */
 

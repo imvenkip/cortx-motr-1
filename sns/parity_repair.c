@@ -67,7 +67,7 @@ static int _spare_next(struct m0_poolmach *pm,
 		rc = m0_poolmach_sns_repair_spare_query(pm, device_index,
 							spare_slot_out);
 		if (rc != 0)
-			return M0_RC(rc);
+			return M0_ERR(rc);
 
 		/*
 		 * Find out if spare slot's corresponding device index is

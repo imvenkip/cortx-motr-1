@@ -1502,7 +1502,7 @@ static int unit_state(const struct m0_pdclust_src_addr *src,
 	M0_ASSERT(pm != NULL);
 	rc = m0_poolmach_device_state(pm, tgt.ta_obj, state);
 	if (rc != 0)
-		return M0_RC(rc);
+		return M0_ERR(rc);
 
 	return M0_RC(rc);
 }
@@ -1550,7 +1550,7 @@ static int io_spare_map(const struct pargrp_iomap *map,
 				     src->sa_group, src->sa_unit,
 				     spare_slot, spare_slot_prev);
 	if (rc != 0)
-		return M0_RC(rc);
+		return M0_ERR(rc);
 
 	/* Check if there is an effective failure of unit. */
 	spare.sa_group = src->sa_group;

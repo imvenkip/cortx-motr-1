@@ -14,6 +14,7 @@ mero_src=$(echo $(dirname $st_util_dir) \
          | sed -r -e 's#/?clovis/st/utils/?$##' -e 's#^/usr/s?bin##')
 
 . $mero_src/m0t1fs/linux_kernel/st/m0t1fs_common_inc.sh
+. $mero_src/m0t1fs/linux_kernel/st/m0t1fs_sns_common_inc.sh
 
 # kernel mode
 function clovis_st_start_k ()
@@ -235,7 +236,16 @@ io_conduct()
 	return 0
 }
 
-dix_init()
+function clovis_st_disk_state_set()
+{
+	local service_eps=$(service_eps_get)
+
+	service_eps+=($CLOVIS_HA_EP)
+
+	ha_events_post "${service_eps[*]}" $@
+}
+
+function dix_init()
 {
 	local m0dixinit="$M0_SRC_DIR/dix/utils/m0dixinit"
 	local pverid=$(echo $DIX_PVERID | tr -d ^)
@@ -254,8 +264,6 @@ dix_init()
 		return 1
 	fi
 }
-
-
 
 mero_service_start()
 {
