@@ -880,6 +880,22 @@ M0_INTERNAL int m0_poolmach_fid_to_idx(struct m0_poolmach *pm,
 	return i == pm->pm_state->pst_nr_devices ? -ENOENT : 0;
 }
 
+static void poolmach_event_queue_drop(struct m0_poolmach *pm,
+				      struct m0_poolmach_event *ev)
+{
+	struct m0_tl                *head = &pm->pm_state->pst_event_queue;
+	struct m0_poolmach_event    *e;
+	struct poolmach_equeue_link *scan;
+
+	m0_tl_for (poolmach_equeue, head, scan) {
+		e = &scan->pel_event;
+		if (e->pe_index == ev->pe_index) {
+			poolmach_equeue_tlink_del_fini(scan);
+			m0_free(scan);
+		}
+	} m0_tl_endfor;
+}
+
 M0_INTERNAL void m0_poolmach_failvec_apply(struct m0_poolmach *pm,
                                            const struct m0_ha_nvec *nvec)
 {
@@ -919,6 +935,13 @@ M0_INTERNAL void m0_poolmach_failvec_apply(struct m0_poolmach *pm,
                         m0_rwlock_write_unlock(&pm->pm_lock);
                 }
                 rc = m0_poolmach_state_transit(pm, &pme);
+		/*
+		 * Drop the stale (already) event for this disk
+		 * from the queue of deferred events. This will allow
+		 * to avoid some bogus transitions (and errors in syslog),
+		 * like from REPAIRED to ONLINE on startup.
+		 */
+		poolmach_event_queue_drop(pm, &pme);
                 /*
 		 * Failvec is applied only once, during initialisation.
                  * This operation should succeed.
