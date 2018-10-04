@@ -208,15 +208,17 @@ fi
 %{_sysconfdir}/systemd/system/*
 %{_sysconfdir}/security/limits.d/90-mero.conf
 /lib/modules/*/kernel/fs/mero/*
+%exclude %{_bindir}/m0gentestds
 %exclude %{_bindir}/m0kut*
 %exclude %{_bindir}/m0ut*
 %exclude %{_bindir}/m0ub
 %exclude %{_bindir}/m0ff2c
+%exclude %{_sbindir}/m0run
 %exclude %{_libdir}/*.la
 %exclude %{_libdir}/libmero-ut*
 %exclude %{_libdir}/libtestlib*
 %exclude %{_libdir}/libmero-xcode-ff2c*
-%exclude %{_libdir}/pkgconfig/mero.pc
+%exclude %{_libdir}/pkgconfig/
 %exclude /lib/modules/*/kernel/fs/mero/clovis*
 %exclude /lib/modules/*/kernel/fs/mero/m0lnet*
 %exclude /lib/modules/*/kernel/fs/mero/m0net*

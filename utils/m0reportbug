@@ -240,7 +240,8 @@ _path_rpm() {
     local name=$1
 
     case $name in
-        m0d|m0mkfs|m0trace|m0tracedump) echo "/usr/bin/$name";;
+        m0d|m0trace|m0tracedump) echo "/usr/bin/$name";;
+        m0mkfs) echo "/usr/sbin/$name";;
         m0addb2dump) echo "/usr/sbin/$name";;
         libmero.so) readlink -f /usr/lib64/libmero.so;;
         m0mero.ko) echo "/lib/module/$(uname -r)/kernel/fs/mero/$name";;
@@ -624,6 +625,9 @@ exit
 ###
 ### Date       Version Description
 ### ---------- ------- ----------------------------------------------------
+### 2018-10-03 0.31    * m0mkfs executable has moved into /usr/sbin (was in
+###                      /usr/bin before)
+###
 ### 2018-06-14 0.30    * [bugfix] _kdump_files(): Add missing quotes to
 ###                      prevent "[: argument expected" error.
 ###                    * m0traces(): Get halond m0traces from /var/lib/halon/

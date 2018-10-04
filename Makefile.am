@@ -531,12 +531,12 @@ include $(top_srcdir)/net/lnet/st/Makefile.sub
 # net/test -------------------------------------------- {{{2
 #
 
-bin_PROGRAMS                         += net/test/user_space/m0nettest
+sbin_PROGRAMS                           += net/test/user_space/m0nettest
 net_test_user_space_m0nettest_CPPFLAGS   = -DM0_TARGET='m0nettest' $(AM_CPPFLAGS)
 net_test_user_space_m0nettest_LDADD      = $(top_builddir)/mero/libmero.la \
                                            $(top_builddir)/net/test/libmero-net-test.la
 
-bin_PROGRAMS                         += net/test/user_space/m0nettestd
+sbin_PROGRAMS                           += net/test/user_space/m0nettestd
 net_test_user_space_m0nettestd_CPPFLAGS  = -DM0_TARGET='m0nettestd' $(AM_CPPFLAGS)
 net_test_user_space_m0nettestd_LDADD     = $(top_builddir)/mero/libmero.la \
                                            $(top_builddir)/net/test/libmero-net-test.la
@@ -586,7 +586,7 @@ include $(top_srcdir)/rpc/it/Makefile.sub
 # sns/cm/st ------------------------------------------- {{{2
 #
 
-bin_PROGRAMS                += sns/cm/st/m0repair
+sbin_PROGRAMS               += sns/cm/st/m0repair
 sns_cm_st_m0repair_CPPFLAGS  = -DM0_TARGET='m0repair' $(AM_CPPFLAGS)
 sns_cm_st_m0repair_LDADD     = $(top_builddir)/mero/libmero.la
 
@@ -596,7 +596,7 @@ include $(top_srcdir)/sns/cm/st/Makefile.sub
 # clovis/st ------------------------------------------- {{{2
 #
 
-bin_PROGRAMS  += clovis/st/utils/c0composite
+sbin_PROGRAMS += clovis/st/utils/c0composite
 
 if ENABLE_UNIT_TESTS
 noinst_PROGRAMS                   += clovis/st/user_space/c0st
@@ -677,8 +677,9 @@ include $(top_srcdir)/dix/utils/Makefile.sub
 #
 
 bin_SCRIPTS                   += utils/trace/m0trace \
-                                 utils/trace/m0kdump2trace \
-                                 utils/trace/m0tracepurge
+                                 utils/trace/m0kdump2trace
+
+sbin_SCRIPTS                  += utils/trace/m0tracepurge
 
 bin_PROGRAMS                  += utils/trace/m0tracedump
 utils_trace_m0tracedump_LDADD  = $(top_builddir)/mero/libmero.la
@@ -692,7 +693,7 @@ include $(top_srcdir)/utils/trace/Makefile.sub
 # utils/mkfs ------------------------------------------ {{{2
 #
 
-bin_PROGRAMS                  += utils/mkfs/m0mkfs
+sbin_PROGRAMS                 += utils/mkfs/m0mkfs
 utils_mkfs_m0mkfs_LDADD        = $(top_builddir)/mero/libmero.la
 
 utils/mkfs/m0mkfs.o: xcode/protocol_checksum.h
@@ -701,7 +702,7 @@ utils/mkfs/m0mkfs.o: xcode/protocol_checksum.h
 # utils/layout ---------------------------------------- {{{2
 #
 
-bin_PROGRAMS                    += utils/layout/m0layout
+sbin_PROGRAMS                  += utils/layout/m0layout
 utils_layout_m0layout_CPPFLAGS  = -DM0_TARGET='m0layout' $(AM_CPPFLAGS)
 utils_layout_m0layout_LDADD     = $(top_builddir)/mero/libmero.la
 
@@ -716,7 +717,7 @@ sbin_SCRIPTS  += utils/m0gendisks \
                  utils/m0setup \
                  utils/m0singlenode
 
-bin_SCRIPTS += utils/m0confgen
+sbin_SCRIPTS  += utils/m0confgen
 
 #
 # fdmi/st/echo_plugin
@@ -782,7 +783,7 @@ ha_m0ham_LDADD     = $(top_builddir)/mero/libmero.la
 # pool/m0poolmach ------------------------------------- {{{2
 #
 
-bin_PROGRAMS             += pool/m0poolmach
+sbin_PROGRAMS            += pool/m0poolmach
 pool_m0poolmach_CPPFLAGS  = -DM0_TARGET='m0poolmach' $(AM_CPPFLAGS)
 pool_m0poolmach_LDADD     = $(top_builddir)/mero/libmero.la
 
@@ -806,7 +807,7 @@ xcode_m0protocol_LDADD     = $(top_builddir)/mero/libmero.la
 # be/tool/m0betool ------------------------------------ {{{2
 #
 
-bin_PROGRAMS              += be/tool/m0betool
+sbin_PROGRAMS             += be/tool/m0betool
 be_tool_m0betool_CPPFLAGS  = -DM0_TARGET='m0betool' $(AM_CPPFLAGS)
 be_tool_m0betool_LDADD     = $(top_builddir)/mero/libmero.la
 
