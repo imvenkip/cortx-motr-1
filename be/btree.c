@@ -181,17 +181,17 @@ static int be_btree_compare(struct m0_be_btree *btree,
 	int rc;
 
 	/* XXX: uncomment, when ready putting gets/puts */
-	m0_be_reg_get(&M0_BE_REG(btree->bb_seg, ops->ko_ksize(key0),
-				 (void *)key0), NULL);
-	m0_be_reg_get(&M0_BE_REG(btree->bb_seg, ops->ko_ksize(key1),
-				 (void *)key1), NULL);
+	/* m0_be_reg_get(&M0_BE_REG(btree->bb_seg, ops->ko_ksize(key0), */
+	/* 			 (void *)key0), NULL); */
+	/* m0_be_reg_get(&M0_BE_REG(btree->bb_seg, ops->ko_ksize(key1), */
+	/* 			 (void *)key1), NULL); */
 
 	rc = ops->ko_compare(key0, key1);
 
-	m0_be_reg_put(&M0_BE_REG(btree->bb_seg, ops->ko_ksize(key1),
-				 (void *)key1), NULL);
-	m0_be_reg_put(&M0_BE_REG(btree->bb_seg, ops->ko_ksize(key0),
-				 (void *)key0), NULL);
+	/* m0_be_reg_put(&M0_BE_REG(btree->bb_seg, ops->ko_ksize(key1), */
+	/* 			 (void *)key1), NULL); */
+	/* m0_be_reg_put(&M0_BE_REG(btree->bb_seg, ops->ko_ksize(key0), */
+	/* 			 (void *)key0), NULL); */
 
 	return rc;
 }
@@ -461,6 +461,24 @@ static void btree_split_child(struct m0_be_btree *btree,
 	M0_BE_REG_PUT_PTR(btree, btree->bb_seg, tx);
 }
 
+static int find_lt_key(struct m0_be_btree *btree,
+		       struct m0_be_bnode *node,
+		       int begin, int end, void *key)
+{
+	int mid = (begin + end) / 2;
+
+	//M0_LOG(M0_ALWAYS, "b=%d e=%d", begin, end);
+
+	if (begin == end)
+		return end;
+
+	if (key_lt(btree, key, node->b_key_vals[mid].key)) {
+		return find_lt_key(btree, node, begin, mid /* - 1 */, key);
+	}
+
+	return find_lt_key(btree, node, mid + 1, end, key);
+}
+
 /**
  * Inserts @kv entry into the non-full @node.
  */
@@ -472,6 +490,8 @@ static void btree_insert_nonfull(struct m0_be_btree *btree,
 	struct m0_be_bnode *old;
 	void *key = kv->key;
 	int i;
+	M0_UNUSED int j;
+	int k;
 	bool node_b_leaf;
 
  insert:
@@ -481,11 +501,17 @@ static void btree_insert_nonfull(struct m0_be_btree *btree,
 	M0_BE_REG_PUT_PTR(node, btree->bb_seg, tx);
 	if (node_b_leaf) {
 		M0_BE_REG_GET_PTR(node, btree->bb_seg, tx);
-		while (i >= 0 && key_lt(btree, key, node->b_key_vals[i].key)) {
-			node->b_key_vals[i + 1] = node->b_key_vals[i];
-			i--;
-		}
-		node->b_key_vals[i + 1] = *kv;
+		//while (i >= 0 && key_lt(btree, key, node->b_key_vals[i].key)) {
+		//	node->b_key_vals[i + 1] = node->b_key_vals[i];
+		//	i--;
+		//}
+		//node->b_key_vals[i + 1] = *kv;
+
+		k = find_lt_key(btree, node, 0, i+1, key);
+		for (j = i; j >= k; --j)
+			node->b_key_vals[j + 1] = node->b_key_vals[j];
+		node->b_key_vals[k] = *kv;
+
 		node->b_nr_active++;
 
 		m0_format_footer_update(node);
@@ -494,9 +520,19 @@ static void btree_insert_nonfull(struct m0_be_btree *btree,
 		M0_BE_REG_PUT_PTR(node, btree->bb_seg, tx);
 	} else {
 		M0_BE_REG_GET_PTR(/* old */ node, btree->bb_seg, tx);
-		while (i >= 0 && key_lt(btree, key, node->b_key_vals[i].key))
-			i--;
-		i++;
+
+		//M0_LOG(M0_ALWAYS, "@@");
+		k = find_lt_key(btree, node, 0, i+1, key);
+
+		//while (i >= 0 && key_lt(btree, key, node->b_key_vals[i].key))
+		//	i--;
+		//i++;
+		//M0_ASSERT_INFO(k == i, "k=%d i=%d", k, i);
+		i = k;
+
+
+
+
 
 		if (node->b_children[i]->b_nr_active == KV_NR) {
 			btree_split_child(btree, tx, node, i);
