@@ -285,9 +285,14 @@ static inline bool btree_node_invariant(struct m0_be_btree *btree,
 		     node->b_nr_active <= KV_NR) &&
 		/* keys are in order */
 		ergo(node->b_nr_active > 1,
-		     m0_forall(i, node->b_nr_active - 1,
-			       key_gt(btree, node->b_key_vals[i+1].key,
-			                     node->b_key_vals[i].key))) &&
+		     /* check only some keys are in order */
+		     key_gt(btree,
+			    node->b_key_vals[node->b_nr_active - 1].key,
+			    node->b_key_vals[                    0].key)) &&
+		     /* slow */
+		     /* m0_forall(i, node->b_nr_active - 1, */
+		     /* 	       key_gt(btree, node->b_key_vals[i+1].key, */
+		     /* 	                     node->b_key_vals[i].key))) && */
 		/* kids are in order */
 		ergo(node->b_nr_active > 0 && !node->b_leaf,
 		     m0_forall(i, node->b_nr_active,
