@@ -465,15 +465,10 @@ static int find_lt_key(struct m0_be_btree *btree,
 		       struct m0_be_bnode *node,
 		       int begin, int end, void *key)
 {
-	int mid = (begin + end) / 2;
-
-	//M0_LOG(M0_ALWAYS, "b=%d e=%d", begin, end);
+	int mid;
 
 	while (begin != end) {
 		mid = (begin + end) / 2;
-		//if (begin == end)
-		//	return end;
-
 		if (key_lt(btree, key, node->b_key_vals[mid].key))
 			end = mid;
 		else
@@ -481,7 +476,6 @@ static int find_lt_key(struct m0_be_btree *btree,
 	}
 
 	return end;
-	//M0_IMPOSSIBLE("");
 }
 
 /**
@@ -495,7 +489,7 @@ static void btree_insert_nonfull(struct m0_be_btree *btree,
 	struct m0_be_bnode *old;
 	void *key = kv->key;
 	int i;
-	M0_UNUSED int j;
+	int j;
 	int k;
 	bool node_b_leaf;
 
@@ -506,11 +500,6 @@ static void btree_insert_nonfull(struct m0_be_btree *btree,
 	M0_BE_REG_PUT_PTR(node, btree->bb_seg, tx);
 	if (node_b_leaf) {
 		M0_BE_REG_GET_PTR(node, btree->bb_seg, tx);
-		//while (i >= 0 && key_lt(btree, key, node->b_key_vals[i].key)) {
-		//	node->b_key_vals[i + 1] = node->b_key_vals[i];
-		//	i--;
-		//}
-		//node->b_key_vals[i + 1] = *kv;
 
 		k = find_lt_key(btree, node, 0, i+1, key);
 		for (j = i; j >= k; --j)
@@ -525,19 +514,7 @@ static void btree_insert_nonfull(struct m0_be_btree *btree,
 		M0_BE_REG_PUT_PTR(node, btree->bb_seg, tx);
 	} else {
 		M0_BE_REG_GET_PTR(/* old */ node, btree->bb_seg, tx);
-
-		//M0_LOG(M0_ALWAYS, "@@");
-		k = find_lt_key(btree, node, 0, i+1, key);
-
-		//while (i >= 0 && key_lt(btree, key, node->b_key_vals[i].key))
-		//	i--;
-		//i++;
-		//M0_ASSERT_INFO(k == i, "k=%d i=%d", k, i);
-		i = k;
-
-
-
-
+		i = find_lt_key(btree, node, 0, i+1, key);
 
 		if (node->b_children[i]->b_nr_active == KV_NR) {
 			btree_split_child(btree, tx, node, i);
@@ -847,39 +824,18 @@ static int find_gt_key(struct m0_be_btree *btree,
 		       struct m0_be_bnode *node,
 		       int begin, int end, void *key)
 {
-	int mid = (begin + end) / 2;
-
-	//M0_LOG(M0_ALWAYS, "b=%d e=%d", begin, end);
+	int mid;
 
 	while (begin != end) {
 		mid = (begin + end) / 2;
-		//if (begin == end)
-		//	return end;
 
 		if (key_gt(btree, key, node->b_key_vals[mid].key))
 			begin = mid + 1;
 		else
 			end = mid;
-
 	}
 
 	return end;
-
-	#if 0
-
-
-	int mid = (begin + end) / 2;
-
-	if (begin == end)
-		return end;
-
-	if (key_gt(btree, key, node->b_key_vals[mid].key))
-		return find_gt_key(btree, node, mid+1, end, key);
-
-	return find_gt_key(btree, node, begin, mid, key);
-
-	#endif
-
 }
 
 /**
@@ -891,7 +847,6 @@ static int btree_delete_key(struct m0_be_btree   *btree,
 			    void                 *key)
 {
 	unsigned int		 i;
-	int k;
 	unsigned int		 index;
 	struct m0_be_bnode      *old;
 	int node_b_children_index_b_nr_active;
@@ -922,13 +877,7 @@ del_loop:
 		/*  Fix the index of the key greater than or equal */
 		/*  to the key that we would like to search */
 
-		k = find_gt_key(btree, node, i, node->b_nr_active, key);
-		i = k;
-		//while (i < node->b_nr_active &&
-		//       key_gt(btree, key, node->b_key_vals[i].key))
-		//	i++;
-		//M0_ASSERT_INFO(i == k, "i=%d k=%d", i, k);
-
+		i = find_gt_key(btree, node, i, node->b_nr_active, key);
 		index = i;
 
 		/*  Found? */
@@ -1113,7 +1062,6 @@ get_btree_node(struct m0_be_btree_cursor *it, void *key, bool slant)
 	struct m0_be_bnode *node;
 	struct m0_be_bnode *old;
 	int i = 0;
-	int k;
 
 	M0_BE_REG_GET_PTR(btree, btree->bb_seg, NULL);
 	node = btree->bb_root;
@@ -1125,13 +1073,7 @@ get_btree_node(struct m0_be_btree_cursor *it, void *key, bool slant)
 
 		/*  Find the index of the key greater than or equal */
 		/*  to the key that we would like to search */
-		//while (i < node->b_nr_active &&
-		//       key_gt(btree, key, node->b_key_vals[i].key)) {
-		//	i++;
-		//}
-		k = find_gt_key(btree, node, i, node->b_nr_active, key);
-		i = k;
-
+		i = find_gt_key(btree, node, i, node->b_nr_active, key);
 
 		/*  If we find such key return the key-value pair */
 		if (i < node->b_nr_active &&
