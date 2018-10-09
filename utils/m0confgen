@@ -5,15 +5,18 @@ from __future__ import print_function
 from ply import lex, yacc
 import argparse
 import textwrap
+import os
 import sys
 import json
+import contextlib
 from collections import OrderedDict
 from curses import ascii
 from errno import EPIPE
+from functools import reduce  # there is no `reduce' in python3
 import unittest
 
 
-__copyright__ = """COPYRIGHT 2017 XYRATEX TECHNOLOGY LIMITED
+__copyright__ = """COPYRIGHT 2018 XYRATEX TECHNOLOGY LIMITED
 
 THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
 HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -28,7 +31,7 @@ THIS RELEASE. IF NOT PLEASE CONTACT A XYRATEX REPRESENTATIVE
 http://www.xyratex.com/contact
 """
 __author__ = 'Valery V. Vorotyntsev <valery.vorotyntsev@seagate.com>'
-__version__ = '2.3.1'
+__version__ = '2.4'
 __doc__ = """Configuration string converter.
 
 Converts configuration string from one format into another.
@@ -1210,6 +1213,42 @@ Fid\(\('t', 1\), 0\): Invalid attributes
             root_0, [('verno', 1), ('profiles', [Fid(('p', 1), 1)])]))
 
 
+class DummyFile(object):
+
+    def write(self, *_):
+        pass
+
+    def flush(self):
+        pass
+
+
+@contextlib.contextmanager
+def nostdout():
+    saved = sys.stdout
+    sys.stdout = DummyFile()
+    yield
+    sys.stdout = saved
+
+
+class TestCoverage(unittest.TestCase):
+
+    def test_main(self):
+        def test(argv):
+            self.assertIsNone(main(argv))
+
+        with nostdout():
+            for mode in '--help-format', '--types', '--svc-types':
+                test([mode])
+
+            if os.path.isfile('ut/conf.cg'):
+                for to_fmt in output_formats:
+                    test(['-f', 'confgen', '-t', to_fmt, 'ut/conf.cg'])
+
+            if os.path.isfile('ut/conf.xc'):
+                for to_fmt in output_formats:
+                    test(['-f', 'xcode', '-t', to_fmt, 'ut/conf.xc'])
+
+
 class TestEncoding(unittest.TestCase):
 
     def test_typed(self):
@@ -1487,7 +1526,7 @@ def main(argv=None):
         print(confgen_doc)
         return
     if args.types:
-        types = conf_obj_types.items()
+        types = list(conf_obj_types.items())
         types.sort(key=lambda kv: kv[1].ft_id)
         for k, v in types:
             print('{} {:#x} {}'.format(v.ft_id, ord(v.ft_id), k))
@@ -1519,6 +1558,9 @@ def main(argv=None):
         if e.errno == EPIPE:
             return e.errno
         raise
+    finally:
+        if f != sys.stdin:
+            f.close()
 
 
 __doc__ = __doc__.format(input_formats=', '.join(input_formats),
@@ -1527,11 +1569,3 @@ __doc__ = __doc__.format(input_formats=', '.join(input_formats),
 
 if __name__ == '__main__':
     sys.exit(main())
-
-    # # Coverage testing:
-    # for mode in '--help-format', '--types', '--svc-types':
-    #     assert main([mode]) is None
-    # for to_fmt in output_formats:
-    #     assert main(['-f', 'confgen', '-t', to_fmt, 'ut/conf.cg']) is None
-    #     assert main(['-f', 'xcode', '-t', to_fmt, 'ut/conf.xc']) is None
-    # assert main(['--self-check']) is None

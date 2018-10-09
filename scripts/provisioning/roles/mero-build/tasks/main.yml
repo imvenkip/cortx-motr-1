@@ -12,6 +12,14 @@
     name:  '{{ mero_build_deps_pkgs }}'
   tags: breaks-dry-run
 
+- name: Enable '{{ ansible_user }}' user to run `mock` w/o sudo
+  user:
+    name: '{{ ansible_user }}'
+    groups: mock
+    append: yes
+  when: ansible_user != 'root'
+  tags: test
+
 - name: check Lustre src dir
   shell: ls -1rd /usr/src/lustre-* | head -n 1
   register: lustre_src_dir

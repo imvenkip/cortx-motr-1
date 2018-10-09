@@ -315,7 +315,7 @@ def collect_facts_for(node)
         # con return a different result if there is a 'search domainname'
         # present in /etc/resolv.conf, but Halon expects it to identical to
         # what's returned by `hostname`
-        fqdn            = `hostname --fqdn`.chomp
+        fqdn            = Facter.value(:hostname)
         iface           = $options[:iface] || Facter.value(:interfaces).split(',')[0]
         mac_addr        = Facter.value("macaddress_#{iface}")
         ip_addr         = Facter.value("ipaddress_#{iface}")
@@ -328,7 +328,7 @@ def collect_facts_for(node)
             die "`facter` is not found on host '#{target_host}', try to install" \
                 + ' it with `yum install facter`' if facter.nil?
 
-            fqdn            = ssh.exec!('hostname --fqdn').chomp
+            fqdn            = ssh.exec!('facter hostname').chomp
             iface           = $options[:iface] ||
                               ssh.exec!('facter interfaces').split(',')[0].chomp
             mac_addr        = ssh.exec!("facter macaddress_#{iface}").chomp

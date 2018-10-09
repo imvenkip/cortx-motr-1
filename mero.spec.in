@@ -1,3 +1,9 @@
+# feature flags
+%bcond_with ut
+%bcond_with debuginfo_sources
+%bcond_with intel_lustre
+%bcond_with cassandra
+
 # optional configure options
 %define with_linux  %( test -n "$kernel_src" && echo "--with-linux=$kernel_src" )
 %define with_lustre %( test -n "$lustre_src" && echo "--with-lustre=$lustre_src" )
@@ -5,7 +11,7 @@
 # raw kernel version.
 %define raw_kernel_ver %(
                           if test -n "$kernel_src"; then
-                              basename "$kernel_src"
+                              basename $(readlink -f "$kernel_src")
                           else
                               uname -r
                           fi
@@ -15,34 +21,22 @@
 %define kernel_ver_requires %( echo %{raw_kernel_ver} | sed -e 's/\.debug$//' -e 's/\.x86_64$//' )
 
 # lustre vendor
-%define intel_lustre %(
-                        if rpm -qi kmod-lustre-client 2>/dev/null |
-                           grep -q 'Build Host.*intel\.com'
-                        then
-                            echo 1
-                        else
-                            echo 0
-                        fi
-                      )
+%define is_intel_lustre %(
+                           if rpm -qi kmod-lustre-client 2>/dev/null |
+                              grep -q 'Build Host.*intel\.com'
+                           then
+                               echo 1
+                           else
+                               echo 0
+                           fi
+                         )
 
-# distribution
-%if 0%{?el6}
-%define lustre_devel   lustre-devel
-%define lustre_modules lustre-modules
-%else
-%if %{intel_lustre}
+%if %{with intel_lustre} || %{is_intel_lustre}
 %define lustre_devel   lustre-client-dkms
 %else
 %define lustre_devel   lustre-client-devel
-%endif # intel_lustre
+%endif
 %define lustre_modules kmod-lustre-client
-%endif # el6
-
-%bcond_with ut
-%bcond_with systemd
-%bcond_with debuginfo
-%bcond_with debuginfo_sources
-%bcond_with cassandra
 
 # workaround issue with mero-debuginfo package, which injects incorrect
 # dependencies on itself into mero package when internal deps generator is used;
@@ -102,16 +96,14 @@ BuildRequires:  kernel-devel = %{kernel_ver_requires}
 # Ansible scripts it's done automatically. In other cases it doesn't make much
 # sense to require the devel package and it's assumed that Lustre headers are
 # already provided in one way or another.
-%if %{intel_lustre}
+%if %{with intel_lustre} || %{is_intel_lustre}
 BuildRequires:  %{lustre_devel}
 %endif
 BuildRequires:  libuuid-devel
 BuildRequires:  binutils-devel
 BuildRequires:  python-ply
-%if %{with systemd}
 BuildRequires:  perl-autodie
 BuildRequires:  systemd-devel
-%endif
 %if %{with cassandra}
 BuildRequires:  libcassandra
 BuildRequires:  libuv
@@ -228,9 +220,7 @@ fi
 %{_sbindir}/*
 %{_libdir}/*
 %{_libexecdir}/mero/*
-%if %{with systemd}
 %{_exec_prefix}/lib/*
-%endif
 %{_datadir}/*
 %{_mandir}/*
 %attr(0770, mero, mero) %{_localstatedir}/mero
@@ -275,12 +265,8 @@ getent passwd mero >/dev/null || useradd --system --shell /sbin/nologin \
 # would be expanded at build-time.
 # See http://rpm.org/user_doc/scriptlet_expansion.html for more info.
 %post -e
-
 /sbin/depmod -a
-
-%if %{with systemd}
 systemctl daemon-reload
-%endif
 
 if [ x%%{?no_trace_logs} != x ] ; then
     /bin/sed -i -r -e "s/(MERO_TRACED_KMOD=)yes/\1no/" /etc/sysconfig/mero
@@ -295,9 +281,7 @@ fi
 
 %postun
 /sbin/depmod -a
-%if %{with systemd}
 systemctl daemon-reload
-%endif
 
 %if %{with ut}
 

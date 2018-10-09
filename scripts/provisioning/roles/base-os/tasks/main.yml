@@ -8,7 +8,9 @@
 
 - name: switch to CentOS-Vault release repositories
   when: ansible_os_family == 'RedHat'
-  tags: vault-release
+  tags:
+    - breaks-dry-run
+    - vault-release
   block:
     - name: get redhat version
       # matching version string like '7.4.1708'
@@ -75,6 +77,16 @@
     # debuginfo packages are not signed, need to disable signature verification
     gpgcheck: no
   when: ansible_os_family == 'RedHat'
+
+- name: disable SELinux
+  selinux:
+    state: disabled
+  tags:
+    - breaks-dry-run
+    # FIXME: 'never' tag works only starting from ansible 2.5, older versions
+    #        need a workaround
+    - never       # only run this task if 'no-selinux' tag explicitely requested
+    - no-selinux
 
 - name: upgrade all packages to latest versions
   package:  name=*  state=latest  update_cache=yes

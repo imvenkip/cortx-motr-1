@@ -18,6 +18,7 @@ mero_build_deps_pkgs:
   - libyaml-devel
   - lustre-client-dkms
   - make
+  - mock
   - perl
   - perl-File-Find-Rule
   - perl-File-Slurp
