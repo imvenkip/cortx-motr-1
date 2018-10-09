@@ -75,6 +75,7 @@ enum iter_ut_fom_phase {
 	ITER_UT_FOM_INIT  = M0_FOM_PHASE_INIT,
 	ITER_UT_FOM_FINAL = M0_FOM_PHASE_FINISH,
 	ITER_UT_FOM_DONE  = M0_FOM_PHASE_NR,
+	ITER_UT_FOM_INIT_WAIT,
 	ITER_UT_FOM_CTIDX_LOCK,
 	ITER_UT_FOM_META_LOCK,
 	ITER_UT_FOM_EXEC,
@@ -100,6 +101,10 @@ static struct m0_sm_state_descr iter_ut_fom_phases[] = {
 	[ITER_UT_FOM_INIT] = {
 		.sd_flags     = M0_SDF_INITIAL,
 		.sd_name      = "init",
+		.sd_allowed   = M0_BITS(ITER_UT_FOM_INIT_WAIT)
+	},
+	[ITER_UT_FOM_INIT_WAIT] = {
+		.sd_name      = "init_wait",
 		.sd_allowed   = M0_BITS(ITER_UT_FOM_CTIDX_LOCK,
 					ITER_UT_FOM_META_LOCK,
 					ITER_UT_FOM_EXEC)
@@ -213,9 +218,6 @@ static void iter_ut_fom_init(struct iter_ut_fom *fom)
 		/* Nothing to do. */
 		break;
 	}
-	if (fom->iu_op != ITER_UT_OP_META_LOOKUP)
-		m0_dtx_open_sync(&fom->iu_fom.fo_tx);
-	m0_ctg_op_init(&fom->iu_ctg_op, &fom->iu_fom, 0);
 }
 
 static int iter_ut_fom_exec(struct iter_ut_fom *fom)
@@ -293,6 +295,27 @@ static int iter_ut_fom_tick(struct m0_fom *fom0)
 	switch (m0_fom_phase(fom0)) {
 	case ITER_UT_FOM_INIT:
 		iter_ut_fom_init(fom);
+		if (fom->iu_op != ITER_UT_OP_META_LOOKUP)
+			m0_dtx_open(&fom->iu_fom.fo_tx);
+		m0_fom_phase_set(fom0, ITER_UT_FOM_INIT_WAIT);
+		break;
+	case ITER_UT_FOM_INIT_WAIT:
+		if (fom->iu_op != ITER_UT_OP_META_LOOKUP) {
+			/* XXX simplified version of fom_tx_wait() */
+			M0_ASSERT(m0_be_tx_state(m0_fom_tx(fom0)) !=
+				  M0_BTS_FAILED);
+			if (M0_IN(m0_be_tx_state(m0_fom_tx(fom0)),
+				  (M0_BTS_OPENING, M0_BTS_GROUPING))) {
+				m0_fom_wait_on(fom0,
+					       &m0_fom_tx(fom0)->t_sm.sm_chan,
+				               &fom0->fo_cb);
+				result = M0_FSO_WAIT;
+				break;
+			} else {
+				m0_dtx_opened(&fom0->fo_tx);
+			}
+		}
+		m0_ctg_op_init(&fom->iu_ctg_op, &fom->iu_fom, 0);
 		if (fom->iu_op == ITER_UT_OP_CTIDX_DELETE)
 			result = M0_FOM_LONG_LOCK_RETURN(m0_long_write_lock(
 						 m0_ctg_del_lock(),
