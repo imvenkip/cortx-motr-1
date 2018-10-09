@@ -51,7 +51,6 @@ struct be_ut_alloc_thread_state {
 	void            *ats_ptr[BE_UT_ALLOC_PTR_NR];
 	/** number of interations for this thread */
 	int              ats_nr;
-	bool             ats_capturing_check;
 };
 
 static struct m0_be_ut_backend         be_ut_alloc_backend;
@@ -87,21 +86,17 @@ M0_INTERNAL void m0_be_ut_alloc_create_destroy(void)
 
 static void be_ut_alloc_ptr_handle(struct m0_be_allocator  *a,
 				   void                   **p,
-				   uint64_t                *seed,
-				   bool                     capturing_check)
+				   uint64_t                *seed)
 {
 	struct m0_be_ut_backend *ut_be = &be_ut_alloc_backend;
-	struct m0_be_ut_seg     *ut_seg;
 	m0_bcount_t              size;
 	unsigned                 shift;
-
-	ut_seg = capturing_check ? &be_ut_alloc_seg : NULL;
 
 	size  = m0_rnd64(seed) % BE_UT_ALLOC_SIZE + 1;
 	shift = m0_rnd64(seed) % BE_UT_ALLOC_SHIFT;
 
 	if (*p == NULL) {
-		M0_BE_UT_TRANSACT(ut_be, ut_seg, tx, cred,
+		M0_BE_UT_TRANSACT(ut_be, tx, cred,
 			  (m0_be_allocator_credit(a, M0_BAO_ALLOC_ALIGNED,
 						 size, shift, &cred),
 			   m0_be_alloc_stats_credit(a, &cred)),
@@ -113,7 +108,7 @@ static void be_ut_alloc_ptr_handle(struct m0_be_allocator  *a,
 		M0_UT_ASSERT(*p != NULL);
 		M0_UT_ASSERT(m0_addr_is_aligned(*p, shift));
 	} else {
-		M0_BE_UT_TRANSACT(ut_be, ut_seg, tx, cred,
+		M0_BE_UT_TRANSACT(ut_be, tx, cred,
 			  (m0_be_allocator_credit(a, M0_BAO_FREE_ALIGNED,
 						 size, shift, &cred),
 			   m0_be_alloc_stats_credit(a, &cred)),
@@ -137,13 +132,11 @@ static void be_ut_alloc_thread(int index)
 	M0_SET_ARR0(ts->ats_ptr);
 	for (j = 0; j < ts->ats_nr; ++j) {
 		i = m0_rnd64(&seed) % ARRAY_SIZE(ts->ats_ptr);
-		be_ut_alloc_ptr_handle(a, &ts->ats_ptr[i], &seed,
-				       ts->ats_capturing_check);
+		be_ut_alloc_ptr_handle(a, &ts->ats_ptr[i], &seed);
 	}
 	for (i = 0; i < BE_UT_ALLOC_PTR_NR; ++i) {
 		if (ts->ats_ptr[i] != NULL) {
-			be_ut_alloc_ptr_handle(a, &ts->ats_ptr[i], &seed,
-					       ts->ats_capturing_check);
+			be_ut_alloc_ptr_handle(a, &ts->ats_ptr[i], &seed);
 		}
 	}
 	m0_be_ut_backend_thread_exit(&be_ut_alloc_backend);
@@ -160,7 +153,6 @@ static void be_ut_alloc_mt(int nr)
 	for (i = 0; i < nr; ++i) {
 		be_ut_ts[i].ats_nr = nr == 1 ? BE_UT_ALLOC_NR :
 					       BE_UT_ALLOC_MT_NR;
-		be_ut_ts[i].ats_capturing_check = nr == 1;
 	}
 
 	m0_be_ut_backend_init(ut_be, true);
@@ -260,7 +252,7 @@ static void be_ut_alloc_oom_case(struct m0_be_allocator *a,
 
 	do {
 		M0_UT_ASSERT(ptrs_nr < ptrs_nr_max);
-		M0_BE_UT_TRANSACT(&be_ut_alloc_backend, NULL, tx, cred,
+		M0_BE_UT_TRANSACT(&be_ut_alloc_backend, tx, cred,
 		  m0_be_allocator_credit(a, M0_BAO_ALLOC, alloc_size, 0, &cred),
 		  M0_BE_OP_SYNC(op, m0_be_alloc(a, tx, &op,
 						&ptrs[ptrs_nr], alloc_size)));
@@ -269,7 +261,7 @@ static void be_ut_alloc_oom_case(struct m0_be_allocator *a,
 	M0_UT_ASSERT(ptrs_nr > 1);
 
 	for (i = 0; i < ptrs_nr; ++i) {
-		M0_BE_UT_TRANSACT(&be_ut_alloc_backend, NULL, tx, cred,
+		M0_BE_UT_TRANSACT(&be_ut_alloc_backend, tx, cred,
 			  m0_be_allocator_credit(a, M0_BAO_FREE, 0, 0, &cred),
 			  M0_BE_OP_SYNC(op, m0_be_free(a, tx, &op, ptrs[i])));
 	}
@@ -363,12 +355,12 @@ M0_INTERNAL void m0_be_ut_alloc_spare(void)
 			       "ut_alloc_spare #%d do free ptrs[%d] %p",
 			       i, scenario[i].fi, ptrs[scenario[i].fi]);
 
-			M0_BE_UT_TRANSACT(&ut_be, &ut_seg, tx, cred,
+			M0_BE_UT_TRANSACT(&ut_be, tx, cred,
 			  m0_be_allocator_credit(a, M0_BAO_FREE, 0, 0, &cred),
 			  M0_BE_OP_SYNC(op, m0_be_free(a, tx, &op,
 						       ptrs[scenario[i].fi])));
 		} else {
-			M0_BE_UT_TRANSACT(&ut_be, &ut_seg, tx, cred,
+			M0_BE_UT_TRANSACT(&ut_be, tx, cred,
 			  (m0_be_allocator_credit(a, M0_BAO_ALLOC_ALIGNED,
 						  size, BE_UT_ALLOC_SHIFT,
 						  &cred),

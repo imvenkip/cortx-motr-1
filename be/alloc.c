@@ -887,9 +887,6 @@ M0_INTERNAL int m0_be_allocator_init(struct m0_be_allocator *a,
 		 */
 		m0_be_list_init(&a->ba_h[i]->bah_chunks, seg);
 		m0_be_fl_init(&a->ba_h[i]->bah_fl, seg);
-
-		/* XXX temporary solution to make capturing checkers pass */
-		m0_be_reg__write(&M0_BE_REG_PTR(a->ba_seg, a->ba_h[i]));
 		M0_BE_REG_PUT_PTR(&a->ba_h[i], a->ba_seg, NULL);
 	}
 	M0_BE_REG_PUT_PTR(seg_hdr, a->ba_seg, NULL);
@@ -907,8 +904,6 @@ M0_INTERNAL void m0_be_allocator_fini(struct m0_be_allocator *a)
 		be_allocator_stats_print(&a->ba_h[i]->bah_stats, NULL, a);
 		m0_be_fl_fini(&a->ba_h[i]->bah_fl);
 		m0_be_list_fini(&a->ba_h[i]->bah_chunks);
-		/* XXX temporary solution to make capturing checkers pass */
-		m0_be_reg__write(&M0_BE_REG_PTR(a->ba_seg, a->ba_h[i]));
 	}
 	m0_mutex_fini(&a->ba_lock);
 

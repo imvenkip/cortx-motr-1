@@ -268,10 +268,6 @@ void m0_be_ut_seg_allocator_fini(struct m0_be_ut_seg *ut_seg,
 {
 }
 
-void m0_be_ut_seg_check_persistence(struct m0_be_ut_seg *ut_seg)
-{
-}
-
 void m0_be_ut_seg_init(struct m0_be_ut_seg *ut_seg,
 		       struct m0_be_ut_backend *ut_be,
 		       m0_bcount_t size)
@@ -333,25 +329,6 @@ M0_INTERNAL void m0_be_ut_free(struct m0_be_ut_backend *ut_be,
 			       void *ptr)
 {
 	m0_be_free(NULL, NULL, NULL, ptr);
-}
-
-M0_INTERNAL void m0_be_ut_txc_init(struct m0_be_ut_txc *tc)
-{
-}
-
-M0_INTERNAL void m0_be_ut_txc_start(struct m0_be_ut_txc *tc,
-				    struct m0_be_tx *tx,
-				    const struct m0_be_seg *seg)
-{
-}
-
-M0_INTERNAL void m0_be_ut_txc_check(struct m0_be_ut_txc *tc,
-				    struct m0_be_tx *tx)
-{
-}
-
-M0_INTERNAL void m0_be_ut_txc_fini(struct m0_be_ut_txc *tc)
-{
 }
 
 M0_INTERNAL void m0_be_pd_reg_get(struct m0_be_pd        *paged,
