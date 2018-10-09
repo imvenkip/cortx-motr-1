@@ -38,6 +38,7 @@
 #include "module/instance.h" /* m0 */
 #include "pool/pool.h"       /* m0_pool_version */
 #include "conf/confc.h"      /* m0_confc_close */
+#include "conf/ha.h"         /* m0_conf_ha_process_event_post */
 #include "net/lnet/lnet.h"   /* m0_net_lnet_xprt */
 #include "mero/ha.h"
 #include "rpc/rpc_machine.h" /* m0_rpc_machine */
@@ -99,6 +100,11 @@ static int dix_ha_init(struct dix_ctx *ctx, const char *ha_addr)
 static void dix_ha_stop(struct dix_ctx *ctx)
 {
 	M0_ENTRY();
+	m0_conf_ha_process_event_post(&ctx->dc_mero_ha.mh_ha,
+	                               ctx->dc_mero_ha.mh_link,
+	                              &ctx->dc_reqh.rh_fid, m0_process(),
+				      M0_CONF_HA_PROCESS_STOPPED,
+				      M0_CONF_HA_PROCESS_OTHER);
 	m0_mero_ha_disconnect(&ctx->dc_mero_ha);
 	m0_mero_ha_stop(&ctx->dc_mero_ha);
 	M0_LEAVE();
