@@ -487,7 +487,8 @@ static void ut_clovis_test_m0_clovis_obj_init(void)
 	id = M0_CLOVIS_ID_APP;
 	id.u_lo++;
 
-	m0_fi_enable_once("m0_clovis__pool_version_get", "fake_pool_version");
+	m0_fi_enable_once("m0_clovis__obj_pool_version_get",
+			  "fake_pool_version");
 	/* base case: no error */
 	M0_SET0(&obj);
 	m0_clovis_obj_init(&obj, &uber_realm.co_realm, &id,
@@ -961,7 +962,8 @@ static void ut_clovis_test_m0_clovis_entity_fini(void)
 	id = M0_CLOVIS_ID_APP;
 	id.u_lo++;
 	M0_SET0(&obj);
-	m0_fi_enable_once("m0_clovis__pool_version_get", "fake_pool_version");
+	m0_fi_enable_once("m0_clovis__obj_pool_version_get",
+			  "fake_pool_version");
 	m0_clovis_obj_init(&obj, &uber_realm.co_realm, &id,
 			   m0_clovis_layout_id(instance));
 	ent = &obj.ob_entity;
@@ -971,7 +973,8 @@ static void ut_clovis_test_m0_clovis_entity_fini(void)
 
 	/* Re-initialise */
 	M0_SET0(&obj);
-	m0_fi_enable_once("m0_clovis__pool_version_get", "fake_pool_version");
+	m0_fi_enable_once("m0_clovis__obj_pool_version_get",
+			  "fake_pool_version");
 	m0_clovis_obj_init(&obj, &uber_realm.co_realm, &id,
 			   m0_clovis_layout_id(instance));
 
@@ -999,7 +1002,8 @@ static void ut_clovis_test_m0_clovis_obj_fini(void)
 	id = M0_CLOVIS_ID_APP;
 	id.u_lo++;
 	M0_SET0(&obj);
-	m0_fi_enable_once("m0_clovis__pool_version_get", "fake_pool_version");
+	m0_fi_enable_once("m0_clovis__obj_pool_version_get",
+			  "fake_pool_version");
 	m0_clovis_obj_init(&obj, &uber_realm.co_realm, &id,
 			   m0_clovis_layout_id(instance));
 
@@ -1008,7 +1012,8 @@ static void ut_clovis_test_m0_clovis_obj_fini(void)
 
 	/* Re-initialise */
 	M0_SET0(&obj);
-	m0_fi_enable_once("m0_clovis__pool_version_get", "fake_pool_version");
+	m0_fi_enable_once("m0_clovis__obj_pool_version_get",
+			  "fake_pool_version");
 	m0_clovis_obj_init(&obj, &uber_realm.co_realm, &id,
 			   m0_clovis_layout_id(instance));
 
