@@ -38,13 +38,19 @@ usage()
 Usage: $PROG_NAME [options] vagrant-cmd [vagrant-cmd-options]
        $PROG_NAME [options] ansible ansible-args
        $PROG_NAME list-params
+       $PROG_NAME workspace list|add|switch
 
   Helper tool to run 'vagrant' or 'ansible-playbook' commands with mero
   provisioning configs (see scripts/provisioning/README.md).
 
-  'list-params' sub-command shows environment variables recognized by mero
-  Vagrantfile config which can be specified either in command-line or in '.env'
+  'list-params' command shows environment variables recognized by mero
+  Vagrantfile config which can be specified either on command-line or in '.env'
   file to control default vagrant behaviour.
+
+  'workspace' command enables multiple independent sets of VMs to co-exist. It
+  can list existing workspaces, add new ones or switch between them. It can be
+  abbreviated as 'ws' and 'list' sub-command can be omitted, it's assumed by
+  default.
 
   Options:
 
@@ -65,6 +71,10 @@ parse_cli_options()
             -v|--verbose)       verbose=true; shift ;;
             -h|--help)          help stdout ;;
             ansible)            cmd=ansible-playbook; shift ; break ;;
+            workspace|ws)       cmd=workspace-${2:-list}; shift
+                                [[ -z $1 ]] || shift
+                                break
+                                ;;
 
             list-params)        grep -oE '\bM0_\w+\b' "$VAGRANT_DIR/Vagrantfile" | sort -u
                                 exit 0
@@ -86,6 +96,11 @@ die()
 {
     echo -e "$PROG_NAME: ERROR: $@" >&2
     exit 1
+}
+
+warn()
+{
+    echo -e "$PROG_NAME: WARNING: $@" >&2
 }
 
 log()
@@ -178,6 +193,80 @@ check_vagrant_envfile()
     fi
 }
 
+is_current_workspace()
+{
+    [[ $(readlink -f $1) == $(readlink -f $VAGRANT_DEFAULT_DOTFILE_DIR) ]]
+}
+
+list_workspaces()
+{
+    if [[ -e $VAGRANT_MERO_DOTFILE_DIR ]] ; then
+        is_current_workspace $VAGRANT_MERO_DOTFILE_DIR \
+            && echo -n '*' \
+            || echo -n ' '
+        echo ' default'
+    fi
+
+    local ws
+    local name
+    for ws in $VAGRANT_MERO_DOTFILE_DIR-* ; do
+        # skip env files like '.vagrant-mero-env'
+        [[ -d $ws ]] || continue
+
+        is_current_workspace $ws && echo -n '*' || echo -n ' '
+        echo " ${ws##*/.vagrant-mero-}"
+    done
+}
+
+add_workspace()
+{
+    [[ -n $1 ]] ||
+        die "please, specify a workspace name, it cannot be empty"
+
+    [[ $1 != default ]] ||
+        die "cannot add a workspace with the name 'default', it's reserved"
+
+    local ws="$VAGRANT_MERO_DOTFILE_DIR-$1"
+
+    [[ ! -d $ws ]] || {
+        warn "workspace '$1' already exists"
+        exit 0
+    }
+
+    if $verbose ; then
+        local v=-v
+    fi
+
+    mkdir $v "$ws"
+    touch "$ws-env"
+}
+
+switch_to_workspace()
+{
+    [[ -n $1 ]] ||
+        die "please, specify the workspace name, it cannot be empty"
+
+    if [[ $1 == default ]] ; then
+        local ws=$VAGRANT_MERO_DOTFILE_DIR
+    else
+        local ws="$VAGRANT_MERO_DOTFILE_DIR-$1"
+    fi
+
+    [[ -d $ws ]] ||
+        die "workspace '$1' doesn't exist, try creating it first with" \
+            "\`$PROG_NAME workspace add <name>\`"
+
+    if $verbose ; then
+        local v=-v
+    fi
+
+    rm $VAGRANT_DEFAULT_DOTFILE_DIR
+    ln $v -sf $ws $VAGRANT_DEFAULT_DOTFILE_DIR
+
+    rm $VAGRANT_DEFAULT_ENV_FILE
+    ln $v -sf $ws-env $VAGRANT_DEFAULT_ENV_FILE
+}
+
 #
 # Main
 #
@@ -189,18 +278,30 @@ parse_cli_options "$@"
 eval set -- "$cli_args"
 
 check_dependencies
+check_vagrant_dotdir
+check_vagrant_envfile
 cd $VAGRANT_DIR
 
 case $cmd in
+    workspace-*)
+        case ${cmd#workspace-} in
+            list)    list_workspaces ;;
+
+            add)     add_workspace "$1" && echo OK || echo FAILED ;;
+
+            switch)  switch_to_workspace "$1"
+                     list_workspaces
+                     ;;
+
+            *)       die "Unknown workspace sub-command: '${cmd#workspace-}'" ;;
+        esac
+        ;;
+
     vagrant)
-        check_vagrant_dotdir
-        check_vagrant_envfile
         $cmd "$@"
         ;;
 
     ansible*)
-        check_vagrant_dotdir
-        check_vagrant_envfile
         $cmd --inventory-file="$VAGRANT_ANSIBLE_INVENTORY_FILE" "$@"
         ;;
 

@@ -262,6 +262,26 @@ If `--no-provision` option is omitted, the _Ansible_ provisioning will be
 repeated after the restore phase. It may come in handy for getting latest
 security updates for the VM since snapshot creation.
 
+Managing multiple VM sets with workspaces
+-----------------------------------------
+
+Workspaces is a handy little feature of `m0vg` script, it exploits the fact that
+_Vagrant_ keeps all configuration data related to `Vagrantfile` in a single
+directory. If that special directory is replaced with another one, _Vagrant_
+will use it instead. So it's possible to keep around multiple of those
+directories and switch between them.
+
+The `m0vg` supports following actions on workspaces:
+
+    m0vg workspace list
+    m0vg workspace add    <NAME>
+    m0vg workspace switch <NAME>
+
+The `workspace` sub-command can be shortened as just `ws`.
+
+`m0vg` also maintains a dedicated `.env` file for each workspace so when
+switching between workspaces each keeps it's own set of environment variables.
+
 Executing Ansible commands manually
 -----------------------------------
 
