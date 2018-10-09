@@ -1400,11 +1400,12 @@ install-tests:
 # RPM targets ----------------------------------------- {{{2
 #
 
-DIST_FILE=$(distdir).tar.gz
-RPM_DIR=~/rpmbuild
-RPM_SRC_DIR=$(RPM_DIR)/SOURCES
-RPM_SPEC_DIR=$(RPM_DIR)/SPECS
-RPM_MOCK_DIR=$(RPM_DIR)/MOCK-RPMS
+DIST_FILE    = $(distdir).tar.gz
+RPMBUILD_DIR = $(HOME)/rpmbuild
+RPM_SRC_DIR  = $(RPMBUILD_DIR)/SOURCES
+RPM_SPEC_DIR = $(RPMBUILD_DIR)/SPECS
+RPM_MOCK_DIR = $(RPMBUILD_DIR)/MOCK-RPMS
+
 # Some developers keep Mero sources on a vmhgfs partition (VMware sharing).
 # In this case $(DIST_FILE) and mero.spec will be owned by host OS' user,
 # and rpmbuild will fail with "Bad owner/group" message. Since vmhgfs does
@@ -1428,15 +1429,22 @@ __rpm_post:
 
 .PHONY: __rpm
 __rpm:
-	rpmbuild -ba $(RPM_SPEC_DIR)/mero.spec $(RPMBUILD_FLAGS)
+	rpmbuild -ba $(RPM_SPEC_DIR)/mero.spec \
+		 --define "_topdir $(RPMBUILD_DIR)" \
+		 $(RPMBUILD_FLAGS)
 
 .PHONY: __rpm_srpm
 __rpm_srpm:
-	rpmbuild -bs $(RPM_SPEC_DIR)/mero.spec $(RPMBUILD_FLAGS)
+	rpmbuild -bs $(RPM_SPEC_DIR)/mero.spec \
+		 --define "_topdir $(RPMBUILD_DIR)" \
+		 $(RPMBUILD_FLAGS)
 
 .PHONY: __rpm_tests
 __rpm_tests:
-	rpmbuild -bb $(RPM_SPEC_DIR)/mero.spec --with ut $(RPMBUILD_FLAGS)
+	rpmbuild -bb $(RPM_SPEC_DIR)/mero.spec \
+		 --define "_topdir $(RPMBUILD_DIR)" \
+		 --with ut \
+		 $(RPMBUILD_FLAGS)
 
 .PHONY: __rpm_mock_pre
 __rpm_mock_pre:
