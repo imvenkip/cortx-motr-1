@@ -55,13 +55,6 @@ static const struct m0_bob_type m0c_bobtype = {
 	.bt_check        = NULL,
 };
 
-/* Bitmap for the client endpoint - one bit per user? */
-static struct m0_bitmap   clovis_client_ep_tmid;
-
-/* Mutex protecting clovis_client_ep_tmid, and other globally serialised
- * operations */
-static struct m0_mutex    clovis_mutex;
-
 /**
  * Pointer to the configuration filesystem object of a pool that a Clovis
  * client attaches to. It is closed after Clovis initilisation is done as it
@@ -422,11 +415,6 @@ static void clovis_net_fini(struct m0_clovis *m0c)
 	m0_free(m0c->m0c_laddr);
 	m0c->m0c_laddr = NULL;
 
-	m0_mutex_lock(&clovis_mutex);
-	m0_bitmap_set(&clovis_client_ep_tmid, m0c->m0c_tmid, false);
-	m0c->m0c_tmid = 0;
-	m0_mutex_unlock(&clovis_mutex);
-
 	M0_LEAVE();
 }
 
@@ -447,6 +435,7 @@ static int clovis_net_init(struct m0_clovis *m0c)
 	struct m0_net_domain *ndom;
 	int                   rc;
 	char                 *laddr;
+	size_t                laddr_len;
 
 	M0_ENTRY();
 
@@ -454,13 +443,11 @@ static int clovis_net_init(struct m0_clovis *m0c)
 	M0_PRE(m0c->m0c_config != NULL);
 	M0_PRE(m0c->m0c_config->cc_local_addr != NULL);
 
-	laddr = m0_alloc(M0_NET_LNET_NIDSTR_SIZE * 2);
+	laddr_len = strlen(m0c->m0c_config->cc_local_addr) + 1;
+	laddr = m0_alloc(laddr_len);
 	if (laddr == NULL)
-		return M0_RC(-ENOMEM);
-
-	snprintf(laddr, M0_NET_LNET_NIDSTR_SIZE * 2, "%s%d",
-		 m0c->m0c_config->cc_local_addr, (int)m0c->m0c_tmid);
-	M0_LOG(M0_DEBUG, "local ep is %s", laddr);
+		return M0_ERR(-ENOMEM);
+	strncpy(laddr, m0c->m0c_config->cc_local_addr, laddr_len);
 	m0c->m0c_laddr = laddr;
 
 	m0c->m0c_xprt = &m0_net_lnet_xprt;
@@ -471,10 +458,6 @@ static int clovis_net_init(struct m0_clovis *m0c)
 	if (rc != 0) {
 		m0c->m0c_laddr = NULL;
 		m0_free(laddr);
-
-		m0_mutex_lock(&clovis_mutex);
-		m0_bitmap_set(&clovis_client_ep_tmid, m0c->m0c_tmid, false);
-		m0_mutex_unlock(&clovis_mutex);
 	}
 
 	return M0_RC(rc);
@@ -699,7 +682,8 @@ static void clovis_ha_process_event(struct m0_clovis              *m0c,
 
 	m0_conf_ha_process_event_post(&m0c->m0c_mero_ha.mh_ha,
 	                              m0c->m0c_mero_ha.mh_link,
-	                              &m0c->m0c_process_fid, 0, event,
+	                              &m0c->m0c_process_fid,
+				      m0_process(), event,
 #ifdef __KERNEL__
 				      M0_CONF_HA_PROCESS_KERNEL);
 #else
@@ -870,6 +854,10 @@ static int clovis_confc_init(struct m0_clovis *m0c)
 		goto err_ha_client_del;
 
 	rc = m0_conf_full_load(clovis_conf_fs);
+	if (rc != 0)
+		goto err_conf_fs_close;
+
+	rc = m0_conf_confc_ha_update(m0_reqh2confc(reqh));
 	if (rc != 0)
 		goto err_conf_fs_close;
 
@@ -1353,8 +1341,10 @@ M0_INTERNAL void m0_clovis_global_fini(void)
 {
 	M0_ENTRY();
 
-	m0_bitmap_fini(&clovis_client_ep_tmid);
-	m0_mutex_fini(&clovis_mutex);
+	m0_sm_conf_fini(&clovis_initlift_conf);
+	m0_sm_conf_fini(&clovis_op_conf);
+	m0_sm_conf_fini(&clovis_entity_conf);
+	m0_semaphore_fini(&clovis_cpus_sem);
 
 	M0_LEAVE();
 }
@@ -1380,20 +1370,13 @@ static int clovis_get_online_cpus(void)
 
 M0_INTERNAL int m0_clovis_global_init(void)
 {
-	int rc;
 	int cpus;
 
 	M0_ENTRY();
 
-	if (!m0_sm_conf_is_initialized(&clovis_initlift_conf))
-		m0_sm_conf_init(&clovis_initlift_conf);
-	if (!m0_sm_conf_is_initialized(&clovis_op_conf))
-		m0_sm_conf_init(&clovis_op_conf);
-	if (!m0_sm_conf_is_initialized(&clovis_entity_conf))
-		m0_sm_conf_init(&clovis_entity_conf);
-
-	/* initialise other global things */
-	m0_mutex_init(&clovis_mutex);
+	m0_sm_conf_init(&clovis_initlift_conf);
+	m0_sm_conf_init(&clovis_op_conf);
+	m0_sm_conf_init(&clovis_entity_conf);
 
 	/*
 	 * Limit the number of concurrent parity calculations
@@ -1405,12 +1388,6 @@ M0_INTERNAL int m0_clovis_global_init(void)
 	cpus = clovis_get_online_cpus();
 	M0_LOG(M0_INFO, "mero: max CPUs for parity calcs: %d\n", cpus);
 	m0_semaphore_init(&clovis_cpus_sem, cpus);
-
-	rc = m0_bitmap_init(&clovis_client_ep_tmid,
-			    M0_NET_LNET_TMID_MAX / 2);
-	if (rc != 0)
-		return M0_RC(rc);
-	m0_bitmap_set(&clovis_client_ep_tmid, 0, true);
 
 	m0_clovis_idx_services_register();
 

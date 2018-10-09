@@ -141,9 +141,14 @@ id_m0_globals:
     tag: Formulaic
     contents:
       - [0,0,0,0,1]
-      - [0,0,0,0,2]
-      - [0,0,0,1,0]
-      - [0,0,0,1,1]
+# For parity 2 we can tolerate 2 disk failures:
+#     - [0,0,0,0,2]
+# For 8+2 layout (8 data units + 2 parity units in group)
+# and 6+ nodes configuration we can tolerate the failure
+# of the whole node:
+#     - [0,0,0,1,0]
+# And in case of 12+ nodes (8+2 layout), 1 node +1 disk:
+#     - [0,0,0,1,1]
 id_pools:
   - pool_id: default
     pool_device_refs:

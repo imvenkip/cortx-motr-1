@@ -280,7 +280,7 @@ M0_INTERNAL int m0_clovis__layout_get(struct m0_clovis_layout *layout)
 	M0_ENTRY();
 	M0_PRE(layout != NULL);
 
-	if (layout->cl_ops->lo_get != NULL);
+	if (layout->cl_ops->lo_get != NULL)
 		rc = layout->cl_ops->lo_get(layout);
 	return M0_RC(rc);
 }

@@ -472,9 +472,6 @@ struct m0_clovis {
 	struct m0_net_buffer_pool               m0c_buffer_pool;
 	struct m0_rpc_machine                   m0c_rpc_machine;
 
-	/** lnet tmid for client ep */
-	size_t                                  m0c_tmid;
-
 	/** Clovis configuration, it takes place of m0t1fs mount options*/
 	struct m0_clovis_config                *m0c_config;
 
