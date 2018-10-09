@@ -7,6 +7,4 @@ halon_build_deps_pkgs:
   - leveldb-devel
   - libyaml-devel
   - pcre-devel
-  # latest version of stack is installed using official get-stack.sh scrip
-  # so disabling it here
-  #- stack
+  - stack

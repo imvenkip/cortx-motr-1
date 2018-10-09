@@ -4,11 +4,11 @@
 %bcond_with intel_lustre
 %bcond_with cassandra
 
-# optional configure options
+# configure options
 %define with_linux  %( test -n "$kernel_src" && echo "--with-linux=$kernel_src" )
 %define with_lustre %( test -n "$lustre_src" && echo "--with-lustre=$lustre_src" )
 
-# raw kernel version.
+# kernel version.
 %define raw_kernel_ver %(
                           if test -n "$kernel_src"; then
                               basename $(readlink -f "$kernel_src")
@@ -17,8 +17,11 @@
                           fi
                         )
 
-%define kernel_ver %( echo %{raw_kernel_ver} | tr - _ )
+%define kernel_ver %( echo %{raw_kernel_ver} | tr - _ | sed -e 's/\.debug$//' -e 's/\.%{_arch}$//' -e 's/\.%{dist}$//' -e 's/\.el7$//'  )
 %define kernel_ver_requires %( echo %{raw_kernel_ver} | sed -e 's/\.debug$//' -e 's/\.x86_64$//' )
+
+# build number
+%define build_num  %( test -n "$build_number" && echo "$build_number" || echo 1 )
 
 # lustre vendor
 %define is_intel_lustre %(
@@ -60,7 +63,7 @@
 
 Name:           @PACKAGE@
 Version:        @PACKAGE_VERSION@
-Release:        1_%{kernel_ver}@GIT_REV_ID_RPM@%{?dist}
+Release:        %{build_num}_@GIT_REV_ID_RPM@_%{kernel_ver}%{?dist}
 Summary:        Mero filesystem and development libraries
 Group:          System Environment/Base
 License:        Xyratex
@@ -142,6 +145,7 @@ Requires: binutils-devel
 Requires: libyaml-devel
 Requires: libaio-devel
 Requires: libuuid-devel
+Requires: pkgconfig
 Requires: systemd-devel
 Requires: glibc-headers
 Requires: kernel-devel = %{kernel_ver_requires}

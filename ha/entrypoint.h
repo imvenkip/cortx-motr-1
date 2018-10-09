@@ -161,6 +161,17 @@ M0_INTERNAL void
 m0_ha_entrypoint_client_request(struct m0_ha_entrypoint_client *ecl);
 M0_INTERNAL struct m0_chan *
 m0_ha_entrypoint_client_chan(struct m0_ha_entrypoint_client *ecl);
+
+/**
+ * @pre m0_sm_group_is_locked(&ecl->ecl_sm_group)
+ *
+ * @note Use m0_sm_state_name() to convert m0_ha_entrypoint_client_state
+ *       to string.
+ * @code
+ *         state = m0_ha_entrypoint_client_state_get(ecl);
+ *         M0_LOG(M0_DEBUG, "state=%s", m0_sm_state_name(&ecl->ecl_sm, state));
+ * @endcode
+ */
 M0_INTERNAL enum m0_ha_entrypoint_client_state
 m0_ha_entrypoint_client_state_get(struct m0_ha_entrypoint_client *ecl);
 

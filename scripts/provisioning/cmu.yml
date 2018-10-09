@@ -3,6 +3,17 @@
 # using '-e override_hosts=HOSTS' option
 - hosts:  '{{ override_hosts | default("cmu") }}'
   become: yes  # run all commands as root
+
+  pre_tasks:
+    - name: reinstall all packages (hack for restoring man pages)
+      command:   'yum -y reinstall "*"'
+      args:
+        creates: '/usr/share/man/man1/ls.1.gz'
+      when: ansible_os_family == 'RedHat'
+      tags:
+        - reinstall-all
+        - recover-man-pages
+
   roles:
     - ssh-master
     - base-os

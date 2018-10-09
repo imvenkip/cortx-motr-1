@@ -38,7 +38,7 @@ jobs:
               ./scripts/setup-node localhost \
                         --verbose \
                         --local \
-                        --skip-tags reboot,upgrade,start-services,debug,never
+                        --skip-tags never,reboot,upgrade,start-services,debug,devel
 
       - run:
           name: Building Mero

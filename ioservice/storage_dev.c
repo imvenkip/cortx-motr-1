@@ -104,6 +104,7 @@ M0_INTERNAL void m0_storage_devs_fini(struct m0_storage_devs *devs)
 {
 	struct m0_storage_dev  *dev;
 
+	M0_ENTRY();
 	m0_parallel_pool_terminate_wait(&devs->sds_pool);
 	m0_parallel_pool_fini(&devs->sds_pool);
 	m0_clink_cleanup(&devs->sds_conf_exp);
@@ -123,6 +124,7 @@ M0_INTERNAL void m0_storage_devs_fini(struct m0_storage_devs *devs)
 
 	storage_dev_tlist_fini(&devs->sds_devices);
 	m0_mutex_fini(&devs->sds_lock);
+	M0_LEAVE();
 }
 
 M0_INTERNAL void m0_storage_devs_use_directio(struct m0_storage_devs *devs,
@@ -181,6 +183,7 @@ static bool storage_dev_state_update_cb(struct m0_clink *link)
 static void dev_filename_update(struct m0_storage_dev    *dev,
 				const struct m0_conf_obj *obj)
 {
+	M0_ENTRY();
 	m0_free0(&dev->isd_filename);
 	dev->isd_filename = m0_strdup(
 		M0_CONF_CAST(obj, m0_conf_sdev)->sd_filename);
@@ -188,6 +191,7 @@ static void dev_filename_update(struct m0_storage_dev    *dev,
 		M0_ERR_INFO(-ENOMEM, "Unable to duplicate sd_filename %s for "
 			    FID_F, M0_CONF_CAST(obj, m0_conf_sdev)->sd_filename,
 			    FID_P(&obj->co_id));
+	M0_LEAVE();
 }
 
 static bool storage_devs_conf_expired_cb(struct m0_clink *clink)
@@ -202,6 +206,7 @@ static bool storage_devs_conf_expired_cb(struct m0_clink *clink)
 	struct m0_conf_cache   *cache = &m0_reqh2confc(reqh)->cc_cache;
 	struct m0_fid           sdev_fid;
 
+	M0_ENTRY();
 	m0_storage_devs_lock(storage_devs);
 	m0_tl_for (storage_dev, &storage_devs->sds_devices, dev) {
 		/*
@@ -234,6 +239,7 @@ static bool storage_devs_conf_expired_cb(struct m0_clink *clink)
 		dev->isd_ha_state = M0_NC_UNKNOWN;
 	} m0_tl_endfor;
 	m0_storage_devs_unlock(storage_devs);
+	M0_LEAVE();
 	return true;
 }
 
@@ -272,6 +278,7 @@ static void storage_devs_conf_refresh(struct m0_storage_devs *storage_devs,
 	struct m0_conf_sdev   *conf_sdev;
 	int                    rc;
 
+	M0_ENTRY();
 	M0_PRE(storage_devs_is_locked(storage_devs));
 
 	m0_tl_for(storage_dev, &storage_devs->sds_devices, dev) {
@@ -292,6 +299,7 @@ static void storage_devs_conf_refresh(struct m0_storage_devs *storage_devs,
 		if (conf_sdev != NULL)
 			m0_confc_close(&conf_sdev->sd_obj);
 	} m0_tl_endfor;
+	M0_LEAVE();
 }
 
 static bool storage_devs_conf_ready_async_cb(struct m0_clink *clink)
@@ -542,9 +550,10 @@ M0_INTERNAL int m0_storage_dev_new(struct m0_storage_devs *devs,
 				   bool                    force,
 				   struct m0_storage_dev **dev)
 {
-	return storage_dev_new(devs, cid,
-			       M0_FI_ENABLED("no_real_dev"), path,
-			       size, conf_sdev, force, dev);
+	M0_ENTRY();
+	return M0_RC(storage_dev_new(devs, cid,
+				     M0_FI_ENABLED("no_real_dev"), path,
+				     size, conf_sdev, force, dev));
 }
 
 M0_INTERNAL int m0_storage_dev_new_by_conf(struct m0_storage_devs *devs,
@@ -552,11 +561,12 @@ M0_INTERNAL int m0_storage_dev_new_by_conf(struct m0_storage_devs *devs,
 					   bool                    force,
 					   struct m0_storage_dev **dev)
 {
-	return storage_dev_new(devs, sdev->sd_dev_idx,
-			       M0_FI_ENABLED("no_real_dev"), sdev->sd_filename,
-			       sdev->sd_size,
-			       M0_FI_ENABLED("no-conf-dev") ? NULL : sdev,
-			       force, dev);
+	M0_ENTRY();
+	return M0_RC(storage_dev_new(devs, sdev->sd_dev_idx,
+				     M0_FI_ENABLED("no_real_dev"),
+				     sdev->sd_filename, sdev->sd_size,
+				     M0_FI_ENABLED("no-conf-dev") ? NULL : sdev,
+				     force, dev));
 }
 
 M0_INTERNAL void m0_storage_dev_destroy(struct m0_storage_dev *dev)
@@ -564,6 +574,7 @@ M0_INTERNAL void m0_storage_dev_destroy(struct m0_storage_dev *dev)
 	struct m0_stob *stob;
 	int             rc = 0;
 
+	M0_ENTRY();
 	M0_PRE(m0_ref_read(&dev->isd_ref) == 0);
 
 	/* Acquire a reference to the backing store for adstob configuration. */
@@ -585,11 +596,13 @@ M0_INTERNAL void m0_storage_dev_destroy(struct m0_storage_dev *dev)
 	m0_mutex_fini(&dev->isd_detached_lock);
 	m0_free(dev->isd_filename);
 	m0_free(dev);
+	M0_LEAVE();
 }
 
 M0_INTERNAL void m0_storage_dev_attach(struct m0_storage_dev  *dev,
 				       struct m0_storage_devs *devs)
 {
+	M0_ENTRY();
 	M0_PRE(storage_devs_is_locked(devs));
 	M0_PRE(m0_storage_devs_find_by_cid(devs, dev->isd_cid) == NULL);
 
@@ -602,12 +615,14 @@ M0_INTERNAL void m0_storage_dev_attach(struct m0_storage_dev  *dev,
 	       dev->isd_cid);
 	m0_storage_dev_get(dev);
 	storage_dev_tlink_init_at_tail(dev, &devs->sds_devices);
+	M0_LEAVE();
 }
 
 M0_INTERNAL void m0_storage_dev_detach(struct m0_storage_dev *dev)
 {
 	struct m0_conf_obj *obj;
 
+	M0_ENTRY();
 	if (m0_clink_is_armed(&dev->isd_clink)) {
 		obj = container_of(dev->isd_clink.cl_chan, struct m0_conf_obj,
 				   co_ha_chan);
@@ -622,6 +637,7 @@ M0_INTERNAL void m0_storage_dev_detach(struct m0_storage_dev *dev)
 	       dev->isd_srv_type,
 	       dev->isd_cid);
 	m0_storage_dev_put(dev);
+	M0_LEAVE();
 }
 
 M0_INTERNAL void m0_storage_dev_space(struct m0_storage_dev   *dev,
@@ -634,7 +650,7 @@ M0_INTERNAL void m0_storage_dev_space(struct m0_storage_dev   *dev,
 	int               rc1;
 
 	M0_ENTRY();
-	M0_ASSERT(dev != NULL);
+	M0_PRE(dev != NULL);
 
 	switch (dev->isd_type) {
 	case M0_STORAGE_DEV_TYPE_AD:
@@ -676,6 +692,7 @@ M0_INTERNAL void m0_storage_dev_space(struct m0_storage_dev   *dev,
 	default:
 		M0_IMPOSSIBLE("Unknown storage_dev type.");
 	}
+	M0_LEAVE();
 }
 
 struct storage_devs_wait {
@@ -689,7 +706,6 @@ static bool storage_devs_detached_cb(struct m0_clink *clink)
 		container_of(clink, struct storage_devs_wait, sdw_clink);
 
 	m0_semaphore_up(&wait->sdw_sem);
-
 	return true;
 }
 
@@ -699,6 +715,7 @@ M0_INTERNAL void m0_storage_devs_detach_all(struct m0_storage_devs *devs)
 	struct m0_storage_dev    *dev;
 	struct m0_clink          *clink;
 
+	M0_ENTRY();
 	m0_semaphore_init(&wait.sdw_sem, 0);
 	clink = &wait.sdw_clink;
 	m0_tl_for(storage_dev, &devs->sds_devices, dev) {
@@ -713,6 +730,7 @@ M0_INTERNAL void m0_storage_devs_detach_all(struct m0_storage_devs *devs)
 		m0_clink_fini(clink);
 	} m0_tl_endfor;
 	m0_semaphore_fini(&wait.sdw_sem);
+	M0_LEAVE();
 }
 
 M0_INTERNAL int m0_storage_dev_format(struct m0_storage_dev *dev,

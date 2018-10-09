@@ -8,7 +8,7 @@
 # Vagrant doesn't expose information about current virtualisation provider
 # through it's public API, so we use our own preferred providers order as a hint
 # and try to pick the first available when it's not possible to detect a
-# provider from env or cli arg
+# provider from env or CLI arg
 def guess_provider()
   host = RbConfig::CONFIG['host_os']
 
@@ -16,15 +16,20 @@ def guess_provider()
   when /darwin/
     vmware     = '/Applications/VMware Fusion.app'
     virtualbox = '/Applications/VirtualBox.app'
-    return Dir.exists?(vmware)       ? :vmware_fusion
-           : Dir.exists?(virtualbox) ? :virtualbox
-           :                           nil
+    return Dir.exists?(vmware) &&
+           Vagrant.has_plugin?('vagrant-vmware-fusion')    ? :vmware_fusion
+           : Dir.exists?(vmware) &&
+             Vagrant.has_plugin?('vagrant-vmware-desktop') ? :vmware_desktop
+
+           : Dir.exists?(virtualbox)                       ? :virtualbox
+           :                                                 nil
   when /linux/
     kvm        = '/usr/bin/kvm'
     virtualbox = '/usr/bin/virtualbox'
-    return File.exists?(kvm)          ? :libvirt
-           : File.exists?(virtualbox) ? :virtualbox
-           :                            nil
+    return File.exists?(kvm) &&
+           Vagrant.has_plugin?('vagrant-libvirt')   ? :libvirt
+           : File.exists?(virtualbox)               ? :virtualbox
+           :                                          nil
   end
 
   return :virtualbox
@@ -96,7 +101,9 @@ Vagrant.configure('2') do |config|
   # Basic options ---------------------------------------------------------
   #
 
-  ansible_skip_tags = [ 'debug', 'vault-release', 'xperior' ]
+  # TODO: remove 'never' tag from skip list once Ansible is updated to
+  #       version 2.5 on all platforms
+  ansible_skip_tags = [ 'never', 'debug', 'vault-release', 'xperior' ]
 
   # A box is a minimal clean VM image. You can search for boxes at
   # https://vagrantcloud.com, or even create your own with https://www.packer.io
@@ -143,14 +150,14 @@ Vagrant.configure('2') do |config|
   # argument is a set of non-required options.
   #config.vm.synced_folder "../data", "/vagrant_data"
 
-  # Disable the default shareing of current folder
+  # Disable the default sharing of current folder
   config.vm.synced_folder '.', '/vagrant', disabled: true
 
   # Providers ------------------------------
 
   # providers priority order (from top to bottom)
-  config.vm.provider :libvirt
   config.vm.provider :vmware_fusion
+  config.vm.provider :libvirt
   config.vm.provider :virtualbox
 
   # Machines ==============================================================
@@ -172,6 +179,14 @@ Vagrant.configure('2') do |config|
     setup(cmu, cmu_cpus, cmu_mem)
     setup_shared_mero_src_dir(cmu)
     cmu.vm.provision :docker
+    if !ENV['M0_VM_PROVISION_SCRIPT'].nil?
+      if File.exists?(File.expand_path(ENV['M0_VM_PROVISION_SCRIPT']))
+        cmu.vm.provision :shell, path: ENV['M0_VM_PROVISION_SCRIPT'], privileged: false
+      else
+        warn '*** WARNING ***: skipping non-existing custom provisioning script' \
+             " M0_VM_PROVISION_SCRIPT=#{ENV['M0_VM_PROVISION_SCRIPT']}"
+      end
+    end
   end
 
   # SSUs -----------------------------------
@@ -223,14 +238,23 @@ Vagrant.configure('2') do |config|
     ansible_skip_tags.delete('xperior')
   end
 
+  if !ENV['M0_VM_FIX_MANPAGES'].nil? &&
+      ENV['M0_VM_FIX_MANPAGES'].match(/no|false|0/i)
+    ansible_skip_tags.push('recover-man-pages')
+  end
+
   # delegate OS configuration to Ansible
   config.vm.provision :ansible do |ansible|
     ansible.compatibility_mode = '2.0'
     ansible.playbook = 'cluster.yml'
     ansible.groups = {
-      'clients' => ["client[1:#{client_nr}]"],
-      'ssus'    => ["ssu[1:#{ssu_nr}]"]
+      'clients'  => ["client[1:#{client_nr}]"],
+      'ssus'     => ["ssu[1:#{ssu_nr}]"],
+      'all:vars' => { },
     }
+    if !ENV['M0_VM_EXTRA_PKGS'].nil?
+      ansible.groups['all:vars']['extra_tools_pkgs'] = ENV['M0_VM_EXTRA_PKGS']
+    end
     ansible.skip_tags = ansible_skip_tags
     # enable verbose status for each provisioning task
     ansible.verbose  = verbose_provision
@@ -436,8 +460,10 @@ end
 # share a top-level project dir (one level up from mero src dir)
 def setup_shared_mero_src_dir(config)
   if ARGV[0] and ARGV[0].match(/^(?:up|provision|reload)$/)
-    # one leve up from MERO_TOP_SRC_DIR
-    path = File.expand_path(MERO_TOP_SRC_DIR + '/..')
+    # by default, shared directory is one level up from MERO_TOP_SRC_DIR,
+    # it can be customized via M0_VM_SHARED_DIR environment variable
+    path = !ENV['M0_VM_SHARED_DIR'].nil? ? File.expand_path(ENV['M0_VM_SHARED_DIR'])
+         :                                 File.expand_path(MERO_TOP_SRC_DIR + '/..')
     type = ENV['M0_VM_SHARE_TYPE'] || 'nfs'
 
     case type

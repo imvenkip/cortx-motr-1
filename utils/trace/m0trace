@@ -736,8 +736,8 @@ sub prepare_input_file
     {
         $input_file = "<$cli_option{input_file}";
     }
-    elsif ( $cli_option{input_file} # compressed log files files like *.yml.gz
-                =~ m/ \. (?: yml | yaml | log ) \. (?<ztype> gz | bz2 ) $ /xms )
+    elsif ( $cli_option{input_file} # compressed log files like *.yml.gz
+                =~ m/ \. (?: yml|yaml|log) \. (?<ztype> gz|bz2|xz) $ /xms )
     {
         given ( $+{ztype} ) {
             when ('gz') {
@@ -745,6 +745,9 @@ sub prepare_input_file
             }
             when ('bz2') {
                 $input_file = "bunzip2 -c $cli_option{input_file} |";
+            }
+            when ('xz') {
+                $input_file = "xz -d -c $cli_option{input_file} |";
             }
         }
     }
@@ -1123,7 +1126,7 @@ m0trace - display Mero trace logs in a human-friendly format
 m0trace  kernel[-buf] | ha[-buf] | confd[-buf] | iosX[-buf] | mdsX[-buf]
 
 m0trace  [-i|--input IFILE] [-o|--output OFILE]
-         [-S|--stream-mode] [-Y|--yaml-output] [-W|--workers NUM] [--no-pager]
+         [-Y|--yaml-output] [-W|--workers NUM] [--no-pager]
          [--no-relpath] [-w|--column-width NUM] [-c|-C|--color MODE] [-d]
          [-k|--kdump] [--flush-output] [-I|--module-image FILE] [-L|--log-dir DIR]
          [-H|--dump-header] [-F|--follow] [-M|--match-only] [-f|--format FMT]
@@ -1158,11 +1161,9 @@ C<m0trace.PID> file).
 Input file name, if omitted then STDIN is used by default. If input comes from
 STDIN or input file has C<*.yml>, C<*.yaml> or C<*.log> extension, then it's
 assumed to be a text file in YAML format (C<m0trace> recognizes compressed YAML
-logs if file has C<*.gz> or C<*.bz2> extension). Otherwise it's assumed to be a
-raw binary trace data and in that case it is converted into YAML format first,
-with the help of B<m0tracedump> utility, which creates a temporary file in the
-current directory. Temporary file is not used if m0trace operates in "stream
-mode"(see B<-s|--stream-mode> option below).
+logs if file has C<*.gz>, C<*.bz2> or C<*.xz> extension). Otherwise it is
+assumed to be a raw binary trace data and in that case it is converted into
+YAML format by piping through B<m0tracedump> utility.
 
 =item B<-o|--output=I<ofile>>
 

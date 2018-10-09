@@ -1,10 +1,7 @@
 ---
 mero_runtime_deps_pkgs:
   - attr
-  - crash
-  - expect
   - facter
-  - gdb
   - genders
   - libyaml
   - lustre-client
@@ -17,8 +14,7 @@ mero_runtime_deps_pkgs:
   - perl-Try-Tiny
   - perl-YAML-LibYAML
   - perl-autodie
-  - psmisc
+  - pkgconfig
   - ruby
   - rubygem-net-ssh
   - sysvinit-tools
-  - time

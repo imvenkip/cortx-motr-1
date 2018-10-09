@@ -2,6 +2,7 @@
 basic_tools_pkgs:
   - tmux
   - vim
+  - emacs
   - pdsh
   # machine autodicovery by hostname
   - avahi
@@ -10,6 +11,19 @@ basic_tools_pkgs:
   - bind-utils
   # remote syslog
   - systemd-journal-gateway
+
+devel_tools_pkgs:
+  - crash
+  - expect
+  - gdb
+  - ltrace
+  - perf
+  - psmisc
+  - strace
+  - systemtap
+  - time
+  - trace-cmd
+  - valgrind
 
 avahi_service: avahi-daemon
 

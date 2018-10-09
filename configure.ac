@@ -90,7 +90,7 @@ m4_define([GIT_REV_ID_SHORT_BUILTIN],
 m4_define([GIT_REV_ID_FULL_BUILTIN],
           [m4_esyscmd([git rev-parse > /dev/null 2>&1 && git rev-parse HEAD])])
 m4_define([GIT_REV_ID_RPM_BUILTIN],
-          m4_if(GIT_REV_ID_SHORT_BUILTIN,[],[],[.git]GIT_REV_ID_SHORT_BUILTIN))
+          m4_if(GIT_REV_ID_SHORT_BUILTIN,[],[],[git]GIT_REV_ID_SHORT_BUILTIN))
 m4_define([GIT_BRANCH_BUILTIN],
           [m4_esyscmd([git rev-parse > /dev/null 2>&1 && git rev-parse --abbrev-ref HEAD])])
 m4_define([GIT_DESCRIBE_BUILTIN],

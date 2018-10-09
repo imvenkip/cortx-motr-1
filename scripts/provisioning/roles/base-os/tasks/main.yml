@@ -108,6 +108,21 @@
     name:  '{{ basic_tools_pkgs }}'
   tags: breaks-dry-run
 
+- name: install development tools
+  package:
+    state: present
+    name:  '{{ devel_tools_pkgs }}'
+  tags:
+    - breaks-dry-run
+    - devel
+
+- name: install extra tools
+  package:
+    state: present
+    name:  '{{ extra_tools_pkgs }}'
+  when: extra_tools_pkgs is defined
+  tags: breaks-dry-run
+
 - name: start avahi
   service: name={{ avahi_service }} state=started enabled=yes
   tags: start-services

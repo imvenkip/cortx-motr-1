@@ -2867,7 +2867,8 @@ static bool ha_clink_cb(struct m0_clink *clink)
 	int rc;
 
         state = m0_ha_entrypoint_client_state_get(ecl);
-        M0_ENTRY("ha_entrypoint_client_state %d", state);
+        M0_ENTRY("ha_entrypoint_client_state=%s",
+		 m0_sm_state_name(&ecl->ecl_sm, state));
 
 	if (rconfc->rc_local_conf != NULL)
 		return true;
