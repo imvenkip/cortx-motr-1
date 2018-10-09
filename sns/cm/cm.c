@@ -659,6 +659,7 @@ M0_INTERNAL int m0_sns_cm_start(struct m0_cm *cm)
 		return M0_ERR(rc);
 	}
 	scm->sc_start_time = m0_time_now();
+	scm->sc_last_status_print_time = m0_time_now();
 
 	return M0_RC(rc);
 }
@@ -690,25 +691,36 @@ static void sns_cm_buffer_pools_prune(struct m0_sns_cm *scm)
 		  scm->sc_ibp.sb_bp.nbp_buf_nr == 0);
 }
 
+static bool sns_cm_status_get(struct m0_sns_cm *scm,
+			      size_t *tread, size_t *twrite)
+{
+	size_t loc_nr = m0_fom_dom()->fd_localities_nr;
+	int    i;
+
+	if (scm->sc_total_read_size != NULL &&
+	    scm->sc_total_write_size != NULL) {
+		*tread = 0;
+		*twrite = 0;
+		for (i = 0; i < loc_nr; ++i) {
+			*tread += scm->sc_total_read_size[i];
+			*twrite += scm->sc_total_write_size[i];
+		}
+		return true;
+	}
+	return false;
+}
+
 M0_INTERNAL void m0_sns_cm_stop(struct m0_cm *cm)
 {
 	struct m0_sns_cm *scm = cm2sns(cm);
-	size_t            twrite = 0;
-	size_t            tread = 0;
-	size_t            loc_nr = m0_fom_dom()->fd_localities_nr;
-	int               i;
+	size_t            twrite;
+	size_t            tread;
 
 	M0_ENTRY();
 
 	m0_sns_cm_iter_stop(&scm->sc_it);
 	scm->sc_stop_time = m0_time_now();
-
-	if (scm->sc_total_read_size != NULL &&
-	    scm->sc_total_write_size != NULL) {
-		for (i = 0; i < loc_nr; ++i) {
-			tread += scm->sc_total_read_size[i];
-			twrite += scm->sc_total_write_size[i];
-		}
+	if (sns_cm_status_get(scm, &tread, &twrite)) {
 		M0_LOG(M0_WARN, "Time: %llu Read Size: %llu Write size: %llu",
 		       (unsigned long long)m0_time_sub(scm->sc_stop_time,
 						       scm->sc_start_time),
@@ -722,6 +734,20 @@ M0_INTERNAL void m0_sns_cm_stop(struct m0_cm *cm)
 	sns_cm_buffer_pools_prune(scm);
 
 	M0_LEAVE();
+}
+
+M0_INTERNAL void m0_sns_cm_print_status(struct m0_sns_cm *scm)
+{
+	size_t           twrite;
+	size_t           tread;
+	m0_time_t        now = m0_time_now();
+
+	if (scm->sc_last_status_print_time + M0_MKTIME(60,0) < now &&
+	    sns_cm_status_get(scm, &tread, &twrite)) {
+		scm->sc_last_status_print_time = now;
+		m0_console_printf("SNS-%02"PRIu32": read=%zu written=%zu\n",
+				  scm->sc_repair_done, tread, twrite);
+	}
 }
 
 M0_INTERNAL void m0_sns_cm_fini(struct m0_cm *cm)

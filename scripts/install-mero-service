@@ -179,6 +179,12 @@ install_files()
         run "$cmd $M0_SRC_DIR/$file $dir"
     done
 
+    dir='/usr/bin'
+    for file in 'utils/m0dixinit' ;
+    do
+        run "ln -sfv $M0_SRC_DIR/$file $dir"
+    done
+
     $dry_run || {
         [[ -x /usr/bin/systemctl ]] && systemctl daemon-reload
     }
@@ -189,6 +195,7 @@ uninstall_files()
     file_list='/etc/sysconfig/mero
                /etc/mero/disks-ios.conf
                /etc/mero/genders
+               /usr/bin/m0dixinit
                /usr/libexec/mero/mero-service.functions
                /usr/libexec/mero/mero-trace
                /usr/libexec/mero/mero-kernel

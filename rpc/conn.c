@@ -933,8 +933,10 @@ M0_INTERNAL void m0_rpc_conn_establish_reply_received(struct m0_rpc_item *item)
 		} else
 			rc = M0_ERR(-EPROTO);
 	}
-	if (rc != 0)
-		conn_failed(conn, M0_ERR(rc));
+	if (rc != 0) {
+		M0_LOG(M0_DEBUG, "rpc item ERROR rc=%d", rc);
+		conn_failed(conn, rc);
+	}
 
 	M0_POST(m0_rpc_conn_invariant(conn));
 	M0_POST(M0_IN(conn_state(conn), (M0_RPC_CONN_FAILED,
@@ -1128,11 +1130,13 @@ M0_INTERNAL void m0_rpc_conn_terminate_reply_received(struct m0_rpc_item *item)
 		else
 			rc = M0_ERR(-EPROTO);
 	}
-	if (rc != 0)
-		conn_failed(conn, M0_ERR_INFO(rc, "sender_id=%"PRIu64
-					      " svc_fid="FID_F,
-					      conn->c_sender_id,
-					      FID_P(&conn->c_svc_fid)));
+	if (rc != 0) {
+		M0_LOG(M0_DEBUG, "rpc item ERROR rc=%d sender_id=%"PRIu64
+				 " svc_fid="FID_F, rc, conn->c_sender_id,
+				 FID_P(&conn->c_svc_fid));
+		conn_failed(conn, rc);
+	}
+
 	M0_POST(m0_rpc_conn_invariant(conn));
 	M0_POST(M0_IN(conn_state(conn), (M0_RPC_CONN_TERMINATED,
 					 M0_RPC_CONN_FAILED)));

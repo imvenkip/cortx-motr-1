@@ -646,15 +646,6 @@ M0_INTERNAL int m0_clovis__obj_namei_send(struct m0_clovis_op_obj *oo);
 M0_INTERNAL int m0_clovis__obj_attr_get_sync(struct m0_clovis_obj *obj);
 
 /**
- * Finalises one of the fops used to contact an ioservice.
- *
- * @remarks If ios_fop->f_opaque is different to NULL, it is expected to point
- * to a m0_clovis_ios_cob_req struct.
- * @param ios_fop fop to be finalised.
- */
-M0_INTERNAL void m0_clovis_cob_ios_fop_fini(struct m0_fop *ios_fop);
-
-/**
  * Reads the specified layout from the mds.
  *
  * @param m0c The clovis instance we are working with, contains the layout db.

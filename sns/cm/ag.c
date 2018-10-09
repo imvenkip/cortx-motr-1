@@ -422,6 +422,7 @@ M0_INTERNAL void m0_sns_cm_ag_fini(struct m0_sns_cm_ag *sag)
 	m0_cm_proxy_in_count_free(&sag->sag_proxy_in_count);
 	m0_sns_cm_fctx_put(scm, &ag->cag_id);
 	m0_cm_aggr_group_fini_and_progress(ag);
+	m0_sns_cm_print_status(scm);
         M0_LEAVE();
 }
 

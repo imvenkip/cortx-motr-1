@@ -875,7 +875,7 @@ static void ut_clovis_test_rpc_item_to_ios_cob_req(void)
 
 	/* base case */
 	fop.f_opaque = &icr;
-	ret = rpc_item_to_cob_req(&fop.f_item);
+	ret = rpc_item_to_icr(&fop.f_item);
 	M0_UT_ASSERT(ret == &icr);
 }
 
@@ -891,6 +891,7 @@ static void ut_clovis_test_clovis_icr_ast_complete(void)
 	struct m0_sm_group           *en_grp;
 	struct m0_sm_group           *op_grp;
 	struct m0_sm_group            locality_grp;
+	struct m0_fop                 fop;
 	struct m0_clovis_entity       ent;
 	struct m0_clovis_realm        realm;
 	uint64_t                      pool_width;
@@ -933,6 +934,10 @@ static void ut_clovis_test_clovis_icr_ast_complete(void)
 	cr->cr_cob_type = M0_COB_IO;
 	cr->cr_icr_nr = pool_width;
 	M0_ALLOC_ARR(cr->cr_ios_replied, pool_width);
+	M0_ALLOC_ARR(cr->cr_ios_fop, pool_width);
+	fop.f_item.ri_reply = (struct m0_rpc_item *)0xffff;
+	fop.f_opaque = &icr;
+	cr->cr_ios_fop[0] = &fop;
 
 	icr.icr_cr = cr;
 	icr.icr_index = 0;
@@ -951,9 +956,9 @@ static void ut_clovis_test_clovis_icr_ast_complete(void)
 	m0_sm_move(&oo.oo_oc.oc_op.op_sm, 0, M0_CLOVIS_OS_LAUNCHED);
 	m0_sm_group_unlock(op_grp);
 
-	m0_fi_enable_once("clovis_icr_ast_complete", "skip_post_cr_ast");
+	m0_fi_enable_once("clovis_icrs_complete", "skip_post_cr_ast");
 	m0_sm_group_lock(&locality_grp);
-	clovis_icr_ast_complete(&locality_grp, &icr.icr_ar.ar_ast);
+	clovis_icr_ast(&locality_grp, &icr.icr_ar.ar_ast);
 	m0_sm_group_unlock(&locality_grp);
 
 	M0_UT_ASSERT(oo.oo_oc.oc_op.op_entity == &ent);
@@ -991,6 +996,7 @@ static void ut_clovis_test_clovis_icr_ast_fail(void)
 	struct m0_sm_group          *op_grp;
 	struct m0_sm_group          *en_grp;
 	struct clovis_cob_req       *cr;
+	struct m0_fop                fop;
 
 	/* Init. */
 	M0_SET0(&oo);
@@ -1034,12 +1040,17 @@ static void ut_clovis_test_clovis_icr_ast_fail(void)
 	cr->cr_op = &oo.oo_oc.oc_op;
 	cr->cr_icr_nr = 1;
 	M0_ALLOC_ARR(cr->cr_ios_replied, cr->cr_icr_nr);
+	M0_ALLOC_ARR(cr->cr_ios_fop, cr->cr_icr_nr);
+	fop.f_item.ri_reply = (struct m0_rpc_item *)0xffff;
+	fop.f_opaque = &icr;
+	cr->cr_ios_fop[0] = &fop;
 	icr.icr_cr = cr;
 	icr.icr_ar.ar_rc = 111;
 	icr.icr_index = 0;
 
+	m0_fi_enable_once("clovis_icrs_fail", "skip_post_cr_ast");
 	m0_sm_group_lock(&oo_grp);
-	clovis_icr_ast_fail(&oo_grp, &icr.icr_ar.ar_ast);
+	clovis_icr_ast(&oo_grp, &icr.icr_ar.ar_ast);
 	m0_sm_group_unlock(&oo_grp);
 	M0_UT_ASSERT(oo.oo_oc.oc_op.op_rc == 111);
 
@@ -1130,15 +1141,15 @@ static void ut_clovis_test_clovis_cob_ios_fop_populate(void)
  */
 static void ut_clovis_test_m0_clovis_obj_container_id_to_session(void)
 {
-	int                         rc = 0; /* required */
+	int                         rc;
 	struct m0_reqh_service_ctx *ctx;
-	struct m0_rpc_session      *session = NULL; /* required */
+	struct m0_rpc_session      *session;
 	struct m0_clovis           *instance = NULL;
 	struct m0_pool_version     *pv;
 
 	/* initialise clovis */
 	rc = ut_m0_clovis_init(&instance);
-	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(rc == 0 && instance != NULL);
 	pv = instance->m0c_pools_common.pc_cur_pver;
 
 	/* base case */
@@ -1176,7 +1187,7 @@ static void ut_clovis_test_clovis_cob_ios_send(void)
 static void ut_clovis_test_rpc_item_to_cr(void)
 {
 	struct m0_fop           fop;
-	struct clovis_cob_req  *cr = NULL;  /* required */
+	struct clovis_cob_req  *cr;
 	struct clovis_cob_req   cob_req;
 
 	/* base case */
@@ -1273,11 +1284,13 @@ static void ut_clovis_test_clovis_cob_mds_fop_populate(void)
 	struct clovis_cob_req     *cr;
 	struct m0_fop_create       create;
 	struct m0_fop_type         ft;
-	int                        rc = 0; /* required */
+	int                        rc = 0;
+#ifdef CLOVIS_FOR_M0T1FS
 	char                      *str = "HavantFTW";
+#endif
 	struct m0_fid              fid = { .f_container = 66,
 				 	.f_key = 77 };
-	struct m0_clovis          *instance = NULL; /* required */
+	struct m0_clovis          *instance = NULL;
 
 	/* initialise clovis */
 	rc = ut_m0_clovis_init(&instance);
@@ -1320,16 +1333,16 @@ static void ut_clovis_test_clovis_cob_mds_fop_populate(void)
 #ifdef CLOVIS_FOR_M0T1FS
 static void ut_clovis_test_filename_to_mds_session(void)
 {
-	struct m0_rpc_session      *session = NULL; /* required */
+	struct m0_rpc_session      *session;
 	struct m0_reqh_service_ctx *ctx;
 	char                       *filename = "filename";
 	m0_bcount_t                 len;
 	struct m0_clovis           *instance = NULL;
-	int                         rc = 0; /* required */
+	int                         rc;
 
 	/* initialise clovis */
 	rc = ut_m0_clovis_init(&instance);
-	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(rc == 0 && instance != NULL);
 
 	len = (m0_bcount_t)strlen(filename);
 
