@@ -68,7 +68,7 @@ static void obj_create_simple(void)
 
 	clovis_st_obj_init(obj, &clovis_st_obj_container.co_realm,
 			   &id, layout_id);
-	rc = clovis_st_entity_create(&obj->ob_entity, &ops[0]);
+	rc = clovis_st_entity_create(NULL, &obj->ob_entity, &ops[0]);
 	CLOVIS_ST_ASSERT_FATAL(rc == 0);
 	CLOVIS_ST_ASSERT_FATAL(ops[0] != NULL);
 	CLOVIS_ST_ASSERT_FATAL(ops[0]->op_sm.sm_rc == 0);
@@ -156,10 +156,10 @@ static void obj_create_double_same_id(void)
 	clovis_st_obj_init(obj[1], &clovis_st_obj_container.co_realm,
 			   &id, layout_id);
 
-	clovis_st_entity_create(&obj[0]->ob_entity, &ops[0]);
+	clovis_st_entity_create(NULL, &obj[0]->ob_entity, &ops[0]);
 	CLOVIS_ST_ASSERT_FATAL(ops[0] != NULL);
 	CLOVIS_ST_ASSERT_FATAL(ops[0]->op_sm.sm_rc == 0);
-	clovis_st_entity_create(&obj[1]->ob_entity, &ops[1]);
+	clovis_st_entity_create(NULL, &obj[1]->ob_entity, &ops[1]);
 	CLOVIS_ST_ASSERT_FATAL(ops[1] != NULL);
 	CLOVIS_ST_ASSERT_FATAL(ops[1]->op_sm.sm_rc == 0);
 
@@ -225,7 +225,7 @@ static void obj_create_multiple_objects(void)
 	for (i = 0; i < CREATE_MULTIPLE_N_OBJS; ++i) {
 		clovis_st_obj_init(objs[i], &clovis_st_obj_container.co_realm,
 				   &id[i], layout_id);
-		rc = clovis_st_entity_create(&objs[i]->ob_entity, &ops[i]);
+		rc = clovis_st_entity_create(NULL, &objs[i]->ob_entity, &ops[i]);
 		CLOVIS_ST_ASSERT_FATAL(rc == 0);
 		CLOVIS_ST_ASSERT_FATAL(ops[i] != NULL);
 		CLOVIS_ST_ASSERT_FATAL(ops[i]->op_sm.sm_rc == 0);
@@ -263,6 +263,65 @@ static void obj_create_multiple_objects(void)
 	mem_free(objs);
 }
 
+static void obj_create_on_multiple_pools(void)
+{
+	int                   i;
+	int                   j;
+	int                   rc;
+	int                   nr_pools = 2;
+	int                   nr_objs_per_pool = 10;
+	struct m0_clovis_op  *ops[1] = {NULL};
+	struct m0_clovis_obj *obj;
+	struct m0_uint128     id;
+	struct m0_fid         pool_fids[2];
+	struct m0_fid        *pool;
+
+	/*
+	 * Must be the pool fid set
+	 * in m0t1fs/linux_kernel/st/m0t1fs_common_inc.sh::build_conf().
+	 */
+	pool_fids[0].f_container = 0x6f00000000000001;
+	pool_fids[0].f_key       = 0x9;
+	pool_fids[1].f_container = 0x6f0000000000000a;
+	pool_fids[1].f_key       = 0x1;
+
+	for (i = 0; i < nr_pools; i++) {
+		for (j = 0; j < nr_objs_per_pool; j++) {
+			clovis_oid_get(&id);
+
+			MEM_ALLOC_PTR(obj);
+			M0_SET0(obj);
+			pool = pool_fids + i;
+
+			clovis_st_obj_init(
+				obj, &clovis_st_obj_container.co_realm,
+				&id, layout_id);
+
+			/* Create the entity */
+			ops[0] = NULL;
+			rc = clovis_st_entity_create(pool, &obj->ob_entity,
+						     &ops[0]);
+			CLOVIS_ST_ASSERT_FATAL(rc == 0);
+			CLOVIS_ST_ASSERT_FATAL(ops[0] != NULL);
+			CLOVIS_ST_ASSERT_FATAL(ops[0]->op_sm.sm_rc == 0);
+
+			clovis_st_op_launch(ops, ARRAY_SIZE(ops));
+			rc = clovis_st_op_wait(ops[0],
+					       M0_BITS(M0_CLOVIS_OS_FAILED,
+						       M0_CLOVIS_OS_STABLE),
+					       m0_time_from_now(5,0));
+			CLOVIS_ST_ASSERT_FATAL(rc == 0);
+			CLOVIS_ST_ASSERT_FATAL(ops[0]->op_sm.sm_state ==
+					       M0_CLOVIS_OS_STABLE);
+
+			clovis_st_op_fini(ops[0]);
+			clovis_st_op_free(ops[0]);
+			clovis_st_entity_fini(&obj->ob_entity);
+			mem_free(obj);
+		}
+	}
+}
+
 /**
  * Creates an object and then issues a new op. to delete it straightaway.
  */
@@ -287,7 +346,7 @@ static void obj_create_then_delete(void)
 				   &id, layout_id);
 
 		/* Create the entity */
-		rc = clovis_st_entity_create(&obj->ob_entity, &ops_c[0]);
+		rc = clovis_st_entity_create(NULL, &obj->ob_entity, &ops_c[0]);
 		CLOVIS_ST_ASSERT_FATAL(rc == 0);
 		CLOVIS_ST_ASSERT_FATAL(ops_c[0] != NULL);
 		CLOVIS_ST_ASSERT_FATAL(ops_c[0]->op_sm.sm_rc == 0);
@@ -393,7 +452,7 @@ static void obj_delete_multiple(void)
 				CLOVIS_ST_ASSERT_FATAL(ops[j] != NULL);
 			} else {
 				rc = clovis_st_entity_create(
-					&objs[idx].ob_entity, &ops[j]);
+					NULL, &objs[idx].ob_entity, &ops[j]);
 				obj_exists[idx] = true;
 				CLOVIS_ST_ASSERT_FATAL(ops[j] != NULL);
 			}
@@ -455,7 +514,7 @@ static void obj_no_wait(void)
 
 	clovis_st_obj_init(obj, &clovis_st_obj_container.co_realm,
 			   &id, layout_id);
-	rc = clovis_st_entity_create(&obj->ob_entity, &ops[0]);
+	rc = clovis_st_entity_create(NULL, &obj->ob_entity, &ops[0]);
 	CLOVIS_ST_ASSERT_FATAL(rc == 0);
 	CLOVIS_ST_ASSERT_FATAL(ops[0] != NULL);
 	CLOVIS_ST_ASSERT_FATAL(ops[0]->op_sm.sm_rc == 0);
@@ -496,7 +555,7 @@ static void obj_wait_no_launch(void)
 
 	clovis_st_obj_init(obj, &clovis_st_obj_container.co_realm,
 			   &id, layout_id);
-	rc = clovis_st_entity_create(&obj->ob_entity, &ops[0]);
+	rc = clovis_st_entity_create(NULL, &obj->ob_entity, &ops[0]);
 	CLOVIS_ST_ASSERT_FATAL(rc == 0);
 	CLOVIS_ST_ASSERT_FATAL(ops[0] != NULL);
 	CLOVIS_ST_ASSERT_FATAL(ops[0]->op_sm.sm_rc == 0);
@@ -534,7 +593,7 @@ static void obj_wait_twice(void)
 
 	clovis_st_obj_init(obj, &clovis_st_obj_container.co_realm,
 			   &id, layout_id);
-	rc = clovis_st_entity_create(&obj->ob_entity, &ops[0]);
+	rc = clovis_st_entity_create(NULL, &obj->ob_entity, &ops[0]);
 	CLOVIS_ST_ASSERT_FATAL(rc == 0);
 	CLOVIS_ST_ASSERT_FATAL(ops[0] != NULL);
 	CLOVIS_ST_ASSERT_FATAL(ops[0]->op_sm.sm_rc == 0);
@@ -604,7 +663,7 @@ static void obj_op_setup(void)
 	clovis_oid_get(&id);
 	clovis_st_obj_init(obj, &clovis_st_obj_container.co_realm,
 			   &id, layout_id);
-	rc = clovis_st_entity_create(&obj->ob_entity, &ops[0]);
+	rc = clovis_st_entity_create(NULL, &obj->ob_entity, &ops[0]);
 	CLOVIS_ST_ASSERT_FATAL(rc == 0);
 	CLOVIS_ST_ASSERT_FATAL(ops[0] != NULL);
 	CLOVIS_ST_ASSERT_FATAL(ops[0]->op_sm.sm_rc == 0);
@@ -617,10 +676,9 @@ static void obj_op_setup(void)
 					       M0_CLOVIS_OS_STABLE),
 				m0_time_from_now(5,0));
 	if (rc == 0) {
-		if (ops[0]->op_sm.sm_state == M0_CLOVIS_OS_STABLE)
-			CLOVIS_ST_ASSERT_FATAL(val == 'S')
-		else if (ops[0]->op_sm.sm_state == M0_CLOVIS_OS_EXECUTED)
-			CLOVIS_ST_ASSERT_FATAL(val == 'F')
+		CLOVIS_ST_ASSERT_FATAL(ops[0]->op_sm.sm_state ==
+				       M0_CLOVIS_OS_STABLE);
+		CLOVIS_ST_ASSERT_FATAL(val == 'S');
 	}
 
 	clovis_st_op_fini(ops[0]);
@@ -707,6 +765,8 @@ struct clovis_st_suite st_suite_clovis_obj = {
 		  &obj_create_double_same_id},
 		{ "obj_create_multiple_objects",
 		  &obj_create_multiple_objects},
+		{ "obj_create_on_multiple_pools",
+		  &obj_create_on_multiple_pools},
 		{ "obj_create_then_delete",
 		  &obj_create_then_delete},
 		{ "obj_delete_multiple",

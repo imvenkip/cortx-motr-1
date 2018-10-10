@@ -83,7 +83,7 @@ int clovis_index_create(struct m0_clovis_realm *parent, struct m0_fid_arr *fids)
 
 		m0_clovis_idx_init(&idx, parent,
 				   (struct m0_uint128 *)&fids->af_elems[i]);
-		rc = m0_clovis_entity_create(&idx.in_entity, &op);
+		rc = m0_clovis_entity_create(NULL, &idx.in_entity, &op);
 		rc = index_op_tail(&idx.in_entity, op, rc, NULL);
 	}
 	m0_console_printf("create done: %i\n", rc);

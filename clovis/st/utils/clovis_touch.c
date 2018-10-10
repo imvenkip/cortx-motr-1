@@ -101,7 +101,7 @@ static int touch()
 	M0_SET0(&obj);
 	m0_clovis_obj_init(&obj, &clovis_uber_realm, &id,
 			   m0_clovis_layout_id(clovis_instance));
-	m0_clovis_entity_create(&obj.ob_entity, &ops[0]);
+	m0_clovis_entity_create(NULL, &obj.ob_entity, &ops[0]);
 
 	m0_clovis_op_launch(ops, 1);
 

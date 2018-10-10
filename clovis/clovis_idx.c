@@ -128,7 +128,7 @@ static int clovis_idx_op_init(struct m0_clovis_idx *idx, int opcode,
 	oi->oi_rcs  = rcs;
 	oi->oi_flags = flags;
 
-	locality = m0_clovis_locality_pick(clovis_oi_instance(oi));
+	locality = m0_clovis__locality_pick(clovis_oi_instance(oi));
 	M0_ASSERT(locality != NULL);
 	oi->oi_sm_grp = locality->lo_grp;
 	M0_SET0(&oi->oi_ar);

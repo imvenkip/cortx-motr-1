@@ -162,7 +162,7 @@ static int create_object(struct m0_uint128 id)
 			   m0_clovis_layout_id(clovis_instance));
 
 	/* Create object-create request */
-	m0_clovis_entity_create(&obj.ob_entity, &ops[0]);
+	m0_clovis_entity_create(NULL, &obj.ob_entity, &ops[0]);
 
        /* Launch the request. This is a asynchronous call.
  	* This will actually create an object */

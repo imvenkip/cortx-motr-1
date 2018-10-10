@@ -267,15 +267,16 @@ int clovis_oid_allocator_fini(void);
 
 /* Wrappers for Clovis APIs*/
 void clovis_st_container_init(struct m0_clovis_container *con,
-		           struct m0_clovis_realm     *parent,
-	      		   const struct m0_uint128    *id,
-	      		   struct m0_clovis           *instance);
+			      struct m0_clovis_realm     *parent,
+			      const struct m0_uint128    *id,
+			      struct m0_clovis           *instance);
 void clovis_st_obj_init(struct m0_clovis_obj *obj,
-		     struct m0_clovis_realm  *parent,
-		     const struct m0_uint128 *id, uint64_t layout_id);
+			struct m0_clovis_realm  *parent,
+			const struct m0_uint128 *id, uint64_t layout_id);
 void clovis_st_obj_fini(struct m0_clovis_obj *obj);
-int clovis_st_entity_create(struct m0_clovis_entity *entity,
-  			 struct m0_clovis_op **op);
+int clovis_st_entity_create(struct m0_fid *pool,
+			    struct m0_clovis_entity *entity,
+			    struct m0_clovis_op **op);
 int clovis_st_entity_delete(struct m0_clovis_entity *entity,
 			 struct m0_clovis_op **op);
 void clovis_st_entity_fini(struct m0_clovis_entity *entity);

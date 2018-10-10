@@ -422,7 +422,7 @@ static int clovis_layout_op_init(struct m0_clovis_obj *obj,
 	}
 
 	/* Pick a locality thread for this op. */
-	locality = m0_clovis_locality_pick(NULL);
+	locality = m0_clovis__locality_pick(NULL);
 	M0_ASSERT(locality != NULL);
 	ol->ol_sm_grp = locality->lo_grp;
 	M0_SET0(&ol->ol_ar);

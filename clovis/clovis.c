@@ -221,6 +221,7 @@ struct m0_sm_conf clovis_entity_conf = {
 /**----------------------------------------------------------------------------*
  *                                Helper functions                             *
  *-----------------------------------------------------------------------------*/
+
 M0_INTERNAL struct m0_clovis *
 m0_clovis__entity_instance(const struct m0_clovis_entity *entity)
 {
@@ -246,6 +247,25 @@ m0_clovis__obj_instance(const struct m0_clovis_obj *obj)
 	M0_PRE(obj != NULL);
 
 	return m0_clovis__entity_instance(&obj->ob_entity);
+}
+
+/**
+ * Pick a locality: Mero and the new locality interface(chore) now uses TLS to
+ * store data and these data are set when a "mero" thread is created.
+ * An application thread (not the main thread calling m0_init, considering ST
+ * multi-threading framework), it doesn't have the same TLS by nature, which
+ * causes a problem when it calls mero functions like m0_locality_here/get
+ * directly as below.
+ *
+ * Ensure to use m0_thread_adopt/shun to make a thread (non-)meroism when a
+ * thread starts/ends.
+ *
+ * TODO: more intelligent locality selection policy based on fid and workload.
+ */
+M0_INTERNAL struct m0_locality *
+m0_clovis__locality_pick(struct m0_clovis *cinst)
+{
+	return  m0_locality_here();
 }
 
 M0_INTERNAL bool m0_clovis_entity_type_is_valid(enum m0_clovis_entity_type type)

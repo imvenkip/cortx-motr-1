@@ -619,11 +619,19 @@ m0_clovis_obj_container_id_to_session(struct m0_pool_version *pv,
  * Selects a locality for an operation.
  *
  * @param m0c The clovis instance we are working with.
- * @return the pointer to assigned locality for success
- *         NULL otherwise.
+ * @return the pointer to assigned locality for success, NULL otherwise.
  */
 M0_INTERNAL struct m0_locality *
-m0_clovis_locality_pick(struct m0_clovis *cinst);
+m0_clovis__locality_pick(struct m0_clovis *cinst);
+
+/**
+ * Checks object's cached pool version is valid.
+ *
+ * @param obj The object to be checked.
+ * @return true for valid pool version, false otherwise.
+ */
+M0_INTERNAL bool
+m0_clovis__obj_poolversion_is_valid(const struct m0_clovis_obj *obj);
 
 /**
  * Sends COB fops to mdservices or ioservices depending on COB operation's
@@ -675,8 +683,8 @@ M0_INTERNAL void m0_clovis_entity_init(struct m0_clovis_entity *entity,
  */
 
 M0_INTERNAL int
-m0_clovis__pool_version_get(struct m0_clovis *instance,
-			    struct m0_pool_version **pv);
+m0_clovis__obj_pool_version_get(struct m0_clovis_obj *obj,
+				struct m0_pool_version **pv);
 
 /**
  * Gets the default layout identifier from confd.

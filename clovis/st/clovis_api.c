@@ -31,16 +31,16 @@
 #include "clovis/st/clovis_st_assert.h"
 
 void clovis_st_container_init(struct m0_clovis_container *con,
-			   struct m0_clovis_realm     *parent,
-			   const struct m0_uint128    *id,
-			   struct m0_clovis           *instance)
+			      struct m0_clovis_realm     *parent,
+			      const struct m0_uint128    *id,
+			      struct m0_clovis           *instance)
 {
 	m0_clovis_container_init(con, parent, id, instance);
 }
 
 void clovis_st_obj_init(struct m0_clovis_obj *obj,
-		     struct m0_clovis_realm  *parent,
-		     const struct m0_uint128 *id, uint64_t layout_id)
+		        struct m0_clovis_realm  *parent,
+		        const struct m0_uint128 *id, uint64_t layout_id)
 {
 	m0_clovis_obj_init(obj, parent, id, layout_id);
 	clovis_st_mark_entity(&obj->ob_entity);
@@ -53,8 +53,8 @@ void clovis_st_obj_fini(struct m0_clovis_obj *obj)
 }
 
 void clovis_st_idx_init(struct m0_clovis_idx *idx,
-		     struct m0_clovis_realm  *parent,
-		     const struct m0_uint128 *id)
+			struct m0_clovis_realm  *parent,
+			const struct m0_uint128 *id)
 {
 	m0_clovis_idx_init(idx, parent, id);
 	clovis_st_mark_entity(&idx->in_entity);
@@ -67,19 +67,20 @@ void clovis_st_idx_fini(struct m0_clovis_idx *idx)
 }
 
 
-int clovis_st_entity_create(struct m0_clovis_entity *entity,
-		         struct m0_clovis_op **op)
+int clovis_st_entity_create(struct m0_fid *pool,
+			    struct m0_clovis_entity *entity,
+			    struct m0_clovis_op **op)
 {
 	int rc;
 
-	rc = m0_clovis_entity_create(entity, op);
+	rc = m0_clovis_entity_create(NULL, entity, op);
 	if (*op != NULL) clovis_st_mark_op(*op);
 
 	return rc;
 }
 
 int clovis_st_entity_delete(struct m0_clovis_entity *entity,
-			 struct m0_clovis_op **op)
+			    struct m0_clovis_op **op)
 {
 	int rc;
 
@@ -96,12 +97,12 @@ void clovis_st_entity_fini(struct m0_clovis_entity *entity)
 }
 
 void clovis_st_obj_op(struct m0_clovis_obj       *obj,
-		   enum m0_clovis_obj_opcode   opcode,
-		   struct m0_indexvec         *ext,
-		   struct m0_bufvec           *data,
-		   struct m0_bufvec           *attr,
-		   uint64_t                    mask,
-		   struct m0_clovis_op       **op)
+		      enum m0_clovis_obj_opcode   opcode,
+		      struct m0_indexvec         *ext,
+		      struct m0_bufvec           *data,
+		      struct m0_bufvec           *attr,
+		      uint64_t                    mask,
+		      struct m0_clovis_op       **op)
 {
 	m0_clovis_obj_op(obj, opcode, ext, data, attr, mask, op);
 	if (*op != NULL) clovis_st_mark_op(*op);

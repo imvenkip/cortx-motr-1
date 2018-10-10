@@ -80,7 +80,7 @@ static int create_objs(int nr_objs)
 			&clovis_st_read_container.co_realm,
 			&id, layout_id);
 
-		clovis_st_entity_create(&obj.ob_entity, &ops[0]);
+		clovis_st_entity_create(NULL, &obj.ob_entity, &ops[0]);
 
 		clovis_st_op_launch(ops, 1);
 
