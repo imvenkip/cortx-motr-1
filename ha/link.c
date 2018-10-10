@@ -1328,9 +1328,6 @@ static int ha_link_outgoing_fom_tick(struct m0_fom *fom)
 		if (m0_sm_timer_is_armed(&hl->hln_reconnect_wait_timer))
 			m0_sm_timer_cancel(&hl->hln_reconnect_wait_timer);
 		m0_rpc_link_fini(&hl->hln_rpc_link);
-		m0_sm_group_lock(&hl->hln_sm_group);
-		m0_sm_state_set(&hl->hln_sm, M0_HA_LINK_STATE_STOP);
-		m0_sm_group_unlock(&hl->hln_sm_group);
 		m0_fom_phase_set(fom, HA_LINK_OUTGOING_STATE_FINISH);
 		return M0_RC(M0_FSO_WAIT);
 	case HA_LINK_OUTGOING_STATE_NOT_CONNECTED:
@@ -1353,13 +1350,18 @@ static int ha_link_outgoing_fom_tick(struct m0_fom *fom)
 					m0_ha_lq_tag_delivered(&hl->hln_q_out));
 			}
 			(void)ha_link_q_in_confirm_all(hl);
+			m0_mutex_unlock(&hl->hln_lock);
+			ha_link_msg_recv_or_delivery_broadcast(hl);
+			m0_sm_group_lock(&hl->hln_sm_group);
+			m0_sm_state_set(&hl->hln_sm, M0_HA_LINK_STATE_STOP);
+			m0_sm_group_unlock(&hl->hln_sm_group);
+			m0_mutex_lock(&hl->hln_lock);
 			if (hl->hln_reconnect_cfg_is_set) {
 				ha_link_conn_cfg_free(
 				                &hl->hln_conn_reconnect_cfg);
 			}
 			ha_link_conn_cfg_free(&hl->hln_conn_cfg);
 			m0_mutex_unlock(&hl->hln_lock);
-			ha_link_msg_recv_or_delivery_broadcast(hl);
 			m0_sm_ast_cancel(hl->hln_fom_locality->lo_grp,
 			                 &hl->hln_waking_ast);
 			m0_fom_phase_set(fom,

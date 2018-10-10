@@ -71,11 +71,13 @@ M0_INTERNAL int m0_cob_ns_iter_init(struct m0_cob_fid_ns_iter *iter,
  * @param gfid - Next unique gob-fid in the iterator. This is output variable.
  */
 M0_INTERNAL int m0_cob_ns_iter_next(struct m0_cob_fid_ns_iter *iter,
-				    struct m0_fid *gfid);
+				    struct m0_fid *gfid,
+				    struct m0_cob_nsrec **nsrec);
 
-M0_INTERNAL int m0_cob_ns_next_of(struct m0_be_btree *cob_namespace,
-				  const struct m0_fid *key_gfid,
-				  struct m0_fid *next_gfid);
+M0_INTERNAL int m0_cob_ns_rec_of(struct m0_be_btree *cob_namespace,
+				 const struct m0_fid *key_gfid,
+				 struct m0_fid *next_gfid,
+				 struct m0_cob_nsrec **nsrec);
 
 /**
  * Finalises the namespace iterator.

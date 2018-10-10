@@ -378,6 +378,9 @@ struct m0_fop_cob_rw {
 	/** Pool version for read/write request. */
 	struct m0_fid             crw_pver;
 
+	/** Layout id of the file this cob belongs to. */
+	uint64_t                  crw_lid;
+
 	/**
 	 * Net buf descriptors representing the m0_net_buffer containing
 	 * the IO buffers.

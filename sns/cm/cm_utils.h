@@ -55,10 +55,6 @@ M0_INTERNAL uint32_t m0_sns_cm_device_index_get(uint64_t group,
 M0_INTERNAL uint64_t m0_sns_cm_ag_unit2cobindex(struct m0_sns_cm_ag *sag,
 						uint64_t unit);
 
-M0_INTERNAL uint64_t m0_sns_cm_nr_groups(struct m0_pdclust_layout *pl,
-					 uint64_t fsize);
-
-
 /**
  * Searches for given cob_fid in the local cob domain.
  */
@@ -191,7 +187,8 @@ M0_INTERNAL bool m0_sns_cm_is_local_cob(const struct m0_cm *cm,
 					const struct m0_fid *cob_fid);
 
 M0_INTERNAL bool m0_sns_cm_disk_has_dirty_pver(struct m0_cm *cm,
-					       struct m0_conf_drive *disk);
+					       struct m0_conf_drive *disk,
+					       bool clear);
 M0_INTERNAL bool m0_sns_cm_pver_is_dirty(struct m0_pool_version *pver);
 M0_INTERNAL void m0_sns_cm_pver_dirty_set(struct m0_pool_version *pver);
 M0_INTERNAL int m0_sns_cm_pool_ha_nvec_alloc(struct m0_pool *pool,

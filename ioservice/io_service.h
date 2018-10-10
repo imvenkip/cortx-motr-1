@@ -155,6 +155,12 @@ M0_INTERNAL int m0_ios_getattr_async(struct m0_reqh *reqh,
 				     uint64_t index,
 				     void (*cb)(void *arg, int rc),
 				     void *arg);
+M0_INTERNAL int m0_ios_cob_getattr_async(const struct m0_fid *gfid,
+					 struct m0_cob_attr *attr,
+					 uint64_t cob_idx,
+					 struct m0_pool_version *pv,
+					 void (*cb)(void *arg, int rc),
+					 void *arg);
 
 /**
  * Sets default values for buf_nr for m0_net_buffer_pool_provision() in

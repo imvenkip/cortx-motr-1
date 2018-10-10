@@ -104,15 +104,12 @@ static void _fini_ast_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
 	struct m0_cm_aggr_group *ag = M0_AMB(ag, ast, cag_fini_ast);
 	struct m0_cm            *cm = ag->cag_cm;
-	struct m0_cm_aggr_group *in_lo;
-	struct m0_cm_aggr_group *out_lo;
-	struct m0_cm_ag_id       in_id;
-	struct m0_cm_ag_id       out_id;
+	struct m0_cm_aggr_group *in;
+	struct m0_cm_aggr_group *out;
+	struct m0_cm_ag_store   *agstore;
 	bool                     has_incoming;
 
 	has_incoming = ag->cag_has_incoming;
-	M0_SET0(&in_id);
-	M0_SET0(&out_id);
 
 
 	/* m0_cm_aggr_group:cag_fini_ast is posted with ag lock held
@@ -128,27 +125,27 @@ static void _fini_ast_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	 * Update m0_cm::cm_store to persist lowest aggregation group in
 	 * sliding window and out going groups.
 	 */
-	if (has_incoming) {
-		in_lo = aggr_grps_in_tlist_head(&cm->cm_aggr_grps_in);
-		if (in_lo != NULL) {
-			if (m0_cm_ag_id_cmp(&in_lo->cag_id, &ag->cag_id) == 0)
-				in_id = ag->cag_id;
-		}
-	} else {
-		out_lo = aggr_grps_out_tlist_head(&cm->cm_aggr_grps_out);
-		if (out_lo != NULL) {
-			if (m0_cm_ag_id_cmp(&out_lo->cag_id, &ag->cag_id) == 0)
-				out_id = ag->cag_id;
-		}
-	}
 
-	/* updating in-memory ag id and cm_epoch */
-	if (has_incoming && m0_cm_ag_id_is_set(&in_id)) {
-		cm->cm_ag_store.s_data.d_in = in_id;
-	} else if (m0_cm_ag_id_is_set(&out_id)) {
-		cm->cm_ag_store.s_data.d_out = out_id;
+	agstore = &cm->cm_ag_store;
+	if (ag->cag_rc == 0 && !ag->cag_is_frozen) {
+		if (has_incoming) {
+			in = aggr_grps_in_tlist_head(&cm->cm_aggr_grps_in);
+			if (in != NULL) {
+				if (m0_cm_ag_id_cmp(&in->cag_id,
+						    &ag->cag_id) == 0)
+					agstore->s_data.d_in = ag->cag_id;
+			}
+		} else {
+			out = aggr_grps_out_tlist_head(&cm->cm_aggr_grps_out);
+			if (out != NULL) {
+				if (m0_cm_ag_id_cmp(&out->cag_id,
+						    &ag->cag_id) == 0)
+					agstore->s_data.d_out = ag->cag_id;
+			}
+		}
+
+		agstore->s_data.d_cm_epoch = cm->cm_epoch;
 	}
-	cm->cm_ag_store.s_data.d_cm_epoch = cm->cm_epoch;
 	ag->cag_ops->cago_fini(ag);
 }
 

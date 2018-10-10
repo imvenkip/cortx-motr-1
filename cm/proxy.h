@@ -216,6 +216,8 @@ M0_INTERNAL void m0_cm_proxy_in_count_free(struct m0_cm_proxy_in_count *pcount);
 M0_INTERNAL bool m0_cm_proxy_is_updated(struct m0_cm_proxy *proxy,
 					struct m0_cm_sw *in_interval);
 
+M0_INTERNAL void m0_cm_proxies_sent_reset(struct m0_cm *cm);
+
 M0_TL_DESCR_DECLARE(proxy, M0_EXTERN);
 M0_TL_DECLARE(proxy, M0_INTERNAL, struct m0_cm_proxy);
 

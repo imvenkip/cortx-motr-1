@@ -53,6 +53,7 @@ static struct m0_net_buffer r_buf;
 
 static struct m0_fid gob_fid;
 static struct m0_fid cob_fid;
+static const struct m0_fid      M0_SNS_CM_REPAIR_UT_PVER = M0_FID_TINIT('v', 1, 8);
 
 /*
  * Copy packet will typically have a single segment with its size equal to
@@ -195,22 +196,24 @@ const struct m0_cm_cp_ops write_cp_dummy_ops = {
 
 void write_post(struct m0_pdclust_layout *pdlay)
 {
-	struct m0_sns_cm_file_ctx fctx;
-	struct m0_pool_version    pv;
-	struct m0_poolmach        pm;
+	struct m0_sns_cm_file_ctx  fctx;
+	struct m0_mero            *mero;
+	struct m0_pool_version    *pv;
 
 	m0_semaphore_init(&sem, 0);
 	w_buf.nb_pool = &nbp;
-	pm.pm_pver = &pv;
-	fctx.sf_pm = &pm;
-	fctx.sf_layout = m0_pdl_to_layout(pdlay);
 	w_sag.sag_fctx = &fctx;
 	cp_prepare(&w_sns_cp.sc_base, &w_buf, SEG_NR, SEG_SIZE,
 		   &w_sag, 'e', &dummy_cp_fom_ops, reqh, 0, false, &scm->sc_base);
 	scm = cm2sns(w_sag.sag_base.cag_cm);
+	mero = m0_cs_ctx_get(scm->sc_base.cm_service.rs_reqh);
+	pv = m0_pool_version_find(&mero->cc_pools_common, &M0_SNS_CM_REPAIR_UT_PVER);
+	w_sag.sag_fctx->sf_attr.ca_lid = M0_DEFAULT_LAYOUT_ID;
+	w_sag.sag_fctx->sf_pm = &pv->pv_mach;
+	w_sag.sag_fctx->sf_layout = m0_pdl_to_layout(pdlay);
 	w_sns_cp.sc_base.c_ops = &write_cp_dummy_ops;
 	m0_fid_convert_cob2stob(&cob_fid, &w_sns_cp.sc_stob_id);
-	w_sns_cp.sc_cobfid = M0_MDSERVICE_SLASH_FID;
+	w_sns_cp.sc_cobfid = M0_MDSERVICE_START_FID;
 	w_sag.sag_base.cag_cp_local_nr = 1;
 	w_sag.sag_fnr = 1;
 
@@ -266,7 +269,7 @@ static void read_post(struct m0_pdclust_layout *pdlay)
 	r_sag.sag_fnr = 1;
 	r_sag.sag_fctx = &fctx;
 	m0_fid_convert_cob2stob(&cob_fid, &r_sns_cp.sc_stob_id);
-	r_sns_cp.sc_cobfid = M0_MDSERVICE_SLASH_FID;
+	r_sns_cp.sc_cobfid = M0_MDSERVICE_START_FID;
 	m0_fom_queue(&r_sns_cp.sc_base.c_fom);
 
         /* Wait till ast gets posted. */

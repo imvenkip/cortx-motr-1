@@ -287,9 +287,9 @@ static int rpc_link_conn_fom_tick(struct m0_fom *fom)
 	rlink   = container_of(fom, struct m0_rpc_link, rlk_fom);
 	rpcmach = rlink->rlk_conn.c_rpc_machine;
 
-	m0_rpc_machine_lock(rpcmach);
 	switch (phase) {
 	case M0_RLS_CONN_CONNECTING:
+		m0_rpc_machine_lock(rpcmach);
 		state = CONN_STATE(&rlink->rlk_conn);
 		M0_ASSERT(M0_IN(state, (M0_RPC_CONN_CONNECTING,
 				M0_RPC_CONN_ACTIVE, M0_RPC_CONN_FAILED)));
@@ -302,8 +302,10 @@ static int rpc_link_conn_fom_tick(struct m0_fom *fom)
 			armed = true;
 			rc    = M0_FSO_WAIT;
 		}
+		m0_rpc_machine_unlock(rpcmach);
 		break;
 	case M0_RLS_SESS_ESTABLISHING:
+		m0_rpc_machine_lock(rpcmach);
 		state = SESS_STATE(&rlink->rlk_sess);
 		/*
 		 * There might chances of some subsystem send item
@@ -323,11 +325,18 @@ static int rpc_link_conn_fom_tick(struct m0_fom *fom)
 			armed = true;
 			rc    = M0_FSO_WAIT;
 		}
+		m0_rpc_machine_unlock(rpcmach);
 		break;
 	case M0_RLS_SESS_FAILURE:
+		/*
+		 * We don't need machine lock here, it is done
+		 * under machine lock down the stack in
+		 * rpc_link_sess_cleanup().
+		 */
 		rpc_link_sess_cleanup(rlink);
 		break;
 	case M0_RLS_CONN_TERMINATING:
+		m0_rpc_machine_lock(rpcmach);
 		state = CONN_STATE(&rlink->rlk_conn);
 		M0_ASSERT(M0_IN(state, (M0_RPC_CONN_TERMINATING,
 				M0_RPC_CONN_TERMINATED,
@@ -341,9 +350,9 @@ static int rpc_link_conn_fom_tick(struct m0_fom *fom)
 			armed = true;
 			rc    = M0_FSO_WAIT;
 		}
+		m0_rpc_machine_unlock(rpcmach);
 		break;
 	}
-	m0_rpc_machine_unlock(rpcmach);
 
 	if (rc == 0) {
 		rc = (*rpc_link_conn_states[phase].rlst_state_function)(rlink);

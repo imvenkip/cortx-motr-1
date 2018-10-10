@@ -25,6 +25,7 @@
 #include "lib/locality.h"
 
 #include "ioservice/io_service.h"
+#include "ioservice/fid_convert.h"
 #include "reqh/reqh.h"
 #include "reqh/reqh_service.h"
 
@@ -44,6 +45,9 @@
 
 const struct m0_uint128 m0_rm_sns_cm_group = M0_UINT128(0, 2);
 extern const struct m0_rm_resource_type_ops file_lock_type_ops;
+
+static int _layout_fetch(struct m0_sns_cm_file_ctx *fctx);
+static int _fid_layout_instance(struct m0_sns_cm_file_ctx *fctx);
 
 M0_INTERNAL void m0_sns_cm_fctx_lock(struct m0_sns_cm_file_ctx *fctx)
 {
@@ -257,12 +261,15 @@ M0_INTERNAL int m0_sns_cm_fctx_init(struct m0_sns_cm *scm,
 		return M0_ERR(-ENOMEM);
 	m0_fid_set(&fctx->sf_fid, fid->f_container, fid->f_key);
 
+	fctx->sf_pd = NULL;
 	fctx->sf_layout = NULL;
 	fctx->sf_pi = NULL;
 	fctx->sf_nr_ios_visited = 0;
+	fctx->sf_max_group = 0;
 	m0_scmfctx_tlink_init(fctx);
 	m0_ref_init(&fctx->sf_ref, 1, sns_cm_fctx_release);
-	m0_sm_init(&fctx->sf_sm, &fctx_sm_conf, M0_SCFS_INIT, &scm->sc_base.cm_sm_group);
+	m0_sm_init(&fctx->sf_sm, &fctx_sm_conf, M0_SCFS_INIT,
+		   &scm->sc_base.cm_sm_group);
 	m0_clink_init(&fctx->sf_fini_clink, fctx_fini_clink_cb);
 	m0_mutex_init(&fctx->sf_lock);
 	fctx->sf_group = &scm->sc_base.cm_sm_group;
@@ -514,11 +521,50 @@ M0_INTERNAL void m0_sns_cm_file_unlock(struct m0_sns_cm *scm,
 
 static int _attr_fetch(struct m0_sns_cm_file_ctx *fctx);
 
+static uint64_t max_frame(const struct m0_sns_cm_file_ctx *fctx,
+                          size_t max_cob_size)
+{
+	uint64_t                  frame_size;
+	uint64_t                  frame;
+	struct m0_pdclust_layout *pl;
+
+	pl = m0_layout_to_pdl(fctx->sf_layout);
+	frame_size = pl->pl_attr.pa_unit_size;
+	if (max_cob_size < frame_size)
+		frame = 0;
+	else {
+		frame = max_cob_size % frame_size ?
+			max_cob_size / frame_size + 1 :
+			max_cob_size / frame_size;
+	}
+
+	return frame;
+}
+
+static void _max_group_set(struct m0_sns_cm_file_ctx *fctx)
+{
+	struct m0_pdclust_src_addr sa;
+	struct m0_pdclust_tgt_addr ta;
+	uint64_t                   cob_size;
+
+	cob_size = fctx->sf_attr.ca_size;
+	ta.ta_frame = max_frame(fctx, cob_size);
+	ta.ta_obj = fctx->sf_pd->pd_index;
+	m0_fd_bwd_map(fctx->sf_pi, &ta, &sa);
+	if (fctx->sf_max_group < sa.sa_group)
+		fctx->sf_max_group = sa.sa_group;
+}
+
 static void _attr_ast_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
 	struct m0_sns_cm_file_ctx *fctx = _AST2FCTX(ast, sf_attr_ast);
 
 	fctx->sf_rc = (long)ast->sa_datum;
+	if (fctx->sf_rc == 0) {
+		_layout_fetch(fctx);
+		_fid_layout_instance(fctx);
+		_max_group_set(fctx);
+	}
 	_attr_fetch(fctx);
 }
 
@@ -540,42 +586,41 @@ static inline void _attr_cb(void *arg, int rc)
 	__fctx_ast_post(fctx, &fctx->sf_attr_ast);
 }
 
-static int _attr_fetch(struct m0_sns_cm_file_ctx *fctx)
+static int _ios_failed_cob_attr(struct m0_sns_cm_file_ctx *fctx)
 {
-	struct m0_reqh *reqh = m0_sns_cm2reqh(fctx->sf_scm);
-	int             rc;
+	struct m0_poolmach *pm;
+	struct m0_pool     *pool;
+	struct m0_pooldev  *pd;
+	int                 rc = fctx->sf_rc;
 
-	M0_PRE(m0_sns_cm_fctx_state_get(fctx) == M0_SCFS_ATTR_FETCH);
-	/**
-	 * Use redundant next meta data service, if error is returned from
-	 * current service, until pc_md_redundancy.
-	 **/
-	if (fctx->sf_rc == 0 && (fctx->sf_attr.ca_size > 0 ||
-				 fctx->sf_attr.ca_lid != 0)) {
-		/*
-		 * Got the attributes, do nothing, transition to next phase.
-		 */
-	} else if (fctx->sf_nr_ios_visited < reqh->rh_pools->pc_md_redundancy) {
-		M0_LOG(M0_DEBUG, "getattr from service %d"FID_F,
-			(int)fctx->sf_nr_ios_visited, FID_P(&fctx->sf_fid));
-		if (reqh->rh_oostore)
-			rc = m0_ios_getattr_async(reqh, &fctx->sf_fid,
-						  &fctx->sf_attr,
-						  fctx->sf_nr_ios_visited,
-						  &_attr_cb, fctx);
-		else
-			rc = m0_ios_mds_getattr_async(reqh, &fctx->sf_fid,
-						      &fctx->sf_attr,
-						      &_attr_cb, fctx);
-		M0_CNT_INC(fctx->sf_nr_ios_visited);
-		/*
-		 * We try best to fetch the attributes and cover all the md
-		 * ioservices.
-		 * _attr_cb() will be invoked for success as well as rpc errors.
-		 */
-		fctx->sf_rc = rc == -ENOMEM ? rc : -EAGAIN;
+	M0_PRE(fctx->sf_pm != NULL);
+
+	pm = fctx->sf_pm;
+	pool = pm->pm_pver->pv_pool;
+	pd = fctx->sf_pd;
+
+	if (pd == NULL)
+		pd = pool_failed_devs_tlist_head(&pool->po_failed_devices);
+	else
+		pd = pool_failed_devs_tlist_next(&pool->po_failed_devices, pd);
+
+	if (pd != NULL) {
+		fctx->sf_pd = pd;
+		rc = m0_ios_cob_getattr_async(&fctx->sf_fid,
+					      &fctx->sf_attr, pd->pd_index,
+					      pm->pm_pver, &_attr_cb, fctx);
+		rc = rc == -ENOMEM ? rc : -EAGAIN;
 	}
 
+	return M0_RC(rc);
+}
+
+static int _attr_fetch(struct m0_sns_cm_file_ctx *fctx)
+{
+	M0_PRE(m0_sns_cm_fctx_state_get(fctx) == M0_SCFS_ATTR_FETCH);
+
+
+	fctx->sf_rc = _ios_failed_cob_attr(fctx);
 	/* Transition to M0_SCFS_ATTR_FETCHED in case of success or error. */
 	if (fctx->sf_rc != -EAGAIN)
 		_fctx_status_set(fctx, M0_SCFS_ATTR_FETCHED);
@@ -591,7 +636,8 @@ static int _layout_fetch(struct m0_sns_cm_file_ctx *fctx)
 	struct m0_layout        *l;
 	uint64_t                 layout_id;
 
-	M0_PRE(m0_sns_cm_fctx_state_get(fctx) == M0_SCFS_LAYOUT_FETCH);
+	M0_PRE(M0_IN(m0_sns_cm_fctx_state_get(fctx), (M0_SCFS_ATTR_FETCH,
+						      M0_SCFS_LAYOUT_FETCH)));
 
 	layout_id = m0_pool_version2layout_id(&fctx->sf_attr.ca_pver,
 					      fctx->sf_attr.ca_lid);
@@ -602,7 +648,7 @@ static int _layout_fetch(struct m0_sns_cm_file_ctx *fctx)
 	return M0_RC(0);
 }
 
-static int fid_layout_instance(struct m0_sns_cm_file_ctx *fctx)
+static int _fid_layout_instance(struct m0_sns_cm_file_ctx *fctx)
 {
 	struct m0_layout_instance *li;
 	int                        rc;
@@ -660,7 +706,7 @@ m0_sns_cm_file_attr_and_layout(struct m0_sns_cm_file_ctx *fctx)
 		if (rc != 0)
 			return M0_RC(rc);
 		_fctx_status_set(fctx, M0_SCFS_LAYOUT_FETCHED);
-		rc = fid_layout_instance(fctx);
+		rc = _fid_layout_instance(fctx);
 		return M0_RC(rc);
 	}
 
@@ -672,7 +718,8 @@ m0_sns_cm_file_attr_and_layout(struct m0_sns_cm_file_ctx *fctx)
 			return M0_RC(rc);
 	case M0_SCFS_ATTR_FETCHED :
 		if (fctx->sf_rc != 0)
-			return M0_ERR_INFO(fctx->sf_rc, FID_F, FID_P(&fctx->sf_fid));
+			return M0_ERR_INFO(fctx->sf_rc, FID_F,
+					   FID_P(&fctx->sf_fid));
 
 		/* populate fctx->sf_pm here */
 		fctx->sf_pm = sns_cm_poolmach_get(fctx);
@@ -680,16 +727,6 @@ m0_sns_cm_file_attr_and_layout(struct m0_sns_cm_file_ctx *fctx)
 			fctx->sf_rc = -ENOENT;
 			return M0_ERR(fctx->sf_rc);
 		}
-
-		_fctx_status_set(fctx, M0_SCFS_LAYOUT_FETCH);
-		rc = _layout_fetch(fctx);
-		if (rc != 0)
-			return M0_RC(rc);
-		_fctx_status_set(fctx, M0_SCFS_LAYOUT_FETCHED);
-	case M0_SCFS_LAYOUT_FETCHED :
-		if (fctx->sf_pi == NULL)
-			rc = fid_layout_instance(fctx);
-
 		break;
 	case M0_SCFS_ATTR_FETCH :
 	case M0_SCFS_LAYOUT_FETCH :

@@ -82,12 +82,25 @@ struct m0_sns_cm_ag {
 	struct m0_bitmap                 sag_fmap;
 };
 
+/**
+ * Incoming aggregation groups iterator.
+ * This is used to advance sliding window during sns repair or rebalance.
+ */
 struct m0_sns_cm_ag_iter {
-	struct m0_sm               ai_sm;
-	struct m0_fid              ai_fid;
-	struct m0_sns_cm_file_ctx *ai_fctx;
-	struct m0_cm_ag_id         ai_id_curr;
-	struct m0_cm_ag_id         ai_id_next;
+	/** Iterator state machine. */
+	struct m0_sm                 ai_sm;
+	/** File of which the parity groups are being iterated. */
+	struct m0_fid                ai_fid;
+	/** Current incoming aggregation group id. */
+	struct m0_cm_ag_id           ai_id_curr;
+	/** Next incoming agregation group id. */
+	struct m0_cm_ag_id           ai_id_next;
+	/** Total number of aggregation groups to be iterated for given file. */
+	uint64_t                     ai_group_last;
+	/** File context corresponding to file being iterated. */
+	struct m0_sns_cm_file_ctx   *ai_fctx;
+
+	struct m0_poolmach          *ai_pm;
 };
 
 M0_INTERNAL int m0_sns_cm_ag__next(struct m0_sns_cm *scm,

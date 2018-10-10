@@ -85,7 +85,6 @@ static int rebalance_ag_in_cp_units(const struct m0_sns_cm *scm,
 	uint32_t                    tgt_unit_prev;
 	uint64_t                    unit;
 	uint64_t                    upg;
-	uint32_t                    nr_max_du;
 	int                         rc = 0;
 
 	M0_ENTRY();
@@ -97,26 +96,25 @@ static int rebalance_ag_in_cp_units(const struct m0_sns_cm *scm,
 	pl = m0_layout_to_pdl(fctx->sf_layout);
 	pm = fctx->sf_pm;
 	upg = m0_sns_cm_ag_size(pl);
-	nr_max_du = m0_sns_cm_file_data_units(fctx);
 	for (unit = 0; unit < upg; ++unit) {
 		sa.sa_unit = unit;
 		M0_SET0(&ta);
 		M0_SET0(&cobfid);
 		M0_ASSERT(pm != NULL);
 		m0_sns_cm_unit2cobfid(fctx, &sa, &ta, &cobfid);
-		if (!scm->sc_helpers->sch_is_cob_failed(pm, ta.ta_obj) ||
-		    m0_sns_cm_file_unit_is_EOF(pl, nr_max_du, sa.sa_group,
-					       sa.sa_unit))
+		if (!scm->sc_helpers->sch_is_cob_failed(pm, ta.ta_obj))
 			continue;
                 if (!m0_sns_cm_is_local_cob(cm, pm->pm_pver, &cobfid))
                         continue;
 		if (m0_pdclust_unit_classify(pl, unit) == M0_PUT_SPARE) {
-			if (is_spare_relevant(scm, fctx, sa.sa_group, unit, &tgt_unit)) {
+			if (is_spare_relevant(scm, fctx, sa.sa_group, unit,
+					      &tgt_unit)) {
 				if (pcount != NULL) {
 					M0_SET0(&ta);
 					M0_SET0(&cobfid);
 					sa.sa_unit = tgt_unit;
-					m0_sns_cm_unit2cobfid(fctx, &sa, &ta, &cobfid);
+					m0_sns_cm_unit2cobfid(fctx, &sa, &ta,
+							      &cobfid);
 					rc = cob_to_proxy(&cobfid, cm, pm, &pxy);
 					if (rc != 0)
 						return M0_ERR(rc);
@@ -127,8 +125,9 @@ static int rebalance_ag_in_cp_units(const struct m0_sns_cm *scm,
 			continue;
 		}
 		m0_sns_cm_fctx_lock(fctx);
-		rc = m0_sns_repair_spare_map(pm, &gfid, pl, fctx->sf_pi, sa.sa_group,
-					     unit, &tgt_unit, &tgt_unit_prev);
+		rc = m0_sns_repair_spare_map(pm, &gfid, pl, fctx->sf_pi,
+					     sa.sa_group, unit, &tgt_unit,
+					     &tgt_unit_prev);
 		m0_sns_cm_fctx_unlock(fctx);
                 if (rc != 0)
                         return M0_ERR(rc);
@@ -205,7 +204,8 @@ M0_INTERNAL int m0_sns_cm_rebalance_tgt_info(struct m0_sns_cm_ag *sag,
 	data_unit = scp->sc_base.c_ag_cp_idx;
 	dev_idx = m0_sns_cm_device_index_get(group, data_unit, fctx);
 	if (!m0_sns_cm_is_cob_rebalancing(pm, dev_idx)) {
-		rc = _tgt_check_and_change(sag, pm, pl, data_unit, dev_idx, &data_unit);
+		rc = _tgt_check_and_change(sag, pm, pl, data_unit, dev_idx,
+					   &data_unit);
 		if (rc != 0) {
 			M0_LOG(M0_DEBUG, "Target device %u not rebalancing,"
 					 "no other rebalancing target found.",
@@ -258,14 +258,16 @@ static bool is_spare_relevant(const struct m0_sns_cm *scm,
 		dev_idx = m0_sns_cm_device_index_get(group, data, fctx);
 		if (m0_sns_cm_is_cob_repaired(pm, dev_idx)) {
 			m0_sns_cm_fctx_lock(fctx);
-			rc = m0_sns_repair_spare_map(pm, &fctx->sf_fid, pl, pi, group,
-						     data, &spare, &spare_prev);
+			rc = m0_sns_repair_spare_map(pm, &fctx->sf_fid, pl, pi,
+						     group, data, &spare,
+						     &spare_prev);
 			m0_sns_cm_fctx_unlock(fctx);
 			if (rc == 0) {
 				sa.sa_unit = spare;
 				sa.sa_group = group;
 				m0_sns_cm_unit2cobfid(fctx, &sa, &ta, &cobfid);
-				if (!m0_sns_cm_is_local_cob(&scm->sc_base, pm->pm_pver,
+				if (!m0_sns_cm_is_local_cob(&scm->sc_base,
+							    pm->pm_pver,
 							    &cobfid)) {
 					*incoming_unit = spare;
 					return true;
@@ -292,7 +294,6 @@ static bool rebalance_ag_is_relevant(struct m0_sns_cm *scm,
 	struct m0_poolmach         *pm;
 	struct m0_pdclust_layout   *pl;
 	int                         rc;
-	uint32_t                    nr_max_du;
 
 	M0_PRE(fctx != NULL);
 
@@ -300,15 +301,12 @@ static bool rebalance_ag_is_relevant(struct m0_sns_cm *scm,
 	upg = m0_sns_cm_ag_size(pl);
 	sa.sa_group = group;
 	pm = fctx->sf_pm;
-	nr_max_du = m0_sns_cm_file_data_units(fctx);
 	for (i = 0; i < upg; ++i) {
 		sa.sa_unit = i;
 		m0_sns_cm_unit2cobfid(fctx, &sa, &ta, &cobfid);
 		if (m0_sns_cm_is_cob_rebalancing(pm, ta.ta_obj) &&
 		    m0_sns_cm_is_local_cob(&scm->sc_base, pm->pm_pver,
-					   &cobfid) &&
-		    !m0_sns_cm_file_unit_is_EOF(pl, nr_max_du, sa.sa_group,
-						sa.sa_unit)) {
+					   &cobfid)) {
 			tunit = sa.sa_unit;
 			if (m0_pdclust_unit_classify(pl, tunit) ==
 					M0_PUT_SPARE) {

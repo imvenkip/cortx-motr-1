@@ -40,7 +40,7 @@ M0_INTERNAL uint64_t obj_buffer_size(struct m0_clovis_obj *obj)
 	return 1ULL<<obj->ob_attr.oa_bshift;
 }
 
-M0_INTERNAL uint64_t page_size(struct m0_clovis_op_io *ioo)
+M0_INTERNAL uint64_t m0_clovis__page_size(struct m0_clovis_op_io *ioo)
 {
 	M0_PRE(ioo != NULL);
 	M0_PRE(ioo->ioo_obj != NULL);
@@ -172,7 +172,6 @@ M0_INTERNAL uint64_t group_id(m0_bindex_t index, m0_bcount_t dtsize)
 M0_INTERNAL m0_bcount_t seg_endpos(const struct m0_indexvec *ivec, uint32_t i)
 {
 	M0_PRE(ivec != NULL);
-	// XXX add any CLOVIS_PRE() to cover 'i'? => update UTs
 
 	return ivec->iv_index[i] + ivec->iv_vec.v_count[i];
 }
@@ -287,7 +286,7 @@ M0_INTERNAL m0_bindex_t data_page_offset_get(struct pargrp_iomap *map,
 	M0_PRE(col < data_col_nr(play));
 
 	out = data_size(play) * map->pi_grpid +
-	      col * layout_unit_size(play) + row * page_size(ioo);
+	      col * layout_unit_size(play) + row * m0_clovis__page_size(ioo);
 
 	return out;
 }

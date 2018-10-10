@@ -128,7 +128,7 @@ static struct m0_cm_ag_id ag_id = {
 
 static const struct m0_fid      M0_SNS_CM_NET_UT_PVER = M0_FID_TINIT('v', 1, 8);
 
-M0_INTERNAL void cob_create(struct m0_cob_domain *cdom,
+M0_INTERNAL void cob_create(struct m0_reqh *reqh, struct m0_cob_domain *cdom,
 			    struct m0_be_domain *bedom,
 			    uint64_t cont, struct m0_fid *gfid,
 			    uint32_t cob_idx);
@@ -520,7 +520,7 @@ static void receiver_stob_create()
 	int                   rc;
 
 	m0_ios_cdom_get(s0_reqh, &cdom);
-	cob_create(cdom, s0_reqh->rh_beseg->bs_domain, 0, &gob_fid, 0);
+	cob_create(s0_reqh, cdom, s0_reqh->rh_beseg->bs_domain, 0, &gob_fid, 0);
 
 	/*
 	 * Create a stob. In actual repair scenario, this will already be

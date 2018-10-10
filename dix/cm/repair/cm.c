@@ -49,7 +49,7 @@ static int dix_repair_cm_prepare(struct m0_cm *cm)
 	struct m0_dix_cm *dcm = cm2dix(cm);
 
 	M0_ENTRY("cm: %p", cm);
-	M0_PRE(dcm->dcm_op == CM_OP_REPAIR);
+	M0_PRE(M0_IN(dcm->dcm_op, (CM_OP_REPAIR, CM_OP_REPAIR_RESUME)));
 	return 0;
 }
 
@@ -68,7 +68,7 @@ static void dix_repair_cm_stop(struct m0_cm *cm)
 	struct m0_dix_cm *dcm = cm2dix(cm);
 
 	M0_ENTRY();
-	M0_PRE(dcm->dcm_op == CM_OP_REPAIR);
+	M0_PRE(M0_IN(dcm->dcm_op, (CM_OP_REPAIR, CM_OP_REPAIR_RESUME)));
 	m0_dix_cm_stop(cm);
 	M0_LEAVE();
 }

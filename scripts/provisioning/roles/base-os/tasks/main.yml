@@ -190,6 +190,22 @@
         name:  kexec-tools
       tags: breaks-dry-run
 
+- name: enable core dumps
+  block:
+    - name: set global soft core dump limit
+      pam_limits:
+        domain: '*'
+        limit_type: soft
+        limit_item: core
+        value: unlimited
+
+    - name: set global hard core dump limit
+      pam_limits:
+        domain: '*'
+        limit_type: hard
+        limit_item: core
+        value: unlimited
+
 - name: restart machine
   when: reboot_required.rc == 1
   block:

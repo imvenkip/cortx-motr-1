@@ -90,7 +90,7 @@ ha_notify_ios4_failure_or_online()
 
 	for (( i=0; i < ${#IOSEP[*]}; i++)) ; do
 		# Don't send message to IOS4 after the process is killed.
-		if [ "$failure_or_online" != "failed" -o $i -ne 3 ]
+		if [ $failure_or_online != "failed" -o $i -ne 3 ]
 		then
 			eplist[$i]="$lnet_nid:${IOSEP[$i]}"
 		fi
@@ -162,35 +162,15 @@ sns_repair_test()
 	sns_repair || return $?
 	sleep 3
 
-	echo "Abort SNS repair"
-	sns_repair_abort
-
-	echo "wait for sns repair"
-	wait_for_sns_repair_or_rebalance "repair" || return $?
-	echo "SNS repair aborted"
-
-	echo "query sns repair status"
-	sns_repair_or_rebalance_status "repair" || return $?
-
-	echo "SNS Repair aborted."
-	verify || return $?
-
-	echo "Query device state:$fail_device1 $fail_device2"
-	disk_state_get $fail_device1 $fail_device2 || return $?
-
-	echo "Start SNS repair again ..."
-	# Start repair in background and kill ioservice.
-	sns_repair || return $?
-
 	echo "killing ios4 ..."
 	kill_ios4_ioservice
 
 	ha_notify_ios4_failure_or_online "failed"
 	sleep 2
 
-	#echo "ios4 failed, we have to abort SNS repair"
-	#sns_repair_abort
-	#sleep 2
+	echo "ios4 failed, we have to quiesce SNS repair"
+	sns_repair_quiesce
+	sleep 2
 
 	wait_for_sns_repair_or_rebalance_not_4 "repair" || return $?
 
@@ -220,7 +200,7 @@ sns_repair_test()
 	disk_state_set "repair" $fail_device1 $fail_device2 || return $?
 
 	echo "Start SNS repair again ..."
-	sns_repair || return $?
+	sns_repair_resume || return $?
 
 	echo "wait for sns repair"
 	wait_for_sns_repair_or_rebalance "repair" || return $?
@@ -233,6 +213,53 @@ sns_repair_test()
 	verify || return $?
 
 	disk_state_get $fail_device1 $fail_device2 || return $?
+
+	echo "Start SNS rebalance"
+	disk_state_set "rebalance" $fail_device1 $fail_device2 || return $?
+	sns_rebalance || return $?
+	sleep 3
+
+	echo "killing ios4 ..."
+	kill_ios4_ioservice
+
+	ha_notify_ios4_failure_or_online "failed"
+	sleep 2
+
+	echo "quiescing rebalance"
+	sns_rebalance_quiesce
+	sleep 2
+
+	wait_for_sns_repair_or_rebalance_not_4 "rebalance" || return $?
+
+	echo "query sns repair status"
+	sns_repair_or_rebalance_status_not_4 "rebalance" || return $?
+
+	echo "================================================================="
+	echo "start over the failed ios4"
+	start_ios4_ioservice
+	sleep 5
+
+	echo "HA notifies that ios4 online."
+	ha_notify_ios4_failure_or_online "online"
+
+	disk_state_set "online" $fail_device1 $fail_device2 || return $?
+	disk_state_set "failed" $fail_device1 $fail_device2 || return $?
+	disk_state_set "repair" $fail_device1 $fail_device2 || return $?
+	disk_state_set "repaired" $fail_device1 $fail_device2 || return $?
+	disk_state_set "rebalance" $fail_device1 $fail_device2 || return $?
+
+	echo "Start SNS rebalance again ..."
+	sns_rebalance_resume || return $?
+
+	echo "wait for sns rebalance"
+	wait_for_sns_repair_or_rebalance "rebalance" || return $?
+
+	echo "query sns repair status"
+	sns_repair_or_rebalance_status "rebalance" || return $?
+
+	disk_state_set "online" $fail_device1 $fail_device2 || return $?
+	echo "SNS Rebalance done."
+	verify || return $?
 
 	return $?
 }

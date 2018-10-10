@@ -6361,6 +6361,8 @@ static int target_cob_create_fop_prepare(struct target_ioreq *ti)
 	common->c_body.b_nlink = 1;
 	common->c_body.b_valid |= M0_COB_PVER;
 	common->c_body.b_valid |= M0_COB_NLINK;
+	common->c_body.b_valid |= M0_COB_LID;
+	common->c_body.b_lid = m0t1fs_file_to_m0inode(req->ir_file)->ci_layout_id;
 	m0_atomic64_inc(&ti->ti_nwxfer->nxr_ccfop_nr);
 
 out:
@@ -6536,6 +6538,7 @@ static int target_ioreq_iofops_prepare(struct target_ioreq *ti,
 		rw_fop->crw_index = ti->ti_obj;
 		rw_fop->crw_pver =
 			m0t1fs_file_to_m0inode(req->ir_file)->ci_pver;
+		rw_fop->crw_lid = m0t1fs_file_to_m0inode(req->ir_file)->ci_layout_id;
 
 		rc = m0_io_fop_prepare(&iofop->if_fop);
 		if (rc != 0)

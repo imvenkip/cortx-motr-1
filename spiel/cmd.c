@@ -77,6 +77,7 @@ static int spiel_node_process_endpoint_add(struct m0_spiel_core *spc,
 	int                        rc;
 
 	M0_ENTRY("conf_node: %p", &node);
+	M0_PRE(m0_conf_obj_type(node) == &M0_CONF_NODE_TYPE);
 
 	rc = m0_conf_diter_init(&it, spc->spc_confc, node,
 				M0_CONF_NODE_PROCESSES_FID,
@@ -106,28 +107,27 @@ static int spiel_node_process_endpoint_add(struct m0_spiel_core *spc,
 }
 
 /**
- * Finds mo_conf_node by m0_conf_drive and collect endpoints from its node.
- *
- * Disk -> Controller -> Node -> Processes -> SSS services.
+ * Finds the node, which `drive' belongs to, and collects endpoints of
+ * IOS-running processes of that node.
  */
 static int spiel_endpoints_for_device_generic(struct m0_spiel_core *spc,
-					      const struct m0_fid  *device_fid,
-					      struct m0_tl         *list)
+					      const struct m0_fid  *drive,
+					      struct m0_tl         *out)
 {
 	struct m0_confc           *confc = spc->spc_confc;
 	struct m0_conf_diter       it;
 	struct m0_conf_obj        *root;
-	struct m0_conf_obj        *disk;
+	struct m0_conf_obj        *drive_obj;
 	struct m0_conf_obj        *ctrl_obj;
 	struct m0_conf_controller *ctrl;
 	struct m0_conf_obj        *node_obj;
 	int                        rc;
 
 	M0_ENTRY();
-	M0_PRE(device_fid != NULL);
-	M0_PRE(list != NULL);
+	M0_PRE(drive != NULL);
+	M0_PRE(out != NULL);
 
-	if (m0_conf_fid_type(device_fid) != &M0_CONF_DRIVE_TYPE)
+	if (m0_conf_fid_type(drive) != &M0_CONF_DRIVE_TYPE)
 		return M0_ERR(-EINVAL);
 
 	rc = m0_confc_open_sync(&root, confc->cc_root, M0_FID0);
@@ -147,9 +147,8 @@ static int spiel_endpoints_for_device_generic(struct m0_spiel_core *spc,
 	while ((rc = m0_conf_diter_next_sync(&it, _filter_controller)) ==
 							M0_CONF_DIRNEXT) {
 		ctrl_obj = m0_conf_diter_result(&it);
-		rc = m0_confc_open_sync(&disk, ctrl_obj,
-					M0_CONF_CONTROLLER_DRIVES_FID,
-					*device_fid);
+		rc = m0_confc_open_sync(&drive_obj, ctrl_obj,
+					M0_CONF_CONTROLLER_DRIVES_FID, *drive);
 
 		if (rc == 0) {
 			ctrl = M0_CONF_CAST(ctrl_obj, m0_conf_controller);
@@ -158,10 +157,10 @@ static int spiel_endpoints_for_device_generic(struct m0_spiel_core *spc,
 					       &node_obj);
 			if (rc == 0) {
 				spiel_node_process_endpoint_add(spc, node_obj,
-							        list);
+							        out);
 				m0_confc_close(node_obj);
 			}
-			m0_confc_close(disk);
+			m0_confc_close(drive_obj);
 		}
 	}
 
@@ -555,9 +554,9 @@ static int spiel_device_command_fop_send(struct m0_spiel_core *spc,
 	struct m0_sss_device_fop_rep *rep;
 	int                           rc;
 
-	fop  = m0_sss_device_fop_create(spc->spc_rmachine, cmd, dev_fid);
+	fop = m0_sss_device_fop_create(spc->spc_rmachine, cmd, dev_fid);
 	if (fop == NULL)
-		return M0_RC(-ENOMEM);
+		return M0_ERR(-ENOMEM);
 
 	rc = spiel_cmd_send(spc->spc_rmachine, endpoint, fop,
 			    cmd == M0_DEVICE_FORMAT ?
@@ -577,13 +576,12 @@ static int spiel_device_command_fop_send(struct m0_spiel_core *spc,
 }
 
 /**
- * Search all processes that have IO services, fetch their endpoints
- * and send command FOPs.
+ * Send `cmd' (m0_sss_device_fop::ssd_cmd) to all IO services that use `drive'.
  */
-static int spiel_device_command_send(struct m0_spiel_core *spc,
-				     const struct m0_fid  *dev_fid,
-				     int                   cmd,
-				     uint32_t             *ha_state)
+static int spiel_device_command_send(struct m0_spiel_core       *spc,
+				     const struct m0_fid        *drive,
+				     enum m0_sss_device_req_cmd  cmd,
+				     uint32_t                   *ha_state)
 {
 	struct m0_tl               endpoints;
 	struct spiel_string_entry *ep;
@@ -591,20 +589,21 @@ static int spiel_device_command_send(struct m0_spiel_core *spc,
 
 	M0_ENTRY();
 
-	if (m0_conf_fid_type(dev_fid) != &M0_CONF_DRIVE_TYPE)
-		return M0_ERR(-EINVAL);
+	if (m0_conf_fid_type(drive) != &M0_CONF_DRIVE_TYPE)
+		return M0_ERR_INFO(-EINVAL, "drive="FID_F, FID_P(drive));
 
 	spiel_string_tlist_init(&endpoints);
 
-	rc = spiel_endpoints_for_device_generic(spc, dev_fid, &endpoints);
+	rc = spiel_endpoints_for_device_generic(spc, drive, &endpoints);
 	if (rc == 0 && spiel_string_tlist_is_empty(&endpoints))
-		rc = M0_ERR(-ENOENT);
+		rc = M0_ERR_INFO(-ENOENT, "No IOS endpoints found for drive "
+				 FID_F, FID_P(drive));
 
 	if (rc == 0)
 		m0_tl_teardown(spiel_string, &endpoints, ep) {
 			rc = rc ?:
 			spiel_device_command_fop_send(spc, ep->sse_string,
-						      dev_fid, cmd, ha_state);
+						      drive, cmd, ha_state);
 			m0_free((char *)ep->sse_string);
 			m0_free(ep);
 		}
@@ -1251,13 +1250,13 @@ static int spiel_pool_generic_handler(struct m0_spiel_core           *spc,
 
 	M0_ALLOC_ARR(repreb, service_count);
 	if (repreb == NULL) {
-		rc = -ENOMEM;
+		rc = M0_ERR(-ENOMEM);
 		goto leave;
 	}
 	if (cmd_status) {
 		M0_ALLOC_ARR(repreb_statuses, service_count);
 		if (repreb_statuses == NULL) {
-			rc = -ENOMEM;
+			rc = M0_ERR(-ENOMEM);
 			m0_free(repreb);
 			goto leave;
 		}
@@ -1276,7 +1275,7 @@ static int spiel_pool_generic_handler(struct m0_spiel_core           *spc,
 			continue;
 		}
 		if (svc_obj->co_ha_state != M0_NC_ONLINE) {
-			rc = -EINVAL;
+			rc = M0_ERR(-EINVAL);
 			M0_LOG(M0_ERROR, "service"FID_F" is not online;"
 			       " index=%d ha_state=%d", FID_P(&si->i_fid),
 			       index, svc_obj->co_ha_state);
@@ -1358,7 +1357,7 @@ int m0_spiel_sns_repair_continue(struct m0_spiel     *spl,
 {
 	M0_ENTRY();
 	return M0_RC(spiel_pool_generic_handler(&spl->spl_core, pool_fid,
-						CM_OP_REPAIR, NULL,
+						CM_OP_REPAIR_RESUME, NULL,
 						M0_REPREB_TYPE_SNS));
 }
 M0_EXPORTED(m0_spiel_sns_repair_continue);
@@ -1368,7 +1367,7 @@ int m0_spiel_dix_repair_continue(struct m0_spiel     *spl,
 {
 	M0_ENTRY();
 	return M0_RC(spiel_pool_generic_handler(&spl->spl_core, pool_fid,
-						CM_OP_REPAIR, NULL,
+						CM_OP_REPAIR_RESUME, NULL,
 						M0_REPREB_TYPE_DIX));
 }
 M0_EXPORTED(m0_spiel_dix_repair_continue);
@@ -1505,7 +1504,7 @@ int m0_spiel_sns_rebalance_continue(struct m0_spiel     *spl,
 {
 	M0_ENTRY();
 	return M0_RC(spiel_pool_generic_handler(&spl->spl_core, pool_fid,
-						CM_OP_REBALANCE, NULL,
+						CM_OP_REBALANCE_RESUME, NULL,
 						M0_REPREB_TYPE_SNS));
 }
 M0_EXPORTED(m0_spiel_sns_rebalance_continue);
@@ -1515,7 +1514,7 @@ int m0_spiel_dix_rebalance_continue(struct m0_spiel     *spl,
 {
 	M0_ENTRY();
 	return M0_RC(spiel_pool_generic_handler(&spl->spl_core, pool_fid,
-						CM_OP_REBALANCE, NULL,
+						CM_OP_REBALANCE_RESUME, NULL,
 						M0_REPREB_TYPE_DIX));
 }
 M0_EXPORTED(m0_spiel_dix_rebalance_continue);
@@ -1955,7 +1954,7 @@ static int spiel__proc_is_to_update_stats(struct spiel_proc_item *proc,
 			m0_conf_obj_ha_update(proc_fid);
 	}
 	else {
-		rc = -ENOENT;
+		rc = -ENOENT; /* this case is normal, don't use M0_ERR() */
 	}
 	m0_conf_diter_fini(&it);
 obj_close:

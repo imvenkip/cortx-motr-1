@@ -130,6 +130,9 @@ struct m0_halon_interface_cfg {
 	uint32_t         hic_queue_len;
 	struct m0_ha_cfg hic_ha_cfg;
 	struct m0_ha_dispatcher_cfg hic_dispatcher_cfg;
+	bool             hic_log_entrypoint;
+	bool             hic_log_link;
+	bool             hic_log_msg;
 };
 
 enum m0_halon_interface_level {
@@ -214,6 +217,22 @@ halon_interface_is_compatible(struct m0_halon_interface *hi,
 	return true;
 }
 
+static void
+halon_interface_parse_debug_options(struct m0_halon_interface *hi,
+                                    const char                *debug_options)
+{
+	struct m0_halon_interface_cfg *hi_cfg = &hi->hif_internal->hii_cfg;
+
+	M0_ENTRY("hi=%p debug_options=%s", hi, debug_options);
+
+	if (debug_options == NULL)
+		return;
+	hi_cfg->hic_log_entrypoint = strstr(debug_options, "log-entrypoint")
+									!= NULL;
+	hi_cfg->hic_log_link       = strstr(debug_options, "log-link") != NULL;
+	hi_cfg->hic_log_msg        = strstr(debug_options, "log-msg") != NULL;
+}
+
 static struct m0_halon_interface_internal *
 halon_interface_ha2hii(struct m0_ha *ha)
 {
@@ -244,6 +263,10 @@ halon_interface_process_failure_check(struct m0_halon_interface_internal *hii,
 		    M0_CONF_PROCESS_TYPE.cot_ftype.ft_id &&
 		    note->no_state == M0_NC_FAILED) {
 			M0_LOG(M0_DEBUG, "no_id="FID_F, FID_P(&note->no_id));
+			if (hii->hii_cfg.hic_log_link) {
+				M0_LOG(M0_WARN, "no_id="FID_F,
+				       FID_P(&note->no_id));
+			}
 			m0_ha_process_failed(&hii->hii_ha, &note->no_id);
 		}
 	}
@@ -264,6 +287,13 @@ halon_interface_entrypoint_request_cb(struct m0_ha                      *ha,
 	         FID_P(&req->heq_process_fid));
 	M0_LOG(M0_DEBUG, "git_rev_id=%s generation=%"PRIu64" pid=%"PRIu64,
 	       req->heq_git_rev_id, req->heq_generation, req->heq_pid);
+	if (hii->hii_cfg.hic_log_entrypoint) {
+		M0_LOG(M0_WARN, "req_id="U128X_F" remote_rpc_endpoint=%s "
+	         "process_fid="FID_F" git_rev_id=%s generation=%"PRIu64" "
+	         "pid=%"PRIu64, U128_P(req_id), req->heq_rpc_endpoint,
+	         FID_P(&req->heq_process_fid), req->heq_git_rev_id,
+		 req->heq_generation, req->heq_pid);
+	}
 	hii->hii_cfg.hic_entrypoint_request_cb(hii->hii_hi, req_id,
 	                                       req->heq_rpc_endpoint,
 	                                       &req->heq_process_fid,
@@ -301,6 +331,12 @@ static void halon_interface_msg_received_cb(struct m0_ha      *ha,
 		 hii->hii_hi, &hii->hii_ha, hl, ep, msg, msg->hm_epoch, tag);
 	m0_ha_msg_debug_print(msg, __func__);
 	if (hl != hii->hii_outgoing_link) {
+		if (hii->hii_cfg.hic_log_msg) {
+			M0_LOG(M0_WARN, "hl=%p ep=%s epoch=%"PRIu64" "
+			       "tag=%"PRIu64" type=%"PRIu64,
+			       hl, ep, msg->hm_epoch, tag,
+			       msg->hm_data.hed_type);
+		}
 		hii->hii_cfg.hic_msg_received_cb(hii->hii_hi, hl, msg, tag);
 	} else {
 		m0_ha_dispatcher_handle(&hii->hii_dispatcher, ha, hl, msg, tag);
@@ -321,8 +357,11 @@ static void halon_interface_msg_is_delivered_cb(struct m0_ha      *ha,
 
 	m0_ha_rpc_endpoint(&hii->hii_ha, hl, buf, ARRAY_SIZE(buf));
 	M0_ENTRY("hii=%p ha=%p hl=%p ep=%s tag=%"PRIu64, hii, ha, hl, ep, tag);
-	if (hl != hii->hii_outgoing_link)
+	if (hl != hii->hii_outgoing_link) {
+		if (hii->hii_cfg.hic_log_msg)
+			M0_LOG(M0_WARN, "hl=%p ep=%s tag=%"PRIu64, hl, ep, tag);
 		hii->hii_cfg.hic_msg_is_delivered_cb(hii->hii_hi, hl, tag);
+	}
 	M0_LEAVE("hii=%p ha=%p hl=%p ep=%s tag=%"PRIu64, hii, ha, hl, ep, tag);
 }
 
@@ -336,8 +375,11 @@ static void halon_interface_msg_is_not_delivered_cb(struct m0_ha      *ha,
 
 	m0_ha_rpc_endpoint(&hii->hii_ha, hl, buf, ARRAY_SIZE(buf));
 	M0_ENTRY("hii=%p ha=%p hl=%p ep=%s tag=%"PRIu64, hii, ha, hl, ep, tag);
-	if (hl != hii->hii_outgoing_link)
+	if (hl != hii->hii_outgoing_link) {
+		if (hii->hii_cfg.hic_log_msg)
+			M0_LOG(M0_WARN, "hl=%p ep=%s tag=%"PRIu64, hl, ep, tag);
 		hii->hii_cfg.hic_msg_is_not_delivered_cb(hii->hii_hi, hl, tag);
+	}
 	M0_LEAVE("hii=%p ha=%p hl=%p ep=%s tag=%"PRIu64, hii, ha, hl, ep, tag);
 }
 
@@ -352,6 +394,10 @@ static void halon_interface_link_connected_cb(struct m0_ha            *ha,
 	m0_ha_rpc_endpoint(&hii->hii_ha, hl, buf, ARRAY_SIZE(buf));
 	M0_ENTRY("hii=%p ha=%p req_id="U128X_F" hl=%p ep=%s", hii, ha,
 		 U128_P(req_id), hl, ep);
+	if (hii->hii_cfg.hic_log_link) {
+		M0_LOG(M0_WARN, "req_id="U128X_F" hl=%p ep=%s",
+		       U128_P(req_id), hl, ep);
+	}
 	hii->hii_cfg.hic_link_connected_cb(hii->hii_hi, req_id, hl);
 	M0_LEAVE("hii=%p ha=%p req_id="U128X_F" hl=%p ep=%s", hii, ha,
 		 U128_P(req_id), hl, ep);
@@ -368,6 +414,10 @@ static void halon_interface_link_reused_cb(struct m0_ha            *ha,
 	m0_ha_rpc_endpoint(&hii->hii_ha, hl, buf, ARRAY_SIZE(buf));
 	M0_ENTRY("hii=%p ha=%p req_id="U128X_F" hl=%p ep=%s", hii, ha,
 		 U128_P(req_id), hl, ep);
+	if (hii->hii_cfg.hic_log_link) {
+		M0_LOG(M0_WARN, "req_id="U128X_F" hl=%p ep=%s",
+		       U128_P(req_id), hl, ep);
+	}
 	hii->hii_cfg.hic_link_reused_cb(hii->hii_hi, req_id, hl);
 	M0_LEAVE("hii=%p ha=%p req_id="U128X_F" hl=%p ep=%s", hii, ha,
 		 U128_P(req_id), hl, ep);
@@ -382,6 +432,8 @@ static void halon_interface_link_is_disconnecting_cb(struct m0_ha      *ha,
 
 	m0_ha_rpc_endpoint(&hii->hii_ha, hl, buf, ARRAY_SIZE(buf));
 	M0_ENTRY("hii=%p ha=%p hl=%p ep=%s", hii, ha, hl, ep);
+	if (hii->hii_cfg.hic_log_link)
+		M0_LOG(M0_WARN, "hl=%p ep=%s", hl, ep);
 	hii->hii_cfg.hic_link_is_disconnecting_cb(hii->hii_hi, hl);
 	M0_LEAVE("hii=%p ha=%p hl=%p ep=%s", hii, ha, hl, ep);
 }
@@ -395,6 +447,8 @@ static void halon_interface_link_disconnected_cb(struct m0_ha      *ha,
 
 	m0_ha_rpc_endpoint(&hii->hii_ha, hl, buf, ARRAY_SIZE(buf));
 	M0_ENTRY("hii=%p ha=%p hl=%p ep=%s", hii, ha, hl, ep);
+	if (hii->hii_cfg.hic_log_link)
+		M0_LOG(M0_WARN, "hl=%p ep=%s", hl, ep);
 	hii->hii_cfg.hic_link_disconnected_cb(hii->hii_hi, hl);
 	M0_LEAVE("hii=%p ha=%p hl=%p ep=%s", hii, ha, hl, ep);
 }
@@ -442,12 +496,15 @@ static struct m0_sm_conf halon_interface_sm_conf = {
 int m0_halon_interface_init(struct m0_halon_interface **hi_out,
                             const char                 *build_git_rev_id,
                             const char                 *build_configure_opts,
-                            bool                        disable_compat_check,
+                            const char                 *debug_options,
                             const char                 *node_uuid)
 {
 	struct m0_halon_interface_internal *hii;
+	bool                                disable_compat_check;
 	int                                 rc;
 
+	disable_compat_check = debug_options != NULL &&
+		strstr(debug_options, "disable-compatibility-check") != NULL;
 	if (!halon_interface_is_compatible(NULL, build_git_rev_id,
 	                                   build_configure_opts,
 					   disable_compat_check))
@@ -470,6 +527,7 @@ int m0_halon_interface_init(struct m0_halon_interface **hi_out,
 		free(hii);
 		return M0_ERR(rc);
 	}
+	halon_interface_parse_debug_options(*hi_out, debug_options);
 	m0_sm_group_init(&hii->hii_sm_group);
 	m0_sm_init(&hii->hii_sm, &halon_interface_sm_conf,
 		   M0_HALON_INTERFACE_STATE_UNINITIALISED, &hii->hii_sm_group);
@@ -916,6 +974,12 @@ void m0_halon_interface_entrypoint_reply(
 		 hi, U128_P(req_id), rc, confd_nr, confd_quorum,
 	         FID_P(rm_fid == NULL ? &M0_FID0 : rm_fid), rm_eps);
 
+	if (hi->hif_internal->hii_cfg.hic_log_entrypoint) {
+		M0_LOG(M0_WARN, "req_id="U128X_F" rc=%d confd_nr=%"PRIu32" "
+	         "confd_quorum=%"PRIu32" rm_fid="FID_F" rm_eps=%s",
+		 U128_P(req_id), rc, confd_nr, confd_quorum,
+	         FID_P(rm_fid == NULL ? &M0_FID0 : rm_fid), rm_eps);
+	}
 	rep = (struct m0_ha_entrypoint_rep){
 		.hae_quorum        = confd_quorum,
 		.hae_confd_fids    = {
@@ -949,6 +1013,11 @@ void m0_halon_interface_send(struct m0_halon_interface *hi,
 		 hi, &hii->hii_ha, hl, ep, msg, msg->hm_epoch, tag);
 	m0_ha_msg_debug_print(msg, __func__);
 	m0_ha_send(&hii->hii_ha, hl, msg, tag);
+	if (hii->hii_cfg.hic_log_msg) {
+		M0_LOG(M0_WARN, "hl=%p ep=%s epoch=%"PRIu64" tag=%"PRIu64" "
+		       "type=%"PRIu64,
+		       hl, ep, msg->hm_epoch, *tag, msg->hm_data.hed_type);
+	}
 	M0_LEAVE("hi=%p ha=%p hl=%p ep=%s msg=%p epoch=%"PRIu64" tag=%"PRIu64,
 		 hi, &hii->hii_ha, hl, ep, msg, msg->hm_epoch, *tag);
 }
@@ -968,6 +1037,11 @@ void m0_halon_interface_delivered(struct m0_halon_interface *hi,
 	M0_ENTRY("hi=%p ha=%p hl=%p ep=%s msg=%p epoch=%"PRIu64" tag=%"PRIu64,
 		 hi, &hii->hii_ha, hl, ep,
 		 msg, msg->hm_epoch, m0_ha_msg_tag(msg));
+	if (hii->hii_cfg.hic_log_msg) {
+		M0_LOG(M0_WARN, "hl=%p ep=%s epoch=%"PRIu64" tag=%"PRIu64" "
+		       "type=%"PRIu64, hl, ep, msg->hm_epoch, m0_ha_msg_tag(msg),
+		       msg->hm_data.hed_type);
+	}
 	/*
 	 * Remove 'const' here.
 	 *
@@ -994,6 +1068,8 @@ void m0_halon_interface_disconnect(struct m0_halon_interface *hi,
 
 	m0_ha_rpc_endpoint(&hii->hii_ha, hl, buf, ARRAY_SIZE(buf));
 	M0_ENTRY("hi=%p ha=%p hl=%p ep=%s", hi, &hii->hii_ha, hl, ep);
+	if (hii->hii_cfg.hic_log_link)
+		M0_LOG(M0_WARN, "hl=%p ep=%s", hl, ep);
 	m0_ha_disconnect_incoming(&hii->hii_ha, hl);
 	M0_LEAVE("hi=%p ha=%p hl=%p ep=%s", hi, &hii->hii_ha, hl, ep);
 }

@@ -108,7 +108,7 @@ M0_INTERNAL uint64_t obj_buffer_size(struct m0_clovis_obj *obj);
  * @param ioo The operation on an object.
  * @return The objects page size.
  */
-M0_INTERNAL uint64_t page_size(struct m0_clovis_op_io *ioo);
+M0_INTERNAL uint64_t m0_clovis__page_size(struct m0_clovis_op_io *ioo);
 
 /**
  * Determines the number of object:blocks that are needed to hold the

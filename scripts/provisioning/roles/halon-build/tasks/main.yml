@@ -80,3 +80,12 @@
   tags:
     - halon
     - rabbitmq
+
+- name: enable RabbitMQ WebUI
+  command: rabbitmq-plugins enable rabbitmq_management
+  register: rmq_plugins
+  changed_when: "'Plugin configuration unchanged' not in rmq_plugins.stdout"
+  notify: restart rabbitmq-server
+  tags:
+    - halon
+    - rabbitmq

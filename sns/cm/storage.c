@@ -179,7 +179,8 @@ static int cp_stob_io_init(struct m0_cm_cp *cp, const enum m0_stob_io_opcode op)
 		rc = cp_prepare(cp, &stio->si_stob, &stio->si_user,
 				sns_cp->sc_index, bshift);
 	} else
-		M0_LOG(M0_DEBUG, "fom %p, ag_id "M0_AG_F", stob not found, rc %d",
+		M0_LOG(M0_DEBUG,
+		       "fom %p, ag_id "M0_AG_F", stob not found, rc %d",
 		       &cp->c_fom, M0_AG_P(&cp->c_ag->cag_id), rc);
 	return rc;
 }
@@ -191,15 +192,17 @@ M0_INTERNAL struct m0_cob_domain *m0_sns_cm_cp2cdom(struct m0_cm_cp *cp)
 
 static int cob_stob_check(struct m0_cm_cp *cp)
 {
-	struct m0_fid  fid;
-	struct m0_fid *pver;
-	struct m0_cob *cob;
+	struct m0_fid              fid;
+	struct m0_sns_cm_file_ctx *fctx;
+	struct m0_fid             *pver;
+	struct m0_cob             *cob;
 
-	pver = &ag2snsag(cp->c_ag)->sag_fctx->sf_attr.ca_pver;
+	fctx = ag2snsag(cp->c_ag)->sag_fctx;
+	pver = &fctx->sf_attr.ca_pver;
 	m0_fid_convert_stob2cob(&cp2snscp(cp)->sc_stob_id, &fid);
 
 	return m0_io_cob_stob_create(&cp->c_fom, m0_sns_cm_cp2cdom(cp), &fid,
-				     pver, true, &cob);
+				     pver, fctx->sf_attr.ca_lid, true, &cob);
 }
 
 static int cp_stob_release_exts(struct m0_stob *stob,
@@ -339,15 +342,39 @@ M0_INTERNAL int m0_sns_cm_cp_write(struct m0_cm_cp *cp)
 
 M0_INTERNAL int m0_sns_cm_cp_io_wait(struct m0_cm_cp *cp)
 {
-	struct m0_sns_cm_cp *sns_cp = cp2snscp(cp);
-	int                  rc;
+	struct m0_sns_cm_cp  *sns_cp = cp2snscp(cp);
+	struct m0_stob_io    *stio;
+	struct m0_cob        *cob;
+	struct m0_cob_oikey   oikey;
+	struct m0_cob_domain *cdom;
+	struct m0_be_tx      *betx;
+	uint64_t              io_size;
+	int                   rc;
 
 	M0_ENTRY("cp=%p", cp);
 
-	rc = m0_sns_cm_cp_tx_close(cp);
-	if (rc > 0)
-		return rc;
-
+	stio = &sns_cp->sc_stio;
+	rc = sns_cp->sc_stio.si_rc;
+	/*
+	 * Update cob size after writing to spare.
+	 */
+	betx = m0_fom_tx(&cp->c_fom);
+	if (rc == 0 && cp->c_io_op == M0_CM_CP_WRITE &&
+	    m0_be_tx_state(betx) == M0_BTS_ACTIVE) {
+		io_size = m0_io_size(stio, m0_stob_block_shift(sns_cp->sc_stob));
+		cdom = m0_sns_cm_cp2cdom(cp);
+		m0_cob_oikey_make(&oikey, &sns_cp->sc_cobfid, 0);
+		rc = m0_cob_locate(cdom, &oikey, 0, &cob);
+		if (rc == 0) {
+			io_size = max64u(cob->co_nsrec.cnr_size, io_size);
+			rc = m0_cob_size_update(cob, io_size, betx);
+		}
+	}
+	if (rc == 0) {
+		rc = m0_sns_cm_cp_tx_close(cp);
+		if (rc > 0)
+			return rc;
+	}
 	cp->c_ops->co_complete(cp);
 
 	/* Cleanup before proceeding to next phase. */
@@ -356,7 +383,6 @@ M0_INTERNAL int m0_sns_cm_cp_io_wait(struct m0_cm_cp *cp)
 	m0_stob_io_fini(&sns_cp->sc_stio);
 	m0_storage_dev_stob_put(m0_cs_storage_devs_get(), sns_cp->sc_stob);
 
-	rc = sns_cp->sc_stio.si_rc;
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "stob io failed with rc=%d", rc);
 		m0_fom_phase_move(&cp->c_fom, rc, M0_CCP_FAIL);

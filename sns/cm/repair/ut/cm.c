@@ -171,22 +171,24 @@ static bool cp_verify(struct m0_sns_cm_cp *scp)
 	       !cp_data_buf_tlist_is_empty(&scp->sc_base.c_buffers);
 }
 
-M0_INTERNAL void cob_create(struct m0_cob_domain *cdom,
+M0_INTERNAL void cob_create(struct m0_reqh *reqh, struct m0_cob_domain *cdom,
 			    struct m0_be_domain *bedom,
 			    uint64_t cont, struct m0_fid *gfid,
 			    uint32_t cob_idx)
 {
-	struct m0_sm_group   *grp = m0_locality0_get()->lo_grp;
-	struct m0_cob        *cob;
-	struct m0_fid         cob_fid;
-	struct m0_dtx         tx = {};
-	struct m0_cob_nskey  *nskey;
-	struct m0_cob_nsrec   nsrec;
-	struct m0_cob_fabrec *fabrec;
-	struct m0_cob_omgrec  omgrec;
-        char                  nskey_bs[UINT32_STR_LEN];
-        uint32_t              nskey_bs_len;
-	int                   rc;
+	struct m0_sm_group     *grp = m0_locality0_get()->lo_grp;
+	struct m0_cob          *cob;
+	struct m0_mero         *mero;
+	struct m0_pool_version *pver;
+	struct m0_fid           cob_fid;
+	struct m0_dtx           tx = {};
+	struct m0_cob_nskey    *nskey;
+	struct m0_cob_nsrec     nsrec;
+	struct m0_cob_fabrec   *fabrec;
+	struct m0_cob_omgrec    omgrec;
+        char                    nskey_bs[UINT32_STR_LEN];
+        uint32_t                nskey_bs_len;
+	int                     rc;
 
 	M0_SET0(&nsrec);
 	M0_SET0(&omgrec);
@@ -198,10 +200,15 @@ M0_INTERNAL void cob_create(struct m0_cob_domain *cdom,
         snprintf(nskey_bs, UINT32_STR_LEN, "%u", cob_idx);
         nskey_bs_len = strlen(nskey_bs);
 
+	mero = m0_cs_ctx_get(reqh);
+	pver = m0_pool_version_find(&mero->cc_pools_common, &M0_SNS_CM_REPAIR_UT_PVER);
+	M0_UT_ASSERT(pver != NULL);
 	rc = m0_cob_nskey_make(&nskey, gfid, nskey_bs, nskey_bs_len);
 	M0_ASSERT(rc == 0 && nskey != NULL);
 	nsrec.cnr_fid = cob_fid;
 	nsrec.cnr_nlink = 1;
+	nsrec.cnr_pver = pver->pv_id;
+	nsrec.cnr_lid = 1;
 
 	rc = m0_cob_fabrec_make(&fabrec, NULL, 0);
 	M0_ASSERT(rc == 0 && fabrec != NULL);
@@ -292,7 +299,7 @@ static void cobs_create(uint64_t nr_files, uint64_t nr_cobs)
 		m0_fid_gob_make(&gfid, 0, M0_MDSERVICE_START_FID.f_key + i);
 		cob_idx = 0;
 		for (j = 1; j <= nr_cobs; ++j) {
-			cob_create(cdom, reqh->rh_beseg->bs_domain,
+			cob_create(reqh, cdom, reqh->rh_beseg->bs_domain,
 				   j, &gfid, cob_idx);
 			cob_idx++;
 		}

@@ -261,7 +261,10 @@ struct m0_cm {
 
 	bool                             cm_done;
 
-	/** True if cm should start fresh. */
+	/**
+	 * True if cm should start fresh.
+	 * False if an operation is resuming post quiesce.
+	 */
 	bool                             cm_reset;
 
         /**

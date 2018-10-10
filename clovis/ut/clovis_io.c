@@ -74,7 +74,7 @@ static void ut_clovis_test_addr_is_network_aligned(void)
 }
 
 /*
- * Tests page_size().
+ * Tests m0_clovis__page_size().
  */
 static void ut_clovis_test_page_size(void)
 {
@@ -88,16 +88,16 @@ static void ut_clovis_test_page_size(void)
 
 	/* Base cases. */
 	obj.ob_attr.oa_bshift = 2;
-	bs = page_size(ioo);
+	bs = m0_clovis__page_size(ioo);
 	M0_UT_ASSERT(bs == 1ULL<<2);
 	obj.ob_attr.oa_bshift = 3;
-	bs = page_size(ioo);
+	bs = m0_clovis__page_size(ioo);
 	M0_UT_ASSERT(bs == 1ULL<<3);
 	obj.ob_attr.oa_bshift = 13;
-	bs = page_size(ioo);
+	bs = m0_clovis__page_size(ioo);
 	M0_UT_ASSERT(bs == 1ULL<<13);
 	obj.ob_attr.oa_bshift = 0;
-	bs = page_size(ioo);
+	bs = m0_clovis__page_size(ioo);
 	M0_UT_ASSERT(bs == 1ULL);
 
 	m0_free(ioo);

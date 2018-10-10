@@ -140,17 +140,8 @@ M0_INTERNAL uint64_t m0_sns_cm_ag_unit2cobindex(struct m0_sns_cm_ag *sag,
 	sa.sa_group = agid2group(&sag->sag_base.cag_id);
 	sa.sa_unit  = unit;
 	m0_sns_cm_file_fwd_map(fctx, &sa, &ta);
-	return ta.ta_frame * m0_pdclust_unit_size(m0_layout_to_pdl(fctx->sf_layout));
-}
-
-M0_INTERNAL uint64_t m0_sns_cm_nr_groups(struct m0_pdclust_layout *pl,
-					 uint64_t fsize)
-{
-	uint64_t nr_data_bytes_per_group;
-
-	nr_data_bytes_per_group = m0_sns_cm_ag_nr_data_units(pl) *
-				  m0_pdclust_unit_size(pl);
-	return (fsize + nr_data_bytes_per_group - 1) / nr_data_bytes_per_group;
+	return ta.ta_frame *
+		m0_pdclust_unit_size(m0_layout_to_pdl(fctx->sf_layout));
 }
 
 M0_INTERNAL int m0_sns_cm_cob_locate(struct m0_cob_domain *cdom,
@@ -182,7 +173,6 @@ M0_INTERNAL uint64_t m0_sns_cm_ag_nr_local_units(struct m0_sns_cm *scm,
 	uint64_t                       nrlu = 0;
 	struct m0_poolmach            *pm;
 	struct m0_pdclust_layout      *pl;
-	uint64_t                       nr_max_du = 0;
 	int                            i;
 	int                            start;
 	int                            end;
@@ -196,14 +186,12 @@ M0_INTERNAL uint64_t m0_sns_cm_ag_nr_local_units(struct m0_sns_cm *scm,
 	end = m0_sns_cm_ag_unit_end(scm, pl);
 	sa.sa_group = group;
 	pm = fctx->sf_pm;
-	nr_max_du = m0_sns_cm_file_data_units(fctx);
 	for (i = start; i < end; ++i) {
 		sa.sa_unit = i;
 		m0_sns_cm_unit2cobfid(fctx, &sa, &ta, &cobfid);
 		if (m0_sns_cm_cob_locate(scm->sc_cob_dom, &cobfid) == 0 &&
 		    !scm->sc_helpers->sch_is_cob_failed(pm, ta.ta_obj) &&
-		    !m0_sns_cm_unit_is_spare(fctx, group, i) &&
-		    !m0_sns_cm_file_unit_is_EOF(pl, nr_max_du, group, sa.sa_unit))
+		    !m0_sns_cm_unit_is_spare(fctx, group, i))
 			M0_CNT_INC(nrlu);
 	}
 	M0_LEAVE("number of local units = %lu", nrlu);
@@ -218,24 +206,28 @@ uint64_t m0_sns_cm_ag_nr_global_units(const struct m0_sns_cm_ag *sag,
 	return m0_pdclust_N(pl) + m0_pdclust_K(pl);
 }
 
-M0_INTERNAL uint64_t m0_sns_cm_ag_nr_data_units(const struct m0_pdclust_layout *pl)
+M0_INTERNAL
+uint64_t m0_sns_cm_ag_nr_data_units(const struct m0_pdclust_layout *pl)
 {
 	return m0_pdclust_N(pl);
 }
 
-M0_INTERNAL uint64_t m0_sns_cm_ag_nr_parity_units(const struct m0_pdclust_layout *pl)
+M0_INTERNAL
+uint64_t m0_sns_cm_ag_nr_parity_units(const struct m0_pdclust_layout *pl)
 {
 	return m0_pdclust_K(pl);
 }
 
-M0_INTERNAL uint64_t m0_sns_cm_ag_nr_spare_units(const struct m0_pdclust_layout *pl)
+M0_INTERNAL
+uint64_t m0_sns_cm_ag_nr_spare_units(const struct m0_pdclust_layout *pl)
 {
 	return m0_pdclust_K(pl);
 }
 
 M0_INTERNAL uint64_t m0_sns_cm_ag_size(const struct m0_pdclust_layout *pl)
 {
-	return m0_sns_cm_ag_nr_data_units(pl) + 2 * m0_sns_cm_ag_nr_parity_units(pl);
+	return m0_sns_cm_ag_nr_data_units(pl) + 2 *
+		m0_sns_cm_ag_nr_parity_units(pl);
 }
 
 M0_INTERNAL bool m0_sns_cm_is_cob_repaired(struct m0_poolmach *pm,
@@ -279,7 +271,6 @@ M0_INTERNAL bool m0_sns_cm_unit_is_spare(struct m0_sns_cm_file_ctx *fctx,
 	struct m0_poolmach         *pm;
 	struct m0_pdclust_instance *pi;
 	struct m0_pdclust_layout   *pl;
-	uint64_t                    nr_max_du;
 	enum m0_pool_nd_state       state_out = 0;
 	bool                        result = true;
 	int                         rc;
@@ -329,18 +320,15 @@ M0_INTERNAL bool m0_sns_cm_unit_is_spare(struct m0_sns_cm_file_ctx *fctx,
 
 		sa.sa_unit = data_unit_id_out;
 		sa.sa_group = group_nr;
-		nr_max_du = m0_sns_cm_file_data_units(fctx);
-		if (m0_sns_cm_file_unit_is_EOF(pl, nr_max_du, sa.sa_group, sa.sa_unit))
-			return true;
 
 		/*
 		 * The mechanism to reverse map the spare unit to any of the
 		 * previously failed data unit is generic and based to device
 		 * failure information from the pool machine.
-		 * Thus if the device hosting the reverse mapped data unit for the
-		 * given spare is in M0_PNDS_SNS_REPAIRED state, means the given
-		 * spare unit contains data and needs to be repaired, else it is
-		 * empty.
+		 * Thus if the device hosting the reverse mapped data unit for
+		 * the given spare is in M0_PNDS_SNS_REPAIRED state, means the
+		 * given spare unit contains data and needs to be repaired, else
+		 * it is empty.
 		 */
 		m0_sns_cm_unit2cobfid(fctx, &sa, &ta, &cobfid);
 		if (m0_poolmach_device_is_in_spare_usage_array(pm, ta.ta_obj)) {
@@ -357,10 +345,12 @@ out:
 	return result;
 }
 
-M0_INTERNAL uint64_t m0_sns_cm_ag_spare_unit_nr(const struct m0_pdclust_layout *pl,
-						uint64_t fidx)
+M0_INTERNAL
+uint64_t m0_sns_cm_ag_spare_unit_nr(const struct m0_pdclust_layout *pl,
+				    uint64_t fidx)
 {
-        return m0_sns_cm_ag_nr_data_units(pl) + m0_sns_cm_ag_nr_parity_units(pl) + fidx;
+        return m0_sns_cm_ag_nr_data_units(pl) +
+		m0_sns_cm_ag_nr_parity_units(pl) + fidx;
 }
 
 M0_INTERNAL uint64_t m0_sns_cm_ag_unit_start(const struct m0_sns_cm *scm,
@@ -468,7 +458,6 @@ M0_INTERNAL size_t m0_sns_cm_ag_unrepaired_units(const struct m0_sns_cm *scm,
 	struct m0_fid              cobfid;
 	uint64_t                   upg;
 	uint64_t                   unit;
-	uint32_t                   nr_max_du;
 	size_t                     group_failures = 0;
 	struct m0_pdclust_layout  *pl;
 	struct m0_poolmach        *pm;
@@ -476,10 +465,7 @@ M0_INTERNAL size_t m0_sns_cm_ag_unrepaired_units(const struct m0_sns_cm *scm,
 
 	M0_PRE(scm != NULL && fctx != NULL);
 
-	if (!m0_sns_cm_ag_has_data(fctx, group))
-		return 0;
 	pm = fctx->sf_pm;
-	nr_max_du = m0_sns_cm_file_data_units(fctx);
 	pl = m0_layout_to_pdl(fctx->sf_layout);
 	upg = m0_sns_cm_ag_size(pl);
 	sa.sa_group = group;
@@ -489,9 +475,7 @@ M0_INTERNAL size_t m0_sns_cm_ag_unrepaired_units(const struct m0_sns_cm *scm,
 		sa.sa_unit = unit;
 		m0_sns_cm_unit2cobfid(fctx, &sa, &ta, &cobfid);
 		if (scm->sc_helpers->sch_is_cob_failed(pm, ta.ta_obj) &&
-		    !m0_sns_cm_is_cob_repaired(pm, ta.ta_obj) &&
-		    !m0_sns_cm_file_unit_is_EOF(pl, nr_max_du, sa.sa_group,
-						sa.sa_unit)) {
+		    !m0_sns_cm_is_cob_repaired(pm, ta.ta_obj)) {
 			M0_CNT_INC(group_failures);
 			if (fmap_out != NULL) {
 				M0_ASSERT(fmap_out->b_nr == upg);
@@ -553,7 +537,8 @@ M0_INTERNAL struct m0_reqh *m0_sns_cm2reqh(const struct m0_sns_cm *snscm)
 }
 
 M0_INTERNAL bool m0_sns_cm_disk_has_dirty_pver(struct m0_cm *cm,
-					       struct m0_conf_drive *disk)
+					       struct m0_conf_drive *disk,
+					       bool clear)
 {
 	struct m0_conf_pver   **conf_pvers;
 	struct m0_pool_version *pver;
@@ -563,8 +548,12 @@ M0_INTERNAL bool m0_sns_cm_disk_has_dirty_pver(struct m0_cm *cm,
 	conf_pvers = disk->ck_pvers;
 	for (k = 0; conf_pvers[k] != NULL; ++k) {
 		pver = m0_pool_version_find(pc, &conf_pvers[k]->pv_obj.co_id);
-		if (m0_sns_cm_pver_is_dirty(pver))
+		if (m0_sns_cm_pver_is_dirty(pver)) {
+			M0_LOG(M0_FATAL, "pver %p is dirty, clearing", pver);
+			if (clear)
+				pver->pv_sns_flags = 0;
 			return true;
+		}
 	}
 
 	return false;
@@ -602,6 +591,30 @@ M0_INTERNAL int m0_sns_cm_pool_ha_nvec_alloc(struct m0_pool *pool,
 	nvec->nv_note = note;
 
 	return 0;
+}
+
+M0_INTERNAL
+bool m0_sns_cm_group_has_local_presence(struct m0_sns_cm_file_ctx *fctx,
+					uint32_t units_per_group, uint64_t group)
+{
+	struct m0_pdclust_src_addr  sa;
+	struct m0_pdclust_tgt_addr  ta;
+	struct m0_fid               cob_fid;
+	struct m0_sns_cm           *scm;
+	uint32_t                    i;
+	int                         rc;
+
+	scm = fctx->sf_scm;
+	sa.sa_group = group;
+	for (i = 0; i < units_per_group; ++i) {
+		sa.sa_unit = i;
+		m0_sns_cm_unit2cobfid(fctx, &sa, &ta, &cob_fid);
+		rc = m0_sns_cm_cob_locate(scm->sc_cob_dom, &cob_fid);
+		if (rc == 0)
+			return true;
+	}
+
+	return false;
 }
 
 #undef M0_TRACE_SUBSYSTEM

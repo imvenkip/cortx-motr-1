@@ -111,11 +111,12 @@ static bool _is_fid_valid(struct m0_sns_cm_ag_iter *ai, struct m0_fid *fid)
 	struct m0_fid         fid_out = {0, 0};
 	struct m0_sns_cm     *scm = ai2sns(ai);
 	struct m0_cob_domain *cdom = scm->sc_cob_dom;
+	struct m0_cob_nsrec  *nsrec;
 	int                   rc;
 
 	if (!m0_sns_cm_fid_is_valid(scm, fid))
 		return false;
-	rc = m0_cob_ns_next_of(&cdom->cd_namespace, fid, &fid_out);
+	rc = m0_cob_ns_rec_of(&cdom->cd_namespace, fid, &fid_out, &nsrec);
 	if (rc == 0 && m0_fid_eq(fid, &fid_out))
 		return true;
 	return false;
@@ -124,16 +125,13 @@ static bool _is_fid_valid(struct m0_sns_cm_ag_iter *ai, struct m0_fid *fid)
 static int ai_group_next(struct m0_sns_cm_ag_iter *ai)
 {
 	struct m0_cm_ag_id        ag_id = {};
-	struct m0_layout         *l = ai->ai_fctx->sf_layout;
-	struct m0_pdclust_layout *pl = m0_layout_to_pdl(l);
 	struct m0_sns_cm         *scm = ai2sns(ai);
 	struct m0_cm             *cm = &scm->sc_base;
 	struct m0_cm_aggr_group  *ag;
 	struct m0_fom            *fom;
 	struct m0_sns_cm_file_ctx *fctx = ai->ai_fctx;
 	struct m0_pool_version    *pver;
-	uint64_t                  fsize = fctx->sf_attr.ca_size;
-	uint64_t                  nr_groups = m0_sns_cm_nr_groups(pl, fsize);
+	uint64_t                  group_last = ai->ai_group_last;
 	uint64_t                  group = agid2group(&ai->ai_id_curr);
 	uint64_t                  i;
 	size_t                    nr_bufs;
@@ -147,7 +145,7 @@ static int ai_group_next(struct m0_sns_cm_ag_iter *ai)
 	if (m0_cm_ag_id_is_set(&ai->ai_id_curr))
 		++group;
 	fom = &fctx->sf_scm->sc_base.cm_sw_update.swu_fom;
-	for (i = group; i < nr_groups; ++i) {
+	for (i = group; i <= group_last; ++i) {
 		m0_sns_cm_ag_agid_setup(&ai->ai_fid, i, &ag_id);
 		if (!m0_sns_cm_ag_is_relevant(scm, fctx, &ag_id))
 			continue;
@@ -196,14 +194,17 @@ static int ai_fid_attr(struct m0_sns_cm_ag_iter *ai)
 	struct m0_fom             *fom;
 	int                        rc;
 
+	fctx->sf_pm = ai->ai_pm;
 	rc = m0_sns_cm_file_attr_and_layout(fctx);
 	if (rc == -EAGAIN) {
 		fom = &fctx->sf_scm->sc_base.cm_sw_update.swu_fom;
 		m0_sns_cm_file_attr_and_layout_wait(fctx, fom);
 		return M0_RC(M0_FSO_WAIT);
 	}
-	if (rc == 0)
+	if (rc == 0) {
+		ai->ai_group_last = fctx->sf_max_group;
 		ai_state_set(ai, AIS_GROUP_NEXT);
+	}
 	if (rc == -ENOENT) {
 		ai_state_set(ai, AIS_FID_NEXT);
 		rc = 0;
@@ -228,36 +229,68 @@ static int __file_lock(struct m0_sns_cm *scm, const struct m0_fid *fid,
 	return M0_RC(rc);
 }
 
+static int ai_pm_set(struct m0_sns_cm_ag_iter *ai, struct m0_fid *pv_id)
+{
+	struct m0_sns_cm       *scm = ai2sns(ai);
+	struct m0_reqh         *reqh = m0_sns_cm2reqh(scm);
+	struct m0_pool_version *pv;
+	struct m0_fid          *pver_id;
+	struct m0_cob_nsrec    *nsrec;
+	struct m0_fid           fid = {0, 0};
+	int                     rc = 0;
+
+	pver_id = pv_id;
+	if (pver_id == NULL) {
+		rc = m0_cob_ns_rec_of(&scm->sc_cob_dom->cd_namespace,
+				      &ai->ai_fid, &fid, &nsrec);
+		if (rc == 0)
+			pver_id = &nsrec->cnr_pver;
+	}
+	if (rc == 0) {
+		pv = m0_pool_version_find(reqh->rh_pools, pver_id);
+		ai->ai_pm = &pv->pv_mach;
+	}
+
+	return M0_RC(rc);
+}
+
 static int ai_fid_lock(struct m0_sns_cm_ag_iter *ai)
 {
 	struct m0_sns_cm *scm = ai2sns(ai);
-	int               rc;
+	int               rc = 0;
 
 	if (!_is_fid_valid(ai, &ai->ai_fid)) {
 		ai_state_set(ai, AIS_FID_NEXT);
 		return M0_RC(0);
 	}
 
-	m0_mutex_lock(&scm->sc_file_ctx_mutex);
-	rc = __file_lock(scm, &ai->ai_fid, &ai->ai_fctx);
-	m0_mutex_unlock(&scm->sc_file_ctx_mutex);
+	if (ai->ai_pm == NULL)
+		rc = ai_pm_set(ai, NULL);
+
+	if (rc == 0) {
+		m0_mutex_lock(&scm->sc_file_ctx_mutex);
+		rc = __file_lock(scm, &ai->ai_fid, &ai->ai_fctx);
+		m0_mutex_unlock(&scm->sc_file_ctx_mutex);
+	}
 
 	if (rc == 0)
 		ai_state_set(ai, AIS_FID_ATTR);
+
 	return M0_RC(rc);
 }
 
 static int ai_fid_next(struct m0_sns_cm_ag_iter *ai)
 {
-	struct m0_fid     fid = {0, 0};
-	struct m0_fid     fid_curr = ai->ai_fid;
-	struct m0_sns_cm *scm = ai2sns(ai);
-	int               rc = 0;
+	struct m0_fid        fid = {0, 0};
+	struct m0_fid        fid_curr = ai->ai_fid;
+	struct m0_sns_cm    *scm = ai2sns(ai);
+	struct m0_cob_nsrec *nsrec;
+	int                  rc = 0;
 
 	do {
 		M0_CNT_INC(fid_curr.f_key);
-		rc = m0_cob_ns_next_of(&scm->sc_cob_dom->cd_namespace,
-				       &fid_curr, &fid);
+		rc = m0_cob_ns_rec_of(&scm->sc_cob_dom->cd_namespace,
+				      &fid_curr, &fid, &nsrec);
 		fid_curr = fid;
 	} while (rc == 0 &&
 		 (m0_fid_eq(&fid, &M0_COB_ROOT_FID) ||
@@ -266,7 +299,9 @@ static int ai_fid_next(struct m0_sns_cm_ag_iter *ai)
 	if (rc == 0) {
 		M0_SET0(&ai->ai_id_curr);
 		ai->ai_fid = fid;
-		ai_state_set(ai, AIS_FID_LOCK);
+		rc = ai_pm_set(ai, &nsrec->cnr_pver);
+		if (rc == 0)
+			ai_state_set(ai, AIS_FID_LOCK);
 	}
 
 	if (rc == -ENOENT)

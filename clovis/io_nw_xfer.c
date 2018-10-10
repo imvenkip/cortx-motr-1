@@ -478,7 +478,8 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 	}
 
 	while (pgstart < toff + count) {
-		pgend = min64u(pgstart + (page_size(ioo)), toff + count);
+		pgend = min64u(pgstart + (m0_clovis__page_size(ioo)),
+			       toff + count);
 		seg   = SEG_NR(ivec);
 
 		INDEX(ivec, seg) = pgstart;
@@ -502,6 +503,8 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 			M0_LOG(M0_DEBUG, "Parity seg %u added", seg);
 		}
 		buf->db_tioreq = ti;
+		if (buf->db_flags & PA_WRITE)
+			ti->ti_req_type = TI_READ_WRITE;
 
 		M0_ASSERT(addr_is_network_aligned(buf->db_buf.b_addr));
 		bvec->ov_buf[seg] = buf->db_buf.b_addr;
@@ -510,7 +513,8 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 		    unit_type == M0_PUT_DATA) {
 			M0_ASSERT(buf->db_auxbuf.b_addr != NULL);
 			auxbvec->ov_buf[seg] = buf->db_auxbuf.b_addr;
-			auxbvec->ov_vec.v_count[seg] = page_size(ioo);
+			auxbvec->ov_vec.v_count[seg] =
+				m0_clovis__page_size(ioo);
 		}
 		pattr[seg] |= buf->db_flags;
 		M0_LOG(M0_DEBUG, "pageaddr=%p, auxpage=%p,"
@@ -530,7 +534,6 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 		++ivec->iv_vec.v_nr;
 		pgstart = pgend;
 	}
-	ti->ti_req_type = TI_READ_WRITE;
 	M0_LEAVE();
 }
 
@@ -1186,9 +1189,12 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 				for (row = row_start; row <= row_end; ++row) {
 					dbuf = iomap->pi_databufs[row][col];
 					M0_ASSERT(dbuf != NULL);
-					if (dbuf->db_flags & PA_WRITE)
+					if (dbuf->db_flags & PA_WRITE) {
 						dbuf->db_flags |=
 							PA_DGMODE_WRITE;
+						m0_bitmap_set(&units_spanned,
+							      unit, true);
+					}
 				}
 			}
 			src.sa_unit = unit;
@@ -1200,7 +1206,6 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 			ti->ti_ops->tio_seg_add(ti, &src, &tgt, r_ext.e_start,
 						m0_ext_length(&r_ext),
 						iomap);
-			m0_bitmap_set(&units_spanned, unit, true);
 		}
 
 		M0_ASSERT(ergo(M0_IN(op_code,
@@ -1236,15 +1241,17 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 						  dbuf->db_flags & PA_WRITE));
 					if (ioreq_sm_state(ioo) ==
 					    IRS_DEGRADED_WRITING &&
-					    dbuf->db_flags & PA_WRITE)
+					    dbuf->db_flags & PA_WRITE) {
 						dbuf->db_flags |=
 							PA_DGMODE_WRITE;
+						m0_bitmap_set(&units_spanned,
+							      src.sa_unit,
+							      true);
+					}
 				}
 				ti->ti_ops->tio_seg_add(ti, &src, &tgt, pgstart,
 							layout_unit_size(play),
 							iomap);
-				m0_bitmap_set(&units_spanned, src.sa_unit,
-					      true);
 			}
 			/*
 			 * Since CROW is not enabled in non-oostore mode cobs
@@ -1260,6 +1267,7 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 			for (unit = 0; unit < m0_pdclust_size(play); ++unit) {
 				if (m0_bitmap_get(&units_spanned, unit))
 					continue;
+				src.sa_unit = unit;
 				rc = xfer->nxr_ops->nxo_tioreq_map(xfer, &src,
 								   &tgt, &ti);
 				if (rc != 0) {
@@ -1272,7 +1280,8 @@ static int nw_xfer_io_distribute(struct nw_xfer_request *xfer)
 				 * has spanned the particular target.
 				 */
 				if (ti->ti_req_type != TI_NONE) {
-					m0_bitmap_set(&units_spanned, unit, true);
+					m0_bitmap_set(&units_spanned, unit,
+						      true);
 					continue;
 				}
 				ti->ti_req_type = TI_COB_CREATE;

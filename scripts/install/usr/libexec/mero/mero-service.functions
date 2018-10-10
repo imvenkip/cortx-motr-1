@@ -629,6 +629,7 @@ m0_build_service_fid()
         dix-repair)    cid=11 ;;
         dix-rebalance) cid=12 ;;
         fdmi)          cid=13 ;;
+        iscs)          cid=14 ;;
     esac
 
     printf %s:%d "^s|$(( $cid + $node_idx * 16 ))" $sidx
@@ -772,6 +773,7 @@ _build_process_objects()
             local addb="$(m0_build_service_fid "addb2$idx" $node_idx)"
             local rms="$(m0_build_service_fid "rms$idx" $node_idx)"
             local fdmi="$(m0_build_service_fid "fdmi$idx" $node_idx)"
+            local iscs="$(m0_build_service_fid "iscs$idx" $node_idx)"
 
             proc_name="$proc_fid_con:$idx"
 
@@ -792,9 +794,9 @@ _build_process_objects()
                 repair="$(m0_build_service_fid ${s/$svc_name/${prefix}-repair} $node_idx)"
                 rebalance="$(m0_build_service_fid ${s/$svc_name/${prefix}-rebalance} $node_idx)"
 
-                obj="{0x72| (($proc_name), [1:3], 0, 0, 0, 0, "\"$ep\"", [6: $sname, $repair, $rebalance, $rms, $addb, $fdmi])}"
+                obj="{0x72| (($proc_name), [1:3], 0, 0, 0, 0, "\"$ep\"", [7: $sname, $repair, $rebalance, $rms, $addb, $fdmi, $iscs])}"
             else
-                obj="{0x72| (($proc_name), [1:3], 0, 0, 0, 0, "\"$ep\"", [4: $sname, $rms, $addb, $fdmi])}"
+                obj="{0x72| (($proc_name), [1:3], 0, 0, 0, 0, "\"$ep\"", [5: $sname, $rms, $addb, $fdmi, $iscs])}"
             fi
 
             objs="$objs${objs:+, \n} $obj"
@@ -825,6 +827,7 @@ _type_id()
         cas*)          type_id=@M0_CST_CAS ;;
         dix-repair)    type_id=@M0_CST_DIX_REP ;;
         dix-rebalance) type_id=@M0_CST_DIX_REB ;;
+        iscs)          type_id=@M0_CST_ISCS ;;
 
 #        cas*)          type_id=11 ;;
 #        dix-repair)    type_id=12 ;;
@@ -879,6 +882,10 @@ _build_service_objects()
             fdmi="$(m0_build_service_fid "fdmi$idx" $node_idx)"
             type_id=$(_type_id "fdmi")
             objs="$objs${objs:+,\n  }{0x73| (($fdmi), $type_id, [1: "\"$ep\""], [0], [0])}"
+
+            iscs="$(m0_build_service_fid "iscs$idx" $node_idx)"
+            type_id=$(_type_id "iscs")
+            objs="$objs${objs:+,\n  }{0x73| (($iscs), $type_id, [1: "\"$ep\""], [0], [0])}"
 
             if [[ $s == ios* || $s == cas* ]] ; then
                 local repair

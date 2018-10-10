@@ -409,7 +409,7 @@ generate_halon_facts()
     local vopt=$( $verbose && echo '-v' )
     local clovis_opt=$( $clovis_apps && echo '--clovis-apps' )
     local halon_facts="$ETC_HALON_DIR/halon_facts.yaml"
-    local pattern="${disk_pattern:-/dev/loop{1..$pool_width}}"
+    local pattern="${disk_pattern:-/dev/loop{1..$pool_width\}}"
     local disks=$($m0gendisks -l -d $pool_width -p "$pattern")
     # example output of `ip address` command that is parsed below
     #   3: eth1    inet 172.28.128.94/24 brd 172.28.128.255 scope global dynamic eth1...

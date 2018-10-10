@@ -35,6 +35,7 @@ static char *clovis_id;
 static char *clovis_block_size;
 static char *clovis_block_count;
 static char *clovis_index_dir = "/tmp/";
+static bool  clovis_read_verify = false;
 
 static struct m0_clovis          *clovis_instance = NULL;
 static struct m0_clovis_container clovis_container;
@@ -48,7 +49,7 @@ static int init_clovis(void)
 	int rc;
 
 	clovis_conf.cc_is_oostore            = true;
-	clovis_conf.cc_is_read_verify        = false;
+	clovis_conf.cc_is_read_verify        = clovis_read_verify;
 	clovis_conf.cc_local_addr            = clovis_local_addr;
 	clovis_conf.cc_ha_addr               = clovis_ha_addr;
 	clovis_conf.cc_profile               = clovis_prof;
@@ -126,19 +127,20 @@ static int cat()
 		return rc;
 
 	/*
-	 * this allocates <clovis_block_count> * 4K buffers for data, and initialises
-	 * the bufvec for us.
+	 * this allocates <clovis_block_count> * 4K buffers for data, and
+	 * initialises the bufvec for us.
 	 */
-	rc = m0_bufvec_alloc(&data, atoi(clovis_block_count), atoi(clovis_block_size));
+	rc = m0_bufvec_alloc(&data, atoi(clovis_block_count),
+			     atoi(clovis_block_size));
 	if (rc != 0)
 		return rc;
 	rc = m0_bufvec_alloc(&attr, atoi(clovis_block_count), 1);
-	if(rc != 0)
+	if (rc != 0)
 		return rc;
 
 	last_index = 0;
 	for (i = 0; i < atoi(clovis_block_count); i++) {
-		ext.iv_index[i] = last_index ;
+		ext.iv_index[i] = last_index;
 		ext.iv_vec.v_count[i] = atoi(clovis_block_size);
 		last_index += atoi(clovis_block_size);
 
@@ -155,7 +157,8 @@ static int cat()
 	open_entity(&obj.ob_entity);
 
 	/* Create the read request */
-	m0_clovis_obj_op(&obj, M0_CLOVIS_OC_READ, &ext, &data, &attr, 0, &ops[0]);
+	m0_clovis_obj_op(&obj, M0_CLOVIS_OC_READ, &ext, &data, &attr, 0,
+			 &ops[0]);
 	M0_ASSERT(rc == 0);
 	M0_ASSERT(ops[0] != NULL);
 	M0_ASSERT(ops[0]->op_sm.sm_rc == 0);
@@ -173,7 +176,7 @@ static int cat()
 
 	/* putchar the output */
 	for (i = 0; i < atoi(clovis_block_count); i++) {
-		for(j = 0; j < data.ov_vec.v_count[i]; j++) {
+		for (j = 0; j < data.ov_vec.v_count[i]; j++) {
 			putchar(((char *)data.ov_buf[i])[j]);
 		}
 	}
@@ -197,7 +200,8 @@ int main(int argc, char **argv)
 	/* Get input parameters */
 	if (argc < 9) {
 		printf("Usage: c0cat laddr ha_addr prof_opt proc_fid "
-		       "index_dir object_id block_size block_count\n");
+		       "index_dir object_id block_size block_count"
+		       "read_verify \n");
 		return -1;
 	}
 
@@ -209,6 +213,7 @@ int main(int argc, char **argv)
 	clovis_id = argv[6];
 	clovis_block_size = argv[7];
 	clovis_block_count = argv[8];
+	clovis_read_verify = argv[9];
 
 	/* Initilise mero and Clovis */
 	rc = init_clovis();

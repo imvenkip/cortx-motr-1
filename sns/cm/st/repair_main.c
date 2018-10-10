@@ -151,14 +151,16 @@ int main(int argc, char *argv[])
 	rc = M0_GETOPTS("repair", argc, argv,
 			M0_FORMATARG('O',
 				     "-O Operation: \n"
-				     "\t\t\tCM_OP_REPAIR = 2 or\n"
-				     "\t\t\tCM_OP_REBALANCE = 4 or\n"
-				     "\t\t\tCM_OP_REPAIR_QUIESCE = 8 or\n"
-				     "\t\t\tCM_OP_REBALANCE_QUIESCE = 16 or\n"
-				     "\t\t\tCM_OP_REPAIR_STATUS = 32 or\n"
-				     "\t\t\tCM_OP_REBALANCE_STATUS = 64 or\n"
-				     "\t\t\tCM_OP_REPAIR_ABORT = 128 or\n"
-				     "\t\t\tCM_OP_REBALANCE_ABORT   = 256\n",
+				     "\t\t\tCM_OP_REPAIR = 1 or\n"
+				     "\t\t\tCM_OP_REBALANCE = 2 or\n"
+				     "\t\t\tCM_OP_REPAIR_QUIESCE = 3 or\n"
+				     "\t\t\tCM_OP_REBALANCE_QUIESCE = 4 or\n"
+				     "\t\t\tCM_OP_REPAIR_RESUME = 5 or\n"
+				     "\t\t\tCM_OP_REBALANCE_RESUME = 6 or\n"
+				     "\t\t\tCM_OP_REPAIR_STATUS = 7 or\n"
+				     "\t\t\tCM_OP_REBALANCE_STATUS = 8 or\n"
+				     "\t\t\tCM_OP_REPAIR_ABORT = 9 or\n"
+				     "\t\t\tCM_OP_REBALANCE_ABORT   = 10\n",
 				     "%u", &op),
 			M0_STRINGARG('C', "Client endpoint",
 				LAMBDA(void, (const char *str){
@@ -180,10 +182,7 @@ int main(int argc, char *argv[])
 	if (rc != 0)
 		return M0_ERR(rc);
 
-	if (!M0_IN(op, (CM_OP_REPAIR, CM_OP_REBALANCE, CM_OP_REPAIR_ABORT,
-		        CM_OP_REPAIR_QUIESCE, CM_OP_REBALANCE_QUIESCE,
-		        CM_OP_REPAIR_STATUS, CM_OP_REBALANCE_STATUS,
-			CM_OP_REBALANCE_ABORT)) ||
+	if (op < CM_OP_REPAIR || op > CM_OP_REBALANCE_ABORT ||
 	    !M0_IN(type, (0, 1))) {
 		usage();
 		return M0_ERR(-EINVAL);

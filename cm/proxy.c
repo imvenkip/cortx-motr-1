@@ -240,10 +240,8 @@ static int px_ready(struct m0_cm_proxy *p, struct m0_cm_sw *in_interval,
 		 * from which this copy machine will start in-order to
 		 * keep all the copy machines in sync.
 		 */
-		if (m0_cm_ag_id_is_set(&hi) &&
-		    (!m0_cm_ag_id_is_set(&cm->cm_sw_last_updated_hi) ||
-		     (m0_cm_ag_id_cmp(&hi, &cm->cm_sw_last_updated_hi) < 0))) {
-			cm->cm_sw_last_updated_hi = hi;
+		   if (m0_cm_ag_id_cmp(&hi, &cm->cm_sw_last_updated_hi) < 0) {
+				cm->cm_sw_last_updated_hi = hi;
 		}
 		M0_CNT_INC(cm->cm_nr_proxy_updated);
 		rc = 0;
@@ -373,6 +371,9 @@ static void proxy_sw_onwire_ast_cb(struct m0_sm_group *grp,
 	M0_ASSERT(cm_proxy_invariant(proxy));
 
 	m0_cm_ag_in_interval(cm, &in_interval);
+	if (m0_cm_ag_id_is_set(&cm->cm_sw_last_updated_hi))
+		m0_cm_ag_id_copy(&in_interval.sw_hi,
+				 &cm->cm_sw_last_updated_hi);
 	m0_cm_ag_out_interval(cm, &out_interval);
 	M0_LOG(M0_DEBUG, "proxy ep: %s, cm->cm_aggr_grps_in_nr %lu"
 			 " pending updates: %u", proxy->px_endpoint,
@@ -389,7 +390,8 @@ static void proxy_sw_onwire_ast_cb(struct m0_sm_group *grp,
 
         if (proxy->px_update_rc != 0 || proxy->px_send_final_update ||
 	    (proxy->px_updates_pending > 0 &&
-	     !m0_cm_proxy_is_updated(proxy, &in_interval))) {
+	     (!m0_cm_proxy_is_updated(proxy, &in_interval) || cm->cm_abort ||
+	     cm->cm_quiesce))) {
 		if (proxy->px_update_rc == -ECANCELED ||
 		     (M0_IN(proxy->px_status, (M0_PX_FAILED, M0_PX_STOP)) &&
 		      !proxy->px_send_final_update))
@@ -407,7 +409,7 @@ static void proxy_sw_onwire_ast_cb(struct m0_sm_group *grp,
 
 	/* Initial handshake complete, signal waiters to continue further.*/
 	if (m0_cm_state_get(cm) == M0_CMS_READY && m0_cm_proxies_ready(cm))
-			m0_chan_broadcast(&cm->cm_proxy_init_wait);
+			m0_chan_signal(&cm->cm_proxy_init_wait);
 
 	/*
 	 * Handle service/node failure during sns-repair/rebalance.
@@ -609,7 +611,6 @@ static void px_fail_ast_cb(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	struct m0_cm_proxy *pxy = container_of(ast, struct m0_cm_proxy,
 					     px_fail_ast);
 
-	M0_LOG(M0_DEBUG, "proxy %s is failed", pxy->px_endpoint);
 	m0_cm_proxy_lock(pxy);
 	pxy->px_status = M0_PX_FAILED;
 	pxy->px_is_done = true;
@@ -709,6 +710,15 @@ M0_INTERNAL void m0_cm_proxy_in_count_free(struct m0_cm_proxy_in_count *pcount)
 	m0_free(pcount->p_count);
 	pcount->p_count = NULL;
 	pcount->p_nr = 0;
+}
+
+M0_INTERNAL void m0_cm_proxies_sent_reset(struct m0_cm *cm)
+{
+	struct m0_cm_proxy *pxy;
+
+	m0_tl_for(proxy, &cm->cm_proxies, pxy) {
+		M0_SET0(&pxy->px_last_sw_onwire_sent);
+	} m0_tl_endfor;
 }
 
 #undef M0_TRACE_SUBSYSTEM
