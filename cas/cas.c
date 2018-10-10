@@ -140,17 +140,17 @@ static void cas_fops_fini(void)
  * FID of the meta-index. It has the smallest possible FID in order to be always
  * the first during iteration over existing indices.
  */
-M0_INTERNAL struct m0_fid m0_cas_meta_fid = M0_FID_TINIT('i', 0, 0);
+M0_INTERNAL const struct m0_fid m0_cas_meta_fid = M0_FID_TINIT('i', 0, 0);
 
 /**
  * FID of the catalogue-index index.
  */
-M0_INTERNAL struct m0_fid m0_cas_ctidx_fid = M0_FID_TINIT('i', 0, 1);
+M0_INTERNAL const struct m0_fid m0_cas_ctidx_fid = M0_FID_TINIT('i', 0, 1);
 
 /**
  * FID of the "dead index" catalogue (used to collect deleted indices).
  */
-M0_INTERNAL struct m0_fid m0_cas_dead_index_fid = M0_FID_TINIT('i', 0, 2);
+M0_INTERNAL const struct m0_fid m0_cas_dead_index_fid = M0_FID_TINIT('i', 0, 2);
 
 M0_INTERNAL const struct m0_fid_type m0_cas_index_fid_type = {
 	.ft_id   = 'i',

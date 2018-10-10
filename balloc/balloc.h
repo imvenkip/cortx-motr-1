@@ -147,34 +147,16 @@ struct m0_lext {
    In-memory data structure for group
  */
 struct m0_balloc_group_info {
-	struct m0_format_header      bgi_header;
 	/** @see m0_balloc_group_info_state for values */
 	uint64_t                     bgi_state;
 	/** group number */
 	m0_bindex_t                  bgi_groupno;
 	struct m0_balloc_zone_param  bgi_normal;
 	struct m0_balloc_zone_param  bgi_spare;
-	/** list of pre-alloc */
-	struct m0_list               bgi_prealloc_list;
 	/** Array of group extents */
 	struct m0_lext              *bgi_extents;
-	struct m0_format_footer      bgi_footer;
-	/*
-	 * volatile-only fields
-	 */
 	/** per-group lock */
 	struct m0_be_mutex           bgi_mutex;
-};
-
-enum m0_balloc_group_info_format_version {
-	M0_BALLOC_GROUP_INFO_FORMAT_VERSION_1 = 1,
-
-	/* future versions, uncomment and update M0_BALLOC_GROUP_INFO_FORMAT_VERSION */
-	/*M0_BALLOC_GROUP_INFO_FORMAT_VERSION_2,*/
-	/*M0_BALLOC_GROUP_INFO_FORMAT_VERSION_3,*/
-
-	/** Current version, should point to the latest version present */
-	M0_BALLOC_GROUP_INFO_FORMAT_VERSION = M0_BALLOC_GROUP_INFO_FORMAT_VERSION_1
 };
 
 enum m0_balloc_group_info_state {
@@ -241,8 +223,6 @@ struct m0_balloc {
 	uint64_t                     cb_container_id;
 	/** the on-disk and in-memory sb */
 	struct m0_balloc_super_block cb_sb;
-	/** array of group info */
-	struct m0_balloc_group_info *cb_group_info;
 
 	m0_bindex_t                  cb_last;
 
@@ -261,6 +241,9 @@ struct m0_balloc {
 	/*
 	 * volatile-only fields
 	 */
+
+	/** array of group info */
+	struct m0_balloc_group_info *cb_group_info;
 	/** super block lock */
 	struct m0_be_mutex           cb_sb_mutex;
 	struct m0_be_seg            *cb_be_seg;

@@ -358,19 +358,13 @@ static int balloc_group_info_init(struct m0_balloc_group_info *gi,
 
 	rc = btree_lookup_sync(&cb->cb_db_group_desc, &key, &val);
 	if (rc == 0) {
-		m0_format_header_pack(&gi->bgi_header, &(struct m0_format_tag){
-			.ot_version = M0_BALLOC_GROUP_INFO_FORMAT_VERSION,
-			.ot_type    = M0_FORMAT_TYPE_BALLOC_GROUP_INFO,
-			.ot_footer_offset =
-				offsetof(struct m0_balloc_group_info, bgi_footer)
-		});
-		gi->bgi_state	   = M0_BALLOC_GROUP_INFO_INIT;
-		gi->bgi_extents	   = NULL;
+		gi->bgi_state   = M0_BALLOC_GROUP_INFO_INIT;
+		gi->bgi_extents = NULL;
 
 		spare_zone_size =
 			m0_stob_ad_spares_calc(cb->cb_sb.bsb_groupsize);
 		normal_zone_size = cb->cb_sb.bsb_groupsize - spare_zone_size;
-			;
+
 		balloc_zone_init(&gi->bgi_normal, M0_BALLOC_NORMAL_ZONE,
 				 gd.bgd_groupno << sb->bsb_gsbits,
 				 normal_zone_size,
@@ -387,9 +381,7 @@ static int balloc_group_info_init(struct m0_balloc_group_info *gi,
 				 normal_zone_size,
 				 spare_zone_size, 0, 0, 0);
 #endif
-		m0_list_init(&gi->bgi_prealloc_list);
 		m0_mutex_init(bgi_mutex(gi));
-		m0_format_footer_update(gi);
 	}
 	return rc;
 }
@@ -399,7 +391,6 @@ static void balloc_group_info_fini(struct m0_balloc_group_info *gi)
 	m0_mutex_fini(bgi_mutex(gi));
 	m0_list_fini(&gi->bgi_normal.bzp_extents);
 	m0_list_fini(&gi->bgi_spare.bzp_extents);
-	m0_list_fini(&gi->bgi_prealloc_list);
 }
 
 static int balloc_group_info_load(struct m0_balloc *bal)
@@ -680,7 +671,6 @@ static void balloc_group_write_do(struct m0_be_tx_bulk   *tb,
 	struct balloc_groups_write_cfg *bgs = datum;
 	struct balloc_group_write_cfg  *bgc = user;
 	struct m0_balloc               *bal = bgc->bgc_bal;
-	struct m0_balloc_group_info    *grp;
 	struct m0_balloc_group_desc     gd;
 	struct m0_balloc_super_block   *sb = &bal->cb_sb;
 	struct m0_ext                   ext;
@@ -691,7 +681,6 @@ static void balloc_group_write_do(struct m0_be_tx_bulk   *tb,
 	int                             rc;
 
 	m0_be_op_active(op);
-	grp = &bal->cb_group_info[i];
 
 	M0_LOG(M0_DEBUG, "creating group_extents for group %llu",
 	       (unsigned long long)i);
@@ -738,24 +727,6 @@ static void balloc_group_write_do(struct m0_be_tx_bulk   *tb,
 	gd.bgd_maxchunk   = sb->bsb_groupsize - spare_size;
 	gd.bgd_fragments  = 1;
 	m0_balloc_group_desc_init(&gd);
-	grp->bgi_groupno = i;
-	balloc_zone_init(&grp->bgi_normal, M0_BALLOC_NORMAL_ZONE,
-			 gd.bgd_groupno << sb->bsb_gsbits, gd.bgd_freeblocks,
-			 gd.bgd_freeblocks, gd.bgd_fragments, gd.bgd_maxchunk);
-#ifdef __SPARE_SPACE__
-	balloc_zone_init(&grp->bgi_spare, M0_BALLOC_SPARE_ZONE,
-			 gd.bgd_sparestart, gd.bgd_spare_freeblocks,
-			 gd.bgd_spare_freeblocks, gd.bgd_spare_frags,
-			 gd.bgd_spare_maxchunk);
-#else
-	/*
-	 * Since extents for spare-space are not inserted in btree num-frags
-	 * and other counts are zero.
-	 */
-	balloc_zone_init(&grp->bgi_spare, M0_BALLOC_SPARE_ZONE,
-			(gd.bgd_groupno << sb->bsb_gsbits) + gd.bgd_freeblocks,
-			spare_size, 0, 0, 0);
-#endif
 	key = (struct m0_buf)M0_BUF_INIT_PTR(&gd.bgd_groupno);
 	val = (struct m0_buf)M0_BUF_INIT_PTR(&gd);
 
