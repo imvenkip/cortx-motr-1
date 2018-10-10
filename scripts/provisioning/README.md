@@ -84,6 +84,15 @@ available on _Mac OS_ "out of the box":
     # install system-wide
     sudo pip install ansible
 
+Another popular alternative is to use [MacPorts](https://www.macports.org/) or
+[Homebrew](https://brew.sh/) package managers:
+
+    # install Ansible using MacPorts
+    sudo port install py36-ansible
+
+    # install Ansible using Homebrew
+    brew install ansible
+
 After _Vagrant_ is installed, a couple of plugins need to be installed also. On
 _Linux_ it is `vagrant-libvirt` (for _kvm_ support), and on _Mac OS_ it's
 `vagrant-vbguest`, when using _VirtualBox_ and `vagrant-vmware-fusion`, when
