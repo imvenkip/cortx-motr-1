@@ -62,6 +62,25 @@ int m0_confd_stob_init(struct m0_stob **stob,
 
 	*stob = NULL;
 
+	/*
+	 * TODO FIXME Current workflow assumes that m0_confd_stob_fini() is
+	 * called even if m0_confd_stob_init() fails. Therefore, there is no
+	 * cleanup code for error flow in this function.
+	 * There are two problems:
+	 * 1. If m0_stob_find() fails m0_confd_stob_fini() doesn't finalise
+	 *    stob domain, because `stob` remains NULL;
+	 * 2. There is case when m0_stob_domain_find_by_location() returns
+	 *    existing stob domain, but m0_confd_stob_fini() finalises it.
+	 *    This leads to possible double finalisation, because there is
+	 *    other user that originally initialises the domain.
+	 *
+	 * Possible fix:
+	 * 1. Cleanup on fail and call m0_confd_stob_fini() only after
+	 *    successful initialisation;
+	 * 2. Move stob domain init/fini to respective subsystem init/fini
+	 *    functions
+	 */
+
 	dom = m0_stob_domain_find_by_location(location);
 	rc = dom != NULL ? 0 :
 	     m0_stob_domain_create_or_init(location, NULL,

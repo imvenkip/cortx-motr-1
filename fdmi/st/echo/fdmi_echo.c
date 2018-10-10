@@ -183,12 +183,14 @@ static int init_plugin(struct fdmi_plugin_ctx *ctx,
 	ctx->log_file = fopen(fname, "w+");
 
 	if (ctx->log_file == NULL)
-		return errno;
+		return -errno;
 
 	M0_ALLOC_ARR(ctx->log_str, 1024);
 
-	if (ctx->log_str == NULL)
+	if (ctx->log_str == NULL) {
+		rc = -ENOMEM;
 		goto str_alloc_fail;
+	}
 
 	ctx->log_str_size = 1024;
 
@@ -265,7 +267,9 @@ static int run_server(void)
 	if (rc != 0)
 		goto m0_fini;
 
-	init_plugin(&g_plugin_ctx, g_filenane);
+	rc = init_plugin(&g_plugin_ctx, g_filenane);
+	if (rc != 0)
+		goto fop_fini;
 
 	/*
 	 * Prepend transport name to the beginning of endpoint,
@@ -277,18 +281,18 @@ static int run_server(void)
 		server_endpoint + strlen(server_endpoint),
 		sizeof(server_endpoint) - strlen(server_endpoint));
 	if (rc != 0)
-		goto fop_fini;
+		goto plugin_fini;
 
 	rc = m0_rpc_server_start(&sctx);
 	if (rc != 0)
-		goto fop_fini;
+		goto plugin_fini;
 
 	quit_dialog();
 
 	m0_rpc_server_stop(&sctx);
 
+plugin_fini:
 	deinit_plugin(&g_plugin_ctx);
-
 fop_fini:
 	m0_cs_default_stypes_fini();
 m0_fini:

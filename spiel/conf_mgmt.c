@@ -2149,7 +2149,7 @@ static int spiel_str_to_file(char *str, const char *filename)
 
 	file = fopen(filename, "w+");
 	if (file == NULL)
-		return errno;
+		return -errno;
 	rc = fwrite(str, strlen(str), 1, file) == 1 ? 0 : -EINVAL;
 	fclose(file);
 	return rc;
@@ -2191,9 +2191,11 @@ static int spiel_tx_dump(struct m0_spiel_tx *tx,
 	char *buffer;
 
 	M0_ENTRY();
-	rc = spiel_tx_to_str(tx, ver_forced, &buffer, debug) ?:
-		spiel_str_to_file(buffer, filename);
-	m0_spiel_tx_str_free(buffer);
+	rc = spiel_tx_to_str(tx, ver_forced, &buffer, debug);
+	if (rc == 0) {
+		rc = spiel_str_to_file(buffer, filename);
+		m0_spiel_tx_str_free(buffer);
+	}
 	return M0_RC(rc);
 }
 
