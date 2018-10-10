@@ -30,11 +30,12 @@
 #include "clovis/io.h"
 #include "clovis/sync.h"
 
-#include "lib/memory.h"          /* m0_alloc, m0_free */
-#include "lib/errno.h"           /* ENOMEM */
-#include "lib/atomic.h"          /* m0_atomic_{inc,dec,get} */
-#include "rpc/rpc_machine_internal.h"	/* m0_rpc_machine_lock */
-#include "fop/fom_generic.h"     /* m0_rpc_item_generic_reply_rc */
+#include "lib/memory.h"               /* m0_alloc, m0_free */
+#include "lib/errno.h"                /* ENOMEM */
+#include "lib/atomic.h"               /* m0_atomic_{inc,dec,get} */
+#include "rpc/rpc_machine_internal.h" /* m0_rpc_machine_lock */
+#include "fop/fom_generic.h"          /* m0_rpc_item_generic_reply_rc */
+#include "cob/cob.h"                  /* M0_COB_IO M0_COB_PVER M0_COB_NLINK */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CLOVIS
 #include "lib/trace.h"           /* M0_LOG */
@@ -65,6 +66,23 @@ M0_INTERNAL bool ioreq_fop_invariant(const struct ioreq_fop *fop)
 	             _0C(fop->irf_tioreq      != NULL) &&
 	             _0C(fop->irf_ast.sa_cb   != NULL) &&
 	             _0C(fop->irf_ast.sa_mach != NULL));
+}
+
+static bool should_ioreq_sm_complete(struct m0_clovis_op_io *ioo)
+{
+	struct m0_clovis *instance;
+
+	instance = m0_clovis__op_instance(m0_clovis__ioo_to_op(ioo));
+	/* Ensure that replies for iofops and bulk data have been received. */
+	return m0_atomic64_get(&ioo->ioo_nwxfer.nxr_iofop_nr) == 0  &&
+	    m0_atomic64_get(&ioo->ioo_nwxfer.nxr_rdbulk_nr) == 0 &&
+	    /*
+	     * In case of writing in oostore mode, ensure that all
+	     * cob creation fops (if any) have received reply.
+	     */
+	    ((m0_clovis__is_oostore(instance) &&
+	      ioreq_sm_state(ioo) == IRS_WRITING) ?
+	    m0_atomic64_get(&ioo->ioo_nwxfer.nxr_ccfop_nr) == 0 : true);
 }
 
 /**
@@ -195,8 +213,7 @@ ref_dec:
 
 	m0_mutex_lock(&xfer->nxr_lock);
 	m0_atomic64_dec(&xfer->nxr_iofop_nr);
-	if (m0_atomic64_get(&xfer->nxr_iofop_nr) == 0 &&
-	    m0_atomic64_get(&xfer->nxr_rdbulk_nr) == 0) {
+	if (should_ioreq_sm_complete(ioo)) {
 		m0_sm_state_set(&ioo->ioo_sm,
 				(M0_IN(ioreq_sm_state(ioo),
 				       (IRS_READING, IRS_DEGRADED_READING)) ?
@@ -263,6 +280,101 @@ static void io_rpc_item_cb(struct m0_rpc_item *item)
 	M0_LEAVE();
 }
 
+static void ioreq_cc_bottom_half(struct m0_sm_group *grp,
+				 struct m0_sm_ast *ast)
+{
+	struct nw_xfer_request     *xfer;
+	struct target_ioreq        *ti;
+	struct cc_req_fop          *cc_fop;
+	struct m0_clovis_op        *op;
+	struct m0_clovis_op_io     *ioo;
+	struct m0_fop_cob_op_reply *reply;
+	struct m0_fop              *reply_fop  = NULL;
+	struct m0_rpc_item         *req_item;
+	struct m0_rpc_item         *reply_item;
+	struct m0_be_tx_remid      *remid      = NULL;
+	int                         rc;
+
+	ti = (struct target_ioreq *)ast->sa_datum;
+	ioo = bob_of(ti->ti_nwxfer, struct m0_clovis_op_io, ioo_nwxfer,
+		     &ioo_bobtype);
+	op     = &ioo->ioo_oo.oo_oc.oc_op;
+	xfer = ti->ti_nwxfer;
+	cc_fop = &ti->ti_cc_fop;
+	req_item = &cc_fop->crf_fop.f_item;
+	reply_item = req_item->ri_reply;
+	rc = req_item->ri_error;
+	if (reply_item != NULL) {
+		reply_fop = m0_rpc_item_to_fop(reply_item);
+		rc = rc ?: m0_rpc_item_generic_reply_rc(reply_item);
+	}
+	if (rc < 0 || reply_item == NULL) {
+		M0_ASSERT(ergo(reply_item == NULL, rc != 0));
+		goto ref_dec;
+	}
+
+	reply = m0_fop_data(m0_rpc_item_to_fop(reply_item));
+	/*
+	 * Ignoring the case when an attempt is made to create a cob on target
+	 * where previous IO had created it.
+	 */
+	rc = rc ? M0_IN(reply->cor_rc, (0, -EEXIST)) ? 0 : reply->cor_rc : 0;
+
+	remid = &reply->cor_common.cor_mod_rep.fmr_remid;
+
+	/* Update pending transaction number */
+	clovis_sync_record_update(
+		m0_reqh_service_ctx_from_session(reply_item->ri_session),
+		&ioo->ioo_obj->ob_entity, op, remid);
+	/*
+	 * @todo: in case confd is updated, a check is necessary similar to
+	 * that present in m0t1fs. See
+	 * m0t1fs/linux_kernel/file.c::io_bottom_half().
+	 */
+
+ref_dec:
+	if (ti->ti_rc == 0 && rc != 0)
+		ti->ti_rc = rc;
+	if (xfer->nxr_rc == 0 && rc != 0)
+		xfer->nxr_rc = rc;
+	m0_fop_put0_lock(&cc_fop->crf_fop);
+	if (reply_fop != NULL)
+		m0_fop_put0_lock(reply_fop);
+	m0_mutex_lock(&xfer->nxr_lock);
+	m0_atomic64_dec(&xfer->nxr_ccfop_nr);
+	if (should_ioreq_sm_complete(ioo)) {
+		m0_sm_state_set(&ioo->ioo_sm, IRS_WRITE_COMPLETE);
+		ioo->ioo_ast.sa_cb = ioo->ioo_ops->iro_iosm_handle_executed;
+		m0_sm_ast_post(ioo->ioo_oo.oo_sm_grp, &ioo->ioo_ast);
+	}
+	m0_mutex_unlock(&xfer->nxr_lock);
+}
+
+static void ioreq_cc_rpc_item_cb(struct m0_rpc_item *item)
+{
+	struct m0_clovis_op_io *ioo;
+	struct cc_req_fop      *cc_fop;
+	struct target_ioreq    *ti;
+	struct m0_fop          *fop;
+	struct m0_fop          *rep_fop;
+
+	fop = m0_rpc_item_to_fop(item);
+	cc_fop = M0_AMB(cc_fop, fop, crf_fop);
+	ti = M0_AMB(ti, cc_fop, ti_cc_fop);
+	ioo  = bob_of(ti->ti_nwxfer, struct m0_clovis_op_io,
+		      ioo_nwxfer, &ioo_bobtype);
+	cc_fop->crf_ast.sa_cb = ioreq_cc_bottom_half;
+	cc_fop->crf_ast.sa_datum = (void *)ti;
+	/* Reference on fop and its reply are released in cc_bottom_half. */
+	m0_fop_get(fop);
+	if (item->ri_reply != NULL) {
+		rep_fop = m0_rpc_item_to_fop(item->ri_reply);
+		m0_fop_get(rep_fop);
+	}
+
+	m0_sm_ast_post(ioo->ioo_oo.oo_sm_grp, &cc_fop->crf_ast);
+}
+
 /*
  * io_rpc_item_cb can not be directly invoked from io fops code since it
  * leads to build dependency of ioservice code over kernel code (kernel clovis).
@@ -271,6 +383,10 @@ static void io_rpc_item_cb(struct m0_rpc_item *item)
  */
 static const struct m0_rpc_item_ops clovis_item_ops = {
 	.rio_replied = io_rpc_item_cb,
+};
+
+static const struct m0_rpc_item_ops cc_item_ops = {
+	.rio_replied = ioreq_cc_rpc_item_cb,
 };
 
 /**
@@ -334,8 +450,7 @@ static void client_passive_recv(const struct m0_net_buffer_event *evt)
 
 		if (m0_atomic64_get(&ioo->ioo_nwxfer.nxr_rdbulk_nr) > 0)
 			m0_atomic64_dec(&ioo->ioo_nwxfer.nxr_rdbulk_nr);
-		if (m0_atomic64_get(&ioo->ioo_nwxfer.nxr_iofop_nr) == 0 &&
-		    m0_atomic64_get(&ioo->ioo_nwxfer.nxr_rdbulk_nr) == 0) {
+		if (should_ioreq_sm_complete(ioo)) {
 			m0_sm_group_lock(ioo->ioo_sm.sm_grp);
 			m0_sm_state_set(&ioo->ioo_sm,
 				        (M0_IN(ioreq_sm_state(ioo),
@@ -491,6 +606,55 @@ M0_INTERNAL int ioreq_fop_dgmode_read(struct ioreq_fop *irfop)
 		}
 	} m0_tl_endfor;
 	return M0_RC(0);
+}
+
+static void ioreq_cc_fop_release(struct m0_ref *ref)
+{
+	struct m0_fop *fop;
+
+	M0_ENTRY();
+	fop    = M0_AMB(fop, ref, f_ref);
+	m0_fop_fini(fop);
+	M0_LEAVE();
+}
+
+M0_INTERNAL int ioreq_cc_fop_init(struct target_ioreq *ti)
+{
+	struct m0_fop            *fop;
+	struct m0_fop_cob_common *common;
+	struct m0_clovis_op_io   *ioo;
+	int                       rc;
+
+	fop = &ti->ti_cc_fop.crf_fop;
+	m0_fop_init(fop, &m0_fop_cob_create_fopt, NULL, ioreq_cc_fop_release);
+	rc = m0_fop_data_alloc(fop);
+	if (rc != 0) {
+		m0_fop_fini(fop);
+		goto out;
+	}
+	fop->f_item.ri_rmachine = m0_fop_session_machine(ti->ti_session);
+
+	fop->f_item.ri_session         = ti->ti_session;
+	fop->f_item.ri_ops             = &cc_item_ops;
+	fop->f_item.ri_nr_sent_max     = CLOVIS_RPC_MAX_RETRIES;
+	fop->f_item.ri_resend_interval = CLOVIS_RPC_RESEND_INTERVAL;
+	ioo = bob_of(ti->ti_nwxfer, struct m0_clovis_op_io, ioo_nwxfer,
+		     &ioo_bobtype);
+	common = m0_cobfop_common_get(fop);
+	common->c_gobfid = ioo->ioo_oo.oo_fid;
+	common->c_cobfid = ti->ti_fid;
+	common->c_pver = ioo->ioo_pver;
+	common->c_cob_type = M0_COB_IO;
+	common->c_cob_idx = m0_fid_cob_device_id(&ti->ti_fid);
+	common->c_flags |= M0_IO_FLAG_CROW;
+	common->c_body.b_pver = ioo->ioo_pver;
+	common->c_body.b_nlink = 1;
+	common->c_body.b_valid |= M0_COB_PVER;
+	common->c_body.b_valid |= M0_COB_NLINK;
+	m0_atomic64_inc(&ti->ti_nwxfer->nxr_ccfop_nr);
+
+out:
+	return M0_RC(rc);
 }
 
 /**

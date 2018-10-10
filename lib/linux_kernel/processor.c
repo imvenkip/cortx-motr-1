@@ -610,7 +610,7 @@ M0_INTERNAL void m0_processors_fini()
 
 M0_INTERNAL m0_processor_nr_t m0_processor_nr_max(void)
 {
-	return NR_CPUS - 1;
+	return NR_CPUS;
 }
 
 M0_INTERNAL void m0_processors_possible(struct m0_bitmap *map)

@@ -1681,8 +1681,10 @@ M0_INTERNAL int m0_cas_get(struct m0_cas_req      *req,
 		req->ccr_keys = keys;
 		rc = creq_fop_create_and_prepare(req, &cas_get_fopt, op,
 						 &next_state);
-		cas_fop_send(req);
-		cas_req_state_set(req, next_state);
+		if (rc == 0) {
+			cas_fop_send(req);
+			cas_req_state_set(req, next_state);
+		}
 	}
 	return M0_RC(rc);
 }

@@ -543,6 +543,12 @@ M0_INTERNAL struct m0_clovis *
 m0_clovis__op_instance(const struct m0_clovis_op *op);
 
 /**
+ * Returns generic clovis op from io op.
+ */
+M0_INTERNAL struct m0_clovis_op *
+m0_clovis__ioo_to_op(struct m0_clovis_op_io *ioo);
+
+/**
  * Returns the m0_clovis clovis instance, found from the provided object.
  *
  * @param obj The object to find the instance for.
@@ -559,6 +565,11 @@ m0_clovis__obj_instance(const struct m0_clovis_obj *obj);
  */
 M0_INTERNAL struct m0_clovis*
 m0_clovis__oo_instance(struct m0_clovis_op_obj *oo);
+
+/**
+ * Returns if clovis instance is operating under oostore mode.
+ */
+M0_INTERNAL bool m0_clovis__is_oostore(struct m0_clovis *instance);
 
 /* sm conf that needs registering by m0_clovis_init */
 extern struct m0_sm_conf clovis_op_conf;

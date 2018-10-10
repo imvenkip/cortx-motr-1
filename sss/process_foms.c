@@ -444,7 +444,7 @@ ss_fop_process_svc_list_fill(struct m0_ss_process_svc_list_rep *fop,
 		}
 	} m0_tl_endfor;
 	m0_rwlock_read_unlock(&reqh->rh_rwlock);
-	return M0_RC(0);
+	return M0_RC(rc);
 }
 #else
 static int

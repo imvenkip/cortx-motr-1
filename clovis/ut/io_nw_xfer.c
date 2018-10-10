@@ -447,14 +447,18 @@ static void ut_clovis_test_nw_xfer_io_distribute(void)
  */
 static void ut_clovis_test_nw_xfer_req_complete(void)
 {
-	struct m0_clovis_op_io *ioo;
-	struct m0_clovis       *instance;
+	struct m0_clovis_op_io  *ioo;
+	struct m0_clovis        *instance;
+	struct m0_clovis_realm   realm;
+	struct m0_clovis_entity  entity;
 
 	/* Initialise. */
 	instance = dummy_instance;
+	ut_clovis_realm_entity_setup(&realm, &entity, instance);
 
 	/* Base case. */
 	ioo = ut_clovis_dummy_ioo_create(instance, 1);
+	ioo->ioo_oo.oo_oc.oc_op.op_entity = &entity;
 	tioreqht_htable_init(&ioo->ioo_nwxfer.nxr_tioreqs_hash, 1);
 
 	ioo->ioo_nwxfer.nxr_rc = -777;

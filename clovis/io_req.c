@@ -1380,7 +1380,7 @@ static int ioreq_dgmode_write(struct m0_clovis_op_io *ioo, bool rmw)
 
 	/* -E2BIG: see commit 52c1072141d*/
 	/* In oostore mode we do not enter the degraded mode write. */
-	if (instance->m0c_config->cc_is_oostore ||
+	if (m0_clovis__is_oostore(instance) ||
 	    M0_IN(xfer->nxr_rc, (0, -E2BIG)))
 		return M0_RC(xfer->nxr_rc);
 
@@ -1437,6 +1437,7 @@ static int ioreq_dgmode_write(struct m0_clovis_op_io *ioo, bool rmw)
 		ti->ti_databytes = 0;
 		ti->ti_parbytes  = 0;
 		ti->ti_rc        = 0;
+		ti->ti_req_type  = TI_NONE;
 	} m0_htable_endfor;
 
 	/*

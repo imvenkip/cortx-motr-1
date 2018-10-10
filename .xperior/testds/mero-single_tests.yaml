@@ -361,6 +361,14 @@ Tests:
     sandbox  : /var/mero/sandbox.m0mount-fail-test
     polltime : 30
     timeout  : 120
+
+  - id       : 40clovis-dgmode
+    script   : clovis_dgmode_io_st.sh
+    dir      : src/clovis/st/utils/
+    executor : Xperior::Executor::MeroTest
+    sandbox  : /var/mero/sandbox.40clovis-dgmode
+    polltime : 30
+    timeout  : 1800
 # 25 min
 dangerous: 'yes'
 description: Set of Mero  tests

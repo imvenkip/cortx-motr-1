@@ -480,6 +480,13 @@ M0_INTERNAL int ioreq_fop_init(struct ioreq_fop    *fop,
 M0_INTERNAL void ioreq_fop_fini(struct ioreq_fop *fop);
 
 /**
+ * Initialises cob create fop. It's required for those targets that
+ * are not part of io request, but host the members of at least one
+ * parity group that's spanned by io request.
+ */
+M0_INTERNAL int ioreq_cc_fop_init(struct target_ioreq *ti);
+
+/**
  * Finds out parity groups for which read IO failed and marks them as
  * DEGRADED.
  *

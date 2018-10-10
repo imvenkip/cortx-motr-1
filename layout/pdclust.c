@@ -359,6 +359,11 @@ M0_INTERNAL uint32_t m0_pdclust_P(const struct m0_pdclust_layout *pl)
 	return pl->pl_attr.pa_P;
 }
 
+M0_INTERNAL uint32_t m0_pdclust_size(const struct m0_pdclust_layout *pl)
+{
+	return m0_pdclust_N(pl) + 2 * m0_pdclust_K(pl);
+}
+
 M0_INTERNAL uint64_t m0_pdclust_unit_size(const struct m0_pdclust_layout *pl)
 {
 	return pl->pl_attr.pa_unit_size;

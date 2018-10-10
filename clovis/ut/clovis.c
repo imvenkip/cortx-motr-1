@@ -37,6 +37,7 @@
 #include "lib/errno.h"    /* ETIMEDOUT */
 #include "lib/timer.h"    /* m0_timer_init */
 #include "lib/finject.h"  /* m0_fi_enable_once */
+#include "conf/objs/common.h"
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CLOVIS
 #include "lib/trace.h"          /* M0_LOG */
@@ -319,6 +320,8 @@ M0_INTERNAL int ut_m0_clovis_init(struct m0_clovis **instance)
 		mdpv->pv_pool = mdpool;
 		pool_version_tlink_init_at_tail(mdpv, &mdpool->po_vers);
 		(*instance)->m0c_pools_common.pc_md_pool = mdpool;
+
+		(*instance)->m0c_process_fid = M0_FID_TINIT(M0_CONF__PROCESS_FT_ID, 0, 1);
 	}
 	m0_fi_disable("clovis_initlift_get_next_floor", "clovis_ut");
 

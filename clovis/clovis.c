@@ -241,6 +241,18 @@ m0_clovis__op_instance(const struct m0_clovis_op *op)
 	return m0_clovis__entity_instance(op->op_entity);
 }
 
+M0_INTERNAL struct m0_clovis_op *
+m0_clovis__ioo_to_op(struct m0_clovis_op_io *ioo)
+{
+	return &ioo->ioo_oo.oo_oc.oc_op;
+}
+
+M0_INTERNAL bool
+m0_clovis__is_oostore(struct m0_clovis *instance)
+{
+	return instance->m0c_config->cc_is_oostore;
+}
+
 M0_INTERNAL struct m0_clovis *
 m0_clovis__obj_instance(const struct m0_clovis_obj *obj)
 {
