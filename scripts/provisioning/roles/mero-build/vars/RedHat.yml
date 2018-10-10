@@ -5,6 +5,7 @@ mero_build_deps_pkgs:
   - automake
   - binutils
   - binutils-devel
+  - createrepo            # for lustre-client-devel rpm
   - gcc
   - gcc-c++
   - gccxml
@@ -16,7 +17,6 @@ mero_build_deps_pkgs:
   - libuuid-devel
   - libyaml
   - libyaml-devel
-  - lustre-client-dkms
   - make
   - mock
   - perl

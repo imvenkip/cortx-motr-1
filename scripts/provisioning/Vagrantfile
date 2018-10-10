@@ -295,6 +295,10 @@ def setup(node, cpu_nr, mem_mb, disk_nr = 0, disk_size = 1)
     # cache all VM's IO in memory as much as available
     v.volume_cache = 'unsafe'
 
+    if !ENV['M0_VM_LIBVIRT_STORAGE_POOL'].nil?
+        v.storage_pool_name = ENV['M0_VM_LIBVIRT_STORAGE_POOL']
+    end
+
     # disks
     (1..disk_nr).each do
       v.storage :file, :size => "#{disk_size}G", :cache => 'unsafe'

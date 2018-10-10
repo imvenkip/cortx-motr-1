@@ -1,7 +1,6 @@
 # feature flags
 %bcond_with ut
 %bcond_with debuginfo_sources
-%bcond_with intel_lustre
 %bcond_with cassandra
 
 # configure options
@@ -23,22 +22,7 @@
 # build number
 %define build_num  %( test -n "$build_number" && echo "$build_number" || echo 1 )
 
-# lustre vendor
-%define is_intel_lustre %(
-                           if rpm -qi kmod-lustre-client 2>/dev/null |
-                              grep -q 'Build Host.*intel\.com'
-                           then
-                               echo 1
-                           else
-                               echo 0
-                           fi
-                         )
-
-%if %{with intel_lustre} || %{is_intel_lustre}
-%define lustre_devel   lustre-client-dkms
-%else
 %define lustre_devel   lustre-client-devel
-%endif
 %define lustre_modules kmod-lustre-client
 
 # workaround issue with mero-debuginfo package, which injects incorrect
@@ -92,16 +76,7 @@ BuildRequires:  perl-IO-All
 BuildRequires:  perl-File-Slurp
 BuildRequires:  perl-YAML-LibYAML
 BuildRequires:  kernel-devel = %{kernel_ver_requires}
-# A self-contained lustre-devel package was provided only by Xyratex/Seagate
-# Lustre version but at some point they dropped it. The Intel Lustre provides
-# dkms package that can be used as a replacement for lustre-devel, but first it
-# must be built manually after installation. When build node is provisioned by
-# Ansible scripts it's done automatically. In other cases it doesn't make much
-# sense to require the devel package and it's assumed that Lustre headers are
-# already provided in one way or another.
-%if %{with intel_lustre} || %{is_intel_lustre}
 BuildRequires:  %{lustre_devel}
-%endif
 BuildRequires:  libuuid-devel
 BuildRequires:  binutils-devel
 BuildRequires:  python-ply

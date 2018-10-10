@@ -52,11 +52,18 @@
       when: redhat_vault_repo.stdout != ""
 
     - name: enable {{ redhat_vault_repo.stdout }} vault repositories
+      vars:
+        repo_name: '{{ (item == "base") | ternary("os", item) }}'
+        version:   '{{ redhat_vault_repo.stdout | regex_replace("^C(.*)$", "\1") }}'
+        # TODO: server and distro can be removed when 7.4 moves from mirror server to vault
+        #       and all versions can be downloaded from vault
+        server:    '{{ (version == "7.4.1708") | ternary("mirror", "vault") }}'
+        distro:    '{{ (version == "7.4.1708") | ternary("centos/", "") }}'
       yum_repository:
         file:        CentOS-Vault
         name:        '{{ redhat_vault_repo.stdout }}-{{ item }}'
-        description: CentOS-{{ redhat_vault_repo.stdout | regex_replace('^C(.*)$', '\1') }} - {{ item | capitalize }}
-        baseurl:     http://vault.centos.org/{{ redhat_vault_repo.stdout | regex_replace('^C(.*)$', '\1') }}/{{ (item == 'base') | ternary('os', item) }}/$basearch/
+        description: CentOS-{{version}} - {{ item | capitalize }}
+        baseurl:     http://{{server}}.centos.org/{{distro}}{{version}}/{{repo_name}}/$basearch/
         gpgkey:      file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7
         gpgcheck:    yes
       with_items:
@@ -122,6 +129,22 @@
     name:  '{{ extra_tools_pkgs }}'
   when: extra_tools_pkgs is defined
   tags: breaks-dry-run
+
+
+- name: apply distro-specific workarounds
+  when: ansible_os_family == 'RedHat'
+  block:
+    - name: get redhat version
+      # matching version string like '7.4.1708'
+      shell: grep -oP '\d+\.\d+' /etc/redhat-release
+      register: redhat_release
+      changed_when: false
+      tags: breaks-dry-run
+
+    - name: re-start dbus (w/a for avahi on CentOS 7.5)
+      service: name=dbus state=restarted
+      when: redhat_release.stdout is version('7.5', '==')
+      tags: start-services
 
 - name: start avahi
   service: name={{ avahi_service }} state=started enabled=yes
