@@ -627,10 +627,10 @@ static int clovis_obj_op_prepare(struct m0_clovis_entity *entity,
 	spti_tlist_init(&(*op)->op_pending_tx);
 
 	/* Initialise the operation's generic part. */
+	(*op)->op_code = opcode;
 	rc = m0_clovis_op_init(*op, &clovis_op_conf, entity);
 	if (rc != 0)
 		goto op_free;
-	(*op)->op_code = opcode;
 
 	/* No bob_init()'s have been called yet: we use M0_AMB(). */
 	oc = M0_AMB(oc, *op, oc_op);

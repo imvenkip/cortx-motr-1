@@ -16,21 +16,21 @@ enable_test_modules := @ENABLE_KERNEL_UNIT_TESTS@
 
 ifdef M0_BUILD_KERNEL_M0MERO_ONLY
 
-obj-m := mero/m0mero.o
+obj-m := m0mero.o
 
 else ifdef M0_BUILD_KERNEL_UT_ONLY
 
-obj-m := ut/linux_kernel/m0ut.o
+obj-m := m0ut.o
 #obj-m += m0t1fs/linux_kernel/m0loop-ut.o
 
 else ifdef M0_BUILD_CLOVIS_ST
 
-obj-m := mero/m0mero.o
-obj-m += clovis/st/linux_kernel/clovis_st_kmod.o
+obj-m := m0mero.o
+obj-m += clovis_st_kmod.o
 
 else ifdef M0_BUILD_CLOVIS_ST_ALLINONE
 
-obj-m := mero/m0mero.o
+obj-m := m0mero.o
 else
 
 # these modules are installed system wide and included into rpm package, they
@@ -38,19 +38,19 @@ else
 # "kernel/fs/mero" under base kernel modules dir, where "kernel/fs" part is
 # provided by INSTALL_MOD_DIR Kbuild variable and "mero" is taken from module's
 # build directory
-obj-m := mero/m0mero.o
-obj-m += mero/m0ctl.o
+obj-m := m0mero.o
+obj-m += m0ctl.o
 # loop driver was disabled after moving from SL6 to CentOS7
 # due to porting effor for 3.10.x kernel
 #obj-m += mero/m0loop.o
 
 # these modules are built unless '--disable-unit-tests' option of ./configure
 # script is used
-obj-$(enable_test_modules) += ut/linux_kernel/m0ut.o
-obj-$(enable_test_modules) += net/lnet/st/linux_kernel/m0lnetping.o
-obj-$(enable_test_modules) += rpc/it/linux_kernel/m0rpcping.o
-obj-$(enable_test_modules) += net/test/linux_kernel/m0nettestd.o
-obj-$(enable_test_modules) += clovis/st/linux_kernel/clovis_st_kmod.o
+obj-$(enable_test_modules) += m0ut.o
+obj-$(enable_test_modules) += m0lnetping.o
+obj-$(enable_test_modules) += m0rpcping.o
+obj-$(enable_test_modules) += m0nettestd.o
+obj-$(enable_test_modules) += clovis_st_kmod.o
 #obj-$(enable_test_modules) += m0t1fs/linux_kernel/m0loop-ut.o
 
 endif
@@ -60,7 +60,7 @@ endif
 # m0mero.ko ------------------------------------------- {{{1
 #
 
-mero/m0mero-y = mero/linux_kernel/m0mero_main.o \
+m0mero-y = mero/linux_kernel/m0mero_main.o \
                 $(m0mero_objects)
 
 m0mero_objects :=
@@ -122,7 +122,7 @@ include $(src)/xcode/Kbuild.sub
 # including .c files to access their static functions, we need to filter out the
 # original objects to avoid link time errors because of duplicate symbols
 
-ut/linux_kernel/m0ut-y = ut/linux_kernel/m0ut_main.o \
+m0ut-y = ut/linux_kernel/m0ut_main.o \
                          $(m0ut_objects) \
                          $(filter-out \
                                       file/di.o \
@@ -164,7 +164,7 @@ include $(src)/ha/ut/Kbuild.sub
 # m0ctl.ko -------------------------------------------- {{{1
 #
 
-mero/m0ctl-y   = $(m0ctl_objects)
+m0ctl-y   = $(m0ctl_objects)
 m0ctl_objects :=
 
 include $(src)/utils/Kbuild.sub
@@ -189,7 +189,7 @@ include $(src)/utils/Kbuild.sub
 # m0lnetping.ko --------------------------------------- {{{1
 #
 
-net/lnet/st/linux_kernel/m0lnetping-y = $(m0lnetping_objects)
+m0lnetping-y = $(m0lnetping_objects)
 m0lnetping_objects :=
 
 include $(src)/net/lnet/st/Kbuild.sub
@@ -199,7 +199,7 @@ include $(src)/net/lnet/st/Kbuild.sub
 # m0rpcping.ko ---------------------------------------- {{{1
 #
 
-rpc/it/linux_kernel/m0rpcping-y = $(m0rpcping_objects)
+m0rpcping-y = $(m0rpcping_objects)
 m0rpcping_objects :=
 
 include $(src)/rpc/it/Kbuild.sub
@@ -209,7 +209,7 @@ include $(src)/rpc/it/Kbuild.sub
 # m0nettestd.ko --------------------------------------- {{{1
 #
 
-net/test/linux_kernel/m0nettestd-y = $(m0nettestd_objects)
+m0nettestd-y = $(m0nettestd_objects)
 m0nettestd_objects :=
 
 include $(src)/net/test/Kbuild.sub # TODO: factor out net-test files from
@@ -217,7 +217,7 @@ include $(src)/net/test/Kbuild.sub # TODO: factor out net-test files from
 
 # clovis_st_kmod --------------------------------------- {{{1
 #
-clovis/st/linux_kernel/clovis_st_kmod-y = $(clovis_st_objects)
+clovis_st_kmod-y = $(clovis_st_objects)
 clovis_st_objects :=
 include $(src)/clovis/st/Kbuild.sub
 

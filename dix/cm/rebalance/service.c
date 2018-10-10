@@ -48,7 +48,7 @@ static const struct m0_reqh_service_type_ops dix_rebalance_svc_type_ops = {
 };
 
 M0_DIX_CM_TYPE_DECLARE(dix_rebalance, M0_CM_DIX_REB_OPCODE,
-		       &dix_rebalance_svc_type_ops, "dix_rebalance",
+		       &dix_rebalance_svc_type_ops, "M0_CST_DIX_REB",
 		       M0_CST_DIX_REB);
 
 /** Copy machine service operations.*/

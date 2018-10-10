@@ -397,16 +397,16 @@ static int clovis_obj_io_init(struct m0_clovis_obj      *obj,
 			      uint64_t                   mask,
 			      struct m0_clovis_op       *op)
  {
- 	int                         rc;
- 	int                         i;
- 	uint64_t                    max_failures;
- 	struct m0_clovis_op_io     *ioo;
- 	struct m0_clovis_op_obj    *oo;
- 	struct m0_clovis_op_common *oc;
- 	struct m0_locality         *locality;
+	int                         rc;
+	int                         i;
+	uint64_t                    max_failures;
+	struct m0_clovis_op_io     *ioo;
+	struct m0_clovis_op_obj    *oo;
+	struct m0_clovis_op_common *oc;
+	struct m0_locality         *locality;
 	struct m0_clovis           *cinst;
 
- 	M0_PRE(obj != NULL);
+	M0_PRE(obj != NULL);
 	cinst = m0_clovis__entity_instance(&obj->ob_entity);
 
 	M0_ASSERT(op->op_size >= sizeof *ioo);
@@ -451,8 +451,9 @@ static int clovis_obj_io_init(struct m0_clovis_obj      *obj,
 		ioo->ioo_data = *data;
 		ioo->ioo_attr = *attr;
 		ioo->ioo_attr_mask = mask;
- 	}
-
+	}
+	M0_ADDB2_ADD(M0_AVI_CLOVIS_IO_OP, (uint64_t)op,
+		     FID_P(&oo->oo_fid), m0_vec_count(&ioo->ioo_data.ov_vec));
 	M0_POST_EX(m0_clovis_op_io_invariant(ioo));
 	return M0_RC(0);
 }
@@ -475,25 +476,25 @@ static int clovis_obj_op_init(struct m0_clovis_obj      *obj,
 	entity = &obj->ob_entity;
 	cinst = m0_clovis__entity_instance(entity);
 
- 	/*
- 	 * Sanity test before proceeding.
- 	 * Note: Can't use bob_of at this point as oc/oo/ioo haven't been
- 	 * initilised yet.
- 	 */
+	/*
+	 * Sanity test before proceeding.
+	 * Note: Can't use bob_of at this point as oc/oo/ioo haven't been
+	 * initilised yet.
+	 */
 	oc = container_of(op, struct m0_clovis_op_common, oc_op);
- 	oo = container_of(oc, struct m0_clovis_op_obj, oo_oc);
+	oo = container_of(oc, struct m0_clovis_op_obj, oo_oc);
 
- 	/* Initialise the operation */
+	/* Initialise the operation */
+	op->op_code = opcode;
 	rc = m0_clovis_op_init(op, &clovis_op_conf, entity);
 	if (rc != 0)
 		return M0_ERR(rc);
 
 	/* Initialise this object as a 'bob' */
- 	m0_clovis_op_common_bob_init(oc);
- 	m0_clovis_op_obj_bob_init(oo);
+	m0_clovis_op_common_bob_init(oc);
+	m0_clovis_op_obj_bob_init(oo);
 
 	/* Initalise the vtable */
-	op->op_code = opcode;
 	switch (opcode) {
 	case M0_CLOVIS_OC_READ:
 	case M0_CLOVIS_OC_WRITE:
@@ -520,7 +521,7 @@ static int clovis_obj_op_init(struct m0_clovis_obj      *obj,
 						  &oo->oo_fid,
 						  &oo->oo_layout_instance);
 
- 	if (rc != 0)
+	if (rc != 0)
 		return M0_ERR(rc);
 	else
 		return M0_RC(0);
@@ -630,7 +631,7 @@ void m0_clovis_obj_op(struct m0_clovis_obj       *obj,
 			m0_clovis_layout_free(obj->ob_layout);
 			goto exit;
 		}
- 	}
+	}
 
 	/* Build object's IO requests using its layout. */
 	clovis_obj_io_args_check(obj, opcode, ext, data, attr, mask);
@@ -654,14 +655,14 @@ void m0_clovis_obj_op(struct m0_clovis_obj       *obj,
 		m0_sm_group_unlock(&(*op)->op_sm_group);
 		goto exit;
 	}
- 	M0_POST(*op != NULL &&
- 		(*op)->op_code == opcode &&
- 		(*op)->op_sm.sm_state == M0_CLOVIS_OS_INITIALISED);
+	M0_POST(*op != NULL &&
+		(*op)->op_code == opcode &&
+		(*op)->op_sm.sm_state == M0_CLOVIS_OS_INITIALISED);
 
 
 exit:
- 	M0_LEAVE();
- 	return;
+	M0_LEAVE();
+	return;
 }
 M0_EXPORTED(m0_clovis_obj_op);
 

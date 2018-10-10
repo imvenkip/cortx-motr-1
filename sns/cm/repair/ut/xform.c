@@ -550,7 +550,7 @@ static int xform_init(void)
 	tgt_fid_cob_create(reqh);
 
 	scm_service = m0_reqh_service_find(
-		m0_reqh_service_type_find("sns_repair"), reqh);
+		m0_reqh_service_type_find("M0_CST_SNS_REP"), reqh);
         M0_ASSERT(scm_service != NULL);
 
         cm = container_of(scm_service, struct m0_cm, cm_service);

@@ -55,15 +55,11 @@
       vars:
         repo_name: '{{ (item == "base") | ternary("os", item) }}'
         version:   '{{ redhat_vault_repo.stdout | regex_replace("^C(.*)$", "\1") }}'
-        # TODO: server and distro can be removed when 7.4 moves from mirror server to vault
-        #       and all versions can be downloaded from vault
-        server:    '{{ (version == "7.4.1708") | ternary("mirror", "vault") }}'
-        distro:    '{{ (version == "7.4.1708") | ternary("centos/", "") }}'
       yum_repository:
         file:        CentOS-Vault
         name:        '{{ redhat_vault_repo.stdout }}-{{ item }}'
         description: CentOS-{{version}} - {{ item | capitalize }}
-        baseurl:     http://{{server}}.centos.org/{{distro}}{{version}}/{{repo_name}}/$basearch/
+        baseurl:     http://vault.centos.org/{{version}}/{{repo_name}}/$basearch/
         gpgkey:      file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7
         gpgcheck:    yes
       with_items:
@@ -149,9 +145,17 @@
       tags: start-services
 
     - name: disable broken CentOS-Sources.repo yum config
-      command: mv /etc/yum.repos.d/CentOS-Sources.repo{,.disabled}
+      shell: mv /etc/yum.repos.d/CentOS-Sources.repo{,.disabled}
       args:
         creates: /etc/yum.repos.d/CentOS-Sources.repo.disabled
+
+- name: enable persitent storage for journald
+  ini_file:
+    path:    /etc/systemd/journald.conf
+    section: Journal
+    option:  Storage
+    value:   persistent
+    no_extra_spaces: yes
 
 - name: start avahi
   service: name={{ avahi_service }} state=started enabled=yes
@@ -170,6 +174,24 @@
     create: yes
     line:   'export EDITOR=vi'
 
+- name: enable kernel crash dumps
+  block:
+    - name: create /var/crash dir
+      file:
+        path:  /var/crash
+        state: directory
+
+    - name: set global crash dumps location
+      sysctl:
+        name:  kernel.core_pattern
+        value: /var/crash/core.%u.%e.%p
+
+    - name: install kernel dump tools
+      package:
+        state: present
+        name:  kexec-tools
+      tags: breaks-dry-run
+
 - name: restart machine
   when: reboot_required.rc == 1
   block:
@@ -182,7 +204,7 @@
     - name: re-connect to rebooted machine before continuing
       command:  /bin/true
       register: online
-      until:    online|success
+      until:    online is success
   tags:
     - reboot
     - breaks-dry-run

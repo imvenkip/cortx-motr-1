@@ -332,7 +332,7 @@ static void test_spiel_service_order(void)
 	M0_UT_ASSERT(rc > 0);
 	M0_UT_ASSERT(svcs != NULL);
 	for (i = 0; i < rc; ++i) {
-		found |= strcmp(svcs[i].spls_name, "rmservice") == 0;
+		found |= m0_streq(svcs[i].spls_name, "M0_CST_RMS");
 		m0_free(svcs[i].spls_name);
 	}
 	m0_free(svcs);

@@ -371,13 +371,13 @@ M0_INTERNAL int m0_mdstore_unlink(struct m0_mdstore     *md,
 
 	M0_ENTRY(FID_F"/%.*s", FID_P(pfid),
 		 (int)name->b_nob, (char *)name->b_addr);
+	M0_ASSERT(pfid != NULL);
+	M0_ASSERT(cob != NULL);
 	M0_LOG(M0_DEBUG, FID_F"/%.*s->"FID_F",%d cob",
 	       FID_P(&cob->co_nskey->cnk_pfid),
 	       m0_bitstring_len_get(&cob->co_nskey->cnk_name),
 	       (char *)m0_bitstring_buf_get(&cob->co_nskey->cnk_name),
 	       FID_P(&cob->co_nsrec.cnr_fid), cob->co_nsrec.cnr_linkno);
-	M0_ASSERT(pfid != NULL);
-	M0_ASSERT(cob != NULL);
 
         /* We don't allow unlink in .mero and .mero/fid directories. */
         if (m0_fid_cmp(pfid, &M0_MDSERVICE_SLASH_FID) < 0) {
@@ -761,7 +761,7 @@ M0_INTERNAL int m0_mdstore_readdir(struct m0_mdstore       *md,
 			goto out_end;
 		}
 		last = ent;
-		ent = (void *)ent + reclen;
+		ent = (struct m0_dirent *)((char *)ent + reclen);
 		nob -= reclen;
 		if (!dot)
 			rc = m0_cob_iterator_next(&it);

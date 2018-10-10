@@ -1428,7 +1428,7 @@ int m0_clovis_init(struct m0_clovis **m0c_p,
 	/* initialise this m0_clovis instance */
 	M0_ALLOC_PTR(m0c);
 	if (m0c == NULL)
-		return M0_RC(-ENOMEM);
+		return M0_ERR(-ENOMEM);
 	m0_clovis_bob_init(m0c);
 
 	/* Set configuration parameters */

@@ -926,11 +926,10 @@ static int clovis_sync_op_init(struct m0_clovis_op *op)
 
 	M0_ENTRY();
 
+	op->op_code = M0_CLOVIS_EO_SYNC;
 	rc = m0_clovis_op_init(op, &clovis_op_conf, NULL);
 	if (rc != 0)
 		return M0_RC(rc);
-	op->op_code = M0_CLOVIS_EO_SYNC;
-
 	/*
 	 * Initialise m0_clovis_op_common part.
 	 * bob_init()'s haven't been called yet: we use M0_AMB().

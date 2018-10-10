@@ -67,7 +67,7 @@ static const struct m0_reqh_service_ops fdms_ops = {
 
 #ifndef __KERNEL__
 M0_INTERNAL struct m0_reqh_service_type m0_fdmi_service_type = {
-	.rst_name       = "fdmi",
+	.rst_name       = "M0_CST_FDMI",
 	.rst_ops        = &fdms_type_ops,
 	.rst_level      = M0_FDMI_SVC_LEVEL,
 	.rst_typecode   = M0_CST_FDMI,

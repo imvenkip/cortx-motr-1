@@ -475,7 +475,7 @@ static void _stop_rms(struct m0_rpc_machine *rmach)
 
 	service = m0_reqh_service_lookup(reqh, &rm_fid);
 	M0_UT_ASSERT(service != NULL);
-	M0_UT_ASSERT(m0_streq(service->rs_type->rst_name, "rmservice"));
+	M0_UT_ASSERT(m0_streq(service->rs_type->rst_name, "M0_CST_RMS"));
 	m0_reqh_service_prepare_to_stop(service);
 	m0_reqh_idle_wait_for(reqh, service);
 	m0_reqh_service_stop(service);

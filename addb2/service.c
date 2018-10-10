@@ -241,12 +241,11 @@ static const struct m0_reqh_service_ops addb2_service_ops = {
 };
 
 M0_INTERNAL struct m0_reqh_service_type m0_addb2_service_type = {
-	.rst_name     = "addb2",
+	.rst_name     = "M0_CST_ADDB2",
 	.rst_ops      = &addb2_service_type_ops,
 	.rst_level    = M0_RS_LEVEL_NORMAL,
 	.rst_typecode = M0_CST_ADDB2
 };
-
 
 #undef M0_TRACE_SUBSYSTEM
 

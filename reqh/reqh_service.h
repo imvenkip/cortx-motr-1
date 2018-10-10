@@ -102,7 +102,7 @@ struct m0_rpc_session;
    - define service type,
    @code
    struct m0_reqh_service_type m0_ios_type = {
-	.rst_name     = "ioservice",
+	.rst_name     = "M0_CST_IOS",
 	.rst_ops      = &ios_type_ops,
 	.rst_level    = M0_RS_LEVEL_NORMAL,
 	.rst_typecode = M0_CST_IOS,
@@ -764,7 +764,6 @@ struct m0_reqh_service_ctx {
 
 	struct m0_sm                sc_sm;
 	struct m0_sm_group          sc_sm_grp;
-	struct m0_semaphore         sc_state_wait;
 
 	/** Linkage into external list of service contexts. */
 	struct m0_tlink             sc_link;

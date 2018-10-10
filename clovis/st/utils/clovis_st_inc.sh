@@ -28,7 +28,7 @@ function clovis_st_start_k ()
 			;;
 	esac
 
-	local st_kmod=$mero_src/clovis/st/linux_kernel/clovis_st_kmod.ko
+	local st_kmod=$mero_src/clovis_st_kmod.ko
 	local st_kmod_args="clovis_local_addr=$LOCAL_EP \
 			    clovis_ha_addr=$HA_EP \
 			    clovis_prof=$PROF_OPT \

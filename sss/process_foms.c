@@ -572,7 +572,7 @@ static int ss_process_lib_load(struct m0_fom *fom)
 			(*initcall)();
 		return M0_RC(0);
 	} else
-		return M0_ERR(-EINVAL);
+		return M0_ERR_INFO(-EINVAL, "libname: %s", libname);
 #else
 	/** @todo implement kernel module loading. */
 	return M0_ERR(-ENOSYS);

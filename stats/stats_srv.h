@@ -69,7 +69,6 @@
  * @defgroup stats_svc Stats Service
  * @{
  */
-#define M0_STATS_SVC_NAME "stats"
 
 extern struct m0_reqh_service_type m0_stats_svc_type;
 

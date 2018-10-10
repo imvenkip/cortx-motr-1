@@ -111,9 +111,6 @@ M0_INTERNAL int m0_confc_service_find(struct m0_confc           *confc,
 				      const char                *ep,
 				      struct m0_conf_obj       **result);
 
-/** Get service name by service configuration object */
-M0_INTERNAL char *m0_conf_service_name_dup(const struct m0_conf_service *svc);
-
 M0_INTERNAL struct m0_reqh *m0_conf_obj2reqh(const struct m0_conf_obj *obj);
 
 M0_INTERNAL struct m0_reqh *m0_confc2reqh(const struct m0_confc *confc);

@@ -799,25 +799,21 @@ M0_INTERNAL void m0_reqh_service_disconnect(struct m0_reqh_service_ctx *ctx)
 static int reqh_service_ctx_state_wait(struct m0_reqh_service_ctx *ctx,
 				       int                         state)
 {
-	int st;
 	int rc;
 
 	M0_PRE(M0_IN(state, (M0_RSC_ONLINE, M0_RSC_OFFLINE)));
 
-	while (true) {
-		reqh_service_ctx_sm_lock(ctx);
-		st = CTX_STATE(ctx);
-		M0_ASSERT(ergo(st == M0_RSC_ONLINE,
-			       m0_rpc_link_is_connected(&ctx->sc_rlink)));
-		M0_ASSERT(ergo(st == M0_RSC_OFFLINE,
-			       !m0_rpc_link_is_connected(&ctx->sc_rlink)));
-		reqh_service_ctx_sm_unlock(ctx);
-		if (st == state) {
-			rc = ctx->sc_rlink.rlk_rc;
-			break;
-		}
-		m0_semaphore_down(&ctx->sc_state_wait);
-	}
+	reqh_service_ctx_sm_lock(ctx);
+	rc = m0_sm_timedwait(&ctx->sc_sm, M0_BITS(state), M0_TIME_NEVER);
+	M0_ASSERT_INFO(rc == 0, "rc = %d", rc);
+	M0_ASSERT(CTX_STATE(ctx) == state);
+	M0_ASSERT(ergo(state == M0_RSC_ONLINE,
+		       m0_rpc_link_is_connected(&ctx->sc_rlink)));
+	M0_ASSERT(ergo(state == M0_RSC_OFFLINE,
+		       !m0_rpc_link_is_connected(&ctx->sc_rlink)));
+	rc = ctx->sc_rlink.rlk_rc;
+	reqh_service_ctx_sm_unlock(ctx);
+
 	return rc;
 }
 
@@ -985,7 +981,6 @@ M0_INTERNAL void m0_reqh_service_ctx_fini(struct m0_reqh_service_ctx *ctx)
 	m0_clink_fini(&ctx->sc_process_event);
 	m0_clink_fini(&ctx->sc_svc_event);
 	m0_mutex_fini(&ctx->sc_max_pending_tx_lock);
-	m0_semaphore_fini(&ctx->sc_state_wait);
 	m0_reqh_service_ctx_bob_fini(ctx);
 	if (reqh_service_ctx_flag_is_set(ctx, M0_RSC_RLINK_INITED))
 		m0_rpc_link_fini(&ctx->sc_rlink);
@@ -1063,16 +1058,6 @@ static void reqh_service_ctx_ast_cb(struct m0_sm_group *grp,
 	if (CTX_STATE(ctx) == M0_RSC_ONLINE && disconnect)
 		reqh_service_disconnect_locked(ctx);
 
-	/* Notify wait functions only for ONLINE and OFFLINE states. */
-	if (M0_IN(CTX_STATE(ctx), (M0_RSC_ONLINE, M0_RSC_OFFLINE))) {
-		/*
-		 * Standard use-case is when user calls wait functions only
-		 * two times: during initialisation and during shutdown.
-		 * Don't let semaphore counter grow on every reconnect.
-		 */
-		(void)m0_semaphore_trydown(&ctx->sc_state_wait);
-		m0_semaphore_up(&ctx->sc_state_wait);
-	}
 	reqh_service_ctx_sm_unlock(ctx);
 }
 
@@ -1245,7 +1230,6 @@ M0_INTERNAL int m0_reqh_service_ctx_init(struct m0_reqh_service_ctx *ctx,
 	ctx->sc_type = stype;
 	ctx->sc_fid_process = proc_obj->co_id;
 	m0_reqh_service_ctx_bob_init(ctx);
-	m0_semaphore_init(&ctx->sc_state_wait, 0);
 	m0_mutex_init(&ctx->sc_max_pending_tx_lock);
 	m0_clink_init(&ctx->sc_svc_event, service_event_handler);
 	m0_clink_init(&ctx->sc_process_event, process_event_handler);

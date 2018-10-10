@@ -2,7 +2,7 @@
 latest: centos-image lustre-client-image mero-devel-image
 
 CENTOS_RELEASE  := latest
-LUSTRE_VERSION  := 2.11.0
+LUSTRE_VERSION  := 2.10.4
 NAMESPACE       := seagate
 DOCKER          := docker
 
@@ -16,16 +16,18 @@ DOCKER          := docker
         push
 
 7.4: CENTOS_RELEASE := 7.4.1708
-7.4: LUSTRE_VERSION := 2.11.0
+7.4: LUSTRE_VERSION := 2.10.3
 7.4: DOCKER_OPTS += --build-arg CENTOS_RELEASE=$(CENTOS_RELEASE) \
                     --build-arg LUSTRE_VERSION=$(LUSTRE_VERSION)
 7.4: centos-vault-image lustre-client-image mero-devel-image
+	$(DOCKER) tag $(NAMESPACE)/mero-devel:$(CENTOS_RELEASE) $(NAMESPACE)/mero-devel:$(basename $(CENTOS_RELEASE))
 
 7.3: CENTOS_RELEASE := 7.3.1611
 7.3: LUSTRE_VERSION := 2.9.0
 7.3: DOCKER_OPTS += --build-arg CENTOS_RELEASE=$(CENTOS_RELEASE) \
                     --build-arg LUSTRE_VERSION=$(LUSTRE_VERSION)
 7.3: centos-vault-image lustre-client-image mero-devel-image
+	$(DOCKER) tag $(NAMESPACE)/mero-devel:$(CENTOS_RELEASE) $(NAMESPACE)/mero-devel:$(basename $(CENTOS_RELEASE))
 
 
 INAME = $(@:%-image=%)
@@ -46,8 +48,8 @@ lustre-client-image mero-devel-image:
 	&& tar -ch . \
 	   | $(DOCKER) build -t $(NAMESPACE)/$(INAME):$(TAG) $(DOCKER_OPTS) -
 
-name := [lm]*
-tag  := *
+push: name := [lm]*
+push: tag  := *
 push:
 	@for img in $$(docker images --filter=reference='$(NAMESPACE)/$(name):$(tag)' \
 				    --format '{{.Repository}}:{{.Tag}}' \
@@ -57,6 +59,8 @@ push:
 		$(DOCKER) push $$img ; \
 	done
 
+clean: name := [clm]*
+clean: tag  := *
 clean:
 	@for img in $$(docker images --filter=reference='$(NAMESPACE)/$(name):$(tag)' \
 				    --format '{{.Repository}}:{{.Tag}}') ; \
@@ -71,7 +75,7 @@ help:
 	@echo '                    and latest supported Lustre version, this is the'
 	@echo '                    default, same as just `make`'
 	@echo '  7.4             - build images based on CentOS 7.4.1708 snapshot and'
-	@echo '                    Lustre 2.11.0'
+	@echo '                    Lustre 2.10.3'
 	@echo '  7.3             - build images based on CentOS 7.3.1611 snapshot and'
 	@echo '                    Lustre 2.9.0'
 	@echo ''

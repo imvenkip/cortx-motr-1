@@ -56,13 +56,13 @@ static const struct m0_reqh_service_ops ds2_service_ops = {
 };
 
 struct m0_reqh_service_type ds1_service_type = {
-	.rst_name  = "ds1",
+	.rst_name  = "M0_CST_DS1",
 	.rst_ops   = &ds1_service_type_ops,
 	.rst_level = M0_RS_LEVEL_NORMAL,
 };
 
 struct m0_reqh_service_type ds2_service_type = {
-	.rst_name  = "ds2",
+	.rst_name  = "M0_CST_DS2",
 	.rst_ops   = &ds2_service_type_ops,
 	.rst_level = M0_RS_LEVEL_NORMAL,
 };

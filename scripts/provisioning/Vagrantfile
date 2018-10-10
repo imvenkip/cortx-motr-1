@@ -325,12 +325,13 @@ def setup(node, cpu_nr, mem_mb, disk_nr = 0, disk_size = 1)
     # re-use master VM disk as copy-on-write base image
     v.linked_clone = true
 
+    # serial console file
+    v.customize ['modifyvm', :id, '--uart1', '0x3F8', 4, '--uartmode1', 'file',
+                File.expand_path(console_log_dir).to_s + "/console_#{node.vm.hostname}.log"]
+
     if not provisioned?(node.vm.hostname)
       # sata controller
       v.customize ['storagectl', :id, '--name', 'sata-controller', '--add', 'sata']
-      # serial console file
-      v.customize ['modifyvm', :id, '--uart1', '0x3F8', 4, '--uartmode1', 'file',
-                   File.expand_path(console_log_dir).to_s + "/console_#{node.vm.hostname}.log"]
       # delay guest-additions installation until VM is fully provisioned if a
       # specific box version requested, otherwise incorrect kernel headers
       # would be installed and guest-additions fail to build

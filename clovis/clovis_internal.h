@@ -48,6 +48,7 @@
 #include "rm/rm.h"              /* stuct m0_rm_owner */
 #include "file/file.h"          /* struct m0_file */
 #include "mero/ha.h"            /* m0_mero_ha */
+#include "addb2/identifier.h"
 
 /** @todo: remove this - its part of the test framework */
 #include "be/ut/helper.h"       /* struct m0_be_ut_backend */
@@ -729,6 +730,11 @@ M0_INTERNAL void m0_clovis__obj_attr_set(struct m0_clovis_obj *obj,
 M0_INTERNAL int m0_clovis__obj_io_build(struct m0_clovis_io_args *args,
 					struct m0_clovis_op **op);
 M0_INTERNAL void m0_clovis__obj_op_done(struct m0_clovis_op *op);
+
+enum {
+	M0_AVI_CLOVIS_OP = M0_AVI_CLOVIS_RANGE_START + 1,
+	M0_AVI_CLOVIS_IO_OP
+};
 
 /** @} end of clovis group */
 

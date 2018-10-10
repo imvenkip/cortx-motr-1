@@ -68,7 +68,7 @@ static const struct m0_reqh_service_ops mds_ops = {
 };
 
 struct m0_reqh_service_type m0_mds_type = {
-	.rst_name     = "mdservice",
+	.rst_name     = "M0_CST_MDS",
 	.rst_ops      = &mds_type_ops,
 	.rst_level    = M0_MD_SVC_LEVEL,
 	.rst_typecode = M0_CST_MDS,

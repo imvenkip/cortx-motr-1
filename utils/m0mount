@@ -225,7 +225,7 @@ else
 	M0MKFS=$M0_SRC_DIR/utils/mkfs/m0mkfs
 	M0LAYOUT=$M0_SRC_DIR/utils/m0layout
 	SUMFILE=$M0_SRC_DIR/mero/.libs/m0d
-	MERO_KO_LOAD_CMD="insmod $M0_SRC_DIR/mero/m0mero.ko"
+	MERO_KO_LOAD_CMD="insmod $M0_SRC_DIR/m0mero.ko"
 	GF_KO_LOAD_CMD="insmod $M0_SRC_DIR/extra-libs/gf-complete/src/linux_kernel/m0gf.ko"
 fi
 

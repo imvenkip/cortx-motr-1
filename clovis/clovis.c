@@ -92,6 +92,9 @@ M0_EXPORTED(M0_CLOVIS_UBER_REALM);
 const struct m0_uint128 M0_CLOVIS_ID_APP = { 0ULL, 0x100000ULL };
 M0_EXPORTED(M0_CLOVIS_ID_APP);
 
+enum { MAX_OPCODE = 256 };
+static uint64_t opcount[MAX_OPCODE];
+
 /**
  * State machine phases for clovis operations.
  * Note: sd_flags of OS_EXECUTED is set to M0_SDF_TERMINAL to allow an
@@ -440,6 +443,12 @@ M0_EXPORTED(m0_clovis_obj_fini);
  *                                Operations                                   *
  *-----------------------------------------------------------------------------*/
 
+static void op_addb2_report(struct m0_clovis_op *op)
+{
+	M0_ADDB2_ADD(M0_AVI_CLOVIS_OP, (uint64_t)op, op->op_code, op->op_count,
+		     op->op_sm.sm_state, op->op_rc);
+}
+
 /**
  * This executes the optional user-provided callback.
  * Called with the group lock held.
@@ -667,13 +676,17 @@ M0_INTERNAL int m0_clovis_op_init(struct m0_clovis_op *op,
 	m0_clovis_op_bob_init(op);
 	op->op_entity = entity;
 
-	/* XXX initalise a cookie? or wait for launch to do that... */
+	/* XXX initialise a cookie? or wait for launch to do that... */
 	/*(*op)->op_gen = ?;*/
 
-	/* Initalise the state machine. */
+	/* Initialise the state machine. */
 	grp = &op->op_sm_group;
 	m0_sm_group_init(grp);
 	m0_sm_init(&op->op_sm, conf, M0_CLOVIS_OS_INITIALISED, grp);
+
+	M0_ASSERT(IS_IN_ARRAY(op->op_code, opcount));
+	op->op_count = opcount[op->op_code]++; /* XXX lock! */
+	op_addb2_report(op);
 
 	/* m0_sm_invariant must be checked under sm_group lock. */
 	m0_sm_group_lock(grp);
@@ -781,7 +794,6 @@ M0_EXPORTED(m0_clovis_rc);
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"
-
  *  c-basic-offset: 8
  *  tab-width: 8
  *  fill-column: 80

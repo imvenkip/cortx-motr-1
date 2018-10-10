@@ -41,8 +41,6 @@
 #define CLIENT_DB_NAME        "sss_ut_client.db"
 #define CLIENT_ENDPOINT_ADDR  "0@lo:12345:34:*"
 
-#define SERVICE_NAME "mdservice"
-
 enum {
 	MAX_RPCS_IN_FLIGHT = 1,
 };
@@ -148,7 +146,7 @@ static void sss_ut_req(uint32_t cmd,
 	struct m0_rpc_item *item;
 	struct m0_sss_rep  *ss_rfop;
 
-	fop = sss_ut_fop_alloc(SERVICE_NAME, cmd);
+	fop = sss_ut_fop_alloc("M0_CST_MDS", cmd);
 	item = &fop->f_item;
 	rc = m0_rpc_post_sync(fop, &cctx.rcx_session, NULL, 0);
 	M0_UT_ASSERT(rc == 0);

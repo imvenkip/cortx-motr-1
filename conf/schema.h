@@ -169,7 +169,7 @@ enum {
 	X_CST(M0_CST_IOS)     /**< IO service */                 \
 	X_CST(M0_CST_CONFD)   /**< Confd service */              \
 	X_CST(M0_CST_RMS)     /**< Resource management */        \
-	X_CST(M0_CST_STS)     /**< Stats service */              \
+	X_CST(M0_CST_STATS)   /**< Stats service */              \
 	X_CST(M0_CST_HA)      /**< HA service */                 \
 	X_CST(M0_CST_SSS)     /**< Start/stop service */         \
 	X_CST(M0_CST_SNS_REP) /**< SNS repair */                 \
@@ -182,7 +182,9 @@ enum {
 	X_CST(M0_CST_DS2)     /**< Dummy service 2 */            \
 	X_CST(M0_CST_FIS)     /**< Fault injection service */    \
 	X_CST(M0_CST_FDMI)    /**< FDMI service */               \
-	X_CST(M0_CST_BE)      /**< BE service */
+	X_CST(M0_CST_BE)      /**< BE service */                 \
+	X_CST(M0_CST_M0T1FS)  /**< m0t1fs service */             \
+	X_CST(M0_CST_CLOVIS)  /**< Clovis service */
 
 enum m0_conf_service_type {
 #define X_CST(name) name,

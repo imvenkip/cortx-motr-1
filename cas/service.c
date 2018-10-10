@@ -2578,7 +2578,7 @@ static const struct m0_reqh_service_ops cas_service_ops = {
 };
 
 M0_INTERNAL struct m0_reqh_service_type m0_cas_service_type = {
-	.rst_name     = "cas",
+	.rst_name     = "M0_CST_CAS",
 	.rst_ops      = &cas_service_type_ops,
 	.rst_level    = M0_RS_LEVEL_NORMAL,
 	.rst_typecode = M0_CST_CAS

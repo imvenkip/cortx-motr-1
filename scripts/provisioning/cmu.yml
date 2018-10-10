@@ -8,7 +8,7 @@
     - name: reinstall all packages (hack for restoring man pages)
       command:   'yum -y reinstall "*"'
       args:
-        creates: '/usr/share/man/man1/ls.1.gz'
+        creates: '/usr/share/man/man8/rpm.8.gz'
       when: ansible_os_family == 'RedHat'
       tags:
         - reinstall-all

@@ -552,7 +552,7 @@ static void receiver_init(bool ag_create)
 
 	s0_reqh = m0_cs_reqh_get(&sctx);
 	scm_service = m0_reqh_service_find(
-		m0_reqh_service_type_find("sns_repair"), s0_reqh);
+		m0_reqh_service_type_find("M0_CST_SNS_REP"), s0_reqh);
 	M0_UT_ASSERT(scm_service != NULL);
 
 	recv_cm = container_of(scm_service, struct m0_cm, cm_service);

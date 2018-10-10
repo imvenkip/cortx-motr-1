@@ -398,7 +398,7 @@
    Bulk I/O Service defines service type as follows -
 
    struct m0_reqh_service_type m0_ios_type = {
-	.rst_name     = "ioservice",
+	.rst_name     = "M0_CST_IOS",
 	.rst_ops      = &ios_type_ops,
 	.rst_level    = M0_RS_LEVEL_NORMAL,
 	.rst_typecode = M0_CST_IOS,
@@ -567,8 +567,6 @@ Mm8pb2tQpfGoT-OFgrcF_7wxKoQ/edit?hl=en_US">High Level Design - FOP State Machine
  * @addtogroup io_foms
  * @{
  */
-
-#define IOSERVICE_NAME "ioservice"
 
 M0_TL_DESCR_DEFINE(stobio, "STOB I/O", static, struct m0_stob_io_desc,
 		   siod_linkage,  siod_magic,
@@ -2238,7 +2236,7 @@ M0_INTERNAL const char *m0_io_fom_cob_rw_service_name(struct m0_fom *fom)
 	M0_PRE(fom != NULL);
 	M0_PRE(fom->fo_fop != NULL);
 
-	return IOSERVICE_NAME;
+	return "M0_CST_IOS";
 }
 
 static void io_fom_addb2_descr(struct m0_fom *fom)

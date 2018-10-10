@@ -1377,7 +1377,7 @@ clean-doc:
 install-kernel-modules:
 	@test -n "$$DESTDIR"
 	@$(MAKE) INSTALL_MOD_PATH=$(DESTDIR) \
-		 INSTALL_MOD_DIR=$${INSTALL_MOD_DIR:-kernel/fs} \
+		 INSTALL_MOD_DIR=$${INSTALL_MOD_DIR:-kernel/fs/mero} \
 		 -C $(KDIR) M=$(abs_top_builddir) modules_install
 
 install-exec-local: install-kernel-modules
@@ -1444,11 +1444,9 @@ __rpm_mock:
 	mock -r mero-mock.cfg --resultdir $(RPM_MOCK_DIR) --buildsrpm \
 		--spec $(RPM_SPEC_DIR)/mero.spec \
 		--sources $(RPM_SRC_DIR) \
-		--rpmbuild-opts='--with intel_lustre' \
 		--no-clean --no-cleanup-after
 	mock -r mero-mock.cfg --resultdir $(RPM_MOCK_DIR) --rebuild \
 		$(RPM_MOCK_DIR)/mero-*.src.rpm \
-		--rpmbuild-opts='--with intel_lustre' \
 		--no-clean --no-cleanup-after
 
 # __rpm_tests should be built before __rpm, because __rpm_tests creates a dummy

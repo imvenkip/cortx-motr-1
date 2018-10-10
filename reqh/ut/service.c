@@ -87,7 +87,7 @@ static void test_service(void)
 	m0_ut_rpc_mach_init_and_add(&rmach_ctx);
 
 	reqh = &rmach_ctx.rmc_reqh;
-	svct = m0_reqh_service_type_find("ds1");
+	svct = m0_reqh_service_type_find("M0_CST_DS1");
 	M0_UT_ASSERT(svct != NULL);
 
 	rc = m0_reqh_service_allocate(&reqh_svc, svct, NULL);

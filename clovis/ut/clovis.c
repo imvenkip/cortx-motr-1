@@ -923,6 +923,7 @@ static void ut_clovis_test_m0_clovis_op_init(void)
 
 	/* base case: no asserts triggered */
 	op_p = &op;
+	op.op_code = M0_CLOVIS_EO_INVALID;
 	rc = m0_clovis_op_init(op_p, &clovis_op_conf, &ent);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(op.op_sm.sm_state == M0_CLOVIS_OS_INITIALISED);
@@ -1047,6 +1048,7 @@ static void ut_clovis_test_m0_clovis_op_fini(void)
 	op = NULL;
 	rc = m0_clovis_op_alloc(&op, sizeof *oc);
 	M0_UT_ASSERT(rc == 0);
+	op->op_code = M0_CLOVIS_EO_INVALID;
 	rc = m0_clovis_op_init(op, &clovis_op_conf, &ent);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(op->op_size >= sizeof *oc);
@@ -1145,6 +1147,7 @@ static void ut_clovis_test_m0_clovis_op_kick(void)
 	ut_clovis_realm_entity_setup(&realm, &ent, instance);
 
 	op_p = &op;
+	op.op_code = M0_CLOVIS_EO_INVALID;
 	rc = m0_clovis_op_init(op_p, &clovis_op_conf, &ent);
 	M0_UT_ASSERT(rc == 0);
 

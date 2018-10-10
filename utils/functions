@@ -61,7 +61,7 @@ m0_modules_insert() {
     insmod $M0_SRC_DIR/extra-libs/gf-complete/src/linux_kernel/m0gf.ko ||
         die 'Inserting m0gf.ko failed'
 
-    insmod $M0_SRC_DIR/mero/m0mero.ko \
+    insmod $M0_SRC_DIR/m0mero.ko \
     local_addr=${M0T1FS_ENDPOINT%:*}: \
     max_rpc_msg_size=$MAX_RPC_MSG_SIZE \
     tm_recv_queue_min_len=$TM_MIN_RECV_QUEUE_LEN \
@@ -72,7 +72,7 @@ m0_modules_insert() {
         rmmod m0gf
         die 'Inserting m0mero.ko failed'
     }
-    insmod $M0_SRC_DIR/mero/m0ctl.ko || {
+    insmod $M0_SRC_DIR/m0ctl.ko || {
         rmmod m0mero
         rmmod m0gf
         die 'inserting m0ctl failed'

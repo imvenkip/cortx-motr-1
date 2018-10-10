@@ -16,10 +16,10 @@
 
 - name: configure 'Lustre' repository
   yum_repository:
-    name:        lustre-intel-{{ item.version }}
-    file:        lustre-intel
-    description: Intel - Lustre {{ item.version }}
-    baseurl:     https://downloads.hpdd.intel.com/public/lustre/lustre-{{ item.version }}/el7/client/
+    name:        lustre-whamcloud-{{ item.version }}
+    file:        lustre-whamcloud
+    description: Whamcloud - Lustre {{ item.version }}
+    baseurl:     https://downloads.whamcloud.com/public/lustre/lustre-{{ item.version }}/el7/client/
     enabled:     '{{ item.enabled }}'
     # disable signature verification
     gpgcheck: no
@@ -27,7 +27,10 @@
     - { version: 2.7.0,  enabled: '{{ (redhat_release.stdout == "7.0") | ternary("yes", "no") }}' }
     - { version: 2.8.0,  enabled: '{{ (redhat_release.stdout == "7.2") | ternary("yes", "no") }}' }
     - { version: 2.9.0,  enabled: '{{ (redhat_release.stdout == "7.3") | ternary("yes", "no") }}' }
-    - { version: 2.11.0, enabled: '{{ (redhat_release.stdout is version("7.4", ">=")) | ternary("yes", "no") }}' }
+    - { version: 2.10.3, enabled: '{{ (redhat_release.stdout == "7.4") | ternary("yes", "no") }}' }
+    - { version: 2.10.4, enabled: '{{ (redhat_release.stdout == "7.5") | ternary("yes", "no") }}' }
+    # can be useful for future releases:
+    #- { version: 2.11.0, enabled: '{{ (redhat_release.stdout is version("7.5", ">=")) | ternary("yes", "no") }}' }
   when: ansible_os_family == 'RedHat'
   tags:
     - lustre

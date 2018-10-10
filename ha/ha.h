@@ -337,6 +337,11 @@ M0_INTERNAL void m0_ha_process_failed(struct m0_ha        *ha,
 M0_INTERNAL struct m0_ha_link *m0_ha_outgoing_link(struct m0_ha *ha);
 M0_INTERNAL struct m0_rpc_session *m0_ha_outgoing_session(struct m0_ha *ha);
 
+M0_INTERNAL void m0_ha_rpc_endpoint(struct m0_ha      *ha,
+                                    struct m0_ha_link *hl,
+                                    char              *buf,
+                                    m0_bcount_t        buf_len);
+
 M0_INTERNAL int  m0_ha_mod_init(void);
 M0_INTERNAL void m0_ha_mod_fini(void);
 

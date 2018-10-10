@@ -136,8 +136,8 @@ static void iter_setup(enum m0_cm_op op, uint64_t fd)
 	M0_ASSERT(rc == 0);
 
 	reqh = m0_cs_reqh_get(&sctx);
-	service = m0_reqh_service_find(m0_reqh_service_type_find("sns_repair"),
-				       reqh);
+	service = m0_reqh_service_find(
+		m0_reqh_service_type_find("M0_CST_SNS_REP"), reqh);
 	M0_UT_ASSERT(service != NULL);
 
 	cm = container_of(service, struct m0_cm, cm_service);

@@ -83,6 +83,36 @@
 #include "ha/link_fops.h"       /* m0_ha_link_msg_fopt */
 #include "ha/link_service.h"    /* m0_ha_link_service_register */
 
+
+enum {
+	/**
+	 * If incoming HA link fop arrives and the link it's supposed to arrive
+	 * to is not there the code emits a warning. The problem here is that it
+	 * might be a case when the link is going to be created shortly after,
+	 * so the warning is a false positive. This parameter allows to suppress
+	 * a number of first messages for the link.
+	 *
+	 * The normal case:
+	 * @verbatim
+	 * remote                               local
+	 *   <--------------------------------- sends entrypoint request
+	 * makes local and remote
+	 * link parameters
+	 * creates the link
+	 * sends the entrypoint reply ----------->
+	 *                                      creates the link
+	 * sends the first message -------------->
+	 *                                      the message arrives,
+	 *                                      everything is fine, no warning.
+	 * @endverbatim
+	 *
+	 * If the first message from remote is sent before local creates the
+	 * link, then the message arrives for non-existent link which leads
+	 * to the false positive warning.
+	 */
+	HA_LINK_SUPPRESS_START_NR = 3,
+};
+
 static struct m0_sm_state_descr ha_link_sm_states[] = {
 	[M0_HA_LINK_STATE_INIT] = {
 		.sd_flags   = M0_SDF_INITIAL,
@@ -228,6 +258,7 @@ M0_INTERNAL int m0_ha_link_init(struct m0_ha_link     *hl,
 	hl->hln_fom_is_stopping = false;
 	hl->hln_fom_enable_wakeup = true;
 	hl->hln_no_new_delivered = false;
+	hl->hln_req_fop_seq = 0;
 	return M0_RC(0);
 }
 
@@ -886,8 +917,21 @@ static int ha_link_incoming_fom_tick(struct m0_fom *fom)
 		       m0_ha_msg_type_get(msg), m0_ha_msg_tag(msg));
 	}
 	if (hl == NULL) {
-		M0_LOG(M0_WARN, "no such link: ep=%s lmf_id_remote="U128X_F,
-		       ep, U128_P(&req_fop->lmf_id_remote));
+		/*
+		 * The first M0_LOG() parameter must be a compile-time
+		 * constant.
+		 */
+		if (req_fop->lmf_seq <= HA_LINK_SUPPRESS_START_NR) {
+			M0_LOG(M0_DEBUG, "no such link: ep=%s "
+			       "lmf_id_remote="U128X_F" lmf_seq=%"PRIu64,
+			       ep, U128_P(&req_fop->lmf_id_remote),
+			       req_fop->lmf_seq);
+		} else {
+			M0_LOG(M0_WARN, "no such link: ep=%s "
+			       "lmf_id_remote="U128X_F" lmf_seq=%"PRIu64,
+			       ep, U128_P(&req_fop->lmf_id_remote),
+			       req_fop->lmf_seq);
+		}
 		rep_fop->lmr_rc = -ENOLINK;
 	} else if (!m0_uint128_eq(&id_connection,
 				  &req_fop->lmf_id_connection)) {
@@ -1132,16 +1176,19 @@ static int ha_link_outgoing_fop_send(struct m0_ha_link *hl)
 	req_fop->lmf_id_local       = params->hlp_id_local;
 	req_fop->lmf_id_remote      = params->hlp_id_remote;
 	req_fop->lmf_id_connection  = params->hlp_id_connection;
+	req_fop->lmf_seq            = ++hl->hln_req_fop_seq;
 	ha_link_tags_in_out(hl, &req_fop->lmf_out_next,
 	                    &req_fop->lmf_in_delivered);
 	M0_LOG(M0_DEBUG, "lmf_id_remote="U128X_F" lmf_id_local="U128X_F" "
-	       "lmf_id_connection="U128X_F" lmf_msg_nr=%"PRIu64" tag=%"PRIu64,
+	       "lmf_id_connection="U128X_F" lmf_msg_nr=%"PRIu64" tag=%"PRIu64" "
+	       "lmf_seq=%"PRIu64,
 	       U128_P(&req_fop->lmf_id_remote),
 	       U128_P(&req_fop->lmf_id_local),
 	       U128_P(&req_fop->lmf_id_connection),
 	       req_fop->lmf_msg_nr,
 	       hl->hln_msg_to_send == NULL ?
-	       M0_HA_MSG_TAG_UNKNOWN : m0_ha_msg_tag(hl->hln_msg_to_send));
+	       M0_HA_MSG_TAG_UNKNOWN : m0_ha_msg_tag(hl->hln_msg_to_send),
+	       req_fop->lmf_seq);
 	m0_mutex_unlock(&hl->hln_lock);
 	item = m0_fop_to_rpc_item(&hl->hln_outgoing_fop);
 	item->ri_prio            = M0_RPC_ITEM_PRIO_MID;
@@ -1600,6 +1647,16 @@ const struct m0_fom_type_ops m0_ha_link_outgoing_fom_type_ops = {
 M0_INTERNAL struct m0_rpc_session *m0_ha_link_rpc_session(struct m0_ha_link *hl)
 {
 	return &hl->hln_rpc_link.rlk_sess;
+}
+
+M0_INTERNAL void m0_ha_link_rpc_endpoint(struct m0_ha_link *hl,
+                                         char              *buf,
+                                         m0_bcount_t        buf_len)
+{
+	m0_mutex_lock(&hl->hln_lock);
+	strncpy(buf, hl->hln_conn_cfg.hlcc_rpc_endpoint, buf_len);
+	buf[buf_len - 1] = 0;
+	m0_mutex_unlock(&hl->hln_lock);
 }
 
 M0_INTERNAL int m0_ha_link_mod_init(void)
