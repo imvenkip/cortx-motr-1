@@ -30,8 +30,14 @@
 #include "net/lnet/lnet_core.h"
 
 #include <linux/spinlock.h>
-#include <lustre_ver.h>         /* LUSTRE_VERSION_CODE */
-#include <lustre/lustre_idl.h>  /* OBD_OCD_VERSION */
+
+/* LUSTRE_VERSION_CODE, OBD_OCD_VERSION */
+#if M0_LUSTRE_VERSION < 2110
+#include <lustre_ver.h>
+#else
+#include <lustre/lustre_ver.h>
+#include <lustre/lustre_idl.h>
+#endif
 
 /**
    @defgroup KLNetCore LNet Transport Core Kernel Private Interface
@@ -39,6 +45,21 @@
 
    @{
  */
+
+#if LUSTRE_VERSION_CODE > OBD_OCD_VERSION(2, 10, 51, 0)
+typedef struct lnet_eq lnet_eq_t;
+typedef struct lnet_event lnet_event_t;
+typedef struct lnet_handle_eq lnet_handle_eq_t;
+typedef struct lnet_handle_md lnet_handle_md_t;
+typedef struct lnet_handle_me lnet_handle_me_t;
+typedef struct lnet_libhandle lnet_libhandle_t;
+typedef struct lnet_libmd lnet_libmd_t;
+typedef struct lnet_md lnet_md_t;
+typedef struct lnet_me lnet_me_t;
+typedef struct lnet_msg lnet_msg_t;
+typedef struct lnet_process_id lnet_process_id_t;
+typedef enum lnet_event_kind lnet_event_kind_t;
+#endif
 
 enum {
 	M0_NET_LNET_MAX_PORTALS     = 64, /**< Number of portals supported. */

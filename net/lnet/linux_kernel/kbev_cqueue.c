@@ -23,6 +23,8 @@
    @{
  */
 
+#include <linux/highmem.h>      /* kmap_atomic */
+
 /**
    Determines the next element in the queue that can be used by the producer.
    This operation causes the page containing the next element to be mapped

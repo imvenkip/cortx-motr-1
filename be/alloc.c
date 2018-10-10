@@ -1075,14 +1075,14 @@ M0_INTERNAL void m0_be_allocator_credit(struct m0_be_allocator *a,
 	struct m0_be_allocator_header *h = NULL;
 	struct m0_be_tx_credit         cred_list_create = {};
 	struct m0_be_tx_credit         cred_list_destroy = {};
-	struct m0_be_tx_credit         chunk_add_after_credit = {};
-	struct m0_be_tx_credit         chunk_del_fini_credit = {};
+	struct m0_be_tx_credit         chunk_add_after_credit;
+	struct m0_be_tx_credit         chunk_del_fini_credit;
 	struct m0_be_tx_credit         chunk_trymerge_credit = {};
 	struct m0_be_tx_credit         chunk_resize_credit = {};
 	struct m0_be_tx_credit         tryadd_free_after_credit;
 	struct m0_be_tx_credit         cred_mark_free = {};
 	struct m0_be_tx_credit         cred_split = {};
-	struct m0_be_tx_credit         mem_zero_credit = {};
+	struct m0_be_tx_credit         mem_zero_credit;
 	struct m0_be_tx_credit         chunk_credit;
 	struct m0_be_tx_credit         cred_allocator = {};
 	struct m0_be_tx_credit         cred_free_flag;

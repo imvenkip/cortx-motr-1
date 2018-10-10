@@ -153,6 +153,7 @@ AH_TEMPLATE([M0_NDEBUG],              [Disable M0_ASSERT.])
 AH_TEMPLATE([M0_BE_SEGMENT_SIZE],     [BE segment size in MiB.])
 AH_TEMPLATE([M0_TRACE_KBUF_SIZE],     [Kernel space trace buffer size in MiB.])
 AH_TEMPLATE([M0_TRACE_UBUF_SIZE],     [User space trace buffer size in MiB.])
+AH_TEMPLATE([M0_LUSTRE_VERSION],      [Autodetected Lustre version represented as integer])
 AH_TEMPLATE([HAVE_JOURNAL_ABORT],     [Have journal_abort() function])
 AH_TEMPLATE([HAVE_FILE_READV],        [Have fops->readv function])
 AH_TEMPLATE([HAVE_FILE_AIO_READ],     [Have fops->aio_read function])
@@ -423,9 +424,16 @@ using --with-lustre option.])]
 )
 AC_SUBST([LUSTRE])
 
-LUSTRE_INCLUDES="-I$LUSTRE/libcfs/include -I$LUSTRE/lnet/include -I$LUSTRE/lustre/include"
-LUSTRE_VERSION=`echo $LUSTRE | cut -d "-" -f 2 | cut -d "." -f 1-2`
-AC_SUBST([LUSTRE_VERSION])
+LUSTRE_INCLUDES="-I$LUSTRE/libcfs/include -I$LUSTRE/lnet/include -I$LUSTRE/lnet/include/uapi/linux -I$LUSTRE/lustre/include -I$LUSTRE/lustre/include/uapi/linux"
+# if Lustre version cannot be deduced from the $LUSTRE directory name, which
+# conforms to 'lustre-client-1.22.3' format for all Intel releases, assume
+# old Seagate Lustre is used and set version to 2.7.0
+LUSTRE_VERSION_STR=`echo $LUSTRE | grep -Po '(?<=-)\d+\.\d+(?:\.\d)?' || echo 2.7.0`
+AC_SUBST([LUSTRE_VERSION_STR])
+
+# convert extracted Lustre version to a number with at most 4 digits
+LUSTRE_VERSION_NUM=`echo $LUSTRE_VERSION_STR | tr -d . | cut -c 1-4`
+AC_DEFINE_UNQUOTED([M0_LUSTRE_VERSION], [$LUSTRE_VERSION_NUM])
 
 #
 # Checking required programs ---------------------------------------------- {{{1
@@ -825,7 +833,7 @@ M0_CPPFLAGS_DIST=$(echo "$M0_CPPFLAGS" | grep -Po -e '-D\S+|-I/usr\S+' | xargs e
 # __attribute__, such as __attribute__((gccxml(...))). It's important because we
 # use -Werror, which turns warnings into errors, but we still need to be able to
 # use gccxml attributes.
-M0_CFLAGS="-Wall -Werror -Wno-attributes -fno-strict-aliasing $M0_CFLAGS"
+M0_CFLAGS="-pipe -Wall -Werror -Wno-attributes -fno-strict-aliasing $M0_CFLAGS"
 
 # Prevents gcc from introducing common symbols in object files. These symbols
 # are avoided because they break the compilation toolchain that Parallel
@@ -836,7 +844,9 @@ M0_LDFLAGS="-rdynamic $M0_LDFLAGS"
 
 M0_KCPPFLAGS="-DM0_INTERNAL='' -DM0_EXTERN=extern \
               -include'$ABS_BUILDDIR/config.h' -iquote '$ABS_BUILDDIR' -iquote '$ABS_SRCDIR' \
-              -I$LUSTRE/lnet/include -I$LUSTRE/libcfs/include -I$LUSTRE/lustre/include \
+              -I$LUSTRE/libcfs/include \
+              -I$LUSTRE/lnet/include -I$LUSTRE/lnet/include/uapi/linux \
+              -I$LUSTRE/lustre/include -I$LUSTRE/lustre/include/uapi/linux \
               $KGF_INCLUDES $M0_KCPPFLAGS"
 
 M0_KCFLAGS="-Wall -Werror -Wno-attributes $M0_KCFLAGS"

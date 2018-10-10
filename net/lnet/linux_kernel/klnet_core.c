@@ -789,7 +789,13 @@ tFSlSlRddJHYE8Bo5Asr4ZO4DS8/edit?hl=en_US">HLD of Mero LNet Transport</a>
 #include "lib/mutex.h"
 #include "net/lnet/linux_kernel/klnet_core.h"
 
-#include <lnet/lnet.h> /* LNet API, LNET_NIDSTR_SIZE */
+/* LNet API, LNET_NIDSTR_SIZE */
+#if M0_LUSTRE_VERSION < 2110
+#include <lnet/lnet.h>
+#else
+#include <lnet/nidstr.h>
+#endif
+
 #if LUSTRE_VERSION_CODE >= OBD_OCD_VERSION(2, 7, 51, 0)
 #include <lnet/api.h>
 #include <lnet/lib-types.h>

@@ -813,6 +813,8 @@ tFSlSlRddJHYE8Bo5Asr4ZO4DS8/edit?hl=en_US">HLD of Mero LNet Transport</a>
    - @ref KLNetCoreDLD "LNet Transport Kernel Space Core DLD"
  */
 
+#include <linux/miscdevice.h>
+
 M0_BASSERT(sizeof(struct nlx_xo_domain) < PAGE_SIZE);
 M0_BASSERT(sizeof(struct nlx_xo_transfer_mc) < PAGE_SIZE);
 M0_BASSERT(sizeof(struct nlx_xo_buffer) < PAGE_SIZE);
