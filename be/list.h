@@ -29,7 +29,6 @@
 #include "format/format_xc.h"
 
 /* import */
-struct m0_be_op;
 struct m0_be_tx;
 struct m0_be_tx_credit;
 
@@ -87,12 +86,10 @@ M0_INTERNAL void m0_be_list_credit(const struct m0_be_list *list,
  * ------------------------------------------------------------------------- */
 M0_INTERNAL void m0_be_list_create(struct m0_be_list        *list,
 				   struct m0_be_tx          *tx,
-				   struct m0_be_op          *op,
 				   const struct m0_tl_descr *desc);
 
 M0_INTERNAL void m0_be_list_destroy(struct m0_be_list *list,
-				    struct m0_be_tx   *tx,
-				    struct m0_be_op   *op);
+				    struct m0_be_tx   *tx);
 
 
 M0_INTERNAL bool m0_be_list_is_empty(struct m0_be_list *list);
@@ -106,11 +103,9 @@ M0_INTERNAL bool m0_be_list_is_empty(struct m0_be_list *list);
  */
 M0_INTERNAL void m0_be_tlink_create(void              *obj,
 				    struct m0_be_tx   *tx,
-				    struct m0_be_op   *op,
 				    struct m0_be_list *list);
 M0_INTERNAL void m0_be_tlink_destroy(void              *obj,
 				     struct m0_be_tx   *tx,
-				     struct m0_be_op   *op,
 				     struct m0_be_list *list);
 
 
@@ -118,18 +113,14 @@ M0_INTERNAL void m0_be_tlink_destroy(void              *obj,
  * Iteration interfaces:
  * ------------------------------------------------------------------------- */
 
-M0_INTERNAL void *m0_be_list_tail(struct m0_be_list *list,
-				  struct m0_be_op   *op);
+M0_INTERNAL void *m0_be_list_tail(struct m0_be_list *list);
 
-M0_INTERNAL void *m0_be_list_head(struct m0_be_list *list,
-				  struct m0_be_op   *op);
+M0_INTERNAL void *m0_be_list_head(struct m0_be_list *list);
 
 M0_INTERNAL void *m0_be_list_prev(struct m0_be_list *list,
-				  struct m0_be_op   *op,
 				  const void        *obj);
 
 M0_INTERNAL void *m0_be_list_next(struct m0_be_list *list,
-				  struct m0_be_op   *op,
 				  const void        *obj);
 
 /* -------------------------------------------------------------------------
@@ -137,29 +128,24 @@ M0_INTERNAL void *m0_be_list_next(struct m0_be_list *list,
  * ------------------------------------------------------------------------- */
 
 M0_INTERNAL void          m0_be_list_add(struct m0_be_list *list,
-					 struct m0_be_op   *op,
 					 struct m0_be_tx   *tx,
 					 void              *obj);
 
 M0_INTERNAL void    m0_be_list_add_after(struct m0_be_list *list,
-					 struct m0_be_op   *op,
 					 struct m0_be_tx   *tx,
 					 void              *obj,
 					 void              *obj_new);
 
 M0_INTERNAL void   m0_be_list_add_before(struct m0_be_list *list,
-					 struct m0_be_op   *op,
 					 struct m0_be_tx   *tx,
 					 void              *obj,
 					 void              *obj_new);
 
 M0_INTERNAL void     m0_be_list_add_tail(struct m0_be_list *list,
-					 struct m0_be_op   *op,
 					 struct m0_be_tx   *tx,
 					 void              *obj);
 
 M0_INTERNAL void          m0_be_list_del(struct m0_be_list *list,
-					 struct m0_be_op   *op,
 					 struct m0_be_tx   *tx,
 					 void              *obj);
 

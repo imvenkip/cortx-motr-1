@@ -100,7 +100,7 @@ m0_be_active_record_domain_init(struct m0_be_active_record_domain *dom,
 
 	dom->ard_seg = seg;
 
-	M0_BE_OP_SYNC(op, sub = m0_be_list_head(&dom->ard_list, &op));
+	sub = m0_be_list_head(&dom->ard_list);
 	if (sub == NULL)
 		return;
 
@@ -109,8 +109,7 @@ m0_be_active_record_domain_init(struct m0_be_active_record_domain *dom,
 		m0_mutex_init(&sub->rds_lock);
 		m0_chan_init(&sub->rds_chan, &sub->rds_lock);
 
-		M0_BE_OP_SYNC(op, sub = m0_be_list_next(&dom->ard_list, &op,
-							sub));
+		sub = m0_be_list_next(&dom->ard_list, sub);
 		if (sub == NULL)
 			break;
 	}
@@ -121,7 +120,7 @@ m0_be_active_record_domain_fini(struct m0_be_active_record_domain *dom)
 {
 	struct m0_be_active_record_domain_subsystem *sub;
 
-	M0_BE_OP_SYNC(op, sub = m0_be_list_head(&dom->ard_list, &op));
+	sub = m0_be_list_head(&dom->ard_list);
 	if (sub == NULL)
 		return;
 
@@ -130,8 +129,7 @@ m0_be_active_record_domain_fini(struct m0_be_active_record_domain *dom)
 		m0_chan_fini_lock(&sub->rds_chan);
 		m0_mutex_fini(&sub->rds_lock);
 
-		M0_BE_OP_SYNC(op, sub = m0_be_list_next(&dom->ard_list, &op,
-							sub));
+		sub = m0_be_list_next(&dom->ard_list, sub);
 		if (sub == NULL)
 			break;
 	}
@@ -156,19 +154,16 @@ m0_be_active_record_domain__create(struct m0_be_active_record_domain **dom,
 	unsigned             i;
 
 	M0_BE_ALLOC_PTR_SYNC(*dom, seg, tx);
-	M0_BE_OP_SYNC(op, m0_be_list_create(&(*dom)->ard_list, tx, &op,
-					    &ard_list_tl));
+	m0_be_list_create(&(*dom)->ard_list, tx, &ard_list_tl);
 
 	for (i = 0; !m0_buf_eq(&path[i], &M0_BUF_INIT0); ++i) {
 		struct m0_be_active_record_domain_subsystem *sub;
 
 		M0_BE_ALLOC_PTR_SYNC(sub, seg, tx);
 		strncpy(sub->rds_name, path[i].b_addr, path[i].b_nob);
-		M0_BE_OP_SYNC(op, m0_be_list_create(&sub->rds_list, tx, &op,
-						    &rds_list_tl));
+		m0_be_list_create(&sub->rds_list, tx, &rds_list_tl);
 		ard_list_tlink_init(sub);
-		M0_BE_OP_SYNC(op, m0_be_list_add(&(*dom)->ard_list, &op, tx,
-						 sub));
+		m0_be_list_add(&(*dom)->ard_list, tx, sub);
 
 		M0_BE_TX_CAPTURE_PTR(seg, tx, sub);
 	}
@@ -197,20 +192,20 @@ m0_be_active_record_domain_destroy(struct m0_be_active_record_domain *dom,
 	M0_ASSERT(rc == 0);
 
 	for (;;) {
-		M0_BE_OP_SYNC(op, sub = m0_be_list_tail(&dom->ard_list, &op));
+		sub = m0_be_list_tail(&dom->ard_list);
 		if (sub == NULL)
 			break;
 
 		/* no unrecovered records should be in lists */
 		M0_ASSERT(m0_be_list_is_empty(&sub->rds_list));
 
-		M0_BE_OP_SYNC(op, m0_be_list_del(&dom->ard_list, &op, tx, sub));
-		M0_BE_OP_SYNC(op, m0_be_list_destroy(&sub->rds_list, tx, &op));
+		m0_be_list_del(&dom->ard_list, tx, sub);
+		m0_be_list_destroy(&sub->rds_list, tx);
 		ard_list_tlink_fini(sub);
 		M0_BE_FREE_PTR_SYNC(sub, seg, tx);
 	}
 
-	M0_BE_OP_SYNC(op, m0_be_list_destroy(&dom->ard_list, tx, &op));
+	m0_be_list_destroy(&dom->ard_list, tx);
 	M0_BE_FREE_PTR_SYNC(dom, seg, tx);
 
 	return M0_RC(0);
@@ -339,13 +334,12 @@ be_active_record__subsystem_lookup(struct m0_be_active_record_domain *dom,
 {
 	struct m0_be_active_record_domain_subsystem *sub;
 
-	M0_BE_OP_SYNC(op, sub = m0_be_list_head(&dom->ard_list, &op));
+	sub = m0_be_list_head(&dom->ard_list);
 	if (sub == NULL || m0_streq(subsys, sub->rds_name))
 		return sub;
 
 	for (;;) {
-		M0_BE_OP_SYNC(op, sub = m0_be_list_next(&dom->ard_list, &op,
-							sub));
+		sub = m0_be_list_next(&dom->ard_list, sub);
 		if (sub == NULL || m0_streq(subsys, sub->rds_name))
 			break;
 	}
@@ -364,7 +358,7 @@ m0_be_active_record_add(const char		   *subsys,
 	if (sub == NULL)
 		return M0_RC(-ENOENT);
 
-	M0_BE_OP_SYNC(op, m0_be_list_add(&sub->rds_list, &op, tx, rec));
+	m0_be_list_add(&sub->rds_list, tx, rec);
 
 	return M0_RC(0);
 }
@@ -380,7 +374,7 @@ m0_be_active_record_del(const char		   *subsys,
 	if (sub == NULL)
 		return M0_RC(-ENOENT);
 
-	M0_BE_OP_SYNC(op, m0_be_list_del(&sub->rds_list, &op, tx, rec));
+	m0_be_list_del(&sub->rds_list, tx, rec);
 
 	return M0_RC(0);
 }

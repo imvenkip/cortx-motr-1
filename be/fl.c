@@ -110,20 +110,16 @@ M0_INTERNAL void m0_be_fl_create(struct m0_be_fl  *fl,
 {
 	int i;
 
-	for (i = 0; i < ARRAY_SIZE(fl->bfl_free); ++i) {
-		M0_BE_OP_SYNC(op, m0_be_list_create(
-			be_fl_list(fl, i), tx, &op, &fl_chunks_tl));
-	}
+	for (i = 0; i < ARRAY_SIZE(fl->bfl_free); ++i)
+		m0_be_list_create(be_fl_list(fl, i), tx, &fl_chunks_tl);
 }
 
 M0_INTERNAL void m0_be_fl_destroy(struct m0_be_fl *fl, struct m0_be_tx *tx)
 {
 	int i;
 
-	for (i = 0; i < ARRAY_SIZE(fl->bfl_free); ++i) {
-		M0_BE_OP_SYNC(op, m0_be_list_destroy(be_fl_list(fl, i),
-						     tx, &op));
-	}
+	for (i = 0; i < ARRAY_SIZE(fl->bfl_free); ++i)
+		m0_be_list_destroy(be_fl_list(fl, i), tx);
 }
 
 static unsigned long be_fl_index_round_up(struct m0_be_fl *fl,
@@ -157,10 +153,8 @@ M0_INTERNAL void m0_be_fl_add(struct m0_be_fl       *fl,
 
 	M0_PRE_EX(m0_be_fl__invariant(fl));
 
-	M0_BE_OP_SYNC(op, m0_be_tlink_create(chunk, tx, &op,
-					     be_fl_list(fl, index)));
-	M0_BE_OP_SYNC(op, m0_be_list_add(be_fl_list(fl, index),
-					 &op, tx, chunk));
+	m0_be_tlink_create(chunk, tx, be_fl_list(fl, index));
+	m0_be_list_add(be_fl_list(fl, index), tx, chunk);
 
 	M0_POST_EX(m0_be_fl__invariant(fl));
 }
@@ -173,10 +167,8 @@ M0_INTERNAL void m0_be_fl_del(struct m0_be_fl       *fl,
 
 	M0_PRE_EX(m0_be_fl__invariant(fl));
 
-	M0_BE_OP_SYNC(op, m0_be_list_del(be_fl_list(fl, index),
-					 &op, tx, chunk));
-	M0_BE_OP_SYNC(op, m0_be_tlink_destroy(chunk, tx, &op,
-					      be_fl_list(fl, index)));
+	m0_be_list_del(be_fl_list(fl, index), tx, chunk);
+	m0_be_tlink_destroy(chunk, tx, be_fl_list(fl, index));
 	M0_POST_EX(m0_be_fl__invariant(fl));
 }
 

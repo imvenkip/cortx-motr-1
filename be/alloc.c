@@ -528,7 +528,7 @@ static void be_alloc_chunk_init(struct m0_be_allocator *a,
 		.bac_zone   = ztype,
 		.bac_magic1 = M0_BE_ALLOC_MAGIC1,
 	};
-	M0_BE_OP_SYNC(op, m0_be_tlink_create(c, tx, &op, &h->bah_chunks));
+	m0_be_tlink_create(c, tx, &h->bah_chunks);
 	/*
 	 * Move this right before m0_be_tlink_create() to optimize capturing
 	 * size. Chunk capturing at the end of the function will help with
@@ -554,8 +554,8 @@ static void be_alloc_chunk_del_fini(struct m0_be_allocator *a,
 
 	m0_be_fl_del(&h->bah_fl, tx, c);
 
-	M0_BE_OP_SYNC(op, m0_be_list_del(&h->bah_chunks, &op, tx, c));
-	M0_BE_OP_SYNC(op, m0_be_tlink_destroy(c, tx, &op, &h->bah_chunks));
+	m0_be_list_del(&h->bah_chunks, tx, c);
+	m0_be_tlink_destroy(c, tx, &h->bah_chunks);
 	M0_BE_REG_PUT_PTR(c, a->ba_seg, tx);
 	M0_BE_REG_PUT_PTR(h, a->ba_seg, tx);
 }
@@ -677,9 +677,11 @@ be_alloc_chunk_add_after(struct m0_be_allocator *a,
 			  be_alloc_chunk_after(a, tx, ztype, c);
 	be_alloc_chunk_init(a, ztype, tx, new, size_total - sizeof *new, free);
 
-	M0_BE_OP_SYNC(op, c != NULL ?
-			 m0_be_list_add_after(&h->bah_chunks, &op, tx, c, new) :
-			 m0_be_list_add(&h->bah_chunks, &op, tx, new));
+	if (c != NULL)
+		m0_be_list_add_after(&h->bah_chunks, tx, c, new);
+	else
+		m0_be_list_add(&h->bah_chunks, tx, new);
+
 	if (free)
 		m0_be_fl_add(&h->bah_fl, tx, new);
 
@@ -929,8 +931,7 @@ static int be_allocator_header_create(struct m0_be_allocator     *a,
 	M0_BE_TX_CAPTURE_PTR(a->ba_seg, tx, &h->bah_addr);
 	M0_BE_TX_CAPTURE_PTR(a->ba_seg, tx, &h->bah_size);
 
-	M0_BE_OP_SYNC(op, m0_be_list_create(&h->bah_chunks, tx, &op,
-					    &chunks_all_tl));
+	m0_be_list_create(&h->bah_chunks, tx, &chunks_all_tl);
 	m0_be_fl_create(&h->bah_fl, tx, a->ba_seg);
 	be_allocator_stats_init(&h->bah_stats, tx, h, a);
 	be_allocator_stats_capture(a, ztype, tx);
@@ -963,7 +964,7 @@ static void be_allocator_header_destroy(struct m0_be_allocator     *a,
 		be_alloc_chunk_del_fini(a, ztype, tx, c);
 
 	m0_be_fl_destroy(&h->bah_fl, tx);
-	M0_BE_OP_SYNC(op, m0_be_list_destroy(&h->bah_chunks, tx, &op));
+	m0_be_list_destroy(&h->bah_chunks, tx);
 	M0_BE_REG_PUT_PTR(h, a->ba_seg, tx);
 }
 
