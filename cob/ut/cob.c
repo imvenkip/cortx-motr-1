@@ -88,9 +88,7 @@ static void test_mkfs(void)
 	seg0 = m0_be_domain_seg0_get(&ut_be.but_dom);
 
 	grp = m0_be_ut_backend_sm_group_lookup(&ut_be);
-	rc = m0_cob_domain_init(dom, seg0, &id);
-	M0_UT_ASSERT(rc == -ENOENT);
-	rc = m0_cob_domain_create(&dom, grp, &id, seg0); /*XXX*/
+	rc = m0_cob_domain_create(&dom, grp, &id, &ut_be.but_dom, seg0); /*XXX*/
 	M0_UT_ASSERT(rc == 0);
 
 	m0_cob_tx_credit(dom, M0_COB_OP_DOMAIN_MKFS, &accum);
@@ -128,7 +126,7 @@ static void test_init(void)
 
 	seg0 = m0_be_domain_seg0_get(&ut_be.but_dom);
 
-	rc = m0_cob_domain_init(dom, seg0, &id);
+	rc = m0_cob_domain_init(dom, seg0);
 	M0_UT_ASSERT(rc == 0);
 }
 
@@ -137,9 +135,8 @@ static void test_fini(void)
 	int rc;
 
 	grp = m0_be_ut_backend_sm_group_lookup(&ut_be);
-	rc = m0_cob_domain_destroy(dom, grp);
+	rc = m0_cob_domain_destroy(dom, grp, &ut_be.but_dom);
 	M0_UT_ASSERT(rc == 0);
-	m0_cob_domain_fini(dom);
 
 	m0_be_ut_backend_fini(&ut_be);
 }

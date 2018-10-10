@@ -125,9 +125,10 @@ static void ut_reqh_and_stuff_init(struct m0_ut_rpc_mach_ctx *ctx)
 	rc = m0_reqh_be_init(&ctx->rmc_reqh, seg);
 	M0_ASSERT(rc == 0);
 
-	rc = m0_mdstore_init(&ctx->rmc_mdstore, &ctx->rmc_cob_id, seg, 0);
+	rc = m0_mdstore_init(&ctx->rmc_mdstore, seg, 0);
 	M0_ASSERT(rc == -ENOENT);
-	rc = m0_mdstore_create(&ctx->rmc_mdstore, grp, &ctx->rmc_cob_id, seg);
+	rc = m0_mdstore_create(&ctx->rmc_mdstore, grp, &ctx->rmc_cob_id,
+			       &ctx->rmc_ut_be.but_dom, seg);
         M0_ASSERT(rc == 0);
 
 	m0_cob_tx_credit(ctx->rmc_mdstore.md_dom, M0_COB_OP_DOMAIN_MKFS,
@@ -148,9 +149,9 @@ M0_INTERNAL void m0_ut_rpc_mach_fini(struct m0_ut_rpc_mach_ctx *ctx)
 	m0_reqh_pre_storage_fini_svcs_stop(&ctx->rmc_reqh);
 	M0_ASSERT(m0_reqh_state_get(&ctx->rmc_reqh) == M0_REQH_ST_STOPPED);
 	grp = m0_be_ut_backend_sm_group_lookup(&ctx->rmc_ut_be);
-	rc = m0_mdstore_destroy(&ctx->rmc_mdstore, grp);
+	rc = m0_mdstore_destroy(&ctx->rmc_mdstore, grp,
+				&ctx->rmc_ut_be.but_dom);
 	M0_ASSERT(rc == 0);
-	m0_mdstore_fini(&ctx->rmc_mdstore);
 
 	m0_be_ut_seg_fini(&ctx->rmc_ut_seg);
 	m0_be_ut_backend_fini(&ctx->rmc_ut_be);

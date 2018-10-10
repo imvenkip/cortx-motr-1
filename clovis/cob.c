@@ -924,9 +924,9 @@ static void clovis_cob_ios_fop_release(struct m0_ref *ref)
  * @param oo object operation being processed.
  * @param i index of the cob.
  */
-static struct m0_fop *clovis_cob_ios_fop_get(struct clovis_cob_req *cr,
-					     uint32_t i, uint32_t cob_type,
-					     struct m0_rpc_session *session)
+static int clovis_cob_ios_fop_get(struct clovis_cob_req *cr,
+				  uint32_t i, uint32_t cob_type,
+				  struct m0_rpc_session *session)
 {
 	int                        rc;
 	struct m0_fop             *fop;
@@ -977,24 +977,25 @@ static struct m0_fop *clovis_cob_ios_fop_get(struct clovis_cob_req *cr,
 	 * function to free ios cob request.
 	 */
         M0_ALLOC_PTR(fop);
-        if (fop == NULL) {
-                M0_LOG(M0_ERROR, "fop allocation failed");
-                goto error;
-        }
+        if (fop == NULL)
+		return M0_ERR_INFO(-ENOMEM, "fop allocation failed");
 
         m0_fop_init(fop, ftype, NULL, clovis_cob_ios_fop_release);
         rc = m0_fop_data_alloc(fop);
         if (rc != 0) {
-                M0_LOG(M0_ERROR, "fop data allocation failed");
-                goto error;
+		clovis_cob_ios_fop_fini(fop);
+		return M0_ERR_INFO(rc, "fop data allocation failed");
         }
 	fop->f_item.ri_rmachine = m0_fop_session_machine(session);
 
 	/* The rpc's callback must know which oo's slot they work on. */
 	if (cr->cr_flags & CLOVIS_COB_REQ_ASYNC) {
 		M0_ALLOC_PTR(icr);
-		if (icr == NULL)
-			goto error;
+		if (icr == NULL) {
+			clovis_cob_ios_fop_fini(fop);
+			return M0_ERR_INFO(-ENOMEM, "failed allocation of"
+						    "clovis_ios_cob_request");
+		}
 		clovis_ios_cob_req_bob_init(icr);
 		m0_clovis_ast_rc_bob_init(&icr->icr_ar);
 		icr->icr_index = i;
@@ -1002,13 +1003,7 @@ static struct m0_fop *clovis_cob_ios_fop_get(struct clovis_cob_req *cr,
 		fop->f_opaque = icr;
 	}
 	cr->cr_ios_fop[i] = fop;
-	return fop;
-
-error:
-	if (fop != NULL)
-		clovis_cob_ios_fop_fini(fop);
-
-	return NULL;
+	return M0_RC(0);
 }
 
 /**
@@ -1069,16 +1064,19 @@ static int clovis_cob_ios_send(struct clovis_cob_req *cr, uint32_t idx)
 		return M0_ERR(rc);
 
 	/* Allocate ios fop if necessary */
-	fop = clovis_cob_ios_fop_get(cr, idx, cob_type, session);
-	if (fop == NULL) {
-		rc = -ENOMEM;
-		goto error;
-	}
+	rc = clovis_cob_ios_fop_get(cr, idx, cob_type, session);
+	if (rc != 0)
+		return M0_ERR(rc);
+	M0_ASSERT(cr->cr_ios_fop[idx] != NULL);
+	fop = cr->cr_ios_fop[idx];
 
 	/* Fill the cob fop. */
 	rc = clovis_cob_ios_fop_populate(cr, fop, &cob_fid, cob_idx);
-	if (rc != 0)
-		goto error;
+	if (rc != 0) {
+		clovis_cob_ios_fop_fini(cr->cr_ios_fop[idx]);
+		cr->cr_ios_fop[idx] = NULL;
+		return M0_ERR(rc);
+	}
 
 	/*
 	 * Set and send the rpc item. Note: ri_deadline is set to
@@ -1096,24 +1094,24 @@ static int clovis_cob_ios_send(struct clovis_cob_req *cr, uint32_t idx)
 
 	if (cr->cr_flags & CLOVIS_COB_REQ_ASYNC) {
 		fop->f_item.ri_ops = &clovis_cob_ios_ri_ops;
-		rc = m0_rpc_post(&fop->f_item);
-		if (rc != 0)
-			goto error;
+		m0_rpc_post(&fop->f_item);
+		/*
+		 * Note: if m0_rpc_post() fails for some reason
+		 * m0_rpc_item_ops::rio_replied will be invoked. To
+		 * avoid double fini/free fop, simply return and do
+		 * nothing here.
+		 */
+		return M0_RC(0);
 	} else {
 		rc = m0_rpc_post_sync(fop, session, NULL, 0);
-		if (rc != 0)
-			goto error;
+		if (rc != 0) {
+			clovis_cob_ios_fop_fini(cr->cr_ios_fop[idx]);
+			cr->cr_ios_fop[idx] = NULL;
+			return M0_ERR(rc);
+		}
 		cr->cr_rep_fop = m0_rpc_item_to_fop(fop->f_item.ri_reply);
-
+		return M0_RC(0);
 	}
-	return M0_RC(0);
-error:
-	M0_ASSERT(rc != 0);
-	if (fop != NULL) {
-		clovis_cob_ios_fop_fini(cr->cr_ios_fop[idx]);
-		cr->cr_ios_fop[idx] = NULL;
-	}
-	return M0_RC(rc);
 }
 
 /**
@@ -1632,6 +1630,7 @@ M0_INTERNAL int m0_clovis__obj_namei_send(struct m0_clovis_op_obj *oo)
 
 	cinst = m0_clovis__oo_instance(oo);
 	M0_ASSERT(cinst != NULL);
+	M0_ASSERT(m0_conf_fid_is_valid(&oo->oo_pver));
 	pv = m0_pool_version_find(&cinst->m0c_pools_common,
 				  &oo->oo_pver);
 	if (pv == NULL)
@@ -1781,6 +1780,7 @@ M0_INTERNAL int m0_clovis__obj_layout_send(struct m0_clovis_obj *obj,
 
 	ent_id = obj->ob_entity.en_id;
 	cinst = m0_clovis__entity_instance(&obj->ob_entity);
+	M0_ASSERT(m0_conf_fid_is_valid(&obj->ob_attr.oa_pver));
 	pv = m0_pool_version_find(&cinst->m0c_pools_common,
 				  &obj->ob_attr.oa_pver);
 	M0_ASSERT(pv != NULL);

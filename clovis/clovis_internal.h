@@ -734,7 +734,8 @@ M0_INTERNAL struct m0_fid m0_clovis__obj_pver(struct m0_clovis_obj *obj);
 M0_INTERNAL void m0_clovis__obj_attr_set(struct m0_clovis_obj *obj,
 					 struct m0_fid         pver,
 					 uint64_t              lid);
-
+M0_INTERNAL bool
+m0_clovis__obj_pool_version_is_valid(const struct m0_clovis_obj *obj);
 M0_INTERNAL int m0_clovis__obj_io_build(struct m0_clovis_io_args *args,
 					struct m0_clovis_op **op);
 M0_INTERNAL void m0_clovis__obj_op_done(struct m0_clovis_op *op);

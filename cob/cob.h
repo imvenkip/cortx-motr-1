@@ -272,10 +272,6 @@ struct m0_cob_domain {
 	struct m0_be_btree      cd_fileattr_basic;
 	struct m0_be_btree      cd_fileattr_omg;
 	struct m0_be_btree      cd_fileattr_ea;
-	/*
-	 * volatile-only fields
-	 */
-	struct m0_be_seg       *cd_seg;
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 enum m0_cob_domain_format_version {
@@ -290,27 +286,37 @@ enum m0_cob_domain_format_version {
 };
 
 int m0_cob_domain_init(struct m0_cob_domain *dom,
-		       struct m0_be_seg *seg,
-		       const struct m0_cob_domain_id *id);
+		       struct m0_be_seg     *seg);
 void m0_cob_domain_fini(struct m0_cob_domain *dom);
-int m0_cob_domain_create(struct m0_cob_domain **dom, struct m0_sm_group *grp,
-			 const struct m0_cob_domain_id *cdid,
-			 struct m0_be_seg *seg);
 
-int m0_cob_domain_destroy(struct m0_cob_domain *dom, struct m0_sm_group *grp);
+/** Creates and initialises COB domain. */
+int m0_cob_domain_create(struct m0_cob_domain          **dom,
+			 struct m0_sm_group             *grp,
+			 const struct m0_cob_domain_id  *cdid,
+			 struct m0_be_domain            *bedom,
+			 struct m0_be_seg               *seg);
+
+/**
+ * Finalises and destroys COB domain.
+ * The dom's memory is released here and must not be accessed after this.
+ */
+int m0_cob_domain_destroy(struct m0_cob_domain *dom,
+			  struct m0_sm_group   *grp,
+			  struct m0_be_domain  *bedom);
 
 M0_INTERNAL int m0_cob_domain_credit_add(struct m0_cob_domain          *dom,
-					 struct m0_be_tx               *tx,
+					 struct m0_be_domain           *bedom,
 					 struct m0_be_seg              *seg,
 				         const struct m0_cob_domain_id *cdid,
 				         struct m0_be_tx_credit        *cred);
 
 M0_INTERNAL
-int m0_cob_domain_create_prepared(struct m0_cob_domain         **dom,
-				  struct m0_sm_group            *grp,
-				  const struct m0_cob_domain_id *cdid,
-				  struct m0_be_seg              *seg,
-				  struct m0_be_tx               *tx);
+int m0_cob_domain_create_prepared(struct m0_cob_domain          **dom,
+				  struct m0_sm_group             *grp,
+				  const struct m0_cob_domain_id  *cdid,
+				  struct m0_be_domain            *bedom,
+				  struct m0_be_seg               *seg,
+				  struct m0_be_tx                *tx);
 
 /**
  * Prepare storage before using. Create root cob for session objects

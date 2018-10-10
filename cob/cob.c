@@ -58,6 +58,11 @@
    @{
 */
 
+/*
+ * TODO: Move m0_be_tx_init() out of create/destroy functions and let user
+ * control tx. This will simplify respective interfaces.
+ */
+
 enum {
 	M0_COB_NAME_MAX = 256,
 	M0_COB_EA_MAX   = 4096
@@ -465,31 +470,18 @@ M0_UNUSED static char *cob_dom_id_make(char *buf, const struct m0_cob_domain_id 
    Tables are identified by the domain id, which must be set before calling
    this function.
  */
-int m0_cob_domain_init(struct m0_cob_domain *dom, struct m0_be_seg *seg,
-		       const struct m0_cob_domain_id *id)
+int m0_cob_domain_init(struct m0_cob_domain *dom, struct m0_be_seg *seg)
 {
-	M0_ENTRY("dom=%p seg=%p id=%"PRIx64"", dom, seg, id ? id->id : 0);
+	M0_ENTRY("dom=%p id=%"PRIx64"", dom, dom != NULL ? dom->cd_id.id : 0);
 
-	if (dom == NULL)
-		return M0_RC(-ENOENT);
-
-	m0_format_header_pack(&dom->cd_header, &(struct m0_format_tag){
-		.ot_version = M0_COB_DOMAIN_FORMAT_VERSION,
-		.ot_type    = M0_FORMAT_TYPE_COB_DOMAIN,
-		.ot_footer_offset = offsetof(struct m0_cob_domain, cd_footer)
-	});
-
-	if (id != NULL)
-		dom->cd_id = *id;
-	dom->cd_seg = seg;
+	M0_PRE(dom != NULL);
+	M0_PRE(dom->cd_id.id != 0);
 
 	m0_be_btree_init(&dom->cd_object_index,   seg, &cob_oi_ops);
 	m0_be_btree_init(&dom->cd_namespace,	  seg, &cob_ns_ops);
 	m0_be_btree_init(&dom->cd_fileattr_basic, seg, &cob_fab_ops);
 	m0_be_btree_init(&dom->cd_fileattr_omg,   seg, &cob_omg_ops);
 	m0_be_btree_init(&dom->cd_fileattr_ea,    seg, &cob_ea_ops);
-
-	m0_format_footer_update(dom);
 
 	return M0_RC(0);
 }
@@ -509,7 +501,7 @@ static void cob_domain_id2str(char **s, const struct m0_cob_domain_id *cdid)
 }
 
 M0_INTERNAL int m0_cob_domain_credit_add(struct m0_cob_domain          *dom,
-					 struct m0_be_tx               *tx,
+					 struct m0_be_domain           *bedom,
 					 struct m0_be_seg              *seg,
 				         const struct m0_cob_domain_id *cdid,
 				         struct m0_be_tx_credit        *cred)
@@ -517,7 +509,6 @@ M0_INTERNAL int m0_cob_domain_credit_add(struct m0_cob_domain          *dom,
 	char                *cdid_str;
 	struct m0_buf        data = {}; /*XXX*/
 	struct m0_be_btree   dummy = { .bb_seg = seg }; /* XXX */
-	struct m0_be_domain *bedom = seg->bs_domain; /* XXX */
 
 	cob_domain_id2str(&cdid_str, cdid);
 	if (cdid_str == NULL)
@@ -530,47 +521,63 @@ M0_INTERNAL int m0_cob_domain_credit_add(struct m0_cob_domain          *dom,
 }
 
 M0_INTERNAL
-int m0_cob_domain_create_prepared(struct m0_cob_domain         **dom,
-				  struct m0_sm_group            *grp,
-				  const struct m0_cob_domain_id *cdid,
-				  struct m0_be_seg              *seg,
-				  struct m0_be_tx               *tx)
+int m0_cob_domain_create_prepared(struct m0_cob_domain          **out,
+				  struct m0_sm_group             *grp,
+				  const struct m0_cob_domain_id  *cdid,
+				  struct m0_be_domain            *bedom,
+				  struct m0_be_seg               *seg,
+				  struct m0_be_tx                *tx)
 {
-	char                *cdid_str;
-	struct m0_buf        data = {}; /*XXX*/
-	struct m0_be_domain *bedom = seg->bs_domain; /* XXX */
-	int                  rc;
+	struct m0_cob_domain *dom;
+	char                 *cdid_str;
+	struct m0_buf         data = {}; /*XXX*/
+	int                   rc;
 
-	*dom = NULL;
 	cob_domain_id2str(&cdid_str, cdid);
 	if (cdid_str == NULL)
 		return M0_ERR(-ENOMEM);
 
-	M0_BE_ALLOC_PTR_SYNC(*dom, seg, tx);
-	m0_cob_domain_init(*dom, seg, cdid);
-	M0_BE_OP_SYNC(o, m0_be_btree_create(&(*dom)->cd_object_index,   tx, &o));
-	M0_BE_OP_SYNC(o, m0_be_btree_create(&(*dom)->cd_namespace,      tx, &o));
-	M0_BE_OP_SYNC(o, m0_be_btree_create(&(*dom)->cd_fileattr_basic, tx, &o));
-	M0_BE_OP_SYNC(o, m0_be_btree_create(&(*dom)->cd_fileattr_omg,   tx, &o));
-	M0_BE_OP_SYNC(o, m0_be_btree_create(&(*dom)->cd_fileattr_ea,    tx, &o));
+	M0_BE_ALLOC_PTR_SYNC(dom, seg, tx);
+	if (dom == NULL) {
+		m0_free(cdid_str);
+		return M0_ERR(-ENOMEM);
+	}
 
-	m0_format_footer_update(*dom);
+	m0_format_header_pack(&dom->cd_header, &(struct m0_format_tag){
+		.ot_version = M0_COB_DOMAIN_FORMAT_VERSION,
+		.ot_type    = M0_FORMAT_TYPE_COB_DOMAIN,
+		.ot_footer_offset = offsetof(struct m0_cob_domain, cd_footer)
+	});
 
-	M0_ASSERT(*dom != NULL);
-	M0_BE_TX_CAPTURE_PTR(seg, tx, *dom);
+	dom->cd_id = *cdid;
 
-	data = M0_BUF_INIT_PTR(dom);
+	m0_format_footer_update(dom);
+	M0_BE_TX_CAPTURE_PTR(seg, tx, dom);
+
+	rc = m0_cob_domain_init(dom, seg);
+	M0_ASSERT(rc == 0); /* XXX */
+	M0_BE_OP_SYNC(o, m0_be_btree_create(&dom->cd_object_index,   tx, &o));
+	M0_BE_OP_SYNC(o, m0_be_btree_create(&dom->cd_namespace,      tx, &o));
+	M0_BE_OP_SYNC(o, m0_be_btree_create(&dom->cd_fileattr_basic, tx, &o));
+	M0_BE_OP_SYNC(o, m0_be_btree_create(&dom->cd_fileattr_omg,   tx, &o));
+	M0_BE_OP_SYNC(o, m0_be_btree_create(&dom->cd_fileattr_ea,    tx, &o));
+
+	data = M0_BUF_INIT_PTR(&dom);
 	rc = m0_be_0type_add(&m0_be_cob0, bedom, tx, cdid_str, &data);
 	M0_ASSERT(rc == 0);
 	m0_free(cdid_str);
+
+	*out = dom;
+
 	return M0_RC(0);
 }
 
-int m0_cob_domain_create(struct m0_cob_domain **dom, struct m0_sm_group *grp,
-			 const struct m0_cob_domain_id *cdid,
-			 struct m0_be_seg *seg)
+int m0_cob_domain_create(struct m0_cob_domain          **dom,
+			 struct m0_sm_group             *grp,
+			 const struct m0_cob_domain_id  *cdid,
+			 struct m0_be_domain            *bedom,
+			 struct m0_be_seg               *seg)
 {
-	struct m0_be_domain   *bedom = seg->bs_domain; /* XXX */
 	struct m0_be_tx_credit cred  = {};
 	struct m0_be_tx       *tx;
 	int                    rc;
@@ -581,14 +588,14 @@ int m0_cob_domain_create(struct m0_cob_domain **dom, struct m0_sm_group *grp,
 	if (tx == NULL)
 		return M0_ERR(-ENOMEM);
 
-	m0_cob_domain_credit_add(*dom, tx, seg, cdid, &cred);
+	m0_cob_domain_credit_add(*dom, bedom, seg, cdid, &cred);
 	m0_be_tx_init(tx, 0, bedom, grp, NULL, NULL, NULL, NULL);
 	m0_be_tx_prep(tx, &cred);
 	rc = m0_be_tx_exclusive_open_sync(tx);
 	if (rc != 0)
 		goto tx_fini;
 
-	rc = m0_cob_domain_create_prepared(dom, grp, cdid, seg, tx);
+	rc = m0_cob_domain_create_prepared(dom, grp, cdid, bedom, seg, tx);
 	m0_be_tx_close_sync(tx);
 tx_fini:
 	m0_be_tx_fini(tx);
@@ -596,12 +603,13 @@ tx_fini:
 	return M0_RC(rc);
 }
 
-int m0_cob_domain_destroy(struct m0_cob_domain *dom, struct m0_sm_group *grp)
+int m0_cob_domain_destroy(struct m0_cob_domain *dom,
+			  struct m0_sm_group   *grp,
+			  struct m0_be_domain  *bedom)
 {
-	struct m0_be_domain   *bedom = dom->cd_seg->bs_domain; /* XXX */
 	struct m0_be_tx_credit cred  = {};
 	struct m0_be_seg      *seg;
-	char		       id[32];
+	char                  *cdid_str;
 	struct m0_be_tx       *tx;
 	int rc;
 
@@ -611,13 +619,18 @@ int m0_cob_domain_destroy(struct m0_cob_domain *dom, struct m0_sm_group *grp)
 	if (tx == NULL)
 		return M0_ERR(-ENOMEM);
 
+	cob_domain_id2str(&cdid_str, &dom->cd_id);
+	if (cdid_str == NULL) {
+		m0_free(tx);
+		return M0_ERR(-ENOMEM);
+	}
+
 	seg = m0_be_domain_seg(bedom, dom);
-	snprintf(id, ARRAY_SIZE(id), "%016lX", dom->cd_id.id);
-	m0_be_0type_del_credit(bedom, &m0_be_cob0, id, &cred);
+	m0_be_0type_del_credit(bedom, &m0_be_cob0, cdid_str, &cred);
 	M0_BE_FREE_CREDIT_PTR(dom, seg, &cred);
 
 	m0_be_btree_destroy_credit(&dom->cd_object_index,   &cred);
-	m0_be_btree_destroy_credit(&dom->cd_namespace,	    &cred);
+	m0_be_btree_destroy_credit(&dom->cd_namespace,      &cred);
 	m0_be_btree_destroy_credit(&dom->cd_fileattr_basic, &cred);
 	m0_be_btree_destroy_credit(&dom->cd_fileattr_omg,   &cred);
 	m0_be_btree_destroy_credit(&dom->cd_fileattr_ea,    &cred);
@@ -626,13 +639,10 @@ int m0_cob_domain_destroy(struct m0_cob_domain *dom, struct m0_sm_group *grp)
 	m0_be_tx_init(tx, 0, bedom, grp, NULL, NULL, NULL, NULL);
 	m0_be_tx_prep(tx, &cred);
 	rc = m0_be_tx_exclusive_open_sync(tx);
-	if (rc != 0) {
-		m0_be_tx_fini(tx);
-		m0_free(tx);
-		return M0_RC(rc);
-	}
+	if (rc != 0)
+		goto tx_fini_return;
 
-	rc = m0_be_0type_del(&m0_be_cob0, bedom, tx, id);
+	rc = m0_be_0type_del(&m0_be_cob0, bedom, tx, cdid_str);
 	M0_ASSERT(rc == 0);
 
 	M0_BE_OP_SYNC(o, m0_be_btree_destroy(&dom->cd_object_index,   tx, &o));
@@ -640,11 +650,17 @@ int m0_cob_domain_destroy(struct m0_cob_domain *dom, struct m0_sm_group *grp)
 	M0_BE_OP_SYNC(o, m0_be_btree_destroy(&dom->cd_fileattr_basic, tx, &o));
 	M0_BE_OP_SYNC(o, m0_be_btree_destroy(&dom->cd_fileattr_omg,   tx, &o));
 	M0_BE_OP_SYNC(o, m0_be_btree_destroy(&dom->cd_fileattr_ea,    tx, &o));
+
+	m0_cob_domain_fini(dom);
+
+	dom->cd_id.id = 0;
+	M0_BE_TX_CAPTURE_PTR(seg, tx, &dom->cd_id);
 	M0_BE_FREE_PTR_SYNC(dom, seg, tx);
-	M0_BE_TX_CAPTURE_PTR(seg, tx, dom);
 
 	m0_be_tx_close_sync(tx);
+tx_fini_return:
 	m0_be_tx_fini(tx);
+	m0_free(cdid_str);
 	m0_free(tx);
 
 	return M0_RC(rc);

@@ -1307,33 +1307,41 @@ static void cs_net_domains_fini(struct m0_mero *cctx)
 
 static int cs_storage_prepare(struct m0_reqh_context *rctx, bool erase)
 {
-	struct m0_sm_group   *grp = m0_locality0_get()->lo_grp;
+	struct m0_sm_group   *grp   = m0_locality0_get()->lo_grp;
+	struct m0_be_domain  *bedom = rctx->rc_beseg->bs_domain;
 	struct m0_cob_domain *dom;
 	struct m0_dtx         tx = {};
-	int                   rc;
+	int                   rc = 0;
+	int                   rc2;
 
 	m0_sm_group_lock(grp);
 
 	if (erase)
-		m0_mdstore_destroy(&rctx->rc_mdstore, grp);
+		rc = m0_mdstore_destroy(&rctx->rc_mdstore, grp, bedom);
 
-	rc = m0_mdstore_create(&rctx->rc_mdstore, grp, &rctx->rc_cdom_id,
-			       rctx->rc_beseg);
+	rc = rc ?: m0_mdstore_create(&rctx->rc_mdstore, grp, &rctx->rc_cdom_id,
+				     bedom, rctx->rc_beseg);
 	if (rc != 0)
 		goto end;
 	dom = rctx->rc_mdstore.md_dom;
 
-	m0_dtx_init(&tx, rctx->rc_beseg->bs_domain, grp);
+	m0_dtx_init(&tx, bedom, grp);
 	m0_cob_tx_credit(dom, M0_COB_OP_DOMAIN_MKFS, &tx.tx_betx_cred);
 
 	rc = m0_dtx_open_sync(&tx);
 	if (rc == 0) {
 		rc = m0_cob_domain_mkfs(dom, &M0_MDSERVICE_SLASH_FID, &tx.tx_betx);
-		if (rc != 0)
-			m0_cob_domain_destroy(dom, grp);
 		m0_dtx_done_sync(&tx);
 	}
 	m0_dtx_fini(&tx);
+
+	if (rc != 0) {
+		/* Note, m0_mdstore_destroy() creates exclusive tx. */
+		rc2 = m0_mdstore_destroy(&rctx->rc_mdstore, grp, bedom);
+		if (rc2 != 0)
+			M0_LOG(M0_ERROR, "Ignoring rc2=%d from "
+					 "m0_mdstore_destroy()", rc2);
+	}
 end:
 	m0_sm_group_unlock(grp);
 	return M0_RC(rc);
@@ -1724,8 +1732,7 @@ static int cs_storage_setup(struct m0_mero *cctx)
 		 * Init mdstore without root cob first. Now we can use it
 		 * for mkfs.
 		 */
-		rc = m0_mdstore_init(&rctx->rc_mdstore, &rctx->rc_cdom_id,
-				     rctx->rc_beseg, false);
+		rc = m0_mdstore_init(&rctx->rc_mdstore, rctx->rc_beseg, false);
 		if (rc != 0 && rc != -ENOENT) {
 			M0_LOG(M0_ERROR, "m0_mdstore_init: rc=%d", rc);
 			goto cleanup_addb2;
@@ -1743,8 +1750,7 @@ static int cs_storage_setup(struct m0_mero *cctx)
 
 	M0_ASSERT(rctx->rc_mdstore.md_dom != NULL);
 	/* Init mdstore and root cob as it should be created by mkfs. */
-	rc = m0_mdstore_init(&rctx->rc_mdstore, &rctx->rc_cdom_id,
-			     rctx->rc_beseg, true);
+	rc = m0_mdstore_init(&rctx->rc_mdstore, rctx->rc_beseg, true);
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "Failed to initialize mdstore. %s",
 		       !mkfs ? "Did you run mkfs?" : "Mkfs failed?");

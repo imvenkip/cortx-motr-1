@@ -469,7 +469,7 @@ static int layout_composite_add_layers(struct m0_clovis_layout *layout,
 /**
  * Test creating a new object with composite layout.
  */
-static void layout_composite_layers(void)
+static void layout_composite_create(void)
 {
 	int                      rc = 0;
 	int                      nr_layers;
@@ -492,6 +492,73 @@ static void layout_composite_layers(void)
 	CLOVIS_ST_ASSERT_FATAL(rc == 0);
 
 	m0_clovis_layout_free(layout);
+}
+
+/**
+ * Test creating a new object with composite layout then issuing LAYOUT_GET
+ * op to verify.
+ */
+static void layout_composite_create_then_get(void)
+{
+	int                                rc = 0;
+	int                                nr_layers;
+	struct m0_uint128                  id;
+	struct m0_uint128                 *layer_ids;
+	struct m0_clovis_op               *ops[] = {NULL};
+	struct m0_clovis_obj               obj;
+	struct m0_clovis_layout           *layout;
+	struct m0_clovis_composite_layout *clayout;
+	struct m0_clovis_layout           *layout_to_check;
+	struct m0_clovis_composite_layout *clayout_to_check;
+
+	/* Create a composite layout with layers. */
+	layout = m0_clovis_layout_alloc(M0_CLOVIS_LT_COMPOSITE);
+	CLOVIS_ST_ASSERT_FATAL(layout != NULL);
+
+	nr_layers = 1;
+	M0_ALLOC_ARR(layer_ids, nr_layers);
+	CLOVIS_ST_ASSERT_FATAL(layer_ids != NULL);
+	rc = layout_composite_add_layers(layout, nr_layers, layer_ids);
+	CLOVIS_ST_ASSERT_FATAL(rc == 0);
+
+	/* Create a new object with the captured layout.*/
+	rc = layout_composite_create_obj(layout, &id);
+	CLOVIS_ST_ASSERT_FATAL(rc == 0);
+
+
+	/* Prepare and issue LAYOUT_GET op. */
+	M0_SET0(&obj);
+	clovis_st_obj_init(&obj, &clovis_st_layout_container.co_realm,
+			   &id, layout_id);
+	clovis_st_entity_open(&obj.ob_entity);
+	CLOVIS_ST_ASSERT_FATAL(m0_clovis_obj_layout_type(&obj) ==
+			       M0_CLOVIS_LT_COMPOSITE);
+
+	layout_to_check = m0_clovis_layout_alloc(M0_CLOVIS_LT_COMPOSITE);
+	CLOVIS_ST_ASSERT_FATAL(layout_to_check != NULL);
+	clovis_st_layout_op(&obj, M0_CLOVIS_EO_LAYOUT_GET,
+			    layout_to_check, &ops[0]);
+	clovis_st_op_launch(ops, ARRAY_SIZE(ops));
+	rc = clovis_st_op_wait(ops[0], M0_BITS(M0_CLOVIS_OS_FAILED,
+					       M0_CLOVIS_OS_STABLE),
+			       M0_TIME_NEVER);
+	CLOVIS_ST_ASSERT_FATAL(rc == 0);
+	CLOVIS_ST_ASSERT_FATAL(ops[0]->op_sm.sm_state == M0_CLOVIS_OS_STABLE);
+	CLOVIS_ST_ASSERT_FATAL(ops[0]->op_rc == 0);
+
+	clovis_st_op_fini(ops[0]);
+	clovis_st_op_free(ops[0]);
+	clovis_st_entity_fini(&obj.ob_entity);
+
+	/* Check returned layout. */
+	clayout = M0_AMB(clayout, layout, ccl_layout);
+	clayout_to_check =
+		M0_AMB(clayout_to_check, layout_to_check, ccl_layout);
+	CLOVIS_ST_ASSERT_FATAL(
+		clayout->ccl_nr_layers == clayout->ccl_nr_layers);
+
+	m0_clovis_layout_free(layout);
+	m0_clovis_layout_free(layout_to_check);
 }
 
 /*---------------------------------------------------------------------------*
@@ -1075,16 +1142,14 @@ struct clovis_st_suite st_suite_clovis_layout = {
 	.ss_tests = {
 		{ "layout_op_get_obj",
 		  &layout_op_get_obj},
-#if 0
-		{ "layout_op_set_obj",
-		  &layout_op_set_obj},
-#endif
 		{ "layout_capture",
 		  &layout_capture},
 		{ "layout_capture_io",
 		  &layout_capture_io},
-		{ "layout_composite_layers",
-		  &layout_composite_layers},
+		{ "layout_composite_create",
+		  &layout_composite_create},
+		{ "layout_composite_create_then_get",
+		  &layout_composite_create_then_get},
 		{ "layout_composite_extent_idx",
 		  &layout_composite_extent_idx},
 		{ "layout_composite_io_one_layer",

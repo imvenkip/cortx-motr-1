@@ -172,7 +172,9 @@ static bool cp_verify(struct m0_sns_cm_cp *scp)
 }
 
 M0_INTERNAL void cob_create(struct m0_cob_domain *cdom,
-			    uint64_t cont, struct m0_fid *gfid, uint32_t cob_idx)
+			    struct m0_be_domain *bedom,
+			    uint64_t cont, struct m0_fid *gfid,
+			    uint32_t cob_idx)
 {
 	struct m0_sm_group   *grp = m0_locality0_get()->lo_grp;
 	struct m0_cob        *cob;
@@ -204,7 +206,7 @@ M0_INTERNAL void cob_create(struct m0_cob_domain *cdom,
 	rc = m0_cob_fabrec_make(&fabrec, NULL, 0);
 	M0_ASSERT(rc == 0 && fabrec != NULL);
 	m0_sm_group_lock(grp);
-	m0_dtx_init(&tx, cob->co_dom->cd_seg->bs_domain, grp);
+	m0_dtx_init(&tx, bedom, grp);
 	m0_cob_tx_credit(cob->co_dom, M0_COB_OP_CREATE, &tx.tx_betx_cred);
 	rc = m0_dtx_open_sync(&tx);
 	M0_ASSERT(rc == 0);
@@ -217,6 +219,7 @@ M0_INTERNAL void cob_create(struct m0_cob_domain *cdom,
 }
 
 M0_INTERNAL void cob_delete(struct m0_cob_domain *cdom,
+			    struct m0_be_domain *bedom,
 			    uint64_t cont, const struct m0_fid *gfid)
 {
 	struct m0_sm_group   *grp = m0_locality0_get()->lo_grp;
@@ -232,7 +235,7 @@ M0_INTERNAL void cob_delete(struct m0_cob_domain *cdom,
 	M0_UT_ASSERT(rc == 0);
 
 	m0_sm_group_lock(grp);
-	m0_dtx_init(&tx, cob->co_dom->cd_seg->bs_domain, grp);
+	m0_dtx_init(&tx, bedom, grp);
 	m0_cob_tx_credit(cob->co_dom, M0_COB_OP_DELETE_PUT, &tx.tx_betx_cred);
 	rc = m0_dtx_open_sync(&tx);
 	M0_ASSERT(rc == 0);
@@ -289,7 +292,8 @@ static void cobs_create(uint64_t nr_files, uint64_t nr_cobs)
 		m0_fid_gob_make(&gfid, 0, M0_MDSERVICE_START_FID.f_key + i);
 		cob_idx = 0;
 		for (j = 1; j <= nr_cobs; ++j) {
-			cob_create(cdom, j, &gfid, cob_idx);
+			cob_create(cdom, reqh->rh_beseg->bs_domain,
+				   j, &gfid, cob_idx);
 			cob_idx++;
 		}
 	}
@@ -306,7 +310,7 @@ static void cobs_delete(uint64_t nr_files, uint64_t nr_cobs)
 	for (i = 0; i < nr_files; ++i) {
 		m0_fid_gob_make(&gfid, 0, M0_MDSERVICE_START_FID.f_key + i);
 		for (j = 1; j <= nr_cobs; ++j)
-			cob_delete(cdom, j, &gfid);
+			cob_delete(cdom, reqh->rh_beseg->bs_domain, j, &gfid);
 	}
 }
 

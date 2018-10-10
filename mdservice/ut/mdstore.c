@@ -119,9 +119,10 @@ static void test_mkfs(void)
 	M0_UT_ASSERT(rc == sizeof(testroot));
 	close(fd);
 
-	rc = m0_mdstore_init(&md, &id, be_seg, false);
+	md.md_dom = NULL;
+	rc = m0_mdstore_init(&md, be_seg, false);
 	M0_UT_ASSERT(rc == -ENOENT);
-	rc = m0_mdstore_create(&md, grp, &id, be_seg);
+	rc = m0_mdstore_create(&md, grp, &id, &ut_be.but_dom, be_seg);
 	M0_UT_ASSERT(rc == 0);
 
 	/* Create root and other structures */
@@ -136,7 +137,7 @@ static void test_mkfs(void)
 	m0_mdstore_fini(&md);
 
 	/* Init mdstore with root init flag set to 1 */
-	rc = m0_mdstore_init(&md, &id, be_seg, true);
+	rc = m0_mdstore_init(&md, be_seg, true);
 	M0_UT_ASSERT(rc == 0);
 
 	/* Fini everything */
@@ -156,7 +157,7 @@ static void test_init(void)
 	/* Patch fom creation routine. */
 	orig_fom_create = m0_md_fom_ops.fto_create;
 	m0_md_fom_ops.fto_create = fom_create;
-	rc = m0_mdstore_init(&md, &id, be_seg, true);
+	rc = m0_mdstore_init(&md, be_seg, true);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_reqh_service_allocate(&mdservice, &m0_mds_type, NULL);
@@ -171,9 +172,8 @@ static void test_fini(void)
 {
 	int rc;
 
-	rc = m0_mdstore_destroy(&md, grp);
+	rc = m0_mdstore_destroy(&md, grp, &ut_be.but_dom);
 	M0_UT_ASSERT(rc == 0);
-	m0_mdstore_fini(&md);
 
 	m0_reqh_service_prepare_to_stop(mdservice);
 	m0_reqh_service_stop(mdservice);

@@ -590,7 +590,7 @@ M0_INTERNAL int m0_dix_layout_put(struct m0_dix_meta_req     *req,
 	}
 	m0_clink_add(&req->dmr_req.dr_sm.sm_chan, &req->dmr_clink);
 	rc = m0_dix_put(&req->dmr_req, &index, &req->dmr_keys, &req->dmr_vals,
-			NULL, 0);
+			NULL, COF_OVERWRITE);
 	if (rc != 0)
 		m0_clink_del(&req->dmr_clink);
 	m0_dix_fini(&index);

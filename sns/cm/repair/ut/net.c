@@ -130,9 +130,11 @@ static struct m0_cm_ag_id ag_id = {
 static const struct m0_fid      M0_SNS_CM_NET_UT_PVER = M0_FID_TINIT('v', 1, 8);
 
 M0_INTERNAL void cob_create(struct m0_cob_domain *cdom,
+			    struct m0_be_domain *bedom,
 			    uint64_t cont, struct m0_fid *gfid,
 			    uint32_t cob_idx);
 M0_INTERNAL void cob_delete(struct m0_cob_domain *cdom,
+			    struct m0_be_domain *bedom,
 			    uint64_t cont, const struct m0_fid *gfid);
 
 M0_INTERNAL int m0_sns_cm_repair_cp_send(struct m0_cm_cp *cp);
@@ -519,7 +521,7 @@ static void receiver_stob_create()
 	int                   rc;
 
 	m0_ios_cdom_get(s0_reqh, &cdom);
-	cob_create(cdom, 0, &gob_fid, 0);
+	cob_create(cdom, s0_reqh->rh_beseg->bs_domain, 0, &gob_fid, 0);
 
 	/*
 	 * Create a stob. In actual repair scenario, this will already be
@@ -823,7 +825,7 @@ static void receiver_fini()
 	rc = m0_ut_stob_destroy_by_stob_id(&stob_id);
 	M0_UT_ASSERT(rc == 0);
 	m0_ios_cdom_get(s0_reqh, &cdom);
-	cob_delete(cdom, 0, &gob_fid);
+	cob_delete(cdom, s0_reqh->rh_beseg->bs_domain, 0, &gob_fid);
 	m0_free(r_rag.rag_fc);
 	cs_fini(&sctx);
 	m0_cm_type_deregister(&sender_cm_cmt);

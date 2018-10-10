@@ -146,12 +146,12 @@ static void ut_clovis_test_target_session(void)
 {
 	struct m0_fid               fid;
 	struct m0_fid               tfid;
-	struct m0_clovis           *instance = NULL;
+	struct m0_clovis           *instance;
 	struct m0_reqh_service_ctx *ctx;
 	struct m0_clovis_realm      realm;
 	struct m0_clovis_entity     entity;
 	struct m0_clovis_op_io     *ioo;
-	struct m0_rpc_session      *session = NULL; /* required */
+	struct m0_rpc_session      *session;
 	struct m0_pool_version     *pv;
 
 	/* initialise clovis */
@@ -235,7 +235,7 @@ static void ut_clovis_test_target_ioreq_seg_add(void)
 {
 	struct target_ioreq            *ti;
 	struct m0_clovis_op_io         *ioo;
-	struct m0_clovis               *instance = NULL;
+	struct m0_clovis               *instance;
 	struct m0_pdclust_src_addr     *src;
 	struct m0_pdclust_tgt_addr     *tgt;
 	struct pargrp_iomap            *map;
@@ -268,6 +268,7 @@ static void ut_clovis_test_target_ioreq_seg_add(void)
 	ti->ti_ivec.iv_vec.v_nr = 0;
 	m0_bufvec_alloc(&ti->ti_bufvec, 1, unit_size);
 	m0_free(ti->ti_bufvec.ov_buf[0]); /* don't use this buf*/
+	m0_bufvec_alloc(&ti->ti_auxbufvec, 1, unit_size);
 	M0_ALLOC_ARR(ti->ti_pageattrs, 1);
 
 	target_ioreq_seg_add(ti, src, tgt, 111, 1, map);
@@ -282,6 +283,7 @@ static void ut_clovis_test_target_ioreq_seg_add(void)
 	/* we want to re-use ti - free this one */
 	m0_free(ti->ti_pageattrs);
 	m0_bufvec_free(&ti->ti_bufvec);
+	m0_bufvec_free(&ti->ti_auxbufvec);
 	m0_indexvec_free(&ti->ti_ivec);
 
 	ut_clovis_dummy_pargrp_iomap_delete(map, instance);
@@ -316,7 +318,7 @@ static void ut_clovis_test_target_ioreq_init(void)
 	struct m0_fid           fid;
 	struct m0_rpc_session  *session;
 	struct m0_clovis_op_io *ioo;
-	struct m0_clovis       *instance = NULL;
+	struct m0_clovis       *instance;
 	int                     rc;
 	struct m0_clovis_realm  realm;
 
@@ -371,6 +373,8 @@ static void ut_clovis_test_target_ioreq_fini(void)
 	ti->ti_dgvec = NULL;
 	M0_ALLOC_PTR(ti->ti_bufvec.ov_buf);
 	M0_ALLOC_PTR(ti->ti_bufvec.ov_vec.v_count);
+	M0_ALLOC_PTR(ti->ti_auxbufvec.ov_buf);
+	M0_ALLOC_PTR(ti->ti_auxbufvec.ov_vec.v_count);
 	M0_ALLOC_PTR(ti->ti_pageattrs);
 	rc = m0_indexvec_alloc(&ti->ti_ivec, 1);
 	M0_UT_ASSERT(rc == 0);
@@ -406,7 +410,7 @@ static void ut_clovis_test_nw_xfer_tioreq_get(void)
 	struct m0_fid           fid;
 	struct m0_rpc_session  *session;
 	struct target_ioreq    *out;
-	struct m0_clovis       *instance = NULL;
+	struct m0_clovis       *instance;
 	int                     rc;
 	struct m0_clovis_realm  realm;
 
@@ -444,7 +448,7 @@ static void ut_clovis_test_nw_xfer_io_distribute(void)
 static void ut_clovis_test_nw_xfer_req_complete(void)
 {
 	struct m0_clovis_op_io *ioo;
-	struct m0_clovis       *instance = NULL;
+	struct m0_clovis       *instance;
 
 	/* Initialise. */
 	instance = dummy_instance;
@@ -480,7 +484,7 @@ static void ut_clovis_test_nw_xfer_tioreq_map(void)
 static void ut_clovis_test_nw_xfer_request_init(void)
 {
 	struct m0_clovis_op_io *ioo;
-	struct m0_clovis       *instance = NULL;
+	struct m0_clovis       *instance;
 	struct nw_xfer_request *xfer;
 
 	/* initialise clovis */
@@ -526,7 +530,7 @@ static void ut_clovis_test_nw_xfer_request_fini(void)
 static void ut_clovis_test_dgmode_rwvec_alloc_init(void)
 {
 	int                     rc;
-	struct m0_clovis       *instance = NULL;
+	struct m0_clovis       *instance;
 	struct m0_clovis_op_io *ioo;
 	struct target_ioreq    *ti;
 
@@ -550,7 +554,7 @@ static void ut_clovis_test_dgmode_rwvec_alloc_init(void)
 static void ut_clovis_test_dgmode_rwvec_dealloc_fini(void)
 {
 	int                     rc;
-	struct m0_clovis       *instance = NULL;
+	struct m0_clovis       *instance;
 	struct m0_clovis_op_io *ioo;
 	struct target_ioreq    *ti;
 

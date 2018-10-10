@@ -337,6 +337,7 @@ m0_clovis__obj_pool_version_get(struct m0_clovis_obj *obj,
 		if (rc != 0)
 			return M0_ERR(rc);
 		M0_ASSERT(*pv != NULL);
+		obj->ob_attr.oa_pver = (*pv)->pv_id;
 	}
 
 	return M0_RC(rc);
