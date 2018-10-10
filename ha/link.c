@@ -1158,6 +1158,7 @@ static int ha_link_outgoing_fop_send(struct m0_ha_link *hl)
 static int ha_link_outgoing_fop_replied(struct m0_ha_link *hl)
 {
 	struct m0_ha_link_msg_rep_fop *rep_fop;
+	struct m0_ha_link_tags         tags;
 	struct m0_rpc_item            *req_item;
 	int                            rc;
 
@@ -1176,8 +1177,12 @@ static int ha_link_outgoing_fop_replied(struct m0_ha_link *hl)
 		                    rep_fop->lmr_in_delivered);
 	} else {
 		m0_ha_lq_try_unnext(&hl->hln_q_out);
+		m0_ha_lq_tags_get(&hl->hln_q_out, &tags);
+		M0_LOG(M0_WARN, "rc=%d hl=%p ep=%s lq_tags="HLTAGS_F,
+		       rc, hl, hl->hln_conn_cfg.hlcc_rpc_endpoint,
+		       HLTAGS_P(&tags));
 	}
-	return rc == 0 ? M0_RC(rc) : M0_ERR_INFO(rc, "hl=%p", hl);
+	return M0_RC(rc);
 }
 
 static bool ha_link_q_in_confirm_all(struct m0_ha_link *hl)

@@ -385,7 +385,7 @@ m0_get_ep_of()
     local found=false
     local lnid=$(m0_get_lnet_nid $node)
     local lpid=12345
-    local confd_tid=101
+    local confd_tid=1
     local mds_tid=201
     local rms_tid=301
     local ha_tid=1

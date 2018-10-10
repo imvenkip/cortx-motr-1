@@ -4,6 +4,14 @@ shopt -s expand_aliases
 
 ### wrapper to run Vagrant commands with mero configs
 
+if (( ${BASH_VERSINFO[0]} < 4 )) ; then
+    echo "${0##*/}: bash version < 4 is not supported" >&2
+    echo 'Try installing a modern bash version with either of:' >&2
+    echo '  brew install bash' >&2
+    echo '  port install bash' >&2
+    exit 1
+fi
+
 # a hack for `readlink -f` on BSD systems
 if [[ $(uname) == Darwin ]] && ! readlink -f / &> /dev/null ; then
     if which greadlink &> /dev/null ; then
@@ -13,7 +21,7 @@ if [[ $(uname) == Darwin ]] && ! readlink -f / &> /dev/null ; then
         echo 'Try installing GNU readlink (greadlink) with either of:' >&2
         echo '  brew install coreutils' >&2
         echo '  port install coreutils' >&2
-        exit 2
+        exit 1
     fi
 fi
 
@@ -50,23 +58,49 @@ help()
 usage()
 {
     cat <<USAGE_END
-Usage: $PROG_NAME [options] vagrant-cmd [vagrant-cmd-options]
-       $PROG_NAME [options] ansible ansible-args
-       $PROG_NAME list-params
-       $PROG_NAME workspace list|add|switch
+Usage: $PROG_NAME [options] <vagrant-cmd> [vagrant-cmd-options]
+       $PROG_NAME [options] ansible       <ansible-args>
+
+       $PROG_NAME params
+       $PROG_NAME env       [show|add|edit]
+       $PROG_NAME run       <remote command>
+       $PROG_NAME tmux      [vm-name]
+       $PROG_NAME upt       [vm-name]
+       $PROG_NAME workspace [list|add|switch]
 
   Helper tool to run 'vagrant' or 'ansible-playbook' commands with mero
-  provisioning configs (see scripts/provisioning/README.md).
+  provisioning configs (see scripts/provisioning/README.md), e.g.:
 
-  'list-params' command shows environment variables recognized by mero
-  Vagrantfile config which can be specified either on command-line or in '.env'
-  file to control default vagrant behaviour.
+    $PROG_NAME up
+    $PROG_NAME ssh
+    $PROG_NAME ansible --list-tasks cmu.yml
 
-  'workspace' command enables multiple independent sets of VMs to co-exist. It
-  can list existing workspaces, add new ones or switch between them. It can be
-  abbreviated as 'ws' and 'list' sub-command can be omitted, it's assumed by
-  default.
+  params     show environment variables recognized by mero Vagrantfile config
+             that can be specified either on command-line or in '.env' file to
+             control default vagrant behaviour.
 
+  env        shows and helps to add or edit environment variables in the
+             '.env' file, 'show' sub-command is assumed by default:
+
+               $PROG_NAME env
+               $PROG_NAME env add M0_VM_BOX_VERSION=1803.01
+               $PROG_NAME env edit
+
+  run        execute a single command on the default VM.
+
+  tmux       ssh to the VM and start a tmux session (or re-connects to the
+             existing one).
+
+  upt        equivalent of doing \`m0vg up && m0vg tmux\`.
+
+  workspace  enables multiple independent sets of VMs to co-exist. It can list
+             existing workspaces, add new ones or switch between them. It can be
+             abbreviated as 'ws' and 'list' sub-command can be omitted, it's
+             assumed by default:
+
+               $PROG_NAME ws
+               $PROG_NAME ws add centos-7.3
+               $PROG_NAME ws switch centos-7.3
   Options:
 
     -v|--verbose        Print what's going on.
@@ -83,19 +117,29 @@ parse_cli_options()
 {
     while true ; do
         case "$1" in
-            -v|--verbose)       verbose=true; shift ;;
-            -h|--help)          help stdout ;;
-            ansible)            cmd=ansible-playbook; shift ; break ;;
-            workspace|ws)       cmd=workspace-${2:-list}; shift
-                                [[ -z $1 ]] || shift
-                                break
-                                ;;
+            -v|--verbose)  verbose=true; shift ;;
+            -h|--help)     help stdout ;;
 
-            list-params)        grep -oE '\bM0_\w+\b' "$VAGRANT_DIR/Vagrantfile" | sort -u
-                                exit 0
-                                ;;
+            ansible)       cmd=ansible-playbook ; shift ; break ;;
+            run)           cmd=$1 ; shift ; break ;;
+            tmux)          cmd=$1 ; shift ; break ;;
+            upt)           cmd=$1 ; shift ; break ;;
 
-            *)                  break ;;
+            params)        grep -oE '\bM0_\w+\b' "$VAGRANT_DIR/Vagrantfile" | sort -u
+                           exit 0
+                           ;;
+
+            env)           cmd=env-${2:-show}; shift
+                           [[ -z $1 ]] || shift
+                           break
+                           ;;
+
+            workspace|ws)  cmd=workspace-${2:-list}; shift
+                           [[ -z $1 ]] || shift
+                           break
+                           ;;
+
+            *)             break ;;
         esac
     done
 
@@ -208,6 +252,36 @@ check_vagrant_envfile()
     fi
 }
 
+show_env()
+{
+    cat "$VAGRANT_DEFAULT_ENV_FILE"
+}
+
+add_env_var()
+{
+    [[ -n $1 ]] ||
+        die "please, provide env variable as an argument, it cannot be empty"
+
+    echo "$1" >> "$VAGRANT_DEFAULT_ENV_FILE"
+}
+
+edit_env()
+{
+    local editor=vi
+
+    if [[ -v EDITOR ]] ; then
+        editor=$EDITOR
+    elif [[ -v VISUAL ]] ; then
+        editor=$VISUAL
+    elif which emacs &> /dev/null ; then
+        editor=emacs
+    elif which vim &> /dev/null ; then
+        editor=vim
+    fi
+
+    $editor "$VAGRANT_DEFAULT_ENV_FILE"
+}
+
 is_current_workspace()
 {
     [[ $(readlink -f $1) == $(readlink -f $VAGRANT_DEFAULT_DOTFILE_DIR) ]]
@@ -295,16 +369,21 @@ check_vagrant_envfile
 cd $VAGRANT_DIR
 
 case $cmd in
+    env-*)
+        case ${cmd#env-} in
+            add)     add_env_var "$1" ;& # fall through
+            show)    show_env ;;
+            edit)    edit_env ;;
+            *)       die "Unknown env sub-command: '${cmd#env-}'" ;;
+        esac
+        ;;
+
     workspace-*)
         case ${cmd#workspace-} in
             list)    list_workspaces ;;
-
             add)     add_workspace "$1" && echo OK || echo FAILED ;;
-
             switch)  switch_to_workspace "$1"
-                     list_workspaces
-                     ;;
-
+                     list_workspaces ;;
             *)       die "Unknown workspace sub-command: '${cmd#workspace-}'" ;;
         esac
         ;;
@@ -316,6 +395,11 @@ case $cmd in
     ansible*)
         $cmd --inventory-file="$VAGRANT_ANSIBLE_INVENTORY_FILE" "$@"
         ;;
+
+    run) vagrant ssh -- -t "$*" ;;
+
+    upt) vagrant up $1 ;& # fall through to tmux
+    tmux) vagrant ssh $1 -- -t "tmux new-session -A -s ${1:-cmu}" ;;
 
     *) die "Unknown mode: '$cmd'" ;;
 esac

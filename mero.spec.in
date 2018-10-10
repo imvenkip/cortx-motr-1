@@ -22,8 +22,8 @@
 # build number
 %define build_num  %( test -n "$build_number" && echo "$build_number" || echo 1 )
 
+%define lustre         lustre-client
 %define lustre_devel   lustre-client-devel
-%define lustre_modules kmod-lustre-client
 
 # workaround issue with mero-debuginfo package, which injects incorrect
 # dependencies on itself into mero package when internal deps generator is used;
@@ -88,8 +88,7 @@ BuildRequires:  libuv
 %endif
 
 Requires:       kernel = %{kernel_ver_requires}
-Requires:       %{lustre_modules}
-Requires:       lustre-client
+Requires:       %{lustre}
 Requires:       libyaml
 Requires:       genders
 Requires:       sysvinit-tools
