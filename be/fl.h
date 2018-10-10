@@ -74,8 +74,6 @@ struct m0_be_fl {
 	struct m0_be_fl_size bfl_free[M0_BE_FL_NR + 1];
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
-M0_INTERNAL void m0_be_fl_init(struct m0_be_fl *fl, struct m0_be_seg *seg);
-M0_INTERNAL void m0_be_fl_fini(struct m0_be_fl *fl);
 M0_INTERNAL bool m0_be_fl__invariant(struct m0_be_fl *fl);
 
 M0_INTERNAL void m0_be_fl_create(struct m0_be_fl  *fl,

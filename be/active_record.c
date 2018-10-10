@@ -99,7 +99,6 @@ m0_be_active_record_domain_init(struct m0_be_active_record_domain *dom,
 	struct m0_be_active_record_domain_subsystem *sub;
 
 	dom->ard_seg = seg;
-	m0_be_list_init(&dom->ard_list, seg);
 
 	M0_BE_OP_SYNC(op, sub = m0_be_list_head(&dom->ard_list, &op));
 	if (sub == NULL)
@@ -136,8 +135,6 @@ m0_be_active_record_domain_fini(struct m0_be_active_record_domain *dom)
 		if (sub == NULL)
 			break;
 	}
-
-	m0_be_list_fini(&dom->ard_list);
 }
 
 M0_INTERNAL bool
@@ -160,7 +157,7 @@ m0_be_active_record_domain__create(struct m0_be_active_record_domain **dom,
 
 	M0_BE_ALLOC_PTR_SYNC(*dom, seg, tx);
 	M0_BE_OP_SYNC(op, m0_be_list_create(&(*dom)->ard_list, tx, &op,
-					    seg, &ard_list_tl));
+					    &ard_list_tl));
 
 	for (i = 0; !m0_buf_eq(&path[i], &M0_BUF_INIT0); ++i) {
 		struct m0_be_active_record_domain_subsystem *sub;
@@ -168,7 +165,7 @@ m0_be_active_record_domain__create(struct m0_be_active_record_domain **dom,
 		M0_BE_ALLOC_PTR_SYNC(sub, seg, tx);
 		strncpy(sub->rds_name, path[i].b_addr, path[i].b_nob);
 		M0_BE_OP_SYNC(op, m0_be_list_create(&sub->rds_list, tx, &op,
-						    seg, &rds_list_tl));
+						    &rds_list_tl));
 		ard_list_tlink_init(sub);
 		M0_BE_OP_SYNC(op, m0_be_list_add(&(*dom)->ard_list, &op, tx,
 						 sub));

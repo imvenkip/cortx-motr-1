@@ -104,22 +104,6 @@ static bool be_fl_list_is_empty(struct m0_be_fl *fl, unsigned long index)
 	return m0_be_list_is_empty(be_fl_list(fl, index));
 }
 
-M0_INTERNAL void m0_be_fl_init(struct m0_be_fl *fl, struct m0_be_seg *seg)
-{
-	int i;
-
-	for (i = 0; i < ARRAY_SIZE(fl->bfl_free); ++i)
-		m0_be_list_init(be_fl_list(fl, i), seg);
-}
-
-M0_INTERNAL void m0_be_fl_fini(struct m0_be_fl *fl)
-{
-	int i;
-
-	for (i = 0; i < ARRAY_SIZE(fl->bfl_free); ++i)
-		m0_be_list_fini(be_fl_list(fl, i));
-}
-
 M0_INTERNAL void m0_be_fl_create(struct m0_be_fl  *fl,
 				 struct m0_be_tx  *tx,
 				 struct m0_be_seg *seg)
@@ -128,7 +112,7 @@ M0_INTERNAL void m0_be_fl_create(struct m0_be_fl  *fl,
 
 	for (i = 0; i < ARRAY_SIZE(fl->bfl_free); ++i) {
 		M0_BE_OP_SYNC(op, m0_be_list_create(
-			be_fl_list(fl, i), tx, &op, seg, &fl_chunks_tl));
+			be_fl_list(fl, i), tx, &op, &fl_chunks_tl));
 	}
 }
 

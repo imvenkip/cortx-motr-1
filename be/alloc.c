@@ -878,15 +878,6 @@ M0_INTERNAL int m0_be_allocator_init(struct m0_be_allocator *a,
 		M0_BE_REG_GET_PTR(&a->ba_h[i], a->ba_seg, NULL);
 		M0_ASSERT(m0_addr_is_aligned(a->ba_h[i],
 					     BE_ALLOC_HEADER_SHIFT));
-
-		/*
-		 * XXX m0_be_allocator_init() is called explicitly before
-		 * m0_be_allocator_create(). Therefore, these lists are inited
-		 * before creation. TODO `Init' should be a part of `create'
-		 * interface.
-		 */
-		m0_be_list_init(&a->ba_h[i]->bah_chunks, seg);
-		m0_be_fl_init(&a->ba_h[i]->bah_fl, seg);
 		M0_BE_REG_PUT_PTR(&a->ba_h[i], a->ba_seg, NULL);
 	}
 	M0_BE_REG_PUT_PTR(seg_hdr, a->ba_seg, NULL);
@@ -900,11 +891,8 @@ M0_INTERNAL void m0_be_allocator_fini(struct m0_be_allocator *a)
 
 	M0_ENTRY("a=%p", a);
 
-	for (i = 0; i < M0_BAP_NR; ++i) {
+	for (i = 0; i < M0_BAP_NR; ++i)
 		be_allocator_stats_print(&a->ba_h[i]->bah_stats, NULL, a);
-		m0_be_fl_fini(&a->ba_h[i]->bah_fl);
-		m0_be_list_fini(&a->ba_h[i]->bah_chunks);
-	}
 	m0_mutex_fini(&a->ba_lock);
 
 	M0_LEAVE();
@@ -942,7 +930,7 @@ static int be_allocator_header_create(struct m0_be_allocator     *a,
 	M0_BE_TX_CAPTURE_PTR(a->ba_seg, tx, &h->bah_size);
 
 	M0_BE_OP_SYNC(op, m0_be_list_create(&h->bah_chunks, tx, &op,
-					    a->ba_seg, &chunks_all_tl));
+					    &chunks_all_tl));
 	m0_be_fl_create(&h->bah_fl, tx, a->ba_seg);
 	be_allocator_stats_init(&h->bah_stats, tx, h, a);
 	be_allocator_stats_capture(a, ztype, tx);

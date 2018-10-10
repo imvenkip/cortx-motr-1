@@ -76,23 +76,20 @@ M0_INTERNAL void m0_be_ut_list(void)
 	m0_be_ut_backend_init(&ut_be, true);
 	/* m0_be_ut_seg_init(&ut_seg, NULL, 1ULL << 16); */ /* XXX PD */
 	m0_be_ut_seg_init(&ut_seg, &ut_be, 1ULL << 16);
-	m0_be_ut_seg_allocator_init(&ut_seg, &ut_be);
 	seg = ut_seg.bus_seg;
 
 	M0_BE_UT_ALLOC_PTR(&ut_be, &ut_seg, list);
 	for (i = 0; i < ARRAY_SIZE(elem); ++i)
 		M0_BE_UT_ALLOC_PTR(&ut_be, &ut_seg, elem[i]);
 
-	m0_be_list_init(list, seg);
 	M0_BE_UT_TRANSACT(&ut_be, tx, cred,
 		  m0_be_list_credit(list, M0_BLO_CREATE, 1, &cred),
 		  M0_BE_OP_SYNC_WITH(&op, m0_be_list_create(list, tx, &op,
-						      seg, &test_tl)));
+		                                            &test_tl)));
 
 	/* Perform some operations over the list. */
 
 	for (i = 0; i < ARRAY_SIZE(elem); ++i) {
-		m0_be_tlink_init(elem[i], list);
 		M0_SET0(&op);
 		M0_BE_UT_TRANSACT(&ut_be, tx, cred,
 		  m0_be_list_credit(list, M0_BLO_TLINK_CREATE, 1, &cred),
@@ -150,13 +147,7 @@ M0_INTERNAL void m0_be_ut_list(void)
 	}
 
 	/* Reload segment and check data. */
-	for (i = 0; i < ARRAY_SIZE(elem); ++i)
-		m0_be_tlink_fini(elem[i], list);
-	m0_be_list_fini(list);
 	m0_be_ut_seg_reload(&ut_seg);
-	m0_be_list_init(list, seg);
-	for (i = 0; i < ARRAY_SIZE(elem); ++i)
-		m0_be_tlink_init(elem[i], list);
 
 	check(list, seg);
 
@@ -177,19 +168,16 @@ M0_INTERNAL void m0_be_ut_list(void)
 		  m0_be_list_credit(list, M0_BLO_TLINK_DESTROY, 1, &cred),
 		  M0_BE_OP_SYNC_WITH(&op, m0_be_tlink_destroy(elem[i], tx, &op,
 							      list)));
-		m0_be_tlink_fini(elem[i], list);
 	}
 	M0_SET0(&op);
 	M0_BE_UT_TRANSACT(&ut_be, tx, cred,
 		  m0_be_list_credit(list, M0_BLO_DESTROY, 1, &cred),
 		  M0_BE_OP_SYNC_WITH(&op, m0_be_list_destroy(list, tx, &op)));
-	m0_be_list_fini(list);
 
 	for (i = 0; i < ARRAY_SIZE(elem); ++i)
 		M0_BE_UT_FREE_PTR(&ut_be, &ut_seg, elem[i]);
 	M0_BE_UT_FREE_PTR(&ut_be, &ut_seg, list);
 
-	m0_be_ut_seg_allocator_fini(&ut_seg, &ut_be);
 	m0_be_ut_seg_fini(&ut_seg);
 	m0_be_ut_backend_fini(&ut_be);
 

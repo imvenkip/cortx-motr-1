@@ -73,8 +73,6 @@ void m0_be_ut_fl(void)
 	addr   += sizeof *fl;
 	chunks  = (struct be_alloc_chunk *)addr;
 
-	m0_be_fl_init(fl, seg);
-
 	M0_BE_UT_TRANSACT(ut_be, tx, cred,
 			  m0_be_fl_credit(NULL, M0_BFL_CREATE, &cred),
 			  m0_be_fl_create(fl, tx, seg));
@@ -125,8 +123,6 @@ void m0_be_ut_fl(void)
 	M0_BE_UT_TRANSACT(ut_be, tx, cred,
 			  m0_be_fl_credit(NULL, M0_BFL_DESTROY, &cred),
 			  m0_be_fl_destroy(fl, tx));
-
-	m0_be_fl_fini(fl);
 
 	m0_be_ut_seg_fini(&ut_seg);
 	m0_be_ut_backend_fini(ut_be);
