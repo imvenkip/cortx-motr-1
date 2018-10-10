@@ -26,7 +26,6 @@
 
 #include "be/tx_credit.h"       /* m0_be_tx_credit */
 #include "be/tx.h"              /* M0_BE_TX_CAPTURE_PTR */
-#include "be/reg.h"             /* M0_BE_REG_GET_PTR */
 
 #include "lib/string.h"         /* strlen */
 
@@ -125,8 +124,6 @@ M0_INTERNAL void m0_be_list_create(struct m0_be_list        *list,
 {
 	M0_PRE(strlen(desc->td_name) < sizeof list->bl_td_name);
 
-	// M0_BE_REG_GET_PTR(list, seg, tx);
-
 	m0_format_header_pack(&list->bl_format_header, &(struct m0_format_tag){
 		.ot_version = M0_BE_LIST_FORMAT_VERSION,
 		.ot_type    = M0_FORMAT_TYPE_BE_LIST,
@@ -140,26 +137,18 @@ M0_INTERNAL void m0_be_list_create(struct m0_be_list        *list,
 	m0_tlist_init(&list->bl_descr, &list->bl_list);
 	m0_format_footer_update(list);
 	be_list_capture(list, tx);
-	// M0_BE_REG_PUT_PTR(list, seg, tx);
 }
 
 M0_INTERNAL void m0_be_list_destroy(struct m0_be_list *list,
 				    struct m0_be_tx   *tx)
 {
-	// M0_BE_REG_GET_PTR(list, list->bl_seg, tx);
 	m0_tlist_fini(&list->bl_descr, &list->bl_list);
 	be_list_capture(list, tx);
-	// M0_BE_REG_PUT_PTR(list, list->bl_seg, tx);
 }
 
 M0_INTERNAL bool m0_be_list_is_empty(struct m0_be_list *list)
 {
-	bool result;
-
-	// M0_BE_REG_GET_PTR(list, list->bl_seg, NULL);
-	result = m0_tlist_is_empty(&list->bl_descr, &list->bl_list);
-	// M0_BE_REG_PUT_PTR(list, list->bl_seg, NULL);
-	return result;
+	return m0_tlist_is_empty(&list->bl_descr, &list->bl_list);
 }
 
 static void *be_list_side(struct m0_be_list   *list,
