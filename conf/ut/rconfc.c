@@ -27,6 +27,7 @@
 #include "conf/rconfc.h"
 #include "conf/rconfc_internal.h"      /* rlock_ctx */
 #include "conf/confd.h"                /* m0_confd_stype */
+#include "conf/helpers.h"              /* m0_confc_expired_cb */
 #include "conf/ut/common.h"            /* SERVER_ENDPOINT */
 #include "conf/ut/confc.h"             /* m0_ut_conf_fids */
 #include "conf/ut/rpc_helpers.h"       /* m0_ut_rpc_machine_start */
@@ -56,11 +57,11 @@ enum {
 	MAX_RPCS_IN_FLIGHT = 1,
 };
 
-struct fs_object {
-	struct m0_conf_filesystem *fs;
-	struct m0_clink            clink_x;
-	struct m0_clink            clink_r;
-	struct m0_confc           *confc;
+struct root_object {
+	struct m0_conf_root *root;
+	struct m0_clink      clink_x;
+	struct m0_clink      clink_r;
+	struct m0_confc     *confc;
 };
 
 static struct m0_rpc_client_ctx cctx = {
@@ -81,7 +82,7 @@ static int rconfc_ut_mero_start(struct m0_rpc_machine    *mach,
 		"-S", NAME(".stob"), "-A", "linuxstob:"NAME("-addb.stob"),
 		"-w", "10", "-e", SERVER_ENDPOINT, "-H", SERVER_ENDPOINT_ADDR,
 		"-f", M0_UT_CONF_PROCESS,
-		"-c", M0_UT_PATH("diter.xc"), "-P", M0_UT_CONF_PROFILE
+		"-c", M0_UT_PATH("diter.xc")
 	};
 	*rctx = (struct m0_rpc_server_ctx) {
 		.rsx_xprts         = &m0_conf_ut_xprt,
@@ -810,8 +811,7 @@ static void test_reading(void)
 	/* do regular path opening */
 	rc = m0_confc_open_sync(&cobj, rconfc.rc_confc.cc_root,
 				M0_CONF_ROOT_PROFILES_FID,
-				m0_ut_conf_fids[M0_UT_CONF_PROF],
-				M0_CONF_PROFILE_FILESYSTEM_FID);
+				m0_ut_conf_fids[M0_UT_CONF_PROF]);
 	M0_UT_ASSERT(rc == 0);
 	m0_confc_close(cobj);
 	m0_rconfc_stop_sync(&rconfc);
@@ -981,10 +981,8 @@ static void update_confd_version(struct m0_rpc_server_ctx *rctx,
 	struct m0_reqh         *reqh;
 	struct m0_reqh_service *svc;
 	struct m0_confd        *confd = NULL;
-	struct m0_conf_cache   *confd_cache;
-	struct m0_conf_root    *root_obj;
-	struct m0_conf_filesystem *fs;
-	struct m0_fid              fs_fid = M0_FID_TINIT('f', 1, 1);
+	struct m0_conf_cache   *cc;
+	struct m0_conf_root    *root;
 
 	/* Find confd instance through corresponding confd service */
 	reqh = &rctx->rsx_mero_ctx.cc_reqh_ctx.rc_reqh;
@@ -996,17 +994,13 @@ static void update_confd_version(struct m0_rpc_server_ctx *rctx,
 	} m0_tl_endfor;
 	M0_UT_ASSERT(confd != NULL);
 
-	confd_cache = confd->d_cache;
-	confd_cache->ca_ver = new_ver;
-	root_obj = M0_CONF_CAST(m0_conf_cache_lookup(confd_cache,
-						     &M0_CONF_ROOT_FID),
-				m0_conf_root);
-	M0_UT_ASSERT(root_obj != NULL);
-	root_obj->rt_verno = new_ver;
-
-	fs = M0_CONF_CAST(m0_conf_cache_lookup(confd_cache, &fs_fid),
-				m0_conf_filesystem);
-	fs->cf_redundancy = 51212;
+	cc = confd->d_cache;
+	cc->ca_ver = new_ver;
+	root = M0_CONF_CAST(m0_conf_cache_lookup(cc, &M0_CONF_ROOT_FID),
+			    m0_conf_root);
+	M0_UT_ASSERT(root != NULL);
+	root->rt_verno = new_ver;
+	root->rt_mdredundancy = 51212;
 }
 
 static void test_version_change(void)
@@ -1167,8 +1161,7 @@ static void test_reconnect_success(void)
 	/* do regular path opening with disconnected confc */
 	rc = m0_confc_open_sync(&cobj, rconfc.rc_confc.cc_root,
 				M0_CONF_ROOT_PROFILES_FID,
-				m0_ut_conf_fids[M0_UT_CONF_PROF],
-				M0_CONF_PROFILE_FILESYSTEM_FID);
+				m0_ut_conf_fids[M0_UT_CONF_PROF]);
 	M0_UT_ASSERT(rc == 0);
 	m0_confc_close(cobj);
 	m0_fi_disable("skip_confd_st_in", "force_reconnect_success");
@@ -1292,10 +1285,10 @@ static void drain_expired_cb(struct m0_rconfc *rconfc)
 
 static bool fs_expired(struct m0_clink *clink)
 {
-	struct fs_object *fs_obj =
-		container_of(clink, struct fs_object, clink_x);
+	struct root_object *root_obj =
+		container_of(clink, struct root_object, clink_x);
 	struct m0_rconfc *rconfc =
-		container_of(fs_obj->confc, struct m0_rconfc, rc_confc);
+		container_of(root_obj->confc, struct m0_rconfc, rc_confc);
 
 	M0_UT_ENTER();
 	drain_expired_cb(rconfc);
@@ -1314,10 +1307,10 @@ static void drain_ready_cb(struct m0_rconfc *rconfc)
 
 static bool fs_ready(struct m0_clink *clink)
 {
-	struct fs_object *fs_obj =
-		container_of(clink, struct fs_object, clink_r);
+	struct root_object *root_obj =
+		container_of(clink, struct root_object, clink_r);
 	struct m0_rconfc *rconfc =
-		container_of(fs_obj->confc, struct m0_rconfc, rc_confc);
+		container_of(root_obj->confc, struct m0_rconfc, rc_confc);
 
 	M0_UT_ENTER();
 	drain_ready_cb(rconfc);
@@ -1333,7 +1326,7 @@ static void test_drain(void)
 	struct m0_rpc_server_ctx rctx;
 	struct rlock_ctx        *rlx;
 	struct m0_rconfc        *rconfc;
-	struct fs_object         fs_obj;
+	struct root_object       root_obj;
 
 	rc = rconfc_ut_mero_start(&mach, &rctx);
 	M0_UT_ASSERT(rc == 0);
@@ -1352,22 +1345,22 @@ static void test_drain(void)
 	rc = m0_rconfc_start_sync(rconfc);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_conf_fs_get(&profile, &rconfc->rc_confc, &fs_obj.fs);
+	rc = m0_confc_root_open(&rconfc->rc_confc, &root_obj.root);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(fs_obj.fs->cf_redundancy == 1);
-	M0_UT_ASSERT(fs_obj.fs->cf_obj.co_nrefs != 0);
-	drain_fs_fid = fs_obj.fs->cf_obj.co_id;
+	M0_UT_ASSERT(root_obj.root->rt_mdredundancy == 1);
+	M0_UT_ASSERT(root_obj.root->rt_obj.co_nrefs != 0);
+	drain_fs_fid = root_obj.root->rt_obj.co_id;
 	/*
-	 * Here we intentionally leave fs object pinned simulating working
+	 * Here we intentionally leave root object pinned simulating working
 	 * rconfc environment. It is expected to be closed later during expired
 	 * callback processing being found by fs_fid (see drain_expired_cb()).
 	 */
 
-	fs_obj.confc = &rconfc->rc_confc;
-	m0_clink_init(&fs_obj.clink_x, fs_expired);
-	m0_clink_init(&fs_obj.clink_r, fs_ready);
-	m0_clink_add_lock(&cctx.rcx_reqh.rh_conf_cache_exp, &fs_obj.clink_x);
-	m0_clink_add_lock(&cctx.rcx_reqh.rh_conf_cache_ready, &fs_obj.clink_r);
+	root_obj.confc = &rconfc->rc_confc;
+	m0_clink_init(&root_obj.clink_x, fs_expired);
+	m0_clink_init(&root_obj.clink_r, fs_ready);
+	m0_clink_add_lock(&cctx.rcx_reqh.rh_conf_cache_exp, &root_obj.clink_x);
+	m0_clink_add_lock(&cctx.rcx_reqh.rh_conf_cache_ready, &root_obj.clink_r);
 
 	/* Update conf DB version and immitate read lock conflict */
 	update_confd_version(&rctx, 2);
@@ -1385,15 +1378,15 @@ static void test_drain(void)
 	m0_sm_group_unlock(rconfc->rc_sm.sm_grp);
 	M0_UT_ASSERT(rconfc->rc_sm.sm_state == M0_RCS_IDLE);
 
-	rc = m0_conf_fs_get(&profile, &rconfc->rc_confc, &fs_obj.fs);
+	rc = m0_confc_root_open(&rconfc->rc_confc, &root_obj.root);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(fs_obj.fs->cf_redundancy == 51212);
-	m0_confc_close(&fs_obj.fs->cf_obj);
+	M0_UT_ASSERT(root_obj.root->rt_mdredundancy == 51212);
+	m0_confc_close(&root_obj.root->rt_obj);
 
-	m0_clink_del_lock(&fs_obj.clink_x);
-	m0_clink_del_lock(&fs_obj.clink_r);
-	m0_clink_fini(&fs_obj.clink_x);
-	m0_clink_fini(&fs_obj.clink_r);
+	m0_clink_del_lock(&root_obj.clink_x);
+	m0_clink_del_lock(&root_obj.clink_r);
+	m0_clink_fini(&root_obj.clink_x);
+	m0_clink_fini(&root_obj.clink_r);
 	m0_rconfc_stop_sync(rconfc);
 	m0_rconfc_fini(rconfc);
 	m0_rpc_client_stop(&cctx);

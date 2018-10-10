@@ -31,9 +31,6 @@
 #include "rpc/rpc.h"
 #include "reqh/reqh.h"
 #include "conf/confc.h"       /* m0_conf_cache */
-#include "conf/diter.h"       /* m0_conf_diter */
-#include "conf/obj_ops.h"     /* m0_conf_obj_put */
-#include "conf/helpers.h"     /* m0_conf_service_open */
 
 static void ha_state_fom_fini(struct m0_fom *fom)
 {

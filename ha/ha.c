@@ -391,7 +391,6 @@ static int ha_level_enter(struct m0_module *module)
 				.hecc_reqh        = ha->h_cfg.hcf_reqh,
 				.hecc_rpc_machine = ha->h_cfg.hcf_rpc_machine,
 				.hecc_process_fid = ha->h_cfg.hcf_process_fid,
-				.hecc_profile_fid = ha->h_cfg.hcf_profile_fid,
 			};
 		return M0_RC(m0_ha_entrypoint_client_init(
 		                         &ha->h_entrypoint_client,

@@ -72,7 +72,6 @@
 #define M0_PDCLUST_SEED "upjumpandpumpim,"
 
 struct m0_pool;
-struct m0_conf_filesystem;
 
 /* export */
 struct m0_pdclust_attr;

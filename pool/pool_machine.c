@@ -29,9 +29,10 @@
 #include "conf/confc.h"
 #include "conf/diter.h"            /* m0_conf_diter_init */
 #include "conf/obj_ops.h"          /* m0_conf_obj_get_lock */
+#include "conf/helpers.h"          /* m0_confc2reqh */
 #include "ioservice/fid_convert.h" /* m0_fid_convert_gob2cob */
 #include "pool/pm_internal.h"
-#include "ha/failvec.h"         /* m0_ha_failvec_fetch */
+#include "ha/failvec.h"            /* m0_ha_failvec_fetch */
 
 /**
    @addtogroup poolmach
@@ -96,7 +97,7 @@ static bool is_controllerv_or_diskv(const struct m0_conf_obj *obj)
 	return m0_conf_obj_type(obj) == &M0_CONF_OBJV_TYPE &&
 		M0_IN(m0_conf_obj_type(
 			      M0_CONF_CAST(obj, m0_conf_objv)->cv_real),
-		      (&M0_CONF_CONTROLLER_TYPE, &M0_CONF_DISK_TYPE));
+		      (&M0_CONF_CONTROLLER_TYPE, &M0_CONF_DRIVE_TYPE));
 }
 
 static int poolmach_state_update(struct m0_poolmach_state *st,
@@ -111,15 +112,15 @@ static int poolmach_state_update(struct m0_poolmach_state *st,
 	if (m0_conf_obj_type(objv_real) == &M0_CONF_CONTROLLER_TYPE) {
 		st->pst_nodes_array[*idx_nodes].pn_id = objv_real->co_id;
 		M0_CNT_INC(*idx_nodes);
-	} else if (m0_conf_obj_type(objv_real) == &M0_CONF_DISK_TYPE) {
-		struct m0_conf_disk      *d;
+	} else if (m0_conf_obj_type(objv_real) == &M0_CONF_DRIVE_TYPE) {
+		struct m0_conf_drive     *d;
 		struct m0_poolmach_event  pme;
 		struct m0_pooldev        *pdev =
 			&st->pst_devices_array[*idx_devices];
 
-		d = M0_CONF_CAST(objv_real, m0_conf_disk);
+		d = M0_CONF_CAST(objv_real, m0_conf_drive);
 		pdev->pd_id = d->ck_obj.co_id;
-		pdev->pd_sdev_idx = d->ck_dev->sd_dev_idx;
+		pdev->pd_sdev_idx = d->ck_sdev->sd_dev_idx;
 		pdev->pd_index = *idx_devices;
 		pdev->pd_node = &st->pst_nodes_array[*idx_nodes];
 		m0_conf_obj_get_lock(&d->ck_obj);
@@ -216,10 +217,11 @@ M0_INTERNAL int m0_poolmach_init_by_conf(struct m0_poolmach *pm,
 	confc = m0_confc_from_obj(&pver->pv_obj);
 	reqh = m0_confc2reqh(confc);
 	rc = m0_conf_diter_init(&it, confc, &pver->pv_obj,
-				M0_CONF_PVER_RACKVS_FID,
+				M0_CONF_PVER_SITEVS_FID,
+				M0_CONF_SITEV_RACKVS_FID,
 				M0_CONF_RACKV_ENCLVS_FID,
 				M0_CONF_ENCLV_CTRLVS_FID,
-				M0_CONF_CTRLV_DISKVS_FID);
+				M0_CONF_CTRLV_DRIVEVS_FID);
 	if (rc != 0)
 		return M0_ERR(rc);
 

@@ -137,7 +137,6 @@ m0_rpc_client_find_connect(struct m0_rpc_conn       *conn,
 			   struct m0_rpc_session    *session,
 			   struct m0_rpc_machine    *rpc_mach,
 			   const char               *remote_addr,
-			   const struct m0_fid      *sfid,
 			   enum m0_conf_service_type stype,
 			   uint64_t                  max_rpcs_in_flight,
 			   m0_time_t                 abs_timeout)
@@ -148,8 +147,9 @@ m0_rpc_client_find_connect(struct m0_rpc_conn       *conn,
 
 	M0_ENTRY();
 	M0_PRE(rpc_mach != NULL);
-	rc = m0_conf_service_find(rpc_mach->rm_reqh, sfid, stype,
-				  remote_addr, &svc_obj);
+
+	rc = m0_confc_service_find(m0_reqh2confc(rpc_mach->rm_reqh), stype,
+				   remote_addr, &svc_obj);
 	if (rc != 0)
 		return M0_ERR(rc);
 	if (svc_obj != NULL)

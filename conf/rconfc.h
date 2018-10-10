@@ -367,7 +367,7 @@ struct m0_rconfc {
 	 * finalisation.
 	 */
 	char                     *rc_local_conf;
-	/** Profile FID rconfc to work on */
+	/** Profile FID rconfc to work on. M0_FID0 if not present. */
 	struct m0_fid             rc_profile;
 	/**
 	 * Context for full conf loading.
@@ -417,6 +417,7 @@ struct m0_rconfc {
  * m0_rconfc_fini() is needed.
  *
  * @param rconfc     - rconfc instance
+ * @param profile    - makes sense for clients only, otherwise - &M0_FID0.
  * @param sm_group   - state machine group to be used with confc.
  *                     Opening conf objects later in context of this SM group is
  *                     prohibited, so providing locality SM group is a

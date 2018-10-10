@@ -758,12 +758,6 @@ static void sender_init()
 	rc = m0_reqh_service_start(sender_cm_service);
 	M0_UT_ASSERT(rc == 0);
 
-	sender_cm_service->rs_reqh_ctx->rc_mero->cc_profile =
-		M0_UT_CONF_PROFILE;
-	rc = m0_fid_sscanf(sender_cm_service->rs_reqh_ctx->rc_mero->cc_profile,
-			   m0_reqh2profile(sender_cm_service->rs_reqh));
-	M0_UT_ASSERT(rc == 0);
-
 	m0_cm_cp_init(&sender_cm_cmt, NULL);
 	m0_cm_lock(&sender_cm);
 	sender_cm.cm_epoch = m0_time_now();

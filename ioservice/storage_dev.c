@@ -27,8 +27,7 @@
 #include "balloc/balloc.h"          /* b2m0 */
 #include "conf/obj.h"               /* m0_conf_sdev */
 #include "conf/confc.h"             /* m0_confc_from_obj */
-#include "conf/helpers.h"           /* m0_conf_disk_get */
-#include "conf/diter.h"             /* m9_conf_diter */
+#include "conf/helpers.h"           /* m0_conf_drive_get */
 #include "conf/obj_ops.h"           /* M0_CONF_DIRNEXT */
 #include "stob/ad.h"                /* m0_stob_ad_domain2balloc */
 #include "stob/linux.h"             /* m0_stob_linux */
@@ -283,7 +282,6 @@ static void storage_devs_conf_refresh(struct m0_storage_devs *storage_devs,
 
 	m0_tl_for(storage_dev, &storage_devs->sds_devices, dev) {
 		rc = m0_conf_device_cid_to_fid(confc, dev->isd_cid,
-					       m0_reqh2profile(reqh),
 					       &sdev_fid);
 		if (rc != 0)
 			/* Not all storage devices have a corresponding
@@ -310,7 +308,6 @@ static bool storage_devs_conf_ready_async_cb(struct m0_clink *clink)
 					      rh_conf_cache_ready_async);
 	struct m0_storage_dev  *dev;
 	struct m0_confc        *confc = m0_reqh2confc(reqh);
-	struct m0_fid          *profile = m0_reqh2profile(reqh);
 	struct m0_fid           sdev_fid;
 	struct m0_conf_sdev    *conf_sdev = NULL;
 	struct m0_conf_service *conf_service;
@@ -322,8 +319,7 @@ static bool storage_devs_conf_ready_async_cb(struct m0_clink *clink)
 	storage_devs_conf_refresh(storage_devs, reqh);
 
 	m0_tl_for (storage_dev, &storage_devs->sds_devices, dev) {
-		rc = m0_conf_device_cid_to_fid(confc, dev->isd_cid,
-					       profile, &sdev_fid);
+		rc = m0_conf_device_cid_to_fid(confc, dev->isd_cid, &sdev_fid);
 		if (rc != 0)
 			/* Not all storage devices have a corresponding
 			 * m0_conf_sdev object.

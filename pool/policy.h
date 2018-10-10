@@ -17,11 +17,12 @@
  * Original author: Rajanikant Chirmade <rajanikant_chirmade@seagate.com>
  * Original creation date: 07/06/2017
  */
-
 #pragma once
-
 #ifndef __MERO_POOL_POLICY_H__
 #define __MERO_POOL_POLICY_H__
+
+#include "lib/tlist.h"
+#include "xcode/xcode.h"  /* M0_XCA_ENUM */
 
 /**
   * @defgroup pool_policy Pool Versions Selection Policy.
@@ -29,11 +30,15 @@
   * @{
   */
 
+struct m0_pool;
+struct m0_pool_version;
+struct m0_pools_common;
+
 /** Pool version policy codes. */
 enum m0_pver_policy_code {
 	M0_PVER_POLICY_FIRST_AVAILABLE,
 	M0_PVER_POLICY_NR
-};
+} M0_XCA_ENUM;
 
 /** Pool version policy. */
 struct m0_pver_policy {

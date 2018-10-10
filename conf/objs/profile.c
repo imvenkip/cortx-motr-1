@@ -1,5 +1,6 @@
 /*
  * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2014-2018 SEAGATE LLC
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -14,6 +15,8 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
+ * Authors:         Andriy Tkachuk <andriy.tkachuk@seagate.com>
+ *
  * Original creation date: 30-Aug-2012
  */
 
@@ -33,7 +36,8 @@ static bool profile_check(const void *bob)
 
 	M0_PRE(m0_conf_obj_type(&self->cp_obj) == &M0_CONF_PROFILE_TYPE);
 
-	return true;
+	return m0_conf_obj_is_stub(&self->cp_obj) ?:
+		_0C(m0_fid_arr_all_unique(&self->cp_pools));
 }
 
 M0_CONF__BOB_DEFINE(m0_conf_profile, M0_CONF_PROFILE_MAGIC, profile_check);
@@ -42,59 +46,32 @@ M0_CONF__INVARIANT_DEFINE(profile_invariant, m0_conf_profile);
 static int
 profile_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src)
 {
-	int                     rc;
-	struct m0_conf_obj     *child;
-	struct m0_conf_profile *d = M0_CONF_CAST(dest, m0_conf_profile);
+	const struct m0_confx_profile *s = XCAST(src);
+	struct m0_conf_profile        *d = M0_CONF_CAST(dest, m0_conf_profile);
 
-	rc = m0_conf_obj_find(dest->co_cache, &XCAST(src)->xp_filesystem,
-			      &child);
-	if (rc == 0) {
-		d->cp_filesystem = M0_CONF_CAST(child, m0_conf_filesystem);
-		m0_conf_child_adopt(dest, child);
-	}
-	return M0_RC(rc);
+	M0_PRE(equi(s->xp_pools.af_count == 0, s->xp_pools.af_elems == NULL));
+
+	return M0_RC(m0_fid_arr_copy(&d->cp_pools, &s->xp_pools));
 }
 
 static int
 profile_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 {
-	struct m0_conf_profile *s = M0_CONF_CAST(src, m0_conf_profile);
+	const struct m0_conf_profile *s = M0_CONF_CAST(src, m0_conf_profile);
+	struct m0_confx_profile      *d = XCAST(dest);
 
 	confx_encode(dest, src);
-	if (s->cp_filesystem != NULL)
-		XCAST(dest)->xp_filesystem = s->cp_filesystem->cf_obj.co_id;
-	return 0;
+
+	return M0_RC(m0_fid_arr_copy(&d->xp_pools, &s->cp_pools));
 }
 
 static bool
 profile_match(const struct m0_conf_obj *cached, const struct m0_confx_obj *flat)
 {
-	const struct m0_confx_profile   *xobj = XCAST(flat);
-	const struct m0_conf_filesystem *child =
-		M0_CONF_CAST(cached, m0_conf_profile)->cp_filesystem;
-
-	return m0_fid_eq(&child->cf_obj.co_id, &xobj->xp_filesystem);
-}
-
-static int profile_lookup(const struct m0_conf_obj *parent,
-			  const struct m0_fid *name, struct m0_conf_obj **out)
-{
-	M0_PRE(parent->co_status == M0_CS_READY);
-
-	if (!m0_fid_eq(name, &M0_CONF_PROFILE_FILESYSTEM_FID))
-		return M0_ERR(-ENOENT);
-
-	*out = &M0_CONF_CAST(parent, m0_conf_profile)->cp_filesystem->cf_obj;
-	M0_POST(m0_conf_obj_invariant(*out));
-	return 0;
-}
-
-static const struct m0_fid **profile_downlinks(const struct m0_conf_obj *obj)
-{
-	static const struct m0_fid *rels[] = { &M0_CONF_PROFILE_FILESYSTEM_FID,
-					       NULL };
-	M0_PRE(m0_conf_obj_type(obj) == &M0_CONF_PROFILE_TYPE);
-	return rels;
+	const struct m0_confx_profile *xobj = XCAST(flat);
+	const struct m0_conf_profile  *obj = M0_CONF_CAST(cached,
+							  m0_conf_profile);
+	return m0_fid_arr_eq(&obj->cp_pools, &xobj->xp_pools);
 }
 
 static void profile_delete(struct m0_conf_obj *obj)
@@ -110,9 +87,9 @@ static const struct m0_conf_obj_ops profile_ops = {
 	.coo_decode    = profile_decode,
 	.coo_encode    = profile_encode,
 	.coo_match     = profile_match,
-	.coo_lookup    = profile_lookup,
+	.coo_lookup    = conf_obj_lookup_denied,
 	.coo_readdir   = NULL,
-	.coo_downlinks = profile_downlinks,
+	.coo_downlinks = conf_obj_downlinks_none,
 	.coo_delete    = profile_delete
 };
 
@@ -120,7 +97,7 @@ M0_CONF__CTOR_DEFINE(profile_create, m0_conf_profile, &profile_ops);
 
 const struct m0_conf_obj_type M0_CONF_PROFILE_TYPE = {
 	.cot_ftype = {
-		.ft_id   = 'p',
+		.ft_id   = M0_CONF__PROFILE_FT_ID,
 		.ft_name = "conf_profile"
 	},
 	.cot_create  = &profile_create,

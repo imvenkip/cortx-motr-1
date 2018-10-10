@@ -1,6 +1,6 @@
 /* -*- c -*- */
 /*
- * COPYRIGHT 2015 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2015-2018 SEAGATE LLC
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -15,6 +15,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Mandar Sawant <mandar_sawant@seagate.com>
+ * Authors:         Andriy Tkachuk <andriy.tkachuk@seagate.com>
  * Original creation date: 20-Jan-2015
  */
 
@@ -149,7 +150,7 @@ static void check_objv(const struct m0_conf_obj *obj)
 		verify_obj(r, &fids[ENCLOSURE]);
 	else if (t == &M0_CONF_CONTROLLER_TYPE)
 		verify_obj(r, &fids[CONTROLLER]);
-	else if (t == &M0_CONF_DISK_TYPE)
+	else if (t == &M0_CONF_DRIVE_TYPE)
 		verify_disk(r);
 }
 
@@ -165,7 +166,7 @@ static void check_obj(const struct m0_conf_obj *obj)
 		verify_obj(obj, &fids[ENCLOSURE]);
 	} else if (t == &M0_CONF_CONTROLLER_TYPE) {
 		verify_obj(obj, &fids[CONTROLLER]);
-	} else if (t == &M0_CONF_DISK_TYPE) {
+	} else if (t == &M0_CONF_DRIVE_TYPE) {
 		verify_disk(obj);
 	} else if (t == &M0_CONF_PVER_TYPE) {
 		verify_obj(obj, &fids[PVER]);
@@ -197,26 +198,27 @@ static bool _filter_diskv(const struct m0_conf_obj *obj)
 {
 	return (m0_conf_obj_type(obj) == &M0_CONF_OBJV_TYPE &&
 	       m0_conf_obj_type(M0_CONF_CAST(obj, m0_conf_objv)->cv_real) ==
-	       &M0_CONF_DISK_TYPE);
+	       &M0_CONF_DRIVE_TYPE);
 }
 
 static void
-all_fs_to_diskv_check(struct m0_confc *confc, struct m0_conf_obj *fs)
+all_fs_to_diskv_check(struct m0_confc *confc, struct m0_conf_obj *root)
 {
 	struct m0_conf_diter    it;
 	struct m0_conf_obj     *obj;
 	struct m0_conf_objv    *ov;
 	struct m0_conf_service *s;
-	struct m0_conf_disk    *d;
+	struct m0_conf_drive   *d;
 	int                     rc;
 
-	rc = m0_conf_diter_init(&it, confc, fs,
-				M0_CONF_FILESYSTEM_POOLS_FID,
+	rc = m0_conf_diter_init(&it, confc, root,
+				M0_CONF_ROOT_POOLS_FID,
 				M0_CONF_POOL_PVERS_FID,
-				M0_CONF_PVER_RACKVS_FID,
+				M0_CONF_PVER_SITEVS_FID,
+				M0_CONF_SITEV_RACKVS_FID,
 				M0_CONF_RACKV_ENCLVS_FID,
 				M0_CONF_ENCLV_CTRLVS_FID,
-				M0_CONF_CTRLV_DISKVS_FID);
+				M0_CONF_CTRLV_DRIVEVS_FID);
 	M0_UT_ASSERT(rc == 0);
 
 	while ((rc = m0_conf_diter_next_sync(&it, _filter_diskv)) ==
@@ -224,10 +226,10 @@ all_fs_to_diskv_check(struct m0_confc *confc, struct m0_conf_obj *fs)
 		obj = m0_conf_diter_result(&it);
 		M0_ASSERT(m0_conf_obj_type(obj) == &M0_CONF_OBJV_TYPE);
 		ov = M0_CONF_CAST(obj, m0_conf_objv);
-		M0_ASSERT(m0_conf_obj_type(ov->cv_real) == &M0_CONF_DISK_TYPE);
-		d = M0_CONF_CAST(ov->cv_real, m0_conf_disk);
+		M0_ASSERT(m0_conf_obj_type(ov->cv_real) == &M0_CONF_DRIVE_TYPE);
+		d = M0_CONF_CAST(ov->cv_real, m0_conf_drive);
 		check_obj(&d->ck_obj);
-		s = M0_CONF_CAST(m0_conf_obj_grandparent(&d->ck_dev->sd_obj),
+		s = M0_CONF_CAST(m0_conf_obj_grandparent(&d->ck_sdev->sd_obj),
 				 m0_conf_service);
 		check_obj(&s->cs_obj);
 	};
@@ -237,16 +239,17 @@ all_fs_to_diskv_check(struct m0_confc *confc, struct m0_conf_obj *fs)
 }
 
 static void
-all_fs_to_disks_check(struct m0_confc *confc, struct m0_conf_obj *fs)
+all_fs_to_disks_check(struct m0_confc *confc, struct m0_conf_obj *root)
 {
 	struct m0_conf_diter it;
 	int                  rc;
 
-	rc = m0_conf_diter_init(&it, confc, fs,
-				M0_CONF_FILESYSTEM_RACKS_FID,
+	rc = m0_conf_diter_init(&it, confc, root,
+				M0_CONF_ROOT_SITES_FID,
+				M0_CONF_SITE_RACKS_FID,
 				M0_CONF_RACK_ENCLS_FID,
 				M0_CONF_ENCLOSURE_CTRLS_FID,
-				M0_CONF_CONTROLLER_DISKS_FID);
+				M0_CONF_CONTROLLER_DRIVES_FID);
 	M0_UT_ASSERT(rc == 0);
 
 	while ((rc = m0_conf_diter_next_sync(&it, NULL)) == M0_CONF_DIRNEXT)
@@ -262,13 +265,13 @@ static bool _filter_service(const struct m0_conf_obj *obj)
 }
 
 static void all_fs_to_sdevs_check(struct m0_confc *confc,
-				  struct m0_conf_obj *fs, bool filter)
+				  struct m0_conf_obj *root, bool filter)
 {
 	struct m0_conf_diter it;
 	int                  rc;
 
-	rc = m0_conf_diter_init(&it, confc, fs,
-				M0_CONF_FILESYSTEM_NODES_FID,
+	rc = m0_conf_diter_init(&it, confc, root,
+				M0_CONF_ROOT_NODES_FID,
 				M0_CONF_NODE_PROCESSES_FID,
 				M0_CONF_PROCESS_SERVICES_FID,
 				M0_CONF_SERVICE_SDEVS_FID);
@@ -288,23 +291,21 @@ static void conf_diter_test(const char *confd_addr,
 			    const char *local_conf)
 {
 	struct m0_confc     confc;
-	struct m0_conf_obj *fs_obj = NULL;
+	struct m0_conf_obj *root = NULL;
 	int                 rc;
 
 	M0_SET0(&confc);
 	rc = m0_confc_init(&confc, &m0_conf_ut_grp, confd_addr, rpc_mach,
 			   local_conf);
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_confc_open_sync(&fs_obj, confc.cc_root,
-				M0_CONF_ROOT_PROFILES_FID, fids[PROF],
-				M0_CONF_PROFILE_FILESYSTEM_FID);
+	rc = m0_confc_open_sync(&root, confc.cc_root, M0_FID0);
 	M0_UT_ASSERT(rc == 0);
 
-	all_fs_to_disks_check(&confc, fs_obj);
-	all_fs_to_sdevs_check(&confc, fs_obj, true);
-	all_fs_to_sdevs_check(&confc, fs_obj, false);
-	all_fs_to_diskv_check(&confc, fs_obj);
-	m0_confc_close(fs_obj);
+	all_fs_to_disks_check(&confc, root);
+	all_fs_to_sdevs_check(&confc, root, true);
+	all_fs_to_sdevs_check(&confc, root, false);
+	all_fs_to_diskv_check(&confc, root);
+	m0_confc_close(root);
 
 	m0_confc_fini(&confc);
 }
@@ -330,7 +331,7 @@ static void test_diter_net(void)
 		"-S", NAME(".stob"), "-A", "linuxstob:"NAME("-addb.stob"),
 		"-w", "10", "-e", SERVER_ENDPOINT, "-H", SERVER_ENDPOINT_ADDR,
 		"-f", M0_UT_CONF_PROCESS,
-		"-c", M0_UT_PATH("diter.xc"), "-P", M0_UT_CONF_PROFILE
+		"-c", M0_UT_PATH("diter.xc")
 	};
 	struct m0_rpc_server_ctx confd = {
 		.rsx_xprts         = &m0_conf_ut_xprt,
@@ -359,7 +360,7 @@ static void test_diter_invalid_input(void)
 {
 	struct m0_confc       confc;
 	struct m0_conf_diter  it;
-	struct m0_conf_obj   *fs_obj;
+	struct m0_conf_obj   *root;
 	char                 *confstr = NULL;
 	int                   rc;
 
@@ -368,12 +369,10 @@ static void test_diter_invalid_input(void)
 	rc = m0_confc_init(&confc, &m0_conf_ut_grp, NULL, NULL, confstr);
 	M0_UT_ASSERT(rc == 0);
 	m0_free0(&confstr);
-	rc = m0_confc_open_sync(&fs_obj, confc.cc_root,
-				M0_CONF_ROOT_PROFILES_FID, fids[PROF],
-				M0_CONF_PROFILE_FILESYSTEM_FID);
+	rc = m0_confc_open_sync(&root, confc.cc_root, M0_FID0);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_conf_diter_init(&it, &confc, fs_obj,
+	rc = m0_conf_diter_init(&it, &confc, root,
 				M0_CONF_NODE_PROCESSES_FID,
 				M0_CONF_PROCESS_SERVICES_FID,
 				M0_CONF_SERVICE_SDEVS_FID);
@@ -384,7 +383,7 @@ static void test_diter_invalid_input(void)
 
 	M0_UT_ASSERT(rc == -ENOENT);
 	m0_conf_diter_fini(&it);
-	m0_confc_close(fs_obj);
+	m0_confc_close(root);
 	m0_confc_fini(&confc);
 }
 

@@ -109,17 +109,13 @@ void m0t1fs_ha_fini(struct m0t1fs_sb *csb);
 
 #define LOCAL_EP "0@lo:12345:45:1"
 
-static char local_conf[] = "[42:\
-   {0x74| ((^t|1:0), 1, [1 : ^p|1:0])},\
-   {0x70| ((^p|1:0), ^f|1:1)},\
-   {0x66| ((^f|1:1),\
-        (11, 22), 41212, [3: \"param-0\", \"param-1\", \"param-2\"],\
-        ^o|2:24, (0, 0),\
-           [1: ^n|1:2],\
-           [2: ^o|1:23, ^o|2:24],\
-           [1: ^a|1:15], [0])},\
-   {0x6e| ((^n|1:2), 16000, 2, 3, 2, ^o|1:23,\
-           [2: ^r|1:3, ^r|2:3])},\
+static char local_conf[] = "[44:\
+   {0x74| ((^t|1:0), 1, (11, 22), ^o|2:24, (0, 0), 41212,\
+           [3: \"param-0\", \"param-1\", \"param-2\"],\
+           [1: ^n|1:2], [1: ^S|2:15], [2: ^o|1:23, ^o|2:24],\
+           [1: ^p|1:0], [0])},\
+   {0x70| ((^p|1:0), [2: ^o|1:23, ^o|2:24])},\
+   {0x6e| ((^n|1:2), 16000, 2, 3, 2, [2: ^r|1:3, ^r|2:3])},\
    {0x72| ((^r|1:3), [1:3], 0, 0, 0, 0, \""LOCAL_EP"\", [6: ^s|1:4,\
                                                    ^s|1:5,\
                                                    ^s|1:6,\
@@ -128,23 +124,24 @@ static char local_conf[] = "[42:\
                                                    ^s|1:9])},\
    {0x72| ((^r|2:3), [1:3], 0, 0, 0, 0, \""LOCAL_EP"\", [1: ^s|2:7])},\
    {0x73| ((^s|1:4), @M0_CST_MDS, [3: \""LOCAL_EP"\", \"addr-1\", \"addr-2\"],\
-           [0])},\
+           [0], [0])},\
    {0x73| ((^s|1:5), @M0_CST_IOS, [3: \""LOCAL_EP"\", \"addr-1\", \"addr-2\"],\
-           [5: ^d|1:10, ^d|1:11, ^d|1:12, ^d|1:13, ^d|1:14])},\
+           [0], [5: ^d|1:10, ^d|1:11, ^d|1:12, ^d|1:13, ^d|1:14])},\
    {0x73| ((^s|1:6), @M0_CST_CONFD, [3: \""LOCAL_EP"\", \"addr-1\", \"addr-2\"],\
-           [0])},\
+           [0], [0])},\
    {0x73| ((^s|1:7), @M0_CST_RMS, [3: \""LOCAL_EP"\", \"addr-1\", \"addr-2\"],\
-           [0])},\
+           [0], [0])},\
    {0x73| ((^s|2:7), @M0_CST_RMS, [3: \""LOCAL_EP"\", \"addr-1\", \"addr-2\"],\
-           [0])},\
+           [0], [0])},\
    {0x73| ((^s|1:8), @M0_CST_HA, [3: \""LOCAL_EP"\", \"addr-1\", \"addr-2\"],\
-           [0])},\
-   {0x73| ((^s|1:9), @M0_CST_IOS, [1: \"addr-3\"], [0])},\
+           [0], [0])},\
+   {0x73| ((^s|1:9), @M0_CST_IOS, [1: \"addr-3\"], [0], [0])},\
    {0x64| ((^d|1:10), 1, 4, 1, 4096, 596000000000, 3, 4, \"/dev/sdev0\")},\
    {0x64| ((^d|1:11), 2, 4, 1, 4096, 596000000000, 3, 4, \"/dev/sdev1\")},\
    {0x64| ((^d|1:12), 3, 7, 2, 8192, 320000000000, 2, 4, \"/dev/sdev2\")},\
    {0x64| ((^d|1:13), 4, 7, 2, 8192, 320000000000, 2, 4, \"/dev/sdev3\")},\
    {0x64| ((^d|1:14), 0, 7, 2, 8192, 320000000000, 2, 4, \"/dev/sdev4\")},\
+   {0x53| ((^S|2:15), [1: ^a|1:15], [1: ^v|1:24])},\
    {0x61| ((^a|1:15), [1: ^e|1:16], [1: ^v|1:24])},\
    {0x65| ((^e|1:16), [1: ^c|1:17], [1: ^v|1:24])},\
    {0x63| ((^c|1:17), ^n|1:2,\
@@ -156,30 +153,23 @@ static char local_conf[] = "[42:\
    {0x6b| ((^k|1:21), ^d|1:13, [1: ^v|1:24])},\
    {0x6b| ((^k|1:22), ^d|1:14, [1: ^v|1:24])},\
    {0x6f| ((^o|1:23), 0, [1: ^v|1:24])},\
-   {0x76| ((^v|1:24), {0| (3, 1, 5, [5: 0, 0, 0, 0, 1],\
-           [1: ^j|1:25])})},\
-   {0x6a| ((^j|1:25), ^a|1:15,\
-           [1: ^j|1:26])},\
-   {0x6a| ((^j|1:26), ^e|1:16,\
-           [1: ^j|1:27])},\
-   {0x6a| ((^j|1:27), ^c|1:17,\
-           [5: ^j|1:28, ^j|1:29,\
-               ^j|1:30, ^j|1:31,\
-               ^j|1:32])},\
+   {0x76| ((^v|1:24), {0| (3, 1, 5, [5: 0, 0, 0, 0, 1], [1: ^j|3:25])})},\
+   {0x6a| ((^j|3:25), ^S|2:15, [1: ^j|1:25])},\
+   {0x6a| ((^j|1:25), ^a|1:15, [1: ^j|1:26])},\
+   {0x6a| ((^j|1:26), ^e|1:16, [1: ^j|1:27])},\
+   {0x6a| ((^j|1:27), ^c|1:17, [5: ^j|1:28, ^j|1:29, ^j|1:30,\
+                                   ^j|1:31, ^j|1:32])},\
    {0x6a| ((^j|1:28), ^k|1:18, [0])},\
    {0x6a| ((^j|1:29), ^k|1:19, [0])},\
    {0x6a| ((^j|1:30), ^k|1:20, [0])},\
    {0x6a| ((^j|1:31), ^k|1:21, [0])},\
    {0x6a| ((^j|1:32), ^k|1:22, [0])},\
    {0x6f| ((^o|2:24), 0, [1: ^v|1:33])},\
-   {0x76| ((^v|1:33), {0| (1, 0, 1, [5: 0, 0, 0, 0, 1],\
-           [1: ^j|1:34])})},\
-   {0x6a| ((^j|1:34), ^a|1:15,\
-           [1: ^j|1:35])},\
-   {0x6a| ((^j|1:35), ^e|1:16,\
-           [1: ^j|1:36])},\
-   {0x6a| ((^j|1:36), ^c|1:17,\
-           [1: ^j|1:37])},\
+   {0x76| ((^v|1:33), {0| (1, 0, 1, [5: 0, 0, 0, 0, 1], [1: ^j|3:34])})},\
+   {0x6a| ((^j|3:34), ^S|2:15, [1: ^j|1:34])},\
+   {0x6a| ((^j|1:34), ^a|1:15, [1: ^j|1:35])},\
+   {0x6a| ((^j|1:35), ^e|1:16, [1: ^j|1:36])},\
+   {0x6a| ((^j|1:36), ^c|1:17, [1: ^j|1:37])},\
    {0x6a| ((^j|1:37), ^k|1:22, [0])}]";
 
 static void ast_thread(struct m0t1fs_sb *csb)
@@ -201,7 +191,7 @@ static void ast_thread_stop(struct m0t1fs_sb *csb)
 
 static int file_io_ut_init(void)
 {
-	struct m0_conf_filesystem *fs;
+	struct m0_conf_root       *root;
 	struct m0_pool_version    *pver;
 	struct m0_layout          *lay;
 	int                        rc;
@@ -242,25 +232,36 @@ static int file_io_ut_init(void)
 	M0_UT_ASSERT(rc == 0);
 	rc = m0_ha_client_add(m0_reqh2confc(reqh));
 	M0_UT_ASSERT(rc == 0);
-	rc = m0_conf_fs_get(m0_reqh2profile(reqh), m0_reqh2confc(reqh), &fs);
+	rc = m0_confc_root_open(m0_reqh2confc(reqh), &root);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_pools_common_init(&csb.csb_pools_common, NULL, fs);
+	rc = m0__pools_common_init(&csb.csb_pools_common, NULL, root);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_pools_setup(&csb.csb_pools_common, fs, NULL, NULL, NULL);
+	rc = m0_pools_setup(&csb.csb_pools_common, m0_reqh2profile(reqh),
+			    NULL, NULL, NULL);
 	M0_UT_ASSERT(rc == 0);
 
-	rc = m0_pools_service_ctx_create(&csb.csb_pools_common, fs);
+	rc = m0_pools_service_ctx_create(&csb.csb_pools_common);
 	M0_UT_ASSERT(rc == 0);
 
 	m0_fi_enable("m0_ha_failvec_fetch", "kernel-ut-no-ha");
-	rc = m0_pool_versions_setup(&csb.csb_pools_common, fs,
+	rc = m0_pool_versions_setup(&csb.csb_pools_common,
 				    NULL, NULL, NULL);
 	M0_UT_ASSERT(rc == 0);
 	m0_fi_disable("m0_ha_failvec_fetch", "kernel-ut-no-ha");
 
-	rc = m0_pool_version_get(&csb.csb_pools_common, &pver);
+	rc = m0_pool_version_get(&csb.csb_pools_common,
+				 &M0_FID_TINIT('o', 33, 77), &pver);
+	M0_UT_ASSERT(rc == -ENOENT);
+	M0_UT_ASSERT(csb.csb_pools_common.pc_cur_pver == NULL);
+
+	rc = m0_pool_version_get(&csb.csb_pools_common,
+				 &M0_FID_TINIT('o', 1, 23), &pver);
+	M0_UT_ASSERT(rc == 0);
+	M0_UT_ASSERT(csb.csb_pools_common.pc_cur_pver != NULL);
+
+	rc = m0_pool_version_get(&csb.csb_pools_common, NULL, &pver);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(csb.csb_pools_common.pc_cur_pver != NULL);
 
@@ -322,7 +323,7 @@ static int file_io_ut_init(void)
 	/* Sets the file size in inode. */
 	ci.ci_inode.i_size = DATA_SIZE;
 	ci.ci_pver = pver->pv_id;
-	m0_confc_close(&fs->cf_obj);
+	m0_confc_close(&root->rt_obj);
 
 	return 0;
 }

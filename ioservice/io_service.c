@@ -518,7 +518,7 @@ static int m0_ios_mds_conn_init(struct m0_reqh             *reqh,
 		rc = m0_rpc_client_find_connect(&conn->imc_conn,
 						&conn->imc_session,
 						rpc_machine, srv_ep_addr,
-						NULL, M0_CST_MDS,
+						M0_CST_MDS,
 						MAX_NR_RPC_IN_FLIGHT,
 						M0_TIME_NEVER);
 		if (rc == 0) {

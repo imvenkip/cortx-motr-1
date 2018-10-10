@@ -28,6 +28,7 @@
 #include "conf/diter.h"
 #include "conf/obj.h"
 #include "conf/obj_ops.h"         /* M0_CONF_DIRNEXT */
+#include "conf/helpers.h"         /* m0_conf_sdev_get */
 #include "fop/fop.h"
 #include "fop/fom_generic.h"
 #include "pool/pool.h"
@@ -98,7 +99,7 @@ struct m0_sss_dfom {
 	struct m0_conf_diter       ssm_it;
 	/**
 	 * Storage device fid. Obtained from disk conf object.
-	 * disk conf object -> ck_dev -> sd_obj.co_id.
+	 * disk conf object -> ck_sdev -> sd_obj.co_id.
 	 */
 	struct m0_fid              ssm_fid;
 	/** True iff the storage device belongs current IO service */
@@ -428,7 +429,7 @@ static int sss_device_fom_disk_ha_state_get(struct m0_fom *fom)
 static int sss_disk_info_use(struct m0_sss_dfom *dfom)
 {
 	struct m0_confc_ctx *ctx = &dfom->ssm_confc_ctx;
-	struct m0_conf_disk *disk;
+	struct m0_conf_drive *disk;
 	int                  rc;
 
 	if (sss_dfom_device_cmd(dfom) == M0_DEVICE_ATTACH) {
@@ -439,8 +440,8 @@ static int sss_disk_info_use(struct m0_sss_dfom *dfom)
 
 	rc = m0_confc_ctx_error_lock(ctx);
 	if (rc == 0) {
-		disk = M0_CONF_CAST(m0_confc_ctx_result(ctx), m0_conf_disk);
-		dfom->ssm_fid = disk->ck_dev->sd_obj.co_id;
+		disk = M0_CONF_CAST(m0_confc_ctx_result(ctx), m0_conf_drive);
+		dfom->ssm_fid = disk->ck_sdev->sd_obj.co_id;
 		m0_confc_close(&disk->ck_obj);
 	}
 	m0_confc_ctx_fini(ctx);
@@ -449,7 +450,7 @@ static int sss_disk_info_use(struct m0_sss_dfom *dfom)
 
 /**
  * Initialises custom Device fom fields using information from
- * m0_conf_disk object.
+ * m0_conf_drive object.
  */
 static int sss_device_fom_disk_opened(struct m0_fom *fom)
 {
@@ -466,9 +467,7 @@ static int sss_device_fom_disk_opened(struct m0_fom *fom)
 	if (rc == 0) {
 		m0_clink_init(&dfom->ssm_clink, sss_dfom_confc_ctx_check_cb);
 		m0_clink_add_lock(&ctx->fc_mach.sm_chan, &dfom->ssm_clink);
-		m0_confc_open(ctx, confc->cc_root, M0_CONF_ROOT_PROFILES_FID,
-			      *m0_reqh2profile(m0_fom_reqh(fom)),
-			      M0_CONF_PROFILE_FILESYSTEM_FID);
+		m0_confc_open(ctx, confc->cc_root, M0_FID0);
 	}
 	return M0_RC(rc);
 }
@@ -537,30 +536,30 @@ static bool sss_device_fom_sdev_iter_cb(struct m0_clink *clink)
 	return true;
 }
 
-static int sss_device_fom_fs_info_use(struct m0_sss_dfom  *dfom,
-				      struct m0_conf_obj **fs_obj)
+static int sss_device_fom_root_info_use(struct m0_sss_dfom  *dfom,
+					struct m0_conf_obj **root_obj)
 {
 	struct m0_confc_ctx *confc_ctx = &dfom->ssm_confc_ctx;
 	int                  rc;
 
 	rc = m0_confc_ctx_error_lock(confc_ctx);
 	if (rc == 0)
-		*fs_obj = m0_confc_ctx_result(confc_ctx);
+		*root_obj = m0_confc_ctx_result(confc_ctx);
 	return M0_RC(rc);
 }
 
 static int sss_device_fom_sdev_iter_init(struct m0_sss_dfom *dfom,
-					 struct m0_conf_obj *fs_obj)
+					 struct m0_conf_obj *root_obj)
 {
 	struct m0_confc *confc = m0_reqh2confc(m0_fom_reqh(&dfom->ssm_fom));
 	int              rc;
 
-	rc = m0_conf_diter_init(&dfom->ssm_it, confc, fs_obj,
-				M0_CONF_FILESYSTEM_NODES_FID,
+	rc = m0_conf_diter_init(&dfom->ssm_it, confc, root_obj,
+				M0_CONF_ROOT_NODES_FID,
 				M0_CONF_NODE_PROCESSES_FID,
 				M0_CONF_PROCESS_SERVICES_FID,
 				M0_CONF_SERVICE_SDEVS_FID);
-	m0_confc_close(fs_obj);
+	m0_confc_close(root_obj);
 	if (rc == 0) {
 		m0_clink_init(&dfom->ssm_clink, sss_device_fom_sdev_iter_cb);
 		m0_clink_add_lock(&dfom->ssm_it.di_wait, &dfom->ssm_clink);
@@ -577,13 +576,13 @@ static int sss_device_fom_fs_opened(struct m0_fom *fom)
 {
 	struct m0_sss_dfom *dfom = container_of(fom, struct m0_sss_dfom,
 						ssm_fom);
-	struct m0_conf_obj *fs_obj = NULL;
+	struct m0_conf_obj *root_obj = NULL;
 	int                 rc;
 
 	M0_ENTRY();
 
-	rc = sss_device_fom_fs_info_use(dfom, &fs_obj) ?:
-	     sss_device_fom_sdev_iter_init(dfom, fs_obj) ?:
+	rc = sss_device_fom_root_info_use(dfom, &root_obj) ?:
+	     sss_device_fom_sdev_iter_init(dfom, root_obj) ?:
 	     sss_device_fom_sdev_iter(fom);
 	if (!M0_IN(rc, (0, M0_CONF_DIRMISS, M0_CONF_DIREND)))
 		m0_confc_ctx_fini(&dfom->ssm_confc_ctx);

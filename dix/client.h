@@ -49,7 +49,7 @@
  * manipulated through appropriate interfaces externally:
  * - Root index. Top-level index to find all other indices. Its pool version
  *   is stored in cluster configuration as one of file system parameters (@ref
- *   m0_conf_filesystem::cf_imeta_pver). Other layout parameters are
+ *   m0_conf_root::rt_imeta_pver). Other layout parameters are
  *   hard-coded. Root index contains exactly two records for now with layouts of
  *   'layout' and 'layout-descr' meta-indices. Please note, that pool version
  *   for root index should contain only storage devices controlled by CAS
@@ -213,7 +213,7 @@ struct m0_dix_cli {
  * @param ldom     Layout domain where layout structures for parity math are
  *                 created.
  * @param pver     Pool version of the root index (usually
- *                 m0_conf_filesystem::cf_imeta_pver).
+ *                 m0_conf_root::rt_imeta_pver).
  */
 M0_INTERNAL int m0_dix_cli_init(struct m0_dix_cli       *cli,
 				struct m0_sm_group      *sm_group,

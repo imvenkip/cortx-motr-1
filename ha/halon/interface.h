@@ -293,7 +293,6 @@ void m0_halon_interface_fini(struct m0_halon_interface *hi);
  *                              communications using this m0_halon_interface
  *                              uses this rpc machine.
  * @param process_fid           process fid of the current process
- * @param profile_fid           profile fid of the current process
  * @param ha_service_fid        HA service fid inside the current process
  * @param rm_service_fid        RM service fid inside the current process
  * @param entrypoint_request_cb this callback is executed when
@@ -335,7 +334,6 @@ void m0_halon_interface_fini(struct m0_halon_interface *hi);
 int m0_halon_interface_start(struct m0_halon_interface *hi,
                              const char                *local_rpc_endpoint,
                              const struct m0_fid       *process_fid,
-                             const struct m0_fid       *profile_fid,
                              const struct m0_fid       *ha_service_fid,
                              const struct m0_fid       *rm_service_fid,
                              void                     (*entrypoint_request_cb)
@@ -343,7 +341,6 @@ int m0_halon_interface_start(struct m0_halon_interface *hi,
 				 const struct m0_uint128           *req_id,
 				 const char             *remote_rpc_endpoint,
 				 const struct m0_fid    *process_fid,
-				 const struct m0_fid    *profile_fid,
 				 const char             *git_rev_id,
 				 uint64_t                pid,
 				 bool                    first_request),

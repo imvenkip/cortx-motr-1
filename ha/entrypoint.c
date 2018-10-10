@@ -573,7 +573,6 @@ static int ha_entrypoint_client_fom_tick(struct m0_fom *fom)
 		 */
 
 		ecl->ecl_req.heq_process_fid = ecl->ecl_cfg.hecc_process_fid;
-		ecl->ecl_req.heq_profile_fid = ecl->ecl_cfg.hecc_profile_fid;
 		ecl->ecl_req.heq_git_rev_id  = m0_build_info_get()->bi_git_rev_id;
 		ecl->ecl_req.heq_pid         = m0_process();
 		next_state = M0_HEC_SEND;

@@ -643,7 +643,7 @@ m0_confc_ctx_init(struct m0_confc_ctx *ctx, struct m0_confc *confc)
 		 */
 		confc->cc_gops->go_check(confc);
 	if (ok) {
-		M0_LOG(M0_INFO, "ctx=%p confc=%p nr_ctx: %"PRIu32" -> %"PRIu32,
+		M0_LOG(M0_DEBUG, "ctx=%p confc=%p nr_ctx: %"PRIu32" -> %"PRIu32,
 		       ctx, confc, confc->cc_nr_ctx, confc->cc_nr_ctx + 1);
 		M0_CNT_INC(confc->cc_nr_ctx); /* attach to m0_confc */
 	}
@@ -678,7 +678,7 @@ M0_INTERNAL void m0_confc_ctx_fini_locked(struct m0_confc_ctx *ctx)
 	confc_lock(confc);
 	if (ctx->fc_mach.sm_state == S_TERMINAL && ctx->fc_result != NULL)
 		m0_conf_obj_put(ctx->fc_result);
-	M0_LOG(M0_INFO, "ctx=%p confc=%p nr_ctx: %"PRIu32" -> %"PRIu32,
+	M0_LOG(M0_DEBUG, "ctx=%p confc=%p nr_ctx: %"PRIu32" -> %"PRIu32,
 	       ctx, confc, confc->cc_nr_ctx, confc->cc_nr_ctx - 1);
 	M0_CNT_DEC(confc->cc_nr_ctx); /* detach from m0_confc */
 	if (confc->cc_nr_ctx == 0)
@@ -850,7 +850,7 @@ M0_INTERNAL void m0_confc__open(struct m0_confc_ctx *ctx,
 		 * Possible scenario (MERO-2363):
 		 *
 		 * -- Let confc->cc_root = A.
-		 * m0_conf_fs_get
+		 * m0_confc_root_open
 		 *  \_ m0_confc_open_sync (origin=A)
 		 *      \_ m0_confc__open_sync
 		 *          \_ sm_waiter_init

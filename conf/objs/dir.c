@@ -203,8 +203,8 @@ static struct m0_conf_obj *dir_create(void)
 
 const struct m0_conf_obj_type M0_CONF_DIR_TYPE = {
 	.cot_ftype  = {
-		.ft_id   = 'D',
-		.ft_name = "configuration directory"
+		.ft_id   = M0_CONF__DIR_FT_ID,
+		.ft_name = "conf_dir"
 	},
 	.cot_create = &dir_create,
 	.cot_magic  = M0_CONF_DIR_MAGIC

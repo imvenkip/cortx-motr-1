@@ -507,7 +507,7 @@ M0_TRACE_IMMEDIATE_MASK=$M0MKFS_TRACE_MASK \
 M0_TRACE_LEVEL=$M0MKFS_TRACE_LEVEL \
 M0_TRACE_PRINT_CONTEXT=$M0MKFS_TRACE_CONTEXT \
 $M0MKFS $STOB -D $DIR/db -S $DIR/stobs \
--A linuxstob:$DIR/addb-stobs $MKFS_EP -P '$PROF_OPT' $CONF" || {
+-A linuxstob:$DIR/addb-stobs $MKFS_EP $CONF" || {
 		echo "ERROR: Failed to m0mkfs for $(basename $DIR) on $H"
 		return 1
 	}
@@ -599,7 +599,7 @@ M0_TRACE_LEVEL=$M0D_TRACE_LEVEL \
 M0_TRACE_PRINT_CONTEXT=$M0D_TRACE_CONTEXT \
 $M0D -T linux -D $DIR/db -S $DIR/stobs \
 -A linuxstob:$DIR/addb-stobs \
--e $XPT:$CONFD_EP -c $CONF_FILE -P '$PROF_OPT' \
+-e $XPT:$CONFD_EP -c $CONF_FILE \
 $XPT_SETUP -f $proc_fid_confd" > ${SLOG}-confd.log &
 		if [ $? -ne 0 ]; then
 			echo ERROR: Failed to start confd server on $H
@@ -617,7 +617,7 @@ M0_TRACE_IMMEDIATE_MASK=$M0D_TRACE_MASK \
 M0_TRACE_LEVEL=$M0D_TRACE_LEVEL \
 M0_TRACE_PRINT_CONTEXT=$M0D_TRACE_CONTEXT \
 $M0D -T linux -D $DIR/db -S $DIR/stobs -A linuxstob:$DIR/addb-stobs \
--w $POOL_WIDTH -e $XPT:$HA_EP -P '$PROF_OPT' -c $CONF_FILE \
+-w $POOL_WIDTH -e $XPT:$HA_EP -c $CONF_FILE \
 $XPT_SETUP -f $proc_fid_ha" >> ${SLOG}-ha.log &
 		if [ $? -ne 0 ]; then
 			echo ERROR: Failed to start m0d on $H
@@ -635,7 +635,7 @@ M0_TRACE_IMMEDIATE_MASK=$M0D_TRACE_MASK \
 M0_TRACE_LEVEL=$M0D_TRACE_LEVEL \
 M0_TRACE_PRINT_CONTEXT=$M0D_TRACE_CONTEXT \
 $M0D -T linux -D $DIR/db -S $DIR/stobs -A linuxstob:$DIR/addb-stobs \
--w $POOL_WIDTH -e $XPT:$MDS_EP -P '$PROF_OPT' -H $HA_EP -c $CONF_FILE \
+-w $POOL_WIDTH -e $XPT:$MDS_EP -H $HA_EP -c $CONF_FILE \
 $XPT_SETUP -f $proc_fid_mds" >> ${SLOG}-mds.log &
 		if [ $? -ne 0 ]; then
 			echo ERROR: Failed to start m0d on $H
@@ -643,7 +643,7 @@ $XPT_SETUP -f $proc_fid_mds" >> ${SLOG}-mds.log &
 		fi
 		sleep 2
 	fi
-	SNAME+=" -P '$PROF_OPT' -H $HA_EP -f $proc_fid_ios"
+	SNAME+=" -H $HA_EP -f $proc_fid_ios"
 
 	if [ $run_mkfs -eq 1 ]; then
 		mkfs "$DDIR" "$STOB_PARAMS" "-H $HA_EP" "-e $XPT:$EP" || return 1

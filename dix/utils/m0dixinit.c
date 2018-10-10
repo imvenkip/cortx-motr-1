@@ -39,6 +39,7 @@
 #include "pool/pool.h"       /* m0_pool_version */
 #include "conf/confc.h"      /* m0_confc_close */
 #include "conf/ha.h"         /* m0_conf_ha_process_event_post */
+#include "conf/helpers.h"    /* m0_confc_args */
 #include "net/lnet/lnet.h"   /* m0_net_lnet_xprt */
 #include "mero/ha.h"
 #include "rpc/rpc_machine.h" /* m0_rpc_machine */
@@ -243,7 +244,7 @@ static int dix_init(struct dix_ctx *ctx,
 	struct m0_pools_common    *pc = &ctx->dc_pools_common;
 	struct m0_confc_args      *confc_args;
 	struct m0_reqh            *reqh = &ctx->dc_reqh;
-	struct m0_conf_filesystem *fs;
+	struct m0_conf_root       *root;
 	int                        rc;
 
 	M0_ENTRY();
@@ -281,29 +282,29 @@ static int dix_init(struct dix_ctx *ctx,
 	if (rc != 0)
 		goto err_rconfc_stop;
 
-	rc = m0_conf_fs_get(m0_reqh2profile(reqh), m0_reqh2confc(reqh), &fs);
+	rc = m0_confc_root_open(m0_reqh2confc(reqh), &root);
 	if (rc != 0)
 		goto err_rconfc_stop;
 
-	rc = m0_conf_full_load(fs);
+	rc = m0_conf_full_load(root);
 	if (rc != 0)
 		goto err_conf_fs_close;
 
-	rc = m0_pools_common_init(pc, &ctx->dc_rpc_machine, fs);
+	rc = m0_pools_common_init(pc, &ctx->dc_rpc_machine);
 	if (rc != 0)
 		goto err_conf_fs_close;
 
-	rc = m0_pools_setup(pc, fs, NULL, NULL, NULL);
+	rc = m0_pools_setup(pc, m0_reqh2profile(reqh), NULL, NULL, NULL);
 	if (rc != 0)
 		goto err_pools_common_fini;
 
-	rc = m0_pools_service_ctx_create(pc, fs);
+	rc = m0_pools_service_ctx_create(pc);
 	if (rc != 0)
 		goto err_pools_destroy;
 
 	m0_pools_common_service_ctx_connect_sync(pc);
 
-	rc = m0_pool_versions_setup(pc, fs, NULL, NULL, NULL);
+	rc = m0_pool_versions_setup(pc, NULL, NULL, NULL);
 	if (rc != 0)
 		goto err_pools_service_ctx_destroy;
 
@@ -317,7 +318,7 @@ static int dix_init(struct dix_ctx *ctx,
 		goto err_pool_versions_destroy;
 	}
 
-	m0_confc_close(&fs->cf_obj);
+	m0_confc_close(&root->rt_obj);
 	return M0_RC(0);
 
 err_pool_versions_destroy:
@@ -329,7 +330,7 @@ err_pools_destroy:
 err_pools_common_fini:
 	m0_pools_common_fini(&ctx->dc_pools_common);
 err_conf_fs_close:
-	m0_confc_close(&fs->cf_obj);
+	m0_confc_close(&root->rt_obj);
 err_rconfc_stop:
 	m0_rconfc_stop_sync(dix2rconfc(ctx));
 	m0_rconfc_fini(dix2rconfc(ctx));
@@ -365,15 +366,15 @@ static void dix_fini(struct dix_ctx *ctx)
 
 static int dix_root_pver_find(struct dix_ctx *ctx, struct m0_fid *out)
 {
-	struct m0_reqh            *reqh = &ctx->dc_reqh;
-	struct m0_conf_filesystem *fs;
-	int                        rc;
+	struct m0_reqh      *reqh = &ctx->dc_reqh;
+	struct m0_conf_root *root;
+	int                  rc;
 
-	rc = m0_conf_fs_get(m0_reqh2profile(reqh), m0_reqh2confc(reqh), &fs);
+	rc = m0_confc_root_open(m0_reqh2confc(reqh), &root);
 	if (rc != 0)
 		return M0_ERR(rc);
-	*out = fs->cf_imeta_pver;
-	m0_confc_close(&fs->cf_obj);
+	*out = root->rt_imeta_pver;
+	m0_confc_close(&root->rt_obj);
 	return 0;
 }
 

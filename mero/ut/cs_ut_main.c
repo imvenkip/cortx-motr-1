@@ -47,7 +47,6 @@ static char *cs_ut_service_one_cmd[] = { "m0d", "-T", "linux",
                                 "-H", SERVER_ENDPOINT_ADDR,
 				"-w", "10",
 				"-f", M0_UT_CONF_PROCESS,
-				"-P", M0_UT_CONF_PROFILE,
 				"-c", M0_UT_PATH("conf.xc")};
 
 static char *cs_ut_services_many_cmd[] = { "m0d", "-T", "AD",
@@ -58,7 +57,6 @@ static char *cs_ut_services_many_cmd[] = { "m0d", "-T", "AD",
                                 "-e", "bulk-mem:127.0.0.1:35678",
                                 "-H", SERVER_ENDPOINT_ADDR,
 				"-f", M0_UT_CONF_PROCESS,
-				"-P", M0_UT_CONF_PROFILE,
 				"-c", M0_UT_PATH("conf.xc")};
 
 static char *cs_ut_opts_jumbled_cmd[] = { "m0d", "-D",
@@ -67,7 +65,6 @@ static char *cs_ut_opts_jumbled_cmd[] = { "m0d", "-D",
                                 "-e", SERVER_ENDPOINT,
                                 "-H", SERVER_ENDPOINT_ADDR,
                                 "-S", "cs_stob", "-A", "linuxstob:cs_addb_stob",
-				"-P", M0_UT_CONF_PROFILE,
 				"-f", M0_UT_CONF_PROCESS,
 				"-c", M0_UT_PATH("conf.xc")};
 
@@ -78,7 +75,6 @@ static char *cs_ut_dev_stob_cmd[] = { "m0d", "-T", "AD",
 				"-U",
                                 "-e", SERVER_ENDPOINT,
                                 "-H", SERVER_ENDPOINT_ADDR,
-				"-P", M0_UT_CONF_PROFILE,
 				"-f", M0_UT_CONF_PROCESS,
 				"-c", M0_UT_PATH("conf.xc")};
 
@@ -88,7 +84,6 @@ static char *cs_ut_stype_bad_cmd[] = { "m0d", "-T", "asdadd",
 				"-w", "10",
                                 "-e", SERVER_ENDPOINT,
                                 "-H", SERVER_ENDPOINT_ADDR,
-				"-P", M0_UT_CONF_PROFILE,
 				"-f", M0_UT_CONF_PROCESS,
 				"-c", M0_UT_PATH("conf.xc")};
 
@@ -97,7 +92,6 @@ static char *cs_ut_xprt_bad_cmd[] = { "m0d", "-T", "AD",
                                 "-A", "linuxstob:cs_addb_sdb",
 				"-w", "10",
                                 "-e", "asdasdada:172.18.50.40@o2ib1:34567:2",
-				"-P", M0_UT_CONF_PROFILE,
 				"-f", M0_UT_CONF_PROCESS,
 				"-c", M0_UT_PATH("conf.xc")};
 
@@ -105,7 +99,6 @@ static char *cs_ut_ep_bad_cmd[] = { "m0d", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-A", "linuxstob:cs_addb_sdb", "-w", "10",
                                 "-e", "lnet:asdad:asdsd:sadasd",
-				"-P", M0_UT_CONF_PROFILE,
 				"-f", M0_UT_CONF_PROCESS,
 				"-c", M0_UT_PATH("conf.xc")};
 
@@ -113,7 +106,6 @@ static char *cs_ut_service_bad_cmd[] = { "m0d", "-T", "AD",
                                 "-D", "cs_sdb", "-S", "cs_stob",
                                 "-A", "linuxstob:cs_addb_sdb", "-w", "10",
                                 "-e", "lnet:172.18.50.40@o2ib1:12345:34:1",
-				"-P", M0_UT_CONF_PROFILE,
 				"-f", M0_UT_CONF_PROCESS,
 				"-c", M0_UT_PATH("conf.xc")};
 
@@ -121,7 +113,6 @@ static char *cs_ut_args_bad_cmd[] = { "m0d", "-D", "cs_sdb",
                                 "-S", "cs_stob", "-A", "linuxstob:cs_addb_sdb",
 				"-w", "10",
                                 "-e", "lnet:172.18.50.40@o2ib1:12345:34:1",
-				"-P", M0_UT_CONF_PROFILE,
 				"-f", M0_UT_CONF_PROCESS,
 				"-c", M0_UT_PATH("conf.xc")};
 
@@ -135,7 +126,6 @@ static char *cs_ut_buffer_pool_cmd[] = { "m0d", "-T", "linux",
 				 * It's required to handle m0_ha_msg transfer.
 				 */
                                 "-q", "4", "-m", "32768",
-				"-P", M0_UT_CONF_PROFILE,
 				"-f", M0_UT_CONF_PROCESS,
 				"-c", M0_UT_PATH("conf.xc")};
 
@@ -145,7 +135,6 @@ static char *cs_ut_lnet_cmd[] = { "m0d", "-T", "linux",
 				"-w", "10",
                                 "-e", SERVER_ENDPOINT,
                                 "-H", SERVER_ENDPOINT_ADDR,
-				"-P", M0_UT_CONF_PROFILE,
 				"-f", M0_UT_CONF_PROCESS,
 				"-c", M0_UT_PATH("conf.xc")};
 
@@ -157,7 +146,6 @@ static char *cs_ut_lnet_mult_if_cmd[] = { "m0d", "-T", "linux",
                                 "-e", "lnet:172.18.50.40@tcp:12345:30:101",
                                 "-e", "lnet:172.18.50.40@o2ib0:12345:34:101",
                                 "-H", SERVER_ENDPOINT_ADDR,
-				"-P", M0_UT_CONF_PROFILE,
 				"-f", M0_UT_CONF_PROCESS,
 				"-c", M0_UT_PATH("conf.xc")};
 
@@ -173,7 +161,6 @@ static char *cs_ut_ep_mixed_dup_cmd[] = { "m0d", "-T", "AD",
                                 "-e", "lnet:172.18.50.40@o2ib1:12345:30:101",
                                 "-e", "lnet:172.18.50.40@o2ib1:12345:30:101",
                                 "-H", SERVER_ENDPOINT_ADDR,
-				"-P", M0_UT_CONF_PROFILE,
 				"-f", M0_UT_CONF_PROCESS,
 				"-c", M0_UT_PATH("conf.xc")};
 
@@ -185,7 +172,6 @@ static char *cs_ut_lnet_dup_tcp_if_cmd[] = { "m0d", "-T", "AD",
                                 "-e", "lnet:172.18.50.40@tcp:12345:30:101",
                                 "-e", "lnet:172.18.50.40@tcp:12345:32:105",
                                 "-H", SERVER_ENDPOINT_ADDR,
-				"-P", M0_UT_CONF_PROFILE,
 				"-f", M0_UT_CONF_PROCESS,
 				"-c", M0_UT_PATH("conf.xc")};
 
@@ -194,20 +180,8 @@ static char *cs_ut_lnet_ep_bad_cmd[] = { "m0d", "-T", "AD",
                                 "-A", "linuxstob:cs_addb_stob",
 				"-w", "10",
                                 "-e", "lnet:asdad:asdsd:sadasd",
-				"-P", M0_UT_CONF_PROFILE,
 				"-f", M0_UT_CONF_PROCESS,
 				"-c", M0_UT_PATH("conf.xc")};
-
-static char *cs_ut_bad_profile[] = { "m0d", "-T", "linux",
-                                "-D", "cs_sdb", "-S", "cs_stob",
-                                "-A", "linuxstob:cs_addb_stob",
-                                "-e", SERVER_ENDPOINT,
-                                "-H", SERVER_ENDPOINT_ADDR,
-				"-w", "10",
-				"-P", M0_UT_CONF_PROFILE_BAD,
-				"-f", M0_UT_CONF_PROCESS,
-				"-c", M0_UT_PATH("conf.xc")};
-
 
 static const char *cdbnames[] = { "cdb1", "cdb2" };
 static const char *cl_ep_addrs[] = { "0@lo:12345:34:2", "127.0.0.1:34569" };
@@ -538,10 +512,6 @@ static void test_cs_ut_lnet(void)
 
 static void test_cs_ut_setup_fail(void)
 {
-	/* m0_conf_fs_get() is to fail inside cs_conf_setup() */
-	cs_ut_test_helper_failure(cs_ut_bad_profile,
-				  ARRAY_SIZE(cs_ut_bad_profile));
-
 	/* m0_pools_common_init() is to fail inside cs_conf_setup() */
 	m0_fi_enable_once("m0_conf_devices_count", "diter_fail");
 	cs_ut_test_helper_failure(cs_ut_service_one_cmd,
@@ -570,8 +540,7 @@ static void test_cs_ut_rconfc_fail(void)
 				      "-A", "linuxstob:cs_addb_stob",
 				      "-e", SERVER_ENDPOINT,
 				      "-H", SERVER_ENDPOINT_ADDR,
-				      "-w", "10",
-				      "-P", M0_UT_CONF_PROFILE};
+				      "-w", "10" };
 	struct m0_confc *confc = m0_ha_entrypoint_confc_override();
 	char            *confstr;
 	int              rc;
@@ -593,10 +562,11 @@ static void test_cs_ut_rconfc_fail(void)
 	 * m0_rconfc_start_sync() is to fail inside cs_conf_setup() because
 	 * dummy HA breaks rconfc operation by reporting no RMS.
 	 */
-	m0_fi_enable_once("mero_ha_entrypoint_rep_rm_fill", "no_rms_fid");
+	m0_fi_enable("mero_ha_entrypoint_rep_rm_fill", "no_rms_fid");
 	cs_ut_test_helper_failure(setup_conf, ARRAY_SIZE(setup_conf));
 
 	m0_confc_fini(confc);
+	m0_fi_disable("mero_ha_entrypoint_rep_rm_fill", "no_rms_fid");
 	m0_fi_disable("mero_ha_entrypoint_request_cb", "ut_confc");
 }
 

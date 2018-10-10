@@ -72,18 +72,18 @@
 			 |
 			 v
      +<---------SSS_DFOM_DISK_OPENING---+
-     |				wait for opening m0_conf_disk
+     |				wait for opening m0_conf_drive
      |			 v--------------+
      +<-----SSS_DFOM_DISK_HA_STATE_GET--+
      |                          wait for HA state nvec reply
      |			 v--------------+
      |        SSS_DFOM_DISK_OPENED------+
      |                          accept HA state nvec,
-     |			        read m0_conf_disk,
-     |			        wait for opening m0_conf_filesystem
+     |			        read m0_conf_drive,
+     |			        wait for opening m0_conf_root
      |                   v--------------+
      |         SSS_DFOM_FS_OPENED,
-     |			read m0_conf_filesystem, start iterator m0_conf_sdev
+     |			read m0_conf_root, start iterator m0_conf_sdev
      |                   v--------------+
      |         SSS_DFOM_SDEV_ITER,
      |			search m0_conf_sdev,
@@ -118,8 +118,8 @@
   @subsection DLD-sss_device-fspec-usecases-detach Device detach command
     Finalization AD stob domain and main stob for device and start pool event
     with change device status on offline.
-    Note! Finalization stob doamin is not equal destroy stob doamin.
-    Finalization is not delete filesystem on HW.
+    Note! Finalization of stob domain is not equal to its destruction.
+          Finalization does not delete stob's meta-data in BE.
 
    State transition diagram for Device detach command
 
@@ -130,16 +130,16 @@
 			 |
 			 v
      +<---------SSS_DFOM_DISK_OPENING---+
-     |				wait for opening m0_conf_disk
+     |				wait for opening m0_conf_drive
      |			 v--------------+
      |      SSS_DFOM_DISK_HA_STATE_GET--+
      |                          just go next doing no query
      |			 v--------------+
      |        SSS_DFOM_DISK_OPENED------+
-     |			read m0_conf_disk, wait for opening m0_conf_filesystem
+     |			read m0_conf_drive, wait for opening m0_conf_root
      |                   v--------------+
      |         SSS_DFOM_FS_OPENED,
-     |			read m0_conf_filesystem, start iterator m0_conf_sdev
+     |			read m0_conf_root, start iterator m0_conf_sdev
      |                   v--------------+
      |         SSS_DFOM_SDEV_ITER,
      |			search m0_conf_sdev,
@@ -180,16 +180,16 @@
 			 |
 			 v
      +<---------SSS_DFOM_DISK_OPENING---+
-     |				wait for opening m0_conf_disk
+     |				wait for opening m0_conf_drive
      |			 v--------------+
      |      SSS_DFOM_DISK_HA_STATE_GET--+
      |                          just go next doing no query
      |			 v--------------+
      |        SSS_DFOM_DISK_OPENED------+
-     |			read m0_conf_disk, wait for opening m0_conf_filesystem
+     |			read m0_conf_drive, wait for opening m0_conf_root
      |                   v--------------+
      |         SSS_DFOM_FS_OPENED,
-     |			read m0_conf_filesystem, start iterator m0_conf_sdev
+     |			read m0_conf_root, start iterator m0_conf_sdev
      |                   v--------------+
      |         SSS_DFOM_SDEV_ITER,
      |			search m0_conf_sdev,
@@ -240,7 +240,7 @@ enum sss_device_fom_phases {
 	 */
 	SSS_DFOM_DISK_OPENED,
 	/**
-	 * m0_conf_filesystem opened
+	 * m0_conf_root opened
 	 */
 	SSS_DFOM_FS_OPENED,
 	/**

@@ -35,6 +35,14 @@
 #include "lib/errno.h"    /* ENOMEM, ENOENT */
 #include "lib/misc.h"     /* M0_IN */
 
+enum {
+#define X_CONF(_, NAME, ft_id) \
+	M0_CONF__ ## NAME ## _FT_ID = ft_id,
+
+M0_CONF_OBJ_TYPES
+#undef X_CONF
+};
+
 #define M0_CONF__BOB_DEFINE(type, magic, check)                               \
 const struct m0_bob_type type ## _bob = {                                     \
 	.bt_name         = #type,                                             \
@@ -122,6 +130,13 @@ M0_INTERNAL int conf_pvers_decode(struct m0_conf_pver     ***dest,
 
 M0_INTERNAL int conf_pvers_encode(struct m0_fid_arr          *dest,
 				  const struct m0_conf_pver **src);
+
+M0_INTERNAL int conf_obj_lookup_denied(const struct m0_conf_obj *parent,
+				       const struct m0_fid *name,
+				       struct m0_conf_obj **out);
+
+M0_INTERNAL const struct m0_fid **
+conf_obj_downlinks_none(const struct m0_conf_obj *obj);
 
 #endif /* __MERO_CONF_OBJS_COMMON_H__ */
 

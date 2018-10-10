@@ -48,9 +48,7 @@ static void test_conf_glob(void)
 	 * origin == NULL
 	 */
 	m0_conf_glob_init(&glob, M0_CONF_GLOB_ERR, NULL, cache, NULL,
-			  M0_CONF_ROOT_PROFILES_FID, M0_CONF_ANY_FID,
-			  M0_CONF_PROFILE_FILESYSTEM_FID,
-			  M0_CONF_FILESYSTEM_NODES_FID, M0_CONF_ANY_FID,
+			  M0_CONF_ROOT_NODES_FID, M0_CONF_ANY_FID,
 			  M0_CONF_NODE_PROCESSES_FID, M0_CONF_ANY_FID,
 			  M0_CONF_PROCESS_SERVICES_FID, M0_CONF_ANY_FID);
 	rc = m0_conf_glob(&glob, ARRAY_SIZE(objv), objv);
@@ -67,10 +65,11 @@ static void test_conf_glob(void)
 			  m0_conf_cache_lookup(cache, /* pool-4 */
 					       &M0_FID_TINIT('o', 1, 4)),
 			  M0_CONF_POOL_PVERS_FID, M0_CONF_ANY_FID,
-			  M0_CONF_PVER_RACKVS_FID, M0_CONF_ANY_FID,
+			  M0_CONF_PVER_SITEVS_FID, M0_CONF_ANY_FID,
+			  M0_CONF_SITEV_RACKVS_FID, M0_CONF_ANY_FID,
 			  M0_CONF_RACKV_ENCLVS_FID, M0_CONF_ANY_FID,
 			  M0_CONF_ENCLV_CTRLVS_FID, M0_CONF_ANY_FID,
-			  M0_CONF_CTRLV_DISKVS_FID, M0_CONF_ANY_FID);
+			  M0_CONF_CTRLV_DRIVEVS_FID, M0_CONF_ANY_FID);
 	while ((rc = m0_conf_glob(&glob, 1, objv)) > 0)
 		(void)M0_CONF_CAST(objv[0], m0_conf_objv);
 	M0_UT_ASSERT(rc == 0);
@@ -79,14 +78,13 @@ static void test_conf_glob(void)
 	 * the longest path possible
 	 */
 	m0_conf_glob_init(&glob, M0_CONF_GLOB_ERR, NULL, cache, NULL,
-			  M0_CONF_ROOT_PROFILES_FID, M0_CONF_ANY_FID,
-			  M0_CONF_PROFILE_FILESYSTEM_FID,
-			  M0_CONF_FILESYSTEM_POOLS_FID, M0_CONF_ANY_FID,
+			  M0_CONF_ROOT_POOLS_FID, M0_CONF_ANY_FID,
 			  M0_CONF_POOL_PVERS_FID, M0_CONF_ANY_FID,
-			  M0_CONF_PVER_RACKVS_FID, M0_CONF_ANY_FID,
+			  M0_CONF_PVER_SITEVS_FID, M0_CONF_ANY_FID,
+			  M0_CONF_SITEV_RACKVS_FID, M0_CONF_ANY_FID,
 			  M0_CONF_RACKV_ENCLVS_FID, M0_CONF_ANY_FID,
 			  M0_CONF_ENCLV_CTRLVS_FID, M0_CONF_ANY_FID,
-			  M0_CONF_CTRLV_DISKVS_FID, M0_CONF_ANY_FID);
+			  M0_CONF_CTRLV_DRIVEVS_FID, M0_CONF_ANY_FID);
 	rc = m0_conf_glob(&glob, ARRAY_SIZE(objv), objv);
 	M0_UT_ASSERT(rc == 16);
 	/* check the types of returned objects */
@@ -96,10 +94,7 @@ static void test_conf_glob(void)
 	 * specific objects in the middle of the path, case #1
 	 */
 	m0_conf_glob_init(&glob, M0_CONF_GLOB_ERR, NULL, cache, NULL,
-			  M0_CONF_ROOT_PROFILES_FID, M0_FID_TINIT('p', 1, 0),
-			  M0_CONF_PROFILE_FILESYSTEM_FID,
-			  M0_CONF_FILESYSTEM_POOLS_FID,
-			  M0_FID_TINIT('o', 1, 4), /* pool-4 */
+			  M0_CONF_ROOT_POOLS_FID, M0_FID_TINIT('o', 1, 4),
 			  M0_CONF_POOL_PVERS_FID, M0_CONF_ANY_FID);
 	rc = m0_conf_glob(&glob, ARRAY_SIZE(objv), objv);
 	M0_UT_ASSERT(rc == 3);
@@ -110,9 +105,7 @@ static void test_conf_glob(void)
 	 * specific objects in the middle of the path, case #2
 	 */
 	m0_conf_glob_init(&glob, M0_CONF_GLOB_ERR, NULL, cache, NULL,
-			  M0_CONF_ROOT_PROFILES_FID, M0_FID_TINIT('p', 1, 0),
-			  M0_CONF_PROFILE_FILESYSTEM_FID,
-			  M0_CONF_FILESYSTEM_NODES_FID, M0_CONF_ANY_FID,
+			  M0_CONF_ROOT_NODES_FID, M0_CONF_ANY_FID,
 			  M0_CONF_NODE_PROCESSES_FID, M0_FID_TINIT('r', 1, 5),
 			  M0_CONF_PROCESS_SERVICES_FID, M0_CONF_ANY_FID);
 	rc = m0_conf_glob(&glob, ARRAY_SIZE(objv), objv);
@@ -133,7 +126,6 @@ static void test_conf_glob_errors(void)
 	uint32_t                  i;
 	int                       rc;
 	struct m0_conf_cache     *cache = &m0_conf_ut_cache;
-	const struct m0_fid       bad_fs = M0_FID_TINIT('f', 0x99, 0x99);
 	const struct m0_fid       profile = M0_FID_TINIT('p', 1, 0);
 	const struct m0_fid       missing[] = {
 		/* service-9; first item of a conf_dir */
@@ -149,12 +141,12 @@ static void test_conf_glob_errors(void)
 	 * -ENOENT
 	 */
 	m0_conf_glob_init(&glob, M0_CONF_GLOB_ERR, errfunc, cache, NULL,
-			  M0_CONF_ROOT_PROFILES_FID, M0_CONF_ANY_FID, bad_fs);
+			  M0_CONF_ROOT_PROFILES_FID, M0_FID_TINIT('p', 1, 7));
 	rc = m0_conf_glob(&glob, ARRAY_SIZE(objv), objv);
 	M0_UT_ASSERT(rc == -ENOENT);
 	err = m0_conf_glob_error(&glob, errbuf, sizeof errbuf);
 	M0_UT_ASSERT(m0_streq(err, "Unreachable path:"
-			      " <7000000000000001:0>/<6600000000000099:99>"));
+			      " <4474700000000001:0>/<7000000000000001:7>"));
 	M0_SET0(&g_err_accum[0]);
 
 	/*
@@ -178,9 +170,7 @@ static void test_conf_glob_errors(void)
 		m0_conf_cache_lookup(cache, &missing[i])->co_status =
 			M0_CS_MISSING;
 	m0_conf_glob_init(&glob, 0, errfunc, cache, NULL,
-			  M0_CONF_ROOT_PROFILES_FID, M0_CONF_ANY_FID,
-			  M0_CONF_PROFILE_FILESYSTEM_FID,
-			  M0_CONF_FILESYSTEM_NODES_FID, M0_CONF_ANY_FID,
+			  M0_CONF_ROOT_NODES_FID, M0_CONF_ANY_FID,
 			  M0_CONF_NODE_PROCESSES_FID, M0_CONF_ANY_FID,
 			  M0_CONF_PROCESS_SERVICES_FID, M0_CONF_ANY_FID,
 			  M0_CONF_SERVICE_SDEVS_FID, M0_CONF_ANY_FID);

@@ -60,6 +60,8 @@ pver_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src)
 	const struct m0_confx_pver_u *sa = &XCAST(src)->xv_u;
 	int                           rc;
 
+	M0_ENTRY("dest="FID_F, FID_P(&dest->co_id));
+
 	rc = m0_conf_pver_fid_read(&src->xo_u.u_header.ch_id, &da->pv_kind,
 				   NULL, NULL);
 	if (rc != 0)
@@ -83,9 +85,9 @@ pver_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src)
 			return M0_ERR(-EINVAL);
 		memcpy(d->pvs_tolerance, s->xva_tolerance.au_elems,
 		       sizeof(d->pvs_tolerance));
-		return M0_RC(m0_conf_dir_new(dest, &M0_CONF_PVER_RACKVS_FID,
-					     &M0_CONF_OBJV_TYPE, &s->xva_rackvs,
-					     &d->pvs_rackvs));
+		return M0_RC(m0_conf_dir_new(dest, &M0_CONF_PVER_SITEVS_FID,
+					     &M0_CONF_OBJV_TYPE, &s->xva_sitevs,
+					     &d->pvs_sitevs));
 	}
 	case M0_CONF_PVER_FORMULAIC: {
 		struct m0_conf_pver_formulaic        *d = &da->pv_u.formulaic;
@@ -130,7 +132,7 @@ pver_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 		if (rc != 0)
 			return M0_ERR(rc);
 
-		rc = arrfid_from_dir(&d->xva_rackvs, s->pvs_rackvs);
+		rc = arrfid_from_dir(&d->xva_sitevs, s->pvs_sitevs);
 		if (rc != 0)
 			u32arr_free(&d->xva_tolerance);
 		return M0_RC(rc);
@@ -186,7 +188,7 @@ pver_match(const struct m0_conf_obj *cached, const struct m0_confx_obj *flat)
 			c->pvs_attr.pa_P == x->xva_P &&
 			u32arr_cmp(&x->xva_tolerance, c->pvs_tolerance,
 				   ARRAY_SIZE(c->pvs_tolerance)) &&
-			m0_conf_dir_elems_match(c->pvs_rackvs, &x->xva_rackvs);
+			m0_conf_dir_elems_match(c->pvs_sitevs, &x->xva_sitevs);
 		 }));
 }
 
@@ -197,7 +199,7 @@ static int pver_lookup(const struct m0_conf_obj *parent,
 
 	M0_PRE(parent->co_status == M0_CS_READY);
 
-	if (!m0_fid_eq(name, &M0_CONF_PVER_RACKVS_FID))
+	if (!m0_fid_eq(name, &M0_CONF_PVER_SITEVS_FID))
 		return M0_ERR(-ENOENT);
 
 	if (pver->pv_kind == M0_CONF_PVER_FORMULAIC) {
@@ -214,14 +216,14 @@ static int pver_lookup(const struct m0_conf_obj *parent,
 		if (rc != 0)
 			return M0_ERR(rc);
 	} else
-		*out = &pver->pv_u.subtree.pvs_rackvs->cd_obj;
+		*out = &pver->pv_u.subtree.pvs_sitevs->cd_obj;
 	M0_POST(m0_conf_obj_invariant(*out));
 	return M0_RC(0);
 }
 
 static const struct m0_fid **pver_downlinks(const struct m0_conf_obj *obj)
 {
-	static const struct m0_fid *rels[] = { &M0_CONF_PVER_RACKVS_FID,
+	static const struct m0_fid *rels[] = { &M0_CONF_PVER_SITEVS_FID,
 					       NULL };
 	const struct m0_conf_pver  *pver = M0_CONF_CAST(obj, m0_conf_pver);
 
@@ -253,7 +255,7 @@ M0_CONF__CTOR_DEFINE(pver_create, m0_conf_pver, &pver_ops);
 
 const struct m0_conf_obj_type M0_CONF_PVER_TYPE = {
 	.cot_ftype = {
-		.ft_id   = 'v',
+		.ft_id   = M0_CONF__PVER_FT_ID,
 		.ft_name = "conf_pver"
 	},
 	.cot_create  = &pver_create,

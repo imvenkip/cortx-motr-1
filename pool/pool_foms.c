@@ -33,6 +33,7 @@
 #include "rpc/rpc_opcodes.h"
 #include "mero/setup.h"
 #include "conf/diter.h"
+#include "conf/helpers.h"     /* m0_conf_drive_get */
 
 static const struct m0_fom_ops poolmach_ops;
 
@@ -84,7 +85,7 @@ static void poolmach_set_op(struct m0_fom *fom)
 	struct m0_reqh          *reqh    = m0_fom_reqh(fom);
 	struct m0_mero          *mero    = m0_cs_ctx_get(reqh);
 	struct m0_fid           *dev_fid;
-	struct m0_conf_disk     *disk;
+	struct m0_conf_drive     *drive;
 	struct m0_conf_pver    **conf_pver;
 	struct m0_pool_version  *pv;
 	struct m0_poolmach      *pm;
@@ -101,10 +102,10 @@ static void poolmach_set_op(struct m0_fom *fom)
 		 * is associated.
 		 */
 		dev_fid = &set_fop->fps_dev_info.fpi_dev[i].fpd_fid;
-		rc = m0_conf_disk_get(m0_reqh2confc(reqh), dev_fid, &disk);
+		rc = m0_conf_drive_get(m0_reqh2confc(reqh), dev_fid, &drive);
 		if (rc != 0)
 			break;
-		conf_pver = disk->ck_pvers;
+		conf_pver = drive->ck_pvers;
 		for (j = 0; conf_pver[j] != NULL; ++j) {
 			pv = m0_pool_version_find(&mero->cc_pools_common,
 						  &conf_pver[j]->pv_obj.co_id);
@@ -116,7 +117,7 @@ static void poolmach_set_op(struct m0_fom *fom)
 			if (rc != 0)
 				break;
 		}
-		m0_confc_close(&disk->ck_obj);
+		m0_confc_close(&drive->ck_obj);
 	}
 	set_fop_rep->fps_rc = rc;
 }
@@ -131,7 +132,7 @@ static void poolmach_query_op(struct m0_fom *fom)
 	struct m0_fop           *rep_fop = fom->fo_rep_fop;
 	struct m0_reqh          *reqh    = m0_fom_reqh(fom);
 	struct m0_mero          *mero    = m0_cs_ctx_get(reqh);
-	struct m0_conf_disk     *disk;
+	struct m0_conf_drive    *drive;
 	struct m0_conf_pver    **conf_pver;
 	struct m0_pool_version  *pv;
 	struct m0_poolmach      *pm;
@@ -151,12 +152,12 @@ static void poolmach_query_op(struct m0_fom *fom)
 
 	for (i = 0; i < query_fop->fpq_dev_idx.fpx_nr; ++i) {
 		dev_fid = &query_fop->fpq_dev_idx.fpx_fid[i];
-		rc = m0_conf_disk_get(m0_reqh2confc(reqh), dev_fid, &disk);
+		rc = m0_conf_drive_get(m0_reqh2confc(reqh), dev_fid, &drive);
 		if (rc != 0)
 			break;
-		conf_pver = disk->ck_pvers;
+		conf_pver = drive->ck_pvers;
 		/*
-		 * Search the first pool version for the given disk fid
+		 * Search the first pool version for the given drive fid
 		 * and return the corresponding state.
 		 */
 		for (j = 0; conf_pver[j] != NULL; ++j) {
@@ -172,7 +173,7 @@ static void poolmach_query_op(struct m0_fom *fom)
 			break;
 		}
 		query_fop_rep->fqr_dev_info.fpi_dev[i].fpd_fid = *dev_fid;
-		m0_confc_close(&disk->ck_obj);
+		m0_confc_close(&drive->ck_obj);
 	}
 	query_fop_rep->fqr_rc = rc;
 }

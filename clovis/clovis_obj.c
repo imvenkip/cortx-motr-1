@@ -33,6 +33,7 @@
 #include "lib/misc.h"              /* m0_strtou64() */
 #include "ioservice/fid_convert.h" /* m0_fid_convert_ */
 #include "layout/layout.h"         /* m0_lid_to_unit_map */
+#include "conf/helpers.h"          /* m0_confc_root_open */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CLOVIS
 #include "lib/trace.h"
@@ -336,7 +337,7 @@ m0_clovis__pool_version_get(struct m0_clovis *instance,
 	}
 
 	/* Get pool version */
-	rc = m0_pool_version_get(&instance->m0c_pools_common, pv);
+	rc = m0_pool_version_get(&instance->m0c_pools_common, NULL, pv);
 	return M0_RC(rc);
 }
 
@@ -759,18 +760,18 @@ M0_EXPORTED(m0_clovis_obj_layout_id_to_unit_size);
 
 uint64_t m0_clovis_default_layout_id(struct m0_clovis *instance)
 {
-	int                        rc;
-	uint64_t                   lid;
-	const uint64_t             FS_LID_INDEX = 1;
-	struct m0_reqh            *reqh = &instance->m0c_reqh;
-	struct m0_conf_filesystem *fs;
+	int                  rc;
+	int                  i;
+	uint64_t             lid = M0_DEFAULT_LAYOUT_ID;
+	const uint64_t       FS_LID_INDEX = 1;
+	struct m0_reqh      *reqh = &instance->m0c_reqh;
+	struct m0_conf_root *root;
 
 	M0_ENTRY();
 	M0_PRE(instance != NULL);
 
 	if (M0_FI_ENABLED("return_default_layout"))
 		return M0_DEFAULT_LAYOUT_ID;
-
 	/*
 	 * TODO:This layout selection is a temporary solution for s3 team
 	 * requirement. In future this has to be replaced by more sophisticated
@@ -779,22 +780,24 @@ uint64_t m0_clovis_default_layout_id(struct m0_clovis *instance)
 	if (instance->m0c_config->cc_layout_id != 0)
 		return instance->m0c_config->cc_layout_id;
 
-	rc = m0_conf_fs_get(m0_reqh2profile(reqh), m0_reqh2confc(reqh), &fs);
+	rc = m0_confc_root_open(m0_reqh2confc(reqh), &root);
 	if (rc != 0)
-		goto EXIT;
-	if (fs->cf_params != NULL && fs->cf_params[FS_LID_INDEX] != NULL) {
-		lid = m0_strtou64(fs->cf_params[FS_LID_INDEX], NULL, 0);
+		goto err;
+
+	for (i=0; root->rt_params != NULL &&
+	          root->rt_params[i] != NULL; ++i) {
+		if (i != FS_LID_INDEX)
+			continue;
+		lid = m0_strtou64(root->rt_params[FS_LID_INDEX], NULL, 0);
 		M0_LOG(M0_DEBUG, "fetched layout id: %s, %llu",
-		       fs->cf_params[FS_LID_INDEX], (unsigned long long)lid);
-		m0_confc_close(&fs->cf_obj);
+		       root->rt_params[FS_LID_INDEX], (unsigned long long)lid);
 		instance->m0c_config->cc_layout_id = lid;
-		M0_LEAVE();
-		return lid;
+		break;
 	}
-	m0_confc_close(&fs->cf_obj);
-EXIT:
+	m0_confc_close(&root->rt_obj);
+err:
 	M0_LEAVE();
-	return M0_DEFAULT_LAYOUT_ID;
+	return lid;
 }
 M0_EXPORTED(m0_clovis_default_layout_id);
 

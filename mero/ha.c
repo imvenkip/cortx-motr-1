@@ -42,10 +42,8 @@
 #include "lib/errno.h"          /* EHOSTUNREACH */
 #include "lib/finject.h"        /* M0_FI_ENABLED */
 
-#include "conf/helpers.h"       /* m0_conf_service_open */
+#include "conf/helpers.h"       /* m0_confc_root_open */
 #include "conf/schema.h"        /* M0_CST_CONFD */
-#include "conf/cache.h"         /* m0_conf_cache_lock */
-#include "conf/obj_ops.h"       /* m0_conf_obj_put */
 #include "conf/obj.h"           /* m0_conf_obj_type */
 #include "conf/diter.h"         /* m0_conf_diter_init */
 #include "conf/confc.h"         /* m0_confc_close */
@@ -76,7 +74,6 @@ M0_INTERNAL void m0_mero_ha_cfg_make(struct m0_mero_ha_cfg *mha_cfg,
 		.mhc_rpc_machine    = rmach,
 		.mhc_reqh           = reqh,
 		.mhc_process_fid    = M0_FID_INIT(0, 0),
-		.mhc_profile_fid    = M0_FID_INIT(0, 0),
 	};
 	M0_LEAVE();
 }
@@ -105,36 +102,33 @@ static int confd_fill(const struct m0_conf_service *service,
 	return 0;
 }
 
-static int mero_ha_confd_iter(const struct m0_fid         *profile,
-			      struct m0_confc             *confc,
+static int mero_ha_confd_iter(struct m0_confc             *confc,
 			      struct m0_ha_entrypoint_rep *rep,
 			      int (*confd_iter)(const struct m0_conf_service *,
 						struct m0_ha_entrypoint_rep  *,
 						uint32_t))
 {
-	struct m0_conf_filesystem *fs;
-	struct m0_conf_obj        *obj;
-	struct m0_conf_service    *s;
-	struct m0_conf_diter       it;
-	uint32_t                   index = 0;
-	int                        rc;
+	struct m0_conf_root    *root;
+	struct m0_conf_obj     *obj;
+	struct m0_conf_service *s;
+	struct m0_conf_diter    it;
+	uint32_t                index = 0;
+	int                     rc;
 
-	if (!m0_fid_is_set(profile))
-		return -EAGAIN;
 	/*
 	 * This code is executed only for testing purposes if there is no real
 	 * HA service in cluster.
 	 */
-	rc = m0_conf_fs_get(profile, confc, &fs);
+	rc = m0_confc_root_open(confc, &root);
 	if (rc != 0)
 		return M0_ERR(rc);
 
-	rc = m0_conf_diter_init(&it, confc, &fs->cf_obj,
-				M0_CONF_FILESYSTEM_NODES_FID,
+	rc = m0_conf_diter_init(&it, confc, &root->rt_obj,
+				M0_CONF_ROOT_NODES_FID,
 				M0_CONF_NODE_PROCESSES_FID,
 				M0_CONF_PROCESS_SERVICES_FID);
 	if (rc != 0) {
-		m0_confc_close(&fs->cf_obj);
+		m0_confc_close(&root->rt_obj);
 		return M0_ERR(rc);
 	}
 
@@ -150,7 +144,7 @@ static int mero_ha_confd_iter(const struct m0_fid         *profile,
 	}
 leave:
 	m0_conf_diter_fini(&it);
-	m0_confc_close(&fs->cf_obj);
+	m0_confc_close(&root->rt_obj);
 	return M0_RC(rc);
 }
 
@@ -166,21 +160,15 @@ mero_ha_entrypoint_rep_confds_free(struct m0_ha_entrypoint_rep *rep)
 	rep->hae_confd_fids.af_count = 0;
 }
 
-static int mero_ha_entrypoint_rep_confds_fill(const struct m0_fid      *profile,
-					     struct m0_confc             *confc,
-					     struct m0_ha_entrypoint_rep *rep)
+static int mero_ha_entrypoint_rep_confds_fill(struct m0_confc *confc,
+					      struct m0_ha_entrypoint_rep *rep)
 {
 	int rc;
 
-	if (!m0_fid_is_set(profile))
-		/*
-		 * Profile fid is a key attribute of REQH, which seems not set
-		 * up proper way. It is not possible to serve ha entrypoint
-		 * requests with wrongly set up mero instance. So any further
-		 * communication makes no sense and must not be permitted.
-		 */
+	if (confc->cc_root == NULL)
 		return M0_ERR(-EPERM);
-	rc = mero_ha_confd_iter(profile, confc, rep, &confd_count);
+
+	rc = mero_ha_confd_iter(confc, rep, &confd_count);
 	if (rc != 0)
 		return M0_ERR(rc);
 	M0_ALLOC_ARR(rep->hae_confd_eps, rep->hae_confd_fids.af_count);
@@ -192,7 +180,7 @@ static int mero_ha_entrypoint_rep_confds_fill(const struct m0_fid      *profile,
 		m0_free0(&rep->hae_confd_eps);
 		return M0_ERR(-ENOMEM);
 	}
-	rc = mero_ha_confd_iter(profile, confc, rep, &confd_fill);
+	rc = mero_ha_confd_iter(confc, rep, &confd_fill);
 	if (rc == 0)
 		rep->hae_quorum = rep->hae_confd_fids.af_count / 2 + 1;
 	else
@@ -206,16 +194,15 @@ static bool mero_ha_online_service_filter(const struct m0_conf_obj *obj)
 	       obj->co_ha_state == M0_NC_ONLINE;
 }
 
-static int mero_ha_entrypoint_rep_rm_fill(const struct m0_fid  *profile,
-                                          struct m0_confc      *confc,
+static int mero_ha_entrypoint_rep_rm_fill(struct m0_confc      *confc,
                                           struct m0_fid        *active_rm_fid,
                                           char                **active_rm_ep)
 {
-	struct m0_conf_filesystem *fs;
-	struct m0_conf_obj        *obj;
-	struct m0_conf_service    *s;
-	struct m0_conf_diter       it;
-	int                        rc;
+	struct m0_conf_root    *root;
+	struct m0_conf_obj     *obj;
+	struct m0_conf_service *s;
+	struct m0_conf_diter    it;
+	int                     rc;
 
 	if (M0_FI_ENABLED("no_rms_fid"))
 		return M0_ERR(-EPERM);
@@ -223,16 +210,16 @@ static int mero_ha_entrypoint_rep_rm_fill(const struct m0_fid  *profile,
 	 * This code is executed only for testing purposes if there is no real
 	 * HA service in cluster.
 	 */
-	rc = m0_conf_fs_get(profile, confc, &fs);
+	rc = m0_confc_root_open(confc, &root);
 	if (rc != 0)
 		return M0_ERR(rc);
 
-	rc = m0_conf_diter_init(&it, confc, &fs->cf_obj,
-				M0_CONF_FILESYSTEM_NODES_FID,
+	rc = m0_conf_diter_init(&it, confc, &root->rt_obj,
+				M0_CONF_ROOT_NODES_FID,
 				M0_CONF_NODE_PROCESSES_FID,
 				M0_CONF_PROCESS_SERVICES_FID);
 	if (rc != 0) {
-		m0_confc_close(&fs->cf_obj);
+		m0_confc_close(&root->rt_obj);
 		return M0_ERR(rc);
 	}
 
@@ -248,7 +235,7 @@ static int mero_ha_entrypoint_rep_rm_fill(const struct m0_fid  *profile,
 		}
 	}
 	m0_conf_diter_fini(&it);
-	m0_confc_close(&fs->cf_obj);
+	m0_confc_close(&root->rt_obj);
 	if (*active_rm_ep == NULL)
 		/* Further operation not permitted on client side */
 		return M0_ERR(-EPERM);
@@ -273,19 +260,17 @@ mero_ha_entrypoint_request_cb(struct m0_ha                      *ha,
 			      const struct m0_ha_entrypoint_req *req,
 			      const struct m0_uint128           *req_id)
 {
-	struct m0_reqh              *reqh    = ha->h_cfg.hcf_reqh;
-	struct m0_confc             *confc   = m0_reqh2confc(reqh);
-	struct m0_fid               *profile = m0_reqh2profile(reqh);
-	struct m0_ha_entrypoint_rep  rep = {0};
+	struct m0_reqh              *reqh  = ha->h_cfg.hcf_reqh;
+	struct m0_confc             *confc = m0_reqh2confc(reqh);
+	struct m0_ha_entrypoint_rep  rep   = {0};
 	int                          rc;
 
 	if (M0_FI_ENABLED("ut_confc"))
 		confc = m0_ha_entrypoint_confc_override();
 
-	rc = mero_ha_entrypoint_rep_confds_fill(profile, confc, &rep) ?:
-		mero_ha_entrypoint_rep_rm_fill(profile, confc,
-					       &rep.hae_active_rm_fid,
-					       &rep.hae_active_rm_ep);
+	rc = mero_ha_entrypoint_rep_confds_fill(confc, &rep) ?:
+	     mero_ha_entrypoint_rep_rm_fill(confc, &rep.hae_active_rm_fid,
+					           &rep.hae_active_rm_ep);
 	switch (rc) {
 	case 0:
 		M0_ASSERT(rep.hae_confd_eps[0] != NULL);
@@ -402,7 +387,6 @@ static int mero_ha_level_enter(struct m0_module *module)
 				.hcf_addr        = mha->mh_cfg.mhc_addr,
 				.hcf_reqh        = mha->mh_cfg.mhc_reqh,
 				.hcf_process_fid = mha->mh_cfg.mhc_process_fid,
-				.hcf_profile_fid = mha->mh_cfg.mhc_profile_fid,
 			                }));
 	case MERO_HA_LEVEL_DISPATCHER:
 		return M0_RC(m0_ha_dispatcher_init(&mha->mh_dispatcher,
@@ -521,10 +505,9 @@ M0_INTERNAL int m0_mero_ha_init(struct m0_mero_ha     *mha,
 	int   rc;
 
 	M0_ENTRY("mha=%p ha=%p mhc_addr=%s mhc_rpc_machine=%p mhc_reqh=%p "
-	         "mhc_process_fid="FID_F" mhc_profile_fid="FID_F,
+	         "mhc_process_fid="FID_F,
 	         mha, &mha->mh_ha, mha_cfg->mhc_addr, mha_cfg->mhc_rpc_machine,
-		 mha_cfg->mhc_reqh, FID_P(&mha_cfg->mhc_process_fid),
-		 FID_P(&mha_cfg->mhc_profile_fid));
+		 mha_cfg->mhc_reqh, FID_P(&mha_cfg->mhc_process_fid));
 
 	mha->mh_cfg = *mha_cfg;
 	addr_dup = m0_strdup(mha_cfg->mhc_addr);
@@ -576,6 +559,7 @@ M0_INTERNAL void m0_mero_ha_stop(struct m0_mero_ha *mha)
 M0_INTERNAL void m0_mero_ha_connect(struct m0_mero_ha *mha)
 {
 	int rc;
+
 	M0_ENTRY("mha=%p", mha);
 	rc = m0_module_init(&mha->mh_module, MERO_HA_LEVEL_CONNECTED);
 	/* connect can't fail */

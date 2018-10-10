@@ -105,7 +105,6 @@ static void test_cache(void)
 	struct m0_conf_obj *obj;
 	struct m0_fid       samples[] = {
 		M0_FID_TINIT('p', ~0, 0),
-		M0_FID_TINIT('f', 7, 2),
 		M0_FID_TINIT('D', 7, 3)
 	};
 

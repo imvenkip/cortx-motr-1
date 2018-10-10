@@ -191,7 +191,7 @@ M0_INTERNAL bool m0_sns_cm_is_local_cob(const struct m0_cm *cm,
 					const struct m0_fid *cob_fid);
 
 M0_INTERNAL bool m0_sns_cm_disk_has_dirty_pver(struct m0_cm *cm,
-					       struct m0_conf_disk *disk);
+					       struct m0_conf_drive *disk);
 M0_INTERNAL bool m0_sns_cm_pver_is_dirty(struct m0_pool_version *pver);
 M0_INTERNAL void m0_sns_cm_pver_dirty_set(struct m0_pool_version *pver);
 M0_INTERNAL int m0_sns_cm_pool_ha_nvec_alloc(struct m0_pool *pool,

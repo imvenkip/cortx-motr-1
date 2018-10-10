@@ -171,7 +171,7 @@ static char *g_argv[] = {
 	"-A", "linuxstob:"NAME(".addb-stob"),
 	"-e", SERVER_ENDPOINT, "-H", SERVER_ENDPOINT_ADDR,
 	"-f", M0_UT_CONF_PROCESS,
-	"-c", M0_UT_PATH("conf.xc"), "-P", M0_UT_CONF_PROFILE
+	"-c", M0_UT_PATH("conf.xc")
 };
 
 static struct m0_rpc_server_ctx g_sctx = {

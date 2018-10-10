@@ -1,6 +1,6 @@
 /* -*- c -*- */
 /*
- * COPYRIGHT 2015 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2015-2018 SEAGATE LLC
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -15,6 +15,7 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Mandar Sawant <mandar_sawant@seagate.com>
+ * Authors:         Andriy Tkachuk <andriy.tkachuk@seagate.com>
  * Original creation date: 12-Jan-2015
  */
 #pragma once
@@ -93,8 +94,8 @@
  * struct m0_conf_obj   *obj;
  * int                   rc;
  *
- * rc = m0_conf_diter_init(&it, confc, fs,
- *                         M0_CONF_FILESYSTEM_NODES_FID,
+ * rc = m0_conf_diter_init(&it, confc, root,
+ *                         M0_CONF_ROOT_NODES_FID,
  *                         M0_CONF_NODE_PROCESSES_FID,
  *                         M0_CONF_PROCESS_SERVICES_FID,
  *                         M0_CONF_SERVICE_SDEVS_FID);
@@ -117,7 +118,7 @@
  * A typical use case of the configuration directory iterator using
  * a synchronous version of this functions is as follows,
  * @code
- *	rc = m0_conf_diter_init(&it, confc, &fs->cf_obj,
+ *	rc = m0_conf_diter_init(&it, confc, &root->rt_obj,
  *				M0_CONF_XXX_XXX_FID,
  *				M0_CONF_XXX_XXX_FID);
  *	if (rc != 0)

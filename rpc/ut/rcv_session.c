@@ -22,6 +22,7 @@
 #include "lib/trace.h"
 
 #include "conf/rconfc_internal.h"
+#include "conf/helpers.h"          /* m0_confc_expired_cb */
 #include "lib/finject.h"
 #include "lib/misc.h"              /* M0_BITS */
 #include "lib/memory.h"
@@ -267,8 +268,9 @@ static void test_conn_ha_subscribe()
 	M0_LOG(M0_DEBUG, "rconfc_init %p", rconfc);
 	rc = m0_net_end_point_create(&ep, &machine->rm_tm, remote_addr);
 	M0_UT_ASSERT(rc == 0);
-	m0_conf_service_find(&cctx.rcx_reqh, NULL, M0_CST_IOS, remote_addr,
-			     &svc_obj);
+	rc = m0_confc_service_find(m0_reqh2confc(&cctx.rcx_reqh), M0_CST_IOS,
+				   remote_addr, &svc_obj);
+	M0_UT_ASSERT(rc == 0);
 	M0_ASSERT(svc_obj != NULL);
 	rc = m0_rpc_conn_create(&conn, &svc_obj->co_id, ep, machine,
 			MAX_RPCS_IN_FLIGHT,
@@ -285,8 +287,9 @@ static void test_conn_ha_subscribe()
 	/*
 	 * Check that conn is still subscribed after fetching new configuration
 	 */
-	m0_conf_service_find(&cctx.rcx_reqh, NULL, M0_CST_IOS, remote_addr,
-			     &svc_obj);
+	rc = m0_confc_service_find(m0_reqh2confc(&cctx.rcx_reqh), M0_CST_IOS,
+				   remote_addr, &svc_obj);
+	M0_UT_ASSERT(rc == 0);
 	M0_ASSERT(svc_obj != NULL);
 	M0_UT_ASSERT(svc_obj->co_ha_chan.ch_waiters == 1);
 	rc = m0_rpc_conn_destroy(&conn, m0_time_from_now(TIMEOUT, 0));

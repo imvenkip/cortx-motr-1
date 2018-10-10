@@ -86,7 +86,6 @@ static int open_filter_group(struct m0_filterc_ctx    *ctx,
 			     struct m0_conf_obj      **out)
 {
 	int                 rc;
-	struct m0_conf_obj *fs;
 	struct m0_conf_obj *flt_grp = NULL;
 	struct m0_conf_obj *flt_grp_tmp;
 	struct m0_conf_obj *flt_grp_dir;
@@ -98,16 +97,10 @@ static int open_filter_group(struct m0_filterc_ctx    *ctx,
 	if (ctx->fcc_confc == NULL || ctx->fcc_confc->cc_root == NULL)
 		return M0_RC(-EINVAL);
 
-	rc = m0_confc_open_sync(&fs, ctx->fcc_confc->cc_root,
-				M0_CONF_ROOT_PROFILES_FID,
-				*m0_reqh2profile(m0_confc2reqh(ctx->fcc_confc)),
-				M0_CONF_PROFILE_FILESYSTEM_FID);
+	rc = m0_confc_open_sync(&flt_grp_dir, ctx->fcc_confc->cc_root,
+				M0_CONF_ROOT_FDMI_FLT_GRPS_FID);
 	if (rc != 0)
-		goto fs_open_err;
-	rc = m0_confc_open_sync(&flt_grp_dir, fs,
-				M0_CONF_FILESYSTEM_FDMI_FLT_GRPS_FID);
-	if (rc != 0)
-		goto flt_grp_err;
+		goto open_err;
 	for (flt_grp_tmp = NULL;
 	     (rc = m0_confc_readdir_sync(flt_grp_dir, &flt_grp_tmp)) > 0; ) {
 		struct m0_conf_fdmi_flt_grp *grp =
@@ -122,7 +115,7 @@ static int open_filter_group(struct m0_filterc_ctx    *ctx,
 
 	if (flt_grp != NULL) {
 		rc = m0_confc_open_sync(&flts_dir, flt_grp,
-					M0_CONF_FDMI_FILTERS_FID);
+					M0_CONF_FDMI_FGRP_FILTERS_FID);
 		if (rc == 0)
 			*out = flts_dir;
 	} else {
@@ -131,9 +124,7 @@ static int open_filter_group(struct m0_filterc_ctx    *ctx,
 
 	m0_confc_close(flt_grp_tmp);
 	m0_confc_close(flt_grp_dir);
-flt_grp_err:
-	m0_confc_close(fs);
-fs_open_err:
+open_err:
 	return M0_RC(rc);
 }
 

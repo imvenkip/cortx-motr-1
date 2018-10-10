@@ -49,6 +49,7 @@
 #include "pool/pool.h"
 #include "conf/obj.h"          /* M0_CONF_PROCESS_TYPE, m0_conf_fid_type */
 #include "conf/confc.h"        /* m0_confc_init */
+#include "conf/helpers.h"      /* m0_confc_args */
 #include "be/ut/helper.h"
 
 /**

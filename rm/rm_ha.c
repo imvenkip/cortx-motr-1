@@ -208,7 +208,7 @@ static void rm_ha_sbscr_fs_opened(struct m0_sm_group *grp,
 		sbscr->rhs_dir_root = m0_confc_ctx_result(&sbscr->rhs_cctx);
 		rc = m0_conf_diter_init(&sbscr->rhs_diter, sbscr->rhs_confc,
 					sbscr->rhs_dir_root,
-					M0_CONF_FILESYSTEM_NODES_FID,
+					M0_CONF_ROOT_NODES_FID,
 					M0_CONF_NODE_PROCESSES_FID,
 					M0_CONF_PROCESS_SERVICES_FID);
 		if (rc == 0) {
@@ -240,12 +240,11 @@ static bool rm_ha_sbscr_fs_open_cb(struct m0_clink *link)
 	return true;
 }
 
-static void rm_ha_fs_open(struct m0_sm_group *grp, struct m0_sm_ast *ast)
+static void rm_ha_conf_open(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
 	struct m0_rm_ha_subscriber *sbscr = ast->sa_datum;
 	struct m0_confc            *confc = sbscr->rhs_confc;
 	struct m0_confc_ctx        *cctx = &sbscr->rhs_cctx;
-	struct m0_reqh             *reqh = m0_confc2reqh(confc);
 	int                         rc;
 
 	rc = m0_confc_ctx_init(cctx, confc);
@@ -253,10 +252,7 @@ static void rm_ha_fs_open(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 		rm_ha_sbscr_state_set(sbscr, RM_HA_SBSCR_FS_OPEN);
 		m0_clink_init(&sbscr->rhs_clink, rm_ha_sbscr_fs_open_cb);
 		m0_clink_add_lock(&cctx->fc_mach.sm_chan, &sbscr->rhs_clink);
-		m0_confc_open(cctx, confc->cc_root,
-			      M0_CONF_ROOT_PROFILES_FID,
-			      *m0_reqh2profile(reqh),
-			      M0_CONF_PROFILE_FILESYSTEM_FID);
+		m0_confc_open(cctx, confc->cc_root, M0_FID0);
 	} else {
 		rm_ha_sbscr_fail(sbscr, M0_ERR(rc));
 	}
@@ -270,8 +266,7 @@ static int rm_remote_ep_to_rms_obj(struct m0_confc     *confc,
 				   struct m0_conf_obj **obj)
 {
 	struct m0_conf_obj     *next;
-	struct m0_conf_obj     *fs;
-	struct m0_reqh         *reqh;
+	struct m0_conf_obj     *root;
 	struct m0_conf_diter    it;
 	struct m0_conf_service *svc;
 	const char            **ep;
@@ -281,18 +276,14 @@ static int rm_remote_ep_to_rms_obj(struct m0_confc     *confc,
 	M0_PRE(confc != NULL);
 	M0_PRE(rem_ep != NULL);
 
-	reqh = m0_confc2reqh(confc);
-	rc = m0_confc_open_sync(&fs, confc->cc_root,
-				M0_CONF_ROOT_PROFILES_FID,
-				*m0_reqh2profile(reqh),
-				M0_CONF_PROFILE_FILESYSTEM_FID);
+	rc = m0_confc_open_sync(&root, confc->cc_root, M0_FID0);
 	if (rc != 0)
-		return M0_ERR(rc);
+		return M0_RC(rc);
 
-	M0_ASSERT(fs != NULL && fs->co_status == M0_CS_READY);
+	M0_ASSERT(root != NULL && root->co_status == M0_CS_READY);
 
-	rc = m0_conf_diter_init(&it, confc, fs,
-				M0_CONF_FILESYSTEM_NODES_FID,
+	rc = m0_conf_diter_init(&it, confc, root,
+				M0_CONF_ROOT_NODES_FID,
 				M0_CONF_NODE_PROCESSES_FID,
 				M0_CONF_PROCESS_SERVICES_FID);
 	if (rc != 0)
@@ -323,7 +314,7 @@ static int rm_remote_ep_to_rms_obj(struct m0_confc     *confc,
 		}
 	}
 	m0_conf_diter_fini(&it);
-	m0_confc_close(fs);
+	m0_confc_close(root);
 
 	return found ? 0 : M0_RC(rc) ?: M0_ERR(-ENOENT);
 }
@@ -355,7 +346,7 @@ M0_INTERNAL int m0_rm_ha_subscriber_init(struct m0_rm_ha_subscriber *sbscr,
 
 M0_INTERNAL void m0_rm_ha_subscribe(struct m0_rm_ha_subscriber *sbscr)
 {
-	rm_ha_sbscr_ast_post(sbscr, rm_ha_fs_open);
+	rm_ha_sbscr_ast_post(sbscr, rm_ha_conf_open);
 }
 
 M0_INTERNAL int m0_rm_ha_subscribe_sync(struct m0_confc         *confc,

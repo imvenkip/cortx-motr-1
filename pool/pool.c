@@ -32,6 +32,7 @@
 #include "conf/obj_ops.h"  /* M0_CONF_DIRNEXT */
 #include "conf/pvers.h"    /* m0_conf_pver_find_by_fid */
 #include "conf/cache.h"    /* m0_conf_cache_contains */
+#include "conf/helpers.h"  /* m0_confc_root_open() */
 #include "reqh/reqh_service.h" /* m0_reqh_service_ctx */
 #include "reqh/reqh.h"
 #include "rpc/rpc_machine.h"    /* m0_rpc_machine_ep */
@@ -252,11 +253,10 @@ static const struct m0_bob_type pver_bob = {
 };
 M0_BOB_DEFINE(static, &pver_bob, m0_pool_version);
 
-static int pools_common_refresh_locked(struct m0_pools_common    *pc,
-				       struct m0_conf_filesystem *fs);
-static int pools_common__dev2ios_build(struct m0_pools_common    *pc,
-				       struct m0_conf_filesystem *fs);
+static int pools_common_refresh_locked(struct m0_pools_common *pc);
+static int pools_common__dev2ios_build(struct m0_pools_common *pc);
 static int pool_version_get_locked(struct m0_pools_common  *pc,
+				   const struct m0_fid     *pool,
 				   struct m0_pool_version **pv);
 static void pool_version__layouts_evict(struct m0_pool_version *pv,
 					struct m0_layout_domain *ldom);
@@ -399,25 +399,28 @@ static bool obj_is_controllerv(const struct m0_conf_obj *obj)
 	       &M0_CONF_CONTROLLER_TYPE;
 }
 
-static int pool_mds_map_init(struct m0_pools_common *pc,
-			     struct m0_conf_filesystem *fs)
+static int pool_mds_map_init(struct m0_pools_common *pc)
 {
 	struct m0_conf_obj   *mdpool;
-	struct m0_conf_diter  it;
 	struct m0_conf_objv  *objv;
+	struct m0_conf_root  *root;
+	struct m0_conf_diter  it;
 	int                   rc;
 
 	M0_ENTRY();
 	M0_PRE(!pools_common_svc_ctx_tlist_is_empty(&pc->pc_svc_ctxs));
 	M0_PRE(pc->pc_mds_map != NULL);
 
-	rc = m0_confc_open_sync(&mdpool, &fs->cf_obj,
-				M0_CONF_FILESYSTEM_POOLS_FID, fs->cf_mdpool);
+	root = M0_CONF_CAST(pc->pc_confc->cc_root, m0_conf_root);
+	rc = m0_confc_open_sync(&mdpool, &root->rt_obj,
+				M0_CONF_ROOT_POOLS_FID, root->rt_mdpool);
 	if (rc != 0)
 		return M0_ERR(rc);
 
 	rc = m0_conf_diter_init(&it, pc->pc_confc, mdpool,
-				M0_CONF_POOL_PVERS_FID, M0_CONF_PVER_RACKVS_FID,
+				M0_CONF_POOL_PVERS_FID,
+				M0_CONF_PVER_SITEVS_FID,
+				M0_CONF_SITEV_RACKVS_FID,
 				M0_CONF_RACKV_ENCLVS_FID,
 				M0_CONF_ENCLV_CTRLVS_FID);
 	if (rc != 0)
@@ -455,7 +458,7 @@ M0_INTERNAL int m0_pool_version_device_map_init(struct m0_pool_version *pv,
 						struct m0_pools_common *pc)
 {
 	struct m0_conf_diter              it;
-	struct m0_conf_disk              *disk;
+	struct m0_conf_drive             *disk;
 	struct m0_conf_sdev              *sdev;
 	struct m0_conf_service           *svc;
 	struct m0_reqh_service_ctx       *ctx;
@@ -468,10 +471,11 @@ M0_INTERNAL int m0_pool_version_device_map_init(struct m0_pool_version *pv,
 	M0_PRE(!pools_common_svc_ctx_tlist_is_empty(&pc->pc_svc_ctxs));
 
 	rc = m0_conf_diter_init(&it, pc->pc_confc, &pver->pv_obj,
-				M0_CONF_PVER_RACKVS_FID,
+				M0_CONF_PVER_SITEVS_FID,
+				M0_CONF_SITEV_RACKVS_FID,
 				M0_CONF_RACKV_ENCLVS_FID,
 				M0_CONF_ENCLV_CTRLVS_FID,
-				M0_CONF_CTRLV_DISKVS_FID);
+				M0_CONF_CTRLV_DRIVEVS_FID);
 	if (rc != 0)
 		return M0_ERR(rc);
 	/*
@@ -485,8 +489,8 @@ M0_INTERNAL int m0_pool_version_device_map_init(struct m0_pool_version *pv,
 		 */
 		disk = M0_CONF_CAST(M0_CONF_CAST(m0_conf_diter_result(&it),
 						 m0_conf_objv)->cv_real,
-				    m0_conf_disk);
-		sdev = disk->ck_dev;
+				    m0_conf_drive);
+		sdev = disk->ck_sdev;
 		svc = M0_CONF_CAST(m0_conf_obj_grandparent(&sdev->sd_obj),
 				   m0_conf_service);
 		/*
@@ -576,7 +580,8 @@ m0_pool_clean_pver_find(const struct m0_pool *pool)
 }
 
 M0_INTERNAL struct m0_pool_version *
-m0_pool_version_lookup(struct m0_pools_common *pc, const struct m0_fid *id)
+m0_pool_version_lookup(const struct m0_pools_common *pc,
+		       const struct m0_fid *id)
 {
 	struct m0_pool         *pool;
 	struct m0_pool_version *pver;
@@ -609,7 +614,7 @@ m0_pool_version_find(struct m0_pools_common *pc, const struct m0_fid *id)
 		rc = 0;
 		goto end;
 	}
-	rc = m0_conf_root_open(pc->pc_confc, &root);
+	rc = m0_confc_root_open(pc->pc_confc, &root);
 	if (rc != 0) {
 		M0_LOG(M0_ERROR, "Cannot open root object");
 		goto end;
@@ -622,33 +627,38 @@ end:
 	return rc == 0 ? pv : NULL;
 }
 
-static bool is_md_pool(struct m0_pools_common *pc, struct m0_pool *pool)
+static bool is_md_pool(const struct m0_pools_common *pc,
+		       const struct m0_pool *pool)
 {
 	return (pc->pc_md_pool != NULL &&
 		m0_fid_eq(&pool->po_id, &pc->pc_md_pool->po_id));
 }
 
-static bool is_dix_pool(struct m0_pools_common *pc, struct m0_pool *pool)
+static bool is_dix_pool(const struct m0_pools_common *pc,
+			const struct m0_pool *pool)
 {
 	return (pc->pc_dix_pool != NULL &&
 		m0_fid_eq(&pool->po_id, &pc->pc_dix_pool->po_id));
 }
 
 static int pool_version_get_locked(struct m0_pools_common  *pc,
+				   const struct m0_fid     *hint,
 				   struct m0_pool_version **pv)
 {
-	struct m0_pool *pool;
-	int             rc;
+	int                     rc = -ENOENT;
+	struct m0_pool         *pool;
+	struct m0_pool_version *res = NULL;
 
 	M0_ENTRY();
 	M0_PRE(m0_mutex_is_locked(&pc->pc_mutex));
 
-	*pv = NULL;
 	m0_tl_for(pools, &pc->pc_pools, pool) {
 		if (is_md_pool(pc, pool) || is_dix_pool(pc, pool))
 			continue;
-		rc = pool->po_pver_policy->pp_ops->ppo_get(pc, pool, pv);
-		if (rc == 0)
+		if (hint != NULL && !m0_fid_eq(&pool->po_id, hint))
+			continue;
+		rc = pool->po_pver_policy->pp_ops->ppo_get(pc, pool, &res);
+		if (rc == 0 || hint != NULL)
 			break;
 		/*
 		 * Couldn't find pver in this pool.
@@ -656,19 +666,27 @@ static int pool_version_get_locked(struct m0_pools_common  *pc,
 		 */
 	} m0_tl_endfor;
 
-	/** @todo m0_pools_common::pc_cur_pver not required. */
-	pc->pc_cur_pver = *pv;
-	return M0_RC(*pv != NULL ? 0 : -ENOENT);
+	if (res != NULL && pv != NULL)
+		*pv = res;
+
+	/** @todo m0_pools_common::pc_cur_pver not required.
+	 * Nevertheless, it seems to be updated at
+	 * m0_pools_common_conf_ready_async_cb(). */
+	pc->pc_cur_pver = res;
+
+	return M0_RC(rc);
 }
 
 M0_INTERNAL int
-m0_pool_version_get(struct m0_pools_common *pc, struct m0_pool_version **pv)
+m0_pool_version_get(struct m0_pools_common  *pc,
+		    const struct m0_fid     *pool,
+		    struct m0_pool_version **pv)
 {
 	int rc;
 
 	M0_ENTRY();
 	m0_mutex_lock(&pc->pc_mutex);
-	rc = pool_version_get_locked(pc, pv);
+	rc = pool_version_get_locked(pc, pool, pv);
 	m0_mutex_unlock(&pc->pc_mutex);
 	return M0_RC(rc);
 }
@@ -682,10 +700,11 @@ static int _nodes_count(struct m0_conf_pver *pver, uint32_t *nodes)
 
 	confc = m0_confc_from_obj(&pver->pv_obj);
 	rc = m0_conf_diter_init(&it, confc, &pver->pv_obj,
-				M0_CONF_PVER_RACKVS_FID,
+				M0_CONF_PVER_SITEVS_FID,
+				M0_CONF_SITEV_RACKVS_FID,
 				M0_CONF_RACKV_ENCLVS_FID,
 				M0_CONF_ENCLV_CTRLVS_FID,
-				M0_CONF_CTRLV_DISKVS_FID);
+				M0_CONF_CTRLV_DRIVEVS_FID);
 	if (rc != 0)
 		return M0_ERR(rc);
 
@@ -909,7 +928,6 @@ active_rm_ctx_find(struct m0_pools_common *pc)
  *         it connects to specific process endpoint.
  */
 static int service_ctxs_create(struct m0_pools_common *pc,
-			       struct m0_conf_filesystem *fs,
 			       bool service_connect)
 {
 	struct m0_conf_diter    it;
@@ -925,8 +943,8 @@ static int service_ctxs_create(struct m0_pools_common *pc,
 	rm_is_set = active_rm_ctx_find(pc) != NULL;
 
 	rc = M0_FI_ENABLED("diter_fail") ? -ENOMEM :
-		m0_conf_diter_init(&it, pc->pc_confc, &fs->cf_obj,
-				   M0_CONF_FILESYSTEM_NODES_FID,
+		m0_conf_diter_init(&it, pc->pc_confc, pc->pc_confc->cc_root,
+				   M0_CONF_ROOT_NODES_FID,
 				   M0_CONF_NODE_PROCESSES_FID,
 				   M0_CONF_PROCESS_SERVICES_FID);
 	if (rc != 0) {
@@ -1255,21 +1273,22 @@ static void pool_version__layouts_evict(struct m0_pool_version *pv,
 
 static int pools_common__update_by_conf(struct m0_pools_common *pc)
 {
-	struct m0_conf_filesystem *fs   = NULL;
-	struct m0_reqh            *reqh = m0_confc2reqh(pc->pc_confc);
-	int                        rc;
+	int              rc;
+	struct m0_reqh  *reqh = m0_confc2reqh(pc->pc_confc);
+	struct m0_fid   *pfid =	m0_reqh2profile(reqh);
 
 	M0_ENTRY("pc=%p", pc);
+
+	if (m0_fid_eq(pfid, &M0_FID0))
+		pfid = NULL;
+
 	if (pc->pc_md_pool_linst != NULL)
 		pools_common__md_pool_cleanup(pc);
-	rc = m0_conf_fs_get(m0_reqh2profile(reqh), pc->pc_confc, &fs) ?:
-		pools_common_refresh_locked(pc, fs) ?:
-		pools_common__dev2ios_build(pc, fs) ?:
-		m0_pools_setup(pc, fs, NULL, NULL, NULL) ?:
-		m0_pool_versions_setup(pc, fs, NULL, NULL, NULL) ?:
+	rc = pools_common_refresh_locked(pc) ?:
+		pools_common__dev2ios_build(pc) ?:
+		m0_pools_setup(pc, pfid, NULL, NULL, NULL) ?:
+		m0_pool_versions_setup(pc, NULL, NULL, NULL) ?:
 		m0_reqh_mdpool_layout_build(reqh);
-	if (fs != NULL)
-		m0_confc_close(&fs->cf_obj);
 
 	return M0_RC(rc);
 }
@@ -1280,7 +1299,7 @@ static int pools_common__update_by_conf(struct m0_pools_common *pc)
 M0_INTERNAL bool m0_pools_common_conf_ready_async_cb(struct m0_clink *clink)
 {
 	struct m0_pools_common *pc = M0_AMB(pc, clink, pc_conf_ready_async);
-	struct m0_pool_version *pv;
+	struct m0_fid          *pool = NULL;
 	int                     rc;
 
 	M0_ENTRY("pc %p", pc);
@@ -1321,19 +1340,22 @@ M0_INTERNAL bool m0_pools_common_conf_ready_async_cb(struct m0_clink *clink)
 	 */
 	M0_POST(rc == 0);
 	M0_POST(pools_common_invariant(pc));
-	(void)pool_version_get_locked(pc, &pv);
+	/* Don't loose the pool on configuration change. */
+	if (pc->pc_cur_pver != NULL &&
+	    pools_tlink_is_in(pc->pc_cur_pver->pv_pool))
+		pool = &pc->pc_cur_pver->pv_pool->po_id;
+	(void)pool_version_get_locked(pc, pool, NULL);
 	m0_mutex_unlock(&pc->pc_mutex);
 	M0_LEAVE();
 	return true;
 }
 
-static int pools_common__dev2ios_build(struct m0_pools_common    *pc,
-				       struct m0_conf_filesystem *fs)
+static int pools_common__dev2ios_build(struct m0_pools_common *pc)
 {
 	int rc;
 
 	M0_ENTRY();
-	rc = m0_conf_devices_count(&fs->cf_obj.co_parent->co_id, pc->pc_confc,
+	rc = m0_conf_devices_count(pc->pc_confc,
 				   M0_BITS(M0_CST_IOS, M0_CST_CAS),
 				   &pc->pc_nr_devices);
 	if (rc != 0)
@@ -1346,25 +1368,39 @@ static int pools_common__dev2ios_build(struct m0_pools_common    *pc,
 }
 
 M0_INTERNAL int m0_pools_common_init(struct m0_pools_common *pc,
-				     struct m0_rpc_machine *rmach,
-				     struct m0_conf_filesystem *fs)
+				     struct m0_rpc_machine *rmach)
+{
+	struct m0_confc     *confc;
+	struct m0_conf_root *root;
+
+	M0_ENTRY();
+	confc = m0_reqh2confc(rmach->rm_reqh);
+	root = M0_CONF_CAST(confc->cc_root, m0_conf_root);
+	return M0_RC(m0__pools_common_init(pc, rmach, root));
+}
+
+M0_INTERNAL int m0__pools_common_init(struct m0_pools_common *pc,
+				      struct m0_rpc_machine *rmach,
+				      struct m0_conf_root *root)
 {
 	struct m0_reqh *reqh;
 	int             rc;
 
 	M0_ENTRY();
-	M0_PRE(pc != NULL && fs != NULL);
+	M0_PRE(pc != NULL);
+	M0_PRE(rmach == NULL ||
+	       m0_reqh2confc(rmach->rm_reqh)->cc_root == &root->rt_obj);
 
 	*pc = (struct m0_pools_common) {
 		.pc_rmach         = rmach,
-		.pc_md_redundancy = fs->cf_redundancy,
-		.pc_confc         = m0_confc_from_obj(&fs->cf_obj),
+		.pc_md_redundancy = root->rt_mdredundancy,
+		.pc_confc         = m0_confc_from_obj(&root->rt_obj),
 		.pc_cur_pver      = NULL,
 		.pc_md_pool       = NULL,
 		.pc_dix_pool      = NULL
 	};
 
-	rc = pools_common__dev2ios_build(pc, fs);
+	rc = pools_common__dev2ios_build(pc);
 	if (rc != 0) {
 		/* We want pools_common_invariant(pc) to fail. */
 		pc->pc_confc = NULL;
@@ -1400,22 +1436,21 @@ M0_INTERNAL int m0_pools_common_init(struct m0_pools_common *pc,
  * - re-building m0_pools_common::pc_mds_map
  * - finding special contexts critical for operations with pools
  */
-static int pools_common_refresh_locked(struct m0_pools_common    *pc,
-				       struct m0_conf_filesystem *fs)
+static int pools_common_refresh_locked(struct m0_pools_common *pc)
 {
 	int rc;
 
 	M0_PRE(m0_mutex_is_locked(&pc->pc_mutex));
 	M0_PRE(pc->pc_mds_map == NULL);
 
-	rc = service_ctxs_create(pc, fs, pc->pc_rmach != NULL);
+	rc = service_ctxs_create(pc, pc->pc_rmach != NULL);
 	if (rc != 0)
 		return M0_ERR(rc);
 
 	M0_ALLOC_ARR(pc->pc_mds_map,
 		     pools_common_svc_ctx_tlist_length(&pc->pc_svc_ctxs));
 	rc = pc->pc_mds_map == NULL ? M0_ERR(-ENOMEM) :
-		pool_mds_map_init(pc, fs);
+		pool_mds_map_init(pc);
 	if (rc != 0)
 		goto err;
 	pc->pc_rm_ctx = service_ctx_find_by_type(pc, M0_CST_RMS);
@@ -1432,26 +1467,24 @@ err:
 	return M0_ERR(rc);
 }
 
-static int pools_common_refresh(struct m0_pools_common    *pc,
-				struct m0_conf_filesystem *fs)
+static int pools_common_refresh(struct m0_pools_common *pc)
 {
 	int rc;
 
 	m0_mutex_lock(&pc->pc_mutex);
-	rc = pools_common_refresh_locked(pc, fs);
+	rc = pools_common_refresh_locked(pc);
 	m0_mutex_unlock(&pc->pc_mutex);
 	return M0_RC(rc);
 }
 
-M0_INTERNAL int m0_pools_service_ctx_create(struct m0_pools_common *pc,
-					    struct m0_conf_filesystem *fs)
+M0_INTERNAL int m0_pools_service_ctx_create(struct m0_pools_common *pc)
 {
 	int rc;
 
 	M0_ENTRY();
-	M0_PRE(pc != NULL && fs != NULL);
+	M0_PRE(pc != NULL);
 
-	rc = pools_common_refresh(pc, fs);
+	rc = pools_common_refresh(pc);
 	if (rc == 0)
 		m0_clink_add_lock(m0_ha_entrypoint_client_chan(pc->pc_ha_ecl),
 				  &pc->pc_ha_clink);
@@ -1492,7 +1525,7 @@ static void abandoned_svc_ctxs_cleanup(struct m0_pools_common *pc)
 {
 	struct m0_reqh_service_ctx *ctx;
 
-	if (pc->pc_confc->cc_group == NULL) {
+	if (!m0_confc_is_inited(pc->pc_confc)) {
 		/*
 		 * rconfc seems failed to start or never tried to, so no
 		 * configuration was read, so no conf updates were possible, so
@@ -1550,7 +1583,6 @@ static bool is_actual_pver(const struct m0_conf_obj *obj)
 }
 
 M0_INTERNAL int m0_pool_versions_setup(struct m0_pools_common    *pc,
-				       struct m0_conf_filesystem *fs,
 				       struct m0_be_seg          *be_seg,
 				       struct m0_sm_group        *sm_grp,
 				       struct m0_dtm             *dtm)
@@ -1566,10 +1598,10 @@ M0_INTERNAL int m0_pool_versions_setup(struct m0_pools_common    *pc,
 
 	M0_ENTRY();
 
-	confc = m0_confc_from_obj(&fs->cf_obj);
+	confc = pc->pc_confc;
 	rc = M0_FI_ENABLED("diter_fail") ? -ENOMEM :
-		m0_conf_diter_init(&it, confc, &fs->cf_obj,
-				   M0_CONF_FILESYSTEM_POOLS_FID,
+		m0_conf_diter_init(&it, confc, confc->cc_root,
+				   M0_CONF_ROOT_POOLS_FID,
 				   M0_CONF_POOL_PVERS_FID);
 	if (rc != 0)
 		return M0_ERR(rc);
@@ -1581,7 +1613,8 @@ M0_INTERNAL int m0_pool_versions_setup(struct m0_pools_common    *pc,
 		pool_id = &m0_conf_obj_grandparent(&pver_obj->pv_obj)->co_id;
 		pool = m0_tl_find(pools, pool, &pc->pc_pools,
 				  m0_fid_eq(&pool->po_id, pool_id));
-		M0_ASSERT(m0_fid_eq(&pool->po_id, pool_id));
+		if (pool == NULL)
+			continue;
 		pver = m0_tl_find(pool_version, pver, &pool->po_vers,
 				  m0_fid_eq(&pver_obj->pv_obj.co_id,
 					    &pver->pv_id));
@@ -1627,7 +1660,7 @@ static int pool_from_virtual_pver(const struct m0_conf_pver *virtual,
 	M0_ENTRY("virtual="FID_F, FID_P(&virtual->pv_obj.co_id));
 	M0_PRE(virtual->pv_kind == M0_CONF_PVER_VIRTUAL);
 
-	rc = m0_conf_root_open(confc, &root);
+	rc = m0_confc_root_open(confc, &root);
 	if (rc != 0)
 		return M0_ERR_INFO(rc, "Cannot open root object");
 	rc = m0_conf_pver_formulaic_from_virtual(virtual, root, &fpver);
@@ -1700,6 +1733,7 @@ _pool_create(struct m0_pool **out, const struct m0_conf_pool *conf_pool)
 static void
 dix_pool_setup(struct m0_pools_common *pc, const struct m0_fid *imeta_pver)
 {
+	M0_ENTRY("imeta_pver="FID_F, FID_P(imeta_pver));
 	if (m0_fid_is_set(imeta_pver)) {
 		struct m0_conf_obj  *pver;
 		struct m0_conf_pool *pool;
@@ -1715,31 +1749,51 @@ dix_pool_setup(struct m0_pools_common *pc, const struct m0_fid *imeta_pver)
 		M0_LOG(M0_DEBUG, "imeta_pver="FID_F" -> dix_pool="FID_F,
 		       FID_P(imeta_pver), FID_P(&pc->pc_dix_pool->po_id));
 	}
+	M0_LEAVE();
 }
 
-M0_INTERNAL int m0_pools_setup(struct m0_pools_common    *pc,
-			       struct m0_conf_filesystem *fs,
-			       struct m0_be_seg          *be_seg,
-			       struct m0_sm_group        *sm_grp,
-			       struct m0_dtm             *dtm)
+static bool profile_has_pool(const struct m0_conf_profile *profile,
+			     const struct m0_fid          *pool)
 {
-	struct m0_conf_diter  it;
-	struct m0_pool       *pool;
-	struct m0_conf_obj   *pool_obj;
-	int                   rc;
+	return m0_exists(i, profile->cp_pools.af_count,
+		         m0_fid_eq(&profile->cp_pools.af_elems[i], pool));
+}
 
-	M0_ENTRY("filesystem="FID_F, FID_P(&fs->cf_obj.co_id));
-	M0_PRE(pc->pc_confc == m0_confc_from_obj(&fs->cf_obj));
+M0_INTERNAL int m0_pools_setup(struct m0_pools_common *pc,
+			       const struct m0_fid    *profile,
+			       struct m0_be_seg       *be_seg,
+			       struct m0_sm_group     *sm_grp,
+			       struct m0_dtm          *dtm)
+{
+	int                     rc;
+	struct m0_pool         *pool;
+	struct m0_conf_obj     *pool_obj;
+	struct m0_conf_root    *root;
+	struct m0_conf_profile *prof = NULL;
+	struct m0_conf_diter    it;
 
-	rc = M0_FI_ENABLED("diter_fail") ? -ENOMEM :
-		m0_conf_diter_init(&it, pc->pc_confc, &fs->cf_obj,
-				   M0_CONF_FILESYSTEM_POOLS_FID);
-	if (rc != 0)
+	M0_ENTRY("profile="FID_F, FID_P(profile ?: &M0_FID0));
+
+	if (profile != NULL) {
+		rc = m0_confc_profile_open(pc->pc_confc, profile, &prof);
+		if (rc != 0)
+			return M0_ERR_INFO(rc, "profile="FID_F, FID_P(profile));
+	}
+	root = M0_CONF_CAST(pc->pc_confc->cc_root, m0_conf_root);
+	rc = M0_FI_ENABLED("diter_fail") ? M0_ERR(-ENOMEM) :
+		m0_conf_diter_init(&it, pc->pc_confc, &root->rt_obj,
+				   M0_CONF_ROOT_POOLS_FID);
+	if (rc != 0) {
+		if (prof != NULL)
+			m0_confc_close(&prof->cp_obj);
 		return M0_ERR(rc);
-
+	}
 	while ((rc = m0_conf_diter_next_sync(&it, m0_conf_obj_is_pool)) ==
 		M0_CONF_DIRNEXT) {
 		pool_obj = m0_conf_diter_result(&it);
+		M0_LOG(M0_DEBUG, "pool="FID_F, FID_P(&pool_obj->co_id));
+		if (prof != NULL && !profile_has_pool(prof, &pool_obj->co_id))
+			continue;
 		pool = pool_find(pc, &pool_obj->co_id);
 		if (pool != NULL)
 			/*
@@ -1753,20 +1807,22 @@ M0_INTERNAL int m0_pools_setup(struct m0_pools_common    *pc,
 		pools_tlink_init_at_tail(pool, &pc->pc_pools);
 	}
 	m0_conf_diter_fini(&it);
+	if (prof != NULL)
+		m0_confc_close(&prof->cp_obj);
 	if (rc != 0) {
 		m0_pools_destroy(pc);
 		return M0_ERR(rc);
 	}
 	/* MD pool setup. */
-	pc->pc_md_pool = pool_find(pc, &fs->cf_mdpool);
+	pc->pc_md_pool = pool_find(pc, &root->rt_mdpool);
 	if (pc->pc_md_pool == NULL) {
 		m0_pools_destroy(pc);
 		return M0_ERR_INFO(-ENOENT, "Cannot find metadata pool "FID_F,
-				   FID_P(&fs->cf_mdpool));
+				   FID_P(&root->rt_mdpool));
 	}
-	M0_LOG(M0_DEBUG, "md_pool="FID_F, FID_P(&fs->cf_mdpool));
+	M0_LOG(M0_DEBUG, "md_pool="FID_F, FID_P(&root->rt_mdpool));
 
-	dix_pool_setup(pc, &fs->cf_imeta_pver);
+	dix_pool_setup(pc, &root->rt_imeta_pver);
 	return M0_RC(0);
 }
 
@@ -1822,7 +1878,7 @@ static bool disks_poolmach_state_update_cb(struct m0_clink *cl)
 		container_of(cl, struct m0_pooldev, pd_clink.bc_u.clink);
 
 	M0_ENTRY();
-	M0_PRE(m0_conf_obj_type(obj) == &M0_CONF_DISK_TYPE);
+	M0_PRE(m0_conf_obj_type(obj) == &M0_CONF_DRIVE_TYPE);
 
 	pme.pe_type = M0_POOL_DEVICE;
 	pme.pe_index = pdev->pd_index;

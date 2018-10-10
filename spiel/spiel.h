@@ -36,7 +36,6 @@
  *  - @ref spiel-dld-ovw
  *  - @ref spiel-dld-def
  *  - @ref spiel-dld-conf
- *    - @ref spiel-dld-conf-schema
  *    - @ref spiel-dld-conf-iface
  *    - @ref spiel-dld-conf-invoc
  *  - @ref spiel-api-fspec
@@ -98,12 +97,8 @@
  * The following configuration elements are currently supported (see conf/obj.h
  * for details):
  *
- *  - a profile is an access path to the cluster. Profiles are used to serve
- *    different storage services from the same hardware. Currently only a single
- *    profile is supported. Profile is the root of configuration graph;
- *
- *  - a filesystem represents a top-level name space (filesystem-like or
- *    objectstore-like);
+ *  - a profile is the list of pools which a client can use. It is not
+ *    used by servers.
  *
  *  - a pool is a collection of hardware resources. Cluster hardware is divided
  *    into pools for administrative purposes (for example, for security reasons)
@@ -136,41 +131,6 @@
  *    "real object" (rack, enclosure or controller) and the list of
  *    children. Such indirect arrangement makes it possible to have pool
  *    versions sharing hardware.
- *
- * @subsection spiel-dld-conf-schema Schema
- *
- * @note from conf/obj.h
- *
- * @dot
- * digraph x {
- *   edge [arrowhead=open, fontsize=11];
- *
- *   root -> profile [label=profiles];
- *   profile -> filesystem;
- *
- *   filesystem -> "node" [label=nodes];
- *   filesystem -> rack [label=racks];
- *   filesystem -> pool [label=pools];
- *   "node" -> process [label=processes];
- *   process -> service [label=services];
- *   service -> sdev [label=sdevs];
- *   rack -> enclosure [label=encls];
- *   enclosure -> controller [label=ctrls];
- *   controller -> disk [label=disks];
- *   "node" -> controller [dir=back, weight=0, style=dashed];
- *
- *   pool -> "pool version" [label=pvers];
- *   "pool version" -> "rack-v" [label=rackvs];
- *   "rack-v" -> "enclosure-v" [label=children];
- *   "enclosure-v" -> "controller-v" [label=children];
- *   "controller-v" -> "disk-v" [label=children];
- *   rack -> "rack-v" [dir=back, weight=0, style=dashed];
- *   enclosure -> "enclosure-v" [dir=back, weight=0, style=dashed];
- *   controller -> "controller-v" [dir=back, style=dashed, weight=0];
- *   disk -> "disk-v" [dir=back, style=dashed, weight=0];
- *   sdev -> disk [dir=back, style=dashed, weight=0];
- * }
- * @enddot
  *
  * @subsection spiel-dld-conf-iface Interface
  *
@@ -222,6 +182,7 @@ enum m0_repreb_type {
 	M0_REPREB_TYPE_DIX,
 	M0_REPREB_TYPE_NR
 };
+
 /**
  * Spiel instance context
  */
@@ -231,9 +192,9 @@ struct m0_spiel {
 	 */
 	struct m0_spiel_core {
 		/** RPC machine for network communication */
-		struct m0_rpc_machine     *spc_rmachine;
+		struct m0_rpc_machine *spc_rmachine;
 		/** Configuration profile for spiel command interface */
-		struct m0_fid              spc_profile;
+		struct m0_fid          spc_profile;
 		/**
 		 * Current working confc instance.
 		 *
@@ -243,7 +204,7 @@ struct m0_spiel {
 		 * remain uninitialised while client side already has a confc
 		 * instance already filled with the conf data.
 		 */
-		struct m0_confc           *spc_confc;
+		struct m0_confc       *spc_confc;
 	}                          spl_core;
 	/** Rconfc instance */
 	struct m0_rconfc           spl_rconfc;
@@ -256,8 +217,8 @@ struct m0_spiel {
  * Should be invoked before using other spiel functions.
  * If initialisation fails, then spiel instance must not be used.
  *
- * @param spiel   spiel instance
- * @param reqh    request handler
+ * @param spiel  spiel instance
+ * @param reqh   request handler
  *
  * @pre  reqh != NULL
  */
@@ -284,9 +245,8 @@ void m0_spiel_fini(struct m0_spiel *spiel);
  *     int                 rc;
  *
  *     m0_spiel_tx_open(spiel, tx);
- *     rc = m0_spiel_profile_add(tx, prof_id) ?:
- *          m0_spiel_filesystem_add(tx, fs_id, prof_id, 10, root_id, params) ?:
- *          ...Adding other objects to construct full configuration database. ?:
+ *     rc = m0_spiel_root_add(tx, ...) ?:
+ *          ... add other conf objects ... ?:
  *          m0_spiel_tx_commit(tx);
  *     m0_spiel_tx_close(tx);
  * @endcode
@@ -347,7 +307,7 @@ void m0_spiel_tx_open(struct m0_spiel    *spiel,
  *
  * Once function is called spiel transaction can't be used anymore.
  *
- * @param tx spiel transaction
+ * @param tx  spiel transaction
  */
 void m0_spiel_tx_close(struct m0_spiel_tx *tx);
 
@@ -361,7 +321,7 @@ void m0_spiel_tx_close(struct m0_spiel_tx *tx);
  * anymore. When failed, forced committing with m0_spiel_tx_commit_forced()
  * still remains as an option.
  *
- * @param tx        spiel transaction
+ * @param tx  spiel transaction
  *
  * @note In case normal transaction committing is required, but resultant quorum
  * number reached is to be controlled as well, the action has to be done using
@@ -384,10 +344,10 @@ int m0_spiel_tx_commit(struct m0_spiel_tx  *tx);
  * The spiel transaction may be forcibly committed as many times as required
  * completing previously failed uploads to confd servers.
  *
- * @param tx         spiel transaction
- * @param forced     committing with forcing any possible LOAD/FLIP enabled
- * @param ver_forced version number the initial value to be overridden with
- * @param rquorum    resultant quorum value reached, NULL value allowed
+ * @param tx          spiel transaction
+ * @param forced      committing with forcing any possible LOAD/FLIP enabled
+ * @param ver_forced  version number the initial value to be overridden with
+ * @param rquorum     resultant quorum value reached, NULL value allowed
  *
  * @note Parameters @b forced and @b ver_forced may be used independent of each
  * other, i.e. forced committing with unchanged version number is possible as
@@ -399,80 +359,67 @@ int m0_spiel_tx_commit_forced(struct m0_spiel_tx  *tx,
 			      uint32_t            *rquorum);
 
 /**
- * Adds profile to the configuration tree of the transaction
- *
- * @param tx  spiel transaction
- * @param fid fid of the profile
- */
-int m0_spiel_profile_add(struct m0_spiel_tx *tx, const struct m0_fid *fid);
-
-/**
- * Adds filesystem to the configuration tree of the transaction
+ * Adds the configuration tree of the transaction
  *
  * @param tx         spiel transaction
- * @param fid        fid of the filesystem
- * @param parent     fid of the parent profile
- * @param redundancy metadata redundancy count
- * @param rootfid    root's fid of filesystem
+ * @param rootfid    Any fid. Reserved for future use.
  * @param mdpool     meta-data pool
  * @param imeta_pver
  * @parblock
  *     Distributed index meta-data pool version. It contains storage devices
- *     controlled by CAS services (no IOS storage devices are allowed). If there
- *     are no CAS services in configuration then M0_FID0 can be specified. Index
- *     meta-data is created (analogue of m0mkfs for distributed indices) during
- *     cluster provisioning via m0_dix_meta_create() or via special utility like
- *     m0dixinit. m0_dix_meta_create() will refuse to create meta-data if it
- *     already exists. In this case user may destroy meta-data via
- *     m0_dix_meta_destroy() or just zero corresponding devices. For more
- *     detailed information see dix/client.h, "Index meta-data" section.
+ *     controlled by CAS services --- no IOS storage devices are allowed.
+ *     If there are no CAS services in configuration then the value should be
+ *     M0_FID0.
+ *
+ *     Index meta-data is created (analogue of m0mkfs for distributed indices)
+ *     during cluster provisioning via m0_dix_meta_create() or via special
+ *     utility like m0dixinit.  m0_dix_meta_create() will refuse to create
+ *     meta-data if it already exists. In this case user may destroy
+ *     meta-data via m0_dix_meta_destroy() or just zero corresponding devices.
+ *     For more detailed information see dix/client.h, "Index meta-data"
+ *     section.
  *
  *     @note For now, storage devices specified in configuration are not
- *     actually used by CAS services, so they can be faked (even doesn't really
+ *     actually used by CAS services, so they can be faked (even don't really
  *     exist as devices in operating system).
  * @endparblock
- * @param fs_params  NULL-terminated array of command-line like parameters @n
- *                   Parameters are copied, so caller can safely free them.
+ * @param mdredundancy  meta-data redundancy
+ * @param params        NULL-terminated array of extra parameters.
+ *                      Parameters are copied, so caller can safely free them.
  */
-int m0_spiel_filesystem_add(struct m0_spiel_tx    *tx,
-			    const struct m0_fid   *fid,
-			    const struct m0_fid   *parent,
-			    unsigned               redundancy,
-			    const struct m0_fid   *rootfid,
-			    const struct m0_fid   *mdpool,
-			    const struct m0_fid   *imeta_pver,
-			    const char           **fs_params);
+int m0_spiel_root_add(struct m0_spiel_tx   *tx,
+		      const struct m0_fid  *rootfid,
+		      const struct m0_fid  *mdpool,
+		      const struct m0_fid  *imeta_pver,
+		      uint32_t              mdredundancy,
+		      const char          **params);
 
 /**
  * Adds node to the configuration tree of the transaction
  *
- * @param tx         spiel transaction
- * @param fid        fid of the node
- * @param parent     fid of the parent filesystem
- * @param memsize    amount of available memory on the node
- * @param nr_cpu     number of CPUs on the node
- * @param last_state last known state (bitmask of @ref ::m0_cfg_state_bit)
- * @param flags      different flags (bitmask of @ref ::m0_cfg_flag_bit)
- * @param pool_fid   fid of the pool associated with this node
+ * @param tx          spiel transaction
+ * @param fid         fid of the node
+ * @param memsize     amount of available memory on the node
+ * @param nr_cpu      number of CPUs on the node
+ * @param last_state  last known state (bitmask of @ref ::m0_cfg_state_bit)
+ * @param flags       different flags (bitmask of @ref ::m0_cfg_flag_bit)
  */
 int m0_spiel_node_add(struct m0_spiel_tx  *tx,
 		      const struct m0_fid *fid,
-		      const struct m0_fid *parent,
 		      uint32_t             memsize,
 		      uint32_t             nr_cpu,
 		      uint64_t             last_state,
-		      uint64_t             flags,
-		      struct m0_fid       *pool_fid);
+		      uint64_t             flags);
 
 /**
  * Adds process to the configuration tree of the transaction
  *
- * @param tx         spiel transaction
- * @param fid        fid of the process
- * @param parent     fid of the parent node
- * @param cores      limit on the number of used cores
- * @param memlimit   memory limit for process
- * @param endpoint   process endpoint
+ * @param tx          spiel transaction
+ * @param fid         fid of the process
+ * @param parent      fid of the parent node
+ * @param cores       limit on the number of used cores
+ * @param memlimit_*  memory limit for the process
+ * @param endpoint    process endpoint
  */
 int m0_spiel_process_add(struct m0_spiel_tx  *tx,
 			 const struct m0_fid *fid,
@@ -498,10 +445,10 @@ struct m0_spiel_service_info {
 /**
  * Adds service to the configuration tree of the transaction
  *
- * @param tx           spiel transaction
- * @param fid          fid of the service
- * @param parent       fid of the parent process
- * @param service_info service info
+ * @param tx            spiel transaction
+ * @param fid           fid of the service
+ * @param parent        fid of the parent process
+ * @param service_info  service info
  */
 int m0_spiel_service_add(struct m0_spiel_tx                 *tx,
 			 const struct m0_fid                *fid,
@@ -511,21 +458,22 @@ int m0_spiel_service_add(struct m0_spiel_tx                 *tx,
 /**
  * Adds service to the configuration tree of the transaction
  *
- * @param tx           spiel transaction
- * @param fid          fid of the device
- * @param parent       fid of the parent service
- * @param iface        device interface type
- * @param media        device media type
- * @param bsize        block size in bytes
- * @param size         size in bytes
- * @param last_state   last known state (bitmask of @ref ::m0_cfg_state_bit)
- * @param flags        different flags (bitmask of @ref ::m0_cfg_flag_bit)
- * @param filename     device filename.
+ * @param tx          spiel transaction
+ * @param fid         fid of the device
+ * @param parent      fid of the parent service
+ * @param drive       fid of the corresponding drive
+ * @param iface       device interface type
+ * @param media       device media type
+ * @param bsize       block size in bytes
+ * @param size        size in bytes
+ * @param last_state  last known state (bitmask of @ref ::m0_cfg_state_bit)
+ * @param flags       different flags (bitmask of @ref ::m0_cfg_flag_bit)
+ * @param filename    device filename.
  */
 int m0_spiel_device_add(struct m0_spiel_tx                        *tx,
 		        const struct m0_fid                       *fid,
-		        const struct m0_fid                       *svc_parent,
-		        const struct m0_fid                       *disk_parent,
+		        const struct m0_fid                       *parent,
+		        const struct m0_fid                       *drive,
 		        uint32_t                                   dev_idx,
 		        enum m0_cfg_storage_device_interface_type  iface,
 		        enum m0_cfg_storage_device_media_type      media,
@@ -536,24 +484,20 @@ int m0_spiel_device_add(struct m0_spiel_tx                        *tx,
 		        const char                                *filename);
 
 /**
- * Adds pool to the configuration tree of the transaction
+ * Adds site to the configuration tree of the transaction
  *
- * @param tx           spiel transaction
- * @param fid          fid of the pool
- * @param parent       fid of the parent filesystem
- * @param pver_policy  pool version policy
+ * @param tx   spiel transaction
+ * @param fid  fid of the site
  */
-int m0_spiel_pool_add(struct m0_spiel_tx  *tx,
-		      const struct m0_fid *fid,
-		      const struct m0_fid *parent,
-		      uint32_t             pver_policy);
+int m0_spiel_site_add(struct m0_spiel_tx  *tx,
+		      const struct m0_fid *fid);
 
 /**
  * Adds rack to the configuration tree of the transaction
  *
- * @param tx           spiel transaction
- * @param fid          fid of the rack
- * @param parent       fid of the parent filesystem
+ * @param tx      spiel transaction
+ * @param fid     fid of the rack
+ * @param parent  fid of the parent site
  */
 int m0_spiel_rack_add(struct m0_spiel_tx  *tx,
 		      const struct m0_fid *fid,
@@ -562,9 +506,9 @@ int m0_spiel_rack_add(struct m0_spiel_tx  *tx,
 /**
  * Adds enclosure to the configuration tree of the transaction
  *
- * @param tx           spiel transaction
- * @param fid          fid of the pool
- * @param parent       fid of the parent rack
+ * @param tx      spiel transaction
+ * @param fid     fid of the enclosure
+ * @param parent  fid of the parent rack
  */
 int m0_spiel_enclosure_add(struct m0_spiel_tx  *tx,
 			   const struct m0_fid *fid,
@@ -573,10 +517,10 @@ int m0_spiel_enclosure_add(struct m0_spiel_tx  *tx,
 /**
  * Adds controller to the configuration tree of the transaction
  *
- * @param tx           spiel transaction
- * @param fid          fid of the controller
- * @param parent       fid of the parent enclosure
- * @param node         the node this controller is associated with
+ * @param tx      spiel transaction
+ * @param fid     fid of the controller
+ * @param parent  fid of the parent enclosure
+ * @param node    the node this controller is associated with
  */
 int m0_spiel_controller_add(struct m0_spiel_tx  *tx,
 			    const struct m0_fid *fid,
@@ -584,40 +528,49 @@ int m0_spiel_controller_add(struct m0_spiel_tx  *tx,
 			    const struct m0_fid *node);
 
 /**
- * Adds disk to the configuration tree of the transcation
+ * Adds drive to the configuration tree of the transcation
  *
- * @param tx          spiel transaction
- * @param fid         fid of the disk
- * @param parent      fid of the parent controller
+ * @param tx      spiel transaction
+ * @param fid     fid of the drive
+ * @param parent  fid of the parent controller
  */
-int m0_spiel_disk_add(struct m0_spiel_tx  *tx,
+int m0_spiel_drive_add(struct m0_spiel_tx  *tx,
+		       const struct m0_fid *fid,
+		       const struct m0_fid *parent);
+
+/**
+ * Adds pool to the configuration tree of the transaction
+ *
+ * @param tx           spiel transaction
+ * @param fid          fid of the pool
+ * @param pver_policy  pool version policy
+ *
+ * @note call this function several times to add the pool to
+ *       more than one profile.
+ */
+int m0_spiel_pool_add(struct m0_spiel_tx  *tx,
 		      const struct m0_fid *fid,
-		      const struct m0_fid *parent);
+		      uint32_t             pver_policy);
 
 /**
  * Adds an actual pool version.
  *
  * Pool version is represented as a tree of "v-objects".
  * "V-objects" can be added to the pool version using calls
- * like @ref m0_spiel_rack_v_add(), @ref m0_spiel_enclosure_v_add, etc.
+ * like @ref m0_spiel_site_v_add(), @ref m0_spiel_rack_v_add(), etc.
  * After all "V-objects" are added, function @ref m0_spiel_pool_version_done()
  * should be called.
  *
  * Parameter tolerance is number of allowed HW failures in each failure
- * domain. Currently there are 4 failure domains: racks, enclosures,
- * controllers, and disks.
- * tolerance[0] - Reserved. Should be zero.
- * tolerance[1] - number of allowed rack failures.
- * tolerance[2] - number of allowed enclosure failures.
- * tolerance[3] - number of allowed controller failures.
- * tolerance[4] - number of allowed disk failures.
+ * domain. Currently there are 5 failure domains: sites, racks, enclosures,
+ * controllers, and drives.
  *
- * @param tx            spiel transaction
- * @param fid           fid of the pool version
- * @param parent        fid of the parent pool
- * @param attrs         attributes specific to layout type
- * @param tolerance     allowed failures for each failure domain
- * @param tolerance_len number of elements in tolerance array
+ * @param tx             spiel transaction
+ * @param fid            fid of the pool version
+ * @param parent         fid of the parent pool
+ * @param attrs          attributes specific to layout type
+ * @param tolerance      allowed failures for each failure domain
+ * @param tolerance_len  number of elements in tolerance array
  *
  * @pre tolerance_len == M0_CONF_PVER_HEIGHT
  *
@@ -633,21 +586,15 @@ int m0_spiel_pver_actual_add(struct m0_spiel_tx           *tx,
 /**
  * Adds a formulaic pool version.
  *
- * allowance[0] - Reserved. Should be zero.
- * allowance[1] - Number of allowed rack failures.
- * allowance[2] - Number of allowed enclosure failures.
- * allowance[3] - Number of allowed controller failures.
- * allowance[4] - Number of allowed disk failures.
- *
- * @param tx            Spiel transaction.
- * @param fid           Pool version fid.
- * @param parent        Parent pool fid.
- * @param index         Cluster-unique identifier of this formulaic pver.
- * @param base_pver     Actual pver, the subtree of which is used as a base
- *                      for virtual pver creation/restoration.
- * @param allowance     Number of allowed failures for each level of pver
- *                      subtree.
- * @param allowance_len Number of elements in `allowance' array.
+ * @param tx             Spiel transaction.
+ * @param fid            Pool version fid.
+ * @param parent         Parent pool fid.
+ * @param index          Cluster-unique identifier of this formulaic pver.
+ * @param base_pver      Actual pver, the subtree of which is used as a base
+ *                       for virtual pver creation/restoration.
+ * @param allowance      Number of allowed failures for each level of pver
+ *                       subtree.
+ * @param allowance_len  Number of elements in the `allowance' array.
  *
  * @pre allowance_len == M0_CONF_PVER_HEIGHT
  *
@@ -663,14 +610,27 @@ int m0_spiel_pver_formulaic_add(struct m0_spiel_tx  *tx,
 				uint32_t             allowance_len);
 
 /**
+ * Adds site "v-object"
+ *
+ * @param tx      spiel transaction
+ * @param fid     fid of site-v
+ * @param parent  fid of the parent pool version
+ * @param real    fid of the site this object points to
+ */
+int m0_spiel_site_v_add(struct m0_spiel_tx  *tx,
+			const struct m0_fid *fid,
+			const struct m0_fid *parent,
+			const struct m0_fid *real);
+
+/**
  * Adds rack "v-object"
  *
- * @param tx           spiel transaction
- * @param fid          fid of the rack "v-object"
- * @param parent       fid of the parent pool version
- * @param real         fid of the rack this object points to
+ * @param tx      spiel transaction
+ * @param fid     fid of rack-v
+ * @param parent  fid of the parent site-v
+ * @param real    fid of the rack this object points to
  */
-int m0_spiel_rack_v_add(struct m0_spiel_tx *tx,
+int m0_spiel_rack_v_add(struct m0_spiel_tx  *tx,
 			const struct m0_fid *fid,
 			const struct m0_fid *parent,
 			const struct m0_fid *real);
@@ -678,10 +638,10 @@ int m0_spiel_rack_v_add(struct m0_spiel_tx *tx,
 /**
  * Adds enclosure "v-object"
  *
- * @param tx           spiel transaction
- * @param fid          fid of the enclosure "v-object"
- * @param parent       fid of the parent rack "v-object"
- * @param real         fid of the enclosure this object points to
+ * @param tx      spiel transaction
+ * @param fid     fid of enclosure-v
+ * @param parent  fid of the parent rack-v
+ * @param real    fid of the enclosure this object points to
  */
 int m0_spiel_enclosure_v_add(struct m0_spiel_tx  *tx,
 			     const struct m0_fid *fid,
@@ -691,10 +651,10 @@ int m0_spiel_enclosure_v_add(struct m0_spiel_tx  *tx,
 /**
  * Adds controller "v-object"
  *
- * @param tx           spiel transaction
- * @param fid          fid of the controller "v-object"
- * @param parent       fid of the parent enclosure "v-object"
- * @param real         fid of the enclosure this object points to
+ * @param tx      spiel transaction
+ * @param fid     fid of controller-v
+ * @param parent  fid of the parent enclosure-v
+ * @param real    fid of the enclosure this object points to
  */
 int m0_spiel_controller_v_add(struct m0_spiel_tx  *tx,
 			      const struct m0_fid *fid,
@@ -702,32 +662,50 @@ int m0_spiel_controller_v_add(struct m0_spiel_tx  *tx,
 			      const struct m0_fid *real);
 
 /**
- * Adds disk "v-object"
+ * Adds drive "v-object"
  *
- * @param tx           spiel transaction
- * @param fid          fid of the disk "v-object"
- * @param parent       fid of the parent controller "v-object"
- * @param real         fid of the disk this object points to
+ * @param tx      spiel transaction
+ * @param fid     fid of drive-v
+ * @param parent  fid of the parent controller-v
+ * @param real    fid of the drive this object points to
  */
-int m0_spiel_disk_v_add(struct m0_spiel_tx  *tx,
-			const struct m0_fid *fid,
-			const struct m0_fid *parent,
-			const struct m0_fid *real);
+int m0_spiel_drive_v_add(struct m0_spiel_tx  *tx,
+			 const struct m0_fid *fid,
+			 const struct m0_fid *parent,
+			 const struct m0_fid *real);
 /**
  * Signals that constructing pool version tree is finished
  *
- * @param tx           spiel transaction
- * @param fid          fid of the pool version
+ * @param tx   spiel transaction
+ * @param fid  fid of the pool version
  */
 int m0_spiel_pool_version_done(struct m0_spiel_tx  *tx,
 			       const struct m0_fid *fid);
 
 /**
+ * Adds profile to the configuration tree of the transaction
+ *
+ * @param tx   spiel transaction
+ * @param fid  fid of the profile
+ */
+int m0_spiel_profile_add(struct m0_spiel_tx *tx, const struct m0_fid *fid);
+
+/**
+ * Adds pool into the profile
+ *
+ * To add several pools into the profile - call this routine
+ * several times with a new @pool argument each time.
+ */
+int m0_spiel_profile_pool_add(struct m0_spiel_tx  *tx,
+			      const struct m0_fid *profile,
+			      const struct m0_fid *pool);
+
+/**
  * Deletes element that was previously added to transaction
  * configuration tree.
  *
- * @param tx           spiel transaction
- * @param fid          fid of the object to be deleted
+ * @param tx   spiel transaction
+ * @param fid  fid of the object to be deleted
  */
 int m0_spiel_element_del(struct m0_spiel_tx *tx, const struct m0_fid *fid);
 
@@ -739,7 +717,8 @@ int m0_spiel_element_del(struct m0_spiel_tx *tx, const struct m0_fid *fid);
  * @see m0_spiel_tx_dump
  * @see m0_spiel_tx_commit
  *
- * @param tx          spiel transaction
+ * @param tx  spiel transaction
+ *
  * @return -EBUSY if an object is not in M0_CS_READY state.
  * @return -ENOENT if an object hasn't real parent.
  */
@@ -748,15 +727,15 @@ int m0_spiel_tx_validate(struct m0_spiel_tx *tx);
 /**
  * Saves spiel transaction dump to string. Caller is responsible for freeing the
  * string with m0_spiel_tx_str_free().
+ *
  * @note Sets transaction's root version number to @b ver_forced.
  * @pre ver_forced != M0_CONF_VER_UNKNOWN
  */
 int m0_spiel_tx_to_str(struct m0_spiel_tx *tx,
 		       uint64_t            ver_forced,
 		       char              **str);
-/**
- * Frees string created with m0_spiel_tx_to_str().
- */
+
+/** * Frees string created with m0_spiel_tx_to_str(). */
 void m0_spiel_tx_str_free(char *str);
 
 /**
@@ -768,6 +747,7 @@ int m0_spiel_tx_dump(struct m0_spiel_tx *tx, uint64_t ver_forced,
 		     const char *filename);
 /**
  * Saves spiel transaction dump to file with error and stub object too.
+ *
  * @note Sets transaction's root version number to @b ver_forced.
  * @pre ver_forced != M0_CONF_VER_UNKNOWN
  */
@@ -793,38 +773,36 @@ int m0_spiel_tx_dump_debug(struct m0_spiel_tx *tx, uint64_t ver_forced,
  * m0_spiel_rconfc_start(&spiel);
  * @endcode
  *
- * @param spiel          Spiel instance
- * @param m0_rconfc_cb_t Rconfc expiration callback
+ * @param spiel           spiel instance
+ * @param m0_rconfc_cb_t  rconfc expiration callback
  */
 int m0_spiel_rconfc_start(struct m0_spiel *spiel,
 			  m0_rconfc_cb_t   expired_cb);
 
-/**
- * Stops spiel instance.
- *
- * @param spiel spiel instance
- */
+/** Stops spiel instance. */
 void m0_spiel_rconfc_stop(struct m0_spiel *spiel);
 
 /**
  * Set spiel command profile fid from string. Profile string pointer may be
  * NULL, and this results in setting the fid to M0_FID0.
+ *
+ * XXX-MULTIPOOLS: DELETEME
  */
 int m0_spiel_cmd_profile_set(struct m0_spiel *spiel, const char *profile_str);
 
 /**
  * Initialises mero service
  *
- * @param spl spiel instance
- * @param svc_fid   service fid from configuration DB
+ * @param spl      spiel instance
+ * @param svc_fid  service fid from configuration DB
  */
 int m0_spiel_service_init(struct m0_spiel *spl, const struct m0_fid *svc_fid);
 
 /**
  * Starts mero service
  *
- * @param spl spiel instance
- * @param svc_fid service fid from configuration DB
+ * @param spl      spiel instance
+ * @param svc_fid  service fid from configuration DB
  */
 int m0_spiel_service_start(struct m0_spiel *spl, const struct m0_fid *svc_fid);
 
@@ -832,16 +810,17 @@ int m0_spiel_service_start(struct m0_spiel *spl, const struct m0_fid *svc_fid);
  * Stops mero service. Stopping of Top Level RM is disallowed, the function
  * returns -EPERM result code in this case.
  *
- * @param spl spiel instance
- * @param svc_fid service fid from configuration DB
+ * @param spl      spiel instance
+ * @param svc_fid  service fid from configuration DB
  */
 int m0_spiel_service_stop(struct m0_spiel *spl, const struct m0_fid *svc_fid);
 
 /**
  * Checks health status of the mero service
  *
- * @param spl spiel instance
- * @param svc_fid service fid from configuration DB
+ * @param spl      spiel instance
+ * @param svc_fid  service fid from configuration DB
+ *
  * @return value from @ref ::m0_service_health if operation successful @n
  *         negative value if error occurred
  */
@@ -850,8 +829,9 @@ int m0_spiel_service_health(struct m0_spiel *spl, const struct m0_fid *svc_fid);
 /**
  * Returns status of the mero service
  *
- * @param spl spiel instance
- * @param svc_fid service fid from configuration DB
+ * @param spl      spiel instance
+ * @param svc_fid  service fid from configuration DB
+ *
  * @return 0 and state of the service if operation was successful
  *         negative value if error occurred
 */
@@ -861,8 +841,8 @@ int m0_spiel_service_status(struct m0_spiel *spl, const struct m0_fid *svc_fid,
 /**
  * Instructs mero service to stop accepting incoming requests
  *
- * @param spl spiel instance
- * @param svc_fid service fid from configuration DB
+ * @param spl      spiel instance
+ * @param svc_fid  service fid from configuration DB
  */
 int m0_spiel_service_quiesce(struct m0_spiel     *spl,
 		             const struct m0_fid *svc_fid);
@@ -870,8 +850,8 @@ int m0_spiel_service_quiesce(struct m0_spiel     *spl,
 /**
  * Attaches device to the mero service
  *
- * @param spl spiel instance
- * @param dev_fid device fid from configuration DB
+ * @param spl      spiel instance
+ * @param dev_fid  device fid from configuration DB
  */
 int m0_spiel_device_attach(struct m0_spiel *spl, const struct m0_fid *dev_fid);
 
@@ -886,16 +866,16 @@ int m0_spiel_device_attach_state(struct m0_spiel     *spl,
 /**
  * Detaches device from the mero service
  *
- * @param spl spiel instance
- * @param dev_fid device fid from configuration DB
+ * @param spl      spiel instance
+ * @param dev_fid  device fid from configuration DB
  */
 int m0_spiel_device_detach(struct m0_spiel *spl, const struct m0_fid *dev_fid);
 
 /**
  * Format specified device
  *
- * @param spl spiel instance
- * @param dev_fid device fid from configuration DB
+ * @param spl      spiel instance
+ * @param dev_fid  device fid from configuration DB
  */
 int m0_spiel_device_format(struct m0_spiel *spl, const struct m0_fid *dev_fid);
 
@@ -911,8 +891,8 @@ int m0_spiel_process_stop(struct m0_spiel *spl, const struct m0_fid *proc_fid);
  * Re-configures process running on mero node
  * (for example set nicety, memory usage limit, etc.)
  *
- * @param spl spiel instance
- * @param proc_fid process fid from configuration DB
+ * @param spl       spiel instance
+ * @param proc_fid  process fid from configuration DB
  */
 int m0_spiel_process_reconfig(struct m0_spiel     *spl,
 			      const struct m0_fid *proc_fid);
@@ -920,7 +900,8 @@ int m0_spiel_process_reconfig(struct m0_spiel     *spl,
 /**
  * Checks health status of the mero process
  *
- * @param spl spiel instance
+ * @param spl  spiel instance
+ *
  * @return value from @ref ::m0_health if operation successful @n
  *         negative value if error occurred
  */
@@ -930,8 +911,8 @@ int m0_spiel_process_health(struct m0_spiel     *spl,
 /**
  * Prepares mero process for stopping
  *
- * @param spl spiel instance
- * @param proc_fid process fid from configuration DB
+ * @param spl       spiel instance
+ * @param proc_fid  process fid from configuration DB
  */
 int m0_spiel_process_quiesce(struct m0_spiel     *spl,
 			     const struct m0_fid *proc_fid);
@@ -950,10 +931,10 @@ struct m0_spiel_running_svc {
  * @return number of filled elements in services array on success,
  *         error code otherwise.
  *
- * @param spl            spiel instance
- * @param proc_fid       process fid from configuration DB
- * @param services       array to store running services fid and name,
- *                       see @ref m0_spiel_running_svc
+ * @param spl       spiel instance
+ * @param proc_fid  process fid from configuration DB
+ * @param services  array to store running services fid and name,
+ *                  see @ref m0_spiel_running_svc
  */
 int m0_spiel_process_list_services(struct m0_spiel              *spl,
 				   const struct m0_fid          *proc_fid,
@@ -969,9 +950,9 @@ int m0_spiel_process_list_services(struct m0_spiel              *spl,
  * invoked without parameters. This funciton is called in a fom tick context, so
  * it shouldn't block.
  *
- * @param spl            spiel instance
- * @param proc_fid       process fid from configuration DB
- * @param libname        full path to the library in the server file system.
+ * @param spl       spiel instance
+ * @param proc_fid  process fid from configuration DB
+ * @param libname   full path to the library in the server file system.
  */
 int m0_spiel_process_lib_load(struct m0_spiel     *spl,
 			      const struct m0_fid *proc_fid,
@@ -986,8 +967,9 @@ int m0_spiel_process_lib_load(struct m0_spiel     *spl,
  * current repair process by calling of m0_spiel_sns_repair_status() or
  * m0_spiel_dix_repair_status() command.
  *
- * @param spl            spiel instance
- * @param pool_fid       pool fid from configuration DB
+ * @param spl       spiel instance
+ * @param pool_fid  pool fid from configuration DB
+ *
  * @return 0 if all services reply with success result code, otherwise an error
  * code from the first failed service (it replies with error) or confc (an error
  * occurred during read of the configuration database)
@@ -1014,8 +996,9 @@ int m0_spiel_pool_repair_start(struct m0_spiel     *spl,
  * is able to check status of the current repair process by calling of
  * m0_spiel_sns_repair_status() or m0_spiel_dix_repair_status() command.
  *
- * @param spl            spiel instance
- * @param pool_fid       pool fid from configuration DB
+ * @param spl       spiel instance
+ * @param pool_fid  pool fid from configuration DB
+ *
  * @return number of the services if all services reply with success result
  * code, otherwise an error code from the first failed service (it replies with
  * error) or confc (an error occurred during read of the configuration database)
@@ -1043,8 +1026,9 @@ int m0_spiel_pool_repair_continue(struct m0_spiel     *spl,
  * client is able to check status of the current repair process by calling of
  * m0_spiel_sns_repair_status() or m0_spiel_dix_repair_status() command.
  *
- * @param spl            spiel instance
- * @param pool_fid       pool fid from configuration DB
+ * @param spl       spiel instance
+ * @param pool_fid  pool fid from configuration DB
+ *
  * @return 0 if all services reply with success result code, otherwise an error
  * code from the first failed service (it replies with error) or confc (an error
  * occurred during read of the configuration database)
@@ -1070,8 +1054,9 @@ int m0_spiel_pool_repair_quiesce(struct m0_spiel     *spl,
  * Spiel client is able to check status of the current repair process by calling
  * of m0_spiel_sns_repair_status() or m0_spiel_dix_repair_status() command.
  *
- * @param spl            spiel instance
- * @param pool_fid       pool fid from configuration DB
+ * @param spl       spiel instance
+ * @param pool_fid  pool fid from configuration DB
+ *
  * @return 0 if all services reply with success result code, otherwise an error
  * code from the first failed service (it replies with error) or confc (an error
  * occurred during read of the configuration database)
@@ -1093,9 +1078,10 @@ int m0_spiel_pool_repair_abort(struct m0_spiel     *spl,
  *
  * The command is synchronous. It waits replies from all SNS or DIX services.
  *
- * @param spl            spiel instance
- * @param pool_fid       pool fid from configuration DB
- * @param statuses       pointer where statuses of services will be stored
+ * @param spl       spiel instance
+ * @param pool_fid  pool fid from configuration DB
+ * @param statuses  pointer where statuses of services will be stored
+ *
  * @return number of services if all services reply with success result code,
  * otherwise an error code from the first failed service (it replies with error)
  * or confc (an error occurred during read of the configuration database)
@@ -1122,8 +1108,9 @@ int m0_spiel_pool_repair_status(struct m0_spiel             *spl,
  * m0_spiel_sns_rebalance_status() or m0_spiel_dix_rebalance_status()
  * command.
  *
- * @param spl            spiel instance
- * @param pool_fid       pool fid from configuration DB
+ * @param spl       spiel instance
+ * @param pool_fid  pool fid from configuration DB
+ *
  * @return 0 if all services reply with success result code, otherwise an error
  * code from the first failed service (it replies with error) or confc (an error
  * occurred during read of the configuration database)
@@ -1150,8 +1137,9 @@ int m0_spiel_pool_rebalance_start(struct m0_spiel     *spl,
  * m0_spiel_sns_rebalance_status() or m0_spiel_dix_rebalance_status()
  * command.
  *
- * @param spl            spiel instance
- * @param pool_fid       pool fid from configuration DB
+ * @param spl       spiel instance
+ * @param pool_fid  pool fid from configuration DB
+ *
  * @return 0 if all services reply with success result code, otherwise an error
  * code from the first failed service (it replies with error) or confc (an error
  * occurred during read of the configuration database)
@@ -1181,8 +1169,9 @@ int m0_spiel_pool_rebalance_continue(struct m0_spiel     *spl,
  * process by calling of m0_spiel_sns_rebalance_status() or
  * m0_spiel_dix_rebalance_status() command.
  *
- * @param spl            spiel instance
- * @param pool_fid       pool fid from configuration DB
+ * @param spl       spiel instance
+ * @param pool_fid  pool fid from configuration DB
+ *
  * @return 0 if all services reply with success result code, otherwise an error
  * code from the first failed service (it replies with error) or confc (an error
  * occurred during read of the configuration database)
@@ -1204,9 +1193,10 @@ int m0_spiel_pool_rebalance_quiesce(struct m0_spiel     *spl,
  *
  * The command is synchronous. It waits replies from all SNS or DIX services.
  *
- * @param spl            spiel instance
- * @param pool_fid       pool fid from configuration DB
- * @param statuses       pointer where statuses of services will be stored
+ * @param spl       spiel instance
+ * @param pool_fid  pool fid from configuration DB
+ * @param statuses  pointer where statuses of services will be stored
+ *
  * @return number of the servies if all services reply with success result code,
  * otherwise an error code from the first failed service (it replies with error)
  * or confc (an error occurred during read of the configuration database)
@@ -1230,9 +1220,8 @@ int m0_spiel_pool_rebalance_status(struct m0_spiel             *spl,
  * Waits until all the sns services notify completion.
  * @note Blocks until operation is copleted.
  *
- * @param spl            spiel instance
- * @param pool_fid       pool identifier
- * @return 0 on successful abort
+ * @param spl       spiel instance
+ * @param pool_fid  pool identifier
  *
  */
 int m0_spiel_sns_rebalance_abort(struct m0_spiel     *spl,
@@ -1265,9 +1254,9 @@ int m0_spiel_pool_rebalance_abort(struct m0_spiel     *spl,
 struct m0_fs_stats {
 	m0_bcount_t fs_free_seg;    /**< free bytes in BE segments */
 	m0_bcount_t fs_total_seg;   /**< total bytes in BE segments */
-	m0_bcount_t fs_free_disk;   /**< fs free bytes on disks */
-	m0_bcount_t fs_avail_disk;  /**< fs available bytes on disks. */
-	m0_bcount_t fs_total_disk;  /**< fs total bytes on disks */
+	m0_bcount_t fs_free_disk;   /**< fs free bytes on drives */
+	m0_bcount_t fs_avail_disk;  /**< fs available bytes on drives. */
+	m0_bcount_t fs_total_disk;  /**< fs total bytes on drives */
 	uint32_t    fs_svc_total;   /**< fs total IOS and MDS count  */
 	uint32_t    fs_svc_replied; /**< fs services replied to call */
 };
@@ -1277,21 +1266,19 @@ struct m0_fs_stats {
  * internally polls all process instances registered in configuration database
  * under the specified filesystem object.
  *
- * @param[in]  spl       spiel instance, must have profile fid set up to the
- *                       moment of the call
- * @param[in]  fs_fid    filesystem fid
- * @param[out] stats     instance of m0_fs_stats to be filled with resultant
- *                       values. The instance counter values are written only
- *                       in case of success, and must be ignored otherwise.
+ * @param[in]  spl    spiel instance, must have profile fid set up to the
+ *                    moment of the call
+ * @param[out] stats  instance of m0_fs_stats to be filled with resultant
+ *                    values. The instance counter values are written only
+ *                    in case of success, and must be ignored otherwise.
  *
  * @note Filesystem object is looked up only under configuration profile the
  * spiel object is set up with to the moment of the call. In case filesystem
  * object cannot be found there, no additional search is done, even in case some
  * other profiles exist in the Mero configuration.
  */
-int m0_spiel_filesystem_stats_fetch(struct m0_spiel     *spl,
-				    const struct m0_fid *fs_fid,
-				    struct m0_fs_stats  *stats);
+int m0_spiel_filesystem_stats_fetch(struct m0_spiel    *spl,
+				    struct m0_fs_stats *stats);
 
 /**
  * A less demanding version of m0_spiel_filesystem_stats_fetch() requiring a
@@ -1302,7 +1289,6 @@ int m0_spiel_filesystem_stats_fetch(struct m0_spiel     *spl,
  * @pre m0_conf_fid_type(&spc->spc_profile) == &M0_CONF_PROFILE_TYPE
  */
 M0_INTERNAL int m0_spiel__fs_stats_fetch(struct m0_spiel_core *spc,
-					 const struct m0_fid  *fs_fid,
 					 struct m0_fs_stats   *stats);
 
 /**

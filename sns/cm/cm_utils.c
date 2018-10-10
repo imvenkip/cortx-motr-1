@@ -27,6 +27,7 @@
 #include "cob/cob.h"
 #include "mero/setup.h"
 #include "ioservice/io_service.h"
+#include "conf/helpers.h"          /* m0_conf_service_get */
 
 #include "pool/pool.h"
 #include "sns/parity_repair.h"
@@ -552,7 +553,7 @@ M0_INTERNAL struct m0_reqh *m0_sns_cm2reqh(const struct m0_sns_cm *snscm)
 }
 
 M0_INTERNAL bool m0_sns_cm_disk_has_dirty_pver(struct m0_cm *cm,
-					       struct m0_conf_disk *disk)
+					       struct m0_conf_drive *disk)
 {
 	struct m0_conf_pver   **conf_pvers;
 	struct m0_pool_version *pver;

@@ -29,6 +29,7 @@
 #include "addb2/sys.h"
 #include "fid/fid.h"                  /* m0_fid */
 #include "conf/ha.h"                  /* m0_conf_ha_process_event_post */
+#include "conf/helpers.h"             /* m0_confc_root_open */
 #include "rpc/rpclib.h"               /* m0_rpc_client_connect */
 #include "pool/pool.h"                /* m0_pool_init */
 #include "rm/rm_service.h"            /* m0_rms_type */
@@ -56,11 +57,11 @@ static const struct m0_bob_type m0c_bobtype = {
 };
 
 /**
- * Pointer to the configuration filesystem object of a pool that a Clovis
- * client attaches to. It is closed after Clovis initilisation is done as it
+ * Pointer to the root configuration object that a Clovis client
+ * attaches to. It is closed after Clovis initilisation is done as it
  * may become invalid at some point of time.
  */
-struct m0_conf_filesystem *clovis_conf_fs;
+struct m0_conf_root *clovis_conf_root;
 
 /**
  * The Initialisation code in clovis is fiddly, lots of different parts of mero
@@ -712,11 +713,10 @@ static int clovis_ha_init(struct m0_clovis *m0c)
 			.hdc_enable_keepalive = true,
 			.hdc_enable_fvec      = true,
 		},
-		.mhc_addr             = m0c->m0c_config->cc_ha_addr,
-		.mhc_rpc_machine      = &m0c->m0c_rpc_machine,
-		.mhc_reqh             = &m0c->m0c_reqh,
-		.mhc_process_fid      = m0c->m0c_process_fid,
-		.mhc_profile_fid      = m0c->m0c_profile_fid,
+		.mhc_addr        = m0c->m0c_config->cc_ha_addr,
+		.mhc_rpc_machine = &m0c->m0c_rpc_machine,
+		.mhc_reqh        = &m0c->m0c_reqh,
+		.mhc_process_fid = m0c->m0c_process_fid,
 	};
 	rc = m0_mero_ha_init(mero_ha, &mero_ha_cfg);
 	M0_ASSERT(rc == 0);
@@ -848,25 +848,24 @@ static int clovis_confc_init(struct m0_clovis *m0c)
 	if (rc != 0)
 		goto err_rconfc_stop;
 
-	rc = m0_conf_fs_get(m0_reqh2profile(reqh), m0_reqh2confc(reqh),
-			    &clovis_conf_fs);
+	rc = m0_confc_root_open(m0_reqh2confc(reqh), &clovis_conf_root);
 	if (rc != 0)
 		goto err_ha_client_del;
 
-	rc = m0_conf_full_load(clovis_conf_fs);
+	rc = m0_conf_full_load(clovis_conf_root);
 	if (rc != 0)
-		goto err_conf_fs_close;
+		goto err_conf_close;
 
 	rc = m0_conf_confc_ha_update(m0_reqh2confc(reqh));
 	if (rc != 0)
-		goto err_conf_fs_close;
+		goto err_conf_close;
 
 	/* re-acquire the lock */
 	m0_sm_group_lock(&m0c->m0c_sm_group);
 	return M0_RC(0);
 
-err_conf_fs_close:
-	m0_confc_close(&clovis_conf_fs->cf_obj);
+err_conf_close:
+	m0_confc_close(&clovis_conf_root->rt_obj);
 
 err_ha_client_del:
 	m0_ha_client_del(m0_reqh2confc(reqh));
@@ -890,12 +889,12 @@ static void clovis_confc_fini(struct m0_clovis *m0c)
 {
 	/*
 	 * Mero-1580:
-	 * clovis_conf_fs has to be closed in the shutdown path.
+	 * clovis_conf_root has to be closed in the shutdown path.
 	 * This is needed if clovis init fails for some reason.
 	 */
-	if (clovis_conf_fs) {
-		m0_confc_close(&clovis_conf_fs->cf_obj);
-		clovis_conf_fs = NULL;
+	if (clovis_conf_root) {
+		m0_confc_close(&clovis_conf_root->rt_obj);
+		clovis_conf_root = NULL;
 	}
 
 	m0_sm_group_unlock(&m0c->m0c_sm_group);
@@ -938,18 +937,17 @@ static int clovis_pools_init(struct m0_clovis *m0c)
 
 	m0_sm_group_unlock(&m0c->m0c_sm_group);
 
-	rc = m0_pools_common_init(pools, &m0c->m0c_rpc_machine,
-				  clovis_conf_fs);
+	rc = m0_pools_common_init(pools, &m0c->m0c_rpc_machine);
 	if (rc != 0)
 		goto err_exit;
 	M0_ASSERT(ergo(m0c->m0c_config->cc_is_oostore,
 		       pools->pc_md_redundancy > 0));
 
-	rc = m0_pools_setup(pools, clovis_conf_fs, NULL, NULL, NULL);
+	rc = m0_pools_setup(pools, &m0c->m0c_profile_fid, NULL, NULL, NULL);
 	if (rc != 0)
 		goto err_pools_common_fini;
 
-	rc = m0_pools_service_ctx_create(pools, clovis_conf_fs);
+	rc = m0_pools_service_ctx_create(pools);
 	if (rc != 0)
 		goto err_pools_destroy;
 
@@ -1016,14 +1014,14 @@ static int clovis_initlift_pool_version(struct m0_sm *mach)
 		/* Confc needs the lock to proceed. */
 		m0_sm_group_unlock(&m0c->m0c_sm_group);
 
-		rc = m0_pool_versions_setup(pools, clovis_conf_fs, NULL, NULL, NULL);
+		rc = m0_pool_versions_setup(pools, NULL, NULL, NULL);
 		if (rc != 0) {
 			m0_sm_group_lock(&m0c->m0c_sm_group);
 			clovis_initlift_fail(rc, m0c);
  			goto exit;
 		}
 
-		rc = m0_pool_version_get(pools, &pv);
+		rc = m0_pool_version_get(pools, NULL, &pv);
 		if (!M0_IN(rc, (0, -ENOENT))) {
 			m0_pool_versions_destroy(pools);
 			clovis_initlift_fail(rc, m0c);
@@ -1474,8 +1472,8 @@ int m0_clovis_init(struct m0_clovis **m0c_p,
 	 */
 	rc = m0c->m0c_initlift_rc;
 	if (rc == 0) {
-		m0_confc_close(&clovis_conf_fs->cf_obj);
-		clovis_conf_fs = NULL;
+		m0_confc_close(&clovis_conf_root->rt_obj);
+		clovis_conf_root = NULL;
 
 		/*
 		 * m0t1fs posts the `STARTED` event during `mount`, clovis
@@ -1565,7 +1563,6 @@ void m0_clovis_realm_open(struct m0_clovis_realm   *realm,
 			  uint64_t wcount, uint64_t rcount,
 			  struct m0_clovis_op **op)
 {
-
 	/* TODO: how to set the id of the realm to open?
 	 *       if not, why does the uber realm have one? */
 }
@@ -1576,7 +1573,6 @@ void m0_clovis_realm_open(struct m0_clovis_realm   *realm,
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"
-
  *  c-basic-offset: 8
  *  tab-width: 8
  *  fill-column: 80

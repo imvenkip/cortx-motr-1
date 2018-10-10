@@ -24,6 +24,7 @@
 
 #include "conf/obj_ops.h"          /* M0_CONF_DIRNEXT, m0_conf_obj_get */
 #include "conf/preload.h"          /* m0_confx_string_free */
+#include "conf/helpers.h"          /* m0_conf_service_name_dup */
 #include "fid/fid_list.h"          /* m0_fid_item */
 #include "rpc/rpclib.h"            /* m0_rpc_post_with_timeout_sync */
 #include "cm/repreb/trigger_fom.h" /* m0_cm_op */
@@ -105,7 +106,7 @@ static int spiel_node_process_endpoint_add(struct m0_spiel_core *spc,
 }
 
 /**
- * Finds mo_conf_node by m0_conf_disk and collect endpoints from its node.
+ * Finds mo_conf_node by m0_conf_drive and collect endpoints from its node.
  *
  * Disk -> Controller -> Node -> Processes -> SSS services.
  */
@@ -115,7 +116,7 @@ static int spiel_endpoints_for_device_generic(struct m0_spiel_core *spc,
 {
 	struct m0_confc           *confc = spc->spc_confc;
 	struct m0_conf_diter       it;
-	struct m0_conf_obj        *fs;
+	struct m0_conf_obj        *root;
 	struct m0_conf_obj        *disk;
 	struct m0_conf_obj        *ctrl_obj;
 	struct m0_conf_controller *ctrl;
@@ -126,18 +127,16 @@ static int spiel_endpoints_for_device_generic(struct m0_spiel_core *spc,
 	M0_PRE(device_fid != NULL);
 	M0_PRE(list != NULL);
 
-	if (m0_conf_fid_type(device_fid) != &M0_CONF_DISK_TYPE)
+	if (m0_conf_fid_type(device_fid) != &M0_CONF_DRIVE_TYPE)
 		return M0_ERR(-EINVAL);
 
-	rc = m0_confc_open_sync(&fs, confc->cc_root,
-				M0_CONF_ROOT_PROFILES_FID,
-				spc->spc_profile,
-				M0_CONF_PROFILE_FILESYSTEM_FID);
+	rc = m0_confc_open_sync(&root, confc->cc_root, M0_FID0);
 	if (rc != 0)
 		return M0_ERR(rc);
 
-	rc = m0_conf_diter_init(&it, confc, fs,
-				M0_CONF_FILESYSTEM_RACKS_FID,
+	rc = m0_conf_diter_init(&it, confc, root,
+				M0_CONF_ROOT_SITES_FID,
+				M0_CONF_SITE_RACKS_FID,
 				M0_CONF_RACK_ENCLS_FID,
 				M0_CONF_ENCLOSURE_CTRLS_FID);
 	if (rc != 0) {
@@ -149,7 +148,7 @@ static int spiel_endpoints_for_device_generic(struct m0_spiel_core *spc,
 							M0_CONF_DIRNEXT) {
 		ctrl_obj = m0_conf_diter_result(&it);
 		rc = m0_confc_open_sync(&disk, ctrl_obj,
-					M0_CONF_CONTROLLER_DISKS_FID,
+					M0_CONF_CONTROLLER_DRIVES_FID,
 					*device_fid);
 
 		if (rc == 0) {
@@ -167,7 +166,7 @@ static int spiel_endpoints_for_device_generic(struct m0_spiel_core *spc,
 	}
 
 	m0_conf_diter_fini(&it);
-	m0_confc_close(fs);
+	m0_confc_close(root);
 
 	return M0_RC(rc);
 }
@@ -228,7 +227,6 @@ static int spiel_cmd_send(struct m0_rpc_machine *rmachine,
  * User should close returned non-NULL conf_obj using @ref m0_confc_close()
  *
  * @param confc     confc instance
- * @param profile   configuration profile
  * @param obj_fid   object FID to search for
  * @param filter    function to filter nodes during tree traversal.
  *                  Identical to filter argument in @ref m0_conf_diter_next_sync
@@ -239,7 +237,6 @@ static int spiel_cmd_send(struct m0_rpc_machine *rmachine,
  * @param conf_obj  output value. Found object or NULL if object is not found
  */
 static int _spiel_conf_obj_find(struct m0_confc       *confc,
-				const struct m0_fid   *profile,
 				const struct m0_fid   *obj_fid,
 				bool (*filter)(const struct m0_conf_obj *obj),
 				uint32_t               nr_lvls,
@@ -247,37 +244,30 @@ static int _spiel_conf_obj_find(struct m0_confc       *confc,
 				struct m0_conf_obj   **conf_obj)
 {
 	int                  rc;
-	struct m0_conf_obj  *fs_obj = NULL;
+	struct m0_conf_obj  *root_obj = NULL;
 	struct m0_conf_obj  *tmp;
 	struct m0_conf_diter it;
 
-	M0_ENTRY();
+	M0_ENTRY("obj_fid="FID_F, FID_P(obj_fid));
 
 	M0_PRE(confc != NULL);
-	M0_PRE(profile != NULL);
 	M0_PRE(obj_fid != NULL);
 	M0_PRE(path != NULL);
 	M0_PRE(nr_lvls > 0);
-	M0_PRE(m0_fid_eq(&path[0], &M0_CONF_FILESYSTEM_NODES_FID) ||
-	       m0_fid_eq(&path[0], &M0_CONF_FILESYSTEM_POOLS_FID));
+	M0_PRE(m0_fid_eq(&path[0], &M0_CONF_ROOT_NODES_FID) ||
+	       m0_fid_eq(&path[0], &M0_CONF_ROOT_POOLS_FID));
 	M0_PRE(conf_obj != NULL);
 
 	*conf_obj = NULL;
 
-	/* m0_conf_diter_init() doesn't accept profile as origin,
-	 * so let's start with fs */
-	rc = m0_confc_open_sync(&fs_obj, confc->cc_root,
-				M0_CONF_ROOT_PROFILES_FID,
-				*profile,
-				M0_CONF_PROFILE_FILESYSTEM_FID);
-
+	rc = m0_confc_open_sync(&root_obj, confc->cc_root, M0_FID0);
 	if (rc != 0)
 		return M0_ERR(rc);
 
-	rc = m0_conf__diter_init(&it, confc, fs_obj, nr_lvls, path);
+	rc = m0_conf__diter_init(&it, confc, root_obj, nr_lvls, path);
 
 	if (rc != 0) {
-		m0_confc_close(fs_obj);
+		m0_confc_close(root_obj);
 		return M0_ERR(rc);
 	}
 
@@ -294,7 +284,7 @@ static int _spiel_conf_obj_find(struct m0_confc       *confc,
 	}
 
 	m0_conf_diter_fini(&it);
-	m0_confc_close(fs_obj);
+	m0_confc_close(root_obj);
 
 	if (*conf_obj == NULL && rc == 0)
 		rc = M0_ERR(-ENOENT);
@@ -306,23 +296,18 @@ static int _spiel_conf_obj_find(struct m0_confc       *confc,
 /**
  * Iterates through directory specified by the path and calls iterator callback
  * on every directory item having the object pinned during callback
- * execution. In the course of execution, provides ability to test filesystem
- * object for correctness, e.g. the required filesystem really exists in the
- * profile.
+ * execution.
  */
 static int _spiel_conf_dir_iterate(struct m0_confc     *confc,
-				   const struct m0_fid *profile,
-				   void                *ctx,
-				   bool (*iter_cb)
-				   (const struct m0_conf_obj *item, void *ctx),
-				   bool (*fs_test_cb)
-				   (const struct m0_conf_obj *item, void *ctx),
-				   uint32_t             nr_lvls,
+				   void *ctx,
+				   bool (*iter_cb)(const struct m0_conf_obj
+						   *item, void *ctx),
+				   uint32_t nr_lvls,
 				   const struct m0_fid *path)
 {
 	int                  rc;
 	bool                 loop;
-	struct m0_conf_obj  *fs_obj = NULL;
+	struct m0_conf_obj  *root_obj = NULL;
 	struct m0_conf_obj  *obj;
 	struct m0_conf_diter it;
 
@@ -331,25 +316,16 @@ static int _spiel_conf_dir_iterate(struct m0_confc     *confc,
 	M0_PRE(confc != NULL);
 	M0_PRE(path != NULL);
 	M0_PRE(nr_lvls > 0);
-	M0_PRE(m0_fid_eq(&path[0], &M0_CONF_FILESYSTEM_NODES_FID));
+	M0_PRE(m0_fid_eq(&path[0], &M0_CONF_ROOT_NODES_FID));
 
-	rc = m0_confc_open_sync(&fs_obj, confc->cc_root,
-				M0_CONF_ROOT_PROFILES_FID,
-				*profile,
-				M0_CONF_PROFILE_FILESYSTEM_FID);
-
+	rc = m0_confc_open_sync(&root_obj, confc->cc_root, M0_FID0);
 	if (rc != 0)
 		return M0_ERR(rc);
 
-	if (fs_test_cb != NULL && !fs_test_cb(fs_obj, ctx)) {
-		m0_confc_close(fs_obj);
-		return M0_ERR(-ENOENT);
-	}
-
-	rc = m0_conf__diter_init(&it, confc, fs_obj, nr_lvls, path);
+	rc = m0_conf__diter_init(&it, confc, root_obj, nr_lvls, path);
 
 	if (rc != 0) {
-		m0_confc_close(fs_obj);
+		m0_confc_close(root_obj);
 		return M0_ERR(rc);
 	}
 
@@ -366,7 +342,7 @@ static int _spiel_conf_dir_iterate(struct m0_confc     *confc,
 	}
 
 	m0_conf_diter_fini(&it);
-	m0_confc_close(fs_obj);
+	m0_confc_close(root_obj);
 
 	return M0_RC(rc);
 }
@@ -403,8 +379,8 @@ static int spiel_svc_conf_obj_find(struct m0_spiel_core    *spc,
 	struct m0_conf_obj *obj;
 	int                 rc;
 
-	rc = SPIEL_CONF_OBJ_FIND(spc->spc_confc, &spc->spc_profile, svc, &obj,
-				 _filter_svc, M0_CONF_FILESYSTEM_NODES_FID,
+	rc = SPIEL_CONF_OBJ_FIND(spc->spc_confc, svc, &obj, _filter_svc,
+				 M0_CONF_ROOT_NODES_FID,
 				 M0_CONF_NODE_PROCESSES_FID,
 				 M0_CONF_PROCESS_SERVICES_FID);
 	if (rc == 0)
@@ -615,7 +591,7 @@ static int spiel_device_command_send(struct m0_spiel_core *spc,
 
 	M0_ENTRY();
 
-	if (m0_conf_fid_type(dev_fid) != &M0_CONF_DISK_TYPE)
+	if (m0_conf_fid_type(dev_fid) != &M0_CONF_DRIVE_TYPE)
 		return M0_ERR(-EINVAL);
 
 	spiel_string_tlist_init(&endpoints);
@@ -688,9 +664,8 @@ static int spiel_proc_conf_obj_find(struct m0_spiel_core    *spc,
 	struct m0_conf_obj *obj;
 	int                 rc;
 
-	rc = SPIEL_CONF_OBJ_FIND(spc->spc_confc, &spc->spc_profile, proc,
-				 &obj, _filter_proc,
-				 M0_CONF_FILESYSTEM_NODES_FID,
+	rc = SPIEL_CONF_OBJ_FIND(spc->spc_confc, proc, &obj, _filter_proc,
+				 M0_CONF_ROOT_NODES_FID,
 				 M0_CONF_NODE_PROCESSES_FID);
 	if (rc == 0)
 		*out = M0_CONF_CAST(obj, m0_conf_process);
@@ -925,6 +900,7 @@ static int spiel_stats_item_add(struct m0_tl *tl, const struct m0_fid *fid)
 
 static bool _filter_pool(const struct m0_conf_obj *obj)
 {
+	M0_LOG(M0_DEBUG, FID_F, FID_P(&obj->co_id));
 	return m0_conf_obj_type(obj) == &M0_CONF_POOL_TYPE;
 }
 
@@ -1010,13 +986,13 @@ static int spiel_pool_device_collect(struct _pool_cmd_ctx *ctx,
 {
 	struct m0_conf_objv *diskv;
 	struct m0_conf_obj  *obj_disk;
-	struct m0_conf_disk *disk;
+	struct m0_conf_drive *disk;
 	int                  rc;
 
 	diskv = M0_CONF_CAST(obj_diskv, m0_conf_objv);
 	if (diskv == NULL)
 		return M0_ERR(-ENOENT);
-	if (m0_conf_obj_type(diskv->cv_real) != &M0_CONF_DISK_TYPE)
+	if (m0_conf_obj_type(diskv->cv_real) != &M0_CONF_DRIVE_TYPE)
 		return -EINVAL; /* rackv, ctrlv objectv's are ignored. */
 
 	rc = m0_confc_open_by_fid_sync(ctx->pl_spc->spc_confc,
@@ -1024,10 +1000,10 @@ static int spiel_pool_device_collect(struct _pool_cmd_ctx *ctx,
 	if (rc != 0)
 		return M0_RC(rc);
 
-	disk = M0_CONF_CAST(obj_disk, m0_conf_disk);
-	if (disk->ck_dev != NULL)
+	disk = M0_CONF_CAST(obj_disk, m0_conf_drive);
+	if (disk->ck_sdev != NULL)
 		rc = spiel_stats_item_add(&ctx->pl_sdevs_fid,
-					  &disk->ck_dev->sd_obj.co_id);
+					  &disk->ck_sdev->sd_obj.co_id);
 
 	m0_confc_close(obj_disk);
 	return M0_RC(rc);
@@ -1191,6 +1167,7 @@ static int spiel__pool_cmd_status_get(struct _pool_cmd_ctx *ctx,
 
 static bool _filter_objv(const struct m0_conf_obj *obj)
 {
+	M0_LOG(M0_DEBUG, FID_F, FID_P(&obj->co_id));
 	return m0_conf_obj_type(obj) == &M0_CONF_OBJV_TYPE;
 }
 
@@ -1198,21 +1175,22 @@ static int spiel_pool__device_collection_fill(struct _pool_cmd_ctx *ctx,
 					      const struct m0_fid  *pool_fid)
 {
 	struct m0_confc      *confc = ctx->pl_spc->spc_confc;
-	struct m0_conf_obj   *pool_obj;
+	struct m0_conf_obj   *pool_obj = NULL;
 	struct m0_conf_obj   *obj;
 	struct m0_conf_diter  it;
 	int                   rc;
-	M0_ENTRY();
 
-	rc = SPIEL_CONF_OBJ_FIND(confc, &ctx->pl_spc->spc_profile, pool_fid,
-				 &pool_obj, _filter_pool,
-				 M0_CONF_FILESYSTEM_POOLS_FID) ?:
+	M0_ENTRY(FID_F, FID_P(pool_fid));
+
+	rc = SPIEL_CONF_OBJ_FIND(confc, pool_fid, &pool_obj, _filter_pool,
+				 M0_CONF_ROOT_POOLS_FID) ?:
 	     m0_conf_diter_init(&it, confc, pool_obj,
 				M0_CONF_POOL_PVERS_FID,
-				M0_CONF_PVER_RACKVS_FID,
+				M0_CONF_PVER_SITEVS_FID,
+				M0_CONF_SITEV_RACKVS_FID,
 				M0_CONF_RACKV_ENCLVS_FID,
 				M0_CONF_ENCLV_CTRLVS_FID,
-				M0_CONF_CTRLV_DISKVS_FID);
+				M0_CONF_CTRLV_DRIVEVS_FID);
 	if (rc != 0)
 		goto leave;
 
@@ -1259,9 +1237,9 @@ static int spiel_pool_generic_handler(struct m0_spiel_core           *spc,
 	spiel__pool_ctx_init(&ctx, spc, type);
 
 	rc = spiel_pool__device_collection_fill(&ctx, pool_fid) ?:
-		SPIEL_CONF_DIR_ITERATE(spc->spc_confc, &spc->spc_profile,
-				       &ctx, spiel__pool_service_select, NULL,
-				       M0_CONF_FILESYSTEM_NODES_FID,
+		SPIEL_CONF_DIR_ITERATE(spc->spc_confc, &ctx,
+				       spiel__pool_service_select,
+				       M0_CONF_ROOT_NODES_FID,
 				       M0_CONF_NODE_PROCESSES_FID,
 				       M0_CONF_PROCESS_SERVICES_FID) ?:
 		ctx.pl_rc;
@@ -1877,13 +1855,10 @@ err:
 
 static void spiel__fs_stats_ctx_init(struct _fs_stats_ctx *fsx,
 				     struct m0_spiel_core *spc,
-				     const struct m0_fid  *fs_fid,
 				     const struct m0_conf_obj_type *item_type)
 {
-	M0_PRE(fs_fid != NULL);
 	M0_SET0(fsx);
 	fsx->fx_spc = spc;
-	fsx->fx_fid = *fs_fid;
 	fsx->fx_type = item_type;
 	m0_semaphore_init(&fsx->fx_barrier, 0);
 	m0_mutex_init(&fsx->fx_guard);
@@ -1933,13 +1908,6 @@ static bool spiel__item_enlist(const struct m0_conf_obj *item, void *ctx)
 	M0_LOG(SPIEL_LOGLVL, "* booked: " FID_F " (%s)", FID_P(&item->co_id),
 	       m0_fid_type_getfid(&item->co_id)->ft_name);
 	return true;
-}
-
-/** Tests if filesystem object is exactly the one requested for stats. */
-static bool spiel__fs_test(const struct m0_conf_obj *fs_obj, void *ctx)
-{
-	struct _fs_stats_ctx *fsx = ctx;
-	return m0_fid_eq(&fs_obj->co_id, &fsx->fx_fid);
 }
 
 /**
@@ -1996,7 +1964,6 @@ obj_close:
 }
 
 M0_INTERNAL int m0_spiel__fs_stats_fetch(struct m0_spiel_core *spc,
-					 const struct m0_fid  *fs_fid,
 					 struct m0_fs_stats   *stats)
 {
 	struct _fs_stats_ctx    fsx;
@@ -2007,15 +1974,12 @@ M0_INTERNAL int m0_spiel__fs_stats_fetch(struct m0_spiel_core *spc,
 	M0_PRE(spc != NULL);
 	M0_PRE(spc->spc_confc != NULL);
 	M0_PRE(stats != NULL);
-	M0_PRE(fs_fid != NULL);
-	M0_PRE(m0_conf_fid_type(fs_fid) == &M0_CONF_FILESYSTEM_TYPE);
-	M0_PRE(m0_conf_fid_type(&spc->spc_profile) == &M0_CONF_PROFILE_TYPE);
 
-	spiel__fs_stats_ctx_init(&fsx, spc, fs_fid, &M0_CONF_PROCESS_TYPE);
+	spiel__fs_stats_ctx_init(&fsx, spc, &M0_CONF_PROCESS_TYPE);
 	/* walk along the filesystem nodes and get to process level */
-	rc = SPIEL_CONF_DIR_ITERATE(spc->spc_confc, &spc->spc_profile, &fsx,
-				    spiel__item_enlist, spiel__fs_test,
-				    M0_CONF_FILESYSTEM_NODES_FID,
+	rc = SPIEL_CONF_DIR_ITERATE(spc->spc_confc, &fsx,
+				    spiel__item_enlist,
+				    M0_CONF_ROOT_NODES_FID,
 				    M0_CONF_NODE_PROCESSES_FID) ?:
 		fsx.fx_rc;
 	if (rc != 0)
@@ -2055,11 +2019,10 @@ end:
 }
 M0_EXPORTED(m0_spiel_filesystem_stats_fetch);
 
-int m0_spiel_filesystem_stats_fetch(struct m0_spiel     *spl,
-				    const struct m0_fid *fs_fid,
-				    struct m0_fs_stats  *stats)
+int m0_spiel_filesystem_stats_fetch(struct m0_spiel    *spl,
+				    struct m0_fs_stats *stats)
 {
-	return m0_spiel__fs_stats_fetch(&spl->spl_core, fs_fid, stats);
+	return m0_spiel__fs_stats_fetch(&spl->spl_core, stats);
 }
 
 int m0_spiel_confstr(struct m0_spiel *spl, char **out)

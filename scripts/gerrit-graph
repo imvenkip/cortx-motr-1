@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -eu
+# set -x
+export PS4='+ [${FUNCNAME[0]:+${FUNCNAME[0]}:}${LINENO}] '
 
 ###
 ### Gerrit reviews visualizer.
@@ -11,7 +13,7 @@ set -eu
 ###     scripts/gerrit-graph > reviews.html
 ###     open !$
 
-GERRIT_SERVER=10.48.80.38
+GERRIT_SERVER=gerrit-sage.dco.colo.seagate.com
 
 if [ -z "${GID:-}" ]; then
 	GID=$(git remote -v 2>/dev/null | grep -m1 -Eo '[0-9]+@' | tr -d @)

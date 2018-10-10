@@ -83,8 +83,6 @@ void fdmi_serv_start_ut(const struct m0_filterc_ops *filterc_ops)
 			sd_ut_lfile, false, true);
 	M0_UT_ASSERT(rc == 0);
 
-	g_sd_ut.mero.cc_profile = m0_strdup("<0x7000000000000001:0>");
-
 	rc = M0_REQH_INIT(reqh,
 			.rhia_fid = &g_process_fid,
 			.rhia_dtm = (void *)1,

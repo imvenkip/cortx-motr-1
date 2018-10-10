@@ -136,7 +136,6 @@ m0_conf_validation_error
 m0_cs_fini
 m0_cs_init
 m0_cs_memory_limits_setup
-m0_cs_profile_get
 m0_cs_reqh_get
 m0_cs_setup_env
 m0_cs_start
@@ -306,8 +305,8 @@ m0_spiel_device_attach
 m0_spiel_device_attach_state
 m0_spiel_device_detach
 m0_spiel_device_format
-m0_spiel_disk_add
-m0_spiel_disk_v_add
+m0_spiel_drive_add
+m0_spiel_drive_v_add
 m0_spiel_dix_rebalance_abort
 m0_spiel_dix_rebalance_continue
 m0_spiel_dix_rebalance_quiesce
@@ -321,7 +320,6 @@ m0_spiel_dix_repair_status
 m0_spiel_element_del
 m0_spiel_enclosure_add
 m0_spiel_enclosure_v_add
-m0_spiel_filesystem_add
 m0_spiel_filesystem_stats_fetch
 m0_spiel_fini
 m0_spiel_init
@@ -336,12 +334,14 @@ m0_spiel_process_quiesce
 m0_spiel_process_reconfig
 m0_spiel_process_stop
 m0_spiel_profile_add
+m0_spiel_profile_pool_add
 m0_spiel_pver_actual_add
 m0_spiel_pver_formulaic_add
 m0_spiel_rack_add
 m0_spiel_rack_v_add
 m0_spiel_rconfc_start
 m0_spiel_rconfc_stop
+m0_spiel_root_add
 m0_spiel_service_add
 m0_spiel_service_health
 m0_spiel_service_init
@@ -349,6 +349,8 @@ m0_spiel_service_quiesce
 m0_spiel_service_start
 m0_spiel_service_status
 m0_spiel_service_stop
+m0_spiel_site_add
+m0_spiel_site_v_add
 m0_spiel_sns_rebalance_abort
 m0_spiel_sns_rebalance_continue
 m0_spiel_sns_rebalance_quiesce

@@ -1,6 +1,7 @@
 /* -*- c -*- */
 /*
  * COPYRIGHT 2013 XYRATEX TECHNOLOGY LIMITED
+ * COPYRIGHT 2014-2018 SEAGATE LLC
  *
  * THIS DRAWING/DOCUMENT, ITS SPECIFICATIONS, AND THE DATA CONTAINED
  * HEREIN, ARE THE EXCLUSIVE PROPERTY OF XYRATEX TECHNOLOGY
@@ -15,6 +16,8 @@
  * http://www.xyratex.com/contact
  *
  * Original author: Valery V. Vorotyntsev <valery_vorotyntsev@xyratex.com>
+ * Authors:         Andriy Tkachuk <andriy.tkachuk@seagate.com>
+ *
  * Original creation date: 30-Jan-2012
  */
 #pragma once
@@ -54,18 +57,20 @@ struct m0_xcode_type;
  * - m0_conf_dir (a container for configuration objects),
  * - m0_conf_root
  * - m0_conf_profile,
- * - m0_conf_filesystem,
  * - m0_conf_pool,
  * - m0_conf_pver,
  * - m0_conf_objv,
  * - m0_conf_node,
  * - m0_conf_process,
  * - m0_conf_service,
+ * - m0_conf_sdev,
+ * - m0_conf_site,
  * - m0_conf_rack,
  * - m0_conf_enclosure,
  * - m0_conf_controller,
- * - m0_conf_sdev,
- * - m0_conf_disk.
+ * - m0_conf_drive,
+ * - m0_conf_fdmi_flt_grp,
+ * - m0_conf_fdmi_filter.
  *
  * Some attributes are applicable to any type of configuration object.
  * Such common attributes are put together into m0_conf_obj structure,
@@ -74,36 +79,47 @@ struct m0_xcode_type;
  * DAG of configuration objects:
  *
  * @dot
- * digraph x {
- *   edge [arrowhead=open, fontsize=11];
+ * /// Solid line denotes "is parent of" relation,
+ * /// dashed line --- "refers to" relation;
+ * /// "normal" (black) arrow --- one-to-one relation,
+ * /// "onormal" (white) arrow --- one-to-many relation.
  *
- *   root -> profile [label=profiles];
- *   profile -> filesystem;
+ * digraph mero_conf_schema {
+ *   edge [arrowhead=onormal];  // most relations are "one-to-many"
  *
- *   filesystem -> "node" [label=nodes];
- *   filesystem -> rack [label=racks];
- *   filesystem -> pool [label=pools];
+ *   root -> "node" [label=nodes];
+ *   root -> site [label=sites];
+ *   root -> pool [label=pools];
+ *   root -> profile [label="profiles\n(clients only)"];
+ *   root -> fdmi_flt_grp [label=fdmi_flt_grps];
+ *   fdmi_flt_grp -> fdmi_filter [label=filters];
+ *
  *   "node" -> process [label=processes];
  *   process -> service [label=services];
  *   service -> sdev [label=sdevs];
+ *   site -> rack [label=racks];
  *   rack -> enclosure [label=encls];
  *   enclosure -> controller [label=ctrls];
- *   controller -> disk [label=disks];
- *   "node" -> controller [dir=back, weight=0, style=dashed];
+ *   controller -> drive [label=drives];
+ *
+ *   profile [label="profile\n(for clients)"];
+ *   profile -> pool [style=dashed];
  *
  *   pool -> "pool version" [label=pvers];
- *   "pool version" -> "rack-v" [label=rackvs];
+ *   "pool version" -> "site-v" [label=sitevs];
+ *   "site-v" -> "rack-v" [label=sitevs];
  *   "rack-v" -> "enclosure-v" [label=children];
  *   "enclosure-v" -> "controller-v" [label=children];
- *   "controller-v" -> "disk-v" [label=children];
- *   rack -> "rack-v" [dir=back, weight=0, style=dashed];
- *   enclosure -> "enclosure-v" [dir=back, weight=0, style=dashed];
- *   controller -> "controller-v" [dir=back, style=dashed, weight=0];
- *   disk -> "disk-v" [dir=back, style=dashed, weight=0];
- *   sdev -> disk [dir=back, style=dashed, weight=0];
+ *   "controller-v" -> "drive-v" [label=children];
  *
- *   filesystem -> fdmi_flt_grp [label=fdmi_flt_grps];
- *   fdmi_flt_grp -> fdmi_filter [label=filters];
+ *   edge [dir=back, weight=0, style=dashed, arrowhead=normal];
+ *   "node" -> controller;
+ *   site -> "site-v";
+ *   rack -> "rack-v";
+ *   enclosure -> "enclosure-v";
+ *   controller -> "controller-v";
+ *   drive -> "drive-v";
+ *   sdev -> drive [dir=both];
  * }
  * @enddot
  *
@@ -269,6 +285,29 @@ struct m0_conf_obj {
 	 *        will fail.
 	 */
 	bool                          co_deleted;
+
+	/**
+	 * Human-friendly name of the resource represented by this object.
+	 * To be used in error messages.
+	 */
+	const char                   *co_name;
+
+	/*
+	 * XXX TODO: Introduce .co_extra_attrs field --- optional array
+	 * of {name, value} pairs of strings.
+	 *
+	 * Fixed set of conf objects' attributes is expensive to change.
+	 * To add new attribute to a conf object type, one has to modify:
+	 * - conf/obj.h and conf.onwire.h data structures,
+	 * - conf/objs/ *.c files,
+	 * - Spiel,
+	 * - m0confgen utility,
+	 * - Halon code.
+	 *
+	 * m0_conf_obj::co_extra_attrs will let us experiment with new
+	 * sets of attributes without code changes. This may prove useful
+	 * for testing, debugging, and maintenance.
+	 */
 };
 
 struct m0_conf_obj_type {
@@ -325,14 +364,22 @@ struct m0_conf_dir {
 	struct m0_fid                  cd_relfid;
 };
 
-/** Root object. Top-level configuration object */
+/** Top-level configuration object. */
 struct m0_conf_root {
 	/**
-	 * ->rt_obj.co_parent == NULL: m0_conf_root is the topmost
-	 * object in a DAG of configuration objects.
+	 * ->rt_obj.co_parent == NULL: God the Father has no parent.
 	 */
 	struct m0_conf_obj    rt_obj;
+	struct m0_conf_dir   *rt_nodes;
+	struct m0_conf_dir   *rt_sites;
+	struct m0_conf_dir   *rt_pools;
 	struct m0_conf_dir   *rt_profiles;
+	/**
+	 * FDMI filter groups.
+	 *
+	 * @todo Halon support is yet to be implemented; see HALON-730.
+	 */
+	struct m0_conf_dir   *rt_fdmi_flt_grps;
 /* configuration data (for the application) */
 	/**
 	 * Version of the configuration database.
@@ -341,41 +388,40 @@ struct m0_conf_root {
 	 * @note Value 0 is reserved and must not be used.
 	 */
 	uint64_t              rt_verno;
-	struct m0_protocol_id rt_protocol;
-};
-
-struct m0_conf_profile {
-	struct m0_conf_obj         cp_obj;
-	struct m0_conf_filesystem *cp_filesystem;
-};
-
-struct m0_conf_filesystem {
-	struct m0_conf_obj  cf_obj;
-	struct m0_conf_dir *cf_nodes;
-	struct m0_conf_dir *cf_pools;
-	struct m0_conf_dir *cf_racks;
-	struct m0_conf_dir *cf_fdmi_flt_grps;
-/* configuration data (for the application) */
-	struct m0_fid       cf_rootfid;
+	/** Any fid. Reserved for future use. */
+	struct m0_fid         rt_rootfid;
 	/** Meta-data pool. */
-	struct m0_fid       cf_mdpool;
+	struct m0_fid         rt_mdpool;
 	/**
 	 * Distributed index meta-data pool version.
 	 *
 	 * If there are no CAS services defined in the configuration,
-	 * ->cf_imeta_pver is M0_FID0.
+	 * the value is M0_FID0.
 	 *
 	 * @see "Index meta-data" section in dix/client.h for more information.
 	 */
-	struct m0_fid       cf_imeta_pver;
-	/** Metadata redundancy count. */
-	uint32_t            cf_redundancy;
+	struct m0_fid         rt_imeta_pver;
+	/** Meta-data redundancy. */
+	uint32_t              rt_mdredundancy;
 	/**
-	 * Filesystem parameters.
+	 * Extra parameters.
 	 * NULL-terminated array of C strings.
 	 * XXX @todo Make it an array of name-value pairs (attributes).
 	 */
-	const char        **cf_params;
+	const char          **rt_params;
+	struct m0_protocol_id rt_protocol;
+};
+
+/**
+ * Profile represents a particular subset of pools.
+ *
+ * Profiles are only used by Mero clients.  Mero services ignore
+ * m0_conf_profile objects, accessing pools via m0_conf_root::rt_pools.
+ */
+struct m0_conf_profile {
+	struct m0_conf_obj cp_obj;
+/* configuration data (for the application) */
+	struct m0_fid_arr  cp_pools; /**< Pools in this profile. */
 };
 
 /**
@@ -384,13 +430,21 @@ struct m0_conf_filesystem {
  */
 struct m0_conf_pool {
 	struct m0_conf_obj  pl_obj;
-	/** Directory of actual and formulaic pool versions. */
+	/**
+	 * Directory of actual and formulaic pool versions.
+	 *
+	 * @note Virtual pool versions are not linked to the conf graph
+	 *       (though they are added to m0_conf_cache).
+	 */
 	struct m0_conf_dir *pl_pvers;
 /* configuration data (for the application) */
 	/**
 	 * Policy to be used for pool version selection.
 	 *
 	 * @see m0_pver_policy_code
+	 *
+	 * XXX @todo Replace with
+	 * m0_conf_root::rt_pool_selection_policy.
 	 */
 	uint32_t            pl_pver_policy;
 };
@@ -399,17 +453,14 @@ struct m0_conf_pool {
  * Levels of a m0_conf_pver_subtree.
  *
  * Currently 5 levels are supported:
- * [0] = pvers, [1] = racks, [2] = enclosures, [3] = controllers, [4] = disks.
+ * [0] = sites, [1] = racks, [2] = enclosures, [3] = controllers, [4] = drives.
  */
 enum {
-	M0_CONF_PVER_LVL_0, /* XXX DELETEME: This level is not strictly needed.
-			     * It was introduced in order to minimize changes
-			     * in existing pool/flset.c code. Once pool/flset.c
-			     * is refactored, this level should be removed. */
+	M0_CONF_PVER_LVL_SITES = 0,
 	M0_CONF_PVER_LVL_RACKS,
 	M0_CONF_PVER_LVL_ENCLS,
 	M0_CONF_PVER_LVL_CTRLS,
-	M0_CONF_PVER_LVL_DISKS,
+	M0_CONF_PVER_LVL_DRIVES,
 	M0_CONF_PVER_HEIGHT
 };
 
@@ -418,12 +469,13 @@ struct m0_conf_pver_subtree {
 	/**
 	 * Number of failed entities at the corresponding level,
 	 * a.k.a. recd vector ("recd" is acronym of "racks, enclosures,
-	 * controllers, disks").
+	 * controllers, drives"; `site` object did not exist when the
+	 * field was christened.).
 	 *
 	 * This attribute is not used for virtual pool versions.
 	 */
 	uint32_t               pvs_recd[M0_CONF_PVER_HEIGHT];
-	struct m0_conf_dir    *pvs_rackvs;
+	struct m0_conf_dir    *pvs_sitevs;
 /* configuration data (for the application) */
 	/** Layout attributes. */
 	struct m0_pdclust_attr pvs_attr;
@@ -450,6 +502,10 @@ struct m0_conf_pver_formulaic {
 	/**
 	 * Allowance vector --- the number of objects excluded from the
 	 * corresponding level of base pver subtree.
+	 *
+	 * Difference between allowance and tolerance: allowance is for
+	 * writing, i.e. we will create new pool versions until that
+	 * number of failures is reached. Tolerance is for reading.
 	 *
 	 * @pre  at least one of the numbers != 0
 	 */
@@ -497,7 +553,7 @@ struct m0_conf_objv {
 	 * Real entity, which this objv refers to.
 	 *
 	 * Depending on the level of objv in m0_conf_pver_subtree,
-	 * .cv_real may point at m0_conf_{rack,enclosure,controller,disk}.
+	 * .cv_real may point at m0_conf_{site,rack,enclosure,controller,drive}.
 	 */
 	struct m0_conf_obj *cv_real;
 };
@@ -505,11 +561,6 @@ struct m0_conf_objv {
 struct m0_conf_node {
 	struct m0_conf_obj   cn_obj;
 	struct m0_conf_dir  *cn_processes;
-	/* XXX DELETEME
-	 * @deprecated  m0_conf_node::cn_pool is a remnant of old
-	 *              configuration schema.
-	 */
-	struct m0_conf_pool *cn_pool;
 /* configuration data (for the application) */
 	/** Memory size in MB. */
 	uint32_t             cn_memsize;
@@ -539,18 +590,76 @@ struct m0_conf_process {
 	const char         *pc_endpoint;
 };
 
+/** Service configuration (within a process). */
 struct m0_conf_service {
 	struct m0_conf_obj        cs_obj;
 	struct m0_conf_dir       *cs_sdevs;
 /* configuration data (for the application) */
 	enum m0_conf_service_type cs_type;
 	/**
-	 * End-points from which this service is reachable.
-	 * NULL-terminated array of C strings.
+	 * Endpoints from which this service is reachable.
+	 * (Several network interfaces ==> several endpoints.)
 	 *
-	 * Several network interfaces ==> several entpoints.
+	 * NULL-terminated array of C strings.
 	 */
 	const char              **cs_endpoints;
+	/**
+	 * Service parameters.
+	 * NULL-terminated array of C strings.
+	 * XXX @todo Make it an array of name-value pairs (attributes).
+	 */
+	const char              **cs_params;
+};
+
+/** Storage device. */
+struct m0_conf_sdev {
+	struct m0_conf_obj   sd_obj;
+/* configuration data (for the application) */
+	/**
+	 * Fid of the corresponding drive object.
+	 *
+	 * @note This can be M0_FID0 if no drive object is defined
+	 *       for this sdev. This can happen, for example,
+	 *       when the drive is failed, taken away, but not
+	 *       replaced yet.
+	 *
+	 * @todo XXX DELETEME
+	 */
+	struct m0_fid        sd_drive;
+	/**
+	 * Device index.
+	 * The value should be unique and belong [0, P) range, where P
+	 * is a total number of devices under CAS/IOS services in the
+	 * filesystem.
+	 */
+	uint32_t             sd_dev_idx;
+	/** Interface type. See m0_cfg_storage_device_interface_type. */
+	uint32_t             sd_iface;
+	/** Media type. See m0_cfg_storage_device_media_type. */
+	uint32_t             sd_media;
+	/** Block size in bytes. */
+	uint32_t             sd_bsize;
+	/** Size in bytes. */
+	uint64_t             sd_size;
+	/** Last known state.  See m0_cfg_state_bit. */
+	uint64_t             sd_last_state;
+	/** Property flags.  See m0_cfg_flag_bit. */
+	uint64_t             sd_flags;
+	/** Filename in host OS. */
+	const char          *sd_filename;
+};
+
+/** Site (data center). */
+struct m0_conf_site {
+	struct m0_conf_obj    ct_obj;
+	/** The racks located at this site. */
+	struct m0_conf_dir   *ct_racks;
+/* configuration data (for the application) */
+	/**
+	 * Pool versions this site is part of.
+	 * NULL-terminated array.
+	 */
+	struct m0_conf_pver **ct_pvers;
 };
 
 /** Hardware resource --- rack. */
@@ -584,8 +693,8 @@ struct m0_conf_controller {
 	struct m0_conf_obj    cc_obj;
 	/** The node this controller is associated with. */
 	struct m0_conf_node  *cc_node;
-	/** Storage disks attached to this controller. */
-	struct m0_conf_dir   *cc_disks;
+	/** Storage drives attached to this controller. */
+	struct m0_conf_dir   *cc_drives;
 /* configuration data (for the application) */
 	/**
 	 * Pool versions this controller is part of.
@@ -594,45 +703,13 @@ struct m0_conf_controller {
 	struct m0_conf_pver **cc_pvers;
 };
 
-/** Hardware resource - storage device. */
-struct m0_conf_sdev {
-	struct m0_conf_obj sd_obj;
-/* configuration data (for the application) */
-	/**
-	 * Pointer to fid of corresponding disk object.
-	 * @note This can ne NULL if no disk object defined
-	 *       for this object.
-	 */
-	struct m0_fid     *sd_disk;
-	/**
-	 * Device index.
-	 * The value should be unique and belong [0, P) range, where P
-	 * is a total number of devices under CAS/IOS services in the
-	 * filesystem.
-	 */
-	uint32_t           sd_dev_idx;
-	/** Interface type. See m0_cfg_storage_device_interface_type. */
-	uint32_t           sd_iface;
-	/** Media type. See m0_cfg_storage_device_media_type. */
-	uint32_t           sd_media;
-	/** Block size in bytes. */
-	uint32_t           sd_bsize;
-	/** Size in bytes. */
-	uint64_t           sd_size;
-	/** Last known state.  See m0_cfg_state_bit. */
-	uint64_t           sd_last_state;
-	/** Property flags.  See m0_cfg_flag_bit. */
-	uint64_t           sd_flags;
-	/** Filename in host OS. */
-	const char        *sd_filename;
-};
-
-struct m0_conf_disk {
+struct m0_conf_drive {
 	struct m0_conf_obj    ck_obj;
-	/** Pointer to the storage device associated with this disk. */
-	struct m0_conf_sdev  *ck_dev;
+/* configuration data (for the application) */
+	/** Storage device associated with this drive. */
+	struct m0_conf_sdev  *ck_sdev;
 	/**
-	 * Pool versions this disk is part of.
+	 * Pool versions this drive is part of.
 	 * NULL-terminated array.
 	 */
 	struct m0_conf_pver **ck_pvers;
@@ -644,25 +721,25 @@ struct m0_conf_fdmi_flt_grp {
 	/* Type of the record that filters of this group support. */
 	uint32_t            ffg_rec_type;
 	/* Directory of filters for this filters group. */
-	struct m0_conf_dir *ffg_flts;
+	struct m0_conf_dir *ffg_filters;
 };
 
 struct m0_conf_fdmi_filter {
-	struct m0_conf_obj        ff_obj;
-	struct m0_fid             ff_filter_id;
-	struct m0_fdmi_filter     ff_filter;
+	struct m0_conf_obj     ff_obj;
+	struct m0_fid          ff_filter_id;
+	struct m0_fdmi_filter  ff_filter;
 	/** The node this filter is hosted at. */
-	struct m0_conf_node      *ff_node;
+	struct m0_conf_node   *ff_node;
 	/**
-	 * Endpoints which are interested in
-	 * FDMI records matched with this filter
+	 * Endpoints which are interested in FDMI records matched with
+	 * this filter.
 	 *
-	 * NULL terminated array of C strings.
-	 * @note Currently only one endpoint can be in this array
+	 * NULL-terminated array of C strings.
+	 * @note Currently only one endpoint can be in this array.
 	 */
-	const char              **ff_endpoints;
-	struct m0_tlink           ff_linkage;
-	uint64_t                  ff_magic;
+	const char           **ff_endpoints;
+	struct m0_tlink        ff_linkage;
+	uint64_t               ff_magic;
 };
 
 /* ------------------------------------------------------------------
@@ -686,7 +763,6 @@ struct m0_conf_fdmi_filter {
 #define m0_conf_dir_cast_field        cd_obj
 #define m0_conf_root_cast_field       rt_obj
 #define m0_conf_profile_cast_field    cp_obj
-#define m0_conf_filesystem_cast_field cf_obj
 #define m0_conf_pool_cast_field       pl_obj
 #define m0_conf_pver_cast_field       pv_obj
 #define m0_conf_objv_cast_field       cv_obj
@@ -694,62 +770,69 @@ struct m0_conf_fdmi_filter {
 #define m0_conf_process_cast_field    pc_obj
 #define m0_conf_service_cast_field    cs_obj
 #define m0_conf_sdev_cast_field       sd_obj
+#define m0_conf_site_cast_field       ct_obj
 #define m0_conf_rack_cast_field       cr_obj
 #define m0_conf_enclosure_cast_field  ce_obj
 #define m0_conf_controller_cast_field cc_obj
-#define m0_conf_disk_cast_field       ck_obj
+#define m0_conf_drive_cast_field      ck_obj
 #define m0_conf_fdmi_filter_cast_field  ff_obj
 #define m0_conf_fdmi_flt_grp_cast_field ffg_obj
 
-#define M0_CONF_OBJ_TYPES                 \
-	X_CONF(root,         ROOT)        \
-	X_CONF(dir,          DIR)         \
-	X_CONF(profile,      PROFILE)     \
-	X_CONF(filesystem,   FILESYSTEM)  \
-	X_CONF(pool,         POOL)        \
-	X_CONF(pver,         PVER)        \
-	X_CONF(objv,         OBJV)        \
-	X_CONF(node,         NODE)        \
-	X_CONF(process,      PROCESS)     \
-	X_CONF(service,      SERVICE)     \
-	X_CONF(sdev,         SDEV)        \
-	X_CONF(rack,         RACK)        \
-	X_CONF(enclosure,    ENCLOSURE)   \
-	X_CONF(controller,   CONTROLLER)  \
-	X_CONF(disk,         DISK)        \
-	X_CONF(fdmi_filter,  FDMI_FILTER) \
-	X_CONF(fdmi_flt_grp, FDMI_FLT_GRP)
+#define M0_CONF_OBJ_TYPES                       \
+	X_CONF(root,         ROOT,         't') \
+	X_CONF(dir,          DIR,          'D') \
+	X_CONF(profile,      PROFILE,      'p') \
+	X_CONF(pool,         POOL,         'o') \
+	X_CONF(pver,         PVER,         'v') \
+	X_CONF(objv,         OBJV,         'j') \
+	X_CONF(node,         NODE,         'n') \
+	X_CONF(process,      PROCESS,      'r') \
+	X_CONF(service,      SERVICE,      's') \
+	X_CONF(sdev,         SDEV,         'd') \
+	X_CONF(site,         SITE,         'S') \
+	X_CONF(rack,         RACK,         'a') \
+	X_CONF(enclosure,    ENCLOSURE,    'e') \
+	X_CONF(controller,   CONTROLLER,   'c') \
+	X_CONF(drive,        DRIVE,        'k') \
+	X_CONF(fdmi_flt_grp, FDMI_FLT_GRP, 'g') \
+	X_CONF(fdmi_filter,  FDMI_FILTER,  'l')
 
-#define X_CONF(name, NAME)                                      \
+#define X_CONF(name, NAME, _)                                   \
 extern const struct m0_bob_type m0_conf_ ## name ## _bob;       \
 extern const struct m0_conf_obj_type M0_CONF_ ## NAME ## _TYPE;
 
 M0_CONF_OBJ_TYPES
 #undef X_CONF
 
-/* Relation fids. */
-#define M0_CONF_REL_FIDS                    \
-	X_CONF(ANY,                     -1) \
-	X_CONF(ROOT_PROFILES,            1) \
-	X_CONF(PROFILE_FILESYSTEM,       2) \
-	X_CONF(FILESYSTEM_NODES,         3) \
-	X_CONF(FILESYSTEM_POOLS,         4) \
-	X_CONF(FILESYSTEM_RACKS,         5) \
-	X_CONF(FILESYSTEM_FDMI_FLT_GRPS, 6) \
-	X_CONF(POOL_PVERS,               7) \
-	X_CONF(PVER_RACKVS,              8) \
-	X_CONF(RACKV_ENCLVS,             9) \
-	X_CONF(ENCLV_CTRLVS,            10) \
-	X_CONF(CTRLV_DISKVS,            11) \
-	X_CONF(NODE_PROCESSES,          12) \
-	X_CONF(PROCESS_SERVICES,        13) \
-	X_CONF(SERVICE_SDEVS,           14) \
-	X_CONF(RACK_ENCLS,              15) \
-	X_CONF(ENCLOSURE_CTRLS,         16) \
-	X_CONF(CONTROLLER_DISKS,        17) \
-	X_CONF(DISK_SDEV,               18) \
-	X_CONF(FDMI_FILTER_NODE,        19) \
-	X_CONF(FDMI_FILTERS,            20)
+/*
+ * Relation fids. They represent parent-child relations between
+ * conf objects.
+ */
+#define M0_CONF_REL_FIDS               \
+	X_CONF(ANY,                -1) \
+				       \
+	X_CONF(ROOT_NODES,          1) \
+	X_CONF(ROOT_SITES,          2) \
+	X_CONF(ROOT_POOLS,          3) \
+	X_CONF(ROOT_PROFILES,       4) \
+	X_CONF(ROOT_FDMI_FLT_GRPS,  5) \
+	X_CONF(FDMI_FGRP_FILTERS,   6) \
+				       \
+	X_CONF(POOL_PVERS,          7) \
+	X_CONF(PVER_SITEVS,         8) \
+	X_CONF(SITEV_RACKVS,        9) \
+	X_CONF(RACKV_ENCLVS,       10) \
+	X_CONF(ENCLV_CTRLVS,       11) \
+	X_CONF(CTRLV_DRIVEVS,      12) \
+				       \
+	X_CONF(NODE_PROCESSES,     13) \
+	X_CONF(PROCESS_SERVICES,   14) \
+	X_CONF(SERVICE_SDEVS,      15) \
+				       \
+	X_CONF(SITE_RACKS,         16) \
+	X_CONF(RACK_ENCLS,         17) \
+	X_CONF(ENCLOSURE_CTRLS,    18) \
+	X_CONF(CONTROLLER_DRIVES,  19)
 
 #define X_CONF(name, _) \
 extern const struct m0_fid M0_CONF_ ## name ## _FID;

@@ -598,7 +598,6 @@ m0_get_core_params()
     fi
 
     echo " -D db -A linuxstob:addb-stobs" \
-         " -P <${MERO_PROFILE_FID:-$m0_prof_opt}>" \
          " -m ${msg_size:-$default_m0d_max_rpc_msg_size}" \
          " -q ${qlen:-$default_m0d_min_rpc_recvq_len}" \
          " $optional_params"
@@ -900,19 +899,19 @@ _build_service_objects()
                 ((cas_nr++)) || true
             fi
 
-            objs="$objs${objs:+,\n  }{0x73| (($name), $type_id, [1: "\"$ep\""], $disk_ids)}"
+            objs="$objs${objs:+,\n  }{0x73| (($name), $type_id, [1: "\"$ep\""], [0], $disk_ids)}"
 
             addb="$(m0_build_service_fid "addb2$idx" $node_idx)"
             type_id=$(_type_id "addb")
-            objs="$objs${objs:+,\n  }{0x73| (($addb), $type_id, [1: "\"$ep\""], [0])}"
+            objs="$objs${objs:+,\n  }{0x73| (($addb), $type_id, [1: "\"$ep\""], [0], [0])}"
 
             rms="$(m0_build_service_fid "rms$idx" $node_idx)"
             type_id=$(_type_id "rms")
-            objs="$objs${objs:+,\n  }{0x73| (($rms), $type_id, [1: "\"$ep\""], [0])}"
+            objs="$objs${objs:+,\n  }{0x73| (($rms), $type_id, [1: "\"$ep\""], [0], [0])}"
 
             fdmi="$(m0_build_service_fid "fdmi$idx" $node_idx)"
             type_id=$(_type_id "fdmi")
-            objs="$objs${objs:+,\n  }{0x73| (($fdmi), $type_id, [1: "\"$ep\""], [0])}"
+            objs="$objs${objs:+,\n  }{0x73| (($fdmi), $type_id, [1: "\"$ep\""], [0], [0])}"
 
             if [[ $s == ios* || $s == cas* ]] ; then
                 local repair
@@ -932,10 +931,10 @@ _build_service_objects()
                 rebalance="$(m0_build_service_fid ${s/$svc_name/${prefix}-rebalance} $node_idx)"
 
                 type_id=$(_type_id "${prefix}-repair")
-                objs="$objs${objs:+,\n  }{0x73| (($repair), $type_id, [1: "\"$ep\""], [0])}"
+                objs="$objs${objs:+,\n  }{0x73| (($repair), $type_id, [1: "\"$ep\""], [0], [0])}"
 
                 type_id=$(_type_id "${prefix}-rebalance")
-                objs="$objs${objs:+,\n  }{0x73| (($rebalance), $type_id, [1: "\"$ep\""], [0])}"
+                objs="$objs${objs:+,\n  }{0x73| (($rebalance), $type_id, [1: "\"$ep\""], [0], [0])}"
             fi
             ((idx++)) || true
         done
@@ -972,11 +971,11 @@ m0_build_local_conf()
 
     local  root='^t|1:0'
     local  prof='^p|1:0'
-    local    fs='^f|1:1'
     local  node='^n|1:2'
     local  proc='^r|1:3'
 
     local diskid='^k|1:1'
+    local siteid='^S|1:6'
     local rackid='^a|1:6'
     local enclid='^e|1:7'
     local ctrlid='^c|1:8'
@@ -988,35 +987,42 @@ m0_build_local_conf()
     local imetapverid
     m0_cas_enabled && imetapverid='^v|1:20' || imetapverid="(0, 0)"
 
-    local rackvid="^j|1:$(($pool_width + 1))"
-    local enclvid="^j|1:$(($pool_width + 2))"
-    local ctrlvid="^j|1:$(($pool_width + 3))"
-    local mdrackvid="^j|2:$(($pool_width + 1))"
-    local mdenclvid="^j|2:$(($pool_width + 2))"
-    local mdctrlvid="^j|2:$(($pool_width + 3))"
-    local mddiskvid="^j|2:$(($pool_width + 4))"
-    local imetarackvid="^j|20:$(($ipool_width + 1))"
-    local imetaenclvid="^j|20:$(($ipool_width + 2))"
-    local imetactrlvid="^j|20:$(($ipool_width + 3))"
+    local sitevid="^j|1:$(($pool_width + 1))"
+    local rackvid="^j|1:$(($pool_width + 2))"
+    local enclvid="^j|1:$(($pool_width + 3))"
+    local ctrlvid="^j|1:$(($pool_width + 4))"
+    local mdsitevid="^j|2:$(($pool_width + 1))"
+    local mdrackvid="^j|2:$(($pool_width + 2))"
+    local mdenclvid="^j|2:$(($pool_width + 3))"
+    local mdctrlvid="^j|2:$(($pool_width + 4))"
+    local mddiskvid="^j|2:$(($pool_width + 5))"
+    local imetasitevid="^j|20:$(($ipool_width + 1))"
+    local imetarackvid="^j|20:$(($ipool_width + 2))"
+    local imetaenclvid="^j|20:$(($ipool_width + 3))"
+    local imetactrlvid="^j|20:$(($ipool_width + 4))"
 
+    local site="{0x53| (($siteid), [1: $rackid], [1: $pverid])}"
     local rack="{0x61| (($rackid), [1: $enclid], [1: $pverid])}"
     local encl="{0x65| (($enclid), [1: $ctrlid], [1: $pverid])}"
     local ctrl_pver_fids_str
     m0_cas_enabled && ctrl_pver_fids_str="[2: $pverid, $imetapverid]" || ctrl_pver_fids_str="[1: $pverid]"
     local ctrl="{0x63| (($ctrlid), $node, $(_build_disk_fids_str 1 20 $pool_width $ipool_width), $ctrl_pver_fids_str)}"
     local pool="{0x6f| (($poolid), 0, [1: $pverid])}"
-    local pver="{0x76| (($pverid), {0| ($data_units, $parity_units, $pool_width, [5: 0, 0, 0, 0, $parity_units], [1: $rackvid])})}"
+    local pver="{0x76| (($pverid), {0| ($data_units, $parity_units, $pool_width, [5: 0, 0, 0, 0, $parity_units], [1: $sitevid])})}"
+    local sitev="{0x6a| (($sitevid), $siteid, [1: $rackvid])}"
     local rackv="{0x6a| (($rackvid), $rackid, [1: $enclvid])}"
     local enclv="{0x6a| (($enclvid), $enclid, [1: $ctrlvid])}"
     local ctrlv="{0x6a| (($ctrlvid), $ctrlid, $(_build_diskv_fids_str $pool_width 1))}"
     local mdpool="{0x6f| (($mdpoolid), 0, [1: $mdpverid])}"
-    local mdpver="{0x76| (($mdpverid), {0| (1, 0, 1, [5: 0, 0, 0, 0, 1], [1: $mdrackvid])})}"
+    local mdpver="{0x76| (($mdpverid), {0| (1, 0, 1, [5: 0, 0, 0, 0, 1], [1: $mdsitevid])})}"
+    local mdsitev="{0x6a| (($mdsitevid), $siteid, [1: $mdrackvid])}"
     local mdrackv="{0x6a| (($mdrackvid), $rackid, [1: $mdenclvid])}"
     local mdenclv="{0x6a| (($mdenclvid), $enclid, [1: $mdctrlvid])}"
     local mdctrlv="{0x6a| (($mdctrlvid), $ctrlid, [1: $mddiskvid])}"
     local mddiskv="{0x6a| (($mddiskvid), $diskid, [0])}"
     local imetapool="{0x6f| (($imetapoolid), 0, [1: $imetapverid])}"
-    local imetapver="{0x76| (($imetapverid), {0| (1, $iparity_units, $ipool_width, [5: 1, 0, 0, 0, 1], [1: $imetarackvid])})}"
+    local imetapver="{0x76| (($imetapverid), {0| (1, $iparity_units, $ipool_width, [5: 0, 0, 0, 0, 1], [1: $imetasitevid])})}"
+    local imetasitev="{0x6a| (($imetasitevid), $siteid, [1: $imetarackvid])}"
     local imetarackv="{0x6a| (($imetarackvid), $rackid, [1: $imetaenclvid])}"
     local imetaenclv="{0x6a| (($imetaenclvid), $enclid, [1: $imetactrlvid])}"
     local imetactrlv="{0x6a| (($imetactrlvid), $ctrlid, $(_build_diskv_fids_str $ipool_width 20))}"
@@ -1028,32 +1034,33 @@ m0_build_local_conf()
     local service_objs=$(_build_service_objects)
     local services=$(echo "$service_objs" | wc -l)
     local cas_objs_nr
-    m0_cas_enabled && cas_objs_nr=$(( $ipool_width * 3 + 5)) || cas_objs_nr=0
+    m0_cas_enabled && cas_objs_nr=$(($ipool_width * 3 + 6)) || cas_objs_nr=0
     local local_conf=$(cat <<CONF_END
-[$(( $procs + $services + $pool_width * 3 + 12 + 6 + $cas_objs_nr)):
-  {0x74| (($root), 1, [1: $prof])},
-  {0x70| (($prof), $fs)},
-  {0x66| (($fs), (11, 22), 1,
+[$(($procs + $services + $pool_width * 3 + 13 + 7 + $cas_objs_nr)):
+  {0x74| (($root), 1, (11, 22), $mdpoolid, $imetapverid, 1,
           [1: "$pool_width $data_units $parity_units"],
-          $mdpoolid,
-          $imetapverid,
           [1: $node],
+          [1: $siteid],
           $(_build_pool_ids_str $poolid $mdpoolid $imetapoolid),
-          [1: $rackid], [0])},
-  {0x6e| (($node), 16000, 2, 3, 2, $poolid, [$procs: $proc_names])},
+          [1: $prof], [0])},
+  {0x70| (($prof), $(_build_pool_ids_str $poolid $mdpoolid $imetapoolid))},
+  {0x6e| (($node), 16000, 2, 3, 2, [$procs: $proc_names])},
   $proc_objs,
   $service_objs,
   $(_build_ios_devs $pool_width $pverid),
+  $site,
   $rack,
   $encl,
   $ctrl,
   $pool,
   $pver,
+  $sitev,
   $rackv,
   $enclv,
   $ctrlv,
   $mdpool,
   $mdpver,
+  $mdsitev,
   $mdrackv,
   $mdenclv,
   $mdctrlv,
@@ -1066,6 +1073,7 @@ CONF_END
   $(_build_cas_devs $ipool_width $pool_width $imetapverid),
   $imetapool,
   $imetapver,
+  $imetasitev,
   $imetarackv,
   $imetaenclv,
   $imetactrlv

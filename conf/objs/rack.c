@@ -121,7 +121,7 @@ M0_CONF__CTOR_DEFINE(rack_create, m0_conf_rack, &rack_ops);
 
 const struct m0_conf_obj_type M0_CONF_RACK_TYPE = {
 	.cot_ftype = {
-		.ft_id   = 'a',
+		.ft_id   = M0_CONF__RACK_FT_ID,
 		.ft_name = "conf_rack"
 	},
 	.cot_create  = &rack_create,

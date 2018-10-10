@@ -23,7 +23,7 @@
 
 #include "conf/confc.h"
 #include "conf/obj_ops.h"         /* M0_CONF_DIREND */
-#include "conf/helpers.h"         /* m0_conf_root_open */
+#include "conf/helpers.h"         /* m0_confc_root_open */
 #include "conf/ut/confc.h"        /* m0_ut_conf_fids */
 #include "conf/ut/common.h"       /* m0_conf_ut_waiter */
 #include "conf/ut/rpc_helpers.h"  /* m0_ut_rpc_machine_start */
@@ -32,7 +32,7 @@
 #include "lib/errno.h"            /* ENOENT */
 #include "lib/fs.h"               /* m0_file_read */
 #include "lib/memory.h"           /* m0_free */
-#include "ut/misc.h"              /* M0_UT_PATH, M0_UT_CONF_PROFILE */
+#include "ut/misc.h"              /* M0_UT_PATH */
 #include "ut/ut.h"
 
 static uint8_t  g_num;
@@ -44,7 +44,7 @@ static void root_open_test(struct m0_confc *confc)
 	struct m0_conf_root *root_obj;
 	int                  rc;
 
-	rc = m0_conf_root_open(confc, &root_obj);
+	rc = m0_confc_root_open(confc, &root_obj);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(m0_fid_eq(&root_obj->rt_obj.co_id,
 	                       &m0_ut_conf_fids[M0_UT_CONF_ROOT]));
@@ -77,7 +77,6 @@ static void sync_open_test(struct m0_conf_obj *nodes_dir)
 	M0_UT_ASSERT(node->cn_nr_cpu     == 2);
 	M0_UT_ASSERT(node->cn_last_state == 3);
 	M0_UT_ASSERT(node->cn_flags      == 2);
-	M0_UT_ASSERT(node->cn_pool != NULL);
 
 	M0_UT_ASSERT(obj == &node->cn_obj);
 	m0_confc_close(obj);
@@ -97,10 +96,7 @@ static void sdev_disk_check(struct m0_confc *confc)
 
 	/* Verify disk fid from sdev object, if disk object defined. */
 	rc = m0_confc_open_sync(&sdev_obj, confc->cc_root,
-				M0_CONF_ROOT_PROFILES_FID,
-				m0_ut_conf_fids[M0_UT_CONF_PROF],
-				M0_CONF_PROFILE_FILESYSTEM_FID,
-				M0_CONF_FILESYSTEM_NODES_FID,
+				M0_CONF_ROOT_NODES_FID,
 				m0_ut_conf_fids[M0_UT_CONF_NODE],
 				M0_CONF_NODE_PROCESSES_FID,
 				m0_ut_conf_fids[M0_UT_CONF_PROCESS0],
@@ -113,32 +109,27 @@ static void sdev_disk_check(struct m0_confc *confc)
 	sdev = M0_CONF_CAST(sdev_obj, m0_conf_sdev);
 
 	rc = m0_confc_open_sync(&disk_obj, confc->cc_root,
-				M0_CONF_ROOT_PROFILES_FID,
-				m0_ut_conf_fids[M0_UT_CONF_PROF],
-				M0_CONF_PROFILE_FILESYSTEM_FID,
-				M0_CONF_FILESYSTEM_RACKS_FID,
+				M0_CONF_ROOT_SITES_FID,
+				m0_ut_conf_fids[M0_UT_CONF_SITE],
+				M0_CONF_SITE_RACKS_FID,
 				m0_ut_conf_fids[M0_UT_CONF_RACK],
 				M0_CONF_RACK_ENCLS_FID,
 				m0_ut_conf_fids[M0_UT_CONF_ENCLOSURE],
 				M0_CONF_ENCLOSURE_CTRLS_FID,
 				m0_ut_conf_fids[M0_UT_CONF_CONTROLLER],
-				M0_CONF_CONTROLLER_DISKS_FID,
+				M0_CONF_CONTROLLER_DRIVES_FID,
 				m0_ut_conf_fids[M0_UT_CONF_DISK]);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(disk_obj->co_status == M0_CS_READY);
 
-	M0_UT_ASSERT(sdev->sd_disk != NULL);
-	M0_UT_ASSERT(m0_fid_eq(sdev->sd_disk, &disk_obj->co_id));
+	M0_UT_ASSERT(m0_fid_eq(&sdev->sd_drive, &disk_obj->co_id));
 
 	m0_confc_close(sdev_obj);
 	m0_confc_close(disk_obj);
 
 	/* Verify disk fid from sdev object, if disk object not defined. */
 	rc = m0_confc_open_sync(&sdev_obj, confc->cc_root,
-				M0_CONF_ROOT_PROFILES_FID,
-				m0_ut_conf_fids[M0_UT_CONF_PROF],
-				M0_CONF_PROFILE_FILESYSTEM_FID,
-				M0_CONF_FILESYSTEM_NODES_FID,
+				M0_CONF_ROOT_NODES_FID,
 				m0_ut_conf_fids[M0_UT_CONF_NODE],
 				M0_CONF_NODE_PROCESSES_FID,
 				m0_ut_conf_fids[M0_UT_CONF_PROCESS0],
@@ -149,7 +140,7 @@ static void sdev_disk_check(struct m0_confc *confc)
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(sdev_obj->co_status == M0_CS_READY);
 	sdev = M0_CONF_CAST(sdev_obj, m0_conf_sdev);
-	M0_UT_ASSERT(sdev->sd_disk == NULL);
+	M0_UT_ASSERT(!m0_fid_is_set(&sdev->sd_drive));
 
 	m0_confc_close(sdev_obj);
 
@@ -162,11 +153,7 @@ static void nodes_open(struct m0_conf_obj **result,
 	int                      rc;
 
 	m0_conf_ut_waiter_init(&w, confc);
-	m0_confc_open(&w.w_ctx, NULL,
-			M0_CONF_ROOT_PROFILES_FID,
-			m0_ut_conf_fids[M0_UT_CONF_PROF],
-			M0_CONF_PROFILE_FILESYSTEM_FID,
-			M0_CONF_FILESYSTEM_NODES_FID);
+	m0_confc_open(&w.w_ctx, NULL, M0_CONF_ROOT_NODES_FID);
 	rc = m0_conf_ut_waiter_wait(&w, result);
 	M0_UT_ASSERT(rc == 0);
 	m0_conf_ut_waiter_fini(&w);
@@ -240,10 +227,7 @@ static void dir_test(struct m0_confc *confc)
 	int                 rc;
 
 	rc = m0_confc_open_sync(&procs_dir, confc->cc_root,
-				M0_CONF_ROOT_PROFILES_FID,
-				m0_ut_conf_fids[M0_UT_CONF_PROF],
-				M0_CONF_PROFILE_FILESYSTEM_FID,
-				M0_CONF_FILESYSTEM_NODES_FID,
+				M0_CONF_ROOT_NODES_FID,
 				m0_ut_conf_fids[M0_UT_CONF_NODE],
 				M0_CONF_NODE_PROCESSES_FID);
 	M0_UT_ASSERT(rc == 0);
@@ -274,10 +258,7 @@ static void dir_test(struct m0_confc *confc)
 static void _retrieval_initiate(struct m0_confc_ctx *ctx)
 {
 	m0_confc_open(ctx, NULL,
-		      M0_CONF_ROOT_PROFILES_FID,
-		      m0_ut_conf_fids[M0_UT_CONF_PROF],
-		      M0_CONF_PROFILE_FILESYSTEM_FID,
-		      M0_CONF_FILESYSTEM_NODES_FID,
+		      M0_CONF_ROOT_NODES_FID,
 		      m0_ut_conf_fids[M0_UT_CONF_NODE],
 		      M0_CONF_NODE_PROCESSES_FID,
 		      m0_ut_conf_fids[M0_UT_CONF_PROCESS0]);
@@ -454,7 +435,7 @@ static void test_confc_net(void)
 		"-S", NAME(".stob"), "-A", "linuxstob:"NAME("-addb_stob"),
 		"-w", "10", "-e", SERVER_ENDPOINT, "-H", SERVER_ENDPOINT_ADDR,
 		"-f", M0_UT_CONF_PROCESS,
-		"-c", M0_UT_PATH("conf.xc"), "-P", M0_UT_CONF_PROFILE
+		"-c", M0_UT_PATH("conf.xc")
 	};
 	struct m0_rpc_server_ctx confd = {
 		.rsx_xprts         = &m0_conf_ut_xprt,

@@ -175,6 +175,7 @@ static int pool_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src)
 	struct m0_conf_pool        *d = M0_CONF_CAST(dest, m0_conf_pool);
 	const struct m0_confx_pool *s = XCAST(src);
 
+	M0_ENTRY("dest="FID_F, FID_P(&dest->co_id));
 	d->pl_pver_policy = s->xp_pver_policy;
 	return M0_RC(m0_conf_dir_new(dest, &M0_CONF_POOL_PVERS_FID,
 				     &M0_CONF_PVER_TYPE, &s->xp_pvers,
@@ -245,7 +246,7 @@ M0_CONF__CTOR_DEFINE(pool_create, m0_conf_pool, &pool_ops);
 
 const struct m0_conf_obj_type M0_CONF_POOL_TYPE = {
 	.cot_ftype = {
-		.ft_id   = 'o',
+		.ft_id   = M0_CONF__POOL_FT_ID,
 		.ft_name = "conf_pool"
 	},
 	.cot_create  = &pool_create,

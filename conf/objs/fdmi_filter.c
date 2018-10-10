@@ -90,10 +90,10 @@ fdmi_filter_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src)
 static int
 fdmi_filter_encode(struct m0_confx_obj *dest, const struct m0_conf_obj *src)
 {
-	int                          rc;
 	struct m0_conf_fdmi_filter  *s = M0_CONF_CAST(src, m0_conf_fdmi_filter);
 	struct m0_confx_fdmi_filter *d = XCAST(dest);
 	char                        *str = NULL;
+	int                          rc;
 
 	M0_ENTRY();
 	confx_encode(dest, src);
@@ -125,21 +125,6 @@ static bool fdmi_filter_match(const struct m0_conf_obj *cached,
 		m0_fid_eq(&obj->ff_node->cn_obj.co_id, &xobj->xf_node);
 }
 
-static int fdmi_filter_lookup(const struct m0_conf_obj  *parent,
-			      const struct m0_fid *name,
-			      struct m0_conf_obj **out)
-{
-	M0_ENTRY();
-
-	M0_PRE(parent->co_status == M0_CS_READY);
-
-	if (!m0_fid_eq(name, &M0_CONF_FDMI_FILTER_NODE_FID))
-		return M0_ERR(-ENOENT);
-	*out = &M0_CONF_CAST(parent, m0_conf_fdmi_filter)->ff_node->cn_obj;
-	M0_POST(m0_conf_obj_invariant(*out));
-	return M0_RC(0);
-}
-
 static void fdmi_filter_delete(struct m0_conf_obj *obj)
 {
 	struct m0_conf_fdmi_filter *x = M0_CONF_CAST(obj, m0_conf_fdmi_filter);
@@ -150,22 +135,14 @@ static void fdmi_filter_delete(struct m0_conf_obj *obj)
 	m0_free(x);
 }
 
-static const struct m0_fid **
-fdmi_filter_downlinks(const struct m0_conf_obj *obj)
-{
-	static const struct m0_fid *rels[] = { NULL };
-	M0_PRE(m0_conf_obj_type(obj) == &M0_CONF_FDMI_FILTER_TYPE);
-	return rels;
-}
-
 static const struct m0_conf_obj_ops conf_fdmi_filter_ops = {
-	.coo_downlinks = fdmi_filter_downlinks,
 	.coo_invariant = fdmi_filter_invariant,
 	.coo_decode    = fdmi_filter_decode,
 	.coo_encode    = fdmi_filter_encode,
 	.coo_match     = fdmi_filter_match,
-	.coo_lookup    = fdmi_filter_lookup,
+	.coo_lookup    = conf_obj_lookup_denied,
 	.coo_readdir   = NULL,
+	.coo_downlinks = conf_obj_downlinks_none,
 	.coo_delete    = fdmi_filter_delete
 };
 
@@ -174,7 +151,7 @@ M0_CONF__CTOR_DEFINE(fdmi_filter_create, m0_conf_fdmi_filter,
 
 const struct m0_conf_obj_type M0_CONF_FDMI_FILTER_TYPE = {
 	.cot_ftype = {
-		.ft_id   = 'l',
+		.ft_id   = M0_CONF__FDMI_FILTER_FT_ID,
 		.ft_name = "conf_fdmi_filter"
 	},
 	.cot_create  = &fdmi_filter_create,

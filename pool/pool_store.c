@@ -22,14 +22,15 @@
 
 #include "lib/errno.h"
 #include "lib/memory.h"
-#include "lib/finject.h" /* M0_FI_ENABLED */
+#include "lib/finject.h"      /* M0_FI_ENABLED */
 #include "stob/stob.h"
 #include "pool/pool.h"
-#include "conf/confc.h" /* m0_confc_close */
-#include "lib/misc.h"   /* M0_SET0 */
+#include "conf/confc.h"       /* m0_confc_close */
+#include "conf/helpers.h"     /* m0_conf_drive_get */
+#include "lib/misc.h"         /* M0_SET0 */
 #include "lib/uuid.h"
 #include "be/seg0.h"
-#include "be/op.h"      /* M0_BE_OP_SYNC */
+#include "be/op.h"            /* M0_BE_OP_SYNC */
 #include "module/instance.h"
 #include "pool/pm_internal.h" /* m0_poolmach__state_init */
 
@@ -380,7 +381,7 @@ M0_INTERNAL int m0_poolmach_credit_calc(struct m0_poolmach *pm,
 
 	struct m0_pool_spare_usage  *spare_array;
 	struct m0_pooldev           *dev_array;
-	struct m0_conf_disk         *disk;
+	struct m0_conf_drive        *disk;
 	struct m0_pool_version      *pool_ver;
 	struct m0_conf_pver        **conf_pver;
 	struct m0_poolmach          *pv_pm;
@@ -402,7 +403,7 @@ M0_INTERNAL int m0_poolmach_credit_calc(struct m0_poolmach *pm,
 		if (dev_id == POOL_PM_SPARE_SLOT_UNUSED)
 			continue;
 		dev_fid = &dev_array[dev_id].pd_id;
-		rc = m0_conf_disk_get(confc, dev_fid, &disk);
+		rc = m0_conf_drive_get(confc, dev_fid, &disk);
 		if (rc != 0)
 			return M0_RC(rc);
 		conf_pver = disk->ck_pvers;

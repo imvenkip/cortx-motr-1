@@ -80,7 +80,6 @@ struct m0_halon_interface_cfg {
 	bool             hic_disable_compat_check;
 	char            *hic_local_rpc_endpoint;
 	struct m0_fid    hic_process_fid;
-	struct m0_fid    hic_profile_fid;
 	struct m0_fid    hic_ha_service_fid;
 	struct m0_fid    hic_rm_service_fid;
 	void           (*hic_entrypoint_request_cb)
@@ -88,7 +87,6 @@ struct m0_halon_interface_cfg {
 		 const struct m0_uint128           *req_id,
 		 const char                        *remote_rpc_endpoint,
 		 const struct m0_fid               *process_fid,
-		 const struct m0_fid               *profile_fid,
 		 const char                        *git_rev_id,
 		 uint64_t                           pid,
 		 bool                               first_request);
@@ -256,15 +254,14 @@ halon_interface_entrypoint_request_cb(struct m0_ha                      *ha,
 	hii = bob_of(ha, struct m0_halon_interface_internal, hii_ha,
 	             &halon_interface_bob_type);
 	M0_ENTRY("hi=%p req=%p req_id="U128X_F" remote_rpc_endpoint=%s "
-	         "process_fid="FID_F" profile_fid="FID_F,
+	         "process_fid="FID_F,
 	         hii->hii_hi, req, U128_P(req_id), req->heq_rpc_endpoint,
-	         FID_P(&req->heq_process_fid), FID_P(&req->heq_profile_fid));
+	         FID_P(&req->heq_process_fid));
 	M0_LOG(M0_DEBUG, "git_rev_id=%s generation=%"PRIu64" pid=%"PRIu64,
 	       req->heq_git_rev_id, req->heq_generation, req->heq_pid);
 	hii->hii_cfg.hic_entrypoint_request_cb(hii->hii_hi, req_id,
 	                                       req->heq_rpc_endpoint,
 	                                       &req->heq_process_fid,
-	                                       &req->heq_profile_fid,
 	                                       req->heq_git_rev_id,
 	                                       req->heq_pid,
 	                                       req->heq_first_request);
@@ -534,7 +531,6 @@ static int halon_interface_level_enter(struct m0_module *module)
 			.hcf_addr        = hii->hii_cfg.hic_local_rpc_endpoint,
 			.hcf_reqh        = &hii->hii_reqh,
 			.hcf_process_fid = hii->hii_cfg.hic_process_fid,
-			.hcf_profile_fid = hii->hii_cfg.hic_profile_fid,
 		};
 		hii->hii_cfg.hic_dispatcher_cfg = (struct m0_ha_dispatcher_cfg){
 			.hdc_enable_note      = true,
@@ -772,7 +768,6 @@ static const struct m0_modlev halon_interface_levels[] = {
 int m0_halon_interface_start(struct m0_halon_interface *hi,
                              const char                *local_rpc_endpoint,
                              const struct m0_fid       *process_fid,
-                             const struct m0_fid       *profile_fid,
                              const struct m0_fid       *ha_service_fid,
                              const struct m0_fid       *rm_service_fid,
                              void                     (*entrypoint_request_cb)
@@ -780,7 +775,6 @@ int m0_halon_interface_start(struct m0_halon_interface *hi,
 				 const struct m0_uint128           *req_id,
 				 const char             *remote_rpc_endpoint,
 				 const struct m0_fid    *process_fid,
-				 const struct m0_fid    *profile_fid,
 				 const char             *git_rev_id,
 				 uint64_t                pid,
 				 bool                    first_request),
@@ -819,12 +813,10 @@ int m0_halon_interface_start(struct m0_halon_interface *hi,
 	M0_PRE(m0_halon_interface_internal_bob_check(hii));
 	M0_PRE(m0_get() == &hii->hii_instance);
 	M0_PRE(process_fid    != NULL);
-	M0_PRE(profile_fid    != NULL);
 	M0_PRE(rm_service_fid != NULL);
 
-	M0_ENTRY("hi=%p local_rpc_endpoint=%s process_fid="FID_F" "
-	         "profile_fid="FID_F, hi, local_rpc_endpoint,
-	         FID_P(process_fid), FID_P(profile_fid));
+	M0_ENTRY("hi=%p local_rpc_endpoint=%s process_fid="FID_F,
+	         hi, local_rpc_endpoint, FID_P(process_fid));
 	M0_LOG(M0_DEBUG, "hi=%p ha_service_fid="FID_F" rm_service_fid="FID_F,
 		 hi, FID_P(ha_service_fid), FID_P(rm_service_fid));
 
@@ -834,7 +826,6 @@ int m0_halon_interface_start(struct m0_halon_interface *hi,
 
 	hii->hii_cfg.hic_local_rpc_endpoint       =  ep;
 	hii->hii_cfg.hic_process_fid              = *process_fid;
-	hii->hii_cfg.hic_profile_fid              = *profile_fid;
 	hii->hii_cfg.hic_ha_service_fid           = *ha_service_fid;
 	hii->hii_cfg.hic_rm_service_fid           = *rm_service_fid;
 	hii->hii_cfg.hic_entrypoint_request_cb    =  entrypoint_request_cb;

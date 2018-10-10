@@ -29,7 +29,9 @@
 /**
  * @defgroup failure_domains Failure Domains
  * @{
+ *
  * @section DLD-failure-domains-intro Overview
+ *
  * A parity declustered layout divides a file into a collection of
  * parity groups. Each parity group has N number of data units, K number of
  * parity units, and S spare units, where S >= K. A parity declustered layout
@@ -43,7 +45,9 @@
  * enclosures, controllers, and disks. These resources form a
  * hierarchical structure that forms a tree. We call each of these resources a
  * failure-domain.
+ *
  * @section DLD-failure-domains-def Definitions
+ *
  * - Failure domain: Any h/w resource failure of which can cause a loss of a
  *   file data is called as a failure domain.
  * - Failure domain tree: A hierarchical topology in which failure domains are
@@ -55,7 +59,9 @@
  *   available pool of targets then we call such arrangement a base tile.
  * - Fault tolerant tile: A fault-tolerant permutation of base tile, that is
  *   applicable to all tiles across all files.
+ *
  * @section DLD-failure-domains-highlights Design Highlights
+ *
  * We aim to address two key issues:
  * - ensure that parity groups are declustered across the pool of resources
  *   such that user provided tolerance constraint is supported.
@@ -70,13 +76,18 @@
  * each level of failure domains tree. These permutations are applied when IO or
  * SNS-repair require to map a parity group and unit, to target and frame
  * (and vice versa).
+ *
  * Please refer <a href ="https://docs.google.com/a/seagate.com/document/d/1GCDZEbtG1K22ilnEPB5HGXUzHpvgJ4wgMw7d1m3Ux6s/edit#">HLD</a>
  * for details of the algorithm.
+ *
  * @section DLD-failure-domains-req Requirements
+ *
  * @b r.conf.pool.pool_version.fault_tolerant_permutation
  * Implementation must generate a fault tolerant permutation of base tile that
  * guarantees the required tolerance constraint for failure domains.
+ *
  * @section DLD-failure-domains-dep Dependencies
+ *
  * Pools in confc: Pools in confc are required in order to create a
  * fault-tolerant tile.
  */

@@ -25,7 +25,7 @@
 #include "conf/ut/common.h"   /* m0_conf_ut_xprt */
 #include "fis/fi_command.h"
 #include "rpc/rpclib.h"       /* m0_rpc_server_ctx, m0_rpc_client_ctx */
-#include "ut/misc.h"          /* M0_UT_CONF_PROCESS, M0_UT_CONF_PROFILE */
+#include "ut/misc.h"          /* M0_UT_CONF_PROCESS */
 #include "ut/ut.h"
 
 enum {
@@ -51,7 +51,7 @@ static void fis_ut_mero_start(struct m0_rpc_server_ctx *rctx)
 		"-S", NAME(".stob"), "-A", "linuxstob:"NAME("-addb.stob"),
 		"-w", "10", "-e", SERVER_ENDPOINT, "-H", SERVER_ENDPOINT_ADDR,
 		"-f", M0_UT_CONF_PROCESS,
-		"-c", M0_SRC_PATH("fis/ut/fis.xc"), "-P", M0_UT_CONF_PROFILE,
+		"-c", M0_SRC_PATH("fis/ut/fis.xc")
 	};
 	*rctx = (struct m0_rpc_server_ctx) {
 		.rsx_xprts         = &m0_conf_ut_xprt,

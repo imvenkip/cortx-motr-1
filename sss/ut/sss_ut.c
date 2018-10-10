@@ -65,7 +65,7 @@ static char *server_argv[] = {
 	"-S", SERVER_STOB_NAME, "-A", SERVER_ADDB_STOB_NAME,
 	"-e", SERVER_ENDPOINT, "-H", SERVER_ENDPOINT_ADDR, "-w", "10",
 	"-f", M0_UT_CONF_PROCESS,
-	"-c", M0_UT_PATH("conf.xc"), "-P", M0_UT_CONF_PROFILE
+	"-c", M0_UT_PATH("conf.xc")
 };
 
 static struct m0_rpc_server_ctx sctx = {

@@ -83,7 +83,6 @@ static char *cas_startup_cmd[] = { "m0d", "-T", "linux",
                                 "-H", "0@lo:12345:34:1",
 				"-w", "10", "-F",
 				"-f", M0_UT_CONF_PROCESS,
-				"-P", M0_UT_CONF_PROFILE,
 				"-c", M0_SRC_PATH("cas/ut/conf.xc")};
 
 static const char         *cdbnames[] = { "cas1" };

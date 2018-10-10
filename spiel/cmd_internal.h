@@ -28,17 +28,17 @@
  * @{
  */
 
-#define SPIEL_CONF_OBJ_FIND(confc, profile, fid, conf_obj, filter, ...) \
-	_spiel_conf_obj_find(confc, profile, fid, filter,               \
-			     M0_COUNT_PARAMS(__VA_ARGS__) + 1,          \
-			     (const struct m0_fid []){                  \
-			     __VA_ARGS__, M0_FID0 },                    \
+#define SPIEL_CONF_OBJ_FIND(confc, fid, conf_obj, filter, ...) \
+	_spiel_conf_obj_find(confc, fid, filter,               \
+			     M0_COUNT_PARAMS(__VA_ARGS__) + 1, \
+			     (const struct m0_fid []){         \
+			     __VA_ARGS__, M0_FID0 },           \
 			     conf_obj)
 
-#define SPIEL_CONF_DIR_ITERATE(confc, profile, ctx, iter_cb, fs_test_cb, ...) \
-	_spiel_conf_dir_iterate(confc, profile, ctx, iter_cb, fs_test_cb,     \
-				M0_COUNT_PARAMS(__VA_ARGS__) + 1,       \
-				(const struct m0_fid []){               \
+#define SPIEL_CONF_DIR_ITERATE(confc, ctx, iter_cb, ...)             \
+	_spiel_conf_dir_iterate(confc, ctx, iter_cb,                 \
+				M0_COUNT_PARAMS(__VA_ARGS__) + 1,    \
+				(const struct m0_fid []){            \
 				__VA_ARGS__, M0_FID0 })
 
 enum {
@@ -76,7 +76,6 @@ struct _fs_stats_ctx {
 	m0_bcount_t           fx_avail_disk;  /**< space available for user data */
 	m0_bcount_t           fx_total_disk;  /**< total space on disks */
 	struct m0_tl          fx_items;       /**< m0_fid_item list    */
-	struct m0_fid         fx_fid;         /**< filesystem fid      */
 	/** stats item type to be enlisted */
 	const struct m0_conf_obj_type *fx_type;
 	struct m0_mutex       fx_guard;       /** protects access to fields */

@@ -241,15 +241,18 @@ M0_TL_DESCR_DECLARE(pool_failed_devs, M0_EXTERN);
 M0_TL_DECLARE(pool_failed_devs, M0_EXTERN, struct m0_pooldev);
 
 M0_INTERNAL int m0_pools_common_init(struct m0_pools_common *pc,
-				     struct m0_rpc_machine *rmach,
-				     struct m0_conf_filesystem *fs);
+				      struct m0_rpc_machine *rmach);
+
+/* This internal API is only used by pool implementation and m0t1fs UT. */
+M0_INTERNAL int m0__pools_common_init(struct m0_pools_common *pc,
+				      struct m0_rpc_machine *rmach,
+				      struct m0_conf_root *root);
 
 M0_INTERNAL void m0_pools_common_fini(struct m0_pools_common *pc);
 
 M0_INTERNAL bool m0_pools_common_conf_ready_async_cb(struct m0_clink *clink);
 
-M0_INTERNAL int m0_pools_service_ctx_create(struct m0_pools_common *pc,
-					    struct m0_conf_filesystem *fs);
+M0_INTERNAL int m0_pools_service_ctx_create(struct m0_pools_common *pc);
 M0_INTERNAL void m0_pools_service_ctx_destroy(struct m0_pools_common *pc);
 
 M0_INTERNAL int m0_pool_init(struct m0_pool *pool, const struct m0_fid *id,
@@ -281,13 +284,18 @@ M0_INTERNAL int m0_pool_version_init(struct m0_pool_version *pv,
 /**
  * Gets pool version from in-memory list of pools (pc->pc_pools).
  *
+ * @param pool - if not NULL, get the version of it, otherwise,
+ *               select the pool as per internally defined policy.
+ *
  * @see m0_conf_pver_get(), m0_conf_pver_find()
  */
-M0_INTERNAL int m0_pool_version_get(struct m0_pools_common *pc,
+M0_INTERNAL int m0_pool_version_get(struct m0_pools_common  *pc,
+				    const struct m0_fid     *pool,
 				    struct m0_pool_version **pv);
 
 M0_INTERNAL struct m0_pool_version *
-m0_pool_version_lookup(struct m0_pools_common *pc, const struct m0_fid *id);
+m0_pool_version_lookup(const struct m0_pools_common *pc,
+		       const struct m0_fid          *id);
 
 M0_INTERNAL struct m0_pool_version *
 m0_pool_version_find(struct m0_pools_common *pc, const struct m0_fid *id);
@@ -306,16 +314,21 @@ M0_INTERNAL void m0_pool_versions_fini(struct m0_pool *pool);
 M0_INTERNAL int m0_pools_init(void);
 M0_INTERNAL void m0_pools_fini(void);
 
+/**
+ * Setups pools at @pc. If @profile is NULL - use all
+ * pools available in configuration. Otherwise, only
+ * those that belongs to the specified @profile.
+ * @note clients should specify @profile.
+ */
 M0_INTERNAL int m0_pools_setup(struct m0_pools_common *pc,
-			       struct m0_conf_filesystem *fs,
-			       struct m0_be_seg *be_seg,
-			       struct m0_sm_group *sm_grp,
-			       struct m0_dtm *dtm);
+			       const struct m0_fid    *profile,
+			       struct m0_be_seg       *be_seg,
+			       struct m0_sm_group     *sm_grp,
+			       struct m0_dtm          *dtm);
 
 M0_INTERNAL void m0_pools_destroy(struct m0_pools_common *pc);
 
 M0_INTERNAL int m0_pool_versions_setup(struct m0_pools_common *pc,
-				       struct m0_conf_filesystem *fs,
 				       struct m0_be_seg *be_seg,
 				       struct m0_sm_group *sm_grp,
 				       struct m0_dtm *dtm);

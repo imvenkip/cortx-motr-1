@@ -261,9 +261,6 @@ enum m0_magic_satchel {
 	/* m0_conf_profile::cp_obj.co_con_magic (closable seal) */
 	M0_CONF_PROFILE_MAGIC = 0x33c105ab1e5ea177,
 
-	/* m0_conf_filesystem::cf_obj.co_con_magic (food of Colaba) */
-	M0_CONF_FILESYSTEM_MAGIC = 0x33f00d0fc01aba77,
-
 	/* m0_conf_pool::cp_obj.co_con_magic (cocobolo coco) */
 	M0_CONF_POOL_MAGIC = 0x33c0c0b010c0c077,
 
@@ -291,6 +288,9 @@ enum m0_magic_satchel {
 	/* m0_conf_service::cs_obj.co_con_magic (biased locale) */
 	M0_CONF_SERVICE_MAGIC = 0x33b1a5ed10ca1e77,
 
+	/* m0_conf_site::ct_obj.co_con_magic (colossal deed) */
+	M0_CONF_SITE_MAGIC = 0x33c01055a1deed77,
+
 	/* m0_conf_rack::cr_obj.co_con_magic (cocozelle cod) */
 	M0_CONF_RACK_MAGIC = 0x33c0c02e11ec0d77,
 
@@ -303,8 +303,8 @@ enum m0_magic_satchel {
 	/* m0_conf_sdev::sd_obj.co_con_magic (allseed salad) */
 	M0_CONF_SDEV_MAGIC = 0x33a115eed5a1ad77,
 
-	/* m0_conf_disk::ck_obj.co_con_magic (billfold bise) */
-	M0_CONF_DISK_MAGIC = 0x3b111f01db15e77,
+	/* m0_conf_drive::ck_obj.co_con_magic (billfold bise) */
+	M0_CONF_DRIVE_MAGIC = 0x3b111f01db15e77,
 
 	/* m0_conf_partition::pa_obj.co_con_magic (bacca is aloof)
 	 * Let's hope we won't be sued by Symantec for this name. */

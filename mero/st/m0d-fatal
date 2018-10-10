@@ -32,7 +32,6 @@ PROC_FID_KEY=0
 PROC_FID_KEY2=1
 PROC_FID="<$PROC_FID_CNTR:$PROC_FID_KEY>"
 PROC_FID2="<$PROC_FID_CNTR:$PROC_FID_KEY2>"
-PROF_OPT="<0x7000000000000001:0>"
 MAIN_PID=
 SAMPLE_PID=
 START_WAIT=${START_WAIT:-10}
@@ -102,14 +101,14 @@ _fini() {
 
 stub_confdb() {
     cat <<EOF
-(root-0 verno=1 profiles=[profile-0])
-(profile-0 filesystem=filesystem-0)
-(filesystem-0 rootfid=(11, 22) redundancy=2
+(root-0 verno=1 rootfid=(11, 22) mdpool=pool-0 imeta_pver=(0, 0)
+    mdredundancy=2
     params=["pool_width=3", "nr_data_units=1", "nr_parity_units=1",
             "unit_size=4096"]
-    imeta_pver=(0, 0)
-    mdpool=pool-0 nodes=[node-0] pools=[pool-0] racks=[rack-0] fdmi_flt_grps=[])
-(node-0 memsize=16000 nr_cpu=2 last_state=3 flags=2 pool_id=pool-0
+    nodes=[node-0] sites=[site-2] pools=[pool-0]
+    profiles=[profile-0] fdmi_flt_grps=[])
+(profile-0 pools=[pool-0])
+(node-0 memsize=16000 nr_cpu=2 last_state=3 flags=2
     processes=[process-0, process-1])
 (process-0 cores=[3] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
     mem_limit_memlock=0 endpoint="$M0D1_ENDPOINT"
@@ -117,31 +116,34 @@ stub_confdb() {
 (process-1 cores=[3] mem_limit_as=0 mem_limit_rss=0 mem_limit_stack=0
     mem_limit_memlock=0 endpoint="$M0D2_ENDPOINT"
     services=[service-4, service-5, service-6])
-(service-0 type=@M0_CST_RMS endpoints=["$M0D1_ENDPOINT"] sdevs=[])
-(service-1 type=@M0_CST_HA endpoints=["$M0D1_ENDPOINT"] sdevs=[])
-(service-2 type=@M0_CST_CONFD endpoints=["$M0D1_ENDPOINT"] sdevs=[])
-(service-3 type=@M0_CST_FIS endpoints=["$M0D1_ENDPOINT"] sdevs=[])
-(service-4 type=@M0_CST_IOS endpoints=["$M0D2_ENDPOINT"] sdevs=[sdev-1, sdev-2, sdev-3,
-    sdev-4])
-(service-5 type=@M0_CST_MDS endpoints=["$M0D2_ENDPOINT"] sdevs=[sdev-0])
-(service-6 type=@M0_CST_RMS endpoints=["$M0D2_ENDPOINT"] sdevs=[])
+(service-0 type=@M0_CST_RMS endpoints=["$M0D1_ENDPOINT"] params=[] sdevs=[])
+(service-1 type=@M0_CST_HA endpoints=["$M0D1_ENDPOINT"] params=[] sdevs=[])
+(service-2 type=@M0_CST_CONFD endpoints=["$M0D1_ENDPOINT"] params=[] sdevs=[])
+(service-3 type=@M0_CST_FIS endpoints=["$M0D1_ENDPOINT"] params=[] sdevs=[])
+(service-4 type=@M0_CST_IOS endpoints=["$M0D2_ENDPOINT"] params=[]
+    sdevs=[sdev-1, sdev-2, sdev-3, sdev-4])
+(service-5 type=@M0_CST_MDS endpoints=["$M0D2_ENDPOINT"] params=[]
+    sdevs=[sdev-0])
+(service-6 type=@M0_CST_RMS endpoints=["$M0D2_ENDPOINT"] params=[] sdevs=[])
 (pool-0 pver_policy=0 pvers=[pver-0, pver_f-11])
-(pver-0 N=2 K=1 P=4 tolerance=[0, 0, 0, 0, 1] rackvs=[objv-0])
+(pver-0 N=2 K=1 P=4 tolerance=[0, 0, 0, 0, 1] sitevs=[objv-2:0])
 (pver_f-11 id=0 base=pver-0 allowance=[0, 0, 0, 0, 1])
+(objv-2:0 real=site-2 children=[objv-0])
 (objv-0 real=rack-0 children=[objv-1])
 (objv-1 real=enclosure-0 children=[objv-2])
 (objv-2 real=controller-0 children=[objv-3, objv-4, objv-5, objv-6])
-(objv-3 real=disk-0 children=[])
-(objv-4 real=disk-1 children=[])
-(objv-5 real=disk-2 children=[])
-(objv-6 real=disk-3 children=[])
+(objv-3 real=drive-0 children=[])
+(objv-4 real=drive-1 children=[])
+(objv-5 real=drive-2 children=[])
+(objv-6 real=drive-3 children=[])
+(site-2 racks=[rack-0] pvers=[pver-0])
 (rack-0 encls=[enclosure-0] pvers=[pver-0])
 (enclosure-0 ctrls=[controller-0] pvers=[pver-0])
-(controller-0 node=node-0 disks=[disk-0, disk-1, disk-2, disk-3] pvers=[pver-0])
-(disk-0 dev=sdev-1 pvers=[pver-0])
-(disk-1 dev=sdev-2 pvers=[pver-0])
-(disk-2 dev=sdev-3 pvers=[pver-0])
-(disk-3 dev=sdev-4 pvers=[pver-0])
+(controller-0 node=node-0 drives=[drive-0, drive-1, drive-2, drive-3] pvers=[pver-0])
+(drive-0 dev=sdev-1 pvers=[pver-0])
+(drive-1 dev=sdev-2 pvers=[pver-0])
+(drive-2 dev=sdev-3 pvers=[pver-0])
+(drive-3 dev=sdev-4 pvers=[pver-0])
 (sdev-0 dev_idx=0 iface=4 media=1 bsize=4096 size=596000000000 last_state=3
     flags=4 filename="/dev/sdev0")
 (sdev-1 dev_idx=0 iface=4 media=1 bsize=4096 size=596000000000 last_state=3
@@ -160,7 +162,7 @@ main_m0d_start() {
     local OPTS="-F -D $path/db -T AD -S $path/stobs
         -A linuxstob:$path/addb-stobs -e lnet:$M0D1_ENDPOINT
         -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN -c $CONF_FILE
-        -w 3 -P $PROF_OPT -f $PROC_FID -d $CONF_DISKS -j"
+        -w 3 -f $PROC_FID -d $CONF_DISKS -j"
 
     stub_confdb | $M0_SRC_DIR/utils/m0confgen >$CONF_FILE
 
@@ -187,7 +189,7 @@ sample_m0d_start() {
     local path=$SANDBOX_DIR/systest-$$
     local OPTS="-D $path/db -T AD -S $path/stobs
         -A linuxstob:$path/addb-stobs -e lnet:$M0D2_ENDPOINT
-        -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN -w 3 -P $PROF_OPT
+        -m $MAX_RPC_MSG_SIZE -q $TM_MIN_RECV_QUEUE_LEN -w 3
         -f $PROC_FID2 -d $CONF_DISKS -H $M0D1_ENDPOINT"
 
     cd $path

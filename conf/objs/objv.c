@@ -88,7 +88,8 @@ objv_match(const struct m0_conf_obj *cached, const struct m0_confx_obj *flat)
 }
 
 static int objv_lookup(const struct m0_conf_obj *parent,
-		       const struct m0_fid *name, struct m0_conf_obj **out)
+		       const struct m0_fid *name,
+		       struct m0_conf_obj **out)
 {
 	struct m0_conf_objv *objv = M0_CONF_CAST(parent, m0_conf_objv);
 	const struct conf_dir_relation dirs[] = {
@@ -101,23 +102,26 @@ static int objv_lookup(const struct m0_conf_obj *parent,
 
 static const struct m0_fid **objv_downlinks(const struct m0_conf_obj *obj)
 {
-	enum { RACK, ENCL, CTRL, DISK };
+	enum { SITE, RACK, ENCL, CTRL, DISK };
 	static const struct m0_fid *downlinks[][2] = {
+		[SITE] = { &M0_CONF_SITEV_RACKVS_FID, NULL },
 		[RACK] = { &M0_CONF_RACKV_ENCLVS_FID, NULL },
 		[ENCL] = { &M0_CONF_ENCLV_CTRLVS_FID, NULL },
-		[CTRL] = { &M0_CONF_CTRLV_DISKVS_FID, NULL },
+		[CTRL] = { &M0_CONF_CTRLV_DRIVEVS_FID, NULL },
 		[DISK] = { NULL, NULL } /* no downlinks */
 	};
 	const struct m0_conf_obj_type *real =
 		m0_conf_obj_type(M0_CONF_CAST(obj, m0_conf_objv)->cv_real);
 
+	if (real == &M0_CONF_SITE_TYPE)
+		return downlinks[SITE];
 	if (real == &M0_CONF_RACK_TYPE)
 		return downlinks[RACK];
 	if (real == &M0_CONF_ENCLOSURE_TYPE)
 		return downlinks[ENCL];
 	if (real == &M0_CONF_CONTROLLER_TYPE)
 		return downlinks[CTRL];
-	M0_ASSERT(real == &M0_CONF_DISK_TYPE);
+	M0_ASSERT(real == &M0_CONF_DRIVE_TYPE);
 	return downlinks[DISK];
 }
 
@@ -144,7 +148,7 @@ M0_CONF__CTOR_DEFINE(objv_create, m0_conf_objv, &objv_ops);
 
 const struct m0_conf_obj_type M0_CONF_OBJV_TYPE = {
 	.cot_ftype = {
-		.ft_id   = 'j',
+		.ft_id   = M0_CONF__OBJV_FT_ID,
 		.ft_name = "conf_objv"
 	},
 	.cot_create  = &objv_create,

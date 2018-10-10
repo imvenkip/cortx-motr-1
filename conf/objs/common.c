@@ -152,7 +152,10 @@ M0_INTERNAL void u32arr_free(struct arr_u32 *arr)
 	arr->au_count = 0;
 }
 
-/** @note This code resembles m0_bufs_to_strings(). */
+/*
+ * XXX REFACTORME
+ * This code resembles that of profile_decode() and m0_bufs_to_strings().
+ */
 M0_INTERNAL int conf_pvers_decode(struct m0_conf_pver     ***dest,
 				  const struct m0_fid_arr   *src,
 				  struct m0_conf_cache      *cache)
@@ -173,7 +176,7 @@ M0_INTERNAL int conf_pvers_decode(struct m0_conf_pver     ***dest,
 	for (i = 0; i < src->af_count; ++i) {
 		int rc = m0_conf_obj_find(cache, &src->af_elems[i], &obj);
 		if (rc != 0) {
-			m0_free(*dest);
+			m0_free0(dest);
 			return M0_ERR(rc);
 		}
 		(*dest)[i] = M0_CONF_CAST(obj, m0_conf_pver);
@@ -181,7 +184,10 @@ M0_INTERNAL int conf_pvers_decode(struct m0_conf_pver     ***dest,
 	return M0_RC(0);
 }
 
-/** @note This code resembles m0_bufs_from_strings(). */
+/*
+ * XXX REFACTORME
+ * This code resembles that of profile_encode() and m0_bufs_from_strings().
+ */
 M0_INTERNAL int
 conf_pvers_encode(struct m0_fid_arr *dest, const struct m0_conf_pver **src)
 {
@@ -204,6 +210,21 @@ conf_pvers_encode(struct m0_fid_arr *dest, const struct m0_conf_pver **src)
 	for (i = 0; i < dest->af_count; ++i)
 		dest->af_elems[i] = src[i]->pv_obj.co_id;
 	return M0_RC(0);
+}
+
+M0_INTERNAL int conf_obj_lookup_denied(const struct m0_conf_obj *parent,
+				       const struct m0_fid *name,
+				       struct m0_conf_obj **out)
+{
+	M0_IMPOSSIBLE("Leaf object");
+	return M0_ERR(-EPERM);
+}
+
+M0_INTERNAL const struct m0_fid **
+conf_obj_downlinks_none(const struct m0_conf_obj *obj)
+{
+	static const struct m0_fid *rels[] = { NULL };
+	return rels;
 }
 
 #undef M0_TRACE_SUBSYSTEM

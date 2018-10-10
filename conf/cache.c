@@ -218,9 +218,10 @@ static int conf_cache_encode(const struct m0_conf_cache *cache,
 	M0_SET0(dest);
 
 	if (!debug && !m0_tl_forall(m0_conf_cache, scan, &cache->ca_registry,
-				    m0_conf_obj_invariant(scan) &&
+				    m0_conf_obj_invariant((obj = scan)) &&
 				    scan->co_status == M0_CS_READY))
-		return M0_ERR(-EINVAL);
+		return M0_ERR_INFO(-EINVAL, FID_F" status=%u",
+				   FID_P(&obj->co_id), obj->co_status);
 
 	nr = m0_tl_reduce(m0_conf_cache, scan, &cache->ca_registry, 0,
 			  + (m0_conf_obj_type(scan) != &M0_CONF_DIR_TYPE));

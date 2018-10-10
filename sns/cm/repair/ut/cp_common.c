@@ -38,7 +38,6 @@ char      *sns_cm_ut_svc_ad[] = { "m0d", "-T", "AD",
 			          "-G", "lnet:0@lo:12345:34:1",
                                   "-e", "lnet:0@lo:12345:34:1",
                                   "-H", "0@lo:12345:34:1",
-			          "-P", M0_UT_CONF_PROFILE,
 			          "-c", M0_UT_PATH("conf.xc")};
 
 char      *sns_cm_ut_svc_linux[] = { "m0d", "-T", "LINUX",
@@ -49,7 +48,6 @@ char      *sns_cm_ut_svc_linux[] = { "m0d", "-T", "LINUX",
 				     "-G", "lnet:0@lo:12345:34:1",
 				     "-e", "lnet:0@lo:12345:34:1",
 				     "-H", "0@lo:12345:34:1",
-				     "-P", M0_UT_CONF_PROFILE,
 				     "-c", M0_UT_PATH("conf.xc")};
 
 struct m0_net_xprt *sr_xprts[] = {
