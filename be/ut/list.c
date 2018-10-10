@@ -39,14 +39,14 @@ enum {
 };
 
 struct test {
-	uint64_t        t_magic;
-	struct m0_tlink t_linkage;
-	int             t_payload;
+	uint64_t               t_magic;
+	struct m0_be_list_link t_linkage;
+	int                    t_payload;
 };
 
-M0_TL_DESCR_DEFINE(test, "test:m0-be-list", M0_INTERNAL, struct test,
+M0_BE_LIST_DESCR_DEFINE(test, "test:m0-be-list", static, struct test,
 		   t_linkage, t_magic, TEST_MAGIC, TEST_LINK_MAGIC);
-M0_TL_DEFINE(test, M0_INTERNAL, struct test);
+M0_BE_LIST_DEFINE(test, static, struct test);
 
 /* -------------------------------------------------------------------------
  * List construction test
@@ -81,18 +81,18 @@ M0_INTERNAL void m0_be_ut_list(void)
 		M0_BE_UT_ALLOC_PTR(&ut_be, &ut_seg, elem[i]);
 
 	M0_BE_UT_TRANSACT(&ut_be, tx, cred,
-		  m0_be_list_credit(list, M0_BLO_CREATE, 1, &cred),
-		  m0_be_list_create(list, tx, &test_tl));
+		  test_be_list_credit(M0_BLO_CREATE, 1, &cred),
+		  test_be_list_create(list, tx));
 
 	/* Perform some operations over the list. */
 
 	for (i = 0; i < ARRAY_SIZE(elem); ++i) {
 		M0_BE_UT_TRANSACT(&ut_be, tx, cred,
-		  m0_be_list_credit(list, M0_BLO_TLINK_CREATE, 1, &cred),
-		  m0_be_tlink_create(elem[i], tx, list));
+		  test_be_list_credit(M0_BLO_TLINK_CREATE, 1, &cred),
+		  test_be_tlink_create(elem[i], tx));
 	}
 	/* add */
-	m0_be_list_credit(list, M0_BLO_ADD, 1, &cred_add);
+	test_be_list_credit(M0_BLO_ADD, 1, &cred_add);
 	for (i = 0; i < ARRAY_SIZE(elem); ++i) {
 		M0_BE_UT_TRANSACT(&ut_be, tx, cred,
 				  cred = M0_BE_TX_CREDIT_PTR(elem[i]),
@@ -103,22 +103,22 @@ M0_INTERNAL void m0_be_ut_list(void)
 			if (i % 2 == 0) {
 				M0_BE_UT_TRANSACT(&ut_be, tx, cred,
 						  cred = cred_add,
-				 m0_be_list_add(list, tx, elem[i]));
+				 test_be_list_add(list, tx, elem[i]));
 			} else {
 				M0_BE_UT_TRANSACT(&ut_be, tx, cred,
 						  cred = cred_add,
-				 m0_be_list_add_tail(list, tx, elem[i]));
+				 test_be_list_add_tail(list, tx, elem[i]));
 			}
 		} else {
 			if (i % 2 == 0) {
 				M0_BE_UT_TRANSACT(&ut_be, tx, cred,
 						  cred = cred_add,
-				 m0_be_list_add_after(list, tx,
+				 test_be_list_add_after(list, tx,
 						      elem[i - 1], elem[i]));
 			} else {
 				M0_BE_UT_TRANSACT(&ut_be, tx, cred,
 						  cred = cred_add,
-				 m0_be_list_add_before(list, tx,
+				 test_be_list_add_before(list, tx,
 						       elem[i - 1], elem[i]));
 			}
 		}
@@ -130,8 +130,8 @@ M0_INTERNAL void m0_be_ut_list(void)
 			continue;
 
 		M0_BE_UT_TRANSACT(&ut_be, tx, cred,
-		  m0_be_list_credit(list, M0_BLO_DEL, 1, &cred),
-		  m0_be_list_del(list, tx, elem[i]));
+		  test_be_list_credit(M0_BLO_DEL, 1, &cred),
+		  test_be_list_del(list, tx, elem[i]));
 	}
 
 	/* Reload segment and check data. */
@@ -144,18 +144,18 @@ M0_INTERNAL void m0_be_ut_list(void)
 			continue;
 
 		M0_BE_UT_TRANSACT(&ut_be, tx, cred,
-		  m0_be_list_credit(list, M0_BLO_DEL, 1, &cred),
-		  m0_be_list_del(list, tx, elem[i]));
+		  test_be_list_credit(M0_BLO_DEL, 1, &cred),
+		  test_be_list_del(list, tx, elem[i]));
 	}
 
 	for (i = 0; i < ARRAY_SIZE(elem); ++i) {
 		M0_BE_UT_TRANSACT(&ut_be, tx, cred,
-		  m0_be_list_credit(list, M0_BLO_TLINK_DESTROY, 1, &cred),
-		  m0_be_tlink_destroy(elem[i], tx, list));
+		  test_be_list_credit(M0_BLO_TLINK_DESTROY, 1, &cred),
+		  test_be_tlink_destroy(elem[i], tx));
 	}
 	M0_BE_UT_TRANSACT(&ut_be, tx, cred,
-		  m0_be_list_credit(list, M0_BLO_DESTROY, 1, &cred),
-		  m0_be_list_destroy(list, tx));
+		  test_be_list_credit(M0_BLO_DESTROY, 1, &cred),
+		  test_be_list_destroy(list, tx));
 
 	for (i = 0; i < ARRAY_SIZE(elem); ++i)
 		M0_BE_UT_FREE_PTR(&ut_be, &ut_seg, elem[i]);
@@ -171,31 +171,16 @@ M0_INTERNAL void m0_be_ut_list(void)
  * List reloading test
  * ------------------------------------------------------------------------- */
 
-#define m0_be_list_for(descr, head, obj)                                \
-do {                                                                    \
-	void *__tl;                                                     \
-									\
-	for (obj = m0_be_list_head(head);                               \
-	     obj != NULL &&                                             \
-	     ((void)(__tl = m0_be_list_next(head, obj)), true);         \
-	     obj = __tl)
-
-#define m0_be_list_endfor ;(void)__tl; } while (0)
-
-#define m0_be_for(name, head, obj) m0_be_list_for(& name ## _tl, head, obj)
-
-#define m0_be_endfor m0_be_list_endfor
-
 static void check(struct m0_be_list *list, struct m0_be_seg *seg)
 {
 	struct test *test;
 	int          expected[] = { 5, 8, 6, 4, 1, 3 };
 	int          i = 0;
 
-	m0_be_for(test, list, test) {
+	m0_be_list_for(test, list, test) {
 		M0_UT_ASSERT(i < ARRAY_SIZE(expected));
 		M0_UT_ASSERT(expected[i++] == test->t_payload);
-	} m0_be_endfor;
+	} m0_be_list_endfor;
 }
 
 M0_UNUSED static void print(struct m0_be_list *list)
@@ -203,9 +188,9 @@ M0_UNUSED static void print(struct m0_be_list *list)
 	struct test *test;
 
 	M0_LOG(M0_DEBUG, "----------");
-	m0_be_for(test, list, test) {
+	m0_be_list_for(test, list, test) {
 		M0_LOG(M0_DEBUG, "-- %d", test->t_payload);
-	} m0_be_endfor;
+	} m0_be_list_endfor;
 }
 
 #undef M0_TRACE_SUBSYSTEM

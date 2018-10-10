@@ -37,17 +37,17 @@
 #include "reqh/reqh.h"
 #include "module/instance.h"
 
-M0_TL_DESCR_DEFINE(ard_list, "list of ar_domain_subsystem in ar_domain",
-		   static, struct m0_be_active_record_domain_subsystem,
-		   rds_link, rds_magic,
-		   M0_BE_ACT_REC_DOM_MAGIC, M0_BE_ACT_REC_DOM_MAGIC);
-M0_TL_DEFINE(ard_list, static, struct m0_be_active_record_domain_subsystem);
+M0_BE_LIST_DESCR_DEFINE(ard, "list of ar_domain_subsystem in ar_domain",
+			static, struct m0_be_active_record_domain_subsystem,
+			rds_link, rds_magic,
+			M0_BE_ACT_REC_DOM_MAGIC, M0_BE_ACT_REC_DOM_MAGIC);
+M0_BE_LIST_DEFINE(ard, static, struct m0_be_active_record_domain_subsystem);
 
-M0_TL_DESCR_DEFINE(rds_list, "list of active_record in ar_domain_subsystem",
-		   static, struct m0_be_active_record,
-		   ar_link, ar_magic,
-		   M0_BE_ACT_REC_DOM_SUB_MAGIC, M0_BE_ACT_REC_DOM_SUB_MAGIC);
-M0_TL_DEFINE(rds_list, static, struct m0_be_active_record);
+M0_BE_LIST_DESCR_DEFINE(rds, "list of active_record in ar_domain_subsystem",
+			static, struct m0_be_active_record,
+			ar_link, ar_magic,
+			M0_BE_ACT_REC_DOM_SUB_MAGIC, M0_BE_ACT_REC_DOM_SUB_MAGIC);
+M0_BE_LIST_DEFINE(rds, static, struct m0_be_active_record);
 
 
 /* ----------------------------------------------------------------------
@@ -100,16 +100,16 @@ m0_be_active_record_domain_init(struct m0_be_active_record_domain *dom,
 
 	dom->ard_seg = seg;
 
-	sub = m0_be_list_head(&dom->ard_list);
+	sub = ard_be_list_head(&dom->ard_list);
 	if (sub == NULL)
 		return;
 
 	for (;;) {
-		M0_ASSERT(m0_be_list_is_empty(&sub->rds_list));
+		M0_ASSERT(ard_be_list_is_empty(&sub->rds_list));
 		m0_mutex_init(&sub->rds_lock);
 		m0_chan_init(&sub->rds_chan, &sub->rds_lock);
 
-		sub = m0_be_list_next(&dom->ard_list, sub);
+		sub = ard_be_list_next(&dom->ard_list, sub);
 		if (sub == NULL)
 			break;
 	}
@@ -120,16 +120,16 @@ m0_be_active_record_domain_fini(struct m0_be_active_record_domain *dom)
 {
 	struct m0_be_active_record_domain_subsystem *sub;
 
-	sub = m0_be_list_head(&dom->ard_list);
+	sub = ard_be_list_head(&dom->ard_list);
 	if (sub == NULL)
 		return;
 
 	for (;;) {
-		M0_ASSERT(m0_be_list_is_empty(&sub->rds_list));
+		M0_ASSERT(rds_be_list_is_empty(&sub->rds_list));
 		m0_chan_fini_lock(&sub->rds_chan);
 		m0_mutex_fini(&sub->rds_lock);
 
-		sub = m0_be_list_next(&dom->ard_list, sub);
+		sub = ard_be_list_next(&dom->ard_list, sub);
 		if (sub == NULL)
 			break;
 	}
@@ -154,16 +154,16 @@ m0_be_active_record_domain__create(struct m0_be_active_record_domain **dom,
 	unsigned             i;
 
 	M0_BE_ALLOC_PTR_SYNC(*dom, seg, tx);
-	m0_be_list_create(&(*dom)->ard_list, tx, &ard_list_tl);
+	ard_be_list_create(&(*dom)->ard_list, tx);
 
 	for (i = 0; !m0_buf_eq(&path[i], &M0_BUF_INIT0); ++i) {
 		struct m0_be_active_record_domain_subsystem *sub;
 
 		M0_BE_ALLOC_PTR_SYNC(sub, seg, tx);
 		strncpy(sub->rds_name, path[i].b_addr, path[i].b_nob);
-		m0_be_list_create(&sub->rds_list, tx, &rds_list_tl);
-		ard_list_tlink_init(sub);
-		m0_be_list_add(&(*dom)->ard_list, tx, sub);
+		rds_be_list_create(&sub->rds_list, tx);
+		ard_be_tlink_create(sub, tx);
+		ard_be_list_add(&(*dom)->ard_list, tx, sub);
 
 		M0_BE_TX_CAPTURE_PTR(seg, tx, sub);
 	}
@@ -192,20 +192,20 @@ m0_be_active_record_domain_destroy(struct m0_be_active_record_domain *dom,
 	M0_ASSERT(rc == 0);
 
 	for (;;) {
-		sub = m0_be_list_tail(&dom->ard_list);
+		sub = ard_be_list_tail(&dom->ard_list);
 		if (sub == NULL)
 			break;
 
 		/* no unrecovered records should be in lists */
-		M0_ASSERT(m0_be_list_is_empty(&sub->rds_list));
+		M0_ASSERT(rds_be_list_is_empty(&sub->rds_list));
 
-		m0_be_list_del(&dom->ard_list, tx, sub);
-		m0_be_list_destroy(&sub->rds_list, tx);
-		ard_list_tlink_fini(sub);
+		ard_be_list_del(&dom->ard_list, tx, sub);
+		rds_be_list_destroy(&sub->rds_list, tx);
+		ard_be_tlink_destroy(sub, tx);
 		M0_BE_FREE_PTR_SYNC(sub, seg, tx);
 	}
 
-	m0_be_list_destroy(&dom->ard_list, tx);
+	ard_be_list_destroy(&dom->ard_list, tx);
 	M0_BE_FREE_PTR_SYNC(dom, seg, tx);
 
 	return M0_RC(0);
@@ -230,10 +230,9 @@ m0_be_active_record_domain_credit(struct m0_be_active_record_domain *dom,
 				       BE_ACTIVE_RECORD_ID, &data, accum);
 		M0_BE_ALLOC_CREDIT_PTR(dom, dom->ard_seg, accum);
 		M0_BE_ALLOC_CREDIT_ARR(&sub, subsys_nr, dom->ard_seg, accum);
-		m0_be_list_credit(&dom->ard_list, M0_BLO_CREATE, 1, accum);
-		m0_be_list_credit(&sub.rds_list, M0_BLO_CREATE, subsys_nr,
-				  accum);
-		m0_be_list_credit(&dom->ard_list, M0_BLO_ADD, subsys_nr, accum);
+		ard_be_list_credit(M0_BLO_CREATE, 1, accum);
+		rds_be_list_credit(M0_BLO_CREATE, subsys_nr, accum);
+		ard_be_list_credit(M0_BLO_ADD, subsys_nr, accum);
 		m0_be_tx_credit_mac(accum, &M0_BE_TX_CREDIT_TYPE(sub),
 				    subsys_nr);
 		m0_be_tx_credit_add(accum, &M0_BE_TX_CREDIT_TYPE(dom));
@@ -242,12 +241,11 @@ m0_be_active_record_domain_credit(struct m0_be_active_record_domain *dom,
 		m0_be_0type_del_credit(bedom, &m0_be_active_record0,
 				       BE_ACTIVE_RECORD_ID, accum);
 		M0_BE_FREE_CREDIT_PTR(dom, dom->ard_seg, accum);
-		m0_be_list_credit(&dom->ard_list, M0_BLO_DESTROY, 1, accum);
+		ard_be_list_credit(M0_BLO_DESTROY, 1, accum);
 
 		M0_BE_FREE_CREDIT_ARR(&sub, subsys_nr, dom->ard_seg, accum);
-		m0_be_list_credit(&sub.rds_list, M0_BLO_DESTROY, subsys_nr,
-				  accum);
-		m0_be_list_credit(&dom->ard_list, M0_BLO_DEL, subsys_nr, accum);
+		rds_be_list_credit(M0_BLO_DESTROY, subsys_nr, accum);
+		ard_be_list_credit(M0_BLO_DEL, subsys_nr, accum);
 		break;
 	}
 }
@@ -286,7 +284,7 @@ m0_be_active_record_create(struct m0_be_active_record	    **rec,
 		.ar_dom      = ar_dom,
 	};
 
-	rds_list_tlink_init(*rec);
+	rds_be_tlink_create(*rec, tx);
 	M0_BE_TX_CAPTURE_PTR(ar_dom->ard_seg, tx, *rec);
 
 	return M0_RC(0);
@@ -296,7 +294,7 @@ M0_INTERNAL int
 m0_be_active_record_destroy(struct m0_be_active_record *rec,
 			    struct m0_be_tx            *tx)
 {
-	rds_list_tlink_fini(rec);
+	rds_be_tlink_destroy(rec, tx);
 	M0_BE_FREE_PTR_SYNC(rec, rec->ar_dom->ard_seg, tx);
 
 	return M0_RC(0);
@@ -320,10 +318,10 @@ m0_be_active_record_credit(struct m0_be_active_record  *rec,
 		M0_BE_FREE_CREDIT_PTR(rec, rec->ar_dom->ard_seg, accum);
 		break;
 	case ARO_DEL:
-		m0_be_list_credit(&sub.rds_list, M0_BLO_DEL, 1, accum);
+		rds_be_list_credit(M0_BLO_DEL, 1, accum);
 		break;
 	case ARO_ADD:
-		m0_be_list_credit(&sub.rds_list, M0_BLO_ADD, 1, accum);
+		rds_be_list_credit(M0_BLO_ADD, 1, accum);
 		break;
 	}
 }
@@ -334,12 +332,12 @@ be_active_record__subsystem_lookup(struct m0_be_active_record_domain *dom,
 {
 	struct m0_be_active_record_domain_subsystem *sub;
 
-	sub = m0_be_list_head(&dom->ard_list);
+	sub = ard_be_list_head(&dom->ard_list);
 	if (sub == NULL || m0_streq(subsys, sub->rds_name))
 		return sub;
 
 	for (;;) {
-		sub = m0_be_list_next(&dom->ard_list, sub);
+		sub = ard_be_list_next(&dom->ard_list, sub);
 		if (sub == NULL || m0_streq(subsys, sub->rds_name))
 			break;
 	}
@@ -358,7 +356,7 @@ m0_be_active_record_add(const char		   *subsys,
 	if (sub == NULL)
 		return M0_RC(-ENOENT);
 
-	m0_be_list_add(&sub->rds_list, tx, rec);
+	rds_be_list_add(&sub->rds_list, tx, rec);
 
 	return M0_RC(0);
 }
@@ -374,7 +372,7 @@ m0_be_active_record_del(const char		   *subsys,
 	if (sub == NULL)
 		return M0_RC(-ENOENT);
 
-	m0_be_list_del(&sub->rds_list, tx, rec);
+	rds_be_list_del(&sub->rds_list, tx, rec);
 
 	return M0_RC(0);
 }

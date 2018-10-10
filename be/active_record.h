@@ -41,7 +41,7 @@ enum m0_be_active_record_type {
 };
 
 struct m0_be_active_record {
-	struct m0_tlink				ar_link;
+	struct m0_be_list_link			ar_link;
 	uint64_t				ar_tx_id;
 	enum m0_be_active_record_type		ar_rec_type;
 	struct m0_be_active_record_domain      *ar_dom;
@@ -55,15 +55,15 @@ struct m0_be_active_record {
 };
 
 struct m0_be_active_record_domain_subsystem {
-	char               rds_name[32];
-	struct m0_be_list  rds_list;
+	char                   rds_name[32];
+	struct m0_be_list      rds_list;
 	/* link into m0_be_active_record_domain::ard_list */
-	struct m0_tlink    rds_link;
-	uint64_t           rds_magic;
+	struct m0_be_list_link rds_link;
+	uint64_t               rds_magic;
 
 	/* volatile fields */
-	struct m0_mutex   rds_lock;
-	struct m0_chan    rds_chan;
+	struct m0_mutex        rds_lock;
+	struct m0_chan         rds_chan;
 };
 
 struct m0_be_active_record_domain {

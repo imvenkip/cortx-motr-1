@@ -212,10 +212,10 @@ enum {
 	BE_ALLOC_ZONE_SIZE_SHIFT = 3,
 };
 
-M0_TL_DESCR_DEFINE(chunks_all, "list of all chunks in m0_be_allocator",
-		   static, struct be_alloc_chunk, bac_linkage, bac_magic,
-		   M0_BE_ALLOC_ALL_LINK_MAGIC, M0_BE_ALLOC_ALL_MAGIC);
-M0_TL_DEFINE(chunks_all, static, struct be_alloc_chunk);
+M0_BE_LIST_DESCR_DEFINE(chunks_all, "list of all chunks in m0_be_allocator",
+			static, struct be_alloc_chunk, bac_linkage, bac_magic,
+			M0_BE_ALLOC_ALL_LINK_MAGIC, M0_BE_ALLOC_ALL_MAGIC);
+M0_BE_LIST_DEFINE(chunks_all, static, struct be_alloc_chunk);
 
 static const char *be_alloc_zone_name(enum m0_be_alloc_zone_type type)
 {
@@ -486,9 +486,8 @@ static bool be_alloc_chunk_invariant(struct m0_be_allocator *a,
 	h = a->ba_h[ztype];
 	M0_BE_REG_GET_PTR(h, a->ba_seg, tx);
 
-
-	cprev = chunks_all_tlist_prev(&h->bah_chunks.bl_list, c);
-	cnext = chunks_all_tlist_next(&h->bah_chunks.bl_list, c);
+	cprev = chunks_all_be_list_prev(&h->bah_chunks, c);
+	cnext = chunks_all_be_list_next(&h->bah_chunks, c);
 	M0_BE_REG_GET_PTR(cprev, a->ba_seg, tx);
 	M0_BE_REG_GET_PTR(cnext, a->ba_seg, tx);
 
@@ -528,7 +527,7 @@ static void be_alloc_chunk_init(struct m0_be_allocator *a,
 		.bac_zone   = ztype,
 		.bac_magic1 = M0_BE_ALLOC_MAGIC1,
 	};
-	m0_be_tlink_create(c, tx, &h->bah_chunks);
+	chunks_all_be_tlink_create(c, tx);
 	/*
 	 * Move this right before m0_be_tlink_create() to optimize capturing
 	 * size. Chunk capturing at the end of the function will help with
@@ -554,8 +553,8 @@ static void be_alloc_chunk_del_fini(struct m0_be_allocator *a,
 
 	m0_be_fl_del(&h->bah_fl, tx, c);
 
-	m0_be_list_del(&h->bah_chunks, tx, c);
-	m0_be_tlink_destroy(c, tx, &h->bah_chunks);
+	chunks_all_be_list_del(&h->bah_chunks, tx, c);
+	chunks_all_be_tlink_destroy(c, tx);
 	M0_BE_REG_PUT_PTR(c, a->ba_seg, tx);
 	M0_BE_REG_PUT_PTR(h, a->ba_seg, tx);
 }
@@ -578,7 +577,7 @@ be_alloc_chunk_prev(struct m0_be_allocator *a,
 	M0_BE_REG_GET_PTR(c, a->ba_seg, tx);
 	M0_PRE(c->bac_zone == ztype);
 
-	r = chunks_all_tlist_prev(&h->bah_chunks.bl_list, c);
+	r = chunks_all_be_list_prev(&h->bah_chunks, c);
 	M0_ASSERT(ergo(r != NULL, be_alloc_chunk_invariant(a, tx, r)));
 	M0_BE_REG_PUT_PTR(c, a->ba_seg, tx);
 	M0_BE_REG_PUT_PTR(h, a->ba_seg, tx);
@@ -598,7 +597,7 @@ be_alloc_chunk_next(struct m0_be_allocator *a,
 	M0_BE_REG_GET_PTR(c, a->ba_seg, tx);
 	M0_PRE(c->bac_zone == ztype);
 
-	r = chunks_all_tlist_next(&h->bah_chunks.bl_list, c);
+	r = chunks_all_be_list_next(&h->bah_chunks, c);
 	if (r != NULL)
 		M0_BE_REG_GET_PTR(r, a->ba_seg, tx);
 	M0_ASSERT_EX(ergo(r != NULL, be_alloc_chunk_invariant(a, tx, r)));
@@ -678,9 +677,9 @@ be_alloc_chunk_add_after(struct m0_be_allocator *a,
 	be_alloc_chunk_init(a, ztype, tx, new, size_total - sizeof *new, free);
 
 	if (c != NULL)
-		m0_be_list_add_after(&h->bah_chunks, tx, c, new);
+		chunks_all_be_list_add_after(&h->bah_chunks, tx, c, new);
 	else
-		m0_be_list_add(&h->bah_chunks, tx, new);
+		chunks_all_be_list_add(&h->bah_chunks, tx, new);
 
 	if (free)
 		m0_be_fl_add(&h->bah_fl, tx, new);
@@ -906,8 +905,8 @@ M0_INTERNAL bool m0_be_allocator__invariant(struct m0_be_allocator *a,
 	return m0_mutex_is_locked(&a->ba_lock) &&
 	       (true || /* XXX Disabled as it's too slow. */
 		m0_forall(z, M0_BAP_NR,
-			  m0_tl_forall(chunks_all, iter,
-				       &a->ba_h[z]->bah_chunks.bl_list,
+			  m0_be_list_forall(chunks_all, iter,
+					   &a->ba_h[z]->bah_chunks,
 				       be_alloc_chunk_invariant(a, tx, iter))));
 }
 
@@ -931,7 +930,7 @@ static int be_allocator_header_create(struct m0_be_allocator     *a,
 	M0_BE_TX_CAPTURE_PTR(a->ba_seg, tx, &h->bah_addr);
 	M0_BE_TX_CAPTURE_PTR(a->ba_seg, tx, &h->bah_size);
 
-	m0_be_list_create(&h->bah_chunks, tx, &chunks_all_tl);
+	chunks_all_be_list_create(&h->bah_chunks, tx);
 	m0_be_fl_create(&h->bah_fl, tx, a->ba_seg);
 	be_allocator_stats_init(&h->bah_stats, tx, h, a);
 	be_allocator_stats_capture(a, ztype, tx);
@@ -958,13 +957,13 @@ static void be_allocator_header_destroy(struct m0_be_allocator     *a,
 	 * bah_chunks contains only 1 element. The list is empty for an unused
 	 * zone (bah_size == 0).
 	 */
-	c = chunks_all_tlist_head(&h->bah_chunks.bl_list);
+	c = chunks_all_be_list_head(&h->bah_chunks);
 	M0_ASSERT(equi(c == NULL, h->bah_size == 0));
 	if (c != NULL)
 		be_alloc_chunk_del_fini(a, ztype, tx, c);
 
 	m0_be_fl_destroy(&h->bah_fl, tx);
-	m0_be_list_destroy(&h->bah_chunks, tx);
+	chunks_all_be_list_destroy(&h->bah_chunks, tx);
 	M0_BE_REG_PUT_PTR(h, a->ba_seg, tx);
 }
 
@@ -1079,7 +1078,6 @@ M0_INTERNAL void m0_be_allocator_credit(struct m0_be_allocator *a,
 	struct m0_be_tx_credit         stats_credit;
 	struct m0_be_tx_credit         tmp;
 	struct be_alloc_chunk          chunk;
-	struct m0_be_list             *chunks = &h->bah_chunks;
 
 	chunk_credit    = M0_BE_TX_CREDIT_TYPE(struct be_alloc_chunk);
 	cred_free_flag  = M0_BE_TX_CREDIT_PTR(&chunk.bac_free);
@@ -1094,19 +1092,19 @@ M0_INTERNAL void m0_be_allocator_credit(struct m0_be_allocator *a,
 	shift = max_check(shift, (unsigned) M0_BE_ALLOC_SHIFT_MIN);
 	mem_zero_credit = M0_BE_TX_CREDIT(1, size);
 
-	m0_be_list_credit(NULL, M0_BLO_CREATE,	1, &cred_list_create);
-	m0_be_list_credit(NULL, M0_BLO_DESTROY, 1, &cred_list_destroy);
+	chunks_all_be_list_credit(M0_BLO_CREATE,  1, &cred_list_create);
+	chunks_all_be_list_credit(M0_BLO_DESTROY, 1, &cred_list_destroy);
 
 	tmp = M0_BE_TX_CREDIT(0, 0);
-	m0_be_list_credit(chunks, M0_BLO_TLINK_CREATE, 1, &tmp);
+	chunks_all_be_list_credit(M0_BLO_TLINK_CREATE, 1, &tmp);
 	m0_be_tx_credit_add(&tmp, &chunk_credit);
-	m0_be_list_credit(chunks, M0_BLO_ADD,          1, &tmp);
+	chunks_all_be_list_credit(M0_BLO_ADD,          1, &tmp);
 	m0_be_fl_credit(&h->bah_fl, M0_BFL_ADD, &tmp);
 	chunk_add_after_credit = tmp;
 
 	tmp = M0_BE_TX_CREDIT(0, 0);
-	m0_be_list_credit(chunks, M0_BLO_DEL,           1, &tmp);
-	m0_be_list_credit(chunks, M0_BLO_TLINK_DESTROY, 1, &tmp);
+	chunks_all_be_list_credit(M0_BLO_DEL,           1, &tmp);
+	chunks_all_be_list_credit(M0_BLO_TLINK_DESTROY, 1, &tmp);
 	m0_be_fl_credit(&h->bah_fl, M0_BFL_DEL, &tmp);
 	chunk_del_fini_credit = tmp;
 
