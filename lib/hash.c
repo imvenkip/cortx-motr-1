@@ -52,6 +52,7 @@ static void hbucket_init(const struct m0_ht_descr *d,
 	M0_PRE(d != NULL);
 
 	m0_tlist_init(d->hd_tldescr, &bucket->hb_objects);
+	m0_mutex_init(&bucket->hb_mutex);
 }
 
 static void hbucket_fini(const struct m0_ht_descr *d,
@@ -61,6 +62,7 @@ static void hbucket_fini(const struct m0_ht_descr *d,
 	M0_PRE(d != NULL);
 
 	m0_tlist_fini(d->hd_tldescr, &bucket->hb_objects);
+	m0_mutex_fini(&bucket->hb_mutex);
 }
 
 static void *obj_key(const struct m0_ht_descr *hd, void *obj)
@@ -120,6 +122,11 @@ M0_INTERNAL int m0_htable_init(const struct m0_ht_descr *d,
 	return 0;
 }
 
+M0_INTERNAL bool m0_htable_is_init(const struct m0_htable *htable)
+{
+	return htable_invariant(htable);
+}
+
 M0_INTERNAL void m0_htable_add(struct m0_htable *htable,
 			       void             *amb)
 {
@@ -168,6 +175,61 @@ M0_INTERNAL void *m0_htable_lookup(const struct m0_htable *htable,
 	} m0_tlist_endfor;
 
 	return scan;
+}
+
+M0_INTERNAL void m0_htable_cc_add(struct m0_htable *htable,
+		                  void             *amb)
+{
+	M0_PRE(amb != NULL);
+
+	m0_hbucket_lock(htable, obj_key(htable->h_descr, amb));
+	m0_htable_add(htable, amb);
+	m0_hbucket_unlock(htable, obj_key(htable->h_descr, amb));
+}
+
+M0_INTERNAL void m0_htable_cc_del(struct m0_htable *htable,
+		                  void             *amb)
+{
+	M0_PRE(amb != NULL);
+
+	m0_hbucket_lock(htable, obj_key(htable->h_descr, amb));
+	m0_htable_del(htable, amb);
+	m0_hbucket_unlock(htable, obj_key(htable->h_descr, amb));
+}
+
+M0_INTERNAL void *m0_htable_cc_lookup(struct m0_htable *htable,
+		                      const void  *key)
+{
+	void *obj;
+
+	M0_PRE(key != NULL);
+
+	m0_hbucket_lock(htable, key);
+	obj = m0_htable_lookup(htable, key);
+	m0_hbucket_unlock(htable, key);
+	return obj;
+}
+
+M0_INTERNAL void m0_hbucket_lock(struct m0_htable *htable,
+				 const void       *key)
+{
+	uint64_t bucket_id;
+
+	M0_PRE_EX(htable_invariant(htable));
+
+	bucket_id = htable->h_descr->hd_hash_func(htable, key);
+	m0_mutex_lock(&htable->h_buckets[bucket_id].hb_mutex);
+}
+
+M0_INTERNAL void m0_hbucket_unlock(struct m0_htable *htable,
+				   const void       *key)
+{
+	uint64_t bucket_id;
+
+	M0_PRE_EX(htable_invariant(htable));
+
+	bucket_id = htable->h_descr->hd_hash_func(htable, key);
+	m0_mutex_unlock(&htable->h_buckets[bucket_id].hb_mutex);
 }
 
 M0_INTERNAL void m0_htable_fini(struct m0_htable *htable)

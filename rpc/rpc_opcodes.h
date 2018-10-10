@@ -318,7 +318,9 @@ enum M0_RPC_OPCODES {
 	/* SNS sliding window update reply fop. */
 	M0_DIX_CM_REPAIR_SW_REP_FOP_OPCODE    = 322,
 	M0_DIX_CM_REBALANCE_SW_REP_FOP_OPCODE = 323,
-
+	/* In-storage-compute service. */
+	M0_ISCSERVICE_REQ_OPCODE              = 350,
+	M0_ISCSERVICE_REP_OPCODE              = 351,
 	/*
 	 * Identifiers below are for fop-less foms, not fops.
 	 */
@@ -347,6 +349,7 @@ enum M0_RPC_OPCODES {
 	M0_CM_DIX_REP_ITER_UT_OPCODE        = 1066,
 	M0_FDMI_PLUGIN_DOCK_OPCODE          = 1070,
 	M0_FDMI_SOURCE_DOCK_OPCODE          = 1071,
+	M0_ISCSERVICE_EXEC_OPCODE           = 1072,
 	M0_BE_PD_FOM_OPCODE                 = 1080,
 	M0_BE_UT_FOM_THREAD_OPCODE          = 1081,
 

@@ -223,6 +223,7 @@ include $(top_srcdir)/graph/Makefile.sub
 include $(top_srcdir)/ha/Makefile.sub
 include $(top_srcdir)/ha/halon/Makefile.sub
 include $(top_srcdir)/ioservice/Makefile.sub
+include $(top_srcdir)/iscservice/Makefile.sub
 include $(top_srcdir)/layout/Makefile.sub
 include $(top_srcdir)/lib/Makefile.sub
 include $(top_srcdir)/m0t1fs/Makefile.sub
@@ -354,6 +355,7 @@ include $(top_srcdir)/fop/ub/Makefile.sub
 include $(top_srcdir)/fop/ut/Makefile.sub
 include $(top_srcdir)/ha/ut/Makefile.sub
 include $(top_srcdir)/ioservice/ut/Makefile.sub
+include $(top_srcdir)/iscservice/ut/Makefile.sub
 include $(top_srcdir)/layout/ut/Makefile.sub
 include $(top_srcdir)/lib/ut/Makefile.sub
 include $(top_srcdir)/mdservice/ut/Makefile.sub
@@ -929,6 +931,8 @@ EXTRA_DIST += \
               ha/ut/Kbuild.sub \
               ioservice/Kbuild.sub \
               ioservice/ut/Kbuild.sub \
+              iscservice/Kbuild.sub \
+              iscservice/ut/Kbuild.sub \
               layout/Kbuild.sub \
               layout/ut/Kbuild.sub \
               lib/Kbuild.sub \

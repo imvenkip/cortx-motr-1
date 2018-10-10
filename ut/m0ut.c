@@ -113,6 +113,8 @@ extern struct m0_ut_suite frm_ut;
 extern struct m0_ut_suite ha_ut;
 extern struct m0_ut_suite ha_state_ut;
 extern struct m0_ut_suite ios_bufferpool_ut;
+extern struct m0_ut_suite isc_api_ut;
+extern struct m0_ut_suite isc_service_ut;
 extern struct m0_ut_suite item_ut;
 extern struct m0_ut_suite item_source_ut;
 extern struct m0_ut_suite layout_ut;
@@ -237,6 +239,8 @@ static void tests_add(struct m0_ut_module *m)
 	m0_ut_add(m, &ha_ut, true);
 	m0_ut_add(m, &ha_state_ut, true);
 	m0_ut_add(m, &ios_bufferpool_ut, true);
+	m0_ut_add(m, &isc_api_ut, true);
+	m0_ut_add(m, &isc_service_ut, true);
 	m0_ut_add(m, &item_ut, true);
 	m0_ut_add(m, &item_source_ut, true);
 	m0_ut_add(m, &layout_ut, true);

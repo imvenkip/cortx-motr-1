@@ -137,12 +137,12 @@ static void req_send(struct atut__req  *req,
 			m0_rpc_item_to_fop(g_reqfop->f_item.ri_reply));
 }
 
-static void bufdata_alloc(struct m0_buf *buf, size_t size)
+M0_INTERNAL void atut__bufdata_alloc(struct m0_buf *buf, size_t size,
+				     struct m0_rpc_machine *rmach)
 {
 	int rc;
 
-	M0_UT_ASSERT(at_cctx.acl_rpc_ctx.rcx_rpc_machine.rm_bulk_cutoff ==
-		     INBULK_THRESHOLD);
+	M0_UT_ASSERT(rmach->rm_bulk_cutoff == INBULK_THRESHOLD);
 	if (size < INBULK_THRESHOLD) {
 		rc = m0_buf_alloc(buf, size);
 		M0_UT_ASSERT(rc == 0);
@@ -281,6 +281,10 @@ static void load_check(uint32_t test_id, const struct m0_rpc_at_buf *ab,
 
 static void repbuf_fill(uint32_t test_id, struct m0_buf *buf)
 {
+	struct m0_rpc_machine *rmach;
+
+	rmach = &at_cctx.acl_rpc_ctx.rcx_rpc_machine;
+
 	switch (test_id) {
 	case AT_TEST_INLINE_SEND:
 	case AT_TEST_INBULK_SEND:
@@ -288,11 +292,11 @@ static void repbuf_fill(uint32_t test_id, struct m0_buf *buf)
 		break;
 	case AT_TEST_INLINE_RECV:
 	case AT_TEST_INLINE_RECV_UNK:
-		bufdata_alloc(buf, INLINE_LEN);
+		atut__bufdata_alloc(buf, INLINE_LEN, rmach);
 		break;
 	case AT_TEST_INBULK_RECV_UNK:
 	case AT_TEST_INBULK_RECV:
-		bufdata_alloc(buf, INBULK_LEN);
+		atut__bufdata_alloc(buf, INBULK_LEN, rmach);
 		break;
 	default:
 		M0_IMPOSSIBLE("Unknown test id");
@@ -581,11 +585,12 @@ static void init_fini(void)
 
 static void inline_send(void)
 {
-	struct atut__req     *req;
-	struct atut__rep     *rep;
-	struct m0_rpc_at_buf *ab;
-	struct m0_buf         data = M0_BUF_INIT0;
-	int                   rc;
+	struct atut__req      *req;
+	struct atut__rep      *rep;
+	struct m0_rpc_at_buf  *ab;
+	struct m0_buf          data  = M0_BUF_INIT0;
+	struct m0_rpc_machine *rmach;
+	int                    rc;
 
 	init();
 	M0_ALLOC_PTR(req);
@@ -593,7 +598,8 @@ static void inline_send(void)
 	req->arq_test_id = AT_TEST_INLINE_SEND;
 	ab = &req->arq_buf;
 	m0_rpc_at_init(ab);
-	bufdata_alloc(&data, INLINE_LEN);
+	rmach = &at_cctx.acl_rpc_ctx.rcx_rpc_machine;
+	atut__bufdata_alloc(&data, INLINE_LEN, rmach);
 	rc = m0_rpc_at_add(ab, &data, client_conn());
 	M0_UT_ASSERT(rc == 0);
 	req_send(req, &rep);
@@ -607,11 +613,12 @@ static void inline_send(void)
 
 static void inbulk_send(void)
 {
-	struct atut__req     *req;
-	struct atut__rep     *rep;
-	struct m0_rpc_at_buf *ab;
-	struct m0_buf         data = M0_BUF_INIT0;
-	int                   rc;
+	struct atut__req      *req;
+	struct atut__rep      *rep;
+	struct m0_rpc_at_buf  *ab;
+	struct m0_buf          data = M0_BUF_INIT0;
+	struct m0_rpc_machine *rmach;
+	int                    rc;
 
 	init();
 	M0_ALLOC_PTR(req);
@@ -619,7 +626,8 @@ static void inbulk_send(void)
 	req->arq_test_id = AT_TEST_INBULK_SEND;
 	ab = &req->arq_buf;
 	m0_rpc_at_init(ab);
-	bufdata_alloc(&data, INBULK_LEN);
+	rmach = &at_cctx.acl_rpc_ctx.rcx_rpc_machine;
+	atut__bufdata_alloc(&data, INBULK_LEN, rmach);
 	rc = m0_rpc_at_add(ab, &data, client_conn());
 	M0_UT_ASSERT(rc == 0);
 	req_send(req, &rep);

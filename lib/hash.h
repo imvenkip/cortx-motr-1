@@ -25,6 +25,7 @@
 
 #include "lib/types.h"
 #include "lib/tlist.h"
+#include "lib/mutex.h"
 
 /**
  * @defgroup hash Hash table.
@@ -152,11 +153,15 @@ struct m0_ht_descr;
  */
 struct m0_hbucket {
 	/**
+	 * A lock to guard concurrent access to the list of objects.
+	 */
+	struct m0_mutex hb_mutex;
+	/**
 	 * List of objects which lie in same hash bucket.
 	 * A single m0_tl_descr object would be used by all
 	 * m0_hbucket::hb_objects lists in a single m0_hash object.
 	 */
-	struct m0_tl hb_objects;
+	struct m0_tl    hb_objects;
 };
 
 /**
@@ -230,6 +235,9 @@ M0_INTERNAL int m0_htable_init(const struct m0_ht_descr *d,
 			       struct m0_htable         *htable,
 			       uint64_t                  bucket_nr);
 
+/* Checks if hash-table is initialised. */
+M0_INTERNAL bool m0_htable_is_init(const struct m0_htable *htable);
+
 /**
  * Finalizes a struct m0_htable.
  * @pre  htable != NULL &&
@@ -250,7 +258,11 @@ M0_INTERNAL void m0_htable_fini(struct m0_htable *htable);
  */
 M0_INTERNAL void m0_htable_add(struct m0_htable *htable,
 			       void             *amb);
-
+/**
+ * Concurrent version of m0_htable_add.
+ */
+M0_INTERNAL void m0_htable_cc_add(struct m0_htable *htable,
+				  void             *amb);
 /**
  * Removes an object from hash table.
  * The key must be set in object at specified location in order to
@@ -263,6 +275,12 @@ M0_INTERNAL void m0_htable_del(struct m0_htable *htable,
 			       void             *amb);
 
 /**
+ * Concurrent version of m0_htable_del.
+ */
+M0_INTERNAL void m0_htable_cc_del(struct m0_htable *htable,
+			          void             *amb);
+
+/**
  * Looks up if given object is present in hash table based on input key.
  * Returns ambient object on successful lookup, returns NULL otherwise.
  * @pre d != NULL &&
@@ -273,11 +291,25 @@ M0_INTERNAL void m0_htable_del(struct m0_htable *htable,
 M0_INTERNAL void *m0_htable_lookup(const struct m0_htable *htable,
 				   const void             *key);
 
+/**
+ * Concurrent version of m0_htable_lookup.
+ */
+M0_INTERNAL void *m0_htable_cc_lookup(struct m0_htable *htable,
+				      const void       *key);
+
 /** Returns if m0_htable contains any objects. */
 M0_INTERNAL bool m0_htable_is_empty(const struct m0_htable *htable);
 
 /** Returns number of objects stored within m0_htable. */
 M0_INTERNAL uint64_t m0_htable_size(const struct m0_htable *htable);
+
+/** Locks the bucket to which the ambient belongs. */
+M0_INTERNAL void m0_hbucket_lock(struct m0_htable *htable,
+				 const void       *key);
+
+/** Unlocks the bucket to which the ambient belongs. */
+M0_INTERNAL void m0_hbucket_unlock(struct m0_htable *htable,
+				   const void       *key);
 
 /** Defines a hashtable descriptor. */
 #define M0_HT_DESCR(name, amb_type, key_field, hash_func, key_eq)	\
@@ -314,64 +346,102 @@ scope const struct m0_ht_descr name ## _ht
  * Declares all functions of hash table which accepts ambient type
  * and key type as input.
  */
-#define M0_HT_DECLARE(name, scope, amb_type, key_type)			\
-									\
-scope int name ## _htable_init(struct m0_htable *htable,		\
-			       uint64_t          bucket_nr);		\
-scope void name ## _htable_add(struct m0_htable *htable, amb_type *amb);\
-scope void name ## _htable_del(struct m0_htable *htable, amb_type *amb);\
-scope amb_type *name ## _htable_lookup(const struct m0_htable *htable,	\
-				       const key_type         *key);	\
-scope void name ## _htable_fini(struct m0_htable *htable);		\
-scope bool name ## _htable_is_empty(const struct m0_htable *htable);	\
+#define M0_HT_DECLARE(name, scope, amb_type, key_type)			     \
+									     \
+M0_TL_DECLARE(name, scope, amb_type);                                        \
+									     \
+scope int name ## _htable_init(struct m0_htable *htable,		     \
+			       uint64_t          bucket_nr);		     \
+scope void name ## _htable_add(struct m0_htable *htable, amb_type *amb);     \
+scope void name ## _htable_del(struct m0_htable *htable, amb_type *amb);     \
+scope amb_type *name ## _htable_lookup(const struct m0_htable *htable,	     \
+				       const key_type         *key);	     \
+scope void name ## _htable_cc_add(struct m0_htable *htable, amb_type *amb);  \
+scope void name ## _htable_cc_del(struct m0_htable *htable, amb_type *amb);  \
+scope amb_type *name ## _htable_cc_lookup(struct m0_htable *htable,          \
+				          const key_type         *key);      \
+scope void name ## _hbucket_lock(struct m0_htable *htable, amb_type *amb);   \
+scope void name ## _hbucket_unlock(struct m0_htable *htable, amb_type *amb); \
+scope void name ## _htable_fini(struct m0_htable *htable);		     \
+scope bool name ## _htable_is_empty(const struct m0_htable *htable);	     \
 scope uint64_t name ## _htable_size(const struct m0_htable *htable);
 
 /**
  * Defines all functions of hash table which accepts ambient type
  * and key type as input.
  */
-#define M0_HT_DEFINE(name, scope, amb_type, key_type)			\
-									\
-M0_TL_DEFINE(name, scope, amb_type);					\
-									\
-scope __AUN int name ## _htable_init(struct m0_htable *htable,		\
-				     uint64_t          bucket_nr)	\
-{									\
-	return m0_htable_init(&name ## _ht, htable, bucket_nr);		\
-}									\
-									\
-scope __AUN void name ## _htable_add(struct m0_htable *htable,		\
-				     amb_type         *amb)		\
-{									\
-	m0_htable_add(htable, amb);					\
-}									\
-									\
-scope __AUN void name ## _htable_del(struct m0_htable *htable,		\
-			             amb_type         *amb)		\
-{									\
-	m0_htable_del(htable, amb);					\
-}									\
-									\
-scope __AUN amb_type *name ## _htable_lookup(const struct m0_htable *htable,\
-					     const key_type         *key)\
-{									\
-	return m0_htable_lookup(htable, key);				\
-}									\
-									\
-scope __AUN void name ## _htable_fini(struct m0_htable *htable)		\
-{									\
-	m0_htable_fini(htable);						\
-}									\
-									\
-scope __AUN bool name ## _htable_is_empty(const struct m0_htable *htable)\
-{									\
-	return m0_htable_is_empty(htable);				\
-}									\
-									\
-scope __AUN uint64_t name ## _htable_size(const struct m0_htable *htable)\
-{									\
-	return m0_htable_size(htable);					\
-}									\
+#define M0_HT_DEFINE(name, scope, amb_type, key_type)			     \
+									     \
+M0_TL_DEFINE(name, scope, amb_type);					     \
+									     \
+scope __AUN int name ## _htable_init(struct m0_htable *htable,		     \
+				     uint64_t          bucket_nr)	     \
+{									     \
+	return m0_htable_init(&name ## _ht, htable, bucket_nr);		     \
+}									     \
+									     \
+scope __AUN void name ## _htable_add(struct m0_htable *htable,		     \
+				     amb_type         *amb)		     \
+{									     \
+	m0_htable_add(htable, amb);					     \
+}									     \
+									     \
+scope __AUN void name ## _htable_del(struct m0_htable *htable,		     \
+			             amb_type         *amb)		     \
+{									     \
+	m0_htable_del(htable, amb);					     \
+}									     \
+									     \
+scope __AUN amb_type *name ## _htable_lookup(const struct m0_htable *htable, \
+					     const key_type         *key)    \
+{									     \
+	return m0_htable_lookup(htable, key);				     \
+}									     \
+									     \
+scope __AUN void name ## _hbucket_lock(struct m0_htable *htable,             \
+				       amb_type         *amb)                \
+{                                                                            \
+	m0_hbucket_lock(htable, amb);                                        \
+}                                                                            \
+                                                                             \
+scope __AUN void name ## _hbucket_unlock(struct m0_htable *htable,           \
+					 amb_type         *amb)              \
+{                                                                            \
+	m0_hbucket_unlock(htable, amb);                                      \
+}                                                                            \
+                                                                             \
+scope __AUN void name ## _htable_cc_add(struct m0_htable *htable,            \
+		                        amb_type         *amb)               \
+{                                                                            \
+	m0_htable_cc_add(htable, amb);                                       \
+}                                                                            \
+                                                                             \
+scope __AUN void name ## _htable_cc_del(struct m0_htable *htable,            \
+		                        amb_type          *amb)              \
+{                                                                            \
+	m0_htable_cc_del(htable, amb);                                       \
+}                                                                            \
+                                                                             \
+scope __AUN amb_type * name ## _htable_cc_lookup(struct m0_htable *htable,   \
+		                                 const key_type   *key)      \
+{                                                                            \
+	return m0_htable_cc_lookup(htable, key);                             \
+}                                                                            \
+									     \
+scope __AUN void name ## _htable_fini(struct m0_htable *htable)		     \
+{									     \
+	m0_htable_fini(htable);						     \
+}									     \
+									     \
+scope __AUN bool name ## _htable_is_empty(const struct m0_htable *htable)    \
+{									     \
+	return m0_htable_is_empty(htable);				     \
+}									     \
+									     \
+scope __AUN uint64_t name ## _htable_size(const struct m0_htable *htable)    \
+{									     \
+	return m0_htable_size(htable);					     \
+}									     \
 
 /**
  * Iterates over the members of a m0_hbucket and performs given operation

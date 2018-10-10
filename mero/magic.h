@@ -539,6 +539,14 @@ enum m0_magic_satchel {
 	/* iosegset::td_head_magic (doddle fascia) */
 	M0_IOS_IO_SEGMENT_SET_MAGIC = 0x33d0dd1efa5c1a77,
 
+/* In-storage-compute service. */
+	/* m0_isc_comp::ic_magic (fabaceae else) */
+	M0_ISC_COMP_MAGIC = 0x33fabaceaee15e77,
+	/* m0_reqh_isc_service::riscs_comp_ht (leafed osasco)*/
+	M0_ISC_TLIST_HEAD_MAGIC = 0x331eafed05a5c077,
+	/*  m0_reqh_isc_service::riscs_magic (loasa silicle)*/
+	M0_ISCS_REQH_SVC_MAGIC = 0x3310a5a5111c1e77,
+
 /* Layout */
 	/* m0_layout::l_magic (edible sassie) */
 	M0_LAYOUT_MAGIC = 0x33ed1b1e5a551e77,
