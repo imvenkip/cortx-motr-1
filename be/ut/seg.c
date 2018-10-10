@@ -404,8 +404,8 @@ void m0_be_ut_seg_large_multiple(void)
 	M0_UT_ASSERT(pd != NULL);
 	m0_be_ut_pd_init(pd, reqh);
 
+	size = BE_UT_SEG_LARGE_SIZE;
 	for (i = 0; !m0_be_seg_geom_eq(&geom[i], &M0_BE_SEG_GEOM0); ++i) {
-		size = BE_UT_SEG_LARGE_SIZE;
 		addr = m0_be_ut_seg_allocate_addr(size);
 		geom[i] = (struct m0_be_seg_geom) {
 			.sg_size = size,
