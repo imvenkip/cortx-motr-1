@@ -65,3 +65,18 @@
     - halon
     - rabbitmq
     - start-services
+
+- name: install RabbitMQ cookie
+  copy:
+    src: /var/lib/rabbitmq/.erlang.cookie
+    remote_src: yes
+    dest:  ~{{ item }}/
+    owner: '{{ item }}'
+    group: '{{ item }}'
+    mode:  0400
+  with_items:
+    - root
+    - vagrant
+  tags:
+    - halon
+    - rabbitmq

@@ -50,11 +50,6 @@ static const struct m0_fid ut_fid = {
 	.f_key       = 10
 };
 
-static const struct m0_fid ut_process_fid = {
-	.f_container = 0x7200000000000001,
-	.f_key       = 1
-};
-
 static struct m0_net_domain    client_net_dom;
 static struct m0_net_xprt     *xprt = &m0_net_lnet_xprt;
 

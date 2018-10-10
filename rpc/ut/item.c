@@ -420,15 +420,6 @@ static void test_resend(void)
 	conn_flag_unset(session->s_conn, RCF_TRANSIENT_SENT);
 }
 
-static void misordered_item_replied_cb(struct m0_rpc_item *item)
-{
-	M0_UT_ASSERT(false); /* it should never be called */
-}
-
-static const struct m0_rpc_item_ops misordered_item_ops = {
-	.rio_replied = misordered_item_replied_cb
-};
-
 static void _test_resend(struct m0_fop *fop, bool post_sync)
 {
 	bool fop_put_flag = false;

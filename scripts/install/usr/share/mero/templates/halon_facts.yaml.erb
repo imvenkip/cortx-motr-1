@@ -102,6 +102,9 @@ id_m0_servers:
   <%- if dbfact['role'].include? 'clovis-app' -%>
       - name: clovis-app
   <%- end -%>
+  <%- if dbfact['role'].include? 's3server' -%>
+      - name: s3server
+  <%- end -%>
     <%- if !ios_hash[ dbfact['hostname'] ].empty? -%>
     m0h_devices:
       <%- ios_hash[ dbfact['hostname'] ].each do |key| -%>

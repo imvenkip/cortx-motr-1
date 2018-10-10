@@ -487,7 +487,7 @@ M0_INTERNAL int m0_confc_reconnect(struct m0_confc       *confc,
 		 * Don't return the error because log messages confuse.
 		 */
 		rc = 0;
-	else if (confd_addr == '\0')
+	else if (*confd_addr == '\0')
 		rc = M0_ERR(-EINVAL);
 	else
 		rc = connect_to_confd(confc, confd_addr, rpc_mach);

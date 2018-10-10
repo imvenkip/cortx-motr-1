@@ -86,9 +86,6 @@
     state: disabled
   tags:
     - breaks-dry-run
-    # FIXME: 'never' tag works only starting from ansible 2.5, older versions
-    #        need a workaround
-    - never       # only run this task if 'no-selinux' tag explicitely requested
     - no-selinux
 
 - name: upgrade all packages to latest versions
@@ -148,6 +145,7 @@
       shell: mv /etc/yum.repos.d/CentOS-Sources.repo{,.disabled}
       args:
         creates: /etc/yum.repos.d/CentOS-Sources.repo.disabled
+        removes: /etc/yum.repos.d/CentOS-Sources.repo
 
 - name: enable persitent storage for journald
   ini_file:

@@ -239,7 +239,7 @@ struct nlx_kcore_buffer_event {
 	struct m0_tlink               kbe_drv_linkage;
 };
 
-#if LUSTRE_VERSION_CODE < OBD_OCD_VERSION(2, 10, 0, 0)
+#if LUSTRE_VERSION_CODE < OBD_OCD_VERSION(2, 9, 54, 0)
 #define LNetInvalidateMDHandle(h)  LNetInvalidateHandle(h)
 #define LNetMDHandleIsInvalid(h)   LNetHandleIsInvalid(h)
 #else

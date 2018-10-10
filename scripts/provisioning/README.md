@@ -1,6 +1,118 @@
 Build and test environment for Mero
 ===================================
 
+Quick Start (MacOS)
+-------------------
+
+* Install
+    - [Homebrew](https://brew.sh/)
+
+          /usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
+
+    - `bash` 4.x
+
+          brew install bash
+
+    - GNU `readlink`
+
+          brew install coreutils
+
+    - [VirtualBox](https://www.virtualbox.org/wiki/Downloads)
+    - [Vagrant](https://www.vagrantup.com/downloads.html)
+    - Vagrant plugins
+
+          vagrant plugin install vagrant-vbguest vagrant-env vagrant-scp
+
+    - Ansible
+
+          brew install ansible
+
+* Configure
+    - `m0vg` script (make sure you have `$HOME/bin` in the `$PATH`)
+
+          MERO_SRC=~/src/mero  # use the actual Mero location on your host system
+          ln -s $MERO_SRC/scripts/m0vg $HOME/bin/
+
+    - VMs
+
+          # open virtual cluster configuration file in default editor
+          m0vg env edit
+
+      paste the following template updating parameters as desired:
+
+          # a host directory to share among all VMs,
+          # by default it's a parent of $MERO_SRC dir
+          #M0_VM_SHARED_DIR=~
+
+          # default sharing mechanism is NFS, which is recommended,
+          # but in case it doesn't work for some reason, a virtual
+          # provider specific sharing mechanism can be used (e.g.
+          # VirtualBox shared folder)
+          #M0_VM_SHARE_TYPE=provider
+
+          # a comma-separated list of additional packages to be installed
+          # on each VM (they must be available in default `yum` repositories
+          # or EPEL)
+          #M0_VM_EXTRA_PKGS=python34,python34-pip
+
+          # a script executed on CMU node after provisioning is finished,
+          # a `sudo` can be used in the script to gain root privileges
+          #M0_VM_PROVISION_SCRIPT=~/vagrant-postinstall.sh
+
+          # amount of RAM available on CMU node
+          #M0_VM_CMU_MEM_MB=4096
+
+          # number of client VMs
+          #M0_VM_CLIENT_NR=2
+          # amount of RAM available on every client node
+          #M0_VM_CLIENT_MEM_MB=3072
+
+          # number of ssu VMs
+          #M0_VM_SSU_NR=3
+          # amount of RAM available on every ssu node
+          #M0_VM_SSU_MEM_MB=2048
+          # number of data drives on every ssu node
+          #M0_VM_SSU_DISKS=12
+          # size of each data drive on ssu node
+          #M0_VM_SSU_DISK_SIZE_GB=8
+
+      see `m0vg params` output for the full list of supported configuration
+      parameters
+
+* Run
+    - check VMs state
+
+          m0vg status
+
+    - create _cmu_ VM (this can take ~30 minutes depending on the internet
+      connection, CPU and system disk speed)
+
+          m0vg up cmu
+
+    - restart _cmu_ VM in order to activate shared folder
+
+          m0vg reload cmu
+
+    - logon on _cmu_ and check contents of `/data` dir
+
+          m0vg tmux
+          ls /data
+
+    - create _ssu_ and _client_ VMs (can take about ~40 minutes depending on the
+      number of configured _ssu_ and _client_ nodes)
+
+          m0vg up /ssu/ /client/
+          m0vg reload /ssu/ /client/
+
+    - stop all nodes when they're not needed to be running
+
+          m0vg halt
+
+    - if a node hangs (e.g. Mero crash in kernel or deadlock) it can be forced
+      to shutdown using `-f` option for `halt` command, for example:
+
+          m0vg halt -f client1
+
 Overview
 --------
 
@@ -12,8 +124,8 @@ The virtual machine is automatically created from the [official _Centos7_ base
 image](https://app.vagrantup.com/centos/boxes/7), which is downloaded from the
 [vagrantcloud](https://vagrantcloud.com/search) repository. After provisioning
 and installation of the required rpm packages, including build tools and latest
-_Lustre_ from Whamcloud's repository, it takes about 2GB of extra disk space per
-VM.
+_Lustre_ from Whamcloud's repository, it takes about 2.5GB of extra disk space
+per VM.
 
 Besides main virtual machine, which can be used as a build node, additional
 machines can be provisioned as well to provide a cluster-like environment for
@@ -30,16 +142,6 @@ development workflow.
 Depending on the host OS, different virtualization providers are supported. On
 _Linux_ those are _Libvirt/KVM_ and _VirtualBox_. On _Mac OS_ - _VirtualBox_
 and _VMware Fusion_.
-
-> The average provisioning time depends on the hardware speed, virtualization
-> provider and VM role. For example, _libvirt_ provider supports parallel
-> provisioning but _VirtualBox_ doesn't, so total provisioning time with
-> _VirtualBox_ is slower, but there are ways to improve it which can be done in
-> the next iteration of these scripts. For the reference, total provisioning
-> time for 6 nodes (_cmu_ + 3_ssu_ + 2_clients_) with _libvirt_ was about 18
-> minutes on a Linux desktop; and total time for the same nodes with
-> _VirtualBox_ on a macbook was about 40 minutes due to sequential provisioning
-> of each node.
 
 Requirements
 ------------
@@ -125,8 +227,8 @@ which is more convenient:
     ./scripts/m0vg up
 
 The `m0vg` helper script is a wrapper around _Vagrant_ and _Ansible_ commands
-that can be linked somewhere into the `PATH` and be called from any directory.
-Check out `m0vg --help` for more info.
+that can be *symlinked* somewhere into the `PATH` and be called from any
+directory. Check out `m0vg --help` for more info.
 
 It will spawn a VM and configure it using _Ansible_ "playbook"
 `scripts/provisioning/cmu.yml`, that specifies all _Mero_ dependencies which
@@ -167,7 +269,9 @@ executing a vagrant command, they will be loaded from the `.env` file:
 
     vagrant up
 
-A complete list of supported variables is printed by `m0vg params` command.
+By the way, there is no need to create `.env` file manually, `m0vg env edit`
+helps with that. A complete list of supported variables is printed by `m0vg
+params` command.
 
 All additional nodes can be accessed from the main machine (_cmu_) by their name
 in a `.local` domain. For example, here is how to execute a command on the
@@ -188,10 +292,16 @@ on each VM under `/data`.
 Building and running Mero
 -------------------------
 
-If all necessary _Vagrant_ plugins are installed (see _Requirements_ section
-above) mero sources should be shared over _NFS_ on each VM. If, for some reason,
-_Vagrant_ hasn't been able to configure the _NFS_ share it is still possible to
-copy mero sources to VM with the help of `vagrant-scp` plugin:
+Normally, Mero sources should be accessible over _NFS_ (or native
+VirtualBox/VMware shared folder) on each VM under `/data` directory:
+
+    # build Mero in source tree
+    cd /data/mero
+    ./scripts/m0 make
+
+If, for some reason, _Vagrant_ hasn't been able to configure the _NFS_ share it
+is still possible to copy mero sources to VM with the help of `vagrant-scp`
+plugin:
 
     # on the host
     tar -czf ~/mero.tar.gz $MERO_SRC
@@ -227,8 +337,11 @@ Most common _Vagrant_ commands are:
     # created/started for the first time
     vagrant up
 
-    # stopping (powering off) a VM
+    # stopping (powering off) a VM in graceful way
     vagrant halt
+
+    # forcing a VM to power off, as if unplugging power cable
+    vagrant halt -f
 
     # loggin into VM
     vagrant ssh
@@ -252,12 +365,21 @@ expression instead of a single name to operate on several VMs:
     # start all SSUs
     vagrant up /ssu/
 
+    # start all VMs
+    vagrant up cmu /ssu/ /client/
+
 Streamlining VMs creation and provisioning with snapshots
 ---------------------------------------------------------
 
 It might be useful to save VM state just after provisioning for instant access
-to a clean VM without re-doing a complete provisioning from scratch:
+to a clean VM without re-doing a complete provisioning from scratch. Please
+notice, that it's better when VMs are powered off when snapshot is made:
 
+    # poweroff all VMs
+    m0vg halt
+
+    # create snapshots, 'clean-vm' is just a name of the snapshot and can be
+    # changed to your liking
     m0vg snapshot save cmu clean-vm
     m0vg snapshot save ssu1 clean-vm
     m0vg snapshot save ssu2 clean-vm
@@ -279,7 +401,7 @@ Workspaces is a handy little feature of `m0vg` script, it exploits the fact that
 _Vagrant_ keeps all configuration data related to `Vagrantfile` in a single
 directory. If that special directory is replaced with another one, _Vagrant_
 will use it instead. So it's possible to keep around multiple of those
-directories and switch between them.
+directories and switch between them, thus having multiple virtual clusters.
 
 The `m0vg` supports following actions on workspaces:
 
@@ -299,14 +421,15 @@ In some rare cases it can be useful to run _Ansible_ commands against _Vagrant_
 VMs manually. For this purpose `m0vg` script supports `ansible` command. Here
 are just a few examples:
 
-    # list all hosts present in a cluster
+    # list all hosts present in the cluster
     m0vg ansible cluster.yml --list-hosts
 
-    # list all the tasks that would be performed for a 'cmu' machine
+    # list all the tasks that would be performed for 'cmu' machine
     m0vg ansible cmu.yml --list-tasks
 
 VirtualBox / VMware / Libvirt specifics
 ---------------------------------------------------------
+
 [Is it possible to bring up a VM with vagrant but then manage it from VMWare?](https://stackoverflow.com/questions/43548645)
 
 On the other hand it can be achieved by starting a VM with _GUI_ enabled:

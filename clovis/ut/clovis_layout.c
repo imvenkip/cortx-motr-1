@@ -32,7 +32,7 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CLOVIS
 #include "lib/trace.h"          /* M0_LOG */
 
-const struct m0_ut_suite ut_suite_clovis_layout;
+struct m0_ut_suite ut_suite_clovis_layout;
 
 static struct m0_clovis *dummy_instance;
 
@@ -899,7 +899,7 @@ M0_INTERNAL int ut_suite_clovis_layout_fini(void)
 	return 0;
 }
 
-const struct m0_ut_suite ut_suite_clovis_layout = {
+struct m0_ut_suite ut_suite_clovis_layout = {
 	.ts_name = "clovis-layout-ut",
 	.ts_init = ut_suite_clovis_layout_init,
 	.ts_fini = ut_suite_clovis_layout_fini,

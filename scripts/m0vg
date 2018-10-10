@@ -273,10 +273,10 @@ edit_env()
         editor=$EDITOR
     elif [[ -v VISUAL ]] ; then
         editor=$VISUAL
-    elif which emacs &> /dev/null ; then
-        editor=emacs
     elif which vim &> /dev/null ; then
         editor=vim
+    elif which emacs &> /dev/null ; then
+        editor=emacs
     fi
 
     $editor "$VAGRANT_DEFAULT_ENV_FILE"

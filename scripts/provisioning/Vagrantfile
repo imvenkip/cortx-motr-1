@@ -275,6 +275,10 @@ def setup(node, cpu_nr, mem_mb, disk_nr = 0, disk_size = 1)
     vm_prefix += '_' + $box_version
   end
 
+  if !ENV['M0_VM_NAME_PREFIX'].nil?
+      vm_prefix = ENV['M0_VM_NAME_PREFIX'] + "_#{vm_prefix}"
+  end
+
   enable_gui = ENV['M0_VM_ENABLE_GUI'].nil?                 ? false
              : ENV['M0_VM_ENABLE_GUI'].match(/yes|true|1/i) ? true
              :                                                false

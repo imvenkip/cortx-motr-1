@@ -156,7 +156,7 @@ static struct m0_sm_state_descr conn_states[] = {
 	},
 };
 
-const static const struct m0_sm_conf conn_conf = {
+static const struct m0_sm_conf conn_conf = {
 	.scf_name      = "Conn states",
 	.scf_nr_states = ARRAY_SIZE(conn_states),
 	.scf_state     = conn_states
