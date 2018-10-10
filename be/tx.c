@@ -313,7 +313,6 @@ M0_INTERNAL void m0_be_tx_capture(struct m0_be_tx        *tx,
 	struct m0_be_pd         *paged = &tx->t_engine->eng_domain->bd_pd;
 
 	M0_PRE(BE_TX_LOCKED_AT_STATE(tx, (M0_BTS_ACTIVE)));
-	M0_PRE(m0_be_reg__invariant(reg));
 	M0_PRE(m0_be_pd__is_reg_in(paged, reg));
 
 	be_tx_make_reg_d(tx, &rd, reg);
