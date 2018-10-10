@@ -17,18 +17,26 @@
  * Original author:  Sining Wu       <sining.wu@seagate.com>
  * Original creation date: 1-Sept-2015
  */
+
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CLOVIS
+#include "lib/trace.h"
+
 #include "clovis/clovis.h"
 #include "clovis/st/clovis_st.h"
 #include "clovis/st/clovis_st_misc.h"
 #include "clovis/st/clovis_st_assert.h"
-/* XXX playing around to try to debug */
-#include "lib/trace.h"
 
 #include "lib/memory.h"
-#define ST_MAX_INDEX_NUM (1)
-#define ST_SMALL_KV_PAIR_NUM  (20)
-#define ST_MEDIUM_KV_PAIR_NUM (100)
-#define ST_LARGE_KV_PAIR_NUM  (1000)
+
+#define ST_VAL_STRING  ("Clovis Index Test.")
+
+enum {
+	ST_MAX_INDEX_NUM      = 1,
+	ST_MAX_KEY_LEN        = 64,
+	ST_SMALL_KV_PAIR_NUM  = 20,
+	ST_MEDIUM_KV_PAIR_NUM = 100,
+	ST_LARGE_KV_PAIR_NUM  = 1000
+};
 
 static struct m0_clovis_container clovis_st_idx_container;
 static struct m0_uint128 test_index_ids[ST_MAX_INDEX_NUM];
@@ -98,9 +106,6 @@ static bool is_kv_pair_deleted(int idx_door_no, int key_no)
 	loc = idx_door_no * ST_LARGE_KV_PAIR_NUM + key_no;
 	return deleted_kv_pairs[loc];
 }
-
-#define ST_MAX_KEY_LEN (64)
-#define ST_VAL_STRING  ("Clovis Index Test.")
 
 static int idx_pick_keys(int idx_door_no,
 			 struct m0_bufvec *keys, int *key_no_arr)

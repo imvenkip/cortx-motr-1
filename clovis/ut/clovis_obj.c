@@ -20,11 +20,11 @@
  * Original creation date: 20-Oct-2014
  */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CLOVIS
+#include "lib/trace.h"
+
 #include "layout/layout.h"
 #include "pool/pool.h"
-
-#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CLOVIS
-#include "lib/trace.h"          /* M0_LOG */
 
 #include "ut/ut.h"              /* M0_UT_ASSERT */
 #include "clovis/ut/clovis.h"
@@ -65,7 +65,7 @@ static struct m0_layout_type ut_clovis_layout_type = {
 	.lt_id       = M0_DEFAULT_LAYOUT_ID,
 	.lt_ops      = &ut_clovis_layout_type_ops
 };
-static struct m0_layout ut_clovis_default_layout;
+static struct m0_layout ut_clovis_layout;
 
 /* XXX export? */
 struct m0_fid ut_clovis_fid;
@@ -352,22 +352,19 @@ ut_clovis_test_m0_clovis__obj_layout_instance_build(void)
 	rc = ut_m0_clovis_init(&instance);
 	M0_UT_ASSERT(rc == 0);
 	ut_clovis_layout_domain_fill(instance);
-	ut_clovis_layout_init(&ut_clovis_default_layout,
-			      &instance->m0c_reqh.rh_ldom);
+	ut_clovis_layout_init(&ut_clovis_layout, &instance->m0c_reqh.rh_ldom);
 	M0_SET0(&fid);
 	M0_SET0(&pv);
 
 	/* base case */
 	fid.f_key = 777;
 	lid = m0_pool_version2layout_id(&pv.pv_id, M0_DEFAULT_LAYOUT_ID);
-	rc = m0_clovis__obj_layout_instance_build(
-			instance, lid, &fid,&linst);
+	rc = m0_clovis__obj_layout_instance_build(instance, lid, &fid, &linst);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(linst == &ut_clovis_layout_instance);
 
 	/* fini */
-	ut_clovis_layout_fini(&ut_clovis_default_layout,
-			      &instance->m0c_reqh.rh_ldom);
+	ut_clovis_layout_fini(&ut_clovis_layout, &instance->m0c_reqh.rh_ldom);
 	ut_clovis_layout_domain_empty(instance);
 	ut_m0_clovis_fini(&instance);
 }
@@ -406,8 +403,7 @@ static void ut_clovis_test_clovis_obj_namei_op_init(void)
 	M0_UT_ASSERT(rc == 0);
 
 	ut_clovis_layout_domain_fill(instance);
-	ut_clovis_layout_init(&ut_clovis_default_layout,
-			      &instance->m0c_reqh.rh_ldom);
+	ut_clovis_layout_init(&ut_clovis_layout, &instance->m0c_reqh.rh_ldom);
 	ut_clovis_realm_entity_setup(&realm, &ent, instance);
 
 	/* op_size < sizeof(m0_clovis_op_obj) */
@@ -449,8 +445,7 @@ static void ut_clovis_test_clovis_obj_namei_op_init(void)
 	m0_clovis_op_obj_bob_fini(&oo);
 
 	/* fini */
-	ut_clovis_layout_fini(&ut_clovis_default_layout,
-			      &instance->m0c_reqh.rh_ldom);
+	ut_clovis_layout_fini(&ut_clovis_layout, &instance->m0c_reqh.rh_ldom);
 	ut_clovis_layout_domain_empty(instance);
 	m0_clovis_entity_fini(&ent);
 	ut_m0_clovis_fini(&instance);
@@ -560,7 +555,7 @@ static void ut_clovis_test_clovis_obj_op_prepare(void)
 	instance->m0c_pools_common.pc_cur_pver->pv_attr.pa_P = 7;
 	m0_fi_enable_once("m0_clovis__pool_version_get", "fake_pool_version");
 	m0_clovis_obj_init(&obj, &uber_realm.co_realm, &id,
-			   m0_clovis_default_layout_id(instance));
+			   m0_clovis_layout_id(instance));
 
 	/* OP Allocation fails */
 	m0_fi_enable_once("m0_alloc", "fail_allocation");
@@ -611,8 +606,7 @@ static void ut_clovis_entity_namei_op(enum m0_clovis_entity_opcode opcode)
 	rc = ut_m0_clovis_init(&instance);
 	M0_UT_ASSERT(rc == 0);
 	ut_clovis_layout_domain_fill(instance);
-	ut_clovis_layout_init(&ut_clovis_default_layout,
-			      &instance->m0c_reqh.rh_ldom);
+	ut_clovis_layout_init(&ut_clovis_layout, &instance->m0c_reqh.rh_ldom);
 	ut_clovis_realm_entity_setup(&realm, &ent, instance);
 
 	M0_SET0(&pv);
@@ -621,7 +615,6 @@ static void ut_clovis_entity_namei_op(enum m0_clovis_entity_opcode opcode)
 	id = M0_CLOVIS_ID_APP;
 	id.u_lo++;
 
-	/* m0_clovis_obj_default_layout_id_get need to talk to confc. */
 	m0_fi_enable_once("m0_clovis__obj_layout_id_get", "fake_obj_layout_id");
 	m0_fi_enable_once("m0_clovis__pool_version_get", "fake_pool_version");
 
@@ -648,8 +641,7 @@ static void ut_clovis_entity_namei_op(enum m0_clovis_entity_opcode opcode)
 
 	/* fini */
 	m0_clovis_entity_fini(&ent);
-	ut_clovis_layout_fini(&ut_clovis_default_layout,
-			      &instance->m0c_reqh.rh_ldom);
+	ut_clovis_layout_fini(&ut_clovis_layout, &instance->m0c_reqh.rh_ldom);
 	ut_clovis_layout_domain_empty(instance);
 	ut_m0_clovis_fini(&instance);
 
@@ -1415,8 +1407,7 @@ static void ut_clovis_test_clovis_obj_namei_cb_fini(void)
 
 	/* init */
 	ut_clovis_layout_domain_fill(instance);
-	ut_clovis_layout_init(&ut_clovis_default_layout,
-			      &instance->m0c_reqh.rh_ldom);
+	ut_clovis_layout_init(&ut_clovis_layout, &instance->m0c_reqh.rh_ldom);
 	ut_clovis_realm_entity_setup(&realm, &ent, instance);
 
 	/* base cases */
@@ -1433,8 +1424,7 @@ static void ut_clovis_test_clovis_obj_namei_cb_fini(void)
 
 	/* fini */
 	m0_clovis_entity_fini(&ent);
-	ut_clovis_layout_fini(&ut_clovis_default_layout,
-			      &instance->m0c_reqh.rh_ldom);
+	ut_clovis_layout_fini(&ut_clovis_layout, &instance->m0c_reqh.rh_ldom);
 	ut_clovis_layout_domain_empty(instance);
 	ut_m0_clovis_fini(&instance);
 }

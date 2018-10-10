@@ -20,16 +20,18 @@
  * Original creation date: 07-14-2017
  */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CLOVIS
+#include "lib/trace.h"
+
 #include "clovis/clovis.h"
 #include "clovis/st/clovis_st.h"
 #include "clovis/st/clovis_st_misc.h"
 #include "clovis/st/clovis_st_assert.h"
 
-/* XXX playing around to try to debug */
-#include "lib/trace.h"
 #include "lib/memory.h"
 
-#define ST_MAX_KEY_LEN (64)
+enum { ST_MAX_KEY_LEN = 64 };
+
 #define ST_VAL_STRING  ("Clovis Index Test.")
 
 enum {

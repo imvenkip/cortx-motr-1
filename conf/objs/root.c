@@ -56,14 +56,14 @@ root_decode(struct m0_conf_obj *dest, const struct m0_confx_obj *src)
 	    || !m0_conf_fid_is_valid(&s->xt_mdpool)
 	    ||  m0_conf_fid_type(&s->xt_mdpool) != &M0_CONF_POOL_TYPE
 	    || (m0_fid_is_set(&s->xt_imeta_pver)
-	        && (!m0_conf_fid_is_valid(&s->xt_imeta_pver) ||
-                    m0_conf_fid_type(&s->xt_imeta_pver) != &M0_CONF_PVER_TYPE)))
+		&& (!m0_conf_fid_is_valid(&s->xt_imeta_pver) ||
+		    m0_conf_fid_type(&s->xt_imeta_pver) != &M0_CONF_PVER_TYPE)))
 		return M0_ERR(-EINVAL);
 
 	d->rt_verno        = s->xt_verno;
+	d->rt_rootfid      = s->xt_rootfid;
 	d->rt_mdpool       = s->xt_mdpool;
 	d->rt_imeta_pver   = s->xt_imeta_pver;
-	d->rt_rootfid      = s->xt_rootfid;
 	d->rt_mdredundancy = s->xt_mdredundancy;
 
 	rc = m0_bufs_to_strings(&d->rt_params, &s->xt_params);

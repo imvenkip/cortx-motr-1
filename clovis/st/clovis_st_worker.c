@@ -30,7 +30,8 @@
 
 # include <linux/types.h>
 
-#define CLOVIS_ST_MAX_THREAD_NAME_LEN (64)
+enum { CLOVIS_ST_MAX_THREAD_NAME_LEN = 64 };
+
 typedef struct task_struct clovis_st_thread_t;
 static clovis_st_thread_t **workers = NULL;
 

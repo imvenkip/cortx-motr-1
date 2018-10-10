@@ -25,21 +25,20 @@
  * specifications.
  */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CLOVIS
+#include "lib/trace.h"
+
 #include "clovis/clovis.h"
 #include "clovis/st/clovis_st.h"
 #include "clovis/st/clovis_st_misc.h"
 #include "clovis/st/clovis_st_assert.h"
 
-/* XXX playing around to try to debug */
-#include "lib/trace.h"
-
 #include "lib/memory.h"
 
 struct m0_clovis_container clovis_st_write_container;
 extern struct m0_addb_ctx m0_clovis_addb_ctx;
-static uint64_t default_layout_id;
 
-#define MAX_OPS (16)
+enum { MAX_OPS = 16 };
 
 /* Parity group aligned (in units)*/
 enum {
@@ -466,9 +465,7 @@ static int clovis_st_write_init(void)
 	if (rc != 0)
 		console_printf("Failed to open uber realm\n");
 
-	default_layout_id =
-		m0_clovis_default_layout_id(clovis_st_get_instance());
-
+	(void)m0_clovis_layout_id(clovis_st_get_instance());
 	return rc;
 }
 

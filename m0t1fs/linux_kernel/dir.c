@@ -556,44 +556,6 @@ static int m0t1fs_fid_create(struct inode     *dir,
 	return M0_ERR(-EOPNOTSUPP);
 }
 
-static uint64_t default_layout_id_get(struct m0t1fs_sb *csb)
-{
-	int                   rc;
-	int                   i;
-	uint64_t              lid = M0_DEFAULT_LAYOUT_ID;
-	const uint64_t        FS_LID_INDEX = 1;
-	struct m0_reqh       *reqh = &csb->csb_reqh;
-	struct m0_conf_root  *r;
-
-	M0_ENTRY();
-
-	rc = m0_confc_root_open(m0_reqh2confc(reqh), &r);
-	if (rc != 0)
-		goto err;
-
-	/* TODO move the warning to the mount time */
-	if (r->rt_params == NULL) {
-		M0_LOG(M0_WARN, "r->rt_params == NULL");
-		goto out;
-	}
-
-	for (i=0; r->rt_params[i] != NULL; ++i) {
-		M0_LOG(M0_DEBUG, "param(%d): %s", i, r->rt_params[i]);
-		if (i != FS_LID_INDEX)
-			continue;
-		lid = simple_strtoul(r->rt_params[i], NULL, 0);
-		M0_LOG(M0_DEBUG, "fetched layout id: %s, %llu",
-		       r->rt_params[i], lid);
-		break;
-	}
-out:
-	m0_confc_close(&r->rt_obj);
-err:
-	M0_LEAVE();
-
-	return lid;
-}
-
 static int m0t1fs_fid_check(struct m0_fid *fid)
 {
 	if ((fid->f_container & ~M0_FID_GOB_CONTAINER_MASK) != 0) {
@@ -695,7 +657,7 @@ static int m0t1fs_create(struct inode     *dir,
 	M0_LOG(M0_INFO, "Creating \"%s\" with pool version "FID_F,
 	       (char*)dentry->d_name.name, FID_P(&ci->ci_pver));
 	/* layout id for new file */
-        ci->ci_layout_id = default_layout_id_get(csb);
+        ci->ci_layout_id = M0_DEFAULT_LAYOUT_ID;
 
 	m0t1fs_file_lock_init(ci, csb);
 	rc = m0t1fs_inode_layout_init(ci);

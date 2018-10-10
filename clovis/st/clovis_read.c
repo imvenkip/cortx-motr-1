@@ -25,22 +25,23 @@
  * specifications.
  */
 
+#define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CLOVIS
+#include "lib/trace.h"
+
 #include "clovis/clovis.h"
 #include "clovis/st/clovis_st.h"
 #include "clovis/st/clovis_st_misc.h"
 #include "clovis/st/clovis_st_assert.h"
-
-/* XXX playing around to try to debug */
-#include "lib/trace.h"
 
 #include "lib/memory.h"
 
 struct m0_clovis_container clovis_st_read_container;
 extern struct m0_addb_ctx m0_clovis_addb_ctx;
 static uint32_t unit_size = DEFAULT_PARGRP_UNIT_SIZE;
-static uint64_t default_layout_id;
+static uint64_t layout_id;
 
-#define MAX_READ_OID_NUM (256)
+enum { MAX_READ_OID_NUM = 256 };
+
 static int read_oid_num = 0;
 static struct m0_uint128 read_oids[MAX_READ_OID_NUM];
 
@@ -77,7 +78,7 @@ static int create_objs(int nr_objs)
 		/* Create an entity */
 		clovis_st_obj_init(&obj,
 			&clovis_st_read_container.co_realm,
-			&id, default_layout_id);
+			&id, layout_id);
 
 		clovis_st_entity_create(&obj.ob_entity, &ops[0]);
 
@@ -107,10 +108,10 @@ static int create_objs(int nr_objs)
 	return 0;
 }
 
-/**
+/*
  * Fill those pre-created objects with some value
  */
-#define CHAR_NUM (6)
+enum { CHAR_NUM = 6 };
 static char pattern[CHAR_NUM] = {'C', 'L', 'O', 'V', 'I', 'S'};
 
 static int write_objs(void)
@@ -175,7 +176,7 @@ static int write_objs(void)
 		/* Set the object entity we want to write */
 		clovis_st_obj_init(
 			&obj, &clovis_st_read_container.co_realm,
-			&id, default_layout_id);
+			&id, layout_id);
 
 		clovis_st_entity_open(&obj.ob_entity);
 
@@ -257,7 +258,7 @@ static void read_one_block(void)
 	id = read_oid_get(0);
 	M0_SET0(&obj);
 	clovis_st_obj_init(&obj, &clovis_st_read_container.co_realm,
-			   &id, default_layout_id);
+			   &id, layout_id);
 
 	clovis_st_entity_open(&obj.ob_entity);
 
@@ -338,7 +339,7 @@ static void read_multiple_blocks(void)
 	M0_SET0(&obj);
 	id = read_oid_get(0);
 	clovis_st_obj_init(&obj, &clovis_st_read_container.co_realm,
-			   &id, default_layout_id);
+			   &id, layout_id);
 
 	clovis_st_entity_open(&obj.ob_entity);
 
@@ -433,7 +434,7 @@ static void read_multiple_blocks_into_aligned_buffers(void)
 	M0_SET0(&obj);
 	id = read_oid_get(0);
 	clovis_st_obj_init(&obj, &clovis_st_read_container.co_realm,
-			   &id, default_layout_id);
+			   &id, layout_id);
 
 	clovis_st_entity_open(&obj.ob_entity);
 
@@ -526,7 +527,7 @@ static void read_objs_in_parallel(void)
 		id = read_oid_get(i);
 
 		clovis_st_obj_init(&objs[i], &clovis_st_read_container.co_realm,
-				   &id, default_layout_id);
+				   &id, layout_id);
 
 		clovis_st_entity_open(&objs[i].ob_entity);
 
@@ -598,8 +599,7 @@ static int clovis_st_read_suite_init(void)
 		goto EXIT;
 	}
 
-	default_layout_id =
-		m0_clovis_default_layout_id(clovis_st_get_instance());
+	layout_id = m0_clovis_layout_id(clovis_st_get_instance());
 
 	/*
 	 * Create objects for tests including a few more used

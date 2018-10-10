@@ -43,7 +43,7 @@
 
 /* Currently Clovis can write at max 200 blocks in
  * a single request. This will change in future. */
-#define CLOVIS_MAX_BLOCK_COUNT (200)
+enum { CLOVIS_MAX_BLOCK_COUNT = 200 };
 
 /* Clovis parameters */
 /* local_addr is the Clovis endpoint on Mero cluster */
@@ -159,7 +159,7 @@ static int create_object(struct m0_uint128 id)
  	 * Note: This api doesnot create an object. It simply fills
  	 * obj structure with require data. */
 	m0_clovis_obj_init(&obj, &clovis_uber_realm, &id,
-			   m0_clovis_default_layout_id(clovis_instance));
+			   m0_clovis_layout_id(clovis_instance));
 
 	/* Create object-create request */
 	m0_clovis_entity_create(&obj.ob_entity, &ops[0]);
@@ -212,7 +212,7 @@ static int write_data_to_object(struct m0_uint128 id,
 
 	/* Set the object entity we want to write */
 	m0_clovis_obj_init(&obj, &clovis_uber_realm, &id,
-			   m0_clovis_default_layout_id(clovis_instance));
+			   m0_clovis_layout_id(clovis_instance));
 
 	/* Create the write request */
 	m0_clovis_obj_op(&obj, M0_CLOVIS_OC_WRITE,

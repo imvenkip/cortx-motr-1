@@ -1474,10 +1474,10 @@ static void spiel_conf_file_create_tree(struct m0_spiel_tx *tx)
 	const char                   *ep_service2[] = { "addr-3", NULL };
 	const char                   *ep_service3[] = { "addr-3", NULL };
 	struct m0_pdclust_attr        pdclust_attr = { 0, 0, 0, 0 };
-	const char                   *fs_param[] = { "param-0",
-						     "param-1",
-						     "param-2",
-						     NULL };
+	const char                   *params[] = { "param-0",
+						   "param-1",
+						   "param-2",
+						   NULL };
 	struct m0_spiel_service_info  service_info1 = {
 		.svi_endpoints = ep_service1 };
 	struct m0_spiel_service_info  service_info2 = {
@@ -1520,7 +1520,7 @@ static void spiel_conf_file_create_tree(struct m0_spiel_tx *tx)
 	m0_bitmap_set(&bitmap, 1, true);
 
 	rc = m0_spiel_root_add(tx, &fid_profile, &fid_pool,
-			       &fid_pver, 41212, fs_param);
+			       &fid_pver, 41212, params);
 	M0_UT_ASSERT(rc == 0);
 
 	rc = m0_spiel_profile_add(tx, &fid_profile);

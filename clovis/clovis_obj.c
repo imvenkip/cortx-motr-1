@@ -758,48 +758,25 @@ int m0_clovis_obj_layout_id_to_unit_size(uint64_t layout_id)
 }
 M0_EXPORTED(m0_clovis_obj_layout_id_to_unit_size);
 
-uint64_t m0_clovis_default_layout_id(struct m0_clovis *instance)
+uint64_t m0_clovis_layout_id(const struct m0_clovis *instance)
 {
-	int                  rc;
-	int                  i;
-	uint64_t             lid = M0_DEFAULT_LAYOUT_ID;
-	const uint64_t       FS_LID_INDEX = 1;
-	struct m0_reqh      *reqh = &instance->m0c_reqh;
-	struct m0_conf_root *root;
+	uint64_t lid = M0_DEFAULT_LAYOUT_ID;
 
 	M0_ENTRY();
 	M0_PRE(instance != NULL);
 
-	if (M0_FI_ENABLED("return_default_layout"))
-		return M0_DEFAULT_LAYOUT_ID;
 	/*
 	 * TODO:This layout selection is a temporary solution for s3 team
 	 * requirement. In future this has to be replaced by more sophisticated
 	 * solution.
 	 */
 	if (instance->m0c_config->cc_layout_id != 0)
-		return instance->m0c_config->cc_layout_id;
+		lid = instance->m0c_config->cc_layout_id;
 
-	rc = m0_confc_root_open(m0_reqh2confc(reqh), &root);
-	if (rc != 0)
-		goto err;
-
-	for (i=0; root->rt_params != NULL &&
-	          root->rt_params[i] != NULL; ++i) {
-		if (i != FS_LID_INDEX)
-			continue;
-		lid = m0_strtou64(root->rt_params[FS_LID_INDEX], NULL, 0);
-		M0_LOG(M0_DEBUG, "fetched layout id: %s, %llu",
-		       root->rt_params[FS_LID_INDEX], (unsigned long long)lid);
-		instance->m0c_config->cc_layout_id = lid;
-		break;
-	}
-	m0_confc_close(&root->rt_obj);
-err:
-	M0_LEAVE();
+	M0_LEAVE("lid=%"PRIu64, lid);
 	return lid;
 }
-M0_EXPORTED(m0_clovis_default_layout_id);
+M0_EXPORTED(m0_clovis_layout_id);
 
 enum m0_clovis_layout_type m0_clovis_obj_layout_type(struct m0_clovis_obj *obj)
 {
@@ -834,7 +811,6 @@ M0_EXPORTED(m0_clovis_entity_open);
 /*
  *  Local variables:
  *  c-indentation-style: "K&R"
-
  *  c-basic-offset: 8
  *  tab-width: 8
  *  fill-column: 80

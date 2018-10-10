@@ -107,7 +107,6 @@ m0_clovis_sync_op_add
 m0_clovis_sync
 m0_clovis_obj_unit_size_to_layout_id
 m0_clovis_obj_layout_id_to_unit_size
-m0_clovis_default_layout_id
 m0_clovis_composite_layer_add
 m0_clovis_composite_layer_del
 m0_clovis_composite_layer_idx
@@ -118,6 +117,7 @@ m0_clovis_composite_layer_idx_val_to_buf
 m0_clovis_layout_alloc
 m0_clovis_layout_capture
 m0_clovis_layout_free
+m0_clovis_layout_id
 m0_clovis_layout_op
 m0_clovis_obj_layout_type
 m0_cob_domain_fini
