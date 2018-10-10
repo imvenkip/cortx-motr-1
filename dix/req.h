@@ -253,13 +253,6 @@ struct m0_dix_req {
 	uint32_t                     *dr_recs_nr;
 	/** Request flags bitmask of m0_cas_op_flags values. */
 	uint32_t                      dr_flags;
-	/**
-	 * Pool machine version that is used for target CAS devices state
-	 * determination. This version is included in CAS request to have a
-	 * possibility to reject requests based on non-actual pool machine
-	 * version.
-	 */
-	struct m0_poolmach_versions   dr_pmach_ver;
 
 	/** Datum used to update clovis SYNC records. */
 	void                         *dr_sync_datum;

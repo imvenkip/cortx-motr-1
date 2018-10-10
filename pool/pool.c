@@ -50,72 +50,65 @@
 #include "lib/finject.h" /* M0_FI_ENABLED */
 
 /**
-   @page pool_mach_store_replica DLD of Pool Machine store and replica
+   @page pool_mach DLD of Pool Machine
 
-   - @ref pool_mach_store_replica-ovw
-   - @ref pool_mach_store_replica-def
-   - @ref pool_mach_store_replica-req
-   - @ref pool_mach_store_replica-depends
-   - @ref pool_mach_store_replica-fspec
-   - @ref pool_mach_store_replica-lspec
-      - @ref pool_mach_store_replica-lspec-comps
-      - @ref pool_mach_store_replica-lspec-ds
-   - @ref pool_mach_store_replica-conformance
-   - @ref pool_mach_store_replica-ut
-   - @ref pool_mach_store_replica-st
-   - @ref pool_mach_store_replica-O
-   - @ref pool_mach_store_replica-ref
+   - @ref pool_mach-ovw
+   - @ref pool_mach-def
+   - @ref pool_mach-req
+   - @ref pool_mach-depends
+   - @ref pool_mach-fspec
+   - @ref pool_mach-lspec
+      - @ref pool_mach-lspec-comps
+      - @ref pool_mach-lspec-ds
+   - @ref pool_mach-conformance
+   - @ref pool_mach-ut
+   - @ref pool_mach-st
+   - @ref pool_mach-O
+   - @ref pool_mach-ref
 
    <hr>
-   @section pool_mach_store_replica-ovw Overview
-   Pool Machine state is stored on persistent storage. When system initializes
-   the first time, pool machine state is configured from confc & confd. When
-   system restarts, ioservice loads pool machine state data from persistent
-   storage.
+   @section pool_mach-ovw Overview
+   When system initializes the first time, pool machine state is configured
+   from confc & confd. When system restarts, ioservice/clients rebuld pool
+   machine state on HA system events for respective pool devices.
 
-   Every pool version has its own pool machine state stored on persistent
-   storage.
+   Every pool version has its own pool machine state stored in memory and it
+   rebuild using HA system events for respective pool devices on node restarts
    They are independent. Pool machine state transitions are triggered by pool
    machine events. Pool machine events, e.g. device failure event, SNS
    completion event, are delivered to all ioservices. So, these pool machine
    states are updated and the final pool machine states are identical on all
    nodes.
 
-   Pool machine state is stored in BE.
-
    <hr>
-   @section pool_mach_store_replica-def Definitions
+   @section pool_mach-def Definitions
    @see poolmach for failure vectors, events, etc.
 
    <hr>
-   @section pool_mach_store_replica-req Requirements
+   @section pool_mach-req Requirements
    The following requirements should be meet:
-   - @b R.DLD.P All pool machine states should be stored on persistent storage.
-                When system restarts again, these states are loaded from
-                persistent storage.
-   - @b R.DLD.T Updates to the persistent storage should survive system failure.
-
+   - @b R.DLD.P All pool machine states should be rebuild using HA events.
+                When system restarts again, these states are rebuilt from
+                HA events for pool devices.
    <hr>
-   @section pool_mach_store_replica-depends Dependencies
+   @section pool_mach-depends Dependencies
    FOP.
    DTM.
-   BE.
    Pool.
    Pool Machine.
 
    <hr>
-   @section pool_mach_store_replica-fspec Functional Specification
+   @section pool_mach-fspec Functional Specification
    Pool Machine states, including failure vectors, event lists, spare slots
-   usages, etc. are stored in BE. Updates to these storage will be
-   protected by distributed transaction manager.
+   usages, etc. are stored in memory and get rebuild using HA events for
+   pool devices on node restarts.
 
    Every pool version has a pool machine. Pool machine update events are
    delivered to all ioservices. So all the pool machine there get state
-   transitions according to these events. Finally the pool machine states on
-   all ioservice nodes are persistent and identical.
+   transitions according to these events.
 
    HA component broadcasts every event to all the pool machines in the cluster
-   using m0poolmach utility. HA components can also use m0poolmach utility to
+   using ha note interface. HA components can also use m0poolmach utility to
    query the current status of pool machine.
 
    HA component or Administrator may trigger SNS repair and/or SNS rebalance
@@ -124,58 +117,40 @@
    type, the elapsed time from failure detected, etc.
 
    <hr>
-   @section pool_mach_store_replica-lspec Logical Specification
+   @section pool_mach-lspec Logical Specification
 
-   - @ref pool_mach_store_replica-lspec-comps
-   - @ref pool_mach_store_replica-lspec-ds
-   - @ref pool_mach_store_replica-lspec-if
+   - @ref pool_mach-lspec-comps
+   - @ref pool_mach-lspec-ds
+   - @ref pool_mach-lspec-if
 
-   @subsection pool_mach_store_replica-lspec-comps Component Overview
+   @subsection pool_mach-lspec-comps Component Overview
    Pool machine global information, like number of devices and number of nodes in
-   this pool, current read and write version numbers are stored on persistent
-   storage.
+   this pool, current read and write version numbers are stored in in-memory data
+   structures.
 
    Every pool machine contains an array of struct m0_pooldev. Every instance of
    struct m0_pooldev represents a device in the pool and maintains the
-   corresponding device state. This device informatin represented by instance of
-   struct m0_pooldev is written to persistent store as a record. Similarly, the
-   node in the pool is represented by struct m0_poolnode. This is also written
-   to persistent store as a record. The spare space usage in the pool, accounted
-   by struct m0_pool_spare_usage, is recorded to persistent store. Every event
-   is stored as a separate record on the persistent storage and its
-   corresponding version numbers are used as the record keys to query or update
-   a particular record on the persistent store.
+   corresponding device state. This device informatin is refreshed on
+   configuration updates.  Similarly, the node in the pool is represented by
+   struct m0_poolnode. This is also refreshed on configuration update.
 
-   All events are stored on persistent storage. Each event is stored as a
-   separate record, and its version number is key.
-
-   @subsection pool_mach_store_replica-lspec-ds Data Structures
+   @subsection pool_mach-lspec-ds Data Structures
    The data structures of failure vector, failure vector version number,
    event, event list are in @ref poolmach module.
 
-   The DB records for global pool state, state of node, state of device,
-   events are defined in code. Struct m0_pool_version_numbers is used as keys
-   for the above data structures.
+   The pool state, state of node, state of device, events are defined in code.
 
-   @subsection pool_mach_store_replica-lspec-if Interfaces
+   @subsection pool_mach-lspec-if Interfaces
    The failure vector and version number operations are designed and listed
    in @ref poolmach.
-   No new external interfaces are introduced by this feature. To implement
-   the data store on persistent storage, BE interfaces are used.
-   To send and handle pool machine update fop, rpc/reqh interfaces will be
-   used.
 
    <hr>
-   @section pool_mach_store_replica-conformance Conformance
-   - @b I.DLD.P All pool machine states are stored on persistent storage, using
-                BE interfaces. This states data can be loaded when
-                system re-starts.
-   - @b I.DLD.T Updates to the persistent storage will be protected by
-                distributed transaction manager. This will insure the updates
-                can survive system failures.
+   @section pool_mach-conformance Conformance
+   - @b I.DLD.P All pool machine states are rebuild using HA event for pool
+                devices on node restarts.
 
    <hr>
-   @section pool_mach_store_replica-ut Unit Tests
+   @section pool_mach-ut Unit Tests
    Unit test will cover the following case:
    - init BE storage.
    - updates to BE.
@@ -184,23 +159,22 @@
    - Replicas handles updates from master.
 
    <hr>
-   @section pool_mach_store_replica-st System Tests
+   @section pool_mach-st System Tests
    Pool machine and its replicas works well when new pool machine events happen.
    Pool machine works well when system re-starts.
 
    <hr>
-   @section pool_mach_store_replica-O Analysis
+   @section pool_mach-O Analysis
    N/A
 
    <hr>
-   @section pool_mach_store_replica-ref References
+   @section pool_mach-ref References
    - @ref cm
    - @ref agents
    - @ref poolmach
    - @ref DB
-   - @ref BE
  */
-
+
 /**
    @addtogroup pool
 
@@ -326,9 +300,6 @@ M0_INTERNAL int m0_pool_init(struct m0_pool *pool, const struct m0_fid *id,
 
 M0_INTERNAL void m0_pool_fini(struct m0_pool *pool)
 {
-	struct m0_pooldev *pd;
-
-	m0_tl_teardown(pool_failed_devs, &pool->po_failed_devices, pd);
 	pools_tlink_fini(pool);
 	pool_version_tlist_fini(&pool->po_vers);
 	pool_failed_devs_tlist_fini(&pool->po_failed_devices);
@@ -534,10 +505,7 @@ M0_INTERNAL int m0_pool_version_init(struct m0_pool_version *pv,
 				     uint32_t pool_width,
 				     uint32_t nr_nodes,
 				     uint32_t nr_data,
-				     uint32_t nr_failures,
-				     struct m0_be_seg *be_seg,
-				     struct m0_sm_group  *sm_grp,
-				     struct m0_dtm       *dtm)
+				     uint32_t nr_failures)
 {
 	int rc;
 
@@ -550,14 +518,9 @@ M0_INTERNAL int m0_pool_version_init(struct m0_pool_version *pv,
 	pv->pv_pool = pool;
 	pv->pv_nr_nodes = nr_nodes;
 
-	if (be_seg != NULL)
-		rc = m0_poolmach_backed_init2(&pv->pv_mach, pv, be_seg, sm_grp,
-					      pv->pv_nr_nodes, pv->pv_attr.pa_P,
-					      pv->pv_nr_nodes, pv->pv_attr.pa_K);
-	else
-		rc = m0_poolmach_init(&pv->pv_mach, pv, pv->pv_nr_nodes,
-				      pv->pv_attr.pa_P, pv->pv_nr_nodes,
-				      pv->pv_attr.pa_K);
+	rc = m0_poolmach_init(&pv->pv_mach, pv, pv->pv_nr_nodes,
+			      pv->pv_attr.pa_P, pv->pv_nr_nodes,
+			      pv->pv_attr.pa_K);
 	m0_pool_version_bob_init(pv);
 	pool_version_tlink_init(pv);
 	pv->pv_is_dirty = false;
@@ -620,7 +583,7 @@ m0_pool_version_find(struct m0_pools_common *pc, const struct m0_fid *id)
 		goto end;
 	}
 	rc = m0_conf_pver_find_by_fid(id, root, &pver) ?:
-		m0_pool_version_append(pc, pver, NULL, NULL, NULL, &pv);
+		m0_pool_version_append(pc, pver, &pv);
 	m0_confc_close(&root->rt_obj);
 end:
 	m0_mutex_unlock(&pc->pc_mutex);
@@ -727,10 +690,7 @@ static int _nodes_count(struct m0_conf_pver *pver, uint32_t *nodes)
 M0_INTERNAL int m0_pool_version_init_by_conf(struct m0_pool_version *pv,
 					     struct m0_conf_pver *pver,
 					     struct m0_pool *pool,
-					     struct m0_pools_common *pc,
-					     struct m0_be_seg *be_seg,
-					     struct m0_sm_group *sm_grp,
-					     struct m0_dtm *dtm)
+					     struct m0_pools_common *pc)
 {
 	uint32_t nodes = 0;
 	uint32_t failure_level;
@@ -745,8 +705,7 @@ M0_INTERNAL int m0_pool_version_init_by_conf(struct m0_pool_version *pv,
 	rc = m0_pool_version_init(pv, &pver->pv_obj.co_id, pool,
 				  pver->pv_u.subtree.pvs_attr.pa_P, nodes,
 				  pver->pv_u.subtree.pvs_attr.pa_N,
-				  pver->pv_u.subtree.pvs_attr.pa_K, be_seg,
-				  sm_grp, dtm) ?:
+				  pver->pv_u.subtree.pvs_attr.pa_K) ?:
 	     m0_pool_version_device_map_init(pv, pver, pc) ?:
 	     m0_poolmach_init_by_conf(&pv->pv_mach, pver) ?:
 	     m0_poolmach_spare_build(&pv->pv_mach, pool, pver->pv_kind);
@@ -1286,8 +1245,8 @@ static int pools_common__update_by_conf(struct m0_pools_common *pc)
 		pools_common__md_pool_cleanup(pc);
 	rc = pools_common_refresh_locked(pc) ?:
 		pools_common__dev2ios_build(pc) ?:
-		m0_pools_setup(pc, pfid, NULL, NULL, NULL) ?:
-		m0_pool_versions_setup(pc, NULL, NULL, NULL) ?:
+		m0_pools_setup(pc, pfid, NULL, NULL) ?:
+		m0_pool_versions_setup(pc) ?:
 		m0_reqh_mdpool_layout_build(reqh);
 
 	return M0_RC(rc);
@@ -1582,10 +1541,7 @@ static bool is_actual_pver(const struct m0_conf_obj *obj)
 		M0_CONF_CAST(obj, m0_conf_pver)->pv_kind == M0_CONF_PVER_ACTUAL;
 }
 
-M0_INTERNAL int m0_pool_versions_setup(struct m0_pools_common    *pc,
-				       struct m0_be_seg          *be_seg,
-				       struct m0_sm_group        *sm_grp,
-				       struct m0_dtm             *dtm)
+M0_INTERNAL int m0_pool_versions_setup(struct m0_pools_common *pc)
 {
 	struct m0_confc        *confc;
 	struct m0_conf_diter    it;
@@ -1635,8 +1591,7 @@ M0_INTERNAL int m0_pool_versions_setup(struct m0_pools_common    *pc,
 			rc = M0_ERR(-ENOMEM);
 			break;
 		}
-		rc = m0_pool_version_init_by_conf(pver, pver_obj, pool, pc,
-						  be_seg, sm_grp, dtm) ?:
+		rc = m0_pool_version_init_by_conf(pver, pver_obj, pool, pc) ?:
 		     m0_layout_init_by_pver(&reqh->rh_ldom, pver, NULL);
 		if (rc != 0)
 			break;
@@ -1673,9 +1628,6 @@ static int pool_from_virtual_pver(const struct m0_conf_pver *virtual,
 
 M0_INTERNAL int m0_pool_version_append(struct m0_pools_common  *pc,
 				       struct m0_conf_pver     *pver,
-				       struct m0_be_seg        *be_seg,
-				       struct m0_sm_group      *sm_grp,
-				       struct m0_dtm           *dtm,
 				       struct m0_pool_version **pv)
 {
 	struct m0_conf_pool *cp;
@@ -1699,8 +1651,7 @@ M0_INTERNAL int m0_pool_version_append(struct m0_pools_common  *pc,
 	if (*pv == NULL)
 		return M0_ERR(-ENOMEM);
 
-	rc = m0_pool_version_init_by_conf(*pv, pver, p, pc, be_seg, sm_grp,
-					  dtm);
+	rc = m0_pool_version_init_by_conf(*pv, pver, p, pc);
 	if (rc != 0) {
 		m0_free(*pv);
 		return M0_ERR(rc);
@@ -1761,7 +1712,6 @@ static bool profile_has_pool(const struct m0_conf_profile *profile,
 
 M0_INTERNAL int m0_pools_setup(struct m0_pools_common *pc,
 			       const struct m0_fid    *profile,
-			       struct m0_be_seg       *be_seg,
 			       struct m0_sm_group     *sm_grp,
 			       struct m0_dtm          *dtm)
 {
@@ -1887,7 +1837,7 @@ static bool disks_poolmach_state_update_cb(struct m0_clink *cl)
 			 pme.pe_type == M0_POOL_DEVICE ? "device":"node",
 			 pme.pe_index, pme.pe_state);
 
-	return M0_RC(m0_poolmach_state_transit(pdev->pd_pm, &pme, NULL));
+	return M0_RC(m0_poolmach_state_transit(pdev->pd_pm, &pme));
 }
 
 M0_INTERNAL void m0_pooldev_clink_del(struct m0_clink *cl)
@@ -1995,7 +1945,7 @@ M0_INTERNAL int m0_pool_device_state_update(struct m0_reqh        *reqh,
 				pme.pe_type  = M0_POOL_DEVICE;
 				pme.pe_index = dev_idx;
 				pme.pe_state = new_state;
-				rc = m0_poolmach_state_transit(pm, &pme, NULL);
+				rc = m0_poolmach_state_transit(pm, &pme);
 				if (rc != 0) {
 					pool_device_state_last_revert(pc,
 								      dev_fid,

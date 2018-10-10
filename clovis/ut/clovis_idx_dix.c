@@ -562,7 +562,7 @@ static void ut_dix_record_ops(bool dist)
 				       WAIT_TIMEOUT);
 		M0_UT_ASSERT(rc == 0);
 		for (i = 0; i < vals.ov_vec.v_nr && rcs[i] == 0; i++)
-			;;
+			;
 		recs_nr = i;
 		eof = recs_nr < keys.ov_vec.v_nr;
 		for (i = 0; i < recs_nr; i++) {

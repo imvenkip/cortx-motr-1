@@ -2250,7 +2250,7 @@ static void test_max_recsize(void)
 			      sizeof(struct m0_layout_pdclust_rec) +
 			      sizeof(struct cob_entries_header) +
 			      LDB_MAX_INLINE_COB_ENTRIES *
-			      sizeof(struct m0_fid);;
+			      sizeof(struct m0_fid);
 
 	M0_UT_ASSERT(max_size_from_api == max_size_calculated);
 

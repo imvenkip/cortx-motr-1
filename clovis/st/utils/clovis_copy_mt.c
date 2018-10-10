@@ -381,7 +381,7 @@ int main(int argc, char **argv)
 		       "object_id src_file block_size block_count\n");
 		return -1;
 	}
-	clovis_local_addr = argv[1];;
+	clovis_local_addr = argv[1];
 	clovis_ha_addr = argv[2];
 	clovis_prof = argv[3];
 	clovis_proc_fid = argv[4];

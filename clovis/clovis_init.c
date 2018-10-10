@@ -943,7 +943,7 @@ static int clovis_pools_init(struct m0_clovis *m0c)
 	M0_ASSERT(ergo(m0c->m0c_config->cc_is_oostore,
 		       pools->pc_md_redundancy > 0));
 
-	rc = m0_pools_setup(pools, &m0c->m0c_profile_fid, NULL, NULL, NULL);
+	rc = m0_pools_setup(pools, &m0c->m0c_profile_fid, NULL, NULL);
 	if (rc != 0)
 		goto err_pools_common_fini;
 
@@ -1014,7 +1014,7 @@ static int clovis_initlift_pool_version(struct m0_sm *mach)
 		/* Confc needs the lock to proceed. */
 		m0_sm_group_unlock(&m0c->m0c_sm_group);
 
-		rc = m0_pool_versions_setup(pools, NULL, NULL, NULL);
+		rc = m0_pool_versions_setup(pools);
 		if (rc != 0) {
 			m0_sm_group_lock(&m0c->m0c_sm_group);
 			clovis_initlift_fail(rc, m0c);

@@ -118,10 +118,7 @@ struct m0_dix_pg_unit {
 	/** Global storage device index. */
 	uint32_t               dpu_sdev_idx;
 
-	/**
-	 * Storage device state that is consistent with request poolmachine
-	 * version (m0_dix_req::dr_pmach_ver).
-	 */
+	/** Storage device state. */
 	enum m0_pool_nd_state  dpu_pd_state;
 
 	/**

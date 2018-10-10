@@ -294,7 +294,7 @@ static int dix_init(struct dix_ctx *ctx,
 	if (rc != 0)
 		goto err_conf_fs_close;
 
-	rc = m0_pools_setup(pc, m0_reqh2profile(reqh), NULL, NULL, NULL);
+	rc = m0_pools_setup(pc, m0_reqh2profile(reqh), NULL, NULL);
 	if (rc != 0)
 		goto err_pools_common_fini;
 
@@ -304,7 +304,7 @@ static int dix_init(struct dix_ctx *ctx,
 
 	m0_pools_common_service_ctx_connect_sync(pc);
 
-	rc = m0_pool_versions_setup(pc, NULL, NULL, NULL);
+	rc = m0_pool_versions_setup(pc);
 	if (rc != 0)
 		goto err_pools_service_ctx_destroy;
 

@@ -2664,7 +2664,7 @@ static int cs_level_enter(struct m0_module *module)
 		if (cctx->cc_no_conf)
 			return M0_RC(0);
 		return M0_RC(m0_pools_setup(&cctx->cc_pools_common,
-					    NULL, NULL, NULL, NULL));
+					    NULL, NULL, NULL));
 	case CS_LEVEL_SET_OOSTORE:
 		if (cctx->cc_no_conf)
 			return M0_RC(0);
@@ -2739,8 +2739,7 @@ static int cs_level_enter(struct m0_module *module)
 	case CS_LEVEL_POOL_VERSIONS_SETUP:
 		if (cctx->cc_skip_pools_and_ha_update)
 			return M0_RC(0);
-		return M0_RC(m0_pool_versions_setup(&cctx->cc_pools_common,
-						    NULL, NULL, NULL));
+		return M0_RC(m0_pool_versions_setup(&cctx->cc_pools_common));
 	case CS_LEVEL_REQH_SERVICES_START:
 		return M0_RC(reqh_services_start(rctx, cctx));
 	case CS_LEVEL_REQH_MDPOOL_LAYOUTS_SETUP:

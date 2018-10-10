@@ -1227,7 +1227,7 @@ static void nw_xfer_req_complete(struct nw_xfer_request *xfer, bool rmw)
 			/* Maintains only the first error encountered. */
 			if (xfer->nxr_rc == 0 &&
 			    item->ri_sm.sm_state == M0_RPC_ITEM_FAILED) {
-				xfer->nxr_rc = item->ri_error;;
+				xfer->nxr_rc = item->ri_error;
 				M0_LOG(M0_DEBUG, "[%p] nwxfer rc = %d",
 				       ioo, xfer->nxr_rc);
 			}

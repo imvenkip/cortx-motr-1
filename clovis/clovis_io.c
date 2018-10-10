@@ -421,7 +421,7 @@ static int clovis_obj_io_init(struct m0_clovis_obj      *obj,
 	/* Initialise this operation as a network transfer */
 	nw_xfer_request_init(&ioo->ioo_nwxfer);
 	if (ioo->ioo_nwxfer.nxr_rc != 0) {
-		rc = ioo->ioo_nwxfer.nxr_rc;;
+		rc = ioo->ioo_nwxfer.nxr_rc;
 		return M0_ERR(rc);
 	}
 

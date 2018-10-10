@@ -31,8 +31,8 @@
 #include "conf/obj_ops.h"          /* m0_conf_obj_get_lock */
 #include "conf/helpers.h"          /* m0_confc2reqh */
 #include "ioservice/fid_convert.h" /* m0_fid_convert_gob2cob */
-#include "pool/pm_internal.h"
 #include "ha/failvec.h"            /* m0_ha_failvec_fetch */
+#include "lib/finject.h"           /* M0_FI_ENABLED */
 
 /**
    @addtogroup poolmach
@@ -72,24 +72,6 @@ static struct m0_clink *exp_clink(struct m0_poolmach_state *state)
 static struct m0_clink *ready_clink(struct m0_poolmach_state *state)
 {
 	return &state->pst_conf_ready.bc_u.clink;
-}
-
-M0_INTERNAL bool m0_poolmach_version_equal(const struct m0_poolmach_versions
-					   *v1,
-					   const struct m0_poolmach_versions
-					   *v2)
-{
-	return !memcmp(v1, v2, sizeof *v1);
-}
-
-M0_INTERNAL bool m0_poolmach_version_before(const struct m0_poolmach_versions
-					    *v1,
-					    const struct m0_poolmach_versions
-					    *v2)
-{
-	return
-		v1->pvn_version[PVE_READ]  < v2->pvn_version[PVE_READ] ||
-		v1->pvn_version[PVE_WRITE] < v2->pvn_version[PVE_WRITE];
 }
 
 static bool is_controllerv_or_diskv(const struct m0_conf_obj *obj)
@@ -134,7 +116,7 @@ static int poolmach_state_update(struct m0_poolmach_state *st,
 		M0_LOG(M0_DEBUG, "device:"FID_F"index:%d state:%d",
 				FID_P(&pdev->pd_id), pdev->pd_index,
 				pme.pe_state);
-		rc = m0_poolmach_state_transit(pdev->pd_pm, &pme, NULL);
+		rc = m0_poolmach_state_transit(pdev->pd_pm, &pme);
 
 		M0_CNT_INC(*idx_devices);
 	} else {
@@ -251,16 +233,15 @@ M0_INTERNAL int m0_poolmach_init_by_conf(struct m0_poolmach *pm,
 	return M0_RC(rc);
 }
 
-M0_INTERNAL
-void m0_poolmach__state_init(struct m0_poolmach_state   *state,
-			     struct m0_poolnode         *nodes_array,
-			     uint32_t                    nr_nodes,
-			     struct m0_pooldev          *devices_array,
-			     uint32_t                    nr_devices,
-			     struct m0_pool_spare_usage *spare_usage_array,
-			     uint32_t                    max_node_failures,
-			     uint32_t                    max_device_failures,
-			     struct m0_poolmach         *pm)
+static void state_init(struct m0_poolmach_state   *state,
+		       struct m0_poolnode         *nodes_array,
+		       uint32_t                    nr_nodes,
+		       struct m0_pooldev          *devices_array,
+		       uint32_t                    nr_devices,
+		       struct m0_pool_spare_usage *spare_usage_array,
+		       uint32_t                    max_node_failures,
+		       uint32_t                    max_device_failures,
+		       struct m0_poolmach         *pm)
 {
 	int i;
 
@@ -269,8 +250,6 @@ void m0_poolmach__state_init(struct m0_poolmach_state   *state,
 	M0_ASSERT(devices_array != NULL);
 	M0_ASSERT(spare_usage_array != NULL);
 
-	state->pst_version.pvn_version[PVE_READ]  = 0;
-	state->pst_version.pvn_version[PVE_WRITE] = 0;
 	state->pst_nodes_array         = nodes_array;
 	state->pst_devices_array       = devices_array;
 	state->pst_spare_usage_array   = spare_usage_array;
@@ -332,8 +311,7 @@ void m0_poolmach__state_init(struct m0_poolmach_state   *state,
 
 static void poolmach_init(struct m0_poolmach       *pm,
 			  struct m0_pool_version   *pver,
-			  struct m0_poolmach_state *pm_state,
-			  struct m0_be_seg         *seg)
+			  struct m0_poolmach_state *pm_state)
 {
 	M0_ENTRY();
 	M0_PRE(!pm->pm_is_initialised);
@@ -341,7 +319,6 @@ static void poolmach_init(struct m0_poolmach       *pm,
 	M0_SET0(pm);
 	m0_rwlock_init(&pm->pm_lock);
 	pm->pm_state = pm_state;
-	pm->pm_be_seg = seg;
 	pm->pm_is_initialised = true;
 	pm->pm_pver = pver;
 	M0_LEAVE();
@@ -371,71 +348,11 @@ M0_INTERNAL int m0_poolmach_init(struct m0_poolmach *pm,
 		m0_free(spare_usage_array);
 		return M0_ERR(-ENOMEM);
 	}
-	m0_poolmach__state_init(state, nodes_array, nr_nodes, devices_array,
-				nr_devices, spare_usage_array,
-				max_node_failures, max_device_failures, pm);
-	poolmach_init(pm, pver, state, NULL);
+	state_init(state, nodes_array, nr_nodes, devices_array,
+		   nr_devices, spare_usage_array,
+		   max_node_failures, max_device_failures, pm);
+	poolmach_init(pm, pver, state);
 	return M0_RC(0);
-}
-
-M0_INTERNAL
-int m0_poolmach_backed_init2(struct m0_poolmach     *pm,
-			     struct m0_pool_version *pver,
-			     struct m0_be_seg       *be_seg,
-			     struct m0_sm_group     *sm_grp,
-			     uint32_t                nr_nodes,
-			     uint32_t                nr_devices,
-			     uint32_t                max_node_failures,
-			     uint32_t                max_device_failures)
-{
-#ifndef __KERNEL__
-	struct m0_be_tx         tx = {};
-	struct m0_be_tx_credit  cred = {};
-	struct m0_be_domain    *bedom = be_seg->bs_domain;
-	int                     rc;
-
-	m0_be_tx_init(&tx, 0, bedom, sm_grp, NULL, NULL, NULL, NULL);
-	m0_poolmach_store_init_creds_add(be_seg, nr_nodes, nr_devices,
-					 max_device_failures, &cred);
-	m0_be_tx_prep(&tx, &cred);
-	rc = m0_be_tx_exclusive_open_sync(&tx);
-	if (rc == 0) {
-		rc = m0_poolmach_backed_init(pm, pver, be_seg, &tx, nr_nodes,
-					     nr_devices, max_node_failures,
-					     max_device_failures);
-		m0_be_tx_close_sync(&tx);
-	}
-	m0_be_tx_fini(&tx);
-	return M0_RC(rc);
-#else
-	return M0_ERR(-ENOSYS);
-#endif
-}
-
-M0_INTERNAL
-int m0_poolmach_backed_init(struct m0_poolmach     *pm,
-			    struct m0_pool_version *pver,
-			    struct m0_be_seg       *be_seg,
-			    struct m0_be_tx        *be_tx,
-			    uint32_t                nr_nodes,
-			    uint32_t                nr_devices,
-			    uint32_t                max_node_failures,
-			    uint32_t                max_device_failures)
-{
-	int                       rc;
-	struct m0_poolmach_state *state;
-
-	M0_ENTRY();
-	M0_PRE(be_seg != NULL);
-	M0_PRE(!pm->pm_is_initialised);
-
-	rc = m0_poolmach__store_init(be_seg, be_tx, nr_nodes,
-				     nr_devices, max_node_failures,
-				     max_device_failures,
-				     &state, pm);
-	if (rc == 0)
-		poolmach_init(pm, pver, state, be_seg);
-	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0_poolmach_fini(struct m0_poolmach *pm)
@@ -451,88 +368,40 @@ M0_INTERNAL void m0_poolmach_fini(struct m0_poolmach *pm)
 
 	m0_rwlock_write_lock(&pm->pm_lock);
 
-	if (pm->pm_be_seg == NULL) {
-		/*
-		 * Pool machine has no persistent backing store.
-		 * Free all in-memory structures.
-		 */
-		m0_tl_for(poolmach_events, &state->pst_events_list, scan) {
-			poolmach_events_tlink_del_fini(scan);
-			m0_free(scan);
-		} m0_tl_endfor;
+	m0_tl_for(poolmach_events, &state->pst_events_list, scan) {
+		poolmach_events_tlink_del_fini(scan);
+		m0_free(scan);
+	} m0_tl_endfor;
 
-		for (i = 0; i < state->pst_nr_devices; ++i) {
-			cl = pooldev_clink(&state->pst_devices_array[i]);
-			if (cl->cl_chan == NULL)
-				continue;
+	for (i = 0; i < state->pst_nr_devices; ++i) {
+		cl = pooldev_clink(&state->pst_devices_array[i]);
+		if (cl->cl_chan != NULL) {
 			obj = container_of(cl->cl_chan, struct m0_conf_obj,
 					   co_ha_chan);
 			M0_ASSERT(m0_conf_obj_invariant(obj));
 			m0_pooldev_clink_del(cl);
 			M0_SET0(cl);
 			m0_confc_close(obj);
-			pd = &state->pst_devices_array[i];
-			if (pool_failed_devs_tlink_is_in(pd))
-				pool_failed_devs_tlist_del(pd);
-			pool_failed_devs_tlink_fini(pd);
 		}
-		m0_clink_cleanup(exp_clink(state));
-		m0_clink_cleanup(ready_clink(state));
-		m0_clink_fini(exp_clink(state));
-		m0_clink_fini(ready_clink(state));
-		m0_free(state->pst_spare_usage_array);
-		m0_free(state->pst_devices_array);
-		m0_free(state->pst_nodes_array);
-		m0_free0(&pm->pm_state);
+		pd = &state->pst_devices_array[i];
+		if (pool_failed_devs_tlink_is_in(pd))
+			pool_failed_devs_tlink_del_fini(pd);
 	}
+	if (!M0_FI_ENABLED("poolmach_init_by_conf_skipped")) {
+		m0_clink_cleanup(exp_clink(state));
+		m0_clink_fini(exp_clink(state));
+		m0_clink_cleanup(ready_clink(state));
+		m0_clink_fini(ready_clink(state));
+	}
+	m0_free(state->pst_spare_usage_array);
+	m0_free(state->pst_devices_array);
+	m0_free(state->pst_nodes_array);
+	m0_free0(&pm->pm_state);
+
 	m0_rwlock_write_unlock(&pm->pm_lock);
 
 	pm->pm_is_initialised = false;
 	m0_rwlock_fini(&pm->pm_lock);
-}
-
-M0_INTERNAL int m0_poolmach_event_post(struct m0_poolmach *pm, uint64_t dev_id,
-				       enum m0_poolmach_event_owner_type et,
-				       enum m0_pool_nd_state state,
-				       struct m0_be_tx *tx)
-{
-	struct m0_poolmach_event    pme;
-	struct m0_pooldev          *dev_array;
-	bool                        transit = false;
-	int                         rc = 0;
-
-	dev_array   = pm->pm_state->pst_devices_array;
-	switch (state) {
-	case M0_PNDS_SNS_REPAIRING:
-		if (dev_array[dev_id].pd_state == M0_PNDS_FAILED)
-			transit = true;
-		break;
-	case M0_PNDS_SNS_REPAIRED:
-		if (dev_array[dev_id].pd_state ==
-				M0_PNDS_SNS_REPAIRING)
-			transit = true;
-		break;
-	case M0_PNDS_SNS_REBALANCING:
-		if (dev_array[dev_id].pd_state ==
-				M0_PNDS_SNS_REPAIRED)
-			transit = true;
-		break;
-	case M0_PNDS_ONLINE:
-		if (dev_array[dev_id].pd_state != M0_PNDS_SNS_REPAIRED)
-			transit = true;
-		break;
-	default:
-		M0_IMPOSSIBLE("Bad state");
-		break;
-	}
-	if (transit) {
-		M0_SET0(&pme);
-		pme.pe_type  = et;
-		pme.pe_index = dev_id;
-		pme.pe_state = state;
-		rc = m0_poolmach_state_transit(pm, &pme, tx);
-	}
-	return rc;
 }
 
 static bool disk_is_in(struct m0_tl *head, struct m0_pooldev *pd)
@@ -617,8 +486,7 @@ static void spare_usage_arr_update(struct m0_poolmach *pm,
  *       +------------------<-------------------------+
  */
 M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach       *pm,
-					  const struct m0_poolmach_event *event,
-					  struct m0_be_tx            *tx)
+					  const struct m0_poolmach_event *event)
 {
 	struct m0_poolmach_state      *state;
 	struct m0_pool_spare_usage    *spare_array;
@@ -628,6 +496,7 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach       *pm,
 	enum m0_pool_nd_state          old_state = M0_PNDS_FAILED;
 	uint32_t                       i;
 	int                            rc = 0;
+	struct m0_poolmach_event_link *new_link;
 
 	M0_ENTRY();
 
@@ -731,14 +600,7 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach       *pm,
 			event->pe_state;
 	}
 
-	/* Step 3: Increase the version */
-	++ state->pst_version.pvn_version[PVE_READ];
-	++ state->pst_version.pvn_version[PVE_WRITE];
-
-	/* Step 4: copy new version into event */
-	event_link.pel_new_version = state->pst_version;
-
-	/* Step 5: Alloc or free a spare slot if necessary.*/
+	/* Step 4: Alloc or free a spare slot if necessary.*/
 	spare_array = state->pst_spare_usage_array;
 	pd = &state->pst_devices_array[event->pe_index];
 	switch (event->pe_state) {
@@ -764,6 +626,7 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach       *pm,
 		M0_CNT_DEC(state->pst_nr_failures);
 		if (pool_failed_devs_tlink_is_in(pd))
 			pool_failed_devs_tlist_del(pd);
+		pool_failed_devs_tlink_fini(pd);
 		break;
 	case M0_PNDS_OFFLINE:
 		M0_CNT_INC(state->pst_nr_failures);
@@ -816,20 +679,13 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach       *pm,
 		;
 	}
 
-	if (pm->pm_be_seg != NULL) {
-		/* This poolmach is on server. Update to persistent storage. */
-		M0_ASSERT(tx != NULL);
-		rc = m0_poolmach__store(pm, tx, &event_link);
+	M0_ALLOC_PTR(new_link);
+	if (new_link == NULL) {
+		rc = M0_ERR(-ENOMEM);
 	} else {
-		struct m0_poolmach_event_link *new_link;
-		M0_ALLOC_PTR(new_link);
-		if (new_link == NULL) {
-			rc = M0_ERR(-ENOMEM);
-		} else {
-			*new_link = event_link;
-			poolmach_events_tlink_init_at_tail(new_link,
-					&state->pst_events_list);
-		}
+		*new_link = event_link;
+		poolmach_events_tlink_init_at_tail(new_link,
+				&state->pst_events_list);
 	}
 	/** @todo Add ADDB error message here. */
 	if (event->pe_type == M0_POOL_DEVICE &&
@@ -848,70 +704,9 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach       *pm,
 	/* Clear any dirty sns flags set during previous repair */
 	pm->pm_pver->pv_sns_flags = state->pst_nr_failures <=
 				    state->pst_max_device_failures ?
-				    0 : pm->pm_pver->pv_sns_flags;;
+				    0 : pm->pm_pver->pv_sns_flags;
 	/* Finally: unlock the poolmach */
 	m0_rwlock_write_unlock(&pm->pm_lock);
-	return M0_RC(rc);
-}
-
-M0_INTERNAL int m0_poolmach_state_query(struct m0_poolmach *pm,
-					const struct m0_poolmach_versions
-					*from,
-					const struct m0_poolmach_versions
-					*to, struct m0_tl *event_list_head)
-{
-	struct m0_poolmach_state      *state;
-	struct m0_poolmach_versions    zero = { {0, 0} };
-	struct m0_poolmach_event_link *scan;
-	struct m0_poolmach_event_link *event_link;
-	int                            rc = 0;
-
-	M0_PRE(pm != NULL);
-	M0_PRE(event_list_head != NULL);
-
-	state = pm->pm_state;
-	m0_rwlock_read_lock(&pm->pm_lock);
-	if (from != NULL && !m0_poolmach_version_equal(&zero, from)) {
-		m0_tl_for (poolmach_events, &state->pst_events_list, scan) {
-			if (m0_poolmach_version_equal(&scan->pel_new_version,
-						from)) {
-				/* skip the current one and move to next */
-				scan = poolmach_events_tlist_next(
-						&state->pst_events_list,
-						scan);
-				break;
-			}
-		} m0_tl_endfor;
-	} else {
-		scan = poolmach_events_tlist_head(&state->pst_events_list);
-	}
-
-	while (scan != NULL) {
-		/*
-		 * Allocate a copy of the event and event link,
-		 * add it to output list.
-		 */
-		M0_ALLOC_PTR(event_link);
-		if (event_link == NULL) {
-			struct m0_poolmach_event_link *tmp;
-			rc = -ENOMEM;
-			m0_tl_for(poolmach_events, event_list_head, tmp) {
-				poolmach_events_tlink_del_fini(tmp);
-				m0_free(tmp);
-			} m0_tl_endfor;
-			break;
-		}
-		*event_link = *scan;
-		poolmach_events_tlink_init_at_tail(event_link, event_list_head);
-
-		if (to != NULL &&
-		    m0_poolmach_version_equal(&scan->pel_new_version, to))
-			break;
-		scan = poolmach_events_tlist_next(&state->pst_events_list,
-				scan);
-	}
-
-	m0_rwlock_read_unlock(&pm->pm_lock);
 	return M0_RC(rc);
 }
 
@@ -933,19 +728,6 @@ M0_INTERNAL void m0_poolmach_state_last_cancel(struct m0_poolmach *pm)
 	}
 
 	m0_rwlock_write_unlock(&pm->pm_lock);
-}
-
-M0_INTERNAL int
-m0_poolmach_current_version_get(struct m0_poolmach *pm,
-				struct m0_poolmach_versions *curr)
-{
-	M0_PRE(pm != NULL);
-	M0_PRE(curr != NULL);
-
-	m0_rwlock_read_lock(&pm->pm_lock);
-	*curr = pm->pm_state->pst_version;
-	m0_rwlock_read_unlock(&pm->pm_lock);
-	return 0;
 }
 
 M0_INTERNAL int m0_poolmach_device_state(struct m0_poolmach *pm,
@@ -1136,7 +918,7 @@ M0_INTERNAL void m0_poolmach_failvec_apply(struct m0_poolmach *pm,
 			}
                         m0_rwlock_write_unlock(&pm->pm_lock);
                 }
-                rc = m0_poolmach_state_transit(pm, &pme, NULL);
+                rc = m0_poolmach_state_transit(pm, &pme);
                 /*
 		 * Failvec is applied only once, during initialisation.
                  * This operation should succeed.
@@ -1200,7 +982,7 @@ static int poolmach_spare_inherit(struct m0_poolmach *pm, struct m0_pool *pool)
 			M0_CNT_INC(state->pst_nr_failures);
                         m0_rwlock_write_unlock(&pm->pm_lock);
                 }
-                rc = m0_poolmach_state_transit(pm, &pme, NULL);
+                rc = m0_poolmach_state_transit(pm, &pme);
                 if (rc != 0)
 			break;
 	} m0_tl_endfor;
@@ -1253,7 +1035,7 @@ M0_INTERNAL void m0_poolmach_event_queue_apply(struct m0_poolmach *pm)
 
 	m0_tl_for (poolmach_equeue, head, scan) {
 		event = &scan->pel_event;
-		m0_poolmach_state_transit(pm, event, NULL);
+		m0_poolmach_state_transit(pm, event);
 		poolmach_equeue_tlink_del_fini(scan);
 		m0_free(scan);
 	} m0_tl_endfor;
@@ -1263,14 +1045,6 @@ static int lno = 0;
 
 /* Change this value to make it more verbose, e.g. to M0_ERROR */
 #define POOL_TRACE_LEVEL M0_DEBUG
-
-M0_INTERNAL void m0_poolmach_version_dump(struct m0_poolmach_versions *v)
-{
-	M0_LOG(POOL_TRACE_LEVEL, "%4d:readv=%llx writev=%llx", lno,
-	       (unsigned long long)v->pvn_version[PVE_READ],
-	       (unsigned long long)v->pvn_version[PVE_WRITE]);
-	lno++;
-}
 
 M0_INTERNAL void m0_poolmach_event_dump(const struct m0_poolmach_event *e)
 {

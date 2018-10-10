@@ -1002,7 +1002,7 @@ int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 		goto err_conf_fs_close;
 	M0_ASSERT(ergo(csb->csb_oostore, pc->pc_md_redundancy > 0));
 
-	rc = m0_pools_setup(pc, &csb->csb_profile_fid, NULL, NULL, NULL);
+	rc = m0_pools_setup(pc, &csb->csb_profile_fid, NULL, NULL);
 	if (rc != 0)
 		goto err_pools_common_fini;
 
@@ -1011,7 +1011,7 @@ int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 		goto err_pools_destroy;
 	m0_pools_common_service_ctx_connect_sync(pc);
 
-	rc = m0_pool_versions_setup(pc, NULL, NULL, NULL);
+	rc = m0_pool_versions_setup(pc);
 	if (rc != 0)
 		goto err_pools_service_ctx_destroy;
 

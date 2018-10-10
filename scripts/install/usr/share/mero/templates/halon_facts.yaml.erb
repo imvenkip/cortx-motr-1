@@ -150,18 +150,22 @@ id_m0_globals:
 # And in case of 12+ nodes (8+2 layout), 1 node +1 disk:
 #     - [0,0,0,1,1]
 id_pools:
-  - pool_id: default
+  <%- pools.each do |pool| -%>
+  - pool_id: <%= pool[:name] %>
     pool_device_refs:
-      <%- q_dbfacts.keys.each do |host| -%>
-        <%- ios_hash[host].each do |disk| -%>
-          <%- if disk['is_fake'] -%>
+      <%- pool[:disks].each do |disk| -%>
+        <%- if disk['is_fake'] -%>
       - dr_path: "<%= disk['path'] %>"
-          <%- else -%>
+        dr_serial: "<%= disk['serial'] %>"
+        <%- else -%>
       - dr_wwn: "<%= disk['wwn'] %>"
         dr_serial: "<%= disk['serial'] %>"
-          <%- end -%>
         <%- end -%>
       <%- end -%>
+  <%- end -%>
 id_profiles:
   - prof_id: prof-0
-    prof_pools: [default]
+    prof_pools:
+      <%- pools.each do |pool| -%>
+      - <%= pool[:name] %>
+      <%- end -%>

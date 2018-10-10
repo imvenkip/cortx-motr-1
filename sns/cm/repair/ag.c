@@ -215,7 +215,7 @@ static void acc_check_fini(struct m0_sns_cm_repair_ag *rag)
 	 */
 	if (ag->cag_has_incoming) {
 		nr_rem_bufs = ag_in_remaining_bufs(rag);
-		nr_bufs = unused_cps * nr_cp_bufs + nr_rem_bufs;;
+		nr_bufs = unused_cps * nr_cp_bufs + nr_rem_bufs;
 		m0_sns_cm_cancel_reservation(scm, nr_bufs);
 	}
 }

@@ -1404,7 +1404,7 @@ static void next_multi_common(struct m0_bufvec *keys, struct m0_bufvec *values)
 		     start_keys.ov_buf[1]);
 	value_create(start_keys.ov_vec.v_count[2], COUNT,
 		     start_keys.ov_buf[2]);
-	recs_nr[0] = COUNT / 2 - 1;;
+	recs_nr[0] = COUNT / 2 - 1;
 	recs_nr[1] = COUNT / 2 - 1;
 	recs_nr[2] = 1;
 	rc = ut_next_rec(&casc_ut_cctx, &index, &start_keys, recs_nr, next_rep,
