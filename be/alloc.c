@@ -1217,10 +1217,7 @@ M0_INTERNAL void m0_be_alloc_aligned(struct m0_be_allocator *a,
 		m0_be_tx_capture(tx, &M0_BE_REG(a->ba_seg, size, &c->bac_mem));
 		be_alloc_chunk_mem_put(a, tx, c);
 	}
-	op->bo_u.u_allocator.a_ptr = c == NULL ?    NULL : &c->bac_mem;
-	op->bo_u.u_allocator.a_rc  = c == NULL ? -ENOSPC : 0;
-	if (ptr != NULL)
-		*ptr = op->bo_u.u_allocator.a_ptr;
+	*ptr = c == NULL ? NULL : &c->bac_mem;
 	/* XXX also gets the stats */
 	M0_BE_REG_GET_PTR(a->ba_h[z], a->ba_seg, tx);
 	be_allocator_stats_update(&a->ba_h[ztype]->bah_stats,
@@ -1229,11 +1226,10 @@ M0_INTERNAL void m0_be_alloc_aligned(struct m0_be_allocator *a,
 	be_allocator_stats_capture(a, ztype, tx);
 	/* and ends here */
 
-	M0_LOG(M0_DEBUG, "allocator=%p size=%lu shift=%u rc=%d "
-	       "c=%p c->bac_size=%lu a_ptr=%p",
-	       a, size, shift, op->bo_u.u_allocator.a_rc,
-	       c, c == NULL ? 0 : c->bac_size, op->bo_u.u_allocator.a_ptr);
-	if (op->bo_u.u_allocator.a_rc != 0)
+	M0_LOG(M0_DEBUG, "allocator=%p size=%lu shift=%u "
+	       "c=%p c->bac_size=%lu ptr=%p", a, size, shift, c,
+	       c == NULL ? 0 : c->bac_size, *ptr);
+	if (*ptr == NULL)
 		be_allocator_stats_print(&a->ba_h[ztype]->bah_stats, NULL, a);
 	M0_BE_REG_PUT_PTR(a->ba_h[z], a->ba_seg, tx);
 
@@ -1251,9 +1247,6 @@ M0_INTERNAL void m0_be_alloc_aligned(struct m0_be_allocator *a,
 	 */
 	M0_POST_EX(m0_be_allocator__invariant(a, tx));
 	m0_mutex_unlock(&a->ba_lock);
-
-	M0_POST(equi(op->bo_u.u_allocator.a_ptr != NULL,
-		     op->bo_u.u_allocator.a_rc == 0));
 
 	/* set op state after post-conditions because they are using op */
 	m0_be_op_done(op);

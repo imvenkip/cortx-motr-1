@@ -39,7 +39,7 @@
  *
  * Future directions
  * - allow M0_BE_OP_SYNC_RET_WITH() to return user-supplied function;
- * - use m0_be_op::bo_rc instead of a_rc, t_rc, e_rc.
+ * - use m0_be_op::bo_rc instead of t_rc, e_rc.
  *
  * @{
  */
@@ -88,14 +88,6 @@ struct m0_be_op {
 
 	enum m0_be_op_type  bo_utype; /* bo_u type */
 	union {
-		struct {
-			/**
-			 * Pointer to memory that was allocated by
-			 * m0_be_alloc() or m0_be_alloc_aligned().
-			 */
-			void *a_ptr;
-			int   a_rc;
-		} u_allocator;
 		struct m0_be_op__btree {
 			struct m0_be_btree        *t_tree;
 			struct m0_be_tx           *t_tx;
