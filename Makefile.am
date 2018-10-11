@@ -602,6 +602,7 @@ if ENABLE_UNIT_TESTS
 noinst_PROGRAMS                   += clovis/st/user_space/c0st
 noinst_PROGRAMS                   += clovis/st/utils/c0touch
 noinst_PROGRAMS                   += clovis/st/utils/c0unlink
+noinst_PROGRAMS                   += clovis/st/utils/c0client
 noinst_PROGRAMS                   += clovis/st/utils/c0cat
 noinst_PROGRAMS                   += clovis/st/utils/c0cp
 noinst_PROGRAMS                   += clovis/st/utils/c0cp_mt
@@ -618,6 +619,10 @@ clovis_st_utils_c0touch_LDADD    = $(top_builddir)/mero/libmero.la \
 clovis_st_utils_c0unlink_CPPFLAGS = -DM0_TARGET='c0unlink' $(AM_CPPFLAGS)
 clovis_st_utils_c0unlink_LDADD    = $(top_builddir)/mero/libmero.la \
                                     $(top_builddir)/ut/libmero-ut.la
+
+clovis_st_utils_c0client_CPPFLAGS = -DM0_TARGET='c0client' $(AM_CPPFLAGS)
+clovis_st_utils_c0client_LDADD    = $(top_builddir)/mero/libmero.la \
+                                 $(top_builddir)/ut/libmero-ut.la
 
 clovis_st_utils_c0cat_CPPFLAGS =  -DM0_TARGET='c0cat' $(AM_CPPFLAGS)
 clovis_st_utils_c0cat_LDADD    = $(top_builddir)/mero/libmero.la \

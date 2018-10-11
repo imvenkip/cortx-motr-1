@@ -1074,7 +1074,7 @@ int m0_spiel_pool_repair_abort(struct m0_spiel     *spl,
 			       const struct m0_fid *pool_fid);
 
 /**
- * Gets status pool repair.
+ * Gets status of pool repair.
  *
  * The command is synchronous. It waits replies from all SNS or DIX services.
  *
@@ -1085,6 +1085,9 @@ int m0_spiel_pool_repair_abort(struct m0_spiel     *spl,
  * @return number of services if all services reply with success result code,
  * otherwise an error code from the first failed service (it replies with error)
  * or confc (an error occurred during read of the configuration database)
+ *
+ * @note If the call succeeds, the user is responsible for freeing allocated
+ *       memory with m0_free(*statuses).
  */
 int m0_spiel_sns_repair_status(struct m0_spiel                *spl,
 			       const struct m0_fid            *pool_fid,
@@ -1200,6 +1203,9 @@ int m0_spiel_pool_rebalance_quiesce(struct m0_spiel     *spl,
  * @return number of the servies if all services reply with success result code,
  * otherwise an error code from the first failed service (it replies with error)
  * or confc (an error occurred during read of the configuration database)
+ *
+ * @note If the call succeeds, the user is responsible for freeing allocated
+ *       memory with m0_free(*statuses).
  */
 int m0_spiel_sns_rebalance_status(struct m0_spiel                *spl,
 				  const struct m0_fid            *pool_fid,

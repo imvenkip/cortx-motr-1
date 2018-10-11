@@ -369,6 +369,24 @@ Tests:
     sandbox  : /var/mero/sandbox.40clovis-dgmode
     polltime : 30
     timeout  : 1800
+
+#   MERO-2819
+  - id       : 41clovis-conf-update
+    script   : clovis_conf_update_st.sh
+    dir      : src/clovis/st/utils/
+    executor : Xperior::Executor::Skip
+    sandbox  : /var/mero/sandbox.41clovis-conf-update
+    polltime : 30
+    timeout  : 1800
+
+  - id       : 42clovis-utils
+    script   : clovis_utils_st.sh
+    dir      : src/clovis/st/utils/
+    executor : Xperior::Executor::MeroTest
+    sandbox  : /var/mero/sandbox.42clovis-utils
+    polltime : 30
+    timeout  : 300
+
 # 25 min
 dangerous: 'yes'
 description: Set of Mero  tests
