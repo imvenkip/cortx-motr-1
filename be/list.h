@@ -240,8 +240,12 @@ scope amb_type *name ## _be_list_head(struct m0_be_list *blist,                \
 				      struct m0_be_tx   *tx,                   \
 				      struct m0_be_seg  *seg)                  \
 scope amb_type *name ## _be_list_prev(struct m0_be_list *blist,                \
+				      struct m0_be_tx   *tx,                   \
+				      struct m0_be_seg  *seg,                  \
 				      const amb_type    *obj);                 \
 scope amb_type *name ## _be_list_next(struct m0_be_list *blist,                \
+				      struct m0_be_tx   *tx,                   \
+				      struct m0_be_seg  *seg,                  \
 				      const amb_type    *obj);                 \
 scope void name ## _be_list_add(struct m0_be_list *blist,                      \
 				struct m0_be_tx   *tx,                         \
@@ -322,17 +326,21 @@ scope M0_UNUSED amb_type *name ## _be_list_head(struct m0_be_list *blist,      \
 }                                                                              \
                                                                                \
 scope M0_UNUSED amb_type *name ## _be_list_prev(struct m0_be_list *blist,      \
+					        struct m0_be_tx   *tx,         \
+					        struct m0_be_seg  *seg,        \
 						const amb_type    *obj)        \
 {                                                                              \
 	return (amb_type *)m0_be_list_prev(blist, &name ## _be_list_d,         \
-	                                   NULL, NULL, obj);                   \
+	                                   tx, seg, obj);                      \
 }                                                                              \
                                                                                \
 scope M0_UNUSED amb_type *name ## _be_list_next(struct m0_be_list *blist,      \
+					        struct m0_be_tx   *tx,         \
+					        struct m0_be_seg  *seg,        \
 						const amb_type    *obj)        \
 {                                                                              \
 	return (amb_type *)m0_be_list_next(blist, &name ## _be_list_d,         \
-	                                   NULL, NULL, obj);                   \
+	                                   tx, seg, obj);                      \
 }                                                                              \
                                                                                \
 scope M0_UNUSED void name ## _be_list_add(struct m0_be_list *blist,            \

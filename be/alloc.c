@@ -486,8 +486,8 @@ static bool be_alloc_chunk_invariant(struct m0_be_allocator *a,
 	h = a->ba_h[ztype];
 	M0_BE_REG_GET_PTR(h, a->ba_seg, tx);
 
-	cprev = chunks_all_be_list_prev(&h->bah_chunks, c);
-	cnext = chunks_all_be_list_next(&h->bah_chunks, c);
+	cprev = chunks_all_be_list_prev(&h->bah_chunks, tx, NULL, c);
+	cnext = chunks_all_be_list_next(&h->bah_chunks, tx, NULL, c);
 	M0_BE_REG_GET_PTR(cprev, a->ba_seg, tx);
 	M0_BE_REG_GET_PTR(cnext, a->ba_seg, tx);
 
@@ -577,7 +577,7 @@ be_alloc_chunk_prev(struct m0_be_allocator *a,
 	M0_BE_REG_GET_PTR(c, a->ba_seg, tx);
 	M0_PRE(c->bac_zone == ztype);
 
-	r = chunks_all_be_list_prev(&h->bah_chunks, c);
+	r = chunks_all_be_list_prev(&h->bah_chunks, tx, NULL, c);
 	M0_ASSERT(ergo(r != NULL, be_alloc_chunk_invariant(a, tx, r)));
 	M0_BE_REG_PUT_PTR(c, a->ba_seg, tx);
 	M0_BE_REG_PUT_PTR(h, a->ba_seg, tx);
@@ -597,7 +597,7 @@ be_alloc_chunk_next(struct m0_be_allocator *a,
 	M0_BE_REG_GET_PTR(c, a->ba_seg, tx);
 	M0_PRE(c->bac_zone == ztype);
 
-	r = chunks_all_be_list_next(&h->bah_chunks, c);
+	r = chunks_all_be_list_next(&h->bah_chunks, tx, NULL, c);
 	if (r != NULL)
 		M0_BE_REG_GET_PTR(r, a->ba_seg, tx);
 	M0_ASSERT_EX(ergo(r != NULL, be_alloc_chunk_invariant(a, tx, r)));

@@ -109,7 +109,7 @@ m0_be_active_record_domain_init(struct m0_be_active_record_domain *dom,
 		m0_mutex_init(&sub->rds_lock);
 		m0_chan_init(&sub->rds_chan, &sub->rds_lock);
 
-		sub = ard_be_list_next(&dom->ard_list, sub);
+		sub = ard_be_list_next(&dom->ard_list, NULL, seg, sub);
 		if (sub == NULL)
 			break;
 	}
@@ -130,7 +130,7 @@ m0_be_active_record_domain_fini(struct m0_be_active_record_domain *dom)
 		m0_chan_fini_lock(&sub->rds_chan);
 		m0_mutex_fini(&sub->rds_lock);
 
-		sub = ard_be_list_next(&dom->ard_list, sub);
+		sub = ard_be_list_next(&dom->ard_list, NULL, dom->ard_seg, sub);
 		if (sub == NULL)
 			break;
 	}
@@ -338,7 +338,7 @@ be_active_record__subsystem_lookup(struct m0_be_active_record_domain *dom,
 		return sub;
 
 	for (;;) {
-		sub = ard_be_list_next(&dom->ard_list, sub);
+		sub = ard_be_list_next(&dom->ard_list, NULL, dom->ard_seg, sub);
 		if (sub == NULL || m0_streq(subsys, sub->rds_name))
 			break;
 	}
