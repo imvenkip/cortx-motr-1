@@ -32,15 +32,23 @@
 #include "be/op.h"              /* M0_BE_OP_SYNC */
 #include "be/seg.h"             /* m0_be_reg */
 #include "be/paged.h"           /* m0_be_pd_reg_get */
+#include "be/tx.h"              /* m0_be_tx */
+#include "be/domain.h"          /* m0_be_domain */
+
+static struct m0_be_pd *be_reg_pd_get(const struct m0_be_reg *reg,
+                                      struct m0_be_tx        *tx)
+{
+	return reg->br_seg != NULL ? reg->br_seg->bs_pd : &tx->t_dom->bd_pd;
+}
 
 M0_INTERNAL void m0_be_reg_get(const struct m0_be_reg *reg, struct m0_be_tx *tx)
 {
-	M0_BE_OP_SYNC(op, m0_be_pd_reg_get(reg->br_seg->bs_pd, reg, &op));
+	M0_BE_OP_SYNC(op, m0_be_pd_reg_get(be_reg_pd_get(reg, tx), reg, &op));
 }
 
 M0_INTERNAL void m0_be_reg_put(const struct m0_be_reg *reg, struct m0_be_tx *tx)
 {
-	m0_be_pd_reg_put(reg->br_seg->bs_pd, reg);
+	m0_be_pd_reg_put(be_reg_pd_get(reg, tx), reg);
 }
 
 
