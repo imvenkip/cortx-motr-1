@@ -100,12 +100,12 @@ m0_be_active_record_domain_init(struct m0_be_active_record_domain *dom,
 
 	dom->ard_seg = seg;
 
-	sub = ard_be_list_head(&dom->ard_list);
+	sub = ard_be_list_head(&dom->ard_list, NULL, seg);
 	if (sub == NULL)
 		return;
 
 	for (;;) {
-		M0_ASSERT(ard_be_list_is_empty(&sub->rds_list));
+		M0_ASSERT(ard_be_list_is_empty(&sub->rds_list, NULL, seg));
 		m0_mutex_init(&sub->rds_lock);
 		m0_chan_init(&sub->rds_chan, &sub->rds_lock);
 
@@ -120,12 +120,13 @@ m0_be_active_record_domain_fini(struct m0_be_active_record_domain *dom)
 {
 	struct m0_be_active_record_domain_subsystem *sub;
 
-	sub = ard_be_list_head(&dom->ard_list);
+	sub = ard_be_list_head(&dom->ard_list, NULL, dom->ard_seg);
 	if (sub == NULL)
 		return;
 
 	for (;;) {
-		M0_ASSERT(rds_be_list_is_empty(&sub->rds_list));
+		M0_ASSERT(rds_be_list_is_empty(&sub->rds_list, NULL,
+					       dom->ard_seg));
 		m0_chan_fini_lock(&sub->rds_chan);
 		m0_mutex_fini(&sub->rds_lock);
 
@@ -192,12 +193,12 @@ m0_be_active_record_domain_destroy(struct m0_be_active_record_domain *dom,
 	M0_ASSERT(rc == 0);
 
 	for (;;) {
-		sub = ard_be_list_tail(&dom->ard_list);
+		sub = ard_be_list_tail(&dom->ard_list, tx, NULL);
 		if (sub == NULL)
 			break;
 
 		/* no unrecovered records should be in lists */
-		M0_ASSERT(rds_be_list_is_empty(&sub->rds_list));
+		M0_ASSERT(rds_be_list_is_empty(&sub->rds_list, NULL, seg));
 
 		ard_be_list_del(&dom->ard_list, tx, sub);
 		rds_be_list_destroy(&sub->rds_list, tx);
@@ -332,7 +333,7 @@ be_active_record__subsystem_lookup(struct m0_be_active_record_domain *dom,
 {
 	struct m0_be_active_record_domain_subsystem *sub;
 
-	sub = ard_be_list_head(&dom->ard_list);
+	sub = ard_be_list_head(&dom->ard_list, NULL, dom->ard_seg);
 	if (sub == NULL || m0_streq(subsys, sub->rds_name))
 		return sub;
 

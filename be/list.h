@@ -226,13 +226,19 @@ scope void name ## _be_list_create(struct m0_be_list *blist,                   \
 				   struct m0_be_tx   *tx);                     \
 scope void name ## _be_list_destroy(struct m0_be_list *blist,                  \
 				    struct m0_be_tx   *tx);                    \
-scope bool name ## _be_list_is_empty(struct m0_be_list *blist);                \
+scope bool name ## _be_list_is_empty(struct m0_be_list *blist,                 \
+				     struct m0_be_tx   *tx,                    \
+				     struct m0_be_seg  *seg)                   \
 scope void name ## _be_tlink_create(amb_type        *obj,                      \
 				    struct m0_be_tx *tx);                      \
 scope void name ## _be_tlink_destroy(amb_type        *obj,                     \
 				     struct m0_be_tx *tx);                     \
-scope amb_type *name ## _be_list_tail(struct m0_be_list *blist);               \
-scope amb_type *name ## _be_list_head(struct m0_be_list *blist);               \
+scope amb_type *name ## _be_list_tail(struct m0_be_list *blist,                \
+				      struct m0_be_tx   *tx,                   \
+				      struct m0_be_seg  *seg)                  \
+scope amb_type *name ## _be_list_head(struct m0_be_list *blist,                \
+				      struct m0_be_tx   *tx,                   \
+				      struct m0_be_seg  *seg)                  \
 scope amb_type *name ## _be_list_prev(struct m0_be_list *blist,                \
 				      const amb_type    *obj);                 \
 scope amb_type *name ## _be_list_next(struct m0_be_list *blist,                \
@@ -280,9 +286,11 @@ scope M0_UNUSED void name ## _be_list_destroy(struct m0_be_list *blist,        \
 	m0_be_list_destroy(blist, &name ## _be_list_d, tx);                    \
 }                                                                              \
                                                                                \
-scope M0_UNUSED bool name ## _be_list_is_empty(struct m0_be_list *blist)       \
+scope M0_UNUSED bool name ## _be_list_is_empty(struct m0_be_list *blist,       \
+					       struct m0_be_tx   *tx,          \
+					       struct m0_be_seg  *seg)         \
 {                                                                              \
-	return m0_be_list_is_empty(blist, &name ## _be_list_d, NULL, NULL);    \
+	return m0_be_list_is_empty(blist, &name ## _be_list_d, tx, seg);       \
 }                                                                              \
                                                                                \
 scope M0_UNUSED void name ## _be_tlink_create(amb_type        *obj,            \
@@ -297,16 +305,20 @@ scope M0_UNUSED void name ## _be_tlink_destroy(amb_type        *obj,           \
 	m0_be_tlink_destroy(obj, &name ## _be_list_d, tx);                     \
 }                                                                              \
                                                                                \
-scope M0_UNUSED amb_type *name ## _be_list_tail(struct m0_be_list *blist)      \
+scope M0_UNUSED amb_type *name ## _be_list_tail(struct m0_be_list *blist,      \
+					        struct m0_be_tx   *tx,         \
+					        struct m0_be_seg  *seg)        \
 {                                                                              \
 	return (amb_type *)m0_be_list_tail(blist, &name ## _be_list_d,         \
-	                                   NULL, NULL);                        \
+	                                   tx, seg);                           \
 }                                                                              \
                                                                                \
-scope M0_UNUSED amb_type *name ## _be_list_head(struct m0_be_list *blist)      \
+scope M0_UNUSED amb_type *name ## _be_list_head(struct m0_be_list *blist,      \
+					        struct m0_be_tx   *tx,         \
+					        struct m0_be_seg  *seg)        \
 {                                                                              \
 	return (amb_type *)m0_be_list_head(blist, &name ## _be_list_d,         \
-	                                   NULL, NULL);                        \
+	                                   tx, seg);                           \
 }                                                                              \
                                                                                \
 scope M0_UNUSED amb_type *name ## _be_list_prev(struct m0_be_list *blist,      \
@@ -368,25 +380,25 @@ struct __ ## name ## __be_list_terminate_me_with_a_semicolon { ; }
  * Refer to lib/tlist.h for detailed description and usecases.
  * ------------------------------------------------------------------------- */
 
-#define m0_be_list_for(name, head, obj)                                    \
+#define m0_be_list_for(name, tx, seg, head, obj)                           \
 do {                                                                       \
 	const struct m0_be_list_descr *__descr = &name ## _be_list_d;      \
 	void                          *__bl;                               \
 	struct m0_be_list             *__head = (head);                    \
                                                                            \
-	for (obj = m0_be_list_head(__head, __descr, NULL, NULL);           \
+	for (obj = m0_be_list_head(__head, __descr, tx, seg);              \
 	     obj != NULL &&                                                \
 	     ((void)(__bl = m0_be_list_next(__head, __descr,               \
-					    NULL, NULL, obj)), true);      \
+					    tx, seg, obj)), true);         \
 	     obj = __bl)
 
 #define m0_be_list_endfor ;(void)__bl; } while (0)
 
-#define m0_be_list_forall(name, var, head, ...)                 \
+#define m0_be_list_forall(name, tx, seg, var, head, ...)        \
 ({                                                              \
 	void *var;                                              \
                                                                 \
-	m0_be_list_for(name, head, var) {                       \
+	m0_be_list_for(name, tx, seg, head, var) {              \
 		if (!({ __VA_ARGS__ ; }))                       \
 			break;                                  \
 	} m0_be_list_endfor;                                    \

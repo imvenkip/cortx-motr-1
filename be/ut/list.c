@@ -177,7 +177,7 @@ static void check(struct m0_be_list *list, struct m0_be_seg *seg)
 	int          expected[] = { 5, 8, 6, 4, 1, 3 };
 	int          i = 0;
 
-	m0_be_list_for(test, list, test) {
+	m0_be_list_for(test, NULL, seg, list, test) {
 		M0_UT_ASSERT(i < ARRAY_SIZE(expected));
 		M0_UT_ASSERT(expected[i++] == test->t_payload);
 	} m0_be_list_endfor;
@@ -188,7 +188,7 @@ M0_UNUSED static void print(struct m0_be_list *list)
 	struct test *test;
 
 	M0_LOG(M0_DEBUG, "----------");
-	m0_be_list_for(test, list, test) {
+	m0_be_list_for(test, NULL, NULL, list, test) {
 		M0_LOG(M0_DEBUG, "-- %d", test->t_payload);
 	} m0_be_list_endfor;
 }

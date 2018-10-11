@@ -98,9 +98,11 @@ static struct m0_be_list *be_fl_list(struct m0_be_fl *fl, unsigned long index)
 	return &fl->bfl_free[index].bfs_list;
 };
 
-static bool be_fl_list_is_empty(struct m0_be_fl *fl, unsigned long index)
+static bool be_fl_list_is_empty(struct m0_be_fl *fl,
+				struct m0_be_tx *tx,
+				unsigned long    index)
 {
-	return fl_be_list_is_empty(be_fl_list(fl, index));
+	return fl_be_list_is_empty(be_fl_list(fl, index), tx, NULL);
 }
 
 M0_INTERNAL void m0_be_fl_create(struct m0_be_fl  *fl,
@@ -136,10 +138,10 @@ be_fl_index_round_down_chunk(struct m0_be_fl             *fl,
 			chunk->bac_size / M0_BE_FL_STEP);
 }
 
-M0_INTERNAL bool m0_be_fl__invariant(struct m0_be_fl *fl)
+M0_INTERNAL bool m0_be_fl__invariant(struct m0_be_fl *fl, struct m0_be_tx *tx)
 {
 	return m0_forall(i, ARRAY_SIZE(fl->bfl_free),
-			m0_be_list_forall(fl, chunk, be_fl_list(fl, i),
+			m0_be_list_forall(fl, tx, NULL, chunk, be_fl_list(fl, i),
 				_0C(be_fl_index_round_down_chunk(fl, chunk) ==
 				    i)));
 }
@@ -150,12 +152,12 @@ M0_INTERNAL void m0_be_fl_add(struct m0_be_fl       *fl,
 {
 	unsigned long index = be_fl_index_round_down_chunk(fl, chunk);
 
-	M0_PRE_EX(m0_be_fl__invariant(fl));
+	M0_PRE_EX(m0_be_fl__invariant(fl, tx));
 
 	fl_be_tlink_create(chunk, tx);
 	fl_be_list_add(be_fl_list(fl, index), tx, chunk);
 
-	M0_POST_EX(m0_be_fl__invariant(fl));
+	M0_POST_EX(m0_be_fl__invariant(fl, tx));
 }
 
 M0_INTERNAL void m0_be_fl_del(struct m0_be_fl       *fl,
@@ -164,14 +166,15 @@ M0_INTERNAL void m0_be_fl_del(struct m0_be_fl       *fl,
 {
 	unsigned long index = be_fl_index_round_down_chunk(fl, chunk);
 
-	M0_PRE_EX(m0_be_fl__invariant(fl));
+	M0_PRE_EX(m0_be_fl__invariant(fl, tx));
 
 	fl_be_list_del(be_fl_list(fl, index), tx, chunk);
 	fl_be_tlink_destroy(chunk, tx);
-	M0_POST_EX(m0_be_fl__invariant(fl));
+	M0_POST_EX(m0_be_fl__invariant(fl, tx));
 }
 
 M0_INTERNAL struct be_alloc_chunk *m0_be_fl_pick(struct m0_be_fl *fl,
+                                                 struct m0_be_tx *tx,
 						 m0_bcount_t      size)
 {
 	struct be_alloc_chunk *chunk;
@@ -180,20 +183,20 @@ M0_INTERNAL struct be_alloc_chunk *m0_be_fl_pick(struct m0_be_fl *fl,
 	struct m0_be_list     *flist;
 	int                    i;
 
-	M0_PRE_EX(m0_be_fl__invariant(fl));
+	M0_PRE_EX(m0_be_fl__invariant(fl, tx));
 
 	for (index = be_fl_index_round_up(fl, size);
 	     index < ARRAY_SIZE(fl->bfl_free); ++index) {
-		if (!be_fl_list_is_empty(fl, index))
+		if (!be_fl_list_is_empty(fl, tx, index))
 			break;
 	}
 
 	flist = index < ARRAY_SIZE(fl->bfl_free) ? be_fl_list(fl, index) : NULL;
-	chunk = flist == NULL ? NULL : fl_be_list_head(flist);
+	chunk = flist == NULL ? NULL : fl_be_list_head(flist, tx, NULL);
 	if (index == M0_BE_FL_NR && chunk != NULL) {
 		chunk = NULL;
 		i = 0;
-		m0_be_list_for(fl, flist, iter) {
+		m0_be_list_for(fl, tx, NULL, flist, iter) {
 			if (iter->bac_size > size &&
 			    ergo(chunk != NULL,
 				 chunk->bac_size > iter->bac_size)) {

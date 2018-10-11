@@ -905,7 +905,7 @@ M0_INTERNAL bool m0_be_allocator__invariant(struct m0_be_allocator *a,
 	return m0_mutex_is_locked(&a->ba_lock) &&
 	       (true || /* XXX Disabled as it's too slow. */
 		m0_forall(z, M0_BAP_NR,
-			  m0_be_list_forall(chunks_all, iter,
+			  m0_be_list_forall(chunks_all, tx, NULL, iter,
 					   &a->ba_h[z]->bah_chunks,
 				       be_alloc_chunk_invariant(a, tx, iter))));
 }
@@ -957,7 +957,7 @@ static void be_allocator_header_destroy(struct m0_be_allocator     *a,
 	 * bah_chunks contains only 1 element. The list is empty for an unused
 	 * zone (bah_size == 0).
 	 */
-	c = chunks_all_be_list_head(&h->bah_chunks);
+	c = chunks_all_be_list_head(&h->bah_chunks, tx, NULL);
 	M0_ASSERT(equi(c == NULL, h->bah_size == 0));
 	if (c != NULL)
 		be_alloc_chunk_del_fini(a, ztype, tx, c);
@@ -1197,7 +1197,7 @@ M0_INTERNAL void m0_be_alloc_aligned(struct m0_be_allocator *a,
 	for (z = 0; z < M0_BAP_NR; ++z) {
 		if ((zonemask & M0_BITS(z)) != 0) {
 			M0_BE_REG_GET_PTR(a->ba_h[z], a->ba_seg, tx);
-			c = m0_be_fl_pick(&a->ba_h[z]->bah_fl, aligned_size);
+			c = m0_be_fl_pick(&a->ba_h[z]->bah_fl, tx, aligned_size);
 			M0_BE_REG_PUT_PTR(a->ba_h[z], a->ba_seg, tx);
 		}
 		if (c != NULL)

@@ -74,7 +74,7 @@ struct m0_be_fl {
 	struct m0_be_fl_size bfl_free[M0_BE_FL_NR + 1];
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
-M0_INTERNAL bool m0_be_fl__invariant(struct m0_be_fl *fl);
+M0_INTERNAL bool m0_be_fl__invariant(struct m0_be_fl *fl, struct m0_be_tx *tx);
 
 M0_INTERNAL void m0_be_fl_create(struct m0_be_fl  *fl,
 				 struct m0_be_tx  *tx,
@@ -91,6 +91,7 @@ M0_INTERNAL void m0_be_fl_del(struct m0_be_fl       *fl,
 
 /** find free chunk with size at least `size' */
 M0_INTERNAL struct be_alloc_chunk *m0_be_fl_pick(struct m0_be_fl *fl,
+                                                 struct m0_be_tx *tx,
 						 m0_bcount_t      size);
 
 M0_INTERNAL void m0_be_fl_credit(struct m0_be_fl        *fl,

@@ -195,12 +195,9 @@ M0_INTERNAL bool m0_be_list_is_empty(struct m0_be_list             *blist,
 {
 	bool result;
 
-	/* XXX get */
-
+	M0_BE_REG_GET_PTR(blist, seg, tx);
 	result = blist->bl_head.blh_head == (void *)&blist->bl_head;
-
-	/* XXX put */
-
+	M0_BE_REG_PUT_PTR(blist, seg, tx);
 	return result;
 }
 
@@ -266,9 +263,8 @@ M0_INTERNAL void *m0_be_list_tail(struct m0_be_list             *blist,
 {
 	void *result;
 
-	/* XXX get */
-
-	// XXX M0_PRE(be_list_invariant(blist, descr));
+	M0_BE_REG_GET_PTR(blist, seg, tx);
+	M0_PRE(be_list_invariant(blist, descr, seg, tx));
 
 	if (m0_be_list_is_empty(blist, descr, tx, NULL))
 		result = NULL;
@@ -279,8 +275,7 @@ M0_INTERNAL void *m0_be_list_tail(struct m0_be_list             *blist,
 		 */
 		result = be_list_link2obj(blist->bl_head.blh_tail, descr);
 	}
-
-	/* XXX put */
+	M0_BE_REG_PUT_PTR(blist, seg, tx);
 
 	return result;
 }
@@ -292,16 +287,14 @@ M0_INTERNAL void *m0_be_list_head(struct m0_be_list             *blist,
 {
 	void *result;
 
-	/* XXX get */
+	M0_BE_REG_GET_PTR(blist, seg, tx);
+	M0_PRE(be_list_invariant(blist, descr, seg, tx));
 
-	// XXX M0_PRE(be_list_invariant(blist, descr));
-
-	if (m0_be_list_is_empty(blist, descr, tx, NULL))
+	if (m0_be_list_is_empty(blist, descr, tx, seg))
 		result = NULL;
 	else
 		result = be_list_link2obj(blist->bl_head.blh_head, descr);
-
-	/* XXX put */
+	M0_BE_REG_PUT_PTR(blist, seg, tx);
 
 	return result;
 }
