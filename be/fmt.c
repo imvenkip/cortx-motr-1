@@ -25,7 +25,6 @@
 #include "be/fmt.h"
 #include "be/fmt_xc.h"
 
-#include "be/tx_credit.h"       /* m0_be_tx_credit_add */
 #include "lib/buf.h"            /* m0_buf */
 #include "lib/vec.h"            /* M0_BUFVEC_INIT_BUF */
 #include "lib/misc.h"           /* container_of */

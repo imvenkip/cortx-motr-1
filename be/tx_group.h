@@ -35,6 +35,7 @@ struct m0_be_engine;
 struct m0_be_domain;
 struct m0_be_tx;
 struct be_recovering_tx;
+struct m0_be_op;
 struct m0_be_pd;
 
 /**
