@@ -26,6 +26,7 @@
 
 #include "be/tx_credit.h"       /* m0_be_tx_credit */
 #include "be/tx.h"              /* M0_BE_TX_CAPTURE_PTR */
+#include "be/reg.h"             /* M0_BE_REG_GET_PTR */
 
 #include "lib/string.h"         /* strlen */
 
@@ -39,17 +40,28 @@ enum {
 	BE_LIST_POISON_BYTE = 0xCC,
 };
 
-static bool be_list_invariant(const struct m0_be_list       *blist,
-			      const struct m0_be_list_descr *descr)
+static bool be_list_invariant(struct m0_be_list             *blist,
+			      const struct m0_be_list_descr *descr,
+			      struct m0_be_seg              *seg,
+			      struct m0_be_tx               *tx)
 {
-	return _0C(equi(blist->bl_head.blh_head == (void *)&blist->bl_head,
-			blist->bl_head.blh_tail == (void *)&blist->bl_head));
+	bool result;
+	M0_BE_REG_GET_PTR(blist, seg, tx);
+	result = _0C(equi(blist->bl_head.blh_head == (void *)&blist->bl_head,
+	                  blist->bl_head.blh_tail == (void *)&blist->bl_head));
+	M0_BE_REG_PUT_PTR(blist, seg, tx);
+	return result;
 }
 
-static bool be_tlink_invariant(const struct m0_be_list_link  *link,
-			       const struct m0_be_list_descr *descr)
+static bool be_tlink_invariant(struct m0_be_list_link        *link,
+			       const struct m0_be_list_descr *descr,
+			       struct m0_be_tx               *tx)
 {
-	return _0C(equi(link->bll_next == link, link->bll_prev == link));
+	bool result;
+	M0_BE_REG_GET_PTR(link, NULL, tx);
+	result = _0C(equi(link->bll_next == link, link->bll_prev == link));
+	M0_BE_REG_PUT_PTR(link, NULL, tx);
+	return result;
 }
 
 M0_INTERNAL void m0_be_list_credit(enum m0_be_list_op      optype,
@@ -101,7 +113,9 @@ M0_INTERNAL void m0_be_list_credit(enum m0_be_list_op      optype,
 static void be_list_capture(struct m0_be_list *blist,
 			    struct m0_be_tx   *tx)
 {
+	M0_BE_REG_GET_PTR(blist, NULL, tx);
 	M0_BE_TX_CAPTURE_PTR(NULL, tx, blist);
+	M0_BE_REG_PUT_PTR(blist, NULL, tx);
 }
 
 static void be_list_head_capture(struct m0_be_list *blist,
@@ -139,7 +153,7 @@ M0_INTERNAL void m0_be_list_create(struct m0_be_list             *blist,
 				   const struct m0_be_list_descr *descr,
 				   struct m0_be_tx               *tx)
 {
-	/* XXX get */
+	M0_BE_REG_GET_PTR(blist, NULL, tx);
 
 	m0_format_header_pack(&blist->bl_format_header, &(struct m0_format_tag){
 		.ot_version = M0_BE_LIST_FORMAT_VERSION,
@@ -154,24 +168,24 @@ M0_INTERNAL void m0_be_list_create(struct m0_be_list             *blist,
 	m0_format_footer_update(blist);
 
 	be_list_capture(blist, tx);
-	M0_POST(be_list_invariant(blist, descr));
+	M0_POST(be_list_invariant(blist, descr, NULL, tx));
 
-	/* XXX put */
+	M0_BE_REG_PUT_PTR(blist, NULL, tx);
 }
 
 M0_INTERNAL void m0_be_list_destroy(struct m0_be_list             *blist,
 				    const struct m0_be_list_descr *descr,
 				    struct m0_be_tx               *tx)
 {
-	/* XXX get */
+	M0_BE_REG_GET_PTR(blist, NULL, tx);
 
-	M0_PRE(be_list_invariant(blist, descr));
+	M0_PRE(be_list_invariant(blist, descr, NULL, tx));
 	M0_PRE(m0_be_list_is_empty(blist, descr));
 
 	memset(blist, BE_LIST_POISON_BYTE, sizeof *blist);
 	be_list_capture(blist, tx);
 
-	/* XXX put */
+	M0_BE_REG_PUT_PTR(blist, NULL, tx);
 }
 
 M0_INTERNAL bool m0_be_list_is_empty(struct m0_be_list             *blist,
@@ -194,13 +208,13 @@ M0_INTERNAL void m0_be_tlink_create(void                          *obj,
 {
 	struct m0_be_list_link *link = be_list_obj2link(obj, descr);
 
-	/* XXX get link */
+	M0_BE_REG_GET_PTR(link, NULL, tx);
 
 	link->bll_next = link;
 	link->bll_prev = link;
 	be_tlink_capture(link, tx);
 
-	/* XXX put link */
+	M0_BE_REG_PUT_PTR(link, NULL, tx);
 }
 
 M0_INTERNAL void m0_be_tlink_destroy(void                          *obj,
@@ -209,12 +223,12 @@ M0_INTERNAL void m0_be_tlink_destroy(void                          *obj,
 {
 	struct m0_be_list_link *link = be_list_obj2link(obj, descr);
 
-	/* XXX get link */
+	M0_BE_REG_GET_PTR(link, NULL, tx);
 
 	memset(link, BE_LIST_POISON_BYTE, sizeof *link);
 	be_tlink_capture(link, tx);
 
-	/* XXX put link */
+	M0_BE_REG_PUT_PTR(link, NULL, tx);
 }
 
 /* -------------------------------------------------------------------------
@@ -245,7 +259,7 @@ M0_INTERNAL void *m0_be_list_tail(struct m0_be_list             *blist,
 
 	/* XXX get */
 
-	M0_PRE(be_list_invariant(blist, descr));
+	// XXX M0_PRE(be_list_invariant(blist, descr));
 
 	if (m0_be_list_is_empty(blist, descr))
 		result = NULL;
@@ -269,7 +283,7 @@ M0_INTERNAL void *m0_be_list_head(struct m0_be_list             *blist,
 
 	/* XXX get */
 
-	M0_PRE(be_list_invariant(blist, descr));
+	// XXX M0_PRE(be_list_invariant(blist, descr));
 
 	if (m0_be_list_is_empty(blist, descr))
 		result = NULL;
@@ -291,7 +305,7 @@ M0_INTERNAL void *m0_be_list_prev(struct m0_be_list             *blist,
 	/* XXX get */
 	/* XXX get link */
 
-	M0_PRE(be_list_invariant(blist, descr));
+	// XXX M0_PRE(be_list_invariant(blist, descr));
 	if (be_tlink_is_head(blist, link))
 		result = NULL;
 	else
@@ -313,7 +327,7 @@ M0_INTERNAL void *m0_be_list_next(struct m0_be_list             *blist,
 	/* XXX get */
 	/* XXX get link */
 
-	M0_PRE(be_list_invariant(blist, descr));
+	// XXX M0_PRE(be_list_invariant(blist, descr));
 	if (be_tlink_is_tail(blist, link))
 		result = NULL;
 	else
@@ -340,8 +354,8 @@ M0_INTERNAL void m0_be_list_add(struct m0_be_list             *blist,
 	/* XXX get */
 	/* XXX get link */
 
-	M0_PRE(be_list_invariant(blist, descr));
-	M0_PRE(be_tlink_invariant(link, descr));
+	M0_PRE(be_list_invariant(blist, descr, NULL, tx));
+	M0_PRE(be_tlink_invariant(link, descr, tx));
 	M0_PRE(!be_tlink_is_in_list(link));
 
 	if (m0_be_list_is_empty(blist, descr)) {
@@ -360,7 +374,7 @@ M0_INTERNAL void m0_be_list_add(struct m0_be_list             *blist,
 	be_list_head_capture(blist, tx);
 	be_tlink_capture(link, tx);
 
-	M0_POST(be_list_invariant(blist, descr));
+	M0_POST(be_list_invariant(blist, descr, NULL, tx));
 
 	/* XXX put link */
 	/* XXX put */
@@ -380,9 +394,9 @@ M0_INTERNAL void m0_be_list_add_after(struct m0_be_list             *blist,
 	/* XXX get link */
 	/* XXX get link_after */
 
-	M0_PRE(be_list_invariant(blist, descr));
-	M0_PRE(be_tlink_invariant(link, descr));
-	M0_PRE(be_tlink_invariant(link_after, descr));
+	M0_PRE(be_list_invariant(blist, descr, NULL, tx));
+	M0_PRE(be_tlink_invariant(link, descr, tx));
+	M0_PRE(be_tlink_invariant(link_after, descr, tx));
 	M0_PRE(!be_tlink_is_in_list(link));
 	M0_PRE(be_tlink_is_in_list(link_after));
 
@@ -403,7 +417,7 @@ M0_INTERNAL void m0_be_list_add_after(struct m0_be_list             *blist,
 	be_tlink_capture(link, tx);
 	be_tlink_capture(link_after, tx);
 
-	M0_POST(be_list_invariant(blist, descr));
+	M0_POST(be_list_invariant(blist, descr, NULL, tx));
 
 	/* XXX put link_after */
 	/* XXX put link */
@@ -424,9 +438,9 @@ M0_INTERNAL void m0_be_list_add_before(struct m0_be_list             *blist,
 	/* XXX get link */
 	/* XXX get link_before */
 
-	M0_PRE(be_list_invariant(blist, descr));
-	M0_PRE(be_tlink_invariant(link, descr));
-	M0_PRE(be_tlink_invariant(link_before, descr));
+	M0_PRE(be_list_invariant(blist, descr, NULL, tx));
+	M0_PRE(be_tlink_invariant(link, descr, tx));
+	M0_PRE(be_tlink_invariant(link_before, descr, tx));
 	M0_PRE(!be_tlink_is_in_list(link));
 	M0_PRE(be_tlink_is_in_list(link_before));
 
@@ -447,7 +461,7 @@ M0_INTERNAL void m0_be_list_add_before(struct m0_be_list             *blist,
 	be_tlink_capture(link, tx);
 	be_tlink_capture(link_before, tx);
 
-	M0_POST(be_list_invariant(blist, descr));
+	M0_POST(be_list_invariant(blist, descr, NULL, tx));
 
 	/* XXX put link_before */
 	/* XXX put link */
@@ -465,8 +479,8 @@ M0_INTERNAL void m0_be_list_add_tail(struct m0_be_list             *blist,
 	/* XXX get */
 	/* XXX get link */
 
-	M0_PRE(be_list_invariant(blist, descr));
-	M0_PRE(be_tlink_invariant(link, descr));
+	M0_PRE(be_list_invariant(blist, descr, NULL, tx));
+	M0_PRE(be_tlink_invariant(link, descr, tx));
 	M0_PRE(!be_tlink_is_in_list(link));
 
 	if (m0_be_list_is_empty(blist, descr)) {
@@ -485,7 +499,7 @@ M0_INTERNAL void m0_be_list_add_tail(struct m0_be_list             *blist,
 	be_list_head_capture(blist, tx);
 	be_tlink_capture(link, tx);
 
-	M0_POST(be_list_invariant(blist, descr));
+	M0_POST(be_list_invariant(blist, descr, NULL, tx));
 
 	/* XXX put link */
 	/* XXX put */
@@ -504,8 +518,8 @@ M0_INTERNAL void m0_be_list_del(struct m0_be_list             *blist,
 	/* XXX get */
 	/* XXX get link */
 
-	M0_PRE(be_list_invariant(blist, descr));
-	M0_PRE(be_tlink_invariant(link, descr));
+	M0_PRE(be_list_invariant(blist, descr, NULL, tx));
+	M0_PRE(be_tlink_invariant(link, descr, tx));
 	M0_PRE(be_tlink_is_in_list(link));
 
 	if (be_tlink_is_head(blist, link)) {
@@ -537,7 +551,7 @@ M0_INTERNAL void m0_be_list_del(struct m0_be_list             *blist,
 	link->bll_next = link;
 	be_tlink_capture(link, tx);
 
-	M0_POST(be_list_invariant(blist, descr));
+	M0_POST(be_list_invariant(blist, descr, NULL, tx));
 
 	/* XXX put link */
 	/* XXX put */
