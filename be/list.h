@@ -113,7 +113,9 @@ M0_INTERNAL void m0_be_list_destroy(struct m0_be_list             *blist,
 				    struct m0_be_tx               *tx);
 
 M0_INTERNAL bool m0_be_list_is_empty(struct m0_be_list             *blist,
-				     const struct m0_be_list_descr *descr);
+				     const struct m0_be_list_descr *descr,
+				     struct m0_be_tx               *tx,
+				     struct m0_be_seg              *seg);
 
 /* m0_be_link_*() functions follow BE naming pattern and not m0_tlist naming. */
 M0_INTERNAL void m0_be_tlink_create(void                          *obj,
@@ -129,17 +131,25 @@ M0_INTERNAL void m0_be_tlink_destroy(void                          *obj,
  * ------------------------------------------------------------------------- */
 
 M0_INTERNAL void *m0_be_list_tail(struct m0_be_list             *blist,
-				  const struct m0_be_list_descr *descr);
+				  const struct m0_be_list_descr *descr,
+				  struct m0_be_tx               *tx,
+				  struct m0_be_seg              *seg);
 
 M0_INTERNAL void *m0_be_list_head(struct m0_be_list             *blist,
-				  const struct m0_be_list_descr *descr);
+				  const struct m0_be_list_descr *descr,
+				  struct m0_be_tx               *tx,
+				  struct m0_be_seg              *seg);
 
 M0_INTERNAL void *m0_be_list_prev(struct m0_be_list             *blist,
 				  const struct m0_be_list_descr *descr,
+				  struct m0_be_tx               *tx,
+				  struct m0_be_seg              *seg,
 				  const void                    *obj);
 
 M0_INTERNAL void *m0_be_list_next(struct m0_be_list             *blist,
 				  const struct m0_be_list_descr *descr,
+				  struct m0_be_tx               *tx,
+				  struct m0_be_seg              *seg,
 				  const void                    *obj);
 
 /* -------------------------------------------------------------------------
@@ -272,7 +282,7 @@ scope M0_UNUSED void name ## _be_list_destroy(struct m0_be_list *blist,        \
                                                                                \
 scope M0_UNUSED bool name ## _be_list_is_empty(struct m0_be_list *blist)       \
 {                                                                              \
-	return m0_be_list_is_empty(blist, &name ## _be_list_d);                \
+	return m0_be_list_is_empty(blist, &name ## _be_list_d, NULL, NULL);    \
 }                                                                              \
                                                                                \
 scope M0_UNUSED void name ## _be_tlink_create(amb_type        *obj,            \
@@ -289,24 +299,28 @@ scope M0_UNUSED void name ## _be_tlink_destroy(amb_type        *obj,           \
                                                                                \
 scope M0_UNUSED amb_type *name ## _be_list_tail(struct m0_be_list *blist)      \
 {                                                                              \
-	return (amb_type *)m0_be_list_tail(blist, &name ## _be_list_d);        \
+	return (amb_type *)m0_be_list_tail(blist, &name ## _be_list_d,         \
+	                                   NULL, NULL);                        \
 }                                                                              \
                                                                                \
 scope M0_UNUSED amb_type *name ## _be_list_head(struct m0_be_list *blist)      \
 {                                                                              \
-	return (amb_type *)m0_be_list_head(blist, &name ## _be_list_d);        \
+	return (amb_type *)m0_be_list_head(blist, &name ## _be_list_d,         \
+	                                   NULL, NULL);                        \
 }                                                                              \
                                                                                \
 scope M0_UNUSED amb_type *name ## _be_list_prev(struct m0_be_list *blist,      \
 						const amb_type    *obj)        \
 {                                                                              \
-	return (amb_type *)m0_be_list_prev(blist, &name ## _be_list_d, obj);   \
+	return (amb_type *)m0_be_list_prev(blist, &name ## _be_list_d,         \
+	                                   NULL, NULL, obj);                   \
 }                                                                              \
                                                                                \
 scope M0_UNUSED amb_type *name ## _be_list_next(struct m0_be_list *blist,      \
 						const amb_type    *obj)        \
 {                                                                              \
-	return (amb_type *)m0_be_list_next(blist, &name ## _be_list_d, obj);   \
+	return (amb_type *)m0_be_list_next(blist, &name ## _be_list_d,         \
+	                                   NULL, NULL, obj);                   \
 }                                                                              \
                                                                                \
 scope M0_UNUSED void name ## _be_list_add(struct m0_be_list *blist,            \
@@ -360,9 +374,10 @@ do {                                                                       \
 	void                          *__bl;                               \
 	struct m0_be_list             *__head = (head);                    \
                                                                            \
-	for (obj = m0_be_list_head(__head, __descr);                       \
+	for (obj = m0_be_list_head(__head, __descr, NULL, NULL);           \
 	     obj != NULL &&                                                \
-	     ((void)(__bl = m0_be_list_next(__head, __descr, obj)), true); \
+	     ((void)(__bl = m0_be_list_next(__head, __descr,               \
+					    NULL, NULL, obj)), true);      \
 	     obj = __bl)
 
 #define m0_be_list_endfor ;(void)__bl; } while (0)
