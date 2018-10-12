@@ -122,7 +122,7 @@
          properties of the data-type or
 
        - by tagging C structure declarations with macros defined in
-         xcode/xcode.h and then executing xcode/gccxml2xcode on the header file
+         xcode/xcode.h and then executing xcode/m0gccxml2xcode on the header file
          or
 
        - by creating a description of the desired serialized format of a
@@ -132,8 +132,8 @@
 
    The first method is suitable for memory-only structures. The last 2 methods
    are for structures designed to be transmitted over network of stored on
-   persistent storage (fops, db records, &c.). gccxml2xcode is the preferable
-   method. ff2c should only be used when gccxml2xcode cannot accomplish the
+   persistent storage (fops, db records, &c.). m0gccxml2xcode is the preferable
+   method. ff2c should only be used when m0gccxml2xcode cannot accomplish the
    task.
  */
 /** @{ */

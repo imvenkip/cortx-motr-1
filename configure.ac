@@ -447,7 +447,7 @@ AC_PROG_SED
 AC_PROG_LN_S
 AC_PROG_INSTALL
 
-# gccxml is required by xcode/gccxml2xcode script
+# gccxml is required by xcode/m0gccxml2xcode script
 AC_PATH_PROG(GCCXML, gccxml,, [/usr/bin$PATH_SEPARATOR$PATH])
 AS_IF([test -z $GCCXML],
       AC_MSG_ERROR([gccxml is not found: it can be installed from gccxml \
@@ -461,7 +461,7 @@ AS_IF([test -z $CXX],
 on Red Hat based systems])
 )
 
-# perl-modules for xcode/gccxml2xcode script
+# perl-modules for xcode/m0gccxml2xcode script
 AX_PROG_PERL_MODULES([XML::LibXML], ,
         AC_MSG_ERROR([No XML::LibXML Perl module found: it can be installed \
 from perl-XML-LibXML package on Red Hat based systems])

@@ -31,9 +31,9 @@
 /**
  * Set xcode attribute on a struct or strucut's field. This sets a special gcc
  * __attribute__ which is ignored by gcc during compilation, but which is then
- * used by gccxml and gccxml2xcode to generate xcode data.
+ * used by gccxml and m0gccxml2xcode to generate xcode data.
  *
- * Please, refer to gccxml2xcode documentation for more details.
+ * Please, refer to m0gccxml2xcode documentation for more details.
  */
 #define M0_XC_ATTR(name, val) __attribute__((gccxml("xc_" name, val)))
 

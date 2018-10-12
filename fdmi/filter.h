@@ -187,7 +187,7 @@ enum {
 };
 
 struct m0_fdmi_flt_node_ptr {
-	/* FIXME: Actually type should be m0_fdmi_flt_node, but gccxml2xcode
+	/* FIXME: Actually type should be m0_fdmi_flt_node, but m0gccxml2xcode
 	 * falls into endless loop in this case (Phase 2) */
 	void *ffnp_ptr M0_XCA_OPAQUE("m0_fdmi_flt_node_xc_type");
 } M0_XCA_RECORD;
