@@ -10,6 +10,8 @@ mero_libmero_la_SOURCES  += xcode/string.c \
 
 xcode_m0protocol_SOURCES  = xcode/protocol.c
 
+POD_MAN_PAGES += xcode/m0gccxml2xcode
+
 EXTRA_DIST += xcode/m0gccxml2xcode \
               xcode/cursor.c \
               xcode/proto \

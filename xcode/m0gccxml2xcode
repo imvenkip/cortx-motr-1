@@ -435,17 +435,17 @@ sub get_header_file_id
     croak "Error: unable to find xml tag for header file '$header_file_path' in"
           . " the gccxml's output.\n\nPlease, notice that gccxml writes an exact"
           . " path of it's input arguments into output xml, so input files for"
-          . " gccxml and gccxml2xcode should use the same path, for example:\n"
+          . " gccxml and m0gccxml2xcode should use the same path, for example:\n"
           . "   gccxml -fxml=my_header.gccxml path/to/header/my_header.h\n"
-          . "   gccxml2xcode -i path/to/header/my_header.gccxml\n"
+          . "   m0gccxml2xcode -i path/to/header/my_header.gccxml\n"
           . "\n"
           . "But not a:\n"
           . "   gccxml -fxml=my_header.gccxml path/to/header/my_header.h\n"
-          . "   gccxml2xcode -i my_header.gccxml\n"
+          . "   m0gccxml2xcode -i my_header.gccxml\n"
           . "\n"
           . "Or:\n"
           . "   gccxml -fxml=my_header.gccxml my_header.h\n"
-          . "   gccxml2xcode -i path/to/header/my_header.gccxml\n"
+          . "   m0gccxml2xcode -i path/to/header/my_header.gccxml\n"
           . "\n"
         if !defined $header_file_node;
 
@@ -1131,7 +1131,7 @@ sub update_xlist_file
     my $blk_end         = quotemeta $xlist_block_end;
     my $blk_placeholder = quotemeta $xlist_block_placeholder;
     my $xlist           = gen_xlist($items, $enums);
-    my $lock            = xlist_lock('.gccxml2xcode.lock');
+    my $lock            = xlist_lock('.m0gccxml2xcode.lock');
 
     # if xlist file doesn't exist, create it
     if (! -e $cli_option{'list_file_name'}) {
@@ -1300,11 +1300,11 @@ __END__
 
 =head1 NAME
 
-gccxml2xcode - generates m0 xcode data from gccxml's output.
+m0gccxml2xcode - generates m0 xcode data from gccxml's output.
 
 =head1 SYNOPSIS
 
-gccxml2xcode -x <name> | -i <input_file> [-o <output_prefix>] [-h|--help]
+m0gccxml2xcode -x <name> | -i <input_file> [-o <output_prefix>] [-h|--help]
 [--usage] [--man]
 
 =head1 OPTIONS

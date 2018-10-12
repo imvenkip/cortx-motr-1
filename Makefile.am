@@ -799,6 +799,7 @@ addb2_m0addb2dump_LDADD     = $(top_builddir)/mero/libmero.la -lbfd -ldl
 # xcode/m0protocol ------------------------------------ {{{2
 #
 
+bin_SCRIPTS               += xcode/m0gccxml2xcode
 sbin_PROGRAMS             += xcode/m0protocol
 xcode_m0protocol_CPPFLAGS  = -DM0_TARGET='m0protocol' $(AM_CPPFLAGS)
 xcode_m0protocol_LDADD     = $(top_builddir)/mero/libmero.la
