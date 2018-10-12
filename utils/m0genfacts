@@ -406,8 +406,15 @@ def build_disk_info(host, disk_path, index)
     wwn = run("sudo lsblk -ndo WWN #{disk_path} 2>/dev/null", host: host)
     wwn = '0x0000000' + format('%04d', index) if wwn.to_s.strip.empty?
 
+    if is_fake
+        slot = index
+    else
+        slot = run("ls /sys/block/$(basename $(readlink #{disk_path}))/device/ \
+                    | grep enclosure | cut -f2 -d':'", host: host)
+    end
+
     return {
-        'bay'     => index,
+        'bay'     => slot,
         'path'    => disk_path,
         'size'    => size,
         'serial'  => serial,
