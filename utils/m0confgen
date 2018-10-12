@@ -1,6 +1,4 @@
-#!/usr/bin/env python
-
-from __future__ import print_function
+#!/usr/bin/env python3
 
 from ply import lex, yacc
 import argparse
@@ -31,7 +29,7 @@ import unittest
 #   library [https://github.com/HypothesisWorks/hypothesis-python/].
 # ----------------------------------------------------------------------
 
-__version__ = '3.0'
+__version__ = '3.0.1'
 __author__ = 'Valery V. Vorotyntsev <valery.vorotyntsev@seagate.com>'
 __copyright__ = """COPYRIGHT 2018 XYRATEX TECHNOLOGY LIMITED
 
