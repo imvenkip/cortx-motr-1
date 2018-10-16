@@ -670,10 +670,60 @@ static void ut_clovis_test_clovis_entity_namei_op_delete(void)
 
 static void ut_clovis_test_m0_clovis_entity_create(void)
 {
+	struct m0_clovis_obj     obj;
+	struct m0_clovis_entity  ent;
+	struct m0_clovis_realm   realm;
+	struct m0_clovis_op     *ops[1] = {NULL};
+	struct m0_clovis        *instance = NULL;
+	int                      rc;
+
+	/* init */
+	rc = ut_m0_clovis_init(&instance);
+	M0_UT_ASSERT(rc == 0);
+
+	ut_clovis_realm_entity_setup(&realm, &ent, instance);
+	ent.en_realm = &realm;
+
+	memset(&obj, 0, sizeof obj);
+	m0_clovis_obj_init(&obj, &realm, &ent.en_id,
+			   m0_clovis_layout_id(instance));
+
+	m0_fi_enable_once("m0_clovis__obj_pool_version_get",
+			  "fake_pool_version");
+
+	rc = m0_clovis_entity_create(NULL, &obj.ob_entity, &ops[0]);
+	M0_UT_ASSERT(rc = -ENOENT);
+	M0_UT_ASSERT(ops[0] == NULL);
+
+	ut_m0_clovis_fini(&instance);
 }
 
 static void ut_clovis_test_m0_clovis_entity_delete(void)
 {
+	struct m0_clovis_obj     obj;
+	struct m0_clovis_entity  ent;
+	struct m0_clovis_realm   realm;
+	struct m0_clovis_op     *ops[1] = {NULL};
+	struct m0_clovis        *instance = NULL;
+	int                      rc;
+
+	/* init */
+	rc = ut_m0_clovis_init(&instance);
+	M0_UT_ASSERT(rc == 0);
+
+	ut_clovis_realm_entity_setup(&realm, &ent, instance);
+	ent.en_realm = &realm;
+
+	M0_SET0(&obj);
+	m0_clovis_obj_init(&obj, &realm, &ent.en_id,
+			   m0_clovis_layout_id(instance));
+
+	m0_fi_enable_once("clovis_obj_namei_op_init", "fake_msg_size");
+	rc = m0_clovis_entity_delete(&obj.ob_entity, &ops[0]);
+	M0_UT_ASSERT(rc = -EMSGSIZE);
+	M0_UT_ASSERT(ops[0] == NULL);
+
+	ut_m0_clovis_fini(&instance);
 }
 
 /**
