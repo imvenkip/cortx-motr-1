@@ -1474,7 +1474,8 @@ static int ha_link_outgoing_fom_tick(struct m0_fom *fom)
 		}
 		reply_rc = hl->hln_reply_rc;
 		if (reply_rc != 0) {
-			M0_LOG(M0_DEBUG, "link failed, ha_link reconnect case");
+			M0_LOG(M0_DEBUG, "link failed, ha_link reconnect case. "
+			       "reply_rc=%d", reply_rc);
 			hl->hln_reply_rc = 0;
 			m0_sm_group_lock(&hl->hln_sm_group);
 			m0_sm_state_set(&hl->hln_sm,
@@ -1486,7 +1487,7 @@ static int ha_link_outgoing_fom_tick(struct m0_fom *fom)
 			hl->hln_reconnect_wait = true;
 			m0_mutex_unlock(&hl->hln_lock);
 
-			return M0_RC(M0_FSO_WAIT);
+			return M0_RC(M0_FSO_AGAIN);
 		}
 		m0_mutex_lock(&hl->hln_lock);
 		reconnect_wait = hl->hln_reconnect_wait;
