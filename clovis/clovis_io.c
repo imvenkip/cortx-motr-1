@@ -201,6 +201,25 @@ M0_INTERNAL bool m0_clovis_op_io_invariant(const struct m0_clovis_op_io *ioo)
 	return M0_RC(rc);
 }
 
+static bool is_parity_verify_mode(struct m0_clovis *instance)
+{
+	return instance->m0c_config->cc_is_read_verify;
+}
+
+static bool should_allocate_paritybuf(struct m0_clovis_op *op,
+				      struct m0_clovis *instance,
+				      struct m0_clovis_op_io *ioo)
+{
+
+	struct m0_pdclust_layout *play;
+
+	play = pdlayout_get(ioo);
+	return (m0_clovis__is_read_op(op)        &&
+		is_parity_verify_mode(instance)) ||
+		(m0_clovis__is_write_op(op) && !m0_pdclust_is_replicated(play));
+}
+
+
 /**
  * Callback for an IO operation being launched.
  * Prepares io maps and distributes the operations in the network transfer.
@@ -210,11 +229,12 @@ M0_INTERNAL bool m0_clovis_op_io_invariant(const struct m0_clovis_op_io *ioo)
  */
 static void clovis_obj_io_cb_launch(struct m0_clovis_op_common *oc)
 {
-	int                      rc;
-	struct m0_clovis        *cinst;
-	struct m0_clovis_op     *op;
-	struct m0_clovis_op_obj *oo;
-	struct m0_clovis_op_io  *ioo;
+	int                       rc;
+	struct m0_clovis         *cinst;
+	struct m0_clovis_op      *op;
+	struct m0_clovis_op_obj  *oo;
+	struct m0_clovis_op_io   *ioo;
+	struct m0_pdclust_layout *play;
 
 	M0_ENTRY();
 
@@ -233,6 +253,14 @@ static void clovis_obj_io_cb_launch(struct m0_clovis_op_common *oc)
 	cinst = m0_clovis__op_instance(op);
 	M0_PRE(cinst!= NULL);
 
+	play = pdlayout_get(ioo);
+
+	if (should_allocate_paritybuf(op, cinst, ioo))
+		ioo->ioo_pbuf_type = M0_CLOVIS_PBUF_DIR;
+	else if (m0_clovis__is_write_op(op) && m0_pdclust_is_replicated(play))
+		ioo->ioo_pbuf_type = M0_CLOVIS_PBUF_IND;
+	else
+		ioo->ioo_pbuf_type = M0_CLOVIS_PBUF_NONE;
 	rc = ioo->ioo_ops->iro_iomaps_prepare(ioo);
 	if (rc != 0) {
 		goto end;

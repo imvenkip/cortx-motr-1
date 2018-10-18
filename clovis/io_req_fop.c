@@ -620,10 +620,11 @@ static void ioreq_cc_fop_release(struct m0_ref *ref)
 
 M0_INTERNAL int ioreq_cc_fop_init(struct target_ioreq *ti)
 {
-	struct m0_fop            *fop;
-	struct m0_fop_cob_common *common;
-	struct m0_clovis_op_io   *ioo;
-	int                       rc;
+	struct m0_fop             *fop;
+	struct m0_fop_cob_common  *common;
+	struct m0_clovis_op_io    *ioo;
+	struct m0_clovis_obj_attr *io_attr;
+	int                        rc;
 
 	fop = &ti->ti_cc_fop.crf_fop;
 	m0_fop_init(fop, &m0_fop_cob_create_fopt, NULL, ioreq_cc_fop_release);
@@ -651,6 +652,9 @@ M0_INTERNAL int ioreq_cc_fop_init(struct target_ioreq *ti)
 	common->c_body.b_nlink = 1;
 	common->c_body.b_valid |= M0_COB_PVER;
 	common->c_body.b_valid |= M0_COB_NLINK;
+	common->c_body.b_valid |= M0_COB_LID;
+	io_attr = m0_clovis_io_attr(ioo);
+	common->c_body.b_lid = io_attr->oa_layout_id;
 	m0_atomic64_inc(&ti->ti_nwxfer->nxr_ccfop_nr);
 
 out:

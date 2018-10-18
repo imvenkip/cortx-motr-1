@@ -27,6 +27,38 @@ declare -A ha_states=(
 	[rebalance]=$M0_NC_REBALANCE
 )
 
+ha_events_post()
+{
+	local service_eps=($1)
+		local state=$2
+		local state_num=${ha_states[$state]}
+	if [ -z "$state_num" ]; then
+		echo "Unknown state: $state"
+		return 1
+	fi
+
+	shift 2
+
+	local fids=()
+	local nr=0
+	for d in "$@"; do
+		fids[$nr]="^k|1:$d"
+		nr=$((nr + 1))
+	done
+
+	local local_ep="$lnet_nid:$M0HAM_CLI_EP"
+
+	echo "ha_events_post: ${service_eps[*]}"
+	echo "setting devices { ${fids[*]} } to $state"
+	send_ha_events "${fids[*]}" "$state" "${service_eps[*]}" "$local_ep"
+	rc=$?
+	if [ $rc -ne 0 ]; then
+		echo "HA note set failed: $rc"
+		unmount_and_clean &>> $MERO_TEST_LOGFILE
+		return $rc
+	fi
+}
+
 # input parameters:
 # (i) state name
 # (ii) disk1
@@ -242,7 +274,7 @@ sns_rebalance_abort()
 {
 	local rc=0
 
-	rebalance_abort_trigger="$M0_SRC_DIR/sns/cm/st/m0repair -O $CM_OP_REBALANCE_ABORT -C ${lnet_nid}:${SNS_QUIESCE_CLI_EP} $ios_eps"
+	rebalance_abort_trigger="$M0_SRC_DIR/sns/cm/st/m0repair -O $CM_OP_REBALANCE_ABORT -t 0 -C ${lnet_nid}:${SNS_QUIESCE_CLI_EP} $ios_eps"
 	echo $rebalance_abort_trigger
 	eval $rebalance_abort_trigger
 	rc=$?

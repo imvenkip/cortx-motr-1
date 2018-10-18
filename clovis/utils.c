@@ -313,6 +313,21 @@ M0_INTERNAL uint64_t tolerance_of_level(struct m0_clovis_op_io *ioo, uint64_t lv
 	return pver->pv_fd_tol_vec[lv];
 }
 
+M0_INTERNAL bool m0_clovis__is_write_op(struct m0_clovis_op *op)
+{
+	return op->op_code == M0_CLOVIS_OC_WRITE;
+}
+
+M0_INTERNAL bool m0_clovis__is_read_op(struct m0_clovis_op *op)
+{
+	return op->op_code == M0_CLOVIS_OC_READ;
+}
+
+M0_INTERNAL struct m0_clovis_obj_attr *
+m0_clovis_io_attr(struct m0_clovis_op_io *ioo)
+{
+	return &ioo->ioo_obj->ob_attr;
+}
 
 /*
  *  Local variables:

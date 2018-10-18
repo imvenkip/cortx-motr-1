@@ -660,12 +660,14 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach       *pm,
 				break;
 			}
 		}
+
 		if (i == state->pst_max_device_failures &&
 		    i > 0 /* i == 0 in case of mdpool */)
 			M0_LOG(M0_ERROR, FID_F": This pool is in DUD state;"
 			       " event_index=%d event_state=%d",
 			       FID_P(&pm->pm_pver->pv_id),
 			       event->pe_index, event->pe_state);
+
 		/* must be found */
 		if (!pool_failed_devs_tlink_is_in(pd) &&
 		    !disk_is_in(&pool->po_failed_devices, pd)) {
@@ -793,8 +795,9 @@ M0_INTERNAL int m0_poolmach_sns_repair_spare_query(struct m0_poolmach *pm,
 	device_state = pm->pm_state->pst_devices_array[device_index].pd_state;
 	if (!M0_IN(device_state, (M0_PNDS_FAILED, M0_PNDS_SNS_REPAIRING,
 				  M0_PNDS_SNS_REPAIRED,
-				  M0_PNDS_SNS_REBALANCING)))
+				  M0_PNDS_SNS_REBALANCING))) {
 		goto out;
+	}
 
 	spare_usage_array = pm->pm_state->pst_spare_usage_array;
 	for (i = 0; i < pm->pm_state->pst_max_device_failures; i++) {
@@ -899,37 +902,37 @@ static void poolmach_event_queue_drop(struct m0_poolmach *pm,
 M0_INTERNAL void m0_poolmach_failvec_apply(struct m0_poolmach *pm,
                                            const struct m0_ha_nvec *nvec)
 {
-        struct m0_poolmach_event  pme;
-        struct m0_poolmach_state *state;
-        struct m0_pooldev        *pd;
-        struct m0_pool           *pool;
-        uint32_t                  i;
-        uint32_t                  pd_idx;
-        int                       rc;
+	struct m0_poolmach_event  pme;
+	struct m0_poolmach_state *state;
+	struct m0_pooldev        *pd;
+	struct m0_pool           *pool;
+	uint32_t                  i;
+	uint32_t                  pd_idx;
+	int                       rc;
 
-        M0_PRE(!pm->pm_state->pst_su_initialised);
+	M0_PRE(!pm->pm_state->pst_su_initialised);
 
-        pm->pm_state->pst_su_initialised = true;
-        state = pm->pm_state;
-        pool = pm->pm_pver->pv_pool;
-        for (i = 0; i < nvec->nv_nr; ++i) {
-                rc = m0_poolmach_fid_to_idx(pm, &nvec->nv_note[i].no_id,
-					    &pd_idx);
+	pm->pm_state->pst_su_initialised = true;
+	state = pm->pm_state;
+	pool = pm->pm_pver->pv_pool;
+	for (i = 0; i < nvec->nv_nr; ++i) {
+		rc = m0_poolmach_fid_to_idx(pm, &nvec->nv_note[i].no_id,
+				&pd_idx);
 		if (rc == -ENOENT)
 			continue;
 		M0_ASSERT(rc == 0);
-                pme.pe_type = M0_POOL_DEVICE;
-                pme.pe_index = pd_idx;
-                pme.pe_state = m0_ha2pm_state_map(nvec->nv_note[i].no_state);
-                if (!M0_IN(pme.pe_state, (M0_PNDS_FAILED, M0_PNDS_OFFLINE))) {
+		pme.pe_type = M0_POOL_DEVICE;
+		pme.pe_index = pd_idx;
+		pme.pe_state = m0_ha2pm_state_map(nvec->nv_note[i].no_state);
+		if (!M0_IN(pme.pe_state, (M0_PNDS_FAILED, M0_PNDS_OFFLINE))) {
 			/* Update the spare-usage-array. */
-                        m0_rwlock_write_lock(&pm->pm_lock);
-                        spare_usage_arr_update(pm, &pme);
-                        pd = &state->pst_devices_array[pme.pe_index];
-                        if (!pool_failed_devs_tlink_is_in(pd) &&
-                            !disk_is_in(&pool->po_failed_devices, pd)) {
+			m0_rwlock_write_lock(&pm->pm_lock);
+			spare_usage_arr_update(pm, &pme);
+			pd = &state->pst_devices_array[pme.pe_index];
+			if (!pool_failed_devs_tlink_is_in(pd) &&
+			    !disk_is_in(&pool->po_failed_devices, pd)) {
 				M0_CNT_INC(state->pst_nr_failures);
-                                pool_failed_devs_tlist_add_tail(
+				pool_failed_devs_tlist_add_tail(
 						&pool->po_failed_devices, pd);
 			}
                         m0_rwlock_write_unlock(&pm->pm_lock);
@@ -944,11 +947,11 @@ M0_INTERNAL void m0_poolmach_failvec_apply(struct m0_poolmach *pm,
 		poolmach_event_queue_drop(pm, &pme);
                 /*
 		 * Failvec is applied only once, during initialisation.
-                 * This operation should succeed.
-                 */
-                M0_ASSERT(rc == 0);
-        }
-        m0_poolmach_event_queue_apply(pm);
+		 * This operation should succeed.
+		 */
+		M0_ASSERT(rc == 0);
+	}
+	m0_poolmach_event_queue_apply(pm);
 }
 
 static int poolmach_spare_inherit(struct m0_poolmach *pm, struct m0_pool *pool)

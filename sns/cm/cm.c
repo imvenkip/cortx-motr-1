@@ -617,7 +617,7 @@ M0_INTERNAL int m0_sns_cm_fail_dev_log(struct m0_cm *cm,
 	m0_tl_for(pools, &pc->pc_pools, pool) {
 		m0_tl_for(pool_failed_devs, &pool->po_failed_devices, pd) {
 			if (pd->pd_state == state) {
-				M0_LOG(M0_WARN, " %s disk "FID_F
+				M0_LOG(M0_NOTICE, " %s disk "FID_F
 						" from pool "FID_F,
 						pd_state[pd->pd_state],
 						FID_P(&pd->pd_id),

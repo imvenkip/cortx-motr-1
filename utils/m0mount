@@ -215,8 +215,8 @@ LSUM=
 
 if [ $0 = "/usr/bin/m0mount" ]; then
 	M0D=/usr/bin/m0d
-	M0MKFS=/usr/bin/m0mkfs
-	M0LAYOUT=/usr/bin/m0layout
+	M0MKFS=/usr/sbin/m0mkfs
+	M0LAYOUT=/usr/sbin/m0layout
 	SUMFILE=$M0D
 	MERO_KO_LOAD_CMD="modprobe m0mero"
 	GF_KO_LOAD_CMD="modprobe m0gf"

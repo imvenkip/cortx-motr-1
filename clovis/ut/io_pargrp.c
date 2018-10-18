@@ -292,6 +292,7 @@ static void ut_clovis_test_pargrp_iomap_populate(void)
 	ioo->ioo_obj->ob_entity.en_realm = &realm;
 	realm.re_instance = instance;
 	ioo->ioo_oo.oo_oc.oc_op.op_code = M0_CLOVIS_OC_READ;
+	ioo->ioo_pbuf_type = M0_CLOVIS_PBUF_NONE;
 
 	/*
 	 * Create a dummy map, it covers the first parity group.
@@ -399,7 +400,7 @@ static void ut_clovis_test_pargrp_iomap_populate(void)
 
 	/* Test 3. RMW */
 	ioo->ioo_oo.oo_oc.oc_op.op_code = M0_CLOVIS_OC_WRITE;
-
+	ioo->ioo_pbuf_type = M0_CLOVIS_PBUF_DIR;
 	ut_clovis_pargrp_iomap_free_data_buf(map, 0, 0);
 	ut_clovis_dummy_paritybufs_create(map, false);
 
@@ -851,9 +852,11 @@ static void ut_clovis_test_pargrp_iomap_spans_seg(void)
 
 static void ut_clovis_free_pargrp_iomap(struct pargrp_iomap *map)
 {
+	struct m0_pdclust_layout *play;
 	int                       row;
 	int                       col;
 
+	play = pdlayout_get(map->pi_ioo);
 	m0_free(map->pi_ivec.iv_index);
 	m0_free(map->pi_ivec.iv_vec.v_count);
 
@@ -869,7 +872,7 @@ static void ut_clovis_free_pargrp_iomap(struct pargrp_iomap *map)
 
 	if (map->pi_paritybufs != NULL) {
 		for (row = 0; row < map->pi_max_row; ++row) {
-			for (col = 0; col < map->pi_max_col; ++col) {
+			for (col = 0; col < parity_col_nr(play); ++col) {
 				if (map->pi_paritybufs[row][col] != NULL)
 					m0_free(map->pi_paritybufs[row][col]);
 			}
@@ -898,6 +901,7 @@ static void ut_clovis_test_pargrp_iomap_init(void)
 	ioo = ut_clovis_dummy_ioo_create(instance, 1);
 
 	ioo->ioo_obj->ob_entity.en_realm = &realm;
+	ioo->ioo_pbuf_type = M0_CLOVIS_PBUF_DIR;
 	realm.re_instance = instance;
 
 	M0_ALLOC_PTR(map);

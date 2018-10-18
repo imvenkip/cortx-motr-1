@@ -235,15 +235,34 @@ static int pool_version_get_locked(struct m0_pools_common  *pc,
 static void pool_version__layouts_evict(struct m0_pool_version *pv,
 					struct m0_layout_domain *ldom);
 
-static struct m0_pool *pool_find(const struct m0_pools_common *pc,
+static struct m0_pool *pool_find(struct m0_pools_common *pc,
 				 const struct m0_fid *pool)
 {
 	struct m0_pool *ret;
 
 	M0_ENTRY("pool="FID_F, FID_P(pool));
+
+	/*
+	 * XXX TODO:
+	 * Lock pools common before accessing/updating, at other places.
+	 * Merge m0_pool_find() and pool_find().
+	 */
 	ret = m0_tl_find(pools, p, &pc->pc_pools, m0_fid_eq(&p->po_id, pool));
 	M0_LEAVE("%sfound", ret == NULL ? "not " : "");
 	return ret;
+}
+
+M0_INTERNAL struct m0_pool *m0_pool_find(struct m0_pools_common *pc,
+					 const struct m0_fid *pool)
+{
+	/*
+	 * XXX TODO:
+	 * Enable this assert once the pools common locking is fixed in the
+	 * pools common update paths.
+	 */
+	/*M0_PRE(m0_pools_is_locked(pc));*/
+
+	return pool_find(pc, pool);
 }
 
 static void pool__layouts_evict(struct m0_pool *pool,
@@ -1960,6 +1979,21 @@ M0_INTERNAL int m0_pool_device_state_update(struct m0_reqh        *reqh,
 }
 
 #endif /* !__KERNEL__ */
+
+M0_INTERNAL void m0_pools_lock(struct m0_pools_common *pc)
+{
+	m0_mutex_lock(&pc->pc_mutex);
+}
+
+M0_INTERNAL void m0_pools_unlock(struct m0_pools_common *pc)
+{
+	m0_mutex_unlock(&pc->pc_mutex);
+}
+
+M0_INTERNAL bool m0_pools_is_locked(struct m0_pools_common *pc)
+{
+	return m0_mutex_is_locked(&pc->pc_mutex);
+}
 
 /** @} end group pool */
 #undef M0_TRACE_SUBSYSTEM

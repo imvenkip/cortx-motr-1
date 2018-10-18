@@ -310,10 +310,12 @@ M0_INTERNAL void m0_pdclust_instance_inv(struct m0_pdclust_instance *pi,
 					 struct m0_pdclust_src_addr *src);
 
 M0_INTERNAL int m0_pdclust_perm_cache_build(struct m0_layout *layout,
-				    struct m0_pdclust_instance *pi);
+					    struct m0_pdclust_instance *pi);
 
 M0_INTERNAL void m0_pdclust_perm_cache_destroy(struct m0_layout *layout,
-				    struct m0_pdclust_instance *pi);
+					       struct m0_pdclust_instance *pi);
+
+M0_INTERNAL bool m0_pdclust_is_replicated(struct m0_pdclust_layout *play);
 extern struct m0_layout_type m0_pdclust_layout_type;
 
 M0_EXTERN const struct m0_pdclust_src_addr M0_PDCLUST_SRC_NULL;

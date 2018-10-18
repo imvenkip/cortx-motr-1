@@ -24,7 +24,17 @@
 
 #include "lib/types.h"   /* m0_uint128 */
 #include "lib/string.h"  /* m0_startswith */
+#include "lib/time.h"    /* m0_time_ t */
+#include "lib/memory.h"  /* M0_ALLOC_ARR */
+#include "lib/arith.h"   /* m0_rnd */
 #include "ut/ut.h"       /* M0_UT_ASSERT */
+
+#define BM_COMMON_STR "bm-majority-algorithm"
+
+enum {
+	BM_MJR_EVEN_ARR_LEN = 1000,
+	BM_MJR_ODD_ARR_LEN,
+};
 
 static const struct m0_uint128 zero     = M0_UINT128(0, 0);
 static const struct m0_uint128 one      = M0_UINT128(0, 1);
@@ -125,12 +135,136 @@ static void test_str_startswith(void)
 	M0_UT_ASSERT(m0_startswith("", ""));
 }
 
+static void test_majority_ident_arr(void)
+{
+	struct m0_key_val *kv_arr;
+	struct m0_key_val *mjr;
+	uint32_t          *key_arr;
+	struct m0_buf     *val_arr;
+	m0_time_t          seed;
+	uint32_t           i;
+	uint32_t           vote_nr;
+
+	M0_ALLOC_ARR(kv_arr, BM_MJR_ODD_ARR_LEN);
+	M0_UT_ASSERT(kv_arr != NULL);
+	M0_ALLOC_ARR(val_arr, BM_MJR_ODD_ARR_LEN);
+	M0_UT_ASSERT(val_arr != NULL);
+	M0_ALLOC_ARR(key_arr, BM_MJR_ODD_ARR_LEN);
+	M0_UT_ASSERT(key_arr != NULL);
+
+	for (i = 0; i < BM_MJR_ODD_ARR_LEN; ++i) {
+		m0_buf_init(&val_arr[i], BM_COMMON_STR, strlen(BM_COMMON_STR));
+	}
+	for (i = 0; i < BM_MJR_ODD_ARR_LEN; ++i) {
+		key_arr[i] = i;
+	}
+	for (i = 0; i < BM_MJR_ODD_ARR_LEN; ++i) {
+		m0_key_val_init(&kv_arr[i], &M0_BUF_INIT_PTR(&key_arr[i]),
+				&val_arr[i]);
+	}
+	vote_nr = 0;
+	mjr = m0_vote_majority_get(kv_arr, BM_MJR_ODD_ARR_LEN, m0_buf_eq,
+				   &vote_nr);
+	M0_UT_ASSERT(mjr != NULL);
+	M0_UT_ASSERT(vote_nr == BM_MJR_ODD_ARR_LEN);
+
+	/* Since all values are identical, pick a random one to compare. */
+	seed = m0_time_now();
+	i = m0_rnd(BM_MJR_ODD_ARR_LEN, &seed);
+	M0_UT_ASSERT(m0_buf_eq(&kv_arr[i].kv_val, &mjr->kv_val));
+	m0_free(key_arr);
+	m0_free(val_arr);
+	m0_free(kv_arr);
+}
+
+static void test_majority_dist_val(void)
+{
+	struct m0_key_val *kv_arr;
+	struct m0_key_val *mjr;
+	uint32_t          *key_arr;
+	uint32_t          *val_arr;
+	uint32_t           i;
+	uint32_t           vote_nr;
+
+	M0_ALLOC_ARR(kv_arr, BM_MJR_ODD_ARR_LEN);
+	M0_UT_ASSERT(kv_arr != NULL);
+	M0_ALLOC_ARR(val_arr, BM_MJR_ODD_ARR_LEN);
+	M0_UT_ASSERT(val_arr != NULL);
+	M0_ALLOC_ARR(key_arr, BM_MJR_ODD_ARR_LEN);
+	M0_UT_ASSERT(key_arr != NULL);
+
+	for (i = 0; i < BM_MJR_ODD_ARR_LEN; ++i) {
+		val_arr[i] = i;
+	}
+	for (i = 0; i < BM_MJR_ODD_ARR_LEN; ++i) {
+		key_arr[i] = i;
+	}
+	for (i = 0; i < BM_MJR_ODD_ARR_LEN; ++i) {
+		m0_key_val_init(&kv_arr[i], &M0_BUF_INIT_PTR(&key_arr[i]),
+				&M0_BUF_INIT_PTR(&val_arr[i]));
+	}
+	vote_nr = 0;
+	mjr = m0_vote_majority_get(kv_arr, BM_MJR_ODD_ARR_LEN, m0_buf_eq,
+				   &vote_nr);
+	M0_UT_ASSERT(mjr == NULL);
+	M0_UT_ASSERT(vote_nr == 1);
+
+	m0_free(key_arr);
+	m0_free(val_arr);
+	m0_free(kv_arr);
+}
+
+static void test_majority_tie(void)
+{
+	struct m0_key_val *kv_arr;
+	struct m0_key_val *mjr;
+	uint32_t          *key_arr;
+	uint32_t          *val_arr;
+	uint32_t           i;
+	uint32_t           vote_nr;
+
+	M0_ALLOC_ARR(kv_arr, BM_MJR_EVEN_ARR_LEN);
+	M0_UT_ASSERT(kv_arr != NULL);
+	M0_ALLOC_ARR(val_arr, BM_MJR_EVEN_ARR_LEN);
+	M0_UT_ASSERT(val_arr != NULL);
+	M0_ALLOC_ARR(key_arr, BM_MJR_EVEN_ARR_LEN);
+	M0_UT_ASSERT(key_arr != NULL);
+
+	for (i = 0; i < BM_MJR_EVEN_ARR_LEN; ++i) {
+		val_arr[i] = i % 2;
+	}
+	for (i = 0; i < BM_MJR_EVEN_ARR_LEN; ++i) {
+		key_arr[i] = i;
+	}
+	for (i = 0; i < BM_MJR_EVEN_ARR_LEN; ++i) {
+		m0_key_val_init(&kv_arr[i], &M0_BUF_INIT_PTR(&key_arr[i]),
+				&M0_BUF_INIT_PTR(&val_arr[i]));
+	}
+	vote_nr = 0;
+	mjr = m0_vote_majority_get(kv_arr, BM_MJR_EVEN_ARR_LEN, m0_buf_eq,
+				   &vote_nr);
+	M0_UT_ASSERT(mjr == NULL);
+	M0_UT_ASSERT(vote_nr == BM_MJR_EVEN_ARR_LEN / 2);
+
+	m0_free(key_arr);
+	m0_free(val_arr);
+	m0_free(kv_arr);
+}
+
+static void test_majority_get(void)
+{
+	test_majority_ident_arr();
+	test_majority_dist_val();
+	test_majority_tie();
+}
+
 void m0_test_misc(void)
 {
 	uint128_add_ut();
 	uint128_mul_ut();
 	test_str_startswith();
 	test_forall_exists();
+	test_majority_get();
 }
 
 /*

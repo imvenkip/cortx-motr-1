@@ -311,7 +311,7 @@ EOF
 		DIR=$MERO_M0T1FS_TEST_DIR/ha
 		rm -rf $DIR
 		mkdir -p $DIR
-		opts="$common_opts -T linux -e $XPT:${lnet_nid}:${HA_EP%:*:*}:$MKFS_PORTAL:1 \
+		opts="$common_opts -T ad -e $XPT:${lnet_nid}:${HA_EP%:*:*}:$MKFS_PORTAL:1 \
 		      -c $CONFDB"
 		cmd="cd $DIR && exec $prog_mkfs -F $opts |& tee -a m0mkfs.log"
 		echo $cmd
@@ -363,8 +363,8 @@ EOF
 
 		# spawn ha agent
 		proc_fid="'<"$PROC_FID_CNTR:$ha_key">'"
-		opts="$common_opts -T linux -e $XPT:${lnet_nid}:$HA_EP \
-		      -c $CONFDB -f $proc_fid ${FI_OPT:-}"
+		opts="$common_opts -T ad -e $XPT:${lnet_nid}:$HA_EP \
+		      -c $CONFDB -f $proc_fid ${FI_OPT:-} -H ${lnet_nid}:$HA_EP"
 		DIR=$MERO_M0T1FS_TEST_DIR/ha
 		cmd="cd $DIR && exec $prog_start $opts |& tee -a m0d.log"
 		local m0d_log=$DIR/m0d.log

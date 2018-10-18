@@ -167,7 +167,7 @@ struct m0_xcode_cursor;
  * Custom field reader for enums.
  *
  * The pointer to this function is installed into m0_xcode_field::xf_read by
- * gccxml2xcode for fields tagged with the M0_XCA_FENUM macro.
+ * m0gccxml2xcode for fields tagged with the M0_XCA_FENUM macro.
  */
 M0_INTERNAL int m0_xcode_enum_field_read(const struct m0_xcode_cursor *it,
 					 struct m0_xcode_obj *obj,
@@ -177,7 +177,7 @@ M0_INTERNAL int m0_xcode_enum_field_read(const struct m0_xcode_cursor *it,
  * Custom field reader for bitmasks.
  *
  * The pointer to this function is installed into m0_xcode_field::xf_read by
- * gccxml2xcode for fields tagged with the M0_XCA_FBITMASK macro.
+ * m0gccxml2xcode for fields tagged with the M0_XCA_FBITMASK macro.
  */
 M0_INTERNAL int m0_xcode_bitmask_field_read(const struct m0_xcode_cursor *it,
 					    struct m0_xcode_obj *obj,

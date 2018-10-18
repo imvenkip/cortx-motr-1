@@ -106,7 +106,7 @@ M0_INTERNAL int m0_fdms_rep_fopts_init(void)
 M0_INTERNAL int m0_fdms_fop_init(void)
 {
         /*
-         * Provided by gccxml2xcode after parsing fdmi_fops.h
+         * Provided by m0gccxml2xcode after parsing fdmi_fops.h
          */
         m0_xc_fdmi_fops_init();
 

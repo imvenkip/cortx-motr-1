@@ -10,7 +10,9 @@ mero_libmero_la_SOURCES  += xcode/string.c \
 
 xcode_m0protocol_SOURCES  = xcode/protocol.c
 
-EXTRA_DIST += xcode/gccxml2xcode \
+POD_MAN_PAGES += xcode/m0gccxml2xcode
+
+EXTRA_DIST += xcode/m0gccxml2xcode \
               xcode/cursor.c \
               xcode/proto \
               xcode/protocol_checksum.h.template

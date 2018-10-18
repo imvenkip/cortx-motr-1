@@ -630,7 +630,7 @@ function build_conf()
   $CTRLV $MD_OBJS $PVER1_OBJS $DIX_PVER_OBJS]"
 }
 
-service_eps_with_m0t1fs_get()
+service_eps_get()
 {
 	local lnet_nid=`sudo lctl list_nids | head -1`
 	local service_eps
@@ -639,7 +639,6 @@ service_eps_with_m0t1fs_get()
 		service_eps=(
 			"$lnet_nid:${IOSEP[0]}"
 			"$lnet_nid:${HA_EP}"
-			"$lnet_nid:12345:33:1"
 		)
 	else
 		service_eps=(
@@ -648,9 +647,18 @@ service_eps_with_m0t1fs_get()
 			"$lnet_nid:${IOSEP[2]}"
 			"$lnet_nid:${IOSEP[3]}"
 			"$lnet_nid:${HA_EP}"
-			"$lnet_nid:12345:33:1"
 		)
 	fi
+
+	echo "${service_eps[*]}"
+}
+
+service_eps_with_m0t1fs_get()
+{
+	local lnet_nid=`sudo lctl list_nids | head -1`
+	local service_eps=$(service_eps_get)
+
+	service_eps+=("$lnet_nid:12345:33:1")
 
 	# Return list of endpoints
 	echo "${service_eps[*]}"

@@ -107,7 +107,7 @@ M0_INTERNAL int m0_conf_fops_init(void)
 
 
 	/*
-	 * Provided by gccxml2xcode after parsing load_fop.h
+	 * Provided by m0gccxml2xcode after parsing load_fop.h
 	 */
 	m0_xc_conf_load_fop_init();
 
@@ -134,7 +134,7 @@ M0_INTERNAL int m0_conf_fops_init(void)
 			 .rpc_flags = M0_RPC_ITEM_TYPE_REPLY);
 
 	/*
-	 * Provided by gccxml2xcode after parsing flip_fop.h
+	 * Provided by m0gccxml2xcode after parsing flip_fop.h
 	 */
 	m0_xc_conf_flip_fop_init();
 

@@ -30,14 +30,14 @@
  */
 
 /**
- * Initialises all xcode types processed by gccxml2xcode during build.
+ * Initialises all xcode types processed by m0gccxml2xcode during build.
  *
  * @see m0_xcode_fini()
  */
 int m0_xcode_init(void);
 
 /**
- * Finalises all xcode types processed by gccxml2xcode during build.
+ * Finalises all xcode types processed by m0gccxml2xcode during build.
  *
  * @see m0_xcode_init()
  */

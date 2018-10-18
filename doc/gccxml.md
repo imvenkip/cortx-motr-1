@@ -1,4 +1,4 @@
-**NOTE**  There is no need to run gccxml or gccxml2xcode manually. It's
+**NOTE**  There is no need to run gccxml or m0gccxml2xcode manually. It's
           automatically done for you by the build system. Please, see
           section _build system integration_ for more details.
 
@@ -37,10 +37,10 @@ And this is where gccxml comes into game.
 xcode/xcode.h)
 
 
-gccxml2xcode
+m0gccxml2xcode
 ------------
 
-gccxml2xcode is a perl script which does an actual work of analyzing gccxml's
+m0gccxml2xcode is a perl script which does an actual work of analyzing gccxml's
 output and generating xcode data structures and initialization code.
 
 It does the same thing as ff2c compiler (xcode/ff2c/ff2c), but instead of using
@@ -52,7 +52,7 @@ definition, which needs xcode data to be generated for it, should be "marked"
 whith a special gcc `__attribute__()`.
 
 Let's use a little example code first, to see how it works, and then describe
-attributes, gccxml2xcode invocation and integration with build system in more
+attributes, m0gccxml2xcode invocation and integration with build system in more
 details.
 
 This is our test.h header:
@@ -94,7 +94,7 @@ particular `__attribute__()` property of struct definition.
 To generate xcode from this test.h header we need to do the following:
 
     $ gccxml -I ~/mero/core -fxml=test.gccxml test.h
-    $ gccxml2xcode -i test.gccxml
+    $ m0gccxml2xcode -i test.gccxml
 
 This will produce two files: test_xc.h and test_xc.c, which will contain
 xcode data structures and initialization function, similarly to the
@@ -272,26 +272,26 @@ following tools should be installed in the development environment:
 
         yum install gcc-c++
 
-  * perl (required by gccxml2xcode):
+  * perl (required by m0gccxml2xcode):
 
         yum install perl
 
-  * XML::LibXML perl module (required by gccxml2xcode):
+  * XML::LibXML perl module (required by m0gccxml2xcode):
 
         yum install perl-XML-LibXML
 
-  * List::MoreUtils perl module (required by gccxml2xcode):
+  * List::MoreUtils perl module (required by m0gccxml2xcode):
 
         yum install perl-List-MoreUtils
 
 This is, essentially, everything what one needs to know to use automatic
 xcode data generation for C structures in mero code.
 
-For more information about gccxml2xcode please refer to the script documentation
+For more information about m0gccxml2xcode please refer to the script documentation
 and script code itself:
 
-    $ gccxml2xcode --help
-    $ gccxml2xcode --man
-    $ view gccxml2xcode
+    $ m0gccxml2xcode --help
+    $ m0gccxml2xcode --man
+    $ view m0gccxml2xcode
 
 The script is located in 'xcode/' directory.

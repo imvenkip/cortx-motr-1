@@ -35,6 +35,7 @@
 #endif
 #include "lib/types.h"
 #include "lib/assert.h"           /* M0_CASSERT */
+#include "lib/buf.h"              /* m0_buf */
 
 #define _QUOTE(s) #s
 #define M0_QUOTE(s) _QUOTE(s)
@@ -411,6 +412,13 @@ enum {
 	UINT32_STR_LEN = 64
 };
 
+
+/** An object representing a key value pair. */
+struct m0_key_val {
+	struct m0_buf kv_key;
+	struct m0_buf kv_val;
+};
+
 /**
  * Apply a permutation given by its Lehmer code in k[] to a set s[] of n
  * elements and build inverse permutation in r[].
@@ -438,6 +446,37 @@ M0_INTERNAL bool m0_bit_get(void *buffer, m0_bcount_t i);
 
 /**Set i-th bit value in the buffer. */
 M0_INTERNAL void m0_bit_set(void *buffer, m0_bcount_t i, bool val);
+
+/** Initialises a key value pair. */
+M0_INTERNAL void m0_key_val_init(struct m0_key_val *kv, const struct m0_buf *key,
+				 const struct m0_buf *val);
+
+/**
+ * This API implements Boyer-Moore Voting Algorithm.
+ * Returns the majority element present in an input array. The majority element
+ * of an array, if present, is the element that occurs more than n/2 times in
+ * the array of length n. It has been assumed that members of the array can be
+ * compared for equality and method for the same needs to be provided by the
+ * user of the API.
+ * Returns null if there is no majority element.
+ */
+M0_INTERNAL void *m0_vote_majority_get(struct m0_key_val *arr, uint32_t len,
+				       bool (*cmp)(const struct m0_buf *,
+					           const struct m0_buf *),
+				       uint32_t *vote_nr);
+
+/**
+ * Returns true iff it's M0_KEY_VAL_NULL.
+ */
+M0_INTERNAL bool m0_key_val_is_null(struct m0_key_val *kv);
+
+/**
+ * Initialises a key to M0_KEY_VAL_NULL.
+ */
+M0_INTERNAL void m0_key_val_null_set(struct m0_key_val *kv);
+
+M0_EXTERN const struct m0_key_val M0_KEY_VAL_NULL;
+
 
 #endif /* __MERO_LIB_MISC_H__ */
 

@@ -813,6 +813,11 @@ M0_INTERNAL int m0_pdclust_perm_cache_build(struct m0_layout *layout,
 	return M0_RC(rc);
 }
 
+M0_INTERNAL bool m0_pdclust_is_replicated(struct m0_pdclust_layout *play)
+{
+	return play->pl_attr.pa_N == 1;
+}
+
 /**
  * Implementation of lo_instance_build().
  *

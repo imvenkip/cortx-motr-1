@@ -191,6 +191,23 @@ struct data_buf {
 	 * case it is part of input IO request.
 	 */
 	struct target_ioreq *db_tioreq;
+
+	/**
+	 * Represents index and value of majority element in case of a
+	 * replicated layout. The value of key is unit number in a
+	 * parity group.
+	 */
+	struct m0_key_val    db_maj_ele;
+
+	/**
+	 * Holds the CRC value associated with the page in parity-verify mode.
+	 */
+	uint64_t             db_crc;
+
+	/**
+	 * Key associated with the buffer to be used for replicated layout.
+	 */
+	uint32_t             db_key;
 };
 
 /** Operation vector for struct nw_xfer_request. */
@@ -360,7 +377,13 @@ struct pargrp_iomap {
 	const struct pargrp_iomap_ops  *pi_ops;
 
 	/** Backlink to m0_clovis_op_io. */
-	struct m0_clovis_op_io          *pi_ioo;
+	struct m0_clovis_op_io         *pi_ioo;
+
+	/**
+	 * In case of a replicated layout this indicates whether
+	 * any of the replicas of this group are corrupted.
+	 */
+	bool                            pi_is_corrupted;
 };
 
 /** Operations vector for struct pargrp_iomap. */
@@ -451,7 +474,7 @@ struct pargrp_iomap_ops {
 	 * Recalculates parity for given pargrp_iomap.
 	 * @pre map != NULL && map->pi_ioreq->ir_type == IRT_WRITE.
 	 */
-	int (*pi_parity_recalc)   (struct pargrp_iomap *map);
+	int (*pi_parity_recalc)(struct pargrp_iomap *map);
 
 	/**
 	 * verify parity for given pargrp_iomap for read operation and
@@ -459,7 +482,19 @@ struct pargrp_iomap_ops {
 	 * already read from ioserive.
 	 * @pre map != NULL
 	 */
-	int (*pi_parity_verify)   (struct pargrp_iomap *map);
+	int (*pi_parity_verify)(struct pargrp_iomap *map);
+
+	/**
+	 * In case of a replicated layout this compares the members of
+	 * a parity group for equality.
+	 */
+	int (*pi_parity_replica_verify)(struct pargrp_iomap *map);
+
+	/**
+	 * In case of a replicated layout this method replicates
+	 * data into parity buffers.
+	 */
+	int (*pi_data_replicate)(struct pargrp_iomap *map);
 
 	/**
 	 * Allocates data_buf structures for pargrp_iomap::pi_paritybufs
@@ -478,10 +513,10 @@ struct pargrp_iomap_ops {
 	 * @pre   map->pi_state == PI_HEALTHY.
 	 * @post  map->pi_state == PI_DEGRADED.
 	 */
-	int (*pi_dgmode_process)  (struct pargrp_iomap *map,
-				   struct target_ioreq *tio,
-				   m0_bindex_t         *index,
-				   uint32_t             count);
+	int (*pi_dgmode_process)(struct pargrp_iomap *map,
+				 struct target_ioreq *tio,
+				 m0_bindex_t         *index,
+				 uint32_t             count);
 
 	/**
 	 * Marks all but the failed pages with flag PA_DGMODE_READ in
@@ -495,7 +530,12 @@ struct pargrp_iomap_ops {
 	 * @pre  map->pi_state == PI_DEGRADED.
 	 * @post map->pi_state == PI_HEALTHY.
 	 */
-	int (*pi_dgmode_recover)  (struct pargrp_iomap *map);
+	int (*pi_dgmode_recover)(struct pargrp_iomap *map);
+
+	/**
+	 * In case of degraded mode picks the replica with majority.
+	 */
+	int (*pi_replica_recover)(struct pargrp_iomap *map);
 };
 
 /** Operation vector for struct io_request. */
@@ -595,6 +635,12 @@ struct m0_clovis_op_io_ops {
 	 * @post req->ir_state == IRS_DEGRADED_READING.
 	 */
 	int (*iro_dgmode_write)   (struct m0_clovis_op_io *ioo, bool rmw);
+
+	/**
+	 * This method fixes the affected replicas from the corrupted parity
+	 * groups.
+	 */
+	int (*iro_replica_rectify) (struct m0_clovis_op_io *ioo, bool rmw);
 };
 
 /** Operations vector for struct target_ioreq. */
