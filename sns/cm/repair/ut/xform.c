@@ -45,6 +45,7 @@ static struct m0_fid gob_fid;
 static struct m0_fid cob_fid;
 
 static struct m0_reqh            *reqh;
+struct m0_pdclust_layout         *pdlay;
 static struct m0_cm              *cm;
 static struct m0_sns_cm          *scm;
 static struct m0_reqh_service    *scm_service;
@@ -302,14 +303,17 @@ static void test_bufvec_xor()
  */
 static void test_single_cp(void)
 {
-	struct m0_sns_cm_ag *sag;
-	struct m0_cm_cp     *cp = &s_cp.sc_base;
+	struct m0_sns_cm_ag       *sag;
+	struct m0_cm_cp           *cp = &s_cp.sc_base;
+	struct m0_sns_cm_file_ctx  fctx;
 
 	m0_semaphore_init(&sem, 0);
 	ag_prepare(&s_rag, SINGLE_FAILURE, &group_single_ops, s_fc);
 	s_acc_buf.nb_pool = &nbp;
 	s_buf.nb_pool = &nbp;
+	fctx.sf_layout = m0_pdl_to_layout(pdlay);
 	sag = &s_rag.rag_base;
+	sag->sag_fctx = &fctx;
 	cp_prepare(cp, &s_buf, SEG_NR, SEG_SIZE, sag, 'e',
 		   &single_cp_fom_ops, reqh, 0, false, NULL);
 	cp_prepare(&s_fc[0].fc_tgt_acc_cp.sc_base, &s_acc_buf, SEG_NR,
@@ -340,15 +344,18 @@ static void test_single_cp(void)
  */
 static void test_multi_cp_single_failure(void)
 {
-	struct m0_sns_cm_ag *sag;
-	struct m0_cm_cp     *cp;
-	int                  i;
+	struct m0_sns_cm_ag       *sag;
+	struct m0_cm_cp           *cp;
+	struct m0_sns_cm_file_ctx  fctx;
+	int                        i;
 
 	m0_semaphore_init(&sem, 0);
 	ag_prepare(&m_rag, SINGLE_FAILURE, &group_single_fail_multi_cp_ops,
 		   m_fc);
 	m_acc_buf[0].nb_pool = &nbp;
 	sag = &m_rag.rag_base;
+	fctx.sf_layout = m0_pdl_to_layout(pdlay);
+	sag->sag_fctx = &fctx;
 	cp_prepare(&m_fc[0].fc_tgt_acc_cp.sc_base, &m_acc_buf[0], SEG_NR,
 		   SEG_SIZE, sag, 0, &acc_cp_fom_ops, reqh, 0, true, NULL);
 	m0_bitmap_init(&m_fc[0].fc_tgt_acc_cp.sc_base.c_xform_cp_indices,
@@ -450,6 +457,7 @@ static void test_multi_cp_multi_failures(void)
 	sag = &n_rag.rag_base;
 	pm.pm_pver = &pv;
 	fctx.sf_pm = &pm;
+	fctx.sf_layout = m0_pdl_to_layout(pdlay);
 	sag->sag_fctx = &fctx;
 	for (i = 0; i < MULTI_FAILURES; ++i) {
 		n_acc_buf[i][0].nb_pool = &nbp;
@@ -550,6 +558,7 @@ static int xform_init(void)
 	m0_fid_convert_gob2cob(&gob_fid, &cob_fid, 1);
 
 	reqh = m0_cs_reqh_get(&sctx);
+	layout_gen(&pdlay, reqh);
 	tgt_fid_cob_create(reqh);
 
 	scm_service = m0_reqh_service_find(
@@ -585,6 +594,7 @@ static int xform_fini(void)
 	M0_UT_ASSERT(rc == 0);
 	m0_ios_cdom_get(reqh, &cdom);
 	cob_delete(cdom, reqh->rh_beseg->bs_domain, 0, &gob_fid);
+	layout_destroy(pdlay);
         cs_fini(&sctx);
         return 0;
 }

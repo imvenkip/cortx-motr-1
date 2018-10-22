@@ -827,6 +827,38 @@ M0_INTERNAL int m0_cm_cp_dup(struct m0_cm_cp *src, struct m0_cm_cp **dest)
 	return M0_RC(0);
 }
 
+M0_INTERNAL void m0_cm_cp_data_copy(struct m0_cm_cp *src, struct m0_cm_cp *dst)
+{
+	struct m0_net_buffer      *src_nbuf;
+	struct m0_net_buffer      *dst_nbuf;
+	struct m0_net_buffer_pool *nbp;
+	m0_bcount_t                bytes_copied = 0;
+	uint64_t                   buf_size = 0;
+	uint64_t                   total_data_seg_nr;
+
+	M0_PRE(!cp_data_buf_tlist_is_empty(&src->c_buffers));
+	M0_PRE(!cp_data_buf_tlist_is_empty(&dst->c_buffers));
+	M0_PRE(src->c_buf_nr == dst->c_buf_nr);
+
+	total_data_seg_nr = src->c_data_seg_nr;
+	for (src_nbuf = cp_data_buf_tlist_head(&src->c_buffers),
+	     dst_nbuf = cp_data_buf_tlist_head(&dst->c_buffers);
+	     src_nbuf != NULL && dst_nbuf != NULL;
+	     src_nbuf = cp_data_buf_tlist_next(&src->c_buffers, src_nbuf),
+	     dst_nbuf = cp_data_buf_tlist_next(&dst->c_buffers, dst_nbuf)) {
+		nbp = src_nbuf->nb_pool;
+		if (total_data_seg_nr < nbp->nbp_seg_nr)
+			buf_size = total_data_seg_nr * nbp->nbp_seg_size;
+		else {
+			total_data_seg_nr -= nbp->nbp_seg_nr;
+			buf_size = nbp->nbp_seg_nr * nbp->nbp_seg_size;
+		}
+		bytes_copied = m0_bufvec_copy(&dst_nbuf->nb_buffer,
+					      &src_nbuf->nb_buffer, buf_size);
+		M0_ASSERT(bytes_copied == buf_size);
+	}
+}
+
 /** @} end-of-CPDLD */
 
 /*

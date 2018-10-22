@@ -123,6 +123,12 @@ static int incr_recover_init(struct m0_sns_cm_repair_ag *rag,
 	M0_PRE(rag != NULL);
 	M0_PRE(pl != NULL);
 
+	/*
+	 * No need of parity math for N = 1 configuration.
+	 */
+	if (m0_pdclust_is_replicated(pl))
+		return 0;
+
 	M0_SET0(&rag->rag_math);
 	M0_SET0(&rag->rag_ir);
 
@@ -177,7 +183,8 @@ static uint32_t ag_in_remaining_bufs(struct m0_sns_cm_repair_ag *rag)
 
 	nr_cp_bufs = m0_sns_cm_cp_buf_nr(&scm->sc_ibp.sb_bp,
 					 m0_sns_cm_data_seg_nr(scm, pl));
-	nr_incoming_freed = ag->cag_freed_cp_nr - (sag->sag_cp_created_nr + rag->rag_acc_freed);
+	nr_incoming_freed = ag->cag_freed_cp_nr -
+				(sag->sag_cp_created_nr + rag->rag_acc_freed);
 	return (sag->sag_incoming_cp_nr - nr_incoming_freed) * nr_cp_bufs;
 }
 
@@ -275,7 +282,8 @@ static bool repair_ag_can_fini(const struct m0_cm_aggr_group *ag)
 	}
 
 	return (rag->rag_acc_inuse_nr == rag->rag_acc_freed) &&
-	       (ag->cag_transformed_cp_nr == (ag->cag_freed_cp_nr - rag->rag_acc_freed));
+	       (ag->cag_transformed_cp_nr ==
+		(ag->cag_freed_cp_nr - rag->rag_acc_freed));
 }
 
 static const struct m0_cm_aggr_group_ops sns_cm_repair_ag_ops = {

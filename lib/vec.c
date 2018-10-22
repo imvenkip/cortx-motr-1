@@ -826,6 +826,22 @@ M0_INTERNAL int m0_bufvec_to_data_copy(struct m0_bufvec_cursor *cur, void *data,
 	return 0;
 }
 
+M0_INTERNAL m0_bcount_t m0_bufvec_copy(struct m0_bufvec *dst,
+				       struct m0_bufvec *src,
+				       m0_bcount_t num_bytes)
+{
+	struct m0_bufvec_cursor s_cur;
+	struct m0_bufvec_cursor d_cur;
+
+	M0_PRE(dst != NULL);
+	M0_PRE(src != NULL);
+
+	m0_bufvec_cursor_init(&s_cur, src);
+	m0_bufvec_cursor_init(&d_cur, dst);
+
+	return m0_bufvec_cursor_copy(&d_cur, &s_cur, num_bytes);
+}
+
 M0_INTERNAL m0_bcount_t m0_io_count(const struct m0_io_indexvec *io_info)
 {
 	int	    i;

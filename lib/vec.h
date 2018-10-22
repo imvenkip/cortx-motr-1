@@ -542,6 +542,10 @@ M0_INTERNAL int m0_data_to_bufvec_copy(struct m0_bufvec_cursor *cur, void *data,
 M0_INTERNAL int m0_bufvec_to_data_copy(struct m0_bufvec_cursor *cur, void *data,
 				       size_t len);
 
+M0_INTERNAL m0_bcount_t m0_bufvec_copy(struct m0_bufvec *dst,
+				       struct m0_bufvec *src,
+				       m0_bcount_t num_bytes);
+
 /**
  * Represents the extent information for an io segment. m0_ioseg typically
  * represents a user space data buffer or a kernel page.
