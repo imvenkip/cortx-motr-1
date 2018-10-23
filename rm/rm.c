@@ -3492,6 +3492,7 @@ static bool rm_on_remote_death_cb(struct m0_clink *link)
 
 	obj = container_of(link->cl_chan, struct m0_conf_obj, co_ha_chan);
 	new_state = obj->co_ha_state;
+	M0_LOG(M0_DEBUG, "link=%p new_state=%d", link, new_state);
 	if (M0_IN(new_state, (M0_NC_FAILED,M0_NC_ONLINE))) {
 		remote = container_of(link, struct m0_rm_remote,
 				      rem_tracker.rht_clink);

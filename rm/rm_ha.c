@@ -230,9 +230,13 @@ static void rm_ha_sbscr_fs_opened(struct m0_sm_group *grp,
 static bool rm_ha_sbscr_fs_open_cb(struct m0_clink *link)
 {
 	struct m0_rm_ha_subscriber *sbscr;
+	bool                        confc_is_ready;
 
 	sbscr = container_of(link, struct m0_rm_ha_subscriber, rhs_clink);
-	if (m0_confc_ctx_is_completed(&sbscr->rhs_cctx)) {
+	confc_is_ready = m0_confc_ctx_is_completed(&sbscr->rhs_cctx);
+	M0_LOG(M0_DEBUG, "subscriber=%p confc_ready=%d",
+	                  sbscr, !!confc_is_ready);
+	if (confc_is_ready) {
 		m0_clink_del(&sbscr->rhs_clink);
 		m0_clink_fini(&sbscr->rhs_clink);
 		rm_ha_sbscr_ast_post(sbscr, rm_ha_sbscr_fs_opened);
@@ -256,6 +260,8 @@ static void rm_ha_conf_open(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	} else {
 		rm_ha_sbscr_fail(sbscr, M0_ERR(rc));
 	}
+
+	M0_RC_INFO(rc, "subscriber=%p", sbscr);
 }
 
 /**
