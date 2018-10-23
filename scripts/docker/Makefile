@@ -53,7 +53,7 @@ push: tag  := *
 push:
 	@for img in $$(docker images --filter=reference='$(NAMESPACE)/$(name):$(tag)' \
 				    --format '{{.Repository}}:{{.Tag}}' \
-			| sort) ; \
+			| grep -v none | sort) ; \
 	do \
 		echo "---> $$img" ; \
 		$(DOCKER) push $$img ; \
