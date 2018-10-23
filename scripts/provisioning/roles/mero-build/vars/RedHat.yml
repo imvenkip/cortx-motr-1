@@ -27,7 +27,7 @@ mero_build_deps_pkgs:
   - perl-XML-LibXML
   - perl-autodie
   - python-devel
-  - python-ply
+  - python34-ply
   - PyYAML                # required only for tests (m0hagen)
   - rpm-build
   - systemd-devel
