@@ -87,7 +87,7 @@ id_m0_servers:
     host_mem_stack: <%= dbfact['memorysize_mb'].to_i * 1024 %>
     host_mem_memlock: <%= dbfact['memorysize_mb'].to_i * 1024 %>
     host_cores: <%= cpuarr %>
-    lnid: "<%= dbfact['vlan_data_ip'] -%>@tcp"
+    lnid: "<%= dbfact['vlan_data_ip'] -%>@<%= m0_lnet_transport -%>"
     m0h_roles:
       - name: ha
   <%- if dbfact['role'].include? 'confd' or confd_nodes.include? dbfact['vlan_data_ip'] -%>
