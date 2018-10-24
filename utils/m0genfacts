@@ -53,6 +53,7 @@ $options = {
     remote_user:            Facter.value(:id),
     clovis_apps:            false,
     s3servers:              false,
+    skip_fake_drives:       false,
     dataunits:              DATA_UNITS,
     parityunits:            PARITY_UNITS,
     blocksize:              BLOCK_SIZE,
@@ -149,6 +150,11 @@ END_USAGE
             'Enable s3 servers. s3server role is enabled for client nodes in' \
             ' halon_facts config') do
         $options[:s3_servers] = true
+    end
+
+    opts.on('--skip-fake-drives',
+            "Skip drives that don't have serial number") do
+        $options[:skip_fake_drives] = true
     end
 
     opts.on('-N', '--data-units NUM',
@@ -444,8 +450,12 @@ def collect_disks_for(node)
     disks_info = []
 
     disks.each do |disk_path|
-        disks_info.push(
-            build_disk_info(node['address'], disk_path, $disk_index))
+        di = build_disk_info(node['address'], disk_path, $disk_index)
+        if di['is_fake'] && $options[:skip_fake_drives]
+            debug "skipping fake drive '#{disk_path}' as requested (option --skip-fake-drives)"
+        else
+            disks_info.push(di)
+        end
         $disk_index += 1
     end
 
