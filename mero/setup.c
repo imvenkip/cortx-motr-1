@@ -46,6 +46,7 @@
 #include "cob/cob.h"
 #include "mdstore/mdstore.h"
 #include "mero/setup.h"
+#include "mero/setup_dix.h"     /* m0_cs_dix_setup */
 #include "mero/setup_internal.h"
 #include "mero/magic.h"
 #include "mero/version.h"
@@ -1101,8 +1102,8 @@ static void cs_storage_fini(struct cs_stobs *stob)
    Once the service is initialised, it is started and registered with the
    appropriate request handler.
  */
-static int cs_service_init(const char *name, struct m0_reqh_context *rctx,
-			   struct m0_reqh *reqh, struct m0_fid *fid)
+M0_INTERNAL int cs_service_init(const char *name, struct m0_reqh_context *rctx,
+				struct m0_reqh *reqh, struct m0_fid *fid)
 {
 	struct m0_reqh_service_type *stype;
 	struct m0_reqh_service      *service;
@@ -1162,7 +1163,7 @@ static int reqh_context_services_init(struct m0_reqh_context *rctx,
 	return M0_RC(rc);
 }
 
-static void cs_service_fini(struct m0_reqh_service *service)
+M0_INTERNAL void cs_service_fini(struct m0_reqh_service *service)
 {
 	struct m0_reqh *reqh = service->rs_reqh;
 	/*
@@ -2540,6 +2541,7 @@ enum cs_level {
 	CS_LEVEL_RWLOCK_UNLOCK,
 	CS_LEVEL_STARTED_EVENT_FOR_MKFS,
 	CS_LEVEL_RCONFC_FATAL_CALLBACK,
+	CS_LEVEL_DIX_SETUP,
 	CS_LEVEL_SETUP_ENV,
 	CS_LEVEL_CHECK_CONFIG,
 	CS_LEVEL_CONF_GET2,
@@ -2713,6 +2715,11 @@ static int cs_level_enter(struct m0_module *module)
 			m0_rconfc_unlock(mero2rconfc(cctx));
 		}
 		return M0_RC(0);
+	case CS_LEVEL_DIX_SETUP:
+		if (cctx->cc_mkfs)
+			return M0_RC(m0_cs_dix_setup(cctx));
+		else
+			return M0_RC(0);
 	case CS_LEVEL_SETUP_ENV:
 		return M0_RC(0);
 	case CS_LEVEL_CHECK_CONFIG:
@@ -2876,6 +2883,8 @@ static void cs_level_leave(struct m0_module *module)
 		break;
 	case CS_LEVEL_RCONFC_FATAL_CALLBACK:
 		break;
+	case CS_LEVEL_DIX_SETUP:
+		break;
 	case CS_LEVEL_SETUP_ENV:
 		break;
 	case CS_LEVEL_CHECK_CONFIG:
@@ -2962,6 +2971,7 @@ static const struct m0_modlev cs_module_levels[] = {
 	CS_MODULE_LEVEL(CS_LEVEL_RWLOCK_UNLOCK),
 	CS_MODULE_LEVEL(CS_LEVEL_STARTED_EVENT_FOR_MKFS),
 	CS_MODULE_LEVEL(CS_LEVEL_RCONFC_FATAL_CALLBACK),
+	CS_MODULE_LEVEL(CS_LEVEL_DIX_SETUP),
 	CS_MODULE_LEVEL(CS_LEVEL_SETUP_ENV),
 	CS_MODULE_LEVEL(CS_LEVEL_CHECK_CONFIG),
 	CS_MODULE_LEVEL(CS_LEVEL_CONF_GET2),

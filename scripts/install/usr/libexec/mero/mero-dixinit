@@ -42,4 +42,5 @@ m0_dixinit()
                     -d $dix_pverid -a create
 }
 
-m0_dixinit
+# Skip m0dixinit, mkfs creates meta indices now. See MERO-2793.
+# m0_dixinit

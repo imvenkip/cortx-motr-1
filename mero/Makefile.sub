@@ -2,6 +2,7 @@ nobase_mero_include_HEADERS += mero/ha.h \
                                mero/keepalive.h  \
                                mero/init.h  \
                                mero/setup.h \
+                               mero/setup_dix.h \
                                mero/magic.h \
                                mero/version.h \
                                mero/version_macros.h \
@@ -11,6 +12,7 @@ mero_libmero_la_SOURCES += mero/ha.c \
                            mero/keepalive.c  \
                            mero/init.c  \
                            mero/setup.c \
+                           mero/setup_dix.c \
                            mero/version.c \
                            mero/conf.c \
                            mero/process_attr.c

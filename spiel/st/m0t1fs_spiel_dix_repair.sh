@@ -10,10 +10,12 @@ spiel_dix_repair_test()
 	local fail_device1=2
 
 	echo "Starting DIX repair testing ..."
-	echo "Destroy Meta"
-	$DIXINIT_TOOL_DESTROY >/dev/null
-	echo "Create Meta"
-	$DIXINIT_TOOL_CREATE >/dev/null
+
+#	echo "Destroy Meta"
+#	$DIXINIT_TOOL_DESTROY >/dev/null
+#	echo "Create Meta"
+#	$DIXINIT_TOOL_CREATE >/dev/null
+	echo "*** m0dixinit is omitted. Mkfs creates meta indices now."
 
 	verify || return $?
 	#######################################################################

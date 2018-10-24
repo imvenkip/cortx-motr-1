@@ -1153,12 +1153,19 @@ static int ut_pver_find(struct m0_reqh *reqh, struct m0_fid *out)
 	return 0;
 }
 
+/*
+ * NOTE. Currently, mero/setup creates meta indices. But this behaviour may be
+ * changed in the future. Therefore, comment duplicated code.
+ * Uncomment it when DIX initialisation is removed from the mero/setup.
+ */
 static void ut_service_init(void)
 {
 	struct m0_dix_cli *cli = &dix_ut_cctx.cl_cli;
+#if 0
 	struct m0_ext      range[] = {
 		{ .e_start = 0, .e_end = IMASK_INF },
 	};
+#endif
 	int                rc;
 
 	dixc_ut_init(&dix_ut_sctx, &dix_ut_cctx);
@@ -1172,9 +1179,12 @@ static void ut_service_init(void)
 			     &dix_ut_cctx.cl_ldom,
 			     &dix_ut_cctx.cl_pver);
 	M0_UT_ASSERT(rc == 0);
+#if 0
 	m0_dix_cli_bootstrap_lock(cli);
+#endif
 	layout_create(&dix_ut_cctx.cl_ldom, dix_ut_cctx.cl_cli.dx_pver);
 
+#if 0
 	/* Create meta indices (root, layout, layout-descr). */
 	rc = m0_dix_ldesc_init(&dix_ut_cctx.cl_dld1, range, ARRAY_SIZE(range),
 			       HASH_FNC_CITY, &dix_ut_cctx.cl_pver);
@@ -1187,6 +1197,7 @@ static void ut_service_init(void)
 				&dix_ut_cctx.cl_dld1,
 				&dix_ut_cctx.cl_dld2);
 	M0_UT_ASSERT(rc == 0);
+#endif
 	rc = m0_dix_cli_start_sync(&dix_ut_cctx.cl_cli);
 	M0_UT_ASSERT(rc == 0);
 	m0_dix_ldesc_fini(&dix_ut_cctx.cl_dld1);

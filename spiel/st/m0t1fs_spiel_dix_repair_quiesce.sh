@@ -8,8 +8,9 @@ spiel_dix_repair_quiesce_test()
 {
 	local fail_device1=2
 
-	$DIXINIT_TOOL_DESTROY >/dev/null
-	$DIXINIT_TOOL_CREATE  >/dev/null
+#	$DIXINIT_TOOL_DESTROY >/dev/null
+#	$DIXINIT_TOOL_CREATE  >/dev/null
+	echo "*** m0dixinit is omitted. Mkfs creates meta indices now."
 
 	verify || return $?
 	#######################################################################

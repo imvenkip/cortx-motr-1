@@ -42,6 +42,10 @@ struct cs_buffer_pool {
 	uint64_t                  cs_bp_magic;
 };
 
+M0_INTERNAL int cs_service_init(const char *name, struct m0_reqh_context *rctx,
+				struct m0_reqh *reqh, struct m0_fid *fid);
+M0_INTERNAL void cs_service_fini(struct m0_reqh_service *service);
+
 /** Uses confc API to generate CLI arguments, understood by _args_parse(). */
 M0_INTERNAL int cs_conf_to_args(struct cs_args *dest, struct m0_conf_root *r);
 

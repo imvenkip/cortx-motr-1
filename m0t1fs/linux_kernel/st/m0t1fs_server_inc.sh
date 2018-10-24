@@ -337,6 +337,7 @@ EOF
 		#ios mkfs
 		for ((i=0; i < $nr_ios; i++)) ; do
 			local ios=$(( $i + 1 ))
+			proc_fid="'<"$PROC_FID_CNTR:$i">'"
 			DIR=$MERO_M0T1FS_TEST_DIR/ios$ios
 
 			tmid=$(echo ${IOSEP[$i]} | cut -d: -f3)
@@ -344,11 +345,12 @@ EOF
 			cmd="cd $DIR && exec \
 			$prog_mkfs -F -T $MERO_STOB_DOMAIN \
 			$common_opts -e $XPT:${lnet_nid}:${IOSEP[$i]%:*:*}:$MKFS_PORTAL:$tmid  $FI_OPTS \
-			-c $CONFDB |& tee -a m0mkfs.log"
+			-f $proc_fid -c $CONFDB |& tee -a m0mkfs.log"
 			echo $cmd
 			eval "$cmd"
 		done
 		if ((multiple_pools == 1)); then
+			proc_fid="'<0x720000000000000a:1>'"
 			DIR=$MERO_M0T1FS_TEST_DIR/ios5
 
 			tmid=904
@@ -356,7 +358,7 @@ EOF
 			cmd="cd $DIR && exec \
 			$prog_mkfs -F -T $MERO_STOB_DOMAIN \
 			$common_opts -e $XPT:${lnet_nid}:${IOS_PVER2_EP%:*:*}:$MKFS_PORTAL:$tmid  $FI_OPTS \
-			-c $CONFDB |& tee -a m0mkfs.log"
+			-f $proc_fid -c $CONFDB |& tee -a m0mkfs.log"
 			echo $cmd
 			eval "$cmd"
 		fi
