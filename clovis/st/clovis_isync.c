@@ -22,6 +22,7 @@
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CLOVIS
 #include "lib/trace.h"
+#include "lib/finject.h"
 
 #include "clovis/clovis.h"
 #include "clovis/st/clovis_st.h"
@@ -267,6 +268,53 @@ exit:
 	return rc;
 }
 
+/**
+ * Tests for error handling for an SYNC op such as failures
+ * in launching op.
+ */
+static void isync_error_handling(void)
+{
+	int                   rc;
+	int                   nr_kvp;
+	struct m0_uint128     id;
+	struct m0_fid         idx_fid;
+	struct m0_clovis_op  *sync_op = NULL;
+	struct m0_clovis_idx *idx_to_sync[1] = {NULL};
+
+	/* get index's fid. */
+	clovis_oid_get(&id);
+	idx_fid = M0_FID_TINIT('x', id.u_hi, id.u_lo);
+	id.u_hi = idx_fid.f_container;
+	id.u_lo = idx_fid.f_key;
+
+	/* Create an index. */
+	rc = idx_create_or_delete(IDX_CREATE, id, false, NULL, NULL);
+	CLOVIS_ST_ASSERT_FATAL(rc == 0);
+
+	/* Insert K-V pairs into index. */
+	nr_kvp = 10;
+	rc = idx_add_or_del_kv_pairs(IDX_KV_ADD, id,
+				     nr_kvp, false, NULL, idx_to_sync);
+	CLOVIS_ST_ASSERT_FATAL(rc == 0);
+
+	/* Lauch and wait on sync op. */
+	rc = m0_clovis_sync_op_init(&sync_op);
+	M0_ASSERT(rc == 0);
+	rc = m0_clovis_sync_entity_add(sync_op, &idx_to_sync[0]->in_entity);
+	M0_ASSERT(rc == 0);
+
+	m0_fi_enable_once("clovis_sync_request_launch", "launch_failed");
+	clovis_st_op_launch(&sync_op, 1);
+	rc = clovis_st_op_wait(
+		sync_op, M0_BITS(M0_CLOVIS_OS_FAILED, M0_CLOVIS_OS_STABLE),
+		m0_time_from_now(3,0));
+	CLOVIS_ST_ASSERT_FATAL(rc == 0);
+	clovis_st_op_fini(sync_op);
+	clovis_st_op_free(sync_op);
+
+	/* Finalise the index. */
+	clovis_st_idx_fini(idx_to_sync[0]);
+}
 static void isync_by_sync_op(void)
 {
 	int                      rc;
@@ -312,13 +360,13 @@ static void isync_by_sync_op(void)
 
 static void isync_on_op(void)
 {
-	int                      rc;
-	int                      nr_kvp;
-	struct m0_uint128        id;
-	struct m0_fid            idx_fid;
-	struct m0_clovis_op     *sync_op = NULL;
-	struct m0_clovis_op     *op_to_sync[1] = {NULL};
-	struct m0_clovis_idx    *idx_to_sync[1] = {NULL};
+	int                   rc;
+	int                   nr_kvp;
+	struct m0_uint128     id;
+	struct m0_fid         idx_fid;
+	struct m0_clovis_op  *sync_op = NULL;
+	struct m0_clovis_op  *op_to_sync[1] = {NULL};
+	struct m0_clovis_idx *idx_to_sync[1] = {NULL};
 
 	/* get index's fid. */
 	clovis_oid_get(&id);
@@ -474,6 +522,7 @@ struct clovis_st_suite st_suite_clovis_isync = {
 	.ss_init = clovis_st_isync_init,
 	.ss_fini = clovis_st_isync_fini,
 	.ss_tests = {
+		{ "isync_error_handling",   &isync_error_handling},
 		{ "isync_by_sync_op",       &isync_by_sync_op},
 		{ "isync_on_op",            &isync_on_op},
 		{ "isync_on_idx_delete",    &isync_on_idx_delete},
