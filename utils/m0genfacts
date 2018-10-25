@@ -497,7 +497,6 @@ halon_port      = 9070
 q_dbfacts       = {}
 ios_hash        = {}
 station_nodes   = []
-m0t1fs_nodes    = []
 confd_nodes     = []
 extra_clients   = []
 pools           = []

@@ -43,7 +43,7 @@ id_sites:
      <%- if dbfact['role'].include? 'cc' -%>
                     - name: cmu
      <%- end -%>
-     <%- if dbfact['role'].include? 'datamover' or m0t1fs_nodes.include? dbfact['vlan_data_ip'] -%>
+     <%- if !(dbfact['role'] & ['datamover', 's3server', 'clovis-app']).empty? -%>
                     - name: dm
      <%- end -%>
    <%- end -%>
@@ -96,7 +96,7 @@ id_m0_servers:
   <%- if dbfact['role'].include? 'storage' -%>
       - name: storage
   <%- end -%>
-  <%- if dbfact['role'].include? 'datamover' or m0t1fs_nodes.include? dbfact['vlan_data_ip'] -%>
+  <%- if dbfact['role'].include? 'datamover' -%>
       - name: m0t1fs
   <%- end -%>
   <%- if dbfact['role'].include? 'clovis-app' -%>
