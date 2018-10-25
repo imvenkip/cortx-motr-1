@@ -418,7 +418,10 @@ def build_disk_info(host, disk_path, index)
     end
 
     wwn = run("sudo lsblk -ndo WWN #{disk_path} 2>/dev/null", host: host)
-    wwn = '0x0000000' + format('%04d', index) if wwn.to_s.strip.empty?
+    if wwn.to_s.strip.empty?
+        is_fake = true
+        wwn = '0x0000000' + format('%04d', index)
+    end
 
     if is_fake
         slot = index
