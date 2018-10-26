@@ -423,11 +423,10 @@ def build_disk_info(host, disk_path, index)
         wwn = '0x0000000' + format('%04d', index)
     end
 
-    if is_fake
+    slot = run("ls /sys/block/$(basename $(readlink #{disk_path}))/device/" +
+               " | grep enclosure | cut -f2 -d':'", host: host)
+    if slot.to_s.strip.empty?
         slot = index
-    else
-        slot = run("ls /sys/block/$(basename $(readlink #{disk_path}))/device/ \
-                    | grep enclosure | cut -f2 -d':'", host: host)
     end
 
     return {
