@@ -46,7 +46,7 @@ struct m0_mutex;
    example:
 
    @code
-   buffer_put(struct m0_buffer *buf) {
+   void buffer_put(struct m0_buffer *buf) {
            // buffer is being returned to the pool...
            m0_mutex_lock(&buffer_pool_lock);
            // add the buffer to the free list
@@ -61,7 +61,7 @@ struct m0_mutex;
    and calls m0_cond_wait() until the predicate becomes true:
 
    @code
-   struct m0_buffer *buffer_put(void) {
+   struct m0_buffer *buffer_get(void) {
            struct m0_buffer *buf;
 
            m0_mutex_lock(&buffer_pool_lock);
@@ -76,9 +76,9 @@ struct m0_mutex;
 
    Note that one has to re-check the predicate after m0_cond_wait() returns,
    because it might, generally, be false if multiple threads are waiting for
-   predicate change (if, in our case, there are multiple concurrent calls to
-   buffer_get()). This introduces one of the nicer features of condition
-   variables: de-coupling of producers and consumers.
+   predicate change (in the above example, if there are multiple concurrent
+   calls to buffer_get()). This introduces one of the nicer features of
+   condition variables: de-coupling of producers and consumers.
 
    Condition variables are more reliable and structured synchronization
    primitive than channels (m0_chan), because the lock, protecting the predicate
