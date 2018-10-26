@@ -11,7 +11,6 @@ m0t1fs_dir="$clovis_st_util_dir/../../../m0t1fs/linux_kernel/st"
 . $clovis_st_util_dir/clovis_st_inc.sh
 
 
-SANDBOX_DIR=/var/mero
 CLOVIS_TEST_DIR=$SANDBOX_DIR
 CLOVIS_TEST_LOGFILE=$SANDBOX_DIR/clovis_`date +"%Y-%m-%d_%T"`.log
 CLOVIS_TRACE_DIR=$SANDBOX_DIR/clovis
@@ -86,7 +85,7 @@ io_ops()
 	READ_VERIFY="false"
 
 /usr/bin/expect  <<EOF
-	set timeout 60
+	set timeout 150
 	spawn $clovis_st_util_dir/c0client $CLOVIS_LOCAL_EP $CLOVIS_HA_EP $CLOVIS_PROF_OPT $CLOVIS_PROC_FID $READ_VERIFY> /tmp/log
 	expect "c0clovis >>"
 	send -- "write $object_id $src_file $block_size $block_count\r"
@@ -121,7 +120,7 @@ main()
 	dest_file2="$CLOVIS_TEST_DIR/dest_file2"
 	object_id1=1048580
 	object_id2=1048581
-	block_size=16384
+	block_size=8192
 	block_count=4096
 
 	rm -f $src_file $dest_file
@@ -131,30 +130,38 @@ main()
 	}
 	mkdir $CLOVIS_TRACE_DIR
 
+	# Test IO while read lock revoked (configuration update going on).
 	mero_service_start
 	dix_init
 
-	# Test IO while read lock revoked (configuration updat going on).
 	revoke_read_lock 30 &
 	pid=$!
 	io_ops $object_id1 $block_size $block_count $src_file $dest_file1
 	wait $pid
 
-	diff $src_file $dest_file1 2> $CLOVIS_TEST_LOGFILE || {
-		rc = $?
+	cmp $src_file $dest_file1 2> $CLOVIS_TEST_LOGFILE || {
+		rc=$?
 		error_handling $rc "Files are different"
 	}
 
+	dix_destroy
+	mero_service_stop
+
 	# Test read lock revoke (configuration update) while IO going on.
+	mero_service_start
+	dix_init
 	io_ops $object_id2 $block_size $block_count $src_file $dest_file2  &
+	pid=$!
 	# Let client start
 	sleep 10
 	revoke_read_lock 15
-	diff $src_file $dest_file2 2> $CLOVIS_TEST_LOGFILE || {
-		rc = $?
+	wait $pid
+	cmp $src_file $dest_file2 2> $CLOVIS_TEST_LOGFILE || {
+		rc=$?
 		error_handling $rc "Files are different"
 	}
 
+	dix_destroy
 	clean &>>$CLOVIS_TEST_LOGFILE
 	mero_service_stop
 

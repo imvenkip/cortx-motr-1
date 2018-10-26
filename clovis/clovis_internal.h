@@ -448,10 +448,7 @@ struct m0_clovis {
 
 	struct m0_clink                         m0c_conf_exp;
 	struct m0_clink                         m0c_conf_ready;
-	/**
-	 * Indicates that rconfc read lock is revoked by a creditor.
-	 */
-	bool                                    m0c_rlock_revoked;
+	struct m0_clink                         m0c_conf_ready_async;
 
 	struct m0_fid                           m0c_process_fid;
 	struct m0_fid                           m0c_profile_fid;
@@ -477,6 +474,24 @@ struct m0_clovis {
 	 * and decrements it while finalizing.
 	 */
 	struct m0_atomic64                      m0c_pending_io_nr;
+
+	/** Indicates the state of confc.  */
+	struct m0_confc_update_state            m0c_confc_state;
+
+	/** Channel on which mero internal data structures refreshed
+	 *  as per new configurtion event brodcast.
+	 */
+	struct m0_chan                          m0c_conf_ready_chan;
+
+	/**
+	 * Reference counter of this configuration instance users.
+	 * When it drops to zero, all data structures using configuration
+	 * cache can be refreshed.
+	 * clovis_[idx_op|obj_io]_cb_launch get ref using m0_clovis__io_ref_get
+	 * and clovis_idx_op_complete & ioreq_iosm_handle_executed put
+	 * ref using m0_clovis__io_ref_put.
+	 */
+	struct m0_ref                            m0c_ongoing_io;
 
 	/** Special thread which runs ASTs from io requests. */
 	/* Also required for confc to connect! */
@@ -783,6 +798,9 @@ M0_INTERNAL void m0_clovis__obj_op_done(struct m0_clovis_op *op);
 
 M0_INTERNAL bool m0_clovis__is_read_op(struct m0_clovis_op *op);
 M0_INTERNAL bool m0_clovis__is_write_op(struct m0_clovis_op *op);
+
+M0_INTERNAL int m0_clovis__io_ref_get(struct m0_clovis *m0c);
+M0_INTERNAL void m0_clovis__io_ref_put(struct m0_clovis *m0c);
 
 enum {
 	M0_AVI_CLOVIS_OP = M0_AVI_CLOVIS_RANGE_START + 1,

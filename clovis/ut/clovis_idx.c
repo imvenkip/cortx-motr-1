@@ -162,6 +162,7 @@ static void ut_clovis_idx_op_complete(void)
 	m0_sm_move(&oi->oi_oc.oc_op.op_sm, 0, M0_CLOVIS_OS_LAUNCHED);
 	m0_sm_group_unlock(op_grp);
 
+	m0_fi_enable_once("m0_clovis_op_stable", "skip_ongoing_io_ref");
 	m0_sm_group_lock(&oi_grp);
 	clovis_idx_op_complete(oi);
 	m0_sm_group_unlock(&oi_grp);
@@ -224,6 +225,7 @@ static void ut_clovis_idx_op_fail(void)
 	m0_sm_group_unlock(op_grp);
 
 	m0_sm_group_lock(&oi_grp);
+	m0_fi_enable_once("m0_clovis_op_stable", "skip_ongoing_io_ref");
 	clovis_idx_op_fail(oi, -1);
 	m0_sm_group_unlock(&oi_grp);
 
@@ -447,6 +449,7 @@ static void ut_clovis_idx_op_ast_complete(void)
 	m0_sm_move(&oi.oi_oc.oc_op.op_sm, 0, M0_CLOVIS_OS_LAUNCHED);
 	m0_sm_group_unlock(op_grp);
 
+	m0_fi_enable_once("m0_clovis_op_stable", "skip_ongoing_io_ref");
 	m0_sm_group_lock(&locality_grp);
 	clovis_idx_op_ast_complete(&locality_grp, &oi.oi_ar.ar_ast);
 	m0_sm_group_unlock(&locality_grp);
@@ -513,6 +516,7 @@ static void ut_clovis_idx_op_ast_fail(void)
 	m0_sm_move(&oi.oi_oc.oc_op.op_sm, 0, M0_CLOVIS_OS_LAUNCHED);
 	m0_sm_group_unlock(op_grp);
 
+	m0_fi_enable_once("m0_clovis_op_stable", "skip_ongoing_io_ref");
 	m0_sm_group_lock(&locality_grp);
 	clovis_idx_op_ast_fail(&locality_grp, &oi.oi_ar.ar_ast);
 	m0_sm_group_unlock(&locality_grp);

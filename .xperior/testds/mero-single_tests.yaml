@@ -374,7 +374,7 @@ Tests:
   - id       : 41clovis-conf-update
     script   : clovis_conf_update_st.sh
     dir      : src/clovis/st/utils/
-    executor : Xperior::Executor::Skip
+    executor : Xperior::Executor::MeroTest
     sandbox  : /var/mero/sandbox.41clovis-conf-update
     polltime : 30
     timeout  : 1800

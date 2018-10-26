@@ -49,7 +49,7 @@
  *     operations to sync:
  *     m0_clovis_sync_op_init(): create a new SYNC op.
  *     m0_clovis_sync_entity_add(): Add an entity to SYNC op.
- *     m0_clovis_sync_entity_add(): Add an op to SYNC op. The op can only added
+ *     m0_clovis_sync_op_add(): Add an op to SYNC op. The op can only added
  *     if its state is M0_CLOVIS_OS_STABLE or M0_CLOVIS_OS_EXECUTED.
  *
  *     m0t1fs_fsync() and m0t1fs_sync_fs() are changed to
@@ -1169,6 +1169,37 @@ int m0_clovis_sync(struct m0_clovis *m0c, bool wait)
 	return (saved_error == 0) ? M0_RC(saved_error): M0_ERR(saved_error);
 }
 M0_EXPORTED(m0_clovis_sync);
+
+M0_INTERNAL struct m0_clovis_entity *
+m0_clovis__op_sync_entity(const struct m0_clovis_op *op)
+{
+	struct m0_clovis_op_sync   *os;
+	struct clovis_sync_target  *stgt;
+	struct m0_clovis_op_common *oc;
+
+	M0_PRE(op != NULL);
+	M0_PRE(op->op_code == M0_CLOVIS_EO_SYNC);
+
+	oc = bob_of(op, struct m0_clovis_op_common, oc_op, &oc_bobtype);
+	M0_PRE(oc != NULL);
+	os = M0_AMB(os, oc, os_oc);
+	M0_PRE(os != NULL && os->os_req != NULL);
+
+	stgt = clovis_sync_target_tlist_head(&os->os_req->sr_targets);
+	M0_PRE(stgt != NULL);
+	switch (stgt->srt_type) {
+	case CLOVIS_SYNC_ENTITY:
+		return stgt->u.srt_ent;
+	case CLOVIS_SYNC_OP:
+		return stgt->u.srt_op->op_entity;
+	case CLOVIS_SYNC_INSTANCE:
+		break;
+	default:
+		M0_IMPOSSIBLE("Unknow type for SYNC request.");
+	}
+
+	return NULL;
+}
 
 #undef M0_TRACE_SUBSYSTEM
 /*

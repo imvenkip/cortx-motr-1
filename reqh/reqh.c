@@ -309,9 +309,7 @@ static void __reqh_fini(struct m0_reqh *reqh)
 	m0_chan_fini(&reqh->rh_conf_cache_exp);
 	m0_chan_fini(&reqh->rh_conf_cache_ready);
 	m0_mutex_unlock(&reqh->rh_guard);
-	m0_mutex_lock(&reqh->rh_guard_async);
-	m0_chan_fini(&reqh->rh_conf_cache_ready_async);
-	m0_mutex_unlock(&reqh->rh_guard_async);
+	m0_chan_fini_lock(&reqh->rh_conf_cache_ready_async);
 	m0_mutex_fini(&reqh->rh_guard);
 	m0_mutex_fini(&reqh->rh_guard_async);
 }
