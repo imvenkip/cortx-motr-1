@@ -536,7 +536,6 @@ M0_INTERNAL void m0_fom_block_leave(struct m0_fom *fom)
 	thr = fom->fo_thread;
 
 	M0_PRE(thr->lt_state == BLOCKED);
-	thr->lt_state = UNBLOCKING;
 	/*
 	 * Signal the handler that there is a thread that wants to unblock, just
 	 * in case the handler is sleeping on empty runqueue.
@@ -547,6 +546,17 @@ M0_INTERNAL void m0_fom_block_leave(struct m0_fom *fom)
 	 */
 	if (m0_atomic64_add_return(&loc->fl_unblocking, 1) == 1)
 		m0_clink_signal(&loc->fl_group.s_clink);
+	/*
+	 * lt_state must be changed after fl_unblocking increment
+	 * to avoid panics at thread_invariant(). Also, we rely
+	 * on the following fact from the Linux kernel here:
+	 *
+	 *  - RMW operations that have a return value are fully ordered;
+	 *
+	 * (See https://www.kernel.org/doc/Documentation/atomic_t.txt)
+	 */
+	thr->lt_state = UNBLOCKING;
+
 	group_lock(loc);
 	thr_addb2_enter(thr, loc);
 	fom_addb2_push(fom);
