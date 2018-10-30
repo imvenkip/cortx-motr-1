@@ -91,6 +91,8 @@ struct m0_sns_cm_cp {
 	 */
 	bool                   sc_spare_punch;
 
+	bool                   sc_is_hole_eof;
+
 	/** FOL record frag for storage objects. */
 	struct m0_fol_frag     sc_fol_frag;
 };

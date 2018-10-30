@@ -167,15 +167,16 @@ M0_INTERNAL uint64_t m0_sns_cm_ag_nr_local_units(struct m0_sns_cm *scm,
 						 struct m0_sns_cm_file_ctx *fctx,
 						 uint64_t group)
 {
-	struct m0_pdclust_src_addr     sa;
-	struct m0_pdclust_tgt_addr     ta;
-	struct m0_fid                  cobfid;
-	uint64_t                       nrlu = 0;
-	struct m0_poolmach            *pm;
-	struct m0_pdclust_layout      *pl;
-	int                            i;
-	int                            start;
-	int                            end;
+	struct m0_pdclust_src_addr       sa;
+	struct m0_pdclust_tgt_addr       ta;
+	struct m0_fid                    cobfid;
+	uint64_t                         nrlu = 0;
+	struct m0_poolmach              *pm;
+	struct m0_pdclust_layout        *pl;
+	enum m0_sns_cm_local_unit_type  ut;
+	int                              i;
+	int                              start;
+	int                              end;
 
 	M0_ENTRY();
 
@@ -189,7 +190,8 @@ M0_INTERNAL uint64_t m0_sns_cm_ag_nr_local_units(struct m0_sns_cm *scm,
 	for (i = start; i < end; ++i) {
 		sa.sa_unit = i;
 		m0_sns_cm_unit2cobfid(fctx, &sa, &ta, &cobfid);
-		if (m0_sns_cm_cob_locate(scm->sc_cob_dom, &cobfid) == 0 &&
+		ut = m0_sns_cm_local_unit_type_get(fctx, sa.sa_group, sa.sa_unit);
+		if (M0_IN(ut, (M0_SNS_CM_UNIT_LOCAL, M0_SNS_CM_UNIT_HOLE_EOF)) &&
 		    !scm->sc_helpers->sch_is_cob_failed(pm, ta.ta_obj) &&
 		    !m0_sns_cm_unit_is_spare(fctx, group, i))
 			M0_CNT_INC(nrlu);
@@ -615,6 +617,33 @@ bool m0_sns_cm_group_has_local_presence(struct m0_sns_cm_file_ctx *fctx,
 	}
 
 	return false;
+}
+
+M0_INTERNAL enum m0_sns_cm_local_unit_type
+m0_sns_cm_local_unit_type_get(struct m0_sns_cm_file_ctx *fctx, uint64_t group,
+			      uint64_t unit)
+{
+	struct m0_pdclust_src_addr sa;
+	struct m0_pdclust_tgt_addr ta;
+	struct m0_fid              cob_fid;
+	struct m0_pool_version    *pv;
+	struct m0_sns_cm          *scm;
+	int                        rc;
+
+	if (group > fctx->sf_max_group)
+		return M0_SNS_CM_UNIT_INVALID;
+	sa.sa_group = group;
+	sa.sa_unit = unit;
+	scm = fctx->sf_scm;
+	pv = fctx->sf_pm->pm_pver;
+	m0_sns_cm_unit2cobfid(fctx, &sa, &ta, &cob_fid);
+	rc = m0_sns_cm_cob_locate(scm->sc_cob_dom, &cob_fid);
+	if (rc == -ENOENT) {
+		if (m0_sns_cm_is_local_cob(&scm->sc_base, pv, &cob_fid))
+			return M0_SNS_CM_UNIT_HOLE_EOF;
+	}
+
+	return rc == 0 ? M0_SNS_CM_UNIT_LOCAL : M0_SNS_CM_UNIT_INVALID;
 }
 
 #undef M0_TRACE_SUBSYSTEM
