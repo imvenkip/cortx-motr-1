@@ -74,7 +74,7 @@ int main(int argc, char **argv)
 	int               block_count;
 
 	/* Get input parameters */
-	if (argc < 5) {
+	if (argc < 6) {
 		m0_console_printf("Usage: c0client laddr ha_addr prof_opt"
 		       " proc_fid read_verify_flag\n");
 		return -1;
@@ -84,6 +84,7 @@ int main(int argc, char **argv)
 	clovis_conf.cc_ha_addr               = argv[2];
 	clovis_conf.cc_profile               = argv[3];
 	clovis_conf.cc_process_fid           = argv[4];
+	clovis_conf.cc_is_read_verify        = strcmp(argv[5], "true") == 0;
 	clovis_conf.cc_is_oostore            = true;
 	clovis_conf.cc_tm_recv_queue_min_len = M0_NET_TM_RECV_QUEUE_DEF_LEN;
 	clovis_conf.cc_max_rpc_msg_size      = M0_RPC_DEF_MAX_RPC_MSG_SIZE;
@@ -91,13 +92,6 @@ int main(int argc, char **argv)
 	dix_conf.kc_create_meta              = false;
 	clovis_conf.cc_idx_service_id        = M0_CLOVIS_IDX_DIX;
 	clovis_conf.cc_layout_id	     = 0;
-
-	if (strcmp(argv[5], "true") == 0)
-		clovis_conf.cc_is_read_verify = true;
-	else if (strcmp(argv[5], "false") == 0)
-		clovis_conf.cc_is_read_verify = false;
-	else
-		 m0_console_printf("Invalid argument.\n");
 
 	rc = clovis_init(&clovis_conf, &clovis_container, &clovis_instance);
 	if (rc < 0) {
