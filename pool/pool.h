@@ -48,6 +48,7 @@ struct m0_io_req;
 /* export */
 struct m0_pool;
 struct m0_pool_spare_usage;
+struct m0_confc_update_state;
 
 enum {
 	PM_DEFAULT_NR_NODES = 10,
@@ -302,6 +303,9 @@ M0_INTERNAL int m0_pool_versions_init_by_conf(struct m0_pool *pool,
 					      struct m0_dtm *dtm);
 
 M0_INTERNAL void m0_pool_versions_fini(struct m0_pool *pool);
+
+M0_INTERNAL void m0_pool_versions_stale_mark(struct m0_pools_common *pc,
+					     struct m0_confc_update_state *s);
 
 M0_INTERNAL int m0_pools_init(void);
 M0_INTERNAL void m0_pools_fini(void);

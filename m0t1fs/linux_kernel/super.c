@@ -795,25 +795,6 @@ static bool m0t1fs_conf_expired_cb(struct m0_clink *clink)
 	return true;
 }
 
-static void stale_pvers_mark(struct m0_pools_common *pc)
-{
-	struct m0_pool         *pool;
-	struct m0_pool_version *pver;
-	struct m0_conf_cache   *cache = &pc->pc_confc->cc_cache;
-
-	if (pc->pc_confc == NULL)
-		/* May happen during m0t1fs_setup(). */
-		return;
-	m0_mutex_lock(&pc->pc_mutex);
-	m0_tl_for(pools, &pc->pc_pools, pool) {
-		m0_tl_for(pool_version, &pool->po_vers, pver) {
-			if (!m0_conf_cache_contains(cache, &pver->pv_id))
-				pver->pv_is_stale = true;
-		} m0_tl_endfor;
-	} m0_tl_endfor;
-	m0_mutex_unlock(&pc->pc_mutex);
-}
-
 static void inodes_layout_ref_drop(struct m0t1fs_sb *csb)
 {
 	struct m0t1fs_inode    *ci;
@@ -857,7 +838,8 @@ static void conf_ready_async_cb_locked(struct m0t1fs_sb *csb)
 
 	M0_PRE(m0_mutex_is_locked(&csb->csb_confc_state.cus_lock));
 
-	stale_pvers_mark(&csb->csb_pools_common);
+	m0_pool_versions_stale_mark(&csb->csb_pools_common,
+				    &csb->csb_confc_state);
 	inodes_layout_ref_drop(csb);
 	/*
 	 * During m0t1fs_setup() pools_common stays uninitialized
