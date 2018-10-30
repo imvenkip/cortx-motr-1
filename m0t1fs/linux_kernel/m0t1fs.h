@@ -50,6 +50,7 @@
 #include "spiel/spiel.h"         /* m0_spiel */
 #include "m0t1fs/linux_kernel/m0t1fs_addb2.h"
 #include "mero/ha.h"             /* m0_mero_ha */
+#include "conf/confc.h"          /* m0_conf_state */
 
 /**
   @defgroup m0t1fs m0t1fs
@@ -664,13 +665,6 @@ enum io_req_type {
 	IRT_TYPE_NR,
 };
 
-enum m0t1fs_conf_state {
-	MCS_READY,
-	MCS_REVOKED,
-	MCS_GETTING_READY,
-	MCS_FAILED,
-};
-
 /**
    In memory m0t1fs super block. One instance per mounted file-system.
    super_block::s_fs_info points to instance of this type.
@@ -785,14 +779,10 @@ struct m0t1fs_sb {
 	 * is restored.
 	 */
 	struct m0_chan                          csb_conf_ready_chan;
-	/**
-	 * A lock for probing/updating csb_conf_state, and for updating
-	 * csb_reqs_nr. The same lock acts as a guard for
-	 * csb_conf_ready_chan.
-	 */
-	struct m0_mutex                         csb_conf_state_lock;
-	/** Indicates the state of conf with respect to csb.  */
-	enum m0t1fs_conf_state                  csb_conf_state;
+
+	/** Indicates the state of confc update with respect to csb.  */
+	struct m0_confc_update_state            csb_confc_state;
+
 	/** Number of active requests under csb. */
 	uint64_t                                csb_reqs_nr;
 

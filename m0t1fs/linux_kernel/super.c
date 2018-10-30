@@ -434,11 +434,11 @@ M0_INTERNAL void m0t1fs_sb_init(struct m0t1fs_sb *csb)
 	csb->csb_oostore = false;
 	csb->csb_verify  = false;
 	csb->csb_reqs_nr = 0;
-	csb->csb_conf_state = MCS_REVOKED;
-	m0_mutex_init(&csb->csb_conf_state_lock);
+	csb->csb_confc_state.cus_state = M0_CC_REVOKED;
+	m0_mutex_init(&csb->csb_confc_state.cus_lock);
 	m0_mutex_init(&csb->csb_inodes_lock);
 	csb_inodes_tlist_init(&csb->csb_inodes);
-	m0_chan_init(&csb->csb_conf_ready_chan, &csb->csb_conf_state_lock);
+	m0_chan_init(&csb->csb_conf_ready_chan, &csb->csb_confc_state.cus_lock);
 	M0_LEAVE();
 }
 
@@ -449,12 +449,12 @@ M0_INTERNAL void m0t1fs_sb_fini(struct m0t1fs_sb *csb)
 	m0_chan_fini_lock(&csb->csb_conf_ready_chan);
 	csb_inodes_tlist_fini(&csb->csb_inodes);
 	m0_mutex_fini(&csb->csb_inodes_lock);
-	m0_mutex_fini(&csb->csb_conf_state_lock);
+	m0_mutex_fini(&csb->csb_confc_state.cus_lock);
 	m0_chan_fini_lock(&csb->csb_iowait);
 	m0_sm_group_fini(&csb->csb_iogroup);
 	m0_mutex_fini(&csb->csb_mutex);
 	csb->csb_next_key = 0;
-	csb->csb_conf_state = MCS_REVOKED;
+	csb->csb_confc_state.cus_state = M0_CC_REVOKED;
 	M0_LEAVE();
 }
 
@@ -724,16 +724,18 @@ void m0t1fs_rpc_fini(struct m0t1fs_sb *csb)
 M0_INTERNAL int m0t1fs_ref_get_lock(struct m0t1fs_sb *csb)
 {
 	struct m0_clink clink;
+	int             rc;
 
 	M0_ENTRY("csb=%p", csb);
 	while (1) {
-		m0_mutex_lock(&csb->csb_conf_state_lock);
-		if (M0_IN(csb->csb_conf_state, (MCS_READY, MCS_FAILED)))
+		m0_mutex_lock(&csb->csb_confc_state.cus_lock);
+		if (M0_IN(csb->csb_confc_state.cus_state,
+			  (M0_CC_READY, M0_CC_FAILED)))
 			break;
 		m0_clink_init(&clink, NULL);
 		m0_clink_add(&csb->csb_conf_ready_chan, &clink);
 
-		m0_mutex_unlock(&csb->csb_conf_state_lock);
+		m0_mutex_unlock(&csb->csb_confc_state.cus_lock);
 		/* Wait till configuration is updated. */
 		m0_chan_wait(&clink);
 
@@ -741,17 +743,19 @@ M0_INTERNAL int m0t1fs_ref_get_lock(struct m0t1fs_sb *csb)
 		m0_clink_fini(&clink);
 	}
 	M0_CNT_INC(csb->csb_reqs_nr);
-	m0_mutex_unlock(&csb->csb_conf_state_lock);
-	return M0_RC(csb->csb_conf_state == MCS_READY ? 0 : -ESTALE);
+	rc = csb->csb_confc_state.cus_state == M0_CC_READY ? 0 : -ESTALE;
+	m0_mutex_unlock(&csb->csb_confc_state.cus_lock);
+	return M0_RC(rc);
 }
 
 M0_INTERNAL void m0t1fs_ref_put_lock(struct m0t1fs_sb *csb)
 {
-	m0_mutex_lock(&csb->csb_conf_state_lock);
+	m0_mutex_lock(&csb->csb_confc_state.cus_lock);
 	M0_CNT_DEC(csb->csb_reqs_nr);
-	if (csb->csb_reqs_nr == 0 && csb->csb_conf_state == MCS_GETTING_READY)
+	if (csb->csb_reqs_nr == 0 &&
+	    csb->csb_confc_state.cus_state == M0_CC_GETTING_READY)
 		conf_ready_async_cb_locked(csb);
-	m0_mutex_unlock(&csb->csb_conf_state_lock);
+	m0_mutex_unlock(&csb->csb_confc_state.cus_lock);
 }
 
 static bool m0t1fs_conf_expired_cb(struct m0_clink *clink)
@@ -765,12 +769,12 @@ static bool m0t1fs_conf_expired_cb(struct m0_clink *clink)
 	if (csb->csb_reqh.rh_rconfc.rc_stopping)
 		return true;
 
-	m0_mutex_lock(&csb->csb_conf_state_lock);
+	m0_mutex_lock(&csb->csb_confc_state.cus_lock);
 	/*
 	 * Close the gate for new io and metadata requests.
 	 */
-	csb->csb_conf_state = MCS_REVOKED;
-	m0_mutex_unlock(&csb->csb_conf_state_lock);
+	csb->csb_confc_state.cus_state = M0_CC_REVOKED;
+	m0_mutex_unlock(&csb->csb_confc_state.cus_lock);
 
 	/*
 	 * Cancel sessions to IO services that were used during IO request
@@ -837,10 +841,11 @@ static bool m0t1fs_conf_ready_async_cb(struct m0_clink *clink)
 
 	M0_ENTRY("super %p", csb);
 
-	m0_mutex_lock(&csb->csb_conf_state_lock);
-	if (csb->csb_reqs_nr == 0 && csb->csb_conf_state == MCS_GETTING_READY)
+	m0_mutex_lock(&csb->csb_confc_state.cus_lock);
+	if (csb->csb_reqs_nr == 0 &&
+	    csb->csb_confc_state.cus_state == M0_CC_GETTING_READY)
 		conf_ready_async_cb_locked(csb);
-	m0_mutex_unlock(&csb->csb_conf_state_lock);
+	m0_mutex_unlock(&csb->csb_confc_state.cus_lock);
 
 	M0_LEAVE();
 	return true;
@@ -850,7 +855,7 @@ static void conf_ready_async_cb_locked(struct m0t1fs_sb *csb)
 {
 	struct m0_clink *pc_clink = &csb->csb_pools_common.pc_conf_ready_async;
 
-	M0_PRE(m0_mutex_is_locked(&csb->csb_conf_state_lock));
+	M0_PRE(m0_mutex_is_locked(&csb->csb_confc_state.cus_lock));
 
 	stale_pvers_mark(&csb->csb_pools_common);
 	inodes_layout_ref_drop(csb);
@@ -860,18 +865,18 @@ static void conf_ready_async_cb_locked(struct m0t1fs_sb *csb)
 	 */
 	if (csb->csb_pools_common.pc_confc != NULL)
 		m0_pools_common_conf_ready_async_cb(pc_clink);
-	csb->csb_conf_state = MCS_READY;
+	csb->csb_confc_state.cus_state = M0_CC_READY;
 	m0_chan_broadcast(&csb->csb_conf_ready_chan);
 }
 
 /**
- * When configuration is revoked, m0t1fs_sb::csb_conf_state changes to
- * MCS_CONF_REVOKED. Subsequent io requests do not update
+ * When configuration is revoked, m0t1fs_sb::csb_confc_state changes to
+ * M0_CC_REVOKED. Subsequent io requests do not update
  * m0t1fs_sb::csb_reqs_nr, and instead wait on m0t1fs_sb::csb_conf_ready_chan,
- * till m0t1fs_sb returns to MCS_READY. Any io request that is not waiting and
+ * till m0t1fs_sb returns to M0_CC_READY. Any io request that is not waiting and
  * has registered its presence by incrementing m0t1fs_sb::csb_reqs_nr is called
  * as an active request. An active request continues with its usual
- * flow of operations even when state of m0t1fs_sb changes to MCS_CONF_REVOKED.
+ * flow of operations even when state of m0t1fs_sb changes to M0_CC_REVOKED.
  *
  * When new configuration becomes available, in-memory representations of
  * stale pool versions need to be removed. In order to do this it is
@@ -880,7 +885,7 @@ static void conf_ready_async_cb_locked(struct m0t1fs_sb *csb)
  *
  * On availability of the new configuration the callback works in two phases.
  * Callback that's triggered on m0_reqh::rh_conf_cache_ready channel changes
- * the state of m0t1fs_sb to MCS_GETTING_READY. When a callback on
+ * the state of m0t1fs_sb to M0_CC_GETTING_READY. When a callback on
  * m0_reqh::rh_conf_cache_ready_async is triggered, it checks if any active
  * requests are present and cleans the stale pool versions in case there are
  * no active requests. When an active request is present this callback
@@ -889,15 +894,15 @@ static void conf_ready_async_cb_locked(struct m0t1fs_sb *csb)
  *
  * The process of clearing stale pool versions also involves removal of layouts
  * associated with them from the layout domain, and updating the state of
- * m0t1fs_sb to MCS_READY, before signalling the requests waiting on
+ * m0t1fs_sb to M0_CC_READY, before signalling the requests waiting on
  * m0t1fs_sb::csb_conf_ready_chan.
  */
 static bool m0t1fs_conf_ready_cb(struct m0_clink *clink)
 {
 	struct m0t1fs_sb *csb = M0_AMB(csb, clink, csb_conf_ready);
-	m0_mutex_lock(&csb->csb_conf_state_lock);
-	csb->csb_conf_state = MCS_GETTING_READY;
-	m0_mutex_unlock(&csb->csb_conf_state_lock);
+	m0_mutex_lock(&csb->csb_confc_state.cus_lock);
+	csb->csb_confc_state.cus_state = M0_CC_GETTING_READY;
+	m0_mutex_unlock(&csb->csb_confc_state.cus_lock);
 	return true;
 }
 
@@ -906,7 +911,9 @@ static void m0t1fs_rconfc_fatal_cb(struct m0_rconfc *rconfc)
 	struct m0t1fs_sb *csb = rconfc2csb(rconfc);
 
 	M0_ENTRY("rconfc %p", rconfc);
-	csb->csb_conf_state = MCS_FAILED;
+	m0_mutex_lock(&csb->csb_confc_state.cus_lock);
+	csb->csb_confc_state.cus_state = M0_CC_FAILED;
+	m0_mutex_unlock(&csb->csb_confc_state.cus_lock);
 	m0_chan_broadcast_lock(&csb->csb_conf_ready_chan);
 	M0_LEAVE();
 }
