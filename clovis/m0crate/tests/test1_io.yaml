@@ -1,33 +1,33 @@
 CrateConfig_Sections: [MERO_CONFIG, WORKLOAD_SPEC]
-MERO_CONFIG:                                         # Section for MERO config
-   MERO_LOCAL_ADDR: 10.0.2.15@tcp:12345:33:101       # Clovis end points, replace <ipaddress> with host's ip address
-   MERO_CONFD_ADDR: 10.0.2.15@tcp:12345:33:101       # Clovis end points, replace <ipaddress> with host's ip address
-   MERO_HA_ADDR: 10.0.2.15@tcp:12345:34:1            # Clovis end point, replace <ipaddress> with host's ip address
-   CLOVIS_PROF: <0x7000000000000001:0>               # Clovis Profile
-   LAYOUT_ID: 0                                      # Mero layout id: Layout id defines the unit size.
-   BLOCK_SIZE: 1048576                               # Clovis Block size for an IO operation
-   IS_OOSTORE: 0                                     # Is oostore
-   IS_READ_VERIFY: 0                                 # IS read-verify
-   CLOVIS_TM_RECV_QUEUE_MIN_LEN: 2                   # Minimum length of the 'tm' receive queue for clovis, default is 2
-   CLOVIS_MAX_RPC_MSG_SIZE: 131072                   # Maximum rpc message size for clovis, default is 131072 (128k)
-   CLOVIS_PROCESS_FID: <0x7200000000000000:0>        # FID of the Resource manager for Clovis
-   CLOVIS_IDX_SERVICE_ID: 1                          # Cassandra Index service id.
-   CLOVIS_CASS_CLUSTER_EP: "127.0.0.1"               # Cassandra cluster end point
-   CLOVIS_CASS_KEYSPACE: "clovis_index_keyspace"     # Cassandra keyspace
-   CLOVIS_CASS_MAX_COL_FAMILY_NUM: 1                 # Cassandra max column family number, default is 1
-WORKLOAD_SPEC:                                       # Workload specification section
-   WORKLOAD:                                         # First Workload
-        WORKLOAD_TYPE: 1                             # Workload type, 0->Index, 1->IO: Currently only IO is supported.
-        WORKLOAD_SEED: 3                             # SEED to the random number generator.
-        CLOIVS_IOSIZE: 16384                         # Size of IO.
-        UNIT_SIZE: 4096                              # Sizeof IO in a single operation
-        NR_UNITS_PER_OP: 2                           # Number of units of unit sizes in a operation.
-        SOURCE_FILE: /tmp/128M                       # Source file from which Crate will pick up data.
-        OPCODE: 3                                    # OPCODE: CREATE/DELETE/READ/WRITE=(0,1,2,3).
-        MODE: 1                                      # Mode of clovis operations: Synchronous=0, Asynchronous=1
-        NR_OBJS: 4
-        NR_THREADS: 4                                # Number of threads in this workload.
-        THREAD_OPS: 0                                # All threads will write to same object if set to 1; otherwise to different objects.
-        MAX_NR_OPS: 2                                # Maximum operations launched by Crate.
-        NR_ROUNDS: 1                                 # Number of times this workload is run.
-        EXEC_TIME: unset                             # Execution time
+MERO_CONFIG:
+   MERO_LOCAL_ADDR: 192.168.180.162@tcp:12345:33:123
+   MERO_CONFD_ADDR: 192.168.180.162@tcp:12345:44:101
+   MERO_HA_ADDR:    192.168.180.162@tcp:12345:34:101
+   CLOVIS_PROF: <0x7000000000000001:0x4d>  # Profile
+   LAYOUT_ID: 1                            # Layout id defines the unit size.
+   BLOCK_SIZE: 1048576                     # Block size for an IO operation
+   IS_OOSTORE: 1                           # Is oostore-mode?
+   IS_READ_VERIFY: 0                       # Enable read-verify?
+   CLOVIS_TM_RECV_QUEUE_MIN_LEN: 2         # Minimum length of the receive queue, default is 2
+   CLOVIS_MAX_RPC_MSG_SIZE: 131072         # Maximum rpc message size, default is 131072 (128k)
+   CLOVIS_PROCESS_FID: <0x7200000000000000:0>
+   CLOVIS_IDX_SERVICE_ID: 1
+
+WORKLOAD_SPEC:                   # Workload specification section
+   WORKLOAD:                     # First Workload
+      WORKLOAD_TYPE: 1           # Workload type, 0->Index, 1->IO
+      WORKLOAD_SEED: 3           # SEED to the random number generator.
+      CLOIVS_IOSIZE: 16384       # Size of IO.
+      UNIT_SIZE: 4096            # Sizeof IO in a single operation
+      NR_UNITS_PER_OP: 2         # Number of units of unit sizes in a operation.
+      SOURCE_FILE: /tmp/128M     # Source file from which Crate will pick up data.
+      OPCODE: 3                  # OPCODE: CREATE/DELETE/READ/WRITE=(0,1,2,3).
+      MODE: 1                    # Synchronous=0, Asynchronous=1
+      NR_OBJS: 4
+      NR_THREADS: 4              # Number of threads in this workload.
+      THREAD_OPS: 0              # All threads write to the same object?
+      MAX_NR_OPS: 2              # Maximum operations launched by Crate.
+      NR_ROUNDS: 1               # Number of times this workload is run.
+      EXEC_TIME: unset           # Execution time
+
+LOG_LEVEL: 2 # err(0), warn(1), info(2), trace(3), debug(4)

@@ -172,7 +172,7 @@ struct workload_type_ops {
         int  (*wto_parse)(struct workload *w, char ch, const char *optarg);
         void (*wto_check)(struct workload *w);
 };
-void workload_init(struct workload *w, enum cr_workload_type wtype);
+int workload_init(struct workload *w, enum cr_workload_type wtype);
 void workload_start(struct workload *w, struct workload_task *task);
 void workload_join(struct workload *w, struct workload_task *task);
 

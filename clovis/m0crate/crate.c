@@ -207,10 +207,8 @@ void timeval_norm(struct timeval *t)
         }
 }
 
-void workload_init(struct workload *w, enum cr_workload_type wtype)
+int workload_init(struct workload *w, enum cr_workload_type wtype)
 {
-	int rc;
-
         pthread_mutex_init(&w->cw_lock, NULL);
         w->cw_type      = wtype;
         w->cw_avg       = cr_default_avg;
@@ -221,8 +219,8 @@ void workload_init(struct workload *w, enum cr_workload_type wtype)
         w->cw_fpattern  = strdup(cr_default_fpattern);
         w->cw_nr_dir    = cr_default_nr_dir;
         w->cw_read_frac = cr_default_read_frac;
-	rc = wop(w)->wto_init(w);
-	M0_POST(rc == 0);
+
+	return wop(w)->wto_init(w);
 }
 
 static void workload_fini(struct workload *w)
@@ -1314,7 +1312,9 @@ int main(int argc, char **argv)
                         if (i == ARRAY_SIZE(cr_workload_name))
                                 errx(1, "unknown workload type (%s)", optarg);
                         w = &load[idx];
-                        workload_init(w, i);
+                        rc = workload_init(w, i);
+			if (rc != 0)
+				errx(1, "failed to init the workload: %d", rc);
                         w->cw_name = cr_workload_name[i];
                         continue;
 		case 'S':
@@ -1322,7 +1322,7 @@ int main(int argc, char **argv)
 			M0_ASSERT(idx == -1);
 			rc = parse_yaml_file(load, CR_WORKLOAD_MAX, &idx, optarg);
 			if (rc != 0) {
-				printf("Unable to parse workload:%d\n", rc);
+				fprintf(stderr, "Unable to parse workload: %d\n", rc);
 				m0_free(load);
 				return -EINVAL;
 			}

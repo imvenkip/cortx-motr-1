@@ -320,8 +320,7 @@ int copy_value(struct workload *load, int max_workload, int *index,
 				if (w->u.cw_clovis_io == NULL)
 					return -ENOMEM;
 			}
-                        workload_init(w, w->cw_type);
-			break;
+                        return workload_init(w, w->cw_type);
 		case SEED:
 			w = &load[*index];
 			if (w->cw_type == CWT_CLOVIS_IO) {
@@ -538,13 +537,13 @@ int parse_yaml_file(struct workload *load, int max_workload, int *index,
 	yaml_parser_t parser;
 	yaml_token_t  token;
 
-	if(!yaml_parser_initialize(&parser)) {
+	if (!yaml_parser_initialize(&parser)) {
 		cr_log(CLL_ERROR, "Failed to initialize parser!\n");
 		return -1;
 	}
 
 	fh = fopen(config_file, "r");
-	if(fh == NULL) {
+	if (fh == NULL) {
 		cr_log(CLL_ERROR, "Failed to open file!\n");
 		return -1;
 	}
@@ -576,13 +575,14 @@ int parse_yaml_file(struct workload *load, int max_workload, int *index,
 
 		if (rc != 0) {
 			fclose(fh);
+			cr_log(CLL_ERROR, "Failed to parse %s\n", key);
 			return rc;
 		}
 
 		if (token.type != YAML_STREAM_END_TOKEN)
 			yaml_token_delete(&token);
 
-	} while(token.type != YAML_STREAM_END_TOKEN);
+	} while (token.type != YAML_STREAM_END_TOKEN);
 
 	yaml_token_delete(&token);
 

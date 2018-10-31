@@ -110,7 +110,7 @@ int clovis_init(struct workload *w)
                 clovis_conf.cc_idx_service_conf = &dix_conf;
         } else {
 		rc = -EINVAL;
-		cr_log(CLL_ERROR, "Unknown index service id:%d!",
+		cr_log(CLL_ERROR, "Unknown index service id: %d!\n",
 		       clovis_conf.cc_idx_service_id);
 		goto do_exit;
 	}
@@ -118,7 +118,7 @@ int clovis_init(struct workload *w)
 	/* Clovis instance */
 	rc = m0_clovis_init(&clovis_instance, &clovis_conf, true);
 	if (rc != 0) {
-		cr_log(CLL_ERROR, "Failed to initilise Clovis (%d)", rc);
+		cr_log(CLL_ERROR, "Failed to initilise Clovis: %d\n", rc);
 		goto do_exit;
 	}
 
@@ -131,7 +131,7 @@ int clovis_init(struct workload *w)
 
 	rc = clovis_container.co_realm.re_entity.en_sm.sm_rc;
 	if (rc != 0) {
-		cr_log(CLL_ERROR, "Failed to open uber realm");
+		cr_log(CLL_ERROR, "Failed to open uber realm\n");
 		goto do_exit;
 	}
 
