@@ -16,7 +16,7 @@ MERO_CONFIG:
 WORKLOAD_SPEC:                   # Workload specification section
    WORKLOAD:                     # First Workload
       WORKLOAD_TYPE: 1           # Workload type, 0->Index, 1->IO
-      WORKLOAD_SEED: 3           # SEED to the random number generator.
+      WORKLOAD_SEED: tstamp      # SEED to the random number generator.
       CLOIVS_IOSIZE: 16384       # Size of IO.
       UNIT_SIZE: 4096            # Sizeof IO in a single operation
       NR_UNITS_PER_OP: 2         # Number of units of unit sizes in a operation.

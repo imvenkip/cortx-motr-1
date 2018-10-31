@@ -209,7 +209,7 @@ int clovis_write(struct m0_clovis_container *clovis_container,
 		blk_count = (block_count > CLOVIS_MAX_BLOCK_COUNT)?
 			    CLOVIS_MAX_BLOCK_COUNT:block_count;
 
-		/* Allocate block_count * 4K data buffer. */
+		/* Allocate block_count * block_size data buffer. */
 		rc = m0_bufvec_alloc(&data, blk_count, block_size);
 		if (rc != 0)
 			return rc;

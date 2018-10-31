@@ -472,6 +472,11 @@ int copy_value(struct workload *load, int max_workload, int *index,
 			w = &load[*index];
 			cw = workload_io(w);
 			cw->cwi_unit_size = atol(value);
+			if (conf->layout_id <= 0) {
+				cr_log(CLL_ERROR, "LAYOUT_ID is not set\n");
+				return -EINVAL;
+			}
+			cw->cwi_layout_id = conf->layout_id;
 			break;
 		case NR_UNITS_PER_OP:
 			w  = &load[*index];

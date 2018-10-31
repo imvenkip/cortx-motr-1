@@ -108,24 +108,6 @@ void integrity(struct m0_uint128 object_id, unsigned char **md5toverify,
 int index_operation(struct workload *wt);
 void list_index_return(struct workload *w);
 
-int lid_to_unit_map[] = {
-       [ 0] =       -1, /* invalid */
-       [ 1] =     4096,
-       [ 2] =     8192,
-       [ 3] =    16384,
-       [ 4] =    32768,
-       [ 5] =    65536,
-       [ 6] =   131072,
-       [ 7] =   262144,
-       [ 8] =   524288,
-       [ 9] =  1048576,
-       [10] =  2097152,
-       [11] =  4194304,
-       [12] =  8388608,
-       [13] = 16777216,
-       [14] = 33554432,
-};
-
 struct clovis_op_context {
 	m0_time_t              coc_op_launch;
 	m0_time_t              coc_op_finish;
@@ -350,15 +332,15 @@ int cr_io_vector_prep(struct clovis_workload_io *cwi,
 		memcpy(buf_vec->ov_buf[i], cti->cti_buffer, cwi->cwi_unit_size);
 
 		if (cwi->cwi_random_io) {
-			/** Generate the random offset. */
+			/* Generate the random offset. */
 			rand_offset = cr_rand___range_l(cwi->cwi_io_size);
 
-			/** Round off offset to nearest unit size. */
+			/* Round off offset to nearest unit size. */
 			offset = round_off(rand_offset, cwi->cwi_unit_size);
 		} else
 			offset = op_index * cwi->cwi_unit_size * i;
 
-		/** If writing on shared object, start from the alloted range. */
+		/* If writing on shared object, start from the alloted range. */
 		if (cwi->cwi_share_object) {
 			start_offset = cti->cti_task_idx * cwi->cwi_io_size;
 			index_vec->iv_index[i] = start_offset + offset;
@@ -371,6 +353,7 @@ int cr_io_vector_prep(struct clovis_workload_io *cwi,
 	op_ctx->coc_buf_vec = buf_vec;
 	op_ctx->coc_index_vec = index_vec;
 	op_ctx->coc_attr = attr;
+
 	return 0;
 }
 
