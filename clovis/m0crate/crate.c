@@ -212,6 +212,7 @@ int workload_init(struct workload *w, enum cr_workload_type wtype)
 {
         pthread_mutex_init(&w->cw_lock, NULL);
         w->cw_type      = wtype;
+	w->cw_name      = cr_workload_name[wtype];
         w->cw_avg       = cr_default_avg;
         w->cw_max       = cr_default_max;
         w->cw_ops       = cr_default_ops;
@@ -377,13 +378,20 @@ static void workload_run(struct workload *w)
                w->cw_name, w->cw_type);
         cr_log(CLL_INFO, "random seed:           %u\n", w->cw_rstate);
         cr_log(CLL_INFO, "number of threads:     %u\n", w->cw_nr_thread);
-        cr_log(CLL_INFO, "average size:          %llu\n", w->cw_avg);
-        cr_log(CLL_INFO, "maximal size:          %llu\n", w->cw_max);
-        cr_log(CLL_INFO, "block size:            %llu\n", w->cw_block);
-        cr_log(CLL_INFO, "number of operations:  %u\n", w->cw_ops);
-        cr_log(CLL_INFO, "oflags:                %o\n", w->cw_oflag);
-        cr_log(CLL_INFO, "bound mode:            %s\n",
-               w->cw_bound ? "on" : "off");
+	if (CWT_CLOVIS_IO != w->cw_type) {
+		cr_log(CLL_INFO, "average size:          %llu\n", w->cw_avg);
+		cr_log(CLL_INFO, "maximal size:          %llu\n", w->cw_max);
+		/*
+		 * XXX: cw_block could be reused for Clovis instead of cwi_bs,
+		 * but we can't always access `struct workload' there.
+		 * That's pity and should be fixed some day probably.
+		 */
+		cr_log(CLL_INFO, "block size:            %llu\n", w->cw_block);
+		cr_log(CLL_INFO, "number of operations:  %u\n", w->cw_ops);
+		cr_log(CLL_INFO, "oflags:                %o\n", w->cw_oflag);
+		cr_log(CLL_INFO, "bound mode:            %s\n",
+		       w->cw_bound ? "on" : "off");
+	}
 
         if (w->cw_rstate == 0)
                 w->cw_rstate = time(0) + getpid();
@@ -1316,7 +1324,6 @@ int main(int argc, char **argv)
                         rc = workload_init(w, i);
 			if (rc != 0)
 				errx(1, "failed to init the workload: %d", rc);
-                        w->cw_name = cr_workload_name[i];
                         continue;
 		case 'S':
 			/* All workloads are specified in a yaml file. */

@@ -187,11 +187,30 @@ void cr_op_failed(struct m0_clovis_op *op)
 	}
 }
 
+static void cti_cleanup_op(struct clovis_task_io *cti, int i)
+{
+	struct m0_clovis_op      *op = cti->cti_ops[i];
+	struct clovis_op_context *op_ctx = op->op_datum;
+
+	m0_clovis_op_fini(op);
+	m0_clovis_op_free(op);
+	cti->cti_ops[i] = NULL;
+	if (op_ctx->coc_op_code == CR_WRITE ||
+	    op_ctx->coc_op_code == CR_READ) {
+		m0_bufvec_free(op_ctx->coc_buf_vec);
+		m0_bufvec_free(op_ctx->coc_attr);
+		m0_indexvec_free(op_ctx->coc_index_vec);
+		m0_free(op_ctx->coc_buf_vec);
+		m0_free(op_ctx->coc_attr);
+		m0_free(op_ctx->coc_index_vec);
+	}
+	m0_free(op_ctx);
+	cti->cti_op_status[i] = CR_OP_NEW;
+}
+
 int cr_free_op_idx(struct clovis_task_io *cti, uint32_t nr_ops)
 {
-	int                       i;
-	struct m0_clovis_op      *op;
-	struct clovis_op_context *op_ctx;
+	int i;
 
 	for(i = 0; i < nr_ops; i++) {
 		if(cti->cti_op_status[i] == CR_OP_NEW ||
@@ -201,64 +220,19 @@ int cr_free_op_idx(struct clovis_task_io *cti, uint32_t nr_ops)
 
 	M0_ASSERT(i < nr_ops);
 
-	if (cti->cti_op_status[i] == CR_OP_COMPLETE) {
-		op = cti->cti_ops[i];
-		op_ctx = op->op_datum;
-		m0_clovis_op_fini(op);
-		if (op_ctx->coc_op_code == CR_WRITE ||
-		    op_ctx->coc_op_code == CR_READ) {
-			m0_bufvec_free(op_ctx->coc_buf_vec);
-			m0_bufvec_free(op_ctx->coc_attr);
-			m0_indexvec_free(op_ctx->coc_index_vec);
-			m0_free(op_ctx->coc_buf_vec);
-			m0_free(op_ctx->coc_attr);
-			m0_free(op_ctx->coc_index_vec);
-		}
-
-		if (op_ctx->coc_op_code == CR_CREATE ||
-		    op_ctx->coc_op_code == CR_DELETE) {
-			m0_clovis_obj_fini(&cti->cti_objs[i]);
-			memset(&cti->cti_objs[i], 0,
-			       sizeof(struct m0_clovis_obj));
-		}
-		m0_free(op_ctx);
-		cti->cti_op_status[i] = CR_OP_NEW;
-	}
+	if (cti->cti_op_status[i] == CR_OP_COMPLETE)
+		cti_cleanup_op(cti, i);
 
 	return i;
 }
 
-int cr_cleanup_cti(struct clovis_task_io *cti, int nr_ops)
+static void cr_cleanup_cti(struct clovis_task_io *cti, int nr_ops)
 {
-	int                       i;
-	struct m0_clovis_op      *op;
-	struct clovis_op_context *op_ctx;
+	int i;
 
-	for(i = 0; i < nr_ops; i++) {
-		if(cti->cti_op_status[i] == CR_OP_COMPLETE) {
-			op = cti->cti_ops[i];
-			op_ctx = op->op_datum;
-			m0_clovis_op_fini(cti->cti_ops[i]);
-			if (op_ctx->coc_op_code == CR_WRITE ||
-			    op_ctx->coc_op_code == CR_READ) {
-				m0_bufvec_free(op_ctx->coc_buf_vec);
-				m0_bufvec_free(op_ctx->coc_attr);
-				m0_indexvec_free(op_ctx->coc_index_vec);
-				m0_free(op_ctx->coc_buf_vec);
-				m0_free(op_ctx->coc_attr);
-				m0_free(op_ctx->coc_index_vec);
-			}
-
-			m0_free(op_ctx);
-			cti->cti_op_status[i] = CR_OP_NEW;
-		}
-	}
-	/** m0_clovis_op_ fini() still may have an AST cleanning ops. */
-	for (i = 0; i < nr_ops; i++) {
-		m0_clovis_op_free(cti->cti_ops[i]);
-		cti->cti_ops[i] = NULL;
-	}
-	return 0;
+	for (i = 0; i < nr_ops; i++)
+		if (cti->cti_op_status[i] == CR_OP_COMPLETE)
+			cti_cleanup_op(cti, i);
 }
 
 int cr_io_vector_prep(struct clovis_workload_io *cwi,
@@ -460,23 +434,6 @@ int cr_op_namei(struct clovis_workload_io  *cwi, struct clovis_task_io *cti,
 	struct m0_clovis_op_ops  *cbs;
 	cr_operation_t            spec_op;
 
-	M0_ALLOC_ARR(cti->cti_objs, cwi->cwi_nr_objs);
-	if (cti->cti_objs == NULL) {
-		return -ENOMEM;
-	}
-
-	M0_ALLOC_ARR(cti->cti_ops, cwi->cwi_max_nr_ops);
-	if (cti->cti_ops == NULL) {
-		m0_free(cti->cti_objs);
-		return -ENOMEM;
-	}
-
-	M0_ALLOC_ARR(cti->cti_op_status, cwi->cwi_max_nr_ops);
-	if (cti->cti_op_status == NULL) {
-		m0_free(cti->cti_objs);
-		m0_free(cti->cti_ops);
-	}
-
 	cbs = m0_alloc(sizeof *cbs);
 	M0_ASSERT(cbs != NULL);
 	cbs->oop_executed = NULL;
@@ -486,7 +443,7 @@ int cr_op_namei(struct clovis_workload_io  *cwi, struct clovis_task_io *cti,
 	m0_semaphore_init(&cti->cti_max_ops_sem, cwi->cwi_max_nr_ops);
 	for(i = 0; i < cwi->cwi_nr_objs; i++) {
 		m0_semaphore_down(&cti->cti_max_ops_sem);
-		/** We can launch at least one more operation. */
+		/* We can launch at least one more operation. */
 		idx = cr_free_op_idx(cti, cwi->cwi_max_nr_ops);
 		op_ctx = m0_alloc(sizeof *op_ctx);
 		M0_ASSERT(op_ctx != NULL);
@@ -495,10 +452,6 @@ int cr_op_namei(struct clovis_workload_io  *cwi, struct clovis_task_io *cti,
 		op_ctx->coc_task = cti;
 		op_ctx->coc_op_code = op_code;
 
-		M0_SET0(&cti->cti_objs[idx]);
-		m0_clovis_obj_init(&cti->cti_objs[idx],
-				   crate_clovis_uber_realm(),
-				   &cti->cti_ids[i], cwi->cwi_layout_id);
 		spec_op = opcode_operation_map[op_code];
 		spec_op(cwi, cti, op_ctx, &cti->cti_objs[idx], idx, i);
 
@@ -509,19 +462,15 @@ int cr_op_namei(struct clovis_workload_io  *cwi, struct clovis_task_io *cti,
 		m0_clovis_op_launch(&cti->cti_ops[idx], 1);
 	}
 
-	/** Task is done. Wait for all operations to complete. */
-	while(m0_semaphore_value(&cti->cti_max_ops_sem) != cwi->cwi_max_nr_ops) {
+	/* Task is done. Wait for all operations to complete. */
+	while (m0_semaphore_value(&cti->cti_max_ops_sem) != cwi->cwi_max_nr_ops)
 		m0_nanosleep(m0_time(1,0), NULL);
-	}
 
 	cr_cleanup_cti(cti, cwi->cwi_max_nr_ops);
 	m0_semaphore_fini(&cti->cti_max_ops_sem);
 	m0_free(cbs);
 
 	cr_report_status(cti, op_code);
-	m0_free(cti->cti_objs);
-	m0_free(cti->cti_ops);
-	m0_free(cti->cti_op_status);
 	return 0;
 }
 
@@ -529,15 +478,10 @@ int cr_op_io(struct clovis_workload_io  *cwi, struct clovis_task_io *cti,
 	     enum clovis_operations op_code)
 {
 	int                      i;
-	struct m0_clovis_obj     obj;
 	struct m0_clovis_op_ops *cbs;
 
 	M0_ALLOC_PTR(cbs);
-	M0_ALLOC_ARR(cti->cti_ops, cwi->cwi_max_nr_ops);
-	M0_ALLOC_ARR(cti->cti_op_status, cwi->cwi_max_nr_ops);
-	if (cbs == NULL || cti->cti_ops == NULL || cti->cti_op_status == NULL) {
-		m0_free(cti->cti_objs);
-		m0_free(cti->cti_ops);
+	if (cbs == NULL) {
 		m0_free(cbs);
 		return -ENOMEM;
 	}
@@ -546,30 +490,23 @@ int cr_op_io(struct clovis_workload_io  *cwi, struct clovis_task_io *cti,
 	cbs->oop_stable   = cr_op_stable;
 	cbs->oop_failed   = cr_op_failed;
 	m0_semaphore_init(&cti->cti_max_ops_sem, cwi->cwi_max_nr_ops);
-	for(i = 0; i < cwi->cwi_nr_objs; i++) {
-		memset(&obj, 0, sizeof obj);
-
-		m0_clovis_obj_init(&obj, crate_clovis_uber_realm(),
-				   &cti->cti_ids[i], cwi->cwi_layout_id);
-		cr_execute_ops(cwi, cti, &obj, cbs, op_code);
+	for (i = 0; i < cwi->cwi_nr_objs; i++) {
+		cr_execute_ops(cwi, cti, &cti->cti_objs[i], cbs, op_code);
 
 		 /**
 		  * All operations are launched.
 		  * Wait for all operations to complete.
 		  */
-		while(m0_semaphore_value(&cti->cti_max_ops_sem) !=
-					 cwi->cwi_max_nr_ops) {
+		while (m0_semaphore_value(&cti->cti_max_ops_sem) !=
+		       cwi->cwi_max_nr_ops)
 			m0_nanosleep(m0_time(1,0), NULL);
-		}
+
 		cr_cleanup_cti(cti, cwi->cwi_max_nr_ops);
-		m0_clovis_obj_fini(&obj);
 		cr_report_status(cti, op_code);
 	}
 
 	m0_semaphore_fini(&cti->cti_max_ops_sem);
 	m0_free(cbs);
-	m0_free(cti->cti_ops);
-	m0_free(cti->cti_op_status);
 	return 0;
 }
 
@@ -701,48 +638,78 @@ void cr_get_oids(struct m0_uint128 *ids, uint32_t nr_objs)
 	}
 }
 
+void cr_task_io_cleanup(struct clovis_task_io **cti_p)
+{
+	int i;
+	struct clovis_task_io *cti = *cti_p;
+
+	if (cti->cti_objs != NULL)
+		for (i=0; i < cti->cti_cwi->cwi_nr_objs; i++)
+			m0_clovis_obj_fini(&cti->cti_objs[i]);
+	m0_free(cti->cti_objs);
+	m0_free(cti->cti_ops);
+	m0_free(cti->cti_op_status);
+	m0_free(cti->cti_buffer);
+	m0_free0(cti_p);
+}
+
 int cr_task_prep_one(struct clovis_workload_io *cwi,
-		     struct clovis_task_io    **cti)
+		     struct clovis_task_io    **cti_out)
 {
 	int rc;
-	if (M0_ALLOC_PTR(*cti) == NULL)
+	int i;
+	struct clovis_task_io *cti;
+
+	if (M0_ALLOC_PTR(*cti_out) == NULL)
 		return -ENOMEM;
+	cti = *cti_out;
 
-	(*cti)->cti_cwi = cwi;
-	(*cti)->cti_nr_ops = cwi->cwi_io_size / (cwi->cwi_bs *
-					         cwi->cwi_bcount_per_op);
-	(*cti)->cti_progress = 0;
+	cti->cti_cwi = cwi;
+	cti->cti_nr_ops = cwi->cwi_io_size / (cwi->cwi_bs *
+					      cwi->cwi_bcount_per_op);
+	cti->cti_progress = 0;
 
-	(*cti)->cti_buffer = m0_alloc(cwi->cwi_bs);
-	if ((*cti)->cti_buffer == NULL) {
-		m0_free(*cti);
-		return -ENOMEM;
-	}
+	cti->cti_buffer = m0_alloc(cwi->cwi_bs);
+	if (cti->cti_buffer == NULL)
+		goto enomem;
 
-	rc = cr_buffer_read((*cti)->cti_buffer, cwi->cwi_filename,
+	rc = cr_buffer_read(cti->cti_buffer, cwi->cwi_filename,
 			    cwi->cwi_bs);
-	if (rc != 0) {
-		m0_free((*cti)->cti_buffer);
-		m0_free(*cti);
-		*cti = NULL;
-		return -ENOMEM;
-	}
+	if (rc != 0)
+		goto enomem;
 
-	M0_ALLOC_ARR((*cti)->cti_ids, cwi->cwi_nr_objs);
-	if ((*cti)->cti_ids == NULL) {
-		m0_free((*cti)->cti_buffer);
-		m0_free(*cti);
-		return -ENOMEM;
-	}
+	M0_ALLOC_ARR(cti->cti_ids, cwi->cwi_nr_objs);
+	if (cti->cti_ids == NULL)
+		goto enomem;
 
-	if (!cwi->cwi_share_object) {
-		(*cti)->cti_start_offset = 0;
-		cr_get_oids((*cti)->cti_ids, cwi->cwi_nr_objs);
+	if (cwi->cwi_share_object) {
+		cti->cti_ids[0] = cwi->cwi_g.cg_oid;
 	} else {
-		(*cti)->cti_ids[0] = cwi->cwi_g.cg_oid;
+		cti->cti_start_offset = 0;
+		cr_get_oids(cti->cti_ids, cwi->cwi_nr_objs);
 	}
+
+	M0_ALLOC_ARR(cti->cti_objs, cwi->cwi_nr_objs);
+	if (cti->cti_objs == NULL)
+		goto enomem;
+
+	for (i=0; i < cwi->cwi_nr_objs; i++)
+		m0_clovis_obj_init(&cti->cti_objs[i],
+				   crate_clovis_uber_realm(),
+				   &cti->cti_ids[i], cwi->cwi_layout_id);
+
+	M0_ALLOC_ARR(cti->cti_ops, cwi->cwi_max_nr_ops);
+	if (cti->cti_ops == NULL)
+		goto enomem;
+
+	M0_ALLOC_ARR(cti->cti_op_status, cwi->cwi_max_nr_ops);
+	if (cti->cti_op_status == NULL)
+		goto enomem;
 
 	return 0;
+enomem:
+	cr_task_io_cleanup(cti_out);
+	return -ENOMEM;
 }
 
 int cr_tasks_prepare(struct workload *w, struct workload_task *tasks)
@@ -755,7 +722,7 @@ int cr_tasks_prepare(struct workload *w, struct workload_task *tasks)
 
 	nr_tasks = w->cw_nr_thread;
 	if (cwi->cwi_share_object) {
-		/** Generate only one id */
+		/* Generate only one id */
 		cwi->cwi_nr_objs = 1;
 		cr_get_oids(&cwi->cwi_g.cg_oid, 1);
 		cwi->cwi_g.cg_nr_tasks = nr_tasks;
@@ -787,12 +754,8 @@ int cr_tasks_release(struct workload *w, struct workload_task *tasks)
 
 	for(i = 0; i < nr_tasks; i++) {
 		cti = tasks[i].u.clovis_task;
-		if (cti == NULL)
-			continue;
-
-		m0_free(cti->cti_buffer);
-		m0_free(cti->cti_ids);
-		m0_free(cti);
+		if (cti != NULL)
+			cr_task_io_cleanup(&cti);
 	}
 
 	return 0;

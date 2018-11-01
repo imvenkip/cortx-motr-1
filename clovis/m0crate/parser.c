@@ -465,7 +465,6 @@ int copy_value(struct workload *load, int max_workload, int *index,
 			w = &load[*index];
 			cw = workload_io(w);
 			cw->cwi_bs = atol(value);
-			cr_log(CLL_INFO, "BLOCK_SIZE: %lu\n", cw->cwi_bs);
 			if (conf->layout_id <= 0) {
 				cr_log(CLL_ERROR, "LAYOUT_ID is not set\n");
 				return -EINVAL;
