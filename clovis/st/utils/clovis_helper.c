@@ -86,8 +86,6 @@ int create_object(struct m0_clovis_container *clovis_container,
 	m0_clovis_obj_init(&obj, &clovis_container->co_realm, &id,
 			   m0_clovis_layout_id(clovis_instance));
 
-	open_entity(&obj.ob_entity);
-
 	m0_clovis_entity_create(NULL, &obj.ob_entity, &ops[0]);
 
 	m0_clovis_op_launch(ops, ARRAY_SIZE(ops));

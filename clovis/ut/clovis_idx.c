@@ -166,7 +166,7 @@ static void ut_clovis_idx_op_complete(void)
 	clovis_idx_op_complete(oi);
 	m0_sm_group_unlock(&oi_grp);
 
-	M0_UT_ASSERT(ent.en_sm.sm_state == M0_CLOVIS_ES_INIT);
+	M0_UT_ASSERT(ent.en_sm.sm_state == M0_CLOVIS_ES_OPEN);
 	M0_UT_ASSERT(oi->oi_oc.oc_op.op_sm.sm_state == M0_CLOVIS_OS_STABLE);
 
 	/* finalise */
@@ -227,7 +227,7 @@ static void ut_clovis_idx_op_fail(void)
 	clovis_idx_op_fail(oi, -1);
 	m0_sm_group_unlock(&oi_grp);
 
-	M0_UT_ASSERT(ent.en_sm.sm_state == M0_CLOVIS_ES_INIT);
+	M0_UT_ASSERT(ent.en_sm.sm_state == M0_CLOVIS_ES_OPEN);
 	M0_UT_ASSERT(oi->oi_oc.oc_op.op_rc == -1);
 	M0_UT_ASSERT(oi->oi_oc.oc_op.op_sm.sm_state == M0_CLOVIS_OS_STABLE);
 
@@ -309,13 +309,6 @@ static void ut_clovis_idx_op_cb_launch(void)
 		m0_sm_init(&oi->oi_oc.oc_op.op_sm, &clovis_op_conf,
 			   M0_CLOVIS_OS_INITIALISED, op_grp);
 
-		if (op_code == M0_CLOVIS_EO_DELETE) {
-			m0_sm_group_lock(en_grp);
-			m0_sm_move(&ent.en_sm, 0, M0_CLOVIS_ES_OPENING);
-			m0_sm_move(&ent.en_sm, 0, M0_CLOVIS_ES_OPEN);
-			m0_sm_group_unlock(en_grp);
-		}
-
 		m0_sm_group_lock(op_grp);
 		clovis_idx_op_cb_launch(&oi->oi_oc);
 		m0_sm_move(&oi->oi_oc.oc_op.op_sm, 0, M0_CLOVIS_OS_EXECUTED);
@@ -324,7 +317,10 @@ static void ut_clovis_idx_op_cb_launch(void)
 		m0_sm_group_unlock(op_grp);
 
 		m0_sm_group_lock(en_grp);
-		m0_sm_move(&ent.en_sm, 0, M0_CLOVIS_ES_INIT);
+		if (op_code == M0_CLOVIS_EO_CREATE)
+			m0_sm_move(&ent.en_sm, 0, M0_CLOVIS_ES_OPEN);
+		else
+			m0_sm_move(&ent.en_sm, 0, M0_CLOVIS_ES_INIT);
 		m0_sm_group_unlock(en_grp);
 
 	}
@@ -456,7 +452,7 @@ static void ut_clovis_idx_op_ast_complete(void)
 	m0_sm_group_unlock(&locality_grp);
 
 	M0_UT_ASSERT(oi.oi_oc.oc_op.op_entity == &ent);
-	M0_UT_ASSERT(ent.en_sm.sm_state == M0_CLOVIS_ES_INIT);
+	M0_UT_ASSERT(ent.en_sm.sm_state == M0_CLOVIS_ES_OPEN);
 	M0_UT_ASSERT(oi.oi_oc.oc_op.op_sm.sm_state == M0_CLOVIS_OS_STABLE);
 
 	/* finalise */
@@ -522,7 +518,7 @@ static void ut_clovis_idx_op_ast_fail(void)
 	m0_sm_group_unlock(&locality_grp);
 
 	M0_UT_ASSERT(oi.oi_oc.oc_op.op_entity == &ent);
-	M0_UT_ASSERT(ent.en_sm.sm_state == M0_CLOVIS_ES_INIT);
+	M0_UT_ASSERT(ent.en_sm.sm_state == M0_CLOVIS_ES_OPEN);
 	M0_UT_ASSERT(oi.oi_oc.oc_op.op_rc == -1);
 	M0_UT_ASSERT(oi.oi_oc.oc_op.op_sm.sm_state == M0_CLOVIS_OS_STABLE);
 

@@ -337,7 +337,6 @@ static void obj_create_then_delete(void)
 		CLOVIS_ST_ASSERT_FATAL(rc == 0);
 		CLOVIS_ST_ASSERT_FATAL(ops_c[0]->op_sm.sm_state == M0_CLOVIS_OS_STABLE);
 
-		clovis_st_entity_open(&obj->ob_entity);
 		/* Delete the entity */
 		clovis_st_entity_delete(&obj->ob_entity, &ops_d[0]);
 		CLOVIS_ST_ASSERT_FATAL(ops_d[0] != NULL);

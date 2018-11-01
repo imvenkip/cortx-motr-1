@@ -162,7 +162,7 @@ struct m0_sm_state_descr clovis_entity_phases[] = {
 	},
 	[M0_CLOVIS_ES_CREATING] = {
 		.sd_name = "creating",
-		.sd_allowed = M0_BITS(M0_CLOVIS_ES_INIT, M0_CLOVIS_ES_FAILED),
+		.sd_allowed = M0_BITS(M0_CLOVIS_ES_OPEN, M0_CLOVIS_ES_FAILED),
 	},
 	[M0_CLOVIS_ES_DELETING] = {
 		.sd_name = "deleting",
@@ -195,7 +195,7 @@ struct m0_sm_trans_descr clovis_entity_trans[] = {
 	{"creating", M0_CLOVIS_ES_INIT, M0_CLOVIS_ES_CREATING},
 	{"deleting", M0_CLOVIS_ES_OPEN, M0_CLOVIS_ES_DELETING},
 	{"opening", M0_CLOVIS_ES_INIT, M0_CLOVIS_ES_OPENING},
-	{"finished-creating", M0_CLOVIS_ES_CREATING, M0_CLOVIS_ES_INIT},
+	{"finished-creating", M0_CLOVIS_ES_CREATING, M0_CLOVIS_ES_OPEN},
 	{"finished-deleting", M0_CLOVIS_ES_DELETING, M0_CLOVIS_ES_INIT},
 	{"open", M0_CLOVIS_ES_OPENING, M0_CLOVIS_ES_OPEN},
 	{"failed-to-create", M0_CLOVIS_ES_CREATING, M0_CLOVIS_ES_FAILED},
@@ -462,7 +462,6 @@ void m0_clovis_obj_fini(struct m0_clovis_obj *obj)
 		m0_clovis_layout_free(obj->ob_layout);
 		obj->ob_layout = NULL;
 	}
-	m0_free(obj->ob_layout);
 	m0_clovis_entity_fini(&obj->ob_entity);
 	M0_SET0(obj);
 

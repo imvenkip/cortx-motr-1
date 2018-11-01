@@ -342,11 +342,14 @@ static void clovis_cob_entity_sm_move(struct m0_clovis_op *op)
 	/* CREATE or DELETE op. */
 	if (M0_IN(op->op_code, (M0_CLOVIS_EO_CREATE, M0_CLOVIS_EO_DELETE)) &&
 	    M0_IN(entity->en_sm.sm_state, (M0_CLOVIS_ES_CREATING,
-					      M0_CLOVIS_ES_DELETING))) {
+					   M0_CLOVIS_ES_DELETING))) {
 		m0_sm_group_lock(&entity->en_sm_group);
 		M0_LOG(M0_DEBUG, "entity sm state: %p, %d\n",
 				&entity->en_sm, entity->en_sm.sm_state);
-		m0_sm_move(&entity->en_sm, 0, M0_CLOVIS_ES_INIT);
+		if (entity->en_sm.sm_state == M0_CLOVIS_ES_CREATING)
+			m0_sm_move(&entity->en_sm, 0, M0_CLOVIS_ES_OPEN);
+		else
+			m0_sm_move(&entity->en_sm, 0, M0_CLOVIS_ES_INIT);
 		m0_sm_group_unlock(&entity->en_sm_group);
 
 		M0_LEAVE();
@@ -434,6 +437,7 @@ static void clovis_cob_fail_op(struct m0_clovis_op *op, int rc)
 	case M0_CLOVIS_ES_INIT:
 		break;
 	case M0_CLOVIS_ES_OPENING:
+	case M0_CLOVIS_ES_CREATING:
 		m0_sm_move(&op->op_entity->en_sm, 0, M0_CLOVIS_ES_OPEN);
 	case M0_CLOVIS_ES_OPEN:
 		m0_sm_move(&op->op_entity->en_sm, 0, M0_CLOVIS_ES_CLOSING);
