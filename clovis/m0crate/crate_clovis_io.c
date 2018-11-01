@@ -51,17 +51,18 @@
  *
  * ## Workload has following parameters:
  *
- * * WORKLOAD_TYPE - always 1 (I/O operations).
- * * WORKLOAD_SEED - initial value for pseudo-random generator
+ * * WORKLOAD_TYPE: always 1 (I/O operations).
+ * * WORKLOAD_SEED: initial value for pseudo-random generator
  *	(int or "tstamp").
+ * * OPCODE: 0-CREATE, 1-DELETE, 2-READ, 3-WRITE.
  * * CLOIVS_IOSIZE: - total size of I/O to perform per object.
  * * BLOCK_SIZE: For performance == parity group size.
- * * BLOCKS_PER_OP: - Number of I/O blocks to perform per operation.
- * * OPCODE: - Operation type (0: CREATE, 1: DELETE, 2: READ, 3: WRITE).
- * * EXEC_TIME - time limit for executing (seconds or "unlimited").
+ * * BLOCKS_PER_OP: - Number of blocks per Clovis operation.
+ * * RAND_IO: Random (1) or sequential (0) IO?
+ * * MAX_NR_OPS: - Max number of concurrent operations per thread.
  * * NR_OBJS - Each thread will create these many objects.
  * * NR_THREADS: - Number of threads.
- * * MAX_NR_OPS: - Maximum number of concurrent I/O operations per thread.
+ * * EXEC_TIME - time limit for executing (seconds or "unlimited").
  * * NR_ROUNDS:  - How many times this workload to be executed.
  *
  * ## Measurements
@@ -135,16 +136,6 @@ static size_t cr_rand___range_l(size_t end)
 	val_h = rand();
 	res = (val_h << 32) | val_l;
 	return res % end;
-}
-
-uint64_t round_off(size_t to_roundoff, uint64_t multiple)
-{
-	uint64_t remainder;
-
-	remainder = to_roundoff % multiple;
-	if (remainder == 0)
-		return to_roundoff;
-	return to_roundoff + multiple - remainder;
 }
 
 void cr_time_add(m0_time_t *t1, m0_time_t t2)
@@ -327,9 +318,7 @@ int cr_io_vector_prep(struct clovis_workload_io *cwi,
 		if (cwi->cwi_random_io) {
 			/* Generate the random offset. */
 			rand_offset = cr_rand___range_l(cwi->cwi_io_size);
-
-			/* Round off offset to nearest block size. */
-			offset = round_off(rand_offset, cwi->cwi_bs);
+			offset = m0_round_down(rand_offset, cwi->cwi_bs);
 		} else
 			offset = op_index * cwi->cwi_bs * i;
 
