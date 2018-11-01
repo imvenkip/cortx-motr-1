@@ -36,7 +36,6 @@ void release_mero_thread(struct clovis_workload_task *task);
 
 struct m0_clovis_realm *crate_clovis_uber_realm();
 
-extern unsigned long		clovis_block_size;
 extern struct m0_clovis		*clovis_instance;
 
 int clovis_init(struct workload *w);

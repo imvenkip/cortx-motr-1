@@ -42,7 +42,6 @@ enum config_key_val {
 	HA_ADDR,
 	CLOVIS_PROF,
 	LAYOUT_ID,
-	BLOCK_SIZE,
 	IS_OOSTORE,
 	IS_READ_VERIFY,
 	MAX_QUEUE_LEN,
@@ -76,8 +75,8 @@ enum config_key_val {
 	INDEX_FID,
 	LOG_LEVEL,
 	THREAD_OPS,
-	UNIT_SIZE,
-	NR_UNITS_PER_OP,
+	BLOCK_SIZE,
+	BLOCKS_PER_OP,
 	IOSIZE,
 	SOURCE_FILE,
 	RAND_IO,
@@ -98,7 +97,6 @@ struct key_lookup_table lookuptable[] = {
 	{"MERO_HA_ADDR", HA_ADDR},
 	{"CLOVIS_PROF", CLOVIS_PROF},
 	{"LAYOUT_ID", LAYOUT_ID},
-	{"BLOCK_SIZE", BLOCK_SIZE},
 	{"IS_OOSTORE", IS_OOSTORE},
 	{"IS_READ_VERIFY", IS_READ_VERIFY},
 	{"CLOVIS_TM_RECV_QUEUE_MIN_LEN", MAX_QUEUE_LEN},
@@ -133,8 +131,8 @@ struct key_lookup_table lookuptable[] = {
 	{"NR_OBJS", NR_OBJS},
 	{"NR_THREADS", NR_THREADS},
 	{"THREAD_OPS", THREAD_OPS},
-	{"UNIT_SIZE", UNIT_SIZE},
-	{"NR_UNITS_PER_OP", NR_UNITS_PER_OP},
+	{"BLOCK_SIZE", BLOCK_SIZE},
+	{"BLOCKS_PER_OP", BLOCKS_PER_OP},
 	{"CLOIVS_IOSIZE", IOSIZE},
 	{"SOURCE_FILE", SOURCE_FILE},
 	{"RAND_IO", RAND_IO},
@@ -276,9 +274,6 @@ int copy_value(struct workload *load, int max_workload, int *index,
 		case LAYOUT_ID:
 			conf->layout_id = atoi(value);
 			break;
-		case BLOCK_SIZE:
-			conf->clovis_block_size = atoi(value);
-			break;
 		case IS_OOSTORE:
 			conf->is_oostrore = atoi(value);
 			break;
@@ -305,6 +300,9 @@ int copy_value(struct workload *load, int max_workload, int *index,
 			conf->col_family = atoi(value);
 			break;
 		case WORKLOAD:
+			break;
+		case LOG_LEVEL:
+			conf->log_level = parse_int(value, LOG_LEVEL);
 			break;
 		case WORKLOAD_TYPE:
 			(*index)++;
@@ -413,7 +411,7 @@ int copy_value(struct workload *load, int max_workload, int *index,
 							           EXEC_TIME);
 			} else {
 				cw = workload_io(w);
-				if (!strcmp(value, "unset"))
+				if (!strcmp(value, "unlimited"))
 					cw->cwi_execution_time = M0_TIME_NEVER;
 				else
 					cw->cwi_execution_time = parse_int(value,
@@ -458,30 +456,26 @@ int copy_value(struct workload *load, int max_workload, int *index,
 			ciw = workload_index(w);
 			ciw->warmup_del_ratio = parse_int(value, WARMUP_DEL_RATIO);
 			break;
-		case LOG_LEVEL:
-			w = &load[*index];
-			ciw = workload_index(w);
-			ciw->log_level = parse_int(value, LOG_LEVEL);
-			break;
 		case THREAD_OPS:
 			w = &load[*index];
 			cw = workload_io(w);
 			cw->cwi_share_object = atoi(value);
 			break;
-		case UNIT_SIZE:
+		case BLOCK_SIZE:
 			w = &load[*index];
 			cw = workload_io(w);
-			cw->cwi_unit_size = atol(value);
+			cw->cwi_bs = atol(value);
+			cr_log(CLL_INFO, "BLOCK_SIZE: %lu\n", cw->cwi_bs);
 			if (conf->layout_id <= 0) {
 				cr_log(CLL_ERROR, "LAYOUT_ID is not set\n");
 				return -EINVAL;
 			}
 			cw->cwi_layout_id = conf->layout_id;
 			break;
-		case NR_UNITS_PER_OP:
+		case BLOCKS_PER_OP:
 			w  = &load[*index];
 			cw = workload_io(w);
-			cw->cwi_nr_units_per_op = atol(value);
+			cw->cwi_bcount_per_op = atol(value);
 			break;
 		case NR_OBJS:
 			w = &load[*index];

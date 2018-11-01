@@ -36,8 +36,8 @@
  *	NR_THREADS: 2
  *	THREAD_OPS: 1
  *	RAND_IO: 1
- *      IOSIZE: 16384
- *      UNIT_SIZE: 4096
+ *      CLOIVS_IOSIZE: 10M
+ *      BLOCK_SIZE: 32768
  * ```
  * It is means, that crate performs next operations:
  * ```
@@ -54,19 +54,14 @@
  * * WORKLOAD_TYPE - always 1 (I/O operations).
  * * WORKLOAD_SEED - initial value for pseudo-random generator
  *	(int or "tstamp").
- * * CLOIVS_IOSIZE: - size of the object record; can be defined as number,
- *                    number with units (1M).
- * * UNIT_SIZE: - each operation will perform (UNIT_SIZE * NR_UNITS_PER_OP) I/O.
- *	          For performance, UNIT_SIZE = parity group size.
- * * NR_UNITS_PER_OP: - Crate will Read/Write NR_UNITS_PER_OP number of units in
- *                 one operation.
+ * * CLOIVS_IOSIZE: - total size of I/O to perform per object.
+ * * BLOCK_SIZE: For performance == parity group size.
+ * * BLOCKS_PER_OP: - Number of I/O blocks to perform per operation.
  * * OPCODE: - Operation type (0: CREATE, 1: DELETE, 2: READ, 3: WRITE).
- * * EXEC_TIME - time limit for executing; can be defined as number (seconds),
- *	or "unlimited".
- * * NR_OBJS - number of objects. Each thread will create these many objects
- *             and perform operation on them.
+ * * EXEC_TIME - time limit for executing (seconds or "unlimited").
+ * * NR_OBJS - Each thread will create these many objects.
  * * NR_THREADS: - Number of threads.
- * * MAX_NR_OPS: - Maximum number of operation active at a time.
+ * * MAX_NR_OPS: - Maximum number of concurrent I/O operations per thread.
  * * NR_ROUNDS:  - How many times this workload to be executed.
  *
  * ## Measurements
@@ -105,7 +100,6 @@
 
 void integrity(struct m0_uint128 object_id, unsigned char **md5toverify,
 		int block_count, int idx_op);
-int index_operation(struct workload *wt);
 void list_index_return(struct workload *w);
 
 struct clovis_op_context {
@@ -300,8 +294,7 @@ int cr_io_vector_prep(struct clovis_workload_io *cwi,
 		return -ENOMEM;
 	}
 
-	rc = m0_bufvec_alloc_aligned(buf_vec, cwi->cwi_nr_units_per_op,
-				     cwi->cwi_unit_size, 12);
+	rc = m0_bufvec_alloc(buf_vec, cwi->cwi_bcount_per_op, cwi->cwi_bs);
 	if (rc != 0) {
 		m0_free(buf_vec);
 		m0_free(index_vec);
@@ -309,7 +302,7 @@ int cr_io_vector_prep(struct clovis_workload_io *cwi,
 		return -ENOMEM;
 	}
 
-	rc = m0_indexvec_alloc(index_vec, cwi->cwi_nr_units_per_op);
+	rc = m0_indexvec_alloc(index_vec, cwi->cwi_bcount_per_op);
 	if (rc != 0) {
 		m0_free(buf_vec);
 		m0_free(index_vec);
@@ -318,7 +311,7 @@ int cr_io_vector_prep(struct clovis_workload_io *cwi,
 		return -ENOMEM;
 	}
 
-	rc = m0_bufvec_alloc(attr, cwi->cwi_unit_size, 1);
+	rc = m0_bufvec_alloc(attr, cwi->cwi_bs, 1);
 	if (rc != 0) {
 		m0_free(buf_vec);
 		m0_free(index_vec);
@@ -328,17 +321,17 @@ int cr_io_vector_prep(struct clovis_workload_io *cwi,
 		return -ENOMEM;
 	}
 
-	for(i = 0; i < cwi->cwi_nr_units_per_op; i++) {
-		memcpy(buf_vec->ov_buf[i], cti->cti_buffer, cwi->cwi_unit_size);
+	for(i = 0; i < cwi->cwi_bcount_per_op; i++) {
+		memcpy(buf_vec->ov_buf[i], cti->cti_buffer, cwi->cwi_bs);
 
 		if (cwi->cwi_random_io) {
 			/* Generate the random offset. */
 			rand_offset = cr_rand___range_l(cwi->cwi_io_size);
 
-			/* Round off offset to nearest unit size. */
-			offset = round_off(rand_offset, cwi->cwi_unit_size);
+			/* Round off offset to nearest block size. */
+			offset = round_off(rand_offset, cwi->cwi_bs);
 		} else
-			offset = op_index * cwi->cwi_unit_size * i;
+			offset = op_index * cwi->cwi_bs * i;
 
 		/* If writing on shared object, start from the alloted range. */
 		if (cwi->cwi_share_object) {
@@ -347,7 +340,7 @@ int cr_io_vector_prep(struct clovis_workload_io *cwi,
 		} else
 			index_vec->iv_index[i] = offset;
 
-		index_vec->iv_vec.v_count[i] = cwi->cwi_unit_size;
+		index_vec->iv_vec.v_count[i] = cwi->cwi_bs;
 	}
 
 	op_ctx->coc_buf_vec = buf_vec;
@@ -432,7 +425,7 @@ int cr_execute_ops(struct clovis_workload_io *cwi, struct clovis_task_io *cti,
 
 	for(i = 0; i < cti->cti_nr_ops; i++) {
 		m0_semaphore_down(&cti->cti_max_ops_sem);
-		/** We can launch at least one more operation. */
+		/* We can launch at least one more operation. */
 		idx = cr_free_op_idx(cti, cwi->cwi_max_nr_ops);
 		op_ctx = m0_alloc(sizeof *op_ctx);
 		M0_ASSERT(op_ctx != NULL);
@@ -727,18 +720,18 @@ int cr_task_prep_one(struct clovis_workload_io *cwi,
 		return -ENOMEM;
 
 	(*cti)->cti_cwi = cwi;
-	(*cti)->cti_nr_ops = cwi->cwi_io_size/(cwi->cwi_unit_size *
-					       cwi->cwi_nr_units_per_op);
+	(*cti)->cti_nr_ops = cwi->cwi_io_size / (cwi->cwi_bs *
+					         cwi->cwi_bcount_per_op);
 	(*cti)->cti_progress = 0;
 
-	(*cti)->cti_buffer = m0_alloc(cwi->cwi_unit_size);
+	(*cti)->cti_buffer = m0_alloc(cwi->cwi_bs);
 	if ((*cti)->cti_buffer == NULL) {
 		m0_free(*cti);
 		return -ENOMEM;
 	}
 
 	rc = cr_buffer_read((*cti)->cti_buffer, cwi->cwi_filename,
-			    cwi->cwi_unit_size);
+			    cwi->cwi_bs);
 	if (rc != 0) {
 		m0_free((*cti)->cti_buffer);
 		m0_free(*cti);

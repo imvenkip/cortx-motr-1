@@ -85,6 +85,7 @@ struct workload {
         int                    cw_usage;
         int                    cw_directio;
         int                    cw_bound;
+	int                    cw_log_level;
         char                  *cw_fpattern; /* "/mnt/m0/dir%d/f%d.%d" */
         unsigned               cw_nr_dir;
 	short                  cw_read_frac;

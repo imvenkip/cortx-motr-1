@@ -44,12 +44,12 @@ struct crate_clovis_conf {
         char *clovis_prof;
         char *clovis_process_fid;
         int layout_id;
-        unsigned long clovis_block_size;
         char *clovis_index_dir;
         int index_service_id;
         char *cass_cluster_ep;
         char *cass_keyspace;
         int col_family;
+	int log_level;
 };
 
 enum clovis_operation_type {
@@ -101,7 +101,6 @@ struct clovis_workload_index {
 
 	struct m0_fid		index_fid;
 
-	int			log_level;
 	int			max_record_size;
 	uint64_t		seed;
 };
@@ -147,8 +146,13 @@ struct clovis_workload_io {
 	/** Clovis Workload global context. */
 	struct cwi_global cwi_g;
 	uint32_t          cwi_layout_id;
-	uint64_t          cwi_unit_size;
-	uint32_t          cwi_nr_units_per_op;
+	/** IO Block Size */
+	uint64_t          cwi_bs;
+	/**
+	 * Number of blocks per IO operation. (Each thread
+	 * can run several IO operations concurrently.)
+	 */
+	uint32_t          cwi_bcount_per_op;
 	uint32_t          cwi_pool_id;
 	uint64_t          cwi_io_size;
 	uint32_t          cwi_max_nr_ops;

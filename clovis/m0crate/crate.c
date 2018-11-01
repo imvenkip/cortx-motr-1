@@ -51,6 +51,7 @@
 #include "clovis/m0crate/crate_clovis.h"
 #include "clovis/m0crate/crate_clovis_utils.h"
 
+extern struct crate_clovis_conf *conf;
 
 const char   cr_default_fpattern[] = "./dir%i/f%i.%i";
 const bcnt_t cr_default_avg        = 64 * 1024;   /* 64K average file size */
@@ -1389,6 +1390,8 @@ int main(int argc, char **argv)
 			errx(1, "unknown option '%c' for workload type %s",
 			     ch, w->cw_name);
         }
+
+	cr_set_debug_level(conf->log_level);
 
         if (idx < 0)
                 cr_log(CLL_INFO, "no workloads were specified\n");
