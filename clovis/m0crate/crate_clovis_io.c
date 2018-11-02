@@ -453,7 +453,7 @@ int cr_op_namei(struct clovis_workload_io  *cwi, struct clovis_task_io *cti,
 		op_ctx->coc_op_code = op_code;
 
 		spec_op = opcode_operation_map[op_code];
-		spec_op(cwi, cti, op_ctx, &cti->cti_objs[idx], idx, i);
+		spec_op(cwi, cti, op_ctx, &cti->cti_objs[i], idx, i);
 
 		cti->cti_ops[idx]->op_datum = op_ctx;
 		m0_clovis_op_setup(cti->cti_ops[idx], cbs, 0);
@@ -627,14 +627,25 @@ int cr_buffer_read(char *buffer, const char *filename, uint64_t size)
 	return 0;
 }
 
+static int nz_rand(void)
+{
+	int r;
+
+	do {
+		r = rand();
+	} while (r == 0);
+
+	return r;
+}
+
 void cr_get_oids(struct m0_uint128 *ids, uint32_t nr_objs)
 {
 	int i;
 	for(i = 0; i < nr_objs; i++) {
-		ids[i].u_lo = rand();
-		ids[i].u_hi = rand();
-		/** Highest 8 bits are left for Mero. */
-		ids[i].u_hi = ids[i].u_hi & (0xFFUL << 56);
+		ids[i].u_lo = nz_rand();
+		ids[i].u_hi = nz_rand();
+		/* Highest 8 bits are left for Mero. */
+		ids[i].u_hi = ids[i].u_hi & ~(0xFFUL << 56);
 	}
 }
 
