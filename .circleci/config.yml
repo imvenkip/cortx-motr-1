@@ -25,6 +25,11 @@ templates:
           - image: seagate/mero-devel:7.3
             auth: *auth-ssg
 
+    - sage: &docker-image-sage
+        docker:
+          - image: seagate/mero-devel:sage
+            auth: *auth-ssg
+
   steps:
     - rpmbuild_notests: &rpmbuild-notests
       - attach_workspace:
@@ -160,6 +165,10 @@ jobs:
     <<: *docker-image-73
     steps: *rpmbuild-notests
 
+  rpmbuild_notests_sage:
+    <<: *docker-image-sage
+    steps: *rpmbuild-notests
+
   artifacts:
     docker:
       - image: centos
@@ -207,6 +216,15 @@ jobs:
       - run:
           name: Add GitHub release for CentOS 7.3
           command: ./scripts/circleci/github-release --verbose --update 73
+
+  github_release_sage:
+    <<: *docker-image-sage
+    working_directory: ~/mero
+    steps:
+      - checkout
+      - run:
+          name: Add GitHub release for CentOS SAGE
+          command: ./scripts/circleci/github-release --verbose --update sage
 
 # CircleCI workflows
 workflows:
@@ -277,6 +295,19 @@ workflows:
           filters: *filter-only-master
           requires: [ rpmbuild_notests_73 ]
 
+  master_sage:
+    jobs:
+      - autogen:
+          context: ssg-auth
+          filters: *filter-only-master
+      - rpmbuild_notests_sage:
+          context: ssg-auth
+          filters: *filter-only-master
+          requires: [ autogen ]
+      - artifacts:
+          filters: *filter-only-master
+          requires: [ rpmbuild_notests_sage ]
+
   github_release:
     jobs:
       - create_github_release:
@@ -294,3 +325,7 @@ workflows:
           context: ssg-auth
           filters: *filter-release-tags
           requires: [ create_github_release, github_release_latest, github_release_74 ]
+      - github_release_sage:
+          context: ssg-auth
+          filters: *filter-release-tags
+          requires: [ github_release_73 ]
