@@ -245,46 +245,21 @@ int cr_io_vector_prep(struct clovis_workload_io *cwi,
 	uint64_t            start_offset;
 	size_t              rand_offset;
 	uint64_t            offset;
-	struct m0_bufvec   *buf_vec;
-	struct m0_bufvec   *attr;
-	struct m0_indexvec *index_vec;
+	struct m0_bufvec   *buf_vec = NULL;
+	struct m0_bufvec   *attr    = NULL;
+	struct m0_indexvec *index_vec = NULL;
 
 	buf_vec = m0_alloc(sizeof *buf_vec);
 	index_vec = m0_alloc(sizeof *index_vec);
 	attr = m0_alloc(sizeof *attr);
-	if (buf_vec == NULL || index_vec == NULL || attr == NULL) {
-		m0_free(buf_vec);
-		m0_free(index_vec);
-		m0_free(attr);
-		return -ENOMEM;
-	}
+	if (buf_vec == NULL || index_vec == NULL || attr == NULL)
+		goto enomem;
 
-	rc = m0_bufvec_alloc(buf_vec, cwi->cwi_bcount_per_op, cwi->cwi_bs);
-	if (rc != 0) {
-		m0_free(buf_vec);
-		m0_free(index_vec);
-		m0_free(attr);
-		return -ENOMEM;
-	}
-
-	rc = m0_indexvec_alloc(index_vec, cwi->cwi_bcount_per_op);
-	if (rc != 0) {
-		m0_free(buf_vec);
-		m0_free(index_vec);
-		m0_free(attr);
-		m0_bufvec_free(buf_vec);
-		return -ENOMEM;
-	}
-
-	rc = m0_bufvec_alloc(attr, cwi->cwi_bs, 1);
-	if (rc != 0) {
-		m0_free(buf_vec);
-		m0_free(index_vec);
-		m0_free(attr);
-		m0_bufvec_free(buf_vec);
-		m0_indexvec_free(index_vec);
-		return -ENOMEM;
-	}
+	rc = m0_bufvec_alloc(buf_vec, cwi->cwi_bcount_per_op, cwi->cwi_bs) ?:
+	     m0_indexvec_alloc(index_vec, cwi->cwi_bcount_per_op) ?:
+	     m0_bufvec_alloc(attr, cwi->cwi_bs, 1);
+	if (rc != 0)
+		goto enomem;
 
 	for(i = 0; i < cwi->cwi_bcount_per_op; i++) {
 		memcpy(buf_vec->ov_buf[i], cti->cti_buffer, cwi->cwi_bs);
@@ -311,6 +286,14 @@ int cr_io_vector_prep(struct clovis_workload_io *cwi,
 	op_ctx->coc_attr = attr;
 
 	return 0;
+enomem:
+	if (index_vec != NULL)
+		m0_indexvec_free(index_vec);
+	m0_bufvec_free(buf_vec);
+	m0_free(attr);
+	m0_free(index_vec);
+	m0_free(buf_vec);
+	return -ENOMEM;
 }
 
 int cr_namei_create(struct clovis_workload_io *cwi,
@@ -342,10 +325,13 @@ int cr_io_write(struct clovis_workload_io    *cwi,
 		    int                       free_slot,
 		    int                       op_index)
 {
-	/** Create object index and buffer vectors. */
-	cr_io_vector_prep(cwi, cti, op_ctx, op_index);
-	op_ctx->coc_op_code = CR_WRITE;
+	int rc;
 
+	/** Create object index and buffer vectors. */
+	rc = cr_io_vector_prep(cwi, cti, op_ctx, op_index);
+	if (rc != 0)
+		return rc;
+	op_ctx->coc_op_code = CR_WRITE;
 	m0_clovis_obj_op(obj, M0_CLOVIS_OC_WRITE,
 			 op_ctx->coc_index_vec, op_ctx->coc_buf_vec,
 			 op_ctx->coc_attr, 0, &cti->cti_ops[free_slot]);
@@ -359,14 +345,16 @@ int cr_io_read(struct clovis_workload_io   *cwi,
 		  int                       free_slot,
 		  int                       op_index)
 {
-	/** Create object index and buffer vectors. */
-	cr_io_vector_prep(cwi, cti, op_ctx, op_index);
-	op_ctx->coc_op_code = CR_READ;
+	int rc;
 
+	/** Create object index and buffer vectors. */
+	rc = cr_io_vector_prep(cwi, cti, op_ctx, op_index);
+	if (rc != 0)
+		return rc;
+	op_ctx->coc_op_code = CR_READ;
 	m0_clovis_obj_op(obj, M0_CLOVIS_OC_READ,
 			 op_ctx->coc_index_vec, op_ctx->coc_buf_vec,
 			 op_ctx->coc_attr, 0, &cti->cti_ops[free_slot]);
-
 	return 0;
 }
 
@@ -381,12 +369,13 @@ int cr_execute_ops(struct clovis_workload_io *cwi, struct clovis_task_io *cti,
 		   struct m0_clovis_obj *obj, struct m0_clovis_op_ops  *cbs,
 		   enum clovis_operations op_code)
 {
-	int                       i;
-	int                       idx;
+	int rc = 0;
+	int i;
+	int idx;
 	struct clovis_op_context *op_ctx;
 	cr_operation_t            spec_op;
 
-	for(i = 0; i < cti->cti_nr_ops; i++) {
+	for (i = 0; i < cti->cti_nr_ops; i++) {
 		m0_semaphore_down(&cti->cti_max_ops_sem);
 		/* We can launch at least one more operation. */
 		idx = cr_free_op_idx(cti, cwi->cwi_max_nr_ops);
@@ -398,7 +387,9 @@ int cr_execute_ops(struct clovis_workload_io *cwi, struct clovis_task_io *cti,
 		op_ctx->coc_op_code = op_code;
 
 		spec_op = opcode_operation_map[op_code];
-		spec_op(cwi, cti, op_ctx, obj, idx, i);
+		rc = spec_op(cwi, cti, op_ctx, obj, idx, i);
+		if (rc != 0)
+			break;
 
 		cti->cti_ops[idx]->op_datum = op_ctx;
 		m0_clovis_op_setup(cti->cti_ops[idx], cbs, 0);
@@ -406,7 +397,7 @@ int cr_execute_ops(struct clovis_workload_io *cwi, struct clovis_task_io *cti,
 		op_ctx->coc_op_launch = m0_time_now();
 		m0_clovis_op_launch(&cti->cti_ops[idx], 1);
 	}
-	return 0;
+	return rc;
 }
 
 void cr_report_status(struct clovis_task_io *cti, enum clovis_operations op_code)
@@ -477,7 +468,8 @@ int cr_op_namei(struct clovis_workload_io  *cwi, struct clovis_task_io *cti,
 int cr_op_io(struct clovis_workload_io  *cwi, struct clovis_task_io *cti,
 	     enum clovis_operations op_code)
 {
-	int                      i;
+	int rc = 0;
+	int i;
 	struct m0_clovis_op_ops *cbs;
 
 	M0_ALLOC_PTR(cbs);
@@ -491,7 +483,9 @@ int cr_op_io(struct clovis_workload_io  *cwi, struct clovis_task_io *cti,
 	cbs->oop_failed   = cr_op_failed;
 	m0_semaphore_init(&cti->cti_max_ops_sem, cwi->cwi_max_nr_ops);
 	for (i = 0; i < cwi->cwi_nr_objs; i++) {
-		cr_execute_ops(cwi, cti, &cti->cti_objs[i], cbs, op_code);
+		rc = cr_execute_ops(cwi, cti, &cti->cti_objs[i], cbs, op_code);
+		if (rc != 0)
+			break;
 
 		 /**
 		  * All operations are launched.
@@ -507,7 +501,7 @@ int cr_op_io(struct clovis_workload_io  *cwi, struct clovis_task_io *cti,
 
 	m0_semaphore_fini(&cti->cti_max_ops_sem);
 	m0_free(cbs);
-	return 0;
+	return rc;
 }
 
 /**
