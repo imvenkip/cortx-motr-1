@@ -257,7 +257,7 @@ int cr_io_vector_prep(struct clovis_workload_io *cwi,
 
 	rc = m0_bufvec_alloc(buf_vec, cwi->cwi_bcount_per_op, cwi->cwi_bs) ?:
 	     m0_indexvec_alloc(index_vec, cwi->cwi_bcount_per_op) ?:
-	     m0_bufvec_alloc(attr, cwi->cwi_bs, 1);
+	     m0_bufvec_alloc(attr, cwi->cwi_bcount_per_op, 1);
 	if (rc != 0)
 		goto enomem;
 
