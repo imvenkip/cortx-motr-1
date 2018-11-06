@@ -19,3 +19,5 @@ RUN yum -y install {kmod-,}lustre-client-*.rpm
 RUN kernel_src=$(ls -1rd /lib/modules/*/build | head -n1) \
     yum-builddep -y mero.spec \
     && rm -f mero.spec
+
+RUN sed -i -e 's/Core/SAGE/' /etc/redhat-release
