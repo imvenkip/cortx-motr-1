@@ -52,7 +52,7 @@ extern const char M0_GETOPTS_DECIMAL_POINT;
    - @b M = 1000 * 1000
    - @b G = 1000 * 1000 * 1000
  */
-M0_INTERNAL int m0_bcount_get(const char *arg, m0_bcount_t * out);
+M0_INTERNAL int m0_bcount_get(const char *arg, m0_bcount_t *out);
 
 /**
    Convert numerical argument, followed by a optional multiplier suffix, to an

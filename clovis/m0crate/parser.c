@@ -464,7 +464,7 @@ int copy_value(struct workload *load, int max_workload, int *index,
 		case BLOCK_SIZE:
 			w = &load[*index];
 			cw = workload_io(w);
-			cw->cwi_bs = atol(value);
+			cw->cwi_bs = getnum(value, "block size");
 			if (conf->layout_id <= 0) {
 				cr_log(CLL_ERROR, "LAYOUT_ID is not set\n");
 				return -EINVAL;
@@ -489,7 +489,7 @@ int copy_value(struct workload *load, int max_workload, int *index,
 		case IOSIZE:
 			w = &load[*index];
 			cw = workload_io(w);
-			cw->cwi_io_size = getnum(value, value);
+			cw->cwi_io_size = getnum(value, "io size");
 			break;
 		case SOURCE_FILE:
 			w = &load[*index];

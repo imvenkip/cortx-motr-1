@@ -1334,6 +1334,7 @@ int main(int argc, char **argv)
 				m0_free(load);
 				return -EINVAL;
 			}
+			w = &load[idx];
 			continue;
                 }
                 /*

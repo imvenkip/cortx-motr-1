@@ -138,6 +138,7 @@ struct cwi_global {
 	int               cg_nr_tasks;
 	m0_time_t         cg_cwi_create_acc_time;
 	m0_time_t         cg_cwi_delete_acc_time;
+	m0_time_t         cg_cwi_read_acc_time;
 	m0_time_t         cg_cwi_write_acc_time;
 	struct m0_mutex   cg_mutex;
 };
@@ -155,6 +156,8 @@ struct clovis_workload_io {
 	uint32_t          cwi_bcount_per_op;
 	uint32_t          cwi_pool_id;
 	uint64_t          cwi_io_size;
+	uint64_t          cwi_r_ops_done;
+	uint64_t          cwi_w_ops_done;
 	uint32_t          cwi_max_nr_ops;
 	int32_t           cwi_mode;
 	int32_t           cwi_nr_objs;
@@ -181,13 +184,12 @@ struct clovis_task_io {
 	struct m0_clovis_obj      *cti_objs;
 	struct m0_clovis_op      **cti_ops;
 	uint64_t                   cti_nr_ops;
+	uint64_t                   cti_nr_ops_done;
 	struct timeval            *cti_op_list_time;
 	struct m0_thread          *cti_mthread;
 	char                      *cti_buffer;
 	struct m0_uint128         *cti_ids;
-	m0_time_t                  cti_create_acc_time;
-	m0_time_t                  cti_delete_acc_time;
-	m0_time_t                  cti_write_acc_time;
+	m0_time_t                  cti_op_acc_time;
 	struct cti_global          cti_g;
 	/** Limit op_launch to max_nr_ops */
 	struct m0_semaphore        cti_max_ops_sem;
