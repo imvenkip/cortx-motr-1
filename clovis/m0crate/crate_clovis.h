@@ -118,7 +118,8 @@ enum clovis_operations {
 	CR_CREATE,
 	CR_DELETE,
 	CR_READ,
-	CR_WRITE
+	CR_WRITE,
+	CR_OPS_NR
 };
 
 enum clovis_operation_status {
@@ -165,9 +166,10 @@ struct clovis_workload_io {
 	bool              cwi_random_io;
 	bool              cwi_share_object;
 	int32_t	          cwi_opcode;
-	uint64_t          cwi_start_time;
-	uint64_t          cwi_finish_time;
-	uint64_t          cwi_execution_time;
+	m0_time_t         cwi_start_time;
+	m0_time_t         cwi_finish_time;
+	m0_time_t         cwi_execution_time;
+	m0_time_t         cwi_time[CR_OPS_NR];
 	char             *cwi_filename;
 };
 

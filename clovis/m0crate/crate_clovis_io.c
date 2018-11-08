@@ -421,6 +421,8 @@ int cr_op_namei(struct clovis_workload_io  *cwi, struct clovis_task_io *cti,
 {
 	int                       i;
 	int                       idx;
+	m0_time_t                 stime;
+	m0_time_t                 etime;
 	struct clovis_op_context *op_ctx;
 	struct m0_clovis_op_ops  *cbs;
 	cr_operation_t            spec_op;
@@ -431,8 +433,13 @@ int cr_op_namei(struct clovis_workload_io  *cwi, struct clovis_task_io *cti,
 	cbs->oop_stable = cr_op_stable;
 	cbs->oop_failed = cr_op_failed;
 
+	cr_log(CLL_TRACE, TIME_F" t%02d: %s objects...\n",
+	       TIME_P(m0_time_now()), cti->cti_task_idx,
+	       op_code == CR_CREATE ? "Creating" : "Deleting");
 	m0_semaphore_init(&cti->cti_max_ops_sem, cwi->cwi_max_nr_ops);
-	for(i = 0; i < cwi->cwi_nr_objs; i++) {
+	stime = m0_time_now();
+
+	for (i = 0; i < cwi->cwi_nr_objs; i++) {
 		m0_semaphore_down(&cti->cti_max_ops_sem);
 		/* We can launch at least one more operation. */
 		idx = cr_free_op_idx(cti, cwi->cwi_max_nr_ops);
@@ -454,13 +461,21 @@ int cr_op_namei(struct clovis_workload_io  *cwi, struct clovis_task_io *cti,
 	}
 
 	/* Task is done. Wait for all operations to complete. */
-	while (m0_semaphore_value(&cti->cti_max_ops_sem) != cwi->cwi_max_nr_ops)
-		m0_nanosleep(m0_time(1,0), NULL);
+	for (i = 0; i < cwi->cwi_max_nr_ops; i++)
+		m0_semaphore_down(&cti->cti_max_ops_sem);
 
+	etime = m0_time_sub(m0_time_now(), stime);
+	m0_mutex_lock(&cwi->cwi_g.cg_mutex);
+	if (etime > cwi->cwi_time[op_code])
+		cwi->cwi_time[op_code] = etime;
+	m0_mutex_unlock(&cwi->cwi_g.cg_mutex);
 	cr_cti_report(cti, op_code);
 	cr_cti_cleanup(cti, cwi->cwi_max_nr_ops);
 	m0_semaphore_fini(&cti->cti_max_ops_sem);
 	m0_free(cbs);
+	cr_log(CLL_TRACE, TIME_F" t%02d: %s done.\n",
+	       TIME_P(m0_time_now()), cti->cti_task_idx,
+	       op_code == CR_CREATE ? "Creation" : "Deletion");
 
 	return 0;
 }
@@ -468,8 +483,10 @@ int cr_op_namei(struct clovis_workload_io  *cwi, struct clovis_task_io *cti,
 int cr_op_io(struct clovis_workload_io  *cwi, struct clovis_task_io *cti,
 	     enum clovis_operations op_code)
 {
-	int rc = 0;
-	int i;
+	int       rc = 0;
+	int       i;
+	m0_time_t stime;
+	m0_time_t etime;
 	struct m0_clovis_op_ops *cbs;
 
 	M0_ALLOC_PTR(cbs);
@@ -481,25 +498,34 @@ int cr_op_io(struct clovis_workload_io  *cwi, struct clovis_task_io *cti,
 	cbs->oop_executed = NULL;
 	cbs->oop_stable   = cr_op_stable;
 	cbs->oop_failed   = cr_op_failed;
+	cr_log(CLL_TRACE, TIME_F" t%02d: %s objects...\n",
+	       TIME_P(m0_time_now()), cti->cti_task_idx,
+	       op_code == CR_WRITE ? "Writing" : "Reading");
 	m0_semaphore_init(&cti->cti_max_ops_sem, cwi->cwi_max_nr_ops);
+	stime = m0_time_now();
+
 	for (i = 0; i < cwi->cwi_nr_objs; i++) {
 		rc = cr_execute_ops(cwi, cti, &cti->cti_objs[i], cbs, op_code);
 		if (rc != 0)
 			break;
 
-		 /**
-		  * All operations are launched.
-		  * Wait for all operations to complete.
-		  */
-		while (m0_semaphore_value(&cti->cti_max_ops_sem) !=
-		       cwi->cwi_max_nr_ops)
-			m0_nanosleep(m0_time(1,0), NULL);
-
-		cr_cti_report(cti, op_code);
-		cr_cti_cleanup(cti, cwi->cwi_max_nr_ops);
 	}
+	/* Wait for all operations to complete. */
+	for (i = 0; i < cwi->cwi_max_nr_ops; i++)
+		m0_semaphore_down(&cti->cti_max_ops_sem);
+
+	etime = m0_time_sub(m0_time_now(), stime);
+	m0_mutex_lock(&cwi->cwi_g.cg_mutex);
+	if (etime > cwi->cwi_time[op_code])
+		cwi->cwi_time[op_code] = etime;
+	m0_mutex_unlock(&cwi->cwi_g.cg_mutex);
+	cr_cti_report(cti, op_code);
+	cr_cti_cleanup(cti, cwi->cwi_max_nr_ops);
 	m0_semaphore_fini(&cti->cti_max_ops_sem);
 	m0_free(cbs);
+	cr_log(CLL_TRACE, TIME_F" t%02d: %s done.\n",
+	       TIME_P(m0_time_now()), cti->cti_task_idx,
+	       op_code == CR_WRITE ? "Write" : "Read");
 
 	return rc;
 }
@@ -621,12 +647,12 @@ int cr_buffer_read(char *buffer, const char *filename, uint64_t size)
 	return 0;
 }
 
-static int nz_rand(void)
+static uint64_t nz_rand(void)
 {
-	int r;
+	uint64_t r;
 
 	do {
-		r = rand();
+		r = ((uint64_t)rand() << 32) | rand();
 	} while (r == 0);
 
 	return r;
@@ -635,11 +661,13 @@ static int nz_rand(void)
 void cr_get_oids(struct m0_uint128 *ids, uint32_t nr_objs)
 {
 	int i;
-	for(i = 0; i < nr_objs; i++) {
+	for (i = 0; i < nr_objs; i++) {
 		ids[i].u_lo = nz_rand();
 		ids[i].u_hi = nz_rand();
 		/* Highest 8 bits are left for Mero. */
 		ids[i].u_hi = ids[i].u_hi & ~(0xFFUL << 56);
+		cr_log(CLL_TRACE, "oid %016lx:%016lx\n",
+		       ids[i].u_hi, ids[i].u_lo);
 	}
 }
 
@@ -671,7 +699,7 @@ int cr_task_prep_one(struct clovis_workload_io *cwi,
 
 	cti->cti_cwi = cwi;
 	cti->cti_nr_ops = cwi->cwi_io_size / (cwi->cwi_bs *
-					      cwi->cwi_bcount_per_op);
+					      cwi->cwi_bcount_per_op) ?: 1;
 	cti->cti_progress = 0;
 
 	cti->cti_buffer = m0_alloc(cwi->cwi_bs);
@@ -780,11 +808,17 @@ bool cr_time_not_expired(struct workload *w)
 		cwi->cwi_execution_time ? false : true;
 }
 
+/** Returns bandwidth in bytes / sec. */
+static uint64_t bw(uint64_t bytes, m0_time_t time)
+{
+	return bytes * M0_TIME_ONE_MSEC / (time / 1000);
+}
+
 void clovis_run(struct workload *w, struct workload_task *tasks)
 {
 	int        i;
-	m0_time_t  time;
 	uint64_t   written;
+	uint64_t   read;
 	struct clovis_workload_io *cwi = w->u.cw_clovis_io;
 
 	m0_mutex_init(&cwi->cwi_g.cg_mutex);
@@ -798,18 +832,35 @@ void clovis_run(struct workload *w, struct workload_task *tasks)
 	m0_mutex_fini(&cwi->cwi_g.cg_mutex);
 	cwi->cwi_finish_time = m0_time_now();
 
-	time = m0_time_sub(cwi->cwi_finish_time, cwi->cwi_start_time);
 	cr_log(CLL_INFO, "I/O workload is finished.\n");
-	cr_log(CLL_INFO, "Total Execution time: "TIME_F"\n", TIME_P(time));
-	cr_log(CLL_INFO, "Avg Creation time per thread: "TIME_F"\n",
-	       TIME_P(cwi->cwi_g.cg_cwi_create_acc_time / w->cw_nr_thread));
-	cr_log(CLL_INFO, "Avg Deletion time per thread: "TIME_F"\n",
-	       TIME_P(cwi->cwi_g.cg_cwi_delete_acc_time / w->cw_nr_thread));
-	time = cwi->cwi_g.cg_cwi_write_acc_time / w->cw_nr_thread;
-	cr_log(CLL_INFO, "Avg Write time per thread: "TIME_F"\n", TIME_P(time));
+	cr_log(CLL_INFO, "Total time: "TIME_F", %d objs, %lu ops (w+r)\n",
+	       TIME_P(m0_time_sub(cwi->cwi_finish_time, cwi->cwi_start_time)),
+	       cwi->cwi_nr_objs * w->cw_nr_thread,
+	       cwi->cwi_w_ops_done + cwi->cwi_r_ops_done);
+	cr_log(CLL_INFO, "C: "TIME_F" ("TIME_F" per op)\n",
+	       TIME_P(cwi->cwi_time[CR_CREATE]),
+	       TIME_P(cwi->cwi_g.cg_cwi_create_acc_time / w->cw_nr_thread /
+		      cwi->cwi_max_nr_ops));
+	cr_log(CLL_INFO, "D: "TIME_F" ("TIME_F" per op)\n",
+	       TIME_P(cwi->cwi_time[CR_DELETE]),
+	       TIME_P(cwi->cwi_g.cg_cwi_delete_acc_time / w->cw_nr_thread /
+		      cwi->cwi_max_nr_ops));
+	if (cwi->cwi_w_ops_done == 0)
+		return;
 	written = cwi->cwi_bs * cwi->cwi_bcount_per_op * cwi->cwi_w_ops_done;
-	cr_log(CLL_INFO, "Written: %lu KB, BW: %lu KB/s\n",
-	       written/1024, written * M0_TIME_ONE_SECOND / time /1024);
+	cr_log(CLL_INFO, "W: "TIME_F" ("TIME_F" per op), "
+	       "%lu KiB, %lu KiB/s\n", TIME_P(cwi->cwi_time[CR_WRITE]),
+	       TIME_P(cwi->cwi_g.cg_cwi_write_acc_time / w->cw_nr_thread /
+		      cwi->cwi_max_nr_ops), written/1024,
+	       bw(written, cwi->cwi_time[CR_WRITE]) /1024);
+	if (cwi->cwi_r_ops_done == 0)
+		return;
+	read = cwi->cwi_bs * cwi->cwi_bcount_per_op * cwi->cwi_r_ops_done;
+	cr_log(CLL_INFO, "R: "TIME_F" ("TIME_F" per op), "
+	       "%lu KiB, %lu KiB/s\n", TIME_P(cwi->cwi_time[CR_READ]),
+	       TIME_P(cwi->cwi_g.cg_cwi_read_acc_time / w->cw_nr_thread /
+		      cwi->cwi_max_nr_ops), read/1024,
+	       bw(read, cwi->cwi_time[CR_READ]) /1024);
 }
 
 void clovis_op_run(struct workload *w, struct workload_task *task,
