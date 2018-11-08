@@ -3,7 +3,7 @@ set -eu
 # set -x
 export PS4='+ [${FUNCNAME[0]:+${FUNCNAME[0]}:}${LINENO}] '
 
-VERSION=0.30
+VERSION=0.32
 
 IN_DIR=/var/mero # default value; overruled by CLI argument
 OUT_DATA_DIR=m0reportbug-data
@@ -244,7 +244,7 @@ _path_rpm() {
         m0mkfs) echo "/usr/sbin/$name";;
         m0addb2dump) echo "/usr/sbin/$name";;
         libmero.so) readlink -f /usr/lib64/libmero.so;;
-        m0mero.ko) echo "/lib/module/$(uname -r)/kernel/fs/mero/$name";;
+        m0mero.ko) echo "/lib/modules/$(uname -r)/kernel/fs/mero/$name";;
         m0ham|lt-m0ham) echo "/usr/sbin/$name";;
         m0ut|lt-m0ut)
             ## Provided by mero-tests-ut-*.rpm (optional).
@@ -625,8 +625,10 @@ exit
 ###
 ### Date       Version Description
 ### ---------- ------- ----------------------------------------------------
+### 2018-10-08 0.32    * Find m0mero.ko in /lib/modules, not /lib/module.
+###
 ### 2018-10-03 0.31    * m0mkfs executable has moved into /usr/sbin (was in
-###                      /usr/bin before)
+###                      /usr/bin before).
 ###
 ### 2018-06-14 0.30    * [bugfix] _kdump_files(): Add missing quotes to
 ###                      prevent "[: argument expected" error.
