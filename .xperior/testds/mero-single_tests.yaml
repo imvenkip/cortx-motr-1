@@ -411,6 +411,14 @@ Tests:
     polltime : 30
     timeout  : 1800
 
+  - id       : 46m0crate
+    script   : m0crate_st.sh
+    dir      : src/clovis/st/utils/
+    executor : Xperior::Executor::MeroTest
+    sandbox  : /var/mero/sandbox.46m0crate
+    polltime : 30
+    timeout  : 1800
+
 # 25 min
 dangerous: 'yes'
 description: Set of Mero  tests
