@@ -105,12 +105,13 @@ Vagrant.configure('2') do |config|
   # Basic options ---------------------------------------------------------
   #
 
-  ansible_skip_tags = [ 'debug', 'nfs-client', 'nfs-server', 'vault-release', 'xperior' ]
+  ansible_skip_tags = [ 'debuginfo', 'nfs-client', 'nfs-server', 'vault-release', 'xperior' ]
 
   # A box is a minimal clean VM image. You can search for boxes at
   # https://vagrantcloud.com, or even create your own with https://www.packer.io
   $box = ENV['M0_VM_BOX'] if !ENV['M0_VM_BOX'].nil?
   config.vm.box = $box
+  config.vm.box_url = ENV['M0_VM_BOX_URL'] if !ENV['M0_VM_BOX_URL'].nil?
 
   # It's possible to specify particular version of a box to get an older
   # release. For example, for 'centos/7' it can be something like '1610.01'.
@@ -164,11 +165,16 @@ Vagrant.configure('2') do |config|
   # Machines ==============================================================
   #
 
+  # define additional VM object attributes:
+  #   used later to refer to the VM by name known to Vagrant
+  config.vm.class.module_eval { attr_accessor :vgname}
+
   # common host OS info
   host = RbConfig::CONFIG['host_os']
   cpus = host =~ /darwin/ ? `sysctl -n hw.ncpu`.to_i
        : host =~ /linux/  ? `nproc`.to_i
        :                    1
+  hostname_prefix = ENV['M0_VM_HOSTNAME_PREFIX'].nil? ? '' : "#{ENV['M0_VM_HOSTNAME_PREFIX']}-"
 
   # CMU ------------------------------------
 
@@ -185,7 +191,8 @@ Vagrant.configure('2') do |config|
   end
 
   config.vm.define :cmu, primary: true do |cmu|
-    cmu.vm.hostname = 'cmu'
+    cmu.vm.vgname = 'cmu'
+    cmu.vm.hostname = "#{hostname_prefix}cmu"
     setup(cmu, cmu_cpus, cmu_mem)
     setup_shared_mero_src_dir(cmu)
 
@@ -230,7 +237,8 @@ Vagrant.configure('2') do |config|
 
   (1..ssu_nr).each do |i|
     config.vm.define "ssu#{i}", autostart: false do |ssu|
-      ssu.vm.hostname = "ssu#{i}"
+      ssu.vm.vgname = "ssu#{i}" # used later to refer to the VM by name known to Vagrant
+      ssu.vm.hostname = "#{hostname_prefix}ssu#{i}"
       setup(ssu, ssu_cpus, ssu_mem, ssu_disks, ssu_disk_size)
       setup_shared_mero_src_dir(ssu)
     end
@@ -244,9 +252,30 @@ Vagrant.configure('2') do |config|
 
   (1..client_nr).each do |i|
     config.vm.define "client#{i}", autostart: false do |client|
-      client.vm.hostname = "client#{i}"
+      client.vm.vgname = "client#{i}" # used later to refer to the VM by name known to Vagrant
+      client.vm.hostname = "#{hostname_prefix}client#{i}"
       setup(client, client_cpus, client_mem)
       setup_shared_mero_src_dir(client)
+    end
+  end
+
+  # Making pre-provisioned boxes -----------
+
+  if !ENV['M0_VM_BOX_BUILDER_MODE'].nil? &&
+      ENV['M0_VM_BOX_BUILDER_MODE'].match(/yes|true|1/i)
+    config.vm.define :devbox, autostart: false do |devbox|
+      devbox.vm.hostname = 'devbox'
+      # don't remove default Vagrant ssh key
+      devbox.ssh.insert_key = false
+      setup(devbox, cpus > 2 ? cpus / 2 + 1 : 1, 3072)
+
+      devbox.vm.provision :ansible do |ansible|
+        ansible.compatibility_mode = '2.0'
+        ansible.playbook = 'vagrant-box-dev.yml'
+        #ansible.groups['all:vars']['ssh_master_pub_key_file'] = ENV['M0_VM_SSH_KEY']
+        #ansible.skip_tags = ansible_skip_tags.reject{|i| i == 'vault-release'}.clone
+        ansible.skip_tags = ansible_skip_tags
+      end
     end
   end
 
@@ -261,7 +290,7 @@ Vagrant.configure('2') do |config|
 
   if !ENV['M0_VM_ENABLE_DEBUGINFO_PKGS'].nil? &&
       ENV['M0_VM_ENABLE_DEBUGINFO_PKGS'].match(/yes|true|1/i)
-    ansible_skip_tags.delete('debug')
+    ansible_skip_tags.delete('debuginfo')
   end
 
   if !ENV['M0_VM_ENABLE_XPERIOR'].nil? &&
@@ -284,20 +313,22 @@ Vagrant.configure('2') do |config|
   end
 
   # delegate OS configuration to Ansible
-  config.vm.provision ansible_mode do |ansible|
-    ansible.compatibility_mode = '2.0'
-    ansible.playbook = 'cluster.yml'
-    ansible.groups = {
-      'clients'  => ["client[1:#{client_nr}]"],
-      'ssus'     => ["ssu[1:#{ssu_nr}]"],
-      'all:vars' => { },
-    }
-    if !ENV['M0_VM_EXTRA_PKGS'].nil?
-      ansible.groups['all:vars']['extra_tools_pkgs'] = ENV['M0_VM_EXTRA_PKGS']
+  if config.vm.box_url.nil?
+    config.vm.provision ansible_mode do |ansible|
+        ansible.compatibility_mode = '2.0'
+        ansible.playbook = 'cluster.yml'
+        ansible.groups = {
+        'clients'  => ["client[1:#{client_nr}]"],
+        'ssus'     => ["ssu[1:#{ssu_nr}]"],
+        'all:vars' => { },
+        }
+        if !ENV['M0_VM_EXTRA_PKGS'].nil?
+        ansible.groups['all:vars']['extra_tools_pkgs'] = ENV['M0_VM_EXTRA_PKGS']
+        end
+        ansible.skip_tags = ansible_skip_tags
+        # enable verbose status for each provisioning task
+        ansible.verbose  = verbose_provision
     end
-    ansible.skip_tags = ansible_skip_tags
-    # enable verbose status for each provisioning task
-    ansible.verbose  = verbose_provision
   end
 end # config
 
@@ -362,7 +393,7 @@ def setup(node, cpu_nr, mem_mb, disk_nr = 0, disk_size = 1)
 
   node.vm.provider :virtualbox do |v|
     # visible machine name
-    v.name = vm_prefix + '_' + node.vm.hostname
+    v.name = vm_prefix + '_' + node.vm.vgname
 
     v.gui    = enable_gui
     v.cpus   = cpu_nr
@@ -373,9 +404,9 @@ def setup(node, cpu_nr, mem_mb, disk_nr = 0, disk_size = 1)
 
     # serial console file
     v.customize ['modifyvm', :id, '--uart1', '0x3F8', 4, '--uartmode1', 'file',
-                File.expand_path(console_log_dir).to_s + "/console_#{node.vm.hostname}.log"]
+                File.expand_path(console_log_dir).to_s + "/console_#{node.vm.vgname}.log"]
 
-    if not provisioned?(node.vm.hostname)
+    if not provisioned?(node.vm.vgname)
       # sata controller
       v.customize ['storagectl', :id, '--name', 'sata-controller', '--add', 'sata']
       # delay guest-additions installation until VM is fully provisioned if a
@@ -388,7 +419,7 @@ def setup(node, cpu_nr, mem_mb, disk_nr = 0, disk_size = 1)
 
     # disks
     (1..disk_nr).each do |i|
-      disk_file = File.expand_path(disks_dir).to_s + "/disk_#{node.vm.hostname}_#{i}.vdi"
+      disk_file = File.expand_path(disks_dir).to_s + "/disk_#{node.vm.vgname}_#{i}.vdi"
 
       if !File.exist?(disk_file)
         v.customize ['createmedium', 'disk', '--filename', disk_file,
@@ -405,7 +436,7 @@ def setup(node, cpu_nr, mem_mb, disk_nr = 0, disk_size = 1)
 
   node.vm.provider :vmware_fusion do |v|
     # visible machine name
-    v.vmx['displayName'] = vm_prefix + '_' + node.vm.hostname
+    v.vmx['displayName'] = vm_prefix + '_' + node.vm.vgname
 
     # show VM's window
     v.gui = enable_gui
@@ -419,7 +450,7 @@ def setup(node, cpu_nr, mem_mb, disk_nr = 0, disk_size = 1)
     # serial console file
     v.vmx['serial0.fileType'] = 'file'
     v.vmx['serial0.fileName'] = File.expand_path(console_log_dir).to_s +
-                                "/console_#{node.vm.hostname}.log"
+                                "/console_#{node.vm.vgname}.log"
     v.vmx['serial0.present']  = 'TRUE'
 
     # network
@@ -436,7 +467,7 @@ def setup(node, cpu_nr, mem_mb, disk_nr = 0, disk_size = 1)
     vdiskmanager = '/Applications/VMware Fusion.app/Contents/Library/vmware-vdiskmanager'
     if PROVIDER == :vmware_fusion and File.exist?(vdiskmanager)
       (1..disk_nr).each do |i|
-        disk_file = File.expand_path(disks_dir).to_s + "/disk_#{node.vm.hostname}_#{i}.vmdk"
+        disk_file = File.expand_path(disks_dir).to_s + "/disk_#{node.vm.vgname}_#{i}.vmdk"
         if !File.exists?(disk_file)
           `"#{vdiskmanager}" -c -s #{disk_size}GB -a lsilogic -t 0 #{disk_file}`
         end
@@ -470,7 +501,7 @@ def setup_shared_provider_dir(config, src_path)
     config.vm.provision :shell,
       inline: 'echo ".host:data  /data  fuse.vmhgfs-fuse  allow_other,auto_unmount,uid=1000,gid=1000  0 0" >> /etc/fstab'
   elsif PROVIDER == :virtualbox and Vagrant.has_plugin?('vagrant-vbguest') and
-        !$box_version.nil? and !provisioned?(config.vm.hostname)
+        !$box_version.nil? and !provisioned?(config.vm.vgname)
     warn "*** WARNING ***: to enable provider-specific sharing you'll need to" \
          " restart the VM using `vagrant reload`"
   else
@@ -500,7 +531,7 @@ def setup_shared_nfs_dir(config, src_path)
   # make it impossible to downgrade to a specific CentOS-Vault repository
   # during provisioning
   elsif PROVIDER == :virtualbox and !$box_version.nil? and
-                                    !provisioned?(config.vm.hostname)
+                                    !provisioned?(config.vm.vgname)
     warn "*** WARNING ***: to enable NFS sharing you'll need to restart the" \
          " VM using `vagrant reload`"
   else
@@ -533,7 +564,7 @@ def setup_shared_mero_src_dir(config)
     when 'rsync-auto'
       setup_shared_rsync_dir(config, path, auto_sync: true)
     when 'none'
-      puts "==> #{config.vm.hostname}: shared dir is disabled (M0_VM_SHARE_TYPE=none)"
+      puts "==> #{config.vm.vgname}: shared dir is disabled (M0_VM_SHARE_TYPE=none)"
     else # nfs is used by default
       setup_shared_nfs_dir(config, path)
     end

@@ -11,7 +11,6 @@
   package:
     state: present
     name:  '{{ mero_build_deps_pkgs }}'
-  tags: breaks-dry-run
 
 - name: install Mero doc build-time dependencies
   package:
@@ -34,6 +33,7 @@
         remote_src: True
         src: /usr/share/java/plantuml.jar
         dest: /usr/share/java/plantuml.jar.orig
+      ignore_errors: yes
 
     - name: remove old plantuml.jar
       file:
@@ -86,7 +86,6 @@
         - ./configure
         - make -j4
   tags:
-    - breaks-dry-run
     - lustre-dkms
     - never
 
@@ -113,7 +112,6 @@
         src: lustre-2.9.0.spec.patch
         dest: ~/rpmbuild/SPECS/lustre.spec
         strip: 1
-      tags: breaks-dry-run
 
     - name: disable Lustre rpm strict kernel version check
       lineinfile:
@@ -149,6 +147,7 @@
         | head -n1
       register: lustre_version
       changed_when: false
+      check_mode: no
 
     - name: install local Lustre rpms
       yum:
@@ -176,7 +175,6 @@
         src: '~/rpmbuild/RPMS/x86_64/lustre-client-devel-{{ lustre_version.stdout }}.rpm'
         dest: /var/lib/yum/localrepos/lustre-local
         remote_src: yes
-      tags: breaks-dry-run
 
     - name: create local repo
       command: createrepo --pretty .
@@ -230,6 +228,7 @@
       shell: ls ~/rpmbuild/RPMS/x86_64/mscgen-[0-9]*.rpm
       register: mscgen_devel_rpm
       changed_when: false
+      check_mode: no
 
     - name: install mscgen devel rpm
       yum:

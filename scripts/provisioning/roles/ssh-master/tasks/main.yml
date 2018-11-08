@@ -12,7 +12,6 @@
   register: pub_key
   tags:
     - ssh
-    - breaks-dry-run
 
 # this is needed for `m0genfacts` util, which gathers information about hosts
 # over ssh, so it requires an ssh access to a host even if it's already running
@@ -24,7 +23,6 @@
     key:   '{{ pub_key.content | b64decode }}'
   tags:
     - ssh
-    - breaks-dry-run
 
 - name: use the same key for 'root'
   # TODO: do it in a more portable way when 'copy' module supports recursive

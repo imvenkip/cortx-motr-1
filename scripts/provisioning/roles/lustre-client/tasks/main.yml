@@ -7,11 +7,9 @@
   with_first_found: '{{ ansible_os_family }}.yml'
   tags: lustre
 
-- name: get redhat version
-  # matching version string like '7.4.1708'
-  shell: grep -oP '\d+\.\d+' /etc/redhat-release
-  register: redhat_release
-  changed_when: false
+- name: get RedHat release version
+  set_fact:
+    redhat_release: '{{ ansible_distribution_version | regex_search("^\d+\.\d+") }}'
   tags: lustre
 
 - name: configure 'Lustre' repository
@@ -24,22 +22,22 @@
     # disable signature verification
     gpgcheck: no
   with_items:
-    - { version: 2.7.0,  enabled: '{{ (redhat_release.stdout == "7.0") | ternary("yes", "no") }}' }
-    - { version: 2.8.0,  enabled: '{{ (redhat_release.stdout == "7.2") | ternary("yes", "no") }}' }
-    - { version: 2.9.0,  enabled: '{{ (redhat_release.stdout == "7.3") | ternary("yes", "no") }}' }
-    - { version: 2.10.3, enabled: '{{ (redhat_release.stdout == "7.4") | ternary("yes", "no") }}' }
-    - { version: 2.10.5, enabled: '{{ (redhat_release.stdout == "7.5") | ternary("yes", "no") }}' }
-    - { version: 2.10.6, enabled: '{{ (redhat_release.stdout is version("7.6", ">=")) | ternary("yes", "no") }}' }
+    - { version: 2.7.0,  enabled: '{{ (redhat_release is version("7.0", "=")) | ternary("yes", "no") }}' }
+    - { version: 2.8.0,  enabled: '{{ (redhat_release is version("7.1", "=")) | ternary("yes", "no") }}' }
+    - { version: 2.9.0,  enabled: '{{ (redhat_release is version("7.2", "=")) | ternary("yes", "no") }}' }
+    - { version: 2.10.0, enabled: '{{ (redhat_release is version("7.3", "=")) | ternary("yes", "no") }}' }
+    - { version: 2.10.3, enabled: '{{ (redhat_release is version("7.4", "=")) | ternary("yes", "no") }}' }
+    - { version: 2.10.5, enabled: '{{ (redhat_release is version("7.5", "=")) | ternary("yes", "no") }}' }
+    - { version: 2.10.6, enabled: '{{ (redhat_release is version("7.6", ">=")) | ternary("yes", "no") }}' }
   when: ansible_os_family == 'RedHat'
   tags:
     - lustre
-    - breaks-dry-run
+    - lustre-repo
 
 - name: install Lustre
   package: name={{ lustre_client_pkgs }} state=present skip_broken=yes
   tags:
     - lustre
-    - breaks-dry-run
 
 - name: write modprobe config for LNet module
   lineinfile:

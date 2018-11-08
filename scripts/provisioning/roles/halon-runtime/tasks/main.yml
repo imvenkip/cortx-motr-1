@@ -13,7 +13,6 @@
     name:  '{{ halon_runtime_deps_pkgs }}'
   tags:
     - halon
-    - breaks-dry-run
 
 # this is required for `stack` util, that is installed in '/usr/local/bin', to
 # be accessible with `sudo`, which uses secure path instead of the usual PATH

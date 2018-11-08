@@ -8,29 +8,15 @@
 
 - name: switch to CentOS-Vault release repositories
   when: ansible_os_family == 'RedHat'
-  tags:
-    - breaks-dry-run
-    - vault-release
+  tags: vault-release
   block:
-    - name: get redhat version
-      # matching version string like '7.4.1708'
-      shell: grep -oP '\d+\.\d+' /etc/redhat-release
-      register: redhat_release
-      changed_when: false
-
-    - name: get rolling rehdhat version
-      # matching version string like '7.4.1708'
-      shell: grep -oP '(?<=7\.\d\.)\d+' /etc/redhat-release
-      register: redhat_rolling_release
-      changed_when: false
-
     - name: get closest release repo
       # find first vault release that is less or equal to the current redhat release version
       shell: |
         for version in {{ redhat_vault_repo_versions|reverse|join(' ') }} ; do
-          if [[ $version =~ {{ redhat_release.stdout }} &&
+          if [[ $version =~ {{ ansible_distribution_version | regex_search('\d+\.\d+') }} &&
                 # get the last part of a version string, e.g. for '7.4.1611' it is '1611'
-                $(echo $version | grep -oP '\d+$') -le {{ redhat_rolling_release.stdout }} ]]
+                $(echo $version | grep -oP '\d+$') -le {{ ansible_distribution_version | regex_search('\d+$') }} ]]
           then
             echo $version
             break
@@ -38,6 +24,7 @@
         done
       register: redhat_vault_repo
       changed_when: false
+      check_mode: no
 
     - name: disable latest release repositories
       ini_file:
@@ -71,6 +58,7 @@
 - name: configure 'EPEL' repository
   package: name=epel-release  state=present
   when:    ansible_os_family == 'RedHat'
+  tags: epel
 
 - name: configure 'Debuginfo' repository
   yum_repository:
@@ -84,8 +72,8 @@
 - name: disable SELinux
   selinux:
     state: disabled
+  when: ansible_os_family == 'RedHat'
   tags:
-    - breaks-dry-run
     - no-selinux
 
 # in situations when we aren't allowed to reboot target node to ensure that
@@ -100,8 +88,10 @@
     state: present
     name:  'kernel-devel-{{ ansible_kernel }}'
   ignore_errors: yes
+  when: ansible_os_family == 'RedHat'
 
 - name: upgrade all packages to latest versions
+  #   force_apt_get=yes
   package:  name=*  state=latest  update_cache=yes
   tags: upgrade
 
@@ -119,14 +109,12 @@
   package:
     state: present
     name:  '{{ basic_tools_pkgs }}'
-  tags: breaks-dry-run
 
 - name: install development tools
   package:
     state: present
     name:  '{{ devel_tools_pkgs }}'
   tags:
-    - breaks-dry-run
     - devel
 
 - name: install extra tools
@@ -134,17 +122,9 @@
     state: present
     name:  '{{ extra_tools_pkgs }}'
   when: extra_tools_pkgs is defined
-  tags: breaks-dry-run
-
-- name: get redhat version
-  # matching version string like '7.4.1708'
-  shell: grep -oP '\d+\.\d+' /etc/redhat-release
-  register: redhat_release
-  changed_when: false
 
 - name: apply CentOS 7.5 workarounds
-  when: ansible_os_family == 'RedHat' and redhat_release.stdout is version('7.5', '==')
-  tags: breaks-dry-run
+  when: ansible_os_family == 'RedHat' and ansible_distribution_version | regex_search('\d+\.\d+') is version('7.5', '==')
   block:
     - name: re-start dbus
       service: name=dbus state=restarted
@@ -201,7 +181,6 @@
       package:
         state: present
         name:  kexec-tools
-      tags: breaks-dry-run
 
 - name: enable core dumps
   block:
@@ -219,6 +198,14 @@
         limit_item: core
         value: unlimited
 
+- name: enable NOPASSWD `sudo` execution for %sudo user group
+  lineinfile:
+    path: /etc/sudoers
+    state: present
+    regexp: '^%sudo'
+    line: '%sudo   ALL=(ALL:ALL) NOPASSWD: ALL'
+  when: ansible_os_family == 'Debian'
+
 - name: restart machine
   when: reboot_required.rc == 1
   block:
@@ -234,4 +221,3 @@
       until:    online is success
   tags:
     - reboot
-    - breaks-dry-run
