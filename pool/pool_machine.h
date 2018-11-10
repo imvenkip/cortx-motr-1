@@ -185,13 +185,14 @@ enum m0_poolmach_event_owner_type {
  */
 struct m0_poolmach_event {
         /** Event owner type. */
-        uint32_t pe_type M0_XCA_FENUM(m0_poolmach_event_owner_type);
+        uint32_t              pe_type M0_XCA_FENUM(
+		m0_poolmach_event_owner_type);
 
         /** Event owner index. */
-        uint32_t pe_index;
+        uint32_t              pe_index;
 
         /** New state for this node or device. */
-        uint32_t pe_state;
+        enum m0_pool_nd_state pe_state;
 };
 
 /**
