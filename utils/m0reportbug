@@ -3,7 +3,7 @@ set -eu
 # set -x
 export PS4='+ [${FUNCNAME[0]:+${FUNCNAME[0]}:}${LINENO}] '
 
-VERSION=0.32
+VERSION=0.33
 
 IN_DIR=/var/mero # default value; overruled by CLI argument
 OUT_DATA_DIR=m0reportbug-data
@@ -128,7 +128,7 @@ probes() {
         'systemctl status -l halond'
         'systemctl status -l mero-kernel'
         'lctl dk'
-        'hctl mero status'
+        'hctl mero status -d'
         'hctl halon info eq'
         'hctl halon info rc'
         'hctl halon info cep'
@@ -320,6 +320,7 @@ path() {
     fi
 }
 
+## `m0version` should work even when `m0d` is not in PATH.
 m0version() { $(path m0d) -v; }
 
 GDB=$(which gdb 2>/dev/null || true)
@@ -625,7 +626,11 @@ exit
 ###
 ### Date       Version Description
 ### ---------- ------- ----------------------------------------------------
-### 2018-10-08 0.32    * Find m0mero.ko in /lib/modules, not /lib/module.
+### 2018-11-10 0.33    * Replace `hctl mero status` with more informative
+###                      `hctl mero status -d`.
+###                    * Explain why `m0version` is needed.
+###
+### 2018-11-08 0.32    * Find m0mero.ko in /lib/modules, not /lib/module.
 ###
 ### 2018-10-03 0.31    * m0mkfs executable has moved into /usr/sbin (was in
 ###                      /usr/bin before).
