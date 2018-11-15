@@ -157,7 +157,7 @@ createm()
 	[ $rc != 0 ] && return $rc
 	grep "operation rc:" ${out_file} >${rc_file}
 	grep -v "operation rc: 0" ${rc_file} >${erc_file}
-	[ -s "${erc_file}" ] && return 1
+	[ $(cat ${erc_file} | wc -l) == 1 ] || return 1
 	rm_logs
 	return $rc
 }

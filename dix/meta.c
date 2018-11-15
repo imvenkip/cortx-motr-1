@@ -572,7 +572,8 @@ M0_INTERNAL int m0_dix_ldescr_del(struct m0_dix_meta_req *req,
 M0_INTERNAL int m0_dix_layout_put(struct m0_dix_meta_req     *req,
 				  const struct m0_fid        *fid,
 				  const struct m0_dix_layout *dlay,
-				  uint32_t                    nr)
+				  uint32_t                    nr,
+				  uint32_t                    flags)
 {
 	int           rc;
 	struct m0_dix index = {};
@@ -590,7 +591,7 @@ M0_INTERNAL int m0_dix_layout_put(struct m0_dix_meta_req     *req,
 	}
 	m0_clink_add(&req->dmr_req.dr_sm.sm_chan, &req->dmr_clink);
 	rc = m0_dix_put(&req->dmr_req, &index, &req->dmr_keys, &req->dmr_vals,
-			NULL, COF_OVERWRITE);
+			NULL, flags);
 	if (rc != 0)
 		m0_clink_del(&req->dmr_clink);
 	m0_dix_fini(&index);

@@ -261,7 +261,8 @@ static void clovis_layout_dix_put_ast(struct m0_sm_group *grp,
 	/* Send request to dix. */
 	m0_clink_add_lock(&req->dr_mreq.dmr_chan, &req->dr_clink);
 	layout_fid = (struct m0_fid *)&ol->ol_entity->en_id;
-	rc = m0_dix_layout_put(&req->dr_mreq, layout_fid, dix_layout, 1);
+	rc = m0_dix_layout_put(&req->dr_mreq, layout_fid, dix_layout, 1,
+			       COF_OVERWRITE);
 	if (rc != 0) {
 		m0_clink_del_lock(&req->dr_clink);
 		goto error;
