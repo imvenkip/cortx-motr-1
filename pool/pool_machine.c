@@ -693,13 +693,24 @@ M0_INTERNAL int m0_poolmach_state_transit(struct m0_poolmach       *pm,
 	if (event->pe_type == M0_POOL_DEVICE &&
 	    state->pst_nr_failures > state->pst_max_device_failures &&
 	    state->pst_max_device_failures > 0) { /* Skip mdpool */
-		M0_LOG(M0_ERROR, FID_F": nr_failures:%d max_failures:%d"
-				" event_index:%d event_state:%d",
-				FID_P(&pm->pm_pver->pv_id),
-				state->pst_nr_failures,
-				state->pst_max_device_failures,
-				event->pe_index,
-				event->pe_state);
+		if (state->pst_nr_failures > state->pst_max_device_failures + 10)
+			M0_LOG(M0_INFO, FID_F": nr_failures:%d max_failures:%d"
+					" event_index:%d event_state:%d"
+					" (a node failure/restart"
+					" or expander reset?)",
+					FID_P(&pm->pm_pver->pv_id),
+					state->pst_nr_failures,
+					state->pst_max_device_failures,
+					event->pe_index,
+					event->pe_state);
+		else
+			M0_LOG(M0_ERROR, FID_F": nr_failures:%d max_failures:%d"
+					" event_index:%d event_state:%d",
+					FID_P(&pm->pm_pver->pv_id),
+					state->pst_nr_failures,
+					state->pst_max_device_failures,
+					event->pe_index,
+					event->pe_state);
 		m0_poolmach_event_list_dump_locked(pm);
 	}
 	pm->pm_pver->pv_is_dirty = state->pst_nr_failures > 0;
@@ -1101,9 +1112,9 @@ M0_INTERNAL void m0_poolmach_event_list_dump_locked(struct m0_poolmach *pm)
 		e = &scan->pel_event;
 		i = e->pe_index;
 		if (e->pe_type == M0_POOL_DEVICE &&
-		    pm->pm_state->pst_devices_array[i].pd_state !=
-		    M0_PNDS_UNKNOWN)
-			M0_LOG(M0_WARN, "device[%d] "FID_F" state=%d", i,
+		    !M0_IN(pm->pm_state->pst_devices_array[i].pd_state,
+		    (M0_PNDS_UNKNOWN, M0_PNDS_OFFLINE, M0_PNDS_ONLINE)))
+			M0_LOG(M0_INFO, "device[%d] "FID_F" state=%d", i,
 			       FID_P(&pm->pm_state->pst_devices_array[i].pd_id),
 			       e->pe_state);
 	} m0_tl_endfor;
