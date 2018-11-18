@@ -137,10 +137,7 @@ struct cwi_global {
 	struct m0_uint128 cg_oid;
 	bool              cg_created;
 	int               cg_nr_tasks;
-	m0_time_t         cg_cwi_create_acc_time;
-	m0_time_t         cg_cwi_delete_acc_time;
-	m0_time_t         cg_cwi_read_acc_time;
-	m0_time_t         cg_cwi_write_acc_time;
+	m0_time_t         cg_cwi_acc_time[CR_OPS_NR];
 	struct m0_mutex   cg_mutex;
 };
 
@@ -157,8 +154,7 @@ struct clovis_workload_io {
 	uint32_t          cwi_bcount_per_op;
 	uint32_t          cwi_pool_id;
 	uint64_t          cwi_io_size;
-	uint64_t          cwi_r_ops_done;
-	uint64_t          cwi_w_ops_done;
+	uint64_t          cwi_ops_done[CR_OPS_NR];
 	uint32_t          cwi_max_nr_ops;
 	int32_t           cwi_mode;
 	int32_t           cwi_nr_objs;

@@ -396,20 +396,10 @@ int cr_execute_ops(struct clovis_workload_io *cwi, struct clovis_task_io *cti,
 void cr_cti_report(struct clovis_task_io *cti, enum clovis_operations op_code)
 {
 	struct clovis_workload_io *cwi = cti->cti_cwi;
-	m0_time_t                  t = cti->cti_op_acc_time;
 
 	m0_mutex_lock(&cwi->cwi_g.cg_mutex);
-	if (op_code == CR_CREATE) {
-		cr_time_acc(&cwi->cwi_g.cg_cwi_create_acc_time, t);
-	} else if (op_code == CR_DELETE) {
-		cr_time_acc(&cwi->cwi_g.cg_cwi_delete_acc_time, t);
-	} else if (op_code == CR_READ) {
-		cr_time_acc(&cwi->cwi_g.cg_cwi_read_acc_time, t);
-		cwi->cwi_r_ops_done += cti->cti_nr_ops_done;
-	} else if (op_code == CR_WRITE) {
-		cr_time_acc(&cwi->cwi_g.cg_cwi_write_acc_time, t);
-		cwi->cwi_w_ops_done += cti->cti_nr_ops_done;
-	}
+	cr_time_acc(&cwi->cwi_g.cg_cwi_acc_time[op_code], cti->cti_op_acc_time);
+	cwi->cwi_ops_done[op_code] += cti->cti_nr_ops_done;
 	m0_mutex_unlock(&cwi->cwi_g.cg_mutex);
 
 	cti->cti_op_acc_time = 0;
@@ -836,30 +826,32 @@ void clovis_run(struct workload *w, struct workload_task *tasks)
 	cr_log(CLL_INFO, "Total time: "TIME_F", %d objs, %lu ops (w+r)\n",
 	       TIME_P(m0_time_sub(cwi->cwi_finish_time, cwi->cwi_start_time)),
 	       cwi->cwi_nr_objs * w->cw_nr_thread,
-	       cwi->cwi_w_ops_done + cwi->cwi_r_ops_done);
+	       cwi->cwi_ops_done[CR_WRITE] + cwi->cwi_ops_done[CR_READ]);
 	cr_log(CLL_INFO, "C: "TIME_F" ("TIME_F" per op)\n",
 	       TIME_P(cwi->cwi_time[CR_CREATE]),
-	       TIME_P(cwi->cwi_g.cg_cwi_create_acc_time / w->cw_nr_thread /
-		      cwi->cwi_max_nr_ops));
+	       TIME_P(cwi->cwi_g.cg_cwi_acc_time[CR_CREATE] /
+		      cwi->cwi_ops_done[CR_CREATE]));
 	cr_log(CLL_INFO, "D: "TIME_F" ("TIME_F" per op)\n",
 	       TIME_P(cwi->cwi_time[CR_DELETE]),
-	       TIME_P(cwi->cwi_g.cg_cwi_delete_acc_time / w->cw_nr_thread /
-		      cwi->cwi_max_nr_ops));
-	if (cwi->cwi_w_ops_done == 0)
+	       TIME_P(cwi->cwi_g.cg_cwi_acc_time[CR_DELETE] /
+		      cwi->cwi_ops_done[CR_DELETE]));
+	if (cwi->cwi_ops_done[CR_WRITE] == 0)
 		return;
-	written = cwi->cwi_bs * cwi->cwi_bcount_per_op * cwi->cwi_w_ops_done;
+	written = cwi->cwi_bs * cwi->cwi_bcount_per_op *
+	          cwi->cwi_ops_done[CR_WRITE];
 	cr_log(CLL_INFO, "W: "TIME_F" ("TIME_F" per op), "
 	       "%lu KiB, %lu KiB/s\n", TIME_P(cwi->cwi_time[CR_WRITE]),
-	       TIME_P(cwi->cwi_g.cg_cwi_write_acc_time / w->cw_nr_thread /
-		      cwi->cwi_max_nr_ops), written/1024,
+	       TIME_P(cwi->cwi_g.cg_cwi_acc_time[CR_WRITE] /
+		      cwi->cwi_ops_done[CR_WRITE]), written/1024,
 	       bw(written, cwi->cwi_time[CR_WRITE]) /1024);
-	if (cwi->cwi_r_ops_done == 0)
+	if (cwi->cwi_ops_done[CR_READ] == 0)
 		return;
-	read = cwi->cwi_bs * cwi->cwi_bcount_per_op * cwi->cwi_r_ops_done;
+	read = cwi->cwi_bs * cwi->cwi_bcount_per_op *
+	       cwi->cwi_ops_done[CR_READ];
 	cr_log(CLL_INFO, "R: "TIME_F" ("TIME_F" per op), "
 	       "%lu KiB, %lu KiB/s\n", TIME_P(cwi->cwi_time[CR_READ]),
-	       TIME_P(cwi->cwi_g.cg_cwi_read_acc_time / w->cw_nr_thread /
-		      cwi->cwi_max_nr_ops), read/1024,
+	       TIME_P(cwi->cwi_g.cg_cwi_acc_time[CR_READ] /
+		      cwi->cwi_ops_done[CR_READ]), read/1024,
 	       bw(read, cwi->cwi_time[CR_READ]) /1024);
 }
 
