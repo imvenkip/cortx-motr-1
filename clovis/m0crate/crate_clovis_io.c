@@ -823,7 +823,7 @@ void clovis_run(struct workload *w, struct workload_task *tasks)
 	cwi->cwi_finish_time = m0_time_now();
 
 	cr_log(CLL_INFO, "I/O workload is finished.\n");
-	cr_log(CLL_INFO, "Total time: "TIME_F", %d objs, %lu ops (w+r)\n",
+	cr_log(CLL_INFO, "Total: time="TIME_F" objs=%d ops=%lu\n",
 	       TIME_P(m0_time_sub(cwi->cwi_finish_time, cwi->cwi_start_time)),
 	       cwi->cwi_nr_objs * w->cw_nr_thread,
 	       cwi->cwi_ops_done[CR_WRITE] + cwi->cwi_ops_done[CR_READ]);

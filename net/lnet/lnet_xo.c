@@ -440,8 +440,8 @@ static int nlx_xo_tm_start(struct m0_net_transfer_mc *tm, const char *addr)
 
 	rc = nlx_core_ep_addr_decode(&dp->xd_core, addr,
 				     &tp->xtm_core.ctm_addr) ?:
-		M0_THREAD_INIT(&tp->xtm_ev_thread, struct m0_net_transfer_mc *,
-			       NULL, &nlx_tm_ev_worker, tm, "m0_nlx_tm");
+	     M0_THREAD_INIT(&tp->xtm_ev_thread, struct m0_net_transfer_mc *,
+			    NULL, &nlx_tm_ev_worker, tm, "m0_nlx_tm");
 	return M0_RC(rc);
 }
 
