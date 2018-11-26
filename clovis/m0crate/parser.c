@@ -265,6 +265,12 @@ int copy_value(struct workload *load, int max_workload, int *index,
 				return -ENOMEM;
 			strcpy(conf->clovis_prof, value);
 			break;
+		case MAX_QUEUE_LEN:
+			conf->tm_recv_queue_min_len = atoi(value);
+			break;
+		case MAX_RPC_MSG:
+			conf->max_rpc_msg_size = atoi(value);
+			break;
 		case PROCESS_FID:
 			conf->clovis_process_fid = m0_alloc(value_len + 1);
 			if (conf->clovis_process_fid == NULL)

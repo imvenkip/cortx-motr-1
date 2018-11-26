@@ -48,6 +48,8 @@ struct crate_clovis_conf {
         int index_service_id;
         char *cass_cluster_ep;
         char *cass_keyspace;
+	int tm_recv_queue_min_len;
+	int max_rpc_msg_size;
         int col_family;
 	int log_level;
 };

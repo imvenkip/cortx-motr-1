@@ -92,8 +92,10 @@ int clovis_init(struct workload *w)
 	clovis_conf.cc_ha_addr               = conf->clovis_ha_addr;
 	clovis_conf.cc_profile               = conf->clovis_prof;
 	clovis_conf.cc_process_fid           = conf->clovis_process_fid;
-	clovis_conf.cc_tm_recv_queue_min_len = M0_NET_TM_RECV_QUEUE_DEF_LEN;
-	clovis_conf.cc_max_rpc_msg_size      = M0_RPC_DEF_MAX_RPC_MSG_SIZE;
+	clovis_conf.cc_tm_recv_queue_min_len = conf->tm_recv_queue_min_len ?:
+	                                       M0_NET_TM_RECV_QUEUE_DEF_LEN;
+	clovis_conf.cc_max_rpc_msg_size      = conf->max_rpc_msg_size ?:
+	                                       M0_RPC_DEF_MAX_RPC_MSG_SIZE;
 	clovis_conf.cc_layout_id             = conf->layout_id;
 	clovis_conf.cc_idx_service_id        = conf->index_service_id;
 
