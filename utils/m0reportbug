@@ -3,7 +3,7 @@ set -eu
 # set -x
 export PS4='+ [${FUNCNAME[0]:+${FUNCNAME[0]}:}${LINENO}] '
 
-VERSION=0.34
+VERSION=0.35
 
 IN_DIR=/var/mero # default value; overruled by CLI argument
 OUT_DATA_DIR=m0reportbug-data
@@ -303,8 +303,15 @@ path() {
 
     if [ "$(dirname $PROG)" = '/usr/sbin' ]; then
         result=$(_path_rpm $name) # installed from rpm
+    elif [ -n "$(echo $PROG | sed -n 's:/utils/m0reportbug$::p')" ]; then
+        result=$(_path_src $name "$subdir") # running from sources
     else
-        result=$(_path_src $name "$subdir") # being run from sources
+        # Apparently `m0reportbug' is not running sources. We assume that
+        # executables and libraries were installed from rpm (we wouldn't
+        # know where to look for them if they weren't), and that
+        # `m0reportbug' was copied to some non-/usr/sbin directory
+        # (for testing purpose or whatever).
+        result=$(_path_rpm $name)
     fi
     [ "${result#\?}" = "$result" ] || local optional=1 # file may be missing
     result="${result#\?}"
@@ -627,6 +634,11 @@ exit
 ###
 ### Date       Version Description
 ### ---------- ------- ----------------------------------------------------
+### 2018-12-07 0.35    path(): If m0reportbug path does not end with
+###                    "/utils/m0reportbug", assume that executables and
+###                    libraries were installed from rpms (we wouldn't
+###                    know where to look for them if they weren't).
+###
 ### 2018-11-27 0.34    * [bugfix] misc_files(): Don't stop if /etc/mero/
 ###                      doesn't exist --- proceed with collecting other
 ###                      files.  This fixes the problem of conf.xc and
