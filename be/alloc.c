@@ -417,6 +417,7 @@ static bool be_alloc_chunk_invariant(struct m0_be_allocator *a,
 
 	return _0C(c != NULL) &&
 	       _0C(be_alloc_chunk_is_in(a, ztype, c)) &&
+	       _0C(m0_addr_is_aligned(&c->bac_mem, M0_BE_ALLOC_SHIFT_MIN)) &&
 	       _0C(ergo(cnext != NULL,
 			be_alloc_chunk_is_in(a, ztype, cnext))) &&
 	       _0C(ergo(cprev != NULL,
@@ -620,16 +621,19 @@ be_alloc_chunk_split(struct m0_be_allocator *a,
 	uintptr_t	       start0;
 	uintptr_t	       start1;
 	uintptr_t	       start_next;
+	m0_bcount_t            size_min_aligned;
 	m0_bcount_t	       chunk0_size;
 	m0_bcount_t	       chunk1_size;
 
 	M0_PRE(be_alloc_chunk_invariant(a, c));
 	M0_PRE(c->bac_free);
 
+	size_min_aligned = m0_align(size, 1UL << M0_BE_ALLOC_SHIFT_MIN);
+
 	prev	    = be_alloc_chunk_prev(a, ztype, c);
 
 	start0	    = be_alloc_chunk_after(a, ztype, prev);
-	start1	    = start_new + sizeof *new + size;
+	start1	    = start_new + sizeof *new + size_min_aligned;
 	start_next  = be_alloc_chunk_after(a, ztype, c);
 	chunk0_size = start_new - start0;
 	chunk1_size = start_next - start1;
@@ -644,7 +648,7 @@ be_alloc_chunk_split(struct m0_be_allocator *a,
 						chunk0_size);
 	new = be_alloc_chunk_add_after(a, ztype, tx, prev,
 				       prev == NULL ? chunk0_size : 0,
-				       sizeof *new + size, false);
+				       sizeof *new + size_min_aligned, false);
 	M0_ASSERT(new != NULL);
 	be_alloc_chunk_tryadd_free_after(a, ztype, tx, new, 0, chunk1_size);
 
@@ -838,7 +842,7 @@ M0_INTERNAL int m0_be_allocator_create(struct m0_be_allocator *a,
 	for (i = 0; i < zones_nr; ++i) {
 		if (i < zones_nr - 1) {
 			size = free_space * zone_percent[i] / 100;
-			size = m0_align(size, 1ULL << BE_ALLOC_ZONE_SIZE_SHIFT);
+			size = m0_align(size, 1UL << BE_ALLOC_ZONE_SIZE_SHIFT);
 		} else
 			size = remain;
 		M0_ASSERT(size <= remain);
@@ -1019,12 +1023,12 @@ M0_INTERNAL void m0_be_alloc_aligned(struct m0_be_allocator *a,
 {
 	enum  m0_be_alloc_zone_type  ztype;
 	struct be_alloc_chunk       *c = NULL;
-	m0_bcount_t                  aligned_size;
+	m0_bcount_t                  size_to_pick;
 	int                          z;
 
 	shift = max_check(shift, (unsigned) M0_BE_ALLOC_SHIFT_MIN);
 	M0_ASSERT_INFO(size <= (M0_BCOUNT_MAX - (1UL << shift)) / 2,
-		       "size = %lu", size);
+		       "size=%lu", size);
 
 	m0_be_op_active(op);
 
@@ -1032,11 +1036,11 @@ M0_INTERNAL void m0_be_alloc_aligned(struct m0_be_allocator *a,
 	M0_PRE_EX(m0_be_allocator__invariant(a));
 
 	/* algorithm starts here */
-	aligned_size = shift == M0_BE_ALLOC_SHIFT_MIN ? size :
-		       size * 2 + (1UL << shift);
+	size_to_pick = (1UL << shift) - (1UL << M0_BE_ALLOC_SHIFT_MIN) +
+		       m0_align(size, 1UL << M0_BE_ALLOC_SHIFT_MIN);
 	for (z = 0; z < M0_BAP_NR; ++z) {
 		if ((zonemask & M0_BITS(z)) != 0)
-			c = m0_be_fl_pick(&a->ba_h[z]->bah_fl, aligned_size);
+			c = m0_be_fl_pick(&a->ba_h[z]->bah_fl, size_to_pick);
 		if (c != NULL)
 			break;
 	}

@@ -78,6 +78,10 @@
  *   the future.
  * - It is possible to use memory-only LRU cache for chunks. It can help with
  *   large amount of alocations/deallocations.
+ * - The current implementation of m0_be_fl_pick() doesn't take allocation
+ *   alignment requirements into account. It's possible to optimise allocations
+ *   for non-default alignments (i.e. more than M0_BE_ALLOC_SHIFT_MIN) if the
+ *   alignment is also passed to m0_be_fl_pick() and is checked in the loop.
  *
  * @{
  */
