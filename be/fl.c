@@ -26,7 +26,6 @@
 
 #include "mero/magic.h"         /* M0_BE_ALLOC_FREE_LINK_MAGIC */
 
-#include "be/op.h"              /* M0_BE_OP_SYNC */
 #include "be/seg.h"             /* m0_be_reg__write */
 #include "be/tx_credit.h"       /* m0_be_tx_credit */
 #include "be/alloc_internal.h"  /* be_alloc_chunk */
@@ -70,8 +69,6 @@
  *   compile-time constans.
  *
  * Known issues.
- * - m0_be_op should be used for non-blocking interface. It is not used now.
- * - M0_BE_OP_SYNC() is used for m0_be_list operations.
  * - m0_be_fl doesn't have true O(1) time and I/O complexity for size range
  *   [0, M0_BCOUNT_MAX].
  *
