@@ -26,7 +26,6 @@
 
 #include "mero/magic.h"         /* M0_BE_ALLOC_FREE_LINK_MAGIC */
 
-#include "be/seg.h"             /* m0_be_reg__write */
 #include "be/tx_credit.h"       /* m0_be_tx_credit */
 #include "be/alloc_internal.h"  /* be_alloc_chunk */
 
