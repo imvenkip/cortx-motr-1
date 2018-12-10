@@ -30,6 +30,10 @@ def guess_provider()
            Vagrant.has_plugin?('vagrant-libvirt')   ? :libvirt
            : File.exists?(virtualbox)               ? :virtualbox
            :                                          nil
+  when /mingw32/
+    virtualbox = 'C:\\Program Files\\Oracle\\VirtualBox\\'
+    return Dir.exists?(virtualbox) ? :virtualbox
+           :                         nil
   end
 
   return :virtualbox
@@ -150,8 +154,13 @@ Vagrant.configure('2') do |config|
   # argument is a set of non-required options.
   #config.vm.synced_folder "../data", "/vagrant_data"
 
-  # Disable the default sharing of current folder
-  config.vm.synced_folder '.', '/vagrant', disabled: true
+  # Disable default sharing of current folder unless ansible_local provisioner
+  # is requested
+  if RbConfig::CONFIG['host_os'] != 'mingw32' &&
+     (ENV['M0_VM_PROVISION_WITH_ANSIBLE_LOCAL'].nil? ||
+      ENV['M0_VM_PROVISION_WITH_ANSIBLE_LOCAL'].match(/no|false|0/i))
+    config.vm.synced_folder '.', '/vagrant', disabled: true
+  end
 
   # Providers ------------------------------
 
@@ -243,8 +252,17 @@ Vagrant.configure('2') do |config|
     ansible_skip_tags.push('recover-man-pages')
   end
 
+  if RbConfig::CONFIG['host_os'] == 'mingw32' ||
+      !ENV['M0_VM_PROVISION_WITH_ANSIBLE_LOCAL'].nil? &&
+      ENV['M0_VM_PROVISION_WITH_ANSIBLE_LOCAL'].match(/yes|true|1/i)
+    ansible_mode = :ansible_local
+    ansible_skip_tags.push('reboot')
+  else
+    ansible_mode = :ansible
+  end
+
   # delegate OS configuration to Ansible
-  config.vm.provision :ansible do |ansible|
+  config.vm.provision ansible_mode do |ansible|
     ansible.compatibility_mode = '2.0'
     ansible.playbook = 'cluster.yml'
     ansible.groups = {
@@ -480,7 +498,8 @@ def setup_shared_mero_src_dir(config)
     # it can be customized via M0_VM_SHARED_DIR environment variable
     path = !ENV['M0_VM_SHARED_DIR'].nil? ? File.expand_path(ENV['M0_VM_SHARED_DIR'])
          :                                 File.expand_path(MERO_TOP_SRC_DIR + '/..')
-    type = ENV['M0_VM_SHARE_TYPE'] || 'nfs'
+    type = ENV['M0_VM_SHARE_TYPE'] ||
+           RbConfig::CONFIG['host_os'] == 'mingw32' ? 'provider' : 'nfs'
 
     case type
     when 'provider'

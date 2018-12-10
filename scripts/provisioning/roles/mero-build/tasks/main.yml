@@ -74,7 +74,7 @@
 
     - name: apply Lustre spec patch
       patch:
-        src: ../../patches/lustre-intel/lustre-2.9.0.spec.patch
+        src: lustre-2.9.0.spec.patch
         dest: ~/rpmbuild/SPECS/lustre.spec
         strip: 1
       tags: breaks-dry-run
