@@ -59,7 +59,7 @@ usage()
 {
     cat <<USAGE_END
 Usage: $PROG_NAME [options] <vagrant-cmd> [vagrant-cmd-options]
-       $PROG_NAME [options] ansible       <ansible-args>
+       $PROG_NAME [options] <ansible-cmd> <ansible-args>
 
        $PROG_NAME params
        $PROG_NAME env       [show|add|edit]
@@ -73,7 +73,8 @@ Usage: $PROG_NAME [options] <vagrant-cmd> [vagrant-cmd-options]
 
     $PROG_NAME up
     $PROG_NAME ssh
-    $PROG_NAME ansible --list-tasks cmu.yml
+    $PROG_NAME ansible -m setup cmu
+    $PROG_NAME ansible-playbook --list-tasks cmu.yml
 
   params     show environment variables recognized by mero Vagrantfile config
              that can be specified either on command-line or in '.env' file to
@@ -120,7 +121,7 @@ parse_cli_options()
             -v|--verbose)  verbose=true; shift ;;
             -h|--help)     help stdout ;;
 
-            ansible)       cmd=ansible-playbook ; shift ; break ;;
+            ansible*)      cmd=$1 ; shift ; break ;;
             run)           cmd=$1 ; shift ; break ;;
             tmux)          cmd=$1 ; shift ; break ;;
             upt)           cmd=$1 ; shift ; break ;;
