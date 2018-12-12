@@ -5,6 +5,7 @@
 - name: dynamically load variables depending on the OS type
   include_vars: '{{ item  }}'
   with_first_found: '{{ ansible_os_family }}.yml'
+  tags: lustre
 
 - name: install Mero build-time dependencies
   package:
@@ -72,12 +73,30 @@
       args:
         creates: ~/rpmbuild/SPECS/lustre.spec
 
+    - name: install additional Lustre build dependencies
+      package:
+        name:  '{{ lustre_build_deps_pkgs }}'
+        state: present
+
     - name: apply Lustre spec patch
       patch:
         src: lustre-2.9.0.spec.patch
         dest: ~/rpmbuild/SPECS/lustre.spec
         strip: 1
       tags: breaks-dry-run
+
+    - name: disable Lustre rpm strict kernel version check
+      lineinfile:
+        path: ~/rpmbuild/SOURCES/kmp-lustre.preamble
+        state: absent
+        regexp: '^Requires:.*kernel'
+
+    - name: bump local Lustre rpm build number to override stock builds
+      lineinfile:
+        path: ~/rpmbuild/SPECS/lustre.spec
+        state: present
+        regexp: '^Release: 1'
+        line: 'Release: 99%{?dist}'
 
     - name: install Lustre rpm build dependencies
       command: yum-builddep -y ~/rpmbuild/SPECS/lustre.spec
@@ -93,9 +112,27 @@
       args:
         creates: ~/rpmbuild/RPMS/x86_64/lustre-client-devel-*.rpm
 
-    - name: read Lustre devel package filename
-      shell: ls ~/rpmbuild/RPMS/x86_64/lustre-client-devel-*.rpm
-      register: lustre_devel_rpm
+    - name: read Lustre package version
+      shell: |
+        ls --reverse ~/rpmbuild/RPMS/x86_64/lustre-client-devel-*.rpm \
+        | grep -oP '(?<=lustre-client-devel-).*(?=\.rpm)' \
+        | head -n1
+      register: lustre_version
+      changed_when: false
+
+    - name: install local Lustre rpms
+      yum:
+        name:
+          - /root/rpmbuild/RPMS/x86_64/kmod-lustre-client-{{ lustre_version.stdout }}.rpm
+          - /root/rpmbuild/RPMS/x86_64/lustre-client-{{ lustre_version.stdout }}.rpm
+        state: present
+      when: ansible_distribution_version is version('7.6.1810', '>=')
+      tags: lustre-custom-build
+
+    - name: clean yum metadata
+      command: yum clean metadata
+      args:
+        warn: no
       changed_when: false
 
     - name: create local repo dir
@@ -106,16 +143,17 @@
 
     - name: copy Lustre devel rpm to local repo
       copy:
-        src: '{{ lustre_devel_rpm.stdout }}'
+        src: '~/rpmbuild/RPMS/x86_64/lustre-client-devel-{{ lustre_version.stdout }}.rpm'
         dest: /var/lib/yum/localrepos/lustre-local
         remote_src: yes
       tags: breaks-dry-run
 
     - name: create local repo
-      command: createrepo -p .
+      command: createrepo --pretty .
       args:
         chdir: /var/lib/yum/localrepos/lustre-local
-        creates: repodata
+        #creates: repodata
+      changed_when: false
 
     - name: add local repo yum config
       yum_repository:
@@ -129,7 +167,8 @@
     - name: install Lustre devel rpm
       yum:
         name: lustre-client-devel
-        state: present
+        state: latest
+        update_cache: yes
   when: ansible_os_family == 'RedHat'
   tags:
     - lustre-devel

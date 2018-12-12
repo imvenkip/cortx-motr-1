@@ -100,7 +100,6 @@
     state: present
     name:  'kernel-devel-{{ ansible_kernel }}'
   ignore_errors: yes
-  tags: test
 
 - name: upgrade all packages to latest versions
   package:  name=*  state=latest  update_cache=yes

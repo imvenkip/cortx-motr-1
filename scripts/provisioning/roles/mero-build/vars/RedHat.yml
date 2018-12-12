@@ -43,3 +43,6 @@ mero_doc_deps_pkgs:
 mero_doc_pip_modules:
   - sphinx
   - sphinxcontrib-plantuml
+
+lustre_build_deps_pkgs:
+  - patch

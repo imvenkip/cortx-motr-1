@@ -36,7 +36,7 @@
     - breaks-dry-run
 
 - name: install Lustre
-  package: name={{ lustre_client_pkg }}  state=present
+  package: name={{ lustre_client_pkgs }} state=present skip_broken=yes
   tags:
     - lustre
     - breaks-dry-run
