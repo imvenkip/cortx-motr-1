@@ -24,8 +24,7 @@
 
 #include "be/alloc_internal.h"  /* m0_be_allocator_header */
 #include "be/alloc_internal_xc.h"
-#include "be/btree.h"           /* m0_be_btree */
-#include "be/btree_xc.h"
+#include "be/list.h"
 #include "be/seg.h"
 #include "be/seg_xc.h"
 #include "format/format.h"      /* m0_format_header */
@@ -51,12 +50,8 @@ struct m0_be_seg_hdr {
 	struct m0_be_seg_geom         bh_items[M0_BE_SEG_HDR_GEOM_ITMES_MAX];
 	char                          bh_be_version[
 					       M0_BE_SEG_HDR_VERSION_LEN_MAX+1];
+	struct m0_be_list             bh_dict;
 	struct m0_format_footer       bh_footer;
-	/*
-	 * m0_be_btree has it's own volatile-only fields, so it can't be placed
-	 * before the m0_format_footer, where only persistent fields allowed
-	 */
-	struct m0_be_btree            bs_dict;  /**< Segment dictionary */
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
 
 enum m0_be_seg_hdr_format_version {

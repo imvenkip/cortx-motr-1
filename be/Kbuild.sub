@@ -17,4 +17,5 @@ m0mero_objects += \
                   be/seg_internal_xc.o \
                   be/seg_dict.o \
                   be/linux_kernel/stubs.o \
-                  be/tx_xc.o
+                  be/tx_xc.o \
+                  be/tx_credit.o

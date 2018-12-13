@@ -99,11 +99,17 @@ enum m0_magic_satchel {
 	/* be_alloc_chunk::bac_magic_free (edifice faded) */
 	M0_BE_ALLOC_FREE_LINK_MAGIC = 0xed1f1cefaded,
 
-	/* m0_be_tx::t_magic (bee fires stig) */
+	/* m0_be_0type::b0_magic (bee fires stig) */
 	M0_BE_0TYPE_MAGIC = 0x33beef17e5519177,
 
-	/* m0_be_tx::t_magic (bee seg faded) */
+	/* m0_be_seg::bs_magic (bee seg faded) */
 	M0_BE_SEG_MAGIC = 0x33bee5e9faded177,
+
+	/* seg_dict_keyval::dkv_magic (be seg lillie) */
+	M0_BE_SEG_DICT_MAGIC = 0x33be5e911111e077,
+
+	/* be/seg_dict.c::seg_dict_be_list_d (be head lillie) */
+	M0_BE_SEG_DICT_HEAD_MAGIC = 0x33be4ead11111e77,
 
 	/* m0_be_op::bo_children (befooled fifo) */
 	M0_BE_OP_SET_MAGIC = 0x33bef001edf1f077,
