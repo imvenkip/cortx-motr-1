@@ -182,7 +182,7 @@ check_dependencies()
         fi
     fi
 
-    if ! which ansible &> /dev/null ; then
+    if [[ $(uname) =~ ^(Linux|Darwin)$ ]] && ! which ansible &> /dev/null ; then
         ok=false
         msg+="\n* 'ansible' is not found, it can be installed with either of:\n"
         msg+="  - python packet manager: pip install --user ansible\n"
@@ -365,8 +365,10 @@ parse_cli_options "$@"
 eval set -- "$cli_args"
 
 check_dependencies
-check_vagrant_dotdir
-check_vagrant_envfile
+if [[ $(uname) =~ ^(Linux|Darwin)$ ]] ; then
+    check_vagrant_dotdir
+    check_vagrant_envfile
+fi
 cd $VAGRANT_DIR
 
 case $cmd in
@@ -380,6 +382,9 @@ case $cmd in
         ;;
 
     workspace-*)
+        [[ $(uname) =~ ^(Linux|Darwin)$ ]] ||
+            die "'workspace|ws' sub-command is supported only on Linux and MacOS"
+
         case ${cmd#workspace-} in
             list)    list_workspaces ;;
             add)     add_workspace "$1" && echo OK || echo FAILED ;;
