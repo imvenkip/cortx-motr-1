@@ -89,6 +89,7 @@ BuildRequires:  libuv
 
 Requires:       kernel = %{kernel_ver_requires}
 Requires:       %{lustre}
+Requires:       libaio
 Requires:       libyaml
 Requires:       genders
 Requires:       sysvinit-tools
