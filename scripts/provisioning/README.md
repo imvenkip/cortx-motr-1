@@ -146,8 +146,8 @@ Quick Start (Windows)
       ```bash
       cat <<EOF >> $HOME/.bash_profile
       # use the actual Mero location on your host system
-      export $MERO_SRC=$HOME/src/mero
-      alias m0vg="$MERO_SRC/scripts/m0vg"
+      export MERO_SRC=$HOME/src/mero
+      alias m0vg="\$MERO_SRC/scripts/m0vg"
       EOF
       ```
 
