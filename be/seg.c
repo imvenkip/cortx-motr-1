@@ -106,11 +106,13 @@ static int be_seg_hdr_create(struct m0_stob *stob, struct m0_be_seg_hdr *hdr)
 		M0_PRE(m0_is_aligned(g->sg_size, M0_BE_SEG_PAGE_SIZE));
 
 		hdr->bh_id = g->sg_id;
-#ifdef M0_BE_SEG_HDR_VERSION
 		strncpy(hdr->bh_be_version,
 			m0_build_info_get()->bi_xcode_protocol_be_checksum,
-			M0_BE_SEG_HDR_VERSION_MAX);
-#endif
+			M0_BE_SEG_HDR_VERSION_LEN_MAX);
+		M0_CASSERT(sizeof hdr->bh_be_version >
+			   M0_BE_SEG_HDR_VERSION_LEN_MAX);
+		/* Avoid buffer overflow */
+		hdr->bh_be_version[M0_BE_SEG_HDR_VERSION_LEN_MAX] = '\0';
 		m0_format_footer_update(hdr);
 		rc = m0_be_io_single(stob, SIO_WRITE, hdr, g->sg_offset,
 				     be_seg_hdr_size());
@@ -317,59 +319,51 @@ static void be_seg_madvise(struct m0_be_seg *seg, m0_bcount_t dump_limit,
 
 M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg)
 {
-#ifdef M0_BE_SEG_HDR_VERSION
-	struct m0_be_seg_hdr  hdr1;
-	const char           *runtime_be_version;
-#endif
-	struct m0_be_seg_hdr *hdr2;
 	const struct m0_be_seg_geom *g;
-	void                 *p;
-	int                   rc;
-	int                   fd;
+	struct m0_be_seg_hdr        *hdr;
+	const char                  *runtime_be_version;
+	void                        *p;
+	int                          fd;
+	int                          rc;
 
 	M0_ENTRY("seg=%p", seg);
 	M0_PRE(M0_IN(seg->bs_state, (M0_BSS_INIT, M0_BSS_CLOSED)));
 
-#ifdef M0_BE_SEG_HDR_VERSION
-	/* TODO use single m0_be_seg_hdr and read it once. */
-	rc = m0_be_io_single(seg->bs_stob, SIO_READ,
-			     &hdr1, M0_BE_SEG_HEADER_OFFSET, sizeof hdr1);
-	if (rc != 0)
-		return M0_ERR(rc);
-
-	runtime_be_version = m0_build_info_get()->
-				bi_xcode_protocol_be_checksum;
-	if (strncmp(hdr1.bh_be_version, runtime_be_version,
-		    M0_BE_SEG_HDR_VERSION_MAX) != 0)
-		return M0_ERR_INFO(-EPROTO, "BE protocol checksum mismatch:"
-				   " expected '%s', stored on disk '%s'",
-				   runtime_be_version, (char*)hdr1.bh_be_version);
-#endif
-
-	hdr2 = m0_alloc(be_seg_hdr_size());
-	if (hdr2 == NULL)
+	hdr = m0_alloc(be_seg_hdr_size());
+	if (hdr == NULL)
 		return M0_ERR(-ENOMEM);
 
 	rc = m0_be_io_single(seg->bs_stob, SIO_READ,
-			     hdr2, M0_BE_SEG_HEADER_OFFSET,
-			     be_seg_hdr_size());
+			     hdr, M0_BE_SEG_HEADER_OFFSET, be_seg_hdr_size());
 	if (rc != 0) {
-		m0_free(hdr2);
-		return M0_RC(rc);
-	}
-	g = be_seg_geom_find_by_id(hdr2, seg->bs_id);
-	if (g == NULL) {
-		m0_free(hdr2);
-		return M0_ERR(-ENOENT);
+		m0_free(hdr);
+		return M0_ERR(rc);
 	}
 
-	/* XXX check for magic */
+	runtime_be_version = m0_build_info_get()->
+				bi_xcode_protocol_be_checksum;
+	if (strncmp(hdr->bh_be_version, runtime_be_version,
+		    M0_BE_SEG_HDR_VERSION_LEN_MAX) != 0) {
+		rc = M0_ERR_INFO(-EPROTO, "BE protocol checksum mismatch:"
+				 " expected '%s', stored on disk '%s'",
+				 runtime_be_version, (char*)hdr->bh_be_version);
+		m0_free(hdr);
+		return rc;
+	}
+
+	g = be_seg_geom_find_by_id(hdr, seg->bs_id);
+	if (g == NULL) {
+		m0_free(hdr);
+		return M0_ERR(-ENOENT);
+	}
 
 	fd = m0_stob_linux_container(seg->bs_stob)->sl_fd;
 	p = mmap(g->sg_addr, g->sg_size, PROT_READ | PROT_WRITE,
 		 MAP_FIXED | MAP_PRIVATE | MAP_NORESERVE, fd, g->sg_offset);
-	if (p != g->sg_addr)
+	if (p != g->sg_addr) {
+		m0_free(hdr);
 		return M0_ERR_INFO(-errno, "p=%p g->sg_addr=%p", p, g->sg_addr);
+	}
 
 	/* rc = be_seg_read_all(seg, &hdr); */
 	rc = 0;
@@ -385,7 +379,7 @@ M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg)
 		munmap(g->sg_addr, g->sg_size);
 	}
 
-	m0_free(hdr2);
+	m0_free(hdr);
 	return M0_RC(rc);
 }
 
