@@ -180,14 +180,19 @@ Vagrant.configure('2') do |config|
 
   # CMU ------------------------------------
 
-  cmu_cpus = ENV['M0_VM_CMU_CPUS'].nil?   ? (cpus > 2 ? cpus / 2 + 1 : 1) : ENV['M0_VM_CMU_CPUS'].to_i
-  cmu_mem  = ENV['M0_VM_CMU_MEM_MB'].nil? ? 3072 : ENV['M0_VM_CMU_MEM_MB'].to_i
+  cmu_cpus   = ENV['M0_VM_CMU_CPUS'].nil?   ? (cpus > 2 ? cpus / 2 + 1 : 1) : ENV['M0_VM_CMU_CPUS'].to_i
+  cmu_mem    = ENV['M0_VM_CMU_MEM_MB'].nil? ? 3072 : ENV['M0_VM_CMU_MEM_MB'].to_i
+  cmu_docker = ENV['M0_VM_CMU_ENABLE_DOCKER'].nil?                 ? false
+             : ENV['M0_VM_CMU_ENABLE_DOCKER'].match(/yes|true|1/i) ? true
+             :                                                       false
 
   config.vm.define :cmu, primary: true do |cmu|
     cmu.vm.hostname = 'cmu'
     setup(cmu, cmu_cpus, cmu_mem)
     setup_shared_mero_src_dir(cmu)
-    cmu.vm.provision :docker
+    if cmu_docker
+      cmu.vm.provision :docker
+    end
     if !ENV['M0_VM_PROVISION_SCRIPT'].nil?
       if File.exists?(File.expand_path(ENV['M0_VM_PROVISION_SCRIPT']))
         cmu.vm.provision :shell, path: ENV['M0_VM_PROVISION_SCRIPT'], privileged: false
