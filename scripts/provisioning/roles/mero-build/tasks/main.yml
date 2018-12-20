@@ -19,6 +19,36 @@
     name:  '{{ mero_doc_deps_pkgs }}'
   tags: mero-doc
 
+- name: check if PlantUML has been already updated
+  stat: path=/usr/share/java/plantuml.jar.orig
+  register: orig_plantuml_jar
+  tags:
+    - mero-doc
+    - plantuml
+
+- name: update PlantUML to the latest version
+  when: orig_plantuml_jar.stat.exists == False
+  block:
+    - name: backup current plantuml.jar
+      copy:
+        remote_src: True
+        src: /usr/share/java/plantuml.jar
+        dest: /usr/share/java/plantuml.jar.orig
+
+    - name: remove old plantuml.jar
+      file:
+        path: /usr/share/java/plantuml.jar
+        state: absent
+
+    - name: download the latest version of plantuml.jar
+      get_url:
+        url:  https://cytranet.dl.sourceforge.net/project/plantuml/plantuml.jar
+        dest: /usr/share/java/plantuml.jar
+        mode: 0755
+  tags:
+    - mero-doc
+    - plantuml
+
 - name: install pip modules for Mero doc build
   become: no
   pip:
@@ -179,8 +209,7 @@
     - name: download mscgen src rpm
       get_url:
         url: 'http://dl.fedoraproject.org/pub/fedora/linux/releases/27/Everything/source/tree/Packages/m/mscgen-0.20-21.fc27.src.rpm'
-        dest: /root
-        #creates: ~/mscgen-*.src.rpm
+        dest: /root/mscgen-0.20-21.fc27.src.rpm
 
     - name: install mscgen src rpm
       command: rpm -ihv ~/mscgen-*.src.rpm
