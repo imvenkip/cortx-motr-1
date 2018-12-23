@@ -403,6 +403,14 @@ Tests:
     polltime : 30
     timeout  : 1800
 
+  - id       : 45clovis-sns-repair-N-1
+    script   : clovis_sns_repair_N_1.sh
+    dir      : src/clovis/st/utils/
+    executor : Xperior::Executor::MeroTest
+    sandbox  : /var/mero/sandbox.45clovis-sns-repair-N-1
+    polltime : 30
+    timeout  : 1800
+
 # 25 min
 dangerous: 'yes'
 description: Set of Mero  tests

@@ -398,8 +398,10 @@ static void clovis_cob_complete_op(struct m0_clovis_op *op)
 }
 
 /**
- * Fails a whole operation and moves the state of its state machines to
- * failed or error states.
+ * Fails a whole operation and moves the state of its state machine.
+ * Note that when failing an operation, an error code is stored in
+ * m0_clovis_op::op_rc and its state is set to STABLE if the op has
+ * already been launched (in LAUNCHED state).
  *
  * @param oo object operation to be failed.
  * @param rc error code that explains why the operation is being failed.
@@ -442,10 +444,21 @@ static void clovis_cob_fail_op(struct m0_clovis_op *op, int rc)
 
 	op->op_rc = rc;
 	m0_sm_group_lock(op_grp);
-	m0_sm_move(&op->op_sm, 0, M0_CLOVIS_OS_EXECUTED);
-	m0_clovis_op_executed(op);
-	m0_sm_move(&op->op_sm, 0, M0_CLOVIS_OS_STABLE);
-	m0_clovis_op_stable(op);
+	M0_ASSERT(M0_IN(op->op_sm.sm_state,
+		        (M0_CLOVIS_OS_INITIALISED, M0_CLOVIS_OS_LAUNCHED)));
+	/*
+	 * It is possible that clovis_cob_fail_op() is called before
+	 * an op is launched. For example, rpc sessions to io/md
+	 * services are invalid for some reason and no fop are
+	 * sent. In this case, the op is still in INITIALISED state
+	 * when reaching here.
+	 */
+	if (op->op_sm.sm_state == M0_CLOVIS_OS_LAUNCHED) {
+		m0_sm_move(&op->op_sm, 0, M0_CLOVIS_OS_EXECUTED);
+		m0_clovis_op_executed(op);
+		m0_sm_move(&op->op_sm, 0, M0_CLOVIS_OS_STABLE);
+		m0_clovis_op_stable(op);
+	}
 	m0_sm_group_unlock(op_grp);
 
 out:
@@ -1071,6 +1084,9 @@ static int clovis_cob_ios_send(struct clovis_cob_req *cr, uint32_t idx)
 	}
 	M0_ASSERT(cob_idx != ~0);
 	M0_ASSERT(session != NULL);
+
+	if (M0_FI_ENABLED("invalid_rpc_session"))
+		return M0_ERR(-EINVAL);
 
 	rc = m0_rpc_session_validate(session);
 	if (rc != 0)

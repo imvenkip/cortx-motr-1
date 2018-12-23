@@ -1221,7 +1221,7 @@ void m0_clovis_realm_close(struct m0_clovis_realm   *realm,
  * otherwise a pool selected by internal policy is used.
  * @param entity In-memory representation of the entity that is to be created.
  * @param[out] op Pointer to the operation. The operation can be pre-allocated
- * by the application. Otherwise, this entry point will allocate it.
+ * by the application. Otherwise, this entry point will allocate it if succeed.
  * @return 0 for success, (*op)->op_sm.sm_rc otherwise.
  *
  * @pre entity != NULL
@@ -1240,7 +1240,7 @@ int m0_clovis_entity_delete(struct m0_clovis_entity *entity,
  *
  * @param entity The entity that needs to be opened.
  * @param[out] op Pointer to the operation which can be pre-allocated by the
- * application. Else, this entry point will allocate it.
+ * application. Else, this entry point will allocate it if succeed.
  * @return 0 for success, (*op)->op_sm.sm_rc otherwise
  *
  * @pre entity != NULL

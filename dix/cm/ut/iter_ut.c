@@ -296,7 +296,7 @@ static int iter_ut_fom_tick(struct m0_fom *fom0)
 	case ITER_UT_FOM_INIT:
 		iter_ut_fom_init(fom);
 		if (fom->iu_op != ITER_UT_OP_META_LOOKUP)
-			m0_dtx_open(&fom->iu_fom.fo_tx);
+			m0_dtx_open(&fom0->fo_tx);
 		m0_fom_phase_set(fom0, ITER_UT_FOM_INIT_WAIT);
 		break;
 	case ITER_UT_FOM_INIT_WAIT:
@@ -308,14 +308,14 @@ static int iter_ut_fom_tick(struct m0_fom *fom0)
 				  (M0_BTS_OPENING, M0_BTS_GROUPING))) {
 				m0_fom_wait_on(fom0,
 					       &m0_fom_tx(fom0)->t_sm.sm_chan,
-				               &fom0->fo_cb);
+					       &fom0->fo_cb);
 				result = M0_FSO_WAIT;
 				break;
 			} else {
 				m0_dtx_opened(&fom0->fo_tx);
 			}
 		}
-		m0_ctg_op_init(&fom->iu_ctg_op, &fom->iu_fom, 0);
+		m0_ctg_op_init(&fom->iu_ctg_op, fom0, 0);
 		if (fom->iu_op == ITER_UT_OP_CTIDX_DELETE)
 			result = M0_FOM_LONG_LOCK_RETURN(m0_long_write_lock(
 						 m0_ctg_del_lock(),

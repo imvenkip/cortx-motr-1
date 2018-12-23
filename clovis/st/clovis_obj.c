@@ -35,7 +35,8 @@
 
 #include "lib/memory.h"
 #include "lib/types.h"
-#include "lib/errno.h" /* ENOENT */
+#include "lib/errno.h"    /* ENOENT */
+#include "lib/finject.h"  /* m0_fi_enable_once */
 
 #ifndef __KERNEL__
 #include <stdlib.h>
@@ -87,6 +88,49 @@ static void obj_create_simple(void)
 	mem_free(obj);
 }
 
+/*
+ * Test error handling of object operation using fault injection.
+ */
+static void obj_create_error_handling(void)
+{
+	struct m0_clovis_op    *ops[] = {NULL};
+	struct m0_clovis_obj   *obj;
+	struct m0_uint128       id;
+	int                     rc;
+
+	MEM_ALLOC_PTR(obj);
+	CLOVIS_ST_ASSERT_FATAL(obj != NULL);
+
+	/* Initialise ids. */
+	clovis_oid_get(&id);
+
+	clovis_st_obj_init(obj, &clovis_st_obj_container.co_realm,
+			   &id, layout_id);
+	rc = clovis_st_entity_create(NULL, &obj->ob_entity, &ops[0]);
+	CLOVIS_ST_ASSERT_FATAL(rc == 0);
+	CLOVIS_ST_ASSERT_FATAL(ops[0] != NULL);
+	CLOVIS_ST_ASSERT_FATAL(ops[0]->op_sm.sm_rc == 0);
+
+	m0_fi_enable("clovis_cob_ios_send", "invalid_rpc_session");
+	clovis_st_op_launch(ops, ARRAY_SIZE(ops));
+	m0_fi_disable("clovis_cob_ios_send", "invalid_rpc_session");
+
+	rc = clovis_st_op_wait(ops[0], M0_BITS(M0_CLOVIS_OS_FAILED,
+					       M0_CLOVIS_OS_STABLE),
+				m0_time_from_now(5,0));
+	/*
+	 * As invalid_rpc_session faults are injected during
+	 * launching an op above, m0_clovis_op_wait() is supposed to
+	 * return with TIMEDOUT error.
+	 */
+	CLOVIS_ST_ASSERT_FATAL(rc == -ETIMEDOUT);
+	CLOVIS_ST_ASSERT_FATAL(ops[0]->op_sm.sm_state != M0_CLOVIS_OS_STABLE);
+
+	clovis_st_op_fini(ops[0]);
+	clovis_st_op_free(ops[0]);
+	clovis_st_entity_fini(&obj->ob_entity);
+	mem_free(obj);
+}
 /**
  * Tries to open an object that does not exist.
  */
@@ -759,6 +803,8 @@ struct clovis_st_suite st_suite_clovis_obj = {
 	.ss_tests = {
 		{ "obj_create_simple",
 		  &obj_create_simple},
+		{ "obj_create_error_handling",
+		  &obj_create_error_handling},
 		{ "obj_open_non_existent",
 		  &obj_open_non_existent},
 		{ "obj_create_double_same_id",

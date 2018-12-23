@@ -222,7 +222,10 @@ M0_INTERNAL int m0_sns_cm_repair_cp_xform(struct m0_cm_cp *cp)
 	struct m0_sns_cm_repair_ag *rag;
 	struct m0_cm_aggr_group    *ag;
 	struct m0_cm_cp            *res_cp;
+	struct m0_sns_cm_file_ctx  *fctx;
+	struct m0_pdclust_layout   *pl;
 	struct m0_cm_ag_id          id;
+	enum m0_parity_cal_algo     pm_algo;
 	int                         rc = 0;
 	int                         i;
 
@@ -233,10 +236,13 @@ M0_INTERNAL int m0_sns_cm_repair_cp_xform(struct m0_cm_cp *cp)
 	scp = cp2snscp(cp);
 	sns_ag = ag2snsag(ag);
 	rag = sag2repairag(sns_ag);
-	M0_ASSERT_INFO(M0_IN(rag->rag_math.pmi_parity_algo,
-			     (M0_PARITY_CAL_ALGO_XOR,
-			      M0_PARITY_CAL_ALGO_REED_SOLOMON)),
-		       "parity_algo=%d", (int)rag->rag_math.pmi_parity_algo);
+	pm_algo = rag->rag_math.pmi_parity_algo;
+	fctx = sns_ag->sag_fctx;
+	pl = m0_layout_to_pdl(fctx->sf_layout);
+	M0_ASSERT_INFO(ergo(!m0_pdclust_is_replicated(pl), M0_IN(pm_algo,
+					(M0_PARITY_CAL_ALGO_XOR,
+					M0_PARITY_CAL_ALGO_REED_SOLOMON))),
+		       "parity_algo=%d", (int)pm_algo);
 
 	m0_cm_ag_lock(ag);
 	M0_LOG(M0_DEBUG, "xform: id=["M0_AG_F"] local_cp_nr=[%lu]"
@@ -261,17 +267,31 @@ M0_INTERNAL int m0_sns_cm_repair_cp_xform(struct m0_cm_cp *cp)
 			  (ag->cag_cp_global_nr - sns_ag->sag_fnr) *
 			  sns_ag->sag_fnr);
 
-	if (rag->rag_math.pmi_parity_algo == M0_PARITY_CAL_ALGO_REED_SOLOMON) {
+	if (!m0_pdclust_is_replicated(pl) &&
+	    pm_algo == M0_PARITY_CAL_ALGO_REED_SOLOMON) {
 		rc = m0_cm_cp_bufvec_merge(cp);
 		if (rc != 0)
 			goto out;
 		cp_rs_recover(cp, scp->sc_failed_idx);
 	}
+	/*
+	 * Local copy packets are merged with all the accumulators while the
+	 * non-local or incoming copy packets are merged with the accumulators
+	 * corresponding to the respective failed indices.
+	 */
 	for (i = 0; i < sns_ag->sag_fnr; ++i) {
 		if (rag->rag_fc[i].fc_is_active || !rag->rag_fc[i].fc_is_inuse)
 			continue;
 		res_cp = &rag->rag_fc[i].fc_tgt_acc_cp.sc_base;
-		if (rag->rag_math.pmi_parity_algo == M0_PARITY_CAL_ALGO_XOR)
+		/*
+		 * N == 1, no need for transformation, just copy data to the
+		 * respective accumulator.
+		 */
+		if (m0_pdclust_is_replicated(pl)) {
+			if (scp->sc_is_local ||
+			    (scp->sc_failed_idx == rag->rag_fc[i].fc_failed_idx))
+				m0_cm_cp_data_copy(cp, res_cp);
+		} else if (pm_algo == M0_PARITY_CAL_ALGO_XOR)
 			cp_xor_recover(res_cp, cp);
 
 		/*
@@ -279,9 +299,8 @@ M0_INTERNAL int m0_sns_cm_repair_cp_xform(struct m0_cm_cp *cp)
 		 * resultant copy packet.
 		 */
 		if (cp->c_xform_cp_indices.b_nr > 0) {
-			if (scp->sc_is_local ||
-			    (!scp->sc_is_local && (scp->sc_failed_idx ==
-			     rag->rag_fc[i].fc_failed_idx))) {
+			if (scp->sc_is_local || (scp->sc_failed_idx ==
+						 rag->rag_fc[i].fc_failed_idx)) {
 				res_cp_bitmap_merge(res_cp, cp);
 				rc = repair_ag_fc_acc_post(rag, &rag->rag_fc[i]);
 				if (rc != 0 && rc != -ENOENT)

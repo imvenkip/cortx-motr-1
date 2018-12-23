@@ -445,6 +445,11 @@ static int clovis_obj_namei_op_init(struct m0_clovis_entity *entity,
 	M0_PRE(entity != NULL);
 	M0_PRE(op != NULL);
 
+	if (M0_FI_ENABLED("fake_msg_size")) {
+		rc = M0_ERR(-EMSGSIZE);
+		goto error;
+	}
+
 	if (op->op_size < sizeof *oo) {
 		rc = M0_ERR(-EMSGSIZE);
 		goto error;
@@ -638,8 +643,10 @@ static int clovis_obj_op_prepare(struct m0_clovis_entity *entity,
 op_fini:
 	m0_clovis_op_fini(*op);
 op_free:
-	if (alloced)
+	if (alloced) {
 		m0_clovis_op_free(*op);
+		*op = NULL;
+	}
 
 	return M0_RC(rc);
 }
@@ -658,7 +665,8 @@ static int clovis_entity_namei_op(struct m0_clovis_entity *entity,
 				struct m0_clovis_op **op,
 				enum m0_clovis_entity_opcode opcode)
 {
-	int rc;
+	int  rc;
+	bool pre_allocated = false;
 
 	M0_ENTRY();
 
@@ -673,6 +681,7 @@ static int clovis_entity_namei_op(struct m0_clovis_entity *entity,
 
 	switch (entity->en_type) {
 	case M0_CLOVIS_ET_OBJ:
+		pre_allocated = (*op != NULL);
 		/* Allocate an op on an object and initialise common stuff. */
 		rc = clovis_obj_op_prepare(entity, op, opcode);
 		if (rc != 0)
@@ -681,7 +690,7 @@ static int clovis_entity_namei_op(struct m0_clovis_entity *entity,
 		/* Initialise the stuff specific to a obj namespace operation. */
 		rc = clovis_obj_namei_op_init(entity, *op);
 		if (rc != 0)
-			goto error;
+			goto op_fini;
 		break;
 	case M0_CLOVIS_ET_IDX:
 		rc = m0_clovis_idx_op_namei(entity, op, opcode);
@@ -697,6 +706,12 @@ static int clovis_entity_namei_op(struct m0_clovis_entity *entity,
 	m0_sm_group_unlock(&(*op)->op_sm_group);
 
 	return M0_RC(0);
+op_fini:
+	m0_clovis_op_fini(*op);
+	if (!pre_allocated) {
+		m0_clovis_op_free(*op);
+		*op = NULL;
+	}
 error:
 	M0_ASSERT(rc != 0);
 	return M0_ERR(rc);
