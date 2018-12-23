@@ -16,7 +16,8 @@ clovis_st_user_space_c0st_SOURCES = clovis/st/user_space/clovis_st_main.c \
 		      clovis/st/clovis_example.c \
 		      clovis/st/clovis_st_assert.h \
 		      clovis/st/clovis_st.h \
-		      clovis/st/clovis_st_misc.h
+		      clovis/st/clovis_st_misc.h \
+		      clovis/st/mt/clovis_mt_fom.c
 
 clovis_st_utils_c0client_SOURCES = clovis/st/utils/clovis_client.c \
 		      clovis/st/utils/clovis_helper.c \

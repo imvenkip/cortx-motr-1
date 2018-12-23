@@ -243,11 +243,14 @@ M0_INTERNAL int m0_dix_ldescr_del(struct m0_dix_meta_req *req,
  * Stores layouts for distributed indices with the given fids.
  *
  * It puts "index fid":"index layout" pairs to "layout" meta-index.
+ *
+ * @note See m0_dix_put() for allowed flags.
  */
 M0_INTERNAL int m0_dix_layout_put(struct m0_dix_meta_req     *req,
 				  const struct m0_fid        *fid,
 				  const struct m0_dix_layout *dlay,
-				  uint32_t                    nr);
+				  uint32_t                    nr,
+				  uint32_t                    flags);
 
 /**
  * Retrieves layouts for distributed indices with the given fids.

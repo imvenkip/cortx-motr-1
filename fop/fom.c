@@ -242,36 +242,38 @@ static bool thread_invariant(const struct m0_loc_thread *t)
 	struct m0_fom_locality *loc = t->lt_loc;
 
 	return
-		M0_IN(t->lt_state, (HANDLER, BLOCKED, UNBLOCKING, IDLE)) &&
-		(loc->fl_handler == t) == (t->lt_state == HANDLER) &&
-		ergo(t->lt_state == UNBLOCKING,
-		     m0_atomic64_get(&loc->fl_unblocking) > 0);
+		_0C(M0_IN(t->lt_state, (HANDLER, BLOCKED, UNBLOCKING, IDLE))) &&
+		_0C((loc->fl_handler == t) == (t->lt_state == HANDLER)) &&
+		_0C(ergo(t->lt_state == UNBLOCKING,
+		     m0_atomic64_get(&loc->fl_unblocking) > 0));
 }
 
 M0_INTERNAL bool m0_fom_domain_invariant(const struct m0_fom_domain *dom)
 {
 	size_t cpu_max = m0_processor_nr_max();
-	return dom != NULL && dom->fd_localities != NULL &&
-	       dom->fd_localities_nr <= cpu_max &&
-	       m0_forall(i, dom->fd_localities_nr,
-			 dom->fd_localities[i] != NULL) &&
-		dom->fd_ops != NULL;
+	return
+		_0C(dom != NULL && dom->fd_localities != NULL) &&
+		_0C(dom->fd_localities_nr <= cpu_max) &&
+		_0C(m0_forall(i, dom->fd_localities_nr,
+			     dom->fd_localities[i] != NULL)) &&
+		_0C(dom->fd_ops != NULL);
 }
 
 M0_INTERNAL bool m0_locality_invariant(const struct m0_fom_locality *loc)
 {
-	return	loc != NULL && loc->fl_dom != NULL &&
-		m0_mutex_is_locked(&loc->fl_group.s_lock) &&
-		M0_CHECK_EX(m0_tlist_invariant(&runq_tl, &loc->fl_runq)) &&
-		M0_CHECK_EX(m0_tlist_invariant(&wail_tl, &loc->fl_wail)) &&
-		m0_tl_forall(thr, t, &loc->fl_threads,
-			     t->lt_loc == loc && thread_invariant(t)) &&
-		ergo(loc->fl_handler != NULL,
-		     thr_tlist_contains(&loc->fl_threads, loc->fl_handler)) &&
-		M0_CHECK_EX(m0_tl_forall(runq, fom, &loc->fl_runq,
-					 fom->fo_loc == loc)) &&
-		M0_CHECK_EX(m0_tl_forall(wail, fom, &loc->fl_wail,
-					 fom->fo_loc == loc));
+	return
+		_0C(loc != NULL && loc->fl_dom != NULL) &&
+		_0C(m0_mutex_is_locked(&loc->fl_group.s_lock)) &&
+		_0C(M0_CHECK_EX(m0_tlist_invariant(&runq_tl, &loc->fl_runq))) &&
+		_0C(M0_CHECK_EX(m0_tlist_invariant(&wail_tl, &loc->fl_wail))) &&
+		_0C(m0_tl_forall(thr, t, &loc->fl_threads,
+			     t->lt_loc == loc && thread_invariant(t))) &&
+		_0C(ergo(loc->fl_handler != NULL,
+		     thr_tlist_contains(&loc->fl_threads, loc->fl_handler))) &&
+		_0C(M0_CHECK_EX(m0_tl_forall(runq, fom, &loc->fl_runq,
+					 fom->fo_loc == loc))) &&
+		_0C(M0_CHECK_EX(m0_tl_forall(wail, fom, &loc->fl_wail,
+					 fom->fo_loc == loc)));
 }
 
 M0_INTERNAL struct m0_reqh *m0_fom_reqh(const struct m0_fom *fom)
@@ -535,7 +537,6 @@ M0_INTERNAL void m0_fom_block_leave(struct m0_fom *fom)
 	thr = fom->fo_thread;
 
 	M0_PRE(thr->lt_state == BLOCKED);
-	thr->lt_state = UNBLOCKING;
 	/*
 	 * Signal the handler that there is a thread that wants to unblock, just
 	 * in case the handler is sleeping on empty runqueue.
@@ -546,6 +547,17 @@ M0_INTERNAL void m0_fom_block_leave(struct m0_fom *fom)
 	 */
 	if (m0_atomic64_add_return(&loc->fl_unblocking, 1) == 1)
 		m0_clink_signal(&loc->fl_group.s_clink);
+	/*
+	 * lt_state must be changed after fl_unblocking increment
+	 * to avoid panics at thread_invariant(). Also, we rely
+	 * on the following fact from the Linux kernel here:
+	 *
+	 *  - RMW operations that have a return value are fully ordered;
+	 *
+	 * (See https://www.kernel.org/doc/Documentation/atomic_t.txt)
+	 */
+	thr->lt_state = UNBLOCKING;
+
 	group_lock(loc);
 	thr_addb2_enter(thr, loc);
 	fom_addb2_push(fom);

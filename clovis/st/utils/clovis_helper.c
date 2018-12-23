@@ -29,6 +29,7 @@
 #include "clovis/clovis.h"
 #include "clovis/clovis_idx.h"
 
+/** Max number of blocks in concurrent IO per thread. */
 enum { CLOVIS_MAX_BLOCK_COUNT = 100 };
 
 extern struct m0_addb_ctx m0_clovis_addb_ctx;
@@ -84,8 +85,6 @@ int create_object(struct m0_clovis_container *clovis_container,
 	clovis_instance = clovis_container->co_realm.re_instance;
 	m0_clovis_obj_init(&obj, &clovis_container->co_realm, &id,
 			   m0_clovis_layout_id(clovis_instance));
-
-	open_entity(&obj.ob_entity);
 
 	m0_clovis_entity_create(NULL, &obj.ob_entity, &ops[0]);
 
@@ -189,7 +188,7 @@ int clovis_write(struct m0_clovis_container *clovis_container,
 	struct m0_indexvec ext;
 	struct m0_bufvec   data;
 	struct m0_bufvec   attr;
-	uint32_t           blk_count;
+	uint32_t           bcount;
 	FILE              *fp;
 
 	/* Open source file */
@@ -206,20 +205,20 @@ int clovis_write(struct m0_clovis_container *clovis_container,
 
 	last_index = 0;
 	while (block_count > 0) {
-		blk_count = (block_count > CLOVIS_MAX_BLOCK_COUNT)?
+		bcount = (block_count > CLOVIS_MAX_BLOCK_COUNT)?
 			    CLOVIS_MAX_BLOCK_COUNT:block_count;
 
-		/* Allocate block_count * 4K data buffer. */
-		rc = m0_bufvec_alloc(&data, blk_count, block_size);
+		/* Allocate block_count * block_size data buffer. */
+		rc = m0_bufvec_alloc(&data, bcount, block_size);
 		if (rc != 0)
 			return rc;
 
 		/* Allocate bufvec and indexvec for write. */
-		rc = m0_bufvec_alloc(&attr, blk_count, 1);
+		rc = m0_bufvec_alloc(&attr, bcount, 1);
 		if (rc != 0)
 			return rc;
 
-		rc = m0_indexvec_alloc(&ext, blk_count);
+		rc = m0_indexvec_alloc(&ext, bcount);
 		if (rc != 0)
 			return rc;
 
@@ -227,7 +226,7 @@ int clovis_write(struct m0_clovis_container *clovis_container,
 		 * Prepare indexvec for write: <clovis_block_count> from the
 		 * beginning of the object.
 		 */
-		for (i = 0; i < blk_count; i++) {
+		for (i = 0; i < bcount; i++) {
 			ext.iv_index[i] = last_index;
 			ext.iv_vec.v_count[i] = block_size;
 			last_index += block_size;
@@ -238,7 +237,7 @@ int clovis_write(struct m0_clovis_container *clovis_container,
 
 		/* Read data from source file. */
 		rc = read_data_from_file(fp, &data);
-		M0_ASSERT(rc == blk_count);
+		M0_ASSERT(rc == bcount);
 
 		/* Copy data to the object*/
 		rc = write_data_to_object(clovis_container, id,
@@ -253,7 +252,7 @@ int clovis_write(struct m0_clovis_container *clovis_container,
 		m0_bufvec_free(&data);
 		m0_bufvec_free(&attr);
 
-		block_count -= blk_count;
+		block_count -= bcount;
 	}
 
 	fclose(fp);

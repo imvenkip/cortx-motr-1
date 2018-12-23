@@ -374,7 +374,7 @@ Tests:
   - id       : 41clovis-conf-update
     script   : clovis_conf_update_st.sh
     dir      : src/clovis/st/utils/
-    executor : Xperior::Executor::Skip
+    executor : Xperior::Executor::MeroTest
     sandbox  : /var/mero/sandbox.41clovis-conf-update
     polltime : 30
     timeout  : 1800
@@ -408,6 +408,14 @@ Tests:
     dir      : src/clovis/st/utils/
     executor : Xperior::Executor::MeroTest
     sandbox  : /var/mero/sandbox.45clovis-sns-repair-N-1
+    polltime : 30
+    timeout  : 1800
+
+  - id       : 46m0crate
+    script   : m0crate_st.sh
+    dir      : src/clovis/st/utils/
+    executor : Xperior::Executor::MeroTest
+    sandbox  : /var/mero/sandbox.46m0crate
     polltime : 30
     timeout  : 1800
 

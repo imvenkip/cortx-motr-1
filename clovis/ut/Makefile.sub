@@ -10,6 +10,7 @@ ut_libmero_ut_la_SOURCES += clovis/ut/clovis.c \
 			    clovis/ut/clovis_idx_dix.c \
 			    clovis/ut/clovis_sync.c \
 			    clovis/ut/clovis_layout.c \
-			    clovis/ut/clovis.h
+			    clovis/ut/clovis.h \
+			    clovis/st/mt/clovis_mt_fom.c
 
 CONFXC_FILES += clovis/ut/dix_conf.xc

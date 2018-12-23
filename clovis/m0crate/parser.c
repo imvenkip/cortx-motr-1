@@ -42,7 +42,6 @@ enum config_key_val {
 	HA_ADDR,
 	CLOVIS_PROF,
 	LAYOUT_ID,
-	BLOCK_SIZE,
 	IS_OOSTORE,
 	IS_READ_VERIFY,
 	MAX_QUEUE_LEN,
@@ -76,8 +75,8 @@ enum config_key_val {
 	INDEX_FID,
 	LOG_LEVEL,
 	THREAD_OPS,
-	UNIT_SIZE,
-	NR_UNITS_PER_OP,
+	BLOCK_SIZE,
+	BLOCKS_PER_OP,
 	IOSIZE,
 	SOURCE_FILE,
 	RAND_IO,
@@ -98,7 +97,6 @@ struct key_lookup_table lookuptable[] = {
 	{"MERO_HA_ADDR", HA_ADDR},
 	{"CLOVIS_PROF", CLOVIS_PROF},
 	{"LAYOUT_ID", LAYOUT_ID},
-	{"BLOCK_SIZE", BLOCK_SIZE},
 	{"IS_OOSTORE", IS_OOSTORE},
 	{"IS_READ_VERIFY", IS_READ_VERIFY},
 	{"CLOVIS_TM_RECV_QUEUE_MIN_LEN", MAX_QUEUE_LEN},
@@ -133,8 +131,8 @@ struct key_lookup_table lookuptable[] = {
 	{"NR_OBJS", NR_OBJS},
 	{"NR_THREADS", NR_THREADS},
 	{"THREAD_OPS", THREAD_OPS},
-	{"UNIT_SIZE", UNIT_SIZE},
-	{"NR_UNITS_PER_OP", NR_UNITS_PER_OP},
+	{"BLOCK_SIZE", BLOCK_SIZE},
+	{"BLOCKS_PER_OP", BLOCKS_PER_OP},
 	{"CLOIVS_IOSIZE", IOSIZE},
 	{"SOURCE_FILE", SOURCE_FILE},
 	{"RAND_IO", RAND_IO},
@@ -267,6 +265,12 @@ int copy_value(struct workload *load, int max_workload, int *index,
 				return -ENOMEM;
 			strcpy(conf->clovis_prof, value);
 			break;
+		case MAX_QUEUE_LEN:
+			conf->tm_recv_queue_min_len = atoi(value);
+			break;
+		case MAX_RPC_MSG:
+			conf->max_rpc_msg_size = atoi(value);
+			break;
 		case PROCESS_FID:
 			conf->clovis_process_fid = m0_alloc(value_len + 1);
 			if (conf->clovis_process_fid == NULL)
@@ -275,9 +279,6 @@ int copy_value(struct workload *load, int max_workload, int *index,
 			break;
 		case LAYOUT_ID:
 			conf->layout_id = atoi(value);
-			break;
-		case BLOCK_SIZE:
-			conf->clovis_block_size = atoi(value);
 			break;
 		case IS_OOSTORE:
 			conf->is_oostrore = atoi(value);
@@ -306,6 +307,9 @@ int copy_value(struct workload *load, int max_workload, int *index,
 			break;
 		case WORKLOAD:
 			break;
+		case LOG_LEVEL:
+			conf->log_level = parse_int(value, LOG_LEVEL);
+			break;
 		case WORKLOAD_TYPE:
 			(*index)++;
 			w = &load[*index];
@@ -320,8 +324,7 @@ int copy_value(struct workload *load, int max_workload, int *index,
 				if (w->u.cw_clovis_io == NULL)
 					return -ENOMEM;
 			}
-                        workload_init(w, w->cw_type);
-			break;
+                        return workload_init(w, w->cw_type);
 		case SEED:
 			w = &load[*index];
 			if (w->cw_type == CWT_CLOVIS_IO) {
@@ -414,7 +417,7 @@ int copy_value(struct workload *load, int max_workload, int *index,
 							           EXEC_TIME);
 			} else {
 				cw = workload_io(w);
-				if (!strcmp(value, "unset"))
+				if (!strcmp(value, "unlimited"))
 					cw->cwi_execution_time = M0_TIME_NEVER;
 				else
 					cw->cwi_execution_time = parse_int(value,
@@ -459,25 +462,25 @@ int copy_value(struct workload *load, int max_workload, int *index,
 			ciw = workload_index(w);
 			ciw->warmup_del_ratio = parse_int(value, WARMUP_DEL_RATIO);
 			break;
-		case LOG_LEVEL:
-			w = &load[*index];
-			ciw = workload_index(w);
-			ciw->log_level = parse_int(value, LOG_LEVEL);
-			break;
 		case THREAD_OPS:
 			w = &load[*index];
 			cw = workload_io(w);
 			cw->cwi_share_object = atoi(value);
 			break;
-		case UNIT_SIZE:
+		case BLOCK_SIZE:
 			w = &load[*index];
 			cw = workload_io(w);
-			cw->cwi_unit_size = atol(value);
+			cw->cwi_bs = getnum(value, "block size");
+			if (conf->layout_id <= 0) {
+				cr_log(CLL_ERROR, "LAYOUT_ID is not set\n");
+				return -EINVAL;
+			}
+			cw->cwi_layout_id = conf->layout_id;
 			break;
-		case NR_UNITS_PER_OP:
+		case BLOCKS_PER_OP:
 			w  = &load[*index];
 			cw = workload_io(w);
-			cw->cwi_nr_units_per_op = atol(value);
+			cw->cwi_bcount_per_op = atol(value);
 			break;
 		case NR_OBJS:
 			w = &load[*index];
@@ -492,7 +495,7 @@ int copy_value(struct workload *load, int max_workload, int *index,
 		case IOSIZE:
 			w = &load[*index];
 			cw = workload_io(w);
-			cw->cwi_io_size = getnum(value, value);
+			cw->cwi_io_size = getnum(value, "io size");
 			break;
 		case SOURCE_FILE:
 			w = &load[*index];
@@ -538,13 +541,13 @@ int parse_yaml_file(struct workload *load, int max_workload, int *index,
 	yaml_parser_t parser;
 	yaml_token_t  token;
 
-	if(!yaml_parser_initialize(&parser)) {
+	if (!yaml_parser_initialize(&parser)) {
 		cr_log(CLL_ERROR, "Failed to initialize parser!\n");
 		return -1;
 	}
 
 	fh = fopen(config_file, "r");
-	if(fh == NULL) {
+	if (fh == NULL) {
 		cr_log(CLL_ERROR, "Failed to open file!\n");
 		return -1;
 	}
@@ -576,13 +579,14 @@ int parse_yaml_file(struct workload *load, int max_workload, int *index,
 
 		if (rc != 0) {
 			fclose(fh);
+			cr_log(CLL_ERROR, "Failed to parse %s\n", key);
 			return rc;
 		}
 
 		if (token.type != YAML_STREAM_END_TOKEN)
 			yaml_token_delete(&token);
 
-	} while(token.type != YAML_STREAM_END_TOKEN);
+	} while (token.type != YAML_STREAM_END_TOKEN);
 
 	yaml_token_delete(&token);
 

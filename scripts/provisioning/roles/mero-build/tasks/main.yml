@@ -12,6 +12,20 @@
     name:  '{{ mero_build_deps_pkgs }}'
   tags: breaks-dry-run
 
+- name: install Mero doc build-time dependencies
+  package:
+    state: present
+    name:  '{{ mero_doc_deps_pkgs }}'
+  tags: mero-doc
+
+- name: install pip modules for Mero doc build
+  become: no
+  pip:
+    name: '{{ mero_doc_pip_modules }}'
+    executable: pip3
+    extra_args: --user
+  tags: mero-doc
+
 - name: enable '{{ ansible_user }}' user to run `mock` w/o sudo
   user:
     name: '{{ ansible_user }}'
@@ -120,3 +134,39 @@
   tags:
     - lustre-devel
     - lustre
+
+- name: build mscgen from src rpm
+  block:
+    - name: download mscgen src rpm
+      get_url:
+        url: 'http://dl.fedoraproject.org/pub/fedora/linux/releases/27/Everything/source/tree/Packages/m/mscgen-0.20-21.fc27.src.rpm'
+        dest: /root
+        #creates: ~/mscgen-*.src.rpm
+
+    - name: install mscgen src rpm
+      command: rpm -ihv ~/mscgen-*.src.rpm
+      args:
+        creates: ~/rpmbuild/SPECS/mscgen.spec
+
+    - name: install mscgen rpm build dependencies
+      command: yum-builddep -y ~/rpmbuild/SPECS/mscgen.spec
+      register: builddep_result
+      changed_when: '"No uninstalled build requires" not in builddep_result.stdout'
+
+    - name: build mscgen rpm
+      command: rpmbuild -bb ~/rpmbuild/SPECS/mscgen.spec
+      args:
+        creates: ~/rpmbuild/RPMS/x86_64/mscgen-*.rpm
+
+    - name: read mscgen devel package filename
+      shell: ls ~/rpmbuild/RPMS/x86_64/mscgen-[0-9]*.rpm
+      register: mscgen_devel_rpm
+      changed_when: false
+
+    - name: install mscgen devel rpm
+      yum:
+        name: '{{ mscgen_devel_rpm.stdout }}'
+        state: present
+  when: ansible_os_family == 'RedHat'
+  tags:
+    - mero-doc

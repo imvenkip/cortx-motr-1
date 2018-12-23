@@ -56,7 +56,7 @@ static int stob_domain_type(const char *location,
 	char *type_str;
 	int   rc;
 
-	M0_ENTRY();
+	M0_ENTRY("location=%s", location);
 
 	rc = location == NULL ? -EINVAL : 0;
 	if (location != NULL) {
@@ -120,6 +120,8 @@ static int stob_domain_init(struct m0_stob_type *type,
 	bool  cfg_parsed;
 	int   rc;
 
+	M0_ENTRY("location_data=%s str_cfg_init=%s",
+		 location_data, str_cfg_init);
 	rc = type->st_ops->sto_domain_cfg_init_parse(str_cfg_init, &cfg_init);
 	cfg_parsed = rc == 0;
 	rc = rc ?: type->st_ops->sto_domain_init(type, location_data,
@@ -222,13 +224,11 @@ M0_INTERNAL int m0_stob_domain_create(const char *location,
 
 M0_INTERNAL int m0_stob_domain_destroy(struct m0_stob_domain *dom)
 {
-	const char *location_const;
+	const char *location_const = m0_stob_domain_location_get(dom);
 	char	   *location;
 	int	    rc;
 
-	M0_ENTRY();
-
-	location_const = m0_stob_domain_location_get(dom);
+	M0_ENTRY("location=%s", location_const);
 	location = location_const == NULL ? NULL : m0_strdup(location_const);
 	rc = location == NULL ? -ENOMEM : 0;
 	m0_stob_domain_fini(dom);
@@ -243,7 +243,7 @@ M0_INTERNAL int m0_stob_domain_destroy_location(const char *location)
 	char		    *location_data;
 	int		     rc;
 
-	M0_ENTRY();
+	M0_ENTRY("location=%s", location);
 
 	rc = location == NULL ? -EINVAL : 0;
 	rc = rc ?: stob_domain_type(location, &type);

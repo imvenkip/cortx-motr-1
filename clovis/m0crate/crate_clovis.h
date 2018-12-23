@@ -44,12 +44,14 @@ struct crate_clovis_conf {
         char *clovis_prof;
         char *clovis_process_fid;
         int layout_id;
-        unsigned long clovis_block_size;
         char *clovis_index_dir;
         int index_service_id;
         char *cass_cluster_ep;
         char *cass_keyspace;
+	int tm_recv_queue_min_len;
+	int max_rpc_msg_size;
         int col_family;
+	int log_level;
 };
 
 enum clovis_operation_type {
@@ -101,7 +103,6 @@ struct clovis_workload_index {
 
 	struct m0_fid		index_fid;
 
-	int			log_level;
 	int			max_record_size;
 	uint64_t		seed;
 };
@@ -119,7 +120,8 @@ enum clovis_operations {
 	CR_CREATE,
 	CR_DELETE,
 	CR_READ,
-	CR_WRITE
+	CR_WRITE,
+	CR_OPS_NR
 };
 
 enum clovis_operation_status {
@@ -137,9 +139,7 @@ struct cwi_global {
 	struct m0_uint128 cg_oid;
 	bool              cg_created;
 	int               cg_nr_tasks;
-	m0_time_t         cg_cwi_create_acc_time;
-	m0_time_t         cg_cwi_delete_acc_time;
-	m0_time_t         cg_cwi_write_acc_time;
+	m0_time_t         cg_cwi_acc_time[CR_OPS_NR];
 	struct m0_mutex   cg_mutex;
 };
 
@@ -147,10 +147,16 @@ struct clovis_workload_io {
 	/** Clovis Workload global context. */
 	struct cwi_global cwi_g;
 	uint32_t          cwi_layout_id;
-	uint64_t          cwi_unit_size;
-	uint32_t          cwi_nr_units_per_op;
+	/** IO Block Size */
+	uint64_t          cwi_bs;
+	/**
+	 * Number of blocks per IO operation. (Each thread
+	 * can run several IO operations concurrently.)
+	 */
+	uint32_t          cwi_bcount_per_op;
 	uint32_t          cwi_pool_id;
 	uint64_t          cwi_io_size;
+	uint64_t          cwi_ops_done[CR_OPS_NR];
 	uint32_t          cwi_max_nr_ops;
 	int32_t           cwi_mode;
 	int32_t           cwi_nr_objs;
@@ -158,9 +164,10 @@ struct clovis_workload_io {
 	bool              cwi_random_io;
 	bool              cwi_share_object;
 	int32_t	          cwi_opcode;
-	uint64_t          cwi_start_time;
-	uint64_t          cwi_finish_time;
-	uint64_t          cwi_execution_time;
+	m0_time_t         cwi_start_time;
+	m0_time_t         cwi_finish_time;
+	m0_time_t         cwi_execution_time;
+	m0_time_t         cwi_time[CR_OPS_NR];
 	char             *cwi_filename;
 };
 
@@ -177,13 +184,12 @@ struct clovis_task_io {
 	struct m0_clovis_obj      *cti_objs;
 	struct m0_clovis_op      **cti_ops;
 	uint64_t                   cti_nr_ops;
+	uint64_t                   cti_nr_ops_done;
 	struct timeval            *cti_op_list_time;
 	struct m0_thread          *cti_mthread;
 	char                      *cti_buffer;
 	struct m0_uint128         *cti_ids;
-	m0_time_t                  cti_create_acc_time;
-	m0_time_t                  cti_delete_acc_time;
-	m0_time_t                  cti_write_acc_time;
+	m0_time_t                  cti_op_acc_time;
 	struct cti_global          cti_g;
 	/** Limit op_launch to max_nr_ops */
 	struct m0_semaphore        cti_max_ops_sem;

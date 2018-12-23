@@ -194,6 +194,9 @@ M0_INTERNAL void m0_sns_cm_pver_dirty_set(struct m0_pool_version *pver);
 M0_INTERNAL int m0_sns_cm_pool_ha_nvec_alloc(struct m0_pool *pool,
 					     enum m0_pool_nd_state state,
 					     struct m0_ha_nvec *nvec);
+M0_INTERNAL enum m0_sns_cm_local_unit_type
+m0_sns_cm_local_unit_type_get(struct m0_sns_cm_file_ctx *fctx, uint64_t group,
+			      uint64_t unit);
 
 /** @} endgroup SNSCM */
 

@@ -162,7 +162,7 @@ struct m0_sm_state_descr clovis_entity_phases[] = {
 	},
 	[M0_CLOVIS_ES_CREATING] = {
 		.sd_name = "creating",
-		.sd_allowed = M0_BITS(M0_CLOVIS_ES_INIT, M0_CLOVIS_ES_FAILED),
+		.sd_allowed = M0_BITS(M0_CLOVIS_ES_OPEN, M0_CLOVIS_ES_FAILED),
 	},
 	[M0_CLOVIS_ES_DELETING] = {
 		.sd_name = "deleting",
@@ -195,7 +195,7 @@ struct m0_sm_trans_descr clovis_entity_trans[] = {
 	{"creating", M0_CLOVIS_ES_INIT, M0_CLOVIS_ES_CREATING},
 	{"deleting", M0_CLOVIS_ES_OPEN, M0_CLOVIS_ES_DELETING},
 	{"opening", M0_CLOVIS_ES_INIT, M0_CLOVIS_ES_OPENING},
-	{"finished-creating", M0_CLOVIS_ES_CREATING, M0_CLOVIS_ES_INIT},
+	{"finished-creating", M0_CLOVIS_ES_CREATING, M0_CLOVIS_ES_OPEN},
 	{"finished-deleting", M0_CLOVIS_ES_DELETING, M0_CLOVIS_ES_INIT},
 	{"open", M0_CLOVIS_ES_OPENING, M0_CLOVIS_ES_OPEN},
 	{"failed-to-create", M0_CLOVIS_ES_CREATING, M0_CLOVIS_ES_FAILED},
@@ -235,10 +235,14 @@ m0_clovis__entity_instance(const struct m0_clovis_entity *entity)
 M0_INTERNAL struct m0_clovis *
 m0_clovis__op_instance(const struct m0_clovis_op *op)
 {
+	struct m0_clovis_entity *entity;
 	M0_PRE(op != NULL);
-	M0_PRE(op->op_entity != NULL);
 
-	return m0_clovis__entity_instance(op->op_entity);
+	entity = op->op_code == M0_CLOVIS_EO_SYNC ?
+		m0_clovis__op_sync_entity(op) : op->op_entity;
+	M0_PRE(entity != NULL);
+
+	return m0_clovis__entity_instance(entity);
 }
 
 M0_INTERNAL struct m0_clovis_op *
@@ -462,7 +466,6 @@ void m0_clovis_obj_fini(struct m0_clovis_obj *obj)
 		m0_clovis_layout_free(obj->ob_layout);
 		obj->ob_layout = NULL;
 	}
-	m0_free(obj->ob_layout);
 	m0_clovis_entity_fini(&obj->ob_entity);
 	M0_SET0(obj);
 
@@ -510,13 +513,20 @@ M0_INTERNAL int m0_clovis_op_executed(struct m0_clovis_op *op)
  */
 M0_INTERNAL int m0_clovis_op_stable(struct m0_clovis_op *op)
 {
+	struct m0_clovis *m0c;
+
 	M0_ENTRY();
 
 	M0_ASSERT(clovis_op_invariant(op));
 
+	m0c = m0_clovis__op_instance(op);
+	M0_PRE(m0c != NULL);
+
 	/* Call the op:stable callback if one is present */
 	if (op->op_cbs != NULL && op->op_cbs->oop_stable != NULL)
 		op->op_cbs->oop_stable(op);
+	if (!M0_FI_ENABLED("skip_ongoing_io_ref"))
+		m0_clovis__io_ref_put(m0c);
 
 	return M0_RC(-1);
 }
@@ -531,13 +541,20 @@ M0_INTERNAL int m0_clovis_op_stable(struct m0_clovis_op *op)
  */
 M0_INTERNAL int m0_clovis_op_failed(struct m0_clovis_op *op)
 {
-	M0_ENTRY();
+	struct m0_clovis *m0c;
 
+	M0_ENTRY();
 	M0_ASSERT(clovis_op_invariant(op));
+
+	m0c = m0_clovis__op_instance(op);
+	M0_PRE(m0c != NULL);
 
 	/* Call the op:failed callback if one is present */
 	if (op->op_cbs != NULL && op->op_cbs->oop_failed != NULL)
 		op->op_cbs->oop_failed(op);
+
+	if (!M0_FI_ENABLED("skip_ongoing_io_ref"))
+		m0_clovis__io_ref_put(m0c);
 
 	return M0_RC(-1);
 }
@@ -587,6 +604,8 @@ M0_INTERNAL int m0_clovis_op_get(struct m0_clovis_op **op, size_t size)
 M0_INTERNAL void m0_clovis_op_launch_one(struct m0_clovis_op *op)
 {
 	struct m0_clovis_op_common *oc;
+	struct m0_clovis           *m0c;
+	int                         rc;
 
 	M0_ENTRY();
 
@@ -597,6 +616,16 @@ M0_INTERNAL void m0_clovis_op_launch_one(struct m0_clovis_op *op)
 
 	oc = bob_of(op, struct m0_clovis_op_common, oc_op, &oc_bobtype);
 	M0_PRE(oc->oc_cb_launch != NULL);
+
+	m0c = m0_clovis__op_instance(op);
+	M0_PRE(m0c != NULL);
+
+	rc = m0_clovis__io_ref_get(m0c);
+	if (rc != 0) {
+		m0_sm_move(&op->op_sm, rc, M0_CLOVIS_OS_FAILED);
+		op->op_rc = rc;
+		return;
+	}
 
 	m0_sm_group_lock(&op->op_sm_group);
 

@@ -40,6 +40,6 @@ if [[ -d $MERO_LOG_DIR ]] ; then
 fi
 
 m0_log "Cleaning up config files in /etc/sysconfig/ dir"
-rm -vf /etc/sysconfig/{mero-kernel,{m0d,m0t1fs}-*}
+rm -vf /etc/sysconfig/{mero-kernel,{m0d,m0t1fs,s3server}-*}
 
 exit 0

@@ -123,6 +123,12 @@ enum m0_sns_cm_status {
 	SNS_CM_STATUS_NR,
 };
 
+enum m0_sns_cm_local_unit_type {
+	M0_SNS_CM_UNIT_LOCAL,
+	M0_SNS_CM_UNIT_HOLE_EOF,
+	M0_SNS_CM_UNIT_INVALID
+};
+
 struct m0_sns_cm_buf_pool {
 	struct m0_net_buffer_pool sb_bp;
 	/**

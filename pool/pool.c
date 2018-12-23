@@ -768,6 +768,27 @@ M0_INTERNAL void m0_pool_versions_fini(struct m0_pool *pool)
 	}
 }
 
+M0_INTERNAL void m0_pool_versions_stale_mark(struct m0_pools_common *pc,
+					     struct m0_confc_update_state *s)
+{
+	struct m0_pool         *pool;
+	struct m0_pool_version *pver;
+	struct m0_conf_cache   *cache = &pc->pc_confc->cc_cache;
+
+	M0_PRE(m0_mutex_is_locked(&s->cus_lock));
+
+	if (pc->pc_confc == NULL)
+		return;
+	m0_mutex_lock(&pc->pc_mutex);
+	m0_tl_for(pools, &pc->pc_pools, pool) {
+		m0_tl_for(pool_version, &pool->po_vers, pver) {
+			if (!m0_conf_cache_contains(cache, &pver->pv_id))
+				pver->pv_is_stale = true;
+		} m0_tl_endfor;
+	} m0_tl_endfor;
+	m0_mutex_unlock(&pc->pc_mutex);
+}
+
 static void service_ctxs_destroy(struct m0_pools_common *pc)
 {
 	struct m0_reqh_service_ctx *ctx;
@@ -1155,7 +1176,9 @@ static void pools_common__ctx_subscribe_or_abandon(struct m0_pools_common *pc)
 		if (obj != NULL && reqh_service_ctx_is_matching(ctx, obj)) {
 			ctx->sc_service = obj;
 			ctx->sc_process = m0_conf_obj_grandparent(obj);
-			m0_reqh_service_ctx_subscribe(ctx);
+			if (!m0_clink_is_armed(&ctx->sc_svc_event) &&
+			    !m0_clink_is_armed(&ctx->sc_process_event))
+				m0_reqh_service_ctx_subscribe(ctx);
 		} else {
 			reqh_service_ctx_abandon(ctx);
 		}

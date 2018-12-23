@@ -174,71 +174,6 @@ static void obj_open_non_existent(void)
 }
 
 /**
- * Tests a double object creation. Creating the same object twice must result
- * in the following scenario: one succeeds; the other one fails;
- * the object gets created.
- *
- * @remarks This test uses two different objects, but the same obj ID.
- */
-static void obj_create_double_same_id(void)
-{
-	struct m0_clovis_op            *ops[] = {NULL, NULL};
-	struct m0_clovis_obj          **obj;
-	struct m0_uint128               id;
-	int                             rc = 0;
-
-	MEM_ALLOC_ARR(obj, 2);
-	CLOVIS_ST_ASSERT_FATAL(obj != NULL);
-	MEM_ALLOC_PTR(obj[0]);
-	MEM_ALLOC_PTR(obj[1]);
-
-	/* Initialise ids. */
-	clovis_oid_get(&id);
-
-	clovis_st_obj_init(obj[0], &clovis_st_obj_container.co_realm,
-			   &id, layout_id);
-	clovis_st_obj_init(obj[1], &clovis_st_obj_container.co_realm,
-			   &id, layout_id);
-
-	clovis_st_entity_create(NULL, &obj[0]->ob_entity, &ops[0]);
-	CLOVIS_ST_ASSERT_FATAL(ops[0] != NULL);
-	CLOVIS_ST_ASSERT_FATAL(ops[0]->op_sm.sm_rc == 0);
-	clovis_st_entity_create(NULL, &obj[1]->ob_entity, &ops[1]);
-	CLOVIS_ST_ASSERT_FATAL(ops[1] != NULL);
-	CLOVIS_ST_ASSERT_FATAL(ops[1]->op_sm.sm_rc == 0);
-
-	clovis_st_op_launch(ops, ARRAY_SIZE(ops));
-
-	rc = clovis_st_op_wait(ops[0], M0_BITS(M0_CLOVIS_OS_FAILED,
-					       M0_CLOVIS_OS_STABLE),
-			       m0_time_from_now(5,0));
-	CLOVIS_ST_ASSERT_FATAL(rc == 0);
-	rc = clovis_st_op_wait(ops[1], M0_BITS(M0_CLOVIS_OS_FAILED,
-					       M0_CLOVIS_OS_STABLE),
-			       m0_time_from_now(5,0));
-	CLOVIS_ST_ASSERT_FATAL(rc == 0);
-
-	/* One succeeds, the other fails. */
-	CLOVIS_ST_ASSERT_FATAL(ops[0]->op_sm.sm_state == M0_CLOVIS_OS_STABLE &&
-			       ops[1]->op_sm.sm_state == M0_CLOVIS_OS_STABLE);
-	CLOVIS_ST_ASSERT_FATAL((ops[0]->op_rc == 0 &&
-				ops[1]->op_rc == -EEXIST) ||
-			       (ops[0]->op_rc == -EEXIST &&
-				ops[1]->op_rc == 0));
-	clovis_st_op_fini(ops[0]);
-	clovis_st_op_fini(ops[1]);
-	clovis_st_op_free(ops[0]);
-	clovis_st_op_free(ops[1]);
-
-	clovis_st_entity_fini(&obj[0]->ob_entity);
-	clovis_st_entity_fini(&obj[1]->ob_entity);
-
-	mem_free(obj[1]);
-	mem_free(obj[0]);
-	mem_free(obj);
-}
-
-/**
  * Uses clovis to create multiple objects. All the operations are expected
  * to complete.
  *
@@ -402,7 +337,6 @@ static void obj_create_then_delete(void)
 		CLOVIS_ST_ASSERT_FATAL(rc == 0);
 		CLOVIS_ST_ASSERT_FATAL(ops_c[0]->op_sm.sm_state == M0_CLOVIS_OS_STABLE);
 
-		clovis_st_entity_open(&obj->ob_entity);
 		/* Delete the entity */
 		clovis_st_entity_delete(&obj->ob_entity, &ops_d[0]);
 		CLOVIS_ST_ASSERT_FATAL(ops_d[0] != NULL);
@@ -807,8 +741,6 @@ struct clovis_st_suite st_suite_clovis_obj = {
 		  &obj_create_error_handling},
 		{ "obj_open_non_existent",
 		  &obj_open_non_existent},
-		{ "obj_create_double_same_id",
-		  &obj_create_double_same_id},
 		{ "obj_create_multiple_objects",
 		  &obj_create_multiple_objects},
 		{ "obj_create_on_multiple_pools",

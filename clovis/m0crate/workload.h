@@ -85,6 +85,7 @@ struct workload {
         int                    cw_usage;
         int                    cw_directio;
         int                    cw_bound;
+	int                    cw_log_level;
         char                  *cw_fpattern; /* "/mnt/m0/dir%d/f%d.%d" */
         unsigned               cw_nr_dir;
 	short                  cw_read_frac;
@@ -172,7 +173,7 @@ struct workload_type_ops {
         int  (*wto_parse)(struct workload *w, char ch, const char *optarg);
         void (*wto_check)(struct workload *w);
 };
-void workload_init(struct workload *w, enum cr_workload_type wtype);
+int workload_init(struct workload *w, enum cr_workload_type wtype);
 void workload_start(struct workload *w, struct workload_task *task);
 void workload_join(struct workload *w, struct workload_task *task);
 

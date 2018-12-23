@@ -408,7 +408,9 @@ static void ut_composite_io_op_cb_launch(void)
 	instance = dummy_instance;
 	ut_clovis_realm_entity_setup(&realm, &ent, instance);
 
+	m0_fi_enable("m0_clovis_op_failed", "skip_ongoing_io_ref");
 	oci = ut_composite_io_op_alloc();
+	m0_fi_disable("m0_clovis_op_failed", "skip_ongoing_io_ref");
 	oci->oci_oo.oo_oc.oc_op.op_entity = &ent;
 	oci->oci_oo.oo_oc.oc_op.op_code = M0_CLOVIS_OC_READ;
 	m0_clovis_op_bob_init(&oci->oci_oo.oo_oc.oc_op);
@@ -420,6 +422,7 @@ static void ut_composite_io_op_cb_launch(void)
 
 	m0_fi_enable("composite_io_op_cb_launch", "no_subobj_ops_launched");
 	op_grp = &oci->oci_oo.oo_oc.oc_op.op_sm_group;
+	m0_fi_enable_once("m0_clovis_op_stable", "skip_ongoing_io_ref");
 	m0_sm_group_lock(op_grp);
 	composite_io_op_cb_launch(&oci->oci_oo.oo_oc);
 	m0_sm_move(&oci->oci_oo.oo_oc.oc_op.op_sm, 0, M0_CLOVIS_OS_EXECUTED);
@@ -448,7 +451,9 @@ static void ut_composite_io_op_cb_free(void)
 	ut_clovis_realm_entity_setup(&realm, &ent, instance);
 
 	/* base cases */
+	m0_fi_enable("m0_clovis_op_failed", "skip_ongoing_io_ref");
 	oci = ut_composite_io_op_alloc();
+	m0_fi_disable("m0_clovis_op_failed", "skip_ongoing_io_ref");
 	oci->oci_oo.oo_oc.oc_op.op_entity = &ent;
 	m0_fi_enable("composite_io_op_cb_free", "skip_free_sub_io_op");
 	composite_io_op_cb_free(&oci->oci_oo.oo_oc);
@@ -471,7 +476,9 @@ static void ut_composite_io_op_cb_fini(void)
 	ut_clovis_realm_entity_setup(&realm, &ent, instance);
 
 	/* base cases */
+	m0_fi_enable("m0_clovis_op_failed", "skip_ongoing_io_ref");
 	oci = ut_composite_io_op_alloc();
+	m0_fi_disable("m0_clovis_op_failed", "skip_ongoing_io_ref");
 	oci->oci_oo.oo_oc.oc_op.op_entity = &ent;
 	m0_fi_enable("composite_io_op_cb_fini", "skip_fini_sub_io_op");
 	composite_io_op_cb_fini(&oci->oci_oo.oo_oc);
@@ -614,7 +621,9 @@ static void ut_composite_sub_io_ops_build(void)
 
 	m0_fi_enable("m0_clovis__obj_attr_get_sync", "obj_attr_get_ok");
 	m0_fi_enable("m0_clovis_obj_op", "fake_op");
+	m0_fi_enable("m0_clovis_op_failed", "skip_ongoing_io_ref");
 	rc = composite_sub_io_ops_build(&obj, op, sio_arr, nr_subobjs);
+	m0_fi_disable("m0_clovis_op_failed", "skip_ongoing_io_ref");
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(oci->oci_sub_ops != NULL);
 	M0_UT_ASSERT(oci->oci_nr_sub_ops == nr_subobjs);

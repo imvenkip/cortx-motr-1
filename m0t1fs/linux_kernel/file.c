@@ -4257,10 +4257,13 @@ static int ioreq_iosm_handle(struct io_request *req)
 				v_seg_endpos(&req->ir_ivv,
 					V_SEG_NR(&req->ir_ivv) - 1));
 		rc = m0t1fs_size_update(req->ir_file->f_dentry, newsize);
-		if (rc != 0 && csb->csb_conf_state != MCS_READY) {
+		m0_mutex_lock(&csb->csb_confc_state.cus_lock);
+		if (rc != 0 && csb->csb_confc_state.cus_state != M0_CC_READY) {
+			m0_mutex_unlock(&csb->csb_confc_state.cus_lock);
 			rc = M0_ERR(-ESTALE);
 			goto fail_locked;
 		}
+		m0_mutex_unlock(&csb->csb_confc_state.cus_lock);
 		M0_LOG(M0_INFO, "[%p] File size set to %llu", req,
 		       inode->i_size);
 	}
@@ -5726,8 +5729,10 @@ static void cc_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	 */
 	inode = m0t1fs_file_to_m0inode(req->ir_file);
 	csb = M0T1FS_SB(inode->ci_inode.i_sb);
-	if (csb->csb_conf_state != MCS_READY)
+	m0_mutex_lock(&csb->csb_confc_state.cus_lock);
+	if (csb->csb_confc_state.cus_state != M0_CC_READY)
 		rc = M0_ERR(-ESTALE);
+	m0_mutex_unlock(&csb->csb_confc_state.cus_lock);
 ref_dec:
 	if (ti->ti_rc == 0 && rc != 0)
 		ti->ti_rc = rc;
@@ -5901,10 +5906,13 @@ static void io_bottom_half(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	ctx = m0_reqh_service_ctx_from_session(reply_item->ri_session);
 	inode = m0t1fs_file_to_m0inode(req->ir_file);
 	csb = M0T1FS_SB(inode->ci_inode.i_sb);
-	if (csb->csb_conf_state != MCS_READY) {
+	m0_mutex_lock(&csb->csb_confc_state.cus_lock);
+	if (csb->csb_confc_state.cus_state != M0_CC_READY) {
+		m0_mutex_unlock(&csb->csb_confc_state.cus_lock);
 		rc = M0_ERR(-ESTALE);
 		goto ref_dec;
 	}
+	m0_mutex_unlock(&csb->csb_confc_state.cus_lock);
 	m0t1fs_fsync_record_update(ctx, m0inode_to_sb(inode), inode, remid);
 	actual_bytes = rw_reply->rwr_count;
 

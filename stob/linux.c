@@ -177,7 +177,7 @@ static int stob_linux_domain_key_get_set(const char *path,
 		rc1 = fclose(id_file);
 		rc = rc == 0 && rc1 != 0 ? rc1 : rc;
 	}
-	return M0_RC(rc);
+	return rc == 0 ? M0_RC(rc) : M0_ERR_INFO(rc, "path=%s", path);
 }
 
 static int stob_linux_domain_cfg_init_parse(const char *str_cfg_init,
@@ -531,6 +531,8 @@ M0_INTERNAL int m0_stob_linux_reopen(struct m0_stob_id *stob_id,
 	int                 rc;
 
 	rc = m0_stob_find(stob_id, &bstore);
+	if (rc != 0)
+		return M0_RC(rc);
 	M0_ASSERT(m0_stob_domain_is_of_type(bstore->so_domain,
 					    &m0_stob_linux_type));
 	st = m0_stob_state_get(bstore);
@@ -542,21 +544,20 @@ M0_INTERNAL int m0_stob_linux_reopen(struct m0_stob_id *stob_id,
 	m0_stob_put(bstore);
 	rc = m0_stob_destroy(bstore, NULL);
 	if (rc != 0) {
-		M0_LOG(M0_ERROR, "Failed to destroy stob");
-		return M0_ERR(rc);
+		return M0_ERR_INFO(rc, "Failed to destroy stob "STOB_ID_F,
+		                   STOB_ID_P(stob_id));
 	}
 	M0_ASSERT(m0_stob_state_get(bstore) == CSS_NOENT);
 	rc = m0_stob_find(stob_id, &bstore);
 	if (rc != 0)
-		return M0_ERR(rc);
+		return M0_RC(rc);
 	st = m0_stob_state_get(bstore);
 	M0_ASSERT(st == CSS_NOENT);
 	rc = m0_stob_create(bstore, NULL, f_path);
 	rc = rc ?: m0_stob_state_get(bstore) == CSS_EXISTS ? 0 : -ENOENT;
 	if (rc != 0) {
-		M0_LOG(M0_ERROR, "Failed to create stob:%s", f_path);
 		m0_stob_put(bstore);
-		return M0_ERR(rc);
+		return M0_ERR_INFO(rc, "Failed to create stob: %s", f_path);
 	}
 	return M0_RC(0);
 }

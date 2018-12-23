@@ -1345,7 +1345,6 @@ static int index_operation(struct workload *wt,
 	memcpy(&index_fid, &wit->index_fid, sizeof(index_fid));
 
 	cr_time_measure_begin(&t);
-	cr_set_debug_level(wit->log_level);
 
 	if (wit->exec_time > 0) {
 		rc = cr_watchdog_init(wit);

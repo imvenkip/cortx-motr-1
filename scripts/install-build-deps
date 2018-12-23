@@ -92,4 +92,4 @@ if ! which ansible &>/dev/null ; then
 fi
 
 $TOP_SRCDIR/scripts/setup-node localhost ${dry_run} --verbose --local \
-        --skip-tags never,reboot,upgrade,debug,devel
+        --skip-tags reboot,debug

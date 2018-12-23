@@ -41,7 +41,7 @@
 
 const char M0_GETOPTS_DECIMAL_POINT = '.';
 
-M0_INTERNAL int m0_bcount_get(const char *arg, m0_bcount_t * out)
+M0_INTERNAL int m0_bcount_get(const char *arg, m0_bcount_t *out)
 {
 	char		 *end = NULL;
 	char		 *pos;

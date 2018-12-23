@@ -84,14 +84,14 @@ M0_INTERNAL int m0_stob_find_by_key(struct m0_stob_domain *dom,
 	m0_stob_cache_unlock(cache);
 
 	*out = stob;
-	return stob == NULL ? -ENOMEM : 0;
+	return stob == NULL ? M0_ERR(-ENOMEM) : M0_RC(0);
 }
 
 M0_INTERNAL int m0_stob_find(const struct m0_stob_id *id, struct m0_stob **out)
 {
 	struct m0_stob_domain *dom = m0_stob_domain_find_by_stob_id(id);
 
-	return dom == NULL ? -EINVAL :
+	return dom == NULL ? M0_ERR(-EINVAL) :
 	       m0_stob_find_by_key(dom, &id->si_fid, out);
 }
 
@@ -156,7 +156,8 @@ M0_INTERNAL int m0_stob_create(struct m0_stob *stob,
 	void				*cfg;
 	int				 rc;
 
-	M0_ENTRY("stob %p "FID_F, stob, FID_P(&stob->so_id.si_fid));
+	M0_ENTRY("stob=%p so_id="STOB_ID_F" so_ref=%"PRIu64,
+		 stob, STOB_ID_P(m0_stob_id_get(stob)), stob->so_ref);
 	M0_PRE(M0_IN(m0_stob_state_get(stob), (CSS_EXISTS, CSS_NOENT)));
 	M0_PRE(stob->so_ref > 0);
 
@@ -196,14 +197,14 @@ M0_INTERNAL int m0_stob_destroy(struct m0_stob *stob, struct m0_dtx *dtx)
 {
 	int rc;
 
-	M0_ENTRY("stob %p "FID_F, stob, FID_P(&stob->so_id.si_fid));
+	M0_ENTRY("stob=%p so_id="STOB_ID_F" so_ref=%"PRIu64,
+		 stob, STOB_ID_P(m0_stob_id_get(stob)), stob->so_ref);
 	/*
 	 * ioservice ensures stob existence.
 	 * @see cob_ops_fom_tick().
 	 */
 	M0_PRE(M0_IN(m0_stob_state_get(stob), (CSS_EXISTS, CSS_DELETE)));
-	M0_ASSERT_INFO(stob->so_ref == 1,
-		       "stob->so_ref = %"PRIu64, stob->so_ref);
+	M0_ASSERT_INFO(stob->so_ref == 1, "so_ref=%"PRIu64, stob->so_ref);
 
 	rc = stob->so_ops->sop_destroy(stob, dtx);
 	if (rc == 0 || rc == -EAGAIN) {
@@ -234,7 +235,8 @@ M0_INTERNAL int m0_stob_punch(struct m0_stob *stob,
 {
 	int rc;
 
-	M0_ENTRY("stob %p "FID_F, stob, FID_P(&stob->so_id.si_fid));
+	M0_ENTRY("stob=%p so_id="STOB_ID_F" so_ref=%"PRIu64,
+		 stob, STOB_ID_P(m0_stob_id_get(stob)), stob->so_ref);
 	M0_PRE(M0_IN(m0_stob_state_get(stob), (CSS_EXISTS, CSS_DELETE)));
 	rc = stob->so_ops->sop_punch(stob, range, dtx);
 	return M0_RC(rc);
@@ -277,9 +279,12 @@ M0_INTERNAL void m0_stob_get(struct m0_stob *stob)
 	cache = m0_stob_domain__cache(m0_stob_dom_get(stob));
 
 	m0_stob_cache_lock(cache);
+	M0_ENTRY("stob=%p so_id="STOB_ID_F" so_ref=%"PRIu64,
+		 stob, STOB_ID_P(m0_stob_id_get(stob)), stob->so_ref);
 	M0_ASSERT(stob->so_ref > 0);
-	M0_LOG(M0_DEBUG, "stob=%p, ref=%"PRIu64, stob, stob->so_ref);
 	M0_CNT_INC(stob->so_ref);
+	M0_LEAVE("stob=%p so_id="STOB_ID_F" so_ref=%"PRIu64,
+		 stob, STOB_ID_P(m0_stob_id_get(stob)), stob->so_ref);
 	m0_stob_cache_unlock(cache);
 }
 
@@ -290,7 +295,8 @@ M0_INTERNAL void m0_stob_put(struct m0_stob *stob)
 	cache = m0_stob_domain__cache(m0_stob_dom_get(stob));
 
 	m0_stob_cache_lock(cache);
-	M0_LOG(M0_DEBUG, "stob=%p, ref=%"PRIu64, stob, stob->so_ref);
+	M0_ENTRY("stob=%p so_id="STOB_ID_F" so_ref=%"PRIu64,
+		 stob, STOB_ID_P(m0_stob_id_get(stob)), stob->so_ref);
 	M0_CNT_DEC(stob->so_ref);
 	if (stob->so_ref == 0)
 		m0_stob_cache_idle(cache, stob);

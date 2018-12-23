@@ -606,11 +606,16 @@ noinst_PROGRAMS                   += clovis/st/utils/c0client
 noinst_PROGRAMS                   += clovis/st/utils/c0cat
 noinst_PROGRAMS                   += clovis/st/utils/c0cp
 noinst_PROGRAMS                   += clovis/st/utils/c0cp_mt
+noinst_PROGRAMS                   += clovis/st/mt/c0mt
 endif
 
 clovis_st_user_space_c0st_CPPFLAGS = -DM0_TARGET='c0st' $(AM_CPPFLAGS)
 clovis_st_user_space_c0st_LDADD    = $(top_builddir)/mero/libmero.la \
                                      $(top_builddir)/ut/libmero-ut.la
+
+clovis_st_mt_c0mt_CPPFLAGS = -DM0_TARGET='c0mt' $(AM_CPPFLAGS)
+clovis_st_mt_c0mt_LDADD    = 	$(top_builddir)/mero/libmero.la \
+				$(top_builddir)/ut/libmero-ut.la
 
 clovis_st_utils_c0touch_CPPFLAGS = -DM0_TARGET='c0touch' $(AM_CPPFLAGS)
 clovis_st_utils_c0touch_LDADD    = $(top_builddir)/mero/libmero.la \
@@ -640,6 +645,7 @@ clovis_st_utils_c0composite_CPPFLAGS =  -DM0_TARGET='c0comp' $(AM_CPPFLAGS)
 clovis_st_utils_c0composite_LDADD    = $(top_builddir)/mero/libmero.la
 
 include $(top_srcdir)/clovis/st/Makefile.sub
+include $(top_srcdir)/clovis/st/mt/Makefile.sub
 
 #
 # clovis/m0clovis ----------------------------------------- {{{2

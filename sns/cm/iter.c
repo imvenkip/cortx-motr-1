@@ -690,7 +690,7 @@ static int iter_cob_next(struct m0_sns_cm_iter *it)
 	struct m0_fid                  *cob_fid;
 	struct m0_pdclust_src_addr     *sa;
 	struct m0_sns_cm               *scm;
-	int                             rc = 0;
+	enum m0_sns_cm_local_unit_type  ut;
 
 	M0_ENTRY("it=%p", it);
 
@@ -698,6 +698,8 @@ static int iter_cob_next(struct m0_sns_cm_iter *it)
 	sa = &ifc->ifc_sa;
 	scm = it2sns(it);
 	cob_fid = &ifc->ifc_cob_fid;
+	it->si_cp->sc_is_hole_eof = false;
+
 	do {
 		if (sa->sa_unit >= ifc->ifc_upg) {
 			++sa->sa_group;
@@ -711,16 +713,20 @@ static int iter_cob_next(struct m0_sns_cm_iter *it)
 		 * proceed to next parity group in the GOB.
 		 */
 		unit_to_cobfid(ifc, cob_fid);
-		rc = m0_sns_cm_cob_locate(scm->sc_cob_dom, cob_fid);
+		ut = m0_sns_cm_local_unit_type_get(ifc->ifc_fctx, sa->sa_group,
+						   sa->sa_unit);
 		++sa->sa_unit;
-	} while (rc == -ENOENT ||
+	} while (ut == M0_SNS_CM_UNIT_INVALID ||
 		 scm->sc_helpers->sch_is_cob_failed(ifc->ifc_fctx->sf_pm,
 				                    ifc->ifc_ta.ta_obj));
 
-	if (rc == 0)
+	if (ut == M0_SNS_CM_UNIT_HOLE_EOF)
+		it->si_cp->sc_is_hole_eof = true;
+
+	if (M0_IN(ut, (M0_SNS_CM_UNIT_LOCAL, M0_SNS_CM_UNIT_HOLE_EOF)))
 		iter_phase_set(it, ITPH_CP_SETUP);
 
-	return M0_RC(rc);
+	return M0_RC(0);
 }
 
 /**

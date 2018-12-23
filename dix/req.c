@@ -851,7 +851,7 @@ static int dix_idxop_meta_update(struct m0_dix_req *req)
 	m0_clink_init(&req->dr_clink, dix_idxop_meta_update_clink_cb);
 	m0_clink_add_lock(&meta_req->dmr_chan, &req->dr_clink);
 	rc = create ?
-	     m0_dix_layout_put(meta_req, fids, layouts, fids_nr) :
+	     m0_dix_layout_put(meta_req, fids, layouts, fids_nr, 0) :
 	     m0_dix_layout_del(meta_req, fids, fids_nr);
 	if (rc != 0) {
 		m0_clink_del_lock(&req->dr_clink);

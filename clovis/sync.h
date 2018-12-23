@@ -145,6 +145,13 @@ clovis_sync_record_update(struct m0_reqh_service_ctx *service,
 			   struct m0_clovis_op       *op,
 			   struct m0_be_tx_remid     *btr);
 
+/**
+ * Return first entity from sync operation.
+ * It is used as helper function to get clovis instance from
+ * entity for sync operation.
+ */
+M0_INTERNAL struct m0_clovis_entity *
+m0_clovis__op_sync_entity(const struct m0_clovis_op *op);
 
 #endif /* __MERO_CLOVIS_OSYNC_H__ */
 

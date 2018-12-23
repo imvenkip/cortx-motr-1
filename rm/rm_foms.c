@@ -511,8 +511,8 @@ static int remote_create(struct m0_rm_remote          **rem,
  * corresponding to the remote object and install clink into the object's
  * channel, and only then continue dealing with credit processing.
  */
-static int rfom_debtor_subscribe(struct rm_request_fom        *rfom,
-				 struct m0_rm_remote          *debtor)
+static int rfom_debtor_subscribe(struct rm_request_fom *rfom,
+				 struct m0_rm_remote   *debtor)
 {
 	struct m0_confc       *confc;
 	struct m0_rpc_item    *item;
@@ -525,6 +525,9 @@ static int rfom_debtor_subscribe(struct rm_request_fom        *rfom,
 	item = &fom->fo_fop->f_item;
 	ep = m0_rpc_item_remote_ep_addr(item);
 	M0_ASSERT(ep != NULL);
+	/* Already subscribed? Then we are fine. */
+	if (m0_clink_is_armed(&debtor->rem_tracker.rht_clink))
+		return M0_RC(-EEXIST);
 	/* get confc instance HA to be notifying on */
 	confc = m0_reqh2confc(item->ri_rmachine->rm_reqh);
 	rc = m0_rm_ha_subscriber_init(&rfom->rf_sbscr, &fom->fo_loc->fl_group,
@@ -571,15 +574,6 @@ static int request_pre_process(struct m0_fom *fom,
 				m0_rm_incoming_fini(&rfom->rf_in.ri_incoming);
 				goto err;
 			}
-			/*
-			 * Subscribe debtor to HA notifications. If subscription
-			 * fails, proceed as usual to the next step.
-			 */
-			if (!M0_FI_ENABLED("no-subscription")) {
-				rc = rfom_debtor_subscribe(rfom, debtor);
-				if (rc == 0)
-					return M0_RC(M0_FSO_WAIT);
-			}
 		} else if (debtor->rem_dead) {
 			/*
 			 * There is nobody to reply to, as request originator
@@ -588,6 +582,15 @@ static int request_pre_process(struct m0_fom *fom,
 			rc = M0_ERR(-ECANCELED);
 			m0_rm_incoming_fini(&rfom->rf_in.ri_incoming);
 			goto err;
+		}
+		/*
+		 * Subscribe debtor to HA notifications. If subscription
+		 * fails, proceed as usual to the next step.
+		 */
+		if (!M0_FI_ENABLED("no-subscription")) {
+			rc = rfom_debtor_subscribe(rfom, debtor);
+			if (rc == 0)
+				return M0_RC(M0_FSO_WAIT);
 		}
 	}
 

@@ -25,11 +25,14 @@
 #include "lib/errno.h"                /* ENOMEM */
 #include "lib/uuid.h"                 /* m0_uuid_generate */
 #include "lib/finject.h"              /* M0_FI_ENABLED */
+#include "lib/arith.h"                /* M0_CNT_INC */
+#include "lib/mutex.h"                /* m0_mutex_lock */
 #include "addb2/global.h"
 #include "addb2/sys.h"
 #include "fid/fid.h"                  /* m0_fid */
 #include "conf/ha.h"                  /* m0_conf_ha_process_event_post */
 #include "conf/helpers.h"             /* m0_confc_root_open */
+#include "conf/confc.h"               /* m0_confc_state */
 #include "rpc/rpclib.h"               /* m0_rpc_client_connect */
 #include "pool/pool.h"                /* m0_pool_init */
 #include "rm/rm_service.h"            /* m0_rms_type */
@@ -614,7 +617,7 @@ static void clovis_ast_thread(struct m0_clovis *m0c)
 		m0_sm_asts_run(&m0c->m0c_sm_group);
 		m0_sm_group_unlock(&m0c->m0c_sm_group);
 		if (!m0c->m0c_astthread_active &&
-			m0_atomic64_get(&m0c->m0c_pending_io_nr) == 0) {
+		    m0_atomic64_get(&m0c->m0c_pending_io_nr) == 0) {
 			m0_chan_signal_lock(&m0c->m0c_io_wait);
 			return;
 		}
@@ -774,29 +777,19 @@ static int clovis_initlift_ha(struct m0_sm *mach)
 
 static bool clovis_rconfc_expired_cb(struct m0_clink *clink)
 {
-	uint32_t                    i;
-	struct m0_reqh_service_ctx *ctx;
-	struct m0_clovis           *m0c = M0_AMB(m0c, clink, m0c_conf_exp);
+	struct m0_clovis *m0c = M0_AMB(m0c, clink, m0c_conf_exp);
+	struct m0_confc  *confc = m0_clovis_confc(m0c);
+
+	M0_PRE(confc != NULL);
 
 	M0_ENTRY();
 	if (m0c->m0c_reqh.rh_rconfc.rc_stopping)
 		return true;
-	m0c->m0c_rlock_revoked = true;
 
-	/*
-	 * Cancel sessions to IO services that were used during IO request
-	 * handling. This is done in order to call rio_replied callback for
-	 * the rpc items and interrupt io_requests.
-	 * A cancelled session is reconnected. See MERO-1642.
-	 *
-	 * Note: Clovis doesn't use CAS services, so they are not of interest.
-	 */
-	for (i = 0; i < m0c->m0c_pools_common.pc_nr_devices; i++) {
-		ctx = m0c->m0c_pools_common.pc_dev2svc[i].pds_ctx;
-		if (ctx != NULL &&
-		    ctx->sc_type == M0_CST_IOS && ctx->sc_rlink.rlk_connected)
-			m0_reqh_service_cancel_reconnect(ctx);
-	}
+	m0_mutex_lock(&m0c->m0c_confc_state.cus_lock);
+	m0c->m0c_confc_state.cus_state = M0_CC_REVOKED;
+	m0_mutex_unlock(&m0c->m0c_confc_state.cus_lock);
+
 	M0_LEAVE();
 	return true;
 }
@@ -806,9 +799,83 @@ static bool clovis_rconfc_ready_cb(struct m0_clink *clink)
 	struct m0_clovis *m0c = M0_AMB(m0c, clink, m0c_conf_ready);
 
 	M0_ENTRY();
-	m0c->m0c_rlock_revoked = false;
+	m0_mutex_lock(&m0c->m0c_confc_state.cus_lock);
+	m0c->m0c_confc_state.cus_state = M0_CC_GETTING_READY;
+	m0_mutex_unlock(&m0c->m0c_confc_state.cus_lock);
 	M0_LEAVE();
 	return true;
+}
+
+static void clovis_io_ref_cb(struct m0_ref *ref)
+{
+	struct m0_clovis *m0c = M0_AMB(m0c, ref, m0c_ongoing_io);
+	struct m0_clink  *pc_clink = &m0c->m0c_pools_common.pc_conf_ready_async;
+
+	M0_ENTRY("clovis %p", m0c);
+
+	m0_mutex_lock(&m0c->m0c_confc_state.cus_lock);
+	if (m0_ref_read(ref) == 0 &&
+	    m0c->m0c_confc_state.cus_state == M0_CC_GETTING_READY) {
+		m0_pool_versions_stale_mark(&m0c->m0c_pools_common,
+					    &m0c->m0c_confc_state);
+		if (m0c->m0c_pools_common.pc_confc != NULL)
+			m0_pools_common_conf_ready_async_cb(pc_clink);
+
+		m0c->m0c_confc_state.cus_state = M0_CC_READY;
+	}
+	m0_mutex_unlock(&m0c->m0c_confc_state.cus_lock);
+
+	m0_chan_lock(&m0c->m0c_conf_ready_chan);
+	m0_chan_broadcast(&m0c->m0c_conf_ready_chan);
+	m0_chan_unlock(&m0c->m0c_conf_ready_chan);
+}
+
+static bool clovis_confc_ready_async_cb(struct m0_clink *clink)
+{
+	struct m0_clovis *m0c = M0_AMB(m0c, clink, m0c_conf_ready_async);
+
+	if (m0_ref_read(&m0c->m0c_ongoing_io) == 0 &&
+	    m0c->m0c_confc_state.cus_state == M0_CC_GETTING_READY)
+		clovis_io_ref_cb(&m0c->m0c_ongoing_io);
+	return true;
+}
+
+M0_INTERNAL int m0_clovis__io_ref_get(struct m0_clovis *m0c)
+{
+	struct m0_clink  clink;
+	struct m0_confc *confc = m0_clovis_confc(m0c);
+
+	M0_PRE(confc != NULL);
+	M0_ENTRY("m0c=%p", m0c);
+	while (1) {
+		m0_mutex_lock(&m0c->m0c_confc_state.cus_lock);
+		if (M0_IN(m0c->m0c_confc_state.cus_state,
+			  (M0_CC_READY, M0_CC_FAILED)))
+			break;
+		m0_clink_init(&clink, NULL);
+		m0_clink_add(&m0c->m0c_conf_ready_chan, &clink);
+
+		m0_mutex_unlock(&m0c->m0c_confc_state.cus_lock);
+		/* Wait till configuration is updated. */
+		m0_chan_wait(&clink);
+
+		m0_clink_del_lock(&clink);
+		m0_clink_fini(&clink);
+	}
+	if (m0c->m0c_confc_state.cus_state == M0_CC_READY)
+		m0_ref_get(&m0c->m0c_ongoing_io);
+	m0_mutex_unlock(&m0c->m0c_confc_state.cus_lock);
+	return M0_RC(m0c->m0c_confc_state.cus_state == M0_CC_READY ?
+			0 : -ESTALE);
+}
+
+M0_INTERNAL void m0_clovis__io_ref_put(struct m0_clovis *m0c)
+{
+	struct m0_confc  *confc = m0_clovis_confc(m0c);
+	M0_PRE(confc != NULL);
+
+	m0_ref_put(&m0c->m0c_ongoing_io);
+	M0_POST(m0_ref_read(&m0c->m0c_ongoing_io) >= 0 );
 }
 
 static int clovis_confc_init(struct m0_clovis *m0c)
@@ -838,8 +905,13 @@ static int clovis_confc_init(struct m0_clovis *m0c)
 
 	m0_clink_init(&m0c->m0c_conf_exp, clovis_rconfc_expired_cb);
 	m0_clink_init(&m0c->m0c_conf_ready, clovis_rconfc_ready_cb);
+	m0_clink_init(&m0c->m0c_conf_ready_async, clovis_confc_ready_async_cb);
 	m0_clink_add_lock(&reqh->rh_conf_cache_exp, &m0c->m0c_conf_exp);
 	m0_clink_add_lock(&reqh->rh_conf_cache_ready, &m0c->m0c_conf_ready);
+	m0_clink_add_lock(&reqh->rh_conf_cache_ready_async,
+			  &m0c->m0c_conf_ready_async);
+	m0_ref_init(&m0c->m0c_ongoing_io, 0, clovis_io_ref_cb);
+
 	rc = m0_rconfc_start_sync(rconfc);
 	if (rc != 0)
 		goto err_rconfc_stop;
@@ -877,6 +949,7 @@ err_rconfc_stop:
 	m0_clink_del_lock(&m0c->m0c_conf_ready);
 	m0_clink_fini(&m0c->m0c_conf_exp);
 	m0_clink_fini(&m0c->m0c_conf_ready);
+	m0_clink_fini(&m0c->m0c_conf_ready_async);
 
 err_exit:
 	/* re-acquire the lock */
@@ -903,9 +976,11 @@ static void clovis_confc_fini(struct m0_clovis *m0c)
 	m0_rconfc_fini(clovis_rconfc(m0c));
 	m0_clink_del_lock(&m0c->m0c_conf_exp);
 	m0_clink_del_lock(&m0c->m0c_conf_ready);
+	m0_clink_del_lock(&m0c->m0c_conf_ready_async);
 	m0_clink_fini(&m0c->m0c_conf_exp);
 	m0_clink_fini(&m0c->m0c_conf_ready);
 	m0_sm_group_lock(&m0c->m0c_sm_group);
+	m0_clink_fini(&m0c->m0c_conf_ready_async);
 }
 
 static int clovis_initlift_confc(struct m0_sm *mach)
@@ -1448,6 +1523,10 @@ int m0_clovis_init(struct m0_clovis **m0c_p,
 	/* Set mero instance. */
 	m0c->m0c_mero = &m0_clovis_mero_instance;
 
+	/* Initialise configuration state lock */
+	m0_mutex_init(&m0c->m0c_confc_state.cus_lock);
+	m0_chan_init(&m0c->m0c_conf_ready_chan, &m0c->m0c_confc_state.cus_lock);
+
 	/*
 	 * Initialise those types specific to IO operations, this is needed
 	 * to get rootfid in the Clovis initlift trip.
@@ -1539,6 +1618,9 @@ void m0_clovis_fini(struct m0_clovis *m0c, bool fini_m0)
 
 	m0_sm_group_unlock(&m0c->m0c_sm_group);
 	m0_chan_fini_lock(&m0c->m0c_io_wait);
+
+	m0_chan_fini_lock(&m0c->m0c_conf_ready_chan);
+	m0_mutex_fini(&m0c->m0c_confc_state.cus_lock);
 
 	/* finalise the m0_clovis instance */
 	m0_sm_group_fini(&m0c->m0c_sm_group);

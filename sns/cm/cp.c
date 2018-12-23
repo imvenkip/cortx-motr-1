@@ -299,6 +299,9 @@ M0_INTERNAL int m0_sns_cm_cp_next_phase_get(int phase, struct m0_cm_cp *cp)
 			return M0_CCP_SW_CHECK;
 	}
 
+	if (phase == M0_CCP_INIT && scp->sc_is_hole_eof)
+		return M0_CCP_XFORM;
+
 	return next[phase];
 }
 

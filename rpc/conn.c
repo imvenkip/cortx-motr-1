@@ -1167,12 +1167,15 @@ static void rpc_conn_sessions_cleanup_fail(struct m0_rpc_conn *conn, bool fail)
 		M0_LOG(M0_INFO, "Aborting session %llu",
 			(unsigned long long)session->s_session_id);
 		if (fail) {
-			if (session_state(session) != M0_RPC_SESSION_FAILED)
+			if (!M0_IN(session_state(session),
+				   (M0_RPC_SESSION_FAILED,
+				    M0_RPC_SESSION_TERMINATED)))
 				m0_sm_fail(&session->s_sm,
 					   M0_RPC_SESSION_FAILED,
 					   -ECANCELED);
-			M0_ASSERT(session_state(session) ==
-				  M0_RPC_SESSION_FAILED);
+			M0_ASSERT(M0_IN(session_state(session),
+					(M0_RPC_SESSION_TERMINATED,
+					 M0_RPC_SESSION_FAILED)));
 		} else { /* normal cleanup */
 			m0_sm_timedwait(&session->s_sm,
 					M0_BITS(M0_RPC_SESSION_IDLE),

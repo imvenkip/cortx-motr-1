@@ -157,7 +157,9 @@ static void clovis_idx_op_complete(struct m0_clovis_op_idx *oi)
 	en_grp = &op->op_entity->en_sm_group;
 	m0_sm_group_lock(en_grp);
 
-	if (M0_IN(op->op_code, (M0_CLOVIS_EO_CREATE, M0_CLOVIS_EO_DELETE)))
+	if (op->op_code == M0_CLOVIS_EO_CREATE)
+		m0_sm_move(&op->op_entity->en_sm, 0, M0_CLOVIS_ES_OPEN);
+	else if (op->op_code == M0_CLOVIS_EO_DELETE)
 		m0_sm_move(&op->op_entity->en_sm, 0, M0_CLOVIS_ES_INIT);
 	m0_sm_group_unlock(en_grp);
 
@@ -220,7 +222,9 @@ static void clovis_idx_op_fail(struct m0_clovis_op_idx *oi, int rc)
 
 	m0_sm_group_lock(en_grp);
 
-	if (M0_IN(op->op_code, (M0_CLOVIS_EO_CREATE, M0_CLOVIS_EO_DELETE)))
+	if (op->op_code == M0_CLOVIS_EO_CREATE)
+		m0_sm_move(&op->op_entity->en_sm, 0, M0_CLOVIS_ES_OPEN);
+	else if (op->op_code == M0_CLOVIS_EO_DELETE)
 		m0_sm_move(&op->op_entity->en_sm, 0, M0_CLOVIS_ES_INIT);
 
 	m0_sm_group_unlock(en_grp);

@@ -265,6 +265,26 @@ function dix_init()
 	fi
 }
 
+function dix_destroy()
+{
+	local m0dixinit="$M0_SRC_DIR/dix/utils/m0dixinit"
+	local pverid=$(echo $DIX_PVERID | tr -d ^)
+	if [ ! -f $m0dixinit ] ; then
+		echo "Can't find m0dixinit"
+		return 1
+	fi
+
+	cmd="$m0dixinit -l $CLOVIS_LOCAL_EP -H $CLOVIS_HA_EP \
+	    -p '$CLOVIS_PROF_OPT' -I '$pverid' -d '$pverid' -a destroy"
+	echo $cmd
+	eval "$cmd"
+	if [ $? -ne 0 ]
+	then
+		echo "Failed to destroy kvs..."
+		return 1
+	fi
+}
+
 mero_service_start()
 {
 	local n=$1

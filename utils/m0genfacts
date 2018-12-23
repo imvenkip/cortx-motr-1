@@ -43,6 +43,22 @@ BE_TXGR_REG_SIZE_MAX       = 512 * 1024 * 1024  # 512MiB
 BE_TXGR_TX_NR_MAX          = 82
 
 #
+# Logging
+#
+
+def log(*messages)
+    STDERR.puts('--->  ' + messages.join('') )
+end
+
+def debug(*messages)
+    STDERR.puts('--->  ' + messages.join('') ) if $options[:verbose]
+end
+
+def die(*messages)
+    abort "#{PROG_NAME}: ERROR: " + messages.join('')
+end
+
+#
 # Command line options
 #
 
@@ -53,6 +69,8 @@ $options = {
     remote_user:            Facter.value(:id),
     clovis_apps:            false,
     s3servers:              false,
+    skip_fake_drives:       false,
+    lnet_transport:         'tcp',
     dataunits:              DATA_UNITS,
     parityunits:            PARITY_UNITS,
     blocksize:              BLOCK_SIZE,
@@ -151,6 +169,18 @@ END_USAGE
         $options[:s3_servers] = true
     end
 
+    opts.on('--skip-fake-drives',
+            "Skip drives that don't have serial number") do
+        $options[:skip_fake_drives] = true
+    end
+
+    opts.on('--lnet-transport tcp|o2ib',
+            'LNet transport layer. Either tcp (default) or o2ib') do |val|
+        die "invalid --lnet-transport value '#{val}', use either 'tcp' or 'o2ib'" \
+            if !val.match(/^(tcp|o2ib)$/)
+        $options[:lnet_transport] = val
+    end
+
     opts.on('-N', '--data-units NUM',
             "Number of data units in parity group, default is #{DATA_UNITS}") do |val|
         $options[:dataunits] = val
@@ -238,22 +268,6 @@ END_USAGE
         exit
     end
 end.parse!
-
-#
-# Utility functions
-#
-
-def log(*messages)
-    STDERR.puts('--->  ' + messages.join('') )
-end
-
-def debug(*messages)
-    STDERR.puts('--->  ' + messages.join('') ) if $options[:verbose]
-end
-
-def die(*messages)
-    abort "#{PROG_NAME}: ERROR: " + messages.join('')
-end
 
 #
 # Helpers
@@ -404,13 +418,15 @@ def build_disk_info(host, disk_path, index)
     end
 
     wwn = run("sudo lsblk -ndo WWN #{disk_path} 2>/dev/null", host: host)
-    wwn = '0x0000000' + format('%04d', index) if wwn.to_s.strip.empty?
+    if wwn.to_s.strip.empty?
+        is_fake = true
+        wwn = '0x0000000' + format('%04d', index)
+    end
 
-    if is_fake
+    slot = run("ls /sys/block/$(basename $(readlink -f #{disk_path}))/device/ 2>/dev/null" +
+               " | grep enclosure | cut -f2 -d':'", host: host)
+    if slot.to_s.strip.empty?
         slot = index
-    else
-        slot = run("ls /sys/block/$(basename $(readlink #{disk_path}))/device/ \
-                    | grep enclosure | cut -f2 -d':'", host: host)
     end
 
     return {
@@ -444,8 +460,12 @@ def collect_disks_for(node)
     disks_info = []
 
     disks.each do |disk_path|
-        disks_info.push(
-            build_disk_info(node['address'], disk_path, $disk_index))
+        di = build_disk_info(node['address'], disk_path, $disk_index)
+        if di['is_fake'] && $options[:skip_fake_drives]
+            debug "skipping fake drive '#{disk_path}' as requested (option --skip-fake-drives)"
+        else
+            disks_info.push(di)
+        end
         $disk_index += 1
     end
 
@@ -456,6 +476,7 @@ end
 # Template substitution variables
 #
 
+m0_lnet_transport              = $options[:lnet_transport]
 m0_data_units                  = $options[:dataunits]
 m0_parity_units                = $options[:parityunits]
 m0_block_size                  = $options[:blocksize]
@@ -478,7 +499,6 @@ halon_port      = 9070
 q_dbfacts       = {}
 ios_hash        = {}
 station_nodes   = []
-m0t1fs_nodes    = []
 confd_nodes     = []
 extra_clients   = []
 pools           = []

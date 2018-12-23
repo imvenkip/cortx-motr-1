@@ -31,6 +31,7 @@
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CLOVIS
 #include "lib/trace.h"
+#include "lib/finject.h"
 #include "mdservice/fsync_fops.h"       /* m0_fop_fsync_mds_fopt */
 #include "fop/fom_generic.h"            /* m0_rpc_item_is_generic_reply_fop */
 #include "lib/memory.h"                 /* m0_alloc, m0_free */
@@ -48,7 +49,7 @@
  *     operations to sync:
  *     m0_clovis_sync_op_init(): create a new SYNC op.
  *     m0_clovis_sync_entity_add(): Add an entity to SYNC op.
- *     m0_clovis_sync_entity_add(): Add an op to SYNC op. The op can only added
+ *     m0_clovis_sync_op_add(): Add an op to SYNC op. The op can only added
  *     if its state is M0_CLOVIS_OS_STABLE or M0_CLOVIS_OS_EXECUTED.
  *
  *     m0t1fs_fsync() and m0t1fs_sync_fs() are changed to
@@ -150,18 +151,15 @@ static void clovis_sync_fop_cleanup(struct m0_ref *ref)
 	M0_LEAVE("clovis_sync_fop_cleanup");
 }
 
-static void clovis_sync_request_done(struct clovis_sync_request *sreq)
+static void clovis_sync_request_done_locked(struct clovis_sync_request *sreq)
 {
-	struct m0_sm_group       *op_grp;
 	struct m0_clovis_op      *op;
 	struct m0_clovis_op_sync *os;
 
-	/* Updates SYNC op's state. */
 	os = sreq->sr_op_sync;
 	op = &os->os_oc.oc_op;
-	op_grp = &op->op_sm_group;
-	m0_sm_group_lock(op_grp);
 
+	/* Updates SYNC op's state. */
 	m0_sm_move(&op->op_sm, 0, M0_CLOVIS_OS_EXECUTED);
 	m0_clovis_op_executed(op);
 
@@ -179,7 +177,15 @@ static void clovis_sync_request_done(struct clovis_sync_request *sreq)
 	op->op_rc = sreq->sr_rc;
 	m0_sm_move(&op->op_sm, 0, M0_CLOVIS_OS_STABLE);
 	m0_clovis_op_stable(op);
+}
 
+static void clovis_sync_request_done(struct clovis_sync_request *sreq)
+{
+	struct m0_sm_group *op_grp;
+
+	op_grp = &sreq->sr_op_sync->os_oc.oc_op.op_sm_group;
+	m0_sm_group_lock(op_grp);
+	clovis_sync_request_done_locked(sreq);
 	m0_sm_group_unlock(op_grp);
 }
 
@@ -490,6 +496,9 @@ static int clovis_sync_request_launch(struct clovis_sync_request *sreq,
 	struct m0_tl                   *stx_tl;
 
 	M0_ENTRY();
+
+	if (M0_FI_ENABLED("launch_failed"))
+		return M0_ERR(-EAGAIN);
 
 	/*
 	 * Finds the services with pending transactions for each entry,
@@ -901,7 +910,7 @@ static void clovis_sync_op_cb_launch(struct m0_clovis_op_common *oc)
 		 * group lock.
 		 */
 		sreq->sr_rc = sreq->sr_rc?:rc;
-		clovis_sync_request_done(sreq);
+		clovis_sync_request_done_locked(sreq);
 	}
 }
 
@@ -1160,6 +1169,37 @@ int m0_clovis_sync(struct m0_clovis *m0c, bool wait)
 	return (saved_error == 0) ? M0_RC(saved_error): M0_ERR(saved_error);
 }
 M0_EXPORTED(m0_clovis_sync);
+
+M0_INTERNAL struct m0_clovis_entity *
+m0_clovis__op_sync_entity(const struct m0_clovis_op *op)
+{
+	struct m0_clovis_op_sync   *os;
+	struct clovis_sync_target  *stgt;
+	struct m0_clovis_op_common *oc;
+
+	M0_PRE(op != NULL);
+	M0_PRE(op->op_code == M0_CLOVIS_EO_SYNC);
+
+	oc = bob_of(op, struct m0_clovis_op_common, oc_op, &oc_bobtype);
+	M0_PRE(oc != NULL);
+	os = M0_AMB(os, oc, os_oc);
+	M0_PRE(os != NULL && os->os_req != NULL);
+
+	stgt = clovis_sync_target_tlist_head(&os->os_req->sr_targets);
+	M0_PRE(stgt != NULL);
+	switch (stgt->srt_type) {
+	case CLOVIS_SYNC_ENTITY:
+		return stgt->u.srt_ent;
+	case CLOVIS_SYNC_OP:
+		return stgt->u.srt_op->op_entity;
+	case CLOVIS_SYNC_INSTANCE:
+		break;
+	default:
+		M0_IMPOSSIBLE("Unknow type for SYNC request.");
+	}
+
+	return NULL;
+}
 
 #undef M0_TRACE_SUBSYSTEM
 /*

@@ -36,7 +36,6 @@ struct crate_clovis_conf	*conf = NULL;
 struct m0_clovis_config		clovis_conf = {};
 struct m0_idx_cass_config	cass_conf = {};
 static int			num_clovis_workloads = 0;
-unsigned long			clovis_block_size = 0;
 struct m0_clovis		*clovis_instance = NULL;
 struct m0_clovis_container	clovis_container = {};
 static struct m0_clovis_realm	clovis_uber_realm = {};
@@ -93,11 +92,12 @@ int clovis_init(struct workload *w)
 	clovis_conf.cc_ha_addr               = conf->clovis_ha_addr;
 	clovis_conf.cc_profile               = conf->clovis_prof;
 	clovis_conf.cc_process_fid           = conf->clovis_process_fid;
-	clovis_conf.cc_tm_recv_queue_min_len = M0_NET_TM_RECV_QUEUE_DEF_LEN;
-	clovis_conf.cc_max_rpc_msg_size      = M0_RPC_DEF_MAX_RPC_MSG_SIZE;
+	clovis_conf.cc_tm_recv_queue_min_len = conf->tm_recv_queue_min_len ?:
+	                                       M0_NET_TM_RECV_QUEUE_DEF_LEN;
+	clovis_conf.cc_max_rpc_msg_size      = conf->max_rpc_msg_size ?:
+	                                       M0_RPC_DEF_MAX_RPC_MSG_SIZE;
 	clovis_conf.cc_layout_id             = conf->layout_id;
 	clovis_conf.cc_idx_service_id        = conf->index_service_id;
-	clovis_block_size                    = conf->clovis_block_size;
 
 	if (clovis_conf.cc_idx_service_id == M0_CLOVIS_IDX_CASS) {
 		cass_conf.cc_cluster_ep              = conf->cass_cluster_ep;
@@ -110,7 +110,7 @@ int clovis_init(struct workload *w)
                 clovis_conf.cc_idx_service_conf = &dix_conf;
         } else {
 		rc = -EINVAL;
-		cr_log(CLL_ERROR, "Unknown index service id:%d!",
+		cr_log(CLL_ERROR, "Unknown index service id: %d!\n",
 		       clovis_conf.cc_idx_service_id);
 		goto do_exit;
 	}
@@ -118,7 +118,7 @@ int clovis_init(struct workload *w)
 	/* Clovis instance */
 	rc = m0_clovis_init(&clovis_instance, &clovis_conf, true);
 	if (rc != 0) {
-		cr_log(CLL_ERROR, "Failed to initilise Clovis (%d)", rc);
+		cr_log(CLL_ERROR, "Failed to initilise Clovis: %d\n", rc);
 		goto do_exit;
 	}
 
@@ -131,7 +131,7 @@ int clovis_init(struct workload *w)
 
 	rc = clovis_container.co_realm.re_entity.en_sm.sm_rc;
 	if (rc != 0) {
-		cr_log(CLL_ERROR, "Failed to open uber realm");
+		cr_log(CLL_ERROR, "Failed to open uber realm\n");
 		goto do_exit;
 	}
 

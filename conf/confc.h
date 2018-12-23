@@ -336,6 +336,29 @@ struct m0_conf_obj;
  * @{
  */
 
+/**
+ * Configuration client states indicates different states of configuration
+ * client on configuration updates.
+ */
+enum m0_confc_state {
+	M0_CC_READY,          /** < configuration cache is updated. */
+	M0_CC_REVOKED,        /** < configuration cache is expired. */
+	M0_CC_GETTING_READY,  /** < configuration cache is being updated. */
+	M0_CC_FAILED,
+};
+
+/**
+ * Instance of this data structure is maintained by configuration
+ * consumenrs to keep track of configuration update events to update/refresh
+ * its in-memory data structures which depends on configuration.
+ */
+struct m0_confc_update_state {
+	/** Configuration client update states. */
+	enum m0_confc_state cus_state;
+	/** A lock for probing/updating cus_state. */
+	struct m0_mutex     cus_lock;
+};
+
 /* ------------------------------------------------------------------
  * confc instance
  * ------------------------------------------------------------------ */
@@ -411,7 +434,7 @@ struct m0_confc {
 	uint64_t                  cc_rpc_timeout;
 
 	/**
-	 * The channel to signal on when mo more attached context
+	 * The channel to signal on when no more attached context
 	 * remains. Signaled inside m0_confc_ctx_fini().
 	 * i.e. m0_confc::cc_nr_ctx reached 0.
 	 */

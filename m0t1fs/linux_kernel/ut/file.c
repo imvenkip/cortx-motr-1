@@ -203,7 +203,7 @@ static int file_io_ut_init(void)
 	M0_SET0(&creditor);
 	M0_SET0(confc);
 	m0t1fs_sb_init(&csb);
-	csb.csb_conf_state = MCS_READY;
+	csb.csb_confc_state.cus_state = M0_CC_READY;
 	runast = true;
 	rc = M0_THREAD_INIT(&csb.csb_astthread, struct m0t1fs_sb *, NULL,
 			    &ast_thread, &csb, "m0_ast_thread");

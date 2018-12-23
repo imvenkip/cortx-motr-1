@@ -424,7 +424,7 @@ static int clovis_obj_io_init(struct m0_clovis_obj      *obj,
 			      struct m0_bufvec          *attr,
 			      uint64_t                   mask,
 			      struct m0_clovis_op       *op)
- {
+{
 	int                         rc;
 	int                         i;
 	uint64_t                    max_failures;

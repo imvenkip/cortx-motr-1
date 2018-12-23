@@ -827,11 +827,12 @@ static void ut_clovis_test_clovis_cob_complete_op(void)
 	m0_sm_group_unlock(op_grp);
 
 	m0_sm_group_lock(&oo_grp);
+	m0_fi_enable_once("m0_clovis_op_stable", "skip_ongoing_io_ref");
 	clovis_cob_complete_op(&oo.oo_oc.oc_op);
 	m0_sm_group_unlock(&oo_grp);
 
 	M0_UT_ASSERT(oo.oo_oc.oc_op.op_entity == &ent);
-	M0_UT_ASSERT(ent.en_sm.sm_state == M0_CLOVIS_ES_INIT);
+	M0_UT_ASSERT(ent.en_sm.sm_state == M0_CLOVIS_ES_OPEN);
 	M0_UT_ASSERT(oo.oo_oc.oc_op.op_sm.sm_state == M0_CLOVIS_OS_STABLE);
 
 	/* finalise */
@@ -891,6 +892,7 @@ static void ut_clovis_test_clovis_cob_fail_op(void)
 
 	/* Base case. */
 	m0_sm_group_lock(&oo_grp);
+	m0_fi_enable_once("m0_clovis_op_stable", "skip_ongoing_io_ref");
 	clovis_cob_fail_op(&oo.oo_oc.oc_op, 777);
 	m0_sm_group_unlock(&oo_grp);
 
@@ -1003,12 +1005,13 @@ static void ut_clovis_test_clovis_icr_ast_complete(void)
 	m0_sm_group_unlock(op_grp);
 
 	m0_fi_enable_once("clovis_icrs_complete", "skip_post_cr_ast");
+	m0_fi_enable_once("m0_clovis_op_stable", "skip_ongoing_io_ref");
 	m0_sm_group_lock(&locality_grp);
 	clovis_icr_ast(&locality_grp, &icr.icr_ar.ar_ast);
 	m0_sm_group_unlock(&locality_grp);
 
 	M0_UT_ASSERT(oo.oo_oc.oc_op.op_entity == &ent);
-	M0_UT_ASSERT(ent.en_sm.sm_state == M0_CLOVIS_ES_INIT);
+	M0_UT_ASSERT(ent.en_sm.sm_state == M0_CLOVIS_ES_OPEN);
 	M0_UT_ASSERT(oo.oo_oc.oc_op.op_sm.sm_state == M0_CLOVIS_OS_STABLE);
 
 	/* finalise */
@@ -1095,6 +1098,7 @@ static void ut_clovis_test_clovis_icr_ast_fail(void)
 	icr.icr_index = 0;
 
 	m0_fi_enable_once("clovis_icrs_fail", "skip_post_cr_ast");
+	m0_fi_enable_once("m0_clovis_op_stable", "skip_ongoing_io_ref");
 	m0_sm_group_lock(&oo_grp);
 	clovis_icr_ast(&oo_grp, &icr.icr_ar.ar_ast);
 	m0_sm_group_unlock(&oo_grp);
