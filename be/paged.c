@@ -26,6 +26,8 @@
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_BE
 #include "lib/trace.h"
+
+#include "lib/types.h"       /* PRIu64 */
 #include "lib/errno.h"
 #include "lib/memory.h"
 #include "lib/misc.h"        /* M0_AMB */
@@ -447,8 +449,13 @@ M0_INTERNAL int m0_be_pd_seg_create(struct m0_be_pd                  *pd,
 	int               rc;
 	int               rc1;
 
-	/* seg_cfg->bsc_preallocate is ignored here. See be/domain.c. */
+	M0_ENTRY("pd=%p dom=%p bsc_stob_key=%"PRIu64" bsc_preallocate=%d "
+	         "bsc_size=%"PRIu64" bsc_addr=%p bsc_stob_create_cfg=%s",
+	         pd, dom, seg_cfg->bsc_stob_key, !!seg_cfg->bsc_preallocate,
+	         seg_cfg->bsc_size, seg_cfg->bsc_addr,
+		 seg_cfg->bsc_stob_create_cfg);
 
+	/* seg_cfg->bsc_preallocate is ignored here. See be/domain.c. */
 	M0_ALLOC_PTR(seg);
 	if (seg == NULL)
 		return M0_ERR(-ENOMEM);
@@ -502,6 +509,9 @@ M0_INTERNAL int m0_be_pd_seg_open(struct m0_be_pd     *pd,
 {
 	int rc;
 
+	M0_ENTRY("pd=%p seg=%p dom=%p stob_key=%"PRIu64,
+	         pd, seg, dom, stob_key);
+
 	rc = be_pd_seg_open(pd, seg, dom, stob_key);
 	if (rc == 0) {
 		be_pd_lock(pd);
@@ -533,6 +543,7 @@ M0_INTERNAL void m0_be_pd_seg_close(struct m0_be_pd  *pd,
 {
 	int rc;
 
+	M0_ENTRY("pd=%p seg=%p", pd, seg);
 	be_pd_lock(pd);
 	seg_tlink_del_fini(seg);
 	be_pd_unlock(pd);
@@ -547,6 +558,8 @@ M0_INTERNAL int m0_be_pd_seg_destroy(struct m0_be_pd     *pd,
 	struct m0_be_seg *seg;
 	struct m0_stob   *stob;
 	int               rc;
+
+	M0_ENTRY("pd=%p dom=%p seg_id=%"PRIu64, pd, dom, seg_id);
 
 	M0_ALLOC_PTR(seg);
 	if (seg == NULL)
