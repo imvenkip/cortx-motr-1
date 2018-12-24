@@ -77,6 +77,7 @@ struct be_alloc_chunk {
 	 */
 	char                       bac_mem[0];
 } M0_XCA_RECORD M0_XCA_DOMAIN(be);
+M0_BASSERT(sizeof(struct be_alloc_chunk) % (1UL << M0_BE_ALLOC_SHIFT_MIN) == 0);
 
 /**
  * @brief Allocator memory zone.

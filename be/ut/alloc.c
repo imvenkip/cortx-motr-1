@@ -340,12 +340,7 @@ M0_INTERNAL void m0_be_ut_alloc_spare(void)
 	a = m0_be_seg_allocator(ut_seg.bus_seg);
 	M0_UT_ASSERT(a != NULL);
 
-	/*
-	 * XXX (seg_size - reserved)/3 is acceptable, but internal logic can't
-	 * allocate 2 chunks of this size, because it tries to find a chunk with
-	 * size compared to (size*2+allignment)
-	 */
-	size = (BE_UT_ALLOC_SEG_SIZE - m0_be_seg_reserved(a->ba_seg)) / 6;
+	size = (BE_UT_ALLOC_SEG_SIZE - m0_be_seg_reserved(a->ba_seg)) / 3;
 
 	for (i = 0 ; i < ARRAY_SIZE(scenario) ; ++i) {
 		m0_be_alloc_stats(a, &stats_before);
