@@ -1681,8 +1681,8 @@ M0_INTERNAL int m0_clovis__obj_namei_send(struct m0_clovis_op_obj *oo)
 	cr->cr_name      = oo->oo_name;
 #endif
 	/* We need to perform getattr for OPEN op. */
-	cr->cr_opcode = (oo->oo_oc.oc_op.op_code == M0_CLOVIS_EO_OPEN)?
-			 M0_CLOVIS_EO_GETATTR:oo->oo_oc.oc_op.op_code;
+	cr->cr_opcode = (OP_OBJ2CODE(oo) == M0_CLOVIS_EO_OPEN)?
+			 M0_CLOVIS_EO_GETATTR:OP_OBJ2CODE(oo);
 
 	M0_ALLOC_PTR(cob_attr);
  	if (cob_attr == NULL) {
@@ -1731,69 +1731,70 @@ static int clovis_cob_getattr_rep_rc(struct clovis_cob_req *cr)
 
 M0_INTERNAL int m0_clovis__obj_attr_get_sync(struct m0_clovis_obj *obj)
 {
- 	int                     rc;
- 	struct m0_clovis       *cinst;
- 	struct clovis_cob_req  *cr;
+	int                     rc;
+	struct m0_clovis       *cinst;
+	struct clovis_cob_req  *cr;
 	struct m0_cob_attr     *cob_attr;
- 	struct m0_pool_version *pv;
+	struct m0_pool_version *pv;
 
- 	M0_ENTRY();
+	M0_ENTRY();
 
 	if (M0_FI_ENABLED("obj_attr_get_ok"))
 		return 0;
 
- 	M0_PRE(obj != NULL);
- 	cinst = m0_clovis__obj_instance(obj);
-	rc = m0_clovis__obj_pool_version_get(obj, &pv);
+	M0_PRE(obj != NULL);
+	rc = m0_clovis_md_pool_version_retrieve(obj, &pv);
 	if (rc != 0)
 		return M0_ERR(rc);
 
+	cinst = m0_clovis__obj_instance(obj);
+
 	/* Allocate and initialise cob request. */
- 	cr = clovis_cob_req_alloc(pv);
- 	if (cr == NULL)
+	cr = clovis_cob_req_alloc(pv);
+	if (cr == NULL)
 		return M0_ERR(-ENOMEM);
 
- 	m0_fid_gob_make(&cr->cr_fid,
- 			obj->ob_entity.en_id.u_hi, obj->ob_entity.en_id.u_lo);
- 	cr->cr_flags |= CLOVIS_COB_REQ_SYNC;
- 	cr->cr_cinst  = cinst;
+	m0_fid_gob_make(&cr->cr_fid,
+			obj->ob_entity.en_id.u_hi, obj->ob_entity.en_id.u_lo);
+	cr->cr_flags |= CLOVIS_COB_REQ_SYNC;
+	cr->cr_cinst  = cinst;
 	rc = clovis_cob_make_name(cr);
 	if (rc != 0)
 		goto free_req;
 
 	M0_ALLOC_PTR(cob_attr);
- 	if (cob_attr == NULL) {
+	if (cob_attr == NULL) {
 		rc = -ENOMEM;
 		goto free_name;
- 	}
+	}
 	cr->cr_cob_attr = cob_attr;
 
 	/* Send GETATTR cob request and wait for the reply. */
 	cr->cr_opcode = M0_CLOVIS_EO_GETATTR;
 	rc = clovis_cob_req_send(cr)?:
 	     clovis_cob_getattr_rep_rc(cr);
- 	if (rc != 0) {
+	if (rc != 0) {
 		rc = (rc == -ENOENT)? M0_RC(rc) : M0_ERR(rc);
 		goto free_attr;
 	} else
 		clovis_cob_rep_attr_copy(cr);
 
 	/* Validate the pool version. */
- 	if (m0_pool_version_find(&cinst->m0c_pools_common,
+	if (m0_pool_version_find(&cinst->m0c_pools_common,
 				 &cob_attr->ca_pver) == NULL) {
- 		M0_LOG(M0_ERROR, "Unable to find a suitable pool version");
+		M0_LOG(M0_ERROR, "Unable to find a suitable pool version");
 		rc = M0_ERR(-EINVAL);
 		goto free_attr;
- 	}
+	}
 	m0_clovis__obj_attr_set(obj, cob_attr->ca_pver, cob_attr->ca_lid);
 
 free_attr:
- 	m0_free(cob_attr);
+	m0_free(cob_attr);
 free_name:
 	m0_free(cr->cr_name.b_addr);
 	M0_SET0(&cr->cr_name);
 free_req:
- 	clovis_cob_req_free(cr);
+	clovis_cob_req_free(cr);
 	return M0_RC(rc);
 }
 

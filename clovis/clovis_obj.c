@@ -18,6 +18,7 @@
  *                   James  Morse    <james.s.morse@seagate.com>
  *                   Sining Wu       <sining.wu@seagate.com>
  * Revision:         Pratik Shinde   <pratik.shinde@seagate.com>
+ *                   Abhishek Saha   <abhishek.saha@seagate.com>
  * Original creation date: 5-Oct-2014
  */
 
@@ -343,6 +344,50 @@ m0_clovis__obj_pool_version_get(struct m0_clovis_obj *obj,
 	return M0_RC(rc);
 }
 
+M0_INTERNAL int
+m0_clovis_default_pool_version_retrieve(struct m0_clovis_obj *obj,
+					struct m0_pool_version **pv)
+{
+	int                     rc;
+	struct m0_clovis       *cinst;
+	struct m0_pools_common *pc;
+	struct m0_pool         *p;
+
+	M0_ENTRY();
+	M0_PRE(obj != NULL);
+
+	cinst = m0_clovis__obj_instance(obj);
+	pc = &cinst->m0c_pools_common;
+	p = pools_tlist_head(&pc->pc_pools);
+	if (p == NULL) {
+		rc = -ENOENT;
+		return M0_RC(rc);
+	}
+	*pv = pool_version_tlist_head(&p->po_vers);
+	rc = (*pv != NULL)? 0 : -ENOENT;
+
+	return M0_RC(rc);
+}
+
+M0_INTERNAL int
+m0_clovis_md_pool_version_retrieve(struct m0_clovis_obj *obj,
+				   struct m0_pool_version **md_pv)
+{
+	int                     rc;
+	struct m0_clovis       *cinst;
+	struct m0_pools_common *pc;
+
+	M0_ENTRY();
+	M0_PRE(obj != NULL);
+
+	cinst = m0_clovis__obj_instance(obj);
+	pc = &cinst->m0c_pools_common;
+	*md_pv = pool_version_tlist_head(&pc->pc_md_pool->po_vers);
+	rc = (*md_pv != NULL)? 0 : -ENOENT;
+
+	return M0_RC(rc);
+}
+
 M0_INTERNAL uint64_t
 m0_clovis__obj_layout_id_get(struct m0_clovis_op_obj *oo)
 {
@@ -539,17 +584,30 @@ static int clovis_obj_op_obj_init(struct m0_clovis_op_obj *oo)
 
 	M0_ENTRY();
 	M0_PRE(oo != NULL);
-	M0_PRE(M0_IN(oo->oo_oc.oc_op.op_code, (M0_CLOVIS_EO_CREATE,
-					       M0_CLOVIS_EO_DELETE,
-					       M0_CLOVIS_EO_OPEN)));
+	M0_PRE(M0_IN(OP_OBJ2CODE(oo), (M0_CLOVIS_EO_CREATE,
+				       M0_CLOVIS_EO_DELETE,
+				       M0_CLOVIS_EO_OPEN)));
 
 	/** Get the object's pool version. */
 	obj = m0_clovis__obj_entity(oo->oo_oc.oc_op.op_entity);
-	rc = m0_clovis__obj_pool_version_get(obj, &pv);
-	if (rc != 0)
-		return M0_ERR(rc);
-	oo->oo_pver = pv->pv_id;
-
+	if (OP_OBJ2CODE(oo) == M0_CLOVIS_EO_CREATE) {
+		rc = m0_clovis__obj_pool_version_get(obj, &pv);
+		if (rc != 0)
+			return M0_ERR(rc);
+		oo->oo_pver = pv->pv_id;
+	} else {
+		/*
+		 * XXX:Not required to assign pool version for operation other
+		 *     than OBJECT CREATE.
+		 * OBJECT OPEN operation will fetch pool version from meta-data
+		 * and cache it to m0_clovis_obj::ob_layout::oa_pver
+		 * MERO-2871 will fix and verify this issue separately.
+		 */
+		rc = m0_clovis_default_pool_version_retrieve(obj, &pv);
+		if (rc != 0)
+			return M0_ERR(rc);
+		oo->oo_pver = pv->pv_id;
+	}
 	/** TODO: hash the fid to chose a locality */
 	locality = m0_clovis__locality_pick(m0_clovis__oo_instance(oo));
 	M0_ASSERT(locality != NULL);

@@ -1075,7 +1075,6 @@ static int clovis_initlift_pool_version(struct m0_sm *mach)
 {
 	int                     rc;
 	struct m0_clovis       *m0c;
-	struct m0_pool_version *pv = NULL;
 	struct m0_pools_common *pools;
 
 	M0_ENTRY();
@@ -1093,14 +1092,9 @@ static int clovis_initlift_pool_version(struct m0_sm *mach)
 		if (rc != 0) {
 			m0_sm_group_lock(&m0c->m0c_sm_group);
 			clovis_initlift_fail(rc, m0c);
- 			goto exit;
+			goto exit;
 		}
 
-		rc = m0_pool_version_get(pools, NULL, &pv);
-		if (!M0_IN(rc, (0, -ENOENT))) {
-			m0_pool_versions_destroy(pools);
-			clovis_initlift_fail(rc, m0c);
-		}
 		m0_sm_group_lock(&m0c->m0c_sm_group);
 	} else /* CLOVIS_SHUTDOWN */
 		m0_pool_versions_destroy(pools);

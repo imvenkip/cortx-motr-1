@@ -1170,7 +1170,7 @@ static void ut_clovis_test_clovis_cob_ios_fop_populate(void)
 
 	m0_sm_group_lock(&oo_grp);
 	m0_rwlock_init(&mach->pm_lock);
-	oo->oo_oc.oc_op.op_code = M0_CLOVIS_EO_CREATE;
+	OP_OBJ2CODE(oo) = M0_CLOVIS_EO_CREATE;
 	m0_sm_group_unlock(&oo_grp);
 
 	/*rc = clovis_cob_ios_fop_populate(oo, &fop, &cob_fid, 777);
@@ -1354,7 +1354,7 @@ static void ut_clovis_test_clovis_cob_mds_fop_populate(void)
 	M0_UT_ASSERT(oo != NULL);
 
 	oo->oo_fid = fid;
-	oo->oo_oc.oc_op.op_code = M0_CLOVIS_EO_CREATE;
+	OP_OBJ2CODE(oo) = M0_CLOVIS_EO_CREATE;
 #ifdef CLOVIS_FOR_M0T1FS
 	m0_buf_init(&oo->oo_name, str, strlen(str));
 #endif
