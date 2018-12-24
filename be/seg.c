@@ -105,11 +105,13 @@ static int be_seg_hdr_create(struct m0_stob *stob, struct m0_be_seg_hdr *hdr)
 		M0_PRE(m0_is_aligned(g->sg_size, M0_BE_SEG_PAGE_SIZE));
 
 		hdr->bh_id = g->sg_id;
-#ifdef M0_BE_SEG_HDR_VERSION
 		strncpy(hdr->bh_be_version,
 			m0_build_info_get()->bi_xcode_protocol_be_checksum,
-			M0_BE_SEG_HDR_VERSION_MAX);
-#endif
+			M0_BE_SEG_HDR_VERSION_LEN_MAX);
+		M0_CASSERT(sizeof hdr->bh_be_version >
+			   M0_BE_SEG_HDR_VERSION_LEN_MAX);
+		/* Avoid buffer overflow */
+		hdr->bh_be_version[M0_BE_SEG_HDR_VERSION_LEN_MAX] = '\0';
 		m0_format_footer_update(hdr);
 		rc = m0_be_io_single(stob, SIO_WRITE, hdr, g->sg_offset,
 				     be_seg_hdr_size());
@@ -293,11 +295,9 @@ bool m0_be_reg__invariant(const struct m0_be_reg *reg)
 
 M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg)
 {
-#ifdef M0_BE_SEG_HDR_VERSION
-	const char                  *runtime_be_version;
-#endif
 	const struct m0_be_seg_geom *g;
 	struct m0_be_seg_hdr        *hdr;
+	const char                  *runtime_be_version;
 	int                          fd;
 	int                          rc;
 
@@ -309,26 +309,22 @@ M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg)
 		return M0_ERR(-ENOMEM);
 
 	rc = m0_be_io_single(seg->bs_stob, SIO_READ,
-			     hdr, M0_BE_SEG_HEADER_OFFSET,
-			     be_seg_hdr_size());
+			     hdr, M0_BE_SEG_HEADER_OFFSET, be_seg_hdr_size());
 	if (rc != 0) {
 		m0_free(hdr);
-		return M0_RC(rc);
+		return M0_ERR(rc);
 	}
 
-	/* XXX check for magic */
-
-#ifdef M0_BE_SEG_HDR_VERSION
 	runtime_be_version = m0_build_info_get()->
 				bi_xcode_protocol_be_checksum;
-	if (strncmp(hdr2->bh_be_version, runtime_be_version,
-		    M0_BE_SEG_HDR_VERSION_MAX) != 0) {
+	if (strncmp(hdr->bh_be_version, runtime_be_version,
+		    M0_BE_SEG_HDR_VERSION_LEN_MAX) != 0) {
+		rc = M0_ERR_INFO(-EPROTO, "BE protocol checksum mismatch:"
+				 " expected '%s', stored on disk '%s'",
+				 runtime_be_version, (char*)hdr->bh_be_version);
 		m0_free(hdr);
-		return M0_ERR_INFO(-EPROTO, "BE protocol checksum mismatch:"
-				   " expected '%s', stored on disk '%s'",
-				   runtime_be_version, (char*)hdr1.bh_be_version);
+		return rc;
 	}
-#endif
 
 	g = be_seg_geom_find_by_id(hdr, seg->bs_id);
 	if (g == NULL) {

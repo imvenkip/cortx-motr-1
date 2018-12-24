@@ -183,12 +183,14 @@ run_valgrind_memcheck()
             "--trace-children=yes --track-fds=yes" \
             "--leak-check=full --track-origins=yes" \
             "--show-leak-kinds=all" "--num-callers=32" \
+            "--read-var-info=yes" \
             "$binary $@"
     valgrind \
         --tool=memcheck \
         --trace-children=yes --track-fds=yes \
         --leak-check=full --track-origins=yes \
         --show-leak-kinds=all --num-callers=32 \
+        --read-var-info=yes \
         $binary "$@"
 }
 
@@ -206,14 +208,14 @@ run_valgrind_callgrind()
 
 run_valgrind_helgrind()
 {
-    log "valgrind --tool=helgrind $binary $@"
-    valgrind --tool=helgrind $binary "$@"
+    log "valgrind --tool=helgrind --read-var-info=yes $binary $@"
+    valgrind --tool=helgrind --read-var-info=yes $binary "$@"
 }
 
 run_valgrind_drd()
 {
-    log "valgrind --tool=drd --free-is-write=yes $binary $@"
-    valgrind --tool=drd --free-is-write=yes $binary "$@"
+    log "valgrind --tool=drd --read-var-info=yes --free-is-write=yes $binary $@"
+    valgrind --tool=drd --read-var-info=yes --free-is-write=yes $binary "$@"
 }
 
 run_valgrind_massif()

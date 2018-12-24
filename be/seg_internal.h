@@ -39,7 +39,7 @@
 
 enum {
 	M0_BE_SEG_HDR_GEOM_ITMES_MAX = 16,
-	M0_BE_SEG_HDR_VERSION_MAX = 64,
+	M0_BE_SEG_HDR_VERSION_LEN_MAX = 64,
 };
 
 /** "On-disk" header for segment, stored in STOB at zero offset */
@@ -49,9 +49,8 @@ struct m0_be_seg_hdr {
 	struct m0_be_allocator_header bh_alloc[M0_BAP_NR];
 	uint32_t                      bh_items_nr;
 	struct m0_be_seg_geom         bh_items[M0_BE_SEG_HDR_GEOM_ITMES_MAX];
-#ifdef M0_BE_SEG_HDR_VERSION
-	char                          bh_be_version[M0_BE_SEG_HDR_VERSION_MAX];
-#endif
+	char                          bh_be_version[
+					       M0_BE_SEG_HDR_VERSION_LEN_MAX+1];
 	struct m0_format_footer       bh_footer;
 	/*
 	 * m0_be_btree has it's own volatile-only fields, so it can't be placed
