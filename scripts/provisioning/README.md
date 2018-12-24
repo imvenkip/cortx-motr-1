@@ -135,11 +135,18 @@ Quick Start (Windows)
       During installation, when asked, choose the following options (keep other options to their default setting):
 
       - _Use Git and optional Unix tools from the Command Prompt_
+      - _Checkout as-is, commit Unix-style line ending_
       - _Enable symbolic links_
 
 * Configure
 
-    - Open _Git Bash_ terminal and clone Mero repository somewhere, just as an example let's say it's in `$HOME/src/mero`
+    - Open _Git Bash_ terminal, add CRLF configuration option to make sure that Mero/Halon scripts can work on VM
+
+      ```bash
+      git config --global core.autocrlf input
+      ```
+
+    - Clone Mero repository somewhere, just as an example let's say it's in `$HOME/src/mero`
 
     - Create a persistent alias for `m0vg` script:
 
