@@ -1884,6 +1884,7 @@ M0_INTERNAL int m0_be_pd_mapping_init(struct m0_be_pd *paged,
 	m0_bcount_t              i;
 	int                      rc;
 
+	M0_ENTRY("pd=%p addr=%p size=%"PRIu64" fd=%d", paged, addr, size, fd);
 	M0_PRE(size % page_size == 0);
 	M0_ALLOC_PTR(mapping);
 	M0_ASSERT(mapping != NULL); /* XXX */
@@ -1939,6 +1940,7 @@ M0_INTERNAL int m0_be_pd_mapping_fini(struct m0_be_pd *paged,
 	m0_bcount_t              i;
 	int                      rc;
 
+	M0_ENTRY("pd=%p addr=%p size=%"PRIu64, paged, addr, size);
 	be_pd_lock(paged);
 
 	mapping = be_pd_mapping_find(paged, addr, size);
