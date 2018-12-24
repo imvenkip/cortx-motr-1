@@ -88,6 +88,19 @@
     - breaks-dry-run
     - no-selinux
 
+# in situations when we aren't allowed to reboot target node to ensure that
+# running kernel is the latest one, we need to request kernel-devel-`uname -r`
+# explicitely because kernel-devel (w/o version) will pull the latest version
+# but not the current one
+# sometimes this can fail because an older package version may not be available
+# in the default repo, e.g. when a new CentOS version is released and we're
+# using Vagrant box from the previous release (e.g. 7.5 vs 7.6)
+- name: install kernel-devel for the current kernel
+  package:
+    state: present
+    name:  'kernel-devel-{{ ansible_kernel }}'
+  ignore_errors: yes
+
 - name: upgrade all packages to latest versions
   package:  name=*  state=latest  update_cache=yes
   tags: upgrade

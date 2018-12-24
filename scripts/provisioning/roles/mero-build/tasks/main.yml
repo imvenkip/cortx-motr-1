@@ -5,6 +5,7 @@
 - name: dynamically load variables depending on the OS type
   include_vars: '{{ item  }}'
   with_first_found: '{{ ansible_os_family }}.yml'
+  tags: lustre
 
 - name: install Mero build-time dependencies
   package:
@@ -17,6 +18,36 @@
     state: present
     name:  '{{ mero_doc_deps_pkgs }}'
   tags: mero-doc
+
+- name: check if PlantUML has been already updated
+  stat: path=/usr/share/java/plantuml.jar.orig
+  register: orig_plantuml_jar
+  tags:
+    - mero-doc
+    - plantuml
+
+- name: update PlantUML to the latest version
+  when: orig_plantuml_jar.stat.exists == False
+  block:
+    - name: backup current plantuml.jar
+      copy:
+        remote_src: True
+        src: /usr/share/java/plantuml.jar
+        dest: /usr/share/java/plantuml.jar.orig
+
+    - name: remove old plantuml.jar
+      file:
+        path: /usr/share/java/plantuml.jar
+        state: absent
+
+    - name: download the latest version of plantuml.jar
+      get_url:
+        url:  https://cytranet.dl.sourceforge.net/project/plantuml/plantuml.jar
+        dest: /usr/share/java/plantuml.jar
+        mode: 0755
+  tags:
+    - mero-doc
+    - plantuml
 
 - name: install pip modules for Mero doc build
   become: no
@@ -72,12 +103,30 @@
       args:
         creates: ~/rpmbuild/SPECS/lustre.spec
 
+    - name: install additional Lustre build dependencies
+      package:
+        name:  '{{ lustre_build_deps_pkgs }}'
+        state: present
+
     - name: apply Lustre spec patch
       patch:
-        src: ../../patches/lustre-intel/lustre-2.9.0.spec.patch
+        src: lustre-2.9.0.spec.patch
         dest: ~/rpmbuild/SPECS/lustre.spec
         strip: 1
       tags: breaks-dry-run
+
+    - name: disable Lustre rpm strict kernel version check
+      lineinfile:
+        path: ~/rpmbuild/SOURCES/kmp-lustre.preamble
+        state: absent
+        regexp: '^Requires:.*kernel'
+
+    - name: bump local Lustre rpm build number to override stock builds
+      lineinfile:
+        path: ~/rpmbuild/SPECS/lustre.spec
+        state: present
+        regexp: '^Release: 1'
+        line: 'Release: 99%{?dist}'
 
     - name: install Lustre rpm build dependencies
       command: yum-builddep -y ~/rpmbuild/SPECS/lustre.spec
@@ -93,9 +142,27 @@
       args:
         creates: ~/rpmbuild/RPMS/x86_64/lustre-client-devel-*.rpm
 
-    - name: read Lustre devel package filename
-      shell: ls ~/rpmbuild/RPMS/x86_64/lustre-client-devel-*.rpm
-      register: lustre_devel_rpm
+    - name: read Lustre package version
+      shell: |
+        ls --reverse ~/rpmbuild/RPMS/x86_64/lustre-client-devel-*.rpm \
+        | grep -oP '(?<=lustre-client-devel-).*(?=\.rpm)' \
+        | head -n1
+      register: lustre_version
+      changed_when: false
+
+    - name: install local Lustre rpms
+      yum:
+        name:
+          - /root/rpmbuild/RPMS/x86_64/kmod-lustre-client-{{ lustre_version.stdout }}.rpm
+          - /root/rpmbuild/RPMS/x86_64/lustre-client-{{ lustre_version.stdout }}.rpm
+        state: present
+      when: ansible_distribution_version is version('7.6.1810', '>=')
+      tags: lustre-custom-build
+
+    - name: clean yum metadata
+      command: yum clean metadata
+      args:
+        warn: no
       changed_when: false
 
     - name: create local repo dir
@@ -106,16 +173,17 @@
 
     - name: copy Lustre devel rpm to local repo
       copy:
-        src: '{{ lustre_devel_rpm.stdout }}'
+        src: '~/rpmbuild/RPMS/x86_64/lustre-client-devel-{{ lustre_version.stdout }}.rpm'
         dest: /var/lib/yum/localrepos/lustre-local
         remote_src: yes
       tags: breaks-dry-run
 
     - name: create local repo
-      command: createrepo -p .
+      command: createrepo --pretty .
       args:
         chdir: /var/lib/yum/localrepos/lustre-local
-        creates: repodata
+        #creates: repodata
+      changed_when: false
 
     - name: add local repo yum config
       yum_repository:
@@ -129,7 +197,8 @@
     - name: install Lustre devel rpm
       yum:
         name: lustre-client-devel
-        state: present
+        state: latest
+        update_cache: yes
   when: ansible_os_family == 'RedHat'
   tags:
     - lustre-devel
@@ -140,8 +209,7 @@
     - name: download mscgen src rpm
       get_url:
         url: 'http://dl.fedoraproject.org/pub/fedora/linux/releases/27/Everything/source/tree/Packages/m/mscgen-0.20-21.fc27.src.rpm'
-        dest: /root
-        #creates: ~/mscgen-*.src.rpm
+        dest: /root/mscgen-0.20-21.fc27.src.rpm
 
     - name: install mscgen src rpm
       command: rpm -ihv ~/mscgen-*.src.rpm

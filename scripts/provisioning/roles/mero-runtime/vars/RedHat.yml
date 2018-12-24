@@ -3,6 +3,7 @@ mero_runtime_deps_pkgs:
   - attr
   - facter
   - genders
+  - libaio
   - libyaml
   - lustre-client
   - perl
