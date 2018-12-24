@@ -2051,9 +2051,10 @@ M0_INTERNAL int m0_be_pd_mapping_page_detach(struct m0_be_pd_mapping *mapping,
 	int rc;
 
 	M0_PRE(m0_be_pd_page_is_locked(page));
-	M0_LOG(M0_WARN, "page=%p start=%p end=%p size=%"PRIu64"last_lsn=%"PRIu64,
+	M0_LOG(M0_WARN, "page=%p start=%p end=%p "
+	       "size=0x%"PRIx64" (%"PRIu64") last_lsn=%"PRIu64,
 	       page, page->pp_addr, page->pp_addr + page->pp_size,
-	       page->pp_size, page->pp_last_lsn);
+	       page->pp_size, page->pp_size, page->pp_last_lsn);
 
 	///XXX M0_ASSERT(memcmp(page->pp_addr, page->pp_cellar, page->pp_size) == 0);
 
