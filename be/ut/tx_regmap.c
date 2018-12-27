@@ -29,6 +29,7 @@
 #include "lib/string.h"         /* memcpy */
 
 #include "be/ut/helper.h"	/* m0_be_ut_seg */
+#include "be/reg.h"             /* m0_be_reg_get */
 
 /*
 #define LOGD(...) printf(__VA_ARGS__)
@@ -787,6 +788,7 @@ void m0_be_ut_reg_area_random(void)
 
 	m0_be_ut_seg_init(&ut_seg, NULL, BE_UT_RA_SEG_SIZE);
 	be_ut_ra_seg = ut_seg.bus_seg;
+	m0_be_reg_get(&M0_BE_REG_SEG(be_ut_ra_seg), NULL);
 
 	be_ut_reg_area_init(BE_UT_RA_ITER);
 	for (i = 0; i < BE_UT_RA_ITER; ++i) {
@@ -798,6 +800,7 @@ void m0_be_ut_reg_area_random(void)
 		be_ut_reg_area_size_length_check(0, 0, false);
 	}
 	be_ut_reg_area_fini();
+	m0_be_reg_put(&M0_BE_REG_SEG(be_ut_ra_seg), NULL);
 	m0_be_ut_seg_fini(&ut_seg);
 }
 
@@ -991,6 +994,7 @@ void m0_be_ut_reg_area_merge(void)
 
 	m0_be_ut_seg_init(&ut_seg, NULL, BE_UT_RA_MERGE_SEG_SIZE);
 	be_ut_ra_merge_seg = ut_seg.bus_seg;
+	m0_be_reg_get(&M0_BE_REG_SEG(be_ut_ra_merge_seg), NULL);
 
 	prepared_mra = M0_BE_TX_CREDIT(BE_UT_RA_MERGE_R_NR_MAX,
 				       BE_UT_RA_MERGE_SIZE_TOTAL);
@@ -1035,6 +1039,7 @@ void m0_be_ut_reg_area_merge(void)
 	for (i = 0; i < ARRAY_SIZE(mra); ++i)
 		m0_be_reg_area_fini(&mra[i]);
 
+	m0_be_reg_put(&M0_BE_REG_SEG(be_ut_ra_merge_seg), NULL);
 	m0_be_ut_seg_fini(&ut_seg);
 }
 
