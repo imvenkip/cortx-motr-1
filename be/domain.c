@@ -32,6 +32,7 @@
 #include "stob/stob.h"          /* m0_stob_find_by_key */
 #include "stob/domain.h"        /* m0_stob_domain_init */
 #include "be/op.h"              /* M0_BE_OP_SYNC */
+#include "be/reg.h"             /* m0_be_reg_get */
 
 M0_TL_DESCR_DEFINE(zt, "m0_be_domain::bd_0types", M0_INTERNAL,
 			   struct m0_be_0type, b0_linkage, b0_magic,
@@ -63,12 +64,18 @@ static int segobj_opt_iterate(struct m0_be_seg         *dict,
 {
 	struct m0_buf *buf;
 	int            rc;
+	char          *tmp_suffix = *suffix;
 
+	/* XXX temporary solution */
+	if (!begin)
+		m0_be_reg_get(&M0_BE_REG(dict, 0x100, tmp_suffix), NULL);
 	rc = begin ?
 		m0_be_seg_dict_begin(dict, objtype->b0_name,
 				     (const char **)suffix, (void**) &buf) :
 		m0_be_seg_dict_next(dict, objtype->b0_name, *suffix,
 				    (const char**) suffix, (void**) &buf);
+	if (!begin)
+		m0_be_reg_put(&M0_BE_REG(dict, 0x100, tmp_suffix), NULL);
 
 	if (rc == -ENOENT)
 		return 0;
