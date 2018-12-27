@@ -463,7 +463,7 @@ M0_INTERNAL int m0_be_pd_seg_create(struct m0_be_pd                  *pd,
 	rc = be_pd_seg_stob_open(pd, seg_cfg->bsc_stob_key,
 				 seg_cfg->bsc_stob_create_cfg, &stob, true);
 	if (rc == 0) {
-		m0_be_seg_init(seg, stob, dom, pd, M0_BE_SEG_FAKE_ID);
+		m0_be_seg_init(seg, stob, dom, pd, seg_cfg->bsc_stob_key);
 		rc = m0_be_seg_create(seg, seg_cfg->bsc_size,
 				      seg_cfg->bsc_addr);
 		m0_be_seg_fini(seg);
@@ -492,7 +492,7 @@ static int be_pd_seg_open(struct m0_be_pd     *pd,
 
 	rc = be_pd_seg_stob_open(pd, stob_key, NULL, &stob, false);
 	if (rc == 0) {
-		m0_be_seg_init(seg, stob, dom, pd, M0_BE_SEG_FAKE_ID);
+		m0_be_seg_init(seg, stob, dom, pd, stob_key);
 		m0_stob_put(stob);
 		rc = m0_be_seg_open(seg);
 		if (rc != 0)
