@@ -331,12 +331,14 @@ M0_INTERNAL bool m0_be_pd__is_reg_in(struct m0_be_pd        *paged,
 	      LAMBDA(bool, (struct m0_be_pd_page *page,
 	                    struct m0_be_reg_d   *rd) {
 	             m0_be_pd_page_lock(page);
-	             if (page->pp_ref == 0)
+	             if (page->pp_ref == 0) {
 			     request.prt_rc = -ESRCH;
+			     return false;
+		     }
 	             m0_be_pd_page_unlock(page);
-		     goto out;
+	             return true;
 	}));
-out:
+
 	m0_be_pd_request_fini(&request);
 	return request.prt_rc == 0;
 }
