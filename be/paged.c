@@ -547,6 +547,7 @@ M0_INTERNAL void m0_be_pd_seg_close(struct m0_be_pd  *pd,
 	be_pd_lock(pd);
 	seg_tlink_del_fini(seg);
 	be_pd_unlock(pd);
+	m0_be_pd_fom_manage(&pd->bp_fom);
 	rc = be_pd_seg_close(pd, seg, false);
 	M0_ASSERT(rc == 0);
 }

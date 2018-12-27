@@ -505,7 +505,6 @@ M0_UNUSED static void be_ut_pd_get_put_segs_reopen(struct be_ut_pd_get_put_ctx *
 {
 	int rc;
 
-	m0_be_pd_fom_manage(&ctx->bugp_pd->bp_fom);
 	be_ut_pd_get_put_segs_close(ctx);
 	if (reinit_pd) {
 		m0_be_pd_fini(ctx->bugp_pd);
@@ -866,7 +865,6 @@ void m0_be_ut_pd_get_put(void)
 	be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_SEQ_CHECK);
 	be_ut_pd_get_put_foms_run(ctx, BE_UT_PDGP_RND_CHECK);
 
-	m0_be_pd_fom_manage(&ctx->bugp_pd->bp_fom);
 	be_ut_pd_get_put_segs_close(ctx);
 	for (i = 0; i < BE_UT_PDGP_SEG_NR; ++i) {
 		rc = m0_be_pd_seg_destroy(ctx->bugp_pd, NULL,
