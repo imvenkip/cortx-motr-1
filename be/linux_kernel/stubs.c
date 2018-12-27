@@ -211,21 +211,6 @@ M0_INTERNAL int m0_be_tx_timedwait(struct m0_be_tx *tx, uint64_t states,
 	return 0;
 }
 
-M0_INTERNAL void m0_be_tx_credit_add(struct m0_be_tx_credit *c0,
-				     const struct m0_be_tx_credit *c1)
-{
-}
-
-M0_INTERNAL void m0_be_tx_credit_mul(struct m0_be_tx_credit *c, m0_bcount_t k)
-{
-}
-
-M0_INTERNAL void m0_be_tx_credit_mac(struct m0_be_tx_credit *c,
-				     const struct m0_be_tx_credit *c1,
-				     m0_bcount_t k)
-{
-}
-
 M0_INTERNAL bool m0_be_seg__invariant(const struct m0_be_seg *seg)
 {
 	return true;

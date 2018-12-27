@@ -177,7 +177,8 @@ static int stob_linux_domain_key_get_set(const char *path,
 		rc1 = fclose(id_file);
 		rc = rc == 0 && rc1 != 0 ? rc1 : rc;
 	}
-	return rc == 0 ? M0_RC(rc) : M0_ERR_INFO(rc, "path=%s", path);
+	return M0_IN(rc, (0, -ENOENT)) ? M0_RC(rc) :
+	       M0_ERR_INFO(rc, "path=%s", path);
 }
 
 static int stob_linux_domain_cfg_init_parse(const char *str_cfg_init,

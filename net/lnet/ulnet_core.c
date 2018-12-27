@@ -1141,9 +1141,13 @@ M0_INTERNAL int nlx_core_tm_start(struct nlx_core_domain *cd,
 	m0_free(utm);
  fail_utm:
 	if (rc == -EADDRINUSE)
-		return M0_ERR_INFO(rc, "The address %s is already in use "
+		return M0_ERR_INFO(rc, "The address 0x%"PRIx64":%"PRIu32
+		                   ":%"PRIu32":%"PRIu32" is already in use "
 		                   "by another process.",
-		                   tm->ntm_ep->nep_addr);
+		                   ctm->ctm_addr.cepa_nid,
+		                   ctm->ctm_addr.cepa_pid,
+		                   ctm->ctm_addr.cepa_portal,
+		                   ctm->ctm_addr.cepa_tmid);
 	return M0_ERR(rc);
 }
 
