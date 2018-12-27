@@ -44,6 +44,7 @@
 #include "be/tx_internal.h"	/* m0_be_tx__reg_area */
 #include "be/seg0.h"            /* m0_be_0type_register */
 #include "be/pd.h"              /* m0_be_pd */
+#include "be/paged.h"           /* m0_be_pd_init */
 
 const struct m0_bob_type m0_ut_be_backend_bobtype;
 M0_BOB_DEFINE(M0_INTERNAL, &m0_ut_be_backend_bobtype, m0_be_ut_backend);
@@ -625,6 +626,7 @@ static void be_ut_seg_init(struct m0_be_ut_seg *ut_seg,
                            m0_bcount_t size)
 {
 	struct m0_be_0type_seg_cfg seg_cfg;
+	uint64_t                   stob_key;
 	int			   rc;
 
 	if (ut_be == NULL) {
@@ -634,19 +636,23 @@ static void be_ut_seg_init(struct m0_be_ut_seg *ut_seg,
 			M0_ASSERT(ut_seg->bus_pd != NULL);
 			m0_be_ut_reqh_create(&ut_seg->bus_reqh);
 			m0_be_ut_pd_init(ut_seg->bus_pd, ut_seg->bus_reqh);
+			pd = ut_seg->bus_pd;
 		} else {
 			ut_seg->bus_pd = NULL;
 		}
+		stob_key = m0_be_ut_seg_allocate_id();
+		rc = m0_be_pd_seg_create(pd, NULL,
+			 &(struct m0_be_0type_seg_cfg){
+				.bsc_stob_key = stob_key,
+				.bsc_preallocate = false,
+				.bsc_size = size,
+				.bsc_addr = m0_be_ut_seg_allocate_addr(size),
+				.bsc_stob_create_cfg = NULL,
+			 });
+		M0_ASSERT(rc == 0);
 		M0_ALLOC_PTR(ut_seg->bus_seg);
 		M0_ASSERT(ut_seg->bus_seg != NULL);
-		m0_be_seg_init(ut_seg->bus_seg, m0_ut_stob_linux_get(),
-			       &ut_be->but_dom,
-			       ut_seg->bus_pd == NULL ? pd : ut_seg->bus_pd,
-			       M0_BE_SEG_FAKE_ID);
-		rc = m0_be_seg_create(ut_seg->bus_seg, size,
-				      m0_be_ut_seg_allocate_addr(size));
-		M0_ASSERT(rc == 0);
-		rc = m0_be_seg_open(ut_seg->bus_seg);
+		rc = m0_be_pd_seg_open(pd, ut_seg->bus_seg, NULL, stob_key);
 		M0_ASSERT(rc == 0);
 	} else {
 		seg_cfg = (struct m0_be_0type_seg_cfg){
@@ -676,29 +682,41 @@ void m0_be_ut_seg_init(struct m0_be_ut_seg *ut_seg,
 	be_ut_seg_init(ut_seg, ut_be, NULL, size);
 }
 
-void m0_be_ut_seg_fini(struct m0_be_ut_seg *ut_seg)
+static void be_ut_seg_fini(struct m0_be_ut_seg *ut_seg,
+                           struct m0_be_pd     *pd)
 {
-	struct m0_stob *stob = ut_seg->bus_seg->bs_stob;
-	int		rc;
+	uint64_t seg_id;
+	int	 rc;
 
 	if (ut_seg->bus_backend == NULL) {
-		m0_be_seg_close(ut_seg->bus_seg);
-		rc = m0_be_seg_destroy(ut_seg->bus_seg);
-		M0_ASSERT(rc == 0);
-		m0_be_seg_fini(ut_seg->bus_seg);
+		seg_id = ut_seg->bus_seg->bs_id;
+		if (pd == NULL)
+			pd = ut_seg->bus_pd;
+		m0_be_pd_seg_close(pd, ut_seg->bus_seg);
 		m0_free(ut_seg->bus_seg);
-
+		rc = m0_be_pd_seg_destroy(pd, NULL, seg_id);
+		M0_ASSERT(rc == 0);
 		if (ut_seg->bus_pd != NULL)
 			m0_be_ut_pd_fini(ut_seg->bus_pd);
 		if (ut_seg->bus_reqh != NULL)
 			m0_be_ut_reqh_destroy();
 		m0_free(ut_seg->bus_pd);
-
-		m0_ut_stob_put(stob, false);
 	} else {
 		m0_be_ut_backend_seg_del(ut_seg->bus_backend, ut_seg->bus_seg);
 	}
 }
+
+void m0_be_ut_seg_fini(struct m0_be_ut_seg *ut_seg)
+{
+	be_ut_seg_fini(ut_seg, NULL);
+}
+
+void m0_be_ut_seg_fini_with_pd(struct m0_be_ut_seg *ut_seg,
+                               struct m0_be_pd     *pd)
+{
+	be_ut_seg_fini(ut_seg, pd);
+}
+
 
 M0_INTERNAL void m0_be_ut_alloc(struct m0_be_ut_backend *ut_be,
 				struct m0_be_ut_seg *ut_seg,

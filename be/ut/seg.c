@@ -142,7 +142,7 @@ static void be_ut_seg_thread_func(struct be_ut_seg_thread_ctx *tctx)
 	for (i = 0; i < BE_UT_SEG_PER_THREAD; ++i) {
 		m0_be_ut_seg_init_with_pd(&ut_seg, tctx->bustc_pd,
 					  BE_UT_SEG_MULTIPLE_SIZE);
-		m0_be_ut_seg_fini(&ut_seg);
+		m0_be_ut_seg_fini_with_pd(&ut_seg, tctx->bustc_pd);
 	}
 }
 

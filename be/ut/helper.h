@@ -135,6 +135,8 @@ void m0_be_ut_seg_init_with_pd(struct m0_be_ut_seg *ut_seg,
                                struct m0_be_pd *pd,
                                m0_bcount_t size);
 void m0_be_ut_seg_fini(struct m0_be_ut_seg *ut_seg);
+void m0_be_ut_seg_fini_with_pd(struct m0_be_ut_seg *ut_seg,
+                               struct m0_be_pd *pd);
 void m0_be_ut_seg_reload(struct m0_be_ut_seg *ut_seg);
 
 M0_INTERNAL void *m0_be_ut_seg_allocate_addr(m0_bcount_t size);
