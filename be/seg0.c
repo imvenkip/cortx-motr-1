@@ -24,6 +24,7 @@
 #include "be/op.h"
 #include "be/seg0.h"
 #include "be/seg.h"
+#include "be/reg.h"     /* M0_BE_REG_GET_PTR */
 
 #include "lib/mutex.h"
 #include "lib/buf.h"
@@ -94,11 +95,15 @@ int m0_be_0type_create(struct m0_be_0type  *zt,
 	keyname_format(zt, suffix, keyname, ARRAY_SIZE(keyname));
 
 	M0_BE_ALLOC_PTR_SYNC(opt, seg, tx);
+	M0_BE_REG_GET_PTR(opt, seg, tx);
 	opt->b_nob = data->b_nob;
 	M0_BE_ALLOC_BUF_SYNC(opt, seg, tx);
+	M0_BE_REG_GET_BUF(opt, seg, tx);
 	memcpy(opt->b_addr, data->b_addr, data->b_nob);
 	M0_BE_TX_CAPTURE_PTR(seg, tx, opt);
 	M0_BE_TX_CAPTURE_BUF(seg, tx, opt);
+	M0_BE_REG_PUT_BUF(opt, seg, tx);
+	M0_BE_REG_PUT_PTR(opt, seg, tx);
 	rc = m0_be_seg_dict_insert(seg, tx, keyname, (void*)opt);
 
 	return M0_RC(rc);
@@ -139,7 +144,9 @@ int m0_be_0type_del(struct m0_be_0type  *zt,
 		return M0_RC(rc); /* keyname is not found -- nothing to delete */
 
 	zt->b0_fini(dom, suffix, opt);
+	M0_BE_REG_GET_PTR(opt, seg, tx);
 	M0_BE_FREE_PTR_SYNC(opt->b_addr, seg, tx);
+	M0_BE_REG_PUT_PTR(opt, seg, tx);
 	M0_BE_FREE_PTR_SYNC(opt, seg, tx);
 	return m0_be_seg_dict_delete(seg, tx, keyname);
 }
