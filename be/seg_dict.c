@@ -34,6 +34,8 @@
 #include "be/seg.h"
 #include "be/seg_internal.h"  /* m0_be_seg_hdr */
 #include "be/tx.h"            /* M0_BE_TX_CAPTURE_PTR */
+#include "be/list.h"          /* m0_be_list */
+#include "be/reg.h"           /* M0_BE_REG_GET_PTR */
 
 /**
  * @addtogroup be
@@ -67,16 +69,21 @@ static struct m0_be_list *be_seg_dict_get(const struct m0_be_seg *seg)
 	return &((struct m0_be_seg_hdr *) seg->bs_addr)->bh_dict;
 }
 
-static void be_seg_dict_kv_get(const struct be_seg_dict_keyval *kv)
+static void be_seg_dict_kv_get(struct be_seg_dict_keyval *kv,
+                               struct m0_be_tx           *tx,
+                               struct m0_be_seg          *seg)
 {
-	/* GET kv */
-	/* GET kv->dkv_key */
+	M0_BE_REG_GET_PTR(kv, seg, tx);
+	m0_be_reg_get(&M0_BE_REG(seg, kv->dkv_key_len, kv->dkv_key), tx);
 }
 
-static void be_seg_dict_kv_put(const struct be_seg_dict_keyval *kv)
+static void be_seg_dict_kv_put(struct be_seg_dict_keyval *kv,
+                               struct m0_be_tx           *tx,
+                               struct m0_be_seg          *seg)
+
 {
-	/* PUT kv->dkv_key */
-	/* PUT kv */
+	m0_be_reg_put(&M0_BE_REG(seg, kv->dkv_key_len, kv->dkv_key), tx);
+	M0_BE_REG_PUT_PTR(kv, seg, tx);
 }
 
 static struct be_seg_dict_keyval *
@@ -89,11 +96,11 @@ be_seg_dict_find(struct m0_be_seg *seg,
 	struct be_seg_dict_keyval *kv;
 	struct be_seg_dict_keyval *result = NULL;
 
-	m0_be_list_for(be_seg_dict, dict, kv) {
-		be_seg_dict_kv_get(kv);
+	m0_be_list_for(be_seg_dict, NULL, seg, dict, kv) {
+		be_seg_dict_kv_get(kv, NULL, seg);
 		if (compare(kv->dkv_key, user_key))
 			result = kv;
-		be_seg_dict_kv_put(kv);
+		be_seg_dict_kv_put(kv, NULL, seg);
 		if (result != NULL)
 			break;
 	} m0_be_list_endfor;
@@ -185,9 +192,9 @@ M0_INTERNAL int m0_be_seg_dict_lookup(struct m0_be_seg  *seg,
 	M0_ENTRY("seg=%p name='%s'", seg, name);
 	kv = be_seg_dict_find(seg, name, be_seg_dict_kv_eq);
 	if (kv != NULL) {
-		be_seg_dict_kv_get(kv);
+		be_seg_dict_kv_get(kv, NULL, seg);
 		*out = kv->dkv_val;
-		be_seg_dict_kv_put(kv);
+		be_seg_dict_kv_put(kv, NULL, seg);
 	}
 	return kv == NULL ? M0_RC(-ENOENT) : M0_RC(0);
 }
@@ -217,7 +224,7 @@ static int be_seg_dict_iterate(struct m0_be_seg  *seg,
 
 	kv = be_seg_dict_find(seg, start_key, compare);
 	if (kv) {
-		be_seg_dict_kv_get(kv);
+		be_seg_dict_kv_get(kv, NULL, seg);
 		if (strstr(kv->dkv_key, "M0_BE:") != NULL &&
 		    strstr(kv->dkv_key, prefix) != NULL) {
 			rc = 0;
@@ -226,7 +233,7 @@ static int be_seg_dict_iterate(struct m0_be_seg  *seg,
 		}
 		M0_LOG(M0_DEBUG, "rc=%d, dict_key='%s', prefix='%s'",
 		       rc, kv->dkv_key, prefix);
-		be_seg_dict_kv_put(kv);
+		be_seg_dict_kv_put(kv, NULL, seg);
 	}
 	return M0_RC(rc);
 }
@@ -271,10 +278,10 @@ M0_INTERNAL int m0_be_seg_dict_insert(struct m0_be_seg *seg,
 	/* Check for collision */
 	next = be_seg_dict_find(seg, name, be_seg_dict_kv_begin);
 	if (next != NULL) {
-		be_seg_dict_kv_get(next);
+		be_seg_dict_kv_get(next, tx, seg);
 		if (m0_streq(next->dkv_key, name))
 			rc = M0_RC(-EEXIST);
-		be_seg_dict_kv_put(next);
+		be_seg_dict_kv_put(next, tx, seg);
 		if (rc != 0)
 			return rc;
 	}
@@ -284,7 +291,7 @@ M0_INTERNAL int m0_be_seg_dict_insert(struct m0_be_seg *seg,
 	M0_BE_ALLOC_PTR_SYNC(kv, seg, tx);
 	if (kv == NULL)
 		return M0_ERR(-ENOMEM);
-	/* GET kv */
+	M0_BE_REG_GET_PTR(kv, seg, tx);
 	M0_BE_ALLOC_ARR_SYNC(kv->dkv_key, buf_len, seg, tx);
 	if (kv->dkv_key == NULL) {
 		M0_BE_OP_SYNC(op, m0_be_free(m0_be_seg_allocator(seg),
@@ -292,7 +299,7 @@ M0_INTERNAL int m0_be_seg_dict_insert(struct m0_be_seg *seg,
 		rc = M0_ERR(-ENOMEM);
 	}
 	if (rc == 0) {
-		/* GET kv->dkv_key */
+		m0_be_reg_get(&M0_BE_REG(seg, buf_len, kv->dkv_key), tx);
 		strncpy(kv->dkv_key, name, buf_len);
 		M0_ASSERT(kv->dkv_key[buf_len - 1] == '\0');
 		kv->dkv_key_len = buf_len;
@@ -304,9 +311,9 @@ M0_INTERNAL int m0_be_seg_dict_insert(struct m0_be_seg *seg,
 			be_seg_dict_be_list_add_tail(dict, tx, kv);
 		else
 			be_seg_dict_be_list_add_before(dict, tx, next, kv);
-		/* PUT kv->dkv_key */
+		m0_be_reg_put(&M0_BE_REG(seg, buf_len, kv->dkv_key), tx);
 	}
-	/* PUT kv */
+	M0_BE_REG_PUT_PTR(kv, seg, tx);
 
 	M0_POST(m0_be_seg__invariant(seg));
 	return M0_RC(rc);
@@ -328,11 +335,11 @@ M0_INTERNAL int m0_be_seg_dict_delete(struct m0_be_seg *seg,
 
 	be_seg_dict_be_list_del(dict, tx, kv);
 	be_seg_dict_be_tlink_destroy(kv, tx);
-	be_seg_dict_kv_get(kv);
+	be_seg_dict_kv_get(kv, tx, seg);
 	M0_BE_OP_SYNC(op, m0_be_free(m0_be_seg_allocator(seg), tx, &op,
 				     kv->dkv_key));
 	M0_BE_OP_SYNC(op, m0_be_free(m0_be_seg_allocator(seg), tx, &op, kv));
-	be_seg_dict_kv_put(kv);
+	be_seg_dict_kv_put(kv, tx, seg);
 
 	M0_POST(m0_be_seg__invariant(seg));
 	return M0_RC(0);
