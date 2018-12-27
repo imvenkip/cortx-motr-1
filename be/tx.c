@@ -318,6 +318,7 @@ M0_INTERNAL void m0_be_tx_capture(struct m0_be_tx        *tx,
 	be_tx_make_reg_d(tx, &rd, reg);
 	rd.rd_gen_idx = m0_be_reg_gen_idx(reg);
 	m0_be_reg_area_capture(&tx->t_reg_area, &rd);
+	m0_be_pd__pages_lsn_set(paged, &rd);
 }
 
 M0_INTERNAL void
