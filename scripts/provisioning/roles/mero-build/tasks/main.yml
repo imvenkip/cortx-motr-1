@@ -238,3 +238,25 @@
   when: ansible_os_family == 'RedHat'
   tags:
     - mero-doc
+
+- name: install up-to-date tools from Software Collections repo
+  block:
+    - name: install centos-release-scl repo
+      yum:
+        name:
+          - centos-release-scl
+          - scl-utils
+        state: present
+
+    - name: install SCL Git 2.12
+      yum:
+        name: sclo-git212
+        state: present
+
+    - name: enable SCL Git 2.12
+      copy:
+        src: sclo-git212.sh
+        dest: /etc/profile.d/sclo-git212.sh
+  when: ansible_os_family == 'RedHat'
+  tags:
+    - software-collections
