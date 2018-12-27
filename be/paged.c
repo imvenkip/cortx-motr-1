@@ -332,6 +332,7 @@ M0_INTERNAL bool m0_be_pd__is_reg_in(struct m0_be_pd        *paged,
 	                    struct m0_be_reg_d   *rd) {
 	             m0_be_pd_page_lock(page);
 	             if (page->pp_ref == 0) {
+			     m0_be_pd_page_unlock(page);
 			     request.prt_rc = -ESRCH;
 			     return false;
 		     }
