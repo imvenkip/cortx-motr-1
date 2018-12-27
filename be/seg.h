@@ -149,6 +149,8 @@ struct m0_be_reg {
 		.br_addr = (addr) })
 
 #define M0_BE_REG_PTR(seg, ptr)         M0_BE_REG((seg), sizeof *(ptr), (ptr))
+#define M0_BE_REG_BUF(seg, buf)         M0_BE_REG((seg), \
+						  (buf)->b_nob, (buf)->b_addr)
 #define M0_BE_REG_SEG(seg) M0_BE_REG((seg), (seg)->bs_size, (seg)->bs_addr)
 
 M0_INTERNAL m0_bindex_t m0_be_reg_offset(const struct m0_be_reg *reg);
