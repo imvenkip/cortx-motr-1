@@ -28,6 +28,7 @@
 
 #include "be/tx_credit.h"       /* m0_be_tx_credit */
 #include "be/alloc_internal.h"  /* be_alloc_chunk */
+#include "be/reg.h"             /* M0_BE_REG_GET_PTR */
 
 /**
  * @addtogroup be
@@ -131,26 +132,33 @@ static unsigned long be_fl_index_round_up(struct m0_be_fl *fl,
 }
 
 static unsigned long
-be_fl_index_round_down_chunk(struct m0_be_fl             *fl,
-                             const struct be_alloc_chunk *chunk)
+be_fl_index_round_down_chunk(struct m0_be_fl       *fl,
+                             struct m0_be_tx       *tx,
+                             struct be_alloc_chunk *chunk)
 {
-	return min_type(unsigned long, M0_BE_FL_NR,
-			chunk->bac_size / M0_BE_FL_STEP);
+	m0_bcount_t size;
+
+	M0_BE_REG_GET_PTR(&chunk->bac_size, NULL, tx);
+	size = chunk->bac_size;
+	M0_BE_REG_PUT_PTR(&chunk->bac_size, NULL, tx);
+
+	return min_type(unsigned long, M0_BE_FL_NR, size / M0_BE_FL_STEP);
 }
 
 M0_INTERNAL bool m0_be_fl__invariant(struct m0_be_fl *fl, struct m0_be_tx *tx)
 {
 	return /* XXX */ true || m0_forall(i, ARRAY_SIZE(fl->bfl_free),
-			m0_be_list_forall(fl, tx, NULL, chunk, be_fl_list(fl, i),
-				_0C(be_fl_index_round_down_chunk(fl, chunk) ==
-				    i)));
+			m0_be_list_forall(fl, tx, NULL, chunk,
+					  be_fl_list(fl, i),
+				_0C(be_fl_index_round_down_chunk(fl, tx,
+								 chunk) == i)));
 }
 
 M0_INTERNAL void m0_be_fl_add(struct m0_be_fl       *fl,
 			      struct m0_be_tx       *tx,
 			      struct be_alloc_chunk *chunk)
 {
-	unsigned long index = be_fl_index_round_down_chunk(fl, chunk);
+	unsigned long index = be_fl_index_round_down_chunk(fl, tx, chunk);
 
 	M0_PRE_EX(m0_be_fl__invariant(fl, tx));
 
@@ -164,7 +172,7 @@ M0_INTERNAL void m0_be_fl_del(struct m0_be_fl       *fl,
 			      struct m0_be_tx       *tx,
 			      struct be_alloc_chunk *chunk)
 {
-	unsigned long index = be_fl_index_round_down_chunk(fl, chunk);
+	unsigned long index = be_fl_index_round_down_chunk(fl, tx, chunk);
 
 	M0_PRE_EX(m0_be_fl__invariant(fl, tx));
 
