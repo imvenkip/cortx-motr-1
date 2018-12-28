@@ -30,6 +30,7 @@
 #include "be/ut/helper.h"       /* m0_be_ut_backend */
 #include "be/seg.h"
 #include "be/seg0.h"
+#include "be/reg.h"             /* M0_BE_REG_GET_PTR */
 #include "format/format.h"      /* m0_format_header */
 #include "stob/stob.h"
 #include "stob/linux.h"
@@ -53,10 +54,19 @@ static int be_ut_0type_test_init(struct m0_be_domain *dom,
 
 static void be_ut_0type_test_fini(struct m0_be_domain *dom,
 				  const char          *suffix,
-				  const struct m0_buf *data)
+				  const struct m0_buf *data_)
 {
+	struct m0_be_seg *seg;
+	struct m0_buf    *data;
+
+	data = (struct m0_buf *)data_; /* XXX remove const in master */
+	seg = m0_be_domain_seg_by_addr(dom, data);
+	M0_BE_REG_GET_PTR(data, seg, NULL);
+	M0_BE_REG_GET_BUF(data, seg, NULL);
 	M0_UT_ASSERT(m0_streq(suffix, be_ut_0type_suffix));
 	M0_UT_ASSERT(m0_buf_eq(data, &be_ut_0type_data_buf));
+	M0_BE_REG_PUT_BUF(data, seg, NULL);
+	M0_BE_REG_PUT_PTR(data, seg, NULL);
 }
 
 static struct m0_be_0type be_ut_0type_test = {
