@@ -37,6 +37,7 @@
 #include "be/ut/helper.h"       /* m0_be_ut_backend_init_cfg */
 
 #include "ut/ut.h"              /* M0_UT_ASSERT */
+#include "be/reg.h"             /* M0_BE_REG_GET_PTR */
 
 enum {
 	BE_UT_TX_BULK_SEG_SIZE       = 1UL << 26,
@@ -157,8 +158,10 @@ static void be_ut_tx_bulk_usecase_do(struct m0_be_tx_bulk   *tb,
 	uint64_t                     *value = user;
 
 	m0_be_op_active(op);
+	M0_BE_REG_GET_PTR(value, bu->tbu_seg, tx);
 	*value = (uint64_t)value;
 	M0_BE_TX_CAPTURE_PTR(bu->tbu_seg, tx, value);
+	M0_BE_REG_PUT_PTR(value, bu->tbu_seg, tx);
 	m0_be_op_done(op);
 }
 
@@ -318,7 +321,9 @@ static void be_ut_tx_bulk_state_do(struct m0_be_tx_bulk   *tb,
 		buf.b_nob  = min_check(left, tbs->bbs_buf_size);
 		buf.b_addr = tbs->bbs_buf[i % tbs->bbs_buf_nr];
 		left -= buf.b_nob;
+		M0_BE_REG_GET_BUF(&buf, tbs->bbs_seg, tx);
 		M0_BE_TX_CAPTURE_BUF(tbs->bbs_seg, tx, &buf);
+		M0_BE_REG_PUT_BUF(&buf, tbs->bbs_seg, tx);
 	}
 	M0_UT_ASSERT(left == 0);
 	tx->t_payload.b_nob = use_payload;
