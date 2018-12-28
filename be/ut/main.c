@@ -207,7 +207,7 @@ struct m0_ut_suite be_ut = {
 		{ "domain-is_stob",          m0_be_ut_domain_is_stob          },
 		{ "tx-states",               m0_be_ut_tx_states               },
 		{ "tx-empty",                m0_be_ut_tx_empty                },
-		// GETPUT { "tx-usecase_success",      m0_be_ut_tx_usecase_success      },
+		{ "tx-usecase_success",      m0_be_ut_tx_usecase_success      },
 		{ "tx-usecase_failure",      m0_be_ut_tx_usecase_failure      },
 		// GETPUT { "tx-capturing",            m0_be_ut_tx_capturing            },
 		// GETPUT { "tx-gc",                   m0_be_ut_tx_gc                   },

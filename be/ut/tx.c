@@ -67,8 +67,10 @@ void m0_be_ut_tx_usecase_success(void)
 	M0_UT_ASSERT(rc == 0);
 
 	data = (uint64_t *) (seg->bs_addr + seg->bs_reserved);
+	M0_BE_REG_GET_PTR(data, seg, &tx);
 	*data = 0x101;
 	m0_be_tx_capture(&tx, &M0_BE_REG_PTR(seg, data));
+	M0_BE_REG_PUT_PTR(data, seg, &tx);
 
 	/* m0_be_tx_close_sync() can be used in UT */
 	m0_be_tx_close(&tx);
