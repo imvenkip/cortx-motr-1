@@ -1335,10 +1335,14 @@ M0_INTERNAL void m0_be_free(struct m0_be_allocator *a,
 M0_INTERNAL void m0_be_alloc_stats(struct m0_be_allocator *a,
 				   struct m0_be_allocator_stats *out)
 {
-	/* XXX NO_PD */
+	struct m0_be_reg reg;
+
 	m0_mutex_lock(&a->ba_lock);
 	M0_PRE_EX(m0_be_allocator__invariant(a, NULL));
+	reg = M0_BE_REG_PTR(a->ba_seg, &a->ba_h[M0_BAP_NORMAL]->bah_stats);
+	m0_be_reg_get(&reg, NULL);
 	*out = a->ba_h[M0_BAP_NORMAL]->bah_stats;
+	m0_be_reg_put(&reg, NULL);
 	m0_mutex_unlock(&a->ba_lock);
 }
 
@@ -1352,10 +1356,14 @@ M0_INTERNAL void m0_be_alloc_stats_credit(struct m0_be_allocator *a,
 M0_INTERNAL void m0_be_alloc_stats_capture(struct m0_be_allocator *a,
                                            struct m0_be_tx        *tx)
 {
-	/* XXX NO_PD */
+	struct m0_be_reg reg;
+
 	if (tx != NULL) {
-		m0_be_tx_capture(tx, &M0_BE_REG_PTR(a->ba_seg,
-					&a->ba_h[M0_BAP_NORMAL]->bah_stats));
+		reg = M0_BE_REG_PTR(a->ba_seg,
+		                    &a->ba_h[M0_BAP_NORMAL]->bah_stats);
+		m0_be_reg_get(&reg, tx);
+		m0_be_tx_capture(tx, &reg);
+		m0_be_reg_put(&reg, tx);
 	}
 }
 
