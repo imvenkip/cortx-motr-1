@@ -209,7 +209,7 @@ struct m0_ut_suite be_ut = {
 		{ "tx-empty",                m0_be_ut_tx_empty                },
 		{ "tx-usecase_success",      m0_be_ut_tx_usecase_success      },
 		{ "tx-usecase_failure",      m0_be_ut_tx_usecase_failure      },
-		// GETPUT { "tx-capturing",            m0_be_ut_tx_capturing            },
+		{ "tx-capturing",            m0_be_ut_tx_capturing            },
 		// GETPUT { "tx-gc",                   m0_be_ut_tx_gc                   },
 		// GETPUT { "tx-single",               m0_be_ut_tx_single               },
 		// GETPUT { "tx-several",              m0_be_ut_tx_several              },

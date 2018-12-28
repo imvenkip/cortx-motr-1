@@ -770,7 +770,6 @@ void m0_be_ut_tx_capturing(void)
 
 	M0_SET0(&ut_be);
 	m0_be_ut_backend_init(&ut_be, true);
-	/* m0_be_ut_seg_init(&ut_seg, NULL, BE_UT_TX_CAPTURING_SEG_SIZE); */ /* XXX PD */
 	m0_be_ut_seg_init(&ut_seg, &ut_be, BE_UT_TX_CAPTURING_SEG_SIZE);
 	seg = ut_seg.bus_seg;
 
@@ -785,8 +784,10 @@ void m0_be_ut_tx_capturing(void)
 			ptr = seg->bs_addr + m0_be_seg_reserved(seg) +
 			      m0_rnd64(&seed) %
 			      (BE_UT_TX_CAPTURING_RANGE - sizeof *ptr);
+			M0_BE_REG_GET_PTR(ptr, seg, &tx);
 			*ptr = m0_rnd64(&seed);
 			m0_be_tx_capture(&tx, &M0_BE_REG_PTR(seg, ptr));
+			M0_BE_REG_PUT_PTR(ptr, seg, &tx);
 		}
 
 		m0_be_tx_close_sync(&tx);
