@@ -23,6 +23,8 @@
 #ifndef __MERO_BE_REG_H__
 #define __MERO_BE_REG_H__
 
+#include "be/seg.h"     /* XXX FIXME for M0_BE_REG_PTR */
+
 /**
  * @defgroup be
  *
