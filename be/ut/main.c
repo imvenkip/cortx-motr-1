@@ -242,7 +242,7 @@ struct m0_ut_suite be_ut = {
 		{ "obj",                     m0_be_ut_obj_test                },
 		// GETPUT { "actrec",                  m0_be_ut_actrec_test             },
 #endif
-		// GETPUT { "list",                    m0_be_ut_list                    },
+		{ "list",                    m0_be_ut_list                    },
 		// GETPUT { "btree",                   m0_be_ut_btree_simple            },
 		{ "seg_dict",                m0_be_ut_seg_dict                },
 		// GETPUT { "seg0",                    m0_be_ut_seg0_test               },

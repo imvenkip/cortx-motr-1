@@ -29,6 +29,7 @@
 #include "lib/misc.h"           /* M0_SET0 */
 
 #include "be/ut/helper.h"       /* m0_be_ut_backend_init */
+#include "be/reg.h"             /* M0_BE_REG_GET_PTR */
 
 /* -------------------------------------------------------------------------
  * Descriptors and stuff
@@ -96,8 +97,10 @@ M0_INTERNAL void m0_be_ut_list(void)
 	for (i = 0; i < ARRAY_SIZE(elem); ++i) {
 		M0_BE_UT_TRANSACT(&ut_be, tx, cred,
 				  cred = M0_BE_TX_CREDIT_PTR(elem[i]),
-				  (elem[i]->t_payload = i,
-				   M0_BE_TX_CAPTURE_PTR(seg, tx, elem[i])));
+				  (M0_BE_REG_GET_PTR(elem[i], seg, tx),
+				   elem[i]->t_payload = i,
+				   M0_BE_TX_CAPTURE_PTR(seg, tx, elem[i]),
+				   M0_BE_REG_PUT_PTR(elem[i], seg, tx)));
 
 		if (i < ARRAY_SIZE(elem) / 2) {
 			if (i % 2 == 0) {
