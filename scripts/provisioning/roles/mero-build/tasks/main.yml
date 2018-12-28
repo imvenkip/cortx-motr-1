@@ -248,6 +248,13 @@
           - scl-utils
         state: present
 
+    - name: disable broken CentOS-SCLo-scl-rh.repo yum config
+      shell: mv /etc/yum.repos.d/CentOS-SCLo-scl-rh.repo{,.disabled}
+      args:
+        creates: /etc/yum.repos.d/CentOS-SCLo-scl-rh.repo.disabled
+        removes: /etc/yum.repos.d/CentOS-SCLo-scl-rh.repo
+      ignore_errors: yes
+
     - name: install SCL Git 2.12
       yum:
         name: sclo-git212
