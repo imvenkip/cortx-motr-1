@@ -486,12 +486,16 @@ static void be_ut_tx_reg_rand(struct m0_be_reg *reg,
 	reg->br_addr = seg->bs_addr + seg->bs_reserved + addr;
 }
 
-static void be_ut_tx_reg_rand_fill(struct m0_be_reg *reg, uint64_t *seed)
+static void be_ut_tx_reg_rand_fill(struct m0_be_reg *reg,
+				   uint64_t         *seed,
+				   struct m0_be_tx  *tx)
 {
 	int i;
 
+	m0_be_reg_get(reg, tx);
 	for (i = 0; i < reg->br_size; ++i)
-		((char *) reg->br_addr)[i] = m0_rnd64(seed) & 0xFF;
+		((char *)reg->br_addr)[i] = m0_rnd64(seed) & 0xFF;
+	m0_be_reg_put(reg, tx);
 }
 
 void m0_be_ut_tx_persistence(void)
@@ -532,8 +536,10 @@ void m0_be_ut_tx_persistence(void)
 		M0_UT_ASSERT(rc == 0);
 
 		for (i = 0; i < ARRAY_SIZE(regs); ++i) {
-			be_ut_tx_reg_rand_fill(&regs[i], &seed);
+			be_ut_tx_reg_rand_fill(&regs[i], &seed, &tx);
+			m0_be_reg_get(&regs[i], &tx);
 			m0_be_tx_capture(&tx, &regs[i]);
+			m0_be_reg_put(&regs[i], &tx);
 		}
 
 		m0_be_tx_get(&tx);
