@@ -212,7 +212,7 @@ struct m0_ut_suite be_ut = {
 		{ "tx-capturing",            m0_be_ut_tx_capturing            },
 		{ "tx-gc",                   m0_be_ut_tx_gc                   },
 		{ "tx-single",               m0_be_ut_tx_single               },
-		// GETPUT { "tx-several",              m0_be_ut_tx_several              },
+		{ "tx-several",              m0_be_ut_tx_several              },
 		// GETPUT { "tx-persistence",          m0_be_ut_tx_persistence          },
 // XXX		{ "tx-force",                m0_be_ut_tx_force                },
 		// GETPUT { "tx-fast",                 m0_be_ut_tx_fast                 },
