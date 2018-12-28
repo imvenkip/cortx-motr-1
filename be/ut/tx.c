@@ -39,6 +39,7 @@
 #include "ut/ut.h"
 
 #include "be/ut/helper.h"       /* m0_be_ut_backend */
+#include "be/reg.h"             /* M0_BE_REG_GET_PTR */
 
 void m0_be_ut_tx_usecase_success(void)
 {
@@ -155,8 +156,10 @@ void m0_be_ut_tx_states(void)
 	M0_UT_ASSERT(m0_be_tx_state(&tx) == M0_BTS_ACTIVE);
 
 	data = (uint64_t *) (seg->bs_addr + seg->bs_reserved);
+	M0_BE_REG_GET_PTR(data, seg, &tx);
 	*data = 0x101;
 	m0_be_tx_capture(&tx, &M0_BE_REG_PTR(seg, data));
+	M0_BE_REG_PUT_PTR(data, seg, &tx);
 
 	m0_be_tx_close(&tx);
 	rc = m0_be_tx_timedwait(&tx, M0_BITS(M0_BTS_PLACED), M0_TIME_NEVER);

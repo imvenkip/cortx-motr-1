@@ -205,7 +205,7 @@ struct m0_ut_suite be_ut = {
 		{ "mkfs-multiseg",           m0_be_ut_mkfs_multiseg           },
 		{ "domain",                  m0_be_ut_domain                  },
 		{ "domain-is_stob",          m0_be_ut_domain_is_stob          },
-		// GETPUT { "tx-states",               m0_be_ut_tx_states               },
+		{ "tx-states",               m0_be_ut_tx_states               },
 		{ "tx-empty",                m0_be_ut_tx_empty                },
 		// GETPUT { "tx-usecase_success",      m0_be_ut_tx_usecase_success      },
 		{ "tx-usecase_failure",      m0_be_ut_tx_usecase_failure      },
