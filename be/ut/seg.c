@@ -206,7 +206,7 @@ enum {
 	 * a problem with this UT. So it is set to a small value.
 	 * It may be increased after paged implemented.
 	 */
-	BE_UT_SEG_LARGE_SIZE = 1ULL << 27,        /* 128 MiB */
+	BE_UT_SEG_LARGE_SIZE = 1ULL << 26,        /* 64 MiB */
 	/* BE_UT_SEG_LARGE_SIZE = 1ULL << 34, */  /* 16 GiB */
 	/* Each step-th byte will be overwritten in the test. */
 	BE_UT_SEG_LARGE_STEP = 512,
@@ -301,35 +301,16 @@ static void be_ut_seg_large_stob(struct m0_be_seg *seg,
 
 void m0_be_ut_seg_large(void)
 {
-	struct m0_be_seg *seg;
-	struct m0_be_pd  *pd;
-	struct m0_reqh   *reqh;
-	struct m0_stob   *stob;
-	m0_bcount_t       size;
-	void             *addr;
-	int               rc;
+	struct m0_be_ut_seg *ut_seg;
+	struct m0_be_seg    *seg;
+	m0_bcount_t          size;
 
-	M0_ALLOC_PTR(seg);
-	M0_UT_ASSERT(seg != NULL);
-	reqh = NULL;
-	/* M0_ALLOC_PTR(reqh); */
-	/* M0_UT_ASSERT(reqh != NULL); */
-	M0_ALLOC_PTR(pd);
-	M0_UT_ASSERT(pd != NULL);
-	stob = m0_ut_stob_linux_get();
-	/* stob = m0_ut_stob_linux_create("/dev/sdc1"); */
-	M0_UT_ASSERT(stob != NULL);
-
+	M0_ALLOC_PTR(ut_seg);
+	M0_UT_ASSERT(ut_seg != NULL);
 	size = BE_UT_SEG_LARGE_SIZE;
-	addr = m0_be_ut_seg_allocate_addr(size);
-
-	m0_be_ut_reqh_create(&reqh);
-	m0_be_ut_pd_init(pd, reqh);
-	m0_be_seg_init(seg, stob, NULL, pd, M0_BE_SEG_FAKE_ID);
-	rc = m0_be_seg_create(seg, size, addr);
-	M0_UT_ASSERT(rc == 0);
-	rc = m0_be_seg_open(seg);
-	M0_UT_ASSERT(rc == 0);
+	m0_be_ut_seg_init(ut_seg, NULL, size);
+	seg = ut_seg->bus_seg;
+	m0_be_reg_get(&M0_BE_REG_SEG(seg), NULL);
 
 	M0_LOG(M0_DEBUG, "check if in-memory segment data is initially zeroed");
 	be_ut_seg_large_mem(seg, 0, size, true);
@@ -354,17 +335,9 @@ void m0_be_ut_seg_large(void)
 	M0_LOG(M0_DEBUG, "check 2 in the backing store");
 	be_ut_seg_large_stob(seg, 2, size, true);
 
-	m0_be_seg_close(seg);
-	rc = m0_be_seg_destroy(seg);
-	M0_UT_ASSERT(rc == 0);
-	m0_be_seg_fini(seg);
-	m0_be_ut_pd_fini(pd);
-	m0_be_ut_reqh_destroy();
-
-	m0_ut_stob_put(stob, true);
-	m0_free(pd);
-	m0_free(reqh);
-	m0_free(seg);
+	m0_be_reg_put(&M0_BE_REG_SEG(seg), NULL);
+	m0_be_ut_seg_fini(ut_seg);
+	m0_free(ut_seg);
 }
 
 void m0_be_ut_seg_large_multiple(void)

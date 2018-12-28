@@ -198,7 +198,7 @@ struct m0_ut_suite be_ut = {
 		{ "seg-open",                m0_be_ut_seg_open_close          },
 		{ "seg-io",                  m0_be_ut_seg_io                  },
 		{ "seg-multiple",            m0_be_ut_seg_multiple            },
-		// GETPUT { "seg-large",               m0_be_ut_seg_large               },
+		{ "seg-large",               m0_be_ut_seg_large               },
 		// { "seg-large-multiple",      m0_be_ut_seg_large_multiple      },
 		// GETPUT { "group_format",            m0_be_ut_group_format            },
 		{ "mkfs",                    m0_be_ut_mkfs                    },
