@@ -205,17 +205,30 @@ M0_INTERNAL struct be_alloc_chunk *m0_be_fl_pick(struct m0_be_fl *fl,
 		chunk = NULL;
 		i = 0;
 		m0_be_list_for(fl, tx, NULL, flist, iter) {
+			M0_BE_REG_GET_PTR(&iter->bac_size, NULL, tx);
+			if (chunk != NULL)
+				M0_BE_REG_GET_PTR(&chunk->bac_size, NULL, tx);
 			if (iter->bac_size > size &&
 			    ergo(chunk != NULL,
 				 chunk->bac_size > iter->bac_size)) {
+				if (chunk != NULL)
+					M0_BE_REG_PUT_PTR(&chunk->bac_size,
+							  NULL, tx);
 				chunk = iter;
+			} else {
+				if (chunk != NULL)
+					M0_BE_REG_PUT_PTR(&chunk->bac_size,
+							  NULL, tx);
 			}
+			M0_BE_REG_PUT_PTR(&iter->bac_size, NULL, tx);
 			++i;
 			if (i >= M0_BE_FL_PICK_SCAN_LIMIT && chunk != NULL)
 				break;
 		} m0_be_list_endfor;
 	}
+	M0_BE_REG_GET_PTR(&chunk->bac_size, NULL, tx);
 	M0_POST(ergo(chunk != NULL, chunk->bac_size >= size));
+	M0_BE_REG_PUT_PTR(&chunk->bac_size, NULL, tx);
 	return chunk;
 }
 
