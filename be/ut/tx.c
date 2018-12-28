@@ -258,6 +258,7 @@ enum { SHIFT = 0 };
 static void
 be_ut_transact(struct be_ut_tx_x *x, struct m0_be_seg *seg, void **alloc)
 {
+	struct m0_be_reg reg;
 	int rc;
 
 	m0_be_tx_prep(&x->tx, &x->cred);
@@ -272,10 +273,13 @@ be_ut_transact(struct be_ut_tx_x *x, struct m0_be_seg *seg, void **alloc)
 	M0_CASSERT(sizeof(struct m0_uint128) != sizeof(struct be_ut_complex));
 	M0_ASSERT(M0_IN(x->size, (sizeof(struct m0_uint128),
 				  sizeof(struct be_ut_complex))));
-	memcpy(x->data, &x->captured, x->size);
 
+	reg = M0_BE_REG(seg, x->size, x->data);
+	m0_be_reg_get(&reg, &x->tx);
+	memcpy(x->data, &x->captured, x->size);
 	/* Capture dirty memory. */
-	m0_be_tx_capture(&x->tx, &M0_BE_REG(seg, x->size, x->data));
+	m0_be_tx_capture(&x->tx, &reg);
+	m0_be_reg_put(&reg, &x->tx);
 
 	m0_be_tx_close(&x->tx);
 }

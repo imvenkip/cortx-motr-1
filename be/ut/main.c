@@ -211,7 +211,7 @@ struct m0_ut_suite be_ut = {
 		{ "tx-usecase_failure",      m0_be_ut_tx_usecase_failure      },
 		{ "tx-capturing",            m0_be_ut_tx_capturing            },
 		{ "tx-gc",                   m0_be_ut_tx_gc                   },
-		// GETPUT { "tx-single",               m0_be_ut_tx_single               },
+		{ "tx-single",               m0_be_ut_tx_single               },
 		// GETPUT { "tx-several",              m0_be_ut_tx_several              },
 		// GETPUT { "tx-persistence",          m0_be_ut_tx_persistence          },
 // XXX		{ "tx-force",                m0_be_ut_tx_force                },
