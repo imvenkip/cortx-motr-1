@@ -71,7 +71,6 @@ typedef void (*m0_be_op_cb_t)(struct m0_be_op *op, void *param);
 
 struct m0_be_op {
 	struct m0_sm        bo_sm;
-	struct m0_fom      *bo_fom;
 	/** use m0_be_op_rc_set() and m0_op_rc to set/get this field */
 	int                 bo_rc;
 	/** bo_rc was set using m0_be_op_rc_set() */
