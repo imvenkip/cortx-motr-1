@@ -137,7 +137,6 @@ void m0_be_ut_tx_states(void)
 
 	M0_SET0(&ut_be);
 	m0_be_ut_backend_init(&ut_be, true);
-	/* m0_be_ut_seg_init(&ut_seg, NULL, 1 << 20); */ /* XXX PD */
 	m0_be_ut_seg_init(&ut_seg, &ut_be, 1 << 20);
 	seg = ut_seg.bus_seg;
 
@@ -311,7 +310,6 @@ static void be_ut_tx_test(size_t nr)
 
 	M0_SET0(&ut_be);
 	m0_be_ut_backend_init(&ut_be, true);
-	/* m0_be_ut_seg_init(&ut_seg, NULL, 1 << 20); */ /* XXX PD */
 	m0_be_ut_seg_init(&ut_seg, &ut_be, 1 << 20);
 	be_ut_tx_alloc_init(&alloc, ut_seg.bus_seg);
 
@@ -615,7 +613,6 @@ void m0_be_ut_tx_fast(void)
 
 	M0_SET0(&ut_be);
 	m0_be_ut_backend_init(&ut_be, true);
-	/* m0_be_ut_seg_init(&ut_seg, NULL, BE_UT_TX_F_SEG_SIZE); */ /* XXX PD */
 	m0_be_ut_seg_init(&ut_seg, &ut_be, BE_UT_TX_F_SEG_SIZE);
 	seg = ut_seg.bus_seg;
 	M0_ALLOC_ARR(txf, BE_UT_TX_F_TX_CONCUR);
