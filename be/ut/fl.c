@@ -27,6 +27,7 @@
 
 #include "be/alloc_internal.h"  /* be_alloc_chunk */
 #include "be/ut/helper.h"       /* m0_be_ut_backend */
+#include "be/reg.h"             /* M0_BE_REG_GET_PTR */
 
 enum {
 	BE_UT_FL_CHUNK_NR  = 0x100,
@@ -88,6 +89,8 @@ void m0_be_ut_fl(void)
 			cred = M0_BE_TX_CREDIT(0, 0);
 			/* XXX don't use the largest possible credit */
 			m0_be_fl_credit(fl, M0_BFL_ADD, &cred);
+			m0_be_tx_credit_add(&cred,
+				    &M0_BE_TX_CREDIT_PTR(&chunks[0].bac_size));
 			m0_be_tx_credit_mul(&cred, BE_UT_FL_OP_PER_TX);
 			m0_be_tx_prep(&tx, &cred);
 
@@ -99,7 +102,10 @@ void m0_be_ut_fl(void)
 			m0_be_fl_del(fl, &tx, &chunks[index]);
 			chunks_used[index] = false;
 		} else {
+			M0_BE_REG_GET_PTR(&chunks[index].bac_size, seg, &tx);
 			chunks[index].bac_size = be_ut_fl_rand_size(&seed);
+			M0_BE_TX_CAPTURE_PTR(seg, &tx, &chunks[index].bac_size);
+			M0_BE_REG_PUT_PTR(&chunks[index].bac_size, seg, &tx);
 			m0_be_fl_add(fl, &tx, &chunks[index]);
 			chunks_used[index] = true;
 		}

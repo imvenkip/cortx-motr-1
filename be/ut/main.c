@@ -231,7 +231,7 @@ struct m0_ut_suite be_ut = {
 		{ "tx_bulk-medium_tx_multi", m0_be_ut_tx_bulk_medium_tx_multi },
 		{ "tx_bulk-medium_cred",     m0_be_ut_tx_bulk_medium_cred     },
 		{ "tx_bulk-large_cred",      m0_be_ut_tx_bulk_large_cred      },
-		// GETPUT { "fl",                      m0_be_ut_fl                      },
+		{ "fl",                      m0_be_ut_fl                      },
 		{ "alloc-init",              m0_be_ut_alloc_init_fini         },
 		{ "alloc-create",            m0_be_ut_alloc_create_destroy    },
 		// GETPUT { "alloc-multiple",          m0_be_ut_alloc_multiple          },
