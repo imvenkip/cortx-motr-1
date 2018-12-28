@@ -218,7 +218,7 @@ struct m0_ut_suite be_ut = {
 		{ "tx-fast",                 m0_be_ut_tx_fast                 },
 		{ "tx-payload",              m0_be_ut_tx_payload              },
 		{ "tx-concurrent",           m0_be_ut_tx_concurrent           },
-		// GETPUT { "tx-concurrent-excl",      m0_be_ut_tx_concurrent_excl      },
+		{ "tx-concurrent-excl",      m0_be_ut_tx_concurrent_excl      },
 		// GETPUT { "tx_bulk-usecase",         m0_be_ut_tx_bulk_usecase         },
 		{ "tx_bulk-empty",           m0_be_ut_tx_bulk_empty           },
 		// GETPUT { "tx_bulk-error_reg",       m0_be_ut_tx_bulk_error_reg       },
