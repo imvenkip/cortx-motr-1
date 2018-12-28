@@ -347,8 +347,8 @@ static void be_allocator_stats_update(struct m0_be_allocator_stats *stats,
 	M0_PRE(ergo(failed, alloc));
 
 	multiplier   = failed ? 0 : alloc ? 1 : -1;
-	space_change = size + stats->bas_chunk_overhead;
 	M0_BE_REG_GET_PTR(stats, a->ba_seg, tx);
+	space_change = size + stats->bas_chunk_overhead;
 	stats->bas_space_used += multiplier * space_change;
 	stats->bas_space_free -= multiplier * space_change;
 	be_allocator_call_stats_update(&stats->bas_total, size, alloc, failed,
