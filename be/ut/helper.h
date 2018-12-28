@@ -137,6 +137,12 @@ void m0_be_ut_seg_init_with_pd(struct m0_be_ut_seg *ut_seg,
 void m0_be_ut_seg_fini(struct m0_be_ut_seg *ut_seg);
 void m0_be_ut_seg_fini_with_pd(struct m0_be_ut_seg *ut_seg,
                                struct m0_be_pd *pd);
+/*
+ * XXX currently this function doesn't care about data structures that may be
+ * initialised in the segment. It should care. The best thing we can do here is
+ * to make BE domain interfaces to close/open the segment, so this function
+ * would only call BE domain seg_close()/seg_open().
+ */
 void m0_be_ut_seg_reload(struct m0_be_ut_seg *ut_seg);
 
 M0_INTERNAL void *m0_be_ut_seg_allocate_addr(m0_bcount_t size);
