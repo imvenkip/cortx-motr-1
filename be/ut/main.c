@@ -216,7 +216,7 @@ struct m0_ut_suite be_ut = {
 		{ "tx-persistence",          m0_be_ut_tx_persistence          },
 // XXX		{ "tx-force",                m0_be_ut_tx_force                },
 		{ "tx-fast",                 m0_be_ut_tx_fast                 },
-		// GETPUT { "tx-payload",              m0_be_ut_tx_payload              },
+		{ "tx-payload",              m0_be_ut_tx_payload              },
 		// GETPUT { "tx-concurrent",           m0_be_ut_tx_concurrent           },
 		// GETPUT { "tx-concurrent-excl",      m0_be_ut_tx_concurrent_excl      },
 		// GETPUT { "tx_bulk-usecase",         m0_be_ut_tx_bulk_usecase         },

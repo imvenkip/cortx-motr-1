@@ -1071,7 +1071,9 @@ static void be_ut_tx_payload_test_nr(struct m0_be_ut_backend      *ut_be,
 			reg = M0_BE_REG(seg, test[i].tpt_capture,
 			                seg->bs_addr + seg->bs_reserved +
 			                test[i].tpt_offset);
+			m0_be_reg_get(&reg, &test[i].tpt_tx);
 			m0_be_tx_capture(&test[i].tpt_tx, &reg);
+			m0_be_reg_put(&reg, &test[i].tpt_tx);
 		}
 		m0_be_tx_close_sync(&test[i].tpt_tx);
 		m0_be_tx_fini(&test[i].tpt_tx);
@@ -1106,7 +1108,6 @@ void m0_be_ut_tx_payload(void)
 	be_ut_tx_payload_seed = 42;     /* always works like magic */
 
 	m0_be_ut_backend_init(&ut_be, true);
-	/* m0_be_ut_seg_init(&ut_seg, NULL, BE_UT_TX_CAPTURING_SEG_SIZE); */ /* XXX PD */
 	m0_be_ut_seg_init(&ut_seg, &ut_be, BE_UT_TX_CAPTURING_SEG_SIZE);
 	seg = ut_seg.bus_seg;
 
