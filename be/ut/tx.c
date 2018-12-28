@@ -655,7 +655,9 @@ void m0_be_ut_tx_fast(void)
 			m0_be_tx_open(tx);
 			break;
 		case BE_UT_TX_F_CAPTURE:
+			m0_be_reg_get(&reg, tx);
 			m0_be_tx_capture(tx, &reg);
+			m0_be_reg_put(&reg, tx);
 			++reg.br_addr;
 			m0_be_tx_close(tx);
 			++nr_closed;
