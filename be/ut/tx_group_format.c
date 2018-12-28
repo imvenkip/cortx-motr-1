@@ -36,6 +36,7 @@
 #include "lib/memory.h"
 #include "stob/stob.h"
 #include "stob/domain.h"
+#include "be/reg.h"             /* m0_be_reg_get */
 
 struct be_ut_tgf_tx {
 	m0_bcount_t   tgft_payload_size;
@@ -187,12 +188,14 @@ static void be_ut_tgf_seg_init(struct be_ut_tgf_ctx *ctx, bool use_existing)
 	rc = m0_be_pd_seg_open(&ctx->tgfc_pd, seg, NULL, ctx->tgfc_stob_key);
 	M0_UT_ASSERT(rc == 0);
 	ctx->tgfc_seg_addr = (char*)seg->bs_addr + seg->bs_reserved;
+	m0_be_reg_get(&M0_BE_REG_SEG(seg), NULL);
 }
 
 static void be_ut_tgf_seg_fini(struct be_ut_tgf_ctx *ctx, bool use_existing)
 {
 	int rc;
 
+	m0_be_reg_put(&M0_BE_REG_SEG(&ctx->tgfc_seg), NULL);
 	m0_be_pd_seg_close(&ctx->tgfc_pd, &ctx->tgfc_seg);
 	if (!use_existing) {
 		rc = m0_be_pd_seg_destroy(&ctx->tgfc_pd, NULL,
