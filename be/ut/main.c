@@ -238,7 +238,7 @@ struct m0_ut_suite be_ut = {
 		{ "alloc-concurrent",        m0_be_ut_alloc_concurrent        },
 		// { "alloc-oom",               m0_be_ut_alloc_oom               },
 		{ "alloc-info",              m0_be_ut_alloc_info              },
-		// GETPUT { "alloc-spare",             m0_be_ut_alloc_spare             },
+		{ "alloc-spare",             m0_be_ut_alloc_spare             },
 		// GETPUT { "obj",                     m0_be_ut_obj_test                },
 		// GETPUT { "actrec",                  m0_be_ut_actrec_test             },
 #endif
