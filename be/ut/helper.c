@@ -744,8 +744,20 @@ M0_INTERNAL void m0_be_ut_free(struct m0_be_ut_backend *ut_be,
 
 void m0_be_ut_seg_reload(struct m0_be_ut_seg *ut_seg)
 {
-	m0_be_seg_close(ut_seg->bus_seg);
-	m0_be_seg_open(ut_seg->bus_seg);
+	uint64_t stob_key;
+	int      rc;
+
+	if (ut_seg->bus_pd == NULL) {
+		m0_be_seg_close(ut_seg->bus_seg);
+		m0_be_seg_open(ut_seg->bus_seg);
+	} else {
+		/* Here we use the fact that bs_id is equal to the stob_key. */
+		stob_key = ut_seg->bus_seg->bs_id;
+		m0_be_pd_seg_close(ut_seg->bus_pd, ut_seg->bus_seg);
+		rc = m0_be_pd_seg_open(ut_seg->bus_pd, ut_seg->bus_seg,
+				       NULL, stob_key);
+		M0_ASSERT(rc == 0);
+	}
 }
 
 static void be_ut_seg_allocator_initfini(struct m0_be_seg *seg,

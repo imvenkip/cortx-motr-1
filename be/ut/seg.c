@@ -35,6 +35,7 @@
 #include "ut/ut.h"              /* M0_UT_ASSERT */
 #include "ut/stob.h"            /* m0_ut_stob_linux_get */
 #include "be/ut/helper.h"       /* m0_be_ut_seg_helper */
+#include "be/reg.h"             /* m0_be_reg_get */
 
 enum {
 	BE_UT_SEG_SIZE    = 0x20000,
@@ -85,6 +86,7 @@ M0_INTERNAL void m0_be_ut_seg_io(void)
 	seg = ut_seg.bus_seg;
 	reg_check = M0_BE_REG(seg, BE_UT_SEG_IO_SIZE,
 			      seg->bs_addr + BE_UT_SEG_IO_OFFS);
+	m0_be_reg_get(&reg_check, NULL);
 	for (i = 0; i < BE_UT_SEG_IO_ITER; ++i) {
 		be_ut_seg_rand_reg(&reg, seg->bs_addr, &offset, &size, &seed);
 		reg.br_seg = seg;
@@ -101,9 +103,9 @@ M0_INTERNAL void m0_be_ut_seg_io(void)
 		rc = m0_be_seg__read(&reg_check, post);
 		M0_UT_ASSERT(rc == 0);
 		/* reload segment to test I/O operations in open()/close() */
-		m0_be_seg_close(seg);
-		rc = m0_be_seg_open(seg);
-		M0_UT_ASSERT(rc == 0);
+		m0_be_reg_put(&reg_check, NULL);
+		m0_be_ut_seg_reload(&ut_seg);
+		m0_be_reg_get(&reg_check, NULL);
 
 		for (j = 0; j < size; ++j)
 			pre[j + offset] = rand[j];
@@ -119,6 +121,7 @@ M0_INTERNAL void m0_be_ut_seg_io(void)
 		cmp = memcmp(post, reg_check.br_addr, reg_check.br_size);
 		M0_UT_ASSERT(cmp == 0);
 	}
+	m0_be_reg_put(&reg_check, NULL);
 	m0_be_ut_seg_fini(&ut_seg);
 }
 

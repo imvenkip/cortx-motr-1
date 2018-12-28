@@ -196,7 +196,7 @@ struct m0_ut_suite be_ut = {
 		{ "pd-fom",                  m0_be_ut_pd_fom                  },
 		{ "pd-get_put",              m0_be_ut_pd_get_put              },
 		{ "seg-open",                m0_be_ut_seg_open_close          },
-		// GETPUT { "seg-io",                  m0_be_ut_seg_io                  },
+		{ "seg-io",                  m0_be_ut_seg_io                  },
 		// GETPUT { "seg-multiple",            m0_be_ut_seg_multiple            },
 		// GETPUT { "seg-large",               m0_be_ut_seg_large               },
 		// { "seg-large-multiple",      m0_be_ut_seg_large_multiple      },
