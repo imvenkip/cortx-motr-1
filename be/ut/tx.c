@@ -867,6 +867,7 @@ void m0_be_ut_tx_gc(void)
 	struct m0_be_ut_seg      ut_seg;
 	struct m0_sm_group      *grp;
 	struct m0_be_seg        *seg;
+	struct m0_be_reg         reg;
 	struct m0_mutex          rb_lock;
 	struct m0_be_tx         *tx;
 	uint64_t                 seed = 0;
@@ -880,7 +881,6 @@ void m0_be_ut_tx_gc(void)
 
 	M0_SET0(&ut_be);
 	m0_be_ut_backend_init(&ut_be, true);
-	/* m0_be_ut_seg_init(&ut_seg, NULL, BE_UT_TX_CAPTURING_SEG_SIZE); */ /* XXX PD */
 	m0_be_ut_seg_init(&ut_seg, &ut_be, BE_UT_TX_CAPTURING_SEG_SIZE);
 	seg = ut_seg.bus_seg;
 	array = seg->bs_addr + m0_be_seg_reserved(seg);
@@ -939,8 +939,12 @@ void m0_be_ut_tx_gc(void)
 		tx   = test->bugc_tx;
 		m0_mutex_unlock(&rb_lock);
 
-		if (m0_rnd64(&seed) % BE_UT_TX_GC_RAND_DENOMINATOR)
-			m0_be_tx_capture(tx, &M0_BE_REG_PTR(seg, &array[i]));
+		if (m0_rnd64(&seed) % BE_UT_TX_GC_RAND_DENOMINATOR) {
+			reg = M0_BE_REG_PTR(seg, &array[i]);
+			m0_be_reg_get(&reg, tx);
+			m0_be_tx_capture(tx, &reg);
+			m0_be_reg_put(&reg, tx);
+		}
 		m0_be_tx_close(tx);
 	}
 	m0_sm_group_unlock(grp);
