@@ -239,7 +239,7 @@ struct m0_ut_suite be_ut = {
 		// { "alloc-oom",               m0_be_ut_alloc_oom               },
 		{ "alloc-info",              m0_be_ut_alloc_info              },
 		{ "alloc-spare",             m0_be_ut_alloc_spare             },
-		// GETPUT { "obj",                     m0_be_ut_obj_test                },
+		{ "obj",                     m0_be_ut_obj_test                },
 		// GETPUT { "actrec",                  m0_be_ut_actrec_test             },
 #endif
 		// GETPUT { "list",                    m0_be_ut_list                    },
