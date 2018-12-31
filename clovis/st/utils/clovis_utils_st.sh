@@ -88,12 +88,20 @@ main()
 	object_id2=1048581
 	block_size=4096
 	block_count=1024
-	READ_VERIFY="false"
-	CLOVIS_PARAMS="$CLOVIS_LOCAL_EP $CLOVIS_HA_EP $CLOVIS_PROF_OPT $CLOVIS_PROC_FID"
+	read_verify="false"
+	CLOVIS_PARAMS="-l $CLOVIS_LOCAL_EP -H $CLOVIS_HA_EP -p $CLOVIS_PROF_OPT \
+                       -P $CLOVIS_PROC_FID"
+	CLOVIS_PARAMS_V="-l $CLOVIS_LOCAL_EP -H $CLOVIS_HA_EP -p $CLOVIS_PROF_OPT \
+                         -P $CLOVIS_PROC_FID"
+
+	if [[ $read_verify == "true" ]]; then
+		CLOVIS_PARAMS_V+=" -r"
+	fi
 
 	rm -f $src_file $dest_file
 
-	dd if=/dev/urandom bs=$block_size count=$block_count of=$src_file 2> $CLOVIS_TEST_LOGFILE || {
+	dd if=/dev/urandom bs=$block_size count=$block_count of=$src_file \
+           2> $CLOVIS_TEST_LOGFILE || {
 		error_handling $? "Failed to create a source file"
 	}
 	mkdir $CLOVIS_TRACE_DIR
@@ -102,9 +110,9 @@ main()
 	dix_init
 
 	# Test c0client utility
-/usr/bin/expect  <<EOF
+	/usr/bin/expect <<EOF
 	set timeout 10
-	spawn $clovis_st_util_dir/c0client $CLOVIS_PARAMS > /tmp/log
+	spawn $clovis_st_util_dir/c0client $CLOVIS_PARAMS_V > $SANDBOX_DIR/c0client.log
 	expect "c0clovis >>"
 	send -- "touch $object_id1\r"
 	expect "c0clovis >>"
@@ -123,19 +131,21 @@ EOF
 		error_handling $rc "Files are different"
 	}
 
-	$clovis_st_util_dir/c0touch $CLOVIS_PARAMS $object_id1 || {
+	$clovis_st_util_dir/c0touch $CLOVIS_PARAMS -o $object_id1 || {
 		error_handling $? "Failed to create a object"
 	}
-	$clovis_st_util_dir/c0cp $CLOVIS_PARAMS $READ_VERIFY $object_id2 $src_file $block_size $block_count || {
+	$clovis_st_util_dir/c0cp $CLOVIS_PARAMS_V -o $object_id2 $src_file \
+                                 -s $block_size -c $block_count || {
 		error_handling $? "Failed to copy object"
 	}
-	$clovis_st_util_dir/c0cat $CLOVIS_PARAMS $READ_VERIFY $object_id2 $block_size $block_count > $dest_file || {
+	$clovis_st_util_dir/c0cat $CLOVIS_PARAMS_V -o $object_id2 -s $block_size \
+                                  -c $block_count > $dest_file || {
 		error_handling $? "Failed to read object"
 	}
-	$clovis_st_util_dir/c0unlink $CLOVIS_PARAMS $object_id1 || {
+	$clovis_st_util_dir/c0unlink $CLOVIS_PARAMS -o $object_id1 || {
 		error_handling $? "Failed to delete object"
 	}
-	$clovis_st_util_dir/c0unlink $CLOVIS_PARAMS $object_id2 || {
+	$clovis_st_util_dir/c0unlink $CLOVIS_PARAMS -o $object_id2 || {
 		error_handling $? "Failed to delete object"
 	}
 

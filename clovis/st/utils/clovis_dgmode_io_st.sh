@@ -52,7 +52,8 @@ main()
 	BLOCKSIZE=4096
 	BLOCKCOUNT=25
 	echo "dd if=/dev/urandom bs=$BLOCKSIZE count=$BLOCKCOUNT of=$src_file"
-	dd if=/dev/urandom bs=$BLOCKSIZE count=$BLOCKCOUNT of=$src_file 2> $CLOVIS_TEST_LOGFILE || {
+	dd if=/dev/urandom bs=$BLOCKSIZE count=$BLOCKCOUNT of=$src_file \
+              2> $CLOVIS_TEST_LOGFILE || {
 		echo "Failed to create a source file"
 		unmount_and_clean &>>$MERO_TEST_LOGFILE
 		mero_service_stop

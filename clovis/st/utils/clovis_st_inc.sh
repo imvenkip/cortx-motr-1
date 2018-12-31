@@ -137,10 +137,10 @@ function clovis_st_start_u()
 		       -p $CLOVIS_PROF_OPT -f $CLOVIS_PROC_FID \
 		       -I $idx_service"
 	if [ $random_mode -eq 1 ]; then
-		st_args="$st_args -r"
+		st_args+=" -r"
 	fi
-	if [ X$tests != X ]; then
-		st_args="$st_args -t $tests"
+	if [ -n "$tests" ]; then
+		st_args+=" -t $tests"
 	fi
 	local st_u="$st_exec $st_args"
 
@@ -205,14 +205,29 @@ io_conduct()
 	local cmd_exec
 	if [ $operation == "READ" ]
 	then
-		cmd_args="$CLOVIS_LOCAL_EP $CLOVIS_HA_EP '$CLOVIS_PROF_OPT' '$CLOVIS_PROC_FID' $verify $source"
+		cmd_args="-l $CLOVIS_LOCAL_EP -H $CLOVIS_HA_EP \
+                          -p '$CLOVIS_PROF_OPT' -P '$CLOVIS_PROC_FID' \
+                          -o $source"
 		cmd_exec="${clovis_st_util_dir}/c0cat"
-		cmd_args="$cmd_args $BLOCKSIZE $BLOCKCOUNT"
+		cmd_args="$cmd_args -s $BLOCKSIZE -c $BLOCKCOUNT"
+
+		if [[ $verify == "true" ]]; then
+			cmd_args+=" -r"
+		fi
+
 		local cmd="$cmd_exec $cmd_args > $dest &"
 	else
-		cmd_args="$CLOVIS_LOCAL_EP $CLOVIS_HA_EP '$CLOVIS_PROF_OPT' '$CLOVIS_PROC_FID' $verify $dest $source"
+		cmd_args="-l $CLOVIS_LOCAL_EP -H $CLOVIS_HA_EP \
+                          -p '$CLOVIS_PROF_OPT' -P '$CLOVIS_PROC_FID' \
+                          -o $dest $source"
 		cmd_exec="${clovis_st_util_dir}/c0cp"
-		cmd_args="$cmd_args $BLOCKSIZE $BLOCKCOUNT"
+		cmd_args="$cmd_args -s $BLOCKSIZE -c $BLOCKCOUNT"
+
+		if [ $verify == "true" ]
+		then
+			cmd_args="$cmd_args -r"
+		fi
+
 		local cmd="$cmd_exec $cmd_args &"
 	fi
 	cwd=`pwd`

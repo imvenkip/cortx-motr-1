@@ -18,11 +18,17 @@
  *                   James  Morse    <james.s.morse@seagate.com>
  *                   Sining Wu       <sining.wu@seagate.com>
  * Original creation date: 30-Oct-2014
+ *
+ * Subsequent modification: Abhishek Saha <abhishek.saha1995@seagate.com>
+ * Modification Date: 31-Dec-2018
  */
 #include <stdlib.h>
 #include <stdio.h>
 #include <sys/time.h>
+#include <getopt.h>
+#include <libgen.h>
 
+#include "lib/string.h"
 #include "lib/trace.h"
 #include "clovis/clovis.h"
 #include "clovis/clovis_idx.h"
@@ -35,24 +41,79 @@ static struct m0_idx_dix_config   dix_conf;
 
 extern struct m0_addb_ctx m0_clovis_addb_ctx;
 
+static void usage(FILE *file, char *prog_name)
+{
+	fprintf(file, "Usage: %s [OPTION]...\n"
+"Read from MERO to stdout.\n"
+"\n"
+"Mandatory arguments to long options are mandatory for short options too.\n"
+"  -l, --local         ADDR        local endpoint address\n"
+"  -H, --ha            ADDR        HA endpoint address\n"
+"  -p, --profile       FID         profile FID\n"
+"  -P, --process       FID         process FID\n"
+"  -o, --object        FID         ID of the mero object\n"
+"  -s, --block-size    INT         block size in bytes (see --block-count)\n"
+"  -c, --block-count   INT         number of blocks to copy (see --block-size)\n"
+"  -r, --read-verify               verify parity after reading the data\n"
+"  -h, --help                      shows this help text and exit\n"
+, prog_name);
+}
+
 int main(int argc, char **argv)
 {
 	int                rc;
 	struct m0_uint128  id = M0_CLOVIS_ID_APP;
-	uint32_t           block_size;
-	uint32_t           block_count;
+	uint32_t           block_size = 0;
+	uint32_t           block_count = 0;
+	int                c;
+	int                option_index = 0;
 
-	/* Get input parameters */
-	if (argc < 9) {
-		printf("Usage: c0cat laddr ha_addr prof_opt proc_fid"
-		      " read_verify_flag object_id block_size block_count");
-		return -1;
+	static struct option l_opts[] = {
+				{"local",       required_argument, NULL, 'l'},
+				{"ha",          required_argument, NULL, 'H'},
+				{"profile    ", required_argument, NULL, 'p'},
+				{"process",     required_argument, NULL, 'P'},
+				{"object",      required_argument, NULL, 'o'},
+				{"block-size",  required_argument, NULL, 's'},
+				{"block-count", required_argument, NULL, 'c'},
+				{"read-verify", no_argument,       NULL, 'r'},
+				{"help",        no_argument,       NULL, 'h'},
+				{0,             0,                 0,     0 }};
+
+	while ((c = getopt_long(argc, argv, ":l:H:p:P:o:s:c:rh", l_opts,
+			       &option_index)) != -1)
+	{
+		switch (c) {
+			case 'l': clovis_conf.cc_local_addr = optarg;
+				  continue;
+			case 'H': clovis_conf.cc_ha_addr = optarg;
+				  continue;
+			case 'p': clovis_conf.cc_profile = optarg;
+				  continue;
+			case 'P': clovis_conf.cc_process_fid = optarg;
+				  continue;
+			case 'o': id.u_lo = atoi(optarg);
+				  continue;
+			case 's': block_size = atoi(optarg);
+				  continue;
+			case 'c': block_count = atoi(optarg);
+				  continue;
+			case 'r': clovis_conf.cc_is_read_verify = true;
+				  continue;
+			case 'h': usage(stderr, basename(argv[0]));
+				  exit(EXIT_FAILURE);
+			case '?': fprintf(stderr, "Unsupported option '%c'\n",
+					  optopt);
+				  usage(stderr, basename(argv[0]));
+				  exit(EXIT_FAILURE);
+			case ':': fprintf(stderr, "No argument given for '%c'\n",
+					  optopt);
+				  usage(stderr, basename(argv[0]));
+				  exit(EXIT_FAILURE);
+			default:  fprintf(stderr, "Unsupported option '%c'\n", c);
+		}
 	}
 
-	clovis_conf.cc_local_addr            = argv[1];
-	clovis_conf.cc_ha_addr               = argv[2];
-	clovis_conf.cc_profile               = argv[3];
-	clovis_conf.cc_process_fid           = argv[4];
 	clovis_conf.cc_is_oostore            = true;
 	clovis_conf.cc_tm_recv_queue_min_len = M0_NET_TM_RECV_QUEUE_DEF_LEN;
 	clovis_conf.cc_max_rpc_msg_size      = M0_RPC_DEF_MAX_RPC_MSG_SIZE;
@@ -60,30 +121,16 @@ int main(int argc, char **argv)
 	dix_conf.kc_create_meta              = false;
 	clovis_conf.cc_idx_service_id        = M0_CLOVIS_IDX_DIX;
 
-	id.u_lo     = atoi(argv[6]);
-	block_size  = atoi(argv[7]);
-	block_count = atoi(argv[8]);
 
-	if (strcmp(argv[5], "true") == 0)
-		clovis_conf.cc_is_read_verify = true;
-	else if (strcmp(argv[5], "false") == 0)
-		clovis_conf.cc_is_read_verify = false;
-	else {
-		m0_console_printf("Invalid argument.\n");
-		return -1;
-	}
-
-	/* Initilise mero and Clovis */
 	rc = clovis_init(&clovis_conf, &clovis_container, &clovis_instance);
 	if (rc < 0) {
-		printf("clovis_init failed!\n");
-		return rc;
+		fprintf(stderr, "clovis_init failed! rc = %d\n", rc);
+		exit(EXIT_FAILURE);
 	}
 
 	clovis_read(&clovis_container, id, NULL,
 		     block_size, block_count);
 
-	/* Clean-up */
 	clovis_fini(clovis_instance);
 
 	return 0;
