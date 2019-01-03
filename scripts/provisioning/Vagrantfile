@@ -154,9 +154,10 @@ Vagrant.configure('2') do |config|
 
   # Disable default sharing of current folder unless ansible_local provisioner
   # is requested
-  if RbConfig::CONFIG['host_os'] !~ /mingw/i &&
-     (ENV['M0_VM_PROVISION_WITH_ANSIBLE_LOCAL'].nil? ||
-      ENV['M0_VM_PROVISION_WITH_ANSIBLE_LOCAL'].match(/no|false|0/i))
+  if RbConfig::CONFIG['host_os'] =~ /mingw/i
+    config.vm.synced_folder '.', '/vagrant', type: 'smb'
+  elsif (ENV['M0_VM_PROVISION_WITH_ANSIBLE_LOCAL'].nil? ||
+         ENV['M0_VM_PROVISION_WITH_ANSIBLE_LOCAL'].match(/no|false|0/i))
     config.vm.synced_folder '.', '/vagrant', disabled: true
   end
 
