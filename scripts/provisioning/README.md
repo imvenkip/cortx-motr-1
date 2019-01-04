@@ -164,6 +164,12 @@ Quick Start (Windows)
 
     - Follow the steps from _Run_ section under _Quick Start (MacOS)_ above.
 
+      > *NOTE*: during `m0vg up cmu` command execution you may be asked to enter
+      > your Windows username and password, and then grant permissions for
+      > creating Windows shared directory - that is required to enable
+      > passwordless ssh access from _cmu_ VM to other VMs, it will be asked
+      > only once when creating _cmu_ VM for the first time.
+
 Overview
 --------
 

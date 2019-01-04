@@ -141,18 +141,11 @@ Vagrant.configure('2') do |config|
 
   # Shared folders -------------------------
 
-  # Share an additional folder to the guest VM. The first argument is
-  # the path on the host to the actual folder. The second argument is
-  # the path on the guest to mount the folder. And the optional third
-  # argument is a set of non-required options.
-  #config.vm.synced_folder "../data", "/vagrant_data"
-
   # Disable default sharing of current folder unless ansible_local provisioner
   # is requested
-  if RbConfig::CONFIG['host_os'] =~ /mingw/i
-    config.vm.synced_folder '.', '/vagrant', type: 'smb'
-  elsif (ENV['M0_VM_PROVISION_WITH_ANSIBLE_LOCAL'].nil? ||
-         ENV['M0_VM_PROVISION_WITH_ANSIBLE_LOCAL'].match(/no|false|0/i))
+  if RbConfig::CONFIG['host_os'] !~ /mingw/i &&
+     (ENV['M0_VM_PROVISION_WITH_ANSIBLE_LOCAL'].nil? ||
+      ENV['M0_VM_PROVISION_WITH_ANSIBLE_LOCAL'].match(/no|false|0/i))
     config.vm.synced_folder '.', '/vagrant', disabled: true
   end
 
@@ -190,6 +183,10 @@ Vagrant.configure('2') do |config|
     cmu.vm.hostname = 'cmu'
     setup(cmu, cmu_cpus, cmu_mem)
     setup_shared_mero_src_dir(cmu)
+
+    if RbConfig::CONFIG['host_os'] =~ /mingw/i && !provisioned?(cmu.vm.hostname)
+      cmu.vm.synced_folder '.', '/vagrant', type: 'smb'
+    end
 
     if !ENV['M0_VM_CMU_ENABLE_PUBLIC_NET'].nil? &&
         ENV['M0_VM_CMU_ENABLE_PUBLIC_NET'].match(/yes|true|1/i)
