@@ -354,7 +354,9 @@ def setup(node, cpu_nr, mem_mb, disk_nr = 0, disk_size = 1)
   console_log_dir = ENV['M0_VM_CONSOLE_LOG_DIR'].nil? ? '.' : ENV['M0_VM_CONSOLE_LOG_DIR']
 
   # directory where to keep additional storage disk images for SSU machines
-  disks_dir = ENV['M0_VM_SSU_DISKS_DIR'].nil? ? '.' : ENV['M0_VM_SSU_DISKS_DIR']
+  disks_dir = !ENV['M0_VM_SSU_DISKS_DIR'].nil?          ?  ENV['M0_VM_SSU_DISKS_DIR']
+            : RbConfig::CONFIG['host_os'] =~ /mingw/i   ?  '../..'
+            :                                              '.'
 
   node.vm.provider :virtualbox do |v|
     # visible machine name
