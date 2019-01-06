@@ -204,7 +204,8 @@ static int be_domain_seg_open(struct m0_be_domain *dom,
 	 */
 	rc = m0_be_pd_seg_open(&dom->bd_pd, seg, dom, stob_key);
 	if (rc == 0) {
-		(void)m0_be_allocator_init(m0_be_seg_allocator(seg), seg);
+		rc = m0_be_allocator_init(m0_be_seg_allocator(seg), seg);
+		M0_ASSERT(rc == 0);
 		m0_be_seg_dict_init(seg);
 	}
 	return M0_RC(rc);
