@@ -99,8 +99,8 @@ M0_INTERNAL bool m0_buf_streq(const struct m0_buf *buf, const char *str)
 {
 	M0_PRE(str != NULL);
 
-	return memcmp(str, buf->b_addr, buf->b_nob) == 0 &&
-		strlen(str) == buf->b_nob;
+	return strlen(str) == buf->b_nob &&
+		memcmp(str, buf->b_addr, buf->b_nob) == 0;
 }
 
 M0_INTERNAL char *m0_buf_strdup(const struct m0_buf *buf)
