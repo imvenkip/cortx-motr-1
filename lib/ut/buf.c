@@ -27,6 +27,7 @@
 #include "lib/errno.h"   /* ENOENT */
 
 static void bufs_test(void);
+static void buf_cmp_test(void);
 
 static bool bit_is_set(int bits, int index)
 {
@@ -97,6 +98,7 @@ void m0_ut_lib_buf_test(void)
 	m0_free(s);
 
 	bufs_test();
+	buf_cmp_test();
 }
 M0_EXPORTED(m0_ut_lib_buf_test);
 
@@ -128,6 +130,24 @@ static void bufs_test(void)
 	m0_strings_free(strs_new);
 	m0_bufs_free(&bufs);
 	M0_UT_ASSERT(bufs.ab_count == 0 && bufs.ab_elems == NULL);
+}
+
+static void buf_cmp_test(void)
+{
+	struct m0_buf buf;
+
+	M0_UT_ASSERT(m0_buf_cmp(&M0_BUF_INIT0, &M0_BUF_INIT0) == 0);
+	M0_UT_ASSERT(m0_buf_cmp(&M0_BUF_INITS("equal"),
+				&M0_BUF_INITS("equal")) == 0);
+	M0_UT_ASSERT(m0_buf_cmp(&M0_BUF_INITS("1"),
+				&M0_BUF_INITS("2")) < 0);
+	M0_UT_ASSERT(m0_buf_cmp(&M0_BUF_INITS("prefix"),
+				&M0_BUF_INITS("prefixsuffix")) < 0);
+	M0_UT_ASSERT(m0_buf_cmp(&M0_BUF_INITS("prefixsuffix"),
+				&M0_BUF_INITS("prefix")) > 0);
+
+	buf = M0_BUF_INITS("single");
+	M0_UT_ASSERT(m0_buf_cmp(&buf, &buf) == 0);
 }
 
 /*
