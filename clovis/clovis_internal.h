@@ -57,6 +57,7 @@
 #include "clovis/clovis_idx.h"  /* m0_clovis_idx_* */
 #include "clovis/pg.h"          /* nwxfer and friends */
 #include "clovis/sync.h"        /* clovis_sync_request */
+#include "fop/fop.h"
 
 struct m0_clovis_idx_service_ctx;
 
@@ -801,6 +802,7 @@ M0_INTERNAL bool m0_clovis__is_write_op(struct m0_clovis_op *op);
 
 M0_INTERNAL int m0_clovis__io_ref_get(struct m0_clovis *m0c);
 M0_INTERNAL void m0_clovis__io_ref_put(struct m0_clovis *m0c);
+M0_INTERNAL struct m0_file *m0_clovis_fop_to_file(struct m0_fop *fop);
 
 enum {
 	M0_AVI_CLOVIS_OP = M0_AVI_CLOVIS_RANGE_START + 1,

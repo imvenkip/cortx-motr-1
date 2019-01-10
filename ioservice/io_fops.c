@@ -45,7 +45,9 @@
 #include "ioservice/io_fops.h"
 #include "ioservice/io_fops_xc.h"
 #include "ioservice/cob_foms.h"
-#ifdef __KERNEL__
+#ifndef __KERNEL__
+  #include "clovis/clovis_internal.h"
+#else
   #include "m0t1fs/linux_kernel/m0t1fs.h"
 #endif
 
@@ -1365,9 +1367,6 @@ static int io_fop_ivec_prepare(struct m0_fop      *res_fop,
 
 static int io_fop_di_prepare(struct m0_fop *fop)
 {
-#ifndef __KERNEL__
-	return 0;
-#else
 	uint64_t		   size;
 	struct m0_fop_cob_rw	  *rw;
 	struct m0_io_indexvec	  *io_info;
@@ -1375,11 +1374,9 @@ static int io_fop_di_prepare(struct m0_fop *fop)
 	struct m0_rpc_bulk	  *rbulk;
 	struct m0_rpc_bulk_buf	  *rbuf;
 	struct m0_file		  *file;
-	m0_bcount_t		   bsize;
-	struct m0t1fs_sb          *sb;
 	uint64_t		   curr_size = 0;
 	uint64_t		   todo = 0;
-	int			   rc;
+	int			   rc = 0;
 	struct m0_indexvec	   io_vec;
 
 	if (M0_FI_ENABLED("skip_di_for_ut"))
@@ -1391,11 +1388,16 @@ static int io_fop_di_prepare(struct m0_fop *fop)
 	M0_ASSERT(m0_mutex_is_locked(&rbulk->rb_mutex));
 	rw      = io_rw_get(fop);
 	io_info = &rw->crw_ivec;
-	sb      = m0_fop_to_sb(fop);
+#ifndef __KERNEL__
+	file    = m0_clovis_fop_to_file(fop);
+#else
+	#ifndef	ENABLE_DATA_INTEGRITY
+		return M0_RC(rc);
+	#endif
 	file    = m0_fop_to_file(fop);
+#endif
 	if (file->fi_di_ops->do_out_shift(file) == 0)
-		return 0;
-	bsize = M0_BITS(file->fi_di_ops->do_in_shift(file));
+		return M0_RC(rc);
 	rc = m0_indexvec_wire2mem(io_info, io_info->ci_nr, 0, &io_vec);
 	if (rc != 0)
 		return M0_RC(rc);
@@ -1430,7 +1432,6 @@ static int io_fop_di_prepare(struct m0_fop *fop)
 out:
 	m0_indexvec_free(&io_vec);
 	return M0_RC(rc);
-#endif
 }
 
 static void io_fop_bulkbuf_move(struct m0_fop *src, struct m0_fop *dest)

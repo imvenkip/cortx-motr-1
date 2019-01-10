@@ -2,7 +2,7 @@
 
 # Script for starting or stopping Clovis system tests
 
-random_mode=
+random_mode=0
 tests=
 debugger=
 gdbparams=${GDBPARAMS:-}
@@ -19,21 +19,12 @@ mero_src=$(echo $(dirname $st_util_dir) \
 # kernel mode
 function clovis_st_start_k ()
 {
-	local idx_service=-1
-	case $1 in
-		"KVS")
-			idx_service=1
-			;;
-		"CASS")
-			idx_service=2
-			;;
-	esac
-
+	clovis_index_init "KVS"
 	local st_kmod=$mero_src/clovis_st_kmod.ko
-	local st_kmod_args="clovis_local_addr=$LOCAL_EP \
-			    clovis_ha_addr=$HA_EP \
-			    clovis_prof=$PROF_OPT \
-			    clovis_proc_fid=$PROC_FID"
+	local st_kmod_args="clovis_local_addr=$CLOVIS_LOCAL_EP \
+			    clovis_ha_addr=$CLOVIS_HA_EP \
+			    clovis_prof=$CLOVIS_PROF_OPT \
+			    clovis_proc_fid=$CLOVIS_PROC_FID"
 
 	if [ X$tests != X ]; then
 		st_kmod_args="$st_kmod_args clovis_tests=$tests"
@@ -74,8 +65,7 @@ clovis_st_run_debugger()
     gdb $gdbinit $gdbparams --args $binary $@
 }
 
-# user space mode
-function clovis_st_start_u()
+function clovis_index_init()
 {
 	local idx_service=-1
 	case $1 in
@@ -86,35 +76,6 @@ function clovis_st_start_u()
 			idx_service=2
 			;;
 	esac
-
-	# Debugger
-	if [ X$2 != X ]; then
-		debugger=$2
-	fi
-
-	# Assembly command
-	local st_exec=
-	if [ X$debugger != X ]; then
-		st_exec="$mero_src/clovis/st/user_space/.libs/lt-c0st"
-	else
-		st_exec="$mero_src/clovis/st/user_space/c0st"
-	fi
-	if [ ! -f $st_exec ];then
-		echo "Can't find $st_exec"
-		return 1
-	fi
-
-	local st_args="-m $CLOVIS_LOCAL_EP -h $CLOVIS_HA_EP \
-		       -p $CLOVIS_PROF_OPT -f $CLOVIS_PROC_FID \
-		       -I $idx_service"
-	if [ $random_mode -eq 1 ]; then
-		st_args="$st_args -r"
-	fi
-	if [ X$tests != X ]; then
-		st_args="$st_args -t $tests"
-	fi
-	local st_u="$st_exec $st_args"
-
 	if [ $idx_service -eq 1 ]; then
 		#create DIX metadata
 		local m0dixinit="$mero_src/dix/utils/m0dixinit"
@@ -148,6 +109,41 @@ function clovis_st_start_u()
 
 
 	fi
+}
+
+# user space mode
+function clovis_st_start_u()
+{
+	clovis_index_init "KVS"
+	idx_service=1
+	# Debugger
+	if [ X$2 != X ]; then
+		debugger=$2
+	fi
+
+	# Assembly command
+	local st_exec=
+	if [ X$debugger != X ]; then
+		st_exec="$mero_src/clovis/st/user_space/.libs/lt-c0st"
+	else
+		st_exec="$mero_src/clovis/st/user_space/c0st"
+	fi
+	if [ ! -f $st_exec ];then
+		echo "Can't find $st_exec"
+		return 1
+	fi
+
+	local st_args="-m $CLOVIS_LOCAL_EP -h $CLOVIS_HA_EP \
+		       -p $CLOVIS_PROF_OPT -f $CLOVIS_PROC_FID \
+		       -I $idx_service"
+	if [ $random_mode -eq 1 ]; then
+		st_args="$st_args -r"
+	fi
+	if [ X$tests != X ]; then
+		st_args="$st_args -t $tests"
+	fi
+	local st_u="$st_exec $st_args"
+
 
 	# Run it
 	if [ X$debugger != X ];then

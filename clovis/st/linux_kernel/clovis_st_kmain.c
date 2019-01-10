@@ -74,7 +74,7 @@ static int clovis_st_init_instance(void)
 	int		  rc;
 	struct m0_clovis *instance = NULL;
 
-	clovis_conf.cc_is_oostore            = false;
+	clovis_conf.cc_is_oostore            = true;
 	clovis_conf.cc_is_read_verify        = false;
 	clovis_conf.cc_local_addr            = clovis_local_addr;
 	clovis_conf.cc_ha_addr               = clovis_ha_addr;

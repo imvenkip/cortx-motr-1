@@ -34,13 +34,13 @@ clovis_st_run_tests()
 	fi
 }
 
-clvois_st_set_failed_dev()
+clovis_st_set_failed_dev()
 {
-	pool_mach_set_failure $1 || {
+	disk_state_set "failed" $1 || {
 		echo "Failed: pool_mach_set_failure..."
 		return 1
 	}
-	pool_mach_query $fail_devices
+	disk_state_get $1
 }
 
 clovis_st_dgmode()
@@ -54,12 +54,15 @@ clovis_st_dgmode()
 		return 1
 	fi
 
+	#local mountopt="oostore,verify"
+	mount_m0t1fs $MERO_M0T1FS_MOUNT_DIR $mountopt || return 1
 	# Inject failure to device 1
 	fail_device=1
 	clovis_st_set_failed_dev $fail_device || {
 		return 1
 	}
 
+	unmount_and_clean &>> $MERO_TEST_LOGFILE
 	# Run tests
 	clovis_st_run_tests
 	rc=$?
@@ -129,18 +132,18 @@ main()
 	echo "Done"
 
 	echo -n "Start Clovis Degraded mode Tests [User Mode] ... "
-	#clovis_st_dgmode $umod 2>&1 | tee -a $MERO_TEST_LOGFILE
+	clovis_st_dgmode $umod 2>&1 | tee -a $MERO_TEST_LOGFILE
 	rc=$?
 	echo "Done"
 
 	umod=0
 	echo -n "Start Clovis Tests [Kernel Mode] ... "
-	#clovis_st $umod -2>&1 | tee -a $MERO_TEST_LOGFILE
+	clovis_st $umod -2>&1 | tee -a $MERO_TEST_LOGFILE
 	rc=$?
 	echo "Done"
 
 	echo -n "Start Clovis Degraded mode Tests [Kernel Mode] ... "
-	#clovis_st_dgmode $umod 2>&1 | tee -a $MERO_TEST_LOGFILE
+	clovis_st_dgmode $umod 2>&1 | tee -a $MERO_TEST_LOGFILE
 	rc=$?
 	echo "Done"
 

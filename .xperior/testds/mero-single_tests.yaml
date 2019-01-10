@@ -419,6 +419,14 @@ Tests:
     polltime : 30
     timeout  : 1800
 
+  - id       : 47clovis-tests-user-kernel
+    script   : clovis_mero_st.sh
+    dir      : src/clovis/st/utils/
+    executor : Xperior::Executor::MeroTest
+    sandbox  : /var/mero/sandbox.47m0clovis_mero
+    polltime : 30
+    timeout  : 1800
+
 # 25 min
 dangerous: 'yes'
 description: Set of Mero  tests
