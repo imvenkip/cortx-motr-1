@@ -28,6 +28,7 @@
 #include "lib/finject.h"
 #include "lib/chan.h"
 #include "lib/locality.h"
+#include "lib/types.h"
 
 #include "fop/fop.h"
 #include "pool/pool_machine.h"
@@ -39,6 +40,8 @@
 #include "rpc/rpc.h"
 #include "cob/ns_iter.h"
 #include "cm/proxy.h"
+#include "sns/cm/ha.h"
+#include "ha/msg.h"
 
 #include "sns/cm/cm_utils.h"
 #include "sns/cm/iter.h"
@@ -748,6 +751,23 @@ M0_INTERNAL void m0_sns_cm_print_status(struct m0_sns_cm *scm)
 		m0_console_printf("SNS-%02"PRIu32": read=%zu written=%zu\n",
 				  scm->sc_repair_done, tread, twrite);
 	}
+}
+
+M0_INTERNAL void m0_sns_cm_ha_msg(struct m0_cm *cm, struct m0_ha_msg *msg,
+				    int rc)
+{
+	struct m0_sns_cm *scm = cm2sns(cm);
+
+	*msg = (struct m0_ha_msg) {
+		.hm_time = m0_time_now(),
+		.hm_data = {
+			.hed_type = M0_HA_MSG_SNS_ERR,
+			.u.hed_ha_sns_err = (struct m0_ha_sns_err) {
+				.hse_errcode = (uint32_t)rc,
+				.hse_opcode  = (uint8_t)scm->sc_op
+			}
+		}
+	};
 }
 
 M0_INTERNAL void m0_sns_cm_fini(struct m0_cm *cm)

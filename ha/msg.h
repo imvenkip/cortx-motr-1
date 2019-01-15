@@ -41,6 +41,7 @@
 #include "conf/ha.h"            /* m0_conf_ha_process */
 #include "rpc/ha.h"             /* m0_rpc_ha_msg */
 #include "be/ha.h"              /* m0_be_io_err */
+#include "sns/cm/ha.h"		/* m0_ha_sns_err */
 
 /*
  * XXX The generator of *_xc.h files cannot handle dependencies, so we have
@@ -55,6 +56,7 @@
 #include "conf/ha_xc.h"         /* m0_conf_ha_process_xc */
 #include "rpc/ha_xc.h"          /* m0_rpc_ha_msg_xc */
 #include "be/ha_xc.h"           /* m0_be_io_err_xc */
+#include "sns/cm/ha_xc.h"	/* m0_ha_sns_err_xc */
 
 enum {
 	M0_HA_MSG_FAILURE_VEC_LIMIT = 1024,
@@ -78,6 +80,7 @@ enum m0_ha_msg_type {
 	M0_HA_MSG_EVENT_RPC,
 	M0_HA_MSG_BE_IO_ERR,
 	M0_HA_MSG_NR,
+	M0_HA_MSG_SNS_ERR,
 };
 
 struct m0_ha_msg_data {
@@ -103,6 +106,8 @@ struct m0_ha_msg_data {
 					M0_XCA_TAG("M0_HA_MSG_EVENT_RPC");
 		struct m0_be_io_err              hed_be_io_err
 					M0_XCA_TAG("M0_HA_MSG_BE_IO_ERR");
+		struct m0_ha_sns_err		 hed_ha_sns_err
+					M0_XCA_TAG("M0_HA_MSG_SNS_ERR");
 	} u;
 } M0_XCA_UNION M0_XCA_DOMAIN(rpc);
 

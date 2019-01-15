@@ -302,6 +302,8 @@ enum m0_xcode_type_flags {
 	M0_XCODE_TYPE_FLAG_DOM_RPC    = 1 << 1,
 	/** Type belongs to CONF xcode domain, @see M0_XCA_DOMAIN */
 	M0_XCODE_TYPE_FLAG_DOM_CONF   = 1 << 2,
+	/** Type belongs to SNS xcode domain, @see M0_XCA_DOMAIN */
+	M0_XCODE_TYPE_FLAG_DOM_SNS    = 1 << 3,
 };
 M0_BASSERT(sizeof(enum m0_xcode_type_flags) <= sizeof(uint32_t));
 
