@@ -250,7 +250,7 @@
  *
  * Death notification is basically handled by @ref rconfc_link::rl_fom that is
  * queued from rconfc_herd_link__on_death_cb(). The FOM is intended to safely
- * disconnect herd link from problem confd when session and connection
+ * disconnect herd link from problematic confd when session and connection
  * termination may be timed out. The FOM prevents client's locality from being
  * blocked for a noticeably long time.
 
@@ -1149,15 +1149,23 @@ static void rconfc_read_lock_put(struct m0_rconfc *rconfc)
 	M0_LEAVE();
 }
 
-static void rconfc_ast_post(struct m0_rconfc  *rconfc,
-			    void             (*cb)(struct m0_sm_group *,
-						   struct m0_sm_ast *))
+static void rconfc__ast_post(struct m0_rconfc  *rconfc,
+			     void              *datum,
+			     void             (*cb)(struct m0_sm_group *,
+						    struct m0_sm_ast *))
 {
 	struct m0_sm_ast *ast = &rconfc->rc_ast;
 
 	ast->sa_cb = cb;
-	ast->sa_datum = rconfc;
+	ast->sa_datum = datum;
 	m0_sm_ast_post(rconfc->rc_sm.sm_grp, ast);
+}
+
+static void rconfc_ast_post(struct m0_rconfc  *rconfc,
+			    void             (*cb)(struct m0_sm_group *,
+						   struct m0_sm_ast *))
+{
+	rconfc__ast_post(rconfc, rconfc, cb);
 }
 
 static void rconfc_state_set(struct m0_rconfc *rconfc, int state)
@@ -1564,6 +1572,13 @@ no_mem:
 	return M0_ERR(-ENOMEM);
 }
 
+static void rconfc_active_add(struct m0_rconfc *rconfc, struct rconfc_link *lnk)
+{
+	if (lnk->rl_state == CONFC_OPEN &&
+	    _confc_ver_read(&lnk->rl_confc) == rconfc->rc_ver)
+		rcnf_active_tlink_init_at_tail(lnk, &rconfc->rc_active);
+}
+
 /**
  * Re-populates the active list based on the herd items current
  * status. Population starts when quorum version is found.
@@ -1577,9 +1592,7 @@ static void rconfc_active_populate(struct m0_rconfc *rconfc)
 	rconfc_active_all_unlink(rconfc);
 	/* re-populate active list */
 	m0_tl_for(rcnf_herd, &rconfc->rc_herd, lnk) {
-		if (lnk->rl_state == CONFC_OPEN &&
-		    _confc_ver_read(&lnk->rl_confc) == rconfc->rc_ver)
-			rcnf_active_tlink_init_at_tail(lnk, &rconfc->rc_active);
+		rconfc_active_add(rconfc, lnk);
 	} m0_tl_endfor;
 	M0_LEAVE();
 }
@@ -2336,15 +2349,35 @@ static int rconfc_conductor_engage(struct m0_rconfc *rconfc)
 	return M0_RC(rc);
 }
 
-static void rconfc_version_elected(struct m0_sm_group *grp,
-				   struct m0_sm_ast   *ast)
+/**
+ * Finalises one completed confc context.
+ * Scheduled from rconfc__cb_quorum_test().
+ */
+static void rconfc_cctx_fini(struct m0_sm_group *grp,
+			     struct m0_sm_ast   *ast)
 {
-	struct m0_rconfc   *rconfc = ast->sa_datum;
-	struct rconfc_link *lnk;
-	int                 rc;
+	struct rconfc_link *lnk = ast->sa_datum;
 
-	M0_PRE(rconfc_is_locked(rconfc));
-	M0_ENTRY("rconfc = %p", rconfc);
+	M0_ASSERT(lnk->rl_state != CONFC_IDLE);
+	/*
+	 * The context might become complete just at the time
+	 * of rconfc_version_elected() execution and be
+	 * finalised from rconfc_herd_cctxs_fini() already.
+	 */
+	if (m0_clink_is_armed(&lnk->rl_clink)) {
+		m0_clink_del(&lnk->rl_clink);
+		m0_clink_fini(&lnk->rl_clink);
+		m0_confc_ctx_fini_locked(&lnk->rl_cctx);
+	}
+}
+
+/**
+ * Finalises all completed confc contexts from the herd.
+ */
+static void rconfc_herd_cctxs_fini(struct m0_rconfc *rconfc)
+{
+	struct rconfc_link *lnk;
+
 	m0_tl_for(rcnf_herd, &rconfc->rc_herd, lnk) {
 		if (lnk->rl_state == CONFC_DEAD)
 			/*
@@ -2355,11 +2388,30 @@ static void rconfc_version_elected(struct m0_sm_group *grp,
 			 */
 			continue;
 		M0_ASSERT(lnk->rl_state != CONFC_IDLE);
-		m0_clink_del(&lnk->rl_clink);
-		m0_clink_fini(&lnk->rl_clink);
-		if (m0_confc_ctx_is_completed(&lnk->rl_cctx))
+		/*
+		 * rconfc_cctx_fini() might be called already for some
+		 * of the contexts (because ASTs are not always executed
+		 * in the same order they were scheduled).
+		 */
+		if (m0_clink_is_armed(&lnk->rl_clink) &&
+		    m0_confc_ctx_is_completed(&lnk->rl_cctx)) {
+			m0_clink_del(&lnk->rl_clink);
+			m0_clink_fini(&lnk->rl_clink);
 			m0_confc_ctx_fini_locked(&lnk->rl_cctx);
+		}
 	} m0_tl_endfor;
+}
+
+static void rconfc_version_elected(struct m0_sm_group *grp,
+				   struct m0_sm_ast   *ast)
+{
+	struct m0_rconfc   *rconfc = ast->sa_datum;
+	int                 rc;
+
+	M0_PRE(rconfc_is_locked(rconfc));
+	M0_ENTRY("rconfc = %p", rconfc);
+
+	rconfc_herd_cctxs_fini(rconfc);
 
 	rc = rconfc_quorum_is_reached(rconfc) ?
 		rconfc_conductor_engage(rconfc) : -EPROTO;
@@ -2423,8 +2475,8 @@ static bool rconfc__cb_quorum_test(struct m0_clink *clink)
 {
 	struct rconfc_link *lnk;
 	struct m0_rconfc   *rconfc;
-	bool                quorum_before   = false;
-	bool                quorum_now      = false;
+	bool                quorum_was;
+	bool                quorum_is = false;
 
 	M0_ENTRY("clink = %p", clink);
 	M0_PRE(clink != NULL);
@@ -2441,25 +2493,26 @@ static bool rconfc__cb_quorum_test(struct m0_clink *clink)
 		}
 		lnk->rl_state = lnk->rl_rc == 0 ? CONFC_OPEN : CONFC_FAILED;
 
-		if (lnk->rl_rc == 0) {
-			/*
-			 * The code may be called after quorum was already
-			 * reached, so we need to see if it was
-			 */
-			quorum_before = rconfc_quorum_is_reached(rconfc);
+		/*
+		 * The code may be called after quorum was already
+		 * reached, so we need to see if it was
+		 */
+		quorum_was = rconfc_quorum_is_reached(rconfc);
 
-			quorum_now = quorum_before ||
-				     rconfc_quorum_test(rconfc, &lnk->rl_confc);
-			if (quorum_now)
-				/* Maybe add replied confc to active list */
-				rconfc_active_populate(rconfc);
-		} else {
+		if (lnk->rl_state == CONFC_FAILED)
 			M0_LOG(M0_DEBUG, "Lnk failed, rc = %d, ep = %s",
 			       lnk->rl_rc, lnk->rl_confd_addr);
-		}
+		else if (!quorum_was)
+			quorum_is = rconfc_quorum_test(rconfc, &lnk->rl_confc);
 
-		if ((!quorum_before && quorum_now) ||
-		    !rconfc_quorum_is_possible(rconfc))
+		if (quorum_was)
+			rconfc_active_add(rconfc, lnk);
+		else if (quorum_is)
+			rconfc_active_populate(rconfc);
+
+		if (quorum_was)
+			rconfc__ast_post(rconfc, lnk, rconfc_cctx_fini);
+		else if (quorum_is || !rconfc_quorum_is_possible(rconfc))
 			rconfc_ast_post(rconfc, rconfc_version_elected);
 	}
 	M0_LEAVE();
