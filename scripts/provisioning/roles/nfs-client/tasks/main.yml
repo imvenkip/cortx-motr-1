@@ -27,6 +27,6 @@
         fstype: nfs
         src:   'cmu.local:{{ cmu_nfs_export_dir }}'
         path:  '{{ cmu_nfs_export_dir }}'
-        opts:   soft,async,actimeo=1,user
+        opts:   soft,async,actimeo=1,user,exec
         state:  present
   tags: nfs-client
