@@ -147,6 +147,11 @@ Vagrant.configure('2') do |config|
      (ENV['M0_VM_PROVISION_WITH_ANSIBLE_LOCAL'].nil? ||
       ENV['M0_VM_PROVISION_WITH_ANSIBLE_LOCAL'].match(/no|false|0/i))
     config.vm.synced_folder '.', '/vagrant', disabled: true
+  else
+    config.vm.synced_folder '.', '/vagrant',
+                            type: 'rsync',
+                            rsync__exclude: [ '.git/', '.vagrant/', 'disk*' ],
+                            rsync__args: ['--archive', '--delete', '-z']
   end
 
   # Providers ------------------------------
