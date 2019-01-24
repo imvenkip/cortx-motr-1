@@ -341,7 +341,7 @@
    rc>>x  [ label = "reading allowed" ];
    ---    [ label = "else // reading allowed by default" ];
    x>>m   [ label = "return from init" ];
-   ...
+   ... ;
    ||| ;
    @endmsc
 
@@ -391,7 +391,7 @@
    textcolor="#0000ff"];
    rc>>x  [ label = "reading allowed" ];
    x>>m   [ label = "return from init" ];
-   ...
+   ... ;
    ||| ;
    @endmsc
 
