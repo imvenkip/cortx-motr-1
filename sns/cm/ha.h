@@ -32,7 +32,7 @@
 struct m0_ha_sns_err {
         uint32_t hse_errcode; /* `int` is not xcodeable */
         uint8_t  hse_opcode;
-} M0_XCA_RECORD M0_XCA_DOMAIN(sns|rpc);
+} M0_XCA_RECORD M0_XCA_DOMAIN(rpc);
 
 
 #endif /* __MERO_SNS_CM_HA_H__ */

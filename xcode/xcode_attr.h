@@ -56,7 +56,7 @@
  * Set "xcode domain" attribute on a struct. The domain is used in `m0protocol`
  * utility to separate xcode structs into groups.
  *
- * @param  value  a domain name, valid values are 'be', 'rpc', 'conf', 'sns'or
+ * @param  value  a domain name, valid values are 'be', 'rpc', 'conf' or
  *		  any combination of those separated by a '|' (pipe symbol)
  *		  without spaces, e.g. 'be|conf|rpc'.
  *
