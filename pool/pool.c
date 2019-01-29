@@ -806,7 +806,8 @@ static void service_ctxs_destroy(struct m0_pools_common *pc)
 		if (m0_reqh_service_ctx_is_connected(ctx)) {
 			rc = m0_reqh_service_disconnect_wait(ctx);
 			M0_ASSERT_INFO(M0_IN(rc, (0, -ECANCELED, -ETIMEDOUT,
-						  -EINVAL, -EHOSTUNREACH)),
+						  -EINVAL, -EHOSTUNREACH,
+						  -ECONNREFUSED)),
 				       "rc=%d", rc);
 		}
 		m0_reqh_service_ctx_destroy(ctx);
