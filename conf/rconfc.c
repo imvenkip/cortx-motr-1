@@ -1502,7 +1502,6 @@ static int rconfc_herd_update(struct m0_rconfc   *rconfc,
 			      const char        **confd_addr,
 			      struct m0_fid_arr  *confd_fids)
 {
-	struct rconfc_link *new_lnk;
 	struct rconfc_link *lnk;
 	uint32_t            count = rconfc_confd_count(confd_addr);
 	uint32_t            idx;
@@ -1517,36 +1516,62 @@ static int rconfc_herd_update(struct m0_rconfc   *rconfc,
 
 	for (idx = 0; *confd_addr != NULL; confd_addr++, idx++) {
 		lnk = rconfc_herd_find(rconfc, *confd_addr);
-		if (lnk != NULL) {
-			lnk->rl_preserve = true;
-		} else {
-			M0_ALLOC_PTR(new_lnk);
-			if (new_lnk == NULL)
+		if (lnk == NULL) {
+			M0_ALLOC_PTR(lnk);
+			if (lnk == NULL)
 				goto no_mem;
 			/* add the allocated element to herd */
-			new_lnk->rl_rconfc     = rconfc;
-			new_lnk->rl_confd_fid  = confd_fids->af_elems[idx];
-			new_lnk->rl_confd_addr = m0_strdup(*confd_addr);
-			if (new_lnk->rl_confd_addr == NULL)
+			lnk->rl_rconfc     = rconfc;
+			lnk->rl_confd_fid  = confd_fids->af_elems[idx];
+			lnk->rl_confd_addr = m0_strdup(*confd_addr);
+			if (lnk->rl_confd_addr == NULL)
 				goto no_mem;
-			new_lnk->rl_state      = CONFC_DEAD;
-			new_lnk->rl_preserve   = true;
-			rconfc_herd_link_init(new_lnk);
-			rcnf_herd_tlink_init_at_tail(new_lnk, &rconfc->rc_herd);
+			lnk->rl_state      = CONFC_DEAD;
+			rcnf_herd_tlink_init_at_tail(lnk, &rconfc->rc_herd);
+		/*
+		 * } XXX: should we update the dead links here? It seems
+		 *        they are not updated anywhere currently, so the
+		 *        dead links get stuck dead forever even though
+		 *        the confds may become Online already.
+		 *
+		 *        Beware also that HAlon returns in Entry Point
+		 *        replies all the cluster confds regardless of their
+		 *        states, i.e. the dead ones might be there as well.
+		 * if (lnk->rl_state == CONFC_DEAD) {
+		 */
+			/*
+			 * XXX:  rconfc_herd_link_init() can block on waiting
+			 *       and this function is called from an AST:
+			 *       rconfc_conductor_disconnected_ast() ->
+			 *         rconfc_conductor_disconnected() ->
+			 *           rconfc_start() ->
+			 *               or:
+			 *       rlock_owner_clink_cb() ->
+			 *         rconfc_owner_creditor_reset() ->
+			 *           rconfc_start() ->
+			 *               or:
+			 *         rconfc_start_ast_cb() ->
+			 *           rconfc_start() ->
+			 *             rconfc_start_internal() ->
+			 *               rconfc_entrypoint_consume() ->
+			 *                 rconfc_herd_update()
+			 */
+			rconfc_herd_link_init(lnk);
 			/*
 			 * only successfully connected @ref rconfc_link gets
 			 * subscribed to HA notifications, and therefore, its
 			 * confd fid is to be added to phony cache
 			 */
-			if (new_lnk->rl_state == CONFC_IDLE) {
+			if (lnk->rl_state == CONFC_IDLE) {
 				_confc_phony_cache_append(
 					&rconfc->rc_phony,
-					&new_lnk->rl_confd_fid, NULL);
-				rconfc_herd_link_subscribe(new_lnk);
+					&lnk->rl_confd_fid, NULL);
+				rconfc_herd_link_subscribe(lnk);
 			} else {
-				M0_ASSERT(new_lnk->rl_state == CONFC_DEAD);
+				M0_ASSERT(lnk->rl_state == CONFC_DEAD);
 			}
 		}
+		lnk->rl_preserve = true;
 	}
 	ver_accm_init(rconfc->rc_qctx, count);
 	m0_tl_for(rcnf_herd, &rconfc->rc_herd, lnk) {
@@ -2539,7 +2564,7 @@ static void rconfc_version_elect(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 	m0_forall(idx, va->va_total, M0_SET0(&va->va_items[idx]));
 	/* query confd instances */
 	m0_tl_for(rcnf_herd, &rconfc->rc_herd, lnk) {
-		if (lnk->rl_rc == 0) {
+		if (lnk->rl_state != CONFC_DEAD && lnk->rl_rc == 0) {
 			m0_confc_ctx_init(&lnk->rl_cctx, &lnk->rl_confc);
 
 			m0_clink_init(&lnk->rl_clink, rconfc__cb_quorum_test);
