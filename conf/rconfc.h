@@ -232,7 +232,17 @@ struct m0_rconfc {
 	 * for that part.
 	 */
 	struct m0_confc           rc_confc;
-	/** Rconfc state machine */
+	/**
+	 * Rconfc state machine.
+	 *
+	 * @note rc_ha_update_cl links to the rc_sm.sm_chan which is used
+	 * as argument for the m0_conf_confc_ha_update_async() call.
+	 * It is convenient as we don't need additional channel and mutex
+	 * structures just to get the notification about confc_ha_update
+	 * completion. The drawback of this approach is that the threads
+	 * waiting for the SM state change (like at m0_rconfc_start_wait())
+	 * will be awaken needlessly. But this seems to be harmless.
+	 */
 	struct m0_sm              rc_sm;
 	/**
 	 * Version number the quorum was reached for. Read-only. Value
@@ -326,6 +336,14 @@ struct m0_rconfc {
         struct m0_clink           rc_ha_entrypoint_cl;
 	/** Clink to track confc context state transition on rconfc_herd_fini */
         struct m0_clink           rc_herd_cl;
+	/**
+	 * Clink to track the finish of m0_conf_confc_ha_update_async()
+	 * on phony confc.
+	 */
+        struct m0_clink           rc_ha_update_cl;
+	/** nvec for m0_conf_confc_ha_update_async(). */
+	struct m0_ha_nvec         rc_nvec;
+
 	/** Quorum calculation context. */
 	void                     *rc_qctx;
 	/** Read lock context. */

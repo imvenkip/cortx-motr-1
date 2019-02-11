@@ -370,7 +370,7 @@ M0_INTERNAL void m0_ha_note_handler_signal(struct m0_ha_note_handler *hnh,
 		hsg->hsg_nvec->nv_note[i].no_state =
 			nvec_rep->nv_note[i].no_state;
 	}
-	m0_chan_signal_lock(hsg->hsg_wait_chan);
+	m0_chan_broadcast_lock(hsg->hsg_wait_chan);
 	m0_free(hsg);
 }
 

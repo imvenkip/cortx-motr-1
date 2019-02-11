@@ -89,8 +89,8 @@
  *      "M0_RCS_ENTRYPOINT_CONSUME" -> "M0_RCS_CREDITOR_SETUP"
  *      "M0_RCS_ENTRYPOINT_CONSUME" -> "M0_RCS_ENTRYPOINT_WAIT"
  *      "M0_RCS_ENTRYPOINT_CONSUME" -> "M0_RCS_FAILURE"
- *      "M0_RCS_CREDITOR_SETUP" -> "M0_RCS_ENTRYPOINT_WAIT"
  *      "M0_RCS_CREDITOR_SETUP" -> "M0_RCS_GET_RLOCK"
+ *      "M0_RCS_CREDITOR_SETUP" -> "M0_RCS_ENTRYPOINT_WAIT"
  *      "M0_RCS_GET_RLOCK" -> "M0_RCS_VERSION_ELECT"
  *      "M0_RCS_GET_RLOCK" -> "M0_RCS_ENTRYPOINT_WAIT"
  *      "M0_RCS_GET_RLOCK" -> "M0_RCS_FAILURE"
@@ -551,8 +551,9 @@
  * @{
  */
 
-static inline uint32_t rconfc_state(const struct m0_rconfc *rconfc);
+static void rconfc_start(struct m0_rconfc *rconfc);
 static void rconfc_stop_internal(struct m0_rconfc *rconfc);
+static inline uint32_t rconfc_state(const struct m0_rconfc *rconfc);
 
 static bool rconfc_gate_check(struct m0_confc *confc);
 static int  rconfc_gate_skip(struct m0_confc *confc);
@@ -565,6 +566,7 @@ struct m0_confc_gate_ops m0_rconfc_gate_ops = {
 	.go_drain = rconfc_gate_drain,
 };
 
+static void rconfc_read_lock_get(struct m0_rconfc *rconfc);
 static void rconfc_read_lock_complete(struct m0_rm_incoming *in, int32_t rc);
 static void rconfc_read_lock_conflict(struct m0_rm_incoming *in);
 
@@ -834,24 +836,24 @@ static void _confc_phony_fini(struct m0_confc *phony)
 }
 
 /**
- * Appends fake object to phony cache. Any duplicate fid is to be ignored by
- * m0_conf_cache_add().
- *
- * Operation is allowed to be repeated as many times as required.
+ * Appends fake object to phony cache if it's not there yet.
  */
 static int _confc_phony_cache_append(struct m0_confc      *confc,
-				     const struct m0_fid  *fid,
-				     struct m0_conf_obj  **out)
+				     const struct m0_fid  *fid)
 {
 	struct m0_conf_cache *cache = &confc->cc_cache;
 	struct m0_conf_obj   *obj;
-	int                   rc;
+	int                   rc = 0;
 
 	M0_ENTRY();
 	m0_conf_cache_lock(cache);
+	obj = m0_conf_cache_lookup(cache, fid);
+	if (obj != NULL)
+		goto out;
+	rc = -ENOMEM;
 	obj = m0_conf_obj_create(fid, cache);
 	if (obj == NULL)
-		return M0_ERR(-ENOMEM);
+		goto out;
 	/*
 	 * fake it be an already normally read object to comply with HA
 	 * subscription mechanisms (see ha_state_accept())...
@@ -863,11 +865,12 @@ static int _confc_phony_cache_append(struct m0_confc      *confc,
 	 */
 	obj->co_nrefs  = 1;
 	rc = m0_conf_cache_add(cache, obj);
-	if (rc != 0)
+	if (rc != 0) {
+		obj->co_nrefs  = 0;
 		m0_conf_obj_delete(obj);
+	}
+out:
 	m0_conf_cache_unlock(cache);
-	if (out != NULL && rc == 0)
-		*out = obj;
 	return M0_RC(rc);
 }
 
@@ -1028,19 +1031,11 @@ static int rlock_ctx_creditor_setup(struct rlock_ctx *rlx,
 	M0_ENTRY("rconfc = %p, rlx = %p, ep = %s", rlx->rlc_parent, rlx, ep);
 	M0_PRE(M0_IN(rlock_ctx_creditor_state(rlx),
 		     (ROS_ACTIVE, ROS_DEAD_CREDITOR)));
-	rc = _confc_phony_cache_append(&rlx->rlc_parent->rc_phony, fid, &obj);
-	if (rc != 0)
-		return M0_ERR(rc);
-	rc = m0_conf_obj_ha_update(fid);
-	if (rc != 0)
-		goto conf_obj_del;
-	if (obj->co_ha_state == M0_NC_FAILED) {
-		rc = -EHOSTUNREACH;
-		goto conf_obj_del;
-	}
 	rc = rlock_ctx_connect(rlx, ep);
-	if (rc != 0)
-		goto conf_obj_del;
+	if (rc != 0) {
+		_confc_phony_cache_remove(&rlx->rlc_parent->rc_phony, fid);
+		return M0_ERR(rc);
+	}
 	m0_rm_remote_init(creditor, owner->ro_resource);
 	creditor->rem_session = &rlx->rlc_sess;
 	m0_rm_owner_creditor_reset(owner, creditor);
@@ -1049,11 +1044,10 @@ static int rlock_ctx_creditor_setup(struct rlock_ctx *rlx,
 	 * Subscribe for HA state changes of creditor.
 	 * Unsubscription is automatically done in m0_rm_remote_fini().
 	 */
+	obj = m0_conf_cache_lookup(&rlx->rlc_parent->rc_phony.cc_cache, fid);
 	m0_clink_add_lock(&obj->co_ha_chan, &creditor->rem_tracker.rht_clink);
+
 	return M0_RC(0);
-conf_obj_del:
-	_confc_phony_cache_remove(&rlx->rlc_parent->rc_phony, fid);
-	return M0_ERR(rc);
 }
 
 static void rlock_ctx_creditor_unset(struct rlock_ctx *rlx)
@@ -1409,6 +1403,42 @@ static bool rconfc_herd_fini_cb(struct m0_clink *link)
 	return true;
 }
 
+static void rconfc_ha_update_ast(struct m0_sm_group *grp,
+				 struct m0_sm_ast   *ast)
+{
+	struct m0_rconfc            *rconfc = ast->sa_datum;
+	struct rlock_ctx            *rlx = rconfc->rc_rlock_ctx;
+	struct m0_ha_entrypoint_rep *hep = &rconfc->rc_ha_entrypoint_rep;
+	char                        *rm_addr = hep->hae_active_rm_ep;
+	int                          rc = 0;
+
+	m0_free(rconfc->rc_nvec.nv_note);
+	rconfc_state_set(rconfc, M0_RCS_CREDITOR_SETUP);
+
+	if (rlx->rlc_rm_addr == NULL || !m0_streq(rlx->rlc_rm_addr, rm_addr)) {
+		if (rlock_ctx_is_online(rlx))
+			rlock_ctx_creditor_unset(rlx);
+		rc = rlock_ctx_creditor_setup(rlx, rm_addr);
+	}
+	if (rc == 0) {
+		rconfc_read_lock_get(rconfc);
+	} else {
+		rconfc_start(rconfc);
+		M0_CNT_INC(rconfc->rc_ha_entrypoint_retries);
+	}
+
+	m0_ha_entrypoint_rep_free(&rconfc->rc_ha_entrypoint_rep);
+}
+
+static bool rconfc_ha_update_cb(struct m0_clink *link)
+{
+	struct m0_rconfc *rconfc = M0_AMB(rconfc, link, rc_ha_update_cl);
+	M0_ENTRY("rconfc %p", rconfc);
+	m0_clink_del(link);
+	rconfc_ast_post(rconfc, rconfc_ha_update_ast);
+	return true;
+}
+
 static int rconfc_herd_fini(struct m0_rconfc *rconfc)
 {
 	struct rconfc_link *lnk;
@@ -1565,7 +1595,7 @@ static int rconfc_herd_update(struct m0_rconfc   *rconfc,
 			if (lnk->rl_state == CONFC_IDLE) {
 				_confc_phony_cache_append(
 					&rconfc->rc_phony,
-					&lnk->rl_confd_fid, NULL);
+					&lnk->rl_confd_fid);
 				rconfc_herd_link_subscribe(lnk);
 			} else {
 				M0_ASSERT(lnk->rl_state == CONFC_DEAD);
@@ -1790,16 +1820,15 @@ rconfc_entrypoint_debug_print(struct m0_ha_entrypoint_rep *entrypoint)
 	}
 }
 
-static int rconfc_entrypoint_consume(struct m0_rconfc *rconfc,
-				     const char      **rm_addr)
+static int rconfc_entrypoint_consume(struct m0_rconfc *rconfc)
 {
 	struct rlock_ctx               *rlx = rconfc->rc_rlock_ctx;
-	struct m0_ha_entrypoint_rep    *hep;
+	struct m0_confc                *phony = &rlx->rlc_parent->rc_phony;
+	struct m0_ha_entrypoint_rep    *hep = &rconfc->rc_ha_entrypoint_rep;
 	int                             rc;
 
 	M0_ENTRY();
 	rconfc_state_set(rconfc, M0_RCS_ENTRYPOINT_CONSUME);
-	hep = &rconfc->rc_ha_entrypoint_rep;
 	if (hep->hae_control == M0_HA_ENTRYPOINT_QUIT)
 		/* HA commanded stop querying. No operation permitted. */
 		return M0_ERR(-EPERM);
@@ -1814,26 +1843,43 @@ static int rconfc_entrypoint_consume(struct m0_rconfc *rconfc,
 	rconfc->rc_quorum = hep->hae_quorum;
 	rlx->rlc_rm_fid = hep->hae_active_rm_fid;
 	M0_LOG(M0_DEBUG, "rm_fid="FID_F, FID_P(&rlx->rlc_rm_fid));
-	*rm_addr = hep->hae_active_rm_ep;
 	if (hep->hae_active_rm_ep == NULL || hep->hae_active_rm_ep[0] == '\0')
 		return M0_ERR(-ENOENT);
 	rconfc_entrypoint_debug_print(hep);
+	_confc_phony_cache_append(phony, &rlx->rlc_rm_fid);
+
+	/*
+	 * rconfc SM channel is used for the convenience here:
+	 * 1) No additional channel and mutex structures are required.
+	 * 2) No additional locks are required here since the code is always
+	 *    run under the same SM group lock.
+	 * The drawback of this approach is that the threads waiting
+	 * for the SM state change (like at m0_rconfc_start_wait()) will be
+	 * awaken needlessly. But this seems to be harmless.
+	 */
+	m0_clink_add(&rconfc->rc_sm.sm_chan, &rconfc->rc_ha_update_cl);
+
 	rc = rconfc_herd_update(rconfc, hep->hae_confd_eps,
 				&hep->hae_confd_fids) ?:
-	     m0_conf_confc_ha_update(&rconfc->rc_phony);
+	     m0_conf_confc_ha_update_async(&rconfc->rc_phony,
+					   &rconfc->rc_nvec,
+					   &rconfc->rc_sm.sm_chan);
+
+	if (rc != 0) {
+		m0_clink_del(&rconfc->rc_ha_update_cl);
+		return M0_ERR(rc);
+	}
 
 	return M0_RC(rc);
 }
 
 static int rconfc_start_internal(struct m0_rconfc *rconfc)
 {
-	struct rlock_ctx *rlx = rconfc->rc_rlock_ctx;
-	const char       *rm_addr = NULL;
 	int               rc;
 
 	M0_ENTRY();
 
-	rc = rconfc_entrypoint_consume(rconfc, &rm_addr);
+	rc = rconfc_entrypoint_consume(rconfc);
 	if (rc != 0) {
 		if (M0_IN(rc, (-ENOKEY, -EPERM)))
 			/* HA requested rconfc to stop querying entrypoint */
@@ -1843,16 +1889,7 @@ static int rconfc_start_internal(struct m0_rconfc *rconfc)
 			rconfc_herd_destroy(rconfc);
 		return M0_ERR(rc);
 	}
-	rconfc_state_set(rconfc, M0_RCS_CREDITOR_SETUP);
-	if (rlx->rlc_rm_addr == NULL || !m0_streq(rlx->rlc_rm_addr, rm_addr)) {
-		if (rlock_ctx_is_online(rlx))
-			rlock_ctx_creditor_unset(rlx);
-		rc = rlock_ctx_creditor_setup(rlx, rm_addr);
-		if (rc != 0)
-			return M0_ERR(rc);
-	}
-	rconfc_read_lock_get(rconfc);
-	return M0_RC(0);
+	return M0_RC(rc);
 }
 
 static void rconfc_start(struct m0_rconfc *rconfc)
@@ -1876,10 +1913,10 @@ static void rconfc_start(struct m0_rconfc *rconfc)
 
 		M0_LOG(M0_DEBUG, "ENTRYPOINT ready...");
 		rc = rconfc_start_internal(rconfc);
-		m0_ha_entrypoint_rep_free(&rconfc->rc_ha_entrypoint_rep);
 		rconfc->rc_ha_entrypoint_rep.hae_control = M0_HA_ENTRYPOINT_QUERY;
 		if (rc == 0)
 			break;
+		m0_ha_entrypoint_rep_free(&rconfc->rc_ha_entrypoint_rep);
 		M0_LOG(M0_DEBUG, "Try reconnecting after rc=%d", rc);
 		M0_CNT_INC(rconfc->rc_ha_entrypoint_retries);
 	}
@@ -2335,7 +2372,7 @@ static bool rconfc_quorum_test(struct m0_rconfc *rconfc,
 	}
 	++vi->vi_count;
 
-	/* Walk along the herd and see if quorum reached. */
+	/* Walk along the herd and see if quorum of any version is reached. */
 	for (idx = 0; idx < va->va_count; idx++) {
 		if (va->va_items[idx].vi_count >= rconfc->rc_quorum) {
 			/* remember the winner */
@@ -2722,6 +2759,8 @@ M0_INTERNAL int m0_rconfc_init(struct m0_rconfc      *rconfc,
 	m0_clink_add_lock(m0_ha_entrypoint_client_chan(&ha->h_entrypoint_client),
 			  &rconfc->rc_ha_entrypoint_cl);
 	rconfc->rc_ha_entrypoint_rep.hae_control = M0_HA_ENTRYPOINT_QUERY;
+
+	m0_clink_init(&rconfc->rc_ha_update_cl, rconfc_ha_update_cb);
 
 	return M0_RC(0);
 confc_err:
