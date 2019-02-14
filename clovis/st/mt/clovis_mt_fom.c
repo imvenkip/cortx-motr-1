@@ -161,16 +161,17 @@ static void clovis_st_kv_alloc_and_fill(struct m0_bufvec *keys,
 	uint32_t count = last - first + 1;
 	int      rc;
 
-	rc = m0_bufvec_alloc(keys, count, sizeof (char[CMT_KV_SZ]));
+	rc = m0_bufvec_alloc(keys, count, CMT_KV_SZ);
 	M0_ASSERT(rc == 0);
 	rc = emptyvals ?
 		m0_bufvec_empty_alloc(vals, count) :
-		m0_bufvec_alloc(vals, count, sizeof (char[CMT_KV_SZ]));
+		m0_bufvec_alloc(vals, count, CMT_KV_SZ);
 	M0_ASSERT(rc == 0);
 	for (i = 0; i < count; i++) {
-		sprintf(keys->ov_buf[i], "%0*d", CMT_KV_SZ, first + i);
+		sprintf(keys->ov_buf[i], "%0*"PRIu32, CMT_KV_SZ - 1, first + i);
 		if (!emptyvals)
-			sprintf(vals->ov_buf[i], "%0*d", CMT_KV_SZ, first + i);
+			sprintf(vals->ov_buf[i], "%0*"PRIu32, CMT_KV_SZ - 1,
+				first + i);
 	}
 }
 
@@ -190,7 +191,7 @@ static void clovis_st_vals_check(struct m0_bufvec   *keys,
 		char buf[CMT_KV_SZ];
 		key = (char *)keys->ov_buf[i];
 		val = (char *)vals->ov_buf[i];
-		sprintf(buf, "%0*d", CMT_KV_SZ, first + i);
+		sprintf(buf, "%0*"PRIu32, CMT_KV_SZ - 1, first + i);
 		M0_ASSERT(memcmp(key, buf, CMT_KV_SZ) == 0);
 		M0_ASSERT(memcmp(val, buf, CMT_KV_SZ) == 0);
 	}
