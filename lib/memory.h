@@ -102,7 +102,7 @@ M0_INTERNAL void *m0_alloc_aligned(size_t size, unsigned shift);
 M0_INTERNAL void m0_free_aligned(void *data, size_t size, unsigned shift);
 
 /** It returns true when addr is aligned by value shift. */
-static inline bool m0_addr_is_aligned(void *addr, unsigned shift)
+static inline bool m0_addr_is_aligned(const void *addr, unsigned shift)
 {
 	M0_CASSERT(sizeof(unsigned long) >= sizeof(void *));
 	return ((((unsigned long)addr >> shift) << shift) ==
