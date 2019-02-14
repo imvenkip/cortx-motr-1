@@ -168,18 +168,21 @@ static void betool_st_event_time_print(m0_time_t  *time,
 				       const char *info,
 				       uint64_t    fill)
 {
-	char buf[0x100];
-	char buf1[0x100];
-	int  i;
+	char   buf[0x100];
+	size_t len = sizeof buf;
+	int    idx = 0;
+	int    printed;
+	int    i;
 
-	snprintf(buf, ARRAY_SIZE(buf) - 1, "%s fill: %lu", info, fill);
-	buf[ARRAY_SIZE(buf) - 1] = '\0';
+	printed = snprintf(buf, ARRAY_SIZE(buf), "%s fill: %lu", info, fill);
 	for (i = 1; i < BETOOL_ST_TIME_NR; ++i) {
-		snprintf(buf1, ARRAY_SIZE(buf1) - 1, buf);
-		buf1[ARRAY_SIZE(buf1) - 1] = '\0';
-		snprintf(buf, ARRAY_SIZE(buf) - 1, "%s %s: +%luus", buf1,
-			 betool_st_event_descr[i], (time[i] - time[0]) / 1000);
-		buf[ARRAY_SIZE(buf) - 1] = '\0';
+		len -= printed;
+		idx += printed;
+		M0_ASSERT(buf[idx] == '\0');
+		printed = snprintf(&buf[idx], len, " %s: +%luus",
+				   betool_st_event_descr[i],
+				   (time[i] - time[0]) / 1000);
+		M0_ASSERT(printed >= 0);
 	}
 	M0_LOG(M0_ALWAYS, "%s", (const char *)buf);
 }
