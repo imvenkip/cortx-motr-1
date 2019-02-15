@@ -65,6 +65,7 @@ static bool note_invariant(const struct m0_ha_nvec *note, bool known)
 					(M0_NC_REPAIR, M0_NC_REBALANCE)),
 			 m0_conf_fid_type(&N(i).no_id) == &M0_CONF_POOL_TYPE ||
 			 m0_conf_fid_type(&N(i).no_id) == &M0_CONF_SDEV_TYPE ||
+			 m0_conf_fid_type(&N(i).no_id) == &M0_CONF_NODE_TYPE ||
 			 m0_conf_fid_type(&N(i).no_id) == &M0_CONF_DRIVE_TYPE)));
 #undef N
 }

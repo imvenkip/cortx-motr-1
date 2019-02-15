@@ -1515,6 +1515,14 @@ int m0_spiel_sns_rebalance_continue(struct m0_spiel     *spl,
 }
 M0_EXPORTED(m0_spiel_sns_rebalance_continue);
 
+int m0_spiel_node_direct_rebalance_start(struct m0_spiel     *spl,
+					 const struct m0_fid *node_fid)
+{
+	return M0_ERR_INFO(-EPERM, "Cannot start direct rebalance for "FID_F
+                                    " operation not implemented", FID_P(node_fid));
+}
+M0_EXPORTED(m0_spiel_node_direct_rebalance_start);
+
 int m0_spiel_dix_rebalance_continue(struct m0_spiel     *spl,
 				    const struct m0_fid *pool_fid)
 {
