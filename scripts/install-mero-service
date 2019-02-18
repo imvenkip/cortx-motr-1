@@ -20,6 +20,7 @@ dry_run=false
 link_files=false
 action='install'
 with_lnet_service=false
+verbose=true
 
 
 #
@@ -40,6 +41,8 @@ Usage: $PROG_NAME [-h|--help] [-n|--dry-run]
 
     -n|--dry-run        Don't perform any action, just show what would be
                         installed/uninstalled.
+
+    -q|--quiet          Suppress detailed output.
 
     -l|--link           Symlink files instead of copying them.
 
@@ -63,7 +66,7 @@ parse_cli_options()
     # Note that we use `"$@"' to let each command-line parameter expand to a
     # separate word. The quotes around `$@' are essential!
     # We need TEMP as the `eval set --' would nuke the return value of getopt.
-    TEMP=$( getopt -o hnluL --long help,dry-run,link,uninstall,with-lnet -n "$PROG_NAME" -- "$@" )
+    TEMP=$( getopt -o hnqluL --long help,dry-run,quiet,link,uninstall,with-lnet -n "$PROG_NAME" -- "$@" )
 
     [[ $? != 0 ]] && help
 
@@ -74,6 +77,7 @@ parse_cli_options()
         case "$1" in
             -h|--help)          help stdout ;;
             -n|--dry-run)       dry_run=true; shift ;;
+            -q|--quiet)         verbose=false; shift ;;
             -l|--link)          link_files=true; shift ;;
             -u|--uninstall)     action=uninstall; shift ;;
             -L|--with-lnet)     with_lnet_service=true; shift ;;
@@ -109,9 +113,11 @@ run()
 
 install_files()
 {
+    local v='-v'
+    $verbose || v=''
 
-    local cmd='cp -vf'
-    $link_files && cmd='ln -sfv'
+    local cmd="cp -f ${v}"
+    $link_files && cmd="ln -sf ${v}"
 
     local dir='/etc/sysconfig'
     local file='scripts/install/etc/sysconfig/mero'
@@ -151,7 +157,7 @@ install_files()
     fi
 
     dir='/etc/mero'
-    [[ ! -d $dir ]] && run "mkdir -vp $dir"
+    [[ ! -d $dir ]] && run "mkdir ${v} -p $dir"
     for file in 'scripts/install/etc/mero/disks-ios.conf' \
                 'scripts/install/etc/mero/genders' ;
     do
@@ -164,7 +170,7 @@ install_files()
     fi
 
     dir='/usr/libexec/mero'
-    [[ ! -d $dir ]] && run "mkdir -vp $dir"
+    [[ ! -d $dir ]] && run "mkdir ${v} -p $dir"
     for file in 'scripts/install/usr/libexec/mero/mero-service.functions' \
                 'scripts/install/usr/libexec/mero/mero-trace' \
                 'scripts/install/usr/libexec/mero/mero-cleanup' \
@@ -182,7 +188,7 @@ install_files()
     dir='/usr/bin'
     for file in 'utils/m0dixinit' ;
     do
-        run "ln -sfv $M0_SRC_DIR/$file $dir"
+        run "ln -sf ${v} $M0_SRC_DIR/$file $dir"
     done
 
     $dry_run || {
@@ -192,6 +198,9 @@ install_files()
 
 uninstall_files()
 {
+    local v='-v'
+    $verbose || v=''
+
     file_list='/etc/sysconfig/mero
                /etc/mero/disks-ios.conf
                /etc/mero/genders
@@ -228,13 +237,13 @@ uninstall_files()
 
     for file in $file_list
     do
-        [[ -s $file ]] && run "rm -v $file"
+        [[ -s $file ]] && run "rm ${v} $file"
     done
 
     for dir in '/etc/mero' \
                '/usr/libexec/mero' ;
     do
-        [[ -d $dir && -z $(ls $dir) ]] && run "rmdir -v $dir"
+        [[ -d $dir && -z $(ls $dir) ]] && run "rmdir ${v} $dir"
     done
 
     $dry_run || {
