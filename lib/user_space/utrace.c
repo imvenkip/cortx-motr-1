@@ -88,9 +88,11 @@ static int logbuf_map()
 
 		if (getcwd(trace_file_path, sizeof trace_file_path) != NULL ) {
 			strncat(trace_file_path, "/",
-				sizeof trace_file_path - strlen(trace_file_path));
+				sizeof trace_file_path -
+				strlen(trace_file_path) - 1);
 			strncat(trace_file_path, buf,
-				sizeof trace_file_path - strlen(trace_file_path));
+				sizeof trace_file_path -
+				strlen(trace_file_path) - 1);
 		}
 	}
 
