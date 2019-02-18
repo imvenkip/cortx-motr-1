@@ -109,11 +109,19 @@ static void idx_dix_ut_clovis_init()
 	ut_m0c_config.cc_idx_service_conf      = &ut_dix_config;
 
 	m0_fi_enable_once("clovis_ha_init", "skip-ha-init");
-	m0_fi_enable_once("clovis_initlift_addb2", "no-addb2");
+	/* Skip HA finalisation in case of failure path. */
+	m0_fi_enable("clovis_ha_fini", "skip-ha-fini");
+	/*
+	 * We can't use m0_fi_enable_once() here, because
+	 * clovis_initlift_addb2() may be called twice in case of failure path.
+	 */
+	m0_fi_enable("clovis_initlift_addb2", "no-addb2");
 	m0_fi_enable("clovis_ha_process_event", "no-link");
 	rc = m0_clovis_init(&ut_m0c, &ut_m0c_config, false);
 	M0_UT_ASSERT(rc == 0);
 	m0_fi_disable("clovis_ha_process_event", "no-link");
+	m0_fi_disable("clovis_initlift_addb2", "no-addb2");
+	m0_fi_disable("clovis_ha_fini", "skip-ha-fini");
 	ut_m0c->m0c_mero = m0_get();
 }
 

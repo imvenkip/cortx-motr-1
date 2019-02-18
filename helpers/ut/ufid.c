@@ -319,7 +319,6 @@ M0_INTERNAL int ut_ufid_init(void)
 {
 	dummy_m0c.m0c_process_fid.f_container = 0x7200000000000000;
 	dummy_m0c.m0c_process_fid.f_key       = 0x1;
-	m0_fi_enable("m0_clovis_process_fid", "fake_m0c");
 	m0_ufid_init(&dummy_m0c, &dummy_ufid_gr);
 
 	return 0;
