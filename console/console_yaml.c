@@ -99,14 +99,14 @@ M0_INTERNAL int m0_cons_yaml_init(const char *file_path)
 
 	yaml_info.cyi_file = fopen(file_path, "r");
 
-	if(yaml_info.cyi_file == NULL) {
+	if (yaml_info.cyi_file == NULL) {
 		perror("Failed to open file ");
 		printf("%s, errno = %d\n", file_path, errno);
 		goto error;
 	}
 	/* Initialize parser */
 	rc = yaml_parser_initialize(&yaml_info.cyi_parser);
-	if(rc != 1) {
+	if (rc != 1) {
 		fprintf(stderr, "Failed to initialize parser!\n");
 		fclose(yaml_info.cyi_file);
 		goto error;
@@ -145,10 +145,8 @@ error:
 M0_INTERNAL void m0_cons_yaml_fini(void)
 {
 	yaml_support = false;
-	if (&yaml_info.cyi_document != NULL)
-		yaml_document_delete(&yaml_info.cyi_document);
-	if (&yaml_info.cyi_parser != NULL)
-		yaml_parser_delete(&yaml_info.cyi_parser);
+	yaml_document_delete(&yaml_info.cyi_document);
+	yaml_parser_delete(&yaml_info.cyi_parser);
 	fclose(yaml_info.cyi_file);
 }
 
