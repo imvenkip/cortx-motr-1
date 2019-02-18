@@ -24,6 +24,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <err.h>
+#include <signal.h>     /* MINSIGSTKSZ */
 #include <sysexits.h>
 
 #include <execinfo.h>
