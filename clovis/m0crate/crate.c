@@ -751,13 +751,13 @@ static void csum_none(void *buf, uint64_t size)
 
 static void csum_touch(void *buf, uint64_t size)
 {
-        uint32_t *ip = buf;
-        uint32_t *ipend = ip + (size / sizeof (uint32_t));
-        uint32_t word;
+        uint32_t          *ip = buf;
+        uint32_t          *ipend = ip + (size / sizeof (uint32_t));
+        volatile uint32_t  word;
 
         for (; ip < ipend; ip++)
                 word = *ip;
-	word++; /* suppress "set but not used" warning. */
+	(void)word; /* suppress "set but not used" warning. */
 }
 
 /*
@@ -819,13 +819,22 @@ static void csum_compute(struct workload *w, void *buf, size_t count)
 {
         struct cr_csum *s;
 
-        uint32_t *ip32 = buf;
-        uint32_t *ipend32 = buf + (count / sizeof (uint32_t));
-        uint32_t  word32;
+        uint32_t          *ip32 = buf;
+        uint32_t          *ipend32 = ip32 + (count / sizeof (uint32_t));
+        volatile uint32_t  word32;
 
-        uint64_t *ip64 = buf;
-        uint64_t *ipend64 = buf + (count / sizeof (uint64_t));
-        uint64_t  word64;
+        uint64_t          *ip64 = buf;
+        uint64_t          *ipend64 = ip64 + (count / sizeof (uint64_t));
+        volatile uint64_t  word64;
+
+	/*
+	 * ST_32 and ST_64 modes don't write result of the bit swap operation.
+	 * They are intended to be used for performance/overhead checks.
+	 * Mark word32/word64 with volatile keyword to switch off compiler's
+	 * optimisation.
+	 *
+	 * Same implies for csum_touch() implementation.
+	 */
 
         s = w2csum(w);
         assert(0 <= s->c_csum && s->c_csum < ARRAY_SIZE(csums));
@@ -853,8 +862,8 @@ static void csum_compute(struct workload *w, void *buf, size_t count)
                 assert(0);
         }
         csums[s->c_csum].ca_func(buf, count);
-	word64++; /* suppress "set but not used" warning. */
-	word32++; /* suppress "set but not used" warning. */
+	(void)word64; /* suppress "set but not used" warning. */
+	(void)word32; /* suppress "set but not used" warning. */
 }
 
 static void csum_csum(struct workload *w, struct cr_csum *s,
