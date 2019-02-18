@@ -263,7 +263,7 @@ static void test_list_destroy(struct m0_list *list)
 			     m0_free((char *)e->ue_suite_name);
 			     m0_free((char *)e->ue_test_name);
 			     m0_free(e);
-			     true;);
+			     true);
 	m0_list_fini(list);
 }
 
@@ -318,7 +318,7 @@ static int test_suites_enable(const struct m0_ut_module *m)
 		m0_list_entry_forall(e, &disable_list, struct ut_entry, ue_linkage,
 				     set_enabled_flag_for(m, e->ue_suite_name,
 							  e->ue_test_name, !flag);
-				     true;);
+				     true);
 		test_list_destroy(&disable_list);
 	}
 

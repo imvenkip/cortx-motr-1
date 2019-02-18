@@ -194,7 +194,7 @@ static void cm_ready_failure_ut(void)
 	do {
 		usleep(200);
 		rc = m0_cm_ready(cm);
-	} while ((rc == -EAGAIN));
+	} while (rc == -EAGAIN);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(cm->cm_mach.sm_rc != 0);
 	m0_reqh_idle_wait(cm->cm_service.rs_reqh);
@@ -218,7 +218,7 @@ static void cm_start_failure_ut(void)
 	do {
 		usleep(200);
 		rc = m0_cm_start(cm);
-	} while ((rc == -EAGAIN));
+	} while (rc == -EAGAIN);
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(cm->cm_mach.sm_rc != 0);
 	m0_reqh_idle_wait(cm->cm_service.rs_reqh);
