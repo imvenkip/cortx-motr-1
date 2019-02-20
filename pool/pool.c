@@ -995,24 +995,23 @@ static bool service_ctx_ha_entrypoint_cb(struct m0_clink *clink)
 	struct m0_ha_entrypoint_client     *ecl = pc->pc_ha_ecl;
 	struct m0_ha_entrypoint_rep        *rep = &ecl->ecl_rep;
 	enum m0_ha_entrypoint_client_state  state;
-	struct m0_reqh_service_ctx         *ctx;
-	int                                 rc;
 
 	state = m0_ha_entrypoint_client_state_get(ecl);
 	if (state == M0_HEC_AVAILABLE &&
 	    rep->hae_control != M0_HA_ENTRYPOINT_QUERY &&
 	    m0_fid_is_set(&rep->hae_active_rm_fid) &&
 	    !m0_fid_eq(&pc->pc_rm_ctx->sc_fid, &rep->hae_active_rm_fid)) {
-
 		m0_mutex_lock(&pc->pc_rm_lock);
-		ctx = active_rm_ctx_find(pc);
-		if (ctx == NULL) {
-			rc = active_rm_ctx_create(pc, true);
-			M0_ASSERT(rc == 0);
-			ctx = active_rm_ctx_find(pc);
-		}
-		M0_ASSERT(ctx != NULL);
-		pc->pc_rm_ctx = ctx;
+		pc->pc_rm_ctx = active_rm_ctx_find(pc);
+		M0_LOG(M0_DEBUG, "new RM="FID_F" pc_rm_ctx=%p",
+		       FID_P(&rep->hae_active_rm_fid),
+		       pc->pc_rm_ctx);
+		/*
+		 * If pc_rm_ctx == NULL - it will be set at
+		 * m0_pools_common_conf_ready_async_cb() when
+		 * the configuration is ready. The latter is
+		 * required for active_rm_ctx_create().
+		 */
 		m0_mutex_unlock(&pc->pc_rm_lock);
 	}
 	return true;
@@ -1312,18 +1311,20 @@ M0_INTERNAL bool m0_pools_common_conf_ready_async_cb(struct m0_clink *clink)
 	M0_ENTRY("pc %p", pc);
 	M0_PRE(pools_common_invariant(pc));
 
+	m0_mutex_lock(&pc->pc_rm_lock);
 	if (pc->pc_rm_ctx == NULL) {
-		M0_LEAVE("The mandatory rmservice is missing.");
 		/*
-		 * Something went wrong. The newly loaded conf does not include
-		 * active RM service.
-		 *
-		 * Under the circumstances do nothing with pool related
-		 * structures, as no file operation is to be done without RM
-		 * credits, so no IOS is going to be functional from mow on.
+		 * active_rm_ctx_create() calls m0_conf_service_get()
+		 * which requires configuration to be ready. Therefore,
+		 * we have it here instead of service_ctx_ha_entrypoint_cb().
 		 */
-		return true;
+		rc = active_rm_ctx_create(pc, true);
+		M0_ASSERT(rc == 0);
+		pc->pc_rm_ctx = active_rm_ctx_find(pc);
+		M0_LOG(M0_DEBUG, "created new pc_rm_ctx=%p", pc->pc_rm_ctx);
 	}
+	m0_mutex_unlock(&pc->pc_rm_lock);
+	M0_ASSERT(pc->pc_rm_ctx != NULL);
 
 	m0_mutex_lock(&pc->pc_mutex);
 
