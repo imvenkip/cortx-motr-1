@@ -3,9 +3,9 @@
 #
 
 ARG  CENTOS_RELEASE=latest
-FROM seagate/centos:${CENTOS_RELEASE} as lustre-rpm-builder
+FROM registry.gitlab.mero.colo.seagate.com/centos:${CENTOS_RELEASE} as lustre-rpm-builder
 
-ARG LUSTRE_VERSION=2.10.4
+ARG LUSTRE_VERSION=2.10.6
 
 COPY lustre-2.9.0.spec.patch .
 ADD  https://downloads.whamcloud.com/public/lustre/lustre-${LUSTRE_VERSION}/el7/client/SRPMS/lustre-${LUSTRE_VERSION}-1.src.rpm .
@@ -24,9 +24,9 @@ RUN rpmbuild -bb --without servers \
 #
 
 ARG  CENTOS_RELEASE=latest
-FROM seagate/centos:${CENTOS_RELEASE}
+FROM registry.gitlab.mero.colo.seagate.com/centos:${CENTOS_RELEASE}
 
-ARG LUSTRE_VERSION=2.10.4
+ARG LUSTRE_VERSION=2.10.6
 
 COPY --from=lustre-rpm-builder /root/rpmbuild/RPMS/x86_64/lustre-client-devel-${LUSTRE_VERSION}*.rpm .
 

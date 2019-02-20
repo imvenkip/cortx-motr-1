@@ -1,33 +1,37 @@
 .PHONY: latest
 latest: centos-image lustre-client-image mero-devel-image
+	$(DOCKER) tag $(NAMESPACE)/mero-devel:$(CENTOS_RELEASE) $(NAMESPACE)/mero/mero:$(basename $(CENTOS_RELEASE))
 
 CENTOS_RELEASE  := latest
-LUSTRE_VERSION  := 2.10.4
-NAMESPACE       := seagate
+LUSTRE_VERSION  := 2.10.6
+NAMESPACE       := registry.gitlab.mero.colo.seagate.com
 DOCKER          := docker
 
 
-.PHONY: 7.3 7.4 \
+.PHONY: 7.5 \
         centos-image \
         centos-vault-image \
+        centos-sage-image \
         clean \
         lustre-client-image \
+        lustre-client-sage-image \
         mero-devel-image \
-        push
+        push \
+        sage
 
-7.4: CENTOS_RELEASE := 7.4.1708
-7.4: LUSTRE_VERSION := 2.10.3
-7.4: DOCKER_OPTS += --build-arg CENTOS_RELEASE=$(CENTOS_RELEASE) \
+7.5: CENTOS_RELEASE := 7.5.1804
+7.5: LUSTRE_VERSION := 2.10.5
+7.5: DOCKER_OPTS += --build-arg CENTOS_RELEASE=$(CENTOS_RELEASE) \
                     --build-arg LUSTRE_VERSION=$(LUSTRE_VERSION)
-7.4: centos-vault-image lustre-client-image mero-devel-image
-	$(DOCKER) tag $(NAMESPACE)/mero-devel:$(CENTOS_RELEASE) $(NAMESPACE)/mero-devel:$(basename $(CENTOS_RELEASE))
+7.5: centos-vault-image lustre-client-image mero-devel-image
+	$(DOCKER) tag $(NAMESPACE)/mero-devel:$(CENTOS_RELEASE) $(NAMESPACE)/mero/mero:$(basename $(CENTOS_RELEASE))
 
-7.3: CENTOS_RELEASE := 7.3.1611
-7.3: LUSTRE_VERSION := 2.9.0
-7.3: DOCKER_OPTS += --build-arg CENTOS_RELEASE=$(CENTOS_RELEASE) \
-                    --build-arg LUSTRE_VERSION=$(LUSTRE_VERSION)
-7.3: centos-vault-image lustre-client-image mero-devel-image
-	$(DOCKER) tag $(NAMESPACE)/mero-devel:$(CENTOS_RELEASE) $(NAMESPACE)/mero-devel:$(basename $(CENTOS_RELEASE))
+sage: CENTOS_RELEASE := sage
+sage: LUSTRE_VERSION := 2.11.53
+sage: DOCKER_OPTS += --build-arg CENTOS_RELEASE=$(CENTOS_RELEASE) \
+                     --build-arg LUSTRE_VERSION=$(LUSTRE_VERSION)
+sage: centos-sage-image lustre-client-sage-image mero-devel-image
+	$(DOCKER) tag $(NAMESPACE)/mero-devel:$(CENTOS_RELEASE) $(NAMESPACE)/mero/mero:$(basename $(CENTOS_RELEASE))
 
 
 INAME = $(@:%-image=%)
@@ -35,6 +39,10 @@ INAME = $(@:%-image=%)
 centos-vault-image:
 	cd $(INAME) \
 	&& $(DOCKER) build . -t $(NAMESPACE)/centos:$(CENTOS_RELEASE) $(DOCKER_OPTS)
+
+centos-sage-image:
+	cd $(INAME) \
+	&& $(DOCKER) build . -t $(NAMESPACE)/centos:sage $(DOCKER_OPTS)
 
 centos-image:
 	cd $(INAME) \
@@ -48,10 +56,17 @@ lustre-client-image mero-devel-image:
 	&& tar -ch . \
 	   | $(DOCKER) build -t $(NAMESPACE)/$(INAME):$(TAG) $(DOCKER_OPTS) -
 
-push: name := [lm]*
+lustre-client-sage-image:
+	cd $(INAME) \
+	&& $(DOCKER) build . -t $(NAMESPACE)/lustre-client:sage-2.11.53 $(DOCKER_OPTS)
+
+push: name := [clm]*
 push: tag  := *
 push:
 	@for img in $$(docker images --filter=reference='$(NAMESPACE)/$(name):$(tag)' \
+				    --format '{{.Repository}}:{{.Tag}}' \
+			| grep -v none | sort) \
+		    $$(docker images --filter=reference='$(NAMESPACE)/mero/mero:$(tag)' \
 				    --format '{{.Repository}}:{{.Tag}}' \
 			| grep -v none | sort) ; \
 	do \
@@ -63,6 +78,8 @@ clean: name := [clm]*
 clean: tag  := *
 clean:
 	@for img in $$(docker images --filter=reference='$(NAMESPACE)/$(name):$(tag)' \
+				    --format '{{.Repository}}:{{.Tag}}') \
+		    $$(docker images --filter=reference='$(NAMESPACE)/mero/mero:$(tag)' \
 				    --format '{{.Repository}}:{{.Tag}}') ; \
 	do \
 		echo "---> $$img" ; \
@@ -74,10 +91,8 @@ help:
 	@echo '  latest          - build images based on the latest CentOS snapshot,'
 	@echo '                    and latest supported Lustre version, this is the'
 	@echo '                    default, same as just `make`'
-	@echo '  7.4             - build images based on CentOS 7.4.1708 snapshot and'
-	@echo '                    Lustre 2.10.3'
-	@echo '  7.3             - build images based on CentOS 7.3.1611 snapshot and'
-	@echo '                    Lustre 2.9.0'
+	@echo '  7.5             - build images based on CentOS 7.5.1804 snapshot and'
+	@echo '                    Lustre 2.10.5'
 	@echo ''
 	@echo 'Publish targets:'
 	@echo "  push            - upload local $(NAMESPACE)/* images to docker hub repository"
