@@ -430,6 +430,11 @@ static void ut_composite_io_op_cb_launch(void)
 	m0_sm_fini(&oci->oci_oo.oo_oc.oc_op.op_sm);
 	m0_sm_group_unlock(op_grp);
 	m0_fi_disable("composite_io_op_cb_launch", "no_subobj_ops_launched");
+	/*
+	 * XXX This "once" injection is not triggered. It may be redundant
+	 * or the test expects call of the function and it doesn't happen.
+	 */
+	m0_fi_disable("m0_clovis_op_stable", "skip_ongoing_io_ref");
 
 	/* finalise */
 	m0_sm_group_fini(&locality_grp);

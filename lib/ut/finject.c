@@ -223,6 +223,9 @@ static void test_delayed_registration(void)
 
 	/* check that FP is enabled on first run */
 	M0_UT_ASSERT(target_func_delayed_registration());
+
+	disable_fp("target_func_delayed_registration", test_tag,
+		   &target_func_delayed_registration);
 }
 
 static void test_enable_disable(void)

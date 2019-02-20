@@ -184,6 +184,8 @@ static void test_spiel_process_cmds(void)
 	rc = m0_spiel_process_lib_load(&spiel, &process_fid, libpath);
 	M0_UT_ASSERT(rc == 0);
 	free(libpath);
+	/* Cleanup after the libtestlib.so. */
+	m0_fi_disable("sss_process_lib_load_testlib_test", "loaded");
 
 	/* Load non-existent library. */
 	rc = m0_spiel_process_lib_load(&spiel, &process_fid, "/funnylib");
@@ -298,6 +300,12 @@ static void test_spiel_device_cmds(void)
 	rc = m0_spiel_device_attach(&spiel, &nosuch_disk);
 	M0_UT_ASSERT(rc == -ENOENT);
 	spiel_ci_ut_fini();
+
+	/*
+	 * XXX This "once" injection is not triggered. It may be redundant
+	 * or the test expects call of the function and it doesn't happen.
+	 */
+	m0_fi_disable("m0_storage_dev_new_by_conf", "no_real_dev");
 }
 
 static void test_spiel_service_order(void)
