@@ -264,6 +264,7 @@ Vagrant.configure('2') do |config|
   if !ENV['M0_VM_BOX_BUILDER_MODE'].nil? &&
       ENV['M0_VM_BOX_BUILDER_MODE'].match(/yes|true|1/i)
     config.vm.define :devbox, autostart: false do |devbox|
+      devbox.vm.vgname = 'devbox' # used later to refer to the VM by name known to Vagrant
       devbox.vm.hostname = 'devbox'
       # don't remove default Vagrant ssh key
       devbox.ssh.insert_key = false
