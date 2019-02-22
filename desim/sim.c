@@ -130,9 +130,7 @@ M0_INTERNAL void sim_fini(struct sim *state)
 M0_INTERNAL void sim_run(struct sim *state)
 {
 	struct sim_callout *call;
-	unsigned long i;
 
-	i = 0;
 	while (!ca_tlist_is_empty(&state->ss_future)) {
 		M0_ASSERT(sim_current == NULL);
 		call = ca_tlist_pop(&state->ss_future);
@@ -144,7 +142,6 @@ M0_INTERNAL void sim_run(struct sim *state)
 			 * timer wasn't rearmed.
 			 */
 			sim_free(call);
-		i++;
 	}
 }
 
