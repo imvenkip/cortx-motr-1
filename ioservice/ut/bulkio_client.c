@@ -260,7 +260,7 @@ static void bulkclient_test(void)
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(rbuf1 != NULL);
 	M0_UT_ASSERT(rbuf1->bb_nbuf == nb);
-	M0_UT_ASSERT(!rbuf1->bb_flags & M0_RPC_BULK_NETBUF_ALLOCATED);
+	M0_UT_ASSERT(!(rbuf1->bb_flags & M0_RPC_BULK_NETBUF_ALLOCATED));
 
 	M0_UT_ASSERT(rbuf->bb_nbuf != NULL);
 	/* In normal code path, an io_request is allocated. io_request embeds io_fop.
