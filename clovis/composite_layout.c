@@ -1159,7 +1159,7 @@ static int composite_layout_io_build(struct m0_clovis_io_args *args,
 	M0_PRE(args->ia_obj != NULL);
 
 	obj = args->ia_obj;
-	rc = m0_clovis_op_get(op, sizeof(struct m0_clovis_op_composite_io))?:
+	rc = m0_clovis_op_get(op, sizeof(struct m0_clovis_op_composite_io)) ?:
 		composite_io_op_init(obj, args->ia_opcode, *op);
 	if (rc != 0)
 		return M0_ERR(rc);
