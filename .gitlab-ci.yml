@@ -1,0 +1,11 @@
+sync-from-gerrit:on-schedule:
+  only: [ schedules ]
+  image: registry.gitlab.mero.colo.seagate.com/centos
+  script:
+    - 'git remote add gitlab ssh://git@gitlab.mero.colo.seagate.com:6022/mero/mero.git || true'
+    - 'git remote add gerrit http://gerrit.mero.colo.seagate.com:8080/mero || true'
+    - git remote -v
+    - git fetch --no-tags gerrit master:refs/remotes/gerrit/master
+    - ssh-keyscan -t rsa -p 6022 gitlab.mero.colo.seagate.com >> ~/.ssh/known_hosts
+    - git push gitlab gerrit/master:refs/heads/gerrit/master
+  tags: [ gerrit-sync ]
