@@ -22,6 +22,7 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_M0T1FS
 #include "lib/trace.h"
 
+#include <linux/kernel.h>  /* kstrtoul */
 #include <linux/mount.h>
 #include <linux/parser.h>  /* substring_t */
 #include <linux/slab.h>    /* kmalloc, kfree */
@@ -300,7 +301,7 @@ static int num_parse(uint32_t *dest, const substring_t *src)
 	if (s == NULL)
 		return M0_ERR(-ENOMEM);
 
-	rc = strict_strtoul(s, 10, &n);
+	rc = kstrtoul(s, 10, &n);
 	if (rc == 0) {
 		if (n > UINT32_MAX)
 			rc = -EINVAL;

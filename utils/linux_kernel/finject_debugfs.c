@@ -23,6 +23,7 @@
 #ifdef ENABLE_FAULT_INJECTION
 
 #include <linux/debugfs.h>   /* debugfs_create_dir */
+#include <linux/kernel.h>    /* kstrtoul */
 #include <linux/module.h>    /* THIS_MODULE */
 #include <linux/seq_file.h>  /* seq_read */
 #include <linux/uaccess.h>   /* strncpy_from_user */
@@ -261,7 +262,7 @@ static int fi_ctl_process_cmd(int argc, char *argv[])
 				       argv[3]);
 				return -EINVAL;
 			}
-			rc = strict_strtoul(argv[4], 0, &p);
+			rc = kstrtoul(argv[4], 0, &p);
 			if (rc < 0)
 				return rc;
 			m0_fi_enable_random(func, tag, p);
@@ -274,10 +275,10 @@ static int fi_ctl_process_cmd(int argc, char *argv[])
 				       argv[3]);
 				return -EINVAL;
 			}
-			rc = strict_strtoul(argv[4], 0, &n);
+			rc = kstrtoul(argv[4], 0, &n);
 			if (rc < 0)
 				return rc;
-			rc = strict_strtoul(argv[5], 0, &m);
+			rc = kstrtoul(argv[5], 0, &m);
 			if (rc < 0)
 				return rc;
 			m0_fi_enable_off_n_on_m(func, tag, n, m);
