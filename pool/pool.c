@@ -821,20 +821,11 @@ static void service_ctxs_destroy(struct m0_pools_common *pc)
 	M0_LEAVE();
 }
 
-static const char *ctx_endpoint(struct m0_reqh_service_ctx *ctx)
-{
-	return (m0_reqh_service_ctx_is_connected(ctx) &&
-		m0_rpc_session_validate(&ctx->sc_rlink.rlk_sess) == 0) ?
-		m0_rpc_link_end_point(&ctx->sc_rlink) : "";
-}
-
 static bool reqh_svc_ctx_is_in_pools(struct m0_pools_common *pc,
-				     struct m0_conf_service *cs,
-				     const char             *ep)
+				     struct m0_conf_service *cs)
 {
 	return m0_tl_find(pools_common_svc_ctx, ctx, &pc->pc_svc_ctxs,
-			  m0_fid_eq(&cs->cs_obj.co_id, &ctx->sc_fid) &&
-			  m0_streq(ep, ctx_endpoint(ctx))) != NULL;
+			  m0_fid_eq(&cs->cs_obj.co_id, &ctx->sc_fid)) != NULL;
 }
 
 /**
@@ -854,7 +845,9 @@ static int __service_ctx_create(struct m0_pools_common *pc,
 	M0_PRE((pc->pc_rmach != NULL) == services_connect);
 
 	for (endpoint = cs->cs_endpoints; *endpoint != NULL; ++endpoint) {
-		already_in = reqh_svc_ctx_is_in_pools(pc, cs, *endpoint);
+		M0_ASSERT_INFO(endpoint == cs->cs_endpoints,
+		   "Only single endpoint per service is supported for now");
+		already_in = reqh_svc_ctx_is_in_pools(pc, cs);
 		M0_LOG(M0_DEBUG, "%s svc:"FID_F" type:%d ep:%s",
 		       already_in ? "unchanged" : "new",
 		       FID_P(&cs->cs_obj.co_id),
