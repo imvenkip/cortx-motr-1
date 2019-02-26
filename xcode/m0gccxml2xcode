@@ -111,6 +111,7 @@ my $xlist_block_start;
 my $xlist_block_end;
 my $xlist_block_placeholder;
 my $dom;
+my $gccxml_attr;
 
 my %cli_option  = (
     'input_file_name' => '-' # STDIN
@@ -179,7 +180,7 @@ sub set_item_attr
     }
 
     if ($item_attr_string ne '') {
-        while ($item_attr_string =~ / gccxml \( (?<name>\w+) , (?<value>[\w|]+) \) /xmsg)
+        while ($item_attr_string =~ / $gccxml_attr \( (?<name>\w+) , (?<value>[\w|]+) \) /xmsg)
         {
             croak "Incorrect format of gccxml attributes near " . $item->{'name'}
                 . ' at ' . get_file_name_of($node) . ':'
@@ -328,6 +329,23 @@ sub get_info_about
 
         when ('ArrayType') {
             $item->{'size'} = $type_node->getAttribute('size');
+
+            # CastXML doesn't add size attribute to array types. Calculate it
+            # manually if absent.
+            if (not defined($item->{'size'}) and $item->{'name'} ne 'm0_void_t') {
+                my $tn_info = get_info_about($type_node, %param);
+                my $max = $type_node->getAttribute('max');
+                my $min = $type_node->getAttribute('min');
+
+                die if not defined($max);
+                die if not defined($min);
+                die if not defined($tn_info->{'size'});
+
+                $item->{'size'} = ($max - $min + 1) * $tn_info->{'size'};
+            }
+            if (not defined($item->{'size'}) and $item->{'name'} eq 'm0_void_t') {
+                $item->{'size'} = 0;
+            }
 
             if ($item->{'name'} eq 'm0_void_t' or $item->{'size'} == 0) {
                 # a special-case array `typedef char m0_void_t[0];` which is an
@@ -529,7 +547,7 @@ sub build_item_list
     my @struct_nodes
         = $dom->findnodes(qq{//Struct[\@file='$header_file_id'
                                       and not(\@incomplete)
-                                      and contains(\@attributes, 'gccxml')]});
+                                      and contains(\@attributes, '$gccxml_attr')]});
     my @items;
 
     for my $struct_node (@struct_nodes) {
@@ -541,7 +559,7 @@ sub build_item_list
     my @enum_nodes
         = $dom->findnodes(qq{//Enumeration[\@file='$header_file_id'
                                       and not(\@incomplete)
-                                      and contains(\@attributes, 'gccxml')]});
+                                      and contains(\@attributes, '$gccxml_attr')]});
     my @enums;
     for my $enum_node (@enum_nodes) {
         my $enum = process_node($enum_node, 1);
@@ -1177,6 +1195,7 @@ sub process_cli_options
         'o|output-prefix=s' =>  \$cli_option{'output_prefix'},
         'x|xcode-path=s'    =>  \$cli_option{'xcode_path'},
         'l|list-file=s'     =>  \$cli_option{'list_file_name'},
+        'castxml'           =>  \$cli_option{'castxml'},
         'h|help'            =>  \&help,
         'usage'             =>  \&usage,
         'man'               =>  \&man
@@ -1255,6 +1274,15 @@ sub set_global_vars
     $xlist_block_start = "/* ----- BEGIN xcode from $header_file_path ----- */\n";
     $xlist_block_end   = "/* ----- END xcode from $header_file_path ----- */\n\n";
     $xlist_block_placeholder = "/* ----- NEXT BLOCK PLACEHOLDER ----- */\n";
+
+    if (defined $cli_option{'castxml'}) {
+        # with castxml we use __attribute__((annotate(...)))
+        $gccxml_attr = 'annotate';
+    }
+    else {
+        # with gccxml we use __attribute__((gccxml(...)))
+        $gccxml_attr = 'gccxml';
+    }
 }
 
 sub main
@@ -1334,6 +1362,10 @@ should be "example". xcode-path is set automatically if -i option is provided.
 Name of a file, for which a line is added for every processed xcode type and
 generated function. This file can be used to automatically initialise or
 enumerate all xcode types.
+
+=item B<--castxml>
+
+Expect CastXML format instead of GCC-XML.
 
 =item B<-h|--help>
 
