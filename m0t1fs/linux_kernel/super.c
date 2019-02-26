@@ -1134,7 +1134,7 @@ M0_INTERNAL int m0t1fs_fill_cob_attr(struct m0_fop_cob *body)
 
 	body->b_atime = body->b_ctime = body->b_mtime =
 					m0_time_seconds(m0_time_now());
-        body->b_valid = (M0_COB_MTIME | M0_COB_CTIME | M0_COB_CTIME |
+	body->b_valid = (M0_COB_MTIME | M0_COB_CTIME | M0_COB_ATIME |
 	                 M0_COB_UID | M0_COB_GID | M0_COB_BLOCKS |
 	                 M0_COB_SIZE | M0_COB_NLINK | M0_COB_MODE |
 	                 M0_COB_BLKSIZE | M0_COB_LID | M0_COB_PVER);
