@@ -25,10 +25,23 @@
  * @{
  */
 
+#include <linux/moduleparam.h> /* module_param */
+
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_LIB
 #include "lib/trace.h"
 #include "lib/uuid.h"
-#include "m0t1fs/linux_kernel/m0t1fs.h"
+
+static char *node_uuid = "00000000-0000-0000-0000-000000000000"; /* nil UUID */
+module_param(node_uuid, charp, S_IRUGO);
+MODULE_PARM_DESC(node_uuid, "UUID of Mero node");
+
+/**
+ * Return the value of the kernel node_uuid parameter.
+ */
+static const char *m0_param_node_uuid_get(void)
+{
+	return node_uuid;
+}
 
 /**
  * Construct the node uuid from the kernel's node_uuid parameter.
@@ -37,7 +50,7 @@ int m0_node_uuid_string_get(char buf[M0_UUID_STRLEN + 1])
 {
 	const char *s;
 
-	s = m0t1fs_param_node_uuid_get();
+	s = m0_param_node_uuid_get();
 	if (s == NULL)
 		return M0_ERR(-EINVAL);
 	strncpy(buf, s, M0_UUID_STRLEN);

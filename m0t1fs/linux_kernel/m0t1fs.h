@@ -640,11 +640,6 @@ struct m0_pdclust_layout;
 M0_INTERNAL int m0t1fs_init(void);
 M0_INTERNAL void m0t1fs_fini(void);
 
-/**
-   Return the value of the kernel node_uuid parameter.
- */
-const char *m0t1fs_param_node_uuid_get(void);
-
 enum {
 	M0T1FS_RPC_TIMEOUT              = 100,   /* seconds */
 	M0T1FS_RPC_MAX_RETRIES          =  10,

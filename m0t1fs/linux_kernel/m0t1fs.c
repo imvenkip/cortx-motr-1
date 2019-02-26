@@ -39,10 +39,6 @@
 #include "addb2/global.h"
 #include "addb2/sys.h"
 
-static char *node_uuid = "00000000-0000-0000-0000-000000000000"; /* nil UUID */
-module_param(node_uuid, charp, S_IRUGO);
-MODULE_PARM_DESC(node_uuid, "UUID of Mero node");
-
 struct m0_bitmap    m0t1fs_client_ep_tmid;
 struct m0_mutex     m0t1fs_mutex;
 struct m0_semaphore m0t1fs_cpus_sem;
@@ -58,13 +54,6 @@ static struct file_system_type m0t1fs_fs_type = {
 	.kill_sb      = m0t1fs_kill_sb,
 	.fs_flags     = FS_BINARY_MOUNTDATA
 };
-
-#define M0T1FS_DB_NAME "m0t1fs.db"
-
-M0_INTERNAL const char *m0t1fs_param_node_uuid_get(void)
-{
-	return node_uuid;
-}
 
 M0_INTERNAL int m0t1fs_init(void)
 {
