@@ -7,5 +7,5 @@ sync-from-gerrit:on-schedule:
     - git remote -v
     - git fetch --no-tags gerrit master:refs/remotes/gerrit/master
     - ssh-keyscan -t rsa -p 6022 gitlab.mero.colo.seagate.com >> ~/.ssh/known_hosts
-    - git push gitlab gerrit/master:refs/heads/gerrit/master
+    - git push gitlab gerrit/master:master
   tags: [ gerrit-sync ]
