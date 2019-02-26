@@ -106,22 +106,22 @@ M0_INTERNAL bool m0_bob_check(const struct m0_bob_type *bt, const void *bob);
  * Produces a type-safe versions of m0_bob_init(), m0_bob_fini() and
  * m0_bob_check(), taking branded object of a given type.
  */
-#define M0_BOB_DEFINE(scope, bob_type, type)		\
-scope void type ## _bob_init(struct type *bob)		\
-{							\
-	m0_bob_init(bob_type, bob);			\
-}							\
-							\
-scope void type ## _bob_fini(struct type *bob)		\
-{							\
-	m0_bob_fini(bob_type, bob);			\
-}							\
-							\
-scope bool type ## _bob_check(const struct type *bob)	\
-{							\
-	return m0_bob_check(bob_type, bob);		\
-}							\
-							\
+#define M0_BOB_DEFINE(scope, bob_type, type)			\
+scope void type ## _bob_init(struct type *bob)			\
+{								\
+	m0_bob_init(bob_type, bob);				\
+}								\
+								\
+scope void type ## _bob_fini(struct type *bob)			\
+{								\
+	m0_bob_fini(bob_type, bob);				\
+}								\
+								\
+scope M0_UNUSED bool type ## _bob_check(const struct type *bob)	\
+{								\
+	return m0_bob_check(bob_type, bob);			\
+}								\
+								\
 struct __ ## type ## _semicolon_catcher
 
 #define M0_BOB_DECLARE(scope, type)		        \
