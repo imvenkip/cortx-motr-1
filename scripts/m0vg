@@ -260,12 +260,14 @@ show_env()
 
 add_env_var()
 {
-    [[ -n $1 ]] ||
-        die "please, provide a least one env variable as an argument, it cannot be empty"
-
-    for v in "$@" ; do
-        echo "$v" >> "$VAGRANT_DEFAULT_ENV_FILE"
-    done
+    if [[ -n $1 ]] ; then
+        for v in "$@" ; do
+            echo "$v" >> "$VAGRANT_DEFAULT_ENV_FILE"
+        done
+    else
+        warn 'expecting environment configuration on STDIN..'
+        cat >> "$VAGRANT_DEFAULT_ENV_FILE"
+    fi
 }
 
 edit_env()
