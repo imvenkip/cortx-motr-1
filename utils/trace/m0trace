@@ -213,6 +213,7 @@ use Term::ANSIColor;
 use File::Temp qw( tempfile );
 use File::Spec;
 use File::Copy;
+use List::Util qw( max );
 
 # external modules (not included into base perl distribution)
 use YAML::XS;
@@ -584,7 +585,7 @@ sub file_line_func_of
 
     my $flf = file_of($trace_record) . ':' . $trace_record->{line} . ':'
               . $trace_record->{func};
-    return $flf . ' ' x ($cli_option{column_width} - length $flf)
+    return $flf . ' ' x max(1, $cli_option{column_width} - length $flf)
 }
 
 sub func_of
