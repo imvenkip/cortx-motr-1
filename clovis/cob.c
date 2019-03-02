@@ -1016,7 +1016,6 @@ static int clovis_cob_ios_fop_get(struct clovis_cob_req *cr,
 		clovis_cob_ios_fop_fini(fop);
 		return M0_ERR_INFO(rc, "fop data allocation failed");
         }
-	fop->f_item.ri_rmachine = m0_fop_session_machine(session);
 
 	/* The rpc's callback must know which oo's slot they work on. */
 	if (cr->cr_flags & CLOVIS_COB_REQ_ASYNC) {
@@ -1037,15 +1036,16 @@ static int clovis_cob_ios_fop_get(struct clovis_cob_req *cr,
 }
 
 /**
- * Sends a COB fop to an ioservice.
+ * Prepares a COB fop to be sent.
  *
- * @param oo object operation being processed.
- * @param i index of the cob.
- * @remark This function gets called from an AST. Do not call it from a RPC
- * callback.
- * @remark This function might be used to re-send fop to an ioservice.
+ * It is important to prepare all fops before sending them in ASYNC mode,
+ * because a race possible otherwise. If a reply is received before all values
+ * are set to cr->cr_ios_fop array, clovis_icr_ast() can finish cob request
+ * early and cause a panic. See MERO-2887 for details.
+ *
+ * This functions is intended to be used in pair with clovis_cob_ios_send().
  */
-static int clovis_cob_ios_send(struct clovis_cob_req *cr, uint32_t idx)
+static int clovis_cob_ios_prepare(struct clovis_cob_req *cr, uint32_t idx)
 {
 	int                     rc;
 	uint32_t                cob_idx;
@@ -1060,7 +1060,7 @@ static int clovis_cob_ios_send(struct clovis_cob_req *cr, uint32_t idx)
 	M0_ENTRY();
 
 	/*
-	 * Sanity checks. Note: ios_send may be called via ios_md_send
+	 * Sanity checks. Note: ios_prepare may be called via ios_md_send
 	 * or ios_io_send. In the case of ios_md_send, the instance
 	 * lock has been held.
 	 */
@@ -1072,7 +1072,7 @@ static int clovis_cob_ios_send(struct clovis_cob_req *cr, uint32_t idx)
 				  &cr->cr_pver);
 	M0_ASSERT(pv != NULL);
 
-	/* Determine cob fid and idx*/
+	/* Determine cob fid and idx */
 	cob_type = cr->cr_cob_type;
 	gob_fid = &cr->cr_fid;
 	if (cob_type == M0_COB_IO) {
@@ -1089,27 +1089,26 @@ static int clovis_cob_ios_send(struct clovis_cob_req *cr, uint32_t idx)
 	M0_ASSERT(cob_idx != ~0);
 	M0_ASSERT(session != NULL);
 
-	if (M0_FI_ENABLED("invalid_rpc_session"))
-		return M0_ERR(-EINVAL);
+	if (M0_FI_ENABLED("invalid_rpc_session")) {
+		rc = M0_ERR(-EINVAL);
+		goto exit;
+	}
 
 	rc = m0_rpc_session_validate(session);
 	if (rc != 0)
-		return M0_ERR(rc);
+		goto exit;
 
 	/* Allocate ios fop if necessary */
 	rc = clovis_cob_ios_fop_get(cr, idx, cob_type, session);
 	if (rc != 0)
-		return M0_ERR(rc);
+		goto exit;
 	M0_ASSERT(cr->cr_ios_fop[idx] != NULL);
 	fop = cr->cr_ios_fop[idx];
 
 	/* Fill the cob fop. */
 	rc = clovis_cob_ios_fop_populate(cr, fop, &cob_fid, cob_idx);
-	if (rc != 0) {
-		clovis_cob_ios_fop_fini(cr->cr_ios_fop[idx]);
-		cr->cr_ios_fop[idx] = NULL;
-		return M0_ERR(rc);
-	}
+	if (rc != 0)
+		goto exit;
 
 	/*
 	 * Set and send the rpc item. Note: ri_deadline is set to
@@ -1125,26 +1124,134 @@ static int clovis_cob_ios_send(struct clovis_cob_req *cr, uint32_t idx)
 	fop->f_item.ri_nr_sent_max = CLOVIS_RPC_MAX_RETRIES;
 	fop->f_item.ri_resend_interval = CLOVIS_RPC_RESEND_INTERVAL;
 
+exit:
+	if (rc != 0) {
+		M0_LOG(M0_DEBUG, "fop prepare failed: rc=%d cr=%p idx=%"PRIu32,
+				 rc, cr, idx);
+		if (cr->cr_ios_fop[idx] != NULL) {
+			clovis_cob_ios_fop_fini(cr->cr_ios_fop[idx]);
+			cr->cr_ios_fop[idx] = NULL;
+		}
+	}
+	M0_POST(equi(rc == 0, cr->cr_ios_fop[idx] != NULL));
+	return M0_RC(rc);
+}
+
+/**
+ * Sends a COB fop to an ioservice.
+ *
+ * @param cr COB request being processed.
+ * @param idx index of the cob.
+ * @remark This function gets called from an AST. Do not call it from a RPC
+ * callback.
+ * @remark This function might be used to re-send fop to an ioservice.
+ */
+static int clovis_cob_ios_send(struct clovis_cob_req *cr, uint32_t idx)
+{
+	int            rc;
+	struct m0_fop *fop;
+
+	M0_ENTRY();
+
+	/*
+	 * Sanity checks. Note: ios_send may be called via ios_md_send
+	 * or ios_io_send. In the case of ios_md_send, the instance
+	 * lock has been held.
+	 */
+	M0_PRE(cr != NULL);
+	M0_PRE(M0_IN(cr->cr_cob_type, (M0_COB_IO, M0_COB_MD)));
+
+	fop = cr->cr_ios_fop[idx];
+	M0_PRE(fop != NULL);
+
 	if (cr->cr_flags & CLOVIS_COB_REQ_ASYNC) {
 		fop->f_item.ri_ops = &clovis_cob_ios_ri_ops;
-		m0_rpc_post(&fop->f_item);
+		(void)m0_rpc_post(&fop->f_item);
 		/*
 		 * Note: if m0_rpc_post() fails for some reason
 		 * m0_rpc_item_ops::rio_replied will be invoked. To
 		 * avoid double fini/free fop, simply return and do
 		 * nothing here.
 		 */
-		return M0_RC(0);
 	} else {
-		rc = m0_rpc_post_sync(fop, session, NULL, 0);
+		rc = m0_rpc_post_sync(fop, fop->f_item.ri_session, NULL, 0);
 		if (rc != 0) {
-			clovis_cob_ios_fop_fini(cr->cr_ios_fop[idx]);
+			clovis_cob_ios_fop_fini(fop);
 			cr->cr_ios_fop[idx] = NULL;
 			return M0_ERR(rc);
 		}
 		cr->cr_rep_fop = m0_rpc_item_to_fop(fop->f_item.ri_reply);
-		return M0_RC(0);
 	}
+	return M0_RC(0);
+}
+
+static int clovis_cob_ios_req_send_sync(struct clovis_cob_req *cr)
+{
+	int      rc = 0;
+	uint32_t i;
+	uint32_t icr_nr = cr->cr_icr_nr;
+
+	M0_ENTRY("cr=%p cr->cr_cob_type=%"PRIu32, cr, cr->cr_cob_type);
+	M0_PRE(cr->cr_flags & CLOVIS_COB_REQ_SYNC);
+
+	for (i = 0; i < icr_nr; ++i) {
+		rc = clovis_cob_ios_prepare(cr, i) ?:
+		     clovis_cob_ios_send(cr, i);
+
+		/*
+		 * Only one succeful request is enough for synchronous
+		 * GETATTR and LAYOUT_GET OPs.
+		 */
+		if (rc == 0 && M0_IN(cr->cr_opcode, (M0_CLOVIS_EO_GETATTR,
+						     M0_CLOVIS_EO_LAYOUT_GET)))
+			break;
+		/*
+		 * One failure ios cob request fails the whole request
+		 * for other synchronous OPs.
+		 */
+		if (rc != 0 && !M0_IN(cr->cr_opcode, (M0_CLOVIS_EO_GETATTR,
+						      M0_CLOVIS_EO_LAYOUT_GET)))
+			break;
+	}
+	return M0_RC(rc);
+}
+
+static int clovis_cob_ios_req_send_async(struct clovis_cob_req *cr)
+{
+	int      rc = 0;
+	bool     all_failed = true;
+	uint32_t i;
+	uint32_t icr_nr = cr->cr_icr_nr;
+
+	M0_ENTRY("cr=%p cr->cr_cob_type=%"PRIu32, cr, cr->cr_cob_type);
+	M0_PRE(cr->cr_flags & CLOVIS_COB_REQ_ASYNC);
+
+	/*
+	 * Prepare all fops before sending. It avoids race between
+	 * setting cr->cr_ios_fop and clovis_icr_ast() execution.
+	 */
+	for (i = 0; i < icr_nr; ++i) {
+		rc = clovis_cob_ios_prepare(cr, i);
+		/*
+		 * Silence possible compiler's warnings about re-assigning rc.
+		 * If prepare phase fails for all fops, we will return the last
+		 * non zero rc. Otherwise, rc will be assigned in the following
+		 * loop.
+		 */
+		(void)rc;
+	}
+	for (i = 0; i < icr_nr; ++i) {
+		if (cr->cr_ios_fop[i] != NULL) {
+			rc = clovis_cob_ios_send(cr, i);
+			all_failed = all_failed && (rc != 0);
+		}
+	}
+	/*
+	 * For async OPs, report error to caller only if all ios cob requests
+	 * fail.
+	 */
+	M0_POST(ergo(all_failed && icr_nr > 0, rc != 0));
+	return M0_RC(all_failed ? rc : 0);
 }
 
 /**
@@ -1155,11 +1262,9 @@ static int clovis_cob_ios_send(struct clovis_cob_req *cr, uint32_t idx)
  * @param ast callback being executed.
  */
 static void clovis_cob_ast_ios_io_send(struct m0_sm_group *grp,
-					     struct m0_sm_ast *ast)
+				       struct m0_sm_ast *ast)
 {
-	int                      rc = 0;
-	bool                     all_failed = true;
-	uint32_t                 i;
+	int                      rc;
 	uint32_t                 pool_width;
 	struct m0_clovis_ast_rc *ar;
 	struct m0_clovis        *cinst;
@@ -1180,10 +1285,9 @@ static void clovis_cob_ast_ios_io_send(struct m0_sm_group *grp,
 
 	pv = m0_pool_version_find(&cinst->m0c_pools_common, &cr->cr_pver);
 	if (pv == NULL) {
-		M0_LOG(M0_ERROR, "Failed to get pool version "FID_F,
-		       FID_P(&cr->cr_pver));
-		rc = M0_ERR(-ENOENT);
-		goto error;
+		rc = M0_ERR_INFO(-ENOENT, "Failed to get pool version "FID_F,
+				 FID_P(&cr->cr_pver));
+		goto exit;
 	}
 	pool_width = pv->pv_attr.pa_P;
 	M0_ASSERT(pool_width >= 1);
@@ -1191,25 +1295,16 @@ static void clovis_cob_ast_ios_io_send(struct m0_sm_group *grp,
 	/* Send a fop to each COB. */
 	cr->cr_cob_type = M0_COB_IO;
 	cr->cr_icr_nr = pool_width;
-	for (i = 0; i < pool_width; i++) {
-		rc = clovis_cob_ios_send(cr, i);
-		if (rc == 0)
-			all_failed = false;
-	}
-
+	rc = clovis_cob_ios_req_send_async(cr);
 	/*
-	 * Fail the whole request immediately only if all ios cob requests
-	 * fail. Otherwise let the rpc item callback handles those fops
-	 * sent.
+	 * If all ios cob requests fail, rc != 0. Otherwise, the rpc item
+	 * callback handles those fops sent.
 	 */
-	if (all_failed == true)
-		goto error;
 
-	M0_LEAVE();
-	return;
+exit:
+	if (rc != 0)
+		clovis_cob_fail_cr(cr, rc);
 
-error:
-	clovis_cob_fail_cr(cr, rc);
 	M0_LEAVE();
 }
 
@@ -1217,15 +1312,12 @@ error:
  * Sends entity namespace fops to a io services(oostore mode only), as part of
  * the processing of a create/delete object operation.
  *
- * @param oo object operation being processed.
+ * @param cr COB request being processed.
  * @return 0 if success or an error code otherwise.
  */
 static int clovis_cob_ios_md_send(struct clovis_cob_req *cr)
 {
-	int               i;
-	int               rc = 0;
-	int               icr_nr;
-	bool              all_failed = true;
+	int               rc;
 	struct m0_clovis *cinst;
 
 	M0_ENTRY();
@@ -1242,40 +1334,11 @@ static int clovis_cob_ios_md_send(struct clovis_cob_req *cr)
 	 * replied). So the content of 'oo' may be changed. Be aware of this
 	 * race condition!
 	 */
-	icr_nr = cinst->m0c_pools_common.pc_md_redundancy;
-	cr->cr_icr_nr   = icr_nr;
+	cr->cr_icr_nr = cinst->m0c_pools_common.pc_md_redundancy;
 	cr->cr_cob_type = M0_COB_MD;
-
-	for (i = 0; i < icr_nr; ++i) {
-		rc = clovis_cob_ios_send(cr, i);
-		if (rc == 0)
-			all_failed = false;
-
-		/*
-		 * Only one succeful request is enough for synchronous GETATTR
-		 * and LAYOUT_GET OPs.
-		 */
-		if (rc == 0 && cr->cr_flags & CLOVIS_COB_REQ_SYNC &&
-		    M0_IN(cr->cr_opcode,
-			  (M0_CLOVIS_EO_GETATTR, M0_CLOVIS_EO_LAYOUT_GET)))
-			break;
-		/*
-		 * One failure ios cob request fails the whole request for other
-		 * synchronous OPs.
-		 */
-		if (rc != 0 && cr->cr_flags & CLOVIS_COB_REQ_SYNC &&
-		    !M0_IN(cr->cr_opcode,
-			   (M0_CLOVIS_EO_GETATTR, M0_CLOVIS_EO_LAYOUT_GET)))
-			break;
-
-	}
-
-	/*
- 	 * For async OPs, report error to caller only if all ios cob requests
- 	 * fail.
- 	 */
-	if (cr->cr_flags & CLOVIS_COB_REQ_ASYNC && all_failed == false)
-		rc = 0;
+	rc = (cr->cr_flags & CLOVIS_COB_REQ_SYNC) ?
+	     clovis_cob_ios_req_send_sync(cr) :
+	     clovis_cob_ios_req_send_async(cr);
 
 	return M0_RC(rc);
 }

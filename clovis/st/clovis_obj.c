@@ -111,9 +111,9 @@ static void obj_create_error_handling(void)
 	CLOVIS_ST_ASSERT_FATAL(ops[0] != NULL);
 	CLOVIS_ST_ASSERT_FATAL(ops[0]->op_sm.sm_rc == 0);
 
-	m0_fi_enable("clovis_cob_ios_send", "invalid_rpc_session");
+	m0_fi_enable("clovis_cob_ios_prepare", "invalid_rpc_session");
 	clovis_st_op_launch(ops, ARRAY_SIZE(ops));
-	m0_fi_disable("clovis_cob_ios_send", "invalid_rpc_session");
+	m0_fi_disable("clovis_cob_ios_prepare", "invalid_rpc_session");
 
 	rc = clovis_st_op_wait(ops[0], M0_BITS(M0_CLOVIS_OS_FAILED,
 					       M0_CLOVIS_OS_STABLE),
