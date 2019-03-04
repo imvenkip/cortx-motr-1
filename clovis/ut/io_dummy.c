@@ -179,6 +179,7 @@ M0_INTERNAL struct nw_xfer_request *ut_clovis_dummy_xfer_req_create(void)
 {
 	struct nw_xfer_request *xfer;
 	M0_ALLOC_PTR(xfer);
+	M0_UT_ASSERT(xfer != NULL);
 	ut_clovis_dummy_xfer_req_init(xfer);
 	return xfer;
 }
