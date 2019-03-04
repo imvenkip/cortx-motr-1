@@ -1519,8 +1519,7 @@ struct pargrp_iomap {
 	 * Part of io_request::ir_ivec which falls in ::pi_grpid
 	 * parity group.
 	 * All segments are in increasing order of file offset.
-	 * Segment counts in this index vector are multiple of
-	 * PAGE_CACHE_SIZE.
+	 * Segment counts in this index vector are multiple of PAGE_SIZE.
 	 */
 	struct m0_indexvec_varr         pi_ivv;
 
@@ -1532,11 +1531,11 @@ struct pargrp_iomap {
 
 	/**
 	 * Data units in a parity group.
-	 * Unit size should be multiple of PAGE_CACHE_SIZE.
+	 * Unit size should be multiple of PAGE_SIZE.
 	 * This is basically a matrix with
-	 * - number of rows    = Unit_size / PAGE_CACHE_SIZE and
+	 * - number of rows    = Unit_size / PAGE_SIZE and
 	 * - number of columns = N.
-	 * Each element of matrix is worth PAGE_CACHE_SIZE;
+	 * Each element of matrix is worth PAGE_SIZE;
 	 * A unit size worth of data holds a contiguous chunk of file data.
 	 * The file offset grows vertically first and then to the next
 	 * data unit.
@@ -1545,11 +1544,11 @@ struct pargrp_iomap {
 
 	/**
 	 * Parity units in a parity group.
-	 * Unit size should be multiple of PAGE_CACHE_SIZE.
+	 * Unit size should be multiple of PAGE_SIZE.
 	 * This is a matrix with
-	 * - number of rows    = Unit_size / PAGE_CACHE_SIZE and
+	 * - number of rows    = Unit_size / PAGE_SIZE and
 	 * - number of columns = K.
-	 * Each element of matrix is worth PAGE_CACHE_SIZE;
+	 * Each element of matrix is worth PAGE_SIZE;
 	 */
 	struct data_buf              ***pi_paritybufs;
 
@@ -1807,7 +1806,7 @@ struct target_ioreq {
 	/**
 	 * Index vector containing IO segments with cob offsets and
 	 * their length.
-	 * Each segment in this vector is worth PAGE_CACHE_SIZE except
+	 * Each segment in this vector is worth PAGE_SIZE except
 	 * the very last one.
 	 */
 	struct m0_indexvec_varr        ti_ivv;

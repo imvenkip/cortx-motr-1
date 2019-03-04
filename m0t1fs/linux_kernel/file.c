@@ -481,7 +481,7 @@ static inline struct m0_sm_group *file_to_smgroup(const struct file *file)
 
 static inline uint64_t page_nr(m0_bcount_t size)
 {
-	return size >> PAGE_CACHE_SHIFT;
+	return size >> PAGE_SHIFT;
 }
 
 static struct m0_layout_instance *
@@ -675,7 +675,7 @@ static inline struct m0_rpc_session *target_session(struct io_request *req,
 
 static inline uint64_t page_id(m0_bindex_t offset)
 {
-	return offset >> PAGE_CACHE_SHIFT;
+	return offset >> PAGE_SHIFT;
 }
 
 static inline uint32_t data_row_nr(struct m0_pdclust_layout *play)
@@ -785,7 +785,7 @@ static m0_bindex_t data_page_offset_get(struct pargrp_iomap *map,
 	M0_ASSERT(col < data_col_nr(play));
 
 	out = data_size(play) * map->pi_grpid +
-	       col * layout_unit_size(play) + row * PAGE_CACHE_SIZE;
+	       col * layout_unit_size(play) + row * PAGE_SIZE;
 
 	M0_LEAVE("offsef = %llu", out);
 	return out;
@@ -1158,7 +1158,7 @@ static void data_buf_init(struct data_buf *buf, void *addr, uint64_t flags)
 
 	data_buf_bob_init(buf);
 	buf->db_flags = flags;
-	m0_buf_init(&buf->db_buf, addr, PAGE_CACHE_SIZE);
+	m0_buf_init(&buf->db_buf, addr, PAGE_SIZE);
 	buf->db_tioreq = NULL;
 }
 
@@ -1257,7 +1257,7 @@ M0_INTERNAL int user_page_map(struct data_buf *dbuf, unsigned long user_addr)
 	void *kmapped;
 	int   rc;
 
-	M0_ASSERT_INFO((user_addr & ~PAGE_CACHE_MASK) == 0,
+	M0_ASSERT_INFO((user_addr & ~PAGE_MASK) == 0,
 		       "user_addr = %lx", user_addr);
 	M0_ASSERT_INFO(dbuf->db_page == NULL,
 		       "dbuf->db_page = %p", dbuf->db_page);
@@ -1268,7 +1268,7 @@ M0_INTERNAL int user_page_map(struct data_buf *dbuf, unsigned long user_addr)
 	 * from m0_net implementation
 	 */
 	/*
-	 * XXX use PAGE_CACHE_SIZE and
+	 * XXX use PAGE_SIZE and
 	 * pin more than one page if needed
 	 */
 	down_read(&current->mm->mmap_sem);
@@ -1318,7 +1318,7 @@ static int user_data_copy(struct pargrp_iomap *map,
 	M0_PRE_EX(pargrp_iomap_invariant(map));
 	M0_PRE(it != NULL);
 	M0_PRE(M0_IN(dir, (CD_COPY_FROM_USER, CD_COPY_TO_USER)));
-	M0_PRE(start >> PAGE_CACHE_SHIFT == (end - 1) >> PAGE_CACHE_SHIFT);
+	M0_PRE(start >> PAGE_SHIFT == (end - 1) >> PAGE_SHIFT);
 
 	/* Finds out the page from pargrp_iomap::pi_databufs. */
 	page_pos_get(map, start, &row, &col);
@@ -1342,8 +1342,7 @@ static int user_data_copy(struct pargrp_iomap *map,
 				if (filter == 0) {
 					M0_ASSERT(dbuf->db_page == NULL);
 					memcpy(dbuf->db_auxbuf.b_addr,
-					       dbuf->db_buf.b_addr,
-					       PAGE_CACHE_SIZE);
+					       dbuf->db_buf.b_addr, PAGE_SIZE);
 				} else
 					return M0_RC(0);
 			}
@@ -1352,7 +1351,7 @@ static int user_data_copy(struct pargrp_iomap *map,
 				page = virt_to_page(dbuf->db_buf.b_addr);
 				/* Copies to appropriate offset within page. */
 				bytes = iov_iter_copy_from_user(page, it,
-						start & ~PAGE_CACHE_MASK,
+						start & ~PAGE_MASK,
 						end - start);
 			} else
 				bytes = end - start;
@@ -1370,7 +1369,7 @@ static int user_data_copy(struct pargrp_iomap *map,
 			 * will be ignored.
 			 */
 			if (ergo(dbuf->db_flags & PA_FULLPAGE_MODIFY,
-				 (end & ~PAGE_CACHE_MASK) == 0))
+				 (end & ~PAGE_MASK) == 0))
 				dbuf->db_flags |= PA_COPY_FRMUSR_DONE;
 
 			if (bytes != end - start)
@@ -1384,7 +1383,7 @@ static int user_data_copy(struct pargrp_iomap *map,
 		if (dbuf->db_page == NULL)
 			bytes = copy_to_user(it->iov->iov_base + it->iov_offset,
 					     (char *)dbuf->db_buf.b_addr +
-					     (start & ~PAGE_CACHE_MASK),
+					     (start & ~PAGE_MASK),
 					     end - start);
 		else
 			bytes = 0;
@@ -1444,7 +1443,7 @@ static int pargrp_iomap_parity_verify(struct pargrp_iomap *map)
 		}
 
 		pbufs[col].b_addr = (void *)page_address(page);
-		pbufs[col].b_nob  = PAGE_CACHE_SIZE;
+		pbufs[col].b_nob  = PAGE_SIZE;
 	}
 
 	for (row = 0; row < data_row_nr(play); ++row) {
@@ -1455,7 +1454,7 @@ static int pargrp_iomap_parity_verify(struct pargrp_iomap *map)
 					map->pi_databufs[row][col]->db_buf;
 			} else {
 				dbufs[col].b_addr = (void *)zpage;
-				dbufs[col].b_nob  = PAGE_CACHE_SIZE;
+				dbufs[col].b_nob  = PAGE_SIZE;
 			}
 		}
 		/* generate parity into new buf */
@@ -1466,7 +1465,7 @@ static int pargrp_iomap_parity_verify(struct pargrp_iomap *map)
 		for (col = 0; col < layout_k(play); ++col) {
 			old_pbuf = &map->pi_paritybufs[row][col]->db_buf;
 			if (memcmp(pbufs[col].b_addr, old_pbuf->b_addr,
-				   PAGE_CACHE_SIZE)) {
+				   PAGE_SIZE)) {
 				M0_LOG(M0_ERROR, "[%p] parity verification "
 				       "failed for %llu [%u:%u], rc %d",
 				       map->pi_ioreq, map->pi_grpid, row, col,
@@ -1536,7 +1535,7 @@ static int pargrp_iomap_parity_recalc(struct pargrp_iomap *map)
 						     [row][col]->db_buf;
 				} else {
 					dbufs[col].b_addr = (void *)zpage;
-					dbufs[col].b_nob  = PAGE_CACHE_SIZE;
+					dbufs[col].b_nob  = PAGE_SIZE;
 				}
 
 			for (col = 0; col < layout_k(play); ++col)
@@ -1730,8 +1729,7 @@ static int ioreq_user_data_copy(struct io_request   *req,
 		       m0_ivec_varr_cursor_index(&srccur) < grpend) {
 
 			pgstart = m0_ivec_varr_cursor_index(&srccur);
-			pgend = min64u(m0_round_up(pgstart + 1,
-						   PAGE_CACHE_SIZE),
+			pgend = min64u(m0_round_up(pgstart + 1, PAGE_SIZE),
 				   pgstart + m0_ivec_varr_cursor_step(&srccur));
 			count = pgend - pgstart;
 
@@ -1984,14 +1982,14 @@ static int pargrp_iomap_seg_process(struct pargrp_iomap *map,
 	/* process a page at each iteration */
 	while (!m0_ivec_varr_cursor_move(&cur, count)) {
 		start = m0_ivec_varr_cursor_index(&cur);
-		end   = min64u(m0_round_up(start + 1, PAGE_CACHE_SIZE),
+		end   = min64u(m0_round_up(start + 1, PAGE_SIZE),
 			       start + m0_ivec_varr_cursor_step(&cur));
 		count = end - start;
 
 		flags = 0;
 		if (req->ir_type == IRT_WRITE) {
 			flags |= PA_WRITE;
-			flags |= count == PAGE_CACHE_SIZE ?
+			flags |= count == PAGE_SIZE ?
 				 PA_FULLPAGE_MODIFY : PA_PARTPAGE_MODIFY;
 
 			/*
@@ -2077,7 +2075,7 @@ static uint64_t pargrp_iomap_auxbuf_alloc(struct pargrp_iomap *map,
 	if (map->pi_databufs[row][col]->db_auxbuf.b_addr == NULL)
 		return M0_ERR(-ENOMEM);
 	++iommstats.a_page_nr;
-	map->pi_databufs[row][col]->db_auxbuf.b_nob = PAGE_CACHE_SIZE;
+	map->pi_databufs[row][col]->db_auxbuf.b_nob = PAGE_SIZE;
 
 	return M0_RC(0);
 }
@@ -2106,7 +2104,7 @@ static int pargrp_iomap_readold_auxbuf_alloc(struct pargrp_iomap *map)
 
 	while (!m0_ivec_varr_cursor_move(&cur, count)) {
 		start = m0_ivec_varr_cursor_index(&cur);
-		end   = min64u(m0_round_up(start + 1, PAGE_CACHE_SIZE),
+		end   = min64u(m0_round_up(start + 1, PAGE_SIZE),
 			       start + m0_ivec_varr_cursor_step(&cur));
 		count = end - start;
 		page_pos_get(map, start, &row, &col);
@@ -2241,7 +2239,7 @@ static int pargrp_iomap_readrest(struct pargrp_iomap *map)
 	while (!m0_ivec_varr_cursor_move(&cur, count)) {
 
 		start = m0_ivec_varr_cursor_index(&cur);
-		end   = min64u(m0_round_up(start + 1, PAGE_CACHE_SIZE),
+		end   = min64u(m0_round_up(start + 1, PAGE_SIZE),
 			       start + m0_ivec_varr_cursor_step(&cur));
 		count = end - start;
 		page_pos_get(map, start, &row, &col);
@@ -2465,7 +2463,7 @@ static int pargrp_iomap_populate(struct pargrp_iomap        *map,
 
 			newindex = m0_round_up(
 					V_INDEX(&map->pi_ivv, seg) + 1,
-					PAGE_CACHE_SIZE);
+					PAGE_SIZE);
 			V_COUNT(&map->pi_ivv, seg) -= (newindex -
 					V_INDEX(&map->pi_ivv, seg));
 
@@ -2488,11 +2486,10 @@ static int pargrp_iomap_populate(struct pargrp_iomap        *map,
 		}
 
 		V_INDEX(&map->pi_ivv, seg) =
-			round_down(V_INDEX(&map->pi_ivv, seg),
-				   PAGE_CACHE_SIZE);
+			round_down(V_INDEX(&map->pi_ivv, seg), PAGE_SIZE);
 
 		V_COUNT(&map->pi_ivv, seg) =
-			round_up(endpos, PAGE_CACHE_SIZE) -
+			round_up(endpos, PAGE_SIZE) -
 			V_INDEX(&map->pi_ivv, seg);
 
 		M0_LOG(M0_DEBUG, "[%p] post grpid = %llu "
@@ -2518,8 +2515,7 @@ static int pargrp_iomap_populate(struct pargrp_iomap        *map,
 		/* full parity group, but limit to file size. */
 		count = min64u(grpend, inode->i_size) - grpstart;
 		/* and then round to page size */
-		V_COUNT(&map->pi_ivv, 0) =
-					round_up(count, PAGE_CACHE_SIZE);
+		V_COUNT(&map->pi_ivv, 0) = round_up(count, PAGE_SIZE);
 
 		rc = map->pi_ops->pi_seg_process(map, 0, rmw);
 		if (rc != 0)
@@ -2898,9 +2894,9 @@ static int pargrp_iomap_dgmode_postprocess(struct pargrp_iomap *map)
 		for (row = 0; row < data_row_nr(play); ++row) {
 
 			start = data_page_offset_get(map, row, col);
-			within_eof = start + PAGE_CACHE_SIZE < inode->i_size ||
+			within_eof = start + PAGE_SIZE < inode->i_size ||
 				     (inode->i_size > 0 &&
-				      page_id(start + PAGE_CACHE_SIZE - 1) ==
+				      page_id(start + PAGE_SIZE - 1) ==
 				      page_id(inode->i_size - 1));
 			if (map->pi_databufs[row][col] != NULL) {
 				if (map->pi_databufs[row][col]->db_flags &
@@ -2974,7 +2970,7 @@ static int pargrp_iomap_dgmode_postprocess(struct pargrp_iomap *map)
 	 */
 	V_COUNT(&map->pi_ivv, 0) = round_up(
 						V_COUNT(&map->pi_ivv, 0),
-						PAGE_CACHE_SIZE);
+						PAGE_SIZE);
 	V_SEG_NR(&map->pi_ivv)   = 1;
 	indexvec_varr_dump(&map->pi_ivv);
 	/* parity matrix from parity group. */
@@ -3100,7 +3096,7 @@ static int pargrp_iomap_dgmode_recover(struct pargrp_iomap *map)
 	/* Populates data and failed buffers. */
 	for (row = 0; row < data_row_nr(play); ++row) {
 		for (col = 0; col < data_col_nr(play); ++col) {
-			data[col].b_nob = PAGE_CACHE_SIZE;
+			data[col].b_nob = PAGE_SIZE;
 			if (map->pi_databufs[row][col] == NULL) {
 				data[col].b_addr = (void *)zpage;
 				continue;
@@ -3112,7 +3108,7 @@ static int pargrp_iomap_dgmode_recover(struct pargrp_iomap *map)
 			M0_ASSERT(map->pi_paritybufs[row][col] != NULL);
 			parity[col].b_addr = map->pi_paritybufs[row][col]->
 				db_buf.b_addr;
-			parity[col].b_nob  = PAGE_CACHE_SIZE;
+			parity[col].b_nob  = PAGE_SIZE;
 		}
 		m0_parity_math_recover(parity_math(map->pi_ioreq), data,
 				       parity, &failed, M0_LA_INVERSE);
@@ -4909,7 +4905,7 @@ static void target_ioreq_seg_add(struct target_ioreq              *ti,
 	}
 
 	while (pgstart < toff + count) {
-		pgend = min64u(pgstart + PAGE_CACHE_SIZE, toff + count);
+		pgend = min64u(pgstart + PAGE_SIZE, toff + count);
 		seg   = V_SEG_NR(ivv);
 
 		V_INDEX(ivv, seg) = pgstart;
@@ -6222,8 +6218,7 @@ static int io_req_fop_dgmode_read(struct io_req_fop *irfop)
 
 				M0_ASSERT(ergo(seg > 0, index[seg] >
 					       index[seg - 1]));
-				M0_ASSERT((index[seg] &
-					  ~PAGE_CACHE_MASK) == 0);
+				M0_ASSERT((index[seg] & ~PAGE_MASK) == 0);
 
 				if (grpid ==
 				    pargrp_id_find(index[seg], req, irfop))

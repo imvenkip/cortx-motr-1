@@ -1318,8 +1318,8 @@ static int m0t1fs_fill_super(struct super_block *sb, void *data,
 		goto thread_stop;
 
 	sb->s_fs_info        = csb;
-	sb->s_blocksize      = PAGE_CACHE_SIZE;
-	sb->s_blocksize_bits = PAGE_CACHE_SHIFT;
+	sb->s_blocksize      = PAGE_SIZE;
+	sb->s_blocksize_bits = PAGE_SHIFT;
 	sb->s_maxbytes       = MAX_LFS_FILESIZE;
 	sb->s_op             = &m0t1fs_super_operations;
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)

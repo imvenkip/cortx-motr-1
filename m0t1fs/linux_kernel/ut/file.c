@@ -67,7 +67,7 @@ enum {
 	LAY_P            = LAY_N + 2 * LAY_K,
 
 	/* Unit Size = 12K. */
-	UNIT_SIZE        = 3 * PAGE_CACHE_SIZE,
+	UNIT_SIZE        = 3 * PAGE_SIZE,
 	INDEXPG          = 2000,
 	INDEXPG_STEP     = 5000,
 
@@ -421,8 +421,7 @@ static void ds_test(void)
 	 * Input index vector :
 	 * {{21340, 1024}, {20316, 1024}, {19292, 1024}, {18268, 1024}}
 	 */
-	M0_UT_ASSERT(indexvec_varr_count(&map->pi_ivv) ==
-		     PAGE_CACHE_SIZE * 2);
+	M0_UT_ASSERT(indexvec_varr_count(&map->pi_ivv) == PAGE_SIZE * 2);
 
 	/*
 	 * Given input index vector results into 2 pages.
@@ -433,8 +432,8 @@ static void ds_test(void)
 	 * in the data matrix.
 	 * Rest all pages in data matrix will be NULL.
 	 */
-	M0_UT_ASSERT(V_INDEX(&map->pi_ivv, 0) == PAGE_CACHE_SIZE * 4);
-	M0_UT_ASSERT(V_COUNT(&map->pi_ivv, 0) == 2 * PAGE_CACHE_SIZE);
+	M0_UT_ASSERT(V_INDEX(&map->pi_ivv, 0) == PAGE_SIZE * 4);
+	M0_UT_ASSERT(V_COUNT(&map->pi_ivv, 0) == 2 * PAGE_SIZE);
 	M0_UT_ASSERT(map->pi_databufs   != NULL);
 	M0_UT_ASSERT(map->pi_paritybufs != NULL);
 	M0_UT_ASSERT(map->pi_ops        != NULL);
@@ -491,7 +490,7 @@ static void ds_test(void)
 	M0_UT_ASSERT(dbuf->db_flags == 0);
 	M0_UT_ASSERT(dbuf->db_magic == M0_T1FS_DTBUF_MAGIC);
 	M0_UT_ASSERT(dbuf->db_buf.b_addr != NULL);
-	M0_UT_ASSERT(dbuf->db_buf.b_nob  == PAGE_CACHE_SIZE);
+	M0_UT_ASSERT(dbuf->db_buf.b_nob  == PAGE_SIZE);
 	M0_UT_ASSERT(dbuf->db_auxbuf.b_addr == NULL);
 	M0_UT_ASSERT(dbuf->db_auxbuf.b_nob  == 0);
 
@@ -553,7 +552,7 @@ static void pargrp_iomap_test(void)
 	uint32_t                col;
 	uint64_t                nr;
 	m0_bindex_t             index;
-	struct iovec            iovec_arr[LAY_N * UNIT_SIZE / PAGE_CACHE_SIZE];
+	struct iovec            iovec_arr[LAY_N * UNIT_SIZE / PAGE_SIZE];
 	struct m0_indexvec_varr ivv;
 	struct m0_ivec_varr_cursor   cur;
 	struct pargrp_iomap_ops piops;
@@ -563,10 +562,10 @@ static void pargrp_iomap_test(void)
 
 	for (cnt = 0; cnt < ARRAY_SIZE(iovec_arr); ++cnt) {
 		iovec_arr[cnt].iov_base  = &rc;
-		iovec_arr[cnt].iov_len   = PAGE_CACHE_SIZE;
+		iovec_arr[cnt].iov_len   = PAGE_SIZE;
 
-		V_INDEX(&ivv, cnt) = (m0_bindex_t)(cnt * PAGE_CACHE_SIZE);
-		V_COUNT(&ivv, cnt) = PAGE_CACHE_SIZE;
+		V_INDEX(&ivv, cnt) = (m0_bindex_t)(cnt * PAGE_SIZE);
+		V_COUNT(&ivv, cnt) = PAGE_SIZE;
 	}
 
 	M0_SET0(&req);
@@ -581,15 +580,14 @@ static void pargrp_iomap_test(void)
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(map.pi_databufs[0][0] != NULL);
 	M0_UT_ASSERT(map.pi_databufs[0][0]->db_buf.b_addr != NULL);
-	M0_UT_ASSERT(map.pi_databufs[0][0]->db_buf.b_nob  == PAGE_CACHE_SIZE);
+	M0_UT_ASSERT(map.pi_databufs[0][0]->db_buf.b_nob  == PAGE_SIZE);
 	M0_UT_ASSERT(map.pi_databufs[0][0]->db_flags == 0);
 	data_buf_dealloc_fini(map.pi_databufs[0][0]);
 	map.pi_databufs[0][0] = NULL;
 
 	for (cnt = 0; cnt < ARRAY_SIZE(iovec_arr); ++cnt) {
-		V_INDEX(&map.pi_ivv, cnt) =
-					(m0_bindex_t)(cnt * PAGE_CACHE_SIZE);
-		V_COUNT(&map.pi_ivv, cnt) = PAGE_CACHE_SIZE;
+		V_INDEX(&map.pi_ivv, cnt) = (m0_bindex_t)(cnt * PAGE_SIZE);
+		V_COUNT(&map.pi_ivv, cnt) = PAGE_SIZE;
 		++ V_SEG_NR(&map.pi_ivv);
 
 		rc = pargrp_iomap_seg_process(&map, cnt, true);
@@ -604,17 +602,16 @@ static void pargrp_iomap_test(void)
 	}
 
 	/* Checks if given segment falls in pargrp_iomap::pi_ivv. */
-	M0_UT_ASSERT(pargrp_iomap_spans_seg (&map, 0,     PAGE_CACHE_SIZE));
+	M0_UT_ASSERT(pargrp_iomap_spans_seg (&map, 0,     PAGE_SIZE));
 	M0_UT_ASSERT(pargrp_iomap_spans_seg (&map, 1234,  10));
-	M0_UT_ASSERT(!pargrp_iomap_spans_seg(&map, PAGE_CACHE_SIZE * 10,
-					     PAGE_CACHE_SIZE));
+	M0_UT_ASSERT(!pargrp_iomap_spans_seg(&map, PAGE_SIZE * 10, PAGE_SIZE));
 
 	/*
 	 * Checks if number of pages completely spanned by index vector
 	 * is correct.
 	 */
 	nr = pargrp_iomap_fullpages_count(&map);
-	M0_UT_ASSERT(nr == LAY_N * UNIT_SIZE / PAGE_CACHE_SIZE);
+	M0_UT_ASSERT(nr == LAY_N * UNIT_SIZE / PAGE_SIZE);
 
 	/* Checks if all parity buffers are allocated properly. */
 	map.pi_rtype = PIR_READOLD;
@@ -699,22 +696,22 @@ static void pargrp_iomap_test(void)
 	M0_UT_ASSERT(V_SEG_NR(&map.pi_ivv) == 4);
 
 	M0_UT_ASSERT(V_INDEX(&map.pi_ivv, 0) == 0);
-	M0_UT_ASSERT(V_COUNT(&map.pi_ivv, 0) == 2 * PAGE_CACHE_SIZE);
+	M0_UT_ASSERT(V_COUNT(&map.pi_ivv, 0) == 2 * PAGE_SIZE);
 	M0_UT_ASSERT(map.pi_databufs[0][0] != NULL);
 	M0_UT_ASSERT(map.pi_databufs[1][0] != NULL);
 
-	M0_UT_ASSERT(V_INDEX(&map.pi_ivv, 1) == 2 * PAGE_CACHE_SIZE);
-	M0_UT_ASSERT(V_COUNT(&map.pi_ivv, 1) == 2 * PAGE_CACHE_SIZE);
+	M0_UT_ASSERT(V_INDEX(&map.pi_ivv, 1) == 2 * PAGE_SIZE);
+	M0_UT_ASSERT(V_COUNT(&map.pi_ivv, 1) == 2 * PAGE_SIZE);
 	M0_UT_ASSERT(map.pi_databufs[2][0] != NULL);
 	M0_UT_ASSERT(map.pi_databufs[0][1] != NULL);
 
-	M0_UT_ASSERT(V_INDEX(&map.pi_ivv, 2) == 4 * PAGE_CACHE_SIZE);
-	M0_UT_ASSERT(V_COUNT(&map.pi_ivv, 2) == 2 * PAGE_CACHE_SIZE);
+	M0_UT_ASSERT(V_INDEX(&map.pi_ivv, 2) == 4 * PAGE_SIZE);
+	M0_UT_ASSERT(V_COUNT(&map.pi_ivv, 2) == 2 * PAGE_SIZE);
 	M0_UT_ASSERT(map.pi_databufs[1][1] != NULL);
 	M0_UT_ASSERT(map.pi_databufs[2][1] != NULL);
 
-	M0_UT_ASSERT(V_INDEX(&map.pi_ivv, 3) == 6 * PAGE_CACHE_SIZE);
-	M0_UT_ASSERT(V_COUNT(&map.pi_ivv, 3) == PAGE_CACHE_SIZE);
+	M0_UT_ASSERT(V_INDEX(&map.pi_ivv, 3) == 6 * PAGE_SIZE);
+	M0_UT_ASSERT(V_COUNT(&map.pi_ivv, 3) == PAGE_SIZE);
 	M0_UT_ASSERT(map.pi_databufs[0][2] != NULL);
 
 	rc = pargrp_iomap_readrest(&map);
@@ -741,9 +738,9 @@ static void helpers_test(void)
 	m0_bindex_t         start = 0;
 
 	M0_UT_ASSERT(parity_units_page_nr(pdlay) ==
-			(UNIT_SIZE >> PAGE_CACHE_SHIFT) * LAY_K);
+			(UNIT_SIZE >> PAGE_SHIFT) * LAY_K);
 
-	M0_UT_ASSERT(data_row_nr(pdlay)   == UNIT_SIZE >> PAGE_CACHE_SHIFT);
+	M0_UT_ASSERT(data_row_nr(pdlay)   == UNIT_SIZE >> PAGE_SHIFT);
 	M0_UT_ASSERT(data_col_nr(pdlay)   == LAY_N);
 	M0_UT_ASSERT(parity_col_nr(pdlay) == LAY_K);
 
@@ -761,11 +758,11 @@ static void helpers_test(void)
 		.pi_grpid = 0,
 	};
 
-	for (i = 0; i < UNIT_SIZE / PAGE_CACHE_SIZE; ++i) {
+	for (i = 0; i < UNIT_SIZE / PAGE_SIZE; ++i) {
 		for (j = 0; j < LAY_N; ++j) {
 			page_pos_get(&map, start, &row, &col);
 			M0_UT_ASSERT(row == j && col == i);
-			start += PAGE_CACHE_SIZE;
+			start += PAGE_SIZE;
 		}
 	}
 }
@@ -776,7 +773,7 @@ static void nw_xfer_ops_test(void)
 	int                        rc;
 	m0_bindex_t                index;
 	struct iovec               iovec_arr[LAY_N * UNIT_SIZE >>
-					     PAGE_CACHE_SHIFT];
+					     PAGE_SHIFT];
 	struct m0_indexvec_varr    ivv;
 	struct target_ioreq       *ti;
 	struct target_ioreq       *ti1;
@@ -790,13 +787,13 @@ static void nw_xfer_ops_test(void)
 	M0_UT_ASSERT(rc == 0);
 
 	index = 0;
-	for (cnt = 0; cnt < LAY_N * UNIT_SIZE >> PAGE_CACHE_SHIFT; ++cnt) {
+	for (cnt = 0; cnt < LAY_N * UNIT_SIZE >> PAGE_SHIFT; ++cnt) {
 		iovec_arr[cnt].iov_base  = &rc;
-		iovec_arr[cnt].iov_len   = PAGE_CACHE_SIZE;
+		iovec_arr[cnt].iov_len   = PAGE_SIZE;
 
 		V_INDEX(&ivv, cnt) = index;
-		V_COUNT(&ivv, cnt) = PAGE_CACHE_SIZE;
-		index += PAGE_CACHE_SIZE;
+		V_COUNT(&ivv, cnt) = PAGE_SIZE;
+		index += PAGE_SIZE;
 	}
 
 	M0_SET0(&req);
@@ -827,9 +824,8 @@ static void nw_xfer_ops_test(void)
 
 		for (cnt = 0; cnt < V_SEG_NR(&ti->ti_ivv); ++cnt) {
 			M0_UT_ASSERT((V_INDEX(&ti->ti_ivv, cnt) &
-				     (PAGE_CACHE_SIZE - 1)) == 0);
-			M0_UT_ASSERT(V_COUNT(&ti->ti_ivv, cnt) ==
-				     PAGE_CACHE_SIZE);
+				     (PAGE_SIZE - 1)) == 0);
+			M0_UT_ASSERT(V_COUNT(&ti->ti_ivv, cnt) == PAGE_SIZE);
 		}
 	} m0_htable_endfor;
 
@@ -869,7 +865,7 @@ static void target_ioreq_test(void)
 
 	M0_ALLOC_PTR(ti);
 	M0_UT_ASSERT(ti != NULL);
-	size = IOVEC_NR * PAGE_CACHE_SIZE;
+	size = IOVEC_NR * PAGE_SIZE;
 	M0_SET0(&req);
 	req.ir_sm.sm_state = IRS_READING;
 
@@ -894,10 +890,10 @@ static void target_ioreq_test(void)
 
 	for (cnt = 0; cnt < IOVEC_NR; ++cnt) {
 		iovec_arr[cnt].iov_base  = aligned_buf;
-		iovec_arr[cnt].iov_len   = PAGE_CACHE_SIZE;
+		iovec_arr[cnt].iov_len   = PAGE_SIZE;
 		V_ADDR (&ti->ti_bufvec, cnt) = aligned_buf;
-		V_COUNT(&ti->ti_ivv, cnt)  = PAGE_CACHE_SIZE;
-		V_INDEX(&ti->ti_ivv, cnt)  = cnt * PAGE_CACHE_SIZE;
+		V_COUNT(&ti->ti_ivv, cnt)  = PAGE_SIZE;
+		V_INDEX(&ti->ti_ivv, cnt)  = cnt * PAGE_SIZE;
 		PA(&ti->ti_pageattrs, cnt) = PA_READ | PA_DATA;
 	}
 	V_SEG_NR(&ti->ti_ivv)  = IOVEC_NR;
@@ -976,7 +972,7 @@ skip:
 	tgt.ta_frame = 0;
 	tgt.ta_obj   = 0;
 
-	target_ioreq_seg_add(ti, &src, &tgt, 0, PAGE_CACHE_SIZE, map);
+	target_ioreq_seg_add(ti, &src, &tgt, 0, PAGE_SIZE, map);
 	M0_UT_ASSERT(1 == V_SEG_NR(&ti->ti_ivv));
 	M0_UT_ASSERT(V_ADDR(&ti->ti_bufvec, 0) == buf->db_buf.b_addr);
 	M0_UT_ASSERT(PA(&ti->ti_pageattrs, 0) & PA_DATA);
@@ -986,7 +982,7 @@ skip:
 	buf = map->pi_databufs[row][col];
 
 	target_ioreq_seg_add(ti, &src, &tgt, V_COUNT(&ti->ti_ivv, 0),
-			     PAGE_CACHE_SIZE, map);
+			     PAGE_SIZE, map);
 	M0_UT_ASSERT(2 == V_SEG_NR(&ti->ti_ivv));
 	M0_UT_ASSERT(V_ADDR(&ti->ti_bufvec, 1) == buf->db_buf.b_addr);
 	M0_UT_ASSERT(PA(&ti->ti_pageattrs, 1) & PA_DATA);
@@ -996,7 +992,7 @@ skip:
 		[LAY_N % data_col_nr(pdlay)];
 
 	src.sa_unit  = LAY_N;
-	target_ioreq_seg_add(ti, &src, &tgt, 0, PAGE_CACHE_SIZE, map);
+	target_ioreq_seg_add(ti, &src, &tgt, 0, PAGE_SIZE, map);
 	M0_UT_ASSERT(3 == V_SEG_NR(&ti->ti_ivv));
 	M0_UT_ASSERT(V_ADDR(&ti->ti_bufvec, 2) == buf->db_buf.b_addr);
 	M0_UT_ASSERT(PA(&ti->ti_pageattrs, 2) & PA_PARITY);
@@ -1052,7 +1048,7 @@ static void dgmode_readio_test(void)
 	/* 8 segments covering a parity group each. */
 	for (cnt = 0; cnt < DGMODE_IOVEC_NR; ++cnt) {
 		iovec_arr[cnt].iov_base = &rc;
-		iovec_arr[cnt].iov_len  = PAGE_CACHE_SIZE;
+		iovec_arr[cnt].iov_len  = PAGE_SIZE;
 
 		V_INDEX(&ivv, cnt) = cnt * UNIT_SIZE * LAY_N;
 		V_COUNT(&ivv, cnt) = iovec_arr[cnt].iov_len;
@@ -1177,7 +1173,7 @@ static void dgmode_readio_test(void)
 						     PA_DGMODE_READ);
 					memset(map->pi_databufs[row][col]->
 					       db_buf.b_addr, content[col],
-					       PAGE_CACHE_SIZE);
+					       PAGE_SIZE);
 					cont = (char *)map->pi_databufs
 						[row][col]->db_buf.b_addr;
 				}
@@ -1190,8 +1186,7 @@ static void dgmode_readio_test(void)
 				M0_UT_ASSERT(map->pi_paritybufs[row][col]->
 					     db_flags & PA_DGMODE_READ);
 				memset(map->pi_paritybufs[row][col]->db_buf.
-				       b_addr, content[LAY_P - 2],
-				       PAGE_CACHE_SIZE);
+				       b_addr, content[LAY_P - 2], PAGE_SIZE);
 				cont = (char *)map->pi_paritybufs[row][col]->
 					db_buf.b_addr;
 			}
@@ -1205,7 +1200,7 @@ static void dgmode_readio_test(void)
 		for (row = 0; row < data_row_nr(play); ++row) {
 			cont = (char *)map->pi_databufs[row][src.sa_unit]->
 				db_buf.b_addr;
-			for (col = 0; col < PAGE_CACHE_SIZE; ++col, ++cont)
+			for (col = 0; col < PAGE_SIZE; ++col, ++cont)
 				M0_UT_ASSERT(*cont == content[0]);
 		}
 	}

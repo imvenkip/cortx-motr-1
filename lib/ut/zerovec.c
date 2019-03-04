@@ -25,7 +25,7 @@
 #include "lib/errno.h"     /* ENOENT */
 
 #ifdef __KERNEL__
-#include <linux/pagemap.h> /* PAGE_CACHE_SIZE */
+#include <linux/pagemap.h> /* PAGE_SIZE */
 #endif
 
 enum ZEROVEC_UT_VALUES {
@@ -175,7 +175,7 @@ static void zerovec_init_pages(void)
 	struct m0_0vec	zvec;
 
 	seed = 0;
-	zerovec_init(&zvec, PAGE_CACHE_SIZE);
+	zerovec_init(&zvec, PAGE_SIZE);
 
 	M0_ALLOC_ARR(pages, ZEROVEC_UT_SEGS_NR);
 	M0_UT_ASSERT(pages != NULL);
@@ -194,7 +194,7 @@ static void zerovec_init_pages(void)
 		M0_UT_ASSERT(zvec.z_index[i] == indices[i]);
 		M0_UT_ASSERT(zvec.z_bvec.ov_buf[i] ==
 			     page_address(pages[i]));
-		M0_UT_ASSERT(zvec.z_bvec.ov_vec.v_count[i] == PAGE_CACHE_SIZE);
+		M0_UT_ASSERT(zvec.z_bvec.ov_vec.v_count[i] == PAGE_SIZE);
 	}
 
 	M0_UT_ASSERT(zvec.z_bvec.ov_vec.v_nr == ZEROVEC_UT_SEGS_NR);
