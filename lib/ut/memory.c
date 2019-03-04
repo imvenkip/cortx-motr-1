@@ -43,10 +43,11 @@ void test_memory(void)
 
 	m0_free(ptr1);
 	/*
-	 * +8, because free(3) uses first 8 bytes for its nefarious purposes.
+	 * +16, because free(3) may use first 16 bytes for its nefarious
+	 * purposes.
 	 */
 #if defined(ENABLE_FREE_POISON)
-	M0_UT_ASSERT(m0_is_poisoned(ptr1 + 8));
+	M0_UT_ASSERT(m0_is_poisoned((char *)ptr1 + 16));
 #endif
 	m0_free(ptr2);
 	M0_UT_ASSERT(allocated == m0_allocated());
