@@ -10,6 +10,7 @@ nobase_mero_include_HEADERS += lib/arith.h \
                                lib/cond.h \
                                lib/cookie.h \
                                lib/combinations.h \
+                               lib/coroutine.h \
                                lib/errno.h \
                                lib/ext.h \
                                lib/finject.h \
@@ -65,6 +66,7 @@ mero_libmero_la_SOURCES += lib/assert.c \
                            lib/cond.c \
                            lib/cookie.c \
                            lib/combinations.c \
+                           lib/coroutine.c \
                            lib/ext.c \
                            lib/finject.c \
                            lib/finject_internal.h \
