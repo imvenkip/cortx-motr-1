@@ -369,7 +369,7 @@ parse_cli_options "$@"
 eval set -- "$cli_args"
 
 check_dependencies
-if [[ $(uname) =~ ^(Linux|Darwin)$ ]] ; then
+if [[ $(uname) =~ ^(Linux|Darwin)$ && -z $M0_VG_NO_SYMLINKS ]] ; then
     check_vagrant_dotdir
     check_vagrant_envfile
 fi
