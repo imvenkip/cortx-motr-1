@@ -488,11 +488,11 @@ int m0_cob_domain_init(struct m0_cob_domain *dom, struct m0_be_seg *seg)
 
 void m0_cob_domain_fini(struct m0_cob_domain *dom)
 {
-	m0_be_btree_fini(&dom->cd_fileattr_ea);
-	m0_be_btree_fini(&dom->cd_fileattr_omg);
-	m0_be_btree_fini(&dom->cd_fileattr_basic);
-	m0_be_btree_fini(&dom->cd_object_index);
-	m0_be_btree_fini(&dom->cd_namespace);
+	m0_be_btree_fini(&dom->cd_fileattr_ea, NULL);
+	m0_be_btree_fini(&dom->cd_fileattr_omg, NULL);
+	m0_be_btree_fini(&dom->cd_fileattr_basic, NULL);
+	m0_be_btree_fini(&dom->cd_object_index, NULL);
+	m0_be_btree_fini(&dom->cd_namespace, NULL);
 }
 
 static void cob_domain_id2str(char **s, const struct m0_cob_domain_id *cdid)
@@ -629,11 +629,11 @@ int m0_cob_domain_destroy(struct m0_cob_domain *dom,
 	m0_be_0type_del_credit(bedom, &m0_be_cob0, cdid_str, &cred);
 	M0_BE_FREE_CREDIT_PTR(dom, seg, &cred);
 
-	m0_be_btree_destroy_credit(&dom->cd_object_index,   &cred);
-	m0_be_btree_destroy_credit(&dom->cd_namespace,      &cred);
-	m0_be_btree_destroy_credit(&dom->cd_fileattr_basic, &cred);
-	m0_be_btree_destroy_credit(&dom->cd_fileattr_omg,   &cred);
-	m0_be_btree_destroy_credit(&dom->cd_fileattr_ea,    &cred);
+	m0_be_btree_destroy_credit(&dom->cd_object_index,   NULL, &cred);
+	m0_be_btree_destroy_credit(&dom->cd_namespace,      NULL, &cred);
+	m0_be_btree_destroy_credit(&dom->cd_fileattr_basic, NULL, &cred);
+	m0_be_btree_destroy_credit(&dom->cd_fileattr_omg,   NULL, &cred);
+	m0_be_btree_destroy_credit(&dom->cd_fileattr_ea,    NULL, &cred);
 
 
 	m0_be_tx_init(tx, 0, bedom, grp, NULL, NULL, NULL, NULL);
@@ -700,7 +700,7 @@ static int cob_table_lookup(struct m0_be_btree *tree, struct m0_buf *key,
 			    struct m0_buf *out)
 {
 	return M0_BE_OP_SYNC_RET(op,
-	                         m0_be_btree_lookup(tree, &op, key, out),
+	                         m0_be_btree_lookup(tree, NULL, &op, key, out),
 	                         bo_u.u_btree.t_rc);
 }
 

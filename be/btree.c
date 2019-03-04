@@ -1543,7 +1543,8 @@ M0_INTERNAL void m0_be_btree_init(struct m0_be_btree *tree,
 	M0_LEAVE();
 }
 
-M0_INTERNAL void m0_be_btree_fini(struct m0_be_btree *tree)
+M0_INTERNAL void m0_be_btree_fini(struct m0_be_btree *tree,
+				  struct m0_be_seg *seg)
 {
 	M0_ENTRY("tree=%p", tree);
 	M0_BE_REG_GET_PTR(tree, tree->bb_seg, NULL);
@@ -1840,7 +1841,8 @@ static int btree_count_items(struct m0_be_btree *tree, m0_bcount_t *ksize,
 		m0_be_btree_cursor_init(&cur, tree);
 
 		M0_SET0(op);
-		M0_BE_OP_SYNC_WITH(op, m0_be_btree_minkey(tree, op, &start));
+		M0_BE_OP_SYNC_WITH(op,
+				   m0_be_btree_minkey(tree, NULL, op, &start));
 
 		rc = m0_be_btree_cursor_get_sync(&cur, &start, true);
 
@@ -1861,6 +1863,7 @@ static int btree_count_items(struct m0_be_btree *tree, m0_bcount_t *ksize,
 }
 
 M0_INTERNAL void m0_be_btree_destroy_credit(struct m0_be_btree     *tree,
+					    struct m0_be_seg       *seg,
 					    struct m0_be_tx_credit *accum)
 {
 	/* XXX
@@ -1892,6 +1895,7 @@ M0_INTERNAL void m0_be_btree_destroy_credit(struct m0_be_btree     *tree,
 }
 
 M0_INTERNAL void m0_be_btree_clear_credit(struct m0_be_btree     *tree,
+					  struct m0_be_seg       *seg,
 					  struct m0_be_tx_credit *fixed_part,
 					  struct m0_be_tx_credit *single_record,
 					  m0_bcount_t            *records_nr)
@@ -2028,6 +2032,7 @@ M0_INTERNAL void m0_be_btree_delete(struct m0_be_btree *tree,
 }
 
 M0_INTERNAL void m0_be_btree_lookup(struct m0_be_btree *tree,
+				    struct m0_be_seg *seg,
 				    struct m0_be_op *op,
 				    const struct m0_buf *key,
 				    struct m0_buf *dest_value)
@@ -2069,6 +2074,7 @@ M0_INTERNAL void m0_be_btree_lookup(struct m0_be_btree *tree,
 }
 
 M0_INTERNAL void m0_be_btree_maxkey(struct m0_be_btree *tree,
+				    struct m0_be_seg *seg,
 				    struct m0_be_op *op,
 				    struct m0_buf *out)
 {
@@ -2093,6 +2099,7 @@ M0_INTERNAL void m0_be_btree_maxkey(struct m0_be_btree *tree,
 }
 
 M0_INTERNAL void m0_be_btree_minkey(struct m0_be_btree *tree,
+				    struct m0_be_seg *seg,
 				    struct m0_be_op *op,
 				    struct m0_buf *out)
 {
@@ -2179,6 +2186,7 @@ M0_INTERNAL void m0_be_btree_save_inplace(struct m0_be_btree        *tree,
 }
 
 M0_INTERNAL void m0_be_btree_lookup_inplace(struct m0_be_btree        *tree,
+					    struct m0_be_seg          *seg,
 					    struct m0_be_op           *op,
 					    const struct m0_buf       *key,
 					    struct m0_be_btree_anchor *anchor)

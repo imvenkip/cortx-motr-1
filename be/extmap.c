@@ -248,7 +248,7 @@ m0_be_emap_init(struct m0_be_emap *map, struct m0_be_seg *db)
 M0_INTERNAL void m0_be_emap_fini(struct m0_be_emap *map)
 {
 	map->em_version = 0;
-	m0_be_btree_fini(&map->em_mapping);
+	m0_be_btree_fini(&map->em_mapping, NULL);
 	m0_rwlock_fini(emap_rwlock(map));
 }
 
@@ -771,7 +771,7 @@ M0_INTERNAL void m0_be_emap_credit(struct m0_be_emap      *map,
 		break;
 	case M0_BEO_DESTROY:
 		M0_ASSERT(nr == 1);
-		m0_be_btree_destroy_credit(&map->em_mapping, accum);
+		m0_be_btree_destroy_credit(&map->em_mapping, NULL, accum);
 		break;
 	case M0_BEO_INSERT:
 		m0_be_btree_insert_credit(&map->em_mapping, nr,

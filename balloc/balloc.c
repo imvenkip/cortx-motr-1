@@ -73,7 +73,8 @@ static inline int btree_lookup_sync(struct m0_be_btree  *tree,
 			       const struct m0_buf *key,
 			       struct m0_buf       *val)
 {
-	return M0_BE_OP_SYNC_RET(op, m0_be_btree_lookup(tree, &op, key, val),
+	return M0_BE_OP_SYNC_RET(op,
+				 m0_be_btree_lookup(tree, NULL, &op, key, val),
 	                         bo_u.u_btree.t_rc);
 }
 
@@ -436,8 +437,8 @@ static void balloc_fini_internal(struct m0_balloc *bal)
 		m0_free0(&bal->cb_group_info);
 	}
 
-	m0_be_btree_fini(&bal->cb_db_group_extents);
-	m0_be_btree_fini(&bal->cb_db_group_desc);
+	m0_be_btree_fini(&bal->cb_db_group_extents, NULL);
+	m0_be_btree_fini(&bal->cb_db_group_desc, NULL);
 
 	M0_LEAVE();
 }
@@ -2811,10 +2812,10 @@ M0_INTERNAL int m0_balloc_create(uint64_t            cid,
 	M0_BE_ALLOC_CREDIT_PTR(cb, seg, &cred);
 	m0_be_btree_init(&btree, seg, &ge_btree_ops);
 	m0_be_btree_create_credit(&btree, 1, &cred);
-	m0_be_btree_fini(&btree);
+	m0_be_btree_fini(&btree, NULL);
 	m0_be_btree_init(&btree, seg, &gd_btree_ops);
 	m0_be_btree_create_credit(&btree, 1, &cred);
-	m0_be_btree_fini(&btree);
+	m0_be_btree_fini(&btree, NULL);
 	m0_be_tx_prep(&tx, &cred);
 	rc = m0_be_tx_open_sync(&tx);
 
@@ -2834,8 +2835,8 @@ M0_INTERNAL int m0_balloc_create(uint64_t            cid,
 				M0_BE_TX_CAPTURE_PTR(seg, &tx, cb);
 				*out = cb;
 			} else {
-				m0_be_btree_fini(&cb->cb_db_group_extents);
-				m0_be_btree_fini(&cb->cb_db_group_desc);
+				m0_be_btree_fini(&cb->cb_db_group_extents, NULL);
+				m0_be_btree_fini(&cb->cb_db_group_desc, NULL);
 			}
 		}
 		m0_be_tx_close_sync(&tx);

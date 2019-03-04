@@ -192,7 +192,7 @@ static void confdb_table_fini(struct m0_be_seg *seg)
 	M0_ENTRY();
 	rc = m0_be_seg_dict_lookup(seg, btree_name, (void **)&btree);
 	if (rc == 0)
-		m0_be_btree_fini(btree);
+		m0_be_btree_fini(btree, NULL);
 	M0_LEAVE();
 }
 
@@ -373,9 +373,9 @@ M0_INTERNAL void m0_confdb_destroy_credit(struct m0_be_seg *seg,
 
 	rc = m0_be_seg_dict_lookup(seg, btree_name, (void **)&btp);
 	if (rc == 0) {
-		m0_be_btree_destroy_credit(btp, accum);
+		m0_be_btree_destroy_credit(btp, NULL, accum);
 	} else {
-		m0_be_btree_destroy_credit(&btree, accum);
+		m0_be_btree_destroy_credit(&btree, NULL, accum);
 	}
 	m0_be_seg_dict_delete_credit(seg, btree_name, accum);
 	M0_BE_FREE_CREDIT_PTR(&btree, seg, accum);

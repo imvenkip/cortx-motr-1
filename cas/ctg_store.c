@@ -274,7 +274,7 @@ static void ctg_fini(struct m0_cas_ctg *ctg)
 {
 	M0_ENTRY("ctg=%p", ctg);
 	ctg->cc_inited = false;
-	m0_be_btree_fini(&ctg->cc_tree);
+	m0_be_btree_fini(&ctg->cc_tree, NULL);
 	m0_long_lock_fini(m0_ctg_lock(ctg));
 	m0_chan_fini_lock(&ctg->cc_chan.bch_chan);
 	m0_mutex_fini(&ctg->cc_chan_guard.bm_u.mutex);
@@ -348,6 +348,7 @@ static int ctg_meta_find_ctg(struct m0_cas_ctg    *meta,
 
 	rc = M0_BE_OP_SYNC_RET(op,
 			       m0_be_btree_lookup_inplace(&meta->cc_tree,
+							  NULL,
 							  &op,
 							  &key,
 							  &anchor),
@@ -489,7 +490,7 @@ static void ctg_store_init_creds_calc(struct m0_be_seg       *seg,
 	ctg_meta_insert_credit(&dummy, 3, cred);
 	/* Error case: tree destruction and freeing. */
 	ctg_meta_delete_credit(&dummy, 3, cred);
-	m0_be_btree_destroy_credit(&dummy, cred);
+	m0_be_btree_destroy_credit(&dummy, NULL, cred);
 	M0_BE_FREE_CREDIT_PTR(state, seg, cred);
 	M0_BE_FREE_CREDIT_PTR(ctidx, seg, cred);
 	/*
@@ -1024,10 +1025,10 @@ static int ctg_op_exec(struct m0_ctg_op *ctg_op, int next_phase)
 		break;
 	case CTG_OP_COMBINE(CO_GET, CT_BTREE):
 	case CTG_OP_COMBINE(CO_GET, CT_META):
-		m0_be_btree_lookup_inplace(btree, beop, key, anchor);
+		m0_be_btree_lookup_inplace(btree, NULL, beop, key, anchor);
 		break;
 	case CTG_OP_COMBINE(CO_MIN, CT_BTREE):
-		m0_be_btree_minkey(btree, beop, &ctg_op->co_out_key);
+		m0_be_btree_minkey(btree, NULL, beop, &ctg_op->co_out_key);
 		break;
 	case CTG_OP_COMBINE(CO_TRUNC, CT_BTREE):
 		m0_be_btree_truncate(btree, tx, beop, ctg_op->co_cnt);
@@ -1538,7 +1539,7 @@ M0_INTERNAL void m0_ctg_drop_credit(struct m0_fom          *fom,
 	m0_bcount_t            records_ok;
 	struct m0_be_tx_credit record_cred;
 
-	m0_be_btree_clear_credit(&ctg->cc_tree, accum, &record_cred,
+	m0_be_btree_clear_credit(&ctg->cc_tree, NULL, accum, &record_cred,
 				 &records_nr);
 	records_nr = records_nr ?: 1;
 	for (records_ok = 0;
@@ -1655,6 +1656,7 @@ M0_INTERNAL int m0_ctg_ctidx_lookup_sync(const struct m0_fid  *fid,
 	/** @todo Make it asynchronous. */
 	rc = M0_BE_OP_SYNC_RET(op,
 			       m0_be_btree_lookup_inplace(&ctidx->cc_tree,
+							  NULL,
 							  &op,
 							  &key,
 							  &anchor),
