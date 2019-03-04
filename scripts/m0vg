@@ -249,7 +249,7 @@ check_vagrant_envfile()
             local v=-v
         fi
         [[ -f $VAGRANT_MERO_ENV_FILE ]] || touch $VAGRANT_MERO_ENV_FILE
-        ln -s $v $VAGRANT_MERO_ENV_FILE $VAGRANT_DEFAULT_ENV_FILE
+        ln -sf $v $VAGRANT_MERO_ENV_FILE $VAGRANT_DEFAULT_ENV_FILE
     fi
 }
 
