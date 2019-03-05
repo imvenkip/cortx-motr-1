@@ -919,7 +919,7 @@ int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	struct m0_confc_args      *confc_args;
 	struct m0_reqh            *reqh = &csb->csb_reqh;
 	struct m0_conf_root       *root;
-	struct m0_pool_version    *pv = NULL;
+	struct m0_pool_version    *pv;
 	int                        rc;
 
 	M0_ENTRY();
@@ -1147,8 +1147,6 @@ M0_INTERNAL int m0t1fs_fill_cob_attr(struct m0_fop_cob *body)
                         S_IRGRP | S_IXGRP |                    /*r-x for group*/
                         S_IROTH | S_IXOTH);
 
-	if (csb->csb_pools_common.pc_cur_pver != NULL)
-		body->b_pver = csb->csb_pools_common.pc_cur_pver->pv_id;
 	return M0_RC(0);
 }
 

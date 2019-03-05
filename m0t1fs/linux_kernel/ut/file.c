@@ -253,16 +253,13 @@ static int file_io_ut_init(void)
 	rc = m0_pool_version_get(&csb.csb_pools_common,
 				 &M0_FID_TINIT('o', 33, 77), &pver);
 	M0_UT_ASSERT(rc == -ENOENT);
-	M0_UT_ASSERT(csb.csb_pools_common.pc_cur_pver == NULL);
 
 	rc = m0_pool_version_get(&csb.csb_pools_common,
 				 &M0_FID_TINIT('o', 1, 23), &pver);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(csb.csb_pools_common.pc_cur_pver != NULL);
 
 	rc = m0_pool_version_get(&csb.csb_pools_common, NULL, &pver);
 	M0_UT_ASSERT(rc == 0);
-	M0_UT_ASSERT(csb.csb_pools_common.pc_cur_pver != NULL);
 
 	sb.s_fs_info         = &csb;
 	csb.csb_next_key     = FID_KEY;

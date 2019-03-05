@@ -629,17 +629,19 @@ static int pool_version_get_locked(struct m0_pools_common  *pc,
 {
 	int                     rc = -ENOENT;
 	struct m0_pool         *pool;
-	struct m0_pool_version *res = NULL;
 
 	M0_ENTRY();
 	M0_PRE(m0_mutex_is_locked(&pc->pc_mutex));
+
+	if (pv == NULL)
+		return M0_RC(-EINVAL);
 
 	m0_tl_for(pools, &pc->pc_pools, pool) {
 		if (is_md_pool(pc, pool) || is_dix_pool(pc, pool))
 			continue;
 		if (hint != NULL && !m0_fid_eq(&pool->po_id, hint))
 			continue;
-		rc = pool->po_pver_policy->pp_ops->ppo_get(pc, pool, &res);
+		rc = pool->po_pver_policy->pp_ops->ppo_get(pc, pool, pv);
 		if (rc == 0 || hint != NULL)
 			break;
 		/*
@@ -647,14 +649,6 @@ static int pool_version_get_locked(struct m0_pools_common  *pc,
 		 * No worries, let's try another one.
 		 */
 	} m0_tl_endfor;
-
-	if (res != NULL && pv != NULL)
-		*pv = res;
-
-	/** @todo m0_pools_common::pc_cur_pver not required.
-	 * Nevertheless, it seems to be updated at
-	 * m0_pools_common_conf_ready_async_cb(). */
-	pc->pc_cur_pver = res;
 
 	return M0_RC(rc);
 }
@@ -1299,7 +1293,6 @@ static int pools_common__update_by_conf(struct m0_pools_common *pc)
 M0_INTERNAL bool m0_pools_common_conf_ready_async_cb(struct m0_clink *clink)
 {
 	struct m0_pools_common *pc = M0_AMB(pc, clink, pc_conf_ready_async);
-	struct m0_fid          *pool = NULL;
 	int                     rc;
 
 	M0_ENTRY("pc %p", pc);
@@ -1342,11 +1335,6 @@ M0_INTERNAL bool m0_pools_common_conf_ready_async_cb(struct m0_clink *clink)
 	 */
 	M0_POST(rc == 0);
 	M0_POST(pools_common_invariant(pc));
-	/* Don't loose the pool on configuration change. */
-	if (pc->pc_cur_pver != NULL &&
-	    pools_tlink_is_in(pc->pc_cur_pver->pv_pool))
-		pool = &pc->pc_cur_pver->pv_pool->po_id;
-	(void)pool_version_get_locked(pc, pool, NULL);
 	m0_mutex_unlock(&pc->pc_mutex);
 	M0_LEAVE();
 	return true;
