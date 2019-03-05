@@ -1,11 +1,75 @@
+variables:
+  GIT_DEPTH: 1  # clone only the current commit
+  GIT_STRATEGY: clone  # make a fresh `git clone` of the repo for every new CI job
+  GIT_SUBMODULE_STRATEGY: normal  # init and check out submodules
+
+stages:
+  - gerrit-sync
+  - build
+
+before_script:
+  - date -u -Isec
+  - git --no-pager log -1 --pretty=fuller
+  - printenv
+
+after_script:
+  - date -u -Isec
+
+
 sync-from-gerrit:on-schedule:
+  stage: gerrit-sync
+  tags: [ gerrit-sync ]
   only: [ schedules ]
   image: registry.gitlab.mero.colo.seagate.com/centos
+
+  variables:
+    GIT_DEPTH: '' # empty, reset to default
+    GIT_STRATEGY: fetch
+
   script:
-    - 'git remote add gitlab ssh://git@gitlab.mero.colo.seagate.com:6022/mero/mero.git || true'
-    - 'git remote add gerrit http://gerrit.mero.colo.seagate.com:8080/mero || true'
+    - git remote add gitlab 'ssh://git@gitlab.mero.colo.seagate.com:6022/mero/mero.git' || true
+    - git remote add gerrit 'http://gerrit.mero.colo.seagate.com:8080/mero' || true
     - git remote -v
     - git fetch --no-tags gerrit master:refs/remotes/gerrit/master
     - ssh-keyscan -t rsa -p 6022 gitlab.mero.colo.seagate.com >> ~/.ssh/known_hosts
     - git push gitlab gerrit/master:master
-  tags: [ gerrit-sync ]
+
+
+build:
+  stage: build
+  tags: [ docker-build ]
+  only: [ master ]
+  image: registry.gitlab.mero.colo.seagate.com/mero/mero:7.5
+  script: |
+    KERNEL=/lib/modules/$(yum list installed kernel | tail -n1 | awk '{ print $2 }').x86_64/build
+    time {
+      ./autogen.sh &&
+      ./configure --with-linux=$KERNEL $CONFIGURE_OPTS &&
+      make -j8 ;
+    }
+
+build:debug:
+  extends: build
+  variables:
+    CONFIGURE_OPTS: --enable-debug
+
+build:no-asserts:
+  extends: build
+  variables:
+    CONFIGURE_OPTS: --disable-m0-asserts
+
+
+rpmbuild:
+  extends: build
+  script: |
+    KERNEL=/lib/modules/$(yum list installed kernel | tail -n1 | awk '{ print $2 }').x86_64/build
+    time {
+      ./autogen.sh &&
+      ./configure --with-linux=$KERNEL &&
+      make ${MAKE_TARGET:-rpms} kernel_src=$KERNEL ;
+    }
+
+rpmbuild:no-tests:
+  extends: rpmbuild
+  variables:
+    MAKE_TARGET: rpms-notests
