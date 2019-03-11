@@ -241,7 +241,7 @@ static int iter_prepare(struct m0_be_bnode *node, bool print);
  * written in recusieve form.
  * ------------------------------------------------------------------ */
 
-static inline bool btree_node_invariant(const struct m0_be_btree *btree,
+static bool btree_node_invariant(const struct m0_be_btree *btree,
 				 const struct m0_be_bnode *node,
 				 bool root)
 {
