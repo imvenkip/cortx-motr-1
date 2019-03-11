@@ -17,12 +17,6 @@
  * Original creation date: 04/01/2013
  */
 
-#ifdef __KERNEL__
-#include <linux/compiler.h>  /* GCC_VERSION */
-#else
-#include <ansidecl.h>        /* GCC_VERSION */
-#endif
-
 #include "lib/memory.h"
 #include "lib/misc.h"
 
