@@ -403,7 +403,8 @@ noinst_PROGRAMS            += desim/ut/chs_test
 endif
 desim_ut_chs_test_CPPFLAGS  = -DM0_TARGET='chs_test' $(AM_CPPFLAGS)
 desim_ut_chs_test_LDADD     = $(top_builddir)/mero/libmero.la \
-                              $(top_builddir)/ut/libmero-ut.la
+                              $(top_builddir)/ut/libmero-ut.la \
+                              @MATH_LIBS@
 
 if ENABLE_UNIT_TESTS
 noinst_PROGRAMS               += desim/ut/m0t1fs_test
@@ -653,7 +654,8 @@ include $(top_srcdir)/clovis/st/mt/Makefile.sub
 sbin_PROGRAMS                    += clovis/m0clovis/m0clovis
 
 clovis_m0clovis_m0clovis_CPPFLAGS = -DM0_TARGET='m0clovis' $(AM_CPPFLAGS)
-clovis_m0clovis_m0clovis_LDADD    = $(top_builddir)/mero/libmero.la
+clovis_m0clovis_m0clovis_LDADD    = $(top_builddir)/mero/libmero.la \
+                                    @UUID_LIBS@
 
 include $(top_srcdir)/clovis/m0clovis/Makefile.sub
 
@@ -664,7 +666,7 @@ sbin_PROGRAMS                    += clovis/m0crate/m0crate
 
 clovis_m0crate_m0crate_CPPFLAGS = -DM0_TARGET='m0crate' $(AM_CPPFLAGS)
 clovis_m0crate_m0crate_LDADD    = $(top_builddir)/mero/libmero.la \
-				-lm -laio -lyaml
+                                  @AIO_LIBS@ @RT_LIBS@ @YAML_LIBS@
 
 include $(top_srcdir)/clovis/m0crate/Makefile.sub
 
@@ -710,7 +712,8 @@ utils/mkfs/m0mkfs.o: xcode/protocol_checksum.h
 
 sbin_PROGRAMS                  += utils/layout/m0layout
 utils_layout_m0layout_CPPFLAGS  = -DM0_TARGET='m0layout' $(AM_CPPFLAGS)
-utils_layout_m0layout_LDADD     = $(top_builddir)/mero/libmero.la
+utils_layout_m0layout_LDADD     = $(top_builddir)/mero/libmero.la \
+                                  @MATH_LIBS@
 
 #
 # utils ----------------------------------------------- {{{2
