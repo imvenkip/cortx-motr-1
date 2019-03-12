@@ -26,17 +26,26 @@
 #include <stddef.h>   /* NULL */
 #include <stdarg.h>   /* va_list */
 
-#ifdef __KERNEL__
-#include <linux/compiler.h>  /* GCC_VERSION */
-#else
-#include <ansidecl.h>        /* GCC_VERSION */
-#endif
-
 /**
    @defgroup assert Assertions, pre-conditions, post-conditions, invariants.
 
    @{
 */
+
+/*
+ * Kernel and ansidecl.h define GCC_VERSION in an incompatible way. Use our own
+ * definition in the ansidecl.h' format. Since Mero sources can include kernel
+ * headers after assert.h, we don't want to re-define kernel's GCC_VERSION.
+ * Therefore, name it as M0_GCC_VERSION.
+ *
+ * Trust GCC_VERSION < 10000, because it is definitely the ansidecl.h' format.
+ * We define fake GCC_VERSION for gccxml to disable _Static_assert.
+ */
+#if defined(GCC_VERSION) && GCC_VERSION < 10000
+#define M0_GCC_VERSION GCC_VERSION
+#elif defined(__GNUC__) && defined(__GNUC_MINOR__)
+#define M0_GCC_VERSION (__GNUC__ * 1000 + __GNUC_MINOR__)
+#endif
 
 /* this should be defined before target-specific assert.h is included */
 #ifdef M0_NDEBUG
@@ -246,7 +255,7 @@ static inline void m0_assert_intercept(void) {;}
  */
 #if defined (__cplusplus) && __cplusplus >= 201103L
 # define M0_BASSERT(cond) static_assert((cond), #cond)
-#elif defined (GCC_VERSION) && GCC_VERSION >= 4006
+#elif defined (M0_GCC_VERSION) && M0_GCC_VERSION >= 4006
 # define M0_BASSERT(cond) _Static_assert((cond), #cond)
 #else
 # define M0_BASSERT(cond) extern char __static_assertion[(cond) ? 1 : -1]
