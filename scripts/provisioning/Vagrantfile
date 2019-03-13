@@ -198,7 +198,7 @@ Vagrant.configure('2') do |config|
 
     if RbConfig::CONFIG['host_os'] =~ /mingw/i &&
        !provisioned?(cmu.vm.hostname) &&
-       config.vm.box_url.nil?
+       ENV['M0_VM_BOX_URL'].nil?
       cmu.vm.synced_folder '.', '/vagrant', type: 'smb'
     end
 
@@ -377,7 +377,7 @@ Vagrant.configure('2') do |config|
   end
 
   # delegate OS configuration to Ansible
-  if config.vm.box_url.nil?
+  if ENV['M0_VM_BOX_URL'].nil?
     config.vm.provision ansible_mode do |ansible|
         ansible.compatibility_mode = '2.0'
         ansible.playbook = 'cluster.yml'
