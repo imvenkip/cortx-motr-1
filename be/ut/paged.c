@@ -239,14 +239,12 @@ void m0_be_ut_pd_fom(void)
 	rc = m0_be_pd_seg_open(&paged, &seg, NULL, seg_cfg.bsc_stob_key);
 	M0_UT_ASSERT(rc == 0);
 
-	M0_LOG(M0_ALWAYS, "read 1");
 	reg = M0_BE_REG(&seg, 1, addr);
 	M0_BE_OP_SYNC(op, m0_be_pd_reg_get(&paged, &reg, &op));
 	m0_be_pd_reg_put(&paged, &reg);
 
 	/* Make PFS_MANAGE_POST state to evict pages, aquired by previous
 	   `reg'-get() */
-	M0_LOG(M0_ALWAYS, "read 2");
 	reg = M0_BE_REG(&seg, 1, addr + 2 * pd_cfg->bpc_page_size);
 	M0_BE_OP_SYNC(op, m0_be_pd_reg_get(&paged, &reg, &op));
 	m0_be_pd_reg_put(&paged, &reg);
@@ -256,7 +254,6 @@ void m0_be_ut_pd_fom(void)
 		struct m0_be_pd_request       request;
 		struct m0_be_pd_request_pages rpages;
 
-		M0_LOG(M0_ALWAYS, "read 3");
 		reg = M0_BE_REG(&seg, 1, addr);
 		M0_BE_OP_SYNC(op, m0_be_pd_reg_get(&paged, &reg, &op));
 		m0_be_reg_area_capture(&reg_area, &M0_BE_REG_D(reg, &dummy));
@@ -264,7 +261,6 @@ void m0_be_ut_pd_fom(void)
 
 		reg = M0_BE_REG(&seg, 1, addr+0x10);
 
-		M0_LOG(M0_ALWAYS, "read 4");
 		M0_BE_OP_SYNC(op, m0_be_pd_reg_get(&paged, &reg, &op));
 		m0_be_reg_area_capture(&reg_area, &M0_BE_REG_D(reg, &dummy));
 		m0_be_pd_reg_put(&paged, &reg);
@@ -272,7 +268,6 @@ void m0_be_ut_pd_fom(void)
 
 		/* Make PFS_MANAGE_POST state to evict pages, aquired by previous
 		   `reg'-get() */
-		M0_LOG(M0_ALWAYS, "read 5!");
 		reg = M0_BE_REG(&seg, 1, addr + 2 * pd_cfg->bpc_page_size);
 		M0_BE_OP_SYNC(op, m0_be_pd_reg_get(&paged, &reg, &op));
 		m0_be_pd_reg_put(&paged, &reg);
@@ -282,7 +277,6 @@ void m0_be_ut_pd_fom(void)
 		m0_be_pd_request_pages_init(&rpages, M0_PRT_WRITE, &reg_area,
 					    &write_ext, NULL);
 		m0_be_pd_request_init(&request, &rpages);
-		M0_LOG(M0_ALWAYS, "write 1");
 		M0_BE_OP_SYNC(op, m0_be_pd_request_push(&paged, &request, &op));
 	}
 
