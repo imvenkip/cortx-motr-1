@@ -1926,10 +1926,10 @@ static void cob_table_tx_credit(struct m0_be_btree *tree,
 
 	switch (t_optype) {
 	case COB_TABLE_DELETE:
-		m0_be_btree_delete_credit(tree, 1, ksize, vsize, accum);
+		m0_be_btree_delete_credit(tree, NULL, 1, ksize, vsize, accum);
 		break;
 	case COB_TABLE_UPDATE:
-		m0_be_btree_update_credit(tree, 1, vsize, accum);
+		m0_be_btree_update_credit(tree, NULL, 1, vsize, accum);
 		break;
 	case COB_TABLE_INSERT:
 		m0_be_btree_insert_credit(tree, 1, ksize, vsize, accum);

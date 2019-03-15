@@ -858,7 +858,7 @@ static int balloc_format(struct m0_balloc *bal,
 static void balloc_gi_sync_credit(struct m0_balloc *cb,
 				  struct m0_be_tx_credit *accum)
 {
-	m0_be_btree_update_credit(&cb->cb_db_group_desc, 1,
+	m0_be_btree_update_credit(&cb->cb_db_group_desc, NULL, 1,
 		sizeof(struct m0_balloc_group_desc), accum);
 }
 
@@ -1478,13 +1478,13 @@ static void balloc_db_update_credit(struct m0_balloc *bal, int nr,
 	struct m0_be_btree *tree = &bal->cb_db_group_extents;
 	struct m0_be_tx_credit    cred = {};
 
-	m0_be_btree_delete_credit(tree, 1,
+	m0_be_btree_delete_credit(tree, NULL, 1,
 		M0_MEMBER_SIZE(struct m0_ext, e_start),
 		M0_MEMBER_SIZE(struct m0_ext, e_end), &cred);
 	m0_be_btree_insert_credit(tree, 1,
 		M0_MEMBER_SIZE(struct m0_ext, e_start),
 		M0_MEMBER_SIZE(struct m0_ext, e_end), &cred);
-	m0_be_btree_update_credit(tree, 2,
+	m0_be_btree_update_credit(tree, NULL, 2,
 		M0_MEMBER_SIZE(struct m0_ext, e_end), &cred);
 	balloc_sb_sync_credit(bal, &cred);
 	balloc_gi_sync_credit(bal, &cred);

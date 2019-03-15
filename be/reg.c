@@ -38,6 +38,8 @@
 static struct m0_be_pd *be_reg_pd_get(const struct m0_be_reg *reg,
                                       struct m0_be_tx        *tx)
 {
+	M0_PRE(ergo(reg->br_seg == NULL, tx != NULL));
+
 	return reg->br_seg != NULL ? reg->br_seg->bs_pd : &tx->t_dom->bd_pd;
 }
 

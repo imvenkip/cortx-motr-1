@@ -258,10 +258,11 @@ M0_INTERNAL void m0_be_btree_insert_credit2(struct m0_be_btree *tree,
  * @param vsize  Value data size.
  */
 M0_INTERNAL void m0_be_btree_delete_credit(struct m0_be_btree *tree,
-						 m0_bcount_t nr,
-						 m0_bcount_t ksize,
-						 m0_bcount_t vsize,
-						 struct m0_be_tx_credit *accum);
+					   struct m0_be_seg *seg,
+					   m0_bcount_t nr,
+					   m0_bcount_t ksize,
+					   m0_bcount_t vsize,
+					   struct m0_be_tx_credit *accum);
 
 /**
  * Calculates how many internal resources of tx_engine, described by
@@ -274,9 +275,10 @@ M0_INTERNAL void m0_be_btree_delete_credit(struct m0_be_btree *tree,
  * @param vsize  Value data size.
  */
 M0_INTERNAL void m0_be_btree_update_credit(struct m0_be_btree *tree,
-						 m0_bcount_t nr,
-						 m0_bcount_t vsize,
-						 struct m0_be_tx_credit *accum);
+					   struct m0_be_seg *seg,
+					   m0_bcount_t nr,
+					   m0_bcount_t vsize,
+					   struct m0_be_tx_credit *accum);
 
 /**
  * The same as m0_be_btree_update_credit() but should be used for data which has
@@ -287,6 +289,7 @@ M0_INTERNAL void m0_be_btree_update_credit(struct m0_be_btree *tree,
  * @param vsize  Value data size.
  */
 M0_INTERNAL void m0_be_btree_update_credit2(struct m0_be_btree *tree,
+					    struct m0_be_seg   *seg,
 					    m0_bcount_t               nr,
 					    m0_bcount_t               ksize,
 					    m0_bcount_t               vsize,
