@@ -655,10 +655,10 @@ static void balloc_group_write_credit(struct m0_be_tx_bulk   *tb,
 	struct balloc_groups_write_cfg *bgs = datum;
 	struct m0_balloc               *bal = bgs->bgs_bal;
 
-	m0_be_btree_insert_credit(&bal->cb_db_group_extents, 2,
+	m0_be_btree_insert_credit(&bal->cb_db_group_extents, NULL, 2,
 		M0_MEMBER_SIZE(struct m0_ext, e_start),
 		M0_MEMBER_SIZE(struct m0_ext, e_end), accum);
-	m0_be_btree_insert_credit(&bal->cb_db_group_desc, 2,
+	m0_be_btree_insert_credit(&bal->cb_db_group_desc, NULL, 2,
 		M0_MEMBER_SIZE(struct m0_balloc_group_desc, bgd_groupno),
 		sizeof(struct m0_balloc_group_desc), accum);
 }
@@ -1481,7 +1481,7 @@ static void balloc_db_update_credit(struct m0_balloc *bal, int nr,
 	m0_be_btree_delete_credit(tree, NULL, 1,
 		M0_MEMBER_SIZE(struct m0_ext, e_start),
 		M0_MEMBER_SIZE(struct m0_ext, e_end), &cred);
-	m0_be_btree_insert_credit(tree, 1,
+	m0_be_btree_insert_credit(tree, NULL, 1,
 		M0_MEMBER_SIZE(struct m0_ext, e_start),
 		M0_MEMBER_SIZE(struct m0_ext, e_end), &cred);
 	m0_be_btree_update_credit(tree, NULL, 2,

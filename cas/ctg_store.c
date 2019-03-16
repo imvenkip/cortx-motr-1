@@ -443,7 +443,7 @@ static void ctg_meta_insert_credit(struct m0_be_btree     *bt,
 	struct m0_be_seg  *seg = bt->bb_seg;
 	struct m0_cas_ctg *ctg;
 
-	m0_be_btree_insert_credit2(bt, nr,
+	m0_be_btree_insert_credit2(bt, NULL, nr,
 				   KV_HDR_SIZE + sizeof(struct m0_fid),
 				   KV_HDR_SIZE + sizeof(ctg),
 				   accum);
@@ -1509,7 +1509,7 @@ M0_INTERNAL void m0_ctg_mark_deleted_credit(struct m0_be_tx_credit *accum)
 	knob = KV_HDR_SIZE + sizeof(ctg);
 	vnob = 8;
 	/* Insert into dead index. */
-	m0_be_btree_insert_credit2(mbtree, 1, knob, vnob, accum);
+	m0_be_btree_insert_credit2(mbtree, NULL, 1, knob, vnob, accum);
 }
 
 M0_INTERNAL void m0_ctg_create_credit(struct m0_be_tx_credit *accum)
@@ -1523,7 +1523,7 @@ M0_INTERNAL void m0_ctg_create_credit(struct m0_be_tx_credit *accum)
 
 	knob = KV_HDR_SIZE + sizeof(struct m0_fid);
 	vnob = KV_HDR_SIZE + sizeof(ctg);
-	m0_be_btree_insert_credit2(btree, 1, knob, vnob, accum);
+	m0_be_btree_insert_credit2(btree, NULL, 1, knob, vnob, accum);
 	/*
 	 * That are credits for cas_ctg body.
 	 */
@@ -1574,7 +1574,7 @@ M0_INTERNAL void m0_ctg_insert_credit(struct m0_cas_ctg      *ctg,
 				      m0_bcount_t             vnob,
 				      struct m0_be_tx_credit *accum)
 {
-	m0_be_btree_insert_credit2(&ctg->cc_tree, 1, knob, vnob, accum);
+	m0_be_btree_insert_credit2(&ctg->cc_tree, NULL, 1, knob, vnob, accum);
 }
 
 M0_INTERNAL void m0_ctg_delete_credit(struct m0_cas_ctg      *ctg,
@@ -1598,7 +1598,7 @@ static void ctg_ctidx_op_credits(struct m0_cas_id       *cid,
 	knob = KV_HDR_SIZE + sizeof(struct m0_fid);
 	vnob = KV_HDR_SIZE + sizeof(struct m0_dix_layout);
 	if (insert)
-		m0_be_btree_insert_credit2(btree, 1, knob, vnob, accum);
+		m0_be_btree_insert_credit2(btree, NULL, 1, knob, vnob, accum);
 	else
 		m0_be_btree_delete_credit(btree, NULL, 1, knob, vnob, accum);
 

@@ -774,7 +774,7 @@ M0_INTERNAL void m0_be_emap_credit(struct m0_be_emap      *map,
 		m0_be_btree_destroy_credit(&map->em_mapping, NULL, accum);
 		break;
 	case M0_BEO_INSERT:
-		m0_be_btree_insert_credit(&map->em_mapping, nr,
+		m0_be_btree_insert_credit(&map->em_mapping, NULL, nr,
 			sizeof map->em_key, sizeof map->em_rec, accum);
 		break;
 	case M0_BEO_DELETE:
@@ -788,7 +788,7 @@ M0_INTERNAL void m0_be_emap_credit(struct m0_be_emap      *map,
 	case M0_BEO_MERGE:
 		m0_be_btree_delete_credit(&map->em_mapping, NULL, nr,
 			sizeof map->em_key, sizeof map->em_rec, accum);
-		m0_be_btree_insert_credit(&map->em_mapping, nr,
+		m0_be_btree_insert_credit(&map->em_mapping, NULL, nr,
 			sizeof map->em_key, sizeof map->em_rec, accum);
 		m0_be_btree_update_credit(&map->em_mapping, NULL, nr,
 			sizeof map->em_rec, accum);
@@ -796,7 +796,7 @@ M0_INTERNAL void m0_be_emap_credit(struct m0_be_emap      *map,
 	case M0_BEO_SPLIT:
 		m0_be_btree_delete_credit(&map->em_mapping, NULL, 1,
 			sizeof map->em_key, sizeof map->em_rec, accum);
-		m0_be_btree_insert_credit(&map->em_mapping, nr,
+		m0_be_btree_insert_credit(&map->em_mapping, NULL, nr,
 			sizeof map->em_key, sizeof map->em_rec, accum);
 		m0_be_btree_update_credit(&map->em_mapping, NULL, 1,
 			sizeof map->em_rec, accum);

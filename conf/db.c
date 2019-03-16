@@ -259,7 +259,8 @@ M0_INTERNAL int m0_confdb_create_credit(struct m0_be_seg *seg,
 		rc = confx_obj_measure(obj);
 		if (rc < 0)
 			break;
-		m0_be_btree_insert_credit2(&btree, 1, sizeof(struct m0_fid),
+		m0_be_btree_insert_credit2(&btree, NULL,
+					   1, sizeof(struct m0_fid),
 					   rc + sizeof(struct confx_allocator),
 					   accum);
 		rc = 0;

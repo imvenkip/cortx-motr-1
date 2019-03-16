@@ -111,8 +111,8 @@ btree_insert(struct m0_be_btree *t, struct m0_buf *k, struct m0_buf *v,
 		nr = TXN_OPS_NR;
 		M0_ALLOC_PTR(tx);
 		M0_ASSERT(tx != NULL);
-		m0_be_btree_insert_credit2(t, nr, INSERT_KSIZE   + 1,
-					          INSERT_VSIZE*2 + 1, &cred);
+		m0_be_btree_insert_credit2(t, seg, nr, INSERT_KSIZE   + 1,
+					   INSERT_VSIZE*2 + 1, &cred);
 		m0_be_ut_tx_init(tx, &ut_be);
 		m0_be_tx_prep(tx, &cred);
 
@@ -150,8 +150,8 @@ btree_insert_inplace(struct m0_be_btree *t, struct m0_buf *k, int v,
 		nr = TXN_OPS_NR;
 		M0_ALLOC_PTR(tx);
 		M0_UT_ASSERT(tx != NULL);
-		m0_be_btree_insert_credit2(t, nr, INSERT_KSIZE + 1,
-					          INSERT_VSIZE*2 + 1, &cred);
+		m0_be_btree_insert_credit2(t, seg, nr, INSERT_KSIZE + 1,
+					   INSERT_VSIZE*2 + 1, &cred);
 		m0_be_ut_tx_init(tx, &ut_be);
 		m0_be_tx_prep(tx, &cred);
 
@@ -350,7 +350,7 @@ static int btree_save(struct m0_be_btree *tree, struct m0_buf *k,
 
 	M0_ALLOC_PTR(tx);
 	M0_UT_ASSERT(tx != NULL);
-	m0_be_btree_insert_credit(tree, 1, INSERT_KSIZE, INSERT_VSIZE, &cred);
+	m0_be_btree_insert_credit(tree, seg, 1, INSERT_KSIZE, INSERT_VSIZE, &cred);
 	if (overwrite)
 		m0_be_btree_delete_credit(tree, seg,
 					  1, INSERT_KSIZE, INSERT_VSIZE,

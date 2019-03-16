@@ -228,6 +228,7 @@ M0_INTERNAL void m0_be_btree_clear_credit(struct m0_be_btree     *tree,
  * @param vsize  Value data size.
  */
 M0_INTERNAL void m0_be_btree_insert_credit(struct m0_be_btree *tree,
+					   struct m0_be_seg   *seg,
 					   m0_bcount_t nr,
 					   m0_bcount_t ksize,
 					   m0_bcount_t vsize,
@@ -243,6 +244,7 @@ M0_INTERNAL void m0_be_btree_insert_credit(struct m0_be_btree *tree,
  * maximum size of possible credits in the transaction.
  */
 M0_INTERNAL void m0_be_btree_insert_credit2(struct m0_be_btree *tree,
+					    struct m0_be_seg   *seg,
 					    m0_bcount_t nr,
 					    m0_bcount_t ksize,
 					    m0_bcount_t vsize,

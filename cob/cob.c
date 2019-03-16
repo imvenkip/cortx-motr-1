@@ -1932,7 +1932,7 @@ static void cob_table_tx_credit(struct m0_be_btree *tree,
 		m0_be_btree_update_credit(tree, NULL, 1, vsize, accum);
 		break;
 	case COB_TABLE_INSERT:
-		m0_be_btree_insert_credit(tree, 1, ksize, vsize, accum);
+		m0_be_btree_insert_credit(tree, NULL, 1, ksize, vsize, accum);
 		break;
 	default:
 		M0_IMPOSSIBLE("Impossible cob btree optype");
