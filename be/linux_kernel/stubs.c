@@ -111,6 +111,12 @@ M0_INTERNAL struct m0_be_allocator *m0_be_seg_allocator(struct m0_be_seg *seg)
 	return NULL;
 }
 
+M0_INTERNAL struct m0_be_seg *m0_be_domain_seg_by_addr(struct m0_be_domain *dom,
+						       void               *addr)
+{
+	return NULL;
+}
+
 M0_INTERNAL void m0_be_seg_init(struct m0_be_seg *seg,
 				struct m0_stob *stob,
 				struct m0_be_domain *dom,

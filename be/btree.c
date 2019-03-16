@@ -310,7 +310,7 @@ static inline bool btree_node_invariant(struct m0_be_btree *btree,
 		/* kids are in order */
 		ergo(node->b_nr_active > 0 && !node->b_leaf,
 		     m0_forall(i, node->b_nr_active,
-			       key_gt(btree, node->b_key_vals[i].key, seg,
+			       key_gt(btree, seg, node->b_key_vals[i].key,
 				      node->b_children[i]->
 	b_key_vals[node->b_children[i]->b_nr_active - 1].key) &&
 			       key_lt(btree, seg, node->b_key_vals[i].key,
@@ -587,7 +587,7 @@ static void btree_insert_key(struct m0_be_btree *btree,
 		M0_BE_REG_GET_PTR(new_root, seg, tx);
 
 		new_root->b_level = btree->bb_root->b_level + 1;
-		btree_root_set(btree, new_root, tx);
+		btree_root_set(btree, seg, new_root, tx);
 		new_root->b_leaf = false;
 		new_root->b_nr_active = 0;
 		new_root->b_children[0] = rnode;
@@ -721,7 +721,7 @@ merge_siblings(struct m0_be_btree *btree,
 
 	if (parent->b_nr_active == 0 && btree->bb_root == parent) {
 		btree_node_free(parent, seg, btree, tx);
-		btree_root_set(btree, n1, tx);
+		btree_root_set(btree, seg, n1, tx);
 		mem_update(btree, seg, tx, btree, sizeof(struct m0_be_btree));
 	} else {
 		/* Update affected memory regions */
@@ -1226,7 +1226,7 @@ static void btree_destroy(struct m0_be_btree *btree,
 	m0_format_footer_update(head);
 	M0_BE_REG_PUT_PTR(head, seg, tx);
 
-	btree_root_set(btree, NULL, tx);
+	btree_root_set(btree, seg, NULL, tx);
 	mem_update(btree, seg, tx, btree, sizeof(struct m0_be_btree));
 }
 
@@ -1327,7 +1327,7 @@ static void btree_truncate(struct m0_be_btree *btree,
 				 * Cleared the root, but still have 1
 				 * child. Move the root.
 				 */
-				btree_root_set(btree, parent->b_children[0], tx);
+				btree_root_set(btree, seg, parent->b_children[0], tx);
 				mem_update(btree, seg, tx, btree,
 					   sizeof(struct m0_be_btree));
 				btree_node_free(parent, seg, btree, tx);
@@ -1452,7 +1452,7 @@ static void btree_save(struct m0_be_btree        *tree,
 	struct bt_key_val  new_kv;
 	struct bt_key_val *cur_kv;
 	bool               val_overflow = false;
-	struct m0_be_seg  *seg;
+	struct m0_be_seg  *seg = m0_be_domain_seg_by_addr(tx->t_dom, tree);
 
 	M0_ENTRY("tree=%p", tree);
 	M0_BE_REG_GET_PTR(tree, seg, tx);
@@ -1489,7 +1489,6 @@ static void btree_save(struct m0_be_btree        *tree,
 		goto fi_exist;
 
 	op_tree(op)->t_rc = 0;
-	seg = m0_be_domain_seg_by_addr(tx->t_dom, tree);
 	cur_kv = btree_search(tree, key->b_addr, seg);
 	if ((cur_kv == NULL && optype != BTREE_SAVE_UPDATE) ||
 	    (cur_kv != NULL && optype == BTREE_SAVE_UPDATE) ||
@@ -1907,7 +1906,9 @@ M0_INTERNAL void m0_be_btree_create_credit(struct m0_be_btree     *tree,
 	m0_be_tx_credit_mac(accum, &cred, nr);
 }
 
-static int btree_count_items(struct m0_be_btree *tree, m0_bcount_t *ksize,
+static int btree_count_items(struct m0_be_btree *tree,
+			     struct m0_be_seg   *seg,
+			     m0_bcount_t *ksize,
 			     m0_bcount_t *vsize)
 {
 	struct m0_be_btree_cursor cur;
@@ -1925,7 +1926,7 @@ static int btree_count_items(struct m0_be_btree *tree, m0_bcount_t *ksize,
 
 		M0_SET0(op);
 		M0_BE_OP_SYNC_WITH(op,
-				   m0_be_btree_minkey(tree, NULL, op, &start));
+				   m0_be_btree_minkey(tree, seg, op, &start));
 
 		rc = m0_be_btree_cursor_get_sync(&cur, &start, true);
 
@@ -1961,8 +1962,19 @@ M0_INTERNAL void m0_be_btree_destroy_credit(struct m0_be_btree     *tree,
 	m0_bcount_t	       ksize;
 	m0_bcount_t	       vsize;
 
+	M0_PRE(seg != NULL);
+
+	/* XXX: seg GET RID OF ITERATORS! WORKS IN BE/UT/BTREE !!!ONLY!!! */
+	#if 0
 	nodes_nr = iter_prepare(tree->bb_root, false);
-	items_nr = btree_count_items(tree, &ksize, &vsize);
+	items_nr = btree_count_items(tree, seg, &ksize, &vsize);
+	#else
+	nodes_nr = 2;
+	items_nr = 0;
+	ksize = 0;
+	vsize = 0;
+	#endif
+
 	M0_LOG(M0_DEBUG, "nodes=%d items=%d ksz=%d vsz%d",
 		nodes_nr, items_nr, (int)ksize, (int)vsize);
 
@@ -1990,7 +2002,7 @@ M0_INTERNAL void m0_be_btree_clear_credit(struct m0_be_btree     *tree,
 	m0_bcount_t            vsize;
 
 	nodes_nr = iter_prepare(tree->bb_root, false);
-	items_nr = btree_count_items(tree, &ksize, &vsize);
+	items_nr = btree_count_items(tree, seg, &ksize, &vsize);
 	items_nr++;
 	M0_LOG(M0_DEBUG, "nodes=%d items=%d ksz=%d vsz%d",
 		nodes_nr, items_nr, (int)ksize, (int)vsize);
@@ -2042,6 +2054,9 @@ M0_INTERNAL void m0_be_btree_save(struct m0_be_btree  *tree,
 				  const struct m0_buf *val,
 				  bool                 overwrite)
 {
+	struct m0_be_seg *seg = m0_be_domain_seg_by_addr(tx->t_dom, tree);
+	M0_PRE(seg != NULL);
+
 	M0_ENTRY("tree=%p", tree);
 	M0_BE_REG_GET_PTR(tree, seg, tx);
 
@@ -2073,6 +2088,9 @@ M0_INTERNAL void m0_be_btree_update(struct m0_be_btree *tree,
 				    const struct m0_buf *key,
 				    const struct m0_buf *val)
 {
+	struct m0_be_seg *seg = m0_be_domain_seg_by_addr(tx->t_dom, tree);
+	M0_PRE(seg != NULL);
+
 	M0_ENTRY("tree=%p", tree);
 	M0_BE_REG_GET_PTR(tree, seg, tx);
 

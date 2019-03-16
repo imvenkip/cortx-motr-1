@@ -243,7 +243,7 @@ struct m0_ut_suite be_ut = {
 		// GETPUT { "actrec",                  m0_be_ut_actrec_test             },
 #endif
 		{ "list",                    m0_be_ut_list                    },
-		// GETPUT { "btree",                   m0_be_ut_btree_simple            },
+		{ "btree",                   m0_be_ut_btree_simple            },
 		{ "seg_dict",                m0_be_ut_seg_dict                },
 		{ "seg0",                    m0_be_ut_seg0_test               },
 		// GETPUT { "emap",                    m0_be_ut_emap                    },
