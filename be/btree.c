@@ -129,7 +129,14 @@ static inline void mem_update(struct m0_be_btree *btree, struct m0_be_seg *seg,
 {
 	M0_PRE(seg != NULL);
 	M0_BE_REG_GET_PTR(btree, seg, tx);
+
+	/* XXX: seg, this can be veeery slow, maybe it's better to move this get
+	 * to upper frames of the stack */
+	m0_be_reg_get(&M0_BE_REG(seg, size, ptr), NULL);
 	m0_be_tx_capture(tx, &M0_BE_REG(seg, size, ptr));
+
+	/* XXX: seg */
+	m0_be_reg_put(&M0_BE_REG(seg, size, ptr), NULL);
 	M0_BE_REG_PUT_PTR(btree, seg, tx);
 }
 
@@ -573,10 +580,16 @@ static void btree_insert_nonfull(struct m0_be_btree *btree,
 		btree_node_update(node, seg, btree, tx);
 		M0_BE_REG_PUT_PTR(node, seg, tx);
 	} else {
+		int node_children_i_nr_active;
+
 		M0_BE_REG_GET_PTR(/* old */ node, seg, tx);
 		i = find_lt_key(btree, seg, node, 0, i+1, key);
 
-		if (node->b_children[i]->b_nr_active == KV_NR) {
+		M0_BE_REG_GET_PTR(node->b_children[i], seg, tx);
+		node_children_i_nr_active = node->b_children[i]->b_nr_active;
+		M0_BE_REG_PUT_PTR(node->b_children[i], seg, tx);
+
+		if (node_children_i_nr_active == KV_NR) {
 			btree_split_child(btree, seg, tx, node, i);
 			if (key_gt(btree, seg, key, node->b_key_vals[i].key))
 				i++;
@@ -2692,15 +2705,31 @@ M0_INTERNAL void m0_be_btree_cursor_kv_get(struct m0_be_btree_cursor *cur,
 		*val = op_tree(op)->t_out_val;
 }
 
-M0_INTERNAL bool m0_be_btree_is_empty(struct m0_be_btree *tree)
+M0_INTERNAL bool m0_be_btree_is_empty(struct m0_be_btree *tree,
+				      struct m0_be_seg *seg)
 {
+	bool ret;
+
+	M0_PRE(seg != NULL);
+
+	M0_BE_REG_GET_PTR(tree, seg, NULL);
 	M0_PRE(tree->bb_root != NULL);
-	return tree->bb_root->b_nr_active == 0;
+	M0_BE_REG_GET_PTR(tree->bb_root, seg, NULL);
+
+	ret = tree->bb_root->b_nr_active == 0;
+
+	M0_BE_REG_PUT_PTR(tree->bb_root, seg, NULL);
+	M0_BE_REG_PUT_PTR(tree, seg, NULL);
+
+	return ret;
 }
 
 M0_INTERNAL void btree_dbg_print(struct m0_be_btree *tree)
 {
-	iter_prepare(tree->bb_root, true);
+	/* XXX: seg */
+	if (0) {
+		iter_prepare(tree->bb_root, true);
+	}
 }
 
 static struct m0_be_op__btree *op_tree(struct m0_be_op *op)

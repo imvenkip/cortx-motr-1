@@ -646,7 +646,8 @@ M0_INTERNAL void m0_be_btree_cursor_kv_get(struct m0_be_btree_cursor *it,
 /**
  * @pre  tree->bb_root != NULL
  */
-M0_INTERNAL bool m0_be_btree_is_empty(struct m0_be_btree *tree);
+M0_INTERNAL bool m0_be_btree_is_empty(struct m0_be_btree *tree,
+				      struct m0_be_seg *seg);
 
 /** @} end of be group */
 #endif /* __MERO_BE_BTREE_H__ */

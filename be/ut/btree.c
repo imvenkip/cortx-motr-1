@@ -28,6 +28,7 @@
 #include "lib/memory.h"    /* M0_ALLOC_PTR */
 #include "lib/errno.h"     /* ENOENT */
 #include "be/ut/helper.h"
+#include "be/reg.h"        /* M0_BE_REG_GET_PTR */
 #include "ut/ut.h"
 #ifndef __KERNEL__
 #include <stdio.h>	   /* sscanf */
@@ -462,8 +463,14 @@ static struct m0_be_btree *create_tree(void)
 	M0_BE_ALLOC_PTR_SYNC(tree, seg, tx);
 	m0_be_btree_init(tree, seg, &kv_ops);
 
+	/* =================================================
+	 * XXX: seg, pin page with `tree', lock is volatile, looks like it fails
+	 * after page unloading.
+	 * ================================================= */
+	M0_BE_REG_GET_PTR(tree, seg, NULL);
+
 	M0_BE_OP_SYNC_WITH(&op, m0_be_btree_create(tree, tx, &op));
-	M0_UT_ASSERT(m0_be_btree_is_empty(tree));
+	M0_UT_ASSERT(m0_be_btree_is_empty(tree, seg));
 	m0_be_tx_close_sync(tx); /* Make things persistent. */
 	m0_be_tx_fini(tx);
 
@@ -493,7 +500,7 @@ static struct m0_be_btree *create_tree(void)
 		}
 		btree_insert(tree, &key, &val, INSERT_COUNT/2 - i - 1);
 	}
-	M0_UT_ASSERT(!m0_be_btree_is_empty(tree));
+	M0_UT_ASSERT(!m0_be_btree_is_empty(tree, seg));
 
 	M0_LOG(M0_INFO, "Inserting inplace...");
 	/* insert inplace */
@@ -545,6 +552,13 @@ static struct m0_be_btree *create_tree(void)
 
 	btree_dbg_print(tree);
 	m0_be_btree_fini(tree, seg);
+
+	/* =================================================
+	 * XXX: seg, unpin page with `tree', lock is volatile, looks like it
+	 * fails after page unloading.
+	 * ================================================= */
+	M0_BE_REG_PUT_PTR(tree, seg, NULL);
+
 	M0_LEAVE();
 	return tree;
 }
