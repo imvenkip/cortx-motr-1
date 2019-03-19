@@ -58,6 +58,15 @@ void m0_panic(const struct m0_panic_ctx *ctx, ...)
 }
 M0_EXPORTED(m0_panic);
 
+M0_INTERNAL void m0_panic_only(const struct m0_panic_ctx *ctx, ...)
+{
+	va_list ap;
+
+	va_start(ap, ctx);
+	m0_arch_panic(ctx, ap);
+	va_end(ap);
+}
+
 void m0_backtrace(void)
 {
 	m0_arch_backtrace();

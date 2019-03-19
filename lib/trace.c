@@ -675,7 +675,7 @@ M0_INTERNAL void m0_trace_args_unpack(const struct m0_trace_rec_header *trh,
 				c.pc_file   = __FILE__;
 				c.pc_lineno = __LINE__;
 				c.pc_fmt    = " ";
-				m0_arch_panic(&c, NULL);
+				m0_panic_only(&c);
 			}
 
 			args[i].v64 = (uint64_t)str_data;

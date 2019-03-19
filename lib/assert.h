@@ -104,6 +104,16 @@ struct m0_panic_ctx {
 void m0_panic(const struct m0_panic_ctx *ctx, ...)
 	__attribute__((noreturn));
 
+/**
+ * Abort program execution.
+ *
+ * This function is similar to m0_panic(), but doesn't call M0_LOG() nor
+ * checks for a double panic. Therefore, it can be called on early stages
+ * of initialisation.
+ */
+M0_INTERNAL void m0_panic_only(const struct m0_panic_ctx *ctx, ...)
+	__attribute__((noreturn));
+
 M0_INTERNAL void m0_arch_panic(const struct m0_panic_ctx *ctx, va_list ap)
 	__attribute__((noreturn));
 
