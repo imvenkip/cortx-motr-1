@@ -5,6 +5,7 @@ RUN yum --assumeyes install epel-release
 
 # install common tools
 RUN yum --assumeyes install \
+        createrepo \
         file \
         git \
         jq \
