@@ -1359,9 +1359,9 @@ static int cs_addb_stob_init(struct m0_reqh_context *rctx,
 	m0_stob_id_make(0, key, &dom->sd_id, &stob_id);
 	rc = m0_stob_find(&stob_id, &stob);
 	if (rc == 0) {
-		rc = m0_stob_locate(stob) ?:
-			m0_stob_state_get(stob) == CSS_EXISTS ? 0 :
-			m0_stob_create(stob, NULL, NULL);
+		rc = m0_stob_locate(stob);
+		if (rc == 0 && m0_stob_state_get(stob) != CSS_EXISTS)
+			rc = m0_stob_create(stob, NULL, NULL);
 		if (rc == 0)
 			addb_stob->cas_stob = stob;
 		else
