@@ -155,7 +155,7 @@ void m0_be_ut_seg_multiple(void)
 	static struct m0_thread      threads[BE_UT_SEG_THREAD_NR];
 	struct m0_semaphore          barrier;
 	bool                         rc_bool;
-	struct m0_reqh              *reqh;
+	struct m0_reqh              *reqh = NULL;
 	struct m0_be_pd             *pd;
 
 	m0_be_ut_reqh_create(&reqh);
