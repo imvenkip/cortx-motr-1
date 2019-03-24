@@ -629,17 +629,19 @@ static int pool_version_get_locked(struct m0_pools_common  *pc,
 {
 	int                     rc = -ENOENT;
 	struct m0_pool         *pool;
-	struct m0_pool_version *res = NULL;
 
 	M0_ENTRY();
 	M0_PRE(m0_mutex_is_locked(&pc->pc_mutex));
+
+	if (pv == NULL)
+		return M0_RC(-EINVAL);
 
 	m0_tl_for(pools, &pc->pc_pools, pool) {
 		if (is_md_pool(pc, pool) || is_dix_pool(pc, pool))
 			continue;
 		if (hint != NULL && !m0_fid_eq(&pool->po_id, hint))
 			continue;
-		rc = pool->po_pver_policy->pp_ops->ppo_get(pc, pool, &res);
+		rc = pool->po_pver_policy->pp_ops->ppo_get(pc, pool, pv);
 		if (rc == 0 || hint != NULL)
 			break;
 		/*
@@ -647,14 +649,6 @@ static int pool_version_get_locked(struct m0_pools_common  *pc,
 		 * No worries, let's try another one.
 		 */
 	} m0_tl_endfor;
-
-	if (res != NULL && pv != NULL)
-		*pv = res;
-
-	/** @todo m0_pools_common::pc_cur_pver not required.
-	 * Nevertheless, it seems to be updated at
-	 * m0_pools_common_conf_ready_async_cb(). */
-	pc->pc_cur_pver = res;
 
 	return M0_RC(rc);
 }
@@ -821,20 +815,11 @@ static void service_ctxs_destroy(struct m0_pools_common *pc)
 	M0_LEAVE();
 }
 
-static const char *ctx_endpoint(struct m0_reqh_service_ctx *ctx)
-{
-	return (m0_reqh_service_ctx_is_connected(ctx) &&
-		m0_rpc_session_validate(&ctx->sc_rlink.rlk_sess) == 0) ?
-		m0_rpc_link_end_point(&ctx->sc_rlink) : "";
-}
-
 static bool reqh_svc_ctx_is_in_pools(struct m0_pools_common *pc,
-				     struct m0_conf_service *cs,
-				     const char             *ep)
+				     struct m0_conf_service *cs)
 {
 	return m0_tl_find(pools_common_svc_ctx, ctx, &pc->pc_svc_ctxs,
-			  m0_fid_eq(&cs->cs_obj.co_id, &ctx->sc_fid) &&
-			  m0_streq(ep, ctx_endpoint(ctx))) != NULL;
+			  m0_fid_eq(&cs->cs_obj.co_id, &ctx->sc_fid)) != NULL;
 }
 
 /**
@@ -854,7 +839,9 @@ static int __service_ctx_create(struct m0_pools_common *pc,
 	M0_PRE((pc->pc_rmach != NULL) == services_connect);
 
 	for (endpoint = cs->cs_endpoints; *endpoint != NULL; ++endpoint) {
-		already_in = reqh_svc_ctx_is_in_pools(pc, cs, *endpoint);
+		M0_ASSERT_INFO(endpoint == cs->cs_endpoints,
+		   "Only single endpoint per service is supported for now");
+		already_in = reqh_svc_ctx_is_in_pools(pc, cs);
 		M0_LOG(M0_DEBUG, "%s svc:"FID_F" type:%d ep:%s",
 		       already_in ? "unchanged" : "new",
 		       FID_P(&cs->cs_obj.co_id),
@@ -995,24 +982,24 @@ static bool service_ctx_ha_entrypoint_cb(struct m0_clink *clink)
 	struct m0_ha_entrypoint_client     *ecl = pc->pc_ha_ecl;
 	struct m0_ha_entrypoint_rep        *rep = &ecl->ecl_rep;
 	enum m0_ha_entrypoint_client_state  state;
-	struct m0_reqh_service_ctx         *ctx;
-	int                                 rc;
 
 	state = m0_ha_entrypoint_client_state_get(ecl);
 	if (state == M0_HEC_AVAILABLE &&
 	    rep->hae_control != M0_HA_ENTRYPOINT_QUERY &&
 	    m0_fid_is_set(&rep->hae_active_rm_fid) &&
-	    !m0_fid_eq(&pc->pc_rm_ctx->sc_fid, &rep->hae_active_rm_fid)) {
-
+	    (pc->pc_rm_ctx == NULL || !m0_fid_eq(&pc->pc_rm_ctx->sc_fid,
+						 &rep->hae_active_rm_fid))) {
 		m0_mutex_lock(&pc->pc_rm_lock);
-		ctx = active_rm_ctx_find(pc);
-		if (ctx == NULL) {
-			rc = active_rm_ctx_create(pc, true);
-			M0_ASSERT(rc == 0);
-			ctx = active_rm_ctx_find(pc);
-		}
-		M0_ASSERT(ctx != NULL);
-		pc->pc_rm_ctx = ctx;
+		pc->pc_rm_ctx = active_rm_ctx_find(pc);
+		M0_LOG(M0_DEBUG, "new RM="FID_F" pc_rm_ctx=%p",
+		       FID_P(&rep->hae_active_rm_fid),
+		       pc->pc_rm_ctx);
+		/*
+		 * If pc_rm_ctx == NULL - it will be set at
+		 * m0_pools_common_conf_ready_async_cb() when
+		 * the configuration is ready. The latter is
+		 * required for active_rm_ctx_create().
+		 */
 		m0_mutex_unlock(&pc->pc_rm_lock);
 	}
 	return true;
@@ -1306,24 +1293,25 @@ static int pools_common__update_by_conf(struct m0_pools_common *pc)
 M0_INTERNAL bool m0_pools_common_conf_ready_async_cb(struct m0_clink *clink)
 {
 	struct m0_pools_common *pc = M0_AMB(pc, clink, pc_conf_ready_async);
-	struct m0_fid          *pool = NULL;
 	int                     rc;
 
 	M0_ENTRY("pc %p", pc);
 	M0_PRE(pools_common_invariant(pc));
 
+	m0_mutex_lock(&pc->pc_rm_lock);
 	if (pc->pc_rm_ctx == NULL) {
-		M0_LEAVE("The mandatory rmservice is missing.");
 		/*
-		 * Something went wrong. The newly loaded conf does not include
-		 * active RM service.
-		 *
-		 * Under the circumstances do nothing with pool related
-		 * structures, as no file operation is to be done without RM
-		 * credits, so no IOS is going to be functional from mow on.
+		 * active_rm_ctx_create() calls m0_conf_service_get()
+		 * which requires configuration to be ready. Therefore,
+		 * we have it here instead of service_ctx_ha_entrypoint_cb().
 		 */
-		return true;
+		rc = active_rm_ctx_create(pc, true);
+		M0_ASSERT(rc == 0);
+		pc->pc_rm_ctx = active_rm_ctx_find(pc);
+		M0_LOG(M0_DEBUG, "created new pc_rm_ctx=%p", pc->pc_rm_ctx);
 	}
+	m0_mutex_unlock(&pc->pc_rm_lock);
+	M0_ASSERT(pc->pc_rm_ctx != NULL);
 
 	m0_mutex_lock(&pc->pc_mutex);
 
@@ -1347,11 +1335,6 @@ M0_INTERNAL bool m0_pools_common_conf_ready_async_cb(struct m0_clink *clink)
 	 */
 	M0_POST(rc == 0);
 	M0_POST(pools_common_invariant(pc));
-	/* Don't loose the pool on configuration change. */
-	if (pc->pc_cur_pver != NULL &&
-	    pools_tlink_is_in(pc->pc_cur_pver->pv_pool))
-		pool = &pc->pc_cur_pver->pv_pool->po_id;
-	(void)pool_version_get_locked(pc, pool, NULL);
 	m0_mutex_unlock(&pc->pc_mutex);
 	M0_LEAVE();
 	return true;

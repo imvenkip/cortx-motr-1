@@ -23,8 +23,8 @@
 #endif
 #include <unistd.h>     /* getopt */
 #include <stdio.h>      /* fprintf, sscanf */
-#include <stdlib.h>     /* strtoull */
-#include <string.h>	/* strchr */
+#include <stdlib.h>     /* strtoll */
+#include <string.h>     /* strchr */
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_LIB
 #include "lib/trace.h"
@@ -73,7 +73,7 @@ static int getnum(const char *arg, const char *desc, int64_t *out)
 {
 	char *end;
 
-	*out = strtoull(arg, &end, 0);
+	*out = strtoll(arg, &end, 0);
 	if (*end != 0) {
 		fprintf(stderr, "Failed conversion of \"%s\" to %s\n",
 			arg, desc);

@@ -119,9 +119,7 @@ M0_INTERNAL int m0_sns_cm_cp_init(struct m0_cm_cp *cp)
 			M0_ASSERT(cm_proxy != NULL);
 			cp->c_cm_proxy = cm_proxy;
 			m0_cm_unlock(cm);
-		} else
-			cm_proxy = cp->c_cm_proxy;
-
+		}
 		/* set local cp to the original phase */
 		m0_fom_phase_set(&cp->c_fom, sns_cpx->scx_phase);
 	}

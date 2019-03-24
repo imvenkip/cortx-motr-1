@@ -49,7 +49,6 @@
     name:  '{{ halon_build_deps_pkgs }}'
   tags:
     - halon
-    - breaks-dry-run
 
 # RabbitMQ is needed for some of the Halon tests
 - name: install RabbitMQ
@@ -57,7 +56,6 @@
   tags:
     - halon
     - rabbitmq
-    - breaks-dry-run
 
 - name: start RabbitMQ
   service: name=rabbitmq-server state=started enabled=yes

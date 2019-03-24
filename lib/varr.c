@@ -30,7 +30,7 @@
 #ifndef __KERNEL__
 #include <limits.h>		/* CHAR_BIT */
 #else
-#include <linux/pagemap.h>	/* PAGE_CACHE_SIZE */
+#include <linux/pagemap.h>	/* PAGE_SIZE */
 #include <linux/limits.h>
 #endif
 
@@ -118,7 +118,7 @@ M0_INTERNAL int m0_varr_init(struct m0_varr *arr, uint64_t nr, size_t size,
 	M0_PRE(nr > 0 && size > 0 && bufsize > 0);
 	M0_PRE(size <= bufsize);
 #ifdef __KERNEL__
-	M0_PRE(bufsize <= PAGE_CACHE_SIZE);
+	M0_PRE(bufsize <= PAGE_SIZE);
 #endif
 
 	arr->va_nr              = nr;

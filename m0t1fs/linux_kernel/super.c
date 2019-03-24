@@ -22,6 +22,7 @@
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_M0T1FS
 #include "lib/trace.h"
 
+#include <linux/kernel.h>  /* kstrtoul */
 #include <linux/mount.h>
 #include <linux/parser.h>  /* substring_t */
 #include <linux/slab.h>    /* kmalloc, kfree */
@@ -300,7 +301,7 @@ static int num_parse(uint32_t *dest, const substring_t *src)
 	if (s == NULL)
 		return M0_ERR(-ENOMEM);
 
-	rc = strict_strtoul(s, 10, &n);
+	rc = kstrtoul(s, 10, &n);
 	if (rc == 0) {
 		if (n > UINT32_MAX)
 			rc = -EINVAL;
@@ -918,7 +919,7 @@ int m0t1fs_setup(struct m0t1fs_sb *csb, const struct mount_opts *mops)
 	struct m0_confc_args      *confc_args;
 	struct m0_reqh            *reqh = &csb->csb_reqh;
 	struct m0_conf_root       *root;
-	struct m0_pool_version    *pv = NULL;
+	struct m0_pool_version    *pv;
 	int                        rc;
 
 	M0_ENTRY();
@@ -1133,7 +1134,7 @@ M0_INTERNAL int m0t1fs_fill_cob_attr(struct m0_fop_cob *body)
 
 	body->b_atime = body->b_ctime = body->b_mtime =
 					m0_time_seconds(m0_time_now());
-        body->b_valid = (M0_COB_MTIME | M0_COB_CTIME | M0_COB_CTIME |
+	body->b_valid = (M0_COB_MTIME | M0_COB_CTIME | M0_COB_ATIME |
 	                 M0_COB_UID | M0_COB_GID | M0_COB_BLOCKS |
 	                 M0_COB_SIZE | M0_COB_NLINK | M0_COB_MODE |
 	                 M0_COB_BLKSIZE | M0_COB_LID | M0_COB_PVER);
@@ -1146,8 +1147,6 @@ M0_INTERNAL int m0t1fs_fill_cob_attr(struct m0_fop_cob *body)
                         S_IRGRP | S_IXGRP |                    /*r-x for group*/
                         S_IROTH | S_IXOTH);
 
-	if (csb->csb_pools_common.pc_cur_pver != NULL)
-		body->b_pver = csb->csb_pools_common.pc_cur_pver->pv_id;
 	return M0_RC(0);
 }
 
@@ -1317,8 +1316,8 @@ static int m0t1fs_fill_super(struct super_block *sb, void *data,
 		goto thread_stop;
 
 	sb->s_fs_info        = csb;
-	sb->s_blocksize      = PAGE_CACHE_SIZE;
-	sb->s_blocksize_bits = PAGE_CACHE_SHIFT;
+	sb->s_blocksize      = PAGE_SIZE;
+	sb->s_blocksize_bits = PAGE_SHIFT;
 	sb->s_maxbytes       = MAX_LFS_FILESIZE;
 	sb->s_op             = &m0t1fs_super_operations;
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3,10,0)

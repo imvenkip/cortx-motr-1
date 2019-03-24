@@ -875,7 +875,7 @@ M0_INTERNAL void m0_clovis__io_ref_put(struct m0_clovis *m0c)
 	M0_PRE(confc != NULL);
 
 	m0_ref_put(&m0c->m0c_ongoing_io);
-	M0_POST(m0_ref_read(&m0c->m0c_ongoing_io) >= 0 );
+	M0_POST(m0_ref_read(&m0c->m0c_ongoing_io) >= 0);
 }
 
 static int clovis_confc_init(struct m0_clovis *m0c)

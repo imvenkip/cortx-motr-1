@@ -137,7 +137,7 @@ static int ufid_proc_id_refresh(struct m0_ufid_generator *gr)
 
 	if (M0_FI_ENABLED("proc_id_overflow"))
 		proc_id_64 = M0_UFID_PROCID_MAX + 1;
-	if (M0_FI_ENABLED("proc_id_overflow"))
+	if (M0_FI_ENABLED("proc_id_warn"))
 		proc_id_64 = (M0_UFID_PROCID_MAX >>
 			      M0_UFID_PROCID_WARN_BITS) + 1;
 

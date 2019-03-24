@@ -22,8 +22,8 @@
 #include "lib/atomic.h"
 #include "lib/errno.h"
 #include "lib/time.h"
-#include "lib/string.h"      /* isxdigit, strtoul */
-#include "lib/misc.h"        /* ARRAY_SIZE */
+#include "lib/string.h"      /* isxdigit */
+#include "lib/misc.h"        /* ARRAY_SIZE, m0_strtou64 */
 
 #ifdef __KERNEL__
 #  include <linux/random.h>  /* get_random_uuid */
@@ -68,12 +68,7 @@ static int parse_hex(const char *str, int len, uint64_t *val)
 		buf[i] = *str++;
 	}
 	buf[i] = '\0';
-	/** @todo: replace with m0_strtoul in the future */
-#ifdef __KERNEL__
-	*val = simple_strtoul(buf, NULL, 16);
-#else
-	*val = strtoul(buf, NULL, 16);
-#endif
+	*val = m0_strtou64(buf, NULL, 16);
 
 	return 0;
 }

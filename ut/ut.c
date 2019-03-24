@@ -23,12 +23,13 @@
 
 #include "ut/ut.h"
 #include "ut/ut_internal.h"
-#include "ut/module.h"          /* m0_ut_module */
-#include "module/instance.h"    /* m0 */
-#include "lib/errno.h"          /* ENOENT */
-#include "lib/finject.h"        /* m0_fi_init */
-#include "lib/string.h"         /* m0_streq */
-#include "lib/memory.h"         /* M0_ALLOC_PTR */
+#include "ut/module.h"            /* m0_ut_module */
+#include "module/instance.h"      /* m0 */
+#include "lib/errno.h"            /* ENOENT */
+#include "lib/finject.h"          /* m0_fi_init */
+#include "lib/finject_internal.h" /* m0_fi_states_get */
+#include "lib/string.h"           /* m0_streq */
+#include "lib/memory.h"           /* M0_ALLOC_PTR */
 
 /**
  * @addtogroup ut
@@ -332,6 +333,29 @@ static inline const char *skipspaces(const char *str)
 	return str;
 }
 
+/* Checks that all fault injections are disabled. */
+static void check_all_fi_disabled(void)
+{
+#ifdef ENABLE_FAULT_INJECTION
+	const struct m0_fi_fpoint_state *fi_states;
+	const struct m0_fi_fpoint_state *state;
+	uint32_t                         fi_free_idx;
+	uint32_t                         i;
+
+	/*
+	 * Assume there is no concurrent access to the FI states at this point.
+	 */
+	fi_states = m0_fi_states_get();
+	fi_free_idx = m0_fi_states_get_free_idx();
+	for (i = 0; i < fi_free_idx; ++i) {
+		state = &fi_states[i];
+		M0_ASSERT_INFO(!fi_state_enabled(state),
+			       "Fault injection is not disabled: %s(), \"%s\"",
+			       state->fps_id.fpi_func, state->fps_id.fpi_tag);
+	}
+#endif /* ENABLE_FAULT_INJECTION */
+}
+
 static void run_test(const struct m0_ut *test, size_t max_name_len)
 {
 	static const char padding[256] = { [0 ... 254] = ' ', [255] = '\0' };
@@ -433,6 +457,13 @@ static int run_suite(const struct m0_ut_suite *suite, int max_name_len)
 		if (rc != 0)
 			M0_ERR_INFO(rc, "Unit-test suite finalization failure.");
 	}
+
+	/*
+	 * Check that fault injections don't move beyond the test suite
+	 * boundaries. We don't want them to cause unexpected side effects to
+	 * further tests.
+	 */
+	check_all_fi_disabled();
 
 	end         = m0_time_now();
 	mem_after   = m0_allocated_total();

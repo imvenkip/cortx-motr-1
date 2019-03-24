@@ -778,8 +778,6 @@ static void ut_clovis_test_m0_clovis_obj_op(void)
 	obj.ob_attr.oa_pver   = instance->m0c_pools_common.pc_cur_pver->pv_id;
 
 	m0_fi_enable_once("m0_clovis__obj_layout_id_get", "fake_obj_layout_id");
-	m0_fi_enable_once("m0_clovis__obj_pool_version_get",
-			  "fake_pool_version");
 	m0_fi_enable_once("tolerance_of_level", "fake_tolerance_of_level");
 
 	/* Base case: no assert for READ */

@@ -676,6 +676,21 @@ void m0_clovis_obj_op(struct m0_clovis_obj       *obj,
 	M0_ASSERT(obj->ob_layout->cl_ops->lo_io_build != NULL);
 	rc = obj->ob_layout->cl_ops->lo_io_build(&io_args, op);
 	if (rc != 0) {
+		/*
+		 * XXX FIXME At this point `rc' may be -ENOENT and
+		 * `*op' == NULL. Therefore, we will catch segfault in this
+		 * case. Also, `rc' may be -EMSGSIZE and `*op' != NULL,
+		 * but op_sm and op_sm_group are not initialised in this case.
+		 * @see m0_clovis__obj_io_build().
+		 *
+		 * It is good practice not to dereference `*op' if the function
+		 * returns an error. Moreover, any part of `*op' shouldn't be
+		 * initialised in this case.
+		 *
+		 * Since m0_clovis_obj_op() doesn't return error code, we
+		 * have to return NULL in `*op' explicitly. Otherwise, user
+		 * can get invalid pointer.
+		 */
 		/* Move the op's state to FAILED. */
 		m0_sm_group_lock(&(*op)->op_sm_group);
 		m0_sm_fail(&(*op)->op_sm, M0_CLOVIS_OS_FAILED, rc);

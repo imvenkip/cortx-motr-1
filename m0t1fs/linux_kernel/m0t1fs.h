@@ -640,11 +640,6 @@ struct m0_pdclust_layout;
 M0_INTERNAL int m0t1fs_init(void);
 M0_INTERNAL void m0t1fs_fini(void);
 
-/**
-   Return the value of the kernel node_uuid parameter.
- */
-const char *m0t1fs_param_node_uuid_get(void);
-
 enum {
 	M0T1FS_RPC_TIMEOUT              = 100,   /* seconds */
 	M0T1FS_RPC_MAX_RETRIES          =  10,
@@ -653,7 +648,7 @@ enum {
 	M0T1FS_MAX_NR_RPC_IN_FLIGHT     = 100,
 	M0T1FS_DEFAULT_NR_DATA_UNITS    = 1,
 	M0T1FS_DEFAULT_NR_PARITY_UNITS  = 1,
-	M0T1FS_DEFAULT_STRIPE_UNIT_SIZE = PAGE_CACHE_SIZE,
+	M0T1FS_DEFAULT_STRIPE_UNIT_SIZE = PAGE_SIZE,
 	M0T1FS_MAX_NR_CONTAINERS        = 4096,
 	M0T1FS_COB_ID_STRLEN            = 34,
 };

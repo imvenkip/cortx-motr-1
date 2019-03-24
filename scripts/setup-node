@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -eE -o pipefail
 
 ### wrapper around Vagrant's ansible-playbook configs, it hides boilerplate
 ### commands which allow using those configs to provision stand-alone nodes.
@@ -21,6 +22,7 @@ local_run=
 node_type=cmu
 remote_user=root
 remote_passwd=
+ask_pass=--ask-pass
 ssh_key=
 proxy_host=
 proxy_user=
@@ -42,9 +44,13 @@ usage()
 {
     cat <<USAGE_END
 Usage: $PROG_NAME [options] host1[,host2]
+       $PROG_NAME [options] inventory_name
 
   Helper tool to run 'ansible-playbook' commands with Mero provisioning configs
-  (see scripts/provisioning/) against stand-alone nodes.
+  (see scripts/provisioning/) against stand-alone nodes. Nodes can be specified
+  either as comma-separated list of hostnames/IPs or as Ansible inventory file.
+  In latter case, the '<inventory_name>.inventory' file should exist in
+  scripts/provision/ directory.
 
   Options:
 
@@ -84,9 +90,21 @@ Usage: $PROG_NAME [options] host1[,host2]
                         as -U|--user option or '$remote_user' if none is
                         provided.
 
+       --no-ask-pass    Don't ask for passowrd interactively if none of the
+                        available ssh keys works and no '-P|--pass' option
+                        provided.
+
+       --limit HOST1[,HOST2]|GROUP
+
+                        Limit ansible-playbook actions to a subset of inventory
+                        hosts.
+
+    -e|--extra-vars     Pass variable overrides to \`actions-playbook\`.
+
     -t|--node-type cmu|ssu|client
 
-                        A type of node to provision. Default is '$node_type'.
+                        A type of node to provision. Default is '$node_type',
+                        (ignored when using <inventory_name> form).
 
     -T|--tags TAG1[,TAG2]
 
@@ -133,8 +151,8 @@ parse_cli_options()
     # We need to separate TEMP declaration and assignment because 'local TEMP='
     # would nuke the return value of getopt.
     local TEMP
-    TEMP=$( getopt -o hvnlU:P:k:t:T:S: \
-                   --long help,verbose,dry-run,local,user:,pass:,ssh-key:,proxy-host:,proxy-user:,node-type:,tags:,skip-tags: \
+    TEMP=$( getopt -o hvnlU:P:k:e:t:T:S: \
+                   --long help,verbose,dry-run,local,user:,pass:,extra-vars:,ssh-key:,proxy-host:,proxy-user:,node-type:,tags:,skip-tags:,no-ask-pass,limit: \
                    -n "$PROG_NAME" -- "$@" )
 
     [[ $? != 0 ]] && help
@@ -164,6 +182,9 @@ parse_cli_options()
             -S|--skip-tags)     skip_tags=$2; shift 2 ;;
                --proxy-host)    proxy_host=$2; shift 2 ;;
                --proxy-user)    proxy_user=$2; shift 2 ;;
+               --no-ask-pass)   ask_pass=''; shift ;;
+               --limit)         limit_hosts=$2; shift 2 ;;
+            -e|--extra-vars)    extra_vars=$2; shift 2 ;;
             -v|--verbose)       if $verbose ; then
                                     ansible_verbose+=v
                                 fi
@@ -207,9 +228,6 @@ check_dependencies()
 # Main
 #
 
-# exit immediately if one the commands exits with a non-zero status
-set -eE -o pipefail
-
 parse_cli_options "$@"
 eval set -- "$cli_args"
 
@@ -219,7 +237,13 @@ cd $VAGRANT_DIR
 [[ -n $1 ]] || die 'A host argument is required, please check' \
                    "\`$PROG_NAME --help\` for details."
 
-remote_hosts=$1
+if [[ -f $1.inventory ]] ; then
+    inventory=$1.inventory
+    node_type=$1
+else
+    remote_hosts=$1
+fi
+
 auth="${ssh_key:+--extra-vars ansible_private_key_file='$ssh_key'}"
 auth+="${remote_passwd:+\n    --extra-vars ansible_ssh_pass='$remote_passwd'}"
 ssh_proxy_cmd="ssh -W %h:%p -q ${proxy_user:-$remote_user}@$proxy_host"
@@ -228,11 +252,13 @@ ssh_proxy="--ssh-common-args='-o ProxyCommand=\"$ssh_proxy_cmd\"'"
 cmd=$(cat <<COMMAND_END
 ansible-playbook ${ansible_verbose:+-$ansible_verbose} ${node_type}.yml
     ${tags:+--tags $tags}
-    --skip-tags recover-man-pages,vault-release,xperior,ssh${dry_run:+,breaks-dry-run}${skip_tags:+,$skip_tags}
+    --skip-tags debuginfo,nfs-client,nfs-server,reboot,recover-man-pages,ssh,vault-release,xperior${skip_tags:+,$skip_tags}
     --user $remote_user
-    ${local_run:-${auth:---ask-pass}}
-    --extra-vars override_hosts=$remote_hosts
-    --inventory $remote_hosts,
+    ${local_run:-${auth:-$ask_pass}}
+    ${remote_hosts:+--extra-vars override_hosts=$remote_hosts --inventory $remote_hosts,}
+    ${inventory:+--inventory $inventory}
+    ${limit_hosts:+--limit $limit_hosts}
+    ${extra_vars:+--extra-vars $extra_vars}
     $dry_run
 COMMAND_END
 )

@@ -35,7 +35,11 @@
  *
  * Please, refer to m0gccxml2xcode documentation for more details.
  */
+#ifdef ENABLE_CASTXML
+#define M0_XC_ATTR(name, val) __attribute__((annotate("xc_" name "," val)))
+#else
 #define M0_XC_ATTR(name, val) __attribute__((gccxml("xc_" name, val)))
+#endif
 
 /**
  * Shortened versions of M0_XC_ATTR to specifiy m0_xcode_aggr types.

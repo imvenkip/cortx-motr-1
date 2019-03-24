@@ -403,7 +403,8 @@ noinst_PROGRAMS            += desim/ut/chs_test
 endif
 desim_ut_chs_test_CPPFLAGS  = -DM0_TARGET='chs_test' $(AM_CPPFLAGS)
 desim_ut_chs_test_LDADD     = $(top_builddir)/mero/libmero.la \
-                              $(top_builddir)/ut/libmero-ut.la
+                              $(top_builddir)/ut/libmero-ut.la \
+                              @MATH_LIBS@
 
 if ENABLE_UNIT_TESTS
 noinst_PROGRAMS               += desim/ut/m0t1fs_test
@@ -653,7 +654,8 @@ include $(top_srcdir)/clovis/st/mt/Makefile.sub
 sbin_PROGRAMS                    += clovis/m0clovis/m0clovis
 
 clovis_m0clovis_m0clovis_CPPFLAGS = -DM0_TARGET='m0clovis' $(AM_CPPFLAGS)
-clovis_m0clovis_m0clovis_LDADD    = $(top_builddir)/mero/libmero.la
+clovis_m0clovis_m0clovis_LDADD    = $(top_builddir)/mero/libmero.la \
+                                    @UUID_LIBS@
 
 include $(top_srcdir)/clovis/m0clovis/Makefile.sub
 
@@ -664,7 +666,7 @@ sbin_PROGRAMS                    += clovis/m0crate/m0crate
 
 clovis_m0crate_m0crate_CPPFLAGS = -DM0_TARGET='m0crate' $(AM_CPPFLAGS)
 clovis_m0crate_m0crate_LDADD    = $(top_builddir)/mero/libmero.la \
-				-lm -laio -lyaml
+                                  @AIO_LIBS@ @RT_LIBS@ @YAML_LIBS@
 
 include $(top_srcdir)/clovis/m0crate/Makefile.sub
 
@@ -710,7 +712,8 @@ utils/mkfs/m0mkfs.o: xcode/protocol_checksum.h
 
 sbin_PROGRAMS                  += utils/layout/m0layout
 utils_layout_m0layout_CPPFLAGS  = -DM0_TARGET='m0layout' $(AM_CPPFLAGS)
-utils_layout_m0layout_LDADD     = $(top_builddir)/mero/libmero.la
+utils_layout_m0layout_LDADD     = $(top_builddir)/mero/libmero.la \
+                                  @MATH_LIBS@
 
 #
 # utils ----------------------------------------------- {{{2
@@ -1020,28 +1023,42 @@ ff2c_verbose_0 = @echo "  FF2C  " $<;
 # structures from *.h files. For more information about xcode please refer to
 # xcode/xcode.h and xcode/m0gccxml2xcode documentation.
 
+# set specific flags for particular CXXXML program
+if ENABLE_CASTXML
+cxxxml_tag = "CASTXML"
+cxxxml2xc_tag = "CASTXML2XC"
+# generate gccxml-like output with castxml
+CXXXML_FLAGS := --castxml-gccxml
+CXXXML_OUTPUT := -o # keep trailing whitespace after -o
+CXXXML2XC_FLAGS := --castxml
+else
+cxxxml_tag = "GCCXML"
+cxxxml2xc_tag = "GCCXML2XC"
+# set maximum supported gcc version by gccxml, currently it's 4.2
+CXXXML_FLAGS := -DGCC_VERSION=4002
+CXXXML_OUTPUT := -fxml=
+CXXXML2XC_FLAGS :=
+endif
+
 # hide actual gccxml/m0gccxml2xcode build commands in silent make mode (V=0) and
 # display them otherwise (V=1); take into account default verbosity level in
 # configure (controlled by --enable-silent-rules option)
-gccxml_verbose   = $(gccxml_verbose_$(V))
-gccxml_verbose_  = $(gccxml_verbose_$(AM_DEFAULT_VERBOSITY))
-gccxml_verbose_0 = @echo " GCCXML    " $@;
+cxxxml_verbose   = $(cxxxml_verbose_$(V))
+cxxxml_verbose_  = $(cxxxml_verbose_$(AM_DEFAULT_VERBOSITY))
+cxxxml_verbose_0 = @echo " ${cxxxml_tag}    " $@;
 
-gccxml2xcode_verbose   = $(gccxml2xcode_verbose_$(V))
-gccxml2xcode_verbose_  = $(gccxml2xcode_verbose_$(AM_DEFAULT_VERBOSITY))
-gccxml2xcode_verbose_0 = @echo " GCCXML2XC " $@;
+cxxxml2xcode_verbose   = $(cxxxml2xcode_verbose_$(V))
+cxxxml2xcode_verbose_  = $(cxxxml2xcode_verbose_$(AM_DEFAULT_VERBOSITY))
+cxxxml2xcode_verbose_0 = @echo " ${cxxxml2xc_tag} " $@;
 
 # gccxml doesn't like -Werror and --coverage options so we need to remove them
 # from CFLAGS
-
-GCCXML_UNSUPPORTED_CFLAGS := -Werror --coverage -pipe -Wp,-D_FORTIFY_SOURCE=2 --param=ssp-buffer-size=4 -grecord-gcc-switches -fstack-protector-strong
-# set maximum supported gcc version by gccxml, currently it's 4.2
-GCCXML_CPPFLAGS := -DGCC_VERSION=4002
-GCCXML_CFLAGS   := $(filter-out $(GCCXML_UNSUPPORTED_CFLAGS), $(CPPFLAGS) $(CFLAGS) $(AM_CPPFLAGS) $(AM_CFLAGS))
+CXXXML_UNSUPPORTED_CFLAGS := -Werror -Wno-trampolines --coverage -pipe -Wp,-D_FORTIFY_SOURCE=2 --param=ssp-buffer-size=4 -grecord-gcc-switches -fstack-protector-strong
+CXXXML_CFLAGS := $(filter-out $(CXXXML_UNSUPPORTED_CFLAGS), $(CPPFLAGS) $(CFLAGS) $(AM_CPPFLAGS) $(AM_CFLAGS))
 
 %_xc.h %_xc.c: %.h config.h
-	$(gccxml_verbose)$(GCCXML) $(GCCXML_CPPFLAGS) $(GCCXML_CFLAGS) -fxml=$(<:.h=.gccxml) $<
-	$(gccxml2xcode_verbose)$(top_srcdir)/xcode/m0gccxml2xcode -i $(<:.h=.gccxml) -l $(XC_LIST_FILE)
+	$(cxxxml_verbose)$(CXXXML) $(CXXXML_FLAGS) $(CXXXML_CFLAGS) $(CXXXML_OUTPUT)$(<:.h=.gccxml) $<
+	$(cxxxml2xcode_verbose)$(top_srcdir)/xcode/m0gccxml2xcode $(CXXXML2XC_FLAGS) -i $(<:.h=.gccxml) -l $(XC_LIST_FILE)
 
 #
 # cg files -------------------------------------------- {{{2

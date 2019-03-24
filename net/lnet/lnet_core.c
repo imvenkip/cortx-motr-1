@@ -20,9 +20,9 @@
  */
 
 #ifndef __KERNEL__
-#include <stdio.h>   /* snprintf */
-#include <stdlib.h>  /* strtoull */
+#include <stdio.h>      /* snprintf */
 #endif /* __KERNEL__ */
+#include "lib/misc.h"   /* m0_strtou32 */
 #include "mero/magic.h"
 
 /**
@@ -382,10 +382,6 @@ M0_INTERNAL int nlx_core_buf_desc_decode(struct nlx_core_transfer_mc *lctm,
 #undef TM_EP
 #undef CBD_EP
 
-#if defined(__KERNEL__) && !defined(strtoul)
-#define strtoul simple_strtoul
-#endif
-
 int nlx_core_ep_addr_decode(struct nlx_core_domain *lcdom,
 			    const char *ep_addr,
 			    struct nlx_core_ep_addr *cepa)
@@ -406,18 +402,18 @@ int nlx_core_ep_addr_decode(struct nlx_core_domain *lcdom,
 	if (rc != 0)
 		return M0_RC(rc);
 	++cp;
-	cepa->cepa_pid = strtoul(cp, &endp, 10);
+	cepa->cepa_pid = m0_strtou32(cp, &endp, 10);
 	if (*endp != ':')
 		return M0_ERR(-EINVAL);
 	cp = endp + 1;
-	cepa->cepa_portal = strtoul(cp, &endp, 10);
+	cepa->cepa_portal = m0_strtou32(cp, &endp, 10);
 	if (*endp != ':')
 		return M0_ERR(-EINVAL);
 	cp = endp + 1;
 	if (strcmp(cp, "*") == 0) {
 		cepa->cepa_tmid = M0_NET_LNET_TMID_INVALID;
 	} else {
-		cepa->cepa_tmid = strtoul(cp, &endp, 10);
+		cepa->cepa_tmid = m0_strtou32(cp, &endp, 10);
 		if (*endp != 0 || cepa->cepa_tmid > M0_NET_LNET_TMID_MAX ||
 		    cepa->cepa_tmid == 0)
 			return M0_ERR(-EINVAL);

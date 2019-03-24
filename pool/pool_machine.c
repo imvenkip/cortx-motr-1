@@ -1015,7 +1015,6 @@ static int poolmach_spare_inherit(struct m0_poolmach *pm, struct m0_pool *pool)
                 if (pme.pe_state != M0_PNDS_FAILED) {
                         m0_rwlock_write_lock(&pm->pm_lock);
                         spare_usage_arr_update(pm, &pme);
-                        pd = &state->pst_devices_array[pme.pe_index];
 			M0_CNT_INC(state->pst_nr_failures);
                         m0_rwlock_write_unlock(&pm->pm_lock);
                 }

@@ -130,12 +130,13 @@ AS_CASE([$host_os],
 # variables ------------------------------------------- {{{2
 
 AC_ARG_VAR([KCFLAGS], [kernel-space CFLAGS])
-AC_ARG_VAR([GCCXML],  [gccxml command])
+AC_ARG_VAR([CXXXML],  [gccxml/castxml command])
 
 # define macros --------------------------------------- {{{2
 AH_TEMPLATE([CLOVIS_IDX_STORE_CASS],  [Use Cassandra as KVS backend.])
 AH_TEMPLATE([CLOVIS_IDX_CASS_DRV_V22],[Cassandra driver version >= 2.2.])
 AH_TEMPLATE([CONFIG_LNET_MAX_PAYLOAD],[Max LNET payload.])
+AH_TEMPLATE([ENABLE_CASTXML],         [Use CastXML instead of GCC-XML])
 AH_TEMPLATE([ENABLE_DIST_MODE],       [Enable distribution mode (only for package building).])
 AH_TEMPLATE([ENABLE_DEV_MODE],        [Enable developer mode.])
 AH_TEMPLATE([ENABLE_RELEASE],         [Enable release mode (this has the same effect as --disable-dev-mode).])
@@ -343,6 +344,17 @@ AC_ARG_ENABLE([systemd],
         [], [enable_systemd=yes]
 )
 
+# CastXML {{{3
+AC_ARG_ENABLE([castxml],
+        [AS_HELP_STRING([--enable-castxml],
+                        [use CastXML instead of GCC-XML])],
+        [], [enable_castxml=no]
+)
+AS_IF([test x$enable_castxml = xyes],
+      AC_DEFINE([ENABLE_CASTXML]))
+AM_CONDITIONAL([ENABLE_CASTXML],
+               [test x$enable_castxml = xyes])
+
 # argument options ------------------------------------ {{{2
 
 # trace-kbuf-size {{{3
@@ -447,10 +459,15 @@ AC_PROG_SED
 AC_PROG_LN_S
 AC_PROG_INSTALL
 
+AS_IF([test x$enable_castxml = xyes],
+      [cxxxml_name=castxml],
+      [cxxxml_name=gccxml]
+)
+
 # gccxml is required by xcode/m0gccxml2xcode script
-AC_PATH_PROG(GCCXML, gccxml,, [/usr/bin$PATH_SEPARATOR$PATH])
-AS_IF([test -z $GCCXML],
-      AC_MSG_ERROR([gccxml is not found: it can be installed from gccxml \
+AC_PATH_PROG(CXXXML, $cxxxml_name,, [/usr/bin$PATH_SEPARATOR$PATH])
+AS_IF([test -z $CXXXML],
+      AC_MSG_ERROR([$cxxxml_name is not found: it can be installed from gccxml \
 package on Red Hat based systems])
 )
 

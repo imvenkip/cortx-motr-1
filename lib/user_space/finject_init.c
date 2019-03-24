@@ -55,8 +55,6 @@ M0_INTERNAL int m0_fi_init(void)
 	return 0;
 }
 
-M0_INTERNAL void fi_states_fini(void);
-
 M0_INTERNAL void m0_fi_fini(void)
 {
 	fi_states_fini();

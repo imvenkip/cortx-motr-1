@@ -9,21 +9,18 @@
     remote_src: yes
     # don't copy if file exists
     force: no
-  tags: breaks-dry-run
 
 - name: update systemd-journal-remote.service options (http)
   replace:
     path:    /etc/systemd/system/systemd-journal-remote.service
     regexp:  '--listen-https='
     replace: '--listen-http='
-  tags: breaks-dry-run
 
 - name: update systemd-journal-remote.service options (output)
   replace:
     path:    /etc/systemd/system/systemd-journal-remote.service
     regexp:  '--output=/var/log/journal/remote/'
     replace: '--output=/var/log/journal/'
-  tags: breaks-dry-run
 
 # Due to a bug in old systemd version that is used in CentOS-7, the ACK mask for
 # /var/log/journal/ dir is reset to 'r-x' on every boot, which renders any write
@@ -35,7 +32,6 @@
     path:    /etc/systemd/system/systemd-journal-remote.service
     regexp:  'User=systemd-journal-remote'
     replace: 'User=root'
-  tags: breaks-dry-run
 
 - name: create directory for remote journals
   file:
@@ -51,7 +47,6 @@
     etype:  group
     state:  present
     permissions: rwx
-  tags: breaks-dry-run
 
 - name: start systemd-journal-remote service
   service: name=systemd-journal-remote state=started enabled=yes

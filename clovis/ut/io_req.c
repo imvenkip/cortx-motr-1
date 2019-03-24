@@ -163,7 +163,7 @@ static void ut_clovis_test_ioreq_iosm_handle_launch(void)
 	struct m0_clovis_realm  realm;
 	struct m0_clovis_entity entity;
 	struct m0_clovis_op_io_ops *ioo_ops;
-	struct nw_xfer_request *xfer_req = NULL;
+	struct nw_xfer_request *xfer_req;
 
 	/* Init. */
 	instance = dummy_instance;
@@ -220,7 +220,6 @@ static void ut_clovis_test_ioreq_iosm_handle_launch(void)
 
 	m0_sm_init(&ioo->ioo_sm, &io_sm_conf, IRS_INITIALIZED, &grp);
 	m0_sm_group_lock(&grp);
-	m0_fi_enable_once("m0_clovis_op_stable", "skip_ongoing_io_ref");
 	ioreq_iosm_handle_launch(&grp, &ioo->ioo_ast);
 	M0_UT_ASSERT(ioo->ioo_sm.sm_state == IRS_READING);
 	M0_UT_ASSERT(ioo->ioo_oo.oo_oc.oc_op.op_sm.sm_state ==
@@ -248,7 +247,6 @@ static void ut_clovis_test_ioreq_iosm_handle_launch(void)
 		&ut_clovis_mock_ioreq_parity_recalc;
 	ioo->ioo_ops = ioo_ops;
 
-	m0_fi_enable_once("m0_clovis_op_stable", "skip_ongoing_io_ref");
 	m0_sm_init(&ioo->ioo_sm, &io_sm_conf, IRS_INITIALIZED, &grp);
 	m0_sm_group_lock(&grp);
 	ioreq_iosm_handle_launch(&grp, &ioo->ioo_ast);
@@ -327,7 +325,6 @@ static void ut_clovis_test_ioreq_iosm_handle_launch(void)
 	/* Set some callbacks */
 	ioo_ops->iro_iosm_handle_executed = &ut_clovis_mock_ioreq_iosm_handle_executed;
 	ioo->ioo_ops = ioo_ops;
-	m0_fi_enable_once("m0_clovis_op_stable", "skip_ongoing_io_ref");
 	ioreq_iosm_handle_launch(&grp, &ioo->ioo_ast);
 	M0_UT_ASSERT(ioo->ioo_sm.sm_state == IRS_READ_COMPLETE);
 	M0_UT_ASSERT(ioo->ioo_oo.oo_oc.oc_op.op_sm.sm_state ==
@@ -412,7 +409,7 @@ static void ut_clovis_test_ioreq_iosm_handle_executed(void)
 {
 	struct m0_sm_group          grp;
 	struct m0_sm_group         *op_grp;
-	struct m0_clovis           *instance = NULL;
+	struct m0_clovis           *instance;
 	struct m0_clovis_op_io     *ioo;
 	struct m0_clovis_realm      realm;
 	struct m0_clovis_entity     entity;
@@ -492,7 +489,6 @@ static void ut_clovis_test_ioreq_iosm_handle_executed(void)
 	m0_sm_group_unlock(op_grp);
 
 	ioo->ioo_rc = -1;
-	m0_fi_enable_once("m0_clovis_op_stable", "skip_ongoing_io_ref");
 	ioreq_iosm_handle_executed(&grp, &ioo->ioo_ast);
 	m0_sm_group_unlock(&grp);
 
@@ -521,7 +517,6 @@ static void ut_clovis_test_ioreq_iosm_handle_executed(void)
 
 	/* Enable FI */
 	m0_fi_enable_once("ut_clovis_mock_ioreq_dgmode_read", "ut_mock_dgmode_read_fails");
-	m0_fi_enable_once("m0_clovis_op_stable", "skip_ongoing_io_ref");
 	ioreq_iosm_handle_executed(&grp, &ioo->ioo_ast);
 	m0_sm_group_unlock(&grp);
 	M0_UT_ASSERT(ioo->ioo_oo.oo_oc.oc_op.op_rc == -EAGAIN);
@@ -546,7 +541,6 @@ static void ut_clovis_test_ioreq_iosm_handle_executed(void)
 
 	/* Enable FI */
 	m0_fi_enable_once("ut_clovis_mock_ioreq_parity_verify", "ut_mock_parity_verify_fail");
-	m0_fi_enable_once("m0_clovis_op_stable", "skip_ongoing_io_ref");
 	ioreq_iosm_handle_executed(&grp, &ioo->ioo_ast);
 	m0_sm_group_unlock(&grp);
 	M0_UT_ASSERT(ioo->ioo_rc == -EINVAL);
@@ -573,7 +567,6 @@ static void ut_clovis_test_ioreq_iosm_handle_executed(void)
 	/* Enable FI */
 	m0_fi_enable_once("ut_clovis_mock_handle_executed_adc",
 					"ut_mock_handle_executed_adc_fails");
-	m0_fi_enable_once("m0_clovis_op_stable", "skip_ongoing_io_ref");
 	ioreq_iosm_handle_executed(&grp, &ioo->ioo_ast);
 	m0_sm_group_unlock(&grp);
 	M0_UT_ASSERT(ioo->ioo_rc == -EINVAL);
@@ -599,7 +592,6 @@ static void ut_clovis_test_ioreq_iosm_handle_executed(void)
 	m0_sm_state_set(&ioo->ioo_oo.oo_oc.oc_op.op_sm, M0_CLOVIS_OS_LAUNCHED);
 	m0_sm_group_unlock(op_grp);
 
-	m0_fi_enable_once("m0_clovis_op_stable", "skip_ongoing_io_ref");
 	ioreq_iosm_handle_executed(&grp, &ioo->ioo_ast);
 	m0_sm_group_unlock(&grp);
 
@@ -626,7 +618,6 @@ static void ut_clovis_test_ioreq_iosm_handle_executed(void)
 	 /*Enable FI*/
 	m0_fi_enable_once("ut_clovis_mock_ioreq_dgmode_write",
 					"ut_mock_dgmode_write_fails");
-	m0_fi_enable_once("m0_clovis_op_stable", "skip_ongoing_io_ref");
 	ioreq_iosm_handle_executed(&grp, &ioo->ioo_ast);
 	m0_sm_group_unlock(&grp);
 	M0_UT_ASSERT(ioo->ioo_rc == -EAGAIN);
@@ -652,7 +643,7 @@ static void ut_clovis_test_ioreq_iosm_handle_executed(void)
  */
 static void ut_clovis_test_ioreq_iomaps_destroy(void)
 {
-	struct m0_clovis       *instance = NULL;
+	struct m0_clovis       *instance;
 	struct m0_clovis_op_io *ioo;
 
 	/* initialise clovis */
@@ -870,7 +861,7 @@ static void ut_clovis_test_ioreq_parity_recalc(void)
 	int                     rc;
 	struct pargrp_iomap    *map;
 	struct m0_clovis_op_io *ioo;
-	struct m0_clovis       *instance = NULL;
+	struct m0_clovis       *instance;
 	struct m0_clovis_realm  realm;
 
 	/* Create a dummy ioo */
@@ -1003,7 +994,7 @@ static void ut_clovis_test_device_check(void)
 {
 	int                     rc;
 	struct m0_clovis_op_io *ioo;
-	struct m0_clovis       *instance = NULL;
+	struct m0_clovis       *instance;
 	struct m0_clovis_realm  realm;
 	struct nw_xfer_request *xfer;
 	struct target_ioreq    *ti;
@@ -1054,7 +1045,7 @@ static void ut_clovis_test_ioreq_dgmode_read(void)
 {
 	int                     rc;
 	struct m0_clovis_op_io *ioo;
-	struct m0_clovis       *instance = NULL;
+	struct m0_clovis       *instance;
 	struct nw_xfer_ops     *nxr_ops;
 	struct m0_clovis_realm  realm;
 	struct nw_xfer_request *xfer;
@@ -1107,7 +1098,7 @@ static void ut_clovis_test_ioreq_dgmode_write(void)
 {
 	int                     rc;
 	struct m0_clovis_op_io *ioo;
-	struct m0_clovis       *instance = NULL;
+	struct m0_clovis       *instance;
 	struct nw_xfer_ops     *nxr_ops;
 	struct m0_clovis_realm  realm;
 	struct nw_xfer_request *xfer;
@@ -1162,7 +1153,7 @@ static void ut_clovis_test_ioreq_dgmode_recover(void)
 	int                     i;
 	int                     rc;
 	struct m0_clovis_op_io *ioo;
-	struct m0_clovis       *instance = NULL;
+	struct m0_clovis       *instance;
 	struct m0_clovis_realm  realm;
 
 	/* Init. */
@@ -1198,6 +1189,8 @@ M0_INTERNAL int ut_clovis_io_req_init(void)
 	ut_clovis_shuffle_test_order(&ut_suite_clovis_io_req);
 #endif
 
+	m0_fi_enable("m0_clovis_op_stable", "skip_ongoing_io_ref");
+
 	m0_clovis_init_io_op();
 
 	rc = ut_m0_clovis_init(&dummy_instance);
@@ -1217,6 +1210,8 @@ M0_INTERNAL int ut_clovis_io_req_fini(void)
 	//				      dummy_instance);
 	ut_clovis_layout_domain_empty(dummy_instance);
 	ut_m0_clovis_fini(&dummy_instance);
+
+	m0_fi_disable("m0_clovis_op_stable", "skip_ongoing_io_ref");
 
 	return 0;
 }

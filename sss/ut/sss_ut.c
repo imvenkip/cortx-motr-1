@@ -357,7 +357,7 @@ static void sss_process_lib_load_testlib_test(void)
 	int            i;
 
 	/*
-	 * This failure injection can enabled, because libtestlib.so is also
+	 * This failure injection can be enabled, because libtestlib.so is also
 	 * loaded by other tests.
 	 */
 	m0_fi_enable(__func__, "loaded");

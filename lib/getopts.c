@@ -20,21 +20,10 @@
 
 #include "lib/getopts.h"
 
-#ifdef __KERNEL__
-#  include <linux/kernel.h>     /* simple_strtoull */
-#else
-#  include <stdlib.h>           /* strtoull */
-#endif
-#include "lib/misc.h"           /* strchr */
+#include "lib/misc.h"           /* strchr, m0_strtou64 */
 #include "lib/errno.h"          /* EINVAL */
 #include "lib/assert.h"         /* M0_CASSSERT */
 #include "lib/types.h"          /* UINT64_MAX */
-
-#ifdef __KERNEL__
-#  define STRTOULL simple_strtoull
-#else
-#  define STRTOULL strtoull
-#endif
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_LIB
 #include "lib/trace.h"
@@ -60,7 +49,7 @@ M0_INTERNAL int m0_bcount_get(const char *arg, m0_bcount_t *out)
 
 	M0_CASSERT(ARRAY_SIZE(suffix) - 1 == ARRAY_SIZE(multiplier));
 
-	*out = STRTOULL(arg, &end, 0);
+	*out = m0_strtou64(arg, &end, 0);
 
 	if (*end != 0 && rc == 0) {
 		pos = strchr(suffix, *end);
@@ -100,10 +89,10 @@ M0_INTERNAL int m0_time_get(const char *arg, m0_time_t *out)
 
 	M0_CASSERT(ARRAY_SIZE(unit) == ARRAY_SIZE(multiplier));
 
-	before = STRTOULL(arg, &end, 10);
+	before = m0_strtou64(arg, &end, 10);
 	if (*end == M0_GETOPTS_DECIMAL_POINT) {
 		arg = ++end;
-		after = STRTOULL(arg, &end, 10);
+		after = m0_strtou64(arg, &end, 10);
 		for (i = 0; i < end - arg; ++i) {
 			pow_of_10 = pow_of_10 >= UINT64_MAX / 10 ? UINT64_MAX :
 				    pow_of_10 * 10;

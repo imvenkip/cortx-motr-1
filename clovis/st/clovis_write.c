@@ -164,7 +164,7 @@ static int write_verify(struct m0_bufvec *data_w, struct m0_uint128 oid,
 		/* Create and launch the read requests */
 		clovis_st_obj_op(&obj, M0_CLOVIS_OC_READ,
 			      &ext_r, &data_r, &attr_r, 0, &ops_r[0]);
-		if (ops_r == NULL)
+		if (ops_r[0] == NULL)
 			goto CLEANUP;
 
 		clovis_st_op_launch(ops_r, 1);

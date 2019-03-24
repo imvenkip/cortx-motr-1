@@ -510,8 +510,6 @@ static void ut_clovis_test_clovis_obj_op_obj_init(void)
 	oo.oo_oc.oc_op.op_code = M0_CLOVIS_EO_CREATE;
 	m0_clovis_op_common_bob_init(&oo.oo_oc);
 
-	m0_fi_enable_once("m0_clovis__obj_pool_version_get",
-			  "fake_pool_version");
 	rc = clovis_obj_op_obj_init(&oo);
 	M0_UT_ASSERT(rc == 0);
 
@@ -531,8 +529,8 @@ static void ut_clovis_test_clovis_obj_op_prepare(void)
 	struct m0_clovis_realm      realm;
 	struct m0_clovis_entity     entity;
 	struct m0_clovis_obj        obj;
-	struct m0_clovis_op_common *oc = NULL;
-	struct m0_clovis_op_obj    *oo = NULL;
+	struct m0_clovis_op_common *oc;
+	struct m0_clovis_op_obj    *oo;
 	struct m0_clovis_op        *op = NULL;
 	struct m0_clovis           *instance = NULL;
 	struct m0_clovis_container  uber_realm;
@@ -552,25 +550,21 @@ static void ut_clovis_test_clovis_obj_op_prepare(void)
 	M0_SET0(&obj);
 
 	/* base case */
-	op = NULL;
 	instance->m0c_pools_common.pc_cur_pver->pv_attr.pa_P = 7;
-	m0_fi_enable_once("m0_clovis__obj_pool_version_get",
-			  "fake_pool_version");
 	m0_clovis_obj_init(&obj, &uber_realm.co_realm, &id,
 			   m0_clovis_layout_id(instance));
 
 	/* OP Allocation fails */
 	m0_fi_enable_once("m0_alloc", "fail_allocation");
-	m0_fi_enable_once("m0_clovis__obj_pool_version_get",
-			  "fake_pool_version");
 	rc = clovis_obj_op_prepare(&obj.ob_entity, &op, M0_CLOVIS_EO_CREATE);
 	M0_UT_ASSERT(rc != 0);
+	M0_UT_ASSERT(op == NULL);
 
 	/* m0_clovis_op_init fails */
 	m0_fi_enable_once("m0_clovis_op_init", "fail_op_init");
 	rc = clovis_obj_op_prepare(&obj.ob_entity, &op, M0_CLOVIS_EO_CREATE);
 	M0_UT_ASSERT(rc != 0);
-
+	M0_UT_ASSERT(op == NULL);
 
 	/* we won't use 'entity' as in the error cases */
 	rc = clovis_obj_op_prepare(&obj.ob_entity,
@@ -619,8 +613,6 @@ static void ut_clovis_entity_namei_op(enum m0_clovis_entity_opcode opcode)
 	id.u_lo++;
 
 	m0_fi_enable_once("m0_clovis__obj_layout_id_get", "fake_obj_layout_id");
-	m0_fi_enable_once("m0_clovis__obj_pool_version_get",
-			  "fake_pool_version");
 
 	/* base case: no error, then check the output */
 	ent.en_type = M0_CLOVIS_ET_OBJ;
@@ -629,7 +621,6 @@ static void ut_clovis_entity_namei_op(enum m0_clovis_entity_opcode opcode)
 	pv.pv_attr.pa_P = 7; /* pool width */
 	instance->m0c_pools_common.pc_cur_pver = &pv;
 	instance->m0c_root_fid = pfid;
-	op = NULL;
 	rc = clovis_entity_namei_op(&ent, &op, opcode);
 	/* basic: detailed checks are included in the corresponding tests */
 	M0_UT_ASSERT(rc == 0);
@@ -688,9 +679,6 @@ static void ut_clovis_test_m0_clovis_entity_create(void)
 	m0_clovis_obj_init(&obj, &realm, &ent.en_id,
 			   m0_clovis_layout_id(instance));
 
-	m0_fi_enable_once("m0_clovis__obj_pool_version_get",
-			  "fake_pool_version");
-
 	rc = m0_clovis_entity_create(NULL, &obj.ob_entity, &ops[0]);
 	M0_UT_ASSERT(rc = -ENOENT);
 	M0_UT_ASSERT(ops[0] == NULL);
@@ -733,7 +721,7 @@ static void ut_clovis_test_m0_clovis__entity_instance(void)
 {
 	struct m0_clovis_entity ent;
 	struct m0_clovis_realm  realm;
-	struct m0_clovis       *cins2 = NULL;
+	struct m0_clovis       *cins2;
 	struct m0_clovis       *instance = NULL;
 	int                     rc = 0; /* required */
 
@@ -760,7 +748,7 @@ static void ut_clovis_test_m0_clovis__oo_instance(void)
 {
 	struct m0_clovis_entity ent;
 	struct m0_clovis_realm  realm;
-	struct m0_clovis       *cins2 = NULL;
+	struct m0_clovis       *cins2;
 	struct m0_clovis_op_obj oo;
 	struct m0_clovis       *instance = NULL;
 	int                     rc = 0; /* required */
@@ -919,7 +907,7 @@ static void ut_clovis_test_rpc_item_to_ios_cob_req(void)
 {
 	struct clovis_ios_cob_req       icr;
 	struct m0_fop                   fop;
-	struct clovis_ios_cob_req      *ret = NULL; /* required */
+	struct clovis_ios_cob_req      *ret;
 
 	/* base case */
 	fop.f_opaque = &icr;
@@ -1495,11 +1483,15 @@ M0_INTERNAL int ut_clovis_object_init(void)
 	ut_clovis_shuffle_test_order(&ut_suite_clovis_obj);
 #endif
 
+	m0_fi_enable("m0_clovis__obj_pool_version_get", "fake_pool_version");
+
 	return 0;
 }
 
 M0_INTERNAL int ut_clovis_object_fini(void)
 {
+	m0_fi_disable("m0_clovis__obj_pool_version_get", "fake_pool_version");
+
 	return 0;
 }
 

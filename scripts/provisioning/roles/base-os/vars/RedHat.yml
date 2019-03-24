@@ -1,5 +1,6 @@
 ---
 basic_tools_pkgs:
+  - ansible  # for local mode, helpful on Windouz hosts
   - dstat
   - emacs
   - ipmitool

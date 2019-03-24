@@ -27,7 +27,7 @@
 
 M0_EXTERN void *m0_varr_buf_alloc(size_t bufsize)
 {
-	if (bufsize == PAGE_CACHE_SIZE)
+	if (bufsize == PAGE_SIZE)
 		return (void *)get_zeroed_page(GFP_KERNEL);
 	else
 		return m0_alloc(bufsize);
@@ -36,7 +36,7 @@ M0_EXTERN void *m0_varr_buf_alloc(size_t bufsize)
 M0_EXTERN void m0_varr_buf_free(void *buf, size_t bufsize)
 {
 	M0_PRE(buf != NULL);
-	if (bufsize == PAGE_CACHE_SIZE)
+	if (bufsize == PAGE_SIZE)
 		free_page((unsigned long)buf);
 	else
 		m0_free(buf);

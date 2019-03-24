@@ -19,7 +19,7 @@
  */
 
 #include <linux/vmalloc.h>           /* vmalloc, vfree */
-#include <linux/kernel.h>            /* vprintk */
+#include <linux/kernel.h>            /* vprintk, kstrtoul */
 #include <linux/jiffies.h>           /* time_in_range_open */
 
 #include "lib/errno.h"
@@ -82,7 +82,7 @@ M0_INTERNAL int m0_trace_set_immediate_mask(const char *mask_str)
 		return 0;
 
 	/* first, check if 'mask_str' contains a numeric bitmask */
-	rc = strict_strtoul(mask_str, 0, &mask);
+	rc = kstrtoul(mask_str, 0, &mask);
 	if (rc == 0)
 		goto set_mask;
 

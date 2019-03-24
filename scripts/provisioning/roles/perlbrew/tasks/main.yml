@@ -23,7 +23,6 @@
     src:   /usr/local/etc/bashrc
     dest:  /etc/profile.d/perlbrew.sh
   tags:
-    - breaks-dry-run
     - perl
 
 - name: build latest stable perl version

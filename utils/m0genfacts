@@ -446,10 +446,10 @@ def collect_disks_for(node)
     if node['disks'].is_a?(Array)
         disks = node['disks']
     elsif node['disks'].is_a?(String)
-        disk_string = run("echo #{node['disks']}", host: node['address'])
+        disk_string = run("ls #{node['disks']} 2>/dev/null", host: node['address'])
 
         die "[#{node['address']}]: failed to find disks matching pattern '#{node['disks']}'" \
-            if disk_string == node['disks']
+            if disk_string.strip.empty?
 
         disks = disk_string.split(' ')
     else

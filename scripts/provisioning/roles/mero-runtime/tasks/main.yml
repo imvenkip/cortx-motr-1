@@ -10,21 +10,19 @@
   package:
     state: present
     name:  '{{ mero_runtime_deps_pkgs }}'
-  tags: breaks-dry-run
 
 - name: get current kernel version
   command:  uname -r
   register: kernel_version
   changed_when: false
-  tags: debug
+  tags: debuginfo
 
 - name: install kernel-debuginfo package
   package:
     state: present
     name:  kernel-debuginfo-{{ kernel_version.stdout }}
   tags:
-    - debug
-    - breaks-dry-run
+    - debuginfo
 
 - name: create Mero system group
   group:

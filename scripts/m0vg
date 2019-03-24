@@ -84,7 +84,7 @@ Usage: $PROG_NAME [options] <vagrant-cmd> [vagrant-cmd-options]
              '.env' file, 'show' sub-command is assumed by default:
 
                $PROG_NAME env
-               $PROG_NAME env add M0_VM_BOX_VERSION=1803.01
+               $PROG_NAME env add M0_VM_BOX=centos/7 M0_VM_BOX_VERSION=1803.01
                $PROG_NAME env edit
 
   run        execute a single command on the default VM.
@@ -249,7 +249,7 @@ check_vagrant_envfile()
             local v=-v
         fi
         [[ -f $VAGRANT_MERO_ENV_FILE ]] || touch $VAGRANT_MERO_ENV_FILE
-        ln -s $v $VAGRANT_MERO_ENV_FILE $VAGRANT_DEFAULT_ENV_FILE
+        ln -sf $v $VAGRANT_MERO_ENV_FILE $VAGRANT_DEFAULT_ENV_FILE
     fi
 }
 
@@ -260,10 +260,14 @@ show_env()
 
 add_env_var()
 {
-    [[ -n $1 ]] ||
-        die "please, provide env variable as an argument, it cannot be empty"
-
-    echo "$1" >> "$VAGRANT_DEFAULT_ENV_FILE"
+    if [[ -n $1 ]] ; then
+        for v in "$@" ; do
+            echo "$v" >> "$VAGRANT_DEFAULT_ENV_FILE"
+        done
+    else
+        warn 'expecting environment configuration on STDIN..'
+        cat >> "$VAGRANT_DEFAULT_ENV_FILE"
+    fi
 }
 
 edit_env()
@@ -365,7 +369,7 @@ parse_cli_options "$@"
 eval set -- "$cli_args"
 
 check_dependencies
-if [[ $(uname) =~ ^(Linux|Darwin)$ ]] ; then
+if [[ $(uname) =~ ^(Linux|Darwin)$ && -z $M0_VG_NO_SYMLINKS ]] ; then
     check_vagrant_dotdir
     check_vagrant_envfile
 fi
@@ -374,7 +378,7 @@ cd $VAGRANT_DIR
 case $cmd in
     env-*)
         case ${cmd#env-} in
-            add)     add_env_var "$1" ;& # fall through
+            add)     add_env_var "$@" ;& # fall through
             show)    show_env ;;
             edit)    edit_env ;;
             *)       die "Unknown env sub-command: '${cmd#env-}'" ;;

@@ -21,15 +21,15 @@
 #include "lib/types.h"
 #include "lib/assert.h"
 #include "lib/vec.h"
-#include <linux/pagemap.h> /* PAGE_CACHE_SIZE */
+#include <linux/pagemap.h> /* PAGE_SIZE */
 
 M0_INTERNAL int m0_0vec_page_add(struct m0_0vec *zvec,
 				 struct page *pg, m0_bindex_t index)
 {
-	struct m0_buf	  buf;
+	struct m0_buf buf;
 
 	buf.b_addr = page_address(pg);
-	buf.b_nob = PAGE_CACHE_SIZE;
+	buf.b_nob = PAGE_SIZE;
 
 	return m0_0vec_cbuf_add(zvec, &buf, &index);
 }

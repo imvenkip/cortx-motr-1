@@ -319,9 +319,10 @@ m0_clovis__obj_pool_version_get(struct m0_clovis_obj *obj,
 
 	cinst = m0_clovis__obj_instance(obj);
 
+	if (pv == NULL)
+		return M0_ERR(-ENOENT);
+
 	if (M0_FI_ENABLED("fake_pool_version")) {
-		if (pv == NULL)
-			return M0_ERR(-ENOENT);
 		*pv = cinst->m0c_pools_common.pc_cur_pver;
 		return 0;
 	}

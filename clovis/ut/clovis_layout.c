@@ -430,6 +430,11 @@ static void ut_composite_io_op_cb_launch(void)
 	m0_sm_fini(&oci->oci_oo.oo_oc.oc_op.op_sm);
 	m0_sm_group_unlock(op_grp);
 	m0_fi_disable("composite_io_op_cb_launch", "no_subobj_ops_launched");
+	/*
+	 * XXX This "once" injection is not triggered. It may be redundant
+	 * or the test expects call of the function and it doesn't happen.
+	 */
+	m0_fi_disable("m0_clovis_op_stable", "skip_ongoing_io_ref");
 
 	/* finalise */
 	m0_sm_group_fini(&locality_grp);
@@ -443,7 +448,7 @@ static void ut_composite_io_op_cb_free(void)
 	struct m0_clovis_op_composite_io *oci;
 	struct m0_clovis_realm            realm;
 	struct m0_clovis_entity           ent;
-	struct m0_clovis                 *instance = NULL;
+	struct m0_clovis                 *instance;
 
 	/* init */
 	M0_SET0(&ent);
@@ -468,7 +473,7 @@ static void ut_composite_io_op_cb_fini(void)
 	struct m0_clovis_op_composite_io *oci;
 	struct m0_clovis_realm            realm;
 	struct m0_clovis_entity           ent;
-	struct m0_clovis                 *instance = NULL;
+	struct m0_clovis                 *instance;
 
 	/* init */
 	M0_SET0(&ent);
@@ -498,7 +503,7 @@ static void ut_m0_clovis_composite_layer_add(void)
 	struct m0_clovis_composite_layer  *found;
 	struct m0_uint128                  id;
 	struct m0_clovis_realm             realm;
-	struct m0_clovis                  *instance = NULL;
+	struct m0_clovis                  *instance;
 
 	instance = dummy_instance;
 	ut_clovis_realm_entity_setup(&realm, &obj.ob_entity, instance);
@@ -537,7 +542,7 @@ static void ut_m0_clovis_composite_layer_del(void)
 	struct m0_clovis_composite_layer  *found;
 	struct m0_uint128                  id;
 	struct m0_clovis_realm             realm;
-	struct m0_clovis                  *instance = NULL;
+	struct m0_clovis                  *instance;
 
 	instance = dummy_instance;
 	ut_clovis_realm_entity_setup(&realm, &obj.ob_entity, instance);
@@ -582,7 +587,7 @@ static void ut_composite_sub_io_ops_build(void)
 	struct composite_sub_io_ext      *sio_ext;
 	struct m0_clovis_obj              obj;
 	struct m0_uint128                 id;
-	struct m0_clovis                 *instance = NULL;
+	struct m0_clovis                 *instance;
 	struct m0_clovis_realm            realm;
 	struct m0_clovis_op              *op = NULL;
 	struct m0_clovis_op_common       *oc;
@@ -649,7 +654,7 @@ static int composite_layout_add_layers(struct m0_clovis_layout *layout,
 	struct m0_clovis_obj    obj;
 	struct m0_uint128       id;
 	struct m0_clovis_realm  realm;
-	struct m0_clovis       *instance = NULL;
+	struct m0_clovis       *instance;
 
 	instance = dummy_instance;
 	ut_clovis_realm_entity_setup(&realm, &obj.ob_entity, instance);
