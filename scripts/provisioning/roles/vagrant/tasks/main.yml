@@ -56,6 +56,7 @@
 
     - name: copy Vagrant plugins for other users
       when: vagrant_plugins_users is defined
+      ignore_errors: yes
       block:
         - name: copy plugins dir
           command: cp -r {{ ansible_env["HOME"] }}/.vagrant.d /home/{{ item }}/

@@ -121,8 +121,8 @@ Tests:
   - id       : 12sns-cc-io-tests
     script   : m0t1fs_cc_io_with_sns_repair.sh
     dir      : src/m0t1fs/linux_kernel/st/
-    executor : Xperior::Executor::MeroTest
-    #executor : Xperior::Executor::Skip
+    #executor : Xperior::Executor::MeroTest
+    executor : Xperior::Executor::Skip
     sandbox  : /var/mero/sandbox.12sns-cc-io-tests
     polltime : 30
     timeout  : 1800
@@ -424,6 +424,14 @@ Tests:
     dir      : src/clovis/st/utils/
     executor : Xperior::Executor::MeroTest
     sandbox  : /var/mero/sandbox.47m0clovis_mero
+    polltime : 30
+    timeout  : 1800
+
+  - id       : 48clovis-raid0-io
+    script   : clovis_raid0_st.sh
+    dir      : src/clovis/st/utils/
+    executor : Xperior::Executor::MeroTest
+    sandbox  : /var/mero/sandbox.48m0clovis-raid0-io
     polltime : 30
     timeout  : 1800
 

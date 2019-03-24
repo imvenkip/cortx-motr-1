@@ -147,12 +147,12 @@ static void stob_dev_init(const struct stobio_test *test)
 	dev_sz = dev_sz/1024 + 1;
 
 	backingfile = stob_backingfile_get(test);
-	sprintf(sysbuf, "dd if=/dev/zero of=%s bs=1M count=%lu &>>/dev/null",
+	sprintf(sysbuf, "dd if=/dev/zero of=%s bs=1M count=%lu >/dev/null 2>&1",
 			backingfile, (unsigned long)dev_sz);
 	result = system(sysbuf);
 	M0_UT_ASSERT(result == 0);
 
-	sprintf(sysbuf, "losetup -d %s &>> /dev/null", test->st_dev_path);
+	sprintf(sysbuf, "losetup -d %s >/dev/null 2>&1", test->st_dev_path);
 	result = system(sysbuf);
 	sprintf(sysbuf, "losetup %s %s", test->st_dev_path, backingfile);
 	result = system(sysbuf);

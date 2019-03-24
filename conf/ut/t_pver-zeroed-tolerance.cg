@@ -1,4 +1,4 @@
-#= <7600000000000001:0>: Zeroed tolerance
+#= <7600000000000001:0>: Zeroed tolerance is supported only with N = 1
 (root-0 verno=1 rootfid=(1, 2) mdpool=pool-0 imeta_pver=pver-0
     mdredundancy=1 params=["param-0", "param-1", "param-2"] nodes=[node-0]
     sites=[site-2] pools=[pool-0] profiles=[profile-0] fdmi_flt_grps=[])

@@ -1,11 +1,13 @@
 [gitlab-runners]
 qb01n3-m02.mero.colo.seagate.com
+qb02n3-m02.mero.colo.seagate.com
 qb06n4-m02.mero.colo.seagate.com
 
 [gitlab-docker-runners]
 qb01n3-m02.mero.colo.seagate.com
 
 [gitlab-shell-runners]
+qb02n3-m02.mero.colo.seagate.com
 qb06n4-m02.mero.colo.seagate.com
 
 [gitlab-runners:vars]

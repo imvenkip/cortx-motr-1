@@ -8,7 +8,7 @@ NAMESPACE       := registry.gitlab.mero.colo.seagate.com
 DOCKER          := docker
 
 
-.PHONY: 7.5 \
+.PHONY: 7.5 7.3 \
         centos-image \
         centos-vault-image \
         centos-sage-image \
@@ -24,15 +24,26 @@ DOCKER          := docker
 7.5: DOCKER_OPTS += --build-arg CENTOS_RELEASE=$(CENTOS_RELEASE) \
                     --build-arg LUSTRE_VERSION=$(LUSTRE_VERSION)
 7.5: centos-vault-image lustre-client-image mero-devel-image
-	$(DOCKER) tag $(NAMESPACE)/mero-devel:$(CENTOS_RELEASE) $(NAMESPACE)/mero/mero:$(basename $(CENTOS_RELEASE))
+	$(DOCKER) tag $(NAMESPACE)/mero-devel:$(CENTOS_RELEASE) \
+				  $(NAMESPACE)/mero/mero:$(basename $(CENTOS_RELEASE))
+
+7.3: CENTOS_RELEASE := 7.3.1611
+7.3: LUSTRE_VERSION := 2.9.0
+7.3: DOCKER_OPTS += --build-arg CENTOS_RELEASE=$(CENTOS_RELEASE) \
+                    --build-arg LUSTRE_VERSION=$(LUSTRE_VERSION)
+7.3: centos-vault-image lustre-client-image mero-devel-image
+	$(DOCKER) tag $(NAMESPACE)/mero-devel:$(CENTOS_RELEASE) \
+				  $(NAMESPACE)/mero/mero:$(basename $(CENTOS_RELEASE))
+	$(DOCKER) tag $(NAMESPACE)/mero-devel:$(CENTOS_RELEASE) \
+				  $(NAMESPACE)/mero/mero:sage-vm
 
 sage: CENTOS_RELEASE := sage
 sage: LUSTRE_VERSION := 2.11.53
 sage: DOCKER_OPTS += --build-arg CENTOS_RELEASE=$(CENTOS_RELEASE) \
                      --build-arg LUSTRE_VERSION=$(LUSTRE_VERSION)
 sage: centos-sage-image lustre-client-sage-image mero-devel-image
-	$(DOCKER) tag $(NAMESPACE)/mero-devel:$(CENTOS_RELEASE) $(NAMESPACE)/mero/mero:$(basename $(CENTOS_RELEASE))
-
+	$(DOCKER) tag $(NAMESPACE)/mero-devel:$(CENTOS_RELEASE) \
+				  $(NAMESPACE)/mero/mero:$(basename $(CENTOS_RELEASE))
 
 INAME = $(@:%-image=%)
 
@@ -93,6 +104,12 @@ help:
 	@echo '                    default, same as just `make`'
 	@echo '  7.5             - build images based on CentOS 7.5.1804 snapshot and'
 	@echo '                    Lustre 2.10.5'
+	@echo ''
+	@echo '  7.3             - build images based on CentOS 7.3.1611 snapshot and'
+	@echo '                    Lustre 2.9.0 (SAGE VM)'
+	@echo ''
+	@echo '  sage            - build images based on CentOS 7.3.1611 snapshot with'
+	@echo '                    kerne 3.10.0_514.16.1 and Lustre 2.11.53 (SAGE Cluster)'
 	@echo ''
 	@echo 'Publish targets:'
 	@echo "  push            - upload local $(NAMESPACE)/* images to docker hub repository"

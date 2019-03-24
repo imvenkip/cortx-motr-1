@@ -36,6 +36,14 @@
         groups: sudo
         append: yes
 
+    # this is just for convenience, when m0vg is invoced manually for
+    # debugging purpose
+    - name: disable m0vg symlinks mode for 'gitlab-runner' user
+      lineinfile:
+        path:   /home/gitlab-runner/.bashrc
+        create: yes
+        line:   'export M0_VG_NO_SYMLINKS=true'
+
     # - name: create gitlab-runner config
     # - template:
     # -   src: config.toml.j2

@@ -135,7 +135,6 @@ AC_ARG_VAR([CXXXML],  [gccxml/castxml command])
 # define macros --------------------------------------- {{{2
 AH_TEMPLATE([CLOVIS_IDX_STORE_CASS],  [Use Cassandra as KVS backend.])
 AH_TEMPLATE([CLOVIS_IDX_CASS_DRV_V22],[Cassandra driver version >= 2.2.])
-AH_TEMPLATE([CONFIG_LNET_MAX_PAYLOAD],[Max LNET payload.])
 AH_TEMPLATE([ENABLE_CASTXML],         [Use CastXML instead of GCC-XML])
 AH_TEMPLATE([ENABLE_DIST_MODE],       [Enable distribution mode (only for package building).])
 AH_TEMPLATE([ENABLE_DEV_MODE],        [Enable developer mode.])
@@ -165,8 +164,6 @@ AH_TEMPLATE([HAVE_MALLINFO],          [Have mallinfo() function])
 AH_TEMPLATE([HAVE_MALLOC_SIZE],       [Have malloc_size() function])
 AH_TEMPLATE([HAVE_BACKTRACE],         [Have backtrace(3) function])
 AH_TEMPLATE([HAVE_SYSTEMD],           [Have systemd available])
-
-AC_DEFINE_UNQUOTED([CONFIG_LNET_MAX_PAYLOAD], [LNET_MTU])
 
 # enable/disable options ------------------------------ {{{2
 

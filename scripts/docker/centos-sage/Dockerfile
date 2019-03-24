@@ -26,6 +26,7 @@ RUN yumdownloader python34-libs \
 
 # install common tools
 RUN yum --assumeyes install \
+        createrepo \
         file \
         git \
         jq \

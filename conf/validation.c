@@ -461,8 +461,9 @@ static char *conf_pver_actual_error(const struct m0_conf_pver *pver,
 				    buf, buflen);
 	if (err != NULL)
 		return err;
-	if (M0_IS0(&sub->pvs_tolerance))
-		return m0_vsnprintf(buf, buflen, FID_F": Zeroed tolerance",
+	if (M0_IS0(&sub->pvs_tolerance) && sub->pvs_attr.pa_N != 1)
+		return m0_vsnprintf(buf, buflen, FID_F": Zeroed tolerance is"
+				    " supported only with N = 1",
 				    FID_P(&pver->pv_obj.co_id));
 	if (m0_exists(j, ARRAY_SIZE(pver_width),
 		      sub->pvs_tolerance[i = j] > pver_width[j]))

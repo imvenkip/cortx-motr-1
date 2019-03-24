@@ -683,8 +683,8 @@ M0_INTERNAL void m0_cm_cp_only_fini(struct m0_cm_cp *cp)
 
 M0_INTERNAL void m0_cm_cp_fini(struct m0_cm_cp *cp)
 {
-	m0_fom_fini(&cp->c_fom);
 	m0_cm_cp_only_fini(cp);
+	m0_fom_fini(&cp->c_fom);
 }
 
 M0_INTERNAL int m0_cm_cp_enqueue(struct m0_cm *cm, struct m0_cm_cp *cp)
