@@ -85,6 +85,22 @@ static bool should_ioreq_sm_complete(struct m0_clovis_op_io *ioo)
 	    m0_atomic64_get(&ioo->ioo_nwxfer.nxr_ccfop_nr) == 0 : true);
 }
 
+M0_INTERNAL struct m0_file *m0_clovis_fop_to_file(struct m0_fop *fop)
+{
+	struct m0_clovis_op_io *ioo;
+	struct nw_xfer_request *xfer;
+	struct m0_io_fop       *iofop;
+	struct ioreq_fop       *irfop;
+
+	iofop  = M0_AMB(iofop, fop, if_fop);
+	irfop = bob_of(iofop, struct ioreq_fop, irf_iofop, &iofop_bobtype);
+	xfer = irfop->irf_tioreq->ti_nwxfer;
+
+	ioo    = bob_of(xfer, struct m0_clovis_op_io, ioo_nwxfer, &ioo_bobtype);
+
+	return &ioo->ioo_flock;
+}
+
 /**
  * AST-Callback for the rpc layer when it receives a reply fop.
  * This is heavily based on m0t1fs/linux_kernel/file.c::io_bottom_half

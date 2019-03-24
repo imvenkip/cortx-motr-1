@@ -705,6 +705,7 @@ static void test_dead_down(void)
 	rconfc_ut_ha_state_set(&confd_fid, M0_NC_FAILED);
 	m0_semaphore_down(&sem_death);
 	m0_semaphore_fini(&sem_death);
+	m0_fi_disable("rconfc_link_fom_tick", "sess_fail");
 	m0_rconfc_stop_sync(&rconfc);
 	m0_rconfc_fini(&rconfc);
 
@@ -723,6 +724,7 @@ static void test_dead_down(void)
 	rconfc_ut_ha_state_set(&confd_fid, M0_NC_FAILED);
 	m0_semaphore_down(&sem_death);
 	m0_semaphore_fini(&sem_death);
+	m0_fi_disable("rconfc_link_fom_tick", "conn_fail");
 	m0_rconfc_stop_sync(&rconfc);
 	m0_rconfc_fini(&rconfc);
 
@@ -742,6 +744,8 @@ static void test_dead_down(void)
 	rconfc_ut_ha_state_set(&confd_fid, M0_NC_FAILED);
 	m0_semaphore_down(&sem_death);
 	m0_semaphore_fini(&sem_death);
+	m0_fi_disable("rconfc_link_fom_tick", "conn_fail");
+	m0_fi_disable("rconfc_link_fom_tick", "sess_fail");
 	m0_rconfc_stop_sync(&rconfc);
 	m0_rconfc_fini(&rconfc);
 

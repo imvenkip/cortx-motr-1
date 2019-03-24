@@ -1026,18 +1026,16 @@ static bool spiel__pool_service_has_sdev(struct _pool_cmd_ctx *ctx,
 				M0_CONF_SERVICE_SDEVS_FID);
 
 	if (rc != 0)
-		goto done;
+		return false;
 
 	while ((rc = m0_conf_diter_next_sync(&it, _filter_sdev))
 						== M0_CONF_DIRNEXT && !found) {
 		obj = m0_conf_diter_result(&it);
 		if (m0_tl_find(m0_fids, si, &ctx->pl_sdevs_fid,
-			      m0_fid_cmp(&si->i_fid, &obj->co_id) == 0) != NULL)
+			       m0_fid_eq(&si->i_fid, &obj->co_id)) != NULL)
 			found = true;
 	}
 	m0_conf_diter_fini(&it);
-
-done:
 	return found;
 }
 
@@ -1077,7 +1075,7 @@ static void spiel__add_item(struct _pool_cmd_ctx      *pool_ctx,
 			    enum m0_conf_service_type  type)
 {
 	if (service->cs_type == type &&
-	    spiel__pool_service_has_sdev(pool_ctx, item) == true)
+	    spiel__pool_service_has_sdev(pool_ctx, item))
 		pool_ctx->pl_rc = spiel_stats_item_add(
 					&pool_ctx->pl_services_fid,
 					&item->co_id);
@@ -1218,12 +1216,13 @@ static int spiel_pool_generic_handler(struct m0_spiel_core           *spc,
 {
 	int                            rc;
 	int                            service_count;
-	int                            index;
+	int                            i;
 	struct _pool_cmd_ctx           ctx;
 	struct m0_fid_item            *si;
 	bool                           cmd_status;
 	struct m0_spiel_repreb_status *repreb_statuses = NULL;
 	struct spiel_repreb           *repreb;
+	struct m0_conf_obj            *svc_obj;
 
 	M0_ENTRY();
 	M0_PRE(pool_fid != NULL);
@@ -1262,60 +1261,67 @@ static int spiel_pool_generic_handler(struct m0_spiel_core           *spc,
 		}
 	}
 
-	index = 0;
+	/* Synchronously send `cmd' to each service associated with the pool. */
+	i = 0;
 	m0_tl_for(m0_fids, &ctx.pl_services_fid, si) {
-		struct m0_conf_obj *svc_obj;
-
+		/* Open m0_conf_service object. */
 		rc = m0_confc_open_by_fid_sync(spc->spc_confc, &si->i_fid,
 					       &svc_obj);
 		if (rc != 0) {
 			M0_LOG(M0_ERROR, "confc_open failed; rc=%d service="
-			       FID_F" index=%d", rc, FID_P(&si->i_fid), index);
-			repreb[index].sr_rc = rc;
+			       FID_F" i=%d", rc, FID_P(&si->i_fid), i);
+			repreb[i++].sr_rc = rc;
 			continue;
 		}
+		/* Is the service M0_NC_ONLINE? */
 		if (svc_obj->co_ha_state != M0_NC_ONLINE) {
 			rc = M0_ERR(-EINVAL);
-			M0_LOG(M0_ERROR, "service"FID_F" is not online;"
-			       " index=%d ha_state=%d", FID_P(&si->i_fid),
-			       index, svc_obj->co_ha_state);
+			M0_LOG(M0_ERROR, "service "FID_F" is not online; i=%d"
+			       " ha_state=%d", FID_P(&si->i_fid), i,
+			       svc_obj->co_ha_state);
 			m0_confc_close(svc_obj);
-			repreb[index].sr_rc = rc;
+			repreb[i++].sr_rc = rc;
 			continue;
 		}
-		repreb[index].sr_service = M0_CONF_CAST(svc_obj,
-							m0_conf_service);
-		M0_ASSERT(index < service_count);
-		rc = spiel__pool_cmd_send(&ctx, cmd, &repreb[index]);
+		repreb[i].sr_service = M0_CONF_CAST(svc_obj, m0_conf_service);
+		M0_ASSERT(i < service_count);
+
+		/* Send pool command to the service. */
+		rc = spiel__pool_cmd_send(&ctx, cmd, &repreb[i]);
+
 		m0_confc_close(svc_obj);
 		if (rc != 0) {
 			M0_LOG(M0_ERROR, "pool command sending failed;"
-			       " rc=%d service="FID_F" index=%d",
-			       rc, FID_P(&si->i_fid), index);
-			repreb[index++].sr_rc = rc;
+			       " rc=%d service="FID_F" i=%d", rc,
+			       FID_P(&si->i_fid), i);
+			repreb[i++].sr_rc = rc;
 			continue;
 		}
-		++index;
+		++i;
 	} m0_tl_endfor;
 
-	index = 0;
+	/*
+	 * Sequentially wait for services to process pool command and return
+	 * result.
+	 */
+	i = 0;
 	m0_tl_for (m0_fids, &ctx.pl_services_fid, si) {
-		rc = spiel__pool_cmd_status_get(&ctx, cmd, &repreb[index]);
+		rc = spiel__pool_cmd_status_get(&ctx, cmd, &repreb[i]);
 		if (cmd_status) {
-			repreb_statuses[index] = repreb[index].sr_status;
+			repreb_statuses[i] = repreb[i].sr_status;
 			M0_LOG(M0_DEBUG, "service"FID_F" status=%d",
 					 FID_P(&si->i_fid),
-					 repreb_statuses[index].srs_state);
+					 repreb_statuses[i].srs_state);
 		}
-		++index;
+		++i;
 		if (rc != 0)
 			continue;
 	} m0_tl_endfor;
 
 	if (rc == 0 && cmd_status) {
-		rc = index;
+		rc = i;
 		*statuses = repreb_statuses;
-		M0_LOG(M0_DEBUG, "array addr=%p size=%d", repreb_statuses, index);
+		M0_LOG(M0_DEBUG, "array addr=%p size=%d", repreb_statuses, i);
 	} else
 		m0_free(repreb_statuses);
 
@@ -1508,6 +1514,14 @@ int m0_spiel_sns_rebalance_continue(struct m0_spiel     *spl,
 						M0_REPREB_TYPE_SNS));
 }
 M0_EXPORTED(m0_spiel_sns_rebalance_continue);
+
+int m0_spiel_node_direct_rebalance_start(struct m0_spiel     *spl,
+					 const struct m0_fid *node_fid)
+{
+	return M0_ERR_INFO(-EPERM, "Cannot start direct rebalance for "FID_F
+                                    " operation not implemented", FID_P(node_fid));
+}
+M0_EXPORTED(m0_spiel_node_direct_rebalance_start);
 
 int m0_spiel_dix_rebalance_continue(struct m0_spiel     *spl,
 				    const struct m0_fid *pool_fid)

@@ -1115,9 +1115,8 @@ M0_INTERNAL int nlx_core_tm_start(struct nlx_core_domain *cd,
 	M0_ASSERT(ctm->ctm_kpvt != NULL);
 	M0_ASSERT(ctm->ctm_upvt == utm);
 
-	rc = nlx_core_new_blessed_bev(cd, ctm, &e1);
-	if (rc == 0)
-		rc = nlx_core_new_blessed_bev(cd, ctm, &e2);
+	rc = nlx_core_new_blessed_bev(cd, ctm, &e1) ?:
+	     nlx_core_new_blessed_bev(cd, ctm, &e2);
 	if (rc != 0)
 		goto fail_blessed_bev;
 	M0_ASSERT(e1 != NULL && e2 != NULL);

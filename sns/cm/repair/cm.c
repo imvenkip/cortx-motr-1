@@ -232,6 +232,7 @@ M0_INTERNAL const struct m0_cm_ops sns_repair_ops = {
 	.cmo_get_space_for       = repair_cm_get_space_for,
 	.cmo_sw_onwire_fop_setup = m0_sns_cm_repair_sw_onwire_fop_setup,
 	.cmo_is_peer             = m0_sns_is_peer,
+	.cmo_ha_msg		 = m0_sns_cm_ha_msg,
 	.cmo_stop                = repair_cm_stop,
 	.cmo_fini                = m0_sns_cm_fini
 };

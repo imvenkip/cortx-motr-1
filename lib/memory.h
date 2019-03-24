@@ -23,7 +23,8 @@
 #define __MERO_LIB_MEMORY_H__
 
 #include "lib/types.h"
-#include "lib/assert.h" /* M0_CASSERT */
+#include "lib/assert.h"  /* M0_CASSERT */
+#include "lib/finject.h" /* M0_FI_ENABLED */
 
 /**
    @defgroup memory Memory allocation handling functions
@@ -78,7 +79,8 @@ M0_INTERNAL void m0_memory_pagein(void *addr, size_t size);
 		*__pptr = NULL;               \
 	} while (0)
 
-#define M0_ALLOC_ARR(arr, nr)  ((arr) = m0_alloc((nr) * sizeof ((arr)[0])))
+#define M0_ALLOC_ARR(arr, nr)  ((arr) = M0_FI_ENABLED(#arr "-fail") ? NULL : \
+					m0_alloc((nr) * sizeof ((arr)[0])))
 #define M0_ALLOC_PTR(ptr)      M0_ALLOC_ARR(ptr, 1)
 
 #define M0_ALLOC_ARR_ALIGNED(arr, nr, shift)		\
@@ -100,7 +102,7 @@ M0_INTERNAL void *m0_alloc_aligned(size_t size, unsigned shift);
 M0_INTERNAL void m0_free_aligned(void *data, size_t size, unsigned shift);
 
 /** It returns true when addr is aligned by value shift. */
-static inline bool m0_addr_is_aligned(void *addr, unsigned shift)
+static inline bool m0_addr_is_aligned(const void *addr, unsigned shift)
 {
 	M0_CASSERT(sizeof(unsigned long) >= sizeof(void *));
 	return ((((unsigned long)addr >> shift) << shift) ==

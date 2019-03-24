@@ -18,6 +18,7 @@
     - ssh-master
     - base-os
     - journald-master
+    - nfs-server
     - lustre-client
     - mero-build
     - mero-runtime

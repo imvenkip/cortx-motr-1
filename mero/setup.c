@@ -322,18 +322,18 @@ M0_INTERNAL int m0_ep_and_xprt_extract(struct cs_endpoint_and_xprt *epx,
 {
 	char *sptr;
 	char *endpoint;
-	int   ep_len = min32u(strlen(ep) + 1, CS_MAX_EP_ADDR_LEN);
+	int   ep_len;
 
 	M0_PRE(ep != NULL);
 
 	epx->ex_cep = ep;
+	ep_len = min32u(strlen(ep) + 1, CS_MAX_EP_ADDR_LEN);
 	M0_ALLOC_ARR(epx->ex_scrbuf, ep_len);
-	if (epx->ex_scrbuf == NULL) {
-		M0_LOG(M0_ERROR, "malloc failed");
+	if (epx->ex_scrbuf == NULL)
 		return M0_ERR(-ENOMEM);
-	}
 
 	strncpy(epx->ex_scrbuf, ep, ep_len);
+	epx->ex_scrbuf[ep_len - 1] = '\0';
 	epx->ex_xprt = strtok_r(epx->ex_scrbuf, ":", &sptr);
 	if (epx->ex_xprt == NULL)
 		goto err;

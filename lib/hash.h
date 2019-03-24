@@ -303,11 +303,11 @@ M0_INTERNAL bool m0_htable_is_empty(const struct m0_htable *htable);
 /** Returns number of objects stored within m0_htable. */
 M0_INTERNAL uint64_t m0_htable_size(const struct m0_htable *htable);
 
-/** Locks the bucket to which the ambient belongs. */
+/** Locks the bucket to which the key belongs. */
 M0_INTERNAL void m0_hbucket_lock(struct m0_htable *htable,
 				 const void       *key);
 
-/** Unlocks the bucket to which the ambient belongs. */
+/** Unlocks the bucket to which the key belongs. */
 M0_INTERNAL void m0_hbucket_unlock(struct m0_htable *htable,
 				   const void       *key);
 
@@ -360,8 +360,8 @@ scope void name ## _htable_cc_add(struct m0_htable *htable, amb_type *amb);  \
 scope void name ## _htable_cc_del(struct m0_htable *htable, amb_type *amb);  \
 scope amb_type *name ## _htable_cc_lookup(struct m0_htable *htable,          \
 				          const key_type         *key);      \
-scope void name ## _hbucket_lock(struct m0_htable *htable, amb_type *amb);   \
-scope void name ## _hbucket_unlock(struct m0_htable *htable, amb_type *amb); \
+scope void name ## _hbucket_lock(struct m0_htable *htable, key_type *key);   \
+scope void name ## _hbucket_unlock(struct m0_htable *htable, key_type *key); \
 scope void name ## _htable_fini(struct m0_htable *htable);		     \
 scope bool name ## _htable_is_empty(const struct m0_htable *htable);	     \
 scope uint64_t name ## _htable_size(const struct m0_htable *htable);
@@ -399,15 +399,15 @@ scope __AUN amb_type *name ## _htable_lookup(const struct m0_htable *htable, \
 }									     \
 									     \
 scope __AUN void name ## _hbucket_lock(struct m0_htable *htable,             \
-				       amb_type         *amb)                \
+				       key_type         *key)                \
 {                                                                            \
-	m0_hbucket_lock(htable, amb);                                        \
+	m0_hbucket_lock(htable, key);                                        \
 }                                                                            \
                                                                              \
 scope __AUN void name ## _hbucket_unlock(struct m0_htable *htable,           \
-					 amb_type         *amb)              \
+					 key_type         *key)              \
 {                                                                            \
-	m0_hbucket_unlock(htable, amb);                                      \
+	m0_hbucket_unlock(htable, key);                                      \
 }                                                                            \
                                                                              \
 scope __AUN void name ## _htable_cc_add(struct m0_htable *htable,            \

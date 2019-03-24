@@ -201,4 +201,15 @@ M0_INTERNAL int m0_conf_obj_ha_update(const struct m0_fid *obj_fid);
  */
 M0_INTERNAL int m0_conf_confc_ha_update(struct m0_confc *confc);
 
+/**
+ * Asynchronous version of m0_conf_confc_ha_update().
+ *
+ * @param nvec should be preserved until the update completion.
+ *             nvec->nv_note array will be allocated, user is responsible
+ *             to free it.
+ */
+M0_INTERNAL int m0_conf_confc_ha_update_async(struct m0_confc *confc,
+					      struct m0_ha_nvec *nvec,
+					      struct m0_chan *chan);
+
 #endif /* __MERO_CONF_HELPERS_H__ */

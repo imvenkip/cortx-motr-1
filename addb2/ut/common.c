@@ -75,6 +75,7 @@ struct m0_addb2_mach *mach_set(int (*s)(const struct m0_addb2_mach  *,
 
 void mach_fini(struct m0_addb2_mach *m)
 {
+	m0_fi_disable("mach", "surrogate-mach");
 	__mach = NULL;
 	m0_addb2__mach = NULL;
 	m0_addb2_mach_fini(m);

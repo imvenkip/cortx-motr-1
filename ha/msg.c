@@ -172,6 +172,14 @@ M0_INTERNAL void m0_ha_msg_debug_print(const struct m0_ha_msg *msg,
 		       data->u.hed_be_io_err.ber_location,
 		       data->u.hed_be_io_err.ber_io_opcode);
 		return;
+	case M0_HA_MSG_SNS_ERR:
+		M0_LOG(M0_DEBUG, "HA_SNS_ERR hm_fid="FID_F" "
+		       "hse_errcode=%"PRIu32" hse_opcode=%u",
+		       FID_P(&msg->hm_fid),
+		       data->u.hed_ha_sns_err.hse_errcode,
+		       data->u.hed_ha_sns_err.hse_opcode);
+		return;
+
 	case M0_HA_MSG_NR:
 		M0_LOG(M0_WARN, "invalid M0_HA_MSG_NR type");
 		return;

@@ -205,9 +205,9 @@ int cr_free_op_idx(struct clovis_task_io *cti, uint32_t nr_ops)
 {
 	int i;
 
-	for(i = 0; i < nr_ops; i++) {
-		if(cti->cti_op_status[i] == CR_OP_NEW ||
-		   cti->cti_op_status[i] == CR_OP_COMPLETE)
+	for (i = 0; i < nr_ops; i++) {
+		if (cti->cti_op_status[i] == CR_OP_NEW ||
+		    cti->cti_op_status[i] == CR_OP_COMPLETE)
 			break;
 	}
 
@@ -254,7 +254,7 @@ int cr_io_vector_prep(struct clovis_workload_io *cwi,
 	if (rc != 0)
 		goto enomem;
 
-	for(i = 0; i < cwi->cwi_bcount_per_op; i++) {
+	for (i = 0; i < cwi->cwi_bcount_per_op; i++) {
 		memcpy(buf_vec->ov_buf[i], cti->cti_buffer, cwi->cwi_bs);
 
 		if (cwi->cwi_random_io) {
@@ -554,7 +554,7 @@ int cr_task_share_execute(struct clovis_task_io *cti)
 	}
 	m0_mutex_unlock(&cwi->cwi_g.cg_mutex);
 
-	return rc;
+	return 0;
 }
 
 int cr_task_execute(struct clovis_task_io *cti)
@@ -588,23 +588,19 @@ int cr_task_execute(struct clovis_task_io *cti)
 
 static int cr_adopt_mero_thread(struct clovis_task_io *cti)
 {
-	int               rc;
+	int               rc = 0;
 	struct m0_thread *mthread;
 
 	cti->cti_mthread = NULL;
 	if (m0_thread_tls() == NULL) {
 		mthread = m0_alloc(sizeof(struct m0_thread));
 		if (mthread == NULL)
-			return -1;
+			return -ENOMEM;
 
 		memset(mthread, 0, sizeof(struct m0_thread));
 		rc = m0_thread_adopt(mthread, clovis_instance->m0c_mero);
-		if (rc < 0)
-			printf("Mero adoptation failed");
-
 		cti->cti_mthread = mthread;
 	}
-
 	return rc;
 }
 
@@ -625,7 +621,7 @@ int cr_buffer_read(char *buffer, const char *filename, uint64_t size)
 	fp = fopen(filename, "r");
 	if (fp == NULL) {
 		cr_log(CLL_ERROR, "Unable to open a file:%s", filename);
-		return errno;
+		return -errno;
 	}
 
 	bytes = fread(buffer, 1, size, fp);
@@ -688,8 +684,8 @@ int cr_task_prep_one(struct clovis_workload_io *cwi,
 	cti = *cti_out;
 
 	cti->cti_cwi = cwi;
-	cti->cti_nr_ops = cwi->cwi_io_size / (cwi->cwi_bs *
-					      cwi->cwi_bcount_per_op) ?: 1;
+	cti->cti_nr_ops = (cwi->cwi_io_size / (cwi->cwi_bs *
+					       cwi->cwi_bcount_per_op)) ?: 1;
 	cti->cti_progress = 0;
 
 	cti->cti_buffer = m0_alloc(cwi->cwi_bs);
@@ -699,7 +695,7 @@ int cr_task_prep_one(struct clovis_workload_io *cwi,
 	rc = cr_buffer_read(cti->cti_buffer, cwi->cwi_filename,
 			    cwi->cwi_bs);
 	if (rc != 0)
-		goto enomem;
+		goto error_rc;
 
 	M0_ALLOC_ARR(cti->cti_ids, cwi->cwi_nr_objs);
 	if (cti->cti_ids == NULL)
@@ -731,8 +727,10 @@ int cr_task_prep_one(struct clovis_workload_io *cwi,
 
 	return 0;
 enomem:
+	rc = -ENOMEM;
+error_rc:
 	cr_task_io_cleanup(cti_out);
-	return -ENOMEM;
+	return rc;
 }
 
 int cr_tasks_prepare(struct workload *w, struct workload_task *tasks)
@@ -752,7 +750,7 @@ int cr_tasks_prepare(struct workload *w, struct workload_task *tasks)
 		cwi->cwi_g.cg_created  = false;
 	}
 
-	for(i = 0; i < nr_tasks; i++) {
+	for (i = 0; i < nr_tasks; i++) {
 		cti = (struct clovis_task_io **)&tasks[i].u.clovis_task;
 		rc = cr_task_prep_one(cwi, cti);
 		if (rc != 0) {
@@ -763,7 +761,6 @@ int cr_tasks_prepare(struct workload *w, struct workload_task *tasks)
 
 		(*cti)->cti_task_idx = i;
 	}
-
 	return 0;
 }
 
@@ -775,7 +772,7 @@ int cr_tasks_release(struct workload *w, struct workload_task *tasks)
 
 	nr_tasks = w->cw_nr_thread;
 
-	for(i = 0; i < nr_tasks; i++) {
+	for (i = 0; i < nr_tasks; i++) {
 		cti = tasks[i].u.clovis_task;
 		if (cti != NULL)
 			cr_task_io_cleanup(&cti);
@@ -813,7 +810,7 @@ void clovis_run(struct workload *w, struct workload_task *tasks)
 
 	m0_mutex_init(&cwi->cwi_g.cg_mutex);
 	cwi->cwi_start_time = m0_time_now();
-	for(i = 0; i < cwi->cwi_rounds || cr_time_not_expired(w); i++) {
+	for (i = 0; i < cwi->cwi_rounds || cr_time_not_expired(w); i++) {
 		cr_tasks_prepare(w, tasks);
 		workload_start(w, tasks);
 		workload_join(w, tasks);
@@ -823,7 +820,7 @@ void clovis_run(struct workload *w, struct workload_task *tasks)
 	cwi->cwi_finish_time = m0_time_now();
 
 	cr_log(CLL_INFO, "I/O workload is finished.\n");
-	cr_log(CLL_INFO, "Total time: "TIME_F", %d objs, %lu ops (w+r)\n",
+	cr_log(CLL_INFO, "Total: time="TIME_F" objs=%d ops=%lu\n",
 	       TIME_P(m0_time_sub(cwi->cwi_finish_time, cwi->cwi_start_time)),
 	       cwi->cwi_nr_objs * w->cw_nr_thread,
 	       cwi->cwi_ops_done[CR_WRITE] + cwi->cwi_ops_done[CR_READ]);
@@ -859,12 +856,16 @@ void clovis_op_run(struct workload *w, struct workload_task *task,
 		   const struct workload_op *op)
 {
 	struct clovis_task_io *cti = task->u.clovis_task;
+	int                    rc;
 
 	/** Task is not prepared. */
 	if (cti == NULL)
 		return;
 
-	cr_adopt_mero_thread(cti);
+	rc = cr_adopt_mero_thread(cti);
+	if (rc < 0)
+		cr_log(CLL_ERROR, "Mero adoption failed with rc=%d", rc);
+
 	if (cti->cti_cwi->cwi_share_object)
 		cr_task_share_execute(cti);
 	else

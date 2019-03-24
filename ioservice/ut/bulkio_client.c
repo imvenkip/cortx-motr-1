@@ -268,6 +268,7 @@ static void bulkclient_test(void)
 	m0_fi_enable("io_fop_di_prepare", "skip_di_for_ut");
 	rc = m0_io_fop_prepare(&iofop->if_fop);
 	M0_UT_ASSERT(rc == 0);
+	m0_fi_disable("io_fop_di_prepare", "skip_di_for_ut");
 	rw = io_rw_get(&iofop->if_fop);
 	M0_UT_ASSERT(rw != NULL);
 
@@ -431,6 +432,7 @@ static void bulkclient_test(void)
 			      &m0_rpc__buf_bulk_cb);
 	M0_UT_ASSERT(rc == 0);
 	m0_chan_wait(&s_clink);
+	m0_fi_disable("rpc_bulk_op", "timeout_2s");
 	m0_mutex_lock(&sbulk->rb_mutex);
 	M0_UT_ASSERT(m0_tlist_is_empty(&rpcbulk_tl, &sbulk->rb_buflist));
 	m0_clink_del(&s_clink);

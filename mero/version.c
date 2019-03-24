@@ -92,7 +92,7 @@ void m0_build_info_print(void)
 	m0_console_printf(BI_PREFIX "\n");
 
 	m0_console_printf(BI_PREFIX
-			  "Copyright (C) 2018 Xyratex Technology Limited\n");
+			  "Copyright (C) 2019 Xyratex Technology Limited\n");
 
 	m0_console_printf(BI_PREFIX "\n");
 

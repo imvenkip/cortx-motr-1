@@ -193,6 +193,7 @@ const struct m0_cm_ops sns_rebalance_ops = {
 	.cmo_get_space_for       = rebalance_cm_get_space_for,
 	.cmo_sw_onwire_fop_setup = m0_sns_cm_rebalance_sw_onwire_fop_setup,
 	.cmo_is_peer             = m0_sns_is_peer,
+	.cmo_ha_msg		 = m0_sns_cm_ha_msg,
 	.cmo_stop                = rebalance_cm_stop,
 	.cmo_fini                = m0_sns_cm_fini
 };

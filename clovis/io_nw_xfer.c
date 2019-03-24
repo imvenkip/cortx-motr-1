@@ -1507,8 +1507,8 @@ static int nw_xfer_req_dispatch(struct nw_xfer_request *xfer)
 			rc = ioreq_fop_async_submit(&irfop->irf_iofop,
 						    ti->ti_session);
 			ri_error = irfop->irf_iofop.if_fop.f_item.ri_error;
-			M0_LOG(M0_DEBUG, "[%p] Submitted fops for device "
-			       FID_F"@%p, item %p, fops nr=%llu, rc=%d, "
+			M0_LOG(M0_DEBUG, "[%p] Submitted fop for device "
+			       FID_F"@%p, item %p, fop_nr=%llu, rc=%d, "
 			       "ri_error=%d", ioo, FID_P(&ti->ti_fid), irfop,
 			       &irfop->irf_iofop.if_fop.f_item,
 			       (unsigned long long)

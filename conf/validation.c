@@ -348,6 +348,7 @@ static int conf_pver_width_measure_w(struct m0_conf_obj *obj, void *args)
  */
 static char *conf_pver_width_error(const struct m0_conf_pver *pver,
 				   uint32_t *pver_width,
+				   size_t pver_width_nr,
 				   char *buf, size_t buflen)
 {
 	struct conf_pver_width_st st = {
@@ -363,8 +364,7 @@ static char *conf_pver_width_error(const struct m0_conf_pver *pver,
 			  &pver->pv_u.subtree.pvs_sitevs->cd_obj, &st);
 	M0_ASSERT(rc == 0); /* conf_pver_width_measure_w() cannot fail */
 	M0_POST(ergo(st.ws_err == NULL,
-		     m0_forall(i, ARRAY_SIZE(pver_width),
-			       (pver_width[i] > 0))));
+		     m0_forall(i, pver_width_nr, (pver_width[i] > 0))));
 	return st.ws_err;
 }
 
@@ -413,7 +413,8 @@ static char *conf_pver_formulaic_error(const struct m0_conf_pver *fpver,
 		return m0_vsnprintf(buf, buflen, FID_F": MD pool may not have"
 				    " formulaic pvers", FID_P(&pool->co_id));
 	err = conf_pver_formulaic_base_error(fpver, &base, buf, buflen) ?:
-		conf_pver_width_error(base, pver_width, buf, buflen);
+		conf_pver_width_error(base, pver_width, ARRAY_SIZE(pver_width),
+				      buf, buflen);
 	if (err != NULL)
 		return err;
 	if (M0_IS0(&form->pvf_allowance))
@@ -456,7 +457,8 @@ static char *conf_pver_actual_error(const struct m0_conf_pver *pver,
 	int                        i;
 	int                        rc;
 
-	err = conf_pver_width_error(pver, pver_width, buf, buflen);
+	err = conf_pver_width_error(pver, pver_width, ARRAY_SIZE(pver_width),
+				    buf, buflen);
 	if (err != NULL)
 		return err;
 	if (M0_IS0(&sub->pvs_tolerance))
@@ -511,7 +513,7 @@ conf_pvers_error(const struct m0_conf_cache *cache, char *buf, size_t buflen)
 	struct m0_conf_glob         glob;
 	const struct m0_conf_obj   *objv[CONF_GLOB_BATCH];
 	const struct m0_conf_pver  *pver;
-	char                       *err = NULL;
+	char                       *err;
 	int                         i;
 	int                         rc;
 

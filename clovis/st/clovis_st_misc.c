@@ -48,6 +48,7 @@
 
 #include "clovis/st/clovis_st_assert.h"
 #include "clovis/st/clovis_st_misc.h"
+#include "lib/memory.h"
 
 /*******************************************************************
  *                              Time                               *
@@ -95,29 +96,11 @@ uint64_t time_from_now(uint64_t secs, uint64_t ns)
  *                             Memory                              *
  *******************************************************************/
 
-#ifdef __KERNEL__
-
 void *mem_alloc(size_t size)
 {
 	void *p;
 
-	p = kmalloc(size, GFP_KERNEL);
-
-	return p;
-}
-
-void mem_free(void *p)
-{
-	kfree(p);
-}
-
-#else
-
-void *mem_alloc(size_t size)
-{
-	void *p;
-
-	p = malloc(size);
+	p = m0_alloc(size);
 	if (p != NULL)
 		memset(p, 0, size);
 
@@ -132,10 +115,8 @@ void mem_free(void *p)
 	if (clovis_st_is_cleaner_up() == true)
 		clovis_st_unmark_ptr(p);
 
-	free(p);
+	m0_free(p);
 }
-
-#endif
 
 /*******************************************************************
  *                             Misc                                *

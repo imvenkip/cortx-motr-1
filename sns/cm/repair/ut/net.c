@@ -36,7 +36,8 @@
 #include "ut/misc.h"                    /* M0_UT_PATH */
 #include "ut/ut.h"
 
-#include "sns/cm/repair/ag.c" /* m0_sns_cm_acc_cp_init */
+#include "sns/cm/repair/ag.c"		/* m0_sns_cm_acc_cp_init */
+#include "ha/msg.h"			/* m0_ha_msg */
 
 #define DUMMY_DBNAME      "dummy-db"
 #define DUMMY_COB_ID      20
@@ -627,6 +628,11 @@ static int sender_cm_ag_next(struct m0_cm *cm,
 	return -ENODATA;
 }
 
+static void sender_cm_ha_msg(struct m0_cm *cm,
+			     struct m0_ha_msg *msg, int rc)
+{
+}
+
 static const struct m0_cm_ops sender_cm_ops = {
 	.cmo_setup     = sender_cm_setup,
 	.cmo_prepare   = sender_cm_prepare,
@@ -635,6 +641,7 @@ static const struct m0_cm_ops sender_cm_ops = {
 	.cmo_cp_alloc  = sender_cm_cp_alloc,
 	.cmo_data_next = sender_cm_data_next,
 	.cmo_ag_next   = sender_cm_ag_next,
+	.cmo_ha_msg    = sender_cm_ha_msg,
 	.cmo_fini      = sender_cm_fini
 };
 

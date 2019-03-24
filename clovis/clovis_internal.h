@@ -19,6 +19,7 @@
  *                  James  Morse    <james.s.morse@seagate.com>
  *                  Sining Wu       <sining.wu@seagate.com>
  * Revision:        Pratik Shinde   <pratik.shinde@seagate.com>
+ *                  Abhishek Saha   <abhishek.saha@seagate.com>
  * Original creation date: 14-Oct-2013
  */
 
@@ -32,6 +33,8 @@
 #else
 #define M0_CLOVIS_THREAD_ENTER
 #endif
+
+#define OP_OBJ2CODE(op_obj) op_obj->oo_oc.oc_op.op_code
 
 #define CLOVIS_MOCK
 #define CLOVIS_FOR_M0T1FS
@@ -57,6 +60,7 @@
 #include "clovis/clovis_idx.h"  /* m0_clovis_idx_* */
 #include "clovis/pg.h"          /* nwxfer and friends */
 #include "clovis/sync.h"        /* clovis_sync_request */
+#include "fop/fop.h"
 
 struct m0_clovis_idx_service_ctx;
 
@@ -737,10 +741,29 @@ M0_INTERNAL void m0_clovis_entity_init(struct m0_clovis_entity *entity,
  *                 versions.
  * @param pv The returned pool version.
  */
-
 M0_INTERNAL int
 m0_clovis__obj_pool_version_get(struct m0_clovis_obj *obj,
 				struct m0_pool_version **pv);
+
+/**
+ * Retrieves the default pool version from the first pool in pools common.
+ *
+ * @param instance of the Clovis object containing Clovis instance.
+ * @param pv is the returned pool version.
+ */
+M0_INTERNAL int
+m0_clovis_default_pool_version_retrieve(struct m0_clovis_obj *obj,
+					struct m0_pool_version **pv);
+
+/**
+ * Retrieves the md pool version from pools common.
+ *
+ * @param instance of the Clovis object containing Clovis instance.
+ * @param pv is the returned md pool version.
+ */
+M0_INTERNAL int
+m0_clovis_md_pool_version_retrieve(struct m0_clovis_obj *obj,
+				   struct m0_pool_version **pv);
 
 /**
  * Gets the default layout identifier from confd.
@@ -801,6 +824,7 @@ M0_INTERNAL bool m0_clovis__is_write_op(struct m0_clovis_op *op);
 
 M0_INTERNAL int m0_clovis__io_ref_get(struct m0_clovis *m0c);
 M0_INTERNAL void m0_clovis__io_ref_put(struct m0_clovis *m0c);
+M0_INTERNAL struct m0_file *m0_clovis_fop_to_file(struct m0_fop *fop);
 
 enum {
 	M0_AVI_CLOVIS_OP = M0_AVI_CLOVIS_RANGE_START + 1,

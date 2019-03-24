@@ -52,9 +52,6 @@
 
 pid_t m0_pid_cached;
 
-static const char sys_kern_randvspace_fname[] =
-	"/proc/sys/kernel/randomize_va_space";
-
 static int  logfd;
 static bool use_mmaped_buffer = true;
 static char trace_file_path[PATH_MAX];
@@ -88,9 +85,11 @@ static int logbuf_map()
 
 		if (getcwd(trace_file_path, sizeof trace_file_path) != NULL ) {
 			strncat(trace_file_path, "/",
-				sizeof trace_file_path - strlen(trace_file_path));
+				sizeof trace_file_path -
+				strlen(trace_file_path) - 1);
 			strncat(trace_file_path, buf,
-				sizeof trace_file_path - strlen(trace_file_path));
+				sizeof trace_file_path -
+				strlen(trace_file_path) - 1);
 		}
 	}
 

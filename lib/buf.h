@@ -82,6 +82,22 @@ M0_INTERNAL int m0_buf_alloc(struct m0_buf *buf, size_t size);
 /** Frees memory pointed to by buf->b_addr and zeroes buffer's fields. */
 M0_INTERNAL void m0_buf_free(struct m0_buf *buf);
 
+/**
+ * Compares memory of two buffers.
+ *
+ * Returns zero if buffers are equal (including their sizes). Otherwise, returns
+ * difference between the first pair of bytes that differ in `x' and `y'.
+ * If buffers have different sizes and one is a prefix of the second,
+ * the sign of the expression (x->b_nob - y->b_nob) is returned.
+ *
+ * Therefore, sign of the return value can be used to determine lexicographical
+ * order of the buffers.
+ *
+ * m0_buf_cmp() can be treated as an analogue of strcmp(3) for m0_buf strings
+ * that may contain '\0'.
+ */
+M0_INTERNAL int m0_buf_cmp(const struct m0_buf *x, const struct m0_buf *y);
+
 /** Returns true iff two buffers are equal. */
 M0_INTERNAL bool m0_buf_eq(const struct m0_buf *x, const struct m0_buf *y);
 

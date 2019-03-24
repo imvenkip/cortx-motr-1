@@ -34,6 +34,7 @@
 #include "file/file.h"
 #include "lib/hash.h"
 #include "cm/repreb/cm.h" /* m0_cm_op */
+#include "ha/msg.h"	  /* m0_ha_msg */
 
 
 /**
@@ -365,6 +366,9 @@ M0_INTERNAL void m0_sns_cm_rebalance_sw_onwire_fop_init(void);
 M0_INTERNAL void m0_sns_cm_rebalance_sw_onwire_fop_fini(void);
 
 M0_INTERNAL void m0_sns_cm_print_status(struct m0_sns_cm *scm);
+
+M0_INTERNAL void m0_sns_cm_ha_msg(struct m0_cm *cm,
+				  struct m0_ha_msg *msg, int rc);
 
 /** @} SNSCM */
 #endif /* __MERO_SNS_CM_CM_H__ */

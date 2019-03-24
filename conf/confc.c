@@ -676,8 +676,10 @@ M0_INTERNAL void m0_confc_ctx_fini_locked(struct m0_confc_ctx *ctx)
 	ctx->fc_origin = NULL;
 
 	confc_lock(confc);
-	if (ctx->fc_mach.sm_state == S_TERMINAL && ctx->fc_result != NULL)
+	if (ctx->fc_result != NULL) {
+		M0_ASSERT(ctx->fc_mach.sm_state == S_TERMINAL);
 		m0_conf_obj_put(ctx->fc_result);
+	}
 	M0_LOG(M0_DEBUG, "ctx=%p confc=%p nr_ctx: %"PRIu32" -> %"PRIu32,
 	       ctx, confc, confc->cc_nr_ctx, confc->cc_nr_ctx - 1);
 	M0_CNT_DEC(confc->cc_nr_ctx); /* detach from m0_confc */

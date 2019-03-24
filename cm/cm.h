@@ -25,6 +25,7 @@
 #define __MERO_CM_CM_H__
 
 #include "lib/tlist.h"         /* struct m0_tlink */
+#include "lib/types.h"	       /* uint8_t */
 
 #include "reqh/reqh_service.h" /* struct m0_reqh_service_type */
 #include "sm/sm.h"	       /* struct m0_sm */
@@ -35,6 +36,7 @@
 #include "cm/ag.h"
 #include "cm/pump.h"
 #include "cm/ag_store.h"
+#include "ha/msg.h"
 
 /**
    @page CMDLD-fspec Copy Machine Functional Specification
@@ -348,6 +350,11 @@ struct m0_cm_ops {
 	 * process, then local cm establishes connection to it.
 	 */
 	bool (*cmo_is_peer)(struct m0_cm *cm, struct m0_reqh_service_ctx *ctx);
+
+	/** Populates ha msg  specific to cm */
+	void (*cmo_ha_msg)(struct m0_cm *cm,
+			   struct m0_ha_msg *msg, int rc);
+
 	/** Copy machine specific finalisation routine. */
 	void (*cmo_fini)(struct m0_cm *cm);
 };
@@ -439,6 +446,11 @@ M0_INTERNAL int m0_cm_stop(struct m0_cm *cm);
  * @pre m0_cm_state_get(cm) == M0_CMS_IDLE
  */
 M0_INTERNAL int m0_cm_configure(struct m0_cm *cm, struct m0_fop *fop);
+
+/**
+ * Sends HA notification about cm failure.
+ */
+M0_INTERNAL int m0_ha_cm_err_send(struct m0_cm *cm, int rc);
 
 /**
  * Handles various type of copy machine failures based on the failure code and

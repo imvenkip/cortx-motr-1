@@ -714,7 +714,7 @@ static void val_dump(struct context *ctx, const char *prefix,
 #define BEND (buf + strlen(buf))
 
 	ctx->c_val = val;
-	printf(prefix);
+	printf("%s", prefix);
 	pad(indent);
 	if (indent == 0 && val->va_time != 0) {
 		_clock(ctx, &val->va_time, buf);

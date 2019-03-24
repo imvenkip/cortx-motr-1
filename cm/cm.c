@@ -21,14 +21,15 @@
 
 #define M0_TRACE_SUBSYSTEM M0_TRACE_SUBSYS_CM
 
-#include "lib/trace.h"   /* M0_LOG */
-#include "lib/bob.h"     /* M0_BOB_DEFINE */
-#include "lib/misc.h"    /* M0_SET0 */
-#include "lib/assert.h"  /* M0_PRE, M0_POST */
+#include "lib/trace.h"		/* M0_LOG */
+#include "lib/bob.h"		/* M0_BOB_DEFINE */
+#include "lib/misc.h"		/* M0_SET0 */
+#include "lib/assert.h"		/* M0_PRE, M0_POST */
 #include "lib/errno.h"
 #include "lib/finject.h"
 #include "lib/memory.h"
 
+#include "module/instance.h"	/* m0_get */
 #include "mero/magic.h"
 #include "mero/setup.h"
 #include "net/buffer_pool.h"
@@ -36,8 +37,10 @@
 #include "rpc/rpc_machine.h"
 #include "reqh/reqh.h"
 #include "fop/fop.h"
-#include "pool/pool.h"     /* pools_common_svc */
-#include "conf/obj_ops.h"  /* m0_conf_obj_find_lock */
+#include "pool/pool.h"		/* pools_common_svc */
+#include "conf/obj_ops.h"	/* m0_conf_obj_find_lock */
+
+#include "ha/ha.h"		/* m0_ha_send */
 
 #include "cm/cm.h"
 #include "cm/ag.h"
@@ -498,6 +501,31 @@ M0_INTERNAL struct m0_cm *m0_cmsvc2cm(struct m0_reqh_service *cmsvc)
 	return container_of(cmsvc, struct m0_cm, cm_service);
 }
 
+M0_INTERNAL int m0_ha_cm_err_send(struct m0_cm *cm, int rc)
+{
+	struct m0_ha_msg *msg;
+	uint64_t	  tag;
+
+	M0_ENTRY("cm: %p rc: %d", cm, rc);
+
+	M0_PRE(cm != NULL);
+	M0_PRE(rc < 0);
+
+	M0_LOG(M0_DEBUG, "Notify HA about cm failure, state=%d rc=%d",
+		m0_cm_state_get(cm), rc);
+
+	M0_ALLOC_PTR(msg);
+	if (msg == NULL)
+		return M0_ERR(-ENOMEM);
+
+	cm->cm_ops->cmo_ha_msg(cm, msg, rc);
+	m0_ha_send(m0_get()->i_ha, m0_get()->i_ha_link, msg, &tag);
+	m0_free(msg);
+
+	M0_LEAVE();
+	return M0_RC(0);
+}
+
 M0_INTERNAL void m0_cm_fail(struct m0_cm *cm, int rc)
 {
 	M0_ENTRY("cm: %p rc: %d", cm, rc);
@@ -512,7 +540,7 @@ M0_INTERNAL void m0_cm_fail(struct m0_cm *cm, int rc)
 	M0_LOG(M0_ERROR, "copy machine failure, state=%d rc=%d",
 	       m0_cm_state_get(cm), rc);
 	m0_sm_fail(&cm->cm_mach, M0_CMS_FAIL, rc);
-
+	m0_ha_cm_err_send(cm, rc);
 	M0_LEAVE();
 }
 

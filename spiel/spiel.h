@@ -1131,6 +1131,14 @@ int m0_spiel_pool_rebalance_start(struct m0_spiel     *spl,
 			          const struct m0_fid *pool_fid);
 
 /**
+ * Starts direct rebalance for the given node.
+ *
+ * @param spl  spiel instance
+ * @param node fid of the node to be rebalanced
+ */
+int m0_spiel_node_direct_rebalance_start(struct m0_spiel     *spl,
+					 const struct m0_fid *node);
+/**
  * Continues pool rebalance.
  *
  * The command is synchronous. It waits replies from all SNS or DIX services

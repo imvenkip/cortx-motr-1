@@ -16,6 +16,9 @@
  *
  * Original author: Rajanikant Chirmade <rajanikant.chirmade@seagate.com>
  * Original creation date: 29-Aug-2018
+ *
+ * Subsequent Modification: Abhishek Saha <abhishek.saha@seagate.com>
+ * Modification Date: 31-Dec-2108
  */
 #include <stdlib.h>
 #include <stdio.h>
@@ -23,7 +26,10 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <sys/time.h>
+#include <getopt.h>
+#include <libgen.h>
 
+#include "lib/string.h"
 #include "conf/obj.h"
 #include "fid/fid.h"
 #include "lib/memory.h"
@@ -46,7 +52,7 @@ extern struct m0_addb_ctx m0_clovis_addb_ctx;
 static void help(void)
 {
 	m0_console_printf("Help:\n");
-	m0_console_printf("touch    OBJ_ID\n");
+	m0_console_printf("touch   OBJ_ID\n");
 	m0_console_printf("write   OBJ_ID SRC_FILE BLOCK_SIZE BLOCK_COUNT\n");
 	m0_console_printf("read    OBJ_ID DEST_FILE BLOCK_SIZE BLOCK_COUNT\n");
 	m0_console_printf("delete  OBJ_ID\n");
@@ -61,6 +67,21 @@ static void help(void)
 		continue;                       \
 	}
 
+static void usage(FILE *file, char *prog_name)
+{
+	fprintf(file, "Usage: %s [OPTION]...\n"
+"Launches Clovis client.\n"
+"\n"
+"Mandatory arguments to long options are mandatory for short options too.\n"
+"  -l, --local         ADDR        local endpoint address\n"
+"  -H, --ha            ADDR        HA endpoint address\n"
+"  -p, --profile       FID         profile FID\n"
+"  -P, --process       FID         process FID\n"
+"  -r, --read-verify               verify parity after reading the data\n"
+"  -h, --help                      shows this help text and exit\n"
+, prog_name);
+}
+
 int main(int argc, char **argv)
 {
 	struct m0_fid     fid;
@@ -72,19 +93,46 @@ int main(int argc, char **argv)
 	struct m0_uint128 id = M0_CLOVIS_ID_APP;
 	int               block_size;
 	int               block_count;
+	int               c;
+	int               option_index = 0;
 
-	/* Get input parameters */
-	if (argc < 6) {
-		m0_console_printf("Usage: c0client laddr ha_addr prof_opt"
-		       " proc_fid read_verify_flag\n");
-		return -1;
+	static struct option l_opts[] = {
+                                {"local",       required_argument, NULL, 'l'},
+                                {"ha",          required_argument, NULL, 'H'},
+                                {"profile    ", required_argument, NULL, 'p'},
+                                {"process",     required_argument, NULL, 'P'},
+                                {"read-verify", no_argument,       NULL, 'r'},
+                                {"help",        no_argument,       NULL, 'h'},
+                                {0,             0,                 0,     0 }};
+
+	while ((c = getopt_long(argc, argv, ":l:H:p:P:rh", l_opts,
+			       &option_index)) != -1)
+	{
+		switch (c) {
+			case 'l': clovis_conf.cc_local_addr = optarg;
+				  continue;
+			case 'H': clovis_conf.cc_ha_addr = optarg;
+				  continue;
+			case 'p': clovis_conf.cc_profile = optarg;
+				  continue;
+			case 'P': clovis_conf.cc_process_fid = optarg;
+				  continue;
+			case 'r': clovis_conf.cc_is_read_verify = true;
+				  continue;
+			case 'h': usage(stderr, basename(argv[0]));
+				  exit(EXIT_FAILURE);
+			case '?': fprintf(stderr, "Unsupported option '%c'\n",
+					  optopt);
+				  usage(stderr, basename(argv[0]));
+				  exit(EXIT_FAILURE);
+			case ':': fprintf(stderr, "No argument given for '%c'\n",
+					  optopt);
+				  usage(stderr, basename(argv[0]));
+				  exit(EXIT_FAILURE);
+			default:  fprintf(stderr, "Unsupported option '%c'\n", c);
+		}
 	}
 
-	clovis_conf.cc_local_addr            = argv[1];
-	clovis_conf.cc_ha_addr               = argv[2];
-	clovis_conf.cc_profile               = argv[3];
-	clovis_conf.cc_process_fid           = argv[4];
-	clovis_conf.cc_is_read_verify        = strcmp(argv[5], "true") == 0;
 	clovis_conf.cc_is_oostore            = true;
 	clovis_conf.cc_tm_recv_queue_min_len = M0_NET_TM_RECV_QUEUE_DEF_LEN;
 	clovis_conf.cc_max_rpc_msg_size      = M0_RPC_DEF_MAX_RPC_MSG_SIZE;
@@ -95,8 +143,8 @@ int main(int argc, char **argv)
 
 	rc = clovis_init(&clovis_conf, &clovis_container, &clovis_instance);
 	if (rc < 0) {
-		m0_console_printf("clovis_init failed!\n");
-		return rc;
+		fprintf(stderr, "clovis_init failed! rc = %d\n", rc);
+		exit(EXIT_FAILURE);
 	}
 
 	memset(&fid, 0, sizeof fid);

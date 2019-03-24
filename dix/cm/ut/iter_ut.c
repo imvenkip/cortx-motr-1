@@ -689,6 +689,7 @@ static void iter_ut_fini(struct m0_reqh_service *svc)
 	m0_reqh_service_fini(svc);
 	iter_ut_reqh_fini();
 	m0_be_ut_backend_fini(&be);
+	m0_fi_disable("cas_in_ut", "ut");
 }
 
 static void start_stop(void)
@@ -832,6 +833,8 @@ static void one_rec(void)
 	M0_ASSERT(rc == -ENODATA);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(repair_svc);
+	m0_fi_disable("dix_cm_is_repair_coordinator", "always_coordinator");
+	m0_fi_disable("dix_cm_repair_tgts_get", "single_target");
 }
 
 static void multi_rec(void)
@@ -884,6 +887,8 @@ static void multi_rec(void)
 	M0_ASSERT(rc == -ENODATA);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(repair_svc);
+	m0_fi_disable("dix_cm_is_repair_coordinator", "always_coordinator");
+	m0_fi_disable("dix_cm_repair_tgts_get", "single_target");
 }
 
 static void rep_coordinator(void)
@@ -1009,6 +1014,8 @@ static void rep_coordinator(void)
 	M0_ASSERT(rc == -ENODATA);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(repair_svc);
+	m0_fi_disable("dix_cm_iter_next_key", "print_parity_group");
+	m0_fi_disable("dix_cm_repair_tgts_get", "single_target");
 
 /*
  * Parity group info for key 10 (pool dev_id/global dev_id):
@@ -1046,6 +1053,8 @@ static void rep_coordinator(void)
 	M0_ASSERT(rc == -ENODATA);
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(repair_svc);
+	m0_fi_disable("dix_cm_iter_next_key", "print_parity_group");
+	m0_fi_disable("dix_cm_repair_tgts_get", "single_target");
 }
 
 static void one_dev_fail(void)
@@ -2335,6 +2344,8 @@ static void ctg_del_concur_rep1(void)
 
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(repair_svc);
+	m0_fi_disable("dix_cm_is_repair_coordinator", "always_coordinator");
+	m0_fi_disable("dix_cm_repair_tgts_get", "single_target");
 }
 
 /*
@@ -2429,6 +2440,8 @@ static void ctg_del_concur_rep2(void)
 
 	m0_dix_cm_iter_stop(iter);
 	iter_ut_fini(repair_svc);
+	m0_fi_disable("dix_cm_is_repair_coordinator", "always_coordinator");
+	m0_fi_disable("dix_cm_repair_tgts_get", "single_target");
 }
 
 static void one_dev_reb(void)

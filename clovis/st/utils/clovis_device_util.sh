@@ -14,9 +14,9 @@ m0t1fs_st_dir=$clovis_st_util_dir/../../../m0t1fs/linux_kernel/st
 . $m0t1fs_dir/m0t1fs_server_inc.sh
 . $m0t1fs_dir/m0t1fs_sns_common_inc.sh
 
-clvois_st_set_failed_devices()
+clovis_st_set_failed_devices()
 {
-	pool_mach_set_failure $1 || {
+	disk_state_set "failed" $1 || {
 		echo "Failed: pool_mach_set_failure..."
 		return 1
 	}
@@ -24,7 +24,7 @@ clvois_st_set_failed_devices()
 
 clovis_st_query_devices()
 {
-	pool_mach_query $1 || {
+	disk_state_get $1 || {
 		echo "Failed: pool_mach_query..."
 		return 1
 	}

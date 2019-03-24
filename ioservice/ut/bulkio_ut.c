@@ -1732,6 +1732,14 @@ static void bulkio_init(void)
 	const char *caddr = "0@lo:12345:34:*";
 	const char *saddr = "0@lo:12345:34:1";
 
+	/*
+	 * Current set of tests work with standalone io_fops, but
+	 * io_fop_di_prepare() relies on the fact that an io_fop is embedded
+	 * into the io_req_fop structure. Therefore, we have to skip DI prepare
+	 * for the tests in order to avoid crashes.
+	 */
+	m0_fi_enable("io_fop_di_prepare", "skip_di_for_ut");
+
 	M0_ALLOC_PTR(bp);
 	M0_ASSERT(bp != NULL);
 	bulkio_params_init(bp);
@@ -1757,6 +1765,8 @@ static void bulkio_fini(void)
 	bulkio_server_stop(bp->bp_sctx);
 	bulkio_params_fini(bp);
 	m0_free(bp);
+
+	m0_fi_disable("io_fop_di_prepare", "skip_di_for_ut");
 }
 
 /*

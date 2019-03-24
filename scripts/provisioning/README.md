@@ -135,11 +135,18 @@ Quick Start (Windows)
       During installation, when asked, choose the following options (keep other options to their default setting):
 
       - _Use Git and optional Unix tools from the Command Prompt_
+      - _Checkout as-is, commit Unix-style line ending_
       - _Enable symbolic links_
 
 * Configure
 
-    - Open _Git Bash_ terminal and clone Mero repository somewhere, just as an example let's say it's in `$HOME/src/mero`
+    - Open _Git Bash_ terminal, add CRLF configuration option to make sure that Mero/Halon scripts can work on VM
+
+      ```bash
+      git config --global core.autocrlf input
+      ```
+
+    - Clone Mero repository somewhere, just as an example let's say it's in `$HOME/src/mero`
 
     - Create a persistent alias for `m0vg` script:
 
@@ -156,6 +163,12 @@ Quick Start (Windows)
 * Run
 
     - Follow the steps from _Run_ section under _Quick Start (MacOS)_ above.
+
+      > *NOTE*: during `m0vg up cmu` command execution you may be asked to enter
+      > your Windows username and password, and then grant permissions for
+      > creating Windows shared directory - that is required to enable
+      > passwordless ssh access from _cmu_ VM to other VMs, it will be asked
+      > only once when creating _cmu_ VM for the first time.
 
 Overview
 --------

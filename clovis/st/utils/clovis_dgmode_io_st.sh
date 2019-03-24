@@ -27,7 +27,7 @@ OBJ_ID2="1048578"
 OBJ_HID1="0:100001"
 OBJ_HID2="0:100002"
 PVER_1="7600000000000001:a"
-PVER_2="7680000000000000:4"
+PVER_2="7680000000000001:42"
 read_verify="true"
 clovis_pids=""
 export cnt=1
@@ -52,7 +52,8 @@ main()
 	BLOCKSIZE=4096
 	BLOCKCOUNT=25
 	echo "dd if=/dev/urandom bs=$BLOCKSIZE count=$BLOCKCOUNT of=$src_file"
-	dd if=/dev/urandom bs=$BLOCKSIZE count=$BLOCKCOUNT of=$src_file 2> $CLOVIS_TEST_LOGFILE || {
+	dd if=/dev/urandom bs=$BLOCKSIZE count=$BLOCKCOUNT of=$src_file \
+              2> $CLOVIS_TEST_LOGFILE || {
 		echo "Failed to create a source file"
 		unmount_and_clean &>>$MERO_TEST_LOGFILE
 		mero_service_stop
@@ -86,9 +87,10 @@ main()
 		echo "Healthy mode, write failed."
 		error_handling $rc
 	fi
+	echo "Healthy mode write succeeds."
 
 	# read the written object
-	io_conduct "READ" $OBJ_ID1  $dest_file $read_verify
+	io_conduct "READ" $OBJ_ID1  $dest_file "false"
 	rc=$?
 	if [ $rc -ne "0" ]
 	then
@@ -120,11 +122,12 @@ main()
 	fi
 	echo "Healthy mode, read file with parity verify succeeds"
 	echo "Clovis: Healthy mode IO succeeds."
-	echo "Fail a disk"
-	fail_device=1
+	echo "Fail two disks"
+	fail_device1=1
+	fail_device2=2
 
 	# fail a disk and read an object
-	disk_state_set "failed" $fail_device || {
+	disk_state_set "failed" $fail_device1 $fail_device2 || {
 		echo "Operation to mark device failure failed."
 		error_handling 1
 	}
@@ -138,6 +141,25 @@ main()
 		echo "Degraded read failed."
 		error_handling $rc
 	fi
+	echo "Dgmode Read of 1st obj succeeds."
+	diff $src_file $dest_file
+	rc=$?
+	if [ $rc -ne "0" ]
+	then
+		echo "Obj read in degraded mode differs."
+		error_handling $rc
+	fi
+	rm -f $dest_file
+
+	#Dgmode read of with Parity Verify.
+	io_conduct "READ" $OBJ_ID1 $dest_file $read_verify
+	rc=$?
+	if [ $rc -ne "0" ]
+	then
+		echo "Degraded read failed."
+		error_handling $rc
+	fi
+	echo "Dgmode Parity verify Read of 1st obj succeeds."
 	diff $src_file $dest_file
 	rc=$?
 	if [ $rc -ne "0" ]
@@ -155,6 +177,7 @@ main()
 		echo "Degraded write failed."
 		error_handling $rc
 	fi
+	echo "New Obj write succeeds."
 	echo "Check pver of the first object"
 	output=`getfattr -n pver $MERO_M0T1FS_MOUNT_DIR/"$OBJ_HID1"`
 	echo $output
@@ -173,7 +196,33 @@ main()
 	fi
 	rm -f $dest_file
 
-	# Read a file from new pool version.
+	echo "Fail another disk"
+	fail_device3=3
+	# fail a disk and read an object
+	disk_state_set "failed" $fail_device3 || {
+		echo "Operation to mark device failure failed."
+		error_handling 1
+	}
+
+
+	# Read a file from the new pool version.
+	io_conduct "READ" $OBJ_ID2 $dest_file "false"
+	rc=$?
+	if [ $rc -ne "0" ]
+	then
+		echo "Reading a file from a new pool version failed."
+		error_handling $rc
+	fi
+	diff $src_file $dest_file
+	rc=$?
+	if [ $rc -ne "0" ]
+	then
+		echo "File read from a new pool version differs."
+		error_handling $rc
+	fi
+	echo "Clovis: Dgmod mode read from new pver succeeds."
+
+	#Read in Parity Verify from new pool version.
 	io_conduct "READ" $OBJ_ID2 $dest_file $read_verify
 	rc=$?
 	if [ $rc -ne "0" ]
@@ -188,22 +237,7 @@ main()
 		echo "File read from a new pool version differs."
 		error_handling $rc
 	fi
-	echo "Clovis: Dgmod mode read succeeds."
-	io_conduct "READ" $OBJ_ID2 $dest_file $read_verify
-	rc=$?
-	if [ $rc -ne "0" ]
-	then
-		echo "Reading a file from a new pool version failed."
-		error_handling $rc
-	fi
-	diff $src_file $dest_file
-	rc=$?
-	if [ $rc -ne "0" ]
-	then
-		echo "File read from a new pool version differs."
-		error_handling $rc
-	fi
-	echo "Clovis: Dgmod mode read verify succeeds."
+	echo "Clovis: Dgmod mode read verify from new pver succeeds."
 	echo "Clovis: Dgmod mode IO succeeds."
 	clovis_inst_cnt=`expr $cnt - 1`
 	for i in `seq 1 $clovis_inst_cnt`

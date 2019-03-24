@@ -18,6 +18,7 @@
  * Original creation date: 12/02/2010
  */
 
+#include "lib/arith.h"  /* min_type */
 #include "lib/memory.h"
 #include "lib/errno.h"
 #include "lib/misc.h"
@@ -53,6 +54,23 @@ M0_INTERNAL void m0_buf_free(struct m0_buf *buf)
 {
 	m0_free0(&buf->b_addr);
 	buf->b_nob = 0;
+}
+
+M0_INTERNAL int m0_buf_cmp(const struct m0_buf *x, const struct m0_buf *y)
+{
+	int rc;
+
+	rc = memcmp(x->b_addr, y->b_addr,
+		    min_type(m0_bcount_t, x->b_nob, y->b_nob));
+	/*
+	 * Special case when one buffer is prefix for the second. We can't
+	 * compare the first byte of the suffix with 0, because m0_buf may
+	 * contain '\0' and in this situation 0 would return for not equal
+	 * buffers.
+	 */
+	if (rc == 0 && x->b_nob != y->b_nob)
+		rc = x->b_nob > y->b_nob ? 1 : -1;
+	return rc;
 }
 
 M0_INTERNAL bool m0_buf_eq(const struct m0_buf *x, const struct m0_buf *y)
@@ -99,8 +117,8 @@ M0_INTERNAL bool m0_buf_streq(const struct m0_buf *buf, const char *str)
 {
 	M0_PRE(str != NULL);
 
-	return memcmp(str, buf->b_addr, buf->b_nob) == 0 &&
-		strlen(str) == buf->b_nob;
+	return strlen(str) == buf->b_nob &&
+		memcmp(str, buf->b_addr, buf->b_nob) == 0;
 }
 
 M0_INTERNAL char *m0_buf_strdup(const struct m0_buf *buf)

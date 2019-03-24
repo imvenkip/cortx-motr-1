@@ -602,11 +602,12 @@ static void __ha_nvec_reset(struct m0_ha_nvec *nvec, int32_t total)
 	nvec->nv_nr = min32(total, M0_HA_STATE_UPDATE_LIMIT);
 }
 
-M0_INTERNAL int m0_conf_confc_ha_update(struct m0_confc *confc)
+M0_INTERNAL int m0_conf_confc_ha_update_async(struct m0_confc *confc,
+					      struct m0_ha_nvec *nvec,
+					      struct m0_chan *chan)
 {
 	struct m0_conf_cache *cache = &confc->cc_cache;
 	struct m0_conf_obj   *obj;
-	struct m0_ha_nvec     nvec;
 	int32_t               total;
 	int                   rc;
 	int                   i = 0;
@@ -617,9 +618,12 @@ M0_INTERNAL int m0_conf_confc_ha_update(struct m0_confc *confc)
 	if (total == 0)
 		return M0_ERR(-ENOENT);
 
-	nvec.nv_nr = min32(total, M0_HA_STATE_UPDATE_LIMIT);
-	M0_ALLOC_ARR(nvec.nv_note, nvec.nv_nr);
-	if (nvec.nv_note == NULL)
+	if (chan != NULL && total > M0_HA_STATE_UPDATE_LIMIT)
+		return M0_ERR(-EINVAL);
+
+	nvec->nv_nr = min32(total, M0_HA_STATE_UPDATE_LIMIT);
+	M0_ALLOC_ARR(nvec->nv_note, nvec->nv_nr);
+	if (nvec->nv_note == NULL)
 		return M0_ERR(-ENOMEM);
 
 	m0_tl_for(m0_conf_cache, &cache->ca_registry, obj) {
@@ -630,22 +634,35 @@ M0_INTERNAL int m0_conf_confc_ha_update(struct m0_confc *confc)
 		if (m0_fid_tget(&obj->co_id) ==
 		    M0_CONF_DIR_TYPE.cot_ftype.ft_id)
 			continue;
-		nvec.nv_note[i].no_id = obj->co_id;
-		nvec.nv_note[i++].no_state = M0_NC_UNKNOWN;
-		if (nvec.nv_nr == i) {
-			rc = m0_conf_objs_ha_update(&nvec);
+		nvec->nv_note[i].no_id = obj->co_id;
+		nvec->nv_note[i++].no_state = M0_NC_UNKNOWN;
+		if (nvec->nv_nr == i) {
+			if (chan == NULL)
+				rc = m0_conf_objs_ha_update(nvec);
+			else
+				rc = m0_ha_state_get(nvec, chan);
 			if (rc != 0)
 				break;
-			total -= nvec.nv_nr;
+			total -= nvec->nv_nr;
 			if (total <= 0)
 				break;
-			__ha_nvec_reset(&nvec, total);
+			__ha_nvec_reset(nvec, total);
 			i = 0;
 		}
 	} m0_tlist_endfor;
 
-	m0_free(nvec.nv_note);
 	return M0_RC(rc);
+}
+
+M0_INTERNAL int m0_conf_confc_ha_update(struct m0_confc *confc)
+{
+	struct m0_ha_nvec nvec;
+	int               rc;
+
+	rc = m0_conf_confc_ha_update_async(confc, &nvec, NULL);
+	if (rc == 0)
+		m0_free(nvec.nv_note);
+	return rc;
 }
 
 #undef M0_TRACE_SUBSYSTEM

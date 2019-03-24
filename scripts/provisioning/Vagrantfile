@@ -105,9 +105,7 @@ Vagrant.configure('2') do |config|
   # Basic options ---------------------------------------------------------
   #
 
-  # TODO: remove 'never' tag from skip list once Ansible is updated to
-  #       version 2.5 on all platforms
-  ansible_skip_tags = [ 'never', 'debug', 'vault-release', 'xperior' ]
+  ansible_skip_tags = [ 'debug', 'nfs-client', 'nfs-server', 'vault-release', 'xperior' ]
 
   # A box is a minimal clean VM image. You can search for boxes at
   # https://vagrantcloud.com, or even create your own with https://www.packer.io
@@ -141,18 +139,7 @@ Vagrant.configure('2') do |config|
   # and between machines, machine access to internet is performed via NAT.
   config.vm.network :private_network, type: :dhcp
 
-  # Create a public network, which generally matched to bridged network.
-  # Bridged networks make the machine appear as another physical device on
-  # your network.
-  #config.vm.network "public_network"
-
   # Shared folders -------------------------
-
-  # Share an additional folder to the guest VM. The first argument is
-  # the path on the host to the actual folder. The second argument is
-  # the path on the guest to mount the folder. And the optional third
-  # argument is a set of non-required options.
-  #config.vm.synced_folder "../data", "/vagrant_data"
 
   # Disable default sharing of current folder unless ansible_local provisioner
   # is requested
@@ -160,6 +147,11 @@ Vagrant.configure('2') do |config|
      (ENV['M0_VM_PROVISION_WITH_ANSIBLE_LOCAL'].nil? ||
       ENV['M0_VM_PROVISION_WITH_ANSIBLE_LOCAL'].match(/no|false|0/i))
     config.vm.synced_folder '.', '/vagrant', disabled: true
+  else
+    config.vm.synced_folder '.', '/vagrant',
+                            type: 'rsync',
+                            rsync__exclude: [ '.git/', '.vagrant/', 'disk*' ],
+                            rsync__args: ['--archive', '--delete', '-z']
   end
 
   # Providers ------------------------------
@@ -186,13 +178,38 @@ Vagrant.configure('2') do |config|
              : ENV['M0_VM_CMU_ENABLE_DOCKER'].match(/yes|true|1/i) ? true
              :                                                       false
 
+  if !ENV['M0_VM_CMU_ENABLE_NFS_SERVER'].nil? &&
+      ENV['M0_VM_CMU_ENABLE_NFS_SERVER'].match(/yes|true|1/i)
+    ansible_skip_tags.delete('nfs-client')
+    ansible_skip_tags.delete('nfs-server')
+  end
+
   config.vm.define :cmu, primary: true do |cmu|
     cmu.vm.hostname = 'cmu'
     setup(cmu, cmu_cpus, cmu_mem)
     setup_shared_mero_src_dir(cmu)
+
+    if RbConfig::CONFIG['host_os'] =~ /mingw/i && !provisioned?(cmu.vm.hostname)
+      cmu.vm.synced_folder '.', '/vagrant', type: 'smb'
+    end
+
+    if !ENV['M0_VM_CMU_ENABLE_PUBLIC_NET'].nil? &&
+        ENV['M0_VM_CMU_ENABLE_PUBLIC_NET'].match(/yes|true|1/i)
+      if !ENV['M0_VM_CMU_BRIDGE_INTERFACE'].nil?
+        if !ENV['M0_VM_CMU_BRIDGE_STATIC_IP'].nil?
+          cmu.vm.network :public_network, bridge: ENV['M0_VM_CMU_BRIDGE_INTERFACE'], ip: ENV['M0_VM_CMU_BRIDGE_STATIC_IP']
+        else
+          cmu.vm.network :public_network, bridge: ENV['M0_VM_CMU_BRIDGE_INTERFACE']
+        end
+      else
+        cmu.vm.network 'public_network'
+      end
+    end
+
     if cmu_docker
       cmu.vm.provision :docker
     end
+
     if !ENV['M0_VM_PROVISION_SCRIPT'].nil?
       if File.exists?(File.expand_path(ENV['M0_VM_PROVISION_SCRIPT']))
         cmu.vm.provision :shell, path: ENV['M0_VM_PROVISION_SCRIPT'], privileged: false
@@ -339,7 +356,9 @@ def setup(node, cpu_nr, mem_mb, disk_nr = 0, disk_size = 1)
   console_log_dir = ENV['M0_VM_CONSOLE_LOG_DIR'].nil? ? '.' : ENV['M0_VM_CONSOLE_LOG_DIR']
 
   # directory where to keep additional storage disk images for SSU machines
-  disks_dir = ENV['M0_VM_SSU_DISKS_DIR'].nil? ? '.' : ENV['M0_VM_SSU_DISKS_DIR']
+  disks_dir = !ENV['M0_VM_SSU_DISKS_DIR'].nil?          ?  ENV['M0_VM_SSU_DISKS_DIR']
+            : RbConfig::CONFIG['host_os'] =~ /mingw/i   ?  '../..'
+            :                                              '.'
 
   node.vm.provider :virtualbox do |v|
     # visible machine name

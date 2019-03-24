@@ -545,9 +545,9 @@ void clovis_st_add_suites()
 	clovis_st_add(&st_suite_clovis_write);
 	clovis_st_add(&st_suite_clovis_layout);
 	clovis_st_add(&st_suite_clovis_osync);
+	clovis_st_add(&st_suite_clovis_idx);
 #ifndef __KERNEL__
 	clovis_st_add(&st_suite_clovis_isync);
-	clovis_st_add(&st_suite_clovis_idx);
 	clovis_st_add(&st_suite_clovis_mt);
 #endif
 }

@@ -82,11 +82,12 @@ io_ops()
 	block_count=$3
 	src_file=$4
 	dest_file=$5
-	READ_VERIFY="false"
 
-/usr/bin/expect  <<EOF
+	/usr/bin/expect <<EOF
 	set timeout 150
-	spawn $clovis_st_util_dir/c0client $CLOVIS_LOCAL_EP $CLOVIS_HA_EP $CLOVIS_PROF_OPT $CLOVIS_PROC_FID $READ_VERIFY> /tmp/log
+	spawn $clovis_st_util_dir/c0client -l $CLOVIS_LOCAL_EP \
+		-H $CLOVIS_HA_EP -p $CLOVIS_PROF_OPT -P $CLOVIS_PROC_FID \
+		> $SANDBOX_DIR/c0client.log
 	expect "c0clovis >>"
 	send -- "write $object_id $src_file $block_size $block_count\r"
 	expect "c0clovis >>"
@@ -125,7 +126,8 @@ main()
 
 	rm -f $src_file $dest_file
 
-	dd if=/dev/urandom bs=$block_size count=$block_count of=$src_file 2> $CLOVIS_TEST_LOGFILE || {
+	dd if=/dev/urandom bs=$block_size count=$block_count of=$src_file \
+	      2> $CLOVIS_TEST_LOGFILE || {
 		error_handling $? "Failed to create a source file"
 	}
 	mkdir $CLOVIS_TRACE_DIR

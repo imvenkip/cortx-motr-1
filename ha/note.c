@@ -65,6 +65,7 @@ static bool note_invariant(const struct m0_ha_nvec *note, bool known)
 					(M0_NC_REPAIR, M0_NC_REBALANCE)),
 			 m0_conf_fid_type(&N(i).no_id) == &M0_CONF_POOL_TYPE ||
 			 m0_conf_fid_type(&N(i).no_id) == &M0_CONF_SDEV_TYPE ||
+			 m0_conf_fid_type(&N(i).no_id) == &M0_CONF_NODE_TYPE ||
 			 m0_conf_fid_type(&N(i).no_id) == &M0_CONF_DRIVE_TYPE)));
 #undef N
 }
@@ -369,7 +370,7 @@ M0_INTERNAL void m0_ha_note_handler_signal(struct m0_ha_note_handler *hnh,
 		hsg->hsg_nvec->nv_note[i].no_state =
 			nvec_rep->nv_note[i].no_state;
 	}
-	m0_chan_signal_lock(hsg->hsg_wait_chan);
+	m0_chan_broadcast_lock(hsg->hsg_wait_chan);
 	m0_free(hsg);
 }
 

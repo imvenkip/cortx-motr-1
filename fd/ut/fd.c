@@ -33,6 +33,7 @@
 
 /* Conf parameters. */
 
+#ifdef __KERNEL__
 static const char local_conf_str[] = "[35:\
    {0x74| ((^t|1:0), 1, (11, 22), ^o|1:23, ^v|1:24, 41212,\
            [3: \"param-0\", \"param-1\", \"param-2\"],\
@@ -87,6 +88,7 @@ static const char local_conf_str[] = "[35:\
    {0x6a| ((^j|1:30), ^k|1:20, [0])},\
    {0x6a| ((^j|1:31), ^k|1:21, [0])},\
    {0x6a| ((^j|1:32), ^k|1:22, [0])}]";
+#endif
 
 struct m0_pdclust_attr pd_attr  = {
 	.pa_N         = la_N,

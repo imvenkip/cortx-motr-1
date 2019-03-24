@@ -25,6 +25,7 @@
 #include "cm/ut/common_service.h"
 #include "rpc/rpc_opcodes.h"             /* M0_CM_UT_OPCODE */
 #include "mero/setup.h"
+#include "ha/msg.h"
 
 struct m0_cm_cp            cm_ut_cp;
 struct m0_ut_cm            cm_ut[MAX_CM_NR];
@@ -180,6 +181,9 @@ static int cm_ut_ag_next(struct m0_cm *cm, const struct m0_cm_ag_id *id_curr,
 	return 0;
 }
 
+static void cm_ut_ha_msg(struct m0_cm *cm, struct m0_ha_msg *msg, int rc)
+{
+}
 static void cm_ut_fini(struct m0_cm *cm)
 {
 }
@@ -193,6 +197,7 @@ static const struct m0_cm_ops cm_ut_ops = {
 	.cmo_cp_alloc  = cm_ut_cp_alloc,
 	.cmo_data_next = cm_ut_data_next,
 	.cmo_ag_next   = cm_ut_ag_next,
+	.cmo_ha_msg    = cm_ut_ha_msg,
 	.cmo_fini      = cm_ut_fini
 };
 
