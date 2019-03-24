@@ -83,7 +83,11 @@ static void dix_config_init()
 	rc = m0_dix_ldesc_init(&ut_dix_config.kc_ldescr_ldesc, range,
 			       ARRAY_SIZE(range), HASH_FNC_FNV1, &pver);
 	M0_UT_ASSERT(rc == 0);
-	ut_dix_config.kc_create_meta = true;
+	/*
+	 * mero/setup.c creates meta indices now. Therefore, we must not
+	 * create it twice or it will fail with -EEXIST error.
+	 */
+	ut_dix_config.kc_create_meta = false;
 }
 
 static void dix_config_fini()

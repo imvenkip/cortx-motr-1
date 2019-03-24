@@ -719,10 +719,11 @@ dixinit_exec()
 		echo "Can't find m0dixinit"
 		return 1
 	fi
-	cmd="$m0dixinit -l $CLOVIS_LOCAL_EP -H $CLOVIS_HA_EP \
-	     -p '$CLOVIS_PROF_OPT' -I '$pverid' -d '$pverid' -a create"
-	echo $cmd
-	eval "$cmd"
+#	cmd="$m0dixinit -l $CLOVIS_LOCAL_EP -H $CLOVIS_HA_EP \
+#	     -p '$CLOVIS_PROF_OPT' -I '$pverid' -d '$pverid' -a create"
+#	echo $cmd
+#	eval "$cmd"
+	echo "*** m0dixinit is omitted. Mkfs creates meta indices now."
 }
 
 main()

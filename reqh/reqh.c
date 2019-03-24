@@ -422,6 +422,9 @@ M0_INTERNAL int m0_reqh_services_state_count(struct m0_reqh *reqh, int state)
 
 extern struct m0_reqh_service_type m0_ha_entrypoint_service_type; /* XXX !!! */
 extern struct m0_reqh_service_type m0_ha_link_service_type; /* XXX !!! */
+#ifndef __KERNEL__
+M0_EXTERN struct m0_reqh_service_type m0_cas_service_type; /* XXX !!! */
+#endif
 
 M0_INTERNAL int m0_reqh_fop_allow(struct m0_reqh *reqh, struct m0_fop *fop)
 {
@@ -449,6 +452,9 @@ M0_INTERNAL int m0_reqh_fop_allow(struct m0_reqh *reqh, struct m0_fop *fop)
 		 * startup.
 		 */
 		if (svc != NULL && M0_IN(stype, (&m0_rpc_service_type,
+#ifndef __KERNEL__
+						 &m0_cas_service_type,
+#endif
 		                                 &m0_ha_link_service_type,
 		                                 &m0_ha_entrypoint_service_type)))
 			return M0_RC(0);

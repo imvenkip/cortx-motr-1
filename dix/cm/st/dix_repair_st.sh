@@ -524,7 +524,8 @@ start() {
 	fi
 	spiel_prepare
 	if [ ${do_dixinit} == 1 ]; then
-		dixinit_exec || error "m0dixinit failed ($?)!"
+#		dixinit_exec || error "m0dixinit failed ($?)!"
+		echo "*** m0dixinit is omitted. Mkfs creates meta indices now."
 	fi
 	return $rc
 }

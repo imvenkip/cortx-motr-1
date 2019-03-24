@@ -793,6 +793,7 @@ static void service_ctxs_destroy(struct m0_pools_common *pc)
 {
 	struct m0_reqh_service_ctx *ctx;
 	int                         rc;
+	int                         i;
 
 	M0_ENTRY();
 
@@ -813,6 +814,10 @@ static void service_ctxs_destroy(struct m0_pools_common *pc)
 		m0_reqh_service_ctx_destroy(ctx);
 	}
 	M0_POST(pools_common_svc_ctx_tlist_is_empty(&pc->pc_svc_ctxs));
+
+	for (i = 0; i < pc->pc_nr_devices; ++i)
+		pc->pc_dev2svc[i].pds_ctx = NULL;
+
 	M0_LEAVE();
 }
 

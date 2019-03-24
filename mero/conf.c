@@ -222,8 +222,12 @@ static bool is_local_service(const struct m0_conf_obj *obj)
 		 * Comparing fids is not enough, since two different processes
 		 * (e.g., m0mkfs and m0d) may have the same fid but different
 		 * endpoints.
+		 *
+		 * Start CAS in mkfs mode to create meta indices for DIX. See
+		 * MERO-2793.
 		 */
-		m0_streq(proc->pc_endpoint, local_ep);
+		(m0_streq(proc->pc_endpoint, local_ep) ||
+		 (cctx->cc_mkfs && svc->cs_type == M0_CST_CAS));
 }
 
 static bool is_ios(const struct m0_conf_obj *obj)
