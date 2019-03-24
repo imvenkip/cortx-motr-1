@@ -1,3 +1,6 @@
+# Globals ----------------------------------------------------------------- {{{1
+#
+
 variables:
   GIT_DEPTH: 1  # clone only the current commit
   GIT_STRATEGY: clone  # make a fresh `git clone` of the repo for every new CI job
@@ -17,6 +20,9 @@ after_script:
   - date -u -Isec
 
 
+# Gerrit Sync ------------------------------------------------------------- {{{1
+#
+
 sync-from-gerrit:on-schedule:
   stage: gerrit-sync
   tags: [ gerrit-sync ]
@@ -35,6 +41,9 @@ sync-from-gerrit:on-schedule:
     - ssh-keyscan -t rsa -p 6022 gitlab.mero.colo.seagate.com >> ~/.ssh/known_hosts
     - git push gitlab gerrit/master:master
 
+
+# Build ------------------------------------------------------------------- {{{1
+#
 
 build:
   stage: build
@@ -61,6 +70,9 @@ build:no-asserts:
     CONFIGURE_OPTS: --disable-m0-asserts
 
 
+# RPM Build --------------------------------------------------------------- {{{1
+#
+
 rpmbuild:
   extends: build
   script: |
@@ -83,3 +95,58 @@ rpmbuild:no-tests:latest:
   allow_failure: true
   variables:
     CENTOS_RELEASE: latest
+
+
+# Docker images ----------------------------------------------------------- {{{1
+#
+
+docker:rebuild-images:
+  stage: build
+  tags: [ docker-image-build ]
+  when: manual
+  only:
+    refs:
+      - merge_requests
+    changes:
+      - scripts/docker/**/*
+
+  variables:
+    DOCKER_IMAGE_TAG: latest
+
+  script:
+    - sed -e 's/@.*@/111/g' mero.spec.in > mero.spec
+    - cd scripts/docker/
+    - make $DOCKER_IMAGE_TAG
+    - make push tag="${DOCKER_IMAGE_TAG}*"
+
+
+docker:rebuild-images:75:
+  extends: docker:rebuild-images
+  variables:
+    DOCKER_IMAGE_TAG: '7.5'
+
+
+docker:rebuild-images:73:
+  extends: docker:rebuild-images
+  variables:
+    DOCKER_IMAGE_TAG: '7.3'
+
+  after_script:
+    - date -u -Isec
+    - cd scripts/docker/
+    - make push tag=sage-vm
+
+
+docker:rebuild-images:sage:
+  extends: docker:rebuild-images
+  variables:
+    DOCKER_IMAGE_TAG: sage
+
+  before_script:
+    - date -u -Isec
+    - git --no-pager log -1 --pretty=fuller
+    - printenv
+    - cp /mnt/ci-storage/releases/sage/cluster/lustre/lustre-whamcloud-2.11.53-mellanox/*.rpm
+         scripts/docker/lustre-client-sage/
+
+# vim: foldmethod=marker shiftwidth=2 tabstop=2 expandtab

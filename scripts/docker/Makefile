@@ -45,6 +45,8 @@ sage: centos-sage-image lustre-client-sage-image mero-devel-image
 	$(DOCKER) tag $(NAMESPACE)/mero-devel:$(CENTOS_RELEASE) \
 				  $(NAMESPACE)/mero/mero:$(basename $(CENTOS_RELEASE))
 
+all: latest  7.5  7.3  sage
+
 INAME = $(@:%-image=%)
 
 centos-vault-image:
