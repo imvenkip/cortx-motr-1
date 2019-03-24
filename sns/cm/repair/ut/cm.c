@@ -278,7 +278,7 @@ static void repair_ag_destroy(const struct m0_tl_descr *descr, struct m0_tl *hea
 	} m0_tlist_endfor;
 }
 
-static void ag_destroy()
+static void ag_destroy(void)
 {
 	if (cm->cm_aggr_grps_in_nr == 0 && cm->cm_aggr_grps_out_nr == 0)
 		m0_sns_cm_fctx_cleanup(scm);
@@ -352,7 +352,7 @@ static int iter_ut_fom_tick(struct m0_fom *fom, uint32_t  *sem_id, int *phase)
 				rc = M0_FSO_WAIT;
 			}
 			if (rc < 0) {
-				ag_destroy(fom);
+				ag_destroy();
 				*phase = ITER_COMPLETE;
 				rc = M0_FSO_AGAIN;
 			}
