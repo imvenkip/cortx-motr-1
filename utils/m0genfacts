@@ -117,13 +117,18 @@ usage: #{PROG_NAME} [$options] disk1 disk2 ...
           - name: pool1
             disks: [ { host: 'hostD1', filter: 'regex' }, ... ]
             allowed_failures: {site: 0, rack: 0, encl: 0, ctrl: 0, disk: 1}
+            data_units: 8
+            parity_units: 2
 
     'clients', 'clovis-apps' and 's3servers' sections can be omitted, but not
     all at the same time. 'pools' section allows to group disks of corresponding
     SSU hosts into storage pools, it is optional, by default all disks from
-    every SSU form a single pool. The 'filter' is optionanl, by default all
-    disks from a host are added into the pool.
-
+    every SSU form a single pool. The 'filter' is optional, by default all
+    disks from a host are added into the pool. 'allowed_failure', 'data_units'
+    'parity_units' corresponds to failure vector, data units in parity group and
+    number of failures supported, default values of allowed_failures,
+    data_units, parity_units are {site: 0, rack: 0, encl: 0, ctrl: 0, disk: 1},
+    '#{DATA_UNITS}', '#{PARITY_UNITS}' respectively.
   Options:
 
 END_USAGE
@@ -562,14 +567,14 @@ if ARGV.empty?
         cluster_config['pools'] = [{
             'name'  => 'default',
             'disks' => cluster_config['ssus'].map{ |x| {'host' => x['host']} },
-            'allowed_failures' => gen_allowances(allowed_failures),
         }]
-    else
-        cluster_config['pools'] = [{
-            'name'  => 'default',
-            'disks' => cluster_config['ssus'].map{ |x| {'host' => x['host']} },
-            'allowed_failures' => gen_allowances(cluster_config['pools'][0]['allowed_failures']),
-        }]
+    end
+
+    cluster_config['pools'].each do |pool|
+        pool['allowed_failures'] = gen_allowances(pool.has_key?('allowed_failures') ?
+                                                  pool['allowed_failures'] : allowed_failures)
+        pool['data_units'] = $options[:dataunits] if !pool.has_key?('data_units')
+        pool['parity_units'] = $options[:parityunits] if !pool.has_key?('parity_units')
     end
 else
     log 'Generating Halon facts for singlenode'
@@ -585,6 +590,8 @@ else
            'name'  => 'default',
            'disks' => [ {'host' => Facter.value(:hostname)} ],
            'allowed_failures' => gen_allowances(allowed_failures),
+           'data_units' => $options[:dataunits],
+           'parity_units' => $options[:parityunits]
         }],
     }
 
@@ -628,7 +635,11 @@ cluster_config['pools'].each do |pool|
             disks.concat(ios_hash[d['host']])
         end
     end
-    pools.push({name: pool['name'], disks: disks, allowed_failures: pool['allowed_failures']})
+    pools.push({name: pool['name'],
+                disks: disks,
+                allowed_failures: pool['allowed_failures'],
+                data_units: pool['data_units'],
+                parity_units: pool['parity_units']})
 end
 
 #

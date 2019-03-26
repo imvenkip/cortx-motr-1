@@ -141,8 +141,8 @@ id_pools:
   <%- pools.each do |pool| -%>
   - pool_id: <%= pool[:name] %>
     pool_pdclust_attrs:
-      data_units: <%= m0_data_units %>
-      parity_units: <%= m0_parity_units %>
+      data_units: <%= pool[:data_units] %>
+      parity_units: <%= pool[:parity_units] %>
       unit_size: <%= m0_block_size %>
       seed: [101, 102]
     pool_allowed_failures:
