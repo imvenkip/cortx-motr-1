@@ -6,6 +6,9 @@ variables:
   GIT_STRATEGY: clone  # make a fresh `git clone` of the repo for every new CI job
   GIT_SUBMODULE_STRATEGY: normal  # init and check out submodules
   CENTOS_RELEASE: '7.5'
+  M0_VG_NO_SYMLINKS: "true"
+  WORKSPACE_NAME: "${CI_PROJECT_NAME}${CI_PIPELINE_ID}"
+  WORKSPACE_DIR:  "/home/gitlab-runner/workspaces/${CI_PROJECT_NAME}${CI_PIPELINE_ID}"
 
 stages:
   - gerrit-sync
@@ -116,8 +119,6 @@ docker:rebuild-images:
   tags: [ docker-image-build ]
   when: manual
   only:
-    refs:
-      - merge_requests
     changes:
       - scripts/docker/**/*
 
@@ -159,5 +160,83 @@ docker:rebuild-images:sage:
     - printenv
     - cp /mnt/ci-storage/releases/sage/cluster/lustre/lustre-whamcloud-2.11.53-mellanox/*.rpm
          scripts/docker/lustre-client-sage/
+
+
+# Vagrant boxes ----------------------------------------------------------- {{{1
+#
+
+vagrant:rebuild-box:
+  stage: build
+  tags: [ m0vg ]
+  when: manual
+  only:
+    changes:
+      - scripts/provisioning/Vagrantfile
+      - scripts/provisioning/roles/**/*
+
+  variables:
+    M0VG: ./scripts/m0vg
+
+  script:
+    - |
+      $M0VG env add <<EOF
+      M0_VM_BOX_BUILDER_MODE=yes
+      M0_VM_BOX_VERSION=1809.01
+      M0_VM_NAME_PREFIX=${WORKSPACE_NAME}
+      M0_VM_HOSTNAME_PREFIX=devbox
+      EOF
+
+    # provision VM from scratch
+    - time $M0VG up devbox
+    - $M0VG reload devbox
+    - $M0VG halt devbox
+
+    # package a box
+    - export BOX_VERSION=$(date +%y%m%d)
+    - export BOX=centos75-dev-$BOX_VERSION-libvirt.box
+    - sudo $M0VG package --output $BOX devbox
+
+    # move to the box storage
+    - export BOX_DIR=/mnt/ci-storage/vagrant/boxes/centos75/dev/$BOX_VERSION/libvirt/
+    - mkdir -p $BOX_DIR
+    - mv -v scripts/provisioning/$BOX $BOX_DIR
+
+  after_script:
+    - date -u -Isec
+    - $M0VG destroy -f || true
+
+vagrant:m0vg:
+  stage: build
+  tags: [ m0vg ]
+  only:
+    changes:
+      - scripts/provisioning/Vagrantfile
+      - scripts/provisioning/roles/**/*
+
+  variables:
+    M0VG: ./scripts/m0vg
+
+  script:
+    - export JOB_NAME="${WORKSPACE_NAME}-m0vg"
+
+    - sudo rm -rf ${WORKSPACE_DIR}
+    - mkdir -p ${WORKSPACE_DIR}
+    - cp -a ../${CI_PROJECT_NAME} ${WORKSPACE_DIR}
+    - cd ${WORKSPACE_DIR}/${CI_PROJECT_NAME}
+
+    - |
+      $M0VG env add <<EOF
+      M0_VM_CMU_MEM_MB=4096
+      M0_VM_NAME_PREFIX=${JOB_NAME}
+      M0_VM_HOSTNAME_PREFIX=${JOB_NAME}
+      EOF
+
+    # provision VM from scratch
+    - time $M0VG up
+    - $M0VG halt -f devbox
+
+  after_script:
+    - date -u -Isec
+    - $M0VG destroy -f || true
 
 # vim: foldmethod=marker shiftwidth=2 tabstop=2 expandtab

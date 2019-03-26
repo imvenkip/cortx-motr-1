@@ -15,8 +15,9 @@
         - recover-man-pages
 
   roles:
-    #- ssh-slave
+    - ssh-master
     - base-os
+    - ssh-slave
     - lustre-client
     - mero-build
     - mero-runtime
