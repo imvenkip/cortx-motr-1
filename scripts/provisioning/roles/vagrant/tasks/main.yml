@@ -24,6 +24,7 @@
       package:
         name:
           - build-essential
+          - libguestfs-tools  # required for `vagrant package` with libvirt provider
           - libvirt-bin
           - libvirt-dev
           - nfs-kernel-server
