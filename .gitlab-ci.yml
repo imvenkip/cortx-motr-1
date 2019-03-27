@@ -13,6 +13,7 @@ variables:
 stages:
   - gerrit-sync
   - build
+  - test
 
 before_script:
   - date -u -Isec
@@ -205,8 +206,9 @@ vagrant:rebuild-box:
     - date -u -Isec
     - $M0VG destroy -f || true
 
+
 vagrant:m0vg:
-  stage: build
+  stage: test
   tags: [ m0vg ]
   only:
     changes:
