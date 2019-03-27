@@ -122,6 +122,7 @@ docker:rebuild-images:
   only:
     changes:
       - scripts/docker/**/*
+  except: [ schedules ]
 
   variables:
     DOCKER_IMAGE_TAG: latest
@@ -174,6 +175,7 @@ vagrant:rebuild-box:
     changes:
       - scripts/provisioning/Vagrantfile
       - scripts/provisioning/roles/**/*
+  except: [ schedules ]
 
   variables:
     M0VG: ./scripts/m0vg
