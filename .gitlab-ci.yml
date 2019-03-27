@@ -216,6 +216,7 @@ vagrant:m0vg:
     changes:
       - scripts/provisioning/Vagrantfile
       - scripts/provisioning/roles/**/*
+  except: [ schedules ]
 
   variables:
     M0VG: ./scripts/m0vg
@@ -237,7 +238,7 @@ vagrant:m0vg:
 
     # provision VM from scratch
     - time $M0VG up
-    - $M0VG halt -f devbox
+    - $M0VG destroy -f || true
 
   after_script:
     - date -u -Isec
