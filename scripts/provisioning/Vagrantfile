@@ -332,6 +332,7 @@ Vagrant.configure('2') do |config|
       # don't remove default Vagrant ssh key
       devbox.ssh.insert_key = false
       setup(devbox, cpus > 2 ? cpus / 2 + 1 : 1, 3072)
+      setup_shared_mero_src_dir(devbox)
 
       devbox.vm.provision :ansible do |ansible|
         ansible.compatibility_mode = '2.0'
