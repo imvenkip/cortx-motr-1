@@ -181,12 +181,13 @@ vagrant:rebuild-box:
     M0VG: ./scripts/m0vg
 
   script:
+    - export JOB_NAME="${WORKSPACE_NAME}-box"
     - |
       $M0VG env add <<EOF
       M0_VM_BOX_BUILDER_MODE=yes
       M0_VM_BOX_VERSION=1809.01
-      M0_VM_NAME_PREFIX=${WORKSPACE_NAME}
-      M0_VM_HOSTNAME_PREFIX=devbox
+      M0_VM_NAME_PREFIX=${JOB_NAME}
+      M0_VM_HOSTNAME_PREFIX=${JOB_NAME}
       EOF
 
     # provision VM from scratch
