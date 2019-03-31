@@ -212,6 +212,18 @@
     line: '%sudo   ALL=(ALL:ALL) NOPASSWD: ALL'
   when: ansible_os_family == 'Debian'
 
+- name: enable internal Seagate NTP server
+  lineinfile:
+    path:   /etc/systemd/timesyncd.conf
+    create: no
+    line:   'NTP=time.seagate.com'
+    insertafter: '\[Time\]'
+  ignore_errors: yes
+  notify: restart systemd-timesyncd
+  tags:
+    - never
+    - seagate-ntp
+
 - name: restart machine
   when: reboot_required.rc == 1
   block:
