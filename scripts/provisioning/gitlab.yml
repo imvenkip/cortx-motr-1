@@ -22,5 +22,6 @@
     - base-os
     - serial-console
     - docker
+    - ansible
     - vagrant
     - packer

@@ -123,6 +123,12 @@
     name:  '{{ extra_tools_pkgs }}'
   when: extra_tools_pkgs is defined
 
+- name: change default editor to vim
+  alternatives:
+    name: editor
+    path: /usr/bin/vim.basic
+  when: ansible_os_family == 'Debian'
+
 - name: apply CentOS 7.5 workarounds
   when: ansible_os_family == 'RedHat' and ansible_distribution_version | regex_search('\d+\.\d+') is version('7.5', '==')
   block:

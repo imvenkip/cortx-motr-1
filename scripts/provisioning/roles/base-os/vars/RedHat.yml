@@ -3,7 +3,9 @@ basic_tools_pkgs:
   - ansible  # for local mode, helpful on Windouz hosts
   - dstat
   - emacs
+  - htop
   - ipmitool
+  - iotop
   - nc
   - nmap
   - pdsh
@@ -31,6 +33,7 @@ devel_tools_pkgs:
   - psmisc
   - strace
   - systemtap
+  - tig
   - time
   - trace-cmd
   - valgrind

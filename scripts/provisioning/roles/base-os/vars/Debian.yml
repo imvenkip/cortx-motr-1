@@ -2,12 +2,19 @@
 basic_tools_pkgs:
   - dstat
   - emacs
+  - htop
   - ipmitool
+  - iotop
+  - lsscsi
+  - mailutils
+  - mutt
   - net-tools # netstat
   - netcat
   - nmap
   - pdsh
   - rsync
+  - scsitools
+  - smartmontools
   - sysstat
   - telnet
   - tmux
@@ -29,11 +36,11 @@ devel_tools_pkgs:
   - gdb
   - jq
   - ltrace
-  # perf
-  - linux-tools-common
+  - linux-tools-common  # perf
   - psmisc
   - strace
   - systemtap
+  - tig
   - time
   - trace-cmd
   - valgrind
