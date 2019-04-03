@@ -206,7 +206,7 @@
   block:
     - name: download mscgen src rpm
       get_url:
-        url: 'http://dl.fedoraproject.org/pub/fedora/linux/releases/27/Everything/source/tree/Packages/m/mscgen-0.20-21.fc27.src.rpm'
+        url: 'http://archives.fedoraproject.org/pub/archive/fedora/linux/releases/27/Everything/source/tree/Packages/m/mscgen-0.20-21.fc27.src.rpm'
         dest: /root/mscgen-0.20-21.fc27.src.rpm
 
     - name: install mscgen src rpm
