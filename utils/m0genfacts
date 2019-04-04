@@ -455,7 +455,7 @@ def collect_disks_for(node)
         disk_string = run("ls #{node['disks']} 2>/dev/null", host: node['address'])
 
         die "[#{node['address']}]: failed to find disks matching pattern '#{node['disks']}'" \
-            if disk_string.strip.empty?
+            if (disk_string.nil? || disk_string.strip.empty?)
 
         disks = disk_string.split(' ')
     else
