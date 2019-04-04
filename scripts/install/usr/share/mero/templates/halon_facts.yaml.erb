@@ -146,8 +146,8 @@ id_pools:
       unit_size: <%= m0_block_size %>
       seed: [101, 102]
     pool_allowed_failures:
-      <%- pool[:allowed_failures].each do |failure| -%>
-      - {site: <%= failure[:f_site] -%>, rack: <%= failure[:f_rack] -%>, encl: <%= failure[:f_encl] -%>, ctrl: <%= failure[:f_ctrl] -%>, disk: <%= failure[:f_disk] -%>}
+      <%- pool[:allowed_failures].each do |v| -%>
+      - {site: <%= v[0] -%>, rack: <%= v[1] -%>, encl: <%= v[2] -%>, ctrl: <%= v[3] -%>, disk: <%= v[4] -%>}
       <%- end -%>
 # For parity 2 we can tolerate 2 disk failures:
 #      - {site: 0, rack: 0, encl: 0, ctrl: 0, disk: 2}

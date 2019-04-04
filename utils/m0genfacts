@@ -116,7 +116,7 @@ usage: #{PROG_NAME} [$options] disk1 disk2 ...
         pools:
           - name: pool1
             disks: [ { host: 'hostD1', filter: 'regex' }, ... ]
-            allowed_failures: {site: 0, rack: 0, encl: 0, ctrl: 0, disk: 1}
+            allowed_failures: { site: 0, rack: 0, encl: 0, ctrl: 0, disk: 1 }
             data_units: 8
             parity_units: 2
 
@@ -509,31 +509,27 @@ confd_nodes     = []
 extra_clients   = []
 pools           = []
 
+default_allowed_failures = {
+    'site' => 0,
+    'rack' => 0,
+    'encl' => 0,
+    'ctrl' => 0,
+    'disk' => 1
+}
+
+def gen_allowances(allowed_failures)
+    return (0..allowed_failures['site']).to_a.product(
+               (0..allowed_failures['rack']).to_a,
+               (0..allowed_failures['encl']).to_a,
+               (0..allowed_failures['ctrl']).to_a,
+               (0..allowed_failures['disk']).to_a
+           ).select { |xs| xs.any? { |x| x > 0 } }
+end
+
 #
 # Read configuration
 #
 
-def gen_allowances(allowed_failures)
-    fencl = Array(0..allowed_failures['encl'])
-    fctrl = Array(0..allowed_failures['ctrl'])
-    fdisk = Array(0..allowed_failures['disk'])
-    arr_allowed_failures = fencl.product(fctrl, fdisk).select { |xs|
-                             xs.any? { |x| x > 0 } }
-    hash_allowed_failures = []
-    arr_allowed_failures.each{ |failure|
-                                  hash_allowed_failures <<
-                                    {:f_site => 0,
-                                     :f_rack => 0,
-                                     :f_encl => failure[0],
-                                     :f_ctrl => failure[1],
-                                     :f_disk => failure[2]}
-                             }
-    return hash_allowed_failures
-end
-
-allowed_failures = {'encl'=> 0,
-                    'ctrl'=> 0,
-                    'disk'=> 1}
 cluster_config = {}
 
 if ARGV.empty?
@@ -571,8 +567,8 @@ if ARGV.empty?
     end
 
     cluster_config['pools'].each do |pool|
-        pool['allowed_failures'] = gen_allowances(pool.has_key?('allowed_failures') ?
-                                                  pool['allowed_failures'] : allowed_failures)
+        pool['allowed_failures'] = gen_allowances(
+            pool.fetch('allowed_failures', default_allowed_failures))
         pool['data_units'] = $options[:dataunits] if !pool.has_key?('data_units')
         pool['parity_units'] = $options[:parityunits] if !pool.has_key?('parity_units')
     end
@@ -589,7 +585,7 @@ else
         'pools'    => [{
            'name'  => 'default',
            'disks' => [ {'host' => Facter.value(:hostname)} ],
-           'allowed_failures' => gen_allowances(allowed_failures),
+           'allowed_failures' => gen_allowances(default_allowed_failures),
            'data_units' => $options[:dataunits],
            'parity_units' => $options[:parityunits]
         }],
