@@ -13,6 +13,7 @@ DOCKER          := docker
         centos-vault-image \
         centos-sage-image \
         clean \
+        eos \
         lustre-client-image \
         lustre-client-sage-image \
         mero-devel-image \
@@ -45,17 +46,21 @@ sage: centos-sage-image lustre-client-sage-image mero-devel-image
 	$(DOCKER) tag $(NAMESPACE)/mero-devel:$(CENTOS_RELEASE) \
 				  $(NAMESPACE)/mero/mero:$(basename $(CENTOS_RELEASE))
 
-all: latest  7.5  7.3  sage
+eos: CENTOS_RELEASE := eos
+eos: LUSTRE_VERSION := 2.10.4
+eos: DOCKER_OPTS += --build-arg CENTOS_RELEASE=$(CENTOS_RELEASE) \
+                    --build-arg LUSTRE_VERSION=$(LUSTRE_VERSION)
+eos: centos-eos-image lustre-client-image mero-devel-image
+	$(DOCKER) tag $(NAMESPACE)/mero-devel:$(CENTOS_RELEASE) \
+				  $(NAMESPACE)/mero/mero:$(basename $(CENTOS_RELEASE))
+
+all: latest  7.5  7.3  sage  eos
 
 INAME = $(@:%-image=%)
 
-centos-vault-image:
+centos-vault-image centos-sage-image centos-eos-image:
 	cd $(INAME) \
 	&& $(DOCKER) build . -t $(NAMESPACE)/centos:$(CENTOS_RELEASE) $(DOCKER_OPTS)
-
-centos-sage-image:
-	cd $(INAME) \
-	&& $(DOCKER) build . -t $(NAMESPACE)/centos:sage $(DOCKER_OPTS)
 
 centos-image:
 	cd $(INAME) \
@@ -71,7 +76,7 @@ lustre-client-image mero-devel-image:
 
 lustre-client-sage-image:
 	cd $(INAME) \
-	&& $(DOCKER) build . -t $(NAMESPACE)/lustre-client:sage-2.11.53 $(DOCKER_OPTS)
+	&& $(DOCKER) build . -t $(NAMESPACE)/lustre-client:$(CENTOS_RELEASE)-$(LUSTRE_VERSION) $(DOCKER_OPTS)
 
 push: name := [clm]*
 push: tag  := *

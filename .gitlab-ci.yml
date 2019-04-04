@@ -164,6 +164,12 @@ docker:rebuild-images:sage:
          scripts/docker/lustre-client-sage/
 
 
+docker:rebuild-images:eos:
+  extends: docker:rebuild-images
+  variables:
+    DOCKER_IMAGE_TAG: eos
+
+
 # Vagrant boxes ----------------------------------------------------------- {{{1
 #
 
