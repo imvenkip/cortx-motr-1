@@ -518,12 +518,16 @@ default_allowed_failures = {
 }
 
 def gen_allowances(allowed_failures)
-    return (0..allowed_failures['site']).to_a.product(
-               (0..allowed_failures['rack']).to_a,
-               (0..allowed_failures['encl']).to_a,
-               (0..allowed_failures['ctrl']).to_a,
-               (0..allowed_failures['disk']).to_a
-           ).select { |xs| xs.any? { |x| x > 0 } }
+    if allowed_failures.values.all? { |x| x == 0 }
+        return [allowed_failures.values]
+    else
+        return (0..allowed_failures['site']).to_a.product(
+                   (0..allowed_failures['rack']).to_a,
+                   (0..allowed_failures['encl']).to_a,
+                   (0..allowed_failures['ctrl']).to_a,
+                   (0..allowed_failures['disk']).to_a
+               ).select { |xs| xs.any? { |x| x > 0 } }
+    end
 end
 
 #
