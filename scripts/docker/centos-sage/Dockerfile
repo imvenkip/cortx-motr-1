@@ -20,9 +20,9 @@ RUN yum -y install kernel-3.10.0-514.16.1.el7
 RUN yum --assumeyes install epel-release
 
 # workaround broken CentOS 7.3 compatibility witn EPEL
-RUN yumdownloader python34-libs \
-    && rpm -ihv --nodeps python34-libs*.rpm \
-    && rm -f python34-libs*.rpm
+RUN yumdownloader python36-libs \
+    && rpm -ihv --nodeps python36-libs*.rpm \
+    && rm -f python36-libs*.rpm
 
 # install common tools
 RUN yum --assumeyes install \

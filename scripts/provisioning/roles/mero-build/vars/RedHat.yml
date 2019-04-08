@@ -27,15 +27,15 @@ mero_build_deps_pkgs:
   - perl-XML-LibXML
   - perl-autodie
   - python-devel
-  - python34-devel
+  - python36-devel
   - python-ply
-  - python34-ply
+  - python36-ply
   - PyYAML                # required only for tests (m0hagen)
   - rpm-build
   - systemd-devel
 
 mero_doc_deps_pkgs:
-  - python34-pip
+  - python36-pip
   # Anssible requires setuptools from python 2.7 in order to use 'pip' module
   - python-setuptools
   # there is no plantuml in Centos7/EPEL repos, using compatible version from

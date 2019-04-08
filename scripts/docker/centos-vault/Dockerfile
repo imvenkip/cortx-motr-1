@@ -17,9 +17,9 @@ RUN yum --assumeyes install epel-release
 
 # workaround broken CentOS 7.3 compatibility witn EPEL
 RUN test $(grep -Po '(?<=release 7\.).' /etc/redhat-release) -gt 3 \
-    || { yumdownloader python34-libs \
-         && rpm -ihv --nodeps python34-libs*.rpm \
-         && rm -f python34-libs*.rpm ; }
+    || { yumdownloader python36-libs \
+         && rpm -ihv --nodeps python36-libs*.rpm \
+         && rm -f python36-libs*.rpm ; }
 
 # install common tools
 RUN yum --assumeyes install \
