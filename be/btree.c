@@ -38,6 +38,58 @@
 #include "be/reg.h"            /* M0_BE_REG_GET_PTR */
 #include "be/domain.h"         /* m0_be_domain_seg_by_addr */
 
+
+#define M0_FORMAT_FOOTER_UPDATE(n) \
+	({ M0_LOG(M0_ALWAYS, "node=%p old=%"PRIx64, (n), (n)->b_footer.ft_checksum); \
+	m0_format_footer_update(n);				\
+	M0_LOG(M0_ALWAYS, "node=%p new=%"PRIx64, (n), (n)->b_footer.ft_checksum); })
+
+#define M0_FORMAT_FOOTER_UPDATE_T(t) \
+	({ M0_LOG(M0_ALWAYS, "tree=%p old=%"PRIx64, (t), (t)->bb_footer.ft_checksum); \
+	m0_format_footer_update(t);					\
+	M0_LOG(M0_ALWAYS, "tree=%p new=%"PRIx64, (t), (t)->bb_footer.ft_checksum); })
+
+M0_UNUSED static void print_single_node2(struct m0_be_bnode *node)
+{
+	int i;
+
+	M0_LOG(M0_DEBUG, "{");
+
+	//struct m0_be_bnode {
+	//struct m0_format_header b_header;
+	//+struct m0_be_bnode     *b_next;
+	//+unsigned int            b_nr_active; /**< Number of active keys. */
+	//+unsigned int            b_level;     /**< Level in the B-Tree. */
+	//+bool                    b_leaf;      /**< Leaf node? */
+	//+char                    b_pad[7];
+	//+struct bt_key_val       b_key_vals[KV_NR];
+	//+struct m0_be_bnode     *b_children[KV_NR + 1];
+	//struct m0_format_footer b_footer;
+	//}
+	
+	M0_LOG(M0_ALWAYS, "header: " "%"PRIx64 "%"PRIx64, node->b_header.hd_magic, node->b_header.hd_bits);
+
+	M0_LOG(M0_ALWAYS, "%p, %d, %d, %d", node->b_next, node->b_nr_active, node->b_level, !!node->b_leaf);
+	for (i = 0; i < 7; ++i) {
+		M0_LOG(M0_ALWAYS, "%d", (int)node->b_pad[i]);
+	}
+	
+	for (i = 0; i < node->b_nr_active; ++i) {
+		void *key = node->b_key_vals[i].key;
+		void *val = node->b_key_vals[i].val;
+
+		if (node->b_leaf)
+			M0_LOG(M0_ALWAYS, "%02d: key=%p val=%p", i, key, val);
+		else
+			M0_LOG(M0_ALWAYS, "%02d: key=%p val=%p child=%p", i,
+			       key, val, node->b_children[i]);
+
+		M0_LOG(M0_ALWAYS, "%02d: child=%p", i, node->b_children[i]);
+	}
+	M0_LOG(M0_ALWAYS, "footer: " "%"PRIx64 "%"PRIx64, node->b_footer.ft_magic, node->b_footer.ft_checksum);
+	M0_LOG(M0_ALWAYS, "} (%p, %d)", node, node->b_level);
+}
+
 /* btree constants */
 enum {
 	BTREE_ALLOC_SHIFT = 0,
@@ -78,7 +130,7 @@ static void btree_root_set(struct m0_be_btree *btree,
 
 	M0_BE_REG_GET_PTR(btree, seg, tx);
 	btree->bb_root = new_root;
-	m0_format_footer_update(btree);
+	M0_FORMAT_FOOTER_UPDATE_T(btree);
 	M0_BE_REG_PUT_PTR(btree, seg, tx);
 }
 
@@ -380,9 +432,9 @@ static void btree_node_update(struct m0_be_bnode *node,
 
 	if (node->b_nr_active > 0) {
 		mem_update(btree, seg, tx, node->b_key_vals,
-			   sizeof(*node->b_key_vals) * node->b_nr_active);
+			   sizeof(*node->b_key_vals) * KV_NR /* node->b_nr_active */);
 		mem_update(btree, seg, tx, node->b_children,
-			   sizeof(*node->b_children) * (node->b_nr_active + 1));
+			   sizeof(*node->b_children) * (/* node->b_nr_active */ KV_NR + 1));
 	}
 
 	mem_update(btree, seg, tx, &node->b_footer, sizeof(node->b_footer));
@@ -439,7 +491,7 @@ static struct m0_be_bnode *btree_node_alloc(struct m0_be_btree *btree,
 	node->b_level = 0;
 	node->b_next = NULL;
 
-	m0_format_footer_update(node);
+	M0_FORMAT_FOOTER_UPDATE(node);
 	mem_update(btree, seg, tx, node, sizeof *node);
 	M0_BE_REG_PUT_PTR(node, seg, tx);
 
@@ -494,10 +546,10 @@ static void btree_split_child(struct m0_be_btree *btree,
 		new_child->b_children[i] = child->b_children[i + order];
 
 	/* re-calculate checksum after all fields has been updated */
-	m0_format_footer_update(new_child);
+	M0_FORMAT_FOOTER_UPDATE(new_child);
 
 	child->b_nr_active = order - 1;
-	m0_format_footer_update(child);
+	M0_FORMAT_FOOTER_UPDATE(child);
 
 	/*  Make room for new child in parent's womb */
 	for (i = parent->b_nr_active + 1; i > index + 1; i--)
@@ -511,7 +563,7 @@ static void btree_split_child(struct m0_be_btree *btree,
 	parent->b_nr_active++;
 
 	/* re-calculate checksum after all fields has been updated */
-	m0_format_footer_update(parent);
+	M0_FORMAT_FOOTER_UPDATE(parent);
 
 	/* Update affected memory regions in tx: */
 	btree_node_update(parent, seg, btree, tx);
@@ -577,7 +629,7 @@ static void btree_insert_nonfull(struct m0_be_btree *btree,
 
 		node->b_nr_active++;
 
-		m0_format_footer_update(node);
+		M0_FORMAT_FOOTER_UPDATE(node);
 		/* Update affected memory regions */
 		btree_node_update(node, seg, btree, tx);
 		M0_BE_REG_PUT_PTR(node, seg, tx);
@@ -631,7 +683,7 @@ static void btree_insert_key(struct m0_be_btree *btree,
 		new_root->b_leaf = false;
 		new_root->b_nr_active = 0;
 		new_root->b_children[0] = rnode;
-		m0_format_footer_update(new_root);
+		M0_FORMAT_FOOTER_UPDATE(new_root);
 		btree_split_child(btree, seg, tx, new_root, 0);
 		btree_insert_nonfull(btree, tx, new_root, kv);
 		M0_BE_REG_PUT_PTR(new_root, seg, tx);
@@ -746,7 +798,7 @@ merge_siblings(struct m0_be_btree *btree,
 	n1->b_nr_active += n2->b_nr_active;
 
 	/* re-calculate checksum after all fields has been updated */
-	m0_format_footer_update(n1);
+	M0_FORMAT_FOOTER_UPDATE(n1);
 
 	/* update parent */
 	for (i = index; i < parent->b_nr_active - 1; i++) {
@@ -755,7 +807,11 @@ merge_siblings(struct m0_be_btree *btree,
 	}
 	parent->b_nr_active--;
 	/* re-calculate checksum after all fields has been updated */
-	m0_format_footer_update(parent);
+	M0_FORMAT_FOOTER_UPDATE(parent);
+
+	if (btree->bb_root == parent) {
+		M0_LOG(M0_ALWAYS, "b_nr_active=%d", parent->b_nr_active);
+	}
 
 	btree_node_free(n2, seg, btree, tx);
 
@@ -844,19 +900,19 @@ static void move_key(struct m0_be_btree	  *btree,
 	}
 
 	/* re-calculate checksum after all fields has been updated */
-	m0_format_footer_update(lch);
-	m0_format_footer_update(rch);
-	m0_format_footer_update(parent);
+	M0_FORMAT_FOOTER_UPDATE(lch);
+	M0_FORMAT_FOOTER_UPDATE(rch);
+	M0_FORMAT_FOOTER_UPDATE(parent);
 
 	/* Update affected memory regions in tx: */
 	btree_node_update(parent, seg, btree, tx);
 	btree_node_update(lch, seg, btree, tx);
 	btree_node_update(rch, seg, btree, tx);
 
-	M0_BE_REG_PUT_PTR(btree, seg, tx);
-	M0_BE_REG_PUT_PTR(parent, seg, tx);
-	M0_BE_REG_PUT_PTR(lch, seg, tx);
 	M0_BE_REG_PUT_PTR(rch, seg, tx);
+	M0_BE_REG_PUT_PTR(lch, seg, tx);
+	M0_BE_REG_PUT_PTR(parent, seg, tx);
+	M0_BE_REG_PUT_PTR(btree, seg, tx);
 
 	M0_LEAVE();
 }
@@ -885,9 +941,10 @@ int delete_key_from_node(struct m0_be_btree	 *btree,
 		node->b_key_vals[i] = node->b_key_vals[i + 1];
 
 	node->b_nr_active--;
+	//print_single_node2(node);
 
 	/* re-calculate checksum after all fields has been updated */
-	m0_format_footer_update(node);
+	M0_FORMAT_FOOTER_UPDATE(node);
 
 	if (node->b_nr_active == 0 && node != btree->bb_root)
 		btree_node_free(node, seg, btree, tx);
@@ -924,6 +981,7 @@ static int find_gt_key(struct m0_be_btree *btree,
 /**
  * Delete the entry specified by @key.
  */
+
 static int btree_delete_key(struct m0_be_btree   *btree,
 			    struct m0_be_seg     *seg,
 			    struct m0_be_tx      *tx,
@@ -1052,6 +1110,17 @@ del_loop:
 		M0_LOG(M0_DEBUG, "case1");
 		node_pos.p_node = node;
 		node_pos.p_index = index;
+		#if 0
+		if (node==(void*)0x400000143ae0 && node->b_leaf && node->b_nr_active==186 && index==10) {
+			print_single_node2(node);
+			//M0_LOG(M0_ALWAYS, "TADA!");
+			//while(1) {
+			//}
+			M0_ASSERT(m0_format_footer_verify(node) == 0);
+			M0_ASSERT(0);
+		}
+		#endif
+		M0_ASSERT(m0_format_footer_verify(node) == 0);
 		delete_key_from_node(btree, seg, tx, &node_pos);
 		M0_BE_REG_PUT_PTR(node, seg, tx);
 		goto out;
@@ -1084,8 +1153,8 @@ del_loop:
 							 child.p_index);
 		M0_SWAP(child.p_node->b_key_vals[child.p_index],
 			node->b_key_vals[index]);
-		m0_format_footer_update(child.p_node);
-		m0_format_footer_update(node);
+		M0_FORMAT_FOOTER_UPDATE(child.p_node);
+		M0_FORMAT_FOOTER_UPDATE(node);
 		mem_update(btree, seg, tx, &node->b_key_vals[index],
 			   sizeof(node->b_key_vals[0]));
 		M0_BE_REG_PUT_PTR(child.p_node, seg, tx);
@@ -1105,8 +1174,8 @@ del_loop:
 							 child.p_index);
 		M0_SWAP(child.p_node->b_key_vals[child.p_index],
 			node->b_key_vals[index]);
-		m0_format_footer_update(child.p_node);
-		m0_format_footer_update(node);
+		M0_FORMAT_FOOTER_UPDATE(child.p_node);
+		M0_FORMAT_FOOTER_UPDATE(node);
 		mem_update(btree, seg, tx, &node->b_key_vals[index],
 			   sizeof(node->b_key_vals[0]));
 		M0_BE_REG_PUT_PTR(child.p_node, seg, tx);
@@ -1260,12 +1329,12 @@ static void btree_destroy(struct m0_be_btree *btree,
 				child = head->b_children[i];
 		/* g2 */	M0_BE_REG_GET_PTR(tail, seg, tx);
 				tail->b_next = child;
-				m0_format_footer_update(tail);
+				M0_FORMAT_FOOTER_UPDATE(tail);
 		/* p2 */	M0_BE_REG_PUT_PTR(tail, seg, tx);
 				tail = child;
 		/* g3 */	M0_BE_REG_GET_PTR(child, seg, tx);
 				child->b_next = NULL;
-				m0_format_footer_update(child);
+				M0_FORMAT_FOOTER_UPDATE(child);
 		/* p3 */	M0_BE_REG_PUT_PTR(child, seg, tx);
 			}
 		}
@@ -1285,7 +1354,7 @@ static void btree_destroy(struct m0_be_btree *btree,
 	}
 
 	M0_BE_REG_GET_PTR(head, seg, tx);
-	m0_format_footer_update(head);
+	M0_FORMAT_FOOTER_UPDATE(head);
 	M0_BE_REG_PUT_PTR(head, seg, tx);
 
 	btree_root_set(btree, seg, NULL, tx);
@@ -1351,7 +1420,7 @@ static void btree_truncate(struct m0_be_btree *btree,
 			i = node->b_nr_active;
 			btree_pair_release(btree, seg, tx, &node->b_key_vals[i]);
 		}
-		m0_format_footer_update(node);
+		M0_FORMAT_FOOTER_UPDATE(node);
 		b_nr_active = node->b_nr_active;
 		M0_BE_REG_PUT_PTR(node, seg, tx);
 
@@ -1394,13 +1463,13 @@ static void btree_truncate(struct m0_be_btree *btree,
 					   sizeof(struct m0_be_btree));
 				btree_node_free(parent, seg, btree, tx);
 			}
-			m0_format_footer_update(parent);
+			M0_FORMAT_FOOTER_UPDATE(parent);
 			/* Simplify our life: restart from the root. */
 			node = btree->bb_root;
 			M0_BE_REG_PUT_PTR(parent, seg, tx);
 		}
 	}
-	m0_format_footer_update(btree->bb_root);
+	M0_FORMAT_FOOTER_UPDATE(btree->bb_root);
 	M0_BE_REG_PUT_PTR(btree, seg, tx);
 }
 
@@ -2501,16 +2570,16 @@ static int iter_prepare(struct m0_be_bnode *node, bool print)
 			for (i = 0; i < head->b_nr_active + 1; i++) {
 				child = head->b_children[i];
 				tail->b_next = child;
-				m0_format_footer_update(tail);
+				M0_FORMAT_FOOTER_UPDATE(tail);
 				tail = child;
 				child->b_next = NULL;
 			}
-			m0_format_footer_update(child);
+			M0_FORMAT_FOOTER_UPDATE(child);
 		}
 		head = head->b_next;
 		count++;
 	}
-	m0_format_footer_update(head);
+	M0_FORMAT_FOOTER_UPDATE(head);
 out:
 	if (print)
 		M0_LOG(M0_DEBUG, "---8<---8<---8<---8<---8<---8<---");

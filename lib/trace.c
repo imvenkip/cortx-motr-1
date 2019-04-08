@@ -213,6 +213,12 @@ M0_INTERNAL void m0_trace_allot(const struct m0_trace_descr *td,
 	struct m0_trace_buf_header *tbh = m0_logbuf_header;
 	register unsigned long      sp asm("sp"); /* stack pointer */
 
+
+	if (! ( (td->td_subsys & (1ULL << 7)) 
+		|| (td->td_subsys & (1ULL << 2))  ))
+		return;
+
+
 	record_num = m0_atomic64_add_return(&tbh->tbh_rec_cnt, 1);
 
 	/*
