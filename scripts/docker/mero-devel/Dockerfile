@@ -1,5 +1,5 @@
 ARG  CENTOS_RELEASE=latest
-ARG  LUSTRE_VERSION=2.10.6
+ARG  LUSTRE_VERSION=2.10.7
 FROM registry.gitlab.mero.colo.seagate.com/lustre-client:${CENTOS_RELEASE}-${LUSTRE_VERSION}
 
 COPY mero.spec .

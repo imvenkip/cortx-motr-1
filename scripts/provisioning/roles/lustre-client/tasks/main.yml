@@ -28,7 +28,7 @@
     - { version: 2.10.0, enabled: '{{ (redhat_release is version("7.3", "=")) | ternary("yes", "no") }}' }
     - { version: 2.10.3, enabled: '{{ (redhat_release is version("7.4", "=")) | ternary("yes", "no") }}' }
     - { version: 2.10.5, enabled: '{{ (redhat_release is version("7.5", "=")) | ternary("yes", "no") }}' }
-    - { version: 2.10.6, enabled: '{{ (redhat_release is version("7.6", ">=")) | ternary("yes", "no") }}' }
+    - { version: 2.10.7, enabled: '{{ (redhat_release is version("7.6", ">=")) | ternary("yes", "no") }}' }
   when: ansible_os_family == 'RedHat'
   tags:
     - lustre

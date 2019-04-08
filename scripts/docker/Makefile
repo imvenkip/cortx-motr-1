@@ -3,7 +3,7 @@ latest: centos-image lustre-client-image mero-devel-image
 	$(DOCKER) tag $(NAMESPACE)/mero-devel:$(CENTOS_RELEASE) $(NAMESPACE)/mero/mero:$(basename $(CENTOS_RELEASE))
 
 CENTOS_RELEASE  := latest
-LUSTRE_VERSION  := 2.10.6
+LUSTRE_VERSION  := 2.10.7
 NAMESPACE       := registry.gitlab.mero.colo.seagate.com
 DOCKER          := docker
 
