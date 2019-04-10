@@ -16,7 +16,7 @@ require 'pp'
 
 SELF       = File.expand_path(__FILE__)
 PROG_NAME  = File.basename(SELF)
-TOP_SRCDIR = File.dirname(SELF).gsub(%r{/usr/s?bin|/?utils/?$}, '')
+TOP_SRCDIR = File.dirname(SELF).gsub(%r{/(usr/)?s?bin|/?utils/?$}, '')
 
 DEFAULT_TEMPLATE_FILE_PATH = '/usr/share/mero/templates/halon_facts.yaml.erb'.freeze
 
