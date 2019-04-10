@@ -385,7 +385,8 @@ Vagrant.configure('2') do |config|
   end
 
   # delegate OS configuration to Ansible
-  if ENV['M0_VM_BOX_URL'].nil?
+  if ENV['M0_VM_BOX_BUILDER_MODE'].nil? ||
+     ENV['M0_VM_BOX_BUILDER_MODE'].match(/no|false|0/i)
     config.vm.provision ansible_mode do |ansible|
         ansible.compatibility_mode = '2.0'
         ansible.playbook = 'cluster.yml'
