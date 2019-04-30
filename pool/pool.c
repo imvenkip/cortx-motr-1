@@ -783,6 +783,14 @@ M0_INTERNAL void m0_pool_versions_stale_mark(struct m0_pools_common *pc,
 	m0_mutex_unlock(&pc->pc_mutex);
 }
 
+M0_INTERNAL struct m0_pool_version *
+m0_pool_version_md_get(const struct m0_pools_common *pc)
+{
+	M0_PRE(pc != NULL);
+
+	return pool_version_tlist_head(&pc->pc_md_pool->po_vers);
+}
+
 static void service_ctxs_destroy(struct m0_pools_common *pc)
 {
 	struct m0_reqh_service_ctx *ctx;

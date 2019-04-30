@@ -306,6 +306,8 @@ M0_INTERNAL void m0_pool_versions_fini(struct m0_pool *pool);
 
 M0_INTERNAL void m0_pool_versions_stale_mark(struct m0_pools_common *pc,
 					     struct m0_confc_update_state *s);
+M0_INTERNAL struct m0_pool_version *
+m0_pool_version_md_get(const struct m0_pools_common *pc);
 
 M0_INTERNAL int m0_pools_init(void);
 M0_INTERNAL void m0_pools_fini(void);
