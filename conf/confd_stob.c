@@ -32,8 +32,7 @@
 #include "stob/io.h"
 #include "stob/stob.h"
 #ifndef __KERNEL__
-  #include <sys/stat.h>
-  #include "stob/linux.h"
+  #include <sys/stat.h> /* fstat */
 #endif
 
 /**
@@ -119,10 +118,10 @@ void m0_confd_stob_fini(struct m0_stob *stob)
 #ifndef __KERNEL__
 static m0_bcount_t confd_stob_length(struct m0_stob *stob)
 {
-	struct m0_stob_linux *lstob = m0_stob_linux_container(stob);
-	struct stat           statbuf;
+	struct stat statbuf;
+	int         fd = m0_stob_fd(stob);
 
-	return fstat(lstob->sl_fd, &statbuf) == 0 ? statbuf.st_size : 0;
+	return fstat(fd, &statbuf) == 0 ? statbuf.st_size : 0;
 }
 #else
 static m0_bcount_t confd_stob_length(struct m0_stob *stob)

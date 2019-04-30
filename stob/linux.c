@@ -518,6 +518,13 @@ static uint32_t stob_linux_block_shift(struct m0_stob *stob)
 	return m0_stob_ioq_bshift(&lstob->sl_dom->sld_ioq);
 }
 
+static int stob_linux_fd(struct m0_stob *stob)
+{
+	struct m0_stob_linux *lstob = m0_stob_linux_container(stob);
+
+	return lstob->sl_fd;
+}
+
 /**
  * Reopen the stob to update it's file descriptor.
  * Find the stob from the provided stob_id and destroy it to get rid
@@ -593,6 +600,8 @@ M0_INTERNAL int m0_stob_linux_domain_fd_get(struct m0_stob_domain *dom, int *fd)
 
 M0_INTERNAL int m0_stob_linux_domain_fd_put(struct m0_stob_domain *dom, int fd)
 {
+	M0_PRE(m0_stob_domain_is_of_type(dom, &m0_stob_linux_type));
+
 	return close(fd) == 0 ? 0 : M0_ERR(-errno);
 }
 
@@ -637,6 +646,7 @@ static struct m0_stob_ops stob_linux_ops = {
 	.sop_punch          = &stob_linux_punch,
 	.sop_io_init        = &m0_stob_linux_io_init,
 	.sop_block_shift    = &stob_linux_block_shift,
+	.sop_fd             = &stob_linux_fd,
 };
 
 const struct m0_stob_type m0_stob_linux_type = {

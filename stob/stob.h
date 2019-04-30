@@ -199,6 +199,8 @@ struct m0_stob_ops {
 	int  (*sop_io_init)(struct m0_stob *stob, struct m0_stob_io *io);
 	/** @see m0_stob_block_shift() */
 	uint32_t (*sop_block_shift)(struct m0_stob *stob);
+	/** @see m0_stob_fd() */
+	int (*sop_fd)(struct m0_stob *stob);
 };
 
 /**
@@ -345,6 +347,12 @@ M0_INTERNAL void m0_stob_id_make(uint64_t container,
 
 M0_INTERNAL bool m0_stob_id_eq(const struct m0_stob_id *stob_id0,
                                const struct m0_stob_id *stob_id1);
+
+/**
+ * Returns file descriptor if stob implementation implies an underlying
+ * file object.
+ */
+M0_INTERNAL int m0_stob_fd(struct m0_stob *stob);
 
 M0_INTERNAL int m0_stob_mod_init(void);
 M0_INTERNAL void m0_stob_mod_fini(void);

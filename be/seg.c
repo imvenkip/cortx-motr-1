@@ -31,8 +31,7 @@
 
 #include "mero/version.h"     /* m0_build_info_get */
 
-#include "stob/stob.h"        /* m0_stob */
-#include "stob/linux.h"       /* m0_stob_linux_container */
+#include "stob/stob.h"        /* m0_stob, m0_stob_fd */
 
 #include "be/seg_internal.h"  /* m0_be_seg_hdr */
 #include "be/io.h"            /* m0_be_io */
@@ -357,12 +356,15 @@ M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg)
 		return M0_ERR(-ENOENT);
 	}
 
-	fd = m0_stob_linux_container(seg->bs_stob)->sl_fd;
+	fd = m0_stob_fd(seg->bs_stob);
 	p = mmap(g->sg_addr, g->sg_size, PROT_READ | PROT_WRITE,
 		 MAP_FIXED | MAP_PRIVATE | MAP_NORESERVE, fd, g->sg_offset);
 	if (p != g->sg_addr) {
+		rc = M0_ERR_INFO(-errno, "p=%p g->sg_addr=%p fd=%d",
+				 p, g->sg_addr, fd);
+		/* `g' is a part of `hdr'. Don't print it after free. */
 		m0_free(hdr);
-		return M0_ERR_INFO(-errno, "p=%p g->sg_addr=%p", p, g->sg_addr);
+		return rc;
 	}
 
 	/* rc = be_seg_read_all(seg, &hdr); */
