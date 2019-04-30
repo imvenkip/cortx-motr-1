@@ -145,10 +145,11 @@ id_pools:
       parity_units: <%= pool[:parity_units] %>
       unit_size: <%= m0_block_size %>
       seed: [101, 102]
-    pool_allowed_failures:
+    pool_allowed_failures: <%- if pool[:allowed_failures] == [] -%>[]<%- end %>
       <%- pool[:allowed_failures].each do |v| -%>
       - {site: <%= v[0] -%>, rack: <%= v[1] -%>, encl: <%= v[2] -%>, ctrl: <%= v[3] -%>, disk: <%= v[4] -%>}
       <%- end -%>
+<%- if false -%>
 # For parity 2 we can tolerate 2 disk failures:
 #      - {site: 0, rack: 0, encl: 0, ctrl: 0, disk: 2}
 # For 8+2 layout (8 data units + 2 parity units in group)
@@ -157,6 +158,7 @@ id_pools:
 #      - {site: 0, rack: 0, encl: 0, ctrl: 1, disk: 0}
 # And in case of 12+ nodes (8+2 layout), 1 node +1 disk:
 #      - {site: 0, rack: 0, encl: 0, ctrl: 1, disk: 1}
+<%- end -%>
     pool_device_refs:
       <%- pool[:disks].each do |disk| -%>
         <%- if disk['is_fake'] -%>

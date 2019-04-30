@@ -93,13 +93,13 @@ $options = {
 OptionParser.new do |opts|
     opts.banner = <<END_USAGE
 usage: #{PROG_NAME} [$options] disk1 disk2 ...
-       #{PROG_NAME} [$options] < hosts.yml
+       #{PROG_NAME} [$options] < cluster.yaml
 
   Arguments:
 
     #{PROG_NAME} can operate in two modes: singlenode and cluster.
 
-    In a singlenode mode, halon_facts.yml configuration is created only for
+    In a singlenode mode, halon_facts.yaml configuration is created only for
     the current host, which is assigned 'confd', 'storage' and 'm0t1fs' roles.
     In this mode a list of storage devices should be passed as command-line
     arguments. Size of block devices can be provided via -S|--dev-size option,
@@ -116,19 +116,31 @@ usage: #{PROG_NAME} [$options] disk1 disk2 ...
         pools:
           - name: pool1
             disks: [ { host: 'hostD1', filter: 'regex' }, ... ]
-            allowed_failures: { site: 0, rack: 0, encl: 0, ctrl: 0, disk: 1 }
             data_units: 8
             parity_units: 2
+            allowed_failures: { site: 0, rack: 0, encl: 0, ctrl: 0, disk: 1 }
 
     'clients', 'clovis-apps' and 's3servers' sections can be omitted, but not
-    all at the same time. 'pools' section allows to group disks of corresponding
-    SSU hosts into storage pools, it is optional, by default all disks from
-    every SSU form a single pool. The 'filter' is optional, by default all
-    disks from a host are added into the pool. 'allowed_failure', 'data_units'
-    'parity_units' corresponds to failure vector, data units in parity group and
-    number of failures supported, default values of allowed_failures,
-    data_units, parity_units are {site: 0, rack: 0, encl: 0, ctrl: 0, disk: 1},
-    '#{DATA_UNITS}', '#{PARITY_UNITS}' respectively.
+    all at the same time.
+
+    'pools' section allows to group disks of corresponding SSU hosts
+    into storage pools.  This section is optional, by default all
+    disks from all SSUs form a single pool.  The 'filter' field in a
+    disk specification is optional; by default all disks of given host
+    are added to the pool.
+
+    'allowed_failures' attribute is optional.  If it is missing, the
+    corresponding pool will not tolerate any failures (i.e., the pool
+    will become dud if any of its devices fails).  When 'allowed_failures'
+    is provided, at least one of its values must be positive.
+
+    'data_units' is the number of data units in a parity group.
+    Default value is #{DATA_UNITS}.
+
+    'parity_units' is the number of parity units in a parity group.
+    This is also the number of spare units in a group.  Default value
+    is #{PARITY_UNITS}.
+
   Options:
 
 END_USAGE
@@ -509,25 +521,13 @@ confd_nodes     = []
 extra_clients   = []
 pools           = []
 
-default_allowed_failures = {
-    'site' => 0,
-    'rack' => 0,
-    'encl' => 0,
-    'ctrl' => 0,
-    'disk' => 1
-}
-
 def gen_allowances(allowed_failures)
-    if allowed_failures.values.all? { |x| x == 0 }
-        return [allowed_failures.values]
-    else
-        return (0..allowed_failures['site']).to_a.product(
-                   (0..allowed_failures['rack']).to_a,
-                   (0..allowed_failures['encl']).to_a,
-                   (0..allowed_failures['ctrl']).to_a,
-                   (0..allowed_failures['disk']).to_a
-               ).select { |xs| xs.any? { |x| x > 0 } }
-    end
+    return (0..allowed_failures['site']).to_a.product(
+               (0..allowed_failures['rack']).to_a,
+               (0..allowed_failures['encl']).to_a,
+               (0..allowed_failures['ctrl']).to_a,
+               (0..allowed_failures['disk']).to_a
+           ).select { |xs| xs.any? { |x| x > 0 } }
 end
 
 #
@@ -571,8 +571,15 @@ if ARGV.empty?
     end
 
     cluster_config['pools'].each do |pool|
-        pool['allowed_failures'] = gen_allowances(
-            pool.fetch('allowed_failures', default_allowed_failures))
+        if pool.has_key?('allowed_failures')
+           if pool['allowed_failures'].values.all? { |x| x <= 0 }
+               die 'invalid cluster config: \'allowed_failures\' of pool \'' +
+                   pool['name'] + '\' must have at least one positive value'
+           end
+           pool['allowed_failures'] = gen_allowances(pool['allowed_failures'])
+        else
+            pool['allowed_failures'] = []
+        end
         pool['data_units'] = $options[:dataunits] if !pool.has_key?('data_units')
         pool['parity_units'] = $options[:parityunits] if !pool.has_key?('parity_units')
     end
@@ -589,7 +596,13 @@ else
         'pools'    => [{
            'name'  => 'default',
            'disks' => [ {'host' => Facter.value(:hostname)} ],
-           'allowed_failures' => gen_allowances(default_allowed_failures),
+           'allowed_failures' => gen_allowances({
+                                                    'site' => 0,
+                                                    'rack' => 0,
+                                                    'encl' => 0,
+                                                    'ctrl' => 0,
+                                                    'disk' => 1
+                                                }),
            'data_units' => $options[:dataunits],
            'parity_units' => $options[:parityunits]
         }],
