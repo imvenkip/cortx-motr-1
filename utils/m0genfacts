@@ -304,7 +304,7 @@ def build_nodes_from(config)
     host_idx  = 0
     uniq_host = {}
 
-    config.each_key.select { |key| !['pools'].include?(key) }.each do |host_type|
+    config.each_key.select { |k| k != 'pools' }.each do |host_type|
         config[host_type].each do |element|
             if element.is_a?(Hash)
                 host  = element['host']
