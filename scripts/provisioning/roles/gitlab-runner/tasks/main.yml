@@ -69,6 +69,7 @@
             && touch /etc/gitlab-runner/registration-done
       args:
         creates: /etc/gitlab-runner/registration-done
+      tags: gitlab-runner-register
 
     - name: start gitlab runner daemon
       service: name=gitlab-runner state=started enabled=yes
