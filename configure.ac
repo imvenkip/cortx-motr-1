@@ -508,11 +508,9 @@ AX_PROG_PERL_MODULES([File::Slurp], ,
 perl-File-Slurp package on Red Hat based systems])
 )
 
-# python-modules for utils/m0confgen
-AX_PYTHON_MODULE([ply],
-        AC_MSG_ERROR([No ply Python module found: it can be installed from \
-python36-ply package on Red Hat based systems])
-)
+# `ply' module is required by utils/m0confgen and utils/m0hagen.
+# It is provided by `python36-ply' package on Red Hat based systems.
+AX_PYTHON_MODULE([ply], die_if_absent)
 
 AC_CHECK_PROG(POD2MAN, pod2man, pod2man)
 AS_IF([test -z $POD2MAN],
