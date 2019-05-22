@@ -2453,7 +2453,8 @@ M0_INTERNAL void m0_be_btree_update_inplace(struct m0_be_btree        *tree,
 
 	M0_ENTRY("tree=%p", tree);
 	M0_PRE(tree->bb_root != NULL && tree->bb_ops != NULL);
-	M0_PRE(key->b_nob == be_btree_ksize(tree, seg, key->b_addr));
+	/* XXX: moved below */
+	/* M0_PRE(key->b_nob == be_btree_ksize(tree, seg, key->b_addr)); */
 
 	btree_op_fill(op, tree, tx, M0_BBO_UPDATE, NULL);
 
@@ -2463,6 +2464,7 @@ M0_INTERNAL void m0_be_btree_update_inplace(struct m0_be_btree        *tree,
 	anchor->ba_write = true;
 	anchor->ba_tree  = tree;
 	seg = m0_be_domain_seg_by_addr(tx->t_dom, tree);
+	M0_PRE(key->b_nob == be_btree_ksize(tree, seg, key->b_addr));
 	kv = btree_search(tree, key->b_addr, seg);
 	if (kv != NULL) {
 		M0_ASSERT(anchor->ba_value.b_nob <=
@@ -2524,9 +2526,12 @@ M0_INTERNAL void m0_be_btree_lookup_inplace(struct m0_be_btree        *tree,
 	kv = btree_search(tree, key->b_addr, seg);
 	if (kv == NULL)
 		op_tree(op)->t_rc = -ENOENT;
-	else
+	else {
+		M0_BE_REG_GET_PTR(kv, seg, NULL);
 		m0_buf_init(&anchor->ba_value, kv->val,
 			    be_btree_vsize(tree, seg, kv->val));
+		M0_BE_REG_PUT_PTR(kv, seg, NULL);
+	}
 
 	m0_be_op_done(op);
 	M0_LEAVE();
@@ -2676,7 +2681,7 @@ M0_INTERNAL void m0_be_btree_cursor_get(struct m0_be_btree_cursor *cur,
 		kv = &cur->bc_node->b_key_vals[cur->bc_pos];
 
 		m0_buf_init(&op_tree(op)->t_out_val, kv->val,
-			    be_btree_vsize(tree, NULL, /* XXX: seg */, kv->val));
+			    be_btree_vsize(tree, NULL /* XXX: seg */, kv->val));
 		m0_buf_init(&op_tree(op)->t_out_key, kv->key,
 			    be_btree_ksize(tree, NULL /* XXX: seg */, kv->key));
 		op_tree(op)->t_rc = 0;

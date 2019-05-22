@@ -84,11 +84,15 @@ void m0_be_ut_btree_simple(void)
 	/* create btrees */
 	tree0 = create_tree();
 
+	/* XXX: clean out dirty pages */
+	m0_be_pd_fom_manage(&ut_be.but_dom.bd_pd.bp_fom);
 	m0_be_ut_seg_reload(&ut_seg);
 
 	check(tree0);
 	destroy_tree(tree0);
 
+	/* XXX: clean out dirty pages */
+	m0_be_pd_fom_manage(&ut_be.but_dom.bd_pd.bp_fom);
 	m0_be_ut_seg_reload(&ut_seg);
 
 	m0_be_ut_seg_fini(&ut_seg);
@@ -594,6 +598,12 @@ static void destroy_tree(struct m0_be_btree *tree)
 
 	M0_ENTRY();
 
+	/* =================================================
+	 * XXX: seg, unpin page with `tree', lock is volatile, looks like it
+	 * fails after page unloading.
+	 * ================================================= */
+	M0_BE_REG_GET_PTR(tree, seg, NULL);
+
 	m0_buf_init(&key, k, sizeof k);
 
 	M0_LOG(M0_INFO, "Delete everything...");
@@ -618,6 +628,9 @@ static void destroy_tree(struct m0_be_btree *tree)
 	M0_LOG(M0_INFO, "Btree %p destroy...", tree);
 	M0_BE_OP_SYNC_WITH(op, m0_be_btree_destroy(tree, tx, op));
 	btree_dbg_print(tree);
+
+	M0_BE_REG_PUT_PTR(tree, seg, NULL);
+	
 	M0_BE_FREE_PTR_SYNC(tree, seg, tx);
 	m0_be_tx_close_sync(tx); /* Make things persistent. */
 	m0_be_tx_fini(tx);
@@ -734,6 +747,12 @@ static void check(struct m0_be_btree *tree)
 	M0_ALLOC_PTR(op);
 	M0_ASSERT(op != NULL);
 
+	/* =================================================
+	 * XXX: seg, pin page with `tree', lock is volatile, looks like it fails
+	 * after page unloading.
+	 * ================================================= */
+	M0_BE_REG_GET_PTR(tree, seg, NULL);
+	
 	m0_be_btree_init(tree, seg, &kv_ops);
 
 	m0_buf_init(&key, k, INSERT_KSIZE);
@@ -818,6 +837,7 @@ static void check(struct m0_be_btree *tree)
 	M0_UT_ASSERT(rc == 0);
 	M0_UT_ASSERT(strcmp(key.b_addr, k) == 0);
 
+	M0_BE_REG_PUT_PTR(tree, seg, NULL);
 	/* XXX: seg */ /* cursor_test(tree); */
 	btree_dbg_print(tree);
 	m0_be_btree_fini(tree, seg);

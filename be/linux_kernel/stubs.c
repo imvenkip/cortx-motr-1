@@ -328,4 +328,8 @@ M0_INTERNAL void m0_be_pd_reg_put(struct m0_be_pd        *paged,
 {
 }
 
+M0_INTERNAL void m0_be_pd_fom_manage(struct m0_be_pd_fom *fom)
+{
+}
+
 #undef M0_TRACE_SUBSYSTEM
