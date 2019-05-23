@@ -348,7 +348,8 @@ static void get_min_key_pos(struct m0_be_btree *btree,
 			    struct node_pos    *pos,
 			    struct m0_be_seg   *seg);
 
-static int iter_prepare(struct m0_be_bnode *node, bool print);
+static int iter_prepare(struct m0_be_bnode *node, bool print,
+			struct m0_be_seg *seg);
 
 
 /* ------------------------------------------------------------------
@@ -2183,7 +2184,7 @@ M0_INTERNAL void m0_be_btree_clear_credit(struct m0_be_btree     *tree,
 	m0_bcount_t            ksize;
 	m0_bcount_t            vsize;
 
-	nodes_nr = iter_prepare(tree->bb_root, false);
+	nodes_nr = iter_prepare(tree->bb_root, false, seg);
 	items_nr = btree_count_items(tree, seg, &ksize, &vsize);
 	items_nr++;
 	M0_LOG(M0_DEBUG, "nodes=%d items=%d ksz=%d vsz%d",
@@ -2558,68 +2559,50 @@ static void print_single_node(struct m0_be_bnode *node)
 		void *val = node->b_key_vals[i].val;
 
 		if (node->b_leaf)
-			M0_LOG(M0_DEBUG, "%02d: key=%s val=%s", i,
-			       (char *)key, (char *)val);
+			M0_LOG(M0_DEBUG, "%02d: key=%p val=%p", i, key, val);
 		else
-			M0_LOG(M0_DEBUG, "%02d: key=%s val=%s child=%p", i,
-			       (char *)key, (char *)val, node->b_children[i]);
+			M0_LOG(M0_DEBUG, "%02d: key=%p val=%p child=%p", i,
+			       key, val, node->b_children[i]);
 	}
 	if (!node->b_leaf)
 		M0_LOG(M0_DEBUG, "%02d: child=%p", i, node->b_children[i]);
 	M0_LOG(M0_DEBUG, "} (%p, %d)", node, node->b_level);
 }
 
-static int iter_prepare(struct m0_be_bnode *node, bool print)
+static void iter_prepare_n(struct m0_be_bnode *node, bool print,
+			   struct m0_be_seg *seg, int *n)
 {
-
-	int		 i = 0;
-	int		 count = 0;
-	unsigned int	 current_level;
-
-	struct m0_be_bnode *head;
-	struct m0_be_bnode *tail;
-	struct m0_be_bnode *child = NULL;
-
-	if (print)
-		M0_LOG(M0_DEBUG, "---8<---8<---8<---8<---8<---8<---");
+	int i;
+	
+	*n = *n + 1;
 
 	if (node == NULL)
-		goto out;
+		return;
 
-	count = 1;
-	current_level = node->b_level;
-	head = node;
-	tail = node;
-
-	head->b_next = NULL;
-	while (head != NULL) {
-		if (head->b_level < current_level) {
-			current_level = head->b_level;
-			if (print)
-				M0_LOG(M0_DEBUG, "***");
-		}
-		if (print)
-			print_single_node(head);
-
-		if (!head->b_leaf) {
-			for (i = 0; i < head->b_nr_active + 1; i++) {
-				child = head->b_children[i];
-				tail->b_next = child;
-				m0_format_footer_update(tail);
-				tail = child;
-				child->b_next = NULL;
-			}
-			m0_format_footer_update(child);
-		}
-		head = head->b_next;
-		count++;
-	}
-	m0_format_footer_update(head);
-out:
+	M0_BE_REG_GET_PTR(node, seg, NULL);
+	
 	if (print)
-		M0_LOG(M0_DEBUG, "---8<---8<---8<---8<---8<---8<---");
+		print_single_node(node);
+	
+	if (!node->b_leaf) {
+		for (i = 0; i < node->b_nr_active + 1; ++i) {
+			iter_prepare_n(node->b_children[i], print, seg, n);
+		}
+	}
+	
+	M0_BE_REG_PUT_PTR(node, seg, NULL);	
+}
 
-	return count;
+static int iter_prepare(struct m0_be_bnode *node, bool print,
+			struct m0_be_seg *seg)
+{
+	int n = 0;
+
+	M0_LOG(M0_DEBUG, ">--- tree root=%p ---", node);
+	iter_prepare_n(node, print, seg, &n);
+	M0_LOG(M0_DEBUG, "<--- tree root=%p node_nr=%d---", node, n);
+	
+	return n;
 }
 
 M0_INTERNAL void m0_be_btree_cursor_init(struct m0_be_btree_cursor *cur,
@@ -2862,12 +2845,10 @@ M0_INTERNAL bool m0_be_btree_is_empty(struct m0_be_btree *tree,
 	return ret;
 }
 
-M0_INTERNAL void btree_dbg_print(struct m0_be_btree *tree)
+M0_INTERNAL void btree_dbg_print(struct m0_be_btree *tree,
+				 struct m0_be_seg *seg)
 {
-	/* XXX: seg */
-	if (0) {
-		iter_prepare(tree->bb_root, true);
-	}
+	iter_prepare(tree->bb_root, true, seg);
 }
 
 static struct m0_be_op__btree *op_tree(struct m0_be_op *op)

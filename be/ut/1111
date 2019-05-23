@@ -1,7 +1,0 @@
-dump memory rr_result.hex 0x400000143ae0 0x400000145308
-
-(gdb) p node
-$9 = (struct m0_be_bnode *) 0x400000143ae0
-
-(gdb) p sizeof(struct m0_be_bnode)
-$11 = 6184
