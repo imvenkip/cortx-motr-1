@@ -1172,7 +1172,7 @@ M0_INTERNAL int m0_balloc_load_extents(struct m0_balloc *cb,
 		return M0_RC(0);
 	}
 
-	m0_be_btree_cursor_init(&cursor, db_ext);
+	m0_be_btree_cursor_init(&cursor, db_ext, NULL);
 
 	spare_range.e_start = grp->bgi_spare.bzp_range.e_start;
 	spare_range.e_end = (grp->bgi_groupno + 1) << cb->cb_sb.bsb_gsbits;
@@ -1269,7 +1269,7 @@ M0_INTERNAL int m0_balloc_load_extents(struct m0_balloc *cb,
 		return M0_RC(0);
 	}
 
-	m0_be_btree_cursor_init(&cursor, db_ext);
+	m0_be_btree_cursor_init(&cursor, db_ext, NULL);
 
 	spare_range.e_start = grp->bgi_spare.bzp_range.e_start;
 	spare_range.e_end = (grp->bgi_groupno + 1) << cb->cb_sb.bsb_gsbits;

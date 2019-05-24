@@ -541,6 +541,7 @@ struct m0_be_btree_cursor {
 	int                                   bc_stack_pos;
 	struct m0_be_btree                   *bc_tree;
 	struct m0_be_op                       bc_op; /* XXX DELETEME */
+	struct m0_be_seg                     *bc_seg; 
 };
 
 /**
@@ -549,7 +550,8 @@ struct m0_be_btree_cursor {
  * Note: interface is synchronous.
  */
 M0_INTERNAL void m0_be_btree_cursor_init(struct m0_be_btree_cursor *it,
-					 struct m0_be_btree *tree);
+					 struct m0_be_btree *tree,
+					 struct m0_be_seg   *seg);
 
 /**
  * Finalizes cursor.

@@ -394,7 +394,7 @@ static int __confdb_free(struct m0_be_btree *btree, struct m0_be_seg *seg,
 	struct m0_buf              val;
 	int                        rc;
 
-	m0_be_btree_cursor_init(&bcur, btree);
+	m0_be_btree_cursor_init(&bcur, btree, NULL);
 	rc = m0_be_btree_cursor_first_sync(&bcur);
 	if (rc != 0) {
 		m0_be_btree_cursor_fini(&bcur);
@@ -455,7 +455,7 @@ static int confdb_objs_count(struct m0_be_btree *btree, size_t *result)
 
 	M0_ENTRY();
 	*result = 0;
-	m0_be_btree_cursor_init(&bcur, btree);
+	m0_be_btree_cursor_init(&bcur, btree, NULL);
 	for (rc = m0_be_btree_cursor_first_sync(&bcur); rc == 0;
 	     rc = m0_be_btree_cursor_next_sync(&bcur)) {
 		++*result;
@@ -497,7 +497,7 @@ static void confx_fill(struct m0_confx *dest, struct m0_be_btree *btree)
 	M0_ENTRY();
 	M0_PRE(dest->cx_nr > 0);
 
-	m0_be_btree_cursor_init(&bcur, btree);
+	m0_be_btree_cursor_init(&bcur, btree, NULL);
 	for (i = 0, rc = m0_be_btree_cursor_first_sync(&bcur); rc == 0;
 	     rc = m0_be_btree_cursor_next_sync(&bcur), ++i) {
 		struct confx_obj_ctx *obj_ctx;

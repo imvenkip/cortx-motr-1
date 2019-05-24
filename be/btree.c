@@ -2105,7 +2105,7 @@ static int btree_count_items(struct m0_be_btree *tree,
 	*ksize = 0;
 	*vsize = 0;
 	if (tree->bb_root != NULL) {
-		m0_be_btree_cursor_init(&cur, tree);
+		m0_be_btree_cursor_init(&cur, tree, seg);
 
 		M0_SET0(op);
 		M0_BE_OP_SYNC_WITH(op,
@@ -2573,11 +2573,11 @@ static void iter_prepare_n(struct m0_be_bnode *node, bool print,
 			   struct m0_be_seg *seg, int *n)
 {
 	int i;
-	
-	*n = *n + 1;
 
 	if (node == NULL)
 		return;
+	
+	*n = *n + 1;
 
 	M0_BE_REG_GET_PTR(node, seg, NULL);
 	
@@ -2606,12 +2606,16 @@ static int iter_prepare(struct m0_be_bnode *node, bool print,
 }
 
 M0_INTERNAL void m0_be_btree_cursor_init(struct m0_be_btree_cursor *cur,
-					 struct m0_be_btree *btree)
+					 struct m0_be_btree *btree,
+					 struct m0_be_seg *seg)
 {
+	M0_PRE(seg != NULL);
+	
 	cur->bc_tree = btree;
 	cur->bc_node = NULL;
 	cur->bc_pos = 0;
 	cur->bc_stack_pos = 0;
+	cur->bc_seg = seg;
 }
 
 M0_INTERNAL void m0_be_btree_cursor_fini(struct m0_be_btree_cursor *cursor)

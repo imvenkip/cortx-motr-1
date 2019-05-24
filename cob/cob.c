@@ -918,7 +918,7 @@ static int cob_oi_lookup(struct m0_cob *cob)
 	 * We use cursor here because in some situations we need
 	 * to find most suitable position instead of exact location.
 	 */
-	m0_be_btree_cursor_init(&cursor, &cob->co_dom->cd_object_index);
+	m0_be_btree_cursor_init(&cursor, &cob->co_dom->cd_object_index, NULL);
 	rc = m0_be_btree_cursor_get_sync(&cursor, &start, true);
 	if (rc != 0) {
 		M0_LOG(M0_DEBUG, "btree_cursor_get_sync() failed with %d", rc);
@@ -1139,7 +1139,7 @@ M0_INTERNAL int m0_cob_iterator_init(struct m0_cob *cob,
 	if (rc != 0)
 		return M0_RC(rc);
 
-	m0_be_btree_cursor_init(&it->ci_cursor, &cob->co_dom->cd_namespace);
+	m0_be_btree_cursor_init(&it->ci_cursor, &cob->co_dom->cd_namespace, NULL);
 	it->ci_cob = cob;
 	return M0_RC(rc);
 }
@@ -1227,7 +1227,7 @@ M0_INTERNAL int m0_cob_ea_iterator_init(struct m0_cob *cob,
 		return M0_RC(rc);
         }
 
-	m0_be_btree_cursor_init(&it->ci_cursor, &cob->co_dom->cd_fileattr_ea);
+	m0_be_btree_cursor_init(&it->ci_cursor, &cob->co_dom->cd_fileattr_ea, NULL);
 	it->ci_cob = cob;
 	return M0_RC(rc);
 }
@@ -1310,7 +1310,7 @@ M0_INTERNAL int m0_cob_alloc_omgid(struct m0_cob_domain *dom, uint64_t *omgid)
 
 	M0_ENTRY();
 
-	m0_be_btree_cursor_init(&cursor, &dom->cd_fileattr_omg);
+	m0_be_btree_cursor_init(&cursor, &dom->cd_fileattr_omg, NULL);
 
 	/*
 	 * Look for ~0ULL terminator record and do a step back to find last

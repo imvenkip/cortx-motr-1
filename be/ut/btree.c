@@ -614,7 +614,7 @@ static void destroy_tree(struct m0_be_btree *tree)
 	M0_LEAVE();
 }
 
-static M0_UNUSED void cursor_test(struct m0_be_btree *tree)
+static void cursor_test(struct m0_be_btree *tree)
 {
 	/* the structure is too large for kernel stack to be local */
 	static struct m0_be_btree_cursor *cursor;
@@ -626,10 +626,16 @@ static M0_UNUSED void cursor_test(struct m0_be_btree *tree)
 	int                              i;
 	int                              rc;
 
+	/* =================================================
+	 * XXX: seg, pin page with `tree', lock is volatile, looks like it fails
+	 * after page unloading.
+	 * ================================================= */
+	M0_BE_REG_GET_PTR(tree, seg, NULL);
+
 	M0_ALLOC_PTR(cursor);
 	M0_UT_ASSERT(cursor != NULL);
 
-	m0_be_btree_cursor_init(cursor, tree);
+	m0_be_btree_cursor_init(cursor, tree, seg);
 
 	sprintf(sbuf, "%0*d", INSERT_KSIZE-1, INSERT_COUNT/2);
 	rc = m0_be_btree_cursor_get_sync(cursor, &start, true);
@@ -705,6 +711,12 @@ static M0_UNUSED void cursor_test(struct m0_be_btree *tree)
 
 	m0_be_btree_cursor_fini(cursor);
 	m0_free(cursor);
+
+	/* =================================================
+	 * XXX: seg, unpin page with `tree', lock is volatile, looks like it fails
+	 * after page unloading.
+	 * ================================================= */
+	M0_BE_REG_PUT_PTR(tree, seg, NULL);
 }
 
 static void check(struct m0_be_btree *tree)
@@ -813,7 +825,7 @@ static void check(struct m0_be_btree *tree)
 	M0_UT_ASSERT(strcmp(key.b_addr, k) == 0);
 
 	M0_BE_REG_PUT_PTR(tree, seg, NULL);
-	/* XXX: seg */ /* cursor_test(tree); */
+	cursor_test(tree);
 	btree_dbg_print(tree, seg);
 	m0_be_btree_fini(tree, seg);
 	m0_free(op);

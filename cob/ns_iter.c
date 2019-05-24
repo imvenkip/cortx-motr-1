@@ -65,7 +65,7 @@ M0_INTERNAL int m0_cob_ns_rec_of(struct m0_be_btree *cob_namespace,
         uint32_t                   nskey_bs_len;
 	int                        rc;
 
-        m0_be_btree_cursor_init(&it, cob_namespace);
+        m0_be_btree_cursor_init(&it, cob_namespace, NULL);
 	M0_SET0(&nskey_bs);
         snprintf(nskey_bs, UINT32_STR_LEN, "%u", cob_idx);
         nskey_bs_len = strlen(nskey_bs);

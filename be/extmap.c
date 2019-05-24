@@ -917,7 +917,7 @@ static void emap_it_init(struct m0_be_emap_cursor *it,
 
 	it->ec_map = map;
 	it->ec_version = map->em_version;
-	m0_be_btree_cursor_init(&it->ec_cursor, &map->em_mapping);
+	m0_be_btree_cursor_init(&it->ec_cursor, &map->em_mapping, NULL);
 }
 
 static void be_emap_close(struct m0_be_emap_cursor *it)
