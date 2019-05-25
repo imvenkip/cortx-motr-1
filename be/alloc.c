@@ -879,10 +879,10 @@ M0_INTERNAL int m0_be_allocator_init(struct m0_be_allocator *a,
 	M0_BE_REG_GET_PTR(seg_hdr, a->ba_seg, NULL);
 	for (i = 0; i < M0_BAP_NR; ++i) {
 		a->ba_h[i] = &seg_hdr->bh_alloc[i];
-		M0_BE_REG_GET_PTR(&a->ba_h[i], a->ba_seg, NULL);
+		M0_BE_REG_GET_PTR(a->ba_h[i], a->ba_seg, NULL);
 		M0_ASSERT(m0_addr_is_aligned(a->ba_h[i],
 					     BE_ALLOC_HEADER_SHIFT));
-		M0_BE_REG_PUT_PTR(&a->ba_h[i], a->ba_seg, NULL);
+		M0_BE_REG_PUT_PTR(a->ba_h[i], a->ba_seg, NULL);
 	}
 	M0_BE_REG_PUT_PTR(seg_hdr, a->ba_seg, NULL);
 
