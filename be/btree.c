@@ -2630,13 +2630,16 @@ M0_INTERNAL void m0_be_btree_cursor_get(struct m0_be_btree_cursor *cur,
 	struct bt_key_val  *kv;
 	struct m0_be_op    *op   = &cur->bc_op;
 	struct m0_be_btree *tree = cur->bc_tree;
+	struct m0_be_seg   *seg = cur->bc_seg;
 
 	btree_op_fill(op, tree, NULL, M0_BBO_CURSOR_GET, NULL);
 
 	m0_be_op_active(op);
+
+	M0_BE_REG_GET_PTR(tree, seg, NULL);
 	m0_rwlock_read_lock(btree_rwlock(tree));
 
-	last = get_btree_node(cur, key->b_addr, slant, NULL /* XXX: seg */);
+	last = get_btree_node(cur, key->b_addr, slant, seg);
 
 	if (last.p_node == NULL) {
 		M0_SET0(&op_tree(op)->t_out_val);
@@ -2646,16 +2649,19 @@ M0_INTERNAL void m0_be_btree_cursor_get(struct m0_be_btree_cursor *cur,
 		cur->bc_pos  = last.p_index;
 		cur->bc_node = last.p_node;
 
+		M0_BE_REG_GET_PTR(cur->bc_node, seg, NULL);
 		kv = &cur->bc_node->b_key_vals[cur->bc_pos];
+		M0_BE_REG_PUT_PTR(cur->bc_node, seg, NULL);
 
 		m0_buf_init(&op_tree(op)->t_out_val, kv->val,
-			    be_btree_vsize(tree, NULL /* XXX: seg */, kv->val));
+			    be_btree_vsize(tree, seg, kv->val));
 		m0_buf_init(&op_tree(op)->t_out_key, kv->key,
-			    be_btree_ksize(tree, NULL /* XXX: seg */, kv->key));
+			    be_btree_ksize(tree, seg, kv->key));
 		op_tree(op)->t_rc = 0;
 	}
 
 	m0_rwlock_read_unlock(btree_rwlock(tree));
+	M0_BE_REG_PUT_PTR(tree, seg, NULL);
 	m0_be_op_done(op);
 }
 
@@ -2671,22 +2677,21 @@ M0_INTERNAL int m0_be_btree_cursor_get_sync(struct m0_be_btree_cursor *cur,
 
 static int btree_cursor_seek(struct m0_be_btree_cursor *cur, void *key)
 {
-	/* XXX: seg==NULL */
 	const struct m0_buf kbuf =
-		M0_BUF_INIT(be_btree_ksize(cur->bc_tree, NULL, key), key);
+		M0_BUF_INIT(be_btree_ksize(cur->bc_tree, cur->bc_seg, key), key);
 	return m0_be_btree_cursor_get_sync(cur, &kbuf, true);
 }
 
 M0_INTERNAL int m0_be_btree_cursor_first_sync(struct m0_be_btree_cursor *cur)
 {
 	return btree_cursor_seek(cur, btree_get_min_key(cur->bc_tree,
-							NULL /* XXX: seg */));
+							cur->bc_seg));
 }
 
 M0_INTERNAL int m0_be_btree_cursor_last_sync(struct m0_be_btree_cursor *cur)
 {
 	return btree_cursor_seek(cur, btree_get_max_key(cur->bc_tree,
-							NULL /* XXX: seg */));
+							cur->bc_seg));
 }
 
 M0_INTERNAL void m0_be_btree_cursor_next(struct m0_be_btree_cursor *cur)
@@ -2695,10 +2700,14 @@ M0_INTERNAL void m0_be_btree_cursor_next(struct m0_be_btree_cursor *cur)
 	struct m0_be_op    *op   = &cur->bc_op;
 	struct m0_be_btree *tree = cur->bc_tree;
 	struct m0_be_bnode *node;
+	struct m0_be_seg   *seg = cur->bc_seg;
+	bool                node_b_leaf;
+	int                 node_b_nr_active;
 
 	btree_op_fill(op, tree, NULL, M0_BBO_CURSOR_NEXT, NULL);
 
 	m0_be_op_active(op);
+	M0_BE_REG_GET_PTR(tree, seg, NULL);
 	m0_rwlock_read_lock(btree_rwlock(tree));
 
 	node = cur->bc_node;
@@ -2709,15 +2718,39 @@ M0_INTERNAL void m0_be_btree_cursor_next(struct m0_be_btree_cursor *cur)
 
 	/* cursor move */
 	++cur->bc_pos;
-	if (node->b_leaf) {
-		while (node && cur->bc_pos >= node->b_nr_active)
+	M0_BE_REG_GET_PTR(node, seg, NULL);
+	node_b_leaf = node->b_leaf;
+	M0_BE_REG_PUT_PTR(node, seg, NULL);
+	if (node_b_leaf) {
+		M0_BE_REG_GET_PTR(node, seg, NULL);
+		node_b_nr_active = node->b_nr_active;
+		M0_BE_REG_PUT_PTR(node, seg, NULL);
+
+		while (node && cur->bc_pos >= node_b_nr_active) {
 			node = node_pop(cur, &cur->bc_pos);
+			if (node != NULL) {
+				M0_BE_REG_GET_PTR(node, seg, NULL);
+				node_b_nr_active = node->b_nr_active;
+				M0_BE_REG_PUT_PTR(node, seg, NULL);
+			}
+		}
 	} else {
 		for (;;) {
+			struct m0_be_bnode *old;
 			node_push(cur, node, cur->bc_pos);
+			old = node;
+
+			M0_BE_REG_GET_PTR(old, seg, NULL);
 			node = node->b_children[cur->bc_pos];
+			M0_BE_REG_PUT_PTR(old, seg, NULL);			
+
 			cur->bc_pos = 0;
-			if (node->b_leaf)
+
+			M0_BE_REG_GET_PTR(node, seg, NULL);
+			node_b_leaf = node->b_leaf;
+			M0_BE_REG_PUT_PTR(node, seg, NULL);
+
+			if (node_b_leaf)
 				break;
 		}
 	}
@@ -2732,13 +2765,17 @@ M0_INTERNAL void m0_be_btree_cursor_next(struct m0_be_btree_cursor *cur)
 
 	cur->bc_node = node;
 
+	M0_BE_REG_GET_PTR(node, seg, NULL);
 	kv = &node->b_key_vals[cur->bc_pos];
+	M0_BE_REG_PUT_PTR(node, seg, NULL);
+	
 	m0_buf_init(&op_tree(op)->t_out_val, kv->val,
-		    be_btree_vsize(tree, NULL /* XXX: seg */, kv->val));
+		    be_btree_vsize(tree, seg, kv->val));
 	m0_buf_init(&op_tree(op)->t_out_key, kv->key,
-		    be_btree_ksize(tree, NULL /* XXX: seg */, kv->key));
+		    be_btree_ksize(tree, seg, kv->key));
 out:
 	m0_rwlock_read_unlock(btree_rwlock(tree));
+	M0_BE_REG_PUT_PTR(tree, seg, NULL);
 	m0_be_op_done(op);
 }
 
@@ -2748,6 +2785,7 @@ M0_INTERNAL void m0_be_btree_cursor_prev(struct m0_be_btree_cursor *cur)
 	struct m0_be_op    *op   = &cur->bc_op;
 	struct m0_be_btree *tree = cur->bc_tree;
 	struct m0_be_bnode *node;
+	struct m0_be_seg   *seg = cur->bc_seg;
 
 	btree_op_fill(op, tree, NULL, M0_BBO_CURSOR_PREV, NULL);
 
@@ -2787,9 +2825,9 @@ M0_INTERNAL void m0_be_btree_cursor_prev(struct m0_be_btree_cursor *cur)
 
 	kv = &cur->bc_node->b_key_vals[cur->bc_pos];
 	m0_buf_init(&op_tree(op)->t_out_val, kv->val,
-		    be_btree_vsize(tree, NULL /* XXX: seg */, kv->val));
+		    be_btree_vsize(tree, seg, kv->val));
 	m0_buf_init(&op_tree(op)->t_out_key, kv->key,
-		    be_btree_ksize(tree, NULL /* XXX: seg */, kv->key));
+		    be_btree_ksize(tree, seg, kv->key));
 out:
 	m0_rwlock_read_unlock(btree_rwlock(tree));
 	m0_be_op_done(op);
