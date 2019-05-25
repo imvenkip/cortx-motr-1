@@ -386,6 +386,9 @@ M0_INTERNAL struct m0_be_seg *
 m0_be_pd__page_to_seg(struct m0_be_pd            *paged,
 		      const struct m0_be_pd_page *page);
 
+M0_INTERNAL struct m0_be_pd_page *m0_be_pd__page_by_addr(struct m0_be_pd *paged,
+							 const void      *addr);
+
 /* ------------------------------------------------------------------------- */
 
 enum m0_be_pd_request_type {

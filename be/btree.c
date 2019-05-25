@@ -63,7 +63,7 @@ M0_UNUSED static void print_single_node2(struct m0_be_bnode *node)
 	for (i = 0; i < 7; ++i) {
 		M0_LOG(M0_DEBUG, "%d", (int)node->b_pad[i]);
 	}
-	
+
 	for (i = 0; i < node->b_nr_active; ++i) {
 		void *key = node->b_key_vals[i].key;
 		void *val = node->b_key_vals[i].val;
@@ -246,12 +246,12 @@ static m0_bcount_t be_btree_vsize(struct m0_be_btree *btree,
 
 	/* XXX: size, seg! */
 	m0_be_reg_get(&M0_BE_REG(seg, 32, (void *)data), NULL);
-	
+
 	rc = ops->ko_vsize(data);
 
 	/* XXX: size, seg! */
 	m0_be_reg_put(&M0_BE_REG(seg, 32, (void *)data), NULL);
-	
+
 	return rc;
 }
 
@@ -2576,21 +2576,21 @@ static void iter_prepare_n(struct m0_be_bnode *node, bool print,
 
 	if (node == NULL)
 		return;
-	
+
 	*n = *n + 1;
 
 	M0_BE_REG_GET_PTR(node, seg, NULL);
-	
+
 	if (print)
 		print_single_node(node);
-	
+
 	if (!node->b_leaf) {
 		for (i = 0; i < node->b_nr_active + 1; ++i) {
 			iter_prepare_n(node->b_children[i], print, seg, n);
 		}
 	}
-	
-	M0_BE_REG_PUT_PTR(node, seg, NULL);	
+
+	M0_BE_REG_PUT_PTR(node, seg, NULL);
 }
 
 static int iter_prepare(struct m0_be_bnode *node, bool print,
@@ -2601,7 +2601,7 @@ static int iter_prepare(struct m0_be_bnode *node, bool print,
 	M0_LOG(M0_DEBUG, ">--- tree root=%p ---", node);
 	iter_prepare_n(node, print, seg, &n);
 	M0_LOG(M0_DEBUG, "<--- tree root=%p node_nr=%d---", node, n);
-	
+
 	return n;
 }
 
@@ -2610,7 +2610,7 @@ M0_INTERNAL void m0_be_btree_cursor_init(struct m0_be_btree_cursor *cur,
 					 struct m0_be_seg *seg)
 {
 	M0_PRE(seg != NULL);
-	
+
 	cur->bc_tree = btree;
 	cur->bc_node = NULL;
 	cur->bc_pos = 0;
@@ -2653,10 +2653,12 @@ M0_INTERNAL void m0_be_btree_cursor_get(struct m0_be_btree_cursor *cur,
 		kv = &cur->bc_node->b_key_vals[cur->bc_pos];
 		M0_BE_REG_PUT_PTR(cur->bc_node, seg, NULL);
 
+		M0_BE_REG_GET_PTR(kv, seg, NULL);
 		m0_buf_init(&op_tree(op)->t_out_val, kv->val,
 			    be_btree_vsize(tree, seg, kv->val));
 		m0_buf_init(&op_tree(op)->t_out_key, kv->key,
 			    be_btree_ksize(tree, seg, kv->key));
+		M0_BE_REG_PUT_PTR(kv, seg, NULL);
 		op_tree(op)->t_rc = 0;
 	}
 
@@ -2742,7 +2744,7 @@ M0_INTERNAL void m0_be_btree_cursor_next(struct m0_be_btree_cursor *cur)
 
 			M0_BE_REG_GET_PTR(old, seg, NULL);
 			node = node->b_children[cur->bc_pos];
-			M0_BE_REG_PUT_PTR(old, seg, NULL);			
+			M0_BE_REG_PUT_PTR(old, seg, NULL);
 
 			cur->bc_pos = 0;
 
@@ -2775,7 +2777,7 @@ M0_INTERNAL void m0_be_btree_cursor_next(struct m0_be_btree_cursor *cur)
 	m0_buf_init(&op_tree(op)->t_out_key, kv->key,
 		    be_btree_ksize(tree, seg, kv->key));
 	M0_BE_REG_PUT_PTR(kv, seg, NULL);
-	
+
 out:
 	m0_rwlock_read_unlock(btree_rwlock(tree));
 	M0_BE_REG_PUT_PTR(tree, seg, NULL);
@@ -2789,16 +2791,23 @@ M0_INTERNAL void m0_be_btree_cursor_prev(struct m0_be_btree_cursor *cur)
 	struct m0_be_btree *tree = cur->bc_tree;
 	struct m0_be_bnode *node;
 	struct m0_be_seg   *seg = cur->bc_seg;
+	struct m0_be_bnode *old;
+        bool                node_b_leaf;
+        int                 node_b_nr_active;
 
 	btree_op_fill(op, tree, NULL, M0_BBO_CURSOR_PREV, NULL);
 
 	m0_be_op_active(op);
+	M0_BE_REG_GET_PTR(tree, seg, NULL);
 	m0_rwlock_read_lock(btree_rwlock(tree));
 
 	node = cur->bc_node;
 
 	/* cursor move */
-	if (node->b_leaf) {
+        M0_BE_REG_GET_PTR(node, seg, NULL);
+        node_b_leaf = node->b_leaf;
+        M0_BE_REG_PUT_PTR(node, seg, NULL);
+	if (node_b_leaf) {
 		--cur->bc_pos;
 		while (node && cur->bc_pos < 0) {
 			node = node_pop(cur, &cur->bc_pos);
@@ -2807,12 +2816,22 @@ M0_INTERNAL void m0_be_btree_cursor_prev(struct m0_be_btree_cursor *cur)
 	} else {
 		for (;;) {
 			node_push(cur, node, cur->bc_pos);
+			old = node;
+
+			M0_BE_REG_GET_PTR(old, seg, NULL);
 			node = node->b_children[cur->bc_pos];
-			if (node->b_leaf) {
-				cur->bc_pos = node->b_nr_active - 1;
+			M0_BE_REG_PUT_PTR(old, seg, NULL);
+
+			M0_BE_REG_GET_PTR(node, seg, NULL);
+			node_b_nr_active = node->b_nr_active;
+			node_b_leaf = node->b_leaf;
+			M0_BE_REG_PUT_PTR(node, seg, NULL);
+
+			if (node_b_leaf) {
+				cur->bc_pos = node_b_nr_active - 1;
 				break;
 			} else
-				cur->bc_pos = node->b_nr_active;
+				cur->bc_pos = node_b_nr_active;
 		}
 	}
 
@@ -2826,13 +2845,19 @@ M0_INTERNAL void m0_be_btree_cursor_prev(struct m0_be_btree_cursor *cur)
 
 	cur->bc_node = node;
 
+	M0_BE_REG_GET_PTR(node, seg, NULL);
 	kv = &cur->bc_node->b_key_vals[cur->bc_pos];
+	M0_BE_REG_PUT_PTR(node, seg, NULL);
+
+	M0_BE_REG_GET_PTR(kv, seg, NULL);
 	m0_buf_init(&op_tree(op)->t_out_val, kv->val,
 		    be_btree_vsize(tree, seg, kv->val));
 	m0_buf_init(&op_tree(op)->t_out_key, kv->key,
 		    be_btree_ksize(tree, seg, kv->key));
+	M0_BE_REG_PUT_PTR(kv, seg, NULL);
 out:
 	m0_rwlock_read_unlock(btree_rwlock(tree));
+	M0_BE_REG_PUT_PTR(tree, seg, NULL);
 	m0_be_op_done(op);
 }
 

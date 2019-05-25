@@ -242,11 +242,20 @@ M0_INTERNAL void m0_be_pd_reg_get(struct m0_be_pd            *paged,
 				  const struct m0_be_reg     *reg,
 				  struct m0_be_op            *op)
 {
-	struct m0_be_pd_request_pages  rpages;
-	struct m0_be_pd_request       *request;
-
-	M0_ENTRY("reg=%p seg=%p addr=%p size=%"PRIu64,
-		 reg, reg->br_seg, reg->br_addr, reg->br_size);
+	struct m0_be_pd_request_pages rpages;
+	struct m0_be_pd_request      *request;
+	//struct m0_be_pd_page         *page =
+	//	m0_be_pd__page_by_addr(paged, reg->br_addr);
+#if 0
+	M0_PRE(ergo(reg->br_addr != NULL,
+		    m0_be_pd_seg_by_addr(paged, reg->br_addr) != NULL));
+#endif
+	//M0_LOG(M0_ALWAYS,
+	M0_ENTRY(
+		//"page=%p pref=%"PRIu64" "
+	       "reg=%p seg=%p addr=%p size=%"PRIu64,
+	       //page, page == NULL ? 0 : page->pp_ref,
+	       reg, reg->br_seg, reg->br_addr, reg->br_size);
 
 	m0_be_pd_request_pages_init(&rpages, M0_PRT_READ, NULL,
 				    &M0_EXT(0, 0), reg);
@@ -287,11 +296,21 @@ req_fini:
 M0_INTERNAL void m0_be_pd_reg_put(struct m0_be_pd        *paged,
 				  const struct m0_be_reg *reg)
 {
-	struct m0_be_pd_request_pages  rpages;
-	struct m0_be_pd_request       *request;
+	struct m0_be_pd_request_pages rpages;
+	struct m0_be_pd_request      *request;
+	//struct m0_be_pd_page         *page =
+	//	m0_be_pd__page_by_addr(paged, reg->br_addr);
+#if 0
+	M0_PRE(ergo(reg->br_addr != NULL,
+		    m0_be_pd_seg_by_addr(paged, reg->br_addr) != NULL));
+#endif
 
-	M0_ENTRY("reg=%p seg=%p addr=%p size=%"PRIu64,
-		 reg, reg->br_seg, reg->br_addr, reg->br_size);
+	//M0_LOG(M0_ALWAYS,
+	M0_ENTRY(
+		//"page=%p pref=%"PRIu64" "
+	       "reg=%p seg=%p addr=%p size=%"PRIu64,
+	       //page, page == NULL ? 0 : page->pp_ref,
+	       reg, reg->br_seg, reg->br_addr, reg->br_size);
 
 	m0_be_pd_request_pages_init(&rpages, M0_PRT_READ, NULL,
 				    &M0_EXT(0, 0), reg);
@@ -2170,6 +2189,21 @@ m0_be_pd__page_to_seg(struct m0_be_pd            *paged,
 		      const struct m0_be_pd_page *page)
 {
 	return m0_be_pd_seg_by_addr(paged, page->pp_addr);
+}
+
+M0_INTERNAL struct m0_be_pd_page *m0_be_pd__page_by_addr(struct m0_be_pd *paged,
+							 const void      *addr)
+{
+	struct m0_be_pd_page    *page = NULL;
+	struct m0_be_pd_mapping *mapping;
+
+	m0_tl_for(mappings, &paged->bp_mappings, mapping) {
+		page = m0_be_pd_mapping__addr_to_page(mapping, addr);
+		if (page != NULL)
+			break;
+	} m0_tl_endfor;
+
+	return page;
 }
 
 #undef M0_TRACE_SUBSYSTEM
