@@ -2768,11 +2768,14 @@ M0_INTERNAL void m0_be_btree_cursor_next(struct m0_be_btree_cursor *cur)
 	M0_BE_REG_GET_PTR(node, seg, NULL);
 	kv = &node->b_key_vals[cur->bc_pos];
 	M0_BE_REG_PUT_PTR(node, seg, NULL);
-	
+
+	M0_BE_REG_GET_PTR(kv, seg, NULL);
 	m0_buf_init(&op_tree(op)->t_out_val, kv->val,
 		    be_btree_vsize(tree, seg, kv->val));
 	m0_buf_init(&op_tree(op)->t_out_key, kv->key,
 		    be_btree_ksize(tree, seg, kv->key));
+	M0_BE_REG_PUT_PTR(kv, seg, NULL);
+	
 out:
 	m0_rwlock_read_unlock(btree_rwlock(tree));
 	M0_BE_REG_PUT_PTR(tree, seg, NULL);
