@@ -246,7 +246,7 @@ M0_INTERNAL void m0_be_pd_reg_get(struct m0_be_pd            *paged,
 	struct m0_be_pd_request      *request;
 	//struct m0_be_pd_page         *page =
 	//	m0_be_pd__page_by_addr(paged, reg->br_addr);
-#if 0
+#if 1
 	M0_PRE(ergo(reg->br_addr != NULL,
 		    m0_be_pd_seg_by_addr(paged, reg->br_addr) != NULL));
 #endif
@@ -300,7 +300,7 @@ M0_INTERNAL void m0_be_pd_reg_put(struct m0_be_pd        *paged,
 	struct m0_be_pd_request      *request;
 	//struct m0_be_pd_page         *page =
 	//	m0_be_pd__page_by_addr(paged, reg->br_addr);
-#if 0
+#if 1
 	M0_PRE(ergo(reg->br_addr != NULL,
 		    m0_be_pd_seg_by_addr(paged, reg->br_addr) != NULL));
 #endif

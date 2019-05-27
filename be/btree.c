@@ -299,6 +299,48 @@ static inline int key_eq(struct m0_be_btree *btree, struct m0_be_seg *seg,
 {
 	return be_btree_compare(btree, seg, key0, key1) ==  0;
 }
+
+//======================================================================
+static m0_bcount_t m_btree_ksize(struct m0_be_btree *btree,
+				 const void *key)
+{
+	const struct m0_be_btree_kv_ops *ops = btree->bb_ops;
+	return ops->ko_ksize(key);
+}
+
+static m0_bcount_t m_btree_vsize(struct m0_be_btree *btree,
+				 const void *data)
+{
+	const struct m0_be_btree_kv_ops *ops = btree->bb_ops;
+	return ops->ko_vsize(data);
+}
+
+static int m_btree_compare(struct m0_be_btree *btree,
+			   const void *key0, const void *key1)
+{
+	const struct m0_be_btree_kv_ops *ops = btree->bb_ops;
+	return ops->ko_compare(key0, key1);
+}
+
+static inline int m_key_lt(struct m0_be_btree *btree,
+			   const void *key0, const void *key1)
+{
+	return m_btree_compare(btree, key0, key1)  <  0;
+}
+
+static inline int m_key_gt(struct m0_be_btree *btree,
+			   const void *key0, const void *key1)
+{
+	return m_btree_compare(btree, key0, key1)  >  0;
+}
+
+static inline int m_key_eq(struct m0_be_btree *btree,
+			   const void *key0, const void *key1)
+{
+	return m_btree_compare(btree, key0, key1) ==  0;
+}
+
+//======================================================================
 
 /* ------------------------------------------------------------------
  * Btree internals implementation
@@ -983,10 +1025,14 @@ static int find_gt_key(struct m0_be_btree *btree,
 	while (begin != end) {
 		mid = (begin + end) / 2;
 
-		if (key_gt(btree, seg, key, node->b_key_vals[mid].key))
+		M0_BE_REG_GET_PTR(node->b_key_vals[mid].key, seg, NULL);
+
+		if (m_key_gt(btree, key, node->b_key_vals[mid].key))
 			begin = mid + 1;
 		else
 			end = mid;
+
+		M0_BE_REG_PUT_PTR(node->b_key_vals[mid].key, seg, NULL);
 	}
 
 	return end;
@@ -1042,11 +1088,17 @@ del_loop:
 		       node, index, node->b_nr_active);
 
 		/*  Found? */
-		if (i < node->b_nr_active &&
-		    key_eq(btree, seg, key, node->b_key_vals[i].key)) {
-			M0_BE_REG_PUT_PTR(node, seg, tx);
-			M0_LOG(M0_DEBUG, "found?");
-			break;
+		if (i < node->b_nr_active) {
+			int k_eq_k;
+			M0_BE_REG_GET_PTR(node->b_key_vals[i].key, seg, tx);
+			k_eq_k = m_key_eq(btree, key, node->b_key_vals[i].key);
+			M0_BE_REG_PUT_PTR(node->b_key_vals[i].key, seg, tx);
+
+			if (k_eq_k) {
+				M0_BE_REG_PUT_PTR(node, seg, tx);
+				M0_LOG(M0_DEBUG, "found?");
+				break;
+			}
 		}
 
 		if (node->b_leaf) { /* No more to find */
@@ -1282,13 +1334,19 @@ get_btree_node(struct m0_be_btree_cursor *it, void *key, bool slant,
 		i = find_gt_key(btree, seg, node, i, node->b_nr_active, key);
 
 		/*  If we find such key return the key-value pair */
-		if (i < node->b_nr_active &&
-		    key_eq(btree, seg, key, node->b_key_vals[i].key)) {
-			kp.p_node = node;
-			kp.p_index = i;
-			M0_BE_REG_PUT_PTR(btree, seg, NULL);
-			M0_BE_REG_PUT_PTR(node, seg, NULL);
-			return kp;
+		if (i < node->b_nr_active) {
+			int k_eq_k;
+			M0_BE_REG_GET_PTR(node->b_key_vals[i].key, seg, NULL);
+			k_eq_k = m_key_eq(btree, key, node->b_key_vals[i].key);
+			M0_BE_REG_PUT_PTR(node->b_key_vals[i].key, seg, NULL);
+
+			if (k_eq_k) {
+				kp.p_node = node;
+				kp.p_index = i;
+				M0_BE_REG_PUT_PTR(btree, seg, NULL);
+				M0_BE_REG_PUT_PTR(node, seg, NULL);
+				return kp;
+			}
 		}
 		/*  If the node is leaf and if we did not find the key */
 		/*  return NULL */
@@ -2219,10 +2277,9 @@ static void be_btree_insert(struct m0_be_btree        *tree,
 	M0_BE_REG_GET_PTR(tree, seg, NULL);
 
 	M0_PRE(tree->bb_root != NULL && tree->bb_ops != NULL);
-	M0_PRE(key->b_nob == be_btree_ksize(tree, seg, key->b_addr));
+	M0_PRE(key->b_nob == m_btree_ksize(tree, key->b_addr));
 	M0_PRE((val != NULL) == (anchor == NULL));
-	M0_PRE(ergo(anchor == NULL,
-		    val->b_nob == be_btree_vsize(tree, seg, val->b_addr)));
+	M0_PRE(ergo(anchor == NULL, val->b_nob == m_btree_vsize(tree, val->b_addr)));
 
 	btree_save(tree, tx, op, key, val, anchor, BTREE_SAVE_INSERT, zonemask);
 
@@ -2244,8 +2301,8 @@ M0_INTERNAL void m0_be_btree_save(struct m0_be_btree  *tree,
 	M0_BE_REG_GET_PTR(tree, seg, tx);
 
 	M0_PRE(tree->bb_root != NULL && tree->bb_ops != NULL);
-	M0_PRE(key->b_nob == be_btree_ksize(tree, seg, key->b_addr));
-	M0_PRE(val->b_nob == be_btree_vsize(tree, seg, val->b_addr));
+	M0_PRE(key->b_nob == m_btree_ksize(tree, key->b_addr));
+	M0_PRE(val->b_nob == m_btree_vsize(tree, val->b_addr));
 
 	/* We can't be here during DIX Repair, so never use repair zone. */
 	btree_save(tree, tx, op, key, val, NULL, overwrite ?
@@ -2278,8 +2335,8 @@ M0_INTERNAL void m0_be_btree_update(struct m0_be_btree *tree,
 	M0_BE_REG_GET_PTR(tree, seg, tx);
 
 	M0_PRE(tree->bb_root != NULL && tree->bb_ops != NULL);
-	M0_PRE(key->b_nob == be_btree_ksize(tree, seg, key->b_addr));
-	M0_PRE(val->b_nob == be_btree_vsize(tree, seg, val->b_addr));
+	M0_PRE(key->b_nob == m_btree_ksize(tree, key->b_addr));
+	M0_PRE(val->b_nob == m_btree_vsize(tree, val->b_addr));
 
 	btree_save(tree, tx, op, key, val, NULL, BTREE_SAVE_UPDATE,
 		   M0_BITS(M0_BAP_NORMAL));
