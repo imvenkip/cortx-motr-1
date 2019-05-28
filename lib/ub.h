@@ -60,6 +60,8 @@ struct m0_ub_bench {
 	double      ub_max;
 };
 
+enum { M0_UB_SET_BENCHMARKS_MAX = 32 };
+
 /**
  * Structure to define a set of unit benchmarks.
  */
@@ -83,7 +85,7 @@ struct m0_ub_set {
 	struct m0_ub_set  *us_prev;
 
 	/** Benchmarks in the set. */
-	struct m0_ub_bench us_run[];
+	struct m0_ub_bench us_run[M0_UB_SET_BENCHMARKS_MAX];
 };
 
 /**

@@ -35,7 +35,6 @@
 #include "stob/domain.h"
 #include "stob/io.h"
 #include "stob/stob.h"
-#include "stob/linux.h"  /* m0_stob_linux_container */
 #include "fol/fol.h"
 #include "balloc/balloc.h" /* M0_BALLOC_NON_SPARE_ZONE */
 

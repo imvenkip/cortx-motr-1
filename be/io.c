@@ -31,8 +31,8 @@
 #include "lib/ext.h"             /* m0_ext_are_overlapping */
 #include "lib/locality.h"        /* m0_locality0_get */
 
-#include "stob/linux.h"          /* m0_stob_linux_container */
 #include "stob/io.h"             /* m0_stob_iovec_sort */
+#include "stob/stob.h"           /* m0_stob_fd */
 
 #include "be/op.h"               /* m0_be_op_active */
 #include "be/ha.h"               /* m0_be_io_err_send */
@@ -564,6 +564,7 @@ static bool be_io_cb(struct m0_clink *link)
 						 bip_clink);
 	struct m0_be_io      *bio = bip->bip_bio;
 	struct m0_stob_io    *sio = &bip->bip_sio;
+	int                   fd;
 	int                   rc;
 
 	m0_clink_del(&bip->bip_clink);
@@ -579,9 +580,10 @@ static bool be_io_cb(struct m0_clink *link)
 	 *   now.
 	 */
 	if (rc == 0 && bio->bio_sync) {
-		rc = fdatasync(
-			m0_stob_linux_container(bip->bip_sio.si_obj)->sl_fd);
-		M0_ASSERT_INFO(rc == 0, "fdatasync() failed: %d", rc);
+		fd = m0_stob_fd(bip->bip_sio.si_obj);
+		rc = fdatasync(fd);
+		rc = rc == 0 ? 0 : M0_ERR_INFO(-errno, "fd=%d", fd);
+		M0_ASSERT_INFO(rc == 0, "fdatasync() failed: rc=%d", rc);
 	}
 	bip->bip_rc = rc;
 	be_io_finished(bio);

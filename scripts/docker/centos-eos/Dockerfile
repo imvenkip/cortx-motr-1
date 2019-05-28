@@ -1,25 +1,21 @@
-ARG  CENTOS_RELEASE=latest
-FROM centos:${CENTOS_RELEASE}
+ARG  CENTOS_RELEASE_EOS=7.5.1804
+FROM centos:${CENTOS_RELEASE_EOS}
 
 # ARG vars declared before FROM aren't visible in the rest of the file unless
 # they're re-declared
-ARG CENTOS_RELEASE
+ARG CENTOS_RELEASE_EOS
 
 # disable all repos except for the specific release we're targeting
 RUN yum-config-manager --disable '*'
-COPY C${CENTOS_RELEASE}.repo /etc/yum.repos.d/
+COPY C${CENTOS_RELEASE_EOS}.repo /etc/yum.repos.d/
 
-# upgrade all
-RUN yum --assumeyes upgrade
+# match EOS kernel
+RUN yum -y remove 'kernel*'
+RUN yum -y install kernel-3.10.0-862.el7 \
+                   kernel-devel-3.10.0-862.el7
 
 # enable EPEL repo
 RUN yum --assumeyes install epel-release
-
-# workaround broken CentOS 7.3 compatibility witn EPEL
-RUN test $(grep -Po '(?<=release 7\.).' /etc/redhat-release) -gt 3 \
-    || { yumdownloader python36-libs \
-         && rpm -ihv --nodeps python36-libs*.rpm \
-         && rm -f python36-libs*.rpm ; }
 
 # install common tools
 RUN yum --assumeyes install \

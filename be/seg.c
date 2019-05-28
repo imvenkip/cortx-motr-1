@@ -31,8 +31,7 @@
 
 #include "mero/version.h"     /* m0_build_info_get */
 
-#include "stob/stob.h"        /* m0_stob */
-#include "stob/linux.h"       /* m0_stob_linux_container */
+#include "stob/stob.h"        /* m0_stob, m0_stob_fd */
 
 #include "be/domain.h"        /* m0_be_domain */
 #include "be/io.h"            /* m0_be_io */
@@ -332,7 +331,7 @@ M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg)
 		return M0_ERR(-ENOENT);
 	}
 
-	fd = m0_stob_linux_container(seg->bs_stob)->sl_fd;
+	fd = m0_stob_fd(seg->bs_stob);
 	/* XXX BE mapping doesn't support offsets. */
 	M0_ASSERT(g->sg_offset == 0);
 	rc = m0_be_pd_mapping_init(seg->bs_pd, g->sg_addr, g->sg_size, fd);

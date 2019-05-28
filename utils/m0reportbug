@@ -3,7 +3,7 @@ set -eu
 # set -x
 export PS4='+ [${FUNCNAME[0]:+${FUNCNAME[0]}:}${LINENO}] '
 
-VERSION=0.35
+VERSION=0.36
 
 IN_DIR=/var/mero # default value; overruled by CLI argument
 OUT_DATA_DIR=m0reportbug-data
@@ -163,7 +163,8 @@ misc_files() {
              mkdir -p $outdir/$(dirname $path)
              cp -p $path $outdir/$path
              echo $path
-         done)
+         done
+     hctl halon info graph json >$outdir/halon-rg.json || true)
 
     outdir=$(readlink -f .)/root-misc
     {
@@ -634,6 +635,10 @@ exit
 ###
 ### Date       Version Description
 ### ---------- ------- ----------------------------------------------------
+### 2019-04-16 0.36    Get Halon RG (resource graph) data in JSON format.
+###                    It can be converted into dynamic visualization
+###                    with $H0_SRC_DIR/scripts/halon-rg-view script.
+###
 ### 2018-12-07 0.35    path(): If m0reportbug path does not end with
 ###                    "/utils/m0reportbug", assume that executables and
 ###                    libraries were installed from rpms (we wouldn't

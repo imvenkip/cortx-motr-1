@@ -123,6 +123,12 @@
     name:  '{{ extra_tools_pkgs }}'
   when: extra_tools_pkgs is defined
 
+- name: change default editor to vim
+  alternatives:
+    name: editor
+    path: /usr/bin/vim.basic
+  when: ansible_os_family == 'Debian'
+
 - name: apply CentOS 7.5 workarounds
   when: ansible_os_family == 'RedHat' and ansible_distribution_version | regex_search('\d+\.\d+') is version('7.5', '==')
   block:
@@ -205,6 +211,18 @@
     regexp: '^%sudo'
     line: '%sudo   ALL=(ALL:ALL) NOPASSWD: ALL'
   when: ansible_os_family == 'Debian'
+
+- name: enable internal Seagate NTP server
+  lineinfile:
+    path:   /etc/systemd/timesyncd.conf
+    create: no
+    line:   'NTP=time.seagate.com'
+    insertafter: '\[Time\]'
+  ignore_errors: yes
+  notify: restart systemd-timesyncd
+  tags:
+    - never
+    - seagate-ntp
 
 - name: restart machine
   when: reboot_required.rc == 1

@@ -746,26 +746,6 @@ m0_clovis__obj_pool_version_get(struct m0_clovis_obj *obj,
 				struct m0_pool_version **pv);
 
 /**
- * Retrieves the default pool version from the first pool in pools common.
- *
- * @param instance of the Clovis object containing Clovis instance.
- * @param pv is the returned pool version.
- */
-M0_INTERNAL int
-m0_clovis_default_pool_version_retrieve(struct m0_clovis_obj *obj,
-					struct m0_pool_version **pv);
-
-/**
- * Retrieves the md pool version from pools common.
- *
- * @param instance of the Clovis object containing Clovis instance.
- * @param pv is the returned md pool version.
- */
-M0_INTERNAL int
-m0_clovis_md_pool_version_retrieve(struct m0_clovis_obj *obj,
-				   struct m0_pool_version **pv);
-
-/**
  * Gets the default layout identifier from confd.
  *
  * @param instance The clovis instance containing information of confd.

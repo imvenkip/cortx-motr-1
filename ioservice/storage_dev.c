@@ -30,7 +30,7 @@
 #include "conf/helpers.h"           /* m0_conf_drive_get */
 #include "conf/obj_ops.h"           /* M0_CONF_DIRNEXT */
 #include "stob/ad.h"                /* m0_stob_ad_domain2balloc */
-#include "stob/linux.h"             /* m0_stob_linux */
+#include "stob/linux.h"             /* m0_stob_linux_domain_directio */
 #include "stob/stob.h"              /* m0_stob_id_get */
 #include "ioservice/fid_convert.h"  /* m0_fid_validate_linuxstob */
 #include "ioservice/storage_dev.h"
@@ -741,7 +741,6 @@ M0_INTERNAL int m0_storage_dev_format(struct m0_storage_dev *dev,
 static int sdev_stob_fsync(void *psdev)
 {
 	struct m0_storage_dev *sdev = (struct m0_storage_dev *)psdev;
-	struct m0_stob_linux  *lstob;
 	int                    fd = -1;
 	int                    rc;
 	int                    rc1;
@@ -749,15 +748,15 @@ static int sdev_stob_fsync(void *psdev)
 	M0_ENTRY("sdev=%p", sdev);
 
 	if (sdev->isd_type == M0_STORAGE_DEV_TYPE_AD) {
-		lstob = m0_stob_linux_container(sdev->isd_stob);
-		rc = fdatasync(lstob->sl_fd);
-		rc = rc != 0 ? M0_ERR(-errno) : 0;
+		fd = m0_stob_fd(sdev->isd_stob);
+		rc = fdatasync(fd);
+		rc = rc == 0 ? 0 : M0_ERR_INFO(-errno, "fd=%d", fd);
 	} else {
 		M0_ASSERT(sdev->isd_type == M0_STORAGE_DEV_TYPE_LINUX);
 		rc = m0_stob_linux_domain_fd_get(sdev->isd_domain, &fd);
 		if (rc == 0) {
 			rc  = syncfs(fd);
-			rc  = rc != 0 ? M0_ERR(-errno) : 0;
+			rc  = rc == 0 ? 0 : M0_ERR_INFO(-errno, "fd=%d", fd);
 			rc1 = m0_stob_linux_domain_fd_put(sdev->isd_domain, fd);
 			rc  = rc ?: rc1;
 		}

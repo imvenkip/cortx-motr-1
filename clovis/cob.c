@@ -1732,7 +1732,7 @@ M0_INTERNAL int m0_clovis__obj_namei_send(struct m0_clovis_op_obj *oo)
 	if (pv == NULL)
 		return M0_ERR(-EINVAL);
 	cr = clovis_cob_req_alloc(pv);
-	if(cr == NULL)
+	if (cr == NULL)
 		return M0_ERR(-ENOMEM);
 
 	cr->cr_cinst     = cinst;
@@ -1806,12 +1806,11 @@ M0_INTERNAL int m0_clovis__obj_attr_get_sync(struct m0_clovis_obj *obj)
 		return 0;
 
 	M0_PRE(obj != NULL);
-	rc = m0_clovis_md_pool_version_retrieve(obj, &pv);
-	if (rc != 0)
-		return M0_ERR(rc);
 
 	cinst = m0_clovis__obj_instance(obj);
-
+	pv = m0_pool_version_md_get(&cinst->m0c_pools_common);
+	if (pv == NULL)
+		return M0_ERR(-EINVAL);
 	/* Allocate and initialise cob request. */
 	cr = clovis_cob_req_alloc(pv);
 	if (cr == NULL)

@@ -89,7 +89,7 @@ static int poolmach_state_update(struct m0_poolmach_state *st,
 {
 	int rc = 0;
 
-	M0_ENTRY();
+	M0_ENTRY(FID_F, FID_P(&objv_real->co_id));
 
 	if (m0_conf_obj_type(objv_real) == &M0_CONF_CONTROLLER_TYPE) {
 		st->pst_nodes_array[*idx_nodes].pn_id = objv_real->co_id;
@@ -113,8 +113,9 @@ static int poolmach_state_update(struct m0_poolmach_state *st,
 		pme.pe_index = *idx_devices;
 		pme.pe_state = m0_ha2pm_state_map(d->ck_obj.co_ha_state);
 
-		M0_LOG(M0_DEBUG, "device:"FID_F"index:%d state:%d",
+		M0_LOG(M0_DEBUG, "device:"FID_F"index:%d dev_idx:%d state:%d",
 				FID_P(&pdev->pd_id), pdev->pd_index,
+				pdev->pd_sdev_idx,
 				pme.pe_state);
 		rc = m0_poolmach_state_transit(pdev->pd_pm, &pme);
 
@@ -196,6 +197,7 @@ M0_INTERNAL int m0_poolmach_init_by_conf(struct m0_poolmach *pm,
 	uint32_t             idx_devices = 0;
 	int                  rc;
 
+	M0_ENTRY(FID_F, FID_P(&pver->pv_obj.co_id));
 	confc = m0_confc_from_obj(&pver->pv_obj);
 	reqh = m0_confc2reqh(confc);
 	rc = m0_conf_diter_init(&it, confc, &pver->pv_obj,
@@ -209,7 +211,6 @@ M0_INTERNAL int m0_poolmach_init_by_conf(struct m0_poolmach *pm,
 
 	while ((rc = m0_conf_diter_next_sync(&it, is_controllerv_or_diskv)) ==
 	       M0_CONF_DIRNEXT) {
-		M0_LOG(M0_DEBUG, "rc:%d", rc);
 		rc = poolmach_state_update(pm->pm_state,
 			M0_CONF_CAST(m0_conf_diter_result(&it),
 				     m0_conf_objv)->cv_real,

@@ -79,7 +79,7 @@ BuildRequires:  kernel-devel = %{kernel_ver_requires}
 BuildRequires:  %{lustre_devel}
 BuildRequires:  libuuid-devel
 BuildRequires:  binutils-devel
-BuildRequires:  python34-ply
+BuildRequires:  python36-ply
 BuildRequires:  perl-autodie
 BuildRequires:  systemd-devel
 %if %{with cassandra}
@@ -106,7 +106,7 @@ Requires:       perl-MCE
 Requires:       ruby
 Requires:       facter
 Requires:       rubygem-net-ssh
-Requires:       python34-ply
+Requires:       python36-ply
 Requires(pre):  shadow-utils
 Requires(post): findutils
 

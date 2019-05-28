@@ -1,11 +1,19 @@
+# Globals ----------------------------------------------------------------- {{{1
+#
+
 variables:
   GIT_DEPTH: 1  # clone only the current commit
   GIT_STRATEGY: clone  # make a fresh `git clone` of the repo for every new CI job
   GIT_SUBMODULE_STRATEGY: normal  # init and check out submodules
+  CENTOS_RELEASE: '7.5'
+  M0_VG_NO_SYMLINKS: "true"
+  WORKSPACE_NAME: "${CI_PROJECT_NAME}${CI_PIPELINE_ID}"
+  WORKSPACE_DIR:  "/home/gitlab-runner/workspaces/${CI_PROJECT_NAME}${CI_PIPELINE_ID}"
 
 stages:
   - gerrit-sync
   - build
+  - test
 
 before_script:
   - date -u -Isec
@@ -15,6 +23,9 @@ before_script:
 after_script:
   - date -u -Isec
 
+
+# Gerrit Sync ------------------------------------------------------------- {{{1
+#
 
 sync-from-gerrit:on-schedule:
   stage: gerrit-sync
@@ -27,20 +38,34 @@ sync-from-gerrit:on-schedule:
     GIT_STRATEGY: fetch
 
   script:
+    # config ssh
+    - |
+      [[ -d ~/.ssh ]] ||
+        mkdir -vp ~/.ssh && chmod 700 ~/.ssh || true
+    - ssh-keyscan -t rsa -p 6022 gitlab.mero.colo.seagate.com >> ~/.ssh/known_hosts
+    - rm -f ~/.ssh/id_rsa.pub
+    - echo "$CI_REPO_RW_SSH_KEY" > ~/.ssh/id_rsa
+    - chmod 600 ~/.ssh/id_rsa
+
+    # config git remotes
     - git remote add gitlab 'ssh://git@gitlab.mero.colo.seagate.com:6022/mero/mero.git' || true
     - git remote add gerrit 'http://gerrit.mero.colo.seagate.com:8080/mero' || true
     - git remote -v
+
+    # fetch and push updates
     - git fetch --no-tags gerrit master:refs/remotes/gerrit/master
-    - ssh-keyscan -t rsa -p 6022 gitlab.mero.colo.seagate.com >> ~/.ssh/known_hosts
     - git push gitlab gerrit/master:master
 
+
+# Build ------------------------------------------------------------------- {{{1
+#
 
 build:
   stage: build
   tags: [ docker-build ]
   only: [ master ]
   except: [ schedules ]
-  image: registry.gitlab.mero.colo.seagate.com/mero/mero:7.5
+  image: registry.gitlab.mero.colo.seagate.com/mero/mero:$CENTOS_RELEASE
   script: |
     KERNEL=/lib/modules/$(yum list installed kernel | tail -n1 | awk '{ print $2 }').x86_64/build
     time {
@@ -60,6 +85,9 @@ build:no-asserts:
     CONFIGURE_OPTS: --disable-m0-asserts
 
 
+# RPM Build --------------------------------------------------------------- {{{1
+#
+
 rpmbuild:
   extends: build
   script: |
@@ -74,3 +102,153 @@ rpmbuild:no-tests:
   extends: rpmbuild
   variables:
     MAKE_TARGET: rpms-notests
+
+
+# check build on latest CentOS release
+rpmbuild:no-tests:latest:
+  extends: rpmbuild:no-tests
+  allow_failure: true
+  variables:
+    CENTOS_RELEASE: latest
+
+
+# Docker images ----------------------------------------------------------- {{{1
+#
+
+docker:rebuild-images:
+  stage: build
+  tags: [ docker-image-build ]
+  when: manual
+  only:
+    changes:
+      - scripts/docker/**/*
+  except: [ schedules ]
+
+  variables:
+    DOCKER_IMAGE_TAG: latest
+
+  script:
+    - sed -e 's/@.*@/111/g' mero.spec.in > mero.spec
+    - cd scripts/docker/
+    - make $DOCKER_IMAGE_TAG
+    - make push tag="${DOCKER_IMAGE_TAG}*"
+
+
+docker:rebuild-images:75:
+  extends: docker:rebuild-images
+  variables:
+    DOCKER_IMAGE_TAG: '7.5'
+
+
+docker:rebuild-images:73:
+  extends: docker:rebuild-images
+  variables:
+    DOCKER_IMAGE_TAG: '7.3'
+
+  after_script:
+    - date -u -Isec
+    - cd scripts/docker/
+    - make push tag=sage-vm
+
+
+docker:rebuild-images:sage:
+  extends: docker:rebuild-images
+  variables:
+    DOCKER_IMAGE_TAG: sage
+
+  before_script:
+    - date -u -Isec
+    - git --no-pager log -1 --pretty=fuller
+    - printenv
+    - cp /mnt/ci-storage/releases/sage/cluster/lustre/lustre-whamcloud-2.11.53-mellanox/*.rpm
+         scripts/docker/lustre-client-sage/
+
+
+docker:rebuild-images:eos:
+  extends: docker:rebuild-images
+  variables:
+    DOCKER_IMAGE_TAG: eos
+
+
+# Vagrant boxes ----------------------------------------------------------- {{{1
+#
+
+vagrant:rebuild-box:
+  stage: build
+  tags: [ m0vg ]
+  when: manual
+  only:
+    changes:
+      - scripts/provisioning/Vagrantfile
+      - scripts/provisioning/roles/**/*
+  except: [ schedules ]
+
+  variables:
+    M0VG: ./scripts/m0vg
+
+  script:
+    - export JOB_NAME="${WORKSPACE_NAME}-box"
+    - |
+      $M0VG env add <<EOF
+      M0_VM_BOX_BUILDER_MODE=yes
+      M0_VM_BOX_VERSION=1809.01
+      M0_VM_NAME_PREFIX=${JOB_NAME}
+      M0_VM_HOSTNAME_PREFIX=${JOB_NAME}
+      EOF
+
+    # provision VM from scratch
+    - time $M0VG up devbox
+    - $M0VG reload devbox
+    - $M0VG halt devbox
+
+    # package a box
+    - export BOX_VERSION=$(date +%y%m%d)
+    - export BOX=centos75-dev-$BOX_VERSION-libvirt.box
+    - sudo $M0VG package --output $BOX devbox
+
+    # move to the box storage
+    - export BOX_DIR=/mnt/ci-storage/vagrant/boxes/centos75/dev/$BOX_VERSION/libvirt/
+    - mkdir -p $BOX_DIR
+    - mv -v scripts/provisioning/$BOX $BOX_DIR
+
+  after_script:
+    - date -u -Isec
+    - $M0VG destroy -f || true
+
+
+vagrant:m0vg:
+  stage: test
+  tags: [ m0vg ]
+  only:
+    changes:
+      - scripts/provisioning/Vagrantfile
+      - scripts/provisioning/roles/**/*
+  except: [ schedules ]
+
+  variables:
+    M0VG: ./scripts/m0vg
+
+  script:
+    - export JOB_NAME="${WORKSPACE_NAME}-m0vg"
+
+    - sudo rm -rf ${WORKSPACE_DIR}
+    - mkdir -p ${WORKSPACE_DIR}
+    - cp -a ../${CI_PROJECT_NAME} ${WORKSPACE_DIR}
+    - cd ${WORKSPACE_DIR}/${CI_PROJECT_NAME}
+
+    - |
+      $M0VG env add <<EOF
+      M0_VM_CMU_MEM_MB=4096
+      M0_VM_NAME_PREFIX=${JOB_NAME}
+      M0_VM_HOSTNAME_PREFIX=${JOB_NAME}
+      EOF
+
+    # provision VM from scratch
+    - time $M0VG up
+    - $M0VG destroy -f || true
+
+  after_script:
+    - date -u -Isec
+    - $M0VG destroy -f || true
+
+# vim: foldmethod=marker shiftwidth=2 tabstop=2 expandtab

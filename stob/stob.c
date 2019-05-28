@@ -340,17 +340,6 @@ M0_INTERNAL struct m0_stob_domain *m0_stob_dom_get(struct m0_stob *stob)
 	return stob->so_domain;
 }
 
-M0_INTERNAL int m0_stob_mod_init(void)
-{
-	m0_xc_stob_stob_init();
-	return 0;
-}
-
-M0_INTERNAL void m0_stob_mod_fini(void)
-{
-	m0_xc_stob_stob_fini();
-}
-
 M0_INTERNAL void m0_stob_id_make(uint64_t container,
 				 uint64_t key,
 				 const struct m0_fid *dom_id,
@@ -366,6 +355,24 @@ M0_INTERNAL bool m0_stob_id_eq(const struct m0_stob_id *stob_id0,
 	return m0_fid_eq(&stob_id0->si_domain_fid, &stob_id1->si_domain_fid) &&
 	       m0_fid_eq(&stob_id0->si_fid,        &stob_id1->si_fid);
 
+}
+
+M0_INTERNAL int m0_stob_fd(struct m0_stob *stob)
+{
+	M0_PRE(stob->so_ops != NULL && stob->so_ops->sop_fd != NULL);
+
+	return stob->so_ops->sop_fd(stob);
+}
+
+M0_INTERNAL int m0_stob_mod_init(void)
+{
+	m0_xc_stob_stob_init();
+	return 0;
+}
+
+M0_INTERNAL void m0_stob_mod_fini(void)
+{
+	m0_xc_stob_stob_fini();
 }
 
 /** @} end group stob */

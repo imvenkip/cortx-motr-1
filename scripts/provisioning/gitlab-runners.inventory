@@ -1,14 +1,16 @@
 [gitlab-runners]
-qb01n3-m02.mero.colo.seagate.com
-qb02n3-m02.mero.colo.seagate.com
-qb06n4-m02.mero.colo.seagate.com
+qb07n1-m06.mero.colo.seagate.com
+qb07n2-m06.mero.colo.seagate.com
+qb07n3-m06.mero.colo.seagate.com
+qb07n4-m06.mero.colo.seagate.com
 
 [gitlab-docker-runners]
-qb01n3-m02.mero.colo.seagate.com
+qb07n1-m06.mero.colo.seagate.com
+qb07n2-m06.mero.colo.seagate.com
 
 [gitlab-shell-runners]
-qb02n3-m02.mero.colo.seagate.com
-qb06n4-m02.mero.colo.seagate.com
+qb07n3-m06.mero.colo.seagate.com
+qb07n4-m06.mero.colo.seagate.com
 
 [gitlab-runners:vars]
 ansible_user=root

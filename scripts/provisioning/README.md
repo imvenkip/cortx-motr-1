@@ -60,7 +60,7 @@ Quick Start (MacOS)
       # a comma-separated list of additional packages to be installed
       # on each VM (they must be available in default `yum` repositories
       # or EPEL)
-      #M0_VM_EXTRA_PKGS=python34,python34-pip
+      #M0_VM_EXTRA_PKGS=python36,python36-pip
 
       # a script executed on CMU node after provisioning is finished,
       # a `sudo` can be used in the script to gain root privileges
