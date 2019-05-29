@@ -226,9 +226,11 @@ M0_INTERNAL struct be_alloc_chunk *m0_be_fl_pick(struct m0_be_fl *fl,
 				break;
 		} m0_be_list_endfor;
 	}
-	M0_BE_REG_GET_PTR(&chunk->bac_size, NULL, tx);
-	M0_POST(ergo(chunk != NULL, chunk->bac_size >= size));
-	M0_BE_REG_PUT_PTR(&chunk->bac_size, NULL, tx);
+	if (chunk != NULL) {
+		M0_BE_REG_GET_PTR(&chunk->bac_size, NULL, tx);
+		M0_POST(chunk->bac_size >= size);
+		M0_BE_REG_PUT_PTR(&chunk->bac_size, NULL, tx);
+	}
 	return chunk;
 }
 

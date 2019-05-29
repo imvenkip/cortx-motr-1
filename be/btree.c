@@ -411,8 +411,7 @@ static inline bool btree_node_invariant(struct m0_be_btree *btree,
 					struct m0_be_bnode *node,
 					bool root)
 {
-	bool ret;
-	bool r1,r2,r3,r4,r5;
+	bool r1, r2, r3, r4, r5;
 
 	M0_BE_REG_GET_PTR(node, seg, NULL);
 
@@ -433,26 +432,8 @@ static inline bool btree_node_invariant(struct m0_be_btree *btree,
 			     node->b_key_vals[node->b_nr_active - 1].key,
 			     node->b_key_vals[                    0].key)));
 
-	ret = r1 && r2 && r3 && r4 && r5;
-
-	{
-		bool xxx;
-	if (!ret) {
-		xxx =
-		key_gt(btree, seg,
-		       node->b_key_vals[node->b_nr_active - 1].key,
-		       node->b_key_vals[                    0].key);
-		M0_LOG(M0_DEBUG, "=====%d", !!xxx);
-
-		m0_be_reg_get(&M0_BE_REG(seg, 32,
-			 node->b_key_vals[node->b_nr_active - 1].key), NULL);
-		m0_be_reg_get(&M0_BE_REG(seg, 32,
-			 node->b_key_vals[                    0].key), NULL);
-	}
-	M0_POST(ret);
-	}
 	M0_BE_REG_PUT_PTR(node, seg, NULL);
-	return ret;
+	return r1 && r2 && r3 && r4 && r5;
 }
 
 /* ------------------------------------------------------------------
@@ -1022,6 +1003,8 @@ static int find_gt_key(struct m0_be_btree *btree,
 {
 	int mid;
 
+	M0_BE_REG_GET_IN_SEG_PTR(key, seg, NULL);
+
 	while (begin != end) {
 		mid = (begin + end) / 2;
 
@@ -1034,6 +1017,8 @@ static int find_gt_key(struct m0_be_btree *btree,
 
 		M0_BE_REG_PUT_PTR(node->b_key_vals[mid].key, seg, NULL);
 	}
+
+	M0_BE_REG_PUT_IN_SEG_PTR(key, seg, NULL);
 
 	return end;
 }
@@ -1090,9 +1075,13 @@ del_loop:
 		/*  Found? */
 		if (i < node->b_nr_active) {
 			int k_eq_k;
+
+			/* XXX: needs review */
+			M0_BE_REG_GET_IN_SEG_PTR(key, seg, tx);
 			M0_BE_REG_GET_PTR(node->b_key_vals[i].key, seg, tx);
 			k_eq_k = m_key_eq(btree, key, node->b_key_vals[i].key);
 			M0_BE_REG_PUT_PTR(node->b_key_vals[i].key, seg, tx);
+			M0_BE_REG_PUT_IN_SEG_PTR(key, seg, tx);
 
 			if (k_eq_k) {
 				M0_BE_REG_PUT_PTR(node, seg, tx);
@@ -1336,9 +1325,13 @@ get_btree_node(struct m0_be_btree_cursor *it, void *key, bool slant,
 		/*  If we find such key return the key-value pair */
 		if (i < node->b_nr_active) {
 			int k_eq_k;
+
+			/* XXX: needs review */
+			M0_BE_REG_GET_IN_SEG_PTR(key, seg, NULL);
 			M0_BE_REG_GET_PTR(node->b_key_vals[i].key, seg, NULL);
 			k_eq_k = m_key_eq(btree, key, node->b_key_vals[i].key);
 			M0_BE_REG_PUT_PTR(node->b_key_vals[i].key, seg, NULL);
+			M0_BE_REG_PUT_IN_SEG_PTR(key, seg, NULL);
 
 			if (k_eq_k) {
 				kp.p_node = node;

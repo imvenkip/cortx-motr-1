@@ -44,6 +44,17 @@ M0_INTERNAL void m0_be_reg_put(const struct m0_be_reg *reg,
 #define M0_BE_REG_PUT_PTR(ptr, seg, tx) \
 	m0_be_reg_put(&M0_BE_REG_PTR((seg), (ptr)), (tx))
 
+/* XXX: names! */
+#define M0_BE_REG_GET_IN_SEG_PTR(ptr, seg, tx)				\
+	if (m0_be_seg_contains(seg, key)) {				\
+		m0_be_reg_get(&M0_BE_REG_PTR((seg), (ptr)), (tx));	\
+	}
+
+#define M0_BE_REG_PUT_IN_SEG_PTR(ptr, seg, tx)				\
+	if (m0_be_seg_contains(seg, key)) {				\
+		m0_be_reg_put(&M0_BE_REG_PTR((seg), (ptr)), (tx));	\
+	}
+
 #define M0_BE_REG_GET_BUF(buf, seg, tx) \
 	m0_be_reg_get(&M0_BE_REG_BUF((seg), (buf)), (tx))
 #define M0_BE_REG_PUT_BUF(buf, seg, tx) \

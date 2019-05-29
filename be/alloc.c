@@ -1221,7 +1221,7 @@ M0_INTERNAL void m0_be_alloc_aligned(struct m0_be_allocator *a,
 	}
 	*ptr = c == NULL ? NULL : &c->bac_mem;
 	/* XXX also gets the stats */
-	M0_BE_REG_GET_PTR(a->ba_h[z], a->ba_seg, tx);
+	M0_BE_REG_GET_PTR(a->ba_h[ztype], a->ba_seg, tx);
 	be_allocator_stats_update(&a->ba_h[ztype]->bah_stats,
 				  c == NULL ? size : c->bac_size, true, c == 0,
 				  tx, a);
@@ -1233,7 +1233,7 @@ M0_INTERNAL void m0_be_alloc_aligned(struct m0_be_allocator *a,
 	       c == NULL ? 0 : c->bac_size, *ptr);
 	if (*ptr == NULL)
 		be_allocator_stats_print(&a->ba_h[ztype]->bah_stats, NULL, a);
-	M0_BE_REG_PUT_PTR(a->ba_h[z], a->ba_seg, tx);
+	M0_BE_REG_PUT_PTR(a->ba_h[ztype], a->ba_seg, tx);
 
 	if (c != NULL) {
 		M0_POST(!c->bac_free);
