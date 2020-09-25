@@ -383,6 +383,7 @@ M0_INTERNAL void m0_cas_id_fini(struct m0_cas_id *cid);
 M0_INTERNAL bool m0_cas_id_invariant(const struct m0_cas_id *cid);
 
 M0_INTERNAL bool cas_in_ut(void);
+M0_INTERNAL void m0_fom_in_deadlock(const struct m0_fom *fom0);
 
 /** @} end of cas_dfspec */
 #endif /* __MOTR_CAS_CAS_H__ */
