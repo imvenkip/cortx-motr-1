@@ -103,7 +103,12 @@ enum m0_op_idx_flags {
 	 * For M0_IC_PUT/M0_IC_DEL operation, instructs it to
 	 * delay the reply until data is persisted.
 	 */
-        M0_OIF_SYNC_WAIT = 1 << 2
+        M0_OIF_SYNC_WAIT = 1 << 2,
+	/**
+	 * If global flag is set default layout is used and pool version and
+	 * layout is not passed to the S3/motr client.
+	 */
+	M0_OIF_IDX_GLOBAL = 1 << 3
 };
 
 /**
