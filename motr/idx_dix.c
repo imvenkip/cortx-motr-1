@@ -552,6 +552,8 @@ static void dix_build(const struct m0_op_idx *oi,
 
 	M0_SET0(out);
 	out->dd_fid = *OI_IFID(oi);
+	M0_LOG(M0_DEBUG, "MOTR22704 -> Layout type: %u, Opcode: %u, DIX pool version:"FID_F"",
+	       idx->in_attr.idx_layout_type, opcode, FID_P(&idx->in_attr.idx_pver));
 	/* Pool version and layout type which are passed by consumers like S3 */
 	if (M0_IN(opcode, (M0_IC_GET, M0_IC_PUT, M0_IC_DEL, M0_IC_NEXT))) {
 		if ((idx->in_attr.idx_layout_type == DIX_LTYPE_DESCR) 
