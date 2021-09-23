@@ -2180,6 +2180,7 @@ static int _args_parse(struct m0_motr *cctx, int argc, char **argv)
 				{
 					rctx->rc_be_seg_path = s;
 					rctx->rc_be_seg0_path = s;
+					rctx->rc_be_log_path = s;
 				})),
 			M0_NUMBERARG('z', "BE primary segment size",
 				LAMBDA(void, (int64_t size)

@@ -230,14 +230,16 @@ M0_INTERNAL int m0_be_seg_create(struct m0_be_seg *seg,
 	if (seg->bs_id == 42) {
 		geom[0].sg_size = size;
 		geom[0].sg_addr = addr;
-		geom[0].sg_offset = 1048576;
+		/* 128MB for LOG and 1MB for SEG0 */
+		geom[0].sg_offset = 1048576 + 134217728;
 		geom[0].sg_id = seg->bs_id;
 		geom[0].sg_gen = seg->bs_gen = m0_time_now();
 		geom[1] = M0_BE_SEG_GEOM0;
 	} else {
 		geom[0].sg_size = size;
 		geom[0].sg_addr = addr;
-		geom[0].sg_offset = 0ULL;
+		/* 128 MB for LOG */
+		geom[0].sg_offset = 134217728;
 		geom[0].sg_id = seg->bs_id;
 		geom[0].sg_gen = seg->bs_gen = m0_time_now();
 		geom[1] = M0_BE_SEG_GEOM0;
@@ -345,10 +347,10 @@ M0_INTERNAL int m0_be_seg_open(struct m0_be_seg *seg)
 
 	if (seg->bs_id == 41) {
 		rc = m0_be_io_single(seg->bs_stob, SIO_READ,
-			     	hdr, M0_BE_SEG_HEADER_OFFSET, be_seg_hdr_size());
+			     	hdr, M0_BE_SEG_HEADER_OFFSET + 134217728, be_seg_hdr_size());
 	} else {
 		rc = m0_be_io_single(seg->bs_stob, SIO_READ,
-			     	hdr, M0_BE_SEG_HEADER_OFFSET + 1048576, be_seg_hdr_size());
+			     	hdr, M0_BE_SEG_HEADER_OFFSET + 1048576 + 134217728, be_seg_hdr_size());
 	}
 	if (rc != 0) {
 		m0_free(hdr);
