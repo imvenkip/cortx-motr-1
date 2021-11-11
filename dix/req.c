@@ -1766,12 +1766,22 @@ static int dix_cas_rops_send(struct m0_dix_req *req)
 	struct m0_reqh_service_ctx *cas_svc;
 	struct m0_dix_layout       *layout = &req->dr_indices[0].dd_layout;
 	int                         rc;
+	int i;
 	M0_ENTRY("req=%p", req);
+
+	M0_LOG(M0_ALWAYS, "Pool nr devices: %u", pc->pc_nr_devices);
+
+	for (i = 0; i < pc->pc_nr_devices; i++) {
+		M0_LOG(M0_ALWAYS, "VENKY: Device:%d, FID of service"FID_F "FID of process"FID_F "service Type: %d", i, 
+			FID_P(&pc->pc_dev2svc[i].pds_ctx->sc_fid), FID_P(&pc->pc_dev2svc[i].pds_ctx->sc_fid_process)
+			, pc->pc_dev2svc[i].pds_ctx->sc_type);
+	}
 
 	M0_PRE(rop->dg_cas_reqs_nr == 0);
 	m0_tl_for(cas_rop, &rop->dg_cas_reqs, cas_rop) {
 		sdev_idx = cas_rop->crp_sdev_idx;
 		creq = &cas_rop->crp_creq;
+		M0_LOG(M0_ALWAYS, "VENKY: sdev index: %u", sdev_idx);
 		cas_svc = pc->pc_dev2svc[sdev_idx].pds_ctx;
 		M0_ASSERT(cas_svc->sc_type == M0_CST_CAS);
 		m0_cas_req_init(creq, &cas_svc->sc_rlink.rlk_sess,
@@ -2144,9 +2154,11 @@ static void dix_rop_units_set(struct m0_dix_req *req)
 	 * Determine destination devices for all records for all units as it
 	 * should be without failures in a pool.
 	 */
+	M0_LOG(M0_DEBUG, "23427: no of records for one DIX request: %u", rop->dg_rec_ops_nr);
 	for (i = 0; i < rop->dg_rec_ops_nr; i++) {
 		rec_op = &rop->dg_rec_ops[i];
 		dix_rop_tgt_iter_begin(req, rec_op);
+		M0_LOG(M0_DEBUG, "23427: no of DGP(Protection Group units: %"PRIu64, rec_op->dgp_units_nr);
 		for (j = 0; j < rec_op->dgp_units_nr; j++) {
 			unit = &rec_op->dgp_units[j];
 			dix_rop_tgt_iter_next(req, rec_op, &tgt,
@@ -2309,14 +2321,17 @@ static int dix_cas_rops_fill(struct m0_dix_req *req)
 	struct m0_dix_pg_unit  *unit;
 
 	M0_ENTRY("req %p", req);
+	M0_LOG(M0_DEBUG, "23427: DG rec ops nr: %u", rop->dg_rec_ops_nr);
 	for (i = 0; i < rop->dg_rec_ops_nr; i++) {
 		rec_op = &rop->dg_rec_ops[i];
 		item = rec_op->dgp_item;
+		M0_LOG(M0_DEBUG, "23427: DGP units nr: %"PRIu64, rec_op->dgp_units_nr);
 		for (j = 0; j < rec_op->dgp_units_nr; j++) {
 			unit = &rec_op->dgp_units[j];
 			tgt = unit->dpu_tgt;
 			if (dix_pg_unit_skip(req, unit))
 				continue;
+			M0_LOG(M0_DEBUG,"23427: Target storage device: %"PRIu64, tgt);
 			M0_ASSERT(map[tgt] != NULL);
 			keys = &map[tgt]->crp_keys;
 			vals = &map[tgt]->crp_vals;

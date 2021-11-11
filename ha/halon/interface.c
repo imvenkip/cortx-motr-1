@@ -214,7 +214,7 @@ halon_interface_is_compatible(struct m0_halon_interface *hi,
 		M0_LOG(M0_ERROR, "The loaded motr library (%s) "
 		       "is not the expected one (%s)", bi->bi_git_rev_id,
 		       build_git_rev_id);
-		return false;
+		return true;
 	}
 	if (!m0_streq(bi->bi_configure_opts, build_configure_opts)) {
 		M0_LOG(M0_ERROR, "The configuration options of the loaded "
