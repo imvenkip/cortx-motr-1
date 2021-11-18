@@ -804,9 +804,12 @@ static void dix_idxop_meta_update_ast_cb(struct m0_sm_group *grp,
 		 * catalogues shouldn't be created => no CAS create requests
 		 * should be sent.
 		 */
+		M0_LOG(M0_ALWAYS, "26166: dr_type: %d, crow: %d, cont: %d", req->dr_type, crow, cont);
 		cont = cont && !(req->dr_type == DIX_CREATE && crow);
-		if (cont)
+		if (cont) {
+			M0_LOG(M0_ALWAYS, "26166: Enter to trigger second FOP");
 			rc = dix_idxop_reqs_send(req);
+		}
 	}
 
 	m0_dix_meta_req_fini(meta_req);
@@ -1004,6 +1007,11 @@ M0_INTERNAL int m0_dix_create(struct m0_dix_req   *req,
 	       indices[i].dd_layout.dl_type != DIX_LTYPE_UNKNOWN));
 	M0_PRE(ergo(req->dr_is_meta, dix_id_layouts_nr(req) == 0));
 	M0_PRE(M0_IN(flags, (0, COF_CROW)));
+
+	if (!(flags & COF_CROW)) {
+		M0_LOG(M0_ALWAYS, "26166: COF_CROW Flag is disabled");
+	}
+
 	req->dr_dtx = dtx;
 	/*
 	 * Save indices identifiers in two arrays. Indices identifiers in
