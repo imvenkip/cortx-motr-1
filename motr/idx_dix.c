@@ -567,7 +567,7 @@ static void dix_build(const struct m0_op_idx *oi,
 					  HASH_FNC_CITY,
 					  &idx->in_attr.idx_pver);
 		}
-	} else if (M0_IN(opcode, (M0_EO_CREATE))) {
+	} else if (M0_IN(opcode, (M0_EO_CREATE, M0_EO_DELETE))) {
 		/*
 		 * Use default layout for all indices:
 		 * - city hash function;

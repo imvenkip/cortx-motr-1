@@ -974,6 +974,12 @@ static void dix_idxop(struct m0_dix_req *req)
 	/*
 	 * Put/delete ordinary indices layouts in 'layout' meta-index.
 	 */
+
+	if (req->dr_type == DIX_CREATE || req->dr_type == DIX_DELETE) {
+		M0_LOG(M0_ALWAYS, "26166: Enter in meta flag");
+		req->dr_is_meta = true;
+	}
+
 	if (!req->dr_is_meta &&
 	    M0_IN(req->dr_type, (DIX_CREATE, DIX_DELETE))) {
 		rc = dix_idxop_meta_update(req);
