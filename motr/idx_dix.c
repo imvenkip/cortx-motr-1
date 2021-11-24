@@ -567,7 +567,7 @@ static void dix_build(const struct m0_op_idx *oi,
 					  HASH_FNC_CITY,
 					  &idx->in_attr.idx_pver);
 		}
-	} else if (M0_IN(opcode, (M0_EO_CREATE, M0_EO_DELETE))) {
+	} else if (M0_IN(opcode, (M0_EO_CREATE, M0_EO_DELETE, M0_IC_LOOKUP))) {
 		/*
 		 * Use default layout for all indices:
 		 * - city hash function;
@@ -581,7 +581,7 @@ static void dix_build(const struct m0_op_idx *oi,
 		m0_dix_ldesc_init(&out->dd_layout.u.dl_desc,
 				  &(struct m0_ext) { .e_start = 0,
 				  .e_end = IMASK_INF }, 1, HASH_FNC_CITY,
-				  (oi->oi_flags & M0_ENF_META) ?
+				  (idx->in_entity.en_flags & M0_ENF_META) ?
 				  &idx->in_attr.idx_pver :
 				  &dix_inst(oi)->di_index_pver);
 	}
@@ -951,6 +951,7 @@ static bool dixreq_clink_cb(struct m0_clink *cl)
 		switch (op->op_code) {
 		case M0_EO_CREATE:
 		case M0_EO_DELETE:
+		case M0_IC_LOOKUP:
 			M0_ASSERT(m0_dix_req_nr(dreq) == 1);
 			rc = m0_dix_item_rc(dreq, 0);
 			break;
@@ -1042,12 +1043,14 @@ static void dix_index_lookup_ast(struct m0_sm_group *grp, struct m0_sm_ast *ast)
 {
 	struct dix_req          *dix_req = ast->sa_datum;
 	struct m0_op_idx        *oi = dix_req->idr_oi;
-	struct m0_dix_meta_req  *mreq = &dix_req->idr_mreq;
+	struct m0_dix_req       *dreq = &dix_req->idr_dreq;
+	struct m0_dix            dix = {};
 	int                      rc;
 
 	M0_ENTRY();
-	m0_clink_add_lock(&mreq->dmr_chan, &dix_req->idr_clink);
-	rc = m0_dix_layout_get(mreq, OI_IFID(oi), 1);
+	dix_build(oi, &dix);
+	m0_clink_add(&dreq->dr_sm.sm_chan, &dix_req->idr_clink);
+	rc = m0_dix_cctgs_lookup(dreq, &dix, 1);
 	if (rc != 0)
 		dix_req_immed_failure(dix_req, M0_ERR(rc));
 	M0_LEAVE();
@@ -1267,7 +1270,7 @@ static int dix_index_lookup(struct m0_op_idx *oi)
 	int             rc;
 
 	M0_ASSERT(dix_iname_args_are_valid(oi));
-	rc = dix_mreq_create(oi, &req);
+	rc = dix_req_create(oi, &req);
 	if (rc != 0)
 		return M0_ERR(rc);
 	dix_req_exec(req, idx_is_distributed(oi) ?
