@@ -1794,9 +1794,20 @@ static int dix_cas_rops_send(struct m0_dix_req *req)
 					req->dr_dtx, cas_rop->crp_flags);
 			break;
 		case DIX_NEXT:
+			{
+				struct m0_fid temp_dix_fid;	
+			if((req->dr_indices->dd_fid.f_container == m0_dix_layout_fid.f_container) &&
+			   (req->dr_indices->dd_fid.f_key == m0_dix_layout_fid.f_key))
+			{
+				memcpy((void *)&temp_dix_fid,cas_rop->crp_keys.ov_buf[0], sizeof(temp_dix_fid));
+				m0_dix_fid_convert_dix2cctg(&temp_dix_fid, cas_rop->crp_keys.ov_buf[0],
+					    sdev_idx);
+			}
 			rc = m0_cas_next(creq, &cctg_id, &cas_rop->crp_keys,
 					 req->dr_recs_nr,
 					 cas_rop->crp_flags | COF_SLANT);
+			M0_LOG(M0_ALWAYS,"vcp: client key = "FID_F,FID_P(&temp_dix_fid));
+			}
 			break;
 		default:
 			M0_IMPOSSIBLE("Unknown req type %u", req->dr_type);
@@ -2454,7 +2465,7 @@ M0_INTERNAL void m0_dix_next_rep(const struct m0_dix_req  *req,
 	const struct m0_dix_next_resultset  *rs = &req->dr_rs;
 	struct m0_dix_next_results          *res;
 	struct m0_cas_next_reply           **reps;
-
+	struct m0_fid temp_cat_fid;
 	M0_ASSERT(rs != NULL);
 	M0_ASSERT(key_idx < rs->nrs_res_nr);
 	res  = &rs->nrs_res[key_idx];
@@ -2463,6 +2474,13 @@ M0_INTERNAL void m0_dix_next_rep(const struct m0_dix_req  *req,
 	M0_ASSERT(reps[val_idx]->cnp_rc == 0);
 	rep->dnr_key = reps[val_idx]->cnp_key;
 	rep->dnr_val = reps[val_idx]->cnp_val;
+
+	if((req->dr_indices->dd_fid.f_container == m0_dix_layout_fid.f_container) &&
+	   (req->dr_indices->dd_fid.f_key == m0_dix_layout_fid.f_key))
+	{
+		memcpy((void *)&temp_cat_fid, rep->dnr_key.b_addr, sizeof(temp_cat_fid));
+		m0_dix_fid_convert_cctg2dix(&temp_cat_fid, rep->dnr_key.b_addr);
+	}
 }
 
 M0_INTERNAL uint32_t m0_dix_next_rep_nr(const struct m0_dix_req *req,
