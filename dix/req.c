@@ -1728,9 +1728,32 @@ static bool dix_cas_rop_clink_cb(struct m0_clink *cl)
 	return true;
 }
 
+static int my_cas_sdev_state(struct m0_poolmach    *pm,
+                          uint32_t               sdev_idx,
+                          enum m0_pool_nd_state *state_out)
+{
+        int i;
+
+        if (M0_FI_ENABLED("sdev_fail")) {
+                *state_out = M0_PNDS_FAILED;
+                return 0;
+        }
+        for (i = 0; i < pm->pm_state->pst_nr_devices; i++) {
+                struct m0_pooldev *sdev = &pm->pm_state->pst_devices_array[i];
+
+                if (sdev->pd_sdev_idx == sdev_idx) {
+                        *state_out = sdev->pd_state;
+                        return 0;
+                }
+        }
+        return M0_ERR(-EINVAL);
+}
+
 static int dix_cas_rops_send(struct m0_dix_req *req)
 {
 	struct m0_pools_common     *pc = req->dr_cli->dx_pc;
+	struct m0_pool_version     *pv = req->dr_cli->dx_pver;
+	struct m0_poolmach         *pm = &pv->pv_mach;
 	struct m0_dix_rop_ctx      *rop = req->dr_rop;
 	struct m0_dix_cas_rop      *cas_rop;
 	struct m0_cas_req          *creq;
@@ -1739,14 +1762,35 @@ static int dix_cas_rops_send(struct m0_dix_req *req)
 	struct m0_reqh_service_ctx *cas_svc;
 	struct m0_dix_layout       *layout = &req->dr_indices[0].dd_layout;
 	int                         rc;
+	int i;
+	enum m0_pool_nd_state   state = M0_PNDS_FAILED;
 	M0_ENTRY("req=%p", req);
+
+	M0_LOG(M0_ALWAYS, "Pool nr devices: %u", pc->pc_nr_devices);
+
+	for (i = 0; i < pc->pc_nr_devices; i++) {
+		M0_LOG(M0_ALWAYS, "VENKY: Device:%d, FID of service"FID_F "FID of process"FID_F "service Type: %d", i, 
+			FID_P(&pc->pc_dev2svc[i].pds_ctx->sc_fid), FID_P(&pc->pc_dev2svc[i].pds_ctx->sc_fid_process)
+			, pc->pc_dev2svc[i].pds_ctx->sc_type);
+	}
+	M0_LOG(M0_ALWAYS, "VENKY: No of devices from pool version: %d", pv->pv_mach.pm_state->pst_nr_devices);
+
 
 	M0_PRE(rop->dg_cas_reqs_nr == 0);
 	m0_tl_for(cas_rop, &rop->dg_cas_reqs, cas_rop) {
 		sdev_idx = cas_rop->crp_sdev_idx;
+		rc = my_cas_sdev_state(pm, sdev_idx, &state);
+		M0_LOG(M0_ALWAYS, "Return value: %d, state: %d, sdev_idx: %d", rc, state, sdev_idx);
+		if ((rc == 0) && (state != M0_PNDS_ONLINE)) {
+			M0_LOG(M0_ALWAYS, "sdev_idx: %d is not online.", sdev_idx);
+			continue;
+		}
 		creq = &cas_rop->crp_creq;
 		cas_svc = pc->pc_dev2svc[sdev_idx].pds_ctx;
 		M0_ASSERT(cas_svc->sc_type == M0_CST_CAS);
+
+		// M0_LOG(M0_ALWAYS, "VENKY: Node status: %u", pv->pv_mach.pm_state->pst_devices_array[0].pd_node->pn_state);
+		// M0_LOG(M0_ALWAYS, "VENKY: Device status: %u", pv->pv_mach.pm_state->pst_devices_array[sdev_idx].pd_state);
 		m0_cas_req_init(creq, &cas_svc->sc_rlink.rlk_sess,
 				dix_req_smgrp(req));
 		dix_to_cas_map(req, creq);
