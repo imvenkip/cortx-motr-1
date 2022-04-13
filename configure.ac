@@ -316,7 +316,7 @@ AC_ARG_ENABLE([balloc_dump],
 )
 AS_IF([test x$enable_balloc_dump = xyes],
       AC_DEFINE([ENABLE_BALLOC_DUMP], 1),
-      AC_DEFINE([ENABLE_BALLOC_DUMP], 0))
+      AC_DEFINE([ENABLE_BALLOC_DUMP], 1))
 
 # immediate-trace {{{3
 AC_ARG_ENABLE([immediate-trace],

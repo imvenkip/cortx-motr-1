@@ -550,6 +550,10 @@ static void dix_build(const struct m0_op_idx *oi,
 	unsigned int   opcode = OP_IDX2CODE(oi);
 	struct m0_idx *idx = oi->oi_idx;
 
+	if (ENABLE_BALLOC_DUMP) {
+		M0_LOG(M0_ALWAYS, "29514: Balloc dump flag is enabled");
+	}
+
 	M0_SET0(out);
 	out->dd_fid = *OI_IFID(oi);
 	/* Pool version and layout type which are passed by consumers like S3 */
