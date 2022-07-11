@@ -23,6 +23,15 @@
 
 #set -x
 
+# Suppose we have P number of catalogue services, usually the same number
+# of io services in a Motr cluster.
+# DIX layout: [1 + PARITY + 0]. PARITY is the extra replica number.
+# If PARITY is (P-1), then every KV pair in a DIX has (1+PARITY) replicas.
+# If (1+PARITY) equals to P, then every catalogue will have all KV pairs.
+# So, in this case, Parity Group width equals Pool width.
+# Please see dix_pver_build() in m0t1fs/linux_kernel/st/m0t1fs_common_inc.sh
+export MOTR_DIX_PG_N_EQ_P=YES
+
 SANDBOX_DIR=${SANDBOX_DIR:-/var/motr/sandbox.motr-dtm-st}
 
 emsg="---"
@@ -39,6 +48,12 @@ small_size=20
 . $M0_SRC_DIR/m0t1fs/linux_kernel/st/m0t1fs_server_inc.sh
 . $M0_SRC_DIR/motr/st/utils/motr_local_conf.sh
 
+IOSEP=(
+    12345:33:900   # IOS1 EP
+    12345:33:901   # IOS2 EP
+    12345:33:902   # IOS3 EP
+)
+
 out_file="${SANDBOX_DIR}/dtm_st.log"
 rc_file="${SANDBOX_DIR}/dtm_st.cod.log"
 erc_file="${SANDBOX_DIR}/dtm_st.ecod.log"
@@ -49,6 +64,7 @@ keys_bulk_file="${SANDBOX_DIR}/keys_bulk.txt"
 vals_file="${SANDBOX_DIR}/vals.txt"
 vals_bulk_file="${SANDBOX_DIR}/vals_bulk.txt"
 fids_file="${SANDBOX_DIR}/fids.txt"
+proc_m0d="$M0_SRC_DIR/motr/m0d"
 
 genf="genf ${num} ${fids_file}"
 genv_bulk="genv ${num} ${large_size} ${vals_bulk_file}"
@@ -250,11 +266,58 @@ dtm_run_kv_ios()
 	return $rc
 }
 
+# Check if any of $pid (could be plural) are running
+checkpid() {
+    local i
+
+    for i in $* ; do
+        [ -d "/proc/$i" ] && return 0
+    done
+    return 1
+}
+
+stop_single_service()
+{
+    local prog=$(basename "$1")
+    local processname=$(pgrep "$prog" -n -a)
+    echo "stopping $1 one processes $processname."
+    local pid=$(pgrep "$prog" -n)
+    echo === pids of services: $pid ===
+    local delay=5
+    local rc=0
+    local proc=""
+
+    echo -n "----- $pid stopping--------"
+    if checkpid "$pid" 2>&1; then
+       # TERM first, then KILL if not dead
+       kill -TERM "$pid" &>/dev/null
+       proc=$(ps -o ppid= "$pid")
+       if [[ $proc -eq $$ ]]; then
+          ## $pid is spawned by current shell
+          wait $pid || rc=$?
+       else
+          sleep 5
+          if checkpid "$pid" && sleep 5 &&
+             checkpid "$pid" && sleep $delay &&
+             checkpid "$pid" ; then
+              kill -KILL "$pid" &>/dev/null
+              sleep 1
+          fi
+       fi
+    fi
+    echo "----- $pid stopped --------"
+}
 
 main()
 {
 	motr_dtm_st_pre
 	dtm_run_kv_ios
+	stop_single_service "$proc_m0d"
+	local ios3_fid="^s|1:2"
+	local state="transient"
+	echo "VENKI: Before starting ha_events " 
+	send_ha_events_default "$ios3_fid" "$state"
+	echo "VENKI: After ha_events " 
 	motr_dtm_st_post
 }
 

@@ -236,6 +236,7 @@ static void ha_dtm_msg_simulator(const struct m0_ha_msg *msg,
 	if (m0_confc_is_ha_proc(hl)) {
 		const struct m0_ha_msg_data *data = &msg->hm_data;
 
+		M0_LOG(M0_ALWAYS, "VENKI: type: %d", (enum m0_ha_msg_type)data->hed_type);
 		if ((enum m0_ha_msg_type)data->hed_type ==
 		    M0_HA_MSG_EVENT_PROCESS) {
 

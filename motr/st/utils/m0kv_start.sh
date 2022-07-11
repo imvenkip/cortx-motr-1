@@ -32,7 +32,7 @@ $ sudo m0kv_start.sh [local|remote] [-v] ["(m0kv index commands)"]
 conf=$1
 shift 1
 verbose=0
-if [ $1 == "-v" ] ; then
+if [ "$1" == "-v" ] ; then
 	verbose=1
 	shift
 fi
