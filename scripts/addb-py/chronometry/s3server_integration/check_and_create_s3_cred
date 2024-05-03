@@ -27,8 +27,8 @@ SCRIPT_DIR="${SCRIPT_PATH%/*}"
 . ${SCRIPT_DIR}/../common/common_funcs
 
 S3_CRED_FILE="${SCRIPT_DIR}/s3_credentials_$(hostname -s)"
-LDAP_USER="sgiamadmin"
-LDAP_PASS="ldapadmin"
+LDAP_USER=""
+LDAP_PASS=""
 
 function check_and_create_s3_cred() {
     if [[ ! -f "$S3_CRED_FILE" ]]; then
@@ -40,7 +40,7 @@ function check_and_create_s3_cred() {
         local username="perf_${hostname}_${rnd_str}"
 
         $SCRIPT_DIR/s3_create_user --name $username \
-            --email ${username}@seagate.com --ldap-user $LDAP_USER \
+            --email ${username}@domain.com --ldap-user $LDAP_USER \
             --ldap-pass $LDAP_PASS > $S3_CRED_FILE
     fi
 }
